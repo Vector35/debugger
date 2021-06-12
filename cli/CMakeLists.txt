@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 
 project(debugger-cli)
 
+remove_definitions(-DUNICODE -D_UNICODE)
+
 file(GLOB_RECURSE ADAPTER-SOURCES
         ${CMAKE_SOURCE_DIR}/src/adapters/*.cpp
         ${CMAKE_SOURCE_DIR}/src/adapters/*.h )

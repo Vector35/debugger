@@ -15,9 +15,54 @@ struct ProcessCallbackInformation
     unsigned long m_last_session_status{DEBUG_SESSION_FAILURE};
 };
 
-class DbgEngEventCallbacks;
+class DbgEngEventCallbacks : public DebugBaseEventCallbacks
+{
+public:
+#define CALLBACK_METHOD(return_type) __declspec(nothrow) __stdcall return_type
+
+    CALLBACK_METHOD(unsigned long) AddRef() override;
+    CALLBACK_METHOD(unsigned long) Release() override;
+    CALLBACK_METHOD(HRESULT) GetInterestMask(unsigned long* mask) override;
+    CALLBACK_METHOD(HRESULT) Breakpoint(IDebugBreakpoint* breakpoint) override;
+    CALLBACK_METHOD(HRESULT) Exception(EXCEPTION_RECORD64* exception, unsigned long first_chance) override;
+    CALLBACK_METHOD(HRESULT) CreateThread(std::uint64_t handle, std::uint64_t data_offset, std::uint64_t start_offset) override;
+    CALLBACK_METHOD(HRESULT) ExitThread(unsigned long exit_code) override;
+    CALLBACK_METHOD(HRESULT) CreateProcess(
+            std::uint64_t image_file_handle,
+            std::uint64_t handle,
+            std::uint64_t base_offset,
+            unsigned long module_size,
+            const char* module_name,
+            const char* image_name,
+            unsigned long check_sum,
+            unsigned long time_date_stamp,
+            std::uint64_t initial_thread_handle,
+            std::uint64_t thread_data_offset,
+            std::uint64_t start_offset
+    ) override;
+    CALLBACK_METHOD(HRESULT) ExitProcess(unsigned long exit_code) override;
+    CALLBACK_METHOD(HRESULT) LoadModule(
+            std::uint64_t image_file_handle,
+            std::uint64_t base_offset,
+            unsigned long module_size,
+            const char* module_name,
+            const char* image_name,
+            unsigned long check_sum,
+            unsigned long time_date_stamp
+    ) override;
+    CALLBACK_METHOD(HRESULT) UnloadModule(const char* image_base_name, std::uint64_t base_offset) override;
+    CALLBACK_METHOD(HRESULT) SystemError(unsigned long error, unsigned long level) override;
+    CALLBACK_METHOD(HRESULT) SessionStatus(unsigned long session_status) override;
+    CALLBACK_METHOD(HRESULT) ChangeDebuggeeState(unsigned long flags, std::uint64_t argument) override;
+    CALLBACK_METHOD(HRESULT) ChangeEngineState(unsigned long flags, std::uint64_t argument) override;
+    CALLBACK_METHOD(HRESULT) ChangeSymbolState(unsigned long flags, std::uint64_t argument) override;
+
+#undef CALLBACK_METHOD
+};
+
 class DbgEngAdapter : public DebugAdapter
 {
+    DbgEngEventCallbacks m_debug_event_callbacks{};
     IDebugClient5* m_debug_client{nullptr};
     IDebugControl* m_debug_control{nullptr};
     IDebugDataSpaces* m_debug_data_spaces{nullptr};
@@ -71,49 +116,4 @@ public:
     bool StepInto() override;
     bool StepOver() override;
     bool StepTo(std::uintptr_t address) override;
-};
-
-class DbgEngEventCallbacks : public DebugBaseEventCallbacks
-{
-public:
-    #define CALLBACK_METHOD(return_type) __declspec(nothrow) __stdcall return_type
-
-    CALLBACK_METHOD(unsigned long) AddRef() override;
-    CALLBACK_METHOD(unsigned long) Release() override;
-    CALLBACK_METHOD(HRESULT) GetInterestMask(unsigned long* mask) override;
-    CALLBACK_METHOD(HRESULT) Breakpoint(IDebugBreakpoint* breakpoint) override;
-    CALLBACK_METHOD(HRESULT) Exception(EXCEPTION_RECORD64* exception, unsigned long first_chance) override;
-    CALLBACK_METHOD(HRESULT) CreateThread(std::uint64_t handle, std::uint64_t data_offset, std::uint64_t start_offset) override;
-    CALLBACK_METHOD(HRESULT) ExitThread(unsigned long exit_code) override;
-    CALLBACK_METHOD(HRESULT) CreateProcess(
-            std::uint64_t image_file_handle,
-            std::uint64_t handle,
-            std::uint64_t base_offset,
-            unsigned long module_size,
-            const char* module_name,
-            const char* image_name,
-            unsigned long check_sum,
-            unsigned long time_date_stamp,
-            std::uint64_t initial_thread_handle,
-            std::uint64_t thread_data_offset,
-            std::uint64_t start_offset
-    ) override;
-    CALLBACK_METHOD(HRESULT) ExitProcess(unsigned long exit_code) override;
-    CALLBACK_METHOD(HRESULT) LoadModule(
-            std::uint64_t image_file_handle,
-            std::uint64_t base_offset,
-            unsigned long module_size,
-            const char* module_name,
-            const char* image_name,
-            unsigned long check_sum,
-            unsigned long time_date_stamp
-    ) override;
-    CALLBACK_METHOD(HRESULT) UnloadModule(const char* image_base_name, std::uint64_t base_offset) override;
-    CALLBACK_METHOD(HRESULT) SystemError(unsigned long error, unsigned long level) override;
-    CALLBACK_METHOD(HRESULT) SessionStatus(unsigned long session_status) override;
-    CALLBACK_METHOD(HRESULT) ChangeDebuggeeState(unsigned long flags, std::uint64_t argument) override;
-    CALLBACK_METHOD(HRESULT) ChangeEngineState(unsigned long flags, std::uint64_t argument) override;
-    CALLBACK_METHOD(HRESULT) ChangeSymbolState(unsigned long flags, std::uint64_t argument) override;
-
-#undef CALLBACK_METHOD
 };

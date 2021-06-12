@@ -21,7 +21,7 @@ void DbgEngAdapter::Start()
     QUERY_DEBUG_INTERFACE(IDebugSymbols, &this->m_debug_symbols);
     QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debug_system_objects);
 
-    if (const auto result = this->m_debug_client->SetEventCallbacks(nullptr);
+    if (const auto result = this->m_debug_client->SetEventCallbacks(&this->m_debug_event_callbacks);
             result != S_OK)
         throw std::runtime_error("Failed to set event callbacks");
 
@@ -75,7 +75,7 @@ bool DbgEngAdapter::Execute(const std::string &path)
     return this->ExecuteWithArgs(path, {});
 }
 
-bool DbgEngAdapter::ExecuteWithArgs(const std::string &path, const std::vector<std::string> &args)
+bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args)
 {
     auto& ProcessInfo = DbgEngAdapter::ProcessCallbackInfo;
     ProcessInfo.m_process_created = false;
@@ -86,22 +86,28 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string &path, const std::vector<s
     if ( this->m_debug_active )
         this->Reset();
 
+    this->Start();
+
     if (const auto result = this->m_debug_control->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK);
             result != S_OK)
         throw std::runtime_error("Failed to set engine options");
 
-    /* TODO: parse the arguments better */
-    std::string process_args{};
-    for ( const auto& arg : args )
-        process_args += arg + " ";
-
-    if (const auto result = this->m_debug_client->CreateProcess(0, args.empty() ? nullptr : const_cast<char*>( process_args.c_str() ), DEBUG_ONLY_THIS_PROCESS);
-            result != S_OK)
-        throw std::runtime_error("Failed to set engine options");
-
-    for ( std::size_t Index{}; Index < 10; Index++ )
+    /* TODO: parse args better */
+    std::string path_with_args{ path };
+    if ( !args.empty())
     {
+        path_with_args.append( " " );
+
+        for ( const auto& arg : args )
+            path_with_args.append( arg + " " );
     }
+
+    if (const auto result = this->m_debug_client->CreateProcess(0, const_cast<char*>( path_with_args.c_str() ), DEBUG_ONLY_THIS_PROCESS);
+            result != S_OK)
+        throw std::runtime_error( "Failed to create process" );
+
+    /* hold execution for testing if debugger creates process */
+    std::this_thread::sleep_for(std::chrono::seconds(100));
 
     return false;
 }
