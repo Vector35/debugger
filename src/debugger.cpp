@@ -1,4 +1,4 @@
-#include "inttypes.h"
+#include <inttypes.h>
 #include "debugger.h"
 #include "debugview.h"
 #include "processview.h"
