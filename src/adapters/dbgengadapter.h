@@ -1,17 +1,19 @@
 #pragma once
 #include "debugadapter.h"
+#define NOMINMAX
 #include <windows.h>
 #include <dbgeng.h>
+#include <chrono>
 
 struct ProcessCallbackInformation
 {
-    bool m_process_created{false};
-    bool m_process_exited{false};
-    bool m_process_has_one_breakpoint{false};
+    bool m_created{false};
+    bool m_exited{false};
+    bool m_has_one_breakpoint{false};
     DebugBreakpoint m_last_breakpoint{};
     EXCEPTION_RECORD64 m_last_exception{};
     std::uint64_t m_image_base{};
-    unsigned long m_process_exit_code{};
+    unsigned long m_exit_code{};
     unsigned long m_last_session_status{DEBUG_SESSION_FAILURE};
 };
 
@@ -73,7 +75,9 @@ class DbgEngAdapter : public DebugAdapter
 
     void Start();
     void Reset();
-    bool Wait(std::int32_t timeout = INFINITE);
+    bool Wait(std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+
+    std::vector<DebugBreakpoint> m_debug_breakpoints{};
 
 public:
     inline static ProcessCallbackInformation ProcessCallbackInfo{};
@@ -83,11 +87,11 @@ public:
 
     [[nodiscard]] bool Execute(const std::string &path) override;
     [[nodiscard]] bool ExecuteWithArgs(const std::string &path, const std::vector<std::string> &args) override;
-    [[nodiscard]] bool Attach(std::uint32_t pid) const override;
-    [[nodiscard]] bool Connect(const std::string &server, std::uint32_t port) const override;
+    [[nodiscard]] bool Attach(std::uint32_t pid) override;
+    [[nodiscard]] bool Connect(const std::string &server, std::uint32_t port) override;
 
-    void Detach() const override;
-    void Quit() const override;
+    void Detach() override;
+    void Quit() override;
 
     std::vector<DebugThread> GetThreadList() const override;
     DebugThread GetActiveThread() const override;
@@ -95,17 +99,18 @@ public:
     bool SetActiveThread(const DebugThread &thread) override;
     bool SetActiveThreadId(std::uint32_t) override;
 
-    bool AddBreakpoint(const DebugBreakpoint &breakpoint) override;
-    bool AddBreakpoints(const std::vector<DebugBreakpoint> &breakpoints) override;
+    DebugBreakpoint AddBreakpoint(const std::uintptr_t address) override;
+    std::vector<DebugBreakpoint> AddBreakpoints(const std::vector<std::uintptr_t>& breakpoints) override;
     bool RemoveBreakpoint(const DebugBreakpoint &breakpoint) override;
     bool RemoveBreakpoints(const std::vector<DebugBreakpoint> &breakpoints) override;
     bool ClearAllBreakpoints() override;
     std::vector<DebugBreakpoint> GetBreakpointList() const override;
 
+    std::string GetRegisterNameByIndex(std::uint32_t index) const override;
     DebugRegister ReadRegister(const std::string &reg) const override;
     bool WriteRegister(const std::string &reg, std::uintptr_t value) override;
-    bool WriteRegister(const DebugRegister &reg) override;
-    std::vector<DebugRegister> GetRegisterList() const override;
+    bool WriteRegister(const DebugRegister& reg, std::uintptr_t value) override;
+    std::vector<std::string> GetRegisterList() const override;
 
     bool ReadMemory(std::uintptr_t address, void* out, std::size_t size) override;
     bool WriteMemory(std::uintptr_t address, void* out, std::size_t size) override;
