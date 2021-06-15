@@ -48,7 +48,7 @@ namespace Log
     }
 
     template <Mode LogMode = Mode::None, typename... Args>
-    void print(const std::string_view str, Args... args )
+    int print(const std::string_view str, Args... args )
     {
         if constexpr ( LogMode == Mode::Success )
             printf("%s", Style( 0, 255, 0 ).AsAnsi().c_str());
@@ -63,6 +63,6 @@ namespace Log
             printf("%s", Style( 255, 0, 0 ).AsAnsi().c_str());
 
         printf(str.data(), std::forward<Args>(args)...);
-        printf("\033[0m");
+        return printf("\033[0m");
     }
 }

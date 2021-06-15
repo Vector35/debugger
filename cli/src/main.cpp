@@ -53,14 +53,16 @@ int main(int argc, const char* argv[])
         if (!debug_adapter->Attach(std::stoi(argv[1])))
             return -1;
 
-        std::thread([&]{
+        std::thread( [&]{
             while ( true )
                 if ( GetAsyncKeyState(VK_F2) & 1 )
                     debug_adapter->BreakInto();
         }).detach();
 
         char input_buf[256];
-        while ( printf("BINJADBG> ") && std::cin.getline(input_buf, sizeof(input_buf)) )
+        const auto red_style = Log::Style(255, 90, 90).AsAnsi();
+        const auto white_style = Log::Style(255, 255, 255).AsAnsi();
+        while ( Log::print("%sBINJA%sDBG%s> ", red_style.c_str(), white_style.c_str(), red_style.c_str() ) && std::cin.getline(input_buf, sizeof(input_buf)) )
         {
             auto input = std::string(input_buf);
 
@@ -77,7 +79,7 @@ int main(int argc, const char* argv[])
 
             if ( input == "bpl" )
             {
-                Log::print("breakpoint list -> %i\n", debug_adapter->GetBreakpointList().size());
+                Log::print("%i breakpoint[s] set\n", debug_adapter->GetBreakpointList().size());
                 for (const auto& breakpoint : debug_adapter->GetBreakpointList())
                     Log::print("    breakpoint[%i] @ 0x%llx is %s%s\n", breakpoint.m_id, breakpoint.m_address,
                                breakpoint.m_is_active ? Log::Style(0, 255, 0).AsAnsi().c_str() : Log::Style(255, 0, 0).AsAnsi().c_str(),
@@ -97,10 +99,13 @@ int main(int argc, const char* argv[])
             {
                 const auto ip_name = debug_adapter->GetTargetArchitecture() == "x86" ? "eip" : "rip";
                 const auto ip = debug_adapter->ReadRegister(ip_name).m_value;
+                Log::print<Log::Warning>( "setting old ip[0x%llx] to [0x%llx]\n", ip, ip + 1 );
                 debug_adapter->WriteRegister(ip_name, ip + 1);
+                if (debug_adapter->ReadRegister(ip_name).m_value == ip + 1 )
+                    Log::print<Log::Success>( "set ip to [0x%llx]\n", ip + 1 );
                 debug_adapter->Go();
             }
-            
+
             if (input == "so")
                 debug_adapter->StepOver();
 

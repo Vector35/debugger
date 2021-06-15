@@ -438,7 +438,12 @@ bool DbgEngAdapter::Go()
 
 bool DbgEngAdapter::StepInto()
 {
-    return false;
+    if ( this->m_debug_control->SetExecutionStatus(DEBUG_STATUS_STEP_INTO) != S_OK )
+        return false;
+
+    this->Wait();
+
+    return true;
 }
 
 bool DbgEngAdapter::StepOver()
@@ -448,7 +453,7 @@ bool DbgEngAdapter::StepOver()
 
     this->Wait();
 
-    return false;
+    return true;
 }
 
 bool DbgEngAdapter::StepTo(std::uintptr_t address)
@@ -498,14 +503,14 @@ unsigned long DbgEngAdapter::StopReason()
         const auto instruction_ptr = this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
 
         if (instruction_ptr == DbgEngAdapter::ProcessCallbackInfo.m_last_breakpoint.m_address )
-            return 0x100;
+            return exec_status;
 
         const auto& last_exception = DbgEngAdapter::ProcessCallbackInfo.m_last_exception;
         if ( instruction_ptr == last_exception.ExceptionAddress )
             return last_exception.ExceptionCode;
     }
 
-    return 0x200;
+    return exec_status;
 }
 
 unsigned long DbgEngAdapter::ExecStatus()
