@@ -1,0 +1,44 @@
+#pragma once
+
+// #include <QtWidgets/QScrollArea>
+#include <QtWidgets/QPushButton>
+#include "viewframe.h"
+// #include "byte.h"
+
+
+class DebugView: public QWidget, public View
+{
+	BinaryViewRef m_data;
+	uint64_t m_currentOffset = 0;
+	// ByteView* m_byteView = nullptr;
+	// QPushButton* m_fullAnalysisButton = nullptr;
+    bool m_isRawDisassembly = false;
+
+public:
+	DebugView(QWidget* parent, BinaryViewRef data);
+
+	virtual BinaryViewRef getData() override;
+	virtual uint64_t getCurrentOffset() override;
+	virtual BNAddressRange getSelectionOffsets() override;
+	virtual void setSelectionOffsets(BNAddressRange range) override;
+	virtual QFont getFont() override;
+	virtual bool navigate(uint64_t addr) override;
+
+	void setCurrentOffset(uint64_t offset);
+	// void navigateToFileOffset(uint64_t offset);
+
+protected:
+	virtual void focusInEvent(QFocusEvent* event) override;
+
+private Q_SLOTS:
+	// void startFullAnalysis();
+};
+
+
+class DebugViewType: public ViewType
+{
+public:
+	DebugViewType();
+	virtual int getPriority(BinaryViewRef data, const QString& filename) override;
+	virtual QWidget* create(BinaryViewRef data, ViewFrame* frame) override;
+};

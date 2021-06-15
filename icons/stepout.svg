@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<svg width="295" height="295" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg">
+ <!-- Created with SVG-edit - https://github.com/SVG-Edit/svgedit-->
+
+ <g class="layer">
+  <title>Layer 1</title>
+  <path d="m147.699552,0.287913c-81.28773,0 -147.41165,66.13022 -147.41165,147.41162c0,81.28142 66.12392,147.4116 147.41165,147.4116c81.28767,0 147.41157,-66.13018 147.41157,-147.4116c0,-81.2814 -66.1239,-147.41162 -147.41157,-147.41162zm0,282.53917c-74.50969,0 -135.12753,-60.61783 -135.12753,-135.12755c0,-74.50966 60.61784,-135.12751 135.12753,-135.12751c74.5097,0 135.12759,60.61785 135.12759,135.12751c0,74.50972 -60.61789,135.12755 -135.12759,135.12755z" fill="black" id="svg_33" stroke-width="0.575827"/>
+  <circle cx="-1962.886219" cy="-1558.01595" fill="#000000" id="svg_30" r="14.345113" stroke-dashoffset="0" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="4" stroke-width="18.976213" transform="matrix(1 0 0 1 2110.59 1644.46)"/>
+  <g id="svg_35" transform="rotate(180 147.446 176.95)">
+   <rect fill="#000000" height="14.571745" id="svg_32" rx="7.285872" ry="7.285872" stroke-dashoffset="0" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="4" stroke-width="2.455856" transform="matrix(0.707107 0.707107 0.707107 -0.707107 2110.59 1644.46)" width="95.819725" x="-2475.841144" y="-396.644036"/>
+   <rect fill="#000000" height="14.571745" id="svg_31" rx="7.285842" ry="7.285842" stroke-dashoffset="0" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="4" stroke-width="2.455856" transform="matrix(0 1 1 0 2110.59 1644.46)" width="125.70561" x="-1532.559364" y="-1970.384648"/>
+   <rect fill="#000000" height="14.571745" id="svg_34" rx="7.285872" ry="7.285872" stroke-dashoffset="0" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="4" stroke-width="2.455856" transform="rotate(-90 176.37 202.774) matrix(0.707107 0.707107 0.707107 -0.707107 2110.59 1644.46)" width="95.819725" x="-2434.932182" y="-355.479221"/>
+  </g>
+ </g>
+</svg>
