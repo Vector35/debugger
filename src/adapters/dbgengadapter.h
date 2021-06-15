@@ -66,7 +66,7 @@ class DbgEngAdapter : public DebugAdapter
 {
     DbgEngEventCallbacks m_debug_event_callbacks{};
     IDebugClient5* m_debug_client{nullptr};
-    IDebugControl* m_debug_control{nullptr};
+    IDebugControl4* m_debug_control{nullptr};
     IDebugDataSpaces* m_debug_data_spaces{nullptr};
     IDebugRegisters* m_debug_registers{nullptr};
     IDebugSymbols* m_debug_symbols{nullptr};
@@ -115,6 +115,8 @@ public:
     bool ReadMemory(std::uintptr_t address, void* out, std::size_t size) override;
     bool WriteMemory(std::uintptr_t address, void* out, std::size_t size) override;
     std::vector<DebugModule> GetModuleList() const override;
+
+    std::string GetTargetArchitecture() override;
 
     bool BreakInto() override;
     bool Go() override;

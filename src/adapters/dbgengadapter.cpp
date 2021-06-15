@@ -17,7 +17,7 @@ void DbgEngAdapter::Start()
             result != S_OK)
         throw std::runtime_error("Failed to create IDebugClient5");
 
-    QUERY_DEBUG_INTERFACE(IDebugControl, &this->m_debug_control);
+    QUERY_DEBUG_INTERFACE(IDebugControl4, &this->m_debug_control);
     QUERY_DEBUG_INTERFACE(IDebugDataSpaces, &this->m_debug_data_spaces);
     QUERY_DEBUG_INTERFACE(IDebugRegisters, &this->m_debug_registers);
     QUERY_DEBUG_INTERFACE(IDebugSymbols, &this->m_debug_symbols);
@@ -205,7 +205,7 @@ bool DbgEngAdapter::SetActiveThreadId(std::uint32_t)
 
 DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address)
 {
-    IDebugBreakpoint* debug_breakpoint{};
+    IDebugBreakpoint2* debug_breakpoint{};
 
     /* attempt to read/write at breakpoint location to confirm its valid */
     /* DbgEng won't tell us if its valid until continue/go so this is a hacky fix */
@@ -216,7 +216,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address)
     if (!this->WriteMemoryTy(address, val.value()))
         return {};
 
-    if (const auto result = this->m_debug_control->AddBreakpoint(DEBUG_BREAKPOINT_CODE, DEBUG_ANY_ID,
+    if (const auto result = this->m_debug_control->AddBreakpoint2(DEBUG_BREAKPOINT_CODE, DEBUG_ANY_ID,
                                                                  &debug_breakpoint);
             result != S_OK)
         return {};
@@ -251,7 +251,7 @@ std::vector<DebugBreakpoint> DbgEngAdapter::AddBreakpoints(const std::vector<std
 
 bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint &breakpoint)
 {
-    IDebugBreakpoint* debug_breakpoint{};
+    IDebugBreakpoint2* debug_breakpoint{};
 
     const auto remove_breakpoint_from_list = [&]
     {
@@ -260,13 +260,13 @@ bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint &breakpoint)
             this->m_debug_breakpoints.erase(location);
     };
 
-    if ( this->m_debug_control->GetBreakpointById(breakpoint.m_id, &debug_breakpoint) != S_OK )
+    if ( this->m_debug_control->GetBreakpointById2(breakpoint.m_id, &debug_breakpoint) != S_OK )
     {
         remove_breakpoint_from_list();
         return false;
     }
 
-    if ( this->m_debug_control->RemoveBreakpoint(debug_breakpoint) != S_OK )
+    if ( this->m_debug_control->RemoveBreakpoint2(debug_breakpoint) != S_OK )
     {
         remove_breakpoint_from_list();
         return false;
@@ -279,7 +279,7 @@ bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint &breakpoint)
 
 bool DbgEngAdapter::RemoveBreakpoints(const std::vector<DebugBreakpoint> &breakpoints)
 {
-    for ( auto breakpoint : breakpoints )
+    for ( const auto& breakpoint : breakpoints )
         this->RemoveBreakpoint(breakpoint);
 
     return true;
@@ -382,7 +382,38 @@ bool DbgEngAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t s
 
 std::vector<DebugModule> DbgEngAdapter::GetModuleList() const
 {
-    return std::vector<DebugModule>();
+    unsigned long loaded_module_count{}, unloaded_module_count{};
+
+    if ( this->m_debug_symbols->GetNumberModules(&loaded_module_count, &unloaded_module_count) != S_OK )
+        return {};
+
+    if ( !loaded_module_count )
+        return {};
+
+    std::vector<DebugModule> modules{};
+
+    const auto total_modules = loaded_module_count + unloaded_module_count;
+    auto module_parameters = new DEBUG_MODULE_PARAMETERS[total_modules];
+    if ( this->m_debug_symbols->GetModuleParameters(total_modules, nullptr, 0, module_parameters) != S_OK )
+        return {};
+
+    for ( std::size_t module_index{}; module_index < total_modules; module_index++ )
+    {
+        const auto& parameters = module_parameters[module_index];
+
+        char name[1024];
+        char short_name[1024];
+        char loaded_image_name[1024];
+        if ( this->m_debug_symbols->GetModuleNames(module_index, 0,
+                                                   name, 1024, nullptr,
+                                                   short_name, 1024, nullptr,
+                                                   loaded_image_name, 1024, nullptr ) != S_OK )
+            continue;
+
+        modules.emplace_back(name, short_name, parameters.Base, parameters.Size, !(parameters.Flags & DEBUG_MODULE_UNLOADED) );
+    }
+
+    return modules;
 }
 
 bool DbgEngAdapter::BreakInto()
@@ -434,6 +465,20 @@ std::string DbgEngAdapter::GetRegisterNameByIndex(std::uint32_t index) const
         return {};
 
     return out;
+}
+std::string DbgEngAdapter::GetTargetArchitecture()
+{
+    unsigned long processor_type{};
+
+    if ( this->m_debug_control->GetExecutingProcessorType(&processor_type) != S_OK )
+        return "";
+
+    switch (processor_type)
+    {
+        case IMAGE_FILE_MACHINE_I386: return "x86";
+        case IMAGE_FILE_MACHINE_AMD64: return "x86_64";
+        default: return "";
+    }
 }
 
 unsigned long DbgEngEventCallbacks::AddRef()

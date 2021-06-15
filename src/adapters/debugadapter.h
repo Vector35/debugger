@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <utility>
 #include <vector>
 #include <optional>
 #include <string>
@@ -39,8 +40,13 @@ struct DebugRegister
 
 struct DebugModule
 {
+    std::string m_name{}, m_short_name{};
     std::uintptr_t m_address{};
     std::size_t m_size{};
+    bool m_loaded{};
+
+    DebugModule(std::string name, std::string short_name, std::uintptr_t address, std::size_t size, bool loaded) :
+        m_name(std::move(name)), m_short_name(std::move(short_name)), m_address(address), m_size(size), m_loaded(loaded) {}
 };
 
 class DebugAdapter
@@ -99,6 +105,8 @@ public:
     }
 
     virtual std::vector<DebugModule> GetModuleList() const = 0;
+
+    virtual std::string GetTargetArchitecture() = 0;
 
     virtual bool BreakInto() = 0;
     virtual bool Go() = 0;
