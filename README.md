@@ -1,2 +1,2 @@
 # native_debugger
-Nattive Debugger for Binary Ninja
+Native Debugger for Binary Ninja
