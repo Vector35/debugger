@@ -418,13 +418,17 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList() const
 
 bool DbgEngAdapter::BreakInto()
 {
-    return false;
+    if ( this->m_debug_control->SetInterrupt(DEBUG_INTERRUPT_ACTIVE) != S_OK )
+        return false;
+
+    this->Wait();
+
+    return true;
 }
 
 bool DbgEngAdapter::Go()
 {
-    if ( const auto result = this->m_debug_control->SetExecutionStatus(DEBUG_STATUS_GO);
-            result != S_OK )
+    if ( this->m_debug_control->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK )
         return false;
 
     this->Wait();
@@ -439,6 +443,11 @@ bool DbgEngAdapter::StepInto()
 
 bool DbgEngAdapter::StepOver()
 {
+    if ( this->m_debug_control->SetExecutionStatus(DEBUG_STATUS_STEP_OVER) != S_OK )
+        return false;
+
+    this->Wait();
+
     return false;
 }
 
@@ -479,6 +488,33 @@ std::string DbgEngAdapter::GetTargetArchitecture()
         case IMAGE_FILE_MACHINE_AMD64: return "x86_64";
         default: return "";
     }
+}
+unsigned long DbgEngAdapter::StopReason()
+{
+    const auto exec_status = this->ExecStatus();
+
+    if (exec_status == DEBUG_STATUS_BREAK)
+    {
+        const auto instruction_ptr = this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
+
+        if (instruction_ptr == DbgEngAdapter::ProcessCallbackInfo.m_last_breakpoint.m_address )
+            return 0x100;
+
+        const auto& last_exception = DbgEngAdapter::ProcessCallbackInfo.m_last_exception;
+        if ( instruction_ptr == last_exception.ExceptionAddress )
+            return last_exception.ExceptionCode;
+    }
+
+    return 0x200;
+}
+
+unsigned long DbgEngAdapter::ExecStatus()
+{
+    unsigned long execution_status{};
+    if ( this->m_debug_control->GetExecutionStatus(&execution_status) != S_OK )
+        return 0;
+
+    return execution_status;
 }
 
 unsigned long DbgEngEventCallbacks::AddRef()

@@ -46,46 +46,70 @@ int main(int argc, const char* argv[])
 {
     Log::SetupAnsi();
 
+    //0x7ff8c4b62b26
     try
     {
         auto debug_adapter = new DbgEngAdapter();
+        if (!debug_adapter->Attach(std::stoi(argv[1])))
+            return -1;
 
-        auto as_string = [](bool val) { return val ? "true" : "false"; };
+        std::thread([&]{
+            while ( true )
+                if ( GetAsyncKeyState(VK_F2) & 1 )
+                    debug_adapter->BreakInto();
+        }).detach();
 
-        printf("did attach? : %s\n", as_string(debug_adapter->Attach(/*25244*/std::stoi(argv[1]))));
-        //printf("did create? : %s\n", as_string(debug_adapter->Execute("C:\\Windows\\System32\\notepad.exe")));
+        char input_buf[256];
+        while ( printf("BINJADBG> ") && std::cin.getline(input_buf, sizeof(input_buf)) )
+        {
+            auto input = std::string(input_buf);
 
-        /* bp @ ntdll.RtlImageNtHeaderEx, called when ctrl+s in notepad */
-        /* using static address for testing */
+            if (input == "reg")
+                RegisterDisplay(debug_adapter);
 
-        for ( const auto& module : debug_adapter->GetModuleList() )
-            printf("[%s][%s][0x%llx][0x%llx][%s]\n", module.m_name.c_str(), module.m_short_name.c_str(), module.m_address, module.m_size, module.m_loaded ? "loaded" : "unloaded" );
+            if (auto loc = input.find("bp ");
+                    loc != std::string::npos)
+                debug_adapter->AddBreakpoint(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
 
-        printf("adding first breakpoint @ 0x7FFDB2E42B26: \n");
-        const auto first_breakpoint = debug_adapter->AddBreakpoint(0x7ff8c4b62b26);
-        printf( "   [0x%llx][%lu] -> %s\n", first_breakpoint.m_address, first_breakpoint.m_id, as_string(first_breakpoint.m_is_active));
-        printf("adding breakpoints @ 0x7FFDB2E42B26+0x8, 0x7FFDB2E42B26+0x10\n");
-        const auto added_breakpoints = debug_adapter->AddBreakpoints({0x7ff8c4b62b26+0x8, 0x7ff8c4b62b26+0x10});
-        for ( auto breakpoint : added_breakpoints )
-            printf( "   [0x%llx][%lu] -> %s\n", breakpoint.m_address, breakpoint.m_id, as_string(breakpoint.m_is_active));
+            if (auto loc = input.find("bpr ");
+                    loc != std::string::npos)
+                debug_adapter->RemoveBreakpoint(DebugBreakpoint( std::stoull(input.substr(loc + 4).c_str(), nullptr, 16 )));
 
-        printf("list pre removal: \n");
-        for ( auto breakpoint : debug_adapter->GetBreakpointList() )
-            printf( "   [0x%llx][%lu] -> %s\n", breakpoint.m_address, breakpoint.m_id, as_string(breakpoint.m_is_active));
+            if ( input == "bpl" )
+            {
+                Log::print("breakpoint list -> %i\n", debug_adapter->GetBreakpointList().size());
+                for (const auto& breakpoint : debug_adapter->GetBreakpointList())
+                    Log::print("    breakpoint[%i] @ 0x%llx is %s%s\n", breakpoint.m_id, breakpoint.m_address,
+                               breakpoint.m_is_active ? Log::Style(0, 255, 0).AsAnsi().c_str() : Log::Style(255, 0, 0).AsAnsi().c_str(),
+                               breakpoint.m_is_active ? "active" : "not active");
+            }
 
-        printf("removed breakpoints? : %s\n", as_string(debug_adapter->RemoveBreakpoints(added_breakpoints)));
+            if ( input == "sr" )
+                Log::print<Log::Warning>( "stop reason : %x\n", debug_adapter->StopReason() );
 
-        printf("list post removal: \n");
-        for ( auto breakpoint : debug_adapter->GetBreakpointList() )
-            printf( "   [0x%llx][%lu] -> %s\n", breakpoint.m_address, breakpoint.m_id, as_string(breakpoint.m_is_active));
+            if ( input == "es" )
+                Log::print<Log::Info>( "execution status : %x\n", debug_adapter->ExecStatus() );
 
-        printf("did go? : %s\n", as_string(debug_adapter->Go()));
+            if (input == "go")
+                debug_adapter->Go();
 
-        RegisterDisplay(debug_adapter);
+            if (input == "force_go")
+            {
+                const auto ip_name = debug_adapter->GetTargetArchitecture() == "x86" ? "eip" : "rip";
+                const auto ip = debug_adapter->ReadRegister(ip_name).m_value;
+                debug_adapter->WriteRegister(ip_name, ip + 1);
+                debug_adapter->Go();
+            }
+            
+            if (input == "so")
+                debug_adapter->StepOver();
 
-        printf("press enter to detach\n");
-        std::cin.get();
-        debug_adapter->Detach();
+            if (input == "detach")
+            {
+                debug_adapter->Detach();
+                break;
+            }
+        }
     }
     catch (const std::exception &except)
     {

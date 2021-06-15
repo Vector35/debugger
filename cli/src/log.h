@@ -5,6 +5,7 @@ namespace Log
 {
     enum Mode : std::uint8_t
     {
+        None,
         Success,
         Info,
         Warning,
@@ -46,7 +47,7 @@ namespace Log
         SetConsoleMode(err_handle, old_err_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
     }
 
-    template <Mode LogMode = Success, typename... Args>
+    template <Mode LogMode = Mode::None, typename... Args>
     void print(const std::string_view str, Args... args )
     {
         if constexpr ( LogMode == Mode::Success )
