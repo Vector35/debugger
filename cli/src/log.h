@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <windows.h>
 
@@ -32,7 +33,7 @@ namespace Log
         }
     };
 
-    void SetupAnsi()
+    inline void SetupAnsi()
     {
         const auto out_handle = GetStdHandle(STD_OUTPUT_HANDLE);
         const auto err_handle = GetStdHandle(STD_ERROR_HANDLE);

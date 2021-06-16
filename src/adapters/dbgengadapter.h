@@ -17,11 +17,19 @@ struct ProcessCallbackInformation
     unsigned long m_last_session_status{DEBUG_SESSION_FAILURE};
 };
 
+#define CALLBACK_METHOD(return_type) __declspec(nothrow) __stdcall return_type
+class DbgEngOutputCallbacks : public IDebugOutputCallbacks
+{
+public:
+    CALLBACK_METHOD(unsigned long) AddRef() override;
+    CALLBACK_METHOD(unsigned long) Release() override;
+    CALLBACK_METHOD(HRESULT) QueryInterface(const IID& interface_id, void** _interface) override;
+    CALLBACK_METHOD(HRESULT) Output(unsigned long mask, const char* text);
+};
+
 class DbgEngEventCallbacks : public DebugBaseEventCallbacks
 {
 public:
-#define CALLBACK_METHOD(return_type) __declspec(nothrow) __stdcall return_type
-
     CALLBACK_METHOD(unsigned long) AddRef() override;
     CALLBACK_METHOD(unsigned long) Release() override;
     CALLBACK_METHOD(HRESULT) GetInterestMask(unsigned long* mask) override;
@@ -58,13 +66,13 @@ public:
     CALLBACK_METHOD(HRESULT) ChangeDebuggeeState(unsigned long flags, std::uint64_t argument) override;
     CALLBACK_METHOD(HRESULT) ChangeEngineState(unsigned long flags, std::uint64_t argument) override;
     CALLBACK_METHOD(HRESULT) ChangeSymbolState(unsigned long flags, std::uint64_t argument) override;
-
-#undef CALLBACK_METHOD
 };
+#undef CALLBACK_METHOD
 
 class DbgEngAdapter : public DebugAdapter
 {
     DbgEngEventCallbacks m_debug_event_callbacks{};
+    DbgEngOutputCallbacks m_output_callbacks{};
     IDebugClient5* m_debug_client{nullptr};
     IDebugControl4* m_debug_control{nullptr};
     IDebugDataSpaces* m_debug_data_spaces{nullptr};
@@ -125,5 +133,8 @@ public:
     bool Go() override;
     bool StepInto() override;
     bool StepOver() override;
+    bool StepOut() override;
     bool StepTo(std::uintptr_t address) override;
+
+    void Invoke(const std::string& command);
 };

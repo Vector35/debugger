@@ -112,6 +112,7 @@ public:
     virtual bool Go() = 0;
     virtual bool StepInto() = 0;
     virtual bool StepOver() = 0;
+    virtual bool StepOut() = 0;
     virtual bool StepTo(std::uintptr_t address) = 0;
 
     std::string GetPath() const;

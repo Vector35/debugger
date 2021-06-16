@@ -1,7 +1,9 @@
 #include <thread>
 #include <chrono>
 #include <algorithm>
+#include <string>
 #include "dbgengadapter.h"
+#include "../../cli/src/log.h"
 
 #define QUERY_DEBUG_INTERFACE(query, out) \
     if ( const auto result = this->m_debug_client->QueryInterface(__uuidof(query), reinterpret_cast<void**>(out) ); \
@@ -26,6 +28,10 @@ void DbgEngAdapter::Start()
     if (const auto result = this->m_debug_client->SetEventCallbacks(&this->m_debug_event_callbacks);
             result != S_OK)
         throw std::runtime_error("Failed to set event callbacks");
+
+    if (const auto result = this->m_debug_client->SetOutputCallbacks(&this->m_output_callbacks);
+            result != S_OK)
+        throw std::runtime_error("Failed to set output callbacks");
 
     this->m_debug_active = true;
 }
@@ -456,6 +462,11 @@ bool DbgEngAdapter::StepOver()
     return true;
 }
 
+bool DbgEngAdapter::StepOut()
+{
+    return false;
+}
+
 bool DbgEngAdapter::StepTo(std::uintptr_t address)
 {
     return false;
@@ -520,6 +531,11 @@ unsigned long DbgEngAdapter::ExecStatus()
         return 0;
 
     return execution_status;
+}
+
+void DbgEngAdapter::Invoke(const std::string& command)
+{
+    this->m_debug_control->Execute(DEBUG_OUTCTL_ALL_CLIENTS, command.c_str(), DEBUG_EXECUTE_NO_REPEAT);
 }
 
 unsigned long DbgEngEventCallbacks::AddRef()
@@ -637,4 +653,29 @@ HRESULT DbgEngEventCallbacks::ChangeEngineState(unsigned long flags, uint64_t ar
 HRESULT DbgEngEventCallbacks::ChangeSymbolState(unsigned long flags, uint64_t argument)
 {
     return DEBUG_STATUS_NO_CHANGE;
+}
+
+HRESULT DbgEngOutputCallbacks::Output(unsigned long mask, const char* text)
+{
+    const auto blue_style = Log::Style(25, 25, 255).AsAnsi();
+    const auto white_style = Log::Style(255, 255, 255).AsAnsi();
+
+    if ( std::string(text).find('\n') != std::string::npos )
+        Log::print("%sWIN%sDBG%s> %s%s", blue_style.c_str(), white_style.c_str(), blue_style.c_str(), white_style.c_str(), text );
+    else
+        Log::print("%sWIN%sDBG%s> %s%sn\n", blue_style.c_str(), white_style.c_str(), blue_style.c_str(), white_style.c_str(), text );
+
+    return S_OK;
+}
+unsigned long DbgEngOutputCallbacks::AddRef()
+{
+    return 1;
+}
+unsigned long DbgEngOutputCallbacks::Release()
+{
+    return 0;
+}
+HRESULT DbgEngOutputCallbacks::QueryInterface(const IID& interface_id, void** _interface)
+{
+    return S_OK;
 }

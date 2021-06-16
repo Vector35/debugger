@@ -22,6 +22,28 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
         return std::string(buf);
     };
 
+    auto reg32 = [debug_adapter](std::string reg_name)
+    {
+        char buf[128]{};
+
+        auto original_name = reg_name;
+        reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
+        std::sprintf(buf, "%s%s\033[0m=%018llX", Log::Style( 255, 165, 0 ).AsAnsi().c_str(), original_name.c_str(), debug_adapter->ReadRegister(reg_name).m_value);
+
+        return std::string(buf);
+    };
+
+    auto reg16 = [debug_adapter](std::string reg_name)
+    {
+        char buf[128]{};
+
+        auto original_name = reg_name;
+        reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
+        std::sprintf(buf, "%s%s\033[0m=%014llX", Log::Style( 255, 165, 0 ).AsAnsi().c_str(), original_name.c_str(), debug_adapter->ReadRegister(reg_name).m_value);
+
+        return std::string(buf);
+    };
+
     if ( arch == "x86_64" )
     {
         char buf[1024]{};
@@ -40,13 +62,28 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
         else if ( std::find(register_list.begin(), register_list.end(), "eflags") != register_list.end())
             Log::print(reg(" eflags"));
     }
+    else if ( arch == "x86" )
+    {
+        char buf[1024]{};
+        std::sprintf(buf, "%s %s %s %s\n%s %s %s %s\n%s %s\n",
+                     reg32("eax").c_str(), reg32("ebx").c_str(), reg32("ecx").c_str(), reg32("edx").c_str(),
+                     reg32("esi").c_str(), reg32("edi").c_str(), reg32("ebp").c_str(), reg32("esp").c_str(),
+                     reg32("eip").c_str(), reg32("eflags").c_str() );
+
+        Log::print(buf);
+    }
+    else
+    {
+        Log::print<Log::Error>("unknown architecture\n");
+    }
+
 }
 
 int main(int argc, const char* argv[])
 {
     Log::SetupAnsi();
 
-    //0x7ff8c4b62b26
+    //0x7FF8B9B22B26
     try
     {
         auto debug_adapter = new DbgEngAdapter();
@@ -66,18 +103,26 @@ int main(int argc, const char* argv[])
         {
             auto input = std::string(input_buf);
 
-            if (input == "reg")
+            if ( input[0] == '.' )
+            {
+                debug_adapter->Invoke(input.substr(1));
+            }
+            else if (input == "reg")
+            {
                 RegisterDisplay(debug_adapter);
-
-            if (auto loc = input.find("bp ");
+            }
+            else if (auto loc = input.find("bp ");
                     loc != std::string::npos)
+            {
                 debug_adapter->AddBreakpoint(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
-
-            if (auto loc = input.find("bpr ");
+            }
+            else if (auto loc = input.find("bpr ");
                     loc != std::string::npos)
-                debug_adapter->RemoveBreakpoint(DebugBreakpoint( std::stoull(input.substr(loc + 4).c_str(), nullptr, 16 )));
-
-            if ( input == "bpl" )
+            {
+                debug_adapter->RemoveBreakpoint(
+                        DebugBreakpoint(std::stoull(input.substr(loc + 4).c_str(), nullptr, 16)));
+            }
+            else if ( input == "bpl" )
             {
                 Log::print("%i breakpoint[s] set\n", debug_adapter->GetBreakpointList().size());
                 for (const auto& breakpoint : debug_adapter->GetBreakpointList())
@@ -85,17 +130,19 @@ int main(int argc, const char* argv[])
                                breakpoint.m_is_active ? Log::Style(0, 255, 0).AsAnsi().c_str() : Log::Style(255, 0, 0).AsAnsi().c_str(),
                                breakpoint.m_is_active ? "active" : "not active");
             }
-
-            if ( input == "sr" )
-                Log::print<Log::Warning>( "stop reason : %x\n", debug_adapter->StopReason() );
-
-            if ( input == "es" )
-                Log::print<Log::Info>( "execution status : %x\n", debug_adapter->ExecStatus() );
-
-            if (input == "go")
+            else if ( input == "sr" )
+            {
+                Log::print<Log::Warning>("stop reason : %x\n", debug_adapter->StopReason());
+            }
+            else if ( input == "es" )
+            {
+                Log::print<Log::Info>("execution status : %x\n", debug_adapter->ExecStatus());
+            }
+            else if (input == "go")
+            {
                 debug_adapter->Go();
-
-            if (input == "force_go")
+            }
+            else if (input == "force_go")
             {
                 const auto ip_name = debug_adapter->GetTargetArchitecture() == "x86" ? "eip" : "rip";
                 const auto ip = debug_adapter->ReadRegister(ip_name).m_value;
@@ -105,11 +152,15 @@ int main(int argc, const char* argv[])
                     Log::print<Log::Success>( "set ip to [0x%llx]\n", ip + 1 );
                 debug_adapter->Go();
             }
-
-            if (input == "so")
+            else if (input == "so")
+            {
                 debug_adapter->StepOver();
-
-            if (input == "detach")
+            }
+            else if ( input == "si" )
+            {
+                debug_adapter->StepInto();
+            }
+            else if (input == "detach")
             {
                 debug_adapter->Detach();
                 break;
