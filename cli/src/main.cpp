@@ -4,6 +4,11 @@
 #include "../../src/adapters/debugadapter.h"
 #include "../../src/adapters/dbgengadapter.h"
 #include "log.h"
+#include <binaryninjacore.h>
+#include <binaryninjaapi.h>
+#include <lowlevelilinstruction.h>
+#include <mediumlevelilinstruction.h>
+#include <highlevelilinstruction.h>
 
 void RegisterDisplay(DebugAdapter* debug_adapter)
 {
@@ -76,14 +81,144 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
     {
         Log::print<Log::Error>("unknown architecture\n");
     }
+}
 
+void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t step_count)
+{
+    using namespace BinaryNinja;
+
+    std::vector<std::string> disasm_strings{};
+    std::vector<std::string> llil_strings{};
+    std::vector<std::string> mlil_strings{};
+    std::vector<std::string> hlil_strings{};
+    for (std::uint32_t steps{}; steps < step_count; steps++)
+    {
+        const auto instruction_offset = debug_adapter->GetInstructionOffset();
+        if (!instruction_offset)
+            return;
+
+        const auto architecture = Architecture::GetByName(debug_adapter->GetTargetArchitecture());
+        if (!architecture)
+            return;
+
+        const auto data = debug_adapter->ReadMemoryTy<std::array<std::uint8_t, 50>>(instruction_offset);
+        if (!data.has_value())
+            return;
+
+        const auto data_value = data.value();
+
+        std::size_t size{data_value.size()};
+        std::vector<InstructionTextToken> instruction_tokens{};
+        if (!architecture->GetInstructionText(data.value().data(), instruction_offset, size, instruction_tokens))
+        {
+            printf("failed to disassemble\n");
+            return;
+        }
+
+        auto data_buffer = DataBuffer(data_value.data(), size);
+        Ref<BinaryData> bd = new BinaryData(new FileMetadata(), data_buffer);
+        Ref<BinaryView> bv;
+        for (const auto& type : BinaryViewType::GetViewTypes())
+            if (type->IsTypeValidForData(bd) && type->GetName() == "Raw")
+            {
+                bv = type->Create(bd);
+                break;
+            }
+
+        bv->UpdateAnalysisAndWait();
+
+        Ref<Platform> plat = nullptr;
+        auto arch_list = Platform::GetList();
+        for ( const auto& arch : arch_list )
+        {
+            if ( arch->GetName() == "windows-x86_64" )
+            {
+                plat = arch;
+                break;
+            }
+        }
+
+        bv->AddFunctionForAnalysis(plat, 0);
+
+        for ( const auto& instruction : instruction_tokens )
+            disasm_strings.push_back(instruction.text);
+        disasm_strings.emplace_back("\n");
+
+        for (auto& func : bv->GetAnalysisFunctionList())
+        {
+            Ref<HighLevelILFunction> hlil = func->GetHighLevelIL();
+            Ref<MediumLevelILFunction> mlil = func->GetMediumLevelIL();
+            Ref<LowLevelILFunction> llil = func->GetLowLevelIL();
+            if (!hlil || !mlil || !llil)
+                continue;
+
+            for (auto& llil_block : llil->GetBasicBlocks())
+            {
+                for (std::size_t llil_index = llil_block->GetStart(); llil_index < llil_block->GetEnd(); llil_index++)
+                {
+                    const auto current_llil_instruction = llil->GetInstruction(llil_index);
+                    std::vector<InstructionTextToken> llil_tokens;
+                    if ( llil->GetInstructionText(func, func->GetArchitecture(), llil_index, llil_tokens) )
+                    {
+                        for (const auto& token : llil_tokens)
+                            llil_strings.push_back(token.text);
+                        llil_strings.emplace_back("\n");
+                    }
+                }
+            }
+
+            for (auto& mlil_block : mlil->GetBasicBlocks())
+            {
+                for (std::size_t mlil_index = mlil_block->GetStart(); mlil_index < mlil_block->GetEnd(); mlil_index++)
+                {
+                    const auto current_mlil_instruction = mlil->GetInstruction(mlil_index);
+                    std::vector<InstructionTextToken> mlil_tokens;
+                    if ( mlil->GetInstructionText(func, func->GetArchitecture(), mlil_index, mlil_tokens) )
+                    {
+                        for (const auto& token : mlil_tokens)
+                            mlil_strings.push_back(token.text);
+                        mlil_strings.emplace_back("\n");
+                    }
+                }
+            }
+
+            for (auto& hlil_block : hlil->GetBasicBlocks())
+            {
+                for (std::size_t hlil_index = hlil_block->GetStart(); hlil_index < hlil_block->GetEnd(); hlil_index++)
+                {
+                    const auto current_hlil_instruction = hlil->GetInstruction(hlil_index);
+
+                    auto instruction_text = hlil->GetInstructionText(hlil_index);
+                    for ( const auto& text : instruction_text )
+                        for ( const auto& token : text.tokens )
+                            hlil_strings.push_back(token.text);
+                    hlil_strings.emplace_back("\n");
+                }
+            }
+
+            debug_adapter->StepOver();
+        }
+    }
+
+    for ( const auto& disasm : disasm_strings )
+        Log::print<Log::Success>(disasm);
+    for ( const auto& llil : llil_strings )
+        Log::print<Log::Info>(llil);
+    for ( const auto& mlil : mlil_strings )
+        Log::print<Log::Warning>(mlil);
+    for ( const auto& hlil : hlil_strings )
+        Log::print<Log::Error>(hlil);
 }
 
 int main(int argc, const char* argv[])
 {
     Log::SetupAnsi();
 
-    //0x7FF8B9B22B26
+    /* reminder to set plugins directory manually to the proper path -> R"(C:\Users\admin\AppData\Local\Vector35\BinaryNinja\plugins)" */
+
+    BinaryNinja::SetBundledPluginDirectory(R"(C:\Users\admin\AppData\Local\Vector35\BinaryNinja\plugins)");
+    BinaryNinja::InitPlugins();
+
     try
     {
         auto debug_adapter = new DbgEngAdapter();
@@ -110,6 +245,12 @@ int main(int argc, const char* argv[])
             else if (input == "reg")
             {
                 RegisterDisplay(debug_adapter);
+            }
+            else if (auto loc = input.find("disasm ");
+                    loc != std::string::npos)
+            {
+                auto step_count = std::stoul(input.substr(loc + 7), nullptr, 10);
+                DisasmDisplay(debug_adapter, step_count);
             }
             else if (auto loc = input.find("bp ");
                     loc != std::string::npos)

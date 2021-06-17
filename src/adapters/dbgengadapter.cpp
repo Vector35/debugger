@@ -2,6 +2,7 @@
 #include <chrono>
 #include <algorithm>
 #include <string>
+#include <binaryninjaapi.h>
 #include "dbgengadapter.h"
 #include "../../cli/src/log.h"
 
@@ -536,6 +537,14 @@ unsigned long DbgEngAdapter::ExecStatus()
 void DbgEngAdapter::Invoke(const std::string& command)
 {
     this->m_debug_control->Execute(DEBUG_OUTCTL_ALL_CLIENTS, command.c_str(), DEBUG_EXECUTE_NO_REPEAT);
+}
+
+std::uintptr_t DbgEngAdapter::GetInstructionOffset()
+{
+    std::uintptr_t register_offset{};
+    this->m_debug_registers->GetInstructionOffset(&register_offset);
+
+    return register_offset;
 }
 
 unsigned long DbgEngEventCallbacks::AddRef()

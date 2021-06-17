@@ -6,6 +6,7 @@
 #include <string>
 #include <stdexcept>
 #include <unordered_map>
+#include <array>
 
 struct DebugThread
 {
@@ -51,11 +52,7 @@ struct DebugModule
 
 class DebugAdapter
 {
-    std::string m_path{};
-    std::uint32_t m_pid{};
-    std::uintptr_t m_target_base{};
     bool m_is_attached = false;
-
 public:
     [[nodiscard]] virtual bool Execute(const std::string& path ) = 0;
     [[nodiscard]] virtual bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args ) = 0;
@@ -115,7 +112,6 @@ public:
     virtual bool StepOut() = 0;
     virtual bool StepTo(std::uintptr_t address) = 0;
 
-    std::string GetPath() const;
-    std::uint32_t GetPid() const;
-    std::uintptr_t TargetBase() const;
+    virtual void Invoke(const std::string& command) = 0;
+    virtual std::uintptr_t GetInstructionOffset() = 0;
 };

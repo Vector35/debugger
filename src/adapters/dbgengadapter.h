@@ -136,5 +136,6 @@ public:
     bool StepOut() override;
     bool StepTo(std::uintptr_t address) override;
 
-    void Invoke(const std::string& command);
+    void Invoke(const std::string& command) override;
+    std::uintptr_t GetInstructionOffset() override;
 };

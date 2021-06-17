@@ -15,7 +15,7 @@ file(GLOB_RECURSE CLI-SOURCES
 remove_definitions(-DUNICODE)
 add_executable(debugger-cli ${ADAPTER-SOURCES} ${CLI-SOURCES})
 
-target_link_libraries(debugger-cli dbgeng.lib binaryninjaapi)
+target_link_libraries(debugger-cli dbgeng.lib ${BN_INSTALL_DIR}\\binaryninjacore.lib binaryninjaapi)
 
 set_target_properties(debugger-cli PROPERTIES
         CXX_STANDARD 17
