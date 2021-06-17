@@ -3,13 +3,15 @@
 #include "binaryninjaapi.h"
 #include "uitypes.h"
 
+class DebuggerState;
+
 
 class DebugerRegisters
 {
     struct RegisterCache
     {
         std::vector<std::string> registerList;
-    }
+    };
 private:
     DebuggerState* m_state;
 
@@ -32,4 +34,19 @@ private:
 
 public:
     DebuggerState(BinaryViewRef data);
+    void run();
+    void restart();
+    void quit();
+    void attach();
+    void detach();
+    void pause();
+    void resume();
+    void stepIntoAsm();
+    void stepIntoIL();
+    void stepOverAsm();
+    void stepOverIL();
+    void stepReturn();
+
+    bool canExec();
+    bool canConnect();
 };

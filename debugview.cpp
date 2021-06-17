@@ -8,7 +8,7 @@
 // #include "sections.h"
 // #include "headers.h"
 #include "fontsettings.h"
-#include "DebugView.h"
+#include "debugview.h"
 
 
 DebugView::DebugView(QWidget* parent, BinaryViewRef data)

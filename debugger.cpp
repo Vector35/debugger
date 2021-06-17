@@ -1,6 +1,6 @@
 #include "inttypes.h"
 #include "debugger.h"
-#include "DebugView.h"
+#include "debugview.h"
 
 using namespace BinaryNinja;
 
