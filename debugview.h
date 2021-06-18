@@ -3,19 +3,27 @@
 // #include <QtWidgets/QScrollArea>
 #include <QtWidgets/QPushButton>
 #include "viewframe.h"
+#include "dockwidgets/controlswidget.h"
+#include "debuggerstate.h"
 // #include "byte.h"
 
 
 class DebugView: public QWidget, public View
 {
+    Q_OBJECT
+
 	BinaryViewRef m_data;
 	uint64_t m_currentOffset = 0;
 	// ByteView* m_byteView = nullptr;
 	// QPushButton* m_fullAnalysisButton = nullptr;
     bool m_isRawDisassembly = false;
 
+    DebuggerState* m_state;
+    DebugControlsWidget* m_controls;
+
 public:
 	DebugView(QWidget* parent, BinaryViewRef data);
+    virtual ~DebugView() {}
 
 	virtual BinaryViewRef getData() override;
 	virtual uint64_t getCurrentOffset() override;

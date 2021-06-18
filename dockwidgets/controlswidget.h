@@ -3,11 +3,11 @@
 #include <QtWidgets/QToolBar>
 #include <QtWidgets/QMenu>
 #include <QtWidgets/QToolButton>
-#include <QtWidgets/QIcon>
+#include <QtGui/QIcon>
 #include <QtWidgets/QLineEdit>
 #include "binaryninjaapi.h"
 #include "uicontext.h"
-#include "debuggerstate.h"
+#include "../debuggerstate.h"
 
 class DebugControlsWidget: public QToolBar
 {
@@ -31,6 +31,7 @@ class DebugControlsWidget: public QToolBar
     };
 
 private:
+    std::string m_name;
     BinaryViewRef m_data;
     DebuggerState* m_state;
 
@@ -48,7 +49,7 @@ private:
     QAction* m_actionStepOverIL;
     QAction* m_actionStepReturn;
 
-    QMenu* m_contorlMenu;
+    QMenu* m_controlMenu;
     QMenu* m_stepIntoMenu;
     QMenu* m_stepOverMenu;
     QMenu* m_threadMenu;
@@ -58,15 +59,18 @@ private:
     QToolButton* m_btnStepInto;
     QToolButton* m_btnStepOver;
     QToolButton* m_btnStepReturn;
+    QToolButton* m_btnThreads;
 
-    QLineedit* m_editStatus;
+    QLineEdit* m_editStatus;
 
     QIcon loadIcon(const std::string name);
     bool canExec();
-    bool canConneect();
+    bool canConnect();
 
 public:
-    DebugControlsWidget(QWidget* parent, QString name, BinaryViewRef data, DebuggerState* state); 
+    DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data, DebuggerState* state);
+    virtual ~DebugControlsWidget() {}
+
     void setActionEnabled(DebugControlAction action, bool enabled);
     void setStepIntoEnabled(bool enabled);
     void setStepOverEnabled(bool enabled);
@@ -77,7 +81,7 @@ public:
     void setDefaultProcessAction(DebugControlAction action);
     void setPauseOrResume(DebugControlAction action);
 
-private Q_SLOTS:
+public Q_SLOTS:
     void performRun();
     void performRestart();
     void performQuit();

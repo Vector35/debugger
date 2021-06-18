@@ -16,13 +16,17 @@ endif()
 
 file(GLOB SOURCES
 	*.cpp
-	*.h)
+	*.h
+    dockwidgets/*.cpp
+    dockwidgets/*.h)
 
 if(DEMO)
 	add_library(debugger STATIC ${SOURCES})
 else()
 	add_library(debugger SHARED ${SOURCES})
 endif()
+
+set(CMAKE_AUTOMOC ON)
 
 if(QT6)
 	target_link_libraries(debugger binaryninjaapi binaryninjaui
