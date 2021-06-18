@@ -1,109 +1,15 @@
 #include <QtWidgets/QGroupBox>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QSplitter>
-// #include "view.h"
-// #include "entropy.h"
-// #include "imports.h"
-// #include "exports.h"
-// #include "sections.h"
-// #include "headers.h"
 #include "fontsettings.h"
 #include "debugview.h"
 
 
 DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
 {
-	// setBinaryDataNavigable(true);
-	// setupView(this);
 	m_data = data;
     m_state = new DebuggerState(data);
     m_controls = new DebugControlsWidget(parent, "Controls", data, m_state);
-
-	// QWidget* container = new QWidget(this);
-	// QVBoxLayout* layout = new QVBoxLayout();
-
-	// QGroupBox* entropyGroup = new QGroupBox("Entropy", container);
-	// QVBoxLayout* entropyLayout = new QVBoxLayout();
-	// entropyLayout->addWidget(new EntropyWidget(entropyGroup, this, m_data));
-	// entropyGroup->setLayout(entropyLayout);
-	// layout->addWidget(entropyGroup);
-
-	// Headers* hdr = nullptr;
-	// if (m_data->GetTypeName() == "PE")
-	// 	hdr = new PEHeaders(m_data);
-	// else if (m_data->GetTypeName() != "Raw")
-	// 	hdr = new GenericHeaders(m_data);
-
-	// if (hdr)
-	// {
-	// 	QGroupBox* headerGroup = new QGroupBox("Headers", container);
-	// 	QVBoxLayout* headerLayout = new QVBoxLayout();
-	// 	HeaderWidget* headerWidget = new HeaderWidget(headerGroup, *hdr);
-	// 	headerLayout->addWidget(headerWidget);
-	// 	headerGroup->setLayout(headerLayout);
-	// 	layout->addWidget(headerGroup);
-	// 	delete hdr;
-	// }
-
-	// if (m_data->IsExecutable())
-	// {
-	// 	QSplitter* importExportSplitter = new QSplitter(Qt::Horizontal);
-
-	// 	QGroupBox* importGroup = new QGroupBox("Imports", container);
-	// 	QVBoxLayout* importLayout = new QVBoxLayout();
-	// 	importLayout->addWidget(new ImportsWidget(importGroup, this, m_data));
-	// 	importGroup->setLayout(importLayout);
-	// 	importExportSplitter->addWidget(importGroup);
-
-	// 	QGroupBox* exportGroup = new QGroupBox("Exports", container);
-	// 	QVBoxLayout* exportLayout = new QVBoxLayout();
-	// 	exportLayout->addWidget(new ExportsWidget(exportGroup, this, m_data));
-	// 	exportGroup->setLayout(exportLayout);
-	// 	importExportSplitter->addWidget(exportGroup);
-
-	// 	layout->addWidget(importExportSplitter);
-
-	// 	if (m_data->GetTypeName() != "PE")
-	// 	{
-	// 		QGroupBox* segmentsGroup = new QGroupBox("Segments", container);
-	// 		QVBoxLayout* segmentsLayout = new QVBoxLayout();
-	// 		SegmentsWidget* segmentsWidget = new SegmentsWidget(segmentsGroup, m_data);
-	// 		segmentsLayout->addWidget(segmentsWidget);
-	// 		segmentsGroup->setLayout(segmentsLayout);
-	// 		layout->addWidget(segmentsGroup);
-	// 		if (segmentsWidget->GetSegments().size() == 0)
-	// 			segmentsGroup->hide();
-	// 	}
-
-	// 	QGroupBox* sectionsGroup = new QGroupBox("Sections", container);
-	// 	QVBoxLayout* sectionsLayout = new QVBoxLayout();
-	// 	SectionsWidget* sectionsWidget = new SectionsWidget(sectionsGroup, m_data);
-	// 	sectionsLayout->addWidget(sectionsWidget);
-	// 	sectionsGroup->setLayout(sectionsLayout);
-	// 	layout->addWidget(sectionsGroup);
-	// 	if (sectionsWidget->GetSections().size() == 0)
-	// 		sectionsGroup->hide();
-
-	// 	QHBoxLayout* buttonLayout = new QHBoxLayout();
-	// 	buttonLayout->addStretch(1);
-	// 	m_fullAnalysisButton = new QPushButton("Start Full Analysis");
-	// 	connect(m_fullAnalysisButton, &QPushButton::clicked, this, &TriageView::startFullAnalysis);
-	// 	buttonLayout->addWidget(m_fullAnalysisButton);
-	// 	layout->addLayout(buttonLayout);
-	// 	layout->addStretch(1);
-	// }
-	// else
-	// {
-	// 	m_byteView = new ByteView(this, m_data);
-	// 	layout->addWidget(m_byteView, 1);
-	// }
-
-	// container->setLayout(layout);
-	// setWidgetResizable(true);
-	// setWidget(container);
-
-	// if (m_fullAnalysisButton && (BinaryNinja::Settings::Instance()->Get<std::string>("analysis.mode", data) == "full"))
-	// 	m_fullAnalysisButton->hide();
 }
 
 
@@ -154,61 +60,6 @@ bool DebugView::navigate(uint64_t addr)
 	// 	return m_byteView->navigate(addr);
 	return false;
 }
-
-
-// void DebugView::startFullAnalysis()
-// {
-// 	BinaryNinja::Settings::Instance()->Set("analysis.mode", "full", m_data);
-// 	for (auto& f: m_data->GetAnalysisFunctionList())
-// 	{
-// 		if (f->IsAnalysisSkipped())
-// 			f->Reanalyze();
-// 	}
-// 	m_data->UpdateAnalysis();
-// 	m_fullAnalysisButton->hide();
-// }
-
-
-// void DebugView::navigateToFileOffset(uint64_t offset)
-// {
-// 	if (!m_byteView)
-// 	{
-// 		uint64_t addr = 0;
-// 		bool hasAddr = m_data->GetAddressForDataOffset(offset, addr);
-// 		ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
-// 		if (!frame)
-// 			return;
-// 		if (!hasAddr)
-// 			frame->navigate("Hex:Raw", offset);
-// 		else
-// 			frame->navigate("Linear:" + frame->getCurrentDataType(), addr);
-// 	}
-// 	else
-// 	{
-// 		uint64_t addr;
-// 		bool hasAddr;
-// 		if (m_data == m_data->GetFile()->GetViewOfType("Raw"))
-// 		{
-// 			addr = offset;
-// 			hasAddr = true;
-// 		}
-// 		else
-// 		{
-// 			hasAddr = m_data->GetAddressForDataOffset(offset, addr);
-// 		}
-// 		if (!hasAddr)
-// 		{
-// 			ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
-// 			if (frame)
-// 				frame->navigate("Hex:Raw", offset);
-// 		}
-// 		else
-// 		{
-// 			m_byteView->navigate(addr);
-// 			m_byteView->setFocus(Qt::OtherFocusReason);
-// 		}
-// 	}
-// }
 
 
 void DebugView::focusInEvent(QFocusEvent*)

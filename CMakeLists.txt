@@ -8,6 +8,8 @@ if(NOT QT6)
 	set(CMAKE_OSX_ARCHITECTURES x86_64)
 endif()
 
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 if(QT6)
 	find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 else()
@@ -20,13 +22,14 @@ file(GLOB SOURCES
     dockwidgets/*.cpp
     dockwidgets/*.h)
 
+list(FILTER SOURCES EXCLUDE REGEX moc_.*)
+list(FILTER SOURCES EXCLUDE REGEX qrc_.*)
+
 if(DEMO)
 	add_library(debugger STATIC ${SOURCES})
 else()
 	add_library(debugger SHARED ${SOURCES})
 endif()
-
-set(CMAKE_AUTOMOC ON)
 
 if(QT6)
 	target_link_libraries(debugger binaryninjaapi binaryninjaui
