@@ -10,6 +10,12 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
 	m_data = data;
     m_state = new DebuggerState(data);
     m_controls = new DebugControlsWidget(parent, "Controls", data, m_state);
+
+    m_splitter = new QSplitter(Qt::Horizontal, this);
+    ViewFrame* viewFrame = ViewFrame::viewFrameForWidget(this);
+
+    // m_memoryEditor = new LinearView(m_memoryView, viewFrame);
+
     QVBoxLayout* layout = new QVBoxLayout;
     layout->addWidget(m_controls);
     setLayout(layout);

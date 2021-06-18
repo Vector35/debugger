@@ -5,6 +5,9 @@
 #include "viewframe.h"
 #include "dockwidgets/controlswidget.h"
 #include "debuggerstate.h"
+#include "linearview.h"
+#include "disassemblyview.h"
+#include <QtWidgets/QSplitter>
 // #include "byte.h"
 
 
@@ -20,6 +23,11 @@ class DebugView: public QWidget, public View
 
     DebuggerState* m_state;
     DebugControlsWidget* m_controls;
+
+    QSplitter* m_splitter;
+
+    LinearView* m_memoryEditor;
+    DisassemblyContainer* m_binaryEditor;
 
 public:
 	DebugView(QWidget* parent, BinaryViewRef data);
