@@ -104,6 +104,11 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
     m_btnControl->setDefaultAction(m_actionRun);
     addWidget(m_btnControl);
 
+    m_btnPauseResume = new QToolButton(this);
+    m_btnPauseResume->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_btnPauseResume->setDefaultAction(m_actionPause);
+    addWidget(m_btnPauseResume);
+
     m_btnStepInto = new QToolButton(this);
     m_btnStepInto->setMenu(m_stepIntoMenu);
     m_btnStepInto->setPopupMode(QToolButton::MenuButtonPopup);
@@ -136,6 +141,7 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
     m_editStatus = new QLineEdit("INACTIVE", this);
     m_editStatus->setReadOnly(true);
     m_editStatus->setAlignment(Qt::AlignCenter);
+    addWidget(m_editStatus);
 
     setActionEnabled(DebugControlRunAction, canExec());
     setActionEnabled(DebugControlRestartAction, false);
