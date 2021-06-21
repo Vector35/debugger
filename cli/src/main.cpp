@@ -83,7 +83,7 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
     }
 }
 
-void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t step_count)
+void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
 {
     using namespace BinaryNinja;
 
@@ -91,9 +91,11 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t step_count)
     std::vector<std::string> llil_strings{};
     std::vector<std::string> mlil_strings{};
     std::vector<std::string> hlil_strings{};
-    for (std::uint32_t steps{}; steps < step_count; steps++)
+
+    std::uintptr_t instruction_increment{};
+    for (std::uint32_t steps{}; steps < reg_count; steps++)
     {
-        const auto instruction_offset = debug_adapter->GetInstructionOffset();
+        const auto instruction_offset = debug_adapter->GetInstructionOffset() + instruction_increment;
         if (!instruction_offset)
             return;
 
@@ -114,6 +116,8 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t step_count)
             printf("failed to disassemble\n");
             return;
         }
+
+        instruction_increment += size;
 
         auto data_buffer = DataBuffer(data_value.data(), size);
         Ref<BinaryData> bd = new BinaryData(new FileMetadata(), data_buffer);
@@ -160,9 +164,15 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t step_count)
                     std::vector<InstructionTextToken> llil_tokens;
                     if ( llil->GetInstructionText(func, func->GetArchitecture(), llil_index, llil_tokens) )
                     {
+                        bool did_fail = false;
                         for (const auto& token : llil_tokens)
-                            llil_strings.push_back(token.text);
-                        llil_strings.emplace_back("\n");
+                            if ( token.text != "undefined" )
+                                llil_strings.push_back(token.text);
+                            else
+                                did_fail = true;
+
+                        if ( !did_fail )
+                            llil_strings.emplace_back("\n");
                     }
                 }
             }
@@ -175,9 +185,15 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t step_count)
                     std::vector<InstructionTextToken> mlil_tokens;
                     if ( mlil->GetInstructionText(func, func->GetArchitecture(), mlil_index, mlil_tokens) )
                     {
+                        bool did_fail = false;
                         for (const auto& token : mlil_tokens)
-                            mlil_strings.push_back(token.text);
-                        mlil_strings.emplace_back("\n");
+                            if ( token.text != "undefined" )
+                                mlil_strings.push_back(token.text);
+                            else
+                                did_fail = true;
+
+                        if ( !did_fail )
+                            mlil_strings.emplace_back("\n");
                     }
                 }
             }
@@ -188,24 +204,37 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t step_count)
                 {
                     const auto current_hlil_instruction = hlil->GetInstruction(hlil_index);
 
+                    bool did_fail = false;
                     auto instruction_text = hlil->GetInstructionText(hlil_index);
                     for ( const auto& text : instruction_text )
                         for ( const auto& token : text.tokens )
-                            hlil_strings.push_back(token.text);
-                    hlil_strings.emplace_back("\n");
+                            if ( token.text != "undefined" )
+                                hlil_strings.push_back(token.text);
+                            else
+                                did_fail = true;
+
+                    if ( !did_fail )
+                        hlil_strings.emplace_back("\n");
                 }
             }
 
-            debug_adapter->StepOver();
+            //debug_adapter->StepOver();
         }
     }
 
+    Log::print("%s[disasm]\n", Log::Style(255, 180, 190).AsAnsi().c_str());
     for ( const auto& disasm : disasm_strings )
-        Log::print<Log::Success>(disasm);
+        Log::print<Log::Info>(disasm);
+
+    Log::print("%s[llil]\n", Log::Style(255, 180, 190).AsAnsi().c_str());
     for ( const auto& llil : llil_strings )
-        Log::print<Log::Info>(llil);
+        Log::print<Log::Success>(llil);
+
+    Log::print("%s[mlil]\n", Log::Style(255, 180, 190).AsAnsi().c_str());
     for ( const auto& mlil : mlil_strings )
         Log::print<Log::Warning>(mlil);
+
+    Log::print("%s[hlil]\n", Log::Style(255, 180, 190).AsAnsi().c_str());
     for ( const auto& hlil : hlil_strings )
         Log::print<Log::Error>(hlil);
 }
@@ -237,20 +266,73 @@ int main(int argc, const char* argv[])
         while ( Log::print("%sBINJA%sDBG%s> ", red_style.c_str(), white_style.c_str(), red_style.c_str() ) && std::cin.getline(input_buf, sizeof(input_buf)) )
         {
             auto input = std::string(input_buf);
+            if ( input == "help" )
+            {
+                const auto bar_style = Log::Style(200, 180, 190).AsAnsi();
+                const auto blue_style = Log::Style(0, 255, 255).AsAnsi();
 
+                constexpr auto help_string = "%s===== %sBINJA%sDBG%s %s=====\n";
+                Log::print(help_string, bar_style.c_str(), red_style.c_str(), white_style.c_str(), red_style.c_str(), bar_style.c_str());
+
+                auto print_arg = [&](const std::string& cmd, const std::string& description, const std::string& args = "")
+                {
+                    Log::print("%s| %s%s%s, %s%s", bar_style.c_str(), blue_style.c_str(), cmd.c_str(), white_style.c_str(), white_style.c_str(), description.c_str());
+                    if ( !args.empty() )
+                        Log::print(" -> takes %s%s", red_style.c_str(), args.c_str());
+                    Log::print("\n");
+                };
+
+                print_arg("[F2 KEY]", "breaks in");
+                print_arg(".", "invokes debugger backend", "command");
+                print_arg("lt", "list all threads");
+                print_arg("lm", "list all modules");
+                print_arg("bpl", "list all breakpoints");
+                print_arg("reg", "display registers");
+                print_arg("disasm", "disassemble & lift instructions", "instruction count");
+                print_arg("sr", "display stop reason");
+                print_arg("es", "display execution status");
+                print_arg("bp", "add a breakpoint", "address (hex)");
+                print_arg("bpr", "remove a breakpoint", "address (hex)");
+                print_arg("go", "go");
+                print_arg("force_go", "increment instruction pointer and go");
+                print_arg("so", "step over");
+                print_arg("sot", "step out");
+                print_arg("si", "step into");
+                print_arg("st", "step to", "address (hex)");
+                print_arg("ts", "set active thread", "thread id");
+                print_arg("detach", "detach debugger");
+            }
             if ( input[0] == '.' )
             {
                 debug_adapter->Invoke(input.substr(1));
+            }
+            else if ( input == "lm" )
+            {
+                Log::print<Log::Success>( "[modules]\n" );
+                for ( const auto& module : debug_adapter->GetModuleList() )
+                    Log::print<Log::Info>( "[%s, %s] %s @ 0x%llx with size 0x%x\n", module.m_name.c_str(), module.m_short_name.c_str(), module.m_loaded ? "is loaded" : "was unloaded", module.m_address, module.m_size );
+            }
+            else if ( input == "lt" )
+            {
+                Log::print<Log::Success>( "[threads]\n" );
+                for ( const auto& thread : debug_adapter->GetThreadList() )
+                    Log::print<Log::Info>( "[%i] tid %i\n", thread.m_index, thread.m_tid );
             }
             else if (input == "reg")
             {
                 RegisterDisplay(debug_adapter);
             }
+            else if (auto loc = input.find("ts ");
+                    loc != std::string::npos)
+            {
+                auto thread_id = std::stoul(input.substr(loc + 3), nullptr, 10);
+                debug_adapter->SetActiveThreadId(thread_id);
+            }
             else if (auto loc = input.find("disasm ");
                     loc != std::string::npos)
             {
-                auto step_count = std::stoul(input.substr(loc + 7), nullptr, 10);
-                DisasmDisplay(debug_adapter, step_count);
+                auto reg_count = std::stoul(input.substr(loc + 7), nullptr, 10);
+                DisasmDisplay(debug_adapter, reg_count);
             }
             else if (auto loc = input.find("bp ");
                     loc != std::string::npos)
@@ -287,25 +369,32 @@ int main(int argc, const char* argv[])
             {
                 const auto ip_name = debug_adapter->GetTargetArchitecture() == "x86" ? "eip" : "rip";
                 const auto ip = debug_adapter->ReadRegister(ip_name).m_value;
-                Log::print<Log::Warning>( "setting old ip[0x%llx] to [0x%llx]\n", ip, ip + 1 );
                 debug_adapter->WriteRegister(ip_name, ip + 1);
-                if (debug_adapter->ReadRegister(ip_name).m_value == ip + 1 )
-                    Log::print<Log::Success>( "set ip to [0x%llx]\n", ip + 1 );
                 debug_adapter->Go();
             }
             else if (input == "so")
             {
                 debug_adapter->StepOver();
             }
+            else if ( input == "sot" )
+            {
+                debug_adapter->StepOut();
+            }
             else if ( input == "si" )
             {
                 debug_adapter->StepInto();
+            }
+            else if (auto loc = input.find("st ");
+                    loc != std::string::npos)
+            {
+                debug_adapter->StepTo(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
             }
             else if (input == "detach")
             {
                 debug_adapter->Detach();
                 break;
             }
+
         }
     }
     catch (const std::exception &except)

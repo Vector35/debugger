@@ -10,10 +10,12 @@
 
 struct DebugThread
 {
-    std::uint32_t m_index{};
     std::uint32_t m_tid{};
-    bool m_is_executing{};
-    bool m_is_selected{};
+    std::uint32_t m_index{};
+
+    DebugThread() {}
+    DebugThread(std::uint32_t tid) : m_tid(tid) {}
+    DebugThread(std::uint32_t tid, std::uint32_t index) : m_tid(tid), m_index(index) {}
 };
 
 struct DebugBreakpoint
@@ -67,9 +69,9 @@ public:
     virtual DebugThread GetActiveThread() const = 0;
     virtual std::uint32_t GetActiveThreadId() const = 0;
     virtual bool SetActiveThread(const DebugThread& thread) = 0;
-    virtual bool SetActiveThreadId(std::uint32_t) = 0;
+    virtual bool SetActiveThreadId(std::uint32_t tid) = 0;
 
-    virtual DebugBreakpoint AddBreakpoint(const std::uintptr_t address) = 0;
+    virtual DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type = 0) = 0;
     virtual std::vector<DebugBreakpoint> AddBreakpoints(const std::vector<std::uintptr_t>& breakpoints) = 0;
     virtual bool RemoveBreakpoint(const DebugBreakpoint& breakpoint) = 0;
     virtual bool RemoveBreakpoints(const std::vector<DebugBreakpoint>& breakpoints) = 0;

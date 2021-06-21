@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <string>
 #include <binaryninjaapi.h>
+#include <memory>
 #include "dbgengadapter.h"
 #include "../../cli/src/log.h"
 
@@ -20,7 +21,7 @@ void DbgEngAdapter::Start()
             result != S_OK)
         throw std::runtime_error("Failed to create IDebugClient5");
 
-    QUERY_DEBUG_INTERFACE(IDebugControl4, &this->m_debug_control);
+    QUERY_DEBUG_INTERFACE(IDebugControl5, &this->m_debug_control);
     QUERY_DEBUG_INTERFACE(IDebugDataSpaces, &this->m_debug_data_spaces);
     QUERY_DEBUG_INTERFACE(IDebugRegisters, &this->m_debug_registers);
     QUERY_DEBUG_INTERFACE(IDebugSymbols, &this->m_debug_symbols);
@@ -187,30 +188,50 @@ void DbgEngAdapter::Quit()
 
 std::vector<DebugThread> DbgEngAdapter::GetThreadList() const
 {
-    return {};
+    unsigned long number_threads{};
+    if ( this->m_debug_system_objects->GetNumberThreads(&number_threads) != S_OK )
+        return {};
+
+    auto tids = std::make_unique<unsigned long[]>( number_threads );
+    auto sysids = std::make_unique<unsigned long[]>( number_threads );
+    if ( this->m_debug_system_objects->GetThreadIdsByIndex(0, number_threads, tids.get(), sysids.get()) != S_OK )
+        return {};
+
+    std::vector<DebugThread> debug_threads{};
+    for ( std::size_t index{}; index < number_threads; index++ )
+        debug_threads.emplace_back(sysids[index], tids[index]);
+
+    return debug_threads;
 }
 
 DebugThread DbgEngAdapter::GetActiveThread() const
 {
-    return DebugThread();
+    return DebugThread(this->GetActiveThreadId());
 }
 
 std::uint32_t DbgEngAdapter::GetActiveThreadId() const
 {
-    return 0;
+    unsigned long current_tid{};
+    if ( this->m_debug_system_objects->GetCurrentThreadId(&current_tid) != S_OK )
+        return {};
+
+    return current_tid;
 }
 
-bool DbgEngAdapter::SetActiveThread(const DebugThread &thread)
+bool DbgEngAdapter::SetActiveThread(const DebugThread& thread)
 {
-    return false;
+    return this->SetActiveThreadId(thread.m_tid);
 }
 
-bool DbgEngAdapter::SetActiveThreadId(std::uint32_t)
+bool DbgEngAdapter::SetActiveThreadId(std::uint32_t tid)
 {
-    return false;
+    if ( this->m_debug_system_objects->SetCurrentThreadId(tid) != S_OK )
+        return false;
+
+    return true;
 }
 
-DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address)
+DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags)
 {
     IDebugBreakpoint2* debug_breakpoint{};
 
@@ -236,7 +257,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address)
     if ( debug_breakpoint->SetOffset(address) != S_OK )
         return {};
 
-    if ( debug_breakpoint->SetFlags(DEBUG_BREAKPOINT_ENABLED) != S_OK )
+    if ( debug_breakpoint->SetFlags(DEBUG_BREAKPOINT_ENABLED | breakpoint_flags) != S_OK )
         return {};
 
     const auto new_breakpoint = DebugBreakpoint(address, id, true);
@@ -400,8 +421,8 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList() const
     std::vector<DebugModule> modules{};
 
     const auto total_modules = loaded_module_count + unloaded_module_count;
-    auto module_parameters = new DEBUG_MODULE_PARAMETERS[total_modules];
-    if ( this->m_debug_symbols->GetModuleParameters(total_modules, nullptr, 0, module_parameters) != S_OK )
+    auto module_parameters = std::make_unique<DEBUG_MODULE_PARAMETERS[]>(total_modules);
+    if ( this->m_debug_symbols->GetModuleParameters(total_modules, nullptr, 0, module_parameters.get()) != S_OK )
         return {};
 
     for ( std::size_t module_index{}; module_index < total_modules; module_index++ )
@@ -465,13 +486,44 @@ bool DbgEngAdapter::StepOver()
 
 bool DbgEngAdapter::StepOut()
 {
-    return false;
+    DEBUG_STACK_FRAME_EX stack_frame{};
+    unsigned long frame_total{};
+    if (this->m_debug_control->GetStackTraceEx(0, 0, 0, &stack_frame, 1, &frame_total) != S_OK )
+        return false;
+
+    IDebugBreakpoint2* debug_breakpoint;
+    if (const auto result = this->m_debug_control->AddBreakpoint2(DEBUG_BREAKPOINT_CODE, DbgEngAdapter::StepoutBreakpointID,
+                                                                  &debug_breakpoint);
+            result != S_OK)
+        return false;
+
+    if (debug_breakpoint->SetOffset(stack_frame.ReturnOffset) != S_OK )
+        return false;
+
+    if ( debug_breakpoint->SetFlags(DEBUG_BREAKPOINT_ONE_SHOT) != S_OK )
+        return false;
+
+    return this->Go();
 }
 
 bool DbgEngAdapter::StepTo(std::uintptr_t address)
 {
-    return false;
+    const auto breakpoints = this->m_debug_breakpoints;
+
+    this->RemoveBreakpoints(this->m_debug_breakpoints);
+
+    const auto bp = this->AddBreakpoint(address, DEBUG_BREAKPOINT_ONE_SHOT);
+    if ( !bp.m_address )
+        return false;
+
+    this->Go();
+
+    for ( const auto& breakpoint : breakpoints )
+        this->AddBreakpoint(breakpoint.m_address);
+
+    return true;
 }
+
 bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
 {
     std::memset(&DbgEngAdapter::ProcessCallbackInfo.m_last_breakpoint, 0, sizeof(DbgEngAdapter::ProcessCallbackInfo.m_last_breakpoint));
@@ -579,7 +631,7 @@ HRESULT DbgEngEventCallbacks::GetInterestMask(unsigned long* mask)
 
 HRESULT DbgEngEventCallbacks::Breakpoint(IDebugBreakpoint* breakpoint)
 {
-    std::uint64_t address{};
+    std::uintptr_t address{};
     if (breakpoint->GetOffset(&address) == S_OK )
         DbgEngAdapter::ProcessCallbackInfo.m_last_breakpoint = DebugBreakpoint( address );
 

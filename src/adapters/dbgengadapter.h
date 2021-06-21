@@ -74,7 +74,7 @@ class DbgEngAdapter : public DebugAdapter
     DbgEngEventCallbacks m_debug_event_callbacks{};
     DbgEngOutputCallbacks m_output_callbacks{};
     IDebugClient5* m_debug_client{nullptr};
-    IDebugControl4* m_debug_control{nullptr};
+    IDebugControl5* m_debug_control{nullptr};
     IDebugDataSpaces* m_debug_data_spaces{nullptr};
     IDebugRegisters* m_debug_registers{nullptr};
     IDebugSymbols* m_debug_symbols{nullptr};
@@ -89,6 +89,7 @@ class DbgEngAdapter : public DebugAdapter
 
 public:
     inline static ProcessCallbackInformation ProcessCallbackInfo{};
+    static constexpr unsigned long StepoutBreakpointID = 0x5be9c948;
 
     DbgEngAdapter();
     ~DbgEngAdapter();
@@ -105,9 +106,9 @@ public:
     DebugThread GetActiveThread() const override;
     std::uint32_t GetActiveThreadId() const override;
     bool SetActiveThread(const DebugThread &thread) override;
-    bool SetActiveThreadId(std::uint32_t) override;
+    bool SetActiveThreadId(std::uint32_t tid) override;
 
-    DebugBreakpoint AddBreakpoint(const std::uintptr_t address) override;
+    DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags = 0) override;
     std::vector<DebugBreakpoint> AddBreakpoints(const std::vector<std::uintptr_t>& breakpoints) override;
     bool RemoveBreakpoint(const DebugBreakpoint &breakpoint) override;
     bool RemoveBreakpoints(const std::vector<DebugBreakpoint> &breakpoints) override;
