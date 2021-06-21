@@ -24,6 +24,7 @@ private:
     BinaryViewRef m_data;
     bool m_connecting;
     bool m_running;
+    // DebugAdapter* m_adapter;
 
     std::vector<std::string> m_commandLineArge;
     // DebugerAdapterType m_debugAdapterType;
@@ -33,7 +34,6 @@ private:
 
     BinaryViewRef getData() const { return m_data; }
     inline static std::vector<DebuggerState*> g_debuggerStates;
-    static DebuggerState* getState(BinaryViewRef data);
     void deleteState(BinaryViewRef data);
 
 
@@ -54,4 +54,6 @@ public:
 
     bool canExec();
     bool canConnect();
+
+    static DebuggerState* getState(BinaryViewRef data);
 };

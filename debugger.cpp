@@ -1,6 +1,7 @@
 #include "inttypes.h"
 #include "debugger.h"
 #include "debugview.h"
+#include "processview.h"
 
 using namespace BinaryNinja;
 
@@ -12,6 +13,9 @@ extern "C"
 	{
 		Log(BNLogLevel::WarningLog, "Native debugger loaded!" );
 		ViewType::registerViewType(new DebugViewType());
+        InitDebugMemoryViewType();
+        InitDebugMemoryViewType();
+        InitDebugProcessViewType();
 		return true;
 	}
 
