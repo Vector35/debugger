@@ -1,6 +1,8 @@
 #pragma once
 #include <iostream>
+#ifdef WIN32
 #include <windows.h>
+#endif
 
 namespace Log
 {
@@ -35,6 +37,7 @@ namespace Log
 
     inline void SetupAnsi()
     {
+#ifdef WIN32
         const auto out_handle = GetStdHandle(STD_OUTPUT_HANDLE);
         const auto err_handle = GetStdHandle(STD_ERROR_HANDLE);
         if (!out_handle || !err_handle)
@@ -46,6 +49,7 @@ namespace Log
 
         SetConsoleMode(out_handle, old_out_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
         SetConsoleMode(err_handle, old_err_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+#endif
     }
 
     template <Mode LogMode = Mode::None, typename... Args>

@@ -2,7 +2,11 @@
 #include <thread>
 #include <atomic>
 #include "../../src/adapters/debugadapter.h"
+#ifdef WIN32
 #include "../../src/adapters/dbgengadapter.h"
+#else
+#include "../../src/adapters/gdbadapter.h"
+#endif
 #include "log.h"
 #include <binaryninjacore.h>
 #include <binaryninjaapi.h>
@@ -135,7 +139,15 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
         auto arch_list = Platform::GetList();
         for ( const auto& arch : arch_list )
         {
-            if ( arch->GetName() == "windows-x86_64" )
+            constexpr auto os =
+            #ifdef WIN32
+            "windows";
+            #else
+            "linux";
+            #endif
+
+            using namespace std::string_literals;
+            if ( arch->GetName() == os + "-"s + debug_adapter->GetTargetArchitecture() )
             {
                 plat = arch;
                 break;
@@ -250,13 +262,23 @@ int main(int argc, const char* argv[])
 
     try
     {
-        auto debug_adapter = new DbgEngAdapter();
+        auto debug_adapter = new
+        #ifdef WIN32
+        DbgEngAdapter();
+        #else
+        GdbAdapter();
+        #endif
+
         if (!debug_adapter->Attach(std::stoi(argv[1])))
             return -1;
 
         std::thread( [&]{
             while ( true )
+            #ifdef WIN32
                 if ( GetAsyncKeyState(VK_F2) & 1 )
+            #else
+                if ( false )
+            #endif
                     debug_adapter->BreakInto();
         }).detach();
 
