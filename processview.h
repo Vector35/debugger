@@ -28,6 +28,11 @@ public:
     DebugProcessView(BinaryView* parent);
     void markDirty();
     void clearModuleBases();
+    uint64_t getRemoteBase(BinaryView* relativeView = nullptr);
+    bool isCodeASLR(BinaryView* relativeView = nullptr);
+    uint64_t localAddressToRemote(uint64_t localAddr, BinaryView* relativeView = nullptr);
+    uint64_t remoteAddressToLocal(uint64_t localAddr, BinaryView* relativeView = nullptr);
+    bool isLocalAddress(BinaryView* relativeView = nullptr);
 };
 
 

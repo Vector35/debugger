@@ -46,6 +46,27 @@ void DebugProcessView::clearModuleBases()
 }
 
 
+uint64_t DebugProcessView::getRemoteBase(BinaryView* relativeView)
+{
+    if (!relativeView)
+        relativeView = m_localView;
+
+    auto file = relativeView->GetFile();
+    if (!file)
+        return 0;
+    
+    std::string moduleName = file->GetOriginalFilename();
+    auto iter = m_moduleBases.find(moduleName);
+    if (iter == m_moduleBases.end())
+    {
+        DebuggerState* state = DebuggerState::getState(m_localView);
+        
+    }
+
+
+}
+
+
 DebugProcessViewType::DebugProcessViewType():
     BinaryViewType("Debugged Process", "Debugged Process")
 {

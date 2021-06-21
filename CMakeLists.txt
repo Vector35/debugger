@@ -20,7 +20,9 @@ file(GLOB SOURCES
 	*.cpp
 	*.h
     dockwidgets/*.cpp
-    dockwidgets/*.h)
+    dockwidgets/*.h
+    adapters/*.cpp
+    adapters/*.h)
 
 list(FILTER SOURCES EXCLUDE REGEX moc_.*)
 list(FILTER SOURCES EXCLUDE REGEX qrc_.*)
