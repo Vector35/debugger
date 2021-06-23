@@ -127,8 +127,8 @@ public:
 
     std::string GetTargetArchitecture() override;
 
-    unsigned long StopReason();
-    unsigned long ExecStatus();
+    unsigned long StopReason() override;
+    unsigned long ExecStatus() override;
 
     bool BreakInto() override;
     bool Go() override;

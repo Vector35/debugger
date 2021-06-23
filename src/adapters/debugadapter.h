@@ -54,7 +54,6 @@ struct DebugModule
 
 class DebugAdapter
 {
-    bool m_is_attached = false;
 public:
     [[nodiscard]] virtual bool Execute(const std::string& path ) = 0;
     [[nodiscard]] virtual bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args ) = 0;
@@ -106,6 +105,9 @@ public:
     virtual std::vector<DebugModule> GetModuleList() const = 0;
 
     virtual std::string GetTargetArchitecture() = 0;
+
+    virtual unsigned long StopReason() = 0;
+    virtual unsigned long ExecStatus() = 0;
 
     virtual bool BreakInto() = 0;
     virtual bool Go() = 0;

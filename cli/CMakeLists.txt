@@ -4,21 +4,30 @@ project(debugger-cli)
 
 remove_definitions(-DUNICODE -D_UNICODE)
 
+set(ADAPTER_DIR ${CMAKE_SOURCE_DIR}/src/adapters)
+set(ADAPTER_SOURCES ${ADAPTER_DIR}/debugadapter.cpp ${ADAPTER_DIR}/debugadapter.h)
+
 if (WIN32)
     add_definitions(-DWIN32)
+    set(ADAPTER_SOURCES ${ADAPTER_SOURCES} ${ADAPTER_DIR}/dbgengadapter.cpp ${ADAPTER_DIR}/dbgengadapter.h)
+else()
+    set(ADAPTER_SOURCES ${ADAPTER_SOURCES} ${ADAPTER_DIR}/gdbadapter.cpp ${ADAPTER_DIR}/gdbadapter.h)
 endif()
 
-file(GLOB_RECURSE ADAPTER-SOURCES
-        ${CMAKE_SOURCE_DIR}/src/adapters/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/adapters/*.h )
-
-file(GLOB_RECURSE CLI-SOURCES
+file(GLOB_RECURSE CLI_SOURCES
         ${CMAKE_SOURCE_DIR}/cli/src/*.cpp
         ${CMAKE_SOURCE_DIR}/cli/src/*.h )
 
-add_executable(debugger-cli ${ADAPTER-SOURCES} ${CLI-SOURCES})
+add_executable(debugger-cli ${ADAPTER_SOURCES} ${CLI_SOURCES})
 
-target_link_libraries(debugger-cli dbgeng.lib ${BN_INSTALL_DIR}\\binaryninjacore.lib binaryninjaapi)
+set(TARGET_LINK_LIBRARIES binaryninjaapi)
+if (WIN32)
+    set(TARGET_LINK_LIBRARIES ${TARGET_LINK_LIBRARIES} dbgeng.lib)
+else()
+    set(TARGET_LINK_LIBRARIES ${TARGET_LINK_LIBRARIES} libpthread.so.0)
+endif()
+
+target_link_libraries(debugger-cli ${TARGET_LINK_LIBRARIES})
 
 set_target_properties(debugger-cli PROPERTIES
         CXX_STANDARD 17
