@@ -3,16 +3,19 @@
 
 class DummyAdapter: public DebugAdapter
 {
-    DummyAdapter();
+private:
     virtual bool Attach(uint32_t pid);
     virtual bool Connect(const std::string& server, uint32_t port);
 
-    virtual void Detech();
+    virtual void Detach();
     virtual void Quit();
 
-    virtual std::vector<DebugThread> GetThreadList();
-    virtual DebugThread GetActiveThread();
-    virtual uint32_t GetActiveThreadId();
+    virtual bool Execute(const std::string& path);
+    virtual bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args);
+
+    virtual std::vector<DebugThread> GetThreadList() const;
+    virtual DebugThread GetActiveThread() const;
+    virtual uint32_t GetActiveThreadId() const;
     virtual bool SetActiveThread(const DebugThread& thread);
     virtual bool SetActiveThreadId(uint32_t);
 
@@ -32,6 +35,8 @@ class DummyAdapter: public DebugAdapter
     virtual bool ReadMemory(std::uintptr_t address, void* out, std::size_t size);
     virtual bool WriteMemory(std::uintptr_t address, void* out, std::size_t size);
 
+    virtual std::vector<DebugModule> GetModuleList() const;
+
     virtual std::string GetTargetArchitecture();
 
     virtual bool BreakInto();
@@ -45,4 +50,7 @@ class DummyAdapter: public DebugAdapter
     virtual std::uintptr_t GetInstructionOffset();
 
     virtual bool IsValidForPlatform(BinaryNinja::Platform* platform);
+
+public:
+    DummyAdapter();
 };

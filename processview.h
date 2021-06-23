@@ -1,3 +1,5 @@
+#pragma once
+
 #include "binaryninjaapi.h"
 #include "viewframe.h"
 

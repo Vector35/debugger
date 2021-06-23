@@ -7,7 +7,11 @@
 #include "debuggerstate.h"
 #include "linearview.h"
 #include "disassemblyview.h"
+#include "tokenizedtextview.h"
 #include <QtWidgets/QSplitter>
+#include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QLabel>
+#include <QtCore/QTimer>
 // #include "byte.h"
 
 
@@ -19,15 +23,34 @@ class DebugView: public QWidget, public View
 	uint64_t m_currentOffset = 0;
 	// ByteView* m_byteView = nullptr;
 	// QPushButton* m_fullAnalysisButton = nullptr;
-    bool m_isRawDisassembly = false;
+    bool m_isRawDisassembly;
+    uint64_t m_rawAddress, m_memoryHistoryAddress;
+
+    bool m_isNavigatingHistory;
 
     DebuggerState* m_state;
     DebugControlsWidget* m_controls;
 
     QSplitter* m_splitter;
 
+    QVBoxLayout* m_binaryViewLayout;
+    QWidget* m_binaryViewWidget;
+    QLabel* m_bianryViewLabel;
+
+    QVBoxLayout* m_disassemblyLayout;
+    QWidget* m_disassemblyWidget;
+    QLabel* m_disassemblyLabel;
+
+    QVBoxLayout* m_memoryLayout;
+    QWidget* m_memoryWidget;
+    QLabel* m_memoryLabel;
+
+    TokenizedTextView* m_binaryText;
     LinearView* m_memoryEditor;
     DisassemblyContainer* m_binaryEditor;
+
+    bool m_needsUpdate;
+    QTimer* m_updateTimer;
 
 public:
 	DebugView(QWidget* parent, BinaryViewRef data);
@@ -47,7 +70,7 @@ protected:
 	virtual void focusInEvent(QFocusEvent* event) override;
 
 private Q_SLOTS:
-	// void startFullAnalysis();
+	void updateTimerEvent();
 };
 
 

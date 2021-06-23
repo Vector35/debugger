@@ -9,6 +9,18 @@ DummyAdapter::DummyAdapter()
 }
 
 
+bool DummyAdapter::Execute(const std::string& path)
+{
+    return true;
+}
+
+
+bool DummyAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args)
+{
+    return true;
+}
+
+
 bool DummyAdapter::Attach(uint32_t pid)
 {
     LogWarn("Attaching to process: %d", pid);
@@ -23,7 +35,7 @@ bool DummyAdapter::Connect(const std::string& server, uint32_t port)
 }
 
 
-void DummyAdapter::Detech()
+void DummyAdapter::Detach()
 {
 
 }
@@ -35,21 +47,21 @@ void DummyAdapter::Quit()
 }
 
 
-std::vector<DebugThread> DummyAdapter::GetThreadList()
+std::vector<DebugThread> DummyAdapter::GetThreadList() const
 {
     std::vector<DebugThread> result;
     return result;
 }
 
 
-DebugThread DummyAdapter::GetActiveThread()
+DebugThread DummyAdapter::GetActiveThread() const
 {
     DebugThread result;
     return result;    
 }
 
 
-uint32_t DummyAdapter::GetActiveThreadId()
+uint32_t DummyAdapter::GetActiveThreadId() const
 {
     return 0;
 }
@@ -143,6 +155,13 @@ bool DummyAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t siz
 bool DummyAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t size)
 {
     return true;
+}
+
+
+std::vector<DebugModule> DummyAdapter::GetModuleList() const
+{
+    std::vector<DebugModule> result;
+    return result;
 }
 
 

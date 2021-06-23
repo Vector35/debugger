@@ -5,9 +5,47 @@
 
 // }
 
-DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
+DebugModulesCache::DebugModulesCache(DebuggerState* state, std::vector<DebugModule> modules):
+    m_state(state), m_modules(modules)
 {
 
+}
+
+
+void DebugModulesCache::markDirty()
+{
+    m_modules.clear();
+}
+
+
+void DebugModulesCache::update()
+{
+    DebugAdapter* adapter = m_state->getAdapter();
+    if (!adapter)
+        return;
+
+    m_modules = adapter->GetModuleList();
+}
+
+
+bool DebugModulesCache::GetModuleBase(const std::string& name, uint64_t& address)
+{
+    for (const DebugModule& module: m_modules)
+    {
+        if ((name == module.m_name) || (name == module.m_shortName))
+        {
+            address = module.m_address;
+            return true;
+        }
+    }
+    return false;
+}
+
+
+DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
+{
+    m_memoryView = new DebugProcessView(data);
+    m_adapter = new DummyAdapter();
 }
 
 

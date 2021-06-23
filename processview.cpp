@@ -16,7 +16,7 @@ DebugProcessView::DebugProcessView(BinaryView* parent):
     m_platform = parent->GetDefaultPlatform();
 
     // TODO: Read segments from debugger
-    uint64_t length = m_memory->GetLength();
+    uint64_t length = PerformGetLength();
     AddAutoSegment(0, length, 0, length, SegmentReadable | SegmentWritable | SegmentExecutable);
     AddAutoSection("Memory", 0, length);
 }
@@ -60,10 +60,22 @@ uint64_t DebugProcessView::getRemoteBase(BinaryView* relativeView)
     if (iter == m_moduleBases.end())
     {
         DebuggerState* state = DebuggerState::getState(m_localView);
-        
+        DebugModulesCache* modulesCache = state->getModulesCache();
+        if (!modulesCache)
+            // TODO: should return false, and return the address by reference
+            return 0;
+        uint64_t address;
+        if (modulesCache->GetModuleBase(moduleName, address))
+        {
+            m_moduleBases[moduleName] = address;
+            return address;
+        }
+        return 0;
     }
-
-
+    else
+    {
+        return iter->second;
+    }
 }
 
 
@@ -178,7 +190,7 @@ uint64_t DebugMemoryView::PerformGetLength() const
     size_t addressSize = PerformGetAddressSize();
     const size_t bitsPerByte = 8;
     size_t bits = addressSize * bitsPerByte;
-    if (bits > 64)
+    if (bits >= 64)
         return UINT64_MAX;
     
     return (1UL << bits) - 1;

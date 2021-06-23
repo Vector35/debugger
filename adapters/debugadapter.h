@@ -42,13 +42,13 @@ struct DebugRegister
 
 struct DebugModule
 {
-    std::string m_name{}, m_short_name{};
+    std::string m_name{}, m_shortName{};
     std::uintptr_t m_address{};
     std::size_t m_size{};
     bool m_loaded{};
 
     DebugModule(std::string name, std::string short_name, std::uintptr_t address, std::size_t size, bool loaded) :
-        m_name(std::move(name)), m_short_name(std::move(short_name)), m_address(address), m_size(size), m_loaded(loaded) {}
+        m_name(std::move(name)), m_shortName(std::move(short_name)), m_address(address), m_size(size), m_loaded(loaded) {}
 };
 
 class DebugAdapter
