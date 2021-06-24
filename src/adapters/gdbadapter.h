@@ -3,6 +3,11 @@
 
 class GdbAdapter : public DebugAdapter
 {
+    int m_socket{};
+    int m_port{};
+
+    std::string ExecuteShellCommand(const std::string& command);
+
 public:
     GdbAdapter();
     ~GdbAdapter();

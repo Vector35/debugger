@@ -1,4 +1,12 @@
 #include "gdbadapter.h"
+#include "rspconnector.h"
+#include <memory>
+#include <cstring>
+#include <unistd.h>
+#include <algorithm>
+#include <string>
+#include <chrono>
+#include <thread>
 
 GdbAdapter::GdbAdapter()
 {
@@ -10,8 +18,75 @@ GdbAdapter::~GdbAdapter()
 
 }
 
+std::string GdbAdapter::ExecuteShellCommand(const std::string& command)
+{
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
+    if (!pipe)
+        return {};
+
+    std::string result{};
+    std::array<char, 128> buffer{};
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr)
+        result += buffer.data();
+
+    if (result.empty())
+        return {};
+
+    return result;
+}
+
 bool GdbAdapter::Execute(const std::string& path)
 {
+    auto gdb_server_path = this->ExecuteShellCommand("which gdbserver");
+    if ( gdb_server_path.empty() )
+        return false;
+    gdb_server_path.erase(std::remove(gdb_server_path.begin(), gdb_server_path.end(), '\n'), gdb_server_path.end());
+
+    for ( int index = 31337; index < 31337 + 256; index++ )
+    {
+        this->m_socket = socket(AF_INET, SOCK_STREAM, 0);
+
+        sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+        addr.sin_port = htons(index);
+
+        if (bind(this->m_socket, (const sockaddr*) &addr, sizeof(addr)) >= 0)
+        {
+            this->m_port = index;
+            close(this->m_socket);
+            break;
+        }
+    }
+
+    if ( !this->m_port )
+        return false;
+
+    std::array<char, 256> buffer{};
+    std::sprintf(buffer.data(), "%s --once --no-startup-with-shell localhost:%d %s > /dev/null 2>&1 &",
+                 gdb_server_path.c_str(), this->m_port, path.c_str());
+
+    std::system(buffer.data());
+    std::system((path + " > /dev/null 2>&1").c_str());
+
+    for ( std::uint8_t index{}; index < 4; index++ )
+    {
+        this->m_socket = socket(AF_INET, SOCK_STREAM, 0);
+        sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+        addr.sin_port = htons(this->m_port);
+        if (connect(this->m_socket, (const sockaddr*) &addr, sizeof(addr)) >= 0)
+        {
+            auto rsp_connector = RspConnector(this->m_socket);
+            printf("%s\n", rsp_connector.TransmitAndReceive(RspData("Hg0")).AsString().c_str() );
+            //printf("%s\n", rsp_connector.TransmitAndReceive(RspData("?")).AsString().c_str() );
+            return true;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
     return false;
 }
 
@@ -27,6 +102,7 @@ bool GdbAdapter::Attach(std::uint32_t pid)
 
 bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
 {
+
     return false;
 }
 

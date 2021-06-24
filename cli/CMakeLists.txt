@@ -5,13 +5,14 @@ project(debugger-cli)
 remove_definitions(-DUNICODE -D_UNICODE)
 
 set(ADAPTER_DIR ${CMAKE_SOURCE_DIR}/src/adapters)
-set(ADAPTER_SOURCES ${ADAPTER_DIR}/debugadapter.cpp ${ADAPTER_DIR}/debugadapter.h)
+set(ADAPTER_SOURCES ${ADAPTER_DIR}/debugadapter.cpp ${ADAPTER_DIR}/debugadapter.h ${ADAPTER_DIR}/rspconnector.cpp ${ADAPTER_DIR}/rspconnector.h)
 
 if (WIN32)
     add_definitions(-DWIN32)
     set(ADAPTER_SOURCES ${ADAPTER_SOURCES} ${ADAPTER_DIR}/dbgengadapter.cpp ${ADAPTER_DIR}/dbgengadapter.h)
 else()
-    set(ADAPTER_SOURCES ${ADAPTER_SOURCES} ${ADAPTER_DIR}/gdbadapter.cpp ${ADAPTER_DIR}/gdbadapter.h)
+    set(ADAPTER_SOURCES ${ADAPTER_SOURCES}
+            ${ADAPTER_DIR}/gdbadapter.cpp ${ADAPTER_DIR}/gdbadapter.h)
 endif()
 
 file(GLOB_RECURSE CLI_SOURCES

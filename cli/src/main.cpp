@@ -272,8 +272,9 @@ int main(int argc, const char* argv[])
         GdbAdapter();
         #endif
 
-        if (!debug_adapter->Attach(std::stoi(argv[1])))
-            return -1;
+        //if (!debug_adapter->Execute(argv[1]))
+        if (!debug_adapter->Execute("/opt/sublime_text/sublime_text"))
+                return -1;
 
         std::thread( [&]{
             while ( true )
