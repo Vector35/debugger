@@ -46,12 +46,16 @@ DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
 {
     m_memoryView = new DebugProcessView(data);
     m_adapter = new DummyAdapter();
+    m_adapterType = (DebugAdapterType::AdapterType)m_data->GetUIntMetadata("native_debugger.adapter_type");
 }
 
 
 void DebuggerState::run()
 {
     BinaryNinja::LogWarn("run() requested");
+    // if (DebugAdapterType::useExec(m_adapterType))
+
+
 }
 
 

@@ -55,6 +55,8 @@ private:
     uint32_t m_remotePort;
     bool m_requestTerminalEmulator;
 
+    DebugAdapterType::AdapterType m_adapterType;
+
     BinaryViewRef getData() const { return m_data; }
     inline static std::vector<DebuggerState*> g_debuggerStates;
     void deleteState(BinaryViewRef data);
