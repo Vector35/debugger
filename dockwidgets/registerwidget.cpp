@@ -1,3 +1,4 @@
+#include <QtGui/QPainter>
 #include "registerwidget.h"
 
 using namespace BinaryNinja;
@@ -11,7 +12,7 @@ DebugRegisterItem::DebugRegisterItem(const string& name, uint64_t value, bool up
 
 bool DebugRegisterItem::operator==(const DebugRegisterItem& other) const
 {
-    return (m_name == other.name()) && (m_value == other.value()) && (m_updated == updated) &&
+    return (m_name == other.name()) && (m_value == other.value()) && (m_updated == other.updated()) &&
         (m_hint == other.hint());
 }
 
@@ -54,15 +55,15 @@ DebugRegisterListModel::~DebugRegisterListModel()
 
 Qt::ItemFlags DebugRegisterListModel::flags(const QModelIndex &index) const
 {
-    ItemFlags flag = QAbstractTableModel::flags(index);
-    if (index.column == DebugRegisterListModel::ValueColumn)
-        flag != Qt::ItemIsEditable;
+    Qt::ItemFlags flag = QAbstractTableModel::flags(index);
+    if (index.column() == DebugRegisterListModel::ValueColumn)
+        flag |= Qt::ItemIsEditable;
 
     return flag;
 }
 
 
-DebugRegister DebugRegisterListModel::getRow(int row) const
+DebugRegisterItem DebugRegisterListModel::getRow(int row) const
 {
     if ((size_t)row >= m_items.size())
 		throw std::runtime_error("row index out-of-bound");
@@ -95,27 +96,28 @@ QVariant DebugRegisterListModel::data(const QModelIndex& index, int role) const
     if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole))
         return QVariant();
 
-    switch (index.colum())
+    switch (index.column())
     {
     case DebugRegisterListModel::NameColumn:
     {
         if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)index->name().size());
+            return QVariant((qulonglong)item->name().size());
 
+        QList<QVariant> line;
         line.push_back(getThemeColor(RegisterColor).rgba());
-		line.push_back(QString::fromStdString(index->name())));
+		line.push_back(QString::fromStdString(item->name()));
 		return QVariant(line);
     }
     case DebugRegisterListModel::ValueColumn:
     {
         // TODO: We need better alignment for values
-        uint64_t value = index->value();
-        QString valueStr = QString::asprintf("%" PRIx64, value)
+        uint64_t value = item->value();
+        QString valueStr = QString::asprintf("%" PRIx64, value);
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)valueStr.size());
 
         QList<QVariant> line;
-        if (index->udpated())
+        if (item->updated())
             line.push_back(getThemeColor(OrangeStandardHighlightColor).rgba());
         else
             line.push_back(getThemeColor(NumberColor).rgba());
@@ -126,13 +128,15 @@ QVariant DebugRegisterListModel::data(const QModelIndex& index, int role) const
     case DebugRegisterListModel::HintColumn:
     {
         if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)index->hint().size());
+            return QVariant((qulonglong)item->hint().size());
 
+        QList<QVariant> line;
         line.push_back(getThemeColor(StringColor).rgba());
-		line.push_back(QString::fromStdString(index->hint())));
+		line.push_back(QString::fromStdString(item->hint()));
 		return QVariant(line);
     }
     }
+    return QVariant();
 }
 
 
@@ -146,11 +150,11 @@ QVariant DebugRegisterListModel::headerData(int column, Qt::Orientation orientat
 
 	switch (column)
 	{
-		case SearchResultModel::NameColumn:
+		case DebugRegisterListModel::NameColumn:
 			return "Name";
-		case SearchResultModel::ValueColumn:
+		case DebugRegisterListModel::ValueColumn:
 			return "Value";
-		case SearchResultModel::HintColumn:
+		case DebugRegisterListModel::HintColumn:
 			return "Hint";
 	}
 	return QVariant();
@@ -262,14 +266,14 @@ void DebugRegisterItemDelegate::updateFonts()
 
 
 DebugRegisterWidget::DebugRegisterWidget(ViewFrame* view, const std::string& name, BinaryViewRef data):
-    QWidget(view), DockContextHandler(this, name), m_view(view), m_data(data)
+    QWidget(view), DockContextHandler(this, QString::fromStdString(name)), m_view(view), m_data(data)
 {
     m_table = new QTableView(this);
-    m_model = new DebugRegisterListModel(m_table, data);
+    m_model = new DebugRegisterListModel(m_table, data, view);
 }
 
 
-DebugRegisterWidget::notifyRegistersChanged(std::vector<DebugRegister> regs)
+void DebugRegisterWidget::notifyRegistersChanged(std::vector<DebugRegister> regs)
 {
 
 }
