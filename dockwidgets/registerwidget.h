@@ -98,11 +98,13 @@ class BINARYNINJAUIAPI DebugRegisterWidget: public QWidget, public DockContextHa
     DebugRegisterItemDelegate* m_delegate;
 
     void notifyRegistersChanged(std::vector<DebugRegister> regs);
-    // void shouldBeViaible()
+    // void shouldBeVisible()
 
-
+    virtual void notifyFontChanged() override;
 
 
 public:
-    DebugRegisterWidget(ViewFrame* view, const std::string& name, BinaryViewRef data);
+    DebugRegisterWidget(ViewFrame* view, const QString& name, BinaryViewRef data);
 };
+
+// TODO: support editing register values

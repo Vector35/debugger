@@ -1,4 +1,5 @@
 #include <QtGui/QPainter>
+#include <QtWidgets/QHeaderView>
 #include "registerwidget.h"
 
 using namespace BinaryNinja;
@@ -265,15 +266,42 @@ void DebugRegisterItemDelegate::updateFonts()
 }
 
 
-DebugRegisterWidget::DebugRegisterWidget(ViewFrame* view, const std::string& name, BinaryViewRef data):
-    QWidget(view), DockContextHandler(this, QString::fromStdString(name)), m_view(view), m_data(data)
+DebugRegisterWidget::DebugRegisterWidget(ViewFrame* view, const QString& name, BinaryViewRef data):
+    QWidget(view), DockContextHandler(this, name), m_view(view), m_data(data)
 {
     m_table = new QTableView(this);
     m_model = new DebugRegisterListModel(m_table, data, view);
+
+    m_delegate = new DebugRegisterItemDelegate(this);
+    m_table->setItemDelegate(m_delegate);
+
+    m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+
+    m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_table->verticalHeader()->setVisible(false);
+
+    m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+
+    m_table->resizeColumnsToContents();
+    m_table->resizeRowsToContents();
+
+    QVBoxLayout* layout = new QVBoxLayout;
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    layout->addWidget(m_table);
+    setLayout(layout);
 }
 
 
 void DebugRegisterWidget::notifyRegistersChanged(std::vector<DebugRegister> regs)
 {
+    m_model->updateRows(regs);
+}
 
+
+void DebugRegisterWidget::notifyFontChanged()
+{
+    m_delegate->updateFonts();
 }
