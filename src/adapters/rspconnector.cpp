@@ -3,14 +3,15 @@
 #include <algorithm>
 #include <chrono>
 #include <thread>
+#include <regex>
+#include <sys/time.h>
+#include <sys/fcntl.h>
+#include <unistd.h>
 #include "rspconnector.h"
 
 RspConnector::RspConnector(int socket) : m_socket(socket) { }
 
-RspConnector::~RspConnector()
-{
-
-}
+RspConnector::~RspConnector() {}
 
 RspData RspConnector::BinaryDecode(const RspData& data)
 {
@@ -91,14 +92,45 @@ void RspConnector::SendAck() const
 
 void RspConnector::NegotiateCapabilities(const std::vector <std::string>& capabilities)
 {
+    std::string capabilities_request = "qSupported:";
+    for ( const auto& capability : capabilities )
+    {
+        capabilities_request.append(capability);
+        if (&capability != &capabilities.back())
+            capabilities_request.append(";");
+    }
 
+    const auto split = [](const std::string& string, const std::string& regex) -> std::vector<std::string>
+    {
+        const auto regex_l = std::regex(regex);
+        return { std::sregex_token_iterator(string.begin(), string.end(), regex_l, -1), std::sregex_token_iterator() };
+    };
+
+    const auto reply = this->TransmitAndReceive(RspData(capabilities_request));
+    const auto reply_tokens = split(reply.AsString(), ";");
+    for ( auto reply_token : reply_tokens )
+    {
+        if ( reply_token.find("PacketSize=") != std::string::npos )
+        {
+            if (auto packet_tokens = split(reply_token, "="); !packet_tokens.empty())
+                this->m_max_packet_length = std::stoi(packet_tokens[1], nullptr, 16);
+            continue;
+        }
+
+        reply_token.erase(std::remove(reply_token.begin(), reply_token.end(), '+'), reply_token.end());
+        this->m_server_capabilities.push_back(reply_token);
+    }
+
+    const auto can_start_without_ack = this->TransmitAndReceive(RspData("QStartNoAckMode"));
+    if (can_start_without_ack.AsString() == "OK" )
+        this->m_acks_enabled = false;
 }
 
 void RspConnector::SendRaw(const RspData& data) const
 {
     printf("[raw send]\n");
     for ( const auto& c : data )
-        printf("%c ", c);
+        printf("%c", c);
     printf("\n");
 
     send(this->m_socket, data.m_data, data.m_size, 0);
@@ -106,10 +138,11 @@ void RspConnector::SendRaw(const RspData& data) const
 
 void RspConnector::SendPayload(const RspData& data) const
 {
-    printf("[sending]\n");
+    printf("[payload send]\n");
     for ( const auto& c : data )
-        printf("%c ", data);
+        printf("%c", c);
     printf("\n");
+
 
     const auto checksum = std::accumulate(data.begin(), data.end(), 0) % 256;
     auto packet = "$" + data.AsString() + "#";
@@ -120,12 +153,13 @@ void RspConnector::SendPayload(const RspData& data) const
 
     printf("[modified]\n");
     for ( const auto& c : packet )
-        printf("%c ", c);
+        printf("%c", c);
     printf("\n");
 
     this->SendRaw(RspData(packet));
 }
 
+/*
 RspData RspConnector::ReceiveRspData()
 {
     char tmp_buffer[16];
@@ -162,6 +196,62 @@ RspData RspConnector::ReceiveRspData()
     this->SendAck();
 
     return RspData(std::string(buffer.data(), buffer.size()));
+}*/
+
+RspData RspConnector::ReceiveRspData() const
+{
+    std::vector<char> buffer{};
+
+    bool did_find = false;
+    while ( !did_find )
+    {
+        char tmp_buffer[RspData::BUFFER_MAX]{'\0'};
+        recv(this->m_socket, tmp_buffer, sizeof(tmp_buffer), 0);
+        std::copy(tmp_buffer, tmp_buffer + sizeof(tmp_buffer), std::back_inserter(buffer));
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+        if (buffer[0] != '$')
+            throw std::runtime_error("Incorrect response");
+
+        bool parsed = false;
+        int parse_count{};
+        while ( !parsed )
+        {
+            auto location = std::find(buffer.rbegin() + parse_count, buffer.rend(), '#');
+            if (location != buffer.rend())
+            {
+                auto location_index = std::distance(buffer.begin(), location.base()) - 1;
+                if (buffer.begin() + location_index != buffer.end())
+                {
+                    if (std::isxdigit(*(buffer.begin() + location_index + 1)) &&
+                        std::isxdigit(*(buffer.begin() + location_index + 2)) &&
+                        (*(buffer.begin() + location_index)) == '#' )
+                    {
+                        did_find = true;
+                        parsed = true;
+                    }
+                    else
+                    {
+                        parse_count++;
+                        continue;
+                    }
+                }
+            }
+        }
+    }
+
+    if ( auto location = std::find(buffer.rbegin(), buffer.rend(), '#');
+            location != buffer.rend() )
+    {
+        auto location_index = std::distance(buffer.begin(), location.base()) - 1;
+        buffer.erase(buffer.begin() + location_index, buffer.end());
+        buffer.erase(buffer.begin(), buffer.begin() + 1);
+    }
+
+    this->SendAck();
+
+    return RspData(std::string(buffer.data(), buffer.size()));
 }
 
 RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string& expect, bool async)
@@ -174,19 +264,31 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
         reply = RspData("");
     else if ( expect == "ack_then_reply" )
     {
+        printf("EXPECT -> ack_then_reply\n");
         printf("ack -> %c\n", this->ExpectAck());
         reply = this->ReceiveRspData();
-        printf("rle -> %s\n", reply.AsString().c_str());
     }
 
     if ( std::find(reply.begin(), reply.end(), '*') != reply.end() )
+    {
+        printf("encoded -> %s\n", reply.AsString().c_str());
         reply = this->DecodeRLE(reply);
-    printf("derle -> %s\n", reply.AsString().c_str());
+    }
+
+    printf("decoded -> %s\n", reply.AsString().c_str());
 
     return reply;
 }
 
 std::string RspConnector::GetXml(const std::string& name)
 {
-    return nullptr;
+    char buffer[128]{'\0'};
+    std::sprintf(buffer, "qXfer:features:read:%s:%X,%X", name.c_str(), 0, RspData::BUFFER_MAX);
+    const auto data = this->TransmitAndReceive(RspData(buffer));
+
+    if ( data.m_data[0] != 'l' &&
+         data.m_data[0] != 'm' )
+        throw std::runtime_error("Failed to retrieve xml data");
+
+    return data.AsString();
 }

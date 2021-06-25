@@ -1,12 +1,24 @@
 #pragma once
 #include "debugadapter.h"
+#include "rspconnector.h"
+#include <unordered_map>
 
 class GdbAdapter : public DebugAdapter
 {
+    struct RegisterInfo
+    {
+        std::uint32_t id{};
+        std::uint32_t width{};
+        std::uint32_t group{};
+    };
+
     int m_socket{};
     int m_port{};
+    RspConnector m_rsp_connector{};
+    std::unordered_map<std::string, RegisterInfo> m_register_info{};
 
     std::string ExecuteShellCommand(const std::string& command);
+    bool LoadRegisterInfo();
 
 public:
     GdbAdapter();

@@ -11,6 +11,9 @@
 
 struct RspData
 {
+    /* BUFFER_MAX/GDB_BUF_MAX - https://www.embecosm.com/appnotes/ean4/embecosm-howto-rsp-server-ean4-issue-2.pdf */
+    static constexpr std::uint64_t BUFFER_MAX = (16 * 1024);
+
     struct RspIterator
     {
         using iterator_category = std::forward_iterator_tag;
@@ -45,34 +48,45 @@ struct RspData
         const reference operator*() const override { return *m_pointer; }
     };
 
-    RspIterator begin() const { return RspIterator(&this->m_data[0]); }
-    RspIterator end() const { return RspIterator(&this->m_data[this->m_size]); }
-    ReverseRspIterator rbegin() const { return ReverseRspIterator(&this->m_data[this->m_size]); }
-    ReverseRspIterator rend() const { return ReverseRspIterator(&this->m_data[0]); }
-    ConstRspIterator cbegin() const { return ConstRspIterator(&this->m_data[0]); }
-    ConstRspIterator cend() const { return ConstRspIterator(&this->m_data[this->m_size]); }
-
+    RspIterator begin() const { return RspIterator((std::uint8_t*)&this->m_data[0]); }
+    RspIterator end() const { return RspIterator((std::uint8_t*)&this->m_data[this->m_size]); }
+    ReverseRspIterator rbegin() const { return ReverseRspIterator((std::uint8_t*)&this->m_data[this->m_size]); }
+    ReverseRspIterator rend() const { return ReverseRspIterator((std::uint8_t*)&this->m_data[0]); }
+    ConstRspIterator cbegin() const { return ConstRspIterator((std::uint8_t*)&this->m_data[0]); }
+    ConstRspIterator cend() const { return ConstRspIterator((std::uint8_t*)&this->m_data[this->m_size]); }
 
     RspData() {}
 
-    explicit RspData(const std::string& str)
+    explicit RspData(const std::string& str) : m_size(str.size())
     {
-        this->m_data = new std::uint8_t[str.size()];
-        strcpy((char*)this->m_data, str.c_str());
-        this->m_size = str.size();
+        if ( str.size() > RspData::BUFFER_MAX )
+            throw std::runtime_error("size > rsp BUFFER_MAX");
+
+        std::memcpy(this->m_data, str.data(), str.size());
     }
 
-    RspData(void* data, std::size_t size) : m_data((std::uint8_t*)data), m_size(size) {}
-    RspData(char* data, std::size_t size) : m_data((std::uint8_t*)data), m_size(size) {}
+    RspData(void* data, std::size_t size) : m_size(size)
+    {
+        if ( size > RspData::BUFFER_MAX )
+            throw std::runtime_error("size > rsp BUFFER_MAX");
 
-    /* TODO: fix all this allocation stuff */
+        std::memcpy(this->m_data, data, size);
+    }
+
+    RspData(char* data, std::size_t size) : m_size(size)
+    {
+        if ( size > RspData::BUFFER_MAX )
+            throw std::runtime_error("size > rsp BUFFER_MAX");
+
+        std::memcpy(this->m_data, data, size);
+    }
 
     [[nodiscard]] std::string AsString() const
     {
         return std::string((char*)this->m_data, this->m_size);
     }
 
-    std::uint8_t* m_data{};
+    std::uint8_t m_data[RspData::BUFFER_MAX]{};
     std::size_t m_size{};
 };
 
@@ -84,6 +98,7 @@ class RspConnector
     int m_max_packet_length{0xfff};
 
 public:
+    RspConnector() = default;
     RspConnector(int socket);
     ~RspConnector();
 
@@ -102,7 +117,7 @@ public:
     void SendRaw(const RspData& data) const;
     void SendPayload(const RspData& data) const;
 
-    RspData ReceiveRspData();
+    RspData ReceiveRspData() const;
     RspData TransmitAndReceive(const RspData& data, const std::string& expect = "ack_then_reply", bool async = false);
 
     std::string GetXml(const std::string& name);

@@ -1,5 +1,4 @@
 #include "gdbadapter.h"
-#include "rspconnector.h"
 #include <memory>
 #include <cstring>
 #include <unistd.h>
@@ -69,25 +68,7 @@ bool GdbAdapter::Execute(const std::string& path)
     std::system(buffer.data());
     std::system((path + " > /dev/null 2>&1").c_str());
 
-    for ( std::uint8_t index{}; index < 4; index++ )
-    {
-        this->m_socket = socket(AF_INET, SOCK_STREAM, 0);
-        sockaddr_in addr{};
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-        addr.sin_port = htons(this->m_port);
-        if (connect(this->m_socket, (const sockaddr*) &addr, sizeof(addr)) >= 0)
-        {
-            auto rsp_connector = RspConnector(this->m_socket);
-            printf("%s\n", rsp_connector.TransmitAndReceive(RspData("Hg0")).AsString().c_str() );
-            //printf("%s\n", rsp_connector.TransmitAndReceive(RspData("?")).AsString().c_str() );
-            return true;
-        }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    }
-
-    return false;
+    return this->Connect("127.0.0.1", this->m_port);
 }
 
 bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args)
@@ -100,8 +81,43 @@ bool GdbAdapter::Attach(std::uint32_t pid)
     return true;
 }
 
+bool GdbAdapter::LoadRegisterInfo()
+{
+    const auto xml = this->m_rsp_connector.GetXml("target.xml");
+    printf("%s\n", xml.c_str());
+
+    return true;
+}
+
 bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
 {
+    bool connected = false;
+    for ( std::uint8_t index{}; index < 4; index++ )
+    {
+        this->m_socket = socket(AF_INET, SOCK_STREAM, 0);
+        sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+        addr.sin_port = htons(this->m_port);
+        if (connect(this->m_socket, (const sockaddr*) &addr, sizeof(addr)) >= 0)
+        {
+            connected = true;
+            break;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+    if ( !connected )
+        return false;
+
+    this->m_rsp_connector = RspConnector(this->m_socket);
+    printf("FINAL RESPONSE -> %s\n", this->m_rsp_connector.TransmitAndReceive(RspData("Hg0")).AsString().c_str() );
+    this->m_rsp_connector.NegotiateCapabilities(
+            { "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
+                         "vContSupported+", "QThreadEvents+", "no-resumed+", "xmlRegisters=i386" } );
+    if ( !this->LoadRegisterInfo() )
+        return false;
 
     return false;
 }
