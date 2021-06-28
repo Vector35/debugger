@@ -8,7 +8,7 @@
 class DebuggerState;
 
 
-class DebugerRegisters
+class DebuggerRegisters
 {
     struct RegisterCache
     {
@@ -16,18 +16,27 @@ class DebugerRegisters
     };
 private:
     DebuggerState* m_state;
+    std::vector<std::string> m_cachedRgisterList;
+    std::map<std::string, DebugRegister> m_registerCache;
 
+public:
+    DebuggerRegisters(DebuggerState* state);
+    // DebugRegister operator[](std::string name);
+    uint64_t getRegisterValue(const std::string& name);
+    void updateRegisterValue(const std::string& name, uint64_t value);
+    void markDirty();
+    void update();
 };
 
 
-class DebugModulesCache
+class DebuggerModules
 {
 private:
     DebuggerState* m_state;
     std::vector<DebugModule> m_modules;
 
 public:
-    DebugModulesCache(DebuggerState* state, std::vector<DebugModule> modules);
+    DebuggerModules(DebuggerState* state, std::vector<DebugModule> modules);
     void markDirty();
     void update();
 
@@ -42,18 +51,22 @@ class DebuggerState
 {
 private:
     BinaryViewRef m_data;
-    bool m_connecting;
+    bool m_connecting, m_connected;
     bool m_running;
     DebugAdapter* m_adapter;
     // TODO: This really should be called m_processView, but for ease of porting I am keeping it
     DebugProcessView* m_memoryView;
-    DebugModulesCache* m_modulesCache;
+    DebuggerModules* m_modules;
+    DebuggerRegisters* m_registers;
 
-    std::vector<std::string> m_commandLineArge;
+    std::vector<std::string> m_commandLineArgs;
     // DebugerAdapterType m_debugAdapterType;
     std::string m_remoteHost;
     uint32_t m_remotePort;
     bool m_requestTerminalEmulator;
+    ArchitectureRef m_remoteArch;
+
+    // std::string m_pcRegister;
 
     DebugAdapterType::AdapterType m_adapterType;
 
@@ -82,6 +95,9 @@ public:
     static DebuggerState* getState(BinaryViewRef data);
     DebugAdapter* getAdapter() { return m_adapter; }
 
-    DebugModulesCache* getModulesCache() { return m_modulesCache; }
+    DebuggerModules* getModulesCache() { return m_modules; }
     DebugProcessView* getMemoryView() { return m_memoryView; }
+
+    uint64_t ip();
+    uint64_t localIp();
 };

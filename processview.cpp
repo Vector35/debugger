@@ -60,7 +60,7 @@ uint64_t DebugProcessView::getRemoteBase(BinaryView* relativeView)
     if (iter == m_moduleBases.end())
     {
         DebuggerState* state = DebuggerState::getState(m_localView);
-        DebugModulesCache* modulesCache = state->getModulesCache();
+        DebuggerModules* modulesCache = state->getModulesCache();
         if (!modulesCache)
             // TODO: should return false, and return the address by reference
             return 0;

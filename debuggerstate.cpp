@@ -1,24 +1,76 @@
 #include "debuggerstate.h"
+#include "./adapters/debugadapter.h"
 
-// static GetMetadataWithDefault(const std::string key, )
-// {
+using namespace BinaryNinja;
+using namespace std;
 
-// }
 
-DebugModulesCache::DebugModulesCache(DebuggerState* state, std::vector<DebugModule> modules):
+DebuggerRegisters::DebuggerRegisters(DebuggerState* state): m_state(state)
+{
+    markDirty();
+}
+
+
+void DebuggerRegisters::markDirty()
+{
+    m_cachedRgisterList.clear();
+    m_registerCache.clear();
+}
+
+
+void DebuggerRegisters::update()
+{
+    DebugAdapter* adapter = m_state->getAdapter();
+    if (!adapter)
+        throw runtime_error("Cannot update registers when disconnected");
+
+    // TODO: This is ineffective, especially during remote debugging.
+    // We need to get all register and its values in one request
+    m_cachedRgisterList = adapter->GetRegisterList();
+    for (const std::string reg: m_cachedRgisterList)
+    {
+        m_registerCache[reg] = adapter->ReadRegister(reg);
+    }
+}
+
+
+uint64_t DebuggerRegisters::getRegisterValue(const std::string& name)
+{
+    auto iter = m_registerCache.find(name);
+    if (iter == m_registerCache.end())
+        // TODO: we should return a boolean to indicate the call succeeds, and return the value by reference
+        return 0;
+
+    return iter->second.m_value;
+}
+
+
+void DebuggerRegisters::updateRegisterValue(const std::string& name, uint64_t value)
+{
+    DebugAdapter* adapter = m_state->getAdapter();
+    if (!adapter)
+        return;
+
+    adapter->WriteRegister(name, value);
+    // TODO: Do we really need to mark it dirty? How about we just update our cache
+    markDirty();
+}
+
+
+DebuggerModules::DebuggerModules(DebuggerState* state, std::vector<DebugModule> modules):
     m_state(state), m_modules(modules)
 {
 
 }
 
 
-void DebugModulesCache::markDirty()
+void DebuggerModules::markDirty()
 {
     m_modules.clear();
 }
 
 
-void DebugModulesCache::update()
+void DebuggerModules::update()
 {
     DebugAdapter* adapter = m_state->getAdapter();
     if (!adapter)
@@ -28,7 +80,7 @@ void DebugModulesCache::update()
 }
 
 
-bool DebugModulesCache::GetModuleBase(const std::string& name, uint64_t& address)
+bool DebuggerModules::GetModuleBase(const std::string& name, uint64_t& address)
 {
     for (const DebugModule& module: m_modules)
     {
@@ -46,7 +98,33 @@ DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
 {
     m_memoryView = new DebugProcessView(data);
     m_adapter = new DummyAdapter();
-    m_adapterType = (DebugAdapterType::AdapterType)m_data->GetUIntMetadata("native_debugger.adapter_type");
+    m_registers = new DebuggerRegisters(this);
+
+    Ref<Metadata> metadata = m_data->QueryMetadata("native_debugger.command_line_args");
+    if (metadata && metadata->IsStringList())
+        m_commandLineArgs = metadata->GetStringList();
+
+    metadata = m_data->QueryMetadata("native_debugger.remote_host");
+    if (metadata && metadata->IsString())
+        m_remoteHost = metadata->GetString();
+
+    metadata = m_data->QueryMetadata("native_debugger.remote_port");
+    if (metadata && metadata->IsUnsignedInteger())
+        m_remotePort = metadata->GetUnsignedInteger();
+    else
+        m_remotePort = 31337;
+
+    metadata = m_data->QueryMetadata("native_debugger.adapter_type");
+    if (metadata && metadata->IsUnsignedInteger())
+        m_adapterType = (DebugAdapterType::AdapterType)metadata->GetUnsignedInteger();
+    else
+        m_adapterType = DebugAdapterType::DefaultAdapterType;
+
+    metadata = m_data->QueryMetadata("native_debugger.request_terminal_emulator");
+    if (metadata && metadata->IsUnsignedInteger())
+        m_requestTerminalEmulator = metadata->GetBoolean();
+    else
+        m_requestTerminalEmulator = false;
 }
 
 
@@ -166,4 +244,20 @@ void DebuggerState::deleteState(BinaryViewRef data)
             ++it;
         }
     }
+}
+
+
+uint64_t DebuggerState::ip()
+{
+    if (!m_connected)
+        throw runtime_error("Cannot read ip when disconnected");
+    string archName = m_remoteArch->GetName();
+    if (archName == "x86_64")
+        return m_registers->getRegisterValue("rip");
+    else if (archName == "x86")
+        return m_registers->getRegisterValue("eip");
+    else if ((archName == "aarch64") || (archName == "arm") || (archName == "armv7") || (archName == "Z80"))
+        return m_registers->getRegisterValue("pc");
+
+    throw runtime_error("unimplemented architecture " + archName);
 }
