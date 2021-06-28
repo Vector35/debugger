@@ -4,6 +4,7 @@
 #include <chrono>
 #include <thread>
 #include <regex>
+#include <type_traits>
 #include <sys/time.h>
 #include <sys/fcntl.h>
 #include <unistd.h>
@@ -50,19 +51,60 @@ RspData RspConnector::DecodeRLE(const RspData& data)
     return data;
 }
 
-std::unordered_map<std::string, RspData> RspConnector::PacketToUnorderedMap(const RspData& data)
+std::unordered_map<std::string, std::int64_t> RspConnector::PacketToUnorderedMap(const RspData& data)
 {
-    return {};
+    std::unordered_map<std::string, std::int64_t> packet_map{};
+    packet_map["signal"] = std::stoll(data.AsString().substr(1, 2), nullptr, 16);
+
+    const auto split = [](const std::string& string, const std::string& regex) -> std::vector<std::string> {
+        const auto regex_l = std::regex(regex);
+        return { std::sregex_token_iterator(string.begin(), string.end(), regex_l, -1), std::sregex_token_iterator() };
+    };
+
+    const auto data_string = data.AsString();
+    const auto after_signal = data_string.substr(3, std::distance(data.begin(), data.end()));
+    for ( const auto& entries : split(after_signal, ";")) {
+        const auto key_value = split(entries, ":");
+        const auto key = key_value[0];
+        const auto value = RspConnector::DecodeRLE( RspData(key_value[1]) ).AsString();
+
+        if ( key == "thread" ) {
+            if ( value[0] == 'p' && value.find('.') != std::string::npos ) {
+                auto core_id_and_thread_id = split(value.substr(1, std::distance(value.begin(), value.end())), ".");
+                packet_map["thread"] = std::stoll(core_id_and_thread_id[1], nullptr, 16);
+            } else {
+                packet_map["thread"] = std::stoll(value, nullptr, 16);
+            }
+        } else if ( std::regex_search(key, std::regex("^[0-9a-fA-F]+$")) ) {
+            const auto swap_endianness = [](auto val) {
+                union {
+                    decltype(val) m_val;
+                    std::array<std::uint8_t, sizeof(decltype(val))> m_raw;
+                } source{val}, dest{};
+                std::reverse_copy(source.m_raw.begin(), source.m_raw.end(), dest.m_raw.begin());
+                return dest.m_val;
+            };
+
+            char reg_name[64]{};
+            std::sprintf(reg_name, "r%d", std::stoi(key, nullptr, 16));
+
+            packet_map[reg_name] = static_cast<std::int64_t>( swap_endianness( std::stoull(value, nullptr, 16)) );
+        } else {
+            packet_map[key] = std::stoll(value, nullptr, 16);
+        }
+    }
+
+    return packet_map;
 }
 
 void RspConnector::EnableAcks()
 {
-
+    this->m_acks_enabled = true;
 }
 
 void RspConnector::DisableAcks()
 {
-
+    this->m_acks_enabled = false;
 }
 
 char RspConnector::ExpectAck()
@@ -290,5 +332,8 @@ std::string RspConnector::GetXml(const std::string& name)
          data.m_data[0] != 'm' )
         throw std::runtime_error("Failed to retrieve xml data");
 
-    return data.AsString();
+    auto data_string = data.AsString();
+    data_string.erase(0, 1);
+
+    return data_string;
 }

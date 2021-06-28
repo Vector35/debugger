@@ -17,7 +17,9 @@ endif()
 
 file(GLOB_RECURSE CLI_SOURCES
         ${CMAKE_SOURCE_DIR}/cli/src/*.cpp
-        ${CMAKE_SOURCE_DIR}/cli/src/*.h )
+        ${CMAKE_SOURCE_DIR}/cli/src/*.h
+        ${CMAKE_SOURCE_DIR}/src/vendor/*.cpp
+        ${CMAKE_SOURCE_DIR}/src/vendor/*.h )
 
 add_executable(debugger-cli ${ADAPTER_SOURCES} ${CLI_SOURCES})
 

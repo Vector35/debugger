@@ -32,6 +32,10 @@ struct DebugBreakpoint
     {
         return this->m_address == rhs.m_address;
     }
+
+    bool operator!() const {
+        return !this->m_address && !this->m_id && !this->m_is_active;
+    }
 };
 
 struct DebugRegister

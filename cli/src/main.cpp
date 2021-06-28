@@ -363,7 +363,8 @@ int main(int argc, const char* argv[])
             else if (auto loc = input.find("bp ");
                     loc != std::string::npos)
             {
-                debug_adapter->AddBreakpoint(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
+                if ( !debug_adapter->AddBreakpoint(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16)) )
+                    printf("failed to set bp!\n");
             }
             else if (auto loc = input.find("bpr ");
                     loc != std::string::npos)

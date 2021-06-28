@@ -6,6 +6,8 @@
 #include <string>
 #include <chrono>
 #include <thread>
+#include <pugixml/pugixml.hpp>
+#include <spawn.h>
 
 GdbAdapter::GdbAdapter()
 {
@@ -62,11 +64,14 @@ bool GdbAdapter::Execute(const std::string& path)
         return false;
 
     std::array<char, 256> buffer{};
-    std::sprintf(buffer.data(), "%s --once --no-startup-with-shell localhost:%d %s > /dev/null 2>&1 &",
-                 gdb_server_path.c_str(), this->m_port, path.c_str());
+    //std::sprintf(buffer.data(), "%s --once --no-startup-with-shell localhost:%d %s > /dev/null 2>&1 &",
+    //             gdb_server_path.c_str(), this->m_port, path.c_str());
 
-    std::system(buffer.data());
-    std::system((path + " > /dev/null 2>&1").c_str());
+    std::sprintf(buffer.data(), "localhost:%d", this->m_port);
+
+    pid_t pid;
+    char* arg[] = {(char*) gdb_server_path.c_str(), "--once", "--no-startup-with-shell", buffer.data(), (char*) path.c_str()};
+    posix_spawn(&pid, gdb_server_path.c_str(), nullptr, nullptr, arg, environ);
 
     return this->Connect("127.0.0.1", this->m_port);
 }
@@ -84,7 +89,44 @@ bool GdbAdapter::Attach(std::uint32_t pid)
 bool GdbAdapter::LoadRegisterInfo()
 {
     const auto xml = this->m_rsp_connector.GetXml("target.xml");
-    printf("%s\n", xml.c_str());
+
+    pugi::xml_document doc{};
+    const auto parse_result = doc.load_string(xml.c_str());
+    if (!parse_result)
+        return false;
+
+    std::string architecture{};
+    std::string os_abi{};
+    for (auto node = doc.first_child().child("architecture"); node; node = node.next_sibling())
+    {
+        using namespace std::literals::string_literals;
+
+        if ( node.name() == "architecture"s )
+            architecture = node.child_value();
+        if ( node.name() == "osabi"s )
+            os_abi = node.child_value();
+
+        if ( node.name() == "feature"s )
+        {
+            for (auto reg_child = node.child("reg"); reg_child; reg_child = reg_child.next_sibling())
+            {
+                std::string register_name{};
+                RegisterInfo register_info{};
+
+                for (auto reg_attribute = reg_child.attribute("name"); reg_attribute; reg_attribute = reg_attribute.next_attribute())
+                {
+                    if (reg_attribute.name() == "name"s )
+                        register_name = reg_attribute.value();
+                    else if (reg_attribute.name() == "bitsize"s )
+                        register_info.m_bit_size = reg_attribute.as_uint();
+                    else if (reg_attribute.name() == "regnum"s)
+                        register_info.m_reg_num = reg_attribute.as_uint();
+                }
+
+                this->m_register_info[register_name] = register_info;
+            }
+        }
+    }
 
     return true;
 }
@@ -119,7 +161,14 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
     if ( !this->LoadRegisterInfo() )
         return false;
 
-    return false;
+    auto reply = this->m_rsp_connector.TransmitAndReceive(RspData("?"));
+    printf("RESPONSE -> %s\n", reply.AsString().c_str() );
+    auto map = RspConnector::PacketToUnorderedMap(reply);
+    for ( const auto& [key, val] : map ) {
+        printf("[%s] = 0x%llx\n", key.c_str(), val );
+    }
+
+    return true;
 }
 
 void GdbAdapter::Detach()
@@ -159,7 +208,18 @@ bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
 
 DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
-    return DebugBreakpoint();
+    if ( std::find(this->m_debug_breakpoints.begin(), this->m_debug_breakpoints.end(),
+                   DebugBreakpoint(address)) != this->m_debug_breakpoints.end())
+        return {};
+
+    /* TODO: replace %d with the actual breakpoint size as it differs per architecture */
+    if ( this->m_rsp_connector.TransmitAndReceive(RspData("Z0,%llx,%d", address, 1)).AsString() != "OK" )
+        throw std::runtime_error("rsp reply failure on breakpoint");
+
+    const auto new_breakpoint = DebugBreakpoint(address, this->m_internal_breakpoint_id++, true);
+    this->m_debug_breakpoints.push_back(new_breakpoint);
+
+    return new_breakpoint;
 }
 
 std::vector<DebugBreakpoint> GdbAdapter::AddBreakpoints(const std::vector<std::uintptr_t>& breakpoints)
@@ -184,7 +244,7 @@ bool GdbAdapter::ClearAllBreakpoints()
 
 std::vector<DebugBreakpoint> GdbAdapter::GetBreakpointList() const
 {
-    return std::vector<DebugBreakpoint>();
+    return this->m_debug_breakpoints;
 }
 
 std::string GdbAdapter::GetRegisterNameByIndex(std::uint32_t index) const

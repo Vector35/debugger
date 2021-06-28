@@ -7,15 +7,17 @@ class GdbAdapter : public DebugAdapter
 {
     struct RegisterInfo
     {
-        std::uint32_t id{};
-        std::uint32_t width{};
-        std::uint32_t group{};
+        std::uint32_t m_bit_size{};
+        std::uint32_t m_reg_num{};
     };
 
     int m_socket{};
     int m_port{};
     RspConnector m_rsp_connector{};
     std::unordered_map<std::string, RegisterInfo> m_register_info{};
+
+    int m_internal_breakpoint_id{};
+    std::vector<DebugBreakpoint> m_debug_breakpoints{};
 
     std::string ExecuteShellCommand(const std::string& command);
     bool LoadRegisterInfo();
@@ -38,7 +40,7 @@ public:
     bool SetActiveThread(const DebugThread& thread) override;
     bool SetActiveThreadId(std::uint32_t tid) override;
 
-    DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type = 0) override;
+    DebugBreakpoint AddBreakpoint(std::uintptr_t address, unsigned long breakpoint_type = 0) override;
     std::vector<DebugBreakpoint> AddBreakpoints(const std::vector<std::uintptr_t>& breakpoints) override;
     bool RemoveBreakpoint(const DebugBreakpoint& breakpoint) override;
     bool RemoveBreakpoints(const std::vector<DebugBreakpoint>& breakpoints) override;

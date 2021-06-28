@@ -49,6 +49,7 @@ file(GLOB SOURCES
 
 list(FILTER SOURCES EXCLUDE REGEX moc_.*)
 list(FILTER SOURCES EXCLUDE REGEX qrc_.*)
+include_directories(src/vendor)
 
 if(DEMO)
 	add_library(debugger STATIC ${SOURCES})

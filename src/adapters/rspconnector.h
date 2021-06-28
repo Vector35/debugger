@@ -57,6 +57,18 @@ struct RspData
 
     RspData() {}
 
+    template <typename... Args>
+    explicit RspData(const std::string& string, Args... args) {
+        if ( string.size() > RspData::BUFFER_MAX )
+            throw std::runtime_error("size > rsp BUFFER_MAX");
+
+        char buffer[RspData::BUFFER_MAX]{};
+        std::sprintf(buffer, string.c_str(), args...);
+
+        this->m_size = std::string(buffer).size();
+        std::memcpy(this->m_data, buffer, this->m_size);
+    }
+
     explicit RspData(const std::string& str) : m_size(str.size())
     {
         if ( str.size() > RspData::BUFFER_MAX )
@@ -104,7 +116,7 @@ public:
 
     static RspData BinaryDecode(const RspData& data);
     static RspData DecodeRLE(const RspData& data);
-    static std::unordered_map<std::string, RspData> PacketToUnorderedMap(const RspData& data);
+    static std::unordered_map<std::string, std::int64_t> PacketToUnorderedMap(const RspData& data);
 
     void EnableAcks();
     void DisableAcks();
