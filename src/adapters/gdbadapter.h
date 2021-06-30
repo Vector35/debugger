@@ -7,17 +7,17 @@ class GdbAdapter : public DebugAdapter
 {
     struct RegisterInfo
     {
-        std::uint32_t m_bit_size{};
-        std::uint32_t m_reg_num{};
+        std::uint32_t m_bitSize{};
+        std::uint32_t m_regNum{};
     };
 
     int m_socket{};
     int m_port{};
-    RspConnector m_rsp_connector{};
-    std::unordered_map<std::string, RegisterInfo> m_register_info{};
+    RspConnector m_rspConnector{};
+    std::unordered_map<std::string, RegisterInfo> m_registerInfo{};
 
-    int m_internal_breakpoint_id{};
-    std::vector<DebugBreakpoint> m_debug_breakpoints{};
+    int m_internalBreakpointId{};
+    std::vector<DebugBreakpoint> m_debugBreakpoint{};
 
     std::string ExecuteShellCommand(const std::string& command);
     bool LoadRegisterInfo();

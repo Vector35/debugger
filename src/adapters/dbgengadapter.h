@@ -9,12 +9,12 @@ struct ProcessCallbackInformation
 {
     bool m_created{false};
     bool m_exited{false};
-    bool m_has_one_breakpoint{false};
-    DebugBreakpoint m_last_breakpoint{};
-    EXCEPTION_RECORD64 m_last_exception{};
-    std::uint64_t m_image_base{};
-    unsigned long m_exit_code{};
-    unsigned long m_last_session_status{DEBUG_SESSION_FAILURE};
+    bool m_hasOneBreakpoint{false};
+    DebugBreakpoint m_lastBreakpoint{};
+    EXCEPTION_RECORD64 m_lastException{};
+    std::uint64_t m_imageBase{};
+    unsigned long m_exitCode{};
+    unsigned long m_lastSessionStatus{DEBUG_SESSION_FAILURE};
 };
 
 #define CALLBACK_METHOD(return_type) __declspec(nothrow) __stdcall return_type
@@ -71,15 +71,15 @@ public:
 
 class DbgEngAdapter : public DebugAdapter
 {
-    DbgEngEventCallbacks m_debug_event_callbacks{};
-    DbgEngOutputCallbacks m_output_callbacks{};
-    IDebugClient5* m_debug_client{nullptr};
-    IDebugControl5* m_debug_control{nullptr};
-    IDebugDataSpaces* m_debug_data_spaces{nullptr};
-    IDebugRegisters* m_debug_registers{nullptr};
-    IDebugSymbols* m_debug_symbols{nullptr};
-    IDebugSystemObjects* m_debug_system_objects{nullptr};
-    bool m_debug_active{false};
+    DbgEngEventCallbacks m_debugEventCallbacks{};
+    DbgEngOutputCallbacks m_outputCallbacks{};
+    IDebugClient5* m_debugClient{nullptr};
+    IDebugControl5* m_debugControl{nullptr};
+    IDebugDataSpaces* m_debugDataSpaces{nullptr};
+    IDebugRegisters* m_debugRegisters{nullptr};
+    IDebugSymbols* m_debugSymbols{nullptr};
+    IDebugSystemObjects* m_debugSystemObjects{nullptr};
+    bool m_debugActive{false};
 
     void Start();
     void Reset();

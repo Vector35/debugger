@@ -105,9 +105,9 @@ struct RspData
 class RspConnector
 {
     int m_socket{};
-    bool m_acks_enabled{true};
-    std::vector<std::string> m_server_capabilities{};
-    int m_max_packet_length{0xfff};
+    bool m_acksEnabled{true};
+    std::vector<std::string> m_serverCapabilities{};
+    int m_maxPacketLength{0xfff};
 
 public:
     RspConnector() = default;

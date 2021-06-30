@@ -88,7 +88,7 @@ bool GdbAdapter::Attach(std::uint32_t pid)
 
 bool GdbAdapter::LoadRegisterInfo()
 {
-    const auto xml = this->m_rsp_connector.GetXml("target.xml");
+    const auto xml = this->m_rspConnector.GetXml("target.xml");
 
     pugi::xml_document doc{};
     const auto parse_result = doc.load_string(xml.c_str());
@@ -118,12 +118,12 @@ bool GdbAdapter::LoadRegisterInfo()
                     if (reg_attribute.name() == "name"s )
                         register_name = reg_attribute.value();
                     else if (reg_attribute.name() == "bitsize"s )
-                        register_info.m_bit_size = reg_attribute.as_uint();
+                        register_info.m_bitSize = reg_attribute.as_uint();
                     else if (reg_attribute.name() == "regnum"s)
-                        register_info.m_reg_num = reg_attribute.as_uint();
+                        register_info.m_regNum = reg_attribute.as_uint();
                 }
 
-                this->m_register_info[register_name] = register_info;
+                this->m_registerInfo[register_name] = register_info;
             }
         }
     }
@@ -153,15 +153,15 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
     if ( !connected )
         return false;
 
-    this->m_rsp_connector = RspConnector(this->m_socket);
-    printf("FINAL RESPONSE -> %s\n", this->m_rsp_connector.TransmitAndReceive(RspData("Hg0")).AsString().c_str() );
-    this->m_rsp_connector.NegotiateCapabilities(
+    this->m_rspConnector = RspConnector(this->m_socket);
+    printf("FINAL RESPONSE -> %s\n", this->m_rspConnector.TransmitAndReceive(RspData("Hg0")).AsString().c_str() );
+    this->m_rspConnector.NegotiateCapabilities(
             { "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
                          "vContSupported+", "QThreadEvents+", "no-resumed+", "xmlRegisters=i386" } );
     if ( !this->LoadRegisterInfo() )
         return false;
 
-    auto reply = this->m_rsp_connector.TransmitAndReceive(RspData("?"));
+    auto reply = this->m_rspConnector.TransmitAndReceive(RspData("?"));
     printf("RESPONSE -> %s\n", reply.AsString().c_str() );
     auto map = RspConnector::PacketToUnorderedMap(reply);
     for ( const auto& [key, val] : map ) {
@@ -208,16 +208,16 @@ bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
 
 DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
-    if ( std::find(this->m_debug_breakpoints.begin(), this->m_debug_breakpoints.end(),
-                   DebugBreakpoint(address)) != this->m_debug_breakpoints.end())
+    if ( std::find(this->m_debugBreakpoint.begin(), this->m_debugBreakpoint.end(),
+                   DebugBreakpoint(address)) != this->m_debugBreakpoint.end())
         return {};
 
     /* TODO: replace %d with the actual breakpoint size as it differs per architecture */
-    if ( this->m_rsp_connector.TransmitAndReceive(RspData("Z0,%llx,%d", address, 1)).AsString() != "OK" )
+    if (this->m_rspConnector.TransmitAndReceive(RspData("Z0,%llx,%d", address, 1)).AsString() != "OK" )
         throw std::runtime_error("rsp reply failure on breakpoint");
 
-    const auto new_breakpoint = DebugBreakpoint(address, this->m_internal_breakpoint_id++, true);
-    this->m_debug_breakpoints.push_back(new_breakpoint);
+    const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true);
+    this->m_debugBreakpoint.push_back(new_breakpoint);
 
     return new_breakpoint;
 }
@@ -244,7 +244,7 @@ bool GdbAdapter::ClearAllBreakpoints()
 
 std::vector<DebugBreakpoint> GdbAdapter::GetBreakpointList() const
 {
-    return this->m_debug_breakpoints;
+    return this->m_debugBreakpoint;
 }
 
 std::string GdbAdapter::GetRegisterNameByIndex(std::uint32_t index) const

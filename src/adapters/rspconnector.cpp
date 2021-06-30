@@ -99,17 +99,17 @@ std::unordered_map<std::string, std::int64_t> RspConnector::PacketToUnorderedMap
 
 void RspConnector::EnableAcks()
 {
-    this->m_acks_enabled = true;
+    this->m_acksEnabled = true;
 }
 
 void RspConnector::DisableAcks()
 {
-    this->m_acks_enabled = false;
+    this->m_acksEnabled = false;
 }
 
 char RspConnector::ExpectAck()
 {
-    if ( !this->m_acks_enabled )
+    if ( !this->m_acksEnabled )
         return {};
 
     char buffer{};
@@ -126,7 +126,7 @@ char RspConnector::ExpectAck()
 
 void RspConnector::SendAck() const
 {
-    if ( !this->m_acks_enabled )
+    if ( !this->m_acksEnabled )
         return;
 
     send(this->m_socket, "+", 1, 0);
@@ -155,17 +155,17 @@ void RspConnector::NegotiateCapabilities(const std::vector <std::string>& capabi
         if ( reply_token.find("PacketSize=") != std::string::npos )
         {
             if (auto packet_tokens = split(reply_token, "="); !packet_tokens.empty())
-                this->m_max_packet_length = std::stoi(packet_tokens[1], nullptr, 16);
+                this->m_maxPacketLength = std::stoi(packet_tokens[1], nullptr, 16);
             continue;
         }
 
         reply_token.erase(std::remove(reply_token.begin(), reply_token.end(), '+'), reply_token.end());
-        this->m_server_capabilities.push_back(reply_token);
+        this->m_serverCapabilities.push_back(reply_token);
     }
 
     const auto can_start_without_ack = this->TransmitAndReceive(RspData("QStartNoAckMode"));
     if (can_start_without_ack.AsString() == "OK" )
-        this->m_acks_enabled = false;
+        this->m_acksEnabled = false;
 }
 
 void RspConnector::SendRaw(const RspData& data) const

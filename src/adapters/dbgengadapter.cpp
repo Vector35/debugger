@@ -8,34 +8,34 @@
 #include "../../cli/src/log.h"
 
 #define QUERY_DEBUG_INTERFACE(query, out) \
-    if ( const auto result = this->m_debug_client->QueryInterface(__uuidof(query), reinterpret_cast<void**>(out) ); \
+    if ( const auto result = this->m_debugClient->QueryInterface(__uuidof(query), reinterpret_cast<void**>(out) ); \
             result != S_OK) \
         throw std::runtime_error("Failed to create "#query)
 
 void DbgEngAdapter::Start()
 {
-    if ( this->m_debug_active )
+    if ( this->m_debugActive )
         this->Reset();
 
-    if (const auto result = DebugCreate(__uuidof(IDebugClient5), reinterpret_cast<void**>(&this->m_debug_client));
+    if (const auto result = DebugCreate(__uuidof(IDebugClient5), reinterpret_cast<void**>(&this->m_debugClient));
             result != S_OK)
         throw std::runtime_error("Failed to create IDebugClient5");
 
-    QUERY_DEBUG_INTERFACE(IDebugControl5, &this->m_debug_control);
-    QUERY_DEBUG_INTERFACE(IDebugDataSpaces, &this->m_debug_data_spaces);
-    QUERY_DEBUG_INTERFACE(IDebugRegisters, &this->m_debug_registers);
-    QUERY_DEBUG_INTERFACE(IDebugSymbols, &this->m_debug_symbols);
-    QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debug_system_objects);
+    QUERY_DEBUG_INTERFACE(IDebugControl5, &this->m_debugControl);
+    QUERY_DEBUG_INTERFACE(IDebugDataSpaces, &this->m_debugDataSpaces);
+    QUERY_DEBUG_INTERFACE(IDebugRegisters, &this->m_debugRegisters);
+    QUERY_DEBUG_INTERFACE(IDebugSymbols, &this->m_debugSymbols);
+    QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
 
-    if (const auto result = this->m_debug_client->SetEventCallbacks(&this->m_debug_event_callbacks);
+    if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks);
             result != S_OK)
         throw std::runtime_error("Failed to set event callbacks");
 
-    if (const auto result = this->m_debug_client->SetOutputCallbacks(&this->m_output_callbacks);
+    if (const auto result = this->m_debugClient->SetOutputCallbacks(&this->m_outputCallbacks);
             result != S_OK)
         throw std::runtime_error("Failed to set output callbacks");
 
-    this->m_debug_active = true;
+    this->m_debugActive = true;
 }
 
 #undef QUERY_DEBUG_INTERFACE
@@ -49,23 +49,23 @@ void DbgEngAdapter::Start()
 
 void DbgEngAdapter::Reset()
 {
-    if ( !this->m_debug_active )
+    if ( !this->m_debugActive )
         return;
 
-    SAFE_RELEASE(this->m_debug_control);
-    SAFE_RELEASE(this->m_debug_data_spaces);
-    SAFE_RELEASE(this->m_debug_registers);
-    SAFE_RELEASE(this->m_debug_symbols);
-    SAFE_RELEASE(this->m_debug_system_objects);
+    SAFE_RELEASE(this->m_debugControl);
+    SAFE_RELEASE(this->m_debugDataSpaces);
+    SAFE_RELEASE(this->m_debugRegisters);
+    SAFE_RELEASE(this->m_debugSymbols);
+    SAFE_RELEASE(this->m_debugSystemObjects);
 
-    if ( this->m_debug_client )
+    if ( this->m_debugClient )
     {
-        this->m_debug_client->EndSession(DEBUG_END_PASSIVE);
-        this->m_debug_client->Release();
-        this->m_debug_client = nullptr;
+        this->m_debugClient->EndSession(DEBUG_END_PASSIVE);
+        this->m_debugClient->Release();
+        this->m_debugClient = nullptr;
     }
 
-    this->m_debug_active = false;
+    this->m_debugActive = false;
 }
 
 #undef SAFE_RELEASE
@@ -90,15 +90,15 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::vector<s
     auto& ProcessInfo = DbgEngAdapter::ProcessCallbackInfo;
     ProcessInfo.m_created = false;
     ProcessInfo.m_exited = false;
-    ProcessInfo.m_has_one_breakpoint = false;
-    ProcessInfo.m_last_session_status = DEBUG_SESSION_FAILURE;
+    ProcessInfo.m_hasOneBreakpoint = false;
+    ProcessInfo.m_lastSessionStatus = DEBUG_SESSION_FAILURE;
 
-    if ( this->m_debug_active )
+    if ( this->m_debugActive )
         this->Reset();
 
     this->Start();
 
-    if (const auto result = this->m_debug_control->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK);
+    if (const auto result = this->m_debugControl->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK);
             result != S_OK)
     {
         this->Reset();
@@ -114,7 +114,7 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::vector<s
             path_with_args.append( arg + " " );
     }
 
-    if (const auto result = this->m_debug_client->CreateProcess(0, const_cast<char*>( path_with_args.c_str() ), DEBUG_ONLY_THIS_PROCESS);
+    if (const auto result = this->m_debugClient->CreateProcess(0, const_cast<char*>( path_with_args.c_str() ), DEBUG_ONLY_THIS_PROCESS);
             result != S_OK)
     {
         this->Reset();
@@ -123,8 +123,8 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::vector<s
 
     for (std::size_t timeout_attempts{}; timeout_attempts < 10; timeout_attempts++)
         if (this->Wait(std::chrono::milliseconds(100)))
-            if ( ProcessInfo.m_created && ProcessInfo.m_has_one_breakpoint )
-                return this->m_debug_active;
+            if ( ProcessInfo.m_created && ProcessInfo.m_hasOneBreakpoint )
+                return this->m_debugActive;
 
     return false;
 }
@@ -134,22 +134,22 @@ bool DbgEngAdapter::Attach(std::uint32_t pid)
     auto& ProcessInfo = DbgEngAdapter::ProcessCallbackInfo;
     ProcessInfo.m_created = false;
     ProcessInfo.m_exited = false;
-    ProcessInfo.m_has_one_breakpoint = false;
-    ProcessInfo.m_last_session_status = DEBUG_SESSION_FAILURE;
+    ProcessInfo.m_hasOneBreakpoint = false;
+    ProcessInfo.m_lastSessionStatus = DEBUG_SESSION_FAILURE;
 
-    if ( this->m_debug_active )
+    if ( this->m_debugActive )
         this->Reset();
 
     this->Start();
 
-    if (const auto result = this->m_debug_control->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK);
+    if (const auto result = this->m_debugControl->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK);
             result != S_OK)
     {
         this->Reset();
         return false;
     }
 
-    if (const auto result = this->m_debug_client->AttachProcess(0, pid, 0);
+    if (const auto result = this->m_debugClient->AttachProcess(0, pid, 0);
         result != S_OK )
     {
         this->Reset();
@@ -158,8 +158,8 @@ bool DbgEngAdapter::Attach(std::uint32_t pid)
 
     for (std::size_t timeout_attempts{}; timeout_attempts < 10; timeout_attempts++)
         if (this->Wait(std::chrono::milliseconds(100)))
-            if ( ProcessInfo.m_last_session_status == DEBUG_SESSION_ACTIVE )
-                return this->m_debug_active;
+            if (ProcessInfo.m_lastSessionStatus == DEBUG_SESSION_ACTIVE )
+                return this->m_debugActive;
 
     return false;
 }
@@ -172,16 +172,16 @@ bool DbgEngAdapter::Connect(const std::string &server, std::uint32_t port)
 
 void DbgEngAdapter::Detach()
 {
-    if ( this->m_debug_client )
-        this->m_debug_client->DetachProcesses();
+    if ( this->m_debugClient )
+        this->m_debugClient->DetachProcesses();
 
     this->Reset();
 }
 
 void DbgEngAdapter::Quit()
 {
-    if ( this->m_debug_client )
-        this->m_debug_client->TerminateProcesses();
+    if ( this->m_debugClient )
+        this->m_debugClient->TerminateProcesses();
 
     this->Reset();
 }
@@ -189,12 +189,12 @@ void DbgEngAdapter::Quit()
 std::vector<DebugThread> DbgEngAdapter::GetThreadList() const
 {
     unsigned long number_threads{};
-    if ( this->m_debug_system_objects->GetNumberThreads(&number_threads) != S_OK )
+    if (this->m_debugSystemObjects->GetNumberThreads(&number_threads) != S_OK )
         return {};
 
     auto tids = std::make_unique<unsigned long[]>( number_threads );
     auto sysids = std::make_unique<unsigned long[]>( number_threads );
-    if ( this->m_debug_system_objects->GetThreadIdsByIndex(0, number_threads, tids.get(), sysids.get()) != S_OK )
+    if (this->m_debugSystemObjects->GetThreadIdsByIndex(0, number_threads, tids.get(), sysids.get()) != S_OK )
         return {};
 
     std::vector<DebugThread> debug_threads{};
@@ -212,7 +212,7 @@ DebugThread DbgEngAdapter::GetActiveThread() const
 std::uint32_t DbgEngAdapter::GetActiveThreadId() const
 {
     unsigned long current_tid{};
-    if ( this->m_debug_system_objects->GetCurrentThreadId(&current_tid) != S_OK )
+    if (this->m_debugSystemObjects->GetCurrentThreadId(&current_tid) != S_OK )
         return {};
 
     return current_tid;
@@ -225,7 +225,7 @@ bool DbgEngAdapter::SetActiveThread(const DebugThread& thread)
 
 bool DbgEngAdapter::SetActiveThreadId(std::uint32_t tid)
 {
-    if ( this->m_debug_system_objects->SetCurrentThreadId(tid) != S_OK )
+    if (this->m_debugSystemObjects->SetCurrentThreadId(tid) != S_OK )
         return false;
 
     return true;
@@ -244,7 +244,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
     if (!this->WriteMemoryTy(address, val.value()))
         return {};
 
-    if (const auto result = this->m_debug_control->AddBreakpoint2(DEBUG_BREAKPOINT_CODE, DEBUG_ANY_ID,
+    if (const auto result = this->m_debugControl->AddBreakpoint2(DEBUG_BREAKPOINT_CODE, DEBUG_ANY_ID,
                                                                  &debug_breakpoint);
             result != S_OK)
         return {};
@@ -288,13 +288,13 @@ bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint &breakpoint)
             this->m_debug_breakpoints.erase(location);
     };
 
-    if ( this->m_debug_control->GetBreakpointById2(breakpoint.m_id, &debug_breakpoint) != S_OK )
+    if (this->m_debugControl->GetBreakpointById2(breakpoint.m_id, &debug_breakpoint) != S_OK )
     {
         remove_breakpoint_from_list();
         return false;
     }
 
-    if ( this->m_debug_control->RemoveBreakpoint2(debug_breakpoint) != S_OK )
+    if (this->m_debugControl->RemoveBreakpoint2(debug_breakpoint) != S_OK )
     {
         remove_breakpoint_from_list();
         return false;
@@ -329,15 +329,15 @@ DebugRegister DbgEngAdapter::ReadRegister(const std::string &reg) const
     DEBUG_VALUE debug_value{};
     DEBUG_REGISTER_DESCRIPTION register_descriptor{};
 
-    if ( this->m_debug_registers->GetIndexByName(reg.c_str(), &reg_index) != S_OK )
+    if (this->m_debugRegisters->GetIndexByName(reg.c_str(), &reg_index) != S_OK )
         return {};
 
-    if ( this->m_debug_registers->GetValue(reg_index, &debug_value) != S_OK )
+    if (this->m_debugRegisters->GetValue(reg_index, &debug_value) != S_OK )
         return {};
 
     char buf[256];
     unsigned long reg_length{};
-    if ( this->m_debug_registers->GetDescription(reg_index, buf, 256, &reg_length, &register_descriptor) != S_OK )
+    if (this->m_debugRegisters->GetDescription(reg_index, buf, 256, &reg_length, &register_descriptor) != S_OK )
         return {};
 
     std::size_t width{};
@@ -362,14 +362,14 @@ bool DbgEngAdapter::WriteRegister(const std::string &reg, std::uintptr_t value)
 {
     unsigned long reg_index{};
 
-    if ( this->m_debug_registers->GetIndexByName(reg.c_str(), &reg_index) != S_OK )
+    if (this->m_debugRegisters->GetIndexByName(reg.c_str(), &reg_index) != S_OK )
         return false;
 
     DEBUG_VALUE debug_value{};
     debug_value.I64 = value;
     debug_value.Type = DEBUG_VALUE_INT64;
 
-    if ( this->m_debug_registers->SetValue(reg_index, &debug_value ) != S_OK )
+    if (this->m_debugRegisters->SetValue(reg_index, &debug_value ) != S_OK )
         return false;
 
     return true;
@@ -382,11 +382,11 @@ bool DbgEngAdapter::WriteRegister(const DebugRegister& reg, std::uintptr_t value
 
 std::vector<std::string> DbgEngAdapter::GetRegisterList() const
 {
-    if ( !this->m_debug_registers )
+    if ( !this->m_debugRegisters )
         return{};
 
     unsigned long register_count{};
-    if ( this->m_debug_registers->GetNumberRegisters(&register_count) != S_OK )
+    if (this->m_debugRegisters->GetNumberRegisters(&register_count) != S_OK )
         return {};
 
     std::vector<std::string> register_list{};
@@ -399,20 +399,20 @@ std::vector<std::string> DbgEngAdapter::GetRegisterList() const
 bool DbgEngAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
 {
     unsigned long bytes_read{};
-    return this->m_debug_data_spaces->ReadVirtual(address, out, size, &bytes_read) == S_OK && bytes_read == size;
+    return this->m_debugDataSpaces->ReadVirtual(address, out, size, &bytes_read) == S_OK && bytes_read == size;
 }
 
 bool DbgEngAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t size)
 {
     unsigned long bytes_written{};
-    return this->m_debug_data_spaces->WriteVirtual(address, out, size, &bytes_written) == S_OK && bytes_written == size;
+    return this->m_debugDataSpaces->WriteVirtual(address, out, size, &bytes_written) == S_OK && bytes_written == size;
 }
 
 std::vector<DebugModule> DbgEngAdapter::GetModuleList() const
 {
     unsigned long loaded_module_count{}, unloaded_module_count{};
 
-    if ( this->m_debug_symbols->GetNumberModules(&loaded_module_count, &unloaded_module_count) != S_OK )
+    if (this->m_debugSymbols->GetNumberModules(&loaded_module_count, &unloaded_module_count) != S_OK )
         return {};
 
     if ( !loaded_module_count )
@@ -422,7 +422,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList() const
 
     const auto total_modules = loaded_module_count + unloaded_module_count;
     auto module_parameters = std::make_unique<DEBUG_MODULE_PARAMETERS[]>(total_modules);
-    if ( this->m_debug_symbols->GetModuleParameters(total_modules, nullptr, 0, module_parameters.get()) != S_OK )
+    if (this->m_debugSymbols->GetModuleParameters(total_modules, nullptr, 0, module_parameters.get()) != S_OK )
         return {};
 
     for ( std::size_t module_index{}; module_index < total_modules; module_index++ )
@@ -432,10 +432,10 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList() const
         char name[1024];
         char short_name[1024];
         char loaded_image_name[1024];
-        if ( this->m_debug_symbols->GetModuleNames(module_index, 0,
-                                                   name, 1024, nullptr,
-                                                   short_name, 1024, nullptr,
-                                                   loaded_image_name, 1024, nullptr ) != S_OK )
+        if ( this->m_debugSymbols->GetModuleNames(module_index, 0,
+                                                  name, 1024, nullptr,
+                                                  short_name, 1024, nullptr,
+                                                  loaded_image_name, 1024, nullptr ) != S_OK )
             continue;
 
         modules.emplace_back(name, short_name, parameters.Base, parameters.Size, !(parameters.Flags & DEBUG_MODULE_UNLOADED) );
@@ -446,7 +446,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList() const
 
 bool DbgEngAdapter::BreakInto()
 {
-    if ( this->m_debug_control->SetInterrupt(DEBUG_INTERRUPT_ACTIVE) != S_OK )
+    if (this->m_debugControl->SetInterrupt(DEBUG_INTERRUPT_ACTIVE) != S_OK )
         return false;
 
     this->Wait();
@@ -456,7 +456,7 @@ bool DbgEngAdapter::BreakInto()
 
 bool DbgEngAdapter::Go()
 {
-    if ( this->m_debug_control->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK )
+    if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK )
         return false;
 
     this->Wait();
@@ -466,7 +466,7 @@ bool DbgEngAdapter::Go()
 
 bool DbgEngAdapter::StepInto()
 {
-    if ( this->m_debug_control->SetExecutionStatus(DEBUG_STATUS_STEP_INTO) != S_OK )
+    if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_INTO) != S_OK )
         return false;
 
     this->Wait();
@@ -476,7 +476,7 @@ bool DbgEngAdapter::StepInto()
 
 bool DbgEngAdapter::StepOver()
 {
-    if ( this->m_debug_control->SetExecutionStatus(DEBUG_STATUS_STEP_OVER) != S_OK )
+    if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_OVER) != S_OK )
         return false;
 
     this->Wait();
@@ -488,12 +488,12 @@ bool DbgEngAdapter::StepOut()
 {
     DEBUG_STACK_FRAME_EX stack_frame{};
     unsigned long frame_total{};
-    if (this->m_debug_control->GetStackTraceEx(0, 0, 0, &stack_frame, 1, &frame_total) != S_OK )
+    if (this->m_debugControl->GetStackTraceEx(0, 0, 0, &stack_frame, 1, &frame_total) != S_OK )
         return false;
 
     IDebugBreakpoint2* debug_breakpoint;
-    if (const auto result = this->m_debug_control->AddBreakpoint2(DEBUG_BREAKPOINT_CODE, DbgEngAdapter::StepoutBreakpointID,
-                                                                  &debug_breakpoint);
+    if (const auto result = this->m_debugControl->AddBreakpoint2(DEBUG_BREAKPOINT_CODE, DbgEngAdapter::StepoutBreakpointID,
+                                                                 &debug_breakpoint);
             result != S_OK)
         return false;
 
@@ -526,10 +526,10 @@ bool DbgEngAdapter::StepTo(std::uintptr_t address)
 
 bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
 {
-    std::memset(&DbgEngAdapter::ProcessCallbackInfo.m_last_breakpoint, 0, sizeof(DbgEngAdapter::ProcessCallbackInfo.m_last_breakpoint));
-    std::memset(&DbgEngAdapter::ProcessCallbackInfo.m_last_exception, 0, sizeof(DbgEngAdapter::ProcessCallbackInfo.m_last_exception));
+    std::memset(&DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint, 0, sizeof(DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint));
+    std::memset(&DbgEngAdapter::ProcessCallbackInfo.m_lastException, 0, sizeof(DbgEngAdapter::ProcessCallbackInfo.m_lastException));
 
-    const auto wait_result = this->m_debug_control->WaitForEvent(0, timeout.count());
+    const auto wait_result = this->m_debugControl->WaitForEvent(0, timeout.count());
     return wait_result == S_OK;
 }
 
@@ -539,7 +539,7 @@ std::string DbgEngAdapter::GetRegisterNameByIndex(std::uint32_t index) const
     DEBUG_REGISTER_DESCRIPTION reg_description{};
 
     std::string out{};
-    if ( this->m_debug_registers->GetDescription(index, out.data(), 256, &reg_length, &reg_description) != S_OK )
+    if (this->m_debugRegisters->GetDescription(index, out.data(), 256, &reg_length, &reg_description) != S_OK )
         return {};
 
     return out;
@@ -548,7 +548,7 @@ std::string DbgEngAdapter::GetTargetArchitecture()
 {
     unsigned long processor_type{};
 
-    if ( this->m_debug_control->GetExecutingProcessorType(&processor_type) != S_OK )
+    if (this->m_debugControl->GetExecutingProcessorType(&processor_type) != S_OK )
         return "";
 
     switch (processor_type)
@@ -566,10 +566,10 @@ unsigned long DbgEngAdapter::StopReason()
     {
         const auto instruction_ptr = this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
 
-        if (instruction_ptr == DbgEngAdapter::ProcessCallbackInfo.m_last_breakpoint.m_address )
+        if (instruction_ptr == DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint.m_address )
             return exec_status;
 
-        const auto& last_exception = DbgEngAdapter::ProcessCallbackInfo.m_last_exception;
+        const auto& last_exception = DbgEngAdapter::ProcessCallbackInfo.m_lastException;
         if ( instruction_ptr == last_exception.ExceptionAddress )
             return last_exception.ExceptionCode;
     }
@@ -580,7 +580,7 @@ unsigned long DbgEngAdapter::StopReason()
 unsigned long DbgEngAdapter::ExecStatus()
 {
     unsigned long execution_status{};
-    if ( this->m_debug_control->GetExecutionStatus(&execution_status) != S_OK )
+    if (this->m_debugControl->GetExecutionStatus(&execution_status) != S_OK )
         return 0;
 
     return execution_status;
@@ -588,13 +588,13 @@ unsigned long DbgEngAdapter::ExecStatus()
 
 void DbgEngAdapter::Invoke(const std::string& command)
 {
-    this->m_debug_control->Execute(DEBUG_OUTCTL_ALL_CLIENTS, command.c_str(), DEBUG_EXECUTE_NO_REPEAT);
+    this->m_debugControl->Execute(DEBUG_OUTCTL_ALL_CLIENTS, command.c_str(), DEBUG_EXECUTE_NO_REPEAT);
 }
 
 std::uintptr_t DbgEngAdapter::GetInstructionOffset()
 {
     std::uintptr_t register_offset{};
-    this->m_debug_registers->GetInstructionOffset(&register_offset);
+    this->m_debugRegisters->GetInstructionOffset(&register_offset);
 
     return register_offset;
 }
@@ -633,17 +633,17 @@ HRESULT DbgEngEventCallbacks::Breakpoint(IDebugBreakpoint* breakpoint)
 {
     std::uintptr_t address{};
     if (breakpoint->GetOffset(&address) == S_OK )
-        DbgEngAdapter::ProcessCallbackInfo.m_last_breakpoint = DebugBreakpoint( address );
+        DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint = DebugBreakpoint(address );
 
     return DEBUG_STATUS_NO_CHANGE;
 }
 
 HRESULT DbgEngEventCallbacks::Exception(EXCEPTION_RECORD64* exception, unsigned long first_chance)
 {
-    DbgEngAdapter::ProcessCallbackInfo.m_last_exception = *exception;
+    DbgEngAdapter::ProcessCallbackInfo.m_lastException = *exception;
 
     if ( exception->ExceptionCode == EXCEPTION_BREAKPOINT )
-        DbgEngAdapter::ProcessCallbackInfo.m_has_one_breakpoint = true;
+        DbgEngAdapter::ProcessCallbackInfo.m_hasOneBreakpoint = true;
 
     return DEBUG_STATUS_NO_CHANGE;
 }
@@ -664,7 +664,7 @@ HRESULT DbgEngEventCallbacks::CreateProcess(uint64_t image_file_handle, uint64_t
                                              uint64_t initial_thread_handle, uint64_t thread_data_offset,
                                              uint64_t start_offset)
 {
-    DbgEngAdapter::ProcessCallbackInfo.m_image_base = base_offset;
+    DbgEngAdapter::ProcessCallbackInfo.m_imageBase = base_offset;
     DbgEngAdapter::ProcessCallbackInfo.m_created = true;
 
     return DEBUG_STATUS_GO;
@@ -673,7 +673,7 @@ HRESULT DbgEngEventCallbacks::CreateProcess(uint64_t image_file_handle, uint64_t
 HRESULT DbgEngEventCallbacks::ExitProcess(unsigned long exit_code)
 {
     DbgEngAdapter::ProcessCallbackInfo.m_exited = true;
-    DbgEngAdapter::ProcessCallbackInfo.m_exit_code = exit_code;
+    DbgEngAdapter::ProcessCallbackInfo.m_exitCode = exit_code;
     return DEBUG_STATUS_NO_CHANGE;
 }
 
@@ -696,7 +696,7 @@ HRESULT DbgEngEventCallbacks::SystemError(unsigned long error, unsigned long lev
 
 HRESULT DbgEngEventCallbacks::SessionStatus(unsigned long session_status)
 {
-    DbgEngAdapter::ProcessCallbackInfo.m_last_session_status = session_status;
+    DbgEngAdapter::ProcessCallbackInfo.m_lastSessionStatus = session_status;
 
     return S_OK;
 }
