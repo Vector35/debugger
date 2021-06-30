@@ -33,3 +33,5 @@
 
 .idea/
 cmake-build-*/
+
+.vscode/*
