@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 
-option(QT6 "Target Qt 6" OFF)
-option(BN_BUILD_CLI_DEBUGGER "Build CLI Debugger" OFF)
+option(QT6 "Target Qt 6" ON)
+option(BN_BUILD_CLI_DEBUGGER "Build CLI Debugger" ON)
 
 project(debugger)
 
