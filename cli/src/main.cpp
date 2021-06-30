@@ -1,7 +1,7 @@
 #include <iostream>
 #include <thread>
 #include <atomic>
-#include "../../src/adapters/debugadapter.h"
+#include "../../src/debugadapter.h"
 #ifdef WIN32
 #include "../../src/adapters/dbgengadapter.h"
 #else

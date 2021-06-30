@@ -4,8 +4,9 @@ project(debugger-cli)
 
 remove_definitions(-DUNICODE -D_UNICODE)
 
+set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 set(ADAPTER_DIR ${CMAKE_SOURCE_DIR}/src/adapters)
-set(ADAPTER_SOURCES ${ADAPTER_DIR}/debugadapter.cpp ${ADAPTER_DIR}/debugadapter.h ${ADAPTER_DIR}/rspconnector.cpp ${ADAPTER_DIR}/rspconnector.h)
+set(ADAPTER_SOURCES ${SRC_DIR}/debugadapter.h ${ADAPTER_DIR}/rspconnector.cpp ${ADAPTER_DIR}/rspconnector.h)
 
 if (WIN32)
     add_definitions(-DWIN32)
