@@ -43,6 +43,10 @@ struct DebugRegister
     std::string m_name{};
     std::uintptr_t m_value{};
     std::size_t m_width{};
+
+    DebugRegister() = default;
+    DebugRegister(std::string name, std::uintptr_t value, std::size_t width) :
+        m_name(std::move(name)), m_value(value), m_width(width) {}
 };
 
 struct DebugModule
@@ -82,7 +86,7 @@ public:
     virtual std::vector<DebugBreakpoint> GetBreakpointList() const = 0;
 
     virtual std::string GetRegisterNameByIndex(std::uint32_t index) const = 0;
-    virtual DebugRegister ReadRegister(const std::string& reg) const = 0;
+    virtual DebugRegister ReadRegister(const std::string& reg) = 0;
     virtual bool WriteRegister(const std::string& reg, std::uintptr_t value) = 0;
     virtual bool WriteRegister(const DebugRegister& reg, std::uintptr_t value) = 0;
     virtual std::vector<std::string> GetRegisterList() const = 0;

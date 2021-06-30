@@ -76,19 +76,10 @@ std::unordered_map<std::string, std::int64_t> RspConnector::PacketToUnorderedMap
                 packet_map["thread"] = std::stoll(value, nullptr, 16);
             }
         } else if ( std::regex_search(key, std::regex("^[0-9a-fA-F]+$")) ) {
-            const auto swap_endianness = [](auto val) {
-                union {
-                    decltype(val) m_val;
-                    std::array<std::uint8_t, sizeof(decltype(val))> m_raw;
-                } source{val}, dest{};
-                std::reverse_copy(source.m_raw.begin(), source.m_raw.end(), dest.m_raw.begin());
-                return dest.m_val;
-            };
-
             char reg_name[64]{};
             std::sprintf(reg_name, "r%d", std::stoi(key, nullptr, 16));
 
-            packet_map[reg_name] = static_cast<std::int64_t>( swap_endianness( std::stoull(value, nullptr, 16)) );
+            packet_map[reg_name] = static_cast<std::int64_t>( RspConnector::SwapEndianness( std::stoull(value, nullptr, 16)) );
         } else {
             packet_map[key] = std::stoll(value, nullptr, 16);
         }
@@ -304,11 +295,49 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
 
     if ( expect == "nothing" )
         reply = RspData("");
-    else if ( expect == "ack_then_reply" )
-    {
-        printf("EXPECT -> ack_then_reply\n");
+    else if ( expect == "ack_then_reply" ) {
+        printf("EXPECT -> %s\n", expect.c_str());
         printf("ack -> %c\n", this->ExpectAck());
         reply = this->ReceiveRspData();
+    }
+    else if ( expect == "mixed_output_ack_then_reply" ) {
+        printf("EXPECT -> %s\n", expect.c_str());
+
+        bool ack_received = false;
+        while(true) {
+            char peek{};
+            recv(this->m_socket, &peek, 1, MSG_PEEK);
+
+            if (!peek) {
+                throw std::runtime_error("backend gone?");
+            }
+
+            if (peek == '+') {
+                if (ack_received)
+                    throw std::runtime_error("two acks came when only one was expected");
+                char buf{};
+                ack_received = true;
+                recv(this->m_socket, &buf, 1, 0);
+                continue;
+            }
+
+            if (peek != '$') {
+                char buf[16];
+                recv(this->m_socket, buf, sizeof(buf), 0);
+                printf("WRONG!! -> %s\n", buf);
+                throw std::runtime_error("packet start is wrong");
+            }
+            reply = this->ReceiveRspData();
+            if (reply.m_data[0] == 'O') {
+                if (async)
+                    this->HandleAsyncPacket(reply);
+            } else {
+                break;
+            }
+        }
+
+        if (!ack_received && this->m_acksEnabled)
+            throw std::runtime_error("expected ack, but received none");
     }
 
     if ( std::find(reply.begin(), reply.end(), '*') != reply.end() )
@@ -336,4 +365,16 @@ std::string RspConnector::GetXml(const std::string& name)
     data_string.erase(0, 1);
 
     return data_string;
+}
+
+void RspConnector::HandleAsyncPacket(const RspData& data)
+{
+    if ( data.m_data[0] != 'O' ) {
+        printf("invalid async packet? : %s", data.AsString().c_str());
+        return;
+    }
+
+    const auto string = data.AsString();
+    const auto message = string.substr(1, std::distance(string.begin(), string.end()));
+    printf("message, %s\n", message.c_str());
 }

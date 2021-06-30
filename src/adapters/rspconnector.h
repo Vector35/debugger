@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <algorithm>
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -118,6 +119,17 @@ public:
     static RspData DecodeRLE(const RspData& data);
     static std::unordered_map<std::string, std::int64_t> PacketToUnorderedMap(const RspData& data);
 
+    template <typename Ty>
+    static Ty SwapEndianness(Ty value) {
+        union {
+            Ty m_val;
+            std::array<std::uint8_t, sizeof(Ty)> m_raw;
+        } source{value}, dest{};
+        std::reverse_copy(source.m_raw.begin(), source.m_raw.end(), dest.m_raw.begin());
+        return dest.m_val;
+    }
+
+
     void EnableAcks();
     void DisableAcks();
 
@@ -131,6 +143,7 @@ public:
 
     RspData ReceiveRspData() const;
     RspData TransmitAndReceive(const RspData& data, const std::string& expect = "ack_then_reply", bool async = false);
+    void HandleAsyncPacket(const RspData& data);
 
     std::string GetXml(const std::string& name);
 };

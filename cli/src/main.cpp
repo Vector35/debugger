@@ -273,17 +273,19 @@ int main(int argc, const char* argv[])
         #endif
 
         //if (!debug_adapter->Execute(argv[1]))
-        if (!debug_adapter->Execute("/opt/sublime_text/sublime_text"))
+        if (!debug_adapter->Execute("/home/user/Desktop/debugger/testbins/helloworld_loop_x64-linux"))
                 return -1;
 
         std::thread( [&]{
+#ifdef WIN32
             while ( true )
-            #ifdef WIN32
                 if ( GetAsyncKeyState(VK_F2) & 1 )
-            #else
-                if ( false )
-            #endif
                     debug_adapter->BreakInto();
+#else
+            //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+            //debug_adapter->BreakInto();
+        /* TODO: key presses on not windows */
+#endif
         }).detach();
 
         char input_buf[256];

@@ -27,7 +27,7 @@ private:
     virtual std::vector<DebugBreakpoint> GetBreakpointList() const;
 
     virtual std::string GetRegisterNameByIndex(std::uint32_t index) const;
-    virtual DebugRegister ReadRegister(const std::string& reg) const;
+    virtual DebugRegister ReadRegister(const std::string& reg);
     virtual bool WriteRegister(const std::string& reg, std::uintptr_t value);
     virtual bool WriteRegister(const DebugRegister& reg, std::uintptr_t value);
     virtual std::vector<std::string> GetRegisterList() const;

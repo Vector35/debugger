@@ -323,7 +323,7 @@ std::vector<DebugBreakpoint> DbgEngAdapter::GetBreakpointList() const
     return this->m_debug_breakpoints;
 }
 
-DebugRegister DbgEngAdapter::ReadRegister(const std::string &reg) const
+DebugRegister DbgEngAdapter::ReadRegister(const std::string &reg)
 {
     unsigned long reg_index{};
     DEBUG_VALUE debug_value{};

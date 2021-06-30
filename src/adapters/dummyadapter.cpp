@@ -122,7 +122,7 @@ std::string DummyAdapter::GetRegisterNameByIndex(std::uint32_t index) const
 }
 
 
-DebugRegister DummyAdapter::ReadRegister(const std::string& reg) const
+DebugRegister DummyAdapter::ReadRegister(const std::string& reg)
 {
     DebugRegister result;
     return result;

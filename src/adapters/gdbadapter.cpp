@@ -64,13 +64,12 @@ bool GdbAdapter::Execute(const std::string& path)
         return false;
 
     std::array<char, 256> buffer{};
-    //std::sprintf(buffer.data(), "%s --once --no-startup-with-shell localhost:%d %s > /dev/null 2>&1 &",
-    //             gdb_server_path.c_str(), this->m_port, path.c_str());
-
     std::sprintf(buffer.data(), "localhost:%d", this->m_port);
 
+    setsid();
     pid_t pid;
-    char* arg[] = {(char*) gdb_server_path.c_str(), "--once", "--no-startup-with-shell", buffer.data(), (char*) path.c_str()};
+    char* arg[] = {(char*) gdb_server_path.c_str(), "--once", "--no-startup-with-shell", buffer.data(),
+                   (char*) path.c_str()};
     posix_spawn(&pid, gdb_server_path.c_str(), nullptr, nullptr, arg, environ);
 
     return this->Connect("127.0.0.1", this->m_port);
@@ -252,9 +251,37 @@ std::string GdbAdapter::GetRegisterNameByIndex(std::uint32_t index) const
     return std::string();
 }
 
-DebugRegister GdbAdapter::ReadRegister(const std::string& reg) const
+/* TODO: register cache, no point in spamming gdb with requests when we get all the info we need in one  */
+DebugRegister GdbAdapter::ReadRegister(const std::string& reg)
 {
-    return DebugRegister();
+    if ( this->m_registerInfo.find(reg) == this->m_registerInfo.end() )
+        throw std::runtime_error("register does not exist in target");
+
+    using register_pair = std::pair<std::string, RegisterInfo>;
+    std::vector<register_pair> register_info_vec{};
+    for ( const auto& [register_name, register_info] : this->m_registerInfo ) {
+        register_info_vec.emplace_back(register_name, register_info);
+    }
+
+    std::sort(register_info_vec.begin(), register_info_vec.end(),
+              [](const register_pair& lhs, const register_pair& rhs) {
+                    return lhs.second.m_regNum < rhs.second.m_regNum;
+              });
+
+    char request{'g'};
+    const auto register_info_reply = this->m_rspConnector.TransmitAndReceive(RspData(&request, sizeof(request)));
+    auto register_info_reply_string = register_info_reply.AsString();
+
+    std::unordered_map<std::string, DebugRegister> test_out{};
+    for ( const auto& [register_name, register_info] : register_info_vec ) {
+        const auto number_of_chars = 2 * ( register_info.m_bitSize / 8 );
+        const auto value_string = register_info_reply_string.substr(0, number_of_chars);
+        const auto value = RspConnector::SwapEndianness(std::stoull(value_string, nullptr, 16));
+        test_out[register_name] = DebugRegister(register_name, value, register_info.m_bitSize);
+        register_info_reply_string.erase(0, number_of_chars);
+    }
+
+    return test_out[reg];
 }
 
 bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
@@ -269,16 +296,28 @@ bool GdbAdapter::WriteRegister(const DebugRegister& reg, std::uintptr_t value)
 
 std::vector<std::string> GdbAdapter::GetRegisterList() const
 {
-    return std::vector<std::string>();
+    std::vector<std::string> registers{};
+
+    for ( const auto& [register_name, register_info] : this->m_registerInfo )
+        registers.push_back(register_name);
+
+    return registers;
 }
 
 bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
 {
-    return false;
+    auto reply = this->m_rspConnector.TransmitAndReceive(RspData("m%llx,%x", address, size));
+    if (reply.m_data[0] == 'E')
+        return false;
+
+    std::memcpy(out, reply.m_data, size);
+    return true;
 }
 
 bool GdbAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t size)
 {
+
+
     return false;
 }
 
@@ -294,12 +333,29 @@ std::string GdbAdapter::GetTargetArchitecture()
 
 bool GdbAdapter::BreakInto()
 {
-    return false;
+    char var = '\x03';
+    this->m_rspConnector.SendRaw(RspData(&var, sizeof(var)));
+    return true;
 }
 
 bool GdbAdapter::Go()
 {
-    return false;
+    const auto go_reply =
+            this->m_rspConnector.TransmitAndReceive(
+                    RspData("vCont;c:-1"), "mixed_output_ack_then_reply", true);
+
+    if ( go_reply.m_data[0] == 'T' ) {
+        auto map = RspConnector::PacketToUnorderedMap(go_reply);
+        const auto tid = map["thread"];
+        printf("%x\n", tid);
+    } else if ( go_reply.m_data[0] == 'W' ) {
+        /* exit status, substr */
+    } else {
+        printf("[go, ?]\n");
+        printf("%s\n", go_reply.AsString().c_str());
+    }
+
+    return true;
 }
 
 bool GdbAdapter::StepInto()

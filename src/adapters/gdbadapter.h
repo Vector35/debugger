@@ -1,7 +1,7 @@
 #pragma once
 #include "../debugadapter.h"
 #include "rspconnector.h"
-#include <unordered_map>
+#include <map>
 
 class GdbAdapter : public DebugAdapter
 {
@@ -14,7 +14,8 @@ class GdbAdapter : public DebugAdapter
     int m_socket{};
     int m_port{};
     RspConnector m_rspConnector{};
-    std::unordered_map<std::string, RegisterInfo> m_registerInfo{};
+
+    std::map<std::string, RegisterInfo> m_registerInfo{};
 
     int m_internalBreakpointId{};
     std::vector<DebugBreakpoint> m_debugBreakpoint{};
@@ -48,7 +49,7 @@ public:
     std::vector<DebugBreakpoint> GetBreakpointList() const override;
 
     std::string GetRegisterNameByIndex(std::uint32_t index) const override;
-    DebugRegister ReadRegister(const std::string& reg) const override;
+    DebugRegister ReadRegister(const std::string& reg) override;
     bool WriteRegister(const std::string& reg, std::uintptr_t value) override;
     bool WriteRegister(const DebugRegister& reg, std::uintptr_t value) override;
     std::vector<std::string> GetRegisterList() const override;
