@@ -5,16 +5,6 @@ option(BN_BUILD_CLI_DEBUGGER "Build CLI Debugger" OFF)
 
 project(debugger)
 
-if((NOT BN_API_PATH) AND (NOT BN_INTERNAL_BUILD))
-	set(BN_API_PATH $ENV{BN_API_PATH})
-	if(NOT BN_API_PATH)
-		message(FATAL_ERROR "Provide path to Binary Ninja API source in BN_API_PATH")
-	endif()
-endif()
-if(NOT BN_INTERNAL_BUILD)
-	add_subdirectory(${BN_API_PATH} ${PROJECT_BINARY_DIR}/api)
-endif()
-
 if(NOT QT6)
 	set(CMAKE_OSX_ARCHITECTURES x86_64)
 endif()
@@ -40,12 +30,13 @@ endif()
 file(GLOB SOURCES
 	*.cpp
 	*.h
-    dockwidgets/*.cpp
-    dockwidgets/*.h
     adapters/*.cpp
     adapters/*.h
     src/*.cpp
-	src/*.h)
+	src/*.h
+    src/ui/*.cpp
+    src/ui/*.h
+    )
 
 list(FILTER SOURCES EXCLUDE REGEX moc_.*)
 list(FILTER SOURCES EXCLUDE REGEX qrc_.*)
@@ -59,10 +50,14 @@ endif()
 
 if(QT6)
 	target_link_libraries(debugger binaryninjaapi
-		Qt6::Core Qt6::Gui Qt6::Widgets dbgeng.lib)
+		Qt6::Core Qt6::Gui Qt6::Widgets)
 else()
 	target_link_libraries(debugger binaryninjaapi
-		Qt5::Core Qt5::Gui Qt5::Widgets dbgeng.lib)
+		Qt5::Core Qt5::Gui Qt5::Widgets)
+endif()
+
+if(WIN32)
+    target_link_libraries(dbgeng.lib)
 endif()
 
 if(BN_INTERNAL_BUILD)

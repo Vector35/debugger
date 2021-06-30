@@ -1,4 +1,4 @@
-#include "debugadapter.h"
+#include "../debugadapter.h"
 #include "binaryninjaapi.h"
 
 class DummyAdapter: public DebugAdapter
@@ -19,7 +19,7 @@ private:
     virtual bool SetActiveThread(const DebugThread& thread);
     virtual bool SetActiveThreadId(uint32_t);
 
-    virtual DebugBreakpoint AddBreakpoint(const std::uintptr_t address);
+    virtual DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type);
     virtual std::vector<DebugBreakpoint> AddBreakpoints(const std::vector<std::uintptr_t>& breakpoints);
     virtual bool RemoveBreakpoint(const DebugBreakpoint& breakpoint);
     virtual bool RemoveBreakpoints(const std::vector<DebugBreakpoint>& breakpoints);
@@ -38,6 +38,8 @@ private:
     virtual std::vector<DebugModule> GetModuleList() const;
 
     virtual std::string GetTargetArchitecture();
+    virtual unsigned long StopReason();
+    virtual unsigned long ExecStatus();
 
     virtual bool BreakInto();
     virtual bool Go();

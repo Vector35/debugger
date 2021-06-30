@@ -1,5 +1,5 @@
 #pragma once
-#include "debugadapter.h"
+#include "../debugadapter.h"
 #define NOMINMAX
 #include <windows.h>
 #include <dbgeng.h>

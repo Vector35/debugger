@@ -1,5 +1,5 @@
 #pragma once
-#include "debugadapter.h"
+#include "../debugadapter.h"
 #include "rspconnector.h"
 #include <unordered_map>
 

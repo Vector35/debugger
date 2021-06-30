@@ -3,8 +3,8 @@
 // #include <QtWidgets/QScrollArea>
 #include <QtWidgets/QPushButton>
 #include "viewframe.h"
-#include "dockwidgets/controlswidget.h"
-#include "debuggerstate.h"
+#include "controlswidget.h"
+#include "../debuggerstate.h"
 #include "linearview.h"
 #include "disassemblyview.h"
 #include "tokenizedtextview.h"

@@ -79,7 +79,7 @@ bool DummyAdapter::SetActiveThreadId(uint32_t)
 }
 
 
-DebugBreakpoint DummyAdapter::AddBreakpoint(const std::uintptr_t address)
+DebugBreakpoint DummyAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
     DebugBreakpoint result;
     return result;
@@ -168,6 +168,18 @@ std::vector<DebugModule> DummyAdapter::GetModuleList() const
 std::string DummyAdapter::GetTargetArchitecture()
 {
     return std::string();
+}
+
+
+unsigned long DummyAdapter::StopReason()
+{
+    return 0;
+}
+
+
+unsigned long DummyAdapter::ExecStatus()
+{
+    return 0;
 }
 
 

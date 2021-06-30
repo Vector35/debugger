@@ -1,5 +1,5 @@
-#include "debugadapter.h"
-#include "dummyadapter.h"
+#include "debugadaptertype.h"
+#include "./adapters/dummyadapter.h"
 
 bool DebugAdapterType::useExec(AdapterType type)
 {

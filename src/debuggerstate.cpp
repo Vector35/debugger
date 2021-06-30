@@ -1,5 +1,5 @@
 #include "debuggerstate.h"
-#include "./adapters/debugadapter.h"
+#include "debugadapter.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -84,7 +84,7 @@ bool DebuggerModules::GetModuleBase(const std::string& name, uint64_t& address)
 {
     for (const DebugModule& module: m_modules)
     {
-        if ((name == module.m_name) || (name == module.m_shortName))
+        if ((name == module.m_name) || (name == module.m_short_name))
         {
             address = module.m_address;
             return true;

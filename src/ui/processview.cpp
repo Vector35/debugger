@@ -1,5 +1,5 @@
 #include "processview.h"
-#include "debuggerstate.h"
+#include "../debuggerstate.h"
 
 using namespace BinaryNinja;
 

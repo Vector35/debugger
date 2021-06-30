@@ -1,8 +1,8 @@
 #include <inttypes.h>
 #include "debugger.h"
-#include "debugview.h"
-#include "processview.h"
-#include "./dockwidgets/registerwidget.h"
+#include "ui/debugview.h"
+#include "ui/processview.h"
+#include "ui/registerwidget.h"
 #include "dockhandler.h"
 
 using namespace BinaryNinja;

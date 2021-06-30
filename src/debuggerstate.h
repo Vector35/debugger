@@ -2,7 +2,8 @@
 
 #include "binaryninjaapi.h"
 #include "uitypes.h"
-#include "processview.h"
+#include "ui/processview.h"
+#include "debugadaptertype.h"
 #include "adapters/dummyadapter.h"
 
 class DebuggerState;
