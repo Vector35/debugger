@@ -100,9 +100,10 @@ DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
     m_adapter = new DummyAdapter();
     m_registers = new DebuggerRegisters(this);
 
-    Ref<Metadata> metadata = m_data->QueryMetadata("native_debugger.command_line_args");
-    if (metadata && metadata->IsStringList())
-        m_commandLineArgs = metadata->GetStringList();
+    Ref<Metadata> metadata;
+    // metadata = m_data->QueryMetadata("native_debugger.command_line_args");
+    // if (metadata && metadata->IsStringList())
+    //     m_commandLineArgs = metadata->GetStringList();
 
     metadata = m_data->QueryMetadata("native_debugger.remote_host");
     if (metadata && metadata->IsString())

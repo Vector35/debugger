@@ -16,6 +16,16 @@ else()
 	find_package(Qt5 COMPONENTS Core Gui Widgets REQUIRED)
 endif()
 
+if((NOT BN_API_PATH) AND (NOT BN_INTERNAL_BUILD))
+	set(BN_API_PATH $ENV{BN_API_PATH})
+	if(NOT BN_API_PATH)
+		message(FATAL_ERROR "Provide path to Binary Ninja API source in BN_API_PATH")
+	endif()
+endif()
+if(NOT BN_INTERNAL_BUILD)
+	add_subdirectory(${BN_API_PATH} ${PROJECT_BINARY_DIR}/api)
+endif()
+
 file(GLOB SOURCES
 	*.cpp
 	*.h
@@ -34,11 +44,15 @@ else()
 endif()
 
 if(QT6)
-	target_link_libraries(debugger binaryninjaapi binaryninjaui
+	target_link_libraries(debugger binaryninjaapi
 		Qt6::Core Qt6::Gui Qt6::Widgets)
 else()
-	target_link_libraries(debugger binaryninjaapi binaryninjaui
+	target_link_libraries(debugger binaryninjaapi
 		Qt5::Core Qt5::Gui Qt5::Widgets)
+endif()
+
+if(BN_INTERNAL_BUILD)
+    target_link_libraries(binaryninjaui)
 endif()
 
 set_target_properties(debugger PROPERTIES
@@ -56,4 +70,5 @@ if(BN_INTERNAL_BUILD)
 		RUNTIME_OUTPUT_DIRECTORY ${BN_CORE_PLUGIN_DIR})
 endif()
 
+# This does not work right now
 bn_install_plugin(${PROJECT_NAME})
