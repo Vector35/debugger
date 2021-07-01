@@ -270,8 +270,8 @@ int main(int argc, const char* argv[])
      * linux -> R"(/home/user/Desktop/binaryninja/plugins)"
      * macos -> */
 
-    BinaryNinja::SetBundledPluginDirectory(R"(/home/user/Desktop/binaryninja/plugins)");
-    BinaryNinja::InitPlugins();
+    SetBundledPluginDirectory(R"(/mnt/binja/build/out/plugins)");
+    InitPlugins();
 
     try
     {
