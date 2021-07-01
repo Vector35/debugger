@@ -17,8 +17,10 @@ mkdir build
 cd build
 
 # Build it
-cmake -DBN_API_PATH=../binaryninja-api -DBN_INSTALL_DIR=/path/to/binaryninja/installation -DQT6=on ../debugger_native/
+cmake -DBN_API_PATH=../binaryninja-api -DBN_INSTALL_DIR=/path/to/binaryninja/installation ../debugger_native/
 make -j8
 ```
+
+If you wish a debug build, add `-DCMAKE_BUILD_TYPE=Debug` to the cmake command line.
 
 Finally, copy the built `libdebugger.so/dll` to the user plugin folder and relaunch BinaryNinja.
