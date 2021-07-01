@@ -1,21 +1,12 @@
 cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 
-option(QT6 "Target Qt 6" ON)
 option(BN_BUILD_CLI_DEBUGGER "Build CLI Debugger" ON)
 
 project(debugger)
 
-if(NOT QT6)
-	set(CMAKE_OSX_ARCHITECTURES x86_64)
-endif()
-
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-if(QT6)
-	find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
-else()
-	find_package(Qt5 COMPONENTS Core Gui Widgets REQUIRED)
-endif()
+find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 
 if((NOT BN_API_PATH) AND (NOT BN_INTERNAL_BUILD))
 	set(BN_API_PATH $ENV{BN_API_PATH})
@@ -48,13 +39,8 @@ else()
 	add_library(debugger SHARED ${SOURCES})
 endif()
 
-if(QT6)
-	target_link_libraries(debugger binaryninjaapi
-		Qt6::Core Qt6::Gui Qt6::Widgets)
-else()
-	target_link_libraries(debugger binaryninjaapi
-		Qt5::Core Qt5::Gui Qt5::Widgets)
-endif()
+target_link_libraries(debugger binaryninjaapi
+    Qt6::Core Qt6::Gui Qt6::Widgets)
 
 if(WIN32)
     target_link_libraries(dbgeng.lib)
