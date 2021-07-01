@@ -114,11 +114,9 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
             return;
 
         const auto data_value = data.value();
-
         std::size_t size{data_value.size()};
         std::vector<InstructionTextToken> instruction_tokens{};
-        if (!architecture->GetInstructionText(data.value().data(), instruction_offset, size, instruction_tokens))
-        {
+        if (!architecture->GetInstructionText(data.value().data(), instruction_offset, size, instruction_tokens)) {
             printf("failed to disassemble\n");
             return;
         }
@@ -129,8 +127,7 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
         Ref<BinaryData> bd = new BinaryData(new FileMetadata(), data_buffer);
         Ref<BinaryView> bv;
         for (const auto& type : BinaryViewType::GetViewTypes())
-            if (type->IsTypeValidForData(bd) && type->GetName() == "Raw")
-            {
+            if (type->IsTypeValidForData(bd) && type->GetName() == "Raw") {
                 bv = type->Create(bd);
                 break;
             }
@@ -139,8 +136,7 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
 
         Ref<Platform> plat = nullptr;
         auto arch_list = Platform::GetList();
-        for ( const auto& arch : arch_list )
-        {
+        for ( const auto& arch : arch_list ) {
             constexpr auto os =
             #ifdef WIN32
             "windows";

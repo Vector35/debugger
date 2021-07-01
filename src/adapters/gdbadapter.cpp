@@ -65,8 +65,13 @@ bool GdbAdapter::Execute(const std::string& path)
 
     std::array<char, 256> buffer{};
     std::sprintf(buffer.data(), "localhost:%d", this->m_port);
-    char* arg[] = {"--once", "--no-startup-with-shell", buffer.data(), (char*) path.c_str()};
+    setsid();
+    pid_t pid;
+    char* arg[] = {(char*) gdb_server_path.c_str(), "--once", "--no-startup-with-shell", buffer.data(),
+                   (char*) path.c_str()};
+    posix_spawn(&pid, gdb_server_path.c_str(), nullptr, nullptr, arg, environ);
 
+    /*
     pid_t pid = fork();
     switch (pid)
     {
@@ -114,7 +119,7 @@ bool GdbAdapter::Execute(const std::string& path)
     }
     default:
         break;
-    }
+    }*/
 
     return this->Connect("127.0.0.1", this->m_port);
 }
@@ -193,8 +198,10 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
-    if ( !connected )
+    if ( !connected ) {
+        printf("failed to connect!\n");
         return false;
+    }
 
     this->m_rspConnector = RspConnector(this->m_socket);
     printf("FINAL RESPONSE -> %s\n", this->m_rspConnector.TransmitAndReceive(RspData("Hg0")).AsString().c_str() );
@@ -354,15 +361,47 @@ bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
     if (reply.m_data[0] == 'E')
         return false;
 
-    std::memcpy(out, reply.m_data, size);
+    const auto source = std::make_unique<std::uint8_t[]>(size + 1);
+    const auto dest = std::make_unique<std::uint8_t[]>(size + 1);
+    std::memset(source.get(), '\0', size + 1);
+    std::memset(dest.get(), '\0', size + 1);
+    std::memcpy(source.get(), reply.m_data, size);
+
+    [](const std::uint8_t* src, std::uint8_t* dst) {
+        const auto char_to_int = [](std::uint8_t input) -> int {
+            if(input >= '0' && input <= '9')
+                return input - '0';
+            if(input >= 'A' && input <= 'F')
+                return input - 'A' + 10;
+            if(input >= 'a' && input <= 'f')
+                return input - 'a' + 10;
+            throw std::invalid_argument("Invalid input string");
+        };
+
+        while(*src && src[1]) {
+            *(dst++) = char_to_int(*src) * 16 + char_to_int(src[1]);
+            src += 2;
+        }
+    }(source.get(), dest.get());
+
+    std::memcpy(out, dest.get(), size);
+
     return true;
 }
 
 bool GdbAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t size)
 {
+    const auto dest = std::make_unique<char[]>(size + 1);
+    std::memset(dest.get(), '\0', size + 1);
 
+    for ( std::size_t index{}; index < size; index++ )
+        std::sprintf(dest.get(), "%s%02x", dest.get(), ((std::uint8_t*)out)[index]);
 
-    return false;
+    auto reply = this->m_rspConnector.TransmitAndReceive(RspData("M%llx,%x:%s", address, size, dest.get()));
+    if (reply.AsString() != "OK")
+        return false;
+
+    return true;
 }
 
 std::vector<DebugModule> GdbAdapter::GetModuleList() const
@@ -372,7 +411,29 @@ std::vector<DebugModule> GdbAdapter::GetModuleList() const
 
 std::string GdbAdapter::GetTargetArchitecture()
 {
-    return std::string();
+    const auto xml = this->m_rspConnector.GetXml("target.xml");
+
+    pugi::xml_document doc{};
+    const auto parse_result = doc.load_string(xml.c_str());
+    if (!parse_result)
+        throw std::runtime_error("failed to parse target.xml");
+
+    std::string architecture{};
+    for (auto node = doc.first_child().child("architecture"); node; node = node.next_sibling()) {
+        using namespace std::literals::string_literals;
+        if (node.name() == "architecture"s) {
+            architecture = node.child_value();
+            break;
+        }
+    }
+
+    if (architecture.empty())
+        throw std::runtime_error("failed to find architecture");
+
+    architecture.erase(0, architecture.find(':') + 1);
+    architecture.replace(architecture.find('-'), 1, "_");
+
+    return architecture;
 }
 
 bool GdbAdapter::BreakInto()
@@ -382,29 +443,34 @@ bool GdbAdapter::BreakInto()
     return true;
 }
 
-bool GdbAdapter::Go()
-{
+bool GdbAdapter::GenericGo(const std::string& go_type) {
     const auto go_reply =
             this->m_rspConnector.TransmitAndReceive(
-                    RspData("vCont;c:-1"), "mixed_output_ack_then_reply", true);
+                    RspData(go_type), "mixed_output_ack_then_reply", true);
 
     if ( go_reply.m_data[0] == 'T' ) {
         auto map = RspConnector::PacketToUnorderedMap(go_reply);
         const auto tid = map["thread"];
-        printf("%x\n", tid);
+        printf("%lx\n", tid);
     } else if ( go_reply.m_data[0] == 'W' ) {
         /* exit status, substr */
     } else {
-        printf("[go, ?]\n");
+        printf("[generic go failed?]\n");
         printf("%s\n", go_reply.AsString().c_str());
+        return false;
     }
 
     return true;
 }
 
+bool GdbAdapter::Go()
+{
+    return this->GenericGo("vCont;c:-1");
+}
+
 bool GdbAdapter::StepInto()
 {
-    return false;
+    return this->GenericGo("vCont;s");
 }
 
 bool GdbAdapter::StepOver()
@@ -429,7 +495,7 @@ void GdbAdapter::Invoke(const std::string& command)
 
 std::uintptr_t GdbAdapter::GetInstructionOffset()
 {
-    return 0;
+    return this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
 }
 
 unsigned long GdbAdapter::StopReason()

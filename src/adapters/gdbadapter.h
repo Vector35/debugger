@@ -63,6 +63,9 @@ public:
     unsigned long StopReason() override;
     unsigned long ExecStatus() override;
 
+    bool GenericGo(const std::string& go_type);
+
+
     bool BreakInto() override;
     bool Go() override;
     bool StepInto() override;
