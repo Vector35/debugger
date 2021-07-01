@@ -65,12 +65,56 @@ bool GdbAdapter::Execute(const std::string& path)
 
     std::array<char, 256> buffer{};
     std::sprintf(buffer.data(), "localhost:%d", this->m_port);
+    char* arg[] = {"--once", "--no-startup-with-shell", buffer.data(), (char*) path.c_str()};
 
-    setsid();
-    pid_t pid;
-    char* arg[] = {(char*) gdb_server_path.c_str(), "--once", "--no-startup-with-shell", buffer.data(),
-                   (char*) path.c_str()};
-    posix_spawn(&pid, gdb_server_path.c_str(), nullptr, nullptr, arg, environ);
+    pid_t pid = fork();
+    switch (pid)
+    {
+    case -1:
+        perror("fork()\n");
+        return false;
+    case 0:
+    {
+        // This is done in the Python implementation, but I am not sure what it is intended for
+        // setpgrp();
+
+        // This will detach the gdbserver from the current terminal, so that we can continue interacting with it.
+        // Otherwise, gdbserver will set itself to the foreground process and the cli will become background.
+        // TODO: we should redirect the stdin/stdout to a different FILE so that we can see the debuggee's output
+        // and send input to it
+        FILE *newOut = freopen("/dev/null", "w", stdout);
+        if (!newOut)
+        {
+            perror("freopen");
+            return false;
+        }
+        stdout = newOut;
+
+        FILE *newIn = freopen("/dev/null", "r", stdin);
+        if (!newIn)
+        {
+            perror("freopen");
+            return false;
+        }
+        stdin = newIn;
+
+        FILE *newErr = freopen("/dev/null", "w", stderr);
+        if (!newErr)
+        {
+            perror("freopen");
+            return false;
+        }
+        stderr = newErr;
+
+        if (execv(gdb_server_path.c_str(), arg) == -1)
+        {
+            perror("execv()\n");
+            return false;
+        }
+    }
+    default:
+        break;
+    }
 
     return this->Connect("127.0.0.1", this->m_port);
 }
