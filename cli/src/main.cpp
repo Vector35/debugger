@@ -14,6 +14,8 @@
 #include <mediumlevelilinstruction.h>
 #include <highlevelilinstruction.h>
 
+using namespace BinaryNinja;
+
 void RegisterDisplay(DebugAdapter* debug_adapter)
 {
     const auto arch = debug_adapter->GetTargetArchitecture();
@@ -253,6 +255,14 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
 
 int main(int argc, const char* argv[])
 {
+    LogToStdout(WarningLog);
+
+    if (argc < 2)
+    {
+        LogError("usage: %s <debuggee_path>", argv[0]);
+        return 0;
+    }
+
     Log::SetupAnsi();
 
     /* reminder to set plugins directory manually to the proper path
@@ -272,9 +282,11 @@ int main(int argc, const char* argv[])
         GdbAdapter();
         #endif
 
-        //if (!debug_adapter->Execute(argv[1]))
-        if (!debug_adapter->Execute("/home/user/Desktop/debugger/testbins/helloworld_loop_x64-linux"))
-                return -1;
+        if (!debug_adapter->Execute(argv[1]))
+        {
+            LogError("failed to execute %s\n", argv[1]);
+            return -1;
+        }
 
         std::thread( [&]{
 #ifdef WIN32
