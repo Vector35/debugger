@@ -270,7 +270,7 @@ int main(int argc, const char* argv[])
      * linux -> R"(/home/user/Desktop/binaryninja/plugins)"
      * macos -> */
 
-    SetBundledPluginDirectory(R"(/mnt/binja/build/out/plugins)");
+    SetBundledPluginDirectory(R"(/mnt/F/Software/binaryninja/plugins)");
     InitPlugins();
 
     try
