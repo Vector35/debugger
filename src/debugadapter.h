@@ -72,7 +72,7 @@ public:
     virtual void Detach() = 0;
     virtual void Quit() = 0;
 
-    virtual std::vector<DebugThread> GetThreadList() const = 0;
+    virtual std::vector<DebugThread> GetThreadList() = 0;
     virtual DebugThread GetActiveThread() const = 0;
     virtual std::uint32_t GetActiveThreadId() const = 0;
     virtual bool SetActiveThread(const DebugThread& thread) = 0;

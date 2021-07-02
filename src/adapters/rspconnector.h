@@ -3,6 +3,7 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+#include <regex>
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -117,7 +118,8 @@ public:
 
     static RspData BinaryDecode(const RspData& data);
     static RspData DecodeRLE(const RspData& data);
-    static std::unordered_map<std::string, std::int64_t> PacketToUnorderedMap(const RspData& data);
+    static std::unordered_map<std::string, std::uint64_t> PacketToUnorderedMap(const RspData& data);
+    static std::vector<std::string> Split(const std::string& string, const std::string& regex);
 
     template <typename Ty>
     static Ty SwapEndianness(Ty value) {

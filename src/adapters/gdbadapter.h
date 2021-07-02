@@ -17,8 +17,10 @@ class GdbAdapter : public DebugAdapter
 
     std::map<std::string, RegisterInfo> m_registerInfo{};
 
-    int m_internalBreakpointId{};
-    std::vector<DebugBreakpoint> m_debugBreakpoint{};
+    std::uint32_t m_internalBreakpointId{};
+    std::vector<DebugBreakpoint> m_debugBreakpoints{};
+
+    std::uint32_t m_lastActiveThreadId{};
 
     std::string ExecuteShellCommand(const std::string& command);
     bool LoadRegisterInfo();
@@ -35,7 +37,7 @@ public:
     void Detach() override;
     void Quit() override;
 
-    std::vector<DebugThread> GetThreadList() const override;
+    std::vector<DebugThread> GetThreadList() override;
     DebugThread GetActiveThread() const override;
     std::uint32_t GetActiveThreadId() const override;
     bool SetActiveThread(const DebugThread& thread) override;

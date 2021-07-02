@@ -51,41 +51,58 @@ RspData RspConnector::DecodeRLE(const RspData& data)
     return data;
 }
 
-std::unordered_map<std::string, std::int64_t> RspConnector::PacketToUnorderedMap(const RspData& data)
+std::unordered_map<std::string, std::uint64_t> RspConnector::PacketToUnorderedMap(const RspData& data)
 {
-    std::unordered_map<std::string, std::int64_t> packet_map{};
-    packet_map["signal"] = std::stoll(data.AsString().substr(1, 2), nullptr, 16);
-
-    const auto split = [](const std::string& string, const std::string& regex) -> std::vector<std::string> {
-        const auto regex_l = std::regex(regex);
-        return { std::sregex_token_iterator(string.begin(), string.end(), regex_l, -1), std::sregex_token_iterator() };
-    };
+    printf("map!\n");
+    std::unordered_map<std::string, std::uint64_t> packet_map{};
+    packet_map["signal"] = std::stoull(data.AsString().substr(1, 2), nullptr, 16);
+    printf("%lu\n", packet_map["signal"]);
 
     const auto data_string = data.AsString();
     const auto after_signal = data_string.substr(3, std::distance(data.begin(), data.end()));
-    for ( const auto& entries : split(after_signal, ";")) {
-        const auto key_value = split(entries, ":");
+    printf("data_string : %s\n", data_string.c_str());
+    printf("after_signal : %s\n", after_signal.c_str());
+    for ( const auto& entries : RspConnector::Split(after_signal, ";")) {
+        printf("entries : %s\n", entries.c_str());
+        const auto key_value = RspConnector::Split(entries, ":");
+        if (key_value.empty() || key_value.size() < 2)
+            continue;
+
         const auto key = key_value[0];
         const auto value = RspConnector::DecodeRLE( RspData(key_value[1]) ).AsString();
+        printf("%s, %s\n", key.c_str(), value.c_str());
 
         if ( key == "thread" ) {
+            printf("THREAAAAAAD\n");
             if ( value[0] == 'p' && value.find('.') != std::string::npos ) {
-                auto core_id_and_thread_id = split(value.substr(1, std::distance(value.begin(), value.end())), ".");
-                packet_map["thread"] = std::stoll(core_id_and_thread_id[1], nullptr, 16);
+                printf("VALUE\n");
+                auto core_id_and_thread_id = RspConnector::Split(value.substr(1, std::distance(value.begin(), value.end())), ".");
+                packet_map["thread"] = std::stoull(core_id_and_thread_id[1], nullptr, 16);
             } else {
-                packet_map["thread"] = std::stoll(value, nullptr, 16);
+                printf("UNVALUE\n");
+                packet_map["thread"] = std::stoull(value, nullptr, 16);
             }
         } else if ( std::regex_search(key, std::regex("^[0-9a-fA-F]+$")) ) {
+            printf("REG\n");
             char reg_name[64]{};
             std::sprintf(reg_name, "r%d", std::stoi(key, nullptr, 16));
-
+            printf("%s\n", reg_name);
             packet_map[reg_name] = static_cast<std::int64_t>( RspConnector::SwapEndianness( std::stoull(value, nullptr, 16)) );
+            printf("value  -  0x%lx\n", packet_map[reg_name]);
         } else {
-            packet_map[key] = std::stoll(value, nullptr, 16);
+            printf("ELSE\n");
+            packet_map[key] = std::stoull(value, nullptr, 16);
         }
     }
 
+    printf("DONE!\n");
+
     return packet_map;
+}
+
+std::vector<std::string> RspConnector::Split(const std::string& string, const std::string& regex) {
+    const auto regex_l = std::regex(regex);
+    return { std::sregex_token_iterator(string.begin(), string.end(), regex_l, -1), std::sregex_token_iterator() };
 }
 
 void RspConnector::EnableAcks()
@@ -133,19 +150,13 @@ void RspConnector::NegotiateCapabilities(const std::vector <std::string>& capabi
             capabilities_request.append(";");
     }
 
-    const auto split = [](const std::string& string, const std::string& regex) -> std::vector<std::string>
-    {
-        const auto regex_l = std::regex(regex);
-        return { std::sregex_token_iterator(string.begin(), string.end(), regex_l, -1), std::sregex_token_iterator() };
-    };
-
     const auto reply = this->TransmitAndReceive(RspData(capabilities_request));
-    const auto reply_tokens = split(reply.AsString(), ";");
+    const auto reply_tokens = RspConnector::Split(reply.AsString(), ";");
     for ( auto reply_token : reply_tokens )
     {
         if ( reply_token.find("PacketSize=") != std::string::npos )
         {
-            if (auto packet_tokens = split(reply_token, "="); !packet_tokens.empty())
+            if (auto packet_tokens = RspConnector::Split(reply_token, "="); !packet_tokens.empty())
                 this->m_maxPacketLength = std::stoi(packet_tokens[1], nullptr, 16);
             continue;
         }
@@ -305,8 +316,10 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
 
         bool ack_received = false;
         while(true) {
+            printf("blocking!\n");
             char peek{};
             recv(this->m_socket, &peek, 1, MSG_PEEK);
+            printf("  peek! - %c\n", peek);
 
             if (!peek) {
                 throw std::runtime_error("backend gone?");
@@ -318,6 +331,7 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
                 char buf{};
                 ack_received = true;
                 recv(this->m_socket, &buf, 1, 0);
+                printf("  ACK RECEIVED\n");
                 continue;
             }
 
@@ -327,17 +341,23 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
                 printf("WRONG!! -> %s\n", buf);
                 throw std::runtime_error("packet start is wrong");
             }
+
             reply = this->ReceiveRspData();
             if (reply.m_data[0] == 'O') {
-                if (async)
+                printf("reply.m_data[0] == %c\n", reply.m_data[0]);
+                if (async) {
+                    printf("handle async\n");
                     this->HandleAsyncPacket(reply);
+                }
             } else {
+                printf("ELSE\n");
                 break;
             }
         }
 
         if (!ack_received && this->m_acksEnabled)
             throw std::runtime_error("expected ack, but received none");
+        printf("again\n");
     }
 
     if ( std::find(reply.begin(), reply.end(), '*') != reply.end() )
@@ -369,6 +389,7 @@ std::string RspConnector::GetXml(const std::string& name)
 
 void RspConnector::HandleAsyncPacket(const RspData& data)
 {
+    printf("async!?\n");
     if ( data.m_data[0] != 'O' ) {
         printf("invalid async packet? : %s", data.AsString().c_str());
         return;

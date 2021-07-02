@@ -47,7 +47,7 @@ void DummyAdapter::Quit()
 }
 
 
-std::vector<DebugThread> DummyAdapter::GetThreadList() const
+std::vector<DebugThread> DummyAdapter::GetThreadList()
 {
     std::vector<DebugThread> result;
     return result;

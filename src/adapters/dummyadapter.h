@@ -13,7 +13,7 @@ private:
     virtual bool Execute(const std::string& path);
     virtual bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args);
 
-    virtual std::vector<DebugThread> GetThreadList() const;
+    virtual std::vector<DebugThread> GetThreadList();
     virtual DebugThread GetActiveThread() const;
     virtual uint32_t GetActiveThreadId() const;
     virtual bool SetActiveThread(const DebugThread& thread);

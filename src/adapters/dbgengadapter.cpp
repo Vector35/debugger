@@ -186,7 +186,7 @@ void DbgEngAdapter::Quit()
     this->Reset();
 }
 
-std::vector<DebugThread> DbgEngAdapter::GetThreadList() const
+std::vector<DebugThread> DbgEngAdapter::GetThreadList()
 {
     unsigned long number_threads{};
     if (this->m_debugSystemObjects->GetNumberThreads(&number_threads) != S_OK )
