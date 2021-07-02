@@ -60,8 +60,8 @@ private:
     DebuggerModules* m_modules;
     DebuggerRegisters* m_registers;
 
-    std::vector<std::string> m_commandLineArgs;
-    // DebugerAdapterType m_debugAdapterType;
+    std::string m_executablePath;
+    std::string m_commandLineArgs;
     std::string m_remoteHost;
     uint32_t m_remotePort;
     bool m_requestTerminalEmulator;
@@ -98,6 +98,12 @@ public:
 
     DebuggerModules* getModulesCache() { return m_modules; }
     DebugProcessView* getMemoryView() { return m_memoryView; }
+
+    DebugAdapterType::AdapterType getAdapterType() const { return m_adapterType; }
+    std:string getExecutablePath() const { return m_executablePath; }
+    std::string getCommandLineArguments() const { return m_commandLineArgs; }
+    std::string getRemoteHost() const { return m_remoteHost; }
+    uint32_t getRemotePort() const { return m_remotePort; }
 
     uint64_t ip();
     uint64_t localIp();

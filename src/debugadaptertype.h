@@ -16,9 +16,10 @@ public:
         RemoteSenseAdapterType
     };
 
-    static bool useExec(AdapterType type);
-    static bool useConnect(AdapterType type);
-    static bool canUse(AdapterType type);
+    static bool UseExec(AdapterType type);
+    static bool UseConnect(AdapterType type);
+    static bool CanUse(AdapterType type);
     static DebugAdapter* GetAdapterForCurrentSystem();
     static DebugAdapter* GetNewAdapter();
+    static std::string GetName(AdapterType type);
 };

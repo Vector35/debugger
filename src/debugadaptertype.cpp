@@ -1,21 +1,21 @@
 #include "debugadaptertype.h"
 #include "./adapters/dummyadapter.h"
 
-bool DebugAdapterType::useExec(AdapterType type)
+bool DebugAdapterType::UseExec(AdapterType type)
 {
     return (type == DefaultAdapterType) || (type == LocalDBGENGAdapterType) ||
         (type == LocalGDBAdapterType) || (type == LocalLLDBADapterType);
 }
 
 
-bool DebugAdapterType::useConnect(AdapterType type)
+bool DebugAdapterType::UseConnect(AdapterType type)
 {
     return (type == RemoteGDBAdapterType) || (type == RemoteLLDBAdapterType) ||
         (type == RemoteSenseAdapterType);
 }
 
 
-bool DebugAdapterType::canUse(AdapterType type)
+bool DebugAdapterType::CanUse(AdapterType type)
 {
 #ifdef WIN32
     return (type == DefaultAdapterType) || (type == LocalDBGENGAdapterType) ||
@@ -45,4 +45,28 @@ DebugAdapter* DebugAdapterType::GetAdapterForCurrentSystem()
 DebugAdapter* DebugAdapterType::GetNewAdapter()
 {
     return GetAdapterForCurrentSystem();
+}
+
+
+std::string DebugAdapterType::GetName(AdapterType type)
+{
+    switch (type)
+    {
+    case DefaultAdapterType:
+        return "DEFAULT";
+    case LocalDBGENGAdapterType:
+        return "LOCAL_DBGEND";
+    case LocalGDBAdapterType:
+        return "LOCAL_GDB";
+    case LocalLLDBADapterType:
+        return "LOCAL_LLDB";
+    case RemoteGDBAdapterType:
+        return "REMOTE_GDB";
+    case RemoteLLDBAdapterType:
+        return "REMOTE_LLDB";
+    case RemoteSenseAdapterType:
+        return "REMOTE_SENSE";
+    default:
+        return "UNKNOWN";
+    }
 }

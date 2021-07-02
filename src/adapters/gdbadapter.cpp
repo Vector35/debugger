@@ -65,13 +65,8 @@ bool GdbAdapter::Execute(const std::string& path)
 
     std::array<char, 256> buffer{};
     std::sprintf(buffer.data(), "localhost:%d", this->m_port);
-    setsid();
-    pid_t pid;
-    char* arg[] = {(char*) gdb_server_path.c_str(), "--once", "--no-startup-with-shell", buffer.data(),
-                   (char*) path.c_str()};
-    posix_spawn(&pid, gdb_server_path.c_str(), nullptr, nullptr, arg, environ);
+    char* arg[] = {"--once", "--no-startup-with-shell", buffer.data(), (char*) path.c_str()};
 
-    /*
     pid_t pid = fork();
     switch (pid)
     {
@@ -119,7 +114,7 @@ bool GdbAdapter::Execute(const std::string& path)
     }
     default:
         break;
-    }*/
+    }
 
     return this->Connect("127.0.0.1", this->m_port);
 }

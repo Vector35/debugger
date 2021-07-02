@@ -132,7 +132,7 @@ DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
 void DebuggerState::run()
 {
     BinaryNinja::LogWarn("run() requested");
-    // if (DebugAdapterType::useExec(m_adapterType))
+    // if (DebugAdapterType::UseExec(m_adapterType))
 
 
 }
