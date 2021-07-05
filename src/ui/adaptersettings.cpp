@@ -30,6 +30,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
         if (adapter == m_state->getAdapterType())
             m_adapterEntry->setCurrentText(QString::fromStdString(DebugAdapterType::GetName(adapter)));
     }
+    connect(m_adapterEntry, &QComboBox::currentIndexChanged, this, &AdapterSettingsDialog::selectAdapter);
 
     m_pathEntry = new QLineEdit(this);
     m_argumentsEntry = new QLineEdit(this);
@@ -37,7 +38,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
     m_portEntry = new QLineEdit(this);
 
     QFormLayout* formLayout = new QFormLayout;
-    formLayout->addRow("Adapter Type", m_addressEntry);
+    formLayout->addRow("Adapter Type", m_adapterEntry);
     formLayout->addRow("Executable Path", m_pathEntry);
     formLayout->addRow("Command Line Arguments", m_argumentsEntry);
     formLayout->addRow("Address", m_addressEntry);
@@ -62,10 +63,10 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
     layout->addStretch(1);
     layout->addSpacing(10);
     layout->addLayout(buttonLayout);
+    setLayout(layout);
 
     m_addressEntry->setText(QString::fromStdString(m_state->getRemoteHost()));
     m_portEntry->setText(QString::number(m_state->getRemotePort()));
-
     m_pathEntry->setText(QString::fromStdString(m_state->getExecutablePath()));
 
     std::string args;
@@ -78,13 +79,12 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
         args += argList[i];
     }
     m_argumentsEntry->setText(QString::fromStdString(args));
-
 }
 
 
-void AdapterSettingsDialog::selectAdapter(DebugAdapterType::AdapterType adapter)
+void AdapterSettingsDialog::selectAdapter()
 {
-    m_addressEntry->setText(QString::fromStdString(DebugAdapterType::GetName(adapter)));
+    DebugAdapterType::AdapterType adapter = (DebugAdapterType::AdapterType)m_adapterEntry->currentData().toULongLong();
     if (DebugAdapterType::UseExec(adapter))
     {
         m_pathEntry->setEnabled(true);
@@ -108,7 +108,6 @@ void AdapterSettingsDialog::apply()
     m_state->SetAdapterType(adapter);
     Ref<Metadata> data = new Metadata((uint64_t)adapter);
     m_data->StoreMetadata("native_debugger.adapter_type", data);
-    delete data;
 
     std::vector<std::string> args;
     // We need better support for shell-style cmd arguments
@@ -120,20 +119,32 @@ void AdapterSettingsDialog::apply()
     m_state->SetCommandLineArguments(args);
     // data = new Metadata(args);
     // m_data->StoreMetadata("native_debugger.command_line_args", data);
-    delete data;
+
+    std::string path = m_pathEntry->text().toStdString();
+    m_state->SetExecutablePath(path);
+    data = new Metadata(path);
+    m_data->StoreMetadata("native_debugger.executable_path", data);
 
     std::string host = m_addressEntry->text().toStdString();
     m_state->SetRemoteHost(host);
     data = new Metadata(host);
     m_data->StoreMetadata("native_debugger.remote_host", data);
-    delete data;
 
-    std::string portString = m_addressEntry->text().toStdString();
-    uint64_t port = stoull(portString);
+    std::string portString = m_portEntry->text().toStdString();
+    uint64_t port;
+    try
+    {
+        port = stoull(portString);
+
+    }
+    catch(const std::exception& e)
+    {
+        port = 31337;
+    }
+    
     m_state->SetRemotePort(port);
     data = new Metadata(port);
     m_data->StoreMetadata("native_debugger.remote_port", data);
-    delete data;
 
     accept();
 }

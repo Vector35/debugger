@@ -32,8 +32,8 @@ private:
 
 public:
     AdapterSettingsDialog(QWidget* parent, BinaryViewRef data);
-    void selectAdapter(DebugAdapterType::AdapterType adapter);
 
 private Q_SLOTS:
     void apply();
+    void selectAdapter();
 };
