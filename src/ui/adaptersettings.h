@@ -19,16 +19,11 @@ private:
     BinaryViewRef m_data;
     DebuggerState* m_state;
 
-    // QPushButton* m_adapterEntry;
-    // QMenu* m_adapterMenu;
-
     QComboBox* m_adapterEntry;
-
     QLineEdit* m_pathEntry;
     QLineEdit* m_argumentsEntry;
     QLineEdit* m_addressEntry;
     QLineEdit* m_portEntry;
-
 
 public:
     AdapterSettingsDialog(QWidget* parent, BinaryViewRef data);
