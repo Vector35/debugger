@@ -1,4 +1,5 @@
 #include "controlswidget.h"
+#include "adaptersettings.h"
 #include <QtGui/QPixmap>
 
 using namespace BinaryNinja;
@@ -189,7 +190,8 @@ void DebugControlsWidget::performDetach()
 
 void DebugControlsWidget::performSettings()
 {
-    // Show Settings Dialog
+    AdapterSettingsDialog* dialog = new AdapterSettingsDialog(this, m_data);
+    dialog->show();
 }
 
 
