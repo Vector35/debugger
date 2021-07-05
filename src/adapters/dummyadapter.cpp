@@ -4,7 +4,7 @@ using namespace BinaryNinja;
 
 DummyAdapter::DummyAdapter()
 {
-    SetName("Dummy Adapter");
+    // SetName("Dummy Adapter");
     LogWarn("Hello from a dummy DebugAdapter");
 }
 

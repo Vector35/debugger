@@ -10,6 +10,8 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
     setMinimumSize(UIContext::getScaledWindowSize(400, 130));
     setAttribute(Qt::WA_DeleteOnClose);
 
+    m_state = DebuggerState::getState(m_data);
+
     QVBoxLayout* layout = new QVBoxLayout;
     layout->setSpacing(0);
 
@@ -18,21 +20,16 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
     titleLayout->setContentsMargins(0, 0, 0, 0);
     titleLayout->addWidget(titleLabel);
 
-    m_adapterEntry = new QPushButton(this);
-    m_adapterMenu = new QMenu(this);
-
+    m_adapterEntry = new QComboBox(this);
     for (DebugAdapterType::AdapterType adapter = DebugAdapterType::DefaultAdapterType;
         adapter <= DebugAdapterType::RemoteSenseAdapterType; adapter = (DebugAdapterType::AdapterType)(adapter + 1))
     {
         if (!DebugAdapterType::CanUse(adapter))
             continue;
-        m_adapterMenu->addAction(QString::fromStdString(DebugAdapterType::GetName(adapter)),
-            [&](){ selectAdapter(adapter); });
+        m_adapterEntry->addItem(QString::fromStdString(DebugAdapterType::GetName(adapter)), (qulonglong)adapter);
         if (adapter == m_state->getAdapterType())
-            m_adapterEntry->setText(QString::fromStdString(DebugAdapterType::GetName(adapter)));
+            m_adapterEntry->setCurrentText(QString::fromStdString(DebugAdapterType::GetName(adapter)));
     }
-
-    m_adapterEntry->setMenu(m_adapterMenu);
 
     m_pathEntry = new QLineEdit(this);
     m_argumentsEntry = new QLineEdit(this);
@@ -67,17 +64,76 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
     layout->addLayout(buttonLayout);
 
     m_addressEntry->setText(QString::fromStdString(m_state->getRemoteHost()));
-    m_addressEntry->setText(QString::number(m_state->getRemotePort()));
+    m_portEntry->setText(QString::number(m_state->getRemotePort()));
+
+    m_pathEntry->setText(QString::fromStdString(m_state->getExecutablePath()));
+
+    std::string args;
+    std::vector<std::string> argList = m_state->getCommandLineArguments();
+    for (size_t i = 0; i < argList.size(); i++)
+    {
+        if (i != 0)
+            args += ' ';
+
+        args += argList[i];
+    }
+    m_argumentsEntry->setText(QString::fromStdString(args));
+
 }
 
 
 void AdapterSettingsDialog::selectAdapter(DebugAdapterType::AdapterType adapter)
 {
-
+    m_addressEntry->setText(QString::fromStdString(DebugAdapterType::GetName(adapter)));
+    if (DebugAdapterType::UseExec(adapter))
+    {
+        m_pathEntry->setEnabled(true);
+        m_argumentsEntry->setEnabled(true);
+        m_addressEntry->setEnabled(false);
+        m_portEntry->setEnabled(false);
+    }
+    else
+    {
+        m_pathEntry->setEnabled(false);
+        m_argumentsEntry->setEnabled(false);
+        m_addressEntry->setEnabled(true);
+        m_portEntry->setEnabled(true);
+    }
 }
 
 
 void AdapterSettingsDialog::apply()
 {
+    DebugAdapterType::AdapterType adapter = (DebugAdapterType::AdapterType)m_adapterEntry->currentData().toULongLong();
+    m_state->SetAdapterType(adapter);
+    Ref<Metadata> data = new Metadata((uint64_t)adapter);
+    m_data->StoreMetadata("native_debugger.adapter_type", data);
+    delete data;
+
+    std::vector<std::string> args;
+    // We need better support for shell-style cmd arguments
+    QStringList argList = m_argumentsEntry->text().split(" ");
+    for (const QString& arg: argList)
+    {
+        args.push_back(arg.toStdString());
+    }
+    m_state->SetCommandLineArguments(args);
+    // data = new Metadata(args);
+    // m_data->StoreMetadata("native_debugger.command_line_args", data);
+    delete data;
+
+    std::string host = m_addressEntry->text().toStdString();
+    m_state->SetRemoteHost(host);
+    data = new Metadata(host);
+    m_data->StoreMetadata("native_debugger.remote_host", data);
+    delete data;
+
+    std::string portString = m_addressEntry->text().toStdString();
+    uint64_t port = stoull(portString);
+    m_state->SetRemotePort(port);
+    data = new Metadata(port);
+    m_data->StoreMetadata("native_debugger.remote_port", data);
+    delete data;
+
     accept();
 }

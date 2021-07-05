@@ -18,16 +18,34 @@ if(NOT BN_INTERNAL_BUILD)
 	add_subdirectory(${BN_API_PATH} ${PROJECT_BINARY_DIR}/api)
 endif()
 
-file(GLOB SOURCES
-	*.cpp
-	*.h
-    adapters/*.cpp
-    adapters/*.h
+file(GLOB COMMON_SOURCES
     src/*.cpp
-	src/*.h
+    src/*.h
     src/ui/*.cpp
     src/ui/*.h
+    src/vendor/pugixml/*.cpp
+    src/vendor/pugixml/*.h
+    src/adapters/dummyadapter.cpp
+    src/adapters/dummyadapter.h
     )
+
+if(WIN32)
+    file(GLOB ADAPTER_SOURCES
+        src/adapters/dbgengadapter.cpp
+        src/adapters/dbgengadapter.h
+        )
+elseif(APPLE)
+    # Add lldb related files here
+else()
+    file(GLOB ADAPTER_SOURCES
+        src/adapters/gdbadapter.cpp
+        src/adapters/gdbadapter.h
+        src/adapters/rspconnector.cpp
+        src/adapters/rspconnector.h
+        )
+endif()
+
+set(SOURCES ${COMMON_SOURCES} ${ADAPTER_SOURCES})
 
 list(FILTER SOURCES EXCLUDE REGEX moc_.*)
 list(FILTER SOURCES EXCLUDE REGEX qrc_.*)

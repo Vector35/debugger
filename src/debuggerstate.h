@@ -61,7 +61,7 @@ private:
     DebuggerRegisters* m_registers;
 
     std::string m_executablePath;
-    std::string m_commandLineArgs;
+    std::vector<std::string> m_commandLineArgs;
     std::string m_remoteHost;
     uint32_t m_remotePort;
     bool m_requestTerminalEmulator;
@@ -100,10 +100,16 @@ public:
     DebugProcessView* getMemoryView() { return m_memoryView; }
 
     DebugAdapterType::AdapterType getAdapterType() const { return m_adapterType; }
-    std:string getExecutablePath() const { return m_executablePath; }
-    std::string getCommandLineArguments() const { return m_commandLineArgs; }
+    std::string getExecutablePath() const { return m_executablePath; }
+    std::vector<std::string> getCommandLineArguments() const { return m_commandLineArgs; }
     std::string getRemoteHost() const { return m_remoteHost; }
     uint32_t getRemotePort() const { return m_remotePort; }
+
+    void SetAdapterType(DebugAdapterType::AdapterType adapter) { m_adapterType = adapter; }
+    void SetExecutablePath(const std::string path) { m_executablePath = path; }
+    void SetCommandLineArguments(const std::vector<std::string> arguments) { m_commandLineArgs = arguments; }
+    void SetRemoteHost(const std::string& host) { m_remoteHost = host; }
+    void SetRemotePort(uint32_t port) { m_remotePort = port; }
 
     uint64_t ip();
     uint64_t localIp();

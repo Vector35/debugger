@@ -3,6 +3,7 @@
 #include <QtWidgets/QDialog>
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QLineEdit>
+#include <QtWidgets/QComboBox>
 #include <QtWidgets/QFormLayout>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
@@ -18,8 +19,10 @@ private:
     BinaryViewRef m_data;
     DebuggerState* m_state;
 
-    QPushButton* m_adapterEntry;
-    QMenu* m_adapterMenu;
+    // QPushButton* m_adapterEntry;
+    // QMenu* m_adapterMenu;
+
+    QComboBox* m_adapterEntry;
 
     QLineEdit* m_pathEntry;
     QLineEdit* m_argumentsEntry;
