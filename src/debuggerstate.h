@@ -106,7 +106,7 @@ public:
     uint32_t getRemotePort() const { return m_remotePort; }
 
     void SetAdapterType(DebugAdapterType::AdapterType adapter) { m_adapterType = adapter; }
-    void SetExecutablePath(const std::string path) { m_executablePath = path; }
+    void SetExecutablePath(const std::string& path) { m_executablePath = path; }
     void SetCommandLineArguments(const std::vector<std::string> arguments) { m_commandLineArgs = arguments; }
     void SetRemoteHost(const std::string& host) { m_remoteHost = host; }
     void SetRemotePort(uint32_t port) { m_remotePort = port; }
