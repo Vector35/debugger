@@ -71,7 +71,7 @@ bool GdbAdapter::Execute(const std::string& path)
     switch (pid)
     {
     case -1:
-        perror("fork()\n");
+        perror("fork");
         return false;
     case 0:
     {
@@ -168,6 +168,28 @@ bool GdbAdapter::LoadRegisterInfo()
         }
     }
 
+    std::unordered_map<std::uint32_t, std::string> id_name{};
+    std::unordered_map<std::uint32_t, std::uint32_t> id_width{};
+
+    for ( auto [key, value] : this->m_registerInfo ) {
+        id_name[value.m_regNum] = key;
+        id_width[value.m_regNum] = value.m_bitSize;
+    }
+
+    std::size_t max_id{};
+    for ( auto [key, value] : this->m_registerInfo )
+        max_id += value.m_regNum;
+
+    std::size_t offset{};
+    for ( std::size_t index{}; index < max_id; index++ ) {
+        if ( !id_width[index] )
+            break;
+
+        const auto name = id_name[index];
+        this->m_registerInfo[name].m_offset = offset;
+        offset += id_width[index];
+    }
+
     return true;
 }
 
@@ -210,6 +232,8 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
         printf("[%s] = 0x%llx\n", key.c_str(), val );
     }
 
+    this->m_lastActiveThreadId = map["thread"];
+
     return true;
 }
 
@@ -225,7 +249,25 @@ void GdbAdapter::Quit()
 
 std::vector<DebugThread> GdbAdapter::GetThreadList() const
 {
-    return std::vector<DebugThread>();
+    int internal_thread_index{};
+    std::vector<DebugThread> threads{};
+
+    auto reply = this->m_rspConnector.TransmitAndReceive(RspData("qfThreadInfo"));
+    while(reply.m_data[0] != 'l') {
+        printf("%s\n", reply.AsString().c_str());
+        if (reply.m_data[0] != 'm')
+            throw std::runtime_error("thread list failed?");
+
+        const auto shortened_string =
+                reply.AsString().substr(1);
+        const auto tids = RspConnector::Split(shortened_string, ",");
+        for ( const auto& tid : tids )
+            threads.emplace_back(std::stoi(tid, nullptr, 16), internal_thread_index++);
+
+        reply = this->m_rspConnector.TransmitAndReceive(RspData("qsThreadInfo"));
+    }
+
+    return threads;
 }
 
 DebugThread GdbAdapter::GetActiveThread() const
@@ -294,13 +336,10 @@ std::string GdbAdapter::GetRegisterNameByIndex(std::uint32_t index) const
     return std::string();
 }
 
-/* TODO: register cache, no point in spamming gdb with requests when we get all the info we need in one  */
-DebugRegister GdbAdapter::ReadRegister(const std::string& reg)
-{
-    if ( this->m_registerInfo.find(reg) == this->m_registerInfo.end() )
-        throw std::runtime_error("register does not exist in target");
+bool GdbAdapter::UpdateRegisterCache() {
+    if ( this->m_registerInfo.empty() )
+        return false;
 
-    using register_pair = std::pair<std::string, RegisterInfo>;
     std::vector<register_pair> register_info_vec{};
     for ( const auto& [register_name, register_info] : this->m_registerInfo ) {
         register_info_vec.emplace_back(register_name, register_info);
@@ -308,33 +347,66 @@ DebugRegister GdbAdapter::ReadRegister(const std::string& reg)
 
     std::sort(register_info_vec.begin(), register_info_vec.end(),
               [](const register_pair& lhs, const register_pair& rhs) {
-                    return lhs.second.m_regNum < rhs.second.m_regNum;
+                  return lhs.second.m_regNum < rhs.second.m_regNum;
               });
 
     char request{'g'};
     const auto register_info_reply = this->m_rspConnector.TransmitAndReceive(RspData(&request, sizeof(request)));
     auto register_info_reply_string = register_info_reply.AsString();
+    if ( register_info_reply_string.empty() )
+        return false;
 
-    std::unordered_map<std::string, DebugRegister> test_out{};
     for ( const auto& [register_name, register_info] : register_info_vec ) {
         const auto number_of_chars = 2 * ( register_info.m_bitSize / 8 );
         const auto value_string = register_info_reply_string.substr(0, number_of_chars);
-        const auto value = RspConnector::SwapEndianness(std::stoull(value_string, nullptr, 16));
-        test_out[register_name] = DebugRegister(register_name, value, register_info.m_bitSize);
+        if (number_of_chars <= 0x10) {
+            const auto value = RspConnector::SwapEndianness(std::stoull(value_string, nullptr, 16));
+            this->m_cachedRegisterInfo[register_name] = DebugRegister(register_name, value, register_info.m_bitSize);
+            #warning "ignoring registers with a larger size than 0x10"
+            /* TODO: ^fix this^ */
+        }
         register_info_reply_string.erase(0, number_of_chars);
     }
 
-    return test_out[reg];
+    return true;
+}
+
+DebugRegister GdbAdapter::ReadRegister(const std::string& reg)
+{
+    if ( this->m_registerInfo.find(reg) == this->m_registerInfo.end() )
+        throw std::runtime_error("register does not exist in target");
+
+    return this->m_cachedRegisterInfo[reg];
 }
 
 bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
 {
-    return false;
+    if (!this->UpdateRegisterCache())
+        throw std::runtime_error("failed to update register cache");
+
+    char buf[64];
+    std::sprintf(buf, "%016lX", RspConnector::SwapEndianness(value));
+    const auto reply = this->m_rspConnector.TransmitAndReceive(RspData("P%x=%s", this->m_registerInfo[reg].m_regNum, buf));
+    if (reply.m_data[0])
+        return true;
+
+    char query{'g'};
+    const auto generic_query = this->m_rspConnector.TransmitAndReceive(RspData(&query, sizeof(query)));
+    const auto register_offset = this->m_registerInfo[reg].m_offset;
+
+    const auto first_half = generic_query.AsString().substr(0, 2 * (register_offset / 8));
+    const auto second_half = generic_query.AsString().substr(2 * ((register_offset + this->m_registerInfo[reg].m_bitSize) / 8) );
+    const auto payload = "G" + first_half + buf + second_half;
+
+    if ( this->m_rspConnector.TransmitAndReceive(RspData(payload)).AsString() != "OK" )
+        return false;
+
+    return true;
 }
 
 bool GdbAdapter::WriteRegister(const DebugRegister& reg, std::uintptr_t value)
 {
-    return false;
+    return this->WriteRegister(reg.m_name, value);
 }
 
 std::vector<std::string> GdbAdapter::GetRegisterList() const
@@ -349,6 +421,9 @@ std::vector<std::string> GdbAdapter::GetRegisterList() const
 
 bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
 {
+    if (!this->UpdateRegisterCache())
+        throw std::runtime_error("failed to update register cache");
+
     auto reply = this->m_rspConnector.TransmitAndReceive(RspData("m%llx,%x", address, size));
     if (reply.m_data[0] == 'E')
         return false;
@@ -383,6 +458,9 @@ bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
 
 bool GdbAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t size)
 {
+    if (!this->UpdateRegisterCache())
+        throw std::runtime_error("failed to update register cache");
+
     const auto dest = std::make_unique<char[]>(size + 1);
     std::memset(dest.get(), '\0', size + 1);
 
@@ -396,9 +474,24 @@ bool GdbAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t size
     return true;
 }
 
-std::vector<DebugModule> GdbAdapter::GetModuleList() const
+std::vector<DebugModule> GdbAdapter::GetModuleList()
 {
-    return std::vector<DebugModule>();
+    /* TODO: finish this */
+    const auto path = "/proc/" + std::to_string(this->m_lastActiveThreadId) + "/maps";
+    /*const auto set_filesystem = */this->m_rspConnector.TransmitAndReceive(RspData("vFile:setfs:0", "host_io"));
+
+    std::string path_hex_string{};
+    for ( auto c : path ) {
+        char buf[0x4]{'\0'};
+        std::sprintf(buf, "%02X", c);
+        path_hex_string.append(buf);
+    }
+
+    const auto test =
+            this->m_rspConnector.TransmitAndReceive(
+                    RspData("vFile:open:%s,%X,%X", path_hex_string.c_str(), 0, 0), "host_io");
+
+    return {};
 }
 
 std::string GdbAdapter::GetTargetArchitecture()
@@ -430,12 +523,18 @@ std::string GdbAdapter::GetTargetArchitecture()
 
 bool GdbAdapter::BreakInto()
 {
+    if (!this->UpdateRegisterCache())
+        throw std::runtime_error("failed to update register cache");
+
     char var = '\x03';
     this->m_rspConnector.SendRaw(RspData(&var, sizeof(var)));
     return true;
 }
 
 bool GdbAdapter::GenericGo(const std::string& go_type) {
+    if (!this->UpdateRegisterCache())
+        throw std::runtime_error("failed to update register cache");
+
     const auto go_reply =
             this->m_rspConnector.TransmitAndReceive(
                     RspData(go_type), "mixed_output_ack_then_reply", true);
@@ -443,7 +542,7 @@ bool GdbAdapter::GenericGo(const std::string& go_type) {
     if ( go_reply.m_data[0] == 'T' ) {
         auto map = RspConnector::PacketToUnorderedMap(go_reply);
         const auto tid = map["thread"];
-        printf("%lx\n", tid);
+        this->m_lastActiveThreadId = tid;
     } else if ( go_reply.m_data[0] == 'W' ) {
         /* exit status, substr */
     } else {
@@ -467,17 +566,131 @@ bool GdbAdapter::StepInto()
 
 bool GdbAdapter::StepOver()
 {
-    return false;
+    if (!this->UpdateRegisterCache())
+        throw std::runtime_error("failed to update register cache");
+
+    using namespace BinaryNinja;
+
+    const auto instruction_offset = this->GetInstructionOffset();
+    if (!instruction_offset)
+        return false;
+
+    const auto architecture = Architecture::GetByName(this->GetTargetArchitecture());
+    if (!architecture)
+        return false;
+
+    const auto data = this->ReadMemoryTy<std::array<std::uint8_t, 8>>(instruction_offset);
+    if (!data.has_value())
+        return false;
+
+    const auto data_value = data.value();
+    std::size_t size{data_value.size()};
+    std::vector<BinaryNinja::InstructionTextToken> instruction_tokens{};
+    if (!architecture->GetInstructionText(data.value().data(), instruction_offset, size, instruction_tokens)) {
+        printf("failed to disassemble\n");
+        return false;
+    }
+
+    auto data_buffer = DataBuffer(data_value.data(), size);
+    Ref<BinaryData> bd = new BinaryData(new FileMetadata(), data_buffer);
+    Ref<BinaryView> bv;
+    for (const auto& type : BinaryViewType::GetViewTypes()) {
+        if (type->IsTypeValidForData(bd) && type->GetName() == "Raw") {
+            bv = type->Create(bd);
+            break;
+        }
+    }
+
+    bv->UpdateAnalysisAndWait();
+
+    Ref<Platform> plat = nullptr;
+    auto arch_list = Platform::GetList();
+    for ( const auto& arch : arch_list ) {
+        constexpr auto os =
+#ifdef WIN32
+                "windows";
+#else
+                "linux";
+#endif
+
+        using namespace std::string_literals;
+        if ( arch->GetName() == os + "-"s + this->GetTargetArchitecture() )
+        {
+            plat = arch;
+            break;
+        }
+    }
+
+    bv->AddFunctionForAnalysis(plat, 0);
+
+    bool is_call{false };
+    for (auto& func : bv->GetAnalysisFunctionList()) {
+        if (is_call)
+            break;
+
+        Ref<LowLevelILFunction> llil = func->GetLowLevelIL();
+        if (!llil)
+            continue;
+
+        for (const auto& llil_block : llil->GetBasicBlocks()) {
+            if (is_call)
+                break;
+
+            for (std::size_t llil_index = llil_block->GetStart(); llil_index < llil_block->GetEnd(); llil_index++) {
+                const auto current_llil_instruction = llil->GetInstruction(llil_index);
+                const auto op = current_llil_instruction.operation;
+                if ( op == LLIL_CALL ) {
+                    is_call = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if ( !is_call ) {
+        this->StepInto();
+        return true;
+    }
+
+    /* TODO: test this on different architectures */
+    std::size_t instruction_size = instruction_tokens[0].width + 1;
+
+    const auto instruction_bp = this->AddBreakpoint(instruction_offset + instruction_size);
+    this->Go();
+    this->RemoveBreakpoint(instruction_bp);
+
+    return true;
 }
 
 bool GdbAdapter::StepOut()
 {
-    return false;
+    /* TODO: when not in a cli interface we should leverage
+     * TODO: already known binary view data of the control flow graph
+     * TODO: to figure out where the function end point is located */
+    throw std::runtime_error("step out not implemented in cli interface");
 }
 
 bool GdbAdapter::StepTo(std::uintptr_t address)
 {
-    return false;
+    if (!this->UpdateRegisterCache())
+        throw std::runtime_error("failed to update register cache");
+
+    const auto breakpoints = this->m_debugBreakpoints;
+
+    this->RemoveBreakpoints(this->m_debugBreakpoints);
+
+    const auto bp = this->AddBreakpoint(address);
+    if ( !bp.m_address )
+        return false;
+
+    this->Go();
+
+    this->RemoveBreakpoint(bp);
+
+    for ( const auto& breakpoint : breakpoints )
+        this->AddBreakpoint(breakpoint.m_address);
+
+    return true;
 }
 
 void GdbAdapter::Invoke(const std::string& command)
@@ -487,6 +700,9 @@ void GdbAdapter::Invoke(const std::string& command)
 
 std::uintptr_t GdbAdapter::GetInstructionOffset()
 {
+    if (!this->UpdateRegisterCache())
+        throw std::runtime_error("failed to update register cache");
+
     return this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
 }
 

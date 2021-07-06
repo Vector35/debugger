@@ -9,7 +9,11 @@ class GdbAdapter : public DebugAdapter
     {
         std::uint32_t m_bitSize{};
         std::uint32_t m_regNum{};
+        std::uint32_t m_offset{};
     };
+
+    using register_pair = std::pair<std::string, RegisterInfo>;
+    std::map<std::string, DebugRegister> m_cachedRegisterInfo{};
 
     int m_socket{};
     int m_port{};
@@ -50,6 +54,7 @@ public:
     bool ClearAllBreakpoints() override;
     std::vector<DebugBreakpoint> GetBreakpointList() const override;
 
+    bool UpdateRegisterCache();
     std::string GetRegisterNameByIndex(std::uint32_t index) const override;
     DebugRegister ReadRegister(const std::string& reg) override;
     bool WriteRegister(const std::string& reg, std::uintptr_t value) override;
@@ -58,7 +63,7 @@ public:
 
     bool ReadMemory(std::uintptr_t address, void* out, std::size_t size) override;
     bool WriteMemory(std::uintptr_t address, void* out, std::size_t size) override;
-    std::vector<DebugModule> GetModuleList() const override;
+    std::vector<DebugModule> GetModuleList() override;
 
     std::string GetTargetArchitecture() override;
 

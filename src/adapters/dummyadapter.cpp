@@ -158,7 +158,7 @@ bool DummyAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t si
 }
 
 
-std::vector<DebugModule> DummyAdapter::GetModuleList() const
+std::vector<DebugModule> DummyAdapter::GetModuleList()
 {
     std::vector<DebugModule> result;
     return result;

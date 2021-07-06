@@ -408,7 +408,7 @@ bool DbgEngAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t s
     return this->m_debugDataSpaces->WriteVirtual(address, out, size, &bytes_written) == S_OK && bytes_written == size;
 }
 
-std::vector<DebugModule> DbgEngAdapter::GetModuleList() const
+std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 {
     unsigned long loaded_module_count{}, unloaded_module_count{};
 

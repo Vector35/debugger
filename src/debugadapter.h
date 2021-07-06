@@ -110,7 +110,7 @@ public:
         return this->WriteMemory((std::uintptr_t)address, (void*)&value, sizeof(Ty));
     }
 
-    virtual std::vector<DebugModule> GetModuleList() const = 0;
+    virtual std::vector<DebugModule> GetModuleList() = 0;
 
     virtual std::string GetTargetArchitecture() = 0;
 

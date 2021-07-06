@@ -69,9 +69,10 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
 
         const auto register_list = debug_adapter->GetRegisterList();
         if ( std::find(register_list.begin(), register_list.end(), "rflags") != register_list.end() )
-            Log::print(reg(" rflags"));
+            Log::print(reg("rflags"));
         else if ( std::find(register_list.begin(), register_list.end(), "eflags") != register_list.end())
-            Log::print(reg(" eflags"));
+            Log::print(reg("eflags"));
+        Log::print("\n");
     }
     else if ( arch == "x86" )
     {
@@ -154,8 +155,14 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
 
         bv->AddFunctionForAnalysis(plat, 0);
 
-        for ( const auto& instruction : instruction_tokens )
+        for ( const auto& instruction : instruction_tokens ) {
+            if (instruction.type == BNInstructionTextTokenType::InstructionToken) {
+                char buf[64];
+                std::sprintf(buf, "[0x%lx] ", instruction_offset + instruction.size);
+                disasm_strings.emplace_back(buf);
+            }
             disasm_strings.push_back(instruction.text);
+        }
         disasm_strings.emplace_back("\n");
 
         for (auto& func : bv->GetAnalysisFunctionList())
@@ -337,6 +344,10 @@ int main(int argc, const char* argv[])
             {
                 debug_adapter->Invoke(input.substr(1));
             }
+            else if ( input == "testwrite" )
+            {
+                debug_adapter->WriteRegister("rip",  0);
+            }
             else if ( input == "lm" )
             {
                 Log::print<Log::Success>( "[modules]\n" );
@@ -351,6 +362,11 @@ int main(int argc, const char* argv[])
             }
             else if (input == "reg")
             {
+                #ifndef WIN32
+                if (!debug_adapter->UpdateRegisterCache())
+                    throw std::runtime_error("failed to update register cache");
+                #endif
+
                 RegisterDisplay(debug_adapter);
             }
             else if (auto loc = input.find("ts ");

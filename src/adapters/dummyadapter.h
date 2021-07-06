@@ -35,7 +35,7 @@ private:
     virtual bool ReadMemory(std::uintptr_t address, void* out, std::size_t size);
     virtual bool WriteMemory(std::uintptr_t address, void* out, std::size_t size);
 
-    virtual std::vector<DebugModule> GetModuleList() const;
+    virtual std::vector<DebugModule> GetModuleList();
 
     virtual std::string GetTargetArchitecture();
     virtual unsigned long StopReason();
