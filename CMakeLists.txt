@@ -64,10 +64,6 @@ if(WIN32)
     target_link_libraries(dbgeng.lib)
 endif()
 
-if(BN_INTERNAL_BUILD)
-    target_link_libraries(binaryninjaui)
-endif()
-
 set_target_properties(debugger PROPERTIES
     CXX_STANDARD 17
 	CXX_VISIBILITY_PRESET hidden
@@ -81,11 +77,15 @@ if(BN_INTERNAL_BUILD)
 	set_target_properties(debugger PROPERTIES
 		LIBRARY_OUTPUT_DIRECTORY ${BN_CORE_PLUGIN_DIR}
 		RUNTIME_OUTPUT_DIRECTORY ${BN_CORE_PLUGIN_DIR})
+else()
+    set_target_properties(debugger PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out
+        )
 endif()
 
 # This does not work right now
 bn_install_plugin(${PROJECT_NAME})
 
 if(BN_BUILD_CLI_DEBUGGER)
-	add_subdirectory(${CMAKE_SOURCE_DIR}/cli)
+	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/cli)
 endif()

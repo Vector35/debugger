@@ -4,8 +4,8 @@ project(debugger-cli)
 
 remove_definitions(-DUNICODE -D_UNICODE)
 
-set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
-set(ADAPTER_DIR ${CMAKE_SOURCE_DIR}/src/adapters)
+set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+set(ADAPTER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src/adapters)
 set(ADAPTER_SOURCES ${SRC_DIR}/debugadapter.h ${ADAPTER_DIR}/rspconnector.cpp ${ADAPTER_DIR}/rspconnector.h)
 
 if (WIN32)
@@ -17,10 +17,10 @@ else()
 endif()
 
 file(GLOB_RECURSE CLI_SOURCES
-        ${CMAKE_SOURCE_DIR}/cli/src/*.cpp
-        ${CMAKE_SOURCE_DIR}/cli/src/*.h
-        ${CMAKE_SOURCE_DIR}/src/vendor/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/vendor/*.h )
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+        ${SRC_DIR}/vendor/*.cpp
+        ${SRC_DIR}/vendor/*.h )
 
 add_executable(debugger-cli ${ADAPTER_SOURCES} ${CLI_SOURCES})
 
@@ -39,4 +39,5 @@ set_target_properties(debugger-cli PROPERTIES
         CXX_STANDARD_REQUIRED ON
         VISIBILITY_INLINES_HIDDEN ON
         POSITION_INDEPENDENT_CODE ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out/bin
         )
