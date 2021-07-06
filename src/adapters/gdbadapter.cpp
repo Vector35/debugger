@@ -65,7 +65,7 @@ bool GdbAdapter::Execute(const std::string& path)
 
     std::array<char, 256> buffer{};
     std::sprintf(buffer.data(), "localhost:%d", this->m_port);
-    char* arg[] = {"--once", "--no-startup-with-shell", buffer.data(), (char*) path.c_str()};
+    char* arg[] = {"--once", "--no-startup-with-shell", buffer.data(), (char*) path.c_str(), NULL};
 
     pid_t pid = fork();
     switch (pid)
@@ -88,7 +88,6 @@ bool GdbAdapter::Execute(const std::string& path)
             perror("freopen");
             return false;
         }
-        stdout = newOut;
 
         FILE *newIn = freopen("/dev/null", "r", stdin);
         if (!newIn)
@@ -96,7 +95,6 @@ bool GdbAdapter::Execute(const std::string& path)
             perror("freopen");
             return false;
         }
-        stdin = newIn;
 
         FILE *newErr = freopen("/dev/null", "w", stderr);
         if (!newErr)
@@ -104,11 +102,10 @@ bool GdbAdapter::Execute(const std::string& path)
             perror("freopen");
             return false;
         }
-        stderr = newErr;
 
         if (execv(gdb_server_path.c_str(), arg) == -1)
         {
-            perror("execv()\n");
+            perror("execv");
             return false;
         }
     }
