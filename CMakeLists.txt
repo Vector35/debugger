@@ -61,7 +61,7 @@ target_link_libraries(debugger binaryninjaapi
     Qt6::Core Qt6::Gui Qt6::Widgets)
 
 if(WIN32)
-    target_link_libraries(dbgeng.lib)
+    target_link_libraries(debugger dbgeng.lib)
 endif()
 
 set_target_properties(debugger PROPERTIES
