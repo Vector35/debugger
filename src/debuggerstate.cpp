@@ -125,6 +125,9 @@ DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
         m_requestTerminalEmulator = metadata->GetBoolean();
     else
         m_requestTerminalEmulator = false;
+
+    m_connected = false;
+    m_connecting = false;
 }
 
 
@@ -178,7 +181,12 @@ void DebuggerState::exec()
     m_adapter = DebugAdapterType::GetNewAdapter(m_adapterType);
     if (DebugAdapterType::UseExec(m_adapterType))
     {
-        
+        // TODO: what should I do for QueuedAdapter?
+        bool ok = m_adapter->Execute(filePath);
+        if (!ok)
+            LogWarn("fail to execute %s", filePath.c_str());
+        // m_adapter->ExecuteWithArgs(filePath, getCommandLineArguments());
+        m_connecting = false;
     }
 }
 
