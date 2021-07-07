@@ -5,12 +5,9 @@
 #include <thread>
 #include <regex>
 #include <type_traits>
-#include <sys/time.h>
-#include <sys/fcntl.h>
-#include <unistd.h>
 #include "rspconnector.h"
 
-RspConnector::RspConnector(int socket) : m_socket(socket) { }
+RspConnector::RspConnector(Socket* socket) : m_socket(socket) { }
 
 RspConnector::~RspConnector() {}
 
@@ -129,7 +126,7 @@ char RspConnector::ExpectAck()
         return {};
 
     char buffer{};
-    recv(this->m_socket, &buffer, sizeof(buffer), 0);
+    this->m_socket->Recv(&buffer, sizeof(buffer));
 
     if ( buffer == char{} )
         throw std::runtime_error("Disconnected while waiting for ack");
@@ -145,7 +142,7 @@ void RspConnector::SendAck() const
     if ( !this->m_acksEnabled )
         return;
 
-    send(this->m_socket, "+", 1, 0);
+    this->m_socket->Send("+", 1);
 }
 
 void RspConnector::NegotiateCapabilities(const std::vector <std::string>& capabilities)
@@ -180,7 +177,7 @@ void RspConnector::NegotiateCapabilities(const std::vector <std::string>& capabi
 
 void RspConnector::SendRaw(const RspData& data) const
 {
-    send(this->m_socket, data.m_data, data.m_size, 0);
+    this->m_socket->Send((char*)data.m_data, static_cast<std::int32_t>( data.m_size ));
 }
 
 void RspConnector::SendPayload(const RspData& data) const
@@ -203,7 +200,7 @@ RspData RspConnector::ReceiveRspData() const
     while ( !did_find )
     {
         char tmp_buffer[RspData::BUFFER_MAX]{'\0'};
-        recv(this->m_socket, tmp_buffer, sizeof(tmp_buffer), 0);
+        this->m_socket->Recv(tmp_buffer, sizeof(tmp_buffer));
         std::copy(tmp_buffer, tmp_buffer + sizeof(tmp_buffer), std::back_inserter(buffer));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -267,7 +264,7 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
         bool ack_received = false;
         while(true) {
             char peek{};
-            recv(this->m_socket, &peek, 1, MSG_PEEK);
+            this->m_socket->Recv(&peek, sizeof(peek), MSG_PEEK);
 
             if (!peek)
                 throw std::runtime_error("backend gone?");
@@ -278,13 +275,13 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
 
                 char buf{};
                 ack_received = true;
-                recv(this->m_socket, &buf, 1, 0);
+                this->m_socket->Recv(&buf, sizeof(buf));
                 continue;
             }
 
             if (peek != '$') {
                 char buf[16];
-                recv(this->m_socket, buf, sizeof(buf), 0);
+                this->m_socket->Recv(buf, sizeof(buf));
                 throw std::runtime_error("packet start is wrong");
             }
 

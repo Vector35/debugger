@@ -4,9 +4,8 @@
 #include "../../src/debugadapter.h"
 #ifdef WIN32
 #include "../../src/adapters/dbgengadapter.h"
-#else
-#include "../../src/adapters/gdbadapter.h"
 #endif
+#include "../../src/adapters/gdbadapter.h"
 #include "log.h"
 #include <binaryninjacore.h>
 #include <binaryninjaapi.h>
@@ -275,7 +274,8 @@ int main(int argc, const char* argv[])
     {
         auto debug_adapter = new
         #ifdef WIN32
-        DbgEngAdapter();
+        GdbAdapter();
+        //DbgEngAdapter();
         #else
         GdbAdapter();
         #endif

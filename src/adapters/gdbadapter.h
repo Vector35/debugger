@@ -15,8 +15,7 @@ class GdbAdapter : public DebugAdapter
     using register_pair = std::pair<std::string, RegisterInfo>;
     std::map<std::string, DebugRegister> m_cachedRegisterInfo{};
 
-    int m_socket{};
-    int m_port{};
+    Socket m_socket{};
     RspConnector m_rspConnector{};
 
     std::map<std::string, RegisterInfo> m_registerInfo{};

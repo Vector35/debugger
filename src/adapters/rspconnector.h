@@ -4,12 +4,22 @@
 #include <unordered_map>
 #include <algorithm>
 #include <regex>
+#include <array>
+#ifdef WIN32
+#include <windows.h>
+#include <winsock.h>
+#else
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <sys/time.h>
+#include <sys/fcntl.h>
+#include <unistd.h>
+#endif
 #include <cstring>
+#include "socket.h"
 
 struct RspData
 {
@@ -106,14 +116,14 @@ struct RspData
 
 class RspConnector
 {
-    int m_socket{};
+    Socket* m_socket{};
     bool m_acksEnabled{true};
     std::vector<std::string> m_serverCapabilities{};
     int m_maxPacketLength{0xfff};
 
 public:
     RspConnector() = default;
-    RspConnector(int socket);
+    RspConnector(Socket* socket);
     ~RspConnector();
 
     static RspData BinaryDecode(const RspData& data);

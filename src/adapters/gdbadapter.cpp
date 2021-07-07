@@ -1,17 +1,25 @@
 #include "gdbadapter.h"
 #include <memory>
 #include <cstring>
+#ifdef WIN32
+#include <windows.h>
+#else
 #include <unistd.h>
+#include <spawn.h>
+#endif
 #include <algorithm>
 #include <string>
 #include <chrono>
 #include <thread>
+#include <cstdio>
+#include <iostream>
+#include <stdexcept>
 #include <pugixml/pugixml.hpp>
-#include <spawn.h>
-#include "binaryninjaapi.h"
-#include "lowlevelilinstruction.h"
-
-using namespace BinaryNinja;
+#include <binaryninjacore.h>
+#include <binaryninjaapi.h>
+#include <lowlevelilinstruction.h>
+#include <mediumlevelilinstruction.h>
+#include <highlevelilinstruction.h>
 
 GdbAdapter::GdbAdapter()
 {
@@ -25,7 +33,12 @@ GdbAdapter::~GdbAdapter()
 
 std::string GdbAdapter::ExecuteShellCommand(const std::string& command)
 {
+#ifdef WIN32
+    std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(command.c_str(), "r"), _pclose);
+#else
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
+#endif
+
     if (!pipe)
         return {};
 
@@ -42,35 +55,40 @@ std::string GdbAdapter::ExecuteShellCommand(const std::string& command)
 
 bool GdbAdapter::Execute(const std::string& path)
 {
+#ifdef WIN32
+    auto gdb_server_path = this->ExecuteShellCommand("where gdbserver");
+#else
     auto gdb_server_path = this->ExecuteShellCommand("which gdbserver");
+#endif
     if ( gdb_server_path.empty() )
         return false;
-    gdb_server_path.erase(std::remove(gdb_server_path.begin(), gdb_server_path.end(), '\n'), gdb_server_path.end());
 
-    for ( int index = 31337; index < 31337 + 256; index++ )
-    {
-        this->m_socket = socket(AF_INET, SOCK_STREAM, 0);
+    gdb_server_path = gdb_server_path.substr(0, gdb_server_path.find('\n'));
 
-        sockaddr_in addr{};
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-        addr.sin_port = htons(index);
-
-        if (bind(this->m_socket, (const sockaddr*) &addr, sizeof(addr)) >= 0)
-        {
-            this->m_port = index;
-            close(this->m_socket);
-            break;
-        }
-    }
-
-    if ( !this->m_port )
-        return false;
+    this->m_socket = Socket(AF_INET, SOCK_STREAM, 0);
 
     std::array<char, 256> buffer{};
-    std::sprintf(buffer.data(), "localhost:%d", this->m_port);
-    char* arg[] = {"--once", "--no-startup-with-shell", buffer.data(), (char*) path.c_str(), NULL};
+    std::sprintf(buffer.data(), "localhost:%d", this->m_socket.GetPort());
 
+#ifdef WIN32
+    std::array<char, 256> arg_buffer{};
+    std::sprintf(arg_buffer.data(), "--once --no-startup-with-shell %s %s", buffer.data(), path.c_str() );
+    printf("%s\n", arg_buffer.data());
+
+
+    STARTUPINFO startup_info{};
+    PROCESS_INFORMATION process_info{};
+    if (CreateProcessA(gdb_server_path.c_str(), arg_buffer.data(),
+                       nullptr, nullptr,
+                       true, CREATE_NEW_CONSOLE, nullptr, nullptr,
+                       &startup_info, &process_info)) {
+        CloseHandle(process_info.hProcess);
+        CloseHandle(process_info.hThread);
+    } else {
+        throw std::runtime_error("failed to create gdb process");
+    }
+#else
+    char* arg[] = {"--once", "--no-startup-with-shell", buffer.data(), (char*) path.c_str(), NULL};
     pid_t pid = fork();
     switch (pid)
     {
@@ -116,8 +134,9 @@ bool GdbAdapter::Execute(const std::string& path)
     default:
         break;
     }
+#endif
 
-    return this->Connect("127.0.0.1", this->m_port);
+    return this->Connect("127.0.0.1", this->m_socket.GetPort());
 }
 
 bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args)
@@ -200,15 +219,15 @@ bool GdbAdapter::LoadRegisterInfo()
 bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
 {
     bool connected = false;
-    for ( std::uint8_t index{}; index < 4; index++ )
-    {
-        this->m_socket = socket(AF_INET, SOCK_STREAM, 0);
-        sockaddr_in addr{};
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-        addr.sin_port = htons(this->m_port);
-        if (connect(this->m_socket, (const sockaddr*) &addr, sizeof(addr)) >= 0)
-        {
+    for ( std::uint8_t index{}; index < 4; index++ ) {
+        this->m_socket = Socket(AF_INET, SOCK_STREAM, 0, port);
+
+        sockaddr_in address{};
+        address.sin_family = AF_INET;
+        address.sin_addr.s_addr = inet_addr("127.0.0.1");
+        address.sin_port = htons(port);
+
+        if (this->m_socket.Connect(address)) {
             connected = true;
             break;
         }
@@ -221,7 +240,7 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
         return false;
     }
 
-    this->m_rspConnector = RspConnector(this->m_socket);
+    this->m_rspConnector = RspConnector(&this->m_socket);
     printf("FINAL RESPONSE -> %s\n", this->m_rspConnector.TransmitAndReceive(RspData("Hg0")).AsString().c_str() );
     this->m_rspConnector.NegotiateCapabilities(
             { "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
