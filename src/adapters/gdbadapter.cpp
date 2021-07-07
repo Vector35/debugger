@@ -8,6 +8,10 @@
 #include <thread>
 #include <pugixml/pugixml.hpp>
 #include <spawn.h>
+#include "binaryninjaapi.h"
+#include "lowlevelilinstruction.h"
+
+using namespace BinaryNinja;
 
 GdbAdapter::GdbAdapter()
 {
@@ -247,7 +251,7 @@ void GdbAdapter::Quit()
 
 }
 
-std::vector<DebugThread> GdbAdapter::GetThreadList() const
+std::vector<DebugThread> GdbAdapter::GetThreadList()
 {
     int internal_thread_index{};
     std::vector<DebugThread> threads{};
@@ -292,8 +296,8 @@ bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
 
 DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
-    if ( std::find(this->m_debugBreakpoint.begin(), this->m_debugBreakpoint.end(),
-                   DebugBreakpoint(address)) != this->m_debugBreakpoint.end())
+    if ( std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(),
+                   DebugBreakpoint(address)) != this->m_debugBreakpoints.end())
         return {};
 
     /* TODO: replace %d with the actual breakpoint size as it differs per architecture */
@@ -301,7 +305,7 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned
         throw std::runtime_error("rsp reply failure on breakpoint");
 
     const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true);
-    this->m_debugBreakpoint.push_back(new_breakpoint);
+    this->m_debugBreakpoints.push_back(new_breakpoint);
 
     return new_breakpoint;
 }
@@ -328,7 +332,7 @@ bool GdbAdapter::ClearAllBreakpoints()
 
 std::vector<DebugBreakpoint> GdbAdapter::GetBreakpointList() const
 {
-    return this->m_debugBreakpoint;
+    return this->m_debugBreakpoints;
 }
 
 std::string GdbAdapter::GetRegisterNameByIndex(std::uint32_t index) const
@@ -362,7 +366,7 @@ bool GdbAdapter::UpdateRegisterCache() {
         if (number_of_chars <= 0x10) {
             const auto value = RspConnector::SwapEndianness(std::stoull(value_string, nullptr, 16));
             this->m_cachedRegisterInfo[register_name] = DebugRegister(register_name, value, register_info.m_bitSize);
-            #warning "ignoring registers with a larger size than 0x10"
+            // #warning "ignoring registers with a larger size than 0x10"
             /* TODO: ^fix this^ */
         }
         register_info_reply_string.erase(0, number_of_chars);
@@ -568,8 +572,6 @@ bool GdbAdapter::StepOver()
 {
     if (!this->UpdateRegisterCache())
         throw std::runtime_error("failed to update register cache");
-
-    using namespace BinaryNinja;
 
     const auto instruction_offset = this->GetInstructionOffset();
     if (!instruction_offset)
