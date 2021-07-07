@@ -20,6 +20,6 @@ public:
     static bool UseConnect(AdapterType type);
     static bool CanUse(AdapterType type);
     static DebugAdapter* GetAdapterForCurrentSystem();
-    static DebugAdapter* GetNewAdapter();
+    static DebugAdapter* GetNewAdapter(AdapterType);
     static std::string GetName(AdapterType type);
 };

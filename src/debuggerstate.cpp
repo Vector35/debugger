@@ -97,7 +97,6 @@ bool DebuggerModules::GetModuleBase(const std::string& name, uint64_t& address)
 DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
 {
     m_memoryView = new DebugProcessView(data);
-    m_adapter = new DummyAdapter();
     m_registers = new DebuggerRegisters(this);
 
     Ref<Metadata> metadata;
@@ -131,10 +130,12 @@ DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
 
 void DebuggerState::run()
 {
-    BinaryNinja::LogWarn("run() requested");
-    // if (DebugAdapterType::UseExec(m_adapterType))
-
-
+    if (DebugAdapterType::UseExec(m_adapterType))
+        exec();
+    else if (DebugAdapterType::UseConnect(m_adapterType))
+        attach();
+    else
+        throw runtime_error("don't know how to connect to adapter of type " + DebugAdapterType::GetName(m_adapterType));
 }
 
 
@@ -147,6 +148,38 @@ void DebuggerState::restart()
 void DebuggerState::quit()
 {
     BinaryNinja::LogWarn("quit() requested");
+}
+
+
+void DebuggerState::exec()
+{
+    if (m_connected || m_connecting)
+        throw runtime_error("Tried to exec but already debugging");
+
+    m_connecting = true;
+    bool runFromTemp = false;
+    string filePath = m_data->GetFile()->GetOriginalFilename();
+    // We should switch to use std::filesystem::exists() later
+    FILE* file = fopen(filePath.c_str(), "r");
+    if (!file)
+    {
+        runFromTemp = true;
+    }
+    else
+    {
+        fclose(file);
+    }
+
+    if (runFromTemp)
+    {
+
+    }
+
+    m_adapter = DebugAdapterType::GetNewAdapter(m_adapterType);
+    if (DebugAdapterType::UseExec(m_adapterType))
+    {
+        
+    }
 }
 
 

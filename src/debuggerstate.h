@@ -80,6 +80,7 @@ public:
     void run();
     void restart();
     void quit();
+    void exec();
     void attach();
     void detach();
     void pause();

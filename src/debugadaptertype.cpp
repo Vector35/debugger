@@ -1,5 +1,6 @@
 #include "debugadaptertype.h"
 #include "./adapters/dummyadapter.h"
+#include "./adapters/gdbadapter.h"
 
 bool DebugAdapterType::UseExec(AdapterType type)
 {
@@ -35,16 +36,48 @@ bool DebugAdapterType::CanUse(AdapterType type)
 }
 
 
-// TODO: porting is not done for this and GetNewAdapter()
 DebugAdapter* DebugAdapterType::GetAdapterForCurrentSystem()
 {
-    return new DummyAdapter();
+#ifdef WIN32
+    return DbgEngAdapter();
+#endif
+
+#ifdef APPLE
+    // return LLDBAdapter();
+#endif
+
+#ifdef __GNUC__
+    return new GdbAdapter();
+#endif
+    // return new DummyAdapter();
 }
 
 
-DebugAdapter* DebugAdapterType::GetNewAdapter()
+DebugAdapter* DebugAdapterType::GetNewAdapter(AdapterType adapterType)
 {
-    return GetAdapterForCurrentSystem();
+    switch (adapterType)
+    {
+#ifdef WIN32
+    case LocalDBGENGAdapterType:
+        return DbgEngAdapter();
+#endif
+
+#ifdef APPLE
+    // case LocalLLDBADapterType:
+    // case RemoteLLDBAdapterType:
+        // return LLDBAdapter();
+#endif
+
+#ifdef __GNUC__
+    case LocalGDBAdapterType:
+    case RemoteGDBAdapterType:
+        return new GdbAdapter();
+#endif
+    case DefaultAdapterType:
+        return GetAdapterForCurrentSystem();
+    default:
+        throw std::runtime_error("Unsupported adapter type " + GetName(adapterType));
+    }
 }
 
 
