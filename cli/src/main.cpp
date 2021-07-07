@@ -261,12 +261,7 @@ int main(int argc, const char* argv[])
 
     Log::SetupAnsi();
 
-    /* reminder to set plugins directory manually to the proper path
-     * windows -> R"(C:\Users\admin\AppData\Local\Vector35\BinaryNinja\plugins)"
-     * linux -> R"(/home/user/Desktop/binaryninja/plugins)"
-     * macos -> */
-
-    SetBundledPluginDirectory(R"(/mnt/F/Software/binaryninja/plugins)");
+    SetBundledPluginDirectory(GetBundledPluginDirectory());
     InitPlugins();
 
     try
