@@ -9,6 +9,7 @@
 #include "uicontext.h"
 #include "../debuggerstate.h"
 
+class DebuggerState;
 class DebugControlsWidget: public QToolBar
 {
     Q_OBJECT
@@ -81,14 +82,17 @@ public:
     void setDefaultProcessAction(DebugControlAction action);
     void setPauseOrResume(DebugControlAction action);
 
-    void stateStarting(const std::string& msg);
-    void stateInactive(const std::string& msg);
-    void stateStopped(const std::string& msg);
-    void stateStoppedExtern(const std::string& msg);
-    void stateRunning(const std::string& msg);
-    void stateBusy(const std::string& msg);
-    void stateError(const std::string& msg);
-    
+    void stateStarting(const std::string& msg = "");
+    void stateInactive(const std::string& msg = "");
+    void stateStopped(const std::string& msg = "");
+    void stateStoppedExtern(const std::string& msg = "");
+    void stateRunning(const std::string& msg = "");
+    void stateBusy(const std::string& msg = "");
+    void stateError(const std::string& msg = "");
+
+    void clearThreadList();
+    void setThreadList(const DebuggerThreads& threads);
+
 
 public Q_SLOTS:
     void performRun();

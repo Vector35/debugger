@@ -1,5 +1,6 @@
 #include "debuggerstate.h"
 #include "debugadapter.h"
+#include "ui/ui.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -377,4 +378,22 @@ uint64_t DebuggerState::ip()
         return m_registers->getRegisterValue("pc");
 
     throw runtime_error("unimplemented architecture " + archName);
+}
+
+
+bool DebuggerState::SetActiveThread(const DebugThread& thread)
+{
+    if (!m_threads)
+        return false;
+
+    return m_threads->SetActiveThread(thread);
+}
+
+
+void DebuggerState::OnStep()
+{
+    if (!m_ui)
+        return;
+
+    m_ui->OnStep();
 }

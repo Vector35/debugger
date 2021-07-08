@@ -16,6 +16,15 @@ struct DebugThread
     DebugThread() {}
     DebugThread(std::uint32_t tid) : m_tid(tid) {}
     DebugThread(std::uint32_t tid, std::uint32_t index) : m_tid(tid), m_index(index) {}
+
+    bool operator==(const DebugThread& rhs) const
+    {
+        return (m_tid == rhs.m_tid) && (m_index == rhs.m_index);
+    }
+    bool operator!=(const DebugThread& rhs) const
+    {
+        return !(*this == rhs);
+    }
 };
 
 struct DebugBreakpoint

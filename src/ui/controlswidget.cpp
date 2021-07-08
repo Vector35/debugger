@@ -160,19 +160,32 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 
 void DebugControlsWidget::performRun()
 {
+    stateStarting("STARTING");
+    // the run() is blocking and it will return only when the target stops
     m_state->run();
+
+    // This code should be refactored so that we send run() request and return, and then get notified when
+    // the target stops
+    stateStopped();
+    m_state->OnStep();
 }
 
 
 void DebugControlsWidget::performRestart()
 {
+    stateStarting("RESTARTING");
     m_state->restart();
+
+    stateStopped();
+    m_state->OnStep();
 }
 
 
 void DebugControlsWidget::performQuit()
 {
     m_state->quit();
+    stateInactive();
+    m_state->OnStep();
 }
 
 
@@ -362,7 +375,7 @@ void DebugControlsWidget::setPauseOrResume(DebugControlAction action)
 
 void DebugControlsWidget::stateStarting(const std::string& msg)
 {
-    m_editStatus->setText(msg ? msg : "INACTIVE");
+    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "INACTIVE");
     setStartingEnabled(false);
     setStoppingEnabled(false);
     setSteppingEnabled(false);
@@ -370,6 +383,72 @@ void DebugControlsWidget::stateStarting(const std::string& msg)
     setActionEnabled(DebugControlResumeAction, false);
     m_threadMenu->setEnabled(false);
     setDefaultProcessAction(canConnect() ? DebugControlAttachAction : DebugControlRunAction);
-
+    clearThreadList();
     setPauseOrResume(DebugControlPauseAction);
+}
+
+
+void DebugControlsWidget::stateInactive(const std::string& msg)
+{
+    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "INACTIVE");
+    setStartingEnabled(true);
+    setStoppingEnabled(false);
+    setSteppingEnabled(false);
+    setActionEnabled(DebugControlPauseAction, false);
+    setActionEnabled(DebugControlResumeAction, false);
+    m_threadMenu->setEnabled(false);
+    setDefaultProcessAction(canConnect() ? DebugControlAttachAction : DebugControlRunAction);
+    clearThreadList();
+    setPauseOrResume(DebugControlPauseAction);
+}
+
+
+void DebugControlsWidget::stateStopped(const std::string& msg)
+{
+    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "STOPPED");
+    setStartingEnabled(false);
+    setStoppingEnabled(true);
+    setSteppingEnabled(true);
+    setActionEnabled(DebugControlPauseAction, true);
+    setActionEnabled(DebugControlResumeAction, true);
+    m_threadMenu->setEnabled(true);
+    setDefaultProcessAction(DebugControlQuitAction);
+    setPauseOrResume(DebugControlResumeAction);
+}
+
+
+void DebugControlsWidget::clearThreadList()
+{
+    m_threadMenu->clear();
+    // TODO: Does this action do nothing?
+    QAction* defaultThreadAction = m_threadMenu->addAction("Thread List");
+    m_btnThreads->setDefaultAction(defaultThreadAction);
+}
+
+
+void DebugControlsWidget::setThreadList(const DebuggerThreads& threads)
+{
+    if (threads.size() == 0)
+        clearThreadList();
+
+    m_threadMenu->clear();
+    for (const DebuggerThreadCache& thread: threads.GetThreads())
+    {
+        char itemName[128];
+        snprintf(itemName, 128, "Thread %d at 0x%" PRIx64, thread.thread.m_tid, thread.ip);
+        QAction* action = m_threadMenu->addAction(QString::fromStdString(std::string(itemName)), [&](){
+            DebuggerState* state = DebuggerState::getState(m_data);
+            if (state->IsConnected() && (!state->IsRunning()))
+            {
+                state->SetActiveThread(thread.thread);
+                state->OnStep();
+            }
+            else
+            {
+                LogWarn("Cannot set thread in current state");
+            }
+        });
+        if (thread.selected)
+            m_btnThreads->setDefaultAction(action);
+    }
 }

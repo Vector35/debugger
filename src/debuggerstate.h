@@ -6,8 +6,9 @@
 #include "debugadaptertype.h"
 #include "adapters/dummyadapter.h"
 
-class DebuggerState;
 
+class DebuggerUI;
+class DebuggerState;
 
 class DebuggerRegisters
 {
@@ -51,6 +52,8 @@ struct DebuggerThreadCache
 {
     DebugThread thread;
     uint64_t ip;
+    // TODO: this does not seem to me the correct way to mark the selected thread. Instead, the
+    // DebuggerThreads class should simply have a field called selectedThread
     bool selected;
 };
 
@@ -69,6 +72,9 @@ public:
     DebugThread GetActiveThread() const;
     bool SetActiveThread(const DebugThread& thread);
     bool IsValid() const { return m_cacheValid; }
+    size_t size() const { return m_threads.size(); }
+    // Note, the caller of this function is responsible for ensuring the cache is valid
+    std::vector<DebuggerThreadCache> GetThreads() const { return m_threads; }
 };
 
 
@@ -83,6 +89,9 @@ private:
     DebugProcessView* m_memoryView;
     DebuggerModules* m_modules;
     DebuggerRegisters* m_registers;
+    DebuggerThreads* m_threads;
+
+    DebuggerUI* m_ui;
 
     std::string m_executablePath;
     std::vector<std::string> m_commandLineArgs;
@@ -95,7 +104,6 @@ private:
 
     DebugAdapterType::AdapterType m_adapterType;
 
-    BinaryViewRef getData() const { return m_data; }
     inline static std::vector<DebuggerState*> g_debuggerStates;
     void deleteState(BinaryViewRef data);
 
@@ -119,10 +127,11 @@ public:
     bool canConnect();
 
     static DebuggerState* getState(BinaryViewRef data);
-    DebugAdapter* getAdapter() { return m_adapter; }
+    DebugAdapter* getAdapter() const { return m_adapter; }
+    BinaryViewRef getData() const { return m_data; }
 
-    DebuggerModules* getModulesCache() { return m_modules; }
-    DebugProcessView* getMemoryView() { return m_memoryView; }
+    DebuggerModules* getModulesCache() const { return m_modules; }
+    DebugProcessView* getMemoryView() const { return m_memoryView; }
 
     DebugAdapterType::AdapterType getAdapterType() const { return m_adapterType; }
     std::string getExecutablePath() const { return m_executablePath; }
@@ -138,4 +147,14 @@ public:
 
     uint64_t ip();
     uint64_t localIp();
+
+    bool IsConnected() const { return m_connected; }
+    bool IsConnecting() const { return m_connecting; }
+    bool IsRunning() const { return m_running; }
+
+    // This is slightly different from the Python implementation. The caller does not need to first
+    // retrieve the DebuggerThreads object and then call SetActiveThread() on it. They call this function.
+    bool SetActiveThread(const DebugThread& thread);
+
+    void OnStep();
 };
