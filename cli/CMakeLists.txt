@@ -7,7 +7,11 @@ remove_definitions(-DUNICODE -D_UNICODE)
 
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 set(ADAPTER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src/adapters)
-set(ADAPTER_SOURCES ${SRC_DIR}/debugadapter.h ${ADAPTER_DIR}/gdbadapter.cpp ${ADAPTER_DIR}/gdbadapter.h ${ADAPTER_DIR}/rspconnector.cpp ${ADAPTER_DIR}/rspconnector.h ${ADAPTER_DIR}/socket.h)
+set(ADAPTER_SOURCES ${SRC_DIR}/debugadapter.h
+        ${ADAPTER_DIR}/gdbadapter.cpp ${ADAPTER_DIR}/gdbadapter.h
+        ${ADAPTER_DIR}/lldbadapter.cpp ${ADAPTER_DIR}/lldbadapter.h
+        ${ADAPTER_DIR}/rspconnector.cpp ${ADAPTER_DIR}/rspconnector.h
+        ${ADAPTER_DIR}/socket.h)
 
 if (WIN32)
     add_definitions(-DWIN32)

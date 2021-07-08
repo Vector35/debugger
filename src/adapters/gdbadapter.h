@@ -5,6 +5,7 @@
 
 class GdbAdapter : public DebugAdapter
 {
+protected:
     struct RegisterInfo
     {
         std::uint32_t m_bitSize{};

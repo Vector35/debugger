@@ -6,6 +6,7 @@
 #include "../../src/adapters/dbgengadapter.h"
 #endif
 #include "../../src/adapters/gdbadapter.h"
+#include "../../src/adapters/lldbadapter.h"
 #include "log.h"
 #include <binaryninjacore.h>
 #include <binaryninjaapi.h>
@@ -262,7 +263,8 @@ int main(int argc, const char* argv[])
     {
         auto debug_adapter = new
         #ifdef WIN32
-        GdbAdapter();
+        LldbAdapter();
+        //GdbAdapter();
         //DbgEngAdapter();
         #else
         GdbAdapter();
