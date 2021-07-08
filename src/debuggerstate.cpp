@@ -94,6 +94,81 @@ bool DebuggerModules::GetModuleBase(const std::string& name, uint64_t& address)
 }
 
 
+DebuggerThreads::DebuggerThreads(DebuggerState* state): m_state(state)
+{
+    MarkDirty();
+}
+
+
+void DebuggerThreads::MarkDirty()
+{
+    m_cacheValid = false;
+    m_threads.clear();
+}
+
+
+void DebuggerThreads::Update()
+{
+    if (!m_state)
+        throw runtime_error("Cannot update threads when disconnected");
+
+    DebugAdapter* adapter = m_state->getAdapter();
+    if (!adapter)
+        throw runtime_error("invalid adapter");
+
+    m_threads.clear();
+    m_cacheValid = false;
+
+    DebugThread selectedThread = adapter->GetActiveThread();
+    DebugThread lastThread = selectedThread;
+    for (const DebugThread& thread: adapter->GetThreadList())
+    {
+        if (lastThread != thread)
+        {
+            // TODO: This forces a thread swtich for every thread, which is too expensive
+            adapter->SetActiveThread(thread);
+            lastThread = thread;
+        }
+        DebuggerThreadCache cache;
+        cache.thread = thread;
+        cache.ip = m_state->ip();
+        cache.selected = (thread == selectedThread);
+        m_threads.push_back(cache);
+    }
+    // Restore the original active thread after the above operations
+    if (lastThread != selectedThread)
+        adapter->SetActiveThread(selectedThread);
+
+    m_cacheValid = true;    
+}
+
+
+DebugThread DebuggerThreads::GetActiveThread() const
+{
+    if (!m_state)
+        throw runtime_error("Cannot update threads when disconnected");
+
+    DebugAdapter* adapter = m_state->getAdapter();
+    if (!adapter)
+        throw runtime_error("invalid adapter");
+
+    return adapter->GetActiveThread();
+}
+
+
+bool DebuggerThreads::SetActiveThread(const DebugThread& thread)
+{
+    if (!m_state)
+        throw runtime_error("Cannot update threads when disconnected");
+
+    DebugAdapter* adapter = m_state->getAdapter();
+    if (!adapter)
+        throw runtime_error("invalid adapter");
+
+    return adapter->SetActiveThread(thread);
+}
+
+
 DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
 {
     m_memoryView = new DebugProcessView(data);

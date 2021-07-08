@@ -47,6 +47,30 @@ public:
 
 };
 
+struct DebuggerThreadCache
+{
+    DebugThread thread;
+    uint64_t ip;
+    bool selected;
+};
+
+
+class DebuggerThreads
+{
+private:
+    DebuggerState* m_state;
+    std::vector<DebuggerThreadCache> m_threads;
+    bool m_cacheValid;
+
+public:
+    DebuggerThreads(DebuggerState* state);
+    void MarkDirty();
+    void Update();
+    DebugThread GetActiveThread() const;
+    bool SetActiveThread(const DebugThread& thread);
+    bool IsValid() const { return m_cacheValid; }
+};
+
 
 class DebuggerState
 {
