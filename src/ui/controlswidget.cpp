@@ -191,13 +191,19 @@ void DebugControlsWidget::performQuit()
 
 void DebugControlsWidget::performAttach()
 {
+    stateStarting("ATTACHING");
     m_state->attach();
+
+    stateStopped();
+    m_state->OnStep();
 }
 
 
 void DebugControlsWidget::performDetach()
 {
     m_state->detach();
+    stateInactive();
+    m_state->OnStep(); 
 }
 
 
