@@ -8,6 +8,9 @@
 
 DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
 {
+    // setBinaryDataNavigable(true);
+    setupView(this);
+
 	m_data = data;
     m_state = new DebuggerState(data);
     m_controls = new DebugControlsWidget(parent, "Controls", data, m_state);
