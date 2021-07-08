@@ -67,7 +67,7 @@ bool GdbAdapter::Execute(const std::string& path)
 
     this->m_socket = Socket(AF_INET, SOCK_STREAM, 0);
 
-    const auto host_with_port = fmt::format("localhost:{}", this->m_socket.GetPort());
+    const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket.GetPort());
 
 #ifdef WIN32
     const auto arguments = fmt::format("--once --no-startup-with-shell {} {}", host_with_port, path);
