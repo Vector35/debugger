@@ -23,48 +23,40 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
 
     auto reg = [debug_adapter](std::string reg_name)
     {
-        char buf[128]{};
-
         auto original_name = reg_name;
         reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
-        std::sprintf(buf, "%s%s\033[0m=%016llX", Log::Style( 255, 165, 0 ).AsAnsi().c_str(), original_name.c_str(), debug_adapter->ReadRegister(reg_name).m_value);
 
-        return std::string(buf);
+        return fmt::format("{}{}\033[0m={:016X}", Log::Style( 255, 165, 0 ).AsAnsi(), original_name,
+                           debug_adapter->ReadRegister(reg_name).m_value);
     };
 
     auto reg32 = [debug_adapter](std::string reg_name)
     {
-        char buf[128]{};
-
         auto original_name = reg_name;
         reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
-        std::sprintf(buf, "%s%s\033[0m=%018llX", Log::Style( 255, 165, 0 ).AsAnsi().c_str(), original_name.c_str(), debug_adapter->ReadRegister(reg_name).m_value);
 
-        return std::string(buf);
+        return fmt::format("{}{}\033[0m={:08X}", Log::Style( 255, 165, 0 ).AsAnsi(), original_name,
+                           debug_adapter->ReadRegister(reg_name).m_value);
     };
 
     auto reg16 = [debug_adapter](std::string reg_name)
     {
-        char buf[128]{};
-
         auto original_name = reg_name;
         reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
-        std::sprintf(buf, "%s%s\033[0m=%014llX", Log::Style( 255, 165, 0 ).AsAnsi().c_str(), original_name.c_str(), debug_adapter->ReadRegister(reg_name).m_value);
 
-        return std::string(buf);
+        return fmt::format("{}{}\033[0m={:04X}", Log::Style( 255, 165, 0 ).AsAnsi(), original_name,
+                           debug_adapter->ReadRegister(reg_name).m_value);
     };
 
     if ( arch == "x86_64" )
     {
-        char buf[1024]{};
-        std::sprintf(buf, "%s %s %s %s\n%s %s %s %s\n%s %s %s %s\n%s %s %s %s\n%s\n",
-                     reg("rax").c_str(), reg("rbx").c_str(), reg("rcx").c_str(), reg("rdx").c_str(),
-                     reg("rsi").c_str(), reg("rdi").c_str(), reg("rbp").c_str(), reg("rsp").c_str(),
-                     reg(" r8").c_str(), reg(" r9").c_str(), reg("r10").c_str(), reg("r11").c_str(),
-                     reg("r12").c_str(), reg("r13").c_str(), reg("r14").c_str(), reg("r15").c_str(),
-                     reg("rip").c_str() );
-
-        Log::print(buf);
+        const auto reg_list = fmt::format("{} {} {} {}\n{} {} {} {}\n{} {} {} {}\n{} {} {} {}\n{}\n",
+                                          reg("rax"), reg("rbx"), reg("rcx"), reg("rdx"),
+                                          reg("rsi"), reg("rdi"), reg("rbp"), reg("rsp"),
+                                          reg(" r8"), reg(" r9"), reg("r10"), reg("r11"),
+                                          reg("r12"), reg("r13"), reg("r14"), reg("r15"),
+                                          reg("rip")  );
+        Log::print(reg_list);
 
         const auto register_list = debug_adapter->GetRegisterList();
         if ( std::find(register_list.begin(), register_list.end(), "rflags") != register_list.end() )
@@ -75,13 +67,11 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
     }
     else if ( arch == "x86" )
     {
-        char buf[1024]{};
-        std::sprintf(buf, "%s %s %s %s\n%s %s %s %s\n%s %s\n",
-                     reg32("eax").c_str(), reg32("ebx").c_str(), reg32("ecx").c_str(), reg32("edx").c_str(),
-                     reg32("esi").c_str(), reg32("edi").c_str(), reg32("ebp").c_str(), reg32("esp").c_str(),
-                     reg32("eip").c_str(), reg32("eflags").c_str() );
-
-        Log::print(buf);
+        const auto reg_list = fmt::format("{} {} {} {}\n{} {} {} {}\n{} {}\n",
+                                          reg32("eax"), reg32("ebx"), reg32("ecx"), reg32("edx"),
+                                          reg32("esi"), reg32("edi"), reg32("ebp"), reg32("esp"),
+                                          reg32("eip"), reg32("eflags") );
+        Log::print(reg_list);
     }
     else
     {
@@ -156,9 +146,7 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
 
         for ( const auto& instruction : instruction_tokens ) {
             if (instruction.type == BNInstructionTextTokenType::InstructionToken) {
-                char buf[64];
-                std::sprintf(buf, "[0x%lx] ", instruction_offset + instruction.size);
-                disasm_strings.emplace_back(buf);
+                disasm_strings.emplace_back(fmt::format("[{:X}] ", instruction_offset + instruction.size));
             }
             disasm_strings.push_back(instruction.text);
         }
@@ -324,7 +312,7 @@ int main(int argc, const char* argv[])
                 print_arg(".", "invokes debugger backend", "command");
                 print_arg("lt", "list all threads");
                 print_arg("lm", "list all modules");
-                print_arg("bpl", "list all breakpoints");
+                print_arg("lbp", "list all breakpoints");
                 print_arg("reg", "display registers");
                 print_arg("disasm", "disassemble & lift instructions", "instruction count");
                 print_arg("sr", "display stop reason");
@@ -362,10 +350,8 @@ int main(int argc, const char* argv[])
             }
             else if (input == "reg")
             {
-                #ifndef WIN32
                 if (!debug_adapter->UpdateRegisterCache())
                     throw std::runtime_error("failed to update register cache");
-                #endif
 
                 RegisterDisplay(debug_adapter);
             }
@@ -393,7 +379,7 @@ int main(int argc, const char* argv[])
                 debug_adapter->RemoveBreakpoint(
                         DebugBreakpoint(std::stoull(input.substr(loc + 4).c_str(), nullptr, 16)));
             }
-            else if ( input == "bpl" )
+            else if ( input == "lbp" )
             {
                 Log::print("%i breakpoint[s] set\n", debug_adapter->GetBreakpointList().size());
                 for (const auto& breakpoint : debug_adapter->GetBreakpointList())

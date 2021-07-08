@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <array>
+#include <fmt/format.h>
 
 struct DebugThread
 {

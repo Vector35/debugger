@@ -75,7 +75,7 @@ struct RspData
             throw std::runtime_error("size > rsp BUFFER_MAX");
 
         char buffer[RspData::BUFFER_MAX]{};
-        std::sprintf(buffer, string.c_str(), args...);
+        fmt::format_to(buffer, string.c_str(), args...);
 
         this->m_size = std::string(buffer).size();
         std::memcpy(this->m_data, buffer, this->m_size);

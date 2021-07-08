@@ -67,18 +67,14 @@ bool GdbAdapter::Execute(const std::string& path)
 
     this->m_socket = Socket(AF_INET, SOCK_STREAM, 0);
 
-    std::array<char, 256> buffer{};
-    std::sprintf(buffer.data(), "localhost:%d", this->m_socket.GetPort());
+    const auto host_with_port = fmt::format("localhost:{}", this->m_socket.GetPort());
 
 #ifdef WIN32
-    std::array<char, 256> arg_buffer{};
-    std::sprintf(arg_buffer.data(), "--once --no-startup-with-shell %s %s", buffer.data(), path.c_str() );
-    printf("%s\n", arg_buffer.data());
-
+    const auto arguments = fmt::format("--once --no-startup-with-shell {} {}", host_with_port, path);
 
     STARTUPINFO startup_info{};
     PROCESS_INFORMATION process_info{};
-    if (CreateProcessA(gdb_server_path.c_str(), arg_buffer.data(),
+    if (CreateProcessA(gdb_server_path.c_str(), const_cast<char*>( arguments.c_str() ),
                        nullptr, nullptr,
                        true, CREATE_NEW_CONSOLE, nullptr, nullptr,
                        &startup_info, &process_info)) {
@@ -88,7 +84,7 @@ bool GdbAdapter::Execute(const std::string& path)
         throw std::runtime_error("failed to create gdb process");
     }
 #else
-    char* arg[] = {"--once", "--no-startup-with-shell", buffer.data(), (char*) path.c_str(), NULL};
+    char* arg[] = {"--once", "--no-startup-with-shell", host_with_port.c_str(), (char*) path.c_str(), NULL};
     pid_t pid = fork();
     switch (pid)
     {
@@ -310,7 +306,18 @@ bool GdbAdapter::SetActiveThread(const DebugThread& thread)
 
 bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
 {
-    return false;
+    if ( this->m_rspConnector.TransmitAndReceive(RspData("T{:x}", tid)).AsString() != "OK" )
+        throw std::runtime_error("thread does not exist!");
+
+    if ( this->m_rspConnector.TransmitAndReceive(RspData("Hc{:x}", tid)).AsString() != "OK")
+        throw std::runtime_error("failed to set thread");
+
+    if ( this->m_rspConnector.TransmitAndReceive(RspData("Hg{:x}", tid)).AsString() != "OK")
+        throw std::runtime_error("failed to set thread");
+
+    this->m_lastActiveThreadId = tid;
+
+    return true;
 }
 
 DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
@@ -320,7 +327,7 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned
         return {};
 
     /* TODO: replace %d with the actual breakpoint size as it differs per architecture */
-    if (this->m_rspConnector.TransmitAndReceive(RspData("Z0,%llx,%d", address, 1)).AsString() != "OK" )
+    if (this->m_rspConnector.TransmitAndReceive(RspData("Z0,{:x},{}", address, 1)).AsString() != "OK" )
         throw std::runtime_error("rsp reply failure on breakpoint");
 
     const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true);
@@ -336,7 +343,21 @@ std::vector<DebugBreakpoint> GdbAdapter::AddBreakpoints(const std::vector<std::u
 
 bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 {
-    return false;
+    if (auto location = std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(), breakpoint);
+            location == this->m_debugBreakpoints.end()) {
+        printf("breakpoint does not exist!\n");
+        return false;
+    }
+
+    /* TODO: replace %d with the actual breakpoint size as it differs per architecture */
+    if (this->m_rspConnector.TransmitAndReceive(RspData("z0,{:x},{}", breakpoint.m_address, 1)).AsString() != "OK" )
+        throw std::runtime_error("rsp reply failure on remove breakpoint");
+
+    if (auto location = std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(), breakpoint);
+            location != this->m_debugBreakpoints.end())
+        this->m_debugBreakpoints.erase(location);
+
+    return true;
 }
 
 bool GdbAdapter::RemoveBreakpoints(const std::vector<DebugBreakpoint>& breakpoints)
@@ -407,9 +428,8 @@ bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
     if (!this->UpdateRegisterCache())
         throw std::runtime_error("failed to update register cache");
 
-    char buf[64];
-    std::sprintf(buf, "%016lX", RspConnector::SwapEndianness(value));
-    const auto reply = this->m_rspConnector.TransmitAndReceive(RspData("P%x=%s", this->m_registerInfo[reg].m_regNum, buf));
+    const auto reply = this->m_rspConnector.TransmitAndReceive(RspData("P{}={:016X}",
+                                       this->m_registerInfo[reg].m_regNum, RspConnector::SwapEndianness(value)));
     if (reply.m_data[0])
         return true;
 
@@ -419,7 +439,7 @@ bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
 
     const auto first_half = generic_query.AsString().substr(0, 2 * (register_offset / 8));
     const auto second_half = generic_query.AsString().substr(2 * ((register_offset + this->m_registerInfo[reg].m_bitSize) / 8) );
-    const auto payload = "G" + first_half + buf + second_half;
+    const auto payload = "G" + first_half + fmt::format("{:016X}", RspConnector::SwapEndianness(value)) + second_half;
 
     if ( this->m_rspConnector.TransmitAndReceive(RspData(payload)).AsString() != "OK" )
         return false;
@@ -447,7 +467,7 @@ bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
     if (!this->UpdateRegisterCache())
         throw std::runtime_error("failed to update register cache");
 
-    auto reply = this->m_rspConnector.TransmitAndReceive(RspData("m%llx,%x", address, size));
+    auto reply = this->m_rspConnector.TransmitAndReceive(RspData("m{:x},{:x}", address, size));
     if (reply.m_data[0] == 'E')
         return false;
 
@@ -488,9 +508,9 @@ bool GdbAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t size
     std::memset(dest.get(), '\0', size + 1);
 
     for ( std::size_t index{}; index < size; index++ )
-        std::sprintf(dest.get(), "%s%02x", dest.get(), ((std::uint8_t*)out)[index]);
+        fmt::format_to(dest.get(), "{}{:02X}", dest.get(), ((std::uint8_t*)out)[index]);
 
-    auto reply = this->m_rspConnector.TransmitAndReceive(RspData("M%llx,%x:%s", address, size, dest.get()));
+    auto reply = this->m_rspConnector.TransmitAndReceive(RspData("M{:x},{:x}:{}", address, size, dest.get()));
     if (reply.AsString() != "OK")
         return false;
 
@@ -504,15 +524,12 @@ std::vector<DebugModule> GdbAdapter::GetModuleList()
     /*const auto set_filesystem = */this->m_rspConnector.TransmitAndReceive(RspData("vFile:setfs:0", "host_io"));
 
     std::string path_hex_string{};
-    for ( auto c : path ) {
-        char buf[0x4]{'\0'};
-        std::sprintf(buf, "%02X", c);
-        path_hex_string.append(buf);
-    }
+    for ( const auto& ch : path )
+        path_hex_string += fmt::format("{:02X}", ch);
 
     const auto test =
             this->m_rspConnector.TransmitAndReceive(
-                    RspData("vFile:open:%s,%X,%X", path_hex_string.c_str(), 0, 0), "host_io");
+                    RspData("vFile:open:{},{:X},{:X}", path_hex_string.c_str(), 0, 0), "host_io");
 
     return {};
 }
@@ -716,7 +733,6 @@ bool GdbAdapter::StepTo(std::uintptr_t address)
 
 void GdbAdapter::Invoke(const std::string& command)
 {
-
 }
 
 std::uintptr_t GdbAdapter::GetInstructionOffset()

@@ -5,6 +5,7 @@
 #include <thread>
 #include <regex>
 #include <type_traits>
+#include <fmt/format.h>
 #include "rspconnector.h"
 
 RspConnector::RspConnector(Socket* socket) : m_socket(socket) { }
@@ -94,9 +95,8 @@ std::unordered_map<std::string, std::uint64_t> RspConnector::PacketToUnorderedMa
                 packet_map["thread"] = std::stoull(value, nullptr, 16);
             }
         } else if ( std::regex_search(key, std::regex("^[0-9a-fA-F]+$")) ) {
-            char reg_name[64]{};
-            std::sprintf(reg_name, "r%d", std::stoi(key, nullptr, 16));
-            packet_map[reg_name] = static_cast<std::int64_t>( RspConnector::SwapEndianness( std::stoull(value, nullptr, 16)) );
+            packet_map[fmt::format("r{}", std::stoi(key, nullptr, 16))] =
+                    static_cast<std::int64_t>( RspConnector::SwapEndianness( std::stoull(value, nullptr, 16)) );
         } else {
             packet_map[key] = std::stoull(value, nullptr, 16);
         }
@@ -183,11 +183,7 @@ void RspConnector::SendRaw(const RspData& data) const
 void RspConnector::SendPayload(const RspData& data) const
 {
     const auto checksum = std::accumulate(data.begin(), data.end(), 0) % 256;
-    auto packet = "$" + data.AsString() + "#";
-
-    char buf[32];
-    std::sprintf(buf, "%02x", checksum);
-    packet.append(buf);
+    auto packet = "$" + data.AsString() + "#" + fmt::format("{:02x}", checksum);
 
     this->SendRaw(RspData(packet));
 }
@@ -320,9 +316,8 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
 
 std::string RspConnector::GetXml(const std::string& name)
 {
-    char buffer[128]{'\0'};
-    std::sprintf(buffer, "qXfer:features:read:%s:%X,%X", name.c_str(), 0, RspData::BUFFER_MAX);
-    const auto data = this->TransmitAndReceive(RspData(buffer));
+    const auto data = this->TransmitAndReceive(RspData(
+            "qXfer:features:read:{}:{:X},{:X}", name, 0, RspData::BUFFER_MAX ));
 
     if ( data.m_data[0] != 'l' &&
          data.m_data[0] != 'm' )

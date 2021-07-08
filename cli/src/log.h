@@ -24,14 +24,8 @@ namespace Log
         Style(float red, float green, float blue)
             : m_red(red), m_green(green), m_blue(blue) {}
 
-        [[nodiscard]] std::string AsAnsi() const
-        {
-            std::string out{};
-            out.reserve(64);
-
-            std::sprintf(out.data(), "\x1b[38;2;%0.f;%0.f;%0.fm", this->m_red, this->m_green, this->m_blue);
-
-            return out;
+        [[nodiscard]] std::string AsAnsi() const {
+            return fmt::format("\x1b[38;2;{:.0f};{:.0f};{:.0f}m", this->m_red, this->m_green, this->m_blue);
         }
     };
 
