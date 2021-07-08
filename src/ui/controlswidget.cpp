@@ -117,12 +117,12 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
     m_btnStepInto->setDefaultAction(m_actionStepIntoIL);
     addWidget(m_btnStepInto);
 
-    m_btnStepInto = new QToolButton(this);
-    m_btnStepInto->setMenu(m_stepOverMenu);
-    m_btnStepInto->setPopupMode(QToolButton::MenuButtonPopup);
-    m_btnStepInto->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    m_btnStepInto->setDefaultAction(m_actionStepIntoIL);
-    addWidget(m_btnStepInto);
+    m_btnStepOver = new QToolButton(this);
+    m_btnStepOver->setMenu(m_stepOverMenu);
+    m_btnStepOver->setPopupMode(QToolButton::MenuButtonPopup);
+    m_btnStepOver->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_btnStepOver->setDefaultAction(m_actionStepOverIL);
+    addWidget(m_btnStepOver);
 
     m_btnStepReturn = new QToolButton(this);
     m_btnStepReturn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
@@ -287,13 +287,13 @@ void DebugControlsWidget::setActionEnabled(DebugControlAction action, bool enabl
 
 bool DebugControlsWidget::canExec()
 {
-    return m_state->canExec();
+    return DebugAdapterType::UseExec(m_state->getAdapterType());
 }
 
 
 bool DebugControlsWidget::canConnect()
 {
-    return m_state->canConnect();
+    return DebugAdapterType::UseConnect(m_state->getAdapterType());
 }
 
 
@@ -357,4 +357,19 @@ void DebugControlsWidget::setPauseOrResume(DebugControlAction action)
         m_btnPauseResume->setDefaultAction(m_actionPause);
     else if (action == DebugControlResumeAction)
         m_btnPauseResume->setDefaultAction(m_actionResume);
+}
+
+
+void DebugControlsWidget::stateStarting(const std::string& msg)
+{
+    m_editStatus->setText(msg ? msg : "INACTIVE");
+    setStartingEnabled(false);
+    setStoppingEnabled(false);
+    setSteppingEnabled(false);
+    setActionEnabled(DebugControlPauseAction, false);
+    setActionEnabled(DebugControlResumeAction, false);
+    m_threadMenu->setEnabled(false);
+    setDefaultProcessAction(canConnect() ? DebugControlAttachAction : DebugControlRunAction);
+
+    setPauseOrResume(DebugControlPauseAction);
 }
