@@ -427,6 +427,21 @@ void DebugControlsWidget::stateStopped(const std::string& msg)
 }
 
 
+void DebugControlsWidget::stateStoppedExtern(const std::string& msg)
+{
+    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "STOPPED");
+    setStartingEnabled(false);
+    setStoppingEnabled(true);
+    setSteppingEnabled(true);
+    setActionEnabled(DebugControlStepReturnAction, false);
+    setActionEnabled(DebugControlPauseAction, true);
+    setActionEnabled(DebugControlResumeAction, true);
+    m_threadMenu->setEnabled(true);
+    setDefaultProcessAction(DebugControlQuitAction);
+    setPauseOrResume(DebugControlResumeAction);
+}
+
+
 void DebugControlsWidget::stateRunning(const std::string& msg)
 {
     m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "RUNNING");

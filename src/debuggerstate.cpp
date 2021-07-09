@@ -234,8 +234,7 @@ void DebuggerState::Quit()
 
 void DebuggerState::Exec()
 {
-    if ((m_connectionStatus == DebugAdapterConnectedStatus) ||
-        (m_connectionStatus == DebugAdapterConnectingStatus))
+    if (IsConnected() || IsConnecting())
         throw runtime_error("Tried to exec but already debugging");
 
     m_connectionStatus = DebugAdapterConnectingStatus;
@@ -272,6 +271,7 @@ void DebuggerState::Exec()
         }
         m_connectionStatus = DebugAdapterConnectedStatus;
     }
+    m_remoteArch = DetectRemoteArch();
 }
 
 
@@ -295,14 +295,15 @@ void DebuggerState::Pause()
 
 void DebuggerState::Go()
 {
-    if (m_connectionStatus != DebugAdapterConnectedStatus)
+    if (!IsConnected())
         throw runtime_error("missing adapter");
 
-    m_running = true;
+    m_targetStatus = DebugAdapterRunningStatus;
     // TODO: we should handle the case when the current IP is in the breakpoint list. Simply resuming the
     // target will cause it to break again, on the same address.
     bool ok = m_adapter->Go();
 
+    m_targetStatus = DebugAdapterPausedStatus;
     MarkDirty();
 }
 
@@ -383,7 +384,23 @@ void DebuggerState::DeleteState(BinaryViewRef data)
 
 uint64_t DebuggerState::IP()
 {
-    if (!m_connected)
+    if (!IsConnected())
+        throw runtime_error("Cannot read ip when disconnected");
+    string archName = m_remoteArch->GetName();
+    if (archName == "x86_64")
+        return m_registers->GetRegisterValue("rip");
+    else if (archName == "x86")
+        return m_registers->GetRegisterValue("eip");
+    else if ((archName == "aarch64") || (archName == "arm") || (archName == "armv7") || (archName == "Z80"))
+        return m_registers->GetRegisterValue("pc");
+
+    throw runtime_error("unimplemented architecture " + archName);
+}
+
+
+uint64_t DebuggerState::LocalIP()
+{
+    if (!IsConnected())
         throw runtime_error("Cannot read ip when disconnected");
     string archName = m_remoteArch->GetName();
     if (archName == "x86_64")
@@ -421,6 +438,13 @@ void DebuggerState::MarkDirty()
     m_memoryView->MarkDirty();
     m_threads->MarkDirty();
     m_modules->MarkDirty();
-    // if (m_connected)
-        // m_remoteArch = DetecteRemoteArchitecture();
+    if (m_connectionStatus == DebugAdapterConnectedStatus)
+        m_remoteArch = DetectRemoteArch();
+}
+
+
+ArchitectureRef DebuggerState::DetectRemoteArch()
+{
+    // TODO: The backend should report any architecture change and notify us.
+    return m_data->GetDefaultArchitecture();
 }

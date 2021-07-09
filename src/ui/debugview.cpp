@@ -4,7 +4,7 @@
 #include <QtGui/QFont>
 #include "fontsettings.h"
 #include "debugview.h"
-
+#include "ui.h"
 
 DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
 {
@@ -12,7 +12,8 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     setupView(this);
 
 	m_data = data;
-    m_state = new DebuggerState(data);
+    m_state = DebuggerState::GetState(data);
+    m_state->GetDebuggerUI()->SetDebugView(this);
     m_controls = new DebugControlsWidget(parent, "Controls", data, m_state);
 
     m_splitter = new QSplitter(Qt::Horizontal, this);

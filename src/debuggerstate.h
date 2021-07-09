@@ -98,8 +98,6 @@ class DebuggerState
 {
 private:
     BinaryViewRef m_data;
-    bool m_connecting, m_connected;
-    bool m_running;
     DebugAdapterConnectionStatus m_connectionStatus;
     DebugAdapterTargetStatus m_targetStatus;
 
@@ -151,6 +149,7 @@ public:
 
     DebuggerModules* GetModulesCache() const { return m_modules; }
     DebugProcessView* GetMemoryView() const { return m_memoryView; }
+    DebuggerUI* GetDebuggerUI() const { return m_ui; }
 
     DebugAdapterType::AdapterType GetAdapterType() const { return m_adapterType; }
     std::string GetExecutablePath() const { return m_executablePath; }
@@ -167,9 +166,9 @@ public:
     uint64_t IP();
     uint64_t LocalIP();
 
-    bool IsConnected() const { return m_connected; }
-    bool IsConnecting() const { return m_connecting; }
-    bool IsRunning() const { return m_running; }
+    bool IsConnected() const { return m_connectionStatus == DebugAdapterConnectedStatus; }
+    bool IsConnecting() const { return m_connectionStatus == DebugAdapterConnectingStatus; }
+    bool IsRunning() const { return m_targetStatus == DebugAdapterRunningStatus; }
 
     // This is slightly different from the Python implementation. The caller does not need to first
     // retrieve the DebuggerThreads object and then call SetActiveThread() on it. They call this function.
@@ -177,4 +176,6 @@ public:
 
     void OnStep();
     void MarkDirty();
+
+    ArchitectureRef DetectRemoteArch();
 };

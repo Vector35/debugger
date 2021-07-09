@@ -28,4 +28,6 @@ public:
     void ContextDisplay();
     void UpdateBreakpoints();
     void NavigateToIp();
+
+    void SetDebugView(DebugView* debugView);
 };

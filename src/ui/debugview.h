@@ -66,6 +66,8 @@ public:
 	void setCurrentOffset(uint64_t offset);
 	// void navigateToFileOffset(uint64_t offset);
 
+    DebugControlsWidget* getControls() const { return m_controls; }
+
 protected:
 	virtual void focusInEvent(QFocusEvent* event) override;
 
