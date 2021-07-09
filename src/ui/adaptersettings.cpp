@@ -10,7 +10,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
     setMinimumSize(UIContext::getScaledWindowSize(400, 130));
     setAttribute(Qt::WA_DeleteOnClose);
 
-    m_state = DebuggerState::getState(m_data);
+    m_state = DebuggerState::GetState(m_data);
 
     QVBoxLayout* layout = new QVBoxLayout;
     layout->setSpacing(0);
@@ -27,7 +27,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
         if (!DebugAdapterType::CanUse(adapter))
             continue;
         m_adapterEntry->addItem(QString::fromStdString(DebugAdapterType::GetName(adapter)), (qulonglong)adapter);
-        if (adapter == m_state->getAdapterType())
+        if (adapter == m_state->GetAdapterType())
             m_adapterEntry->setCurrentText(QString::fromStdString(DebugAdapterType::GetName(adapter)));
     }
     connect(m_adapterEntry, &QComboBox::currentIndexChanged, this, &AdapterSettingsDialog::selectAdapter);
@@ -65,12 +65,12 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
     layout->addLayout(buttonLayout);
     setLayout(layout);
 
-    m_addressEntry->setText(QString::fromStdString(m_state->getRemoteHost()));
-    m_portEntry->setText(QString::number(m_state->getRemotePort()));
-    m_pathEntry->setText(QString::fromStdString(m_state->getExecutablePath()));
+    m_addressEntry->setText(QString::fromStdString(m_state->GetRemoteHost()));
+    m_portEntry->setText(QString::number(m_state->GetRemotePort()));
+    m_pathEntry->setText(QString::fromStdString(m_state->GetExecutablePath()));
 
     std::string args;
-    std::vector<std::string> argList = m_state->getCommandLineArguments();
+    std::vector<std::string> argList = m_state->GetCommandLineArguments();
     for (size_t i = 0; i < argList.size(); i++)
     {
         if (i != 0)

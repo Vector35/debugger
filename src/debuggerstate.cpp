@@ -8,20 +8,20 @@ using namespace std;
 
 DebuggerRegisters::DebuggerRegisters(DebuggerState* state): m_state(state)
 {
-    markDirty();
+    MarkDirty();
 }
 
 
-void DebuggerRegisters::markDirty()
+void DebuggerRegisters::MarkDirty()
 {
     m_cachedRgisterList.clear();
     m_registerCache.clear();
 }
 
 
-void DebuggerRegisters::update()
+void DebuggerRegisters::Update()
 {
-    DebugAdapter* adapter = m_state->getAdapter();
+    DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
         throw runtime_error("Cannot update registers when disconnected");
 
@@ -35,7 +35,7 @@ void DebuggerRegisters::update()
 }
 
 
-uint64_t DebuggerRegisters::getRegisterValue(const std::string& name)
+uint64_t DebuggerRegisters::GetRegisterValue(const std::string& name)
 {
     auto iter = m_registerCache.find(name);
     if (iter == m_registerCache.end())
@@ -46,15 +46,15 @@ uint64_t DebuggerRegisters::getRegisterValue(const std::string& name)
 }
 
 
-void DebuggerRegisters::updateRegisterValue(const std::string& name, uint64_t value)
+void DebuggerRegisters::UpdateRegisterValue(const std::string& name, uint64_t value)
 {
-    DebugAdapter* adapter = m_state->getAdapter();
+    DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
         return;
 
     adapter->WriteRegister(name, value);
     // TODO: Do we really need to mark it dirty? How about we just update our cache
-    markDirty();
+    MarkDirty();
 }
 
 
@@ -65,15 +65,15 @@ DebuggerModules::DebuggerModules(DebuggerState* state, std::vector<DebugModule> 
 }
 
 
-void DebuggerModules::markDirty()
+void DebuggerModules::MarkDirty()
 {
     m_modules.clear();
 }
 
 
-void DebuggerModules::update()
+void DebuggerModules::Update()
 {
-    DebugAdapter* adapter = m_state->getAdapter();
+    DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
         return;
 
@@ -113,7 +113,7 @@ void DebuggerThreads::Update()
     if (!m_state)
         throw runtime_error("Cannot update threads when disconnected");
 
-    DebugAdapter* adapter = m_state->getAdapter();
+    DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
         throw runtime_error("invalid adapter");
 
@@ -132,7 +132,7 @@ void DebuggerThreads::Update()
         }
         DebuggerThreadCache cache;
         cache.thread = thread;
-        cache.ip = m_state->ip();
+        cache.ip = m_state->IP();
         cache.selected = (thread == selectedThread);
         m_threads.push_back(cache);
     }
@@ -149,7 +149,7 @@ DebugThread DebuggerThreads::GetActiveThread() const
     if (!m_state)
         throw runtime_error("Cannot update threads when disconnected");
 
-    DebugAdapter* adapter = m_state->getAdapter();
+    DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
         throw runtime_error("invalid adapter");
 
@@ -162,7 +162,7 @@ bool DebuggerThreads::SetActiveThread(const DebugThread& thread)
     if (!m_state)
         throw runtime_error("Cannot update threads when disconnected");
 
-    DebugAdapter* adapter = m_state->getAdapter();
+    DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
         throw runtime_error("invalid adapter");
 
@@ -207,30 +207,30 @@ DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
 }
 
 
-void DebuggerState::run()
+void DebuggerState::Run()
 {
     if (DebugAdapterType::UseExec(m_adapterType))
-        exec();
+        Exec();
     else if (DebugAdapterType::UseConnect(m_adapterType))
-        attach();
+        Attach();
     else
         throw runtime_error("don't know how to connect to adapter of type " + DebugAdapterType::GetName(m_adapterType));
 }
 
 
-void DebuggerState::restart()
+void DebuggerState::Restart()
 {
     BinaryNinja::LogWarn("restart() requested");
 }
 
 
-void DebuggerState::quit()
+void DebuggerState::Quit()
 {
     BinaryNinja::LogWarn("quit() requested");
 }
 
 
-void DebuggerState::exec()
+void DebuggerState::Exec()
 {
     if (m_connected || m_connecting)
         throw runtime_error("Tried to exec but already debugging");
@@ -267,79 +267,87 @@ void DebuggerState::exec()
 }
 
 
-void DebuggerState::attach()
+void DebuggerState::Attach()
 {
     BinaryNinja::LogWarn("attach() requested");
 }
 
 
-void DebuggerState::detach()
+void DebuggerState::Detach()
 {
     BinaryNinja::LogWarn("detach() requested");
 }
 
 
-void DebuggerState::pause()
+void DebuggerState::Pause()
 {
     BinaryNinja::LogWarn("pause() requested");
 }
 
 
-void DebuggerState::resume()
+void DebuggerState::Go()
 {
-    BinaryNinja::LogWarn("resume() requested");
+    if (!m_connected)
+        throw runtime_error("missing adapter");
+
+    m_running = true;
+    // TODO: we should handle the case when the current IP is in the breakpoint list. Simply resuming the
+    // target will cause it to break again, on the same address.
+    bool ok = m_adapter->Go();
+
+    MarkDirty();
 }
 
 
-void DebuggerState::stepIntoAsm()
+void DebuggerState::StepIntoAsm()
 {
     BinaryNinja::LogWarn("stepIntoAsm() requested");
 }
 
 
-void DebuggerState::stepIntoIL()
+void DebuggerState::StepIntoIL()
 {
     BinaryNinja::LogWarn("stepIntoIL() requested");
 }
 
 
-void DebuggerState::stepOverAsm()
+void DebuggerState::StepOverAsm()
 {
     BinaryNinja::LogWarn("stepOverAsm() requested");
 }
 
 
-void DebuggerState::stepOverIL()
+void DebuggerState::StepOverIL()
 {
     BinaryNinja::LogWarn("stepOverIL() requested");
 }
 
 
-void DebuggerState::stepReturn()
+void DebuggerState::StepReturn()
 {
     BinaryNinja::LogWarn("stepReturn() requested");
 }
 
 
-bool DebuggerState::canExec()
+bool DebuggerState::CanExec()
 {
     // TODO: query the underlying DebugAdapter for the info
     return true;
 }
 
 
-bool DebuggerState::canConnect()
+bool DebuggerState::CanConnect()
 {
     // TODO: query the underlying DebugAdapter for the info
     return true;
 }
 
 
-DebuggerState* DebuggerState::getState(BinaryViewRef data)
+DebuggerState* DebuggerState::GetState(BinaryViewRef data)
 {
     for (auto& state: g_debuggerStates)
     {
-        if (state->getData() == data)
+        if (state->GetData() == data)
             return state;
     }
 
@@ -349,11 +357,11 @@ DebuggerState* DebuggerState::getState(BinaryViewRef data)
 }
 
 
-void DebuggerState::deleteState(BinaryViewRef data)
+void DebuggerState::DeleteState(BinaryViewRef data)
 {
     for (auto it = g_debuggerStates.begin(); it != g_debuggerStates.end(); )
     {
-        if ((*it)->getData() == data)
+        if ((*it)->GetData() == data)
         {
             it = g_debuggerStates.erase(it);
         }
@@ -365,17 +373,17 @@ void DebuggerState::deleteState(BinaryViewRef data)
 }
 
 
-uint64_t DebuggerState::ip()
+uint64_t DebuggerState::IP()
 {
     if (!m_connected)
         throw runtime_error("Cannot read ip when disconnected");
     string archName = m_remoteArch->GetName();
     if (archName == "x86_64")
-        return m_registers->getRegisterValue("rip");
+        return m_registers->GetRegisterValue("rip");
     else if (archName == "x86")
-        return m_registers->getRegisterValue("eip");
+        return m_registers->GetRegisterValue("eip");
     else if ((archName == "aarch64") || (archName == "arm") || (archName == "armv7") || (archName == "Z80"))
-        return m_registers->getRegisterValue("pc");
+        return m_registers->GetRegisterValue("pc");
 
     throw runtime_error("unimplemented architecture " + archName);
 }
@@ -396,4 +404,15 @@ void DebuggerState::OnStep()
         return;
 
     m_ui->OnStep();
+}
+
+
+void DebuggerState::MarkDirty()
+{
+    m_registers->MarkDirty();
+    m_memoryView->MarkDirty();
+    m_threads->MarkDirty();
+    m_modules->MarkDirty();
+    // if (m_connected)
+        // m_remoteArch = DetecteRemoteArchitecture();
 }

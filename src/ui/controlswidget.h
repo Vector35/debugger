@@ -93,6 +93,7 @@ public:
     void clearThreadList();
     void setThreadList(const DebuggerThreads& threads);
 
+    void handleStopReturn(unsigned long stopReason);
 
 public Q_SLOTS:
     void performRun();

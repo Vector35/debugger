@@ -162,7 +162,7 @@ void DebugControlsWidget::performRun()
 {
     stateStarting("STARTING");
     // the run() is blocking and it will return only when the target stops
-    m_state->run();
+    m_state->Run();
 
     // This code should be refactored so that we send run() request and return, and then get notified when
     // the target stops
@@ -174,7 +174,7 @@ void DebugControlsWidget::performRun()
 void DebugControlsWidget::performRestart()
 {
     stateStarting("RESTARTING");
-    m_state->restart();
+    m_state->Restart();
 
     stateStopped();
     m_state->OnStep();
@@ -183,7 +183,7 @@ void DebugControlsWidget::performRestart()
 
 void DebugControlsWidget::performQuit()
 {
-    m_state->quit();
+    m_state->Quit();
     stateInactive();
     m_state->OnStep();
 }
@@ -192,7 +192,7 @@ void DebugControlsWidget::performQuit()
 void DebugControlsWidget::performAttach()
 {
     stateStarting("ATTACHING");
-    m_state->attach();
+    m_state->Attach();
 
     stateStopped();
     m_state->OnStep();
@@ -201,7 +201,7 @@ void DebugControlsWidget::performAttach()
 
 void DebugControlsWidget::performDetach()
 {
-    m_state->detach();
+    m_state->Detach();
     stateInactive();
     m_state->OnStep(); 
 }
@@ -216,42 +216,46 @@ void DebugControlsWidget::performSettings()
 
 void DebugControlsWidget::performPause()
 {
-    m_state->pause();
+    m_state->Pause();
 }
 
 
 void DebugControlsWidget::performResume()
 {
-    m_state->resume();
+    stateRunning();
+    m_state->Go();
+
+    unsigned long reason = m_state->GetAdapter()->StopReason();
+    m_state->OnStep();
 }
 
 
 void DebugControlsWidget::performStepIntoAsm()
 {
-    m_state->stepIntoAsm();
+    m_state->StepIntoAsm();
 }
 
 void DebugControlsWidget::performStepIntoIL()
 {
-    m_state->stepIntoIL();
+    m_state->StepIntoIL();
 }
 
 
 void DebugControlsWidget::performStepOverAsm()
 {
-    m_state->stepOverAsm();
+    m_state->StepOverAsm();
 }
 
 
 void DebugControlsWidget::performStepOverIL()
 {
-    m_state->stepOverIL();
+    m_state->StepOverIL();
 }
 
 
 void DebugControlsWidget::performStepReturn()
 {
-    m_state->stepReturn();
+    m_state->StepReturn();
 }
 
 
@@ -306,13 +310,13 @@ void DebugControlsWidget::setActionEnabled(DebugControlAction action, bool enabl
 
 bool DebugControlsWidget::canExec()
 {
-    return DebugAdapterType::UseExec(m_state->getAdapterType());
+    return DebugAdapterType::UseExec(m_state->GetAdapterType());
 }
 
 
 bool DebugControlsWidget::canConnect()
 {
-    return DebugAdapterType::UseConnect(m_state->getAdapterType());
+    return DebugAdapterType::UseConnect(m_state->GetAdapterType());
 }
 
 
@@ -434,7 +438,7 @@ void DebugControlsWidget::clearThreadList()
 
 void DebugControlsWidget::setThreadList(const DebuggerThreads& threads)
 {
-    if (threads.size() == 0)
+    if (threads.GetSize() == 0)
         clearThreadList();
 
     m_threadMenu->clear();
@@ -443,7 +447,7 @@ void DebugControlsWidget::setThreadList(const DebuggerThreads& threads)
         char itemName[128];
         snprintf(itemName, 128, "Thread %d at 0x%" PRIx64, thread.thread.m_tid, thread.ip);
         QAction* action = m_threadMenu->addAction(QString::fromStdString(std::string(itemName)), [&](){
-            DebuggerState* state = DebuggerState::getState(m_data);
+            DebuggerState* state = DebuggerState::GetState(m_data);
             if (state->IsConnected() && (!state->IsRunning()))
             {
                 state->SetActiveThread(thread.thread);
@@ -457,4 +461,10 @@ void DebugControlsWidget::setThreadList(const DebuggerThreads& threads)
         if (thread.selected)
             m_btnThreads->setDefaultAction(action);
     }
+}
+
+
+void DebugControlsWidget::handleStopReturn(unsigned long stopReason)
+{
+
 }

@@ -28,13 +28,13 @@ private:
 
 public:
     DebugProcessView(BinaryView* parent);
-    void markDirty();
-    void clearModuleBases();
-    uint64_t getRemoteBase(BinaryView* relativeView = nullptr);
-    bool isCodeASLR(BinaryView* relativeView = nullptr);
-    uint64_t localAddressToRemote(uint64_t localAddr, BinaryView* relativeView = nullptr);
-    uint64_t remoteAddressToLocal(uint64_t localAddr, BinaryView* relativeView = nullptr);
-    bool isLocalAddress(BinaryView* relativeView = nullptr);
+    void MarkDirty();
+    void ClearModuleBases();
+    uint64_t GetRemoteBase(BinaryView* relativeView = nullptr);
+    bool IsCodeASLR(BinaryView* relativeView = nullptr);
+    uint64_t LocalAddressToRemote(uint64_t localAddr, BinaryView* relativeView = nullptr);
+    uint64_t RemoteAddressToLocal(uint64_t localAddr, BinaryView* relativeView = nullptr);
+    bool IsLocalAddress(BinaryView* relativeView = nullptr);
 };
 
 
@@ -69,7 +69,7 @@ public:
     DebugMemoryView(BinaryView* parent);
     virtual size_t PerformGetAddressSize() const override;
     virtual uint64_t PerformGetLength() const override;
-    void markDirty();
+    void MarkDirty();
 };
 
 

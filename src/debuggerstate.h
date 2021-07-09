@@ -2,7 +2,7 @@
 
 #include "binaryninjaapi.h"
 #include "uitypes.h"
-#include "ui/processview.h"
+#include "processview.h"
 #include "debugadaptertype.h"
 #include "adapters/dummyadapter.h"
 
@@ -24,10 +24,10 @@ private:
 public:
     DebuggerRegisters(DebuggerState* state);
     // DebugRegister operator[](std::string name);
-    uint64_t getRegisterValue(const std::string& name);
-    void updateRegisterValue(const std::string& name, uint64_t value);
-    void markDirty();
-    void update();
+    uint64_t GetRegisterValue(const std::string& name);
+    void UpdateRegisterValue(const std::string& name, uint64_t value);
+    void MarkDirty();
+    void Update();
 };
 
 
@@ -39,11 +39,11 @@ private:
 
 public:
     DebuggerModules(DebuggerState* state, std::vector<DebugModule> modules);
-    void markDirty();
-    void update();
+    void MarkDirty();
+    void Update();
 
     bool GetModuleBase(const std::string& name, uint64_t& address);
-    DebugModule resolvePath(std::string fpathExe);
+    DebugModule ResolvePath(std::string fpathExe);
     
 
 };
@@ -72,7 +72,7 @@ public:
     DebugThread GetActiveThread() const;
     bool SetActiveThread(const DebugThread& thread);
     bool IsValid() const { return m_cacheValid; }
-    size_t size() const { return m_threads.size(); }
+    size_t GetSize() const { return m_threads.size(); }
     // Note, the caller of this function is responsible for ensuring the cache is valid
     std::vector<DebuggerThreadCache> GetThreads() const { return m_threads; }
 };
@@ -105,39 +105,39 @@ private:
     DebugAdapterType::AdapterType m_adapterType;
 
     inline static std::vector<DebuggerState*> g_debuggerStates;
-    void deleteState(BinaryViewRef data);
+    void DeleteState(BinaryViewRef data);
 
 public:
     DebuggerState(BinaryViewRef data);
-    void run();
-    void restart();
-    void quit();
-    void exec();
-    void attach();
-    void detach();
-    void pause();
-    void resume();
-    void stepIntoAsm();
-    void stepIntoIL();
-    void stepOverAsm();
-    void stepOverIL();
-    void stepReturn();
+    void Run();
+    void Restart();
+    void Quit();
+    void Exec();
+    void Attach();
+    void Detach();
+    void Pause();
+    void Go();
+    void StepIntoAsm();
+    void StepIntoIL();
+    void StepOverAsm();
+    void StepOverIL();
+    void StepReturn();
 
-    bool canExec();
-    bool canConnect();
+    bool CanExec();
+    bool CanConnect();
 
-    static DebuggerState* getState(BinaryViewRef data);
-    DebugAdapter* getAdapter() const { return m_adapter; }
-    BinaryViewRef getData() const { return m_data; }
+    static DebuggerState* GetState(BinaryViewRef data);
+    DebugAdapter* GetAdapter() const { return m_adapter; }
+    BinaryViewRef GetData() const { return m_data; }
 
-    DebuggerModules* getModulesCache() const { return m_modules; }
-    DebugProcessView* getMemoryView() const { return m_memoryView; }
+    DebuggerModules* GetModulesCache() const { return m_modules; }
+    DebugProcessView* GetMemoryView() const { return m_memoryView; }
 
-    DebugAdapterType::AdapterType getAdapterType() const { return m_adapterType; }
-    std::string getExecutablePath() const { return m_executablePath; }
-    std::vector<std::string> getCommandLineArguments() const { return m_commandLineArgs; }
-    std::string getRemoteHost() const { return m_remoteHost; }
-    uint32_t getRemotePort() const { return m_remotePort; }
+    DebugAdapterType::AdapterType GetAdapterType() const { return m_adapterType; }
+    std::string GetExecutablePath() const { return m_executablePath; }
+    std::vector<std::string> GetCommandLineArguments() const { return m_commandLineArgs; }
+    std::string GetRemoteHost() const { return m_remoteHost; }
+    uint32_t GetRemotePort() const { return m_remotePort; }
 
     void SetAdapterType(DebugAdapterType::AdapterType adapter) { m_adapterType = adapter; }
     void SetExecutablePath(const std::string& path) { m_executablePath = path; }
@@ -145,8 +145,8 @@ public:
     void SetRemoteHost(const std::string& host) { m_remoteHost = host; }
     void SetRemotePort(uint32_t port) { m_remotePort = port; }
 
-    uint64_t ip();
-    uint64_t localIp();
+    uint64_t IP();
+    uint64_t LocalIP();
 
     bool IsConnected() const { return m_connected; }
     bool IsConnecting() const { return m_connecting; }
@@ -157,4 +157,5 @@ public:
     bool SetActiveThread(const DebugThread& thread);
 
     void OnStep();
+    void MarkDirty();
 };

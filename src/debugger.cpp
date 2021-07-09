@@ -1,7 +1,7 @@
 #include <inttypes.h>
 #include "debugger.h"
 #include "ui/debugview.h"
-#include "ui/processview.h"
+#include "processview.h"
 #include "ui/registerwidget.h"
 #include "dockhandler.h"
 

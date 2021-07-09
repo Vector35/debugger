@@ -1,5 +1,5 @@
 #include "processview.h"
-#include "../debuggerstate.h"
+#include "debuggerstate.h"
 
 using namespace BinaryNinja;
 
@@ -34,19 +34,19 @@ uint64_t DebugProcessView::PerformGetLength() const
 }
 
 
-void DebugProcessView::markDirty()
+void DebugProcessView::MarkDirty()
 {
-    m_memory->markDirty();
+    m_memory->MarkDirty();
 }
 
 
-void DebugProcessView::clearModuleBases()
+void DebugProcessView::ClearModuleBases()
 {
     m_moduleBases.clear();
 }
 
 
-uint64_t DebugProcessView::getRemoteBase(BinaryView* relativeView)
+uint64_t DebugProcessView::GetRemoteBase(BinaryView* relativeView)
 {
     if (!relativeView)
         relativeView = m_localView;
@@ -59,8 +59,8 @@ uint64_t DebugProcessView::getRemoteBase(BinaryView* relativeView)
     auto iter = m_moduleBases.find(moduleName);
     if (iter == m_moduleBases.end())
     {
-        DebuggerState* state = DebuggerState::getState(m_localView);
-        DebuggerModules* modulesCache = state->getModulesCache();
+        DebuggerState* state = DebuggerState::GetState(m_localView);
+        DebuggerModules* modulesCache = state->GetModulesCache();
         if (!modulesCache)
             // TODO: should return false, and return the address by reference
             return 0;
@@ -203,7 +203,7 @@ size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
     if (!parentView)
         return 0;
 
-    DebuggerState* state = DebuggerState::getState(parentView);
+    DebuggerState* state = DebuggerState::GetState(parentView);
     if (!state)
         return 0;
     
@@ -237,14 +237,14 @@ size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
 
 size_t DebugMemoryView::PerformWrite(uint64_t offset, const void* data, size_t len)
 {
-    markDirty();
+    MarkDirty();
     // Since DebugAdapter backend is not yet merged into this branch, there is no way
     // to acutally implement it. For now, just pretend it is all written.
     return len;
 }
 
 
-void DebugMemoryView::markDirty()
+void DebugMemoryView::MarkDirty()
 {
     m_valueCache.clear();
     m_errorCache.clear();

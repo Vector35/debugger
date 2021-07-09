@@ -49,13 +49,13 @@ void DebuggerUI::NavigateToIp()
     uint64_t ip;
     if (!m_state->IsConnected())
     {
-        ip = m_state->getData()->GetEntryPoint();
+        ip = m_state->GetData()->GetEntryPoint();
     }
     else
     {
-        ip = m_state->ip();
+        ip = m_state->IP();
     }
 
     ViewFrame* frame = ViewFrame::viewFrameForWidget(m_debugView);
-    frame->navigate(m_state->getData(), ip, true, true);
+    frame->navigate(m_state->GetData(), ip, true, true);
 }

@@ -18,7 +18,7 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_splitter = new QSplitter(Qt::Horizontal, this);
     ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
 
-    DebugProcessView* memoryView = m_state->getMemoryView();
+    DebugProcessView* memoryView = m_state->GetMemoryView();
 
     m_memoryEditor = new LinearView(memoryView, frame);
     m_binaryEditor = new DisassemblyContainer(frame, data, frame);
