@@ -13,10 +13,12 @@ struct DebugThread
 {
     std::uint32_t m_tid{};
     std::uint32_t m_index{};
+    std::uintptr_t m_rip{};
 
     DebugThread() {}
     DebugThread(std::uint32_t tid) : m_tid(tid) {}
     DebugThread(std::uint32_t tid, std::uint32_t index) : m_tid(tid), m_index(index) {}
+    DebugThread(std::uint32_t tid, std::uint32_t index, std::uintptr_t rip) : m_tid(tid), m_index(index), m_rip(rip) {}
 
     bool operator==(const DebugThread& rhs) const
     {

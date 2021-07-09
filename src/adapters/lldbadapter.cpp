@@ -84,9 +84,10 @@ bool LldbAdapter::Execute(const std::string& path) {
 
     return this->Connect("127.0.0.1", this->m_socket.GetPort());
 }
+
 bool LldbAdapter::Connect(const std::string& server, std::uint32_t port) {
     bool connected = false;
-    for ( std::uint8_t index{}; index < 4; index++ ) {
+    for (std::uint8_t index{}; index < 4; index++) {
         this->m_socket = Socket(AF_INET, SOCK_STREAM, 0, port);
 
         sockaddr_in address{};
@@ -102,27 +103,27 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
-    if ( !connected ) {
+    if (!connected) {
         printf("failed to connect!\n");
         return false;
     }
 
     this->m_rspConnector = RspConnector(&this->m_socket);
     this->m_rspConnector.NegotiateCapabilities(
-            { "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
-              "vContSupported+", "QThreadEvents+", "no-resumed+", "xmlRegisters=i386" } );
+            {"swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
+             "vContSupported+", "QThreadEvents+", "no-resumed+", "xmlRegisters=i386"});
 
-    if ( !this->LoadRegisterInfo() )
+    if (!this->LoadRegisterInfo())
         return false;
 
     auto reply = this->m_rspConnector.TransmitAndReceive(RspData("?"));
-    printf("RESPONSE -> %s\n", reply.AsString().c_str() );
     auto map = RspConnector::PacketToUnorderedMap(reply);
-    for ( const auto& [key, val] : map ) {
-        printf("[%s] = 0x%llx\n", key.c_str(), val );
-    }
 
     this->m_lastActiveThreadId = map["thread"];
 
     return true;
+}
+
+bool LldbAdapter::Go() {
+    return this->GenericGo("c");
 }

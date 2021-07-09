@@ -125,18 +125,14 @@ char RspConnector::ExpectAck()
     if ( !this->m_acksEnabled )
         return {};
 
-    fmt::print("- ACKS ENABLED -\n");
     char buffer{};
     this->m_socket->Recv(&buffer, sizeof(buffer));
-    fmt::print("   - {}\n", buffer);
 
     if ( buffer == char{} )
         throw std::runtime_error("Disconnected while waiting for ack");
 
     if ( buffer != '+' )
-        throw std::runtime_error("Incorrect response");
-
-    fmt::print("- ACKS SUCCESS -\n");
+        throw std::runtime_error("incorrect response, expected +");
 
     return buffer;
 }
@@ -159,10 +155,8 @@ void RspConnector::NegotiateCapabilities(const std::vector <std::string>& capabi
             capabilities_request.append(";");
     }
 
-    fmt::print("capabilites, {}\n", capabilities_request);
     const auto reply = this->TransmitAndReceive(RspData(capabilities_request));
     const auto reply_tokens = RspConnector::Split(reply.AsString(), ";");
-    fmt::print("reply, {}\n", reply.AsString());
 
     for ( auto reply_token : reply_tokens )
     {
@@ -192,7 +186,6 @@ void RspConnector::SendPayload(const RspData& data) const
     const auto checksum = std::accumulate(data.begin(), data.end(), 0) % 256;
     auto packet = "$" + data.AsString() + "#" + fmt::format("{:02x}", checksum);
 
-    fmt::print("RAWPACKET:" + packet + "\n");
     this->SendRaw(RspData(packet));
 }
 
@@ -203,20 +196,14 @@ RspData RspConnector::ReceiveRspData() const
     bool did_find = false;
     while ( !did_find )
     {
-        fmt::print("!did_find\n");
         char tmp_buffer[RspData::BUFFER_MAX]{'\0'};
         this->m_socket->Recv(tmp_buffer, sizeof(tmp_buffer));
         std::copy(tmp_buffer, tmp_buffer + sizeof(tmp_buffer), std::back_inserter(buffer));
-        fmt::print("[ tmp_buffer ]\n");
-        fmt::print("{}", tmp_buffer);
-        fmt::print("[ buffer ]\n");
-        fmt::print("{}", buffer.data());
-
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
         if (buffer[0] != '$')
-            throw std::runtime_error("Incorrect response");
+            throw std::runtime_error("incorrect response, expected $");
 
         bool parsed = false;
         int parse_count{};
@@ -267,11 +254,8 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
     if ( expect == "nothing" )
         reply = RspData("");
     else if ( expect == "ack_then_reply" ) {
-        fmt::print("[ack_then_reply]\n");
         this->ExpectAck();
         reply = this->ReceiveRspData();
-        fmt::print("reply, {}\n", reply.AsString());
-        fmt::print("[end_ack_then_reply]\n");
     }
     else if ( expect == "mixed_output_ack_then_reply" ) {
         bool ack_received = false;

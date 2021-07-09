@@ -237,19 +237,15 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
     }
 
     this->m_rspConnector = RspConnector(&this->m_socket);
-    printf("FINAL RESPONSE -> %s\n", this->m_rspConnector.TransmitAndReceive(RspData("Hg0")).AsString().c_str() );
+    this->m_rspConnector.TransmitAndReceive(RspData("Hg0"));
     this->m_rspConnector.NegotiateCapabilities(
             { "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
                          "vContSupported+", "QThreadEvents+", "no-resumed+", "xmlRegisters=i386" } );
     if ( !this->LoadRegisterInfo() )
         return false;
 
-    auto reply = this->m_rspConnector.TransmitAndReceive(RspData("?"));
-    printf("RESPONSE -> %s\n", reply.AsString().c_str() );
+    const auto reply = this->m_rspConnector.TransmitAndReceive(RspData("?"));
     auto map = RspConnector::PacketToUnorderedMap(reply);
-    for ( const auto& [key, val] : map ) {
-        printf("[%s] = 0x%llx\n", key.c_str(), val );
-    }
 
     this->m_lastActiveThreadId = map["thread"];
 
@@ -273,7 +269,6 @@ std::vector<DebugThread> GdbAdapter::GetThreadList()
 
     auto reply = this->m_rspConnector.TransmitAndReceive(RspData("qfThreadInfo"));
     while(reply.m_data[0] != 'l') {
-        printf("%s\n", reply.AsString().c_str());
         if (reply.m_data[0] != 'm')
             throw std::runtime_error("thread list failed?");
 
@@ -286,12 +281,20 @@ std::vector<DebugThread> GdbAdapter::GetThreadList()
         reply = this->m_rspConnector.TransmitAndReceive(RspData("qsThreadInfo"));
     }
 
+    const auto current_thread = this->GetActiveThread();
+    for (auto& thread : threads) {
+        this->SetActiveThread(thread);
+        this->UpdateRegisterCache();
+        thread.m_rip = this->ReadRegister("rip").m_value;
+    }
+    this->SetActiveThread(current_thread);
+
     return threads;
 }
 
 DebugThread GdbAdapter::GetActiveThread() const
 {
-    return DebugThread();
+    return DebugThread(this->GetActiveThreadId(), 0);
 }
 
 std::uint32_t GdbAdapter::GetActiveThreadId() const
@@ -555,9 +558,10 @@ std::string GdbAdapter::GetTargetArchitecture()
     if (architecture.empty())
         throw std::runtime_error("failed to find architecture");
 
-    architecture.erase(0, architecture.find(':') + 1);
-    architecture.replace(architecture.find('-'), 1, "_");
-
+    if (architecture.find(':') != std::string::npos) {
+        architecture.erase(0, architecture.find(':') + 1);
+        architecture.replace(architecture.find('-'), 1, "_");
+    }
     return architecture;
 }
 

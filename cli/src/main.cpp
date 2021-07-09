@@ -263,8 +263,8 @@ int main(int argc, const char* argv[])
     {
         auto debug_adapter = new
         #ifdef WIN32
-        LldbAdapter();
-        //GdbAdapter();
+        //LldbAdapter();
+        GdbAdapter();
         //DbgEngAdapter();
         #else
         GdbAdapter();
@@ -348,7 +348,7 @@ int main(int argc, const char* argv[])
             {
                 Log::print<Log::Success>( "[threads]\n" );
                 for ( const auto& thread : debug_adapter->GetThreadList() )
-                    Log::print<Log::Info>( "[%i] tid %i\n", thread.m_index, thread.m_tid );
+                    Log::print<Log::Info>( "[%i] tid %i, rip=0x%llx\n", thread.m_index, thread.m_tid, thread.m_rip );
             }
             else if (input == "reg")
             {
@@ -433,7 +433,7 @@ int main(int argc, const char* argv[])
 
         }
     }
-    catch (const std::exception &except)
+    catch (const std::exception& except)
     {
         printf("Exception -> %s\n", except.what());
     }
