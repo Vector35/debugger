@@ -58,8 +58,8 @@ void DebuggerRegisters::UpdateRegisterValue(const std::string& name, uint64_t va
 }
 
 
-DebuggerModules::DebuggerModules(DebuggerState* state, std::vector<DebugModule> modules):
-    m_state(state), m_modules(modules)
+DebuggerModules::DebuggerModules(DebuggerState* state):
+    m_state(state)
 {
 
 }
@@ -173,7 +173,10 @@ bool DebuggerThreads::SetActiveThread(const DebugThread& thread)
 DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
 {
     m_memoryView = new DebugProcessView(data);
+    m_modules = new DebuggerModules(this);
     m_registers = new DebuggerRegisters(this);
+    m_threads = new DebuggerThreads(this);
+    m_ui = new DebuggerUI(this);
 
     Ref<Metadata> metadata;
     // metadata = m_data->QueryMetadata("native_debugger.command_line_args");
@@ -202,8 +205,7 @@ DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
     else
         m_requestTerminalEmulator = false;
 
-    m_connected = false;
-    m_connecting = false;
+    m_connectionStatus = DebugAdapterNotConnectedStatus;
 }
 
 
@@ -232,10 +234,11 @@ void DebuggerState::Quit()
 
 void DebuggerState::Exec()
 {
-    if (m_connected || m_connecting)
+    if ((m_connectionStatus == DebugAdapterConnectedStatus) ||
+        (m_connectionStatus == DebugAdapterConnectingStatus))
         throw runtime_error("Tried to exec but already debugging");
 
-    m_connecting = true;
+    m_connectionStatus = DebugAdapterConnectingStatus;
     bool runFromTemp = false;
     string filePath = m_data->GetFile()->GetOriginalFilename();
     // We should switch to use std::filesystem::exists() later
@@ -259,10 +262,15 @@ void DebuggerState::Exec()
     {
         // TODO: what should I do for QueuedAdapter?
         bool ok = m_adapter->Execute(filePath);
-        if (!ok)
-            LogWarn("fail to execute %s", filePath.c_str());
         // m_adapter->ExecuteWithArgs(filePath, getCommandLineArguments());
-        m_connecting = false;
+        // The Execute() function is blocking, and it only returns when there is a status change
+        if (!ok)
+        {
+            LogWarn("fail to execute %s", filePath.c_str());
+            m_connectionStatus = DebugAdapterNotConnectedStatus;
+            return;
+        }
+        m_connectionStatus = DebugAdapterConnectedStatus;
     }
 }
 
@@ -287,7 +295,7 @@ void DebuggerState::Pause()
 
 void DebuggerState::Go()
 {
-    if (!m_connected)
+    if (m_connectionStatus != DebugAdapterConnectedStatus)
         throw runtime_error("missing adapter");
 
     m_running = true;

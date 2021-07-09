@@ -10,6 +10,22 @@
 class DebuggerUI;
 class DebuggerState;
 
+enum DebugAdapterConnectionStatus
+{
+    DebugAdapterNotConnectedStatus,
+    DebugAdapterConnectingStatus,
+    DebugAdapterConnectedStatus,
+};
+
+
+enum DebugAdapterTargetStatus
+{
+    DeubgAdapterUnknownStatus,
+    DebugAdapterRunningStatus,
+    DebugAdapterPausedStatus,
+};
+
+
 class DebuggerRegisters
 {
     struct RegisterCache
@@ -38,7 +54,7 @@ private:
     std::vector<DebugModule> m_modules;
 
 public:
-    DebuggerModules(DebuggerState* state, std::vector<DebugModule> modules);
+    DebuggerModules(DebuggerState* state);
     void MarkDirty();
     void Update();
 
@@ -84,6 +100,9 @@ private:
     BinaryViewRef m_data;
     bool m_connecting, m_connected;
     bool m_running;
+    DebugAdapterConnectionStatus m_connectionStatus;
+    DebugAdapterTargetStatus m_targetStatus;
+
     DebugAdapter* m_adapter;
     // TODO: This really should be called m_processView, but for ease of porting I am keeping it
     DebugProcessView* m_memoryView;
