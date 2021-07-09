@@ -14,6 +14,7 @@ DebuggerRegisters::DebuggerRegisters(DebuggerState* state): m_state(state)
 
 void DebuggerRegisters::MarkDirty()
 {
+    m_dirty = true;
     m_cachedRgisterList.clear();
     m_registerCache.clear();
 }
@@ -32,15 +33,20 @@ void DebuggerRegisters::Update()
     {
         m_registerCache[reg] = adapter->ReadRegister(reg);
     }
+    m_dirty = false;
 }
 
 
 uint64_t DebuggerRegisters::GetRegisterValue(const std::string& name)
 {
+    // Unlike the Python implementation, we requrie the DebuggerState to explicitly check for dirty caches
+    // and update the values when necessary. This is mainly because the update can be expensive.
+    if (IsDirty())
+        return 0x0;
+
     auto iter = m_registerCache.find(name);
     if (iter == m_registerCache.end())
-        // TODO: we should return a boolean to indicate the call succeeds, and return the value by reference
-        return 0;
+        return 0x0;
 
     return iter->second.m_value;
 }
@@ -61,12 +67,13 @@ void DebuggerRegisters::UpdateRegisterValue(const std::string& name, uint64_t va
 DebuggerModules::DebuggerModules(DebuggerState* state):
     m_state(state)
 {
-
+    MarkDirty();
 }
 
 
 void DebuggerModules::MarkDirty()
 {
+    m_dirty = true;
     m_modules.clear();
 }
 
@@ -78,6 +85,7 @@ void DebuggerModules::Update()
         return;
 
     m_modules = adapter->GetModuleList();
+    m_dirty = false;
 }
 
 
@@ -103,7 +111,7 @@ DebuggerThreads::DebuggerThreads(DebuggerState* state): m_state(state)
 
 void DebuggerThreads::MarkDirty()
 {
-    m_cacheValid = false;
+    m_dirty = true;
     m_threads.clear();
 }
 
@@ -118,7 +126,6 @@ void DebuggerThreads::Update()
         throw runtime_error("invalid adapter");
 
     m_threads.clear();
-    m_cacheValid = false;
 
     DebugThread selectedThread = adapter->GetActiveThread();
     DebugThread lastThread = selectedThread;
@@ -140,7 +147,7 @@ void DebuggerThreads::Update()
     if (lastThread != selectedThread)
         adapter->SetActiveThread(selectedThread);
 
-    m_cacheValid = true;    
+    m_dirty = false;
 }
 
 
@@ -428,6 +435,8 @@ void DebuggerState::OnStep()
     if (!m_ui)
         return;
 
+    // Cached registers, threads, and modules must be updated explicitly
+    UpdateCaches();
     m_ui->OnStep();
 }
 
@@ -440,6 +449,21 @@ void DebuggerState::MarkDirty()
     m_modules->MarkDirty();
     if (m_connectionStatus == DebugAdapterConnectedStatus)
         m_remoteArch = DetectRemoteArch();
+}
+
+
+void DebuggerState::UpdateCaches()
+{
+    if (m_registers->IsDirty())
+        m_registers->Update();
+
+    if (m_threads->IsDirty())
+        m_threads->Update();
+
+    if (m_modules->IsDirty())
+        m_modules->Update();
+
+    // TODO: what about m_memoryView?
 }
 
 

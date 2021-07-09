@@ -36,6 +36,7 @@ private:
     DebuggerState* m_state;
     std::vector<std::string> m_cachedRgisterList;
     std::map<std::string, DebugRegister> m_registerCache;
+    bool m_dirty;
 
 public:
     DebuggerRegisters(DebuggerState* state);
@@ -43,6 +44,7 @@ public:
     uint64_t GetRegisterValue(const std::string& name);
     void UpdateRegisterValue(const std::string& name, uint64_t value);
     void MarkDirty();
+    bool IsDirty() const { return m_dirty; }
     void Update();
 };
 
@@ -52,11 +54,13 @@ class DebuggerModules
 private:
     DebuggerState* m_state;
     std::vector<DebugModule> m_modules;
+    bool m_dirty;
 
 public:
     DebuggerModules(DebuggerState* state);
     void MarkDirty();
     void Update();
+    bool IsDirty() const { return m_dirty; }
 
     bool GetModuleBase(const std::string& name, uint64_t& address);
     DebugModule ResolvePath(std::string fpathExe);
@@ -79,7 +83,7 @@ class DebuggerThreads
 private:
     DebuggerState* m_state;
     std::vector<DebuggerThreadCache> m_threads;
-    bool m_cacheValid;
+    bool m_dirty;
 
 public:
     DebuggerThreads(DebuggerState* state);
@@ -87,7 +91,7 @@ public:
     void Update();
     DebugThread GetActiveThread() const;
     bool SetActiveThread(const DebugThread& thread);
-    bool IsValid() const { return m_cacheValid; }
+    bool IsDirty() const { return m_dirty; }
     size_t GetSize() const { return m_threads.size(); }
     // Note, the caller of this function is responsible for ensuring the cache is valid
     std::vector<DebuggerThreadCache> GetThreads() const { return m_threads; }
@@ -176,6 +180,7 @@ public:
 
     void OnStep();
     void MarkDirty();
+    void UpdateCaches();
 
     ArchitectureRef DetectRemoteArch();
 };
