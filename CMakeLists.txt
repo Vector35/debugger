@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 option(BN_BUILD_CLI_DEBUGGER "Build CLI Debugger" ON)
 
 project(debugger)
+add_definitions(-DFMT_HEADER_ONLY)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -24,7 +25,8 @@ file(GLOB COMMON_SOURCES
     src/ui/*.cpp
     src/ui/*.h
     src/vendor/pugixml/*.cpp
-    src/vendor/pugixml/*.h
+    src/vendor/pugixml/*.hpp
+    src/vendor/fmt/*.h
     src/adapters/dummyadapter.cpp
     src/adapters/dummyadapter.h
     )

@@ -21,6 +21,8 @@
 #include <mediumlevelilinstruction.h>
 #include <highlevelilinstruction.h>
 
+using namespace BinaryNinja;
+
 GdbAdapter::GdbAdapter()
 {
 
@@ -84,7 +86,6 @@ bool GdbAdapter::Execute(const std::string& path)
         throw std::runtime_error("failed to create gdb process");
     }
 #else
-    char* arg[] = {"--once", "--no-startup-with-shell", host_with_port.c_str(), (char*) path.c_str(), NULL};
     pid_t pid = fork();
     switch (pid)
     {
@@ -120,7 +121,8 @@ bool GdbAdapter::Execute(const std::string& path)
             perror("freopen");
             return false;
         }
-
+        // TODO: this works, but its not good. We are casting const char* to char*
+        char* arg[] = {"--once", "--no-startup-with-shell", (char*)host_with_port.c_str(), (char*)path.c_str(), NULL};
         if (execv(gdb_server_path.c_str(), arg) == -1)
         {
             perror("execv");

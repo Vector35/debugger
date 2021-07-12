@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 
 project(debugger-cli)
 
-add_definitions(-DFMT_HEADER_ONLY)
 remove_definitions(-DUNICODE -D_UNICODE)
 
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src)

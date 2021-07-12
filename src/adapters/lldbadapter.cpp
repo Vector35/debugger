@@ -5,7 +5,7 @@ bool LldbAdapter::Execute(const std::string& path) {
 #ifdef WIN32
     auto lldb_server_path = this->ExecuteShellCommand("where lldb-server");
 #else
-    auto gdb_server_path = this->ExecuteShellCommand("which lldb-server");
+    auto lldb_server_path = this->ExecuteShellCommand("which lldb-server");
 #endif
     if ( lldb_server_path.empty() )
         return false;
@@ -34,7 +34,7 @@ bool LldbAdapter::Execute(const std::string& path) {
         throw std::runtime_error("failed to create lldb process");
     }
 #else
-    char* arg[] = {"g", host_with_port.c_str(), (char*) path.c_str(), NULL};
+    char* arg[] = {"g", (char*)host_with_port.c_str(), (char*) path.c_str(), NULL};
     pid_t pid = fork();
     switch (pid)
     {
