@@ -22,31 +22,33 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
     if ( arch.empty() )
         return;
 
-    auto reg = [debug_adapter](std::string reg_name)
+    auto all_regs = debug_adapter->ReadAllRegisters();
+
+    auto reg = [debug_adapter, &all_regs](std::string reg_name)
     {
         auto original_name = reg_name;
         reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
 
         return fmt::format("{}{}\033[0m={:016X}", Log::Style( 255, 165, 0 ).AsAnsi(), original_name,
-                           debug_adapter->ReadRegister(reg_name).m_value);
+                           all_regs[reg_name].m_value);
     };
 
-    auto reg32 = [debug_adapter](std::string reg_name)
+    auto reg32 = [debug_adapter, &all_regs](std::string reg_name)
     {
         auto original_name = reg_name;
         reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
 
         return fmt::format("{}{}\033[0m={:08X}", Log::Style( 255, 165, 0 ).AsAnsi(), original_name,
-                           debug_adapter->ReadRegister(reg_name).m_value);
+                           all_regs[reg_name].m_value);
     };
 
-    auto reg16 = [debug_adapter](std::string reg_name)
+    auto reg16 = [debug_adapter, &all_regs](std::string reg_name)
     {
         auto original_name = reg_name;
         reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
 
         return fmt::format("{}{}\033[0m={:04X}", Log::Style( 255, 165, 0 ).AsAnsi(), original_name,
-                           debug_adapter->ReadRegister(reg_name).m_value);
+                           all_regs[reg_name].m_value);
     };
 
     if ( arch == "x86_64" )
@@ -100,7 +102,7 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
         if (!architecture)
             return;
 
-        const auto data = debug_adapter->ReadMemoryTy<std::array<std::uint8_t, 50>>(instruction_offset);
+        const auto data = debug_adapter->ReadMemoryTy<std::array<std::uint8_t, 16>>(instruction_offset);
         if (!data.has_value())
             return;
 
@@ -352,9 +354,6 @@ int main(int argc, const char* argv[])
             }
             else if (input == "reg")
             {
-                if (!debug_adapter->UpdateRegisterCache())
-                    throw std::runtime_error("failed to update register cache");
-
                 RegisterDisplay(debug_adapter);
             }
             else if (auto loc = input.find("ts ");

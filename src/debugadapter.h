@@ -98,6 +98,7 @@ public:
     virtual std::vector<DebugBreakpoint> GetBreakpointList() const = 0;
 
     virtual std::string GetRegisterNameByIndex(std::uint32_t index) const = 0;
+    virtual std::unordered_map<std::string, DebugRegister> ReadAllRegisters() = 0;
     virtual DebugRegister ReadRegister(const std::string& reg) = 0;
     virtual bool WriteRegister(const std::string& reg, std::uintptr_t value) = 0;
     virtual bool WriteRegister(const DebugRegister& reg, std::uintptr_t value) = 0;

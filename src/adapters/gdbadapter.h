@@ -54,8 +54,8 @@ public:
     bool ClearAllBreakpoints() override;
     std::vector<DebugBreakpoint> GetBreakpointList() const override;
 
-    bool UpdateRegisterCache();
     std::string GetRegisterNameByIndex(std::uint32_t index) const override;
+    std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
     DebugRegister ReadRegister(const std::string& reg) override;
     bool WriteRegister(const std::string& reg, std::uintptr_t value) override;
     bool WriteRegister(const DebugRegister& reg, std::uintptr_t value) override;

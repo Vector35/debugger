@@ -544,6 +544,16 @@ std::string DbgEngAdapter::GetRegisterNameByIndex(std::uint32_t index) const
 
     return out;
 }
+
+std::unordered_map<std::string, DebugRegister> DbgEngAdapter::ReadAllRegisters() {
+    std::unordered_map<std::string, DebugRegister> all_regs{};
+
+    for (const auto& reg : this->GetRegisterList())
+        all_regs[reg] = this->ReadRegister(reg);
+
+    return all_regs;
+}
+
 std::string DbgEngAdapter::GetTargetArchitecture()
 {
     unsigned long processor_type{};
@@ -558,6 +568,7 @@ std::string DbgEngAdapter::GetTargetArchitecture()
         default: return "";
     }
 }
+
 unsigned long DbgEngAdapter::StopReason()
 {
     const auto exec_status = this->ExecStatus();
