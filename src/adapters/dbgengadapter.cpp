@@ -391,7 +391,7 @@ std::vector<std::string> DbgEngAdapter::GetRegisterList() const
 
     std::vector<std::string> register_list{};
     for ( std::size_t reg_index{}; reg_index < register_count; reg_index++ )
-        register_list.push_back( this->GetRegisterNameByIndex(reg_index) );
+        register_list.push_back(this->GetRegisterNameByIndex(reg_index));
 
     return register_list;
 }
@@ -538,12 +538,12 @@ std::string DbgEngAdapter::GetRegisterNameByIndex(std::uint32_t index) const
     unsigned long reg_length{};
     DEBUG_REGISTER_DESCRIPTION reg_description{};
 
-    std::string out{};
+    std::array<char, 256> out{'\0'};
     if (this->m_debugRegisters->GetDescription(index, out.data(), 256, &reg_length, &reg_description) != S_OK )
         return {};
 
-    return out;
-}
+    return std::string(out.data());
+ }
 
 std::unordered_map<std::string, DebugRegister> DbgEngAdapter::ReadAllRegisters() {
     std::unordered_map<std::string, DebugRegister> all_regs{};
@@ -729,24 +729,27 @@ HRESULT DbgEngEventCallbacks::ChangeSymbolState(unsigned long flags, uint64_t ar
 
 HRESULT DbgEngOutputCallbacks::Output(unsigned long mask, const char* text)
 {
-    const auto blue_style = Log::Style(25, 25, 255).AsAnsi();
-    const auto white_style = Log::Style(255, 255, 255).AsAnsi();
+    const auto blue_style = Log::Style(25, 25, 255);
+    const auto white_style = Log::Style(255, 255, 255);
 
     if ( std::string(text).find('\n') != std::string::npos )
-        Log::print("%sWIN%sDBG%s> %s%s", blue_style.c_str(), white_style.c_str(), blue_style.c_str(), white_style.c_str(), text );
+        Log::print("{}WIN{}DBG{}> {}{}", blue_style, white_style, blue_style, white_style, text );
     else
-        Log::print("%sWIN%sDBG%s> %s%sn\n", blue_style.c_str(), white_style.c_str(), blue_style.c_str(), white_style.c_str(), text );
+        Log::print("{}WIN{}DBG{}> {}{}\n", blue_style, white_style, blue_style, white_style, text );
 
     return S_OK;
 }
+
 unsigned long DbgEngOutputCallbacks::AddRef()
 {
     return 1;
 }
+
 unsigned long DbgEngOutputCallbacks::Release()
 {
     return 0;
 }
+
 HRESULT DbgEngOutputCallbacks::QueryInterface(const IID& interface_id, void** _interface)
 {
     return S_OK;

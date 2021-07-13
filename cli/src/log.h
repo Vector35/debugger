@@ -6,18 +6,19 @@
 
 namespace Log
 {
-    enum Mode : std::uint8_t
+    enum Mode : std::int8_t
     {
-        None,
-        Success,
-        Info,
-        Warning,
-        Error,
+        None = -1,
+        Debug = 0,
+        Info = 1,
+        Warning = 2,
+        Error = 3,
+        Alert = 4
     };
 
     struct Style
     {
-        float m_red{1.f}, m_green{1.f}, m_blue{1.f};
+        float m_red{255.f}, m_green{255.f}, m_blue{255.f};
 
         Style() = default;
 
@@ -26,6 +27,25 @@ namespace Log
 
         [[nodiscard]] std::string AsAnsi() const {
             return fmt::format("\x1b[38;2;{:.0f};{:.0f};{:.0f}m", this->m_red, this->m_green, this->m_blue);
+        }
+    };
+
+    /* overloading Log::Style for fmtlib so that we don't need to call .AsAnsi() when formatting */
+    template <> struct fmt::formatter<Style> {
+        char presentation = 'a';
+        constexpr auto parse(fmt::format_parse_context& ctx) -> decltype(ctx.begin()) {
+            auto it = ctx.begin(), end = ctx.end();
+            if (it != end && (*it == 'a')) presentation = *it++;
+
+            if (it != end && *it != '}')
+                throw fmt::format_error("invalid format");
+
+            return it;
+        }
+
+        template <typename FormatContext>
+        auto format(const Style& style, FormatContext& ctx) -> decltype(ctx.out()) {
+            return format_to( ctx.out(), "{}", style.AsAnsi() );
         }
     };
 
@@ -47,21 +67,43 @@ namespace Log
     }
 
     template <Mode LogMode = Mode::None, typename... Args>
-    int print(const std::string_view str, Args... args )
+    bool print(const std::string_view str, Args... args )
     {
-        if constexpr ( LogMode == Mode::Success )
-            printf("%s", Style( 0, 255, 0 ).AsAnsi().c_str());
+        if constexpr (LogMode == Mode::Debug)
+            fmt::print("[{}DEBUG\033[0m] {}",
+                       Style(173, 216, 230),
+                       Style(173, 216, 230));
 
-        if constexpr ( LogMode == Mode::Info )
-            printf("%s", Style( 30, 255, 255 ).AsAnsi().c_str());
+        if constexpr (LogMode == Mode::Info)
+            fmt::print("[{}INFO\033[0m] {}",
+                       Style(144, 238, 144),
+                       Style(144, 238, 144));
 
-        if constexpr ( LogMode == Mode::Warning )
-            printf("%s", Style( 255, 255, 0 ).AsAnsi().c_str());
+        if constexpr (LogMode == Mode::Warning)
+            fmt::print("[{}WARNING\033[0m] {}",
+                       Style(255, 255, 224),
+                       Style(255, 255, 224));
 
-        if constexpr ( LogMode == Mode::Error )
-            printf("%s", Style( 255, 0, 0 ).AsAnsi().c_str());
+        if constexpr (LogMode == Mode::Error)
+            fmt::print("[{}ERROR\033[0m] {}",
+                       Style(255, 114, 118),
+                       Style(255, 114, 118));
 
-        printf(str.data(), std::forward<Args>(args)...);
-        return printf("\033[0m");
+        if constexpr (LogMode == Mode::Alert)
+            fmt::print("[{}ALERT\033[0m] {}",
+                       Style(255, 0, 0),
+                       Style(255, 0, 0));
+
+        fmt::print(str.data(), std::forward<Args>(args)...);
+        fmt::print("\033[0m");
+
+        if constexpr (LogMode != Mode::None)
+        {
+            const auto binja_string = fmt::format("[BINARYNINJA] {}",
+                                                  fmt::format(str.data(), std::forward<Args>(args)...));
+            BinaryNinja::Log(static_cast<BNLogLevel>(LogMode), binja_string.c_str());
+        }
+
+        return true;
     }
 }

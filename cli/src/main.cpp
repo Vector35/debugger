@@ -29,7 +29,7 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
         auto original_name = reg_name;
         reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
 
-        return fmt::format("{}{}\033[0m={:016X}", Log::Style( 255, 165, 0 ).AsAnsi(), original_name,
+        return fmt::format("{}{}\033[0m={:016X}", Log::Style( 255, 165, 0 ), original_name,
                            all_regs[reg_name].m_value);
     };
 
@@ -38,7 +38,7 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
         auto original_name = reg_name;
         reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
 
-        return fmt::format("{}{}\033[0m={:08X}", Log::Style( 255, 165, 0 ).AsAnsi(), original_name,
+        return fmt::format("{}{}\033[0m={:08X}", Log::Style( 255, 165, 0 ), original_name,
                            all_regs[reg_name].m_value);
     };
 
@@ -47,7 +47,7 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
         auto original_name = reg_name;
         reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
 
-        return fmt::format("{}{}\033[0m={:04X}", Log::Style( 255, 165, 0 ).AsAnsi(), original_name,
+        return fmt::format("{}{}\033[0m={:04X}", Log::Style( 255, 165, 0 ), original_name,
                            all_regs[reg_name].m_value);
     };
 
@@ -62,11 +62,14 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
         Log::print(reg_list);
 
         const auto register_list = debug_adapter->GetRegisterList();
-        if ( std::find(register_list.begin(), register_list.end(), "rflags") != register_list.end() )
+
+        if ( std::find(register_list.begin(), register_list.end(), "rflags") != register_list.end() ) {
             Log::print(reg("rflags"));
-        else if ( std::find(register_list.begin(), register_list.end(), "eflags") != register_list.end())
+            Log::print("\n");
+        } else if ( std::find(register_list.begin(), register_list.end(), "eflags") != register_list.end()) {
             Log::print(reg("eflags"));
-        Log::print("\n");
+            Log::print("\n");
+        }
     }
     else if ( arch == "x86" )
     {
@@ -229,21 +232,25 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
         }
     }
 
-    Log::print("%s[disasm]\n", Log::Style(255, 180, 190).AsAnsi().c_str());
+    const auto disasm_style = Log::Style(0,255,255);
+    const auto llil_style = Log::Style(0,255,0);
+    const auto mlil_style = Log::Style(255,255,0);
+    const auto hlil_style = Log::Style(255,0,0);
+    fmt::print("\033[0m[{0}disasm\033[0m] {0}\n", disasm_style);
     for ( const auto& disasm : disasm_strings )
-        Log::print<Log::Info>(disasm);
+        fmt::print(disasm);
 
-    Log::print("%s[llil]\n", Log::Style(255, 180, 190).AsAnsi().c_str());
+    fmt::print("\033[0m[{0}llil\033[0m] {0}\n", llil_style);
     for ( const auto& llil : llil_strings )
-        Log::print<Log::Success>(llil);
+        fmt::print(llil);
 
-    Log::print("%s[mlil]\n", Log::Style(255, 180, 190).AsAnsi().c_str());
+    fmt::print("\033[0m[{0}mlil\033[0m] {0}\n", mlil_style);
     for ( const auto& mlil : mlil_strings )
-        Log::print<Log::Warning>(mlil);
+        fmt::print(mlil);
 
-    Log::print("%s[hlil]\n", Log::Style(255, 180, 190).AsAnsi().c_str());
+    fmt::print("\033[0m[{0}hlil\033[0m] {0}\n", hlil_style);
     for ( const auto& hlil : hlil_strings )
-        Log::print<Log::Error>(hlil);
+        fmt::print(hlil);
 }
 
 int main(int argc, const char* argv[])
@@ -252,7 +259,7 @@ int main(int argc, const char* argv[])
 
     if (argc < 2)
     {
-        LogError("usage: %s <debuggee_path>", argv[0]);
+        Log::print<Log::Error>("usage: {} <debuggee_path>\n", argv[0]);
         return 0;
     }
 
@@ -266,15 +273,15 @@ int main(int argc, const char* argv[])
         auto debug_adapter = new
         #ifdef WIN32
         //LldbAdapter();
-        GdbAdapter();
-        //DbgEngAdapter();
+        //GdbAdapter();
+        DbgEngAdapter();
         #else
         GdbAdapter();
         #endif
 
         if (!debug_adapter->Execute(argv[1]))
         {
-            LogError("failed to execute %s\n", argv[1]);
+            Log::print<Log::Error>("failed to execute {}\n", argv[1]);
             return -1;
         }
 
@@ -291,24 +298,24 @@ int main(int argc, const char* argv[])
         }).detach();
 
         char input_buf[256];
-        const auto red_style = Log::Style(255, 90, 90).AsAnsi();
-        const auto white_style = Log::Style(255, 255, 255).AsAnsi();
-        while ( Log::print("%sBINJA%sDBG%s> ", red_style.c_str(), white_style.c_str(), red_style.c_str() ) && std::cin.getline(input_buf, sizeof(input_buf)) )
+        const auto red_style = Log::Style(255, 90, 90);
+        const auto white_style = Log::Style(255, 255, 255);
+        while ( Log::print("{}BINJA{}DBG{}> ", red_style, white_style, red_style ) && std::cin.getline(input_buf, sizeof(input_buf)) )
         {
             auto input = std::string(input_buf);
             if ( input == "help" )
             {
-                const auto bar_style = Log::Style(200, 180, 190).AsAnsi();
-                const auto blue_style = Log::Style(0, 255, 255).AsAnsi();
+                const auto bar_style = Log::Style(200, 180, 190);
+                const auto blue_style = Log::Style(0, 255, 255);
 
-                constexpr auto help_string = "%s===== %sBINJA%sDBG%s %s=====\n";
-                Log::print(help_string, bar_style.c_str(), red_style.c_str(), white_style.c_str(), red_style.c_str(), bar_style.c_str());
+                constexpr auto help_string = "{}===== {}BINJA{}DBG{} {}=====\n";
+                Log::print(help_string, bar_style, red_style, white_style, red_style, bar_style);
 
                 auto print_arg = [&](const std::string& cmd, const std::string& description, const std::string& args = "")
                 {
-                    Log::print("%s| %s%s%s, %s%s", bar_style.c_str(), blue_style.c_str(), cmd.c_str(), white_style.c_str(), white_style.c_str(), description.c_str());
+                    Log::print("{}| {}{}{}, {}{}", bar_style, blue_style, cmd, white_style, white_style, description);
                     if ( !args.empty() )
-                        Log::print(" -> takes %s%s", red_style.c_str(), args.c_str());
+                        Log::print(" -> takes {}{}", red_style, args);
                     Log::print("\n");
                 };
 
@@ -342,15 +349,17 @@ int main(int argc, const char* argv[])
             }
             else if ( input == "lm" )
             {
-                Log::print<Log::Success>( "[modules]\n" );
+                Log::print( "[modules]\n" );
                 for ( const auto& module : debug_adapter->GetModuleList() )
-                    Log::print<Log::Info>( "[%s, %s] %s @ 0x%llx with size 0x%x\n", module.m_name.c_str(), module.m_short_name.c_str(), module.m_loaded ? "is loaded" : "was unloaded", module.m_address, module.m_size );
+                    Log::print<Log::Info>( "[{}, {}] {} @ 0x{:X} with size 0x{:X}\n",
+                                           module.m_name.c_str(), module.m_short_name.c_str(),
+                                           module.m_loaded ? "is loaded" : "was unloaded", module.m_address, module.m_size );
             }
             else if ( input == "lt" )
             {
-                Log::print<Log::Success>( "[threads]\n" );
+                Log::print( "[threads]\n" );
                 for ( const auto& thread : debug_adapter->GetThreadList() )
-                    Log::print<Log::Info>( "[%i] tid %i, rip=0x%llx\n", thread.m_index, thread.m_tid, thread.m_rip );
+                    Log::print<Log::Info>( "[{}] tid {}, rip=0x{:x}\n", thread.m_index, thread.m_tid, thread.m_rip );
             }
             else if (input == "reg")
             {
@@ -382,19 +391,20 @@ int main(int argc, const char* argv[])
             }
             else if ( input == "lbp" )
             {
-                Log::print("%i breakpoint[s] set\n", debug_adapter->GetBreakpointList().size());
+                Log::print("{} breakpoint[s] set\n", debug_adapter->GetBreakpointList().size());
                 for (const auto& breakpoint : debug_adapter->GetBreakpointList())
-                    Log::print("    breakpoint[%i] @ 0x%llx is %s%s\n", breakpoint.m_id, breakpoint.m_address,
-                               breakpoint.m_is_active ? Log::Style(0, 255, 0).AsAnsi().c_str() : Log::Style(255, 0, 0).AsAnsi().c_str(),
+                    Log::print("    breakpoint[{}] @ 0x{:X} is {}{}\n", breakpoint.m_id, breakpoint.m_address,
+                               breakpoint.m_is_active ? Log::Style(0, 255, 0)
+                                                      : Log::Style(255, 0, 0),
                                breakpoint.m_is_active ? "active" : "not active");
             }
             else if ( input == "sr" )
             {
-                Log::print<Log::Warning>("stop reason : %x\n", debug_adapter->StopReason());
+                Log::print<Log::Warning>("stop reason : {}\n", debug_adapter->StopReason());
             }
             else if ( input == "es" )
             {
-                Log::print<Log::Info>("execution status : %x\n", debug_adapter->ExecStatus());
+                Log::print<Log::Info>("execution status : {}\n", debug_adapter->ExecStatus());
             }
             else if (input == "go")
             {
@@ -434,6 +444,6 @@ int main(int argc, const char* argv[])
     }
     catch (const std::exception& except)
     {
-        printf("Exception -> %s\n", except.what());
+        Log::print<Log::Error>("!Exception -> {}\n", except.what());
     }
 }

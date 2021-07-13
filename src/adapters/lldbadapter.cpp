@@ -87,6 +87,17 @@ bool LldbAdapter::Execute(const std::string& path) {
 
 bool LldbAdapter::Connect(const std::string& server, std::uint32_t port) {
     bool connected = false;
+    this->m_socket = Socket(AF_INET, SOCK_STREAM, 0, port);
+
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = ::inet_addr("127.0.0.1");
+    address.sin_port = ::htons(port);
+
+    if (this->m_socket.Bind(address)) {
+        this->m_socket.Close();
+    }
+
     for (std::uint8_t index{}; index < 4; index++) {
         this->m_socket = Socket(AF_INET, SOCK_STREAM, 0, port);
 
