@@ -1,5 +1,7 @@
 #pragma once
 #include <iostream>
+#include <binaryninjacore.h>
+#include <binaryninjaapi.h>
 #ifdef WIN32
 #include <windows.h>
 #endif
@@ -27,25 +29,6 @@ namespace Log
 
         [[nodiscard]] std::string AsAnsi() const {
             return fmt::format("\x1b[38;2;{:.0f};{:.0f};{:.0f}m", this->m_red, this->m_green, this->m_blue);
-        }
-    };
-
-    /* overloading Log::Style for fmtlib so that we don't need to call .AsAnsi() when formatting */
-    template <> struct fmt::formatter<Style> {
-        char presentation = 'a';
-        constexpr auto parse(fmt::format_parse_context& ctx) -> decltype(ctx.begin()) {
-            auto it = ctx.begin(), end = ctx.end();
-            if (it != end && (*it == 'a')) presentation = *it++;
-
-            if (it != end && *it != '}')
-                throw fmt::format_error("invalid format");
-
-            return it;
-        }
-
-        template <typename FormatContext>
-        auto format(const Style& style, FormatContext& ctx) -> decltype(ctx.out()) {
-            return format_to( ctx.out(), "{}", style.AsAnsi() );
         }
     };
 
@@ -107,3 +90,22 @@ namespace Log
         return true;
     }
 }
+
+/* overloading Log::Style for fmtlib so that we don't need to call .AsAnsi() when formatting */
+template <> struct fmt::formatter<Log::Style> {
+    char presentation = 'a';
+    constexpr auto parse(fmt::format_parse_context& ctx) -> decltype(ctx.begin()) {
+        auto it = ctx.begin(), end = ctx.end();
+        if (it != end && (*it == 'a')) presentation = *it++;
+
+        if (it != end && *it != '}')
+            throw fmt::format_error("invalid format");
+
+        return it;
+    }
+
+    template <typename FormatContext>
+    auto format(const Log::Style& style, FormatContext& ctx) -> decltype(ctx.out()) {
+        return format_to( ctx.out(), "{}", style.AsAnsi() );
+    }
+};

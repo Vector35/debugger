@@ -276,7 +276,8 @@ int main(int argc, const char* argv[])
         //GdbAdapter();
         DbgEngAdapter();
         #else
-        GdbAdapter();
+        //GdbAdapter();
+        LldbAdapter();
         #endif
 
         if (!debug_adapter->Execute(argv[1]))
