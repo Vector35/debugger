@@ -454,6 +454,8 @@ void DebuggerState::MarkDirty()
 
 void DebuggerState::UpdateCaches()
 {
+    try
+    {
     if (m_registers->IsDirty())
         m_registers->Update();
 
@@ -462,7 +464,11 @@ void DebuggerState::UpdateCaches()
 
     if (m_modules->IsDirty())
         m_modules->Update();
-
+    }
+    catch (const std::exception& except)
+    {
+        printf("Exception -> %s\n", except.what());
+    }
     // TODO: what about m_memoryView?
 }
 

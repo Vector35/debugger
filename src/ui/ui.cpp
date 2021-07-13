@@ -34,11 +34,15 @@ void DebuggerUI::AnnotateContext()
 
 void DebuggerUI::ContextDisplay()
 {
+    // This function assumes all of the cached information, e.g., registers, about the target is up-to-date.
+    // It is the caller's responsibility to make sure that they are updated before calling this
+
     // TODO: lots of code above this are not implemennted yet
 
     if (m_debugView)
     {
         uint64_t localIP = m_state->LocalIP();
+        BinaryNinja::LogWarn("localIP: 0x%" PRIx64 "\n", localIP);
         m_lastIP = localIP;;
         if (m_state->GetData()->GetAnalysisFunctionsContainingAddress(localIP).size() > 0)
             m_debugView->getControls()->stateStopped();
