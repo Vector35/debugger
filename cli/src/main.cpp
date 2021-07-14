@@ -255,6 +255,7 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
 
 int main(int argc, const char* argv[])
 {
+    Log::SetupAnsi();
     LogToStdout(WarningLog);
 
     if (argc < 2)

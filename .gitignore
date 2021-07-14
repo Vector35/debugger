@@ -39,3 +39,5 @@ test/testbins/googletest/
 test/testbins/lib/
 
 .vscode/*
+test/testbins/cmake_install.cmake
+test/testbins/CTestTestfile.cmake
