@@ -9,6 +9,17 @@
 #include <array>
 #include <fmt/format.h>
 
+enum StopReason
+{
+    UnknownStopReason,
+    StdoutMessageReason,
+    ProcessExitedReason,
+    BackendDisconnectedReason,
+    SingleStepStopReason,
+    BreakpointStopReason,
+    ExceptionStopReason
+};
+
 struct DebugThread
 {
     std::uint32_t m_tid{};
@@ -74,7 +85,16 @@ struct DebugModule
 
 class DebugAdapter
 {
+private:
+    // Function to call when the DebugAdapter wants to notify the front-end of certain events
+    std::function<void(StopReason reason)> m_notificationCallback;
+
 public:
+    void SetNotificationCallback(std::function<void(StopReason reason)> function)
+    {
+        m_notificationCallback = function;
+    }
+
     [[nodiscard]] virtual bool Execute(const std::string& path ) = 0;
     [[nodiscard]] virtual bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args ) = 0;
 

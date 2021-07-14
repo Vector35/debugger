@@ -23,9 +23,8 @@
 
 using namespace BinaryNinja;
 
-GdbAdapter::GdbAdapter()
+GdbAdapter::GdbAdapter(bool redirectGDBServer): m_redirectGDBServer(redirectGDBServer)
 {
-
 }
 
 GdbAdapter::~GdbAdapter()
@@ -101,25 +100,28 @@ bool GdbAdapter::Execute(const std::string& path)
         // Otherwise, gdbserver will set itself to the foreground process and the cli will become background.
         // TODO: we should redirect the stdin/stdout to a different FILE so that we can see the debuggee's output
         // and send input to it
-        FILE *newOut = freopen("/dev/null", "w", stdout);
-        if (!newOut)
+        if (m_redirectGDBServer)
         {
-            perror("freopen");
-            return false;
-        }
+            FILE *newOut = freopen("/dev/null", "w", stdout);
+            if (!newOut)
+            {
+                perror("freopen");
+                return false;
+            }
 
-        FILE *newIn = freopen("/dev/null", "r", stdin);
-        if (!newIn)
-        {
-            perror("freopen");
-            return false;
-        }
+            FILE *newIn = freopen("/dev/null", "r", stdin);
+            if (!newIn)
+            {
+                perror("freopen");
+                return false;
+            }
 
-        FILE *newErr = freopen("/dev/null", "w", stderr);
-        if (!newErr)
-        {
-            perror("freopen");
-            return false;
+            FILE *newErr = freopen("/dev/null", "w", stderr);
+            if (!newErr)
+            {
+                perror("freopen");
+                return false;
+            }
         }
         // TODO: this works, but its not good. We are casting const char* to char*
         char* arg[] = {"--once", "--no-startup-with-shell", (char*)host_with_port.c_str(), (char*)path.c_str(), NULL};

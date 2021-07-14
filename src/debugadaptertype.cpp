@@ -47,7 +47,8 @@ DebugAdapter* DebugAdapterType::GetAdapterForCurrentSystem()
 #endif
 
 #ifdef __GNUC__
-    return new GdbAdapter();
+    // Do not redirect the gdbserver stdin/out/err to /dev/null, when running in GUI
+    return new GdbAdapter(false);
 #endif
     // return new DummyAdapter();
 }

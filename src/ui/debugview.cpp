@@ -61,7 +61,6 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     QWidget* m_disassemblyWidget = new QWidget;
     m_disassemblyWidget->setLayout(m_disassemblyLayout);
 
-
     QVBoxLayout* m_memoryLayout = new QVBoxLayout;
     m_memoryLayout->setSpacing(0);
     m_memoryLayout->setContentsMargins(0, 0, 0, 0);
@@ -137,9 +136,27 @@ QFont DebugView::getFont()
 
 bool DebugView::navigate(uint64_t addr)
 {
-	// if (m_byteView)
-	// 	return m_byteView->navigate(addr);
-	return false;
+    if (!m_state->IsConnected())
+    {
+        return navigateLive(addr);
+    }
+
+    uint64_t localAddr;
+    // TODO: The Python impl writes is_loacl_addr() here, which I think is a typo. Need confirmation for it.
+    if (m_state->IsLocalAddress(addr))
+        localAddr = m_state->RemoteAddressToLocal(addr);
+    else
+        localAddr = addr;
+
+    BinaryViewRef data = m_state->GetData();
+    if (!data)
+        return navigateRaw(addr);
+
+    char temp;
+    if (data->Read(&temp, localAddr, 1) && data->GetAnalysisFunctionsContainingAddress(addr).size() > 0)
+        return navigateLive(addr);        
+
+    return navigateRaw(addr);
 }
 
 
@@ -147,6 +164,53 @@ void DebugView::focusInEvent(QFocusEvent*)
 {
 	// if (m_byteView)
 	// 	m_byteView->setFocus(Qt::OtherFocusReason);
+}
+
+
+bool DebugView::navigateLive(uint64_t addr)
+{
+    showRawAssembly(false);
+    return m_binaryEditor->getDisassembly()->navigate(addr);
+}
+
+
+bool DebugView::navigateRaw(uint64_t addr)
+{
+    if (!m_state->IsConnected())
+        return false;
+
+    m_rawAddress = addr;
+    showRawAssembly(true);
+    loadRawDisassembly(addr);
+    return true;
+}
+
+
+void DebugView::showRawAssembly(bool raw)
+{
+    if (raw != m_isRawDisassembly)
+    {
+        if (raw)
+        {
+            LogWarn("m_splitter count: %d", m_splitter->count());
+            // if (m_splitter && m_disassemblyWidget)
+            //     m_splitter->replaceWidget(0, m_disassemblyWidget);
+            // else
+            //     LogWarn("something invalid");
+        }
+        else
+        {
+            if (m_splitter && m_binaryViewWidget)
+                m_splitter->replaceWidget(0, m_binaryViewWidget);
+        }
+    }
+    m_isRawDisassembly = raw;
+}
+
+
+void DebugView::loadRawDisassembly(uint64_t addr)
+{
+    LogWarn("Showing raw disassembly at 0x%" PRIx64, addr);
 }
 
 

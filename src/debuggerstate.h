@@ -28,14 +28,9 @@ enum DebugAdapterTargetStatus
 
 class DebuggerRegisters
 {
-    struct RegisterCache
-    {
-        std::vector<std::string> registerList;
-    };
 private:
     DebuggerState* m_state;
-    std::vector<std::string> m_cachedRgisterList;
-    std::map<std::string, DebugRegister> m_registerCache;
+    std::unordered_map<std::string, DebugRegister> m_registerCache;
     bool m_dirty;
 
 public:
@@ -183,4 +178,10 @@ public:
     void UpdateCaches();
 
     ArchitectureRef DetectRemoteArch();
+
+    uint64_t GetRemoteBase(BinaryViewRef relativeView = nullptr);
+    bool IsCodeASLR(BinaryViewRef relativeView = nullptr);
+    uint64_t LocalAddressToRemote(uint64_t localAddr, BinaryViewRef relativeView = nullptr);
+    uint64_t RemoteAddressToLocal(uint64_t remoteAddr, BinaryViewRef relativeView = nullptr);
+    bool IsLocalAddress(uint64_t remoteAddr, BinaryViewRef relativeView = nullptr);
 };

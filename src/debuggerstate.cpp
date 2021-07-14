@@ -15,24 +15,18 @@ DebuggerRegisters::DebuggerRegisters(DebuggerState* state): m_state(state)
 void DebuggerRegisters::MarkDirty()
 {
     m_dirty = true;
-    m_cachedRgisterList.clear();
     m_registerCache.clear();
 }
 
 
 void DebuggerRegisters::Update()
 {
+    BinaryNinja::LogWarn("Updating register cache");
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
         throw runtime_error("Cannot update registers when disconnected");
 
-    // TODO: This is ineffective, especially during remote debugging.
-    // We need to get all register and its values in one request
-    m_cachedRgisterList = adapter->GetRegisterList();
-    for (const std::string reg: m_cachedRgisterList)
-    {
-        m_registerCache[reg] = adapter->ReadRegister(reg);
-    }
+    m_registerCache = adapter->ReadAllRegisters();
     m_dirty = false;
 }
 
@@ -42,7 +36,7 @@ uint64_t DebuggerRegisters::GetRegisterValue(const std::string& name)
     // Unlike the Python implementation, we requrie the DebuggerState to explicitly check for dirty caches
     // and update the values when necessary. This is mainly because the update can be expensive.
     if (IsDirty())
-        return 0x0;
+        throw runtime_error("Reading register value from a dirty cache");
 
     auto iter = m_registerCache.find(name);
     if (iter == m_registerCache.end())
@@ -454,21 +448,21 @@ void DebuggerState::MarkDirty()
 
 void DebuggerState::UpdateCaches()
 {
-    try
-    {
+    // try
+    // {
     if (m_registers->IsDirty())
         m_registers->Update();
 
-    if (m_threads->IsDirty())
-        m_threads->Update();
+    // if (m_threads->IsDirty())
+    //     m_threads->Update();
 
-    if (m_modules->IsDirty())
-        m_modules->Update();
-    }
-    catch (const std::exception& except)
-    {
-        printf("Exception -> %s\n", except.what());
-    }
+    // if (m_modules->IsDirty())
+    //     m_modules->Update();
+    // }
+    // catch (const std::exception& except)
+    // {
+    //     printf("Exception -> %s\n", except.what());
+    // }
     // TODO: what about m_memoryView?
 }
 
@@ -477,4 +471,49 @@ ArchitectureRef DebuggerState::DetectRemoteArch()
 {
     // TODO: The backend should report any architecture change and notify us.
     return m_data->GetDefaultArchitecture();
+}
+
+
+uint64_t DebuggerState::GetRemoteBase(BinaryViewRef relativeView)
+{
+    if (!m_memoryView)
+        throw runtime_error("Invalid DebugProcessView");
+
+    return m_memoryView->GetRemoteBase(relativeView);
+}
+
+
+bool DebuggerState::IsCodeASLR(BinaryViewRef relativeView)
+{
+    if (!m_memoryView)
+        throw runtime_error("Invalid DebugProcessView");
+
+    return m_memoryView->IsCodeASLR(relativeView);
+}
+
+
+uint64_t DebuggerState::LocalAddressToRemote(uint64_t localAddr, BinaryViewRef relativeView)
+{
+    if (!m_memoryView)
+        throw runtime_error("Invalid DebugProcessView");
+
+    return m_memoryView->LocalAddressToRemote(localAddr, relativeView);
+}
+
+
+uint64_t DebuggerState::RemoteAddressToLocal(uint64_t remoteAddr, BinaryViewRef relativeView)
+{
+    if (!m_memoryView)
+        throw runtime_error("Invalid DebugProcessView");
+
+    return m_memoryView->RemoteAddressToLocal(remoteAddr, relativeView);
+}
+
+
+bool DebuggerState::IsLocalAddress(uint64_t remoteAddr, BinaryViewRef relativeView)
+{
+    if (!m_memoryView)
+        throw runtime_error("Invalid DebugProcessView");
+
+    return m_memoryView->IsLocalAddress(remoteAddr, relativeView);
 }

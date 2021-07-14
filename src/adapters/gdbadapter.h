@@ -29,8 +29,10 @@ protected:
     std::string ExecuteShellCommand(const std::string& command);
     bool LoadRegisterInfo();
 
+    bool m_redirectGDBServer;
+
 public:
-    GdbAdapter();
+    GdbAdapter(bool redirectGDBServer = true);
     ~GdbAdapter();
 
     bool Execute(const std::string& path) override;

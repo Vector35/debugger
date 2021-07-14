@@ -46,7 +46,10 @@ void DebugProcessView::ClearModuleBases()
 }
 
 
-uint64_t DebugProcessView::GetRemoteBase(BinaryView* relativeView)
+/*
+Get the base address of the binary in the debugged process
+*/
+uint64_t DebugProcessView::GetRemoteBase(BinaryViewRef relativeView)
 {
     if (!relativeView)
         relativeView = m_localView;
@@ -76,6 +79,75 @@ uint64_t DebugProcessView::GetRemoteBase(BinaryView* relativeView)
     {
         return iter->second;
     }
+}
+
+
+/*
+Determine if the debugged process is using ASLR for its code segment
+(eg in a PIE binary)
+*/
+bool DebugProcessView::IsCodeASLR(BinaryViewRef relativeView)
+{
+    if (!relativeView)
+        relativeView = m_localView;
+
+    return GetRemoteBase(relativeView) != relativeView->GetStart();
+}
+
+/*
+Given a local address (relative to the analysis binaryview),
+find its remote address (relative to the debugged process) after ASLR
+If the address is not within our view, it will be unchanged
+*/
+uint64_t DebugProcessView::LocalAddressToRemote(uint64_t localAddr, BinaryViewRef relativeView)
+{
+    if (!relativeView)
+        relativeView = m_localView;
+
+    uint64_t localBase = relativeView->GetStart();
+    uint64_t remoteBase = GetRemoteBase(relativeView);
+    if ((localAddr < localBase) || (localAddr >= localBase + relativeView->GetLength()))
+        // Not within our local binary, return original
+        return localAddr;
+
+    return localAddr - localBase + remoteBase;
+}
+
+
+/*
+Given a remote address (relative to the debugged process) after ASLR,
+find its local address (relative to the analysis binaryview)
+If the address is not within our view, it will be unchanged
+*/
+uint64_t DebugProcessView::RemoteAddressToLocal(uint64_t remoteAddr, BinaryViewRef relativeView)
+{
+    if (!relativeView)
+        relativeView = m_localView;
+
+    // TODO: Make sure the addr is within the loaded segments for our binary
+	// Else return the original
+    uint64_t localBase = relativeView->GetStart();
+    uint64_t remoteBase = GetRemoteBase(relativeView);
+    uint64_t localAddr = remoteAddr - remoteBase + localBase;
+    if ((localAddr < localBase) || (localAddr >= localBase + relativeView->GetLength()))
+        // Not within our local binary, return original
+        return remoteAddr;
+
+    return localAddr;
+}
+
+/*
+Determine if a remote address is within the loaded BinaryView
+*/
+bool DebugProcessView::IsLocalAddress(uint64_t remoteAddr, BinaryViewRef relativeView)
+{
+    if (!relativeView)
+        relativeView = m_localView;
+
+    uint64_t localBase = relativeView->GetStart();
+    uint64_t remoteBase = GetRemoteBase(relativeView);
+    uint64_t localAddr = remoteAddr - remoteBase + localBase;
+    return (localAddr >= localBase) && (localAddr < localBase + relativeView->GetLength());
 }
 
 

@@ -30,11 +30,11 @@ public:
     DebugProcessView(BinaryView* parent);
     void MarkDirty();
     void ClearModuleBases();
-    uint64_t GetRemoteBase(BinaryView* relativeView = nullptr);
-    bool IsCodeASLR(BinaryView* relativeView = nullptr);
-    uint64_t LocalAddressToRemote(uint64_t localAddr, BinaryView* relativeView = nullptr);
-    uint64_t RemoteAddressToLocal(uint64_t localAddr, BinaryView* relativeView = nullptr);
-    bool IsLocalAddress(BinaryView* relativeView = nullptr);
+    uint64_t GetRemoteBase(BinaryViewRef relativeView = nullptr);
+    bool IsCodeASLR(BinaryViewRef relativeView = nullptr);
+    uint64_t LocalAddressToRemote(uint64_t localAddr, BinaryViewRef relativeView = nullptr);
+    uint64_t RemoteAddressToLocal(uint64_t remoteAddr, BinaryViewRef relativeView = nullptr);
+    bool IsLocalAddress(uint64_t remoteAddr, BinaryViewRef relativeView = nullptr);
 };
 
 
