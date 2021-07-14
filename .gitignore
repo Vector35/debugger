@@ -33,5 +33,9 @@
 
 .idea/
 cmake-build-*/
+test/testbins/CMakeFiles/
+test/testbins/googlemock/
+test/testbins/googletest/
+test/testbins/lib/
 
 .vscode/*

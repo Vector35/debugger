@@ -1,0 +1,68 @@
+# nmake -f Makefile-win64 from within "x64 Native Tools Command Prompt"
+
+TARGETS_ALL = helloworld_x64-windows.exe exitcode_x64-windows.exe helloworld_loop_x64-windows.exe helloworld_thread_x64-windows.exe helloworld_func_x64-windows.exe helloworld_pie_x64-windows.exe helloworld_loop_pie_x64-windows.exe helloworld_thread_pie_x64-windows.exe helloworld_func_pie_x64-windows.exe asmtest_x64-windows.exe hh1.exe do_exception_pie_x64-windows.exe hello_x64-windows.exe indirect_calls_x64-windows.exe missing_switch_case_x64-windows.exe cat_x64-windows.exe
+
+all: $(TARGETS_ALL)
+
+clean:
+	del /Q $(TARGETS_ALL) *.obj *.pdb
+
+helloworld_x64-windows.exe: helloworld.c
+	cl helloworld.c /Fe:helloworld_x64-windows.exe /link /DYNAMICBASE:NO
+
+cat_x64-windows.exe: cat.c
+	cl cat.c /Fe:cat_x64-windows.exe /link /DYNAMICBASE:NO
+
+exitcode_x64-windows.exe: exitcode.c
+	cl exitcode.c /Fe:exitcode_x64-windows.exe /link /DYNAMICBASE:NO
+
+helloworld_thread_x64-windows.exe: helloworld_thread.c
+	cl helloworld_thread.c /Fe:helloworld_thread_x64-windows.exe /link /DYNAMICBASE:NO
+
+helloworld_loop_x64-windows.exe: helloworld_loop.c
+	cl helloworld_loop.c /Fe:helloworld_loop_x64-windows.exe /link /DYNAMICBASE:NO
+
+helloworld_func_x64-windows.exe: helloworld_func.c
+	cl helloworld_func.c /Fe:helloworld_func_x64-windows.exe /link /DYNAMICBASE:NO
+
+helloworld_pie_x64-windows.exe: helloworld.c
+	cl helloworld.c /Fe:helloworld_pie_x64-windows.exe /link
+
+helloworld_thread_pie_x64-windows.exe: helloworld_thread.c
+	cl helloworld_thread.c /Fe:helloworld_thread_pie_x64-windows.exe /link
+
+helloworld_loop_pie_x64-windows.exe: helloworld_loop.c
+	cl helloworld_loop.c /Fe:helloworld_loop_pie_x64-windows.exe /link
+
+helloworld_func_pie_x64-windows.exe: helloworld_func.c
+	cl helloworld_func.c /Fe:helloworld_func_pie_x64-windows.exe /link
+
+do_exception_pie_x64-windows.exe: do_exception.c
+	cl do_exception.c -DARCH_IS_X64 /Fe:do_exception_pie_x64-windows.exe /link
+
+asmtest_x64-windows.exe: asmtest_x64-windows.obj
+	link asmtest_x64-windows.obj /ENTRY:WinMain /SUBSYSTEM:CONSOLE /LARGEADDRESSAWARE:NO /DYNAMICBASE:NO /OUT:asmtest_x64-windows.exe kernel32.lib
+
+asmtest_x64-windows.obj: asmtest_x64.asm
+	nasm -f win64 -DOS_IS_WINDOWS asmtest_x64.asm -o asmtest_x64-windows.obj
+
+hh1.exe: hh1.asm
+	nasm -f bin -DOS_IS_WINDOWS hh1.asm -o hh1.exe
+
+hello_x64-windows.exe: hello_x64-windows.obj
+	link hello_x64-windows.obj /ENTRY:WinMain /SUBSYSTEM:CONSOLE /LARGEADDRESSAWARE:NO /DYNAMICBASE:NO /OUT:hello_x64-windows.exe kernel32.lib
+
+hello_x64-windows.obj: hello_x64.asm
+	nasm -f win64 -DOS_IS_WINDOWS hello_x64.asm -o hello_x64-windows.obj
+
+indirect_calls_x64-windows.exe: indirect_calls_x64-windows.obj
+	link indirect_calls_x64-windows.obj /ENTRY:WinMain /SUBSYSTEM:CONSOLE /LARGEADDRESSAWARE:NO /DYNAMICBASE:NO /OUT:indirect_calls_x64-windows.exe kernel32.lib
+
+indirect_calls_x64-windows.obj: indirect_calls_x64.asm
+	nasm -f win64 -DOS_IS_WINDOWS indirect_calls_x64.asm -o indirect_calls_x64-windows.obj
+
+missing_switch_case_x64-windows.exe: missing_switch_case_x64-windows.obj
+	link missing_switch_case_x64-windows.obj /ENTRY:WinMain /SUBSYSTEM:CONSOLE /LARGEADDRESSAWARE:NO /DYNAMICBASE:NO /OUT:missing_switch_case_x64-windows.exe kernel32.lib
+
+missing_switch_case_x64-windows.obj: missing_switch_case_x64.asm
+	nasm -f win64 -DOS_IS_WINDOWS missing_switch_case_x64.asm -o missing_switch_case_x64-windows.obj
