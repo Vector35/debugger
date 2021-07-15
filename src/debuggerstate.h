@@ -44,6 +44,17 @@ public:
 };
 
 
+struct ModuleAndOffset
+{
+    // TODO: maybe we should use DebugModule instead of its name
+    std::string module;
+    uint64_t offset;
+
+    ModuleAndOffset() { module = ""; offset = 0; }
+    ModuleAndOffset(std::string mod, uint64_t off): module(mod), offset(off) {}
+};
+
+
 class DebuggerModules
 {
 private:
@@ -57,10 +68,36 @@ public:
     void Update();
     bool IsDirty() const { return m_dirty; }
 
+    std::vector<DebugModule> GetModules() const { return m_modules; }
+    bool GetModuleByName(const std::string module, DebugModule& result) const;
     bool GetModuleBase(const std::string& name, uint64_t& address);
     DebugModule ResolvePath(std::string fpathExe);
     
+    bool GetModuleForAddress(uint64_t remoteAddress, DebugModule& result) const;
+    ModuleAndOffset AbsoluteAddressToRelative(uint64_t absoluteAddress);
+    uint64_t RelativeAddressToAbsolute(ModuleAndOffset relativeAddress);
+};
 
+
+
+
+class DebuggerBreakpoints
+{
+private:
+    DebuggerState* m_state;
+    std::vector<ModuleAndOffset> m_breakpoints;
+
+public:
+    DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleAndOffset> initial);
+    bool AddAbsolute(uint64_t remoteAddress);
+    bool AddOffset(std::string module, uint64_t offset);
+    bool RemoveAbsolute(uint64_t remoteAddress);
+    bool RemoveOffset(std::string module, uint64_t offset);
+    bool ContainsAbsolute(uint64_t address);
+    bool ContainsOffset(std::string module, uint64_t offset);
+    void Apply();
+    void SerializeMetadata();
+    void UnserializedMetadata();
 };
 
 struct DebuggerThreadCache

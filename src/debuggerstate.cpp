@@ -171,6 +171,85 @@ bool DebuggerThreads::SetActiveThread(const DebugThread& thread)
 }
 
 
+bool DebuggerModules::GetModuleByName(std::string name, DebugModule& result)
+{
+    for (const DebugModule& module: m_modules)
+    {
+        if (module.m_name == name)
+        {
+            result = module;
+            return true;
+        }
+        if (module.m_short_name == name)
+        {
+            result = module;
+            return true;
+        }
+    }
+    return false;
+}
+
+
+bool DebuggerModules::GetModuleForAddress(uint64_t remoteAddress, DebugModule& result)
+{
+    for (const DebugModule& module: m_modules)
+    {
+        // This is slighlty different from the Python implementation, which finds the largest module start that is
+        // smaller than the remoteAddress. 
+        // TODO: check if the m_size of DebugModule is present for all platforms
+        if ((module.m_address <= remoteAddress) && (remoteAddress < module.m_address + module.m_size))
+        {
+            result = module;
+            return true;
+        }
+    }
+    return false;
+}
+
+
+ModuleAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absoluteAddress)
+{
+    DebugModule module;
+    if (!GetModuleForAddress(absoluteAddress, module))
+        return false;
+
+    uint64_t relativeAddress;
+    if (module.m_name != "")
+    {
+        relativeAddress = absoluteAddress - module.m_address;
+    }
+    else
+    {
+        relativeAddress = absoluteAddress;
+    }
+    return ModuleAndOffset(module.m_name, relativeAddress);
+}
+
+
+uint64_t DebuggerModules::RelativeAddressToAbsolute(ModuleAndOffset relativeAddress)
+{
+    if (relativeAddress.module != "")
+    {
+        auto iter = m_modules
+    }
+}
+
+
+DebuggerBreakpoints::DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleAndOffset> initial):
+    m_state(state), m_breakpoints(initial)
+{
+}
+
+
+DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
+{
+    if (!m_state->getAdapter())
+        throw ("Cannot add breakpoint at absolute address when disconnected");
+
+
+}
+
+
 DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
 {
     m_memoryView = new DebugProcessView(data);
