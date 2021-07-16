@@ -94,11 +94,11 @@ private:
 public:
     DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial);
     bool AddAbsolute(uint64_t remoteAddress);
-    bool AddOffset(std::string module, uint64_t offset);
+    bool AddOffset(const ModuleNameAndOffset& address);
     bool RemoveAbsolute(uint64_t remoteAddress);
-    bool RemoveOffset(std::string module, uint64_t offset);
+    bool RemoveOffset(const ModuleNameAndOffset& address);
     bool ContainsAbsolute(uint64_t address);
-    bool ContainsOffset(std::string module, uint64_t offset);
+    bool ContainsOffset(const ModuleNameAndOffset& address);
     void Apply();
     void SerializeMetadata();
     void UnserializedMetadata();
@@ -188,7 +188,7 @@ public:
     DebugAdapter* GetAdapter() const { return m_adapter; }
     BinaryViewRef GetData() const { return m_data; }
 
-    DebuggerModules* GetModulesCache() const { return m_modules; }
+    DebuggerModules* GetModules() const { return m_modules; }
     DebugProcessView* GetMemoryView() const { return m_memoryView; }
     DebuggerUI* GetDebuggerUI() const { return m_ui; }
 

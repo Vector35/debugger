@@ -248,13 +248,98 @@ bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
     if (!m_state->GetAdapter())
         throw ("Cannot add breakpoint at absolute address when disconnected");
 
-    ModuleNameAndOffset info = m_state->GetModulesCache()->AbsoluteAddressToRelative(remoteAddress);
-    if (std::find(m_breakpoints.begin(), m_breakpoints.end(), info) == m_breakpoints.end())
+    ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
+    if (!ContainsOffset(info))
     {
         m_breakpoints.push_back(info);
         SerializeMetadata();
+        // TODO: right now AddBreakpoint returns DebugBreakpoint rather than a bool.
         m_state->GetAdapter()->AddBreakpoint(remoteAddress);
+        return true;
     }
+    // TODO: I do not think its a good idea to return false here. We would better have a way to inform the caller that
+    // the breakpoint already exists.
+    return false;
+}
+
+
+bool DebuggerBreakpoints::AddOffset(const ModuleNameAndOffset& address)
+{
+    if (!ContainsOffset(address))
+    {
+        m_breakpoints.push_back(address);
+        SerializeMetadata();
+
+        // Only add the breakpoint via the adapter when it is connected
+        if (m_state->GetAdapter())
+        {
+            uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
+            m_state->GetAdapter()->AddBreakpoint(remoteAddress);
+            return true;
+        }
+        return true;
+    }
+    return false;
+}
+
+
+bool DebuggerBreakpoints::RemoveAbsolute(uint64_t remoteAddress)
+{
+    if (!m_state->GetAdapter())
+        throw ("Cannot remove breakpoint at absolute address when disconnected");
+
+    ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
+    if (ContainsOffset(info))
+    {
+        auto iter = std::find(m_breakpoints.begin(), m_breakpoints.end(), info);
+        if (iter != m_breakpoints.end())
+        {
+            m_breakpoints.erase(iter);
+        }
+        SerializeMetadata();
+        m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
+        return true;
+    }
+    return false;
+}
+
+
+bool DebuggerBreakpoints::RemoveOffset(const ModuleNameAndOffset& address)
+{
+    if (ContainsOffset(address))
+    {
+        auto iter = std::find(m_breakpoints.begin(), m_breakpoints.end(), address);
+        if (iter != m_breakpoints.end())
+        {
+            m_breakpoints.erase(iter);
+        }
+        SerializeMetadata();
+
+        if (m_state->GetAdapter())
+        {
+            uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
+            m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
+            return true;
+        }
+        return true;
+    }
+    return false;
+}
+
+
+bool DebuggerBreakpoints::ContainsOffset(const ModuleNameAndOffset& address)
+{
+    return std::find(m_breakpoints.begin(), m_breakpoints.end(), address) != m_breakpoints.end();
+}
+
+
+bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
+{
+    if (!m_state->GetAdapter())
+        throw runtime_error("Cannot check the existence of breakpoint with absolute address when disconnected");
+
+    ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
+    return ContainsOffset(info);
 }
 
 
