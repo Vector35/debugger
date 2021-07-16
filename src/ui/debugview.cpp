@@ -90,6 +90,20 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_updateTimer->setInterval(200);
     m_updateTimer->setSingleShot(false);
     connect(m_updateTimer, &QTimer::timeout, this, &DebugView::updateTimerEvent);
+
+    // TODO: we should add an option whether to add a breakpoint at program entry
+    uint64_t entryPoint = data->GetEntryPoint();
+    uint64_t localEntryOffset = entryPoint - data->GetStart();
+    ModuleNameAndOffset address(data->GetFile()->GetOriginalFilename(), localEntryOffset);
+    if (!m_state->GetBreakpoints()->ContainsOffset(address))
+    {
+        m_state->GetBreakpoints()->AddOffset(address);
+        LogWarn("added breakpoint at offset 0x%" PRIx64, localEntryOffset);
+        if (m_state->GetDebuggerUI())
+        {
+
+        }
+    }
 }
 
 

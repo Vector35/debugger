@@ -92,7 +92,7 @@ private:
     std::vector<ModuleNameAndOffset> m_breakpoints;
 
 public:
-    DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial);
+    DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial = {});
     bool AddAbsolute(uint64_t remoteAddress);
     bool AddOffset(const ModuleNameAndOffset& address);
     bool RemoveAbsolute(uint64_t remoteAddress);
@@ -148,6 +148,7 @@ private:
     DebuggerModules* m_modules;
     DebuggerRegisters* m_registers;
     DebuggerThreads* m_threads;
+    DebuggerBreakpoints* m_breakpoints;
 
     DebuggerUI* m_ui;
 
@@ -191,6 +192,7 @@ public:
     DebuggerModules* GetModules() const { return m_modules; }
     DebugProcessView* GetMemoryView() const { return m_memoryView; }
     DebuggerUI* GetDebuggerUI() const { return m_ui; }
+    DebuggerBreakpoints* GetBreakpoints() const { return m_breakpoints; }
 
     DebugAdapterType::AdapterType GetAdapterType() const { return m_adapterType; }
     std::string GetExecutablePath() const { return m_executablePath; }
@@ -226,4 +228,6 @@ public:
     uint64_t LocalAddressToRemote(uint64_t localAddr, BinaryViewRef relativeView = nullptr);
     uint64_t RemoteAddressToLocal(uint64_t remoteAddr, BinaryViewRef relativeView = nullptr);
     bool IsLocalAddress(uint64_t remoteAddr, BinaryViewRef relativeView = nullptr);
+
+    std::string ResolveTargetBase();
 };

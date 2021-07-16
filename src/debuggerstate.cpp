@@ -362,6 +362,8 @@ DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
     m_registers = new DebuggerRegisters(this);
     m_threads = new DebuggerThreads(this);
     m_ui = new DebuggerUI(this);
+    m_breakpoints = new DebuggerBreakpoints(this);
+    m_breakpoints->UnserializedMetadata();
 
     Ref<Metadata> metadata;
     // metadata = m_data->QueryMetadata("native_debugger.command_line_args");
@@ -456,6 +458,8 @@ void DebuggerState::Exec()
         }
         m_connectionStatus = DebugAdapterConnectedStatus;
     }
+
+    // std::string currentModule = ResolveTargetBase();
     m_remoteArch = DetectRemoteArch();
 }
 
@@ -700,4 +704,17 @@ bool DebuggerState::IsLocalAddress(uint64_t remoteAddr, BinaryViewRef relativeVi
         throw runtime_error("Invalid DebugProcessView");
 
     return m_memoryView->IsLocalAddress(remoteAddr, relativeView);
+}
+
+
+std::string DebuggerState::ResolveTargetBase()
+{
+    // if (m_adapter->GetTargetPath() == "")
+    // {
+
+    // }
+    // else
+    // {
+    //     return GetModules()->GetModuleForAddress(m_adapter->)
+    // }
 }
