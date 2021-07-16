@@ -44,14 +44,17 @@ public:
 };
 
 
-struct ModuleAndOffset
+struct ModuleNameAndOffset
 {
     // TODO: maybe we should use DebugModule instead of its name
+    // Update: We are not using a DebugModule here because the base adress information of it can be outdated;
+    // instead, we only keep a name and an offset.
     std::string module;
     uint64_t offset;
 
-    ModuleAndOffset() { module = ""; offset = 0; }
-    ModuleAndOffset(std::string mod, uint64_t off): module(mod), offset(off) {}
+    ModuleNameAndOffset(): module(""), offset(0) {}
+    ModuleNameAndOffset(std::string mod, uint64_t off): module(mod), offset(off) {}
+    bool operator==(const ModuleNameAndOffset& other) { return (module == other.module) && (offset == other.offset); }
 };
 
 
@@ -69,13 +72,14 @@ public:
     bool IsDirty() const { return m_dirty; }
 
     std::vector<DebugModule> GetModules() const { return m_modules; }
-    bool GetModuleByName(const std::string module, DebugModule& result) const;
-    bool GetModuleBase(const std::string& name, uint64_t& address);
-    DebugModule ResolvePath(std::string fpathExe);
-    
-    bool GetModuleForAddress(uint64_t remoteAddress, DebugModule& result) const;
-    ModuleAndOffset AbsoluteAddressToRelative(uint64_t absoluteAddress);
-    uint64_t RelativeAddressToAbsolute(ModuleAndOffset relativeAddress);
+    DebugModule ResolvePath(const std::string& fpathExe) const;
+
+    // TODO: These conversion functions are not very robust for lookup failures. They need to be improved for it.
+    DebugModule GetModuleByName(const std::string& module) const;
+    uint64_t GetModuleBase(const std::string& name) const;
+    DebugModule GetModuleForAddress(uint64_t remoteAddress) const;
+    ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t absoluteAddress) const;
+    uint64_t RelativeAddressToAbsolute(ModuleNameAndOffset relativeAddress) const;
 };
 
 
@@ -85,10 +89,10 @@ class DebuggerBreakpoints
 {
 private:
     DebuggerState* m_state;
-    std::vector<ModuleAndOffset> m_breakpoints;
+    std::vector<ModuleNameAndOffset> m_breakpoints;
 
 public:
-    DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleAndOffset> initial);
+    DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial);
     bool AddAbsolute(uint64_t remoteAddress);
     bool AddOffset(std::string module, uint64_t offset);
     bool RemoveAbsolute(uint64_t remoteAddress);
@@ -99,6 +103,7 @@ public:
     void SerializeMetadata();
     void UnserializedMetadata();
 };
+
 
 struct DebuggerThreadCache
 {

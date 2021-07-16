@@ -67,13 +67,9 @@ uint64_t DebugProcessView::GetRemoteBase(BinaryViewRef relativeView)
         if (!modulesCache)
             // TODO: should return false, and return the address by reference
             return 0;
-        uint64_t address;
-        if (modulesCache->GetModuleBase(moduleName, address))
-        {
-            m_moduleBases[moduleName] = address;
-            return address;
-        }
-        return 0;
+        uint64_t address = modulesCache->GetModuleBase(moduleName);
+        m_moduleBases[moduleName] = address;
+        return address;
     }
     else
     {

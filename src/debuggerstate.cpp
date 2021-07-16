@@ -58,45 +58,6 @@ void DebuggerRegisters::UpdateRegisterValue(const std::string& name, uint64_t va
 }
 
 
-DebuggerModules::DebuggerModules(DebuggerState* state):
-    m_state(state)
-{
-    MarkDirty();
-}
-
-
-void DebuggerModules::MarkDirty()
-{
-    m_dirty = true;
-    m_modules.clear();
-}
-
-
-void DebuggerModules::Update()
-{
-    DebugAdapter* adapter = m_state->GetAdapter();
-    if (!adapter)
-        return;
-
-    m_modules = adapter->GetModuleList();
-    m_dirty = false;
-}
-
-
-bool DebuggerModules::GetModuleBase(const std::string& name, uint64_t& address)
-{
-    for (const DebugModule& module: m_modules)
-    {
-        if ((name == module.m_name) || (name == module.m_short_name))
-        {
-            address = module.m_address;
-            return true;
-        }
-    }
-    return false;
-}
-
-
 DebuggerThreads::DebuggerThreads(DebuggerState* state): m_state(state)
 {
     MarkDirty();
@@ -171,26 +132,62 @@ bool DebuggerThreads::SetActiveThread(const DebugThread& thread)
 }
 
 
-bool DebuggerModules::GetModuleByName(std::string name, DebugModule& result)
+DebuggerModules::DebuggerModules(DebuggerState* state):
+    m_state(state)
+{
+    MarkDirty();
+}
+
+
+void DebuggerModules::MarkDirty()
+{
+    m_dirty = true;
+    m_modules.clear();
+}
+
+
+void DebuggerModules::Update()
+{
+    DebugAdapter* adapter = m_state->GetAdapter();
+    if (!adapter)
+        return;
+
+    m_modules = adapter->GetModuleList();
+    m_dirty = false;
+}
+
+
+uint64_t DebuggerModules::GetModuleBase(const std::string& name) const
+{
+    for (const DebugModule& module: m_modules)
+    {
+        if ((name == module.m_name) || (name == module.m_short_name))
+        {
+            return module.m_address;
+        }
+    }
+    return 0;
+}
+
+
+DebugModule DebuggerModules::GetModuleByName(const std::string& name) const
 {
     for (const DebugModule& module: m_modules)
     {
         if (module.m_name == name)
         {
-            result = module;
-            return true;
+            return module;
         }
         if (module.m_short_name == name)
         {
-            result = module;
-            return true;
+            return module;
         }
     }
-    return false;
+    return DebugModule();
 }
 
 
-bool DebuggerModules::GetModuleForAddress(uint64_t remoteAddress, DebugModule& result)
+DebugModule DebuggerModules::GetModuleForAddress(uint64_t remoteAddress) const
 {
     for (const DebugModule& module: m_modules)
     {
@@ -199,21 +196,18 @@ bool DebuggerModules::GetModuleForAddress(uint64_t remoteAddress, DebugModule& r
         // TODO: check if the m_size of DebugModule is present for all platforms
         if ((module.m_address <= remoteAddress) && (remoteAddress < module.m_address + module.m_size))
         {
-            result = module;
-            return true;
+            return module;
         }
     }
-    return false;
+    return DebugModule();
 }
 
 
-ModuleAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absoluteAddress)
+ModuleNameAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absoluteAddress) const
 {
-    DebugModule module;
-    if (!GetModuleForAddress(absoluteAddress, module))
-        return false;
-
+    DebugModule module = GetModuleForAddress(absoluteAddress);
     uint64_t relativeAddress;
+
     if (module.m_name != "")
     {
         relativeAddress = absoluteAddress - module.m_address;
@@ -222,30 +216,56 @@ ModuleAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absoluteAddr
     {
         relativeAddress = absoluteAddress;
     }
-    return ModuleAndOffset(module.m_name, relativeAddress);
+
+    return ModuleNameAndOffset(module.m_name, relativeAddress);
 }
 
 
-uint64_t DebuggerModules::RelativeAddressToAbsolute(ModuleAndOffset relativeAddress)
+uint64_t DebuggerModules::RelativeAddressToAbsolute(ModuleNameAndOffset relativeAddress) const
 {
     if (relativeAddress.module != "")
     {
-        auto iter = m_modules
+        for (const DebugModule& module: m_modules)
+        {
+            if (module.m_name == relativeAddress.module)
+                return module.m_address + relativeAddress.offset;
+            else if (module.m_short_name == relativeAddress.module)
+                return module.m_address + relativeAddress.offset;
+        }
     }
+    return relativeAddress.offset;
 }
 
 
-DebuggerBreakpoints::DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleAndOffset> initial):
+DebuggerBreakpoints::DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial):
     m_state(state), m_breakpoints(initial)
 {
 }
 
 
-DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
+bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
 {
-    if (!m_state->getAdapter())
+    if (!m_state->GetAdapter())
         throw ("Cannot add breakpoint at absolute address when disconnected");
 
+    ModuleNameAndOffset info = m_state->GetModulesCache()->AbsoluteAddressToRelative(remoteAddress);
+    if (std::find(m_breakpoints.begin(), m_breakpoints.end(), info) == m_breakpoints.end())
+    {
+        m_breakpoints.push_back(info);
+        SerializeMetadata();
+        m_state->GetAdapter()->AddBreakpoint(remoteAddress);
+    }
+}
+
+
+void DebuggerBreakpoints::SerializeMetadata()
+{
+
+}
+
+
+void DebuggerBreakpoints::UnserializedMetadata()
+{
 
 }
 
