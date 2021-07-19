@@ -13,6 +13,8 @@
 #include <thread>
 #include <cstdio>
 #include <iostream>
+#include <string_view>
+#include <regex>
 #include <stdexcept>
 #include <pugixml/pugixml.hpp>
 #include <binaryninjacore.h>
@@ -22,6 +24,7 @@
 #include <highlevelilinstruction.h>
 
 using namespace BinaryNinja;
+using namespace std;
 
 GdbAdapter::GdbAdapter(bool redirectGDBServer): m_redirectGDBServer(redirectGDBServer)
 {
@@ -518,22 +521,98 @@ bool GdbAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t size
     return true;
 }
 
-std::vector<DebugModule> GdbAdapter::GetModuleList()
+
+std::string GdbAdapter::GetRemoteFile(const std::string& path)
 {
-    /* TODO: finish this */
-    const auto path = "/proc/" + std::to_string(this->m_lastActiveThreadId) + "/maps";
-    /*const auto set_filesystem = */this->m_rspConnector.TransmitAndReceive(RspData("vFile:setfs:0", "host_io"));
+    RspData output;
+    int32_t error;
+    int32_t ret = this->m_rspConnector.HostFileIO(RspData("vFile:setfs:0"), output, error);
+    if (ret < 0)
+        throw runtime_error("could not set remote filesystem");
 
     std::string path_hex_string{};
     for ( const auto& ch : path )
         path_hex_string += fmt::format("{:02X}", ch);
 
-    const auto test =
-            this->m_rspConnector.TransmitAndReceive(
-                    RspData("vFile:open:{},{:X},{:X}", path_hex_string.c_str(), 0, 0), "host_io");
+    ret = this->m_rspConnector.HostFileIO(
+                    RspData("vFile:open:{},{:X},{:X}", path_hex_string.c_str(), 0, 0), output, error);
+    if (ret < 0)
+        throw runtime_error("unable to open file with host I/O");
 
-    return {};
+    int32_t fd = ret;
+
+    std::string data;
+    size_t offset = 0;
+    const size_t blockSize = 1024;
+
+    while(true)
+    {
+        ret = this->m_rspConnector.HostFileIO(
+                    RspData("vFile:pread:{:X},{:X},{:X}", fd, blockSize, offset), output, error);
+        if (ret < 0)
+            throw runtime_error(fmt::format("host i/o pread() failed, result=%d, errno=%d", ret, error));
+        if (ret == 0)
+            // EOF
+            break;
+        if (ret != (int32_t)output.AsString().length())
+            throw runtime_error(fmt::format("host i/o pread() returned {:X} but decoded binary attachment is size {:X}",
+                    ret, output.AsString().length()));
+        
+        data += output.AsString();
+        offset += output.AsString().length();
+    }
+
+    ret = this->m_rspConnector.HostFileIO(RspData(fmt::format("vFile:close:{:X}", fd)), output, error);
+    if (ret)
+        throw runtime_error(fmt::format("host i/o close() failed, result={}, errno={}", ret, error));
+
+    return data;
 }
+
+std::vector<DebugModule> GdbAdapter::GetModuleList()
+{
+    std::vector<DebugModule> result;
+
+    const auto path = "/proc/" + std::to_string(this->m_lastActiveThreadId) + "/maps";
+    std::string data = GetRemoteFile(path);
+    for (const std::string& line: RspConnector::Split(data, "\n"))
+    {
+        std::string_view v = line;
+        v.remove_prefix(std::min(v.find_first_not_of(" "), v.size()));
+        auto trimPosition = v.find_last_not_of(" ");
+        if (trimPosition != v.npos)
+            v.remove_suffix(v.size() - trimPosition - 1);
+
+        // regex_match() requires the first argument to be const
+        const std::string trimmedLine = std::string(v);
+
+        std::smatch match;
+        const std::regex module_regex("^([0-9a-f]+)-([0-9a-f]+) [rwxp-]{4} .* (/.*)$");
+        bool found = std::regex_match(trimmedLine, match, module_regex);
+        if (found)
+        {
+            if (match.size() == 4) {
+                std::string startString = match[1].str();
+                uint64_t start = std::strtoull(startString.c_str(), nullptr, 16);
+                std::string endString = match[2].str();
+                uint64_t end = std::strtoull(endString.c_str(), nullptr, 16);
+                std::string path = match[3].str();
+
+                DebugModule module;
+                module.m_address = start;
+                module.m_size = end > start ? end - start : 0;
+                module.m_name = path;
+                module.m_short_name = path;
+                module.m_loaded = true;
+                result.push_back(module);
+            }
+        }
+
+    }
+   
+    return result;
+}
+
 
 std::string GdbAdapter::GetTargetArchitecture()
 {

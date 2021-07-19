@@ -293,20 +293,6 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
 
         if (!ack_received && this->m_acksEnabled)
             throw std::runtime_error("expected ack, but received none");
-    } else if ( expect == "host_io" ) {
-        this->ExpectAck();
-        reply = this->ReceiveRspData();
-        if (reply.m_data[0] != 'F')
-            throw std::runtime_error("host io packet is invalid");
-
-        /* TODO: finish this */
-        if (reply.AsString().find(';') != std::string::npos) {
-            const auto split = RspConnector::Split(reply.AsString(), ";");
-            printf("host_io\n");
-            printf("%s\n", split[0].c_str());
-            printf("%s\n", split[1].c_str());
-            printf("%s\n", RspConnector::BinaryDecode(RspData(split[1])).AsString().c_str());
-        }
     }
 
     if ( std::find(reply.begin(), reply.end(), '*') != reply.end() )
@@ -314,6 +300,45 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
 
     return reply;
 }
+
+
+int32_t RspConnector::HostFileIO(const RspData& data, RspData& output, int32_t& error)
+{
+    this->SendPayload(data);
+
+    RspData reply{};
+
+    this->ExpectAck();
+    reply = this->ReceiveRspData();
+    if (reply.m_data[0] != 'F')
+        throw std::runtime_error("host io packet is invalid");
+
+    std::string resultErrno = reply.AsString();
+
+    // split off attachment
+    if (resultErrno.find(';') != std::string::npos) {
+        const auto split = RspConnector::Split(resultErrno, ";");
+        if ((split.size() >= 2) && (split[1] != ""))
+            output = RspConnector::BinaryDecode(RspData(split[1]));
+
+        resultErrno = split[0];
+    }
+
+    // remove the 'F' char at the beginning
+    if (resultErrno.length() > 0)
+        resultErrno = resultErrno.substr(1);
+
+    // split off errno
+    if (resultErrno.find(',') != std::string::npos) {
+        const auto split = RspConnector::Split(resultErrno, ",");
+        if ((split.size() >= 2) && (split[1] != ""))
+            error = std::stol(split[1].c_str(), nullptr, 16);
+
+        return std::stol(split[0].c_str(), nullptr, 16);
+    }
+    return std::stol(resultErrno.c_str(), nullptr, 16);
+}
+
 
 std::string RspConnector::GetXml(const std::string& name)
 {

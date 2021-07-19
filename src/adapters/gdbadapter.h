@@ -65,6 +65,7 @@ public:
 
     bool ReadMemory(std::uintptr_t address, void* out, std::size_t size) override;
     bool WriteMemory(std::uintptr_t address, void* out, std::size_t size) override;
+    std::string GetRemoteFile(const std::string& path);
     std::vector<DebugModule> GetModuleList() override;
 
     std::string GetTargetArchitecture() override;

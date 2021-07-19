@@ -155,6 +155,7 @@ public:
 
     RspData ReceiveRspData() const;
     RspData TransmitAndReceive(const RspData& data, const std::string& expect = "ack_then_reply", bool async = false);
+    int32_t HostFileIO(const RspData& data, RspData& output, int32_t& error);
     void HandleAsyncPacket(const RspData& data);
 
     std::string GetXml(const std::string& name);
