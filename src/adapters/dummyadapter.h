@@ -38,7 +38,7 @@ private:
     virtual std::vector<DebugModule> GetModuleList();
 
     virtual std::string GetTargetArchitecture();
-    virtual unsigned long StopReason();
+    virtual DebugStopReason StopReason();
     virtual unsigned long ExecStatus();
 
     virtual bool BreakInto();

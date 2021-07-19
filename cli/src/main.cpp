@@ -258,9 +258,10 @@ int main(int argc, const char* argv[])
     Log::SetupAnsi();
     LogToStdout(WarningLog);
 
-    if (argc < 2)
+    if (argc < 3)
     {
         Log::print<Log::Error>("usage: {} <debuggee_path>\n", argv[0]);
+        Log::print<Log::Error>("usage: {} --attach <debuggee_pid>\n", argv[0]);
         return 0;
     }
 
@@ -281,11 +282,18 @@ int main(int argc, const char* argv[])
         LldbAdapter();
         #endif
 
-        if (!debug_adapter->Execute(argv[1]))
-        {
-            Log::print<Log::Error>("failed to execute {}\n", argv[1]);
-            return -1;
+        if (argc == 2) {
+            if (!debug_adapter->Execute(argv[1])) {
+                Log::print<Log::Error>("failed to execute {}\n", argv[1]);
+                return -1;
+            }
+        } else if (argc == 3) {
+            if (!debug_adapter->Attach(std::stoi(argv[2]))) {
+                Log::print<Log::Error>("failed to attach {}\n", argv[2]);
+                return -1;
+            }
         }
+
 
         std::thread( [&]{
 #ifdef WIN32

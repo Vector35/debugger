@@ -171,7 +171,7 @@ std::string DummyAdapter::GetTargetArchitecture()
 }
 
 
-unsigned long DummyAdapter::StopReason()
+DebugStopReason DummyAdapter::StopReason()
 {
     return 0;
 }

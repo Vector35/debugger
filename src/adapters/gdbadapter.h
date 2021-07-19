@@ -70,7 +70,7 @@ public:
 
     std::string GetTargetArchitecture() override;
 
-    unsigned long StopReason() override;
+    DebugStopReason StopReason() override;
     unsigned long ExecStatus() override;
 
     bool GenericGo(const std::string& go_type);

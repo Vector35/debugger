@@ -569,7 +569,7 @@ std::string DbgEngAdapter::GetTargetArchitecture()
     }
 }
 
-unsigned long DbgEngAdapter::StopReason()
+DebugStopReason DbgEngAdapter::StopReason()
 {
     const auto exec_status = this->ExecStatus();
 
@@ -578,14 +578,30 @@ unsigned long DbgEngAdapter::StopReason()
         const auto instruction_ptr = this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
 
         if (instruction_ptr == DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint.m_address )
-            return exec_status;
+            return DebugStopReason::Breakpoint;
 
         const auto& last_exception = DbgEngAdapter::ProcessCallbackInfo.m_lastException;
-        if ( instruction_ptr == last_exception.ExceptionAddress )
-            return last_exception.ExceptionCode;
+        fmt::print("\n!! EXECSTATUS/EXECCODE {}, {}\n", this->ExecStatus(), last_exception.ExceptionCode);
+        if ( instruction_ptr == last_exception.ExceptionAddress ) {
+            switch (last_exception.ExceptionCode) {
+                case STATUS_BREAKPOINT:
+                    return DebugStopReason::Breakpoint;
+                case STATUS_SINGLE_STEP:
+                    return DebugStopReason::SingleStep;
+                case STATUS_ACCESS_VIOLATION:
+                    return DebugStopReason::AccessViolation;
+                case STATUS_INTEGER_DIVIDE_BY_ZERO:
+                case STATUS_FLOAT_DIVIDE_BY_ZERO:
+                    return DebugStopReason::Calculation;
+                default:
+                    return DebugStopReason::Unknown;
+            }
+        }
+    } else if (exec_status == DEBUG_STATUS_NO_DEBUGGEE) {
+        return DebugStopReason::ProcessExited;
     }
 
-    return exec_status;
+    return DebugStopReason::Unknown;
 }
 
 unsigned long DbgEngAdapter::ExecStatus()

@@ -830,9 +830,9 @@ std::uintptr_t GdbAdapter::GetInstructionOffset()
     return this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
 }
 
-unsigned long GdbAdapter::StopReason()
+DebugStopReason GdbAdapter::StopReason()
 {
-    return 0;
+    return DebugStopReason::Unknown;
 }
 
 unsigned long GdbAdapter::ExecStatus()

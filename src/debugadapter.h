@@ -31,6 +31,57 @@ enum DebugAdapterCapacity
 };
 
 
+enum class DebugStopReason {
+    Unknown = 0,
+    StdoutMessage,
+    ProcessExited,
+    BackendDisconnected,
+    AccessViolation,
+    SingleStep,
+    Calculation,
+    Breakpoint,
+    IllegalInstruction,
+    SignalHup,
+    SignalInt,
+    SignalQuit,
+    SignalIll,
+    SignalAbrt,
+    SignalEmt,
+    SignalFpe,
+    SignalKill,
+    SignalBus,
+    SignalSegv,
+    SignalSys,
+    SignalPipe,
+    SignalAlrm,
+    SignalTerm,
+    SignalUrg,
+    SignalStop,
+    SignalTstp,
+    SignalCont,
+    SignalChld,
+    SignalTtin,
+    SignalTtou,
+    SignalIo,
+    SignalXcpu,
+    SignalXfsz,
+    SignalVtalrm,
+    SignalProf,
+    SignalWinch,
+    SignalInfo,
+    SignalUsr1,
+    SignalUsr2,
+    SignalStkflt,
+    SignalBux,
+    SignalPoll,
+    ExcEmulation,
+    ExcSoftware,
+    ExcSyscall,
+    ExcMachSyscall,
+    ExcRpcAlert,
+    ExcCrash,
+};
+
 struct DebugThread
 {
     std::uint32_t m_tid{};
@@ -159,7 +210,7 @@ public:
 
     virtual std::string GetTargetArchitecture() = 0;
 
-    virtual unsigned long StopReason() = 0;
+    virtual DebugStopReason StopReason() = 0;
     virtual unsigned long ExecStatus() = 0;
 
     virtual bool BreakInto() = 0;
