@@ -271,7 +271,7 @@ bool DebuggerBreakpoints::AddOffset(const ModuleNameAndOffset& address)
         SerializeMetadata();
 
         // Only add the breakpoint via the adapter when it is connected
-        if (m_state->GetAdapter())
+        if (m_state->GetAdapter() && m_state->IsConnected())
         {
             uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
             m_state->GetAdapter()->AddBreakpoint(remoteAddress);
@@ -345,13 +345,67 @@ bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
 
 void DebuggerBreakpoints::SerializeMetadata()
 {
-
+    // TODO: who should free these Metadata objects?
+    std::vector<Ref<Metadata>> breakpoints;
+    for (const ModuleNameAndOffset& bp: m_breakpoints)
+    {
+        std::map<std::string, Ref<Metadata>> info;
+        info["module"] = new Metadata(bp.module);
+        info["offset"] = new Metadata(bp.offset);
+        breakpoints.push_back(new Metadata(info));
+    }
+    m_state->GetData()->StoreMetadata("native_debugger.breakpoints", new Metadata(breakpoints));
 }
 
 
 void DebuggerBreakpoints::UnserializedMetadata()
 {
+    Ref<Metadata> metadata = m_state->GetData()->QueryMetadata("native_debugger.breakpoints");
+    if (!metadata || (!metadata->IsArray()))
+        return;
 
+    vector<Ref<Metadata>> array = metadata->GetArray();
+    std::vector<ModuleNameAndOffset> newBreakpoints;
+
+    for (auto& element: array)
+    {
+        if (!element || (!element->IsKeyValueStore()))
+            continue;
+
+        std::map<std::string, Ref<Metadata>> info = element->GetKeyValueStore();
+        ModuleNameAndOffset address;
+
+        if (!(info["module"] && info["module"]->IsString()))
+            continue;
+
+        address.module = info["module"]->GetString();
+
+        if (!(info["offset"] && info["offset"]->IsUnsignedInteger()))
+            continue;
+
+        address.offset = info["offset"]->GetUnsignedInteger();
+        newBreakpoints.push_back(address);        
+    }
+
+    m_breakpoints = newBreakpoints;
+}
+
+
+void DebuggerBreakpoints::Apply()
+{
+    if (!m_state->GetAdapter())
+        throw runtime_error("cannot apply breakpoints when disconnected");
+
+    std::vector<DebugBreakpoint> remoteBreakpoints = m_state->GetAdapter()->GetBreakpointList();
+    for (const ModuleNameAndOffset& address: m_breakpoints)
+    {
+        uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
+        if (std::find(remoteBreakpoints.begin(), remoteBreakpoints.end(), remoteAddress) == remoteBreakpoints.end())
+        {
+            LogWarn(fmt::format("adding breakpoint at remote address {:x}", remoteAddress).c_str());
+            m_state->GetAdapter()->AddBreakpoint(remoteAddress);
+        }
+    }
 }
 
 
@@ -460,6 +514,9 @@ void DebuggerState::Exec()
     }
 
     // std::string currentModule = ResolveTargetBase();
+    // We must first update the modules, then the breakpoints can be applied correctly
+    m_modules->Update();
+    m_breakpoints->Apply();
     m_remoteArch = DetectRemoteArch();
 }
 
