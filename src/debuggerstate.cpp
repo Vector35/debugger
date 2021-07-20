@@ -1,6 +1,8 @@
 #include "debuggerstate.h"
 #include "debugadapter.h"
 #include "ui/ui.h"
+#include <chrono>
+#include <thread>
 
 using namespace BinaryNinja;
 using namespace std;
@@ -463,13 +465,25 @@ void DebuggerState::Run()
 
 void DebuggerState::Restart()
 {
-    BinaryNinja::LogWarn("restart() requested");
+    Quit();
+    // TODO: why is this necessary?
+    std::this_thread::sleep_for(1000ms);
+    Run();
 }
 
 
 void DebuggerState::Quit()
 {
-    BinaryNinja::LogWarn("quit() requested");
+    if (IsConnected())
+    {
+        m_adapter->Quit();
+        m_adapter = nullptr;
+        m_remoteArch = nullptr;
+        m_connectionStatus = DebugAdapterNotConnectedStatus;
+    }
+    MarkDirty();
+
+    // TODO: delete temp file
 }
 
 
@@ -666,7 +680,9 @@ void DebuggerState::OnStep()
         return;
 
     // Cached registers, threads, and modules must be updated explicitly
-    UpdateCaches();
+    if (IsConnected())
+        UpdateCaches();
+
     m_ui->OnStep();
 }
 
