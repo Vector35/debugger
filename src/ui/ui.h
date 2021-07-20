@@ -27,9 +27,15 @@ public:
     void DetectNewCode();
     void AnnotateContext();
     void ContextDisplay();
-    void UpdateBreakpoints();
     void NavigateToIp();
 
     void SetDebugView(DebugView* debugView);
     void CreateBreakpointTagType();
+
+    void UpdateHighlights();
+    void UpdateModules();
+    void UpdateBreakpoints();
+
+    void AddBreakpointTag(uint64_t localAddress);
+    void DeleteBreakpointTag(std::vector<uint64_t> localAddress);
 };

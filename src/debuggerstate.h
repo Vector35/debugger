@@ -102,6 +102,7 @@ public:
     void Apply();
     void SerializeMetadata();
     void UnserializedMetadata();
+    std::vector<ModuleNameAndOffset> GetBreakpointList() const { return m_breakpoints; }
 };
 
 

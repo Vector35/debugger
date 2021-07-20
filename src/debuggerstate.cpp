@@ -415,9 +415,9 @@ DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
     m_modules = new DebuggerModules(this);
     m_registers = new DebuggerRegisters(this);
     m_threads = new DebuggerThreads(this);
-    m_ui = new DebuggerUI(this);
     m_breakpoints = new DebuggerBreakpoints(this);
     m_breakpoints->UnserializedMetadata();
+    m_ui = new DebuggerUI(this);
 
     Ref<Metadata> metadata;
     // metadata = m_data->QueryMetadata("native_debugger.command_line_args");
@@ -646,17 +646,8 @@ uint64_t DebuggerState::IP()
 
 uint64_t DebuggerState::LocalIP()
 {
-    if (!IsConnected())
-        throw runtime_error("Cannot read ip when disconnected");
-    string archName = m_remoteArch->GetName();
-    if (archName == "x86_64")
-        return m_registers->GetRegisterValue("rip");
-    else if (archName == "x86")
-        return m_registers->GetRegisterValue("eip");
-    else if ((archName == "aarch64") || (archName == "arm") || (archName == "armv7") || (archName == "Z80"))
-        return m_registers->GetRegisterValue("pc");
-
-    throw runtime_error("unimplemented architecture " + archName);
+    uint64_t remoteIP = IP();
+    return m_memoryView->RemoteAddressToLocal(remoteIP);
 }
 
 

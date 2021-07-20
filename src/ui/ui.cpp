@@ -9,6 +9,11 @@ DebuggerUI::DebuggerUI(DebuggerState* state): m_state(state)
     m_lastIP = 0;
 
     CreateBreakpointTagType();
+
+    ContextDisplay();
+    UpdateHighlights();
+    UpdateModules();
+    UpdateBreakpoints();
 }
 
 
@@ -41,22 +46,24 @@ void DebuggerUI::ContextDisplay()
 
     // TODO: lots of code above this are not implemennted yet
 
+    if (!m_state->IsConnected())
+    {
+        // TODO: notify widgets with empty data
+        return;
+    }
+
+    uint64_t localIP = m_state->LocalIP();
+    BinaryNinja::LogWarn("localIP: 0x%" PRIx64 "\n", localIP);
+    UpdateHighlights();
+    m_lastIP = localIP;
+
     if (m_debugView)
     {
-        uint64_t localIP = m_state->LocalIP();
-        BinaryNinja::LogWarn("localIP: 0x%" PRIx64 "\n", localIP);
-        m_lastIP = localIP;;
         if (m_state->GetData()->GetAnalysisFunctionsContainingAddress(localIP).size() > 0)
             m_debugView->getControls()->stateStopped();
         else
             m_debugView->getControls()->stateStoppedExtern();
     }
-}
-
-
-void DebuggerUI::UpdateBreakpoints()
-{
-
 }
 
 
@@ -97,4 +104,102 @@ void DebuggerUI::CreateBreakpointTagType()
 
     m_breakpointType = new TagType(m_state->GetData(), "Breakpoints", "🛑");
     m_state->GetData()->AddTagType(m_breakpointType);
+}
+
+
+void DebuggerUI::UpdateHighlights()
+{
+    for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(m_lastIP))
+    {
+        func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), m_lastIP, NoHighlightColor);
+    }
+
+    for (const ModuleNameAndOffset& info: m_state->GetBreakpoints()->GetBreakpointList())
+    {
+        if (info.module != m_state->GetData()->GetFile()->GetOriginalFilename())
+            continue;
+
+        uint64_t bp = m_state->GetData()->GetStart() + info.offset;
+        for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(bp))
+        {
+            func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), bp, RedHighlightColor);
+        }
+    }
+
+    if (m_state->IsConnected())
+    {
+        uint64_t localIP = m_state->LocalIP();
+        for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(localIP))
+        {
+            func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(),
+                    localIP, BlueHighlightColor);
+        }
+    }
+}
+
+
+void DebuggerUI::UpdateModules()
+{
+    // TODO
+}
+
+
+void DebuggerUI::UpdateBreakpoints()
+{
+    // TODO
+}
+
+
+void DebuggerUI::AddBreakpointTag(uint64_t localAddress)
+{
+    for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(localAddress))
+    {
+        if (!func)
+            continue;
+
+        for (TagRef tag: func->GetAddressTags(m_state->GetData()->GetDefaultArchitecture(), localAddress))
+        {
+            if (tag->GetType() != m_breakpointType)
+                continue;
+
+            func->CreateUserAddressTag(m_state->GetData()->GetDefaultArchitecture(), localAddress, m_breakpointType,
+                    "breakpoint");
+        }
+    }
+
+    ContextDisplay();
+}
+
+
+// breakpoint TAG removal - strictly presentation
+// (doesn't remove actual breakpoints, just removes the binja tags that mark them)
+void DebuggerUI::DeleteBreakpointTag(std::vector<uint64_t> localAddress)
+{
+    if (localAddress.size() == 0)
+    {
+        for (const ModuleNameAndOffset& info: m_state->GetBreakpoints()->GetBreakpointList())
+        {
+            if (info.module == m_state->GetData()->GetFile()->GetOriginalFilename())
+            {
+                localAddress.push_back(m_state->GetData()->GetStart() + info.offset);
+            }
+        }
+    }
+
+    for (uint64_t address: localAddress)
+    {
+        for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(address))
+        {
+            func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), address, NoHighlightColor);
+            for (TagRef tag: func->GetAddressTags(m_state->GetData()->GetDefaultArchitecture(), address))
+            {
+                if (tag->GetType() != m_breakpointType)
+                    continue;
+
+                func->RemoveUserAddressTag(m_state->GetData()->GetDefaultArchitecture(), address, tag);
+            }
+        }
+    }
+
+    ContextDisplay();
 }
