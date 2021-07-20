@@ -232,23 +232,29 @@ void DebugControlsWidget::performResume()
 
 void DebugControlsWidget::performStepIntoAsm()
 {
+    stateBusy("STEPPING");
     m_state->StepIntoAsm();
+
+    m_state->OnStep();
 }
 
 void DebugControlsWidget::performStepIntoIL()
 {
+    stateBusy("STEPPING");
     m_state->StepIntoIL();
 }
 
 
 void DebugControlsWidget::performStepOverAsm()
 {
+    stateBusy("STEPPING");
     m_state->StepOverAsm();
 }
 
 
 void DebugControlsWidget::performStepOverIL()
 {
+    stateBusy("STEPPING");
     m_state->StepOverIL();
 }
 
@@ -452,7 +458,20 @@ void DebugControlsWidget::stateRunning(const std::string& msg)
     setActionEnabled(DebugControlResumeAction, false);
     m_threadMenu->setEnabled(false);
     setDefaultProcessAction(DebugControlQuitAction);
-    clearThreadList();
+    setPauseOrResume(DebugControlPauseAction);
+}
+
+
+void DebugControlsWidget::stateBusy(const std::string& msg)
+{
+    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "BUSY");
+    setStartingEnabled(false);
+    setStoppingEnabled(true);
+    setSteppingEnabled(false);
+    setActionEnabled(DebugControlPauseAction, true);
+    setActionEnabled(DebugControlResumeAction, false);
+    m_threadMenu->setEnabled(false);
+    setDefaultProcessAction(DebugControlQuitAction);
     setPauseOrResume(DebugControlPauseAction);
 }
 

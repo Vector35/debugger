@@ -570,7 +570,11 @@ void DebuggerState::Go()
 
 void DebuggerState::StepIntoAsm()
 {
-    BinaryNinja::LogWarn("stepIntoAsm() requested");
+    if (!IsConnected())
+        throw runtime_error("cannot step into asm when disconnected");
+
+    m_adapter->StepInto();
+    MarkDirty();
 }
 
 
@@ -582,7 +586,11 @@ void DebuggerState::StepIntoIL()
 
 void DebuggerState::StepOverAsm()
 {
-    BinaryNinja::LogWarn("stepOverAsm() requested");
+    if (!IsConnected())
+        throw runtime_error("cannot step over asm when disconnected");
+
+    m_adapter->StepOver();
+    MarkDirty();
 }
 
 
