@@ -88,4 +88,14 @@ public:
             #endif
             >= 0;
     }
+
+    bool Kill() const {
+        return
+            #ifdef WIN32
+                ::shutdown(this->m_socket, SD_BOTH) >= 0
+            #else
+                ::shutdown(this->m_socket, SHUT_RDWR) >= 0
+            #endif
+                && this->Close();
+    }
 };

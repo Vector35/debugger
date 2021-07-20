@@ -13,6 +13,8 @@ protected:
         std::uint32_t m_offset{};
     };
 
+    DebugStopReason m_lastStopReason{};
+
     using register_pair = std::pair<std::string, RegisterInfo>;
     std::map<std::string, DebugRegister> m_cachedRegisterInfo{};
 

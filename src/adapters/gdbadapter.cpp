@@ -8,6 +8,7 @@
 #else
 #include <unistd.h>
 #include <spawn.h>
+#include <csignal>
 #endif
 #include <algorithm>
 #include <string>
@@ -34,7 +35,6 @@ GdbAdapter::GdbAdapter(bool redirectGDBServer): m_redirectGDBServer(redirectGDBS
 
 GdbAdapter::~GdbAdapter()
 {
-
 }
 
 std::string GdbAdapter::ExecuteShellCommand(const std::string& command)
@@ -61,6 +61,16 @@ std::string GdbAdapter::ExecuteShellCommand(const std::string& command)
 
 bool GdbAdapter::Execute(const std::string& path)
 {
+    return this->ExecuteWithArgs(path, {});
+}
+
+bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args)
+{
+    const auto file_exists = fopen(path.c_str(), "r");
+    if (!file_exists)
+        return false;
+    fclose(file_exists);
+
 #ifdef WIN32
     auto gdb_server_path = this->ExecuteShellCommand("where gdbserver");
 #else
@@ -76,7 +86,14 @@ bool GdbAdapter::Execute(const std::string& path)
     const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket.GetPort());
 
 #ifdef WIN32
-    const auto arguments = fmt::format("--once --no-startup-with-shell {} {}", host_with_port, path);
+    std::string final_args{};
+    for (const auto& arg : args) {
+        final_args.append(arg);
+        if (&arg != &args.back())
+            final_args.append(" ");
+    }
+
+    const auto arguments = fmt::format("--once --no-startup-with-shell {} {} {}", host_with_port, path, final_args);
 
     STARTUPINFOA startup_info{};
     PROCESS_INFORMATION process_info{};
@@ -129,7 +146,16 @@ bool GdbAdapter::Execute(const std::string& path)
             }
         }
         // TODO: this works, but its not good. We are casting const char* to char*
-        char* arg[] = {"--once", "--no-startup-with-shell", (char*)host_with_port.c_str(), (char*)path.c_str(), NULL};
+        std::string final_args{};
+        for (const auto& arg : args) {
+            final_args.append(arg);
+            if (&arg != &args.back())
+                final_args.append(" ");
+        }
+
+        char* arg[] = {"--once", "--no-startup-with-shell", (char*)host_with_port.c_str(),
+                    (char*) path.c_str(), (char*)final_args.c_str(), NULL};
+
         if (execv(gdb_server_path.c_str(), arg) == -1)
         {
             perror("execv");
@@ -144,14 +170,9 @@ bool GdbAdapter::Execute(const std::string& path)
     return this->Connect("127.0.0.1", this->m_socket.GetPort());
 }
 
-bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args)
-{
-    return false;
-}
-
 bool GdbAdapter::Attach(std::uint32_t pid)
 {
-    return true;
+    throw std::runtime_error("gdb attach is not supported");
 }
 
 bool GdbAdapter::LoadRegisterInfo()
@@ -263,12 +284,18 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
 
 void GdbAdapter::Detach()
 {
-
+    char detach{'D'};
+    this->m_rspConnector.SendRaw(RspData(&detach, sizeof(detach)));
+    this->m_socket.Kill();
 }
 
 void GdbAdapter::Quit()
 {
-
+    char send{'\x03'};
+    char kill{'k'};
+    this->m_rspConnector.SendRaw(RspData(&send, sizeof(send)));
+    this->m_rspConnector.SendRaw(RspData(&kill, sizeof(kill)));
+    this->m_socket.Kill();
 }
 
 std::vector<DebugThread> GdbAdapter::GetThreadList()
@@ -676,6 +703,11 @@ bool GdbAdapter::GenericGo(const std::string& go_type) {
         auto map = RspConnector::PacketToUnorderedMap(go_reply);
         const auto tid = map["thread"];
         this->m_lastActiveThreadId = tid;
+        if (map["signal"] == 5) {
+            this->m_lastStopReason = DebugStopReason::Breakpoint;
+        } else if (map["signal"] == 11) {
+            this->m_lastStopReason = DebugStopReason::AccessViolation;
+        }
     } else if ( go_reply.m_data[0] == 'W' ) {
         /* exit status, substr */
     } else {
@@ -832,7 +864,7 @@ std::uintptr_t GdbAdapter::GetInstructionOffset()
 
 DebugStopReason GdbAdapter::StopReason()
 {
-    return DebugStopReason::Unknown;
+    return this->m_lastStopReason;
 }
 
 unsigned long GdbAdapter::ExecStatus()

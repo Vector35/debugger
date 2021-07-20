@@ -258,7 +258,7 @@ int main(int argc, const char* argv[])
     Log::SetupAnsi();
     LogToStdout(WarningLog);
 
-    if (argc < 3)
+    if (argc != 2 && argc != 3)
     {
         Log::print<Log::Error>("usage: {} <debuggee_path>\n", argv[0]);
         Log::print<Log::Error>("usage: {} --attach <debuggee_pid>\n", argv[0]);
@@ -278,8 +278,8 @@ int main(int argc, const char* argv[])
         //GdbAdapter();
         DbgEngAdapter();
         #else
-        //GdbAdapter();
-        LldbAdapter();
+        GdbAdapter();
+        //LldbAdapter();
         #endif
 
         if (argc == 2) {

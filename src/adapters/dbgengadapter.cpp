@@ -581,7 +581,6 @@ DebugStopReason DbgEngAdapter::StopReason()
             return DebugStopReason::Breakpoint;
 
         const auto& last_exception = DbgEngAdapter::ProcessCallbackInfo.m_lastException;
-        fmt::print("\n!! EXECSTATUS/EXECCODE {}, {}\n", this->ExecStatus(), last_exception.ExceptionCode);
         if ( instruction_ptr == last_exception.ExceptionAddress ) {
             switch (last_exception.ExceptionCode) {
                 case STATUS_BREAKPOINT:
