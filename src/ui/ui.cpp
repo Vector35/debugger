@@ -7,6 +7,8 @@ DebuggerUI::DebuggerUI(DebuggerState* state): m_state(state)
     // DebuggerUI. I understand the reason for this implementation, but its realy not a good idea.
     m_debugView = nullptr;
     m_lastIP = 0;
+
+    CreateBreakpointTagType();
 }
 
 
@@ -81,4 +83,18 @@ void DebuggerUI::NavigateToIp()
 void DebuggerUI::SetDebugView(DebugView* debugView)
 {
     m_debugView = debugView;
+}
+
+
+void DebuggerUI::CreateBreakpointTagType()
+{
+    TagTypeRef type = m_state->GetData()->GetTagType("Breakpoints");
+    if (type)
+    {
+        m_breakpointType = type;
+        return;
+    }
+
+    m_breakpointType = new TagType(m_state->GetData(), "Breakpoints", "🛑");
+    m_state->GetData()->AddTagType(m_breakpointType);
 }

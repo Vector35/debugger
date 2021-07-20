@@ -18,6 +18,7 @@ private:
     uint64_t m_lastIP;
     
     DebugRegisterWidget* m_registersWidget;
+    TagTypeRef m_breakpointType;
 
 public:
     DebuggerUI(DebuggerState* state);
@@ -30,4 +31,5 @@ public:
     void NavigateToIp();
 
     void SetDebugView(DebugView* debugView);
+    void CreateBreakpointTagType();
 };
