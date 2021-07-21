@@ -573,7 +573,18 @@ void DebuggerState::StepIntoAsm()
     if (!IsConnected())
         throw runtime_error("cannot step into asm when disconnected");
 
-    m_adapter->StepInto();
+    uint64_t remoteIP = IP();
+    if (m_breakpoints->ContainsAbsolute(remoteIP))
+    {
+        m_adapter->RemoveBreakpoint(remoteIP);
+        m_adapter->StepInto();
+        m_adapter->AddBreakpoint(remoteIP);
+    }
+    else
+    {
+        m_adapter->StepInto();
+    }
+
     MarkDirty();
 }
 
@@ -716,8 +727,8 @@ void DebuggerState::UpdateCaches()
     // if (m_threads->IsDirty())
     //     m_threads->Update();
 
-    // if (m_modules->IsDirty())
-    //     m_modules->Update();
+    if (m_modules->IsDirty())
+        m_modules->Update();
     // }
     // catch (const std::exception& except)
     // {

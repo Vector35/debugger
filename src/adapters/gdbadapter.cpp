@@ -571,7 +571,7 @@ std::string GdbAdapter::GetRemoteFile(const std::string& path)
 
 std::vector<DebugModule> GdbAdapter::GetModuleList()
 {
-    std::vector<DebugModule> result;
+    std::map<std::string, BNAddressRange> moduleRanges;
 
     const auto path = "/proc/" + std::to_string(this->m_lastActiveThreadId) + "/maps";
     std::string data = GetRemoteFile(path);
@@ -598,18 +598,34 @@ std::vector<DebugModule> GdbAdapter::GetModuleList()
                 uint64_t end = std::strtoull(endString.c_str(), nullptr, 16);
                 std::string path = match[3].str();
 
-                DebugModule module;
-                module.m_address = start;
-                module.m_size = end > start ? end - start : 0;
-                module.m_name = path;
-                module.m_short_name = path;
-                module.m_loaded = true;
-                result.push_back(module);
+                auto iter = moduleRanges.find(path);
+                if (iter != moduleRanges.end())
+                {
+                    BNAddressRange currentRange = iter->second;
+                    BNAddressRange newRange;
+                    newRange.start = std::min<uint64_t>(currentRange.start, start);
+                    newRange.end = std::max<uint64_t>(currentRange.end, end);
+                    iter->second = newRange;
+                }
+                else
+                {
+                    moduleRanges[path] = {start, end};
+                }
             }
         }
-
     }
-   
+
+    std::vector<DebugModule> result;
+    for (auto& iter: moduleRanges)
+    {
+        DebugModule module;
+        module.m_address = iter.second.start;
+        module.m_size = iter.second.end - iter.second.start;
+        module.m_name = iter.first;
+        module.m_short_name = iter.first;
+        module.m_loaded = true;
+        result.push_back(module);
+    }
     return result;
 }
 
