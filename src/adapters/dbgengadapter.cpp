@@ -2,7 +2,11 @@
 #include <chrono>
 #include <algorithm>
 #include <string>
+#include <binaryninjacore.h>
 #include <binaryninjaapi.h>
+#include <lowlevelilinstruction.h>
+#include <mediumlevelilinstruction.h>
+#include <highlevelilinstruction.h>
 #include <memory>
 #include "dbgengadapter.h"
 #include "../../cli/src/log.h"
@@ -488,8 +492,13 @@ bool DbgEngAdapter::StepOut()
 {
     DEBUG_STACK_FRAME_EX stack_frame{};
     unsigned long frame_total{};
-    if (this->m_debugControl->GetStackTraceEx(0, 0, 0, &stack_frame, 1, &frame_total) != S_OK )
-        return false;
+    if (this->m_debugControl->GetStackTraceEx(0, 0, 0, &stack_frame, 1, &frame_total) != S_OK ) {
+        return DebugAdapter::StepOut();
+    }
+
+    if (!stack_frame.ReturnOffset) {
+        return DebugAdapter::StepOut();
+    }
 
     IDebugBreakpoint2* debug_breakpoint;
     if (const auto result = this->m_debugControl->AddBreakpoint2(DEBUG_BREAKPOINT_CODE, DbgEngAdapter::StepoutBreakpointID,

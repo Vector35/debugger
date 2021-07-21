@@ -82,7 +82,6 @@ public:
     bool Go() override;
     bool StepInto() override;
     bool StepOver() override;
-    bool StepOut() override;
     bool StepTo(std::uintptr_t address) override;
 
     void Invoke(const std::string& command) override;

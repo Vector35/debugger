@@ -4,9 +4,10 @@ project(debugger-cli)
 
 remove_definitions(-DUNICODE -D_UNICODE)
 
-set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src)
-set(ADAPTER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src/adapters)
-set(ADAPTER_SOURCES ${SRC_DIR}/debugadapter.h
+set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
+set(ADAPTER_DIR ${CMAKE_SOURCE_DIR}/src/adapters)
+set(ADAPTER_SOURCES
+        ${SRC_DIR}/debugadapter.h ${SRC_DIR}/debugadapter.cpp
         ${ADAPTER_DIR}/gdbadapter.cpp ${ADAPTER_DIR}/gdbadapter.h
         ${ADAPTER_DIR}/lldbadapter.cpp ${ADAPTER_DIR}/lldbadapter.h
         ${ADAPTER_DIR}/rspconnector.cpp ${ADAPTER_DIR}/rspconnector.h

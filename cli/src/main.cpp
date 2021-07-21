@@ -433,7 +433,8 @@ int main(int argc, const char* argv[])
             }
             else if ( input == "sot" )
             {
-                debug_adapter->StepOut();
+                debug_adapter->StepOut() ? Log::print<Log::Info>("stepped out!\n")
+                                         : Log::print<Log::Error>("failed to step out!\n");
             }
             else if ( input == "si" )
             {

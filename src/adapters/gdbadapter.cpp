@@ -824,14 +824,6 @@ bool GdbAdapter::StepOver()
     return true;
 }
 
-bool GdbAdapter::StepOut()
-{
-    /* TODO: when not in a cli interface we should leverage
-     * TODO: already known binary view data of the control flow graph
-     * TODO: to figure out where the function end point is located */
-    throw std::runtime_error("step out not implemented in cli interface");
-}
-
 bool GdbAdapter::StepTo(std::uintptr_t address)
 {
     const auto breakpoints = this->m_debugBreakpoints;
