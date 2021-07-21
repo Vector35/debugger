@@ -751,3 +751,19 @@ HRESULT DbgEngOutputCallbacks::QueryInterface(const IID& interface_id, void** _i
 {
     return S_OK;
 }
+
+
+bool GdbAdapter::SupportFeature(DebugAdapterCapacity feature)
+{
+    switch (feature)
+    {
+    case DebugAdapterSupportStepOver:
+        return true;
+    case DebugAdapterSupportModules:
+        return true;;
+    case DebugAdapterSupportThreads:
+        return true;
+    default:
+        return false;
+    }
+}

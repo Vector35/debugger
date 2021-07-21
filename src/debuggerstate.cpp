@@ -3,6 +3,7 @@
 #include "ui/ui.h"
 #include <chrono>
 #include <thread>
+#include "lowlevelilinstruction.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -600,7 +601,55 @@ void DebuggerState::StepOverAsm()
     if (!IsConnected())
         throw runtime_error("cannot step over asm when disconnected");
 
-    m_adapter->StepOver();
+    if (m_adapter->SupportFeature(DebugAdapterSupportStepOver))
+    {
+        // TODO: if the current rip has a breakpoint on it, do we need any extra treatment for it?
+        m_adapter->StepOver();
+        MarkDirty();
+        return;
+    }
+
+    uint64_t remoteIP = IP();
+    uint64_t localIP = m_memoryView->RemoteAddressToLocal(remoteIP);
+
+    // TODO: support the case where we cannot determined the remote arch
+    size_t size = m_remoteArch->GetMaxInstructionLength();
+    uint8_t* buffer = new uint8_t[size];
+    m_adapter->ReadMemory(remoteIP, buffer, size);
+
+    Ref<LowLevelILFunction> ilFunc = new LowLevelILFunction(m_remoteArch, nullptr);
+    ilFunc->SetCurrentAddress(m_remoteArch, remoteIP);
+    m_remoteArch->GetInstructionLowLevelIL(buffer, remoteIP, size, *ilFunc);
+
+    const auto& instr = (*ilFunc)[0];
+    if (instr.operation != LLIL_CALL)
+    {
+        StepIntoAsm();
+    }
+    else
+    {
+        InstructionInfo info;
+        if (!m_remoteArch->GetInstructionInfo(buffer, remoteIP, size, info))
+        {
+            // Whenever there is a failure, we fail back to step into
+            // TODO: decide if there is another better options
+            delete buffer;
+            StepIntoAsm();
+            return;
+        }
+
+        if (info.length == 0)
+        {
+            delete buffer;
+            StepIntoAsm();
+            return;
+        }
+
+        uint64_t remoteIPNext = remoteIP + info.length;
+        StepTo({remoteIPNext});
+    }
+
+    delete buffer;
     MarkDirty();
 }
 
@@ -614,6 +663,45 @@ void DebuggerState::StepOverIL()
 void DebuggerState::StepReturn()
 {
     BinaryNinja::LogWarn("stepReturn() requested");
+}
+
+
+void DebuggerState::StepTo(std::vector<uint64_t> remoteAddresses)
+{
+    if (!IsConnected())
+        throw runtime_error("cannot step to when disconnected");
+
+    uint64_t remoteIP = IP();
+
+    for (uint64_t remoteAddress: remoteAddresses)
+    {
+        if (!m_breakpoints->ContainsAbsolute(remoteAddress))
+        {
+            m_adapter->AddBreakpoint(remoteAddress);
+        }
+    }
+
+    if (m_breakpoints->ContainsAbsolute(remoteIP))
+    {
+        m_adapter->RemoveBreakpoint(remoteIP);
+        m_adapter->StepInto();
+        m_adapter->AddBreakpoint(remoteIP);
+        m_adapter->Go();
+    }
+    else
+    {
+        m_adapter->Go();
+    }
+
+    for (uint64_t remoteAddress: remoteAddresses)
+    {
+        if (!m_breakpoints->ContainsAbsolute(remoteAddress))
+        {
+            m_adapter->RemoveBreakpoint(remoteAddress);
+        }
+    }
+
+    MarkDirty();
 }
 
 

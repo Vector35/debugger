@@ -182,6 +182,7 @@ public:
     void StepOverAsm();
     void StepOverIL();
     void StepReturn();
+    void StepTo(std::vector<uint64_t> remoteAddresses);
 
     bool CanExec();
     bool CanConnect();

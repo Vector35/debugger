@@ -836,3 +836,19 @@ unsigned long GdbAdapter::ExecStatus()
 {
     return 0;
 }
+
+
+bool GdbAdapter::SupportFeature(DebugAdapterCapacity feature)
+{
+    switch (feature)
+    {
+    case DebugAdapterSupportStepOver:
+        return false;
+    case DebugAdapterSupportModules:
+        return true;
+    case DebugAdapterSupportThreads:
+        return true;
+    default:
+        return false;
+    }
+}

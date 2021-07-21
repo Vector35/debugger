@@ -20,6 +20,16 @@ enum StopReason
     ExceptionStopReason
 };
 
+
+// Used by the DebuggerState to query the capacities of the DebugAdapter, and take different actions accordingly.
+enum DebugAdapterCapacity
+{
+    DebugAdapterSupportStepOver,
+    DebugAdapterSupportModules,
+    DebugAdapterSupportThreads,
+};
+
+
 struct DebugThread
 {
     std::uint32_t m_tid{};
@@ -160,4 +170,6 @@ public:
 
     virtual void Invoke(const std::string& command) = 0;
     virtual std::uintptr_t GetInstructionOffset() = 0;
+
+    virtual bool SupportFeature(DebugAdapterCapacity feature) = 0;
 };

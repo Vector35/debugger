@@ -85,4 +85,6 @@ public:
 
     void Invoke(const std::string& command) override;
     std::uintptr_t GetInstructionOffset() override;
+
+    bool SupportFeature(DebugAdapterCapacity feature) override;
 };

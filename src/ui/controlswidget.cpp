@@ -242,6 +242,8 @@ void DebugControlsWidget::performStepIntoIL()
 {
     stateBusy("STEPPING");
     m_state->StepIntoIL();
+
+    m_state->OnStep();
 }
 
 
@@ -249,6 +251,8 @@ void DebugControlsWidget::performStepOverAsm()
 {
     stateBusy("STEPPING");
     m_state->StepOverAsm();
+
+    m_state->OnStep();
 }
 
 
@@ -256,12 +260,17 @@ void DebugControlsWidget::performStepOverIL()
 {
     stateBusy("STEPPING");
     m_state->StepOverIL();
+
+    m_state->OnStep();
 }
 
 
 void DebugControlsWidget::performStepReturn()
 {
+    stateBusy("STEPPING");
     m_state->StepReturn();
+
+    m_state->OnStep();
 }
 
 
