@@ -544,13 +544,23 @@ void DebuggerState::Attach()
 
 void DebuggerState::Detach()
 {
-    BinaryNinja::LogWarn("detach() requested");
+    if (IsConnected())
+    {
+        m_adapter->Detach();
+        m_adapter = nullptr;
+        m_remoteArch = nullptr;
+    }
+    MarkDirty();
 }
 
 
 void DebuggerState::Pause()
 {
-    BinaryNinja::LogWarn("pause() requested");
+    if (!IsConnected())
+        throw runtime_error("Cannot pause when disconncted");
+
+    m_adapter->BreakInto();
+    MarkDirty();
 }
 
 
@@ -560,9 +570,20 @@ void DebuggerState::Go()
         throw runtime_error("missing adapter");
 
     m_targetStatus = DebugAdapterRunningStatus;
-    // TODO: we should handle the case when the current IP is in the breakpoint list. Simply resuming the
-    // target will cause it to break again, on the same address.
-    bool ok = m_adapter->Go();
+
+    uint64_t remoteIP = IP();
+    // TODO: for gdbeng, it handles this sequence of operations for us, so we can simply can Go()
+    if (m_breakpoints->ContainsAbsolute(remoteIP))
+    {
+        m_adapter->RemoveBreakpoint(remoteIP);
+        m_adapter->StepInto();
+        m_adapter->AddBreakpoint(remoteIP);
+        m_adapter->Go();
+    }
+    else
+    {
+        m_adapter->Go();
+    }
 
     m_targetStatus = DebugAdapterPausedStatus;
     MarkDirty();

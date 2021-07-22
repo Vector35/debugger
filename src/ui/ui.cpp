@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "binaryninjaapi.h"
 
 DebuggerUI::DebuggerUI(DebuggerState* state): m_state(state)
 {
@@ -202,4 +203,66 @@ void DebuggerUI::DeleteBreakpointTag(std::vector<uint64_t> localAddress)
     }
 
     ContextDisplay();
+}
+
+
+static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
+{
+    DebuggerState* state = DebuggerState::GetState(view);
+
+    bool isAbsoluteAddress = false;
+    if ((view == state->GetMemoryView()) ||
+        (view->GetParentView() == (BinaryViewRef)state->GetMemoryView()))
+    {
+        isAbsoluteAddress = true;
+    }
+
+    DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
+    if (isAbsoluteAddress)
+    {
+        if (breakpoints->ContainsAbsolute(addr))
+        {
+            breakpoints->RemoveAbsolute(addr);
+        }
+        else
+        {
+            breakpoints->AddAbsolute(addr);
+        }
+    }
+    else
+    {
+        std::string filename = view->GetFile()->GetOriginalFilename();
+        uint64_t offset = addr - view->GetStart();
+        ModuleNameAndOffset info = {filename, offset};
+        if (breakpoints->ContainsOffset(info))
+        {
+            state->GetDebuggerUI()->DeleteBreakpointTag({addr});
+            breakpoints->RemoveOffset(info);
+        }
+        else
+        {
+            breakpoints->AddOffset(info);
+            state->GetDebuggerUI()->AddBreakpointTag({addr});
+        }
+    }
+    // TODO: this is not the best way to organize the highlight of breakpoints. It only works when the breakpoint is 
+    // added through the UI, and when the breakpoint is added through the planned API, the display will be outdated
+    state->GetDebuggerUI()->UpdateBreakpoints();
+}
+
+
+static bool BreakpointToggleValid(BinaryView* view, uint64_t addr)
+{
+    return true;
+}
+
+
+void DebuggerUI::InitializeUI()
+{
+    DockHandler* activeDocks = DockHandler::getActiveDockHandler();
+	activeDocks->addDockWidget("Native Debugger Registers", [](const QString& name, ViewFrame* frame, BinaryViewRef data) { return new DebugRegisterWidget(frame, name, data); }, Qt::RightDockWidgetArea, Qt::Horizontal, false);
+
+    PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
+            "sets/clears breakpoint at right-clicked address",
+            BreakpointToggleCallback, BreakpointToggleValid);
 }

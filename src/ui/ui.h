@@ -38,4 +38,6 @@ public:
 
     void AddBreakpointTag(uint64_t localAddress);
     void DeleteBreakpointTag(std::vector<uint64_t> localAddress);
+
+    static void InitializeUI();
 };
