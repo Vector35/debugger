@@ -10,6 +10,7 @@ DebuggerUI::DebuggerUI(DebuggerState* state): m_state(state)
     m_lastIP = 0;
 
     CreateBreakpointTagType();
+    CreateProgramCounterTagType();
 
     ContextDisplay();
     UpdateHighlights();
@@ -55,6 +56,7 @@ void DebuggerUI::ContextDisplay()
 
     uint64_t localIP = m_state->LocalIP();
     BinaryNinja::LogWarn("localIP: 0x%" PRIx64 "\n", localIP);
+
     UpdateHighlights();
     m_lastIP = localIP;
 
@@ -99,12 +101,26 @@ void DebuggerUI::CreateBreakpointTagType()
     TagTypeRef type = m_state->GetData()->GetTagType("Breakpoints");
     if (type)
     {
-        m_breakpointType = type;
+        m_breakpointTagType = type;
         return;
     }
 
-    m_breakpointType = new TagType(m_state->GetData(), "Breakpoints", "🛑");
-    m_state->GetData()->AddTagType(m_breakpointType);
+    m_breakpointTagType = new TagType(m_state->GetData(), "Breakpoints", "🛑");
+    m_state->GetData()->AddTagType(m_breakpointTagType);
+}
+
+
+void DebuggerUI::CreateProgramCounterTagType()
+{
+    TagTypeRef type = m_state->GetData()->GetTagType("Program Counter");
+    if (type)
+    {
+        m_pcTagType = type;
+        return;
+    }
+
+    m_pcTagType = new TagType(m_state->GetData(), "Program Counter", "==>");
+    m_state->GetData()->AddTagType(m_pcTagType);
 }
 
 
@@ -112,20 +128,43 @@ void DebuggerUI::UpdateHighlights()
 {
     for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(m_lastIP))
     {
-        func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), m_lastIP, NoHighlightColor);
-    }
+        ModuleNameAndOffset addr;
+        addr.module = m_state->GetData()->GetFile()->GetOriginalFilename();
+        addr.offset = m_lastIP - m_state->GetData()->GetStart();
+    
+        BNHighlightStandardColor oldColor = NoHighlightColor;
+        if (m_state->GetBreakpoints()->ContainsOffset(addr))
+            oldColor = RedHighlightColor;
 
-    for (const ModuleNameAndOffset& info: m_state->GetBreakpoints()->GetBreakpointList())
-    {
-        if (info.module != m_state->GetData()->GetFile()->GetOriginalFilename())
-            continue;
-
-        uint64_t bp = m_state->GetData()->GetStart() + info.offset;
-        for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(bp))
+        func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), m_lastIP, oldColor);
+        for (TagRef tag: func->GetAddressTags(m_state->GetData()->GetDefaultArchitecture(), m_lastIP))
         {
-            func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), bp, RedHighlightColor);
+            if (tag->GetType() != m_pcTagType)
+                continue;
+
+            func->RemoveUserAddressTag(m_state->GetData()->GetDefaultArchitecture(), m_lastIP, tag);
         }
     }
+
+    // There should be no need to manually set the breakpoint highlight like this.
+    // Any changes to the DebuggerBreakpoints class should automatically trigger display updates, if the UI is present.
+    // We also need a notion of internal breakpoints, e.g., thsoe used when continuing execution at a breakpoint,
+    // whose changes do not trigger UI updates.
+    // One concern is it might cause excessive UI updates when the breakpoints are added in bulky amounts.
+    // Another concern is when new functions are added during debugging, any breakpoints added beforehand will not be
+    // visiable.
+
+    // for (const ModuleNameAndOffset& info: m_state->GetBreakpoints()->GetBreakpointList())
+    // {
+    //     if (info.module != m_state->GetData()->GetFile()->GetOriginalFilename())
+    //         continue;
+
+    //     uint64_t bp = m_state->GetData()->GetStart() + info.offset;
+    //     for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(bp))
+    //     {
+    //         func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), bp, RedHighlightColor);
+    //     }
+    // }
 
     if (m_state->IsConnected())
     {
@@ -134,6 +173,8 @@ void DebuggerUI::UpdateHighlights()
         {
             func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(),
                     localIP, BlueHighlightColor);
+            func->CreateUserAddressTag(m_state->GetData()->GetDefaultArchitecture(), localIP, m_pcTagType,
+                    "program counter");
         }
     }
 }
@@ -158,12 +199,21 @@ void DebuggerUI::AddBreakpointTag(uint64_t localAddress)
         if (!func)
             continue;
 
+        bool tagFound = false;
         for (TagRef tag: func->GetAddressTags(m_state->GetData()->GetDefaultArchitecture(), localAddress))
         {
-            if (tag->GetType() != m_breakpointType)
-                continue;
+            if (tag->GetType() == m_breakpointTagType)
+            {
+                tagFound = true;
+                break;
+            }
+        }
 
-            func->CreateUserAddressTag(m_state->GetData()->GetDefaultArchitecture(), localAddress, m_breakpointType,
+        if (!tagFound)
+        {
+            func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), localAddress,
+                    RedHighlightColor);
+            func->CreateUserAddressTag(m_state->GetData()->GetDefaultArchitecture(), localAddress, m_breakpointTagType,
                     "breakpoint");
         }
     }
@@ -194,7 +244,7 @@ void DebuggerUI::DeleteBreakpointTag(std::vector<uint64_t> localAddress)
             func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), address, NoHighlightColor);
             for (TagRef tag: func->GetAddressTags(m_state->GetData()->GetDefaultArchitecture(), address))
             {
-                if (tag->GetType() != m_breakpointType)
+                if (tag->GetType() != m_breakpointTagType)
                     continue;
 
                 func->RemoveUserAddressTag(m_state->GetData()->GetDefaultArchitecture(), address, tag);
@@ -236,8 +286,8 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
         ModuleNameAndOffset info = {filename, offset};
         if (breakpoints->ContainsOffset(info))
         {
-            state->GetDebuggerUI()->DeleteBreakpointTag({addr});
             breakpoints->RemoveOffset(info);
+            state->GetDebuggerUI()->DeleteBreakpointTag({addr});
         }
         else
         {

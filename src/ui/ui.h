@@ -18,7 +18,7 @@ private:
     uint64_t m_lastIP;
     
     DebugRegisterWidget* m_registersWidget;
-    TagTypeRef m_breakpointType;
+    TagTypeRef m_breakpointTagType, m_pcTagType;
 
 public:
     DebuggerUI(DebuggerState* state);
@@ -31,6 +31,7 @@ public:
 
     void SetDebugView(DebugView* debugView);
     void CreateBreakpointTagType();
+    void CreateProgramCounterTagType();
 
     void UpdateHighlights();
     void UpdateModules();

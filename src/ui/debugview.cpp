@@ -101,7 +101,8 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
         LogWarn("added breakpoint at offset 0x%" PRIx64, localEntryOffset);
         if (m_state->GetDebuggerUI())
         {
-
+            m_state->GetDebuggerUI()->AddBreakpointTag(m_state->GetData()->GetEntryPoint());
+            m_state->GetDebuggerUI()->UpdateBreakpoints();
         }
     }
 }
