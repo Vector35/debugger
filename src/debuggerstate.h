@@ -54,7 +54,26 @@ struct ModuleNameAndOffset
 
     ModuleNameAndOffset(): module(""), offset(0) {}
     ModuleNameAndOffset(std::string mod, uint64_t off): module(mod), offset(off) {}
-    bool operator==(const ModuleNameAndOffset& other) { return (module == other.module) && (offset == other.offset); }
+    bool operator==(const ModuleNameAndOffset& other) const
+    {
+        return (module == other.module) && (offset == other.offset);
+    }
+    bool operator<(const ModuleNameAndOffset& other) const
+    {
+        if (module < other.module)
+            return true;
+        if (module > other.module)
+            return false;
+        return offset < other.offset;
+    }
+    bool operator>(const ModuleNameAndOffset& other) const
+    {
+        if (module > other.module)
+            return true;
+        if (module < other.module)
+            return false;
+        return offset > other.offset;
+    }
 };
 
 

@@ -1,5 +1,7 @@
 #include "ui.h"
 #include "binaryninjaapi.h"
+#include "widget.h"
+#include "breakpointwidget.h"
 
 DebuggerUI::DebuggerUI(DebuggerState* state): m_state(state)
 {
@@ -188,7 +190,11 @@ void DebuggerUI::UpdateModules()
 
 void DebuggerUI::UpdateBreakpoints()
 {
-    // TODO
+    // This is different from the Python implementation. The UI does not query the adapter for the list of breakpoints.
+    // Instead, it maintains the status of breakpoints, and the adapter may not need to keep another copy of it.
+    DebuggerBreakpoints* breakpoints = m_state->GetBreakpoints();
+    std::vector<ModuleNameAndOffset> addresses = breakpoints->GetBreakpointList();
+    
 }
 
 
@@ -309,8 +315,10 @@ static bool BreakpointToggleValid(BinaryView* view, uint64_t addr)
 
 void DebuggerUI::InitializeUI()
 {
-    DockHandler* activeDocks = DockHandler::getActiveDockHandler();
-	activeDocks->addDockWidget("Native Debugger Registers", [](const QString& name, ViewFrame* frame, BinaryViewRef data) { return new DebugRegisterWidget(frame, name, data); }, Qt::RightDockWidgetArea, Qt::Horizontal, false);
+    Widget::registerDockWidget([&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
+            return new DebugBreakpointsWidget(parent, name, data);
+        },
+        "Native Debugger Breakpoints", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
 
     PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
             "sets/clears breakpoint at right-clicked address",
