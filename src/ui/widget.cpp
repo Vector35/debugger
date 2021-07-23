@@ -8,6 +8,12 @@ std::vector<BinaryViewAndWidgets> Widget::g_debugDockWidgets;
 QWidget* Widget::createWidgdet(const std::function<QWidget*(ViewFrame*, const QString&, BinaryViewRef)>& widgetClass,
         const QString& name, ViewFrame* parent, BinaryViewRef data)
 {
+    if (!widgetClass)
+    {
+        LogWarn("invalid widgetClass");
+        return nullptr;
+    }
+
     QWidget* widget = widgetClass(parent, name, data);
     if (!widget)
         return nullptr;
@@ -60,7 +66,8 @@ void Widget::registerDockWidget(const std::function<QWidget*(ViewFrame*, const Q
 {
     DockHandler* activeDocks = DockHandler::getActiveDockHandler();
 	activeDocks->addDockWidget(QString::fromStdString(name),
-        [&](const QString& name, ViewFrame* frame, BinaryViewRef data) -> QWidget* { 
+        // This will cause a crash if I use [&] to capture. I think it should not.
+        [=](const QString& name, ViewFrame* frame, BinaryViewRef data) -> QWidget* { 
             return Widget::createWidgdet(widgetClass, name, frame, data); 
         },
         area, orientation, defaultVisibility);
