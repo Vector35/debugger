@@ -315,4 +315,5 @@ void DebuggerUI::InitializeUI()
     PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
             "sets/clears breakpoint at right-clicked address",
             BreakpointToggleCallback, BreakpointToggleValid);
+    UIAction::setUserKeyBinding("Native Debugger\\Toggle Breakpoint", { QKeySequence(Qt::Key_F2) });
 }
