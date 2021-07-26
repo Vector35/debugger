@@ -17,7 +17,7 @@ private:
     DebugView* m_debugView;
     uint64_t m_lastIP;
     
-    DebugRegisterWidget* m_registersWidget;
+    DebugRegistersWidget* m_registersWidget;
     TagTypeRef m_breakpointTagType, m_pcTagType;
 
 public:

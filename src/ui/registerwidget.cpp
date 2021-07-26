@@ -42,29 +42,29 @@ bool DebugRegisterItem::operator<(const DebugRegisterItem& other) const
 }
 
 
-DebugRegisterListModel::DebugRegisterListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view):
+DebugRegistersListModel::DebugRegistersListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view):
     QAbstractTableModel(parent), m_data(data), m_view(view)
 {   
 }
 
 
-DebugRegisterListModel::~DebugRegisterListModel()
+DebugRegistersListModel::~DebugRegistersListModel()
 {
 }
 
 
 
-Qt::ItemFlags DebugRegisterListModel::flags(const QModelIndex &index) const
+Qt::ItemFlags DebugRegistersListModel::flags(const QModelIndex &index) const
 {
     Qt::ItemFlags flag = QAbstractTableModel::flags(index);
-    if (index.column() == DebugRegisterListModel::ValueColumn)
+    if (index.column() == DebugRegistersListModel::ValueColumn)
         flag |= Qt::ItemIsEditable;
 
     return flag;
 }
 
 
-DebugRegisterItem DebugRegisterListModel::getRow(int row) const
+DebugRegisterItem DebugRegistersListModel::getRow(int row) const
 {
     if ((size_t)row >= m_items.size())
 		throw std::runtime_error("row index out-of-bound");
@@ -73,7 +73,7 @@ DebugRegisterItem DebugRegisterListModel::getRow(int row) const
 }
 
 
-QModelIndex DebugRegisterListModel::index(int row, int column, const QModelIndex &) const
+QModelIndex DebugRegistersListModel::index(int row, int column, const QModelIndex &) const
 {
 	if (row < 0 || (size_t)row >= m_items.size() || column >= columnCount())
 	{
@@ -84,7 +84,7 @@ QModelIndex DebugRegisterListModel::index(int row, int column, const QModelIndex
 }
 
 
-QVariant DebugRegisterListModel::data(const QModelIndex& index, int role) const
+QVariant DebugRegistersListModel::data(const QModelIndex& index, int role) const
 {
     if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
 		return QVariant();
@@ -99,7 +99,7 @@ QVariant DebugRegisterListModel::data(const QModelIndex& index, int role) const
 
     switch (index.column())
     {
-    case DebugRegisterListModel::NameColumn:
+    case DebugRegistersListModel::NameColumn:
     {
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)item->name().size());
@@ -109,7 +109,7 @@ QVariant DebugRegisterListModel::data(const QModelIndex& index, int role) const
 		line.push_back(QString::fromStdString(item->name()));
 		return QVariant(line);
     }
-    case DebugRegisterListModel::ValueColumn:
+    case DebugRegistersListModel::ValueColumn:
     {
         // TODO: We need better alignment for values
         uint64_t value = item->value();
@@ -126,7 +126,7 @@ QVariant DebugRegisterListModel::data(const QModelIndex& index, int role) const
 		line.push_back(valueStr);
 		return QVariant(line);
     }
-    case DebugRegisterListModel::HintColumn:
+    case DebugRegistersListModel::HintColumn:
     {
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)item->hint().size());
@@ -141,7 +141,7 @@ QVariant DebugRegisterListModel::data(const QModelIndex& index, int role) const
 }
 
 
-QVariant DebugRegisterListModel::headerData(int column, Qt::Orientation orientation, int role) const
+QVariant DebugRegistersListModel::headerData(int column, Qt::Orientation orientation, int role) const
 {
 	if (role != Qt::DisplayRole)
 		return QVariant();
@@ -151,18 +151,18 @@ QVariant DebugRegisterListModel::headerData(int column, Qt::Orientation orientat
 
 	switch (column)
 	{
-		case DebugRegisterListModel::NameColumn:
+		case DebugRegistersListModel::NameColumn:
 			return "Name";
-		case DebugRegisterListModel::ValueColumn:
+		case DebugRegistersListModel::ValueColumn:
 			return "Value";
-		case DebugRegisterListModel::HintColumn:
+		case DebugRegistersListModel::HintColumn:
 			return "Hint";
 	}
 	return QVariant();
 }
 
 
-void DebugRegisterListModel::updateRows(std::vector<DebugRegister> newRows)
+void DebugRegistersListModel::updateRows(std::vector<DebugRegister> newRows)
 {
     // TODO: This might cause performance problems. We can instead only update the chagned registers.
     // However, the cost for that is we need to attach an index to each item and sort accordingly
@@ -196,14 +196,14 @@ void DebugRegisterListModel::updateRows(std::vector<DebugRegister> newRows)
 }
 
 
-DebugRegisterItemDelegate::DebugRegisterItemDelegate(QWidget* parent):
+DebugRegistersItemDelegate::DebugRegistersItemDelegate(QWidget* parent):
     QStyledItemDelegate(parent)
 {
     updateFonts();
 }
 
 
-void DebugRegisterItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option,
+void DebugRegistersItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option,
 	const QModelIndex& idx) const
 {
 	painter->setFont(m_font);
@@ -223,8 +223,8 @@ void DebugRegisterItemDelegate::paint(QPainter* painter, const QStyleOptionViewI
 	auto data = idx.data(Qt::DisplayRole);
 	switch (idx.column())
 	{
-	case DebugRegisterListModel::NameColumn:
-	case DebugRegisterListModel::ValueColumn:
+	case DebugRegistersListModel::NameColumn:
+	case DebugRegistersListModel::ValueColumn:
 	{
 		auto tokenPair = data.toList();
 		if (tokenPair.size() == 0)
@@ -233,7 +233,7 @@ void DebugRegisterItemDelegate::paint(QPainter* painter, const QStyleOptionViewI
 		painter->drawText(textRect, tokenPair[1].toString());
 		break;
 	}
-	case DebugRegisterListModel::HintColumn:
+	case DebugRegistersListModel::HintColumn:
 	{
 		auto tokenPairList = data.toList();
 		textRect.setLeft(textRect.left() + m_charWidth);
@@ -254,7 +254,7 @@ void DebugRegisterItemDelegate::paint(QPainter* painter, const QStyleOptionViewI
 }
 
 
-void DebugRegisterItemDelegate::updateFonts()
+void DebugRegistersItemDelegate::updateFonts()
 {
 	// Get font and compute character sizes
 	m_font = getMonospaceFont(dynamic_cast<QWidget*>(parent()));
@@ -266,13 +266,13 @@ void DebugRegisterItemDelegate::updateFonts()
 }
 
 
-DebugRegisterWidget::DebugRegisterWidget(ViewFrame* view, const QString& name, BinaryViewRef data):
+DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, const QString& name, BinaryViewRef data):
     QWidget(view), DockContextHandler(this, name), m_view(view), m_data(data)
 {
     m_table = new QTableView(this);
-    m_model = new DebugRegisterListModel(m_table, data, view);
+    m_model = new DebugRegistersListModel(m_table, data, view);
 
-    m_delegate = new DebugRegisterItemDelegate(this);
+    m_delegate = new DebugRegistersItemDelegate(this);
     m_table->setItemDelegate(m_delegate);
 
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -295,13 +295,13 @@ DebugRegisterWidget::DebugRegisterWidget(ViewFrame* view, const QString& name, B
 }
 
 
-void DebugRegisterWidget::notifyRegistersChanged(std::vector<DebugRegister> regs)
+void DebugRegistersWidget::notifyRegistersChanged(std::vector<DebugRegister> regs)
 {
     m_model->updateRows(regs);
 }
 
 
-void DebugRegisterWidget::notifyFontChanged()
+void DebugRegistersWidget::notifyFontChanged()
 {
     m_delegate->updateFonts();
 }

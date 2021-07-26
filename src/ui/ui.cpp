@@ -345,6 +345,10 @@ void DebuggerUI::InitializeUI()
             return new DebugBreakpointsWidget(parent, name, data);
         },
         "Native Debugger Breakpoints", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
+    Widget::registerDockWidget([&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
+            return new DebugRegistersWidget(parent, name, data);
+        },
+        "Native Debugger Registers", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
 
     PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
             "sets/clears breakpoint at right-clicked address",

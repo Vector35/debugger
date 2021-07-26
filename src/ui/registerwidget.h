@@ -36,7 +36,7 @@ public:
 Q_DECLARE_METATYPE(DebugRegisterItem);
 
 
-class BINARYNINJAUIAPI DebugRegisterListModel: public QAbstractTableModel
+class BINARYNINJAUIAPI DebugRegistersListModel: public QAbstractTableModel
 {
     Q_OBJECT
 
@@ -54,8 +54,8 @@ public:
         HintColumn,
     };
 
-    DebugRegisterListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view);
-    virtual ~DebugRegisterListModel();
+    DebugRegistersListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view);
+    virtual ~DebugRegistersListModel();
 
     virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
     virtual Qt::ItemFlags flags(const QModelIndex &index) const override;
@@ -70,7 +70,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebugRegisterItemDelegate: public QStyledItemDelegate
+class BINARYNINJAUIAPI DebugRegistersItemDelegate: public QStyledItemDelegate
 {
     Q_OBJECT
 
@@ -78,13 +78,13 @@ class BINARYNINJAUIAPI DebugRegisterItemDelegate: public QStyledItemDelegate
     int m_baseline, m_charWidth, m_charHeight, m_charOffset;
 
 public:
-    DebugRegisterItemDelegate(QWidget* parent);
+    DebugRegistersItemDelegate(QWidget* parent);
     void updateFonts();
     void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const;
 };
 
 
-class BINARYNINJAUIAPI DebugRegisterWidget: public QWidget, public DockContextHandler
+class BINARYNINJAUIAPI DebugRegistersWidget: public QWidget, public DockContextHandler
 {
     Q_OBJECT
     Q_INTERFACES(DockContextHandler)
@@ -94,8 +94,8 @@ class BINARYNINJAUIAPI DebugRegisterWidget: public QWidget, public DockContextHa
 
     UIActionHandler* M_actionHandler;
     QTableView* m_table;
-    DebugRegisterListModel* m_model;
-    DebugRegisterItemDelegate* m_delegate;
+    DebugRegistersListModel* m_model;
+    DebugRegistersItemDelegate* m_delegate;
 
     void notifyRegistersChanged(std::vector<DebugRegister> regs);
     // void shouldBeVisible()
@@ -104,7 +104,7 @@ class BINARYNINJAUIAPI DebugRegisterWidget: public QWidget, public DockContextHa
 
 
 public:
-    DebugRegisterWidget(ViewFrame* view, const QString& name, BinaryViewRef data);
+    DebugRegistersWidget(ViewFrame* view, const QString& name, BinaryViewRef data);
 };
 
 // TODO: support editing register values
