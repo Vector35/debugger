@@ -90,13 +90,13 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
     case DebugBreakpointsListModel::LocationColumn:
     {
         QString text = QString::fromStdString(
-                fmt::format("{} + 0x{:X}", item->location().module, item->location().offset));
+                fmt::format("{} + 0x{:x}", item->location().module, item->location().offset));
         return QVariant(text);
     }
     case DebugBreakpointsListModel::AddressColumn:
     {
         QString text = QString::fromStdString(
-                fmt::format("0x{:X}", item->address()));
+                fmt::format("0x{:x}", item->address()));
         return QVariant(text);
     }
     }
