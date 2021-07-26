@@ -5,15 +5,16 @@
 using namespace BinaryNinja;
 using namespace std;
 
-DebugRegisterItem::DebugRegisterItem(const string& name, uint64_t value, bool update, const string& hint):
-    m_name(name), m_value(value), m_updated(update), m_hint(hint)
+DebugRegisterItem::DebugRegisterItem(const string& name, uint64_t value, DebugRegisterValueStatus valueStatus,
+    const string& hint):
+    m_name(name), m_value(value), m_valueStatus(valueStatus), m_hint(hint)
 {
 }
 
 
 bool DebugRegisterItem::operator==(const DebugRegisterItem& other) const
 {
-    return (m_name == other.name()) && (m_value == other.value()) && (m_updated == other.updated()) &&
+    return (m_name == other.name()) && (m_value == other.value()) && (m_valueStatus == other.valueStatus()) &&
         (m_hint == other.hint());
 }
 
@@ -34,9 +35,9 @@ bool DebugRegisterItem::operator<(const DebugRegisterItem& other) const
         return true;
     else if (m_value > other.value())
         return false;
-    else if (m_updated < other.updated())
+    else if (m_valueStatus < other.valueStatus())
         return true;
-    else if (m_updated > other.updated())
+    else if (m_valueStatus > other.valueStatus())
         return false;
     return m_hint < other.hint();
 }
@@ -105,7 +106,7 @@ QVariant DebugRegistersListModel::data(const QModelIndex& index, int role) const
             return QVariant((qulonglong)item->name().size());
 
         QList<QVariant> line;
-        line.push_back(getThemeColor(RegisterColor).rgba());
+        line.push_back(getThemeColor(WhiteStandardHighlightColor).rgba());
 		line.push_back(QString::fromStdString(item->name()));
 		return QVariant(line);
     }
@@ -118,10 +119,18 @@ QVariant DebugRegistersListModel::data(const QModelIndex& index, int role) const
             return QVariant((qulonglong)valueStr.size());
 
         QList<QVariant> line;
-        if (item->updated())
+        switch (item->valueStatus())
+        {
+        case DebugRegisterValueNormal:
+            line.push_back(getThemeColor(WhiteStandardHighlightColor).rgba());
+            break;
+        case DebugRegisterValueChanged:
+            line.push_back(getThemeColor(BlueStandardHighlightColor).rgba());
+            break;
+        case DebugRegisterValueModified:
             line.push_back(getThemeColor(OrangeStandardHighlightColor).rgba());
-        else
-            line.push_back(getThemeColor(NumberColor).rgba());
+            break;
+        }
 
 		line.push_back(valueStr);
 		return QVariant(line);
@@ -180,19 +189,61 @@ void DebugRegistersListModel::updateRows(std::vector<DebugRegister> newRows)
 
     for (const DebugRegister& reg: newRows)
     {
-        bool updated;
         auto iter = oldRegValues.find(reg.m_name);
+        DebugRegisterValueStatus status;
         if (iter == oldRegValues.end())
         {
-            updated = false;
+            status = DebugRegisterValueNormal;
         }
         else
         {
-            updated = (iter->second == reg.m_value);
+            if (iter->second == reg.m_value)
+            {
+                status = DebugRegisterValueNormal;
+            }
+            else
+            {
+                status = DebugRegisterValueChanged;
+            }
         }
-        m_items.emplace_back(reg.m_name, reg.m_value, updated, "");
+        m_items.emplace_back(reg.m_name, reg.m_value, status, "");
     }
     endResetModel();
+}
+
+
+bool DebugRegistersListModel::setData(const QModelIndex &index, const QVariant &value, int role)
+{
+    if ((flags(index) & Qt::ItemIsEditable) != Qt::ItemIsEditable)
+        return false;
+
+    QString valueStr = value.toString();
+    if (valueStr.size() == 0)
+        return false;
+
+    if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
+		return false;
+
+	DebugRegisterItem *item = static_cast<DebugRegisterItem*>(index.internalPointer());
+	if (!item)
+        return false;
+
+    bool ok = false;
+    uint64_t newValue = valueStr.toULongLong(&ok, 16);
+    if (!ok)
+        return false;
+
+    if (newValue == item->value())
+        return false;
+
+    DebuggerState* state = DebuggerState::GetState(m_data);
+    ok = state->GetRegisters()->UpdateRegisterValue(item->name(), newValue);
+    if (!ok)
+        return false;
+
+    item->setValue(newValue);
+    item->setValueStatus(DebugRegisterValueModified);
+    return true;
 }
 
 

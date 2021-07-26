@@ -49,15 +49,13 @@ uint64_t DebuggerRegisters::GetRegisterValue(const std::string& name)
 }
 
 
-void DebuggerRegisters::UpdateRegisterValue(const std::string& name, uint64_t value)
+bool DebuggerRegisters::UpdateRegisterValue(const std::string& name, uint64_t value)
 {
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
-        return;
+        return false;
 
-    adapter->WriteRegister(name, value);
-    // TODO: Do we really need to mark it dirty? How about we just update our cache
-    MarkDirty();
+    return adapter->WriteRegister(name, value);
 }
 
 

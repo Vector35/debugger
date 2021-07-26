@@ -37,7 +37,7 @@ public:
     DebuggerRegisters(DebuggerState* state);
     // DebugRegister operator[](std::string name);
     uint64_t GetRegisterValue(const std::string& name);
-    void UpdateRegisterValue(const std::string& name, uint64_t value);
+    bool UpdateRegisterValue(const std::string& name, uint64_t value);
     void MarkDirty();
     bool IsDirty() const { return m_dirty; }
     void Update();

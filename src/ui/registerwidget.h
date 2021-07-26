@@ -13,20 +13,33 @@
 #include "theme.h"
 #include "../debuggerstate.h"
 
+enum DebugRegisterValueStatus
+{
+    DebugRegisterValueNormal,
+    // The current value is different from the last value
+    DebugRegisterValueChanged,
+    // The value has been modified by the user
+    DebugRegisterValueModified
+};
+
+
 class DebugRegisterItem
 {
 private:
     std::string m_name;
     uint64_t m_value;
-    bool m_updated;
+    DebugRegisterValueStatus m_valueStatus;
     // TODO: We probably need a more robust mechenism for this
     std::string m_hint;
 
 public:
-    DebugRegisterItem(const std::string& name, uint64_t value, bool updated = false, const std::string& hint = "");
+    DebugRegisterItem(const std::string& name, uint64_t value,
+        DebugRegisterValueStatus valueStatus = DebugRegisterValueNormal, const std::string& hint = "");
     std::string name() const { return m_name; }
     uint64_t value() const { return m_value; }
-    bool updated() const { return m_updated; }
+    void setValue(uint64_t value) { m_value = value; }
+    DebugRegisterValueStatus valueStatus() const { return m_valueStatus; }
+    void setValueStatus(DebugRegisterValueStatus newStatus) { m_valueStatus = newStatus; }
     std::string hint() const { return m_hint; }
     bool operator==(const DebugRegisterItem& other) const;
     bool operator!=(const DebugRegisterItem& other) const;
@@ -67,6 +80,7 @@ public:
     virtual QVariant data(const QModelIndex& i, int role) const override;
     virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
     void updateRows(std::vector<DebugRegister> newRows);
+    bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole) override;
 };
 
 
