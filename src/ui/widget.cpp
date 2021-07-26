@@ -66,8 +66,7 @@ void Widget::registerDockWidget(const std::function<QWidget*(ViewFrame*, const Q
 {
     DockHandler* activeDocks = DockHandler::getActiveDockHandler();
 	activeDocks->addDockWidget(QString::fromStdString(name),
-        // This will cause a crash if I use [&] to capture. I think it should not.
-        [=](const QString& name, ViewFrame* frame, BinaryViewRef data) -> QWidget* { 
+        [widgetClass](const QString& name, ViewFrame* frame, BinaryViewRef data) -> QWidget* { 
             return Widget::createWidgdet(widgetClass, name, frame, data); 
         },
         area, orientation, defaultVisibility);
