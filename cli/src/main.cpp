@@ -232,25 +232,25 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
         }
     }
 
-    const auto disasm_style = Log::Style(0,255,255);
-    const auto llil_style = Log::Style(0,255,0);
-    const auto mlil_style = Log::Style(255,255,0);
-    const auto hlil_style = Log::Style(255,0,0);
+    static const auto disasm_style = Log::Style(0,255,255);
+    static const auto llil_style = Log::Style(0,255,0);
+    static const auto mlil_style = Log::Style(255,255,0);
+    static const auto hlil_style = Log::Style(255,0,0);
     fmt::print("\033[0m[{0}disasm\033[0m] {0}\n", disasm_style);
     for ( const auto& disasm : disasm_strings )
-        fmt::print(disasm);
+        fmt::print("{}", disasm);
 
     fmt::print("\033[0m[{0}llil\033[0m] {0}\n", llil_style);
     for ( const auto& llil : llil_strings )
-        fmt::print(llil);
+        fmt::print("{}", llil);
 
     fmt::print("\033[0m[{0}mlil\033[0m] {0}\n", mlil_style);
     for ( const auto& mlil : mlil_strings )
-        fmt::print(mlil);
+        fmt::print("{}", mlil);
 
     fmt::print("\033[0m[{0}hlil\033[0m] {0}\n", hlil_style);
     for ( const auto& hlil : hlil_strings )
-        fmt::print(hlil);
+        fmt::print("{}", hlil);
 }
 
 int main(int argc, const char* argv[])
@@ -278,8 +278,8 @@ int main(int argc, const char* argv[])
         //GdbAdapter();
         DbgEngAdapter();
         #else
-        GdbAdapter();
-        //LldbAdapter();
+        //GdbAdapter();
+        LldbAdapter();
         #endif
 
         if (argc == 2) {

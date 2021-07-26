@@ -29,7 +29,7 @@ protected:
     std::uint32_t m_lastActiveThreadId{};
 
     std::string ExecuteShellCommand(const std::string& command);
-    bool LoadRegisterInfo();
+    virtual bool LoadRegisterInfo();
 
     bool m_redirectGDBServer;
 

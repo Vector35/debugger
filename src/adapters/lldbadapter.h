@@ -2,8 +2,11 @@
 #include "gdbadapter.h"
 
 class LldbAdapter : public GdbAdapter {
+    bool LoadRegisterInfo() override;
+
 public:
-    bool Execute(const std::string& path) override;
+    bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args) override;
     bool Go() override;
+    std::string GetTargetArchitecture() override;
 };
 

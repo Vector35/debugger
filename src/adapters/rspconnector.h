@@ -24,7 +24,9 @@
 struct RspData
 {
     /* BUFFER_MAX/GDB_BUF_MAX - https://www.embecosm.com/appnotes/ean4/embecosm-howto-rsp-server-ean4-issue-2.pdf */
-    static constexpr std::uint64_t BUFFER_MAX = (16 * 1024);
+    /* i decided to double the max size of this as this is the 'GDB_BUF_MAX', but the rsp can be used by lldb as well */
+    /* lldb's target.xml is way larger than gdbs and uses way more than 0x4000 bytes */
+    static constexpr std::uint64_t BUFFER_MAX = (32 * 1024);
 
     struct RspIterator
     {
