@@ -1,6 +1,6 @@
 #include <QtGui/QPainter>
 #include <QtWidgets/QHeaderView>
-#include "registerwidget.h"
+#include "registerswidget.h"
 
 using namespace BinaryNinja;
 using namespace std;

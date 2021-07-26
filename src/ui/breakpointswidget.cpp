@@ -1,6 +1,6 @@
 #include <QtGui/QPainter>
 #include <QtWidgets/QHeaderView>
-#include "breakpointwidget.h"
+#include "breakpointswidget.h"
 
 using namespace BinaryNinja;
 using namespace std;

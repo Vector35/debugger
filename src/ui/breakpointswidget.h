@@ -100,7 +100,6 @@ class BINARYNINJAUIAPI DebugBreakpointsWidget: public QWidget, public DockContex
 
 
 public:
-    DebugBreakpointsWidget() = delete;
     DebugBreakpointsWidget(ViewFrame* view, const QString& name, BinaryViewRef data);
 
     void notifyBreakpointsChanged(std::vector<BreakpointItem> breakpoints);

@@ -2,7 +2,6 @@
 #include "debugger.h"
 #include "ui/debugview.h"
 #include "processview.h"
-#include "ui/registerwidget.h"
 #include "ui/ui.h"
 #include "dockhandler.h"
 
