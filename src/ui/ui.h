@@ -8,7 +8,7 @@
 #include "binaryninjaapi.h"
 #include "uicontext.h"
 #include "debugview.h"
-#include "registerwidget.h"
+#include "registerswidget.h"
 
 class DebuggerUI
 {

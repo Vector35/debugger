@@ -91,7 +91,7 @@ public:
     void Update();
     bool IsDirty() const { return m_dirty; }
 
-    std::vector<DebugModule> GetModules() const { return m_modules; }
+    std::vector<DebugModule> GetAllModules() const { return m_modules; }
     DebugModule ResolvePath(const std::string& fpathExe) const;
 
     // TODO: These conversion functions are not very robust for lookup failures. They need to be improved for it.

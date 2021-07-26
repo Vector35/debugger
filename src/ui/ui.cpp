@@ -1,7 +1,8 @@
 #include "ui.h"
 #include "binaryninjaapi.h"
 #include "widget.h"
-#include "breakpointwidget.h"
+#include "breakpointswidget.h"
+#include "moduleswidget.h"
 
 using namespace BinaryNinja;
 
@@ -53,12 +54,15 @@ void DebuggerUI::ContextDisplay()
     // TODO: lots of code above this are not implemennted yet
 
     DebugRegistersWidget* registersWidget = dynamic_cast<DebugRegistersWidget*>(widget("Native Debugger Registers"));
+    DebugModulesWidget* modulesWidget = dynamic_cast<DebugModulesWidget*>(widget("Native Debugger Modules"));
 
     if (!m_state->IsConnected())
     {
         // TODO: notify widgets with empty data
         if (registersWidget)
             registersWidget->notifyRegistersChanged({});
+        if (modulesWidget)
+            modulesWidget->notifyModulesChanged({});
         return;
     }
 
@@ -66,6 +70,12 @@ void DebuggerUI::ContextDisplay()
     {
         std::vector<DebugRegister> registers = m_state->GetRegisters()->GetAllRegisters();
         registersWidget->notifyRegistersChanged(registers);
+    }
+
+    if (modulesWidget)
+    {
+        std::vector<DebugModule> modules = m_state->GetModules()->GetAllModules();
+        modulesWidget->notifyModulesChanged(modules);
     }
 
     uint64_t localIP = m_state->LocalIP();
@@ -356,11 +366,18 @@ void DebuggerUI::InitializeUI()
             return new DebugBreakpointsWidget(parent, name, data);
         },
         "Native Debugger Breakpoints", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
+
     Widget::registerDockWidget(
         [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
             return new DebugRegistersWidget(parent, name, data);
         },
         "Native Debugger Registers", Qt::RightDockWidgetArea, Qt::Vertical, false);
+
+    Widget::registerDockWidget(
+        [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
+            return new DebugModulesWidget(parent, name, data);
+        },
+        "Native Debugger Modules", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
 
     PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
             "sets/clears breakpoint at right-clicked address",
