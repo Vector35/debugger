@@ -41,6 +41,7 @@ public:
     void MarkDirty();
     bool IsDirty() const { return m_dirty; }
     void Update();
+    std::vector<DebugRegister> GetAllRegisters() const;
 };
 
 
@@ -214,6 +215,7 @@ public:
     DebugProcessView* GetMemoryView() const { return m_memoryView; }
     DebuggerUI* GetDebuggerUI() const { return m_ui; }
     DebuggerBreakpoints* GetBreakpoints() const { return m_breakpoints; }
+    DebuggerRegisters* GetRegisters() const { return m_registers; }
 
     DebugAdapterType::AdapterType GetAdapterType() const { return m_adapterType; }
     std::string GetExecutablePath() const { return m_executablePath; }

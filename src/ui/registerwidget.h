@@ -81,6 +81,7 @@ public:
     DebugRegistersItemDelegate(QWidget* parent);
     void updateFonts();
     void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const;
+    QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
 };
 
 
@@ -97,7 +98,6 @@ class BINARYNINJAUIAPI DebugRegistersWidget: public QWidget, public DockContextH
     DebugRegistersListModel* m_model;
     DebugRegistersItemDelegate* m_delegate;
 
-    void notifyRegistersChanged(std::vector<DebugRegister> regs);
     // void shouldBeVisible()
 
     virtual void notifyFontChanged() override;
@@ -105,6 +105,7 @@ class BINARYNINJAUIAPI DebugRegistersWidget: public QWidget, public DockContextH
 
 public:
     DebugRegistersWidget(ViewFrame* view, const QString& name, BinaryViewRef data);
+    void notifyRegistersChanged(std::vector<DebugRegister> regs);
 };
 
 // TODO: support editing register values

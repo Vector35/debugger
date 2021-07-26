@@ -11,7 +11,7 @@
 struct BinaryViewAndWidgets
 {
     BinaryViewRef data;
-    std::map<QString, QWidget*> widgets;
+    std::unordered_map<QString, QWidget*> widgets;
 };
 
 

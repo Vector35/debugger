@@ -61,6 +61,17 @@ void DebuggerRegisters::UpdateRegisterValue(const std::string& name, uint64_t va
 }
 
 
+std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters() const
+{
+    std::vector<DebugRegister> result;
+    for (auto& iter: m_registerCache)
+    {
+        result.push_back(iter.second);
+    }
+    return result;
+}
+
+
 DebuggerThreads::DebuggerThreads(DebuggerState* state): m_state(state)
 {
     MarkDirty();

@@ -225,27 +225,13 @@ void DebugRegistersItemDelegate::paint(QPainter* painter, const QStyleOptionView
 	{
 	case DebugRegistersListModel::NameColumn:
 	case DebugRegistersListModel::ValueColumn:
+	case DebugRegistersListModel::HintColumn:
 	{
 		auto tokenPair = data.toList();
 		if (tokenPair.size() == 0)
 			break;
 		painter->setPen(QColor((QRgb)tokenPair[0].toInt()));
 		painter->drawText(textRect, tokenPair[1].toString());
-		break;
-	}
-	case DebugRegistersListModel::HintColumn:
-	{
-		auto tokenPairList = data.toList();
-		textRect.setLeft(textRect.left() + m_charWidth);
-		for (auto tokenPairVariant : tokenPairList)
-		{
-			auto tokenPair = tokenPairVariant.toList();
-			auto tokenColor = QColor((QRgb)tokenPair[0].toInt());
-			auto tokenText = tokenPair[1].toString();
-			painter->setPen(tokenColor);
-			painter->drawText(textRect, tokenText);
-			textRect.setLeft(textRect.left() + (tokenText.size() * m_charWidth));
-		}
 		break;
 	}
 	default:
@@ -266,11 +252,19 @@ void DebugRegistersItemDelegate::updateFonts()
 }
 
 
+QSize DebugRegistersItemDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const
+{
+    auto totalWidth = (idx.data(Qt::SizeHintRole).toInt() + 2) * m_charWidth + 4;
+    return QSize(totalWidth, m_charHeight + 2);
+}
+
+
 DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, const QString& name, BinaryViewRef data):
     QWidget(view), DockContextHandler(this, name), m_view(view), m_data(data)
 {
     m_table = new QTableView(this);
     m_model = new DebugRegistersListModel(m_table, data, view);
+    m_table->setModel(m_model);
 
     m_delegate = new DebugRegistersItemDelegate(this);
     m_table->setItemDelegate(m_delegate);
@@ -298,6 +292,8 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, const QString& name,
 void DebugRegistersWidget::notifyRegistersChanged(std::vector<DebugRegister> regs)
 {
     m_model->updateRows(regs);
+    // TODO: we could also set the columns' ResizeMode to ResizeToContents
+    m_table->resizeColumnsToContents();
 }
 
 

@@ -19,8 +19,9 @@ QWidget* Widget::createWidgdet(const std::function<QWidget*(ViewFrame*, const QS
         return nullptr;
 
     bool found = false;
-    for (BinaryViewAndWidgets bvAndWidget: g_debugDockWidgets)
+    for (size_t i = 0; i < g_debugDockWidgets.size(); i++)
     {
+        BinaryViewAndWidgets& bvAndWidget = g_debugDockWidgets[i];
         if (bvAndWidget.data == data)
         {
             bvAndWidget.widgets[name] = widget;

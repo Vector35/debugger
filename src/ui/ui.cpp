@@ -52,10 +52,20 @@ void DebuggerUI::ContextDisplay()
 
     // TODO: lots of code above this are not implemennted yet
 
+    DebugRegistersWidget* registersWidget = dynamic_cast<DebugRegistersWidget*>(widget("Native Debugger Registers"));
+
     if (!m_state->IsConnected())
     {
         // TODO: notify widgets with empty data
+        if (registersWidget)
+            registersWidget->notifyRegistersChanged({});
         return;
+    }
+
+    if (registersWidget)
+    {
+        std::vector<DebugRegister> registers = m_state->GetRegisters()->GetAllRegisters();
+        registersWidget->notifyRegistersChanged(registers);
     }
 
     uint64_t localIP = m_state->LocalIP();
@@ -341,14 +351,16 @@ static bool BreakpointToggleValid(BinaryView* view, uint64_t addr)
 
 void DebuggerUI::InitializeUI()
 {
-    Widget::registerDockWidget([&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
+    Widget::registerDockWidget(
+        [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
             return new DebugBreakpointsWidget(parent, name, data);
         },
         "Native Debugger Breakpoints", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
-    Widget::registerDockWidget([&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
+    Widget::registerDockWidget(
+        [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
             return new DebugRegistersWidget(parent, name, data);
         },
-        "Native Debugger Registers", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
+        "Native Debugger Registers", Qt::RightDockWidgetArea, Qt::Vertical, false);
 
     PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
             "sets/clears breakpoint at right-clicked address",
