@@ -150,9 +150,8 @@ public:
     DebugThread GetActiveThread() const;
     bool SetActiveThread(const DebugThread& thread);
     bool IsDirty() const { return m_dirty; }
-    size_t GetSize() const { return m_threads.size(); }
     // Note, the caller of this function is responsible for ensuring the cache is valid
-    std::vector<DebuggerThreadCache> GetThreads() const { return m_threads; }
+    std::vector<DebuggerThreadCache> GetAllThreads() const { return m_threads; }
 };
 
 
@@ -216,6 +215,7 @@ public:
     DebuggerUI* GetDebuggerUI() const { return m_ui; }
     DebuggerBreakpoints* GetBreakpoints() const { return m_breakpoints; }
     DebuggerRegisters* GetRegisters() const { return m_registers; }
+    DebuggerThreads* GetThreads() const { return m_threads; }
 
     DebugAdapterType::AdapterType GetAdapterType() const { return m_adapterType; }
     std::string GetExecutablePath() const { return m_executablePath; }

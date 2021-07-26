@@ -494,13 +494,13 @@ void DebugControlsWidget::clearThreadList()
 }
 
 
-void DebugControlsWidget::setThreadList(const DebuggerThreads& threads)
+void DebugControlsWidget::setThreadList(std::vector<DebuggerThreadCache> threads)
 {
-    if (threads.GetSize() == 0)
+    if (threads.size() == 0)
         clearThreadList();
 
     m_threadMenu->clear();
-    for (const DebuggerThreadCache& thread: threads.GetThreads())
+    for (const DebuggerThreadCache& thread: threads)
     {
         char itemName[128];
         snprintf(itemName, 128, "Thread %d at 0x%" PRIx64, thread.thread.m_tid, thread.ip);

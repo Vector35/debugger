@@ -91,7 +91,7 @@ public:
     void stateError(const std::string& msg = "");
 
     void clearThreadList();
-    void setThreadList(const DebuggerThreads& threads);
+    void setThreadList(std::vector<DebuggerThreadCache> threads);
 
     void handleStopReturn(unsigned long stopReason);
 

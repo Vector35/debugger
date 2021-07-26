@@ -842,8 +842,8 @@ void DebuggerState::UpdateCaches()
     if (m_registers->IsDirty())
         m_registers->Update();
 
-    // if (m_threads->IsDirty())
-    //     m_threads->Update();
+    if (m_threads->IsDirty())
+        m_threads->Update();
 
     if (m_modules->IsDirty())
         m_modules->Update();

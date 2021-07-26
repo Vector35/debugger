@@ -3,6 +3,7 @@
 #include "widget.h"
 #include "breakpointswidget.h"
 #include "moduleswidget.h"
+#include "threadswidget.h"
 
 using namespace BinaryNinja;
 
@@ -55,6 +56,7 @@ void DebuggerUI::ContextDisplay()
 
     DebugRegistersWidget* registersWidget = dynamic_cast<DebugRegistersWidget*>(widget("Native Debugger Registers"));
     DebugModulesWidget* modulesWidget = dynamic_cast<DebugModulesWidget*>(widget("Native Debugger Modules"));
+    DebugThreadsWidget* threadsWidget = dynamic_cast<DebugThreadsWidget*>(widget("Native Debugger Threads"));
 
     if (!m_state->IsConnected())
     {
@@ -63,6 +65,12 @@ void DebuggerUI::ContextDisplay()
             registersWidget->notifyRegistersChanged({});
         if (modulesWidget)
             modulesWidget->notifyModulesChanged({});
+        if (threadsWidget)
+        {
+            threadsWidget->notifyThreadsChanged({});
+            if (m_debugView)
+                m_debugView->getControls()->setThreadList({});
+        }
         return;
     }
 
@@ -76,6 +84,14 @@ void DebuggerUI::ContextDisplay()
     {
         std::vector<DebugModule> modules = m_state->GetModules()->GetAllModules();
         modulesWidget->notifyModulesChanged(modules);
+    }
+
+    if (threadsWidget)
+    {
+        std::vector<DebuggerThreadCache> threads = m_state->GetThreads()->GetAllThreads();
+        threadsWidget->notifyThreadsChanged(threads);
+        if (m_debugView)
+            m_debugView->getControls()->setThreadList(threads);
     }
 
     uint64_t localIP = m_state->LocalIP();
@@ -378,6 +394,12 @@ void DebuggerUI::InitializeUI()
             return new DebugModulesWidget(parent, name, data);
         },
         "Native Debugger Modules", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
+
+    Widget::registerDockWidget(
+        [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
+            return new DebugThreadsWidget(parent, name, data);
+        },
+        "Native Debugger Threads", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
 
     PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
             "sets/clears breakpoint at right-clicked address",
