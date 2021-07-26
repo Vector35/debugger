@@ -3,6 +3,8 @@
 #include "widget.h"
 #include "breakpointwidget.h"
 
+using namespace BinaryNinja;
+
 DebuggerUI::DebuggerUI(DebuggerState* state): m_state(state)
 {
     // TODO: The constructor of DebuggerUI does not create the DebugView. Instead, the DebugView is 
@@ -190,11 +192,34 @@ void DebuggerUI::UpdateModules()
 
 void DebuggerUI::UpdateBreakpoints()
 {
-    // This is different from the Python implementation. The UI does not query the adapter for the list of breakpoints.
-    // Instead, it maintains the status of breakpoints, and the adapter may not need to keep another copy of it.
-    DebuggerBreakpoints* breakpoints = m_state->GetBreakpoints();
-    std::vector<ModuleNameAndOffset> addresses = breakpoints->GetBreakpointList();
-    
+    std::vector<BreakpointItem> bps;
+    std::vector<DebugBreakpoint> remoteList;
+    if (m_state->IsConnected())
+        std::vector<DebugBreakpoint> remoteList = m_state->GetAdapter()->GetBreakpointList();
+
+    for (const ModuleNameAndOffset& address: m_state->GetBreakpoints()->GetBreakpointList())
+    {
+        uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
+        bool enabled = false;
+        for (const DebugBreakpoint& bp: remoteList)
+        {
+            if (bp.m_address == remoteAddress)
+            {
+                enabled = true;
+                break;
+            }
+        }
+        bps.emplace_back(enabled, address, remoteAddress);
+    }
+
+    DebugBreakpointsWidget* bpWidget = dynamic_cast<DebugBreakpointsWidget*>(widget("Native Debugger Breakpoints"));
+    if (bpWidget)
+        bpWidget->notifyBreakpointsChanged(bps);
+    else
+        LogWarn("Cannot find the breakpoint widget");
+
+    // if (m_debugView)
+        // m_debugView->refreshRawDisassembly();
 }
 
 
@@ -267,8 +292,9 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
     DebuggerState* state = DebuggerState::GetState(view);
 
     bool isAbsoluteAddress = false;
+    // TODO: check if this works
     if ((view == state->GetMemoryView()) ||
-        (view->GetParentView() == (BinaryViewRef)state->GetMemoryView()))
+        (view->GetParentView().GetPtr() == state->GetMemoryView()))
     {
         isAbsoluteAddress = true;
     }
@@ -324,4 +350,10 @@ void DebuggerUI::InitializeUI()
             "sets/clears breakpoint at right-clicked address",
             BreakpointToggleCallback, BreakpointToggleValid);
     UIAction::setUserKeyBinding("Native Debugger\\Toggle Breakpoint", { QKeySequence(Qt::Key_F2) });
+}
+
+
+QWidget* DebuggerUI::widget(const std::string& name)
+{
+    return Widget::getDockWidget(m_state->GetData(), name);
 }

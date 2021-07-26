@@ -95,13 +95,13 @@ class BINARYNINJAUIAPI DebugBreakpointsWidget: public QWidget, public DockContex
     DebugBreakpointsListModel* m_model;
     DebugBreakpointsItemDelegate* m_delegate;
 
-    void notifyBreakpointsChanged(std::vector<BreakpointItem> breakpoints);
     // void shouldBeVisible()
-
     virtual void notifyFontChanged() override;
 
 
 public:
     DebugBreakpointsWidget() = delete;
     DebugBreakpointsWidget(ViewFrame* view, const QString& name, BinaryViewRef data);
+
+    void notifyBreakpointsChanged(std::vector<BreakpointItem> breakpoints);
 };

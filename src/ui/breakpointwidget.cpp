@@ -164,6 +164,8 @@ void DebugBreakpointsItemDelegate::paint(QPainter* painter, const QStyleOptionVi
 	case DebugBreakpointsListModel::LocationColumn:
 	case DebugBreakpointsListModel::AddressColumn:
 	{
+        painter->setFont(m_font);
+        painter->setPen(option.palette.color(QPalette::WindowText).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
 	}
@@ -206,6 +208,7 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, const QString& n
 
     m_table->resizeColumnsToContents();
     m_table->resizeRowsToContents();
+    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
 
     QVBoxLayout* layout = new QVBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
