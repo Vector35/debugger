@@ -236,6 +236,8 @@ DebugMemoryView::DebugMemoryView(BinaryView* parent):
 {
     m_arch = parent->GetDefaultArchitecture();
     m_platform = parent->GetDefaultPlatform();
+    m_valueCache.clear();
+    m_errorCache.clear();
 }
 
 
@@ -267,6 +269,8 @@ uint64_t DebugMemoryView::PerformGetLength() const
 
 size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
 {
+    // LogWarn("Reading memory 0x%lx, size: 0x%lx", offset, len);
+
     Ref<BinaryView> parentView = GetParentView();
     if (!parentView)
         return 0;
@@ -274,14 +278,16 @@ size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
     DebuggerState* state = DebuggerState::GetState(parentView);
     if (!state)
         return 0;
-    
-    // Since DebugAdapter backend is not yet merged into this branch, there is no way
-    // to acutally implement it. For now, just fill the buffer with 0x90
-    memset(dest, 0x90, len);
-    return len;
+
+    DebugAdapter* adapter = state->GetAdapter();
+    if (!adapter)
+        return 0;
+
+    DataBuffer result = DataBuffer((size_t)0);
 
     // ProcessView implements read caching in a manner inspired by CPU cache:
     // Reads are aligned on 256-byte boundaries and 256 bytes long
+    char buffer[0x100];
 
     // Cache read start: round down addr to nearest 256 byte boundary
     size_t cacheStart = offset & (~0xffLL);
@@ -290,15 +296,57 @@ size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
     // List of 256-byte block addresses to read into the cache to fully cover this region
     for (uint64_t block = cacheStart; block < cacheEnd; block += 0x100)
     {
+        // If any block cannot be read, then return false
         if (m_errorCache.find(block) != m_errorCache.end())
+        {
             return 0;
+        }
 
         auto iter = m_valueCache.find(block);
         if (iter == m_valueCache.end())
         {
-            
+            // The buffer is not in the cache, read it
+            memset(buffer, 0x0, 0x100);
+            // The ReadMemory() function should return the number of bytes read
+            bool ok = adapter->ReadMemory(block, buffer, 0x100);
+            if (ok)
+            {
+                // Treating ok as 0x100 bytes have been read
+                m_valueCache[block] = DataBuffer(buffer, 0x100);
+            }
+            else
+            {
+                m_errorCache.insert(block);
+                return 0;
+            }
+        }
+
+        DataBuffer cached = m_valueCache[block];
+        if (offset + len < block + cached.GetLength())
+        {
+            // Last block
+            result.Append(cached.GetSlice(0, offset + len - block));
+        }
+        else if (offset > block)
+        {
+            // First block
+            uint64_t start = offset + len - block;
+            result.Append(cached.GetSlice(start, 0x100 - start));
+        }
+        else
+        {
+            // Other blocks
+            result.Append(cached);
         }
     }
+
+    if (result.GetLength() == len)
+    {
+    //     // memcpy(dest, result.GetData(), result.GetLength());
+        // return result.GetLength();
+    }
+
+    LogWarn("result length: %ld", result.GetLength());
     return 0;
 }
 

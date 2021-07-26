@@ -58,7 +58,7 @@ private:
     ArchitectureRef m_arch;
     PlatformRef m_platform;
     std::map<uint64_t, DataBuffer> m_valueCache;
-    std::map<uint64_t, DataBuffer> m_errorCache;
+    std::set<uint64_t> m_errorCache;
 
     virtual bool PerformIsExecutable() const override { return true; }
     virtual bool PerformIsValidOffset(uint64_t addr) override { return true; }
