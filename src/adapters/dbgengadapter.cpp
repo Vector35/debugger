@@ -402,7 +402,7 @@ bool DbgEngAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t si
     return this->m_debugDataSpaces->ReadVirtual(address, out, size, &bytes_read) == S_OK && bytes_read == size;
 }
 
-bool DbgEngAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t size)
+bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const void* out, std::size_t size)
 {
     unsigned long bytes_written{};
     return this->m_debugDataSpaces->WriteVirtual(address, out, size, &bytes_written) == S_OK && bytes_written == size;

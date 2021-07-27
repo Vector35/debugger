@@ -269,8 +269,6 @@ uint64_t DebugMemoryView::PerformGetLength() const
 
 size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
 {
-    // LogWarn("Reading memory 0x%lx, size: 0x%lx", offset, len);
-
     Ref<BinaryView> parentView = GetParentView();
     if (!parentView)
         return 0;
@@ -345,10 +343,25 @@ size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
 
 size_t DebugMemoryView::PerformWrite(uint64_t offset, const void* data, size_t len)
 {
+    Ref<BinaryView> parentView = GetParentView();
+    if (!parentView)
+        return 0;
+
+    DebuggerState* state = DebuggerState::GetState(parentView);
+    if (!state)
+        return 0;
+
+    DebugAdapter* adapter = state->GetAdapter();
+    if (!adapter)
+        return 0;
+
+    // Assume any memory change invalidates all of memory (suboptimal, may not be necessary)
     MarkDirty();
-    // Since DebugAdapter backend is not yet merged into this branch, there is no way
-    // to acutally implement it. For now, just pretend it is all written.
-    return len;
+
+    if (adapter->WriteMemory(offset, data, len))
+        return len;
+
+    return 0;
 }
 
 

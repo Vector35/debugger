@@ -136,7 +136,7 @@ public:
     virtual std::vector<std::string> GetRegisterList() const = 0;
 
     virtual bool ReadMemory(std::uintptr_t address, void* out, std::size_t size) = 0;
-    virtual bool WriteMemory(std::uintptr_t address, void* out, std::size_t size) = 0;
+    virtual bool WriteMemory(std::uintptr_t address, const void* out, std::size_t size) = 0;
 
     template <typename Ty = std::uintptr_t, typename PtrTy = std::uintptr_t>
     std::optional<Ty> ReadMemoryTy(PtrTy address)

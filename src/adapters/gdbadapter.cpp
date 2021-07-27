@@ -506,7 +506,7 @@ bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
     return true;
 }
 
-bool GdbAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t size)
+bool GdbAdapter::WriteMemory(std::uintptr_t address, const void* out, std::size_t size)
 {
     const auto dest = std::make_unique<char[]>(2 * size + 1);
     std::memset(dest.get(), '\0', 2 * size + 1);
