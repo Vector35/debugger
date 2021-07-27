@@ -508,8 +508,8 @@ bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
 
 bool GdbAdapter::WriteMemory(std::uintptr_t address, void* out, std::size_t size)
 {
-    const auto dest = std::make_unique<char[]>(size + 1);
-    std::memset(dest.get(), '\0', size + 1);
+    const auto dest = std::make_unique<char[]>(2 * size + 1);
+    std::memset(dest.get(), '\0', 2 * size + 1);
 
     for ( std::size_t index{}; index < size; index++ )
         fmt::format_to(dest.get(), "{}{:02X}", dest.get(), ((std::uint8_t*)out)[index]);
