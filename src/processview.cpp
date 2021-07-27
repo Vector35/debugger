@@ -269,6 +269,8 @@ uint64_t DebugMemoryView::PerformGetLength() const
 
 size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
 {
+    std::unique_lock<std::mutex> memoryLock(m_memoryMutex);
+
     Ref<BinaryView> parentView = GetParentView();
     if (!parentView)
         return 0;
@@ -282,6 +284,7 @@ size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
         return 0;
 
     std::vector<uint8_t> result;
+    std::vector<uint8_t> buffer;
 
     // ProcessView implements read caching in a manner inspired by CPU cache:
     // Reads are aligned on 256-byte boundaries and 256 bytes long
@@ -302,7 +305,7 @@ size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
         auto iter = m_valueCache.find(block);
         if (iter == m_valueCache.end())
         {
-            std::vector<uint8_t> buffer;
+            buffer.clear();
             buffer.resize(0x100);
             // The ReadMemory() function should return the number of bytes read
             bool ok = adapter->ReadMemory(block, buffer.data(), 0x100);
@@ -343,6 +346,8 @@ size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
 
 size_t DebugMemoryView::PerformWrite(uint64_t offset, const void* data, size_t len)
 {
+    std::unique_lock<std::mutex> memoryLock(m_memoryMutex);
+
     Ref<BinaryView> parentView = GetParentView();
     if (!parentView)
         return 0;

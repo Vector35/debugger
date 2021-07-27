@@ -4,6 +4,7 @@
 #include "breakpointswidget.h"
 #include "moduleswidget.h"
 #include "threadswidget.h"
+#include "stackwidget.h"
 
 using namespace BinaryNinja;
 
@@ -57,6 +58,7 @@ void DebuggerUI::ContextDisplay()
     DebugRegistersWidget* registersWidget = dynamic_cast<DebugRegistersWidget*>(widget("Native Debugger Registers"));
     DebugModulesWidget* modulesWidget = dynamic_cast<DebugModulesWidget*>(widget("Native Debugger Modules"));
     DebugThreadsWidget* threadsWidget = dynamic_cast<DebugThreadsWidget*>(widget("Native Debugger Threads"));
+    DebugStackWidget* stackWidget = dynamic_cast<DebugStackWidget*>(widget("Native Debugger Stack"));
 
     if (!m_state->IsConnected())
     {
@@ -71,6 +73,7 @@ void DebuggerUI::ContextDisplay()
             if (m_debugView)
                 m_debugView->getControls()->setThreadList({});
         }
+        stackWidget->notifyStackChanged({});
         return;
     }
 
@@ -92,6 +95,45 @@ void DebuggerUI::ContextDisplay()
         threadsWidget->notifyThreadsChanged(threads);
         if (m_debugView)
             m_debugView->getControls()->setThreadList(threads);
+    }
+
+    if (stackWidget)
+    {
+        std::vector<DebugStackItem> stackItems;
+        BinaryReader* reader = new BinaryReader(m_state->GetMemoryView());
+        uint64_t stackPointer = m_state->StackPointer();
+        size_t addressSize = m_state->GetRemoteArchitecture()->GetAddressSize();
+        for (ssize_t i = -8; i < 60 + 1; i++)
+        {
+            ssize_t offset = i * addressSize;
+            if ((offset < 0) && (stackPointer < (uint64_t)-offset))
+                continue;
+
+            uint64_t address = stackPointer + offset;
+            reader->Seek(address);
+            uint64_t value = -1ULL;
+            switch (addressSize)
+            {
+            case 1:
+                value = reader->Read8();
+                break;
+            case 2:
+                value = reader->Read16();
+                break;
+            case 4:
+                value = reader->Read32();
+                break;
+            case 8:
+                value = reader->Read64();
+                break;
+            default:
+                break;
+            }
+            stackItems.emplace_back(offset, address, value);
+        }
+        delete reader;
+
+        stackWidget->notifyStackChanged(stackItems);
     }
 
     uint64_t localIP = m_state->LocalIP();
@@ -388,6 +430,12 @@ void DebuggerUI::InitializeUI()
             return new DebugRegistersWidget(parent, name, data);
         },
         "Native Debugger Registers", Qt::RightDockWidgetArea, Qt::Vertical, false);
+
+    Widget::registerDockWidget(
+        [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
+            return new DebugStackWidget(parent, name, data);
+        },
+        "Native Debugger Stack", Qt::LeftDockWidgetArea, Qt::Vertical, false);
 
     Widget::registerDockWidget(
         [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {

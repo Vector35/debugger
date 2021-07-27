@@ -60,6 +60,8 @@ private:
     std::map<uint64_t, std::vector<uint8_t>> m_valueCache;
     std::set<uint64_t> m_errorCache;
 
+    std::mutex m_memoryMutex;
+
     virtual bool PerformIsExecutable() const override { return true; }
     virtual bool PerformIsValidOffset(uint64_t addr) override { return true; }
     virtual size_t PerformRead(void* dest, uint64_t offset, size_t len) override;

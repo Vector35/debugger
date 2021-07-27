@@ -802,6 +802,23 @@ uint64_t DebuggerState::LocalIP()
 }
 
 
+uint64_t DebuggerState::StackPointer()
+{
+    // TODO: we would better have the DebugAdapter either tell us which register holds the stack pointer
+    if (!IsConnected())
+        throw runtime_error("Cannot read ip when disconnected");
+    string archName = m_remoteArch->GetName();
+    if (archName == "x86_64")
+        return m_registers->GetRegisterValue("rsp");
+    else if (archName == "x86")
+        return m_registers->GetRegisterValue("esp");
+    else if ((archName == "aarch64") || (archName == "arm") || (archName == "armv7") || (archName == "Z80"))
+        return m_registers->GetRegisterValue("sp");
+
+    throw runtime_error("unimplemented architecture " + archName);
+}
+
+
 bool DebuggerState::SetActiveThread(const DebugThread& thread)
 {
     if (!m_threads)

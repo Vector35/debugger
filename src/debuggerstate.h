@@ -216,6 +216,7 @@ public:
     DebuggerBreakpoints* GetBreakpoints() const { return m_breakpoints; }
     DebuggerRegisters* GetRegisters() const { return m_registers; }
     DebuggerThreads* GetThreads() const { return m_threads; }
+    ArchitectureRef GetRemoteArchitecture() const { return m_remoteArch; }
 
     DebugAdapterType::AdapterType GetAdapterType() const { return m_adapterType; }
     std::string GetExecutablePath() const { return m_executablePath; }
@@ -231,6 +232,7 @@ public:
 
     uint64_t IP();
     uint64_t LocalIP();
+    uint64_t StackPointer();
 
     bool IsConnected() const { return m_connectionStatus == DebugAdapterConnectedStatus; }
     bool IsConnecting() const { return m_connectionStatus == DebugAdapterConnectingStatus; }
