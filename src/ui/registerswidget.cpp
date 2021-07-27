@@ -1,5 +1,6 @@
 #include <QtGui/QPainter>
 #include <QtWidgets/QHeaderView>
+#include <QtWidgets/QLineEdit>
 #include "registerswidget.h"
 
 using namespace BinaryNinja;
@@ -307,6 +308,20 @@ QSize DebugRegistersItemDelegate::sizeHint(const QStyleOptionViewItem& option, c
 {
     auto totalWidth = (idx.data(Qt::SizeHintRole).toInt() + 2) * m_charWidth + 4;
     return QSize(totalWidth, m_charHeight + 2);
+}
+
+
+void DebugRegistersItemDelegate::setEditorData(QWidget *editor, const QModelIndex &index) const
+{
+    if (index.column() == DebugRegistersListModel::ValueColumn)
+    {
+        QLineEdit* lineEditor = static_cast<QLineEdit*>(editor);
+        if (lineEditor)
+        {
+            // index.data() returns a pair of colar and QString
+            lineEditor->setText(index.data().toList()[1].toString());
+        }
+    }
 }
 
 
