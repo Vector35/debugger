@@ -35,7 +35,12 @@ if(WIN32)
     file(GLOB ADAPTER_SOURCES
         src/adapters/dbgengadapter.cpp
         src/adapters/dbgengadapter.h
-        )
+		src/adapters/gdbadapter.cpp
+		src/adapters/gdbadapter.h
+		src/adapters/rspconnector.cpp
+		src/adapters/rspconnector.h
+		src/adapters/socket.h
+			)
 elseif(APPLE)
     # Add lldb related files here
 else()
@@ -63,7 +68,7 @@ target_link_libraries(debugger binaryninjaapi
     Qt6::Core Qt6::Gui Qt6::Widgets)
 
 if(WIN32)
-    target_link_libraries(debugger dbgeng.lib)
+    target_link_libraries(debugger dbgeng.lib wsock32 ws2_32)
 endif()
 
 set_target_properties(debugger PROPERTIES

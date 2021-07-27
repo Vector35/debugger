@@ -35,7 +35,7 @@ public:
 Q_DECLARE_METATYPE(BreakpointItem);
 
 
-class BINARYNINJAUIAPI DebugBreakpointsListModel: public QAbstractTableModel
+class DebugBreakpointsListModel: public QAbstractTableModel
 {
     Q_OBJECT
 
@@ -68,7 +68,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebugBreakpointsItemDelegate: public QStyledItemDelegate
+class DebugBreakpointsItemDelegate : public QStyledItemDelegate
 {
     Q_OBJECT
 
@@ -82,7 +82,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebugBreakpointsWidget: public QWidget, public DockContextHandler
+class DebugBreakpointsWidget : public QWidget, public DockContextHandler
 {
     Q_OBJECT
     Q_INTERFACES(DockContextHandler)

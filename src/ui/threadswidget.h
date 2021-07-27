@@ -31,7 +31,7 @@ public:
 Q_DECLARE_METATYPE(ThreadItem);
 
 
-class BINARYNINJAUIAPI DebugThreadsListModel: public QAbstractTableModel
+class DebugThreadsListModel: public QAbstractTableModel
 {
     Q_OBJECT
 
@@ -63,7 +63,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebugThreadsItemDelegate: public QStyledItemDelegate
+class DebugThreadsItemDelegate: public QStyledItemDelegate
 {
     Q_OBJECT
 
@@ -78,7 +78,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebugThreadsWidget: public QWidget, public DockContextHandler
+class DebugThreadsWidget: public QWidget, public DockContextHandler
 {
     Q_OBJECT
     Q_INTERFACES(DockContextHandler)

@@ -26,16 +26,16 @@ enum DebugStackValueStatus
 class DebugStackItem
 {
 private:
-    ssize_t m_offset;
+    ptrdiff_t m_offset;
     uint64_t m_address;
     uint64_t m_value;
     // TODO: add references later
     DebugStackValueStatus m_valueStatus;
 
 public:
-    DebugStackItem(ssize_t offset, uint64_t address, uint64_t value,
+    DebugStackItem(ptrdiff_t offset, uint64_t address, uint64_t value,
         DebugStackValueStatus valueStatus = DebugStackValueNormal);
-    ssize_t offset() const { return m_offset; }
+    ptrdiff_t offset() const { return m_offset; }
     uint64_t address() const { return m_address; }
     uint64_t value() const { return m_value; }
     void setValue(uint64_t value) { m_value = value; }
@@ -49,7 +49,7 @@ public:
 Q_DECLARE_METATYPE(DebugStackItem);
 
 
-class BINARYNINJAUIAPI DebugStackListModel: public QAbstractTableModel
+class DebugStackListModel: public QAbstractTableModel
 {
     Q_OBJECT
 
@@ -84,7 +84,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebugStackItemDelegate: public QStyledItemDelegate
+class DebugStackItemDelegate: public QStyledItemDelegate
 {
     Q_OBJECT
 
@@ -100,7 +100,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebugStackWidget: public QWidget, public DockContextHandler
+class DebugStackWidget: public QWidget, public DockContextHandler
 {
     Q_OBJECT
     Q_INTERFACES(DockContextHandler)

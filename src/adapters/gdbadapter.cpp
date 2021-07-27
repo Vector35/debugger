@@ -3,6 +3,8 @@
 #include <cstring>
 #ifdef WIN32
 #include <windows.h>
+#undef min
+#undef max
 #else
 #include <unistd.h>
 #include <spawn.h>
@@ -76,7 +78,7 @@ bool GdbAdapter::Execute(const std::string& path)
 #ifdef WIN32
     const auto arguments = fmt::format("--once --no-startup-with-shell {} {}", host_with_port, path);
 
-    STARTUPINFO startup_info{};
+    STARTUPINFOA startup_info{};
     PROCESS_INFORMATION process_info{};
     if (CreateProcessA(gdb_server_path.c_str(), const_cast<char*>( arguments.c_str() ),
                        nullptr, nullptr,

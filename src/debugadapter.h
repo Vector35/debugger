@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <stdexcept>
+#include <functional>
 #include <unordered_map>
 #include <array>
 #include <fmt/format.h>

@@ -2,6 +2,10 @@
 #include "./adapters/dummyadapter.h"
 #include "./adapters/gdbadapter.h"
 
+#ifdef WIN32
+#include "./adapters/dbgengadapter.h"
+#endif
+
 bool DebugAdapterType::UseExec(AdapterType type)
 {
     return (type == DefaultAdapterType) || (type == LocalDBGENGAdapterType) ||
@@ -39,7 +43,7 @@ bool DebugAdapterType::CanUse(AdapterType type)
 DebugAdapter* DebugAdapterType::GetAdapterForCurrentSystem()
 {
 #ifdef WIN32
-    return DbgEngAdapter();
+    return new DbgEngAdapter();
 #endif
 
 #ifdef APPLE
@@ -60,7 +64,7 @@ DebugAdapter* DebugAdapterType::GetNewAdapter(AdapterType adapterType)
     {
 #ifdef WIN32
     case LocalDBGENGAdapterType:
-        return DbgEngAdapter();
+        return new DbgEngAdapter();
 #endif
 
 #ifdef APPLE

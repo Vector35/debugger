@@ -103,9 +103,9 @@ void DebuggerUI::ContextDisplay()
         BinaryReader* reader = new BinaryReader(m_state->GetMemoryView());
         uint64_t stackPointer = m_state->StackPointer();
         size_t addressSize = m_state->GetRemoteArchitecture()->GetAddressSize();
-        for (ssize_t i = -8; i < 60 + 1; i++)
+        for (ptrdiff_t i = -8; i < 60 + 1; i++)
         {
-            ssize_t offset = i * addressSize;
+            ptrdiff_t offset = i * addressSize;
             if ((offset < 0) && (stackPointer < (uint64_t)-offset))
                 continue;
 

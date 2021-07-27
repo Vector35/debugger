@@ -49,7 +49,7 @@ public:
 Q_DECLARE_METATYPE(DebugRegisterItem);
 
 
-class BINARYNINJAUIAPI DebugRegistersListModel: public QAbstractTableModel
+class DebugRegistersListModel: public QAbstractTableModel
 {
     Q_OBJECT
 
@@ -84,7 +84,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebugRegistersItemDelegate: public QStyledItemDelegate
+class DebugRegistersItemDelegate: public QStyledItemDelegate
 {
     Q_OBJECT
 
@@ -100,7 +100,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebugRegistersWidget: public QWidget, public DockContextHandler
+class DebugRegistersWidget: public QWidget, public DockContextHandler
 {
     Q_OBJECT
     Q_INTERFACES(DockContextHandler)

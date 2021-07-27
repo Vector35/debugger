@@ -6,7 +6,7 @@
 using namespace BinaryNinja;
 using namespace std;
 
-DebugStackItem::DebugStackItem(ssize_t offset, uint64_t address, uint64_t value,
+DebugStackItem::DebugStackItem(ptrdiff_t offset, uint64_t address, uint64_t value,
     DebugStackValueStatus valueStatus):
     m_offset(offset), m_address(address), m_value(value), m_valueStatus(valueStatus)
 {
@@ -103,7 +103,7 @@ QVariant DebugStackListModel::data(const QModelIndex& index, int role) const
     {
     case DebugStackListModel::OffsetColumn:
     {
-        ssize_t value = item->offset();
+        ptrdiff_t value = item->offset();
         QString valueStr;
         if (value < 0)
             valueStr = QString::asprintf("-%" PRIx64, -value);
@@ -184,7 +184,7 @@ void DebugStackListModel::updateRows(std::vector<DebugStackItem> newRows)
 {
     // TODO: This might cause performance problems. We can instead only update the chagned registers.
     // However, the cost for that is we need to attach an index to each item and sort accordingly
-    std::map<ssize_t, uint64_t> oldValues;
+    std::map<ptrdiff_t, uint64_t> oldValues;
     for (const DebugStackItem& item: m_items)
         oldValues[item.offset()] = item.value();
 

@@ -405,7 +405,7 @@ bool DbgEngAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t si
 bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const void* out, std::size_t size)
 {
     unsigned long bytes_written{};
-    return this->m_debugDataSpaces->WriteVirtual(address, out, size, &bytes_written) == S_OK && bytes_written == size;
+    return this->m_debugDataSpaces->WriteVirtual(address, const_cast<void*>(out), size, &bytes_written) == S_OK && bytes_written == size;
 }
 
 std::vector<DebugModule> DbgEngAdapter::GetModuleList()
@@ -752,15 +752,14 @@ HRESULT DbgEngOutputCallbacks::QueryInterface(const IID& interface_id, void** _i
     return S_OK;
 }
 
-
-bool GdbAdapter::SupportFeature(DebugAdapterCapacity feature)
+bool DbgEngAdapter::SupportFeature(DebugAdapterCapacity feature)
 {
     switch (feature)
     {
     case DebugAdapterSupportStepOver:
         return true;
     case DebugAdapterSupportModules:
-        return true;;
+        return true;
     case DebugAdapterSupportThreads:
         return true;
     default:

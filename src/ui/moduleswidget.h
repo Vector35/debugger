@@ -35,7 +35,7 @@ public:
 Q_DECLARE_METATYPE(ModuleItem);
 
 
-class BINARYNINJAUIAPI DebugModulesListModel: public QAbstractTableModel
+class DebugModulesListModel: public QAbstractTableModel
 {
     Q_OBJECT
 
@@ -69,7 +69,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebugModulesItemDelegate: public QStyledItemDelegate
+class DebugModulesItemDelegate: public QStyledItemDelegate
 {
     Q_OBJECT
 
@@ -84,7 +84,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebugModulesWidget: public QWidget, public DockContextHandler
+class DebugModulesWidget: public QWidget, public DockContextHandler
 {
     Q_OBJECT
     Q_INTERFACES(DockContextHandler)
