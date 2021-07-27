@@ -211,6 +211,9 @@ void DebugControlsWidget::performSettings()
 {
     AdapterSettingsDialog* dialog = new AdapterSettingsDialog(this, m_data);
     dialog->show();
+    QObject::connect(dialog, &QDialog::finished, [this](){
+        stateInactive();
+    });
 }
 
 

@@ -547,7 +547,30 @@ void DebuggerState::Exec()
 
 void DebuggerState::Attach()
 {
-    BinaryNinja::LogWarn("attach() requested");
+    if (IsConnected() || IsConnecting())
+        throw runtime_error("Tried to exec but already debugging");
+
+    m_connectionStatus = DebugAdapterConnectingStatus;
+
+    m_adapter = DebugAdapterType::GetNewAdapter(m_adapterType);
+    if (DebugAdapterType::UseConnect(m_adapterType))
+    {
+        // TODO: what should I do for QueuedAdapter?
+        bool ok = m_adapter->Connect(m_remoteHost, m_remotePort);
+        if (!ok)
+        {
+            LogWarn("fail to connect %s:%d", m_remoteHost, m_remotePort);
+            m_connectionStatus = DebugAdapterNotConnectedStatus;
+            return;
+        }
+        m_connectionStatus = DebugAdapterConnectedStatus;
+    }
+
+    // std::string currentModule = ResolveTargetBase();
+    // We must first update the modules, then the breakpoints can be applied correctly
+    m_modules->Update();
+    m_breakpoints->Apply();
+    m_remoteArch = DetectRemoteArch();
 }
 
 
