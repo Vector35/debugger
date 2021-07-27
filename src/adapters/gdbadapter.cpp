@@ -478,11 +478,11 @@ bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
     if (reply.m_data[0] == 'E')
         return false;
 
-    const auto source = std::make_unique<std::uint8_t[]>(size + 1);
+    const auto source = std::make_unique<std::uint8_t[]>(2 * size + 1);
     const auto dest = std::make_unique<std::uint8_t[]>(size + 1);
-    std::memset(source.get(), '\0', size + 1);
+    std::memset(source.get(), '\0', 2 * size + 1);
     std::memset(dest.get(), '\0', size + 1);
-    std::memcpy(source.get(), reply.m_data, size);
+    std::memcpy(source.get(), reply.m_data, 2 * size + 1);
 
     [](const std::uint8_t* src, std::uint8_t* dst) {
         const auto char_to_int = [](std::uint8_t input) -> int {

@@ -57,7 +57,7 @@ class DebugMemoryView: public BinaryView
 private:
     ArchitectureRef m_arch;
     PlatformRef m_platform;
-    std::map<uint64_t, DataBuffer> m_valueCache;
+    std::map<uint64_t, std::vector<uint8_t>> m_valueCache;
     std::set<uint64_t> m_errorCache;
 
     virtual bool PerformIsExecutable() const override { return true; }
