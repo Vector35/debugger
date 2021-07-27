@@ -1,5 +1,6 @@
 #include <QtGui/QPainter>
 #include <QtWidgets/QHeaderView>
+#include <QtWidgets/QLineEdit>
 #include "stackwidget.h"
 
 using namespace BinaryNinja;
@@ -246,9 +247,29 @@ bool DebugStackListModel::setData(const QModelIndex &index, const QVariant &valu
         return false;
 
     DebuggerState* state = DebuggerState::GetState(m_data);
-    // ok = state->GetAdapter()->WriteMemory(item->address(), newValue);
-    // if (!ok)
-        // return false;
+    size_t addressSize = state->GetRemoteArchitecture()->GetAddressSize();
+    BinaryWriter* writer = new BinaryWriter(state->GetMemoryView());
+    ok = false;
+    writer->Seek(item->address());
+    switch (addressSize)
+    {
+    case 1:
+        ok = writer->TryWrite8(newValue);
+        break;
+    case 2:
+        ok = writer->TryWrite16(newValue);
+        break;
+    case 4:
+        ok = writer->TryWrite32(newValue);
+        break;
+    case 8:
+        ok = writer->TryWrite64(newValue);
+        break;
+    default:
+        break;
+    }
+    if (!ok)
+        return false;
 
     item->setValue(newValue);
     item->setValueStatus(DebugStackValueModified);
@@ -316,6 +337,20 @@ QSize DebugStackItemDelegate::sizeHint(const QStyleOptionViewItem& option, const
 {
     auto totalWidth = (idx.data(Qt::SizeHintRole).toInt() + 2) * m_charWidth + 4;
     return QSize(totalWidth, m_charHeight + 2);
+}
+
+
+void DebugStackItemDelegate::setEditorData(QWidget *editor, const QModelIndex &index) const
+{
+    if (index.column() == DebugStackListModel::ValueColumn)
+    {
+        QLineEdit* lineEditor = static_cast<QLineEdit*>(editor);
+        if (lineEditor)
+        {
+            // index.data() returns a pair of colar and QString
+            lineEditor->setText(index.data().toList()[1].toString());
+        }
+    }
 }
 
 

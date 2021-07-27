@@ -96,6 +96,7 @@ public:
     void updateFonts();
     void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const;
     QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
+    void setEditorData(QWidget *editor, const QModelIndex &index) const;
 };
 
 
