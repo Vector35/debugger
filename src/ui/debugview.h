@@ -64,6 +64,7 @@ public:
     bool navigateRaw(uint64_t addr);
     void showRawAssembly(bool raw);
     void loadRawDisassembly(uint64_t startIP);
+    void refreshRawDisassembly();
 
 	void setCurrentOffset(uint64_t offset);
 	// void navigateToFileOffset(uint64_t offset);

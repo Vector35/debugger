@@ -73,7 +73,8 @@ void DebuggerUI::ContextDisplay()
             if (m_debugView)
                 m_debugView->getControls()->setThreadList({});
         }
-        stackWidget->notifyStackChanged({});
+        if (stackWidget)
+            stackWidget->notifyStackChanged({});
         return;
     }
 
@@ -296,8 +297,8 @@ void DebuggerUI::UpdateBreakpoints()
     else
         LogWarn("Cannot find the breakpoint widget");
 
-    // if (m_debugView)
-        // m_debugView->refreshRawDisassembly();
+    if (m_debugView)
+        m_debugView->refreshRawDisassembly();
 }
 
 

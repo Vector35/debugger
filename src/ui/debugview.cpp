@@ -337,6 +337,16 @@ void DebugView::loadRawDisassembly(uint64_t addr)
 }
 
 
+void DebugView::refreshRawDisassembly()
+{
+    if (!m_state->IsConnected())
+        return;
+
+    if (m_isRawDisassembly)
+        loadRawDisassembly(getCurrentOffset());
+}
+
+
 void DebugView::updateTimerEvent()
 {
     if (m_needsUpdate)
