@@ -156,19 +156,19 @@ bool DebugView::navigate(uint64_t addr)
         return navigateLive(addr);
     }
 
-    uint64_t localAddr;
-    // TODO: The Python impl writes is_loacl_addr() here, which I think is a typo. Need confirmation for it.
-    if (m_state->IsLocalAddress(addr))
-        localAddr = m_state->RemoteAddressToLocal(addr);
-    else
-        localAddr = addr;
-
     BinaryViewRef data = m_state->GetData();
     if (!data)
         return navigateRaw(addr);
 
     char temp;
-    if (data->Read(&temp, localAddr, 1) && data->GetAnalysisFunctionsContainingAddress(addr).size() > 0)
+    if (m_state->IsLocalAddress(addr))
+    {
+        uint64_t localAddr = m_state->RemoteAddressToLocal(addr);
+        if (data->Read(&temp, localAddr, 1) && data->GetAnalysisFunctionsContainingAddress(localAddr).size() > 0)
+            return navigateLive(localAddr);  
+    }
+
+    if (data->Read(&temp, addr, 1) && data->GetAnalysisFunctionsContainingAddress(addr).size() > 0)
         return navigateLive(addr);        
 
     return navigateRaw(addr);
