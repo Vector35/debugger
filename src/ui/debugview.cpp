@@ -297,13 +297,13 @@ void DebugView::loadRawDisassembly(uint64_t addr)
             {
                 // Breakpoint
                 tokens.push_back(InstructionTextToken(TagToken, breakpointIcon));
-                tokens.push_back(InstructionTextToken(TextToken, "     "));
+                tokens.push_back(InstructionTextToken(TextToken, "   "));
                 color = RedHighlightColor;
             }
             else
             {
                 // Regular line
-                tokens.push_back(InstructionTextToken(TextToken, "      "));
+                tokens.push_back(InstructionTextToken(TextToken, "    "));
             }    
         }
 
