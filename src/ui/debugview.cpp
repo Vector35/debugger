@@ -5,6 +5,9 @@
 #include "fontsettings.h"
 #include "debugview.h"
 #include "ui.h"
+#include "binaryninjaapi.h"
+
+using namespace BinaryNinja;
 
 DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
 {
@@ -115,6 +118,7 @@ BinaryViewRef DebugView::getData()
 
 
 uint64_t DebugView::getCurrentOffset()
+{
 	return m_currentOffset;
 }
 
@@ -216,6 +220,120 @@ void DebugView::showRawAssembly(bool raw)
 void DebugView::loadRawDisassembly(uint64_t addr)
 {
     LogWarn("Showing raw disassembly at 0x%" PRIx64, addr);
+
+    size_t instCount = 50;
+    ArchitectureRef arch = m_state->GetRemoteArchitecture();
+    uint64_t rip = m_state->IP();
+    size_t readLength = arch->GetMaxInstructionLength() * instCount;
+
+    std::vector<LinearDisassemblyLine> result;
+    std::vector<InstructionTextToken> tokens =
+        { InstructionTextToken(TextToken, "(Code not backed by loaded file, showing only raw disassembly)") };
+    DisassemblyTextLine contents;
+    contents.addr = addr;
+    contents.tokens = tokens;
+    LinearDisassemblyLine line;
+    line.type = BasicLineType;
+    line.contents = contents;
+    result.push_back(line);
+
+    BinaryReader* reader = new BinaryReader(m_state->GetMemoryView());
+    if (!reader)
+    {
+        m_binaryText->setLines(result);
+        return;
+    }
+
+    reader->Seek(addr);
+    uint8_t* buffer = (uint8_t*)malloc(readLength);
+    bool ok = reader->TryRead(buffer, readLength);
+    if (!ok)
+    {
+        m_binaryText->setLines(result);
+        return;
+    }
+
+    size_t totalRead = 0;
+    for (size_t i = 0; i < instCount; i++)
+    {
+        uint64_t lineAddr = addr + totalRead;
+        size_t length = readLength - totalRead;
+        std::vector<InstructionTextToken> insnTokens;
+        ok = arch->GetInstructionText(buffer + totalRead, lineAddr, length, insnTokens);
+        if ((!ok) || (insnTokens.size() == 0))
+        {
+            insnTokens = { InstructionTextToken(TextToken, "??") };
+            length = arch->GetInstructionAlignment();
+            if (length == 0)
+                length = 1;
+        }
+
+        tokens.clear();
+        BNHighlightStandardColor color = NoHighlightColor;
+        std::string breakpointIcon = m_state->GetDebuggerUI()->GetBreakpointTagType()->GetIcon();
+        std::string pcIcon = m_state->GetDebuggerUI()->GetPCTagType()->GetIcon();
+        // size_t maxWidth = breakpointIcon.size() + pcIcon.size();
+
+        if (lineAddr == rip)
+        {
+            if (m_state->GetBreakpoints()->ContainsAbsolute(lineAddr))
+            {
+                // Breakpoint & pc
+                tokens.push_back(InstructionTextToken(TagToken, breakpointIcon));
+                tokens.push_back(InstructionTextToken(TagToken, pcIcon));
+                color = RedHighlightColor;
+            }
+            else
+            {
+                // PC
+                tokens.push_back(InstructionTextToken(TagToken, pcIcon));
+                tokens.push_back(InstructionTextToken(TextToken, " "));
+                color = BlueHighlightColor;
+            }
+        }
+        else
+        {
+            if (m_state->GetBreakpoints()->ContainsAbsolute(lineAddr))
+            {
+                // Breakpoint
+                tokens.push_back(InstructionTextToken(TagToken, breakpointIcon));
+                tokens.push_back(InstructionTextToken(TextToken, "     "));
+                color = RedHighlightColor;
+            }
+            else
+            {
+                // Regular line
+                tokens.push_back(InstructionTextToken(TextToken, "      "));
+            }    
+        }
+
+        tokens.push_back(InstructionTextToken(AddressDisplayToken, fmt::format("{:x}", lineAddr), lineAddr));
+        tokens.push_back(InstructionTextToken(TextToken, "  "));
+        tokens.insert(tokens.end(), insnTokens.begin(), insnTokens.end());
+    
+        contents.addr = lineAddr;
+        contents.tokens = tokens;
+
+        BNHighlightColor hc;
+        hc.style = StandardHighlightColor;
+        hc.color = color;
+        hc.mixColor = NoHighlightColor;
+        hc.mix = 0;
+        hc.r = 0;
+        hc.g = 0;
+        hc.b = 0;
+        hc.alpha = 0;
+        contents.highlight = hc;
+
+        line.type = CodeDisassemblyLineType;
+        line.contents = contents;
+
+        result.push_back(line);
+        totalRead += length;
+    }
+
+    free(buffer);
+    m_binaryText->setLines(result);
 }
 
 

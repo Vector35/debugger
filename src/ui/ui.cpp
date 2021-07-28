@@ -201,7 +201,7 @@ void DebuggerUI::CreateProgramCounterTagType()
         return;
     }
 
-    m_pcTagType = new TagType(m_state->GetData(), "Program Counter", "==>");
+    m_pcTagType = new TagType(m_state->GetData(), "Program Counter", " ==> ");
     m_state->GetData()->AddTagType(m_pcTagType);
 }
 

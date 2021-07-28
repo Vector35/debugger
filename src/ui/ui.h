@@ -39,6 +39,8 @@ public:
 
     void AddBreakpointTag(uint64_t localAddress);
     void DeleteBreakpointTag(std::vector<uint64_t> localAddress);
+    TagTypeRef GetBreakpointTagType() const { return m_breakpointTagType; }
+    TagTypeRef GetPCTagType() const { return m_pcTagType; }
 
     static void InitializeUI();
 
