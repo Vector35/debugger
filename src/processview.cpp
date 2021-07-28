@@ -276,7 +276,7 @@ size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
         return 0;
 
     DebuggerState* state = DebuggerState::GetState(parentView);
-    if (!state)
+    if ((!state) || (!state->IsConnected()))
         return 0;
 
     DebugAdapter* adapter = state->GetAdapter();
