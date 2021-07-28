@@ -293,7 +293,7 @@ std::vector<DebugThread> GdbAdapter::GetThreadList()
     const auto current_thread = this->GetActiveThread();
     for (auto& thread : threads) {
         this->SetActiveThread(thread);
-        thread.m_rip = this->ReadRegister("rip").m_value;
+        thread.m_rip = GetInstructionOffset();
     }
     this->SetActiveThread(current_thread);
 
@@ -433,7 +433,7 @@ std::unordered_map<std::string, DebugRegister> GdbAdapter::ReadAllRegisters() {
 DebugRegister GdbAdapter::ReadRegister(const std::string& reg)
 {
     if ( this->m_registerInfo.find(reg) == this->m_registerInfo.end() )
-        throw std::runtime_error("register does not exist in target");
+        throw std::runtime_error(fmt::format("register {} does not exist in target", reg));
 
     return this->ReadAllRegisters()[reg];
 }
@@ -826,6 +826,7 @@ void GdbAdapter::Invoke(const std::string& command)
 
 std::uintptr_t GdbAdapter::GetInstructionOffset()
 {
+    // TODO: obviously this will only support x86/x86_64, so we need a more systematic way for it
     return this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
 }
 
