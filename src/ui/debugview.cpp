@@ -115,17 +115,12 @@ BinaryViewRef DebugView::getData()
 
 
 uint64_t DebugView::getCurrentOffset()
-{
-	// if (m_byteView)
-	// 	return m_byteView->getCurrentOffset();
 	return m_currentOffset;
 }
 
 
 BNAddressRange DebugView::getSelectionOffsets()
 {
-	// if (m_byteView)
-	// 	return m_byteView->getSelectionOffsets();
 	return { m_currentOffset, m_currentOffset };
 }
 
@@ -177,8 +172,6 @@ bool DebugView::navigate(uint64_t addr)
 
 void DebugView::focusInEvent(QFocusEvent*)
 {
-	// if (m_byteView)
-	// 	m_byteView->setFocus(Qt::OtherFocusReason);
 }
 
 

@@ -21,8 +21,6 @@ class DebugView: public QWidget, public View
 
 	BinaryViewRef m_data;
 	uint64_t m_currentOffset = 0;
-	// ByteView* m_byteView = nullptr;
-	// QPushButton* m_fullAnalysisButton = nullptr;
     bool m_isRawDisassembly;
     uint64_t m_rawAddress, m_memoryHistoryAddress;
 
