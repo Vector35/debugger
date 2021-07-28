@@ -36,7 +36,7 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     QFont smallFont = QFont();
     smallFont.setPointSize(11);
 
-    QVBoxLayout* m_binaryViewLayout = new QVBoxLayout;
+    m_binaryViewLayout = new QVBoxLayout;
     m_binaryViewLayout->setSpacing(0);
     m_binaryViewLayout->setContentsMargins(0, 0, 0, 0);
 
@@ -45,11 +45,11 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_binaryViewLayout->addWidget(m_bianryViewLabel);
     m_binaryViewLayout->addWidget(m_binaryEditor);
 
-    QWidget* m_binaryViewWidget = new QWidget;
+    m_binaryViewWidget = new QWidget;
     m_binaryViewWidget->setLayout(m_binaryViewLayout);
 
 
-    QVBoxLayout* m_disassemblyLayout = new QVBoxLayout;
+    m_disassemblyLayout = new QVBoxLayout;
     m_disassemblyLayout->setSpacing(0);
     m_disassemblyLayout->setContentsMargins(0, 0, 0, 0);
 
@@ -58,10 +58,10 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_disassemblyLayout->addWidget(m_disassemblyLabel);
     m_disassemblyLayout->addWidget(m_binaryText);
 
-    QWidget* m_disassemblyWidget = new QWidget;
+    m_disassemblyWidget = new QWidget;
     m_disassemblyWidget->setLayout(m_disassemblyLayout);
 
-    QVBoxLayout* m_memoryLayout = new QVBoxLayout;
+    m_memoryLayout = new QVBoxLayout;
     m_memoryLayout->setSpacing(0);
     m_memoryLayout->setContentsMargins(0, 0, 0, 0);
 
@@ -70,7 +70,7 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_memoryLayout->addWidget(m_memoryLabel);
     m_memoryLayout->addWidget(m_memoryEditor);
 
-    QWidget* m_memoryWidget = new QWidget;
+    m_memoryWidget = new QWidget;
     m_memoryWidget->setLayout(m_memoryLayout);
 
 
@@ -207,11 +207,8 @@ void DebugView::showRawAssembly(bool raw)
     {
         if (raw)
         {
-            LogWarn("m_splitter count: %d", m_splitter->count());
-            // if (m_splitter && m_disassemblyWidget)
-            //     m_splitter->replaceWidget(0, m_disassemblyWidget);
-            // else
-            //     LogWarn("something invalid");
+            if (m_splitter && m_disassemblyWidget)
+                m_splitter->replaceWidget(0, m_disassemblyWidget);
         }
         else
         {
