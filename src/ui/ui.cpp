@@ -418,6 +418,21 @@ static bool BreakpointToggleValid(BinaryView* view, uint64_t addr)
 }
 
 
+static void StepToHereCallback(BinaryView* view, uint64_t addr)
+{
+    DebuggerState* state = DebuggerState::GetState(view);
+    uint64_t remoteAddr = state->GetMemoryView()->LocalAddressToRemote(addr);
+    state->StepTo({remoteAddr});
+    // TODO: this does not work since the UI state will not be updated after this
+}
+
+
+static bool StepToHereValid(BinaryView* view, uint64_t addr)
+{
+    return true;
+}
+
+
 void DebuggerUI::InitializeUI()
 {
     Widget::registerDockWidget(
@@ -454,6 +469,10 @@ void DebuggerUI::InitializeUI()
             "sets/clears breakpoint at right-clicked address",
             BreakpointToggleCallback, BreakpointToggleValid);
     UIAction::setUserKeyBinding("Native Debugger\\Toggle Breakpoint", { QKeySequence(Qt::Key_F2) });
+
+    PluginCommand::RegisterForAddress("Native Debugger\\Step To Here",
+            "step over to the current selected address",
+            StepToHereCallback, StepToHereValid);
 }
 
 
