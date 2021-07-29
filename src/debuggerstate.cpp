@@ -561,7 +561,7 @@ void DebuggerState::Attach()
         bool ok = m_adapter->Connect(m_remoteHost, m_remotePort);
         if (!ok)
         {
-            LogWarn("fail to connect %s:%d", m_remoteHost, m_remotePort);
+            LogWarn("fail to connect %s:%d", m_remoteHost.c_str(), m_remotePort);
             m_connectionStatus = DebugAdapterNotConnectedStatus;
             return;
         }
@@ -786,14 +786,14 @@ void DebuggerState::StepOverAsm()
         {
             // Whenever there is a failure, we fail back to step into
             // TODO: decide if there is another better options
-            delete buffer;
+            delete[] buffer;
             StepIntoAsm();
             return;
         }
 
         if (info.length == 0)
         {
-            delete buffer;
+            delete[] buffer;
             StepIntoAsm();
             return;
         }
@@ -802,7 +802,9 @@ void DebuggerState::StepOverAsm()
         StepTo({remoteIPNext});
     }
 
-    delete buffer;
+    if (buffer)
+        delete[] buffer;
+
     MarkDirty();
 }
 

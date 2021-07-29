@@ -16,7 +16,7 @@
 class Socket {
     using socket_type =
 #ifdef WIN32
-    SOCKET;
+        SOCKET;
 #else
     std::int32_t;
 #endif
@@ -30,7 +30,7 @@ public:
 
     /* if port is zero it will be bruteforced */
     Socket(std::int32_t address_family, std::int32_t type, std::int32_t protocol, std::uint32_t port = 0)
-        : m_addressFamily(address_family), m_type(type), m_protocol(protocol), m_port(port) {
+    : m_addressFamily(address_family), m_type(type), m_protocol(protocol), m_port(port) {
 
         if (port) {
             this->m_socket = ::socket(address_family, type, protocol);
@@ -92,10 +92,10 @@ public:
     bool Kill() const {
         return
             #ifdef WIN32
-                ::shutdown(this->m_socket, SD_BOTH) >= 0
+            ::shutdown(this->m_socket, 2) >= 0
             #else
-                ::shutdown(this->m_socket, SHUT_RDWR) >= 0
+            ::shutdown(this->m_socket, SHUT_RDWR) >= 0
             #endif
-                && this->Close();
+            && this->Close();
     }
 };
