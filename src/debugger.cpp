@@ -15,18 +15,19 @@ extern "C"
 	{
 		Log(BNLogLevel::WarningLog, "Native debugger loaded!" );
 		ViewType::registerViewType(new DebugViewType());
-        InitDebugMemoryViewType();
-        InitDebugMemoryViewType();
-        InitDebugProcessViewType();
         DebuggerUI::InitializeUI();
 		return true;
 	}
 
-	// BN_DECLARE_CORE_ABI_VERSION
+	BN_DECLARE_CORE_ABI_VERSION
 
-	// BINARYNINJAPLUGIN bool CorePluginInit()
-	// {
-	// 	Log(BNLogLevel::WarningLog, "Headless debugger loaded!" );
-	// 	return true;
-	// }
+	BINARYNINJAPLUGIN bool CorePluginInit()
+	{
+        if (!IsUIEnabled())
+            Log(BNLogLevel::WarningLog, "Headless debugger loaded!" );
+
+        InitDebugMemoryViewType();
+        InitDebugProcessViewType();
+		return true;
+	}
 }

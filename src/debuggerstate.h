@@ -155,6 +155,8 @@ public:
 };
 
 
+// DebuggerState is the core of the debugger. Every operation is sent to this class, which then sends it the backend.
+// After the backend responds, it first updates its internal state, and then update the UI (if the UI is enabled).
 class DebuggerState
 {
 private:
