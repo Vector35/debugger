@@ -45,4 +45,6 @@ public:
     static void InitializeUI();
 
     QWidget* widget(const std::string& name);
+
+    DebugView* GetDebugView() const { return m_debugView; }
 };

@@ -4,6 +4,8 @@
 #include <chrono>
 #include <thread>
 #include "lowlevelilinstruction.h"
+#include "mediumlevelilinstruction.h"
+#include "highlevelilinstruction.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -643,9 +645,107 @@ void DebuggerState::StepIntoAsm()
 }
 
 
-void DebuggerState::StepIntoIL()
+void DebuggerState::StepIntoIL(BNFunctionGraphType il)
 {
-    BinaryNinja::LogWarn("stepIntoIL() requested");
+    if (!IsConnected())
+        throw runtime_error("cannot step into il when disconnected");
+
+    switch (il)
+    {
+    case LowLevelILFunctionGraph:
+    {
+        // TODO: This might cause infinite loop
+        while (true)
+        {
+            StepIntoAsm();
+            // We must do the udpate here, otherwise the ip will not change
+            m_registers->Update();
+            uint64_t newRemoteRip = IP();
+            uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
+            if (!m_memoryView->IsLocalAddress(newRemoteRip))
+                // Stepped outside of loaded bv
+                return;
+
+            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newLocalIp);
+            if (functions.size() == 0)
+                return;
+
+            for (FunctionRef& func: functions)
+            {
+                LowLevelILFunctionRef llil = func->GetLowLevelIL();
+                size_t start = llil->GetInstructionStart(m_data->GetDefaultArchitecture(), newLocalIp);
+                if (start < llil->GetInstructionCount())
+                {
+                    if (llil->GetInstruction(start).address == newLocalIp)
+                        return;
+                }
+            }
+        }
+        break;
+    }
+    case MediumLevelILFunctionGraph:
+    {
+        // TODO: This might cause infinite loop
+        while (true)
+        {
+            StepIntoAsm();
+            m_registers->Update();
+            uint64_t newRemoteRip = IP();
+            uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
+            if (!m_memoryView->IsLocalAddress(newRemoteRip))
+                // Stepped outside of loaded bv
+                return;
+
+            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newLocalIp);
+            if (functions.size() == 0)
+                return;
+
+            for (FunctionRef& func: functions)
+            {
+                MediumLevelILFunctionRef mlil = func->GetMediumLevelIL();
+                size_t start = mlil->GetInstructionStart(m_data->GetDefaultArchitecture(), newLocalIp);
+                if (start < mlil->GetInstructionCount())
+                {
+                    if (mlil->GetInstruction(start).address == newLocalIp)
+                        return;
+                }
+            }
+        }
+        break;
+    }
+    case HighLevelILFunctionGraph:
+    {
+        // TODO: This might cause infinite loop
+        while (true)
+        {
+            StepIntoAsm();
+            m_registers->Update();
+            uint64_t newRemoteRip = IP();
+            uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
+            if (!m_memoryView->IsLocalAddress(newRemoteRip))
+                // Stepped outside of loaded bv
+                return;
+
+            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newLocalIp);
+            if (functions.size() == 0)
+                return;
+
+            for (FunctionRef& func: functions)
+            {
+                HighLevelILFunctionRef hlil = func->GetHighLevelIL();
+                for (size_t i = 0; i < hlil->GetInstructionCount(); i++)
+                {
+                    if (hlil->GetInstruction(i).address == newLocalIp)
+                        return;
+                }
+            }
+        }
+        break;
+    }
+    default:
+        LogWarn("step into unimplemented in the current il type");
+        break;
+    }
 }
 
 
@@ -707,9 +807,107 @@ void DebuggerState::StepOverAsm()
 }
 
 
-void DebuggerState::StepOverIL()
+void DebuggerState::StepOverIL(BNFunctionGraphType il)
 {
-    BinaryNinja::LogWarn("stepOverIL() requested");
+    if (!IsConnected())
+        throw runtime_error("cannot step over il when disconnected");
+
+    switch (il)
+    {
+    case LowLevelILFunctionGraph:
+    {
+        // TODO: This might cause infinite loop
+        while (true)
+        {
+            StepOverAsm();
+            // We must do the udpate here, otherwise the ip will not change
+            m_registers->Update();
+            uint64_t newRemoteRip = IP();
+            uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
+            if (!m_memoryView->IsLocalAddress(newRemoteRip))
+                // Stepped outside of loaded bv
+                return;
+
+            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newLocalIp);
+            if (functions.size() == 0)
+                return;
+
+            for (FunctionRef& func: functions)
+            {
+                LowLevelILFunctionRef llil = func->GetLowLevelIL();
+                size_t start = llil->GetInstructionStart(m_data->GetDefaultArchitecture(), newLocalIp);
+                if (start < llil->GetInstructionCount())
+                {
+                    if (llil->GetInstruction(start).address == newLocalIp)
+                        return;
+                }
+            }
+        }
+        break;
+    }
+    case MediumLevelILFunctionGraph:
+    {
+        // TODO: This might cause infinite loop
+        while (true)
+        {
+            StepOverAsm();
+            m_registers->Update();
+            uint64_t newRemoteRip = IP();
+            uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
+            if (!m_memoryView->IsLocalAddress(newRemoteRip))
+                // Stepped outside of loaded bv
+                return;
+
+            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newLocalIp);
+            if (functions.size() == 0)
+                return;
+
+            for (FunctionRef& func: functions)
+            {
+                MediumLevelILFunctionRef mlil = func->GetMediumLevelIL();
+                size_t start = mlil->GetInstructionStart(m_data->GetDefaultArchitecture(), newLocalIp);
+                if (start < mlil->GetInstructionCount())
+                {
+                    if (mlil->GetInstruction(start).address == newLocalIp)
+                        return;
+                }
+            }
+        }
+        break;
+    }
+    case HighLevelILFunctionGraph:
+    {
+        // TODO: This might cause infinite loop
+        while (true)
+        {
+            StepOverAsm();
+            m_registers->Update();
+            uint64_t newRemoteRip = IP();
+            uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
+            if (!m_memoryView->IsLocalAddress(newRemoteRip))
+                // Stepped outside of loaded bv
+                return;
+
+            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newLocalIp);
+            if (functions.size() == 0)
+                return;
+
+            for (FunctionRef& func: functions)
+            {
+                HighLevelILFunctionRef hlil = func->GetHighLevelIL();
+                for (size_t i = 0; i < hlil->GetInstructionCount(); i++)
+                {
+                    if (hlil->GetInstruction(i).address == newLocalIp)
+                        return;
+                }
+            }
+        }
+        break;
+    }
+    default:
+        LogWarn("step into unimplemented in the current il type");
+        break;
+    }
 }
 
 

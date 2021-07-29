@@ -70,6 +70,7 @@ public:
 	// void navigateToFileOffset(uint64_t offset);
 
     DebugControlsWidget* getControls() const { return m_controls; }
+    DisassemblyContainer* getBinaryEditor() const { return m_binaryEditor; }
 
 protected:
 	virtual void focusInEvent(QFocusEvent* event) override;

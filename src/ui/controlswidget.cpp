@@ -1,6 +1,9 @@
 #include "controlswidget.h"
 #include "adaptersettings.h"
 #include <QtGui/QPixmap>
+#include "binaryninjaapi.h"
+#include "disassemblyview.h"
+#include "ui.h"
 
 using namespace BinaryNinja;
 
@@ -241,10 +244,13 @@ void DebugControlsWidget::performStepIntoAsm()
     m_state->OnStep();
 }
 
+
 void DebugControlsWidget::performStepIntoIL()
 {
     stateBusy("STEPPING");
-    m_state->StepIntoIL();
+    DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
+    BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
+    m_state->StepIntoIL(graphType);
 
     m_state->OnStep();
 }
@@ -262,7 +268,9 @@ void DebugControlsWidget::performStepOverAsm()
 void DebugControlsWidget::performStepOverIL()
 {
     stateBusy("STEPPING");
-    m_state->StepOverIL();
+    DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
+    BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
+    m_state->StepOverIL(graphType); 
 
     m_state->OnStep();
 }
