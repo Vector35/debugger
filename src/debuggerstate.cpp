@@ -10,7 +10,6 @@
 using namespace BinaryNinja;
 using namespace std;
 
-
 DebuggerRegisters::DebuggerRegisters(DebuggerState* state): m_state(state)
 {
     MarkDirty();
@@ -527,6 +526,10 @@ void DebuggerState::Exec()
     if (DebugAdapterType::UseExec(m_adapterType))
     {
         // TODO: what should I do for QueuedAdapter?
+#ifdef WIN32
+        /* temporary solution (not great, sorry!), we probably won't have to do this once we introduce std::filesystem::path */
+        std::replace(filePath.begin(), filePath.end(), '/', '\\');
+#endif
         bool ok = m_adapter->Execute(filePath);
         // m_adapter->ExecuteWithArgs(filePath, getCommandLineArguments());
         // The Execute() function is blocking, and it only returns when there is a status change
@@ -767,12 +770,13 @@ void DebuggerState::StepOverAsm()
 
     // TODO: support the case where we cannot determined the remote arch
     size_t size = m_remoteArch->GetMaxInstructionLength();
-    uint8_t* buffer = new uint8_t[size];
-    m_adapter->ReadMemory(remoteIP, buffer, size);
+    std::vector<std::uint8_t> buffer{};
+    buffer.reserve(size);
+    m_adapter->ReadMemory(remoteIP, buffer.data(), size);
 
     Ref<LowLevelILFunction> ilFunc = new LowLevelILFunction(m_remoteArch, nullptr);
     ilFunc->SetCurrentAddress(m_remoteArch, remoteIP);
-    m_remoteArch->GetInstructionLowLevelIL(buffer, remoteIP, size, *ilFunc);
+    m_remoteArch->GetInstructionLowLevelIL(buffer.data(), remoteIP, size, *ilFunc);
 
     const auto& instr = (*ilFunc)[0];
     if (instr.operation != LLIL_CALL)
@@ -782,18 +786,16 @@ void DebuggerState::StepOverAsm()
     else
     {
         InstructionInfo info;
-        if (!m_remoteArch->GetInstructionInfo(buffer, remoteIP, size, info))
+        if (!m_remoteArch->GetInstructionInfo(buffer.data(), remoteIP, size, info))
         {
             // Whenever there is a failure, we fail back to step into
             // TODO: decide if there is another better options
-            delete[] buffer;
             StepIntoAsm();
             return;
         }
 
         if (info.length == 0)
         {
-            delete[] buffer;
             StepIntoAsm();
             return;
         }
@@ -801,9 +803,6 @@ void DebuggerState::StepOverAsm()
         uint64_t remoteIPNext = remoteIP + info.length;
         StepTo({remoteIPNext});
     }
-
-    if (buffer)
-        delete[] buffer;
 
     MarkDirty();
 }

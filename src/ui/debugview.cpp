@@ -138,7 +138,7 @@ void DebugView::setSelectionOffsets(BNAddressRange range)
 void DebugView::setCurrentOffset(uint64_t offset)
 {
 	m_currentOffset = offset;
-	UIContext::updateStatus(true);
+	//UIContext::updateStatus();
 }
 
 
