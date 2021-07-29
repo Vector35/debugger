@@ -4,8 +4,8 @@ project(debugger-cli)
 
 remove_definitions(-DUNICODE -D_UNICODE)
 
-set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
-set(ADAPTER_DIR ${CMAKE_SOURCE_DIR}/src/adapters)
+set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src)
+set(ADAPTER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src/adapters)
 set(ADAPTER_SOURCES
         ${SRC_DIR}/debugadapter.h ${SRC_DIR}/debugadapter.cpp
         ${ADAPTER_DIR}/gdbadapter.cpp ${ADAPTER_DIR}/gdbadapter.h
@@ -28,8 +28,8 @@ if (WIN32)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 endif()
 
-include_directories(${CMAKE_SOURCE_DIR}/test/googletest)
-add_subdirectory(${CMAKE_SOURCE_DIR}/test/googletest ${CMAKE_SOURCE_DIR}/test/testbins)
+# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../test/googletest)
+# add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../test/googletest ${CMAKE_CURRENT_SOURCE_DIR}/../test/testbins)
 
 add_executable(debugger-cli ${ADAPTER_SOURCES} ${CLI_SOURCES})
 
@@ -54,27 +54,27 @@ set_target_properties(debugger-cli PROPERTIES
 enable_testing()
 include_directories(${ADAPTER_DIR})
 
-file(GLOB_RECURSE TEST_SOURCES
-        ${CMAKE_SOURCE_DIR}/src/vendor/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/vendor/*.h)
+# file(GLOB_RECURSE TEST_SOURCES
+#         ${CMAKE_CURRENT_SOURCE_DIR}/../src/vendor/*.cpp
+#         ${CMAKE_CURRENT_SOURCE_DIR}/../src/vendor/*.h)
 
-add_executable(execute_test
-        ${ADAPTER_SOURCES}
-        ${TEST_SOURCES}
-        ${CMAKE_SOURCE_DIR}/test/execute_test.cpp)
+# add_executable(execute_test
+#         ${ADAPTER_SOURCES}
+#         ${TEST_SOURCES}
+#         ${CMAKE_CURRENT_SOURCE_DIR}/../test/execute_test.cpp)
 
-target_link_libraries(execute_test ${TARGET_LINK_LIBRARIES} gtest_main)
+# target_link_libraries(execute_test ${TARGET_LINK_LIBRARIES} gtest_main)
 
-set_target_properties(execute_test PROPERTIES
-        CXX_STANDARD 17
-        CXX_VISIBILITY_PRESET hidden
-        CXX_STANDARD_REQUIRED ON
-        VISIBILITY_INLINES_HIDDEN ON
-        POSITION_INDEPENDENT_CODE ON
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/test/testbins/lib"
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/test/testbins/lib"
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/test/testbins"
-        )
+# set_target_properties(execute_test PROPERTIES
+#         CXX_STANDARD 17
+#         CXX_VISIBILITY_PRESET hidden
+#         CXX_STANDARD_REQUIRED ON
+#         VISIBILITY_INLINES_HIDDEN ON
+#         POSITION_INDEPENDENT_CODE ON
+        # ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../test/testbins/lib"
+        # LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../test/testbins/lib"
+        # RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../test/testbins"
+        # )
 
-include(GoogleTest)
-gtest_discover_tests(execute_test)
+# include(GoogleTest)
+# gtest_discover_tests(execute_test)
