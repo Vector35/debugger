@@ -231,7 +231,7 @@ void DebugControlsWidget::performResume()
     stateRunning();
     m_state->Go();
 
-    unsigned long reason = m_state->GetAdapter()->StopReason();
+    DebugStopReason reason = m_state->GetAdapter()->StopReason();
     m_state->OnStep();
 }
 
