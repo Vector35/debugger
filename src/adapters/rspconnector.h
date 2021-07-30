@@ -99,7 +99,7 @@ struct RspData
         std::memcpy(this->m_data, data, size);
     }
 
-    RspData(char* data, std::size_t size) : m_size(size)
+    RspData(const char* data, std::size_t size) : m_size(size)
     {
         if ( size > RspData::BUFFER_MAX )
             throw std::runtime_error("size > rsp BUFFER_MAX");

@@ -1149,6 +1149,7 @@ bool DebuggerState::IsLocalAddress(uint64_t remoteAddr, BinaryViewRef relativeVi
 
 std::string DebuggerState::ResolveTargetBase()
 {
+    // TODO: not implemented
     // if (m_adapter->GetTargetPath() == "")
     // {
 
@@ -1157,4 +1158,5 @@ std::string DebuggerState::ResolveTargetBase()
     // {
     //     return GetModules()->GetModuleForAddress(m_adapter->)
     // }
+    return 0;
 }

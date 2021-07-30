@@ -448,7 +448,7 @@ std::unordered_map<std::string, DebugRegister> GdbAdapter::ReadAllRegisters() {
         if (number_of_chars <= 0x10 && !value_string.empty()) {
             const auto value = RspConnector::SwapEndianness(std::stoull(value_string, nullptr, 16));
             all_regs[register_name] = DebugRegister(register_name, value, register_info.m_bitSize);
-            #warning "ignoring registers with a larger size than 0x10"
+            // #warning "ignoring registers with a larger size than 0x10"
             /* TODO: ^fix this^ */
         }
         register_info_reply_string.erase(0, number_of_chars);
