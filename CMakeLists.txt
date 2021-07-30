@@ -64,7 +64,7 @@ else()
 	add_library(debugger SHARED ${SOURCES})
 endif()
 
-target_link_libraries(debugger binaryninjaapi
+target_link_libraries(debugger binaryninjaapi binaryninjaui
     Qt6::Core Qt6::Gui Qt6::Widgets)
 
 if(WIN32)
