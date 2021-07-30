@@ -344,13 +344,13 @@ bool GdbAdapter::SetActiveThread(const DebugThread& thread)
 
 bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
 {
-    if ( this->m_rspConnector.TransmitAndReceive(RspData("T{:x}", tid)).AsString() != "OK" )
+    if ( this->m_rspConnector.TransmitAndReceive(RspData(string("T{:x}"), tid)).AsString() != "OK" )
         throw std::runtime_error("thread does not exist!");
 
-    if ( this->m_rspConnector.TransmitAndReceive(RspData("Hc{:x}", tid)).AsString() != "OK")
+    if ( this->m_rspConnector.TransmitAndReceive(RspData(string("Hc{:x}"), tid)).AsString() != "OK")
         throw std::runtime_error("failed to set thread");
 
-    if ( this->m_rspConnector.TransmitAndReceive(RspData("Hg{:x}", tid)).AsString() != "OK")
+    if ( this->m_rspConnector.TransmitAndReceive(RspData(string("Hg{:x}"), tid)).AsString() != "OK")
         throw std::runtime_error("failed to set thread");
 
     this->m_lastActiveThreadId = tid;
