@@ -26,4 +26,4 @@ If you wish a debug build, add `-DCMAKE_BUILD_TYPE=Debug` to the cmake command l
 Finally, copy the built `libdebugger.so/dll` to the user plugin folder and relaunch BinaryNinja.
 
 <!-- test notification -->
-<!-- test build 9-->
+<!-- test build 10-->
