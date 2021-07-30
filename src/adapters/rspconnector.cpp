@@ -142,7 +142,7 @@ void RspConnector::SendAck() const
     if ( !this->m_acksEnabled )
         return;
 
-    this->m_socket->Send("+", 1);
+    this->m_socket->Send((char*)"+", 1);
 }
 
 void RspConnector::NegotiateCapabilities(const std::vector <std::string>& capabilities)
