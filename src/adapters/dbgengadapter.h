@@ -17,7 +17,7 @@ struct ProcessCallbackInformation
     unsigned long m_lastSessionStatus{DEBUG_SESSION_FAILURE};
 };
 
-#define CALLBACK_METHOD(return_type) __declspec(nothrow) __stdcall return_type
+#define CALLBACK_METHOD(return_type) return_type __declspec(nothrow) __stdcall
 class DbgEngOutputCallbacks : public IDebugOutputCallbacks
 {
 public:
