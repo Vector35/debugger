@@ -46,7 +46,7 @@ DebugAdapter* DebugAdapterType::GetAdapterForCurrentSystem()
     return new DbgEngAdapter();
 #endif
 
-#ifdef APPLE
+#ifdef __clang__
     return new LldbAdapter();
 #endif
 
@@ -67,7 +67,7 @@ DebugAdapter* DebugAdapterType::GetNewAdapter(AdapterType adapterType)
         return new DbgEngAdapter();
 #endif
 
-#ifdef APPLE
+#ifdef __clang__
     case LocalLLDBADapterType:
     case RemoteLLDBAdapterType:
         return new LldbAdapter();
