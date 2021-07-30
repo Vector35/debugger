@@ -47,7 +47,7 @@ DebugAdapter* DebugAdapterType::GetAdapterForCurrentSystem()
 #endif
 
 #ifdef APPLE
-    // return LLDBAdapter();
+    return new LldbAdapter();
 #endif
 
 #ifdef __GNUC__
@@ -68,9 +68,9 @@ DebugAdapter* DebugAdapterType::GetNewAdapter(AdapterType adapterType)
 #endif
 
 #ifdef APPLE
-    // case LocalLLDBADapterType:
-    // case RemoteLLDBAdapterType:
-        // return LLDBAdapter();
+    case LocalLLDBADapterType:
+    case RemoteLLDBAdapterType:
+        return new LldbAdapter();
 #endif
 
 #ifdef __GNUC__
