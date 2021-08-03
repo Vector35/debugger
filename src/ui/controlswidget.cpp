@@ -4,6 +4,8 @@
 #include "binaryninjaapi.h"
 #include "disassemblyview.h"
 #include "ui.h"
+#include "../debuggerexceptions.h"
+#include <thread>
 
 using namespace BinaryNinja;
 
@@ -163,14 +165,56 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 
 void DebugControlsWidget::performRun()
 {
-    stateStarting("STARTING");
-    // the run() is blocking and it will return only when the target stops
-    m_state->Run();
+    auto performRunAfter = [&](){
+        stateStopped();
+        m_state->OnStep();
+    };
+    auto performRunError = [&](const std::string& e){
+        stateError(e);
+    };
+    auto performRunThread = [=](){
+        while (true)
+        {
+            try
+            {
+                m_state->Run();
+                ExecuteOnMainThreadAndWait(performRunAfter);
+            }
+            catch (const ConnectionRefusedError& e)
+            {
+                ExecuteOnMainThreadAndWait([&](){ performRunError(e.what()); });
+            }
+            catch (const ProcessStartError& e)
+            {
+                ExecuteOnMainThreadAndWait([&](){ performRunError(e.what()); });
+            }
+            catch (const NotExecutableError& e)
+            {
+                // TODO: offer to change permission of the file
+                ExecuteOnMainThreadAndWait([&](){ performRunError("ERROR: Target Not Executable"); });
+            }
+            catch (const NotInstalledError& e)
+            {
+                ExecuteOnMainThreadAndWait([&](){ performRunError(e.what()); });
+                ExecuteOnMainThreadAndWait([&](){ performRunError("ERROR: Debugger Not Installed"); });
+            }
+            catch (const PermissionDeniedError& e)
+            {
+                // TODO: prompt for developer tools
+                ExecuteOnMainThreadAndWait([&](){ performRunError("ERROR: Permission denied"); });
+            }
+            catch (const std::exception& e)
+            {
+                ExecuteOnMainThreadAndWait([&](){ performRunError("ERROR: " + std::string(e.what())); });
+            }
+            break;
+        }
 
-    // This code should be refactored so that we send run() request and return, and then get notified when
-    // the target stops
-    stateStopped();
-    m_state->OnStep();
+    };
+
+    stateStarting("STARTING");
+    std::thread t(performRunThread);
+    t.detach();
 }
 
 
@@ -493,6 +537,34 @@ void DebugControlsWidget::stateBusy(const std::string& msg)
     m_threadMenu->setEnabled(false);
     setDefaultProcessAction(DebugControlQuitAction);
     setPauseOrResume(DebugControlPauseAction);
+}
+
+
+void DebugControlsWidget::stateError(const std::string& msg)
+{
+    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "ERROR");
+    if (m_state->IsConnected())
+    {
+        setStartingEnabled(false);
+        setStoppingEnabled(true);
+        setSteppingEnabled(false);
+        setActionEnabled(DebugControlPauseAction, true);
+        setActionEnabled(DebugControlResumeAction, false);
+        m_threadMenu->setEnabled(false);
+        setDefaultProcessAction(canConnect() ? DebugControlDetachAction : DebugControlQuitAction);
+    }
+    else
+    {
+        setStartingEnabled(true);
+        setStoppingEnabled(false);
+        setSteppingEnabled(false);
+        setActionEnabled(DebugControlPauseAction, true);
+        setActionEnabled(DebugControlResumeAction, false);
+        m_threadMenu->setEnabled(false);
+        setDefaultProcessAction(canConnect() ? DebugControlAttachAction : DebugControlRunAction);
+    }
+    clearThreadList();
+    setPauseOrResume(DebugControlResumeAction);
 }
 
 

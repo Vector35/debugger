@@ -81,9 +81,9 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std:
 
     gdb_server_path = gdb_server_path.substr(0, gdb_server_path.find('\n'));
 
-    this->m_socket = Socket(AF_INET, SOCK_STREAM, 0);
+    this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
 
-    const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket.GetPort());
+    const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket->GetPort());
 
 #ifdef WIN32
     std::string final_args{};
@@ -167,7 +167,7 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std:
     }
 #endif
 
-    return this->Connect("127.0.0.1", this->m_socket.GetPort());
+    return this->Connect("127.0.0.1", this->m_socket->GetPort());
 }
 
 bool GdbAdapter::Attach(std::uint32_t pid)
@@ -246,14 +246,14 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
 {
     bool connected = false;
     for ( std::uint8_t index{}; index < 4; index++ ) {
-        this->m_socket = Socket(AF_INET, SOCK_STREAM, 0, port);
+        this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0, port);
 
         sockaddr_in address{};
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = inet_addr("127.0.0.1");
         address.sin_port = htons(port);
 
-        if (this->m_socket.Connect(address)) {
+        if (this->m_socket->Connect(address)) {
             connected = true;
             break;
         }
@@ -266,7 +266,7 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
         return false;
     }
 
-    this->m_rspConnector = RspConnector(&this->m_socket);
+    this->m_rspConnector = RspConnector(this->m_socket);
     this->m_rspConnector.TransmitAndReceive(RspData("Hg0"));
     this->m_rspConnector.NegotiateCapabilities(
             { "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
@@ -286,7 +286,7 @@ void GdbAdapter::Detach()
 {
     char detach{'D'};
     this->m_rspConnector.SendRaw(RspData(&detach, sizeof(detach)));
-    this->m_socket.Kill();
+    this->m_socket->Kill();
 }
 
 void GdbAdapter::Quit()
@@ -295,7 +295,7 @@ void GdbAdapter::Quit()
     char kill{'k'};
     this->m_rspConnector.SendRaw(RspData(&send, sizeof(send)));
     this->m_rspConnector.SendRaw(RspData(&kill, sizeof(kill)));
-    this->m_socket.Kill();
+    this->m_socket->Kill();
 }
 
 std::vector<DebugThread> GdbAdapter::GetThreadList()

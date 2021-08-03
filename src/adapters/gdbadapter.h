@@ -18,7 +18,7 @@ protected:
     using register_pair = std::pair<std::string, RegisterInfo>;
     std::map<std::string, DebugRegister> m_cachedRegisterInfo{};
 
-    Socket m_socket{};
+    Socket* m_socket;
     RspConnector m_rspConnector{};
 
     std::map<std::string, RegisterInfo> m_registerInfo{};

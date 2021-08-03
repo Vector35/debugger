@@ -71,9 +71,9 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std
 
     lldb_server_path = lldb_server_path.substr(0, lldb_server_path.find('\n'));
 
-    this->m_socket = Socket(AF_INET, SOCK_STREAM, 0);
+    this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
 
-    const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket.GetPort());
+    const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket->GetPort());
 
 #ifdef WIN32
     std::string final_args{};
@@ -154,7 +154,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std
     }
 #endif
 
-    return this->Connect("127.0.0.1", this->m_socket.GetPort());
+    return this->Connect("127.0.0.1", this->m_socket->GetPort());
 }
 
 bool LldbAdapter::Go() {
