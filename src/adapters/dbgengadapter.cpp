@@ -759,10 +759,10 @@ HRESULT DbgEngOutputCallbacks::Output(unsigned long mask, const char* text)
     const auto blue_style = Log::Style(25, 25, 255);
     const auto white_style = Log::Style(255, 255, 255);
 
-    if ( std::string(text).find('\n') != std::string::npos )
-        Log::print("{}WIN{}DBG{}> {}{}", blue_style, white_style, blue_style, white_style, text );
-    else
-        Log::print("{}WIN{}DBG{}> {}{}\n", blue_style, white_style, blue_style, white_style, text );
+    //if ( std::string(text).find('\n') != std::string::npos )
+    //    Log::print("{}WIN{}DBG{}> {}{}", blue_style, white_style, blue_style, white_style, text );
+    //else
+    //    Log::print("{}WIN{}DBG{}> {}{}\n", blue_style, white_style, blue_style, white_style, text );
 
     return S_OK;
 }

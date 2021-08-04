@@ -8,15 +8,6 @@
 #include "highlevelilinstruction.h"
 #include "../debuggerexceptions.h"
 
-#if __has_include(<filesystem>)
-    #include <filesystem>
-#elif __has_include(<experimental/filesystem>)
-    #include <experimental/filesystem>
-    namespace std {
-    namespace filesystem = experimental::filesystem;
-}
-#endif
-
 using namespace BinaryNinja;
 using namespace std;
 
@@ -516,8 +507,12 @@ void DebuggerState::Exec()
     m_connectionStatus = DebugAdapterConnectingStatus;
     bool runFromTemp = false;
     string filePath = m_data->GetFile()->GetOriginalFilename();
-    if (!std::filesystem::exists(filePath))
+    // We should switch to use std::filesystem::exists() later
+    FILE* file = fopen(filePath.c_str(), "r");
+    if (!file)
         runFromTemp = true;
+    else
+        fclose(file);
 
     if (runFromTemp)
     {
