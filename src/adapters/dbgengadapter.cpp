@@ -359,7 +359,7 @@ DebugRegister DbgEngAdapter::ReadRegister(const std::string &reg)
         default: break;
     }
 
-    return DebugRegister{ reg, debug_value.I64, width };
+    return DebugRegister{ reg, debug_value.I64, width, reg_index };
 }
 
 bool DbgEngAdapter::WriteRegister(const std::string &reg, std::uintptr_t value)

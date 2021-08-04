@@ -1,3 +1,5 @@
+#pragma once
+
 class ConnectionRefusedError: public std::exception
 {
     std::string m_error;

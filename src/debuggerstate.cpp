@@ -63,11 +63,15 @@ bool DebuggerRegisters::UpdateRegisterValue(const std::string& name, uint64_t va
 
 std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters() const
 {
-    std::vector<DebugRegister> result;
-    for (auto& iter: m_registerCache)
-    {
-        result.push_back(iter.second);
-    }
+    std::vector<DebugRegister> result{};
+    for (auto& [reg_name, reg]: m_registerCache)
+        result.push_back(reg);
+
+    std::sort(result.begin(), result.end(),
+              [](const DebugRegister& lhs, const DebugRegister& rhs) {
+        return lhs.m_registerIndex < rhs.m_registerIndex;
+    });
+
     return result;
 }
 
@@ -92,7 +96,7 @@ void DebuggerThreads::Update()
 
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
-        throw runtime_error("invalid adapter");
+        throw NotInstalledError("invalid adapter");
 
     m_threads.clear();
 
@@ -127,7 +131,7 @@ DebugThread DebuggerThreads::GetActiveThread() const
 
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
-        throw runtime_error("invalid adapter");
+        throw NotInstalledError("invalid adapter");
 
     return adapter->GetActiveThread();
 }
@@ -140,7 +144,7 @@ bool DebuggerThreads::SetActiveThread(const DebugThread& thread)
 
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
-        throw runtime_error("invalid adapter");
+        throw NotInstalledError("invalid adapter");
 
     return adapter->SetActiveThread(thread);
 }
@@ -350,7 +354,7 @@ bool DebuggerBreakpoints::ContainsOffset(const ModuleNameAndOffset& address)
 bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
 {
     if (!m_state->GetAdapter())
-        throw runtime_error("Cannot check the existence of breakpoint with absolute address when disconnected");
+        throw ConnectionRefusedError("Cannot check the existence of breakpoint with absolute address when disconnected");
 
     ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
     return ContainsOffset(info);
@@ -408,7 +412,7 @@ void DebuggerBreakpoints::UnserializedMetadata()
 void DebuggerBreakpoints::Apply()
 {
     if (!m_state->GetAdapter())
-        throw runtime_error("cannot apply breakpoints when disconnected");
+        throw ConnectionRefusedError("cannot apply breakpoints when disconnected");
 
     std::vector<DebugBreakpoint> remoteBreakpoints = m_state->GetAdapter()->GetBreakpointList();
     for (const ModuleNameAndOffset& address: m_breakpoints)
@@ -471,7 +475,7 @@ void DebuggerState::Run()
     else if (DebugAdapterType::UseConnect(m_adapterType))
         Attach();
     else
-        throw runtime_error("don't know how to connect to adapter of type " + DebugAdapterType::GetName(m_adapterType));
+        throw NotInstalledError("don't know how to connect to adapter of type " + DebugAdapterType::GetName(m_adapterType));
 }
 
 
@@ -551,7 +555,7 @@ void DebuggerState::Exec()
 void DebuggerState::Attach()
 {
     if (IsConnected() || IsConnecting())
-        throw runtime_error("Tried to exec but already debugging");
+        throw ConnectionRefusedError("Tried to exec but already debugging");
 
     m_connectionStatus = DebugAdapterConnectingStatus;
 
@@ -1017,7 +1021,7 @@ uint64_t DebuggerState::IP()
     else if ((archName == "aarch64") || (archName == "arm") || (archName == "armv7") || (archName == "Z80"))
         return m_registers->GetRegisterValue("pc");
 
-    throw runtime_error("unimplemented architecture " + archName);
+    throw NotInstalledError("unimplemented architecture " + archName);
 }
 
 
@@ -1041,7 +1045,7 @@ uint64_t DebuggerState::StackPointer()
     else if ((archName == "aarch64") || (archName == "arm") || (archName == "armv7") || (archName == "Z80"))
         return m_registers->GetRegisterValue("sp");
 
-    throw runtime_error("unimplemented architecture " + archName);
+    throw NotInstalledError("unimplemented architecture " + archName);
 }
 
 

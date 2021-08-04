@@ -127,11 +127,11 @@ struct DebugRegister
 {
     std::string m_name{};
     std::uintptr_t m_value{};
-    std::size_t m_width{};
+    std::size_t m_width{}, m_registerIndex{};
 
     DebugRegister() = default;
-    DebugRegister(std::string name, std::uintptr_t value, std::size_t width) :
-        m_name(std::move(name)), m_value(value), m_width(width) {}
+    DebugRegister(std::string name, std::uintptr_t value, std::size_t width, std::size_t register_index) :
+        m_name(std::move(name)), m_value(value), m_width(width), m_registerIndex(register_index) {}
 };
 
 struct DebugModule

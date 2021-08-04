@@ -8,6 +8,8 @@
 #include "./adapters/lldbadapter.h"
 #endif
 
+#include "debuggerexceptions.h"
+
 bool DebugAdapterType::UseExec(AdapterType type)
 {
     return (type == DefaultAdapterType) || (type == LocalDBGENGAdapterType) ||
@@ -76,7 +78,7 @@ DebugAdapter* DebugAdapterType::GetNewAdapter(AdapterType adapterType)
     case DefaultAdapterType:
         return GetAdapterForCurrentSystem();
     default:
-        throw std::runtime_error("Unsupported adapter type " + GetName(adapterType));
+        throw NotInstalledError("Unsupported adapter type " + GetName(adapterType));
     }
 }
 
