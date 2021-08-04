@@ -111,25 +111,35 @@ void DebuggerUI::ContextDisplay()
                 continue;
 
             uint64_t address = stackPointer + offset;
+
             reader->Seek(address);
+
             uint64_t value = -1ULL;
-            switch (addressSize)
+
+            try
             {
-            case 1:
-                value = reader->Read8();
-                break;
-            case 2:
-                value = reader->Read16();
-                break;
-            case 4:
-                value = reader->Read32();
-                break;
-            case 8:
-                value = reader->Read64();
-                break;
-            default:
-                break;
+                switch (addressSize)
+                {
+                case 1:
+                    value = reader->Read8();
+                    break;
+                case 2:
+                    value = reader->Read16();
+                    break;
+                case 4:
+                    value = reader->Read32();
+                    break;
+                case 8:
+                    value = reader->Read64();
+                    break;
+                default:
+                    break;
+                }
+            } catch (const std::exception& except)
+            {
+                /* TODO: just ignoring this is probably not a great idea... */
             }
+
             stackItems.emplace_back(offset, address, value);
         }
         delete reader;
@@ -145,7 +155,7 @@ void DebuggerUI::ContextDisplay()
 
     if (m_debugView)
     {
-        if (m_state->GetData()->GetAnalysisFunctionsContainingAddress(localIP).size() > 0)
+        if (!m_state->GetData()->GetAnalysisFunctionsContainingAddress(localIP).empty())
             m_debugView->getControls()->stateStopped();
         else
             m_debugView->getControls()->stateStoppedExtern();

@@ -414,6 +414,9 @@ bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const void* out, std::si
 
 std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 {
+    if (!this->m_debugSymbols)
+        return {};
+
     unsigned long loaded_module_count{}, unloaded_module_count{};
 
     if (this->m_debugSymbols->GetNumberModules(&loaded_module_count, &unloaded_module_count) != S_OK )

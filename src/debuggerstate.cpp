@@ -38,7 +38,7 @@ void DebuggerRegisters::Update()
     BinaryNinja::LogWarn("Updating register cache");
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
-        throw runtime_error("Cannot update registers when disconnected");
+        throw ConnectionRefusedError("Cannot update registers when disconnected");
 
     m_registerCache = adapter->ReadAllRegisters();
     m_dirty = false;
@@ -596,7 +596,7 @@ void DebuggerState::Detach()
 void DebuggerState::Pause()
 {
     if (!IsConnected())
-        throw runtime_error("Cannot pause when disconncted");
+        throw ConnectionRefusedError("Cannot pause when disconncted");
 
     m_adapter->BreakInto();
     MarkDirty();
@@ -606,13 +606,13 @@ void DebuggerState::Pause()
 void DebuggerState::Go()
 {
     if (!IsConnected())
-        throw runtime_error("missing adapter");
+        throw ConnectionRefusedError("missing adapter");
 
     m_targetStatus = DebugAdapterRunningStatus;
 
     uint64_t remoteIP = IP();
-    // TODO: for gdbeng, it handles this sequence of operations for us, so we can simply can Go()
-    if (m_breakpoints->ContainsAbsolute(remoteIP))
+    // TODO: for dbgeng, it handles this sequence of operations for us, so we can simply can Go()
+    if (this->m_adapterType != DebugAdapterType::LocalDBGENGAdapterType && m_breakpoints->ContainsAbsolute(remoteIP))
     {
         m_adapter->RemoveBreakpoint(remoteIP);
         m_adapter->StepInto();
@@ -632,9 +632,11 @@ void DebuggerState::Go()
 void DebuggerState::StepIntoAsm()
 {
     if (!IsConnected())
-        throw runtime_error("cannot step into asm when disconnected");
+        throw ConnectionRefusedError("cannot step into asm when disconnected");
 
+    fmt::print("getting IP\n");
     uint64_t remoteIP = IP();
+    fmt::print("IP : {:#x}\n", remoteIP);
     if (m_breakpoints->ContainsAbsolute(remoteIP))
     {
         m_adapter->RemoveBreakpoint(remoteIP);
@@ -653,7 +655,7 @@ void DebuggerState::StepIntoAsm()
 void DebuggerState::StepIntoIL(BNFunctionGraphType il)
 {
     if (!IsConnected())
-        throw runtime_error("cannot step into il when disconnected");
+        throw ConnectionRefusedError("cannot step into il when disconnected");
 
     switch (il)
     {
@@ -757,7 +759,7 @@ void DebuggerState::StepIntoIL(BNFunctionGraphType il)
 void DebuggerState::StepOverAsm()
 {
     if (!IsConnected())
-        throw runtime_error("cannot step over asm when disconnected");
+        throw ConnectionRefusedError("cannot step over asm when disconnected");
 
     if (m_adapter->SupportFeature(DebugAdapterSupportStepOver))
     {
@@ -813,7 +815,7 @@ void DebuggerState::StepOverAsm()
 void DebuggerState::StepOverIL(BNFunctionGraphType il)
 {
     if (!IsConnected())
-        throw runtime_error("cannot step over il when disconnected");
+        throw ConnectionRefusedError("cannot step over il when disconnected");
 
     switch (il)
     {
@@ -923,7 +925,7 @@ void DebuggerState::StepReturn()
 void DebuggerState::StepTo(std::vector<uint64_t> remoteAddresses)
 {
     if (!IsConnected())
-        throw runtime_error("cannot step to when disconnected");
+        throw ConnectionRefusedError("cannot step to when disconnected");
 
     uint64_t remoteIP = IP();
 
@@ -1006,7 +1008,9 @@ void DebuggerState::DeleteState(BinaryViewRef data)
 uint64_t DebuggerState::IP()
 {
     if (!IsConnected())
-        throw runtime_error("Cannot read ip when disconnected");
+        throw ConnectionRefusedError("Cannot read ip when disconnected");
+
+    m_registers->Update();
     string archName = m_remoteArch->GetName();
     if (archName == "x86_64")
         return m_registers->GetRegisterValue("rip");
@@ -1030,7 +1034,7 @@ uint64_t DebuggerState::StackPointer()
 {
     // TODO: we would better have the DebugAdapter either tell us which register holds the stack pointer
     if (!IsConnected())
-        throw runtime_error("Cannot read ip when disconnected");
+        throw ConnectionRefusedError("Cannot read ip when disconnected");
     string archName = m_remoteArch->GetName();
     if (archName == "x86_64")
         return m_registers->GetRegisterValue("rsp");

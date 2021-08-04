@@ -169,9 +169,11 @@ void DebugControlsWidget::performRun()
         stateStopped();
         m_state->OnStep();
     };
+
     auto performRunError = [&](const std::string& e){
         stateError(e);
     };
+
     auto performRunThread = [=](){
         while (true)
         {
@@ -266,17 +268,19 @@ void DebugControlsWidget::performSettings()
 
 void DebugControlsWidget::performPause()
 {
+    stateStopped();
     m_state->Pause();
 }
 
 
 void DebugControlsWidget::performResume()
 {
-    stateRunning();
-    m_state->Go();
-
-    DebugStopReason reason = m_state->GetAdapter()->StopReason();
-    m_state->OnStep();
+    /* this is probably bad */
+    /* TODO: fix this? */
+    std::thread([&]{
+        stateRunning();
+        m_state->Go();
+    }).detach();
 }
 
 
@@ -284,7 +288,6 @@ void DebugControlsWidget::performStepIntoAsm()
 {
     stateBusy("STEPPING");
     m_state->StepIntoAsm();
-
     m_state->OnStep();
 }
 
