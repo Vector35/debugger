@@ -326,14 +326,13 @@ bool DebuggerBreakpoints::RemoveOffset(const ModuleNameAndOffset& address)
 {
     if (ContainsOffset(address))
     {
-        auto iter = std::find(m_breakpoints.begin(), m_breakpoints.end(), address);
-        if (iter != m_breakpoints.end())
-        {
+        if (auto iter = std::find(m_breakpoints.begin(), m_breakpoints.end(), address);
+                iter != m_breakpoints.end())
             m_breakpoints.erase(iter);
-        }
+
         SerializeMetadata();
 
-        if (m_state->GetAdapter())
+        if (m_state->GetAdapter() && m_state->IsConnected())
         {
             uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
             m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
