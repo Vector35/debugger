@@ -974,7 +974,7 @@ DebuggerState* DebuggerState::GetState(BinaryViewRef data)
 {
     for (auto& state: g_debuggerStates)
     {
-        if (state->GetData() == data)
+        if (state->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
             return state;
     }
 
@@ -988,7 +988,7 @@ void DebuggerState::DeleteState(BinaryViewRef data)
 {
     for (auto it = g_debuggerStates.begin(); it != g_debuggerStates.end(); )
     {
-        if ((*it)->GetData() == data)
+        if ((*it)->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
         {
             it = g_debuggerStates.erase(it);
         }
