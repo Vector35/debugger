@@ -280,6 +280,8 @@ void DebugControlsWidget::performResume()
     std::thread([&]{
         stateRunning();
         m_state->Go();
+        m_state->OnStep();
+        stateStopped();
     }).detach();
 }
 

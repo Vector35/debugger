@@ -382,11 +382,14 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 
     bool isAbsoluteAddress = false;
     // TODO: check if this works
-    if ((view == state->GetMemoryView()) ||
-        (view->GetParentView().GetPtr() == state->GetMemoryView()))
-    {
+    if (view->GetTypeName() == "Debugged Process")
         isAbsoluteAddress = true;
-    }
+
+//    if ((view == state->GetMemoryView()) ||
+//        (view->GetParentView().GetPtr() == state->GetMemoryView()))
+//    {
+//        isAbsoluteAddress = true;
+//    }
 
     DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
     if (isAbsoluteAddress)
