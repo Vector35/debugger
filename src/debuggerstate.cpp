@@ -6,6 +6,16 @@
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
+#include "../debuggerexceptions.h"
+
+#if __has_include(<filesystem>)
+    #include <filesystem>
+#elif __has_include(<experimental/filesystem>)
+    #include <experimental/filesystem>
+    namespace std {
+    namespace filesystem = experimental::filesystem;
+}
+#endif
 
 using namespace BinaryNinja;
 using namespace std;
@@ -501,25 +511,17 @@ void DebuggerState::Quit()
 void DebuggerState::Exec()
 {
     if (IsConnected() || IsConnecting())
-        throw runtime_error("Tried to exec but already debugging");
+        throw ConnectionRefusedError("Tried to execute, but already debugging");
 
     m_connectionStatus = DebugAdapterConnectingStatus;
     bool runFromTemp = false;
     string filePath = m_data->GetFile()->GetOriginalFilename();
-    // We should switch to use std::filesystem::exists() later
-    FILE* file = fopen(filePath.c_str(), "r");
-    if (!file)
-    {
+    if (!std::filesystem::exists(filePath))
         runFromTemp = true;
-    }
-    else
-    {
-        fclose(file);
-    }
 
     if (runFromTemp)
     {
-
+        // TODO: run from temp
     }
 
     m_adapter = DebugAdapterType::GetNewAdapter(m_adapterType);
@@ -535,7 +537,7 @@ void DebuggerState::Exec()
         // The Execute() function is blocking, and it only returns when there is a status change
         if (!ok)
         {
-            LogWarn("fail to execute %s", filePath.c_str());
+            throw ProcessStartError("Failed to start process");
             m_connectionStatus = DebugAdapterNotConnectedStatus;
             return;
         }

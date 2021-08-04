@@ -703,11 +703,7 @@ bool GdbAdapter::GenericGo(const std::string& go_type) {
         auto map = RspConnector::PacketToUnorderedMap(go_reply);
         const auto tid = map["thread"];
         this->m_lastActiveThreadId = tid;
-        if (map["signal"] == 5) {
-            this->m_lastStopReason = DebugStopReason::Breakpoint;
-        } else if (map["signal"] == 11) {
-            this->m_lastStopReason = DebugStopReason::AccessViolation;
-        }
+        this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);
     } else if ( go_reply.m_data[0] == 'W' ) {
         /* exit status, substr */
     } else {
@@ -789,4 +785,42 @@ bool GdbAdapter::SupportFeature(DebugAdapterCapacity feature)
     default:
         return false;
     }
+}
+
+DebugStopReason GdbAdapter::SignalToStopReason( std::uint64_t signal ) {
+    static std::unordered_map<std::uint64_t, DebugStopReason> signal_lookup = {
+            {1, DebugStopReason::SignalHup},
+            { 2 , DebugStopReason::SignalInt },
+            { 3 , DebugStopReason::SignalQuit },
+            { 4 , DebugStopReason::IllegalInstruction },
+            { 5 , DebugStopReason::SingleStep },
+            { 6 , DebugStopReason::SignalAbrt },
+            { 7 , DebugStopReason::SignalBux },
+            { 8 , DebugStopReason::Calculation },
+            { 9 , DebugStopReason::SignalKill },
+            { 10, DebugStopReason::SignalUsr1 },
+            { 11, DebugStopReason::AccessViolation },
+            { 12, DebugStopReason::SignalUsr2 },
+            { 13, DebugStopReason::SignalPipe },
+            { 14, DebugStopReason::SignalAlrm },
+            { 15, DebugStopReason::SignalTerm },
+            { 16, DebugStopReason::SignalStkflt },
+            { 17, DebugStopReason::SignalChld },
+            { 18, DebugStopReason::SignalCont },
+            { 19, DebugStopReason::SignalStop },
+            { 20, DebugStopReason::SignalTstp },
+            { 21, DebugStopReason::SignalTtin },
+            { 22, DebugStopReason::SignalTtou },
+            { 23, DebugStopReason::SignalUrg },
+            { 24, DebugStopReason::SignalXcpu },
+            { 25, DebugStopReason::SignalXfsz },
+            { 26, DebugStopReason::SignalVtalrm },
+            { 27, DebugStopReason::SignalProf },
+            { 28, DebugStopReason::SignalWinch },
+            { 29, DebugStopReason::SignalPoll },
+            { 30, DebugStopReason::SignalStkflt },
+            { 31, DebugStopReason::SignalSys },
+    };
+
+    return signal_lookup[signal];
 }

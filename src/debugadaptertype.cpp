@@ -4,6 +4,7 @@
 
 #ifdef WIN32
 #include "./adapters/dbgengadapter.h"
+#include "./adapters/lldbadapter.h"
 #endif
 
 bool DebugAdapterType::UseExec(AdapterType type)

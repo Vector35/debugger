@@ -85,7 +85,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std
 
     const auto arguments = fmt::format("--once --no-startup-with-shell {} {} {}", host_with_port, path, final_args);
 
-    STARTUPINFO startup_info{};
+    STARTUPINFOA startup_info{};
     PROCESS_INFORMATION process_info{};
     if (CreateProcessA(lldb_server_path.c_str(), const_cast<char*>( arguments.c_str() ),
                        nullptr, nullptr,
@@ -163,4 +163,8 @@ bool LldbAdapter::Go() {
 
 std::string LldbAdapter::GetTargetArchitecture() {
     return "x86_64";
+}
+
+DebugStopReason LldbAdapter::SignalToStopReason( std::uint64_t signal ) {
+    return GdbAdapter::SignalToStopReason( signal );
 }

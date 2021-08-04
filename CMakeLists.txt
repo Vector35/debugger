@@ -37,6 +37,8 @@ if(WIN32)
         src/adapters/dbgengadapter.h
 		src/adapters/gdbadapter.cpp
 		src/adapters/gdbadapter.h
+		src/adapters/lldbadapter.cpp
+		src/adapters/lldbadapter.h
 		src/adapters/rspconnector.cpp
 		src/adapters/rspconnector.h
 		src/adapters/socket.h

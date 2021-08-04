@@ -33,6 +33,8 @@ protected:
 
     bool m_redirectGDBServer;
 
+    virtual DebugStopReason SignalToStopReason(std::uint64_t signal);
+
 public:
     GdbAdapter(bool redirectGDBServer = true);
     ~GdbAdapter();

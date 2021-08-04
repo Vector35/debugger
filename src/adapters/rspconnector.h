@@ -59,7 +59,7 @@ struct RspData
     struct ConstRspIterator : public RspIterator
     {
         ConstRspIterator(pointer ptr) : RspIterator(ptr) {}
-        const reference operator*() const override { return *m_pointer; }
+        reference operator*() const override { return *m_pointer; }
     };
 
     RspIterator begin() const { return RspIterator((std::uint8_t*)&this->m_data[0]); }
