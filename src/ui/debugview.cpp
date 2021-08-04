@@ -24,7 +24,6 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
 
     DebugProcessView* memoryView = m_state->GetMemoryView();
 
-    m_memoryEditor = new LinearView(memoryView, frame);
     m_binaryEditor = new DisassemblyContainer(frame, data, frame);
     m_binaryText = new TokenizedTextView(this, memoryView);
 
@@ -64,21 +63,15 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_disassemblyWidget = new QWidget;
     m_disassemblyWidget->setLayout(m_disassemblyLayout);
 
-    m_memoryLayout = new QVBoxLayout;
-    m_memoryLayout->setSpacing(0);
-    m_memoryLayout->setContentsMargins(0, 0, 0, 0);
-
-    m_memoryLabel = new QLabel("Debugged Process");
-    m_memoryLabel->setFont(smallFont);
-    m_memoryLayout->addWidget(m_memoryLabel);
-    m_memoryLayout->addWidget(m_memoryEditor);
-
-    m_memoryWidget = new QWidget;
-    m_memoryWidget->setLayout(m_memoryLayout);
-
+    m_memoryTabs = new QTabWidget(this);
+    for (size_t i = 0; i < m_numMemoryTabs; i++)
+    {
+        LinearView* memoryEditor = new LinearView(memoryView, frame);
+        m_memoryTabs->addTab(memoryEditor, QString::asprintf("Memory %ld", i));
+    }
 
     m_splitter->addWidget(m_binaryViewWidget);
-    m_splitter->addWidget(m_memoryWidget);
+    m_splitter->addWidget(m_memoryTabs);
     m_splitter->setSizes(QList<int>(2, 0x7fffffff));
 
     QVBoxLayout* layout = new QVBoxLayout;
@@ -354,7 +347,7 @@ void DebugView::updateTimerEvent()
         // TODO: we probably need to /ALWAYS/ refresh the memory, since the memory could have
         // been updated even if no events happen
         m_needsUpdate = false;
-        m_memoryEditor->navigate(0);
+//        m_memoryEditor->navigate(0);
     }
 }
 

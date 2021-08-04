@@ -39,16 +39,18 @@ class DebugView: public QWidget, public View
     QWidget* m_disassemblyWidget;
     QLabel* m_disassemblyLabel;
 
-    QVBoxLayout* m_memoryLayout;
+    QVBoxLayout* memoryLayout;
     QWidget* m_memoryWidget;
     QLabel* m_memoryLabel;
 
     TokenizedTextView* m_binaryText;
-    LinearView* m_memoryEditor;
     DisassemblyContainer* m_binaryEditor;
 
     bool m_needsUpdate;
     QTimer* m_updateTimer;
+
+    QTabWidget* m_memoryTabs;
+    size_t m_numMemoryTabs = 3;
 
 public:
 	DebugView(QWidget* parent, BinaryViewRef data);
