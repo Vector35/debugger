@@ -74,6 +74,7 @@ class DebugView: public QWidget, public View
 
     QTabWidget* m_memoryTabs;
     size_t m_numMemoryTabs = 3;
+//    QMenu* m_tabMenu;
 
     QLabel* m_debuggerStatus;
 

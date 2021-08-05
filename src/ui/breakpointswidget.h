@@ -94,6 +94,12 @@ class DebugBreakpointsWidget : public SidebarWidget
     DebugBreakpointsListModel* m_model;
     DebugBreakpointsItemDelegate* m_delegate;
 
+    QPoint m_last_selected_point{};
+    QHeaderView* m_horizontal_header;
+    QHeaderView* m_vertical_header;
+    QAction* m_remove_action;
+    QAction* m_goto_action;
+
     // void shouldBeVisible()
     virtual void notifyFontChanged() override;
 
@@ -102,6 +108,11 @@ public:
     DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
 
     void notifyBreakpointsChanged(std::vector<BreakpointItem> breakpoints);
+
+private slots:
+    void customContextMenu(const QPoint& point);
+    void Goto();
+    void Remove();
 };
 
 

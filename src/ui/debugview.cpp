@@ -78,6 +78,7 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_memoryTabs = new QTabWidget(this);
     m_memoryTabs->setMovable(true);
     m_memoryTabs->setTabsClosable(true);
+    m_memoryTabs->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_memoryTabs, &QTabWidget::tabCloseRequested, [&](int i){ m_memoryTabs->removeTab(i); });
 
     for (size_t i = 0; i < m_numMemoryTabs; i++)
@@ -91,6 +92,14 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_oldFileLockStatus = frame->areFileContentsLocked(false);
     if (m_oldFileLockStatus)
         frame->setFileContentsLocked(false);
+
+//    This is not the correct way to do it. We should subclass QTabBar and call QTabWidget::setTabBar().
+//    m_tabMenu = new QMenu;
+//    connect(m_memoryTabs, &QTabWidget::tabBarClicked, [&](int tabIndex){ m_tabMenu->popup(QCursor::pos()); });
+//    connect(m_memoryTabs, &QTabWidget::customContextMenuRequested, [&](const QPoint& pos){
+//        LogWarn("Context menu requested");
+//        m_tabMenu->popup(pos);
+//    });
 
     m_splitter->addWidget(m_binaryViewWidget);
     m_splitter->addWidget(m_memoryTabs);

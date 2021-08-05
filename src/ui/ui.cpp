@@ -348,7 +348,7 @@ void DebuggerUI::AddBreakpointTag(uint64_t localAddress)
 // (doesn't remove actual breakpoints, just removes the binja tags that mark them)
 void DebuggerUI::DeleteBreakpointTag(std::vector<uint64_t> localAddress)
 {
-    if (localAddress.size() == 0)
+    if (localAddress.empty())
     {
         for (const ModuleNameAndOffset& info: m_state->GetBreakpoints()->GetBreakpointList())
         {

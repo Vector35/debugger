@@ -128,6 +128,7 @@ struct DebugRegister
     std::string m_name{};
     std::uintptr_t m_value{};
     std::size_t m_width{}, m_registerIndex{};
+    std::string m_hint{};
 
     DebugRegister() = default;
     DebugRegister(std::string name, std::uintptr_t value, std::size_t width, std::size_t register_index) :

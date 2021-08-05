@@ -3,6 +3,7 @@
 #include "ui/ui.h"
 #include <chrono>
 #include <thread>
+#include <utility>
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
@@ -71,6 +72,22 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters() const
               [](const DebugRegister& lhs, const DebugRegister& rhs) {
         return lhs.m_registerIndex < rhs.m_registerIndex;
     });
+
+    DebugAdapter* adapter = m_state->GetAdapter();
+    if (!adapter)
+        throw ConnectionRefusedError("Cannot update hints when disconnected");
+
+    if (auto memory_view = m_state->GetMemoryView()) {
+        for (auto& reg : result) {
+            const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(reg.m_value);
+            const auto reg_string = std::string(memory.has_value() ? memory->data() : "x");
+            if (!reg_string.empty() && reg_string.size() > 3) {
+                reg.m_hint = reg_string;
+            } else {
+                reg.m_hint = fmt::format("{:x}", reg.m_value);
+            }
+        }
+    }
 
     return result;
 }
@@ -213,11 +230,10 @@ DebugModule DebuggerModules::GetModuleForAddress(uint64_t remoteAddress) const
         // smaller than the remoteAddress. 
         // TODO: check if the m_size of DebugModule is present for all platforms
         if ((module.m_address <= remoteAddress) && (remoteAddress < module.m_address + module.m_size))
-        {
             return module;
-        }
     }
-    return DebugModule();
+
+    return {};
 }
 
 
@@ -239,24 +255,26 @@ ModuleNameAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absolute
 }
 
 
-uint64_t DebuggerModules::RelativeAddressToAbsolute(ModuleNameAndOffset relativeAddress) const
+uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress) const
 {
-    if (relativeAddress.module != "")
-    {
-        for (const DebugModule& module: m_modules)
-        {
-            if (module.m_name == relativeAddress.module)
+    LogInfo("looking for : %s", relativeAddress.module.c_str());
+    if (!relativeAddress.module.empty()) {
+        LogInfo("not empty");
+        for (const DebugModule& module: m_modules) {
+            LogWarn("%s", fmt::format("module: {}", module.m_name).c_str());
+            if (module.m_name == relativeAddress.module || module.m_short_name == relativeAddress.module) {
+                LogWarn("%s", fmt::format("valid module: {}, {:#x}, {:#x}", module.m_name, module.m_address, relativeAddress.offset).c_str());
                 return module.m_address + relativeAddress.offset;
-            else if (module.m_short_name == relativeAddress.module)
-                return module.m_address + relativeAddress.offset;
+            }
         }
     }
+
     return relativeAddress.offset;
 }
 
 
 DebuggerBreakpoints::DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial):
-    m_state(state), m_breakpoints(initial)
+    m_state(state), m_breakpoints(std::move(initial))
 {
 }
 
@@ -264,7 +282,7 @@ DebuggerBreakpoints::DebuggerBreakpoints(DebuggerState* state, std::vector<Modul
 bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
 {
     if (!m_state->GetAdapter())
-        throw ("Cannot add breakpoint at absolute address when disconnected");
+        throw ConnectionRefusedError("Cannot add breakpoint at absolute address when disconnected");
 
     ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
     if (!ContainsOffset(info))
@@ -304,7 +322,7 @@ bool DebuggerBreakpoints::AddOffset(const ModuleNameAndOffset& address)
 bool DebuggerBreakpoints::RemoveAbsolute(uint64_t remoteAddress)
 {
     if (!m_state->GetAdapter())
-        throw ("Cannot remove breakpoint at absolute address when disconnected");
+        throw ConnectionRefusedError("Cannot remove breakpoint at absolute address when disconnected");
 
     ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
     if (ContainsOffset(info))
@@ -633,7 +651,7 @@ void DebuggerState::Go()
 void DebuggerState::StepInto(BNFunctionGraphType il)
 {
     if (!IsConnected())
-        throw ConnectionRefusedError("cannot step into il when disconnected");
+        throw ConnectionRefusedError("cannot step into when disconnected");
 
     switch (il)
     {

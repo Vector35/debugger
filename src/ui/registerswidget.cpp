@@ -208,7 +208,9 @@ void DebugRegistersListModel::updateRows(std::vector<DebugRegister> newRows)
                 status = DebugRegisterValueChanged;
             }
         }
-        m_items.emplace_back(reg.m_name, reg.m_value, status, "");
+
+
+        m_items.emplace_back(reg.m_name, reg.m_value, status, reg.m_hint);
     }
     endResetModel();
 }

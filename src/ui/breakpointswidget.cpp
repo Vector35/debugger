@@ -1,6 +1,7 @@
 #include <QtGui/QPainter>
 #include <QtWidgets/QHeaderView>
 #include "breakpointswidget.h"
+#include "../ui/ui.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -193,6 +194,27 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* v
     m_table = new QTableView(this);
     m_model = new DebugBreakpointsListModel(m_table, data, view);
     m_table->setModel(m_model);
+    m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
+    m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+
+    m_remove_action = new QAction("Remove", this);
+    connect(m_remove_action, &QAction::triggered, this, &DebugBreakpointsWidget::Remove);
+
+    m_goto_action = new QAction("Goto", this);
+    connect(m_goto_action, &QAction::triggered, this, &DebugBreakpointsWidget::Goto);
+
+    m_table->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_table, &QTableView::customContextMenuRequested, this, &DebugBreakpointsWidget::customContextMenu);
+
+    m_horizontal_header = m_table->horizontalHeader();
+    m_horizontal_header->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_horizontal_header, &QTableView::customContextMenuRequested, this,
+            &DebugBreakpointsWidget::customContextMenu);
+
+    m_vertical_header = m_table->verticalHeader();
+    m_vertical_header->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_vertical_header, &QTableView::customContextMenuRequested, this,
+            &DebugBreakpointsWidget::customContextMenu);
 
     m_delegate = new DebugBreakpointsItemDelegate(this);
     m_table->setItemDelegate(m_delegate);
@@ -227,4 +249,63 @@ void DebugBreakpointsWidget::notifyBreakpointsChanged(std::vector<BreakpointItem
 void DebugBreakpointsWidget::notifyFontChanged()
 {
     m_delegate->updateFonts();
+}
+
+
+void DebugBreakpointsWidget::customContextMenu(const QPoint& point)
+{
+    if (m_table->selectionModel())
+    {
+        this->m_last_selected_point = point;
+        QMenu menu(this);
+        menu.addAction(m_remove_action);
+        menu.addAction(m_goto_action);
+        menu.exec(QCursor::pos());
+    }
+}
+
+void DebugBreakpointsWidget::Goto()
+{
+
+}
+
+void DebugBreakpointsWidget::Remove()
+{
+    const auto item_row = this->m_table->indexAt(this->m_last_selected_point).row();
+    const auto item = this->m_table->model()->index(item_row, 2);
+
+    auto view = this->m_data.GetPtr();
+    auto address_or_offset = std::stoull(item.data().toString().toLocal8Bit().data(), nullptr, 16);
+    if (!address_or_offset || !view)
+        return;
+
+    DebuggerState* state = DebuggerState::GetState(view);
+    if (!state)
+        return;
+
+    DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
+    if (!breakpoints)
+        return;
+
+    const auto is_absolute = state->IsConnected();
+    if (!is_absolute)
+        address_or_offset += view->GetStart();
+
+    const auto filename = view->GetFile()->GetOriginalFilename();
+    const auto breakpoint_offset = ModuleNameAndOffset(filename, address_or_offset - view->GetStart());
+
+    if (breakpoints->ContainsOffset(breakpoint_offset)) {
+        breakpoints->RemoveOffset(breakpoint_offset);
+        for (const auto& func : state->GetData()->GetAnalysisFunctionsContainingAddress(address_or_offset)) {
+            func->SetAutoInstructionHighlight(state->GetData()->GetDefaultArchitecture(), address_or_offset, NoHighlightColor);
+            for (const auto& tag : func->GetAddressTags(state->GetData()->GetDefaultArchitecture(), address_or_offset)) {
+                if (tag->GetType() != state->GetDebuggerUI()->GetBreakpointTagType())
+                    continue;
+
+                func->RemoveUserAddressTag(state->GetData()->GetDefaultArchitecture(), address_or_offset, tag);
+            }
+        }
+    }
+
+    state->GetDebuggerUI()->UpdateBreakpoints();
 }
