@@ -81,7 +81,7 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters() const
         const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(reg.m_value);
         const auto reg_string = std::string(memory.has_value() ? memory->data() : "x");
         const auto can_print = std::all_of(reg_string.begin(), reg_string.end(), [](unsigned char c){
-            return std::isprint(c);
+            return c == '\n' || std::isprint(c);
         });
 
         if (!reg_string.empty() && reg_string.size() > 3 && can_print) {
