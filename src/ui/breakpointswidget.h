@@ -98,7 +98,7 @@ class DebugBreakpointsWidget : public SidebarWidget
     QHeaderView* m_horizontal_header;
     QHeaderView* m_vertical_header;
     QAction* m_remove_action;
-    QAction* m_goto_action;
+    QAction* m_jump_action;
 
     // void shouldBeVisible()
     virtual void notifyFontChanged() override;
@@ -111,7 +111,7 @@ public:
 
 private slots:
     void customContextMenu(const QPoint& point);
-    void Goto();
+    void Jump();
     void Remove();
 };
 

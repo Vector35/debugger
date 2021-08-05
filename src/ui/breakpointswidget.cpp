@@ -200,8 +200,8 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* v
     m_remove_action = new QAction("Remove", this);
     connect(m_remove_action, &QAction::triggered, this, &DebugBreakpointsWidget::Remove);
 
-    m_goto_action = new QAction("Goto", this);
-    connect(m_goto_action, &QAction::triggered, this, &DebugBreakpointsWidget::Goto);
+    m_jump_action = new QAction("Jump To", this);
+    connect(m_jump_action, &QAction::triggered, this, &DebugBreakpointsWidget::Jump);
 
     m_table->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_table, &QTableView::customContextMenuRequested, this, &DebugBreakpointsWidget::customContextMenu);
@@ -259,15 +259,41 @@ void DebugBreakpointsWidget::customContextMenu(const QPoint& point)
         this->m_last_selected_point = point;
         QMenu menu(this);
         menu.addAction(m_remove_action);
-        menu.addAction(m_goto_action);
+        menu.addAction(m_jump_action);
         menu.exec(QCursor::pos());
     }
 }
 
-void DebugBreakpointsWidget::Goto()
-{
 
+void DebugBreakpointsWidget::Jump()
+{
+    const auto item_row = this->m_table->indexAt(this->m_last_selected_point).row();
+    const auto item = this->m_table->model()->index(item_row, 2);
+
+    auto view = this->m_data.GetPtr();
+    auto address_or_offset = std::stoull(item.data().toString().toLocal8Bit().data(), nullptr, 16);
+    if (!address_or_offset || !view)
+        return;
+
+    DebuggerState* state = DebuggerState::GetState(view);
+    if (!state)
+        return;
+
+    DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
+    if (!breakpoints)
+        return;
+
+    const auto is_absolute = state->IsConnected();
+    if (!is_absolute)
+        address_or_offset += view->GetStart();
+
+    const auto filename = view->GetFile()->GetOriginalFilename();
+    const auto breakpoint_offset = ModuleNameAndOffset(filename, address_or_offset - view->GetStart());
+
+    ViewFrame* frame = ViewFrame::viewFrameForWidget(state->GetDebuggerUI()->GetDebugView());
+    frame->navigate(state->GetData(), address_or_offset, true, true);
 }
+
 
 void DebugBreakpointsWidget::Remove()
 {
