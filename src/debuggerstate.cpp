@@ -77,14 +77,22 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters() const
     if (!adapter)
         throw ConnectionRefusedError("Cannot update hints when disconnected");
 
-    if (auto memory_view = m_state->GetMemoryView()) {
-        for (auto& reg : result) {
-            const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(reg.m_value);
-            const auto reg_string = std::string(memory.has_value() ? memory->data() : "x");
-            if (!reg_string.empty() && reg_string.size() > 3) {
-                reg.m_hint = reg_string;
-            } else {
-                reg.m_hint = fmt::format("{:x}", reg.m_value);
+    for (auto& reg : result) {
+        const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(reg.m_value);
+        const auto reg_string = std::string(memory.has_value() ? memory->data() : "x");
+        const auto can_print = std::all_of(reg_string.begin(), reg_string.end(), [](unsigned char c){
+            return std::isprint(c);
+        });
+
+        if (!reg_string.empty() && reg_string.size() > 3 && can_print) {
+            reg.m_hint = reg_string;
+        } else {
+            auto buffer = std::make_unique<char[]>(reg.m_width);
+            if (adapter->ReadMemory(reg.m_value, buffer.get(), reg.m_width)) {
+                reg.m_hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.get()));
+            }
+            else {
+                reg.m_hint = "";
             }
         }
     }
