@@ -6,9 +6,9 @@
 using namespace BinaryNinja;
 using namespace std;
 
-DebugStackItem::DebugStackItem(ptrdiff_t offset, uint64_t address, uint64_t value,
+DebugStackItem::DebugStackItem(ptrdiff_t offset, uint64_t address, uint64_t value, std::string hint,
     DebugStackValueStatus valueStatus):
-    m_offset(offset), m_address(address), m_value(value), m_valueStatus(valueStatus)
+    m_offset(offset), m_address(address), m_value(value), m_valueStatus(valueStatus), m_hint(std::move(hint))
 {
 }
 
@@ -16,7 +16,7 @@ DebugStackItem::DebugStackItem(ptrdiff_t offset, uint64_t address, uint64_t valu
 bool DebugStackItem::operator==(const DebugStackItem& other) const
 {
     return (m_offset == other.offset()) && (m_address == other.address()) && (m_value == other.value()) &&
-        (m_valueStatus == other.valueStatus());
+        (m_valueStatus == other.valueStatus()) && (m_hint == other.hint());
 }
 
 
@@ -40,7 +40,9 @@ bool DebugStackItem::operator<(const DebugStackItem& other) const
         return true;
     else if (m_value > other.value())
         return false;
-    return m_valueStatus < other.valueStatus();
+    else if (m_valueStatus > other.valueStatus())
+        return false;
+    return m_hint < other.hint();
 }
 
 
@@ -154,6 +156,16 @@ QVariant DebugStackListModel::data(const QModelIndex& index, int role) const
 		line.push_back(valueStr);
 		return QVariant(line);
     }
+    case DebugStackListModel::HintColumn:
+    {
+        if (role == Qt::SizeHintRole)
+            return QVariant((qulonglong)item->hint().size());
+
+        QList<QVariant> line;
+        line.push_back(getThemeColor(StringColor).rgba());
+        line.push_back(QString::fromStdString(item->hint()));
+        return QVariant(line);
+    }
     }
     return QVariant();
 }
@@ -175,6 +187,8 @@ QVariant DebugStackListModel::headerData(int column, Qt::Orientation orientation
 			return "Address";
 		case DebugStackListModel::ValueColumn:
 			return "Value";
+	    case DebugStackListModel::HintColumn:
+	        return "Hint";
 	}
 	return QVariant();
 }
@@ -191,7 +205,7 @@ void DebugStackListModel::updateRows(std::vector<DebugStackItem> newRows)
     beginResetModel();
 
     m_items.clear();
-    if (newRows.size() == 0)
+    if (newRows.empty())
     {
         endResetModel();
         return;
@@ -216,7 +230,7 @@ void DebugStackListModel::updateRows(std::vector<DebugStackItem> newRows)
                 status = DebugStackValueChanged;
             }
         }
-        m_items.emplace_back(row.offset(), row.address(), row.value(), status);
+        m_items.emplace_back(row.offset(), row.address(), row.value(), row.hint(), status);
     }
     endResetModel();
 }
@@ -307,6 +321,7 @@ void DebugStackItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem
 	case DebugStackListModel::OffsetColumn:
 	case DebugStackListModel::AddressColumn:
 	case DebugStackListModel::ValueColumn:
+	case DebugStackListModel::HintColumn:
 	{
 		auto tokenPair = data.toList();
 		if (tokenPair.size() == 0)

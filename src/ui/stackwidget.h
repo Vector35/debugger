@@ -29,15 +29,17 @@ private:
     ptrdiff_t m_offset;
     uint64_t m_address;
     uint64_t m_value;
+    std::string m_hint;
     // TODO: add references later
     DebugStackValueStatus m_valueStatus;
 
 public:
-    DebugStackItem(ptrdiff_t offset, uint64_t address, uint64_t value,
+    DebugStackItem(ptrdiff_t offset, uint64_t address, uint64_t value, std::string hint,
         DebugStackValueStatus valueStatus = DebugStackValueNormal);
     ptrdiff_t offset() const { return m_offset; }
     uint64_t address() const { return m_address; }
     uint64_t value() const { return m_value; }
+    std::string hint() const { return m_hint; }
     void setValue(uint64_t value) { m_value = value; }
     DebugStackValueStatus valueStatus() const { return m_valueStatus; }
     void setValueStatus(DebugStackValueStatus newStatus) { m_valueStatus = newStatus; }
@@ -65,6 +67,7 @@ public:
         OffsetColumn,
         AddressColumn,
         ValueColumn,
+        HintColumn
     };
 
     DebugStackListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view);
@@ -75,7 +78,7 @@ public:
 
     virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override
         { (void) parent; return (int)m_items.size(); }
-    virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 3; }
+    virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 4; }
     DebugStackItem getRow(int row) const;
     virtual QVariant data(const QModelIndex& i, int role) const override;
     virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;

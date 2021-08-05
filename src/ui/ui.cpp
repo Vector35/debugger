@@ -141,7 +141,28 @@ void DebuggerUI::ContextDisplay()
                 /* TODO: just ignoring this is probably not a great idea... */
             }
 
-            stackItems.emplace_back(offset, address, value);
+            std::string hint{};
+            if (auto adapter = this->m_state->GetAdapter()) {
+                const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(value);
+                const auto reg_string = std::string(memory.has_value() ? memory->data() : "x");
+                const auto can_print = std::all_of(reg_string.begin(), reg_string.end(), [](unsigned char c){
+                    return std::isprint(c);
+                });
+
+                if (!reg_string.empty() && reg_string.size() > 3 && can_print) {
+                    hint = fmt::format("\"{}\"", reg_string);
+                } else {
+                    auto buffer = std::make_unique<char[]>(addressSize);
+                    if (adapter->ReadMemory(value, buffer.get(), addressSize)) {
+                        hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.get()));
+                    }
+                    else {
+                        hint = "";
+                    }
+                }
+            }
+
+            stackItems.emplace_back(offset, address, value, hint);
         }
         delete reader;
 

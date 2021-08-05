@@ -85,7 +85,7 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters() const
         });
 
         if (!reg_string.empty() && reg_string.size() > 3 && can_print) {
-            reg.m_hint = reg_string;
+            reg.m_hint = fmt::format("\"{}\"", reg_string);
         } else {
             auto buffer = std::make_unique<char[]>(reg.m_width);
             if (adapter->ReadMemory(reg.m_value, buffer.get(), reg.m_width)) {
