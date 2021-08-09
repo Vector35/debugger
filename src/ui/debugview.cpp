@@ -143,12 +143,59 @@ BNAddressRange DebugView::getSelectionOffsets()
     return { m_rawAddress, m_rawAddress };
 }
 
+
+FunctionRef DebugView::getCurrentFunction()
+{
+    if (!m_isRawDisassembly)
+        return m_binaryEditor->getDisassembly()->getCurrentFunction();
+
+    return nullptr;
+}
+
+
+BasicBlockRef DebugView::getCurrentBasicBlock()
+{
+    if (!m_isRawDisassembly)
+        return m_binaryEditor->getDisassembly()->getCurrentBasicBlock();
+
+    return nullptr;
+}
+
+
+ArchitectureRef DebugView::getCurrentArchitecture()
+{
+    if (!m_isRawDisassembly)
+        return m_binaryEditor->getDisassembly()->getCurrentArchitecture();
+
+    return nullptr;
+}
+
+
+LowLevelILFunctionRef DebugView::getCurrentLowLevelILFunction()
+{
+    if (!m_isRawDisassembly)
+        return m_binaryEditor->getDisassembly()->getCurrentLowLevelILFunction();
+
+    return nullptr;
+}
+
+
+MediumLevelILFunctionRef DebugView::getCurrentMediumLevelILFunction()
+{
+    if (!m_isRawDisassembly)
+        return m_binaryEditor->getDisassembly()->getCurrentMediumLevelILFunction();
+
+    return nullptr;
+}
+
+
 void DebugView::setSelectionOffsets(BNAddressRange range)
 {
 	// for subclass of View who does not have a meaningful setSelectionOffsets() behavior,
 	// we navigate to the start of the selection range
 	navigate(range.start);
 }
+
 
 void DebugView::setCurrentOffset(uint64_t offset)
 {

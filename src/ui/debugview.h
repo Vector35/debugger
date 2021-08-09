@@ -59,6 +59,12 @@ public:
 	virtual BinaryViewRef getData() override;
 	virtual uint64_t getCurrentOffset() override;
 	virtual BNAddressRange getSelectionOffsets() override;
+	virtual FunctionRef getCurrentFunction() override;
+	virtual BasicBlockRef getCurrentBasicBlock() override;
+	virtual ArchitectureRef getCurrentArchitecture() override;
+	virtual LowLevelILFunctionRef getCurrentLowLevelILFunction() override;
+	virtual MediumLevelILFunctionRef getCurrentMediumLevelILFunction() override;
+
 	virtual void setSelectionOffsets(BNAddressRange range) override;
 	virtual QFont getFont() override;
 	virtual bool navigate(uint64_t addr) override;
