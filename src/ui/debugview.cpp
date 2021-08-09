@@ -242,6 +242,58 @@ bool DebugView::navigate(uint64_t addr)
 }
 
 
+Ref<HistoryEntry> DebugView::getHistoryEntry()
+{
+    if (m_isNavigatingHistory)
+        return nullptr;
+
+    uint64_t memoryAddr = dynamic_cast<LinearView*>(m_memoryTabs->widget(0))->getCurrentOffset();
+    if (memoryAddr != m_memoryHistoryAddress)
+        m_memoryHistoryAddress = memoryAddr;
+
+    if (m_isRawDisassembly && m_state->IsConnected())
+    {
+        ModuleNameAndOffset relAddr = m_state->GetModules()->AbsoluteAddressToRelative(m_rawAddress);
+        return new DebugViewHistoryEntry(memoryAddr, relAddr, true);
+    }
+    else
+    {
+        uint64_t address = m_binaryEditor->getDisassembly()->getCurrentOffset();
+        return new DebugViewHistoryEntry(memoryAddr, address, false);
+    }
+}
+
+
+void DebugView::navigateToHistoryEntry(BinaryNinja::Ref<HistoryEntry> entry)
+{
+    DebugViewHistoryEntry* data = dynamic_cast<DebugViewHistoryEntry*>(entry.GetPtr());
+    if (!data)
+        return;
+
+    LinearView* view = dynamic_cast<LinearView*>(m_memoryTabs->widget(0));
+    if (!view)
+        return;
+
+    m_isNavigatingHistory = true;
+    view->navigate(data->getMemoryAddr());
+    if (data->getIsRaw())
+    {
+        if (m_state->IsConnected())
+        {
+            uint64_t address = m_state->GetModules()->RelativeAddressToAbsolute(data->getRelAddress());
+            navigateRaw(address);
+        }
+    }
+    else
+    {
+        navigateLive(data->getAddress());
+    }
+
+    View::navigateToHistoryEntry(entry);
+    m_isNavigatingHistory = false;
+}
+
+
 void DebugView::focusInEvent(QFocusEvent*)
 {
 }

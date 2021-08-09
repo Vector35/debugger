@@ -15,6 +15,29 @@
 // #include "byte.h"
 
 
+class DebugViewHistoryEntry: public HistoryEntry
+{
+private:
+    uint64_t m_memoryAddr;
+    uint64_t m_address;
+    ModuleNameAndOffset m_relAddress;
+    bool m_isRaw;
+
+public:
+    DebugViewHistoryEntry(uint64_t memoryAddr, uint64_t address, bool isRaw):
+        m_memoryAddr(memoryAddr), m_address(address), m_isRaw(isRaw)
+    {}
+    DebugViewHistoryEntry(uint64_t memoryAddr, const ModuleNameAndOffset& relAddr, bool isRaw):
+        m_memoryAddr(memoryAddr), m_relAddress(relAddr), m_isRaw(isRaw)
+    {}
+
+    uint64_t getMemoryAddr() const { return m_memoryAddr; }
+    uint64_t getAddress() const { return m_address; }
+    ModuleNameAndOffset getRelAddress() { return m_relAddress; }
+    bool getIsRaw() const { return m_isRaw; }
+};
+
+
 class DebugView: public QWidget, public View
 {
     Q_OBJECT
@@ -70,6 +93,9 @@ public:
 
 	virtual bool navigateToFunction(FunctionRef func, uint64_t offset) override;
 	virtual bool navigate(uint64_t addr) override;
+
+	virtual BinaryNinja::Ref<HistoryEntry> getHistoryEntry() override;
+	virtual void navigateToHistoryEntry(BinaryNinja::Ref<HistoryEntry> entry) override;
 
     bool navigateLive(uint64_t addr);
     bool navigateRaw(uint64_t addr);
