@@ -67,7 +67,10 @@ public:
 
 	virtual void setSelectionOffsets(BNAddressRange range) override;
 	virtual QFont getFont() override;
+
+	virtual bool navigateToFunction(FunctionRef func, uint64_t offset) override;
 	virtual bool navigate(uint64_t addr) override;
+
     bool navigateLive(uint64_t addr);
     bool navigateRaw(uint64_t addr);
     void showRawAssembly(bool raw);

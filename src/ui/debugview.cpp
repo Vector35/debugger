@@ -210,6 +210,12 @@ QFont DebugView::getFont()
 }
 
 
+bool DebugView::navigateToFunction(FunctionRef func, uint64_t offset)
+{
+    return navigate(offset);
+}
+
+
 bool DebugView::navigate(uint64_t addr)
 {
     if (!m_state->IsConnected())
