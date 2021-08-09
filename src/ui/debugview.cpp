@@ -112,13 +112,19 @@ BinaryViewRef DebugView::getData()
 
 uint64_t DebugView::getCurrentOffset()
 {
-	return m_currentOffset;
+    if (!m_isRawDisassembly)
+        return m_binaryEditor->getDisassembly()->getCurrentOffset();
+
+    return m_rawAddress;
 }
 
 
 BNAddressRange DebugView::getSelectionOffsets()
 {
-	return { m_currentOffset, m_currentOffset };
+    if (!m_isRawDisassembly)
+        return m_binaryEditor->getDisassembly()->getSelectionOffsets();
+
+    return { m_rawAddress, m_rawAddress };
 }
 
 void DebugView::setSelectionOffsets(BNAddressRange range)
@@ -280,7 +286,6 @@ void DebugView::loadRawDisassembly(uint64_t addr)
             {
                 // PC
                 tokens.push_back(InstructionTextToken(TagToken, pcIcon));
-                tokens.push_back(InstructionTextToken(TextToken, " "));
                 color = BlueHighlightColor;
             }
         }
@@ -290,7 +295,6 @@ void DebugView::loadRawDisassembly(uint64_t addr)
             {
                 // Breakpoint
                 tokens.push_back(InstructionTextToken(TagToken, breakpointIcon));
-                tokens.push_back(InstructionTextToken(TextToken, "   "));
                 color = RedHighlightColor;
             }
             else
