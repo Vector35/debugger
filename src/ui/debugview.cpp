@@ -33,8 +33,6 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_isNavigatingHistory = false;
     m_memoryHistoryAddress = 0;
 
-    // TODO: bind navigation actions
-
     QFont smallFont = QFont();
     smallFont.setPointSize(11);
 
@@ -86,6 +84,24 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_updateTimer->setInterval(200);
     m_updateTimer->setSingleShot(false);
     connect(m_updateTimer, &QTimer::timeout, this, &DebugView::updateTimerEvent);
+
+    // TODO: Handle these and change views accordingly
+    // Currently they are just disabled as the DisassemblyContainer gets confused
+    // about where to go and just shows a bad view
+    m_binaryEditor->getDisassembly()->actionHandler()->bindAction("View in Hex Editor", UIAction());
+    m_binaryEditor->getDisassembly()->actionHandler()->bindAction("View in Linear Disassembly", UIAction());
+    m_binaryEditor->getDisassembly()->actionHandler()->bindAction("View in Types View", UIAction());
+
+    for (size_t i = 0; i < m_numMemoryTabs; i++)
+    {
+        LinearView* view = dynamic_cast<LinearView*>(m_memoryTabs->widget(i));
+        if (!view)
+            continue;
+
+        view->actionHandler()->bindAction("View in Hex Editor", UIAction());
+        view->actionHandler()->bindAction("View in Linear Disassembly", UIAction());
+        view->actionHandler()->bindAction("View in Types View", UIAction());
+    }
 
     // TODO: we should add an option whether to add a breakpoint at program entry
     uint64_t entryPoint = data->GetEntryPoint();
