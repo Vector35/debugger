@@ -275,14 +275,20 @@ void DebugControlsWidget::performPause()
 
 void DebugControlsWidget::performResume()
 {
-    /* this is probably bad */
-    /* TODO: fix this? */
-    std::thread([&]{
-        stateRunning();
-        m_state->Go();
-        m_state->OnStep();
+    auto performResumeAfter = [&](){
         stateStopped();
-    }).detach();
+        m_state->OnStep();
+    };
+
+    auto performResumeThread = [=](){
+        m_state->Go();
+        ExecuteOnMainThreadAndWait(performResumeAfter);
+    };
+
+
+    stateRunning();
+    std::thread t(performResumeThread);
+    t.detach();
 }
 
 
