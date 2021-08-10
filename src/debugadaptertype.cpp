@@ -28,12 +28,12 @@ bool DebugAdapterType::CanUse(AdapterType type)
     return (type == DefaultAdapterType) || (type == LocalDBGENGAdapterType) ||
         (type == RemoteGDBAdapterType) || (type == RemoteLLDBAdapterType) ||
         (type == RemoteSenseAdapterType);
-#elif defined(__GNUC__)
-    return (type == DefaultAdapterType) || (type == LocalGDBAdapterType) ||
-        (type == RemoteGDBAdapterType) || (type == RemoteLLDBAdapterType) ||
-        (type == RemoteSenseAdapterType);
 #elif defined(__clang__)
     return (type == DefaultAdapterType) || (type == LocalLLDBADapterType) ||
+    (type == RemoteGDBAdapterType) || (type == RemoteLLDBAdapterType) ||
+    (type == RemoteSenseAdapterType);
+#elif defined(__GNUC__)
+    return (type == DefaultAdapterType) || (type == LocalGDBAdapterType) ||
         (type == RemoteGDBAdapterType) || (type == RemoteLLDBAdapterType) ||
         (type == RemoteSenseAdapterType);
 #else
@@ -46,17 +46,14 @@ DebugAdapter* DebugAdapterType::GetAdapterForCurrentSystem()
 {
 #ifdef WIN32
     return new DbgEngAdapter();
-#endif
-
-#ifdef __clang__
+#elif defined(__clang__)
     return new LldbAdapter();
-#endif
-
-#ifdef __GNUC__
+#elif defined(__GNUC__)
     // Do not redirect the gdbserver stdin/out/err to /dev/null, when running in GUI
     return new GdbAdapter(false);
-#endif
+#else
     // return new DummyAdapter();
+#endif
 }
 
 
@@ -67,15 +64,11 @@ DebugAdapter* DebugAdapterType::GetNewAdapter(AdapterType adapterType)
 #ifdef WIN32
     case LocalDBGENGAdapterType:
         return new DbgEngAdapter();
-#endif
-
-#ifdef __clang__
+#elif defined(__clang__)
     case LocalLLDBADapterType:
     case RemoteLLDBAdapterType:
         return new LldbAdapter();
-#endif
-
-#ifdef __GNUC__
+#elif defined(__GNUC__)
     case LocalGDBAdapterType:
     case RemoteGDBAdapterType:
         return new GdbAdapter();
