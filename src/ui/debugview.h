@@ -75,6 +75,8 @@ class DebugView: public QWidget, public View
     QTabWidget* m_memoryTabs;
     size_t m_numMemoryTabs = 3;
 
+    QLabel* m_debuggerStatus;
+
 public:
 	DebugView(QWidget* parent, BinaryViewRef data);
     virtual ~DebugView() {}
@@ -108,6 +110,8 @@ public:
 
     DebugControlsWidget* getControls() const { return m_controls; }
     DisassemblyContainer* getBinaryEditor() const { return m_binaryEditor; }
+
+    void setDebuggerStatus(const std::string& status);
 
 protected:
 	virtual void focusInEvent(QFocusEvent* event) override;

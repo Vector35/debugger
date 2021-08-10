@@ -1,6 +1,7 @@
 #include <QtWidgets/QGroupBox>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QSplitter>
+#include <QtWidgets/QStatusBar>
 #include <QtGui/QFont>
 #include "fontsettings.h"
 #include "debugview.h"
@@ -11,13 +12,25 @@ using namespace BinaryNinja;
 
 DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
 {
-    // setBinaryDataNavigable(true);
     setupView(this);
+    setBinaryDataNavigable(true);
 
 	m_data = data;
     m_state = DebuggerState::GetState(data);
     m_state->GetDebuggerUI()->SetDebugView(this);
     m_controls = new DebugControlsWidget(parent, "Controls", data, m_state);
+
+    UIContext* context = UIContext::contextForWidget(this);
+    if (context)
+    {
+        QMainWindow* mainWindow = context->mainWindow();
+        if (mainWindow)
+        {
+            // TODO: This should not be in the DebugView class, it should better be moved to DebuggerUI
+            m_debuggerStatus = new QLabel("INACTIVE");
+            mainWindow->statusBar()->insertWidget(0, m_debuggerStatus);
+        }
+    }
 
     m_splitter = new QSplitter(Qt::Horizontal, this);
     ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
@@ -474,6 +487,12 @@ void DebugView::updateTimerEvent()
         m_needsUpdate = false;
 //        m_memoryEditor->navigate(0);
     }
+}
+
+
+void DebugView::setDebuggerStatus(const std::string &status)
+{
+    m_debuggerStatus->setText(QString::fromStdString(status));
 }
 
 

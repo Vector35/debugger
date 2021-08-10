@@ -95,6 +95,8 @@ public:
 
     void handleStopReturn();
 
+    void setDebuggerStatus(const std::string& status);
+
 public Q_SLOTS:
     void performRun();
     void performRestart();

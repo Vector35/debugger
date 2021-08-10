@@ -144,11 +144,6 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 
     // setThreadList();
 
-    m_editStatus = new QLineEdit("INACTIVE", this);
-    m_editStatus->setReadOnly(true);
-    m_editStatus->setAlignment(Qt::AlignCenter);
-    addWidget(m_editStatus);
-
     setActionEnabled(DebugControlRunAction, canExec());
     setActionEnabled(DebugControlRestartAction, false);
     setActionEnabled(DebugControlAttachAction, canConnect());
@@ -564,7 +559,7 @@ void DebugControlsWidget::setPauseOrResume(DebugControlAction action)
 
 void DebugControlsWidget::stateStarting(const std::string& msg)
 {
-    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "INACTIVE");
+    setDebuggerStatus(msg.size() ? msg : "INACTIVE");
     setStartingEnabled(false);
     setStoppingEnabled(false);
     setSteppingEnabled(false);
@@ -579,7 +574,7 @@ void DebugControlsWidget::stateStarting(const std::string& msg)
 
 void DebugControlsWidget::stateInactive(const std::string& msg)
 {
-    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "INACTIVE");
+    setDebuggerStatus(msg.size() ? msg : "INACTIVE");
     setStartingEnabled(true);
     setStoppingEnabled(false);
     setSteppingEnabled(false);
@@ -594,7 +589,7 @@ void DebugControlsWidget::stateInactive(const std::string& msg)
 
 void DebugControlsWidget::stateStopped(const std::string& msg)
 {
-    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "STOPPED");
+    setDebuggerStatus(msg.size() ? msg : "STOPPED");
     setStartingEnabled(false);
     setStoppingEnabled(true);
     setSteppingEnabled(true);
@@ -608,7 +603,7 @@ void DebugControlsWidget::stateStopped(const std::string& msg)
 
 void DebugControlsWidget::stateStoppedExtern(const std::string& msg)
 {
-    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "STOPPED");
+    setDebuggerStatus(msg.size() ? msg : "STOPPED");
     setStartingEnabled(false);
     setStoppingEnabled(true);
     setSteppingEnabled(true);
@@ -623,7 +618,7 @@ void DebugControlsWidget::stateStoppedExtern(const std::string& msg)
 
 void DebugControlsWidget::stateRunning(const std::string& msg)
 {
-    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "RUNNING");
+    setDebuggerStatus(msg.size() ? msg : "RUNNING");
     setStartingEnabled(false);
     setStoppingEnabled(true);
     setSteppingEnabled(false);
@@ -637,7 +632,7 @@ void DebugControlsWidget::stateRunning(const std::string& msg)
 
 void DebugControlsWidget::stateBusy(const std::string& msg)
 {
-    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "BUSY");
+    setDebuggerStatus(msg.size() ? msg : "BUSY");
     setStartingEnabled(false);
     setStoppingEnabled(true);
     setSteppingEnabled(false);
@@ -651,7 +646,7 @@ void DebugControlsWidget::stateBusy(const std::string& msg)
 
 void DebugControlsWidget::stateError(const std::string& msg)
 {
-    m_editStatus->setText(msg.size() ? QString::fromStdString(msg) : "ERROR");
+    setDebuggerStatus(msg.size() ? msg : "ERROR");
     if (m_state->IsConnected())
     {
         setStartingEnabled(false);
@@ -725,5 +720,14 @@ void DebugControlsWidget::handleStopReturn()
     else if (stopReason == DebugStopReason::BackendDisconnected)
     {
         stateInactive("backend disconnected (process exited?)");
+    }
+}
+
+
+void DebugControlsWidget::setDebuggerStatus(const std::string &status)
+{
+    if (m_state->GetDebuggerUI() && m_state->GetDebuggerUI()->GetDebugView())
+    {
+        m_state->GetDebuggerUI()->GetDebugView()->setDebuggerStatus(status);
     }
 }
