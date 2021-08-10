@@ -44,7 +44,14 @@ if(WIN32)
 		src/adapters/socket.h
 			)
 elseif(APPLE)
-    # Add lldb related files here
+	file(GLOB ADAPTER_SOURCES
+			src/adapters/lldbadapter.cpp
+			src/adapters/lldbadapter.h
+			src/adapters/gdbadapter.cpp
+			src/adapters/gdbadapter.h
+			src/adapters/rspconnector.cpp
+			src/adapters/rspconnector.h
+			)
 else()
     file(GLOB ADAPTER_SOURCES
         src/adapters/gdbadapter.cpp
