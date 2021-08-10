@@ -222,11 +222,34 @@ void DebugControlsWidget::performRun()
 
 void DebugControlsWidget::performRestart()
 {
-    stateStarting("RESTARTING");
-    m_state->Restart();
+    auto performRestartAfter = [&](){
+        stateStopped();
+        m_state->OnStep();
+    };
 
-    stateStopped();
-    m_state->OnStep();
+    auto performRestartError = [&](const std::string& e){
+        stateError(e);
+    };
+
+    auto performRestartThread = [=](){
+        try
+        {
+            m_state->Restart();
+            ExecuteOnMainThreadAndWait(performRestartAfter);
+        }
+        catch (const ConnectionRefusedError& e)
+        {
+            ExecuteOnMainThreadAndWait([&](){ performRestartError(e.what()); });
+        }
+        catch (const std::exception& e)
+        {
+            ExecuteOnMainThreadAndWait([&](){ performRestartError("ERROR: " + std::string(e.what())); });
+        }
+    };
+
+    stateStarting("RESTARTING");
+    std::thread t(performRestartThread);
+    t.detach();
 }
 
 
@@ -245,6 +268,35 @@ void DebugControlsWidget::performAttach()
 
     stateStopped();
     m_state->OnStep();
+
+    auto performAttachAfter = [&](){
+        stateStopped();
+        m_state->OnStep();
+    };
+
+    auto performAttachError = [&](const std::string& e){
+        stateError(e);
+    };
+
+    auto performAttachThread = [=](){
+        try
+        {
+            m_state->Restart();
+            ExecuteOnMainThreadAndWait(performAttachAfter);
+        }
+        catch (const ConnectionRefusedError& e)
+        {
+            ExecuteOnMainThreadAndWait([&](){ performAttachError(e.what()); });
+        }
+        catch (const std::exception& e)
+        {
+            ExecuteOnMainThreadAndWait([&](){ performAttachError("ERROR: " + std::string(e.what())); });
+        }
+    };
+
+    stateStarting("ATTACHING");
+    std::thread t(performAttachThread);
+    t.detach();
 }
 
 
@@ -268,15 +320,16 @@ void DebugControlsWidget::performSettings()
 
 void DebugControlsWidget::performPause()
 {
-    stateStopped();
+//    stateStopped();
     m_state->Pause();
+//    Don't update state here-- one of the other buttons is running in a thread and updating for us
 }
 
 
 void DebugControlsWidget::performResume()
 {
     auto performResumeAfter = [&](){
-        stateStopped();
+        handleStopReturn();
         m_state->OnStep();
     };
 
@@ -284,7 +337,6 @@ void DebugControlsWidget::performResume()
         m_state->Go();
         ExecuteOnMainThreadAndWait(performResumeAfter);
     };
-
 
     stateRunning();
     std::thread t(performResumeThread);
@@ -294,49 +346,95 @@ void DebugControlsWidget::performResume()
 
 void DebugControlsWidget::performStepIntoAsm()
 {
+    auto performStepIntoAsmAfter = [&](){
+        handleStopReturn();
+        m_state->OnStep();
+    };
+
+    auto performStepIntoAsmThread = [=](){
+        m_state->StepIntoAsm();
+        ExecuteOnMainThreadAndWait(performStepIntoAsmAfter);
+    };
+
     stateBusy("STEPPING");
-    m_state->StepIntoAsm();
-    m_state->OnStep();
+    std::thread t(performStepIntoAsmThread);
+    t.detach();
 }
 
 
 void DebugControlsWidget::performStepIntoIL()
 {
-    stateBusy("STEPPING");
-    DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
-    BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
-    m_state->StepIntoIL(graphType);
+    auto performStepIntoILAfter = [&](){
+        handleStopReturn();
+        m_state->OnStep();
+    };
 
-    m_state->OnStep();
+    auto performStepIntoILThread = [=](){
+        DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
+        BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
+        m_state->StepIntoIL(graphType);
+        ExecuteOnMainThreadAndWait(performStepIntoILAfter);
+    };
+
+    stateBusy("STEPPING");
+    std::thread t(performStepIntoILThread);
+    t.detach();
 }
 
 
 void DebugControlsWidget::performStepOverAsm()
 {
-    stateBusy("STEPPING");
-    m_state->StepOverAsm();
+    auto performStepOverAsmAfter = [&](){
+        handleStopReturn();
+        m_state->OnStep();
+    };
 
-    m_state->OnStep();
+    auto performStepOverAsmThread = [=](){
+        m_state->StepOverAsm();
+        ExecuteOnMainThreadAndWait(performStepOverAsmAfter);
+    };
+
+    stateBusy("STEPPING");
+    std::thread t(performStepOverAsmThread);
+    t.detach();
 }
 
 
 void DebugControlsWidget::performStepOverIL()
 {
-    stateBusy("STEPPING");
-    DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
-    BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
-    m_state->StepOverIL(graphType); 
+    auto performStepOverILAfter = [&](){
+        handleStopReturn();
+        m_state->OnStep();
+    };
 
-    m_state->OnStep();
+    auto performStepOverILThread = [=](){
+        DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
+        BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
+        m_state->StepIntoIL(graphType);
+        ExecuteOnMainThreadAndWait(performStepOverILAfter);
+    };
+
+    stateBusy("STEPPING");
+    std::thread t(performStepOverILThread);
+    t.detach();
 }
 
 
 void DebugControlsWidget::performStepReturn()
 {
-    stateBusy("STEPPING");
-    m_state->StepReturn();
+    auto performStepReturnAfter = [&](){
+        handleStopReturn();
+        m_state->OnStep();
+    };
 
-    m_state->OnStep();
+    auto performStepReturnThread = [=](){
+        m_state->StepReturn();
+        ExecuteOnMainThreadAndWait(performStepReturnAfter);
+    };
+
+    stateBusy("STEPPING");
+    std::thread t(performStepReturnThread);
+    t.detach();
 }
 
 
@@ -616,7 +714,16 @@ void DebugControlsWidget::setThreadList(std::vector<DebuggerThreadCache> threads
 }
 
 
-void DebugControlsWidget::handleStopReturn(unsigned long stopReason)
+void DebugControlsWidget::handleStopReturn()
 {
-
+    DebugStopReason stopReason = m_state->GetAdapter()->StopReason();
+    if (stopReason == DebugStopReason::ProcessExited)
+    {
+        // TODO: Support return code
+        stateInactive(fmt::format("Process exited"));
+    }
+    else if (stopReason == DebugStopReason::BackendDisconnected)
+    {
+        stateInactive("backend disconnected (process exited?)");
+    }
 }

@@ -93,7 +93,7 @@ public:
     void clearThreadList();
     void setThreadList(std::vector<DebuggerThreadCache> threads);
 
-    void handleStopReturn(unsigned long stopReason);
+    void handleStopReturn();
 
 public Q_SLOTS:
     void performRun();
