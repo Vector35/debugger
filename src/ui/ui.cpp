@@ -55,10 +55,15 @@ void DebuggerUI::ContextDisplay()
 
     // TODO: lots of code above this are not implemennted yet
 
-    DebugRegistersWidget* registersWidget = dynamic_cast<DebugRegistersWidget*>(widget("Native Debugger Registers"));
+    DebugRegistersWidget* registersWidget{nullptr};
     DebugModulesWidget* modulesWidget = dynamic_cast<DebugModulesWidget*>(widget("Native Debugger Modules"));
     DebugThreadsWidget* threadsWidget = dynamic_cast<DebugThreadsWidget*>(widget("Native Debugger Threads"));
-    DebugStackWidget* stackWidget = dynamic_cast<DebugStackWidget*>(widget("Native Debugger Stack"));
+    DebugStackWidget* stackWidget{nullptr};
+
+    if (auto frame = ViewFrame::viewFrameForWidget(m_debugView)) {
+        registersWidget = frame->getSidebarWidget<DebugRegistersWidget>("Native Debugger Registers");
+        stackWidget = frame->getSidebarWidget<DebugStackWidget>("Native Debugger Stack");
+    }
 
     if (!m_state->IsConnected())
     {
@@ -454,17 +459,23 @@ void DebuggerUI::InitializeUI()
         },
         "Native Debugger Breakpoints", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
 
-    Widget::registerDockWidget(
-        [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
-            return new DebugRegistersWidget(parent, name, data);
-        },
-        "Native Debugger Registers", Qt::RightDockWidgetArea, Qt::Vertical, false);
+    auto create_icon_with_letter = [](const QString& letter) {
+        auto icon = QImage(56, 56, QImage::Format_RGB32);
+        icon.fill(0);
+        auto painter = QPainter();
+        painter.begin(&icon);
+        painter.setFont(QFont("Open Sans", 56));
+        painter.setPen(QColor(255, 255, 255, 255));
+        painter.drawText(QRectF(0, 0, 56, 56), Qt::Alignment(Qt::AlignCenter), letter);
+        painter.end();
+        return icon;
+    };
 
-    Widget::registerDockWidget(
-        [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
-            return new DebugStackWidget(parent, name, data);
-        },
-        "Native Debugger Stack", Qt::LeftDockWidgetArea, Qt::Vertical, false);
+    Sidebar::addSidebarWidgetType(
+            new DebugRegistersWidgetType(create_icon_with_letter("R"), "Native Debugger Registers"));
+
+    Sidebar::addSidebarWidgetType(
+            new DebugStackWidgetType(create_icon_with_letter("S"), "Native Debugger Stack"));
 
     Widget::registerDockWidget(
         [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {

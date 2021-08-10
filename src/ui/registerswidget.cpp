@@ -1,6 +1,7 @@
 #include <QtGui/QPainter>
 #include <QtWidgets/QHeaderView>
 #include <QtWidgets/QLineEdit>
+ #include <QListView>
 #include "registerswidget.h"
 
 using namespace BinaryNinja;
@@ -325,8 +326,8 @@ void DebugRegistersItemDelegate::setEditorData(QWidget *editor, const QModelInde
 }
 
 
-DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, const QString& name, BinaryViewRef data):
-    QWidget(view), DockContextHandler(this, name), m_view(view), m_data(data)
+DebugRegistersWidget::DebugRegistersWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
+    SidebarWidget(name), m_view(view), m_data(data)
 {
     m_table = new QTableView(this);
     m_model = new DebugRegistersListModel(m_table, data, view);

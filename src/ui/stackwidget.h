@@ -100,10 +100,9 @@ public:
 };
 
 
-class DebugStackWidget: public QWidget, public DockContextHandler
+class DebugStackWidget: public SidebarWidget
 {
-    Q_OBJECT
-    Q_INTERFACES(DockContextHandler)
+    Q_OBJECT;
 
     ViewFrame* m_view;
     BinaryViewRef m_data;
@@ -119,7 +118,17 @@ class DebugStackWidget: public QWidget, public DockContextHandler
 
 
 public:
-    DebugStackWidget(ViewFrame* view, const QString& name, BinaryViewRef data);
+    DebugStackWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
     void notifyStackChanged(std::vector<DebugStackItem> stackItems);
 };
 
+class DebugStackWidgetType : public SidebarWidgetType {
+public:
+    DebugStackWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
+
+    bool isInReferenceArea() const override { return false; }
+
+    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
+        return new DebugStackWidget("Native Debugger Stack", frame, data);
+    }
+};

@@ -100,10 +100,9 @@ public:
 };
 
 
-class DebugRegistersWidget: public QWidget, public DockContextHandler
+class DebugRegistersWidget: public SidebarWidget
 {
-    Q_OBJECT
-    Q_INTERFACES(DockContextHandler)
+    Q_OBJECT;
 
     ViewFrame* m_view;
     BinaryViewRef m_data;
@@ -119,8 +118,21 @@ class DebugRegistersWidget: public QWidget, public DockContextHandler
 
 
 public:
-    DebugRegistersWidget(ViewFrame* view, const QString& name, BinaryViewRef data);
+    DebugRegistersWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
     void notifyRegistersChanged(std::vector<DebugRegister> regs);
 };
+
+
+class DebugRegistersWidgetType : public SidebarWidgetType {
+public:
+    DebugRegistersWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
+
+    bool isInReferenceArea() const override { return true; }
+
+    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
+        return new DebugRegistersWidget("Native Debugger Registers", frame, data);
+    }
+};
+
 
 // TODO: support editing register values

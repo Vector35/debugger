@@ -354,8 +354,8 @@ void DebugStackItemDelegate::setEditorData(QWidget *editor, const QModelIndex &i
 }
 
 
-DebugStackWidget::DebugStackWidget(ViewFrame* view, const QString& name, BinaryViewRef data):
-    QWidget(view), DockContextHandler(this, name), m_view(view), m_data(data)
+DebugStackWidget::DebugStackWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
+    SidebarWidget(name), m_view(view), m_data(data)
 {
     m_table = new QTableView(this);
     m_model = new DebugStackListModel(m_table, data, view);
