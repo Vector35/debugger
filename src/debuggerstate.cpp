@@ -537,6 +537,7 @@ void DebuggerState::Exec()
             return;
         }
         m_connectionStatus = DebugAdapterConnectedStatus;
+        m_targetStatus = DebugAdapterRunningStatus;
     }
 
     // std::string currentModule = ResolveTargetBase();
@@ -566,6 +567,7 @@ void DebuggerState::Attach()
             return;
         }
         m_connectionStatus = DebugAdapterConnectedStatus;
+        m_targetStatus = DebugAdapterRunningStatus;
     }
 
     // std::string currentModule = ResolveTargetBase();
@@ -584,6 +586,7 @@ void DebuggerState::Detach()
         m_adapter = nullptr;
         m_remoteArch = nullptr;
     }
+    m_connectionStatus = DebugAdapterNotConnectedStatus;
     MarkDirty();
 }
 
@@ -1053,12 +1056,12 @@ bool DebuggerState::SetActiveThread(const DebugThread& thread)
 
 void DebuggerState::OnStep()
 {
-    if (!m_ui)
-        return;
-
     // Cached registers, threads, and modules must be updated explicitly
     if (IsConnected())
         UpdateCaches();
+
+    if (!m_ui)
+        return;
 
     m_ui->OnStep();
 }

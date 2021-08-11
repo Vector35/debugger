@@ -198,7 +198,7 @@ void DebugControlsWidget::performDetach()
 {
     m_state->Detach();
     stateInactive();
-    m_state->OnStep(); 
+    m_state->OnStep();
 }
 
 
@@ -207,7 +207,8 @@ void DebugControlsWidget::performSettings()
     AdapterSettingsDialog* dialog = new AdapterSettingsDialog(this, m_data);
     dialog->show();
     QObject::connect(dialog, &QDialog::finished, [this](){
-        stateInactive();
+        if (!m_state->IsConnected())
+            stateInactive();
     });
 }
 
