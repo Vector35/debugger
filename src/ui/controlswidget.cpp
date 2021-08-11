@@ -14,9 +14,6 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
     DebuggerState* state):
     QToolBar(parent), m_name(name), m_data(data), m_state(state)
 {
-//    setStyleSheet(QString::fromStdString("QToolButton{padding: 4px 14px 4px 14px; font-size: 14pt;} "
-//		"QToolButton:disabled{color: palette(alternate-base)}"));
-    
     m_actionRun = addAction(QIcon(":/icons/images/debugger/run.svg"), "Run",
                         [this](){ performRun(); });
     m_actionRestart = addAction(QIcon(":/icons/images/debugger/restart.svg"), "Restart",
