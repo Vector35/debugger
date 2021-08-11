@@ -24,10 +24,8 @@ class DebugControlsWidget: public QToolBar
         DebugControlSettingsAction,
         DebugControlPauseAction,
         DebugControlResumeAction,
-        DebugControlStepIntoAsmAction,
-        DebugControlStepIntoILAction,
-        DebugControlStepOverAsmAction,
-        DebugControlStepOverILAction,
+        DebugControlStepIntoAction,
+        DebugControlStepOverAction,
         DebugControlStepReturnAction,
     };
 
@@ -44,27 +42,10 @@ private:
     QAction* m_actionSettings;
     QAction* m_actionPause;
     QAction* m_actionResume;
-    QAction* m_actionStepIntoAsm;
-    QAction* m_actionStepIntoIL;
-    QAction* m_actionStepOverAsm;
-    QAction* m_actionStepOverIL;
+    QAction* m_actionStepInto;
+    QAction* m_actionStepOver;
     QAction* m_actionStepReturn;
 
-    QMenu* m_controlMenu;
-    QMenu* m_stepIntoMenu;
-    QMenu* m_stepOverMenu;
-    QMenu* m_threadMenu;
-
-    QToolButton* m_btnControl;
-    QToolButton* m_btnPauseResume;
-    QToolButton* m_btnStepInto;
-    QToolButton* m_btnStepOver;
-    QToolButton* m_btnStepReturn;
-    QToolButton* m_btnThreads;
-
-    QLineEdit* m_editStatus;
-
-    QIcon loadIcon(const std::string name);
     bool canExec();
     bool canConnect();
 
@@ -79,9 +60,6 @@ public:
     void setStoppingEnabled(bool enabled);
     void setSteppingEnabled(bool enabled);
 
-    void setDefaultProcessAction(DebugControlAction action);
-    void setPauseOrResume(DebugControlAction action);
-
     void stateStarting(const std::string& msg = "");
     void stateInactive(const std::string& msg = "");
     void stateStopped(const std::string& msg = "");
@@ -89,9 +67,6 @@ public:
     void stateRunning(const std::string& msg = "");
     void stateBusy(const std::string& msg = "");
     void stateError(const std::string& msg = "");
-
-    void clearThreadList();
-    void setThreadList(std::vector<DebuggerThreadCache> threads);
 
     void handleStopReturn();
 
@@ -106,9 +81,7 @@ public Q_SLOTS:
     void performSettings();
     void performPause();
     void performResume();
-    void performStepIntoAsm();
-    void performStepIntoIL();
-    void performStepOverAsm();
-    void performStepOverIL();
+    void performStepInto();
+    void performStepOver();
     void performStepReturn();
 };
