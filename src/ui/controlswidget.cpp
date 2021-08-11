@@ -260,20 +260,20 @@ void DebugControlsWidget::performStepInto()
 
 void DebugControlsWidget::performStepOver()
 {
-    auto performStepOverAsmAfter = [&](){
+    auto performStepOverAfter = [&](){
         handleStopReturn();
         m_state->OnStep();
     };
 
-    auto performStepOverAsmThread = [=](){
+    auto performStepOverThread = [=](){
         DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
         BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
         m_state->StepOver(graphType);
-        ExecuteOnMainThreadAndWait(performStepOverAsmAfter);
+        ExecuteOnMainThreadAndWait(performStepOverAfter);
     };
 
     stateBusy("STEPPING");
-    std::thread t(performStepOverAsmThread);
+    std::thread t(performStepOverThread);
     t.detach();
 }
 

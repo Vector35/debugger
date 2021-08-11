@@ -647,6 +647,7 @@ void DebuggerState::StepInto(BNFunctionGraphType il)
         }
 
         MarkDirty();
+        break;
     }
     case LowLevelILFunctionGraph:
     {
