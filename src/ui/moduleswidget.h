@@ -84,10 +84,9 @@ public:
 };
 
 
-class DebugModulesWidget: public QWidget, public DockContextHandler
+class DebugModulesWidget: public SidebarWidget
 {
     Q_OBJECT
-    Q_INTERFACES(DockContextHandler)
 
     ViewFrame* m_view;
     BinaryViewRef m_data;
@@ -102,7 +101,19 @@ class DebugModulesWidget: public QWidget, public DockContextHandler
 
 
 public:
-    DebugModulesWidget(ViewFrame* view, const QString& name, BinaryViewRef data);
+    DebugModulesWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
 
     void notifyModulesChanged(std::vector<DebugModule> modules);
+};
+
+
+class DebugModulesWidgetType : public SidebarWidgetType {
+public:
+    DebugModulesWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
+
+    bool isInReferenceArea() const override { return false; }
+
+    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
+        return new DebugModulesWidget("Native Debugger Modules", frame, data);
+    }
 };

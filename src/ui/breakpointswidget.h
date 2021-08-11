@@ -82,10 +82,9 @@ public:
 };
 
 
-class DebugBreakpointsWidget : public QWidget, public DockContextHandler
+class DebugBreakpointsWidget : public SidebarWidget
 {
     Q_OBJECT
-    Q_INTERFACES(DockContextHandler)
 
     ViewFrame* m_view;
     BinaryViewRef m_data;
@@ -100,7 +99,19 @@ class DebugBreakpointsWidget : public QWidget, public DockContextHandler
 
 
 public:
-    DebugBreakpointsWidget(ViewFrame* view, const QString& name, BinaryViewRef data);
+    DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
 
     void notifyBreakpointsChanged(std::vector<BreakpointItem> breakpoints);
+};
+
+
+class DebugBreakpointsWidgetType : public SidebarWidgetType {
+public:
+    DebugBreakpointsWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
+
+    bool isInReferenceArea() const override { return false; }
+
+    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
+        return new DebugBreakpointsWidget("Native Debugger Breakpoints", frame, data);
+    }
 };

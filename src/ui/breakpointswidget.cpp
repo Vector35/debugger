@@ -187,8 +187,8 @@ void DebugBreakpointsItemDelegate::updateFonts()
 }
 
 
-DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, const QString& name, BinaryViewRef data):
-    QWidget(view), DockContextHandler(this, name), m_view(view), m_data(data)
+DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
+    SidebarWidget(name), m_view(view), m_data(data)
 {
     m_table = new QTableView(this);
     m_model = new DebugBreakpointsListModel(m_table, data, view);

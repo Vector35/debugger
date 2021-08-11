@@ -228,8 +228,8 @@ QSize DebugModulesItemDelegate::sizeHint(const QStyleOptionViewItem& option, con
 }
 
 
-DebugModulesWidget::DebugModulesWidget(ViewFrame* view, const QString& name, BinaryViewRef data):
-    QWidget(view), DockContextHandler(this, name), m_view(view), m_data(data)
+DebugModulesWidget::DebugModulesWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
+    SidebarWidget(name), m_view(view), m_data(data)
 {
     m_table = new QTableView(this);
     m_model = new DebugModulesListModel(m_table, data, view);

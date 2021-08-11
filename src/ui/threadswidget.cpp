@@ -198,8 +198,8 @@ QSize DebugThreadsItemDelegate::sizeHint(const QStyleOptionViewItem& option, con
 }
 
 
-DebugThreadsWidget::DebugThreadsWidget(ViewFrame* view, const QString& name, BinaryViewRef data):
-    QWidget(view), DockContextHandler(this, name), m_view(view), m_data(data)
+DebugThreadsWidget::DebugThreadsWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
+    SidebarWidget(name), m_view(view), m_data(data)
 {
     m_table = new QTableView(this);
     m_model = new DebugThreadsListModel(m_table, data, view);

@@ -56,12 +56,14 @@ void DebuggerUI::ContextDisplay()
     // TODO: lots of code above this are not implemennted yet
 
     DebugRegistersWidget* registersWidget{nullptr};
-    DebugModulesWidget* modulesWidget = dynamic_cast<DebugModulesWidget*>(widget("Native Debugger Modules"));
-    DebugThreadsWidget* threadsWidget = dynamic_cast<DebugThreadsWidget*>(widget("Native Debugger Threads"));
+    DebugModulesWidget* modulesWidget{nullptr};
+    DebugThreadsWidget* threadsWidget{nullptr};
     DebugStackWidget* stackWidget{nullptr};
 
     if (auto frame = ViewFrame::viewFrameForWidget(m_debugView)) {
         registersWidget = frame->getSidebarWidget<DebugRegistersWidget>("Native Debugger Registers");
+        modulesWidget = frame->getSidebarWidget<DebugModulesWidget>("Native Debugger Modules");
+        threadsWidget = frame->getSidebarWidget<DebugThreadsWidget>("Native Debugger Threads");
         stackWidget = frame->getSidebarWidget<DebugStackWidget>("Native Debugger Stack");
     }
 
@@ -73,11 +75,7 @@ void DebuggerUI::ContextDisplay()
         if (modulesWidget)
             modulesWidget->notifyModulesChanged({});
         if (threadsWidget)
-        {
             threadsWidget->notifyThreadsChanged({});
-            if (m_debugView)
-                m_debugView->getControls()->setThreadList({});
-        }
         if (stackWidget)
             stackWidget->notifyStackChanged({});
         return;
@@ -99,8 +97,6 @@ void DebuggerUI::ContextDisplay()
     {
         std::vector<DebuggerThreadCache> threads = m_state->GetThreads()->GetAllThreads();
         threadsWidget->notifyThreadsChanged(threads);
-        if (m_debugView)
-            m_debugView->getControls()->setThreadList(threads);
     }
 
     if (stackWidget)
@@ -306,11 +302,12 @@ void DebuggerUI::UpdateBreakpoints()
         bps.emplace_back(enabled, address, remoteAddress);
     }
 
-    DebugBreakpointsWidget* bpWidget = dynamic_cast<DebugBreakpointsWidget*>(widget("Native Debugger Breakpoints"));
-    if (bpWidget)
-        bpWidget->notifyBreakpointsChanged(bps);
-    else
-        LogWarn("Cannot find the breakpoint widget");
+    if (auto frame = ViewFrame::viewFrameForWidget(m_debugView))
+    {
+        DebugBreakpointsWidget* bpWidget = frame->getSidebarWidget<DebugBreakpointsWidget>("Native Debugger Breakpoints");
+        if (bpWidget)
+            bpWidget->notifyBreakpointsChanged(bps);
+    }
 
     if (m_debugView)
         m_debugView->refreshRawDisassembly();
@@ -453,12 +450,6 @@ static bool StepToHereValid(BinaryView* view, uint64_t addr)
 
 void DebuggerUI::InitializeUI()
 {
-    Widget::registerDockWidget(
-        [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
-            return new DebugBreakpointsWidget(parent, name, data);
-        },
-        "Native Debugger Breakpoints", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
-
     auto create_icon_with_letter = [](const QString& letter) {
         auto icon = QImage(56, 56, QImage::Format_RGB32);
         icon.fill(0);
@@ -472,22 +463,19 @@ void DebuggerUI::InitializeUI()
     };
 
     Sidebar::addSidebarWidgetType(
+            new DebugBreakpointsWidgetType(create_icon_with_letter("B"), "Native Debugger Breakpoints"));
+
+    Sidebar::addSidebarWidgetType(
             new DebugRegistersWidgetType(create_icon_with_letter("R"), "Native Debugger Registers"));
 
     Sidebar::addSidebarWidgetType(
+            new DebugModulesWidgetType(create_icon_with_letter("M"), "Native Debugger Modules"));
+
+    Sidebar::addSidebarWidgetType(
+            new DebugThreadsWidgetType(create_icon_with_letter("T"), "Native Debugger Threads"));
+
+    Sidebar::addSidebarWidgetType(
             new DebugStackWidgetType(create_icon_with_letter("S"), "Native Debugger Stack"));
-
-    Widget::registerDockWidget(
-        [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
-            return new DebugModulesWidget(parent, name, data);
-        },
-        "Native Debugger Modules", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
-
-    Widget::registerDockWidget(
-        [&](ViewFrame* parent, const QString& name, BinaryViewRef data) -> QWidget* {
-            return new DebugThreadsWidget(parent, name, data);
-        },
-        "Native Debugger Threads", Qt::BottomDockWidgetArea, Qt::Horizontal, false);
 
     PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
             "sets/clears breakpoint at right-clicked address",

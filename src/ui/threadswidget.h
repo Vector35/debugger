@@ -78,10 +78,9 @@ public:
 };
 
 
-class DebugThreadsWidget: public QWidget, public DockContextHandler
+class DebugThreadsWidget: public SidebarWidget
 {
     Q_OBJECT
-    Q_INTERFACES(DockContextHandler)
 
     ViewFrame* m_view;
     BinaryViewRef m_data;
@@ -96,7 +95,19 @@ class DebugThreadsWidget: public QWidget, public DockContextHandler
 
 
 public:
-    DebugThreadsWidget(ViewFrame* view, const QString& name, BinaryViewRef data);
+    DebugThreadsWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
 
     void notifyThreadsChanged(std::vector<DebuggerThreadCache> threads);
+};
+
+
+class DebugThreadsWidgetType : public SidebarWidgetType {
+public:
+    DebugThreadsWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
+
+    bool isInReferenceArea() const override { return false; }
+
+    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
+        return new DebugThreadsWidget("Native Debugger Threads", frame, data);
+    }
 };
