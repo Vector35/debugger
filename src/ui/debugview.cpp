@@ -76,6 +76,10 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_disassemblyWidget->setLayout(m_disassemblyLayout);
 
     m_memoryTabs = new QTabWidget(this);
+    m_memoryTabs->setMovable(true);
+    m_memoryTabs->setTabsClosable(true);
+    connect(m_memoryTabs, &QTabWidget::tabCloseRequested, [&](int i){ m_memoryTabs->removeTab(i); });
+
     for (size_t i = 0; i < m_numMemoryTabs; i++)
     {
         LinearView* memoryEditor = new LinearView(memoryView, frame);
