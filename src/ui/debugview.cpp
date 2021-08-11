@@ -7,6 +7,7 @@
 #include "debugview.h"
 #include "ui.h"
 #include "binaryninjaapi.h"
+#include "hexeditor.h"
 
 using namespace BinaryNinja;
 
@@ -81,6 +82,12 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
         m_memoryTabs->addTab(memoryEditor, QString::asprintf("Memory %ld", i));
     }
 
+    HexEditor* hexEditor = new HexEditor(memoryView, frame);
+    m_memoryTabs->addTab(hexEditor, "Hex");
+    m_oldFileLockStatus = frame->areFileContentsLocked(false);
+    if (m_oldFileLockStatus)
+        frame->setFileContentsLocked(false);
+
     m_splitter->addWidget(m_binaryViewWidget);
     m_splitter->addWidget(m_memoryTabs);
     m_splitter->setSizes(QList<int>(2, 0x7fffffff));
@@ -130,6 +137,17 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
             m_state->GetDebuggerUI()->UpdateBreakpoints();
         }
     }
+}
+
+
+DebugView::~DebugView()
+{
+//    This does not work, the DebugView is not destructed immediately after the user switches to a different tab
+//    ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+//    if (!frame)
+//        return;
+//
+//    frame->setFileContentsLocked(m_oldFileLockStatus);
 }
 
 

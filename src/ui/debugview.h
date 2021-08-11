@@ -77,9 +77,11 @@ class DebugView: public QWidget, public View
 
     QLabel* m_debuggerStatus;
 
+    bool m_oldFileLockStatus;
+
 public:
 	DebugView(QWidget* parent, BinaryViewRef data);
-    virtual ~DebugView() {}
+    virtual ~DebugView();
 
 	virtual BinaryViewRef getData() override;
 	virtual uint64_t getCurrentOffset() override;
