@@ -198,10 +198,9 @@ public:
     void Detach();
     void Pause();
     void Go();
-    void StepIntoAsm();
-    void StepIntoIL(BNFunctionGraphType il);
-    void StepOverAsm();
-    void StepOverIL(BNFunctionGraphType il);
+    void StepInto(BNFunctionGraphType il = NormalFunctionGraph);
+    void StepOver(BNFunctionGraphType il = NormalFunctionGraph);
+    void StepOverInternal();
     void StepReturn();
     void StepTo(std::vector<uint64_t> remoteAddresses);
 

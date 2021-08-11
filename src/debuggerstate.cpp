@@ -624,42 +624,36 @@ void DebuggerState::Go()
 }
 
 
-void DebuggerState::StepIntoAsm()
-{
-    if (!IsConnected())
-        throw ConnectionRefusedError("cannot step into asm when disconnected");
-
-    fmt::print("getting IP\n");
-    uint64_t remoteIP = IP();
-    fmt::print("IP : {:#x}\n", remoteIP);
-    if (m_breakpoints->ContainsAbsolute(remoteIP))
-    {
-        m_adapter->RemoveBreakpoint(remoteIP);
-        m_adapter->StepInto();
-        m_adapter->AddBreakpoint(remoteIP);
-    }
-    else
-    {
-        m_adapter->StepInto();
-    }
-
-    MarkDirty();
-}
-
-
-void DebuggerState::StepIntoIL(BNFunctionGraphType il)
+void DebuggerState::StepInto(BNFunctionGraphType il)
 {
     if (!IsConnected())
         throw ConnectionRefusedError("cannot step into il when disconnected");
 
     switch (il)
     {
+    case NormalFunctionGraph:
+    {
+        uint64_t remoteIP = IP();
+        fmt::print("IP : {:#x}\n", remoteIP);
+        if (m_breakpoints->ContainsAbsolute(remoteIP))
+        {
+            m_adapter->RemoveBreakpoint(remoteIP);
+            m_adapter->StepInto();
+            m_adapter->AddBreakpoint(remoteIP);
+        }
+        else
+        {
+            m_adapter->StepInto();
+        }
+
+        MarkDirty();
+    }
     case LowLevelILFunctionGraph:
     {
         // TODO: This might cause infinite loop
         while (true)
         {
-            StepIntoAsm();
+            StepInto(NormalFunctionGraph);
             // We must do the udpate here, otherwise the ip will not change
             m_registers->Update();
             uint64_t newRemoteRip = IP();
@@ -690,7 +684,7 @@ void DebuggerState::StepIntoIL(BNFunctionGraphType il)
         // TODO: This might cause infinite loop
         while (true)
         {
-            StepIntoAsm();
+            StepInto(NormalFunctionGraph);
             m_registers->Update();
             uint64_t newRemoteRip = IP();
             uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
@@ -720,7 +714,7 @@ void DebuggerState::StepIntoIL(BNFunctionGraphType il)
         // TODO: This might cause infinite loop
         while (true)
         {
-            StepIntoAsm();
+            StepInto(NormalFunctionGraph);
             m_registers->Update();
             uint64_t newRemoteRip = IP();
             uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
@@ -751,7 +745,7 @@ void DebuggerState::StepIntoIL(BNFunctionGraphType il)
 }
 
 
-void DebuggerState::StepOverAsm()
+void DebuggerState::StepOverInternal()
 {
     if (!IsConnected())
         throw ConnectionRefusedError("cannot step over asm when disconnected");
@@ -780,7 +774,7 @@ void DebuggerState::StepOverAsm()
     const auto& instr = (*ilFunc)[0];
     if (instr.operation != LLIL_CALL)
     {
-        StepIntoAsm();
+        StepInto(NormalFunctionGraph);
     }
     else
     {
@@ -789,13 +783,13 @@ void DebuggerState::StepOverAsm()
         {
             // Whenever there is a failure, we fail back to step into
             // TODO: decide if there is another better options
-            StepIntoAsm();
+            StepInto(NormalFunctionGraph);
             return;
         }
 
         if (info.length == 0)
         {
-            StepIntoAsm();
+            StepInto(NormalFunctionGraph);
             return;
         }
 
@@ -807,19 +801,24 @@ void DebuggerState::StepOverAsm()
 }
 
 
-void DebuggerState::StepOverIL(BNFunctionGraphType il)
+void DebuggerState::StepOver(BNFunctionGraphType il)
 {
     if (!IsConnected())
         throw ConnectionRefusedError("cannot step over il when disconnected");
 
     switch (il)
     {
+    case NormalFunctionGraph:
+    {
+        StepOverInternal();
+        break;
+    }
     case LowLevelILFunctionGraph:
     {
         // TODO: This might cause infinite loop
         while (true)
         {
-            StepOverAsm();
+            StepOverInternal();
             // We must do the udpate here, otherwise the ip will not change
             m_registers->Update();
             uint64_t newRemoteRip = IP();
@@ -850,7 +849,7 @@ void DebuggerState::StepOverIL(BNFunctionGraphType il)
         // TODO: This might cause infinite loop
         while (true)
         {
-            StepOverAsm();
+            StepOverInternal();
             m_registers->Update();
             uint64_t newRemoteRip = IP();
             uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
@@ -880,7 +879,7 @@ void DebuggerState::StepOverIL(BNFunctionGraphType il)
         // TODO: This might cause infinite loop
         while (true)
         {
-            StepOverAsm();
+            StepOverInternal();
             m_registers->Update();
             uint64_t newRemoteRip = IP();
             uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);

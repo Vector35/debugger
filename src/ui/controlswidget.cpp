@@ -240,40 +240,22 @@ void DebugControlsWidget::performResume()
 
 void DebugControlsWidget::performStepInto()
 {
-    auto performStepIntoAsmAfter = [&](){
+    auto performStepIntoAfter = [&](){
         handleStopReturn();
         m_state->OnStep();
     };
 
-    auto performStepIntoAsmThread = [=](){
-        m_state->StepIntoAsm();
-        ExecuteOnMainThreadAndWait(performStepIntoAsmAfter);
+    auto performStepIntoThread = [=](){
+        DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
+        BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
+        m_state->StepInto(graphType);
+        ExecuteOnMainThreadAndWait(performStepIntoAfter);
     };
 
     stateBusy("STEPPING");
-    std::thread t(performStepIntoAsmThread);
+    std::thread t(performStepIntoThread);
     t.detach();
 }
-
-
-//void DebugControlsWidget::performStepIntoIL()
-//{
-//    auto performStepIntoILAfter = [&](){
-//        handleStopReturn();
-//        m_state->OnStep();
-//    };
-//
-//    auto performStepIntoILThread = [=](){
-//        DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
-//        BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
-//        m_state->StepIntoIL(graphType);
-//        ExecuteOnMainThreadAndWait(performStepIntoILAfter);
-//    };
-//
-//    stateBusy("STEPPING");
-//    std::thread t(performStepIntoILThread);
-//    t.detach();
-//}
 
 
 void DebugControlsWidget::performStepOver()
@@ -284,7 +266,9 @@ void DebugControlsWidget::performStepOver()
     };
 
     auto performStepOverAsmThread = [=](){
-        m_state->StepOverAsm();
+        DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
+        BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
+        m_state->StepOver(graphType);
         ExecuteOnMainThreadAndWait(performStepOverAsmAfter);
     };
 
@@ -292,26 +276,6 @@ void DebugControlsWidget::performStepOver()
     std::thread t(performStepOverAsmThread);
     t.detach();
 }
-
-//
-//void DebugControlsWidget::performStepOverIL()
-//{
-//    auto performStepOverILAfter = [&](){
-//        handleStopReturn();
-//        m_state->OnStep();
-//    };
-//
-//    auto performStepOverILThread = [=](){
-//        DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
-//        BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
-//        m_state->StepIntoIL(graphType);
-//        ExecuteOnMainThreadAndWait(performStepOverILAfter);
-//    };
-//
-//    stateBusy("STEPPING");
-//    std::thread t(performStepOverILThread);
-//    t.detach();
-//}
 
 
 void DebugControlsWidget::performStepReturn()
