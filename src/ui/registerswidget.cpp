@@ -338,8 +338,9 @@ DebugRegistersWidget::DebugRegistersWidget(const QString& name, ViewFrame* view,
     m_delegate = new DebugRegistersItemDelegate(this);
     m_table->setItemDelegate(m_delegate);
 
-    m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
+//    TODO: why do we need ExtendedSelection here?
+//    m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
     m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_table->verticalHeader()->setVisible(false);
