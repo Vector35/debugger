@@ -99,7 +99,7 @@ public:
     uint64_t GetModuleBase(const std::string& name) const;
     DebugModule GetModuleForAddress(uint64_t remoteAddress) const;
     ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t absoluteAddress) const;
-    uint64_t RelativeAddressToAbsolute(ModuleNameAndOffset relativeAddress) const;
+    uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress) const;
 };
 
 
