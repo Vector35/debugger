@@ -103,6 +103,9 @@ class DebugBreakpointsWidget : public SidebarWidget
     // void shouldBeVisible()
     virtual void notifyFontChanged() override;
 
+    virtual void contextMenuEvent(QContextMenuEvent* event) override;
+
+    void showInitialBreakpoints();
 
 public:
     DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
@@ -110,9 +113,8 @@ public:
     void notifyBreakpointsChanged(std::vector<BreakpointItem> breakpoints);
 
 private slots:
-    void customContextMenu(const QPoint& point);
-    void Jump();
-    void Remove();
+    void jump();
+    void remove();
 };
 
 

@@ -197,25 +197,6 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* v
     m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
     m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
-    m_remove_action = new QAction("Remove", this);
-    connect(m_remove_action, &QAction::triggered, this, &DebugBreakpointsWidget::Remove);
-
-    m_jump_action = new QAction("Jump To", this);
-    connect(m_jump_action, &QAction::triggered, this, &DebugBreakpointsWidget::Jump);
-
-    m_table->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_table, &QTableView::customContextMenuRequested, this, &DebugBreakpointsWidget::customContextMenu);
-
-    m_horizontal_header = m_table->horizontalHeader();
-    m_horizontal_header->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_horizontal_header, &QTableView::customContextMenuRequested, this,
-            &DebugBreakpointsWidget::customContextMenu);
-
-    m_vertical_header = m_table->verticalHeader();
-    m_vertical_header->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_vertical_header, &QTableView::customContextMenuRequested, this,
-            &DebugBreakpointsWidget::customContextMenu);
-
     m_delegate = new DebugBreakpointsItemDelegate(this);
     m_table->setItemDelegate(m_delegate);
 
@@ -237,6 +218,22 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* v
     layout->setSpacing(0);
     layout->addWidget(m_table);
     setLayout(layout);
+
+    QString removeBreakpointActionName = QString::fromStdString("Remove Breakpoint");
+    UIAction::registerAction(removeBreakpointActionName, QKeySequence::Delete);
+    m_menu->addAction(removeBreakpointActionName, "Options", MENU_ORDER_NORMAL);
+    m_actionHandler.setActionContext([=]() { return m_view->actionContext(); });
+    m_actionHandler.bindAction(removeBreakpointActionName, UIAction([&](){ remove(); }));
+    m_actionHandler.setActionDisplayName(removeBreakpointActionName, "Remove");
+
+    QString jumpToBreakpointActionName = QString::fromStdString("Jump To Breakpoint");
+    UIAction::registerAction(jumpToBreakpointActionName);
+    m_menu->addAction(jumpToBreakpointActionName, "Options", MENU_ORDER_NORMAL);
+    m_actionHandler.setActionContext([=]() { return m_view->actionContext(); });
+    m_actionHandler.bindAction(jumpToBreakpointActionName, UIAction([&](){ jump(); }));
+    m_actionHandler.setActionDisplayName(jumpToBreakpointActionName, "Jump To");
+
+    showInitialBreakpoints();
 }
 
 
@@ -252,20 +249,44 @@ void DebugBreakpointsWidget::notifyFontChanged()
 }
 
 
-void DebugBreakpointsWidget::customContextMenu(const QPoint& point)
+void DebugBreakpointsWidget::contextMenuEvent(QContextMenuEvent* /*event*/)
 {
-    if (m_table->selectionModel())
-    {
-        this->m_last_selected_point = point;
-        QMenu menu(this);
-        menu.addAction(m_remove_action);
-        menu.addAction(m_jump_action);
-        menu.exec(QCursor::pos());
-    }
+    m_contextMenuManager->show(m_menu, UIActionHandler::actionHandlerFromWidget(this));
 }
 
 
-void DebugBreakpointsWidget::Jump()
+void DebugBreakpointsWidget::showInitialBreakpoints()
+{
+    DebuggerState* state = DebuggerState::GetState(m_data);
+    if (!state)
+        return;
+
+    // This duplicates the code in void DebuggerUI::UpdateBreakpoints(), need refactor
+    std::vector<BreakpointItem> bps;
+    std::vector<DebugBreakpoint> remoteList;
+    if (state->IsConnected())
+        std::vector<DebugBreakpoint> remoteList = state->GetAdapter()->GetBreakpointList();
+
+    for (const ModuleNameAndOffset& address: state->GetBreakpoints()->GetBreakpointList())
+    {
+        uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(address);
+        bool enabled = false;
+        for (const DebugBreakpoint& bp: remoteList)
+        {
+            if (bp.m_address == remoteAddress)
+            {
+                enabled = true;
+                break;
+            }
+        }
+        bps.emplace_back(enabled, address, remoteAddress);
+    }
+
+    notifyBreakpointsChanged(bps);
+}
+
+
+void DebugBreakpointsWidget::jump()
 {
     const auto item_row = this->m_table->indexAt(this->m_last_selected_point).row();
     const auto item = this->m_table->model()->index(item_row, 2);
@@ -295,17 +316,11 @@ void DebugBreakpointsWidget::Jump()
 }
 
 
-void DebugBreakpointsWidget::Remove()
+void DebugBreakpointsWidget::remove()
 {
-    const auto item_row = this->m_table->indexAt(this->m_last_selected_point).row();
-    const auto item = this->m_table->model()->index(item_row, 2);
+    LogWarn("DebugBreakpointsWidget::Remove()");
 
-    auto view = this->m_data.GetPtr();
-    auto address_or_offset = std::stoull(item.data().toString().toLocal8Bit().data(), nullptr, 16);
-    if (!address_or_offset || !view)
-        return;
-
-    DebuggerState* state = DebuggerState::GetState(view);
+    DebuggerState* state = DebuggerState::GetState(m_data);
     if (!state)
         return;
 
@@ -313,25 +328,44 @@ void DebugBreakpointsWidget::Remove()
     if (!breakpoints)
         return;
 
-    const auto is_absolute = state->IsConnected();
-    if (!is_absolute)
-        address_or_offset += view->GetStart();
-
-    const auto filename = view->GetFile()->GetOriginalFilename();
-    const auto breakpoint_offset = ModuleNameAndOffset(filename, address_or_offset - view->GetStart());
-
-    if (breakpoints->ContainsOffset(breakpoint_offset)) {
-        breakpoints->RemoveOffset(breakpoint_offset);
-        for (const auto& func : state->GetData()->GetAnalysisFunctionsContainingAddress(address_or_offset)) {
-            func->SetAutoInstructionHighlight(state->GetData()->GetDefaultArchitecture(), address_or_offset, NoHighlightColor);
-            for (const auto& tag : func->GetAddressTags(state->GetData()->GetDefaultArchitecture(), address_or_offset)) {
-                if (tag->GetType() != state->GetDebuggerUI()->GetBreakpointTagType())
-                    continue;
-
-                func->RemoveUserAddressTag(state->GetData()->GetDefaultArchitecture(), address_or_offset, tag);
-            }
-        }
+    QModelIndexList sel = m_table->selectionModel()->selectedRows();
+    for (const QModelIndex& index: sel)
+    {
+        // Process the selection one by one
+        BreakpointItem bp = m_model->getRow(index.row());
+        state->DeleteBreakpoint(bp.address());
     }
 
-    state->GetDebuggerUI()->UpdateBreakpoints();
+//
+//    const auto item_row = this->m_table->indexAt(this->m_last_selected_point).row();
+//    const auto item = this->m_table->model()->index(item_row, 2);
+//
+//    auto view = this->m_data.GetPtr();
+//    auto address_or_offset = std::stoull(item.data().toString().toLocal8Bit().data(), nullptr, 16);
+//    if (!address_or_offset || !view)
+//        return;
+//
+//
+//
+//    const auto is_absolute = state->IsConnected();
+//    if (!is_absolute)
+//        address_or_offset += view->GetStart();
+//
+//    const auto filename = view->GetFile()->GetOriginalFilename();
+//    const auto breakpoint_offset = ModuleNameAndOffset(filename, address_or_offset - view->GetStart());
+//
+//    if (breakpoints->ContainsOffset(breakpoint_offset)) {
+//        breakpoints->RemoveOffset(breakpoint_offset);
+//        for (const auto& func : state->GetData()->GetAnalysisFunctionsContainingAddress(address_or_offset)) {
+//            func->SetAutoInstructionHighlight(state->GetData()->GetDefaultArchitecture(), address_or_offset, NoHighlightColor);
+//            for (const auto& tag : func->GetAddressTags(state->GetData()->GetDefaultArchitecture(), address_or_offset)) {
+//                if (tag->GetType() != state->GetDebuggerUI()->GetBreakpointTagType())
+//                    continue;
+//
+//                func->RemoveUserAddressTag(state->GetData()->GetDefaultArchitecture(), address_or_offset, tag);
+//            }
+//        }
+//    }
+//
+//    state->GetDebuggerUI()->UpdateBreakpoints();
 }

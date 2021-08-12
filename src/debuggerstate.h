@@ -231,6 +231,14 @@ public:
     void SetRemoteHost(const std::string& host) { m_remoteHost = host; }
     void SetRemotePort(uint32_t port) { m_remotePort = port; }
 
+    // This is the center hub for adding and deleting breakpoints. It is called from DebugView, the CLI, the
+    // DebugBreakpointsWidget, and the planned C++/Python API.
+    // It will communicate with the adapter and add/delete the breakpoint. It will also update the UI if needed.
+    void AddBreakpoint(uint64_t address);
+    void AddBreakpoint(const ModuleNameAndOffset& address);
+    void DeleteBreakpoint(uint64_t address);
+    void DeleteBreakpoint(const ModuleNameAndOffset& address);
+
     uint64_t IP();
     uint64_t LocalIP();
     uint64_t StackPointer();
