@@ -10,8 +10,10 @@
 #include "debugview.h"
 #include "registerswidget.h"
 
-class DebuggerUI
+class DebuggerUI: public QObject
 {
+    Q_OBJECT
+
 private:
     DebuggerState* m_state;
     DebugView* m_debugView;
@@ -47,4 +49,7 @@ public:
     QWidget* widget(const std::string& name);
 
     DebugView* GetDebugView() const { return m_debugView; }
+
+signals:
+    void contextChanged();
 };

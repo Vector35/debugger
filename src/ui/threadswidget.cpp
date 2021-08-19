@@ -199,7 +199,7 @@ QSize DebugThreadsItemDelegate::sizeHint(const QStyleOptionViewItem& option, con
 
 
 DebugThreadsWidget::DebugThreadsWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
-    SidebarWidget(name), m_view(view), m_data(data)
+    m_view(view), m_data(data)
 {
     m_table = new QTableView(this);
     m_model = new DebugThreadsListModel(m_table, data, view);
@@ -235,7 +235,13 @@ void DebugThreadsWidget::notifyThreadsChanged(std::vector<DebuggerThreadCache> t
 }
 
 
-void DebugThreadsWidget::notifyFontChanged()
+//void DebugThreadsWidget::notifyFontChanged()
+//{
+//    m_delegate->updateFonts();
+//}
+
+
+void DebugThreadsWidget::updateContent()
 {
-    m_delegate->updateFonts();
+    LogWarn("DebugThreadsWidget::updateContent()");
 }

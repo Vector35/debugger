@@ -370,7 +370,7 @@ void DebugStackItemDelegate::setEditorData(QWidget *editor, const QModelIndex &i
 
 
 DebugStackWidget::DebugStackWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
-    SidebarWidget(name), m_view(view), m_data(data)
+    m_view(view), m_data(data)
 {
     m_table = new QTableView(this);
     m_model = new DebugStackListModel(m_table, data, view);
@@ -407,7 +407,13 @@ void DebugStackWidget::notifyStackChanged(std::vector<DebugStackItem> stackItems
 }
 
 
-void DebugStackWidget::notifyFontChanged()
+//void DebugStackWidget::notifyFontChanged()
+//{
+//    m_delegate->updateFonts();
+//}
+
+
+void DebugStackWidget::updateContent()
 {
-    m_delegate->updateFonts();
+    LogWarn("DebugStackWidget::updateContent()");
 }

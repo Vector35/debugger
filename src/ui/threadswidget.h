@@ -78,7 +78,7 @@ public:
 };
 
 
-class DebugThreadsWidget: public SidebarWidget
+class DebugThreadsWidget: public QWidget
 {
     Q_OBJECT
 
@@ -91,23 +91,14 @@ class DebugThreadsWidget: public SidebarWidget
     DebugThreadsItemDelegate* m_delegate;
 
     // void shouldBeVisible()
-    virtual void notifyFontChanged() override;
+//    virtual void notifyFontChanged() override;
 
 
 public:
     DebugThreadsWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
 
     void notifyThreadsChanged(std::vector<DebuggerThreadCache> threads);
-};
 
-
-class DebugThreadsWidgetType : public SidebarWidgetType {
-public:
-    DebugThreadsWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
-
-    bool isInReferenceArea() const override { return false; }
-
-    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
-        return new DebugThreadsWidget("Native Debugger Threads", frame, data);
-    }
+public slots:
+    void updateContent();
 };

@@ -5,6 +5,7 @@
 #include "moduleswidget.h"
 #include "threadswidget.h"
 #include "stackwidget.h"
+#include "debuggerwidget.h"
 
 using namespace BinaryNinja;
 
@@ -53,135 +54,136 @@ void DebuggerUI::ContextDisplay()
     // This function assumes all of the cached information, e.g., registers, about the target is up-to-date.
     // It is the caller's responsibility to make sure that they are updated before calling this
 
-    // TODO: lots of code above this are not implemennted yet
+    // This will cause all SideBar widgets to be updated
+    emit contextChanged();
 
-    DebugRegistersWidget* registersWidget{nullptr};
-    DebugModulesWidget* modulesWidget{nullptr};
-    DebugThreadsWidget* threadsWidget{nullptr};
-    DebugStackWidget* stackWidget{nullptr};
-
-    if (auto frame = ViewFrame::viewFrameForWidget(m_debugView)) {
-        registersWidget = frame->getSidebarWidget<DebugRegistersWidget>("Native Debugger Registers");
-        modulesWidget = frame->getSidebarWidget<DebugModulesWidget>("Native Debugger Modules");
-        threadsWidget = frame->getSidebarWidget<DebugThreadsWidget>("Native Debugger Threads");
-        stackWidget = frame->getSidebarWidget<DebugStackWidget>("Native Debugger Stack");
-    }
-
-    if (!m_state->IsConnected())
-    {
-        // TODO: notify widgets with empty data
-        if (registersWidget)
-            registersWidget->notifyRegistersChanged({});
-        if (modulesWidget)
-            modulesWidget->notifyModulesChanged({});
-        if (threadsWidget)
-            threadsWidget->notifyThreadsChanged({});
-        if (stackWidget)
-            stackWidget->notifyStackChanged({});
-        return;
-    }
-
-    if (registersWidget)
-    {
-        std::vector<DebugRegister> registers = m_state->GetRegisters()->GetAllRegisters();
-        registersWidget->notifyRegistersChanged(registers);
-    }
-
-    if (modulesWidget)
-    {
-        std::vector<DebugModule> modules = m_state->GetModules()->GetAllModules();
-        modulesWidget->notifyModulesChanged(modules);
-    }
-
-    if (threadsWidget)
-    {
-        std::vector<DebuggerThreadCache> threads = m_state->GetThreads()->GetAllThreads();
-        threadsWidget->notifyThreadsChanged(threads);
-    }
-
-    if (stackWidget)
-    {
-        std::vector<DebugStackItem> stackItems;
-        BinaryReader* reader = new BinaryReader(m_state->GetMemoryView());
-        uint64_t stackPointer = m_state->StackPointer();
-        size_t addressSize = m_state->GetRemoteArchitecture()->GetAddressSize();
-        for (ptrdiff_t i = -8; i < 60 + 1; i++)
-        {
-            ptrdiff_t offset = i * addressSize;
-            if ((offset < 0) && (stackPointer < (uint64_t)-offset))
-                continue;
-
-            uint64_t address = stackPointer + offset;
-
-            reader->Seek(address);
-
-            uint64_t value = -1ULL;
-
-            try
-            {
-                switch (addressSize)
-                {
-                case 1:
-                    value = reader->Read8();
-                    break;
-                case 2:
-                    value = reader->Read16();
-                    break;
-                case 4:
-                    value = reader->Read32();
-                    break;
-                case 8:
-                    value = reader->Read64();
-                    break;
-                default:
-                    break;
-                }
-            } catch (const std::exception& except)
-            {
-                /* TODO: just ignoring this is probably not a great idea... */
-            }
-
-            std::string hint{};
-            if (auto adapter = this->m_state->GetAdapter()) {
-                const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(value);
-                const auto reg_string = std::string(memory.has_value() ? memory->data() : "x");
-                const auto can_print = std::all_of(reg_string.begin(), reg_string.end(), [](unsigned char c){
-                    return c == '\n' || std::isprint(c);
-                });
-
-                if (!reg_string.empty() && reg_string.size() > 3 && can_print) {
-                    hint = fmt::format("\"{}\"", reg_string);
-                } else {
-                    auto buffer = std::make_unique<char[]>(addressSize);
-                    if (adapter->ReadMemory(value, buffer.get(), addressSize)) {
-                        hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.get()));
-                    }
-                    else {
-                        hint = "";
-                    }
-                }
-            }
-
-            stackItems.emplace_back(offset, address, value, hint);
-        }
-        delete reader;
-
-        stackWidget->notifyStackChanged(stackItems);
-    }
-
-    uint64_t localIP = m_state->LocalIP();
-    BinaryNinja::LogWarn("localIP: 0x%" PRIx64 "\n", localIP);
-
-    UpdateHighlights();
-    m_lastIP = localIP;
-
-    if (m_debugView)
-    {
-        if (!m_state->GetData()->GetAnalysisFunctionsContainingAddress(localIP).empty())
-            m_debugView->getControls()->stateStopped();
-        else
-            m_debugView->getControls()->stateStoppedExtern();
-    }
+//    DebugRegistersWidget* registersWidget{nullptr};
+//    DebugModulesWidget* modulesWidget{nullptr};
+//    DebugThreadsWidget* threadsWidget{nullptr};
+//    DebugStackWidget* stackWidget{nullptr};
+//
+//    if (auto frame = ViewFrame::viewFrameForWidget(m_debugView)) {
+//        registersWidget = frame->getSidebarWidget<DebugRegistersWidget>("Native Debugger Registers");
+//        modulesWidget = frame->getSidebarWidget<DebugModulesWidget>("Native Debugger Modules");
+//        threadsWidget = frame->getSidebarWidget<DebugThreadsWidget>("Native Debugger Threads");
+//        stackWidget = frame->getSidebarWidget<DebugStackWidget>("Native Debugger Stack");
+//    }
+//
+//    if (!m_state->IsConnected())
+//    {
+//        // TODO: notify widgets with empty data
+//        if (registersWidget)
+//            registersWidget->notifyRegistersChanged({});
+//        if (modulesWidget)
+//            modulesWidget->notifyModulesChanged({});
+//        if (threadsWidget)
+//            threadsWidget->notifyThreadsChanged({});
+//        if (stackWidget)
+//            stackWidget->notifyStackChanged({});
+//        return;
+//    }
+//
+//    if (registersWidget)
+//    {
+//        std::vector<DebugRegister> registers = m_state->GetRegisters()->GetAllRegisters();
+//        registersWidget->notifyRegistersChanged(registers);
+//    }
+//
+//    if (modulesWidget)
+//    {
+//        std::vector<DebugModule> modules = m_state->GetModules()->GetAllModules();
+//        modulesWidget->notifyModulesChanged(modules);
+//    }
+//
+//    if (threadsWidget)
+//    {
+//        std::vector<DebuggerThreadCache> threads = m_state->GetThreads()->GetAllThreads();
+//        threadsWidget->notifyThreadsChanged(threads);
+//    }
+//
+//    if (stackWidget)
+//    {
+//        std::vector<DebugStackItem> stackItems;
+//        BinaryReader* reader = new BinaryReader(m_state->GetMemoryView());
+//        uint64_t stackPointer = m_state->StackPointer();
+//        size_t addressSize = m_state->GetRemoteArchitecture()->GetAddressSize();
+//        for (ptrdiff_t i = -8; i < 60 + 1; i++)
+//        {
+//            ptrdiff_t offset = i * addressSize;
+//            if ((offset < 0) && (stackPointer < (uint64_t)-offset))
+//                continue;
+//
+//            uint64_t address = stackPointer + offset;
+//
+//            reader->Seek(address);
+//
+//            uint64_t value = -1ULL;
+//
+//            try
+//            {
+//                switch (addressSize)
+//                {
+//                case 1:
+//                    value = reader->Read8();
+//                    break;
+//                case 2:
+//                    value = reader->Read16();
+//                    break;
+//                case 4:
+//                    value = reader->Read32();
+//                    break;
+//                case 8:
+//                    value = reader->Read64();
+//                    break;
+//                default:
+//                    break;
+//                }
+//            } catch (const std::exception& except)
+//            {
+//                /* TODO: just ignoring this is probably not a great idea... */
+//            }
+//
+//            std::string hint{};
+//            if (auto adapter = this->m_state->GetAdapter()) {
+//                const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(value);
+//                const auto reg_string = std::string(memory.has_value() ? memory->data() : "x");
+//                const auto can_print = std::all_of(reg_string.begin(), reg_string.end(), [](unsigned char c){
+//                    return c == '\n' || std::isprint(c);
+//                });
+//
+//                if (!reg_string.empty() && reg_string.size() > 3 && can_print) {
+//                    hint = fmt::format("\"{}\"", reg_string);
+//                } else {
+//                    auto buffer = std::make_unique<char[]>(addressSize);
+//                    if (adapter->ReadMemory(value, buffer.get(), addressSize)) {
+//                        hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.get()));
+//                    }
+//                    else {
+//                        hint = "";
+//                    }
+//                }
+//            }
+//
+//            stackItems.emplace_back(offset, address, value, hint);
+//        }
+//        delete reader;
+//
+//        stackWidget->notifyStackChanged(stackItems);
+//    }
+//
+//    uint64_t localIP = m_state->LocalIP();
+//    BinaryNinja::LogWarn("localIP: 0x%" PRIx64 "\n", localIP);
+//
+//    UpdateHighlights();
+//    m_lastIP = localIP;
+//
+//    if (m_debugView)
+//    {
+//        if (!m_state->GetData()->GetAnalysisFunctionsContainingAddress(localIP).empty())
+//            m_debugView->getControls()->stateStopped();
+//        else
+//            m_debugView->getControls()->stateStoppedExtern();
+//    }
 }
 
 
@@ -303,33 +305,33 @@ void DebuggerUI::UpdateModules()
 
 void DebuggerUI::UpdateBreakpoints()
 {
-    std::vector<BreakpointItem> bps;
-    std::vector<DebugBreakpoint> remoteList;
-    if (m_state->IsConnected())
-        std::vector<DebugBreakpoint> remoteList = m_state->GetAdapter()->GetBreakpointList();
-
-    for (const ModuleNameAndOffset& address: m_state->GetBreakpoints()->GetBreakpointList())
-    {
-        uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
-        bool enabled = false;
-        for (const DebugBreakpoint& bp: remoteList)
-        {
-            if (bp.m_address == remoteAddress)
-            {
-                enabled = true;
-                break;
-            }
-        }
-        bps.emplace_back(enabled, address, remoteAddress);
-    }
-
-    if (auto frame = ViewFrame::viewFrameForWidget(m_debugView))
-    {
-        DebugBreakpointsWidget* bpWidget = frame->getSidebarWidget<DebugBreakpointsWidget>("Native Debugger Breakpoints");
-        if (bpWidget)
-            bpWidget->notifyBreakpointsChanged(bps);
-    }
-
+//    std::vector<BreakpointItem> bps;
+//    std::vector<DebugBreakpoint> remoteList;
+//    if (m_state->IsConnected())
+//        std::vector<DebugBreakpoint> remoteList = m_state->GetAdapter()->GetBreakpointList();
+//
+//    for (const ModuleNameAndOffset& address: m_state->GetBreakpoints()->GetBreakpointList())
+//    {
+//        uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
+//        bool enabled = false;
+//        for (const DebugBreakpoint& bp: remoteList)
+//        {
+//            if (bp.m_address == remoteAddress)
+//            {
+//                enabled = true;
+//                break;
+//            }
+//        }
+//        bps.emplace_back(enabled, address, remoteAddress);
+//    }
+//
+//    if (auto frame = ViewFrame::viewFrameForWidget(m_debugView))
+//    {
+//        DebugBreakpointsWidget* bpWidget = frame->getSidebarWidget<DebugBreakpointsWidget>("Native Debugger Breakpoints");
+////        if (bpWidget)
+////            bpWidget->notifyBreakpointsChanged(bps);
+//    }
+//
     if (m_debugView)
         m_debugView->refreshRawDisassembly();
 }
@@ -444,7 +446,9 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
     }
     // TODO: this is not the best way to organize the highlight of breakpoints. It only works when the breakpoint is 
     // added through the UI, and when the breakpoint is added through the planned API, the display will be outdated
-    state->GetDebuggerUI()->UpdateBreakpoints();
+//    state->GetDebuggerUI()->UpdateBreakpoints();
+//    if (m_debugView)
+//        m_debugView->refreshRawDisassembly();
 }
 
 
@@ -483,20 +487,23 @@ void DebuggerUI::InitializeUI()
         return icon;
     };
 
+//    Sidebar::addSidebarWidgetType(
+//            new DebugBreakpointsWidgetType(create_icon_with_letter("B"), "Native Debugger Breakpoints"));
+
     Sidebar::addSidebarWidgetType(
-            new DebugBreakpointsWidgetType(create_icon_with_letter("B"), "Native Debugger Breakpoints"));
+        new DebuggerWidgetType(create_icon_with_letter("B"), "Native Debugger"));
 
     Sidebar::addSidebarWidgetType(
             new DebugRegistersWidgetType(create_icon_with_letter("R"), "Native Debugger Registers"));
 
-    Sidebar::addSidebarWidgetType(
-            new DebugModulesWidgetType(create_icon_with_letter("M"), "Native Debugger Modules"));
+//    Sidebar::addSidebarWidgetType(
+//            new DebugModulesWidgetType(create_icon_with_letter("M"), "Native Debugger Modules"));
 
-    Sidebar::addSidebarWidgetType(
-            new DebugThreadsWidgetType(create_icon_with_letter("T"), "Native Debugger Threads"));
-
-    Sidebar::addSidebarWidgetType(
-            new DebugStackWidgetType(create_icon_with_letter("S"), "Native Debugger Stack"));
+//    Sidebar::addSidebarWidgetType(
+//            new DebugThreadsWidgetType(create_icon_with_letter("T"), "Native Debugger Threads"));
+//
+//    Sidebar::addSidebarWidgetType(
+//            new DebugStackWidgetType(create_icon_with_letter("S"), "Native Debugger Stack"));
 
     PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
             "sets/clears breakpoint at right-clicked address",

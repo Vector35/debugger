@@ -82,7 +82,7 @@ public:
 };
 
 
-class DebugBreakpointsWidget : public SidebarWidget
+class DebugBreakpointsWidget : public QWidget
 {
     Q_OBJECT
 
@@ -100,31 +100,23 @@ class DebugBreakpointsWidget : public SidebarWidget
     QAction* m_remove_action;
     QAction* m_jump_action;
 
+    UIActionHandler* m_handler;
+    UIActionHandler m_actionHandler;
+    ContextMenuManager* m_contextMenuManager;
+    Menu* m_menu;
+
     // void shouldBeVisible()
-    virtual void notifyFontChanged() override;
+//    virtual void notifyFontChanged() override;
 
     virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
-    void showInitialBreakpoints();
-
 public:
-    DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
-
-    void notifyBreakpointsChanged(std::vector<BreakpointItem> breakpoints);
+    DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data, Menu* menu);
 
 private slots:
     void jump();
     void remove();
-};
 
-
-class DebugBreakpointsWidgetType : public SidebarWidgetType {
-public:
-    DebugBreakpointsWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
-
-    bool isInReferenceArea() const override { return false; }
-
-    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
-        return new DebugBreakpointsWidget("Native Debugger Breakpoints", frame, data);
-    }
+public slots:
+    void updateContent();
 };

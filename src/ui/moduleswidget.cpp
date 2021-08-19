@@ -269,3 +269,9 @@ void DebugModulesWidget::notifyFontChanged()
 {
     m_delegate->updateFonts();
 }
+
+
+void DebugModulesWidget::updateContent()
+{
+    LogWarn("DebugModulesWidget::updateContent()");
+}

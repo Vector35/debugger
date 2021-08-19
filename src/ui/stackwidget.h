@@ -103,7 +103,7 @@ public:
 };
 
 
-class DebugStackWidget: public SidebarWidget
+class DebugStackWidget: public QWidget
 {
     Q_OBJECT;
 
@@ -117,21 +117,24 @@ class DebugStackWidget: public SidebarWidget
 
     // void shouldBeVisible()
 
-    virtual void notifyFontChanged() override;
+//    virtual void notifyFontChanged() override;
 
 
 public:
     DebugStackWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
     void notifyStackChanged(std::vector<DebugStackItem> stackItems);
+
+public slots:
+    void updateContent();
 };
 
-class DebugStackWidgetType : public SidebarWidgetType {
-public:
-    DebugStackWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
-
-    bool isInReferenceArea() const override { return false; }
-
-    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
-        return new DebugStackWidget("Native Debugger Stack", frame, data);
-    }
-};
+//class DebugStackWidgetType : public SidebarWidgetType {
+//public:
+//    DebugStackWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
+//
+//    bool isInReferenceArea() const override { return false; }
+//
+//    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
+//        return new DebugStackWidget("Native Debugger Stack", frame, data);
+//    }
+//};

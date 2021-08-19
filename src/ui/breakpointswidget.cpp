@@ -188,8 +188,8 @@ void DebugBreakpointsItemDelegate::updateFonts()
 }
 
 
-DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
-    SidebarWidget(name), m_view(view), m_data(data)
+DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data, Menu* menu):
+    m_view(view), m_data(data)
 {
     m_table = new QTableView(this);
     m_model = new DebugBreakpointsListModel(m_table, data, view);
@@ -219,70 +219,36 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* v
     layout->addWidget(m_table);
     setLayout(layout);
 
+    m_actionHandler.setupActionHandler(this);
+    m_contextMenuManager = new ContextMenuManager(this);
+    m_handler = UIActionHandler::actionHandlerFromWidget(this);
+    m_menu = menu;
+    if (m_menu == nullptr)
+        m_menu = new Menu();
+
     QString removeBreakpointActionName = QString::fromStdString("Remove Breakpoint");
     UIAction::registerAction(removeBreakpointActionName, QKeySequence::Delete);
     m_menu->addAction(removeBreakpointActionName, "Options", MENU_ORDER_NORMAL);
-    m_actionHandler.setActionContext([=]() { return m_view->actionContext(); });
-    m_actionHandler.bindAction(removeBreakpointActionName, UIAction([&](){ remove(); }));
-    m_actionHandler.setActionDisplayName(removeBreakpointActionName, "Remove");
+    m_handler->bindAction(removeBreakpointActionName, UIAction([&](){ remove(); }));
 
     QString jumpToBreakpointActionName = QString::fromStdString("Jump To Breakpoint");
     UIAction::registerAction(jumpToBreakpointActionName);
     m_menu->addAction(jumpToBreakpointActionName, "Options", MENU_ORDER_NORMAL);
-    m_actionHandler.setActionContext([=]() { return m_view->actionContext(); });
     m_actionHandler.bindAction(jumpToBreakpointActionName, UIAction([&](){ jump(); }));
-    m_actionHandler.setActionDisplayName(jumpToBreakpointActionName, "Jump To");
 
-    showInitialBreakpoints();
+    updateContent();
 }
 
 
-void DebugBreakpointsWidget::notifyBreakpointsChanged(std::vector<BreakpointItem> breakpoints)
+//void DebugBreakpointsWidget::notifyFontChanged()
+//{
+//    m_delegate->updateFonts();
+//}
+
+
+void DebugBreakpointsWidget::contextMenuEvent(QContextMenuEvent* event)
 {
-    m_model->updateRows(breakpoints);
-}
-
-
-void DebugBreakpointsWidget::notifyFontChanged()
-{
-    m_delegate->updateFonts();
-}
-
-
-void DebugBreakpointsWidget::contextMenuEvent(QContextMenuEvent* /*event*/)
-{
-    m_contextMenuManager->show(m_menu, UIActionHandler::actionHandlerFromWidget(this));
-}
-
-
-void DebugBreakpointsWidget::showInitialBreakpoints()
-{
-    DebuggerState* state = DebuggerState::GetState(m_data);
-    if (!state)
-        return;
-
-    // This duplicates the code in void DebuggerUI::UpdateBreakpoints(), need refactor
-    std::vector<BreakpointItem> bps;
-    std::vector<DebugBreakpoint> remoteList;
-    if (state->IsConnected())
-        std::vector<DebugBreakpoint> remoteList = state->GetAdapter()->GetBreakpointList();
-
-    for (const ModuleNameAndOffset& address: state->GetBreakpoints()->GetBreakpointList())
-    {
-        uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(address);
-        bool enabled = false;
-        for (const DebugBreakpoint& bp: remoteList)
-        {
-            if (bp.m_address == remoteAddress)
-            {
-                enabled = true;
-                break;
-            }
-        }
-        bps.emplace_back(enabled, address, remoteAddress);
-    }
-
-    notifyBreakpointsChanged(bps);
+    m_contextMenuManager->show(m_menu, m_handler);
 }
 
 
@@ -368,4 +334,41 @@ void DebugBreakpointsWidget::remove()
 //    }
 //
 //    state->GetDebuggerUI()->UpdateBreakpoints();
+}
+
+
+void DebugBreakpointsWidget::updateContent()
+{
+    LogWarn("DebugBreakpointsWidget::updateContent()");
+    if (!m_data)
+    {
+        m_model->updateRows({});
+        return;
+    }
+
+    DebuggerState* state = DebuggerState::GetState(m_data);
+    if (!state)
+        return;
+
+    std::vector<BreakpointItem> bps;
+    std::vector<DebugBreakpoint> remoteList;
+    if (state->IsConnected())
+        std::vector<DebugBreakpoint> remoteList = state->GetAdapter()->GetBreakpointList();
+
+    for (const ModuleNameAndOffset& address: state->GetBreakpoints()->GetBreakpointList())
+    {
+        uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(address);
+        bool enabled = false;
+        for (const DebugBreakpoint& bp: remoteList)
+        {
+            if (bp.m_address == remoteAddress)
+            {
+                enabled = true;
+                break;
+            }
+        }
+        bps.emplace_back(enabled, address, remoteAddress);
+    }
+
+    m_model->updateRows(bps);
 }

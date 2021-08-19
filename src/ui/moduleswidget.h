@@ -104,6 +104,9 @@ public:
     DebugModulesWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
 
     void notifyModulesChanged(std::vector<DebugModule> modules);
+
+public slots:
+    void updateContent();
 };
 
 
