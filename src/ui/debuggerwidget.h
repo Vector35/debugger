@@ -17,13 +17,16 @@
 #include "breakpointswidget.h"
 #include "moduleswidget.h"
 #include "threadswidget.h"
+#include "../debuggercontroller.h"
 
+class DebuggerController;
 class DebuggerWidget: public SidebarWidget
 {
     Q_OBJECT;
 
     ViewFrame* m_view;
     BinaryViewRef m_data;
+    DebuggerController* m_controller;
 
     UIActionHandler* M_actionHandler;
     ExpandableGroup *m_breakpointsGroup, *m_stackGroup, *m_threadsGroup, *m_modulesGroup;

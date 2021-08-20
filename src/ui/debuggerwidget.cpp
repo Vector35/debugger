@@ -11,6 +11,8 @@ using namespace std;
 DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
     SidebarWidget(name), m_view(view), m_data(data)
 {
+    m_controller = DebuggerController::GetController(m_data);
+
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
@@ -60,16 +62,15 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
     layout->addWidget(m_splitter);
     setLayout(layout);
 
-    m_state = DebuggerState::GetState(m_data);
-    m_ui = m_state->GetDebuggerUI();
+    m_controller->GetUI()->SetDebuggerSidebar(this);
 
-    connect(m_ui, &DebuggerUI::contextChanged, this, &DebuggerWidget::updateContext);
+    connect(m_controller, &DebuggerController::contextChanged, this, &DebuggerWidget::updateContext);
 }
 
 
 DebuggerWidget::~DebuggerWidget()
 {
-    disconnect(m_ui, &DebuggerUI::contextChanged, 0, 0);
+//    disconnect(m_ui, &DebuggerUI::contextChanged, 0, 0);
 }
 
 

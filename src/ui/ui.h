@@ -7,23 +7,29 @@
 #include <QtWidgets/QLineEdit>
 #include "binaryninjaapi.h"
 #include "uicontext.h"
+#include "../debuggercontroller.h"
 #include "debugview.h"
-#include "registerswidget.h"
+#include "debuggerwidget.h"
 
+class DebuggerController;
+class DebugView;
+
+class DebuggerWidget;
 class DebuggerUI: public QObject
 {
     Q_OBJECT
 
 private:
-    DebuggerState* m_state;
+//    DebuggerState* m_state;
+    DebuggerController* m_controller;
     DebugView* m_debugView;
+    DebuggerWidget* m_sidebar;
     uint64_t m_lastIP;
-    
-    DebugRegistersWidget* m_registersWidget;
+
     TagTypeRef m_breakpointTagType, m_pcTagType;
 
 public:
-    DebuggerUI(DebuggerState* state);
+    DebuggerUI(DebuggerController* controller);
     void OnStep();
 
     void DetectNewCode();
@@ -32,6 +38,7 @@ public:
     void NavigateToIp();
 
     void SetDebugView(DebugView* debugView);
+    void SetDebuggerSidebar(DebuggerWidget* widget);
     void CreateBreakpointTagType();
     void CreateProgramCounterTagType();
 

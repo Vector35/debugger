@@ -460,7 +460,7 @@ DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
     m_threads = new DebuggerThreads(this);
     m_breakpoints = new DebuggerBreakpoints(this);
     m_breakpoints->UnserializedMetadata();
-    m_ui = new DebuggerUI(this);
+//    m_ui = new DebuggerUI(this);
 
     Ref<Metadata> metadata;
     // metadata = m_data->QueryMetadata("native_debugger.command_line_args");

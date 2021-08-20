@@ -8,6 +8,7 @@
 #include "ui.h"
 #include "binaryninjaapi.h"
 #include "hexeditor.h"
+#include "inttypes.h"
 
 using namespace BinaryNinja;
 
@@ -17,8 +18,14 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     setBinaryDataNavigable(true);
 
 	m_data = data;
-    m_state = DebuggerState::GetState(data);
-    m_state->GetDebuggerUI()->SetDebugView(this);
+	m_controller = DebuggerController::GetController(m_data);
+	m_state = m_controller->GetState();
+
+//    m_state = DebuggerState::GetState(data);
+//    m_state->GetDebuggerUI()->SetDebugView(this);
+    m_controller = DebuggerController::GetController(data);
+    m_controller->GetUI()->SetDebugView(this);
+
     m_controls = new DebugControlsWidget(parent, "Controls", data, m_state);
 
     UIContext* context = UIContext::contextForWidget(this);
@@ -136,20 +143,25 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
         view->actionHandler()->bindAction("View in Types View", UIAction());
     }
 
-    // TODO: we should add an option whether to add a breakpoint at program entry
     uint64_t entryPoint = data->GetEntryPoint();
     uint64_t localEntryOffset = entryPoint - data->GetStart();
     ModuleNameAndOffset address(data->GetFile()->GetOriginalFilename(), localEntryOffset);
-    if (!m_state->GetBreakpoints()->ContainsOffset(address))
-    {
-        m_state->GetBreakpoints()->AddOffset(address);
-        LogWarn("added breakpoint at offset 0x%" PRIx64, localEntryOffset);
-        if (m_state->GetDebuggerUI())
-        {
-            m_state->GetDebuggerUI()->AddBreakpointTag(m_state->GetData()->GetEntryPoint());
-            m_state->GetDebuggerUI()->UpdateBreakpoints();
-        }
-    }
+    m_controller->AddBreakpoint(address);
+
+    // TODO: we should add an option whether to add a breakpoint at program entry
+//    uint64_t entryPoint = data->GetEntryPoint();
+//    uint64_t localEntryOffset = entryPoint - data->GetStart();
+//    ModuleNameAndOffset address(data->GetFile()->GetOriginalFilename(), localEntryOffset);
+//    if (!m_state->GetBreakpoints()->ContainsOffset(address))
+//    {
+//        m_state->GetBreakpoints()->AddOffset(address);
+//        LogWarn("added breakpoint at offset 0x%" PRIx64, localEntryOffset);
+//        if (m_state->GetDebuggerUI())
+//        {
+//            m_state->GetDebuggerUI()->AddBreakpointTag(m_state->GetData()->GetEntryPoint());
+//            m_state->GetDebuggerUI()->UpdateBreakpoints();
+//        }
+//    }
 }
 
 

@@ -6,12 +6,13 @@
 #include "threadswidget.h"
 #include "stackwidget.h"
 #include "debuggerwidget.h"
+#include "registerswidget.h"
 
 using namespace BinaryNinja;
 
-DebuggerUI::DebuggerUI(DebuggerState* state): m_state(state)
+DebuggerUI::DebuggerUI(DebuggerController* controller): m_controller(controller)
 {
-    // TODO: The constructor of DebuggerUI does not create the DebugView. Instead, the DebugView is 
+    // TODO: The constructor of DebuggerUI does not create the DebugView. Instead, the DebugView is
     // created by BinaryNinja, and the constructor of DebugView sets itself as the m_debugView of the
     // DebuggerUI. I understand the reason for this implementation, but its realy not a good idea.
     m_debugView = nullptr;
@@ -69,7 +70,7 @@ void DebuggerUI::ContextDisplay()
 //        stackWidget = frame->getSidebarWidget<DebugStackWidget>("Native Debugger Stack");
 //    }
 //
-//    if (!m_state->IsConnected())
+//    if (!m_controller->GetState()->IsConnected())
 //    {
 //        // TODO: notify widgets with empty data
 //        if (registersWidget)
@@ -85,28 +86,28 @@ void DebuggerUI::ContextDisplay()
 //
 //    if (registersWidget)
 //    {
-//        std::vector<DebugRegister> registers = m_state->GetRegisters()->GetAllRegisters();
+//        std::vector<DebugRegister> registers = m_controller->GetState()->GetRegisters()->GetAllRegisters();
 //        registersWidget->notifyRegistersChanged(registers);
 //    }
 //
 //    if (modulesWidget)
 //    {
-//        std::vector<DebugModule> modules = m_state->GetModules()->GetAllModules();
+//        std::vector<DebugModule> modules = m_controller->GetState()->GetModules()->GetAllModules();
 //        modulesWidget->notifyModulesChanged(modules);
 //    }
 //
 //    if (threadsWidget)
 //    {
-//        std::vector<DebuggerThreadCache> threads = m_state->GetThreads()->GetAllThreads();
+//        std::vector<DebuggerThreadCache> threads = m_controller->GetState()->GetThreads()->GetAllThreads();
 //        threadsWidget->notifyThreadsChanged(threads);
 //    }
 //
 //    if (stackWidget)
 //    {
 //        std::vector<DebugStackItem> stackItems;
-//        BinaryReader* reader = new BinaryReader(m_state->GetMemoryView());
-//        uint64_t stackPointer = m_state->StackPointer();
-//        size_t addressSize = m_state->GetRemoteArchitecture()->GetAddressSize();
+//        BinaryReader* reader = new BinaryReader(m_controller->GetState()->GetMemoryView());
+//        uint64_t stackPointer = m_controller->GetState()->StackPointer();
+//        size_t addressSize = m_controller->GetState()->GetRemoteArchitecture()->GetAddressSize();
 //        for (ptrdiff_t i = -8; i < 60 + 1; i++)
 //        {
 //            ptrdiff_t offset = i * addressSize;
@@ -144,7 +145,7 @@ void DebuggerUI::ContextDisplay()
 //            }
 //
 //            std::string hint{};
-//            if (auto adapter = this->m_state->GetAdapter()) {
+//            if (auto adapter = this->m_controller->GetState()->GetAdapter()) {
 //                const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(value);
 //                const auto reg_string = std::string(memory.has_value() ? memory->data() : "x");
 //                const auto can_print = std::all_of(reg_string.begin(), reg_string.end(), [](unsigned char c){
@@ -171,7 +172,7 @@ void DebuggerUI::ContextDisplay()
 //        stackWidget->notifyStackChanged(stackItems);
 //    }
 //
-//    uint64_t localIP = m_state->LocalIP();
+//    uint64_t localIP = m_controller->GetState()->LocalIP();
 //    BinaryNinja::LogWarn("localIP: 0x%" PRIx64 "\n", localIP);
 //
 //    UpdateHighlights();
@@ -179,7 +180,7 @@ void DebuggerUI::ContextDisplay()
 //
 //    if (m_debugView)
 //    {
-//        if (!m_state->GetData()->GetAnalysisFunctionsContainingAddress(localIP).empty())
+//        if (!m_controller->GetState()->GetData()->GetAnalysisFunctionsContainingAddress(localIP).empty())
 //            m_debugView->getControls()->stateStopped();
 //        else
 //            m_debugView->getControls()->stateStoppedExtern();
@@ -193,17 +194,17 @@ void DebuggerUI::NavigateToIp()
         return;
 
     uint64_t ip;
-    if (!m_state->IsConnected())
+    if (!m_controller->GetState()->IsConnected())
     {
-        ip = m_state->GetData()->GetEntryPoint();
+        ip = m_controller->GetState()->GetData()->GetEntryPoint();
     }
     else
     {
-        ip = m_state->IP();
+        ip = m_controller->GetState()->IP();
     }
 
     ViewFrame* frame = ViewFrame::viewFrameForWidget(m_debugView);
-    frame->navigate(m_state->GetData(), ip, true, true);
+    frame->navigate(m_controller->GetState()->GetData(), ip, true, true);
 }
 
 
@@ -213,53 +214,59 @@ void DebuggerUI::SetDebugView(DebugView* debugView)
 }
 
 
+void DebuggerUI::SetDebuggerSidebar(DebuggerWidget* widget)
+{
+    m_sidebar = widget;
+}
+
+
 void DebuggerUI::CreateBreakpointTagType()
 {
-    TagTypeRef type = m_state->GetData()->GetTagType("Breakpoints");
+    TagTypeRef type = m_controller->GetState()->GetData()->GetTagType("Breakpoints");
     if (type)
     {
         m_breakpointTagType = type;
         return;
     }
 
-    m_breakpointTagType = new TagType(m_state->GetData(), "Breakpoints", "🛑");
-    m_state->GetData()->AddTagType(m_breakpointTagType);
+    m_breakpointTagType = new TagType(m_controller->GetState()->GetData(), "Breakpoints", "🛑");
+    m_controller->GetState()->GetData()->AddTagType(m_breakpointTagType);
 }
 
 
 void DebuggerUI::CreateProgramCounterTagType()
 {
-    TagTypeRef type = m_state->GetData()->GetTagType("Program Counter");
+    TagTypeRef type = m_controller->GetState()->GetData()->GetTagType("Program Counter");
     if (type)
     {
         m_pcTagType = type;
         return;
     }
 
-    m_pcTagType = new TagType(m_state->GetData(), "Program Counter", "==>");
-    m_state->GetData()->AddTagType(m_pcTagType);
+    m_pcTagType = new TagType(m_controller->GetState()->GetData(), "Program Counter", "==>");
+    m_controller->GetState()->GetData()->AddTagType(m_pcTagType);
 }
 
 
 void DebuggerUI::UpdateHighlights()
 {
-    for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(m_lastIP))
+    for (FunctionRef func: m_controller->GetState()->GetData()->GetAnalysisFunctionsContainingAddress(m_lastIP))
     {
         ModuleNameAndOffset addr;
-        addr.module = m_state->GetData()->GetFile()->GetOriginalFilename();
-        addr.offset = m_lastIP - m_state->GetData()->GetStart();
-    
+        addr.module = m_controller->GetState()->GetData()->GetFile()->GetOriginalFilename();
+        addr.offset = m_lastIP - m_controller->GetState()->GetData()->GetStart();
+
         BNHighlightStandardColor oldColor = NoHighlightColor;
-        if (m_state->GetBreakpoints()->ContainsOffset(addr))
+        if (m_controller->GetState()->GetBreakpoints()->ContainsOffset(addr))
             oldColor = RedHighlightColor;
 
-        func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), m_lastIP, oldColor);
-        for (TagRef tag: func->GetAddressTags(m_state->GetData()->GetDefaultArchitecture(), m_lastIP))
+        func->SetAutoInstructionHighlight(m_controller->GetState()->GetData()->GetDefaultArchitecture(), m_lastIP, oldColor);
+        for (TagRef tag: func->GetAddressTags(m_controller->GetState()->GetData()->GetDefaultArchitecture(), m_lastIP))
         {
             if (tag->GetType() != m_pcTagType)
                 continue;
 
-            func->RemoveUserAddressTag(m_state->GetData()->GetDefaultArchitecture(), m_lastIP, tag);
+            func->RemoveUserAddressTag(m_controller->GetState()->GetData()->GetDefaultArchitecture(), m_lastIP, tag);
         }
     }
 
@@ -271,26 +278,26 @@ void DebuggerUI::UpdateHighlights()
     // Another concern is when new functions are added during debugging, any breakpoints added beforehand will not be
     // visiable.
 
-    // for (const ModuleNameAndOffset& info: m_state->GetBreakpoints()->GetBreakpointList())
+    // for (const ModuleNameAndOffset& info: m_controller->GetState()->GetBreakpoints()->GetBreakpointList())
     // {
-    //     if (info.module != m_state->GetData()->GetFile()->GetOriginalFilename())
+    //     if (info.module != m_controller->GetState()->GetData()->GetFile()->GetOriginalFilename())
     //         continue;
 
-    //     uint64_t bp = m_state->GetData()->GetStart() + info.offset;
-    //     for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(bp))
+    //     uint64_t bp = m_controller->GetState()->GetData()->GetStart() + info.offset;
+    //     for (FunctionRef func: m_controller->GetState()->GetData()->GetAnalysisFunctionsContainingAddress(bp))
     //     {
-    //         func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), bp, RedHighlightColor);
+    //         func->SetAutoInstructionHighlight(m_controller->GetState()->GetData()->GetDefaultArchitecture(), bp, RedHighlightColor);
     //     }
     // }
 
-    if (m_state->IsConnected())
+    if (m_controller->GetState()->IsConnected())
     {
-        uint64_t localIP = m_state->LocalIP();
-        for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(localIP))
+        uint64_t localIP = m_controller->GetState()->LocalIP();
+        for (FunctionRef func: m_controller->GetState()->GetData()->GetAnalysisFunctionsContainingAddress(localIP))
         {
-            func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(),
+            func->SetAutoInstructionHighlight(m_controller->GetState()->GetData()->GetDefaultArchitecture(),
                     localIP, BlueHighlightColor);
-            func->CreateUserAddressTag(m_state->GetData()->GetDefaultArchitecture(), localIP, m_pcTagType,
+            func->CreateUserAddressTag(m_controller->GetState()->GetData()->GetDefaultArchitecture(), localIP, m_pcTagType,
                     "program counter");
         }
     }
@@ -307,12 +314,12 @@ void DebuggerUI::UpdateBreakpoints()
 {
 //    std::vector<BreakpointItem> bps;
 //    std::vector<DebugBreakpoint> remoteList;
-//    if (m_state->IsConnected())
-//        std::vector<DebugBreakpoint> remoteList = m_state->GetAdapter()->GetBreakpointList();
+//    if (m_controller->GetState()->IsConnected())
+//        std::vector<DebugBreakpoint> remoteList = m_controller->GetState()->GetAdapter()->GetBreakpointList();
 //
-//    for (const ModuleNameAndOffset& address: m_state->GetBreakpoints()->GetBreakpointList())
+//    for (const ModuleNameAndOffset& address: m_controller->GetState()->GetBreakpoints()->GetBreakpointList())
 //    {
-//        uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
+//        uint64_t remoteAddress = m_controller->GetState()->GetModules()->RelativeAddressToAbsolute(address);
 //        bool enabled = false;
 //        for (const DebugBreakpoint& bp: remoteList)
 //        {
@@ -339,13 +346,13 @@ void DebuggerUI::UpdateBreakpoints()
 
 void DebuggerUI::AddBreakpointTag(uint64_t localAddress)
 {
-    for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(localAddress))
+    for (FunctionRef func: m_controller->GetState()->GetData()->GetAnalysisFunctionsContainingAddress(localAddress))
     {
         if (!func)
             continue;
 
         bool tagFound = false;
-        for (TagRef tag: func->GetAddressTags(m_state->GetData()->GetDefaultArchitecture(), localAddress))
+        for (TagRef tag: func->GetAddressTags(m_controller->GetState()->GetData()->GetDefaultArchitecture(), localAddress))
         {
             if (tag->GetType() == m_breakpointTagType)
             {
@@ -356,9 +363,9 @@ void DebuggerUI::AddBreakpointTag(uint64_t localAddress)
 
         if (!tagFound)
         {
-            func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), localAddress,
+            func->SetAutoInstructionHighlight(m_controller->GetState()->GetData()->GetDefaultArchitecture(), localAddress,
                     RedHighlightColor);
-            func->CreateUserAddressTag(m_state->GetData()->GetDefaultArchitecture(), localAddress, m_breakpointTagType,
+            func->CreateUserAddressTag(m_controller->GetState()->GetData()->GetDefaultArchitecture(), localAddress, m_breakpointTagType,
                     "breakpoint");
         }
     }
@@ -373,26 +380,26 @@ void DebuggerUI::DeleteBreakpointTag(std::vector<uint64_t> localAddress)
 {
     if (localAddress.empty())
     {
-        for (const ModuleNameAndOffset& info: m_state->GetBreakpoints()->GetBreakpointList())
+        for (const ModuleNameAndOffset& info: m_controller->GetState()->GetBreakpoints()->GetBreakpointList())
         {
-            if (info.module == m_state->GetData()->GetFile()->GetOriginalFilename())
+            if (info.module == m_controller->GetState()->GetData()->GetFile()->GetOriginalFilename())
             {
-                localAddress.push_back(m_state->GetData()->GetStart() + info.offset);
+                localAddress.push_back(m_controller->GetState()->GetData()->GetStart() + info.offset);
             }
         }
     }
 
     for (uint64_t address: localAddress)
     {
-        for (FunctionRef func: m_state->GetData()->GetAnalysisFunctionsContainingAddress(address))
+        for (FunctionRef func: m_controller->GetState()->GetData()->GetAnalysisFunctionsContainingAddress(address))
         {
-            func->SetAutoInstructionHighlight(m_state->GetData()->GetDefaultArchitecture(), address, NoHighlightColor);
-            for (TagRef tag: func->GetAddressTags(m_state->GetData()->GetDefaultArchitecture(), address))
+            func->SetAutoInstructionHighlight(m_controller->GetState()->GetData()->GetDefaultArchitecture(), address, NoHighlightColor);
+            for (TagRef tag: func->GetAddressTags(m_controller->GetState()->GetData()->GetDefaultArchitecture(), address))
             {
                 if (tag->GetType() != m_breakpointTagType)
                     continue;
 
-                func->RemoveUserAddressTag(m_state->GetData()->GetDefaultArchitecture(), address, tag);
+                func->RemoveUserAddressTag(m_controller->GetState()->GetData()->GetDefaultArchitecture(), address, tag);
             }
         }
     }
@@ -444,7 +451,7 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
             state->GetDebuggerUI()->AddBreakpointTag({addr});
         }
     }
-    // TODO: this is not the best way to organize the highlight of breakpoints. It only works when the breakpoint is 
+    // TODO: this is not the best way to organize the highlight of breakpoints. It only works when the breakpoint is
     // added through the UI, and when the breakpoint is added through the planned API, the display will be outdated
 //    state->GetDebuggerUI()->UpdateBreakpoints();
 //    if (m_debugView)
@@ -518,5 +525,5 @@ void DebuggerUI::InitializeUI()
 
 QWidget* DebuggerUI::widget(const std::string& name)
 {
-    return Widget::getDockWidget(m_state->GetData(), name);
+    return Widget::getDockWidget(m_controller->GetState()->GetData(), name);
 }

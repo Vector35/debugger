@@ -4,7 +4,7 @@
 #include <QtWidgets/QPushButton>
 #include "viewframe.h"
 #include "controlswidget.h"
-#include "../debuggerstate.h"
+#include "../debuggercontroller.h"
 #include "linearview.h"
 #include "disassemblyview.h"
 #include "tokenizedtextview.h"
@@ -38,6 +38,8 @@ public:
 };
 
 
+class DebuggerController;
+
 class DebugView: public QWidget, public View
 {
     Q_OBJECT
@@ -50,6 +52,7 @@ class DebugView: public QWidget, public View
     bool m_isNavigatingHistory;
 
     DebuggerState* m_state;
+    DebuggerController* m_controller;
     DebugControlsWidget* m_controls;
 
     QSplitter* m_splitter;
