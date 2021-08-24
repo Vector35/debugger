@@ -32,7 +32,7 @@ enum DebugAdapterCapacity
 
 
 enum class DebugStopReason {
-    Unknown = 0,
+    UknownReason = 0,
     StdoutMessage,
     ProcessExited,
     BackendDisconnected,
@@ -81,6 +81,36 @@ enum class DebugStopReason {
     ExcRpcAlert,
     ExcCrash,
 };
+
+
+enum DebugAdapterEventType
+{
+    TargetStoppedEventType,
+    ErrorEventType,
+    GeneralEventType
+};
+
+
+struct StoppedEventData
+{
+    DebugStopReason reason;
+    void* data;
+};
+
+
+struct ErrorEventData
+{
+    std::string error;
+    void* data;
+};
+
+
+struct GeneralEventData
+{
+    std::string event;
+    void* data;
+};
+
 
 struct DebugThread
 {
@@ -151,12 +181,12 @@ class DebugAdapter
 {
 private:
     // Function to call when the DebugAdapter wants to notify the front-end of certain events
-    std::function<void(StopReason reason)> m_notificationCallback;
+    std::vector<std::function<void(DebugAdapterEventType event, void* data)>> m_eventCallbacks;
 
 public:
-    void SetNotificationCallback(std::function<void(StopReason reason)> function)
+    void RegisterEventCallback(std::function<void(DebugAdapterEventType event, void* data)> function)
     {
-        m_notificationCallback = function;
+        m_eventCallbacks.push_back(function);
     }
 
     [[nodiscard]] virtual bool Execute(const std::string& path ) = 0;
@@ -225,4 +255,12 @@ public:
     virtual std::uintptr_t GetInstructionOffset() = 0;
 
     virtual bool SupportFeature(DebugAdapterCapacity feature) = 0;
+
+    // These are implemented by the (base) DebugAdapter class.
+    // Sub-classes should use these to communicate changes of the target.
+    void NotifyAdapterEvent(DebugAdapterEventType event, void* data = nullptr);
+
+    void NotifyStopped(DebugStopReason reason, void* data= nullptr);
+    void NotifyError(const std::string& error, void* data = nullptr);
+    void NotifyEvent(const std::string& event, void* data = nullptr);
 };

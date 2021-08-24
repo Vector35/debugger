@@ -1,5 +1,6 @@
 #pragma once
 #include "../debugadapter.h"
+#include "../debugadaptertype.h"
 #include "rspconnector.h"
 #include <map>
 
@@ -91,3 +92,16 @@ public:
 
     bool SupportFeature(DebugAdapterCapacity feature) override;
 };
+
+
+class GdbAdapterType: public DebugAdapterType
+{
+public:
+    GdbAdapterType();
+    virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
+    virtual bool IsValidForData(BinaryNinja::BinaryView* data);
+    virtual bool CanExecute(BinaryNinja::BinaryView* data);
+    virtual bool CanConnect(BinaryNinja::BinaryView* data);
+};
+
+void InitGdbAdapterType();

@@ -7,9 +7,10 @@
 #include <QtWidgets/QLineEdit>
 #include "binaryninjaapi.h"
 #include "uicontext.h"
-#include "../debuggerstate.h"
+//#include "../debuggerstate.h"
 
 class DebuggerState;
+class DebuggerController;
 class DebugControlsWidget: public QToolBar
 {
     Q_OBJECT
@@ -32,7 +33,8 @@ class DebugControlsWidget: public QToolBar
 private:
     std::string m_name;
     BinaryViewRef m_data;
-    DebuggerState* m_state;
+//    DebuggerState* m_state;
+    DebuggerController* m_controller;
 
     QAction* m_actionRun;
     QAction* m_actionRestart;
@@ -50,7 +52,7 @@ private:
     bool canConnect();
 
 public:
-    DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data, DebuggerState* state);
+    DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data);
     virtual ~DebugControlsWidget() {}
 
     void setActionEnabled(DebugControlAction action, bool enabled);

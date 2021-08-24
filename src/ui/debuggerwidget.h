@@ -7,7 +7,6 @@
 #include <QtWidgets/QStyledItemDelegate>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
-#include "dockhandler.h"
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "theme.h"
@@ -17,6 +16,7 @@
 #include "breakpointswidget.h"
 #include "moduleswidget.h"
 #include "threadswidget.h"
+#include "controlswidget.h"
 #include "../debuggercontroller.h"
 
 class DebuggerController;
@@ -32,6 +32,7 @@ class DebuggerWidget: public SidebarWidget
     ExpandableGroup *m_breakpointsGroup, *m_stackGroup, *m_threadsGroup, *m_modulesGroup;
     QSplitter *m_splitter;
 
+    DebugControlsWidget* m_controlsWidget;
     DebugBreakpointsWidget* m_breakpointsWidget;
     DebugModulesWidget* m_modulesWidget;
     DebugThreadsWidget* m_threadsWidget;

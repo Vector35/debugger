@@ -105,3 +105,15 @@ std::string DebugAdapterType::GetName(AdapterType type)
         return "UNKNOWN";
     }
 }
+
+
+DebugAdapterType::DebugAdapterType(const std::string& name): m_name(name)
+{
+
+}
+
+
+void DebugAdapterType::Register(DebugAdapterType *type)
+{
+    m_types.push_back(type);
+}

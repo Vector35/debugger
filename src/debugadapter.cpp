@@ -99,3 +99,42 @@ bool DebugAdapter::StepOut() {
 
     return false;
 }
+
+
+void DebugAdapter::NotifyAdapterEvent(DebugAdapterEventType event, void *data)
+{
+    for (auto callback: m_eventCallbacks)
+    {
+        callback(event, data);
+    }
+}
+
+
+void DebugAdapter::NotifyStopped(DebugStopReason reason, void *data)
+{
+    // TODO: this causes memory leak. But let me make it work first
+    StoppedEventData* eventData = new StoppedEventData;
+    eventData->reason = reason;
+    eventData->data = data;
+    NotifyAdapterEvent(TargetStoppedEventType, eventData);
+}
+
+
+void DebugAdapter::NotifyError(const std::string& error, void *data)
+{
+    // TODO: this causes memory leak. But let me make it work first
+    ErrorEventData* errorData = new ErrorEventData;
+    errorData->error = error;
+    errorData->data = data;
+    NotifyAdapterEvent(ErrorEventType, errorData);
+}
+
+
+void DebugAdapter::NotifyEvent(const std::string& event, void *data)
+{
+    // TODO: this causes memory leak. But let me make it work first
+    GeneralEventData* eventData = new GeneralEventData;
+    eventData->event = event;
+    eventData->data = data;
+    NotifyAdapterEvent(GeneralEventType, eventData);
+}

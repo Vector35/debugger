@@ -21,6 +21,8 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
     m_splitter = new QSplitter(Qt::Vertical, this);
     m_splitter->setChildrenCollapsible(true);
 
+    m_controlsWidget = new DebugControlsWidget(this, "Controls", data);
+
     m_breakpointsWidget = new DebugBreakpointsWidget("Native Debugger Breakpoints",
                                                                            m_view, m_data, m_menu);
 
@@ -54,6 +56,7 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
     m_threadsGroup = new ExpandableGroup(threadsLayout, "Threads");
     m_stackGroup = new ExpandableGroup(stackLayout, "Stack");
 
+    m_splitter->addWidget(m_controlsWidget);
     m_splitter->addWidget(m_breakpointsGroup);
     m_splitter->addWidget(m_modulesGroup);
     m_splitter->addWidget(m_threadsGroup);
@@ -64,7 +67,7 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 
     m_controller->GetUI()->SetDebuggerSidebar(this);
 
-    connect(m_controller, &DebuggerController::contextChanged, this, &DebuggerWidget::updateContext);
+    connect(m_controller, &DebuggerController::cacheUpdated, this, &DebuggerWidget::updateContext);
 }
 
 

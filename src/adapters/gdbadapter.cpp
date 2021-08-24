@@ -167,7 +167,9 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std:
     }
 #endif
 
-    return this->Connect("127.0.0.1", this->m_socket->GetPort());
+    bool ret =  this->Connect("127.0.0.1", this->m_socket->GetPort());
+    NotifyStopped(DebugStopReason::UknownReason);
+    return ret;
 }
 
 bool GdbAdapter::Attach(std::uint32_t pid)
@@ -823,4 +825,42 @@ DebugStopReason GdbAdapter::SignalToStopReason( std::uint64_t signal ) {
     };
 
     return signal_lookup[signal];
+}
+
+
+GdbAdapterType::GdbAdapterType(): DebugAdapterType("Local GDB")
+{
+
+}
+
+
+DebugAdapter* GdbAdapterType::Create(BinaryNinja::BinaryView *data)
+{
+    return new GdbAdapter();
+}
+
+
+bool GdbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
+{
+    return data->GetDefaultArchitecture()->GetName() == "ELF";
+}
+
+
+bool GdbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
+{
+    return true;
+}
+
+
+bool GdbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
+{
+    return true;
+}
+
+
+void InitGdbAdapterType()
+{
+    static GdbAdapterType type;
+    DebugAdapterType::Register(&type);
+//    g_elfViewType = &type;
 }

@@ -173,7 +173,7 @@ std::string DummyAdapter::GetTargetArchitecture()
 
 DebugStopReason DummyAdapter::StopReason()
 {
-    return DebugStopReason::Unknown;
+    return DebugStopReason::UknownReason;
 }
 
 

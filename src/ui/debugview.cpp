@@ -26,8 +26,6 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_controller = DebuggerController::GetController(data);
     m_controller->GetUI()->SetDebugView(this);
 
-    m_controls = new DebugControlsWidget(parent, "Controls", data, m_state);
-
     UIContext* context = UIContext::contextForWidget(this);
     if (context)
     {
@@ -61,9 +59,6 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     m_binaryViewLayout->setSpacing(0);
     m_binaryViewLayout->setContentsMargins(0, 0, 0, 0);
 
-    m_bianryViewLabel = new QLabel("Loaded File");
-    m_bianryViewLabel->setFont(smallFont);
-    m_binaryViewLayout->addWidget(m_bianryViewLabel);
     m_binaryViewLayout->addWidget(m_binaryEditor);
 
     m_binaryViewWidget = new QWidget;
@@ -115,7 +110,6 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     QVBoxLayout* layout = new QVBoxLayout;
     layout->setSpacing(0);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(m_controls);
     layout->addWidget(m_splitter, 100);
     setLayout(layout);
 

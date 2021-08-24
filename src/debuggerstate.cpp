@@ -530,6 +530,7 @@ void DebuggerState::Quit()
 
 void DebuggerState::Exec()
 {
+    LogWarn("DebuggerState::Exec()");
     if (IsConnected() || IsConnecting())
         throw ConnectionRefusedError("Tried to execute, but already debugging");
 
@@ -549,6 +550,8 @@ void DebuggerState::Exec()
     }
 
     m_adapter = DebugAdapterType::GetNewAdapter(m_adapterType);
+
+//    m_adapter->RegisterEventCallback();
     if (DebugAdapterType::UseExec(m_adapterType))
     {
         // TODO: what should I do for QueuedAdapter?

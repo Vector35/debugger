@@ -3,9 +3,14 @@
 #include "ui/debugview.h"
 #include "processview.h"
 #include "ui/ui.h"
-#include "dockhandler.h"
+#include "adapters/gdbadapter.h"
 
 using namespace BinaryNinja;
+
+void InitDebugAdapterTypes()
+{
+    InitGdbAdapterType();
+}
 
 extern "C"
 {
@@ -26,6 +31,7 @@ extern "C"
         if (!IsUIEnabled())
             Log(BNLogLevel::WarningLog, "Headless debugger loaded!" );
 
+        InitDebugAdapterTypes();
         InitDebugMemoryViewType();
         InitDebugProcessViewType();
 		return true;

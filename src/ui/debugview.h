@@ -53,13 +53,12 @@ class DebugView: public QWidget, public View
 
     DebuggerState* m_state;
     DebuggerController* m_controller;
-    DebugControlsWidget* m_controls;
+//    DebugControlsWidget* m_controls;
 
     QSplitter* m_splitter;
 
     QVBoxLayout* m_binaryViewLayout;
     QWidget* m_binaryViewWidget;
-    QLabel* m_bianryViewLabel;
 
     QVBoxLayout* m_disassemblyLayout;
     QWidget* m_disassemblyWidget;
@@ -114,7 +113,6 @@ public:
 	void setCurrentOffset(uint64_t offset);
 	// void navigateToFileOffset(uint64_t offset);
 
-    DebugControlsWidget* getControls() const { return m_controls; }
     DisassemblyContainer* getBinaryEditor() const { return m_binaryEditor; }
 
     void setDebuggerStatus(const std::string& status);
