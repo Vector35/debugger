@@ -29,7 +29,7 @@ public:
     static bool CanUse(AdapterType type);
     static DebugAdapter* GetAdapterForCurrentSystem();
     static DebugAdapter* GetNewAdapter(AdapterType);
-    static std::string GetName(AdapterType type);
+//    static std::string GetName(AdapterType type);
 
     DebugAdapterType(const std::string& name);
     static void Register(DebugAdapterType* type);
@@ -37,4 +37,7 @@ public:
     virtual bool IsValidForData(BinaryNinja::BinaryView* data) = 0;
     virtual bool CanExecute(BinaryNinja::BinaryView* data) = 0;
     virtual bool CanConnect(BinaryNinja::BinaryView* data) = 0;
+    std::string GetName() const { return m_name; }
+
+    static DebugAdapterType* GetByName(const std::string& name);
 };

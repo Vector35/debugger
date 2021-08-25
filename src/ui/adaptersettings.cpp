@@ -24,11 +24,11 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
     for (DebugAdapterType::AdapterType adapter = DebugAdapterType::DefaultAdapterType;
         adapter <= DebugAdapterType::RemoteSenseAdapterType; adapter = (DebugAdapterType::AdapterType)(adapter + 1))
     {
-        if (!DebugAdapterType::CanUse(adapter))
-            continue;
-        m_adapterEntry->addItem(QString::fromStdString(DebugAdapterType::GetName(adapter)), (qulonglong)adapter);
-        if (adapter == m_state->GetAdapterType())
-            m_adapterEntry->setCurrentText(QString::fromStdString(DebugAdapterType::GetName(adapter)));
+//        if (!DebugAdapterType::CanUse(adapter))
+//            continue;
+//        m_adapterEntry->addItem(QString::fromStdString(DebugAdapterType::GetName(adapter)), (qulonglong)adapter);
+//        if (adapter == m_state->GetAdapterType())
+//            m_adapterEntry->setCurrentText(QString::fromStdString(DebugAdapterType::GetName(adapter)));
     }
     connect(m_adapterEntry, &QComboBox::currentIndexChanged, this, &AdapterSettingsDialog::selectAdapter);
 

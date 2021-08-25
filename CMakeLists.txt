@@ -102,6 +102,6 @@ endif()
 # This does not work right now
 bn_install_plugin(${PROJECT_NAME})
 
-if(BN_BUILD_CLI_DEBUGGER)
-	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/cli)
-endif()
+#if(BN_BUILD_CLI_DEBUGGER)
+#	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/cli)
+#endif()

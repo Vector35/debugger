@@ -78,33 +78,34 @@ DebugAdapter* DebugAdapterType::GetNewAdapter(AdapterType adapterType)
     case DefaultAdapterType:
         return GetAdapterForCurrentSystem();
     default:
-        throw NotInstalledError("Unsupported adapter type " + GetName(adapterType));
+        throw NotInstalledError("Unsupported adapter type");
+//        throw NotInstalledError("Unsupported adapter type " + GetName(adapterType));
     }
 }
 
 
-std::string DebugAdapterType::GetName(AdapterType type)
-{
-    switch (type)
-    {
-    case DefaultAdapterType:
-        return "DEFAULT";
-    case LocalDBGENGAdapterType:
-        return "LOCAL_DBGEND";
-    case LocalGDBAdapterType:
-        return "LOCAL_GDB";
-    case LocalLLDBADapterType:
-        return "LOCAL_LLDB";
-    case RemoteGDBAdapterType:
-        return "REMOTE_GDB";
-    case RemoteLLDBAdapterType:
-        return "REMOTE_LLDB";
-    case RemoteSenseAdapterType:
-        return "REMOTE_SENSE";
-    default:
-        return "UNKNOWN";
-    }
-}
+//std::string DebugAdapterType::GetName(AdapterType type)
+//{
+//    switch (type)
+//    {
+//    case DefaultAdapterType:
+//        return "DEFAULT";
+//    case LocalDBGENGAdapterType:
+//        return "LOCAL_DBGEND";
+//    case LocalGDBAdapterType:
+//        return "LOCAL_GDB";
+//    case LocalLLDBADapterType:
+//        return "LOCAL_LLDB";
+//    case RemoteGDBAdapterType:
+//        return "REMOTE_GDB";
+//    case RemoteLLDBAdapterType:
+//        return "REMOTE_LLDB";
+//    case RemoteSenseAdapterType:
+//        return "REMOTE_SENSE";
+//    default:
+//        return "UNKNOWN";
+//    }
+//}
 
 
 DebugAdapterType::DebugAdapterType(const std::string& name): m_name(name)
@@ -116,4 +117,15 @@ DebugAdapterType::DebugAdapterType(const std::string& name): m_name(name)
 void DebugAdapterType::Register(DebugAdapterType *type)
 {
     m_types.push_back(type);
+}
+
+
+DebugAdapterType* DebugAdapterType::GetByName(const std::string &name)
+{
+    for (DebugAdapterType* adapter: m_types)
+    {
+        if (adapter->GetName() == name)
+            return adapter;
+    }
+    return nullptr;
 }

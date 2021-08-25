@@ -155,12 +155,15 @@ public:
 };
 
 
+class DebuggerController;
+
 // DebuggerState is the core of the debugger. Every operation is sent to this class, which then sends it the backend.
 // After the backend responds, it first updates its internal state, and then update the UI (if the UI is enabled).
 class DebuggerState
 {
 private:
     BinaryViewRef m_data;
+    DebuggerController* m_controller;
     DebugAdapterConnectionStatus m_connectionStatus;
     DebugAdapterTargetStatus m_targetStatus;
 
@@ -189,7 +192,7 @@ private:
     void DeleteState(BinaryViewRef data);
 
 public:
-    DebuggerState(BinaryViewRef data);
+    DebuggerState(BinaryViewRef data, DebuggerController* controller);
     void Run();
     void Restart();
     void Quit();
@@ -243,9 +246,13 @@ public:
     uint64_t LocalIP();
     uint64_t StackPointer();
 
-    bool IsConnected() const { return m_connectionStatus == DebugAdapterConnectedStatus; }
-    bool IsConnecting() const { return m_connectionStatus == DebugAdapterConnectingStatus; }
-    bool IsRunning() const { return m_targetStatus == DebugAdapterRunningStatus; }
+//    bool IsConnected() const { return m_connectionStatus == DebugAdapterConnectedStatus; }
+//    bool IsConnecting() const { return m_connectionStatus == DebugAdapterConnectingStatus; }
+//    bool IsRunning() const { return m_targetStatus == DebugAdapterRunningStatus; }
+
+    bool IsConnected() const { return true; }
+    bool IsConnecting() const { return true; }
+    bool IsRunning() const { return true; }
 
     // This is slightly different from the Python implementation. The caller does not need to first
     // retrieve the DebuggerThreads object and then call SetActiveThread() on it. They call this function.
@@ -264,4 +271,6 @@ public:
     bool IsLocalAddress(uint64_t remoteAddr, BinaryViewRef relativeView = nullptr);
 
     std::string ResolveTargetBase();
+
+    void CreateDebugAdapter();
 };

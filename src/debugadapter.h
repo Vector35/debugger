@@ -33,6 +33,7 @@ enum DebugAdapterCapacity
 
 enum class DebugStopReason {
     UknownReason = 0,
+    InitalBreakpoint,
     StdoutMessage,
     ProcessExited,
     BackendDisconnected,
@@ -181,6 +182,8 @@ class DebugAdapter
 {
 private:
     // Function to call when the DebugAdapter wants to notify the front-end of certain events
+    // TODO: we should not use a vector here; only the DebuggerController should register one here;
+    // Other components should register their callbacks to the controller, who is responsible for notify them.
     std::vector<std::function<void(DebugAdapterEventType event, void* data)>> m_eventCallbacks;
 
 public:

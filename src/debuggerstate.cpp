@@ -452,7 +452,7 @@ void DebuggerBreakpoints::Apply()
 }
 
 
-DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
+DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller): m_data(data), m_controller(controller)
 {
     m_memoryView = new DebugProcessView(data);
     m_modules = new DebuggerModules(this);
@@ -493,14 +493,41 @@ DebuggerState::DebuggerState(BinaryViewRef data): m_data(data)
 }
 
 
+void DebuggerState::CreateDebugAdapter()
+{
+    std::string adapterTypeName = "Local GDB";
+    DebugAdapterType* type = DebugAdapterType::GetByName(adapterTypeName);
+    DebugAdapter* adapter = type->Create(m_data);
+    if (adapter)
+    {
+        m_adapter = adapter;
+    }
+    else
+    {
+        LogWarn("fail to create an adapter of type %s", adapterTypeName.c_str());
+        // TODO: notify error
+        throw std::runtime_error("debug adapter creation error");
+    }
+
+    // TODO: this is really an awkward way to do it. But it works hehe.
+    m_adapter->RegisterEventCallback([this](DebugAdapterEventType event, void *data){
+        m_controller->EventCallback(event, data);
+    });
+}
+
+
 void DebuggerState::Run()
 {
-    if (DebugAdapterType::UseExec(m_adapterType))
-        Exec();
-    else if (DebugAdapterType::UseConnect(m_adapterType))
-        Attach();
-    else
-        throw NotInstalledError("don't know how to connect to adapter of type " + DebugAdapterType::GetName(m_adapterType));
+    CreateDebugAdapter();
+    Exec();
+
+//    if (DebugAdapterType::UseExec(m_adapterType))
+//        Exec();
+//    else if (DebugAdapterType::UseConnect(m_adapterType))
+//        Attach();
+//    else
+//                throw NotInstalledError("don't know how to connect to adapter of type");
+//        //        throw NotInstalledError("don't know how to connect to adapter of type " + DebugAdapterType::GetName(m_adapterType));
 }
 
 
@@ -531,10 +558,10 @@ void DebuggerState::Quit()
 void DebuggerState::Exec()
 {
     LogWarn("DebuggerState::Exec()");
-    if (IsConnected() || IsConnecting())
-        throw ConnectionRefusedError("Tried to execute, but already debugging");
+//    if (IsConnected() || IsConnecting())
+//        throw ConnectionRefusedError("Tried to execute, but already debugging");
 
-    m_connectionStatus = DebugAdapterConnectingStatus;
+//    m_connectionStatus = DebugAdapterConnectingStatus;
     bool runFromTemp = false;
     string filePath = m_data->GetFile()->GetOriginalFilename();
     // We should switch to use std::filesystem::exists() later
@@ -549,28 +576,27 @@ void DebuggerState::Exec()
         // TODO: run from temp
     }
 
-    m_adapter = DebugAdapterType::GetNewAdapter(m_adapterType);
+//    m_adapter = DebugAdapterType::GetNewAdapter(m_adapterType);
 
 //    m_adapter->RegisterEventCallback();
-    if (DebugAdapterType::UseExec(m_adapterType))
-    {
-        // TODO: what should I do for QueuedAdapter?
+
+    // TODO: what should I do for QueuedAdapter?
 #ifdef WIN32
-        /* temporary solution (not great, sorry!), we probably won't have to do this once we introduce std::filesystem::path */
-        std::replace(filePath.begin(), filePath.end(), '/', '\\');
+    /* temporary solution (not great, sorry!), we probably won't have to do this once we introduce std::filesystem::path */
+    std::replace(filePath.begin(), filePath.end(), '/', '\\');
 #endif
-        bool ok = m_adapter->Execute(filePath);
-        // m_adapter->ExecuteWithArgs(filePath, getCommandLineArguments());
-        // The Execute() function is blocking, and it only returns when there is a status change
-        if (!ok)
-        {
-            throw ProcessStartError("Failed to start process");
-            m_connectionStatus = DebugAdapterNotConnectedStatus;
-            return;
-        }
-        m_connectionStatus = DebugAdapterConnectedStatus;
-        m_targetStatus = DebugAdapterRunningStatus;
+    bool ok = m_adapter->Execute(filePath);
+    // m_adapter->ExecuteWithArgs(filePath, getCommandLineArguments());
+    // The Execute() function is blocking, and it only returns when there is a status change
+    if (!ok)
+    {
+        throw ProcessStartError("Failed to start process");
+        m_connectionStatus = DebugAdapterNotConnectedStatus;
+        return;
     }
+//    m_connectionStatus = DebugAdapterConnectedStatus;
+//    m_targetStatus = DebugAdapterRunningStatus;
+
 
     // std::string currentModule = ResolveTargetBase();
     // We must first update the modules, then the breakpoints can be applied correctly
@@ -1013,9 +1039,12 @@ DebuggerState* DebuggerState::GetState(BinaryViewRef data)
             return state;
     }
 
-    DebuggerState* state = new DebuggerState(data);
-    g_debuggerStates.push_back(state);
-    return state;    
+    // DebugerState is always explicity constructed by the DebugController, so this will soon be deprecated.
+    return nullptr;
+
+//    DebuggerState* state = new DebuggerState(data);
+//    g_debuggerStates.push_back(state);
+//    return state;
 }
 
 

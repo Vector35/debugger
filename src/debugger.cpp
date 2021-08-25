@@ -9,6 +9,7 @@ using namespace BinaryNinja;
 
 void InitDebugAdapterTypes()
 {
+    LogWarn("InitDebugAdapterTypes()");
     InitGdbAdapterType();
 }
 
@@ -21,6 +22,9 @@ extern "C"
 		Log(BNLogLevel::WarningLog, "Native debugger loaded!" );
 		ViewType::registerViewType(new DebugViewType());
         DebuggerUI::InitializeUI();
+        InitDebugAdapterTypes();
+        InitDebugMemoryViewType();
+        InitDebugProcessViewType();
 		return true;
 	}
 
@@ -31,9 +35,6 @@ extern "C"
         if (!IsUIEnabled())
             Log(BNLogLevel::WarningLog, "Headless debugger loaded!" );
 
-        InitDebugAdapterTypes();
-        InitDebugMemoryViewType();
-        InitDebugProcessViewType();
 		return true;
 	}
 }

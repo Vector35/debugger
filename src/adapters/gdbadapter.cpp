@@ -168,7 +168,7 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std:
 #endif
 
     bool ret =  this->Connect("127.0.0.1", this->m_socket->GetPort());
-    NotifyStopped(DebugStopReason::UknownReason);
+    NotifyStopped(DebugStopReason::InitalBreakpoint);
     return ret;
 }
 
@@ -697,24 +697,50 @@ bool GdbAdapter::BreakInto()
 }
 
 bool GdbAdapter::GenericGo(const std::string& go_type) {
-    const auto go_reply =
-            this->m_rspConnector.TransmitAndReceive(
-                    RspData(go_type), "mixed_output_ack_then_reply", true);
+    auto callback = [this](const RspData& go_reply)
+    {
+        if ( go_reply.m_data[0] == 'T' )
+        {
+            auto map = RspConnector::PacketToUnorderedMap(go_reply);
+            const auto tid = map["thread"];
+//            this->m_lastActiveThreadId = tid;
+//            this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);GdbAdapter::SignalToStopReason(map["signal"]);
+            DebugStopReason reason = GdbAdapter::SignalToStopReason(map["signal"]);
+            NotifyStopped(reason, nullptr);
+            // TODO: the above code does not notify the current thread
+//          NotifyCurrentThreadChanged(tid);
 
-    if ( go_reply.m_data[0] == 'T' ) {
-        auto map = RspConnector::PacketToUnorderedMap(go_reply);
-        const auto tid = map["thread"];
-        this->m_lastActiveThreadId = tid;
-        this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);
-    } else if ( go_reply.m_data[0] == 'W' ) {
-        /* exit status, substr */
-    } else {
-        printf("[generic go failed?]\n");
-        printf("%s\n", go_reply.AsString().c_str());
-        return false;
-    }
+        }
+        else if ( go_reply.m_data[0] == 'W' )
+        {
+            /* exit status, substr */
+            NotifyStopped(DebugStopReason::ProcessExited, nullptr);
+        }
+        else
+        {
+            printf("[generic go failed?]\n");
+            printf("%s\n", go_reply.AsString().c_str());
+//            return false;
+        }
+    };
 
+    this->m_rspConnector.TransmitAndReceive(RspData(go_type), "stop_packet", callback);
     return true;
+
+//    if ( go_reply.m_data[0] == 'T' ) {
+//        auto map = RspConnector::PacketToUnorderedMap(go_reply);
+//        const auto tid = map["thread"];
+//        this->m_lastActiveThreadId = tid;
+//        this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);
+//    } else if ( go_reply.m_data[0] == 'W' ) {
+//        /* exit status, substr */
+//    } else {
+//        printf("[generic go failed?]\n");
+//        printf("%s\n", go_reply.AsString().c_str());
+//        return false;
+//    }
+
+//    return true;
 }
 
 bool GdbAdapter::Go()
