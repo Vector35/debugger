@@ -411,6 +411,7 @@ void DebuggerUI::DeleteBreakpointTag(std::vector<uint64_t> localAddress)
 
 static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 {
+    DebuggerController* controller = DebuggerController::GetController(view);
     DebuggerState* state = DebuggerState::GetState(view);
 
     bool isAbsoluteAddress = false;
@@ -418,22 +419,16 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
     if (view->GetTypeName() == "Debugged Process")
         isAbsoluteAddress = true;
 
-//    if ((view == state->GetMemoryView()) ||
-//        (view->GetParentView().GetPtr() == state->GetMemoryView()))
-//    {
-//        isAbsoluteAddress = true;
-//    }
-
     DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
     if (isAbsoluteAddress)
     {
         if (breakpoints->ContainsAbsolute(addr))
         {
-            breakpoints->RemoveAbsolute(addr);
+            controller->DeleteBreakpoint(addr);
         }
         else
         {
-            breakpoints->AddAbsolute(addr);
+            controller->AddBreakpoint(addr);
         }
     }
     else
@@ -443,20 +438,13 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
         ModuleNameAndOffset info = {filename, offset};
         if (breakpoints->ContainsOffset(info))
         {
-            breakpoints->RemoveOffset(info);
-            state->GetDebuggerUI()->DeleteBreakpointTag({addr});
+            controller->DeleteBreakpoint(info);
         }
         else
         {
-            breakpoints->AddOffset(info);
-            state->GetDebuggerUI()->AddBreakpointTag({addr});
+            controller->AddBreakpoint(info);
         }
     }
-    // TODO: this is not the best way to organize the highlight of breakpoints. It only works when the breakpoint is
-    // added through the UI, and when the breakpoint is added through the planned API, the display will be outdated
-//    state->GetDebuggerUI()->UpdateBreakpoints();
-//    if (m_debugView)
-//        m_debugView->refreshRawDisassembly();
 }
 
 

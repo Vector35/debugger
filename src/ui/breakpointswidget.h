@@ -88,6 +88,7 @@ class DebugBreakpointsWidget : public QWidget
 
     ViewFrame* m_view;
     BinaryViewRef m_data;
+    DebuggerController* m_controller;
 
     UIActionHandler* M_actionHandler;
     QTableView* m_table;

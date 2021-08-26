@@ -436,6 +436,7 @@ void DebuggerBreakpoints::UnserializedMetadata()
 
 void DebuggerBreakpoints::Apply()
 {
+    LogWarn("DebuggerBreakpoints::Apply()");
     if (!m_state->GetAdapter())
         throw ConnectionRefusedError("cannot apply breakpoints when disconnected");
 
@@ -1076,45 +1077,40 @@ void DebuggerState::RegisterState(DebuggerState *state)
 
 void DebuggerState::AddBreakpoint(uint64_t address)
 {
-
+    m_breakpoints->AddAbsolute(address);
 }
 
 
 void DebuggerState::AddBreakpoint(const ModuleNameAndOffset& address)
 {
-
+    m_breakpoints->AddOffset(address);
 }
 
 
 void DebuggerState::DeleteBreakpoint(uint64_t address)
 {
-
+    m_breakpoints->RemoveAbsolute(address);
 }
 
 
 void DebuggerState::DeleteBreakpoint(const ModuleNameAndOffset& address)
 {
-    // TODO: This seems redundant
-    if (IsConnected())
-    {
-        // If we are connected, convert the address to remote address first
-        uint64_t remoteAddress = m_modules->RelativeAddressToAbsolute(address);
-        DeleteBreakpoint(remoteAddress);
-    }
-    else
-    {
-        // We are deleting a breakpoint while we are disconnected.
-        if (m_breakpoints->ContainsOffset(address))
-        {
-            m_breakpoints->RemoveOffset(address);
-        }
-    }
-
-    if (m_ui)
-    {
-        // 1. Update DebugBreakpointsWidget
-        // 2. Update breakpoint line highlights
-    }
+    m_breakpoints->RemoveOffset(address);
+//    // TODO: This seems redundant
+//    if (IsConnected())
+//    {
+//        // If we are connected, convert the address to remote address first
+//        uint64_t remoteAddress = m_modules->RelativeAddressToAbsolute(address);
+//        DeleteBreakpoint(remoteAddress);
+//    }
+//    else
+//    {
+//        // We are deleting a breakpoint while we are disconnected.
+//        if (m_breakpoints->ContainsOffset(address))
+//        {
+//            m_breakpoints->RemoveOffset(address);
+//        }
+//    }
 }
 
 

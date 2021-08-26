@@ -87,7 +87,7 @@ void DebuggerWidget::updateContext()
 {
     LogWarn("DebuggerWidget::updateContext()");
 //    TODO: further refactor this, connect the updateContext signal directly to each of the signals
-    m_breakpointsWidget->updateContent();
+//    m_breakpointsWidget->updateContent();
     m_modulesWidget->updateContent();
     m_threadsWidget->updateContent();
     m_stackWidget->updateContent();

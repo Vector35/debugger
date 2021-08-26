@@ -191,6 +191,8 @@ void DebugBreakpointsItemDelegate::updateFonts()
 DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data, Menu* menu):
     m_view(view), m_data(data)
 {
+    m_controller = DebuggerController::GetController(m_data);
+
     m_table = new QTableView(this);
     m_model = new DebugBreakpointsListModel(m_table, data, view);
     m_table->setModel(m_model);
@@ -237,6 +239,14 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* v
     m_actionHandler.bindAction(jumpToBreakpointActionName, UIAction([&](){ jump(); }));
 
     updateContent();
+
+    // TODO: This is not the most efficient way of handling these signals. We can just handle the difference and
+    // update the content accordingly.
+    connect(m_controller, &DebuggerController::absoluteBreakpointAdded, [this]() { updateContent(); });
+    connect(m_controller, &DebuggerController::relativeBreakpointAdded, [this]() { updateContent(); });
+    connect(m_controller, &DebuggerController::absoluteBreakpointDeleted, [this]() { updateContent(); });
+    connect(m_controller, &DebuggerController::relativeBreakpointDeleted, [this]() { updateContent(); });
+    connect(m_controller, &DebuggerController::cacheUpdated, [this]() { updateContent(); });
 }
 
 
@@ -299,41 +309,10 @@ void DebugBreakpointsWidget::remove()
     {
         // Process the selection one by one
         BreakpointItem bp = m_model->getRow(index.row());
-        state->DeleteBreakpoint(bp.address());
+//        We need better handling here
+//        state->DeleteBreakpoint(bp.address());
+        m_controller->DeleteBreakpoint(bp.location());
     }
-
-//
-//    const auto item_row = this->m_table->indexAt(this->m_last_selected_point).row();
-//    const auto item = this->m_table->model()->index(item_row, 2);
-//
-//    auto view = this->m_data.GetPtr();
-//    auto address_or_offset = std::stoull(item.data().toString().toLocal8Bit().data(), nullptr, 16);
-//    if (!address_or_offset || !view)
-//        return;
-//
-//
-//
-//    const auto is_absolute = state->IsConnected();
-//    if (!is_absolute)
-//        address_or_offset += view->GetStart();
-//
-//    const auto filename = view->GetFile()->GetOriginalFilename();
-//    const auto breakpoint_offset = ModuleNameAndOffset(filename, address_or_offset - view->GetStart());
-//
-//    if (breakpoints->ContainsOffset(breakpoint_offset)) {
-//        breakpoints->RemoveOffset(breakpoint_offset);
-//        for (const auto& func : state->GetData()->GetAnalysisFunctionsContainingAddress(address_or_offset)) {
-//            func->SetAutoInstructionHighlight(state->GetData()->GetDefaultArchitecture(), address_or_offset, NoHighlightColor);
-//            for (const auto& tag : func->GetAddressTags(state->GetData()->GetDefaultArchitecture(), address_or_offset)) {
-//                if (tag->GetType() != state->GetDebuggerUI()->GetBreakpointTagType())
-//                    continue;
-//
-//                func->RemoveUserAddressTag(state->GetData()->GetDefaultArchitecture(), address_or_offset, tag);
-//            }
-//        }
-//    }
-//
-//    state->GetDebuggerUI()->UpdateBreakpoints();
 }
 
 
@@ -351,22 +330,23 @@ void DebugBreakpointsWidget::updateContent()
         return;
 
     std::vector<BreakpointItem> bps;
-//    std::vector<DebugBreakpoint> remoteList;
-//    if (state->IsConnected() && state->GetAdapter())
-//        std::vector<DebugBreakpoint> remoteList = state->GetAdapter()->GetBreakpointList();
+    std::vector<DebugBreakpoint> remoteList;
+    if (state->IsConnected() && state->GetAdapter())
+        remoteList = state->GetAdapter()->GetBreakpointList();
 
+    LogWarn("there are %ld breakpoints", state->GetBreakpoints()->GetBreakpointList().size());
     for (const ModuleNameAndOffset& address: state->GetBreakpoints()->GetBreakpointList())
     {
         uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(address);
         bool enabled = false;
-//        for (const DebugBreakpoint& bp: remoteList)
-//        {
-//            if (bp.m_address == remoteAddress)
-//            {
-//                enabled = true;
-//                break;
-//            }
-//        }
+        for (const DebugBreakpoint& bp: remoteList)
+        {
+            if (bp.m_address == remoteAddress)
+            {
+                enabled = true;
+                break;
+            }
+        }
         bps.emplace_back(enabled, address, remoteAddress);
     }
 
