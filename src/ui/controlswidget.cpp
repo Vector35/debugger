@@ -226,6 +226,8 @@ void DebugControlsWidget::performPause()
 
 void DebugControlsWidget::performResume()
 {
+    m_controller->Go();
+
 //    auto performResumeAfter = [&](){
 //        handleStopReturn();
 //        m_state->OnStep();
