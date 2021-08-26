@@ -137,6 +137,9 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
         view->actionHandler()->bindAction("View in Types View", UIAction());
     }
 
+    CreateBreakpointTagType();
+    CreateProgramCounterTagType();
+
     uint64_t entryPoint = data->GetEntryPoint();
     uint64_t localEntryOffset = entryPoint - data->GetStart();
     ModuleNameAndOffset address(data->GetFile()->GetOriginalFilename(), localEntryOffset);
@@ -156,6 +159,11 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
 //            m_state->GetDebuggerUI()->UpdateBreakpoints();
 //        }
 //    }
+
+    connect(m_controller, &DebuggerController::IPChanged, [this](uint64_t address){
+        navigate(address);
+    });
+
 }
 
 
@@ -440,8 +448,8 @@ void DebugView::loadRawDisassembly(uint64_t addr)
 
         tokens.clear();
         BNHighlightStandardColor color = NoHighlightColor;
-        std::string breakpointIcon = m_state->GetDebuggerUI()->GetBreakpointTagType()->GetIcon();
-        std::string pcIcon = m_state->GetDebuggerUI()->GetPCTagType()->GetIcon();
+        std::string breakpointIcon = GetBreakpointTagType()->GetIcon();
+        std::string pcIcon = GetPCTagType()->GetIcon();
         // size_t maxWidth = breakpointIcon.size() + pcIcon.size();
 
         if (lineAddr == rip)
@@ -530,6 +538,35 @@ void DebugView::updateTimerEvent()
 void DebugView::setDebuggerStatus(const std::string &status)
 {
     m_debuggerStatus->setText(QString::fromStdString(status));
+}
+
+
+
+void DebugView::CreateBreakpointTagType()
+{
+    TagTypeRef type = m_data->GetTagType("Breakpoints");
+    if (type)
+    {
+        m_breakpointTagType = type;
+        return;
+    }
+
+    m_breakpointTagType = new TagType(m_data, "Breakpoints", "🛑");
+    m_data->AddTagType(m_breakpointTagType);
+}
+
+
+void DebugView::CreateProgramCounterTagType()
+{
+    TagTypeRef type = m_data->GetTagType("Program Counter");
+    if (type)
+    {
+        m_pcTagType = type;
+        return;
+    }
+
+    m_pcTagType = new TagType(m_data, "Program Counter", "==>");
+    m_data->AddTagType(m_pcTagType);
 }
 
 

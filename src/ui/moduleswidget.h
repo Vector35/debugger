@@ -90,6 +90,7 @@ class DebugModulesWidget: public SidebarWidget
 
     ViewFrame* m_view;
     BinaryViewRef m_data;
+    DebuggerState* m_state;
 
     UIActionHandler* M_actionHandler;
     QTableView* m_table;

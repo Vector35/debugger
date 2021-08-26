@@ -351,22 +351,22 @@ void DebugBreakpointsWidget::updateContent()
         return;
 
     std::vector<BreakpointItem> bps;
-    std::vector<DebugBreakpoint> remoteList;
-    if (state->IsConnected())
-        std::vector<DebugBreakpoint> remoteList = state->GetAdapter()->GetBreakpointList();
+//    std::vector<DebugBreakpoint> remoteList;
+//    if (state->IsConnected() && state->GetAdapter())
+//        std::vector<DebugBreakpoint> remoteList = state->GetAdapter()->GetBreakpointList();
 
     for (const ModuleNameAndOffset& address: state->GetBreakpoints()->GetBreakpointList())
     {
         uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(address);
         bool enabled = false;
-        for (const DebugBreakpoint& bp: remoteList)
-        {
-            if (bp.m_address == remoteAddress)
-            {
-                enabled = true;
-                break;
-            }
-        }
+//        for (const DebugBreakpoint& bp: remoteList)
+//        {
+//            if (bp.m_address == remoteAddress)
+//            {
+//                enabled = true;
+//                break;
+//            }
+//        }
         bps.emplace_back(enabled, address, remoteAddress);
     }
 

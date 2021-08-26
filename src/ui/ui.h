@@ -26,7 +26,7 @@ private:
     DebuggerWidget* m_sidebar;
     uint64_t m_lastIP;
 
-    TagTypeRef m_breakpointTagType, m_pcTagType;
+//    TagTypeRef m_breakpointTagType, m_pcTagType;
 
 public:
     DebuggerUI(DebuggerController* controller);
@@ -48,8 +48,8 @@ public:
 
     void AddBreakpointTag(uint64_t localAddress);
     void DeleteBreakpointTag(std::vector<uint64_t> localAddress);
-    TagTypeRef GetBreakpointTagType() const { return m_breakpointTagType; }
-    TagTypeRef GetPCTagType() const { return m_pcTagType; }
+//    TagTypeRef GetBreakpointTagType() const { return m_breakpointTagType; }
+//    TagTypeRef GetPCTagType() const { return m_pcTagType; }
 
     static void InitializeUI();
 

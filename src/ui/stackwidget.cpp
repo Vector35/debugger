@@ -372,6 +372,8 @@ void DebugStackItemDelegate::setEditorData(QWidget *editor, const QModelIndex &i
 DebugStackWidget::DebugStackWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
     m_view(view), m_data(data)
 {
+    m_state = DebuggerState::GetState(m_data);
+
     m_table = new QTableView(this);
     m_model = new DebugStackListModel(m_table, data, view);
     m_table->setModel(m_model);
@@ -416,4 +418,71 @@ void DebugStackWidget::notifyStackChanged(std::vector<DebugStackItem> stackItems
 void DebugStackWidget::updateContent()
 {
     LogWarn("DebugStackWidget::updateContent()");
+
+    std::vector<DebugStackItem> stackItems;
+    BinaryReader* reader = new BinaryReader(m_state->GetMemoryView());
+    uint64_t stackPointer = m_state->StackPointer();
+    size_t addressSize = m_state->GetRemoteArchitecture()->GetAddressSize();
+    for (ptrdiff_t i = -8; i < 60 + 1; i++)
+    {
+        ptrdiff_t offset = i * addressSize;
+        if ((offset < 0) && (stackPointer < (uint64_t)-offset))
+            continue;
+
+        uint64_t address = stackPointer + offset;
+
+        reader->Seek(address);
+
+        uint64_t value = -1ULL;
+
+        try
+        {
+            switch (addressSize)
+            {
+            case 1:
+                value = reader->Read8();
+                break;
+            case 2:
+                value = reader->Read16();
+                break;
+            case 4:
+                value = reader->Read32();
+                break;
+            case 8:
+                value = reader->Read64();
+                break;
+            default:
+                break;
+            }
+        } catch (const std::exception& except)
+        {
+            /* TODO: just ignoring this is probably not a great idea... */
+        }
+
+        std::string hint{};
+        if (auto adapter = m_state->GetAdapter()) {
+            const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(value);
+            const auto reg_string = std::string(memory.has_value() ? memory->data() : "x");
+            const auto can_print = std::all_of(reg_string.begin(), reg_string.end(), [](unsigned char c){
+                return c == '\n' || std::isprint(c);
+            });
+
+            if (!reg_string.empty() && reg_string.size() > 3 && can_print) {
+                hint = fmt::format("\"{}\"", reg_string);
+            } else {
+                auto buffer = std::make_unique<char[]>(addressSize);
+                if (adapter->ReadMemory(value, buffer.get(), addressSize)) {
+                    hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.get()));
+                }
+                else {
+                    hint = "";
+                }
+            }
+        }
+
+        stackItems.emplace_back(offset, address, value, hint);
+    }
+    delete reader;
+
+    notifyStackChanged(stackItems);
 }

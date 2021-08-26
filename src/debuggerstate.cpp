@@ -585,24 +585,28 @@ void DebuggerState::Exec()
     /* temporary solution (not great, sorry!), we probably won't have to do this once we introduce std::filesystem::path */
     std::replace(filePath.begin(), filePath.end(), '/', '\\');
 #endif
+
     bool ok = m_adapter->Execute(filePath);
+
     // m_adapter->ExecuteWithArgs(filePath, getCommandLineArguments());
     // The Execute() function is blocking, and it only returns when there is a status change
-    if (!ok)
-    {
-        throw ProcessStartError("Failed to start process");
-        m_connectionStatus = DebugAdapterNotConnectedStatus;
-        return;
-    }
+    // There is no need to check for errors here. Errors would be sent to the controller via notifications
+//    if (!ok)
+//    {
+//        throw ProcessStartError("Failed to start process");
+//        m_connectionStatus = DebugAdapterNotConnectedStatus;
+//        return;
+//    }
 //    m_connectionStatus = DebugAdapterConnectedStatus;
 //    m_targetStatus = DebugAdapterRunningStatus;
 
 
     // std::string currentModule = ResolveTargetBase();
+    // This is instead done in DebuggerController::EventCallback
     // We must first update the modules, then the breakpoints can be applied correctly
-    m_modules->Update();
-    m_breakpoints->Apply();
-    m_remoteArch = DetectRemoteArch();
+//    m_modules->Update();
+//    m_breakpoints->Apply();
+//    m_remoteArch = DetectRemoteArch();
 }
 
 
@@ -1063,6 +1067,13 @@ void DebuggerState::DeleteState(BinaryViewRef data)
     }
 }
 
+
+void DebuggerState::RegisterState(DebuggerState *state)
+{
+    g_debuggerStates.push_back(state);
+}
+
+
 void DebuggerState::AddBreakpoint(uint64_t address)
 {
 
@@ -1112,7 +1123,9 @@ uint64_t DebuggerState::IP()
     if (!IsConnected())
         throw ConnectionRefusedError("Cannot read ip when disconnected");
 
-    m_registers->Update();
+//    This leads to redundant updates to the register values. They should already be updated --
+//    since the first thing to do when the target stops is to update caches.
+//    m_registers->Update();
     string archName = m_remoteArch->GetName();
     if (archName == "x86_64")
         return m_registers->GetRegisterValue("rip");
@@ -1267,4 +1280,16 @@ std::string DebuggerState::ResolveTargetBase()
     //     return GetModules()->GetModuleForAddress(m_adapter->)
     // }
     return 0;
+}
+
+
+void DebuggerState::ApplyBreakpoints()
+{
+    m_breakpoints->Apply();
+}
+
+
+void DebuggerState::UpdateRemoteArch()
+{
+    m_remoteArch = DetectRemoteArch();
 }

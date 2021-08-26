@@ -168,7 +168,6 @@ private:
     DebugAdapterTargetStatus m_targetStatus;
 
     DebugAdapter* m_adapter;
-    // TODO: This really should be called m_processView, but for ease of porting I am keeping it
     DebugProcessView* m_memoryView;
     DebuggerModules* m_modules;
     DebuggerRegisters* m_registers;
@@ -211,6 +210,8 @@ public:
     bool CanConnect();
 
     static DebuggerState* GetState(BinaryViewRef data);
+    static void RegisterState(DebuggerState* state);
+
     DebugAdapter* GetAdapter() const { return m_adapter; }
     BinaryViewRef GetData() const { return m_data; }
 
@@ -246,13 +247,9 @@ public:
     uint64_t LocalIP();
     uint64_t StackPointer();
 
-//    bool IsConnected() const { return m_connectionStatus == DebugAdapterConnectedStatus; }
-//    bool IsConnecting() const { return m_connectionStatus == DebugAdapterConnectingStatus; }
-//    bool IsRunning() const { return m_targetStatus == DebugAdapterRunningStatus; }
-
-    bool IsConnected() const { return true; }
-    bool IsConnecting() const { return true; }
-    bool IsRunning() const { return true; }
+    bool IsConnected() const { return m_connectionStatus == DebugAdapterConnectedStatus; }
+    bool IsConnecting() const { return m_connectionStatus == DebugAdapterConnectingStatus; }
+    bool IsRunning() const { return m_targetStatus == DebugAdapterRunningStatus; }
 
     // This is slightly different from the Python implementation. The caller does not need to first
     // retrieve the DebuggerThreads object and then call SetActiveThread() on it. They call this function.
@@ -273,4 +270,9 @@ public:
     std::string ResolveTargetBase();
 
     void CreateDebugAdapter();
+    void ApplyBreakpoints();
+    void UpdateRemoteArch();
+
+    void SetConnectionStatus(DebugAdapterConnectionStatus status) { m_connectionStatus = status; }
+    void SetExecutionStatus(DebugAdapterTargetStatus status) { m_targetStatus = status; }
 };

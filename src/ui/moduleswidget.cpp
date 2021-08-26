@@ -231,6 +231,8 @@ QSize DebugModulesItemDelegate::sizeHint(const QStyleOptionViewItem& option, con
 DebugModulesWidget::DebugModulesWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
     SidebarWidget(name), m_view(view), m_data(data)
 {
+    m_state = DebuggerState::GetState(m_data);
+
     m_table = new QTableView(this);
     m_model = new DebugModulesListModel(m_table, data, view);
     m_table->setModel(m_model);
@@ -274,4 +276,7 @@ void DebugModulesWidget::notifyFontChanged()
 void DebugModulesWidget::updateContent()
 {
     LogWarn("DebugModulesWidget::updateContent()");
+
+    std::vector<DebugModule> modules = m_state->GetModules()->GetAllModules();
+    notifyModulesChanged(modules);
 }

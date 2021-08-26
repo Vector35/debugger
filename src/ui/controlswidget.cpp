@@ -52,11 +52,14 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
     setActionEnabled(DebugControlPauseAction, false);
     setActionEnabled(DebugControlResumeAction, false);
     setSteppingEnabled(false);
+
+    connect(m_controller, &DebuggerController::stopped, [this]() { stateStopped(); });
 }
 
 
 void DebugControlsWidget::performRun()
 {
+    LogWarn("DebugControlsWidget::performRun()");
     m_controller->Run();
 
 //    auto performRunAfter = [&](){

@@ -12,6 +12,7 @@
 #include "fontsettings.h"
 #include "theme.h"
 #include "../debuggerstate.h"
+#include "../debuggercontroller.h"
 
 enum DebugRegisterValueStatus
 {
@@ -106,6 +107,8 @@ class DebugRegistersWidget: public SidebarWidget
 
     ViewFrame* m_view;
     BinaryViewRef m_data;
+    DebuggerState* m_state;
+    DebuggerController* m_controller;
 
     UIActionHandler* M_actionHandler;
     QTableView* m_table;
@@ -120,6 +123,9 @@ class DebugRegistersWidget: public SidebarWidget
 public:
     DebugRegistersWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
     void notifyRegistersChanged(std::vector<DebugRegister> regs);
+
+private slots:
+    void updateContext();
 };
 
 

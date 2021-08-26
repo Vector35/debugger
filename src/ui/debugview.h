@@ -82,6 +82,8 @@ class DebugView: public QWidget, public View
 
     bool m_oldFileLockStatus;
 
+    TagTypeRef m_breakpointTagType, m_pcTagType;
+
 public:
 	DebugView(QWidget* parent, BinaryViewRef data);
     virtual ~DebugView();
@@ -116,6 +118,12 @@ public:
     DisassemblyContainer* getBinaryEditor() const { return m_binaryEditor; }
 
     void setDebuggerStatus(const std::string& status);
+
+    void CreateBreakpointTagType();
+    void CreateProgramCounterTagType();
+
+    TagTypeRef GetBreakpointTagType() const { return m_breakpointTagType; }
+    TagTypeRef GetPCTagType() const { return m_pcTagType; }
 
 protected:
 	virtual void focusInEvent(QFocusEvent* event) override;

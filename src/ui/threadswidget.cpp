@@ -201,6 +201,8 @@ QSize DebugThreadsItemDelegate::sizeHint(const QStyleOptionViewItem& option, con
 DebugThreadsWidget::DebugThreadsWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
     m_view(view), m_data(data)
 {
+    m_state = DebuggerState::GetState(m_data);
+
     m_table = new QTableView(this);
     m_model = new DebugThreadsListModel(m_table, data, view);
     m_table->setModel(m_model);
@@ -243,5 +245,9 @@ void DebugThreadsWidget::notifyThreadsChanged(std::vector<DebuggerThreadCache> t
 
 void DebugThreadsWidget::updateContent()
 {
+    // function updateContent() and notifyThreadsChanged() should definitely be combined
     LogWarn("DebugThreadsWidget::updateContent()");
+
+    std::vector<DebuggerThreadCache> threads = m_state->GetThreads()->GetAllThreads();
+    notifyThreadsChanged(threads);
 }

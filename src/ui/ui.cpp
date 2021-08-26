@@ -18,13 +18,13 @@ DebuggerUI::DebuggerUI(DebuggerController* controller): m_controller(controller)
     m_debugView = nullptr;
     m_lastIP = 0;
 
-    CreateBreakpointTagType();
-    CreateProgramCounterTagType();
+//    CreateBreakpointTagType();
+//    CreateProgramCounterTagType();
 
-    ContextDisplay();
-    UpdateHighlights();
-    UpdateModules();
-    UpdateBreakpoints();
+//    ContextDisplay();
+//    UpdateHighlights();
+//    UpdateModules();
+//    UpdateBreakpoints();
 }
 
 
@@ -219,35 +219,36 @@ void DebuggerUI::SetDebuggerSidebar(DebuggerWidget* widget)
     m_sidebar = widget;
 }
 
+//
+//void DebuggerUI::CreateBreakpointTagType()
+//{
+//    TagTypeRef type = m_controller->GetState()->GetData()->GetTagType("Breakpoints");
+//    if (type)
+//    {
+//        m_breakpointTagType = type;
+//        return;
+//    }
+//
+//    m_breakpointTagType = new TagType(m_controller->GetState()->GetData(), "Breakpoints", "🛑");
+//    m_controller->GetState()->GetData()->AddTagType(m_breakpointTagType);
+//}
+//
+//
+//void DebuggerUI::CreateProgramCounterTagType()
+//{
+//    TagTypeRef type = m_controller->GetState()->GetData()->GetTagType("Program Counter");
+//    if (type)
+//    {
+//        m_pcTagType = type;
+//        return;
+//    }
+//
+//    m_pcTagType = new TagType(m_controller->GetState()->GetData(), "Program Counter", "==>");
+//    m_controller->GetState()->GetData()->AddTagType(m_pcTagType);
+//}
 
-void DebuggerUI::CreateBreakpointTagType()
-{
-    TagTypeRef type = m_controller->GetState()->GetData()->GetTagType("Breakpoints");
-    if (type)
-    {
-        m_breakpointTagType = type;
-        return;
-    }
 
-    m_breakpointTagType = new TagType(m_controller->GetState()->GetData(), "Breakpoints", "🛑");
-    m_controller->GetState()->GetData()->AddTagType(m_breakpointTagType);
-}
-
-
-void DebuggerUI::CreateProgramCounterTagType()
-{
-    TagTypeRef type = m_controller->GetState()->GetData()->GetTagType("Program Counter");
-    if (type)
-    {
-        m_pcTagType = type;
-        return;
-    }
-
-    m_pcTagType = new TagType(m_controller->GetState()->GetData(), "Program Counter", "==>");
-    m_controller->GetState()->GetData()->AddTagType(m_pcTagType);
-}
-
-
+// Should move to DebugView
 void DebuggerUI::UpdateHighlights()
 {
     for (FunctionRef func: m_controller->GetState()->GetData()->GetAnalysisFunctionsContainingAddress(m_lastIP))
@@ -263,7 +264,7 @@ void DebuggerUI::UpdateHighlights()
         func->SetAutoInstructionHighlight(m_controller->GetState()->GetData()->GetDefaultArchitecture(), m_lastIP, oldColor);
         for (TagRef tag: func->GetAddressTags(m_controller->GetState()->GetData()->GetDefaultArchitecture(), m_lastIP))
         {
-            if (tag->GetType() != m_pcTagType)
+            if (tag->GetType() != m_debugView->GetPCTagType())
                 continue;
 
             func->RemoveUserAddressTag(m_controller->GetState()->GetData()->GetDefaultArchitecture(), m_lastIP, tag);
@@ -297,8 +298,8 @@ void DebuggerUI::UpdateHighlights()
         {
             func->SetAutoInstructionHighlight(m_controller->GetState()->GetData()->GetDefaultArchitecture(),
                     localIP, BlueHighlightColor);
-            func->CreateUserAddressTag(m_controller->GetState()->GetData()->GetDefaultArchitecture(), localIP, m_pcTagType,
-                    "program counter");
+            func->CreateUserAddressTag(m_controller->GetState()->GetData()->GetDefaultArchitecture(), localIP,
+                    m_debugView->GetPCTagType(), "program counter");
         }
     }
 }
@@ -354,7 +355,7 @@ void DebuggerUI::AddBreakpointTag(uint64_t localAddress)
         bool tagFound = false;
         for (TagRef tag: func->GetAddressTags(m_controller->GetState()->GetData()->GetDefaultArchitecture(), localAddress))
         {
-            if (tag->GetType() == m_breakpointTagType)
+            if (tag->GetType() == m_debugView->GetBreakpointTagType())
             {
                 tagFound = true;
                 break;
@@ -365,8 +366,8 @@ void DebuggerUI::AddBreakpointTag(uint64_t localAddress)
         {
             func->SetAutoInstructionHighlight(m_controller->GetState()->GetData()->GetDefaultArchitecture(), localAddress,
                     RedHighlightColor);
-            func->CreateUserAddressTag(m_controller->GetState()->GetData()->GetDefaultArchitecture(), localAddress, m_breakpointTagType,
-                    "breakpoint");
+            func->CreateUserAddressTag(m_controller->GetState()->GetData()->GetDefaultArchitecture(), localAddress,
+                    m_debugView->GetBreakpointTagType(), "breakpoint");
         }
     }
 
@@ -396,7 +397,7 @@ void DebuggerUI::DeleteBreakpointTag(std::vector<uint64_t> localAddress)
             func->SetAutoInstructionHighlight(m_controller->GetState()->GetData()->GetDefaultArchitecture(), address, NoHighlightColor);
             for (TagRef tag: func->GetAddressTags(m_controller->GetState()->GetData()->GetDefaultArchitecture(), address))
             {
-                if (tag->GetType() != m_breakpointTagType)
+                if (tag->GetType() != m_debugView->GetBreakpointTagType())
                     continue;
 
                 func->RemoveUserAddressTag(m_controller->GetState()->GetData()->GetDefaultArchitecture(), address, tag);
