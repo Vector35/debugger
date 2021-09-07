@@ -246,6 +246,10 @@ void DebugControlsWidget::performResume()
 
 void DebugControlsWidget::performStepInto()
 {
+    DisassemblyContainer* container = m_controller->GetUI()->GetDebugView()->getBinaryEditor();
+    BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
+    m_controller->StepInto(graphType);
+
 //    auto performStepIntoAfter = [&](){
 //        handleStopReturn();
 //        m_state->OnStep();
@@ -266,6 +270,10 @@ void DebugControlsWidget::performStepInto()
 
 void DebugControlsWidget::performStepOver()
 {
+    DisassemblyContainer* container = m_controller->GetUI()->GetDebugView()->getBinaryEditor();
+    BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
+    m_controller->StepOver(graphType);
+
 //    auto performStepOverAfter = [&](){
 //        handleStopReturn();
 //        m_state->OnStep();

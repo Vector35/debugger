@@ -8,6 +8,7 @@
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
 #include "../debuggerexceptions.h"
+#include "semaphore.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -512,7 +513,7 @@ void DebuggerState::CreateDebugAdapter()
 
     // TODO: this is really an awkward way to do it. But it works hehe.
     m_adapter->RegisterEventCallback([this](DebugAdapterEventType event, void *data){
-        m_controller->EventCallback(event, data);
+        m_controller->EventHandler(event, data);
     });
 }
 
@@ -603,7 +604,7 @@ void DebuggerState::Exec()
 
 
     // std::string currentModule = ResolveTargetBase();
-    // This is instead done in DebuggerController::EventCallback
+    // This is instead done in DebuggerController::EventHandler
     // We must first update the modules, then the breakpoints can be applied correctly
 //    m_modules->Update();
 //    m_breakpoints->Apply();
@@ -666,9 +667,11 @@ void DebuggerState::Pause()
 
 void DebuggerState::Go()
 {
-    if (!IsConnected())
-        throw ConnectionRefusedError("missing adapter");
+//    m_adapter->Go();
 
+//    if (!IsConnected())
+//        throw ConnectionRefusedError("missing adapter");
+//
     m_targetStatus = DebugAdapterRunningStatus;
 
     uint64_t remoteIP = IP();
@@ -988,8 +991,6 @@ void DebuggerState::StepTo(std::vector<uint64_t> remoteAddresses)
     if (!IsConnected())
         throw ConnectionRefusedError("cannot step to when disconnected");
 
-    uint64_t remoteIP = IP();
-
     for (uint64_t remoteAddress: remoteAddresses)
     {
         if (!m_breakpoints->ContainsAbsolute(remoteAddress))
@@ -998,6 +999,7 @@ void DebuggerState::StepTo(std::vector<uint64_t> remoteAddresses)
         }
     }
 
+    uint64_t remoteIP = IP();
     if (m_breakpoints->ContainsAbsolute(remoteIP))
     {
         m_adapter->RemoveBreakpoint(remoteIP);
@@ -1145,7 +1147,7 @@ uint64_t DebuggerState::StackPointer()
 {
     // TODO: we would better have the DebugAdapter either tell us which register holds the stack pointer
     if (!IsConnected())
-        throw ConnectionRefusedError("Cannot read ip when disconnected");
+        throw ConnectionRefusedError("Cannot read stack pointer when disconnected");
     string archName = m_remoteArch->GetName();
     if (archName == "x86_64")
         return m_registers->GetRegisterValue("rsp");
@@ -1164,19 +1166,6 @@ bool DebuggerState::SetActiveThread(const DebugThread& thread)
         return false;
 
     return m_threads->SetActiveThread(thread);
-}
-
-
-void DebuggerState::OnStep()
-{
-    // Cached registers, threads, and modules must be updated explicitly
-    if (IsConnected())
-        UpdateCaches();
-
-    if (!m_ui)
-        return;
-
-    m_ui->OnStep();
 }
 
 

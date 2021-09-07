@@ -245,91 +245,54 @@ RspData RspConnector::ReceiveRspData() const
     return RspData(std::string(buffer.data(), buffer.size()));
 }
 
-
-//RspData RspConnector::SendAndReceive(const RspData& data, bool expectAck)
-//{
-//    RspData response;
-//
-//    SendAsync(data, nullptr, [&](const RspData& arg){
-//        response = arg;
-//    });
-//    return response;
-//}
-//
-//
-//void RspConnector::SendAsync(const RspData& data, std::function<void(const RspData&)> ackCallback,
-//         std::function<void(const RspData&)> responseCallback)
-//{
-//
-//}
-
-//RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string& expect, bool async)
-RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string& expect,
-    std::function<void(const RspData&)> callback)
+RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string& expect, bool async)
 {
     this->SendPayload(data);
 
     RspData reply{};
 
     if ( expect == "nothing" )
-    {
         reply = RspData("");
-    }
-    else if ( expect == "ack_then_reply" )
-    {
+    else if ( expect == "ack_then_reply" ) {
         this->ExpectAck();
         reply = this->ReceiveRspData();
     }
-    else if ( expect == "stop_packet" )
-    {
-        // If the current packet resumes the target, launch the waiting thread and return immediately
-        std::thread waitingThread([this, callback](){
-            RspData reply = this->ReceiveRspData();
-            if ( std::find(reply.begin(), reply.end(), '*') != reply.end() )
-                reply = this->DecodeRLE(reply);
+    else if ( expect == "mixed_output_ack_then_reply" ) {
+        bool ack_received = false;
+        while(true) {
+            char peek{};
+            this->m_socket->Recv(&peek, sizeof(peek), MSG_PEEK);
 
-            callback(reply);
-        });
+            if (!peek)
+                throw std::runtime_error("backend gone?");
 
-        waitingThread.detach();
-        return RspData{};
+            if (peek == '+') {
+                if (ack_received)
+                    throw std::runtime_error("two acks came when only one was expected");
 
-//        bool ack_received = false;
-//        while (true)
-//        {
-//            char peek{};
-//            this->m_socket->Recv(&peek, sizeof(peek), MSG_PEEK);
-//
-//            if (!peek)
-//                throw std::runtime_error("backend gone?");
-//
-//            if (peek == '+') {
-//                if (ack_received)
-//                    throw std::runtime_error("two acks came when only one was expected");
-//
-//                char buf{};
-//                ack_received = true;
-//                this->m_socket->Recv(&buf, sizeof(buf));
-//                continue;
-//            }
-//
-//            if (peek != '$') {
-//                char buf[16];
-//                this->m_socket->Recv(buf, sizeof(buf));
-//                throw std::runtime_error("packet start is wrong");
-//            }
-//
-//            reply = this->ReceiveRspData();
-//            if (reply.m_data[0] == 'O') {
-//                if (async)
-//                    this->HandleAsyncPacket(reply);
-//            } else {
-//                break;
-//            }
-//        }
-//
-//        if (!ack_received && this->m_acksEnabled)
-//            throw std::runtime_error("expected ack, but received none");
+                char buf{};
+                ack_received = true;
+                this->m_socket->Recv(&buf, sizeof(buf));
+                continue;
+            }
+
+            if (peek != '$') {
+                char buf[16];
+                this->m_socket->Recv(buf, sizeof(buf));
+                throw std::runtime_error("packet start is wrong");
+            }
+
+            reply = this->ReceiveRspData();
+            if (reply.m_data[0] == 'O') {
+                if (async)
+                    this->HandleAsyncPacket(reply);
+            } else {
+                break;
+            }
+        }
+
+        if (!ack_received && this->m_acksEnabled)
+            throw std::runtime_error("expected ack, but received none");
     }
 
     if ( std::find(reply.begin(), reply.end(), '*') != reply.end() )

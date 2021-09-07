@@ -83,6 +83,7 @@ class DebugView: public QWidget, public View
     bool m_oldFileLockStatus;
 
     TagTypeRef m_breakpointTagType, m_pcTagType;
+    uint64_t m_lastIP;
 
 public:
 	DebugView(QWidget* parent, BinaryViewRef data);
@@ -124,6 +125,13 @@ public:
 
     TagTypeRef GetBreakpointTagType() const { return m_breakpointTagType; }
     TagTypeRef GetPCTagType() const { return m_pcTagType; }
+
+    void DeleteAbsoluteBreakpointTag(uint64_t address);
+    void DeleteRelativeBreakpointTag(const ModuleNameAndOffset& address);
+    void AddAbsoluteBreakpointTag(uint64_t address);
+    void AddRelativeBreakpointTag(const ModuleNameAndOffset& address);
+
+    void UpdateIP(uint64_t address);
 
 protected:
 	virtual void focusInEvent(QFocusEvent* event) override;

@@ -168,7 +168,6 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std:
 #endif
 
     bool ret =  this->Connect("127.0.0.1", this->m_socket->GetPort());
-    NotifyStopped(DebugStopReason::InitalBreakpoint);
     return ret;
 }
 
@@ -415,6 +414,14 @@ std::vector<DebugBreakpoint> GdbAdapter::GetBreakpointList() const
     return this->m_debugBreakpoints;
 }
 
+
+bool GdbAdapter::BreakpointExists(uint64_t address) const
+{
+    return std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(),
+                   DebugBreakpoint(address)) != this->m_debugBreakpoints.end();
+}
+
+
 std::string GdbAdapter::GetRegisterNameByIndex(std::uint32_t index) const
 {
     for (const auto& [key, val] : this->m_registerInfo)
@@ -513,7 +520,7 @@ bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
     const auto dest = std::make_unique<std::uint8_t[]>(size + 1);
     std::memset(source.get(), '\0', 2 * size + 1);
     std::memset(dest.get(), '\0', size + 1);
-    std::memcpy(source.get(), reply.m_data, 2 * size + 1);
+    std::memcpy(source.get(), reply.m_data, 2 * size);
 
     [](const std::uint8_t* src, std::uint8_t* dst) {
         const auto char_to_int = [](std::uint8_t input) -> int {
@@ -696,68 +703,50 @@ bool GdbAdapter::BreakInto()
     return true;
 }
 
-bool GdbAdapter::GenericGo(const std::string& go_type) {
-    auto callback = [this](const RspData& go_reply)
-    {
-        if ( go_reply.m_data[0] == 'T' )
-        {
-            auto map = RspConnector::PacketToUnorderedMap(go_reply);
-            const auto tid = map["thread"];
-//            this->m_lastActiveThreadId = tid;
-//            this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);GdbAdapter::SignalToStopReason(map["signal"]);
-            DebugStopReason reason = GdbAdapter::SignalToStopReason(map["signal"]);
-            NotifyStopped(reason, nullptr);
-            // TODO: the above code does not notify the current thread
-//          NotifyCurrentThreadChanged(tid);
+bool GdbAdapter::GenericGo(const std::string& go_type)
+{
+    const auto go_reply =
+            this->m_rspConnector.TransmitAndReceive(
+                    RspData(go_type), "mixed_output_ack_then_reply", true);
 
-        }
-        else if ( go_reply.m_data[0] == 'W' )
-        {
-            /* exit status, substr */
-            NotifyStopped(DebugStopReason::ProcessExited, nullptr);
-        }
-        else
-        {
-            printf("[generic go failed?]\n");
-            printf("%s\n", go_reply.AsString().c_str());
-//            return false;
-        }
-    };
+    if ( go_reply.m_data[0] == 'T' ) {
+        auto map = RspConnector::PacketToUnorderedMap(go_reply);
+        const auto tid = map["thread"];
+        this->m_lastActiveThreadId = tid;
+        this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);
+    } else if ( go_reply.m_data[0] == 'W' ) {
+        /* exit status, substr */
+    } else {
+        printf("[generic go failed?]\n");
+        printf("%s\n", go_reply.AsString().c_str());
+        return false;
+    }
 
-    this->m_rspConnector.TransmitAndReceive(RspData(go_type), "stop_packet", callback);
     return true;
-
-//    if ( go_reply.m_data[0] == 'T' ) {
-//        auto map = RspConnector::PacketToUnorderedMap(go_reply);
-//        const auto tid = map["thread"];
-//        this->m_lastActiveThreadId = tid;
-//        this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);
-//    } else if ( go_reply.m_data[0] == 'W' ) {
-//        /* exit status, substr */
-//    } else {
-//        printf("[generic go failed?]\n");
-//        printf("%s\n", go_reply.AsString().c_str());
-//        return false;
-//    }
-
-//    return true;
 }
 
+
+// this should return the information about the target stop
 bool GdbAdapter::Go()
 {
+//    m_mutex.lock();
     return this->GenericGo("vCont;c:-1");
+//    m_mutex.unlock();
 }
+
 
 bool GdbAdapter::StepInto()
 {
     return this->GenericGo("vCont;s");
 }
 
+
 bool GdbAdapter::StepOver()
 {
     // GdbAdapter does not support StepOver(), it relies on DebuggerState to do a breakpoint and continue execution
     return false;
 }
+
 
 bool GdbAdapter::StepTo(std::uintptr_t address)
 {
@@ -851,6 +840,17 @@ DebugStopReason GdbAdapter::SignalToStopReason( std::uint64_t signal ) {
     };
 
     return signal_lookup[signal];
+}
+
+
+void GdbAdapter::SchedulerThread()
+{
+    while (true)
+    {
+        m_mutex.lock();
+
+        m_mutex.unlock();
+    }
 }
 
 

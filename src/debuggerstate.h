@@ -1,5 +1,6 @@
 #pragma once
 
+#include "semaphore.h"
 #include "binaryninjaapi.h"
 #include "uitypes.h"
 #include "processview.h"
@@ -190,6 +191,8 @@ private:
     inline static std::vector<DebuggerState*> g_debuggerStates;
     void DeleteState(BinaryViewRef data);
 
+//    std::binary_semaphore m_semaphore;
+
 public:
     DebuggerState(BinaryViewRef data, DebuggerController* controller);
     void Run();
@@ -205,6 +208,14 @@ public:
     void StepOverInternal();
     void StepReturn();
     void StepTo(std::vector<uint64_t> remoteAddresses);
+
+    void AdapterStepInto();
+    void AdapterStepOver();
+    void AdapterGo();
+
+    void AdapterStepIntoAndWait();
+    void AdapterStepOverAndWait();
+    void AdapterGoAndWait();
 
     bool CanExec();
     bool CanConnect();
@@ -255,7 +266,6 @@ public:
     // retrieve the DebuggerThreads object and then call SetActiveThread() on it. They call this function.
     bool SetActiveThread(const DebugThread& thread);
 
-    void OnStep();
     void MarkDirty();
     void UpdateCaches();
 

@@ -32,7 +32,12 @@ protected:
     std::string ExecuteShellCommand(const std::string& command);
     virtual bool LoadRegisterInfo();
 
+    uint64_t m_currentIP;
+
     bool m_redirectGDBServer;
+
+    std::recursive_mutex m_mutex;
+
 
     virtual DebugStopReason SignalToStopReason(std::uint64_t signal);
 
@@ -60,6 +65,7 @@ public:
     bool RemoveBreakpoints(const std::vector<DebugBreakpoint>& breakpoints) override;
     bool ClearAllBreakpoints() override;
     std::vector<DebugBreakpoint> GetBreakpointList() const override;
+    bool BreakpointExists(uint64_t address) const;
 
     std::string GetRegisterNameByIndex(std::uint32_t index) const override;
     std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
@@ -75,11 +81,14 @@ public:
 
     std::string GetTargetArchitecture() override;
 
+    uint64_t GetCurrentIP() const { return m_currentIP; }
+    void SetCurrentIP(uint64_t address) { m_currentIP = address; }
+
     DebugStopReason StopReason() override;
     unsigned long ExecStatus() override;
 
     bool GenericGo(const std::string& go_type);
-
+    bool GenericGoAsync(const std::string& go_type);
 
     bool BreakInto() override;
     bool Go() override;
@@ -91,6 +100,8 @@ public:
     std::uintptr_t GetInstructionOffset() override;
 
     bool SupportFeature(DebugAdapterCapacity feature) override;
+
+    void SchedulerThread();
 };
 
 

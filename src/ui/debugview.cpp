@@ -140,30 +140,25 @@ DebugView::DebugView(QWidget* parent, BinaryViewRef data): QWidget(parent)
     CreateBreakpointTagType();
     CreateProgramCounterTagType();
 
-    uint64_t entryPoint = data->GetEntryPoint();
-    uint64_t localEntryOffset = entryPoint - data->GetStart();
-    ModuleNameAndOffset address(data->GetFile()->GetOriginalFilename(), localEntryOffset);
-    m_controller->AddBreakpoint(address);
-
-    // TODO: we should add an option whether to add a breakpoint at program entry
-//    uint64_t entryPoint = data->GetEntryPoint();
-//    uint64_t localEntryOffset = entryPoint - data->GetStart();
-//    ModuleNameAndOffset address(data->GetFile()->GetOriginalFilename(), localEntryOffset);
-//    if (!m_state->GetBreakpoints()->ContainsOffset(address))
-//    {
-//        m_state->GetBreakpoints()->AddOffset(address);
-//        LogWarn("added breakpoint at offset 0x%" PRIx64, localEntryOffset);
-//        if (m_state->GetDebuggerUI())
-//        {
-//            m_state->GetDebuggerUI()->AddBreakpointTag(m_state->GetData()->GetEntryPoint());
-//            m_state->GetDebuggerUI()->UpdateBreakpoints();
-//        }
-//    }
-
     connect(m_controller, &DebuggerController::IPChanged, [this](uint64_t address){
-        navigate(address);
+        UpdateIP(address);
     });
 
+    connect(m_controller, &DebuggerController::relativeBreakpointDeleted, [this](const ModuleNameAndOffset& address){
+        DeleteRelativeBreakpointTag(address);
+    });
+
+    connect(m_controller, &DebuggerController::absoluteBreakpointDeleted, [this](uint64_t address){
+        DeleteAbsoluteBreakpointTag(address);
+    });
+
+    connect(m_controller, &DebuggerController::relativeBreakpointAdded, [this](const ModuleNameAndOffset& address) {
+        AddRelativeBreakpointTag(address);
+    });
+
+    connect(m_controller, &DebuggerController::absoluteBreakpointAdded, [this](uint64_t address){
+        AddAbsoluteBreakpointTag(address);
+    });
 }
 
 
@@ -567,6 +562,98 @@ void DebugView::CreateProgramCounterTagType()
 
     m_pcTagType = new TagType(m_data, "Program Counter", "==>");
     m_data->AddTagType(m_pcTagType);
+}
+
+
+void DebugView::DeleteAbsoluteBreakpointTag(uint64_t address)
+{
+    refreshRawDisassembly();
+}
+
+
+void DebugView::DeleteRelativeBreakpointTag(const ModuleNameAndOffset& address)
+{
+    for (FunctionRef func: m_data->GetAnalysisFunctionsContainingAddress(address.offset))
+    {
+        func->SetAutoInstructionHighlight(m_data->GetDefaultArchitecture(), address.offset, NoHighlightColor);
+        for (TagRef tag: func->GetAddressTags(m_data->GetDefaultArchitecture(), address.offset))
+        {
+            if (tag->GetType() != GetBreakpointTagType())
+                continue;
+
+            func->RemoveUserAddressTag(m_data->GetDefaultArchitecture(), address.offset, tag);
+        }
+    }
+}
+
+
+void DebugView::AddAbsoluteBreakpointTag(uint64_t address)
+{
+    refreshRawDisassembly();
+}
+
+
+void DebugView::AddRelativeBreakpointTag(const ModuleNameAndOffset& address)
+{
+    for (FunctionRef func: m_data->GetAnalysisFunctionsContainingAddress(address.offset))
+    {
+        if (!func)
+            continue;
+
+        bool tagFound = false;
+        for (TagRef tag: func->GetAddressTags(m_controller->GetState()->GetData()->GetDefaultArchitecture(),
+                                              address.offset))
+        {
+            if (tag->GetType() == GetBreakpointTagType())
+            {
+                tagFound = true;
+                break;
+            }
+        }
+
+        if (!tagFound)
+        {
+            func->SetAutoInstructionHighlight(m_controller->GetState()->GetData()->GetDefaultArchitecture(), address.offset,
+                                              RedHighlightColor);
+            func->CreateUserAddressTag(m_controller->GetState()->GetData()->GetDefaultArchitecture(), address.offset,
+                                       GetBreakpointTagType(), "breakpoint");
+        }
+    }
+}
+
+
+void DebugView::UpdateIP(uint64_t address)
+{
+    uint64_t localIP = m_controller->GetState()->LocalIP();
+    navigate(localIP);
+
+    for (FunctionRef func: m_controller->GetState()->GetData()->GetAnalysisFunctionsContainingAddress(m_lastIP))
+    {
+        ModuleNameAndOffset addr;
+        addr.module = m_data->GetFile()->GetOriginalFilename();
+        addr.offset = m_lastIP - m_data->GetStart();
+
+        BNHighlightStandardColor oldColor = NoHighlightColor;
+        if (m_controller->GetState()->GetBreakpoints()->ContainsOffset(addr))
+            oldColor = RedHighlightColor;
+
+        func->SetAutoInstructionHighlight(m_data->GetDefaultArchitecture(), m_lastIP, oldColor);
+        for (TagRef tag: func->GetAddressTags(m_data->GetDefaultArchitecture(), m_lastIP))
+        {
+            if (tag->GetType() != GetPCTagType())
+                continue;
+
+            func->RemoveUserAddressTag(m_data->GetDefaultArchitecture(), m_lastIP, tag);
+        }
+    }
+
+    m_lastIP = localIP;
+
+    for (FunctionRef func: m_controller->GetState()->GetData()->GetAnalysisFunctionsContainingAddress(localIP))
+    {
+        func->SetAutoInstructionHighlight(m_data->GetDefaultArchitecture(), localIP, BlueHighlightColor);
+        func->CreateUserAddressTag(m_data->GetDefaultArchitecture(), localIP, GetPCTagType(), "program counter");
+    }
 }
 
 
