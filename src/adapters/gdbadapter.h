@@ -32,12 +32,11 @@ protected:
     std::string ExecuteShellCommand(const std::string& command);
     virtual bool LoadRegisterInfo();
 
-    uint64_t m_currentIP;
-
     bool m_redirectGDBServer;
 
     std::recursive_mutex m_mutex;
 
+    bool m_isRunning;
 
     virtual DebugStopReason SignalToStopReason(std::uint64_t signal);
 
@@ -80,9 +79,6 @@ public:
     std::vector<DebugModule> GetModuleList() override;
 
     std::string GetTargetArchitecture() override;
-
-    uint64_t GetCurrentIP() const { return m_currentIP; }
-    void SetCurrentIP(uint64_t address) { m_currentIP = address; }
 
     DebugStopReason StopReason() override;
     unsigned long ExecStatus() override;

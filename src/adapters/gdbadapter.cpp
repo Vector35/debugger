@@ -31,6 +31,7 @@ using namespace std;
 
 GdbAdapter::GdbAdapter(bool redirectGDBServer): m_redirectGDBServer(redirectGDBServer)
 {
+    m_isRunning = false;
 }
 
 GdbAdapter::~GdbAdapter()
@@ -178,6 +179,9 @@ bool GdbAdapter::Attach(std::uint32_t pid)
 
 bool GdbAdapter::LoadRegisterInfo()
 {
+    if (m_isRunning)
+        return false;
+
     const auto xml = this->m_rspConnector.GetXml("target.xml");
 
     pugi::xml_document doc{};
@@ -280,6 +284,7 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
 
     this->m_lastActiveThreadId = map["thread"];
 
+    m_isRunning = false;
     return true;
 }
 
@@ -288,6 +293,7 @@ void GdbAdapter::Detach()
     char detach{'D'};
     this->m_rspConnector.SendRaw(RspData(&detach, sizeof(detach)));
     this->m_socket->Kill();
+    m_isRunning = false;
 }
 
 void GdbAdapter::Quit()
@@ -297,10 +303,14 @@ void GdbAdapter::Quit()
     this->m_rspConnector.SendRaw(RspData(&send, sizeof(send)));
     this->m_rspConnector.SendRaw(RspData(&kill, sizeof(kill)));
     this->m_socket->Kill();
+    m_isRunning = false;
 }
 
 std::vector<DebugThread> GdbAdapter::GetThreadList()
 {
+    if (m_isRunning)
+        return {};
+
     int internal_thread_index{};
     std::vector<DebugThread> threads{};
 
@@ -345,6 +355,9 @@ bool GdbAdapter::SetActiveThread(const DebugThread& thread)
 
 bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
 {
+    if (m_isRunning)
+        return false;
+
     if ( this->m_rspConnector.TransmitAndReceive(RspData(string("T{:x}"), tid)).AsString() != "OK" )
         throw std::runtime_error("thread does not exist!");
 
@@ -361,6 +374,9 @@ bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
 
 DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
+    if (m_isRunning)
+        return false;
+
     if ( std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(),
                    DebugBreakpoint(address)) != this->m_debugBreakpoints.end())
         return {};
@@ -377,11 +393,17 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned
 
 std::vector<DebugBreakpoint> GdbAdapter::AddBreakpoints(const std::vector<std::uintptr_t>& breakpoints)
 {
+    if (m_isRunning)
+        return {};
+
     return std::vector<DebugBreakpoint>();
 }
 
 bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 {
+    if (m_isRunning)
+        return false;
+
     if (auto location = std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(), breakpoint);
             location == this->m_debugBreakpoints.end()) {
         printf("breakpoint does not exist!\n");
@@ -401,6 +423,9 @@ bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 
 bool GdbAdapter::RemoveBreakpoints(const std::vector<DebugBreakpoint>& breakpoints)
 {
+    if (m_isRunning)
+        return false;
+
     return false;
 }
 
@@ -431,7 +456,8 @@ std::string GdbAdapter::GetRegisterNameByIndex(std::uint32_t index) const
     throw std::runtime_error("failed to find register by index");
 }
 
-std::unordered_map<std::string, DebugRegister> GdbAdapter::ReadAllRegisters() {
+std::unordered_map<std::string, DebugRegister> GdbAdapter::ReadAllRegisters()
+{
     if ( this->m_registerInfo.empty() )
         throw std::runtime_error("register info empty");
 
@@ -468,6 +494,9 @@ std::unordered_map<std::string, DebugRegister> GdbAdapter::ReadAllRegisters() {
 
 DebugRegister GdbAdapter::ReadRegister(const std::string& reg)
 {
+    if (m_isRunning)
+        return DebugRegister{};
+
     if ( this->m_registerInfo.find(reg) == this->m_registerInfo.end() )
         throw std::runtime_error(fmt::format("register {} does not exist in target", reg));
 
@@ -476,6 +505,9 @@ DebugRegister GdbAdapter::ReadRegister(const std::string& reg)
 
 bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
 {
+    if (m_isRunning)
+        return false;
+
     const auto reply = this->m_rspConnector.TransmitAndReceive(RspData("P{}={:016X}",
                                        this->m_registerInfo[reg].m_regNum, RspConnector::SwapEndianness(value)));
     if (reply.m_data[0])
@@ -497,11 +529,17 @@ bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
 
 bool GdbAdapter::WriteRegister(const DebugRegister& reg, std::uintptr_t value)
 {
+    if (m_isRunning)
+        return false;
+
     return this->WriteRegister(reg.m_name, value);
 }
 
 std::vector<std::string> GdbAdapter::GetRegisterList() const
 {
+    if (m_isRunning)
+        return {};
+
     std::vector<std::string> registers{};
 
     for ( const auto& [register_name, register_info] : this->m_registerInfo )
@@ -512,6 +550,9 @@ std::vector<std::string> GdbAdapter::GetRegisterList() const
 
 bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
 {
+    if (m_isRunning)
+        return false;
+
     auto reply = this->m_rspConnector.TransmitAndReceive(RspData("m{:x},{:x}", address, size));
     if (reply.m_data[0] == 'E')
         return false;
@@ -546,6 +587,9 @@ bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
 
 bool GdbAdapter::WriteMemory(std::uintptr_t address, const void* out, std::size_t size)
 {
+    if (m_isRunning)
+        return false;
+
     const auto dest = std::make_unique<char[]>(2 * size + 1);
     std::memset(dest.get(), '\0', 2 * size + 1);
 
@@ -562,6 +606,9 @@ bool GdbAdapter::WriteMemory(std::uintptr_t address, const void* out, std::size_
 
 std::string GdbAdapter::GetRemoteFile(const std::string& path)
 {
+    if (m_isRunning)
+        return "";
+
     RspData output;
     int32_t error;
     int32_t ret = this->m_rspConnector.HostFileIO(RspData("vFile:setfs:0"), output, error);
@@ -609,6 +656,9 @@ std::string GdbAdapter::GetRemoteFile(const std::string& path)
 
 std::vector<DebugModule> GdbAdapter::GetModuleList()
 {
+    if (m_isRunning)
+        return {};
+
     std::map<std::string, BNAddressRange> moduleRanges;
 
     const auto path = "/proc/" + std::to_string(this->m_lastActiveThreadId) + "/maps";
@@ -670,6 +720,9 @@ std::vector<DebugModule> GdbAdapter::GetModuleList()
 
 std::string GdbAdapter::GetTargetArchitecture()
 {
+    if (m_isRunning)
+        return "";
+
     const auto xml = this->m_rspConnector.GetXml("target.xml");
 
     pugi::xml_document doc{};
@@ -700,11 +753,13 @@ bool GdbAdapter::BreakInto()
 {
     char var = '\x03';
     this->m_rspConnector.SendRaw(RspData(&var, sizeof(var)));
+    m_isRunning = false;
     return true;
 }
 
 bool GdbAdapter::GenericGo(const std::string& go_type)
 {
+    m_isRunning = true;
     const auto go_reply =
             this->m_rspConnector.TransmitAndReceive(
                     RspData(go_type), "mixed_output_ack_then_reply", true);
@@ -722,6 +777,7 @@ bool GdbAdapter::GenericGo(const std::string& go_type)
         return false;
     }
 
+    m_isRunning = false;
     return true;
 }
 
