@@ -3,6 +3,8 @@
 #include "../debugadaptertype.h"
 #include "rspconnector.h"
 #include <map>
+#include <queue>
+#include "../semaphore.h"
 
 class GdbAdapter : public DebugAdapter
 {
@@ -33,8 +35,6 @@ protected:
     virtual bool LoadRegisterInfo();
 
     bool m_redirectGDBServer;
-
-    std::recursive_mutex m_mutex;
 
     bool m_isRunning;
 
@@ -98,6 +98,8 @@ public:
     bool SupportFeature(DebugAdapterCapacity feature) override;
 
     void SchedulerThread();
+    void WaitInQueue();
+    void NotifyOperationCompleted();
 };
 
 

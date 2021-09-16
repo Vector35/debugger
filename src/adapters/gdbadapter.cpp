@@ -899,17 +899,6 @@ DebugStopReason GdbAdapter::SignalToStopReason( std::uint64_t signal ) {
 }
 
 
-void GdbAdapter::SchedulerThread()
-{
-    while (true)
-    {
-        m_mutex.lock();
-
-        m_mutex.unlock();
-    }
-}
-
-
 GdbAdapterType::GdbAdapterType(): DebugAdapterType("Local GDB")
 {
 
