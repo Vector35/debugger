@@ -9,6 +9,7 @@
 #include "highlevelilinstruction.h"
 #include "../debuggerexceptions.h"
 #include "semaphore.h"
+#include "./adapters/queuedadapter.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -498,8 +499,9 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 void DebuggerState::CreateDebugAdapter()
 {
     std::string adapterTypeName = "Local GDB";
-    DebugAdapterType* type = DebugAdapterType::GetByName(adapterTypeName);
-    DebugAdapter* adapter = type->Create(m_data);
+//    DebugAdapterType* type = DebugAdapterType::GetByName(adapterTypeName);
+//    DebugAdapter* adapter = type->Create(m_data);
+    DebugAdapter* adapter = new QueuedAdapter();
     if (adapter)
     {
         m_adapter = adapter;
