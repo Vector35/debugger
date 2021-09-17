@@ -354,30 +354,6 @@ std::unordered_map<std::string, DebugRegister> QueuedAdapter::ReadAllRegisters()
     lock.unlock();
     sem.Wait();
     return ret;
-
-//    std::vector<std::string> names;
-//    std::vector<DebugRegister> registers;
-//    Semaphore sem;
-//
-//    m_queue.push([=, &sem]() mutable {
-//        std::unordered_map<std::string, DebugRegister> result = m_adapter->ReadAllRegisters();
-//        for (auto iter: result)
-//        {
-//            names.push_back(iter.first);
-//            registers.push_back(iter.second);
-//        }
-//        sem.Release();
-//
-//    });
-//
-//    sem.Wait();
-//    std::unordered_map<std::string, DebugRegister> ret;
-//    for (size_t i = 0; i < names.size(); i++)
-//    {
-//        ret[names[i]] = registers[i];
-//    }
-//
-//    return ret;
 }
 
 
