@@ -14,12 +14,15 @@
 #include "expandablegroup.h"
 #include "stackwidget.h"
 #include "breakpointswidget.h"
+#include "registerswidget.h"
 #include "moduleswidget.h"
 #include "threadswidget.h"
 #include "controlswidget.h"
 #include "../debuggercontroller.h"
 
 class DebuggerController;
+class DebugRegistersWidget;
+
 class DebuggerWidget: public SidebarWidget
 {
     Q_OBJECT;
@@ -29,10 +32,11 @@ class DebuggerWidget: public SidebarWidget
     DebuggerController* m_controller;
 
     UIActionHandler* M_actionHandler;
-    ExpandableGroup *m_breakpointsGroup, *m_stackGroup, *m_threadsGroup, *m_modulesGroup;
+    ExpandableGroup *m_registersGroup, *m_breakpointsGroup, *m_stackGroup, *m_threadsGroup, *m_modulesGroup;
     QSplitter *m_splitter;
 
     DebugControlsWidget* m_controlsWidget;
+    DebugRegistersWidget* m_registersWidget;
     DebugBreakpointsWidget* m_breakpointsWidget;
     DebugModulesWidget* m_modulesWidget;
     DebugThreadsWidget* m_threadsWidget;

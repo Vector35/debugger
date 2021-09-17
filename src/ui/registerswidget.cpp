@@ -360,9 +360,9 @@ DebugRegistersWidget::DebugRegistersWidget(const QString& name, ViewFrame* view,
     layout->addWidget(m_table);
     setLayout(layout);
 
-    updateContext();
+//    updateContent();
 
-    connect(m_controller, &DebuggerController::cacheUpdated, this, &DebugRegistersWidget::updateContext);
+    connect(m_controller, &DebuggerController::cacheUpdated, this, &DebugRegistersWidget::updateContent);
 }
 
 
@@ -380,7 +380,7 @@ void DebugRegistersWidget::notifyFontChanged()
 }
 
 
-void DebugRegistersWidget::updateContext()
+void DebugRegistersWidget::updateContent()
 {
     std::vector<DebugRegister> registers = m_state->GetRegisters()->GetAllRegisters();
     notifyRegistersChanged(registers);

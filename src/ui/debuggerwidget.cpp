@@ -23,6 +23,9 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 
     m_controlsWidget = new DebugControlsWidget(this, "Controls", data);
 
+    m_registersWidget = new DebugRegistersWidget("Native Debugger Registers",
+                                                     m_view, m_data);
+
     m_breakpointsWidget = new DebugBreakpointsWidget("Native Debugger Breakpoints",
                                                                            m_view, m_data, m_menu);
 
@@ -34,6 +37,10 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 
     m_stackWidget = new DebugStackWidget("Native Debugger Stack",
                                                                m_view, m_data);
+
+    auto registerLayout = new QVBoxLayout();
+    registerLayout->setContentsMargins(0, 0, 0, 0);
+    registerLayout->addWidget(m_registersWidget);
 
     auto bpLayout = new QVBoxLayout();
     bpLayout->setContentsMargins(0, 0, 0, 0);
@@ -51,16 +58,18 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
     stackLayout->setContentsMargins(0, 0, 0, 0);
     stackLayout->addWidget(m_stackWidget);
 
+    m_registersGroup = new ExpandableGroup(registerLayout, "Registers");
     m_breakpointsGroup = new ExpandableGroup(bpLayout, "Breakpoints");
+    m_stackGroup = new ExpandableGroup(stackLayout, "Stack");
     m_modulesGroup = new ExpandableGroup(modulesLayout, "Modules");
     m_threadsGroup = new ExpandableGroup(threadsLayout, "Threads");
-    m_stackGroup = new ExpandableGroup(stackLayout, "Stack");
 
     m_splitter->addWidget(m_controlsWidget);
+    m_splitter->addWidget(m_registersGroup);
     m_splitter->addWidget(m_breakpointsGroup);
+    m_splitter->addWidget(m_stackGroup);
     m_splitter->addWidget(m_modulesGroup);
     m_splitter->addWidget(m_threadsGroup);
-    m_splitter->addWidget(m_stackGroup);
 
     layout->addWidget(m_splitter);
     setLayout(layout);
@@ -88,6 +97,7 @@ void DebuggerWidget::updateContext()
     LogWarn("DebuggerWidget::updateContext()");
 //    TODO: further refactor this, connect the updateContext signal directly to each of the signals
 //    m_breakpointsWidget->updateContent();
+//    m_registersWidget->updateContent();
     m_modulesWidget->updateContent();
     m_threadsWidget->updateContent();
     m_stackWidget->updateContent();

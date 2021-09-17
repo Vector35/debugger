@@ -5,7 +5,6 @@
 #include "threadswidget.h"
 #include "stackwidget.h"
 #include "debuggerwidget.h"
-#include "registerswidget.h"
 
 using namespace BinaryNinja;
 
@@ -125,10 +124,10 @@ void DebuggerUI::InitializeUI()
     };
 
     Sidebar::addSidebarWidgetType(
-        new DebuggerWidgetType(create_icon_with_letter("B"), "Native Debugger"));
+        new DebuggerWidgetType(create_icon_with_letter("D"), "Native Debugger"));
 
-    Sidebar::addSidebarWidgetType(
-            new DebugRegistersWidgetType(create_icon_with_letter("R"), "Native Debugger Registers"));
+//    Sidebar::addSidebarWidgetType(
+//            new DebugRegistersWidgetType(create_icon_with_letter("R"), "Native Debugger Registers"));
 
     PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
             "sets/clears breakpoint at right-clicked address",

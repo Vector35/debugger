@@ -125,7 +125,7 @@ public:
     void notifyRegistersChanged(std::vector<DebugRegister> regs);
 
 private slots:
-    void updateContext();
+    void updateContent();
 };
 
 
