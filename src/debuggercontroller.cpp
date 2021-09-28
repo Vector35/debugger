@@ -1,5 +1,6 @@
 #include "debuggercontroller.h"
 #include <thread>
+#include "../../ui/mainwindow.h"
 
 DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 {
@@ -168,6 +169,36 @@ void DebuggerController::EventHandler(DebugAdapterEventType event, void *data)
             // We need to apply the breakpoints that the user has set up before launching the target. Note this requires
             // the modules to be updated properly beforehand.
             m_state->ApplyBreakpoints();
+
+            // Rebase the binary and create DebugView
+            uint64_t remoteBase = m_state->GetRemoteBase();
+            LogWarn("the remote base is 0x%" PRIx64, remoteBase);
+
+            FileMetadata* fileMetadata = m_data->GetFile();
+            if (remoteBase != m_data->GetStart())
+            {
+                // remote base is different from the local base, first need a rebase
+//                DatabaseProgress progress(nullptr, "Rebase", "Rebasing...");
+//                if (!fileMetadata->Rebase(m_data, remoteBase, [&](size_t cur, size_t total) { progress.update((int)cur, (int)total); }))
+                if (!fileMetadata->Rebase(m_data, remoteBase))
+                {
+                    LogWarn("rebase failed");
+                }
+            }
+
+            BinaryView* rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
+//            DatabaseProgress progress(nullptr, "Debug View", "Creating a BinaryView for debugging...");
+//            if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugged Process", "Debugged Process Memory",
+            if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugged Process", "Debugged Process Memory"))
+            {
+                LogWarn("create snapshoted view failed");
+            }
+            else
+            {
+                LogWarn("create snapshoted view ok");
+            }
+
+
 
 
         }
