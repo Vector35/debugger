@@ -12,6 +12,22 @@ using namespace BinaryNinja;
 class DebugMemoryView;
 class DebugProcessView: public BinaryView
 {
+    std::vector<uint64_t> m_entryPoints;
+    size_t m_addressSize;
+    BNEndianness m_endian;
+
+    virtual uint64_t PerformGetEntryPoint() const override;
+
+    virtual bool PerformIsExecutable() const override { return true; }
+    virtual BNEndianness PerformGetDefaultEndianness() const override;
+    virtual bool PerformIsRelocatable() const override { return true; };
+    virtual size_t PerformGetAddressSize() const override;
+public:
+    DebugProcessView(BinaryView* data);
+    virtual ~DebugProcessView();
+
+    virtual bool Init() override;
+
 private:
     DebugMemoryView* m_memory;
     BinaryView* m_localView;
@@ -20,14 +36,14 @@ private:
 
     std::map<std::string, uint64_t> m_moduleBases;
 
-    virtual bool PerformIsExecutable() const override { return true; }
+//    virtual bool PerformIsExecutable() const override { return true; }
     virtual bool PerformIsValidOffset(uint64_t addr) override { return true; }
 
-    virtual size_t PerformGetAddressSize() const override;
+//    virtual size_t PerformGetAddressSize() const override;
     virtual uint64_t PerformGetLength() const override;
 
 public:
-    DebugProcessView(BinaryView* parent);
+//    DebugProcessView(BinaryView* parent);
     void MarkDirty();
     void ClearModuleBases();
     uint64_t GetRemoteBase(BinaryViewRef relativeView = nullptr);

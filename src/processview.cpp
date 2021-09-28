@@ -22,12 +22,170 @@ DebugProcessView::DebugProcessView(BinaryView* parent):
 }
 
 
-size_t DebugProcessView::PerformGetAddressSize() const
+DebugProcessView::~DebugProcessView()
 {
-    return m_memory->PerformGetAddressSize();
 }
 
 
+bool DebugProcessView::Init()
+{
+    Ref<Settings> settings = GetLoadSettings(GetTypeName());
+    if (!settings || settings->IsEmpty())
+    {
+        AddAutoSegment(0, GetParentView()->GetLength(), 0, GetParentView()->GetLength(), SegmentReadable | SegmentExecutable);
+        return true;
+    }
+
+    std::string archName = settings->Get<std::string>("loader.architecture", this);
+    Architecture* arch = Architecture::GetByName(archName);
+    if (!arch)
+    {
+        LogError("Mapped view type could not be created! No architecture selected.");
+        return false;
+    }
+
+    std::string platformName = settings->Get<std::string>("loader.platform", this);
+    Ref<Platform> platform = Platform::GetByName(platformName);
+    if (!platform)
+        platform = arch->GetStandalonePlatform();
+    SetDefaultPlatform(platform);
+    SetDefaultArchitecture(platform->GetArchitecture());
+    m_addressSize = arch->GetAddressSize();
+    m_endian = arch->GetEndianness();
+
+    uint64_t imageBase = settings->Get<uint64_t>("loader.imageBase", this);
+
+//    if (settings->Contains("loader.segments"))
+//    {
+//        // create segments
+//        std::string json = settings->Get<std::string>("loader.segments", this);
+//        std::string errors;
+//        Json::Value value;
+//        const char* pStr = json.c_str();
+//        std::unique_ptr<Json::CharReader> reader(Json::CharReaderBuilder().newCharReader());
+//        if (json.size())
+//        {
+//            try
+//            {
+//                if (!reader->parse(pStr, pStr + json.size(), &value, &errors))
+//                {
+//                    LogError("Mapped view could not be created! Json segments parse error.");
+//                    return false;
+//                }
+//            }
+//            catch (std::exception& e)
+//            {
+//                LogError("Mapped view could not be created! Json segments parse exception: %s", e.what());
+//                return false;
+//            }
+//        }
+//
+//        if (value.isArray())
+//        {
+//            SerDesContext sdc;
+//            sdc.setArch(arch);
+//            sdc.SetAddressTransforms([imageBase](uint64_t val) { return val - imageBase; }, [imageBase](uint64_t val) { return val + imageBase; });
+//            for (const auto& i : value)
+//            {
+//                Ref<Segment> s = Segment::Deserialize(sdc, i);
+//                if (!s)
+//                {
+//                    LogError("Mapped view failed to deserialize segment!");
+//                    continue;
+//                }
+//                AddAutoSegment(s->GetStart(), s->GetLength(), s->GetDataOffset(), s->GetDataLength(), s->GetFlags());
+//            }
+//        }
+//        else
+//            LogError("Mapped view failed to deserialize segments!");
+//    }
+//
+//    if (settings->Contains("loader.sections"))
+//    {
+//        // create sections
+//        std::string json = settings->Get<std::string>("loader.sections", this);
+//        std::string errors;
+//        Json::Value value;
+//        const char* pStr = json.c_str();
+//        std::unique_ptr<Json::CharReader> reader(Json::CharReaderBuilder().newCharReader());
+//        if (json.size())
+//        {
+//            try
+//            {
+//                if (!reader->parse(pStr, pStr + json.size(), &value, &errors))
+//                {
+//                    LogError("Mapped view could not be created! Json sections parse error.");
+//                    return false;
+//                }
+//            }
+//            catch (std::exception& e)
+//            {
+//                LogError("Mapped view could not be created! Json sections parse exception: %s", e.what());
+//                return false;
+//            }
+//        }
+//
+//        if (value.isArray())
+//        {
+//            SerDesContext sdc;
+//            sdc.setArch(arch);
+//            sdc.SetAddressTransforms([imageBase](uint64_t val) { return val - imageBase; }, [imageBase](uint64_t val) { return val + imageBase; });
+//            for (const auto& i : value)
+//            {
+//                Ref<Section> s = Section::Deserialize(sdc, i);
+//                if (!s)
+//                {
+//                    LogError("Mapped view failed to deserialize segment!");
+//                    continue;
+//                }
+//                AddAutoSection(s->GetName(), s->GetStart(), s->GetLength(), s->GetSemantics(), s->GetType(),
+//                               s->GetAlign(), s->GetEntrySize(), s->GetLinkedSection(), s->GetInfoSection(), s->GetInfoData());
+//            }
+//        }
+//        else
+//            LogError("Mapped view failed to deserialize sections!");
+//    }
+
+    auto jsonValue = settings->GetJson("loader.entryPointOffset", this);
+    if (jsonValue != "null")
+    {
+        uint64_t entryPoint = imageBase + settings->Get<uint64_t>("loader.entryPointOffset", this);
+        m_entryPoints.push_back(entryPoint);
+        AddEntryPointForAnalysis(platform, entryPoint);
+        DefineAutoSymbol(new Symbol(FunctionSymbol, "_start", entryPoint));
+    }
+
+    return true;
+}
+
+
+uint64_t DebugProcessView::PerformGetEntryPoint() const
+{
+    if (m_entryPoints.size() == 0)
+        return 0;
+
+    return m_entryPoints[0];
+}
+
+
+BNEndianness DebugProcessView::PerformGetDefaultEndianness() const
+{
+    return m_endian;
+}
+
+
+size_t DebugProcessView::PerformGetAddressSize() const
+{
+    return m_addressSize;
+}
+
+//
+//size_t DebugProcessView::PerformGetAddressSize() const
+//{
+//    return m_memory->PerformGetAddressSize();
+//}
+//
+//
 uint64_t DebugProcessView::PerformGetLength() const
 {
     return m_memory->PerformGetLength();
