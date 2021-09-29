@@ -23,7 +23,6 @@ extern "C"
 		ViewType::registerViewType(new DebugViewType());
         DebuggerUI::InitializeUI();
         InitDebugAdapterTypes();
-        InitDebugMemoryViewType();
         InitDebugProcessViewType();
 		return true;
 	}

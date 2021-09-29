@@ -3,14 +3,12 @@
 
 using namespace BinaryNinja;
 
-static DebugMemoryViewType* g_debugMemoryViewType = nullptr;
 static DebugProcessViewType* g_debugProcessViewType = nullptr;
 
 
 DebugProcessView::DebugProcessView(BinaryView* parent):
-    BinaryView("Debugged Process", parent->GetFile(), new DebugMemoryView(parent))
+    BinaryView("Debugged Process", parent->GetFile(), parent)
 {
-    m_memory = new DebugMemoryView(parent);
     m_localView = parent;
     m_arch = parent->GetDefaultArchitecture();
     m_platform = parent->GetDefaultPlatform();
@@ -29,12 +27,14 @@ DebugProcessView::~DebugProcessView()
 
 bool DebugProcessView::Init()
 {
+    return true;
+
     Ref<Settings> settings = GetLoadSettings(GetTypeName());
-    if (!settings || settings->IsEmpty())
-    {
-        AddAutoSegment(0, GetParentView()->GetLength(), 0, GetParentView()->GetLength(), SegmentReadable | SegmentExecutable);
-        return true;
-    }
+//    if (!settings || settings->IsEmpty())
+//    {
+//        AddAutoSegment(0, GetParentView()->GetLength(), 0, GetParentView()->GetLength(), SegmentReadable | SegmentExecutable);
+//        return true;
+//    }
 
     std::string archName = settings->Get<std::string>("loader.architecture", this);
     Architecture* arch = Architecture::GetByName(archName);
@@ -188,13 +188,13 @@ size_t DebugProcessView::PerformGetAddressSize() const
 //
 uint64_t DebugProcessView::PerformGetLength() const
 {
-    return m_memory->PerformGetLength();
-}
+    size_t addressSize = PerformGetAddressSize();
+    const size_t bitsPerByte = 8;
+    size_t bits = addressSize * bitsPerByte;
+    if (bits >= 64)
+        return UINT64_MAX;
 
-
-void DebugProcessView::MarkDirty()
-{
-    m_memory->MarkDirty();
+    return (1UL << bits) - 1;
 }
 
 
@@ -220,7 +220,7 @@ uint64_t DebugProcessView::GetRemoteBase(BinaryViewRef relativeView)
     auto iter = m_moduleBases.find(moduleName);
     if (iter == m_moduleBases.end())
     {
-        DebuggerState* state = DebuggerState::GetState(m_localView);
+        DebuggerState* state = DebuggerState::GetState(relativeView);
         DebuggerModules* modulesCache = state->GetModules();
         if (!modulesCache)
             // TODO: should return false, and return the address by reference
@@ -347,86 +347,75 @@ void InitDebugProcessViewType()
 }
 
 
-DebugMemoryViewType::DebugMemoryViewType():
-    BinaryViewType("Debugged Process Memory", "Debugged Process Memory")
+//DebugMemoryViewType::DebugMemoryViewType():
+//    BinaryViewType("Debugged Process Memory", "Debugged Process Memory")
+//{
+//}
+//
+//
+//BinaryView* DebugMemoryViewType::Create(BinaryView* data)
+//{
+//	try
+//	{
+//		return new DebugMemoryView(data);
+//	}
+//	catch (std::exception& e)
+//	{
+//		LogError("%s<BinaryViewType> failed to create view! '%s'", GetName().c_str(), e.what());
+//		return nullptr;
+//	}
+//}
+//
+//
+//BinaryView* DebugMemoryViewType::Parse(BinaryView* data)
+//{
+//	try
+//	{
+//		return new DebugMemoryView(data);
+//	}
+//	catch (std::exception& e)
+//	{
+//		LogError("%s<BinaryViewType> failed to create view! '%s'", GetName().c_str(), e.what());
+//		return nullptr;
+//	}
+//}
+
+
+//void InitDebugMemoryViewType()
+//{
+//    static DebugMemoryViewType type;
+//    BinaryViewType::Register(&type);
+//	g_debugMemoryViewType = &type;
+//}
+
+
+//DebugMemoryView::DebugMemoryView(BinaryView* parent):
+//    BinaryView("Debugged Process Memory", parent->GetFile(), parent)
+//{
+//    m_arch = parent->GetDefaultArchitecture();
+//    m_platform = parent->GetDefaultPlatform();
+//    m_valueCache.clear();
+//    m_errorCache.clear();
+//}
+
+
+//size_t DebugProcessView::PerformGetAddressSize() const
+//{
+//    Ref<BinaryView> parentView = GetParentView();
+//    if (!parentView)
+//        return 8;
+//
+//    Ref<Architecture> parentArch = parentView->GetDefaultArchitecture();
+//    if (!parentArch)
+//        return 8;
+//
+//    return parentArch->GetAddressSize();
+//}
+
+
+size_t DebugProcessView::PerformRead(void* dest, uint64_t offset, size_t len)
 {
-}
-
-
-BinaryView* DebugMemoryViewType::Create(BinaryView* data)
-{
-	try
-	{
-		return new DebugMemoryView(data);
-	}
-	catch (std::exception& e)
-	{
-		LogError("%s<BinaryViewType> failed to create view! '%s'", GetName().c_str(), e.what());
-		return nullptr;
-	}
-}
-
-
-BinaryView* DebugMemoryViewType::Parse(BinaryView* data)
-{
-	try
-	{
-		return new DebugMemoryView(data);
-	}
-	catch (std::exception& e)
-	{
-		LogError("%s<BinaryViewType> failed to create view! '%s'", GetName().c_str(), e.what());
-		return nullptr;
-	}
-}
-
-
-void InitDebugMemoryViewType()
-{
-    static DebugMemoryViewType type;
-    BinaryViewType::Register(&type);
-	g_debugMemoryViewType = &type;
-}
-
-
-DebugMemoryView::DebugMemoryView(BinaryView* parent):
-    BinaryView("Debugged Process Memory", parent->GetFile(), parent)
-{
-    m_arch = parent->GetDefaultArchitecture();
-    m_platform = parent->GetDefaultPlatform();
-    m_valueCache.clear();
-    m_errorCache.clear();
-}
-
-
-size_t DebugMemoryView::PerformGetAddressSize() const
-{
-    Ref<BinaryView> parentView = GetParentView();
-    if (!parentView)
-        return 8;
-
-    Ref<Architecture> parentArch = parentView->GetDefaultArchitecture();
-    if (!parentArch)
-        return 8;
-
-    return parentArch->GetAddressSize();
-}
-
-
-uint64_t DebugMemoryView::PerformGetLength() const
-{
-    size_t addressSize = PerformGetAddressSize();
-    const size_t bitsPerByte = 8;
-    size_t bits = addressSize * bitsPerByte;
-    if (bits >= 64)
-        return UINT64_MAX;
-    
-    return (1UL << bits) - 1;
-}
-
-
-size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
-{
+//    LogWarn("DebugProcessView::PerformRead, 0x%lx", offset);
     std::unique_lock<std::mutex> memoryLock(m_memoryMutex);
 
     Ref<BinaryView> parentView = GetParentView();
@@ -502,7 +491,7 @@ size_t DebugMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
 }
 
 
-size_t DebugMemoryView::PerformWrite(uint64_t offset, const void* data, size_t len)
+size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t len)
 {
     std::unique_lock<std::mutex> memoryLock(m_memoryMutex);
 
@@ -528,7 +517,7 @@ size_t DebugMemoryView::PerformWrite(uint64_t offset, const void* data, size_t l
 }
 
 
-void DebugMemoryView::MarkDirty()
+void DebugProcessView::MarkDirty()
 {
     m_valueCache.clear();
     m_errorCache.clear();
