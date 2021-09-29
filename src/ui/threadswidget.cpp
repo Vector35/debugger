@@ -227,6 +227,8 @@ DebugThreadsWidget::DebugThreadsWidget(const QString& name, ViewFrame* view, Bin
     layout->setSpacing(0);
     layout->addWidget(m_table);
     setLayout(layout);
+
+    updateContent();
 }
 
 
@@ -247,6 +249,9 @@ void DebugThreadsWidget::updateContent()
 {
     // function updateContent() and notifyThreadsChanged() should definitely be combined
     LogWarn("DebugThreadsWidget::updateContent()");
+
+    if (!m_state->IsConnected())
+        return;
 
     std::vector<DebuggerThreadCache> threads = m_state->GetThreads()->GetAllThreads();
     notifyThreadsChanged(threads);

@@ -398,6 +398,8 @@ DebugStackWidget::DebugStackWidget(const QString& name, ViewFrame* view, BinaryV
     layout->setSpacing(0);
     layout->addWidget(m_table);
     setLayout(layout);
+
+    updateContent();
 }
 
 
@@ -418,6 +420,9 @@ void DebugStackWidget::notifyStackChanged(std::vector<DebugStackItem> stackItems
 void DebugStackWidget::updateContent()
 {
     LogWarn("DebugStackWidget::updateContent()");
+
+    if (!m_state->IsConnected())
+        return;
 
     std::vector<DebugStackItem> stackItems;
     BinaryReader* reader = new BinaryReader(m_state->GetMemoryView());

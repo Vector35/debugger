@@ -331,6 +331,7 @@ void DebugRegistersItemDelegate::setEditorData(QWidget *editor, const QModelInde
 DebugRegistersWidget::DebugRegistersWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
     SidebarWidget(name), m_view(view), m_data(data)
 {
+    LogWarn("DebugRegistersWidget::DebugRegistersWidget()");
     m_state = DebuggerState::GetState(m_data);
     m_controller = DebuggerController::GetController(m_data);
 
@@ -360,7 +361,7 @@ DebugRegistersWidget::DebugRegistersWidget(const QString& name, ViewFrame* view,
     layout->addWidget(m_table);
     setLayout(layout);
 
-//    updateContent();
+    updateContent();
 
     connect(m_controller, &DebuggerController::cacheUpdated, this, &DebugRegistersWidget::updateContent);
 }
@@ -382,6 +383,9 @@ void DebugRegistersWidget::notifyFontChanged()
 
 void DebugRegistersWidget::updateContent()
 {
+    if (!m_state->IsConnected())
+        return;
+
     std::vector<DebugRegister> registers = m_state->GetRegisters()->GetAllRegisters();
     notifyRegistersChanged(registers);
 }

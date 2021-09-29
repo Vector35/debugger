@@ -169,7 +169,7 @@ private:
     DebugAdapterTargetStatus m_targetStatus;
 
     DebugAdapter* m_adapter;
-    DebugProcessView* m_memoryView;
+    Ref<DebugProcessView> m_memoryView;
     DebuggerModules* m_modules;
     DebuggerRegisters* m_registers;
     DebuggerThreads* m_threads;
@@ -227,7 +227,7 @@ public:
     BinaryViewRef GetData() const { return m_data; }
 
     DebuggerModules* GetModules() const { return m_modules; }
-    DebugProcessView* GetMemoryView() const { return m_memoryView; }
+    Ref<DebugProcessView> GetMemoryView() const { return m_memoryView; }
     DebuggerUI* GetDebuggerUI() const { return m_ui; }
     DebuggerBreakpoints* GetBreakpoints() const { return m_breakpoints; }
     DebuggerRegisters* GetRegisters() const { return m_registers; }

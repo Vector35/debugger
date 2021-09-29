@@ -257,6 +257,8 @@ DebugModulesWidget::DebugModulesWidget(const QString& name, ViewFrame* view, Bin
     layout->setSpacing(0);
     layout->addWidget(m_table);
     setLayout(layout);
+
+    updateContent();
 }
 
 
@@ -276,6 +278,9 @@ void DebugModulesWidget::notifyFontChanged()
 void DebugModulesWidget::updateContent()
 {
     LogWarn("DebugModulesWidget::updateContent()");
+
+    if (!m_state->IsConnected())
+        return;
 
     std::vector<DebugModule> modules = m_state->GetModules()->GetAllModules();
     notifyModulesChanged(modules);

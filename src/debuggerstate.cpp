@@ -1046,6 +1046,8 @@ DebuggerState* DebuggerState::GetState(BinaryViewRef data)
     {
         if (state->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
             return state;
+        if (state->GetData()->GetFile()->GetOriginalFilename() == data->GetParentView()->GetFile()->GetOriginalFilename())
+            return state;
     }
 
     // DebugerState is always explicity constructed by the DebugController, so this will soon be deprecated.
