@@ -399,7 +399,7 @@ DebugStackWidget::DebugStackWidget(const QString& name, ViewFrame* view, BinaryV
     layout->addWidget(m_table);
     setLayout(layout);
 
-//    updateContent();
+    updateContent();
 }
 
 
@@ -467,7 +467,8 @@ void DebugStackWidget::updateContent()
         std::string hint{};
         if (auto adapter = m_state->GetAdapter()) {
             const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(value);
-            const auto reg_string = std::string(memory.has_value() ? memory->data() : "x");
+            const auto reg_string = std::string(memory.has_value() ? memory->data() : "x",
+                                                memory.has_value() ? memory->size() : 1);
             const auto can_print = std::all_of(reg_string.begin(), reg_string.end(), [](unsigned char c){
                 return c == '\n' || std::isprint(c);
             });
