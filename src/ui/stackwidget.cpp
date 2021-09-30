@@ -399,7 +399,7 @@ DebugStackWidget::DebugStackWidget(const QString& name, ViewFrame* view, BinaryV
     layout->addWidget(m_table);
     setLayout(layout);
 
-    updateContent();
+//    updateContent();
 }
 
 

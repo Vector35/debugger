@@ -100,5 +100,5 @@ void DebuggerWidget::updateContext()
 //    m_registersWidget->updateContent();
     m_modulesWidget->updateContent();
     m_threadsWidget->updateContent();
-    m_stackWidget->updateContent();
+//    m_stackWidget->updateContent();
 }

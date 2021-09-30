@@ -45,15 +45,23 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 
     m_actionSettings = addAction("Settings...",[this](){ performSettings(); });
 
-    setActionEnabled(DebugControlRunAction, canExec());
-    setActionEnabled(DebugControlRestartAction, false);
-    setActionEnabled(DebugControlAttachAction, canConnect());
-    setActionEnabled(DebugControlDetachAction, false);
-    setActionEnabled(DebugControlPauseAction, false);
-    setActionEnabled(DebugControlResumeAction, false);
-    setSteppingEnabled(false);
+//    setActionEnabled(DebugControlRunAction, canExec());
+//    setActionEnabled(DebugControlRestartAction, false);
+//    setActionEnabled(DebugControlAttachAction, canConnect());
+//    setActionEnabled(DebugControlDetachAction, false);
+//    setActionEnabled(DebugControlPauseAction, false);
+//    setActionEnabled(DebugControlResumeAction, false);
+//    setSteppingEnabled(false);
 
-    connect(m_controller, &DebuggerController::stopped, [this]() { stateStopped(); });
+    setActionEnabled(DebugControlRunAction, canExec());
+    setActionEnabled(DebugControlRestartAction, true);
+    setActionEnabled(DebugControlAttachAction, canConnect());
+    setActionEnabled(DebugControlDetachAction, true);
+    setActionEnabled(DebugControlPauseAction, true);
+    setActionEnabled(DebugControlResumeAction, true);
+    setSteppingEnabled(true);
+
+    connect(m_controller, &DebuggerController::stopped, [=]() { stateStopped(); });
 }
 
 
@@ -424,7 +432,7 @@ void DebugControlsWidget::stateInactive(const std::string& msg)
 }
 
 
-void DebugControlsWidget::stateStopped(const std::string& msg)
+void DebugControlsWidget:: stateStopped(const std::string& msg)
 {
     setDebuggerStatus(msg.size() ? msg : "STOPPED");
     setStartingEnabled(false);

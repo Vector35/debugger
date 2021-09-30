@@ -121,6 +121,8 @@ DebuggerController* DebuggerController::GetController(BinaryViewRef data)
     {
         if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
             return controller;
+        if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetParentView()->GetFile()->GetOriginalFilename())
+            return controller;
     }
 
     DebuggerController* controller = new DebuggerController(data);
@@ -186,7 +188,7 @@ void DebuggerController::EventHandler(DebugAdapterEventType event, void *data)
                 }
             }
 
-            BinaryView* rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
+            Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
             LogWarn("the base of the rebased view is 0x%lx", rebasedView->GetStart());
 //            DatabaseProgress progress(nullptr, "Debug View", "Creating a BinaryView for debugging...");
 //            if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugged Process", "Debugged Process Memory",
