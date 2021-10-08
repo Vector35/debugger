@@ -2,6 +2,7 @@
 #include <QtWidgets/QHeaderView>
 #include "breakpointswidget.h"
 #include "../ui/ui.h"
+#include "menus.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -189,9 +190,9 @@ void DebugBreakpointsItemDelegate::updateFonts()
 
 
 DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data, Menu* menu):
-    m_view(view), m_data(data)
+    m_view(view)
 {
-    m_controller = DebuggerController::GetController(m_data);
+    m_controller = DebuggerController::GetController(data);
 
     m_table = new QTableView(this);
     m_model = new DebugBreakpointsListModel(m_table, data, view);
@@ -250,6 +251,14 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* v
 }
 
 
+DebugBreakpointsWidget::~DebugBreakpointsWidget()
+{
+    disconnect(m_controller, &DebuggerController::cacheUpdated, nullptr, nullptr);
+    disconnect(m_controller, &DebuggerController::absoluteBreakpointAdded, nullptr, nullptr);
+    disconnect(m_controller, &DebuggerController::absoluteBreakpointDeleted, nullptr, nullptr);
+}
+
+
 //void DebugBreakpointsWidget::notifyFontChanged()
 //{
 //    m_delegate->updateFonts();
@@ -267,12 +276,12 @@ void DebugBreakpointsWidget::jump()
     const auto item_row = this->m_table->indexAt(this->m_last_selected_point).row();
     const auto item = this->m_table->model()->index(item_row, 2);
 
-    auto view = this->m_data.GetPtr();
+    Ref<BinaryView> view = m_controller->GetData();
     auto address_or_offset = std::stoull(item.data().toString().toLocal8Bit().data(), nullptr, 16);
     if (!address_or_offset || !view)
         return;
 
-    DebuggerState* state = DebuggerState::GetState(view);
+    DebuggerState* state = m_controller->GetState();
     if (!state)
         return;
 
@@ -287,7 +296,10 @@ void DebugBreakpointsWidget::jump()
     const auto filename = view->GetFile()->GetOriginalFilename();
     const auto breakpoint_offset = ModuleNameAndOffset(filename, address_or_offset - view->GetStart());
 
-    ViewFrame* frame = ViewFrame::viewFrameForWidget(state->GetDebuggerUI()->GetDebugView());
+    UIContext* context = UIContext::contextForWidget(this);
+//    if (context && context->getCurrentViewFrame())
+//    ViewFrame* frame = ViewFrame::viewFrameForWidget(state->GetDebuggerUI()->GetDebugView());
+    ViewFrame* frame = context->getCurrentViewFrame();
     frame->navigate(state->GetData(), address_or_offset, true, true);
 }
 
@@ -296,7 +308,7 @@ void DebugBreakpointsWidget::remove()
 {
     LogWarn("DebugBreakpointsWidget::Remove()");
 
-    DebuggerState* state = DebuggerState::GetState(m_data);
+    DebuggerState* state = m_controller->GetState();
     if (!state)
         return;
 
@@ -319,13 +331,8 @@ void DebugBreakpointsWidget::remove()
 void DebugBreakpointsWidget::updateContent()
 {
     LogWarn("DebugBreakpointsWidget::updateContent()");
-    if (!m_data)
-    {
-        m_model->updateRows({});
-        return;
-    }
 
-    DebuggerState* state = DebuggerState::GetState(m_data);
+    DebuggerState* state = m_controller->GetState();
     if (!state)
         return;
 

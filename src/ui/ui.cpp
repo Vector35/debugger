@@ -5,6 +5,7 @@
 #include "threadswidget.h"
 #include "stackwidget.h"
 #include "debuggerwidget.h"
+#include "QPainter"
 
 using namespace BinaryNinja;
 
@@ -13,7 +14,6 @@ DebuggerUI::DebuggerUI(DebuggerController* controller): m_controller(controller)
     // TODO: The constructor of DebuggerUI does not create the DebugView. Instead, the DebugView is
     // created by BinaryNinja, and the constructor of DebugView sets itself as the m_debugView of the
     // DebuggerUI. I understand the reason for this implementation, but its realy not a good idea.
-    m_debugView = nullptr;
     m_sidebar = nullptr;
 }
 
@@ -35,12 +35,6 @@ DebuggerUI::DebuggerUI(DebuggerController* controller): m_controller(controller)
 //{
 //
 //}
-
-
-void DebuggerUI::SetDebugView(DebugView* debugView)
-{
-    m_debugView = debugView;
-}
 
 
 void DebuggerUI::SetDebuggerSidebar(DebuggerWidget* widget)

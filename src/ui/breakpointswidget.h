@@ -87,7 +87,6 @@ class DebugBreakpointsWidget : public QWidget
     Q_OBJECT
 
     ViewFrame* m_view;
-    BinaryViewRef m_data;
     DebuggerController* m_controller;
 
     UIActionHandler* M_actionHandler;
@@ -113,6 +112,7 @@ class DebugBreakpointsWidget : public QWidget
 
 public:
     DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data, Menu* menu);
+    ~DebugBreakpointsWidget();
 
 private slots:
     void jump();

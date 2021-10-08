@@ -1,6 +1,7 @@
 #include <QtGui/QPainter>
 #include <QtWidgets/QHeaderView>
 #include "threadswidget.h"
+#include "../debuggercontroller.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -199,9 +200,9 @@ QSize DebugThreadsItemDelegate::sizeHint(const QStyleOptionViewItem& option, con
 
 
 DebugThreadsWidget::DebugThreadsWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
-    m_view(view), m_data(data)
+    m_view(view)
 {
-    m_state = DebuggerState::GetState(m_data);
+    m_controller = DebuggerController::GetController(data);
 
     m_table = new QTableView(this);
     m_model = new DebugThreadsListModel(m_table, data, view);
@@ -250,9 +251,9 @@ void DebugThreadsWidget::updateContent()
     // function updateContent() and notifyThreadsChanged() should definitely be combined
     LogWarn("DebugThreadsWidget::updateContent()");
 
-    if (!m_state->IsConnected())
+    if (!m_controller->GetState()->IsConnected())
         return;
 
-    std::vector<DebuggerThreadCache> threads = m_state->GetThreads()->GetAllThreads();
+    std::vector<DebuggerThreadCache> threads = m_controller->GetState()->GetThreads()->GetAllThreads();
     notifyThreadsChanged(threads);
 }

@@ -2,6 +2,7 @@
 #include <QtWidgets/QHeaderView>
 #include <QtWidgets/QLineEdit>
 #include "stackwidget.h"
+#include "../debuggercontroller.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -370,9 +371,9 @@ void DebugStackItemDelegate::setEditorData(QWidget *editor, const QModelIndex &i
 
 
 DebugStackWidget::DebugStackWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
-    m_view(view), m_data(data)
+    m_view(view)
 {
-    m_state = DebuggerState::GetState(m_data);
+    m_controller = DebuggerController::GetController(data);
 
     m_table = new QTableView(this);
     m_model = new DebugStackListModel(m_table, data, view);
@@ -421,13 +422,13 @@ void DebugStackWidget::updateContent()
 {
     LogWarn("DebugStackWidget::updateContent()");
 
-    if (!m_state->IsConnected())
+    if (!m_controller->GetState()->IsConnected())
         return;
 
     std::vector<DebugStackItem> stackItems;
-    BinaryReader* reader = new BinaryReader(m_state->GetMemoryView());
-    uint64_t stackPointer = m_state->StackPointer();
-    size_t addressSize = m_state->GetRemoteArchitecture()->GetAddressSize();
+    BinaryReader* reader = new BinaryReader(m_controller->GetState()->GetMemoryView());
+    uint64_t stackPointer = m_controller->GetState()->StackPointer();
+    size_t addressSize = m_controller->GetState()->GetRemoteArchitecture()->GetAddressSize();
     for (ptrdiff_t i = -8; i < 60 + 1; i++)
     {
         ptrdiff_t offset = i * addressSize;
@@ -465,7 +466,7 @@ void DebugStackWidget::updateContent()
         }
 
         std::string hint{};
-        if (auto adapter = m_state->GetAdapter()) {
+        if (auto adapter = m_controller->GetState()->GetAdapter()) {
             const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(value);
             const auto reg_string = std::string(memory.has_value() ? memory->data() : "x",
                                                 memory.has_value() ? memory->size() : 1);

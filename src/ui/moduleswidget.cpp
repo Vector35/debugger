@@ -1,6 +1,7 @@
 #include <QtGui/QPainter>
 #include <QtWidgets/QHeaderView>
 #include "moduleswidget.h"
+#include "../debuggercontroller.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -229,9 +230,9 @@ QSize DebugModulesItemDelegate::sizeHint(const QStyleOptionViewItem& option, con
 
 
 DebugModulesWidget::DebugModulesWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
-    SidebarWidget(name), m_view(view), m_data(data)
+    SidebarWidget(name), m_view(view)
 {
-    m_state = DebuggerState::GetState(m_data);
+    m_controller = DebuggerController::GetController(data);
 
     m_table = new QTableView(this);
     m_model = new DebugModulesListModel(m_table, data, view);
@@ -279,9 +280,9 @@ void DebugModulesWidget::updateContent()
 {
     LogWarn("DebugModulesWidget::updateContent()");
 
-    if (!m_state->IsConnected())
+    if (!m_controller->GetState()->IsConnected())
         return;
 
-    std::vector<DebugModule> modules = m_state->GetModules()->GetAllModules();
+    std::vector<DebugModule> modules = m_controller->GetState()->GetModules()->GetAllModules();
     notifyModulesChanged(modules);
 }

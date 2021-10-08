@@ -125,6 +125,7 @@ DebuggerController* DebuggerController::GetController(BinaryViewRef data)
             return controller;
     }
 
+    LogWarn("Creating new debugger controller");
     DebuggerController* controller = new DebuggerController(data);
     g_debuggerControllers.push_back(controller);
     return controller;
@@ -189,6 +190,7 @@ void DebuggerController::EventHandler(DebugAdapterEventType event, void *data)
             }
 
             Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
+            SetData(rebasedView);
             LogWarn("the base of the rebased view is 0x%lx", rebasedView->GetStart());
 //            DatabaseProgress progress(nullptr, "Debug View", "Creating a BinaryView for debugging...");
 //            if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugged Process", "Debugged Process Memory",
@@ -200,7 +202,8 @@ void DebuggerController::EventHandler(DebugAdapterEventType event, void *data)
             {
                 LogWarn("create snapshoted view ok");
             }
-
+            Ref<BinaryView> liveView = fileMetadata->GetViewOfType("Debugged Process");
+            SetLiveView(liveView);
 
 
 

@@ -14,6 +14,7 @@ class DebuggerController: public QObject
     DebuggerState* m_state;
     DebuggerUI* m_ui;
     BinaryViewRef m_data;
+    BinaryViewRef m_liveView;
 
     bool m_hasUI;
 
@@ -48,6 +49,9 @@ public:
     DebugAdapter* GetAdapter() { return m_adapter; }
     DebuggerState* GetState() { return m_state; }
     BinaryViewRef GetData() const { return m_data; }
+    void SetData(BinaryView* view) { m_data = view; }
+    BinaryViewRef GetLiveView() const { return m_liveView; }
+    void SetLiveView(BinaryView* view) { m_liveView = view; }
     DebuggerUI* GetUI() const { return m_ui; }
 
     static DebuggerController* GetController(BinaryViewRef data);

@@ -106,8 +106,6 @@ class DebugRegistersWidget: public SidebarWidget
     Q_OBJECT;
 
     ViewFrame* m_view;
-    BinaryViewRef m_data;
-    DebuggerState* m_state;
     DebuggerController* m_controller;
 
     UIActionHandler* M_actionHandler;

@@ -260,8 +260,11 @@ void DebugControlsWidget::performResume()
 
 void DebugControlsWidget::performStepInto()
 {
-    DisassemblyContainer* container = m_controller->GetUI()->GetDebugView()->getBinaryEditor();
-    BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
+    BNFunctionGraphType graphType = NormalFunctionGraph;
+    UIContext* context = UIContext::contextForWidget(this);
+    if (context && context->getCurrentView())
+        graphType = context->getCurrentView()->getILViewType();
+
     m_controller->StepInto(graphType);
 
 //    auto performStepIntoAfter = [&](){
@@ -284,8 +287,11 @@ void DebugControlsWidget::performStepInto()
 
 void DebugControlsWidget::performStepOver()
 {
-    DisassemblyContainer* container = m_controller->GetUI()->GetDebugView()->getBinaryEditor();
-    BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
+    BNFunctionGraphType graphType = NormalFunctionGraph;
+    UIContext* context = UIContext::contextForWidget(this);
+    if (context && context->getCurrentView())
+        graphType = context->getCurrentView()->getILViewType();
+
     m_controller->StepOver(graphType);
 
 //    auto performStepOverAfter = [&](){

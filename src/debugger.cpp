@@ -1,6 +1,5 @@
 #include <inttypes.h>
 #include "debugger.h"
-#include "ui/debugview.h"
 #include "processview.h"
 #include "ui/ui.h"
 #include "adapters/gdbadapter.h"
@@ -20,7 +19,6 @@ extern "C"
 	BINARYNINJAPLUGIN bool UIPluginInit()
 	{
 		Log(BNLogLevel::WarningLog, "Native debugger loaded!" );
-		ViewType::registerViewType(new DebugViewType());
         DebuggerUI::InitializeUI();
         InitDebugAdapterTypes();
         InitDebugProcessViewType();

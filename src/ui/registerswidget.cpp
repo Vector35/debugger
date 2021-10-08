@@ -3,6 +3,7 @@
 #include <QtWidgets/QLineEdit>
  #include <QListView>
 #include "registerswidget.h"
+#include "../debuggercontroller.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -329,11 +330,9 @@ void DebugRegistersItemDelegate::setEditorData(QWidget *editor, const QModelInde
 
 
 DebugRegistersWidget::DebugRegistersWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
-    SidebarWidget(name), m_view(view), m_data(data)
+    SidebarWidget(name), m_view(view)
 {
-    LogWarn("DebugRegistersWidget::DebugRegistersWidget()");
-    m_state = DebuggerState::GetState(m_data);
-    m_controller = DebuggerController::GetController(m_data);
+    m_controller = DebuggerController::GetController(data);
 
     m_table = new QTableView(this);
     m_model = new DebugRegistersListModel(m_table, data, view);
@@ -383,9 +382,9 @@ void DebugRegistersWidget::notifyFontChanged()
 
 void DebugRegistersWidget::updateContent()
 {
-    if (!m_state->IsConnected())
+    if (!m_controller->GetState()->IsConnected())
         return;
 
-    std::vector<DebugRegister> registers = m_state->GetRegisters()->GetAllRegisters();
+    std::vector<DebugRegister> registers = m_controller->GetState()->GetRegisters()->GetAllRegisters();
     notifyRegistersChanged(registers);
 }
