@@ -53,7 +53,7 @@ private:
 
 public:
     DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data);
-    virtual ~DebugControlsWidget() {}
+    virtual ~DebugControlsWidget();
 
     void setActionEnabled(DebugControlAction action, bool enabled);
     void setStepIntoEnabled(bool enabled);

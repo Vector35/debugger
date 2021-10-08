@@ -65,6 +65,12 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 }
 
 
+DebugControlsWidget::~DebugControlsWidget()
+{
+    disconnect(m_controller, &DebuggerController::stopped, nullptr, nullptr);
+}
+
+
 void DebugControlsWidget::performRun()
 {
     LogWarn("DebugControlsWidget::performRun()");
