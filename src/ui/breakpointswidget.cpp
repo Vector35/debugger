@@ -255,7 +255,9 @@ DebugBreakpointsWidget::~DebugBreakpointsWidget()
 {
     disconnect(m_controller, &DebuggerController::cacheUpdated, nullptr, nullptr);
     disconnect(m_controller, &DebuggerController::absoluteBreakpointAdded, nullptr, nullptr);
+    disconnect(m_controller, &DebuggerController::relativeBreakpointAdded, nullptr, nullptr);
     disconnect(m_controller, &DebuggerController::absoluteBreakpointDeleted, nullptr, nullptr);
+    disconnect(m_controller, &DebuggerController::relativeBreakpointDeleted, nullptr, nullptr);
 }
 
 
