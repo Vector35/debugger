@@ -30,6 +30,8 @@ public:
 
     void SetDebuggerSidebar(DebuggerWidget* widget);
     static void InitializeUI();
+    // This will handle all debugger events that are related to the UI
+    void UIEventHandler(const DebuggerEvent& event);
 
 signals:
     void contextChanged();

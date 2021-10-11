@@ -84,11 +84,21 @@ enum class DebugStopReason {
 };
 
 
-enum DebugAdapterEventType
+enum DebuggerEventType
 {
     TargetStoppedEventType,
     ErrorEventType,
-    GeneralEventType
+    GeneralEventType,
+
+    InitialViewRebasedEventType
+};
+
+
+struct TargetStoppedEventData
+{
+    DebugStopReason reason;
+    size_t exitCode;
+    void* data;
 };
 
 
@@ -110,6 +120,21 @@ struct GeneralEventData
 {
     std::string event;
     void* data;
+};
+
+
+struct DebuggerEventData
+{
+    TargetStoppedEventData targetStoppedData;
+    ErrorEventData errorData;
+    GeneralEventData generalData;
+};
+
+
+struct DebuggerEvent
+{
+    DebuggerEventType type;
+    DebuggerEventData data;
 };
 
 
@@ -184,10 +209,10 @@ private:
     // Function to call when the DebugAdapter wants to notify the front-end of certain events
     // TODO: we should not use a vector here; only the DebuggerController should register one here;
     // Other components should register their callbacks to the controller, who is responsible for notify them.
-    std::vector<std::function<void(DebugAdapterEventType event, void* data)>> m_eventCallbacks;
+    std::vector<std::function<void(DebuggerEventType event, void* data)>> m_eventCallbacks;
 
 public:
-    void RegisterEventCallback(std::function<void(DebugAdapterEventType event, void* data)> function)
+    void RegisterEventCallback(std::function<void(DebuggerEventType event, void* data)> function)
     {
         m_eventCallbacks.push_back(function);
     }
@@ -261,7 +286,7 @@ public:
 
     // These are implemented by the (base) DebugAdapter class.
     // Sub-classes should use these to communicate changes of the target.
-    void NotifyAdapterEvent(DebugAdapterEventType event, void* data = nullptr);
+    void NotifyDebuggerEvent(DebuggerEventType event, void* data = nullptr);
 
     void NotifyStopped(DebugStopReason reason, void* data= nullptr);
     void NotifyError(const std::string& error, void* data = nullptr);

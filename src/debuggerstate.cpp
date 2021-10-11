@@ -514,9 +514,9 @@ void DebuggerState::CreateDebugAdapter()
     }
 
     // TODO: this is really an awkward way to do it. But it works hehe.
-    m_adapter->RegisterEventCallback([this](DebugAdapterEventType event, void *data){
-        m_controller->EventHandler(event, data);
-    });
+//    m_adapter->RegisterEventCallback([this](DebuggerEventType event, void *data){
+//        m_controller->EventHandler(event, data);
+//    });
 }
 
 

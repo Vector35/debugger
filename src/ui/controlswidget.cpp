@@ -62,6 +62,10 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
     setSteppingEnabled(true);
 
     connect(m_controller, &DebuggerController::stopped, [=]() { stateStopped(); });
+
+    m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
+        UIEventHandler(event);
+    });
 }
 
 
@@ -532,4 +536,27 @@ void DebugControlsWidget::setDebuggerStatus(const std::string &status)
 //    {
 //        m_state->GetDebuggerUI()->GetDebugView()->setDebuggerStatus(status);
 //    }
+}
+
+
+void DebugControlsWidget::UIEventHandler(const DebuggerEvent &event)
+{
+    switch (event.type)
+    {
+        case InitialViewRebasedEventType:
+        {
+            LogWarn("InitialViewRebasedEventType event");
+//            UIContext* context = UIContext::contextForWidget(this);
+//            MainWindow* main = dynamic_cast<MainWindow*>(context->mainWindow());
+//            if (main)
+//            {
+//                // Is there any more intuitive way to do this?
+////                main->activateDebugView();
+//            }
+
+            break;
+        }
+        default:
+            break;
+    }
 }

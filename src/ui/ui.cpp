@@ -15,6 +15,25 @@ DebuggerUI::DebuggerUI(DebuggerController* controller): m_controller(controller)
     // created by BinaryNinja, and the constructor of DebugView sets itself as the m_debugView of the
     // DebuggerUI. I understand the reason for this implementation, but its realy not a good idea.
     m_sidebar = nullptr;
+
+    m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
+        UIEventHandler(event);
+    });
+}
+
+
+void DebuggerUI::UIEventHandler(const DebuggerEvent &event)
+{
+//    switch (event.type)
+//    {
+//    case InitialViewRebasedEventType:
+//    {
+//        LogWarn("InitialViewRebasedEventType event");
+//        break;
+//    }
+//    default:
+//        break;
+//    }
 }
 
 //

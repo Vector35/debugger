@@ -2,6 +2,7 @@
 #include "binaryninjaapi.h"
 #include "debuggerstate.h"
 #include "ui/ui.h"
+#include <queue>
 
 // This is the controller class of the debugger. It receives the input from the UI/API, and then route them to
 // the state and UI, etc. Most actions should reach here.
@@ -21,7 +22,9 @@ class DebuggerController: public QObject
     inline static std::vector<DebuggerController*> g_debuggerControllers;
     void DeleteController(BinaryViewRef data);
 
-    std::vector<std::function<bool(DebugAdapterEventType event, void *data)>> m_eventCallbacks;
+    std::vector<std::function<void(const DebuggerEvent& event)>> m_eventCallbacks;
+    std::queue<DebuggerEvent> m_events;
+    std::mutex m_queueMutex;
 
 public:
     DebuggerController(BinaryViewRef data);
@@ -56,14 +59,17 @@ public:
 
     static DebuggerController* GetController(BinaryViewRef data);
 
-    void EventHandler(DebugAdapterEventType event, void* data);
+    void EventHandler(const DebuggerEvent& event);
 
     void AddEntryBreakpoint();
-    void RegisterEventCallback(std::function<bool(DebugAdapterEventType event, void *data)> callback);
+    void RegisterEventCallback(std::function<void(const DebuggerEvent& event)> callback);
 
     void NotifyStopped(DebugStopReason reason, void* data= nullptr);
     void NotifyError(const std::string& error, void* data = nullptr);
     void NotifyEvent(const std::string& event, void* data = nullptr);
+
+    void PostDebuggerEvent(const DebuggerEvent& event);
+    void Worker();
 
 signals:
     void absoluteBreakpointAdded(uint64_t address);

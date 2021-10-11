@@ -20,6 +20,16 @@ DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 
     // TODO: we should add an option whether to add a breakpoint at program entry
     AddEntryBreakpoint();
+
+    RegisterEventCallback([this](const DebuggerEvent& event){
+        EventHandler(event);
+    });
+
+    // start the event queue worker
+    std::thread worker([&](){
+        Worker();
+    });
+    worker.detach();
 }
 
 
@@ -149,18 +159,17 @@ void DebuggerController::DeleteController(BinaryViewRef data)
 
 
 // This is the central hub of event dispatch. All events first arrive here and then get dispatched based on the content
-void DebuggerController::EventHandler(DebugAdapterEventType event, void *data)
+void DebuggerController::EventHandler(const DebuggerEvent& event)
 {
-    switch (event)
+    switch (event.type)
     {
     case TargetStoppedEventType:
     {
         m_state->SetExecutionStatus(DebugAdapterPausedStatus);
-        StoppedEventData* eventData = (StoppedEventData*)data;
-        emit stopped(eventData->reason, eventData->data);
+        emit stopped(event.data.targetStoppedData.reason, nullptr);
 
         // Initial breakpoint is reached after successfully launching or attaching to the target
-        if (eventData->reason == DebugStopReason::InitalBreakpoint)
+        if (event.data.targetStoppedData.reason == DebugStopReason::InitalBreakpoint)
         {
             // There are some extra processing needed when the initial breakpoint hits
             // HELP NEEDED: I do not think we should do it in this way, but I cannot think of a better one
@@ -205,6 +214,10 @@ void DebuggerController::EventHandler(DebugAdapterEventType event, void *data)
             Ref<BinaryView> liveView = fileMetadata->GetViewOfType("Debugged Process");
             SetLiveView(liveView);
 
+            DebuggerEvent event;
+            event.type = InitialViewRebasedEventType;
+            PostDebuggerEvent(event);
+
 
 
         }
@@ -213,7 +226,7 @@ void DebuggerController::EventHandler(DebugAdapterEventType event, void *data)
             m_state->UpdateCaches();
         }
 
-        emit cacheUpdated(eventData->reason, eventData->data);
+        emit cacheUpdated(event.data.targetStoppedData.reason, nullptr);
         emit IPChanged(m_state->IP());
 
 
@@ -225,37 +238,64 @@ void DebuggerController::EventHandler(DebugAdapterEventType event, void *data)
 }
 
 
-void DebuggerController::RegisterEventCallback(std::function<bool(DebugAdapterEventType, void *)> callback)
+void DebuggerController::RegisterEventCallback(std::function<void(const DebuggerEvent&)> callback)
 {
     m_eventCallbacks.push_back(callback);
 }
 
 
+void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
+{
+    std::unique_lock<std::mutex> lock(m_queueMutex);
+    m_events.push(event);
+}
+
+
+void DebuggerController::Worker()
+{
+    while (true)
+    {
+        std::unique_lock<std::mutex> lock(m_queueMutex);
+        if (m_events.size() != 0)
+        {
+            const DebuggerEvent event = m_events.front();
+            m_events.pop();
+
+            lock.unlock();
+            for (auto cb: m_eventCallbacks)
+            {
+                cb(event);
+            }
+        }
+    }
+}
+
+
 void DebuggerController::NotifyStopped(DebugStopReason reason, void *data)
 {
-    // TODO: this causes memory leak. But let me make it work first
-    StoppedEventData* eventData = new StoppedEventData;
-    eventData->reason = reason;
-    eventData->data = data;
-    EventHandler(TargetStoppedEventType, eventData);
+    DebuggerEvent event;
+    event.type = TargetStoppedEventType;
+    event.data.targetStoppedData.reason = reason;
+    event.data.targetStoppedData.data = data;
+    PostDebuggerEvent(event);
 }
 
 
 void DebuggerController::NotifyError(const std::string& error, void *data)
 {
-    // TODO: this causes memory leak. But let me make it work first
-    ErrorEventData* errorData = new ErrorEventData;
-    errorData->error = error;
-    errorData->data = data;
-    EventHandler(ErrorEventType, errorData);
+    DebuggerEvent event;
+    event.type = ErrorEventType;
+    event.data.errorData.error = error;
+    event.data.errorData.data = data;
+    PostDebuggerEvent(event);
 }
 
 
-void DebuggerController::NotifyEvent(const std::string& event, void *data)
+void DebuggerController::NotifyEvent(const std::string& eventString, void *data)
 {
-    // TODO: this causes memory leak. But let me make it work first
-    GeneralEventData* eventData = new GeneralEventData;
-    eventData->event = event;
-    eventData->data = data;
-    EventHandler(GeneralEventType, eventData);
+    DebuggerEvent event;
+    event.type = GeneralEventType;
+    event.data.generalData.event = eventString;
+    event.data.generalData.data = data;
+    PostDebuggerEvent(event);
 }

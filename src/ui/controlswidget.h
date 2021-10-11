@@ -7,7 +7,7 @@
 #include <QtWidgets/QLineEdit>
 #include "binaryninjaapi.h"
 #include "uicontext.h"
-//#include "../debuggerstate.h"
+#include "../debugadapter.h"
 
 class DebuggerState;
 class DebuggerController;
@@ -73,6 +73,8 @@ public:
     void handleStopReturn();
 
     void setDebuggerStatus(const std::string& status);
+
+    void UIEventHandler(const DebuggerEvent& event);
 
 public Q_SLOTS:
     void performRun();
