@@ -32,8 +32,6 @@ class DebugControlsWidget: public QToolBar
 
 private:
     std::string m_name;
-//    BinaryViewRef m_data;
-//    DebuggerState* m_state;
     DebuggerController* m_controller;
 
     size_t m_eventCallback;
@@ -57,29 +55,20 @@ public:
     DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data);
     virtual ~DebugControlsWidget();
 
-    void setActionEnabled(DebugControlAction action, bool enabled);
     void setStepIntoEnabled(bool enabled);
     void setStepOverEnabled(bool enabled);
     void setStartingEnabled(bool enabled);
     void setStoppingEnabled(bool enabled);
     void setSteppingEnabled(bool enabled);
 
-    void stateStarting(const std::string& msg = "");
-    void stateInactive(const std::string& msg = "");
-    void stateStopped(const std::string& msg = "");
-    void stateStoppedExtern(const std::string& msg = "");
-    void stateRunning(const std::string& msg = "");
-    void stateBusy(const std::string& msg = "");
-    void stateError(const std::string& msg = "");
-
-    void handleStopReturn();
-
     void setDebuggerStatus(const std::string& status);
 
     void uiEventHandler(const DebuggerEvent& event);
 
-    TagTypeRef GetPCTagType(BinaryViewRef data);
-    TagTypeRef GetBreakpointTagType(BinaryViewRef data);
+    TagTypeRef getPCTagType(BinaryViewRef data);
+    TagTypeRef getBreakpointTagType(BinaryViewRef data);
+
+    void updateButtons();
 
 public Q_SLOTS:
     void performRun();

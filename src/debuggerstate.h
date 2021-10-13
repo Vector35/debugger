@@ -228,6 +228,8 @@ public:
     bool IsConnected() const { return m_connectionStatus == DebugAdapterConnectedStatus; }
     bool IsConnecting() const { return m_connectionStatus == DebugAdapterConnectingStatus; }
     bool IsRunning() const { return m_targetStatus == DebugAdapterRunningStatus; }
+    DebugAdapterConnectionStatus GetConnectionStatus() const { return m_connectionStatus; }
+    DebugAdapterTargetStatus GetTargetStatus() const { return m_targetStatus; }
 
     // This is slightly different from the Python implementation. The caller does not need to first
     // retrieve the DebuggerThreads object and then call SetActiveThread() on it. They call this function.

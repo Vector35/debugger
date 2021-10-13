@@ -125,6 +125,56 @@ void DebuggerController::StepOver(BNFunctionGraphType il)
 }
 
 
+void DebuggerController::StepReturn(BNFunctionGraphType il)
+{
+    std::thread worker([this, il](){
+        m_state->StepReturn();
+        NotifyStopped(DebugStopReason::Breakpoint, nullptr);
+    });
+    worker.detach();
+}
+
+
+void DebuggerController::Restart()
+{
+    std::thread worker([this](){
+        m_state->Restart();
+        NotifyStopped(DebugStopReason::InitalBreakpoint, nullptr);
+    });
+    worker.detach();
+}
+
+
+void DebuggerController::Attach()
+{
+    std::thread worker([this](){
+        m_state->Attach();
+        NotifyStopped(DebugStopReason::InitalBreakpoint, nullptr);
+    });
+    worker.detach();
+}
+
+
+void DebuggerController::Detach()
+{
+    std::thread worker([this](){
+        m_state->Detach();
+        NotifyStopped(DebugStopReason::Detached, nullptr);
+    });
+    worker.detach();
+}
+
+
+void DebuggerController::Quit()
+{
+    std::thread worker([this](){
+        m_state->Quit();
+        NotifyStopped(DebugStopReason::StoppedDebugging, nullptr);
+    });
+    worker.detach();
+}
+
+
 DebuggerController* DebuggerController::GetController(BinaryViewRef data)
 {
     for (auto& controller: g_debuggerControllers)
@@ -135,7 +185,6 @@ DebuggerController* DebuggerController::GetController(BinaryViewRef data)
             return controller;
     }
 
-    LogWarn("Creating new debugger controller");
     DebuggerController* controller = new DebuggerController(data);
     g_debuggerControllers.push_back(controller);
     return controller;

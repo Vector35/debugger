@@ -39,27 +39,13 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
                                  [this](){ performStepInto(); });
     m_actionStepOver = addAction(QIcon(":/icons/images/debugger/stepover.svg"), "Step Over",
                                  [this](){ performStepOver(); });
-    m_actionStepReturn = addAction(QIcon(":/icons/images/debugger/stepout.svg"), "Resume",
+    m_actionStepReturn = addAction(QIcon(":/icons/images/debugger/stepout.svg"), "Step Out",
                                [this](){ performStepReturn(); });
     addSeparator();
 
     m_actionSettings = addAction("Settings...",[this](){ performSettings(); });
 
-//    setActionEnabled(DebugControlRunAction, canExec());
-//    setActionEnabled(DebugControlRestartAction, false);
-//    setActionEnabled(DebugControlAttachAction, canConnect());
-//    setActionEnabled(DebugControlDetachAction, false);
-//    setActionEnabled(DebugControlPauseAction, false);
-//    setActionEnabled(DebugControlResumeAction, false);
-//    setSteppingEnabled(false);
-
-    setActionEnabled(DebugControlRunAction, canExec());
-    setActionEnabled(DebugControlRestartAction, true);
-    setActionEnabled(DebugControlAttachAction, canConnect());
-    setActionEnabled(DebugControlDetachAction, true);
-    setActionEnabled(DebugControlPauseAction, true);
-    setActionEnabled(DebugControlResumeAction, true);
-    setSteppingEnabled(true);
+    updateButtons();
 
     m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
         uiEventHandler(event);
@@ -78,7 +64,6 @@ DebugControlsWidget::~DebugControlsWidget()
 
 void DebugControlsWidget::performRun()
 {
-    LogWarn("DebugControlsWidget::performRun()");
     m_controller->Run();
 
 //    auto performRunAfter = [&](){
@@ -138,89 +123,25 @@ void DebugControlsWidget::performRun()
 
 void DebugControlsWidget::performRestart()
 {
-//    auto performRestartAfter = [&](){
-//        stateStopped();
-//        m_state->OnStep();
-//    };
-//
-//    auto performRestartError = [&](const std::string& e){
-//        stateError(e);
-//    };
-//
-//    auto performRestartThread = [=](){
-//        try
-//        {
-//            m_state->Restart();
-//            ExecuteOnMainThreadAndWait(performRestartAfter);
-//        }
-//        catch (const ConnectionRefusedError& e)
-//        {
-//            ExecuteOnMainThreadAndWait([&](){ performRestartError(e.what()); });
-//        }
-//        catch (const std::exception& e)
-//        {
-//            ExecuteOnMainThreadAndWait([&](){ performRestartError("ERROR: " + std::string(e.what())); });
-//        }
-//    };
-//
-//    stateStarting("RESTARTING");
-//    std::thread t(performRestartThread);
-//    t.detach();
+    m_controller->Restart();
 }
 
 
 void DebugControlsWidget::performQuit()
 {
-//    m_state->Quit();
-//    stateInactive();
-//    m_state->OnStep();
+    m_controller->Quit();
 }
 
 
 void DebugControlsWidget::performAttach()
 {
-//    stateStarting("ATTACHING");
-//    m_state->Attach();
-//
-//    stateStopped();
-//    m_state->OnStep();
-//
-//    auto performAttachAfter = [&](){
-//        stateStopped();
-//        m_state->OnStep();
-//    };
-//
-//    auto performAttachError = [&](const std::string& e){
-//        stateError(e);
-//    };
-//
-//    auto performAttachThread = [=](){
-//        try
-//        {
-//            m_state->Restart();
-//            ExecuteOnMainThreadAndWait(performAttachAfter);
-//        }
-//        catch (const ConnectionRefusedError& e)
-//        {
-//            ExecuteOnMainThreadAndWait([&](){ performAttachError(e.what()); });
-//        }
-//        catch (const std::exception& e)
-//        {
-//            ExecuteOnMainThreadAndWait([&](){ performAttachError("ERROR: " + std::string(e.what())); });
-//        }
-//    };
-//
-//    stateStarting("ATTACHING");
-//    std::thread t(performAttachThread);
-//    t.detach();
+    m_controller->Attach();
 }
 
 
 void DebugControlsWidget::performDetach()
 {
-//    m_state->Detach();
-//    stateInactive();
-//    m_state->OnStep();
+    m_controller->Detach();
 }
 
 
@@ -246,20 +167,6 @@ void DebugControlsWidget::performPause()
 void DebugControlsWidget::performResume()
 {
     m_controller->Go();
-
-//    auto performResumeAfter = [&](){
-//        handleStopReturn();
-//        m_state->OnStep();
-//    };
-//
-//    auto performResumeThread = [=](){
-//        m_state->Go();
-//        ExecuteOnMainThreadAndWait(performResumeAfter);
-//    };
-//
-//    stateRunning();
-//    std::thread t(performResumeThread);
-//    t.detach();
 }
 
 
@@ -271,22 +178,6 @@ void DebugControlsWidget::performStepInto()
         graphType = context->getCurrentView()->getILViewType();
 
     m_controller->StepInto(graphType);
-
-//    auto performStepIntoAfter = [&](){
-//        handleStopReturn();
-//        m_state->OnStep();
-//    };
-//
-//    auto performStepIntoThread = [=](){
-//        DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
-//        BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
-//        m_state->StepInto(graphType);
-//        ExecuteOnMainThreadAndWait(performStepIntoAfter);
-//    };
-//
-//    stateBusy("STEPPING");
-//    std::thread t(performStepIntoThread);
-//    t.detach();
 }
 
 
@@ -298,83 +189,12 @@ void DebugControlsWidget::performStepOver()
         graphType = context->getCurrentView()->getILViewType();
 
     m_controller->StepOver(graphType);
-
-//    auto performStepOverAfter = [&](){
-//        handleStopReturn();
-//        m_state->OnStep();
-//    };
-//
-//    auto performStepOverThread = [=](){
-//        DisassemblyContainer* container = m_state->GetDebuggerUI()->GetDebugView()->getBinaryEditor();
-//        BNFunctionGraphType graphType = container->getDisassembly()->getILViewType();
-//        m_state->StepOver(graphType);
-//        ExecuteOnMainThreadAndWait(performStepOverAfter);
-//    };
-//
-//    stateBusy("STEPPING");
-//    std::thread t(performStepOverThread);
-//    t.detach();
 }
 
 
 void DebugControlsWidget::performStepReturn()
 {
-//    auto performStepReturnAfter = [&](){
-//        handleStopReturn();
-//        m_state->OnStep();
-//    };
-//
-//    auto performStepReturnThread = [=](){
-//        m_state->StepReturn();
-//        ExecuteOnMainThreadAndWait(performStepReturnAfter);
-//    };
-//
-//    stateBusy("STEPPING");
-//    std::thread t(performStepReturnThread);
-//    t.detach();
-}
-
-
-void DebugControlsWidget::setActionEnabled(DebugControlAction action, bool enabled)
-{
-    switch(action)
-    {
-    case DebugControlRunAction:
-        m_actionRun->setEnabled(enabled);
-        break;
-    case DebugControlRestartAction:
-        m_actionRestart->setEnabled(enabled);
-        break;
-    case DebugControlQuitAction:
-        m_actionAttach->setEnabled(enabled);
-        break;
-    case DebugControlAttachAction:
-        m_actionAttach->setEnabled(enabled);
-        break;
-    case DebugControlDetachAction:
-        m_actionDetach->setEnabled(enabled);
-        break;
-    case DebugControlSettingsAction:
-        m_actionSettings->setEnabled(enabled);
-        break;
-    case DebugControlPauseAction:
-        m_actionPause->setEnabled(enabled);
-        break;
-    case DebugControlResumeAction:
-        m_actionResume->setEnabled(enabled);
-        break;
-    case DebugControlStepIntoAction:
-        m_actionStepInto->setEnabled(enabled);
-        break;
-    case DebugControlStepOverAction:
-        m_actionStepOver->setEnabled(enabled);
-        break;
-    case DebugControlStepReturnAction:
-        m_actionStepReturn->setEnabled(enabled);
-        break;
-    default:
-        break;
-    }
+    m_controller->StepReturn();
 }
 
 
@@ -427,110 +247,6 @@ void DebugControlsWidget::setSteppingEnabled(bool enabled)
 }
 
 
-void DebugControlsWidget::stateStarting(const std::string& msg)
-{
-    setDebuggerStatus(msg.size() ? msg : "INACTIVE");
-    setStartingEnabled(false);
-    setStoppingEnabled(false);
-    setSteppingEnabled(false);
-    setActionEnabled(DebugControlPauseAction, false);
-    setActionEnabled(DebugControlResumeAction, false);
-}
-
-
-void DebugControlsWidget::stateInactive(const std::string& msg)
-{
-    setDebuggerStatus(msg.size() ? msg : "INACTIVE");
-    setStartingEnabled(true);
-    setStoppingEnabled(false);
-    setSteppingEnabled(false);
-    setActionEnabled(DebugControlPauseAction, false);
-    setActionEnabled(DebugControlResumeAction, false);
-}
-
-
-void DebugControlsWidget:: stateStopped(const std::string& msg)
-{
-    setDebuggerStatus(msg.size() ? msg : "STOPPED");
-    setStartingEnabled(false);
-    setStoppingEnabled(true);
-    setSteppingEnabled(true);
-    setActionEnabled(DebugControlPauseAction, true);
-    setActionEnabled(DebugControlResumeAction, true);
-}
-
-
-void DebugControlsWidget::stateStoppedExtern(const std::string& msg)
-{
-    setDebuggerStatus(msg.size() ? msg : "STOPPED");
-    setStartingEnabled(false);
-    setStoppingEnabled(true);
-    setSteppingEnabled(true);
-    setActionEnabled(DebugControlStepReturnAction, false);
-    setActionEnabled(DebugControlPauseAction, true);
-    setActionEnabled(DebugControlResumeAction, true);
-}
-
-
-void DebugControlsWidget::stateRunning(const std::string& msg)
-{
-    setDebuggerStatus(msg.size() ? msg : "RUNNING");
-    setStartingEnabled(false);
-    setStoppingEnabled(true);
-    setSteppingEnabled(false);
-    setActionEnabled(DebugControlPauseAction, true);
-    setActionEnabled(DebugControlResumeAction, false);
-}
-
-
-void DebugControlsWidget::stateBusy(const std::string& msg)
-{
-    setDebuggerStatus(msg.size() ? msg : "BUSY");
-    setStartingEnabled(false);
-    setStoppingEnabled(true);
-    setSteppingEnabled(false);
-    setActionEnabled(DebugControlPauseAction, true);
-    setActionEnabled(DebugControlResumeAction, false);
-}
-
-
-void DebugControlsWidget::stateError(const std::string& msg)
-{
-    setDebuggerStatus(msg.size() ? msg : "ERROR");
-//    if (m_state->IsConnected())
-//    {
-//        setStartingEnabled(false);
-//        setStoppingEnabled(true);
-//        setSteppingEnabled(false);
-//        setActionEnabled(DebugControlPauseAction, true);
-//        setActionEnabled(DebugControlResumeAction, false);
-//    }
-//    else
-//    {
-//        setStartingEnabled(true);
-//        setStoppingEnabled(false);
-//        setSteppingEnabled(false);
-//        setActionEnabled(DebugControlPauseAction, true);
-//        setActionEnabled(DebugControlResumeAction, false);
-//    }
-}
-
-
-void DebugControlsWidget::handleStopReturn()
-{
-//    DebugStopReason stopReason = m_state->GetAdapter()->StopReason();
-//    if (stopReason == DebugStopReason::ProcessExited)
-//    {
-//        // TODO: Support return code
-//        stateInactive(fmt::format("Process exited"));
-//    }
-//    else if (stopReason == DebugStopReason::BackendDisconnected)
-//    {
-//        stateInactive("backend disconnected (process exited?)");
-//    }
-}
-
-
 void DebugControlsWidget::setDebuggerStatus(const std::string &status)
 {
 //    if (m_state->GetDebuggerUI() && m_state->GetDebuggerUI()->GetDebugView())
@@ -542,6 +258,8 @@ void DebugControlsWidget::setDebuggerStatus(const std::string &status)
 
 void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
 {
+    updateButtons();
+
     switch (event.type)
     {
         case InitialViewRebasedEventType:
@@ -606,7 +324,7 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
                 func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), lastIP, oldColor);
                 for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), lastIP))
                 {
-                    if (tag->GetType() != GetPCTagType(data))
+                    if (tag->GetType() != getPCTagType(data))
                         continue;
 
                     func->RemoveUserAddressTag(data->GetDefaultArchitecture(), lastIP, tag);
@@ -619,7 +337,7 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
                 bool tagFound = false;
                 for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
                 {
-                    if (tag->GetType() == GetPCTagType(data))
+                    if (tag->GetType() == getPCTagType(data))
                     {
                         tagFound = true;
                         break;
@@ -629,7 +347,7 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
                 if (!tagFound)
                 {
                     func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, BlueHighlightColor);
-                    func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, GetPCTagType(data),
+                    func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getPCTagType(data),
                                                "program counter");
                 }
             }
@@ -651,7 +369,7 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
                 bool tagFound = false;
                 for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
                 {
-                    if (tag->GetType() == GetBreakpointTagType(data))
+                    if (tag->GetType() == getBreakpointTagType(data))
                     {
                         tagFound = true;
                         break;
@@ -661,7 +379,7 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
                 if (!tagFound)
                 {
                     func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
-                    func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, GetBreakpointTagType(data),
+                    func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
                                                "breakpoint");
                 }
             }
@@ -683,7 +401,7 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
                 func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, NoHighlightColor);
                 for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
                 {
-                    if (tag->GetType() != GetBreakpointTagType(data))
+                    if (tag->GetType() != getBreakpointTagType(data))
                         continue;
 
                     func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
@@ -698,7 +416,7 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
 }
 
 
-TagTypeRef DebugControlsWidget::GetPCTagType(BinaryViewRef data)
+TagTypeRef DebugControlsWidget::getPCTagType(BinaryViewRef data)
 {
     TagTypeRef type = data->GetTagType("Program Counter");
     if (type)
@@ -710,7 +428,7 @@ TagTypeRef DebugControlsWidget::GetPCTagType(BinaryViewRef data)
 }
 
 
-TagTypeRef DebugControlsWidget::GetBreakpointTagType(BinaryViewRef data)
+TagTypeRef DebugControlsWidget::getBreakpointTagType(BinaryViewRef data)
 {
     TagTypeRef type = data->GetTagType("Breakpoints");
     if (type)
@@ -719,4 +437,36 @@ TagTypeRef DebugControlsWidget::GetBreakpointTagType(BinaryViewRef data)
     TagTypeRef pcTagType = new TagType(data, "Breakpoints", "🛑");
     data->AddTagType(pcTagType);
     return pcTagType;
+}
+
+
+void DebugControlsWidget::updateButtons()
+{
+    DebugAdapterConnectionStatus connection = m_controller->GetState()->GetConnectionStatus();
+    DebugAdapterTargetStatus status = m_controller->GetState()->GetTargetStatus();
+
+    if (connection == DebugAdapterNotConnectedStatus)
+    {
+        setStartingEnabled(true);
+        setStoppingEnabled(false);
+        setSteppingEnabled(false);
+        m_actionPause->setEnabled(false);
+        m_actionResume->setEnabled(false);
+    }
+    else if (status == DebugAdapterRunningStatus)
+    {
+        setStartingEnabled(false);
+        setStoppingEnabled(true);
+        setSteppingEnabled(false);
+        m_actionPause->setEnabled(true);
+        m_actionResume->setEnabled(false);
+    }
+    else
+    {
+        setStartingEnabled(false);
+        setStoppingEnabled(true);
+        setSteppingEnabled(true);
+        m_actionPause->setEnabled(false);
+        m_actionResume->setEnabled(true);
+    }
 }

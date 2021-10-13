@@ -57,7 +57,7 @@ public:
     void Go();
     void StepInto(BNFunctionGraphType il = NormalFunctionGraph);
     void StepOver(BNFunctionGraphType il = NormalFunctionGraph);
-    void StepReturn();
+    void StepReturn(BNFunctionGraphType il = NormalFunctionGraph);
     void StepTo(std::vector<uint64_t> remoteAddresses);
 
     DebugAdapter* GetAdapter() { return m_adapter; }

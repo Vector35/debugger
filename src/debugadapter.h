@@ -37,6 +37,8 @@ enum class DebugStopReason {
     InitalBreakpoint,
     StdoutMessage,
     ProcessExited,
+    Detached,
+    StoppedDebugging,
     BackendDisconnected,
     AccessViolation,
     SingleStep,
