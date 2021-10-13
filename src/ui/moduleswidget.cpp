@@ -278,8 +278,6 @@ void DebugModulesWidget::notifyFontChanged()
 
 void DebugModulesWidget::updateContent()
 {
-    LogWarn("DebugModulesWidget::updateContent()");
-
     if (!m_controller->GetState()->IsConnected())
         return;
 

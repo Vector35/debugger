@@ -420,8 +420,6 @@ void DebugStackWidget::notifyStackChanged(std::vector<DebugStackItem> stackItems
 
 void DebugStackWidget::updateContent()
 {
-    LogWarn("DebugStackWidget::updateContent()");
-
     if (!m_controller->GetState()->IsConnected())
         return;
 

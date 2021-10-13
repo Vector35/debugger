@@ -248,9 +248,6 @@ void DebugThreadsWidget::notifyThreadsChanged(std::vector<DebuggerThreadCache> t
 
 void DebugThreadsWidget::updateContent()
 {
-    // function updateContent() and notifyThreadsChanged() should definitely be combined
-    LogWarn("DebugThreadsWidget::updateContent()");
-
     if (!m_controller->GetState()->IsConnected())
         return;
 
