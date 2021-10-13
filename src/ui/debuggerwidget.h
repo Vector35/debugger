@@ -45,6 +45,8 @@ class DebuggerWidget: public SidebarWidget
     DebuggerState* m_state;
     DebuggerUI* m_ui;
 
+    size_t m_eventCallback;
+
     // void shouldBeVisible()
 
     virtual void notifyFontChanged() override;
@@ -59,8 +61,10 @@ public:
     DebugThreadsWidget* getThreadsWidget() const { return m_threadsWidget; }
     DebugStackWidget* getStackWidget() const { return m_stackWidget; }
 
+    void uiEventHandler(const DebuggerEvent& event);
+
 private slots:
-    void updateContext();
+    void updateContent();
 };
 
 

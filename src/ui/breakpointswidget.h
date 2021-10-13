@@ -105,6 +105,8 @@ class DebugBreakpointsWidget : public QWidget
     ContextMenuManager* m_contextMenuManager;
     Menu* m_menu;
 
+    size_t m_eventCallback;
+
     // void shouldBeVisible()
 //    virtual void notifyFontChanged() override;
 
@@ -113,6 +115,8 @@ class DebugBreakpointsWidget : public QWidget
 public:
     DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data, Menu* menu);
     ~DebugBreakpointsWidget();
+
+    void uiEventHandler(const DebuggerEvent& event);
 
 private slots:
     void jump();

@@ -122,7 +122,7 @@ public:
     DebugRegistersWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
     void notifyRegistersChanged(std::vector<DebugRegister> regs);
 
-private slots:
+public slots:
     void updateContent();
 };
 

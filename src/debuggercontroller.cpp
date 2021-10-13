@@ -46,40 +46,40 @@ void DebuggerController::AddEntryBreakpoint()
 void DebuggerController::AddBreakpoint(uint64_t address)
 {
     m_state->AddBreakpoint(address);
-    if (hasUI())
-    {
-        emit absoluteBreakpointAdded(address);
-    }
+    DebuggerEvent event;
+    event.type = AbsoluteBreakpointAddedEvent;
+    event.data.absoluteAddress = address;
+    PostDebuggerEvent(event);
 }
 
 
 void DebuggerController::AddBreakpoint(const ModuleNameAndOffset& address)
 {
     m_state->AddBreakpoint(address);
-    if (hasUI())
-    {
-        emit relativeBreakpointAdded(address);
-    }
+    DebuggerEvent event;
+    event.type = RelativeBreakpointAddedEvent;
+    event.data.relativeAddress = address;
+    PostDebuggerEvent(event);
 }
 
 
 void DebuggerController::DeleteBreakpoint(uint64_t address)
 {
     m_state->DeleteBreakpoint(address);
-    if (hasUI())
-    {
-        emit absoluteBreakpointDeleted(address);
-    }
+    DebuggerEvent event;
+    event.type = AbsoluteBreakpointRemovedEvent;
+    event.data.absoluteAddress = address;
+    PostDebuggerEvent(event);
 }
 
 
 void DebuggerController::DeleteBreakpoint(const ModuleNameAndOffset& address)
 {
     m_state->DeleteBreakpoint(address);
-    if (hasUI())
-    {
-        emit relativeBreakpointDeleted(address);
-    }
+    DebuggerEvent event;
+    event.type = RelativeBreakpointRemovedEvent;
+    event.data.relativeAddress = address;
+    PostDebuggerEvent(event);
 }
 
 
@@ -165,8 +165,8 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
     {
     case TargetStoppedEventType:
     {
+        m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
         m_state->SetExecutionStatus(DebugAdapterPausedStatus);
-        emit stopped(event.data.targetStoppedData.reason, nullptr);
 
         // Initial breakpoint is reached after successfully launching or attaching to the target
         if (event.data.targetStoppedData.reason == DebugStopReason::InitalBreakpoint)
@@ -217,18 +217,15 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             DebuggerEvent event;
             event.type = InitialViewRebasedEventType;
             PostDebuggerEvent(event);
-
-
-
         }
         else
         {
             m_state->UpdateCaches();
         }
 
-        emit cacheUpdated(event.data.targetStoppedData.reason, nullptr);
-        emit IPChanged(m_state->IP());
-
+        // Update the instruction pointer
+        m_lastIP = m_currentIP;
+        m_currentIP = m_state->IP();
 
         break;
     }
@@ -238,9 +235,27 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 }
 
 
-void DebuggerController::RegisterEventCallback(std::function<void(const DebuggerEvent&)> callback)
+size_t DebuggerController::RegisterEventCallback(std::function<void(const DebuggerEvent&)> callback)
 {
-    m_eventCallbacks.push_back(callback);
+    DebuggerEventCallback object;
+    object.function = callback;
+    object.index = m_callbackIndex++;
+    m_eventCallbacks.push_back(object);
+    return object.index;
+}
+
+
+bool DebuggerController::RemoveEventCallback(size_t index)
+{
+    for (auto it = m_eventCallbacks.begin(); it != m_eventCallbacks.end(); it++)
+    {
+        if (it->index == index)
+        {
+            m_eventCallbacks.erase(it);
+            return true;
+        }
+    }
+    return false;
 }
 
 
@@ -264,7 +279,7 @@ void DebuggerController::Worker()
             lock.unlock();
             for (auto cb: m_eventCallbacks)
             {
-                cb(event);
+                cb.function(event);
             }
         }
     }

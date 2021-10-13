@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <array>
 #include <fmt/format.h>
+#include "debuggercommon.h"
 
 enum StopReason
 {
@@ -90,7 +91,16 @@ enum DebuggerEventType
     ErrorEventType,
     GeneralEventType,
 
-    InitialViewRebasedEventType
+    // Whenever the target stops, the controller will update caches, and then fire this event
+    // However, I might wish to remove it, since it is somehow unnatural
+    CacheUpdatedEvent,
+
+    InitialViewRebasedEventType,
+
+    AbsoluteBreakpointAddedEvent,
+    RelativeBreakpointAddedEvent,
+    AbsoluteBreakpointRemovedEvent,
+    RelativeBreakpointRemovedEvent
 };
 
 
@@ -123,11 +133,14 @@ struct GeneralEventData
 };
 
 
+// This should really be a union, but gcc complains...
 struct DebuggerEventData
 {
     TargetStoppedEventData targetStoppedData;
     ErrorEventData errorData;
     GeneralEventData generalData;
+    uint64_t absoluteAddress;
+    ModuleNameAndOffset relativeAddress;
 };
 
 

@@ -7,6 +7,13 @@
 // This is the controller class of the debugger. It receives the input from the UI/API, and then route them to
 // the state and UI, etc. Most actions should reach here.
 
+struct DebuggerEventCallback
+{
+    std::function<void(const DebuggerEvent& event)> function;
+    size_t index;
+};
+
+
 class DebuggerController: public QObject
 {
     Q_OBJECT
@@ -22,9 +29,13 @@ class DebuggerController: public QObject
     inline static std::vector<DebuggerController*> g_debuggerControllers;
     void DeleteController(BinaryViewRef data);
 
-    std::vector<std::function<void(const DebuggerEvent& event)>> m_eventCallbacks;
+    size_t m_callbackIndex = 0;
+    std::vector<DebuggerEventCallback> m_eventCallbacks;
     std::queue<DebuggerEvent> m_events;
     std::mutex m_queueMutex;
+
+    uint64_t m_lastIP = 0;
+    uint64_t m_currentIP = 0;
 
 public:
     DebuggerController(BinaryViewRef data);
@@ -62,7 +73,8 @@ public:
     void EventHandler(const DebuggerEvent& event);
 
     void AddEntryBreakpoint();
-    void RegisterEventCallback(std::function<void(const DebuggerEvent& event)> callback);
+    size_t RegisterEventCallback(std::function<void(const DebuggerEvent& event)> callback);
+    bool RemoveEventCallback(size_t index);
 
     void NotifyStopped(DebugStopReason reason, void* data= nullptr);
     void NotifyError(const std::string& error, void* data = nullptr);
@@ -70,6 +82,9 @@ public:
 
     void PostDebuggerEvent(const DebuggerEvent& event);
     void Worker();
+
+    uint64_t GetLastIP() const { return m_lastIP; }
+    uint64_t GetCurrentIP() const { return m_currentIP; }
 
 signals:
     void absoluteBreakpointAdded(uint64_t address);

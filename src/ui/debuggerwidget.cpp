@@ -76,7 +76,9 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 
     m_controller->GetUI()->SetDebuggerSidebar(this);
 
-    connect(m_controller, &DebuggerController::cacheUpdated, this, &DebuggerWidget::updateContext);
+    m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
+        uiEventHandler(event);
+    });
 }
 
 
@@ -92,13 +94,23 @@ void DebuggerWidget::notifyFontChanged()
 }
 
 
-void DebuggerWidget::updateContext()
+void DebuggerWidget::updateContent()
 {
     LogWarn("DebuggerWidget::updateContext()");
-//    TODO: further refactor this, connect the updateContext signal directly to each of the signals
-//    m_breakpointsWidget->updateContent();
-//    m_registersWidget->updateContent();
+    m_registersWidget->updateContent();
     m_modulesWidget->updateContent();
     m_threadsWidget->updateContent();
-//    m_stackWidget->updateContent();
+    m_stackWidget->updateContent();
+}
+
+
+void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
+{
+    switch (event.type)
+    {
+    case CacheUpdatedEvent:
+        updateContent();
+    default:
+        break;
+    }
 }

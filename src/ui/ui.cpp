@@ -16,13 +16,13 @@ DebuggerUI::DebuggerUI(DebuggerController* controller): m_controller(controller)
     // DebuggerUI. I understand the reason for this implementation, but its realy not a good idea.
     m_sidebar = nullptr;
 
-    m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
-        UIEventHandler(event);
-    });
+//    m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
+//        uiEventHandler(event);
+//    });
 }
 
 
-void DebuggerUI::UIEventHandler(const DebuggerEvent &event)
+void DebuggerUI::uiEventHandler(const DebuggerEvent &event)
 {
 //    switch (event.type)
 //    {
@@ -65,7 +65,7 @@ void DebuggerUI::SetDebuggerSidebar(DebuggerWidget* widget)
 static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 {
     DebuggerController* controller = DebuggerController::GetController(view);
-    DebuggerState* state = DebuggerState::GetState(view);
+    DebuggerState* state = controller->GetState();
 
     bool isAbsoluteAddress = false;
     // TODO: check if this works

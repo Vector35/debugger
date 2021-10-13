@@ -361,8 +361,6 @@ DebugRegistersWidget::DebugRegistersWidget(const QString& name, ViewFrame* view,
     setLayout(layout);
 
     updateContent();
-
-    connect(m_controller, &DebuggerController::cacheUpdated, this, &DebugRegistersWidget::updateContent);
 }
 
 

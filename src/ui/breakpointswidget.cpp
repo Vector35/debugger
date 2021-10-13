@@ -241,23 +241,15 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* v
 
     updateContent();
 
-    // TODO: This is not the most efficient way of handling these signals. We can just handle the difference and
-    // update the content accordingly.
-    connect(m_controller, &DebuggerController::absoluteBreakpointAdded, [this]() { updateContent(); });
-    connect(m_controller, &DebuggerController::relativeBreakpointAdded, [this]() { updateContent(); });
-    connect(m_controller, &DebuggerController::absoluteBreakpointDeleted, [this]() { updateContent(); });
-    connect(m_controller, &DebuggerController::relativeBreakpointDeleted, [this]() { updateContent(); });
-    connect(m_controller, &DebuggerController::cacheUpdated, [this]() { updateContent(); });
+    m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
+        uiEventHandler(event);
+    });
 }
 
 
 DebugBreakpointsWidget::~DebugBreakpointsWidget()
 {
-    disconnect(m_controller, &DebuggerController::cacheUpdated, nullptr, nullptr);
-    disconnect(m_controller, &DebuggerController::absoluteBreakpointAdded, nullptr, nullptr);
-    disconnect(m_controller, &DebuggerController::relativeBreakpointAdded, nullptr, nullptr);
-    disconnect(m_controller, &DebuggerController::absoluteBreakpointDeleted, nullptr, nullptr);
-    disconnect(m_controller, &DebuggerController::relativeBreakpointDeleted, nullptr, nullptr);
+
 }
 
 
@@ -360,4 +352,24 @@ void DebugBreakpointsWidget::updateContent()
     }
 
     m_model->updateRows(bps);
+}
+
+
+void DebugBreakpointsWidget::uiEventHandler(const DebuggerEvent &event)
+{
+    switch (event.type)
+    {
+    case RelativeBreakpointAddedEvent:
+    case AbsoluteBreakpointAddedEvent:
+    case RelativeBreakpointRemovedEvent:
+    case AbsoluteBreakpointRemovedEvent:
+    {
+        // We could also do the update based on the changes, but this works for now
+        updateContent();
+        break;
+    }
+
+        default:
+            break;
+    }
 }
