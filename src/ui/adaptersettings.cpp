@@ -1,16 +1,18 @@
 #include "adaptersettings.h"
 #include "uicontext.h"
+#include "../debuggercontroller.h"
 
 using namespace BinaryNinja;
 using namespace std;
 
-AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data): QDialog(), m_data(data)
+AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data): QDialog()
 {
     setWindowTitle("Debug Adapter Settings");
     setMinimumSize(UIContext::getScaledWindowSize(400, 130));
     setAttribute(Qt::WA_DeleteOnClose);
 
-    m_state = DebuggerState::GetState(m_data);
+    m_controller = DebuggerController::GetController(data);
+    m_state = m_controller->GetState();
 
     QVBoxLayout* layout = new QVBoxLayout;
     layout->setSpacing(0);
@@ -107,7 +109,7 @@ void AdapterSettingsDialog::apply()
     DebugAdapterType::AdapterType adapter = (DebugAdapterType::AdapterType)m_adapterEntry->currentData().toULongLong();
     m_state->SetAdapterType(adapter);
     Ref<Metadata> data = new Metadata((uint64_t)adapter);
-    m_data->StoreMetadata("native_debugger.adapter_type", data);
+    m_controller->GetData()->StoreMetadata("native_debugger.adapter_type", data);
 
     std::vector<std::string> args;
     // We need better support for shell-style cmd arguments
@@ -123,12 +125,12 @@ void AdapterSettingsDialog::apply()
     std::string path = m_pathEntry->text().toStdString();
     m_state->SetExecutablePath(path);
     data = new Metadata(path);
-    m_data->StoreMetadata("native_debugger.executable_path", data);
+    m_controller->GetData()->StoreMetadata("native_debugger.executable_path", data);
 
     std::string host = m_addressEntry->text().toStdString();
     m_state->SetRemoteHost(host);
     data = new Metadata(host);
-    m_data->StoreMetadata("native_debugger.remote_host", data);
+    m_controller->GetData()->StoreMetadata("native_debugger.remote_host", data);
 
     std::string portString = m_portEntry->text().toStdString();
     uint64_t port;
@@ -144,7 +146,7 @@ void AdapterSettingsDialog::apply()
     
     m_state->SetRemotePort(port);
     data = new Metadata(port);
-    m_data->StoreMetadata("native_debugger.remote_port", data);
+    m_controller->GetData()->StoreMetadata("native_debugger.remote_port", data);
 
     accept();
 }

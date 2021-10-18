@@ -60,7 +60,6 @@ public:
     void StepReturn(BNFunctionGraphType il = NormalFunctionGraph);
     void StepTo(std::vector<uint64_t> remoteAddresses);
 
-    DebugAdapter* GetAdapter() { return m_adapter; }
     DebuggerState* GetState() { return m_state; }
     BinaryViewRef GetData() const { return m_data; }
     void SetData(BinaryView* view) { m_data = view; }

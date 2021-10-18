@@ -16,7 +16,7 @@ class AdapterSettingsDialog: public QDialog
     Q_OBJECT
 
 private:
-    BinaryViewRef m_data;
+    DebuggerController* m_controller;
     DebuggerState* m_state;
 
     QComboBox* m_adapterEntry;

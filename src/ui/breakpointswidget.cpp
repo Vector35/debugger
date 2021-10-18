@@ -294,7 +294,7 @@ void DebugBreakpointsWidget::jump()
 //    if (context && context->getCurrentViewFrame())
 //    ViewFrame* frame = ViewFrame::viewFrameForWidget(state->GetDebuggerUI()->GetDebugView());
     ViewFrame* frame = context->getCurrentViewFrame();
-    frame->navigate(state->GetData(), address_or_offset, true, true);
+    frame->navigate(m_controller->GetLiveView(), address_or_offset, true, true);
 }
 
 

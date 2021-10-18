@@ -729,22 +729,17 @@ void DebuggerState::StepInto(BNFunctionGraphType il)
             // We must do the udpate here, otherwise the ip will not change
             m_registers->Update();
             uint64_t newRemoteRip = IP();
-            uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
-            if (!m_memoryView->IsLocalAddress(newRemoteRip))
-                // Stepped outside of loaded bv
-                return;
-
-            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newLocalIp);
+            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
                 return;
 
             for (FunctionRef& func: functions)
             {
                 LowLevelILFunctionRef llil = func->GetLowLevelIL();
-                size_t start = llil->GetInstructionStart(m_data->GetDefaultArchitecture(), newLocalIp);
+                size_t start = llil->GetInstructionStart(m_data->GetDefaultArchitecture(), newRemoteRip);
                 if (start < llil->GetInstructionCount())
                 {
-                    if (llil->GetInstruction(start).address == newLocalIp)
+                    if (llil->GetInstruction(start).address == newRemoteRip)
                         return;
                 }
             }
@@ -759,22 +754,17 @@ void DebuggerState::StepInto(BNFunctionGraphType il)
             StepInto(NormalFunctionGraph);
             m_registers->Update();
             uint64_t newRemoteRip = IP();
-            uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
-            if (!m_memoryView->IsLocalAddress(newRemoteRip))
-                // Stepped outside of loaded bv
-                return;
-
-            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newLocalIp);
+            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
                 return;
 
             for (FunctionRef& func: functions)
             {
                 MediumLevelILFunctionRef mlil = func->GetMediumLevelIL();
-                size_t start = mlil->GetInstructionStart(m_data->GetDefaultArchitecture(), newLocalIp);
+                size_t start = mlil->GetInstructionStart(m_data->GetDefaultArchitecture(), newRemoteRip);
                 if (start < mlil->GetInstructionCount())
                 {
-                    if (mlil->GetInstruction(start).address == newLocalIp)
+                    if (mlil->GetInstruction(start).address == newRemoteRip)
                         return;
                 }
             }
@@ -789,12 +779,7 @@ void DebuggerState::StepInto(BNFunctionGraphType il)
             StepInto(NormalFunctionGraph);
             m_registers->Update();
             uint64_t newRemoteRip = IP();
-            uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
-            if (!m_memoryView->IsLocalAddress(newRemoteRip))
-                // Stepped outside of loaded bv
-                return;
-
-            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newLocalIp);
+            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
                 return;
 
@@ -803,7 +788,7 @@ void DebuggerState::StepInto(BNFunctionGraphType il)
                 HighLevelILFunctionRef hlil = func->GetHighLevelIL();
                 for (size_t i = 0; i < hlil->GetInstructionCount(); i++)
                 {
-                    if (hlil->GetInstruction(i).address == newLocalIp)
+                    if (hlil->GetInstruction(i).address == newRemoteRip)
                         return;
                 }
             }
@@ -831,7 +816,6 @@ void DebuggerState::StepOverInternal()
     }
 
     uint64_t remoteIP = IP();
-    uint64_t localIP = m_memoryView->RemoteAddressToLocal(remoteIP);
 
     // TODO: support the case where we cannot determined the remote arch
     size_t size = m_remoteArch->GetMaxInstructionLength();
@@ -894,22 +878,17 @@ void DebuggerState::StepOver(BNFunctionGraphType il)
             // We must do the udpate here, otherwise the ip will not change
             m_registers->Update();
             uint64_t newRemoteRip = IP();
-            uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
-            if (!m_memoryView->IsLocalAddress(newRemoteRip))
-                // Stepped outside of loaded bv
-                return;
-
-            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newLocalIp);
+            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
                 return;
 
             for (FunctionRef& func: functions)
             {
                 LowLevelILFunctionRef llil = func->GetLowLevelIL();
-                size_t start = llil->GetInstructionStart(m_data->GetDefaultArchitecture(), newLocalIp);
+                size_t start = llil->GetInstructionStart(m_data->GetDefaultArchitecture(), newRemoteRip);
                 if (start < llil->GetInstructionCount())
                 {
-                    if (llil->GetInstruction(start).address == newLocalIp)
+                    if (llil->GetInstruction(start).address == newRemoteRip)
                         return;
                 }
             }
@@ -924,22 +903,17 @@ void DebuggerState::StepOver(BNFunctionGraphType il)
             StepOverInternal();
             m_registers->Update();
             uint64_t newRemoteRip = IP();
-            uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
-            if (!m_memoryView->IsLocalAddress(newRemoteRip))
-                // Stepped outside of loaded bv
-                return;
-
-            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newLocalIp);
+            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
                 return;
 
             for (FunctionRef& func: functions)
             {
                 MediumLevelILFunctionRef mlil = func->GetMediumLevelIL();
-                size_t start = mlil->GetInstructionStart(m_data->GetDefaultArchitecture(), newLocalIp);
+                size_t start = mlil->GetInstructionStart(m_data->GetDefaultArchitecture(), newRemoteRip);
                 if (start < mlil->GetInstructionCount())
                 {
-                    if (mlil->GetInstruction(start).address == newLocalIp)
+                    if (mlil->GetInstruction(start).address == newRemoteRip)
                         return;
                 }
             }
@@ -954,12 +928,7 @@ void DebuggerState::StepOver(BNFunctionGraphType il)
             StepOverInternal();
             m_registers->Update();
             uint64_t newRemoteRip = IP();
-            uint64_t newLocalIp = m_memoryView->RemoteAddressToLocal(newRemoteRip);
-            if (!m_memoryView->IsLocalAddress(newRemoteRip))
-                // Stepped outside of loaded bv
-                return;
-
-            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newLocalIp);
+            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
                 return;
 
@@ -968,7 +937,7 @@ void DebuggerState::StepOver(BNFunctionGraphType il)
                 HighLevelILFunctionRef hlil = func->GetHighLevelIL();
                 for (size_t i = 0; i < hlil->GetInstructionCount(); i++)
                 {
-                    if (hlil->GetInstruction(i).address == newLocalIp)
+                    if (hlil->GetInstruction(i).address == newRemoteRip)
                         return;
                 }
             }
@@ -1143,7 +1112,7 @@ uint64_t DebuggerState::IP()
 uint64_t DebuggerState::LocalIP()
 {
     uint64_t remoteIP = IP();
-    return m_memoryView->RemoteAddressToLocal(remoteIP);
+    return remoteIP;
 }
 
 
@@ -1214,46 +1183,7 @@ ArchitectureRef DebuggerState::DetectRemoteArch()
 
 uint64_t DebuggerState::GetRemoteBase(BinaryViewRef relativeView)
 {
-    if (!m_memoryView)
-        throw runtime_error("Invalid DebugProcessView");
-
-    return m_memoryView->GetRemoteBase(relativeView);
-}
-
-
-bool DebuggerState::IsCodeASLR(BinaryViewRef relativeView)
-{
-    if (!m_memoryView)
-        throw runtime_error("Invalid DebugProcessView");
-
-    return m_memoryView->IsCodeASLR(relativeView);
-}
-
-
-uint64_t DebuggerState::LocalAddressToRemote(uint64_t localAddr, BinaryViewRef relativeView)
-{
-    if (!m_memoryView)
-        throw runtime_error("Invalid DebugProcessView");
-
-    return m_memoryView->LocalAddressToRemote(localAddr, relativeView);
-}
-
-
-uint64_t DebuggerState::RemoteAddressToLocal(uint64_t remoteAddr, BinaryViewRef relativeView)
-{
-    if (!m_memoryView)
-        throw runtime_error("Invalid DebugProcessView");
-
-    return m_memoryView->RemoteAddressToLocal(remoteAddr, relativeView);
-}
-
-
-bool DebuggerState::IsLocalAddress(uint64_t remoteAddr, BinaryViewRef relativeView)
-{
-    if (!m_memoryView)
-        throw runtime_error("Invalid DebugProcessView");
-
-    return m_memoryView->IsLocalAddress(remoteAddr, relativeView);
+    return m_modules->GetModuleBase(m_controller->GetData()->GetFile()->GetOriginalFilename());
 }
 
 

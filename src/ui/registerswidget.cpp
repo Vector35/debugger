@@ -46,8 +46,8 @@ bool DebugRegisterItem::operator<(const DebugRegisterItem& other) const
 }
 
 
-DebugRegistersListModel::DebugRegistersListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view):
-    QAbstractTableModel(parent), m_data(data), m_view(view)
+DebugRegistersListModel::DebugRegistersListModel(QWidget* parent, DebuggerController* controller, ViewFrame* view):
+    QAbstractTableModel(parent), m_controller(controller), m_view(view)
 {   
 }
 
@@ -241,8 +241,7 @@ bool DebugRegistersListModel::setData(const QModelIndex &index, const QVariant &
     if (newValue == item->value())
         return false;
 
-    DebuggerState* state = DebuggerState::GetState(m_data);
-    ok = state->GetRegisters()->UpdateRegisterValue(item->name(), newValue);
+    ok = m_controller->GetState()->GetRegisters()->UpdateRegisterValue(item->name(), newValue);
     if (!ok)
         return false;
 
@@ -335,7 +334,7 @@ DebugRegistersWidget::DebugRegistersWidget(const QString& name, ViewFrame* view,
     m_controller = DebuggerController::GetController(data);
 
     m_table = new QTableView(this);
-    m_model = new DebugRegistersListModel(m_table, data, view);
+    m_model = new DebugRegistersListModel(m_table, m_controller, view);
     m_table->setModel(m_model);
 
     m_delegate = new DebugRegistersItemDelegate(this);

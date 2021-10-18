@@ -48,8 +48,9 @@ bool DebugStackItem::operator<(const DebugStackItem& other) const
 
 
 DebugStackListModel::DebugStackListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view):
-    QAbstractTableModel(parent), m_data(data), m_view(view)
-{   
+    QAbstractTableModel(parent), m_view(view)
+{
+    m_controller = DebuggerController::GetController(data);
 }
 
 
@@ -261,7 +262,7 @@ bool DebugStackListModel::setData(const QModelIndex &index, const QVariant &valu
     if (newValue == item->value())
         return false;
 
-    DebuggerState* state = DebuggerState::GetState(m_data);
+    DebuggerState* state = m_controller->GetState();
     size_t addressSize = state->GetRemoteArchitecture()->GetAddressSize();
     BinaryWriter* writer = new BinaryWriter(state->GetMemoryView());
     ok = false;

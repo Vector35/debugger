@@ -56,7 +56,7 @@ class DebugRegistersListModel: public QAbstractTableModel
 
 protected:
     QWidget* m_owner;
-    BinaryViewRef m_data;
+    DebuggerController* m_controller;
     ViewFrame* m_view;
     std::vector<DebugRegisterItem> m_items;
 
@@ -68,7 +68,7 @@ public:
         HintColumn,
     };
 
-    DebugRegistersListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view);
+    DebugRegistersListModel(QWidget* parent, DebuggerController* m_controller, ViewFrame* view);
     virtual ~DebugRegistersListModel();
 
     virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;

@@ -241,10 +241,6 @@ public:
     ArchitectureRef DetectRemoteArch();
 
     uint64_t GetRemoteBase(BinaryViewRef relativeView = nullptr);
-    bool IsCodeASLR(BinaryViewRef relativeView = nullptr);
-    uint64_t LocalAddressToRemote(uint64_t localAddr, BinaryViewRef relativeView = nullptr);
-    uint64_t RemoteAddressToLocal(uint64_t remoteAddr, BinaryViewRef relativeView = nullptr);
-    bool IsLocalAddress(uint64_t remoteAddr, BinaryViewRef relativeView = nullptr);
 
     std::string ResolveTargetBase();
 

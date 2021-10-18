@@ -183,8 +183,13 @@ DebuggerController* DebuggerController::GetController(BinaryViewRef data)
             return controller;
         if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetParentView()->GetFile()->GetOriginalFilename())
             return controller;
+//        if (controller->GetData()->GetFile() == data->GetFile())
+//            return controller;
+//        if (controller->GetLiveView() && (controller->GetLiveView()->GetFile() == data->GetFile()))
+//            return controller;
     }
 
+    LogWarn("Creating a new Controller");
     DebuggerController* controller = new DebuggerController(data);
     g_debuggerControllers.push_back(controller);
     return controller;

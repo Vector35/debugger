@@ -57,7 +57,7 @@ class DebugStackListModel: public QAbstractTableModel
 
 protected:
     QWidget* m_owner;
-    BinaryViewRef m_data;
+    DebuggerController* m_controller;
     ViewFrame* m_view;
     std::vector<DebugStackItem> m_items;
 
@@ -127,14 +127,3 @@ public:
 public slots:
     void updateContent();
 };
-
-//class DebugStackWidgetType : public SidebarWidgetType {
-//public:
-//    DebugStackWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
-//
-//    bool isInReferenceArea() const override { return false; }
-//
-//    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
-//        return new DebugStackWidget("Native Debugger Stack", frame, data);
-//    }
-//};
