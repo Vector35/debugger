@@ -5,10 +5,6 @@
 DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 {
     m_state = new DebuggerState(data, this);
-//    This is just for compatability with old code
-    DebuggerState::RegisterState(m_state);
-//    m_state = new DebuggerState(data, this);
-
     m_hasUI = BinaryNinja::IsUIEnabled();
     if (m_hasUI)
     {

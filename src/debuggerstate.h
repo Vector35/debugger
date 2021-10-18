@@ -130,13 +130,11 @@ class DebuggerController;
 class DebuggerState
 {
 private:
-    BinaryViewRef m_data;
     DebuggerController* m_controller;
     DebugAdapterConnectionStatus m_connectionStatus;
     DebugAdapterTargetStatus m_targetStatus;
 
     DebugAdapter* m_adapter;
-    Ref<DebugProcessView> m_memoryView;
     DebuggerModules* m_modules;
     DebuggerRegisters* m_registers;
     DebuggerThreads* m_threads;
@@ -151,14 +149,7 @@ private:
     bool m_requestTerminalEmulator;
     ArchitectureRef m_remoteArch;
 
-    // std::string m_pcRegister;
-
     DebugAdapterType::AdapterType m_adapterType;
-
-    inline static std::vector<DebuggerState*> g_debuggerStates;
-    void DeleteState(BinaryViewRef data);
-
-//    std::binary_semaphore m_semaphore;
 
 public:
     DebuggerState(BinaryViewRef data, DebuggerController* controller);
@@ -187,14 +178,10 @@ public:
     bool CanExec();
     bool CanConnect();
 
-    static DebuggerState* GetState(BinaryViewRef data);
-    static void RegisterState(DebuggerState* state);
-
     DebugAdapter* GetAdapter() const { return m_adapter; }
-    BinaryViewRef GetData() const { return m_data; }
+    DebuggerController* GetController() const { return m_controller; }
 
     DebuggerModules* GetModules() const { return m_modules; }
-    Ref<DebugProcessView> GetMemoryView() const { return m_memoryView; }
     DebuggerUI* GetDebuggerUI() const { return m_ui; }
     DebuggerBreakpoints* GetBreakpoints() const { return m_breakpoints; }
     DebuggerRegisters* GetRegisters() const { return m_registers; }
@@ -222,7 +209,6 @@ public:
     void DeleteBreakpoint(const ModuleNameAndOffset& address);
 
     uint64_t IP();
-    uint64_t LocalIP();
     uint64_t StackPointer();
 
     bool IsConnected() const { return m_connectionStatus == DebugAdapterConnectedStatus; }

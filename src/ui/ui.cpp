@@ -109,8 +109,8 @@ static bool BreakpointToggleValid(BinaryView* view, uint64_t addr)
 
 static void StepToHereCallback(BinaryView* view, uint64_t addr)
 {
-    DebuggerState* state = DebuggerState::GetState(view);
-    state->StepTo({addr});
+//    DebuggerState* state = DebuggerState::GetState(view);
+//    state->StepTo({addr});
     // TODO: this does not work since the UI state will not be updated after this
 }
 

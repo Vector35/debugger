@@ -399,13 +399,13 @@ void DebuggerBreakpoints::SerializeMetadata()
         info["offset"] = new Metadata(bp.offset);
         breakpoints.push_back(new Metadata(info));
     }
-    m_state->GetData()->StoreMetadata("native_debugger.breakpoints", new Metadata(breakpoints));
+    m_state->GetController()->GetData()->StoreMetadata("native_debugger.breakpoints", new Metadata(breakpoints));
 }
 
 
 void DebuggerBreakpoints::UnserializedMetadata()
 {
-    Ref<Metadata> metadata = m_state->GetData()->QueryMetadata("native_debugger.breakpoints");
+    Ref<Metadata> metadata = m_state->GetController()->GetData()->QueryMetadata("native_debugger.breakpoints");
     if (!metadata || (!metadata->IsArray()))
         return;
 
@@ -455,9 +455,8 @@ void DebuggerBreakpoints::Apply()
 }
 
 
-DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller): m_data(data), m_controller(controller)
+DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller): m_controller(controller)
 {
-    m_memoryView = new DebugProcessView(data);
     m_modules = new DebuggerModules(this);
     m_registers = new DebuggerRegisters(this);
     m_threads = new DebuggerThreads(this);
@@ -470,23 +469,23 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
     // if (metadata && metadata->IsStringList())
     //     m_commandLineArgs = metadata->GetStringList();
 
-    metadata = m_data->QueryMetadata("native_debugger.remote_host");
+    metadata = m_controller->GetData()->QueryMetadata("native_debugger.remote_host");
     if (metadata && metadata->IsString())
         m_remoteHost = metadata->GetString();
 
-    metadata = m_data->QueryMetadata("native_debugger.remote_port");
+    metadata = m_controller->GetData()->QueryMetadata("native_debugger.remote_port");
     if (metadata && metadata->IsUnsignedInteger())
         m_remotePort = metadata->GetUnsignedInteger();
     else
         m_remotePort = 31337;
 
-    metadata = m_data->QueryMetadata("native_debugger.adapter_type");
+    metadata = m_controller->GetData()->QueryMetadata("native_debugger.adapter_type");
     if (metadata && metadata->IsUnsignedInteger())
         m_adapterType = (DebugAdapterType::AdapterType)metadata->GetUnsignedInteger();
     else
         m_adapterType = DebugAdapterType::DefaultAdapterType;
 
-    metadata = m_data->QueryMetadata("native_debugger.request_terminal_emulator");
+    metadata = m_controller->GetData()->QueryMetadata("native_debugger.request_terminal_emulator");
     if (metadata && metadata->IsUnsignedInteger())
         m_requestTerminalEmulator = metadata->GetBoolean();
     else
@@ -500,7 +499,7 @@ void DebuggerState::CreateDebugAdapter()
 {
     std::string adapterTypeName = "Local GDB";
 //    DebugAdapterType* type = DebugAdapterType::GetByName(adapterTypeName);
-//    DebugAdapter* adapter = type->Create(m_data);
+//    DebugAdapter* adapter = type->Create(m_controller->GetData());
     DebugAdapter* adapter = new QueuedAdapter();
     if (adapter)
     {
@@ -567,7 +566,7 @@ void DebuggerState::Exec()
 
 //    m_connectionStatus = DebugAdapterConnectingStatus;
     bool runFromTemp = false;
-    string filePath = m_data->GetFile()->GetOriginalFilename();
+    string filePath = m_controller->GetData()->GetFile()->GetOriginalFilename();
     // We should switch to use std::filesystem::exists() later
     FILE* file = fopen(filePath.c_str(), "r");
     if (!file)
@@ -729,14 +728,14 @@ void DebuggerState::StepInto(BNFunctionGraphType il)
             // We must do the udpate here, otherwise the ip will not change
             m_registers->Update();
             uint64_t newRemoteRip = IP();
-            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+            std::vector<FunctionRef> functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
                 return;
 
             for (FunctionRef& func: functions)
             {
                 LowLevelILFunctionRef llil = func->GetLowLevelIL();
-                size_t start = llil->GetInstructionStart(m_data->GetDefaultArchitecture(), newRemoteRip);
+                size_t start = llil->GetInstructionStart(m_controller->GetLiveView()->GetDefaultArchitecture(), newRemoteRip);
                 if (start < llil->GetInstructionCount())
                 {
                     if (llil->GetInstruction(start).address == newRemoteRip)
@@ -754,14 +753,14 @@ void DebuggerState::StepInto(BNFunctionGraphType il)
             StepInto(NormalFunctionGraph);
             m_registers->Update();
             uint64_t newRemoteRip = IP();
-            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+            std::vector<FunctionRef> functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
                 return;
 
             for (FunctionRef& func: functions)
             {
                 MediumLevelILFunctionRef mlil = func->GetMediumLevelIL();
-                size_t start = mlil->GetInstructionStart(m_data->GetDefaultArchitecture(), newRemoteRip);
+                size_t start = mlil->GetInstructionStart(m_controller->GetLiveView()->GetDefaultArchitecture(), newRemoteRip);
                 if (start < mlil->GetInstructionCount())
                 {
                     if (mlil->GetInstruction(start).address == newRemoteRip)
@@ -779,7 +778,7 @@ void DebuggerState::StepInto(BNFunctionGraphType il)
             StepInto(NormalFunctionGraph);
             m_registers->Update();
             uint64_t newRemoteRip = IP();
-            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+            std::vector<FunctionRef> functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
                 return;
 
@@ -878,14 +877,14 @@ void DebuggerState::StepOver(BNFunctionGraphType il)
             // We must do the udpate here, otherwise the ip will not change
             m_registers->Update();
             uint64_t newRemoteRip = IP();
-            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+            std::vector<FunctionRef> functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
                 return;
 
             for (FunctionRef& func: functions)
             {
                 LowLevelILFunctionRef llil = func->GetLowLevelIL();
-                size_t start = llil->GetInstructionStart(m_data->GetDefaultArchitecture(), newRemoteRip);
+                size_t start = llil->GetInstructionStart(m_controller->GetLiveView()->GetDefaultArchitecture(), newRemoteRip);
                 if (start < llil->GetInstructionCount())
                 {
                     if (llil->GetInstruction(start).address == newRemoteRip)
@@ -903,14 +902,14 @@ void DebuggerState::StepOver(BNFunctionGraphType il)
             StepOverInternal();
             m_registers->Update();
             uint64_t newRemoteRip = IP();
-            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+            std::vector<FunctionRef> functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
                 return;
 
             for (FunctionRef& func: functions)
             {
                 MediumLevelILFunctionRef mlil = func->GetMediumLevelIL();
-                size_t start = mlil->GetInstructionStart(m_data->GetDefaultArchitecture(), newRemoteRip);
+                size_t start = mlil->GetInstructionStart(m_controller->GetLiveView()->GetDefaultArchitecture(), newRemoteRip);
                 if (start < mlil->GetInstructionCount())
                 {
                     if (mlil->GetInstruction(start).address == newRemoteRip)
@@ -928,7 +927,7 @@ void DebuggerState::StepOver(BNFunctionGraphType il)
             StepOverInternal();
             m_registers->Update();
             uint64_t newRemoteRip = IP();
-            std::vector<FunctionRef> functions = m_data->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+            std::vector<FunctionRef> functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
                 return;
 
@@ -1009,47 +1008,6 @@ bool DebuggerState::CanConnect()
 }
 
 
-DebuggerState* DebuggerState::GetState(BinaryViewRef data)
-{
-    for (auto& state: g_debuggerStates)
-    {
-        if (state->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
-            return state;
-        if (state->GetData()->GetFile()->GetOriginalFilename() == data->GetParentView()->GetFile()->GetOriginalFilename())
-            return state;
-    }
-
-    // DebugerState is always explicity constructed by the DebugController, so this will soon be deprecated.
-    return nullptr;
-
-//    DebuggerState* state = new DebuggerState(data);
-//    g_debuggerStates.push_back(state);
-//    return state;
-}
-
-
-void DebuggerState::DeleteState(BinaryViewRef data)
-{
-    for (auto it = g_debuggerStates.begin(); it != g_debuggerStates.end(); )
-    {
-        if ((*it)->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
-        {
-            it = g_debuggerStates.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
-    }
-}
-
-
-void DebuggerState::RegisterState(DebuggerState *state)
-{
-    g_debuggerStates.push_back(state);
-}
-
-
 void DebuggerState::AddBreakpoint(uint64_t address)
 {
     m_breakpoints->AddAbsolute(address);
@@ -1071,21 +1029,6 @@ void DebuggerState::DeleteBreakpoint(uint64_t address)
 void DebuggerState::DeleteBreakpoint(const ModuleNameAndOffset& address)
 {
     m_breakpoints->RemoveOffset(address);
-//    // TODO: This seems redundant
-//    if (IsConnected())
-//    {
-//        // If we are connected, convert the address to remote address first
-//        uint64_t remoteAddress = m_modules->RelativeAddressToAbsolute(address);
-//        DeleteBreakpoint(remoteAddress);
-//    }
-//    else
-//    {
-//        // We are deleting a breakpoint while we are disconnected.
-//        if (m_breakpoints->ContainsOffset(address))
-//        {
-//            m_breakpoints->RemoveOffset(address);
-//        }
-//    }
 }
 
 
@@ -1106,13 +1049,6 @@ uint64_t DebuggerState::IP()
         return m_registers->GetRegisterValue("pc");
 
     throw NotInstalledError("unimplemented architecture " + archName);
-}
-
-
-uint64_t DebuggerState::LocalIP()
-{
-    uint64_t remoteIP = IP();
-    return remoteIP;
 }
 
 
@@ -1145,7 +1081,10 @@ bool DebuggerState::SetActiveThread(const DebugThread& thread)
 void DebuggerState::MarkDirty()
 {
     m_registers->MarkDirty();
-    m_memoryView->MarkDirty();
+    DebugProcessView* view = dynamic_cast<DebugProcessView*>( m_controller->GetLiveView().GetPtr());
+    if (view)
+        view->MarkDirty();
+
     m_threads->MarkDirty();
     m_modules->MarkDirty();
     if (m_connectionStatus == DebugAdapterConnectedStatus)
@@ -1155,8 +1094,6 @@ void DebuggerState::MarkDirty()
 
 void DebuggerState::UpdateCaches()
 {
-    // try
-    // {
     if (m_registers->IsDirty())
         m_registers->Update();
 
@@ -1165,19 +1102,13 @@ void DebuggerState::UpdateCaches()
 
     if (m_modules->IsDirty())
         m_modules->Update();
-    // }
-    // catch (const std::exception& except)
-    // {
-    //     printf("Exception -> %s\n", except.what());
-    // }
-    // TODO: what about m_memoryView?
 }
 
 
 ArchitectureRef DebuggerState::DetectRemoteArch()
 {
     // TODO: The backend should report any architecture change and notify us.
-    return m_data->GetDefaultArchitecture();
+    return m_controller->GetData()->GetDefaultArchitecture();
 }
 
 

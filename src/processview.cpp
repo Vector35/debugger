@@ -193,11 +193,8 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
     if (!parentView)
         return 0;
 
-    DebuggerState* state = DebuggerState::GetState(parentView);
-    if (!state)
-        return 0;
-
-    DebugAdapter* adapter = state->GetAdapter();
+    DebuggerController* controller = DebuggerController::GetController(parentView);
+    DebugAdapter* adapter = controller->GetState()->GetAdapter();
     if (!adapter)
         return 0;
 
