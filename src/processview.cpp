@@ -19,6 +19,10 @@ DebugProcessView::DebugProcessView(BinaryView* parent):
     uint64_t length = PerformGetLength();
     AddAutoSegment(0, length, 0, length, SegmentReadable | SegmentWritable | SegmentExecutable);
     AddAutoSection("Memory", 0, length);
+
+    m_controller = DebuggerController::GetController(this);
+    LogWarn("here");
+
 }
 
 

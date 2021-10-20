@@ -74,8 +74,6 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
     layout->addWidget(m_splitter);
     setLayout(layout);
 
-    m_controller->GetUI()->SetDebuggerSidebar(this);
-
     m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
         uiEventHandler(event);
     });

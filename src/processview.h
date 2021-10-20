@@ -2,8 +2,10 @@
 
 #include "binaryninjaapi.h"
 #include "viewframe.h"
+#include "debuggerevent.h"
 
 using namespace BinaryNinja;
+class DebuggerController;
 
 // The debug memory BinaryView layout is in a few pieces:
 // - DebugProcessView represents the entire debugged process, containing segments for mapped memory
@@ -20,6 +22,8 @@ class DebugProcessView: public BinaryView
     std::map<uint64_t, std::vector<uint8_t>> m_valueCache;
     std::set<uint64_t> m_errorCache;
     std::mutex m_memoryMutex;
+
+    DebuggerController* m_controller;
 
     virtual uint64_t PerformGetEntryPoint() const override;
 

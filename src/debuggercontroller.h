@@ -1,7 +1,8 @@
 #pragma once
 #include "binaryninjaapi.h"
 #include "debuggerstate.h"
-#include "ui/ui.h"
+//#include "ui/ui.h"
+#include "debuggerevent.h"
 #include <queue>
 
 // This is the controller class of the debugger. It receives the input from the UI/API, and then route them to
@@ -20,7 +21,6 @@ class DebuggerController: public QObject
 
     DebugAdapter*  m_adapter;
     DebuggerState* m_state;
-    DebuggerUI* m_ui;
     BinaryViewRef m_data;
     BinaryViewRef m_liveView;
 
@@ -64,8 +64,7 @@ public:
     BinaryViewRef GetData() const { return m_data; }
     void SetData(BinaryView* view) { m_data = view; }
     BinaryViewRef GetLiveView() const { return m_liveView; }
-    void SetLiveView(BinaryView* view) { m_liveView = view; }
-    DebuggerUI* GetUI() const { return m_ui; }
+    void SetLiveView(BinaryViewRef view) { m_liveView = view; }
 
     static DebuggerController* GetController(BinaryViewRef data);
 

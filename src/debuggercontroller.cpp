@@ -6,13 +6,13 @@ DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 {
     m_state = new DebuggerState(data, this);
     m_hasUI = BinaryNinja::IsUIEnabled();
-    if (m_hasUI)
-    {
-        // DebugerUI is an abstract container of three things, the DebugView, the SideBar widget, and the status bar.
-        // None of the three necessarily exists when the DebuggerUI is constructed. So they must register themselves to
-        // the DebuggerUI when they are constructed.
-        m_ui = new DebuggerUI(this);
-    }
+//    if (m_hasUI)
+//    {
+//        // DebugerUI is an abstract container of three things, the DebugView, the SideBar widget, and the status bar.
+//        // None of the three necessarily exists when the DebuggerUI is constructed. So they must register themselves to
+//        // the DebuggerUI when they are constructed.
+//        m_ui = new DebuggerUI(this);
+//    }
 
     // TODO: we should add an option whether to add a breakpoint at program entry
     AddEntryBreakpoint();
@@ -234,7 +234,6 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 
             // Rebase the binary and create DebugView
             uint64_t remoteBase = m_state->GetRemoteBase();
-            LogWarn("the remote base is 0x%" PRIx64, remoteBase);
 
             FileMetadata* fileMetadata = m_data->GetFile();
             if (remoteBase != m_data->GetStart())
@@ -261,7 +260,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             {
                 LogWarn("create snapshoted view ok");
             }
-            Ref<BinaryView> liveView = fileMetadata->GetViewOfType("Debugged Process");
+            BinaryViewRef liveView = fileMetadata->GetViewOfType("Debugged Process");
             SetLiveView(liveView);
 
             DebuggerEvent event;
