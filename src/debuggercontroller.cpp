@@ -310,7 +310,7 @@ bool DebuggerController::RemoveEventCallback(size_t index)
 
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 {
-    std::unique_lock<std::mutex> lock(m_queueMutex);
+    std::unique_lock<std::recursive_mutex> lock(m_queueMutex);
     m_events.push(event);
 }
 
@@ -319,7 +319,7 @@ void DebuggerController::Worker()
 {
     while (true)
     {
-        std::unique_lock<std::mutex> lock(m_queueMutex);
+        std::unique_lock<std::recursive_mutex> lock(m_queueMutex);
         if (m_events.size() != 0)
         {
             const DebuggerEvent event = m_events.front();

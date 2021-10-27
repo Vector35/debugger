@@ -24,6 +24,7 @@ class DebugProcessView: public BinaryView
     std::mutex m_memoryMutex;
 
     DebuggerController* m_controller;
+	size_t m_eventCallback;
 
     virtual uint64_t PerformGetEntryPoint() const override;
 
@@ -43,6 +44,7 @@ public:
     virtual bool Init() override;
 
     void MarkDirty();
+	void eventHandler(const DebuggerEvent& event);
 };
 
 

@@ -32,7 +32,7 @@ class DebuggerController: public QObject
     size_t m_callbackIndex = 0;
     std::vector<DebuggerEventCallback> m_eventCallbacks;
     std::queue<DebuggerEvent> m_events;
-    std::mutex m_queueMutex;
+    std::recursive_mutex m_queueMutex;
 
     uint64_t m_lastIP = 0;
     uint64_t m_currentIP = 0;

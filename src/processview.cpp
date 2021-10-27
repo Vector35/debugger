@@ -27,11 +27,15 @@ DebugProcessView::DebugProcessView(BinaryView* parent):
     AddAutoSection("Memory", 0, length);
 
     m_controller = DebuggerController::GetController(parent);
+	m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
+		eventHandler(event);
+	});
 }
 
 
 DebugProcessView::~DebugProcessView()
 {
+	m_controller->RemoveEventCallback(m_eventCallback);
 }
 
 
@@ -218,6 +222,20 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
 
 void DebugProcessView::MarkDirty()
 {
+	LogWarn("DebugProcessView::MarkDirty()");
     m_valueCache.clear();
     m_errorCache.clear();
+}
+
+
+void DebugProcessView::eventHandler(const DebuggerEvent &event)
+{
+	switch (event.type)
+	{
+	case TargetStoppedEventType:
+//		MarkDirty();
+		break;
+	default:
+		break;
+	}
 }
