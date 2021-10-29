@@ -29,10 +29,11 @@ class DebuggerController: public QObject
     inline static std::vector<DebuggerController*> g_debuggerControllers;
     void DeleteController(BinaryViewRef data);
 
-    size_t m_callbackIndex = 0;
+    std::atomic<size_t> m_callbackIndex = 0;
     std::vector<DebuggerEventCallback> m_eventCallbacks;
     std::queue<DebuggerEvent> m_events;
-    std::recursive_mutex m_queueMutex;
+	std::recursive_mutex m_queueMutex;
+	std::recursive_mutex m_callbackMutex;
 
     uint64_t m_lastIP = 0;
     uint64_t m_currentIP = 0;

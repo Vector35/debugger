@@ -286,6 +286,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 
 size_t DebuggerController::RegisterEventCallback(std::function<void(const DebuggerEvent&)> callback)
 {
+	std::unique_lock<std::recursive_mutex> lock(m_callbackMutex);
     DebuggerEventCallback object;
     object.function = callback;
     object.index = m_callbackIndex++;
@@ -296,6 +297,7 @@ size_t DebuggerController::RegisterEventCallback(std::function<void(const Debugg
 
 bool DebuggerController::RemoveEventCallback(size_t index)
 {
+	std::unique_lock<std::recursive_mutex> lock(m_callbackMutex);
     for (auto it = m_eventCallbacks.begin(); it != m_eventCallbacks.end(); it++)
     {
         if (it->index == index)
@@ -319,6 +321,10 @@ void DebuggerController::Worker()
 {
     while (true)
     {
+		std::unique_lock<std::recursive_mutex> callbackLock(m_callbackMutex);
+		std::vector<DebuggerEventCallback> eventCallbacks = m_eventCallbacks;
+		callbackLock.unlock();
+
         std::unique_lock<std::recursive_mutex> lock(m_queueMutex);
         if (m_events.size() != 0)
         {
@@ -326,8 +332,10 @@ void DebuggerController::Worker()
             m_events.pop();
 
             lock.unlock();
-            for (auto cb: m_eventCallbacks)
+
+            for (auto cb: eventCallbacks)
             {
+				// TODO: what if cb.function calls PostDebuggerEvent()? Which would try to acquire the queue mutex
                 cb.function(event);
             }
         }

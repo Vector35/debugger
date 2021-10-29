@@ -249,7 +249,7 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* v
 
 DebugBreakpointsWidget::~DebugBreakpointsWidget()
 {
-
+	m_controller->RemoveEventCallback(m_eventCallback);
 }
 
 

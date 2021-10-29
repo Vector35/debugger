@@ -83,6 +83,7 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 DebuggerWidget::~DebuggerWidget()
 {
 //    disconnect(m_ui, &DebuggerUI::contextChanged, 0, 0);
+	m_controller->RemoveEventCallback(m_eventCallback);
 }
 
 
