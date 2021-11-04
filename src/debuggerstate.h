@@ -21,7 +21,8 @@ enum DebugAdapterConnectionStatus
 
 enum DebugAdapterTargetStatus
 {
-    DeubgAdapterUnknownStatus,
+	// Target is not created yet, or not connected to yet
+    DebugAdapterInvalidStatus,
     DebugAdapterRunningStatus,
     DebugAdapterPausedStatus,
 };
@@ -151,6 +152,8 @@ private:
 
     DebugAdapterType::AdapterType m_adapterType;
 
+	DebugStopReason m_lastStopReason;
+
 public:
     DebuggerState(BinaryViewRef data, DebuggerController* controller);
     void Run();
@@ -174,6 +177,11 @@ public:
     void AdapterStepIntoAndWait();
     void AdapterStepOverAndWait();
     void AdapterGoAndWait();
+
+	// TODO: it might be better and more natural to have functions like Go() directly returning this value.
+	// However, this should also work and require less code changes.
+	void SetLastStopReason(DebugStopReason reason) { m_lastStopReason = reason; }
+	DebugStopReason GetLastStopReason() { return m_lastStopReason; }
 
     bool CanExec();
     bool CanConnect();

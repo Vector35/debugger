@@ -63,7 +63,7 @@ public:
 
     DebuggerState* GetState() { return m_state; }
     BinaryViewRef GetData() const { return m_data; }
-    void SetData(BinaryView* view) { m_data = view; }
+    void SetData(BinaryViewRef view) { m_data = view; }
     BinaryViewRef GetLiveView() const { return m_liveView; }
     void SetLiveView(BinaryViewRef view) { m_liveView = view; }
 

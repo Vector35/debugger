@@ -770,7 +770,8 @@ bool GdbAdapter::GenericGo(const std::string& go_type)
         this->m_lastActiveThreadId = tid;
         this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);
     } else if ( go_reply.m_data[0] == 'W' ) {
-        /* exit status, substr */
+		this->m_lastStopReason = DebugStopReason::ProcessExited;
+        /* TODO: exit status, substr */
     } else {
         printf("[generic go failed?]\n");
         printf("%s\n", go_reply.AsString().c_str());

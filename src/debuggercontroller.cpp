@@ -95,7 +95,7 @@ void DebuggerController::Go()
     std::thread worker([this](){
 //        This should return the stop reason
         m_state->Go();
-        NotifyStopped(DebugStopReason::Breakpoint, nullptr);
+        NotifyStopped(m_state->GetLastStopReason(), nullptr);
     });
     worker.detach();
 }
@@ -115,6 +115,7 @@ void DebuggerController::StepOver(BNFunctionGraphType il)
 {
     std::thread worker([this, il](){
         m_state->StepOver(il);
+//		WaitForTargetStop();
         NotifyStopped(DebugStopReason::Breakpoint, nullptr);
     });
     worker.detach();
@@ -235,7 +236,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             // Rebase the binary and create DebugView
             uint64_t remoteBase = m_state->GetRemoteBase();
 
-            FileMetadata* fileMetadata = m_data->GetFile();
+            FileMetadataRef fileMetadata = m_data->GetFile();
             if (remoteBase != m_data->GetStart())
             {
                 // remote base is different from the local base, first need a rebase
@@ -267,7 +268,13 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             event.type = InitialViewRebasedEventType;
             PostDebuggerEvent(event);
         }
-        else
+        else if (event.data.targetStoppedData.reason == DebugStopReason::ProcessExited)
+		{
+			m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
+			m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
+			break;
+		}
+
         {
             m_state->UpdateCaches();
         }

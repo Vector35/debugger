@@ -668,12 +668,8 @@ void DebuggerState::Pause()
 
 void DebuggerState::Go()
 {
-//    m_adapter->Go();
-
-//    if (!IsConnected())
-//        throw ConnectionRefusedError("missing adapter");
-//
     m_targetStatus = DebugAdapterRunningStatus;
+	DebugStopReason reason;
 
     uint64_t remoteIP = IP();
     // TODO: for dbgeng, it handles this sequence of operations for us, so we can simply can Go()
@@ -681,7 +677,19 @@ void DebuggerState::Go()
     {
         m_adapter->RemoveBreakpoint(remoteIP);
         m_adapter->StepInto();
-        m_adapter->AddBreakpoint(remoteIP);
+		reason = m_adapter->StopReason();
+        // Always restore the breakpoint despite any errors
+		m_adapter->AddBreakpoint(remoteIP);
+		if (reason != DebugStopReason::SingleStep)
+		{
+			// We single stepped, but the target stops for a different reason, e.g., an exception.
+			// We should not resume the target; instead, we should report the stop to the user immediately
+			SetLastStopReason(reason);
+
+			m_targetStatus = DebugAdapterPausedStatus;
+			MarkDirty();
+			return;
+		}
         m_adapter->Go();
     }
     else
@@ -689,6 +697,10 @@ void DebuggerState::Go()
         m_adapter->Go();
     }
 
+	// This code might read odd, which I agree with. In the future, we should have DebugAdapter::Go() didreclty
+	// returning the stop reason.
+	reason = m_adapter->StopReason();
+	SetLastStopReason(reason);
     m_targetStatus = DebugAdapterPausedStatus;
     MarkDirty();
 }

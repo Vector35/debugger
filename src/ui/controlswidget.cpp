@@ -299,6 +299,11 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
         }
         case TargetStoppedEventType:
         {
+			if (event.data.targetStoppedData.reason == DebugStopReason::ProcessExited)
+			{
+				return;
+			}
+
             uint64_t address = m_controller->GetState()->IP();
             // TODO: maybe we should do the navigate using the ViewFrame
 //            m_controller->GetLiveView()->Navigate("Graph:Debugged Process", address);
