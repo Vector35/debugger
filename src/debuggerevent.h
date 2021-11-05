@@ -9,6 +9,11 @@ enum DebuggerEventType
     ErrorEventType,
     GeneralEventType,
 
+	DetachedEventType,
+	QuitDebuggingEventType,
+	BackEndDisconnectedEventType,
+
+
     // Whenever the target stops, the controller will update caches, and then fire this event
     // However, I might wish to remove it, since it is somehow unnatural
     CacheUpdatedEvent,
@@ -27,9 +32,6 @@ enum class DebugStopReason {
     InitalBreakpoint,
     StdoutMessage,
     ProcessExited,
-    Detached,
-    StoppedDebugging,
-    BackendDisconnected,
     AccessViolation,
     SingleStep,
     Calculation,
@@ -99,6 +101,7 @@ struct ErrorEventData
 };
 
 
+// TODO: This has become useless, remote it later
 struct GeneralEventData
 {
     std::string event;

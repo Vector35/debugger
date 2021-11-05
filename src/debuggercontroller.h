@@ -77,7 +77,7 @@ public:
 
     void NotifyStopped(DebugStopReason reason, void* data= nullptr);
     void NotifyError(const std::string& error, void* data = nullptr);
-    void NotifyEvent(const std::string& event, void* data = nullptr);
+    void NotifyEvent(DebuggerEventType event);
 
     void PostDebuggerEvent(const DebuggerEvent& event);
     void Worker();

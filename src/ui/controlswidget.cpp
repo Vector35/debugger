@@ -262,6 +262,10 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
 
     switch (event.type)
     {
+		case DetachedEventType:
+		case QuitDebuggingEventType:
+			break;
+
         case InitialViewRebasedEventType:
         {
             LogWarn("InitialViewRebasedEventType event");

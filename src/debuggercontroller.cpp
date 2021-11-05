@@ -156,7 +156,7 @@ void DebuggerController::Detach()
 {
     std::thread worker([this](){
         m_state->Detach();
-        NotifyStopped(DebugStopReason::Detached, nullptr);
+		NotifyEvent(DetachedEventType);
     });
     worker.detach();
 }
@@ -166,7 +166,7 @@ void DebuggerController::Quit()
 {
     std::thread worker([this](){
         m_state->Quit();
-        NotifyStopped(DebugStopReason::StoppedDebugging, nullptr);
+		NotifyEvent(QuitDebuggingEventType);
     });
     worker.detach();
 }
@@ -214,6 +214,13 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 {
     switch (event.type)
     {
+	case DetachedEventType:
+	case QuitDebuggingEventType:
+	{
+		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
+		m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
+		break;
+	}
     case TargetStoppedEventType:
     {
         m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
@@ -370,11 +377,9 @@ void DebuggerController::NotifyError(const std::string& error, void *data)
 }
 
 
-void DebuggerController::NotifyEvent(const std::string& eventString, void *data)
+void DebuggerController::NotifyEvent(DebuggerEventType eventType)
 {
     DebuggerEvent event;
-    event.type = GeneralEventType;
-    event.data.generalData.event = eventString;
-    event.data.generalData.data = data;
+    event.type = eventType;
     PostDebuggerEvent(event);
 }
