@@ -1093,7 +1093,7 @@ bool DebuggerState::SetActiveThread(const DebugThread& thread)
 void DebuggerState::MarkDirty()
 {
     m_registers->MarkDirty();
-    DebugProcessView* view = dynamic_cast<DebugProcessView*>( m_controller->GetLiveView().GetPtr());
+    DebugProcessView* view = dynamic_cast<DebugProcessView*>(m_controller->GetLiveView().GetPtr());
     if (view)
         view->MarkDirty();
 

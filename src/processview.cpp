@@ -122,7 +122,6 @@ void InitDebugProcessViewType()
 
 size_t DebugProcessView::PerformRead(void* dest, uint64_t offset, size_t len)
 {
-//    LogWarn("DebugProcessView::PerformRead, 0x%lx", offset);
     std::unique_lock<std::mutex> memoryLock(m_memoryMutex);
 
     Ref<BinaryView> parentView = GetParentView();
@@ -222,7 +221,6 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
 
 void DebugProcessView::MarkDirty()
 {
-	LogWarn("DebugProcessView::MarkDirty()");
     m_valueCache.clear();
     m_errorCache.clear();
 }
@@ -233,7 +231,10 @@ void DebugProcessView::eventHandler(const DebuggerEvent &event)
 	switch (event.type)
 	{
 	case TargetStoppedEventType:
-//		MarkDirty();
+	case DetachedEventType:
+	case QuitDebuggingEventType:
+	case BackEndDisconnectedEventType:
+		MarkDirty();
 		break;
 	default:
 		break;

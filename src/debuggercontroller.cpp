@@ -281,7 +281,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 			m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
 			break;
 		}
-
+		else
         {
             m_state->UpdateCaches();
         }
