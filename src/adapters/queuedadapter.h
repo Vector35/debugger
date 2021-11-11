@@ -9,12 +9,12 @@
 
 class QueuedAdapter : public DebugAdapter
 {
-    GdbAdapter* m_adapter;
+    DebugAdapter* m_adapter;
     mutable std::mutex m_queueMutex;
     mutable std::queue<std::function<void()>> m_queue;
 
 public:
-    QueuedAdapter();
+    QueuedAdapter(DebugAdapter* adapter);
     ~QueuedAdapter();
 
     bool Execute(const std::string& path) override;
@@ -47,7 +47,7 @@ public:
 
     bool ReadMemory(std::uintptr_t address, void* out, std::size_t size) override;
     bool WriteMemory(std::uintptr_t address, const void* out, std::size_t size) override;
-    std::string GetRemoteFile(const std::string& path);
+
     std::vector<DebugModule> GetModuleList() override;
 
     std::string GetTargetArchitecture() override;
@@ -71,16 +71,3 @@ public:
 
     void Worker();
 };
-
-
-//class GdbAdapterType: public DebugAdapterType
-//{
-//public:
-//    GdbAdapterType();
-//    virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
-//    virtual bool IsValidForData(BinaryNinja::BinaryView* data);
-//    virtual bool CanExecute(BinaryNinja::BinaryView* data);
-//    virtual bool CanConnect(BinaryNinja::BinaryView* data);
-//};
-//
-//void InitGdbAdapterType();

@@ -59,7 +59,13 @@ bool LldbAdapter::LoadRegisterInfo() {
 }
 
 
-bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args) {
+bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args)
+{
+    const auto file_exists = fopen(path.c_str(), "r");
+    if (!file_exists)
+        return false;
+    fclose(file_exists);
+
 #ifdef WIN32
     auto lldb_server_path = this->ExecuteShellCommand("where lldb-server");
 #else
@@ -67,7 +73,14 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std
 #endif
 
     if ( lldb_server_path.empty() )
+        lldb_server_path = "/Library/Developer/CommandLineTools/Library/PrivateFrameworks/LLDB.framework/Versions/A/Resources/debugserver";
+
+    const auto lldb_server_exists = fopen(lldb_server_path.c_str(), "r");
+    if (!lldb_server_exists)
         return false;
+    fclose(lldb_server_exists);
+
+
 
     lldb_server_path = lldb_server_path.substr(0, lldb_server_path.find('\n'));
 
@@ -105,9 +118,9 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std
     }
 
     char* arg[] = {(char*)lldb_server_path.c_str(), (char*)host_with_port.c_str(),
-                   (char*) path.c_str(), (char*)final_args.c_str(), NULL};
+                   (char*) path.c_str(), "--", (char*)final_args.c_str(), NULL};
 
-    pid_t pid = fork();
+    pid_t pid = vfork();
     switch (pid)
     {
         case -1:
@@ -167,4 +180,41 @@ std::string LldbAdapter::GetTargetArchitecture() {
 
 DebugStopReason LldbAdapter::SignalToStopReason( std::uint64_t signal ) {
     return GdbAdapter::SignalToStopReason( signal );
+}
+
+
+LldbAdapterType::LldbAdapterType(): DebugAdapterType("Local LLDB")
+{
+
+}
+
+
+DebugAdapter* LldbAdapterType::Create(BinaryNinja::BinaryView *data)
+{
+    return new LldbAdapter();
+}
+
+
+bool LldbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
+{
+    return data->GetDefaultArchitecture()->GetName() == "Mach-O";
+}
+
+
+bool LldbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
+{
+    return true;
+}
+
+
+bool LldbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
+{
+    return true;
+}
+
+
+void InitLldbAdapterType()
+{
+    static LldbAdapterType type;
+    DebugAdapterType::Register(&type);
 }

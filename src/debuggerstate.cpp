@@ -497,13 +497,19 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 
 void DebuggerState::CreateDebugAdapter()
 {
-    std::string adapterTypeName = "Local GDB";
-//    DebugAdapterType* type = DebugAdapterType::GetByName(adapterTypeName);
-//    DebugAdapter* adapter = type->Create(m_controller->GetData());
-    DebugAdapter* adapter = new QueuedAdapter();
-    if (adapter)
+//    std::string adapterTypeName = "Local GDB";
+    std::string adapterTypeName = "Local LLDB";
+    DebugAdapterType* type = DebugAdapterType::GetByName(adapterTypeName);
+    if (!type)
     {
-        m_adapter = adapter;
+        LogWarn("fail to get an debug adapter of type %s", adapterTypeName.c_str());
+    }
+    DebugAdapter* adapter = type->Create(m_controller->GetData());
+//  TODO: Do we really plug everything into a QueuedAdapter?
+    DebugAdapter* queuedAdapter = new QueuedAdapter(adapter);
+    if (queuedAdapter)
+    {
+        m_adapter = queuedAdapter;
     }
     else
     {
@@ -511,11 +517,6 @@ void DebuggerState::CreateDebugAdapter()
         // TODO: notify error
         throw std::runtime_error("debug adapter creation error");
     }
-
-    // TODO: this is really an awkward way to do it. But it works hehe.
-//    m_adapter->RegisterEventCallback([this](DebuggerEventType event, void *data){
-//        m_controller->EventHandler(event, data);
-//    });
 }
 
 

@@ -3,6 +3,7 @@
 #include "processview.h"
 #include "ui/ui.h"
 #include "adapters/gdbadapter.h"
+#include "adapters/lldbadapter.h"
 
 using namespace BinaryNinja;
 
@@ -10,6 +11,7 @@ void InitDebugAdapterTypes()
 {
     LogWarn("InitDebugAdapterTypes()");
     InitGdbAdapterType();
+    InitLldbAdapterType();
 }
 
 extern "C"

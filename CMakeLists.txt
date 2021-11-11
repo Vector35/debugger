@@ -49,6 +49,8 @@ elseif(APPLE)
 			src/adapters/lldbadapter.h
 			src/adapters/gdbadapter.cpp
 			src/adapters/gdbadapter.h
+			src/adapters/queuedadapter.cpp
+			src/adapters/queuedadapter.h
 			src/adapters/rspconnector.cpp
 			src/adapters/rspconnector.h
 			)

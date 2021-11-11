@@ -11,3 +11,15 @@ public:
     std::string GetTargetArchitecture() override;
 };
 
+
+class LldbAdapterType: public DebugAdapterType
+{
+public:
+    LldbAdapterType();
+    virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
+    virtual bool IsValidForData(BinaryNinja::BinaryView* data);
+    virtual bool CanExecute(BinaryNinja::BinaryView* data);
+    virtual bool CanConnect(BinaryNinja::BinaryView* data);
+};
+
+void InitLldbAdapterType();

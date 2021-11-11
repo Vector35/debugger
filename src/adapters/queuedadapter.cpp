@@ -30,9 +30,8 @@ using namespace BinaryNinja;
 using namespace std;
 
 
-QueuedAdapter::QueuedAdapter()
+QueuedAdapter::QueuedAdapter(DebugAdapter* adapter): m_adapter(adapter)
 {
-    m_adapter = new GdbAdapter();
     std::thread worker([&](){
         Worker();
     });
@@ -445,22 +444,6 @@ bool QueuedAdapter::WriteMemory(std::uintptr_t address, const void* out, std::si
     Semaphore sem;
     m_queue.push([&]{
         ret = m_adapter->WriteMemory(address, out, size);
-        sem.Release();
-    });
-    lock.unlock();
-    sem.Wait();
-    return ret;
-}
-
-
-std::string QueuedAdapter::GetRemoteFile(const std::string &path)
-{
-    std::unique_lock<std::mutex> lock(m_queueMutex);
-
-    std::string ret;
-    Semaphore sem;
-    m_queue.push([&]{
-        ret = m_adapter->GetRemoteFile(path);
         sem.Release();
     });
     lock.unlock();
