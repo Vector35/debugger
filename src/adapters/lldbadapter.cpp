@@ -1,4 +1,5 @@
 #include <thread>
+#include <regex>
 #include <pugixml/pugixml.hpp>
 #include "lldbadapter.h"
 
@@ -232,7 +233,33 @@ std::string LldbAdapter::GetTargetArchitecture() {
 
 std::vector<DebugModule> LldbAdapter::GetModuleList()
 {
-    return {};
+    std::vector<DebugModule> result;
+
+    const auto reply = m_rspConnector.TransmitAndReceive(
+            RspData("jGetLoadedDynamicLibrariesInfos:{\"fetch_all_solibs\":true}"));
+    std::string replyString = reply.AsString();
+
+    std::smatch match;
+    // "load_address":(\d+).*?"pathname":"([^"]+)"
+    const std::regex module_regex("\"load_address\":(\\d+).*?\"pathname\":\"([^\"]+)\"");
+    while (std::regex_search(replyString, match, module_regex))
+    {
+        std::string startString = match[1].str();
+        uint64_t start = std::strtoull(startString.c_str(), nullptr, 16);
+        std::string path = match[2].str();
+        DebugModule module;
+        module.m_address = start;
+        // we do not know the size of the module
+        module.m_size = 0;
+        module.m_name = path;
+        module.m_short_name = path;
+        module.m_loaded = true;
+        result.push_back(module);
+
+        replyString = match.suffix();
+    }
+
+    return result;
 }
 
 
