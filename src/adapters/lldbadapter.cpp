@@ -245,7 +245,7 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
     while (std::regex_search(replyString, match, module_regex))
     {
         std::string startString = match[1].str();
-        uint64_t start = std::strtoull(startString.c_str(), nullptr, 16);
+        uint64_t start = std::strtoull(startString.c_str(), nullptr, 10);
         std::string path = match[2].str();
         DebugModule module;
         module.m_address = start;
