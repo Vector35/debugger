@@ -9,6 +9,11 @@ public:
     bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args) override;
     bool Go() override;
     std::string GetTargetArchitecture() override;
+    std::vector<DebugModule> GetModuleList() override;
+
+    // LLDB requires a different way of reading register values, the g packet that works for gdb does not work for lldb
+    std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
+    DebugRegister ReadRegister(const std::string& reg) override;
 };
 
 

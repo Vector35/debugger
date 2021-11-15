@@ -59,6 +59,54 @@ bool LldbAdapter::LoadRegisterInfo() {
 }
 
 
+std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
+{
+    if ( this->m_registerInfo.empty() )
+        throw std::runtime_error("register info empty");
+
+    std::vector<register_pair> register_info_vec{};
+    for ( const auto& [register_name, register_info] : this->m_registerInfo )
+        register_info_vec.emplace_back(register_name, register_info);
+
+    std::sort(register_info_vec.begin(), register_info_vec.end(),
+              [](const register_pair& lhs, const register_pair& rhs) {
+                  return lhs.second.m_regNum < rhs.second.m_regNum;
+              });
+
+    std::unordered_map<std::string, DebugRegister> all_regs{};
+    for ( const auto& [register_name, register_info] : register_info_vec )
+    {
+        DebugRegister value = ReadRegister(register_name);
+        all_regs[register_name] = value;
+    }
+
+    return all_regs;
+}
+
+
+DebugRegister LldbAdapter::ReadRegister(const std::string& reg)
+{
+    if (!m_isRunning)
+        return DebugRegister{};
+
+    auto iter = m_registerInfo.find(reg);
+    if (iter == m_registerInfo.end())
+        throw std::runtime_error(fmt::format("register {} does not exist in target", reg));
+
+    const auto reply = this->m_rspConnector.TransmitAndReceive(RspData(
+            fmt::format("p{:02x}", iter->second.m_regNum)));
+
+    // TODO: handle exceptions in parsing
+    uint64_t value = strtoll(reply.AsString().c_str(), nullptr, 16);
+    DebugRegister result;
+    result.m_name = iter->first;
+    result.m_value = value;
+    result.m_registerIndex = iter->second.m_regNum;
+    result.m_width = iter->second.m_bitSize;
+    return result;
+}
+
+
 bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args)
 {
     const auto file_exists = fopen(path.c_str(), "r");
@@ -175,8 +223,18 @@ bool LldbAdapter::Go() {
 }
 
 std::string LldbAdapter::GetTargetArchitecture() {
-    return "x86_64";
+    // hardcoded this for m1 mac
+    // A better way is to parse the target.xml returned by lldb, which has
+    // <feature name="com.apple.debugserver.arm64">
+    return "aarch64";
 }
+
+
+std::vector<DebugModule> LldbAdapter::GetModuleList()
+{
+    return {};
+}
+
 
 DebugStopReason LldbAdapter::SignalToStopReason( std::uint64_t signal ) {
     return GdbAdapter::SignalToStopReason( signal );

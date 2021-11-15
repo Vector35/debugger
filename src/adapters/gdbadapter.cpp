@@ -832,7 +832,17 @@ void GdbAdapter::Invoke(const std::string& command)
 std::uintptr_t GdbAdapter::GetInstructionOffset()
 {
     // TODO: obviously this will only support x86/x86_64, so we need a more systematic way for it
-    return this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
+    std::string ipRegisterName = "";
+    if (GetTargetArchitecture() == "x86")
+        ipRegisterName = "eip";
+    else if (GetTargetArchitecture() == "x86_64")
+        ipRegisterName = "rip";
+    else if (GetTargetArchitecture() == "aarch64")
+        ipRegisterName = "pc";
+    else
+        ipRegisterName = "pc";
+
+    return this->ReadRegister(ipRegisterName).m_value;
 }
 
 DebugStopReason GdbAdapter::StopReason()
