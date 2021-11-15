@@ -25,7 +25,10 @@ struct RspData
 {
     /* BUFFER_MAX/GDB_BUF_MAX - https://www.embecosm.com/appnotes/ean4/embecosm-howto-rsp-server-ean4-issue-2.pdf */
     /* i decided to double the max size of this as this is the 'GDB_BUF_MAX', but the rsp can be used by lldb as well */
-    /* lldb's target.xml is way larger than gdbs and uses way more than 0x4000 bytes */
+    /* lldb's target.xml is way larger than gdbs and uses way more than 0x4000 bytes*/
+    /* it is sometimes large than 0x8000 bytes as well, so enlarging it again */
+    /* TODO: we will need a better approach to deal with the size later */
+
     static constexpr std::uint64_t BUFFER_MAX = (32 * 1024);
 
     struct RspIterator
@@ -72,47 +75,54 @@ struct RspData
     RspData() {}
 
     template <typename... Args>
-    explicit RspData(const std::string& string, Args... args) {
-        if ( string.size() > RspData::BUFFER_MAX )
-            throw std::runtime_error("size > rsp BUFFER_MAX");
-
-        char buffer[RspData::BUFFER_MAX]{};
-        fmt::format_to(buffer, string.c_str(), args...);
-
-        this->m_size = std::string(buffer).size();
-        std::memcpy(this->m_data, buffer, this->m_size);
+    explicit RspData(const std::string& string, Args... args)
+    {
+        std::string content = fmt::format(string.c_str(), args...);
+        this->m_size = content.size();
+        m_data = (std::uint8_t*)malloc(m_size);
+        std::memcpy(this->m_data, content.data(), this->m_size);
     }
 
-    explicit RspData(const std::string& str) : m_size(str.size())
-    {
-        if ( str.size() > RspData::BUFFER_MAX )
-            throw std::runtime_error("size > rsp BUFFER_MAX");
+    explicit
 
+
+    RspData(const std::string& str) : m_size(str.size())
+    {
+        m_data = (std::uint8_t*)malloc(m_size);
+        // TODO: check if malloc succeeds
         std::memcpy(this->m_data, str.data(), str.size());
     }
 
     RspData(void* data, std::size_t size) : m_size(size)
     {
-        if ( size > RspData::BUFFER_MAX )
-            throw std::runtime_error("size > rsp BUFFER_MAX");
-
+        m_data = (std::uint8_t*)malloc(m_size);
         std::memcpy(this->m_data, data, size);
     }
 
     RspData(const char* data, std::size_t size) : m_size(size)
     {
-        if ( size > RspData::BUFFER_MAX )
-            throw std::runtime_error("size > rsp BUFFER_MAX");
-
+        m_data = (std::uint8_t*)malloc(m_size);
         std::memcpy(this->m_data, data, size);
+    }
+
+    ~RspData()
+    {
+        // This will not work properly since the copy constructor of RspData will mess things up.
+        // For now, just tolerate the memory leak.
+        // Shall we use DataBuffer for this purpose?
+//        if (m_data)
+//            free(m_data);
     }
 
     [[nodiscard]] std::string AsString() const
     {
-        return std::string((char*)this->m_data, this->m_size);
+        if (m_size)
+            return std::string((char*)this->m_data, this->m_size);
+        else
+            return std::string{};
     }
 
-    std::uint8_t m_data[RspData::BUFFER_MAX]{};
+    std::uint8_t* m_data = nullptr;
     std::size_t m_size{};
 };
 

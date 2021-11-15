@@ -193,52 +193,39 @@ RspData RspConnector::ReceiveRspData() const
 {
     std::vector<char> buffer{};
 
-    bool did_find = false;
-    while ( !did_find )
+    while (true)
     {
         char tmp_buffer[RspData::BUFFER_MAX]{'\0'};
-        this->m_socket->Recv(tmp_buffer, sizeof(tmp_buffer));
-        std::copy(tmp_buffer, tmp_buffer + sizeof(tmp_buffer), std::back_inserter(buffer));
+        ssize_t n = this->m_socket->Recv(tmp_buffer, sizeof(tmp_buffer), MSG_DONTWAIT);
+        if (n <= 0)
+            continue;
+
+        std::vector<char> tmpBufferVec(tmp_buffer, tmp_buffer + n);
+        auto location = std::find(tmpBufferVec.begin(), tmpBufferVec.end(), '#');
+//        Find a '#' followed by two digits
+        if ((location != tmpBufferVec.end())
+            && (location + 1 != tmpBufferVec.end() && (std::isxdigit(*(location + 1))))
+            && (location + 2 != tmpBufferVec.end() && (std::isxdigit(*(location + 2))))
+        )
+        {
+//            Found the packet end, truncate the last tmp buffer, and return a packet
+            tmpBufferVec.erase(location, tmpBufferVec.end());
+            std::copy(tmpBufferVec.begin(), tmpBufferVec.end(), std::back_inserter(buffer));
+            break;
+        }
+        else
+        {
+            std::copy(tmpBufferVec.begin(), tmpBufferVec.begin() + n, std::back_inserter(buffer));
+        }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-
-        if (buffer[0] != '$')
-            throw std::runtime_error("incorrect response, expected $");
-
-        bool parsed = false;
-        int parse_count{};
-        while ( !parsed )
-        {
-            auto location = std::find(buffer.rbegin() + parse_count, buffer.rend(), '#');
-            if (location != buffer.rend())
-            {
-                auto location_index = std::distance(buffer.begin(), location.base()) - 1;
-                if (buffer.begin() + location_index != buffer.end())
-                {
-                    if (std::isxdigit(*(buffer.begin() + location_index + 1)) &&
-                        std::isxdigit(*(buffer.begin() + location_index + 2)) &&
-                        (*(buffer.begin() + location_index)) == '#' )
-                    {
-                        did_find = true;
-                        parsed = true;
-                    }
-                    else
-                    {
-                        parse_count++;
-                        continue;
-                    }
-                }
-            }
-        }
     }
 
-    if ( auto location = std::find(buffer.rbegin(), buffer.rend(), '#');
-            location != buffer.rend() )
-    {
-        auto location_index = std::distance(buffer.begin(), location.base()) - 1;
-        buffer.erase(buffer.begin() + location_index, buffer.end());
-        buffer.erase(buffer.begin(), buffer.begin() + 1);
-    }
+    if ((buffer.size() < 1) || (buffer[0] != '$'))
+        throw std::runtime_error("incorrect response, expected $");
+
+    // Swallow the '$' char
+    buffer.erase(buffer.begin(), buffer.begin() + 1);
 
     this->SendAck();
 
