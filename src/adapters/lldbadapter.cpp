@@ -98,7 +98,7 @@ DebugRegister LldbAdapter::ReadRegister(const std::string& reg)
             fmt::format("p{:02x}", iter->second.m_regNum)));
 
     // TODO: handle exceptions in parsing
-    uint64_t value = strtoll(reply.AsString().c_str(), nullptr, 16);
+    uint64_t value = RspConnector::SwapEndianness(strtoull(reply.AsString().c_str(), nullptr, 16));
     DebugRegister result;
     result.m_name = iter->first;
     result.m_value = value;
