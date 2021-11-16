@@ -87,8 +87,8 @@ std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 
 DebugRegister LldbAdapter::ReadRegister(const std::string& reg)
 {
-    if (!m_isRunning)
-        return DebugRegister{};
+//    if (!m_isRunning)
+//        return DebugRegister{};
 
     auto iter = m_registerInfo.find(reg);
     if (iter == m_registerInfo.end())
