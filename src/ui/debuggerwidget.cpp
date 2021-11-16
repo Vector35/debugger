@@ -108,6 +108,7 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
     switch (event.type)
     {
     case CacheUpdatedEvent:
+    case TargetStoppedEventType:
         updateContent();
     default:
         break;
