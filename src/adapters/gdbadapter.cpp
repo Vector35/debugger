@@ -557,6 +557,9 @@ bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
     if (reply.m_data[0] == 'E')
         return false;
 
+    // The actual bytes read might be fewer than the requested size
+    // We should pass this size by reference so the caller knows the number of bytes read
+    size = reply.AsString().size() / 2;
     const auto source = std::make_unique<std::uint8_t[]>(2 * size + 1);
     const auto dest = std::make_unique<std::uint8_t[]>(size + 1);
     std::memset(source.get(), '\0', 2 * size + 1);
