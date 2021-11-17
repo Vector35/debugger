@@ -65,59 +65,6 @@ DebugControlsWidget::~DebugControlsWidget()
 void DebugControlsWidget::performRun()
 {
     m_controller->Run();
-
-//    auto performRunAfter = [&](){
-//        stateStopped();
-//        m_state->OnStep();
-//    };
-//
-//    auto performRunError = [&](const std::string& e){
-//        stateError(e);
-//    };
-//
-//    auto performRunThread = [=](){
-//        while (true)
-//        {
-//            try
-//            {
-//                m_controller->Run();
-//                ExecuteOnMainThreadAndWait(performRunAfter);
-//            }
-//            catch (const ConnectionRefusedError& e)
-//            {
-//                ExecuteOnMainThreadAndWait([&](){ performRunError(e.what()); });
-//            }
-//            catch (const ProcessStartError& e)
-//            {
-//                ExecuteOnMainThreadAndWait([&](){ performRunError(e.what()); });
-//            }
-//            catch (const NotExecutableError& e)
-//            {
-//                // TODO: offer to change permission of the file
-//                ExecuteOnMainThreadAndWait([&](){ performRunError("ERROR: Target Not Executable"); });
-//            }
-//            catch (const NotInstalledError& e)
-//            {
-//                ExecuteOnMainThreadAndWait([&](){ performRunError(e.what()); });
-//                ExecuteOnMainThreadAndWait([&](){ performRunError("ERROR: Debugger Not Installed"); });
-//            }
-//            catch (const PermissionDeniedError& e)
-//            {
-//                // TODO: prompt for developer tools
-//                ExecuteOnMainThreadAndWait([&](){ performRunError("ERROR: Permission denied"); });
-//            }
-//            catch (const std::exception& e)
-//            {
-//                ExecuteOnMainThreadAndWait([&](){ performRunError("ERROR: " + std::string(e.what())); });
-//            }
-//            break;
-//        }
-//
-//    };
-//
-//    stateStarting("STARTING");
-//    std::thread t(performRunThread);
-//    t.detach();
 }
 
 
