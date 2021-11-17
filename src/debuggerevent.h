@@ -13,11 +13,6 @@ enum DebuggerEventType
 	QuitDebuggingEventType,
 	BackEndDisconnectedEventType,
 
-
-    // Whenever the target stops, the controller will update caches, and then fire this event
-    // However, I might wish to remove it, since it is somehow unnatural
-    CacheUpdatedEvent,
-
     InitialViewRebasedEventType,
 
     AbsoluteBreakpointAddedEvent,
