@@ -260,9 +260,25 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
 //            m_controller->GetLiveView()->Navigate("Graph:Debugged Process", address);
 
             // Navigate to the address
-            UIContext* context = UIContext::contextForWidget(this);
-            View* view = context->getCurrentView();
-            view->navigate(address);
+//            UIContext* context = UIContext::contextForWidget(this);
+//            View* view = context->getCurrentView();
+
+            // This causes BN to crash after a few single steps
+//            view->navigate(address);
+            // This fixes the crash, but the UI thread hangs after several single steps
+//            ExecuteOnMainThreadAndWait([view, address](){
+//                        view->navigate(address);
+//            });
+
+            // This works, but it seems not natural to me
+            std::thread([&](){
+                ExecuteOnMainThreadAndWait([this, address]()
+                {
+                    UIContext* context = UIContext::contextForWidget(this);
+                    View* view = context->getCurrentView();
+                    view->navigate(address);
+                });
+            }).detach();
 
             // Remove old instruction pointer highlight
             uint64_t lastIP = m_controller->GetLastIP();
