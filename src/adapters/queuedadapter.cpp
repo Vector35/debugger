@@ -420,14 +420,14 @@ std::vector<std::string> QueuedAdapter::GetRegisterList() const
 }
 
 
-bool QueuedAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
+DataBuffer QueuedAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
 
-    bool ret;
+    DataBuffer ret;
     Semaphore sem;
     m_queue.push([&]{
-        ret = m_adapter->ReadMemory(address, out, size);
+        ret = m_adapter->ReadMemory(address, size);
         sem.Release();
     });
     lock.unlock();
@@ -436,14 +436,14 @@ bool QueuedAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t si
 }
 
 
-bool QueuedAdapter::WriteMemory(std::uintptr_t address, const void* out, std::size_t size)
+bool QueuedAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
 
     bool ret;
     Semaphore sem;
     m_queue.push([&]{
-        ret = m_adapter->WriteMemory(address, out, size);
+        ret = m_adapter->WriteMemory(address, buffer);
         sem.Release();
     });
     lock.unlock();

@@ -45,7 +45,7 @@ RspData RspConnector::DecodeRLE(const RspData& data)
     {
         std::string result{};
         bool should_skip = false;
-        for ( std::size_t index{}; index < data.m_size; index++ )
+        for ( std::size_t index{}; index < data.m_data.GetLength(); index++ )
         {
             if ( should_skip )
             {
@@ -178,7 +178,7 @@ void RspConnector::NegotiateCapabilities(const std::vector <std::string>& capabi
 
 void RspConnector::SendRaw(const RspData& data) const
 {
-    this->m_socket->Send((char*)data.m_data, static_cast<std::int32_t>( data.m_size ));
+    this->m_socket->Send((char*)data.m_data.GetData(), static_cast<std::int32_t>( data.m_data.GetLength() ));
 }
 
 void RspConnector::SendPayload(const RspData& data) const

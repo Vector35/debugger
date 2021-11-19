@@ -134,8 +134,7 @@ size_t DebugProcessView::PerformRead(void* dest, uint64_t offset, size_t len)
     if (!adapter)
         return 0;
 
-    std::vector<uint8_t> result;
-    std::vector<uint8_t> buffer;
+    DataBuffer result;
 
     // ProcessView implements read caching in a manner inspired by CPU cache:
     // Reads are aligned on 256-byte boundaries and 256 bytes long
@@ -156,13 +155,11 @@ size_t DebugProcessView::PerformRead(void* dest, uint64_t offset, size_t len)
         auto iter = m_valueCache.find(block);
         if (iter == m_valueCache.end())
         {
-            buffer.clear();
-            buffer.resize(0x100);
             // The ReadMemory() function should return the number of bytes read
-            bool ok = adapter->ReadMemory(block, buffer.data(), 0x100);
-            if (ok)
+            DataBuffer buffer = adapter->ReadMemory(block, 0x100);
+            // TODO: what if the buffer's size is smaller than 0x100
+            if (buffer.GetLength() > 0)
             {
-                // Treating ok as 0x100 bytes have been read
                 m_valueCache[block] = buffer;
             }
             else
@@ -173,23 +170,24 @@ size_t DebugProcessView::PerformRead(void* dest, uint64_t offset, size_t len)
             }
         }
 
-        std::vector<uint8_t> cached = m_valueCache[block];
-        if (offset + len < block + cached.size())
+        DataBuffer cached = m_valueCache[block];
+        if (offset + len < block + cached.GetLength())
         {
             // Last block
-            cached = std::vector<uint8_t>(cached.begin(), cached.begin() + (offset + len - block));
+            cached = cached.GetSlice(0, offset + len - block);
         }
+        // Note a block can be both the fist and the last block, so we should not put an else here
         if (offset > block)
         {
             // First block
-            cached = std::vector<uint8_t>(cached.begin() + offset - block, cached.end());
+            cached = cached.GetSlice(offset - block, cached.GetLength() - (offset - block));
         }
-        result.insert(result.end(), cached.begin(), cached.end());
+        result.Append(cached);
     }
 
-    if (result.size() == len)
+    if (result.GetLength() == len)
     {
-        memcpy(dest, result.data(), result.size());
+        memcpy(dest, result.GetData(), result.GetLength());
         return len;
     }
     return 0;
@@ -212,7 +210,7 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
     // Assume any memory change invalidates all of memory (suboptimal, may not be necessary)
     MarkDirty();
 
-    if (adapter->WriteMemory(offset, data, len))
+    if (adapter->WriteMemory(offset, DataBuffer(data, len)))
         return len;
 
     return 0;

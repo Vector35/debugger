@@ -466,21 +466,29 @@ void DebugStackWidget::updateContent()
 
         std::string hint{};
         if (auto adapter = m_controller->GetState()->GetAdapter()) {
-            const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(value);
-            const auto reg_string = std::string(memory.has_value() ? memory->data() : "x",
-                                                memory.has_value() ? memory->size() : 1);
+            const DataBuffer memory = adapter->ReadMemory(value, 128);
+            std::string reg_string;
+            if (memory.GetLength() > 0)
+                reg_string = std::string((const char*)memory.GetData(), memory.GetLength());
+            else
+                reg_string = "x";
             const auto can_print = std::all_of(reg_string.begin(), reg_string.end(), [](unsigned char c){
                 return c == '\n' || std::isprint(c);
             });
 
-            if (!reg_string.empty() && reg_string.size() > 3 && can_print) {
+            if (!reg_string.empty() && reg_string.size() > 3 && can_print)
+            {
                 hint = fmt::format("\"{}\"", reg_string);
-            } else {
-                auto buffer = std::make_unique<char[]>(addressSize);
-                if (adapter->ReadMemory(value, buffer.get(), addressSize)) {
-                    hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.get()));
+            }
+            else
+            {
+                DataBuffer buffer = adapter->ReadMemory(value, addressSize);
+                if (buffer.GetLength() > 0)
+                {
+                    hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.GetData()));
                 }
-                else {
+                else
+                {
                     hint = "";
                 }
             }

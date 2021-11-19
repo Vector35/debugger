@@ -5,7 +5,6 @@
 #include "uitypes.h"
 #include "processview.h"
 #include "debugadaptertype.h"
-#include "adapters/dummyadapter.h"
 #include "debuggercommon.h"
 
 class DebuggerUI;

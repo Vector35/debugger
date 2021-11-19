@@ -548,23 +548,27 @@ std::vector<std::string> GdbAdapter::GetRegisterList() const
     return registers;
 }
 
-bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
+DataBuffer GdbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 {
+    // This means whether the target is running. If it is, then we cannot read memory at the moment
     if (m_isRunning)
-        return false;
+        return DataBuffer{};
 
     auto reply = this->m_rspConnector.TransmitAndReceive(RspData("m{:x},{:x}", address, size));
     if (reply.m_data[0] == 'E')
-        return false;
+        return DataBuffer{};
 
     // The actual bytes read might be fewer than the requested size
     // We should pass this size by reference so the caller knows the number of bytes read
     size = reply.AsString().size() / 2;
+    if (size == 0)
+        return DataBuffer{};
+
     const auto source = std::make_unique<std::uint8_t[]>(2 * size + 1);
     const auto dest = std::make_unique<std::uint8_t[]>(size + 1);
     std::memset(source.get(), '\0', 2 * size + 1);
     std::memset(dest.get(), '\0', size + 1);
-    std::memcpy(source.get(), reply.m_data, 2 * size);
+    std::memcpy(source.get(), reply.m_data.GetData(), 2 * size);
 
     [](const std::uint8_t* src, std::uint8_t* dst) {
         const auto char_to_int = [](std::uint8_t input) -> int {
@@ -583,21 +587,21 @@ bool GdbAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
         }
     }(source.get(), dest.get());
 
-    std::memcpy(out, dest.get(), size);
-
-    return true;
+    return DataBuffer(dest.get(), size);
 }
 
-bool GdbAdapter::WriteMemory(std::uintptr_t address, const void* out, std::size_t size)
+
+bool GdbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
     if (m_isRunning)
         return false;
 
+    size_t size = buffer.GetLength();
     const auto dest = std::make_unique<char[]>(2 * size + 1);
     std::memset(dest.get(), '\0', 2 * size + 1);
 
     for ( std::size_t index{}; index < size; index++ )
-        fmt::format_to(dest.get(), "{}{:02X}", dest.get(), ((std::uint8_t*)out)[index]);
+        fmt::format_to(dest.get(), "{}{:02X}", dest.get(), buffer.GetDataAt(index));
 
     auto reply = this->m_rspConnector.TransmitAndReceive(RspData("M{:x},{:x}:{}", address, size, dest.get()));
     if (reply.AsString() != "OK")

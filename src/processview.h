@@ -19,7 +19,7 @@ class DebugProcessView: public BinaryView
     ArchitectureRef m_arch;
     PlatformRef m_platform;
 
-    std::map<uint64_t, std::vector<uint8_t>> m_valueCache;
+    std::map<uint64_t, DataBuffer> m_valueCache;
     std::set<uint64_t> m_errorCache;
     std::mutex m_memoryMutex;
 

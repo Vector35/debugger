@@ -9,8 +9,11 @@
 #include <unordered_map>
 #include <array>
 #include <fmt/format.h>
+#include "binaryninjaapi.h"
 #include "debuggercommon.h"
 #include "debuggerevent.h"
+
+using namespace BinaryNinja;
 
 enum StopReason
 {
@@ -141,24 +144,24 @@ public:
     virtual bool WriteRegister(const DebugRegister& reg, std::uintptr_t value) = 0;
     virtual std::vector<std::string> GetRegisterList() const = 0;
 
-    virtual bool ReadMemory(std::uintptr_t address, void* out, std::size_t size) = 0;
-    virtual bool WriteMemory(std::uintptr_t address, const void* out, std::size_t size) = 0;
+    virtual DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) = 0;
+    virtual bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) = 0;
 
-    template <typename Ty = std::uintptr_t, typename PtrTy = std::uintptr_t>
-    std::optional<Ty> ReadMemoryTy(PtrTy address)
-    {
-        Ty Buf{};
-        if ( !this->ReadMemory((std::uintptr_t)address, (void*)&Buf, sizeof(Ty)) )
-            return std::nullopt;
-
-        return std::make_optional<Ty>( Buf );
-    }
-
-    template <typename Ty = std::uintptr_t, typename PtrTy = std::uintptr_t>
-    bool WriteMemoryTy(PtrTy address, const Ty& value)
-    {
-        return this->WriteMemory((std::uintptr_t)address, (void*)&value, sizeof(Ty));
-    }
+//    template <typename Ty = std::uintptr_t, typename PtrTy = std::uintptr_t>
+//    std::optional<Ty> ReadMemoryTy(PtrTy address)
+//    {
+//        Ty Buf{};
+//        if ( !this->ReadMemory((std::uintptr_t)address, (void*)&Buf, sizeof(Ty)) )
+//            return std::nullopt;
+//
+//        return std::make_optional<Ty>( Buf );
+//    }
+//
+//    template <typename Ty = std::uintptr_t, typename PtrTy = std::uintptr_t>
+//    bool WriteMemoryTy(PtrTy address, const Ty& value)
+//    {
+//        return this->WriteMemory((std::uintptr_t)address, (void*)&value, sizeof(Ty));
+//    }
 
     virtual std::vector<DebugModule> GetModuleList() = 0;
 

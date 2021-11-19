@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <regex>
 #include <array>
+#include "binaryninjaapi.h"
 #ifdef WIN32
 #include <windows.h>
 #include <winsock.h>
@@ -65,12 +66,12 @@ struct RspData
         reference operator*() const override { return *m_pointer; }
     };
 
-    RspIterator begin() const { return RspIterator((std::uint8_t*)&this->m_data[0]); }
-    RspIterator end() const { return RspIterator((std::uint8_t*)&this->m_data[this->m_size]); }
-    ReverseRspIterator rbegin() const { return ReverseRspIterator((std::uint8_t*)&this->m_data[this->m_size]); }
-    ReverseRspIterator rend() const { return ReverseRspIterator((std::uint8_t*)&this->m_data[0]); }
-    ConstRspIterator cbegin() const { return ConstRspIterator((std::uint8_t*)&this->m_data[0]); }
-    ConstRspIterator cend() const { return ConstRspIterator((std::uint8_t*)&this->m_data[this->m_size]); }
+    RspIterator begin() const { return RspIterator((std::uint8_t*)m_data.GetDataAt(0)); }
+    RspIterator end() const { return RspIterator((std::uint8_t*)m_data.GetDataAt(m_data.GetLength())); }
+    ReverseRspIterator rbegin() const { return ReverseRspIterator((std::uint8_t*)m_data.GetDataAt(m_data.GetLength())); }
+    ReverseRspIterator rend() const { return ReverseRspIterator((std::uint8_t*)m_data.GetDataAt(0)); }
+    ConstRspIterator cbegin() const { return ConstRspIterator((std::uint8_t*)m_data.GetDataAt(0)); }
+    ConstRspIterator cend() const { return ConstRspIterator((std::uint8_t*)m_data.GetDataAt(m_data.GetLength())); }
 
     RspData() {}
 
@@ -78,53 +79,42 @@ struct RspData
     explicit RspData(const std::string& string, Args... args)
     {
         std::string content = fmt::format(string.c_str(), args...);
-        this->m_size = content.size();
-        m_data = (std::uint8_t*)malloc(m_size);
-        std::memcpy(this->m_data, content.data(), this->m_size);
+        m_data = BinaryNinja::DataBuffer(content.data(), content.size());
     }
 
     explicit
 
 
-    RspData(const std::string& str) : m_size(str.size())
+    RspData(const std::string& str)
     {
-        m_data = (std::uint8_t*)malloc(m_size);
-        // TODO: check if malloc succeeds
-        std::memcpy(this->m_data, str.data(), str.size());
+        m_data = BinaryNinja::DataBuffer(str.data(), str.size());
     }
 
-    RspData(void* data, std::size_t size) : m_size(size)
+    RspData(void* data, std::size_t size)
     {
-        m_data = (std::uint8_t*)malloc(m_size);
-        std::memcpy(this->m_data, data, size);
+        m_data = BinaryNinja::DataBuffer(data, size);
     }
 
-    RspData(const char* data, std::size_t size) : m_size(size)
+    RspData(const char* data, std::size_t size)
     {
-        m_data = (std::uint8_t*)malloc(m_size);
-        std::memcpy(this->m_data, data, size);
+        m_data = BinaryNinja::DataBuffer(data, size);
     }
 
     ~RspData()
     {
-        // This will not work properly since the copy constructor of RspData will mess things up.
-        // For now, just tolerate the memory leak.
-        // Shall we use DataBuffer for this purpose?
-//        if (m_data)
-//            free(m_data);
     }
 
     [[nodiscard]] std::string AsString() const
     {
-        if (m_size)
-            return std::string((char*)this->m_data, this->m_size);
+        if (m_data.GetLength())
+            return std::string((char*)m_data.GetData(), m_data.GetLength());
         else
             return std::string{};
     }
 
-    std::uint8_t* m_data = nullptr;
-    std::size_t m_size{};
+    BinaryNinja::DataBuffer m_data;
 };
+
 
 class RspConnector
 {

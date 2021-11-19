@@ -1,5 +1,4 @@
 #include "debugadaptertype.h"
-#include "./adapters/dummyadapter.h"
 #include "./adapters/gdbadapter.h"
 #include "./adapters/lldbadapter.h"
 

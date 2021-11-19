@@ -80,22 +80,28 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters() const
         throw ConnectionRefusedError("Cannot update hints when disconnected");
 
     for (auto& reg : result) {
-        const auto memory = adapter->ReadMemoryTy<std::array<char, 128>>(reg.m_value);
-        const auto reg_string = std::string(memory.has_value() ? memory->data() : "x");
+        const DataBuffer memory = adapter->ReadMemory(reg.m_value, 128);
+        std::string reg_string;
+        if (memory.GetLength() > 0)
+            reg_string = std::string((const char*)memory.GetData(), memory.GetLength());
+        else
+            reg_string = "x";
+
         const auto can_print = std::all_of(reg_string.begin(), reg_string.end(), [](unsigned char c){
             return c == '\n' || std::isprint(c);
         });
 
-        if (!reg_string.empty() && reg_string.size() > 3 && can_print) {
+        if (!reg_string.empty() && reg_string.size() > 3 && can_print)
+        {
             reg.m_hint = fmt::format("\"{}\"", reg_string);
-        } else {
-            auto buffer = std::make_unique<char[]>(reg.m_width);
-            if (adapter->ReadMemory(reg.m_value, buffer.get(), reg.m_width)) {
-                reg.m_hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.get()));
-            }
-            else {
+        }
+        else
+        {
+            DataBuffer buffer = adapter->ReadMemory(reg.m_value, reg.m_width);
+            if (buffer.GetLength() > 0)
+                reg.m_hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.GetData()));
+            else
                 reg.m_hint = "";
-            }
         }
     }
 
@@ -831,13 +837,12 @@ void DebuggerState::StepOverInternal()
 
     // TODO: support the case where we cannot determined the remote arch
     size_t size = m_remoteArch->GetMaxInstructionLength();
-    std::vector<std::uint8_t> buffer{};
-    buffer.reserve(size);
-    m_adapter->ReadMemory(remoteIP, buffer.data(), size);
+    DataBuffer buffer = m_adapter->ReadMemory(remoteIP, size);
+    size_t bytesRead = buffer.GetLength();
 
     Ref<LowLevelILFunction> ilFunc = new LowLevelILFunction(m_remoteArch, nullptr);
     ilFunc->SetCurrentAddress(m_remoteArch, remoteIP);
-    m_remoteArch->GetInstructionLowLevelIL(buffer.data(), remoteIP, size, *ilFunc);
+    m_remoteArch->GetInstructionLowLevelIL((const uint8_t*)buffer.GetData(), remoteIP, bytesRead, *ilFunc);
 
     const auto& instr = (*ilFunc)[0];
     if (instr.operation != LLIL_CALL)
@@ -847,7 +852,7 @@ void DebuggerState::StepOverInternal()
     else
     {
         InstructionInfo info;
-        if (!m_remoteArch->GetInstructionInfo(buffer.data(), remoteIP, size, info))
+        if (!m_remoteArch->GetInstructionInfo((const uint8_t*)buffer.GetData(), remoteIP, bytesRead, info))
         {
             // Whenever there is a failure, we fail back to step into
             // TODO: decide if there is another better options

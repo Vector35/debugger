@@ -21,19 +21,18 @@ bool DebugAdapter::StepOut() {
         if ( !architecture )
             return false;
 
-        const auto data = this->ReadMemoryTy<std::array<std::uint8_t, 16>>( instruction_offset );
-        if ( !data.has_value())
+        const DataBuffer data = ReadMemory(instruction_offset, 16);
+        size_t size = data.GetLength();
+        if (size == 0)
             return false;
 
-        const auto data_value = data.value();
-        std::size_t size{ data_value.size() };
         std::vector<BinaryNinja::InstructionTextToken> instruction_tokens{};
-        if ( !architecture->GetInstructionText( data.value().data(), instruction_offset, size, instruction_tokens )) {
+        if ( !architecture->GetInstructionText( (const uint8_t *)data.GetData(), instruction_offset, size, instruction_tokens )) {
             printf( "failed to disassemble\n" );
             return false;
         }
 
-        auto data_buffer = DataBuffer( data_value.data(), size );
+        auto data_buffer = DataBuffer( data.GetData(), size );
         Ref<BinaryData> bd = new BinaryData( new FileMetadata(), data_buffer );
         Ref<BinaryView> bv;
         for ( const auto& type : BinaryViewType::GetViewTypes()) {

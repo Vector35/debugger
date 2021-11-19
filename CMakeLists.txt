@@ -27,8 +27,6 @@ file(GLOB COMMON_SOURCES
     src/vendor/pugixml/*.cpp
     src/vendor/pugixml/*.hpp
     src/vendor/fmt/*.h
-    src/adapters/dummyadapter.cpp
-    src/adapters/dummyadapter.h
     )
 
 if(WIN32)
