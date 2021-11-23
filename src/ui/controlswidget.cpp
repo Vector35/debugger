@@ -254,7 +254,7 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
                     if (split != -1)
                         viewTypeName = viewName.mid(0, split);
 
-                    QString debugViewName = viewTypeName + tr(":") + "Debugged Process";
+                    QString debugViewName = viewTypeName + tr(":") + "Debugger";
                     m_controller->GetLiveView()->Navigate(debugViewName.toStdString(), address);
                 });
             }).detach();

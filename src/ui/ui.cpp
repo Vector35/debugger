@@ -69,7 +69,7 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 
     bool isAbsoluteAddress = false;
     // TODO: check if this works
-    if (view->GetTypeName() == "Debugged Process")
+    if (view->GetTypeName() == "Debugger")
         isAbsoluteAddress = true;
 
     DebuggerBreakpoints* breakpoints = state->GetBreakpoints();

@@ -260,7 +260,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             LogWarn("the base of the rebased view is 0x%lx", rebasedView->GetStart());
 //            DatabaseProgress progress(nullptr, "Debug View", "Creating a BinaryView for debugging...");
 //            if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugged Process", "Debugged Process Memory",
-            if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugged Process", ""))
+            if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugger", ""))
             {
                 LogWarn("create snapshoted view failed");
             }
@@ -268,7 +268,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             {
                 LogWarn("create snapshoted view ok");
             }
-            BinaryViewRef liveView = fileMetadata->GetViewOfType("Debugged Process");
+            BinaryViewRef liveView = fileMetadata->GetViewOfType("Debugger");
             SetLiveView(liveView);
 
             DebuggerEvent event;

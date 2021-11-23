@@ -8,7 +8,9 @@ static DebugProcessViewType* g_debugProcessViewType = nullptr;
 
 
 DebugProcessView::DebugProcessView(BinaryView* parent):
-    BinaryView("Debugged Process", parent->GetFile(), parent)
+    // This used to be called "Debugged Process", but it conflicts with the Python debugger, so I changed the view
+    // name to "Debugger"
+    BinaryView("Debugger", parent->GetFile(), parent)
 {
 	// quick and dirty way to deal with the construction by BN
 	// a better way to deal with is to somehow tell BN to not construct this object, even if its validForData()
@@ -79,7 +81,7 @@ uint64_t DebugProcessView::PerformGetLength() const
 
 
 DebugProcessViewType::DebugProcessViewType():
-    BinaryViewType("Debugged Process", "Debugged Process")
+    BinaryViewType("Debugger", "Debugger")
 {
 }
 
