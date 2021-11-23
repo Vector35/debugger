@@ -219,34 +219,10 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
             UIContext* context = UIContext::contextForWidget(this);
             ViewFrame* frame = context->getCurrentViewFrame();
 
-            ViewLocation viewLocation = frame->getViewLocation();
-//            FileMetadata* fileMetadata = m_controller->GetData()->GetFile();
             FileContext* fileContext = frame->getFileContext();
             fileContext->refreshDataViewCache();
 
-            DebuggerWidget* parentWidget = dynamic_cast<DebuggerWidget*>(parent());
-            if (!parentWidget)
-                break;
-
-            ViewFrame* newFrame = UIContext::contextForWidget(parentWidget)->openFileContext(fileContext);
-
-//            if (newFrame)
-//            {
-////                tabCloseRequested(m_tab, curTabIdx);
-////                QCoreApplication::processEvents(); // allow existing tab to be closed
-////                viewLocation.setOffset(viewLocation.getOffset());
-//                LogWarn("view type is: %s", viewLocation.getViewType().toStdString().c_str());
-//                viewLocation.setViewType("Graph:Debugged Process");
-//                if (auto func = viewLocation.getFunction(); func) // update function with function from new view
-//                {
-//                    View* view = newFrame->getViewForType(viewLocation.getViewType());
-//                    if (view && view->getData())
-//                        viewLocation.setFunction(view->getData()->GetAnalysisFunction(func->GetPlatform(), func->GetStart()));
-//                }
-//                newFrame->setViewLocation(viewLocation);
-//            }
-
-            break;
+//            no break here, intentional fall-through
         }
         case TargetStoppedEventType:
         {
@@ -255,28 +231,31 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
 				return;
 			}
 
-            uint64_t address = m_controller->GetState()->IP();
-            // TODO: maybe we should do the navigate using the ViewFrame
-//            m_controller->GetLiveView()->Navigate("Graph:Debugged Process", address);
-
-            // Navigate to the address
-//            UIContext* context = UIContext::contextForWidget(this);
-//            View* view = context->getCurrentView();
-
-            // This causes BN to crash after a few single steps
-//            view->navigate(address);
-            // This fixes the crash, but the UI thread hangs after several single steps
-//            ExecuteOnMainThreadAndWait([view, address](){
-//                        view->navigate(address);
-//            });
+            uint64_t  address;
+            if (event.type == InitialViewRebasedEventType)
+                // When the initial breakpoint is hit, the pc is probably at certain system library, where we
+                // have no analysis function yet. Navigating to it will cause a switch to the hex view, causing
+                // confusion. So for now, just navigate to the binary entry point.
+                // However, this should be changed once we have the ability to "display as code". Then we simply
+                // show the disassembly of the system library function
+                address = m_controller->GetLiveView()->GetEntryPoint();
+            else
+                address = m_controller->GetState()->IP();
 
             // This works, but it seems not natural to me
             std::thread([&](){
                 ExecuteOnMainThreadAndWait([this, address]()
                 {
                     UIContext* context = UIContext::contextForWidget(this);
-                    View* view = context->getCurrentView();
-                    view->navigate(address);
+                    ViewFrame* frame = context->getCurrentViewFrame();
+                    QString viewName = frame->getCurrentView();
+                    int split = viewName.indexOf(':');
+                    QString viewTypeName = "Hex";
+                    if (split != -1)
+                        viewTypeName = viewName.mid(0, split);
+
+                    QString debugViewName = viewTypeName + tr(":") + "Debugged Process";
+                    m_controller->GetLiveView()->Navigate(debugViewName.toStdString(), address);
                 });
             }).detach();
 
