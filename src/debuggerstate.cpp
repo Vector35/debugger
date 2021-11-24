@@ -380,7 +380,14 @@ bool DebuggerBreakpoints::RemoveOffset(const ModuleNameAndOffset& address)
 
 bool DebuggerBreakpoints::ContainsOffset(const ModuleNameAndOffset& address)
 {
-    return std::find(m_breakpoints.begin(), m_breakpoints.end(), address) != m_breakpoints.end();
+    // If there is no backend, then only check if the breakpoint is in the list
+    // This is useful when we deal with the breakpoint before the target is launched
+    if (!m_state->GetAdapter())
+        return std::find(m_breakpoints.begin(), m_breakpoints.end(), address) != m_breakpoints.end();
+
+    // When the backend is live, convert the relative address to absolute address and check its existence
+    uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
+    return ContainsAbsolute(absolute);
 }
 
 
@@ -389,8 +396,17 @@ bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
     if (!m_state->GetAdapter())
         throw ConnectionRefusedError("Cannot check the existence of breakpoint with absolute address when disconnected");
 
-    ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
-    return ContainsOffset(info);
+    // We need to convert every ModuleAndOffset to absolute address and compare with the input address
+    // Because every ModuleAndOffset can be converted to an absolute address, but there is no guarantee that it works
+    // backward
+    // Well, that is because lldb does not report the size of the loaded libraries, so it is currently screwed up
+    for (const ModuleNameAndOffset& breakpoint: m_breakpoints)
+    {
+        uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(breakpoint);
+        if (absolute == address)
+            return true;
+    }
+    return false;
 }
 
 
@@ -1126,6 +1142,8 @@ void DebuggerState::UpdateCaches()
 ArchitectureRef DebuggerState::DetectRemoteArch()
 {
     // TODO: The backend should report any architecture change and notify us.
+    // Here we read it (in order to allow the adapter to cache it), but we do not really use the return value
+    m_adapter->GetTargetArchitecture();
     return m_controller->GetData()->GetDefaultArchitecture();
 }
 
