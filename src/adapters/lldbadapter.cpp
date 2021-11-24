@@ -227,6 +227,8 @@ std::string LldbAdapter::GetTargetArchitecture() {
     // hardcoded this for m1 mac
     // A better way is to parse the target.xml returned by lldb, which has
     // <feature name="com.apple.debugserver.arm64">
+    // We will need to translate the arch name returned by lldb into name used by BN archs
+    m_remoteArch = "aarch64";
     return "aarch64";
 }
 

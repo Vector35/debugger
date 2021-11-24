@@ -382,7 +382,13 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned
         return {};
 
     /* TODO: replace %d with the actual breakpoint size as it differs per architecture */
-    if (this->m_rspConnector.TransmitAndReceive(RspData("Z0,{:x},{}", address, 1)).AsString() != "OK" )
+    size_t kind = 1;
+    if (m_remoteArch == "aarch64")
+        kind = 4;
+//  TODO: other archs have other values for kind, e.g., thumb2 needs a value of 2 or 3 here.
+//  https://sourceware.org/gdb/current/onlinedocs/gdb/ARM-Breakpoint-Kinds.html
+
+    if (this->m_rspConnector.TransmitAndReceive(RspData("Z0,{:x},{}", address, kind)).AsString() != "OK" )
         throw std::runtime_error("rsp reply failure on breakpoint");
 
     const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true);
@@ -411,7 +417,11 @@ bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
     }
 
     /* TODO: replace %d with the actual breakpoint size as it differs per architecture */
-    if (this->m_rspConnector.TransmitAndReceive(RspData("z0,{:x},{}", breakpoint.m_address, 1)).AsString() != "OK" )
+    size_t kind = 1;
+    if (m_remoteArch == "arch64")
+        kind = 4;
+
+    if (this->m_rspConnector.TransmitAndReceive(RspData("z0,{:x},{}", breakpoint.m_address, kind)).AsString() != "OK" )
         throw std::runtime_error("rsp reply failure on remove breakpoint");
 
     if (auto location = std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(), breakpoint);
@@ -727,6 +737,9 @@ std::vector<DebugModule> GdbAdapter::GetModuleList()
 
 std::string GdbAdapter::GetTargetArchitecture()
 {
+    if (m_remoteArch != "")
+        return m_remoteArch;
+
     if (m_isRunning)
         return "";
 
@@ -753,6 +766,7 @@ std::string GdbAdapter::GetTargetArchitecture()
         architecture.erase(0, architecture.find(':') + 1);
         architecture.replace(architecture.find('-'), 1, "_");
     }
+    m_remoteArch = architecture;
     return architecture;
 }
 

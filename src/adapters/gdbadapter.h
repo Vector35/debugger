@@ -36,7 +36,14 @@ protected:
 
     bool m_redirectGDBServer;
 
+    // This name is confusing. It actually means whether the target is running, so certain operations, e.g.,
+    // reading memory, adding breakpoint, cannot be carried out at the moment.
     bool m_isRunning;
+
+    // Cache the name of the remote architecture, so there is no need to read it repeatedly.
+    // However, this does not handle the case when the remote arch changes. Though other changes are also needed to
+    // support the case -- so we do not really lose a lot anyways.
+    std::string m_remoteArch;
 
     virtual DebugStopReason SignalToStopReason(std::uint64_t signal);
 
