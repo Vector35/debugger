@@ -607,13 +607,17 @@ bool GdbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
         return false;
 
     size_t size = buffer.GetLength();
-    const auto dest = std::make_unique<char[]>(2 * size + 1);
-    std::memset(dest.get(), '\0', 2 * size + 1);
+	DataBuffer dest(2 * size);
 
     for ( std::size_t index{}; index < size; index++ )
-        fmt::format_to(dest.get(), "{}{:02X}", dest.get(), buffer.GetDataAt(index));
+	{
+		// Feel free to write it in a more elegant way...
+		std::string hex = fmt::format("{:02X}", buffer[index]);
+		dest[2 * index] = hex[0];
+		dest[2 * index + 1] = hex[1];
+	}
 
-    auto reply = this->m_rspConnector.TransmitAndReceive(RspData("M{:x},{:x}:{}", address, size, dest.get()));
+    auto reply = this->m_rspConnector.TransmitAndReceive(RspData("M{:x},{:x}:{}", address, size, dest.ToEscapedString()));
     if (reply.AsString() != "OK")
         return false;
 
