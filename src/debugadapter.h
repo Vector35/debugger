@@ -107,12 +107,12 @@ private:
     // Function to call when the DebugAdapter wants to notify the front-end of certain events
     // TODO: we should not use a vector here; only the DebuggerController should register one here;
     // Other components should register their callbacks to the controller, who is responsible for notify them.
-    std::vector<std::function<void(DebuggerEventType event, void* data)>> m_eventCallbacks;
+    std::function<void(const DebuggerEvent& event)> m_eventCallback;
 
 public:
-    void RegisterEventCallback(std::function<void(DebuggerEventType event, void* data)> function)
+    void SetEventCallback(std::function<void(const DebuggerEvent& event)> function)
     {
-        m_eventCallbacks.push_back(function);
+        m_eventCallback = function;
     }
 
     [[nodiscard]] virtual bool Execute(const std::string& path ) = 0;
@@ -147,22 +147,6 @@ public:
     virtual DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) = 0;
     virtual bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) = 0;
 
-//    template <typename Ty = std::uintptr_t, typename PtrTy = std::uintptr_t>
-//    std::optional<Ty> ReadMemoryTy(PtrTy address)
-//    {
-//        Ty Buf{};
-//        if ( !this->ReadMemory((std::uintptr_t)address, (void*)&Buf, sizeof(Ty)) )
-//            return std::nullopt;
-//
-//        return std::make_optional<Ty>( Buf );
-//    }
-//
-//    template <typename Ty = std::uintptr_t, typename PtrTy = std::uintptr_t>
-//    bool WriteMemoryTy(PtrTy address, const Ty& value)
-//    {
-//        return this->WriteMemory((std::uintptr_t)address, (void*)&value, sizeof(Ty));
-//    }
-
     virtual std::vector<DebugModule> GetModuleList() = 0;
 
     virtual std::string GetTargetArchitecture() = 0;
@@ -182,11 +166,7 @@ public:
 
     virtual bool SupportFeature(DebugAdapterCapacity feature) = 0;
 
-    // These are implemented by the (base) DebugAdapter class.
-    // Sub-classes should use these to communicate changes of the target.
-    void NotifyDebuggerEvent(DebuggerEventType event, void* data = nullptr);
-
-    void NotifyStopped(DebugStopReason reason, void* data= nullptr);
-    void NotifyError(const std::string& error, void* data = nullptr);
-    void NotifyEvent(const std::string& event, void* data = nullptr);
+    // This is implemented by the (base) DebugAdapter class.
+    // Sub-classes should use it to post debugger events directly (only when needed).
+	void PostDebuggerEvent(const DebuggerEvent& event);
 };

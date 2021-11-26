@@ -68,6 +68,8 @@ public:
     void SetLiveView(BinaryViewRef view) { m_liveView = view; }
 
     static DebuggerController* GetController(BinaryViewRef data);
+	// Whether there already exists a controller for the data
+	static bool ControllerExists(BinaryViewRef data);
 
     void EventHandler(const DebuggerEvent& event);
 

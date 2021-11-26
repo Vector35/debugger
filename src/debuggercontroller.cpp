@@ -81,6 +81,9 @@ void DebuggerController::DeleteBreakpoint(const ModuleNameAndOffset& address)
 
 void DebuggerController::Run()
 {
+	DebuggerEvent event;
+	event.type = LaunchEventType;
+	PostDebuggerEvent(event);
     std::thread worker([this](){
         m_state->Run();
         NotifyStopped(DebugStopReason::InitalBreakpoint, nullptr);
@@ -92,6 +95,9 @@ void DebuggerController::Run()
 //    If one wishes to have a synchronous version of this, wait on a semaphore
 void DebuggerController::Go()
 {
+	DebuggerEvent event;
+	event.type = ResumeEventType;
+	PostDebuggerEvent(event);
     std::thread worker([this](){
 //        This should return the stop reason
         m_state->Go();
@@ -190,6 +196,20 @@ DebuggerController* DebuggerController::GetController(BinaryViewRef data)
     DebuggerController* controller = new DebuggerController(data);
     g_debuggerControllers.push_back(controller);
     return controller;
+}
+
+
+bool DebuggerController::ControllerExists(BinaryViewRef data)
+{
+	// TODO: this function duplicates some code in DebuggerController::GetController()
+    for (auto& controller: g_debuggerControllers)
+    {
+        if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
+            return true;
+        if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetParentView()->GetFile()->GetOriginalFilename())
+            return true;
+    }
+	return false;
 }
 
 

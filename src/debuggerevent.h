@@ -5,10 +5,19 @@
 
 enum DebuggerEventType
 {
+	LaunchEventType,
+	ResumeEventType,
+	StepIntoEventType,
+	StepOverEventType,
+	StepReturnEventType,
+	RestartEventType,
+	AttachEventType,
+
     TargetStoppedEventType,
     ErrorEventType,
     GeneralEventType,
 
+	TargetExitedEventType,
 	DetachedEventType,
 	QuitDebuggingEventType,
 	BackEndDisconnectedEventType,

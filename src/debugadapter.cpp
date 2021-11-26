@@ -98,3 +98,10 @@ bool DebugAdapter::StepOut() {
 
     return false;
 }
+
+
+void DebugAdapter::PostDebuggerEvent(const DebuggerEvent &event)
+{
+	if (m_eventCallback)
+		m_eventCallback(event);
+}

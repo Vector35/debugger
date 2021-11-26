@@ -527,6 +527,10 @@ void DebuggerState::CreateDebugAdapter()
         LogWarn("fail to get an debug adapter of type %s", adapterTypeName.c_str());
     }
     DebugAdapter* adapter = type->Create(m_controller->GetData());
+	// Forward the DebuggerEvent from the adapters to the controller
+	adapter->SetEventCallback([this](const DebuggerEvent& event){
+		m_controller->PostDebuggerEvent(event);
+	});
 //  TODO: Do we really plug everything into a QueuedAdapter?
     DebugAdapter* queuedAdapter = new QueuedAdapter(adapter);
     if (queuedAdapter)
