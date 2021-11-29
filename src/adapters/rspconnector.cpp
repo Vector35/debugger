@@ -232,7 +232,8 @@ RspData RspConnector::ReceiveRspData() const
     return RspData(std::string(buffer.data(), buffer.size()));
 }
 
-RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string& expect, bool async)
+RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string& expect,
+										 std::function<void(const RspData& data)> asyncPacketHandler)
 {
     this->SendPayload(data);
 
@@ -271,8 +272,9 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
 
             reply = this->ReceiveRspData();
             if (reply.m_data[0] == 'O') {
-                if (async)
-                    this->HandleAsyncPacket(reply);
+				// Right now, this handles the stdout message from the backend
+                if (asyncPacketHandler)
+                    asyncPacketHandler(reply);
             } else {
                 break;
             }
@@ -340,13 +342,4 @@ std::string RspConnector::GetXml(const std::string& name)
     data_string.erase(0, 1);
 
     return data_string;
-}
-
-void RspConnector::HandleAsyncPacket(const RspData& data)
-{
-    if ( data.m_data[0] != 'O' )
-        return;
-
-    const auto string = data.AsString();
-    const auto message = string.substr(1);
 }

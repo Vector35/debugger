@@ -234,8 +234,15 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 {
     switch (event.type)
     {
+	case StdoutMessageEventType:
+	{
+		const std::string message = event.data.messageData.message;
+		LogWarn("%s\n", message.c_str());
+		break;
+	}
 	case DetachedEventType:
 	case QuitDebuggingEventType:
+	case TargetExitedEventType:
 	{
 		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterInvalidStatus);

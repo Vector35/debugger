@@ -17,6 +17,8 @@ enum DebuggerEventType
     ErrorEventType,
     GeneralEventType,
 
+	StdoutMessageEventType,
+
 	TargetExitedEventType,
 	DetachedEventType,
 	QuitDebuggingEventType,
@@ -113,6 +115,18 @@ struct GeneralEventData
 };
 
 
+struct TargetExitedEventData
+{
+	uint64_t exitCode;
+};
+
+
+struct StdoutMessageEventData
+{
+	std::string message;
+};
+
+
 // This should really be a union, but gcc complains...
 struct DebuggerEventData
 {
@@ -121,6 +135,8 @@ struct DebuggerEventData
     GeneralEventData generalData;
     uint64_t absoluteAddress;
     ModuleNameAndOffset relativeAddress;
+	TargetExitedEventData exitData;
+	StdoutMessageEventData messageData;
 };
 
 

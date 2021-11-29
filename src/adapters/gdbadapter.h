@@ -103,10 +103,7 @@ public:
     std::uintptr_t GetInstructionOffset() override;
 
     bool SupportFeature(DebugAdapterCapacity feature) override;
-
-    void SchedulerThread();
-    void WaitInQueue();
-    void NotifyOperationCompleted();
+	void HandleAsyncPacket(const RspData& data);
 };
 
 

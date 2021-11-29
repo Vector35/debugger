@@ -785,22 +785,30 @@ bool GdbAdapter::BreakInto()
 bool GdbAdapter::GenericGo(const std::string& go_type)
 {
     m_isRunning = true;
-    const auto go_reply =
-            this->m_rspConnector.TransmitAndReceive(
-                    RspData(go_type), "mixed_output_ack_then_reply", true);
+    const auto go_reply = m_rspConnector.TransmitAndReceive(
+			RspData(go_type),
+			"mixed_output_ack_then_reply",
+			[this](const RspData& data){
+				HandleAsyncPacket(data);
+			});
 
-    if ( go_reply.m_data[0] == 'T' ) {
+    if ( go_reply.m_data[0] == 'T' )
+	{
         auto map = RspConnector::PacketToUnorderedMap(go_reply);
         const auto tid = map["thread"];
         this->m_lastActiveThreadId = tid;
         this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);
-    } else if ( go_reply.m_data[0] == 'W' ) {
+    }
+	else if ( go_reply.m_data[0] == 'W' )
+	{
 //		this->m_lastStopReason = DebugStopReason::ProcessExited;
 		DebuggerEvent event;
 		event.type = TargetExitedEventType;
 		PostDebuggerEvent(event);
         /* TODO: exit status, substr */
-    } else {
+    }
+	else
+	{
         printf("[generic go failed?]\n");
         printf("%s\n", go_reply.AsString().c_str());
         return false;
@@ -935,6 +943,50 @@ DebugStopReason GdbAdapter::SignalToStopReason( std::uint64_t signal ) {
     };
 
     return signal_lookup[signal];
+}
+
+
+void GdbAdapter::HandleAsyncPacket(const RspData& data)
+{
+    if ( data.m_data[0] != 'O' )
+        return;
+
+    const auto string = data.AsString();
+    const auto message = string.substr(1);
+
+	// These duplicate code in GdbAdapter::ReadMemory(). We should probably add a ParseFromHex() and EncodeAsHex()
+	// to the RspData class.
+	if (message.size() % 2 == 1)
+		return;
+
+	size_t size = message.size() / 2;
+	if (size == 0)
+		return;
+
+	std::string result;
+	result.resize(size);
+
+	[](const std::uint8_t* src, std::uint8_t* dst) {
+		const auto char_to_int = [](std::uint8_t input) -> int {
+			if(input >= '0' && input <= '9')
+				return input - '0';
+			if(input >= 'A' && input <= 'F')
+				return input - 'A' + 10;
+			if(input >= 'a' && input <= 'f')
+				return input - 'a' + 10;
+			throw std::invalid_argument("Invalid input string");
+		};
+
+		while(*src && src[1]) {
+			*(dst++) = char_to_int(*src) * 16 + char_to_int(src[1]);
+			src += 2;
+		}
+	}((const std::uint8_t*)message.c_str(), (std::uint8_t*)result.c_str());
+
+	DebuggerEvent event;
+	event.type = StdoutMessageEventType;
+	event.data.messageData.message = result;
+	PostDebuggerEvent(event);
 }
 
 
