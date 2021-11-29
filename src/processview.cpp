@@ -233,6 +233,7 @@ void DebugProcessView::eventHandler(const DebuggerEvent &event)
 	switch (event.type)
 	{
 	case TargetStoppedEventType:
+	case TargetExitedEventType:
 	case DetachedEventType:
 	case QuitDebuggingEventType:
 	case BackEndDisconnectedEventType:
