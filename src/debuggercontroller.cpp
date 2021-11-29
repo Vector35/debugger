@@ -111,7 +111,7 @@ void DebuggerController::StepInto(BNFunctionGraphType il)
 {
     std::thread worker([this, il](){
         m_state->StepInto(il);
-        NotifyStopped(DebugStopReason::Breakpoint, nullptr);
+        NotifyStopped(m_state->GetLastStopReason(), nullptr);
     });
     worker.detach();
 }
@@ -122,7 +122,7 @@ void DebuggerController::StepOver(BNFunctionGraphType il)
     std::thread worker([this, il](){
         m_state->StepOver(il);
 //		WaitForTargetStop();
-        NotifyStopped(DebugStopReason::Breakpoint, nullptr);
+        NotifyStopped(m_state->GetLastStopReason(), nullptr);
     });
     worker.detach();
 }
@@ -132,7 +132,7 @@ void DebuggerController::StepReturn(BNFunctionGraphType il)
 {
     std::thread worker([this, il](){
         m_state->StepReturn();
-        NotifyStopped(DebugStopReason::Breakpoint, nullptr);
+        NotifyStopped(m_state->GetLastStopReason(), nullptr);
     });
     worker.detach();
 }
