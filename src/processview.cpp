@@ -221,6 +221,8 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
 
 void DebugProcessView::MarkDirty()
 {
+	std::unique_lock<std::mutex> memoryLock(m_memoryMutex);
+
     m_valueCache.clear();
     m_errorCache.clear();
 }
