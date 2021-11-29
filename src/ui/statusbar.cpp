@@ -47,9 +47,11 @@ void DebuggerStatusBar::uiEventHandler(const DebuggerEvent &event)
 		updateText("Stopped");
 		break;
 	case TargetExitedEventType:
-		// TODO: add exit code
-		updateText("Exited");
+	{
+		uint8_t exitCode = event.data.exitData.exitCode;
+		updateText(QString::fromStdString(fmt::format("Exited with code {}", exitCode)));
 		break;
+	}
     case DetachedEventType:
 		updateText("Detached");
 		break;

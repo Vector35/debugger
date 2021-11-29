@@ -802,10 +802,12 @@ bool GdbAdapter::GenericGo(const std::string& go_type)
 	else if ( go_reply.m_data[0] == 'W' )
 	{
 //		this->m_lastStopReason = DebugStopReason::ProcessExited;
+		std::string exitCodeString = go_reply.AsString().substr(1);
+		uint8_t exitCode = strtoul(exitCodeString.c_str(), nullptr, 16);
 		DebuggerEvent event;
 		event.type = TargetExitedEventType;
+		event.data.exitData.exitCode = exitCode;
 		PostDebuggerEvent(event);
-        /* TODO: exit status, substr */
     }
 	else
 	{
