@@ -5,6 +5,7 @@
 #include "debuggerwidget.h"
 #include "statusbar.h"
 #include "ui.h"
+#include "thread"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -125,7 +126,13 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
     case DetachedEventType:
     case QuitDebuggingEventType:
     case BackEndDisconnectedEventType:
-        updateContent();
+		std::thread([&](){
+			ExecuteOnMainThreadAndWait([this]()
+			{
+				updateContent();
+			});
+		}).detach();
+		break;
     default:
         break;
     }
