@@ -24,16 +24,6 @@ DebuggerUI::DebuggerUI(DebuggerController* controller): m_controller(controller)
 
 void DebuggerUI::uiEventHandler(const DebuggerEvent &event)
 {
-//    switch (event.type)
-//    {
-//    case InitialViewRebasedEventType:
-//    {
-//        LogWarn("InitialViewRebasedEventType event");
-//        break;
-//    }
-//    default:
-//        break;
-//    }
 }
 
 //
