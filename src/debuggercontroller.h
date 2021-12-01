@@ -87,6 +87,9 @@ public:
     uint64_t GetLastIP() const { return m_lastIP; }
     uint64_t GetCurrentIP() const { return m_currentIP; }
 
+	DataBuffer ReadMemory(std::uintptr_t address, std::size_t size);
+	bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
+
 signals:
     void absoluteBreakpointAdded(uint64_t address);
     void relativeBreakpointAdded(const ModuleNameAndOffset& address);

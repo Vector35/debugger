@@ -413,3 +413,22 @@ void DebuggerController::NotifyEvent(DebuggerEventType eventType)
     event.type = eventType;
     PostDebuggerEvent(event);
 }
+
+
+// We should call these two function instead of DebugAdapter::ReadMemory(), which will skip the memory cache
+DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t size)
+{
+	std::vector<uint8_t > buffer;
+	buffer.resize(size);
+	size_t bytesRead = m_liveView->Read(buffer.data(), address, size);
+	if (bytesRead == 0)
+		return DataBuffer{};
+
+	return DataBuffer(buffer.data(), bytesRead);
+}
+
+
+bool DebuggerController::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
+{
+	return m_liveView->WriteBuffer(address, buffer);
+}

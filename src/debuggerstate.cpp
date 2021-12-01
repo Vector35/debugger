@@ -75,12 +75,13 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters() const
         return lhs.m_registerIndex < rhs.m_registerIndex;
     });
 
-    DebugAdapter* adapter = m_state->GetAdapter();
-    if (!adapter)
+	// TODO: maybe we should not hold a m_state at all; instead we just hold a m_controller
+	DebuggerController* controller = m_state->GetController();
+    if (!controller->GetState()->IsConnected())
         throw ConnectionRefusedError("Cannot update hints when disconnected");
 
     for (auto& reg : result) {
-        const DataBuffer memory = adapter->ReadMemory(reg.m_value, 128);
+        const DataBuffer memory = controller->ReadMemory(reg.m_value, 128);
         std::string reg_string;
         if (memory.GetLength() > 0)
             reg_string = std::string((const char*)memory.GetData(), memory.GetLength());
@@ -97,7 +98,7 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters() const
         }
         else
         {
-            DataBuffer buffer = adapter->ReadMemory(reg.m_value, reg.m_width);
+            DataBuffer buffer = controller->ReadMemory(reg.m_value, reg.m_width);
             if (buffer.GetLength() > 0)
                 reg.m_hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.GetData()));
             else

@@ -465,8 +465,8 @@ void DebugStackWidget::updateContent()
         }
 
         std::string hint{};
-        if (auto adapter = m_controller->GetState()->GetAdapter()) {
-            const DataBuffer memory = adapter->ReadMemory(value, 128);
+        if (m_controller) {
+            const DataBuffer memory = m_controller->ReadMemory(value, 128);
             std::string reg_string;
             if (memory.GetLength() > 0)
                 reg_string = std::string((const char*)memory.GetData(), memory.GetLength());
@@ -482,7 +482,7 @@ void DebugStackWidget::updateContent()
             }
             else
             {
-                DataBuffer buffer = adapter->ReadMemory(value, addressSize);
+                DataBuffer buffer = m_controller->ReadMemory(value, addressSize);
                 if (buffer.GetLength() > 0)
                 {
                     hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.GetData()));
