@@ -274,13 +274,9 @@ ModuleNameAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absolute
 
 uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress) const
 {
-    LogInfo("looking for : %s", relativeAddress.module.c_str());
     if (!relativeAddress.module.empty()) {
-        LogInfo("not empty");
         for (const DebugModule& module: m_modules) {
-            LogWarn("%s", fmt::format("module: {}", module.m_name).c_str());
             if (module.m_name == relativeAddress.module || module.m_short_name == relativeAddress.module) {
-                LogWarn("%s", fmt::format("valid module: {}, {:#x}, {:#x}", module.m_name, module.m_address, relativeAddress.offset).c_str());
                 return module.m_address + relativeAddress.offset;
             }
         }

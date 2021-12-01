@@ -166,7 +166,6 @@ size_t DebugProcessView::PerformRead(void* dest, uint64_t offset, size_t len)
             }
             else
             {
-                LogWarn("Failed to read at address 0x%lx", offset);
                 m_errorCache.insert(block);
                 return 0;
             }
