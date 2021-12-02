@@ -1,5 +1,6 @@
 #include <thread>
 #include <regex>
+#include "spawn.h"
 #include <pugixml/pugixml.hpp>
 #include "lldbadapter.h"
 
@@ -166,54 +167,37 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std
             final_args.append(" ");
     }
 
-    char* arg[] = {(char*)lldb_server_path.c_str(), (char*)host_with_port.c_str(),
-                   (char*) path.c_str(), "--", (char*)final_args.c_str(), NULL};
+	bool requestTerminal = true;
+    char* arg[] = {(char*)lldb_server_path.c_str(),
+				   "--stdio-path", "/dev/stdin",
+				   "--stdout-path", "/dev/stdout",
+				   "--stderr-path", "/dev/stderr",
+				   (char*)host_with_port.c_str(), (char*) path.c_str(), "--", (char*)final_args.c_str(), NULL};
 
-    pid_t pid = vfork();
-    switch (pid)
-    {
-        case -1:
-            perror("fork()\n");
-            return false;
-        case 0:
-        {
-            // This is done in the Python implementation, but I am not sure what it is intended for
-            // setpgrp();
-
-            // This will detach the gdbserver from the current terminal, so that we can continue interacting with it.
-            // Otherwise, gdbserver will set itself to the foreground process and the cli will become background.
-            // TODO: we should redirect the stdin/stdout to a different FILE so that we can see the debuggee's output
-            // and send input to it
-            FILE *newOut = freopen("/dev/null", "w", stdout);
-            if (!newOut)
-            {
-                perror("freopen");
-                return false;
-            }
-
-            FILE *newIn = freopen("/dev/null", "r", stdin);
-            if (!newIn)
-            {
-                perror("freopen");
-                return false;
-            }
-
-            FILE *newErr = freopen("/dev/null", "w", stderr);
-            if (!newErr)
-            {
-                perror("freopen");
-                return false;
-            }
-
-            if (execv(lldb_server_path.c_str(), arg) == -1)
-            {
-                perror("execv");
-                return false;
-            }
-        }
-        default:
-            break;
-    }
+	pid_t serverPid;
+	if (!requestTerminal)
+	{
+		int s = posix_spawn(&serverPid, lldb_server_path.c_str(), nullptr, nullptr, arg, nullptr);
+		if (s != 0)
+		{
+			LogWarn("posix_spawn failed");
+			return false;
+		}
+	}
+	else
+	{
+		std::string cmd{};
+		for (const auto& s : arg)
+		{
+			if (s != NULL)
+			{
+				cmd.append(s);
+				cmd.append(" ");
+			}
+		}
+		std::string fullCmd = fmt::format("osascript -e 'tell app \"Terminal\" to do script \"{}\"'  -e 'activate application \"Terminal\"'", cmd);
+		system(fullCmd.c_str());
+	}
 #endif
 
     return this->Connect("127.0.0.1", this->m_socket->GetPort());
