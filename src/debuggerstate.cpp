@@ -120,6 +120,7 @@ void DebuggerThreads::MarkDirty()
 {
     m_dirty = true;
     m_threads.clear();
+	// TODO: consider also caching the last active thread
 }
 
 
@@ -134,26 +135,7 @@ void DebuggerThreads::Update()
 
     m_threads.clear();
 
-    DebugThread selectedThread = adapter->GetActiveThread();
-    DebugThread lastThread = selectedThread;
-    for (const DebugThread& thread: adapter->GetThreadList())
-    {
-        if (lastThread != thread)
-        {
-            // TODO: This forces a thread swtich for every thread, which is too expensive
-            adapter->SetActiveThread(thread);
-            lastThread = thread;
-        }
-        DebuggerThreadCache cache;
-        cache.thread = thread;
-        cache.ip = m_state->IP();
-        cache.selected = (thread == selectedThread);
-        m_threads.push_back(cache);
-    }
-    // Restore the original active thread after the above operations
-    if (lastThread != selectedThread)
-        adapter->SetActiveThread(selectedThread);
-
+	m_threads = adapter->GetThreadList();
     m_dirty = false;
 }
 

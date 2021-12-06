@@ -6,15 +6,15 @@
 using namespace BinaryNinja;
 using namespace std;
 
-ThreadItem::ThreadItem(size_t tid, uint64_t location):
-    m_tid(tid), m_location(location)
+ThreadItem::ThreadItem(size_t tid, uint64_t rip, bool isLastActive):
+    m_tid(tid), m_rip(rip), m_isLastActive(isLastActive)
 {
 }
 
 
 bool ThreadItem::operator==(const ThreadItem& other) const
 {
-    return (m_tid == other.tid()) && (m_location == other.location());
+    return (m_tid == other.tid()) && (m_rip == other.rip());
 }
 
 
@@ -31,7 +31,7 @@ bool ThreadItem::operator<(const ThreadItem& other) const
     else if (m_tid > other.tid())
         return false;
 
-    return m_location < other.location();
+    return m_rip < other.rip();
 }
 
 
@@ -90,7 +90,7 @@ QVariant DebugThreadsListModel::data(const QModelIndex& index, int role) const
     }
     case DebugThreadsListModel::LocationColumn:
     {
-        QString text = QString::fromStdString(fmt::format("{:x}", item->location()));
+        QString text = QString::fromStdString(fmt::format("{:x}", item->rip()));
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
@@ -114,19 +114,20 @@ QVariant DebugThreadsListModel::headerData(int column, Qt::Orientation orientati
 		case DebugThreadsListModel::TIDColumn:
 			return "TID";
 		case DebugThreadsListModel::LocationColumn:
-			return "Location";
+			return "PC";
 	}
 	return QVariant();
 }
 
 
-void DebugThreadsListModel::updateRows(std::vector<DebuggerThreadCache> threads)
+void DebugThreadsListModel::updateRows(std::vector<DebugThread> threads, DebugThread lastActiveThread)
 {
     beginResetModel();
     std::vector<ThreadItem> newRows;
-    for (const DebuggerThreadCache& thread: threads)
+    for (const DebugThread& thread: threads)
     {
-        newRows.emplace_back(thread.thread.m_tid, thread.ip);
+		bool isLastActive = (thread == lastActiveThread);
+        newRows.emplace_back(thread.m_tid, thread.m_rip, isLastActive);
     }
 
     std::sort(newRows.begin(), newRows.end(), [=](const ThreadItem& a, const ThreadItem& b)
@@ -233,9 +234,9 @@ DebugThreadsWidget::DebugThreadsWidget(const QString& name, ViewFrame* view, Bin
 }
 
 
-void DebugThreadsWidget::notifyThreadsChanged(std::vector<DebuggerThreadCache> threads)
+void DebugThreadsWidget::notifyThreadsChanged(std::vector<DebugThread> threads, DebugThread lastActiveThread)
 {
-    m_model->updateRows(threads);
+    m_model->updateRows(threads, lastActiveThread);
     m_table->resizeColumnsToContents();
 }
 
@@ -251,6 +252,7 @@ void DebugThreadsWidget::updateContent()
     if (!m_controller->GetState()->IsConnected())
         return;
 
-    std::vector<DebuggerThreadCache> threads = m_controller->GetState()->GetThreads()->GetAllThreads();
-    notifyThreadsChanged(threads);
+    std::vector<DebugThread> threads = m_controller->GetState()->GetThreads()->GetAllThreads();
+	DebugThread lastActiveThread = m_controller->GetState()->GetThreads()->GetActiveThread();
+    notifyThreadsChanged(threads, lastActiveThread);
 }

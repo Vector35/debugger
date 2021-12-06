@@ -31,7 +31,7 @@ using namespace std;
 
 GdbAdapter::GdbAdapter(bool redirectGDBServer): m_redirectGDBServer(redirectGDBServer)
 {
-    m_isRunning = false;
+    m_isTargetRunning = false;
 }
 
 GdbAdapter::~GdbAdapter()
@@ -179,7 +179,7 @@ bool GdbAdapter::Attach(std::uint32_t pid)
 
 bool GdbAdapter::LoadRegisterInfo()
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return false;
 
     const auto xml = this->m_rspConnector.GetXml("target.xml");
@@ -284,7 +284,7 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
 
     this->m_lastActiveThreadId = map["thread"];
 
-    m_isRunning = false;
+    m_isTargetRunning = false;
     return true;
 }
 
@@ -293,7 +293,7 @@ void GdbAdapter::Detach()
     char detach{'D'};
     this->m_rspConnector.SendRaw(RspData(&detach, sizeof(detach)));
     this->m_socket->Kill();
-    m_isRunning = false;
+    m_isTargetRunning = false;
 }
 
 void GdbAdapter::Quit()
@@ -303,12 +303,12 @@ void GdbAdapter::Quit()
     this->m_rspConnector.SendRaw(RspData(&send, sizeof(send)));
     this->m_rspConnector.SendRaw(RspData(&kill, sizeof(kill)));
     this->m_socket->Kill();
-    m_isRunning = false;
+    m_isTargetRunning = false;
 }
 
 std::vector<DebugThread> GdbAdapter::GetThreadList()
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return {};
 
     int internal_thread_index{};
@@ -345,17 +345,17 @@ DebugThread GdbAdapter::GetActiveThread() const
 
 std::uint32_t GdbAdapter::GetActiveThreadId() const
 {
-    return 0;
+    return m_lastActiveThreadId;
 }
 
 bool GdbAdapter::SetActiveThread(const DebugThread& thread)
 {
-    return false;
+	return SetActiveThreadId(thread.m_tid);
 }
 
 bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return false;
 
     if ( this->m_rspConnector.TransmitAndReceive(RspData(string("T{:x}"), tid)).AsString() != "OK" )
@@ -374,7 +374,7 @@ bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
 
 DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return false;
 
     if ( std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(),
@@ -399,7 +399,7 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned
 
 std::vector<DebugBreakpoint> GdbAdapter::AddBreakpoints(const std::vector<std::uintptr_t>& breakpoints)
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return {};
 
     return std::vector<DebugBreakpoint>();
@@ -407,7 +407,7 @@ std::vector<DebugBreakpoint> GdbAdapter::AddBreakpoints(const std::vector<std::u
 
 bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return false;
 
     if (auto location = std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(), breakpoint);
@@ -433,7 +433,7 @@ bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 
 bool GdbAdapter::RemoveBreakpoints(const std::vector<DebugBreakpoint>& breakpoints)
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return false;
 
     return false;
@@ -504,7 +504,7 @@ std::unordered_map<std::string, DebugRegister> GdbAdapter::ReadAllRegisters()
 
 DebugRegister GdbAdapter::ReadRegister(const std::string& reg)
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return DebugRegister{};
 
     if ( this->m_registerInfo.find(reg) == this->m_registerInfo.end() )
@@ -515,7 +515,7 @@ DebugRegister GdbAdapter::ReadRegister(const std::string& reg)
 
 bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return false;
 
     const auto reply = this->m_rspConnector.TransmitAndReceive(RspData("P{}={:016X}",
@@ -539,7 +539,7 @@ bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
 
 bool GdbAdapter::WriteRegister(const DebugRegister& reg, std::uintptr_t value)
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return false;
 
     return this->WriteRegister(reg.m_name, value);
@@ -547,7 +547,7 @@ bool GdbAdapter::WriteRegister(const DebugRegister& reg, std::uintptr_t value)
 
 std::vector<std::string> GdbAdapter::GetRegisterList() const
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return {};
 
     std::vector<std::string> registers{};
@@ -561,7 +561,7 @@ std::vector<std::string> GdbAdapter::GetRegisterList() const
 DataBuffer GdbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 {
     // This means whether the target is running. If it is, then we cannot read memory at the moment
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return DataBuffer{};
 
     auto reply = this->m_rspConnector.TransmitAndReceive(RspData("m{:x},{:x}", address, size));
@@ -603,7 +603,7 @@ DataBuffer GdbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 
 bool GdbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return false;
 
     size_t size = buffer.GetLength();
@@ -627,7 +627,7 @@ bool GdbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 
 std::string GdbAdapter::GetRemoteFile(const std::string& path)
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return "";
 
     RspData output;
@@ -677,7 +677,7 @@ std::string GdbAdapter::GetRemoteFile(const std::string& path)
 
 std::vector<DebugModule> GdbAdapter::GetModuleList()
 {
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return {};
 
     std::map<std::string, BNAddressRange> moduleRanges;
@@ -744,7 +744,7 @@ std::string GdbAdapter::GetTargetArchitecture()
     if (m_remoteArch != "")
         return m_remoteArch;
 
-    if (m_isRunning)
+    if (m_isTargetRunning)
         return "";
 
     const auto xml = this->m_rspConnector.GetXml("target.xml");
@@ -778,13 +778,13 @@ bool GdbAdapter::BreakInto()
 {
     char var = '\x03';
     this->m_rspConnector.SendRaw(RspData(&var, sizeof(var)));
-    m_isRunning = false;
+    m_isTargetRunning = false;
     return true;
 }
 
 bool GdbAdapter::GenericGo(const std::string& go_type)
 {
-    m_isRunning = true;
+    m_isTargetRunning = true;
     const auto go_reply = m_rspConnector.TransmitAndReceive(
 			RspData(go_type),
 			"mixed_output_ack_then_reply",
@@ -816,7 +816,7 @@ bool GdbAdapter::GenericGo(const std::string& go_type)
         return false;
     }
 
-    m_isRunning = false;
+    m_isTargetRunning = false;
     return true;
 }
 
@@ -880,7 +880,9 @@ std::uintptr_t GdbAdapter::GetInstructionOffset()
     else
         ipRegisterName = "pc";
 
-    return this->ReadRegister(ipRegisterName).m_value;
+	uint64_t value = this->ReadRegister(ipRegisterName).m_value;
+	LogWarn("ip is 0x%llx", value);
+    return value;
 }
 
 DebugStopReason GdbAdapter::StopReason()

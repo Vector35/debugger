@@ -108,7 +108,7 @@ class DebuggerThreads
 {
 private:
     DebuggerState* m_state;
-    std::vector<DebuggerThreadCache> m_threads;
+    std::vector<DebugThread> m_threads;
     bool m_dirty;
 
 public:
@@ -118,8 +118,7 @@ public:
     DebugThread GetActiveThread() const;
     bool SetActiveThread(const DebugThread& thread);
     bool IsDirty() const { return m_dirty; }
-    // Note, the caller of this function is responsible for ensuring the cache is valid
-    std::vector<DebuggerThreadCache> GetAllThreads() const { return m_threads; }
+    std::vector<DebugThread> GetAllThreads() const { return m_threads; }
 };
 
 

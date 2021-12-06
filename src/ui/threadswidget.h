@@ -17,12 +17,13 @@ class ThreadItem
 {
 private:
     size_t m_tid;
-    uint64_t m_location;
+    uint64_t m_rip;
+	bool m_isLastActive;
 
 public:
-    ThreadItem(size_t tid, uint64_t location);
+    ThreadItem(size_t tid, uint64_t rip, bool isLastActive);
     uint64_t tid() const { return m_tid; }
-    size_t location() const { return m_location; }
+    size_t rip() const { return m_rip; }
     bool operator==(const ThreadItem& other) const;
     bool operator!=(const ThreadItem& other) const;
     bool operator<(const ThreadItem& other) const;
@@ -59,7 +60,7 @@ public:
     ThreadItem getRow(int row) const;
     virtual QVariant data(const QModelIndex& i, int role) const override;
     virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
-    void updateRows(std::vector<DebuggerThreadCache> newThreads);
+    void updateRows(std::vector<DebugThread> newThreads, DebugThread lastActiveThread);
 };
 
 
@@ -97,7 +98,7 @@ class DebugThreadsWidget: public QWidget
 public:
     DebugThreadsWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
 
-    void notifyThreadsChanged(std::vector<DebuggerThreadCache> threads);
+    void notifyThreadsChanged(std::vector<DebugThread> threads, DebugThread lastActiveThread);
 
 public slots:
     void updateContent();

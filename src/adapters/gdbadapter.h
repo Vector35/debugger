@@ -38,7 +38,7 @@ protected:
 
     // This name is confusing. It actually means whether the target is running, so certain operations, e.g.,
     // reading memory, adding breakpoint, cannot be carried out at the moment.
-    bool m_isRunning;
+    bool m_isTargetRunning;
 
     // Cache the name of the remote architecture, so there is no need to read it repeatedly.
     // However, this does not handle the case when the remote arch changes. Though other changes are also needed to
