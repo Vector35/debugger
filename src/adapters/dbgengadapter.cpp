@@ -97,14 +97,19 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::vector<s
     ProcessInfo.m_hasOneBreakpoint = false;
     ProcessInfo.m_lastSessionStatus = DEBUG_SESSION_FAILURE;
 
-    if ( this->m_debugActive )
+    if ( this->m_debugActive ) {
+        LogWarn("m_debugActive... resetting...");
         this->Reset();
+    }
 
+    LogWarn("starting...");
     this->Start();
+    LogInfo("complete!");
 
     if (const auto result = this->m_debugControl->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK);
             result != S_OK)
     {
+        LogError("Failed to set engine options...");
         this->Reset();
         return false;
     }
@@ -118,17 +123,21 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::vector<s
             path_with_args.append( arg + " " );
     }
 
+    LogWarn("creating process...");
     if (const auto result = this->m_debugClient->CreateProcess(0, const_cast<char*>( path_with_args.c_str() ), DEBUG_ONLY_THIS_PROCESS);
             result != S_OK)
     {
         this->Reset();
         return false;
     }
+    LogInfo("created!");
 
-    for (std::size_t timeout_attempts{}; timeout_attempts < 10; timeout_attempts++)
+    for (std::size_t timeout_attempts{}; timeout_attempts < 10; timeout_attempts++) {
+        LogInfo("timeout attempt @ 0x%x", timeout_attempts);
         if (this->Wait(std::chrono::milliseconds(100)))
-            if ( ProcessInfo.m_created && ProcessInfo.m_hasOneBreakpoint )
+            if (ProcessInfo.m_created && ProcessInfo.m_hasOneBreakpoint)
                 return this->m_debugActive;
+    }
 
     return false;
 }
@@ -241,11 +250,8 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
 
     /* attempt to read/write at breakpoint location to confirm its valid */
     /* DbgEng won't tell us if its valid until continue/go so this is a hacky fix */
-    auto val = this->ReadMemoryTy<std::uint16_t>(address);
-    if (!val.has_value())
-        return {};
-
-    if (!this->WriteMemoryTy(address, val.value()))
+    auto val = this->ReadMemory(address, sizeof(std::uint16_t));
+    if (!this->WriteMemory(address, val))
         return {};
 
     if (const auto result = this->m_debugControl->AddBreakpoint2(DEBUG_BREAKPOINT_CODE, DEBUG_ANY_ID,
@@ -400,17 +406,6 @@ std::vector<std::string> DbgEngAdapter::GetRegisterList() const
     return register_list;
 }
 
-bool DbgEngAdapter::ReadMemory(std::uintptr_t address, void* out, std::size_t size)
-{
-    unsigned long bytes_read{};
-    return this->m_debugDataSpaces->ReadVirtual(address, out, size, &bytes_read) == S_OK && bytes_read == size;
-}
-
-bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const void* out, std::size_t size)
-{
-    unsigned long bytes_written{};
-    return this->m_debugDataSpaces->WriteVirtual(address, const_cast<void*>(out), size, &bytes_written) == S_OK && bytes_written == size;
-}
 
 std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 {
@@ -605,14 +600,14 @@ DebugStopReason DbgEngAdapter::StopReason()
                 case STATUS_FLOAT_DIVIDE_BY_ZERO:
                     return DebugStopReason::Calculation;
                 default:
-                    return DebugStopReason::Unknown;
+                    return DebugStopReason::UnknownReason;
             }
         }
     } else if (exec_status == DEBUG_STATUS_NO_DEBUGGEE) {
         return DebugStopReason::ProcessExited;
     }
 
-    return DebugStopReason::Unknown;
+    return DebugStopReason::UnknownReason;
 }
 
 unsigned long DbgEngAdapter::ExecStatus()
@@ -795,4 +790,23 @@ bool DbgEngAdapter::SupportFeature(DebugAdapterCapacity feature)
     default:
         return false;
     }
+}
+
+
+DataBuffer DbgEngAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
+{
+    const auto source = std::make_unique<std::uint8_t[]>(size);
+
+    unsigned long bytesRead{};
+    const auto success = this->m_debugDataSpaces->ReadVirtual(address, source.get(), size, &bytesRead) == S_OK && bytesRead == size;
+    if (!success)
+        return {};
+
+    return {source.get(), size};
+}
+
+bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
+{
+    unsigned long bytes_written{};
+    return this->m_debugDataSpaces->WriteVirtual(address, const_cast<void*>(buffer.GetData()), buffer.GetLength(), &bytes_written) == S_OK && bytes_written == buffer.GetLength();
 }

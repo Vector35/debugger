@@ -616,6 +616,11 @@ bool DebuggerState::Exec()
 	bool requestTerminal = GetRequestTerminalEmulator();
 	LaunchConfigurations configs = {requestTerminal};
 
+    #ifdef WIN32
+        /* temporary solution (not great, sorry!), we probably won't have to do this once we introduce std::filesystem::path */
+        std::replace(filePath.begin(), filePath.end(), '/', '\\');
+    #endif
+
     return m_adapter->ExecuteWithArgs(filePath, m_commandLineArgs, configs);
 }
 

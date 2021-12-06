@@ -39,6 +39,8 @@ if(WIN32)
 		src/adapters/lldbadapter.h
 		src/adapters/rspconnector.cpp
 		src/adapters/rspconnector.h
+		src/adapters/queuedadapter.cpp
+		src/adapters/queuedadapter.h
 		src/adapters/socket.h
 			)
 elseif(APPLE)

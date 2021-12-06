@@ -37,8 +37,8 @@ enum DebuggerEventType
 
 
 enum class DebugStopReason {
-    UknownReason = 0,
-    InitalBreakpoint,
+    UnknownReason = 0,
+    InitialBreakpoint,
     StdoutMessage,
     ProcessExited,
     AccessViolation,

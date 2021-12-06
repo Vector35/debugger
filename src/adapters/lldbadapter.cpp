@@ -1,6 +1,8 @@
 #include <thread>
 #include <regex>
-#include "spawn.h"
+#ifndef WIN32
+#include <spawn.h>
+#endif
 #include <pugixml/pugixml.hpp>
 #include "lldbadapter.h"
 #include "queuedadapter.h"

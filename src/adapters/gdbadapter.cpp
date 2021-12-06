@@ -7,7 +7,9 @@
 #undef max
 #else
 #include <unistd.h>
+#ifndef WIN32
 #include <spawn.h>
+#endif
 #include <csignal>
 #endif
 #include <algorithm>

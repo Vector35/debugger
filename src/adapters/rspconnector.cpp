@@ -196,7 +196,11 @@ RspData RspConnector::ReceiveRspData() const
     while (true)
     {
         char tmp_buffer[RspData::BUFFER_MAX]{'\0'};
-        ssize_t n = this->m_socket->Recv(tmp_buffer, sizeof(tmp_buffer), MSG_DONTWAIT);
+#ifdef WIN32
+        intptr_t n = this->m_socket->Recv(tmp_buffer, sizeof(tmp_buffer));
+#else
+        intptr_t n = this->m_socket->Recv(tmp_buffer, sizeof(tmp_buffer), MSG_DONTWAIT);
+#endif
         if (n <= 0)
             continue;
 

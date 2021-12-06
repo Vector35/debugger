@@ -71,11 +71,11 @@ public:
         return ::connect(this->m_socket, (const sockaddr*)&address, sizeof(address)) >= 0;
     }
 
-    ssize_t Recv(char* data, std::int32_t size, std::int32_t flags = 0) const {
+    intptr_t Recv(char* data, std::int32_t size, std::int32_t flags = 0) const {
         return ::recv(this->m_socket, data, size, flags);
     }
 
-    ssize_t Send(char* data, std::int32_t size, std::int32_t flags = 0) const {
+    intptr_t Send(char* data, std::int32_t size, std::int32_t flags = 0) const {
         return ::send(this->m_socket, data, size, flags);
     }
 

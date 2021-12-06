@@ -92,7 +92,7 @@ void DebuggerController::Launch()
 		// However, if we do nothing, when the launch fails, the event will still be posted, causing chaos.
 		// For now, I am implementing the first approach, but the second one is probably the better way to go.
         if (m_state->Launch())
-        	NotifyStopped(DebugStopReason::InitalBreakpoint, nullptr);
+        	NotifyStopped(DebugStopReason::InitialBreakpoint, nullptr);
     });
     worker.detach();
 }
@@ -192,7 +192,7 @@ void DebuggerController::Restart()
 {
     std::thread worker([this](){
         m_state->Restart();
-        NotifyStopped(DebugStopReason::InitalBreakpoint, nullptr);
+        NotifyStopped(DebugStopReason::InitialBreakpoint, nullptr);
     });
     worker.detach();
 }
@@ -202,7 +202,7 @@ void DebuggerController::Attach()
 {
     std::thread worker([this](){
         if (m_state->Attach())
-        	NotifyStopped(DebugStopReason::InitalBreakpoint, nullptr);
+        	NotifyStopped(DebugStopReason::InitialBreakpoint, nullptr);
     });
     worker.detach();
 }
@@ -339,7 +339,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
         m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 
         // Initial breakpoint is reached after successfully launching or attaching to the target
-        if (event.data.targetStoppedData.reason == DebugStopReason::InitalBreakpoint)
+        if (event.data.targetStoppedData.reason == DebugStopReason::InitialBreakpoint)
         {
             // There are some extra processing needed when the initial breakpoint hits
             // HELP NEEDED: I do not think we should do it in this way, but I cannot think of a better one
