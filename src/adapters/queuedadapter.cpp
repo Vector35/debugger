@@ -519,16 +519,8 @@ unsigned long QueuedAdapter::ExecStatus()
 bool QueuedAdapter::BreakInto()
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
-
-    bool ret;
-    Semaphore sem;
-    m_queue.push([&]{
-        ret = m_adapter->BreakInto();
-        sem.Release();
-    });
-    lock.unlock();
-    sem.Wait();
-    return ret;
+	// BreakInto must skip the queue, otherwise it will cause deadlock
+	return m_adapter->BreakInto();
 }
 
 

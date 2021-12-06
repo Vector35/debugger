@@ -105,9 +105,8 @@ void DebugControlsWidget::performSettings()
 
 void DebugControlsWidget::performPause()
 {
-////    stateStopped();
-//    m_state->Pause();
-////    Don't update state here-- one of the other buttons is running in a thread and updating for us
+    m_controller->Pause();
+//    Don't update state here-- one of the other thread is running in a thread and updating for us
 }
 
 

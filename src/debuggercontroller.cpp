@@ -181,6 +181,16 @@ void DebuggerController::Quit()
 }
 
 
+void DebuggerController::Pause()
+{
+    std::thread worker([this](){
+        m_state->Pause();
+		// Don't post stop event state here-- one of the other running thread will post it
+    });
+    worker.detach();
+}
+
+
 DebuggerController* DebuggerController::GetController(BinaryViewRef data)
 {
     for (auto& controller: g_debuggerControllers)
