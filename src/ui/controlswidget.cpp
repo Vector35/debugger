@@ -247,14 +247,7 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
                 {
                     UIContext* context = UIContext::contextForWidget(this);
                     ViewFrame* frame = context->getCurrentViewFrame();
-                    QString viewName = frame->getCurrentView();
-                    int split = viewName.indexOf(':');
-                    QString viewTypeName = "Hex";
-                    if (split != -1)
-                        viewTypeName = viewName.mid(0, split);
-
-                    QString debugViewName = viewTypeName + tr(":") + "Debugger";
-                    m_controller->GetLiveView()->Navigate(debugViewName.toStdString(), address);
+					frame->navigate(m_controller->GetLiveView(), address, true, true);
                 });
             }).detach();
 

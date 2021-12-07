@@ -61,6 +61,9 @@ public:
     void StepReturn(BNFunctionGraphType il = NormalFunctionGraph);
     void StepTo(std::vector<uint64_t> remoteAddresses);
 
+	DebugThread GetActiveThread() const;
+	void SetActiveThread(const DebugThread& thread);
+
     DebuggerState* GetState() { return m_state; }
     BinaryViewRef GetData() const { return m_data; }
     void SetData(BinaryViewRef view) { m_data = view; }

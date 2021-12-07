@@ -113,6 +113,9 @@ public:
 
     void notifyThreadsChanged(std::vector<DebugThread> threads, DebugThread lastActiveThread);
 
-public slots:
     void updateContent();
+
+private slots:
+	void jump();
+	void setAsActive();
 };

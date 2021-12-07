@@ -141,6 +141,31 @@ void DebuggerController::StepReturn(BNFunctionGraphType il)
 }
 
 
+void DebuggerController::StepTo(std::vector<uint64_t> remoteAddresses)
+{
+
+}
+
+
+DebugThread DebuggerController::GetActiveThread() const
+{
+	return m_state->GetThreads()->GetActiveThread();
+}
+
+
+void DebuggerController::SetActiveThread(const DebugThread &thread)
+{
+	// TODO: check if the new thread is the same as the old one. If so, do nothing and return
+	m_state->GetThreads()->SetActiveThread(thread);
+	// We only need to update the register values after we switch to a different thread
+	m_state->GetRegisters()->Update();
+	// Post an event so the stack view can get updated
+	DebuggerEvent event;
+	event.type = ActiveThreadChangedEvent;
+	PostDebuggerEvent(event);
+}
+
+
 void DebuggerController::Restart()
 {
     std::thread worker([this](){

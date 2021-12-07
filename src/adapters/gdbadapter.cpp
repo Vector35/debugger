@@ -887,7 +887,6 @@ std::uintptr_t GdbAdapter::GetInstructionOffset()
         ipRegisterName = "pc";
 
 	uint64_t value = this->ReadRegister(ipRegisterName).m_value;
-	LogWarn("ip is 0x%llx", value);
     return value;
 }
 

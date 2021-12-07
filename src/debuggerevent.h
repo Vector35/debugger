@@ -29,7 +29,9 @@ enum DebuggerEventType
     AbsoluteBreakpointAddedEvent,
     RelativeBreakpointAddedEvent,
     AbsoluteBreakpointRemovedEvent,
-    RelativeBreakpointRemovedEvent
+    RelativeBreakpointRemovedEvent,
+
+	ActiveThreadChangedEvent
 };
 
 

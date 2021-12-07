@@ -133,6 +133,13 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
 			});
 		}).detach();
 		break;
+	case ActiveThreadChangedEvent:
+		std::thread([&](){
+			ExecuteOnMainThreadAndWait([this]()
+			{
+				m_stackWidget->updateContent();
+			});
+		}).detach();
     default:
         break;
     }

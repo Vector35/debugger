@@ -268,6 +268,29 @@ DebugThreadsWidget::DebugThreadsWidget(const QString& name, ViewFrame* view, Bin
     layout->addWidget(m_table);
     setLayout(layout);
 
+	setContextMenuPolicy(Qt::CustomContextMenu);
+	connect(this, &QWidget::customContextMenuRequested, [this](QPoint pos){
+		auto* jumpToAction = new QAction("Jump To");
+		auto* setAsActiveAction = new QAction("Set As Active Thread");
+
+		connect(jumpToAction, &QAction::triggered, this, &DebugThreadsWidget::jump);
+		connect(setAsActiveAction, &QAction::triggered, this, &DebugThreadsWidget::setAsActive);
+
+		auto* menu = new QMenu(this);
+		menu->addAction(jumpToAction);
+		menu->addAction(setAsActiveAction);
+
+		// Disable everything if nothing is selected.
+		QModelIndexList sel = m_table->selectionModel()->selectedRows();
+		if (sel.size() == 0)
+			for (auto* a : menu->actions())
+				a->setEnabled(false);
+
+		menu->popup(QCursor::pos() + QPoint(2, 2));
+	});
+
+	connect(m_table, &QTableView::doubleClicked, this, &DebugThreadsWidget::jump);
+
     updateContent();
 }
 
@@ -292,6 +315,33 @@ void DebugThreadsWidget::updateContent()
 
     std::vector<DebugThread> threads = m_controller->GetState()->GetThreads()->GetAllThreads();
 	DebugThread lastActiveThread = m_controller->GetState()->GetThreads()->GetActiveThread();
-	LogWarn("last active thread is 0x%lx", lastActiveThread.m_tid);
     notifyThreadsChanged(threads, lastActiveThread);
+}
+
+
+void DebugThreadsWidget::jump()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedRows();
+	if (sel.size() == 0)
+		return;
+
+	ThreadItem thread = m_model->getRow(sel[0].row());
+
+	UIContext* context = UIContext::contextForWidget(this);
+	ViewFrame* frame = context->getCurrentViewFrame();
+	frame->navigate(m_controller->GetLiveView(), thread.rip(), true, true);
+}
+
+
+void DebugThreadsWidget::setAsActive()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedRows();
+	if (sel.size() == 0)
+		return;
+
+	ThreadItem thread = m_model->getRow(sel[0].row());
+	// Again, this is sending a DebugThread without an internal index to the backend. It works, which means the
+	// internal index is rather useless.
+	m_controller->SetActiveThread(DebugThread(thread.tid(), 0, thread.rip()));
+	updateContent();
 }
