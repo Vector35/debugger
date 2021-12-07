@@ -230,16 +230,12 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
 				return;
 			}
 
-            uint64_t  address;
-            if (event.type == InitialViewRebasedEventType)
-                // When the initial breakpoint is hit, the pc is probably at certain system library, where we
-                // have no analysis function yet. Navigating to it will cause a switch to the hex view, causing
-                // confusion. So for now, just navigate to the binary entry point.
-                // However, this should be changed once we have the ability to "display as code". Then we simply
-                // show the disassembly of the system library function
-                address = m_controller->GetLiveView()->GetEntryPoint();
-            else
-                address = m_controller->GetState()->IP();
+            uint64_t address = m_controller->GetState()->IP();
+			// If there is no function at the current address, define one. This might be a little aggressive,
+			// but given that we are lacking the ability to "show as code", this feels like an OK workaround.
+			auto functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(address);
+			if (functions.size() == 0)
+				m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
 
             // This works, but it seems not natural to me
             std::thread([&](){

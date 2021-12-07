@@ -291,8 +291,6 @@ void DebugBreakpointsWidget::jump()
     const auto breakpoint_offset = ModuleNameAndOffset(filename, address_or_offset - view->GetStart());
 
     UIContext* context = UIContext::contextForWidget(this);
-//    if (context && context->getCurrentViewFrame())
-//    ViewFrame* frame = ViewFrame::viewFrameForWidget(state->GetDebuggerUI()->GetDebugView());
     ViewFrame* frame = context->getCurrentViewFrame();
     frame->navigate(m_controller->GetLiveView(), address_or_offset, true, true);
 }
