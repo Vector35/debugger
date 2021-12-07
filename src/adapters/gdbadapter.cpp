@@ -340,7 +340,13 @@ std::vector<DebugThread> GdbAdapter::GetThreadList()
 
 DebugThread GdbAdapter::GetActiveThread() const
 {
-    return DebugThread(this->GetActiveThreadId(), 0);
+	// TODO: this always return the internal thread index as 0, which is wrong.
+	// I do not think the internal index is useful, the system thread ID should already satisfy our need
+	// TODO: GetInstructionOffset() should really be const, but changing it requires changes in lots of files,
+	// as well as changes for GetTargetArchitecture(). So I am abusing `this` and casting it to remove the const of it.
+	// Definitely remember to get back and fix this.
+	uint64_t pc = ((GdbAdapter*)this)->GetInstructionOffset();
+    return DebugThread(this->GetActiveThreadId(), 0, pc);
 }
 
 std::uint32_t GdbAdapter::GetActiveThreadId() const

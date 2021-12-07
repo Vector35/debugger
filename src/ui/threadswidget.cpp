@@ -6,14 +6,15 @@
 using namespace BinaryNinja;
 using namespace std;
 
-ThreadItem::ThreadItem(size_t tid, uint64_t rip, bool isLastActive):
-    m_tid(tid), m_rip(rip), m_isLastActive(isLastActive)
+ThreadItem::ThreadItem(size_t tid, uint64_t rip, bool isLastActive, DebugThreadValueStatus valueStatus):
+    m_tid(tid), m_rip(rip), m_isLastActive(isLastActive), m_valueStatus(valueStatus)
 {
 }
 
 
 bool ThreadItem::operator==(const ThreadItem& other) const
 {
+	// TODO: this needs to be changed after we added the m_isLastActive and m_valueStatus
     return (m_tid == other.tid()) && (m_rip == other.rip());
 }
 
@@ -83,10 +84,15 @@ QVariant DebugThreadsListModel::data(const QModelIndex& index, int role) const
     case DebugThreadsListModel::TIDColumn:
     {
         QString text = QString::fromStdString(fmt::format("{:x}", item->tid()));
+		if (item->isLastActive())
+			text += " (*)";
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
+        QList<QVariant> line;
+        line.push_back(getThemeColor(WhiteStandardHighlightColor).rgba());
+		line.push_back(text);
+		return QVariant(line);
     }
     case DebugThreadsListModel::LocationColumn:
     {
@@ -94,7 +100,22 @@ QVariant DebugThreadsListModel::data(const QModelIndex& index, int role) const
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
+        QList<QVariant> line;
+        switch (item->valueStatus())
+        {
+        case DebugThreadValueNormal:
+            line.push_back(getThemeColor(WhiteStandardHighlightColor).rgba());
+            break;
+        case DebugThreadValueChanged:
+            line.push_back(getThemeColor(BlueStandardHighlightColor).rgba());
+            break;
+        case DebugThreadValueModified:
+            line.push_back(getThemeColor(OrangeStandardHighlightColor).rgba());
+            break;
+        }
+
+		line.push_back(text);
+		return QVariant(line);
     }
     }
     return QVariant();
@@ -123,11 +144,26 @@ QVariant DebugThreadsListModel::headerData(int column, Qt::Orientation orientati
 void DebugThreadsListModel::updateRows(std::vector<DebugThread> threads, DebugThread lastActiveThread)
 {
     beginResetModel();
+	std::map<uint64_t, uint64_t> oldThreads;
+	for (const ThreadItem& item: m_items)
+		oldThreads[item.tid()] = item.rip();
+
     std::vector<ThreadItem> newRows;
     for (const DebugThread& thread: threads)
     {
-		bool isLastActive = (thread == lastActiveThread);
-        newRows.emplace_back(thread.m_tid, thread.m_rip, isLastActive);
+		bool isLastActive = false;
+		// Since GetActiveThread() returns the wrong internal index, here we only compare the tid and rip
+		if ((thread.m_tid == lastActiveThread.m_tid) && (thread.m_rip == lastActiveThread.m_rip))
+			isLastActive = true;
+
+		auto iter = oldThreads.find(thread.m_tid);
+		DebugThreadValueStatus status = DebugThreadValueNormal;
+		if ((iter == oldThreads.end()) || (iter->second != thread.m_rip))
+		{
+			// Treat new threads and threads that have a different rip as changed
+			status = DebugThreadValueChanged;
+		}
+        newRows.emplace_back(thread.m_tid, thread.m_rip, isLastActive, status);
     }
 
     std::sort(newRows.begin(), newRows.end(), [=](const ThreadItem& a, const ThreadItem& b)
@@ -170,9 +206,11 @@ void DebugThreadsItemDelegate::paint(QPainter* painter, const QStyleOptionViewIt
 	case DebugThreadsListModel::TIDColumn:
 	case DebugThreadsListModel::LocationColumn:
 	{
-        painter->setFont(m_font);
-        painter->setPen(option.palette.color(QPalette::WindowText).rgba());
-		painter->drawText(textRect, data.toString());
+		auto tokenPair = data.toList();
+		if (tokenPair.size() == 0)
+			break;
+		painter->setPen(QColor((QRgb)tokenPair[0].toInt()));
+		painter->drawText(textRect, tokenPair[1].toString());
 		break;
 	}
 	default:
@@ -254,5 +292,6 @@ void DebugThreadsWidget::updateContent()
 
     std::vector<DebugThread> threads = m_controller->GetState()->GetThreads()->GetAllThreads();
 	DebugThread lastActiveThread = m_controller->GetState()->GetThreads()->GetActiveThread();
+	LogWarn("last active thread is 0x%lx", lastActiveThread.m_tid);
     notifyThreadsChanged(threads, lastActiveThread);
 }

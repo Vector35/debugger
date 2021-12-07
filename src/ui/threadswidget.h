@@ -13,17 +13,30 @@
 #include "theme.h"
 #include "../debuggerstate.h"
 
+enum DebugThreadValueStatus
+{
+	DebugThreadValueNormal,
+	// The current value is different from the last value
+	DebugThreadValueChanged,
+	// The value has been modified by the user
+	DebugThreadValueModified
+};
+
+
 class ThreadItem
 {
 private:
     size_t m_tid;
     uint64_t m_rip;
 	bool m_isLastActive;
+	DebugThreadValueStatus m_valueStatus;
 
 public:
-    ThreadItem(size_t tid, uint64_t rip, bool isLastActive);
+    ThreadItem(size_t tid, uint64_t rip, bool isLastActive, DebugThreadValueStatus valueStatus);
     uint64_t tid() const { return m_tid; }
     size_t rip() const { return m_rip; }
+	bool isLastActive() const { return m_isLastActive; }
+	DebugThreadValueStatus valueStatus() const { return m_valueStatus; }
     bool operator==(const ThreadItem& other) const;
     bool operator!=(const ThreadItem& other) const;
     bool operator<(const ThreadItem& other) const;
