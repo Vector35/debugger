@@ -966,7 +966,31 @@ void DebuggerState::StepOver(BNFunctionGraphType il)
 
 void DebuggerState::StepReturn()
 {
-    BinaryNinja::LogWarn("stepReturn() requested");
+	if (!IsConnected())
+		throw ConnectionRefusedError("cannot step return when disconnected");
+
+	// TODO: dbgeng supports step out natively, consider using that as well once we implement a similar functionality
+	// for gdb and lldb
+	uint64_t address = IP();
+	std::vector<FunctionRef> functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(address);
+	if (functions.size() == 0)
+	{
+		// TODO: shall we create a function here?
+		LogWarn("There is no analysis function at 0x%llx, cannot step return", address);
+		return;
+	}
+
+	std::vector<uint64_t> returnAddresses;
+	FunctionRef function = functions[0];
+	MediumLevelILFunctionRef mlilFunc = function->GetMediumLevelIL();
+	for (size_t i = 0; i < mlilFunc->GetInstructionCount(); i++)
+	{
+		MediumLevelILInstruction instruction = mlilFunc->GetInstruction(i);
+		if ((instruction.operation == MLIL_RET) || (instruction.operation == MLIL_TAILCALL))
+			returnAddresses.push_back(instruction.address);
+	}
+
+	StepTo(returnAddresses);
 }
 
 
