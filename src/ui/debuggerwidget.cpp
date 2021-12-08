@@ -109,7 +109,6 @@ void DebuggerWidget::notifyFontChanged()
 
 void DebuggerWidget::updateContent()
 {
-    LogWarn("DebuggerWidget::updateContext()");
     m_registersWidget->updateContent();
     m_modulesWidget->updateContent();
     m_threadsWidget->updateContent();

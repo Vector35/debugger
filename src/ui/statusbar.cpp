@@ -84,6 +84,6 @@ void DebuggerStatusBar::updateText(QString text)
 {
 	m_controller->GetState()->GetConnectionStatus();
 	// some text might show up and disappear so quickly that we cannot see it. Log all of them to the console.
-	LogWarn("debugger: %s", text.toStdString().c_str());
+//	LogWarn("debugger: %s", text.toStdString().c_str());
 	setText(text);
 }

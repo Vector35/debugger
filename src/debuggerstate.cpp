@@ -29,7 +29,6 @@ void DebuggerRegisters::MarkDirty()
 
 void DebuggerRegisters::Update()
 {
-    BinaryNinja::LogWarn("Updating register cache");
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
         throw ConnectionRefusedError("Cannot update registers when disconnected");
@@ -439,7 +438,6 @@ void DebuggerBreakpoints::UnserializedMetadata()
 
 void DebuggerBreakpoints::Apply()
 {
-    LogWarn("DebuggerBreakpoints::Apply()");
     if (!m_state->GetAdapter())
         throw ConnectionRefusedError("cannot apply breakpoints when disconnected");
 
@@ -566,7 +564,6 @@ void DebuggerState::Quit()
 
 void DebuggerState::Exec()
 {
-    LogWarn("DebuggerState::Exec()");
 //    if (IsConnected() || IsConnecting())
 //        throw ConnectionRefusedError("Tried to execute, but already debugging");
 

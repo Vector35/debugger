@@ -9,7 +9,6 @@ using namespace BinaryNinja;
 
 void InitDebugAdapterTypes()
 {
-    LogWarn("InitDebugAdapterTypes()");
     InitGdbAdapterType();
     InitLldbAdapterType();
 }

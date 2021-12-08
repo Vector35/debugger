@@ -322,8 +322,6 @@ void DebugBreakpointsWidget::remove()
 
 void DebugBreakpointsWidget::updateContent()
 {
-    LogWarn("DebugBreakpointsWidget::updateContent()");
-
     DebuggerState* state = m_controller->GetState();
     if (!state)
         return;
@@ -333,7 +331,6 @@ void DebugBreakpointsWidget::updateContent()
     if (state->IsConnected() && state->GetAdapter())
         remoteList = state->GetAdapter()->GetBreakpointList();
 
-    LogWarn("there are %ld breakpoints", state->GetBreakpoints()->GetBreakpointList().size());
     for (const ModuleNameAndOffset& address: state->GetBreakpoints()->GetBreakpointList())
     {
         uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(address);
