@@ -112,6 +112,9 @@ void DebuggerController::Go()
 
 void DebuggerController::StepInto(BNFunctionGraphType il)
 {
+	DebuggerEvent event;
+	event.type = StepIntoEventType;
+	PostDebuggerEvent(event);
     std::thread worker([this, il](){
         m_state->StepInto(il);
         NotifyStopped(m_state->GetLastStopReason(), nullptr);
@@ -122,6 +125,9 @@ void DebuggerController::StepInto(BNFunctionGraphType il)
 
 void DebuggerController::StepOver(BNFunctionGraphType il)
 {
+	DebuggerEvent event;
+	event.type = StepOverEventType;
+	PostDebuggerEvent(event);
     std::thread worker([this, il](){
         m_state->StepOver(il);
 //		WaitForTargetStop();
@@ -133,6 +139,9 @@ void DebuggerController::StepOver(BNFunctionGraphType il)
 
 void DebuggerController::StepReturn(BNFunctionGraphType il)
 {
+	DebuggerEvent event;
+	event.type = StepReturnEventType;
+	PostDebuggerEvent(event);
     std::thread worker([this, il](){
         m_state->StepReturn();
         NotifyStopped(m_state->GetLastStopReason(), nullptr);
@@ -277,6 +286,17 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		LogWarn("%s\n", message.c_str());
 		break;
 	}
+	case ResumeEventType:
+	case StepIntoEventType:
+	case StepOverEventType:
+	case StepReturnEventType:
+		// TODO: I am not super sure whether we should do it here, or we should let DebuggerState manage this by itself.
+		// The problem is, if we do not do it here, then the DebuggerState will also have to emit these events.
+		// Otherwise, there is a race condition that the callbacks (registered by other consumers) will execute before
+		// DebuggerState updates its state, causing nondeterministic behavior.
+		m_state->SetExecutionStatus(DebugAdapterRunningStatus);
+		break;
+
 	case DetachedEventType:
 	case QuitDebuggingEventType:
 	case TargetExitedEventType:
