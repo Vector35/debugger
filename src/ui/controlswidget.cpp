@@ -361,7 +361,7 @@ TagTypeRef DebugControlsWidget::getPCTagType(BinaryViewRef data)
     if (type)
         return type;
 
-    TagTypeRef pcTagType = new TagType(data, "Program Counter", "==>");
+    TagTypeRef pcTagType = new TagType(data, "Program Counter", "=>");
     data->AddTagType(pcTagType);
     return pcTagType;
 }
