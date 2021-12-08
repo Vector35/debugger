@@ -369,7 +369,7 @@ int main(int argc, const char* argv[])
             {
                 Log::print( "[threads]\n" );
                 for ( const auto& thread : debug_adapter->GetThreadList() )
-                    Log::print<Log::Info>( "[{}] tid {}, rip=0x{:x}\n", thread.m_index, thread.m_tid, thread.m_rip );
+                    Log::print<Log::Info>( "tid {}, rip=0x{:x}\n", thread.m_tid, thread.m_rip );
             }
             else if (input == "reg")
             {

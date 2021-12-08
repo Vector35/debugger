@@ -151,10 +151,7 @@ void DebugThreadsListModel::updateRows(std::vector<DebugThread> threads, DebugTh
     std::vector<ThreadItem> newRows;
     for (const DebugThread& thread: threads)
     {
-		bool isLastActive = false;
-		// Since GetActiveThread() returns the wrong internal index, here we only compare the tid and rip
-		if ((thread.m_tid == lastActiveThread.m_tid) && (thread.m_rip == lastActiveThread.m_rip))
-			isLastActive = true;
+		bool isLastActive = (thread == lastActiveThread);
 
 		auto iter = oldThreads.find(thread.m_tid);
 		DebugThreadValueStatus status = DebugThreadValueNormal;
@@ -340,8 +337,6 @@ void DebugThreadsWidget::setAsActive()
 		return;
 
 	ThreadItem thread = m_model->getRow(sel[0].row());
-	// Again, this is sending a DebugThread without an internal index to the backend. It works, which means the
-	// internal index is rather useless.
-	m_controller->SetActiveThread(DebugThread(thread.tid(), 0, thread.rip()));
+	m_controller->SetActiveThread(DebugThread(thread.tid(), thread.rip()));
 	updateContent();
 }
