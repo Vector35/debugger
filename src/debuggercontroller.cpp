@@ -1,6 +1,6 @@
 #include "debuggercontroller.h"
 #include <thread>
-#include "../../ui/mainwindow.h"
+#include "progress.h"
 
 DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 {
@@ -337,9 +337,9 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             if (remoteBase != m_data->GetStart())
             {
                 // remote base is different from the local base, first need a rebase
-//                DatabaseProgress progress(nullptr, "Rebase", "Rebasing...");
-//                if (!fileMetadata->Rebase(m_data, remoteBase, [&](size_t cur, size_t total) { progress.update((int)cur, (int)total); }))
-                if (!fileMetadata->Rebase(m_data, remoteBase))
+                ProgressIndicator progress(nullptr, "Rebase", "Rebasing...");
+                if (!fileMetadata->Rebase(m_data, remoteBase, [&](size_t cur, size_t total) { progress.update((int)cur, (int)total); }))
+//                if (!fileMetadata->Rebase(m_data, remoteBase))
                 {
                     LogWarn("rebase failed");
                 }
@@ -348,7 +348,10 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
             SetData(rebasedView);
             LogWarn("the base of the rebased view is 0x%lx", rebasedView->GetStart());
-            if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugger", ""))
+
+			ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
+            if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugger", "",
+													[&](size_t cur, size_t total) { progress.update((int)cur, (int)total); }));
             {
                 LogWarn("create snapshoted view failed");
             }
