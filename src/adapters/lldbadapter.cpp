@@ -3,6 +3,7 @@
 #include "spawn.h"
 #include <pugixml/pugixml.hpp>
 #include "lldbadapter.h"
+#include "queuedadapter.h"
 
 bool LldbAdapter::LoadRegisterInfo() {
     const auto xml = this->m_rspConnector.GetXml("target.xml");
@@ -254,38 +255,79 @@ DebugStopReason LldbAdapter::SignalToStopReason( std::uint64_t signal ) {
 }
 
 
-LldbAdapterType::LldbAdapterType(): DebugAdapterType("Local LLDB")
+LocalLldbAdapterType::LocalLldbAdapterType(): DebugAdapterType("Local LLDB")
 {
 
 }
 
 
-DebugAdapter* LldbAdapterType::Create(BinaryNinja::BinaryView *data)
+DebugAdapter* LocalLldbAdapterType::Create(BinaryNinja::BinaryView *data)
+{
+	// TODO: someone should feel this.
+    return new QueuedAdapter(new LldbAdapter());
+}
+
+
+bool LocalLldbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
+{
+	return data->GetTypeName() == "Mach-O";
+}
+
+
+bool LocalLldbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
+{
+    return false;
+}
+
+
+bool LocalLldbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
+{
+//	TODO: LLDB actually works fine on Linux, should we return true for it?
+//  Note: LLDB does not work well on Windows.
+#ifdef __clang__
+	return true;
+#elif
+	return false;
+#endif
+}
+
+
+RemoteLldbAdapterType::RemoteLldbAdapterType(): DebugAdapterType("Remote LLDB")
+{
+
+}
+
+
+DebugAdapter* RemoteLldbAdapterType::Create(BinaryNinja::BinaryView *data)
 {
     return new LldbAdapter();
 }
 
 
-bool LldbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
+bool RemoteLldbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
 {
-    return data->GetDefaultArchitecture()->GetName() == "Mach-O";
+//	it does not matter what the BinaryViewType is -- as long as we can connect to it, it is fine.
+	return true;
 }
 
 
-bool LldbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
+bool RemoteLldbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
 {
+//	We can connect to remote lldb on any host system
     return true;
 }
 
 
-bool LldbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
+bool RemoteLldbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
 {
-    return true;
+    return false;
 }
 
 
 void InitLldbAdapterType()
 {
-    static LldbAdapterType type;
-    DebugAdapterType::Register(&type);
+    static LocalLldbAdapterType localType;
+    DebugAdapterType::Register(&localType);
+    static RemoteLldbAdapterType remoteType;
+    DebugAdapterType::Register(&remoteType);
 }

@@ -5,13 +5,13 @@
 using namespace BinaryNinja;
 using namespace std;
 
-AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data): QDialog()
+AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController* controller): QDialog()
 {
     setWindowTitle("Debug Adapter Settings");
     setMinimumSize(UIContext::getScaledWindowSize(400, 130));
     setAttribute(Qt::WA_DeleteOnClose);
 
-    m_controller = DebuggerController::GetController(data);
+    m_controller = controller;
     m_state = m_controller->GetState();
 
     QVBoxLayout* layout = new QVBoxLayout;
@@ -23,16 +23,20 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
     titleLayout->addWidget(titleLabel);
 
     m_adapterEntry = new QComboBox(this);
-    for (DebugAdapterType::AdapterType adapter = DebugAdapterType::DefaultAdapterType;
-        adapter <= DebugAdapterType::RemoteSenseAdapterType; adapter = (DebugAdapterType::AdapterType)(adapter + 1))
-    {
-//        if (!DebugAdapterType::CanUse(adapter))
-//            continue;
-//        m_adapterEntry->addItem(QString::fromStdString(DebugAdapterType::GetName(adapter)), (qulonglong)adapter);
-//        if (adapter == m_state->GetAdapterType())
-//            m_adapterEntry->setCurrentText(QString::fromStdString(DebugAdapterType::GetName(adapter)));
-    }
-    connect(m_adapterEntry, &QComboBox::currentIndexChanged, this, &AdapterSettingsDialog::selectAdapter);
+	for (const std::string adapter: m_state->GetAvailableAdapters())
+	{
+		m_adapterEntry->addItem(QString::fromStdString(adapter));
+	}
+	if (m_state->GetCurrentAdapter() != "")
+	{
+		m_adapterEntry->setCurrentText(QString::fromStdString(m_state->GetCurrentAdapter()));
+	}
+	else
+	{
+		m_adapterEntry->setCurrentText("(No available debug adapter)");
+	}
+
+    connect(m_adapterEntry, &QComboBox::currentTextChanged, this, &AdapterSettingsDialog::selectAdapter);
 
     m_pathEntry = new QLineEdit(this);
     m_argumentsEntry = new QLineEdit(this);
@@ -84,31 +88,45 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, BinaryViewRef data
 }
 
 
-void AdapterSettingsDialog::selectAdapter()
+void AdapterSettingsDialog::selectAdapter(const QString& adapter)
 {
-    DebugAdapterType::AdapterType adapter = (DebugAdapterType::AdapterType)m_adapterEntry->currentData().toULongLong();
-    if (DebugAdapterType::UseExec(adapter))
+	auto adapterType = DebugAdapterType::GetByName(adapter.toStdString());
+	if (!adapterType)
+		return;
+
+	if (adapterType->CanExecute(m_controller->GetData()))
     {
         m_pathEntry->setEnabled(true);
         m_argumentsEntry->setEnabled(true);
-        m_addressEntry->setEnabled(false);
-        m_portEntry->setEnabled(false);
+	}
+	else
+	{
+		m_pathEntry->setEnabled(false);
+		m_argumentsEntry->setEnabled(false);
     }
-    else
+
+	if (adapterType->CanConnect(m_controller->GetData()))
     {
-        m_pathEntry->setEnabled(false);
-        m_argumentsEntry->setEnabled(false);
         m_addressEntry->setEnabled(true);
         m_portEntry->setEnabled(true);
     }
+	else
+	{
+		m_addressEntry->setEnabled(false);
+		m_portEntry->setEnabled(false);
+	}
 }
 
 
 void AdapterSettingsDialog::apply()
 {
-    DebugAdapterType::AdapterType adapter = (DebugAdapterType::AdapterType)m_adapterEntry->currentData().toULongLong();
-    m_state->SetAdapterType(adapter);
-    Ref<Metadata> data = new Metadata((uint64_t)adapter);
+    std::string selectedAdapter = m_adapterEntry->currentText().toStdString();
+	auto adapterType = DebugAdapterType::GetByName(selectedAdapter);
+	if (adapterType == nullptr)
+		selectedAdapter = "";
+
+	m_state->SetCurrentAdapter(selectedAdapter);
+    Ref<Metadata> data = new Metadata(selectedAdapter);
     m_controller->GetData()->StoreMetadata("native_debugger.adapter_type", data);
 
     std::vector<std::string> args;

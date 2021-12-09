@@ -79,14 +79,20 @@ void DebuggerController::DeleteBreakpoint(const ModuleNameAndOffset& address)
 }
 
 
-void DebuggerController::Run()
+void DebuggerController::Launch()
 {
 	DebuggerEvent event;
 	event.type = LaunchEventType;
 	PostDebuggerEvent(event);
     std::thread worker([this](){
-        m_state->Run();
-        NotifyStopped(DebugStopReason::InitalBreakpoint, nullptr);
+		// We need to either:
+		// 1. have the Launch() return a boolean that says whether it succeeds, or
+		// 2. do not post the stop event from here.
+		// Both way should work, and we need to decide the best one.
+		// However, if we do nothing, when the launch fails, the event will still be posted, causing chaos.
+		// For now, I am implementing the first approach, but the second one is probably the better way to go.
+        if (m_state->Launch())
+        	NotifyStopped(DebugStopReason::InitalBreakpoint, nullptr);
     });
     worker.detach();
 }

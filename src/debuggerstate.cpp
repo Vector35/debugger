@@ -463,10 +463,34 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
     m_breakpoints->UnserializedMetadata();
 //    m_ui = new DebuggerUI(this);
 
+	// TODO: A better way to deal with this is to have the adapters return a fitness score, and then we pick the highest
+	// one from the list. Similar to what we do for the views.
+	m_availableAdapters = DebugAdapterType::GetAvailableAdapters(data);
+	m_currentAdapter = DebugAdapterType::GetBestAdapterForCurrentSystem(data);
+	// Check whether there is no available adapters at all
+	if (m_availableAdapters.size() == 0)
+	{
+		m_currentAdapter = "";
+	}
+	else if (std::find(m_availableAdapters.begin(), m_availableAdapters.end(), m_currentAdapter) ==
+		m_availableAdapters.end())
+	{
+		// The system's default adapter does not work with the current data, e.g., an .exe is opened on macOS,
+		// then pick one from the available ones.
+		m_currentAdapter = m_availableAdapters[0];
+	}
+
     Ref<Metadata> metadata;
     // metadata = m_data->QueryMetadata("native_debugger.command_line_args");
     // if (metadata && metadata->IsStringList())
     //     m_commandLineArgs = metadata->GetStringList();
+
+	metadata = m_controller->GetData()->QueryMetadata("native_debugger.executable_path");
+	if (metadata && metadata->IsString())
+		m_executablePath = metadata->GetString();
+
+	if (m_executablePath == "")
+		m_executablePath = m_controller->GetData()->GetFile()->GetOriginalFilename();
 
     metadata = m_controller->GetData()->QueryMetadata("native_debugger.remote_host");
     if (metadata && metadata->IsString())
@@ -494,47 +518,37 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 }
 
 
-void DebuggerState::CreateDebugAdapter()
+bool DebuggerState::CreateDebugAdapter()
 {
 //    std::string adapterTypeName = "Local GDB";
-    std::string adapterTypeName = "Local LLDB";
-    DebugAdapterType* type = DebugAdapterType::GetByName(adapterTypeName);
+//    std::string adapterTypeName = "Local LLDB";
+    DebugAdapterType* type = DebugAdapterType::GetByName(m_currentAdapter);
     if (!type)
     {
-        LogWarn("fail to get an debug adapter of type %s", adapterTypeName.c_str());
+        LogWarn("fail to get an debug adapter of type %s", m_currentAdapter.c_str());
+		return false;
     }
     DebugAdapter* adapter = type->Create(m_controller->GetData());
+	if (!adapter)
+	{
+		LogWarn("fail to create an adapter of type %s", m_currentAdapter.c_str());
+		return false;
+	}
+	m_adapter = adapter;
+
 	// Forward the DebuggerEvent from the adapters to the controller
 	adapter->SetEventCallback([this](const DebuggerEvent& event){
 		m_controller->PostDebuggerEvent(event);
 	});
-//  TODO: Do we really plug everything into a QueuedAdapter?
-    DebugAdapter* queuedAdapter = new QueuedAdapter(adapter);
-    if (queuedAdapter)
-    {
-        m_adapter = queuedAdapter;
-    }
-    else
-    {
-        LogWarn("fail to create an adapter of type %s", adapterTypeName.c_str());
-        // TODO: notify error
-        throw std::runtime_error("debug adapter creation error");
-    }
+	return true;
 }
 
 
-void DebuggerState::Run()
+bool DebuggerState::Launch()
 {
-    CreateDebugAdapter();
-    Exec();
-
-//    if (DebugAdapterType::UseExec(m_adapterType))
-//        Exec();
-//    else if (DebugAdapterType::UseConnect(m_adapterType))
-//        Attach();
-//    else
-//                throw NotInstalledError("don't know how to connect to adapter of type");
-//        //        throw NotInstalledError("don't know how to connect to adapter of type " + DebugAdapterType::GetName(m_adapterType));
+    if (!CreateDebugAdapter())
+		return false;
+	return Exec();
 }
 
 
@@ -543,7 +557,7 @@ void DebuggerState::Restart()
     Quit();
     // TODO: why is this necessary?
     std::this_thread::sleep_for(1000ms);
-    Run();
+    Launch();
 }
 
 
@@ -562,57 +576,27 @@ void DebuggerState::Quit()
 }
 
 
-void DebuggerState::Exec()
+bool DebuggerState::Exec()
 {
-//    if (IsConnected() || IsConnecting())
-//        throw ConnectionRefusedError("Tried to execute, but already debugging");
+    if (IsConnected() || IsConnecting())
+        throw ConnectionRefusedError("Tried to execute, but already debugging");
 
-//    m_connectionStatus = DebugAdapterConnectingStatus;
-    bool runFromTemp = false;
-    string filePath = m_controller->GetData()->GetFile()->GetOriginalFilename();
+    m_connectionStatus = DebugAdapterConnectingStatus;
+    string filePath = m_controller->GetState()->GetExecutablePath();
     // We should switch to use std::filesystem::exists() later
     FILE* file = fopen(filePath.c_str(), "r");
     if (!file)
-        runFromTemp = true;
+	{
+		LogWarn("file \"%s\" does not exist, fail to execute it", filePath.c_str());
+		// TODO: Post error event
+		return false;
+	}
     else
+	{
         fclose(file);
+	}
 
-    if (runFromTemp)
-    {
-        // TODO: run from temp
-    }
-
-//    m_adapter = DebugAdapterType::GetNewAdapter(m_adapterType);
-
-//    m_adapter->RegisterEventCallback();
-
-    // TODO: what should I do for QueuedAdapter?
-#ifdef WIN32
-    /* temporary solution (not great, sorry!), we probably won't have to do this once we introduce std::filesystem::path */
-    std::replace(filePath.begin(), filePath.end(), '/', '\\');
-#endif
-
-    bool ok = m_adapter->Execute(filePath);
-
-    // m_adapter->ExecuteWithArgs(filePath, getCommandLineArguments());
-    // The Execute() function is blocking, and it only returns when there is a status change
-    // There is no need to check for errors here. Errors would be sent to the controller via notifications
-//    if (!ok)
-//    {
-//        throw ProcessStartError("Failed to start process");
-//        m_connectionStatus = DebugAdapterNotConnectedStatus;
-//        return;
-//    }
-//    m_connectionStatus = DebugAdapterConnectedStatus;
-//    m_targetStatus = DebugAdapterRunningStatus;
-
-
-    // std::string currentModule = ResolveTargetBase();
-    // This is instead done in DebuggerController::EventHandler
-    // We must first update the modules, then the breakpoints can be applied correctly
-//    m_modules->Update();
-//    m_breakpoints->Apply();
-//    m_remoteArch = DetectRemoteArch();
+    return m_adapter->Execute(filePath);
 }
 
 
@@ -623,20 +607,20 @@ void DebuggerState::Attach()
 
     m_connectionStatus = DebugAdapterConnectingStatus;
 
-    m_adapter = DebugAdapterType::GetNewAdapter(m_adapterType);
-    if (DebugAdapterType::UseConnect(m_adapterType))
-    {
-        // TODO: what should I do for QueuedAdapter?
-        bool ok = m_adapter->Connect(m_remoteHost, m_remotePort);
-        if (!ok)
-        {
-            LogWarn("fail to connect %s:%d", m_remoteHost.c_str(), m_remotePort);
-            m_connectionStatus = DebugAdapterNotConnectedStatus;
-            return;
-        }
-        m_connectionStatus = DebugAdapterConnectedStatus;
-        m_targetStatus = DebugAdapterRunningStatus;
-    }
+//    m_adapter = DebugAdapterType::GetNewAdapter(m_adapterType);
+//    if (DebugAdapterType::UseConnect(m_adapterType))
+//    {
+//        // TODO: what should I do for QueuedAdapter?
+//        bool ok = m_adapter->Connect(m_remoteHost, m_remotePort);
+//        if (!ok)
+//        {
+//            LogWarn("fail to connect %s:%d", m_remoteHost.c_str(), m_remotePort);
+//            m_connectionStatus = DebugAdapterNotConnectedStatus;
+//            return;
+//        }
+//        m_connectionStatus = DebugAdapterConnectedStatus;
+//        m_targetStatus = DebugAdapterRunningStatus;
+//    }
 
     // std::string currentModule = ResolveTargetBase();
     // We must first update the modules, then the breakpoints can be applied correctly
@@ -676,7 +660,7 @@ void DebuggerState::Go()
 
     uint64_t remoteIP = IP();
     // TODO: for dbgeng, it handles this sequence of operations for us, so we can simply can Go()
-    if (this->m_adapterType != DebugAdapterType::LocalDBGENGAdapterType && m_breakpoints->ContainsAbsolute(remoteIP))
+    if (this->m_adapterType != "LOCAL DBGENG" && m_breakpoints->ContainsAbsolute(remoteIP))
     {
         m_adapter->RemoveBreakpoint(remoteIP);
         m_adapter->StepInto();

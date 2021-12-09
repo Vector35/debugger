@@ -16,7 +16,7 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
     m_controller = DebuggerController::GetController(data);
 
     m_actionRun = addAction(QIcon(":/icons/images/debugger/run.svg"), "Run",
-                        [this](){ performRun(); });
+                        [this](){ performLaunch(); });
     m_actionRestart = addAction(QIcon(":/icons/images/debugger/restart.svg"), "Restart",
                                 [this](){ performRestart(); });
     m_actionQuit = addAction(QIcon(":/icons/images/debugger/cancel.svg"), "Quit",
@@ -62,9 +62,9 @@ DebugControlsWidget::~DebugControlsWidget()
 }
 
 
-void DebugControlsWidget::performRun()
+void DebugControlsWidget::performLaunch()
 {
-    m_controller->Run();
+    m_controller->Launch();
 }
 
 
@@ -94,12 +94,11 @@ void DebugControlsWidget::performDetach()
 
 void DebugControlsWidget::performSettings()
 {
-//    AdapterSettingsDialog* dialog = new AdapterSettingsDialog(this, m_data);
-//    dialog->show();
-//    QObject::connect(dialog, &QDialog::finished, [this](){
-//        if (!m_state->IsConnected())
-//            stateInactive();
-//    });
+    AdapterSettingsDialog* dialog = new AdapterSettingsDialog(this, m_controller);
+    dialog->show();
+    QObject::connect(dialog, &QDialog::finished, [this](){
+        updateButtons();
+    });
 }
 
 
@@ -146,15 +145,25 @@ void DebugControlsWidget::performStepReturn()
 
 bool DebugControlsWidget::canExec()
 {
-    return true;
-//    return DebugAdapterType::UseExec(m_state->GetAdapterType());
+	auto currentAdapter = m_controller->GetState()->GetCurrentAdapter();
+	if (currentAdapter == "")
+		return false;
+    auto adapter = DebugAdapterType::GetByName(currentAdapter);
+	if (!adapter)
+		return false;
+	return adapter->CanExecute(m_controller->GetData());
 }
 
 
 bool DebugControlsWidget::canConnect()
 {
-    return true;
-    //    return DebugAdapterType::UseConnect(m_state->GetAdapterType());
+	auto currentAdapter = m_controller->GetState()->GetCurrentAdapter();
+	if (currentAdapter == "")
+		return false;
+	auto adapter = DebugAdapterType::GetByName(currentAdapter);
+	if (!adapter)
+		return false;
+    return adapter->CanConnect(m_controller->GetData());
 }
 
 

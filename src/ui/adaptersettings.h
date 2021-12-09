@@ -10,6 +10,7 @@
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "../debuggerstate.h"
+#include "../debuggercontroller.h"
 
 class AdapterSettingsDialog: public QDialog
 {
@@ -26,9 +27,9 @@ private:
     QLineEdit* m_portEntry;
 
 public:
-    AdapterSettingsDialog(QWidget* parent, BinaryViewRef data);
+    AdapterSettingsDialog(QWidget* parent, DebuggerController* controller);
 
 private Q_SLOTS:
     void apply();
-    void selectAdapter();
+    void selectAdapter(const QString& adapter);
 };

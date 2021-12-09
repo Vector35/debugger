@@ -128,3 +128,33 @@ DebugAdapterType* DebugAdapterType::GetByName(const std::string &name)
     }
     return nullptr;
 }
+
+
+std::vector<std::string> DebugAdapterType::GetAvailableAdapters(BinaryNinja::BinaryView* data)
+{
+	std::vector<std::string> result;
+	for (DebugAdapterType* adapter: m_types)
+	{
+		// The adapter must be:
+		// 1. valid for the data
+		// 2. can connect/execute on the current host system
+		if (adapter->IsValidForData(data) &&
+			(adapter->CanConnect(data) || adapter->CanExecute(data)))
+		{
+			result.push_back(adapter->GetName());
+		}
+	}
+	return result;
+}
+
+
+std::string DebugAdapterType::GetBestAdapterForCurrentSystem(BinaryNinja::BinaryView *data)
+{
+#ifdef WIN32
+    return "Local DBGENG";
+#elif defined(__clang__)
+    return "Local LLDB";
+#elif defined(__GNUC__)
+    return "Local GDB";
+#endif
+}

@@ -48,7 +48,7 @@ public:
     void DeleteBreakpoint(uint64_t address);
     void DeleteBreakpoint(const ModuleNameAndOffset& address);
 
-    void Run();
+    void Launch();
     void Restart();
     void Quit();
     void Exec();

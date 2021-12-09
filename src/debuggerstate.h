@@ -146,18 +146,21 @@ private:
     std::string m_remoteHost;
     uint32_t m_remotePort;
     bool m_requestTerminalEmulator;
-    ArchitectureRef m_remoteArch;
+    std::string m_adapterType;
 
-    DebugAdapterType::AdapterType m_adapterType;
+	ArchitectureRef m_remoteArch;
 
 	DebugStopReason m_lastStopReason;
 
+	std::vector<std::string> m_availableAdapters;
+	std::string m_currentAdapter;
+
 public:
     DebuggerState(BinaryViewRef data, DebuggerController* controller);
-    void Run();
+    bool Launch();
     void Restart();
     void Quit();
-    void Exec();
+    bool Exec();
     void Attach();
     void Detach();
     void Pause();
@@ -194,7 +197,7 @@ public:
     DebuggerThreads* GetThreads() const { return m_threads; }
     ArchitectureRef GetRemoteArchitecture() const { return m_remoteArch; }
 
-    DebugAdapterType::AdapterType GetAdapterType() const { return m_adapterType; }
+    std::string GetAdapterType() const { return m_adapterType; }
     std::string GetExecutablePath() const { return m_executablePath; }
     std::vector<std::string> GetCommandLineArguments() const { return m_commandLineArgs; }
     std::string GetRemoteHost() const { return m_remoteHost; }
@@ -236,10 +239,14 @@ public:
 
     std::string ResolveTargetBase();
 
-    void CreateDebugAdapter();
+    bool CreateDebugAdapter();
     void ApplyBreakpoints();
     void UpdateRemoteArch();
 
     void SetConnectionStatus(DebugAdapterConnectionStatus status) { m_connectionStatus = status; }
     void SetExecutionStatus(DebugAdapterTargetStatus status) { m_targetStatus = status; }
+
+	std::vector<std::string> GetAvailableAdapters() { return m_availableAdapters; }
+	std::string GetCurrentAdapter() { return m_currentAdapter; }
+	void SetCurrentAdapter(const std::string adapter) { m_currentAdapter = adapter; }
 };

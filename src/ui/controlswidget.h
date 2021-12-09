@@ -71,7 +71,7 @@ public:
     void updateButtons();
 
 public Q_SLOTS:
-    void performRun();
+    void performLaunch();
     void performRestart();
     void performQuit();
     void performAttach();

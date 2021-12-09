@@ -40,4 +40,8 @@ public:
     std::string GetName() const { return m_name; }
 
     static DebugAdapterType* GetByName(const std::string& name);
+
+	// Returns a list of usable DebugAdapters on the current system
+	static std::vector<std::string> GetAvailableAdapters(BinaryNinja::BinaryView* data);
+	static std::string GetBestAdapterForCurrentSystem(BinaryNinja::BinaryView* data);
 };
