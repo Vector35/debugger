@@ -350,7 +350,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             LogWarn("the base of the rebased view is 0x%lx", rebasedView->GetStart());
 
 			ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
-            if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugger", "",
+            if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugger",
 													[&](size_t cur, size_t total) { progress.update((int)cur, (int)total); }));
             {
                 LogWarn("create snapshoted view failed");
