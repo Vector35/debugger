@@ -145,7 +145,7 @@ void DebugControlsWidget::performStepReturn()
 
 bool DebugControlsWidget::canExec()
 {
-	auto currentAdapter = m_controller->GetState()->GetCurrentAdapter();
+	auto currentAdapter = m_controller->GetState()->GetAdapterType();
 	if (currentAdapter == "")
 		return false;
     auto adapter = DebugAdapterType::GetByName(currentAdapter);
@@ -157,7 +157,7 @@ bool DebugControlsWidget::canExec()
 
 bool DebugControlsWidget::canConnect()
 {
-	auto currentAdapter = m_controller->GetState()->GetCurrentAdapter();
+	auto currentAdapter = m_controller->GetState()->GetAdapterType();
 	if (currentAdapter == "")
 		return false;
 	auto adapter = DebugAdapterType::GetByName(currentAdapter);

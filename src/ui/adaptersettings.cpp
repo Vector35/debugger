@@ -27,9 +27,9 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
 	{
 		m_adapterEntry->addItem(QString::fromStdString(adapter));
 	}
-	if (m_state->GetCurrentAdapter() != "")
+	if (m_state->GetAdapterType() != "")
 	{
-		m_adapterEntry->setCurrentText(QString::fromStdString(m_state->GetCurrentAdapter()));
+		m_adapterEntry->setCurrentText(QString::fromStdString(m_state->GetAdapterType()));
 	}
 	else
 	{
@@ -42,11 +42,13 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
     m_argumentsEntry = new QLineEdit(this);
     m_addressEntry = new QLineEdit(this);
     m_portEntry = new QLineEdit(this);
+	m_terminalEmulator = new QCheckBox(this);
 
     QFormLayout* formLayout = new QFormLayout;
     formLayout->addRow("Adapter Type", m_adapterEntry);
     formLayout->addRow("Executable Path", m_pathEntry);
     formLayout->addRow("Command Line Arguments", m_argumentsEntry);
+	formLayout->addRow("Terminal", m_terminalEmulator);
     formLayout->addRow("Address", m_addressEntry);
     formLayout->addRow("Port", m_portEntry);
 
@@ -74,6 +76,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
     m_addressEntry->setText(QString::fromStdString(m_state->GetRemoteHost()));
     m_portEntry->setText(QString::number(m_state->GetRemotePort()));
     m_pathEntry->setText(QString::fromStdString(m_state->GetExecutablePath()));
+	m_terminalEmulator->setChecked(m_state->GetRequestTerminalEmulator());
 
     std::string args;
     std::vector<std::string> argList = m_state->GetCommandLineArguments();
@@ -85,6 +88,8 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
         args += argList[i];
     }
     m_argumentsEntry->setText(QString::fromStdString(args));
+
+	selectAdapter(m_adapterEntry->currentText());
 }
 
 
@@ -98,11 +103,13 @@ void AdapterSettingsDialog::selectAdapter(const QString& adapter)
     {
         m_pathEntry->setEnabled(true);
         m_argumentsEntry->setEnabled(true);
+		m_terminalEmulator->setEnabled(true);
 	}
 	else
 	{
 		m_pathEntry->setEnabled(false);
 		m_argumentsEntry->setEnabled(false);
+		m_terminalEmulator->setEnabled(false);
     }
 
 	if (adapterType->CanConnect(m_controller->GetData()))
@@ -125,7 +132,7 @@ void AdapterSettingsDialog::apply()
 	if (adapterType == nullptr)
 		selectedAdapter = "";
 
-	m_state->SetCurrentAdapter(selectedAdapter);
+	m_state->SetAdapterType(selectedAdapter);
     Ref<Metadata> data = new Metadata(selectedAdapter);
     m_controller->GetData()->StoreMetadata("native_debugger.adapter_type", data);
 
@@ -165,6 +172,11 @@ void AdapterSettingsDialog::apply()
     m_state->SetRemotePort(port);
     data = new Metadata(port);
     m_controller->GetData()->StoreMetadata("native_debugger.remote_port", data);
+
+	bool requestTerminal = m_terminalEmulator->isChecked();
+	m_state->SetRequestTerminalEmulator(requestTerminal);
+	data = new Metadata(requestTerminal);
+	m_controller->GetData()->StoreMetadata("native_debugger.terminal_emulator", data);
 
     accept();
 }

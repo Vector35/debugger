@@ -60,12 +60,13 @@ std::string GdbAdapter::ExecuteShellCommand(const std::string& command)
     return result;
 }
 
-bool GdbAdapter::Execute(const std::string& path)
+bool GdbAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
-    return this->ExecuteWithArgs(path, {});
+    return this->ExecuteWithArgs(path, {}, configs);
 }
 
-bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args)
+bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args,
+								 const LaunchConfigurations& configs)
 {
     const auto file_exists = fopen(path.c_str(), "r");
     if (!file_exists)

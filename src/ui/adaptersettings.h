@@ -5,6 +5,7 @@
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QComboBox>
 #include <QtWidgets/QFormLayout>
+#include <QtWidgets/QCheckBox>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "viewframe.h"
@@ -25,6 +26,7 @@ private:
     QLineEdit* m_argumentsEntry;
     QLineEdit* m_addressEntry;
     QLineEdit* m_portEntry;
+	QCheckBox* m_terminalEmulator;
 
 public:
     AdapterSettingsDialog(QWidget* parent, DebuggerController* controller);

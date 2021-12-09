@@ -6,7 +6,8 @@ class LldbAdapter : public GdbAdapter {
     DebugStopReason SignalToStopReason(std::uint64_t signal) override;
 
 public:
-    bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args) override;
+    bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args,
+						 const LaunchConfigurations& configs) override;
     bool Go() override;
     std::string GetTargetArchitecture() override;
     std::vector<DebugModule> GetModuleList() override;

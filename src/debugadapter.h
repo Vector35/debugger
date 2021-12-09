@@ -36,6 +36,14 @@ enum DebugAdapterCapacity
 };
 
 
+struct LaunchConfigurations
+{
+	bool requestTerminalEmulator;
+	LaunchConfigurations(): requestTerminalEmulator(true) {}
+	LaunchConfigurations(bool terminal): requestTerminalEmulator(terminal) {}
+};
+
+
 struct DebugThread
 {
     std::uint32_t m_tid{};
@@ -113,8 +121,9 @@ public:
         m_eventCallback = function;
     }
 
-    [[nodiscard]] virtual bool Execute(const std::string& path ) = 0;
-    [[nodiscard]] virtual bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args ) = 0;
+    [[nodiscard]] virtual bool Execute(const std::string& path, const LaunchConfigurations& configs = {} ) = 0;
+    [[nodiscard]] virtual bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args,
+											   const LaunchConfigurations& configs = {}) = 0;
 
     [[nodiscard]] virtual bool Attach(std::uint32_t pid) = 0;
     [[nodiscard]] virtual bool Connect(const std::string& server, std::uint32_t port) = 0;

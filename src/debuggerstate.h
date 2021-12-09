@@ -153,7 +153,6 @@ private:
 	DebugStopReason m_lastStopReason;
 
 	std::vector<std::string> m_availableAdapters;
-	std::string m_currentAdapter;
 
 public:
     DebuggerState(BinaryViewRef data, DebuggerController* controller);
@@ -202,12 +201,14 @@ public:
     std::vector<std::string> GetCommandLineArguments() const { return m_commandLineArgs; }
     std::string GetRemoteHost() const { return m_remoteHost; }
     uint32_t GetRemotePort() const { return m_remotePort; }
+	bool GetRequestTerminalEmulator() const { return m_requestTerminalEmulator; }
 
-    void SetAdapterType(DebugAdapterType::AdapterType adapter) { m_adapterType = adapter; }
+    void SetAdapterType(std::string adapter) { m_adapterType = adapter; }
     void SetExecutablePath(const std::string& path) { m_executablePath = path; }
     void SetCommandLineArguments(const std::vector<std::string> arguments) { m_commandLineArgs = arguments; }
     void SetRemoteHost(const std::string& host) { m_remoteHost = host; }
     void SetRemotePort(uint32_t port) { m_remotePort = port; }
+	void SetRequestTerminalEmulator(bool requsted) { m_requestTerminalEmulator = requsted; }
 
     // This is the center hub for adding and deleting breakpoints. It is called from DebugView, the CLI, the
     // DebugBreakpointsWidget, and the planned C++/Python API.
@@ -247,6 +248,5 @@ public:
     void SetExecutionStatus(DebugAdapterTargetStatus status) { m_targetStatus = status; }
 
 	std::vector<std::string> GetAvailableAdapters() { return m_availableAdapters; }
-	std::string GetCurrentAdapter() { return m_currentAdapter; }
-	void SetCurrentAdapter(const std::string adapter) { m_currentAdapter = adapter; }
 };
+

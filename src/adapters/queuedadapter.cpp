@@ -45,14 +45,14 @@ QueuedAdapter::~QueuedAdapter()
 }
 
 
-bool QueuedAdapter::Execute(const std::string& path)
+bool QueuedAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
 
     bool ret;
     Semaphore sem;
     m_queue.push([&]{
-        ret = m_adapter->Execute(path);
+        ret = m_adapter->Execute(path, configs);
         sem.Release();
     });
 
@@ -62,14 +62,15 @@ bool QueuedAdapter::Execute(const std::string& path)
 }
 
 
-bool QueuedAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args)
+bool QueuedAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args,
+									const LaunchConfigurations& configs)
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
 
     bool ret;
     Semaphore sem;
     m_queue.push([&, path, args]{
-        ret = m_adapter->ExecuteWithArgs(path, args);
+        ret = m_adapter->ExecuteWithArgs(path, args, configs);
         sem.Release();
     });
 

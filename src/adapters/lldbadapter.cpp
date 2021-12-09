@@ -110,18 +110,15 @@ DebugRegister LldbAdapter::ReadRegister(const std::string& reg)
 }
 
 
-bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args)
+bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args,
+								  const LaunchConfigurations& configs)
 {
     const auto file_exists = fopen(path.c_str(), "r");
     if (!file_exists)
         return false;
     fclose(file_exists);
 
-#ifdef WIN32
-    auto lldb_server_path = this->ExecuteShellCommand("where lldb-server");
-#else
     auto lldb_server_path = this->ExecuteShellCommand("which debugserver");
-#endif
 
     if ( lldb_server_path.empty() )
         lldb_server_path = "/Library/Developer/CommandLineTools/Library/PrivateFrameworks/LLDB.framework/Versions/A/Resources/debugserver";
@@ -131,15 +128,12 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std
         return false;
     fclose(lldb_server_exists);
 
-
-
     lldb_server_path = lldb_server_path.substr(0, lldb_server_path.find('\n'));
 
     this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
 
     const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket->GetPort());
 
-#ifdef WIN32
     std::string final_args{};
     for (const auto& arg : args) {
         final_args.append(arg);
@@ -147,28 +141,6 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std
             final_args.append(" ");
     }
 
-    const auto arguments = fmt::format("--once --no-startup-with-shell {} {} {}", host_with_port, path, final_args);
-
-    STARTUPINFOA startup_info{};
-    PROCESS_INFORMATION process_info{};
-    if (CreateProcessA(lldb_server_path.c_str(), const_cast<char*>( arguments.c_str() ),
-                       nullptr, nullptr,
-                       true, CREATE_NEW_CONSOLE, nullptr, nullptr,
-                       &startup_info, &process_info)) {
-        CloseHandle(process_info.hProcess);
-        CloseHandle(process_info.hThread);
-    } else {
-        throw std::runtime_error("failed to create lldb process");
-    }
-#else
-    std::string final_args{};
-    for (const auto& arg : args) {
-        final_args.append(arg);
-        if (&arg != &args.back())
-            final_args.append(" ");
-    }
-
-	bool requestTerminal = true;
     char* arg[] = {(char*)lldb_server_path.c_str(),
 				   "--stdio-path", "/dev/stdin",
 				   "--stdout-path", "/dev/stdout",
@@ -176,7 +148,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std
 				   (char*)host_with_port.c_str(), (char*) path.c_str(), "--", (char*)final_args.c_str(), NULL};
 
 	pid_t serverPid;
-	if (!requestTerminal)
+	if (!configs.requestTerminalEmulator)
 	{
 		int s = posix_spawn(&serverPid, lldb_server_path.c_str(), nullptr, nullptr, arg, nullptr);
 		if (s != 0)
@@ -199,7 +171,6 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std
 		std::string fullCmd = fmt::format("osascript -e 'tell app \"Terminal\" to do script \"{}\"'  -e 'activate application \"Terminal\"'", cmd);
 		system(fullCmd.c_str());
 	}
-#endif
 
     return this->Connect("127.0.0.1", this->m_socket->GetPort());
 }

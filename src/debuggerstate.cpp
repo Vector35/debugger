@@ -465,18 +465,18 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 	// TODO: A better way to deal with this is to have the adapters return a fitness score, and then we pick the highest
 	// one from the list. Similar to what we do for the views.
 	m_availableAdapters = DebugAdapterType::GetAvailableAdapters(data);
-	m_currentAdapter = DebugAdapterType::GetBestAdapterForCurrentSystem(data);
+	m_adapterType = DebugAdapterType::GetBestAdapterForCurrentSystem(data);
 	// Check whether there is no available adapters at all
 	if (m_availableAdapters.size() == 0)
 	{
-		m_currentAdapter = "";
+		m_adapterType = "";
 	}
-	else if (std::find(m_availableAdapters.begin(), m_availableAdapters.end(), m_currentAdapter) ==
+	else if (std::find(m_availableAdapters.begin(), m_availableAdapters.end(), m_adapterType) ==
 		m_availableAdapters.end())
 	{
 		// The system's default adapter does not work with the current data, e.g., an .exe is opened on macOS,
 		// then pick one from the available ones.
-		m_currentAdapter = m_availableAdapters[0];
+		m_adapterType = m_availableAdapters[0];
 	}
 
     Ref<Metadata> metadata;
@@ -507,11 +507,11 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
     if (metadata && metadata->IsString())
         m_adapterType = metadata->GetString();
 
-    metadata = m_controller->GetData()->QueryMetadata("native_debugger.request_terminal_emulator");
+    metadata = m_controller->GetData()->QueryMetadata("native_debugger.terminal_emulator");
     if (metadata && metadata->IsUnsignedInteger())
         m_requestTerminalEmulator = metadata->GetBoolean();
     else
-        m_requestTerminalEmulator = false;
+        m_requestTerminalEmulator = true;
 
     m_connectionStatus = DebugAdapterNotConnectedStatus;
 }
@@ -521,16 +521,16 @@ bool DebuggerState::CreateDebugAdapter()
 {
 //    std::string adapterTypeName = "Local GDB";
 //    std::string adapterTypeName = "Local LLDB";
-    DebugAdapterType* type = DebugAdapterType::GetByName(m_currentAdapter);
+    DebugAdapterType* type = DebugAdapterType::GetByName(m_adapterType);
     if (!type)
     {
-        LogWarn("fail to get an debug adapter of type %s", m_currentAdapter.c_str());
+        LogWarn("fail to get an debug adapter of type %s", m_adapterType.c_str());
 		return false;
     }
     DebugAdapter* adapter = type->Create(m_controller->GetData());
 	if (!adapter)
 	{
-		LogWarn("fail to create an adapter of type %s", m_currentAdapter.c_str());
+		LogWarn("fail to create an adapter of type %s", m_adapterType.c_str());
 		return false;
 	}
 	// TODO: this causes memory leak. Consider making the adapter ref counted
@@ -596,7 +596,10 @@ bool DebuggerState::Exec()
         fclose(file);
 	}
 
-    return m_adapter->Execute(filePath);
+	bool requestTerminal = GetRequestTerminalEmulator();
+	LaunchConfigurations configs = {requestTerminal};
+
+    return m_adapter->Execute(filePath, configs);
 }
 
 

@@ -51,8 +51,9 @@ public:
     GdbAdapter(bool redirectGDBServer = true);
     ~GdbAdapter();
 
-    bool Execute(const std::string& path) override;
-    bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args) override;
+    bool Execute(const std::string& path, const LaunchConfigurations& configs) override;
+    bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args,
+						 const LaunchConfigurations& configs) override;
     bool Attach(std::uint32_t pid) override;
     bool Connect(const std::string& server, std::uint32_t port) override;
 
