@@ -144,7 +144,7 @@ private:
     std::string m_executablePath;
     std::vector<std::string> m_commandLineArgs;
     std::string m_remoteHost;
-    uint32_t m_remotePort;
+    uint32_t m_remotePort = 0;
     bool m_requestTerminalEmulator;
     std::string m_adapterType;
 
@@ -161,7 +161,7 @@ public:
     void Restart();
     void Quit();
     bool Exec();
-    void Attach();
+    bool Attach();
     void Detach();
     void Pause();
     void Go();

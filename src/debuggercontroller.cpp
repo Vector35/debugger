@@ -194,8 +194,8 @@ void DebuggerController::Restart()
 void DebuggerController::Attach()
 {
     std::thread worker([this](){
-        m_state->Attach();
-        NotifyStopped(DebugStopReason::InitalBreakpoint, nullptr);
+        if (m_state->Attach())
+        	NotifyStopped(DebugStopReason::InitalBreakpoint, nullptr);
     });
     worker.detach();
 }

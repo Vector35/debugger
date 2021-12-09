@@ -461,7 +461,6 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
     m_threads = new DebuggerThreads(this);
     m_breakpoints = new DebuggerBreakpoints(this);
     m_breakpoints->UnserializedMetadata();
-//    m_ui = new DebuggerUI(this);
 
 	// TODO: A better way to deal with this is to have the adapters return a fitness score, and then we pick the highest
 	// one from the list. Similar to what we do for the views.
@@ -495,18 +494,18 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
     metadata = m_controller->GetData()->QueryMetadata("native_debugger.remote_host");
     if (metadata && metadata->IsString())
         m_remoteHost = metadata->GetString();
+	if (m_remoteHost.empty())
+		m_remoteHost = "127.0.0.1";
 
     metadata = m_controller->GetData()->QueryMetadata("native_debugger.remote_port");
     if (metadata && metadata->IsUnsignedInteger())
         m_remotePort = metadata->GetUnsignedInteger();
-    else
+	if (m_remotePort == 0)
         m_remotePort = 31337;
 
     metadata = m_controller->GetData()->QueryMetadata("native_debugger.adapter_type");
-    if (metadata && metadata->IsUnsignedInteger())
-        m_adapterType = (DebugAdapterType::AdapterType)metadata->GetUnsignedInteger();
-    else
-        m_adapterType = DebugAdapterType::DefaultAdapterType;
+    if (metadata && metadata->IsString())
+        m_adapterType = metadata->GetString();
 
     metadata = m_controller->GetData()->QueryMetadata("native_debugger.request_terminal_emulator");
     if (metadata && metadata->IsUnsignedInteger())
@@ -534,6 +533,7 @@ bool DebuggerState::CreateDebugAdapter()
 		LogWarn("fail to create an adapter of type %s", m_currentAdapter.c_str());
 		return false;
 	}
+	// TODO: this causes memory leak. Consider making the adapter ref counted
 	m_adapter = adapter;
 
 	// Forward the DebuggerEvent from the adapters to the controller
@@ -600,33 +600,25 @@ bool DebuggerState::Exec()
 }
 
 
-void DebuggerState::Attach()
+bool DebuggerState::Attach()
 {
-    if (IsConnected() || IsConnecting())
+	if (IsConnected() || IsConnecting())
         throw ConnectionRefusedError("Tried to exec but already debugging");
 
+	if (!CreateDebugAdapter())
+    	return false;
+
     m_connectionStatus = DebugAdapterConnectingStatus;
-
-//    m_adapter = DebugAdapterType::GetNewAdapter(m_adapterType);
-//    if (DebugAdapterType::UseConnect(m_adapterType))
-//    {
-//        // TODO: what should I do for QueuedAdapter?
-//        bool ok = m_adapter->Connect(m_remoteHost, m_remotePort);
-//        if (!ok)
-//        {
-//            LogWarn("fail to connect %s:%d", m_remoteHost.c_str(), m_remotePort);
-//            m_connectionStatus = DebugAdapterNotConnectedStatus;
-//            return;
-//        }
-//        m_connectionStatus = DebugAdapterConnectedStatus;
-//        m_targetStatus = DebugAdapterRunningStatus;
-//    }
-
-    // std::string currentModule = ResolveTargetBase();
-    // We must first update the modules, then the breakpoints can be applied correctly
-    m_modules->Update();
-    m_breakpoints->Apply();
-    m_remoteArch = DetectRemoteArch();
+	bool ok = m_adapter->Connect(m_remoteHost, m_remotePort);
+	// TODO: some of these updates might be redundant
+	if (!ok)
+	{
+	    m_connectionStatus = DebugAdapterNotConnectedStatus;
+		return ok;
+	}
+	m_connectionStatus = DebugAdapterConnectedStatus;
+    m_targetStatus = DebugAdapterRunningStatus;
+	return ok;
 }
 
 
