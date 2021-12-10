@@ -208,13 +208,14 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
     if (!adapter)
         return 0;
 
-    // TODO: Assume any memory change invalidates memory cache (suboptimal, may not be necessary)
-    MarkDirty();
+    if (!adapter->WriteMemory(offset, DataBuffer(data, len)))
+		return 0;
 
-    if (adapter->WriteMemory(offset, DataBuffer(data, len)))
-        return len;
+	// TODO: Assume any memory change invalidates memory cache (suboptimal, may not be necessary)
+	MarkDirty();
 
-    return 0;
+	BinaryView::NotifyDataWritten(offset, len);
+    return len;
 }
 
 
