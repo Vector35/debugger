@@ -337,26 +337,35 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             if (remoteBase != m_data->GetStart())
             {
                 // remote base is different from the local base, first need a rebase
-                ProgressIndicator progress(nullptr, "Rebase", "Rebasing...");
-                if (!fileMetadata->Rebase(m_data, remoteBase, [&](size_t cur, size_t total) { progress.update((int)cur, (int)total); }))
-//                if (!fileMetadata->Rebase(m_data, remoteBase))
-                {
-                    LogWarn("rebase failed");
-                }
+				ExecuteOnMainThreadAndWait([&](){
+					ProgressIndicator progress(nullptr, "Rebase", "Rebasing...");
+					if (!fileMetadata->Rebase(m_data, remoteBase,
+											  [&](size_t cur, size_t total) { progress.update((int)cur, (int)total); }))
+					{
+						LogWarn("rebase failed");
+					}
+				});
             }
 
             Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
             SetData(rebasedView);
             LogWarn("the base of the rebased view is 0x%lx", rebasedView->GetStart());
 
-			ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
-            if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugger",
-													[&](size_t cur, size_t total) { progress.update((int)cur, (int)total); }));
-            {
-                LogWarn("create snapshoted view failed");
-            }
+			ExecuteOnMainThreadAndWait([&](){
+				ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
+				if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugger",
+														[&](size_t cur, size_t total) { progress.update((int)cur, (int)total); }));
+				{
+					LogWarn("create snapshoted view failed");
+				}
+			});
 
             BinaryViewRef liveView = fileMetadata->GetViewOfType("Debugger");
+			if (!liveView)
+			{
+				LogWarn("Invalid Debugger view!");
+				break;
+			}
             SetLiveView(liveView);
 
             DebuggerEvent event;
