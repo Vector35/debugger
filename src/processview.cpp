@@ -124,7 +124,7 @@ void InitDebugProcessViewType()
 
 size_t DebugProcessView::PerformRead(void* dest, uint64_t offset, size_t len)
 {
-    std::unique_lock<std::mutex> memoryLock(m_memoryMutex);
+    std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
 
     Ref<BinaryView> parentView = GetParentView();
     if (!parentView)
@@ -197,7 +197,7 @@ size_t DebugProcessView::PerformRead(void* dest, uint64_t offset, size_t len)
 
 size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t len)
 {
-    std::unique_lock<std::mutex> memoryLock(m_memoryMutex);
+    std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
 
     Ref<BinaryView> parentView = GetParentView();
     if (!parentView)
@@ -208,7 +208,7 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
     if (!adapter)
         return 0;
 
-    // Assume any memory change invalidates all of memory (suboptimal, may not be necessary)
+    // TODO: Assume any memory change invalidates memory cache (suboptimal, may not be necessary)
     MarkDirty();
 
     if (adapter->WriteMemory(offset, DataBuffer(data, len)))
@@ -220,7 +220,7 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
 
 void DebugProcessView::MarkDirty()
 {
-	std::unique_lock<std::mutex> memoryLock(m_memoryMutex);
+	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
 
     m_valueCache.clear();
     m_errorCache.clear();

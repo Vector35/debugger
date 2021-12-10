@@ -21,7 +21,7 @@ class DebugProcessView: public BinaryView
 
     std::map<uint64_t, DataBuffer> m_valueCache;
     std::set<uint64_t> m_errorCache;
-    std::mutex m_memoryMutex;
+    std::recursive_mutex m_memoryMutex;
 
     DebuggerController* m_controller;
 	size_t m_eventCallback;
