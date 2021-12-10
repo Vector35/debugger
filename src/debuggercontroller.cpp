@@ -353,11 +353,10 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 
 			ExecuteOnMainThreadAndWait([&](){
 				ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
-				if (!fileMetadata->CreateSnapshotedView(rebasedView, "Debugger",
-														[&](size_t cur, size_t total) { progress.update((int)cur, (int)total); }));
-				{
+				bool ok = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger",
+														[&](size_t cur, size_t total) { progress.update((int)cur, (int)total); });
+				if (!ok)
 					LogWarn("create snapshoted view failed");
-				}
 			});
 
             BinaryViewRef liveView = fileMetadata->GetViewOfType("Debugger");
