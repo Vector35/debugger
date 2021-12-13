@@ -63,11 +63,10 @@ std::string GdbAdapter::ExecuteShellCommand(const std::string& command)
 
 bool GdbAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
-    return this->ExecuteWithArgs(path, {}, configs);
+    return this->ExecuteWithArgs(path, "", configs);
 }
 
-bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args,
-								 const LaunchConfigurations& configs)
+bool GdbAdapter::ExecuteWithArgs(const std::string& path, const string &args, const LaunchConfigurations& configs)
 {
     const auto file_exists = fopen(path.c_str(), "r");
     if (!file_exists)
@@ -148,16 +147,9 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std:
                 return false;
             }
         }
-        // TODO: this works, but its not good. We are casting const char* to char*
-        std::string final_args{};
-        for (const auto& arg : args) {
-            final_args.append(arg);
-            if (&arg != &args.back())
-                final_args.append(" ");
-        }
 
         char* arg[] = {"--once", "--no-startup-with-shell", (char*)host_with_port.c_str(),
-                    (char*) path.c_str(), (char*)final_args.c_str(), NULL};
+                    (char*) path.c_str(), (char*)args.c_str(), NULL};
 
         if (execv(gdb_server_path.c_str(), arg) == -1)
         {

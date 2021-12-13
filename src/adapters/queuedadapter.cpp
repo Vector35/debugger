@@ -62,7 +62,7 @@ bool QueuedAdapter::Execute(const std::string& path, const LaunchConfigurations&
 }
 
 
-bool QueuedAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args,
+bool QueuedAdapter::ExecuteWithArgs(const std::string& path, const string &args,
 									const LaunchConfigurations& configs)
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);

@@ -52,7 +52,7 @@ public:
     ~GdbAdapter();
 
     bool Execute(const std::string& path, const LaunchConfigurations& configs) override;
-    bool ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args,
+    bool ExecuteWithArgs(const std::string& path, const std::string &args,
 						 const LaunchConfigurations& configs) override;
     bool Attach(std::uint32_t pid) override;
     bool Connect(const std::string& server, std::uint32_t port) override;

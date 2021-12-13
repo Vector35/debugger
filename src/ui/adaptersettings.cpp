@@ -77,17 +77,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
     m_portEntry->setText(QString::number(m_state->GetRemotePort()));
     m_pathEntry->setText(QString::fromStdString(m_state->GetExecutablePath()));
 	m_terminalEmulator->setChecked(m_state->GetRequestTerminalEmulator());
-
-    std::string args;
-    std::vector<std::string> argList = m_state->GetCommandLineArguments();
-    for (size_t i = 0; i < argList.size(); i++)
-    {
-        if (i != 0)
-            args += ' ';
-
-        args += argList[i];
-    }
-    m_argumentsEntry->setText(QString::fromStdString(args));
+    m_argumentsEntry->setText(QString::fromStdString(m_state->GetCommandLineArguments()));
 
 	selectAdapter(m_adapterEntry->currentText());
 }
@@ -136,16 +126,11 @@ void AdapterSettingsDialog::apply()
     Ref<Metadata> data = new Metadata(selectedAdapter);
     m_controller->GetData()->StoreMetadata("native_debugger.adapter_type", data);
 
-    std::vector<std::string> args;
-    // We need better support for shell-style cmd arguments
-    QStringList argList = m_argumentsEntry->text().split(" ");
-    for (const QString& arg: argList)
-    {
-        args.push_back(arg.toStdString());
-    }
+	// We need better support for shell-style cmd arguments
+    std::string args = m_argumentsEntry->text().toStdString();
     m_state->SetCommandLineArguments(args);
-    // data = new Metadata(args);
-    // m_data->StoreMetadata("native_debugger.command_line_args", data);
+	data = new Metadata(args);
+    m_controller->GetData()->StoreMetadata("native_debugger.command_line_args", data);
 
     std::string path = m_pathEntry->text().toStdString();
     m_state->SetExecutablePath(path);

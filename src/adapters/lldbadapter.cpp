@@ -110,8 +110,7 @@ DebugRegister LldbAdapter::ReadRegister(const std::string& reg)
 }
 
 
-bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args,
-								  const LaunchConfigurations& configs)
+bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string &args, const LaunchConfigurations& configs)
 {
     const auto file_exists = fopen(path.c_str(), "r");
     if (!file_exists)
@@ -134,18 +133,11 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std
 
     const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket->GetPort());
 
-    std::string final_args{};
-    for (const auto& arg : args) {
-        final_args.append(arg);
-        if (&arg != &args.back())
-            final_args.append(" ");
-    }
-
     char* arg[] = {(char*)lldb_server_path.c_str(),
 				   "--stdio-path", "/dev/stdin",
 				   "--stdout-path", "/dev/stdout",
 				   "--stderr-path", "/dev/stderr",
-				   (char*)host_with_port.c_str(), (char*) path.c_str(), "--", (char*)final_args.c_str(), NULL};
+				   (char*)host_with_port.c_str(), (char*) path.c_str(), "--", (char*)args.c_str(), NULL};
 
 	pid_t serverPid;
 	if (!configs.requestTerminalEmulator)

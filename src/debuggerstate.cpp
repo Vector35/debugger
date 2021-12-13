@@ -618,7 +618,7 @@ bool DebuggerState::Exec()
 	bool requestTerminal = GetRequestTerminalEmulator();
 	LaunchConfigurations configs = {requestTerminal};
 
-    return m_adapter->Execute(filePath, configs);
+    return m_adapter->ExecuteWithArgs(filePath, m_commandLineArgs, configs);
 }
 
 
