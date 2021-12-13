@@ -38,6 +38,10 @@ class DebuggerController: public QObject
     uint64_t m_lastIP = 0;
     uint64_t m_currentIP = 0;
 
+	// A temporary workaround to ensure the status bar is only added once. A more systematic way to deal with this
+	// is what we do in the collab, i.e., register context-related callbacks and manage the status bar from there.
+	bool m_statusBarAdded = false;
+
 public:
     DebuggerController(BinaryViewRef data);
 
@@ -92,6 +96,9 @@ public:
 
 	DataBuffer ReadMemory(std::uintptr_t address, std::size_t size);
 	bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
+
+	bool StatusBarAdded() const { return m_statusBarAdded; }
+	void SetStatusBarAdded() { m_statusBarAdded = true; }
 
 signals:
     void absoluteBreakpointAdded(uint64_t address);

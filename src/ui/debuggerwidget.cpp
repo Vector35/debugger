@@ -14,7 +14,6 @@ using namespace std;
 DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
     SidebarWidget(name), m_view(view), m_data(data)
 {
-	bool newController = !DebuggerController::ControllerExists(data);
     m_controller = DebuggerController::GetController(m_data);
 
     QVBoxLayout* layout = new QVBoxLayout(this);
@@ -79,13 +78,14 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
     setLayout(layout);
 
 	UIContext* context = UIContext::contextForWidget(view);
-	if (context && newController)
+	if (context && (!m_controller->StatusBarAdded()))
 	{
 		// Only add one status bar widget for one controller
 		// This is only a temporary solution, a better way to deal with it is to leverage UIContext,
 		// similar to how collab does it
 		DebuggerStatusBar* statusBar = new DebuggerStatusBar(m_controller);
 		context->mainWindow()->statusBar()->insertWidget(0, statusBar);
+		m_controller->SetStatusBarAdded();
 	}
 
     m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
