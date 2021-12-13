@@ -204,7 +204,7 @@ void DebuggerUI::InitializeUI()
 				},
 			ConnectedAndStopped);
 	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
-								{ QKeySequence(Qt::Key_F10) });
+								{ QKeySequence(Qt::ControlModifier | Qt::Key_F9) });
 
 	actionName = "Pause";
 	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
@@ -223,5 +223,4 @@ void DebuggerUI::InitializeUI()
 			ConnectedAndRunning);
 	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
 								{ QKeySequence(Qt::Key_F12) });
-
 }
