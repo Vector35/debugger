@@ -80,15 +80,15 @@ static bool BreakpointToggleValid(BinaryView* view, uint64_t addr)
 
 static void StepToHereCallback(BinaryView* view, uint64_t addr)
 {
-//    DebuggerState* state = DebuggerState::GetState(view);
-//    state->StepTo({addr});
-    // TODO: this does not work since the UI state will not be updated after this
+	DebuggerController* controller = DebuggerController::GetController(view);
+	controller->StepTo({addr});
 }
 
 
 static bool StepToHereValid(BinaryView* view, uint64_t addr)
 {
-    return true;
+	DebuggerController* controller = DebuggerController::GetController(view);
+	return controller->GetState()->IsConnected() && (!controller->GetState()->IsRunning());
 }
 
 
@@ -109,14 +109,18 @@ void DebuggerUI::InitializeUI()
     Sidebar::addSidebarWidgetType(
         new DebuggerWidgetType(create_icon_with_letter("D"), "Native Debugger"));
 
-	// This does not work, as the keybinding will be overwritten by the next call
-//	UIAction::registerAction("Native Debugger\\Toggle Breakpoint", QKeySequence(Qt::Key_F2));
+	// We must use the sequence of these four calls to do the job, otherwise the keybinding does not work.
+	// Though it really should be the case where I can specify the keybinding in the first registerAction() call.
+	UIAction::registerAction("Native Debugger\\Toggle Breakpoint");
+	UIAction::registerAction("Selection Target\\Native Debugger\\Toggle Breakpoint");
 	PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
-            "sets/clears breakpoint at right-clicked address",
+            "Sets/clears breakpoint at right-clicked address",
             BreakpointToggleCallback, BreakpointToggleValid);
     UIAction::setUserKeyBinding("Native Debugger\\Toggle Breakpoint", { QKeySequence(Qt::Key_F2) });
-//
-//    PluginCommand::RegisterForAddress("Native Debugger\\Step To Here",
-//            "step over to the current selected address",
-//            StepToHereCallback, StepToHereValid);
+
+	UIAction::registerAction("Native Debugger\\Step To Here");
+	UIAction::registerAction("Selection Target\\Native Debugger\\Step To Here");
+	PluginCommand::RegisterForAddress("Native Debugger\\Step To Here",
+            "Steps over until the current address",
+            StepToHereCallback, StepToHereValid);
 }

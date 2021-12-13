@@ -158,7 +158,14 @@ void DebuggerController::StepReturn(BNFunctionGraphType il)
 
 void DebuggerController::StepTo(std::vector<uint64_t> remoteAddresses)
 {
-
+	DebuggerEvent event;
+	event.type = StepToEventType;
+	PostDebuggerEvent(event);
+    std::thread worker([this, remoteAddresses](){
+        m_state->StepTo(remoteAddresses);
+        NotifyStopped(m_state->GetLastStopReason(), nullptr);
+    });
+    worker.detach();
 }
 
 
@@ -296,6 +303,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	case StepIntoEventType:
 	case StepOverEventType:
 	case StepReturnEventType:
+	case StepToEventType:
 		// TODO: I am not super sure whether we should do it here, or we should let DebuggerState manage this by itself.
 		// The problem is, if we do not do it here, then the DebuggerState will also have to emit these events.
 		// Otherwise, there is a race condition that the callbacks (registered by other consumers) will execute before

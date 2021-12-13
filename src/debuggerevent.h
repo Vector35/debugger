@@ -10,6 +10,7 @@ enum DebuggerEventType
 	StepIntoEventType,
 	StepOverEventType,
 	StepReturnEventType,
+	StepToEventType,
 	RestartEventType,
 	AttachEventType,
 

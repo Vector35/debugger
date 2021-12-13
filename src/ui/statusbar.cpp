@@ -35,6 +35,9 @@ void DebuggerStatusBar::uiEventHandler(const DebuggerEvent &event)
 	case StepReturnEventType:
 		updateText("Stepping return");
 		break;
+	case StepToEventType:
+		updateText("Stepping to");
+		break;
 	case RestartEventType:
 		updateText("Restarting");
 		break;
