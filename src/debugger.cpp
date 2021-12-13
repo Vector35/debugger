@@ -16,23 +16,25 @@ void InitDebugAdapterTypes()
 extern "C"
 {
 	BN_DECLARE_UI_ABI_VERSION
+	BN_DECLARE_CORE_ABI_VERSION
+
+	BINARYNINJAPLUGIN void CorePluginDependencies()
+	{
+		SetCurrentPluginLoadOrder(LatePluginLoadOrder);
+	}
 
 	BINARYNINJAPLUGIN bool UIPluginInit()
 	{
-		Log(BNLogLevel::WarningLog, "Native debugger loaded!" );
-        DebuggerUI::InitializeUI();
-        InitDebugAdapterTypes();
-        InitDebugProcessViewType();
+		if (IsUIEnabled())
+        	DebuggerUI::InitializeUI();
 		return true;
 	}
 
-	BN_DECLARE_CORE_ABI_VERSION
-
 	BINARYNINJAPLUGIN bool CorePluginInit()
 	{
-        if (!IsUIEnabled())
-            Log(BNLogLevel::WarningLog, "Headless debugger loaded!" );
-
+		Log(BNLogLevel::DebugLog, "Native debugger loaded!" );
+        InitDebugAdapterTypes();
+        InitDebugProcessViewType();
 		return true;
 	}
 }
