@@ -5,12 +5,23 @@
 #include "adapters/gdbadapter.h"
 #include "adapters/lldbadapter.h"
 
+#ifdef WIN32
+#include "adapters/dbgengadapter.h"
+#endif
+
 using namespace BinaryNinja;
 
 void InitDebugAdapterTypes()
 {
+#ifdef WIN32
+    InitDbgEngAdapterType();
+#endif
+
     InitGdbAdapterType();
+
+#ifndef WIN32
     InitLldbAdapterType();
+#endif
 }
 
 extern "C"

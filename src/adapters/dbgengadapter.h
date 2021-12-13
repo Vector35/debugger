@@ -1,5 +1,7 @@
 #pragma once
 #include "../debugadapter.h"
+#include "../debugadaptertype.h"
+
 #define NOMINMAX
 #include <windows.h>
 #include <dbgeng.h>
@@ -94,8 +96,9 @@ public:
     DbgEngAdapter();
     ~DbgEngAdapter();
 
-    [[nodiscard]] bool Execute(const std::string &path) override;
-    [[nodiscard]] bool ExecuteWithArgs(const std::string &path, const std::vector<std::string> &args) override;
+    [[nodiscard]] bool Execute(const std::string& path, const LaunchConfigurations& configs = {}) override;
+    [[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string &args,
+                                       const LaunchConfigurations& configs = {}) override;
     [[nodiscard]] bool Attach(std::uint32_t pid) override;
     [[nodiscard]] bool Connect(const std::string &server, std::uint32_t port) override;
 
@@ -138,7 +141,6 @@ public:
     bool Go() override;
     bool StepInto() override;
     bool StepOver() override;
-    bool StepOut() override;
     bool StepTo(std::uintptr_t address) override;
 
     void Invoke(const std::string& command) override;
@@ -146,3 +148,16 @@ public:
 
     bool SupportFeature(DebugAdapterCapacity feature) override;
 };
+
+class LocalDbgEngAdapterType: public DebugAdapterType
+{
+public:
+    LocalDbgEngAdapterType();
+    virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
+    virtual bool IsValidForData(BinaryNinja::BinaryView* data);
+    virtual bool CanExecute(BinaryNinja::BinaryView* data);
+    virtual bool CanConnect(BinaryNinja::BinaryView* data);
+};
+
+
+void InitDbgEngAdapterType();

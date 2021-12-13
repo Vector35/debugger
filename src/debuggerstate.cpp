@@ -4,7 +4,6 @@
 #include <chrono>
 #include <thread>
 #include <utility>
-#include <libgen.h>
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"

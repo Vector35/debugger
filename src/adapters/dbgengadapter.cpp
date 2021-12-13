@@ -10,6 +10,7 @@
 #include <memory>
 #include "dbgengadapter.h"
 #include "../../cli/src/log.h"
+#include "queuedadapter.h"
 
 #define QUERY_DEBUG_INTERFACE(query, out) \
     if ( const auto result = this->m_debugClient->QueryInterface(__uuidof(query), reinterpret_cast<void**>(out) ); \
@@ -84,12 +85,13 @@ DbgEngAdapter::~DbgEngAdapter()
     this->Reset();
 }
 
-bool DbgEngAdapter::Execute(const std::string &path)
+bool DbgEngAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
     return this->ExecuteWithArgs(path, {});
 }
 
-bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::vector<std::string>& args)
+bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string &args,
+                                    const LaunchConfigurations& configs)
 {
     auto& ProcessInfo = DbgEngAdapter::ProcessCallbackInfo;
     ProcessInfo.m_created = false;
@@ -486,32 +488,6 @@ bool DbgEngAdapter::StepOver()
     return true;
 }
 
-bool DbgEngAdapter::StepOut()
-{
-    DEBUG_STACK_FRAME_EX stack_frame{};
-    unsigned long frame_total{};
-    if (this->m_debugControl->GetStackTraceEx(0, 0, 0, &stack_frame, 1, &frame_total) != S_OK ) {
-        return DebugAdapter::StepOut();
-    }
-
-    if (!stack_frame.ReturnOffset) {
-        return DebugAdapter::StepOut();
-    }
-
-    IDebugBreakpoint2* debug_breakpoint;
-    if (const auto result = this->m_debugControl->AddBreakpoint2(DEBUG_BREAKPOINT_CODE, DbgEngAdapter::StepoutBreakpointID,
-                                                                 &debug_breakpoint);
-            result != S_OK)
-        return false;
-
-    if (debug_breakpoint->SetOffset(stack_frame.ReturnOffset) != S_OK )
-        return false;
-
-    if ( debug_breakpoint->SetFlags(DEBUG_BREAKPOINT_ONE_SHOT) != S_OK )
-        return false;
-
-    return this->Go();
-}
 
 bool DbgEngAdapter::StepTo(std::uintptr_t address)
 {
@@ -809,4 +785,43 @@ bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer
 {
     unsigned long bytes_written{};
     return this->m_debugDataSpaces->WriteVirtual(address, const_cast<void*>(buffer.GetData()), buffer.GetLength(), &bytes_written) == S_OK && bytes_written == buffer.GetLength();
+}
+
+LocalDbgEngAdapterType::LocalDbgEngAdapterType(): DebugAdapterType("Local DbgEng")
+{
+
+}
+
+
+DebugAdapter* LocalDbgEngAdapterType::Create(BinaryNinja::BinaryView *data)
+{
+    // TODO: someone should feel this.
+    return new QueuedAdapter(new DbgEngAdapter());
+}
+
+
+bool LocalDbgEngAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
+{
+    return data->GetTypeName() == "PE";
+}
+
+
+bool LocalDbgEngAdapterType::CanConnect(BinaryNinja::BinaryView *data)
+{
+    return false;
+}
+
+
+bool LocalDbgEngAdapterType::CanExecute(BinaryNinja::BinaryView *data)
+{
+#ifdef WIN32
+    return true;
+#endif
+    return false;
+}
+
+void InitDbgEngAdapterType()
+{
+    static LocalDbgEngAdapterType localType;
+    DebugAdapterType::Register(&localType);
 }
