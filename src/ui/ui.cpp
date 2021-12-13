@@ -72,7 +72,7 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 }
 
 
-static bool BreakpointToggleValid(BinaryView* view, uint64_t addr)
+static bool BinaryViewValid(BinaryView* view, uint64_t addr)
 {
     return true;
 }
@@ -85,10 +85,17 @@ static void StepToHereCallback(BinaryView* view, uint64_t addr)
 }
 
 
-static bool StepToHereValid(BinaryView* view, uint64_t addr)
+static bool ConnectedAndStopped(BinaryView* view, uint64_t addr)
 {
 	DebuggerController* controller = DebuggerController::GetController(view);
 	return controller->GetState()->IsConnected() && (!controller->GetState()->IsRunning());
+}
+
+
+static bool ConnectedAndRunning(BinaryView* view, uint64_t addr)
+{
+	DebuggerController* controller = DebuggerController::GetController(view);
+	return controller->GetState()->IsConnected() && controller->GetState()->IsRunning();
 }
 
 
@@ -115,12 +122,106 @@ void DebuggerUI::InitializeUI()
 	UIAction::registerAction("Selection Target\\Native Debugger\\Toggle Breakpoint");
 	PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
             "Sets/clears breakpoint at right-clicked address",
-            BreakpointToggleCallback, BreakpointToggleValid);
+            BreakpointToggleCallback, BinaryViewValid);
     UIAction::setUserKeyBinding("Native Debugger\\Toggle Breakpoint", { QKeySequence(Qt::Key_F2) });
 
 	UIAction::registerAction("Native Debugger\\Step To Here");
 	UIAction::registerAction("Selection Target\\Native Debugger\\Step To Here");
 	PluginCommand::RegisterForAddress("Native Debugger\\Step To Here",
             "Steps over until the current address",
-            StepToHereCallback, StepToHereValid);
+            StepToHereCallback, ConnectedAndStopped);
+
+	std::string actionName = "Run";
+	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Selection Target\\Native Debugger\\%s", actionName.c_str()));
+	PluginCommand::RegisterForAddress(
+			QString::asprintf("Native Debugger\\%s", actionName.c_str()).toStdString(),
+			"Launch, connect to or resume the target",
+			[](BinaryView* view, uint64_t addr){
+					DebuggerController* controller = DebuggerController::GetController(view);
+					if (controller->GetState()->IsConnected() && (!controller->GetState()->IsRunning()))
+					{
+						controller->Go();
+					}
+					else if (!controller->GetState()->IsConnected())
+					{
+						controller->LaunchOrConnect();
+					}
+				},
+			BinaryViewValid);
+	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
+								{ QKeySequence(Qt::Key_F9) });
+
+	actionName = "Step Into";
+	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Selection Target\\Native Debugger\\%s", actionName.c_str()));
+	PluginCommand::RegisterForAddress(
+			QString::asprintf("Native Debugger\\%s", actionName.c_str()).toStdString(),
+			"Step into",
+			[](BinaryView* view, uint64_t){
+					DebuggerController* controller = DebuggerController::GetController(view);
+					BNFunctionGraphType graphType = NormalFunctionGraph;
+					UIContext* context = UIContext::activeContext();
+					if (context && context->getCurrentView())
+						graphType = context->getCurrentView()->getILViewType();
+					controller->StepInto(graphType);
+				},
+			ConnectedAndStopped);
+	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
+								{ QKeySequence(Qt::Key_F7) });
+
+	actionName = "Step Over";
+	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Selection Target\\Native Debugger\\%s", actionName.c_str()));
+	PluginCommand::RegisterForAddress(
+			QString::asprintf("Native Debugger\\%s", actionName.c_str()).toStdString(),
+			"Step over",
+			[](BinaryView* view, uint64_t){
+					DebuggerController* controller = DebuggerController::GetController(view);
+					BNFunctionGraphType graphType = NormalFunctionGraph;
+					UIContext* context = UIContext::activeContext();
+					if (context && context->getCurrentView())
+						graphType = context->getCurrentView()->getILViewType();
+					controller->StepOver(graphType);
+				},
+			ConnectedAndStopped);
+	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
+								{ QKeySequence(Qt::Key_F8) });
+
+	actionName = "Step Return";
+	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Selection Target\\Native Debugger\\%s", actionName.c_str()));
+	PluginCommand::RegisterForAddress(
+			QString::asprintf("Native Debugger\\%s", actionName.c_str()).toStdString(),
+			"Step return",
+			[](BinaryView* view, uint64_t){
+					DebuggerController* controller = DebuggerController::GetController(view);
+					BNFunctionGraphType graphType = NormalFunctionGraph;
+					UIContext* context = UIContext::activeContext();
+					if (context && context->getCurrentView())
+						graphType = context->getCurrentView()->getILViewType();
+					controller->StepReturn(graphType);
+				},
+			ConnectedAndStopped);
+	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
+								{ QKeySequence(Qt::Key_F10) });
+
+	actionName = "Pause";
+	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Selection Target\\Native Debugger\\%s", actionName.c_str()));
+	PluginCommand::RegisterForAddress(
+			QString::asprintf("Native Debugger\\%s", actionName.c_str()).toStdString(),
+			"Pause the target",
+			[](BinaryView* view, uint64_t){
+					DebuggerController* controller = DebuggerController::GetController(view);
+					BNFunctionGraphType graphType = NormalFunctionGraph;
+					UIContext* context = UIContext::activeContext();
+					if (context && context->getCurrentView())
+						graphType = context->getCurrentView()->getILViewType();
+					controller->StepReturn(graphType);
+				},
+			ConnectedAndRunning);
+	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
+								{ QKeySequence(Qt::Key_F12) });
+
 }

@@ -238,6 +238,20 @@ void DebuggerController::Pause()
 }
 
 
+void DebuggerController::LaunchOrConnect()
+{
+	std::string adapter = m_state->GetAdapterType();
+	auto adapterType = DebugAdapterType::GetByName(adapter);
+	if (!adapterType)
+		return;
+
+	if (adapterType->CanExecute(m_data))
+		Launch();
+	else if (adapterType->CanConnect(m_data))
+		Attach();
+}
+
+
 DebuggerController* DebuggerController::GetController(BinaryViewRef data)
 {
     for (auto& controller: g_debuggerControllers)

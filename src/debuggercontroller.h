@@ -55,7 +55,7 @@ public:
     void Launch();
     void Restart();
     void Quit();
-    void Exec();
+	// TODO: this is better renamed to Connect(), to distinguish from attaching to a running process
     void Attach();
     void Detach();
     void Pause();
@@ -64,6 +64,9 @@ public:
     void StepOver(BNFunctionGraphType il = NormalFunctionGraph);
     void StepReturn(BNFunctionGraphType il = NormalFunctionGraph);
     void StepTo(std::vector<uint64_t> remoteAddresses);
+
+	// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
+	void LaunchOrConnect();
 
 	DebugThread GetActiveThread() const;
 	void SetActiveThread(const DebugThread& thread);
