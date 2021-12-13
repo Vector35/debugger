@@ -271,7 +271,8 @@ RemoteLldbAdapterType::RemoteLldbAdapterType(): DebugAdapterType("Remote LLDB")
 
 DebugAdapter* RemoteLldbAdapterType::Create(BinaryNinja::BinaryView *data)
 {
-    return new LldbAdapter();
+	// TODO: someone should feel this.
+    return new QueuedAdapter(new LldbAdapter());
 }
 
 

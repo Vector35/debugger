@@ -108,14 +108,26 @@ public:
 };
 
 
-class GdbAdapterType: public DebugAdapterType
+class LocalGdbAdapterType: public DebugAdapterType
 {
 public:
-    GdbAdapterType();
-    virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
-    virtual bool IsValidForData(BinaryNinja::BinaryView* data);
-    virtual bool CanExecute(BinaryNinja::BinaryView* data);
-    virtual bool CanConnect(BinaryNinja::BinaryView* data);
+	LocalGdbAdapterType();
+	virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
+	virtual bool IsValidForData(BinaryNinja::BinaryView* data);
+	virtual bool CanExecute(BinaryNinja::BinaryView* data);
+	virtual bool CanConnect(BinaryNinja::BinaryView* data);
 };
+
+
+class RemoteGdbAdapterType: public DebugAdapterType
+{
+public:
+	RemoteGdbAdapterType();
+	virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
+	virtual bool IsValidForData(BinaryNinja::BinaryView* data);
+	virtual bool CanExecute(BinaryNinja::BinaryView* data);
+	virtual bool CanConnect(BinaryNinja::BinaryView* data);
+};
+
 
 void InitGdbAdapterType();

@@ -4,6 +4,7 @@
 #include <chrono>
 #include <thread>
 #include <utility>
+#include <libgen.h>
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
@@ -255,15 +256,33 @@ ModuleNameAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absolute
 
 uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress) const
 {
-    if (!relativeAddress.module.empty()) {
-        for (const DebugModule& module: m_modules) {
-            if (module.m_name == relativeAddress.module || module.m_short_name == relativeAddress.module) {
+    if (!relativeAddress.module.empty())
+	{
+        for (const DebugModule& module: m_modules)
+		{
+            if ((module.m_name == relativeAddress.module) ||
+				(module.m_short_name == relativeAddress.module) ||
+				(GetPathBaseName(module.m_name) == GetPathBaseName(relativeAddress.module)) ||
+				(GetPathBaseName(module.m_short_name) == GetPathBaseName(relativeAddress.module))
+				)
+			{
                 return module.m_address + relativeAddress.offset;
             }
         }
     }
 
     return relativeAddress.offset;
+}
+
+
+std::string DebuggerModules::GetPathBaseName(const std::string& path)
+{
+#ifdef WIN32
+	// TODO: someone please write it on Windows!
+	return path;
+#else
+	return basename(strdup(path.c_str()));
+#endif
 }
 
 

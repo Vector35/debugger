@@ -25,6 +25,7 @@
 #include <lowlevelilinstruction.h>
 #include <mediumlevelilinstruction.h>
 #include <highlevelilinstruction.h>
+#include "queuedadapter.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -256,7 +257,7 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
 
         sockaddr_in address{};
         address.sin_family = AF_INET;
-        address.sin_addr.s_addr = inet_addr("127.0.0.1");
+        address.sin_addr.s_addr = inet_addr(server.c_str());
         address.sin_port = htons(port);
 
         if (this->m_socket->Connect(address)) {
@@ -998,39 +999,80 @@ void GdbAdapter::HandleAsyncPacket(const RspData& data)
 }
 
 
-GdbAdapterType::GdbAdapterType(): DebugAdapterType("Local GDB")
+LocalGdbAdapterType::LocalGdbAdapterType(): DebugAdapterType("Local GDB")
 {
 
 }
 
 
-DebugAdapter* GdbAdapterType::Create(BinaryNinja::BinaryView *data)
+DebugAdapter* LocalGdbAdapterType::Create(BinaryNinja::BinaryView *data)
 {
-    return new GdbAdapter();
+	// TODO: someone should feel this.
+    return new QueuedAdapter(new GdbAdapter());
 }
 
 
-bool GdbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
+bool LocalGdbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
 {
-    return data->GetDefaultArchitecture()->GetName() == "ELF";
+	return data->GetTypeName() == "ELF";
 }
 
 
-bool GdbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
+bool LocalGdbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
 {
+    return false;
+}
+
+
+bool LocalGdbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
+{
+#ifdef __clang__
+	return false;
+#elif WIN32
+	return false;
+#else
+	return true;
+#endif
+}
+
+
+RemoteGdbAdapterType::RemoteGdbAdapterType(): DebugAdapterType("Remote GDB")
+{
+
+}
+
+
+DebugAdapter* RemoteGdbAdapterType::Create(BinaryNinja::BinaryView *data)
+{
+	// TODO: someone should feel this.
+    return new QueuedAdapter(new GdbAdapter());
+}
+
+
+bool RemoteGdbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
+{
+//	it does not matter what the BinaryViewType is -- as long as we can connect to it, it is fine.
+	return true;
+}
+
+
+bool RemoteGdbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
+{
+//	We can connect to remote lldb on any host system
     return true;
 }
 
 
-bool GdbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
+bool RemoteGdbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
 {
-    return true;
+    return false;
 }
 
 
 void InitGdbAdapterType()
 {
-    static GdbAdapterType type;
-    DebugAdapterType::Register(&type);
-//    g_elfViewType = &type;
+    static LocalGdbAdapterType localType;
+    DebugAdapterType::Register(&localType);
+    static RemoteGdbAdapterType remoteType;
+    DebugAdapterType::Register(&remoteType);
 }

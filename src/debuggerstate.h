@@ -68,6 +68,7 @@ public:
     DebugModule GetModuleForAddress(uint64_t remoteAddress) const;
     ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t absoluteAddress) const;
     uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress) const;
+	static std::string GetPathBaseName(const std::string& path);
 };
 
 
