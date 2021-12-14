@@ -249,7 +249,7 @@ bool LocalLldbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
 //  Note: LLDB does not work well on Windows.
 #ifdef __clang__
 	return true;
-#elif
+#else
 	return false;
 #endif
 }

@@ -56,6 +56,8 @@ else()
     file(GLOB ADAPTER_SOURCES
         src/adapters/gdbadapter.cpp
         src/adapters/gdbadapter.h
+		src/adapters/lldbadapter.cpp
+		src/adapters/lldbadapter.h
 		src/adapters/queuedadapter.cpp
 		src/adapters/queuedadapter.h
         src/adapters/rspconnector.cpp
