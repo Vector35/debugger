@@ -73,11 +73,7 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const string &args, co
         return false;
     fclose(file_exists);
 
-#ifdef WIN32
-    auto gdb_server_path = this->ExecuteShellCommand("where gdbserver");
-#else
     auto gdb_server_path = this->ExecuteShellCommand("which gdbserver");
-#endif
     if ( gdb_server_path.empty() )
         return false;
 
@@ -87,80 +83,41 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const string &args, co
 
     const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket->GetPort());
 
-#ifdef WIN32
-    std::string final_args{};
-    for (const auto& arg : args) {
-        final_args.append(arg);
-        if (&arg != &args.back())
-            final_args.append(" ");
-    }
+	char* arg[] = {(char*)gdb_server_path.c_str(),
+				   "--once", "--no-startup-with-shell",
+				   (char*)host_with_port.c_str(),
+				   (char*) path.c_str(),
+				   "--",
+				   (char*)args.c_str(),
+				   NULL};
 
-    const auto arguments = fmt::format("--once --no-startup-with-shell {} {} {}", host_with_port, path, final_args);
-
-    STARTUPINFOA startup_info{};
-    PROCESS_INFORMATION process_info{};
-    if (CreateProcessA(gdb_server_path.c_str(), const_cast<char*>( arguments.c_str() ),
-                       nullptr, nullptr,
-                       true, CREATE_NEW_CONSOLE, nullptr, nullptr,
-                       &startup_info, &process_info)) {
-        CloseHandle(process_info.hProcess);
-        CloseHandle(process_info.hThread);
-    } else {
-        throw std::runtime_error("failed to create gdb process");
-    }
-#else
-    pid_t pid = fork();
-    switch (pid)
-    {
-    case -1:
-        perror("fork");
-        return false;
-    case 0:
-    {
-        // This is done in the Python implementation, but I am not sure what it is intended for
-        // setpgrp();
-
-        // This will detach the gdbserver from the current terminal, so that we can continue interacting with it.
-        // Otherwise, gdbserver will set itself to the foreground process and the cli will become background.
-        // TODO: we should redirect the stdin/stdout to a different FILE so that we can see the debuggee's output
-        // and send input to it
-        if (m_redirectGDBServer)
-        {
-            FILE *newOut = freopen("/dev/null", "w", stdout);
-            if (!newOut)
-            {
-                perror("freopen");
-                return false;
-            }
-
-            FILE *newIn = freopen("/dev/null", "r", stdin);
-            if (!newIn)
-            {
-                perror("freopen");
-                return false;
-            }
-
-            FILE *newErr = freopen("/dev/null", "w", stderr);
-            if (!newErr)
-            {
-                perror("freopen");
-                return false;
-            }
-        }
-
-        char* arg[] = {"--once", "--no-startup-with-shell", (char*)host_with_port.c_str(),
-                    (char*) path.c_str(), (char*)args.c_str(), NULL};
-
-        if (execv(gdb_server_path.c_str(), arg) == -1)
-        {
-            perror("execv");
-            return false;
-        }
-    }
-    default:
-        break;
-    }
-#endif
+	pid_t serverPid;
+	if (!configs.requestTerminalEmulator)
+	{
+		// Calling posix_spawn is fine here. The only problem is gdbserver will occupy the terminal, and we cannot use
+		// the cli debugger. However, posix_spawn actually supports file actions, soe can properly redirect
+		// stdin/out/err, so that the cli debugger also works.
+		int s = posix_spawn(&serverPid, gdb_server_path.c_str(), nullptr, nullptr, arg, nullptr);
+		if (s != 0)
+		{
+			LogWarn("posix_spawn failed");
+			return false;
+		}
+	}
+	else
+	{
+		std::string cmd{};
+		for (const auto& s : arg)
+		{
+			if (s != NULL)
+			{
+				cmd.append(s);
+				cmd.append(" ");
+			}
+		}
+		std::string fullCmd = fmt::format("x-terminal-emulator -e {}", cmd);
+		system(fullCmd.c_str());
+	}
 
     bool ret =  this->Connect("127.0.0.1", this->m_socket->GetPort());
     return ret;
