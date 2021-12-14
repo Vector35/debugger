@@ -532,14 +532,12 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
     else
         m_requestTerminalEmulator = true;
 
-    m_connectionStatus = DebugAdapterNotConnectedStatus;
+    SetConnectionStatus(DebugAdapterNotConnectedStatus);
 }
 
 
 bool DebuggerState::CreateDebugAdapter()
 {
-//    std::string adapterTypeName = "Local GDB";
-//    std::string adapterTypeName = "Local LLDB";
     DebugAdapterType* type = DebugAdapterType::GetByName(m_adapterType);
     if (!type)
     {
@@ -587,7 +585,7 @@ void DebuggerState::Quit()
         m_adapter->Quit();
         m_adapter = nullptr;
         m_remoteArch = nullptr;
-        m_connectionStatus = DebugAdapterNotConnectedStatus;
+        SetConnectionStatus(DebugAdapterNotConnectedStatus);
     }
     MarkDirty();
 
@@ -600,7 +598,7 @@ bool DebuggerState::Exec()
     if (IsConnected() || IsConnecting())
         throw ConnectionRefusedError("Tried to execute, but already debugging");
 
-    m_connectionStatus = DebugAdapterConnectingStatus;
+    SetConnectionStatus(DebugAdapterConnectingStatus);
     string filePath = m_controller->GetState()->GetExecutablePath();
     // We should switch to use std::filesystem::exists() later
     FILE* file = fopen(filePath.c_str(), "r");
@@ -630,15 +628,15 @@ bool DebuggerState::Attach()
 	if (!CreateDebugAdapter())
     	return false;
 
-    m_connectionStatus = DebugAdapterConnectingStatus;
+    SetConnectionStatus(DebugAdapterConnectingStatus);
 	bool ok = m_adapter->Connect(m_remoteHost, m_remotePort);
 	// TODO: some of these updates might be redundant
 	if (!ok)
 	{
-	    m_connectionStatus = DebugAdapterNotConnectedStatus;
+	    SetConnectionStatus(DebugAdapterNotConnectedStatus);
 		return ok;
 	}
-	m_connectionStatus = DebugAdapterConnectedStatus;
+	SetConnectionStatus(DebugAdapterConnectedStatus);
     m_targetStatus = DebugAdapterRunningStatus;
 	return ok;
 }
@@ -652,7 +650,7 @@ void DebuggerState::Detach()
         m_adapter = nullptr;
         m_remoteArch = nullptr;
     }
-    m_connectionStatus = DebugAdapterNotConnectedStatus;
+    SetConnectionStatus(DebugAdapterNotConnectedStatus);
     MarkDirty();
 }
 
@@ -1123,7 +1121,7 @@ void DebuggerState::MarkDirty()
 
     m_threads->MarkDirty();
     m_modules->MarkDirty();
-    if (m_connectionStatus == DebugAdapterConnectedStatus)
+    if (IsConnected())
         m_remoteArch = DetectRemoteArch();
 }
 

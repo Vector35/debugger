@@ -70,4 +70,6 @@ public:
     bool SupportFeature(DebugAdapterCapacity feature) override;
 
     void Worker();
+
+	virtual void SetEventCallback(std::function<void(const DebuggerEvent &)> function) override;
 };

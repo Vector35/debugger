@@ -640,3 +640,11 @@ void QueuedAdapter::Worker()
         }
     }
 }
+
+
+// The queued adapter must set the event callback on the actual adapter, not itself
+void QueuedAdapter::SetEventCallback(std::function<void(const DebuggerEvent &)> function)
+{
+	m_adapter->SetEventCallback(function);
+}
+

@@ -131,6 +131,9 @@ size_t DebugProcessView::PerformRead(void* dest, uint64_t offset, size_t len)
         return 0;
 
     DebuggerController* controller = DebuggerController::GetController(parentView);
+	if (!controller->GetState()->IsConnected())
+		return 0;
+
     DebugAdapter* adapter = controller->GetState()->GetAdapter();
 
     if (!adapter)
@@ -204,6 +207,9 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
         return 0;
 
     DebuggerController* controller = DebuggerController::GetController(parentView);
+	if (!controller->GetState()->IsConnected())
+		return 0;
+
     DebugAdapter* adapter = controller->GetState()->GetAdapter();
     if (!adapter)
         return 0;

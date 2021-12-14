@@ -116,7 +116,7 @@ private:
     std::function<void(const DebuggerEvent& event)> m_eventCallback;
 
 public:
-    void SetEventCallback(std::function<void(const DebuggerEvent& event)> function)
+	virtual void SetEventCallback(std::function<void(const DebuggerEvent& event)> function)
     {
         m_eventCallback = function;
     }
