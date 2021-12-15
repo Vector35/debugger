@@ -40,6 +40,11 @@ extern "C"
 
 	BINARYNINJAPLUGIN bool CorePluginInit()
 	{
+		// The current debugger can load in headless macOS, but not Linux and Windows. This causes unit test failures
+		// because the available view types on macOS will have one more Debugger view. Here we explicitly not load
+		// the debugger in headless mode.
+		if (!IsUIEnabled())
+			return true;
 		Log(BNLogLevel::DebugLog, "Native debugger loaded!" );
         InitDebugAdapterTypes();
         InitDebugProcessViewType();
