@@ -18,10 +18,7 @@ void InitDebugAdapterTypes()
 #endif
 
     InitGdbAdapterType();
-
-#ifndef WIN32
     InitLldbAdapterType();
-#endif
 }
 
 extern "C"

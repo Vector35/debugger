@@ -114,6 +114,9 @@ DebugRegister LldbAdapter::ReadRegister(const std::string& reg)
 
 bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string &args, const LaunchConfigurations& configs)
 {
+#ifndef __APPLE__
+    return false;
+#else
     const auto file_exists = fopen(path.c_str(), "r");
     if (!file_exists)
         return false;
@@ -167,6 +170,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string &ar
 	}
 
     return this->Connect("127.0.0.1", this->m_socket->GetPort());
+#endif
 }
 
 bool LldbAdapter::Go() {
