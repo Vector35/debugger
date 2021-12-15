@@ -194,7 +194,7 @@ uint64_t DebuggerModules::GetModuleBase(const std::string& name) const
 {
     for (const DebugModule& module: m_modules)
     {
-        if ((name == module.m_name) || (name == module.m_short_name))
+        if (module.IsSameBaseModule(name))
         {
             return module.m_address;
         }
@@ -207,14 +207,8 @@ DebugModule DebuggerModules::GetModuleByName(const std::string& name) const
 {
     for (const DebugModule& module: m_modules)
     {
-        if (module.m_name == name)
-        {
+        if (module.IsSameBaseModule(name))
             return module;
-        }
-        if (module.m_short_name == name)
-        {
-            return module;
-        }
     }
     return DebugModule();
 }
@@ -259,11 +253,7 @@ uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& r
 	{
         for (const DebugModule& module: m_modules)
 		{
-            if ((module.m_name == relativeAddress.module) ||
-				(module.m_short_name == relativeAddress.module) ||
-				(GetPathBaseName(module.m_name) == GetPathBaseName(relativeAddress.module)) ||
-				(GetPathBaseName(module.m_short_name) == GetPathBaseName(relativeAddress.module))
-				)
+            if (module.IsSameBaseModule(relativeAddress.module))
 			{
                 return module.m_address + relativeAddress.offset;
             }
@@ -271,19 +261,6 @@ uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& r
     }
 
     return relativeAddress.offset;
-}
-
-
-std::string DebuggerModules::GetPathBaseName(const std::string& path)
-{
-#ifdef WIN32
-	// TODO: someone please write it on Windows!
-    char baseName[MAX_PATH];
-    _splitpath(path.c_str(), NULL, NULL, baseName, NULL);
-    return string(baseName);
-#else
-	return basename(strdup(path.c_str()));
-#endif
 }
 
 

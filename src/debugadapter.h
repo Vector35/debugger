@@ -105,6 +105,11 @@ struct DebugModule
     DebugModule(): m_name(""), m_short_name(""), m_address(0), m_size(0) {}
     DebugModule(std::string name, std::string short_name, std::uintptr_t address, std::size_t size, bool loaded) :
         m_name(std::move(name)), m_short_name(std::move(short_name)), m_address(address), m_size(size), m_loaded(loaded) {}
+    // These are useful for remote debugging. Paths can be different on the host and guest systems, e.g., /usr/bin/ls,
+    // and C:\Users\user\Desktop\ls. So we must compare the base file name, rather than the full path.
+    bool IsSameBaseModule(const DebugModule& other) const;
+    bool IsSameBaseModule(const std::string& name) const;
+    static std::string GetPathBaseName(const std::string& path);
 };
 
 class DebugAdapter
