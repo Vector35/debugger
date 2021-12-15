@@ -70,16 +70,15 @@ bool GdbAdapter::Execute(const std::string& path, const LaunchConfigurations& co
 
 bool GdbAdapter::ExecuteWithArgs(const std::string& path, const string &args, const LaunchConfigurations& configs)
 {
+#if (defined WIN32) || (defined __APPLE_)
+    return false;
+#else
     const auto file_exists = fopen(path.c_str(), "r");
     if (!file_exists)
         return false;
     fclose(file_exists);
 
-#ifdef WIN32
-    auto gdb_server_path = this->ExecuteShellCommand("where gdbserver");
-#else
     auto gdb_server_path = this->ExecuteShellCommand("which gdbserver");
-#endif
     if ( gdb_server_path.empty() )
         return false;
 
@@ -88,26 +87,6 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const string &args, co
     this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
 
     const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket->GetPort());
-
-#ifdef WIN32
-    const auto arguments = fmt::format("--once --no-startup-with-shell {} {} {}", host_with_port, path, args);
-
-    STARTUPINFOA startup_info{};
-    PROCESS_INFORMATION process_info{};
-    if (CreateProcessA(gdb_server_path.c_str(), const_cast<char*>( arguments.c_str() ),
-                       nullptr, nullptr,
-                       true, CREATE_NEW_CONSOLE, nullptr, nullptr,
-                       &startup_info, &process_info))
-    {
-        CloseHandle(process_info.hProcess);
-        CloseHandle(process_info.hThread);
-    }
-    else
-    {
-        LogWarn("failed to create gdb process");
-        return false;
-    }
-#else
 	char* arg[] = {(char*)gdb_server_path.c_str(),
 				   "--once", "--no-startup-with-shell",
 				   (char*)host_with_port.c_str(),
@@ -143,10 +122,10 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const string &args, co
 		std::string fullCmd = fmt::format("x-terminal-emulator -e {}", cmd);
 		system(fullCmd.c_str());
 	}
-#endif
 
     bool ret =  this->Connect("127.0.0.1", this->m_socket->GetPort());
     return ret;
+#endif
 }
 
 bool GdbAdapter::Attach(std::uint32_t pid)
