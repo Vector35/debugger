@@ -90,25 +90,22 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const string &args, co
     const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket->GetPort());
 
 #ifdef WIN32
-    std::string final_args{};
-    for (const auto& arg : args) {
-        final_args += arg;
-        if (&arg != &args.back())
-            final_args.append(" ");
-    }
-
-    const auto arguments = fmt::format("--once --no-startup-with-shell {} {} {}", host_with_port, path, final_args);
+    const auto arguments = fmt::format("--once --no-startup-with-shell {} {} {}", host_with_port, path, args);
 
     STARTUPINFOA startup_info{};
     PROCESS_INFORMATION process_info{};
     if (CreateProcessA(gdb_server_path.c_str(), const_cast<char*>( arguments.c_str() ),
                        nullptr, nullptr,
                        true, CREATE_NEW_CONSOLE, nullptr, nullptr,
-                       &startup_info, &process_info)) {
+                       &startup_info, &process_info))
+    {
         CloseHandle(process_info.hProcess);
         CloseHandle(process_info.hThread);
-    } else {
-        throw std::runtime_error("failed to create gdb process");
+    }
+    else
+    {
+        LogWarn("failed to create gdb process");
+        return false;
     }
 #else
 	char* arg[] = {(char*)gdb_server_path.c_str(),

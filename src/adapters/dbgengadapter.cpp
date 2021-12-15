@@ -795,8 +795,8 @@ LocalDbgEngAdapterType::LocalDbgEngAdapterType(): DebugAdapterType("Local DbgEng
 
 DebugAdapter* LocalDbgEngAdapterType::Create(BinaryNinja::BinaryView *data)
 {
-    // TODO: someone should feel this.
-    return new QueuedAdapter(new DbgEngAdapter());
+    // TODO: someone should free this.
+    return new DbgEngAdapter();
 }
 
 
