@@ -275,18 +275,22 @@ bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
     if (!m_state->GetAdapter())
         throw ConnectionRefusedError("Cannot add breakpoint at absolute address when disconnected");
 
-    ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
-    if (!ContainsOffset(info))
-    {
-        m_breakpoints.push_back(info);
+	bool result = false;
+	// Always add the breakpoint as long as the adapter is connected, even if it may be already present
+	if (m_state->IsConnected())
+	{
+		m_state->GetAdapter()->AddBreakpoint(remoteAddress);
+		result = true;
+	}
+
+	if (!ContainsAbsolute(remoteAddress))
+	{
+		ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
+		m_breakpoints.push_back(info);
         SerializeMetadata();
-        // TODO: right now AddBreakpoint returns DebugBreakpoint rather than a bool.
-        m_state->GetAdapter()->AddBreakpoint(remoteAddress);
-        return true;
     }
-    // TODO: I do not think its a good idea to return false here. We would better have a way to inform the caller that
-    // the breakpoint already exists.
-    return false;
+
+    return true;
 }
 
 
@@ -445,7 +449,9 @@ void DebuggerBreakpoints::Apply()
         if (std::find(remoteBreakpoints.begin(), remoteBreakpoints.end(), remoteAddress) == remoteBreakpoints.end())
         {
             LogWarn(fmt::format("adding breakpoint at remote address {:x}", remoteAddress).c_str());
-            m_state->GetAdapter()->AddBreakpoint(remoteAddress);
+//            m_state->GetAdapter()->AddBreakpoint(remoteAddress);
+			// DO not skip the controller, otherwise the breakpoint added event is not posted
+			m_state->GetController()->AddBreakpoint(remoteAddress);
         }
     }
 }

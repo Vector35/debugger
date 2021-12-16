@@ -103,6 +103,9 @@ public:
 	bool StatusBarAdded() const { return m_statusBarAdded; }
 	void SetStatusBarAdded() { m_statusBarAdded = true; }
 
+	TagTypeRef getPCTagType(BinaryViewRef data);
+	TagTypeRef getBreakpointTagType(BinaryViewRef data);
+
 signals:
     void absoluteBreakpointAdded(uint64_t address);
     void relativeBreakpointAdded(const ModuleNameAndOffset& address);

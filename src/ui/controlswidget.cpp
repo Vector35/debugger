@@ -272,7 +272,7 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
                 func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), lastIP, oldColor);
                 for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), lastIP))
                 {
-                    if (tag->GetType() != getPCTagType(data))
+                    if (tag->GetType() != m_controller->getPCTagType(data))
                         continue;
 
                     func->RemoveUserAddressTag(data->GetDefaultArchitecture(), lastIP, tag);
@@ -285,7 +285,7 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
                 bool tagFound = false;
                 for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
                 {
-                    if (tag->GetType() == getPCTagType(data))
+                    if (tag->GetType() == m_controller->getPCTagType(data))
                     {
                         tagFound = true;
                         break;
@@ -295,96 +295,15 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
                 if (!tagFound)
                 {
                     func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, BlueHighlightColor);
-                    func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getPCTagType(data),
+                    func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, m_controller->getPCTagType(data),
                                                "program counter");
                 }
             }
             break;
         }
-        case RelativeBreakpointAddedEvent:
-        case AbsoluteBreakpointAddedEvent:
-        {
-            uint64_t address;
-            if (event.type == RelativeBreakpointAddedEvent)
-                address = event.data.relativeAddress.offset;
-            else
-                address = event.data.absoluteAddress;
-
-            BinaryViewRef data = m_controller->GetLiveView();
-
-            for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
-            {
-                bool tagFound = false;
-                for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
-                {
-                    if (tag->GetType() == getBreakpointTagType(data))
-                    {
-                        tagFound = true;
-                        break;
-                    }
-                }
-
-                if (!tagFound)
-                {
-                    func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
-                    func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
-                                               "breakpoint");
-                }
-            }
-            break;
-        }
-        case RelativeBreakpointRemovedEvent:
-        case AbsoluteBreakpointRemovedEvent:
-        {
-            uint64_t address;
-            if (event.type == RelativeBreakpointAddedEvent)
-                address = event.data.relativeAddress.offset;
-            else
-                address = event.data.absoluteAddress;
-
-            BinaryViewRef data = m_controller->GetLiveView();
-
-            for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
-            {
-                func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, NoHighlightColor);
-                for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
-                {
-                    if (tag->GetType() != getBreakpointTagType(data))
-                        continue;
-
-                    func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
-                }
-            }
-            break;
-        }
-
         default:
             break;
     }
-}
-
-
-TagTypeRef DebugControlsWidget::getPCTagType(BinaryViewRef data)
-{
-    TagTypeRef type = data->GetTagType("Program Counter");
-    if (type)
-        return type;
-
-    TagTypeRef pcTagType = new TagType(data, "Program Counter", "=>");
-    data->AddTagType(pcTagType);
-    return pcTagType;
-}
-
-
-TagTypeRef DebugControlsWidget::getBreakpointTagType(BinaryViewRef data)
-{
-    TagTypeRef type = data->GetTagType("Breakpoints");
-    if (type)
-        return type;
-
-    TagTypeRef pcTagType = new TagType(data, "Breakpoints", "🛑");
-    data->AddTagType(pcTagType);
-    return pcTagType;
 }
 
 

@@ -14,9 +14,6 @@ DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 //        m_ui = new DebuggerUI(this);
 //    }
 
-    // TODO: we should add an option whether to add a breakpoint at program entry
-    AddEntryBreakpoint();
-
     RegisterEventCallback([this](const DebuggerEvent& event){
         EventHandler(event);
     });
@@ -26,6 +23,9 @@ DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
         Worker();
     });
     worker.detach();
+
+	// TODO: we should add an option whether to add a breakpoint at program entry
+	AddEntryBreakpoint();
 }
 
 
@@ -76,6 +76,30 @@ void DebuggerController::DeleteBreakpoint(const ModuleNameAndOffset& address)
     event.type = RelativeBreakpointRemovedEvent;
     event.data.relativeAddress = address;
     PostDebuggerEvent(event);
+}
+
+
+TagTypeRef DebuggerController::getPCTagType(BinaryViewRef data)
+{
+    TagTypeRef type = data->GetTagType("Program Counter");
+    if (type)
+        return type;
+
+    TagTypeRef pcTagType = new TagType(data, "Program Counter", "=>");
+    data->AddTagType(pcTagType);
+    return pcTagType;
+}
+
+
+TagTypeRef DebuggerController::getBreakpointTagType(BinaryViewRef data)
+{
+    TagTypeRef type = data->GetTagType("Breakpoints");
+    if (type)
+        return type;
+
+    TagTypeRef pcTagType = new TagType(data, "Breakpoints", "🛑");
+    data->AddTagType(pcTagType);
+    return pcTagType;
 }
 
 
@@ -410,6 +434,90 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 
         break;
     }
+	case RelativeBreakpointAddedEvent:
+	case AbsoluteBreakpointAddedEvent:
+	{
+		uint64_t address;
+		if (event.type == RelativeBreakpointAddedEvent)
+			address = event.data.relativeAddress.offset;
+		else
+			address = event.data.absoluteAddress;
+
+		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
+		BinaryViewRef data = GetLiveView();
+		if (data)
+			dataAndAddress.emplace_back(data, address);
+
+		if (event.type == RelativeBreakpointAddedEvent)
+		{
+			BinaryViewRef data = GetData();
+			if (event.data.relativeAddress.module == data->GetFile()->GetOriginalFilename())
+				// TODO: we should retrieve the actual address of the breakpoint based on the ModuleAndOffset
+				dataAndAddress.emplace_back(data, data->GetStart() + address);
+		}
+
+		for (auto& [data, address]: dataAndAddress)
+		{
+			for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
+			{
+				bool tagFound = false;
+				for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
+				{
+					if (tag->GetType() == getBreakpointTagType(data))
+					{
+						tagFound = true;
+						break;
+					}
+				}
+
+				if (!tagFound)
+				{
+					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
+					func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
+											   "breakpoint");
+				}
+			}
+		}
+		break;
+	}
+	case RelativeBreakpointRemovedEvent:
+	case AbsoluteBreakpointRemovedEvent:
+	{
+		uint64_t address;
+		if (event.type == RelativeBreakpointAddedEvent)
+			address = event.data.relativeAddress.offset;
+		else
+			address = event.data.absoluteAddress;
+
+		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
+		BinaryViewRef data = GetLiveView();
+		if (data)
+			dataAndAddress.emplace_back(data, address);
+
+		if (event.type == RelativeBreakpointAddedEvent)
+		{
+			BinaryViewRef data = GetData();
+			if (event.data.relativeAddress.module == data->GetFile()->GetOriginalFilename())
+				// TODO: we should retrieve the actual address of the breakpoint based on the ModuleAndOffset
+				dataAndAddress.emplace_back(data, data->GetStart() + address);
+		}
+
+		for (auto& [data, address]: dataAndAddress)
+		{
+			for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
+			{
+				func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, NoHighlightColor);
+				for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
+				{
+					if (tag->GetType() != getBreakpointTagType(data))
+						continue;
+
+					func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
+				}
+			}
+		}
+		break;
+	}
     default:
         break;
     }

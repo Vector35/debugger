@@ -65,9 +65,6 @@ public:
 
     void uiEventHandler(const DebuggerEvent& event);
 
-    TagTypeRef getPCTagType(BinaryViewRef data);
-    TagTypeRef getBreakpointTagType(BinaryViewRef data);
-
     void updateButtons();
 
 public Q_SLOTS:
