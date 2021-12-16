@@ -216,16 +216,25 @@ DebugModule DebuggerModules::GetModuleByName(const std::string& name) const
 
 DebugModule DebuggerModules::GetModuleForAddress(uint64_t remoteAddress) const
 {
+	// lldb does not properly return the size of a module, so we have to find the nearest module base that is smaller
+	// than the remoteAddress
+	uint64_t closestAddress = 0;
+	DebugModule result{};
+
     for (const DebugModule& module: m_modules)
     {
         // This is slighlty different from the Python implementation, which finds the largest module start that is
         // smaller than the remoteAddress. 
-        // TODO: check if the m_size of DebugModule is present for all platforms
-        if ((module.m_address <= remoteAddress) && (remoteAddress < module.m_address + module.m_size))
-            return module;
+//        if ((module.m_address <= remoteAddress) && (remoteAddress < module.m_address + module.m_size))
+//            return module;
+		if ((module.m_address <= remoteAddress) && (module.m_address > closestAddress))
+		{
+			closestAddress = module.m_address;
+			result = module;
+		}
     }
 
-    return {};
+    return result;
 }
 
 

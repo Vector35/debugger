@@ -108,7 +108,8 @@ struct DebugModule
     // These are useful for remote debugging. Paths can be different on the host and guest systems, e.g., /usr/bin/ls,
     // and C:\Users\user\Desktop\ls. So we must compare the base file name, rather than the full path.
     bool IsSameBaseModule(const DebugModule& other) const;
-    bool IsSameBaseModule(const std::string& name) const;
+	bool IsSameBaseModule(const std::string& name) const;
+	static bool IsSameBaseModule(const std::string& module, const std::string& module2);
     static std::string GetPathBaseName(const std::string& path);
 };
 

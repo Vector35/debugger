@@ -394,7 +394,9 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             }
 
             Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
-            SetData(rebasedView);
+//			TODO: I do not think we should use the rebased view to replace m_data right now, but I remember there was
+//			an discussion on it. Remember to check this out later.
+//            SetData(rebasedView);
             LogWarn("the base of the rebased view is 0x%lx", rebasedView->GetStart());
 
 			ExecuteOnMainThreadAndWait([&](){
@@ -435,71 +437,103 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
         break;
     }
 	case RelativeBreakpointAddedEvent:
-	case AbsoluteBreakpointAddedEvent:
 	{
-		uint64_t address;
-		if (event.type == RelativeBreakpointAddedEvent)
-			address = event.data.relativeAddress.offset;
-		else
-			address = event.data.absoluteAddress;
+		DebuggerModules* modules = m_state->GetModules();
+		uint64_t address = modules->RelativeAddressToAbsolute(event.data.relativeAddress);
 
 		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		BinaryViewRef data = GetLiveView();
-		if (data)
-			dataAndAddress.emplace_back(data, address);
+		if (m_liveView)
+			dataAndAddress.emplace_back(m_liveView, address);
 
-		if (event.type == RelativeBreakpointAddedEvent)
+		if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module,
+										  m_data->GetFile()->GetOriginalFilename()))
 		{
-			BinaryViewRef data = GetData();
-			if (event.data.relativeAddress.module == data->GetFile()->GetOriginalFilename())
-				// TODO: we should retrieve the actual address of the breakpoint based on the ModuleAndOffset
-				dataAndAddress.emplace_back(data, data->GetStart() + address);
+			dataAndAddress.emplace_back(m_data, m_data->GetStart() + event.data.relativeAddress.offset);
 		}
 
 		for (auto& [data, address]: dataAndAddress)
 		{
 			for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
 			{
-				bool tagFound = false;
-				for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
-				{
-					if (tag->GetType() == getBreakpointTagType(data))
-					{
-						tagFound = true;
-						break;
-					}
-				}
-
-				if (!tagFound)
-				{
-					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
-					func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
+				func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
+				func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
 											   "breakpoint");
-				}
 			}
 		}
 		break;
 	}
-	case RelativeBreakpointRemovedEvent:
-	case AbsoluteBreakpointRemovedEvent:
+	case AbsoluteBreakpointAddedEvent:
 	{
-		uint64_t address;
-		if (event.type == RelativeBreakpointAddedEvent)
-			address = event.data.relativeAddress.offset;
-		else
-			address = event.data.absoluteAddress;
+		uint64_t address = event.data.absoluteAddress;
 
 		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
 		BinaryViewRef data = GetLiveView();
 		if (data)
 			dataAndAddress.emplace_back(data, address);
 
-		if (event.type == RelativeBreakpointAddedEvent)
+		DebuggerModules* modules = m_state->GetModules();
+		ModuleNameAndOffset relative = modules->AbsoluteAddressToRelative(address);
+		if (DebugModule::IsSameBaseModule(relative.module, m_data->GetFile()->GetOriginalFilename()))
 		{
-			BinaryViewRef data = GetData();
-			if (event.data.relativeAddress.module == data->GetFile()->GetOriginalFilename())
-				// TODO: we should retrieve the actual address of the breakpoint based on the ModuleAndOffset
-				dataAndAddress.emplace_back(data, data->GetStart() + address);
+			dataAndAddress.emplace_back(m_data, m_data->GetStart() + relative.offset);
+		}
+
+		for (auto& [data, address]: dataAndAddress)
+		{
+			for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
+			{
+				func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
+				func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
+										   "breakpoint");
+			}
+		}
+		break;
+	}
+	case RelativeBreakpointRemovedEvent:
+	{
+		DebuggerModules* modules = m_state->GetModules();
+		uint64_t address = modules->RelativeAddressToAbsolute(event.data.relativeAddress);
+
+		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
+		if (m_liveView)
+			dataAndAddress.emplace_back(m_liveView, address);
+
+		if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module,
+										  m_data->GetFile()->GetOriginalFilename()))
+		{
+			dataAndAddress.emplace_back(m_data, m_data->GetStart() + event.data.relativeAddress.offset);
+		}
+
+		for (auto& [data, address]: dataAndAddress)
+		{
+			for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
+			{
+				func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, NoHighlightColor);
+				for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
+				{
+					if (tag->GetType() != getBreakpointTagType(data))
+						continue;
+
+					func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
+				}
+			}
+		}
+		break;
+	}
+	case AbsoluteBreakpointRemovedEvent:
+	{
+		uint64_t address = event.data.absoluteAddress;
+
+		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
+		BinaryViewRef data = GetLiveView();
+		if (data)
+			dataAndAddress.emplace_back(data, address);
+
+		DebuggerModules* modules = m_state->GetModules();
+		ModuleNameAndOffset relative = modules->AbsoluteAddressToRelative(address);
+		if (DebugModule::IsSameBaseModule(relative.module, m_data->GetFile()->GetOriginalFilename()))
+		{
+			dataAndAddress.emplace_back(m_data, m_data->GetStart() + relative.offset);
 		}
 
 		for (auto& [data, address]: dataAndAddress)

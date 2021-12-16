@@ -44,3 +44,10 @@ bool DebugModule::IsSameBaseModule(const std::string& name) const
         (GetPathBaseName(m_name) == GetPathBaseName(name)) ||
         (GetPathBaseName(m_short_name) == GetPathBaseName(name)));
 }
+
+
+bool DebugModule::IsSameBaseModule(const std::string& module1, const std::string& module2)
+{
+    return ((module1 == module2) ||
+        (GetPathBaseName(module1) == GetPathBaseName(module2)));
+}

@@ -46,13 +46,14 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
     DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
     if (isAbsoluteAddress)
     {
-        if (breakpoints->ContainsAbsolute(addr))
+		ModuleNameAndOffset relativeAddress = state->GetModules()->AbsoluteAddressToRelative(addr);
+        if (breakpoints->ContainsOffset(relativeAddress))
         {
-            controller->DeleteBreakpoint(addr);
+            controller->DeleteBreakpoint(relativeAddress);
         }
         else
         {
-            controller->AddBreakpoint(addr);
+            controller->AddBreakpoint(relativeAddress);
         }
     }
     else
