@@ -12,12 +12,6 @@ DebugProcessView::DebugProcessView(BinaryView* parent):
     // name to "Debugger"
     BinaryView("Debugger", parent->GetFile(), parent)
 {
-	// quick and dirty way to deal with the construction by BN
-	// a better way to deal with is to somehow tell BN to not construct this object, even if its validForData()
-	// returns true
-	if (parent->GetTypeName() == "Raw")
-		throw std::runtime_error("unexpected construction");
-
     m_arch = parent->GetDefaultArchitecture();
     m_platform = parent->GetDefaultPlatform();
     m_addressSize = parent->GetAddressSize();
@@ -88,6 +82,12 @@ DebugProcessViewType::DebugProcessViewType():
 
 BinaryView* DebugProcessViewType::Create(BinaryView* data)
 {
+	// quick and dirty way to deal with the construction by BN
+	// a better way to deal with is to somehow tell BN to not construct this object, even if its validForData()
+	// returns true
+	if (data->GetTypeName() == "Raw")
+		return nullptr;
+
 	try
 	{
 		return new DebugProcessView(data);
@@ -102,6 +102,9 @@ BinaryView* DebugProcessViewType::Create(BinaryView* data)
 
 BinaryView* DebugProcessViewType::Parse(BinaryView* data)
 {
+	if (data->GetTypeName() == "Raw")
+		return nullptr;
+
 	try
 	{
 		return new DebugProcessView(data);

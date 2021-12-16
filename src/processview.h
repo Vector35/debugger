@@ -7,10 +7,6 @@
 using namespace BinaryNinja;
 class DebuggerController;
 
-// The debug memory BinaryView layout is in a few pieces:
-// - DebugProcessView represents the entire debugged process, containing segments for mapped memory
-// - DebugMemoryView represents the raw memory of the process (eg like a raw BinaryView)
-
 class DebugProcessView: public BinaryView
 {
     std::vector<uint64_t> m_entryPoints;
