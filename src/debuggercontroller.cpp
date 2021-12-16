@@ -457,9 +457,22 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		{
 			for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
 			{
-				func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
-				func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
-											   "breakpoint");
+				bool tagFound = false;
+				for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
+				{
+					if (tag->GetType() == getBreakpointTagType(data))
+					{
+						tagFound = true;
+						break;
+					}
+				}
+
+				if (!tagFound)
+				{
+					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
+					func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
+												   "breakpoint");
+				}
 			}
 		}
 		break;
@@ -484,9 +497,22 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		{
 			for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
 			{
-				func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
-				func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
-										   "breakpoint");
+				bool tagFound = false;
+				for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
+				{
+					if (tag->GetType() == getBreakpointTagType(data))
+					{
+						tagFound = true;
+						break;
+					}
+				}
+
+				if (!tagFound)
+				{
+					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
+					func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
+												   "breakpoint");
+				}
 			}
 		}
 		break;
