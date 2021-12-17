@@ -16,6 +16,7 @@ DebugProcessView::DebugProcessView(BinaryView* parent):
     m_platform = parent->GetDefaultPlatform();
     m_addressSize = parent->GetAddressSize();
     m_entryPoints.push_back(parent->GetEntryPoint());
+	m_endian = parent->GetDefaultEndianness();
 
     // TODO: Read segments from debugger
     uint64_t length = PerformGetLength();
