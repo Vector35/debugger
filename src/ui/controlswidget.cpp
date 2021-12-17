@@ -247,7 +247,7 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
 				m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
 
             // This works, but it seems not natural to me
-            std::thread([&](){
+            std::thread([=](){
                 ExecuteOnMainThreadAndWait([this, address]()
                 {
                     UIContext* context = UIContext::contextForWidget(this);

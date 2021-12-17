@@ -383,7 +383,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             if (remoteBase != m_data->GetStart())
             {
                 // remote base is different from the local base, first need a rebase
-				ExecuteOnMainThreadAndWait([&](){
+				ExecuteOnMainThreadAndWait([=](){
 					ProgressIndicator progress(nullptr, "Rebase", "Rebasing...");
 					if (!fileMetadata->Rebase(m_data, remoteBase,
 											  [&](size_t cur, size_t total) { progress.update((int)cur, (int)total); }))
@@ -401,7 +401,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             SetData(rebasedView);
             LogWarn("the base of the rebased view is 0x%lx", rebasedView->GetStart());
 
-			ExecuteOnMainThreadAndWait([&](){
+			ExecuteOnMainThreadAndWait([=](){
 				ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
 				bool ok = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger",
 														[&](size_t cur, size_t total) { progress.update((int)cur, (int)total); });

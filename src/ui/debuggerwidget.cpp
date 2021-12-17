@@ -125,7 +125,7 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
     case DetachedEventType:
     case QuitDebuggingEventType:
     case BackEndDisconnectedEventType:
-		std::thread([&](){
+		std::thread([=](){
 			ExecuteOnMainThreadAndWait([this]()
 			{
 				updateContent();
@@ -133,7 +133,7 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
 		}).detach();
 		break;
 	case ActiveThreadChangedEvent:
-		std::thread([&](){
+		std::thread([=](){
 			ExecuteOnMainThreadAndWait([this]()
 			{
 				m_stackWidget->updateContent();
