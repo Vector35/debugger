@@ -396,7 +396,9 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
 //			TODO: I do not think we should use the rebased view to replace m_data right now, but I remember there was
 //			an discussion on it. Remember to check this out later.
-//            SetData(rebasedView);
+//			Update: this line must be kept unless we change the FileMetadata::Rebase(), so that it does not register
+//			the rebased view. Otherwise, it causes random crashes and/or unexpected behavior
+            SetData(rebasedView);
             LogWarn("the base of the rebased view is 0x%lx", rebasedView->GetStart());
 
 			ExecuteOnMainThreadAndWait([&](){
