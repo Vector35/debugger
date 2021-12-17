@@ -63,6 +63,32 @@ bool DebuggerRegisters::UpdateRegisterValue(const std::string& name, uint64_t va
 }
 
 
+// TODO: we definitely need better string detection
+static std::string CheckForPrintableString(const DataBuffer& memory)
+{
+	std::string reg_string;
+	if (memory.GetLength() > 0)
+		reg_string = std::string((const char*)memory.GetData(), memory.GetLength());
+	else
+		return "";
+
+	size_t printableChars = 0;
+	for (size_t i = 0; i < reg_string.size(); i++)
+	{
+		auto c = reg_string[i];
+		if (c == '\n' || std::isprint(c))
+			printableChars++;
+		else
+			break;
+	}
+
+	if (printableChars > 0)
+		return reg_string.substr(0, printableChars);
+	else
+		return "";
+}
+
+
 std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters() const
 {
     std::vector<DebugRegister> result{};
@@ -79,29 +105,31 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters() const
     if (!controller->GetState()->IsConnected())
         throw ConnectionRefusedError("Cannot update hints when disconnected");
 
-    for (auto& reg : result) {
+    for (auto& reg : result)
+	{
         const DataBuffer memory = controller->ReadMemory(reg.m_value, 128);
-        std::string reg_string;
-        if (memory.GetLength() > 0)
-            reg_string = std::string((const char*)memory.GetData(), memory.GetLength());
-        else
-            reg_string = "x";
-
-        const auto can_print = std::all_of(reg_string.begin(), reg_string.end(), [](unsigned char c){
-            return c == '\n' || std::isprint(c);
-        });
-
-        if (!reg_string.empty() && reg_string.size() > 3 && can_print)
+        std::string reg_string = CheckForPrintableString(memory);
+		if (reg_string.size() > 3)
         {
             reg.m_hint = fmt::format("\"{}\"", reg_string);
         }
         else
         {
+			reg.m_hint = "";
             DataBuffer buffer = controller->ReadMemory(reg.m_value, reg.m_width);
             if (buffer.GetLength() > 0)
-                reg.m_hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.GetData()));
-            else
-                reg.m_hint = "";
+			{
+				uint64_t pointerValue = *reinterpret_cast<std::uintptr_t*>(buffer.GetData());
+				if (pointerValue != 0)
+				{
+					const DataBuffer memory = controller->ReadMemory(pointerValue, 128);
+					std::string reg_string = CheckForPrintableString(memory);
+					if (reg_string.size() > 3)
+					{
+						reg.m_hint = fmt::format("&\"{}\"", reg_string);
+					}
+				}
+			}
         }
     }
 
