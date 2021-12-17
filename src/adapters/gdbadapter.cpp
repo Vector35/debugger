@@ -91,7 +91,6 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const string &args, co
 				   "--once", "--no-startup-with-shell",
 				   (char*)host_with_port.c_str(),
 				   (char*) path.c_str(),
-				   "--",
 				   (char*)args.c_str(),
 				   NULL};
 
