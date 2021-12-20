@@ -1,6 +1,7 @@
 #include "controlswidget.h"
 #include "adaptersettings.h"
 #include <QtGui/QPixmap>
+#include <QtCore/QCoreApplication>
 #include "binaryninjaapi.h"
 #include "disassemblyview.h"
 #include "ui.h"
@@ -219,18 +220,61 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
     {
 		case DetachedEventType:
 		case QuitDebuggingEventType:
+		case TargetExitedEventType:
+		{
+			std::thread([=](){
+				ExecuteOnMainThreadAndWait([=]()
+				{
+					UIContext* context = UIContext::contextForWidget(this);
+					ViewFrame* frame = context->getCurrentViewFrame();
+					FileContext* fileContext = frame->getFileContext();
+					fileContext->refreshDataViewCache();
+					ViewFrame* newFrame = context->openFileContext(fileContext);
+					if (newFrame)
+					{
+						newFrame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
+						context->closeTab(context->getTabForFile(fileContext));
+						QCoreApplication::processEvents();
+					}
+					else
+					{
+						LogWarn("fail to navigate to the original view");
+					}
+				});
+			}).detach();
 			break;
+		}
 
         case InitialViewRebasedEventType:
         {
-            LogWarn("InitialViewRebasedEventType event");
-            UIContext* context = UIContext::contextForWidget(this);
-            ViewFrame* frame = context->getCurrentViewFrame();
+			uint64_t address = m_controller->GetState()->IP();
+			// If there is no function at the current address, define one. This might be a little aggressive,
+			// but given that we are lacking the ability to "show as code", this feels like an OK workaround.
+			auto functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(address);
+			if (functions.size() == 0)
+				m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
 
-            FileContext* fileContext = frame->getFileContext();
-            fileContext->refreshDataViewCache();
-
-//            no break here, intentional fall-through
+			std::thread([=](){
+				ExecuteOnMainThreadAndWait([=]()
+				{
+					UIContext* context = UIContext::contextForWidget(this);
+					ViewFrame* frame = context->getCurrentViewFrame();
+					FileContext* fileContext = frame->getFileContext();
+					fileContext->refreshDataViewCache();
+					ViewFrame* newFrame = context->openFileContext(fileContext);
+					if (newFrame)
+					{
+						newFrame->navigate(m_controller->GetLiveView(), address, true, true);
+						context->closeTab(context->getTabForFile(fileContext));
+						QCoreApplication::processEvents();
+					}
+					else
+					{
+						LogWarn("fail to navigate to the debugger view");
+					}
+				});
+			}).detach();
+			break;
         }
         case TargetStoppedEventType:
         {

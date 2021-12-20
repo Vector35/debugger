@@ -355,6 +355,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	{
 		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
+		SetLiveView(nullptr);
 		break;
 	}
     case TargetStoppedEventType:
