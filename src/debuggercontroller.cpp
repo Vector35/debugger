@@ -128,16 +128,34 @@ void DebuggerController::Go()
 	DebuggerEvent event;
 	event.type = ResumeEventType;
 	PostDebuggerEvent(event);
-    std::thread worker([this](){
-        m_state->Go();
-		// This is actually problematic as NotifyStopped will always send a TargetStoppedEvent, but when the target exits,
-		// a TargetExited event is already sent by the backend.
-		// I am not 100% sure whether TargetExited should be a specific case of the general targetStoppedEvent, or
-		// it should be an event type by its own. Remember to get back to this and resolve the issue.
-        NotifyStopped(m_state->GetLastStopReason(), nullptr);
-    });
-    worker.detach();
+
+	// TODO: Update m_state status as running
+
+	// This is a non-blocking call, it will return as soon as the target is resumed
+//	m_adapter->Go();
+
+	// Do not mark the m_state as dirty right now. Because the adapter may still query the cached state.
+	// The state will be marked dirty when the target stops.
+	std::thread([this](){
+		m_state->GetAdapter()->Go();
+	});
+
+//    std::thread worker([this](){
+//        m_state->Go();
+//		// This is actually problematic as NotifyStopped will always send a TargetStoppedEvent, but when the target exits,
+//		// a TargetExited event is already sent by the backend.
+//		// I am not 100% sure whether TargetExited should be a specific case of the general targetStoppedEvent, or
+//		// it should be an event type by its own. Remember to get back to this and resolve the issue.
+//        NotifyStopped(m_state->GetLastStopReason(), nullptr);
+//    });
+//    worker.detach();
 }
+
+
+//DebugStopReason DebuggerController::GoAndWait()
+//{
+//
+//}
 
 
 void DebuggerController::StepInto(BNFunctionGraphType il)
@@ -360,6 +378,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	}
     case TargetStoppedEventType:
     {
+		m_state->MarkDirty();
         m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
         m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 

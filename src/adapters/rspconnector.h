@@ -113,6 +113,9 @@ struct RspData
     }
 
     BinaryNinja::DataBuffer m_data;
+
+	uint8_t& operator[](size_t offset);
+	const uint8_t& operator[](size_t offset) const;
 };
 
 

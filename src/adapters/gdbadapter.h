@@ -91,14 +91,17 @@ public:
     DebugStopReason StopReason() override;
     unsigned long ExecStatus() override;
 
-    bool GenericGo(const std::string& go_type);
-    bool GenericGoAsync(const std::string& go_type);
-
+    bool GenericGo(const std::string& goCommand, std::function<void(const DebuggerEvent&)> callback);
     bool BreakInto() override;
-    bool Go() override;
-    bool StepInto() override;
+	bool Go() override;
+	bool Go(std::function<void(const DebuggerEvent&)> callback);
+	bool StepInto() override;
+	bool StepInto(std::function<void(const DebuggerEvent&)> callback);
+	bool StepIntoAndWait();
     bool StepOver() override;
     bool StepTo(std::uintptr_t address) override;
+
+	void ResponseHandler(std::function<void(const DebuggerEvent&)> callback);
 
     void Invoke(const std::string& command) override;
     std::uintptr_t GetInstructionOffset() override;

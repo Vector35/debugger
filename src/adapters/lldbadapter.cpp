@@ -174,7 +174,9 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string &ar
 }
 
 bool LldbAdapter::Go() {
-    return this->GenericGo("c");
+    return this->GenericGo("c", [this](const DebuggerEvent& event){
+		PostDebuggerEvent(event);
+	});
 }
 
 std::string LldbAdapter::GetTargetArchitecture() {
