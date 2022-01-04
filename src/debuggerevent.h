@@ -91,7 +91,6 @@ enum class DebugStopReason {
 struct TargetStoppedEventData
 {
     DebugStopReason reason;
-	std::uint32_t lastActiveThread;
     size_t exitCode;
     void* data;
 };

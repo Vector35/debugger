@@ -113,13 +113,8 @@ struct DebugModule
     static std::string GetPathBaseName(const std::string& path);
 };
 
-class DebuggerState;
 class DebugAdapter
 {
-protected:
-	// The DebugAdapter holds a reference to the DebuggerState, so it does not have to cache all the stuff by itself.
-	DebuggerState* m_state;
-
 private:
     // Function to call when the DebugAdapter wants to notify the front-end of certain events
     // TODO: we should not use a vector here; only the DebuggerController should register one here;
@@ -186,7 +181,4 @@ public:
     // This is implemented by the (base) DebugAdapter class.
     // Sub-classes should use it to post debugger events directly (only when needed).
 	void PostDebuggerEvent(const DebuggerEvent& event);
-
-	// Workaround that allow the adapter to access the DebuggerState
-	virtual void SetState(DebuggerState* state) { m_state = state; }
 };

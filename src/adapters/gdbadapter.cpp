@@ -28,7 +28,6 @@
 #include <mediumlevelilinstruction.h>
 #include <highlevelilinstruction.h>
 #include "queuedadapter.h"
-#include "../debuggerstate.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -741,235 +740,58 @@ bool GdbAdapter::BreakInto()
     m_isTargetRunning = false;
     return true;
 }
-//
-//bool GdbAdapter::GenericGo(const std::string& go_type)
-//{
-//    m_isTargetRunning = true;
-//    const auto go_reply = m_rspConnector.TransmitAndReceive(
-//			RspData(go_type),
-//			"mixed_output_ack_then_reply",
-//			[this](const RspData& data){
-//				HandleAsyncPacket(data);
-//			});
-//
-//    if ( go_reply[0] == 'T' )
-//	{
-//        auto map = RspConnector::PacketToUnorderedMap(go_reply);
-//        const auto tid = map["thread"];
-//        this->m_lastActiveThreadId = tid;
-//        this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);
-//    }
-//	else if ( go_reply[0] == 'W' )
-//	{
-//		this->m_lastStopReason = DebugStopReason::ProcessExited;
-//		std::string exitCodeString = go_reply.AsString().substr(1);
-//		uint8_t exitCode = strtoul(exitCodeString.c_str(), nullptr, 16);
-//		DebuggerEvent event;
-//		event.type = TargetExitedEventType;
-//		event.data.exitData.exitCode = exitCode;
-//		PostDebuggerEvent(event);
-//    }
-//	else
-//	{
-//        printf("[generic go failed?]\n");
-//        printf("%s\n", go_reply.AsString().c_str());
-//        return false;
-//    }
-//
-//    m_isTargetRunning = false;
-//    return true;
-//}
 
-
-void GdbAdapter::ResponseHandler(std::function<void(const DebuggerEvent&)> callback)
+bool GdbAdapter::GenericGo(const std::string& go_type)
 {
-	while (true)
+    m_isTargetRunning = true;
+    const auto go_reply = m_rspConnector.TransmitAndReceive(
+			RspData(go_type),
+			"mixed_output_ack_then_reply",
+			[this](const RspData& data){
+				HandleAsyncPacket(data);
+			});
+
+    if ( go_reply.m_data[0] == 'T' )
 	{
-		const RspData reply = m_rspConnector.ReceiveRspData();
-		if (reply[0] == 'T')
-		{
-			// Target stopped
-			auto map = RspConnector::PacketToUnorderedMap(reply);
-			const auto tid = map["thread"];
-//			this->m_lastActiveThreadId = tid;
-//			this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);
-			DebuggerEvent event;
-			event.type = TargetStoppedEventType;
-			event.data.targetStoppedData.reason = GdbAdapter::SignalToStopReason(map["signal"]);
-			event.data.targetStoppedData.lastActiveThread = tid;
-			callback(event);
-			break;
-		}
-		else if (reply[0] == 'W')
-		{
-			// Target exited
-//			this->m_lastStopReason = DebugStopReason::ProcessExited;
-			std::string exitCodeString = reply.AsString().substr(1);
-			uint8_t exitCode = strtoul(exitCodeString.c_str(), nullptr, 16);
-			DebuggerEvent event;
-			event.type = TargetExitedEventType;
-			event.data.exitData.exitCode = exitCode;
-			callback(event);
-			break;
-		}
-		else if (reply[0] == 'O')
-		{
-			// stdout message
-			const auto string = reply.AsString();
-			const auto message = string.substr(1);
-
-			// These duplicate code in GdbAdapter::ReadMemory(). We should probably add a ParseFromHex() and EncodeAsHex()
-			// to the RspData class.
-			if (message.size() % 2 == 1)
-				return;
-
-			size_t size = message.size() / 2;
-			if (size == 0)
-				return;
-
-			std::string result;
-			result.resize(size);
-
-			[](const std::uint8_t* src, std::uint8_t* dst) {
-				const auto char_to_int = [](std::uint8_t input) -> int {
-					if(input >= '0' && input <= '9')
-						return input - '0';
-					if(input >= 'A' && input <= 'F')
-						return input - 'A' + 10;
-					if(input >= 'a' && input <= 'f')
-						return input - 'a' + 10;
-					throw std::invalid_argument("Invalid input string");
-				};
-
-				while(*src && src[1]) {
-					*(dst++) = char_to_int(*src) * 16 + char_to_int(src[1]);
-					src += 2;
-				}
-			}((const std::uint8_t*)message.c_str(), (std::uint8_t*)result.c_str());
-
-			DebuggerEvent event;
-			event.type = StdoutMessageEventType;
-			event.data.messageData.message = result;
-			callback(event);
-		}
-		else
-		{
-			LogWarn("Unexpected rsp response, \"%s\"", reply.AsString().c_str());
-		}
-	}
-}
-
-
-bool GdbAdapter::Go()
-{
-	Go([this](const DebuggerEvent& event){
+        auto map = RspConnector::PacketToUnorderedMap(go_reply);
+        const auto tid = map["thread"];
+        this->m_lastActiveThreadId = tid;
+        this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);
+    }
+	else if ( go_reply.m_data[0] == 'W' )
+	{
+		this->m_lastStopReason = DebugStopReason::ProcessExited;
+		std::string exitCodeString = go_reply.AsString().substr(1);
+		uint8_t exitCode = strtoul(exitCodeString.c_str(), nullptr, 16);
+		DebuggerEvent event;
+		event.type = TargetExitedEventType;
+		event.data.exitData.exitCode = exitCode;
 		PostDebuggerEvent(event);
-	});
-}
+    }
+	else
+	{
+        printf("[generic go failed?]\n");
+        printf("%s\n", go_reply.AsString().c_str());
+        return false;
+    }
 
-
-bool GdbAdapter::Go(std::function<void (const DebuggerEvent &)> callback)
-{
-	GenericGo("vCont;c:-1", callback);
+    m_isTargetRunning = false;
+    return true;
 }
 
 
 // this should return the information about the target stop
-bool GdbAdapter::GenericGo(const std::string& goCommand, std::function<void(const DebuggerEvent&)> callback)
+bool GdbAdapter::Go()
 {
-	uint64_t ip = m_state->IP();
-	if (m_state->GetBreakpoints()->ContainsAbsolute(ip))
-	{
-		// StepInto() handles the breakpoint removal and addition, so we do not need to deal with it here
-		StepInto([callback](const DebuggerEvent& e){
-			if ((e.type == TargetStoppedEventType) || (e.type == TargetExitedEventType))
-			{
-				// TODO: If the target has stopped or exited, we need to check whether the target actually stopped due
-				// to the single step. If not, we probably need to do something accordingly.
-
-				// The StepInto() should also return now, so we do not need to do anything for it
-			}
-			else
-			{
-				// For other non-stop events, post the event without returning
-				callback(e);
-			}
-		});
-	}
-
-	// TODO: these two calls should be combined
-	m_rspConnector.SendPayload(RspData(goCommand));
-	m_rspConnector.ExpectAck();
-
-	// Launch the response parser
-	ResponseHandler([this, callback](const DebuggerEvent& e){
-		callback(e);
-	});
-}
-
-
-bool GdbAdapter::StepIntoAndWait()
-{
-	// TODO: these two calls should be combined
-	m_rspConnector.SendPayload(RspData("vCont;s"));
-	m_rspConnector.ExpectAck();
-
-	Semaphore sem;
-	// Launch the response parser
-	std::thread([&](){
-		ResponseHandler([&](const DebuggerEvent& event){
-			sem.Release();
-		});
-	}).detach();
-
-	sem.Wait();
-}
-
-
-bool GdbAdapter::StepInto(std::function<void(const DebuggerEvent&)> callback)
-{
-	bool breakpointAtCurrentIP = false;
-	uint64_t ip = m_state->IP();
-	if (m_state->GetBreakpoints()->ContainsAbsolute(ip))
-	{
-		breakpointAtCurrentIP = true;
-		RemoveBreakpoint(ip);
-	}
-
-	// TODO: these two calls should be combined
-	m_rspConnector.SendPayload(RspData("vCont;s"));
-	m_rspConnector.ExpectAck();
-
-	DebuggerEvent event;
-	// Launch the response parser
-	ResponseHandler([this, callback, &event](const DebuggerEvent& e){
-		if ((e.type == TargetStoppedEventType) || (e.type == TargetExitedEventType))
-		{
-			// If the target has stopped or exited, we need to restore the breakpoint before returning
-			event = e;
-			// Maybe we should have the callback decide if the ResponseHandler should return
-			// And then we return true from here
-		}
-		else
-		{
-			// For other non-stop events, post the event without returning
-			callback(e);
-		}
-	});
-
-	if (breakpointAtCurrentIP)
-	{
-		AddBreakpoint(ip);
-	}
-	callback(event);
+//    m_mutex.lock();
+    return this->GenericGo("vCont;c:-1");
+//    m_mutex.unlock();
 }
 
 
 bool GdbAdapter::StepInto()
 {
-	StepInto([this](const DebuggerEvent& event){
-		PostDebuggerEvent(event);
-	});
+    return this->GenericGo("vCont;s");
 }
 
 

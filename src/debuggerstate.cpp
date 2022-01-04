@@ -578,8 +578,6 @@ bool DebuggerState::CreateDebugAdapter()
 	adapter->SetEventCallback([this](const DebuggerEvent& event){
 		m_controller->PostDebuggerEvent(event);
 	});
-
-	adapter->SetState(this);
 	return true;
 }
 

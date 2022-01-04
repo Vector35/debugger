@@ -233,11 +233,7 @@ RspData RspConnector::ReceiveRspData() const
 
     this->SendAck();
 
-	RspData reply = RspData(std::string(buffer.data(), buffer.size()));
-	if ( std::find(reply.begin(), reply.end(), '*') != reply.end() )
-		reply = this->DecodeRLE(reply);
-
-	return reply;
+    return RspData(std::string(buffer.data(), buffer.size()));
 }
 
 RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string& expect,
@@ -350,16 +346,4 @@ std::string RspConnector::GetXml(const std::string& name)
     data_string.erase(0, 1);
 
     return data_string;
-}
-
-
-uint8_t& RspData::operator[](size_t offset)
-{
-	return m_data[offset];
-}
-
-
-const uint8_t& RspData::operator[](size_t offset) const
-{
-	return m_data[offset];
 }
