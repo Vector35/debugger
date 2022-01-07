@@ -40,10 +40,10 @@ void DebuggerRegisters::Update()
 
 uint64_t DebuggerRegisters::GetRegisterValue(const std::string& name)
 {
-    // Unlike the Python implementation, we requrie the DebuggerState to explicitly check for dirty caches
+    // Unlike the Python implementation, we require the DebuggerState to explicitly check for dirty caches
     // and update the values when necessary. This is mainly because the update can be expensive.
     if (IsDirty())
-        throw runtime_error("Reading register value from a dirty cache");
+        Update();
 
     auto iter = m_registerCache.find(name);
     if (iter == m_registerCache.end())
@@ -89,8 +89,11 @@ static std::string CheckForPrintableString(const DataBuffer& memory)
 }
 
 
-std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters() const
+std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters()
 {
+	if (IsDirty())
+	 	Update();
+
     std::vector<DebugRegister> result{};
     for (auto& [reg_name, reg]: m_registerCache)
         result.push_back(reg);
@@ -193,6 +196,14 @@ bool DebuggerThreads::SetActiveThread(const DebugThread& thread)
 }
 
 
+std::vector<DebugThread> DebuggerThreads::GetAllThreads()
+{
+	if (IsDirty())
+		Update();
+	return m_threads;
+}
+
+
 DebuggerModules::DebuggerModules(DebuggerState* state):
     m_state(state)
 {
@@ -218,8 +229,11 @@ void DebuggerModules::Update()
 }
 
 
-uint64_t DebuggerModules::GetModuleBase(const std::string& name) const
+uint64_t DebuggerModules::GetModuleBase(const std::string& name)
 {
+	if (IsDirty())
+		Update();
+
     for (const DebugModule& module: m_modules)
     {
         if (module.IsSameBaseModule(name))
@@ -231,9 +245,12 @@ uint64_t DebuggerModules::GetModuleBase(const std::string& name) const
 }
 
 
-DebugModule DebuggerModules::GetModuleByName(const std::string& name) const
+DebugModule DebuggerModules::GetModuleByName(const std::string& name)
 {
-    for (const DebugModule& module: m_modules)
+	if (IsDirty())
+		Update();
+
+	for (const DebugModule& module: m_modules)
     {
         if (module.IsSameBaseModule(name))
             return module;
@@ -242,8 +259,11 @@ DebugModule DebuggerModules::GetModuleByName(const std::string& name) const
 }
 
 
-DebugModule DebuggerModules::GetModuleForAddress(uint64_t remoteAddress) const
+DebugModule DebuggerModules::GetModuleForAddress(uint64_t remoteAddress)
 {
+	if (IsDirty())
+		Update();
+
 	// lldb does not properly return the size of a module, so we have to find the nearest module base that is smaller
 	// than the remoteAddress
 	uint64_t closestAddress = 0;
@@ -266,8 +286,11 @@ DebugModule DebuggerModules::GetModuleForAddress(uint64_t remoteAddress) const
 }
 
 
-ModuleNameAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absoluteAddress) const
+ModuleNameAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absoluteAddress)
 {
+	if (IsDirty())
+		Update();
+
     DebugModule module = GetModuleForAddress(absoluteAddress);
     uint64_t relativeAddress;
 
@@ -284,8 +307,11 @@ ModuleNameAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absolute
 }
 
 
-uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress) const
+uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress)
 {
+	if (IsDirty())
+		Update();
+
     if (!relativeAddress.module.empty())
 	{
         for (const DebugModule& module: m_modules)
@@ -298,6 +324,15 @@ uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& r
     }
 
     return relativeAddress.offset;
+}
+
+
+std::vector<DebugModule> DebuggerModules::GetAllModules()
+{
+	if (IsDirty())
+		Update();
+
+	return m_modules;
 }
 
 
@@ -496,6 +531,7 @@ void DebuggerBreakpoints::Apply()
 
 DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller): m_controller(controller)
 {
+	m_adapter = nullptr;
     m_modules = new DebuggerModules(this);
     m_registers = new DebuggerRegisters(this);
     m_threads = new DebuggerThreads(this);
@@ -1141,10 +1177,6 @@ bool DebuggerState::SetActiveThread(const DebugThread& thread)
 void DebuggerState::MarkDirty()
 {
     m_registers->MarkDirty();
-    DebugProcessView* view = dynamic_cast<DebugProcessView*>(m_controller->GetLiveView().GetPtr());
-    if (view)
-        view->MarkDirty();
-
     m_threads->MarkDirty();
     m_modules->MarkDirty();
     if (IsConnected())

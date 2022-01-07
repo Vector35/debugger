@@ -573,20 +573,20 @@ bool QueuedAdapter::StepOver()
 }
 
 
-bool QueuedAdapter::StepTo(std::uintptr_t address)
-{
-    std::unique_lock<std::mutex> lock(m_queueMutex);
-
-    bool ret;
-    Semaphore sem;
-    m_queue.push([&]{
-        ret = m_adapter->StepTo(address);
-        sem.Release();
-    });
-    lock.unlock();
-    sem.Wait();
-    return ret;
-}
+//bool QueuedAdapter::StepTo(std::uintptr_t address)
+//{
+//    std::unique_lock<std::mutex> lock(m_queueMutex);
+//
+//    bool ret;
+//    Semaphore sem;
+//    m_queue.push([&]{
+//        ret = m_adapter->StepTo(address);
+//        sem.Release();
+//    });
+//    lock.unlock();
+//    sem.Wait();
+//    return ret;
+//}
 
 
 void QueuedAdapter::Invoke(const std::string& command)

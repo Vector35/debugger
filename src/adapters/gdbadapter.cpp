@@ -741,57 +741,112 @@ bool GdbAdapter::BreakInto()
     return true;
 }
 
-bool GdbAdapter::GenericGo(const std::string& go_type)
+
+void GdbAdapter::ResponseHandler()
 {
-    m_isTargetRunning = true;
-    const auto go_reply = m_rspConnector.TransmitAndReceive(
-			RspData(go_type),
-			"mixed_output_ack_then_reply",
-			[this](const RspData& data){
-				HandleAsyncPacket(data);
-			});
+	while (true)
+	{
+		const RspData reply = m_rspConnector.ReceiveRspData();
+		if (reply[0] == 'T')
+		{
+			// Target stopped
+			auto map = RspConnector::PacketToUnorderedMap(reply);
+			const auto tid = map["thread"];
+			m_isTargetRunning = false;
+			DebuggerEvent event;
+			event.type = AdapterStoppedEventType;
+			event.data.targetStoppedData.reason = GdbAdapter::SignalToStopReason(map["signal"]);
+			event.data.targetStoppedData.lastActiveThread = tid;
+			PostDebuggerEvent(event);
+			break;
+		}
+		else if (reply[0] == 'W')
+		{
+			// Target exited
+			std::string exitCodeString = reply.AsString().substr(1);
+			uint8_t exitCode = strtoul(exitCodeString.c_str(), nullptr, 16);
+			m_isTargetRunning = false;
+			DebuggerEvent event;
+			event.type = TargetExitedEventType;
+			event.data.exitData.exitCode = exitCode;
+			PostDebuggerEvent(event);
+			break;
+		}
+		else if (reply[0] == 'O')
+		{
+			// stdout message
+			const auto string = reply.AsString();
+			const auto message = string.substr(1);
 
-    if ( go_reply.m_data[0] == 'T' )
-	{
-        auto map = RspConnector::PacketToUnorderedMap(go_reply);
-        const auto tid = map["thread"];
-        this->m_lastActiveThreadId = tid;
-        this->m_lastStopReason = GdbAdapter::SignalToStopReason(map["signal"]);
-    }
-	else if ( go_reply.m_data[0] == 'W' )
-	{
-		this->m_lastStopReason = DebugStopReason::ProcessExited;
-		std::string exitCodeString = go_reply.AsString().substr(1);
-		uint8_t exitCode = strtoul(exitCodeString.c_str(), nullptr, 16);
-		DebuggerEvent event;
-		event.type = TargetExitedEventType;
-		event.data.exitData.exitCode = exitCode;
-		PostDebuggerEvent(event);
-    }
-	else
-	{
-        printf("[generic go failed?]\n");
-        printf("%s\n", go_reply.AsString().c_str());
-        return false;
-    }
+			// These duplicate code in GdbAdapter::ReadMemory(). We should probably add a ParseFromHex() and EncodeAsHex()
+			// to the RspData class.
+			if (message.size() % 2 == 1)
+				return;
 
-    m_isTargetRunning = false;
-    return true;
+			size_t size = message.size() / 2;
+			if (size == 0)
+				return;
+
+			std::string result;
+			result.resize(size);
+
+			[](const std::uint8_t* src, std::uint8_t* dst) {
+				const auto char_to_int = [](std::uint8_t input) -> int {
+					if(input >= '0' && input <= '9')
+						return input - '0';
+					if(input >= 'A' && input <= 'F')
+						return input - 'A' + 10;
+					if(input >= 'a' && input <= 'f')
+						return input - 'a' + 10;
+					throw std::invalid_argument("Invalid input string");
+				};
+
+				while(*src && src[1]) {
+					*(dst++) = char_to_int(*src) * 16 + char_to_int(src[1]);
+					src += 2;
+				}
+			}((const std::uint8_t*)message.c_str(), (std::uint8_t*)result.c_str());
+
+			DebuggerEvent event;
+			event.type = StdoutMessageEventType;
+			event.data.messageData.message = result;
+			PostDebuggerEvent(event);
+		}
+		else
+		{
+			LogWarn("Unexpected rsp response, \"%s\"", reply.AsString().c_str());
+		}
+	}
 }
 
 
 // this should return the information about the target stop
+void GdbAdapter::GenericGo(const std::string& goCommand)
+{
+	m_isTargetRunning = true;
+	// TODO: these two calls should be combined
+	m_rspConnector.SendPayload(RspData(goCommand));
+	m_rspConnector.ExpectAck();
+
+	// Launch the response parser
+	std::thread([this](){
+		ResponseHandler();
+	}).detach();
+}
+
+
+// The return value only indicates whether the command is successfully sent
 bool GdbAdapter::Go()
 {
-//    m_mutex.lock();
-    return this->GenericGo("vCont;c:-1");
-//    m_mutex.unlock();
+	GenericGo("vCont;c:-1");
+	return true;
 }
 
 
 bool GdbAdapter::StepInto()
 {
-    return this->GenericGo("vCont;s");
+    GenericGo("vCont;s");
+	return true;
 }
 
 
@@ -802,25 +857,25 @@ bool GdbAdapter::StepOver()
 }
 
 
-bool GdbAdapter::StepTo(std::uintptr_t address)
-{
-    const auto breakpoints = this->m_debugBreakpoints;
-
-    this->RemoveBreakpoints(this->m_debugBreakpoints);
-
-    const auto bp = this->AddBreakpoint(address);
-    if ( !bp.m_address )
-        return false;
-
-    this->Go();
-
-    this->RemoveBreakpoint(bp);
-
-    for ( const auto& breakpoint : breakpoints )
-        this->AddBreakpoint(breakpoint.m_address);
-
-    return true;
-}
+//bool GdbAdapter::StepTo(std::uintptr_t address)
+//{
+//    const auto breakpoints = this->m_debugBreakpoints;
+//
+//    this->RemoveBreakpoints(this->m_debugBreakpoints);
+//
+//    const auto bp = this->AddBreakpoint(address);
+//    if ( !bp.m_address )
+//        return false;
+//
+//    this->Go();
+//
+//    this->RemoveBreakpoint(bp);
+//
+//    for ( const auto& breakpoint : breakpoints )
+//        this->AddBreakpoint(breakpoint.m_address);
+//
+//    return true;
+//}
 
 void GdbAdapter::Invoke(const std::string& command)
 {

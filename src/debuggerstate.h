@@ -42,7 +42,7 @@ public:
     void MarkDirty();
     bool IsDirty() const { return m_dirty; }
     void Update();
-    std::vector<DebugRegister> GetAllRegisters() const;
+    std::vector<DebugRegister> GetAllRegisters();
 };
 
 
@@ -59,15 +59,15 @@ public:
     void Update();
     bool IsDirty() const { return m_dirty; }
 
-    std::vector<DebugModule> GetAllModules() const { return m_modules; }
+	std::vector<DebugModule> GetAllModules();
     DebugModule ResolvePath(const std::string& fpathExe) const;
 
     // TODO: These conversion functions are not very robust for lookup failures. They need to be improved for it.
-    DebugModule GetModuleByName(const std::string& module) const;
-    uint64_t GetModuleBase(const std::string& name) const;
-    DebugModule GetModuleForAddress(uint64_t remoteAddress) const;
-    ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t absoluteAddress) const;
-    uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress) const;
+    DebugModule GetModuleByName(const std::string& module);
+    uint64_t GetModuleBase(const std::string& name);
+    DebugModule GetModuleForAddress(uint64_t remoteAddress);
+    ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t absoluteAddress);
+    uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress);
 };
 
 
@@ -118,7 +118,7 @@ public:
     DebugThread GetActiveThread() const;
     bool SetActiveThread(const DebugThread& thread);
     bool IsDirty() const { return m_dirty; }
-    std::vector<DebugThread> GetAllThreads() const { return m_threads; }
+    std::vector<DebugThread> GetAllThreads();
 };
 
 
@@ -248,5 +248,7 @@ public:
     void SetExecutionStatus(DebugAdapterTargetStatus status) { m_targetStatus = status; }
 
 	std::vector<std::string> GetAvailableAdapters() { return m_availableAdapters; }
+
+	void SetAdapter(DebugAdapter* adapter) { m_adapter = adapter; }
 };
 

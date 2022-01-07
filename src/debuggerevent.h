@@ -14,6 +14,8 @@ enum DebuggerEventType
 	RestartEventType,
 	AttachEventType,
 
+	AdapterStoppedEventType,
+
     TargetStoppedEventType,
     ErrorEventType,
     GeneralEventType,
@@ -85,12 +87,16 @@ enum class DebugStopReason {
     ExcMachSyscall,
     ExcRpcAlert,
     ExcCrash,
+
+	InternalError,
+	InvalidStatus
 };
 
 
 struct TargetStoppedEventData
 {
     DebugStopReason reason;
+	std::uint32_t lastActiveThread;
     size_t exitCode;
     void* data;
 };

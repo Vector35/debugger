@@ -19,7 +19,10 @@ class DebuggerController: public QObject
 {
     Q_OBJECT
 
-    DebugAdapter*  m_adapter;
+	DebugAdapterConnectionStatus m_connectionStatus;
+	DebugAdapterTargetStatus m_targetStatus;
+
+	DebugAdapter*  m_adapter;
     DebuggerState* m_state;
     BinaryViewRef m_data;
     BinaryViewRef m_liveView;
@@ -52,18 +55,32 @@ public:
     void DeleteBreakpoint(uint64_t address);
     void DeleteBreakpoint(const ModuleNameAndOffset& address);
 
-    void Launch();
+    bool Launch();
+	bool Execute();
     void Restart();
     void Quit();
 	// TODO: this is better renamed to Connect(), to distinguish from attaching to a running process
     void Attach();
     void Detach();
     void Pause();
-    void Go();
-    void StepInto(BNFunctionGraphType il = NormalFunctionGraph);
-    void StepOver(BNFunctionGraphType il = NormalFunctionGraph);
-    void StepReturn(BNFunctionGraphType il = NormalFunctionGraph);
-    void StepTo(std::vector<uint64_t> remoteAddresses);
+
+	// Whether we can resume the execution of the target, including stepping.
+	bool CanResumeTarget();
+
+	DebugStopReason GoInternal();
+	DebugStopReason StepIntoInternal();
+	DebugStopReason StepOverInternal();
+	DebugStopReason StepReturnInternal();
+	DebugStopReason StepToInternal(const std::vector<uint64_t>& remoteAddresses);
+
+	DebugStopReason StepIntoIL(BNFunctionGraphType il);
+	DebugStopReason StepOverIL(BNFunctionGraphType il);
+
+	DebugStopReason Go();
+	DebugStopReason StepInto(BNFunctionGraphType il = NormalFunctionGraph);
+	DebugStopReason StepOver(BNFunctionGraphType il = NormalFunctionGraph);
+	DebugStopReason StepReturn();
+	DebugStopReason StepTo(const std::vector<uint64_t>& remoteAddresses);
 
 	// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
 	void LaunchOrConnect();
@@ -105,6 +122,16 @@ public:
 
 	TagTypeRef getPCTagType(BinaryViewRef data);
 	TagTypeRef getBreakpointTagType(BinaryViewRef data);
+
+	DebugStopReason WaitForTargetStop();
+
+	bool IsConnected() const { return m_connectionStatus == DebugAdapterConnectedStatus; }
+	bool IsConnecting() const { return m_connectionStatus == DebugAdapterConnectingStatus; }
+	bool IsRunning() const { return m_targetStatus == DebugAdapterRunningStatus; }
+	DebugAdapterConnectionStatus GetConnectionStatus() const { return m_connectionStatus; }
+	DebugAdapterTargetStatus GetTargetStatus() const { return m_targetStatus; }
+
+	DebugAdapter* CreateDebugAdapter();
 
 signals:
     void absoluteBreakpointAdded(uint64_t address);

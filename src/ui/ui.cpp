@@ -197,11 +197,7 @@ void DebuggerUI::InitializeUI()
 			"Step return",
 			[](BinaryView* view, uint64_t){
 					DebuggerController* controller = DebuggerController::GetController(view);
-					BNFunctionGraphType graphType = NormalFunctionGraph;
-					UIContext* context = UIContext::activeContext();
-					if (context && context->getCurrentView())
-						graphType = context->getCurrentView()->getILViewType();
-					controller->StepReturn(graphType);
+					controller->StepReturn();
 				},
 			ConnectedAndStopped);
 	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
@@ -215,11 +211,7 @@ void DebuggerUI::InitializeUI()
 			"Pause the target",
 			[](BinaryView* view, uint64_t){
 					DebuggerController* controller = DebuggerController::GetController(view);
-					BNFunctionGraphType graphType = NormalFunctionGraph;
-					UIContext* context = UIContext::activeContext();
-					if (context && context->getCurrentView())
-						graphType = context->getCurrentView()->getILViewType();
-					controller->StepReturn(graphType);
+					controller->Pause();
 				},
 			ConnectedAndRunning);
 	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),

@@ -173,9 +173,13 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string &ar
 #endif
 }
 
-bool LldbAdapter::Go() {
-    return this->GenericGo("c");
+
+bool LldbAdapter::Go()
+{
+    GenericGo("c");
+	return true;
 }
+
 
 std::string LldbAdapter::GetTargetArchitecture() {
     // hardcoded this for m1 mac
