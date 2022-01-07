@@ -15,6 +15,10 @@ enum DebuggerEventType
 	AttachEventType,
 
 	AdapterStoppedEventType,
+	AdapterTargetExitedEventType,
+
+	InvalidOperationEventType,
+	InternalErrorEventType,
 
     TargetStoppedEventType,
     ErrorEventType,

@@ -767,7 +767,7 @@ void GdbAdapter::ResponseHandler()
 			uint8_t exitCode = strtoul(exitCodeString.c_str(), nullptr, 16);
 			m_isTargetRunning = false;
 			DebuggerEvent event;
-			event.type = TargetExitedEventType;
+			event.type = AdapterTargetExitedEventType;
 			event.data.exitData.exitCode = exitCode;
 			PostDebuggerEvent(event);
 			break;

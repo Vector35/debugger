@@ -67,20 +67,20 @@ public:
 	// Whether we can resume the execution of the target, including stepping.
 	bool CanResumeTarget();
 
-	DebugStopReason GoInternal();
-	DebugStopReason StepIntoInternal();
-	DebugStopReason StepOverInternal();
-	DebugStopReason StepReturnInternal();
-	DebugStopReason StepToInternal(const std::vector<uint64_t>& remoteAddresses);
+	DebuggerEvent GoInternal();
+	DebuggerEvent StepIntoInternal();
+	DebuggerEvent StepOverInternal();
+	DebuggerEvent StepReturnInternal();
+	DebuggerEvent StepToInternal(const std::vector<uint64_t>& remoteAddresses);
 
-	DebugStopReason StepIntoIL(BNFunctionGraphType il);
-	DebugStopReason StepOverIL(BNFunctionGraphType il);
+	DebuggerEvent StepIntoIL(BNFunctionGraphType il);
+	DebuggerEvent StepOverIL(BNFunctionGraphType il);
 
-	DebugStopReason Go();
-	DebugStopReason StepInto(BNFunctionGraphType il = NormalFunctionGraph);
-	DebugStopReason StepOver(BNFunctionGraphType il = NormalFunctionGraph);
-	DebugStopReason StepReturn();
-	DebugStopReason StepTo(const std::vector<uint64_t>& remoteAddresses);
+	DebuggerEvent Go();
+	DebuggerEvent StepInto(BNFunctionGraphType il = NormalFunctionGraph);
+	DebuggerEvent StepOver(BNFunctionGraphType il = NormalFunctionGraph);
+	DebuggerEvent StepReturn();
+	DebuggerEvent StepTo(const std::vector<uint64_t>& remoteAddresses);
 
 	// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
 	void LaunchOrConnect();
@@ -123,7 +123,7 @@ public:
 	TagTypeRef getPCTagType(BinaryViewRef data);
 	TagTypeRef getBreakpointTagType(BinaryViewRef data);
 
-	DebugStopReason WaitForTargetStop();
+	DebuggerEvent WaitForTargetStop();
 
 	bool IsConnected() const { return m_connectionStatus == DebugAdapterConnectedStatus; }
 	bool IsConnecting() const { return m_connectionStatus == DebugAdapterConnectingStatus; }

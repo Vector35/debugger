@@ -112,7 +112,9 @@ void DebugControlsWidget::performPause()
 
 void DebugControlsWidget::performResume()
 {
-    m_controller->Go();
+	std::thread([&](){
+    	m_controller->Go();
+	}).detach();
 }
 
 
