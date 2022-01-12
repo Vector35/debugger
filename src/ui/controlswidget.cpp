@@ -216,7 +216,9 @@ void DebugControlsWidget::setDebuggerStatus(const std::string &status)
 
 void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
 {
-    updateButtons();
+    ExecuteOnMainThreadAndWait([&](){
+        updateButtons();
+    });
 
     switch (event.type)
     {
