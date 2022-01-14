@@ -742,7 +742,7 @@ bool GdbAdapter::BreakInto()
 }
 
 
-void GdbAdapter::ResponseHandler()
+DebugStopReason GdbAdapter::ResponseHandler()
 {
 	while (true)
 	{
@@ -753,12 +753,8 @@ void GdbAdapter::ResponseHandler()
 			auto map = RspConnector::PacketToUnorderedMap(reply);
 			const auto tid = map["thread"];
 			m_isTargetRunning = false;
-			DebuggerEvent event;
-			event.type = AdapterStoppedEventType;
-			event.data.targetStoppedData.reason = GdbAdapter::SignalToStopReason(map["signal"]);
-			event.data.targetStoppedData.lastActiveThread = tid;
-			PostDebuggerEvent(event);
-			break;
+            m_lastActiveThreadId = tid;
+            return GdbAdapter::SignalToStopReason(map["signal"]);
 		}
 		else if (reply[0] == 'W')
 		{
@@ -766,10 +762,8 @@ void GdbAdapter::ResponseHandler()
 			std::string exitCodeString = reply.AsString().substr(1);
 			uint8_t exitCode = strtoul(exitCodeString.c_str(), nullptr, 16);
 			m_isTargetRunning = false;
-			DebuggerEvent event;
-			event.type = AdapterTargetExitedEventType;
-			event.data.exitData.exitCode = exitCode;
-			PostDebuggerEvent(event);
+            m_exitCode = exitCode;
+            return DebugStopReason::ProcessExited;
 			break;
 		}
 		else if (reply[0] == 'O')
@@ -781,11 +775,11 @@ void GdbAdapter::ResponseHandler()
 			// These duplicate code in GdbAdapter::ReadMemory(). We should probably add a ParseFromHex() and EncodeAsHex()
 			// to the RspData class.
 			if (message.size() % 2 == 1)
-				return;
+                continue;
 
 			size_t size = message.size() / 2;
 			if (size == 0)
-				return;
+				continue;
 
 			std::string result;
 			result.resize(size);
@@ -821,39 +815,34 @@ void GdbAdapter::ResponseHandler()
 
 
 // this should return the information about the target stop
-void GdbAdapter::GenericGo(const std::string& goCommand)
+DebugStopReason GdbAdapter::GenericGo(const std::string& goCommand)
 {
 	m_isTargetRunning = true;
 	// TODO: these two calls should be combined
 	m_rspConnector.SendPayload(RspData(goCommand));
 	m_rspConnector.ExpectAck();
 
-	// Launch the response parser
-	std::thread([this](){
-		ResponseHandler();
-	}).detach();
+	return ResponseHandler();
 }
 
 
 // The return value only indicates whether the command is successfully sent
-bool GdbAdapter::Go()
+DebugStopReason GdbAdapter::Go()
 {
-	GenericGo("vCont;c:-1");
-	return true;
+	return GenericGo("vCont;c:-1");
 }
 
 
-bool GdbAdapter::StepInto()
+DebugStopReason GdbAdapter::StepInto()
 {
-    GenericGo("vCont;s");
-	return true;
+    return GenericGo("vCont;s");
 }
 
 
-bool GdbAdapter::StepOver()
+DebugStopReason GdbAdapter::StepOver()
 {
     // GdbAdapter does not support StepOver(), it relies on DebuggerState to do a breakpoint and continue execution
-    return false;
+    return DebugStopReason::UnknownReason;
 }
 
 

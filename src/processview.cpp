@@ -20,6 +20,7 @@ DebugProcessView::DebugProcessView(BinaryView* parent):
 
     // TODO: Read segments from debugger
     uint64_t length = PerformGetLength();
+    LogWarn("length: %ld", length);
     AddAutoSegment(0, length, 0, length, SegmentReadable | SegmentWritable | SegmentExecutable);
     AddAutoSection("Memory", 0, length);
 
@@ -71,7 +72,7 @@ uint64_t DebugProcessView::PerformGetLength() const
     if (bits >= 64)
         return UINT64_MAX;
 
-    return (1UL << bits) - 1;
+    return (1ULL << bits) - 1;
 }
 
 

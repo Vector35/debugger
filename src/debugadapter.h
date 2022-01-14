@@ -168,9 +168,9 @@ public:
     virtual unsigned long ExecStatus() = 0;
 
     virtual bool BreakInto() = 0;
-    virtual bool Go() = 0;
-    virtual bool StepInto() = 0;
-    virtual bool StepOver() = 0;
+    virtual DebugStopReason Go() = 0;
+    virtual DebugStopReason StepInto() = 0;
+    virtual DebugStopReason StepOver() = 0;
 //    virtual bool StepTo(std::uintptr_t address) = 0;
 
     virtual void Invoke(const std::string& command) = 0;

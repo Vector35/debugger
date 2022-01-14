@@ -30,6 +30,7 @@ protected:
     std::vector<DebugBreakpoint> m_debugBreakpoints{};
 
     std::uint32_t m_lastActiveThreadId{};
+    uint8_t m_exitCode{};
 
     std::string ExecuteShellCommand(const std::string& command);
     virtual bool LoadRegisterInfo();
@@ -92,16 +93,16 @@ public:
     unsigned long ExecStatus() override;
 
 	bool BreakInto() override;
-	void GenericGo(const std::string& goCommand);
-    bool Go() override;
-    bool StepInto() override;
-    bool StepOver() override;
+    DebugStopReason GenericGo(const std::string& goCommand);
+    DebugStopReason Go() override;
+    DebugStopReason StepInto() override;
+    DebugStopReason StepOver() override;
 //    bool StepTo(std::uintptr_t address) override;
 
     void Invoke(const std::string& command) override;
     std::uintptr_t GetInstructionOffset() override;
 
-	void ResponseHandler();
+	DebugStopReason ResponseHandler();
 
     bool SupportFeature(DebugAdapterCapacity feature) override;
 	void HandleAsyncPacket(const RspData& data);

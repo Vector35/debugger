@@ -8,7 +8,7 @@ class LldbAdapter : public GdbAdapter {
 public:
     bool ExecuteWithArgs(const std::string& path, const std::string &args,
 						 const LaunchConfigurations& configs) override;
-    bool Go() override;
+    DebugStopReason Go() override;
     std::string GetTargetArchitecture() override;
     std::vector<DebugModule> GetModuleList() override;
 

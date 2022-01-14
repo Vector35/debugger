@@ -59,9 +59,9 @@ public:
     bool GenericGoAsync(const std::string& go_type);
 
     bool BreakInto() override;
-    bool Go() override;
-    bool StepInto() override;
-    bool StepOver() override;
+    DebugStopReason Go() override;
+    DebugStopReason StepInto() override;
+    DebugStopReason StepOver() override;
 //    bool StepTo(std::uintptr_t address) override;
 
     void Invoke(const std::string& command) override;

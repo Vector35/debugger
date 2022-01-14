@@ -11,6 +11,8 @@
 #include "dbgengadapter.h"
 #include "../../cli/src/log.h"
 #include "queuedadapter.h"
+#include "../debuggerevent.h"
+#include "ntstatus.h"
 
 #define QUERY_DEBUG_INTERFACE(query, out) \
     if ( const auto result = this->m_debugClient->QueryInterface(__uuidof(query), reinterpret_cast<void**>(out) ); \
@@ -458,54 +460,51 @@ bool DbgEngAdapter::BreakInto()
     return true;
 }
 
-bool DbgEngAdapter::Go()
+DebugStopReason DbgEngAdapter::Go()
 {
     if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK )
-        return false;
+        return DebugStopReason::InternalError;
 
     this->Wait();
-
-    return true;
+    return StopReason();
 }
 
-bool DbgEngAdapter::StepInto()
+DebugStopReason DbgEngAdapter::StepInto()
 {
     if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_INTO) != S_OK )
-        return false;
+        return DebugStopReason::InternalError;
 
     this->Wait();
-
-    return true;
+    return StopReason();
 }
 
-bool DbgEngAdapter::StepOver()
+DebugStopReason DbgEngAdapter::StepOver()
 {
     if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_OVER) != S_OK )
-        return false;
+        return DebugStopReason::InternalError;
 
     this->Wait();
-
-    return true;
+    return StopReason();
 }
 
 
-bool DbgEngAdapter::StepTo(std::uintptr_t address)
-{
-    const auto breakpoints = this->m_debug_breakpoints;
-
-    this->RemoveBreakpoints(this->m_debug_breakpoints);
-
-    const auto bp = this->AddBreakpoint(address, DEBUG_BREAKPOINT_ONE_SHOT);
-    if ( !bp.m_address )
-        return false;
-
-    this->Go();
-
-    for ( const auto& breakpoint : breakpoints )
-        this->AddBreakpoint(breakpoint.m_address);
-
-    return true;
-}
+//bool DbgEngAdapter::StepTo(std::uintptr_t address)
+//{
+//    const auto breakpoints = this->m_debug_breakpoints;
+//
+//    this->RemoveBreakpoints(this->m_debug_breakpoints);
+//
+//    const auto bp = this->AddBreakpoint(address, DEBUG_BREAKPOINT_ONE_SHOT);
+//    if ( !bp.m_address )
+//        return false;
+//
+//    this->Go();
+//
+//    for ( const auto& breakpoint : breakpoints )
+//        this->AddBreakpoint(breakpoint.m_address);
+//
+//    return true;
+//}
 
 bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
 {
@@ -513,6 +512,7 @@ bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
     std::memset(&DbgEngAdapter::ProcessCallbackInfo.m_lastException, 0, sizeof(DbgEngAdapter::ProcessCallbackInfo.m_lastException));
 
     const auto wait_result = this->m_debugControl->WaitForEvent(0, timeout.count());
+    LogWarn("wait finished");
     return wait_result == S_OK;
 }
 
@@ -555,6 +555,7 @@ std::string DbgEngAdapter::GetTargetArchitecture()
 DebugStopReason DbgEngAdapter::StopReason()
 {
     const auto exec_status = this->ExecStatus();
+    LogWarn("exec_status: %d", exec_status);
 
     if (exec_status == DEBUG_STATUS_BREAK)
     {
@@ -564,11 +565,16 @@ DebugStopReason DbgEngAdapter::StopReason()
             return DebugStopReason::Breakpoint;
 
         const auto& last_exception = DbgEngAdapter::ProcessCallbackInfo.m_lastException;
-        if ( instruction_ptr == last_exception.ExceptionAddress ) {
-            switch (last_exception.ExceptionCode) {
+        if ( instruction_ptr == last_exception.ExceptionAddress )
+        {
+            LogWarn("last exception: %d", last_exception.ExceptionCode);
+            switch (last_exception.ExceptionCode)
+            {
                 case STATUS_BREAKPOINT:
+                case STATUS_WX86_BREAKPOINT:
                     return DebugStopReason::Breakpoint;
                 case STATUS_SINGLE_STEP:
+                case STATUS_WX86_SINGLE_STEP:
                     return DebugStopReason::SingleStep;
                 case STATUS_ACCESS_VIOLATION:
                     return DebugStopReason::AccessViolation;
@@ -579,7 +585,9 @@ DebugStopReason DbgEngAdapter::StopReason()
                     return DebugStopReason::UnknownReason;
             }
         }
-    } else if (exec_status == DEBUG_STATUS_NO_DEBUGGEE) {
+    }
+    else if (exec_status == DEBUG_STATUS_NO_DEBUGGEE)
+    {
         return DebugStopReason::ProcessExited;
     }
 
@@ -640,6 +648,7 @@ HRESULT DbgEngEventCallbacks::GetInterestMask(unsigned long* mask)
 
 HRESULT DbgEngEventCallbacks::Breakpoint(IDebugBreakpoint* breakpoint)
 {
+    LogWarn("DbgEngEventCallbacks::Breakpoint");
     std::uintptr_t address{};
     if (breakpoint->GetOffset(&address) == S_OK )
         DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint = DebugBreakpoint(address );
@@ -649,10 +658,19 @@ HRESULT DbgEngEventCallbacks::Breakpoint(IDebugBreakpoint* breakpoint)
 
 HRESULT DbgEngEventCallbacks::Exception(EXCEPTION_RECORD64* exception, unsigned long first_chance)
 {
+    LogWarn("DbgEngEventCallbacks::Exception, code: %d", exception->ExceptionCode);
     DbgEngAdapter::ProcessCallbackInfo.m_lastException = *exception;
 
+    // If we are debugging a 32-bit program, we get STATUS_WX86_BREAKPOINT followed by
+//    if (exception->ExceptionCode == STATUS_WX86_BREAKPOINT)
+//        return DEBUG_STATUS_GO;
+
+
     if ( exception->ExceptionCode == EXCEPTION_BREAKPOINT )
+    {
+        LogWarn("setting m_hasOneBreakpoint to true");
         DbgEngAdapter::ProcessCallbackInfo.m_hasOneBreakpoint = true;
+    }
 
     return DEBUG_STATUS_NO_CHANGE;
 }

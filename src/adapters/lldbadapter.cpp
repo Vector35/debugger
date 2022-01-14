@@ -174,10 +174,9 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string &ar
 }
 
 
-bool LldbAdapter::Go()
+DebugStopReason LldbAdapter::Go()
 {
-    GenericGo("c");
-	return true;
+    return GenericGo("c");
 }
 
 

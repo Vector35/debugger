@@ -93,7 +93,7 @@ enum class DebugStopReason {
     ExcCrash,
 
 	InternalError,
-	InvalidStatus
+	InvalidStatusOrOperation
 };
 
 
