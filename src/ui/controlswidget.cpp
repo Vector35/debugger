@@ -65,31 +65,41 @@ DebugControlsWidget::~DebugControlsWidget()
 
 void DebugControlsWidget::performLaunch()
 {
-    m_controller->Launch();
+    std::thread([&](){
+        m_controller->Launch();
+    }).detach();
 }
 
 
 void DebugControlsWidget::performRestart()
 {
-    m_controller->Restart();
+    std::thread([&](){
+        m_controller->Restart();
+    }).detach();
 }
 
 
 void DebugControlsWidget::performQuit()
 {
-    m_controller->Quit();
+    std::thread([&](){
+        m_controller->Quit();
+    }).detach();
 }
 
 
 void DebugControlsWidget::performAttach()
 {
-    m_controller->Attach();
+    std::thread([&](){
+        m_controller->Attach();
+    }).detach();
 }
 
 
 void DebugControlsWidget::performDetach()
 {
-    m_controller->Detach();
+    std::thread([&](){
+        m_controller->Detach();
+    }).detach();
 }
 
 
@@ -125,7 +135,9 @@ void DebugControlsWidget::performStepInto()
     if (context && context->getCurrentView())
         graphType = context->getCurrentView()->getILViewType();
 
-    m_controller->StepInto(graphType);
+    std::thread([&](){
+        m_controller->StepInto(graphType);
+    }).detach();
 }
 
 
@@ -136,13 +148,17 @@ void DebugControlsWidget::performStepOver()
     if (context && context->getCurrentView())
         graphType = context->getCurrentView()->getILViewType();
 
-    m_controller->StepOver(graphType);
+    std::thread([&](){
+        m_controller->StepOver(graphType);
+    }).detach();
 }
 
 
 void DebugControlsWidget::performStepReturn()
 {
-    m_controller->StepReturn();
+    std::thread([&](){
+        m_controller->StepReturn();
+    }).detach();
 }
 
 

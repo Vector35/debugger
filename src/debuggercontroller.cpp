@@ -682,11 +682,34 @@ void DebuggerController::Restart()
 
 void DebuggerController::Attach()
 {
-    std::thread worker([this](){
-        if (m_state->Attach())
-        	NotifyStopped(DebugStopReason::InitialBreakpoint, nullptr);
-    });
-    worker.detach();
+    if (IsConnected())
+        return;
+
+    m_adapter = CreateDebugAdapter();
+    if (!m_adapter)
+        return;
+
+    m_state->SetAdapter(m_adapter);
+
+    m_connectionStatus = DebugAdapterConnectingStatus;
+
+    DebuggerEvent event;
+    event.type = AttachEventType;
+    PostDebuggerEvent(event);
+
+    bool ok = m_adapter->Connect(m_state->GetRemoteHost(), m_state->GetRemotePort());
+
+    if (ok)
+    {
+        m_state->MarkDirty();
+        m_connectionStatus = DebugAdapterConnectedStatus;
+        m_targetStatus = DebugAdapterPausedStatus;
+        NotifyStopped(DebugStopReason::InitialBreakpoint);
+    }
+    else
+    {
+        LogWarn("fail to connect to the target");
+    }
 }
 
 
