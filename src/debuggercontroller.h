@@ -19,9 +19,6 @@ class DebuggerController: public QObject
 {
     Q_OBJECT
 
-	DebugAdapterConnectionStatus m_connectionStatus;
-	DebugAdapterTargetStatus m_targetStatus;
-
 	DebugAdapter*  m_adapter;
     DebuggerState* m_state;
     BinaryViewRef m_data;
@@ -122,12 +119,6 @@ public:
 
 	TagTypeRef getPCTagType(BinaryViewRef data);
 	TagTypeRef getBreakpointTagType(BinaryViewRef data);
-
-	bool IsConnected() const { return m_connectionStatus == DebugAdapterConnectedStatus; }
-	bool IsConnecting() const { return m_connectionStatus == DebugAdapterConnectingStatus; }
-	bool IsRunning() const { return m_targetStatus == DebugAdapterRunningStatus; }
-	DebugAdapterConnectionStatus GetConnectionStatus() const { return m_connectionStatus; }
-	DebugAdapterTargetStatus GetTargetStatus() const { return m_targetStatus; }
 
 	DebugAdapter* CreateDebugAdapter();
 

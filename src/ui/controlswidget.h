@@ -61,8 +61,6 @@ public:
     void setStoppingEnabled(bool enabled);
     void setSteppingEnabled(bool enabled);
 
-    void setDebuggerStatus(const std::string& status);
-
     void uiEventHandler(const DebuggerEvent& event);
 
     void updateButtons();

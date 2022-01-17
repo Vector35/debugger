@@ -13,6 +13,7 @@ enum DebuggerEventType
 	StepToEventType,
 	RestartEventType,
 	AttachEventType,
+    DetachEventType,
 
 	AdapterStoppedEventType,
 	AdapterTargetExitedEventType,

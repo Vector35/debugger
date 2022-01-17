@@ -56,10 +56,7 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 
 DebugControlsWidget::~DebugControlsWidget()
 {
-// This does not resolve the issue of the callback getting called multiple times, because the widget is not necessarily
-// destructed
     m_controller->RemoveEventCallback(m_eventCallback);
-    LogWarn("removing event callback");
 }
 
 
@@ -218,15 +215,6 @@ void DebugControlsWidget::setSteppingEnabled(bool enabled)
     m_actionStepInto->setEnabled(enabled);
     m_actionStepOver->setEnabled(enabled);
     m_actionStepReturn->setEnabled(enabled);    
-}
-
-
-void DebugControlsWidget::setDebuggerStatus(const std::string &status)
-{
-//    if (m_state->GetDebuggerUI() && m_state->GetDebuggerUI()->GetDebugView())
-//    {
-//        m_state->GetDebuggerUI()->GetDebugView()->setDebuggerStatus(status);
-//    }
 }
 
 

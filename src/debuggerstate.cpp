@@ -537,6 +537,7 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
     m_threads = new DebuggerThreads(this);
     m_breakpoints = new DebuggerBreakpoints(this);
     m_breakpoints->UnserializedMetadata();
+    m_remoteArchDirty = true;
 
 	// TODO: A better way to deal with this is to have the adapters return a fitness score, and then we pick the highest
 	// one from the list. Similar to what we do for the views.
@@ -1179,8 +1180,7 @@ void DebuggerState::MarkDirty()
     m_registers->MarkDirty();
     m_threads->MarkDirty();
     m_modules->MarkDirty();
-    if (IsConnected())
-        m_remoteArch = DetectRemoteArch();
+    m_remoteArchDirty = true;
 }
 
 
@@ -1194,6 +1194,9 @@ void DebuggerState::UpdateCaches()
 
     if (m_modules->IsDirty())
         m_modules->Update();
+
+    if (m_remoteArchDirty)
+        m_remoteArch = DetectRemoteArch();
 }
 
 

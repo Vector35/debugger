@@ -120,7 +120,8 @@ bool DebuggerController::Launch()
 	bool result = Execute();
 	if (result)
 	{
-		m_connectionStatus = DebugAdapterConnectedStatus;
+		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
+        m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 		NotifyStopped(DebugStopReason::InitialBreakpoint);
 	}
 	return result;
@@ -179,7 +180,7 @@ DebugAdapter* DebuggerController::CreateDebugAdapter()
 
 bool DebuggerController::CanResumeTarget()
 {
-	return IsConnected() && (!IsRunning());
+	return m_state->IsConnected() && (!m_state->IsRunning());
 }
 
 
@@ -212,7 +213,7 @@ DebugStopReason DebuggerController::Go()
 	// The m_targetStatus represents the external (API-level) target status. To track the adapter execution status,
 	// use a different variable. Right now there is no need to track it, so no such variable exists.
 	// Always keep in mind the difference between this external and internal status when dealing with related code.
-	m_targetStatus = DebugAdapterRunningStatus;
+    m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 
 	DebuggerEvent event;
 	event.type = ResumeEventType;
@@ -230,7 +231,7 @@ DebugStopReason DebuggerController::Go()
 	// Another note is even if we invalidate the memory caches, do we need to update analysis to have the changes
 	// reflected? If so, I think the cost is so high that it does not deserve it.
     m_state->MarkDirty();
-    m_targetStatus = DebugAdapterPausedStatus;
+    m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 
     HandleTargetStop(reason);
 	return reason;
@@ -355,7 +356,7 @@ DebugStopReason DebuggerController::StepInto(BNFunctionGraphType il)
 	if (!CanResumeTarget())
         return DebugStopReason::InvalidStatusOrOperation;
 
-	m_targetStatus = DebugAdapterRunningStatus;
+    m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 
 	DebuggerEvent event;
 	event.type = StepIntoEventType;
@@ -364,7 +365,7 @@ DebugStopReason DebuggerController::StepInto(BNFunctionGraphType il)
 	DebugStopReason reason = StepIntoIL(il);
 
 	m_state->MarkDirty();
-	m_targetStatus = DebugAdapterPausedStatus;
+    m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 
     HandleTargetStop(reason);
 	return reason;
@@ -502,7 +503,7 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
         break;
     }
     default:
-        LogWarn("step into unimplemented in the current il type");
+        LogWarn("step over unimplemented in the current il type");
         return DebugStopReason::InternalError;
         break;
     }
@@ -514,7 +515,7 @@ DebugStopReason DebuggerController::StepOver(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 	    return DebugStopReason::InvalidStatusOrOperation;
 
-	m_targetStatus = DebugAdapterRunningStatus;
+    m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 
 	DebuggerEvent event;
 	event.type = StepOverEventType;
@@ -523,7 +524,7 @@ DebugStopReason DebuggerController::StepOver(BNFunctionGraphType il)
 	DebugStopReason reason = StepOverIL(il);
 
 	m_state->MarkDirty();
-	m_targetStatus = DebugAdapterPausedStatus;
+    m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 
     HandleTargetStop(reason);
 	return reason;
@@ -558,7 +559,7 @@ DebugStopReason DebuggerController::StepReturn()
 	if (!CanResumeTarget())
 	    DebugStopReason::InvalidStatusOrOperation;
 
-	m_targetStatus = DebugAdapterRunningStatus;
+    m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 
 	DebuggerEvent event;
 	event.type = StepOverEventType;
@@ -567,7 +568,7 @@ DebugStopReason DebuggerController::StepReturn()
 	DebugStopReason reason = StepReturnInternal();
 
 	m_state->MarkDirty();
-	m_targetStatus = DebugAdapterPausedStatus;
+    m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 
     HandleTargetStop(reason);
 	return reason;
@@ -603,7 +604,7 @@ DebugStopReason DebuggerController::StepTo(const std::vector<uint64_t>& remoteAd
 	if (!CanResumeTarget())
 	    return DebugStopReason::InvalidStatusOrOperation;
 
-	m_targetStatus = DebugAdapterRunningStatus;
+    m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 
 	DebuggerEvent event;
 	event.type = StepOverEventType;
@@ -612,7 +613,7 @@ DebugStopReason DebuggerController::StepTo(const std::vector<uint64_t>& remoteAd
 	DebugStopReason reason = StepToInternal(remoteAddresses);
 
 	m_state->MarkDirty();
-	m_targetStatus = DebugAdapterPausedStatus;
+    m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 
     HandleTargetStop(reason);
 	return reason;
@@ -672,17 +673,14 @@ void DebuggerController::SetActiveThread(const DebugThread &thread)
 
 void DebuggerController::Restart()
 {
-    std::thread worker([this](){
-        m_state->Restart();
-        NotifyStopped(DebugStopReason::InitialBreakpoint, nullptr);
-    });
-    worker.detach();
+    Quit();
+    Launch();
 }
 
 
 void DebuggerController::Attach()
 {
-    if (IsConnected())
+    if (m_state->IsConnected())
         return;
 
     m_adapter = CreateDebugAdapter();
@@ -691,7 +689,7 @@ void DebuggerController::Attach()
 
     m_state->SetAdapter(m_adapter);
 
-    m_connectionStatus = DebugAdapterConnectingStatus;
+    m_state->SetConnectionStatus(DebugAdapterConnectingStatus);
 
     DebuggerEvent event;
     event.type = AttachEventType;
@@ -702,8 +700,8 @@ void DebuggerController::Attach()
     if (ok)
     {
         m_state->MarkDirty();
-        m_connectionStatus = DebugAdapterConnectedStatus;
-        m_targetStatus = DebugAdapterPausedStatus;
+        m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
+        m_state->SetExecutionStatus(DebugAdapterPausedStatus);
         NotifyStopped(DebugStopReason::InitialBreakpoint);
     }
     else
@@ -715,31 +713,53 @@ void DebuggerController::Attach()
 
 void DebuggerController::Detach()
 {
-    std::thread worker([this](){
-        m_state->Detach();
-		NotifyEvent(DetachedEventType);
-    });
-    worker.detach();
+    if (!m_state->IsConnected())
+        return;
+
+    NotifyEvent(DetachEventType);
+
+    // TODO: return whether the operation is successful
+    m_adapter->Detach();
+
+    m_state->MarkDirty();
+    m_adapter = nullptr;
+    SetLiveView(nullptr);
+    m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
+    m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
+    NotifyEvent(DetachedEventType);
 }
 
 
 void DebuggerController::Quit()
 {
-    std::thread worker([this](){
-        m_state->Quit();
-		NotifyEvent(QuitDebuggingEventType);
-    });
-    worker.detach();
+    if (!m_state->IsConnected())
+        return;
+
+    if (m_state->IsRunning())
+        Pause();
+
+//    NotifyEvent(DetachEventType);
+
+    // TODO: return whether the operation is successful
+    m_adapter->Quit();
+
+    m_state->MarkDirty();
+    m_adapter = nullptr;
+    SetLiveView(nullptr);
+    m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
+    m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
+
+    NotifyEvent(QuitDebuggingEventType);
 }
 
 
 void DebuggerController::Pause()
 {
-    std::thread worker([this](){
-        m_state->Pause();
-		// Don't post stop event state here-- one of the other running thread will post it
-    });
-    worker.detach();
+    if (!(m_state->IsConnected() && m_state->IsRunning()))
+        return;
+
+    // Don't do anything else here-- one of the other running thread will post it
+    m_adapter->BreakInto();
 }
 
 
@@ -818,42 +838,35 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		LogWarn("%s\n", message.c_str());
 		break;
 	}
-	case ResumeEventType:
-	case StepIntoEventType:
-	case StepOverEventType:
-	case StepReturnEventType:
-	case StepToEventType:
-		// TODO: I am not super sure whether we should do it here, or we should let DebuggerState manage this by itself.
-		// The problem is, if we do not do it here, then the DebuggerState will also have to emit these events.
-		// Otherwise, there is a race condition that the callbacks (registered by other consumers) will execute before
-		// DebuggerState updates its state, causing nondeterministic behavior.
-		m_state->SetExecutionStatus(DebugAdapterRunningStatus);
-		break;
+//	case ResumeEventType:
+//	case StepIntoEventType:
+//	case StepOverEventType:
+//	case StepReturnEventType:
+//	case StepToEventType:
+//		// TODO: I am not super sure whether we should do it here, or we should let DebuggerState manage this by itself.
+//		// The problem is, if we do not do it here, then the DebuggerState will also have to emit these events.
+//		// Otherwise, there is a race condition that the callbacks (registered by other consumers) will execute before
+//		// DebuggerState updates its state, causing nondeterministic behavior.
+//		m_state->SetExecutionStatus(DebugAdapterRunningStatus);
+//		break;
 
-	case DetachedEventType:
-	case QuitDebuggingEventType:
+//	case DetachedEventType:
+//	case QuitDebuggingEventType:
 	case TargetExitedEventType:
 	{
-		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
-		m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
-		SetLiveView(nullptr);
+        m_state->MarkDirty();
+        m_adapter = nullptr;
+        SetLiveView(nullptr);
+        m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
+        m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
 		break;
 	}
     case TargetStoppedEventType:
     {
-        m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
-        m_state->SetExecutionStatus(DebugAdapterPausedStatus);
-
         // Initial breakpoint is reached after successfully launching or attaching to the target
         if (event.data.targetStoppedData.reason == DebugStopReason::InitialBreakpoint)
         {
-            // There are some extra processing needed when the initial breakpoint hits
-            // HELP NEEDED: I do not think we should do it in this way, but I cannot think of a better one
-            m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
-
-            m_state->UpdateRemoteArch();
-
-//            m_state->UpdateCaches();
+            m_state->UpdateCaches();
             // We need to apply the breakpoints that the user has set up before launching the target. Note this requires
             // the modules to be updated properly beforehand.
             m_state->ApplyBreakpoints();
@@ -903,12 +916,6 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
             event.type = InitialViewRebasedEventType;
             PostDebuggerEvent(event);
         }
-        else if (event.data.targetStoppedData.reason == DebugStopReason::ProcessExited)
-		{
-			m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
-			m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
-			break;
-		}
 		else
         {
             m_state->UpdateCaches();

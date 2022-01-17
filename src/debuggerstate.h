@@ -138,6 +138,7 @@ private:
     DebuggerRegisters* m_registers;
     DebuggerThreads* m_threads;
     DebuggerBreakpoints* m_breakpoints;
+    bool m_remoteArchDirty;
 
     DebuggerUI* m_ui;
 
