@@ -1178,7 +1178,6 @@ bool DebuggerState::SetActiveThread(const DebugThread& thread)
 
 void DebuggerState::MarkDirty()
 {
-    LogWarn("DebuggerState::MarkDirty()");
     m_registers->MarkDirty();
     m_threads->MarkDirty();
     m_modules->MarkDirty();
