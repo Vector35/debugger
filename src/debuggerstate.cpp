@@ -31,7 +31,7 @@ void DebuggerRegisters::Update()
 {
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
-        throw ConnectionRefusedError("Cannot update registers when disconnected");
+        return;
 
     m_registerCache = adapter->ReadAllRegisters();
     m_dirty = false;
@@ -106,7 +106,7 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters()
 	// TODO: maybe we should not hold a m_state at all; instead we just hold a m_controller
 	DebuggerController* controller = m_state->GetController();
     if (!controller->GetState()->IsConnected())
-        throw ConnectionRefusedError("Cannot update hints when disconnected");
+        return result;
 
     for (auto& reg : result)
 	{
@@ -157,11 +157,11 @@ void DebuggerThreads::MarkDirty()
 void DebuggerThreads::Update()
 {
     if (!m_state)
-        throw runtime_error("Cannot update threads when disconnected");
+        return;
 
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
-        throw NotInstalledError("invalid adapter");
+        return;
 
     m_threads.clear();
 
@@ -173,11 +173,11 @@ void DebuggerThreads::Update()
 DebugThread DebuggerThreads::GetActiveThread() const
 {
     if (!m_state)
-        throw runtime_error("Cannot update threads when disconnected");
+        return DebugThread{};
 
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
-        throw NotInstalledError("invalid adapter");
+        return DebugThread{};
 
     return adapter->GetActiveThread();
 }
@@ -186,11 +186,11 @@ DebugThread DebuggerThreads::GetActiveThread() const
 bool DebuggerThreads::SetActiveThread(const DebugThread& thread)
 {
     if (!m_state)
-        throw runtime_error("Cannot update threads when disconnected");
+        return false;
 
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
-        throw NotInstalledError("invalid adapter");
+        return false;
 
     return adapter->SetActiveThread(thread);
 }
@@ -345,7 +345,7 @@ DebuggerBreakpoints::DebuggerBreakpoints(DebuggerState* state, std::vector<Modul
 bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
 {
     if (!m_state->GetAdapter())
-        throw ConnectionRefusedError("Cannot add breakpoint at absolute address when disconnected");
+        return false;
 
 	bool result = false;
 	// Always add the breakpoint as long as the adapter is connected, even if it may be already present
@@ -389,7 +389,7 @@ bool DebuggerBreakpoints::AddOffset(const ModuleNameAndOffset& address)
 bool DebuggerBreakpoints::RemoveAbsolute(uint64_t remoteAddress)
 {
     if (!m_state->GetAdapter())
-        throw ConnectionRefusedError("Cannot remove breakpoint at absolute address when disconnected");
+        return false;
 
     ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
     if (ContainsOffset(info))
@@ -445,7 +445,7 @@ bool DebuggerBreakpoints::ContainsOffset(const ModuleNameAndOffset& address)
 bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
 {
     if (!m_state->GetAdapter())
-        throw ConnectionRefusedError("Cannot check the existence of breakpoint with absolute address when disconnected");
+        return false;
 
     // We need to convert every ModuleAndOffset to absolute address and compare with the input address
     // Because every ModuleAndOffset can be converted to an absolute address, but there is no guarantee that it works
@@ -512,7 +512,7 @@ void DebuggerBreakpoints::UnserializedMetadata()
 void DebuggerBreakpoints::Apply()
 {
     if (!m_state->GetAdapter())
-        throw ConnectionRefusedError("cannot apply breakpoints when disconnected");
+        return;
 
     std::vector<DebugBreakpoint> remoteBreakpoints = m_state->GetAdapter()->GetBreakpointList();
     for (const ModuleNameAndOffset& address: m_breakpoints)
@@ -654,7 +654,7 @@ void DebuggerState::Quit()
 bool DebuggerState::Exec()
 {
     if (IsConnected() || IsConnecting())
-        throw ConnectionRefusedError("Tried to execute, but already debugging");
+        return false;
 
     SetConnectionStatus(DebugAdapterConnectingStatus);
     string filePath = m_controller->GetState()->GetExecutablePath();
@@ -686,7 +686,7 @@ bool DebuggerState::Exec()
 bool DebuggerState::Attach()
 {
 	if (IsConnected() || IsConnecting())
-        throw ConnectionRefusedError("Tried to exec but already debugging");
+        return false;
 
 	if (!CreateDebugAdapter())
     	return false;
@@ -721,7 +721,7 @@ void DebuggerState::Detach()
 void DebuggerState::Pause()
 {
     if (!IsConnected())
-        throw ConnectionRefusedError("Cannot pause when disconncted");
+        return;
 
     m_adapter->BreakInto();
     MarkDirty();
@@ -771,7 +771,7 @@ void DebuggerState::Go()
 void DebuggerState::StepInto(BNFunctionGraphType il)
 {
     if (!IsConnected())
-        throw ConnectionRefusedError("cannot step into when disconnected");
+        return;
 
     switch (il)
     {
@@ -878,7 +878,7 @@ void DebuggerState::StepInto(BNFunctionGraphType il)
 void DebuggerState::StepOverInternal()
 {
     if (!IsConnected())
-        throw ConnectionRefusedError("cannot step over asm when disconnected");
+        return;
 
     if (m_adapter->SupportFeature(DebugAdapterSupportStepOver))
     {
@@ -932,7 +932,7 @@ void DebuggerState::StepOverInternal()
 void DebuggerState::StepOver(BNFunctionGraphType il)
 {
     if (!IsConnected())
-        throw ConnectionRefusedError("cannot step over il when disconnected");
+        return;
 
     switch (il)
     {
@@ -1026,7 +1026,7 @@ void DebuggerState::StepOver(BNFunctionGraphType il)
 void DebuggerState::StepReturn()
 {
 	if (!IsConnected())
-		throw ConnectionRefusedError("cannot step return when disconnected");
+		return;
 
 	// TODO: dbgeng supports step out natively, consider using that as well once we implement a similar functionality
 	// for gdb and lldb
@@ -1056,7 +1056,7 @@ void DebuggerState::StepReturn()
 void DebuggerState::StepTo(std::vector<uint64_t> remoteAddresses)
 {
     if (!IsConnected())
-        throw ConnectionRefusedError("cannot step to when disconnected");
+        return;
 
     for (uint64_t remoteAddress: remoteAddresses)
     {
@@ -1132,7 +1132,7 @@ void DebuggerState::DeleteBreakpoint(const ModuleNameAndOffset& address)
 uint64_t DebuggerState::IP()
 {
     if (!IsConnected())
-        throw ConnectionRefusedError("Cannot read ip when disconnected");
+        return 0;
 
 //    This leads to redundant updates to the register values. They should already be updated --
 //    since the first thing to do when the target stops is to update caches.
@@ -1153,7 +1153,7 @@ uint64_t DebuggerState::StackPointer()
 {
     // TODO: we would better have the DebugAdapter either tell us which register holds the stack pointer
     if (!IsConnected())
-        throw ConnectionRefusedError("Cannot read stack pointer when disconnected");
+        return 0;
     string archName = m_remoteArch->GetName();
     if (archName == "x86_64")
         return m_registers->GetRegisterValue("rsp");

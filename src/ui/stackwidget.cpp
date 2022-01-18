@@ -424,6 +424,9 @@ void DebugStackWidget::updateContent()
     if (!m_controller->GetState()->IsConnected())
         return;
 
+    if (!m_controller->GetLiveView())
+        return;
+
     std::vector<DebugStackItem> stackItems;
     BinaryReader* reader = new BinaryReader(m_controller->GetLiveView());
     uint64_t stackPointer = m_controller->GetState()->StackPointer();

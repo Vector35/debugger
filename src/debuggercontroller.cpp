@@ -220,6 +220,7 @@ DebugStopReason DebuggerController::Go()
 	PostDebuggerEvent(event);
 
     DebugStopReason reason = GoInternal();
+    LogWarn("Go internal returned");
 
 	// Right now we are only marking the state as dirty at the external API level. This reduces unnecessary updates
 	// while we carry out certain internal operations. However, this might cause correctness problems, e.g., the target
@@ -622,7 +623,6 @@ DebugStopReason DebuggerController::StepTo(const std::vector<uint64_t>& remoteAd
 
 void DebuggerController::HandleTargetStop(DebugStopReason reason)
 {
-    LogWarn("DebuggerController::HandleTargetStop, reason: %d", reason);
     if (reason == DebugStopReason::ProcessExited)
     {
         DebuggerEvent event;
@@ -736,7 +736,10 @@ void DebuggerController::Quit()
         return;
 
     if (m_state->IsRunning())
+    {
         Pause();
+        while (m_state->IsRunning()) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
+    }
 
 //    NotifyEvent(DetachEventType);
 
@@ -1165,6 +1168,9 @@ void DebuggerController::NotifyEvent(DebuggerEventType eventType)
 // We should call these two function instead of DebugAdapter::ReadMemory(), which will skip the memory cache
 DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t size)
 {
+    if (!m_liveView)
+        return DataBuffer{};
+
 	std::vector<uint8_t > buffer;
 	buffer.resize(size);
 	size_t bytesRead = m_liveView->Read(buffer.data(), address, size);
@@ -1177,5 +1183,8 @@ DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t si
 
 bool DebuggerController::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
+    if (!m_liveView)
+        return false;
+
 	return m_liveView->WriteBuffer(address, buffer);
 }

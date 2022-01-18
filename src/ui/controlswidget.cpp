@@ -294,7 +294,11 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
             uint64_t address = m_controller->GetState()->IP();
 			// If there is no function at the current address, define one. This might be a little aggressive,
 			// but given that we are lacking the ability to "show as code", this feels like an OK workaround.
-			auto functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(address);
+            BinaryViewRef liveView = m_controller->GetLiveView();
+            if (!liveView)
+                break;
+
+			auto functions = liveView->GetAnalysisFunctionsContainingAddress(address);
 			if (functions.size() == 0)
 				m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
 

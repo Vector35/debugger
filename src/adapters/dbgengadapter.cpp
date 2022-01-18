@@ -198,7 +198,10 @@ void DbgEngAdapter::Detach()
 void DbgEngAdapter::Quit()
 {
     if ( this->m_debugClient )
-        this->m_debugClient->TerminateProcesses();
+    {
+        HRESULT result = this->m_debugClient->TerminateProcesses();
+        LogWarn("TerminateProcess result: %d", result);
+    }
 
     this->Reset();
 }
@@ -455,8 +458,6 @@ bool DbgEngAdapter::BreakInto()
     if (this->m_debugControl->SetInterrupt(DEBUG_INTERRUPT_ACTIVE) != S_OK )
         return false;
 
-    this->Wait();
-
     return true;
 }
 
@@ -512,12 +513,14 @@ bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
     std::memset(&DbgEngAdapter::ProcessCallbackInfo.m_lastException, 0, sizeof(DbgEngAdapter::ProcessCallbackInfo.m_lastException));
 
     const auto wait_result = this->m_debugControl->WaitForEvent(0, timeout.count());
-    LogWarn("wait finished");
     return wait_result == S_OK;
 }
 
 std::string DbgEngAdapter::GetRegisterNameByIndex(std::uint32_t index) const
 {
+    if (!m_debugRegisters)
+        return {};
+
     unsigned long reg_length{};
     DEBUG_REGISTER_DESCRIPTION reg_description{};
 
@@ -555,8 +558,6 @@ std::string DbgEngAdapter::GetTargetArchitecture()
 DebugStopReason DbgEngAdapter::StopReason()
 {
     const auto exec_status = this->ExecStatus();
-    LogWarn("exec_status: %d", exec_status);
-
     if (exec_status == DEBUG_STATUS_BREAK)
     {
         const auto instruction_ptr = this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
@@ -596,6 +597,9 @@ DebugStopReason DbgEngAdapter::StopReason()
 
 unsigned long DbgEngAdapter::ExecStatus()
 {
+    if (!m_debugControl)
+        return DEBUG_STATUS_NO_DEBUGGEE;
+
     unsigned long execution_status{};
     if (this->m_debugControl->GetExecutionStatus(&execution_status) != S_OK )
         return 0;

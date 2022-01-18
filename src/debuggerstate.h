@@ -246,7 +246,11 @@ public:
     void UpdateRemoteArch();
 
     void SetConnectionStatus(DebugAdapterConnectionStatus status) { m_connectionStatus = status; }
-    void SetExecutionStatus(DebugAdapterTargetStatus status) { m_targetStatus = status; }
+    void SetExecutionStatus(DebugAdapterTargetStatus status)
+    {
+        m_targetStatus = status;
+//        DebugBreak();
+    }
 
 	std::vector<std::string> GetAvailableAdapters() { return m_availableAdapters; }
 
