@@ -1197,7 +1197,10 @@ void DebuggerState::UpdateCaches()
         m_modules->Update();
 
     if (m_remoteArchDirty)
+    {
         m_remoteArch = DetectRemoteArch();
+        m_remoteArchDirty = false;
+    }
 }
 
 
