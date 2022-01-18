@@ -215,7 +215,6 @@ void DebuggerModules::MarkDirty()
 {
     m_dirty = true;
     m_modules.clear();
-    LogWarn("DebuggerModules::MarkDirty()");
 }
 
 
@@ -227,7 +226,6 @@ void DebuggerModules::Update()
 
     m_modules = adapter->GetModuleList();
     m_dirty = false;
-    LogWarn("DebuggerModules::Update()");
 }
 
 
