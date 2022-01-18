@@ -94,7 +94,9 @@ enum class DebugStopReason {
     ExcCrash,
 
 	InternalError,
-	InvalidStatusOrOperation
+	InvalidStatusOrOperation,
+
+    UserRequestedBreak
 };
 
 

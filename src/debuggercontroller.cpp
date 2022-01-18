@@ -622,6 +622,12 @@ DebugStopReason DebuggerController::StepTo(const std::vector<uint64_t>& remoteAd
 
 void DebuggerController::HandleTargetStop(DebugStopReason reason)
 {
+    if (m_userRequestedBreak)
+    {
+        m_userRequestedBreak = false;
+        return;
+    }
+
     if (reason == DebugStopReason::ProcessExited)
     {
         DebuggerEvent event;
@@ -673,6 +679,7 @@ void DebuggerController::SetActiveThread(const DebugThread &thread)
 void DebuggerController::Restart()
 {
     Quit();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     Launch();
 }
 
@@ -736,8 +743,8 @@ void DebuggerController::Quit()
 
     if (m_state->IsRunning())
     {
-        Pause();
-        while (m_state->IsRunning()) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
+        // We must pause the target if it is currently running
+        PauseInternal();
     }
 
 //    NotifyEvent(DetachEventType);
@@ -755,13 +762,33 @@ void DebuggerController::Quit()
 }
 
 
+void DebuggerController::PauseInternal()
+{
+    // Setting this flag tells other threads to skip handling the DebugStopReason. That thread will also reset this
+    // flag to false
+    m_userRequestedBreak = true;
+    if (m_state->IsRunning())
+    {
+        m_adapter->BreakInto();
+        while (m_state->IsRunning()) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
+    }
+}
+
+
 void DebuggerController::Pause()
 {
     if (!(m_state->IsConnected() && m_state->IsRunning()))
         return;
 
-    // Don't do anything else here-- one of the other running thread will post it
-    m_adapter->BreakInto();
+    PauseInternal();
+
+    m_state->MarkDirty();
+    m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
+
+    DebuggerEvent event;
+    event.type = TargetStoppedEventType;
+    event.data.targetStoppedData.reason = DebugStopReason::UserRequestedBreak;
+    PostDebuggerEvent(event);
 }
 
 

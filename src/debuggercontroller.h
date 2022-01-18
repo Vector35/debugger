@@ -42,6 +42,8 @@ class DebuggerController: public QObject
 	// is what we do in the collab, i.e., register context-related callbacks and manage the status bar from there.
 	bool m_statusBarAdded = false;
 
+    bool m_userRequestedBreak = false;
+
 public:
     DebuggerController(BinaryViewRef data);
 
@@ -60,6 +62,7 @@ public:
     void Attach();
     void Detach();
     void Pause();
+    void PauseInternal();
 
 	// Whether we can resume the execution of the target, including stepping.
 	bool CanResumeTarget();
