@@ -9,23 +9,10 @@ DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 {
     m_state = new DebuggerState(data, this);
     m_hasUI = BinaryNinja::IsUIEnabled();
-//    if (m_hasUI)
-//    {
-//        // DebugerUI is an abstract container of three things, the DebugView, the SideBar widget, and the status bar.
-//        // None of the three necessarily exists when the DebuggerUI is constructed. So they must register themselves to
-//        // the DebuggerUI when they are constructed.
-//        m_ui = new DebuggerUI(this);
-//    }
 
     RegisterEventCallback([this](const DebuggerEvent& event){
         EventHandler(event);
     });
-
-    // start the event queue worker
-    std::thread worker([&](){
-        Worker();
-    });
-    worker.detach();
 
 	// TODO: we should add an option whether to add a breakpoint at program entry
 	AddEntryBreakpoint();
@@ -869,20 +856,6 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		LogWarn("%s\n", message.c_str());
 		break;
 	}
-//	case ResumeEventType:
-//	case StepIntoEventType:
-//	case StepOverEventType:
-//	case StepReturnEventType:
-//	case StepToEventType:
-//		// TODO: I am not super sure whether we should do it here, or we should let DebuggerState manage this by itself.
-//		// The problem is, if we do not do it here, then the DebuggerState will also have to emit these events.
-//		// Otherwise, there is a race condition that the callbacks (registered by other consumers) will execute before
-//		// DebuggerState updates its state, causing nondeterministic behavior.
-//		m_state->SetExecutionStatus(DebugAdapterRunningStatus);
-//		break;
-
-//	case DetachedEventType:
-//	case QuitDebuggingEventType:
 	case TargetExitedEventType:
 	{
         m_state->MarkDirty();
@@ -1134,8 +1107,15 @@ bool DebuggerController::RemoveEventCallback(size_t index)
 
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 {
-    std::unique_lock<std::recursive_mutex> lock(m_queueMutex);
-    m_events.push(event);
+    std::unique_lock<std::recursive_mutex> callbackLock(m_callbackMutex);
+    std::vector<DebuggerEventCallback> eventCallbacks = m_eventCallbacks;
+    callbackLock.unlock();
+
+    for (auto cb: eventCallbacks)
+    {
+        // TODO: what if cb.function calls PostDebuggerEvent()? Which would try to acquire the queue mutex
+        cb.function(event);
+    }
 }
 
 
