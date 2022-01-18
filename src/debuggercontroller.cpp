@@ -117,6 +117,7 @@ bool DebuggerController::Launch()
 		return false;
 
 	m_state->SetAdapter(m_adapter);
+    m_state->MarkDirty();
 	bool result = Execute();
 	if (result)
 	{
@@ -694,6 +695,7 @@ void DebuggerController::Attach()
         return;
 
     m_state->SetAdapter(m_adapter);
+    m_state->MarkDirty();
 
     m_state->SetConnectionStatus(DebugAdapterConnectingStatus);
 
