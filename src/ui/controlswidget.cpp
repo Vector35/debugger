@@ -132,7 +132,7 @@ void DebugControlsWidget::performStepInto()
     if (context && context->getCurrentView())
         graphType = context->getCurrentView()->getILViewType();
 
-    std::thread([&](){
+    std::thread([&, graphType](){
         m_controller->StepInto(graphType);
     }).detach();
 }
@@ -145,7 +145,7 @@ void DebugControlsWidget::performStepOver()
     if (context && context->getCurrentView())
         graphType = context->getCurrentView()->getILViewType();
 
-    std::thread([&](){
+    std::thread([&, graphType](){
         m_controller->StepOver(graphType);
     }).detach();
 }
