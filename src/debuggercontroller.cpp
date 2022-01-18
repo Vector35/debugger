@@ -620,6 +620,7 @@ void DebuggerController::HandleTargetStop(DebugStopReason reason)
     {
         DebuggerEvent event;
         event.type = TargetExitedEventType;
+		event.data.exitData.exitCode = m_adapter->ExitCode();
         // get exit code
         PostDebuggerEvent(event);
     }

@@ -136,6 +136,7 @@ public:
 
     DebugStopReason StopReason() override;
     unsigned long ExecStatus() override;
+	uint64_t ExitCode() override;
 
     bool BreakInto() override;
     DebugStopReason Go() override;

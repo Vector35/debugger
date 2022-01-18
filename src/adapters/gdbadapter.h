@@ -91,6 +91,7 @@ public:
 
     DebugStopReason StopReason() override;
     unsigned long ExecStatus() override;
+	uint64_t ExitCode() override { return m_exitCode; }
 
 	bool BreakInto() override;
     DebugStopReason GenericGo(const std::string& goCommand);

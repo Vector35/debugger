@@ -166,6 +166,7 @@ public:
 
     virtual DebugStopReason StopReason() = 0;
     virtual unsigned long ExecStatus() = 0;
+	virtual uint64_t ExitCode() = 0;
 
     virtual bool BreakInto() = 0;
     virtual DebugStopReason Go() = 0;

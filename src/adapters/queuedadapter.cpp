@@ -517,6 +517,22 @@ unsigned long QueuedAdapter::ExecStatus()
 }
 
 
+uint64_t QueuedAdapter::ExitCode()
+{
+    std::unique_lock<std::mutex> lock(m_queueMutex);
+
+    uint64_t ret;
+    Semaphore sem;
+    m_queue.push([&]{
+        ret = m_adapter->ExitCode();
+        sem.Release();
+    });
+    lock.unlock();
+    sem.Wait();
+    return ret;
+}
+
+
 bool QueuedAdapter::BreakInto()
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);

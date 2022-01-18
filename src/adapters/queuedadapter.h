@@ -54,6 +54,7 @@ public:
 
     DebugStopReason StopReason() override;
     unsigned long ExecStatus() override;
+	uint64_t ExitCode() override;
 
     bool GenericGo(const std::string& go_type);
     bool GenericGoAsync(const std::string& go_type);
