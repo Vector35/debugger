@@ -33,6 +33,9 @@ void DebuggerRegisters::Update()
     if (!adapter)
         return;
 
+	if (!m_state->IsConnected())
+		return;
+
     m_registerCache = adapter->ReadAllRegisters();
     m_dirty = false;
 }
@@ -159,6 +162,9 @@ void DebuggerThreads::Update()
     if (!m_state)
         return;
 
+	if (!m_state->IsConnected())
+		return;
+
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
         return;
@@ -223,6 +229,9 @@ void DebuggerModules::Update()
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
         return;
+
+	if (!m_state->IsConnected())
+		return;
 
     m_modules = adapter->GetModuleList();
     m_dirty = false;
@@ -1187,6 +1196,12 @@ void DebuggerState::MarkDirty()
 
 void DebuggerState::UpdateCaches()
 {
+	// TODO: this is a temporary fix to address the problem of BN handing after the target exits. The core problem is
+	// the debugger still tries to update caches after the target has exited and the socket is closed, so it hangs
+	// while waiting for data. A proper fix is https://github.com/Vector35/debugger_native/issues/104
+	if (!IsConnected())
+		return;
+
     if (m_registers->IsDirty())
         m_registers->Update();
 
