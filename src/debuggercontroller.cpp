@@ -189,7 +189,7 @@ DebugStopReason DebuggerController::GoInternal()
 {
 	uint64_t remoteIP = m_state->IP();
 	// TODO: for dbgeng, it handles this sequence of operations for us, so we can simply can Go()
-	if (m_state->GetAdapterType() != "LOCAL DBGENG" && m_state->GetBreakpoints()->ContainsAbsolute(remoteIP))
+	if (m_state->GetAdapterType() != "Local DBGENG" && m_state->GetBreakpoints()->ContainsAbsolute(remoteIP))
 	{
         DebugStopReason reason = StepIntoInternal();
 		if (reason != DebugStopReason::SingleStep)
@@ -220,7 +220,6 @@ DebugStopReason DebuggerController::Go()
 	PostDebuggerEvent(event);
 
     DebugStopReason reason = GoInternal();
-    LogWarn("Go internal returned");
 
 	// Right now we are only marking the state as dirty at the external API level. This reduces unnecessary updates
 	// while we carry out certain internal operations. However, this might cause correctness problems, e.g., the target

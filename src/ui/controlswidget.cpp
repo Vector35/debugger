@@ -315,6 +315,9 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
             // Remove old instruction pointer highlight
             uint64_t lastIP = m_controller->GetLastIP();
             BinaryViewRef data = m_controller->GetLiveView();
+            if (!data)
+                break;
+
             for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(lastIP))
             {
                 ModuleNameAndOffset addr;

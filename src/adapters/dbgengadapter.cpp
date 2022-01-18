@@ -208,6 +208,9 @@ void DbgEngAdapter::Quit()
 
 std::vector<DebugThread> DbgEngAdapter::GetThreadList()
 {
+    if (!m_debugSystemObjects)
+        return {};
+
     unsigned long number_threads{};
     if (this->m_debugSystemObjects->GetNumberThreads(&number_threads) != S_OK )
         return {};
@@ -342,6 +345,9 @@ std::vector<DebugBreakpoint> DbgEngAdapter::GetBreakpointList() const
 
 DebugRegister DbgEngAdapter::ReadRegister(const std::string &reg)
 {
+    if (!m_debugRegisters)
+        return DebugRegister{};
+
     unsigned long reg_index{};
     DEBUG_VALUE debug_value{};
     DEBUG_REGISTER_DESCRIPTION register_descriptor{};
@@ -542,6 +548,9 @@ std::unordered_map<std::string, DebugRegister> DbgEngAdapter::ReadAllRegisters()
 
 std::string DbgEngAdapter::GetTargetArchitecture()
 {
+    if (!m_debugControl)
+        return "";
+
     unsigned long processor_type{};
 
     if (this->m_debugControl->GetExecutingProcessorType(&processor_type) != S_OK )
@@ -809,7 +818,7 @@ bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer
     return this->m_debugDataSpaces->WriteVirtual(address, const_cast<void*>(buffer.GetData()), buffer.GetLength(), &bytes_written) == S_OK && bytes_written == buffer.GetLength();
 }
 
-LocalDbgEngAdapterType::LocalDbgEngAdapterType(): DebugAdapterType("Local DbgEng")
+LocalDbgEngAdapterType::LocalDbgEngAdapterType(): DebugAdapterType("Local DBGENG")
 {
 
 }

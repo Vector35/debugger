@@ -215,6 +215,7 @@ void DebuggerModules::MarkDirty()
 {
     m_dirty = true;
     m_modules.clear();
+    LogWarn("DebuggerModules::MarkDirty()");
 }
 
 
@@ -226,6 +227,7 @@ void DebuggerModules::Update()
 
     m_modules = adapter->GetModuleList();
     m_dirty = false;
+    LogWarn("DebuggerModules::Update()");
 }
 
 
@@ -234,6 +236,7 @@ uint64_t DebuggerModules::GetModuleBase(const std::string& name)
 	if (IsDirty())
 		Update();
 
+    LogWarn("there are %d modules", m_modules.size());
     for (const DebugModule& module: m_modules)
     {
         if (module.IsSameBaseModule(name))
@@ -1177,6 +1180,7 @@ bool DebuggerState::SetActiveThread(const DebugThread& thread)
 
 void DebuggerState::MarkDirty()
 {
+    LogWarn("DebuggerState::MarkDirty()");
     m_registers->MarkDirty();
     m_threads->MarkDirty();
     m_modules->MarkDirty();
