@@ -8,8 +8,6 @@ static DebugProcessViewType* g_debugProcessViewType = nullptr;
 
 
 DebugProcessView::DebugProcessView(BinaryView* parent):
-    // This used to be called "Debugged Process", but it conflicts with the Python debugger, so I changed the view
-    // name to "Debugger"
     BinaryView("Debugger", parent->GetFile(), parent)
 {
     m_arch = parent->GetDefaultArchitecture();
@@ -20,9 +18,14 @@ DebugProcessView::DebugProcessView(BinaryView* parent):
 
     // TODO: Read segments from debugger
     uint64_t length = PerformGetLength();
-    LogWarn("length: %ld", length);
     AddAutoSegment(0, length, 0, length, SegmentReadable | SegmentWritable | SegmentExecutable);
     AddAutoSection("Memory", 0, length);
+
+	// quick and dirty way to deal with the construction by BN
+	// a better way to deal with is to somehow tell BN to not construct this object, even if its validForData()
+	// returns true
+	if (parent->GetTypeName() == "Raw")
+		return;
 
     m_controller = DebuggerController::GetController(parent);
 	m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
@@ -33,7 +36,8 @@ DebugProcessView::DebugProcessView(BinaryView* parent):
 
 DebugProcessView::~DebugProcessView()
 {
-	m_controller->RemoveEventCallback(m_eventCallback);
+	if (m_controller)
+		m_controller->RemoveEventCallback(m_eventCallback);
 }
 
 
@@ -84,12 +88,6 @@ DebugProcessViewType::DebugProcessViewType():
 
 BinaryView* DebugProcessViewType::Create(BinaryView* data)
 {
-	// quick and dirty way to deal with the construction by BN
-	// a better way to deal with is to somehow tell BN to not construct this object, even if its validForData()
-	// returns true
-	if (data->GetTypeName() == "Raw")
-		return nullptr;
-
 	try
 	{
 		return new DebugProcessView(data);
@@ -104,9 +102,6 @@ BinaryView* DebugProcessViewType::Create(BinaryView* data)
 
 BinaryView* DebugProcessViewType::Parse(BinaryView* data)
 {
-	if (data->GetTypeName() == "Raw")
-		return nullptr;
-
 	try
 	{
 		return new DebugProcessView(data);

@@ -19,7 +19,7 @@ class DebugProcessView: public BinaryView
     std::set<uint64_t> m_errorCache;
     std::recursive_mutex m_memoryMutex;
 
-    DebuggerController* m_controller;
+    DebuggerController* m_controller = nullptr;
 	size_t m_eventCallback;
 
     virtual uint64_t PerformGetEntryPoint() const override;
