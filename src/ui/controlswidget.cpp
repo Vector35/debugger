@@ -238,6 +238,8 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
 					FileContext* fileContext = frame->getFileContext();
 					fileContext->refreshDataViewCache();
 					ViewFrame* newFrame = context->openFileContext(fileContext);
+					QCoreApplication::processEvents();
+
 					if (newFrame)
 					{
 						newFrame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
@@ -270,6 +272,8 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
 					FileContext* fileContext = frame->getFileContext();
 					fileContext->refreshDataViewCache();
 					ViewFrame* newFrame = context->openFileContext(fileContext);
+					QCoreApplication::processEvents();
+
 					if (newFrame)
 					{
 						newFrame->navigate(m_controller->GetLiveView(), address, true, true);
