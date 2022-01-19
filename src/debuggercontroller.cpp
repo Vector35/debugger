@@ -886,7 +886,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 				ExecuteOnMainThreadAndWait([=](){
 					ProgressIndicator progress(nullptr, "Rebase", "Rebasing...");
 					if (!fileMetadata->Rebase(m_data, remoteBase,
-											  [&](size_t cur, size_t total) { progress.update((int)cur, (int)total); }))
+											  [&](size_t cur, size_t total) { progress.update((int)cur, (int)total); return true; }))
 					{
 						LogWarn("rebase failed");
 					}
@@ -904,7 +904,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 			ExecuteOnMainThreadAndWait([=](){
 				ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
 				bool ok = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger",
-														[&](size_t cur, size_t total) { progress.update((int)cur, (int)total); });
+														[&](size_t cur, size_t total) { progress.update((int)cur, (int)total); return true; });
 				if (!ok)
 					LogWarn("create snapshoted view failed");
 			});
