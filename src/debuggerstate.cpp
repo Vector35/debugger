@@ -8,8 +8,7 @@
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
 #include "../debuggerexceptions.h"
-#include "semaphore.h"
-#include "./adapters/queuedadapter.h"
+
 
 using namespace BinaryNinja;
 using namespace std;

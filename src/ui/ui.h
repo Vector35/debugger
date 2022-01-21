@@ -37,6 +37,9 @@ public:
 
 	void setStatusText(const QString& text);
 
+	TagTypeRef getPCTagType(BinaryViewRef data);
+	TagTypeRef getBreakpointTagType(BinaryViewRef data);
+
 signals:
     void contextChanged();
 	void debuggerEvent(const DebuggerEvent& event);

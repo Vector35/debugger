@@ -100,6 +100,30 @@ void DebuggerUI::updateStatusText(const DebuggerEvent &event)
 }
 
 
+TagTypeRef DebuggerUI::getPCTagType(BinaryViewRef data)
+{
+    TagTypeRef type = data->GetTagType("Program Counter");
+    if (type)
+        return type;
+
+    TagTypeRef pcTagType = new TagType(data, "Program Counter", "=>");
+    data->AddTagType(pcTagType);
+    return pcTagType;
+}
+
+
+TagTypeRef DebuggerUI::getBreakpointTagType(BinaryViewRef data)
+{
+    TagTypeRef type = data->GetTagType("Breakpoints");
+    if (type)
+        return type;
+
+    TagTypeRef pcTagType = new TagType(data, "Breakpoints", "🛑");
+    data->AddTagType(pcTagType);
+    return pcTagType;
+}
+
+
 void DebuggerUI::updateUI(const DebuggerEvent &event)
 {
     switch (event.type)
@@ -195,7 +219,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
                 func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), lastIP, oldColor);
                 for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), lastIP))
                 {
-                    if (tag->GetType() != m_controller->getPCTagType(data))
+                    if (tag->GetType() != getPCTagType(data))
                         continue;
 
                     func->RemoveUserAddressTag(data->GetDefaultArchitecture(), lastIP, tag);
@@ -208,7 +232,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
                 bool tagFound = false;
                 for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
                 {
-                    if (tag->GetType() == m_controller->getPCTagType(data))
+                    if (tag->GetType() == getPCTagType(data))
                     {
                         tagFound = true;
                         break;
@@ -218,12 +242,156 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
                 if (!tagFound)
                 {
                     func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, BlueHighlightColor);
-                    func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, m_controller->getPCTagType(data),
+                    func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getPCTagType(data),
                                                "program counter");
                 }
             }
             break;
         }
+
+		case RelativeBreakpointAddedEvent:
+		{
+			DebuggerModules* modules = m_controller->GetState()->GetModules();
+			uint64_t address = modules->RelativeAddressToAbsolute(event.data.relativeAddress);
+
+			std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
+			if (m_controller->GetLiveView())
+				dataAndAddress.emplace_back(m_controller->GetLiveView(), address);
+
+			if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module,
+											  m_controller->GetData()->GetFile()->GetOriginalFilename()))
+			{
+				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + event.data.relativeAddress.offset);
+			}
+
+			for (auto& [data, address]: dataAndAddress)
+			{
+				for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
+				{
+					bool tagFound = false;
+					for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
+					{
+						if (tag->GetType() == getBreakpointTagType(data))
+						{
+							tagFound = true;
+							break;
+						}
+					}
+
+					if (!tagFound)
+					{
+						func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
+						func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
+													   "breakpoint");
+					}
+				}
+			}
+			break;
+		}
+		case AbsoluteBreakpointAddedEvent:
+		{
+			uint64_t address = event.data.absoluteAddress;
+
+			std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
+			BinaryViewRef data = m_controller->GetLiveView();
+			if (data)
+				dataAndAddress.emplace_back(data, address);
+
+			DebuggerModules* modules = m_controller->GetState()->GetModules();
+			ModuleNameAndOffset relative = modules->AbsoluteAddressToRelative(address);
+			if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetData()->GetFile()->GetOriginalFilename()))
+			{
+				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + relative.offset);
+			}
+
+			for (auto& [data, address]: dataAndAddress)
+			{
+				for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
+				{
+					bool tagFound = false;
+					for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
+					{
+						if (tag->GetType() == getBreakpointTagType(data))
+						{
+							tagFound = true;
+							break;
+						}
+					}
+
+					if (!tagFound)
+					{
+						func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
+						func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
+													   "breakpoint");
+					}
+				}
+			}
+			break;
+		}
+		case RelativeBreakpointRemovedEvent:
+		{
+			DebuggerModules* modules = m_controller->GetState()->GetModules();
+			uint64_t address = modules->RelativeAddressToAbsolute(event.data.relativeAddress);
+
+			std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
+			if (m_controller->GetLiveView())
+				dataAndAddress.emplace_back(m_controller->GetLiveView(), address);
+
+			if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module,
+											  m_controller->GetData()->GetFile()->GetOriginalFilename()))
+			{
+				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + event.data.relativeAddress.offset);
+			}
+
+			for (auto& [data, address]: dataAndAddress)
+			{
+				for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
+				{
+					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, NoHighlightColor);
+					for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
+					{
+						if (tag->GetType() != getBreakpointTagType(data))
+							continue;
+
+						func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
+					}
+				}
+			}
+			break;
+		}
+		case AbsoluteBreakpointRemovedEvent:
+		{
+			uint64_t address = event.data.absoluteAddress;
+
+			std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
+			BinaryViewRef data = m_controller->GetLiveView();
+			if (data)
+				dataAndAddress.emplace_back(data, address);
+
+			DebuggerModules* modules = m_controller->GetState()->GetModules();
+			ModuleNameAndOffset relative = modules->AbsoluteAddressToRelative(address);
+			if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetData()->GetFile()->GetOriginalFilename()))
+			{
+				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + relative.offset);
+			}
+
+			for (auto& [data, address]: dataAndAddress)
+			{
+				for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
+				{
+					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, NoHighlightColor);
+					for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
+					{
+						if (tag->GetType() != getBreakpointTagType(data))
+							continue;
+
+						func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
+					}
+				}
+			}
+			break;
+		}
+
         default:
             break;
     }

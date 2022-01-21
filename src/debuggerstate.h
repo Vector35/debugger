@@ -133,12 +133,9 @@ private:
     uint32_t m_remotePort = 0;
     bool m_requestTerminalEmulator;
     std::string m_adapterType;
+	std::vector<std::string> m_availableAdapters;
 
 	ArchitectureRef m_remoteArch;
-
-	DebugStopReason m_lastStopReason;
-
-	std::vector<std::string> m_availableAdapters;
 
 public:
     DebuggerState(BinaryViewRef data, DebuggerController* controller);
