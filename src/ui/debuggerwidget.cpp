@@ -3,9 +3,7 @@
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QStatusBar>
 #include "debuggerwidget.h"
-#include "statusbar.h"
 #include "ui.h"
-#include "thread"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -77,27 +75,13 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
     layout->addWidget(m_splitter);
     setLayout(layout);
 
-	UIContext* context = UIContext::contextForWidget(view);
-	if (context && (!m_controller->StatusBarAdded()))
-	{
-		// Only add one status bar widget for one controller
-		// This is only a temporary solution, a better way to deal with it is to leverage UIContext,
-		// similar to how collab does it
-		DebuggerStatusBar* statusBar = new DebuggerStatusBar(m_controller);
-		context->mainWindow()->statusBar()->insertWidget(0, statusBar);
-		m_controller->SetStatusBarAdded();
-	}
-
-    m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
-        uiEventHandler(event);
-    });
+	m_ui = DebuggerUI::GetForViewFrame(view);
+	connect(m_ui, &DebuggerUI::debuggerEvent, this, &DebuggerWidget::uiEventHandler);
 }
 
 
 DebuggerWidget::~DebuggerWidget()
 {
-//    disconnect(m_ui, &DebuggerUI::contextChanged, 0, 0);
-	m_controller->RemoveEventCallback(m_eventCallback);
 }
 
 
@@ -118,6 +102,7 @@ void DebuggerWidget::updateContent()
 
 void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
 {
+	m_controlsWidget->updateButtons();
     switch (event.type)
     {
     case TargetStoppedEventType:
@@ -125,20 +110,17 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
     case DetachedEventType:
     case QuitDebuggingEventType:
     case BackEndDisconnectedEventType:
-		std::thread([=](){
-			ExecuteOnMainThreadAndWait([this]()
-			{
-				updateContent();
-			});
-		}).detach();
+		updateContent();
 		break;
 	case ActiveThreadChangedEvent:
-		std::thread([=](){
-			ExecuteOnMainThreadAndWait([this]()
-			{
-				m_stackWidget->updateContent();
-			});
-		}).detach();
+		m_stackWidget->updateContent();
+		break;
+    case RelativeBreakpointAddedEvent:
+    case AbsoluteBreakpointAddedEvent:
+    case RelativeBreakpointRemovedEvent:
+    case AbsoluteBreakpointRemovedEvent:
+		m_breakpointsWidget->updateContent();
+		break;
     default:
         break;
     }

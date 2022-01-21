@@ -4,6 +4,7 @@
 #include "ui/ui.h"
 #include "adapters/gdbadapter.h"
 #include "adapters/lldbadapter.h"
+#include "ui/uinotification.h"
 
 #ifdef WIN32
 #include "adapters/dbgengadapter.h"
@@ -34,7 +35,10 @@ extern "C"
 	BINARYNINJAPLUGIN bool UIPluginInit()
 	{
 		if (IsUIEnabled())
+		{
         	DebuggerUI::InitializeUI();
+			NotificationListener::init();
+		}
 		return true;
 	}
 

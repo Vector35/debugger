@@ -249,16 +249,11 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* v
     m_actionHandler.bindAction(jumpToBreakpointActionName, UIAction([&](){ jump(); }));
 
     updateContent();
-
-    m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
-        uiEventHandler(event);
-    });
 }
 
 
 DebugBreakpointsWidget::~DebugBreakpointsWidget()
 {
-	m_controller->RemoveEventCallback(m_eventCallback);
 }
 
 

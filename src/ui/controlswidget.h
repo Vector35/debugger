@@ -34,8 +34,6 @@ private:
     std::string m_name;
     DebuggerController* m_controller;
 
-    size_t m_eventCallback;
-
     QAction* m_actionRun;
     QAction* m_actionRestart;
     QAction* m_actionQuit;

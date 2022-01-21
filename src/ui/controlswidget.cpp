@@ -1,7 +1,6 @@
 #include "controlswidget.h"
 #include "adaptersettings.h"
 #include <QtGui/QPixmap>
-#include <QtCore/QCoreApplication>
 #include "binaryninjaapi.h"
 #include "disassemblyview.h"
 #include "ui.h"
@@ -47,16 +46,11 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
     m_actionSettings = addAction("Settings...",[this](){ performSettings(); });
 
     updateButtons();
-
-    m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
-        uiEventHandler(event);
-    });
 }
 
 
 DebugControlsWidget::~DebugControlsWidget()
 {
-    m_controller->RemoveEventCallback(m_eventCallback);
 }
 
 
@@ -220,153 +214,7 @@ void DebugControlsWidget::setSteppingEnabled(bool enabled)
 
 void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
 {
-    ExecuteOnMainThreadAndWait([&](){
-        updateButtons();
-    });
-
-    switch (event.type)
-    {
-		case DetachedEventType:
-		case QuitDebuggingEventType:
-		case TargetExitedEventType:
-		{
-			std::thread([=](){
-				ExecuteOnMainThreadAndWait([=]()
-				{
-					UIContext* context = UIContext::contextForWidget(this);
-					ViewFrame* frame = context->getCurrentViewFrame();
-					FileContext* fileContext = frame->getFileContext();
-					fileContext->refreshDataViewCache();
-					ViewFrame* newFrame = context->openFileContext(fileContext);
-					QCoreApplication::processEvents();
-
-					if (newFrame)
-					{
-						newFrame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
-						context->closeTab(context->getTabForFile(fileContext));
-						QCoreApplication::processEvents();
-					}
-					else
-					{
-						LogWarn("fail to navigate to the original view");
-					}
-				});
-			}).detach();
-			break;
-		}
-
-        case InitialViewRebasedEventType:
-        {
-			uint64_t address = m_controller->GetState()->IP();
-			// If there is no function at the current address, define one. This might be a little aggressive,
-			// but given that we are lacking the ability to "show as code", this feels like an OK workaround.
-			auto functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(address);
-			if (functions.size() == 0)
-				m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
-
-			std::thread([=](){
-				ExecuteOnMainThreadAndWait([=]()
-				{
-					UIContext* context = UIContext::contextForWidget(this);
-					ViewFrame* frame = context->getCurrentViewFrame();
-					FileContext* fileContext = frame->getFileContext();
-					fileContext->refreshDataViewCache();
-					ViewFrame* newFrame = context->openFileContext(fileContext);
-					QCoreApplication::processEvents();
-
-					if (newFrame)
-					{
-						newFrame->navigate(m_controller->GetLiveView(), address, true, true);
-						context->closeTab(context->getTabForFile(fileContext));
-						QCoreApplication::processEvents();
-					}
-					else
-					{
-						LogWarn("fail to navigate to the debugger view");
-					}
-				});
-			}).detach();
-			break;
-        }
-        case TargetStoppedEventType:
-        {
-			if (event.data.targetStoppedData.reason == DebugStopReason::ProcessExited)
-			{
-				return;
-			}
-
-            uint64_t address = m_controller->GetState()->IP();
-			// If there is no function at the current address, define one. This might be a little aggressive,
-			// but given that we are lacking the ability to "show as code", this feels like an OK workaround.
-            BinaryViewRef liveView = m_controller->GetLiveView();
-            if (!liveView)
-                break;
-
-			auto functions = liveView->GetAnalysisFunctionsContainingAddress(address);
-			if (functions.size() == 0)
-				m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
-
-            // This works, but it seems not natural to me
-            std::thread([=](){
-                ExecuteOnMainThreadAndWait([this, address]()
-                {
-                    UIContext* context = UIContext::contextForWidget(this);
-                    ViewFrame* frame = context->getCurrentViewFrame();
-					frame->navigate(m_controller->GetLiveView(), address, true, true);
-                });
-            }).detach();
-
-            // Remove old instruction pointer highlight
-            uint64_t lastIP = m_controller->GetLastIP();
-            BinaryViewRef data = m_controller->GetLiveView();
-            if (!data)
-                break;
-
-            for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(lastIP))
-            {
-                ModuleNameAndOffset addr;
-                addr.module = data->GetFile()->GetOriginalFilename();
-                addr.offset = lastIP - data->GetStart();
-
-                BNHighlightStandardColor oldColor = NoHighlightColor;
-                if (m_controller->GetState()->GetBreakpoints()->ContainsOffset(addr))
-                    oldColor = RedHighlightColor;
-
-                func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), lastIP, oldColor);
-                for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), lastIP))
-                {
-                    if (tag->GetType() != m_controller->getPCTagType(data))
-                        continue;
-
-                    func->RemoveUserAddressTag(data->GetDefaultArchitecture(), lastIP, tag);
-                }
-            }
-
-            // Add new instruction pointer highlight
-            for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
-            {
-                bool tagFound = false;
-                for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
-                {
-                    if (tag->GetType() == m_controller->getPCTagType(data))
-                    {
-                        tagFound = true;
-                        break;
-                    }
-                }
-
-                if (!tagFound)
-                {
-                    func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, BlueHighlightColor);
-                    func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, m_controller->getPCTagType(data),
-                                               "program counter");
-                }
-            }
-            break;
-        }
-        default:
-            break;
-    }
+	updateButtons();
 }
 
 

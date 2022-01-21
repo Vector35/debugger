@@ -42,10 +42,7 @@ class DebuggerWidget: public SidebarWidget
     DebugThreadsWidget* m_threadsWidget;
     DebugStackWidget* m_stackWidget;
 
-    DebuggerState* m_state;
     DebuggerUI* m_ui;
-
-    size_t m_eventCallback;
 
     // void shouldBeVisible()
 
@@ -61,10 +58,10 @@ public:
     DebugThreadsWidget* getThreadsWidget() const { return m_threadsWidget; }
     DebugStackWidget* getStackWidget() const { return m_stackWidget; }
 
-    void uiEventHandler(const DebuggerEvent& event);
+	void updateContent();
 
 private slots:
-    void updateContent();
+	void uiEventHandler(const DebuggerEvent& event);
 };
 
 
