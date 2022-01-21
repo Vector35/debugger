@@ -151,40 +151,8 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 			break;
 		}
 
-        case InitialViewRebasedEventType:
-        {
-			uint64_t address = m_controller->GetState()->IP();
-			// If there is no function at the current address, define one. This might be a little aggressive,
-			// but given that we are lacking the ability to "show as code", this feels like an OK workaround.
-			auto functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(address);
-			if (functions.size() == 0)
-				m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
-
-			ViewFrame* frame = m_context->getCurrentViewFrame();
-			FileContext* fileContext = frame->getFileContext();
-			fileContext->refreshDataViewCache();
-			ViewFrame* newFrame = m_context->openFileContext(fileContext);
-			QCoreApplication::processEvents();
-
-			if (newFrame)
-			{
-				newFrame->navigate(m_controller->GetLiveView(), address, true, true);
-				m_context->closeTab(m_context->getTabForFile(fileContext));
-				QCoreApplication::processEvents();
-			}
-			else
-			{
-				LogWarn("fail to navigate to the debugger view");
-			}
-			break;
-        }
         case TargetStoppedEventType:
         {
-			if (event.data.targetStoppedData.reason == DebugStopReason::ProcessExited)
-			{
-				return;
-			}
-
             uint64_t address = m_controller->GetState()->IP();
 			// If there is no function at the current address, define one. This might be a little aggressive,
 			// but given that we are lacking the ability to "show as code", this feels like an OK workaround.
@@ -196,9 +164,27 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 			if (functions.size() == 0)
 				m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
 
-            // This works, but it seems not natural to me
-			ViewFrame* frame = m_context->getCurrentViewFrame();
-			frame->navigate(m_controller->GetLiveView(), address, true, true);
+			if (event.data.targetStoppedData.reason == DebugStopReason::InitialBreakpoint)
+			{
+				ViewFrame* frame = m_context->getCurrentViewFrame();
+				FileContext* fileContext = frame->getFileContext();
+				fileContext->refreshDataViewCache();
+				ViewFrame* newFrame = m_context->openFileContext(fileContext);
+				QCoreApplication::processEvents();
+
+				if (newFrame)
+				{
+					newFrame->navigate(m_controller->GetLiveView(), address, true, true);
+					m_context->closeTab(m_context->getTabForFile(fileContext));
+					QCoreApplication::processEvents();
+				}
+			}
+			else
+			{
+				ViewFrame* frame = m_context->getCurrentViewFrame();
+				frame->navigate(m_controller->GetLiveView(), address, true, true);
+				QCoreApplication::processEvents();
+			}
 
             // Remove old instruction pointer highlight
             uint64_t lastIP = m_controller->GetLastIP();

@@ -100,9 +100,8 @@ public:
     void NotifyEvent(DebuggerEventType event);
 
     void PostDebuggerEvent(const DebuggerEvent& event);
-    void Worker();
 
-    uint64_t GetLastIP() const { return m_lastIP; }
+	uint64_t GetLastIP() const { return m_lastIP; }
     uint64_t GetCurrentIP() const { return m_currentIP; }
 
 	DataBuffer ReadMemory(std::uintptr_t address, std::size_t size);
@@ -111,4 +110,5 @@ public:
 	DebugAdapter* CreateDebugAdapter();
 
     void HandleTargetStop(DebugStopReason reason);
+	void HandleInitialBreakpoint();
 };

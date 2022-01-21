@@ -32,8 +32,6 @@ enum DebuggerEventType
 	QuitDebuggingEventType,
 	BackEndDisconnectedEventType,
 
-    InitialViewRebasedEventType,
-
     AbsoluteBreakpointAddedEvent,
     RelativeBreakpointAddedEvent,
     AbsoluteBreakpointRemovedEvent,

@@ -84,7 +84,7 @@ bool DebuggerController::Launch()
 	{
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
         m_state->SetExecutionStatus(DebugAdapterPausedStatus);
-		NotifyStopped(DebugStopReason::InitialBreakpoint);
+		HandleInitialBreakpoint();
 	}
 	return result;
 }
@@ -620,6 +620,54 @@ void DebuggerController::HandleTargetStop(DebugStopReason reason)
 }
 
 
+void DebuggerController::HandleInitialBreakpoint()
+{
+	m_state->UpdateCaches();
+	// We need to apply the breakpoints that the user has set up before launching the target. Note this requires
+	// the modules to be updated properly beforehand.
+	m_state->ApplyBreakpoints();
+
+	// Rebase the binary and create DebugView
+	uint64_t remoteBase = m_state->GetRemoteBase();
+
+	FileMetadataRef fileMetadata = m_data->GetFile();
+	if (remoteBase != m_data->GetStart())
+	{
+		// remote base is different from the local base, first need a rebase
+		ExecuteOnMainThreadAndWait([=](){
+			ProgressIndicator progress(nullptr, "Rebase", "Rebasing...");
+			if (!fileMetadata->Rebase(m_data, remoteBase,
+									  [&](size_t cur, size_t total) { progress.update((int)cur, (int)total); return true; }))
+			{
+				LogWarn("rebase failed");
+			}
+		});
+	}
+
+	Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
+	SetData(rebasedView);
+	LogWarn("the base of the rebased view is 0x%lx", rebasedView->GetStart());
+
+	ExecuteOnMainThreadAndWait([=](){
+		ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
+		bool ok = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger",
+												[&](size_t cur, size_t total) { progress.update((int)cur, (int)total); return true; });
+		if (!ok)
+			LogWarn("create snapshoted view failed");
+	});
+
+	BinaryViewRef liveView = fileMetadata->GetViewOfType("Debugger");
+	if (!liveView)
+	{
+		LogWarn("Invalid Debugger view!");
+		return;
+	}
+	SetLiveView(liveView);
+
+	NotifyStopped(DebugStopReason::InitialBreakpoint);
+}
+
+
 DebugThread DebuggerController::GetActiveThread() const
 {
 	return m_state->GetThreads()->GetActiveThread();
@@ -672,7 +720,7 @@ void DebuggerController::Attach()
         m_state->MarkDirty();
         m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
         m_state->SetExecutionStatus(DebugAdapterPausedStatus);
-        NotifyStopped(DebugStopReason::InitialBreakpoint);
+		HandleInitialBreakpoint();
     }
     else
     {
@@ -842,68 +890,9 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	}
     case TargetStoppedEventType:
     {
-        // Initial breakpoint is reached after successfully launching or attaching to the target
-        if (event.data.targetStoppedData.reason == DebugStopReason::InitialBreakpoint)
-        {
-            m_state->UpdateCaches();
-            // We need to apply the breakpoints that the user has set up before launching the target. Note this requires
-            // the modules to be updated properly beforehand.
-            m_state->ApplyBreakpoints();
-
-            // Rebase the binary and create DebugView
-            uint64_t remoteBase = m_state->GetRemoteBase();
-
-            FileMetadataRef fileMetadata = m_data->GetFile();
-            if (remoteBase != m_data->GetStart())
-            {
-                // remote base is different from the local base, first need a rebase
-				ExecuteOnMainThreadAndWait([=](){
-					ProgressIndicator progress(nullptr, "Rebase", "Rebasing...");
-					if (!fileMetadata->Rebase(m_data, remoteBase,
-											  [&](size_t cur, size_t total) { progress.update((int)cur, (int)total); return true; }))
-					{
-						LogWarn("rebase failed");
-					}
-				});
-            }
-
-            Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
-//			TODO: I do not think we should use the rebased view to replace m_data right now, but I remember there was
-//			an discussion on it. Remember to check this out later.
-//			Update: this line must be kept unless we change the FileMetadata::Rebase(), so that it does not register
-//			the rebased view. Otherwise, it causes random crashes and/or unexpected behavior
-            SetData(rebasedView);
-            LogWarn("the base of the rebased view is 0x%lx", rebasedView->GetStart());
-
-			ExecuteOnMainThreadAndWait([=](){
-				ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
-				bool ok = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger",
-														[&](size_t cur, size_t total) { progress.update((int)cur, (int)total); return true; });
-				if (!ok)
-					LogWarn("create snapshoted view failed");
-			});
-
-            BinaryViewRef liveView = fileMetadata->GetViewOfType("Debugger");
-			if (!liveView)
-			{
-				LogWarn("Invalid Debugger view!");
-				break;
-			}
-            SetLiveView(liveView);
-
-            DebuggerEvent event;
-            event.type = InitialViewRebasedEventType;
-            PostDebuggerEvent(event);
-        }
-		else
-        {
-            m_state->UpdateCaches();
-        }
-
-        // Update the instruction pointer
-        m_lastIP = m_currentIP;
+		m_state->UpdateCaches();
+		m_lastIP = m_currentIP;
         m_currentIP = m_state->IP();
-
         break;
     }
     default:
@@ -944,36 +933,9 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
     std::vector<DebuggerEventCallback> eventCallbacks = m_eventCallbacks;
     callbackLock.unlock();
 
-    for (auto cb: eventCallbacks)
+    for (const auto& cb: eventCallbacks)
     {
-        // TODO: what if cb.function calls PostDebuggerEvent()? Which would try to acquire the queue mutex
         cb.function(event);
-    }
-}
-
-
-void DebuggerController::Worker()
-{
-    while (true)
-    {
-		std::unique_lock<std::recursive_mutex> callbackLock(m_callbackMutex);
-		std::vector<DebuggerEventCallback> eventCallbacks = m_eventCallbacks;
-		callbackLock.unlock();
-
-        std::unique_lock<std::recursive_mutex> lock(m_queueMutex);
-        if (m_events.size() != 0)
-        {
-            const DebuggerEvent event = m_events.front();
-            m_events.pop();
-
-            lock.unlock();
-
-            for (auto cb: eventCallbacks)
-            {
-				// TODO: what if cb.function calls PostDebuggerEvent()? Which would try to acquire the queue mutex
-                cb.function(event);
-            }
-        }
     }
 }
 
