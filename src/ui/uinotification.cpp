@@ -19,13 +19,11 @@ void NotificationListener::init()
 
 void NotificationListener::OnContextOpen(UIContext* context)
 {
-	LogInfo("OnContextOpen");
 }
 
 
 void NotificationListener::OnContextClose(UIContext* context)
 {
-	LogInfo("OnContextClose");
 }
 
 
@@ -76,7 +74,6 @@ void NotificationListener::OnAfterCloseFile(UIContext* context, FileContext* fil
 
 void NotificationListener::OnViewChange(UIContext* context, ViewFrame* frame, const QString& type)
 {
-//	LogInfo("OnViewChange");
 	DebuggerUI* ui = DebuggerUI::CreateForViewFrame(frame);
 }
 
@@ -95,7 +92,6 @@ bool NotificationListener::GetNameForFile(UIContext* context, FileContext* file,
 
 bool NotificationListener::GetNameForPath(UIContext* context, const QString& path, QString& name)
 {
-	QFileInfo info(path);
-	name = info.baseName();
+	name = path;
 	return true;
 }
