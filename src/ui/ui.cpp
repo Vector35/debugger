@@ -18,7 +18,9 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
 {
 	m_window = context->mainWindow();
 	m_status = new QLabel("Inactive");
-	m_window->statusBar()->insertWidget(0, m_status);
+	if (m_window && m_window->statusBar())
+		m_window->statusBar()->insertWidget(0, m_status);
+
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateStatusText);
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateUI);
 
