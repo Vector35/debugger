@@ -75,7 +75,6 @@ void DebuggerUI::updateStatusText(const DebuggerEvent &event)
 
     case TargetStoppedEventType:
 	{
-		// TODO: add reason of stop
 		DebugStopReason reason = event.data.targetStoppedData.reason;
 		setStatusText(QString::fromStdString(fmt::format("Stopped {}", reason)));
 		break;
@@ -95,16 +94,6 @@ void DebuggerUI::updateStatusText(const DebuggerEvent &event)
     case BackEndDisconnectedEventType:
 		setStatusText("Backend disconnected");
 		break;
-
-		// The update should be stateless, i.e., does not require knowing what the last event is.
-		// Instead, it should work by querying the status of the controller.
-		// Only in this way, the status bar can display the correct content when the user switched to different tabs
-		// and get back. For now, just do it in the simple way.
-		// One issue complicating the situation is the controller's callback MUST be executed before any other callback.
-		// Otherwise, the update could be incomplete and the status will be wrong.
-		// We can either have the controller always call its own callback first, or put the callbacks into a priority queue.
-		// setStatusText();
-
 	default:
 		break;
 	}

@@ -157,35 +157,6 @@ private:
 
 public:
     DebuggerState(BinaryViewRef data, DebuggerController* controller);
-    bool Launch();
-    void Restart();
-    void Quit();
-    bool Exec();
-    bool Attach();
-    void Detach();
-    void Pause();
-    void Go();
-    void StepInto(BNFunctionGraphType il = NormalFunctionGraph);
-    void StepOver(BNFunctionGraphType il = NormalFunctionGraph);
-    void StepOverInternal();
-    void StepReturn();
-    void StepTo(std::vector<uint64_t> remoteAddresses);
-
-    void AdapterStepInto();
-    void AdapterStepOver();
-    void AdapterGo();
-
-    void AdapterStepIntoAndWait();
-    void AdapterStepOverAndWait();
-    void AdapterGoAndWait();
-
-	// TODO: it might be better and more natural to have functions like Go() directly returning this value.
-	// However, this should also work and require less code changes.
-	void SetLastStopReason(DebugStopReason reason) { m_lastStopReason = reason; }
-	DebugStopReason GetLastStopReason() { return m_lastStopReason; }
-
-    bool CanExec();
-    bool CanConnect();
 
     DebugAdapter* GetAdapter() const { return m_adapter; }
     DebuggerController* GetController() const { return m_controller; }
@@ -239,17 +210,12 @@ public:
 
     uint64_t GetRemoteBase(BinaryViewRef relativeView = nullptr);
 
-    std::string ResolveTargetBase();
-
-    bool CreateDebugAdapter();
     void ApplyBreakpoints();
-    void UpdateRemoteArch();
 
     void SetConnectionStatus(DebugAdapterConnectionStatus status) { m_connectionStatus = status; }
     void SetExecutionStatus(DebugAdapterTargetStatus status)
     {
         m_targetStatus = status;
-//        DebugBreak();
     }
 
 	std::vector<std::string> GetAvailableAdapters() { return m_availableAdapters; }
