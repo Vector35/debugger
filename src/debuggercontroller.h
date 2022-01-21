@@ -24,8 +24,6 @@ class DebuggerController: public QObject
     BinaryViewRef m_data;
     BinaryViewRef m_liveView;
 
-    bool m_hasUI;
-
     inline static std::vector<DebuggerController*> g_debuggerControllers;
     void DeleteController(BinaryViewRef data);
 
@@ -46,8 +44,6 @@ class DebuggerController: public QObject
 
 public:
     DebuggerController(BinaryViewRef data);
-
-    bool hasUI() const { return m_hasUI; }
 
     void AddBreakpoint(uint64_t address);
     void AddBreakpoint(const ModuleNameAndOffset& address);
@@ -126,20 +122,4 @@ public:
 	DebugAdapter* CreateDebugAdapter();
 
     void HandleTargetStop(DebugStopReason reason);
-
-signals:
-    void absoluteBreakpointAdded(uint64_t address);
-    void relativeBreakpointAdded(const ModuleNameAndOffset& address);
-    void absoluteBreakpointDeleted(uint64_t address);
-    void relativeBreakpointDeleted(const ModuleNameAndOffset& address);
-
-    void started();
-    void starting();
-    // stopped is emitted immediately after the target stops; the cacheUpdated() is emitted after the DebuggerState
-    // gets updated, and the UI should update its content
-    void stopped(DebugStopReason reason, void *data);
-    void cacheUpdated(DebugStopReason reason, void *data);
-    void IPChanged(uint64_t address);
-
-    void contextChanged();
 };

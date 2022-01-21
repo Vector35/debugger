@@ -7,7 +7,6 @@
 #include "debugadaptertype.h"
 #include "debuggercommon.h"
 
-class DebuggerUI;
 class DebuggerState;
 
 enum DebugAdapterConnectionStatus
@@ -71,8 +70,6 @@ public:
 };
 
 
-
-
 class DebuggerBreakpoints
 {
 private:
@@ -91,16 +88,6 @@ public:
     void SerializeMetadata();
     void UnserializedMetadata();
     std::vector<ModuleNameAndOffset> GetBreakpointList() const { return m_breakpoints; }
-};
-
-
-struct DebuggerThreadCache
-{
-    DebugThread thread;
-    uint64_t ip;
-    // TODO: this does not seem to me the correct way to mark the selected thread. Instead, the
-    // DebuggerThreads class should simply have a field called selectedThread
-    bool selected;
 };
 
 
@@ -140,8 +127,6 @@ private:
     DebuggerBreakpoints* m_breakpoints;
     bool m_remoteArchDirty;
 
-    DebuggerUI* m_ui;
-
     std::string m_executablePath;
     std::string m_commandLineArgs;
     std::string m_remoteHost;
@@ -162,7 +147,6 @@ public:
     DebuggerController* GetController() const { return m_controller; }
 
     DebuggerModules* GetModules() const { return m_modules; }
-    DebuggerUI* GetDebuggerUI() const { return m_ui; }
     DebuggerBreakpoints* GetBreakpoints() const { return m_breakpoints; }
     DebuggerRegisters* GetRegisters() const { return m_registers; }
     DebuggerThreads* GetThreads() const { return m_threads; }

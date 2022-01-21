@@ -8,8 +8,6 @@
 DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 {
     m_state = new DebuggerState(data, this);
-    m_hasUI = BinaryNinja::IsUIEnabled();
-
     RegisterEventCallback([this](const DebuggerEvent& event){
         EventHandler(event);
     });

@@ -18,10 +18,10 @@
 #include "moduleswidget.h"
 #include "threadswidget.h"
 #include "controlswidget.h"
+#include "ui.h"
 #include "../debuggercontroller.h"
 
-class DebuggerController;
-class DebugRegistersWidget;
+class DebuggerUI;
 
 class DebuggerWidget: public SidebarWidget
 {
@@ -42,7 +42,7 @@ class DebuggerWidget: public SidebarWidget
     DebugThreadsWidget* m_threadsWidget;
     DebugStackWidget* m_stackWidget;
 
-    DebuggerUI* m_ui;
+	DebuggerUI* m_ui;
 
     // void shouldBeVisible()
 
