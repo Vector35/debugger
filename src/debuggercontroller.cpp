@@ -7,6 +7,8 @@
 
 DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 {
+	INIT_DEBUGGER_API_OBJECT();
+
     m_state = new DebuggerState(data, this);
     RegisterEventCallback([this](const DebuggerEvent& event){
         EventHandler(event);
@@ -695,7 +697,7 @@ void DebuggerController::Restart()
 }
 
 
-void DebuggerController::Attach()
+void DebuggerController::Connect()
 {
     if (m_state->IsConnected())
         return;
@@ -814,7 +816,7 @@ void DebuggerController::LaunchOrConnect()
 	if (adapterType->CanExecute(m_data))
 		Launch();
 	else if (adapterType->CanConnect(m_data))
-		Attach();
+		Connect();
 }
 
 
@@ -835,20 +837,6 @@ DebuggerController* DebuggerController::GetController(BinaryViewRef data)
     DebuggerController* controller = new DebuggerController(data);
     g_debuggerControllers.push_back(controller);
     return controller;
-}
-
-
-bool DebuggerController::ControllerExists(BinaryViewRef data)
-{
-	// TODO: this function duplicates some code in DebuggerController::GetController()
-    for (auto& controller: g_debuggerControllers)
-    {
-        if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
-            return true;
-        if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetParentView()->GetFile()->GetOriginalFilename())
-            return true;
-    }
-	return false;
 }
 
 

@@ -241,7 +241,7 @@ bool DebugRegistersListModel::setData(const QModelIndex &index, const QVariant &
     if (newValue == item->value())
         return false;
 
-    ok = m_controller->GetState()->GetRegisters()->UpdateRegisterValue(item->name(), newValue);
+    ok = m_controller->GetState()->GetRegisters()->SetRegisterValue(item->name(), newValue);
     if (!ok)
         return false;
 

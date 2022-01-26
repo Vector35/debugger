@@ -37,7 +37,7 @@ public:
     DebuggerRegisters(DebuggerState* state);
     // DebugRegister operator[](std::string name);
     uint64_t GetRegisterValue(const std::string& name);
-    bool UpdateRegisterValue(const std::string& name, uint64_t value);
+    bool SetRegisterValue(const std::string& name, uint64_t value);
     void MarkDirty();
     bool IsDirty() const { return m_dirty; }
     void Update();
@@ -59,8 +59,6 @@ public:
     bool IsDirty() const { return m_dirty; }
 
 	std::vector<DebugModule> GetAllModules();
-    DebugModule ResolvePath(const std::string& fpathExe) const;
-
     // TODO: These conversion functions are not very robust for lookup failures. They need to be improved for it.
     DebugModule GetModuleByName(const std::string& module);
     uint64_t GetModuleBase(const std::string& name);
@@ -115,6 +113,8 @@ class DebuggerController;
 // After the backend responds, it first updates its internal state, and then update the UI (if the UI is enabled).
 class DebuggerState
 {
+	IMPLEMENT_DEBUGGER_API_OBJECT(BNDebuggerState);
+
 private:
     DebuggerController* m_controller;
     DebugAdapterConnectionStatus m_connectionStatus;

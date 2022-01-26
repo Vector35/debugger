@@ -12,6 +12,7 @@
 #include "binaryninjaapi.h"
 #include "debuggercommon.h"
 #include "debuggerevent.h"
+#include "ffi.h"
 
 using namespace BinaryNinja;
 
@@ -115,6 +116,8 @@ struct DebugModule
 
 class DebugAdapter
 {
+	IMPLEMENT_DEBUGGER_API_OBJECT(BNDebugAdapter);
+
 private:
     // Function to call when the DebugAdapter wants to notify the front-end of certain events
     // TODO: we should not use a vector here; only the DebuggerController should register one here;
@@ -122,6 +125,8 @@ private:
     std::function<void(const DebuggerEvent& event)> m_eventCallback;
 
 public:
+	DebugAdapter();
+
 	virtual void SetEventCallback(std::function<void(const DebuggerEvent& event)> function)
     {
         m_eventCallback = function;

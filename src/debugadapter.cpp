@@ -8,6 +8,13 @@
 #include "libgen.h"
 #endif
 
+
+DebugAdapter::DebugAdapter()
+{
+	INIT_DEBUGGER_API_OBJECT();
+}
+
+
 void DebugAdapter::PostDebuggerEvent(const DebuggerEvent &event)
 {
 	if (m_eventCallback)

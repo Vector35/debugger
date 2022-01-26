@@ -55,7 +55,7 @@ uint64_t DebuggerRegisters::GetRegisterValue(const std::string& name)
 }
 
 
-bool DebuggerRegisters::UpdateRegisterValue(const std::string& name, uint64_t value)
+bool DebuggerRegisters::SetRegisterValue(const std::string& name, uint64_t value)
 {
     DebugAdapter* adapter = m_state->GetAdapter();
     if (!adapter)
@@ -538,6 +538,8 @@ void DebuggerBreakpoints::Apply()
 
 DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller): m_controller(controller)
 {
+	INIT_DEBUGGER_API_OBJECT();
+
 	m_adapter = nullptr;
     m_modules = new DebuggerModules(this);
     m_registers = new DebuggerRegisters(this);

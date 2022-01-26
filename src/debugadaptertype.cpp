@@ -8,6 +8,7 @@
 #endif
 
 #include "debuggerexceptions.h"
+#include "ffi.h"
 
 bool DebugAdapterType::UseExec(AdapterType type)
 {
@@ -109,7 +110,7 @@ DebugAdapter* DebugAdapterType::GetNewAdapter(AdapterType adapterType)
 
 DebugAdapterType::DebugAdapterType(const std::string& name): m_name(name)
 {
-
+	INIT_DEBUGGER_API_OBJECT();
 }
 
 

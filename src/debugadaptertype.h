@@ -2,11 +2,14 @@
 
 #include "debugadapter.h"
 #include "binaryninjaapi.h"
+#include "ffi.h"
 
 class DebugAdapter;
 
 class DebugAdapterType
 {
+	IMPLEMENT_DEBUGGER_API_OBJECT(BNDebugAdapterType);
+
 private:
     std::string m_name;
     inline static std::vector<DebugAdapterType*> m_types;

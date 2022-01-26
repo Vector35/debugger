@@ -67,7 +67,7 @@ public Q_SLOTS:
     void performLaunch();
     void performRestart();
     void performQuit();
-    void performAttach();
+    void performConnect();
     void performDetach();
     void performSettings();
     void performPause();

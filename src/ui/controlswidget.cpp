@@ -24,7 +24,7 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
     addSeparator();
 
     m_actionAttach = addAction(QIcon(":/icons/images/debugger/connect.svg"), "Attach",
-                            [this](){ performAttach(); });
+                            [this](){ performConnect(); });
     m_actionDetach = addAction(QIcon(":/icons/images/debugger/disconnect.svg"), "Detach",
                                [this](){ performDetach(); });
     addSeparator();
@@ -78,10 +78,10 @@ void DebugControlsWidget::performQuit()
 }
 
 
-void DebugControlsWidget::performAttach()
+void DebugControlsWidget::performConnect()
 {
     std::thread([&](){
-        m_controller->Attach();
+        m_controller->Connect();
     }).detach();
 }
 
