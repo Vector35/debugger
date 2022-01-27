@@ -1,18 +1,33 @@
 #include "debuggerapi.h"
 
-using namespace BinaryNinjaDebugger;
+using namespace BinaryNinja;
+using namespace BinaryNinjaDebuggerAPI;
 
-BinaryNinjaDebugger::DebuggerController* BinaryNinjaDebugger::DebuggerController::GetController(BinaryNinja::BinaryView* data)
+DebuggerController* DebuggerController::GetController(BinaryNinja::BinaryView* data)
 {
 	BNDebuggerController* controller = BNGetDebuggerController(data);
 	if (!controller)
 		return nullptr;
 
-	return new BinaryNinjaDebugger::DebuggerController(controller);
+	return new BinaryNinjaDebuggerAPI::DebuggerController(controller);
 }
 
 
-BinaryNinjaDebugger::DebuggerController::DebuggerController(BNDebuggerController* controller)
+DebuggerController::DebuggerController(BNDebuggerController* controller)
 {
 	m_object = controller;
 }
+
+
+Ref<BinaryView> DebuggerController::GetLiveView()
+{
+	return BNDebuggerGetLiveView(m_object);
+}
+
+
+Ref<Architecture> DebuggerController::GetRemoteArchitecture()
+{
+	return BNDebuggerGetRemoteArchitecture(m_object);
+}
+
+

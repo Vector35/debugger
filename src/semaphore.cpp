@@ -2,6 +2,7 @@
 //
 
 #include "semaphore.h"
+using namespace BinaryNinjaDebugger;
 
 void Semaphore::Release()
 {

@@ -1,9 +1,11 @@
 #pragma once
 #include "binaryninjaapi.h"
 
+using namespace BinaryNinja;
+
 // Define macros for defining objects exposed by the API
 #define DECLARE_DEBUGGER_API_OBJECT(handle, cls) \
-	class cls; struct handle { cls* object; }
+	namespace BinaryNinjaDebugger{ class cls; } struct handle { BinaryNinjaDebugger::cls* object; }
 #define IMPLEMENT_DEBUGGER_API_OBJECT(handle) \
 	private: handle m_apiObject; public: typedef handle* APIHandle; handle* GetAPIObject() { return &m_apiObject; } private:
 #define INIT_DEBUGGER_API_OBJECT() \
@@ -15,3 +17,6 @@ DECLARE_DEBUGGER_API_OBJECT(BNDebugAdapter, DebugAdapter);
 DECLARE_DEBUGGER_API_OBJECT(BNDebuggerState, DebuggerState);
 
 BNDebuggerController* BNGetDebuggerController(BinaryNinja::BinaryView* data);
+Ref<BinaryView> BNDebuggerGetLiveView(BNDebuggerController* controller);
+Ref<Architecture> BNDebuggerGetRemoteArchitecture(BNDebuggerController* controller);
+bool

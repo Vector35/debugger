@@ -8,6 +8,8 @@
 #include "libgen.h"
 #endif
 
+using namespace BinaryNinjaDebugger;
+
 
 DebugAdapter::DebugAdapter()
 {

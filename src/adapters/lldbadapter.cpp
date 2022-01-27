@@ -7,6 +7,8 @@
 #include "lldbadapter.h"
 #include "queuedadapter.h"
 
+using namespace BinaryNinjaDebugger;
+
 bool LldbAdapter::LoadRegisterInfo() {
     const auto xml = this->m_rspConnector.GetXml("target.xml");
 

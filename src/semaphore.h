@@ -6,13 +6,16 @@
 #include <condition_variable>
 #include <mutex>
 
-class Semaphore
+namespace BinaryNinjaDebugger
 {
-    std::mutex m_mutex;
-    std::condition_variable m_cv;
-    unsigned long m_count = 0;
+	class Semaphore
+	{
+		std::mutex m_mutex;
+		std::condition_variable m_cv;
+		unsigned long m_count = 0;
 
-public:
-    void Release();
-    void Wait();
+	public:
+		void Release();
+		void Wait();
+	};
 };

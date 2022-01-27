@@ -12,6 +12,7 @@
 
 using namespace BinaryNinja;
 using namespace std;
+using namespace BinaryNinjaDebugger;
 
 DebuggerRegisters::DebuggerRegisters(DebuggerState* state): m_state(state)
 {

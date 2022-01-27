@@ -22,146 +22,149 @@
 #include <cstring>
 #include "socket.h"
 
-struct RspData
+namespace BinaryNinjaDebugger
 {
-    /* BUFFER_MAX/GDB_BUF_MAX - https://www.embecosm.com/appnotes/ean4/embecosm-howto-rsp-server-ean4-issue-2.pdf */
-    /* i decided to double the max size of this as this is the 'GDB_BUF_MAX', but the rsp can be used by lldb as well */
-    /* lldb's target.xml is way larger than gdbs and uses way more than 0x4000 bytes*/
-    /* it is sometimes large than 0x8000 bytes as well, so enlarging it again */
-    /* TODO: we will need a better approach to deal with the size later */
+	struct RspData
+	{
+		/* BUFFER_MAX/GDB_BUF_MAX - https://www.embecosm.com/appnotes/ean4/embecosm-howto-rsp-server-ean4-issue-2.pdf */
+		/* i decided to double the max size of this as this is the 'GDB_BUF_MAX', but the rsp can be used by lldb as well */
+		/* lldb's target.xml is way larger than gdbs and uses way more than 0x4000 bytes*/
+		/* it is sometimes large than 0x8000 bytes as well, so enlarging it again */
+		/* TODO: we will need a better approach to deal with the size later */
 
-    static constexpr std::uint64_t BUFFER_MAX = (32 * 1024);
+		static constexpr std::uint64_t BUFFER_MAX = (32 * 1024);
 
-    struct RspIterator
-    {
-        using iterator_category = std::forward_iterator_tag;
-        using difference_type   = std::ptrdiff_t;
-        using value_type        = std::uint8_t;
-        using pointer           = value_type*;
-        using reference         = value_type&;
+		struct RspIterator
+		{
+			using iterator_category = std::forward_iterator_tag;
+			using difference_type   = std::ptrdiff_t;
+			using value_type        = std::uint8_t;
+			using pointer           = value_type*;
+			using reference         = value_type&;
 
-        RspIterator(pointer ptr) : m_pointer(ptr) {}
+			RspIterator(pointer ptr) : m_pointer(ptr) {}
 
-        virtual reference operator*() const { return *m_pointer; }
-        pointer operator->() { return m_pointer; }
-        RspIterator& operator++() { m_pointer++; return *this; }
-        RspIterator operator++(int) { RspIterator tmp = *this; ++(*this); return tmp; }
-        friend bool operator== (const RspIterator& a, const RspIterator& b) { return a.m_pointer == b.m_pointer; };
-        friend bool operator!= (const RspIterator& a, const RspIterator& b) { return a.m_pointer != b.m_pointer; };
+			virtual reference operator*() const { return *m_pointer; }
+			pointer operator->() { return m_pointer; }
+			RspIterator& operator++() { m_pointer++; return *this; }
+			RspIterator operator++(int) { RspIterator tmp = *this; ++(*this); return tmp; }
+			friend bool operator== (const RspIterator& a, const RspIterator& b) { return a.m_pointer == b.m_pointer; };
+			friend bool operator!= (const RspIterator& a, const RspIterator& b) { return a.m_pointer != b.m_pointer; };
 
-    protected:
-        pointer m_pointer;
-    };
+		protected:
+			pointer m_pointer;
+		};
 
-    struct ReverseRspIterator : public RspIterator
-    {
-        ReverseRspIterator(pointer ptr) : RspIterator(ptr) {}
-        RspIterator& operator--() { m_pointer--; return *this; }
-        RspIterator operator--(int) { RspIterator tmp = *this; --(*this); return tmp; }
-    };
+		struct ReverseRspIterator : public RspIterator
+		{
+			ReverseRspIterator(pointer ptr) : RspIterator(ptr) {}
+			RspIterator& operator--() { m_pointer--; return *this; }
+			RspIterator operator--(int) { RspIterator tmp = *this; --(*this); return tmp; }
+		};
 
-    struct ConstRspIterator : public RspIterator
-    {
-        ConstRspIterator(pointer ptr) : RspIterator(ptr) {}
-        reference operator*() const override { return *m_pointer; }
-    };
+		struct ConstRspIterator : public RspIterator
+		{
+			ConstRspIterator(pointer ptr) : RspIterator(ptr) {}
+			reference operator*() const override { return *m_pointer; }
+		};
 
-    RspIterator begin() const { return RspIterator((std::uint8_t*)m_data.GetDataAt(0)); }
-    RspIterator end() const { return RspIterator((std::uint8_t*)m_data.GetDataAt(m_data.GetLength())); }
-    ReverseRspIterator rbegin() const { return ReverseRspIterator((std::uint8_t*)m_data.GetDataAt(m_data.GetLength())); }
-    ReverseRspIterator rend() const { return ReverseRspIterator((std::uint8_t*)m_data.GetDataAt(0)); }
-    ConstRspIterator cbegin() const { return ConstRspIterator((std::uint8_t*)m_data.GetDataAt(0)); }
-    ConstRspIterator cend() const { return ConstRspIterator((std::uint8_t*)m_data.GetDataAt(m_data.GetLength())); }
+		RspIterator begin() const { return RspIterator((std::uint8_t*)m_data.GetDataAt(0)); }
+		RspIterator end() const { return RspIterator((std::uint8_t*)m_data.GetDataAt(m_data.GetLength())); }
+		ReverseRspIterator rbegin() const { return ReverseRspIterator((std::uint8_t*)m_data.GetDataAt(m_data.GetLength())); }
+		ReverseRspIterator rend() const { return ReverseRspIterator((std::uint8_t*)m_data.GetDataAt(0)); }
+		ConstRspIterator cbegin() const { return ConstRspIterator((std::uint8_t*)m_data.GetDataAt(0)); }
+		ConstRspIterator cend() const { return ConstRspIterator((std::uint8_t*)m_data.GetDataAt(m_data.GetLength())); }
 
-    RspData() {}
+		RspData() {}
 
-    template <typename... Args>
-    explicit RspData(const std::string& string, Args... args)
-    {
-        std::string content = fmt::format(string.c_str(), args...);
-        m_data = BinaryNinja::DataBuffer(content.data(), content.size());
-    }
+		template <typename... Args>
+		explicit RspData(const std::string& string, Args... args)
+		{
+			std::string content = fmt::format(string.c_str(), args...);
+			m_data = BinaryNinja::DataBuffer(content.data(), content.size());
+		}
 
-    explicit
-
-
-    RspData(const std::string& str)
-    {
-        m_data = BinaryNinja::DataBuffer(str.data(), str.size());
-    }
-
-    RspData(void* data, std::size_t size)
-    {
-        m_data = BinaryNinja::DataBuffer(data, size);
-    }
-
-    RspData(const char* data, std::size_t size)
-    {
-        m_data = BinaryNinja::DataBuffer(data, size);
-    }
-
-    ~RspData()
-    {
-    }
-
-    [[nodiscard]] std::string AsString() const
-    {
-        if (m_data.GetLength())
-            return std::string((char*)m_data.GetData(), m_data.GetLength());
-        else
-            return std::string{};
-    }
-
-    BinaryNinja::DataBuffer m_data;
-
-	uint8_t& operator[](size_t offset);
-	const uint8_t& operator[](size_t offset) const;
-};
+		explicit
 
 
-class RspConnector
-{
-    Socket* m_socket{};
-    bool m_acksEnabled{true};
-    std::vector<std::string> m_serverCapabilities{};
-    int m_maxPacketLength{0xfff};
+		RspData(const std::string& str)
+		{
+			m_data = BinaryNinja::DataBuffer(str.data(), str.size());
+		}
 
-public:
-    RspConnector() = default;
-    RspConnector(Socket* socket);
-    ~RspConnector();
+		RspData(void* data, std::size_t size)
+		{
+			m_data = BinaryNinja::DataBuffer(data, size);
+		}
 
-    static RspData BinaryDecode(const RspData& data);
-    static RspData DecodeRLE(const RspData& data);
-    static std::unordered_map<std::string, std::uint64_t> PacketToUnorderedMap(const RspData& data);
-    static std::vector<std::string> Split(const std::string& string, const std::string& regex);
+		RspData(const char* data, std::size_t size)
+		{
+			m_data = BinaryNinja::DataBuffer(data, size);
+		}
 
-    template <typename Ty>
-    static Ty SwapEndianness(Ty value) {
-        union {
-            Ty m_val;
-            std::array<std::uint8_t, sizeof(Ty)> m_raw;
-        } source{value}, dest{};
-        std::reverse_copy(source.m_raw.begin(), source.m_raw.end(), dest.m_raw.begin());
-        return dest.m_val;
-    }
+		~RspData()
+		{
+		}
+
+		[[nodiscard]] std::string AsString() const
+		{
+			if (m_data.GetLength())
+				return std::string((char*)m_data.GetData(), m_data.GetLength());
+			else
+				return std::string{};
+		}
+
+		BinaryNinja::DataBuffer m_data;
+
+		uint8_t& operator[](size_t offset);
+		const uint8_t& operator[](size_t offset) const;
+	};
 
 
-    void EnableAcks();
-    void DisableAcks();
+	class RspConnector
+	{
+		Socket* m_socket{};
+		bool m_acksEnabled{true};
+		std::vector<std::string> m_serverCapabilities{};
+		int m_maxPacketLength{0xfff};
 
-    char ExpectAck();
-    void SendAck() const;
+	public:
+		RspConnector() = default;
+		RspConnector(Socket* socket);
+		~RspConnector();
 
-    void NegotiateCapabilities(const std::vector<std::string>& capabilities);
+		static RspData BinaryDecode(const RspData& data);
+		static RspData DecodeRLE(const RspData& data);
+		static std::unordered_map<std::string, std::uint64_t> PacketToUnorderedMap(const RspData& data);
+		static std::vector<std::string> Split(const std::string& string, const std::string& regex);
 
-    void SendRaw(const RspData& data) const;
-    void SendPayload(const RspData& data) const;
+		template <typename Ty>
+		static Ty SwapEndianness(Ty value) {
+			union {
+				Ty m_val;
+				std::array<std::uint8_t, sizeof(Ty)> m_raw;
+			} source{value}, dest{};
+			std::reverse_copy(source.m_raw.begin(), source.m_raw.end(), dest.m_raw.begin());
+			return dest.m_val;
+		}
 
-    RspData ReceiveRspData() const;
-    RspData TransmitAndReceive(const RspData& data, const std::string& expect = "ack_then_reply",
-							   std::function<void(const RspData& data)> asyncPacketHandler = nullptr);
-    int32_t HostFileIO(const RspData& data, RspData& output, int32_t& error);
 
-    std::string GetXml(const std::string& name);
+		void EnableAcks();
+		void DisableAcks();
+
+		char ExpectAck();
+		void SendAck() const;
+
+		void NegotiateCapabilities(const std::vector<std::string>& capabilities);
+
+		void SendRaw(const RspData& data) const;
+		void SendPayload(const RspData& data) const;
+
+		RspData ReceiveRspData() const;
+		RspData TransmitAndReceive(const RspData& data, const std::string& expect = "ack_then_reply",
+								   std::function<void(const RspData& data)> asyncPacketHandler = nullptr);
+		int32_t HostFileIO(const RspData& data, RspData& output, int32_t& error);
+
+		std::string GetXml(const std::string& name);
+	};
 };

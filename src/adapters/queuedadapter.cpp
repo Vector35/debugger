@@ -28,6 +28,7 @@
 
 using namespace BinaryNinja;
 using namespace std;
+using namespace BinaryNinjaDebugger;
 
 
 QueuedAdapter::QueuedAdapter(DebugAdapter* adapter): m_adapter(adapter)

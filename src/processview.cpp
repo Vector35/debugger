@@ -3,6 +3,7 @@
 #include "debuggercontroller.h"
 
 using namespace BinaryNinja;
+using namespace BinaryNinjaDebugger;
 
 static DebugProcessViewType* g_debugProcessViewType = nullptr;
 

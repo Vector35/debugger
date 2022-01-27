@@ -10,6 +10,9 @@
 #include "debuggerexceptions.h"
 #include "ffi.h"
 
+using namespace BinaryNinjaDebugger;
+
+
 bool DebugAdapterType::UseExec(AdapterType type)
 {
     return (type == DefaultAdapterType) || (type == LocalDBGENGAdapterType) ||

@@ -14,6 +14,9 @@
 #include "../debuggerevent.h"
 #include "ntstatus.h"
 
+using namespace BinaryNinjaDebugger;
+
+
 #define QUERY_DEBUG_INTERFACE(query, out) \
     if ( const auto result = this->m_debugClient->QueryInterface(__uuidof(query), reinterpret_cast<void**>(out) ); \
             result != S_OK) \

@@ -11,6 +11,7 @@
 #endif
 
 using namespace BinaryNinja;
+using namespace BinaryNinjaDebugger;
 
 void InitDebugAdapterTypes()
 {

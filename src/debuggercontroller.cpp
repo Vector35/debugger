@@ -5,6 +5,8 @@
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
 
+using namespace BinaryNinjaDebugger;
+
 DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 {
 	INIT_DEBUGGER_API_OBJECT();

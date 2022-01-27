@@ -1,8 +1,11 @@
+#pragma once
+
 #include "../ffi.h"
 #include "binaryninjaapi.h"
 
+using namespace BinaryNinja;
 
-namespace BinaryNinjaDebugger
+namespace BinaryNinjaDebuggerAPI
 {
 	template <class T>
 	class DebuggerObject
@@ -52,7 +55,10 @@ namespace BinaryNinjaDebugger
 
 	class DebuggerController: public DebuggerObject<BNDebuggerController>
 	{
+	public:
 		DebuggerController(BNDebuggerController* controller);
 		static DebuggerController* GetController(BinaryNinja::BinaryView* data);
+		Ref<BinaryView> GetLiveView();
+		Ref<Architecture> GetRemoteArchitecture();
 	};
 };

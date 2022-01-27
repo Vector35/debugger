@@ -31,6 +31,7 @@
 
 using namespace BinaryNinja;
 using namespace std;
+using namespace BinaryNinjaDebugger;
 
 GdbAdapter::GdbAdapter(bool redirectGDBServer): m_redirectGDBServer(redirectGDBServer)
 {

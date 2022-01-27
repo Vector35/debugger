@@ -8,6 +8,8 @@
 #include <fmt/format.h>
 #include "rspconnector.h"
 
+using namespace BinaryNinjaDebugger;
+
 RspConnector::RspConnector(Socket* socket) : m_socket(socket) { }
 
 RspConnector::~RspConnector() {}
