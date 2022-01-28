@@ -11,7 +11,11 @@
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "theme.h"
-#include "../debuggerstate.h"
+#include "../api/debuggerapi.h"
+
+using namespace BinaryNinjaDebuggerAPI;
+using namespace BinaryNinja;
+using namespace std;
 
 class ModuleItem
 {

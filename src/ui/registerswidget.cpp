@@ -241,7 +241,7 @@ bool DebugRegistersListModel::setData(const QModelIndex &index, const QVariant &
     if (newValue == item->value())
         return false;
 
-    ok = m_controller->GetState()->GetRegisters()->SetRegisterValue(item->name(), newValue);
+    ok = m_controller->SetRegisterValue(item->name(), newValue);
     if (!ok)
         return false;
 
@@ -379,9 +379,9 @@ void DebugRegistersWidget::notifyFontChanged()
 
 void DebugRegistersWidget::updateContent()
 {
-    if (!m_controller->GetState()->IsConnected())
+    if (!m_controller->IsConnected())
         return;
 
-    std::vector<DebugRegister> registers = m_controller->GetState()->GetRegisters()->GetAllRegisters();
+    std::vector<DebugRegister> registers = m_controller->GetRegisters();
     notifyRegistersChanged(registers);
 }

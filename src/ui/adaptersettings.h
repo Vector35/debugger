@@ -10,8 +10,9 @@
 #include "binaryninjaapi.h"
 #include "viewframe.h"
 #include "fontsettings.h"
-#include "../debuggerstate.h"
-#include "../debuggercontroller.h"
+#include "../api/debuggerapi.h"
+
+using namespace BinaryNinjaDebuggerAPI;
 
 class AdapterSettingsDialog: public QDialog
 {
@@ -19,8 +20,6 @@ class AdapterSettingsDialog: public QDialog
 
 private:
     DebuggerController* m_controller;
-    DebuggerState* m_state;
-
     QComboBox* m_adapterEntry;
     QLineEdit* m_pathEntry;
     QLineEdit* m_argumentsEntry;

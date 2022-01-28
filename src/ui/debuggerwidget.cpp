@@ -5,6 +5,7 @@
 #include "debuggerwidget.h"
 #include "ui.h"
 
+using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 

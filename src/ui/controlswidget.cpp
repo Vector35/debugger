@@ -4,9 +4,10 @@
 #include "binaryninjaapi.h"
 #include "disassemblyview.h"
 #include "ui.h"
-#include "../debuggerexceptions.h"
 #include <thread>
+#include "../api/debuggerapi.h"
 
+using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 
 
@@ -155,7 +156,7 @@ void DebugControlsWidget::performStepReturn()
 
 bool DebugControlsWidget::canExec()
 {
-	auto currentAdapter = m_controller->GetState()->GetAdapterType();
+	auto currentAdapter = m_controller->GetAdapterType();
 	if (currentAdapter == "")
 		return false;
     auto adapter = DebugAdapterType::GetByName(currentAdapter);
@@ -167,7 +168,7 @@ bool DebugControlsWidget::canExec()
 
 bool DebugControlsWidget::canConnect()
 {
-	auto currentAdapter = m_controller->GetState()->GetAdapterType();
+	auto currentAdapter = m_controller->GetAdapterType();
 	if (currentAdapter == "")
 		return false;
 	auto adapter = DebugAdapterType::GetByName(currentAdapter);
@@ -220,8 +221,8 @@ void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
 
 void DebugControlsWidget::updateButtons()
 {
-    DebugAdapterConnectionStatus connection = m_controller->GetState()->GetConnectionStatus();
-    DebugAdapterTargetStatus status = m_controller->GetState()->GetTargetStatus();
+    DebugAdapterConnectionStatus connection = m_controller->GetConnectionStatus();
+    DebugAdapterTargetStatus status = m_controller->GetTargetStatus();
 
     if (connection == DebugAdapterNotConnectedStatus)
     {

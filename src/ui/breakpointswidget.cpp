@@ -4,6 +4,7 @@
 #include "../ui/ui.h"
 #include "menus.h"
 
+using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
@@ -351,24 +352,4 @@ void DebugBreakpointsWidget::updateContent()
     }
 
     m_model->updateRows(bps);
-}
-
-
-void DebugBreakpointsWidget::uiEventHandler(const DebuggerEvent &event)
-{
-    switch (event.type)
-    {
-    case RelativeBreakpointAddedEvent:
-    case AbsoluteBreakpointAddedEvent:
-    case RelativeBreakpointRemovedEvent:
-    case AbsoluteBreakpointRemovedEvent:
-    {
-        // We could also do the update based on the changes, but this works for now
-        updateContent();
-        break;
-    }
-
-        default:
-            break;
-    }
 }

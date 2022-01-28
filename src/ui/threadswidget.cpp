@@ -1,7 +1,6 @@
 #include <QtGui/QPainter>
 #include <QtWidgets/QHeaderView>
 #include "threadswidget.h"
-#include "../debuggercontroller.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -307,11 +306,11 @@ void DebugThreadsWidget::notifyThreadsChanged(std::vector<DebugThread> threads, 
 
 void DebugThreadsWidget::updateContent()
 {
-    if (!m_controller->GetState()->IsConnected())
+    if (!m_controller->IsConnected())
         return;
 
-    std::vector<DebugThread> threads = m_controller->GetState()->GetThreads()->GetAllThreads();
-	DebugThread lastActiveThread = m_controller->GetState()->GetThreads()->GetActiveThread();
+    std::vector<DebugThread> threads = m_controller->GetThreads();
+	DebugThread lastActiveThread = m_controller->GetActiveThread();
     notifyThreadsChanged(threads, lastActiveThread);
 }
 

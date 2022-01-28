@@ -7,12 +7,10 @@
 #include <QtWidgets/QLineEdit>
 #include "binaryninjaapi.h"
 #include "uicontext.h"
-#include "../debuggercontroller.h"
 #include "debuggerwidget.h"
+#include "../api/debuggerapi.h"
 
-class DebuggerController;
 
-class DebuggerWidget;
 class DebuggerUI: public QObject
 {
     Q_OBJECT

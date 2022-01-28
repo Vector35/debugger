@@ -2,7 +2,7 @@
 #include <QtWidgets/QHeaderView>
 #include <QtWidgets/QLineEdit>
 #include "stackwidget.h"
-#include "../debuggercontroller.h"
+#include "../api/fmt/format.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -420,7 +420,7 @@ void DebugStackWidget::notifyStackChanged(std::vector<DebugStackItem> stackItems
 
 void DebugStackWidget::updateContent()
 {
-    if (!m_controller->GetState()->IsConnected())
+    if (!m_controller->IsConnected())
         return;
 
     if (!m_controller->GetLiveView())
@@ -428,7 +428,7 @@ void DebugStackWidget::updateContent()
 
     std::vector<DebugStackItem> stackItems;
     BinaryReader* reader = new BinaryReader(m_controller->GetLiveView());
-    uint64_t stackPointer = m_controller->GetState()->StackPointer();
+    uint64_t stackPointer = m_controller->StackPointer();
     size_t addressSize = m_controller->GetRemoteArchitecture()->GetAddressSize();
     for (ptrdiff_t i = -8; i < 60 + 1; i++)
     {

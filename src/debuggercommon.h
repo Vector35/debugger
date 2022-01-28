@@ -5,7 +5,7 @@ namespace BinaryNinjaDebugger
 	struct ModuleNameAndOffset
 	{
 		// TODO: maybe we should use DebugModule instead of its name
-		// Update: We are not using a DebugModule here because the base adress information of it can be outdated;
+		// Update: We are not using a DebugModule here because the base address information of it can be outdated;
 		// instead, we only keep a name and an offset.
 		std::string module;
 		uint64_t offset;

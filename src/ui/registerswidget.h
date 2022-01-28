@@ -11,8 +11,10 @@
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "theme.h"
-#include "../debuggerstate.h"
-#include "../debuggercontroller.h"
+#include "../api/debuggerapi.h"
+
+using namespace BinaryNinjaDebuggerAPI;
+
 
 enum DebugRegisterValueStatus
 {
@@ -137,6 +139,3 @@ public:
         return new DebugRegistersWidget("Native Debugger Registers", frame, data);
     }
 };
-
-
-// TODO: support editing register values

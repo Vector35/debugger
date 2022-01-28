@@ -1,7 +1,6 @@
 #include <QtGui/QPainter>
 #include <QtWidgets/QHeaderView>
 #include "moduleswidget.h"
-#include "../debuggercontroller.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -90,7 +89,7 @@ QVariant DebugModulesListModel::data(const QModelIndex& index, int role) const
     {
     case DebugModulesListModel::AddressColumn:
     {
-        QString text = QString::fromStdString(fmt::format("{:x}", item->address()));
+        QString text = QString::asprintf("%" PRIx64, item->address());
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
@@ -98,7 +97,7 @@ QVariant DebugModulesListModel::data(const QModelIndex& index, int role) const
     }
     case DebugModulesListModel::SizeColumn:
     {
-        QString text = QString::fromStdString(fmt::format("{:x}", item->size()));
+        QString text = QString::asprintf("%" PRIx64, item->size());
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
@@ -278,9 +277,9 @@ void DebugModulesWidget::notifyFontChanged()
 
 void DebugModulesWidget::updateContent()
 {
-    if (!m_controller->GetState()->IsConnected())
+    if (!m_controller->IsConnected())
         return;
 
-    std::vector<DebugModule> modules = m_controller->GetState()->GetModules()->GetAllModules();
+    std::vector<DebugModule> modules = m_controller->GetModules();
     notifyModulesChanged(modules);
 }

@@ -11,7 +11,9 @@
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "theme.h"
-#include "../debuggerstate.h"
+#include "../api/debuggerapi.h"
+
+using namespace BinaryNinjaDebuggerAPI;
 
 enum DebugThreadValueStatus
 {

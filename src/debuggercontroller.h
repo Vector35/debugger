@@ -41,7 +41,7 @@ namespace BinaryNinjaDebugger
 
 		void EventHandler(const DebuggerEvent &event);
 		DebugAdapter *CreateDebugAdapter();
-		void HandleTargetStop(DebugStopReason reason);
+		void HandleTargetStop(BNDebugStopReason reason);
 		void HandleInitialBreakpoint();
 		void AddEntryBreakpoint();
 
@@ -50,13 +50,13 @@ namespace BinaryNinjaDebugger
 		void SetData(BinaryViewRef view) { m_data = view; }
 
 		void PauseInternal();
-		DebugStopReason GoInternal();
-		DebugStopReason StepIntoInternal();
-		DebugStopReason StepOverInternal();
-		DebugStopReason StepReturnInternal();
-		DebugStopReason StepToInternal(const std::vector<uint64_t> &remoteAddresses);
-		DebugStopReason StepIntoIL(BNFunctionGraphType il);
-		DebugStopReason StepOverIL(BNFunctionGraphType il);
+		BNDebugStopReason GoInternal();
+		BNDebugStopReason StepIntoInternal();
+		BNDebugStopReason StepOverInternal();
+		BNDebugStopReason StepReturnInternal();
+		BNDebugStopReason StepToInternal(const std::vector<uint64_t> &remoteAddresses);
+		BNDebugStopReason StepIntoIL(BNFunctionGraphType il);
+		BNDebugStopReason StepOverIL(BNFunctionGraphType il);
 
 		// Whether we can resume the execution of the target, including stepping.
 		bool CanResumeTarget();
@@ -70,6 +70,7 @@ namespace BinaryNinjaDebugger
 		void AddBreakpoint(const ModuleNameAndOffset &address);
 		void DeleteBreakpoint(uint64_t address);
 		void DeleteBreakpoint(const ModuleNameAndOffset &address);
+		DebugBreakpoint GetAllBreakpoints();
 
 		// registers
 		uint64_t GetRegisterValue(const std::string &name);
@@ -95,7 +96,7 @@ namespace BinaryNinjaDebugger
 		// status
 		DebugAdapterConnectionStatus GetConnectionStatus();
 
-		DebugAdapterConnectionStatus GetExecutionStatus();
+		DebugAdapterTargetStatus GetExecutionStatus();
 
 		// memory
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size);
@@ -104,7 +105,7 @@ namespace BinaryNinjaDebugger
 		// debugger events
 		size_t RegisterEventCallback(std::function<void(const DebuggerEvent &event)> callback);
 		bool RemoveEventCallback(size_t index);
-		void NotifyStopped(DebugStopReason reason, void *data = nullptr);
+		void NotifyStopped(BNDebugStopReason reason, void *data = nullptr);
 		void NotifyError(const std::string &error, void *data = nullptr);
 		void NotifyEvent(DebuggerEventType event);
 		void PostDebuggerEvent(const DebuggerEvent &event);
@@ -121,14 +122,14 @@ namespace BinaryNinjaDebugger
 		void Connect();
 		void Detach();
 		void Pause();
-
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
 		void LaunchOrConnect();
-		DebugStopReason Go();
-		DebugStopReason StepInto(BNFunctionGraphType il = NormalFunctionGraph);
-		DebugStopReason StepOver(BNFunctionGraphType il = NormalFunctionGraph);
-		DebugStopReason StepReturn();
-		DebugStopReason StepTo(const std::vector<uint64_t> &remoteAddresses);
+
+		BNDebugStopReason Go();
+		BNDebugStopReason StepInto(BNFunctionGraphType il = NormalFunctionGraph);
+		BNDebugStopReason StepOver(BNFunctionGraphType il = NormalFunctionGraph);
+		BNDebugStopReason StepReturn();
+		BNDebugStopReason StepTo(const std::vector<uint64_t> &remoteAddresses);
 
 		// getters
 		DebugAdapter *GetAdapter() { return m_adapter; }

@@ -10,7 +10,6 @@
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "theme.h"
-#include "../debuggerstate.h"
 #include "expandablegroup.h"
 #include "stackwidget.h"
 #include "breakpointswidget.h"
@@ -19,7 +18,7 @@
 #include "threadswidget.h"
 #include "controlswidget.h"
 #include "ui.h"
-#include "../debuggercontroller.h"
+#include "../api/debuggerapi.h"
 
 class DebuggerUI;
 
@@ -53,15 +52,7 @@ public:
     DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
     ~DebuggerWidget();
 
-    DebugBreakpointsWidget* getBreakpointsWidget() const { return m_breakpointsWidget; }
-    DebugModulesWidget* getModulesWidget() const { return m_modulesWidget; }
-    DebugThreadsWidget* getThreadsWidget() const { return m_threadsWidget; }
-    DebugStackWidget* getStackWidget() const { return m_stackWidget; }
-
 	void updateContent();
-
-private slots:
-	void uiEventHandler(const DebuggerEvent& event);
 };
 
 

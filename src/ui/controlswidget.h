@@ -7,10 +7,11 @@
 #include <QtWidgets/QLineEdit>
 #include "binaryninjaapi.h"
 #include "uicontext.h"
-#include "../debugadapter.h"
+#include "../api/debuggerapi.h"
 
-class DebuggerState;
-class DebuggerController;
+using namespace BinaryNinjaDebuggerAPI;
+
+
 class DebugControlsWidget: public QToolBar
 {
     Q_OBJECT

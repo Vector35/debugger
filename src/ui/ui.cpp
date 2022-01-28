@@ -10,6 +10,8 @@
 
 
 using namespace BinaryNinja;
+using namespace BinaryNinjaDebuggerAPI;
+using namespace std;
 
 std::unordered_map<DebuggerController*, std::unique_ptr<DebuggerUI>> g_contextMap;
 
@@ -75,7 +77,7 @@ void DebuggerUI::updateStatusText(const DebuggerEvent &event)
 
     case TargetStoppedEventType:
 	{
-		DebugStopReason reason = event.data.targetStoppedData.reason;
+		BNDebugStopReason reason = event.data.targetStoppedData.reason;
 		setStatusText(QString::fromStdString(fmt::format("Stopped {}", reason)));
 		break;
 	}
@@ -164,7 +166,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 			if (functions.size() == 0)
 				m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
 
-			if (event.data.targetStoppedData.reason == DebugStopReason::InitialBreakpoint)
+			if (event.data.targetStoppedData.reason == BNDebugStopReason::InitialBreakpoint)
 			{
 				ViewFrame* frame = m_context->getCurrentViewFrame();
 				FileContext* fileContext = frame->getFileContext();
@@ -440,14 +442,14 @@ static void StepToHereCallback(BinaryView* view, uint64_t addr)
 static bool ConnectedAndStopped(BinaryView* view, uint64_t addr)
 {
 	DebuggerController* controller = DebuggerController::GetController(view);
-	return controller->GetState()->IsConnected() && (!controller->GetState()->IsRunning());
+	return controller->GetState()->IsConnected() && (!controller->IsRunning());
 }
 
 
 static bool ConnectedAndRunning(BinaryView* view, uint64_t addr)
 {
 	DebuggerController* controller = DebuggerController::GetController(view);
-	return controller->GetState()->IsConnected() && controller->GetState()->IsRunning();
+	return controller->GetState()->IsConnected() && controller->IsRunning();
 }
 
 

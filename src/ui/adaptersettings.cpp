@@ -1,7 +1,7 @@
 #include "adaptersettings.h"
 #include "uicontext.h"
-#include "../debuggercontroller.h"
 
+using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
@@ -12,7 +12,6 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
     setAttribute(Qt::WA_DeleteOnClose);
 
     m_controller = controller;
-    m_state = m_controller->GetState();
 
     QVBoxLayout* layout = new QVBoxLayout;
     layout->setSpacing(0);
@@ -23,13 +22,13 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
     titleLayout->addWidget(titleLabel);
 
     m_adapterEntry = new QComboBox(this);
-	for (const std::string adapter: m_state->GetAvailableAdapters())
+	for (const std::string adapter: DebugAdapterType::GetAvailableAdapters())
 	{
 		m_adapterEntry->addItem(QString::fromStdString(adapter));
 	}
-	if (m_state->GetAdapterType() != "")
+	if (m_controller->GetAdapterType() != "")
 	{
-		m_adapterEntry->setCurrentText(QString::fromStdString(m_state->GetAdapterType()));
+		m_adapterEntry->setCurrentText(QString::fromStdString(m_controller->GetAdapterType()));
 	}
 	else
 	{
@@ -73,11 +72,11 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
     layout->addLayout(buttonLayout);
     setLayout(layout);
 
-    m_addressEntry->setText(QString::fromStdString(m_state->GetRemoteHost()));
-    m_portEntry->setText(QString::number(m_state->GetRemotePort()));
-    m_pathEntry->setText(QString::fromStdString(m_state->GetExecutablePath()));
-	m_terminalEmulator->setChecked(m_state->GetRequestTerminalEmulator());
-    m_argumentsEntry->setText(QString::fromStdString(m_state->GetCommandLineArguments()));
+    m_addressEntry->setText(QString::fromStdString(m_controller->GetRemoteHost()));
+    m_portEntry->setText(QString::number(m_controller->GetRemotePort()));
+    m_pathEntry->setText(QString::fromStdString(m_controller->GetExecutablePath()));
+	m_terminalEmulator->setChecked(m_controller->GetRequestTerminalEmulator());
+    m_argumentsEntry->setText(QString::fromStdString(m_controller->GetCommandLineArguments()));
 
 	selectAdapter(m_adapterEntry->currentText());
 }
@@ -122,23 +121,23 @@ void AdapterSettingsDialog::apply()
 	if (adapterType == nullptr)
 		selectedAdapter = "";
 
-	m_state->SetAdapterType(selectedAdapter);
+	m_controller->SetAdapterType(selectedAdapter);
     Ref<Metadata> data = new Metadata(selectedAdapter);
     m_controller->GetData()->StoreMetadata("native_debugger.adapter_type", data);
 
 	// We need better support for shell-style cmd arguments
     std::string args = m_argumentsEntry->text().toStdString();
-    m_state->SetCommandLineArguments(args);
+    m_controller->SetCommandLineArguments(args);
 	data = new Metadata(args);
     m_controller->GetData()->StoreMetadata("native_debugger.command_line_args", data);
 
     std::string path = m_pathEntry->text().toStdString();
-    m_state->SetExecutablePath(path);
+    m_controller->SetExecutablePath(path);
     data = new Metadata(path);
     m_controller->GetData()->StoreMetadata("native_debugger.executable_path", data);
 
     std::string host = m_addressEntry->text().toStdString();
-    m_state->SetRemoteHost(host);
+    m_controller->SetRemoteHost(host);
     data = new Metadata(host);
     m_controller->GetData()->StoreMetadata("native_debugger.remote_host", data);
 
@@ -154,12 +153,12 @@ void AdapterSettingsDialog::apply()
         port = 31337;
     }
     
-    m_state->SetRemotePort(port);
+    m_controller->SetRemotePort(port);
     data = new Metadata(port);
     m_controller->GetData()->StoreMetadata("native_debugger.remote_port", data);
 
 	bool requestTerminal = m_terminalEmulator->isChecked();
-	m_state->SetRequestTerminalEmulator(requestTerminal);
+	m_controller->SetRequestTerminalEmulator(requestTerminal);
 	data = new Metadata(requestTerminal);
 	m_controller->GetData()->StoreMetadata("native_debugger.terminal_emulator", data);
 

@@ -42,67 +42,9 @@ namespace BinaryNinjaDebugger
 		ActiveThreadChangedEvent
 	};
 
-
-	enum class DebugStopReason {
-		UnknownReason = 0,
-		InitialBreakpoint,
-		StdoutMessage,
-		ProcessExited,
-		AccessViolation,
-		SingleStep,
-		Calculation,
-		Breakpoint,
-		IllegalInstruction,
-		SignalHup,
-		SignalInt,
-		SignalQuit,
-		SignalIll,
-		SignalAbrt,
-		SignalEmt,
-		SignalFpe,
-		SignalKill,
-		SignalBus,
-		SignalSegv,
-		SignalSys,
-		SignalPipe,
-		SignalAlrm,
-		SignalTerm,
-		SignalUrg,
-		SignalStop,
-		SignalTstp,
-		SignalCont,
-		SignalChld,
-		SignalTtin,
-		SignalTtou,
-		SignalIo,
-		SignalXcpu,
-		SignalXfsz,
-		SignalVtalrm,
-		SignalProf,
-		SignalWinch,
-		SignalInfo,
-		SignalUsr1,
-		SignalUsr2,
-		SignalStkflt,
-		SignalBux,
-		SignalPoll,
-		ExcEmulation,
-		ExcSoftware,
-		ExcSyscall,
-		ExcMachSyscall,
-		ExcRpcAlert,
-		ExcCrash,
-
-		InternalError,
-		InvalidStatusOrOperation,
-
-		UserRequestedBreak
-	};
-
-
 	struct TargetStoppedEventData
 	{
-		DebugStopReason reason;
+		BNDebugStopReason reason;
 		std::uint32_t lastActiveThread;
 		size_t exitCode;
 		void* data;
@@ -111,7 +53,7 @@ namespace BinaryNinjaDebugger
 
 	struct StoppedEventData
 	{
-		DebugStopReason reason;
+		BNDebugStopReason reason;
 		void* data;
 	};
 

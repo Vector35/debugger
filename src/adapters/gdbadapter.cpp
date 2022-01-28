@@ -743,7 +743,7 @@ bool GdbAdapter::BreakInto()
 }
 
 
-DebugStopReason GdbAdapter::ResponseHandler()
+BNDebugStopReason GdbAdapter::ResponseHandler()
 {
 	while (true)
 	{
@@ -764,7 +764,7 @@ DebugStopReason GdbAdapter::ResponseHandler()
 			uint8_t exitCode = strtoul(exitCodeString.c_str(), nullptr, 16);
 			m_isTargetRunning = false;
             m_exitCode = exitCode;
-            return DebugStopReason::ProcessExited;
+            return BNDebugStopReason::ProcessExited;
 			break;
 		}
 		else if (reply[0] == 'O')
@@ -816,7 +816,7 @@ DebugStopReason GdbAdapter::ResponseHandler()
 
 
 // this should return the information about the target stop
-DebugStopReason GdbAdapter::GenericGo(const std::string& goCommand)
+BNDebugStopReason GdbAdapter::GenericGo(const std::string& goCommand)
 {
 	m_isTargetRunning = true;
 	// TODO: these two calls should be combined
@@ -828,22 +828,22 @@ DebugStopReason GdbAdapter::GenericGo(const std::string& goCommand)
 
 
 // The return value only indicates whether the command is successfully sent
-DebugStopReason GdbAdapter::Go()
+BNDebugStopReason GdbAdapter::Go()
 {
 	return GenericGo("vCont;c:-1");
 }
 
 
-DebugStopReason GdbAdapter::StepInto()
+BNDebugStopReason GdbAdapter::StepInto()
 {
     return GenericGo("vCont;s");
 }
 
 
-DebugStopReason GdbAdapter::StepOver()
+BNDebugStopReason GdbAdapter::StepOver()
 {
     // GdbAdapter does not support StepOver(), it relies on DebuggerState to do a breakpoint and continue execution
-    return DebugStopReason::UnknownReason;
+    return BNDebugStopReason::UnknownReason;
 }
 
 
@@ -888,7 +888,7 @@ std::uintptr_t GdbAdapter::GetInstructionOffset()
     return value;
 }
 
-DebugStopReason GdbAdapter::StopReason()
+BNDebugStopReason GdbAdapter::StopReason()
 {
     return this->m_lastStopReason;
 }
@@ -914,39 +914,39 @@ bool GdbAdapter::SupportFeature(DebugAdapterCapacity feature)
     }
 }
 
-DebugStopReason GdbAdapter::SignalToStopReason( std::uint64_t signal ) {
-    static std::unordered_map<std::uint64_t, DebugStopReason> signal_lookup = {
-            {1, DebugStopReason::SignalHup},
-            { 2 , DebugStopReason::SignalInt },
-            { 3 , DebugStopReason::SignalQuit },
-            { 4 , DebugStopReason::IllegalInstruction },
-            { 5 , DebugStopReason::SingleStep },
-            { 6 , DebugStopReason::SignalAbrt },
-            { 7 , DebugStopReason::SignalBux },
-            { 8 , DebugStopReason::Calculation },
-            { 9 , DebugStopReason::SignalKill },
-            { 10, DebugStopReason::SignalUsr1 },
-            { 11, DebugStopReason::AccessViolation },
-            { 12, DebugStopReason::SignalUsr2 },
-            { 13, DebugStopReason::SignalPipe },
-            { 14, DebugStopReason::SignalAlrm },
-            { 15, DebugStopReason::SignalTerm },
-            { 16, DebugStopReason::SignalStkflt },
-            { 17, DebugStopReason::SignalChld },
-            { 18, DebugStopReason::SignalCont },
-            { 19, DebugStopReason::SignalStop },
-            { 20, DebugStopReason::SignalTstp },
-            { 21, DebugStopReason::SignalTtin },
-            { 22, DebugStopReason::SignalTtou },
-            { 23, DebugStopReason::SignalUrg },
-            { 24, DebugStopReason::SignalXcpu },
-            { 25, DebugStopReason::SignalXfsz },
-            { 26, DebugStopReason::SignalVtalrm },
-            { 27, DebugStopReason::SignalProf },
-            { 28, DebugStopReason::SignalWinch },
-            { 29, DebugStopReason::SignalPoll },
-            { 30, DebugStopReason::SignalStkflt },
-            { 31, DebugStopReason::SignalSys },
+BNDebugStopReason GdbAdapter::SignalToStopReason( std::uint64_t signal ) {
+    static std::unordered_map<std::uint64_t, BNDebugStopReason> signal_lookup = {
+            {1, BNDebugStopReason::SignalHup},
+            { 2 , BNDebugStopReason::SignalInt },
+            { 3 , BNDebugStopReason::SignalQuit },
+            { 4 , BNDebugStopReason::IllegalInstruction },
+            { 5 , BNDebugStopReason::SingleStep },
+            { 6 , BNDebugStopReason::SignalAbrt },
+            { 7 , BNDebugStopReason::SignalBux },
+            { 8 , BNDebugStopReason::Calculation },
+            { 9 , BNDebugStopReason::SignalKill },
+            { 10, BNDebugStopReason::SignalUsr1 },
+            { 11, BNDebugStopReason::AccessViolation },
+            { 12, BNDebugStopReason::SignalUsr2 },
+            { 13, BNDebugStopReason::SignalPipe },
+            { 14, BNDebugStopReason::SignalAlrm },
+            { 15, BNDebugStopReason::SignalTerm },
+            { 16, BNDebugStopReason::SignalStkflt },
+            { 17, BNDebugStopReason::SignalChld },
+            { 18, BNDebugStopReason::SignalCont },
+            { 19, BNDebugStopReason::SignalStop },
+            { 20, BNDebugStopReason::SignalTstp },
+            { 21, BNDebugStopReason::SignalTtin },
+            { 22, BNDebugStopReason::SignalTtou },
+            { 23, BNDebugStopReason::SignalUrg },
+            { 24, BNDebugStopReason::SignalXcpu },
+            { 25, BNDebugStopReason::SignalXfsz },
+            { 26, BNDebugStopReason::SignalVtalrm },
+            { 27, BNDebugStopReason::SignalProf },
+            { 28, BNDebugStopReason::SignalWinch },
+            { 29, BNDebugStopReason::SignalPoll },
+            { 30, BNDebugStopReason::SignalStkflt },
+            { 31, BNDebugStopReason::SignalSys },
     };
 
     return signal_lookup[signal];

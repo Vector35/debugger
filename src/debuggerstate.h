@@ -11,22 +11,8 @@ namespace BinaryNinjaDebugger
 {
 	class DebuggerState;
 
-	enum DebugAdapterConnectionStatus
-	{
-		DebugAdapterNotConnectedStatus,
-		DebugAdapterConnectingStatus,
-		DebugAdapterConnectedStatus,
-	};
-
-
-	enum DebugAdapterTargetStatus
-	{
-		// Target is not created yet, or not connected to yet
-		DebugAdapterInvalidStatus,
-		DebugAdapterRunningStatus,
-		DebugAdapterPausedStatus,
-	};
-
+	typedef BNDebugAdapterConnectionStatus DebugAdapterConnectionStatus;
+	typedef BNDebugAdapterTargetStatus DebugAdapterTargetStatus;
 
 	class DebuggerRegisters
 	{
@@ -163,7 +149,7 @@ namespace BinaryNinjaDebugger
 		void SetCommandLineArguments(const std::string& arguments) { m_commandLineArgs = arguments; }
 		void SetRemoteHost(const std::string& host) { m_remoteHost = host; }
 		void SetRemotePort(uint32_t port) { m_remotePort = port; }
-		void SetRequestTerminalEmulator(bool requsted) { m_requestTerminalEmulator = requsted; }
+		void SetRequestTerminalEmulator(bool requested) { m_requestTerminalEmulator = requested; }
 
 		// This is the center hub for adding and deleting breakpoints. It is called from DebugView, the CLI, the
 		// DebugBreakpointsWidget, and the planned C++/Python API.
