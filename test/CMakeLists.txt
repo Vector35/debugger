@@ -56,8 +56,8 @@ enable_testing()
 include_directories(${ADAPTER_DIR})
 
 file(GLOB_RECURSE TEST_SOURCES
-	${CMAKE_CURRENT_SOURCE_DIR}/../src/vendor/*.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/../src/vendor/*.h)
+		../vendor/*.cpp
+		../vendor/*.h)
 
 add_executable(execute_test
 	${ADAPTER_SOURCES}
