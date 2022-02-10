@@ -22,10 +22,10 @@ DebuggerController::DebuggerController(BNDebuggerController* controller)
 
 Ref<BinaryView> DebuggerController::GetLiveView()
 {
-	BNBinaryView* view = BNDebuggerGetLiveView(m_object);
+	DBGBinaryView* view = BNDebuggerGetLiveView(m_object);
 	if (!view)
 		return nullptr;
-	return new BinaryView(view);
+	return view->
 }
 
 
@@ -40,7 +40,10 @@ Ref<BinaryView> DebuggerController::GetData()
 
 Ref<Architecture> DebuggerController::GetRemoteArchitecture()
 {
-	return BNDebuggerGetRemoteArchitecture(m_object);
+	BNArchitecture* arch = BNDebuggerGetRemoteArchitecture(m_object);
+	if (!arch)
+		return nullptr;
+	return new CoreArchitecture(arch);
 }
 
 
@@ -64,13 +67,13 @@ uint64_t DebuggerController::StackPointer()
 
 DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t size)
 {
-    return BNDebuggerReadMemory(m_object, address, size);
+    return DataBuffer(BNDebuggerReadMemory(m_object, address, size));
 }
 
 
 bool DebuggerController::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
-	return BNDebuggerWriteMemory(m_object, address, buffer);
+	return BNDebuggerWriteMemory(m_object, address, buffer.GetBufferObject());
 }
 
 

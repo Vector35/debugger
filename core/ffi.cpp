@@ -59,21 +59,31 @@ static void API_OBJECT_FREE(T* obj)
 }
 
 
+struct DBGBinaryView
+{
+	Ref<BinaryView> view;
+};
+
+
 BNDebuggerController* BNGetDebuggerController(BinaryNinja::BinaryView* data)
 {
 	return DebuggerController::GetController(data)->GetAPIObject();
 }
 
 
-BNBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller)
+DBGBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller)
 {
-	return API_OBJECT_REF(controller->object->GetLiveView());
+	DBGBinaryView* result = new DBGBinaryView;
+	result->view = controller->object->GetLiveView();
+	return result;
 }
 
 
-BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller)
+DBGBinaryView* BNDebuggerGetData(BNDebuggerController* controller)
 {
-	return API_OBJECT_REF(controller->object->GetData());
+	DBGBinaryView* result = new DBGBinaryView;
+	result->view = controller->object->GetData();
+	return result;
 }
 
 
@@ -104,15 +114,13 @@ uint64_t BNDebuggerGetStackPointer(BNDebuggerController* controller)
 BNDataBuffer* BNDebuggerReadMemory(BNDebuggerController* controller, uint64_t address, size_t size)
 {
 	DataBuffer data = controller->object->ReadMemory(address, size);
-	BNDataBuffer* result = new BNDataBuffer;
-	result->buffer = data
-	return result;
+	return data.GetBufferObject();
 }
 
 
-bool BNDebuggerWriteMemory(BNDebuggerController* controller, uint64_t address, const DataBuffer &buffer)
+bool BNDebuggerWriteMemory(BNDebuggerController* controller, uint64_t address, BNDataBuffer* buffer)
 {
-	return controller->object->WriteMemory(address, buffer);
+	return controller->object->WriteMemory(address, DataBuffer(buffer));
 }
 
 
@@ -169,8 +177,8 @@ BNDebugModule* BNDebuggerGetModules(BNDebuggerController* controller, size_t* si
 	for (size_t i = 0; i < modules.size(); i++)
 	{
 		results[i].m_address = modules[i].m_address;
-		results[i].m_name = modules[i].m_name;
-		results[i].m_short_name = modules[i].m_short_name;
+		results[i].m_name = BNAllocString(modules[i].m_name.c_str());
+		results[i].m_short_name = BNAllocString(modules[i].m_short_name.c_str());
 		results[i].m_size = modules[i].m_size;
 		results[i].m_loaded = modules[i].m_loaded;
 	}
@@ -181,6 +189,11 @@ BNDebugModule* BNDebuggerGetModules(BNDebuggerController* controller, size_t* si
 
 void BNDebuggerFreeModules(BNDebugModule* modules, size_t count)
 {
+	for (size_t i = 0; i < count; i++)
+	{
+		BNFreeString(modules[i].m_name);
+		BNFreeString(modules[i].m_short_name);
+	}
 	delete[] modules;
 }
 
@@ -194,11 +207,11 @@ BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t
 
 	for (size_t i = 0; i < registers.size(); i++)
 	{
-		results[i].m_name = registers[i].m_name;
+		results[i].m_name = BNAllocString(registers[i].m_name.c_str());
 		results[i].m_value = registers[i].m_value;
 		results[i].m_width = registers[i].m_width;
 		results[i].m_registerIndex = registers[i].m_registerIndex;
-		results[i].m_hint = registers[i].m_hint;
+		results[i].m_hint = BNAllocString(registers[i].m_hint.c_str());
 	}
 
 	return results;
@@ -207,6 +220,11 @@ BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t
 
 void BNDebuggerFreeRegisters(BNDebugRegister* registers, size_t count)
 {
+	for (size_t i = 0; i < count; i++)
+	{
+		BNFreeString(registers[i].m_name);
+		BNFreeString(registers[i].m_hint);
+	}
 	delete[] registers;
 }
 
@@ -325,15 +343,15 @@ BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name)
 }
 
 
-bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, Ref<BinaryView> data)
+bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, DBGBinaryView* data)
 {
-	return adapter->object->CanExecute(data);
+	return adapter->object->CanExecute(data->view);
 }
 
 
-bool BNDebugAdapterTypeCanConnect(BNDebugAdapterType* adapter, Ref<BinaryView> data)
+bool BNDebugAdapterTypeCanConnect(BNDebugAdapterType* adapter, DBGBinaryView* data)
 {
-	return adapter->object->CanConnect(data);
+	return adapter->object->CanConnect(data->view);
 }
 
 

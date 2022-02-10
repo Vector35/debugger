@@ -20,28 +20,35 @@ DECLARE_DEBUGGER_API_OBJECT(BNDebuggerState, DebuggerState);
 extern "C"
 {
 #endif
+	// Since this file cannot contain Ref<BinaryView>, this struct is created as a workaround.
+	struct DBGBinaryView;
+	struct DBGArchitecture;
+	struct DBGPlatform;
+
 	struct BNDebugThread
 	{
-		uint32_t m_tid{};
-		uint64_t m_rip{};
+		uint32_t m_tid;
+		uint64_t m_rip;
 	};
 
 
 	struct BNDebugModule
 	{
-		std::string m_name{}, m_short_name{};
-		std::uintptr_t m_address{};
-		std::size_t m_size{};
-		bool m_loaded{};
+		char* m_name;
+		char* m_short_name;
+		uint64_t m_address;
+		size_t m_size;
+		bool m_loaded;
 	};
 
 
 	struct BNDebugRegister
 	{
-		std::string m_name{};
-		std::uintptr_t m_value{};
-		std::size_t m_width{}, m_registerIndex{};
-		std::string m_hint{};
+		char* m_name;
+		uint64_t m_value;
+		size_t m_width;
+		size_t m_registerIndex;
+		char* m_hint;
 	};
 
 
@@ -137,8 +144,8 @@ extern "C"
 
 
 	BNDebuggerController* BNGetDebuggerController(BinaryNinja::BinaryView* data);
-	BNBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller);
-	BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller);
+	DBGBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller);
+	DBGBinaryView* BNDebuggerGetData(BNDebuggerController* controller);
 	BNArchitecture* BNDebuggerGetRemoteArchitecture(BNDebuggerController* controller);
 	bool BNDebuggerIsConnected(BNDebuggerController* controller);
 	bool BNDebuggerIsRunning(BNDebuggerController* controller);
@@ -146,7 +153,7 @@ extern "C"
 	uint64_t BNDebuggerGetStackPointer(BNDebuggerController* controller);
 
 	BNDataBuffer* BNDebuggerReadMemory(BNDebuggerController* controller, uint64_t address, size_t size);
-	bool BNDebuggerWriteMemory(BNDebuggerController* controller, uint64_t address, const BNDataBuffer* buffer);
+	bool BNDebuggerWriteMemory(BNDebuggerController* controller, uint64_t address, BNDataBuffer* buffer);
 
 	BNDebugThread* BNDebuggerGetThreads(BNDebuggerController* controller, size_t* count);
 	void BNDebuggerFreeThreads(BNDebugThread* threads, size_t count);
@@ -215,9 +222,9 @@ extern "C"
 
 	// DebugAdapterType
 	BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name);
-	bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, Ref<BinaryView> data);
-	bool BNDebugAdapterTypeCanConnect(BNDebugAdapterType* adapter, Ref<BinaryView> data);
-	char** BNGetAvailableDebugAdapterTypes(Ref<BinaryView> data, size_t* count);
+	bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, DBGBinaryView* data);
+	bool BNDebugAdapterTypeCanConnect(BNDebugAdapterType* adapter, DBGBinaryView* data);
+	char** BNGetAvailableDebugAdapterTypes(DBGBinaryView* data, size_t* count);
 
 
 	// DebugModule
