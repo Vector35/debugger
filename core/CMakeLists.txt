@@ -72,3 +72,5 @@ endif()
 bn_install_plugin(${PROJECT_NAME})
 
 include_directories(../vendor)
+
+target_compile_definitions(debuggercore PRIVATE DEBUGGER_LIBRARY)

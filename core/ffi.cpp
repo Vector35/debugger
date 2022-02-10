@@ -59,31 +59,21 @@ static void API_OBJECT_FREE(T* obj)
 }
 
 
-struct DBGBinaryView
+BNDebuggerController* BNGetDebuggerController(BNBinaryView* data)
 {
-	Ref<BinaryView> view;
-};
-
-
-BNDebuggerController* BNGetDebuggerController(BinaryNinja::BinaryView* data)
-{
-	return DebuggerController::GetController(data)->GetAPIObject();
+	return DebuggerController::GetController(new BinaryView(data))->GetAPIObject();
 }
 
 
-DBGBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller)
+BNBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller)
 {
-	DBGBinaryView* result = new DBGBinaryView;
-	result->view = controller->object->GetLiveView();
-	return result;
+	return API_OBJECT_REF(controller->object->GetLiveView());
 }
 
 
-DBGBinaryView* BNDebuggerGetData(BNDebuggerController* controller)
+BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller)
 {
-	DBGBinaryView* result = new DBGBinaryView;
-	result->view = controller->object->GetData();
-	return result;
+	return API_OBJECT_REF(controller->object->GetData());
 }
 
 
@@ -343,15 +333,15 @@ BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name)
 }
 
 
-bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, DBGBinaryView* data)
+bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, BNBinaryView* data)
 {
-	return adapter->object->CanExecute(data->view);
+	return adapter->object->CanExecute(new BinaryView(data));
 }
 
 
-bool BNDebugAdapterTypeCanConnect(BNDebugAdapterType* adapter, DBGBinaryView* data)
+bool BNDebugAdapterTypeCanConnect(BNDebugAdapterType* adapter, BNBinaryView* data)
 {
-	return adapter->object->CanConnect(data->view);
+	return adapter->object->CanConnect(new BinaryView(data));
 }
 
 
@@ -367,9 +357,9 @@ BNDebugAdapterTargetStatus BNDebuggerGetTargetStatus(BNDebuggerController* contr
 }
 
 
-char** BNGetAvailableDebugAdapterTypes(BinaryViewRef data, size_t* count)
+char** BNGetAvailableDebugAdapterTypes(BNBinaryView* data, size_t* count)
 {
-	std::vector<std::string> adapters = DebugAdapterType::GetAvailableAdapters(data);
+	std::vector<std::string> adapters = DebugAdapterType::GetAvailableAdapters(new BinaryView(data));
 	*count = adapters.size();
 
 	std::vector<const char*> cstrings;

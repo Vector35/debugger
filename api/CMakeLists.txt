@@ -8,7 +8,7 @@ add_library(debuggerapi STATIC ${BN_DEBUGGER_API_SOURCES})
 target_include_directories(debuggerapi
         PUBLIC ${PROJECT_SOURCE_DIR})
 
-target_link_libraries(debuggerapi debuggercore)
+target_link_libraries(debuggerapi PUBLIC debuggercore)
 
 #if((NOT BN_CORE_LIBRARY) AND (NOT BN_INTERNAL_BUILD))
 #    find_library(BN_DEBUGGER_CORE_LIBRARY REQUIRED

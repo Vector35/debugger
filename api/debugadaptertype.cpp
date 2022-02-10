@@ -23,20 +23,20 @@ DebugAdapterType::DebugAdapterType(BNDebugAdapterType* controller)
 
 bool DebugAdapterType::CanConnect(Ref<BinaryView> data)
 {
-	return BNDebugAdapterTypeCanConnect(m_object, data);
+	return BNDebugAdapterTypeCanConnect(m_object, data->GetObject());
 }
 
 
 bool DebugAdapterType::CanExecute(Ref<BinaryView> data)
 {
-	return BNDebugAdapterTypeCanExecute(m_object, data);
+	return BNDebugAdapterTypeCanExecute(m_object, data->GetObject());
 }
 
 
 std::vector<std::string> DebugAdapterType::GetAvailableAdapters(Ref<BinaryView> data)
 {
 	size_t count;
-	char** adapters = BNGetAvailableDebugAdapterTypes(data, &count);
+	char** adapters = BNGetAvailableDebugAdapterTypes(data->GetObject(), &count);
 
 	std::vector<std::string> result;
 	result.reserve(count);

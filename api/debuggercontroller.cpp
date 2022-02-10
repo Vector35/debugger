@@ -6,7 +6,7 @@ using namespace std;
 
 DebuggerController* DebuggerController::GetController(BinaryNinja::BinaryView* data)
 {
-	BNDebuggerController* controller = BNGetDebuggerController(data);
+	BNDebuggerController* controller = BNGetDebuggerController(data->GetObject());
 	if (!controller)
 		return nullptr;
 
@@ -22,10 +22,10 @@ DebuggerController::DebuggerController(BNDebuggerController* controller)
 
 Ref<BinaryView> DebuggerController::GetLiveView()
 {
-	DBGBinaryView* view = BNDebuggerGetLiveView(m_object);
+	BNBinaryView* view = BNDebuggerGetLiveView(m_object);
 	if (!view)
 		return nullptr;
-	return view->
+	return new BinaryView(view);
 }
 
 
