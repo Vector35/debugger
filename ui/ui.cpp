@@ -14,7 +14,7 @@ using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 using namespace std;
 
-std::unordered_map<DebuggerController*, std::unique_ptr<DebuggerUI>> g_contextMap;
+std::map<Ref<DebuggerController>, std::unique_ptr<DebuggerUI>> g_contextMap;
 
 DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
 	m_context(context), m_controller(controller)
@@ -591,7 +591,7 @@ DebuggerUI* DebuggerUI::CreateForViewFrame(ViewFrame* frame)
 	if (!data)
 		return nullptr;
 
-	DebuggerController* controller = DebuggerController::GetController(data);
+	Ref<DebuggerController> controller = DebuggerController::GetController(data);
 	if (!controller)
 		return nullptr;
 
@@ -610,7 +610,7 @@ DebuggerUI* DebuggerUI::GetForViewFrame(ViewFrame* frame)
 	if (!data)
 		return nullptr;
 
-	DebuggerController* controller = DebuggerController::GetController(data);
+	Ref<DebuggerController> controller = DebuggerController::GetController(data);
 	if (!controller)
 		return nullptr;
 
