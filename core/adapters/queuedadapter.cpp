@@ -486,11 +486,11 @@ std::string QueuedAdapter::GetTargetArchitecture()
 }
 
 
-BNDebugStopReason QueuedAdapter::StopReason()
+DebugStopReason QueuedAdapter::StopReason()
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
 
-    BNDebugStopReason ret;
+    DebugStopReason ret;
     Semaphore sem;
     m_queue.push([&]{
         ret = m_adapter->StopReason();
@@ -542,11 +542,11 @@ bool QueuedAdapter::BreakInto()
 }
 
 
-BNDebugStopReason QueuedAdapter::Go()
+DebugStopReason QueuedAdapter::Go()
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
 
-    BNDebugStopReason ret;
+    DebugStopReason ret;
     Semaphore sem;
     m_queue.push([&]{
         ret = m_adapter->Go();
@@ -558,11 +558,11 @@ BNDebugStopReason QueuedAdapter::Go()
 }
 
 
-BNDebugStopReason QueuedAdapter::StepInto()
+DebugStopReason QueuedAdapter::StepInto()
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
 
-    BNDebugStopReason ret;
+    DebugStopReason ret;
     Semaphore sem;
     m_queue.push([&]{
         ret = m_adapter->StepInto();
@@ -574,11 +574,11 @@ BNDebugStopReason QueuedAdapter::StepInto()
 }
 
 
-BNDebugStopReason QueuedAdapter::StepOver()
+DebugStopReason QueuedAdapter::StepOver()
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
 
-    BNDebugStopReason ret;
+    DebugStopReason ret;
     Semaphore sem;
     m_queue.push([&]{
         ret = m_adapter->StepOver();

@@ -78,7 +78,7 @@ void DebuggerUI::updateStatusText(const DebuggerEvent &event)
 
     case TargetStoppedEventType:
 	{
-		BNDebugStopReason reason = event.data.targetStoppedData.reason;
+		DebugStopReason reason = event.data.targetStoppedData.reason;
 		setStatusText(QString::fromStdString(fmt::format("Stopped {}", reason)));
 		break;
 	}
@@ -167,7 +167,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 			if (functions.size() == 0)
 				m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
 
-			if (event.data.targetStoppedData.reason == BNDebugStopReason::InitialBreakpoint)
+			if (event.data.targetStoppedData.reason == DebugStopReason::InitialBreakpoint)
 			{
 				ViewFrame* frame = m_context->getCurrentViewFrame();
 				FileContext* fileContext = frame->getFileContext();

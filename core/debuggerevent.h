@@ -6,62 +6,21 @@
 
 namespace BinaryNinjaDebugger
 {
-	enum DebuggerEventType
-	{
-		LaunchEventType,
-		ResumeEventType,
-		StepIntoEventType,
-		StepOverEventType,
-		StepReturnEventType,
-		StepToEventType,
-		RestartEventType,
-		AttachEventType,
-		DetachEventType,
-
-		AdapterStoppedEventType,
-		AdapterTargetExitedEventType,
-
-		InvalidOperationEventType,
-		InternalErrorEventType,
-
-		TargetStoppedEventType,
-		ErrorEventType,
-		GeneralEventType,
-
-		StdoutMessageEventType,
-
-		TargetExitedEventType,
-		DetachedEventType,
-		QuitDebuggingEventType,
-		BackEndDisconnectedEventType,
-
-		AbsoluteBreakpointAddedEvent,
-		RelativeBreakpointAddedEvent,
-		AbsoluteBreakpointRemovedEvent,
-		RelativeBreakpointRemovedEvent,
-
-		ActiveThreadChangedEvent
-	};
+	typedef BNDebuggerEventType DebuggerEventType;
+	typedef BNDebugStopReason DebugStopReason;
 
 	struct TargetStoppedEventData
 	{
-		BNDebugStopReason reason;
+		DebugStopReason reason;
 		std::uint32_t lastActiveThread;
 		size_t exitCode;
 		void* data;
 	};
 
 
-	struct StoppedEventData
-	{
-		BNDebugStopReason reason;
-		void* data;
-	};
-
-
 	struct ErrorEventData
 	{
-		std::string error;
+		std::string error{};
 		void* data;
 	};
 

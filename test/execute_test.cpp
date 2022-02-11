@@ -103,13 +103,13 @@ TEST(DbgEngineTest, BreakpointTest) {
         ASSERT_TRUE( debug_adapter.Go());
 
         if (bin.find("hh1") != std::string::npos) {
-            ASSERT_EQ(debug_adapter.StopReason(), BNDebugStopReason::Unknown);
+            ASSERT_EQ(debug_adapter.StopReason(), DebugStopReason::Unknown);
             ASSERT_FALSE(debug_adapter.RemoveBreakpoint( entry_breakpoint ));
             ASSERT_NO_THROW(debug_adapter.Quit());
             continue;
         }
 
-        ASSERT_EQ(debug_adapter.StopReason(), BNDebugStopReason::Breakpoint);
+        ASSERT_EQ(debug_adapter.StopReason(), DebugStopReason::Breakpoint);
         ASSERT_TRUE( debug_adapter.RemoveBreakpoint( entry_breakpoint ));
         ASSERT_NO_THROW(debug_adapter.Quit());
     }
@@ -129,12 +129,12 @@ TEST(DbgEngineTest, ExceptionTests) {
 
     ASSERT_TRUE( debug_adapter.ExecuteWithArgs( exception_file, { "segfault" } ));
     ASSERT_TRUE(debug_adapter.Go());
-    ASSERT_EQ(debug_adapter.StopReason(), BNDebugStopReason::AccessViolation);
+    ASSERT_EQ(debug_adapter.StopReason(), DebugStopReason::AccessViolation);
     ASSERT_NO_THROW(debug_adapter.Quit());
 
     ASSERT_TRUE( debug_adapter.ExecuteWithArgs( exception_file, { "illegalinstr" } ));
     ASSERT_TRUE(debug_adapter.Go());
-    ASSERT_EQ(debug_adapter.StopReason(), BNDebugStopReason::AccessViolation);
+    ASSERT_EQ(debug_adapter.StopReason(), DebugStopReason::AccessViolation);
     ASSERT_NO_THROW(debug_adapter.Quit());
 }
 
@@ -209,13 +209,13 @@ TEST(GdbTest, BreakpointTest) {
         ASSERT_TRUE( debug_adapter.Go());
 
         if (bin.find("hh1") != std::string::npos) {
-            ASSERT_EQ(debug_adapter.StopReason(), BNDebugStopReason::Unknown);
+            ASSERT_EQ(debug_adapter.StopReason(), DebugStopReason::Unknown);
             ASSERT_FALSE(debug_adapter.RemoveBreakpoint( entry_breakpoint ));
             ASSERT_NO_THROW(debug_adapter.Quit());
             continue;
         }
 
-        ASSERT_EQ(debug_adapter.StopReason(), BNDebugStopReason::Breakpoint);
+        ASSERT_EQ(debug_adapter.StopReason(), DebugStopReason::Breakpoint);
         ASSERT_TRUE( debug_adapter.RemoveBreakpoint( entry_breakpoint ));
         ASSERT_NO_THROW(debug_adapter.Quit());
     }
@@ -235,12 +235,12 @@ TEST(GdbTest, ExceptionTests) {
 
     ASSERT_TRUE( debug_adapter.ExecuteWithArgs( exception_file, { "segfault" } ));
     ASSERT_TRUE(debug_adapter.Go());
-    ASSERT_EQ(debug_adapter.StopReason(), BNDebugStopReason::AccessViolation);
+    ASSERT_EQ(debug_adapter.StopReason(), DebugStopReason::AccessViolation);
     ASSERT_NO_THROW(debug_adapter.Quit());
 
     ASSERT_TRUE( debug_adapter.ExecuteWithArgs( exception_file, { "illegalinstr" } ));
     ASSERT_TRUE(debug_adapter.Go());
-    ASSERT_EQ(debug_adapter.StopReason(), BNDebugStopReason::AccessViolation);
+    ASSERT_EQ(debug_adapter.StopReason(), DebugStopReason::AccessViolation);
     ASSERT_NO_THROW(debug_adapter.Quit());
 }
 

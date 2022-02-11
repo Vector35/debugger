@@ -150,14 +150,14 @@ bool DebuggerController::CanResumeTarget()
 
 
 // Synchronously resume the target, only returns when the target stops.
-BNDebugStopReason DebuggerController::GoInternal()
+DebugStopReason DebuggerController::GoInternal()
 {
 	uint64_t remoteIP = m_state->IP();
 	// TODO: for dbgeng, it handles this sequence of operations for us, so we can simply can Go()
 	if (m_state->GetAdapterType() != "Local DBGENG" && m_state->GetBreakpoints()->ContainsAbsolute(remoteIP))
 	{
-        BNDebugStopReason reason = StepIntoInternal();
-		if (reason != BNDebugStopReason::SingleStep)
+        DebugStopReason reason = StepIntoInternal();
+		if (reason != DebugStopReason::SingleStep)
 			return reason;
 
 		return m_adapter->Go();
@@ -169,11 +169,11 @@ BNDebugStopReason DebuggerController::GoInternal()
 }
 
 
-BNDebugStopReason DebuggerController::Go()
+DebugStopReason DebuggerController::Go()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
-		return BNDebugStopReason::InvalidStatusOrOperation;
+		return DebugStopReason::InvalidStatusOrOperation;
 
 	// The m_targetStatus represents the external (API-level) target status. To track the adapter execution status,
 	// use a different variable. Right now there is no need to track it, so no such variable exists.
@@ -184,7 +184,7 @@ BNDebugStopReason DebuggerController::Go()
 	event.type = ResumeEventType;
 	PostDebuggerEvent(event);
 
-    BNDebugStopReason reason = GoInternal();
+    DebugStopReason reason = GoInternal();
 
 	// Right now we are only marking the state as dirty at the external API level. This reduces unnecessary updates
 	// while we carry out certain internal operations. However, this might cause correctness problems, e.g., the target
@@ -204,13 +204,13 @@ BNDebugStopReason DebuggerController::Go()
 
 
 // Synchronously step into the target. It waits until the target stops and returns the stop reason
-BNDebugStopReason DebuggerController::StepIntoInternal()
+DebugStopReason DebuggerController::StepIntoInternal()
 {
 	uint64_t remoteIP = m_state->IP();
 	if (m_state->GetAdapterType() != "LOCAL DBGENG" && m_state->GetBreakpoints()->ContainsAbsolute(remoteIP))
 	{
 		m_adapter->RemoveBreakpoint(remoteIP);
-		BNDebugStopReason reason = m_adapter->StepInto();
+		DebugStopReason reason = m_adapter->StepInto();
 		m_adapter->AddBreakpoint(remoteIP);
 		return reason;
 	}
@@ -221,7 +221,7 @@ BNDebugStopReason DebuggerController::StepIntoInternal()
 }
 
 
-BNDebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 {
 	switch (il)
 	{
@@ -234,14 +234,14 @@ BNDebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 		// TODO: This might cause infinite loop
 		while (true)
 		{
-			BNDebugStopReason reason = StepIntoInternal();
-			if (reason != BNDebugStopReason::SingleStep)
+			DebugStopReason reason = StepIntoInternal();
+			if (reason != DebugStopReason::SingleStep)
 				return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
 			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.size() == 0)
-			    return BNDebugStopReason::InternalError;
+			    return DebugStopReason::InternalError;
 
 			for (FunctionRef& func: functions)
 			{
@@ -261,14 +261,14 @@ BNDebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 		// TODO: This might cause infinite loop
 		while (true)
 		{
-			BNDebugStopReason reason = StepIntoInternal();
-            if (reason != BNDebugStopReason::SingleStep)
+			DebugStopReason reason = StepIntoInternal();
+            if (reason != DebugStopReason::SingleStep)
                 return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
 			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
-                return BNDebugStopReason::InternalError;
+                return DebugStopReason::InternalError;
 
 			for (FunctionRef& func: functions)
 			{
@@ -288,14 +288,14 @@ BNDebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 		// TODO: This might cause infinite loop
 		while (true)
 		{
-            BNDebugStopReason reason = StepIntoInternal();
-            if (reason != BNDebugStopReason::SingleStep)
+            DebugStopReason reason = StepIntoInternal();
+            if (reason != DebugStopReason::SingleStep)
                 return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
 			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
-                return BNDebugStopReason::InternalError;
+                return DebugStopReason::InternalError;
 
 			for (FunctionRef& func: functions)
 			{
@@ -311,15 +311,15 @@ BNDebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 	}
 	default:
 		LogWarn("step into unimplemented in the current il type");
-        return BNDebugStopReason::InternalError;
+        return DebugStopReason::InternalError;
 	}
 }
 
 
-BNDebugStopReason DebuggerController::StepInto(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepInto(BNFunctionGraphType il)
 {
 	if (!CanResumeTarget())
-        return BNDebugStopReason::InvalidStatusOrOperation;
+        return DebugStopReason::InvalidStatusOrOperation;
 
     m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 
@@ -327,7 +327,7 @@ BNDebugStopReason DebuggerController::StepInto(BNFunctionGraphType il)
 	event.type = StepIntoEventType;
 	PostDebuggerEvent(event);
 
-	BNDebugStopReason reason = StepIntoIL(il);
+	DebugStopReason reason = StepIntoIL(il);
 
 	m_state->MarkDirty();
     m_state->SetExecutionStatus(DebugAdapterPausedStatus);
@@ -337,7 +337,7 @@ BNDebugStopReason DebuggerController::StepInto(BNFunctionGraphType il)
 }
 
 
-BNDebugStopReason DebuggerController::StepOverInternal()
+DebugStopReason DebuggerController::StepOverInternal()
 {
     if (m_adapter->SupportFeature(DebugAdapterSupportStepOver))
         return m_adapter->StepOver();
@@ -379,7 +379,7 @@ BNDebugStopReason DebuggerController::StepOverInternal()
 }
 
 
-BNDebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
 {
     switch (il)
     {
@@ -392,14 +392,14 @@ BNDebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
         // TODO: This might cause infinite loop
         while (true)
         {
-			BNDebugStopReason reason = StepOverInternal();
-			if (reason != BNDebugStopReason::SingleStep)
+			DebugStopReason reason = StepOverInternal();
+			if (reason != DebugStopReason::SingleStep)
 				return reason;
 
             uint64_t newRemoteRip = m_state->IP();
             std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
-                return BNDebugStopReason::InternalError;
+                return DebugStopReason::InternalError;
 
             for (FunctionRef& func: functions)
             {
@@ -419,14 +419,14 @@ BNDebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
         // TODO: This might cause infinite loop
         while (true)
         {
-			BNDebugStopReason reason = StepOverInternal();
-			if (reason != BNDebugStopReason::SingleStep)
+			DebugStopReason reason = StepOverInternal();
+			if (reason != DebugStopReason::SingleStep)
 				return reason;
 
             uint64_t newRemoteRip = m_state->IP();
             std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
-                return BNDebugStopReason::InternalError;
+                return DebugStopReason::InternalError;
 
             for (FunctionRef& func: functions)
             {
@@ -446,14 +446,14 @@ BNDebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
         // TODO: This might cause infinite loop
         while (true)
         {
-			BNDebugStopReason reason = StepOverInternal();
-			if ((reason != BNDebugStopReason::SingleStep))
+			DebugStopReason reason = StepOverInternal();
+			if ((reason != DebugStopReason::SingleStep))
 				return reason;
 
             uint64_t newRemoteRip = m_state->IP();
             std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
-			    return BNDebugStopReason::InternalError;
+			    return DebugStopReason::InternalError;
 
             for (FunctionRef& func: functions)
             {
@@ -469,16 +469,16 @@ BNDebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
     }
     default:
         LogWarn("step over unimplemented in the current il type");
-        return BNDebugStopReason::InternalError;
+        return DebugStopReason::InternalError;
         break;
     }
 }
 
 
-BNDebugStopReason DebuggerController::StepOver(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepOver(BNFunctionGraphType il)
 {
 	if (!CanResumeTarget())
-	    return BNDebugStopReason::InvalidStatusOrOperation;
+	    return DebugStopReason::InvalidStatusOrOperation;
 
     m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 
@@ -486,7 +486,7 @@ BNDebugStopReason DebuggerController::StepOver(BNFunctionGraphType il)
 	event.type = StepOverEventType;
 	PostDebuggerEvent(event);
 
-	BNDebugStopReason reason = StepOverIL(il);
+	DebugStopReason reason = StepOverIL(il);
 
 	m_state->MarkDirty();
     m_state->SetExecutionStatus(DebugAdapterPausedStatus);
@@ -496,14 +496,14 @@ BNDebugStopReason DebuggerController::StepOver(BNFunctionGraphType il)
 }
 
 
-BNDebugStopReason DebuggerController::StepReturnInternal()
+DebugStopReason DebuggerController::StepReturnInternal()
 {
 	// TODO: dbgeng supports step out natively, consider using that as well once we implement a similar functionality
 	// for gdb and lldb
 	uint64_t address = m_state->IP();
 	std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(address);
 	if (functions.size() == 0)
-        return BNDebugStopReason::InternalError;
+        return DebugStopReason::InternalError;
 
 	std::vector<uint64_t> returnAddresses;
 	FunctionRef function = functions[0];
@@ -519,10 +519,10 @@ BNDebugStopReason DebuggerController::StepReturnInternal()
 }
 
 
-BNDebugStopReason DebuggerController::StepReturn()
+DebugStopReason DebuggerController::StepReturn()
 {
 	if (!CanResumeTarget())
-	    BNDebugStopReason::InvalidStatusOrOperation;
+	    DebugStopReason::InvalidStatusOrOperation;
 
     m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 
@@ -530,7 +530,7 @@ BNDebugStopReason DebuggerController::StepReturn()
 	event.type = StepOverEventType;
 	PostDebuggerEvent(event);
 
-	BNDebugStopReason reason = StepReturnInternal();
+	DebugStopReason reason = StepReturnInternal();
 
 	m_state->MarkDirty();
     m_state->SetExecutionStatus(DebugAdapterPausedStatus);
@@ -540,7 +540,7 @@ BNDebugStopReason DebuggerController::StepReturn()
 }
 
 
-BNDebugStopReason DebuggerController::StepToInternal(const std::vector<uint64_t>& remoteAddresses)
+DebugStopReason DebuggerController::StepToInternal(const std::vector<uint64_t>& remoteAddresses)
 {
     for (uint64_t remoteAddress: remoteAddresses)
     {
@@ -550,7 +550,7 @@ BNDebugStopReason DebuggerController::StepToInternal(const std::vector<uint64_t>
         }
     }
 
-	BNDebugStopReason reason = GoInternal();
+	DebugStopReason reason = GoInternal();
 
     for (uint64_t remoteAddress: remoteAddresses)
     {
@@ -564,10 +564,10 @@ BNDebugStopReason DebuggerController::StepToInternal(const std::vector<uint64_t>
 }
 
 
-BNDebugStopReason DebuggerController::StepTo(const std::vector<uint64_t>& remoteAddresses)
+DebugStopReason DebuggerController::StepTo(const std::vector<uint64_t>& remoteAddresses)
 {
 	if (!CanResumeTarget())
-	    return BNDebugStopReason::InvalidStatusOrOperation;
+	    return DebugStopReason::InvalidStatusOrOperation;
 
     m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 
@@ -575,7 +575,7 @@ BNDebugStopReason DebuggerController::StepTo(const std::vector<uint64_t>& remote
 	event.type = StepOverEventType;
 	PostDebuggerEvent(event);
 
-	BNDebugStopReason reason = StepToInternal(remoteAddresses);
+	DebugStopReason reason = StepToInternal(remoteAddresses);
 
 	m_state->MarkDirty();
     m_state->SetExecutionStatus(DebugAdapterPausedStatus);
@@ -585,7 +585,7 @@ BNDebugStopReason DebuggerController::StepTo(const std::vector<uint64_t>& remote
 }
 
 
-void DebuggerController::HandleTargetStop(BNDebugStopReason reason)
+void DebuggerController::HandleTargetStop(DebugStopReason reason)
 {
     if (m_userRequestedBreak)
     {
@@ -593,7 +593,7 @@ void DebuggerController::HandleTargetStop(BNDebugStopReason reason)
         return;
     }
 
-    if (reason == BNDebugStopReason::ProcessExited)
+    if (reason == DebugStopReason::ProcessExited)
     {
         DebuggerEvent event;
         event.type = TargetExitedEventType;
@@ -601,13 +601,13 @@ void DebuggerController::HandleTargetStop(BNDebugStopReason reason)
         // get exit code
         PostDebuggerEvent(event);
     }
-    else if (reason == BNDebugStopReason::InternalError)
+    else if (reason == DebugStopReason::InternalError)
     {
         DebuggerEvent event;
         event.type = InternalErrorEventType;
         PostDebuggerEvent(event);
     }
-    else if (reason == BNDebugStopReason::InvalidStatusOrOperation)
+    else if (reason == DebugStopReason::InvalidStatusOrOperation)
     {
         DebuggerEvent event;
         event.type = InvalidOperationEventType;
@@ -667,7 +667,7 @@ void DebuggerController::HandleInitialBreakpoint()
 	}
 	SetLiveView(liveView);
 
-	NotifyStopped(BNDebugStopReason::InitialBreakpoint);
+	NotifyStopped(DebugStopReason::InitialBreakpoint);
 }
 
 
@@ -779,7 +779,7 @@ void DebuggerController::Quit()
 
 void DebuggerController::PauseInternal()
 {
-    // Setting this flag tells other threads to skip handling the BNDebugStopReason. That thread will also reset this
+    // Setting this flag tells other threads to skip handling the DebugStopReason. That thread will also reset this
     // flag to false
     m_userRequestedBreak = true;
     if (m_state->IsRunning())
@@ -802,7 +802,7 @@ void DebuggerController::Pause()
 
     DebuggerEvent event;
     event.type = TargetStoppedEventType;
-    event.data.targetStoppedData.reason = BNDebugStopReason::UserRequestedBreak;
+    event.data.targetStoppedData.reason = DebugStopReason::UserRequestedBreak;
     PostDebuggerEvent(event);
 }
 
@@ -929,7 +929,7 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 }
 
 
-void DebuggerController::NotifyStopped(BNDebugStopReason reason, void *data)
+void DebuggerController::NotifyStopped(DebugStopReason reason, void *data)
 {
     DebuggerEvent event;
     event.type = TargetStoppedEventType;

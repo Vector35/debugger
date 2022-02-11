@@ -470,28 +470,28 @@ bool DbgEngAdapter::BreakInto()
     return true;
 }
 
-BNDebugStopReason DbgEngAdapter::Go()
+DebugStopReason DbgEngAdapter::Go()
 {
     if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK )
-        return BNDebugStopReason::InternalError;
+        return DebugStopReason::InternalError;
 
     this->Wait();
     return StopReason();
 }
 
-BNDebugStopReason DbgEngAdapter::StepInto()
+DebugStopReason DbgEngAdapter::StepInto()
 {
     if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_INTO) != S_OK )
-        return BNDebugStopReason::InternalError;
+        return DebugStopReason::InternalError;
 
     this->Wait();
     return StopReason();
 }
 
-BNDebugStopReason DbgEngAdapter::StepOver()
+DebugStopReason DbgEngAdapter::StepOver()
 {
     if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_OVER) != S_OK )
-        return BNDebugStopReason::InternalError;
+        return DebugStopReason::InternalError;
 
     this->Wait();
     return StopReason();
@@ -567,7 +567,7 @@ std::string DbgEngAdapter::GetTargetArchitecture()
     }
 }
 
-BNDebugStopReason DbgEngAdapter::StopReason()
+DebugStopReason DbgEngAdapter::StopReason()
 {
     const auto exec_status = this->ExecStatus();
     if (exec_status == DEBUG_STATUS_BREAK)
@@ -575,7 +575,7 @@ BNDebugStopReason DbgEngAdapter::StopReason()
         const auto instruction_ptr = this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
 
         if (instruction_ptr == DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint.m_address )
-            return BNDebugStopReason::Breakpoint;
+            return DebugStopReason::Breakpoint;
 
         const auto& last_exception = DbgEngAdapter::ProcessCallbackInfo.m_lastException;
         if ( instruction_ptr == last_exception.ExceptionAddress )
@@ -585,26 +585,26 @@ BNDebugStopReason DbgEngAdapter::StopReason()
             {
                 case STATUS_BREAKPOINT:
                 case STATUS_WX86_BREAKPOINT:
-                    return BNDebugStopReason::Breakpoint;
+                    return DebugStopReason::Breakpoint;
                 case STATUS_SINGLE_STEP:
                 case STATUS_WX86_SINGLE_STEP:
-                    return BNDebugStopReason::SingleStep;
+                    return DebugStopReason::SingleStep;
                 case STATUS_ACCESS_VIOLATION:
-                    return BNDebugStopReason::AccessViolation;
+                    return DebugStopReason::AccessViolation;
                 case STATUS_INTEGER_DIVIDE_BY_ZERO:
                 case STATUS_FLOAT_DIVIDE_BY_ZERO:
-                    return BNDebugStopReason::Calculation;
+                    return DebugStopReason::Calculation;
                 default:
-                    return BNDebugStopReason::UnknownReason;
+                    return DebugStopReason::UnknownReason;
             }
         }
     }
     else if (exec_status == DEBUG_STATUS_NO_DEBUGGEE)
     {
-        return BNDebugStopReason::ProcessExited;
+        return DebugStopReason::ProcessExited;
     }
 
-    return BNDebugStopReason::UnknownReason;
+    return DebugStopReason::UnknownReason;
 }
 
 unsigned long DbgEngAdapter::ExecStatus()

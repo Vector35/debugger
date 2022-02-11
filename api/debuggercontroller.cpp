@@ -168,7 +168,7 @@ bool DebuggerController::SetRegisterValue(const std::string &name, uint64_t valu
 }
 
 
-BNDebugStopReason DebuggerController::Go()
+DebugStopReason DebuggerController::Go()
 {
 	return BNDebuggerGo(m_object);
 }
@@ -223,25 +223,25 @@ void DebuggerController::LaunchOrConnect()
 }
 
 
-BNDebugStopReason DebuggerController::StepInto(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepInto(BNFunctionGraphType il)
 {
 	return BNDebuggerStepInto(m_object, il);
 }
 
 
-BNDebugStopReason DebuggerController::StepOver(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepOver(BNFunctionGraphType il)
 {
 	return BNDebuggerStepOver(m_object, il);
 }
 
 
-BNDebugStopReason DebuggerController::StepReturn()
+DebugStopReason DebuggerController::StepReturn()
 {
 	return BNDebuggerStepOver(m_object);
 }
 
 
-BNDebugStopReason DebuggerController::StepTo(const std::vector<uint64_t> &remoteAddresses)
+DebugStopReason DebuggerController::StepTo(const std::vector<uint64_t> &remoteAddresses)
 {
 	return BNDebuggerStepTo(m_object, remoteAddresses.data(), remoteAddresses.size());
 }

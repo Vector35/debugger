@@ -137,57 +137,14 @@ namespace BinaryNinjaDebuggerAPI
 		}
 	};
 
-
-	enum DebuggerEventType
-	{
-		LaunchEventType,
-		ResumeEventType,
-		StepIntoEventType,
-		StepOverEventType,
-		StepReturnEventType,
-		StepToEventType,
-		RestartEventType,
-		AttachEventType,
-		DetachEventType,
-
-		AdapterStoppedEventType,
-		AdapterTargetExitedEventType,
-
-		InvalidOperationEventType,
-		InternalErrorEventType,
-
-		TargetStoppedEventType,
-		ErrorEventType,
-		GeneralEventType,
-
-		StdoutMessageEventType,
-
-		TargetExitedEventType,
-		DetachedEventType,
-		QuitDebuggingEventType,
-		BackEndDisconnectedEventType,
-
-		AbsoluteBreakpointAddedEvent,
-		RelativeBreakpointAddedEvent,
-		AbsoluteBreakpointRemovedEvent,
-		RelativeBreakpointRemovedEvent,
-
-		ActiveThreadChangedEvent
-	};
-
+	typedef BNDebuggerEventType DebuggerEventType;
+	typedef BNDebugStopReason DebugStopReason;
 
 	struct TargetStoppedEventData
 	{
-		BNDebugStopReason reason;
+		DebugStopReason reason;
 		std::uint32_t lastActiveThread;
 		size_t exitCode;
-		void* data;
-	};
-
-
-	struct StoppedEventData
-	{
-		BNDebugStopReason reason;
 		void* data;
 	};
 
@@ -277,11 +234,11 @@ namespace BinaryNinjaDebuggerAPI
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
 		void LaunchOrConnect();
 
-		BNDebugStopReason Go();
-		BNDebugStopReason StepInto(BNFunctionGraphType il = NormalFunctionGraph);
-		BNDebugStopReason StepOver(BNFunctionGraphType il = NormalFunctionGraph);
-		BNDebugStopReason StepReturn();
-		BNDebugStopReason StepTo(const std::vector<uint64_t> &remoteAddresses);
+		DebugStopReason Go();
+		DebugStopReason StepInto(BNFunctionGraphType il = NormalFunctionGraph);
+		DebugStopReason StepOver(BNFunctionGraphType il = NormalFunctionGraph);
+		DebugStopReason StepReturn();
+		DebugStopReason StepTo(const std::vector<uint64_t> &remoteAddresses);
 
 		std::string GetAdapterType();
 		void SetAdapterType(const std::string& adapter);

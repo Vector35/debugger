@@ -176,7 +176,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string &ar
 }
 
 
-BNDebugStopReason LldbAdapter::Go()
+DebugStopReason LldbAdapter::Go()
 {
     return GenericGo("c");
 }
@@ -224,7 +224,7 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
 }
 
 
-BNDebugStopReason LldbAdapter::SignalToStopReason( std::uint64_t signal ) {
+DebugStopReason LldbAdapter::SignalToStopReason( std::uint64_t signal ) {
     return GdbAdapter::SignalToStopReason( signal );
 }
 

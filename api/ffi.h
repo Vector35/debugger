@@ -83,7 +83,8 @@ extern "C"
 	};
 
 
-	enum class BNDebugStopReason {
+	enum class BNDebugStopReason
+	{
 		UnknownReason = 0,
 		InitialBreakpoint,
 		StdoutMessage,
@@ -154,6 +155,44 @@ extern "C"
 		DebugAdapterInvalidStatus,
 		DebugAdapterRunningStatus,
 		DebugAdapterPausedStatus,
+	};
+
+
+	enum BNDebuggerEventType
+	{
+		LaunchEventType,
+		ResumeEventType,
+		StepIntoEventType,
+		StepOverEventType,
+		StepReturnEventType,
+		StepToEventType,
+		RestartEventType,
+		AttachEventType,
+		DetachEventType,
+
+		AdapterStoppedEventType,
+		AdapterTargetExitedEventType,
+
+		InvalidOperationEventType,
+		InternalErrorEventType,
+
+		TargetStoppedEventType,
+		ErrorEventType,
+		GeneralEventType,
+
+		StdoutMessageEventType,
+
+		TargetExitedEventType,
+		DetachedEventType,
+		QuitDebuggingEventType,
+		BackEndDisconnectedEventType,
+
+		AbsoluteBreakpointAddedEvent,
+		RelativeBreakpointAddedEvent,
+		AbsoluteBreakpointRemovedEvent,
+		RelativeBreakpointRemovedEvent,
+
+		ActiveThreadChangedEvent
 	};
 
 

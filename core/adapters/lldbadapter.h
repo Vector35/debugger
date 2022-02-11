@@ -6,12 +6,12 @@ namespace BinaryNinjaDebugger
 	class LldbAdapter : public GdbAdapter
 	{
 		bool LoadRegisterInfo() override;
-		BNDebugStopReason SignalToStopReason(std::uint64_t signal) override;
+		DebugStopReason SignalToStopReason(std::uint64_t signal) override;
 
 	public:
 		bool ExecuteWithArgs(const std::string& path, const std::string &args,
 							 const LaunchConfigurations& configs) override;
-		BNDebugStopReason Go() override;
+		DebugStopReason Go() override;
 		std::string GetTargetArchitecture() override;
 		std::vector<DebugModule> GetModuleList() override;
 

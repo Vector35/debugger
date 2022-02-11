@@ -18,7 +18,7 @@ namespace BinaryNinjaDebugger
 			std::uint32_t m_offset{};
 		};
 
-		BNDebugStopReason m_lastStopReason{};
+		DebugStopReason m_lastStopReason{};
 
 		using register_pair = std::pair<std::string, RegisterInfo>;
 		std::map<std::string, DebugRegister> m_cachedRegisterInfo{};
@@ -48,7 +48,7 @@ namespace BinaryNinjaDebugger
 		// support the case -- so we do not really lose a lot anyways.
 		std::string m_remoteArch;
 
-		virtual BNDebugStopReason SignalToStopReason(std::uint64_t signal);
+		virtual DebugStopReason SignalToStopReason(std::uint64_t signal);
 
 	public:
 		GdbAdapter(bool redirectGDBServer = true);
@@ -91,21 +91,21 @@ namespace BinaryNinjaDebugger
 
 		std::string GetTargetArchitecture() override;
 
-		BNDebugStopReason StopReason() override;
+		DebugStopReason StopReason() override;
 		unsigned long ExecStatus() override;
 		uint64_t ExitCode() override { return m_exitCode; }
 
 		bool BreakInto() override;
-		BNDebugStopReason GenericGo(const std::string& goCommand);
-		BNDebugStopReason Go() override;
-		BNDebugStopReason StepInto() override;
-		BNDebugStopReason StepOver() override;
+		DebugStopReason GenericGo(const std::string& goCommand);
+		DebugStopReason Go() override;
+		DebugStopReason StepInto() override;
+		DebugStopReason StepOver() override;
 	//    bool StepTo(std::uintptr_t address) override;
 
 		void Invoke(const std::string& command) override;
 		std::uintptr_t GetInstructionOffset() override;
 
-		BNDebugStopReason ResponseHandler();
+		DebugStopReason ResponseHandler();
 
 		bool SupportFeature(DebugAdapterCapacity feature) override;
 		void HandleAsyncPacket(const RspData& data);
