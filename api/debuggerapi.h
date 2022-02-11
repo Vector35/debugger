@@ -156,14 +156,6 @@ namespace BinaryNinjaDebuggerAPI
 	};
 
 
-	// TODO: This has become useless, remote it later
-	struct GeneralEventData
-	{
-		std::string event;
-		void* data;
-	};
-
-
 	struct TargetExitedEventData
 	{
 		uint64_t exitCode;
@@ -181,7 +173,6 @@ namespace BinaryNinjaDebuggerAPI
 	{
 		TargetStoppedEventData targetStoppedData;
 		ErrorEventData errorData;
-		GeneralEventData generalData;
 		uint64_t absoluteAddress;
 		ModuleNameAndOffset relativeAddress;
 		TargetExitedEventData exitData;
@@ -195,11 +186,17 @@ namespace BinaryNinjaDebuggerAPI
 		DebuggerEventData data;
 	};
 
+
 	typedef BNDebugAdapterConnectionStatus DebugAdapterConnectionStatus;
 	typedef BNDebugAdapterTargetStatus DebugAdapterTargetStatus;
 
 	class DebuggerController: public DebuggerObject<BNDebuggerController>
 	{
+		struct DebuggerEventCallbackObject
+		{
+			std::function<void(const DebuggerEvent&)> action;
+		};
+
 	public:
 		DebuggerController(BNDebuggerController* controller);
 		static DebuggerController* GetController(Ref<BinaryNinja::BinaryView> data);
@@ -271,6 +268,11 @@ namespace BinaryNinjaDebuggerAPI
 
 		uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& address);
 		ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t address);
+
+		size_t RegisterEventCallback(std::function<void(const DebuggerEvent &event)> callback);
+		static void DebuggerEventCallback(void* ctxt, const BNDebuggerEvent& view);
+
+		void RemoveEventCallback(size_t index);
 	};
 
 

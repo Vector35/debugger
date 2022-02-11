@@ -441,3 +441,46 @@ uint64_t DebuggerController::GetLastIP()
 {
 	return BNDebuggerGetLastIP(m_object);
 }
+
+
+size_t DebuggerController::RegisterEventCallback(std::function<void(const DebuggerEvent &event)> callback)
+{
+	DebuggerEventCallbackObject* object = new DebuggerEventCallbackObject;
+	object->action = callback;
+	return BNDebuggerRegisterEventCallback(GetObject(), DebuggerEventCallback, object);
+}
+
+
+void DebuggerController::DebuggerEventCallback(void* ctxt, const BNDebuggerEvent& event)
+{
+	DebuggerEventCallbackObject* object = (DebuggerEventCallbackObject*)ctxt;
+	DebuggerEvent evt;
+	evt.type = event.type;
+	evt.data.targetStoppedData.reason = event.data.targetStoppedData.reason;
+	evt.data.targetStoppedData.exitCode = event.data.targetStoppedData.exitCode;
+	evt.data.targetStoppedData.lastActiveThread = event.data.targetStoppedData.lastActiveThread;
+	evt.data.targetStoppedData.data = event.data.targetStoppedData.data;
+
+	evt.data.errorData.error = string(event.data.errorData.error);
+	BNFreeString(event.data.errorData.error);
+	evt.data.errorData.data = event.data.errorData.data;
+
+	evt.data.exitData.exitCode = event.data.exitData.exitCode;
+
+	evt.data.relativeAddress.module = string(event.data.relativeAddress.module);
+	BNFreeString(event.data.relativeAddress.module);
+	evt.data.relativeAddress.offset = event.data.relativeAddress.offset;
+
+	evt.data.absoluteAddress = event.data.absoluteAddress;
+
+	evt.data.messageData.message = string (event.data.messageData.message);
+	BNFreeString(event.data.messageData.message);
+
+	object->action(evt);
+}
+
+
+void DebuggerController::RemoveEventCallback(size_t index)
+{
+	BNDebuggerRemoveEventCallback(m_object, index);
+}

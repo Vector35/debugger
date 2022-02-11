@@ -104,8 +104,8 @@ uint64_t BNDebuggerGetStackPointer(BNDebuggerController* controller)
 
 BNDataBuffer* BNDebuggerReadMemory(BNDebuggerController* controller, uint64_t address, size_t size)
 {
-	DataBuffer data = controller->object->ReadMemory(address, size);
-	return data.GetBufferObject();
+	DataBuffer* data = new DataBuffer(controller->object->ReadMemory(address, size));
+	return data->GetBufferObject();
 }
 
 
@@ -580,4 +580,40 @@ BNModuleNameAndOffset BNDebuggerAbsoluteAddressToRelative(BNDebuggerController* 
 bool BNDebuggerIsSameBaseModule(const char* module1, const char* module2)
 {
 	return DebugModule::IsSameBaseModule(module1, module2);
+}
+
+
+size_t BNDebuggerRegisterEventCallback(BNDebuggerController* controller,
+									   void (*callback)(void* ctx, const BNDebuggerEvent& event),
+									   void* ctx)
+{
+	return controller->object->RegisterEventCallback([=](const DebuggerEvent& event){
+		BNDebuggerEvent evt;
+
+		evt.type = event.type;
+		evt.data.targetStoppedData.reason = event.data.targetStoppedData.reason;
+		evt.data.targetStoppedData.exitCode = event.data.targetStoppedData.exitCode;
+		evt.data.targetStoppedData.lastActiveThread = event.data.targetStoppedData.lastActiveThread;
+		evt.data.targetStoppedData.data = event.data.targetStoppedData.data;
+
+		evt.data.errorData.error = BNAllocString(event.data.errorData.error.c_str());
+		evt.data.errorData.data = event.data.errorData.data;
+
+		evt.data.exitData.exitCode = event.data.exitData.exitCode;
+
+		evt.data.relativeAddress.module = BNAllocString(event.data.relativeAddress.module.c_str());
+		evt.data.relativeAddress.offset = event.data.relativeAddress.offset;
+
+		evt.data.absoluteAddress = event.data.absoluteAddress;
+
+		evt.data.messageData.message = BNAllocString(event.data.messageData.message.c_str());
+
+		callback(ctx, evt);
+	});
+}
+
+
+void BNDebuggerRemoveEventCallback(BNDebuggerController* controller, size_t index)
+{
+	controller->object->RemoveEventCallback(index);
 }

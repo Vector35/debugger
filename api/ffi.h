@@ -196,6 +196,53 @@ extern "C"
 	};
 
 
+	struct BNTargetStoppedEventData
+	{
+		BNDebugStopReason reason;
+		uint32_t lastActiveThread;
+		size_t exitCode;
+		void* data;
+	};
+
+
+	struct BNErrorEventData
+	{
+		char* error;
+		void* data;
+	};
+
+
+	struct BNTargetExitedEventData
+	{
+		uint64_t exitCode;
+	};
+
+
+	struct BNStdoutMessageEventData
+	{
+		char* message;
+	};
+
+
+	// This should really be a union, but gcc complains...
+	struct BNDebuggerEventData
+	{
+		BNTargetStoppedEventData targetStoppedData;
+		BNErrorEventData errorData;
+		uint64_t absoluteAddress;
+		BNModuleNameAndOffset relativeAddress;
+		BNTargetExitedEventData exitData;
+		BNStdoutMessageEventData messageData;
+	};
+
+
+	struct BNDebuggerEvent
+	{
+		BNDebuggerEventType type;
+		BNDebuggerEventData data;
+	};
+
+
 	DEBUGGER_FFI_API BNDebuggerController* BNGetDebuggerController(BNBinaryView* data);
 	DEBUGGER_FFI_API BNBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller);
@@ -282,6 +329,13 @@ extern "C"
 
 	// DebugModule
 	DEBUGGER_FFI_API bool BNDebuggerIsSameBaseModule(const char* module1, const char* module2);
+
+
+	// Debugger events
+	DEBUGGER_FFI_API size_t BNDebuggerRegisterEventCallback(BNDebuggerController* controller,
+															void (*callback)(void* ctx, const BNDebuggerEvent& event),
+															void* ctx);
+	DEBUGGER_FFI_API void BNDebuggerRemoveEventCallback(BNDebuggerController* controller, size_t index);
 
 #ifdef __cplusplus
 }

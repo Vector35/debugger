@@ -25,14 +25,6 @@ namespace BinaryNinjaDebugger
 	};
 
 
-	// TODO: This has become useless, remote it later
-	struct GeneralEventData
-	{
-		std::string event;
-		void* data;
-	};
-
-
 	struct TargetExitedEventData
 	{
 		uint64_t exitCode;
@@ -50,7 +42,6 @@ namespace BinaryNinjaDebugger
 	{
 		TargetStoppedEventData targetStoppedData;
 		ErrorEventData errorData;
-		GeneralEventData generalData;
 		uint64_t absoluteAddress;
 		ModuleNameAndOffset relativeAddress;
 		TargetExitedEventData exitData;

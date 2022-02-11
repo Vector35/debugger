@@ -27,17 +27,17 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateStatusText);
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateUI);
 
-//    m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
-//		ExecuteOnMainThreadAndWait([&](){
-//			emit debuggerEvent(event);
-//		});
-//    });
+    m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
+		ExecuteOnMainThreadAndWait([=](){
+			emit debuggerEvent(event);
+		});
+    });
 }
 
 
 DebuggerUI::~DebuggerUI()
 {
-//	m_controller->RemoveEventCallback(m_eventCallback);
+	m_controller->RemoveEventCallback(m_eventCallback);
 }
 
 
