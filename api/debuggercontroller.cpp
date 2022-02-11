@@ -4,7 +4,7 @@ using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 using namespace std;
 
-DebuggerController* DebuggerController::GetController(BinaryNinja::BinaryView* data)
+DebuggerController* DebuggerController::GetController(Ref<BinaryNinja::BinaryView> data)
 {
 	BNDebuggerController* controller = BNGetDebuggerController(data->GetObject());
 	if (!controller)

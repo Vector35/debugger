@@ -428,6 +428,8 @@ static bool BinaryViewValid(BinaryView* view, uint64_t addr)
 static void StepToHereCallback(BinaryView* view, uint64_t addr)
 {
 	DebuggerController* controller = DebuggerController::GetController(view);
+	if (!controller)
+		return;
 	controller->StepTo({addr});
 }
 
@@ -435,6 +437,8 @@ static void StepToHereCallback(BinaryView* view, uint64_t addr)
 static bool ConnectedAndStopped(BinaryView* view, uint64_t addr)
 {
 	DebuggerController* controller = DebuggerController::GetController(view);
+	if (!controller)
+		return false;
 	return controller->IsConnected() && (!controller->IsRunning());
 }
 
@@ -442,6 +446,8 @@ static bool ConnectedAndStopped(BinaryView* view, uint64_t addr)
 static bool ConnectedAndRunning(BinaryView* view, uint64_t addr)
 {
 	DebuggerController* controller = DebuggerController::GetController(view);
+	if (!controller)
+		return false;
 	return controller->IsConnected() && controller->IsRunning();
 }
 
@@ -486,6 +492,8 @@ void DebuggerUI::InitializeUI()
 			"Launch, connect to or resume the target",
 			[](BinaryView* view, uint64_t addr){
 					DebuggerController* controller = DebuggerController::GetController(view);
+					if (!controller)
+						return;
 					if (controller->IsConnected() && (!controller->IsRunning()))
 					{
 						controller->Go();
@@ -507,6 +515,8 @@ void DebuggerUI::InitializeUI()
 			"Step into",
 			[](BinaryView* view, uint64_t){
 					DebuggerController* controller = DebuggerController::GetController(view);
+					if (!controller)
+						return;
 					BNFunctionGraphType graphType = NormalFunctionGraph;
 					UIContext* context = UIContext::activeContext();
 					if (context && context->getCurrentView())
@@ -525,6 +535,8 @@ void DebuggerUI::InitializeUI()
 			"Step over",
 			[](BinaryView* view, uint64_t){
 					DebuggerController* controller = DebuggerController::GetController(view);
+					if (!controller)
+						return;
 					BNFunctionGraphType graphType = NormalFunctionGraph;
 					UIContext* context = UIContext::activeContext();
 					if (context && context->getCurrentView())
@@ -543,6 +555,8 @@ void DebuggerUI::InitializeUI()
 			"Step return",
 			[](BinaryView* view, uint64_t){
 					DebuggerController* controller = DebuggerController::GetController(view);
+					if (!controller)
+						return;
 					controller->StepReturn();
 				},
 			ConnectedAndStopped);
@@ -557,6 +571,8 @@ void DebuggerUI::InitializeUI()
 			"Pause the target",
 			[](BinaryView* view, uint64_t){
 					DebuggerController* controller = DebuggerController::GetController(view);
+					if (!controller)
+						return;
 					controller->Pause();
 				},
 			ConnectedAndRunning);

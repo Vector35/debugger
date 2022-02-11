@@ -61,7 +61,8 @@ static void API_OBJECT_FREE(T* obj)
 
 BNDebuggerController* BNGetDebuggerController(BNBinaryView* data)
 {
-	return DebuggerController::GetController(new BinaryView(data))->GetAPIObject();
+	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	return DebuggerController::GetController(view)->GetAPIObject();
 }
 
 
