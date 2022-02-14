@@ -63,3 +63,5 @@ set_target_properties(debuggerapi PROPERTIES
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/out)
 
 include_directories(../vendor)
+
+add_subdirectory(python)
