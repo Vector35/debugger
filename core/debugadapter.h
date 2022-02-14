@@ -11,9 +11,11 @@
 #include "binaryninjaapi.h"
 #include <fmt/format.h>
 #include "../api/ffi.h"
+#include "ffi_global.h"
 #include "debuggercommon.h"
 #include "debuggerevent.h"
 
+DECLARE_DEBUGGER_API_OBJECT(BNDebugAdapter, DebugAdapter);
 
 using namespace BinaryNinja;
 

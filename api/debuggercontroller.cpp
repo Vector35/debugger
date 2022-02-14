@@ -237,7 +237,7 @@ DebugStopReason DebuggerController::StepOver(BNFunctionGraphType il)
 
 DebugStopReason DebuggerController::StepReturn()
 {
-	return BNDebuggerStepOver(m_object);
+	return BNDebuggerStepReturn(m_object);
 }
 
 

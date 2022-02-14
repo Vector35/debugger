@@ -3,6 +3,9 @@
 #include "binaryninjaapi.h"
 #include "debugadapter.h"
 #include "../api/ffi.h"
+#include "ffi_global.h"
+
+DECLARE_DEBUGGER_API_OBJECT(BNDebugAdapterType, DebugAdapterType);
 
 namespace BinaryNinjaDebugger
 {

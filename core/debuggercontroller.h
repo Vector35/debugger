@@ -3,7 +3,9 @@
 #include "debuggerstate.h"
 #include "debuggerevent.h"
 #include <queue>
-//#include "../api/ffi.h"
+#include "ffi_global.h"
+
+DECLARE_DEBUGGER_API_OBJECT(BNDebuggerController, DebuggerController);
 
 namespace BinaryNinjaDebugger
 {

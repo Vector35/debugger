@@ -1,11 +1,14 @@
 #pragma once
 
 #include "binaryninjaapi.h"
-#include "uitypes.h"
+#include "ui/uitypes.h"
 #include "processview.h"
 #include "debugadaptertype.h"
 #include "debuggercommon.h"
 #include "semaphore.h"
+#include "ffi_global.h"
+
+DECLARE_DEBUGGER_API_OBJECT(BNDebuggerState, DebuggerState);
 
 namespace BinaryNinjaDebugger
 {

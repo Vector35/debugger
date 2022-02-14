@@ -1,20 +1,4 @@
 #pragma once
-#include "binaryninjaapi.h"
-
-using namespace BinaryNinja;
-
-// Define macros for defining objects exposed by the API
-#define DECLARE_DEBUGGER_API_OBJECT(handle, cls) \
-	namespace BinaryNinjaDebugger{ class cls; } struct handle { BinaryNinjaDebugger::cls* object; }
-#define IMPLEMENT_DEBUGGER_API_OBJECT(handle) \
-	private: handle m_apiObject; public: typedef handle* APIHandle; handle* GetAPIObject() { return &m_apiObject; } private:
-#define INIT_DEBUGGER_API_OBJECT() \
-	m_apiObject.object = this;
-
-DECLARE_DEBUGGER_API_OBJECT(BNDebuggerController, DebuggerController);
-DECLARE_DEBUGGER_API_OBJECT(BNDebugAdapterType, DebugAdapterType);
-DECLARE_DEBUGGER_API_OBJECT(BNDebugAdapter, DebugAdapter);
-DECLARE_DEBUGGER_API_OBJECT(BNDebuggerState, DebuggerState);
 
 #ifdef __cplusplus
 extern "C"
@@ -38,6 +22,16 @@ extern "C"
 #define DEBUGGER_FFI_API
 #endif // _MSC_VER
 #endif // __GNUC__C
+
+	struct BNDebuggerController;
+	struct BNDebugAdapterType;
+	struct BNDebugAdapter;
+	struct BNDebuggerState;
+
+	struct BNBinaryView;
+	struct BNArchitecture;
+	struct BNDataBuffer;
+	enum BNFunctionGraphType;
 
 	struct BNDebugThread
 	{
@@ -83,7 +77,7 @@ extern "C"
 	};
 
 
-	enum class BNDebugStopReason
+	enum BNDebugStopReason
 	{
 		UnknownReason = 0,
 		InitialBreakpoint,
@@ -280,8 +274,8 @@ extern "C"
 	DEBUGGER_FFI_API void BNDebuggerLaunchOrConnect(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerGo(BNDebuggerController* controller);
-	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepInto(BNDebuggerController* controller, BNFunctionGraphType il = NormalFunctionGraph);
-	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepOver(BNDebuggerController* controller, BNFunctionGraphType il = NormalFunctionGraph);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepInto(BNDebuggerController* controller, BNFunctionGraphType il);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepOver(BNDebuggerController* controller, BNFunctionGraphType il);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepReturn(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepTo(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
 
