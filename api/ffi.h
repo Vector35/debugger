@@ -237,6 +237,11 @@ extern "C"
 	};
 
 
+	DEBUGGER_FFI_API char* BNDebuggerAllocString(const char* string);
+	DEBUGGER_FFI_API char** BNDebuggerAllocStringList(const char** stringList, size_t count);
+	DEBUGGER_FFI_API void BNDebuggerFreeString(char* string);
+	DEBUGGER_FFI_API void BNDebuggerFreeStringList(char** stringList, size_t count);
+
 	DEBUGGER_FFI_API BNDebuggerController* BNGetDebuggerController(BNBinaryView* data);
 	DEBUGGER_FFI_API BNBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller);

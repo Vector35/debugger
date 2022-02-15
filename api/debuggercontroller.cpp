@@ -254,7 +254,7 @@ std::string DebuggerController::GetAdapterType()
 		return "";
 
 	std::string result = adapter;
-	BNFreeString(adapter);
+	BNDebuggerFreeString(adapter);
 
 	return result;
 }
@@ -285,7 +285,7 @@ std::string DebuggerController::GetRemoteHost()
 		return "";
 
 	std::string result = host;
-	BNFreeString(host);
+	BNDebuggerFreeString(host);
 	return result;
 }
 
@@ -303,7 +303,7 @@ std::string DebuggerController::GetExecutablePath()
 		return "";
 
 	std::string result = path;
-	BNFreeString(path);
+	BNDebuggerFreeString(path);
 	return result;
 }
 
@@ -321,7 +321,7 @@ std::string DebuggerController::GetCommandLineArguments()
 		return "";
 
 	std::string result = args;
-	BNFreeString(args);
+	BNDebuggerFreeString(args);
 	return result;
 }
 
@@ -426,7 +426,7 @@ ModuleNameAndOffset DebuggerController::AbsoluteAddressToRelative(uint64_t addre
 	ModuleNameAndOffset result;
 	result.module = addr.module;
 	result.offset = addr.offset;
-	BNFreeString(addr.module);
+	BNDebuggerFreeString(addr.module);
 	return result;
 }
 
@@ -462,19 +462,19 @@ void DebuggerController::DebuggerEventCallback(void* ctxt, const BNDebuggerEvent
 	evt.data.targetStoppedData.data = event.data.targetStoppedData.data;
 
 	evt.data.errorData.error = string(event.data.errorData.error);
-	BNFreeString(event.data.errorData.error);
+	BNDebuggerFreeString(event.data.errorData.error);
 	evt.data.errorData.data = event.data.errorData.data;
 
 	evt.data.exitData.exitCode = event.data.exitData.exitCode;
 
 	evt.data.relativeAddress.module = string(event.data.relativeAddress.module);
-	BNFreeString(event.data.relativeAddress.module);
+	BNDebuggerFreeString(event.data.relativeAddress.module);
 	evt.data.relativeAddress.offset = event.data.relativeAddress.offset;
 
 	evt.data.absoluteAddress = event.data.absoluteAddress;
 
 	evt.data.messageData.message = string (event.data.messageData.message);
-	BNFreeString(event.data.messageData.message);
+	BNDebuggerFreeString(event.data.messageData.message);
 
 	object->action(evt);
 }

@@ -289,7 +289,7 @@ int main(int argc, char* argv[])
 	fprintf(out, "		return arg.decode('utf8')\n\n");
 
 	fprintf(out, "def free_string(value:ctypes.c_char_p) -> None:\n");
-	fprintf(out, "	BNFreeString(ctypes.cast(value, ctypes.POINTER(ctypes.c_byte)))\n\n");
+	fprintf(out, "	BNDebuggerFreeString(ctypes.cast(value, ctypes.POINTER(ctypes.c_byte)))\n\n");
 
 	// Create type objects
 	fprintf(out, "# Type definitions\n");
@@ -324,10 +324,14 @@ int main(int argc, char* argv[])
 		}
 		else if (i.second->GetClass() == EnumerationTypeClass)
 		{
-			if (name.size() > 16 && name.substr(0, 16) == "_BNDebugger")
-				name = name.substr(16);
-			if (name.size() > 15 && name.substr(0, 15) == "BNDebugger")
-				name = name.substr(15);
+			if (name.size() > 16 && name.substr(0, 11) == "_BNDebugger")
+				name = name.substr(11);
+			else if (name.size() > 15 && name.substr(0, 10) == "BNDebugger")
+				name = name.substr(10);
+			else if (name.size() > 15 && name.substr(0, 7) == "BNDebug")
+				name = name.substr(7);
+			else
+				continue;
 
 			fprintf(out, "%sEnum = ctypes.c_int\n", name.c_str());
 
@@ -445,14 +449,14 @@ int main(int argc, char* argv[])
 
 		// From python -> C python3 requires str -> str.encode('charmap')
 		bool swizzleArgs = true;
-		if (name == "BNFreeString")
+		if (name == "BNDebuggerFreeString")
 			swizzleArgs = false;
 
 		bool callbackConvention = false;
-		if (name == "BNAllocString")
+		if (name == "BNDebuggerAllocString")
 		{
 			// Don't perform automatic wrapping of string allocation, and return a void
-			// pointer so that callback functions (which is the only valid use of BNAllocString)
+			// pointer so that callback functions (which is the only valid use of BNDebuggerAllocString)
 			// can properly return the result
 			stringResult = false;
 			callbackConvention = true;
@@ -473,9 +477,9 @@ int main(int argc, char* argv[])
 			for (auto& j : i.second->GetParameters())
 			{
 				fprintf(out, "\t\t");
-				if (name == "BNFreeString")
+				if (name == "BNDebuggerFreeString")
 				{
-					// BNFreeString expects a pointer to a string allocated by the core, so do not use
+					// BNDebuggerFreeString expects a pointer to a string allocated by the core, so do not use
 					// a c_char_p here, as that would be allocated by the Python runtime.  This can
 					// be enforced by outputting like a return value.
 					OutputType(out, j.type, true);
@@ -583,7 +587,7 @@ int main(int argc, char* argv[])
 			fprintf(out, "\tif not result:\n");
 			fprintf(out, "\t\treturn None\n");
 			fprintf(out, "\tstring = str(pyNativeStr(ctypes.cast(result, ctypes.c_char_p).value))\n");
-			fprintf(out, "\tBNFreeString(result)\n");
+			fprintf(out, "\tBNDebuggerFreeString(result)\n");
 			fprintf(out, "\treturn string\n");
 		}
 		else if (pointerResult)
@@ -602,8 +606,6 @@ int main(int argc, char* argv[])
 		}
 		fprintf(out, "\n\n");
 	}
-
-	fprintf(out, "\nmax_confidence = %d\n", BN_FULL_CONFIDENCE);
 
 	fprintf(out, "\n# Helper functions\n");
 	fprintf(out, "def handle_of_type(value, handle_type):\n");

@@ -59,6 +59,31 @@ static void API_OBJECT_FREE(T* obj)
 }
 
 
+char* BNDebuggerAllocString(const char* contents)
+{
+	return BNDebuggerAllocString(contents);
+}
+
+
+void BNDebuggerFreeString(char* str)
+{
+	BNDebuggerFreeString(str);
+}
+
+
+char** BNDebuggerAllocStringList(const char** contents, size_t size)
+{
+	return BNDebuggerAllocStringList(contents, size);
+}
+
+
+void BNDebuggerFreeStringList(char** strs, size_t count)
+{
+	BNDebuggerFreeStringList(strs, count);
+}
+
+
+
 BNDebuggerController* BNGetDebuggerController(BNBinaryView* data)
 {
 	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
@@ -168,8 +193,8 @@ BNDebugModule* BNDebuggerGetModules(BNDebuggerController* controller, size_t* si
 	for (size_t i = 0; i < modules.size(); i++)
 	{
 		results[i].m_address = modules[i].m_address;
-		results[i].m_name = BNAllocString(modules[i].m_name.c_str());
-		results[i].m_short_name = BNAllocString(modules[i].m_short_name.c_str());
+		results[i].m_name = BNDebuggerAllocString(modules[i].m_name.c_str());
+		results[i].m_short_name = BNDebuggerAllocString(modules[i].m_short_name.c_str());
 		results[i].m_size = modules[i].m_size;
 		results[i].m_loaded = modules[i].m_loaded;
 	}
@@ -182,8 +207,8 @@ void BNDebuggerFreeModules(BNDebugModule* modules, size_t count)
 {
 	for (size_t i = 0; i < count; i++)
 	{
-		BNFreeString(modules[i].m_name);
-		BNFreeString(modules[i].m_short_name);
+		BNDebuggerFreeString(modules[i].m_name);
+		BNDebuggerFreeString(modules[i].m_short_name);
 	}
 	delete[] modules;
 }
@@ -198,11 +223,11 @@ BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t
 
 	for (size_t i = 0; i < registers.size(); i++)
 	{
-		results[i].m_name = BNAllocString(registers[i].m_name.c_str());
+		results[i].m_name = BNDebuggerAllocString(registers[i].m_name.c_str());
 		results[i].m_value = registers[i].m_value;
 		results[i].m_width = registers[i].m_width;
 		results[i].m_registerIndex = registers[i].m_registerIndex;
-		results[i].m_hint = BNAllocString(registers[i].m_hint.c_str());
+		results[i].m_hint = BNDebuggerAllocString(registers[i].m_hint.c_str());
 	}
 
 	return results;
@@ -213,8 +238,8 @@ void BNDebuggerFreeRegisters(BNDebugRegister* registers, size_t count)
 {
 	for (size_t i = 0; i < count; i++)
 	{
-		BNFreeString(registers[i].m_name);
-		BNFreeString(registers[i].m_hint);
+		BNDebuggerFreeString(registers[i].m_name);
+		BNDebuggerFreeString(registers[i].m_hint);
 	}
 	delete[] registers;
 }
@@ -318,7 +343,7 @@ char* BNDebuggerGetAdapterType(BNDebuggerController* controller)
 	if (!controller->object->GetState())
 		return nullptr;
 
-	return BNAllocString(controller->object->GetState()->GetAdapterType().c_str());
+	return BNDebuggerAllocString(controller->object->GetState()->GetAdapterType().c_str());
 }
 
 
@@ -370,13 +395,13 @@ char** BNGetAvailableDebugAdapterTypes(BNBinaryView* data, size_t* count)
 		cstrings.push_back(str.c_str());
 	}
 	*count = adapters.size();
-	return BNAllocStringList(cstrings.data(), *count);
+	return BNDebuggerAllocStringList(cstrings.data(), *count);
 }
 
 
 char* BNDebuggerGetRemoteHost(BNDebuggerController* controller)
 {
-	return BNAllocString(controller->object->GetState()->GetRemoteHost().c_str());
+	return BNDebuggerAllocString(controller->object->GetState()->GetRemoteHost().c_str());
 }
 
 
@@ -388,7 +413,7 @@ uint32_t BNDebuggerGetRemotePort(BNDebuggerController* controller)
 
 char* BNDebuggerGetExecutablePath(BNDebuggerController* controller)
 {
-	return BNAllocString(controller->object->GetState()->GetExecutablePath().c_str());
+	return BNDebuggerAllocString(controller->object->GetState()->GetExecutablePath().c_str());
 }
 
 
@@ -400,7 +425,7 @@ bool BNDebuggerGetRequestTerminalEmulator(BNDebuggerController* controller)
 
 char* BNDebuggerGetCommandLineArguments(BNDebuggerController* controller)
 {
-	return BNAllocString(controller->object->GetState()->GetCommandLineArguments().c_str());
+	return BNDebuggerAllocString(controller->object->GetState()->GetCommandLineArguments().c_str());
 }
 
 
@@ -459,7 +484,7 @@ BNDebugBreakpoint* BNDebuggerGetBreakpoints(BNDebuggerController* controller, si
 				break;
 			}
 		}
-		result[i].module = BNAllocString(breakpoints[i].module.c_str());
+		result[i].module = BNDebuggerAllocString(breakpoints[i].module.c_str());
 		result[i].offset = breakpoints[i].offset;
 		result[i].address = remoteAddress;
 		result[i].enabled = enabled;
@@ -472,7 +497,7 @@ void BNDebuggerFreeBreakpoints(BNDebugBreakpoint* breakpoints, size_t count)
 {
 	for (size_t i = 0; i < count; i++)
 	{
-		BNFreeString(breakpoints[i].module);
+		BNDebuggerFreeString(breakpoints[i].module);
 	}
 	delete[] breakpoints;
 }
@@ -571,7 +596,7 @@ BNModuleNameAndOffset BNDebuggerAbsoluteAddressToRelative(BNDebuggerController* 
 		return result;
 
 	ModuleNameAndOffset addr = modules->AbsoluteAddressToRelative(address);
-	result.module = BNAllocString(addr.module.c_str());
+	result.module = BNDebuggerAllocString(addr.module.c_str());
 	result.offset = addr.offset;
 	return result;
 }
@@ -596,17 +621,17 @@ size_t BNDebuggerRegisterEventCallback(BNDebuggerController* controller,
 		evt.data.targetStoppedData.lastActiveThread = event.data.targetStoppedData.lastActiveThread;
 		evt.data.targetStoppedData.data = event.data.targetStoppedData.data;
 
-		evt.data.errorData.error = BNAllocString(event.data.errorData.error.c_str());
+		evt.data.errorData.error = BNDebuggerAllocString(event.data.errorData.error.c_str());
 		evt.data.errorData.data = event.data.errorData.data;
 
 		evt.data.exitData.exitCode = event.data.exitData.exitCode;
 
-		evt.data.relativeAddress.module = BNAllocString(event.data.relativeAddress.module.c_str());
+		evt.data.relativeAddress.module = BNDebuggerAllocString(event.data.relativeAddress.module.c_str());
 		evt.data.relativeAddress.offset = event.data.relativeAddress.offset;
 
 		evt.data.absoluteAddress = event.data.absoluteAddress;
 
-		evt.data.messageData.message = BNAllocString(event.data.messageData.message.c_str());
+		evt.data.messageData.message = BNDebuggerAllocString(event.data.messageData.message.c_str());
 
 		callback(ctx, evt);
 	});

@@ -45,6 +45,6 @@ std::vector<std::string> DebugAdapterType::GetAvailableAdapters(Ref<BinaryView> 
 		result.push_back(adapters[i]);
 	}
 
-	BNFreeStringList(adapters, count);
+	BNDebuggerFreeStringList(adapters, count);
 	return result;
 }
