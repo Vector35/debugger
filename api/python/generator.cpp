@@ -325,11 +325,11 @@ int main(int argc, char* argv[])
 		else if (i.second->GetClass() == EnumerationTypeClass)
 		{
 			if (name.size() > 16 && name.substr(0, 11) == "_BNDebugger")
-				name = name.substr(11);
+				name = name.substr(3);
 			else if (name.size() > 15 && name.substr(0, 10) == "BNDebugger")
-				name = name.substr(10);
+				name = name.substr(2);
 			else if (name.size() > 15 && name.substr(0, 7) == "BNDebug")
-				name = name.substr(7);
+				name = name.substr(2);
 			else
 				continue;
 
