@@ -18,6 +18,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
+import ctypes
 
 import binaryninja
 import debugger
@@ -27,8 +28,20 @@ from . import _debuggercore as dbgcore
 class DebuggerController:
 
     def __init__(self, bv: binaryninja.BinaryView):
-        self.handle = dbgcore.BNGetDebuggerController(bv.handle)
+        # bv.handle has type binaryninja.core.BNBinaryView, which is different from dbgcore.BNBinaryView,
+        # so the casting here is necessary
+        # A different way to deal with is that instead of defining a BNBinaryView struct in the _debuggercore.py,
+        # do from binaryninja._binaryninjacore import BNBinaryView
+        bv_obj = ctypes.cast(bv.handle, ctypes.POINTER(dbgcore.BNBinaryView))
+        self.handle = dbgcore.BNGetDebuggerController(bv_obj)
 
     @property
     def connected(self) -> bool:
         return dbgcore.BNDebuggerIsConnected(self.handle)
+
+    @property
+    def data(self) -> binaryninja.BinaryView:
+        result = ctypes.cast(dbgcore.BNDebuggerGetData(self.handle), ctypes.POINTER(binaryninja.core.BNBinaryView))
+        if result is None:
+            return None
+        return binaryninja.BinaryView(handle=result)
