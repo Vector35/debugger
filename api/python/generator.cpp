@@ -111,10 +111,14 @@ void OutputType(FILE* out, Type* type, bool isReturnType = false, bool isCallbac
 		if (type->GetNamedTypeReference()->GetTypeReferenceClass() == EnumNamedTypeClass)
 		{
 			string name = type->GetNamedTypeReference()->GetName().GetString();
-			if (name.size() > 16 && name.substr(0, 16) == "_BNDebugger")
-				name = name.substr(16);
-			if (name.size() > 15 && name.substr(0, 15) == "BNDebugger")
-				name = name.substr(15);
+			if (name.size() > 16 && name.substr(0, 11) == "_BNDebugger")
+				name = name.substr(3);
+			else if (name.size() > 15 && name.substr(0, 10) == "BNDebugger")
+				name = name.substr(2);
+			else if (name.size() > 15 && name.substr(0, 7) == "BNDebug")
+				name = name.substr(2);
+			else if (name.size() > 2 && name.substr(0, 2) == "BN")
+				name = name.substr(2);
 			fprintf(out, "%sEnum", name.c_str());
 		}
 		else
@@ -181,10 +185,14 @@ void OutputSwizzledType(FILE* out, Type* type)
 		if (type->GetNamedTypeReference()->GetTypeReferenceClass() == EnumNamedTypeClass)
 		{
 			string name = type->GetNamedTypeReference()->GetName().GetString();
-			if (name.size() > 16 && name.substr(0, 16) == "_BNDebugger")
-				name = name.substr(16);
-			if (name.size() > 15 && name.substr(0, 15) == "BNDebugger")
-				name = name.substr(15);
+			if (name.size() > 16 && name.substr(0, 11) == "_BNDebugger")
+				name = name.substr(3);
+			else if (name.size() > 15 && name.substr(0, 10) == "BNDebugger")
+				name = name.substr(2);
+			else if (name.size() > 15 && name.substr(0, 7) == "BNDebug")
+				name = name.substr(2);
+			else if (name.size() > 2 && name.substr(0, 2) == "BN")
+				name = name.substr(2);
 			fprintf(out, "%sEnum", name.c_str());
 		}
 		else
@@ -324,14 +332,26 @@ int main(int argc, char* argv[])
 		}
 		else if (i.second->GetClass() == EnumerationTypeClass)
 		{
+			bool isBNAPIEnum = false;
 			if (name.size() > 16 && name.substr(0, 11) == "_BNDebugger")
 				name = name.substr(3);
 			else if (name.size() > 15 && name.substr(0, 10) == "BNDebugger")
 				name = name.substr(2);
 			else if (name.size() > 15 && name.substr(0, 7) == "BNDebug")
 				name = name.substr(2);
+			else if (name.size() > 2 && name.substr(0, 2) == "BN")
+			{
+				name = name.substr(2);
+				isBNAPIEnum = true;
+			}
 			else
 				continue;
+
+			if (isBNAPIEnum)
+			{
+				fprintf(out, "from binaryninja._binaryninjacore import %sEnum\n", name.c_str());
+				continue;
+			}
 
 			fprintf(out, "%sEnum = ctypes.c_int\n", name.c_str());
 

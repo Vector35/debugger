@@ -1,1 +1,1 @@
-from .debugger import *
+from .debuggercontroller import *
