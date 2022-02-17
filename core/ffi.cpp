@@ -61,25 +61,25 @@ static void API_OBJECT_FREE(T* obj)
 
 char* BNDebuggerAllocString(const char* contents)
 {
-	return BNDebuggerAllocString(contents);
+	return BNAllocString(contents);
 }
 
 
 void BNDebuggerFreeString(char* str)
 {
-	BNDebuggerFreeString(str);
+	BNFreeString(str);
 }
 
 
 char** BNDebuggerAllocStringList(const char** contents, size_t size)
 {
-	return BNDebuggerAllocStringList(contents, size);
+	return BNAllocStringList(contents, size);
 }
 
 
 void BNDebuggerFreeStringList(char** strs, size_t count)
 {
-	BNDebuggerFreeStringList(strs, count);
+	BNFreeStringList(strs, count);
 }
 
 
