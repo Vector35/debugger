@@ -7,7 +7,7 @@
 #include <QLineEdit>
 #include "binaryninjaapi.h"
 #include "uicontext.h"
-#include "../api/debuggerapi.h"
+#include "debuggerapi.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 

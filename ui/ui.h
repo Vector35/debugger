@@ -8,7 +8,7 @@
 #include "binaryninjaapi.h"
 #include "uicontext.h"
 #include "debuggerwidget.h"
-#include "../api/debuggerapi.h"
+#include "debuggerapi.h"
 
 
 class DebuggerUI: public QObject

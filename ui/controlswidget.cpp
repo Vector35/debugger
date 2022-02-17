@@ -5,7 +5,6 @@
 #include "disassemblyview.h"
 #include "ui.h"
 #include <thread>
-#include "../api/debuggerapi.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;

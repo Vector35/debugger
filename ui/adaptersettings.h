@@ -10,7 +10,7 @@
 #include "binaryninjaapi.h"
 #include "viewframe.h"
 #include "fontsettings.h"
-#include "../api/debuggerapi.h"
+#include "debuggerapi.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 

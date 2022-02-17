@@ -11,7 +11,7 @@
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "theme.h"
-#include "../api/debuggerapi.h"
+#include "debuggerapi.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 

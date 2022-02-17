@@ -18,7 +18,7 @@
 #include "threadswidget.h"
 #include "controlswidget.h"
 #include "ui.h"
-#include "../api/debuggerapi.h"
+#include "debuggerapi.h"
 
 class DebuggerUI;
 
