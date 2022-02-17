@@ -371,6 +371,7 @@ std::vector<DebugBreakpoint> DebuggerController::GetBreakpoints()
 		bp.offset = breakpoints[i].offset;
 		bp.address = breakpoints[i].address;
 		bp.enabled = breakpoints[i].enabled;
+		result[i] = bp;
 	}
 
 	BNDebuggerFreeBreakpoints(breakpoints, count);
