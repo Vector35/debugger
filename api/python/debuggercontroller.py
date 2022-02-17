@@ -21,7 +21,7 @@
 import ctypes
 
 import binaryninja
-import debugger
+# import debugger
 from . import _debuggercore as dbgcore
 from .enums import *
 
@@ -81,7 +81,7 @@ class DebuggerController:
     def step_return(self) -> DebugStopReason:
         return dbgcore.BNDebuggerStepReturn(self.handle)
 
-    def step_to(self, address: list(int)) -> DebugStopReason:
+    def step_to(self, address: list[int]) -> DebugStopReason:
         addr_list = (ctypes.c_uint64 * len(address))()
         for i in range(len(address)):
             addr_list[i] = address[i]
