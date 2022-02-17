@@ -23,6 +23,7 @@ import ctypes
 import binaryninja
 import debugger
 from . import _debuggercore as dbgcore
+from .enums import *
 
 
 class DebuggerController:
@@ -36,12 +37,52 @@ class DebuggerController:
         self.handle = dbgcore.BNGetDebuggerController(bv_obj)
 
     @property
-    def connected(self) -> bool:
-        return dbgcore.BNDebuggerIsConnected(self.handle)
-
-    @property
     def data(self) -> binaryninja.BinaryView:
         result = ctypes.cast(dbgcore.BNDebuggerGetData(self.handle), ctypes.POINTER(binaryninja.core.BNBinaryView))
         if result is None:
             return None
         return binaryninja.BinaryView(handle=result)
+
+    @property
+    def livew_view(self) -> binaryninja.BinaryView:
+        result = ctypes.cast(dbgcore.BNDebuggerGetLiveView(self.handle), ctypes.POINTER(binaryninja.core.BNBinaryView))
+        if result is None:
+            return None
+        return binaryninja.BinaryView(handle=result)
+
+    @property
+    def remote_arch(self) -> binaryninja.Architecture:
+        result = ctypes.cast(dbgcore.BNDebuggerGetRemoteArchitecture(self.handle), ctypes.POINTER(binaryninja.core.BNArchitecture))
+        if result is None:
+            return None
+        return binaryninja.CoreArchitecture(handle=result)
+
+    @property
+    def connected(self) -> bool:
+        return dbgcore.BNDebuggerIsConnected(self.handle)
+
+    @property
+    def running(self) -> bool:
+        return dbgcore.BNDebuggerIsRunning(self.handle)
+
+    # target control
+    def launch(self):
+        dbgcore.BNDebuggerLaunch(self.handle)
+
+    def go(self) -> DebugStopReason:
+        return dbgcore.BNDebuggerGo(self.handle)
+
+    def step_into(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
+        return dbgcore.BNDebuggerStepInto(self.handle, il)
+
+    def step_over(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
+        return dbgcore.BNDebuggerStepOver(self.handle, il)
+
+    def step_return(self) -> DebugStopReason:
+        return dbgcore.BNDebuggerStepReturn(self.handle)
+
+    def step_to(self, address: list(int)) -> DebugStopReason:
+        addr_list = (ctypes.c_uint64 * len(address))()
+        for i in range(len(address)):
+            addr_list[i] = address[i]
+        return dbgcore.BNDebuggerStepTo(self.handle, addr_list, len(address))
