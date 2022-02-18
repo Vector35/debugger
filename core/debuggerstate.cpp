@@ -77,7 +77,7 @@ static std::string CheckForPrintableString(const DataBuffer& memory)
 	size_t printableChars = 0;
 	for (size_t i = 0; i < reg_string.size(); i++)
 	{
-		unsigned char c = reg_string[i];
+		int c = reg_string[i];
 		if (c == '\n' || std::isprint(c))
 			printableChars++;
 		else
