@@ -50,6 +50,9 @@ class DebugThread:
         except AttributeError:
             raise AttributeError(f"attribute '{name}' is read only")
 
+    def __repr__(self):
+        return f"<DebugThread: {self.tid:#x} @ {self.rip:#x}>"
+
 
 class DebugModule:
     def __init__(self, name, short_name, address, size, loaded):
@@ -83,6 +86,9 @@ class DebugModule:
         except AttributeError:
             raise AttributeError(f"attribute '{name}' is read only")
 
+    def __repr__(self):
+        return f"<DebugModule: {self.name}, {self.address:#x}, {self.size:#x}>"
+
 
 class DebugRegister:
     def __init__(self, name, value, width, index, hint):
@@ -112,6 +118,10 @@ class DebugRegister:
         except AttributeError:
             raise AttributeError(f"attribute '{name}' is read only")
 
+    def __repr__(self):
+        hint_str = f", {self.hint}" if self.hint != '' else ''
+        return f"<DebugRegister: {self.name}, {self.value:#x}{hint_str}>"
+
 
 class DebugBreakpoint:
     def __init__(self, module, offset, address, enabled):
@@ -139,6 +149,9 @@ class DebugBreakpoint:
             object.__setattr__(self, name, value)
         except AttributeError:
             raise AttributeError(f"attribute '{name}' is read only")
+
+    def __repr__(self):
+        return f"<DebugBreakpoint: {self.module}:{self.offset:#x}, {self.address:#x}>"
 
 
 class ModuleNameAndOffset:
@@ -198,7 +211,7 @@ class DebuggerController:
         return binaryninja.BinaryView(handle=result)
 
     @property
-    def livew_view(self) -> binaryninja.BinaryView:
+    def live_view(self) -> binaryninja.BinaryView:
         result = ctypes.cast(dbgcore.BNDebuggerGetLiveView(self.handle), ctypes.POINTER(binaryninja.core.BNBinaryView))
         if result is None:
             return None
@@ -218,6 +231,65 @@ class DebuggerController:
     @property
     def running(self) -> bool:
         return dbgcore.BNDebuggerIsRunning(self.handle)
+
+    @property
+    def stack_pointer(self) -> int:
+        return dbgcore.BNDebuggerGetStackPointer(self.handle)
+
+    def read_memory(self, address: int, size: int) -> binaryninja.DataBuffer:
+        buffer = ctypes.cast(dbgcore.BNDebuggerReadMemory(self.handle, address, size), ctypes.POINTER(binaryninja.core.BNDataBuffer))
+        if buffer is None:
+            return None
+        return binaryninja.DataBuffer(buffer)
+
+    def write_memory(self, address: int, buffer: binaryninja.DataBuffer) -> bool:
+        buffer_obj = ctypes.cast(buffer.handle, ctypes.POINTER(dbgcore.BNDataBuffer))
+        return dbgcore.BNDebuggerWriteMemory(self.handle, address, buffer_obj)
+
+    @property
+    def threads(self) -> list[DebugThread]:
+        count = ctypes.c_ulonglong()
+        threads = dbgcore.BNDebuggerGetThreads(self.handle, count)
+        result = []
+        for i in range(0, count.value):
+            bp = DebugThread(threads[i].m_tid, threads[i].m_rip)
+            result.append(bp)
+
+        dbgcore.BNDebuggerFreeThreads(threads, count)
+        return result
+
+    @property
+    def active_thread(self) -> DebugThread:
+        active_thread = dbgcore.BNDebuggerGetActiveThread(self.handle)
+        return DebugThread(active_thread.tid, active_thread.rip)
+
+    @active_thread.setter
+    def active_thread(self, thread: DebugThread) -> None:
+        dbgcore.BNDebuggerSetActiveThread(dbgcore.BNDebugThread(thread.tid, thread.rip))
+
+    @property
+    def modules(self) -> list[DebugModule]:
+        count = ctypes.c_ulonglong()
+        modules = dbgcore.BNDebuggerGetModules(self.handle, count)
+        result = []
+        for i in range(0, count.value):
+            bp = DebugModule(modules[i].m_name, modules[i].m_short_name, modules[i].m_address, modules[i].m_size, modules[i].m_loaded)
+            result.append(bp)
+
+        dbgcore.BNDebuggerFreeModules(modules, count)
+        return result
+
+    @property
+    def regs(self) -> list[DebugRegister]:
+        count = ctypes.c_ulonglong()
+        registers = dbgcore.BNDebuggerGetRegisters(self.handle, count)
+        result = []
+        for i in range(0, count.value):
+            bp = DebugRegister(registers[i].m_name, registers[i].m_value, registers[i].m_width, registers[i].m_registerIndex, registers[i].m_hint)
+            result.append(bp)
+
+        dbgcore.BNDebuggerFreeRegisters(registers, count)
+        return result
 
     # target control
     def launch(self) -> None:
@@ -253,7 +325,13 @@ class DebuggerController:
     def step_return(self) -> DebugStopReason:
         return dbgcore.BNDebuggerStepReturn(self.handle)
 
-    def step_to(self, address: list[int]) -> DebugStopReason:
+    def step_to(self, address) -> DebugStopReason:
+        if isinstance(address, int):
+            address = [address]
+
+        if not isinstance(address, list):
+            raise NotImplementedError
+
         addr_list = (ctypes.c_uint64 * len(address))()
         for i in range(len(address)):
             addr_list[i] = address[i]
@@ -326,3 +404,36 @@ class DebuggerController:
 
         dbgcore.BNDebuggerFreeBreakpoints(breakpoints, count)
         return result
+
+    def delete_breakpoint(self, address):
+        if isinstance(address, int):
+            dbgcore.BNDebuggerDeleteAbsoluteBreakpoint(self.handle, address)
+        elif isinstance(address, ModuleNameAndOffset):
+            dbgcore.BNDebuggerDeleteRelativeBreakpoint(self.handle, address.module, address.offset)
+        else:
+            raise NotImplementedError
+
+    def add_breakpoint(self, address):
+        if isinstance(address, int):
+            dbgcore.BNDebuggerAddAbsoluteBreakpoint(self.handle, address)
+        elif isinstance(address, ModuleNameAndOffset):
+            dbgcore.BNDebuggerAddRelativeBreakpoint(self.handle, address.module, address.offset)
+        else:
+            raise NotImplementedError
+
+    def has_breakpoint(self, address) -> bool:
+        if isinstance(address, int):
+            return dbgcore.BNDebuggerContainsAbsoluteBreakpoint(self.handle, address)
+        elif isinstance(address, ModuleNameAndOffset):
+            return dbgcore.BNDebuggerContainsRelativeBreakpoint(self.handle, address.module, address.offset)
+        else:
+            raise NotImplementedError
+
+    @property
+    def ip(self) -> int:
+        return dbgcore.BNDebuggerGetIP(self.handle)
+
+    @property
+    def last_ip(self) -> int:
+        return dbgcore.BNDebuggerGetLastIP(self.handle)
+
