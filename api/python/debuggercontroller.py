@@ -252,8 +252,16 @@ class DebuggerEventWrapper:
         callback_obj = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(dbgcore.BNDebuggerEvent))\
                                         (lambda ctxt, event: cls._notify(event[0], callback))
         handle = dbgcore.BNDebuggerRegisterEventCallback(controller.handle, callback_obj, None)
-        cls._debugger_events[len(cls._debugger_events)] = callback_obj
+        cls._debugger_events[handle] = callback_obj
         return handle
+
+    @classmethod
+    def remove(cls, controller: 'DebuggerController', index: int) -> None:
+        try:
+            dbgcore.BNDebuggerRemoveEventCallback(controller.handle, index)
+            del cls._debugger_events[index]
+        except:
+            binaryninja.log_error(f'invalid debugger event callback index {index}')
 
     @staticmethod
     def _notify(event: dbgcore.BNDebuggerEvent, callback: DebuggerEventCallback) -> None:
@@ -524,4 +532,4 @@ class DebuggerController:
         return DebuggerEventWrapper.register(self, callback)
 
     def remove_event_callback(self, index: int):
-        dbgcore.BNDebuggerRemoveEventCallback(self.handle, index)
+        DebuggerEventWrapper.remove(self, index)
