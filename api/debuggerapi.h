@@ -270,7 +270,7 @@ namespace BinaryNinjaDebuggerAPI
 		ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t address);
 
 		size_t RegisterEventCallback(std::function<void(const DebuggerEvent &event)> callback);
-		static void DebuggerEventCallback(void* ctxt, const BNDebuggerEvent& view);
+		static void DebuggerEventCallback(void* ctxt, BNDebuggerEvent* view);
 
 		void RemoveEventCallback(size_t index);
 	};

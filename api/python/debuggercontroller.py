@@ -19,11 +19,13 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 import ctypes
+import traceback
 
 import binaryninja
 # import debugger
 from . import _debuggercore as dbgcore
 from .enums import *
+from typing import Callable
 
 
 class DebugThread:
@@ -191,6 +193,87 @@ class ModuleNameAndOffset:
             object.__setattr__(self, name, value)
         except AttributeError:
             raise AttributeError(f"attribute '{name}' is read only")
+
+
+class TargetStoppedEventData:
+    def __init__(self, reason: DebugStopReason, last_active_thread: int, exit_code: int, data):
+        self.reason = reason
+        self.last_active_thread = last_active_thread
+        self.exit_code = exit_code
+        self.data = data
+
+
+class ErrorEventData:
+    def __init__(self, error: str, data):
+        self.error = error
+        self.data = data
+
+
+class TargetExitedEventData:
+    def __init__(self, exit_code: int):
+        self.exit_code = exit_code
+
+
+class StdOutMessageEventData:
+    def __init__(self, message: str):
+        self.message = message
+
+
+class DebuggerEventData:
+    def __init__(self, target_stopped_data: TargetStoppedEventData,
+                 error_data: ErrorEventData,
+                 absolute_address: int,
+                 relative_address: ModuleNameAndOffset,
+                 exit_data: TargetExitedEventData,
+                 message_data: StdOutMessageEventData):
+        self.target_stopped_data = target_stopped_data
+        self.error_data = error_data
+        self.absolute_address = absolute_address
+        self.relative_address = relative_address
+        self.exit_data = exit_data
+        self.message_data = message_data
+
+
+class DebuggerEvent:
+    def __init__(self, type: DebuggerEventType, data: DebuggerEventData):
+        self.type = type
+        self.data = data
+
+
+class DebuggerEventWrapper:
+
+    DebuggerEventCallback = Callable[['DebuggerEvent'], None]
+    # This has no functional purposes;
+    # we just need it to stop Python from prematurely freeing the object
+    _debugger_events = {}
+
+    @classmethod
+    def register(cls, controller: 'DebuggerController', callback: DebuggerEventCallback) -> int:
+        callback_obj = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(dbgcore.BNDebuggerEvent))\
+                                        (lambda ctxt, event: cls._notify(event[0], callback))
+        handle = dbgcore.BNDebuggerRegisterEventCallback(controller.handle, callback_obj, None)
+        cls._debugger_events[len(cls._debugger_events)] = callback_obj
+        return handle
+
+    @staticmethod
+    def _notify(event: dbgcore.BNDebuggerEvent, callback: DebuggerEventCallback) -> None:
+        try:
+            data = event.data
+            target_stopped_data = TargetStoppedEventData(data.targetStoppedData.reason,
+                                                         data.targetStoppedData.lastActiveThread,
+                                                         data.targetStoppedData.exitCode,
+                                                         data.targetStoppedData.data)
+            error_data = ErrorEventData(data.errorData.error, data.errorData.data)
+            absolute_addr = data.absoluteAddress
+            relative_addr = ModuleNameAndOffset(data.relativeAddress.module, data.relativeAddress.offset)
+            exit_data = TargetExitedEventData(data.exitData.exitCode)
+            message_data = StdOutMessageEventData(data.messageData.message)
+            event_data = DebuggerEventData(target_stopped_data, error_data, absolute_addr, relative_addr, exit_data,
+                                           message_data)
+            event = DebuggerEvent(event.type, event_data)
+            callback(event)
+        except:
+            binaryninja.log_error(traceback.format_exc())
 
 
 class DebuggerController:
@@ -437,3 +520,8 @@ class DebuggerController:
     def last_ip(self) -> int:
         return dbgcore.BNDebuggerGetLastIP(self.handle)
 
+    def register_event_callback(self, callback) -> int:
+        return DebuggerEventWrapper.register(self, callback)
+
+    def remove_event_callback(self, index: int):
+        dbgcore.BNDebuggerRemoveEventCallback(self.handle, index)

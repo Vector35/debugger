@@ -332,7 +332,7 @@ extern "C"
 
 	// Debugger events
 	DEBUGGER_FFI_API size_t BNDebuggerRegisterEventCallback(BNDebuggerController* controller,
-															void (*callback)(void* ctx, const BNDebuggerEvent& event),
+															void (*callback)(void* ctx, BNDebuggerEvent* event),
 															void* ctx);
 	DEBUGGER_FFI_API void BNDebuggerRemoveEventCallback(BNDebuggerController* controller, size_t index);
 

@@ -452,30 +452,30 @@ size_t DebuggerController::RegisterEventCallback(std::function<void(const Debugg
 }
 
 
-void DebuggerController::DebuggerEventCallback(void* ctxt, const BNDebuggerEvent& event)
+void DebuggerController::DebuggerEventCallback(void* ctxt, BNDebuggerEvent* event)
 {
 	DebuggerEventCallbackObject* object = (DebuggerEventCallbackObject*)ctxt;
 	DebuggerEvent evt;
-	evt.type = event.type;
-	evt.data.targetStoppedData.reason = event.data.targetStoppedData.reason;
-	evt.data.targetStoppedData.exitCode = event.data.targetStoppedData.exitCode;
-	evt.data.targetStoppedData.lastActiveThread = event.data.targetStoppedData.lastActiveThread;
-	evt.data.targetStoppedData.data = event.data.targetStoppedData.data;
+	evt.type = event->type;
+	evt.data.targetStoppedData.reason = event->data.targetStoppedData.reason;
+	evt.data.targetStoppedData.exitCode = event->data.targetStoppedData.exitCode;
+	evt.data.targetStoppedData.lastActiveThread = event->data.targetStoppedData.lastActiveThread;
+	evt.data.targetStoppedData.data = event->data.targetStoppedData.data;
 
-	evt.data.errorData.error = string(event.data.errorData.error);
-	BNDebuggerFreeString(event.data.errorData.error);
-	evt.data.errorData.data = event.data.errorData.data;
+	evt.data.errorData.error = string(event->data.errorData.error);
+	BNDebuggerFreeString(event->data.errorData.error);
+	evt.data.errorData.data = event->data.errorData.data;
 
-	evt.data.exitData.exitCode = event.data.exitData.exitCode;
+	evt.data.exitData.exitCode = event->data.exitData.exitCode;
 
-	evt.data.relativeAddress.module = string(event.data.relativeAddress.module);
-	BNDebuggerFreeString(event.data.relativeAddress.module);
-	evt.data.relativeAddress.offset = event.data.relativeAddress.offset;
+	evt.data.relativeAddress.module = string(event->data.relativeAddress.module);
+	BNDebuggerFreeString(event->data.relativeAddress.module);
+	evt.data.relativeAddress.offset = event->data.relativeAddress.offset;
 
-	evt.data.absoluteAddress = event.data.absoluteAddress;
+	evt.data.absoluteAddress = event->data.absoluteAddress;
 
-	evt.data.messageData.message = string (event.data.messageData.message);
-	BNDebuggerFreeString(event.data.messageData.message);
+	evt.data.messageData.message = string (event->data.messageData.message);
+	BNDebuggerFreeString(event->data.messageData.message);
 
 	object->action(evt);
 }
