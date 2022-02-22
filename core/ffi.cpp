@@ -245,9 +245,15 @@ void BNDebuggerFreeRegisters(BNDebugRegister* registers, size_t count)
 }
 
 
-bool BNDebuggerSetRegisterValue(BNDebuggerController* controller, const char* name, size_t len, uint64_t value)
+bool BNDebuggerSetRegisterValue(BNDebuggerController* controller, const char* name, uint64_t value)
 {
-	return controller->object->SetRegisterValue(std::string(name, len), value);
+	return controller->object->SetRegisterValue(std::string(name), value);
+}
+
+
+uint64_t BNDebuggerGetRegisterValue(BNDebuggerController* controller, const char* name)
+{
+	return controller->object->GetRegisterValue(std::string(name));
 }
 
 

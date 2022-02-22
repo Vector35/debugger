@@ -1000,6 +1000,12 @@ std::vector<DebugRegister> DebuggerController::GetAllRegisters()
 }
 
 
+uint64_t DebuggerController::GetRegisterValue(const std::string &name)
+{
+	return m_state->GetRegisters()->GetRegisterValue(name);
+}
+
+
 bool DebuggerController::SetRegisterValue(const std::string &name, uint64_t value)
 {
 	return m_state->GetRegisters()->SetRegisterValue(name, value);

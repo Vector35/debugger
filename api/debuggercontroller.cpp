@@ -162,9 +162,15 @@ std::vector<DebugRegister> DebuggerController::GetRegisters()
 }
 
 
+uint64_t DebuggerController::GetRegisterValue(const std::string &name)
+{
+	return BNDebuggerGetRegisterValue(m_object, name.c_str());
+}
+
+
 bool DebuggerController::SetRegisterValue(const std::string &name, uint64_t value)
 {
-	return BNDebuggerSetRegisterValue(m_object, name.c_str(), name.size(), value);
+	return BNDebuggerSetRegisterValue(m_object, name.c_str(), value);
 }
 
 
@@ -238,6 +244,12 @@ DebugStopReason DebuggerController::StepOver(BNFunctionGraphType il)
 DebugStopReason DebuggerController::StepReturn()
 {
 	return BNDebuggerStepReturn(m_object);
+}
+
+
+DebugStopReason DebuggerController::StepTo(uint64_t remoteAddresses)
+{
+	return StepTo({remoteAddresses});
 }
 
 

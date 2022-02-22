@@ -1,10 +1,10 @@
 #pragma once
 #include <iostream>
-#include <binaryninjacore.h>
-#include <binaryninjaapi.h>
+#include "binaryninjaapi.h"
 #ifdef WIN32
 #include <windows.h>
 #endif
+#include "fmt/format.h"
 
 namespace Log
 {

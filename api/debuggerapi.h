@@ -218,6 +218,7 @@ namespace BinaryNinjaDebuggerAPI
 
 		std::vector<DebugModule> GetModules();
 		std::vector<DebugRegister> GetRegisters();
+		uint64_t GetRegisterValue(const std::string &name);
 		bool SetRegisterValue(const std::string& name, uint64_t value);
 
 		// target control
@@ -235,6 +236,7 @@ namespace BinaryNinjaDebuggerAPI
 		DebugStopReason StepInto(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepOver(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepReturn();
+		DebugStopReason StepTo(uint64_t remoteAddresses);
 		DebugStopReason StepTo(const std::vector<uint64_t> &remoteAddresses);
 
 		std::string GetAdapterType();

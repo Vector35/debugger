@@ -9,7 +9,7 @@
 #include <highlevelilinstruction.h>
 #include <memory>
 #include "dbgengadapter.h"
-#include "../../cli/src/log.h"
+#include "../../cli/log.h"
 #include "queuedadapter.h"
 #include "../debuggerevent.h"
 #include "ntstatus.h"

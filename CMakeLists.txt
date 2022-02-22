@@ -21,9 +21,6 @@ if(NOT HEADLESS)
 	add_subdirectory(ui)
 endif()
 
-#if(BN_BUILD_CLI_DEBUGGER)
-#	add_subdirectory(cli)
-#endif()
-
-#include_directories(vendor)
-#include_directories(vendor/fmt)
+if(BN_BUILD_CLI_DEBUGGER)
+	add_subdirectory(cli)
+endif()

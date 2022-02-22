@@ -265,7 +265,8 @@ extern "C"
 
 	DEBUGGER_FFI_API BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeRegisters(BNDebugRegister* modules, size_t count);
-	DEBUGGER_FFI_API bool BNDebuggerSetRegisterValue(BNDebuggerController* controller, const char* name, size_t len, uint64_t value);
+	DEBUGGER_FFI_API bool BNDebuggerSetRegisterValue(BNDebuggerController* controller, const char* name, uint64_t value);
+	DEBUGGER_FFI_API uint64_t BNDebuggerGetRegisterValue(BNDebuggerController* controller, const char* name);
 
 	// target control
 	DEBUGGER_FFI_API bool BNDebuggerLaunch(BNDebuggerController* controller);

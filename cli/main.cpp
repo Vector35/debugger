@@ -1,57 +1,57 @@
 #include <iostream>
 #include <thread>
 #include <atomic>
-#include "../../src/debugadapter.h"
-#ifdef WIN32
-#include "../../src/adapters/dbgengadapter.h"
-#endif
-#include "../../src/adapters/gdbadapter.h"
-#include "../../src/adapters/lldbadapter.h"
+#include <sys/stat.h>
+
+#include "binaryninjaapi.h"
+#include "lowlevelilinstruction.h"
+#include "mediumlevelilinstruction.h"
+#include "highlevelilinstruction.h"
+#include "debuggerapi.h"
 #include "log.h"
-#include <binaryninjacore.h>
-#include <binaryninjaapi.h>
-#include <lowlevelilinstruction.h>
-#include <mediumlevelilinstruction.h>
-#include <highlevelilinstruction.h>
+#include "fmt/format.h"
 
 using namespace BinaryNinja;
+using namespace std;
+using namespace BinaryNinjaDebuggerAPI;
 
-void RegisterDisplay(DebugAdapter* debug_adapter)
+
+void RegisterDisplay(DebuggerController* debugger)
 {
-    const auto arch = debug_adapter->GetTargetArchitecture();
-    if ( arch.empty() )
+    const auto arch = debugger->GetRemoteArchitecture();
+    if (!arch)
         return;
 
-    auto all_regs = debug_adapter->ReadAllRegisters();
+    auto all_regs = debugger->GetRegisters();
 
-    auto reg = [debug_adapter, &all_regs](std::string reg_name)
+    auto reg = [debugger](std::string reg_name)
     {
         auto original_name = reg_name;
         reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
 
         return fmt::format("{}{}\033[0m={:016X}", Log::Style( 255, 165, 0 ), original_name,
-                           all_regs[reg_name].m_value);
+						   debugger->GetRegisterValue(reg_name));
     };
 
-    auto reg32 = [debug_adapter, &all_regs](std::string reg_name)
+    auto reg32 = [debugger](std::string reg_name)
     {
         auto original_name = reg_name;
         reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
 
         return fmt::format("{}{}\033[0m={:08X}", Log::Style( 255, 165, 0 ), original_name,
-                           all_regs[reg_name].m_value);
+                           debugger->GetRegisterValue(reg_name));
     };
 
-    auto reg16 = [debug_adapter, &all_regs](std::string reg_name)
+    auto reg16 = [debugger](std::string reg_name)
     {
         auto original_name = reg_name;
         reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
 
         return fmt::format("{}{}\033[0m={:04X}", Log::Style( 255, 165, 0 ), original_name,
-                           all_regs[reg_name].m_value);
+                           debugger->GetRegisterValue(reg_name));
     };
 
-    if ( arch == "x86_64" )
+    if (arch->GetName() == "x86_64" )
     {
         const auto reg_list = fmt::format("{} {} {} {}\n{} {} {} {}\n{} {} {} {}\n{} {} {} {}\n{}\n",
                                           reg("rax"), reg("rbx"), reg("rcx"), reg("rdx"),
@@ -61,17 +61,23 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
                                           reg("rip")  );
         Log::print(reg_list);
 
-        const auto register_list = debug_adapter->GetRegisterList();
+        const auto register_list = debugger->GetRegisters();
 
-        if ( std::find(register_list.begin(), register_list.end(), "rflags") != register_list.end() ) {
-            Log::print(reg("rflags"));
-            Log::print("\n");
-        } else if ( std::find(register_list.begin(), register_list.end(), "eflags") != register_list.end()) {
-            Log::print(reg("eflags"));
-            Log::print("\n");
-        }
+		for (const DebugRegister& r: register_list)
+		{
+			if (r.m_name == "rflags")
+			{
+				Log::print(reg("rflags"));
+				Log::print("\n");
+			}
+			else if (r.m_name == "eflags")
+			{
+				Log::print(reg32("eflags"));
+				Log::print("\n");
+			}
+		}
     }
-    else if ( arch == "x86" )
+    else if (arch->GetName() == "x86" )
     {
         const auto reg_list = fmt::format("{} {} {} {}\n{} {} {} {}\n{} {}\n",
                                           reg32("eax"), reg32("ebx"), reg32("ecx"), reg32("edx"),
@@ -79,13 +85,30 @@ void RegisterDisplay(DebugAdapter* debug_adapter)
                                           reg32("eip"), reg32("eflags") );
         Log::print(reg_list);
     }
-    else
+    else if (arch->GetName() == "aarch64")
+	{
+        const auto reg_list = fmt::format("{} {} {} {}\n{} {} {} {}\n{} {} {} {}\n{} {} {} {}\n"
+										  "{} {} {} {}\n{} {} {} {}\n{} {} {} {}\n{} {} {}\n"
+										  "{} {}\n",
+                                          reg("x0"), reg("x1"), reg("x2"), reg("x3"),
+                                          reg("x4"), reg("x5"), reg("x6"), reg("x7"),
+                                          reg("x8"), reg("x9"), reg("x10"), reg("x11"),
+                                          reg("x12"), reg("x13"), reg("x14"), reg("x15"),
+                                          reg("x16"), reg("x17"), reg("x18"), reg("x19"),
+                                          reg("x20"), reg("x21"), reg("x22"), reg("x23"),
+                                          reg("x24"), reg("x25"), reg("x26"), reg("x27"),
+                                          reg("x28"), reg("x29"), reg("x30"),
+										  reg("pc"), reg("sp"));
+        Log::print(reg_list);
+	}
+	else
     {
         Log::print<Log::Error>("unknown architecture\n");
     }
 }
 
-void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
+
+void DisasmDisplay(DebuggerController* debugger, const std::uint32_t count)
 {
     using namespace BinaryNinja;
 
@@ -95,31 +118,30 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
     std::vector<std::string> hlil_strings{};
 
     std::uintptr_t instruction_increment{};
-    for (std::uint32_t steps{}; steps < reg_count; steps++)
+    for (std::uint32_t steps{}; steps < count; steps++)
     {
-        const auto instruction_offset = debug_adapter->GetInstructionOffset() + instruction_increment;
+        const auto instruction_offset = debugger->IP() + instruction_increment;
         if (!instruction_offset)
             return;
 
-        const auto architecture = Architecture::GetByName(debug_adapter->GetTargetArchitecture());
+        const auto architecture = debugger->GetRemoteArchitecture();
         if (!architecture)
             return;
 
-        const auto data = debug_adapter->ReadMemoryTy<std::array<std::uint8_t, 16>>(instruction_offset);
-        if (!data.has_value())
+        const auto data = debugger->ReadMemory(instruction_offset, 16);
+        if (data.GetLength() == 0)
             return;
 
-        const auto data_value = data.value();
-        std::size_t size{data_value.size()};
+		size_t size = data.GetLength();
         std::vector<InstructionTextToken> instruction_tokens{};
-        if (!architecture->GetInstructionText(data.value().data(), instruction_offset, size, instruction_tokens)) {
+        if (!architecture->GetInstructionText((const uint8_t*)data.GetData(), instruction_offset, size, instruction_tokens)) {
             printf("failed to disassemble\n");
             return;
         }
 
         instruction_increment += size;
 
-        auto data_buffer = DataBuffer(data_value.data(), size);
+        auto data_buffer = DataBuffer(data.GetData(), size);
         Ref<BinaryData> bd = new BinaryData(new FileMetadata(), data_buffer);
         Ref<BinaryView> bv;
         for (const auto& type : BinaryViewType::GetViewTypes())
@@ -141,7 +163,7 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
             #endif
 
             using namespace std::string_literals;
-            if ( arch->GetName() == os + "-"s + debug_adapter->GetTargetArchitecture() )
+            if ( arch->GetName() == os + "-"s + debugger->GetRemoteArchitecture()->GetName() )
             {
                 plat = arch;
                 break;
@@ -253,6 +275,17 @@ void DisasmDisplay(DebugAdapter* debug_adapter, const std::uint32_t reg_count)
         fmt::print("{}", hlil);
 }
 
+
+bool is_file(const char* fname)
+{
+	struct stat buf;
+	if (stat(fname, &buf) == 0 && (buf.st_mode & S_IFREG) == S_IFREG)
+		return true;
+
+	return false;
+}
+
+
 int main(int argc, const char* argv[])
 {
     Log::SetupAnsi();
@@ -270,32 +303,61 @@ int main(int argc, const char* argv[])
     SetBundledPluginDirectory(GetBundledPluginDirectory());
     InitPlugins();
 
+	const char* fname = argv[1];
+	if (!is_file(fname))
+	{
+		cerr << "Error: " << fname << " is not a regular file" << endl;
+		exit(-1);
+	}
+
+	SetBundledPluginDirectory(GetBundledPluginDirectory());
+	InitPlugins();
+
+	Ref<BinaryData> bd = new BinaryData(new FileMetadata(argv[1]), argv[1]);
+	Ref<BinaryView> bv;
+	for (auto type : BinaryViewType::GetViewTypes())
+	{
+		if (type->IsTypeValidForData(bd) && type->GetName() != "Raw")
+		{
+			bv = type->Create(bd);
+			break;
+		}
+	}
+
+	if (!bv || bv->GetTypeName() == "Raw")
+	{
+		fprintf(stderr, "Input file does not appear to be an exectuable\n");
+		return -1;
+	}
+
+	bv->UpdateAnalysisAndWait();
+
+	Ref<DebuggerController> debugger = DebuggerController::GetController(bv);
+	if (!debugger)
+		LogError("fail to create a debugger for the binaryview\n");
+
+	if (argc == 2)
+	{
+		debugger->SetExecutablePath(argv[1]);
+		if (!debugger->Launch())
+		{
+			LogError("failed to execute {}\n", argv[1]);
+			return -1;
+		}
+	}
+	else if (argc == 3)
+	{
+		LogError("no attach support at the moment\n");
+//            if (!debug_adapter->Attach(std::stoi(argv[2])))
+//			{
+//                Log::print<Log::Error>("failed to attach {}\n", argv[2]);
+//                return -1;
+//            }
+	}
+
     try
     {
-        auto debug_adapter = new
-        #ifdef WIN32
-        //LldbAdapter();
-        //GdbAdapter();
-        DbgEngAdapter();
-        #else
-        //GdbAdapter();
-        LldbAdapter();
-        #endif
-
-        if (argc == 2) {
-            if (!debug_adapter->Execute(argv[1])) {
-                Log::print<Log::Error>("failed to execute {}\n", argv[1]);
-                return -1;
-            }
-        } else if (argc == 3) {
-            if (!debug_adapter->Attach(std::stoi(argv[2]))) {
-                Log::print<Log::Error>("failed to attach {}\n", argv[2]);
-                return -1;
-            }
-        }
-
-
-        std::thread( [&]{
+		std::thread( [&]{
 #ifdef WIN32
             while ( true )
                 if ( GetAsyncKeyState(VK_F2) & 1 )
@@ -330,7 +392,7 @@ int main(int argc, const char* argv[])
                 };
 
                 print_arg("[F2 KEY]", "breaks in");
-                print_arg(".", "invokes debugger backend", "command");
+//                print_arg(".", "invokes debugger backend", "command");
                 print_arg("lt", "list all threads");
                 print_arg("lm", "list all modules");
                 print_arg("lbp", "list all breakpoints");
@@ -351,16 +413,16 @@ int main(int argc, const char* argv[])
             }
             if ( input[0] == '.' )
             {
-                debug_adapter->Invoke(input.substr(1));
+//                debug_adapter->Invoke(input.substr(1));
             }
             else if ( input == "testwrite" )
             {
-                debug_adapter->WriteRegister("rip",  0);
+                debugger->SetRegisterValue("rip",  0);
             }
             else if ( input == "lm" )
             {
                 Log::print( "[modules]\n" );
-                for ( const auto& module : debug_adapter->GetModuleList() )
+                for ( const auto& module : debugger->GetModules() )
                     Log::print<Log::Info>( "[{}, {}] {} @ 0x{:X} with size 0x{:X}\n",
                                            module.m_name.c_str(), module.m_short_name.c_str(),
                                            module.m_loaded ? "is loaded" : "was unloaded", module.m_address, module.m_size );
@@ -368,86 +430,96 @@ int main(int argc, const char* argv[])
             else if ( input == "lt" )
             {
                 Log::print( "[threads]\n" );
-                for ( const auto& thread : debug_adapter->GetThreadList() )
+                for ( const auto& thread : debugger->GetThreads() )
                     Log::print<Log::Info>( "tid {}, rip=0x{:x}\n", thread.m_tid, thread.m_rip );
             }
             else if (input == "reg")
             {
-                RegisterDisplay(debug_adapter);
+                RegisterDisplay(debugger);
             }
             else if (auto loc = input.find("ts ");
                     loc != std::string::npos)
             {
                 auto thread_id = std::stoul(input.substr(loc + 3), nullptr, 10);
-                debug_adapter->SetActiveThreadId(thread_id);
+                debugger->SetActiveThread(thread_id);
             }
             else if (auto loc = input.find("disasm ");
                     loc != std::string::npos)
             {
-                auto reg_count = std::stoul(input.substr(loc + 7), nullptr, 10);
-                DisasmDisplay(debug_adapter, reg_count);
+                auto count = std::stoul(input.substr(loc + 7), nullptr, 10);
+                DisasmDisplay(debugger, count);
             }
             else if (auto loc = input.find("bp ");
                     loc != std::string::npos)
             {
-                if ( !debug_adapter->AddBreakpoint(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16)) )
-                    printf("failed to set bp!\n");
+                debugger->AddBreakpoint(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
             }
             else if (auto loc = input.find("bpr ");
                     loc != std::string::npos)
             {
-                debug_adapter->RemoveBreakpoint(
-                        DebugBreakpoint(std::stoull(input.substr(loc + 4).c_str(), nullptr, 16)));
+                debugger->DeleteBreakpoint(std::stoull(input.substr(loc + 4).c_str(), nullptr, 16));
             }
             else if ( input == "lbp" )
             {
-                Log::print("{} breakpoint[s] set\n", debug_adapter->GetBreakpointList().size());
-                for (const auto& breakpoint : debug_adapter->GetBreakpointList())
-                    Log::print("    breakpoint[{}] @ 0x{:X} is {}{}\n", breakpoint.m_id, breakpoint.m_address,
-                               breakpoint.m_is_active ? Log::Style(0, 255, 0)
+                Log::print("{} breakpoint[s] set\n", debugger->GetBreakpoints().size());
+				size_t i = 0;
+                for (const auto& breakpoint : debugger->GetBreakpoints())
+				{
+                    Log::print("    breakpoint[{}] @ 0x{:X} is {}{}\n", i, breakpoint.address,
+                               breakpoint.enabled ? Log::Style(0, 255, 0)
                                                       : Log::Style(255, 0, 0),
-                               breakpoint.m_is_active ? "active" : "not active");
+                               breakpoint.enabled ? "active" : "inactive");
+					i++;
+				}
             }
             else if ( input == "sr" )
             {
-                Log::print<Log::Warning>("stop reason : {}\n", debug_adapter->StopReason());
+//                Log::print<Log::Warning>("stop reason : {}\n", debugger->StopReason());
             }
             else if ( input == "es" )
             {
-                Log::print<Log::Info>("execution status : {}\n", debug_adapter->ExecStatus());
+                Log::print<Log::Info>("execution status : {}\n", debugger->GetTargetStatus());
             }
             else if (input == "go")
             {
-                debug_adapter->Go();
+                debugger->Go();
             }
             else if (input == "force_go")
             {
-                const auto ip_name = debug_adapter->GetTargetArchitecture() == "x86" ? "eip" : "rip";
-                const auto ip = debug_adapter->ReadRegister(ip_name).m_value;
-                debug_adapter->WriteRegister(ip_name, ip + 1);
-                debug_adapter->Go();
+                string ip_name = "";
+				const string archName = debugger->GetRemoteArchitecture()->GetName();
+				if (archName == "x86")
+					ip_name = "eip";
+				else if (archName == "x64")
+					ip_name = "rip";
+				else
+					ip_name = "pc";
+
+                const auto ip = debugger->IP();
+                debugger->SetRegisterValue(ip_name, ip + 1);
+                debugger->Go();
             }
             else if (input == "so")
             {
-                debug_adapter->StepOver();
+                debugger->StepOver();
             }
             else if ( input == "sot" )
             {
-                debug_adapter->StepOut() ? Log::print<Log::Info>("stepped out!\n")
+                debugger->StepReturn() ? Log::print<Log::Info>("stepped out!\n")
                                          : Log::print<Log::Error>("failed to step out!\n");
             }
             else if ( input == "si" )
             {
-                debug_adapter->StepInto();
+                debugger->StepInto();
             }
             else if (auto loc = input.find("st ");
                     loc != std::string::npos)
             {
-                debug_adapter->StepTo(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
+                debugger->StepTo(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
             }
             else if (input == "detach")
             {
-                debug_adapter->Detach();
+                debugger->Detach();
                 break;
             }
 
