@@ -25,7 +25,7 @@ import binaryninja
 # import debugger
 from . import _debuggercore as dbgcore
 from .enums import *
-from typing import Callable
+from typing import List
 
 
 class DebugAdapterType:
@@ -46,7 +46,7 @@ class DebugAdapterType:
         return dbgcore.BNDebugAdapterTypeCanConnect(self.handle, bv_obj)
 
     @staticmethod
-    def get_available_adapters(bv: binaryninja.BinaryView) -> list[str]:
+    def get_available_adapters(bv: binaryninja.BinaryView) -> List[str]:
         count = ctypes.c_ulonglong()
         bv_obj = ctypes.cast(bv.handle, ctypes.POINTER(dbgcore.BNBinaryView))
         adapters = dbgcore.BNGetAvailableDebugAdapterTypes(bv_obj, count)

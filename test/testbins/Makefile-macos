@@ -51,37 +51,37 @@ many_stdlib_calls_x64-macos: many_stdlib_calls.c
 
 asmtest_x64-macos: asmtest_x64.asm
 	nasm -f macho64 -DOS_IS_MACOS asmtest_x64.asm -o asmtest_x64-macos.o
-	ld -macosx_version_min 10.7.0 -lSystem asmtest_x64-macos.o -o asmtest_x64-macos
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem asmtest_x64-macos.o -o asmtest_x64-macos
 
 hello_x64-macos: hello_x64.asm
 	nasm -f macho64 -DOS_IS_MACOS hello_x64.asm -o hello_x64-macos.o
-	ld -macosx_version_min 10.7.0 -lSystem hello_x64-macos.o -o hello_x64-macos
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem hello_x64-macos.o -o hello_x64-macos
 
 analysis_propagation_x64-macos: analysis_propagation_x64.asm
 	nasm -f macho64 -DOS_IS_MACOS analysis_propagation_x64.asm -o analysis_propagation_x64-macos.o -l analysis_propagation_x64-macos.lst
-	ld -macosx_version_min 10.7.0 -lSystem analysis_propagation_x64-macos.o -o analysis_propagation_x64-macos
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem analysis_propagation_x64-macos.o -o analysis_propagation_x64-macos
 	strip analysis_propagation_x64-macos
 	./rm_func_starts.py ./analysis_propagation_x64-macos
 
 missing_switch_case_x64-macos: missing_switch_case_x64.asm
 	nasm -f macho64 -DOS_IS_MACOS missing_switch_case_x64.asm -o missing_switch_case_x64-macos.o -l missing_switch_case_x64-macos.lst
-	ld -macosx_version_min 10.7.0 -lSystem missing_switch_case_x64-macos.o -o missing_switch_case_x64-macos
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem missing_switch_case_x64-macos.o -o missing_switch_case_x64-macos
 	strip missing_switch_case_x64-macos
 	./rm_func_starts.py ./missing_switch_case_x64-macos
 
 undiscovered_func_x64-macos: undiscovered_func_x64.asm
 	nasm -f macho64 -DOS_IS_MACOS undiscovered_func_x64.asm -o undiscovered_func_x64-macos.o
-	ld -macosx_version_min 10.7.0 -lSystem undiscovered_func_x64-macos.o -o undiscovered_func_x64-macos
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem undiscovered_func_x64-macos.o -o undiscovered_func_x64-macos
 
 undiscovered_func2_x64-macos: undiscovered_func2_x64.asm
 	nasm -f macho64 -DOS_IS_MACOS undiscovered_func2_x64.asm -o undiscovered_func2_x64-macos.o
-	ld -macosx_version_min 10.7.0 -lSystem undiscovered_func2_x64-macos.o -o undiscovered_func2_x64-macos
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem undiscovered_func2_x64-macos.o -o undiscovered_func2_x64-macos
 	strip undiscovered_func2_x64-macos
 	./rm_func_starts.py ./undiscovered_func2_x64-macos
 
 indirect_calls_x64-macos: indirect_calls_x64.asm
 	nasm -f macho64 -DOS_IS_MACOS indirect_calls_x64.asm -o indirect_calls_x64-macos.o
-	ld -macosx_version_min 10.7.0 -lSystem indirect_calls_x64-macos.o -o indirect_calls_x64-macos
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem indirect_calls_x64-macos.o -o indirect_calls_x64-macos
 	strip indirect_calls_x64-macos
 	./rm_func_starts.py ./indirect_calls_x64-macos
 

@@ -25,7 +25,7 @@ import binaryninja
 # import debugger
 from . import _debuggercore as dbgcore
 from .enums import *
-from typing import Callable
+from typing import Callable, List
 
 
 class DebugThread:
@@ -338,7 +338,7 @@ class DebuggerController:
         return dbgcore.BNDebuggerWriteMemory(self.handle, address, buffer_obj)
 
     @property
-    def threads(self) -> list[DebugThread]:
+    def threads(self) -> List[DebugThread]:
         count = ctypes.c_ulonglong()
         threads = dbgcore.BNDebuggerGetThreads(self.handle, count)
         result = []
@@ -359,7 +359,7 @@ class DebuggerController:
         dbgcore.BNDebuggerSetActiveThread(dbgcore.BNDebugThread(thread.tid, thread.rip))
 
     @property
-    def modules(self) -> list[DebugModule]:
+    def modules(self) -> List[DebugModule]:
         count = ctypes.c_ulonglong()
         modules = dbgcore.BNDebuggerGetModules(self.handle, count)
         result = []
@@ -371,7 +371,7 @@ class DebuggerController:
         return result
 
     @property
-    def regs(self) -> list[DebugRegister]:
+    def regs(self) -> List[DebugRegister]:
         count = ctypes.c_ulonglong()
         registers = dbgcore.BNDebuggerGetRegisters(self.handle, count)
         result = []
@@ -485,7 +485,7 @@ class DebuggerController:
         dbgcore.BNDebuggerSetCommandLineArguments(self.handle, arguments)
 
     @property
-    def breakpoints(self) -> list[DebugBreakpoint]:
+    def breakpoints(self) -> List[DebugBreakpoint]:
         count = ctypes.c_ulonglong()
         breakpoints = dbgcore.BNDebuggerGetBreakpoints(self.handle, count)
         result = []

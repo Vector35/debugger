@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 
-option(BN_BUILD_CLI_DEBUGGER "Build CLI Debugger" ON)
-
 project(debugger)
 add_definitions(-DFMT_HEADER_ONLY)
 
@@ -21,6 +19,14 @@ if(NOT HEADLESS)
 	add_subdirectory(ui)
 endif()
 
-if(BN_BUILD_CLI_DEBUGGER)
-	add_subdirectory(cli)
+add_subdirectory(cli)
+
+if(WIN32)
+	add_custom_target(test_debugger
+			COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${BN_RESOURCE_DIR}/python py -3 test/unit.py
+			WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+else()
+	add_custom_target(test_debugger
+			COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${BN_RESOURCE_DIR}/python python3 test/unit.py
+			WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 endif()
