@@ -16,6 +16,7 @@ from struct import unpack
 import colorama
 
 sys.path.append('..')
+from binaryninja import *
 from binaryninja.debugger import *
 
 # globals
@@ -312,19 +313,22 @@ def android_test_setup(testbin_args=[]):
 # MAIN
 #------------------------------------------------------------------------------
 #
-# if __name__ == '__main__':
-#     colorama.init()
-#     arg = sys.argv[1] if sys.argv[1:] else None
-#
-#     # one-off tests
-#     if arg == 'oneoff':
-#         fpath = testbin_to_fpath('helloworld_thread')
-#         adapter = DebugAdapter.get_adapter_for_current_system()
-#         adapter.exec(fpath)
-#         print(adapter.mem_modules())
-#         print(type(adapter) == dbgeng.DebugAdapterDbgeng)
-#         sys.exit(0)
-#
+if __name__ == '__main__':
+    colorama.init()
+    arg = sys.argv[1] if sys.argv[1:] else None
+
+    # one-off tests
+    if arg == 'oneoff':
+        testbin = 'helloworld_thread_x64-macos'
+        fpath = testbin_to_fpath()
+        print(fpath)
+        bv = BinaryViewType.get_view_of_file(fpath)
+        dbg = DebuggerController(bv)
+        dbg.launch()
+        print(dbg.modules)
+        dbg.quit()
+        sys.exit(0)
+
 #     # attaching test
 #     if arg == 'attaching':
 #         pid = None
