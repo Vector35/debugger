@@ -254,10 +254,8 @@ void GdbAdapter::Detach()
 
 void GdbAdapter::Quit()
 {
-    char send{'\x03'};
     char kill{'k'};
-    this->m_rspConnector.SendRaw(RspData(&send, sizeof(send)));
-    this->m_rspConnector.SendRaw(RspData(&kill, sizeof(kill)));
+    this->m_rspConnector.SendPayload(RspData(&kill, sizeof(kill)));
     this->m_socket->Kill();
     m_isTargetRunning = false;
 }
