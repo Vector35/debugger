@@ -246,16 +246,14 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
 
 void GdbAdapter::Detach()
 {
-    char detach{'D'};
-    this->m_rspConnector.SendRaw(RspData(&detach, sizeof(detach)));
+    this->m_rspConnector.SendPayload(RspData("D"));
     this->m_socket->Kill();
     m_isTargetRunning = false;
 }
 
 void GdbAdapter::Quit()
 {
-    char kill{'k'};
-    this->m_rspConnector.SendPayload(RspData(&kill, sizeof(kill)));
+    this->m_rspConnector.SendPayload(RspData("k"));
     this->m_socket->Kill();
     m_isTargetRunning = false;
 }
