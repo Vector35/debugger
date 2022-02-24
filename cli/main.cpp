@@ -410,6 +410,7 @@ int main(int argc, const char* argv[])
                 print_arg("st", "step to", "address (hex)");
                 print_arg("ts", "set active thread", "thread id");
                 print_arg("detach", "detach debugger");
+                print_arg("kill", "kill the target");
             }
             if ( input[0] == '.' )
             {
@@ -522,7 +523,11 @@ int main(int argc, const char* argv[])
                 debugger->Detach();
                 break;
             }
-
+            else if (input == "kill")
+            {
+                debugger->Quit();
+                break;
+            }
         }
     }
     catch (const std::exception& except)
