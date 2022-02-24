@@ -11,6 +11,7 @@ namespace BinaryNinjaDebugger
 	public:
 		bool ExecuteWithArgs(const std::string& path, const std::string &args,
 							 const LaunchConfigurations& configs) override;
+		bool Attach(uint32_t pid) override;
 		DebugStopReason Go() override;
 		std::string GetTargetArchitecture() override;
 		std::vector<DebugModule> GetModuleList() override;

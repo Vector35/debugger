@@ -229,6 +229,12 @@ void DebuggerController::LaunchOrConnect()
 }
 
 
+bool DebuggerController::Attach(uint32_t pid)
+{
+	return BNDebuggerAttach(m_object, pid);
+}
+
+
 DebugStopReason DebuggerController::StepInto(BNFunctionGraphType il)
 {
 	return BNDebuggerStepInto(m_object, il);

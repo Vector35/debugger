@@ -93,6 +93,26 @@ bool DebuggerController::Launch()
 }
 
 
+bool DebuggerController::Attach(int32_t pid)
+{
+	NotifyEvent(AttachEventType);
+	m_adapter = CreateDebugAdapter();
+	if (!m_adapter)
+		return false;
+
+	m_state->SetAdapter(m_adapter);
+	m_state->MarkDirty();
+	bool result = m_adapter->Attach(pid);
+	if (result)
+	{
+		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
+		m_state->SetExecutionStatus(DebugAdapterPausedStatus);
+		HandleInitialBreakpoint();
+	}
+	return result;
+}
+
+
 bool DebuggerController::Execute()
 {
 	std::string filePath = m_state->GetExecutablePath();
@@ -712,9 +732,7 @@ void DebuggerController::Connect()
 
     m_state->SetConnectionStatus(DebugAdapterConnectingStatus);
 
-    DebuggerEvent event;
-    event.type = AttachEventType;
-    PostDebuggerEvent(event);
+    NotifyEvent(ConnectEventType);
 
     bool ok = m_adapter->Connect(m_state->GetRemoteHost(), m_state->GetRemotePort());
 

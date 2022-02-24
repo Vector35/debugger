@@ -163,6 +163,7 @@ extern "C"
 		RestartEventType,
 		AttachEventType,
 		DetachEventType,
+		ConnectEventType,
 
 		AdapterStoppedEventType,
 		AdapterTargetExitedEventType,
@@ -278,6 +279,7 @@ extern "C"
 	DEBUGGER_FFI_API void BNDebuggerPause(BNDebuggerController* controller);
 	// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
 	DEBUGGER_FFI_API void BNDebuggerLaunchOrConnect(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerAttach(BNDebuggerController* controller, uint32_t pid);
 
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerGo(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepInto(BNDebuggerController* controller, BNFunctionGraphType il);

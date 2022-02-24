@@ -231,6 +231,7 @@ namespace BinaryNinjaDebuggerAPI
 		void Pause();
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
 		void LaunchOrConnect();
+		bool Attach(uint32_t pid);
 
 		DebugStopReason Go();
 		DebugStopReason StepInto(BNFunctionGraphType il = NormalFunctionGraph);

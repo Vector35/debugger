@@ -176,6 +176,46 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string &ar
 }
 
 
+bool LldbAdapter::Attach(std::uint32_t pid)
+{
+#ifndef __APPLE__
+    return false;
+#else
+    auto lldb_server_path = this->ExecuteShellCommand("which debugserver");
+
+    if ( lldb_server_path.empty() )
+        lldb_server_path = "/Library/Developer/CommandLineTools/Library/PrivateFrameworks/LLDB.framework/Versions/A/Resources/debugserver";
+
+    const auto lldb_server_exists = fopen(lldb_server_path.c_str(), "r");
+    if (!lldb_server_exists)
+        return false;
+    fclose(lldb_server_exists);
+
+    lldb_server_path = lldb_server_path.substr(0, lldb_server_path.find('\n'));
+
+    this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
+
+    const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket->GetPort());
+
+    char* arg[] = {(char*)lldb_server_path.c_str(),
+				   "--stdio-path", "/dev/stdin",
+				   "--stdout-path", "/dev/stdout",
+				   "--stderr-path", "/dev/stderr",
+				   (char*)host_with_port.c_str(), "--attach", (char*)fmt::format("{}", pid).c_str(), NULL};
+
+	pid_t serverPid;
+	int s = posix_spawn(&serverPid, lldb_server_path.c_str(), nullptr, nullptr, arg, nullptr);
+	if (s != 0)
+	{
+		LogWarn("posix_spawn failed");
+		return false;
+	}
+
+    return this->Connect("127.0.0.1", this->m_socket->GetPort());
+#endif
+}
+
+
 DebugStopReason LldbAdapter::Go()
 {
     return GenericGo("c");

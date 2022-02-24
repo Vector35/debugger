@@ -130,7 +130,40 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const string &args, co
 
 bool GdbAdapter::Attach(std::uint32_t pid)
 {
-    throw std::runtime_error("gdb attach is not supported");
+#if (defined WIN32) || (defined __APPLE_)
+    return false;
+#else
+
+    auto gdb_server_path = this->ExecuteShellCommand("which gdbserver");
+    if ( gdb_server_path.empty() )
+        return false;
+
+    gdb_server_path = gdb_server_path.substr(0, gdb_server_path.find('\n'));
+
+    this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
+
+    const auto host_with_port = fmt::format("127.0.0.1:{}", this->m_socket->GetPort());
+	char* arg[] = {(char*)gdb_server_path.c_str(),
+				   "--attach",
+				   (char*)host_with_port.c_str(),
+				   (char*)fmt::format("{}", pid).c_str(),
+				   NULL};
+
+	pid_t serverPid;
+
+	// Calling posix_spawn is fine here. The only problem is gdbserver will occupy the terminal, and we cannot use
+	// the cli debugger. However, posix_spawn actually supports file actions, soe can properly redirect
+	// stdin/out/err, so that the cli debugger also works.
+	int s = posix_spawn(&serverPid, gdb_server_path.c_str(), nullptr, nullptr, arg, nullptr);
+	if (s != 0)
+	{
+		LogWarn("posix_spawn failed");
+		return false;
+	}
+
+    bool ret =  this->Connect("127.0.0.1", this->m_socket->GetPort());
+    return ret;
+#endif
 }
 
 bool GdbAdapter::LoadRegisterInfo()

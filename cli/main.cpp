@@ -366,12 +366,11 @@ int main(int argc, const char* argv[])
 	}
 	else if (strcmp(argv[2], "--attach") == 0)
 	{
-		LogError("no attach support at the moment\n");
-//            if (!debug_adapter->Attach(std::stoi(argv[2])))
-//			{
-//                Log::print<Log::Error>("failed to attach {}\n", argv[2]);
-//                return -1;
-//            }
+		uint32_t pid = std::stoi(argv[3]);
+		if (pid == 0)
+			return -1;
+		if (!debugger->Attach(pid))
+			return -1;
 	}
 
     try

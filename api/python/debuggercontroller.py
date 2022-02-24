@@ -383,8 +383,8 @@ class DebuggerController:
         return result
 
     # target control
-    def launch(self) -> None:
-        dbgcore.BNDebuggerLaunch(self.handle)
+    def launch(self) -> bool:
+        return dbgcore.BNDebuggerLaunch(self.handle)
 
     def restart(self) -> None:
         dbgcore.BNDebuggerRestart(self.handle)
@@ -403,6 +403,9 @@ class DebuggerController:
 
     def launch_or_connect(self) -> None:
         dbgcore.BNDebuggerLaunchOrConnect(self.handle)
+
+    def attach(self, pid: int) -> bool:
+        return dbgcore.BNDebuggerAttach(self.handle, pid)
 
     def go(self) -> DebugStopReason:
         return dbgcore.BNDebuggerGo(self.handle)

@@ -308,6 +308,12 @@ void BNDebuggerLaunchOrConnect(BNDebuggerController* controller)
 }
 
 
+bool BNDebuggerAttach(BNDebuggerController* controller, uint32_t pid)
+{
+	return controller->object->Attach(pid);
+}
+
+
 BNDebugStopReason BNDebuggerGo(BNDebuggerController* controller)
 {
 	return controller->object->Go();

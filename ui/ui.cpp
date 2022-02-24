@@ -75,6 +75,9 @@ void DebuggerUI::updateStatusText(const DebuggerEvent &event)
 	case AttachEventType:
 		setStatusText("Attaching");
 		break;
+	case ConnectEventType:
+		setStatusText("Connecting");
+		break;
 
     case TargetStoppedEventType:
 	{
