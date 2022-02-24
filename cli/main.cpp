@@ -291,10 +291,11 @@ int main(int argc, const char* argv[])
     Log::SetupAnsi();
     LogToStdout(WarningLog);
 
-    if (argc != 2 && argc != 3)
+    if (argc != 2 && argc != 4)
     {
         Log::print<Log::Error>("usage: {} <debuggee_path>\n", argv[0]);
-        Log::print<Log::Error>("usage: {} --attach <debuggee_pid>\n", argv[0]);
+        Log::print<Log::Error>("usage: {} <debuggee_path> --attach <debuggee_pid>\n", argv[0]);
+        Log::print<Log::Error>("usage: {} <debuggee_path> --connect <host:port>\n", argv[0]);
         return 0;
     }
 
@@ -345,7 +346,25 @@ int main(int argc, const char* argv[])
 			return -1;
 		}
 	}
-	else if (argc == 3)
+	// argc == 4
+	else if (strcmp(argv[2], "--connect") == 0)
+	{
+		string hostAndPort = string(argv[3]);
+		size_t pos = hostAndPort.find(':');
+		if (pos == string::npos)
+			return -1;
+		string host = hostAndPort.substr(0, pos);
+		if (host.empty())
+			host = "localhost";
+		string portStr = hostAndPort.substr(pos + 1);
+		if (portStr.empty())
+			return -1;
+		int32_t port = std::stoi(portStr);
+		debugger->SetRemoteHost(host);
+		debugger->SetRemotePort(port);
+		debugger->Connect();
+	}
+	else if (strcmp(argv[2], "--attach") == 0)
 	{
 		LogError("no attach support at the moment\n");
 //            if (!debug_adapter->Attach(std::stoi(argv[2])))
