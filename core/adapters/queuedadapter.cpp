@@ -94,7 +94,6 @@ bool QueuedAdapter::Attach(std::uint32_t pid)
 
     lock.unlock();
     sem.Wait();
-	LogWarn("ret is %d", ret);
     return ret;
 }
 
