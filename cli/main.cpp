@@ -3,6 +3,10 @@
 #include <atomic>
 #include <sys/stat.h>
 
+#ifndef WIN32
+#include <csignal>
+#endif
+
 #include "binaryninjaapi.h"
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
@@ -14,6 +18,13 @@
 using namespace BinaryNinja;
 using namespace std;
 using namespace BinaryNinjaDebuggerAPI;
+
+
+std::atomic_bool shouldBreak = false;
+void signalHandler(int sigNum)
+{
+	shouldBreak = true;
+}
 
 
 void RegisterDisplay(DebuggerController* debugger)
@@ -373,183 +384,206 @@ int main(int argc, const char* argv[])
 			return -1;
 	}
 
-    try
-    {
-		std::thread( [&]{
 #ifdef WIN32
-            while ( true )
-                if ( GetAsyncKeyState(VK_F2) & 1 )
-                    debug_adapter->BreakInto();
+	std::thread([&]{
+		while (tru )
+			if (GetAsyncKeyState(VK_F2) & 1)
+				debugger->Pause();
+	}).detach();
 #else
-            //std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-            //debug_adapter->BreakInto();
-        /* TODO: key presses on not windows */
+	std::thread([&]{
+		while (true)
+		{
+			if (shouldBreak)
+			{
+				if (debugger->IsRunning())
+					debugger->Pause();
+				shouldBreak = false;
+			}
+		}
+	}).detach();
+
+	signal(SIGINT, signalHandler);
 #endif
-        }).detach();
 
-        char input_buf[256];
-        const auto red_style = Log::Style(255, 90, 90);
-        const auto white_style = Log::Style(255, 255, 255);
-        while ( Log::print("{}BINJA{}DBG{}> ", red_style, white_style, red_style ) && std::cin.getline(input_buf, sizeof(input_buf)) )
-        {
-            auto input = std::string(input_buf);
-            if ( input == "help" )
-            {
-                const auto bar_style = Log::Style(200, 180, 190);
-                const auto blue_style = Log::Style(0, 255, 255);
+	char input_buf[256];
+	const auto red_style = Log::Style(255, 90, 90);
+	const auto white_style = Log::Style(255, 255, 255);
+	while ( Log::print("{}BINJA{}DBG{}> ", red_style, white_style, red_style ) && std::cin.getline(input_buf, sizeof(input_buf)) )
+	{
+		auto input = std::string(input_buf);
+		if ( input == "help" )
+		{
+			const auto bar_style = Log::Style(200, 180, 190);
+			const auto blue_style = Log::Style(0, 255, 255);
 
-                constexpr auto help_string = "{}===== {}BINJA{}DBG{} {}=====\n";
-                Log::print(help_string, bar_style, red_style, white_style, red_style, bar_style);
+			constexpr auto help_string = "{}===== {}BINJA{}DBG{} {}=====\n";
+			Log::print(help_string, bar_style, red_style, white_style, red_style, bar_style);
 
-                auto print_arg = [&](const std::string& cmd, const std::string& description, const std::string& args = "")
-                {
-                    Log::print("{}| {}{}{}, {}{}", bar_style, blue_style, cmd, white_style, white_style, description);
-                    if ( !args.empty() )
-                        Log::print(" -> takes {}{}", red_style, args);
-                    Log::print("\n");
-                };
+			auto print_arg = [&](const std::string& cmd, const std::string& description, const std::string& args = "")
+			{
+				Log::print("{}| {}{}{}, {}{}", bar_style, blue_style, cmd, white_style, white_style, description);
+				if ( !args.empty() )
+					Log::print(" -> takes {}{}", red_style, args);
+				Log::print("\n");
+			};
 
-                print_arg("[F2 KEY]", "breaks in");
+			print_arg("break", "breaks in");
 //                print_arg(".", "invokes debugger backend", "command");
-                print_arg("lt", "list all threads");
-                print_arg("lm", "list all modules");
-                print_arg("lbp", "list all breakpoints");
-                print_arg("reg", "display registers");
-                print_arg("disasm", "disassemble & lift instructions", "instruction count");
-                print_arg("sr", "display stop reason");
-                print_arg("es", "display execution status");
-                print_arg("bp", "add a breakpoint", "address (hex)");
-                print_arg("bpr", "remove a breakpoint", "address (hex)");
-                print_arg("go", "go");
-                print_arg("force_go", "increment instruction pointer and go");
-                print_arg("so", "step over");
-                print_arg("sot", "step out");
-                print_arg("si", "step into");
-                print_arg("st", "step to", "address (hex)");
-                print_arg("ts", "set active thread", "thread id");
-                print_arg("detach", "detach debugger");
-                print_arg("kill", "kill the target");
-            }
-            if ( input[0] == '.' )
-            {
+			print_arg("lt", "list all threads");
+			print_arg("lm", "list all modules");
+			print_arg("lbp", "list all breakpoints");
+			print_arg("reg", "display registers");
+			print_arg("disasm", "disassemble & lift instructions", "instruction count");
+			print_arg("sr", "display stop reason");
+			print_arg("es", "display execution status");
+			print_arg("bp", "add a breakpoint", "address (hex)");
+			print_arg("bpr", "remove a breakpoint", "address (hex)");
+			print_arg("go", "go");
+			print_arg("force_go", "increment instruction pointer and go");
+			print_arg("so", "step over");
+			print_arg("sot", "step out");
+			print_arg("si", "step into");
+			print_arg("st", "step to", "address (hex)");
+			print_arg("ts", "set active thread", "thread id");
+			print_arg("detach", "detach debugger");
+			print_arg("kill", "kill the target");
+			print_arg("end", "quit this cli debugger");
+		}
+		if ( input[0] == '.' )
+		{
 //                debug_adapter->Invoke(input.substr(1));
-            }
-            else if ( input == "testwrite" )
-            {
-                debugger->SetRegisterValue("rip",  0);
-            }
-            else if ( input == "lm" )
-            {
-                Log::print( "[modules]\n" );
-                for ( const auto& module : debugger->GetModules() )
-                    Log::print<Log::Info>( "[{}, {}] {} @ 0x{:X} with size 0x{:X}\n",
-                                           module.m_name.c_str(), module.m_short_name.c_str(),
-                                           module.m_loaded ? "is loaded" : "was unloaded", module.m_address, module.m_size );
-            }
-            else if ( input == "lt" )
-            {
-                Log::print( "[threads]\n" );
-                for ( const auto& thread : debugger->GetThreads() )
-                    Log::print<Log::Info>( "tid {}, rip=0x{:x}\n", thread.m_tid, thread.m_rip );
-            }
-            else if (input == "reg")
-            {
-                RegisterDisplay(debugger);
-            }
-            else if (auto loc = input.find("ts ");
-                    loc != std::string::npos)
-            {
-                auto thread_id = std::stoul(input.substr(loc + 3), nullptr, 10);
-                debugger->SetActiveThread(thread_id);
-            }
-            else if (auto loc = input.find("disasm ");
-                    loc != std::string::npos)
-            {
-                auto count = std::stoul(input.substr(loc + 7), nullptr, 10);
-                DisasmDisplay(debugger, count);
-            }
-            else if (auto loc = input.find("bp ");
-                    loc != std::string::npos)
-            {
-                debugger->AddBreakpoint(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
-            }
-            else if (auto loc = input.find("bpr ");
-                    loc != std::string::npos)
-            {
-                debugger->DeleteBreakpoint(std::stoull(input.substr(loc + 4).c_str(), nullptr, 16));
-            }
-            else if ( input == "lbp" )
-            {
-                Log::print("{} breakpoint[s] set\n", debugger->GetBreakpoints().size());
-				size_t i = 0;
-                for (const auto& breakpoint : debugger->GetBreakpoints())
-				{
-                    Log::print("    breakpoint[{}] @ 0x{:X} is {}{}\n", i, breakpoint.address,
-                               breakpoint.enabled ? Log::Style(0, 255, 0)
-                                                      : Log::Style(255, 0, 0),
-                               breakpoint.enabled ? "active" : "inactive");
-					i++;
-				}
-            }
-            else if ( input == "sr" )
-            {
+		}
+		else if ( input == "testwrite" )
+		{
+			debugger->SetRegisterValue("rip",  0);
+		}
+		else if ( input == "lm" )
+		{
+			Log::print( "[modules]\n" );
+			for ( const auto& module : debugger->GetModules() )
+				Log::print<Log::Info>( "[{}, {}] {} @ 0x{:X} with size 0x{:X}\n",
+									   module.m_name.c_str(), module.m_short_name.c_str(),
+									   module.m_loaded ? "is loaded" : "was unloaded", module.m_address, module.m_size );
+		}
+		else if ( input == "lt" )
+		{
+			Log::print( "[threads]\n" );
+			for ( const auto& thread : debugger->GetThreads() )
+				Log::print<Log::Info>( "tid {}, rip=0x{:x}\n", thread.m_tid, thread.m_rip );
+		}
+		else if (input == "reg")
+		{
+			RegisterDisplay(debugger);
+		}
+		else if (auto loc = input.find("ts ");
+				loc != std::string::npos)
+		{
+			auto thread_id = std::stoul(input.substr(loc + 3), nullptr, 10);
+			debugger->SetActiveThread(thread_id);
+		}
+		else if (auto loc = input.find("disasm ");
+				loc != std::string::npos)
+		{
+			auto count = std::stoul(input.substr(loc + 7), nullptr, 10);
+			DisasmDisplay(debugger, count);
+		}
+		else if (auto loc = input.find("bp ");
+				loc != std::string::npos)
+		{
+			debugger->AddBreakpoint(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
+		}
+		else if (auto loc = input.find("bpr ");
+				loc != std::string::npos)
+		{
+			debugger->DeleteBreakpoint(std::stoull(input.substr(loc + 4).c_str(), nullptr, 16));
+		}
+		else if ( input == "lbp" )
+		{
+			Log::print("{} breakpoint[s] set\n", debugger->GetBreakpoints().size());
+			size_t i = 0;
+			for (const auto& breakpoint : debugger->GetBreakpoints())
+			{
+				Log::print("    breakpoint[{}] @ 0x{:X} is {}{}\n", i, breakpoint.address,
+						   breakpoint.enabled ? Log::Style(0, 255, 0)
+												  : Log::Style(255, 0, 0),
+						   breakpoint.enabled ? "active" : "inactive");
+				i++;
+			}
+		}
+		else if ( input == "sr" )
+		{
 //                Log::print<Log::Warning>("stop reason : {}\n", debugger->StopReason());
-            }
-            else if ( input == "es" )
-            {
-                Log::print<Log::Info>("execution status : {}\n", debugger->GetTargetStatus());
-            }
-            else if (input == "go")
-            {
-                debugger->Go();
-            }
-            else if (input == "force_go")
-            {
-                string ip_name = "";
-				const string archName = debugger->GetRemoteArchitecture()->GetName();
-				if (archName == "x86")
-					ip_name = "eip";
-				else if (archName == "x64")
-					ip_name = "rip";
-				else
-					ip_name = "pc";
+		}
+		else if ( input == "es" )
+		{
+			Log::print<Log::Info>("execution status : {}\n", debugger->GetTargetStatus());
+		}
+		else if (input == "go")
+		{
+			DebugStopReason reason = debugger->Go();
+			Log::print<Log::Info>("stopped: {}\n", reason);
+		}
+		else if (input == "force_go")
+		{
+			string ip_name = "";
+			const string archName = debugger->GetRemoteArchitecture()->GetName();
+			if (archName == "x86")
+				ip_name = "eip";
+			else if (archName == "x64")
+				ip_name = "rip";
+			else
+				ip_name = "pc";
 
-                const auto ip = debugger->IP();
-                debugger->SetRegisterValue(ip_name, ip + 1);
-                debugger->Go();
-            }
-            else if (input == "so")
-            {
-                debugger->StepOver();
-            }
-            else if ( input == "sot" )
-            {
-                debugger->StepReturn() ? Log::print<Log::Info>("stepped out!\n")
-                                         : Log::print<Log::Error>("failed to step out!\n");
-            }
-            else if ( input == "si" )
-            {
-                debugger->StepInto();
-            }
-            else if (auto loc = input.find("st ");
-                    loc != std::string::npos)
-            {
-                debugger->StepTo(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
-            }
-            else if (input == "detach")
-            {
-                debugger->Detach();
-                break;
-            }
-            else if (input == "kill")
-            {
-                debugger->Quit();
-                break;
-            }
-        }
-    }
-    catch (const std::exception& except)
-    {
-        Log::print<Log::Error>("!Exception -> {}\n", except.what());
-    }
+			const auto ip = debugger->IP();
+			debugger->SetRegisterValue(ip_name, ip + 1);
+			DebugStopReason reason = debugger->Go();
+			Log::print<Log::Info>("stopped: {}\n", reason);
+		}
+		else if (input == "so")
+		{
+			DebugStopReason reason = debugger->StepOver();
+			Log::print<Log::Info>("stopped: {}\n", reason);
+		}
+		else if ( input == "sot" )
+		{
+			DebugStopReason reason = debugger->StepReturn();
+			Log::print<Log::Info>("stopped: {}\n", reason);
+		}
+		else if ( input == "si" )
+		{
+			DebugStopReason reason = debugger->StepInto();
+			Log::print<Log::Info>("stopped: {}\n", reason);
+		}
+		else if (auto loc = input.find("st ");
+				loc != std::string::npos)
+		{
+			DebugStopReason reason = debugger->StepTo(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
+			Log::print<Log::Info>("stopped: {}\n", reason);
+		}
+		else if (input == "detach")
+		{
+			debugger->Detach();
+			break;
+		}
+		else if (input == "kill")
+		{
+			debugger->Quit();
+			break;
+		}
+		else if (input == "break")
+		{
+			debugger->Pause();
+		}
+		else if (input == "end")
+		{
+			break;
+		}
+		else if (!input.empty())
+		{
+			Log::print<Log::Info>("invalid command\n");
+		}
+	}
+
+	BNShutdown();
 }
