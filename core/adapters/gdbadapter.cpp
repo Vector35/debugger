@@ -784,7 +784,7 @@ DebugStopReason GdbAdapter::ResponseHandler()
 			const auto tid = map["thread"];
 			m_isTargetRunning = false;
             m_lastActiveThreadId = tid;
-            return GdbAdapter::SignalToStopReason(map["signal"]);
+            return SignalToStopReason(map);
 		}
 		else if (reply[0] == 'W')
 		{
@@ -943,7 +943,8 @@ bool GdbAdapter::SupportFeature(DebugAdapterCapacity feature)
     }
 }
 
-DebugStopReason GdbAdapter::SignalToStopReason( std::uint64_t signal ) {
+DebugStopReason GdbAdapter::SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& map)
+{
     static std::unordered_map<std::uint64_t, DebugStopReason> signal_lookup = {
             {1, DebugStopReason::SignalHup},
             { 2 , DebugStopReason::SignalInt },
@@ -978,7 +979,7 @@ DebugStopReason GdbAdapter::SignalToStopReason( std::uint64_t signal ) {
             { 31, DebugStopReason::SignalSys },
     };
 
-    return signal_lookup[signal];
+    return signal_lookup[map["signal"]];
 }
 
 

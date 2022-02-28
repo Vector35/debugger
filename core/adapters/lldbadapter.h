@@ -6,7 +6,7 @@ namespace BinaryNinjaDebugger
 	class LldbAdapter : public GdbAdapter
 	{
 		bool LoadRegisterInfo() override;
-		DebugStopReason SignalToStopReason(std::uint64_t signal) override;
+		DebugStopReason SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& dict) override;
 
 	public:
 		bool ExecuteWithArgs(const std::string& path, const std::string &args,

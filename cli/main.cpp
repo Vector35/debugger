@@ -353,7 +353,7 @@ int main(int argc, const char* argv[])
 		debugger->SetExecutablePath(argv[1]);
 		if (!debugger->Launch())
 		{
-			LogError("failed to execute {}\n", argv[1]);
+			LogError(fmt::format("failed to execute {}\n", argv[1]).c_str());
 			return -1;
 		}
 	}
@@ -482,10 +482,16 @@ int main(int argc, const char* argv[])
 			auto thread_id = std::stoul(input.substr(loc + 3), nullptr, 10);
 			debugger->SetActiveThread(thread_id);
 		}
+		else if (input == "disasm")
+		{
+			DisasmDisplay(debugger, 10);
+		}
 		else if (auto loc = input.find("disasm ");
 				loc != std::string::npos)
 		{
 			auto count = std::stoul(input.substr(loc + 7), nullptr, 10);
+			if (count == 0)
+				count = 10;
 			DisasmDisplay(debugger, count);
 		}
 		else if (auto loc = input.find("bp ");

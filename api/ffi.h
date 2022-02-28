@@ -81,7 +81,6 @@ extern "C"
 	{
 		UnknownReason = 0,
 		InitialBreakpoint,
-		StdoutMessage,
 		ProcessExited,
 		AccessViolation,
 		SingleStep,

@@ -48,7 +48,7 @@ namespace BinaryNinjaDebugger
 		// support the case -- so we do not really lose a lot anyways.
 		std::string m_remoteArch;
 
-		virtual DebugStopReason SignalToStopReason(std::uint64_t signal);
+		virtual DebugStopReason SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& map);
 
 	public:
 		GdbAdapter(bool redirectGDBServer = true);

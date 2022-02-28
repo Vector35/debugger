@@ -16,8 +16,9 @@ from struct import unpack
 import colorama
 
 sys.path.append('..')
-from binaryninja import *
-from binaryninja.debugger import *
+from binaryninja import BinaryView, BinaryViewType
+from binaryninja.debugger import DebuggerController, DebugStopReason
+
 
 # globals
 adapter = None
@@ -192,9 +193,9 @@ def testbin_to_mpath():
     else:
         return testbin_to_fpath()
 
-def break_into(adapter):
+def break_into(dbg):
     print('sending break')
-    adapter.break_into()
+    dbg.pause()
 
 def invoke_adb_gdb_listen(testbin_args, port=31337):
     global testbin
@@ -226,11 +227,13 @@ def go_initial(adapter):
         assert_equality((reason, info), (DebugAdapter.STOP_REASON.UNKNOWN, 0x4000001f))
     return adapter.go()
 
+
 def assert_equality(a, b):
-    if a == b: return
-    utils.red('EXPECTED EQUALITY!')
-    utils.red('  actual: %s' % a)
-    utils.red('expected: %s' % b)
+    if a == b:
+        return
+    print('EXPECTED EQUALITY!')
+    print('  actual: %s' % a)
+    print('expected: %s' % b)
     traceback.print_stack()
     sys.exit(-1)
 
@@ -240,9 +243,9 @@ def expect_single_step(reason):
     global testbin
 
     if 'macos' in testbin:
-        expected = DebugAdapter.STOP_REASON.BREAKPOINT
+        expected = DebugStopReason.Breakpoint
     else:
-        expected = DebugAdapter.STOP_REASON.SINGLE_STEP
+        expected = DebugStopReason.SingleStep
 
     assert_equality(reason, expected)
 
@@ -309,6 +312,7 @@ def android_test_setup(testbin_args=[]):
 
     return (adapter, entry)
 
+
 #------------------------------------------------------------------------------
 # MAIN
 #------------------------------------------------------------------------------
@@ -324,96 +328,116 @@ if __name__ == '__main__':
         print(fpath)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
+        # launch the target, and execute to the entry point
         dbg.launch()
+        dbg.go()
         print(dbg.modules)
         dbg.quit()
         sys.exit(0)
 
-#     # attaching test
-#     if arg == 'attaching':
-#         pid = None
-#         if platform.system() == 'Windows':
-#             testbin = 'helloworld_loop_x64-windows'
-#             fpath = testbin_to_fpath()
-#             DETACHED_PROCESS = 0x00000008
-#             CREATE_NEW_CONSOLE = 0x00000010
-#             cmds = [fpath]
-#             print('cmds:', cmds)
-#             pid = subprocess.Popen(cmds, creationflags=CREATE_NEW_CONSOLE).pid
-#         else:
-#             print('attaching test not yet implemented on %s' % platform.system())
-#         print('created process with pid: %d\n' % pid)
-#         adapter = DebugAdapter.get_adapter_for_current_system()
-#         print('attaching')
-#         adapter.attach(pid)
-#         for i in range(4):
-#             print('scheduling break into in 2 seconds')
-#             threading.Timer(2, break_into, [adapter]).start()
-#             print('some registers:')
-#             for (ridx,rname) in enumerate(adapter.reg_list()):
-#                 width = adapter.reg_bits(rname)
-#                 print('%d: %s (%d bits): 0x%X' % (ridx, rname, width, adapter.reg_read(rname)))
-#                 if ridx > 8: break
-#             print('pausing a sec')
-#             time.sleep(1)
-#             print('continuing')
-#             (reason, extra) = adapter.go()
-#         print('quiting')
-#         adapter.quit()
-#         adapter = None
-#         sys.exit(-1)
-#
-#     # otherwise test all executables built in the testbins dir
-#     testbins = []
-#     for fname in os.listdir('testbins'):
-#         fpath = os.path.join('testbins', fname)
-#         if platform.system() == 'Windows':
-#             if fpath.endswith('.exe'):
-#                 testbins.append(fname)
-#         elif os.access(fpath, os.X_OK):
-#             testbins.append(fname)
-#     print('collected the following tests:\n', testbins)
-#
-#     #--------------------------------------------------------------------------
-#     # x86/x64 TESTS
-#     #--------------------------------------------------------------------------
-#
-#     # repeat adapter use tests
-#     for tb in filter(lambda x: x.startswith('helloworld_x64'), testbins):
-#         testbin = tb
-#         fpath = testbin_to_fpath()
-#
-#         def thread_task():
-#             adapter = DebugAdapter.get_adapter_for_current_system()
-#
-#             adapter.exec(fpath, ['segfault'])
-#             # set initial breakpoint
-#             entry = confirm_initial_module(adapter)
-#             adapter.breakpoint_set(entry)
-#             # go to breakpoint
-#             (reason, extra) = go_initial(adapter)
-#             assert_equality(reason, DebugAdapter.STOP_REASON.BREAKPOINT)
-#             # clear, single step a few times
-#             adapter.breakpoint_clear(entry)
-#             (reason, extra) = adapter.step_into()
-#             expect_single_step(reason)
-#             (reason, extra) = adapter.step_into()
-#             expect_single_step(reason)
-#             (reason, extra) = adapter.step_into()
-#             expect_single_step(reason)
-#             # go until executing done
-#             (reason, extra) = adapter.go()
-#             assert_equality(reason, DebugAdapter.STOP_REASON.PROCESS_EXITED)
-#
-#             adapter.quit()
-#             adapter = None
-#
-#         for i in range(10):
-#             utils.green('testing %s %d/10' % (fpath, i+1))
-#             t = threading.Thread(target=thread_task)
-#             t.start()
-#             t.join()
-#
+    # attaching test
+    if arg == 'attaching':
+        pid = None
+        # TODO: we definitely need to simplify code like this
+        if platform.system() == 'Windows':
+            testbin = 'helloworld_loop_x64-windows'
+            fpath = testbin_to_fpath()
+            DETACHED_PROCESS = 0x00000008
+            CREATE_NEW_CONSOLE = 0x00000010
+            cmds = [fpath]
+            print('cmds:', cmds)
+            pid = subprocess.Popen(cmds, creationflags=CREATE_NEW_CONSOLE).pid
+        elif platform.system() == 'Darwin':
+            testbin = 'helloworld_loop_x64-macos'
+            fpath = testbin_to_fpath()
+            cmds = [fpath]
+            print('cmds:', cmds)
+            pid = subprocess.Popen(cmds).pid
+        elif platform.system() == 'linux':
+            testbin = 'helloworld_loop_x64-linux'
+            fpath = testbin_to_fpath()
+            cmds = [fpath]
+            print('cmds:', cmds)
+            pid = subprocess.Popen(cmds).pid
+        else:
+            print('attaching test not yet implemented on %s' % platform.system())
+
+        print('created process with pid: %d\n' % pid)
+        bv = BinaryViewType.get_view_of_file(fpath)
+        dbg = DebuggerController(bv)
+        print('attaching')
+        dbg.attach(pid)
+        for i in range(4):
+            print('scheduling break into in 2 seconds')
+            threading.Timer(2, break_into, [dbg]).start()
+            # print the first 8 register values
+            print('some registers:')
+            for (idx, reg) in enumerate(dbg.regs):
+                print('%d: %s (%d bits): 0x%X' % (idx, reg.name, reg.width, reg.value))
+                if idx > 8:
+                    break
+
+            print('pausing a sec')
+            time.sleep(1)
+            print('continuing')
+            reason = dbg.go()
+
+        print('quiting')
+        dbg.quit()
+        dbg = None
+        sys.exit(-1)
+
+    # otherwise test all executables built in the testbins dir
+    testbins = []
+    for fname in os.listdir('testbins'):
+        fpath = os.path.join('testbins', fname)
+        if platform.system() == 'Windows':
+            if fpath.endswith('.exe'):
+                testbins.append(fname)
+        elif os.access(fpath, os.X_OK):
+            testbins.append(fname)
+    print('collected the following tests:\n', testbins)
+
+    #--------------------------------------------------------------------------
+    # x86/x64 TESTS
+    #--------------------------------------------------------------------------
+
+    # repeat DebugController use tests
+    for tb in filter(lambda x: x.startswith('helloworld_x64'), testbins):
+        testbin = tb
+        fpath = testbin_to_fpath()
+        bv = BinaryViewType.get_view_of_file(fpath)
+
+        def thread_task():
+            dbg = DebuggerController(bv)
+            dbg.cmd_line = 'segfault'
+            if not dbg.launch():
+                print(f'fail to launch {fpath}')
+                sys.exit(-1)
+
+            # continue execution to the entry point, and check the stop reason
+            reason = dbg.go()
+            assert_equality(reason, DebugStopReason.Breakpoint)
+            reason = dbg.step_into()
+            expect_single_step(reason)
+            reason = dbg.step_into()
+            expect_single_step(reason)
+            reason = dbg.step_into()
+            expect_single_step(reason)
+            # go until executing done
+            reason = dbg.go()
+            assert_equality(reason, DebugStopReason.ProcessExited)
+
+            dbg.quit()
+            dbg = None
+
+        # Do the same thing for 10 times
+        for i in range(3):
+            print('testing %s %d/10' % (fpath, i+1))
+            t = threading.Thread(target=thread_task)
+            t.start()
+            t.join()
+
 #     # return code tests
 #     for tb in [x for x in testbins if x.startswith('exitcode')]:
 #         testbin = tb

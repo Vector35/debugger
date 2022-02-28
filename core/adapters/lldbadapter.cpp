@@ -7,6 +7,9 @@
 #include "lldbadapter.h"
 #include "queuedadapter.h"
 
+
+//https://opensource.apple.com/source/lldb/lldb-310.2.36/docs/lldb-gdb-remote.txt.auto.html
+
 using namespace BinaryNinjaDebugger;
 
 bool LldbAdapter::LoadRegisterInfo() {
@@ -264,8 +267,108 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
 }
 
 
-DebugStopReason LldbAdapter::SignalToStopReason( std::uint64_t signal ) {
-    return GdbAdapter::SignalToStopReason( signal );
+DebugStopReason LldbAdapter::SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& dict)
+{
+//	metype:6;mecount:2;medata:1;medata:0;memory:0x16f5ba940=d0ad5b6f0100000068a8b60001801c5e;
+//	memory:0x16f5badd0=90b65b6f01000000f416b600018006f6;#00
+//	When there is a metype in the reply, use that; Otherwise, use the signal.
+//	metype means "mach exception type"
+
+//	TODO: The current implementation does not differentiate stop caused by breakpoint and single stepping.
+//	This is because either the target hits a breakpoint, or single steps, the stop reply is the same and
+//	it contains a metype of 6, i.e., which maps to DebugStopReason::Breakpoint.
+//	However, if I attach lldb to debugserver, then we can see it knows the difference in the two stops.
+//	I am not sure how lldb does it.
+//	As a result, the unit test has to special case for macOS see code in expect_single_step().
+
+/*
+(lldb) c
+Process 51374 resuming
+Process 51374 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = breakpoint 1.1
+    frame #0: 0x0000000104af7f20 commandline_test`main
+commandline_test`main:
+->  0x104af7f20 <+0>:  sub    sp, sp, #0x30             ; =0x30
+    0x104af7f24 <+4>:  stp    x29, x30, [sp, #0x20]
+    0x104af7f28 <+8>:  add    x29, sp, #0x20            ; =0x20
+    0x104af7f2c <+12>: stur   wzr, [x29, #-0x4]
+Target 0: (commandline_test) stopped.
+(lldb) si
+Process 51374 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = instruction step into
+    frame #0: 0x0000000104af7f24 commandline_test`main + 4
+commandline_test`main:
+->  0x104af7f24 <+4>:  stp    x29, x30, [sp, #0x20]
+    0x104af7f28 <+8>:  add    x29, sp, #0x20            ; =0x20
+    0x104af7f2c <+12>: stur   wzr, [x29, #-0x4]
+    0x104af7f30 <+16>: stur   w0, [x29, #-0x8]
+Target 0: (commandline_test) stopped.
+*/
+
+    static std::unordered_map<std::uint64_t, DebugStopReason> signal_lookup =
+	{
+		{ 1,  DebugStopReason::SignalHup},
+		{ 2 , DebugStopReason::SignalInt },
+		{ 3 , DebugStopReason::SignalQuit },
+		{ 4 , DebugStopReason::SignalIll },
+		{ 5 , DebugStopReason::SingleStep },
+		{ 6 , DebugStopReason::SignalAbrt },
+		{ 7 , DebugStopReason::SignalEmt },
+		{ 8 , DebugStopReason::SignalFpe },
+		{ 9 , DebugStopReason::SignalKill },
+		{ 10, DebugStopReason::SignalBus },
+		{ 11, DebugStopReason::SignalSegv },
+		{ 12, DebugStopReason::SignalSys },
+		{ 13, DebugStopReason::SignalPipe },
+		{ 14, DebugStopReason::SignalAlrm },
+		{ 15, DebugStopReason::SignalTerm },
+		{ 16, DebugStopReason::SignalUrg },
+		{ 17, DebugStopReason::SignalStop },
+		{ 18, DebugStopReason::SignalTstp },
+		{ 19, DebugStopReason::SignalCont },
+		{ 20, DebugStopReason::SignalChld },
+		{ 21, DebugStopReason::SignalTtin },
+		{ 22, DebugStopReason::SignalTtou },
+		{ 23, DebugStopReason::SignalIo },
+		{ 24, DebugStopReason::SignalXcpu },
+		{ 25, DebugStopReason::SignalXfsz },
+		{ 26, DebugStopReason::SignalVtalrm },
+		{ 27, DebugStopReason::SignalProf },
+		{ 28, DebugStopReason::SignalWinch },
+		{ 29, DebugStopReason::SignalInfo },
+		{ 30, DebugStopReason::SignalUsr1 },
+		{ 31, DebugStopReason::SignalUsr2 }
+    };
+
+	static std::unordered_map<std::uint64_t, DebugStopReason> metype_lookup =
+	{
+		{1, DebugStopReason::AccessViolation},
+		{2, DebugStopReason::IllegalInstruction},
+		{3, DebugStopReason::Calculation},
+		{4, DebugStopReason::ExcEmulation},
+		{5, DebugStopReason::ExcSoftware},
+		{6, DebugStopReason::Breakpoint},
+		{7, DebugStopReason::ExcSyscall},
+		{8, DebugStopReason::ExcMachSyscall},
+		{9, DebugStopReason::ExcRpcAlert},
+		{10, DebugStopReason::ExcCrash}
+	};
+
+	if (dict.find("metype") != dict.end())
+	{
+		uint64_t metype = dict["metype"];
+		if (metype_lookup.find(metype) != metype_lookup.end())
+			return metype_lookup[metype];
+	}
+
+	if (dict.find("signal") != dict.end())
+	{
+		uint64_t signal = dict["signal"];
+		if (signal_lookup.find(signal) != signal_lookup.end())
+			return signal_lookup[signal];
+	}
+
+	return DebugStopReason::UnknownReason;
 }
 
 
