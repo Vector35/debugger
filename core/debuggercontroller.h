@@ -29,8 +29,6 @@ namespace BinaryNinjaDebugger
 
 		inline static std::vector<DebuggerController *> g_debuggerControllers;
 
-		void DeleteController(BinaryViewRef data);
-
 		std::atomic<size_t> m_callbackIndex = 0;
 		std::vector<DebuggerEventCallback> m_eventCallbacks;
 		std::recursive_mutex m_callbackMutex;
@@ -62,9 +60,16 @@ namespace BinaryNinjaDebugger
 		// Whether we can resume the execution of the target, including stepping.
 		bool CanResumeTarget();
 
+		bool ExpectSingleStep(DebugStopReason reason);
+
 	public:
 		DebuggerController(BinaryViewRef data);
 		static DebuggerController *GetController(BinaryViewRef data);
+		static void DeleteController(BinaryViewRef data);
+		// Explicitly destroy the current controller, so a new controller on the same binaryview will be brand new.
+		// I am not super sure that this is the correct way of doing things, but it addresses the controller reuse
+		// problem.
+		void Destroy();
 
 		// breakpoints
 		void AddBreakpoint(uint64_t address);

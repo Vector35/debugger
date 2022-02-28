@@ -20,6 +20,12 @@ DebuggerController::DebuggerController(BNDebuggerController* controller)
 }
 
 
+void DebuggerController::Destroy()
+{
+	BNDebuggerDestroyController(m_object);
+}
+
+
 Ref<BinaryView> DebuggerController::GetLiveView()
 {
 	BNBinaryView* view = BNDebuggerGetLiveView(m_object);

@@ -294,6 +294,9 @@ class DebuggerController:
         bv_obj = ctypes.cast(bv.handle, ctypes.POINTER(dbgcore.BNBinaryView))
         self.handle = dbgcore.BNGetDebuggerController(bv_obj)
 
+    def destroy(self):
+        dbgcore.BNDebuggerDestroyController(self.handle)
+
     @property
     def data(self) -> binaryninja.BinaryView:
         result = ctypes.cast(dbgcore.BNDebuggerGetData(self.handle), ctypes.POINTER(binaryninja.core.BNBinaryView))

@@ -91,6 +91,12 @@ BNDebuggerController* BNGetDebuggerController(BNBinaryView* data)
 }
 
 
+void BNDebuggerDestroyController(BNDebuggerController* controller)
+{
+	controller->object->Destroy();
+}
+
+
 BNBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller)
 {
 	return API_OBJECT_REF(controller->object->GetLiveView());

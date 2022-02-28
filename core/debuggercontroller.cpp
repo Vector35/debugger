@@ -169,6 +169,15 @@ bool DebuggerController::CanResumeTarget()
 }
 
 
+bool DebuggerController::ExpectSingleStep(DebugStopReason reason)
+{
+//	On macOS, the stop reason we get for a single step is also the Breakpoint.
+//	To keep things working, we loosen the check.
+//	TODO: check how it works on other systems
+	return (reason == SingleStep) || (reason == Breakpoint);
+}
+
+
 // Synchronously resume the target, only returns when the target stops.
 DebugStopReason DebuggerController::GoInternal()
 {
@@ -177,7 +186,7 @@ DebugStopReason DebuggerController::GoInternal()
 	if (m_state->GetAdapterType() != "Local DBGENG" && m_state->GetBreakpoints()->ContainsAbsolute(remoteIP))
 	{
         DebugStopReason reason = StepIntoInternal();
-		if (reason != DebugStopReason::SingleStep)
+		if (!ExpectSingleStep(reason))
 			return reason;
 
 		return m_adapter->Go();
@@ -255,7 +264,7 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 		while (true)
 		{
 			DebugStopReason reason = StepIntoInternal();
-			if (reason != DebugStopReason::SingleStep)
+			if (!ExpectSingleStep(reason))
 				return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
@@ -282,7 +291,7 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 		while (true)
 		{
 			DebugStopReason reason = StepIntoInternal();
-            if (reason != DebugStopReason::SingleStep)
+            if (!ExpectSingleStep(reason))
                 return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
@@ -309,7 +318,7 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 		while (true)
 		{
             DebugStopReason reason = StepIntoInternal();
-            if (reason != DebugStopReason::SingleStep)
+            if (!ExpectSingleStep(reason))
                 return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
@@ -413,7 +422,7 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
         while (true)
         {
 			DebugStopReason reason = StepOverInternal();
-			if (reason != DebugStopReason::SingleStep)
+			if (!ExpectSingleStep(reason))
 				return reason;
 
             uint64_t newRemoteRip = m_state->IP();
@@ -440,7 +449,7 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
         while (true)
         {
 			DebugStopReason reason = StepOverInternal();
-			if (reason != DebugStopReason::SingleStep)
+			if (!ExpectSingleStep(reason))
 				return reason;
 
             uint64_t newRemoteRip = m_state->IP();
@@ -467,7 +476,7 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
         while (true)
         {
 			DebugStopReason reason = StepOverInternal();
-			if ((reason != DebugStopReason::SingleStep))
+			if (!ExpectSingleStep(reason))
 				return reason;
 
             uint64_t newRemoteRip = m_state->IP();
@@ -872,6 +881,13 @@ void DebuggerController::DeleteController(BinaryViewRef data)
             ++it;
         }
     }
+}
+
+
+void DebuggerController::Destroy()
+{
+	DebuggerController::DeleteController(m_data);
+	delete this;
 }
 
 

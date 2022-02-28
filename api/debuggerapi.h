@@ -200,6 +200,7 @@ namespace BinaryNinjaDebuggerAPI
 	public:
 		DebuggerController(BNDebuggerController* controller);
 		static DebuggerController* GetController(Ref<BinaryNinja::BinaryView> data);
+		void Destroy();
 		Ref<BinaryView> GetLiveView();
 		Ref<BinaryView> GetData();
 		Ref<Architecture> GetRemoteArchitecture();

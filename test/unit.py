@@ -428,8 +428,7 @@ if __name__ == '__main__':
             reason = dbg.go()
             assert_equality(reason, DebugStopReason.ProcessExited)
 
-            dbg.quit()
-            dbg = None
+            dbg.destroy()
 
         # Do the same thing for 10 times
         for i in range(10):
