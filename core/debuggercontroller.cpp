@@ -887,7 +887,10 @@ void DebuggerController::DeleteController(BinaryViewRef data)
 void DebuggerController::Destroy()
 {
 	DebuggerController::DeleteController(m_data);
-	delete this;
+	// Uncommenting this line of code disrupts ref counting and causes crashes. This is not the correct way to
+	// free up a DebuggerController anyways.
+	// TODO: we need to do ref-counting on the debugger objects later.
+//	delete this;
 }
 
 

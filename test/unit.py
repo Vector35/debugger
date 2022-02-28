@@ -431,11 +431,10 @@ if __name__ == '__main__':
             dbg.destroy()
 
         # Do the same thing for 10 times
-        for i in range(10):
-            print('testing %s %d/10' % (fpath, i+1))
-            t = threading.Thread(target=thread_task)
-            t.start()
-            t.join()
+        n = 10
+        for i in range(n):
+            print('testing %s %d/%d' % (fpath, i+1, n))
+            thread_task()
 
 #     # return code tests
 #     for tb in [x for x in testbins if x.startswith('exitcode')]:
