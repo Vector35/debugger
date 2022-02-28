@@ -432,7 +432,7 @@ if __name__ == '__main__':
             dbg = None
 
         # Do the same thing for 10 times
-        for i in range(3):
+        for i in range(10):
             print('testing %s %d/10' % (fpath, i+1))
             t = threading.Thread(target=thread_task)
             t.start()
