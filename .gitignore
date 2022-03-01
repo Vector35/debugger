@@ -44,3 +44,7 @@ test/testbins/CTestTestfile.cmake
 
 /api/python/_debuggercore.py
 /api/python/enums.py
+/test/cmake_install.cmake
+/test/CMakeCache.txt
+/test/Makefile
+/test/CMakeFiles/

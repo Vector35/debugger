@@ -460,54 +460,54 @@ if __name__ == '__main__':
             exit_code = dbg.exit_code
             if exit_code not in expected:
                 raise Exception('expected return code %d to be in %s' % (exit_code, expected))
-#
-#     # exception test
-#     for tb in testbins:
-#         if not tb.startswith('do_exception'): continue
-#         if not ('x86' in tb) or ('x64' in tb): continue
-#         print('testing %s' % tb)
-#         testbin = tb
-#
-#         adapter = DebugAdapter.get_adapter_for_current_system()
-#         fpath = testbin_to_fpath()
-#
-#         # segfault
-#         adapter.exec(fpath, ['segfault'])
-#         (reason, extra) = go_initial(adapter)
-#         assert_equality(reason, DebugAdapter.STOP_REASON.ACCESS_VIOLATION)
-#         adapter.quit()
-#
-#         # illegal instruction
-#         adapter.exec(fpath, ['illegalinstr'])
-#         (reason, extra) = go_initial(adapter)
-#         expect_bad_instruction(reason)
-#         adapter.quit()
-#
-#         # breakpoint, single step, exited
-#         adapter.exec(fpath, ['fakearg'])
-#         entry = confirm_initial_module(adapter)
-#         adapter.breakpoint_set(entry)
-#         (reason, extra) = go_initial(adapter)
-#         assert_equality(reason, DebugAdapter.STOP_REASON.BREAKPOINT)
-#         adapter.breakpoint_clear(entry)
-#         #print('rip: ', adapter.reg_read('rip'))
-#         (reason, extra) = adapter.step_into()
-#         #print('rip: ', adapter.reg_read('rip'))
-#         expect_single_step(reason)
-#
-#         (reason, extra) = adapter.step_into()
-#         #print('rip: ', adapter.reg_read('rip'))
-#         expect_single_step(reason)
-#
-#         (reason, extra) = adapter.go()
-#         assert_equality(reason, DebugAdapter.STOP_REASON.PROCESS_EXITED)
-#         adapter.quit()
-#
-#         # divzero
-#         adapter.exec(fpath, ['divzero'])
-#         (reason, extra) = go_initial(adapter)
-#         assert_equality(reason, DebugAdapter.STOP_REASON.CALCULATION)
-#         adapter.quit()
+
+    # exception test
+    for tb in testbins:
+        if not tb.startswith('do_exception'): continue
+        if not ('x86' in tb) or ('x64' in tb): continue
+        print('testing %s' % tb)
+        testbin = tb
+
+        adapter = DebugAdapter.get_adapter_for_current_system()
+        fpath = testbin_to_fpath()
+
+        # segfault
+        adapter.exec(fpath, ['segfault'])
+        (reason, extra) = go_initial(adapter)
+        assert_equality(reason, DebugAdapter.STOP_REASON.ACCESS_VIOLATION)
+        adapter.quit()
+
+        # illegal instruction
+        adapter.exec(fpath, ['illegalinstr'])
+        (reason, extra) = go_initial(adapter)
+        expect_bad_instruction(reason)
+        adapter.quit()
+
+        # breakpoint, single step, exited
+        adapter.exec(fpath, ['fakearg'])
+        entry = confirm_initial_module(adapter)
+        adapter.breakpoint_set(entry)
+        (reason, extra) = go_initial(adapter)
+        assert_equality(reason, DebugAdapter.STOP_REASON.BREAKPOINT)
+        adapter.breakpoint_clear(entry)
+        #print('rip: ', adapter.reg_read('rip'))
+        (reason, extra) = adapter.step_into()
+        #print('rip: ', adapter.reg_read('rip'))
+        expect_single_step(reason)
+
+        (reason, extra) = adapter.step_into()
+        #print('rip: ', adapter.reg_read('rip'))
+        expect_single_step(reason)
+
+        (reason, extra) = adapter.go()
+        assert_equality(reason, DebugAdapter.STOP_REASON.PROCESS_EXITED)
+        adapter.quit()
+
+        # divzero
+        adapter.exec(fpath, ['divzero'])
+        (reason, extra) = go_initial(adapter)
+        assert_equality(reason, DebugAdapter.STOP_REASON.CALCULATION)
+        adapter.quit()
 #
 #     # assembler x86/x64 tests
 #     for tb in testbins:
