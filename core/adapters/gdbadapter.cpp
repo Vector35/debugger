@@ -256,7 +256,7 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
     }
 
     if ( !connected ) {
-        printf("failed to connect!\n");
+        printf("failed to connect to %s:%d!\n", server.c_str(), port);
         return false;
     }
 

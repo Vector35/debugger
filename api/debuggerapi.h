@@ -269,6 +269,7 @@ namespace BinaryNinjaDebuggerAPI
 
 		uint64_t IP();
 		uint64_t GetLastIP();
+		uint32_t GetExitCode();
 
 		uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& address);
 		ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t address);

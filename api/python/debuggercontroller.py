@@ -534,6 +534,10 @@ class DebuggerController:
     def last_ip(self) -> int:
         return dbgcore.BNDebuggerGetLastIP(self.handle)
 
+    @property
+    def exit_code(self) -> int:
+        return dbgcore.BNDebuggerGetExitCode(self.handle)
+
     def register_event_callback(self, callback) -> int:
         return DebuggerEventWrapper.register(self, callback)
 

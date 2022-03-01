@@ -468,6 +468,12 @@ uint64_t DebuggerController::GetLastIP()
 }
 
 
+uint32_t DebuggerController::GetExitCode()
+{
+	return BNDebuggerGetExitCode(m_object);
+}
+
+
 size_t DebuggerController::RegisterEventCallback(std::function<void(const DebuggerEvent &event)> callback)
 {
 	DebuggerEventCallbackObject* object = new DebuggerEventCallbackObject;

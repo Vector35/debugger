@@ -627,6 +627,7 @@ void DebuggerController::HandleTargetStop(DebugStopReason reason)
         DebuggerEvent event;
         event.type = TargetExitedEventType;
 		event.data.exitData.exitCode = m_adapter->ExitCode();
+		m_exitCode = m_adapter->ExitCode();
         // get exit code
         PostDebuggerEvent(event);
     }
@@ -1064,6 +1065,12 @@ DebugAdapterConnectionStatus DebuggerController::GetConnectionStatus()
 ArchitectureRef DebuggerController::GetRemoteArchitecture()
 {
 	return m_state->GetRemoteArchitecture();
+}
+
+
+uint32_t DebuggerController::GetExitCode()
+{
+	return m_exitCode;
 }
 
 

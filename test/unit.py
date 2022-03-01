@@ -436,29 +436,36 @@ if __name__ == '__main__':
             print('testing %s %d/%d' % (fpath, i+1, n))
             thread_task()
 
-#     # return code tests
-#     for tb in [x for x in testbins if x.startswith('exitcode')]:
-#         testbin = tb
-#
-#         fpath = testbin_to_fpath()
-#
-#         # some systems return byte, or low byte of 32-bit code and otheres return 32-bit code
-#         testvals = [('-11',[245,4294967285]), ('-1',[4294967295,255]), ('-3',[4294967293,253]), ('0',[0]), ('3',[3]), ('7',[7]), ('123',[123])]
-#         for (arg, expected) in testvals:
-#             adapter = DebugAdapter.get_adapter_for_current_system()
-#
-#             utils.green('testing %s %s' % (tb, arg))
-#             adapter.exec(fpath, [arg])
-#             (reason, extra) = go_initial(adapter)
-#             assert_equality(reason, DebugAdapter.STOP_REASON.PROCESS_EXITED)
-#             if not extra in expected:
-#                 raise Exception('expected return code %d to be in %s' % (extra, expected))
+    # return code tests
+    for tb in [x for x in testbins if x.startswith('exitcode')]:
+        testbin = tb
+
+        fpath = testbin_to_fpath()
+        bv = BinaryViewType.get_view_of_file(fpath)
+
+        # some systems return byte, or low byte of 32-bit code and others return 32-bit code
+        testvals = [('-11',[245,4294967285]), ('-1',[4294967295,255]), ('-3',[4294967293,253]), ('0',[0]), ('3',[3]), ('7',[7]), ('123',[123])]
+        for (arg, expected) in testvals:
+            print('testing %s %s' % (tb, arg))
+            dbg = DebuggerController(bv)
+            dbg.cmd_line = arg
+
+            if not dbg.launch():
+                print(f'fail to launch {fpath}')
+                sys.exit(-1)
+
+            dbg.go()
+            reason = dbg.go()
+            assert_equality(reason, DebugStopReason.ProcessExited)
+            exit_code = dbg.exit_code
+            if exit_code not in expected:
+                raise Exception('expected return code %d to be in %s' % (exit_code, expected))
 #
 #     # exception test
 #     for tb in testbins:
 #         if not tb.startswith('do_exception'): continue
 #         if not ('x86' in tb) or ('x64' in tb): continue
-#         utils.green('testing %s' % tb)
+#         print('testing %s' % tb)
 #         testbin = tb
 #
 #         adapter = DebugAdapter.get_adapter_for_current_system()
@@ -505,7 +512,7 @@ if __name__ == '__main__':
 #     # assembler x86/x64 tests
 #     for tb in testbins:
 #         if not (tb.startswith('asmtest_x64') or tb.startswith('asmtest_x86')): continue
-#         utils.green('testing %s' % tb)
+#         print('testing %s' % tb)
 #         testbin = tb
 #
 #         # parse entrypoint information
@@ -567,7 +574,7 @@ if __name__ == '__main__':
 #         if not tb.startswith('helloworld_'): continue
 #         if not ('_x64-' in tb or '_x86-' in tb): continue
 #         if '_thread' in tb: continue
-#         utils.green('hellworld x86/x64, no threads, testing %s' % tb)
+#         print('hellworld x86/x64, no threads, testing %s' % tb)
 #         testbin = tb
 #
 #         # tester and testee run on same machine
@@ -673,7 +680,7 @@ if __name__ == '__main__':
 #     for tb in testbins:
 #         if not tb.startswith('helloworld_thread'): continue
 #         if not ('_x86-' in tb or '_x64-' in tb): continue
-#         utils.green('testing %s' % tb)
+#         print('testing %s' % tb)
 #         testbin = tb
 #
 #         # for x64 machine, tester and testee run on same machine
@@ -750,7 +757,7 @@ if __name__ == '__main__':
 #         if not tb.startswith('helloworld_'): continue
 #         if not '_armv7-' in tb: continue
 #         if '_thread' in tb: continue
-#         utils.green('testing %s' % tb)
+#         print('testing %s' % tb)
 #         testbin = tb
 #
 #         (adapter, entry) = android_test_setup()
@@ -838,7 +845,7 @@ if __name__ == '__main__':
 #     for tb in testbins:
 #         if not tb.startswith('helloworld_thread_'): continue
 #         if not (('_armv7-' in tb) or ('_aarch64-' in tb)): continue
-#         utils.green('testing %s' % tb)
+#         print('testing %s' % tb)
 #         testbin = tb
 #
 #         (adapter, entry) = android_test_setup()
@@ -893,7 +900,7 @@ if __name__ == '__main__':
 #     for tb in testbins:
 #         if not tb.startswith('do_exception'): continue
 #         if not '-android' in tb: continue
-#         utils.green('testing %s' % tb)
+#         print('testing %s' % tb)
 #         testbin = tb
 #
 #
@@ -946,7 +953,7 @@ if __name__ == '__main__':
 #     # assembler test
 #     # architectures: armv7, aarch64
 #     for tb in filter(lambda x: x.startswith('asmtest_armv7') or x.startswith('asmtest_aarch64'), testbins):
-#         utils.green('testing %s' % tb)
+#         print('testing %s' % tb)
 #         testbin = tb
 #
 #         (adapter, entry) = android_test_setup()
@@ -1000,7 +1007,7 @@ if __name__ == '__main__':
 #         if not tb.startswith('helloworld_'): continue
 #         if not '_aarch64-' in tb: continue
 #         if '_thread' in tb: continue
-#         utils.green('testing %s' % tb)
+#         print('testing %s' % tb)
 #         testbin = tb
 #
 #         (adapter, entry) = android_test_setup()

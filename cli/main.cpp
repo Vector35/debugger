@@ -297,6 +297,17 @@ bool is_file(const char* fname)
 }
 
 
+void PrintStopReason(DebuggerController* controller, DebugStopReason reason)
+{
+	if (reason == ProcessExited)
+	{
+		Log::print<Log::Info>("Exited with code: {}\n", controller->GetExitCode());
+		return;
+	}
+	Log::print<Log::Info>("stopped: {}\n", reason);
+}
+
+
 int main(int argc, const char* argv[])
 {
     Log::SetupAnsi();
@@ -528,7 +539,7 @@ int main(int argc, const char* argv[])
 		else if (input == "go")
 		{
 			DebugStopReason reason = debugger->Go();
-			Log::print<Log::Info>("stopped: {}\n", reason);
+			PrintStopReason(debugger, reason);
 		}
 		else if (input == "force_go")
 		{
@@ -544,28 +555,28 @@ int main(int argc, const char* argv[])
 			const auto ip = debugger->IP();
 			debugger->SetRegisterValue(ip_name, ip + 1);
 			DebugStopReason reason = debugger->Go();
-			Log::print<Log::Info>("stopped: {}\n", reason);
+			PrintStopReason(debugger, reason);
 		}
 		else if (input == "so")
 		{
 			DebugStopReason reason = debugger->StepOver();
-			Log::print<Log::Info>("stopped: {}\n", reason);
+			PrintStopReason(debugger, reason);
 		}
 		else if ( input == "sot" )
 		{
 			DebugStopReason reason = debugger->StepReturn();
-			Log::print<Log::Info>("stopped: {}\n", reason);
+			PrintStopReason(debugger, reason);
 		}
 		else if ( input == "si" )
 		{
 			DebugStopReason reason = debugger->StepInto();
-			Log::print<Log::Info>("stopped: {}\n", reason);
+			PrintStopReason(debugger, reason);
 		}
 		else if (auto loc = input.find("st ");
 				loc != std::string::npos)
 		{
 			DebugStopReason reason = debugger->StepTo(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
-			Log::print<Log::Info>("stopped: {}\n", reason);
+			PrintStopReason(debugger, reason);
 		}
 		else if (input == "detach")
 		{

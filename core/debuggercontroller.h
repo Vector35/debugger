@@ -36,6 +36,10 @@ namespace BinaryNinjaDebugger
 		uint64_t m_lastIP = 0;
 		uint64_t m_currentIP = 0;
 
+		// This is only meaningful after the target exits. In the future, we should enforce a check for the target
+		// status before returning the value
+		uint32_t m_exitCode = 0;
+
 		bool m_userRequestedBreak = false;
 
 		void EventHandler(const DebuggerEvent &event);
@@ -143,5 +147,7 @@ namespace BinaryNinjaDebugger
 		DebuggerState *GetState() { return m_state; }
 		BinaryViewRef GetData() const { return m_data; }
 		BinaryViewRef GetLiveView() const { return m_liveView; }
+
+		uint32_t GetExitCode();
 	};
 };

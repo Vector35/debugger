@@ -661,3 +661,9 @@ void BNDebuggerRemoveEventCallback(BNDebuggerController* controller, size_t inde
 {
 	controller->object->RemoveEventCallback(index);
 }
+
+
+uint32_t BNDebuggerGetExitCode(BNDebuggerController* controller)
+{
+	return controller->object->GetExitCode();
+}
