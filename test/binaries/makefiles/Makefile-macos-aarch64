@@ -1,0 +1,105 @@
+# make -f Makefile-macos-aarch64
+
+TARGETS = helloworld_aarch64-macos exitcode_aarch64-macos helloworld_loop_aarch64-macos helloworld_thread_aarch64-macos helloworld_func_aarch64-macos helloworld_recursion_aarch64-macos helloworld_pie_aarch64-macos helloworld_thread_pie_aarch64-macos helloworld_loop_pie_aarch64-macos helloworld_func_pie_aarch64-macos helloworld_recursion_pie_aarch64-macos asmtest_aarch64-macos hello_aarch64-macos nopspeed_aarch64-macos cat_aarch64-macos commandline_test_aarch64-macos helloworld_objc_aarch64-macos helloworld_virtual_aarch64-macos do_exception_aarch64-macos undiscovered_func_aarch64-macos undiscovered_func2_aarch64-macos indirect_calls_aarch64-macos many_stdlib_calls_aarch64-macos analysis_propagation_aarch64-macos missing_switch_case_aarch64-macos
+
+all: $(TARGETS)
+
+clean:
+	rm -rf $(TARGETS) *.o
+
+helloworld_aarch64-macos: helloworld.c
+	gcc -Wl,-no_pie helloworld.c -o helloworld_aarch64-macos
+
+exitcode_aarch64-macos: exitcode.c
+	gcc -Wl,-no_pie exitcode.c -o exitcode_aarch64-macos
+
+helloworld_thread_aarch64-macos: helloworld_thread.c
+	gcc -Wl,-no_pie helloworld_thread.c -o helloworld_thread_aarch64-macos
+
+helloworld_loop_aarch64-macos: helloworld_loop.c
+	gcc -Wl,-no_pie helloworld_loop.c -o helloworld_loop_aarch64-macos
+
+helloworld_func_aarch64-macos: helloworld_func.c
+	gcc -Wl,-no_pie helloworld_func.c -o helloworld_func_aarch64-macos
+
+helloworld_recursion_aarch64-macos: helloworld_recursion.c
+	gcc -Wl,-no_pie helloworld_recursion.c -o helloworld_recursion_aarch64-macos
+
+helloworld_pie_aarch64-macos: helloworld.c
+	gcc -Wl,-pie helloworld.c -o helloworld_pie_aarch64-macos
+
+helloworld_thread_pie_aarch64-macos: helloworld_thread.c
+	gcc -Wl,-pie helloworld_thread.c -o helloworld_thread_pie_aarch64-macos
+
+helloworld_loop_pie_aarch64-macos: helloworld_loop.c
+	gcc -Wl,-pie helloworld_loop.c -o helloworld_loop_pie_aarch64-macos
+
+helloworld_func_pie_aarch64-macos: helloworld_func.c
+	gcc -Wl,-pie helloworld_func.c -o helloworld_func_pie_aarch64-macos
+
+helloworld_recursion_pie_aarch64-macos: helloworld_recursion.c
+	gcc -Wl,-pie helloworld_recursion.c -o helloworld_recursion_pie_aarch64-macos
+
+helloworld_objc_aarch64-macos: helloworld_objc.m
+	gcc -Wl,-no_pie helloworld_objc.m -o helloworld_objc_aarch64-macos -framework AppKit -framework Carbon -framework Foundation
+
+helloworld_virtual_aarch64-macos: helloworld_virtual.cpp
+	g++ -Wl,-no_pie helloworld_virtual.cpp -o helloworld_virtual_aarch64-macos
+
+many_stdlib_calls_aarch64-macos: many_stdlib_calls.c
+	gcc -Wl,-no_pie many_stdlib_calls.c -o many_stdlib_calls_aarch64-macos
+
+asmtest_aarch64-macos: asmtest_x64.asm
+	nasm -f macho64 -DOS_IS_MACOS asmtest_x64.asm -o asmtest_aarch64-macos.o
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem asmtest_aarch64-macos.o -o asmtest_aarch64-macos
+
+hello_aarch64-macos: hello_x64.asm
+	nasm -f macho64 -DOS_IS_MACOS hello_x64.asm -o hello_aarch64-macos.o
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem hello_aarch64-macos.o -o hello_aarch64-macos
+
+analysis_propagation_aarch64-macos: analysis_propagation_x64.asm
+	nasm -f macho64 -DOS_IS_MACOS analysis_propagation_x64.asm -o analysis_propagation_aarch64-macos.o -l analysis_propagation_aarch64-macos.lst
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem analysis_propagation_aarch64-macos.o -o analysis_propagation_aarch64-macos
+	strip analysis_propagation_aarch64-macos
+	./rm_func_starts.py ./analysis_propagation_aarch64-macos
+
+missing_switch_case_aarch64-macos: missing_switch_case_x64.asm
+	nasm -f macho64 -DOS_IS_MACOS missing_switch_case_x64.asm -o missing_switch_case_aarch64-macos.o -l missing_switch_case_aarch64-macos.lst
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem missing_switch_case_aarch64-macos.o -o missing_switch_case_aarch64-macos
+	strip missing_switch_case_aarch64-macos
+	./rm_func_starts.py ./missing_switch_case_aarch64-macos
+
+undiscovered_func_aarch64-macos: undiscovered_func_x64.asm
+	nasm -f macho64 -DOS_IS_MACOS undiscovered_func_x64.asm -o undiscovered_func_aarch64-macos.o
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem undiscovered_func_aarch64-macos.o -o undiscovered_func_aarch64-macos
+
+undiscovered_func2_aarch64-macos: undiscovered_func2_x64.asm
+	nasm -f macho64 -DOS_IS_MACOS undiscovered_func2_x64.asm -o undiscovered_func2_aarch64-macos.o
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem undiscovered_func2_aarch64-macos.o -o undiscovered_func2_aarch64-macos
+	strip undiscovered_func2_aarch64-macos
+	./rm_func_starts.py ./undiscovered_func2_aarch64-macos
+
+indirect_calls_aarch64-macos: indirect_calls_x64.asm
+	nasm -f macho64 -DOS_IS_MACOS indirect_calls_x64.asm -o indirect_calls_aarch64-macos.o
+	ld -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib -lSystem indirect_calls_aarch64-macos.o -o indirect_calls_aarch64-macos
+	strip indirect_calls_aarch64-macos
+	./rm_func_starts.py ./indirect_calls_aarch64-macos
+
+do_exception_aarch64-macos: do_exception.c
+	gcc -Wl,-no_pie -DARCH_IS_X64 do_exception.c -o do_exception_aarch64-macos
+
+# 32-bit macos application (need to modify MacOSX Architectures.xcspec on Xcode 10+)
+sysroot := $(shell xcode-select -p)
+helloworld_i386: helloworld.c
+	gcc -Wl,-pie -arch i386 -isysroot "$(sysroot)/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.13.sdk" helloworld.c -o helloworld_i386-macos
+
+# Sample app with mmap and shellcode
+nopspeed_aarch64-macos: nopspeed.c
+	gcc -Wl,-pie -O3 nopspeed.c -o nopspeed_aarch64-macos
+
+cat_aarch64-macos: cat.c
+	gcc -Wl,-pie -O3 cat.c -o cat_aarch64-macos
+
+commandline_test_aarch64-macos: commandline_test.c
+	gcc -Wl,-pie -O3 commandline_test.c -o commandline_test_aarch64-macos
+

@@ -1,0 +1,138 @@
+     1                                  ; Demonstrate runtime information informing analysis.
+     2                                  ;
+     3                                  ; The switch statement has 4 legitimate cases and 4 secret cases.
+     4                                  ; Analysis will statically find the 4 legitimate.
+     5                                  ; Analysis will learn the other 4 while stepping through the table dispatch at runtime.
+     6                                  
+     7                                  default rel
+     8                                  
+     9                                  %ifdef OS_IS_LINUX
+    10                                  	global _start
+    11                                  	section .text
+    12                                  	_start:
+    13                                  %endif
+    14                                  
+    15                                  %ifdef OS_IS_MACOS
+    16                                  	global start
+    17                                  	section .text
+    18                                  	start:
+    19                                  %endif
+    20                                  
+    21                                  %ifdef OS_IS_WINDOWS
+    22                                  	global WinMain
+    23                                  	extern ExitProcess, GetStdHandle, WriteConsoleA
+    24                                  	section .text
+    25                                  	WinMain:
+    26                                  %endif
+    27                                  
+    28                                  start:
+    29                                  	; get pointer past switch constraint (which binja static analyzed)
+    30 00000000 488D1D5E000000          	lea		rbx, [function_with_switch]
+    31 00000007 BF0E000000              	mov		edi, 14
+    32 0000000C E8C4000000              	call	mapper ; returns 7
+    33 00000011 4801C3                  	add		rbx, rax ; skip over switch constraint
+    34                                  
+    35                                  	; call secret cases
+    36 00000014 B904000000              	mov		rcx, 4
+    37 00000019 FFD3                    	call	rbx
+    38 0000001B B905000000              	mov		rcx, 5 
+    39 00000020 FFD3                    	call	rbx
+    40 00000022 B906000000              	mov		rcx, 6
+    41 00000027 FFD3                    	call	rbx
+    42 00000029 B907000000              	mov		rcx, 7
+    43 0000002E FFD3                    	call	rbx
+    44                                  
+    45                                  	; call legit cases
+    46 00000030 BF00000000              	mov		rdi, 0
+    47 00000035 E82B000000              	call	function_with_switch
+    48 0000003A BF01000000              	mov		rdi, 1
+    49 0000003F E821000000              	call	function_with_switch
+    50 00000044 BF02000000              	mov		rdi, 2
+    51 00000049 E817000000              	call	function_with_switch
+    52 0000004E BF03000000              	mov		rdi, 3
+    53 00000053 E80D000000              	call	function_with_switch
+    54                                  
+    55                                  %ifdef OS_IS_LINUX
+    56                                  	mov		rdi, 0 ; arg0: status
+    57                                  	mov		rax, 60 ; __NR_exit
+    58                                  	syscall
+    59                                  %endif
+    60                                  
+    61                                  %ifdef OS_IS_MACOS
+    62 00000058 B801000002              	mov		rax, 0x2000001 ; exit
+    63 0000005D BF00000000              	mov		rdi, 0
+    64 00000062 0F05                    	syscall
+    65                                  %endif
+    66                                  
+    67                                  %ifdef OS_IS_WINDOWS
+    68                                      mov		rcx, 0
+    69                                      call    ExitProcess
+    70                                  %endif
+    71                                  
+    72                                  ; exit (so Binja knows end-of-function)
+    73 00000064 C3                      	ret
+    74                                  
+    75                                  function_with_switch:
+    76                                  	; 00000000: 0x48, 0x89, 0xf9
+    77 00000065 4889F9                  	mov		rcx, rdi				; arg0: 0,1,2,3
+    78                                  	; 00000003: 0x48, 0x83, 0xe1, 0x03
+    79 00000068 4883E103                	and		rcx, 0x3
+    80                                  	; 00000007: <--- jumping here bypasses the constraint
+    81                                  
+    82 0000006C 488D0542000000          	lea		rax, [.jump_table]
+    83 00000073 48631488                	movsx	rdx, dword[rax+rcx*4]
+    84 00000077 4801C2                  	add		rdx, rax
+    85 0000007A FFE2                    	jmp		rdx
+    86                                  
+    87                                  .case0:
+    88 0000007C B800000000              	mov		rax, 0
+    89 00000081 EB31                    	jmp		.switch_end
+    90                                  
+    91                                  .case1:
+    92 00000083 B801000000              	mov		rax, 1
+    93 00000088 EB2A                    	jmp		.switch_end
+    94                                  
+    95                                  .case2:
+    96 0000008A B802000000              	mov		rax, 2
+    97 0000008F EB23                    	jmp		.switch_end
+    98                                  
+    99                                  .case3:
+   100 00000091 B803000000              	mov		rax, 3
+   101 00000096 EB1C                    	jmp		.switch_end
+   102                                  
+   103                                  .case4:
+   104 00000098 B804000000              	mov		rax, 4
+   105 0000009D EB15                    	jmp		.switch_end
+   106                                  
+   107                                  .case5:
+   108 0000009F B805000000              	mov		rax, 5
+   109 000000A4 EB0E                    	jmp		.switch_end
+   110                                  
+   111                                  .case6:
+   112 000000A6 B806000000              	mov		rax, 6
+   113 000000AB EB07                    	jmp		.switch_end
+   114                                  
+   115                                  .case7:
+   116 000000AD B807000000              	mov		rax, 7
+   117 000000B2 EB00                    	jmp		.switch_end
+   118                                  
+   119                                  .switch_end:
+   120 000000B4 C3                      	ret
+   121                                  
+   122                                  .jump_table:
+   123 000000B5 C7FFFFFF                	dd		function_with_switch.case0 - .jump_table
+   124 000000B9 CEFFFFFF                	dd		function_with_switch.case1 - .jump_table
+   125 000000BD D5FFFFFF                	dd		function_with_switch.case2 - .jump_table
+   126 000000C1 DCFFFFFF                	dd		function_with_switch.case3 - .jump_table
+   127                                  	; these entries should be invisible/illegal to binja because of the "and 3" constraint
+   128 000000C5 E3FFFFFF                	dd		function_with_switch.case4 - .jump_table
+   129 000000C9 EAFFFFFF                	dd		function_with_switch.case5 - .jump_table
+   130 000000CD F1FFFFFF                	dd		function_with_switch.case6 - .jump_table
+   131 000000D1 F8FFFFFF                	dd		function_with_switch.case7 - .jump_table
+   132                                  
+   133                                  ; evade data flow: return given number integer divided by 2
+   134                                  mapper:
+   135 000000D5 4889F8                  	mov		rax, rdi
+   136 000000D8 48D1E8                  	shr		rax, 1
+   137 000000DB C3                      	ret
+   138                                  

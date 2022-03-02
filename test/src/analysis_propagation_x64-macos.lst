@@ -1,0 +1,269 @@
+     1                                  ; The point here is to test the ability to pass runtime information to analysis.
+     2                                  ;
+     3                                  ; The simplest case is when a call is encountered in the debugger where the
+     4                                  ; destination is not yet an identified function. Just make a function at this
+     5                                  ; address.
+     6                                  ;
+     7                                  ; The second case is when a branch is encountered whose destination is not
+     8                                  ; in the set of indirect branches picked up by analysis. This is exercised here
+     9                                  ; by having a jump table's check bypassed from another function. Binja picks up
+    10                                  ; the legal values of the jump table, but doesn't see that a side flow of
+    11                                  ; execution can hop over the constraint for the value that indexes the table.
+    12                                  
+    13                                  default rel
+    14                                  
+    15                                  	global start
+    16                                  	global function_with_indirect_call
+    17                                  	global function_with_switch
+    18                                  	section .text
+    19                                  
+    20                                  start:
+    21                                  	; call case 4 (illegal) of switch by jumping passed check
+    22 00000000 488D1D69000000          	lea		rbx, [function_with_switch]
+    23 00000007 BFAF010000              	mov		edi, 431
+    24 0000000C E809010000              	call	mapper ; returns 7
+    25 00000011 4801C3                  	add		rbx, rax
+    26 00000014 B904000000              	mov		rcx, 4
+    27 00000019 FFD3                    	call	rbx
+    28                                  
+    29                                  	; call case0, case1 of switch
+    30 0000001B BF00000000              	mov		rdi, 0
+    31 00000020 E84B000000              	call	function_with_switch
+    32 00000025 BF01000000              	mov		rdi, 1
+    33 0000002A E841000000              	call	function_with_switch
+    34 0000002F BF02000000              	mov		rdi, 2
+    35 00000034 E837000000              	call	function_with_switch
+    36 00000039 BF03000000              	mov		rdi, 3
+    37 0000003E E82D000000              	call	function_with_switch
+    38                                  
+    39                                  	; call case 5 (illegal) of switch by jumping passed check
+    40 00000043 488D1D26000000          	lea		rbx, [function_with_switch]
+    41 0000004A BFAF010000              	mov		edi, 431
+    42 0000004F E8C6000000              	call	mapper ; returns 7
+    43 00000054 4801C3                  	add		rbx, rax
+    44 00000057 B905000000              	mov		rcx, 5
+    45 0000005C FFD3                    	call	rbx
+    46                                  
+    47                                  	; make some indirect calls
+    48 0000005E E859000000              	call	function_with_indirect_call
+    49                                  
+    50                                  	; done
+    51 00000063 B801000002              	mov		rax, 0x2000001 ; exit
+    52 00000068 BF00000000              	mov		rdi, 0
+    53 0000006D 0F05                    	syscall
+    54 0000006F C3                      	ret
+    55                                  
+    56                                  function_with_switch:
+    57                                  	; 00000000: 0x48, 0x89, 0xf9
+    58 00000070 4889F9                  	mov		rcx, rdi				; arg0: 0,1,2,3
+    59                                  	; 00000003: 0x48, 0x83, 0xe1, 0x03
+    60 00000073 4883E103                	and		rcx, 0x3
+    61                                  	; 00000007: <--- jumping here bypasses the constraint
+    62                                  
+    63 00000077 488D0526000000          	lea		rax, [.jump_table]
+    64 0000007E 48631488                	movsx	rdx, dword[rax+rcx*4]
+    65 00000082 4801C2                  	add		rdx, rax
+    66 00000085 FFE2                    	jmp		rdx
+    67                                  
+    68                                  .case0:
+    69 00000087 E8AF000000              	call	print_00
+    70 0000008C EB15                    	jmp		.switch_end
+    71                                  
+    72                                  .case1:
+    73 0000008E E8D6000000              	call	print_01
+    74 00000093 EB0E                    	jmp		.switch_end
+    75                                  
+    76                                  .case2:
+    77 00000095 E803010000              	call	print_02
+    78 0000009A EB07                    	jmp		.switch_end
+    79                                  
+    80                                  .case3:
+    81 0000009C E830010000              	call	print_03
+    82 000000A1 EB00                    	jmp		.switch_end
+    83                                  
+    84                                  .switch_end:
+    85 000000A3 C3                      	ret
+    86                                  
+    87                                  .jump_table:
+    88 000000A4 E3FFFFFF                	dd		function_with_switch.case0 - .jump_table
+    89 000000A8 EAFFFFFF                	dd		function_with_switch.case1 - .jump_table
+    90 000000AC F1FFFFFF                	dd		function_with_switch.case2 - .jump_table
+    91 000000B0 F8FFFFFF                	dd		function_with_switch.case3 - .jump_table
+    92                                  	; these entries should be invisible/illegal to binja because of the "and 3" constraint
+    93 000000B4 91010000                	dd		junk + 0x30 - .jump_table
+    94 000000B8 EF010000                	dd		junk + 0x8e - .jump_table
+    95                                  
+    96                                  function_with_indirect_call:
+    97 000000BC B904000000              	mov		rcx, 4
+    98                                  
+    99                                  .next:
+   100 000000C1 51                      	push	rcx
+   101                                  
+   102                                  .test4:
+   103 000000C2 4883F904                	cmp		rcx, 4
+   104 000000C6 7509                    	jne		.test3
+   105 000000C8 488D1D6C000000          	lea		rbx, [print_00]
+   106 000000CF EB43                    	jmp		.dispatch
+   107                                  
+   108                                  .test3:
+   109 000000D1 4883F903                	cmp		rcx, 3
+   110 000000D5 7509                    	jne		.test2
+   111 000000D7 488D1D8B000000          	lea		rbx, [print_01]
+   112 000000DE EB34                    	jmp		.dispatch
+   113                                  
+   114                                  .test2:
+   115 000000E0 4883F902                	cmp		rcx, 2
+   116 000000E4 7516                    	jne		.test1
+   117 000000E6 488D1D18010000          	lea		rbx, [junk]
+   118 000000ED BFC5010000              	mov		rdi, 453 ; -> 48
+   119 000000F2 E823000000              	call	mapper
+   120 000000F7 4801C3                  	add		rbx, rax
+   121 000000FA EB18                    	jmp		.dispatch
+   122                                  
+   123                                  .test1:
+   124 000000FC 4883F901                	cmp		rcx, 1
+   125 00000100 488D1DFE000000          	lea		rbx, [junk]
+   126 00000107 BFA3000000              	mov		rdi, 163 ; -> 142
+   127 0000010C E809000000              	call	mapper
+   128 00000111 4801C3                  	add		rbx, rax
+   129                                  
+   130                                  .dispatch:
+   131 00000114 FFD3                    	call	rbx
+   132                                  
+   133                                  .check:
+   134 00000116 59                      	pop		rcx
+   135 00000117 E2A8                    	loop	.next
+   136 00000119 C3                      	ret
+   137                                  
+   138                                  ; evade data flow
+   139                                  ; maps {1,2,3,4,5,6,7,8,9,10,...} -> {1,3,9,27,81,243,220,151,453,341,...}
+   140                                  ; forward with pow(3,x,509)
+   141                                  ; reverse with brute force [x for x in range(508) if pow(3,x,509) == y]
+   142                                  mapper:
+   143 0000011A 4889F9                  	mov		rcx, rdi	; arg0: number to map
+   144 0000011D B801000000              	mov		rax, 1
+   145 00000122 E316                    	jrcxz	.done
+   146                                  .step:
+   147 00000124 486BC003                	imul	rax, 3
+   148                                  .reduce:
+   149 00000128 483DFD010000            	cmp		rax, 509
+   150 0000012E 7C08                    	jl		.next
+   151 00000130 482DFD010000            	sub		rax, 509
+   152 00000136 EBF0                    	jmp		.reduce
+   153                                  .next:
+   154 00000138 E2EA                    	loop	.step
+   155                                  .done:
+   156 0000013A C3                      	ret
+   157                                  
+   158                                  print_00:
+   159 0000013B 488D3518000000          	lea		rsi, [.msg_start]
+   160 00000142 488D151F000000          	lea		rdx, [.done]
+   161 00000149 4829F2                  	sub		rdx, rsi
+   162 0000014C BF01000000              	mov		rdi, 1 ; stdout
+   163 00000151 B804000002              	mov		rax, 0x2000004 ; write
+   164 00000156 0F05                    	syscall
+   165 00000158 EB0E                    	jmp		.done
+   166                                  .msg_start:
+   167 0000015A 49276D207072696E74-     	db		"I'm print_00!", 0x0a
+   167 00000163 5F3030210A         
+   168                                  .done:
+   169 00000168 C3                      	ret
+   170                                  
+   171                                  print_01:
+   172 00000169 48BE-                   	mov		rsi, .msg_start
+   172 0000016B [8E01000000000000] 
+   173 00000173 48BA-                   	mov		rdx, .done
+   173 00000175 [9C01000000000000] 
+   174 0000017D 4829F2                  	sub		rdx, rsi
+   175 00000180 BF01000000              	mov		rdi, 1 ; stdout
+   176 00000185 B804000002              	mov		rax, 0x2000004 ; write
+   177 0000018A 0F05                    	syscall
+   178 0000018C EB0E                    	jmp		.done
+   179                                  .msg_start:
+   180 0000018E 49276D207072696E74-     	db		"I'm print_01!", 0x0a
+   180 00000197 5F3031210A         
+   181                                  .done:
+   182 0000019C C3                      	ret
+   183                                  
+   184                                  print_02:
+   185 0000019D 48BE-                   	mov		rsi, .msg_start
+   185 0000019F [C201000000000000] 
+   186 000001A7 48BA-                   	mov		rdx, .done
+   186 000001A9 [D001000000000000] 
+   187 000001B1 4829F2                  	sub		rdx, rsi
+   188 000001B4 BF01000000              	mov		rdi, 1 ; stdout
+   189 000001B9 B804000002              	mov		rax, 0x2000004 ; write
+   190 000001BE 0F05                    	syscall
+   191 000001C0 EB0E                    	jmp		.done
+   192                                  .msg_start:
+   193 000001C2 49276D207072696E74-     	db		"I'm print_02!", 0x0a
+   193 000001CB 5F3032210A         
+   194                                  .done:
+   195 000001D0 C3                      	ret
+   196                                  
+   197                                  print_03:
+   198 000001D1 48BE-                   	mov		rsi, .msg_start
+   198 000001D3 [F601000000000000] 
+   199 000001DB 48BA-                   	mov		rdx, .done
+   199 000001DD [0402000000000000] 
+   200 000001E5 4829F2                  	sub		rdx, rsi
+   201 000001E8 BF01000000              	mov		rdi, 1 ; stdout
+   202 000001ED B804000002              	mov		rax, 0x2000004 ; write
+   203 000001F2 0F05                    	syscall
+   204 000001F4 EB0E                    	jmp		.done
+   205                                  .msg_start:
+   206 000001F6 49276D207072696E74-     	db		"I'm print_03!", 0x0a
+   206 000001FF 5F3033210A         
+   207                                  .done:
+   208 00000204 C3                      	ret
+   209                                  
+   210                                  junk:
+   211                                  ; junk
+   212 00000205 EF3D537CFB803B28        db 0xEF, 0x3D, 0x53, 0x7C, 0xFB, 0x80, 0x3B, 0x28,
+   213 0000020D 15D1A2CD5E7EBCE1        db 0x15, 0xD1, 0xA2, 0xCD, 0x5E, 0x7E, 0xBC, 0xE1,
+   214 00000215 C61B6305B7D3BA3B        db 0xC6, 0x1B, 0x63, 0x05, 0xB7, 0xD3, 0xBA, 0x3B,
+   215 0000021D 39CA46A132D98AB5        db 0x39, 0xCA, 0x46, 0xA1, 0x32, 0xD9, 0x8A, 0xB5,
+   216 00000225 8FD6FAAE082DD56F        db 0x8F, 0xD6, 0xFA, 0xAE, 0x08, 0x2D, 0xD5, 0x6F,
+   217 0000022D 1ED6B872A98D86E8        db 0x1E, 0xD6, 0xB8, 0x72, 0xA9, 0x8D, 0x86, 0xE8
+   218                                  
+   219                                  ; junk + 0x30
+   220                                  ; hidden function
+   221 00000235 488D3518000000          db 0x48, 0x8D, 0x35, 0x18, 0x00, 0x00, 0x00,        ; lea        rsi, [.msg_start]
+   222 0000023C 488D151F000000          db 0x48, 0x8D, 0x15, 0x1F, 0x00, 0x00, 0x00,        ; lea        rdx, [.done]
+   223 00000243 4829F2                  db 0x48, 0x29, 0xF2                                 ; sub        rdx, rsi
+   224 00000246 BF01000000              db 0xBF, 0x01, 0x00, 0x00, 0x00                     ; mov        rdi, 1 ; stdout
+   225 0000024B B804000002              db 0xB8, 0x04, 0x00, 0x00, 0x02                     ; mov        rax, 0x2000004 ; write
+   226 00000250 0F05                    db 0x0F, 0x05                                       ; syscall
+   227 00000252 EB0E                    db 0xEB, 0x0E                                       ; jmp        .done
+   228                                  ; .msg_start: "YOU FOUND ME1"
+   229 00000254 594F5520464F554E44-     db  0x59, 0x4F, 0x55, 0x20, 0x46, 0x4F, 0x55, 0x4E, 0x44, 0x20, 0x4D, 0x45, 0x31, 0x0a
+   229 0000025D 204D45310A         
+   230                                  ; .done:
+   231 00000262 C3                      db 0xC3                                             ; ret
+   232                                  
+   233                                  ; junk + 0x5e
+   234 00000263 B4DEF06B54400846        db 0xB4, 0xDE, 0xF0, 0x6B, 0x54, 0x40, 0x08, 0x46,
+   235 0000026B F6ACDD828C742C7F        db 0xF6, 0xAC, 0xDD, 0x82, 0x8C, 0x74, 0x2C, 0x7F,
+   236 00000273 BD0BC1BA121FD07C        db 0xBD, 0x0B, 0xC1, 0xBA, 0x12, 0x1F, 0xD0, 0x7C,
+   237 0000027B 44FF435FC685F323        db 0x44, 0xFF, 0x43, 0x5F, 0xC6, 0x85, 0xF3, 0x23,
+   238 00000283 6B65412CB44A5E24        db 0x6B, 0x65, 0x41, 0x2C, 0xB4, 0x4A, 0x5E, 0x24,
+   239 0000028B 35BA577618ABE051        db 0x35, 0xBA, 0x57, 0x76, 0x18, 0xAB, 0xE0, 0x51
+   240                                  
+   241                                  ; junk + 0x8e
+   242                                  ; hidden function
+   243 00000293 488D3518000000          db 0x48, 0x8D, 0x35, 0x18, 0x00, 0x00, 0x00,        ; lea        rsi, [.msg_start]
+   244 0000029A 488D151F000000          db 0x48, 0x8D, 0x15, 0x1F, 0x00, 0x00, 0x00,        ; lea        rdx, [.done]
+   245 000002A1 4829F2                  db 0x48, 0x29, 0xF2                                 ; sub        rdx, rsi
+   246 000002A4 BF01000000              db 0xBF, 0x01, 0x00, 0x00, 0x00                     ; mov        rdi, 1 ; stdout
+   247 000002A9 B804000002              db 0xB8, 0x04, 0x00, 0x00, 0x02                     ; mov        rax, 0x2000004 ; write
+   248 000002AE 0F05                    db 0x0F, 0x05                                       ; syscall
+   249 000002B0 EB0E                    db 0xEB, 0x0E                                       ; jmp        .done
+   250                                  ; .msg_start: "YOU FOUND ME2"
+   251 000002B2 594F5520464F554E44-     db  0x59, 0x4F, 0x55, 0x20, 0x46, 0x4F, 0x55, 0x4E, 0x44, 0x20, 0x4D, 0x45, 0x32, 0x0a
+   251 000002BB 204D45320A         
+   252                                  ; .done:
+   253 000002C0 C3                      db 0xC3                                             ; ret
+   254                                  
+   255                                  section .data
+   256 00000000 48657265277320736F-     	db		"Here's some data.", 0x0a
+   256 00000009 6D6520646174612E0A 
