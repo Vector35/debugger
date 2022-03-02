@@ -55,13 +55,14 @@ int main(int ac, char **av)
 			PFOO bar = (PFOO)buf;
 			bar();
 		#endif
-		float foo = 31337;
+		int foo = 31337;
+		float result = 0;
 		int i = 9;
 		while(i >= 0) {
 			printf("dividing by %d\n", i);
-			foo = foo/i;
+			result = foo/i;
 			i -= 1;
-			printf("result is: %f\n", foo);
+			printf("result is: %f\n", result);
 		}
 	}
 

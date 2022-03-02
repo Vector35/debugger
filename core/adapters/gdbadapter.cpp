@@ -364,7 +364,7 @@ bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
 DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
     if (m_isTargetRunning)
-        return false;
+        return {};
 
     if ( std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(),
                    DebugBreakpoint(address)) != this->m_debugBreakpoints.end())
@@ -378,7 +378,7 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned
 //  https://sourceware.org/gdb/current/onlinedocs/gdb/ARM-Breakpoint-Kinds.html
 
     if (this->m_rspConnector.TransmitAndReceive(RspData("Z0,{:x},{}", address, kind)).AsString() != "OK" )
-        throw std::runtime_error("rsp reply failure on breakpoint");
+        return DebugBreakpoint{};
 
     const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true);
     this->m_debugBreakpoints.push_back(new_breakpoint);

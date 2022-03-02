@@ -13,7 +13,7 @@ import subprocess
 
 from struct import unpack
 
-import colorama
+# import colorama
 
 sys.path.append('..')
 from binaryninja import BinaryView, BinaryViewType
@@ -21,8 +21,8 @@ from binaryninja.debugger import DebuggerController, DebugStopReason
 
 
 # globals
-adapter = None
-testbin = None
+# adapter = None
+# testbin = None
 
 # --------------------------------------------------------------------------
 # UTILITIES
@@ -37,6 +37,7 @@ def shellout(cmd):
     #print('stderr: -%s-' % stderr)
     process.wait()
     return (stdout, stderr)
+
 
 def parse_image(fpath):
     load_addr = None
@@ -171,17 +172,25 @@ def parse_image(fpath):
     print('(file) entry offset: 0x%X' % entry_offs)
     return (load_addr, entry_offs)
 
-# 'helloworld' -> '.\testbins\helloworld.exe' (windows)
-# 'helloworld' -> './testbins/helloworld' (linux, android)
-def testbin_to_fpath():
-    global testbin
-    if testbin.endswith('-win') or testbin.endswith('-windows'):
+
+# 'helloworld' -> '.\binaries\Windows-x64\helloworld.exe' (windows)
+# 'helloworld' -> './binaries/Darwin/arm64/helloworld' (linux, android)
+def testbin_to_fpath(testbin, arch=None, os_str=None):
+    if arch is None:
+        arch = platform.machine()
+
+    if os_str is None:
+        os_str = platform.system()
+
+    if os_str == 'Windows' and not testbin.endswith('.exe'):
         testbin = testbin + '.exe'
-    tmp =  os.path.join('testbins', testbin)
-    if '~' in tmp:
-        tmp = os.expanduser(tmp)
-    tmp = os.path.abspath(tmp)
-    return tmp
+
+    path = os.path.join('binaries', f'{os_str}-{arch}', testbin)
+    if '~' in path:
+        path = os.expanduser(path)
+    path = os.path.abspath(path)
+    return path
+
 
 # 'helloworld_armv7-android' -> '/data/local/tmp/helloworld_armv7-android'
 def testbin_to_mpath():
@@ -193,9 +202,11 @@ def testbin_to_mpath():
     else:
         return testbin_to_fpath()
 
+
 def break_into(dbg):
     print('sending break')
     dbg.pause()
+
 
 def invoke_adb_gdb_listen(testbin_args, port=31337):
     global testbin
@@ -214,11 +225,13 @@ def invoke_adb_gdb_listen(testbin_args, port=31337):
     shellout(cmdline)
     print('invoke_adb() done')
 
+
 def is_wow64():
     global testbin
     if not 'x86' in testbin: return False
     (a,b) = platform.architecture()
     return a=='64bit' and b.startswith('Windows')
+
 
 def go_initial(adapter):
     global testbin
@@ -237,28 +250,28 @@ def assert_equality(a, b):
     traceback.print_stack()
     sys.exit(-1)
 
+
 # let there be a single check for single-step
 # (abstract away OS-exceptional cases)
 def expect_single_step(reason):
-    global testbin
-
-    if 'macos' in testbin:
+    if platform.system() == 'Darwin':
         expected = DebugStopReason.Breakpoint
     else:
         expected = DebugStopReason.SingleStep
 
     assert_equality(reason, expected)
 
-def expect_bad_instruction(reason):
-    global testbin
 
+def expect_bad_instruction(reason):
     # :/ I cannot induce a bad instruction exception on these OS's!
-    if 'macos' in testbin or 'windows' in testbin or 'android' in testbin:
-        expected = DebugAdapter.STOP_REASON.ACCESS_VIOLATION
+    # TODO: add android
+    if platform.system() in ['Darwin', 'Windows']:
+        expected = DebugStopReason.AccessViolation
     else:
-        expected = DebugAdapter.STOP_REASON.ILLEGAL_INSTRUCTION
+        expected = DebugStopReason.IllegalInstruction
 
     assert_equality(reason, expected)
+
 
 def assert_general_error(func):
     raised = False
@@ -267,6 +280,7 @@ def assert_general_error(func):
     except DebugAdapter.GeneralError:
         raised = True
     assert raised
+
 
 # determines the entrypoint from the
 def confirm_initial_module(adapter):
@@ -294,6 +308,7 @@ def confirm_initial_module(adapter):
 
     return load_addr + entry_offs
 
+
 def android_test_setup(testbin_args=[]):
     global testbin
 
@@ -318,13 +333,12 @@ def android_test_setup(testbin_args=[]):
 #------------------------------------------------------------------------------
 #
 if __name__ == '__main__':
-    colorama.init()
+    # colorama.init()
     arg = sys.argv[1] if sys.argv[1:] else None
 
     # one-off tests
     if arg == 'oneoff':
-        testbin = 'helloworld_thread_x64-macos'
-        fpath = testbin_to_fpath()
+        fpath = testbin_to_fpath('helloworld_thread')
         print(fpath)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
@@ -340,22 +354,14 @@ if __name__ == '__main__':
         pid = None
         # TODO: we definitely need to simplify code like this
         if platform.system() == 'Windows':
-            testbin = 'helloworld_loop_x64-windows'
-            fpath = testbin_to_fpath()
+            fpath = testbin_to_fpath('helloworld_loop')
             DETACHED_PROCESS = 0x00000008
             CREATE_NEW_CONSOLE = 0x00000010
             cmds = [fpath]
             print('cmds:', cmds)
             pid = subprocess.Popen(cmds, creationflags=CREATE_NEW_CONSOLE).pid
-        elif platform.system() == 'Darwin':
-            testbin = 'helloworld_loop_x64-macos'
-            fpath = testbin_to_fpath()
-            cmds = [fpath]
-            print('cmds:', cmds)
-            pid = subprocess.Popen(cmds).pid
-        elif platform.system() == 'linux':
-            testbin = 'helloworld_loop_x64-linux'
-            fpath = testbin_to_fpath()
+        elif platform.system() in ['Darwin', 'linux']:
+            fpath = testbin_to_fpath('helloworld_loop')
             cmds = [fpath]
             print('cmds:', cmds)
             pid = subprocess.Popen(cmds).pid
@@ -387,187 +393,175 @@ if __name__ == '__main__':
         dbg = None
         sys.exit(-1)
 
+    current_arch = 'arm64'
+
     # otherwise test all executables built in the testbins dir
-    testbins = []
-    for fname in os.listdir('testbins'):
-        fpath = os.path.join('testbins', fname)
-        if platform.system() == 'Windows':
-            if fpath.endswith('.exe'):
-                testbins.append(fname)
-        elif os.access(fpath, os.X_OK):
-            testbins.append(fname)
-    print('collected the following tests:\n', testbins)
+    # testbins = []
+    # for fname in os.listdir('testbins'):
+    #     fpath = os.path.join('testbins', fname)
+    #     if platform.system() == 'Windows':
+    #         if fpath.endswith('.exe'):
+    #             testbins.append(fname)
+    #     elif os.access(fpath, os.X_OK):
+    #         testbins.append(fname)
+    # print('collected the following tests:\n', testbins)
 
     #--------------------------------------------------------------------------
     # x86/x64 TESTS
     #--------------------------------------------------------------------------
 
     # repeat DebugController use tests
-    for tb in filter(lambda x: x.startswith('helloworld_x64'), testbins):
-        testbin = tb
-        fpath = testbin_to_fpath()
-        bv = BinaryViewType.get_view_of_file(fpath)
-
-        def thread_task():
-            dbg = DebuggerController(bv)
-            dbg.cmd_line = 'segfault'
-            if not dbg.launch():
-                print(f'fail to launch {fpath}')
-                sys.exit(-1)
-
-            # continue execution to the entry point, and check the stop reason
-            reason = dbg.go()
-            assert_equality(reason, DebugStopReason.Breakpoint)
-            reason = dbg.step_into()
-            expect_single_step(reason)
-            reason = dbg.step_into()
-            expect_single_step(reason)
-            reason = dbg.step_into()
-            expect_single_step(reason)
-            # go until executing done
-            reason = dbg.go()
-            assert_equality(reason, DebugStopReason.ProcessExited)
-
-            dbg.destroy()
-
-        # Do the same thing for 10 times
-        n = 10
-        for i in range(n):
-            print('testing %s %d/%d' % (fpath, i+1, n))
-            thread_task()
-
-    # return code tests
-    for tb in [x for x in testbins if x.startswith('exitcode')]:
-        testbin = tb
-
-        fpath = testbin_to_fpath()
-        bv = BinaryViewType.get_view_of_file(fpath)
-
-        # some systems return byte, or low byte of 32-bit code and others return 32-bit code
-        testvals = [('-11',[245,4294967285]), ('-1',[4294967295,255]), ('-3',[4294967293,253]), ('0',[0]), ('3',[3]), ('7',[7]), ('123',[123])]
-        for (arg, expected) in testvals:
-            print('testing %s %s' % (tb, arg))
-            dbg = DebuggerController(bv)
-            dbg.cmd_line = arg
-
-            if not dbg.launch():
-                print(f'fail to launch {fpath}')
-                sys.exit(-1)
-
-            dbg.go()
-            reason = dbg.go()
-            assert_equality(reason, DebugStopReason.ProcessExited)
-            exit_code = dbg.exit_code
-            if exit_code not in expected:
-                raise Exception('expected return code %d to be in %s' % (exit_code, expected))
+    # fpath = testbin_to_fpath('helloworld')
+    # bv = BinaryViewType.get_view_of_file(fpath)
+    #
+    # def thread_task():
+    #     dbg = DebuggerController(bv)
+    #     dbg.cmd_line = 'segfault'
+    #     if not dbg.launch():
+    #         print(f'fail to launch {fpath}')
+    #         sys.exit(-1)
+    #
+    #     # continue execution to the entry point, and check the stop reason
+    #     reason = dbg.go()
+    #     assert_equality(reason, DebugStopReason.Breakpoint)
+    #     reason = dbg.step_into()
+    #     expect_single_step(reason)
+    #     reason = dbg.step_into()
+    #     expect_single_step(reason)
+    #     reason = dbg.step_into()
+    #     expect_single_step(reason)
+    #     # go until executing done
+    #     reason = dbg.go()
+    #     assert_equality(reason, DebugStopReason.ProcessExited)
+    #
+    #     dbg.destroy()
+    #
+    # # Do the same thing for 10 times
+    # n = 10
+    # for i in range(n):
+    #     print('testing %s %d/%d' % (fpath, i+1, n))
+    #     thread_task()
+    #
+    # # return code tests
+    # fpath = testbin_to_fpath('exitcode')
+    # bv = BinaryViewType.get_view_of_file(fpath)
+    #
+    # # some systems return byte, or low byte of 32-bit code and others return 32-bit code
+    # testvals = [('-11',[245,4294967285]), ('-1',[4294967295,255]), ('-3',[4294967293,253]), ('0',[0]), ('3',[3]), ('7',[7]), ('123',[123])]
+    # for (arg, expected) in testvals:
+    #     print('testing %s %s' % (fpath, arg))
+    #     dbg = DebuggerController(bv)
+    #     dbg.cmd_line = arg
+    #
+    #     if not dbg.launch():
+    #         print(f'fail to launch {fpath}')
+    #         sys.exit(-1)
+    #
+    #     dbg.go()
+    #     reason = dbg.go()
+    #     assert_equality(reason, DebugStopReason.ProcessExited)
+    #     exit_code = dbg.exit_code
+    #     if exit_code not in expected:
+    #         raise Exception('expected return code %d to be in %s' % (exit_code, expected))
 
     # exception test
-    for tb in testbins:
-        if not tb.startswith('do_exception'): continue
-        if not ('x86' in tb) or ('x64' in tb): continue
-        print('testing %s' % tb)
-        testbin = tb
+    # fpath = testbin_to_fpath('do_exception')
+    # bv = BinaryViewType.get_view_of_file(fpath)
+    # dbg = DebuggerController(bv)
+    #
+    # # segfault
+    # dbg.cmd_line = 'segfault'
+    # if not dbg.launch():
+    #     print(f'fail to launch {fpath}')
+    #     sys.exit(-1)
+    # dbg.go()
+    # reason = dbg.go()
+    # assert_equality(reason, DebugStopReason.AccessViolation)
+    # dbg.quit()
+    #
+    # # illegal instruction
+    # dbg.cmd_line = 'illegalinstr'
+    # if not dbg.launch():
+    #     print(f'fail to launch {fpath}')
+    #     sys.exit(-1)
+    # dbg.go()
+    # reason = dbg.go()
+    # expect_bad_instruction(reason)
+    # dbg.quit()
+    #
+    # # breakpoint, single step, exited
+    # dbg.cmd_line = 'fakearg'
+    # if not dbg.launch():
+    #     print(f'fail to launch {fpath}')
+    #     sys.exit(-1)
+    # reason = dbg.go()
+    # assert_equality(reason, DebugStopReason.Breakpoint)
+    # reason = dbg.step_into()
+    # expect_single_step(reason)
+    # reason = dbg.step_into()
+    # expect_single_step(reason)
+    # reason = dbg.go()
+    # assert_equality(reason, DebugStopReason.ProcessExited)
+    #
+    # # divzero
+    # # divide-by-zero does not cause an exception on arm64, so this test is meaningless. Skip it.
+    # if not current_arch == 'arm64':
+    #     dbg.cmd_line = 'divzero'
+    #     if not dbg.launch():
+    #         print(f'fail to launch {fpath}')
+    #         sys.exit(-1)
+    #     dbg.go()
+    #     reason = dbg.go()
+    #     assert_equality(reason, DebugStopReason.Calculation)
 
-        adapter = DebugAdapter.get_adapter_for_current_system()
-        fpath = testbin_to_fpath()
+    # assembler x86/x64 tests
+    if current_arch == 'x86_64' or True:
+        fpath = testbin_to_fpath('asmtest', 'x86_64')
+        print(f'testing {fpath}')
+        bv = BinaryViewType.get_view_of_file(fpath)
+        dbg = DebuggerController(bv)
+        if not dbg.launch():
+            print(f'fail to launch {fpath}')
+            sys.exit(-1)
 
-        # segfault
-        adapter.exec(fpath, ['segfault'])
-        (reason, extra) = go_initial(adapter)
-        assert_equality(reason, DebugAdapter.STOP_REASON.ACCESS_VIOLATION)
-        adapter.quit()
+        entry = dbg.live_view.entry_point
+        ip = dbg.ip
+        loader = ip != entry
+        if loader:
+            print('entrypoint is the program, no library or loader')
+        else:
+            print('loader detected, gonna step a few times for fun')
 
-        # illegal instruction
-        adapter.exec(fpath, ['illegalinstr'])
-        (reason, extra) = go_initial(adapter)
-        expect_bad_instruction(reason)
-        adapter.quit()
+        # a few steps in the loader
+        if loader:
+            reason = dbg.step_into()
+            expect_single_step(reason)
+            reason = dbg.step_into()
+            expect_single_step(reason)
+            # go to entry
+            dbg.go()
+            assert_equality(dbg.ip, entry)
 
-        # breakpoint, single step, exited
-        adapter.exec(fpath, ['fakearg'])
-        entry = confirm_initial_module(adapter)
-        adapter.breakpoint_set(entry)
-        (reason, extra) = go_initial(adapter)
-        assert_equality(reason, DebugAdapter.STOP_REASON.BREAKPOINT)
-        adapter.breakpoint_clear(entry)
-        #print('rip: ', adapter.reg_read('rip'))
-        (reason, extra) = adapter.step_into()
-        #print('rip: ', adapter.reg_read('rip'))
-        expect_single_step(reason)
+        # TODO: we can use BN to disassemble the binary and find out how long is the instruction
+        # step into nop
+        dbg.step_into()
+        assert_equality(dbg.ip, entry+1)
+        # step into call, return
+        dbg.step_into()
+        dbg.step_into()
+        # back
+        assert_equality(dbg.ip, entry+6)
+        dbg.step_into()
+        # step into call, return
+        dbg.step_into()
+        dbg.step_into()
+        # back
+        assert_equality(dbg.ip, entry+12)
 
-        (reason, extra) = adapter.step_into()
-        #print('rip: ', adapter.reg_read('rip'))
-        expect_single_step(reason)
+        reason = dbg.go()
+        assert_equality(reason, DebugStopReason.ProcessExited)
 
-        (reason, extra) = adapter.go()
-        assert_equality(reason, DebugAdapter.STOP_REASON.PROCESS_EXITED)
-        adapter.quit()
-
-        # divzero
-        adapter.exec(fpath, ['divzero'])
-        (reason, extra) = go_initial(adapter)
-        assert_equality(reason, DebugAdapter.STOP_REASON.CALCULATION)
-        adapter.quit()
-#
-#     # assembler x86/x64 tests
-#     for tb in testbins:
-#         if not (tb.startswith('asmtest_x64') or tb.startswith('asmtest_x86')): continue
-#         print('testing %s' % tb)
-#         testbin = tb
-#
-#         # parse entrypoint information
-#         fpath = testbin_to_fpath()
-#         (load_addr, entry_offs) = parse_image(fpath)
-#         entry = load_addr + entry_offs
-#
-#         # tester and testee run on same machine
-#         adapter = DebugAdapter.get_adapter_for_current_system()
-#         adapter.exec(fpath, '')
-#
-#         xip = 'eip' if 'x86' in tb else 'rip'
-#
-#         loader = adapter.reg_read(xip) != entry
-#         if loader: print('entrypoint is the program, no library or loader')
-#         else: print('loader detected, gonna step a few times for fun')
-#
-#         # a few steps in the loader
-#         if loader:
-#             (reason, extra) = adapter.step_into()
-#             expect_single_step(reason)
-#
-#         # set bp entry
-#         print('setting entry breakpoint at 0x%X' % entry)
-#         adapter.breakpoint_set(entry)
-#
-#         # few more steps
-#         if loader:
-#             (reason, extra) = adapter.step_into()
-#             expect_single_step(reason)
-#
-#         # go to entry
-#         (reason, extra) = go_initial(adapter)
-#         assert_equality(adapter.reg_read(xip), entry)
-#         adapter.breakpoint_clear(entry)
-#         # step into nop
-#         adapter.step_into()
-#         assert_equality(adapter.reg_read(xip), entry+1)
-#         # step into call, return
-#         adapter.step_into()
-#         adapter.step_into()
-#         # back
-#         assert_equality(adapter.reg_read(xip), entry+6)
-#         adapter.step_into()
-#         # step into call, return
-#         adapter.step_into()
-#         adapter.step_into()
-#         # back
-#         assert_equality(adapter.reg_read(xip), entry+12)
-#
-#         (reason, extra) = adapter.go()
-#         assert_equality(reason, DebugAdapter.STOP_REASON.PROCESS_EXITED)
-#
-#         adapter.quit()
-#         print('PASS!')
+        print('PASS!')
 #
 #     # helloworld x86/x64, no threads
 #     for tb in testbins:

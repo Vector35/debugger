@@ -679,7 +679,6 @@ void DebuggerController::HandleInitialBreakpoint()
 
 	Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
 	SetData(rebasedView);
-	LogWarn("the base of the rebased view is 0x%lx", rebasedView->GetStart());
 
 	ExecuteOnMainThreadAndWait([=](){
 //		ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
