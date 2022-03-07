@@ -36,9 +36,12 @@ namespace BinaryNinjaDebugger
 
 			if (port) {
 				this->m_socket = ::socket(address_family, type, protocol);
+				SetSocketReusable();
 			} else {
-				for (std::int32_t index = 31337; index < 31337 + 256; index++) {
+				for (std::int32_t index = 31337; index < 31337 + 1024; index++) {
+					printf("trying port %d\n", index);
 					this->m_socket = ::socket(address_family, type, protocol);
+					SetSocketReusable();
 
 					sockaddr_in address{};
 					address.sin_family = AF_INET;
@@ -54,7 +57,21 @@ namespace BinaryNinjaDebugger
 			}
 
 			if ( !this->m_port )
-				throw std::runtime_error("failed to locate port");
+				throw std::runtime_error("failed to find a usable port");
+		}
+
+		void SetSocketReusable()
+		{
+		#ifndef WIN32
+			int reuse = 1;
+			if (setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
+				printf("unable to set SO_REUSEADDR");
+
+			if (setsockopt(m_socket, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof(reuse)) < 0)
+				printf("unable to set SO_REUSEPORT");
+		#else
+		// TODO: Windows
+		#endif
 		}
 
 		[[nodiscard]] std::uint32_t GetPort() const {

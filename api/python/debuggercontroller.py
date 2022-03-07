@@ -357,11 +357,11 @@ class DebuggerController:
     @property
     def active_thread(self) -> DebugThread:
         active_thread = dbgcore.BNDebuggerGetActiveThread(self.handle)
-        return DebugThread(active_thread.tid, active_thread.rip)
+        return DebugThread(active_thread.m_tid, active_thread.m_rip)
 
     @active_thread.setter
     def active_thread(self, thread: DebugThread) -> None:
-        dbgcore.BNDebuggerSetActiveThread(dbgcore.BNDebugThread(thread.tid, thread.rip))
+        dbgcore.BNDebuggerSetActiveThread(self.handle, dbgcore.BNDebugThread(thread.tid, thread.rip))
 
     @property
     def modules(self) -> List[DebugModule]:
