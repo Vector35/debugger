@@ -16,7 +16,7 @@ from struct import unpack
 # import colorama
 
 sys.path.append('..')
-from binaryninja import BinaryView, BinaryViewType
+from binaryninja import BinaryView, BinaryViewType, LowLevelILOperation
 from binaryninja.debugger import DebuggerController, DebugStopReason
 
 
@@ -515,161 +515,153 @@ if __name__ == '__main__':
     #     assert_equality(reason, DebugStopReason.Calculation)
 
     # assembler x86/x64 tests
-    if current_arch == 'x86_64' or True:
-        fpath = testbin_to_fpath('asmtest', 'x86_64')
-        print(f'testing {fpath}')
-        bv = BinaryViewType.get_view_of_file(fpath)
-        dbg = DebuggerController(bv)
-        if not dbg.launch():
-            print(f'fail to launch {fpath}')
-            sys.exit(-1)
+    # if current_arch == 'x86_64' or True:
+    #     fpath = testbin_to_fpath('asmtest', 'x86_64')
+    #     print(f'testing {fpath}')
+    #     bv = BinaryViewType.get_view_of_file(fpath)
+    #     dbg = DebuggerController(bv)
+    #     if not dbg.launch():
+    #         print(f'fail to launch {fpath}')
+    #         sys.exit(-1)
+    #
+    #     entry = dbg.live_view.entry_point
+    #     ip = dbg.ip
+    #     loader = ip != entry
+    #     if loader:
+    #         print('entrypoint is the program, no library or loader')
+    #     else:
+    #         print('loader detected, gonna step a few times for fun')
+    #
+    #     # a few steps in the loader
+    #     if loader:
+    #         reason = dbg.step_into()
+    #         expect_single_step(reason)
+    #         reason = dbg.step_into()
+    #         expect_single_step(reason)
+    #         # go to entry
+    #         dbg.go()
+    #         assert_equality(dbg.ip, entry)
+    #
+    #     # TODO: we can use BN to disassemble the binary and find out how long is the instruction
+    #     # step into nop
+    #     dbg.step_into()
+    #     assert_equality(dbg.ip, entry+1)
+    #     # step into call, return
+    #     dbg.step_into()
+    #     dbg.step_into()
+    #     # back
+    #     assert_equality(dbg.ip, entry+6)
+    #     dbg.step_into()
+    #     # step into call, return
+    #     dbg.step_into()
+    #     dbg.step_into()
+    #     # back
+    #     assert_equality(dbg.ip, entry+12)
+    #
+    #     reason = dbg.go()
+    #     assert_equality(reason, DebugStopReason.ProcessExited)
+    #
+    #     print('PASS!')
 
-        entry = dbg.live_view.entry_point
-        ip = dbg.ip
-        loader = ip != entry
-        if loader:
-            print('entrypoint is the program, no library or loader')
-        else:
-            print('loader detected, gonna step a few times for fun')
+    # helloworld x86/x64, no threads
+    fpath = testbin_to_fpath('helloworld')
+    bv = BinaryViewType.get_view_of_file(fpath)
+    dbg = DebuggerController(bv)
+    if not dbg.launch():
+        print(f'fail to launch {fpath}')
+        sys.exit(-1)
 
-        # a few steps in the loader
-        if loader:
-            reason = dbg.step_into()
-            expect_single_step(reason)
-            reason = dbg.step_into()
-            expect_single_step(reason)
-            # go to entry
-            dbg.go()
-            assert_equality(dbg.ip, entry)
+    arch_name = bv.arch.name
+    if arch_name == 'x86':
+        (bits, xip, xax, xbx) = (32, 'eip', 'eax', 'ebx')
+        (testval_a, testval_b) = (0xDEADBEEF, 0xCAFEBABE)
+    elif arch_name == 'x86_64':
+        (bits, xip, xax, xbx) = (64, 'rip', 'rax', 'rbx')
+        (testval_a, testval_b) = (0xAAAAAAAADEADBEEF, 0xBBBBBBBBCAFEBABE)
+    elif arch_name == 'aarch64':
+        (bits, xip, xax, xbx) = (64, 'pc', 'x0', 'x1')
+        (testval_a, testval_b) = (0xAAAAAAAADEADBEEF, 0xBBBBBBBBCAFEBABE)
 
-        # TODO: we can use BN to disassemble the binary and find out how long is the instruction
-        # step into nop
-        dbg.step_into()
-        assert_equality(dbg.ip, entry+1)
-        # step into call, return
-        dbg.step_into()
-        dbg.step_into()
-        # back
-        assert_equality(dbg.ip, entry+6)
-        dbg.step_into()
-        # step into call, return
-        dbg.step_into()
-        dbg.step_into()
-        # back
-        assert_equality(dbg.ip, entry+12)
+    print('%s: 0x%X' % (xip, dbg.ip))
 
-        reason = dbg.go()
-        assert_equality(reason, DebugStopReason.ProcessExited)
+    # breakpoint set/clear should fail at 0
+    if dbg.add_breakpoint(0):
+        print('expected add breakpoint failure at 0')
+        sys.exit(-1)
 
-        print('PASS!')
-#
-#     # helloworld x86/x64, no threads
-#     for tb in testbins:
-#         if not tb.startswith('helloworld_'): continue
-#         if not ('_x64-' in tb or '_x86-' in tb): continue
-#         if '_thread' in tb: continue
-#         print('hellworld x86/x64, no threads, testing %s' % tb)
-#         testbin = tb
-#
-#         # tester and testee run on same machine
-#         adapter = DebugAdapter.get_adapter_for_current_system()
-#         fpath = testbin_to_fpath()
-#         adapter.exec(fpath, '')
-#         entry = confirm_initial_module(adapter)
-#
-#         if '_x86-' in tb:
-#             (bits, xip, xax, xbx) = (32, 'eip', 'eax', 'ebx')
-#             (testval_a, testval_b) = (0xDEADBEEF, 0xCAFEBABE)
-#         else:
-#             (bits, xip, xax, xbx) = (64, 'rip', 'rax', 'rbx')
-#             (testval_a, testval_b) = (0xAAAAAAAADEADBEEF, 0xBBBBBBBBCAFEBABE)
-#
-#         print('%s: 0x%X' % (xip, adapter.reg_read(xip)))
-#
-#         # breakpoint set/clear should fail at 0
-#         print('expect breakpoint clear failure at 0')
-#         try:
-#             adapter.breakpoint_clear(0)
-#         except DebugAdapter.BreakpointClearError:
-#             pass
-#
-#         print('expect breakpoint set failure at 0')
-#         try:
-#             adapter.breakpoint_set(0)
-#         except DebugAdapter.BreakpointSetError:
-#             pass
-#
-#         # breakpoint set/clear should succeed at entrypoint
-#         print('setting breakpoint at 0x%X' % entry)
-#         adapter.breakpoint_set(entry)
-#         print('clearing breakpoint at 0x%X' % entry)
-#         adapter.breakpoint_clear(entry)
-#         print('setting breakpoint at 0x%X' % entry)
-#         adapter.breakpoint_set(entry)
-#
-#         # proceed to breakpoint
-#         print('going')
-#         (reason, extra) = go_initial(adapter)
-#         assert_equality(reason, DebugAdapter.STOP_REASON.BREAKPOINT)
-#
-#         assert_equality(adapter.reg_read(xip), entry)
-#         adapter.breakpoint_clear(entry)
-#
-#         # single step until it wasn't over a call
-#         while 1:
-#             addr = adapter.reg_read(xip)
-#             data = adapter.mem_read(addr, 15)
-#             assert_equality(len(data), 15)
-#             (asmstr, asmlen) = utils.disasm1(data, 0)
-#             print('%s: 0x%X %s' % (xip, addr, asmstr))
-#
-#             (reason, info) = adapter.step_into()
-#             expect_single_step(reason)
-#             if asmstr.startswith('call'): continue
-#             if asmstr.startswith('jmp'): continue
-#             break
-#
-#         addr2 = adapter.reg_read(xip)
-#         print('%s: 0x%X' % (xip, addr2))
-#         assert_equality(addr + asmlen, addr2)
-#
-#         print('registers')
-#         for (ridx,rname) in enumerate(adapter.reg_list()):
-#             width = adapter.reg_bits(rname)
-#         #print('%d: %s (%d bits)' % (ridx, rname, width))
-#         assert_equality(adapter.reg_bits(xax), bits)
-#         assert_equality(adapter.reg_bits(xbx), bits)
-#         assert_general_error(lambda: adapter.reg_bits('rzx'))
-#
-#         print('registers read/write')
-#         rax = adapter.reg_read(xax)
-#         rbx = adapter.reg_read(xbx)
-#         assert_general_error(lambda: adapter.reg_read('rzx'))
-#         adapter.reg_write(xax, testval_a)
-#         assert_equality(adapter.reg_read(xax), testval_a)
-#         adapter.reg_write(xbx, testval_b)
-#         assert_general_error(lambda: adapter.reg_read('rzx'))
-#         assert_equality(adapter.reg_read(xbx), testval_b)
-#         adapter.reg_write(xax, rax)
-#         assert_equality(adapter.reg_read(xax), rax)
-#         adapter.reg_write(xbx, rbx)
-#         assert_equality(adapter.reg_read(xbx), rbx)
-#
-#         print('mem read/write')
-#         addr = adapter.reg_read(xip)
-#         data = adapter.mem_read(addr, 256)
-#         assert_general_error(lambda: adapter.mem_write(0, b'heheHAHAherherHARHAR'))
-#         data2 = b'\xAA' * 256
-#         adapter.mem_write(addr, data2)
-#         assert_general_error(lambda: adapter.mem_read(0, 256))
-#         assert_equality(adapter.mem_read(addr, 256), data2)
-#         adapter.mem_write(addr, data)
-#         assert_equality(adapter.mem_read(addr, 256), data)
-#
-#         print('quiting')
-#         adapter.quit()
-#         adapter = None
-#
+    if dbg.delete_breakpoint(0):
+        print('expected remove breakpoint failure at 0')
+        sys.exit(-1)
+
+    # breakpoint set/clear should succeed at entrypoint
+    entry = dbg.live_view.entry_point
+    print('clearing breakpoint at 0x%X' % entry)
+    dbg.delete_breakpoint(entry)
+    print('setting breakpoint at 0x%X' % entry)
+    dbg.add_breakpoint(entry)
+
+    # proceed to breakpoint
+    print('going')
+    reason = dbg.go()
+    assert_equality(reason, DebugStopReason.Breakpoint)
+
+    assert_equality(dbg.ip, entry)
+
+    # single step until it wasn't over a call
+    instr_len = 0
+    while 1:
+        pc = dbg.ip
+        data = dbg.read_memory(pc, 15)
+        assert_equality(len(data), 15)
+
+        reason = dbg.step_into()
+        expect_single_step(reason)
+
+        arch = dbg.live_view.arch
+        llil = arch.get_low_level_il_from_bytes(bytes(data), pc)
+        if llil.operation in [LowLevelILOperation.LLIL_CALL, LowLevelILOperation.LLIL_JUMP]:
+            continue
+
+        instr_len = dbg.live_view.get_instruction_length(pc)
+        break
+
+    addr2 = dbg.ip
+    print('%s: 0x%X' % (xip, addr2))
+    assert_equality(pc + instr_len, addr2)
+
+    print('registers read/write')
+    rax = dbg.get_reg_value(xax)
+    rbx = dbg.get_reg_value(xbx)
+
+    print(xax)
+    if not dbg.set_reg_value(xax, testval_a):
+        print('fail to set value of register %s' % (xax))
+        sys.exit(-1)
+    assert_equality(dbg.get_reg_value(xax), testval_a)
+    dbg.set_reg_value(xbx, testval_b)
+    assert_equality(dbg.get_reg_value(xbx), testval_b)
+
+    dbg.set_reg_value(xax, rax)
+    assert_equality(dbg.get_reg_value(xax), rax)
+    dbg.set_reg_value(xbx, rbx)
+    assert_equality(dbg.get_reg_value(xbx), rbx)
+
+    print('mem read/write')
+    addr = dbg.ip
+    data = dbg.read_memory(addr, 256)
+    assert_equality(dbg.write_memory(0, b'heheHAHAherherHARHAR'), False)
+    data2 = b'\xAA' * 256
+    dbg.write_memory(addr, data2)
+
+    assert_equality(dbg.read_memory(0, 256), False)
+    assert_equality(dbg.read_memory(addr, 256), data2)
+    dbg.write_memory(addr, data)
+    assert_equality(dbg.read_memory(addr, 256), data)
+
+    print('quiting')
+    dbg.quit()
+    dbg = None
+
 #     # helloworlds x86/x64 with threads
 #     for tb in testbins:
 #         if not tb.startswith('helloworld_thread'): continue

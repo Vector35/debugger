@@ -61,7 +61,16 @@ bool DebuggerRegisters::SetRegisterValue(const std::string& name, uint64_t value
     if (!adapter)
         return false;
 
-    return adapter->WriteRegister(name, value);
+	auto iter = m_registerCache.find(name);
+	if (iter == m_registerCache.end())
+		return false;
+
+    bool ok = adapter->WriteRegister(name, value);
+	if (!ok)
+		return false;
+
+	iter->second.m_value = value;
+	return true;
 }
 
 

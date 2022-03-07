@@ -401,7 +401,6 @@ bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 
     if (auto location = std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(), breakpoint);
             location == this->m_debugBreakpoints.end()) {
-        printf("breakpoint does not exist!\n");
         return false;
     }
 

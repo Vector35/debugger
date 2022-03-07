@@ -334,7 +334,7 @@ class DebuggerController:
         buffer = ctypes.cast(dbgcore.BNDebuggerReadMemory(self.handle, address, size), ctypes.POINTER(binaryninja.core.BNDataBuffer))
         if buffer is None:
             return None
-        return binaryninja.DataBuffer(buffer)
+        return binaryninja.DataBuffer(handle=buffer)
 
     def write_memory(self, address: int, buffer: binaryninja.DataBuffer) -> bool:
         buffer_obj = ctypes.cast(buffer.handle, ctypes.POINTER(dbgcore.BNDataBuffer))
@@ -384,6 +384,12 @@ class DebuggerController:
 
         dbgcore.BNDebuggerFreeRegisters(registers, count)
         return result
+
+    def get_reg_value(self, reg: str) -> int:
+        return dbgcore.BNDebuggerGetRegisterValue(self.handle, reg)
+
+    def set_reg_value(self, reg: str, value: int) -> bool:
+        return dbgcore.BNDebuggerSetRegisterValue(self.handle, reg, value)
 
     # target control
     def launch(self) -> bool:
