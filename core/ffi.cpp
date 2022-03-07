@@ -142,7 +142,10 @@ BNDataBuffer* BNDebuggerReadMemory(BNDebuggerController* controller, uint64_t ad
 
 bool BNDebuggerWriteMemory(BNDebuggerController* controller, uint64_t address, BNDataBuffer* buffer)
 {
-	return controller->object->WriteMemory(address, DataBuffer(buffer));
+	// Hacky way of getting a BinaryNinj::DataBuffer out of a BNDataBuffer, without causing a segfault
+	DataBuffer buf;
+	BNAppendDataBuffer(buf.GetBufferObject(), buffer);
+	return controller->object->WriteMemory(address, buf);
 }
 
 

@@ -633,10 +633,7 @@ if __name__ == '__main__':
     rax = dbg.get_reg_value(xax)
     rbx = dbg.get_reg_value(xbx)
 
-    print(xax)
-    if not dbg.set_reg_value(xax, testval_a):
-        print('fail to set value of register %s' % (xax))
-        sys.exit(-1)
+    dbg.set_reg_value(xax, testval_a)
     assert_equality(dbg.get_reg_value(xax), testval_a)
     dbg.set_reg_value(xbx, testval_b)
     assert_equality(dbg.get_reg_value(xbx), testval_b)
@@ -653,7 +650,7 @@ if __name__ == '__main__':
     data2 = b'\xAA' * 256
     dbg.write_memory(addr, data2)
 
-    assert_equality(dbg.read_memory(0, 256), False)
+    assert_equality(len(dbg.read_memory(0, 256)), 0)
     assert_equality(dbg.read_memory(addr, 256), data2)
     dbg.write_memory(addr, data)
     assert_equality(dbg.read_memory(addr, 256), data)

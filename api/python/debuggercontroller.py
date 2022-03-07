@@ -336,7 +336,9 @@ class DebuggerController:
             return None
         return binaryninja.DataBuffer(handle=buffer)
 
-    def write_memory(self, address: int, buffer: binaryninja.DataBuffer) -> bool:
+    def write_memory(self, address: int, buffer) -> bool:
+        if isinstance(buffer, bytes):
+            buffer = binaryninja.DataBuffer(buffer)
         buffer_obj = ctypes.cast(buffer.handle, ctypes.POINTER(dbgcore.BNDataBuffer))
         return dbgcore.BNDebuggerWriteMemory(self.handle, address, buffer_obj)
 
