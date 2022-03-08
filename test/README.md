@@ -13,14 +13,14 @@ python3 unit.py
 - arm64
 ```zsh
 cd test
-cmake -DCMAKE_OSX_ARCHITECTURES=arm64 .
+cmake -DARCH=arm64 .
 make
 ```
 Build results are in `binaries/Darwin-arm64`.
 - x86_64
 ```zsh
 cd test
-cmake -DCMAKE_OSX_ARCHITECTURES=x86_64 .
+cmake -DARCH=x86_64 .
 make
 ```
 Build results are in `binaries/Darwin-x86_64`.
@@ -29,14 +29,14 @@ Build results are in `binaries/Darwin-x86_64`.
 - x86_64
 ```Bash
 cd test
-cmake .
+cmake -DARCH=x86_64 .
 make
 ```
 Build results are in `binaries/Linux-x86_64`.
 - x86
 ```Bash
 cd test
-cmake .
+cmake -DARCH=x86 .
 make
 ```
 Build results are in `binaries/Linux-x86`.
