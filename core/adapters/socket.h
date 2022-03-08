@@ -39,7 +39,6 @@ namespace BinaryNinjaDebugger
 				SetSocketReusable();
 			} else {
 				for (std::int32_t index = 31337; index < 31337 + 1024; index++) {
-					printf("trying port %d\n", index);
 					this->m_socket = ::socket(address_family, type, protocol);
 					SetSocketReusable();
 

@@ -84,7 +84,8 @@ def expect_single_step(reason):
 def expect_bad_instruction(reason):
     # :/ I cannot induce a bad instruction exception on these OS's!
     # TODO: add android
-    if platform.system() in ['Darwin', 'Windows']:
+    # It seems to me that we ALWAYS get an AccessViolation when there is an illegal instruction
+    if platform.system() in ['Darwin', 'Windows', 'Linux']:
         expected = DebugStopReason.AccessViolation
     else:
         expected = DebugStopReason.IllegalInstruction
@@ -166,6 +167,7 @@ if __name__ == '__main__':
         sys.exit(-1)
 
     current_arch = 'arm64'
+    current_arch = 'x86_64'
 
     #--------------------------------------------------------------------------
     # TESTS

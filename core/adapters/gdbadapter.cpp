@@ -978,7 +978,20 @@ DebugStopReason GdbAdapter::SignalToStopReason(std::unordered_map<std::string, s
             { 31, DebugStopReason::SignalSys },
     };
 
-    return signal_lookup[map["signal"]];
+	if (map.find("signal") != map.end())
+	{
+		uint64_t signal = map["signal"];
+		if ((signal == 5) && (map.find("swbreak") != map.end()))
+		{
+			return DebugStopReason::Breakpoint;
+		}
+		else if (signal_lookup.find(signal) != signal_lookup.end())
+		{
+			return signal_lookup[signal];
+		}
+	}
+
+    return DebugStopReason::UnknownReason;
 }
 
 

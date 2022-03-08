@@ -83,25 +83,33 @@ std::unordered_map<std::string, std::uint64_t> RspConnector::PacketToUnorderedMa
 
     for ( const auto& entries : RspConnector::Split(after_signal, ";")) {
         const auto key_value = RspConnector::Split(entries, ":");
-        if (key_value.empty() || key_value.size() < 2)
+        if (key_value.empty())
             continue;
 
         const auto key = key_value[0];
-        const auto value = RspConnector::DecodeRLE( RspData(key_value[1]) ).AsString();
+		std::string value;
+		if (key_value.size() == 2)
+		{
+			value = RspConnector::DecodeRLE(RspData(key_value[1])).AsString();
 
-        if ( key == "thread" ) {
-            if ( value[0] == 'p' && value.find('.') != std::string::npos ) {
-                auto core_id_and_thread_id = RspConnector::Split(value.substr(1), ".");
-                packet_map["thread"] = std::stoull(core_id_and_thread_id[1], nullptr, 16);
-            } else {
-                packet_map["thread"] = std::stoull(value, nullptr, 16);
-            }
-        } else if ( std::regex_search(key, std::regex("^[0-9a-fA-F]+$")) ) {
-            packet_map[fmt::format("r{}", std::stoi(key, nullptr, 16))] =
-                    static_cast<std::int64_t>( RspConnector::SwapEndianness( std::stoull(value, nullptr, 16)) );
-        } else {
-            packet_map[key] = std::stoull(value, nullptr, 16);
-        }
+			if (key == "thread") {
+				if (value[0] == 'p' && value.find('.') != std::string::npos) {
+					auto core_id_and_thread_id = RspConnector::Split(value.substr(1), ".");
+					packet_map["thread"] = std::stoull(core_id_and_thread_id[1], nullptr, 16);
+				} else {
+					packet_map["thread"] = std::stoull(value, nullptr, 16);
+				}
+			} else if (std::regex_search(key, std::regex("^[0-9a-fA-F]+$"))) {
+				packet_map[fmt::format("r{}", std::stoi(key, nullptr, 16))] =
+						static_cast<std::int64_t>( RspConnector::SwapEndianness(std::stoull(value, nullptr, 16)));
+			} else {
+				packet_map[key] = std::stoull(value, nullptr, 16);
+			}
+		}
+		else
+		{
+			packet_map[key] = 0;
+		}
     }
 
     return packet_map;
