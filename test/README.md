@@ -23,11 +23,23 @@ cd test
 cmake -DCMAKE_OSX_ARCHITECTURES=x86_64 .
 make
 ```
-Build results are in `binaries/Darwin-x8_64`.
+Build results are in `binaries/Darwin-x86_64`.
 
 ## Linux
 - x86_64
+```Bash
+cd test
+cmake .
+make
+```
+Build results are in `binaries/Linux-x86_64`.
 - x86
+```Bash
+cd test
+cmake .
+make
+```
+Build results are in `binaries/Linux-x86`.
 
 ## Windows
 - x86_64

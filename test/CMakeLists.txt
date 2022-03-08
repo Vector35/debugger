@@ -6,8 +6,10 @@ project(debugger-test-binaries C CXX)
 set(ARCH_STR "")
 if (APPLE)
 	set(ARCH_STR ${CMAKE_OSX_ARCHITECTURES})
+elseif(UNIX)
+	set(ARCH_STR ${CMAKE_SYSTEM_PROCESSOR})
 else()
-#	TODO: other systems
+#	TODO: Windows
 endif()
 
 if (ARCH_STR STREQUAL "x86_64" OR ARCH_STR STREQUAL "AMD64")
@@ -34,6 +36,9 @@ set_target_properties(helloworld_thread PROPERTIES
 		POSITION_INDEPENDENT_CODE OFF
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH_STR}
 		)
+if(UNIX AND NOT APPLE)
+	target_link_libraries(helloworld_thread pthread)
+endif()
 
 add_executable(helloworld_loop src/helloworld_loop.c)
 set_target_properties(helloworld_loop PROPERTIES
@@ -64,6 +69,9 @@ set_target_properties(helloworld_thread_pie PROPERTIES
 		POSITION_INDEPENDENT_CODE ON
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH_STR}
 		)
+if(UNIX AND NOT APPLE)
+	target_link_libraries(helloworld_thread_pie pthread)
+endif()
 
 add_executable(helloworld_loop_pie src/helloworld_loop.c)
 set_target_properties(helloworld_loop_pie PROPERTIES
@@ -155,9 +163,14 @@ if (NOT ARCH_STR STREQUAL "arm64")
 			LINKER_LANGUAGE NASM
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH_STR}
 			)
-	add_custom_command(TARGET analysis_propagation POST_BUILD
-			COMMAND strip "$<TARGET_FILE:analysis_propagation>"
-			COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:analysis_propagation>")
+	if(APPLE)
+		add_custom_command(TARGET analysis_propagation POST_BUILD
+				COMMAND strip "$<TARGET_FILE:analysis_propagation>"
+				COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:analysis_propagation>")
+	else()
+		add_custom_command(TARGET analysis_propagation POST_BUILD
+				COMMAND strip "$<TARGET_FILE:analysis_propagation>")
+	endif()
 
 	add_executable(missing_switch_case src/missing_switch_case_x64.asm)
 	if (APPLE)
@@ -168,9 +181,14 @@ if (NOT ARCH_STR STREQUAL "arm64")
 			LINKER_LANGUAGE NASM
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH_STR}
 			)
-	add_custom_command(TARGET missing_switch_case POST_BUILD
-			COMMAND strip "$<TARGET_FILE:missing_switch_case>"
-			COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:missing_switch_case>")
+	if(APPLE)
+		add_custom_command(TARGET missing_switch_case POST_BUILD
+				COMMAND strip "$<TARGET_FILE:missing_switch_case>"
+				COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:missing_switch_case>")
+	else()
+		add_custom_command(TARGET missing_switch_case POST_BUILD
+				COMMAND strip "$<TARGET_FILE:missing_switch_case>")
+	endif()
 
 	add_executable(undiscovered_func src/undiscovered_func_x64.asm)
 	if (APPLE)
@@ -181,9 +199,14 @@ if (NOT ARCH_STR STREQUAL "arm64")
 			LINKER_LANGUAGE NASM
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH_STR}
 			)
-	add_custom_command(TARGET undiscovered_func POST_BUILD
-			COMMAND strip "$<TARGET_FILE:undiscovered_func>"
-			COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:undiscovered_func>")
+	if(APPLE)
+		add_custom_command(TARGET undiscovered_func POST_BUILD
+				COMMAND strip "$<TARGET_FILE:undiscovered_func>"
+				COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:undiscovered_func>")
+	else()
+		add_custom_command(TARGET undiscovered_func POST_BUILD
+				COMMAND strip "$<TARGET_FILE:undiscovered_func>")
+	endif()
 
 	add_executable(undiscovered_func2 src/undiscovered_func2_x64.asm)
 	if (APPLE)
@@ -194,9 +217,14 @@ if (NOT ARCH_STR STREQUAL "arm64")
 			LINKER_LANGUAGE NASM
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH_STR}
 			)
-	add_custom_command(TARGET undiscovered_func2 POST_BUILD
-			COMMAND strip "$<TARGET_FILE:undiscovered_func2>"
-			COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:undiscovered_func2>")
+	if (APPLE)
+		add_custom_command(TARGET undiscovered_func2 POST_BUILD
+				COMMAND strip "$<TARGET_FILE:undiscovered_func2>"
+				COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:undiscovered_func2>")
+	else()
+		add_custom_command(TARGET undiscovered_func2 POST_BUILD
+				COMMAND strip "$<TARGET_FILE:undiscovered_func2>")
+	endif()
 
 	add_executable(indirect_calls src/indirect_calls_x64.asm)
 	if (APPLE)
@@ -207,9 +235,14 @@ if (NOT ARCH_STR STREQUAL "arm64")
 			LINKER_LANGUAGE NASM
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH_STR}
 			)
-	add_custom_command(TARGET indirect_calls POST_BUILD
-			COMMAND strip "$<TARGET_FILE:indirect_calls>"
-			COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:indirect_calls>")
+	if (APPLE)
+		add_custom_command(TARGET indirect_calls POST_BUILD
+				COMMAND strip "$<TARGET_FILE:indirect_calls>"
+				COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:indirect_calls>")
+	else()
+		add_custom_command(TARGET indirect_calls POST_BUILD
+				COMMAND strip "$<TARGET_FILE:indirect_calls>")
+	endif()
 endif()
 
 
