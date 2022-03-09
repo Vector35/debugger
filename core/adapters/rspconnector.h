@@ -138,6 +138,23 @@ namespace BinaryNinjaDebugger
 		static std::unordered_map<std::string, std::uint64_t> PacketToUnorderedMap(const RspData& data);
 		static std::vector<std::string> Split(const std::string& string, const std::string& regex);
 
+		static uint64_t SwapEndianness(uint64_t value, size_t len)
+		{
+			switch (len)
+			{
+			case 1:
+				return SwapEndianness((uint8_t)value);
+			case 2:
+				return SwapEndianness((uint16_t)value);
+			case 4:
+				return SwapEndianness((uint32_t)value);
+			case 8:
+				return SwapEndianness(value);
+			default:
+				return value;
+			}
+		}
+
 		template <typename Ty>
 		static Ty SwapEndianness(Ty value) {
 			union {

@@ -42,6 +42,26 @@ GdbAdapter::~GdbAdapter()
 {
 }
 
+
+std::string GdbAdapter::GetGDBServerPath()
+{
+#ifdef WIN32
+	std::string pathSeperator = "\\";
+#else
+	std::string pathSeperator = "/";
+#endif
+	std::string expectedPath = GetBundledPluginDirectory() + pathSeperator + "gdb" + pathSeperator + "gdbserver";
+	return expectedPath;
+
+//	backup path
+//	auto gdb_server_path = this->ExecuteShellCommand("which gdbserver");
+//	if ( gdb_server_path.empty() )
+//		return false;
+//
+//	gdb_server_path = gdb_server_path.substr(0, gdb_server_path.find('\n'));
+}
+
+
 std::string GdbAdapter::ExecuteShellCommand(const std::string& command)
 {
 #ifdef WIN32
@@ -79,11 +99,9 @@ bool GdbAdapter::ExecuteWithArgs(const std::string& path, const string &args, co
         return false;
     fclose(file_exists);
 
-    auto gdb_server_path = this->ExecuteShellCommand("which gdbserver");
-    if ( gdb_server_path.empty() )
-        return false;
-
-    gdb_server_path = gdb_server_path.substr(0, gdb_server_path.find('\n'));
+    auto gdb_server_path = GetGDBServerPath();
+	if ( gdb_server_path.empty() )
+		return false;
 
     this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
 
@@ -134,11 +152,9 @@ bool GdbAdapter::Attach(std::uint32_t pid)
     return false;
 #else
 
-    auto gdb_server_path = this->ExecuteShellCommand("which gdbserver");
+    auto gdb_server_path = GetGDBServerPath();
     if ( gdb_server_path.empty() )
         return false;
-
-    gdb_server_path = gdb_server_path.substr(0, gdb_server_path.find('\n'));
 
     this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
 
@@ -479,7 +495,8 @@ std::unordered_map<std::string, DebugRegister> GdbAdapter::ReadAllRegisters()
         const auto number_of_chars = 2 * ( register_info.m_bitSize / 8 );
         const auto value_string = register_info_reply_string.substr(0, number_of_chars);
         if (number_of_chars <= 0x10 && !value_string.empty()) {
-            const auto value = RspConnector::SwapEndianness(std::stoull(value_string, nullptr, 16));
+			size_t size = value_string.length() / 2;
+            const auto value = RspConnector::SwapEndianness(std::stoull(value_string, nullptr, 16), size);
             all_regs[register_name] = DebugRegister(register_name, value, register_info.m_bitSize, register_info.m_regNum);
             // #warning "ignoring registers with a larger size than 0x10"
             /* TODO: ^fix this^ */
@@ -903,11 +920,12 @@ std::uintptr_t GdbAdapter::GetInstructionOffset()
 {
     // TODO: obviously this will only support x86/x86_64, so we need a more systematic way for it
     std::string ipRegisterName = "";
-    if (GetTargetArchitecture() == "x86")
+	std::string targetArch = GetTargetArchitecture();
+    if ((targetArch == "x86") || (targetArch == "i386"))
         ipRegisterName = "eip";
-    else if (GetTargetArchitecture() == "x86_64")
+    else if (targetArch == "x86_64")
         ipRegisterName = "rip";
-    else if (GetTargetArchitecture() == "aarch64")
+    else if (targetArch == "aarch64")
         ipRegisterName = "pc";
     else
         ipRegisterName = "pc";

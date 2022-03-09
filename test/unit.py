@@ -102,79 +102,13 @@ def assert_general_error(func):
     assert raised
 
 
-#------------------------------------------------------------------------------
-# MAIN
-#------------------------------------------------------------------------------
-#
-if __name__ == '__main__':
-    arg = sys.argv[1] if sys.argv[1:] else None
-
-    # one-off tests
-    if arg == 'oneoff':
-        fpath = testbin_to_fpath('helloworld_thread')
-        print(fpath)
-        bv = BinaryViewType.get_view_of_file(fpath)
-        dbg = DebuggerController(bv)
-        # launch the target, and execute to the entry point
-        dbg.launch()
-        dbg.go()
-        print(dbg.modules)
-        dbg.quit()
-        sys.exit(0)
-
-    # attaching test
-    if arg == 'attaching':
-        pid = None
-        # TODO: we definitely need to simplify code like this
-        if platform.system() == 'Windows':
-            fpath = testbin_to_fpath('helloworld_loop')
-            DETACHED_PROCESS = 0x00000008
-            CREATE_NEW_CONSOLE = 0x00000010
-            cmds = [fpath]
-            print('cmds:', cmds)
-            pid = subprocess.Popen(cmds, creationflags=CREATE_NEW_CONSOLE).pid
-        elif platform.system() in ['Darwin', 'linux']:
-            fpath = testbin_to_fpath('helloworld_loop')
-            cmds = [fpath]
-            print('cmds:', cmds)
-            pid = subprocess.Popen(cmds).pid
-        else:
-            print('attaching test not yet implemented on %s' % platform.system())
-
-        print('created process with pid: %d\n' % pid)
-        bv = BinaryViewType.get_view_of_file(fpath)
-        dbg = DebuggerController(bv)
-        print('attaching')
-        dbg.attach(pid)
-        for i in range(4):
-            print('scheduling break into in 2 seconds')
-            threading.Timer(2, break_into, [dbg]).start()
-            # print the first 8 register values
-            print('some registers:')
-            for (idx, reg) in enumerate(dbg.regs):
-                print('%d: %s (%d bits): 0x%X' % (idx, reg.name, reg.width, reg.value))
-                if idx > 8:
-                    break
-
-            print('pausing a sec')
-            time.sleep(1)
-            print('continuing')
-            reason = dbg.go()
-
-        print('quiting')
-        dbg.quit()
-        dbg = None
-        sys.exit(-1)
-
-    current_arch = 'arm64'
-    current_arch = 'x86_64'
-
+def test_one_arch(current_arch):
     #--------------------------------------------------------------------------
     # TESTS
     #--------------------------------------------------------------------------
 
     # repeat DebugController use tests
-    fpath = testbin_to_fpath('helloworld')
+    fpath = testbin_to_fpath('helloworld', current_arch)
     bv = BinaryViewType.get_view_of_file(fpath)
 
     def thread_task():
@@ -206,7 +140,7 @@ if __name__ == '__main__':
         thread_task()
 
     # return code tests
-    fpath = testbin_to_fpath('exitcode')
+    fpath = testbin_to_fpath('exitcode', current_arch)
     bv = BinaryViewType.get_view_of_file(fpath)
 
     # some systems return byte, or low byte of 32-bit code and others return 32-bit code
@@ -228,7 +162,7 @@ if __name__ == '__main__':
             raise Exception('expected return code %d to be in %s' % (exit_code, expected))
 
     # exception test
-    fpath = testbin_to_fpath('do_exception')
+    fpath = testbin_to_fpath('do_exception', current_arch)
     bv = BinaryViewType.get_view_of_file(fpath)
     dbg = DebuggerController(bv)
 
@@ -327,7 +261,7 @@ if __name__ == '__main__':
         print('PASS!')
 
     # helloworld, no threads
-    fpath = testbin_to_fpath('helloworld')
+    fpath = testbin_to_fpath('helloworld', current_arch)
     bv = BinaryViewType.get_view_of_file(fpath)
     dbg = DebuggerController(bv)
     if not dbg.launch():
@@ -423,7 +357,7 @@ if __name__ == '__main__':
     dbg = None
 
     # helloworlds with threads
-    fpath = testbin_to_fpath('helloworld_thread')
+    fpath = testbin_to_fpath('helloworld_thread', current_arch)
     bv = BinaryViewType.get_view_of_file(fpath)
     dbg = DebuggerController(bv)
     if not dbg.launch():
@@ -492,6 +426,85 @@ if __name__ == '__main__':
             assert False
     print('done')
     dbg.quit()
+    pass
+
+
+#------------------------------------------------------------------------------
+# MAIN
+#------------------------------------------------------------------------------
+#
+if __name__ == '__main__':
+    arg = sys.argv[1] if sys.argv[1:] else None
+
+    # one-off tests
+    if arg == 'oneoff':
+        fpath = testbin_to_fpath('helloworld_thread')
+        print(fpath)
+        bv = BinaryViewType.get_view_of_file(fpath)
+        dbg = DebuggerController(bv)
+        # launch the target, and execute to the entry point
+        dbg.launch()
+        dbg.go()
+        print(dbg.modules)
+        dbg.quit()
+        sys.exit(0)
+
+    # attaching test
+    if arg == 'attaching':
+        pid = None
+        # TODO: we definitely need to simplify code like this
+        if platform.system() == 'Windows':
+            fpath = testbin_to_fpath('helloworld_loop')
+            DETACHED_PROCESS = 0x00000008
+            CREATE_NEW_CONSOLE = 0x00000010
+            cmds = [fpath]
+            print('cmds:', cmds)
+            pid = subprocess.Popen(cmds, creationflags=CREATE_NEW_CONSOLE).pid
+        elif platform.system() in ['Darwin', 'linux']:
+            fpath = testbin_to_fpath('helloworld_loop')
+            cmds = [fpath]
+            print('cmds:', cmds)
+            pid = subprocess.Popen(cmds).pid
+        else:
+            print('attaching test not yet implemented on %s' % platform.system())
+
+        print('created process with pid: %d\n' % pid)
+        bv = BinaryViewType.get_view_of_file(fpath)
+        dbg = DebuggerController(bv)
+        print('attaching')
+        dbg.attach(pid)
+        for i in range(4):
+            print('scheduling break into in 2 seconds')
+            threading.Timer(2, break_into, [dbg]).start()
+            # print the first 8 register values
+            print('some registers:')
+            for (idx, reg) in enumerate(dbg.regs):
+                print('%d: %s (%d bits): 0x%X' % (idx, reg.name, reg.width, reg.value))
+                if idx > 8:
+                    break
+
+            print('pausing a sec')
+            time.sleep(1)
+            print('continuing')
+            reason = dbg.go()
+
+        print('quiting')
+        dbg.quit()
+        dbg = None
+        sys.exit(-1)
+
+    test_archs = []
+    if platform.system() == 'Darwin':
+        test_archs.append('arm64')
+        test_archs.append('x86_64')
+    elif platform.system() in ['Linux', 'Windows']:
+        # test_archs.append('x86_64')
+        test_archs.append('x86')
+
+    for current_arch in test_archs:
+        print('testing arch %s' % current_arch)
+        test_one_arch(current_arch)
+        print('tested arch %s' % current_arch)
 
     print('TESTS PASSED!')
     sys.exit(0)

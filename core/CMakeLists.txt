@@ -75,3 +75,18 @@ bn_install_plugin(${PROJECT_NAME})
 include_directories(../vendor)
 
 target_compile_definitions(debuggercore PRIVATE DEBUGGER_LIBRARY)
+
+if(BN_INTERNAL_BUILD)
+	add_custom_command(TARGET debuggercore POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/adapters/gdb ${BN_CORE_PLUGIN_DIR}/gdb)
+
+#	add_custom_target(debugger_generator_copy ALL
+#			BYPRODUCTS ${PROJECT_SOURCE_DIR}/_debuggercore.py ${PROJECT_SOURCE_DIR}/enums.py
+#			DEPENDS ${PYTHON_SOURCES} ${PROJECT_SOURCE_DIR}/../ffi.h $<TARGET_FILE:debugger_generator>
+#			COMMAND ${CMAKE_COMMAND} -E echo "Copying Python Sources"
+#			COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_RESOURCE_DIR}/python/binaryninja/debugger/
+#			COMMAND ${CMAKE_COMMAND} -E env ASAN_OPTIONS=detect_leaks=0 $<TARGET_FILE:debugger_generator> ${PROJECT_SOURCE_DIR}/../ffi.h ${PROJECT_SOURCE_DIR}/_debuggercore.py ${PROJECT_SOURCE_DIR}/enums.py
+#			COMMAND ${CMAKE_COMMAND} -E copy ${PYTHON_SOURCES} ${BN_RESOURCE_DIR}/python/binaryninja/debugger/
+#			COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/_debuggercore.py ${BN_RESOURCE_DIR}/python/binaryninja/debugger/
+#			COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/enums.py ${BN_RESOURCE_DIR}/python/binaryninja/debugger/)
+endif()

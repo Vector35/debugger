@@ -34,6 +34,8 @@ namespace BinaryNinjaDebugger
 		std::uint32_t m_lastActiveThreadId{};
 		uint8_t m_exitCode{};
 
+		std::string GetGDBServerPath();
+
 		std::string ExecuteShellCommand(const std::string& command);
 		virtual bool LoadRegisterInfo();
 
