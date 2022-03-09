@@ -48,3 +48,4 @@ test/testbins/CTestTestfile.cmake
 /test/CMakeCache.txt
 /test/Makefile
 /test/CMakeFiles/
+.gdb_history
