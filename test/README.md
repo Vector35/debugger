@@ -43,4 +43,18 @@ Build results are in `binaries/Linux-x86`.
 
 ## Windows
 - x86_64
+
+Open x64 Visual Studio command prompt
+```cmd
+cd test
+cmake -G "NMake Makefiles" -DARCH=x86_64 .
+namke
+```
+
 - x86
+Open x86 Visual Studio command prompt
+```cmd
+cd test
+cmake -G "NMake Makefiles" -DARCH=x86 .
+namke
+```

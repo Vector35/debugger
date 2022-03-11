@@ -27,7 +27,7 @@
 *.lib
 
 # Executables
-*.exe
+#*.exe
 *.out
 *.app
 
@@ -49,3 +49,6 @@ test/testbins/CTestTestfile.cmake
 /test/Makefile
 /test/CMakeFiles/
 .gdb_history
+
+*.pdb
+*.ilk

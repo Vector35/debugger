@@ -135,6 +135,8 @@ if (ARCH STREQUAL "x86_64" OR ARCH STREQUAL "x86")
 
 	if (APPLE)
 		set(CMAKE_NASM_LINK_EXECUTABLE "ld <LINK_FLAGS> -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+	elseif (WIN32)
+		set(CMAKE_NASM_LINK_EXECUTABLE "link <OBJECTS> <LINK_FLAGS> /ENTRY:WinMain /SUBSYSTEM:CONSOLE /LARGEADDRESSAWARE:NO /DYNAMICBASE:NO /OUT:<TARGET> <LINK_LIBRARIES>")
 	else()
 		set(CMAKE_NASM_LINK_EXECUTABLE "ld <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 	endif()
@@ -144,6 +146,8 @@ if (ARCH STREQUAL "x86_64")
 	add_executable(asmtest src/asmtest_x64.asm)
 	if (APPLE)
 		target_link_libraries(asmtest System)
+	elseif (WIN32)
+		target_link_libraries(asmtest kernel32)
 	endif (APPLE)
 	set_target_properties(asmtest PROPERTIES
 			POSITION_INDEPENDENT_CODE OFF
@@ -154,6 +158,8 @@ if (ARCH STREQUAL "x86_64")
 	add_executable(hello src/hello_x64.asm)
 	if (APPLE)
 		target_link_libraries(hello System)
+	elseif (WIN32)
+		target_link_libraries(hello kernel32)
 	endif (APPLE)
 	set_target_properties(hello PROPERTIES
 			POSITION_INDEPENDENT_CODE OFF
@@ -161,27 +167,33 @@ if (ARCH STREQUAL "x86_64")
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
 			)
 
-	add_executable(analysis_propagation src/analysis_propagation_x64.asm)
-	if (APPLE)
-		target_link_libraries(analysis_propagation System)
-	endif (APPLE)
-	set_target_properties(analysis_propagation PROPERTIES
-			POSITION_INDEPENDENT_CODE OFF
-			LINKER_LANGUAGE NASM
-			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-			)
-	if(APPLE)
-		add_custom_command(TARGET analysis_propagation POST_BUILD
-				COMMAND strip "$<TARGET_FILE:analysis_propagation>"
-				COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:analysis_propagation>")
-	else()
-		add_custom_command(TARGET analysis_propagation POST_BUILD
-				COMMAND strip "$<TARGET_FILE:analysis_propagation>")
+	if (NOT WIN32)
+		add_executable(analysis_propagation src/analysis_propagation_x64.asm)
+		if (APPLE)
+			target_link_libraries(analysis_propagation System)
+		elseif (WIN32)
+			target_link_libraries(analysis_propagation kernel32)
+		endif (APPLE)
+		set_target_properties(analysis_propagation PROPERTIES
+				POSITION_INDEPENDENT_CODE OFF
+				LINKER_LANGUAGE NASM
+				RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
+				)
+		if(APPLE)
+			add_custom_command(TARGET analysis_propagation POST_BUILD
+					COMMAND strip "$<TARGET_FILE:analysis_propagation>"
+					COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:analysis_propagation>")
+		else()
+			add_custom_command(TARGET analysis_propagation POST_BUILD
+					COMMAND strip "$<TARGET_FILE:analysis_propagation>")
+		endif()
 	endif()
 
 	add_executable(missing_switch_case src/missing_switch_case_x64.asm)
 	if (APPLE)
 		target_link_libraries(missing_switch_case System)
+	elseif (WIN32)
+		target_link_libraries(missing_switch_case kernel32)
 	endif (APPLE)
 	set_target_properties(missing_switch_case PROPERTIES
 			POSITION_INDEPENDENT_CODE OFF
@@ -200,6 +212,8 @@ if (ARCH STREQUAL "x86_64")
 	add_executable(undiscovered_func src/undiscovered_func_x64.asm)
 	if (APPLE)
 		target_link_libraries(undiscovered_func System)
+	elseif (WIN32)
+		target_link_libraries(undiscovered_func kernel32)
 	endif (APPLE)
 	set_target_properties(undiscovered_func PROPERTIES
 			POSITION_INDEPENDENT_CODE OFF
@@ -215,27 +229,33 @@ if (ARCH STREQUAL "x86_64")
 				COMMAND strip "$<TARGET_FILE:undiscovered_func>")
 	endif()
 
-	add_executable(undiscovered_func2 src/undiscovered_func2_x64.asm)
-	if (APPLE)
-		target_link_libraries(undiscovered_func2 System)
-	endif (APPLE)
-	set_target_properties(undiscovered_func2 PROPERTIES
-			POSITION_INDEPENDENT_CODE OFF
-			LINKER_LANGUAGE NASM
-			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-			)
-	if (APPLE)
-		add_custom_command(TARGET undiscovered_func2 POST_BUILD
-				COMMAND strip "$<TARGET_FILE:undiscovered_func2>"
-				COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:undiscovered_func2>")
-	else()
-		add_custom_command(TARGET undiscovered_func2 POST_BUILD
-				COMMAND strip "$<TARGET_FILE:undiscovered_func2>")
+	if (NOT WIN32)
+		add_executable(undiscovered_func2 src/undiscovered_func2_x64.asm)
+		if (APPLE)
+			target_link_libraries(undiscovered_func2 System)
+		elseif (WIN32)
+			target_link_libraries(undiscovered_func2 kernel32)
+		endif (APPLE)
+		set_target_properties(undiscovered_func2 PROPERTIES
+				POSITION_INDEPENDENT_CODE OFF
+				LINKER_LANGUAGE NASM
+				RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
+				)
+		if (APPLE)
+			add_custom_command(TARGET undiscovered_func2 POST_BUILD
+					COMMAND strip "$<TARGET_FILE:undiscovered_func2>"
+					COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:undiscovered_func2>")
+		else()
+			add_custom_command(TARGET undiscovered_func2 POST_BUILD
+					COMMAND strip "$<TARGET_FILE:undiscovered_func2>")
+		endif()
 	endif()
 
 	add_executable(indirect_calls src/indirect_calls_x64.asm)
 	if (APPLE)
 		target_link_libraries(indirect_calls System)
+	elseif (WIN32)
+		target_link_libraries(indirect_calls kernel32)
 	endif (APPLE)
 	set_target_properties(indirect_calls PROPERTIES
 			POSITION_INDEPENDENT_CODE OFF
@@ -260,6 +280,9 @@ if (ARCH STREQUAL "x86")
 			LINKER_LANGUAGE NASM
 			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
 			)
+	if (WIN32)
+		target_link_libraries(asmtest kernel32)
+	endif()
 endif()
 
 
@@ -269,26 +292,32 @@ set_target_properties(do_exception PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
 		)
 
-add_executable(nopspeed src/nopspeed.c)
-set_target_properties(nopspeed PROPERTIES
-		POSITION_INDEPENDENT_CODE ON
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-target_compile_options(nopspeed PUBLIC -O3)
+if (NOT WIN32)
+	add_executable(nopspeed src/nopspeed.c)
+	set_target_properties(nopspeed PROPERTIES
+			POSITION_INDEPENDENT_CODE ON
+			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
+			)
+	target_compile_options(nopspeed PUBLIC -O3)
+endif()
 
 add_executable(cat src/cat.c)
 set_target_properties(cat PROPERTIES
 		POSITION_INDEPENDENT_CODE ON
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
 		)
-target_compile_options(cat PUBLIC -O3)
+if (NOT WIN32)
+	target_compile_options(cat PUBLIC -O3)
+endif()
 
 add_executable(commandline_test src/commandline_test.c)
 set_target_properties(commandline_test PROPERTIES
 		POSITION_INDEPENDENT_CODE ON
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
 		)
-target_compile_options(commandline_test PUBLIC -O3)
+if (NOT WIN32)
+	target_compile_options(commandline_test PUBLIC -O3)
+endif()
 
 file(GLOB MD5_SOURCES
 		src/md5/*.c
@@ -299,4 +328,8 @@ set_target_properties(md5 PROPERTIES
 		POSITION_INDEPENDENT_CODE ON
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
 		)
-target_compile_options(md5 PUBLIC -g -DMD=5)
+if (NOT WIN32)
+	target_compile_options(md5 PUBLIC -g -DMD=5)
+else()
+	target_compile_options(md5 PUBLIC -DMD=5)
+endif()
