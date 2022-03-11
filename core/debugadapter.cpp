@@ -11,7 +11,7 @@
 using namespace BinaryNinjaDebugger;
 
 
-DebugAdapter::DebugAdapter()
+DebugAdapter::DebugAdapter(BinaryView* data): m_data(data)
 {
 	INIT_DEBUGGER_API_OBJECT();
 }

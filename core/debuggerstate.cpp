@@ -649,7 +649,7 @@ uint64_t DebuggerState::IP()
         return m_registers->GetRegisterValue("rip");
     else if (archName == "x86")
         return m_registers->GetRegisterValue("eip");
-    else if ((archName == "aarch64") || (archName == "arm") || (archName == "armv7") || (archName == "Z80"))
+    else if ((archName == "aarch64") || (archName == "arm64") || (archName == "armv7") || (archName == "Z80"))
         return m_registers->GetRegisterValue("pc");
 
     throw NotInstalledError("unimplemented architecture " + archName);
@@ -666,7 +666,7 @@ uint64_t DebuggerState::StackPointer()
         return m_registers->GetRegisterValue("rsp");
     else if (archName == "x86")
         return m_registers->GetRegisterValue("esp");
-    else if ((archName == "aarch64") || (archName == "arm") || (archName == "armv7") || (archName == "Z80"))
+    else if ((archName == "aarch64") || (archName == "arm64") || (archName == "armv7") || (archName == "Z80"))
         return m_registers->GetRegisterValue("sp");
 
     throw NotInstalledError("unimplemented architecture " + archName);

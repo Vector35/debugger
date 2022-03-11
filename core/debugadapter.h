@@ -142,7 +142,9 @@ namespace BinaryNinjaDebugger
 		std::function<void(const DebuggerEvent &event)> m_eventCallback;
 
 	public:
-		DebugAdapter();
+		Ref<BinaryView> m_data;
+
+		DebugAdapter(BinaryView* data);
 
 		virtual void SetEventCallback(std::function<void(const DebuggerEvent &event)> function) {
 			m_eventCallback = function;

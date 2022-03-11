@@ -495,7 +495,8 @@ if __name__ == '__main__':
 
     test_archs = []
     if platform.system() == 'Darwin':
-        test_archs.append('arm64')
+        if platform.machine == 'arm64':
+            test_archs.append('arm64')
         test_archs.append('x86_64')
     elif platform.system() in ['Linux', 'Windows']:
         test_archs.append('x86_64')

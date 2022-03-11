@@ -80,7 +80,7 @@ void DbgEngAdapter::Reset()
 
 #undef SAFE_RELEASE
 
-DbgEngAdapter::DbgEngAdapter()
+DbgEngAdapter::DbgEngAdapter(BinaryView* data): m_data(data)
 {
     this->Start();
 }
@@ -835,7 +835,7 @@ LocalDbgEngAdapterType::LocalDbgEngAdapterType(): DebugAdapterType("Local DBGENG
 DebugAdapter* LocalDbgEngAdapterType::Create(BinaryNinja::BinaryView *data)
 {
     // TODO: someone should free this.
-    return new DbgEngAdapter();
+    return new DbgEngAdapter(data);
 }
 
 

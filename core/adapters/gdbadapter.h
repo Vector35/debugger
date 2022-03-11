@@ -21,7 +21,6 @@ namespace BinaryNinjaDebugger
 		DebugStopReason m_lastStopReason{};
 
 		using register_pair = std::pair<std::string, RegisterInfo>;
-		std::map<std::string, DebugRegister> m_cachedRegisterInfo{};
 
 		Socket* m_socket;
 		RspConnector m_rspConnector{};
@@ -39,8 +38,6 @@ namespace BinaryNinjaDebugger
 		std::string ExecuteShellCommand(const std::string& command);
 		virtual bool LoadRegisterInfo();
 
-		bool m_redirectGDBServer;
-
 		// This name is confusing. It actually means whether the target is running, so certain operations, e.g.,
 		// reading memory, adding breakpoint, cannot be carried out at the moment.
 		bool m_isTargetRunning;
@@ -53,7 +50,7 @@ namespace BinaryNinjaDebugger
 		virtual DebugStopReason SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& map);
 
 	public:
-		GdbAdapter(bool redirectGDBServer = true);
+		GdbAdapter(BinaryView* data, bool redirectGDBServer = true);
 		~GdbAdapter();
 
 		bool Execute(const std::string& path, const LaunchConfigurations& configs) override;
@@ -102,7 +99,6 @@ namespace BinaryNinjaDebugger
 		DebugStopReason Go() override;
 		DebugStopReason StepInto() override;
 		DebugStopReason StepOver() override;
-	//    bool StepTo(std::uintptr_t address) override;
 
 		void Invoke(const std::string& command) override;
 		std::uintptr_t GetInstructionOffset() override;

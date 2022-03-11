@@ -14,7 +14,7 @@ elseif(ARCH STREQUAL "armv7")
 endif()
 
 if (APPLE)
-	set(CMAKE_OSX_ARCHITECTURES {ARCH})
+	set(CMAKE_OSX_ARCHITECTURES ${ARCH})
 elseif (UNIX)
 	if (ARCH STREQUAL "x86")
 		set(CMAKE_C_FLAGS -m32)

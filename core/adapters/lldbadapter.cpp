@@ -12,6 +12,12 @@
 
 using namespace BinaryNinjaDebugger;
 
+
+LldbAdapter::LldbAdapter(BinaryView *data): GdbAdapter(data)
+{
+	m_remoteArch = m_data->GetDefaultArchitecture()->GetName();
+}
+
 bool LldbAdapter::LoadRegisterInfo() {
     const auto xml = this->m_rspConnector.GetXml("target.xml");
 
@@ -117,6 +123,33 @@ DebugRegister LldbAdapter::ReadRegister(const std::string& reg)
 }
 
 
+std::string LldbAdapter::GetDebugServerPath()
+{
+	std::string path{};
+
+# if defined __arm64__ || defined __aarch64__
+	if (m_data->GetDefaultArchitecture()->GetName() == "x86_64")
+		path = "/Library/Apple/usr/libexec/oah/debugserver";
+#endif
+
+	if (path.empty())
+	{
+		path = this->ExecuteShellCommand("which debugserver");
+		if (!path.empty())
+			path = path.substr(0, path.find('\n'));
+	}
+
+	if (path.empty() )
+		path = "/Library/Developer/CommandLineTools/Library/PrivateFrameworks/LLDB.framework/Versions/A/Resources/debugserver";
+
+    const auto lldb_server_exists = fopen(path.c_str(), "r");
+    if (!lldb_server_exists)
+        return "";
+    fclose(lldb_server_exists);
+	return path;
+}
+
+
 bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string &args, const LaunchConfigurations& configs)
 {
 #ifndef __APPLE__
@@ -127,15 +160,9 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string &ar
         return false;
     fclose(file_exists);
 
-    auto lldb_server_path = this->ExecuteShellCommand("which debugserver");
-
-    if ( lldb_server_path.empty() )
-        lldb_server_path = "/Library/Developer/CommandLineTools/Library/PrivateFrameworks/LLDB.framework/Versions/A/Resources/debugserver";
-
-    const auto lldb_server_exists = fopen(lldb_server_path.c_str(), "r");
-    if (!lldb_server_exists)
-        return false;
-    fclose(lldb_server_exists);
+    auto lldb_server_path = GetDebugServerPath();
+	if (lldb_server_path.empty())
+		return false;
 
     lldb_server_path = lldb_server_path.substr(0, lldb_server_path.find('\n'));
 
@@ -184,17 +211,9 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 #ifndef __APPLE__
     return false;
 #else
-    auto lldb_server_path = this->ExecuteShellCommand("which debugserver");
-
+    auto lldb_server_path = GetDebugServerPath();
     if ( lldb_server_path.empty() )
-        lldb_server_path = "/Library/Developer/CommandLineTools/Library/PrivateFrameworks/LLDB.framework/Versions/A/Resources/debugserver";
-
-    const auto lldb_server_exists = fopen(lldb_server_path.c_str(), "r");
-    if (!lldb_server_exists)
         return false;
-    fclose(lldb_server_exists);
-
-    lldb_server_path = lldb_server_path.substr(0, lldb_server_path.find('\n'));
 
     this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
 
@@ -230,8 +249,7 @@ std::string LldbAdapter::GetTargetArchitecture() {
     // A better way is to parse the target.xml returned by lldb, which has
     // <feature name="com.apple.debugserver.arm64">
     // We will need to translate the arch name returned by lldb into name used by BN archs
-    m_remoteArch = "aarch64";
-    return "aarch64";
+    return m_remoteArch;
 }
 
 
@@ -264,6 +282,47 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
     }
 
     return result;
+}
+
+
+DataBuffer LldbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
+{
+    // This means whether the target is running. If it is, then we cannot read memory at the moment
+    if (m_isTargetRunning)
+        return DataBuffer{};
+
+    auto reply = this->m_rspConnector.TransmitAndReceive(RspData("x{:x},{:x}", address, size));
+	// debugserver replies E80 when failing to read the memory. The error number might change
+	// The check here does not remove all ambiguity, but it should probably work in most cases
+    if ((reply.m_data[0] == 'E') && (reply.AsString().size() == 3)
+		&& std::isdigit(reply.m_data[1]) && std::isdigit(reply.m_data[2]))
+	{
+		return DataBuffer{};
+	}
+
+	std::string replyString = reply.AsString();
+	std::vector<uint8_t> bufferUnquoted;
+	bufferUnquoted.reserve(size);
+	size_t i = 0;
+	while (i < replyString.size())
+	{
+		if (replyString[i] == '}')
+		{
+			bufferUnquoted.push_back(replyString[i + 1] ^ 0x20);
+			i += 2;
+		}
+		else
+		{
+			bufferUnquoted.push_back(replyString[i]);
+			i++;
+		}
+	}
+
+	std::ostringstream s;
+	for (i = 0; i < bufferUnquoted.size(); i++)
+		s << bufferUnquoted[i];
+
+	return DataBuffer(s.str().c_str(), s.str().size());
 }
 
 
@@ -380,8 +439,8 @@ LocalLldbAdapterType::LocalLldbAdapterType(): DebugAdapterType("Local LLDB")
 
 DebugAdapter* LocalLldbAdapterType::Create(BinaryNinja::BinaryView *data)
 {
-	// TODO: someone should feel this.
-    return new QueuedAdapter(new LldbAdapter());
+	// TODO: someone should free this.
+    return new QueuedAdapter(new LldbAdapter(data));
 }
 
 
@@ -417,8 +476,8 @@ RemoteLldbAdapterType::RemoteLldbAdapterType(): DebugAdapterType("Remote LLDB")
 
 DebugAdapter* RemoteLldbAdapterType::Create(BinaryNinja::BinaryView *data)
 {
-	// TODO: someone should feel this.
-    return new QueuedAdapter(new LldbAdapter());
+	// TODO: someone should free this.
+    return new QueuedAdapter(new LldbAdapter(data));
 }
 
 

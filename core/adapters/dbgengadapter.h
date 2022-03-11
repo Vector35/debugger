@@ -95,7 +95,7 @@ namespace BinaryNinjaDebugger
 		inline static ProcessCallbackInformation ProcessCallbackInfo{};
 		static constexpr unsigned long StepoutBreakpointID = 0x5be9c948;
 
-		DbgEngAdapter();
+		DbgEngAdapter(BinaryView* data);
 		~DbgEngAdapter();
 
 		[[nodiscard]] bool Execute(const std::string& path, const LaunchConfigurations& configs = {}) override;

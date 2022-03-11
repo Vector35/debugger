@@ -32,16 +32,7 @@ namespace BinaryNinjaDebugger
 			RemoteSenseAdapterType
 		};
 
-		static bool UseExec(AdapterType type);
-
-		static bool UseConnect(AdapterType type);
-
 		static bool CanUse(AdapterType type);
-
-		static DebugAdapter *GetAdapterForCurrentSystem();
-
-		static DebugAdapter *GetNewAdapter(AdapterType);
-//    static std::string GetName(AdapterType type);
 
 		DebugAdapterType(const std::string &name);
 

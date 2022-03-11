@@ -31,7 +31,7 @@ using namespace std;
 using namespace BinaryNinjaDebugger;
 
 
-QueuedAdapter::QueuedAdapter(DebugAdapter* adapter): m_adapter(adapter)
+QueuedAdapter::QueuedAdapter(DebugAdapter* adapter): DebugAdapter(nullptr), m_adapter(adapter)
 {
     std::thread worker([&](){
         Worker();

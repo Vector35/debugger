@@ -8,7 +8,10 @@ namespace BinaryNinjaDebugger
 		bool LoadRegisterInfo() override;
 		DebugStopReason SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& dict) override;
 
+		std::string GetDebugServerPath();
+
 	public:
+		LldbAdapter(BinaryView* data);
 		bool ExecuteWithArgs(const std::string& path, const std::string &args,
 							 const LaunchConfigurations& configs) override;
 		bool Attach(uint32_t pid) override;
@@ -19,6 +22,8 @@ namespace BinaryNinjaDebugger
 		// LLDB requires a different way of reading register values, the g packet that works for gdb does not work for lldb
 		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
 		DebugRegister ReadRegister(const std::string& reg) override;
+
+		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) override;
 	};
 
 

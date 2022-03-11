@@ -33,7 +33,7 @@ using namespace BinaryNinja;
 using namespace std;
 using namespace BinaryNinjaDebugger;
 
-GdbAdapter::GdbAdapter(bool redirectGDBServer): m_redirectGDBServer(redirectGDBServer)
+GdbAdapter::GdbAdapter(BinaryView* data, bool redirectGDBServer): DebugAdapter(data)
 {
     m_isTargetRunning = false;
 }
@@ -892,26 +892,6 @@ DebugStopReason GdbAdapter::StepOver()
 }
 
 
-//bool GdbAdapter::StepTo(std::uintptr_t address)
-//{
-//    const auto breakpoints = this->m_debugBreakpoints;
-//
-//    this->RemoveBreakpoints(this->m_debugBreakpoints);
-//
-//    const auto bp = this->AddBreakpoint(address);
-//    if ( !bp.m_address )
-//        return false;
-//
-//    this->Go();
-//
-//    this->RemoveBreakpoint(bp);
-//
-//    for ( const auto& breakpoint : breakpoints )
-//        this->AddBreakpoint(breakpoint.m_address);
-//
-//    return true;
-//}
-
 void GdbAdapter::Invoke(const std::string& command)
 {
 }
@@ -925,7 +905,7 @@ std::uintptr_t GdbAdapter::GetInstructionOffset()
         ipRegisterName = "eip";
     else if (targetArch == "x86_64")
         ipRegisterName = "rip";
-    else if (targetArch == "aarch64")
+    else if ((targetArch == "aarch64") || (targetArch == "arm64"))
         ipRegisterName = "pc";
     else
         ipRegisterName = "pc";
@@ -1065,8 +1045,8 @@ LocalGdbAdapterType::LocalGdbAdapterType(): DebugAdapterType("Local GDB")
 
 DebugAdapter* LocalGdbAdapterType::Create(BinaryNinja::BinaryView *data)
 {
-	// TODO: someone should feel this.
-    return new QueuedAdapter(new GdbAdapter());
+	// TODO: someone should free this.
+    return new QueuedAdapter(new GdbAdapter(data));
 }
 
 
@@ -1102,8 +1082,8 @@ RemoteGdbAdapterType::RemoteGdbAdapterType(): DebugAdapterType("Remote GDB")
 
 DebugAdapter* RemoteGdbAdapterType::Create(BinaryNinja::BinaryView *data)
 {
-	// TODO: someone should feel this.
-    return new QueuedAdapter(new GdbAdapter());
+	// TODO: someone should free this.
+    return new QueuedAdapter(new GdbAdapter(data));
 }
 
 
