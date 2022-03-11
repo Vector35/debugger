@@ -80,7 +80,7 @@ void DbgEngAdapter::Reset()
 
 #undef SAFE_RELEASE
 
-DbgEngAdapter::DbgEngAdapter(BinaryView* data): m_data(data)
+DbgEngAdapter::DbgEngAdapter(BinaryView* data): DebugAdapter(data)
 {
     this->Start();
 }

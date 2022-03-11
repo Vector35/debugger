@@ -397,7 +397,7 @@ int main(int argc, const char* argv[])
 
 #ifdef WIN32
 	std::thread([&]{
-		while (tru )
+		while (true )
 			if (GetAsyncKeyState(VK_F2) & 1)
 				debugger->Pause();
 	}).detach();
