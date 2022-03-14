@@ -136,7 +136,13 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string &
         LogInfo("timeout attempt @ 0x%x", timeout_attempts);
         if (this->Wait(std::chrono::milliseconds(100)))
             if (ProcessInfo.m_created && ProcessInfo.m_hasOneBreakpoint)
-                return this->m_debugActive;
+            {
+                if (m_data->GetDefaultArchitecture()->GetName() == "x86")
+                {
+                    Go();
+                }
+                return true;
+            }
     }
 
     return false;
@@ -670,10 +676,10 @@ HRESULT DbgEngEventCallbacks::Exception(EXCEPTION_RECORD64* exception, unsigned 
 {
     DbgEngAdapter::ProcessCallbackInfo.m_lastException = *exception;
 
-    // If we are debugging a 32-bit program, we get STATUS_WX86_BREAKPOINT followed by
+    // If we are debugging a 32-bit program, we get STATUS_WX86_BREAKPOINT followed by STATUS_WX86_BREAKPOINT
+    // However, returning DEBUG_STATUS_GO here does not work. This might be a dbgeng bug.
 //    if (exception->ExceptionCode == STATUS_WX86_BREAKPOINT)
 //        return DEBUG_STATUS_GO;
-
 
     if ( exception->ExceptionCode == EXCEPTION_BREAKPOINT )
     {
