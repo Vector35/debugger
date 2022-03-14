@@ -15,13 +15,12 @@
 
 #if defined(OS_IS_WINDOWS)
 DWORD WINAPI ThreadFunc(void* vargp)
-//#define SLEEP1SEC Sleep(1000)
+#define SLEEP1SEC Sleep(1000)
 #else
 void *thread_func(void *vargp)
 //#define SLEEP1SEC sleep(1)
-#endif
-
 #define SLEEP1SEC for(int i=0; i<99999999; ++i) { foo *= 3; }
+#endif
 
 {
 	int i;

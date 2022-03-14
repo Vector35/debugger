@@ -376,7 +376,7 @@ def test_one_arch(current_arch):
     print('asking for threads')
     if platform.system() == 'Windows':
         # main thread at WaitForMultipleObjects() + 4 created threads + debugger thread
-        nthreads_expected = 6
+        nthreads_expected = 9
     else:
         # main thread at pthread_join() + 4 created threads
         nthreads_expected = 5

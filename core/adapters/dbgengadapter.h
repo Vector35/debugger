@@ -90,6 +90,7 @@ namespace BinaryNinjaDebugger
 		bool Wait(std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
 		std::vector<DebugBreakpoint> m_debug_breakpoints{};
+        bool m_lastOperationIsStepInto = false;
 
 	public:
 		inline static ProcessCallbackInformation ProcessCallbackInfo{};
@@ -144,7 +145,6 @@ namespace BinaryNinjaDebugger
 		DebugStopReason Go() override;
 		DebugStopReason StepInto() override;
 		DebugStopReason StepOver() override;
-	//    bool StepTo(std::uintptr_t address) override;
 
 		void Invoke(const std::string& command) override;
 		std::uintptr_t GetInstructionOffset() override;

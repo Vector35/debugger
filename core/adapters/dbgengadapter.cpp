@@ -92,7 +92,7 @@ DbgEngAdapter::~DbgEngAdapter()
 
 bool DbgEngAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
-    return this->ExecuteWithArgs(path, {});
+    return this->ExecuteWithArgs(path, "", {});
 }
 
 bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string &args,
@@ -105,13 +105,10 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string &
     ProcessInfo.m_lastSessionStatus = DEBUG_SESSION_FAILURE;
 
     if ( this->m_debugActive ) {
-        LogWarn("m_debugActive... resetting...");
         this->Reset();
     }
 
-    LogWarn("starting...");
     this->Start();
-    LogInfo("complete!");
 
     if (const auto result = this->m_debugControl->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK);
             result != S_OK)
@@ -125,19 +122,15 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string &
     if ( !args.empty())
     {
         path_with_args.append( " " );
-
-        for ( const auto& arg : args )
-            path_with_args.append( arg + " " );
+        path_with_args.append(args);
     }
 
-    LogWarn("creating process...");
     if (const auto result = this->m_debugClient->CreateProcess(0, const_cast<char*>( path_with_args.c_str() ), DEBUG_ONLY_THIS_PROCESS);
             result != S_OK)
     {
         this->Reset();
         return false;
     }
-    LogInfo("created!");
 
     for (std::size_t timeout_attempts{}; timeout_attempts < 10; timeout_attempts++) {
         LogInfo("timeout attempt @ 0x%x", timeout_attempts);
@@ -192,6 +185,7 @@ bool DbgEngAdapter::Connect(const std::string &server, std::uint32_t port)
 
 void DbgEngAdapter::Detach()
 {
+    m_lastOperationIsStepInto = false;
     if ( this->m_debugClient )
         this->m_debugClient->DetachProcesses();
 
@@ -200,10 +194,10 @@ void DbgEngAdapter::Detach()
 
 void DbgEngAdapter::Quit()
 {
+    m_lastOperationIsStepInto = false;
     if ( this->m_debugClient )
     {
         HRESULT result = this->m_debugClient->TerminateProcesses();
-        LogWarn("TerminateProcess result: %d", result);
     }
 
     this->Reset();
@@ -224,15 +218,24 @@ std::vector<DebugThread> DbgEngAdapter::GetThreadList()
         return {};
 
     std::vector<DebugThread> debug_threads{};
+    DebugThread activeThead = GetActiveThread();
     for ( std::size_t index{}; index < number_threads; index++ )
-        debug_threads.emplace_back(sysids[index], tids[index]);
+    {
+        SetActiveThreadId(tids[index]);
+        uint64_t pc = GetInstructionOffset();
+        debug_threads.emplace_back(tids[index], pc);
+    }
+    SetActiveThread(activeThead);
 
     return debug_threads;
 }
 
+// Note, on Windows, we use engine thread ID, but on Linux/macOS, we use system thread ID.
+// System thread ID is also available on Windows, We should later add a new field to the DebugThread struct
 DebugThread DbgEngAdapter::GetActiveThread() const
 {
-    return DebugThread(this->GetActiveThreadId());
+    // Temporary hacky to get the code compile without changing everything
+    return DebugThread(this->GetActiveThreadId(), ((DbgEngAdapter*)this)->GetInstructionOffset());
 }
 
 std::uint32_t DbgEngAdapter::GetActiveThreadId() const
@@ -464,6 +467,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 
 bool DbgEngAdapter::BreakInto()
 {
+    m_lastOperationIsStepInto = false;
     if (this->m_debugControl->SetInterrupt(DEBUG_INTERRUPT_ACTIVE) != S_OK )
         return false;
 
@@ -472,6 +476,7 @@ bool DbgEngAdapter::BreakInto()
 
 DebugStopReason DbgEngAdapter::Go()
 {
+    m_lastOperationIsStepInto = false;
     if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK )
         return DebugStopReason::InternalError;
 
@@ -481,6 +486,7 @@ DebugStopReason DbgEngAdapter::Go()
 
 DebugStopReason DbgEngAdapter::StepInto()
 {
+    m_lastOperationIsStepInto = true;
     if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_INTO) != S_OK )
         return DebugStopReason::InternalError;
 
@@ -490,31 +496,13 @@ DebugStopReason DbgEngAdapter::StepInto()
 
 DebugStopReason DbgEngAdapter::StepOver()
 {
+    m_lastOperationIsStepInto = false;
     if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_OVER) != S_OK )
         return DebugStopReason::InternalError;
 
     this->Wait();
     return StopReason();
 }
-
-
-//bool DbgEngAdapter::StepTo(std::uintptr_t address)
-//{
-//    const auto breakpoints = this->m_debug_breakpoints;
-//
-//    this->RemoveBreakpoints(this->m_debug_breakpoints);
-//
-//    const auto bp = this->AddBreakpoint(address, DEBUG_BREAKPOINT_ONE_SHOT);
-//    if ( !bp.m_address )
-//        return false;
-//
-//    this->Go();
-//
-//    for ( const auto& breakpoint : breakpoints )
-//        this->AddBreakpoint(breakpoint.m_address);
-//
-//    return true;
-//}
 
 bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
 {
@@ -580,7 +568,6 @@ DebugStopReason DbgEngAdapter::StopReason()
         const auto& last_exception = DbgEngAdapter::ProcessCallbackInfo.m_lastException;
         if ( instruction_ptr == last_exception.ExceptionAddress )
         {
-            LogWarn("last exception: %d", last_exception.ExceptionCode);
             switch (last_exception.ExceptionCode)
             {
                 case STATUS_BREAKPOINT:
@@ -598,6 +585,9 @@ DebugStopReason DbgEngAdapter::StopReason()
                     return DebugStopReason::UnknownReason;
             }
         }
+
+        if (m_lastOperationIsStepInto)
+            return DebugStopReason::SingleStep;
     }
     else if (exec_status == DEBUG_STATUS_NO_DEBUGGEE)
     {
@@ -669,7 +659,6 @@ HRESULT DbgEngEventCallbacks::GetInterestMask(unsigned long* mask)
 
 HRESULT DbgEngEventCallbacks::Breakpoint(IDebugBreakpoint* breakpoint)
 {
-    LogWarn("DbgEngEventCallbacks::Breakpoint");
     std::uintptr_t address{};
     if (breakpoint->GetOffset(&address) == S_OK )
         DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint = DebugBreakpoint(address );
@@ -679,7 +668,6 @@ HRESULT DbgEngEventCallbacks::Breakpoint(IDebugBreakpoint* breakpoint)
 
 HRESULT DbgEngEventCallbacks::Exception(EXCEPTION_RECORD64* exception, unsigned long first_chance)
 {
-    LogWarn("DbgEngEventCallbacks::Exception, code: %d", exception->ExceptionCode);
     DbgEngAdapter::ProcessCallbackInfo.m_lastException = *exception;
 
     // If we are debugging a 32-bit program, we get STATUS_WX86_BREAKPOINT followed by
@@ -689,7 +677,6 @@ HRESULT DbgEngEventCallbacks::Exception(EXCEPTION_RECORD64* exception, unsigned 
 
     if ( exception->ExceptionCode == EXCEPTION_BREAKPOINT )
     {
-        LogWarn("setting m_hasOneBreakpoint to true");
         DbgEngAdapter::ProcessCallbackInfo.m_hasOneBreakpoint = true;
     }
 
