@@ -3,7 +3,7 @@
 
 namespace BinaryNinjaDebugger
 {
-	class LldbAdapter : public GdbAdapter
+	class LldbRspAdapter : public GdbAdapter
 	{
 		bool LoadRegisterInfo() override;
 		DebugStopReason SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& dict) override;
@@ -11,7 +11,7 @@ namespace BinaryNinjaDebugger
 		std::string GetDebugServerPath();
 
 	public:
-		LldbAdapter(BinaryView* data);
+		LldbRspAdapter(BinaryView* data);
 		bool ExecuteWithArgs(const std::string& path, const std::string &args,
 							 const LaunchConfigurations& configs) override;
 		bool Attach(uint32_t pid) override;
@@ -27,10 +27,10 @@ namespace BinaryNinjaDebugger
 	};
 
 
-	class LocalLldbAdapterType: public DebugAdapterType
+	class LocalLldbRspAdapterType: public DebugAdapterType
 	{
 	public:
-		LocalLldbAdapterType();
+		LocalLldbRspAdapterType();
 		virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
 		virtual bool IsValidForData(BinaryNinja::BinaryView* data);
 		virtual bool CanExecute(BinaryNinja::BinaryView* data);
@@ -38,10 +38,10 @@ namespace BinaryNinjaDebugger
 	};
 
 
-	class RemoteLldbAdapterType: public DebugAdapterType
+	class RemoteLldbRspAdapterType: public DebugAdapterType
 	{
 	public:
-		RemoteLldbAdapterType();
+		RemoteLldbRspAdapterType();
 		virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
 		virtual bool IsValidForData(BinaryNinja::BinaryView* data);
 		virtual bool CanExecute(BinaryNinja::BinaryView* data);
@@ -49,5 +49,5 @@ namespace BinaryNinjaDebugger
 	};
 
 
-	void InitLldbAdapterType();
+	void InitLldbRspAdapterType();
 };

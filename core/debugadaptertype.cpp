@@ -1,6 +1,6 @@
 #include "debugadaptertype.h"
 #include "./adapters/gdbadapter.h"
-#include "./adapters/lldbadapter.h"
+#include "./adapters/lldbrspadapter.h"
 
 #ifdef WIN32
 #include "./adapters/dbgengadapter.h"
@@ -81,6 +81,6 @@ std::string DebugAdapterType::GetBestAdapterForCurrentSystem(BinaryNinja::Binary
 #elif defined(__clang__)
     return "Local LLDB";
 #elif defined(__GNUC__)
-    return "Local GDB";
+    return "Local GDB RSP";
 #endif
 }

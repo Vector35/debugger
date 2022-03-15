@@ -4,7 +4,7 @@
 #include <spawn.h>
 #endif
 #include <pugixml/pugixml.hpp>
-#include "lldbadapter.h"
+#include "lldbrspadapter.h"
 #include "queuedadapter.h"
 
 
@@ -13,12 +13,12 @@
 using namespace BinaryNinjaDebugger;
 
 
-LldbAdapter::LldbAdapter(BinaryView *data): GdbAdapter(data)
+LldbRspAdapter::LldbRspAdapter(BinaryView *data): GdbAdapter(data)
 {
 	m_remoteArch = m_data->GetDefaultArchitecture()->GetName();
 }
 
-bool LldbAdapter::LoadRegisterInfo() {
+bool LldbRspAdapter::LoadRegisterInfo() {
     const auto xml = this->m_rspConnector.GetXml("target.xml");
 
     pugi::xml_document doc{};
@@ -75,7 +75,7 @@ bool LldbAdapter::LoadRegisterInfo() {
 }
 
 
-std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
+std::unordered_map<std::string, DebugRegister> LldbRspAdapter::ReadAllRegisters()
 {
     if ( this->m_registerInfo.empty() )
         throw std::runtime_error("register info empty");
@@ -100,7 +100,7 @@ std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 }
 
 
-DebugRegister LldbAdapter::ReadRegister(const std::string& reg)
+DebugRegister LldbRspAdapter::ReadRegister(const std::string& reg)
 {
 //    if (!m_isTargetRunning)
 //        return DebugRegister{};
@@ -123,7 +123,7 @@ DebugRegister LldbAdapter::ReadRegister(const std::string& reg)
 }
 
 
-std::string LldbAdapter::GetDebugServerPath()
+std::string LldbRspAdapter::GetDebugServerPath()
 {
 	std::string path{};
 
@@ -150,7 +150,7 @@ std::string LldbAdapter::GetDebugServerPath()
 }
 
 
-bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string &args, const LaunchConfigurations& configs)
+bool LldbRspAdapter::ExecuteWithArgs(const std::string& path, const std::string &args, const LaunchConfigurations& configs)
 {
 #ifndef __APPLE__
     return false;
@@ -206,7 +206,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string &ar
 }
 
 
-bool LldbAdapter::Attach(std::uint32_t pid)
+bool LldbRspAdapter::Attach(std::uint32_t pid)
 {
 #ifndef __APPLE__
     return false;
@@ -238,13 +238,13 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 }
 
 
-DebugStopReason LldbAdapter::Go()
+DebugStopReason LldbRspAdapter::Go()
 {
     return GenericGo("c");
 }
 
 
-std::string LldbAdapter::GetTargetArchitecture() {
+std::string LldbRspAdapter::GetTargetArchitecture() {
     // hardcoded this for m1 mac
     // A better way is to parse the target.xml returned by lldb, which has
     // <feature name="com.apple.debugserver.arm64">
@@ -253,7 +253,7 @@ std::string LldbAdapter::GetTargetArchitecture() {
 }
 
 
-std::vector<DebugModule> LldbAdapter::GetModuleList()
+std::vector<DebugModule> LldbRspAdapter::GetModuleList()
 {
     std::vector<DebugModule> result;
 
@@ -285,7 +285,7 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
 }
 
 
-DataBuffer LldbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
+DataBuffer LldbRspAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 {
     // This means whether the target is running. If it is, then we cannot read memory at the moment
     if (m_isTargetRunning)
@@ -326,7 +326,7 @@ DataBuffer LldbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 }
 
 
-DebugStopReason LldbAdapter::SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& dict)
+DebugStopReason LldbRspAdapter::SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& dict)
 {
 //	metype:6;mecount:2;medata:1;medata:0;memory:0x16f5ba940=d0ad5b6f0100000068a8b60001801c5e;
 //	memory:0x16f5badd0=90b65b6f01000000f416b600018006f6;#00
@@ -431,32 +431,32 @@ Target 0: (commandline_test) stopped.
 }
 
 
-LocalLldbAdapterType::LocalLldbAdapterType(): DebugAdapterType("Local LLDB")
+LocalLldbRspAdapterType::LocalLldbRspAdapterType(): DebugAdapterType("Local LLDB RSP")
 {
 
 }
 
 
-DebugAdapter* LocalLldbAdapterType::Create(BinaryNinja::BinaryView *data)
+DebugAdapter* LocalLldbRspAdapterType::Create(BinaryNinja::BinaryView *data)
 {
 	// TODO: someone should free this.
-    return new QueuedAdapter(new LldbAdapter(data));
+    return new QueuedAdapter(new LldbRspAdapter(data));
 }
 
 
-bool LocalLldbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
+bool LocalLldbRspAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
 {
 	return data->GetTypeName() == "Mach-O";
 }
 
 
-bool LocalLldbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
+bool LocalLldbRspAdapterType::CanConnect(BinaryNinja::BinaryView *data)
 {
     return false;
 }
 
 
-bool LocalLldbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
+bool LocalLldbRspAdapterType::CanExecute(BinaryNinja::BinaryView *data)
 {
 //	TODO: LLDB actually works fine on Linux, should we return true for it?
 //  Note: LLDB does not work well on Windows.
@@ -468,43 +468,43 @@ bool LocalLldbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
 }
 
 
-RemoteLldbAdapterType::RemoteLldbAdapterType(): DebugAdapterType("Remote LLDB")
+RemoteLldbRspAdapterType::RemoteLldbRspAdapterType(): DebugAdapterType("Remote LLDB RSP")
 {
 
 }
 
 
-DebugAdapter* RemoteLldbAdapterType::Create(BinaryNinja::BinaryView *data)
+DebugAdapter* RemoteLldbRspAdapterType::Create(BinaryNinja::BinaryView *data)
 {
 	// TODO: someone should free this.
-    return new QueuedAdapter(new LldbAdapter(data));
+    return new QueuedAdapter(new LldbRspAdapter(data));
 }
 
 
-bool RemoteLldbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
+bool RemoteLldbRspAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
 {
 //	it does not matter what the BinaryViewType is -- as long as we can connect to it, it is fine.
 	return true;
 }
 
 
-bool RemoteLldbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
+bool RemoteLldbRspAdapterType::CanConnect(BinaryNinja::BinaryView *data)
 {
 //	We can connect to remote lldb on any host system
     return true;
 }
 
 
-bool RemoteLldbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
+bool RemoteLldbRspAdapterType::CanExecute(BinaryNinja::BinaryView *data)
 {
     return false;
 }
 
 
-void BinaryNinjaDebugger::InitLldbAdapterType()
+void BinaryNinjaDebugger::InitLldbRspAdapterType()
 {
-    static LocalLldbAdapterType localType;
+    static LocalLldbRspAdapterType localType;
     DebugAdapterType::Register(&localType);
-    static RemoteLldbAdapterType remoteType;
+    static RemoteLldbRspAdapterType remoteType;
     DebugAdapterType::Register(&remoteType);
 }
