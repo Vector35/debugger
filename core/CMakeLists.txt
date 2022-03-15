@@ -21,6 +21,8 @@ file(GLOB COMMON_SOURCES
     )
 
 file(GLOB ADAPTER_SOURCES
+		adapters/lldbadapter.cpp
+		adapters/lldbadapter.h
 		adapters/lldbrspadapter.cpp
 		adapters/lldbrspadapter.h
 		adapters/gdbadapter.cpp
@@ -79,4 +81,11 @@ target_compile_definitions(debuggercore PRIVATE DEBUGGER_LIBRARY)
 if(BN_INTERNAL_BUILD)
 	add_custom_command(TARGET debuggercore POST_BUILD
 			COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/adapters/gdb ${BN_CORE_PLUGIN_DIR}/gdb)
+endif()
+
+if (APPLE)
+#	TODO: remember to deal with the RPATH
+	find_library(lib_lldb NAMES LLDB PATHS ${PROJECT_SOURCE_DIR}/adapters REQUIRED)
+	target_link_libraries(debuggercore ${lib_lldb})
+	include_directories(${PROJECT_SOURCE_DIR}/adapters/LLDB.framework/Headers)
 endif()
