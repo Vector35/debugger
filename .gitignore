@@ -53,3 +53,5 @@ test/testbins/CTestTestfile.cmake
 *.pdb
 *.ilk
 *.manifest
+
+core/adapters/LLDB.framework
