@@ -1,9 +1,18 @@
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
+#include "SBDebugger.h"
+#include "SBTarget.h"
+#include "SBProcess.h"
+#include "SBModule.h"
 
 namespace BinaryNinjaDebugger {
 	class LldbAdapter: public DebugAdapter
 	{
+	private:
+		lldb::SBDebugger m_debugger;
+		lldb::SBTarget m_target;
+		lldb::SBProcess m_process;
+
 	public:
 
 		LldbAdapter(BinaryView* data);
@@ -33,27 +42,15 @@ namespace BinaryNinjaDebugger {
 
 		DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type) override;
 
-		std::vector<DebugBreakpoint> AddBreakpoints(const std::vector<std::uintptr_t> &breakpoints) override;
-
 		bool RemoveBreakpoint(const DebugBreakpoint &breakpoint) override;
 
-		bool RemoveBreakpoints(const std::vector<DebugBreakpoint> &breakpoints) override;
-
-		bool ClearAllBreakpoints() override;
-
 		std::vector<DebugBreakpoint> GetBreakpointList() const override;
-
-		std::string GetRegisterNameByIndex(std::uint32_t index) const override;
 
 		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
 
 		DebugRegister ReadRegister(const std::string &reg) override;
 
 		bool WriteRegister(const std::string &reg, std::uintptr_t value) override;
-
-		bool WriteRegister(const DebugRegister &reg, std::uintptr_t value) override;
-
-		std::vector<std::string> GetRegisterList() const override;
 
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) override;
 

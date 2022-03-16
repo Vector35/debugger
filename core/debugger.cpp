@@ -2,6 +2,7 @@
 #include "processview.h"
 #include "adapters/gdbadapter.h"
 #include "adapters/lldbrspadapter.h"
+#include "adapters/lldbadapter.h"
 #ifdef WIN32
 #include "adapters/dbgengadapter.h"
 #endif
@@ -17,6 +18,7 @@ void InitDebugAdapterTypes()
 
     InitGdbAdapterType();
     InitLldbRspAdapterType();
+	InitLldbAdapterType();
 }
 
 extern "C"
