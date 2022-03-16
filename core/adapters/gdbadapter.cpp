@@ -402,14 +402,6 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned
     return new_breakpoint;
 }
 
-std::vector<DebugBreakpoint> GdbAdapter::AddBreakpoints(const std::vector<std::uintptr_t>& breakpoints)
-{
-    if (m_isTargetRunning)
-        return {};
-
-    return std::vector<DebugBreakpoint>();
-}
-
 bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 {
     if (m_isTargetRunning)
@@ -435,19 +427,6 @@ bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
     return true;
 }
 
-bool GdbAdapter::RemoveBreakpoints(const std::vector<DebugBreakpoint>& breakpoints)
-{
-    if (m_isTargetRunning)
-        return false;
-
-    return false;
-}
-
-bool GdbAdapter::ClearAllBreakpoints()
-{
-    return false;
-}
-
 std::vector<DebugBreakpoint> GdbAdapter::GetBreakpointList() const
 {
     return this->m_debugBreakpoints;
@@ -460,15 +439,6 @@ bool GdbAdapter::BreakpointExists(uint64_t address) const
                    DebugBreakpoint(address)) != this->m_debugBreakpoints.end();
 }
 
-
-std::string GdbAdapter::GetRegisterNameByIndex(std::uint32_t index) const
-{
-    for (const auto& [key, val] : this->m_registerInfo)
-        if (val.m_regNum == index)
-            return key;
-
-    throw std::runtime_error("failed to find register by index");
-}
 
 std::unordered_map<std::string, DebugRegister> GdbAdapter::ReadAllRegisters()
 {
@@ -540,27 +510,6 @@ bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
         return false;
 
     return true;
-}
-
-bool GdbAdapter::WriteRegister(const DebugRegister& reg, std::uintptr_t value)
-{
-    if (m_isTargetRunning)
-        return false;
-
-    return this->WriteRegister(reg.m_name, value);
-}
-
-std::vector<std::string> GdbAdapter::GetRegisterList() const
-{
-    if (m_isTargetRunning)
-        return {};
-
-    std::vector<std::string> registers{};
-
-    for ( const auto& [register_name, register_info] : this->m_registerInfo )
-        registers.push_back(register_name);
-
-    return registers;
 }
 
 DataBuffer GdbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)

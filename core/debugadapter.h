@@ -175,27 +175,15 @@ namespace BinaryNinjaDebugger
 
 		virtual DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type = 0) = 0;
 
-		virtual std::vector<DebugBreakpoint> AddBreakpoints(const std::vector<std::uintptr_t> &breakpoints) = 0;
-
 		virtual bool RemoveBreakpoint(const DebugBreakpoint &breakpoint) = 0;
 
-		virtual bool RemoveBreakpoints(const std::vector<DebugBreakpoint> &breakpoints) = 0;
-
-		virtual bool ClearAllBreakpoints() = 0;
-
 		virtual std::vector<DebugBreakpoint> GetBreakpointList() const = 0;
-
-		virtual std::string GetRegisterNameByIndex(std::uint32_t index) const = 0;
 
 		virtual std::unordered_map<std::string, DebugRegister> ReadAllRegisters() = 0;
 
 		virtual DebugRegister ReadRegister(const std::string &reg) = 0;
 
 		virtual bool WriteRegister(const std::string &reg, std::uintptr_t value) = 0;
-
-		virtual bool WriteRegister(const DebugRegister &reg, std::uintptr_t value) = 0;
-
-		virtual std::vector<std::string> GetRegisterList() const = 0;
 
 		virtual DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) = 0;
 

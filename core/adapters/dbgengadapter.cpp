@@ -337,19 +337,6 @@ bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint &breakpoint)
     return true;
 }
 
-bool DbgEngAdapter::RemoveBreakpoints(const std::vector<DebugBreakpoint> &breakpoints)
-{
-    for ( const auto& breakpoint : breakpoints )
-        this->RemoveBreakpoint(breakpoint);
-
-    return true;
-}
-
-bool DbgEngAdapter::ClearAllBreakpoints()
-{
-    return this->RemoveBreakpoints(this->m_debug_breakpoints);
-}
-
 std::vector<DebugBreakpoint> DbgEngAdapter::GetBreakpointList() const
 {
     return this->m_debug_breakpoints;
@@ -408,27 +395,6 @@ bool DbgEngAdapter::WriteRegister(const std::string &reg, std::uintptr_t value)
         return false;
 
     return true;
-}
-
-bool DbgEngAdapter::WriteRegister(const DebugRegister& reg, std::uintptr_t value)
-{
-    return this->WriteRegister(reg.m_name, value);
-}
-
-std::vector<std::string> DbgEngAdapter::GetRegisterList() const
-{
-    if ( !this->m_debugRegisters )
-        return{};
-
-    unsigned long register_count{};
-    if (this->m_debugRegisters->GetNumberRegisters(&register_count) != S_OK )
-        return {};
-
-    std::vector<std::string> register_list{};
-    for ( std::size_t reg_index{}; reg_index < register_count; reg_index++ )
-        register_list.push_back(this->GetRegisterNameByIndex(reg_index));
-
-    return register_list;
 }
 
 
@@ -518,21 +484,6 @@ bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
     const auto wait_result = this->m_debugControl->WaitForEvent(0, timeout.count());
     return wait_result == S_OK;
 }
-
-std::string DbgEngAdapter::GetRegisterNameByIndex(std::uint32_t index) const
-{
-    if (!m_debugRegisters)
-        return {};
-
-    unsigned long reg_length{};
-    DEBUG_REGISTER_DESCRIPTION reg_description{};
-
-    std::array<char, 256> out{'\0'};
-    if (this->m_debugRegisters->GetDescription(index, out.data(), 256, &reg_length, &reg_description) != S_OK )
-        return {};
-
-    return std::string(out.data());
- }
 
 std::unordered_map<std::string, DebugRegister> DbgEngAdapter::ReadAllRegisters() {
     std::unordered_map<std::string, DebugRegister> all_regs{};

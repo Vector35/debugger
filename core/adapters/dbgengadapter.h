@@ -115,18 +115,14 @@ namespace BinaryNinjaDebugger
 		bool SetActiveThreadId(std::uint32_t tid) override;
 
 		DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags = 0) override;
-		std::vector<DebugBreakpoint> AddBreakpoints(const std::vector<std::uintptr_t>& breakpoints) override;
+
 		bool RemoveBreakpoint(const DebugBreakpoint &breakpoint) override;
-		bool RemoveBreakpoints(const std::vector<DebugBreakpoint> &breakpoints) override;
-		bool ClearAllBreakpoints() override;
+
 		std::vector<DebugBreakpoint> GetBreakpointList() const override;
 
-		std::string GetRegisterNameByIndex(std::uint32_t index) const override;
 		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
 		DebugRegister ReadRegister(const std::string &reg) override;
 		bool WriteRegister(const std::string &reg, std::uintptr_t value) override;
-		bool WriteRegister(const DebugRegister& reg, std::uintptr_t value) override;
-		std::vector<std::string> GetRegisterList() const override;
 
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) override;
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) override;

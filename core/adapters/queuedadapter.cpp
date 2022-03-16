@@ -245,23 +245,6 @@ DebugBreakpoint QueuedAdapter::AddBreakpoint(std::uintptr_t address, unsigned lo
 }
 
 
-std::vector<DebugBreakpoint> QueuedAdapter::AddBreakpoints(const std::vector<std::uintptr_t>& breakpoints)
-{
-    std::unique_lock<std::mutex> lock(m_queueMutex);
-
-    std::vector<DebugBreakpoint> ret;
-    Semaphore sem;
-    m_queue.push([&]{
-        ret = m_adapter->AddBreakpoints(breakpoints);
-        sem.Release();
-    });
-
-    lock.unlock();
-    sem.Wait();
-    return ret;
-}
-
-
 bool QueuedAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
@@ -278,38 +261,6 @@ bool QueuedAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 }
 
 
-bool QueuedAdapter::RemoveBreakpoints(const std::vector<DebugBreakpoint>& breakpoints)
-{
-    std::unique_lock<std::mutex> lock(m_queueMutex);
-
-    bool ret;
-    Semaphore sem;
-    m_queue.push([&, breakpoints]{
-        ret = m_adapter->RemoveBreakpoints(breakpoints);
-        sem.Release();
-    });
-    lock.unlock();
-    sem.Wait();
-    return ret;
-}
-
-
-bool QueuedAdapter::ClearAllBreakpoints()
-{
-    std::unique_lock<std::mutex> lock(m_queueMutex);
-
-    bool ret;
-    Semaphore sem;
-    m_queue.push([&]{
-        ret = m_adapter->ClearAllBreakpoints();
-        sem.Release();
-    });
-    lock.unlock();
-    sem.Wait();
-    return ret;
-}
-
-
 std::vector<DebugBreakpoint> QueuedAdapter::GetBreakpointList() const
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
@@ -318,22 +269,6 @@ std::vector<DebugBreakpoint> QueuedAdapter::GetBreakpointList() const
     Semaphore sem;
     m_queue.push([&]{
         ret = m_adapter->GetBreakpointList();
-        sem.Release();
-    });
-    lock.unlock();
-    sem.Wait();
-    return ret;
-}
-
-
-std::string QueuedAdapter::GetRegisterNameByIndex(std::uint32_t index) const
-{
-    std::unique_lock<std::mutex> lock(m_queueMutex);
-
-    std::string ret;
-    Semaphore sem;
-    m_queue.push([&]{
-        ret = m_adapter->GetRegisterNameByIndex(index);
         sem.Release();
     });
     lock.unlock();
@@ -382,38 +317,6 @@ bool QueuedAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
     Semaphore sem;
     m_queue.push([&]{
         ret = m_adapter->WriteRegister(reg, value);
-        sem.Release();
-    });
-    lock.unlock();
-    sem.Wait();
-    return ret;
-}
-
-
-bool QueuedAdapter::WriteRegister(const DebugRegister& reg, std::uintptr_t value)
-{
-    std::unique_lock<std::mutex> lock(m_queueMutex);
-
-    bool ret;
-    Semaphore sem;
-    m_queue.push([&]{
-        ret = m_adapter->WriteRegister(reg, value);
-        sem.Release();
-    });
-    lock.unlock();
-    sem.Wait();
-    return ret;
-}
-
-
-std::vector<std::string> QueuedAdapter::GetRegisterList() const
-{
-    std::unique_lock<std::mutex> lock(m_queueMutex);
-
-    std::vector<std::string> ret;
-    Semaphore sem;
-    m_queue.push([&]{
-        ret = m_adapter->GetRegisterList();
         sem.Release();
     });
     lock.unlock();
