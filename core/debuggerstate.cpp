@@ -555,7 +555,6 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
     m_threads = new DebuggerThreads(this);
     m_breakpoints = new DebuggerBreakpoints(this);
     m_breakpoints->UnserializedMetadata();
-    m_remoteArchDirty = true;
 
 	// TODO: A better way to deal with this is to have the adapters return a fitness score, and then we pick the highest
 	// one from the list. Similar to what we do for the views.
@@ -641,18 +640,7 @@ uint64_t DebuggerState::IP()
     if (!IsConnected())
         return 0;
 
-//    This leads to redundant updates to the register values. They should already be updated --
-//    since the first thing to do when the target stops is to update caches.
-//    m_registers->Update();
-    string archName = m_remoteArch->GetName();
-    if (archName == "x86_64")
-        return m_registers->GetRegisterValue("rip");
-    else if (archName == "x86")
-        return m_registers->GetRegisterValue("eip");
-    else if ((archName == "aarch64") || (archName == "arm64") || (archName == "armv7") || (archName == "Z80"))
-        return m_registers->GetRegisterValue("pc");
-
-    throw NotInstalledError("unimplemented architecture " + archName);
+	return m_adapter->GetInstructionOffset();
 }
 
 
@@ -661,15 +649,8 @@ uint64_t DebuggerState::StackPointer()
     // TODO: we would better have the DebugAdapter either tell us which register holds the stack pointer
     if (!IsConnected())
         return 0;
-    string archName = m_remoteArch->GetName();
-    if (archName == "x86_64")
-        return m_registers->GetRegisterValue("rsp");
-    else if (archName == "x86")
-        return m_registers->GetRegisterValue("esp");
-    else if ((archName == "aarch64") || (archName == "arm64") || (archName == "armv7") || (archName == "Z80"))
-        return m_registers->GetRegisterValue("sp");
 
-    throw NotInstalledError("unimplemented architecture " + archName);
+	return m_adapter->GetStackPointer();
 }
 
 
@@ -687,7 +668,6 @@ void DebuggerState::MarkDirty()
     m_registers->MarkDirty();
     m_threads->MarkDirty();
     m_modules->MarkDirty();
-    m_remoteArchDirty = true;
 }
 
 
@@ -707,21 +687,6 @@ void DebuggerState::UpdateCaches()
 
     if (m_modules->IsDirty())
         m_modules->Update();
-
-    if (m_remoteArchDirty)
-    {
-        m_remoteArch = DetectRemoteArch();
-        m_remoteArchDirty = false;
-    }
-}
-
-
-ArchitectureRef DebuggerState::DetectRemoteArch()
-{
-    // TODO: The backend should report any architecture change and notify us.
-    // Here we read it (in order to allow the adapter to cache it), but we do not really use the return value
-    m_adapter->GetTargetArchitecture();
-    return m_controller->GetData()->GetDefaultArchitecture();
 }
 
 
@@ -734,4 +699,10 @@ uint64_t DebuggerState::GetRemoteBase(BinaryViewRef relativeView)
 void DebuggerState::ApplyBreakpoints()
 {
     m_breakpoints->Apply();
+}
+
+
+Ref<Architecture> DebuggerState::GetRemoteArchitecture() const
+{
+	return m_controller->GetData()->GetDefaultArchitecture();
 }

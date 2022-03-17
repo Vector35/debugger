@@ -87,7 +87,6 @@ namespace BinaryNinjaDebugger
 		std::string GetTargetArchitecture() override;
 
 		DebugStopReason StopReason() override;
-		unsigned long ExecStatus() override;
 		uint64_t ExitCode() override { return m_exitCode; }
 
 		bool BreakInto() override;

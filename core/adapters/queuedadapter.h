@@ -51,7 +51,7 @@ namespace BinaryNinjaDebugger
 		std::string GetTargetArchitecture() override;
 
 		DebugStopReason StopReason() override;
-		unsigned long ExecStatus() override;
+
 		uint64_t ExitCode() override;
 
 		bool GenericGo(const std::string& go_type);
@@ -61,10 +61,11 @@ namespace BinaryNinjaDebugger
 		DebugStopReason Go() override;
 		DebugStopReason StepInto() override;
 		DebugStopReason StepOver() override;
-	//    bool StepTo(std::uintptr_t address) override;
+		DebugStopReason StepReturn() override;
 
 		void Invoke(const std::string& command) override;
 		std::uintptr_t GetInstructionOffset() override;
+		uint64_t GetStackPointer() override;
 
 		bool SupportFeature(DebugAdapterCapacity feature) override;
 

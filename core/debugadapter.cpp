@@ -60,3 +60,15 @@ bool DebugModule::IsSameBaseModule(const std::string& module1, const std::string
     return ((module1 == module2) ||
         (GetPathBaseName(module1) == GetPathBaseName(module2)));
 }
+
+
+DebugStopReason DebugAdapter::StepReturn()
+{
+	return OperationNotSupported;
+}
+
+
+uint64_t DebugAdapter::GetStackPointer()
+{
+	return 0;
+}

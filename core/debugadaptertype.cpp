@@ -79,7 +79,7 @@ std::string DebugAdapterType::GetBestAdapterForCurrentSystem(BinaryNinja::Binary
 #ifdef WIN32
     return "Local DBGENG";
 #elif defined(__clang__)
-    return "Local LLDB";
+    return "LLDB";
 #elif defined(__GNUC__)
     return "Local GDB RSP";
 #endif

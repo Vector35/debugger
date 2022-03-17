@@ -405,22 +405,6 @@ DebugStopReason QueuedAdapter::StopReason()
 }
 
 
-unsigned long QueuedAdapter::ExecStatus()
-{
-    std::unique_lock<std::mutex> lock(m_queueMutex);
-
-    unsigned long ret;
-    Semaphore sem;
-    m_queue.push([&]{
-        ret = m_adapter->ExecStatus();
-        sem.Release();
-    });
-    lock.unlock();
-    sem.Wait();
-    return ret;
-}
-
-
 uint64_t QueuedAdapter::ExitCode()
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
@@ -493,20 +477,20 @@ DebugStopReason QueuedAdapter::StepOver()
 }
 
 
-//bool QueuedAdapter::StepTo(std::uintptr_t address)
-//{
-//    std::unique_lock<std::mutex> lock(m_queueMutex);
-//
-//    bool ret;
-//    Semaphore sem;
-//    m_queue.push([&]{
-//        ret = m_adapter->StepTo(address);
-//        sem.Release();
-//    });
-//    lock.unlock();
-//    sem.Wait();
-//    return ret;
-//}
+DebugStopReason QueuedAdapter::StepReturn()
+{
+    std::unique_lock<std::mutex> lock(m_queueMutex);
+
+    DebugStopReason ret;
+    Semaphore sem;
+    m_queue.push([&]{
+        ret = m_adapter->StepReturn();
+        sem.Release();
+    });
+    lock.unlock();
+    sem.Wait();
+    return ret;
+}
 
 
 void QueuedAdapter::Invoke(const std::string& command)
@@ -531,6 +515,22 @@ std::uintptr_t QueuedAdapter::GetInstructionOffset()
     Semaphore sem;
     m_queue.push([&]{
         ret = m_adapter->GetInstructionOffset();
+        sem.Release();
+    });
+    lock.unlock();
+    sem.Wait();
+    return ret;
+}
+
+
+uint64_t QueuedAdapter::GetStackPointer()
+{
+    std::unique_lock<std::mutex> lock(m_queueMutex);
+
+    std::uintptr_t ret;
+    Semaphore sem;
+    m_queue.push([&]{
+        ret = m_adapter->GetStackPointer();
         sem.Release();
     });
     lock.unlock();

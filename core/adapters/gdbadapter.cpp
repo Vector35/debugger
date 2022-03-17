@@ -868,11 +868,6 @@ DebugStopReason GdbAdapter::StopReason()
     return this->m_lastStopReason;
 }
 
-unsigned long GdbAdapter::ExecStatus()
-{
-    return 0;
-}
-
 
 bool GdbAdapter::SupportFeature(DebugAdapterCapacity feature)
 {

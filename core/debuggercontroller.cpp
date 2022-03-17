@@ -181,20 +181,7 @@ bool DebuggerController::ExpectSingleStep(DebugStopReason reason)
 // Synchronously resume the target, only returns when the target stops.
 DebugStopReason DebuggerController::GoInternal()
 {
-	uint64_t remoteIP = m_state->IP();
-	// TODO: for dbgeng, it handles this sequence of operations for us, so we can simply can Go()
-	if (m_state->GetAdapterType() != "Local DBGENG" && m_state->GetBreakpoints()->ContainsAbsolute(remoteIP))
-	{
-        DebugStopReason reason = StepIntoInternal();
-		if (!ExpectSingleStep(reason))
-			return reason;
-
-		return m_adapter->Go();
-	}
-	else
-	{
-		return m_adapter->Go();
-	}
+	return m_adapter->Go();
 }
 
 
@@ -527,6 +514,11 @@ DebugStopReason DebuggerController::StepOver(BNFunctionGraphType il)
 
 DebugStopReason DebuggerController::StepReturnInternal()
 {
+	// If the adapter supports step return, then use it
+	DebugStopReason reason = m_adapter->StepReturn();
+	if ((reason != DebugStopReason::OperationNotSupported) && (reason != DebugStopReason::InternalError))
+		return reason;
+
 	// TODO: dbgeng supports step out natively, consider using that as well once we implement a similar functionality
 	// for gdb and lldb
 	uint64_t address = m_state->IP();

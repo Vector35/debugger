@@ -195,8 +195,6 @@ namespace BinaryNinjaDebugger
 
 		virtual DebugStopReason StopReason() = 0;
 
-		virtual unsigned long ExecStatus() = 0;
-
 		virtual uint64_t ExitCode() = 0;
 
 		virtual bool BreakInto() = 0;
@@ -208,9 +206,13 @@ namespace BinaryNinjaDebugger
 		virtual DebugStopReason StepOver() = 0;
 		//    virtual bool StepTo(std::uintptr_t address) = 0;
 
+		virtual DebugStopReason StepReturn();
+
 		virtual void Invoke(const std::string &command) = 0;
 
 		virtual std::uintptr_t GetInstructionOffset() = 0;
+
+		virtual uint64_t GetStackPointer();
 
 		virtual bool SupportFeature(DebugAdapterCapacity feature) = 0;
 

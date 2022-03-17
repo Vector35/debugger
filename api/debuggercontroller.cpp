@@ -261,7 +261,7 @@ DebugStopReason DebuggerController::StepReturn()
 
 DebugStopReason DebuggerController::StepTo(uint64_t remoteAddresses)
 {
-	return StepTo({remoteAddresses});
+	return StepTo(std::vector<uint64_t>{remoteAddresses});
 }
 
 

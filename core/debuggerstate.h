@@ -116,7 +116,6 @@ namespace BinaryNinjaDebugger
 		DebuggerRegisters* m_registers;
 		DebuggerThreads* m_threads;
 		DebuggerBreakpoints* m_breakpoints;
-		bool m_remoteArchDirty;
 
 		std::string m_executablePath;
 		std::string m_commandLineArgs;
@@ -138,7 +137,8 @@ namespace BinaryNinjaDebugger
 		DebuggerBreakpoints* GetBreakpoints() const { return m_breakpoints; }
 		DebuggerRegisters* GetRegisters() const { return m_registers; }
 		DebuggerThreads* GetThreads() const { return m_threads; }
-		Ref<Architecture> GetRemoteArchitecture() const { return m_remoteArch; }
+		// This is no longer a remote architecture, because we do not really read the remote arch
+		Ref<Architecture> GetRemoteArchitecture() const;
 
 		std::string GetAdapterType() const { return m_adapterType; }
 		std::string GetExecutablePath() const { return m_executablePath; }
@@ -177,8 +177,6 @@ namespace BinaryNinjaDebugger
 
 		void MarkDirty();
 		void UpdateCaches();
-
-		Ref<Architecture> DetectRemoteArch();
 
 		uint64_t GetRemoteBase(Ref<BinaryView> relativeView = nullptr);
 

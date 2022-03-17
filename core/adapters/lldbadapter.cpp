@@ -5,6 +5,8 @@
 #include "SBAddress.h"
 #include "SBLaunchInfo.h"
 #include "SBBreakpoint.h"
+#include "SBListener.h"
+#include "queuedadapter.h"
 
 using namespace lldb;
 using namespace BinaryNinjaDebugger;
@@ -28,7 +30,7 @@ LldbAdapterType::LldbAdapterType(): DebugAdapterType("LLDB")
 DebugAdapter* LldbAdapterType::Create(BinaryNinja::BinaryView *data)
 {
 	// TODO: someone should free this.
-    return new LldbAdapter(data);
+    return new QueuedAdapter(new LldbAdapter(data));
 }
 
 
@@ -85,11 +87,34 @@ bool LldbAdapter::ExecuteWithArgs(const std::string & path, const std::string & 
 }
 
 
-bool LldbAdapter::Attach(std::uint32_t pid){
-return false;
-}bool LldbAdapter::Connect(const std::string & server, std::uint32_t port){
-return false;
+bool LldbAdapter::Attach(std::uint32_t pid)
+{
+	// Hacky way to supply the path info into the LLDB
+	m_target = m_debugger.CreateTarget(m_data->GetFile()->GetOriginalFilename().c_str());
+	if (!m_target.IsValid())
+		return false;
+
+	SBAttachInfo info(pid);
+	SBError error;
+	m_process = m_target.Attach(info, error);
+	return m_process.IsValid() && error.Success();
 }
+
+
+bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
+{
+	// Hacky way to supply the path info into the LLDB
+	m_target = m_debugger.CreateTarget(m_data->GetFile()->GetOriginalFilename().c_str());
+	if (!m_target.IsValid())
+		return false;
+
+	std::string url = fmt::format("connect://{}:{}", server, port);
+	SBError error;
+	SBListener listener;
+	m_process = m_target.ConnectRemote(listener, url.c_str(), nullptr, error);
+	return m_process.IsValid() && error.Success();
+}
+
 
 void LldbAdapter::Detach()
 {
@@ -284,7 +309,7 @@ bool LldbAdapter::WriteRegister(const std::string & name, std::uintptr_t value)
 		return false;
 
 	SBError error;
-	bool ok = reg.SetValueFromCString(fmt::format("{:X}", value).c_str(), error);
+	bool ok = reg.SetValueFromCString(fmt::format("{}", value).c_str(), error);
 	return ok && error.Success();
 }
 
@@ -315,7 +340,7 @@ bool LldbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer & buffer)
 }
 
 
-static uint64_t GetModuleSize(SBModule& module, SBTarget& target)
+static uint64_t GetModuleHighestAddress(SBModule& module, SBTarget& target)
 {
 	uint64_t largestAddress = 0;
 	const size_t numSections = module.GetNumSections();
@@ -350,7 +375,7 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
 		m.m_short_name = fileSpec.GetFilename();
 		SBAddress headerAddress = module.GetObjectFileHeaderAddress();
 		m.m_address = headerAddress.GetLoadAddress(m_target);
-		m.m_size = GetModuleSize(module, m_target);
+		m.m_size = GetModuleHighestAddress(module, m_target) - m.m_address;
 		m.m_loaded = true;
 		result.push_back(m);
 	}
@@ -358,26 +383,183 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
 }
 
 
-std::string LldbAdapter::GetTargetArchitecture(){
-return std::string();
-}DebugStopReason LldbAdapter::StopReason(){
-return SignalBus;
-}unsigned long LldbAdapter::ExecStatus(){
-return 0;
-}uint64_t LldbAdapter::ExitCode(){
-return 0;
-}bool LldbAdapter::BreakInto(){
-return false;
-}DebugStopReason LldbAdapter::Go(){
-return SignalBus;
-}DebugStopReason LldbAdapter::StepInto(){
-return SignalBus;
-}DebugStopReason LldbAdapter::StepOver(){
-return SignalBus;
-}void LldbAdapter::Invoke(const std::string & command){
+std::string LldbAdapter::GetTargetArchitecture()
+{
+	SBPlatform platform = m_target.GetPlatform();
+//	"arm64-apple-macosx" ==> "arm64"
+	std::string triple(platform.GetTriple());
+	auto position = triple.find('-');
+	if (position == std::string::npos)
+		return "";
 
-}uintptr_t LldbAdapter::GetInstructionOffset(){
-return 0;
-}bool LldbAdapter::SupportFeature(DebugAdapterCapacity feature){
-return false;
+	return triple.substr(0, position);
+}
+
+
+DebugStopReason LldbAdapter::StopReason()
+{
+	StateType state = m_process.GetState();
+	if (state == lldb::eStateExited)
+		return DebugStopReason::ProcessExited;
+
+	if (state == lldb::eStateStopped)
+	{
+		// Check all threads to find a valid stop reason
+		DebugStopReason reason = UnknownReason;
+		size_t numThreads = m_process.GetNumThreads();
+		for (size_t i = 0; i < numThreads; i++)
+		{
+			SBThread thread = m_process.GetThreadAtIndex(i);
+			lldb::StopReason threadReason = thread.GetStopReason();
+			if (threadReason == lldb::eStopReasonBreakpoint)
+			{
+				reason = DebugStopReason::Breakpoint;
+			}
+			// I believe we stop for signals on Linux/Mac, and for exceptions on Windows. Need to check it later.
+			else if (threadReason == lldb::eStopReasonSignal)
+			{
+				size_t dataCount = thread.GetStopReasonDataCount();
+				if (dataCount > 0)
+				{
+					uint64_t signal = thread.GetStopReasonDataAtIndex(0);
+					// TODO: translate signals
+					return DebugStopReason::SignalBus;
+				}
+			}
+			else if (threadReason == lldb::eStopReasonPlanComplete)
+			{
+				// The last planned operation completed, nothing unexpected happened
+				// Directly return DebugStopReason::SingleStep here. Because stepping (into/over) is the only way
+				// that a lldb::eStopReasonPlanComplete could be triggered. The situation might change in the future
+				return DebugStopReason::SingleStep;
+			}
+		}
+		return reason;
+	}
+	return DebugStopReason::UnknownReason;
+}
+
+
+uint64_t LldbAdapter::ExitCode()
+{
+	if (m_process.GetState() != lldb::eStateExited)
+		return -1;
+
+	return m_process.GetExitStatus();
+}
+
+
+bool LldbAdapter::BreakInto()
+{
+	SBError error = m_process.Stop();
+	return error.Success();
+}
+
+
+DebugStopReason LldbAdapter::Go()
+{
+	SBError error = m_process.Continue();
+	if (!error.Success())
+		return DebugStopReason::InternalError;
+
+	return StopReason();
+}
+
+
+DebugStopReason LldbAdapter::StepInto()
+{
+	SBThread thread = m_process.GetSelectedThread();
+	if (!thread.IsValid())
+		return DebugStopReason::InternalError;
+
+	SBError error;
+	thread.StepInstruction(false, error);
+	if (!error.Success())
+		return DebugStopReason::InternalError;
+
+	return StopReason();
+}
+
+
+DebugStopReason LldbAdapter::StepOver()
+{
+	SBThread thread = m_process.GetSelectedThread();
+	if (!thread.IsValid())
+		return DebugStopReason::InternalError;
+
+	SBError error;
+	thread.StepInstruction(true, error);
+	if (!error.Success())
+		return DebugStopReason::InternalError;
+
+	return StopReason();
+}
+
+
+DebugStopReason LldbAdapter::StepReturn()
+{
+	SBThread thread = m_process.GetSelectedThread();
+	if (!thread.IsValid())
+		return DebugStopReason::InternalError;
+
+	size_t frameCount = thread.GetNumFrames();
+	if (frameCount > 0)
+	{
+		SBFrame frame = thread.GetFrameAtIndex(0);
+		SBError error;
+		thread.StepOutOfFrame(frame, error);
+		if (error.Fail())
+			return DebugStopReason::InternalError;
+	}
+	return StopReason();
+}
+
+
+void LldbAdapter::Invoke(const std::string & command)
+{
+//	TODO
+}
+
+
+uintptr_t LldbAdapter::GetInstructionOffset()
+{
+	SBThread thread = m_process.GetSelectedThread();
+	if (!thread.IsValid())
+		return 0;
+
+	uint64_t pc = 0;
+	size_t frameCount = thread.GetNumFrames();
+	if (frameCount > 0)
+	{
+		SBFrame frame = thread.GetFrameAtIndex(0);
+		if (frame.IsValid())
+			pc = frame.GetPC();
+	}
+
+	return pc;
+}
+
+
+uint64_t LldbAdapter::GetStackPointer()
+{
+	SBThread thread = m_process.GetSelectedThread();
+	if (!thread.IsValid())
+		return 0;
+
+	uint64_t sp = 0;
+	size_t frameCount = thread.GetNumFrames();
+	if (frameCount > 0)
+	{
+		SBFrame frame = thread.GetFrameAtIndex(0);
+		if (frame.IsValid())
+			sp = frame.GetSP();
+	}
+
+	return sp;
+}
+
+
+bool LldbAdapter::SupportFeature(DebugAdapterCapacity feature)
+{
+	return false;
 }

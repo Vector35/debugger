@@ -130,7 +130,9 @@ extern "C"
 		InternalError,
 		InvalidStatusOrOperation,
 
-		UserRequestedBreak
+		UserRequestedBreak,
+
+		OperationNotSupported
 	};
 
 

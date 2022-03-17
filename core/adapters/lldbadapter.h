@@ -62,8 +62,6 @@ namespace BinaryNinjaDebugger {
 
 		DebugStopReason StopReason() override;
 
-		unsigned long ExecStatus() override;
-
 		uint64_t ExitCode() override;
 
 		bool BreakInto() override;
@@ -74,9 +72,13 @@ namespace BinaryNinjaDebugger {
 
 		DebugStopReason StepOver() override;
 
+		DebugStopReason StepReturn() override;
+
 		void Invoke(const std::string &command) override;
 
 		uintptr_t GetInstructionOffset() override;
+
+		uint64_t GetStackPointer() override;
 
 		bool SupportFeature(DebugAdapterCapacity feature) override;
 	};
