@@ -239,6 +239,7 @@ std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 	if (!frame.IsValid())
 		return result;
 
+	size_t regIndex = 0;
 	SBValueList regGroups = frame.GetRegisters();
 	size_t numGroups = regGroups.GetSize();
 	for (size_t i = 0; i < numGroups; i++)
@@ -249,7 +250,8 @@ std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 		{
 			SBValue reg = regGroupInfo.GetChildAtIndex(j);
 			// TODO: register width and internal index
-			result[reg.GetName()] = DebugRegister(reg.GetName(), reg.GetValueAsUnsigned(), 0, 0);
+			// Right now we basically rely on LLDB to always return the registers in the same order
+			result[reg.GetName()] = DebugRegister(reg.GetName(), reg.GetValueAsUnsigned(), 0, regIndex++);
 		}
 	}
 	return result;
@@ -396,6 +398,101 @@ std::string LldbAdapter::GetTargetArchitecture()
 }
 
 
+static DebugStopReason GetStopReasonFromExceptionDescription(const std::string exceptionString)
+{
+// Right now, the only we to distinguish different kind of exceptions is to parse this.
+// The API fails to give the correct exception code (as well as the associated address).
+//  Examples:
+//	EXC_BAD_ACCESS (code=2, address=0x16fdff57c)
+//	EXC_ARITHMETIC (code=EXC_I386_DIV, subcode=0x0)
+//  The description is generated in StopInfoMachException::GetDescription()
+
+//	static std::unordered_map<std::uint64_t, DebugStopReason> metype_lookup =
+//	{
+//		{1, DebugStopReason::AccessViolation},
+//		{2, DebugStopReason::IllegalInstruction},
+//		{3, DebugStopReason::Calculation},
+//		{4, DebugStopReason::ExcEmulation},
+//		{5, DebugStopReason::ExcSoftware},
+//		{6, DebugStopReason::Breakpoint},
+//		{7, DebugStopReason::ExcSyscall},
+//		{8, DebugStopReason::ExcMachSyscall},
+//		{9, DebugStopReason::ExcRpcAlert},
+//		{10, DebugStopReason::ExcCrash}
+//	};
+
+	static std::unordered_map<std::string, DebugStopReason> mestring_lookup =
+	{
+		{"EXC_BAD_ACCESS", DebugStopReason::AccessViolation},
+		{"EXC_BAD_INSTRUCTION", DebugStopReason::IllegalInstruction},
+		{"EXC_ARITHMETIC", DebugStopReason::Calculation},
+		{"EXC_EMULATION", DebugStopReason::ExcEmulation},
+		{"EXC_SOFTWARE", DebugStopReason::ExcSoftware},
+		{"EXC_BREAKPOINT", DebugStopReason::Breakpoint},
+		{"EXC_SYSCALL", DebugStopReason::ExcSyscall},
+		{"EXC_MACH_SYSCALL", DebugStopReason::ExcMachSyscall},
+		{"EXC_RPC_ALERT", DebugStopReason::ExcRpcAlert},
+		{"EXC_CRASH", DebugStopReason::ExcCrash}
+	};
+
+	if (auto pos = exceptionString.find(' '); pos != std::string::npos)
+	{
+		std::string exceptionMame = exceptionString.substr(0, pos);
+		auto iter = mestring_lookup.find(exceptionMame);
+		if (iter != mestring_lookup.end())
+			return iter->second;
+	}
+
+	return DebugStopReason::UnknownReason;
+}
+
+
+static DebugStopReason GetStopReasonFromUnixSignal(uint64_t signal)
+{
+	static std::unordered_map<std::uint64_t, DebugStopReason> signal_lookup = {
+		{ 1 , DebugStopReason::SignalHup },
+		{ 2 , DebugStopReason::SignalInt },
+		{ 3 , DebugStopReason::SignalQuit },
+		{ 4 , DebugStopReason::IllegalInstruction },
+		{ 5 , DebugStopReason::SingleStep },
+		{ 6 , DebugStopReason::SignalAbrt },
+		{ 7 , DebugStopReason::SignalEmt },
+		{ 8 , DebugStopReason::SignalFpe },
+		{ 9 , DebugStopReason::SignalKill },
+		{ 10, DebugStopReason::SignalBus },
+		{ 11, DebugStopReason::SignalSegv },
+		{ 12, DebugStopReason::SignalSys },
+		{ 13, DebugStopReason::SignalPipe },
+		{ 14, DebugStopReason::SignalAlrm },
+		{ 15, DebugStopReason::SignalTerm },
+		{ 16, DebugStopReason::SignalUrg },
+		{ 17, DebugStopReason::SignalStop },
+		{ 18, DebugStopReason::SignalTstp },
+		{ 19, DebugStopReason::SignalCont },
+		{ 20, DebugStopReason::SignalChld },
+		{ 21, DebugStopReason::SignalTtin },
+		{ 22, DebugStopReason::SignalTtou },
+		{ 23, DebugStopReason::SignalIo },
+		{ 24, DebugStopReason::SignalXcpu },
+		{ 25, DebugStopReason::SignalXfsz },
+		{ 26, DebugStopReason::SignalVtalrm },
+		{ 27, DebugStopReason::SignalProf },
+		{ 28, DebugStopReason::SignalWinch },
+		{ 29, DebugStopReason::SignalInfo },
+		{ 30, DebugStopReason::SignalUsr1 },
+		{ 31, DebugStopReason::SignalUsr2 },
+	};
+
+	if (signal_lookup.find(signal) != signal_lookup.end())
+	{
+		return signal_lookup[signal];
+	}
+
+	return DebugStopReason::UnknownReason;
+}
+
+
+
 DebugStopReason LldbAdapter::StopReason()
 {
 	StateType state = m_process.GetState();
@@ -421,58 +518,27 @@ DebugStopReason LldbAdapter::StopReason()
 				if (dataCount > 0)
 				{
 					uint64_t signal = thread.GetStopReasonDataAtIndex(0);
-					// TODO: translate signals
-					return DebugStopReason::SignalBus;
+					reason = GetStopReasonFromUnixSignal(signal);
 				}
 			}
 			else if (threadReason == lldb::eStopReasonException)
 			{
-				uint64_t exceptionCode = 0;
-				// We get a description string like:
-				// EXC_BAD_ACCESS (code=2, address=0x16fdff57c)
-				// Right now, the only we to distinguish different kind of exceptions is to parse this.
-				// The API fails to give the correct exception code (as well as the associated address).
 				char buffer[1024];
 				thread.GetStopDescription(buffer, 1024);
 				std::string exceptionString(buffer);
-				if (auto pos = exceptionString.find("code="); pos != std::string::npos)
-				{
-					exceptionString = exceptionString.substr(pos + 5, exceptionString.length());
-					if (pos = exceptionString.find(','); pos != std::string::npos)
-					{
-						exceptionString = exceptionString.substr(0, pos);
-						exceptionCode = std::strtoull(exceptionString.c_str(), nullptr, 10);
-					}
-				}
-
-				static std::unordered_map<std::uint64_t, DebugStopReason> metype_lookup =
-				{
-					{1, DebugStopReason::AccessViolation},
-					{2, DebugStopReason::IllegalInstruction},
-					{3, DebugStopReason::Calculation},
-					{4, DebugStopReason::ExcEmulation},
-					{5, DebugStopReason::ExcSoftware},
-					{6, DebugStopReason::Breakpoint},
-					{7, DebugStopReason::ExcSyscall},
-					{8, DebugStopReason::ExcMachSyscall},
-					{9, DebugStopReason::ExcRpcAlert},
-					{10, DebugStopReason::ExcCrash}
-				};
-
-				if (metype_lookup.find(exceptionCode) == metype_lookup.end())
-					return DebugStopReason::UnknownReason;
-
-				return metype_lookup[exceptionCode];
+				reason = GetStopReasonFromExceptionDescription(exceptionString);
 			}
 			else if (threadReason == lldb::eStopReasonPlanComplete)
 			{
 				// The last planned operation completed, nothing unexpected happened
 				// Directly return DebugStopReason::SingleStep here. Because stepping (into/over) is the only way
 				// that a lldb::eStopReasonPlanComplete could be triggered. The situation might change in the future
-				return DebugStopReason::SingleStep;
+				reason = DebugStopReason::SingleStep;
 			}
+
+			if (reason != DebugStopReason::UnknownReason)
+				return reason;
 		}
-		return reason;
 	}
 	return DebugStopReason::UnknownReason;
 }

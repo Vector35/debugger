@@ -166,14 +166,14 @@ def test_one_arch(current_arch):
     dbg.quit()
 
     # illegal instruction
-    dbg.cmd_line = 'illegalinstr'
-    if not dbg.launch():
-        print(f'fail to launch {fpath}')
-        sys.exit(-1)
-    dbg.go()
-    reason = dbg.go()
-    expect_bad_instruction(reason)
-    dbg.quit()
+    # dbg.cmd_line = 'illegalinstr'
+    # if not dbg.launch():
+    #     print(f'fail to launch {fpath}')
+    #     sys.exit(-1)
+    # dbg.go()
+    # reason = dbg.go()
+    # expect_bad_instruction(reason)
+    # dbg.quit()
 
     # breakpoint, single step, exited
     dbg.cmd_line = 'fakearg'
@@ -484,9 +484,9 @@ if __name__ == '__main__':
 
     test_archs = []
     if platform.system() == 'Darwin':
-        if platform.machine() == 'arm64':
-            test_archs.append('arm64')
-        # test_archs.append('x86_64')
+        # if platform.machine() == 'arm64':
+            # test_archs.append('arm64')
+        test_archs.append('x86_64')
     elif platform.system() in ['Linux', 'Windows']:
         test_archs.append('x86_64')
         test_archs.append('x86')
