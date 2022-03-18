@@ -73,7 +73,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string & path, const std::string & 
 	if (!m_target.IsValid())
 		return false;
 	const char** argsArray = new const char*[2];
-	argsArray[0] = path.c_str();
+	argsArray[0] = args.c_str();
 	argsArray[1] = nullptr;
 
 	SBLaunchInfo info(argsArray);
@@ -415,7 +415,6 @@ DebugStopReason LldbAdapter::StopReason()
 			{
 				reason = DebugStopReason::Breakpoint;
 			}
-			// I believe we stop for signals on Linux/Mac, and for exceptions on Windows. Need to check it later.
 			else if (threadReason == lldb::eStopReasonSignal)
 			{
 				size_t dataCount = thread.GetStopReasonDataCount();
@@ -425,6 +424,45 @@ DebugStopReason LldbAdapter::StopReason()
 					// TODO: translate signals
 					return DebugStopReason::SignalBus;
 				}
+			}
+			else if (threadReason == lldb::eStopReasonException)
+			{
+				uint64_t exceptionCode = 0;
+				// We get a description string like:
+				// EXC_BAD_ACCESS (code=2, address=0x16fdff57c)
+				// Right now, the only we to distinguish different kind of exceptions is to parse this.
+				// The API fails to give the correct exception code (as well as the associated address).
+				char buffer[1024];
+				thread.GetStopDescription(buffer, 1024);
+				std::string exceptionString(buffer);
+				if (auto pos = exceptionString.find("code="); pos != std::string::npos)
+				{
+					exceptionString = exceptionString.substr(pos + 5, exceptionString.length());
+					if (pos = exceptionString.find(','); pos != std::string::npos)
+					{
+						exceptionString = exceptionString.substr(0, pos);
+						exceptionCode = std::strtoull(exceptionString.c_str(), nullptr, 10);
+					}
+				}
+
+				static std::unordered_map<std::uint64_t, DebugStopReason> metype_lookup =
+				{
+					{1, DebugStopReason::AccessViolation},
+					{2, DebugStopReason::IllegalInstruction},
+					{3, DebugStopReason::Calculation},
+					{4, DebugStopReason::ExcEmulation},
+					{5, DebugStopReason::ExcSoftware},
+					{6, DebugStopReason::Breakpoint},
+					{7, DebugStopReason::ExcSyscall},
+					{8, DebugStopReason::ExcMachSyscall},
+					{9, DebugStopReason::ExcRpcAlert},
+					{10, DebugStopReason::ExcCrash}
+				};
+
+				if (metype_lookup.find(exceptionCode) == metype_lookup.end())
+					return DebugStopReason::UnknownReason;
+
+				return metype_lookup[exceptionCode];
 			}
 			else if (threadReason == lldb::eStopReasonPlanComplete)
 			{
@@ -451,8 +489,9 @@ uint64_t LldbAdapter::ExitCode()
 
 bool LldbAdapter::BreakInto()
 {
-	SBError error = m_process.Stop();
-	return error.Success();
+//	Since we are in Sync mode, if we call m_process.Stop(), it will hang
+	m_process.SendAsyncInterrupt();
+	return true;
 }
 
 

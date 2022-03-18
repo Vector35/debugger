@@ -70,22 +70,11 @@ def assert_equality(a, b):
     sys.exit(-1)
 
 
-# let there be a single check for single-step
-# (abstract away OS-exceptional cases)
-def expect_single_step(reason):
-    if platform.system() == 'Darwin':
-        expected = DebugStopReason.Breakpoint
-    else:
-        expected = DebugStopReason.SingleStep
-
-    assert_equality(reason, expected)
-
-
 def expect_bad_instruction(reason):
     # :/ I cannot induce a bad instruction exception on these OS's!
     # TODO: add android
     # It seems to me that we ALWAYS get an AccessViolation when there is an illegal instruction
-    if platform.system() in ['Darwin', 'Windows', 'Linux']:
+    if platform.system() in ['Windows', 'Linux']:
         expected = DebugStopReason.AccessViolation
     else:
         expected = DebugStopReason.IllegalInstruction
@@ -122,11 +111,11 @@ def test_one_arch(current_arch):
         reason = dbg.go()
         assert_equality(reason, DebugStopReason.Breakpoint)
         reason = dbg.step_into()
-        expect_single_step(reason)
+        assert_equality(reason, DebugStopReason.SingleStep)
         reason = dbg.step_into()
-        expect_single_step(reason)
+        assert_equality(reason, DebugStopReason.SingleStep)
         reason = dbg.step_into()
-        expect_single_step(reason)
+        assert_equality(reason, DebugStopReason.SingleStep)
         # go until executing done
         reason = dbg.go()
         assert_equality(reason, DebugStopReason.ProcessExited)
@@ -194,9 +183,9 @@ def test_one_arch(current_arch):
     reason = dbg.go()
     assert_equality(reason, DebugStopReason.Breakpoint)
     reason = dbg.step_into()
-    expect_single_step(reason)
+    assert_equality(reason, DebugStopReason.SingleStep)
     reason = dbg.step_into()
-    expect_single_step(reason)
+    assert_equality(reason, DebugStopReason.SingleStep)
     reason = dbg.go()
     assert_equality(reason, DebugStopReason.ProcessExited)
 
@@ -232,9 +221,9 @@ def test_one_arch(current_arch):
         # a few steps in the loader
         if loader:
             reason = dbg.step_into()
-            expect_single_step(reason)
+            assert_equality(reason, DebugStopReason.SingleStep)
             reason = dbg.step_into()
-            expect_single_step(reason)
+            assert_equality(reason, DebugStopReason.SingleStep)
             # go to entry
             dbg.go()
             assert_equality(dbg.ip, entry)
@@ -312,7 +301,7 @@ def test_one_arch(current_arch):
         assert_equality(len(data), 15)
 
         reason = dbg.step_into()
-        expect_single_step(reason)
+        assert_equality(reason, DebugStopReason.SingleStep)
 
         arch = dbg.live_view.arch
         llil = arch.get_low_level_il_from_bytes(bytes(data), pc)
@@ -495,9 +484,9 @@ if __name__ == '__main__':
 
     test_archs = []
     if platform.system() == 'Darwin':
-        if platform.machine == 'arm64':
+        if platform.machine() == 'arm64':
             test_archs.append('arm64')
-        test_archs.append('x86_64')
+        # test_archs.append('x86_64')
     elif platform.system() in ['Linux', 'Windows']:
         test_archs.append('x86_64')
         test_archs.append('x86')

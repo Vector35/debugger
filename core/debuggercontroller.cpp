@@ -222,18 +222,7 @@ DebugStopReason DebuggerController::Go()
 // Synchronously step into the target. It waits until the target stops and returns the stop reason
 DebugStopReason DebuggerController::StepIntoInternal()
 {
-	uint64_t remoteIP = m_state->IP();
-	if (m_state->GetAdapterType() != "LOCAL DBGENG" && m_state->GetBreakpoints()->ContainsAbsolute(remoteIP))
-	{
-		m_adapter->RemoveBreakpoint(remoteIP);
-		DebugStopReason reason = m_adapter->StepInto();
-		m_adapter->AddBreakpoint(remoteIP);
-		return reason;
-	}
-	else
-	{
-        return m_adapter->StepInto();
-	}
+	return m_adapter->StepInto();
 }
 
 
@@ -355,8 +344,10 @@ DebugStopReason DebuggerController::StepInto(BNFunctionGraphType il)
 
 DebugStopReason DebuggerController::StepOverInternal()
 {
-    if (m_adapter->SupportFeature(DebugAdapterSupportStepOver))
-        return m_adapter->StepOver();
+	// If the adapter supports step return, then use it
+	DebugStopReason reason = m_adapter->StepOver();
+	if ((reason != DebugStopReason::OperationNotSupported) && (reason != DebugStopReason::InternalError))
+		return reason;
 
     uint64_t remoteIP = m_state->IP();
 
