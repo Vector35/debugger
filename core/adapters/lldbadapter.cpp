@@ -6,7 +6,9 @@
 #include "SBLaunchInfo.h"
 #include "SBBreakpoint.h"
 #include "SBListener.h"
+#include "SBEvent.h"
 #include "queuedadapter.h"
+#include "thread"
 
 using namespace lldb;
 using namespace BinaryNinjaDebugger;
@@ -18,6 +20,8 @@ LldbAdapter::LldbAdapter(BinaryView *data): DebugAdapter(data)
 	if (!m_debugger.IsValid())
 		LogWarn("invalid debugger");
 	m_debugger.SetAsync(false);
+	std::thread thread([&](){ EventListener(); });
+	thread.detach();
 }
 
 
@@ -79,8 +83,12 @@ bool LldbAdapter::ExecuteWithArgs(const std::string & path, const std::string & 
 	SBLaunchInfo info(argsArray);
 	// We must set this flag; otherwise, the target will be launched, run freely, and then exit
 	// TODO: check for other useful flags to set
-	info.SetLaunchFlags(lldb::eLaunchFlagStopAtEntry);
-	// TODO: support setting workding directory and environment
+	uint32_t flag = lldb::eLaunchFlagStopAtEntry;
+	if (configs.requestTerminalEmulator)
+		flag |= lldb::eLaunchFlagLaunchInTTY;
+
+	info.SetLaunchFlags(flag);
+	// TODO: support setting working directory and environment
 	SBError error;
 	m_process = m_target.Launch(info, error);
 	return m_process.IsValid() && error.Success();
@@ -667,4 +675,45 @@ uint64_t LldbAdapter::GetStackPointer()
 bool LldbAdapter::SupportFeature(DebugAdapterCapacity feature)
 {
 	return false;
+}
+
+
+void LldbAdapter::EventListener()
+{
+	SBEvent event;
+	auto listener = m_debugger.GetListener();
+	bool done = false;
+	while (!done)
+	{
+		listener.WaitForEvent(1, event);
+		uint32_t event_type = event.GetType();
+		if (lldb::SBProcess::EventIsProcessEvent(event))
+		{
+			SBProcess process = lldb::SBProcess::GetProcessFromEvent(event);
+			if ((event_type & lldb::SBProcess::eBroadcastBitSTDOUT) ||
+				(event_type & lldb::SBProcess::eBroadcastBitSTDERR))
+			{
+				char buffer[1024];
+				size_t count = 0;
+				std::string output{};
+				// TODO: we should differentiate stdout and stderr
+				while ((count = process.GetSTDOUT(buffer, 1024)) > 0)
+					output += std::string(buffer, count);
+
+				DebuggerEvent event;
+				event.type = StdoutMessageEventType;
+				event.data.messageData.message = output;
+				PostDebuggerEvent(event);
+
+				output.clear();
+				while ((count = process.GetSTDERR(buffer, 1024)) > 0)
+					output += std::string(buffer, count);
+
+				event.type = StdoutMessageEventType;
+				event.data.messageData.message = output;
+				PostDebuggerEvent(event);
+			}
+		}
+
+	}
 }

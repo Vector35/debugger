@@ -605,7 +605,7 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
     if (metadata && metadata->IsUnsignedInteger())
         m_requestTerminalEmulator = metadata->GetBoolean();
     else
-        m_requestTerminalEmulator = true;
+        m_requestTerminalEmulator = false;
 
     SetConnectionStatus(DebugAdapterNotConnectedStatus);
 }

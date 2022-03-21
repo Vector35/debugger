@@ -81,6 +81,8 @@ namespace BinaryNinjaDebugger {
 		uint64_t GetStackPointer() override;
 
 		bool SupportFeature(DebugAdapterCapacity feature) override;
+
+		void EventListener();
 	};
 
 	class LldbAdapterType: public DebugAdapterType

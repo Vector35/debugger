@@ -47,7 +47,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
     formLayout->addRow("Adapter Type", m_adapterEntry);
     formLayout->addRow("Executable Path", m_pathEntry);
     formLayout->addRow("Command Line Arguments", m_argumentsEntry);
-	formLayout->addRow("Terminal", m_terminalEmulator);
+	formLayout->addRow("Run In Separate Terminal", m_terminalEmulator);
     formLayout->addRow("Address", m_addressEntry);
     formLayout->addRow("Port", m_portEntry);
 
