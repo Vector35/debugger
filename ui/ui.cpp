@@ -9,6 +9,7 @@
 #include <QStatusBar>
 #include <QCoreApplication>
 #include "fmt/format.h"
+#include "console.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -23,6 +24,9 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
 	m_status = new QLabel("Inactive");
 	if (m_window && m_window->statusBar())
 		m_window->statusBar()->insertWidget(0, m_status);
+
+	auto* globalDebuggerConsoleContainer = new GlobalConsoleContainer("Debugger Console");
+	context->globalArea()->addWidget(globalDebuggerConsoleContainer);
 
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateStatusText);
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateUI);
@@ -433,7 +437,7 @@ static void StepToHereCallback(BinaryView* view, uint64_t addr)
 	DebuggerController* controller = DebuggerController::GetController(view);
 	if (!controller)
 		return;
-	controller->StepTo({addr});
+	controller->StepTo(addr);
 }
 
 
