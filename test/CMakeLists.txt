@@ -120,6 +120,11 @@ set_target_properties(many_stdlib_calls PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
 		)
 
+add_executable(read_input src/read_input.c)
+set_target_properties(read_input PROPERTIES
+		POSITION_INDEPENDENT_CODE ON
+		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
+		)
 
 if (ARCH STREQUAL "x86_64" OR ARCH STREQUAL "x86")
 	# ASM files

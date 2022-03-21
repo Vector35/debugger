@@ -38,7 +38,9 @@ DebuggerConsole::DebuggerConsole(QWidget* parent, ViewFrame* frame, BinaryViewRe
 		if (event.type == StdoutMessageEventType)
 		{
 			const std::string message = event.data.messageData.message;
-			addMessage(QString::fromStdString(message));
+			ExecuteOnMainThreadAndWait([&](){
+				addMessage(QString::fromStdString(message));
+			});
 		}
 	});
 }
@@ -50,22 +52,20 @@ DebuggerConsole::~DebuggerConsole() {}
 void DebuggerConsole::sendMessage()
 {
 	QString message = m_chatInput->text();
-	sendText(message);
+	sendText(message + '\n');
 	m_chatInput->clear();
 }
 
 
 void DebuggerConsole::addMessage(const QString &msg)
 {
-	ExecuteOnMainThreadAndWait([&](){
-		m_chatLog->setText(m_chatLog->toPlainText() + msg);
-	});
+	m_chatLog->setText(m_chatLog->toPlainText() + msg);
 }
 
 
 void DebuggerConsole::sendText(const QString &msg)
 {
-//	m_controller->SendStdIn()
+	m_debugger->WriteStdin(msg.toStdString());
 }
 
 

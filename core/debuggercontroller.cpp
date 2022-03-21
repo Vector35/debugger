@@ -1056,3 +1056,7 @@ uint32_t DebuggerController::GetExitCode()
 }
 
 
+void DebuggerController::WriteStdIn(const std::string message)
+{
+	m_adapter->WriteStdin(message);
+}

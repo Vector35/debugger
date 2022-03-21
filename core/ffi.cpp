@@ -670,3 +670,9 @@ uint32_t BNDebuggerGetExitCode(BNDebuggerController* controller)
 {
 	return controller->object->GetExitCode();
 }
+
+
+void BNDebuggerWriteStdin(BNDebuggerController* controller, const char* data, size_t len)
+{
+	controller->object->WriteStdIn(std::string(data, len));
+}

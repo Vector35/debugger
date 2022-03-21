@@ -149,5 +149,7 @@ namespace BinaryNinjaDebugger
 		BinaryViewRef GetLiveView() const { return m_liveView; }
 
 		uint32_t GetExitCode();
+
+		void WriteStdIn(const std::string message);
 	};
 };

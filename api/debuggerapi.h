@@ -278,6 +278,8 @@ namespace BinaryNinjaDebuggerAPI
 		static void DebuggerEventCallback(void* ctxt, BNDebuggerEvent* view);
 
 		void RemoveEventCallback(size_t index);
+
+		void WriteStdin(const std::string& msg);
 	};
 
 

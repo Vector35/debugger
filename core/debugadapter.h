@@ -219,5 +219,7 @@ namespace BinaryNinjaDebugger
 		// This is implemented by the (base) DebugAdapter class.
 		// Sub-classes should use it to post debugger events directly (only when needed).
 		void PostDebuggerEvent(const DebuggerEvent &event);
+
+		virtual void WriteStdin(const std::string& msg);
 	};
 };

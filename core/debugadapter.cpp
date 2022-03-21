@@ -72,3 +72,9 @@ uint64_t DebugAdapter::GetStackPointer()
 {
 	return 0;
 }
+
+
+void DebugAdapter::WriteStdin(const std::string &msg)
+{
+	LogWarn("WriteStdin operation not supported");
+}

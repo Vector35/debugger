@@ -325,6 +325,8 @@ extern "C"
 
 	DEBUGGER_FFI_API uint32_t BNDebuggerGetExitCode(BNDebuggerController* controller);
 
+	DEBUGGER_FFI_API void BNDebuggerWriteStdin(BNDebuggerController* controller, const char* data, size_t len);
+
 
 	// DebugAdapterType
 	DEBUGGER_FFI_API BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name);

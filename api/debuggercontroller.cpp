@@ -515,3 +515,9 @@ void DebuggerController::RemoveEventCallback(size_t index)
 {
 	BNDebuggerRemoveEventCallback(m_object, index);
 }
+
+
+void DebuggerController::WriteStdin(const std::string &msg)
+{
+	BNDebuggerWriteStdin(m_object, msg.c_str(), msg.length());
+}

@@ -717,3 +717,9 @@ void LldbAdapter::EventListener()
 
 	}
 }
+
+
+void LldbAdapter::WriteStdin(const std::string &msg)
+{
+	m_process.PutSTDIN(msg.c_str(), msg.length());
+}

@@ -72,5 +72,7 @@ namespace BinaryNinjaDebugger
 		void Worker();
 
 		virtual void SetEventCallback(std::function<void(const DebuggerEvent &)> function) override;
+
+		virtual void WriteStdin(const std::string& msg) override;
 	};
 };

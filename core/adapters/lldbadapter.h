@@ -83,6 +83,8 @@ namespace BinaryNinjaDebugger {
 		bool SupportFeature(DebugAdapterCapacity feature) override;
 
 		void EventListener();
+
+		void WriteStdin(const std::string& msg) override;
 	};
 
 	class LldbAdapterType: public DebugAdapterType

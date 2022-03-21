@@ -568,3 +568,8 @@ void QueuedAdapter::SetEventCallback(std::function<void(const DebuggerEvent &)> 
 	m_adapter->SetEventCallback(function);
 }
 
+
+void QueuedAdapter::WriteStdin(const std::string &msg)
+{
+	m_adapter->WriteStdin(msg);
+}
