@@ -571,9 +571,11 @@ uint64_t DbgEngAdapter::ExitCode()
 	return DbgEngAdapter::ProcessCallbackInfo.m_exitCode;
 }
 
-void DbgEngAdapter::Invoke(const std::string& command)
+std::string DbgEngAdapter::InvokeBackendCommand(const std::string& command)
 {
     this->m_debugControl->Execute(DEBUG_OUTCTL_ALL_CLIENTS, command.c_str(), DEBUG_EXECUTE_NO_REPEAT);
+	// TODO: get the output
+	return "";
 }
 
 std::uintptr_t DbgEngAdapter::GetInstructionOffset()

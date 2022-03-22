@@ -521,3 +521,12 @@ void DebuggerController::WriteStdin(const std::string &msg)
 {
 	BNDebuggerWriteStdin(m_object, msg.c_str(), msg.length());
 }
+
+
+std::string DebuggerController::InvokeBackendCommand(const std::string &command)
+{
+	char* output = BNDebuggerInvokeBackendCommand(m_object, command.c_str());
+	std::string result = std::string(output);
+	BNDebuggerFreeString(output);
+	return result;
+}

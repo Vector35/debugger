@@ -142,7 +142,7 @@ namespace BinaryNinjaDebugger
 		DebugStopReason StepInto() override;
 		DebugStopReason StepOver() override;
 
-		void Invoke(const std::string& command) override;
+		std::string InvokeBackendCommand(const std::string& command) override;
 		std::uintptr_t GetInstructionOffset() override;
 
 		bool SupportFeature(DebugAdapterCapacity feature) override;

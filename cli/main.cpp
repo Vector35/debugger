@@ -440,7 +440,8 @@ int main(int argc, const char* argv[])
 			};
 
 			print_arg("break", "breaks in");
-//                print_arg(".", "invokes debugger backend", "command");
+			print_arg(".", "invokes debugger backend", "command");
+			print_arg(">", "write to stdin", "input");
 			print_arg("lt", "list all threads");
 			print_arg("lm", "list all modules");
 			print_arg("lbp", "list all breakpoints");
@@ -463,7 +464,12 @@ int main(int argc, const char* argv[])
 		}
 		if ( input[0] == '.' )
 		{
-//                debug_adapter->Invoke(input.substr(1));
+			const std::string result = debugger->InvokeBackendCommand(input.substr(1));
+			Log::print<Log::Info>("{}", result.c_str());
+		}
+		if ( input[0] == '>' )
+		{
+			debugger->WriteStdin(input.substr(1));
 		}
 		else if ( input == "testwrite" )
 		{

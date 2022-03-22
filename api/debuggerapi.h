@@ -280,6 +280,8 @@ namespace BinaryNinjaDebuggerAPI
 		void RemoveEventCallback(size_t index);
 
 		void WriteStdin(const std::string& msg);
+
+		std::string InvokeBackendCommand(const std::string& command);
 	};
 
 

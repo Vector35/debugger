@@ -10,6 +10,7 @@
 #include <QCoreApplication>
 #include "fmt/format.h"
 #include "console.h"
+#include "adapterconsole.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -25,8 +26,11 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
 	if (m_window && m_window->statusBar())
 		m_window->statusBar()->insertWidget(0, m_status);
 
-	auto* globalDebuggerConsoleContainer = new GlobalConsoleContainer("Debugger Console");
+	auto* globalDebuggerConsoleContainer = new GlobalConsoleContainer("Debugger Target Console");
 	context->globalArea()->addWidget(globalDebuggerConsoleContainer);
+
+	auto* globalAdapterConsoleContainer = new GlobalAdapterConsoleContainer("DebugAdapter Console");
+	context->globalArea()->addWidget(globalAdapterConsoleContainer);
 
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateStatusText);
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateUI);

@@ -151,5 +151,7 @@ namespace BinaryNinjaDebugger
 		uint32_t GetExitCode();
 
 		void WriteStdIn(const std::string message);
+
+		std::string InvokeBackendCommand(const std::string& cmd);
 	};
 };

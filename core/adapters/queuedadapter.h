@@ -63,7 +63,7 @@ namespace BinaryNinjaDebugger
 		DebugStopReason StepOver() override;
 		DebugStopReason StepReturn() override;
 
-		void Invoke(const std::string& command) override;
+		std::string InvokeBackendCommand(const std::string& command) override;
 		std::uintptr_t GetInstructionOffset() override;
 		uint64_t GetStackPointer() override;
 

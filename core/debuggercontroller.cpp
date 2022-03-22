@@ -1060,3 +1060,9 @@ void DebuggerController::WriteStdIn(const std::string message)
 {
 	m_adapter->WriteStdin(message);
 }
+
+
+std::string DebuggerController::InvokeBackendCommand(const std::string &cmd)
+{
+	return m_adapter->InvokeBackendCommand(cmd);
+}

@@ -208,7 +208,7 @@ namespace BinaryNinjaDebugger
 
 		virtual DebugStopReason StepReturn();
 
-		virtual void Invoke(const std::string &command) = 0;
+		virtual std::string InvokeBackendCommand(const std::string &command) = 0;
 
 		virtual std::uintptr_t GetInstructionOffset() = 0;
 

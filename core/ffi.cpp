@@ -676,3 +676,11 @@ void BNDebuggerWriteStdin(BNDebuggerController* controller, const char* data, si
 {
 	controller->object->WriteStdIn(std::string(data, len));
 }
+
+
+DEBUGGER_FFI_API char* BNDebuggerInvokeBackendCommand(BNDebuggerController* controller, const char* cmd)
+{
+	std::string output = controller->object->InvokeBackendCommand(std::string(cmd));
+	char* result = BNDebuggerAllocString(output.c_str());
+	return result;
+}

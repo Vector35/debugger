@@ -841,8 +841,9 @@ DebugStopReason GdbAdapter::StepOver()
 }
 
 
-void GdbAdapter::Invoke(const std::string& command)
+std::string GdbAdapter::InvokeBackendCommand(const std::string& command)
 {
+	return "";
 }
 
 std::uintptr_t GdbAdapter::GetInstructionOffset()

@@ -493,17 +493,10 @@ DebugStopReason QueuedAdapter::StepReturn()
 }
 
 
-void QueuedAdapter::Invoke(const std::string& command)
+std::string QueuedAdapter::InvokeBackendCommand(const std::string& command)
 {
-    std::unique_lock<std::mutex> lock(m_queueMutex);
-
-    Semaphore sem;
-    m_queue.push([&]{
-        m_adapter->Invoke(command);
-        sem.Release();
-    });
-    lock.unlock();
-    sem.Wait();
+	std::string result = m_adapter->InvokeBackendCommand(command);
+	return result;
 }
 
 

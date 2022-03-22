@@ -7,6 +7,8 @@
 #include "SBBreakpoint.h"
 #include "SBListener.h"
 #include "SBEvent.h"
+#include "SBCommandInterpreter.h"
+#include "SBCommandReturnObject.h"
 #include "queuedadapter.h"
 #include "thread"
 
@@ -628,9 +630,20 @@ DebugStopReason LldbAdapter::StepReturn()
 }
 
 
-void LldbAdapter::Invoke(const std::string & command)
+std::string LldbAdapter::InvokeBackendCommand(const std::string & command)
 {
-//	TODO
+	SBCommandInterpreter interpreter = m_debugger.GetCommandInterpreter();
+	SBCommandReturnObject commandResult;
+	interpreter.HandleCommand(command.c_str(), commandResult);
+
+	std::string result;
+	if (commandResult.GetOutputSize() > 0)
+		result += commandResult.GetOutput();
+
+	if (commandResult.GetErrorSize() > 0)
+		result += commandResult.GetError();
+
+	return result;
 }
 
 
