@@ -703,7 +703,34 @@ void LldbAdapter::EventListener()
 		if (lldb::SBProcess::EventIsProcessEvent(event))
 		{
 			SBProcess process = lldb::SBProcess::GetProcessFromEvent(event);
-			if ((event_type & lldb::SBProcess::eBroadcastBitSTDOUT) ||
+			if (event_type & lldb::SBProcess::eBroadcastBitStateChanged)
+			{
+				// This can solve the problem that if the user resumes/steps the target from the console,
+				// the UI is not updated. However, in order to receive the eBroadcastBitStateChanged notification,
+				// We need to turn on async mode, which requires other changes as well.
+
+//				StateType state = SBProcess::GetStateFromEvent(event);
+//				switch (state)
+//				{
+//				case lldb::eStateStopped:
+//				{
+//					DebuggerEvent dbgevt;
+//					dbgevt.type = TargetStoppedEventType;
+//					dbgevt.data.targetStoppedData.reason = StopReason();
+//					PostDebuggerEvent(dbgevt);
+//					break;
+//				}
+//				case lldb::eStateExited:
+//				{
+//					DebuggerEvent dbgevt;
+//					dbgevt.type = TargetExitedEventType;
+//					dbgevt.data.exitData.exitCode = ExitCode();
+//					PostDebuggerEvent(dbgevt);
+//					break;
+//				}
+//				}
+			}
+			else if ((event_type & lldb::SBProcess::eBroadcastBitSTDOUT) ||
 				(event_type & lldb::SBProcess::eBroadcastBitSTDERR))
 			{
 				char buffer[1024];
