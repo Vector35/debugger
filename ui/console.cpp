@@ -1,6 +1,7 @@
 #include "console.h"
 #include "binaryninjaapi.h"
 #include "debuggerapi.h"
+#include "QScrollBar"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -64,7 +65,14 @@ void DebuggerConsole::addMessage(const QString &msg)
 {
 	QTextCursor cursor(m_consoleLog->textCursor());
 	cursor.movePosition(QTextCursor::End);
+
+	QScrollBar* bar = m_consoleLog->verticalScrollBar();
+	bool atBottom = bar->value() == bar->maximum();
+
 	cursor.insertText(msg);
+
+	if (atBottom)
+		bar->setValue(bar->maximum());
 }
 
 
