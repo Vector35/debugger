@@ -135,6 +135,15 @@ size_t DebugProcessView::PerformRead(void* dest, uint64_t offset, size_t len)
 	if (!controller->GetState()->IsConnected())
 		return 0;
 
+	// TODO: this is a temporary fix for the issue that BN hangs when we resume the target and it does not break immediately.
+	// The reason for the hang is that the QueuedAdapter::Go() will take the lock, so all later memory reads will block.
+	// However, the BN's analysis is unaware of the target status, and will continue to read the memory,
+	// which causes the deadlock.
+	// A more systematic way to fix this is to have the DebuggerController do the memory caching, and the DebugProcessView
+	// should only read the memory through the controller, not directly through the adapter.
+	if (controller->GetState()->IsRunning())
+		return 0;
+
     DebugAdapter* adapter = controller->GetState()->GetAdapter();
 
     if (!adapter)
@@ -209,6 +218,9 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
 
     DebuggerController* controller = DebuggerController::GetController(parentView);
 	if (!controller->GetState()->IsConnected())
+		return 0;
+
+	if (controller->GetState()->IsRunning())
 		return 0;
 
     DebugAdapter* adapter = controller->GetState()->GetAdapter();
