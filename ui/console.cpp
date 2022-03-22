@@ -16,17 +16,17 @@ DebuggerConsole::DebuggerConsole(QWidget* parent, ViewFrame* frame, BinaryViewRe
 	setFont(getMonospaceFont(this));
 
 	// Initialize widgets and layout
-	m_chatLog = new QTextBrowser(this);
-	m_chatLog->setReadOnly(true);
-	m_chatLog->setTextInteractionFlags(m_chatLog->textInteractionFlags() | Qt::LinksAccessibleByMouse);
+	m_consoleLog = new QTextBrowser(this);
+	m_consoleLog->setReadOnly(true);
+	m_consoleLog->setTextInteractionFlags(m_consoleLog->textInteractionFlags() | Qt::LinksAccessibleByMouse);
 
-	m_chatInput = new QLineEdit(this);
-	m_chatInput->setPlaceholderText("");
+	m_consoleInput = new QLineEdit(this);
+	m_consoleInput->setPlaceholderText("");
 
-	connect(m_chatInput, &QLineEdit::returnPressed, this, &DebuggerConsole::sendMessage);
+	connect(m_consoleInput, &QLineEdit::returnPressed, this, &DebuggerConsole::sendMessage);
 
-	layout->addWidget(m_chatLog);
-	layout->addWidget(m_chatInput);
+	layout->addWidget(m_consoleLog);
+	layout->addWidget(m_consoleInput);
 	setLayout(layout);
 
 	// Set up colors
@@ -46,20 +46,23 @@ DebuggerConsole::DebuggerConsole(QWidget* parent, ViewFrame* frame, BinaryViewRe
 }
 
 
-DebuggerConsole::~DebuggerConsole() {}
+DebuggerConsole::~DebuggerConsole()
+{
+	m_debugger->RemoveEventCallback(m_debuggerEventCallback);
+}
 
 
 void DebuggerConsole::sendMessage()
 {
-	QString message = m_chatInput->text();
+	QString message = m_consoleInput->text();
 	sendText(message + '\n');
-	m_chatInput->clear();
+	m_consoleInput->clear();
 }
 
 
 void DebuggerConsole::addMessage(const QString &msg)
 {
-	m_chatLog->setText(m_chatLog->toPlainText() + msg);
+	m_consoleLog->setText(m_consoleLog->toPlainText() + msg);
 }
 
 
@@ -83,6 +86,7 @@ GlobalConsoleContainer::GlobalConsoleContainer(const QString& title) : GlobalAre
 	m_consoleStack->addWidget(noViewLabel);
 }
 
+
 DebuggerConsole* GlobalConsoleContainer::currentConsole() const
 {
 	if (m_consoleStack->currentIndex() == 0)
@@ -90,6 +94,7 @@ DebuggerConsole* GlobalConsoleContainer::currentConsole() const
 
 	return qobject_cast<DebuggerConsole*>(m_consoleStack->currentWidget());
 }
+
 
 void GlobalConsoleContainer::freeDebuggerConsoleForView(QObject* obj)
 {
@@ -115,6 +120,7 @@ void GlobalConsoleContainer::freeDebuggerConsoleForView(QObject* obj)
 	console->deleteLater();
 }
 
+
 void GlobalConsoleContainer::sendText(const QString &msg) const
 {
 	auto* cc = currentConsole();
@@ -123,6 +129,7 @@ void GlobalConsoleContainer::sendText(const QString &msg) const
 
 	cc->sendText(msg);
 }
+
 
 void GlobalConsoleContainer::notifyViewChanged(ViewFrame* frame)
 {

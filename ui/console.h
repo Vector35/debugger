@@ -10,8 +10,7 @@
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "debuggerapi.h"
-//#include "websocket.h"
-//#include "file.h"
+
 
 class DebuggerConsole: public QWidget
 {
@@ -20,23 +19,13 @@ class DebuggerConsole: public QWidget
 	ViewFrame* m_view;
 	Ref<BinaryNinjaDebuggerAPI::DebuggerController> m_debugger;
 
-	QLineEdit* m_chatInput;
-	QTextEdit* m_chatLog;
+	QLineEdit* m_consoleInput;
+	QTextEdit* m_consoleLog;
 
 	size_t m_debuggerEventCallback;
 
-	void initWebsocket();
-	void dataReceived(const std::vector<uint8_t>& data);
 	void addMessage(const QString& msg);
-	void websocketConnected();
-	void websocketDisconnected();
-	void websocketError(const QString& msg);
-	void storeMessages();
-
 	void sendMessage();
-
-protected:
-	void anchorClicked(const QUrl& link);
 
 public:
 	DebuggerConsole(QWidget* parent, ViewFrame* view, BinaryViewRef debugger);
