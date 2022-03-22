@@ -62,7 +62,9 @@ void DebuggerConsole::sendMessage()
 
 void DebuggerConsole::addMessage(const QString &msg)
 {
-	m_consoleLog->setText(m_consoleLog->toPlainText() + msg);
+	QTextCursor cursor(m_consoleLog->textCursor());
+	cursor.movePosition(QTextCursor::End);
+	cursor.insertText(msg);
 }
 
 
