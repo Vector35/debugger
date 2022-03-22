@@ -882,12 +882,6 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 {
     switch (event.type)
     {
-	case StdoutMessageEventType:
-	{
-		const std::string message = event.data.messageData.message;
-		LogWarn("%s\n", message.c_str());
-		break;
-	}
 	case TargetExitedEventType:
 	{
         m_state->MarkDirty();
