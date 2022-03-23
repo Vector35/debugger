@@ -210,6 +210,49 @@ bool LldbAdapter::SetActiveThreadId(std::uint32_t tid)
 }
 
 
+std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
+{
+	size_t threadCount = m_process.GetNumThreads();
+	std::vector<DebugFrame> result;
+	for (size_t i = 0; i < threadCount; i++)
+	{
+		SBThread thread = m_process.GetThreadAtIndex(i);
+		if (!thread.IsValid())
+			continue;
+		if (tid == thread.GetThreadID())
+		{
+			size_t frameCount = thread.GetNumFrames();
+			for (size_t j = 0; j < frameCount; j++)
+			{
+				SBFrame frame = thread.GetFrameAtIndex(j);
+				if (!frame.IsValid())
+					continue;
+				SBModule module = frame.GetModule();
+				SBFileSpec fileSpec = module.GetFileSpec();
+				std::string modulePath(fileSpec.GetFilename());
+				uint64_t startAddress = 0;
+				SBFunction function = frame.GetFunction();
+				if (function.IsValid())
+				{
+					startAddress = function.GetStartAddress().GetLoadAddress(m_target);
+				}
+				else
+				{
+					SBSymbol symbol = frame.GetSymbol();
+					if (symbol.IsValid())
+						startAddress = symbol.GetStartAddress().GetLoadAddress(m_target);
+				}
+
+				result.emplace_back(j, frame.GetPC(), frame.GetSP(), frame.GetFP(), frame.GetFunctionName(),
+									startAddress, modulePath);
+			}
+			return result;
+		}
+	}
+	return result;
+}
+
+
 DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
 	SBBreakpoint bp = m_target.BreakpointCreateByAddress(address);

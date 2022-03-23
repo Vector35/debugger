@@ -229,6 +229,22 @@ bool QueuedAdapter::SetActiveThreadId(std::uint32_t tid)
 }
 
 
+std::vector<DebugFrame> QueuedAdapter::GetFramesOfThread(std::uint32_t tid)
+{
+    std::unique_lock<std::mutex> lock(m_queueMutex);
+
+    std::vector<DebugFrame> result;
+    Semaphore sem;
+    m_queue.push([&]{
+        result = m_adapter->GetFramesOfThread(tid);
+        sem.Release();
+    });
+    lock.unlock();
+    sem.Wait();
+    return result;
+}
+
+
 DebugBreakpoint QueuedAdapter::AddBreakpoint(std::uintptr_t address, unsigned long breakpoint_type)
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);

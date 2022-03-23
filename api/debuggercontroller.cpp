@@ -122,6 +122,32 @@ void DebuggerController::SetActiveThread(const DebugThread& thread)
 }
 
 
+std::vector<DebugFrame> DebuggerController::GetFramesOfThread(uint32_t tid)
+{
+	size_t count;
+	BNDebugFrame* frames = BNDebuggerGetFramesOfThread(m_object, tid, &count);
+
+	std::vector<DebugFrame> result;
+	result.reserve(count);
+
+	for (size_t i = 0; i < count; i++)
+	{
+		DebugFrame frame;
+		frame.m_index = frames[i].m_index;
+		frame.m_pc = frames[i].m_pc;
+		frame.m_sp = frames[i].m_sp;
+		frame.m_fp = frames[i].m_fp;
+		frame.m_functionName = frames[i].m_functionName;
+		frame.m_functionStart = frames[i].m_functionStart;
+		frame.m_module = frames[i].m_module;
+		result.push_back(frame);
+	}
+	BNDebuggerFreeFrames(frames, count);
+
+	return result;
+}
+
+
 std::vector<DebugModule> DebuggerController::GetModules()
 {
 	size_t count;

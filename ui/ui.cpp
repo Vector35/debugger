@@ -11,6 +11,7 @@
 #include "fmt/format.h"
 #include "console.h"
 #include "adapterconsole.h"
+#include "threadframes.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -31,6 +32,9 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
 
 	auto* globalAdapterConsoleContainer = new GlobalAdapterConsoleContainer("DebugAdapter Console");
 	context->globalArea()->addWidget(globalAdapterConsoleContainer);
+
+	auto* globalThreadFramesContainer = new GlobalThreadFramesContainer("Stack Trace");
+	context->globalArea()->addWidget(globalThreadFramesContainer);
 
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateStatusText);
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateUI);

@@ -85,6 +85,7 @@ namespace BinaryNinjaDebugger
 	private:
 		DebuggerState* m_state;
 		std::vector<DebugThread> m_threads;
+		std::map<uint32_t, std::vector<DebugFrame>> m_frames;
 		bool m_dirty;
 
 	public:
@@ -95,6 +96,7 @@ namespace BinaryNinjaDebugger
 		bool SetActiveThread(const DebugThread& thread);
 		bool IsDirty() const { return m_dirty; }
 		std::vector<DebugThread> GetAllThreads();
+		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid);
 	};
 
 

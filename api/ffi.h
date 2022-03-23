@@ -39,6 +39,17 @@ extern "C"
 		uint64_t m_rip;
 	};
 
+	struct BNDebugFrame
+	{
+		size_t m_index;
+		uint64_t m_pc;
+		uint64_t m_sp;
+		uint64_t m_fp;
+		char* m_functionName;
+		uint64_t m_functionStart;
+		char* m_module;
+	};
+
 
 	struct BNDebugModule
 	{
@@ -262,6 +273,10 @@ extern "C"
 
 	DEBUGGER_FFI_API BNDebugThread BNDebuggerGetActiveThread(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerSetActiveThread(BNDebuggerController* controller, BNDebugThread thread);
+
+	DEBUGGER_FFI_API BNDebugFrame* BNDebuggerGetFramesOfThread(BNDebuggerController* controller, uint32_t tid,
+															   size_t* count);
+	DEBUGGER_FFI_API void BNDebuggerFreeFrames(BNDebugFrame* frames, size_t count);
 
 	DEBUGGER_FFI_API BNDebugModule* BNDebuggerGetModules(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeModules(BNDebugModule* modules, size_t count);

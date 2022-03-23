@@ -91,6 +91,7 @@ namespace BinaryNinjaDebugger
 		DebugThread GetActiveThread() const;
 		void SetActiveThread(const DebugThread &thread);
 		std::vector<DebugThread> GetAllThreads();
+		std::vector<DebugFrame> GetFramesOfThread(uint64_t tid);
 
 		// modules
 		std::vector<DebugModule> GetAllModules();

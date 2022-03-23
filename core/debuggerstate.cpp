@@ -161,6 +161,7 @@ void DebuggerThreads::MarkDirty()
 {
     m_dirty = true;
     m_threads.clear();
+	m_frames.clear();
 	// TODO: consider also caching the last active thread
 }
 
@@ -180,6 +181,9 @@ void DebuggerThreads::Update()
     m_threads.clear();
 
 	m_threads = adapter->GetThreadList();
+	for (const DebugThread thread: m_threads)
+		m_frames[thread.m_tid] = adapter->GetFramesOfThread(thread.m_tid);
+
     m_dirty = false;
 }
 
@@ -215,6 +219,19 @@ std::vector<DebugThread> DebuggerThreads::GetAllThreads()
 	if (IsDirty())
 		Update();
 	return m_threads;
+}
+
+
+std::vector<DebugFrame> DebuggerThreads::GetFramesOfThread(uint32_t tid)
+{
+	if (IsDirty())
+		Update();
+
+	auto iter = m_frames.find(tid);
+	if (iter != m_frames.end())
+		return iter->second;
+
+	return {};
 }
 
 

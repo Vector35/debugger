@@ -32,6 +32,7 @@ namespace BinaryNinjaDebugger
 		std::uint32_t GetActiveThreadId() const override;
 		bool SetActiveThread(const DebugThread& thread) override;
 		bool SetActiveThreadId(std::uint32_t tid) override;
+		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid) override;
 
 		DebugBreakpoint AddBreakpoint(std::uintptr_t address, unsigned long breakpoint_type = 0) override;
 

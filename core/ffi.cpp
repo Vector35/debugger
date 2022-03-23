@@ -192,6 +192,40 @@ void BNDebuggerSetActiveThread(BNDebuggerController* controller, BNDebugThread t
 }
 
 
+BNDebugFrame* BNDebuggerGetFramesOfThread(BNDebuggerController* controller, uint32_t tid, size_t* count)
+{
+	std::vector<DebugFrame> frames = controller->object->GetFramesOfThread(tid);
+	*count = frames.size();
+
+	BNDebugFrame* results = new BNDebugFrame[frames.size()];
+
+	for (size_t i = 0; i < frames.size(); i++)
+	{
+		results[i].m_index = frames[i].m_index;
+		results[i].m_pc = frames[i].m_pc;
+		results[i].m_sp = frames[i].m_sp;
+		results[i].m_fp = frames[i].m_fp;
+		results[i].m_functionName = BNDebuggerAllocString(frames[i].m_functionName.c_str());
+		results[i].m_functionStart = frames[i].m_functionStart;
+		results[i].m_module = BNDebuggerAllocString(frames[i].m_module.c_str());
+	}
+
+	return results;
+}
+
+
+void BNDebuggerFreeFrames(BNDebugFrame* frames, size_t count)
+{
+	for (size_t i = 0; i < count; i++)
+	{
+		BNDebuggerFreeString(frames[i].m_functionName);
+		BNDebuggerFreeString(frames[i].m_module);
+	}
+
+	delete []frames;
+}
+
+
 BNDebugModule* BNDebuggerGetModules(BNDebuggerController* controller, size_t* size)
 {
 	std::vector<DebugModule> modules = controller->object->GetAllModules();

@@ -72,6 +72,25 @@ namespace BinaryNinjaDebuggerAPI
 	};
 
 
+	struct DebugFrame
+	{
+		size_t m_index;
+		uint64_t m_pc;
+		uint64_t m_sp;
+		uint64_t m_fp;
+		std::string m_functionName;
+		uint64_t m_functionStart;
+		std::string m_module;
+
+		DebugFrame() = default;
+		DebugFrame(size_t index, uint64_t pc, uint64_t sp, uint64_t fp, const std::string& functionName,
+				   uint64_t functionStart, const std::string& module):
+				m_index(index), m_pc(pc), m_sp(sp), m_fp(fp), m_functionName(functionName),
+				m_functionStart(functionStart), m_module(module)
+		{}
+	};
+
+
 	struct DebugModule
 	{
 		std::string m_name{}, m_short_name{};
@@ -216,6 +235,7 @@ namespace BinaryNinjaDebuggerAPI
 		std::vector<DebugThread> GetThreads();
 		DebugThread GetActiveThread();
 		void SetActiveThread(const DebugThread& thread);
+		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid);
 
 		std::vector<DebugModule> GetModules();
 		std::vector<DebugRegister> GetRegisters();

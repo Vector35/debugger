@@ -78,3 +78,9 @@ void DebugAdapter::WriteStdin(const std::string &msg)
 {
 	LogWarn("WriteStdin operation not supported");
 }
+
+
+std::vector<DebugFrame> DebugAdapter::GetFramesOfThread(std::uint32_t tid)
+{
+	return {};
+}
