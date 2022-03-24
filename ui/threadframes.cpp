@@ -35,6 +35,26 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 			m_debugger->SetActiveThread(tid);
 	});
 
+	connect(m_threadFrames, &QListWidget::itemDoubleClicked, [&](QListWidgetItem* item){
+		std::string text = item->text().toStdString();
+		auto pos = text.find("0x");
+		if (pos == std::string::npos)
+			return;
+
+		text = text.substr(pos, text.length());
+		pos = text.find(" ");
+		if (pos != std::string::npos)
+			text = text.substr(0, pos);
+
+		uint64_t address = strtoull(text.c_str(), nullptr, 16);
+		if (address != 0)
+		{
+			UIContext* context = UIContext::contextForWidget(this);
+			ViewFrame* frame = context->getCurrentViewFrame();
+			frame->navigate(m_debugger->GetLiveView(), address, true, true);
+		}
+	});
+
 	m_debuggerEventCallback = m_debugger->RegisterEventCallback([&](const DebuggerEvent& event){
 		switch (event.type)
 		{
