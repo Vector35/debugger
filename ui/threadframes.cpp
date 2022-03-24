@@ -18,16 +18,7 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 
 	m_threadList = new QComboBox(this);
 	m_threadFrames = new QListWidget(this);
-	// Initialize widgets and layout
-//	m_consoleLog = new QTextBrowser(this);
-//	m_consoleLog->setReadOnly(true);
-//	m_consoleLog->setTextInteractionFlags(m_consoleLog->textInteractionFlags() | Qt::LinksAccessibleByMouse);
-//
-//	m_consoleInput = new QLineEdit(this);
-//	m_consoleInput->setPlaceholderText("");
-//
-//	connect(m_consoleInput, &QLineEdit::returnPressed, this, &DebuggerConsole::sendMessage);
-//
+
 	layout->addWidget(m_threadList);
 	layout->addWidget(m_threadFrames);
 	setLayout(layout);
@@ -37,10 +28,18 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	QColor foreground = widgetPalette.color(QWidget::foregroundRole());
 	QColor background = widgetPalette.color(QWidget::backgroundRole());
 
+	connect(m_threadList, &QComboBox::activated, [&](int index){
+		uint32_t tid = m_threadList->currentData().toInt();
+		uint32_t currentTid = m_debugger->GetActiveThread().m_tid;
+		if (tid != currentTid)
+			m_debugger->SetActiveThread(tid);
+	});
+
 	m_debuggerEventCallback = m_debugger->RegisterEventCallback([&](const DebuggerEvent& event){
 		switch (event.type)
 		{
 		case TargetStoppedEventType:
+		case ActiveThreadChangedEvent:
 		{
 			ExecuteOnMainThreadAndWait([&](){
 				updateContent();
@@ -65,10 +64,17 @@ void ThreadFramesWidget::updateContent()
 	m_threadList->clear();
 	for (const DebugThread thread: threads)
 	{
-		m_threadList->addItem(QString::asprintf("0x%" PRIx64 " @ 0x%" PRIx64, thread.m_tid, thread.m_rip));
+		m_threadList->addItem(QString::asprintf("0x%" PRIx64 " @ 0x%" PRIx64, thread.m_tid, thread.m_rip),
+							  QVariant(thread.m_tid));
 	}
 
 	DebugThread activeThread = m_debugger->GetActiveThread();
+	int index = m_threadList->findData(QVariant(activeThread.m_tid));
+	if (index == -1)
+		return;
+
+	m_threadList->setCurrentIndex(index);
+
 	std::vector<DebugFrame> frames = m_debugger->GetFramesOfThread(activeThread.m_tid);
 	m_threadFrames->clear();
 	for (const DebugFrame& frame: frames)

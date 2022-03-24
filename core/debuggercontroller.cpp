@@ -898,6 +898,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		break;
 	}
     case TargetStoppedEventType:
+	case ActiveThreadChangedEvent:
     {
 		m_state->UpdateCaches();
 		m_lastIP = m_currentIP;

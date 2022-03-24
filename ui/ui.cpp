@@ -170,6 +170,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 		}
 
         case TargetStoppedEventType:
+		case ActiveThreadChangedEvent:
         {
             uint64_t address = m_controller->IP();
 			// If there is no function at the current address, define one. This might be a little aggressive,
@@ -182,7 +183,8 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 			if (functions.size() == 0)
 				m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
 
-			if (event.data.targetStoppedData.reason == DebugStopReason::InitialBreakpoint)
+			if (event.type == TargetStoppedEventType &&
+				event.data.targetStoppedData.reason == DebugStopReason::InitialBreakpoint)
 			{
 				ViewFrame* frame = m_context->getCurrentViewFrame();
 				FileContext* fileContext = frame->getFileContext();

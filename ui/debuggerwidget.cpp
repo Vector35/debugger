@@ -114,7 +114,10 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
 		updateContent();
 		break;
 	case ActiveThreadChangedEvent:
+		// Both the stack and registers are thread-related
 		m_stackWidget->updateContent();
+		m_registersWidget->updateContent();
+		m_threadsWidget->updateContent();
 		break;
     case RelativeBreakpointAddedEvent:
     case AbsoluteBreakpointAddedEvent:
