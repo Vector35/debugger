@@ -1,9 +1,6 @@
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
-#include "SBDebugger.h"
-#include "SBTarget.h"
-#include "SBProcess.h"
-#include "SBModule.h"
+#include "lldb/API/LLDB.h"
 
 namespace BinaryNinjaDebugger {
 	class LldbAdapter: public DebugAdapter

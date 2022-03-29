@@ -83,9 +83,22 @@ if(BN_INTERNAL_BUILD)
 			COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/adapters/gdb ${BN_CORE_PLUGIN_DIR}/gdb)
 endif()
 
+if(DEFINED ENV{LLDB_PATH})
+	set(LLDB_PATH $ENV{LLDB_PATH})
+endif()
+
+if(NOT LLDB_PATH)
+	set(LLDB_PATH ${LLVM_PATH})
+endif()
+message(STATUS "lldb: using install at ${LLDB_PATH}")
+
 if (APPLE)
 #	TODO: remember to deal with the RPATH
 	find_library(lib_lldb NAMES LLDB PATHS ${PROJECT_SOURCE_DIR}/adapters REQUIRED)
 	target_link_libraries(debuggercore ${lib_lldb})
-	include_directories(${PROJECT_SOURCE_DIR}/adapters/LLDB.framework/Headers)
+	target_include_directories(debuggercore PRIVATE ${lib_lldb}/Headers)
+else()
+	find_library(lib_lldb NAMES lldb PATHS ${LLDB_PATH}/lib REQUIRED)
+	target_link_libraries(debuggercore ${lib_lldb})
+	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
 endif()

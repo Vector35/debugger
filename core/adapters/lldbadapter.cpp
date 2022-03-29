@@ -1,14 +1,4 @@
 #include "lldbadapter.h"
-#include "SBError.h"
-#include "SBThread.h"
-#include "SBFrame.h"
-#include "SBAddress.h"
-#include "SBLaunchInfo.h"
-#include "SBBreakpoint.h"
-#include "SBListener.h"
-#include "SBEvent.h"
-#include "SBCommandInterpreter.h"
-#include "SBCommandReturnObject.h"
 #include "queuedadapter.h"
 #include "thread"
 
@@ -214,6 +204,7 @@ std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
 {
 	size_t threadCount = m_process.GetNumThreads();
 	std::vector<DebugFrame> result;
+	result.reserve(threadCount);
 	for (size_t i = 0; i < threadCount; i++)
 	{
 		SBThread thread = m_process.GetThreadAtIndex(i);
@@ -243,8 +234,11 @@ std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
 						startAddress = symbol.GetStartAddress().GetLoadAddress(m_target);
 				}
 
-				result.emplace_back(j, frame.GetPC(), frame.GetSP(), frame.GetFP(), frame.GetFunctionName(),
-									startAddress, modulePath);
+				std::string frameFunctionName;
+				if (frame.GetFunctionName())
+					frameFunctionName = std::string(frame.GetFunctionName());
+				DebugFrame f(j, frame.GetPC(), frame.GetSP(), frame.GetFP(), frameFunctionName, startAddress, modulePath);
+				result.push_back(f);
 			}
 			return result;
 		}
