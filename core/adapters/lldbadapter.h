@@ -1,6 +1,10 @@
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
+#ifdef __APPLE__
+#include "LLDB.h"
+#else
 #include "lldb/API/LLDB.h"
+#endif
 
 namespace BinaryNinjaDebugger {
 	class LldbAdapter: public DebugAdapter

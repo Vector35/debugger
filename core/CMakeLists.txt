@@ -93,10 +93,15 @@ endif()
 message(STATUS "lldb: using install at ${LLDB_PATH}")
 
 if (APPLE)
-#	TODO: remember to deal with the RPATH
-	find_library(lib_lldb NAMES LLDB PATHS ${PROJECT_SOURCE_DIR}/adapters REQUIRED)
+	find_library(lib_lldb NAMES LLDB PATHS ${LLDB_PATH}/Library/Frameworks REQUIRED)
 	target_link_libraries(debuggercore ${lib_lldb})
 	target_include_directories(debuggercore PRIVATE ${lib_lldb}/Headers)
+	set_property(TARGET debuggercore APPEND PROPERTY BUILD_RPATH "\$ORIGIN/lldb")
+	add_custom_command(TARGET debuggercore PRE_LINK
+			COMMAND ${CMAKE_COMMAND} -E echo "Copying LLDB Framework"
+			COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_PLUGIN_DIR}/lldb
+			COMMAND cp -P -R ${lib_lldb} ${BN_CORE_PLUGIN_DIR}/lldb/
+			)
 elseif (UNIX)
 	find_library(lib_lldb NAMES lldb PATHS ${LLDB_PATH}/lib REQUIRED)
 	target_link_libraries(debuggercore ${lib_lldb})
@@ -109,9 +114,9 @@ elseif (UNIX)
 			COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_PLUGIN_DIR}/lldb/lib
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb ${BN_CORE_PLUGIN_DIR}/lldb/bin
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server ${BN_CORE_PLUGIN_DIR}/lldb/bin
-			# It is not perfect to hardcode the 13 here; but the debugger core links to it.
+			# It is not perfect to hardcode the 14 here; but the debugger core links to it.
 			# We should find a way to make the core link to liblldb.so instead.
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/lib/liblldb.so.13 ${BN_CORE_PLUGIN_DIR}/lldb/lib
+			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/lib/liblldb.so.14 ${BN_CORE_PLUGIN_DIR}/lldb/lib
 			)
 else()
 #	TODO: Windows
