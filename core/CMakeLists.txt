@@ -119,5 +119,18 @@ elseif (UNIX)
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/lib/liblldb.so.14 ${BN_CORE_PLUGIN_DIR}/lldb/lib
 			)
 else()
-#	TODO: Windows
+	find_library(lib_lldb NAMES liblldb PATHS ${LLDB_PATH}/lib REQUIRED)
+	target_link_libraries(debuggercore ${lib_lldb})
+	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
+	add_custom_command(TARGET debuggercore PRE_LINK
+			COMMAND ${CMAKE_COMMAND} -E echo "Copying LLDB Libs"
+			COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_PLUGIN_DIR}/lldb
+			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb.exe ${BN_CORE_PLUGIN_DIR}/lldb
+			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server.exe ${BN_CORE_PLUGIN_DIR}/lldb
+			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/liblldb.dll ${BN_CORE_PLUGIN_DIR}
+#			Since the UI links with the debugger core, BN fails to launch due to that the debuggercore is placed
+#			in the plugins directory. A temporary workaround for this is to add the plugin path into the PATH
+#			environment variable
+#			COMMAND ${CMAKE_COMMAND} -E create_symlink ${BN_CORE_PLUGIN_DIR}/liblldb.dll ${BN_CORE_OUTPUT_DIR}
+			)
 endif()
