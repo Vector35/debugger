@@ -120,9 +120,11 @@ namespace BinaryNinjaDebugger
 
 		std::vector<DebugBreakpoint> GetBreakpointList() const override;
 
+		std::string GetRegisterNameByIndex(std::uint32_t index) const;
 		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
 		DebugRegister ReadRegister(const std::string &reg) override;
 		bool WriteRegister(const std::string &reg, std::uintptr_t value) override;
+		std::vector<std::string> GetRegisterList() const;
 
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) override;
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) override;
@@ -134,7 +136,7 @@ namespace BinaryNinjaDebugger
 		std::string GetTargetArchitecture() override;
 
 		DebugStopReason StopReason() override;
-		unsigned long ExecStatus() override;
+		unsigned long ExecStatus();
 		uint64_t ExitCode() override;
 
 		bool BreakInto() override;

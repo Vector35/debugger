@@ -298,17 +298,6 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
     return new_breakpoint;
 }
 
-std::vector<DebugBreakpoint> DbgEngAdapter::AddBreakpoints(const std::vector<std::uintptr_t>& breakpoints)
-{
-    std::vector<DebugBreakpoint> debug_breakpoints{};
-    debug_breakpoints.reserve(breakpoints.size());
-
-    for ( const auto& breakpoint : breakpoints )
-        debug_breakpoints.push_back(this->AddBreakpoint(breakpoint));
-
-    return debug_breakpoints;
-}
-
 bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint &breakpoint)
 {
     IDebugBreakpoint2* debug_breakpoint{};
@@ -395,6 +384,40 @@ bool DbgEngAdapter::WriteRegister(const std::string &reg, std::uintptr_t value)
         return false;
 
     return true;
+}
+
+
+
+std::string DbgEngAdapter::GetRegisterNameByIndex(std::uint32_t index) const
+{
+	if (!m_debugRegisters)
+		return {};
+
+	unsigned long reg_length{};
+	DEBUG_REGISTER_DESCRIPTION reg_description{};
+
+	std::array<char, 256> out{'\0'};
+	if (this->m_debugRegisters->GetDescription(index, out.data(), 256, &reg_length, &reg_description) != S_OK )
+		return {};
+
+	return std::string(out.data());
+}
+
+
+std::vector<std::string> DbgEngAdapter::GetRegisterList() const
+{
+	if ( !this->m_debugRegisters )
+		return{};
+
+	unsigned long register_count{};
+	if (this->m_debugRegisters->GetNumberRegisters(&register_count) != S_OK )
+		return {};
+
+	std::vector<std::string> register_list{};
+	for ( std::size_t reg_index{}; reg_index < register_count; reg_index++ )
+		register_list.push_back(this->GetRegisterNameByIndex(reg_index));
+
+	return register_list;
 }
 
 
