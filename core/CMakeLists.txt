@@ -105,6 +105,7 @@ if (APPLE)
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb ${BN_CORE_PLUGIN_DIR}/lldb/bin
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server ${BN_CORE_PLUGIN_DIR}/lldb/bin
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/debugserver ${BN_CORE_PLUGIN_DIR}/lldb/bin
+			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-argdumper ${BN_CORE_PLUGIN_DIR}/lldb/bin
 			# It is not perfect to hardcode the 14 here; but the debugger core links to it.
 			# We should find a way to make the core link to liblldb.so instead.
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/lib/liblldb.14.0.0.dylib ${BN_CORE_PLUGIN_DIR}/lldb/lib
@@ -121,6 +122,7 @@ elseif (UNIX)
 			COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_PLUGIN_DIR}/lldb/lib
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb ${BN_CORE_PLUGIN_DIR}/lldb/bin
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server ${BN_CORE_PLUGIN_DIR}/lldb/bin
+			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-argdumper ${BN_CORE_PLUGIN_DIR}/lldb/bin
 			# It is not perfect to hardcode the 14 here; but the debugger core links to it.
 			# We should find a way to make the core link to liblldb.so instead.
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/lib/liblldb.so.14 ${BN_CORE_PLUGIN_DIR}/lldb/lib
@@ -134,6 +136,7 @@ else()
 			COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_PLUGIN_DIR}/lldb
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb.exe ${BN_CORE_PLUGIN_DIR}/lldb
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server.exe ${BN_CORE_PLUGIN_DIR}/lldb
+			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-argdumper.exe ${BN_CORE_PLUGIN_DIR}/lldb
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/liblldb.dll ${BN_CORE_PLUGIN_DIR}
 #			Since the UI links with the debugger core, BN fails to launch due to that the debuggercore is placed
 #			in the plugins directory. A temporary workaround for this is to add the plugin path into the PATH
