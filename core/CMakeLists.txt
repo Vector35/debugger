@@ -103,6 +103,7 @@ if (APPLE)
 			COMMAND cp -P -R ${lib_lldb} ${BN_CORE_PLUGIN_DIR}/lldb/
 			)
 elseif (UNIX)
+	message("inside UNIX")
 	find_library(lib_lldb NAMES lldb PATHS ${LLDB_PATH}/lib REQUIRED)
 	target_link_libraries(debuggercore ${lib_lldb})
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
