@@ -98,6 +98,8 @@ if (APPLE)
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
 	set_property(TARGET debuggercore APPEND PROPERTY BUILD_RPATH "\$ORIGIN/lldb/lib")
 	set(CMAKE_INSTALL_RPATH ${BN_CORE_PLUGIN_DIR}/lldb/lib)
+	set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+	set(MACOSX_RPATH TRUE)
 	add_custom_command(TARGET debuggercore PRE_LINK
 			COMMAND ${CMAKE_COMMAND} -E echo "Copying LLDB Libs"
 			COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_PLUGIN_DIR}/lldb/bin
