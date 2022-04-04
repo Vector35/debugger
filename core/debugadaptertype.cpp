@@ -59,6 +59,7 @@ DebugAdapterType* DebugAdapterType::GetByName(const std::string &name)
 std::vector<std::string> DebugAdapterType::GetAvailableAdapters(BinaryNinja::BinaryView* data)
 {
 	std::vector<std::string> result;
+	LogWarn("there are %d registered DebugAdatperTypes", m_types.size());
 	for (DebugAdapterType* adapter: m_types)
 	{
 		// The adapter must be:
