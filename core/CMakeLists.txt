@@ -98,7 +98,6 @@ if (APPLE)
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
 	set_property(TARGET debuggercore APPEND PROPERTY BUILD_RPATH "@loader_path/lldb/lib")
 	set_property(TARGET debuggercore APPEND PROPERTY INSTALL_RPATH "@loader_path/lldb/lib")
-#	set(CMAKE_INSTALL_RPATH ${BN_CORE_PLUGIN_DIR}/lldb/lib)
 	set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 	set(MACOSX_RPATH TRUE)
 	add_custom_command(TARGET debuggercore PRE_LINK
@@ -118,7 +117,9 @@ elseif (UNIX)
 	target_link_libraries(debuggercore ${lib_lldb})
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
 	set_property(TARGET debuggercore APPEND PROPERTY BUILD_RPATH "\$ORIGIN/lldb/lib")
-	set(CMAKE_INSTALL_RPATH ${BN_CORE_PLUGIN_DIR}/lldb/lib)
+	set_property(TARGET debuggercore APPEND PROPERTY INSTALL_RPATH "@loader_path/lldb/lib")
+	set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+#	set(CMAKE_INSTALL_RPATH ${BN_CORE_PLUGIN_DIR}/lldb/lib)
 	add_custom_command(TARGET debuggercore PRE_LINK
 			COMMAND ${CMAKE_COMMAND} -E echo "Copying LLDB Libs"
 			COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_PLUGIN_DIR}/lldb/bin
@@ -141,9 +142,5 @@ else()
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server.exe ${BN_CORE_PLUGIN_DIR}/lldb
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-argdumper.exe ${BN_CORE_PLUGIN_DIR}/lldb
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/liblldb.dll ${BN_CORE_PLUGIN_DIR}
-#			Since the UI links with the debugger core, BN fails to launch due to that the debuggercore is placed
-#			in the plugins directory. A temporary workaround for this is to add the plugin path into the PATH
-#			environment variable
-#			COMMAND ${CMAKE_COMMAND} -E create_symlink ${BN_CORE_PLUGIN_DIR}/liblldb.dll ${BN_CORE_OUTPUT_DIR}
 			)
 endif()
