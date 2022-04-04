@@ -100,18 +100,31 @@ if (APPLE)
 	set_property(TARGET debuggercore APPEND PROPERTY INSTALL_RPATH "@loader_path/lldb/lib")
 	set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 	set(MACOSX_RPATH TRUE)
-	add_custom_command(TARGET debuggercore PRE_LINK
-			COMMAND ${CMAKE_COMMAND} -E echo "Copying LLDB Libs"
-			COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_PLUGIN_DIR}/lldb/bin
-			COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_PLUGIN_DIR}/lldb/lib
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb ${BN_CORE_PLUGIN_DIR}/lldb/bin
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server ${BN_CORE_PLUGIN_DIR}/lldb/bin
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/debugserver ${BN_CORE_PLUGIN_DIR}/lldb/bin
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-argdumper ${BN_CORE_PLUGIN_DIR}/lldb/bin
-			# It is not perfect to hardcode the 14 here; but the debugger core links to it.
-			# We should find a way to make the core link to liblldb.so instead.
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/lib/liblldb.14.0.0.dylib ${BN_CORE_PLUGIN_DIR}/lldb/lib
-			)
+	file(
+		COPY ${LLDB_PATH}/bin/lldb
+		DESTINATION ${BN_CORE_PLUGIN_DIR}/lldb/bin
+		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+	)
+	file(
+		COPY ${LLDB_PATH}/bin/lldb-server
+		DESTINATION ${BN_CORE_PLUGIN_DIR}/lldb/bin
+		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+	)
+	file(
+		COPY ${LLDB_PATH}/bin/debugserver
+		DESTINATION ${BN_CORE_PLUGIN_DIR}/lldb/bin
+		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+	)
+	file(
+		COPY ${LLDB_PATH}/bin/lldb-argdumper
+		DESTINATION ${BN_CORE_PLUGIN_DIR}/lldb/bin
+		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+	)
+	file(
+		COPY ${LLDB_PATH}/lib/liblldb.14.0.0.dylib
+		DESTINATION ${BN_CORE_PLUGIN_DIR}/lldb/lib
+		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+	)
 elseif (UNIX)
 	find_library(lib_lldb NAMES lldb PATHS ${LLDB_PATH}/lib REQUIRED)
 	target_link_libraries(debuggercore ${lib_lldb})
@@ -119,18 +132,26 @@ elseif (UNIX)
 	set_property(TARGET debuggercore APPEND PROPERTY BUILD_RPATH "\$ORIGIN/lldb/lib")
 	set_property(TARGET debuggercore APPEND PROPERTY INSTALL_RPATH "@loader_path/lldb/lib")
 	set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-#	set(CMAKE_INSTALL_RPATH ${BN_CORE_PLUGIN_DIR}/lldb/lib)
-	add_custom_command(TARGET debuggercore PRE_LINK
-			COMMAND ${CMAKE_COMMAND} -E echo "Copying LLDB Libs"
-			COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_PLUGIN_DIR}/lldb/bin
-			COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_PLUGIN_DIR}/lldb/lib
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb ${BN_CORE_PLUGIN_DIR}/lldb/bin
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server ${BN_CORE_PLUGIN_DIR}/lldb/bin
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-argdumper ${BN_CORE_PLUGIN_DIR}/lldb/bin
-			# It is not perfect to hardcode the 14 here; but the debugger core links to it.
-			# We should find a way to make the core link to liblldb.so instead.
-			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/lib/liblldb.so.14 ${BN_CORE_PLUGIN_DIR}/lldb/lib
-			)
+	file(
+		COPY ${LLDB_PATH}/bin/lldb
+		DESTINATION ${BN_CORE_PLUGIN_DIR}/lldb/bin
+		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+	)
+	file(
+		COPY ${LLDB_PATH}/bin/lldb-server
+		DESTINATION ${BN_CORE_PLUGIN_DIR}/lldb/bin
+		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+	)
+	file(
+		COPY ${LLDB_PATH}/bin/lldb-argdumper
+		DESTINATION ${BN_CORE_PLUGIN_DIR}/lldb/bin
+		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+	)
+	file(
+		COPY ${LLDB_PATH}/lib/liblldb.so.14
+		DESTINATION ${BN_CORE_PLUGIN_DIR}/lldb/lib
+		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+	)
 else()
 	find_library(lib_lldb NAMES liblldb PATHS ${LLDB_PATH}/lib REQUIRED)
 	target_link_libraries(debuggercore ${lib_lldb})
