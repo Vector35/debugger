@@ -191,6 +191,11 @@ void DebugRegistersListModel::updateRows(std::vector<DebugRegister> newRows)
 
     for (const DebugRegister& reg: newRows)
     {
+		// Do not display registers whose value is 0x0.
+		// In the future we should make user decide if these should be hidden.
+		if (reg.m_value == 0)
+			continue;
+
         auto iter = oldRegValues.find(reg.m_name);
         DebugRegisterValueStatus status;
         if (iter == oldRegValues.end())
