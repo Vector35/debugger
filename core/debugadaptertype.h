@@ -21,19 +21,6 @@ namespace BinaryNinjaDebugger
 
 	public:
 
-		enum AdapterType
-		{
-			DefaultAdapterType,
-			LocalDBGENGAdapterType,
-			LocalGDBAdapterType,
-			LocalLLDBADapterType,
-			RemoteGDBAdapterType,
-			RemoteLLDBAdapterType,
-			RemoteSenseAdapterType
-		};
-
-		static bool CanUse(AdapterType type);
-
 		DebugAdapterType(const std::string &name);
 
 		static void Register(DebugAdapterType *type);

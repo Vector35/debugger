@@ -13,26 +13,6 @@
 using namespace BinaryNinjaDebugger;
 
 
-bool DebugAdapterType::CanUse(AdapterType type)
-{
-#ifdef WIN32
-    return (type == DefaultAdapterType) || (type == LocalDBGENGAdapterType) ||
-        (type == RemoteGDBAdapterType) || (type == RemoteLLDBAdapterType) ||
-        (type == RemoteSenseAdapterType);
-#elif defined(__clang__)
-    return (type == DefaultAdapterType) || (type == LocalLLDBADapterType) ||
-    (type == RemoteGDBAdapterType) || (type == RemoteLLDBAdapterType) ||
-    (type == RemoteSenseAdapterType);
-#elif defined(__GNUC__)
-    return (type == DefaultAdapterType) || (type == LocalGDBAdapterType) ||
-        (type == RemoteGDBAdapterType) || (type == RemoteLLDBAdapterType) ||
-        (type == RemoteSenseAdapterType);
-#else
-    return false;
-#endif
-}
-
-
 DebugAdapterType::DebugAdapterType(const std::string& name): m_name(name)
 {
 	INIT_DEBUGGER_API_OBJECT();
@@ -59,7 +39,6 @@ DebugAdapterType* DebugAdapterType::GetByName(const std::string &name)
 std::vector<std::string> DebugAdapterType::GetAvailableAdapters(BinaryNinja::BinaryView* data)
 {
 	std::vector<std::string> result;
-	LogWarn("there are %d registered DebugAdatperTypes", m_types.size());
 	for (DebugAdapterType* adapter: m_types)
 	{
 		// The adapter must be:
