@@ -345,12 +345,12 @@ DebugRegistersWidget::DebugRegistersWidget(const QString& name, ViewFrame* view,
     m_table->setItemDelegate(m_delegate);
 
     m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
-//    TODO: why do we need ExtendedSelection here?
-//    m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
     m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_table->verticalHeader()->setVisible(false);
 
+	m_table->horizontalHeader()->setStretchLastSection(true);
+	m_table->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
     m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
