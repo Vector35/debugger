@@ -24,54 +24,14 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
     m_splitter->setChildrenCollapsible(true);
 
     m_controlsWidget = new DebugControlsWidget(this, "Controls", data);
-
-    m_registersWidget = new DebugRegistersWidget("Native Debugger Registers",
-                                                     m_view, m_data);
-
-    m_breakpointsWidget = new DebugBreakpointsWidget("Native Debugger Breakpoints",
-                                                                           m_view, m_data, m_menu);
-
-    m_modulesWidget = new DebugModulesWidget("Native Debugger Modules",
-                                                                           m_view, m_data);
-
-    m_threadsWidget = new DebugThreadsWidget("Native Debugger Threads",
-                                                                           m_view, m_data);
-
-    m_stackWidget = new DebugStackWidget("Native Debugger Stack",
-                                                               m_view, m_data);
-
-    auto registerLayout = new QVBoxLayout();
-    registerLayout->setContentsMargins(0, 0, 0, 0);
-    registerLayout->addWidget(m_registersWidget);
-
-    auto bpLayout = new QVBoxLayout();
-    bpLayout->setContentsMargins(0, 0, 0, 0);
-    bpLayout->addWidget(m_breakpointsWidget);
-
-    auto modulesLayout = new QVBoxLayout();
-    modulesLayout->setContentsMargins(0, 0, 0, 0);
-    modulesLayout->addWidget(m_modulesWidget);
-
-    auto threadsLayout = new QVBoxLayout();
-    threadsLayout->setContentsMargins(0, 0, 0, 0);
-    threadsLayout->addWidget(m_threadsWidget);
-
-    auto stackLayout = new QVBoxLayout();
-    stackLayout->setContentsMargins(0, 0, 0, 0);
-    stackLayout->addWidget(m_stackWidget);
-
-    m_registersGroup = new ExpandableGroup(registerLayout, "Registers");
-    m_breakpointsGroup = new ExpandableGroup(bpLayout, "Breakpoints");
-    m_stackGroup = new ExpandableGroup(stackLayout, "Stack");
-    m_modulesGroup = new ExpandableGroup(modulesLayout, "Modules");
-    m_threadsGroup = new ExpandableGroup(threadsLayout, "Threads");
+    m_registersWidget = new DebugRegistersWidget("Debugger Registers", m_view, m_data);
+    m_breakpointsWidget = new DebugBreakpointsWidget("Debugger Breakpoints", m_view, m_data, m_menu);
+    m_modulesWidget = new DebugModulesWidget("Debugger Modules", m_view, m_data);
 
     m_splitter->addWidget(m_controlsWidget);
-    m_splitter->addWidget(m_registersGroup);
-    m_splitter->addWidget(m_breakpointsGroup);
-    m_splitter->addWidget(m_stackGroup);
-    m_splitter->addWidget(m_modulesGroup);
-    m_splitter->addWidget(m_threadsGroup);
+    m_splitter->addWidget(m_registersWidget);
+    m_splitter->addWidget(m_breakpointsWidget);
+    m_splitter->addWidget(m_modulesWidget);
 
     layout->addWidget(m_splitter);
     setLayout(layout);
@@ -96,8 +56,6 @@ void DebuggerWidget::updateContent()
 {
     m_registersWidget->updateContent();
     m_modulesWidget->updateContent();
-    m_threadsWidget->updateContent();
-    m_stackWidget->updateContent();
 }
 
 
@@ -114,10 +72,8 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
 		updateContent();
 		break;
 	case ActiveThreadChangedEvent:
-		// Both the stack and registers are thread-related
-		m_stackWidget->updateContent();
+		// The registers are thread-related
 		m_registersWidget->updateContent();
-		m_threadsWidget->updateContent();
 		break;
     case RelativeBreakpointAddedEvent:
     case AbsoluteBreakpointAddedEvent:

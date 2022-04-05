@@ -31,15 +31,12 @@ class DebuggerWidget: public SidebarWidget
     DebuggerController* m_controller;
 
     UIActionHandler* M_actionHandler;
-    ExpandableGroup *m_registersGroup, *m_breakpointsGroup, *m_stackGroup, *m_threadsGroup, *m_modulesGroup;
     QSplitter *m_splitter;
 
     DebugControlsWidget* m_controlsWidget;
     DebugRegistersWidget* m_registersWidget;
     DebugBreakpointsWidget* m_breakpointsWidget;
     DebugModulesWidget* m_modulesWidget;
-    DebugThreadsWidget* m_threadsWidget;
-    DebugStackWidget* m_stackWidget;
 
 	DebuggerUI* m_ui;
 
