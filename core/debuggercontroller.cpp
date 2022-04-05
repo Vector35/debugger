@@ -903,6 +903,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		m_state->UpdateCaches();
 		m_lastIP = m_currentIP;
         m_currentIP = m_state->IP();
+		UpdateStackVariables();
         break;
     }
     default:
@@ -1066,4 +1067,48 @@ void DebuggerController::WriteStdIn(const std::string message)
 std::string DebuggerController::InvokeBackendCommand(const std::string &cmd)
 {
 	return m_adapter->InvokeBackendCommand(cmd);
+}
+
+
+void DebuggerController::UpdateStackVariables()
+{
+	std::vector<DebugThread> threads = GetAllThreads();
+	for (const DebugThread& thread: threads)
+	{
+		std::vector<DebugFrame> frames = GetFramesOfThread(thread.m_tid);
+		if (frames.size() < 2)
+			continue;
+
+		for (size_t i = 0; i < frames.size() - 1; i++)
+		{
+			const DebugFrame& frame = frames[i];
+			const DebugFrame& prevFrame = frames[i + 1];
+			// If there is no function at a stacktrace function start, add one
+			auto functions = m_liveView->GetAnalysisFunctionsForAddress(frame.m_functionStart);
+			if (functions.empty())
+				m_liveView->CreateUserFunction(m_liveView->GetDefaultPlatform(), frame.m_functionStart);
+
+			functions = m_liveView->GetAnalysisFunctionsForAddress(frame.m_functionStart);
+			FunctionRef func = functions[0];
+
+			auto vars = func->GetMediumLevelILVariablesIfAvailable();
+			// BN's variable storage offset is calculated against the entry status of the function, i.e.,
+			// before the current stack frame is created. Here we take the stack pointer of the previous stack frame,
+			// and subtract the size of return address from it
+			uint64_t framePointer = prevFrame.m_sp - m_liveView->GetAddressSize();
+			for (const auto& var: vars)
+			{
+				if (var.type != StackVariableSourceType)
+					continue;
+
+				uint64_t varAddress = framePointer + var.storage;
+				auto type = func->GetVariableType(var);
+				std::string varName = func->GetVariableName(var);
+				std::string varFullName = fmt::format("{}", varName);
+				m_liveView->DefineDataVariable(varAddress, type);
+				SymbolRef sym = new Symbol(DataSymbol, varFullName, varFullName, varFullName, varAddress);
+				m_liveView->DefineUserSymbol(sym);
+			}
+		}
+	}
 }

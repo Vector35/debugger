@@ -43,6 +43,7 @@ namespace BinaryNinjaDebugger
 		bool m_userRequestedBreak = false;
 
 		void EventHandler(const DebuggerEvent &event);
+		void UpdateStackVariables();
 		DebugAdapter *CreateDebugAdapter();
 		void HandleTargetStop(DebugStopReason reason);
 		void HandleInitialBreakpoint();
