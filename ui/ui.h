@@ -38,6 +38,8 @@ public:
 	TagTypeRef getPCTagType(BinaryViewRef data);
 	TagTypeRef getBreakpointTagType(BinaryViewRef data);
 
+	void navigateDebugger(uint64_t address);
+
 signals:
     void contextChanged();
 	void debuggerEvent(const DebuggerEvent& event);

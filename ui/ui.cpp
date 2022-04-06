@@ -12,6 +12,7 @@
 #include "console.h"
 #include "adapterconsole.h"
 #include "threadframes.h"
+#include "syncgroup.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -142,6 +143,43 @@ TagTypeRef DebuggerUI::getBreakpointTagType(BinaryViewRef data)
 }
 
 
+// Navigate to the address. This has some special handling of the process which is useful for a debugging scenario.
+// I believe at least some logic should be built into the default navigation behavior.
+void DebuggerUI::navigateDebugger(uint64_t address)
+{
+	ViewFrame* frame = m_context->getCurrentViewFrame();
+	View* view = m_context->getCurrentView();
+	FunctionRef function = view->getCurrentFunction();
+	if (function)
+	{
+		// If the user is viewing a function in the current View, then navigate the current frame.
+		frame->navigate(m_controller->GetLiveView(), address, true, true);
+	}
+	else
+	{
+		// Otherwise, the user is viewing some data. Do not navigate the current SyncGroup.
+		// Instead, find a SyncGroup which is viewing a function. If none, do not navigate anything.
+		auto fileContext = frame->getFileContext();
+		if (fileContext)
+		{
+			auto syncGroups = frame->getFileContext()->allSyncGroups();
+			for (const auto& syncGroup: syncGroups)
+			{
+				for (auto i: syncGroup->members())
+				{
+					View* groupView = i->getCurrentViewInterface();
+					if (groupView->getCurrentFunction())
+					{
+						i->navigate(m_controller->GetLiveView(), address, true, true);
+						break;
+					}
+				}
+			}
+		}
+	}
+}
+
+
 void DebuggerUI::updateUI(const DebuggerEvent &event)
 {
     switch (event.type)
@@ -201,8 +239,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 			}
 			else
 			{
-				ViewFrame* frame = m_context->getCurrentViewFrame();
-				frame->navigate(m_controller->GetLiveView(), address, true, true);
+				navigateDebugger(address);
 				QCoreApplication::processEvents();
 			}
 
