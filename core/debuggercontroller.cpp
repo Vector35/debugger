@@ -534,7 +534,7 @@ DebugStopReason DebuggerController::StepReturnInternal()
 DebugStopReason DebuggerController::StepReturn()
 {
 	if (!CanResumeTarget())
-	    DebugStopReason::InvalidStatusOrOperation;
+	    return DebugStopReason::InvalidStatusOrOperation;
 
     m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 
@@ -1073,6 +1073,11 @@ std::string DebuggerController::InvokeBackendCommand(const std::string &cmd)
 void DebuggerController::UpdateStackVariables()
 {
 	std::vector<DebugThread> threads = GetAllThreads();
+	uint64_t frameAdjustment = 0;
+	std::string archName = m_liveView->GetDefaultArchitecture()->GetName();
+	if ((archName == "x86") || (archName == "x86_64"))
+		frameAdjustment = 8;
+
 	for (const DebugThread& thread: threads)
 	{
 		std::vector<DebugFrame> frames = GetFramesOfThread(thread.m_tid);
@@ -1091,24 +1096,29 @@ void DebuggerController::UpdateStackVariables()
 			functions = m_liveView->GetAnalysisFunctionsForAddress(frame.m_functionStart);
 			FunctionRef func = functions[0];
 
-			auto vars = func->GetMediumLevelILVariablesIfAvailable();
+			auto vars = func->GetVariables();
 			// BN's variable storage offset is calculated against the entry status of the function, i.e.,
 			// before the current stack frame is created. Here we take the stack pointer of the previous stack frame,
 			// and subtract the size of return address from it
-			uint64_t framePointer = prevFrame.m_sp - m_liveView->GetAddressSize();
-			for (const auto& var: vars)
+			uint64_t framePointer = prevFrame.m_sp - frameAdjustment;
+			for (const auto& [var, varNameAndType]: vars)
 			{
 				if (var.type != StackVariableSourceType)
 					continue;
 
 				uint64_t varAddress = framePointer + var.storage;
-				auto type = func->GetVariableType(var);
-				std::string varName = func->GetVariableName(var);
-				std::string varFullName = fmt::format("{}", varName);
-				m_liveView->DefineDataVariable(varAddress, type);
+				std::string varFullName = fmt::format("{}", varNameAndType.name);
+				m_liveView->DefineDataVariable(varAddress, varNameAndType.type);
 				SymbolRef sym = new Symbol(DataSymbol, varFullName, varFullName, varFullName, varAddress);
 				m_liveView->DefineUserSymbol(sym);
 			}
+		}
+
+		for (const DebugFrame& frame: frames)
+		{
+			// Annotate the stack pointer and the frame pointer, using the current stack frame
+			m_liveView->SetCommentForAddress(frame.m_sp, fmt::format("Stack #{}\n====================", frame.m_index));
+			m_liveView->SetCommentForAddress(frame.m_fp, fmt::format("Frame #{}", frame.m_index));
 		}
 	}
 }
