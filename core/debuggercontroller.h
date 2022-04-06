@@ -67,6 +67,10 @@ namespace BinaryNinjaDebugger
 
 		bool ExpectSingleStep(DebugStopReason reason);
 
+		std::map<uint64_t, VariableNameAndType> m_debuggerVariables;
+		std::set<uint64_t> m_addressesWithVariable;
+		std::set<uint64_t> m_addressesWithComment;
+
 	public:
 		DebuggerController(BinaryViewRef data);
 		static DebuggerController *GetController(BinaryViewRef data);

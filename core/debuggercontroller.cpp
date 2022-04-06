@@ -1078,6 +1078,11 @@ void DebuggerController::UpdateStackVariables()
 	if ((archName == "x86") || (archName == "x86_64"))
 		frameAdjustment = 8;
 
+	auto oldAddresses = m_addressesWithVariable;
+	m_addressesWithVariable.clear();
+	auto oldAddressWithComment = m_addressesWithComment;
+	m_addressesWithComment.clear();
+
 	for (const DebugThread& thread: threads)
 	{
 		std::vector<DebugFrame> frames = GetFramesOfThread(thread.m_tid);
@@ -1107,10 +1112,26 @@ void DebuggerController::UpdateStackVariables()
 					continue;
 
 				uint64_t varAddress = framePointer + var.storage;
-				std::string varFullName = fmt::format("{}", varNameAndType.name);
-				m_liveView->DefineDataVariable(varAddress, varNameAndType.type);
-				SymbolRef sym = new Symbol(DataSymbol, varFullName, varFullName, varFullName, varAddress);
-				m_liveView->DefineUserSymbol(sym);
+				auto iter = m_debuggerVariables.find(varAddress);
+				if ((iter == m_debuggerVariables.end()) || (iter->second != varNameAndType))
+				{
+					// The variable is not yet defined, or has changed. Define it.
+					// Should we use DataVariable, or UserDataVariable?
+					m_liveView->DefineDataVariable(varAddress, varNameAndType.type);
+					SymbolRef sym = new Symbol(DataSymbol, varNameAndType.name, varNameAndType.name, varNameAndType.name, varAddress);
+					m_liveView->DefineUserSymbol(sym);
+					m_debuggerVariables[varAddress] = varNameAndType;
+				}
+
+				m_addressesWithVariable.insert(varAddress);
+
+				// If there is still a data variable at varAddress, we remove it from the oldAddresses set.
+				// After we process all data variables, values in the set oldAddresses means where there was a data var,
+				// but there no longer should be one. Later we iterate over it and remove all data vars and symbols at
+				// these addresses.
+				auto iter2 = oldAddresses.find(varAddress);
+				if (iter2 != oldAddresses.end())
+					oldAddresses.erase(iter2);
 			}
 		}
 
@@ -1119,6 +1140,33 @@ void DebuggerController::UpdateStackVariables()
 			// Annotate the stack pointer and the frame pointer, using the current stack frame
 			m_liveView->SetCommentForAddress(frame.m_sp, fmt::format("Stack #{}\n====================", frame.m_index));
 			m_liveView->SetCommentForAddress(frame.m_fp, fmt::format("Frame #{}", frame.m_index));
+			m_addressesWithComment.insert(frame.m_sp);
+			m_addressesWithComment.insert(frame.m_fp);
+
+			auto iter2 = oldAddressWithComment.find(frame.m_sp);
+			if (iter2 != oldAddressWithComment.end())
+				oldAddressWithComment.erase(iter2);
+
+			iter2 = oldAddressWithComment.find(frame.m_fp);
+			if (iter2 != oldAddressWithComment.end())
+				oldAddressWithComment.erase(iter2);
 		}
+	}
+
+	for (uint64_t address: oldAddresses)
+	{
+		auto iter = m_addressesWithVariable.find(address);
+		if (iter != m_addressesWithVariable.end())
+			m_addressesWithVariable.erase(iter);
+
+		m_liveView->UndefineDataVariable(address);
+		auto symbol = m_liveView->GetSymbolByAddress(address);
+		if (symbol)
+			m_liveView->UndefineUserSymbol(symbol);
+	}
+
+	for (uint64_t address: oldAddressWithComment)
+	{
+		m_liveView->SetCommentForAddress(address, "");
 	}
 }
