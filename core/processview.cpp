@@ -241,9 +241,13 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
 void DebugProcessView::MarkDirty()
 {
 	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
-
     m_valueCache.clear();
     m_errorCache.clear();
+
+	// This hack will let the views (linear/graph) update its display
+	ExecuteOnMainThread([this](){
+		BinaryView::NotifyDataWritten(0, 1);
+	});
 }
 
 
