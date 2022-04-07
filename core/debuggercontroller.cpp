@@ -1070,6 +1070,86 @@ std::string DebuggerController::InvokeBackendCommand(const std::string &cmd)
 }
 
 
+void DebuggerController::ProcessOneVariable(uint64_t varAddress, Confidence<Ref<Type>> type, const std::string &name)
+{
+	StackVariableNameAndType varNameAndType(type, name);
+	auto iter = m_debuggerVariables.find(varAddress);
+	if ((iter == m_debuggerVariables.end()) || (iter->second != varNameAndType))
+	{
+		// The variable is not yet defined, or has changed. Define it.
+		// Should we use DataVariable, or UserDataVariable?
+		m_liveView->DefineDataVariable(varAddress, type);
+		if (!name.empty())
+		{
+			SymbolRef sym = new Symbol(DataSymbol, name, name, name, varAddress);
+			m_liveView->DefineUserSymbol(sym);
+		}
+		m_debuggerVariables[varAddress] = varNameAndType;
+	}
+
+	m_addressesWithVariable.insert(varAddress);
+
+	// If there is still a data variable at varAddress, we remove it from the oldAddresses set.
+	// After we process all data variables, values in the set oldAddresses means where there was a data var,
+	// but there no longer should be one. Later we iterate over it and remove all data vars and symbols at
+	// these addresses.
+	auto iter2 = m_oldAddresses.find(varAddress);
+	if (iter2 != m_oldAddresses.end())
+		m_oldAddresses.erase(iter2);
+}
+
+
+void DebuggerController::DefineVariablesRecursive(uint64_t address, Confidence<Ref<Type>> type)
+{
+	size_t addressSize = m_liveView->GetAddressSize();
+	if (type->IsPointer())
+	{
+		auto reader = BinaryReader(m_liveView);
+		reader.Seek(address);
+		uint64_t targetAddress = 0;
+		bool readOk = false;
+		if (addressSize == 8)
+		{
+			readOk = reader.TryRead64(targetAddress);
+		}
+		else if (addressSize == 4)
+		{
+			uint32_t addr;
+			readOk = reader.TryRead32(addr);
+			if (readOk)
+				targetAddress = addr;
+		}
+		if (readOk)
+		{
+			// Define a data variable for the child
+			ProcessOneVariable(targetAddress, type->GetChildType(), "");
+			// Recurse into the child
+			DefineVariablesRecursive(targetAddress, type->GetChildType());
+		}
+	}
+	else if (type->IsStructure())
+	{
+		auto structure = type->GetStructure();
+		auto members = structure->GetMembers();
+		auto memberType = type->GetChildType();
+		for (size_t i = 0; i < members.size(); i++)
+		{
+			uint64_t memberOffset = address + members[i].offset;
+			DefineVariablesRecursive(memberOffset, members[i].type);
+		}
+	}
+	else if (type->IsArray())
+	{
+		auto memberType = type->GetChildType();
+		for (size_t i = 0; i < type->GetElementCount(); i++)
+		{
+			uint64_t memberOffset = address + i * memberType->GetWidth();
+			DefineVariablesRecursive(memberOffset, memberType);
+		}
+	}
+}
+
+
 void DebuggerController::UpdateStackVariables()
 {
 	std::vector<DebugThread> threads = GetAllThreads();
@@ -1077,8 +1157,9 @@ void DebuggerController::UpdateStackVariables()
 	std::string archName = m_liveView->GetDefaultArchitecture()->GetName();
 	if ((archName == "x86") || (archName == "x86_64"))
 		frameAdjustment = 8;
+	size_t addressSize = m_liveView->GetAddressSize();
 
-	auto oldAddresses = m_addressesWithVariable;
+	m_oldAddresses = m_addressesWithVariable;
 	m_addressesWithVariable.clear();
 	auto oldAddressWithComment = m_addressesWithComment;
 	m_addressesWithComment.clear();
@@ -1112,26 +1193,8 @@ void DebuggerController::UpdateStackVariables()
 					continue;
 
 				uint64_t varAddress = framePointer + var.storage;
-				auto iter = m_debuggerVariables.find(varAddress);
-				if ((iter == m_debuggerVariables.end()) || (iter->second != varNameAndType))
-				{
-					// The variable is not yet defined, or has changed. Define it.
-					// Should we use DataVariable, or UserDataVariable?
-					m_liveView->DefineDataVariable(varAddress, varNameAndType.type);
-					SymbolRef sym = new Symbol(DataSymbol, varNameAndType.name, varNameAndType.name, varNameAndType.name, varAddress);
-					m_liveView->DefineUserSymbol(sym);
-					m_debuggerVariables[varAddress] = varNameAndType;
-				}
-
-				m_addressesWithVariable.insert(varAddress);
-
-				// If there is still a data variable at varAddress, we remove it from the oldAddresses set.
-				// After we process all data variables, values in the set oldAddresses means where there was a data var,
-				// but there no longer should be one. Later we iterate over it and remove all data vars and symbols at
-				// these addresses.
-				auto iter2 = oldAddresses.find(varAddress);
-				if (iter2 != oldAddresses.end())
-					oldAddresses.erase(iter2);
+				ProcessOneVariable(varAddress, varNameAndType.type, varNameAndType.name);
+				DefineVariablesRecursive(varAddress, varNameAndType.type);
 			}
 		}
 
@@ -1153,7 +1216,7 @@ void DebuggerController::UpdateStackVariables()
 		}
 	}
 
-	for (uint64_t address: oldAddresses)
+	for (uint64_t address: m_oldAddresses)
 	{
 		auto iter = m_addressesWithVariable.find(address);
 		if (iter != m_addressesWithVariable.end())

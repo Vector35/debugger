@@ -15,6 +15,31 @@ namespace BinaryNinjaDebugger
 		size_t index;
 	};
 
+	// This is used by the debugger to track stack variables it defined. It is simpler than
+	// BinaryNinja::VariableNameAndType that it does not track the Variable and autoDefined.
+	struct StackVariableNameAndType
+	{
+		Confidence<Ref<Type>> type;
+		std::string name;
+
+		StackVariableNameAndType() = default;
+		StackVariableNameAndType(Confidence<Ref<Type>> t, const std::string& n)
+		{
+			type = t;
+			name = n;
+		}
+
+		bool operator==(const StackVariableNameAndType& other)
+		{
+			return (type == other.type) && (name == other.name);
+		}
+
+		bool operator!=(const StackVariableNameAndType& other)
+		{
+			return !(*this == other);
+		}
+	};
+
 	// This is the controller class of the debugger. It receives the input from the UI/API, and then route them to
 	// the state and UI, etc. Most actions should reach here.
 	class DebuggerController
@@ -67,9 +92,12 @@ namespace BinaryNinjaDebugger
 
 		bool ExpectSingleStep(DebugStopReason reason);
 
-		std::map<uint64_t, VariableNameAndType> m_debuggerVariables;
+		std::map<uint64_t, StackVariableNameAndType> m_debuggerVariables;
 		std::set<uint64_t> m_addressesWithVariable;
+		std::set<uint64_t> m_oldAddresses;
 		std::set<uint64_t> m_addressesWithComment;
+		void ProcessOneVariable(uint64_t address, Confidence<Ref<Type>> type, const std::string& name);
+		void DefineVariablesRecursive(uint64_t address, Confidence<Ref<Type>> type);
 
 	public:
 		DebuggerController(BinaryViewRef data);
