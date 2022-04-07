@@ -17,10 +17,6 @@ namespace BinaryNinjaDebugger
 		Ref<Architecture> m_arch;
 		Ref<Platform> m_platform;
 
-		std::map<uint64_t, DataBuffer> m_valueCache;
-		std::set<uint64_t> m_errorCache;
-		std::recursive_mutex m_memoryMutex;
-
 		DebuggerController* m_controller = nullptr;
 		size_t m_eventCallback;
 

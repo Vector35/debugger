@@ -100,6 +100,22 @@ namespace BinaryNinjaDebugger
 	};
 
 
+	class DebuggerMemory
+	{
+		DebuggerState* m_state;
+		std::map<uint64_t, DataBuffer> m_valueCache;
+		std::set<uint64_t> m_errorCache;
+		std::recursive_mutex m_memoryMutex;
+
+	public:
+		DebuggerMemory(DebuggerState* state);
+
+		void MarkDirty();
+		DataBuffer ReadMemory(uint64_t offset, size_t len);
+		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
+	};
+
+
 	class DebuggerController;
 
 	// DebuggerState is the core of the debugger. Every operation is sent to this class, which then sends it the backend.
@@ -118,6 +134,7 @@ namespace BinaryNinjaDebugger
 		DebuggerRegisters* m_registers;
 		DebuggerThreads* m_threads;
 		DebuggerBreakpoints* m_breakpoints;
+		DebuggerMemory* m_memory;
 
 		std::string m_executablePath;
 		std::string m_commandLineArgs;
@@ -139,6 +156,7 @@ namespace BinaryNinjaDebugger
 		DebuggerBreakpoints* GetBreakpoints() const { return m_breakpoints; }
 		DebuggerRegisters* GetRegisters() const { return m_registers; }
 		DebuggerThreads* GetThreads() const { return m_threads; }
+		DebuggerMemory* GetMemory() const { return m_memory; }
 		// This is no longer a remote architecture, because we do not really read the remote arch
 		Ref<Architecture> GetRemoteArchitecture() const;
 

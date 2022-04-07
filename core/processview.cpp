@@ -125,125 +125,27 @@ void BinaryNinjaDebugger::InitDebugProcessViewType()
 
 size_t DebugProcessView::PerformRead(void* dest, uint64_t offset, size_t len)
 {
-    std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
+	DataBuffer buffer = m_controller->ReadMemory(offset, len);
+	memcpy(dest, buffer.GetData(), buffer.GetLength());
 
-    Ref<BinaryView> parentView = GetParentView();
-    if (!parentView)
-        return 0;
-
-    DebuggerController* controller = DebuggerController::GetController(parentView);
-	if (!controller->GetState()->IsConnected())
-		return 0;
-
-	// TODO: this is a temporary fix for the issue that BN hangs when we resume the target and it does not break immediately.
-	// The reason for the hang is that the QueuedAdapter::Go() will take the lock, so all later memory reads will block.
-	// However, the BN's analysis is unaware of the target status, and will continue to read the memory,
-	// which causes the deadlock.
-	// A more systematic way to fix this is to have the DebuggerController do the memory caching, and the DebugProcessView
-	// should only read the memory through the controller, not directly through the adapter.
-	if (controller->GetState()->IsRunning())
-		return 0;
-
-    DebugAdapter* adapter = controller->GetState()->GetAdapter();
-
-    if (!adapter)
-        return 0;
-
-    DataBuffer result;
-
-    // ProcessView implements read caching in a manner inspired by CPU cache:
-    // Reads are aligned on 256-byte boundaries and 256 bytes long
-
-    // Cache read start: round down addr to nearest 256 byte boundary
-    size_t cacheStart = offset & (~0xffLL);
-    // Cache read end: round up addr+length to nearest 256 byte boundary
-    size_t cacheEnd = (offset + len + 0xFF) & (~0xffLL);
-    // List of 256-byte block addresses to read into the cache to fully cover this region
-    for (uint64_t block = cacheStart; block < cacheEnd; block += 0x100)
-    {
-        // If any block cannot be read, then return false
-        if (m_errorCache.find(block) != m_errorCache.end())
-        {
-            return 0;
-        }
-
-        auto iter = m_valueCache.find(block);
-        if (iter == m_valueCache.end())
-        {
-            // The ReadMemory() function should return the number of bytes read
-            DataBuffer buffer = adapter->ReadMemory(block, 0x100);
-            // TODO: what if the buffer's size is smaller than 0x100
-            if (buffer.GetLength() > 0)
-            {
-                m_valueCache[block] = buffer;
-            }
-            else
-            {
-                m_errorCache.insert(block);
-                return 0;
-            }
-        }
-
-        DataBuffer cached = m_valueCache[block];
-        if (offset + len < block + cached.GetLength())
-        {
-            // Last block
-            cached = cached.GetSlice(0, offset + len - block);
-        }
-        // Note a block can be both the fist and the last block, so we should not put an else here
-        if (offset > block)
-        {
-            // First block
-            cached = cached.GetSlice(offset - block, cached.GetLength() - (offset - block));
-        }
-        result.Append(cached);
-    }
-
-    if (result.GetLength() == len)
-    {
-        memcpy(dest, result.GetData(), result.GetLength());
-        return len;
-    }
-    return 0;
+	return buffer.GetLength();
 }
 
 
 size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t len)
 {
-    std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
+	if (m_controller->WriteMemory(offset, DataBuffer(data, len)))
+	{
+		BinaryView::NotifyDataWritten(offset, len);
+		return len;
+	}
 
-    Ref<BinaryView> parentView = GetParentView();
-    if (!parentView)
-        return 0;
-
-    DebuggerController* controller = DebuggerController::GetController(parentView);
-	if (!controller->GetState()->IsConnected())
-		return 0;
-
-	if (controller->GetState()->IsRunning())
-		return 0;
-
-    DebugAdapter* adapter = controller->GetState()->GetAdapter();
-    if (!adapter)
-        return 0;
-
-    if (!adapter->WriteMemory(offset, DataBuffer(data, len)))
-		return 0;
-
-	// TODO: Assume any memory change invalidates memory cache (suboptimal, may not be necessary)
-	MarkDirty();
-
-	BinaryView::NotifyDataWritten(offset, len);
-    return len;
+	return 0;
 }
 
 
 void DebugProcessView::MarkDirty()
 {
-	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
-    m_valueCache.clear();
-    m_errorCache.clear();
-
 	// This hack will let the views (linear/graph) update its display
 	ExecuteOnMainThread([this](){
 		BinaryView::NotifyDataWritten(0, 1);

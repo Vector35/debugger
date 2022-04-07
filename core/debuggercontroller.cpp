@@ -898,12 +898,19 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		break;
 	}
     case TargetStoppedEventType:
+	{
+		m_state->UpdateCaches();
+		m_lastIP = m_currentIP;
+		m_currentIP = m_state->IP();
+
+		UpdateStackVariables();
+		break;
+	}
 	case ActiveThreadChangedEvent:
     {
 		m_state->UpdateCaches();
 		m_lastIP = m_currentIP;
         m_currentIP = m_state->IP();
-		UpdateStackVariables();
         break;
     }
     default:
@@ -985,13 +992,17 @@ DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t si
     if (!m_liveView)
         return DataBuffer{};
 
-	std::vector<uint8_t > buffer;
-	buffer.resize(size);
-	size_t bytesRead = m_liveView->Read(buffer.data(), address, size);
-	if (bytesRead == 0)
+	if (!m_state->IsConnected())
 		return DataBuffer{};
 
-	return DataBuffer(buffer.data(), bytesRead);
+	if (m_state->IsRunning())
+		return DataBuffer{};
+
+	DebuggerMemory* memory = m_state->GetMemory();
+	if (!memory)
+		return DataBuffer{};
+
+	return memory->ReadMemory(address, size);
 }
 
 
@@ -1000,7 +1011,17 @@ bool DebuggerController::WriteMemory(std::uintptr_t address, const DataBuffer& b
     if (!m_liveView)
         return false;
 
-	return m_liveView->WriteBuffer(address, buffer);
+	if (!m_state->IsConnected())
+		return false;
+
+	if (m_state->IsRunning())
+		return false;
+
+	DebuggerMemory* memory = m_state->GetMemory();
+	if (!memory)
+		return false;
+
+	return memory->WriteMemory(address, buffer);
 }
 
 

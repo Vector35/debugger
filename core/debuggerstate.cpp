@@ -562,6 +562,94 @@ void DebuggerBreakpoints::Apply()
 }
 
 
+DebuggerMemory::DebuggerMemory(DebuggerState *state): m_state(state)
+{
+
+}
+
+
+void DebuggerMemory::MarkDirty()
+{
+	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
+	m_valueCache.clear();
+	m_errorCache.clear();
+}
+
+
+DataBuffer DebuggerMemory::ReadMemory(uint64_t offset, size_t len)
+{
+	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
+
+	DataBuffer result;
+
+	// ProcessView implements read caching in a manner inspired by CPU cache:
+	// Reads are aligned on 256-byte boundaries and 256 bytes long
+
+	// Cache read start: round down addr to nearest 256 byte boundary
+	size_t cacheStart = offset & (~0xffLL);
+	// Cache read end: round up addr+length to nearest 256 byte boundary
+	size_t cacheEnd = (offset + len + 0xFF) & (~0xffLL);
+	// List of 256-byte block addresses to read into the cache to fully cover this region
+	for (uint64_t block = cacheStart; block < cacheEnd; block += 0x100)
+	{
+		// If any block cannot be read, then return false
+		if (m_errorCache.find(block) != m_errorCache.end())
+		{
+			return result;
+		}
+
+		auto iter = m_valueCache.find(block);
+		if (iter == m_valueCache.end())
+		{
+			// The ReadMemory() function should return the number of bytes read
+			DataBuffer buffer = m_state->GetAdapter()->ReadMemory(block, 0x100);
+			// TODO: what if the buffer's size is smaller than 0x100
+			if (buffer.GetLength() > 0)
+			{
+				m_valueCache[block] = buffer;
+			}
+			else
+			{
+				m_errorCache.insert(block);
+				return result;
+			}
+		}
+
+		DataBuffer cached = m_valueCache[block];
+		if (offset + len < block + cached.GetLength())
+		{
+			// Last block
+			cached = cached.GetSlice(0, offset + len - block);
+		}
+		// Note a block can be both the fist and the last block, so we should not put an else here
+		if (offset > block)
+		{
+			// First block
+			cached = cached.GetSlice(offset - block, cached.GetLength() - (offset - block));
+		}
+		result.Append(cached);
+	}
+	return result;
+}
+
+
+bool DebuggerMemory::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
+{
+	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
+
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return false;
+
+	if (!adapter->WriteMemory(address, buffer))
+		return false;
+
+//	TODO: Assume any memory change invalidates memory cache (suboptimal, may not be necessary)
+	MarkDirty();
+	return true;
+}
+
+
 DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller): m_controller(controller)
 {
 	INIT_DEBUGGER_API_OBJECT();
@@ -572,6 +660,7 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
     m_threads = new DebuggerThreads(this);
     m_breakpoints = new DebuggerBreakpoints(this);
     m_breakpoints->UnserializedMetadata();
+	m_memory = new DebuggerMemory(this);
 
 	// TODO: A better way to deal with this is to have the adapters return a fitness score, and then we pick the highest
 	// one from the list. Similar to what we do for the views.
@@ -685,6 +774,7 @@ void DebuggerState::MarkDirty()
     m_registers->MarkDirty();
     m_threads->MarkDirty();
     m_modules->MarkDirty();
+	m_memory->MarkDirty();
 }
 
 
