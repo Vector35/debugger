@@ -1,6 +1,7 @@
 #include "controlswidget.h"
 #include "adaptersettings.h"
 #include <QPixmap>
+#include <QInputDialog>
 #include "binaryninjaapi.h"
 #include "disassemblyview.h"
 #include "ui.h"
@@ -17,13 +18,16 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 
     m_actionRun = addAction(QIcon(":/icons/images/debugger/run.svg"), "Run",
                         [this](){ performLaunch(); });
+	// TODO: we need a different icon here
+	m_actionAttachPid = addAction(QIcon(":/icons/images/debugger/connect.svg"), "Attach PID",
+							[this](){ performAttachPID(); });
     m_actionRestart = addAction(QIcon(":/icons/images/debugger/restart.svg"), "Restart",
                                 [this](){ performRestart(); });
     m_actionQuit = addAction(QIcon(":/icons/images/debugger/cancel.svg"), "Quit",
                              [this](){ performQuit(); });
     addSeparator();
 
-    m_actionAttach = addAction(QIcon(":/icons/images/debugger/connect.svg"), "Attach",
+    m_actionConnect = addAction(QIcon(":/icons/images/debugger/connect.svg"), "Connect",
                             [this](){ performConnect(); });
     m_actionDetach = addAction(QIcon(":/icons/images/debugger/disconnect.svg"), "Detach",
                                [this](){ performDetach(); });
@@ -58,6 +62,18 @@ void DebugControlsWidget::performLaunch()
 {
     std::thread([&](){
         m_controller->Launch();
+    }).detach();
+}
+
+
+void DebugControlsWidget::performAttachPID()
+{
+	int pid = QInputDialog::getInt(this, "PID", "Input PID:");
+	if (pid == 0)
+		return;
+
+    std::thread([=](){
+        m_controller->Attach(pid);
     }).detach();
 }
 
@@ -192,7 +208,9 @@ void DebugControlsWidget::setStepOverEnabled(bool enabled)
 void DebugControlsWidget::setStartingEnabled(bool enabled)
 {
     m_actionRun->setEnabled(enabled && canExec());
-    m_actionAttach->setEnabled(enabled && canConnect());
+	// TODO: we need to support specifying whether the adapter supports attaching to a pid
+    m_actionAttachPid->setEnabled(enabled && canExec());
+    m_actionConnect->setEnabled(enabled && canConnect());
 }
 
 

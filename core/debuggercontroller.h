@@ -160,6 +160,7 @@ namespace BinaryNinjaDebugger
 
 		// target control
 		bool Launch();
+		bool AttachPID(size_t pid);
 		bool Execute();
 		void Restart();
 		void Quit();

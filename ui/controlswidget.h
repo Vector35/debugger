@@ -35,10 +35,11 @@ private:
     std::string m_name;
     DebuggerController* m_controller;
 
-    QAction* m_actionRun;
+	QAction* m_actionRun;
+	QAction* m_actionAttachPid;
     QAction* m_actionRestart;
     QAction* m_actionQuit;
-    QAction* m_actionAttach;
+    QAction* m_actionConnect;
     QAction* m_actionDetach;
     QAction* m_actionSettings;
     QAction* m_actionPause;
@@ -65,7 +66,8 @@ public:
     void updateButtons();
 
 public Q_SLOTS:
-    void performLaunch();
+	void performLaunch();
+	void performAttachPID();
     void performRestart();
     void performQuit();
     void performConnect();
