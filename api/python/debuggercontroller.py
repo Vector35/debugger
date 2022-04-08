@@ -195,6 +195,42 @@ class ModuleNameAndOffset:
             raise AttributeError(f"attribute '{name}' is read only")
 
 
+class DebugFrame:
+    def __init__(self, index, pc, sp, fp, func_name, func_start, module):
+        self.index = index
+        self.pc = pc
+        self.sp = sp
+        self.fp = fp
+        self.func_name = func_name
+        self.func_start = func_start
+        self.module = module
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.index == other.index and self.pc == other.pc and self.sp == other.sp \
+               and self.fp == other.fp and self.func_name == other.func_name and self.func_start == other.func_start \
+                and self.module == other.module
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.index, self.pc, self.sp, self.fp, self.func_name, self.func_start, self.module))
+
+    def __setattr__(self, name, value):
+        try:
+            object.__setattr__(self, name, value)
+        except AttributeError:
+            raise AttributeError(f"attribute '{name}' is read only")
+
+    def __repr__(self):
+        offset = self.pc - self.func_start
+        return f"<DebugFrame: {self.module}`{self.func_name} + {offset:#x}, sp: {self.sp:#x}, fp: {self.fp:#x}>"
+
+
 class TargetStoppedEventData:
     def __init__(self, reason: DebugStopReason, last_active_thread: int, exit_code: int, data):
         self.reason = reason
@@ -351,7 +387,7 @@ class DebuggerController:
             bp = DebugThread(threads[i].m_tid, threads[i].m_rip)
             result.append(bp)
 
-        dbgcore.BNDebuggerFreeThreads(threads, count)
+        dbgcore.BNDebuggerFreeThreads(threads, count.value)
         return result
 
     @property
@@ -372,7 +408,7 @@ class DebuggerController:
             bp = DebugModule(modules[i].m_name, modules[i].m_short_name, modules[i].m_address, modules[i].m_size, modules[i].m_loaded)
             result.append(bp)
 
-        dbgcore.BNDebuggerFreeModules(modules, count)
+        dbgcore.BNDebuggerFreeModules(modules, count.value)
         return result
 
     @property
@@ -384,7 +420,7 @@ class DebuggerController:
             bp = DebugRegister(registers[i].m_name, registers[i].m_value, registers[i].m_width, registers[i].m_registerIndex, registers[i].m_hint)
             result.append(bp)
 
-        dbgcore.BNDebuggerFreeRegisters(registers, count)
+        dbgcore.BNDebuggerFreeRegisters(registers, count.value)
         return result
 
     def get_reg_value(self, reg: str) -> int:
@@ -515,7 +551,7 @@ class DebuggerController:
             bp = DebugBreakpoint(breakpoints[i].module, breakpoints[i].offset, breakpoints[i].address, breakpoints[i].enabled)
             result.append(bp)
 
-        dbgcore.BNDebuggerFreeBreakpoints(breakpoints, count)
+        dbgcore.BNDebuggerFreeBreakpoints(breakpoints, count.value)
         return result
 
     def delete_breakpoint(self, address):
@@ -559,3 +595,15 @@ class DebuggerController:
 
     def remove_event_callback(self, index: int):
         DebuggerEventWrapper.remove(self, index)
+
+    def frames_of_thread(self, tid: int) -> List[DebugFrame]:
+        count = ctypes.c_ulonglong()
+        frames = dbgcore.BNDebuggerGetFramesOfThread(self.handle, tid, count)
+        result = []
+        for i in range(0, count.value):
+            bp = DebugFrame(frames[i].m_index, frames[i].m_pc, frames[i].m_sp, frames[i].m_fp, frames[i].m_functionName,
+                            frames[i].m_functionStart, frames[i].m_module)
+            result.append(bp)
+
+        dbgcore.BNDebuggerFreeFrames(frames, count.value)
+        return result
