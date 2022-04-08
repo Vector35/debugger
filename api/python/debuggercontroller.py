@@ -483,6 +483,14 @@ class DebuggerController:
         dbgcore.BNDebuggerSetExecutablePath(self.handle, path)
 
     @property
+    def working_directory(self) -> str:
+        return dbgcore.BNDebuggerGetWorkingDirectory(self.handle)
+
+    @working_directory.setter
+    def working_directory(self, path: str) -> None:
+        dbgcore.BNDebuggerSetWorkingDirectory(self.handle, path)
+
+    @property
     def request_terminal_emulator(self) -> bool:
         return dbgcore.BNDebuggerGetRequestTerminalEmulator(self.handle)
 

@@ -86,10 +86,11 @@ std::string GdbAdapter::ExecuteShellCommand(const std::string& command)
 
 bool GdbAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
-    return this->ExecuteWithArgs(path, "", configs);
+    return this->ExecuteWithArgs(path, "", "", configs);
 }
 
-bool GdbAdapter::ExecuteWithArgs(const std::string& path, const string &args, const LaunchConfigurations& configs)
+bool GdbAdapter::ExecuteWithArgs(const std::string &path, const std::string &args, const std::string &workingDir,
+					 const LaunchConfigurations &configs)
 {
 #if (defined WIN32) || (defined __APPLE_)
     return false;

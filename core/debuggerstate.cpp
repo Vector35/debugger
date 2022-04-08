@@ -691,6 +691,13 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 	if (m_executablePath == "")
 		m_executablePath = m_controller->GetData()->GetFile()->GetOriginalFilename();
 
+	metadata = m_controller->GetData()->QueryMetadata("native_debugger.working_directory");
+	if (metadata && metadata->IsString())
+		m_workingDirectory = metadata->GetString();
+
+//	if (m_workingDirectory == "")
+//		m_workingDirectory = m_controller->GetData()->GetFile()->GetOriginalFilename();
+
     metadata = m_controller->GetData()->QueryMetadata("native_debugger.remote_host");
     if (metadata && metadata->IsString())
         m_remoteHost = metadata->GetString();

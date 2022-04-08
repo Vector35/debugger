@@ -136,7 +136,8 @@ bool DebuggerController::Execute()
 		std::replace(filePath.begin(), filePath.end(), '/', '\\');
 	#endif
 
-	return m_adapter->ExecuteWithArgs(filePath, m_state->GetCommandLineArguments(), configs);
+	return m_adapter->ExecuteWithArgs(filePath, m_state->GetCommandLineArguments(), m_state->GetWorkingDirectory(),
+									  configs);
 }
 
 

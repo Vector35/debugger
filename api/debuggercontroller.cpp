@@ -358,6 +358,18 @@ std::string DebuggerController::GetExecutablePath()
 }
 
 
+std::string DebuggerController::GetWorkingDirectory()
+{
+	char* path = BNDebuggerGetWorkingDirectory(m_object);
+	if (!path)
+		return "";
+
+	std::string result = path;
+	BNDebuggerFreeString(path);
+	return result;
+}
+
+
 bool DebuggerController::GetRequestTerminalEmulator()
 {
 	return BNDebuggerGetRequestTerminalEmulator(m_object);
@@ -379,6 +391,12 @@ std::string DebuggerController::GetCommandLineArguments()
 void DebuggerController::SetExecutablePath(const std::string& path)
 {
 	BNDebuggerSetExecutablePath(m_object, path.c_str());
+}
+
+
+void DebuggerController::SetWorkingDirectory(const std::string& path)
+{
+	BNDebuggerSetWorkingDirectory(m_object, path.c_str());
 }
 
 

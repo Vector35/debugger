@@ -150,7 +150,8 @@ std::string LldbRspAdapter::GetDebugServerPath()
 }
 
 
-bool LldbRspAdapter::ExecuteWithArgs(const std::string& path, const std::string &args, const LaunchConfigurations& configs)
+bool LldbRspAdapter::ExecuteWithArgs(const std::string &path, const std::string &args, const std::string &workingDir,
+					 const LaunchConfigurations &configs)
 {
 #ifndef __APPLE__
     return false;

@@ -92,10 +92,10 @@ DbgEngAdapter::~DbgEngAdapter()
 
 bool DbgEngAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
-    return this->ExecuteWithArgs(path, "", {});
+    return this->ExecuteWithArgs(path, "", "", {});
 }
 
-bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string &args,
+bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string &args, const std::string& workingDir,
                                     const LaunchConfigurations& configs)
 {
     auto& ProcessInfo = DbgEngAdapter::ProcessCallbackInfo;

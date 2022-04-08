@@ -137,6 +137,7 @@ namespace BinaryNinjaDebugger
 		DebuggerMemory* m_memory;
 
 		std::string m_executablePath;
+		std::string m_workingDirectory;
 		std::string m_commandLineArgs;
 		std::string m_remoteHost;
 		uint32_t m_remotePort = 0;
@@ -162,6 +163,7 @@ namespace BinaryNinjaDebugger
 
 		std::string GetAdapterType() const { return m_adapterType; }
 		std::string GetExecutablePath() const { return m_executablePath; }
+		std::string GetWorkingDirectory() const { return m_workingDirectory; }
 		std::string GetCommandLineArguments() const { return m_commandLineArgs; }
 		std::string GetRemoteHost() const { return m_remoteHost; }
 		uint32_t GetRemotePort() const { return m_remotePort; }
@@ -169,6 +171,7 @@ namespace BinaryNinjaDebugger
 
 		void SetAdapterType(std::string adapter) { m_adapterType = adapter; }
 		void SetExecutablePath(const std::string& path) { m_executablePath = path; }
+		void SetWorkingDirectory(const std::string& directory) { m_workingDirectory = directory; }
 		void SetCommandLineArguments(const std::string& arguments) { m_commandLineArgs = arguments; }
 		void SetRemoteHost(const std::string& host) { m_remoteHost = host; }
 		void SetRemotePort(uint32_t port) { m_remotePort = port; }

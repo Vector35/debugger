@@ -472,6 +472,12 @@ char* BNDebuggerGetExecutablePath(BNDebuggerController* controller)
 }
 
 
+char* BNDebuggerGetWorkingDirectory(BNDebuggerController* controller)
+{
+	return BNDebuggerAllocString(controller->object->GetState()->GetWorkingDirectory().c_str());
+}
+
+
 bool BNDebuggerGetRequestTerminalEmulator(BNDebuggerController* controller)
 {
 	return controller->object->GetState()->GetRequestTerminalEmulator();
@@ -499,6 +505,12 @@ void BNDebuggerSetRemotePort(BNDebuggerController* controller, uint32_t port)
 void BNDebuggerSetExecutablePath(BNDebuggerController* controller, const char* path)
 {
 	controller->object->GetState()->SetExecutablePath(path);
+}
+
+
+void BNDebuggerSetWorkingDirectory(BNDebuggerController* controller, const char* path)
+{
+	controller->object->GetState()->SetWorkingDirectory(path);
 }
 
 

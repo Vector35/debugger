@@ -22,6 +22,7 @@ private:
     DebuggerController* m_controller;
     QComboBox* m_adapterEntry;
     QLineEdit* m_pathEntry;
+	QLineEdit* m_workingDirectoryEntry;
     QLineEdit* m_argumentsEntry;
     QLineEdit* m_addressEntry;
     QLineEdit* m_portEntry;

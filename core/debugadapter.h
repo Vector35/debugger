@@ -170,8 +170,9 @@ namespace BinaryNinjaDebugger
 
 		[[nodiscard]] virtual bool Execute(const std::string &path, const LaunchConfigurations &configs = {}) = 0;
 
-		[[nodiscard]] virtual bool ExecuteWithArgs(const std::string &path, const std::string &args,
-												   const LaunchConfigurations &configs = {}) = 0;
+		[[nodiscard]] virtual bool
+		ExecuteWithArgs(const std::string &path, const std::string &args, const std::string &workingDir,
+						const LaunchConfigurations &configs = {}) = 0;
 
 		[[nodiscard]] virtual bool Attach(std::uint32_t pid) = 0;
 

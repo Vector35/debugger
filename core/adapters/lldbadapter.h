@@ -17,7 +17,8 @@ namespace BinaryNinjaDebugger {
 		bool Execute(const std::string &path, const LaunchConfigurations &configs) override;
 
 		bool
-		ExecuteWithArgs(const std::string &path, const std::string &args, const LaunchConfigurations &configs) override;
+		ExecuteWithArgs(const std::string &path, const std::string &args, const std::string &workingDir,
+						const LaunchConfigurations &configs) override;
 
 		bool Attach(std::uint32_t pid) override;
 

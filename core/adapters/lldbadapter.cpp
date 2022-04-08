@@ -59,11 +59,12 @@ void BinaryNinjaDebugger::InitLldbAdapterType()
 
 bool LldbAdapter::Execute(const std::string & path, const LaunchConfigurations & configs)
 {
-	return ExecuteWithArgs(path, "", configs);
+	return ExecuteWithArgs(path, "", "", configs);
 }
 
 
-bool LldbAdapter::ExecuteWithArgs(const std::string & path, const std::string & args, const LaunchConfigurations & configs)
+bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &args, const std::string &workingDir,
+					 const LaunchConfigurations &configs)
 {
 	m_target = m_debugger.CreateTarget(path.c_str());
 	if (!m_target.IsValid())
@@ -80,7 +81,11 @@ bool LldbAdapter::ExecuteWithArgs(const std::string & path, const std::string & 
 		flag |= lldb::eLaunchFlagLaunchInTTY;
 
 	info.SetLaunchFlags(flag);
-	// TODO: support setting working directory and environment
+	if (!workingDir.empty())
+		info.SetWorkingDirectory(workingDir.c_str());
+
+	// TODO: support setting environment
+
 	SBError error;
 	m_process = m_target.Launch(info, error);
 	return m_process.IsValid() && error.Success();

@@ -39,6 +39,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
 
     m_pathEntry = new QLineEdit(this);
     m_argumentsEntry = new QLineEdit(this);
+    m_workingDirectoryEntry = new QLineEdit(this);
     m_addressEntry = new QLineEdit(this);
     m_portEntry = new QLineEdit(this);
 	m_terminalEmulator = new QCheckBox(this);
@@ -46,6 +47,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
     QFormLayout* formLayout = new QFormLayout;
     formLayout->addRow("Adapter Type", m_adapterEntry);
     formLayout->addRow("Executable Path", m_pathEntry);
+    formLayout->addRow("Working Directory", m_workingDirectoryEntry);
     formLayout->addRow("Command Line Arguments", m_argumentsEntry);
 	formLayout->addRow("Run In Separate Terminal", m_terminalEmulator);
     formLayout->addRow("Address", m_addressEntry);
@@ -77,6 +79,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
     m_pathEntry->setText(QString::fromStdString(m_controller->GetExecutablePath()));
 	m_terminalEmulator->setChecked(m_controller->GetRequestTerminalEmulator());
     m_argumentsEntry->setText(QString::fromStdString(m_controller->GetCommandLineArguments()));
+    m_workingDirectoryEntry->setText(QString::fromStdString(m_controller->GetWorkingDirectory()));
 
 	selectAdapter(m_adapterEntry->currentText());
 }
@@ -135,6 +138,11 @@ void AdapterSettingsDialog::apply()
     m_controller->SetExecutablePath(path);
     data = new Metadata(path);
     m_controller->GetData()->StoreMetadata("native_debugger.executable_path", data);
+
+	std::string workingDir = m_workingDirectoryEntry->text().toStdString();
+	m_controller->SetWorkingDirectory(workingDir);
+	data = new Metadata(workingDir);
+	m_controller->GetData()->StoreMetadata("native_debugger.working_directory", data);
 
     std::string host = m_addressEntry->text().toStdString();
     m_controller->SetRemoteHost(host);

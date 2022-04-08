@@ -101,6 +101,7 @@ namespace BinaryNinjaDebugger
 
 		[[nodiscard]] bool Execute(const std::string& path, const LaunchConfigurations& configs = {}) override;
 		[[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string &args,
+										   const std::string& workingDir,
 										   const LaunchConfigurations& configs = {}) override;
 		[[nodiscard]] bool Attach(std::uint32_t pid) override;
 		[[nodiscard]] bool Connect(const std::string &server, std::uint32_t port) override;
