@@ -1202,6 +1202,9 @@ void DebuggerController::UpdateStackVariables()
 				m_liveView->CreateUserFunction(m_liveView->GetDefaultPlatform(), frame.m_functionStart);
 
 			functions = m_liveView->GetAnalysisFunctionsForAddress(frame.m_functionStart);
+			if (functions.empty())
+				continue;
+
 			FunctionRef func = functions[0];
 
 			auto vars = func->GetVariables();
