@@ -615,16 +615,20 @@ bool LldbAdapter::BreakInto()
 
 DebugStopReason LldbAdapter::Go()
 {
+#ifndef WIN32
 	SBError error = m_process.Continue();
 	if (!error.Success())
 		return DebugStopReason::InternalError;
-
+#else
+	InvokeBackendCommand("c");
+#endif
 	return StopReason();
 }
 
 
 DebugStopReason LldbAdapter::StepInto()
 {
+#ifndef WIN32
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())
 		return DebugStopReason::InternalError;
@@ -633,13 +637,16 @@ DebugStopReason LldbAdapter::StepInto()
 	thread.StepInstruction(false, error);
 	if (!error.Success())
 		return DebugStopReason::InternalError;
-
+#else
+	InvokeBackendCommand("si");
+#endif
 	return StopReason();
 }
 
 
 DebugStopReason LldbAdapter::StepOver()
 {
+#ifndef WIN32
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())
 		return DebugStopReason::InternalError;
@@ -648,13 +655,16 @@ DebugStopReason LldbAdapter::StepOver()
 	thread.StepInstruction(true, error);
 	if (!error.Success())
 		return DebugStopReason::InternalError;
-
+#else
+	InvokeBackendCommand("ni");
+#endif
 	return StopReason();
 }
 
 
 DebugStopReason LldbAdapter::StepReturn()
 {
+#ifndef WIN32
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())
 		return DebugStopReason::InternalError;
@@ -668,6 +678,9 @@ DebugStopReason LldbAdapter::StepReturn()
 		if (error.Fail())
 			return DebugStopReason::InternalError;
 	}
+#else
+	InvokeBackendCommand("finish");
+#endif
 	return StopReason();
 }
 
