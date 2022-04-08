@@ -381,7 +381,7 @@ BNDebugStopReason BNDebuggerStepReturn(BNDebuggerController* controller)
 }
 
 
-BNDebugStopReason BNDebuggerStepTo(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count)
+BNDebugStopReason BNDebuggerRunTo(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count)
 {
 	std::vector<uint64_t> addresses;
 	addresses.reserve(count);
@@ -389,7 +389,7 @@ BNDebugStopReason BNDebuggerStepTo(BNDebuggerController* controller, const uint6
 	{
 		addresses.push_back(remoteAddresses[i]);
 	}
-	return controller->object->StepTo(addresses);
+	return controller->object->RunTo(addresses);
 }
 
 

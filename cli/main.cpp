@@ -581,7 +581,7 @@ int main(int argc, const char* argv[])
 		else if (auto loc = input.find("st ");
 				loc != std::string::npos)
 		{
-			DebugStopReason reason = debugger->StepTo(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
+			DebugStopReason reason = debugger->RunTo(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
 			PrintStopReason(debugger, reason);
 		}
 		else if (input == "detach")

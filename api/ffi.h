@@ -302,7 +302,7 @@ extern "C"
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepInto(BNDebuggerController* controller, BNFunctionGraphType il);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepOver(BNDebuggerController* controller, BNFunctionGraphType il);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepReturn(BNDebuggerController* controller);
-	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepTo(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRunTo(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
 
 	DEBUGGER_FFI_API char* BNDebuggerGetAdapterType(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerSetAdapterType(BNDebuggerController* controller, const char* adapter);

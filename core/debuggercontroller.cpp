@@ -381,7 +381,7 @@ DebugStopReason DebuggerController::StepOverInternal()
         }
 
         uint64_t remoteIPNext = remoteIP + info.length;
-        return StepToInternal({remoteIPNext});
+        return RunToInternal({remoteIPNext});
     }
 }
 
@@ -527,7 +527,7 @@ DebugStopReason DebuggerController::StepReturnInternal()
 			returnAddresses.push_back(instruction.address);
 	}
 
-	return StepToInternal(returnAddresses);
+	return RunToInternal(returnAddresses);
 }
 
 
@@ -552,7 +552,7 @@ DebugStopReason DebuggerController::StepReturn()
 }
 
 
-DebugStopReason DebuggerController::StepToInternal(const std::vector<uint64_t>& remoteAddresses)
+DebugStopReason DebuggerController::RunToInternal(const std::vector<uint64_t>& remoteAddresses)
 {
     for (uint64_t remoteAddress: remoteAddresses)
     {
@@ -576,7 +576,7 @@ DebugStopReason DebuggerController::StepToInternal(const std::vector<uint64_t>& 
 }
 
 
-DebugStopReason DebuggerController::StepTo(const std::vector<uint64_t>& remoteAddresses)
+DebugStopReason DebuggerController::RunTo(const std::vector<uint64_t>& remoteAddresses)
 {
 	if (!CanResumeTarget())
 	    return DebugStopReason::InvalidStatusOrOperation;
@@ -587,7 +587,7 @@ DebugStopReason DebuggerController::StepTo(const std::vector<uint64_t>& remoteAd
 	event.type = StepOverEventType;
 	PostDebuggerEvent(event);
 
-	DebugStopReason reason = StepToInternal(remoteAddresses);
+	DebugStopReason reason = RunToInternal(remoteAddresses);
 
 	m_state->MarkDirty();
     m_state->SetExecutionStatus(DebugAdapterPausedStatus);

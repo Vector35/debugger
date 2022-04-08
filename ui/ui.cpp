@@ -479,12 +479,12 @@ static bool BinaryViewValid(BinaryView* view, uint64_t addr)
 }
 
 
-static void StepToHereCallback(BinaryView* view, uint64_t addr)
+static void RunToHereCallback(BinaryView* view, uint64_t addr)
 {
 	DebuggerController* controller = DebuggerController::GetController(view);
 	if (!controller)
 		return;
-	controller->StepTo(addr);
+	controller->RunTo(addr);
 }
 
 
@@ -532,11 +532,11 @@ void DebuggerUI::InitializeUI()
             BreakpointToggleCallback, BinaryViewValid);
     UIAction::setUserKeyBinding("Native Debugger\\Toggle Breakpoint", { QKeySequence(Qt::Key_F2) });
 
-	UIAction::registerAction("Native Debugger\\Step To Here");
-	UIAction::registerAction("Selection Target\\Native Debugger\\Step To Here");
-	PluginCommand::RegisterForAddress("Native Debugger\\Step To Here",
-            "Steps over until the current address",
-            StepToHereCallback, ConnectedAndStopped);
+	UIAction::registerAction("Native Debugger\\Run To Here");
+	UIAction::registerAction("Selection Target\\Native Debugger\\Run To Here");
+	PluginCommand::RegisterForAddress("Native Debugger\\Run To Here",
+            "Run until the current address",
+            RunToHereCallback, ConnectedAndStopped);
 
 	std::string actionName = "Run";
 	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));

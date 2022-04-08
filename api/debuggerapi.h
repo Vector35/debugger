@@ -258,8 +258,8 @@ namespace BinaryNinjaDebuggerAPI
 		DebugStopReason StepInto(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepOver(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepReturn();
-		DebugStopReason StepTo(uint64_t remoteAddresses);
-		DebugStopReason StepTo(const std::vector<uint64_t> &remoteAddresses);
+		DebugStopReason RunTo(uint64_t remoteAddresses);
+		DebugStopReason RunTo(const std::vector<uint64_t> &remoteAddresses);
 
 		std::string GetAdapterType();
 		void SetAdapterType(const std::string& adapter);

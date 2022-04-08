@@ -224,7 +224,7 @@ namespace BinaryNinjaDebugger
 		virtual DebugStopReason StepInto() = 0;
 
 		virtual DebugStopReason StepOver() = 0;
-		//    virtual bool StepTo(std::uintptr_t address) = 0;
+		//    virtual bool RunTo(std::uintptr_t address) = 0;
 
 		virtual DebugStopReason StepReturn();
 

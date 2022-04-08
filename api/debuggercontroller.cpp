@@ -285,15 +285,15 @@ DebugStopReason DebuggerController::StepReturn()
 }
 
 
-DebugStopReason DebuggerController::StepTo(uint64_t remoteAddresses)
+DebugStopReason DebuggerController::RunTo(uint64_t remoteAddresses)
 {
-	return StepTo(std::vector<uint64_t>{remoteAddresses});
+	return RunTo(std::vector<uint64_t>{remoteAddresses});
 }
 
 
-DebugStopReason DebuggerController::StepTo(const std::vector<uint64_t> &remoteAddresses)
+DebugStopReason DebuggerController::RunTo(const std::vector<uint64_t> &remoteAddresses)
 {
-	return BNDebuggerStepTo(m_object, remoteAddresses.data(), remoteAddresses.size());
+	return BNDebuggerRunTo(m_object, remoteAddresses.data(), remoteAddresses.size());
 }
 
 

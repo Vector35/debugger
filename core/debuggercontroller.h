@@ -83,7 +83,7 @@ namespace BinaryNinjaDebugger
 		DebugStopReason StepIntoInternal();
 		DebugStopReason StepOverInternal();
 		DebugStopReason StepReturnInternal();
-		DebugStopReason StepToInternal(const std::vector<uint64_t> &remoteAddresses);
+		DebugStopReason RunToInternal(const std::vector<uint64_t> &remoteAddresses);
 		DebugStopReason StepIntoIL(BNFunctionGraphType il);
 		DebugStopReason StepOverIL(BNFunctionGraphType il);
 
@@ -174,7 +174,7 @@ namespace BinaryNinjaDebugger
 		DebugStopReason StepInto(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepOver(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepReturn();
-		DebugStopReason StepTo(const std::vector<uint64_t> &remoteAddresses);
+		DebugStopReason RunTo(const std::vector<uint64_t> &remoteAddresses);
 
 		// getters
 		DebugAdapter *GetAdapter() { return m_adapter; }
