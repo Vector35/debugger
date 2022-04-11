@@ -225,7 +225,10 @@ std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
 					continue;
 				SBModule module = frame.GetModule();
 				SBFileSpec fileSpec = module.GetFileSpec();
-				std::string modulePath(fileSpec.GetFilename());
+				std::string modulePath;
+				if (fileSpec.GetFilename())
+					modulePath = fileSpec.GetFilename();
+
 				uint64_t startAddress = 0;
 				SBFunction function = frame.GetFunction();
 				if (function.IsValid())

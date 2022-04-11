@@ -353,11 +353,18 @@ def test_one_arch(current_arch):
         print(f'fail to launch {fpath}')
         sys.exit(-1)
 
+    reason = dbg.go()
+
     print('scheduling break in 1 second')
-    threading.Timer(1, break_into, [dbg]).start()
     print('going')
-    reason = dbg.go()
-    reason = dbg.go()
+    # We must resume the target on a different thread and pause it from the current thread.
+    # I do not know why, but if I do it in the opposite way, python crashes when I launch the next target.
+    # This is not observed when I use the debugger from within BN, so I have no easy means of debugging it
+    t = threading.Thread(target=lambda dbg: dbg.go(), args=(dbg,))
+    t.start()
+
+    time.sleep(1)
+    dbg.pause()
 
     # print('switching to bad thread')
     # assert_general_error(lambda: adapter.thread_select(999))
@@ -385,14 +392,12 @@ def test_one_arch(current_arch):
         # on wow64, wow64cpu!TurboDispatchJumpAddressEnd+0x544 becomes common thread jump from point
         assert addrs[0] != addrs[1] # thread at WaitForMultipleObjects()/pthread_join() should be different
 
-    # Wait for the thread that stops the target finish, before we resume the target again
-    time.sleep(1)
 
-    # run for one second
-    print('scheduling break in 1 second')
-    threading.Timer(1, break_into, [dbg]).start()
-    print('going')
-    dbg.go()
+    t = threading.Thread(target=lambda dbg: dbg.go(), args=(dbg,))
+    t.start()
+
+    time.sleep(1)
+    dbg.pause()
 
     # print('switching to bad thread')
     # assert_general_error(lambda: adapter.thread_select(999))
@@ -484,8 +489,8 @@ if __name__ == '__main__':
 
     test_archs = []
     if platform.system() == 'Darwin':
-        # if platform.machine() == 'arm64':
-            # test_archs.append('arm64')
+        if platform.machine() == 'arm64':
+            test_archs.append('arm64')
         test_archs.append('x86_64')
     elif platform.system() in ['Linux', 'Windows']:
         test_archs.append('x86_64')
