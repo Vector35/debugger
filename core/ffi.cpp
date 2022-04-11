@@ -730,3 +730,16 @@ DEBUGGER_FFI_API char* BNDebuggerInvokeBackendCommand(BNDebuggerController* cont
 	char* result = BNDebuggerAllocString(output.c_str());
 	return result;
 }
+
+
+DEBUGGER_FFI_API char* BNDebuggerGetStopReasonString(BNDebugStopReason reason)
+{
+	std::string str = DebuggerController::GetStopReasonString(reason);
+	return BNDebuggerAllocString(str.c_str());
+}
+
+
+DEBUGGER_FFI_API DebugStopReason BNDebuggerGetStopReason(BNDebuggerController* controller)
+{
+	return controller->object->StopReason();
+}

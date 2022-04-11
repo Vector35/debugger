@@ -304,6 +304,9 @@ namespace BinaryNinjaDebuggerAPI
 		void WriteStdin(const std::string& msg);
 
 		std::string InvokeBackendCommand(const std::string& command);
+
+		static std::string GetDebugStopReasonString(DebugStopReason reason);
+		DebugStopReason StopReason();
 	};
 
 

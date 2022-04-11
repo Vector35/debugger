@@ -574,3 +574,18 @@ std::string DebuggerController::InvokeBackendCommand(const std::string &command)
 	BNDebuggerFreeString(output);
 	return result;
 }
+
+
+std::string DebuggerController::GetDebugStopReasonString(DebugStopReason reason)
+{
+	char* str = BNDebuggerGetStopReasonString(reason);
+	std::string result = std::string(str);
+	BNDebuggerFreeString(str);
+	return result;
+}
+
+
+DebugStopReason DebuggerController::StopReason()
+{
+	return BNDebuggerGetStopReason(m_object);
+}

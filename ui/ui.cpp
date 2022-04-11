@@ -95,7 +95,8 @@ void DebuggerUI::updateStatusText(const DebuggerEvent &event)
     case TargetStoppedEventType:
 	{
 		DebugStopReason reason = event.data.targetStoppedData.reason;
-		setStatusText(QString::fromStdString(fmt::format("Stopped {}", reason)));
+		const std::string reasonString = DebuggerController::GetDebugStopReasonString(reason);
+		setStatusText(QString::fromStdString(fmt::format("Stopped ({})", reasonString)));
 		break;
 	}
 	case TargetExitedEventType:

@@ -607,3 +607,11 @@ class DebuggerController:
 
         dbgcore.BNDebuggerFreeFrames(frames, count.value)
         return result
+
+    @property
+    def stop_reason(self) -> DebugStopReason:
+        return dbgcore.BNDebuggerGetStopReason(self.handle)
+
+    @property
+    def stop_reason_str(self) -> str:
+        return dbgcore.BNDebuggerGetStopReasonString(self.stop_reason)

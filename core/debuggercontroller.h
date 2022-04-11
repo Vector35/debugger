@@ -188,5 +188,8 @@ namespace BinaryNinjaDebugger
 		void WriteStdIn(const std::string message);
 
 		std::string InvokeBackendCommand(const std::string& cmd);
+
+		static std::string GetStopReasonString(DebugStopReason);
+		DebugStopReason StopReason() const;
 	};
 };

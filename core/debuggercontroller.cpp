@@ -1258,3 +1258,124 @@ void DebuggerController::UpdateStackVariables()
 		m_liveView->SetCommentForAddress(address, "");
 	}
 }
+
+
+std::string DebuggerController::GetStopReasonString(DebugStopReason reason)
+{
+	switch (reason)
+	{
+	case UnknownReason:
+		return "UnknownReason";
+	case InitialBreakpoint:
+		return "InitialBreakpoint";
+	case ProcessExited:
+		return "ProcessExited";
+	case AccessViolation:
+		return "AccessViolation";
+	case SingleStep:
+		return "SingleStep";
+	case Calculation:
+		return "Calculation";
+	case Breakpoint:
+		return "Breakpoint";
+	case IllegalInstruction:
+		return "IllegalInstruction";
+	case SignalHup:
+		return "SignalHup";
+	case SignalInt:
+		return "SignalInt";
+	case SignalQuit:
+		return "SignalQuit";
+	case SignalIll:
+		return "SignalIll";
+	case SignalAbrt:
+		return "SignalAbrt";
+	case SignalEmt:
+		return "SignalEmt";
+	case SignalFpe:
+		return "SignalFpe";
+	case SignalKill:
+		return "SignalKill";
+	case SignalBus:
+		return "SignalBus";
+	case SignalSegv:
+		return "SignalSegv";
+	case SignalSys:
+		return "SignalSys";
+	case SignalPipe:
+		return "SignalPipe";
+	case SignalAlrm:
+		return "SignalAlrm";
+	case SignalTerm:
+		return "SignalTerm";
+	case SignalUrg:
+		return "SignalUrg";
+	case SignalStop:
+		return "SignalStop";
+	case SignalTstp:
+		return "SignalTstp";
+	case SignalCont:
+		return "SignalCont";
+	case SignalChld:
+		return "SignalChld";
+	case SignalTtin:
+		return "SignalTtin";
+	case SignalTtou:
+		return "SignalTtou";
+	case SignalIo:
+		return "SignalIo";
+	case SignalXcpu:
+		return "SignalXcpu";
+	case SignalXfsz:
+		return "SignalXfsz";
+	case SignalVtalrm:
+		return "SignalVtalrm";
+	case SignalProf:
+		return "SignalProf";
+	case SignalWinch:
+		return "SignalWinch";
+	case SignalInfo:
+		return "SignalInfo";
+	case SignalUsr1:
+		return "SignalUsr1";
+	case SignalUsr2:
+		return "SignalUsr2";
+	case SignalStkflt:
+		return "SignalStkflt";
+	case SignalBux:
+		return "SignalBux";
+	case SignalPoll:
+		return "SignalPoll";
+	case ExcEmulation:
+		return "ExcEmulation";
+	case ExcSoftware:
+		return "ExcSoftware";
+	case ExcSyscall:
+		return "ExcSyscall";
+	case ExcMachSyscall:
+		return "ExcMachSyscall";
+	case ExcRpcAlert:
+		return "ExcRpcAlert";
+	case ExcCrash:
+		return "ExcCrash";
+	case InternalError:
+		return "InternalError";
+	case InvalidStatusOrOperation:
+		return "InvalidStatusOrOperation";
+	case UserRequestedBreak:
+		return "UserRequestedBreak";
+	case OperationNotSupported:
+		return "OperationNotSupported";
+	default:
+		return "";
+	}
+}
+
+
+DebugStopReason DebuggerController::StopReason() const
+{
+	if (!m_adapter)
+		return UnknownReason;
+
+	return m_adapter->StopReason();
+}
