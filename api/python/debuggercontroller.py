@@ -615,3 +615,10 @@ class DebuggerController:
     @property
     def stop_reason_str(self) -> str:
         return dbgcore.BNDebuggerGetStopReasonString(self.stop_reason)
+
+    def write_stdin(self, data: str) -> None:
+        dbgcore.BNDebuggerWriteStdin(self.handle, data)
+
+    def execute_backend_command(self, command: str) -> str:
+        return dbgcore.BNDebuggerInvokeBackendCommand(self.handle, command)
+
