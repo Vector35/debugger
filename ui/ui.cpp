@@ -18,15 +18,17 @@ using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 using namespace std;
 
-std::map<Ref<DebuggerController>, std::unique_ptr<DebuggerUI>> g_contextMap;
+std::map<Ref<DebuggerController>, std::unique_ptr<DebuggerUI>> g_controllerMap;
+std::map<UIContext*, std::unique_ptr<GlobalDebuggerUI>> g_contextMap;
 
-DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
-	m_context(context), m_controller(controller)
+GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 {
 	m_window = context->mainWindow();
-	m_status = new QLabel("Inactive");
 	if (m_window && m_window->statusBar())
+	{
+		m_status = new DebuggerStatusBarContainer;
 		m_window->statusBar()->insertWidget(0, m_status);
+	}
 
 	auto* globalDebuggerConsoleContainer = new GlobalConsoleContainer("Debugger Target Console");
 	context->globalArea()->addWidget(globalDebuggerConsoleContainer);
@@ -37,7 +39,18 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
 	auto* globalThreadFramesContainer = new GlobalThreadFramesContainer("Stack Trace");
 	context->globalArea()->addWidget(globalThreadFramesContainer);
 
-	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateStatusText);
+	auto ui = DebuggerUI::CreateForViewFrame(context->getCurrentViewFrame());
+}
+
+
+GlobalDebuggerUI::~GlobalDebuggerUI()
+{
+}
+
+
+DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
+	m_context(context), m_controller(controller)
+{
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateUI);
 
     m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
@@ -51,72 +64,6 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
 DebuggerUI::~DebuggerUI()
 {
 	m_controller->RemoveEventCallback(m_eventCallback);
-}
-
-
-void DebuggerUI::setStatusText(const QString &text)
-{
-	m_status->setText(text);
-}
-
-
-void DebuggerUI::updateStatusText(const DebuggerEvent &event)
-{
-	switch (event.type)
-	{
-	case LaunchEventType:
-		setStatusText("Launching");
-		break;
-	case ResumeEventType:
-		setStatusText("Running");
-		break;
-	case StepIntoEventType:
-		setStatusText("Stepping into");
-		break;
-	case StepOverEventType:
-		setStatusText("Stepping over");
-		break;
-	case StepReturnEventType:
-		setStatusText("Stepping return");
-		break;
-	case StepToEventType:
-		setStatusText("Stepping to");
-		break;
-	case RestartEventType:
-		setStatusText("Restarting");
-		break;
-	case AttachEventType:
-		setStatusText("Attaching");
-		break;
-	case ConnectEventType:
-		setStatusText("Connecting");
-		break;
-
-    case TargetStoppedEventType:
-	{
-		DebugStopReason reason = event.data.targetStoppedData.reason;
-		const std::string reasonString = DebuggerController::GetDebugStopReasonString(reason);
-		setStatusText(QString::fromStdString(fmt::format("Stopped ({})", reasonString)));
-		break;
-	}
-	case TargetExitedEventType:
-	{
-		uint8_t exitCode = event.data.exitData.exitCode;
-		setStatusText(QString::fromStdString(fmt::format("Exited with code {}", exitCode)));
-		break;
-	}
-    case DetachedEventType:
-		setStatusText("Detached");
-		break;
-    case QuitDebuggingEventType:
-		setStatusText("Aborted");
-		break;
-    case BackEndDisconnectedEventType:
-		setStatusText("Backend disconnected");
-		break;
-	default:
-		break;
-	}
 }
 
 
@@ -507,7 +454,7 @@ static bool ConnectedAndRunning(BinaryView* view, uint64_t addr)
 }
 
 
-void DebuggerUI::InitializeUI()
+void GlobalDebuggerUI::InitializeUI()
 {
     auto create_icon_with_letter = [](const QString& letter) {
         auto icon = QImage(56, 56, QImage::Format_RGB32);
@@ -650,12 +597,12 @@ DebuggerUI* DebuggerUI::CreateForViewFrame(ViewFrame* frame)
 	if (!controller)
 		return nullptr;
 
-	if (g_contextMap.find(controller) != g_contextMap.end())
+	if (g_controllerMap.find(controller) != g_controllerMap.end())
 	{
-		return g_contextMap[controller].get();
+		return g_controllerMap[controller].get();
 	}
-	g_contextMap.try_emplace(controller, std::make_unique<DebuggerUI>(context, controller));
-	return g_contextMap[controller].get();
+	g_controllerMap.try_emplace(controller, std::make_unique<DebuggerUI>(context, controller));
+	return g_controllerMap[controller].get();
 }
 
 
@@ -669,11 +616,45 @@ DebuggerUI* DebuggerUI::GetForViewFrame(ViewFrame* frame)
 	if (!controller)
 		return nullptr;
 
-	if (g_contextMap.find(controller) != g_contextMap.end())
+	if (g_controllerMap.find(controller) != g_controllerMap.end())
 	{
-		return g_contextMap[controller].get();
+		return g_controllerMap[controller].get();
 	}
 	return nullptr;
+}
+
+
+GlobalDebuggerUI* GlobalDebuggerUI::CreateForContext(UIContext* context)
+{
+	if (g_contextMap.find(context) != g_contextMap.end())
+	{
+		return g_contextMap[context].get();
+	}
+	g_contextMap.try_emplace(context, std::make_unique<GlobalDebuggerUI>(context));
+	return g_contextMap[context].get();
+}
+
+
+GlobalDebuggerUI* GlobalDebuggerUI::GetForContext(UIContext* context)
+{
+	if (g_contextMap.find(context) != g_contextMap.end())
+	{
+		return g_contextMap[context].get();
+	}
+	return nullptr;
+}
+
+
+void GlobalDebuggerUI::RemoveForContext(UIContext *context)
+{
+	g_contextMap.erase(context);
+}
+
+
+void GlobalDebuggerUI::SetActiveFrame(ViewFrame *frame)
+{
+	auto ui = DebuggerUI::CreateForViewFrame(frame);
+	m_status->notifyViewChanged(frame);
 }
 
 
@@ -689,7 +670,7 @@ extern "C"
 
 	BINARYNINJAPLUGIN bool UIPluginInit()
 	{
-		DebuggerUI::InitializeUI();
+		GlobalDebuggerUI::InitializeUI();
 		NotificationListener::init();
 		return true;
 	}

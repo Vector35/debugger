@@ -21,11 +21,13 @@ void NotificationListener::init()
 
 void NotificationListener::OnContextOpen(UIContext* context)
 {
+	GlobalDebuggerUI* ui = GlobalDebuggerUI::CreateForContext(context);
 }
 
 
 void NotificationListener::OnContextClose(UIContext* context)
 {
+	GlobalDebuggerUI::RemoveForContext(context);
 }
 
 
@@ -125,7 +127,7 @@ void NotificationListener::OnAfterCloseFile(UIContext* context, FileContext* fil
 
 void NotificationListener::OnViewChange(UIContext* context, ViewFrame* frame, const QString& type)
 {
-	DebuggerUI* ui = DebuggerUI::CreateForViewFrame(frame);
+	GlobalDebuggerUI::GetForContext(context)->SetActiveFrame(frame);
 }
 
 
