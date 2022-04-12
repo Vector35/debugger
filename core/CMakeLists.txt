@@ -80,7 +80,7 @@ target_compile_definitions(debuggercore PRIVATE DEBUGGER_LIBRARY)
 
 if(BN_INTERNAL_BUILD)
 	add_custom_command(TARGET debuggercore POST_BUILD
-			COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/adapters/gdb ${BN_CORE_PLUGIN_DIR}/gdb)
+			COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/adapters/gdb ${BN_RESOURCE_DIR}/gdb)
 endif()
 
 if(DEFINED ENV{LLDB_PATH})
