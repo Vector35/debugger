@@ -1215,10 +1215,6 @@ void DebuggerController::UpdateStackVariables()
 			// If there is no function at a stacktrace function start, add one
 			auto functions = m_liveView->GetAnalysisFunctionsForAddress(frame.m_functionStart);
 			if (functions.empty())
-				m_liveView->CreateUserFunction(m_liveView->GetDefaultPlatform(), frame.m_functionStart);
-
-			functions = m_liveView->GetAnalysisFunctionsForAddress(frame.m_functionStart);
-			if (functions.empty())
 				continue;
 
 			FunctionRef func = functions[0];
