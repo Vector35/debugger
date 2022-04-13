@@ -14,4 +14,4 @@
 
 from .debuggercontroller import *
 from .debugadaptertype import *
-from .enums import *
+from .debugger_enums import *
