@@ -29,6 +29,7 @@ limitations under the License.
 #include "adapterconsole.h"
 #include "threadframes.h"
 #include "syncgroup.h"
+#include "codedatarenderer.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -141,6 +142,15 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 			}
 		}
 	}
+}
+
+
+static void MakeCodeHelper(BinaryView* view, uint64_t addr)
+{
+	view->DefineDataVariable(addr, Type::ArrayType(Type::IntegerType(1, false), 1));
+	const std::string name = fmt::format("CODE_start_{:08x}", addr);
+	SymbolRef sym = new Symbol(DataSymbol, name, name, name, addr);
+	view->DefineUserSymbol(sym);
 }
 
 
@@ -596,6 +606,19 @@ void GlobalDebuggerUI::InitializeUI()
 			ConnectedAndRunning);
 	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
 								{ QKeySequence(Qt::Key_F12) });
+
+	actionName = "Make Code";
+	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Selection Target\\Native Debugger\\%s", actionName.c_str()));
+	PluginCommand::RegisterForAddress(
+			QString::asprintf("Native Debugger\\%s", actionName.c_str()).toStdString(),
+			"Pause the target",
+			[](BinaryView* view, uint64_t addr){
+					MakeCodeHelper(view, addr);
+				},
+			BinaryViewValid);
+	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
+								{ QKeySequence(Qt::Key_C) });
 }
 
 
@@ -688,6 +711,7 @@ extern "C"
 	{
 		GlobalDebuggerUI::InitializeUI();
 		NotificationListener::init();
+		DataRendererContainer::RegisterTypeSpecificDataRenderer(new CodeDataRenderer);
 		return true;
 	}
 }
