@@ -495,28 +495,28 @@ void GlobalDebuggerUI::InitializeUI()
     };
 
     Sidebar::addSidebarWidgetType(
-        new DebuggerWidgetType(create_icon_with_letter("D"), "Native Debugger"));
+        new DebuggerWidgetType(create_icon_with_letter("D"), "Debugger"));
 
 	// We must use the sequence of these four calls to do the job, otherwise the keybinding does not work.
 	// Though it really should be the case where I can specify the keybinding in the first registerAction() call.
-	UIAction::registerAction("Native Debugger\\Toggle Breakpoint");
-	UIAction::registerAction("Selection Target\\Native Debugger\\Toggle Breakpoint");
-	PluginCommand::RegisterForAddress("Native Debugger\\Toggle Breakpoint",
+	UIAction::registerAction("Debugger\\Toggle Breakpoint");
+	UIAction::registerAction("Selection Target\\Debugger\\Toggle Breakpoint");
+	PluginCommand::RegisterForAddress("Debugger\\Toggle Breakpoint",
             "Sets/clears breakpoint at right-clicked address",
             BreakpointToggleCallback, BinaryViewValid);
-    UIAction::setUserKeyBinding("Native Debugger\\Toggle Breakpoint", { QKeySequence(Qt::Key_F2) });
+    UIAction::setUserKeyBinding("Debugger\\Toggle Breakpoint", { QKeySequence(Qt::Key_F2) });
 
-	UIAction::registerAction("Native Debugger\\Run To Here");
-	UIAction::registerAction("Selection Target\\Native Debugger\\Run To Here");
-	PluginCommand::RegisterForAddress("Native Debugger\\Run To Here",
+	UIAction::registerAction("Debugger\\Run To Here");
+	UIAction::registerAction("Selection Target\\Debugger\\Run To Here");
+	PluginCommand::RegisterForAddress("Debugger\\Run To Here",
             "Run until the current address",
             RunToHereCallback, ConnectedAndStopped);
 
 	std::string actionName = "Run";
-	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Native Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-			QString::asprintf("Native Debugger\\%s", actionName.c_str()).toStdString(),
+			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
 			"Launch, connect to or resume the target",
 			[](BinaryView* view, uint64_t addr){
 					DebuggerController* controller = DebuggerController::GetController(view);
@@ -532,14 +532,14 @@ void GlobalDebuggerUI::InitializeUI()
 					}
 				},
 			BinaryViewValid);
-	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
+	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
 								{ QKeySequence(Qt::Key_F9) });
 
 	actionName = "Step Into";
-	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Native Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-			QString::asprintf("Native Debugger\\%s", actionName.c_str()).toStdString(),
+			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
 			"Step into",
 			[](BinaryView* view, uint64_t){
 					DebuggerController* controller = DebuggerController::GetController(view);
@@ -552,14 +552,14 @@ void GlobalDebuggerUI::InitializeUI()
 					controller->StepInto(graphType);
 				},
 			ConnectedAndStopped);
-	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
+	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
 								{ QKeySequence(Qt::Key_F7) });
 
 	actionName = "Step Over";
-	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Native Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-			QString::asprintf("Native Debugger\\%s", actionName.c_str()).toStdString(),
+			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
 			"Step over",
 			[](BinaryView* view, uint64_t){
 					DebuggerController* controller = DebuggerController::GetController(view);
@@ -572,14 +572,14 @@ void GlobalDebuggerUI::InitializeUI()
 					controller->StepOver(graphType);
 				},
 			ConnectedAndStopped);
-	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
+	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
 								{ QKeySequence(Qt::Key_F8) });
 
 	actionName = "Step Return";
-	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Native Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-			QString::asprintf("Native Debugger\\%s", actionName.c_str()).toStdString(),
+			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
 			"Step return",
 			[](BinaryView* view, uint64_t){
 					DebuggerController* controller = DebuggerController::GetController(view);
@@ -588,14 +588,14 @@ void GlobalDebuggerUI::InitializeUI()
 					controller->StepReturn();
 				},
 			ConnectedAndStopped);
-	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
+	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
 								{ QKeySequence(Qt::ControlModifier | Qt::Key_F9) });
 
 	actionName = "Pause";
-	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Native Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-			QString::asprintf("Native Debugger\\%s", actionName.c_str()).toStdString(),
+			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
 			"Pause the target",
 			[](BinaryView* view, uint64_t){
 					DebuggerController* controller = DebuggerController::GetController(view);
@@ -604,20 +604,20 @@ void GlobalDebuggerUI::InitializeUI()
 					controller->Pause();
 				},
 			ConnectedAndRunning);
-	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
+	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
 								{ QKeySequence(Qt::Key_F12) });
 
 	actionName = "Make Code";
-	UIAction::registerAction(QString::asprintf("Native Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Native Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
+	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-			QString::asprintf("Native Debugger\\%s", actionName.c_str()).toStdString(),
+			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
 			"Pause the target",
 			[](BinaryView* view, uint64_t addr){
 					MakeCodeHelper(view, addr);
 				},
 			BinaryViewValid);
-	UIAction::setUserKeyBinding(QString::asprintf("Native Debugger\\%s", actionName.c_str()),
+	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
 								{ QKeySequence(Qt::Key_C) });
 }
 

@@ -152,6 +152,6 @@ public:
     bool isInReferenceArea() const override { return true; }
 
     SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
-        return new DebugRegistersWidget("Native Debugger Registers", frame, data);
+        return new DebugRegistersWidget("Debugger Registers", frame, data);
     }
 };

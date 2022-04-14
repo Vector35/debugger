@@ -1,5 +1,5 @@
 # native_debugger
-Native Debugger for Binary Ninja
+Debugger for Binary Ninja
 
 
 ## Building
