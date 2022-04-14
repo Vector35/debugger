@@ -142,28 +142,28 @@ void AdapterSettingsDialog::apply()
 
 	m_controller->SetAdapterType(selectedAdapter);
     Ref<Metadata> data = new Metadata(selectedAdapter);
-    m_controller->GetData()->StoreMetadata("native_debugger.adapter_type", data);
+    m_controller->GetData()->StoreMetadata("debugger.adapter_type", data);
 
 	// We need better support for shell-style cmd arguments
     std::string args = m_argumentsEntry->text().toStdString();
     m_controller->SetCommandLineArguments(args);
 	data = new Metadata(args);
-    m_controller->GetData()->StoreMetadata("native_debugger.command_line_args", data);
+    m_controller->GetData()->StoreMetadata("debugger.command_line_args", data);
 
     std::string path = m_pathEntry->text().toStdString();
     m_controller->SetExecutablePath(path);
     data = new Metadata(path);
-    m_controller->GetData()->StoreMetadata("native_debugger.executable_path", data);
+    m_controller->GetData()->StoreMetadata("debugger.executable_path", data);
 
 	std::string workingDir = m_workingDirectoryEntry->text().toStdString();
 	m_controller->SetWorkingDirectory(workingDir);
 	data = new Metadata(workingDir);
-	m_controller->GetData()->StoreMetadata("native_debugger.working_directory", data);
+	m_controller->GetData()->StoreMetadata("debugger.working_directory", data);
 
     std::string host = m_addressEntry->text().toStdString();
     m_controller->SetRemoteHost(host);
     data = new Metadata(host);
-    m_controller->GetData()->StoreMetadata("native_debugger.remote_host", data);
+    m_controller->GetData()->StoreMetadata("debugger.remote_host", data);
 
     std::string portString = m_portEntry->text().toStdString();
     uint64_t port;
@@ -179,12 +179,12 @@ void AdapterSettingsDialog::apply()
     
     m_controller->SetRemotePort(port);
     data = new Metadata(port);
-    m_controller->GetData()->StoreMetadata("native_debugger.remote_port", data);
+    m_controller->GetData()->StoreMetadata("debugger.remote_port", data);
 
 	bool requestTerminal = m_terminalEmulator->isChecked();
 	m_controller->SetRequestTerminalEmulator(requestTerminal);
 	data = new Metadata(requestTerminal);
-	m_controller->GetData()->StoreMetadata("native_debugger.terminal_emulator", data);
+	m_controller->GetData()->StoreMetadata("debugger.terminal_emulator", data);
 
     accept();
 }

@@ -522,13 +522,13 @@ void DebuggerBreakpoints::SerializeMetadata()
         info["offset"] = new Metadata(bp.offset);
         breakpoints.push_back(new Metadata(info));
     }
-    m_state->GetController()->GetData()->StoreMetadata("native_debugger.breakpoints", new Metadata(breakpoints));
+    m_state->GetController()->GetData()->StoreMetadata("debugger.breakpoints", new Metadata(breakpoints));
 }
 
 
 void DebuggerBreakpoints::UnserializedMetadata()
 {
-    Ref<Metadata> metadata = m_state->GetController()->GetData()->QueryMetadata("native_debugger.breakpoints");
+    Ref<Metadata> metadata = m_state->GetController()->GetData()->QueryMetadata("debugger.breakpoints");
     if (!metadata || (!metadata->IsArray()))
         return;
 
@@ -696,41 +696,41 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 	}
 
     Ref<Metadata> metadata;
-    // metadata = m_data->QueryMetadata("native_debugger.command_line_args");
+    // metadata = m_data->QueryMetadata("debugger.command_line_args");
     // if (metadata && metadata->IsStringList())
     //     m_commandLineArgs = metadata->GetStringList();
 
-	metadata = m_controller->GetData()->QueryMetadata("native_debugger.executable_path");
+	metadata = m_controller->GetData()->QueryMetadata("debugger.executable_path");
 	if (metadata && metadata->IsString())
 		m_executablePath = metadata->GetString();
 
 	if (m_executablePath == "")
 		m_executablePath = m_controller->GetData()->GetFile()->GetOriginalFilename();
 
-	metadata = m_controller->GetData()->QueryMetadata("native_debugger.working_directory");
+	metadata = m_controller->GetData()->QueryMetadata("debugger.working_directory");
 	if (metadata && metadata->IsString())
 		m_workingDirectory = metadata->GetString();
 
 //	if (m_workingDirectory == "")
 //		m_workingDirectory = m_controller->GetData()->GetFile()->GetOriginalFilename();
 
-    metadata = m_controller->GetData()->QueryMetadata("native_debugger.remote_host");
+    metadata = m_controller->GetData()->QueryMetadata("debugger.remote_host");
     if (metadata && metadata->IsString())
         m_remoteHost = metadata->GetString();
 	if (m_remoteHost.empty())
 		m_remoteHost = "127.0.0.1";
 
-    metadata = m_controller->GetData()->QueryMetadata("native_debugger.remote_port");
+    metadata = m_controller->GetData()->QueryMetadata("debugger.remote_port");
     if (metadata && metadata->IsUnsignedInteger())
         m_remotePort = metadata->GetUnsignedInteger();
 	if (m_remotePort == 0)
         m_remotePort = 31337;
 
-    metadata = m_controller->GetData()->QueryMetadata("native_debugger.adapter_type");
+    metadata = m_controller->GetData()->QueryMetadata("debugger.adapter_type");
     if (metadata && metadata->IsString())
         m_adapterType = metadata->GetString();
 
-    metadata = m_controller->GetData()->QueryMetadata("native_debugger.terminal_emulator");
+    metadata = m_controller->GetData()->QueryMetadata("debugger.terminal_emulator");
     if (metadata && metadata->IsUnsignedInteger())
         m_requestTerminalEmulator = metadata->GetBoolean();
     else
