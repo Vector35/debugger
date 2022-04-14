@@ -66,6 +66,12 @@ namespace BinaryNinjaDebugger
 		virtual BinaryView* Parse(BinaryView* data) override;
 		virtual bool IsTypeValidForData(BinaryView* data) override { return true; }
 		virtual Ref<Settings> GetLoadSettingsForData(BinaryView* data) override { return nullptr; }
+		// Here we abuse (smartly use) the IsDeprecated() API to achieve our goal of stopping BN to construct
+		// the DebugProcessView for any data. We can still construct it manually, as done within the debugger.
+		// Any alternative way to do is to have IsTypeValidForData() return false. However, it does not work well,
+		// because the DataTypeList widget will refuse to list the Debugger view.
+		// TODO: we should probably create a different API, or rename the IsDeprecated() API.
+		virtual bool IsDeprecated() override { return true; };
 	};
 
 

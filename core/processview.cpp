@@ -38,12 +38,6 @@ DebugProcessView::DebugProcessView(BinaryView* parent):
     AddAutoSegment(0, length, 0, length, SegmentReadable | SegmentWritable | SegmentExecutable);
     AddAutoSection("Memory", 0, length);
 
-	// quick and dirty way to deal with the construction by BN
-	// a better way to deal with is to somehow tell BN to not construct this object, even if its validForData()
-	// returns true
-	if (parent->GetTypeName() == "Raw")
-		return;
-
     m_controller = DebuggerController::GetController(parent);
 	m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
 		eventHandler(event);
