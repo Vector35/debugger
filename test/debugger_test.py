@@ -16,7 +16,7 @@ from binaryninja.debugger import DebuggerController, DebugStopReason
 
 # 'helloworld' -> '{BN_SOURCE_ROOT}\public\debugger\test\binaries\Windows-x64\helloworld.exe' (windows)
 # 'helloworld' -> '{BN_SOURCE_ROOT}/public/debugger/test/binaries/Darwin/arm64/helloworld' (linux, macOS)
-def testbin_to_fpath(testbin, arch=None, os_str=None):
+def name_to_fpath(testbin, arch=None, os_str=None):
     if arch is None:
         arch = platform.machine()
 
@@ -44,7 +44,7 @@ class DebuggerAPI(unittest.TestCase):
         self.arch = ''
 
     def test_repeated_use(self):
-        fpath = testbin_to_fpath('helloworld', self.arch)
+        fpath = name_to_fpath('helloworld', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
 
         def run_once():
@@ -75,7 +75,7 @@ class DebuggerAPI(unittest.TestCase):
 
     def test_return_code(self):
         # return code tests
-        fpath = testbin_to_fpath('exitcode', self.arch)
+        fpath = name_to_fpath('exitcode', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
 
         # some systems return byte, or low byte of 32-bit code and others return 32-bit code
@@ -101,7 +101,7 @@ class DebuggerAPI(unittest.TestCase):
                 self.assertIn(exit_code, expected)
 
     def test_exception(self):
-        fpath = testbin_to_fpath('do_exception', self.arch)
+        fpath = name_to_fpath('do_exception', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
 
@@ -137,7 +137,7 @@ class DebuggerAPI(unittest.TestCase):
                 dbg.quit()
 
     def test_step_into(self):
-        fpath = testbin_to_fpath('helloworld', self.arch)
+        fpath = name_to_fpath('helloworld', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
         dbg.cmd_line = 'foobar'
@@ -152,7 +152,7 @@ class DebuggerAPI(unittest.TestCase):
         self.assertEqual(reason, DebugStopReason.ProcessExited)
 
     def test_breakpoint(self):
-        fpath = testbin_to_fpath('helloworld', self.arch)
+        fpath = name_to_fpath('helloworld', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
         self.assertTrue(dbg.launch())
@@ -173,7 +173,7 @@ class DebuggerAPI(unittest.TestCase):
         dbg.quit()
 
     def test_register_read_write(self):
-        fpath = testbin_to_fpath('helloworld', self.arch)
+        fpath = name_to_fpath('helloworld', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
         self.assertTrue(dbg.launch())
@@ -206,7 +206,7 @@ class DebuggerAPI(unittest.TestCase):
         dbg.quit()
 
     def test_memory_read_write(self):
-        fpath = testbin_to_fpath('helloworld', self.arch)
+        fpath = name_to_fpath('helloworld', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
         self.assertTrue(dbg.launch())
@@ -226,7 +226,7 @@ class DebuggerAPI(unittest.TestCase):
         dbg.quit()
 
     def test_thread(self):
-        fpath = testbin_to_fpath('helloworld_thread', self.arch)
+        fpath = name_to_fpath('helloworld_thread', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
         self.assertTrue(dbg.launch())
@@ -280,7 +280,7 @@ class DebuggerAPI(unittest.TestCase):
 
     def test_assembly_code(self):
         if self.arch == 'x86_64':
-            fpath = testbin_to_fpath('asmtest', 'x86_64')
+            fpath = name_to_fpath('asmtest', 'x86_64')
             bv = BinaryViewType.get_view_of_file(fpath)
             dbg = DebuggerController(bv)
             self.assertTrue(dbg.launch())
@@ -320,13 +320,13 @@ class DebuggerAPI(unittest.TestCase):
     def test_attach(self):
         pid = None
         if platform.system() == 'Windows':
-            fpath = testbin_to_fpath('helloworld_loop', self.arch)
+            fpath = name_to_fpath('helloworld_loop', self.arch)
             DETACHED_PROCESS = 0x00000008
             CREATE_NEW_CONSOLE = 0x00000010
             cmds = [fpath]
             pid = subprocess.Popen(cmds, creationflags=CREATE_NEW_CONSOLE).pid
         elif platform.system() in ['Darwin', 'linux']:
-            fpath = testbin_to_fpath('helloworld_loop', self.arch)
+            fpath = name_to_fpath('helloworld_loop', self.arch)
             cmds = [fpath]
             pid = subprocess.Popen(cmds).pid
         else:
