@@ -858,10 +858,14 @@ DebuggerController* DebuggerController::GetController(BinaryViewRef data)
 {
     for (auto& controller: g_debuggerControllers)
     {
-        if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
-            return controller;
-        if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetParentView()->GetFile()->GetOriginalFilename())
-            return controller;
+		if (controller->GetData() == data)
+			return controller;
+		if (controller->GetLiveView() == data)
+			return controller;
+//        if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
+//            return controller;
+//        if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetParentView()->GetFile()->GetOriginalFilename())
+//            return controller;
 //        if (controller->GetData()->GetFile() == data->GetFile())
 //            return controller;
 //        if (controller->GetLiveView() && (controller->GetLiveView()->GetFile() == data->GetFile()))
