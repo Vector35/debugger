@@ -5,7 +5,7 @@ The debugger test binaries are now built by CMake. If you wish to run the unit t
 ## Run unit tests
 ```zsh
 cd test
-python3 unit.py
+python3 debugger_test.py
 ```
 
 ## macOS
