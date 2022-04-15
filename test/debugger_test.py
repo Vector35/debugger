@@ -39,7 +39,8 @@ def is_wow64(fpath):
 
 
 class DebuggerAPI(unittest.TestCase):
-
+    # Always skip the base class so it will never be executed
+    @unittest.skip("do not run the base test class")
     def setUp(self) -> None:
         self.arch = ''
 
@@ -351,6 +352,7 @@ class DebuggerAPI(unittest.TestCase):
         dbg.quit()
 
 
+@unittest.skipIf(platform.system() != 'Darwin' or platform.machine() != 'arm64', "Only run arm64 tests on arm Mac")
 class DebuggerArm64Test(DebuggerAPI):
     def setUp(self) -> None:
         self.arch = 'arm64'
@@ -361,30 +363,15 @@ class Debuggerx64Test(DebuggerAPI):
         self.arch = 'x86_64'
 
 
+@unittest.skipIf(platform.system() == 'Darwin', 'x86 tests not supported on macOS')
 class Debuggerx86Test(DebuggerAPI):
     def setUp(self) -> None:
         self.arch = 'x86'
 
 
-def load_tests(loader, tests, pattern):
-    suite = unittest.TestSuite()
-    if platform.system() == 'Darwin':
-        if platform.machine() == 'arm64':
-            tests = loader.loadTestsFromTestCase(DebuggerArm64Test)
-            suite.addTests(tests)
-        tests = loader.loadTestsFromTestCase(Debuggerx64Test)
-        suite.addTests(tests)
-    elif platform.system() in ['Linux', 'Windows']:
-        tests = loader.loadTestsFromTestCase(Debuggerx64Test)
-        suite.addTests(tests)
-        tests = loader.loadTestsFromTestCase(Debuggerx86Test)
-        suite.addTests(tests)
-
-    return suite
-
-
 def main():
     runner = unittest.TextTestRunner(verbosity=2)
+    # Hack way to load the tests from the current file
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     runner.run(test_suite)
 
