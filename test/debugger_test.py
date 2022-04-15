@@ -70,8 +70,7 @@ class DebuggerAPI(unittest.TestCase):
         # Do the same thing for 10 times
         n = 10
         for i in range(n):
-            with self.subTest(i=i):
-                run_once()
+            run_once()
 
     def test_return_code(self):
         # return code tests
@@ -87,54 +86,57 @@ class DebuggerAPI(unittest.TestCase):
                     ('7', [7]),
                     ('123', [123])]
 
-        for case in testvals:
-            with self.subTest(case):
-                arg, expected = case
-                dbg = DebuggerController(bv)
-                dbg.cmd_line = arg
+        for arg, expected in testvals:
+            dbg = DebuggerController(bv)
+            dbg.cmd_line = arg
 
-                self.assertTrue(dbg.launch())
-                dbg.go()
-                reason = dbg.go()
-                self.assertEqual(reason, DebugStopReason.ProcessExited)
-                exit_code = dbg.exit_code
-                self.assertIn(exit_code, expected)
+            self.assertTrue(dbg.launch())
+            dbg.go()
+            reason = dbg.go()
+            self.assertEqual(reason, DebugStopReason.ProcessExited)
+            exit_code = dbg.exit_code
+            self.assertIn(exit_code, expected)
 
-    def test_exception(self):
+    def test_exception_segfault(self):
         fpath = name_to_fpath('do_exception', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
 
-        with self.subTest('segfault'):
-            dbg.cmd_line = 'segfault'
+        dbg.cmd_line = 'segfault'
+        self.assertTrue(dbg.launch())
+        dbg.go()
+        reason = dbg.go()
+        self.assertEqual(reason, DebugStopReason.AccessViolation)
+        dbg.quit()
+
+    # # This would not work until we fix the test binary
+    # def test_exception_illegalinstr(self):
+    #     fpath = name_to_fpath('do_exception', self.arch)
+    #     bv = BinaryViewType.get_view_of_file(fpath)
+    #     dbg = DebuggerController(bv)
+    #     dbg.cmd_line = 'illegalinstr'
+    #     self.assertTrue(dbg.launch())
+    #     dbg.go()
+    #     reason = dbg.go()
+    #     if platform.system() in ['Windows', 'Linux']:
+    #         expected = DebugStopReason.AccessViolation
+    #     else:
+    #         expected = DebugStopReason.IllegalInstruction
+    #
+    #     self.assertEqual(reason, expected)
+    #     dbg.quit()
+
+    def test_exception_divzero(self):
+        fpath = name_to_fpath('do_exception', self.arch)
+        bv = BinaryViewType.get_view_of_file(fpath)
+        dbg = DebuggerController(bv)
+        if not self.arch == 'arm64':
+            dbg.cmd_line = 'divzero'
             self.assertTrue(dbg.launch())
             dbg.go()
             reason = dbg.go()
-            self.assertEqual(reason, DebugStopReason.AccessViolation)
+            self.assertEqual(reason, DebugStopReason.Calculation)
             dbg.quit()
-
-        # This would not work until we fix the test binary
-        # with self.subTest('illegalinstr'):
-        #     dbg.cmd_line = 'illegalinstr'
-        #     self.assertTrue(dbg.launch())
-        #     dbg.go()
-        #     reason = dbg.go()
-        #     if platform.system() in ['Windows', 'Linux']:
-        #         expected = DebugStopReason.AccessViolation
-        #     else:
-        #         expected = DebugStopReason.IllegalInstruction
-        #
-        #     self.assertEqual(reason, expected)
-        #     dbg.quit()
-
-        if not self.arch == 'arm64':
-            with self.subTest('divzero'):
-                dbg.cmd_line = 'divzero'
-                self.assertTrue(dbg.launch())
-                dbg.go()
-                reason = dbg.go()
-                self.assertEqual(reason, DebugStopReason.Calculation)
-                dbg.quit()
 
     def test_step_into(self):
         fpath = name_to_fpath('helloworld', self.arch)
