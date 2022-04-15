@@ -66,8 +66,6 @@ class DebuggerAPI(unittest.TestCase):
             reason = dbg.go()
             self.assertEqual(reason, DebugStopReason.ProcessExited)
 
-            dbg.destroy()
-
         # Do the same thing for 10 times
         n = 10
         for i in range(n):
