@@ -20,13 +20,3 @@ if(NOT HEADLESS)
 endif()
 
 add_subdirectory(cli)
-
-if(WIN32)
-	add_custom_target(test_debugger
-			COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${BN_RESOURCE_DIR}/python py -3 test/unit.py
-			WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
-else()
-	add_custom_target(test_debugger
-			COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${BN_RESOURCE_DIR}/python python3 test/unit.py
-			WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
-endif()
