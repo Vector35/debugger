@@ -380,3 +380,12 @@ def load_tests(loader, tests, pattern):
 
     return suite
 
+
+def main():
+    runner = unittest.TextTestRunner(verbosity=2)
+    test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    runner.run(test_suite)
+
+
+if __name__ == "__main__":
+    main()
