@@ -318,36 +318,36 @@ class DebuggerAPI(unittest.TestCase):
             reason = dbg.go()
             self.assertEqual(reason, DebugStopReason.ProcessExited)
 
-    def test_attach(self):
-        pid = None
-        if platform.system() == 'Windows':
-            fpath = name_to_fpath('helloworld_loop', self.arch)
-            DETACHED_PROCESS = 0x00000008
-            CREATE_NEW_CONSOLE = 0x00000010
-            cmds = [fpath]
-            pid = subprocess.Popen(cmds, creationflags=CREATE_NEW_CONSOLE).pid
-        elif platform.system() in ['Darwin', 'linux']:
-            fpath = name_to_fpath('helloworld_loop', self.arch)
-            cmds = [fpath]
-            pid = subprocess.Popen(cmds).pid
-        else:
-            print('attaching test not yet implemented on %s' % platform.system())
-
-        self.assertIsNotNone(pid)
-        bv = BinaryViewType.get_view_of_file(fpath)
-        dbg = DebuggerController(bv)
-        self.assertTrue(dbg.attach(pid))
-        for i in range(4):
-            t = threading.Thread(target=lambda dbg: dbg.go(), args=(dbg,))
-            t.start()
-
-            time.sleep(2)
-            dbg.pause()
-
-            regs = dbg.regs
-            self.assertTrue(len(regs) > 0)
-
-        dbg.quit()
+    # def test_attach(self):
+    #     pid = None
+    #     if platform.system() == 'Windows':
+    #         fpath = name_to_fpath('helloworld_loop', self.arch)
+    #         DETACHED_PROCESS = 0x00000008
+    #         CREATE_NEW_CONSOLE = 0x00000010
+    #         cmds = [fpath]
+    #         pid = subprocess.Popen(cmds, creationflags=CREATE_NEW_CONSOLE).pid
+    #     elif platform.system() in ['Darwin', 'linux']:
+    #         fpath = name_to_fpath('helloworld_loop', self.arch)
+    #         cmds = [fpath]
+    #         pid = subprocess.Popen(cmds).pid
+    #     else:
+    #         print('attaching test not yet implemented on %s' % platform.system())
+    #
+    #     self.assertIsNotNone(pid)
+    #     bv = BinaryViewType.get_view_of_file(fpath)
+    #     dbg = DebuggerController(bv)
+    #     self.assertTrue(dbg.attach(pid))
+    #     for i in range(4):
+    #         t = threading.Thread(target=lambda dbg: dbg.go(), args=(dbg,))
+    #         t.start()
+    #
+    #         time.sleep(2)
+    #         dbg.pause()
+    #
+    #         regs = dbg.regs
+    #         self.assertTrue(len(regs) > 0)
+    #
+    #     dbg.quit()
 
 
 @unittest.skipIf(platform.system() != 'Darwin' or platform.machine() != 'arm64', "Only run arm64 tests on arm Mac")
