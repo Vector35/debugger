@@ -380,10 +380,28 @@ class Debuggerx86Test(DebuggerAPI):
         self.arch = 'x86'
 
 
+def filter_test_suite(suite, keyword):
+    result = unittest.TestSuite()
+    for child in suite._tests:
+        if type(child) == unittest.suite.TestSuite:
+            result.addTest(filter_test_suite(child, keyword))
+        elif keyword.lower() in child._testMethodName.lower():
+            result.addTest(child)
+    return result
+
+
 def main():
+    test_keyword = None
+    if len(sys.argv) > 1:
+        test_keyword = sys.argv[1]
+
     runner = unittest.TextTestRunner(verbosity=2)
     # Hack way to load the tests from the current file
     test_suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    # if test keyword supplied, filter
+    if test_keyword:
+        test_suite = filter_test_suite(test_suite, test_keyword)
+
     runner.run(test_suite)
 
 
