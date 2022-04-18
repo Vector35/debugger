@@ -260,13 +260,13 @@ class DebuggerAPI(unittest.TestCase):
 
         if platform.system() == 'Windows':
             # main thread at WaitForMultipleObjects() + 4 created threads + debugger thread
-            nthreads_expected = 9
+            nthreads_expected = [8, 9]
         else:
             # main thread at pthread_join() + 4 created threads
-            nthreads_expected = 5
+            nthreads_expected = [5]
 
         threads = dbg.threads
-        self.assertEqual(len(threads), nthreads_expected)
+        self.assertIn(len(threads), nthreads_expected)
 
         tid_active = dbg.active_thread
         addrs = []
