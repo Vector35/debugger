@@ -10,7 +10,7 @@ import threading
 import subprocess
 import unittest
 
-from binaryninja import BinaryView, BinaryViewType, LowLevelILOperation
+from binaryninja import BinaryView, BinaryViewType, LowLevelILOperation, mainthread
 from binaryninja.debugger import DebuggerController, DebugStopReason
 
 
@@ -239,6 +239,11 @@ class DebuggerAPI(unittest.TestCase):
 
         dbg.quit()
 
+    def break_target(dbg):
+        time.sleep(1)
+        dbg.pause()
+
+    # @unittest.skip
     def test_thread(self):
         fpath = name_to_fpath('helloworld_thread', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
@@ -246,50 +251,43 @@ class DebuggerAPI(unittest.TestCase):
         self.assertTrue(dbg.launch())
         dbg.go()
 
-        # We must resume the target on a different thread and pause it from the current thread.
-        # I do not know why, but if I do it in the opposite way, python crashes when I launch the next target.
-        # This is not observed when I use the debugger from within BN, so I have no easy means of debugging it
-        t = threading.Thread(target=lambda dbg: dbg.go(), args=(dbg,))
+        t = threading.Thread(target=self.break_target, args=(dbg,))
         t.start()
 
+        reason = dbg.go()
+        # This is important. By the time go() returns, dbg.pause() (running on a different thread) is still calling
+        # callbacks. If we do not wait for it to finish, we are in a race condition.
+        # In the future, once we adopt asynchronous communication, this problem can be resolved.
         time.sleep(1)
-        dbg.pause()
 
         # print('switching to bad thread')
         # self.assertFalse(dbg.thread_select(999))
 
-        if platform.system() == 'Windows':
-            # main thread at WaitForMultipleObjects() + 4 created threads + debugger thread
-            nthreads_expected = [8, 9]
-        else:
-            # main thread at pthread_join() + 4 created threads
-            nthreads_expected = [5]
-
         threads = dbg.threads
-        self.assertIn(len(threads), nthreads_expected)
+        self.assertGreater(len(threads), 1)
+
 
         tid_active = dbg.active_thread
         addrs = []
         for thread in threads:
             addrs.append(thread.rip)
 
-        t = threading.Thread(target=lambda dbg: dbg.go(), args=(dbg,))
+        t = threading.Thread(target=break_target, args=(dbg,))
         t.start()
 
+        reason = dbg.go()
         time.sleep(1)
-        dbg.pause()
 
         threads = dbg.threads
-        self.assertEqual(len(threads), nthreads_expected)
+        self.assertGreater(len(threads), 1)
+
         # ensure the eip/rip are in different locations (that the continue actually continued)
         addrs2 = []
         for thread in threads:
             addr = thread.rip
             addrs2.append(addr)
 
-        if not is_wow64(fpath):
-            self.assertNotEqual(addrs, addrs2)
-
+        self.assertNotEqual(addrs, addrs2)
         dbg.quit()
 
     def test_assembly_code(self):
@@ -331,36 +329,28 @@ class DebuggerAPI(unittest.TestCase):
             reason = dbg.go()
             self.assertEqual(reason, DebugStopReason.ProcessExited)
 
-    # def test_attach(self):
-    #     pid = None
-    #     if platform.system() == 'Windows':
-    #         fpath = name_to_fpath('helloworld_loop', self.arch)
-    #         DETACHED_PROCESS = 0x00000008
-    #         CREATE_NEW_CONSOLE = 0x00000010
-    #         cmds = [fpath]
-    #         pid = subprocess.Popen(cmds, creationflags=CREATE_NEW_CONSOLE).pid
-    #     elif platform.system() in ['Darwin', 'linux']:
-    #         fpath = name_to_fpath('helloworld_loop', self.arch)
-    #         cmds = [fpath]
-    #         pid = subprocess.Popen(cmds).pid
-    #     else:
-    #         print('attaching test not yet implemented on %s' % platform.system())
-    #
-    #     self.assertIsNotNone(pid)
-    #     bv = BinaryViewType.get_view_of_file(fpath)
-    #     dbg = DebuggerController(bv)
-    #     self.assertTrue(dbg.attach(pid))
-    #     for i in range(4):
-    #         t = threading.Thread(target=lambda dbg: dbg.go(), args=(dbg,))
-    #         t.start()
-    #
-    #         time.sleep(2)
-    #         dbg.pause()
-    #
-    #         regs = dbg.regs
-    #         self.assertTrue(len(regs) > 0)
-    #
-    #     dbg.quit()
+    def test_attach(self):
+        pid = None
+        if platform.system() == 'Windows':
+            fpath = name_to_fpath('helloworld_loop', self.arch)
+            DETACHED_PROCESS = 0x00000008
+            CREATE_NEW_CONSOLE = 0x00000010
+            cmds = [fpath]
+            pid = subprocess.Popen(cmds, creationflags=CREATE_NEW_CONSOLE).pid
+        elif platform.system() in ['Darwin', 'linux']:
+            fpath = name_to_fpath('helloworld_loop', self.arch)
+            cmds = [fpath]
+            pid = subprocess.Popen(cmds).pid
+        else:
+            print('attaching test not yet implemented on %s' % platform.system())
+
+        self.assertIsNotNone(pid)
+        bv = BinaryViewType.get_view_of_file(fpath)
+        dbg = DebuggerController(bv)
+        self.assertTrue(dbg.attach(pid))
+        self.assertGreater(len(dbg.regs), 0)
+
+        dbg.quit()
 
 
 @unittest.skipIf(platform.system() != 'Darwin' or platform.machine() != 'arm64', "Only run arm64 tests on arm Mac")
