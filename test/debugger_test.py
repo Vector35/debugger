@@ -96,6 +96,12 @@ class DebuggerAPI(unittest.TestCase):
             exit_code = dbg.exit_code
             self.assertIn(exit_code, expected)
 
+    def expect_segfault(self, reason):
+        if platform.system() == 'Linux':
+            self.assertEqual(reason, DebugStopReason.SignalSegv)
+        else:
+            self.assertEqual(reason, DebugStopReason.AccessViolation)
+
     def test_exception_segfault(self):
         fpath = name_to_fpath('do_exception', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
@@ -105,7 +111,7 @@ class DebuggerAPI(unittest.TestCase):
         self.assertTrue(dbg.launch())
         dbg.go()
         reason = dbg.go()
-        self.assertEqual(reason, DebugStopReason.AccessViolation)
+        self.expect_segfault(reason)
         dbg.quit()
 
     # # This would not work until we fix the test binary
@@ -125,6 +131,12 @@ class DebuggerAPI(unittest.TestCase):
     #     self.assertEqual(reason, expected)
     #     dbg.quit()
 
+    def expect_divide_by_zero(self, reason):
+        if platform.system() == 'Linux':
+            self.assertEqual(reason, DebugStopReason.SignalFpe)
+        else:
+            self.assertEqual(reason, DebugStopReason.Calculation)
+
     def test_exception_divzero(self):
         fpath = name_to_fpath('do_exception', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
@@ -134,7 +146,7 @@ class DebuggerAPI(unittest.TestCase):
             self.assertTrue(dbg.launch())
             dbg.go()
             reason = dbg.go()
-            self.assertEqual(reason, DebugStopReason.Calculation)
+            self.expect_divide_by_zero(reason)
             dbg.quit()
 
     def test_step_into(self):
@@ -213,7 +225,8 @@ class DebuggerAPI(unittest.TestCase):
         self.assertTrue(dbg.launch())
         dbg.go()
 
-        addr = dbg.ip
+        # Due to https://github.com/Vector35/debugger/issues/124, we have to skip the bytes at the entry point
+        addr = dbg.ip + 10
         data = dbg.read_memory(addr, 256)
         self.assertFalse(dbg.write_memory(0, b'heheHAHAherherHARHAR'), False)
         data2 = b'\xAA' * 256
