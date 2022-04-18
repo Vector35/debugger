@@ -239,19 +239,19 @@ class DebuggerAPI(unittest.TestCase):
 
         dbg.quit()
 
-    def break_target(dbg):
-        time.sleep(1)
-        dbg.pause()
-
     # @unittest.skip
     def test_thread(self):
+        def break_target(dbg):
+            time.sleep(1)
+            dbg.pause()
+
         fpath = name_to_fpath('helloworld_thread', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
         self.assertTrue(dbg.launch())
         dbg.go()
 
-        t = threading.Thread(target=self.break_target, args=(dbg,))
+        t = threading.Thread(target=break_target, args=(dbg,))
         t.start()
 
         reason = dbg.go()
@@ -266,12 +266,6 @@ class DebuggerAPI(unittest.TestCase):
         threads = dbg.threads
         self.assertGreater(len(threads), 1)
 
-
-        tid_active = dbg.active_thread
-        addrs = []
-        for thread in threads:
-            addrs.append(thread.rip)
-
         t = threading.Thread(target=break_target, args=(dbg,))
         t.start()
 
@@ -280,14 +274,6 @@ class DebuggerAPI(unittest.TestCase):
 
         threads = dbg.threads
         self.assertGreater(len(threads), 1)
-
-        # ensure the eip/rip are in different locations (that the continue actually continued)
-        addrs2 = []
-        for thread in threads:
-            addr = thread.rip
-            addrs2.append(addr)
-
-        self.assertNotEqual(addrs, addrs2)
         dbg.quit()
 
     def test_assembly_code(self):
