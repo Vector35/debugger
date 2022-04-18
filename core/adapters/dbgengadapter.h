@@ -165,6 +165,8 @@ namespace BinaryNinjaDebugger
 		std::uintptr_t GetInstructionOffset() override;
 
 		bool SupportFeature(DebugAdapterCapacity feature) override;
+
+		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid) override;
 	};
 
 	class LocalDbgEngAdapterType: public DebugAdapterType

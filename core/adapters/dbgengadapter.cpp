@@ -811,6 +811,63 @@ bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer
     return this->m_debugDataSpaces->WriteVirtual(address, const_cast<void*>(buffer.GetData()), buffer.GetLength(), &bytes_written) == S_OK && bytes_written == buffer.GetLength();
 }
 
+
+std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
+{
+	std::vector<DebugFrame> result;
+	DebugThread activeThead = GetActiveThread();
+
+	SetActiveThreadId(tid);
+
+	const size_t numFrames = 16;
+	PDEBUG_STACK_FRAME frames = new DEBUG_STACK_FRAME[numFrames];
+	unsigned long framesFilled = 0;
+	if (m_debugControl->GetStackTrace(0, 0, 0, frames, numFrames, &framesFilled) != S_OK)
+		return result;
+
+	for (size_t i = 0; i < framesFilled; i++)
+	{
+		DebugFrame frame;
+		auto engineFrame = frames[i];
+		frame.m_fp = engineFrame.FrameOffset;
+		frame.m_sp = engineFrame.StackOffset;
+		frame.m_pc = engineFrame.InstructionOffset;
+		frame.m_functionStart = engineFrame.FuncTableEntry;
+
+		// Get module info
+		ULONG moduleIndex = 0;
+		uint64_t moduleBase = 0;
+		m_debugSymbols->GetModuleByOffset(engineFrame.InstructionOffset, 0, &moduleIndex, &moduleBase);
+
+		char name[1024];
+		char short_name[1024];
+		char loaded_image_name[1024];
+		if ( this->m_debugSymbols->GetModuleNames(moduleIndex, 0,
+				name, 1024, nullptr,
+				short_name, 1024, nullptr,
+				loaded_image_name, 1024, nullptr ) == S_OK )
+		{
+			frame.m_module = short_name;
+		}
+
+		// Get function info
+		char functionName[1024];
+		unsigned long functionNameLen = 0;
+		uint64_t displacement = 0;
+		if (S_OK == m_debugSymbols->GetNameByOffset(engineFrame.FuncTableEntry, functionName, sizeof(functionName),
+						  &functionNameLen, &displacement))
+		{
+			frame.m_functionName = functionName;
+		}
+
+		result.push_back(frame);
+	}
+
+	SetActiveThread(activeThead);
+	return result;
+}
+
+
 LocalDbgEngAdapterType::LocalDbgEngAdapterType(): DebugAdapterType("Local DBGENG")
 {
 
