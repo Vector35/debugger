@@ -40,12 +40,17 @@ bool LldbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
 bool LldbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
 {
 //	We can connect to remote lldb on any host system
-    return true;
+//  TODO: we need to create a new API to get available adapters, rather the DebugAdapterType::GetAvailableAdapters(),
+//  which returns true when either the CanConnect() and CanExecute() returns true.
+    return false;
 }
 
 
 bool LldbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
 {
+	if (data->GetTypeName() == "PE" && data->GetDefaultArchitecture()->GetName() == "x86")
+		return false;
+
     return true;
 }
 
