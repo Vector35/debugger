@@ -480,6 +480,7 @@ static DebugStopReason GetWindowsStopReasonFromExceptionDescription(const std::s
 	//	exception string: Exception 0xc0000094 encountered at address 0x7ff7d2ec10dc
 	//  0xc0000094 == EXCEPTION_INT_DIVIDE_BY_ZERO
 
+#ifdef WIN32
 	uint32_t exceptionCode = 0;
 	if (auto pos = exceptionString.find(' '); pos != std::string::npos)
 	{
@@ -508,6 +509,7 @@ static DebugStopReason GetWindowsStopReasonFromExceptionDescription(const std::s
 	default:
 		break;
 	}
+#endif
 
 	return DebugStopReason::UnknownReason;
 }
