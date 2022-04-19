@@ -315,6 +315,7 @@ class DebuggerAPI(unittest.TestCase):
             reason = dbg.go()
             self.assertEqual(reason, DebugStopReason.ProcessExited)
 
+    @unittest.skipIf(platform.system() == 'Linux', 'Cannot attach to pid unless running as root')
     def test_attach(self):
         pid = None
         if platform.system() == 'Windows':
@@ -323,7 +324,7 @@ class DebuggerAPI(unittest.TestCase):
             CREATE_NEW_CONSOLE = 0x00000010
             cmds = [fpath]
             pid = subprocess.Popen(cmds, creationflags=CREATE_NEW_CONSOLE).pid
-        elif platform.system() in ['Darwin', 'linux']:
+        elif platform.system() in ['Darwin', 'Linux']:
             fpath = name_to_fpath('helloworld_loop', self.arch)
             cmds = [fpath]
             pid = subprocess.Popen(cmds).pid
