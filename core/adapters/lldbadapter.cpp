@@ -474,7 +474,46 @@ std::string LldbAdapter::GetTargetArchitecture()
 }
 
 
-static DebugStopReason GetStopReasonFromExceptionDescription(const std::string exceptionString)
+static DebugStopReason GetWindowsStopReasonFromExceptionDescription(const std::string exceptionString)
+{
+	//	example:
+	//	exception string: Exception 0xc0000094 encountered at address 0x7ff7d2ec10dc
+	//  0xc0000094 == EXCEPTION_INT_DIVIDE_BY_ZERO
+
+	uint32_t exceptionCode = 0;
+	if (auto pos = exceptionString.find(' '); pos != std::string::npos)
+	{
+		std::string exceptionCodeStr = exceptionString.substr(pos + 1);
+		if (pos = exceptionCodeStr.find(' '); pos != std::string::npos)
+		{
+			exceptionCodeStr = exceptionCodeStr.substr(0, pos);
+			exceptionCode = strtoull(exceptionCodeStr.c_str(), nullptr, 16);
+		}
+	}
+
+	if (exceptionCode == 0)
+		return DebugStopReason::UnknownReason;
+
+	switch ((DWORD)exceptionCode)
+	{
+	case EXCEPTION_INT_DIVIDE_BY_ZERO:
+	case EXCEPTION_FLT_DIVIDE_BY_ZERO:
+		return DebugStopReason::Calculation;
+	case EXCEPTION_ACCESS_VIOLATION:
+		return DebugStopReason::AccessViolation;
+	case EXCEPTION_SINGLE_STEP:
+		return DebugStopReason::SingleStep;
+	case EXCEPTION_BREAKPOINT:
+		return DebugStopReason::Breakpoint;
+	default:
+		break;
+	}
+
+	return DebugStopReason::UnknownReason;
+}
+
+
+static DebugStopReason GetUnixStopReasonFromExceptionDescription(const std::string exceptionString)
 {
 // Right now, the only we to distinguish different kind of exceptions is to parse this.
 // The API fails to give the correct exception code (as well as the associated address).
@@ -523,7 +562,7 @@ static DebugStopReason GetStopReasonFromExceptionDescription(const std::string e
 }
 
 
-static DebugStopReason GetStopReasonFromUnixSignal(uint64_t signal)
+static DebugStopReason GetStopReasonFromLinuxSignal(uint64_t signal)
 {
 	static std::unordered_map<std::uint64_t, DebugStopReason> signal_lookup = {
 		{ 1 , DebugStopReason::SignalHup },
@@ -594,7 +633,7 @@ DebugStopReason LldbAdapter::StopReason()
 				if (dataCount > 0)
 				{
 					uint64_t signal = thread.GetStopReasonDataAtIndex(0);
-					reason = GetStopReasonFromUnixSignal(signal);
+					reason = GetStopReasonFromLinuxSignal(signal);
 				}
 			}
 			else if (threadReason == lldb::eStopReasonException)
@@ -602,7 +641,15 @@ DebugStopReason LldbAdapter::StopReason()
 				char buffer[1024];
 				thread.GetStopDescription(buffer, 1024);
 				std::string exceptionString(buffer);
-				reason = GetStopReasonFromExceptionDescription(exceptionString);
+				std::string triple = m_target.GetTriple();
+				if (triple.find("windows") != std::string::npos)
+				{
+					reason = GetWindowsStopReasonFromExceptionDescription(exceptionString);
+				}
+				else
+				{
+					reason = GetUnixStopReasonFromExceptionDescription(exceptionString);
+				}
 			}
 			else if (threadReason == lldb::eStopReasonPlanComplete)
 			{
