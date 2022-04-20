@@ -291,6 +291,8 @@ void DebugBreakpointsWidget::jump()
 {
     const auto item_row = this->m_table->indexAt(this->m_last_selected_point).row();
     const auto item = this->m_table->model()->index(item_row, 2);
+	if (!item.isValid())
+		return;
 
     Ref<BinaryView> view = m_controller->GetData();
     auto address_or_offset = std::stoull(item.data().toString().toLocal8Bit().data(), nullptr, 16);
