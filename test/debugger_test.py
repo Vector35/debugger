@@ -26,8 +26,12 @@ def name_to_fpath(testbin, arch=None, os_str=None):
     if os_str == 'Windows' and not testbin.endswith('.exe'):
         testbin += '.exe'
 
+    signed = ''
+    if os_str == 'Darwin':
+        signed = '-signed'
+
     base_path = os.path.dirname(os.path.realpath(__file__))
-    path = os.path.realpath(os.path.join(base_path, 'binaries', f'{os_str}-{arch}', testbin))
+    path = os.path.realpath(os.path.join(base_path, 'binaries', f'{os_str}-{arch}{signed}', testbin))
     return path
 
 
