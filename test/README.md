@@ -1,5 +1,7 @@
 # Build and test instructions
 
+The binaries are now build by https://github.com/Vector35/debugger-test-binaries/actions. 
+
 The debugger test binaries are now built by CMake. If you wish to run the unit test, there is no need to build these binaries. One only needs to build it when there are changes to the binaries.
 
 ## Run unit tests
