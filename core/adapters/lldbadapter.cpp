@@ -288,7 +288,24 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigne
 
 bool LldbAdapter::RemoveBreakpoint(const DebugBreakpoint & breakpoint)
 {
-	return m_target.BreakpointDelete(breakpoint.m_id);
+	// Only the address is valid. We cannot use the .m_id info.
+	bool ok = false;
+	uint64_t address = breakpoint.m_address;
+	for (size_t i = 0; i < m_target.GetNumBreakpoints(); i++)
+	{
+		auto bp = m_target.GetBreakpointAtIndex(i);
+		for (size_t j = 0; j < bp.GetNumLocations(); j++)
+		{
+			auto location = bp.GetLocationAtIndex(j);
+			auto bpAddress = location.GetAddress().GetLoadAddress(m_target);
+			if (address == bpAddress)
+			{
+				ok |= m_target.BreakpointDelete(bp.GetID());
+				break;
+			}
+		}
+	}
+	return ok;
 }
 
 
