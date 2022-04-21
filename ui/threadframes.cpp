@@ -35,6 +35,7 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	m_threadList = new QComboBox(this);
 	m_threadFrames = new QListWidget(this);
 
+	layout->addWidget(new QLabel("Thread:"));
 	layout->addWidget(m_threadList);
 	layout->addWidget(m_threadFrames);
 	setLayout(layout);
