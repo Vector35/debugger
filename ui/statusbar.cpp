@@ -128,7 +128,7 @@ DebuggerStatusBarContainer::DebuggerStatusBarContainer():
 
 	auto* noViewLabel = new QLabel("No active view.");
 //	noViewLabel->setStyleSheet("QLabel { background: palette(base); }");
-	noViewLabel->setAlignment(Qt::AlignCenter);
+	noViewLabel->setAlignment(Qt::AlignLeft);
 
 	m_consoleStack->addWidget(noViewLabel);
 }
