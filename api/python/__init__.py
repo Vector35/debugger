@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .debuggercontroller import *
-from .debugadaptertype import *
-from .debugger_enums import *
+import os
+from binaryninja.settings import Settings
+
+if os.environ.get('BN_EXPERIMENTAL_DEBUGGER') or Settings().get_bool('corePlugins.debugger'):
+    from .debuggercontroller import *
+    from .debugadaptertype import *
+    from .debugger_enums import *
