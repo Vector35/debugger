@@ -24,7 +24,7 @@ using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 
 DebuggerStatusBarWidget::DebuggerStatusBarWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data):
-	QWidget(parent), m_view(frame)
+	QWidget(parent), m_parent(parent), m_view(frame)
 {
 	m_debugger = DebuggerController::GetController(data);
 
@@ -34,6 +34,8 @@ DebuggerStatusBarWidget::DebuggerStatusBarWidget(QWidget* parent, ViewFrame* fra
 	setFont(getMonospaceFont(this));
 
 	m_status = new QLabel("Inactive");
+	m_parent->setFixedWidth(m_status->sizeHint().width());
+
 	layout->addWidget(m_status);
 
 	setLayout(layout);
@@ -56,6 +58,7 @@ DebuggerStatusBarWidget::~DebuggerStatusBarWidget()
 void DebuggerStatusBarWidget::setStatusText(const QString &text)
 {
 	m_status->setText(text);
+	m_parent->setFixedWidth(m_status->sizeHint().width());
 }
 
 
@@ -126,11 +129,11 @@ DebuggerStatusBarContainer::DebuggerStatusBarContainer():
 	layout->setContentsMargins(0, 0, 0, 0);
 	layout->addWidget(m_consoleStack);
 
-	auto* noViewLabel = new QLabel("No active view.");
-//	noViewLabel->setStyleSheet("QLabel { background: palette(base); }");
+	auto* noViewLabel = new QLabel("No active view");
 	noViewLabel->setAlignment(Qt::AlignLeft);
 
 	m_consoleStack->addWidget(noViewLabel);
+	setFixedWidth(noViewLabel->sizeHint().width());
 }
 
 
