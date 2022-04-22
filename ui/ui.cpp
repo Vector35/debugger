@@ -191,10 +191,6 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
             if (!liveView)
                 break;
 
-			auto functions = liveView->GetAnalysisFunctionsContainingAddress(address);
-			if (functions.size() == 0)
-				m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
-
 			if (event.type == TargetStoppedEventType &&
 				event.data.targetStoppedData.reason == DebugStopReason::InitialBreakpoint)
 			{
@@ -206,13 +202,17 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 
 				if (newFrame)
 				{
-					newFrame->navigate(m_controller->GetLiveView(), address, true, true);
+//					newFrame->navigate(m_controller->GetLiveView(), address, true, true);
 					m_context->closeTab(m_context->getTabForFile(fileContext));
 					QCoreApplication::processEvents();
 				}
 			}
 			else
 			{
+				auto functions = liveView->GetAnalysisFunctionsContainingAddress(address);
+				if (functions.size() == 0)
+					m_controller->GetLiveView()->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
+
 				navigateDebugger(address);
 				QCoreApplication::processEvents();
 			}

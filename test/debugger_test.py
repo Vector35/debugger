@@ -58,8 +58,6 @@ class DebuggerAPI(unittest.TestCase):
             self.assertTrue(dbg.launch())
 
             # continue execution to the entry point, and check the stop reason
-            reason = dbg.go()
-            self.assertEqual(reason, DebugStopReason.Breakpoint)
             reason = dbg.step_into()
             self.assertEqual(reason, DebugStopReason.SingleStep)
             reason = dbg.step_into()
@@ -94,7 +92,6 @@ class DebuggerAPI(unittest.TestCase):
             dbg.cmd_line = arg
 
             self.assertTrue(dbg.launch())
-            dbg.go()
             reason = dbg.go()
             self.assertEqual(reason, DebugStopReason.ProcessExited)
             exit_code = dbg.exit_code
@@ -113,7 +110,6 @@ class DebuggerAPI(unittest.TestCase):
 
         dbg.cmd_line = 'segfault'
         self.assertTrue(dbg.launch())
-        dbg.go()
         reason = dbg.go()
         self.expect_segfault(reason)
         dbg.quit()
@@ -148,7 +144,6 @@ class DebuggerAPI(unittest.TestCase):
         if not self.arch == 'arm64':
             dbg.cmd_line = 'divzero'
             self.assertTrue(dbg.launch())
-            dbg.go()
             reason = dbg.go()
             self.expect_divide_by_zero(reason)
             dbg.quit()
@@ -159,8 +154,6 @@ class DebuggerAPI(unittest.TestCase):
         dbg = DebuggerController(bv)
         dbg.cmd_line = 'foobar'
         self.assertTrue(dbg.launch())
-        reason = dbg.go()
-        self.assertEqual(reason, DebugStopReason.Breakpoint)
         reason = dbg.step_into()
         self.assertEqual(reason, DebugStopReason.SingleStep)
         reason = dbg.step_into()
@@ -183,9 +176,6 @@ class DebuggerAPI(unittest.TestCase):
         self.assertIsNone(dbg.delete_breakpoint(entry))
         self.assertIsNone(dbg.add_breakpoint(entry))
 
-        reason = dbg.go()
-        self.assertEqual(reason, DebugStopReason.Breakpoint)
-
         self.assertEqual(dbg.ip, entry)
         dbg.quit()
 
@@ -194,7 +184,6 @@ class DebuggerAPI(unittest.TestCase):
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
         self.assertTrue(dbg.launch())
-        dbg.go()
 
         arch_name = bv.arch.name
         if arch_name == 'x86':
@@ -227,7 +216,6 @@ class DebuggerAPI(unittest.TestCase):
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
         self.assertTrue(dbg.launch())
-        dbg.go()
 
         # Due to https://github.com/Vector35/debugger/issues/124, we have to skip the bytes at the entry point
         addr = dbg.ip + 10
@@ -253,7 +241,6 @@ class DebuggerAPI(unittest.TestCase):
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
         self.assertTrue(dbg.launch())
-        dbg.go()
 
         t = threading.Thread(target=break_target, args=(dbg,))
         t.start()
@@ -287,18 +274,7 @@ class DebuggerAPI(unittest.TestCase):
             dbg = DebuggerController(bv)
             self.assertTrue(dbg.launch())
             entry = dbg.live_view.entry_point
-            ip = dbg.ip
-            has_loader = ip != entry
-
-            # a few steps in the loader
-            if has_loader:
-                reason = dbg.step_into()
-                self.assertEqual(reason, DebugStopReason.SingleStep)
-                reason = dbg.step_into()
-                self.assertEqual(reason, DebugStopReason.SingleStep)
-                # go to entry
-                dbg.go()
-                self.assertEqual(dbg.ip, entry)
+            self.assertEqual(dbg.ip, entry)
 
             # TODO: we can use BN to disassemble the binary and find out how long is the instruction
             # step into nop

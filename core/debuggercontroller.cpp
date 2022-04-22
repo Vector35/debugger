@@ -104,6 +104,7 @@ bool DebuggerController::Launch()
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
         m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 		HandleInitialBreakpoint();
+		result = Go();
 	}
 	else
 	{
