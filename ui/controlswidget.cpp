@@ -158,6 +158,9 @@ void DebugControlsWidget::performStepInto()
     if (context && context->getCurrentView())
         graphType = context->getCurrentView()->getILViewType();
 
+	if (graphType == InvalidILViewType)
+		graphType = NormalFunctionGraph;
+
     std::thread([&, graphType](){
         m_controller->StepInto(graphType);
     }).detach();
@@ -170,6 +173,9 @@ void DebugControlsWidget::performStepOver()
     UIContext* context = UIContext::contextForWidget(this);
     if (context && context->getCurrentView())
         graphType = context->getCurrentView()->getILViewType();
+
+	if (graphType == InvalidILViewType)
+		graphType = NormalFunctionGraph;
 
     std::thread([&, graphType](){
         m_controller->StepOver(graphType);
