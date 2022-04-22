@@ -109,7 +109,15 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 
 	SBError error;
 	m_process = m_target.Launch(info, error);
-	return m_process.IsValid() && error.Success();
+	if (!(m_process.IsValid() && error.Success()))
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.error = fmt::format("failed to launch: {}", error.GetCString() ? error.GetCString() : "");
+		PostDebuggerEvent(event);
+		return false;
+	}
+	return true;
 }
 
 

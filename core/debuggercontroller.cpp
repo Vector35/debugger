@@ -105,6 +105,12 @@ bool DebuggerController::Launch()
         m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 		HandleInitialBreakpoint();
 	}
+	else
+	{
+//		TODO: Right now, the LLDBAdapter directly notifies about the failure. In the future, we should let the backend
+//		return both an error value and an error string. And the error will be notified at API level.
+//		NotifyError("Failed to launch the target");
+	}
 	return result;
 }
 
