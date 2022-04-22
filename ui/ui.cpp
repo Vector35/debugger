@@ -75,6 +75,18 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
 			emit debuggerEvent(event);
 		});
     });
+
+	// Since the Controller is constructed earlier than the UI, any breakpoints added before the construction of the UI,
+	// e.g. the entry point breakpoint, will be missing the visual indicator.
+	// Here, we forcibly add them.
+	for (auto bp: m_controller->GetBreakpoints())
+	{
+		DebuggerEvent event;
+		event.type = RelativeBreakpointAddedEvent;
+		event.data.relativeAddress.module = bp.module;
+		event.data.relativeAddress.offset = bp.offset;
+		updateUI(event);
+	}
 }
 
 
@@ -280,12 +292,12 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + event.data.relativeAddress.offset);
 			}
 
-			for (auto& [data, address]: dataAndAddress)
+			for (auto& [data, addr]: dataAndAddress)
 			{
-				for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
+				for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(addr))
 				{
 					bool tagFound = false;
-					for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
+					for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), addr))
 					{
 						if (tag->GetType() == getBreakpointTagType(data))
 						{
@@ -296,8 +308,8 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 
 					if (!tagFound)
 					{
-						func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
-						func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
+						func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), addr, RedHighlightColor);
+						func->CreateUserAddressTag(data->GetDefaultArchitecture(), addr, getBreakpointTagType(data),
 													   "breakpoint");
 					}
 				}
