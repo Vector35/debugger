@@ -132,7 +132,7 @@ QVariant DebugRegistersListModel::data(const QModelIndex& index, int role) const
     {
         // TODO: We need better alignment for values
         uint64_t value = item->value();
-        QString valueStr = QString::asprintf("%" PRIx64, value);
+        QString valueStr = QString::asprintf("0x%" PRIx64, value);
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)valueStr.size());
 
