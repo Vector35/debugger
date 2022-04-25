@@ -141,9 +141,24 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string &
         path_with_args.append(args);
     }
 
-    if (const auto result = this->m_debugClient->CreateProcess(0, const_cast<char*>( path_with_args.c_str() ), DEBUG_ONLY_THIS_PROCESS);
+	DEBUG_CREATE_PROCESS_OPTIONS options;
+	options.CreateFlags = DEBUG_ONLY_THIS_PROCESS;
+	options.EngCreateFlags = 0;
+	options.VerifierFlags = 0;
+	options.Reserved = 0;
+
+	// CreateProcess2() is picky about the InitialDirectory parameter. It is OK to send in a NULL, but if a non-NULL
+	// string which is empty gets passed in, the call fails.
+	char* directory = _strdup(workingDir.c_str());
+	if (workingDir.empty())
+		directory = nullptr;
+
+	if (const auto result = this->m_debugClient->CreateProcess2(0,
+			const_cast<char*>( path_with_args.c_str() ), &options, sizeof(DEBUG_CREATE_PROCESS_OPTIONS),
+			directory, nullptr);
             result != S_OK)
     {
+		LogWarn("failed to launch");
         this->Reset();
         return false;
     }
