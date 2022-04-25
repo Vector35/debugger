@@ -316,7 +316,9 @@ class DebuggerEventWrapper:
 
 
 class DebuggerController:
-
+    """
+    The ``BinaryViewEvent`` object is the core of the debugger.
+    """
     def __init__(self, bv: binaryninja.BinaryView):
         # bv.handle has type binaryninja.core.BNBinaryView, which is different from dbgcore.BNBinaryView,
         # so the casting here is necessary
@@ -337,6 +339,7 @@ class DebuggerController:
 
     @property
     def live_view(self) -> binaryninja.BinaryView:
+        """The live BinaryView of the debugger"""
         result = ctypes.cast(dbgcore.BNDebuggerGetLiveView(self.handle), ctypes.POINTER(binaryninja.core.BNBinaryView))
         if result is None:
             return None
