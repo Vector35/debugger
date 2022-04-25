@@ -57,6 +57,7 @@ void DbgEngAdapter::Start()
             result != S_OK)
         throw std::runtime_error("Failed to set event callbacks");
 
+	m_outputCallbacks.SetAdapter(this);
     if (const auto result = this->m_debugClient->SetOutputCallbacks(&this->m_outputCallbacks);
             result != S_OK)
         throw std::runtime_error("Failed to set output callbacks");
@@ -636,7 +637,7 @@ uint64_t DbgEngAdapter::ExitCode()
 std::string DbgEngAdapter::InvokeBackendCommand(const std::string& command)
 {
     this->m_debugControl->Execute(DEBUG_OUTCTL_ALL_CLIENTS, command.c_str(), DEBUG_EXECUTE_NO_REPEAT);
-	// TODO: get the output
+	// The output is handled by DbgEngOutputCallbacks::Output()
 	return "";
 }
 
@@ -774,14 +775,10 @@ HRESULT DbgEngEventCallbacks::ChangeSymbolState(unsigned long flags, uint64_t ar
 
 HRESULT DbgEngOutputCallbacks::Output(unsigned long mask, const char* text)
 {
-    const auto blue_style = Log::Style(25, 25, 255);
-    const auto white_style = Log::Style(255, 255, 255);
-
-    //if ( std::string(text).find('\n') != std::string::npos )
-    //    Log::print("{}WIN{}DBG{}> {}{}", blue_style, white_style, blue_style, white_style, text );
-    //else
-    //    Log::print("{}WIN{}DBG{}> {}{}\n", blue_style, white_style, blue_style, white_style, text );
-
+	DebuggerEvent event;
+	event.type = BackendMessageEventType;
+	event.data.messageData.message = text;
+	m_adapter->PostDebuggerEvent(event);
     return S_OK;
 }
 
@@ -798,6 +795,11 @@ unsigned long DbgEngOutputCallbacks::Release()
 HRESULT DbgEngOutputCallbacks::QueryInterface(const IID& interface_id, void** _interface)
 {
     return S_OK;
+}
+
+void DbgEngOutputCallbacks::SetAdapter(DebugAdapter* adapter)
+{
+	m_adapter = adapter;
 }
 
 bool DbgEngAdapter::SupportFeature(DebugAdapterCapacity feature)

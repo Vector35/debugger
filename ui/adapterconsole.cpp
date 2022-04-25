@@ -59,11 +59,22 @@ AdapterConsole::AdapterConsole(QWidget* parent, ViewFrame* frame, BinaryViewRef 
 	QPalette widgetPalette = this->palette();
 	QColor foreground = widgetPalette.color(QWidget::foregroundRole());
 	QColor background = widgetPalette.color(QWidget::backgroundRole());
+
+	m_debuggerEventCallback = m_debugger->RegisterEventCallback([&](const DebuggerEvent& event){
+		if (event.type == BackendMessageEventType)
+		{
+			const std::string message = event.data.messageData.message;
+			ExecuteOnMainThreadAndWait([&](){
+				addMessage(QString::fromStdString(message));
+			});
+		}
+	});
 }
 
 
 AdapterConsole::~AdapterConsole()
 {
+	m_debugger->RemoveEventCallback(m_debuggerEventCallback);
 }
 
 

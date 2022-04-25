@@ -40,11 +40,14 @@ namespace BinaryNinjaDebugger
 	#define CALLBACK_METHOD(return_type) return_type __declspec(nothrow) __stdcall
 	class DbgEngOutputCallbacks : public IDebugOutputCallbacks
 	{
+	private:
+		DebugAdapter* m_adapter;
 	public:
 		CALLBACK_METHOD(unsigned long) AddRef() override;
 		CALLBACK_METHOD(unsigned long) Release() override;
 		CALLBACK_METHOD(HRESULT) QueryInterface(const IID& interface_id, void** _interface) override;
 		CALLBACK_METHOD(HRESULT) Output(unsigned long mask, const char* text);
+		void SetAdapter(DebugAdapter* adapter);
 	};
 
 	class DbgEngEventCallbacks : public DebugBaseEventCallbacks

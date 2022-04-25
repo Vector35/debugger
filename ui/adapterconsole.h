@@ -39,6 +39,8 @@ class AdapterConsole: public QWidget
 	QTextEdit* m_consoleLog;
 	QString m_prompt;
 
+	size_t m_debuggerEventCallback;
+
 	void addMessage(const QString& msg);
 	void sendMessage();
 

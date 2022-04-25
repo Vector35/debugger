@@ -204,6 +204,7 @@ extern "C"
 		GeneralEventType,
 
 		StdoutMessageEventType,
+		BackendMessageEventType,
 
 		TargetExitedEventType,
 		DetachedEventType,
