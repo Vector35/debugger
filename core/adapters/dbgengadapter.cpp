@@ -515,6 +515,14 @@ DebugStopReason DbgEngAdapter::StepOver()
     return StopReason();
 }
 
+DebugStopReason DbgEngAdapter::StepReturn()
+{
+	InvokeBackendCommand("gu");
+
+	this->Wait();
+	return StopReason();
+}
+
 bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
 {
     std::memset(&DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint, 0, sizeof(DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint));
