@@ -494,20 +494,8 @@ static bool ConnectedAndRunning(BinaryView* view, uint64_t addr)
 
 void GlobalDebuggerUI::InitializeUI()
 {
-    auto create_icon_with_letter = [](const QString& letter) {
-        auto icon = QImage(56, 56, QImage::Format_RGB32);
-        icon.fill(0);
-        auto painter = QPainter();
-        painter.begin(&icon);
-        painter.setFont(QFont("Open Sans", 56));
-        painter.setPen(QColor(255, 255, 255, 255));
-        painter.drawText(QRectF(0, 0, 56, 56), Qt::Alignment(Qt::AlignCenter), letter);
-        painter.end();
-        return icon;
-    };
-
     Sidebar::addSidebarWidgetType(
-        new DebuggerWidgetType(create_icon_with_letter("D"), "Debugger"));
+        new DebuggerWidgetType(QImage(":/icons/images/debugger/debugger.svg"), "Debugger"));
 
 	// We must use the sequence of these four calls to do the job, otherwise the keybinding does not work.
 	// Though it really should be the case where I can specify the keybinding in the first registerAction() call.
