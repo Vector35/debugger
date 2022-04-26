@@ -24,6 +24,16 @@ from typing import Callable, List
 
 
 class DebugThread:
+    """
+    DebugThread represents a thread in the target. It has the following fields:
+
+    * ``tid``: the ID of the thread. On different systems, this may be either the system thread ID, or a sequential\
+        index starting from zero.
+    * ``rip``: the current address (instruction pointer) of the thread
+
+    In the future, we should provide both the internal thread ID and the system thread ID.
+
+    """
     def __init__(self, tid, rip):
         self.tid = tid
         self.rip = rip
@@ -52,6 +62,16 @@ class DebugThread:
 
 
 class DebugModule:
+    """
+    DebugModule represents a module in the target. It has the following fields:
+
+    * ``name``: the path of the module
+    * ``short_name``: the name of the module
+    * ``address``: the base load address of the module
+    * ``size``: the size of the module
+    * ``loaded``: not used
+
+    """
     def __init__(self, name, short_name, address, size, loaded):
         self.name = name
         self.short_name = short_name
@@ -88,6 +108,17 @@ class DebugModule:
 
 
 class DebugRegister:
+    """
+    DebugRegister represents a register in the target. It has the following fields:
+
+    * ``name``: the name of the register
+    * ``value``: the value of the register
+    * ``width``: the width of the register, in bits. E.g., ``rax`` register is 64-bits wide
+    * ``index``: the index of the register. This is reported by the DebugAdapter and should remain unchanged
+    * ``hint``: a string that shows the content of the memory pointed to by the register. It is empty if the register\
+                value do not point to a valid (mapped) memory region
+
+    """
     def __init__(self, name, value, width, index, hint):
         self.name = name
         self.value = value
@@ -121,6 +152,15 @@ class DebugRegister:
 
 
 class DebugBreakpoint:
+    """
+    DebugBreakpoint represents a breakpoint in the target. It has the following fields:
+
+    * ``module``: the name of the module for which the breakpoint is in
+    * ``offset``: the offset of the breakpoint to the start of the module
+    * ``address``: the absolute address of the breakpoint
+    * ``enabled``: not used
+
+    """
     def __init__(self, module, offset, address, enabled):
         self.module = module
         self.offset = offset
@@ -152,6 +192,13 @@ class DebugBreakpoint:
 
 
 class ModuleNameAndOffset:
+    """
+    ModuleNameAndOffset represents an address that is relative to the start of module. It is useful when ASLR is on.
+
+    * ``module``: the name of the module for which the address is in
+    * ``offset``: the offset of the address to the start of the module
+
+    """
     def __init__(self, module, offset):
         self.module = module
         self.offset = offset
@@ -191,6 +238,18 @@ class ModuleNameAndOffset:
 
 
 class DebugFrame:
+    """
+    DebugFrame represents a frame in the stack trace. It has the following fields:
+
+    * ``index``: the index of the frame
+    * ``pc``: the program counter of the frame
+    * ``sp``: the stack pointer of the frame
+    * ``fp``: the frame pointer of the frame
+    * ``func_name``: the function name which the pc is in
+    * ``func_start``: the start of the function
+    * ``module``: the module of the pc
+
+    """
     def __init__(self, index, pc, sp, fp, func_name, func_start, module):
         self.index = index
         self.pc = pc
@@ -227,6 +286,15 @@ class DebugFrame:
 
 
 class TargetStoppedEventData:
+    """
+    TargetStoppedEventData is the data associated with a TargetStoppedEvent
+
+    * ``reason``: the reason of the stop
+    * ``last_active_thread``: not used
+    * ``exit_code``: not used
+    * ``data``: extra data. Not used.
+
+    """
     def __init__(self, reason: DebugStopReason, last_active_thread: int, exit_code: int, data):
         self.reason = reason
         self.last_active_thread = last_active_thread
@@ -235,22 +303,52 @@ class TargetStoppedEventData:
 
 
 class ErrorEventData:
+    """
+    ErrorEventData is the data associated with a ErrorEvent
+
+    * ``error``: the error message
+    * ``data``: extra data. Not used.
+
+    """
     def __init__(self, error: str, data):
         self.error = error
         self.data = data
 
 
 class TargetExitedEventData:
+    """
+    TargetExitedEventData is the data associated with a TargetExitedEvent
+
+    * ``exit_code``: the exit code of the target
+
+    """
     def __init__(self, exit_code: int):
         self.exit_code = exit_code
 
 
 class StdOutMessageEventData:
+    """
+    StdOutMessageEventData is the data associated with a StdOutMessageEvent
+
+    * ``message``: the message that the target writes to the stdout
+
+    """
     def __init__(self, message: str):
         self.message = message
 
 
 class DebuggerEventData:
+    """
+    DebuggerEventData is the collection of all possible data associated with the debugger events
+
+    * ``target_stopped_data``: the data associated with a TargetStoppedEvent
+    * ``error_data``: the data associated with an ErrorEvent
+    * ``absolute_address``: an integer address, which is used when an absolute breakpoint is added/removed
+    * ``relative_address``: a ModuleNameAndOffset, which is used when a relative breakpoint is added/removed
+    * ``exit_data``: the data associated with a TargetExitedEvent
+    * ``message_data``: message data, used by both StdOutMessageEvent and BackendMessageEvent
+
+    """
     def __init__(self, target_stopped_data: TargetStoppedEventData,
                  error_data: ErrorEventData,
                  absolute_address: int,
@@ -266,6 +364,13 @@ class DebuggerEventData:
 
 
 class DebuggerEvent:
+    """
+    DebuggerEvent is the event object that a debugger event callback receives
+
+    * ``type``: a DebuggerEventType that specifies the event type
+    * ``data``: a DebuggerEventData that specifies the event data
+
+    """
     def __init__(self, type: DebuggerEventType, data: DebuggerEventData):
         self.type = type
         self.data = data
