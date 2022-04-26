@@ -317,7 +317,35 @@ class DebuggerEventWrapper:
 
 class DebuggerController:
     """
-    The ``BinaryViewEvent`` object is the core of the debugger.
+    The ``DebuggerController`` object is the core of the debugger. Most debugger operations can be performed on it.
+    It takes in a ``BinaryView`` and creates a debugger for it. If a debugger is already existing for the very same
+    BinaryView object, the debugger is returned.
+
+    Most operations of the debugger are performed on this class. For example, we can launch the debugger as follows::
+
+        >>> bv = BinaryViewType.get_view_of_file("test/binaries/helloworld")
+        >>> dbg = DebuggerController(bv)
+        >>> dbg.launch()
+        True
+
+    When the ``launch()`` returns True, it means the debugger has launched the target successfully. The target breaks at
+    the entry point of the binary. Now we can perform other control operations on it, e.g., resume the target by calling
+    ``go()``.
+
+        >>> dbg.go()
+        <DebugStopReason.ProcessExited: 2>
+
+    Since there are no other breakpoints in the target, the process executes and then exits.
+
+    All target control funciotns, e.g., ``go()``, ``step_into()``, etc, are blocking. They will not return until the
+    target breaks. In the future, we will switch to an asyunchrounous communication model where these functions return
+    before the operation is performed.
+
+    For each insteance of DebuggerController, there are two BinaryViews associated with it. The first one is the
+    original BinaryView that gets rebased to the proper offset according to the target's actual base. The second is a
+    "live" BinaryView that represents the entire memory space of the target process. They can be accessed by ``data``
+    and ``live_view``, respectively.
+
     """
     def __init__(self, bv: binaryninja.BinaryView):
         # bv.handle has type binaryninja.core.BNBinaryView, which is different from dbgcore.BNBinaryView,
@@ -328,10 +356,14 @@ class DebuggerController:
         self.handle = dbgcore.BNGetDebuggerController(bv_obj)
 
     def destroy(self):
+        """
+        Delete the DebuggerController object. Intended for internal use. Ordinary users do not need to call it.
+        """
         dbgcore.BNDebuggerDestroyController(self.handle)
 
     @property
     def data(self) -> binaryninja.BinaryView:
+        """Get the (rebased) BinaryView of the debugger"""
         result = ctypes.cast(dbgcore.BNDebuggerGetData(self.handle), ctypes.POINTER(binaryninja.core.BNBinaryView))
         if result is None:
             return None
@@ -339,7 +371,7 @@ class DebuggerController:
 
     @property
     def live_view(self) -> binaryninja.BinaryView:
-        """The live BinaryView of the debugger"""
+        """Get the live BinaryView of the debugger"""
         result = ctypes.cast(dbgcore.BNDebuggerGetLiveView(self.handle), ctypes.POINTER(binaryninja.core.BNBinaryView))
         if result is None:
             return None
@@ -347,6 +379,9 @@ class DebuggerController:
 
     @property
     def remote_arch(self) -> binaryninja.Architecture:
+        """
+        Get the architecture of the running target (read-only). This could be different from the architecture of the original binary.
+        """
         result = ctypes.cast(dbgcore.BNDebuggerGetRemoteArchitecture(self.handle), ctypes.POINTER(binaryninja.core.BNArchitecture))
         if result is None:
             return None
@@ -354,23 +389,46 @@ class DebuggerController:
 
     @property
     def connected(self) -> bool:
+        """Whether the debugger has successfully connected to the target (read-only)"""
         return dbgcore.BNDebuggerIsConnected(self.handle)
 
     @property
     def running(self) -> bool:
+        """Whether the target is running (read-only)"""
         return dbgcore.BNDebuggerIsRunning(self.handle)
 
     @property
     def stack_pointer(self) -> int:
+        """The stack pointer of the target (read-only)"""
         return dbgcore.BNDebuggerGetStackPointer(self.handle)
 
     def read_memory(self, address: int, size: int) -> binaryninja.DataBuffer:
+        """
+        Read memory from the target.
+
+        One can also get the ``live_view`` BinaryView of the DebuggerController, and use ordinary read methods to read
+        its content.
+
+        :param address: address to read from
+        :param size: number of bytes to read
+        :return: always returns a DataBuffer. When the operation fails, the size of the DataBuffer is 0x0
+        """
         buffer = ctypes.cast(dbgcore.BNDebuggerReadMemory(self.handle, address, size), ctypes.POINTER(binaryninja.core.BNDataBuffer))
         if buffer is None:
             return None
         return binaryninja.DataBuffer(handle=buffer)
 
     def write_memory(self, address: int, buffer) -> bool:
+        """
+        Write memory of the target.
+
+        One can also get the ``live_view`` BinaryView of the DebuggerController, and use ordinary write methods to write
+        its content.
+
+        :param address: address to write to
+        :param buffer: buffer of data to write. It can be either bytes or a DataBuffer
+        :return: True on success, False on failure.
+        """
         if isinstance(buffer, bytes):
             buffer = binaryninja.DataBuffer(buffer)
         buffer_obj = ctypes.cast(buffer.handle, ctypes.POINTER(dbgcore.BNDataBuffer))
@@ -378,6 +436,11 @@ class DebuggerController:
 
     @property
     def threads(self) -> List[DebugThread]:
+        """
+        The threads of the target.
+
+        :return:
+        """
         count = ctypes.c_ulonglong()
         threads = dbgcore.BNDebuggerGetThreads(self.handle, count)
         result = []
@@ -390,6 +453,12 @@ class DebuggerController:
 
     @property
     def active_thread(self) -> DebugThread:
+        """
+        The active thread of the target.  (read/write)
+
+        :getter: returns the active thread of the target
+        :setter: sets the active thread of the target
+        """
         active_thread = dbgcore.BNDebuggerGetActiveThread(self.handle)
         return DebugThread(active_thread.m_tid, active_thread.m_rip)
 
@@ -399,6 +468,11 @@ class DebuggerController:
 
     @property
     def modules(self) -> List[DebugModule]:
+        """
+        The modules of the target
+
+        :return: a list of ``DebugModule``
+        """
         count = ctypes.c_ulonglong()
         modules = dbgcore.BNDebuggerGetModules(self.handle, count)
         result = []
@@ -411,6 +485,11 @@ class DebuggerController:
 
     @property
     def regs(self) -> List[DebugRegister]:
+        """
+        All registers of the target
+
+        :return: a list of ``DebugRegister``
+        """
         count = ctypes.c_ulonglong()
         registers = dbgcore.BNDebuggerGetRegisters(self.handle, count)
         result = []
@@ -422,49 +501,172 @@ class DebuggerController:
         return result
 
     def get_reg_value(self, reg: str) -> int:
+        """
+        Get the value of one register by its name
+
+        :param reg: the name of the register
+        :return:
+        """
         return dbgcore.BNDebuggerGetRegisterValue(self.handle, reg)
 
     def set_reg_value(self, reg: str, value: int) -> bool:
+        """
+        Set value of register
+
+        :param reg: the name of the register
+        :param value: new value of the register
+        :return:
+        """
         return dbgcore.BNDebuggerSetRegisterValue(self.handle, reg, value)
 
     # target control
     def launch(self) -> bool:
+        """
+        Launch the target
+
+        :return:
+        """
         return dbgcore.BNDebuggerLaunch(self.handle)
 
     def restart(self) -> None:
+        """
+        Restart the target
+
+        :return:
+        """
         dbgcore.BNDebuggerRestart(self.handle)
 
     def quit(self) -> None:
+        """
+        Terminate the target
+
+        :return:
+        """
         dbgcore.BNDebuggerQuit(self.handle)
 
     def connect(self) -> None:
+        """
+        Connect to a remote target.
+
+        :return:
+        """
         dbgcore.BNDebuggerConnect(self.handle)
 
     def detach(self) -> None:
+        """
+        Detach the target, and let it execute on its own.
+
+        :return:
+        """
         dbgcore.BNDebuggerQuit(self.handle)
 
     def pause(self) -> None:
+        """
+        Pause a running target
+
+        :return:
+        """
         dbgcore.BNDebuggerPause(self.handle)
 
     def launch_or_connect(self) -> None:
+        """
+        Launch or connect to the target. Intended for internal use. Ordinary users do not need to call it.
+        :return:
+        """
         dbgcore.BNDebuggerLaunchOrConnect(self.handle)
 
     def attach(self, pid: int) -> bool:
+        """
+        Attach to a running process by its PID
+
+        :param pid: the PID of the process to attach to
+        :return:
+        """
         return dbgcore.BNDebuggerAttach(self.handle, pid)
 
     def go(self) -> DebugStopReason:
+        """
+        Resume the target.
+
+        The call is blocking and only returns when the target stops.
+        :return: the reason for the stop
+        """
         return DebugStopReason(dbgcore.BNDebuggerGo(self.handle))
 
     def step_into(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
+        """
+        Perform a step into on the target.
+
+        When the next instruction is not a call, execute the next instruction. When the next instruction is a call,
+        follow the call the get into the first instruction of the call.
+
+        The operation can be performed on an IL level specified by the ``il`` parameter, which then either executes the
+        next IL instruction, or follow into the IL function. Note, the underlying operation is still performed at the
+        disassembly level because that is the only thing a debugger understands. The high-level operations are simulated
+        on top of the disassembly and analysis.
+
+        Some limitations are known with stepping into on IL.
+
+        The call is blocking and only returns when the target stops.
+
+        :param il: optional IL level to perform the operation at.
+        :return: the reason for the stop
+        """
         return DebugStopReason(dbgcore.BNDebuggerStepInto(self.handle, il))
 
     def step_over(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
+        """
+        Perform a step over on the target.
+
+        When the next instruction is not a call, execute the next instruction. When the next instruction is a call,
+        complete the execution of the function and break at next instruction.
+
+        The operation can be performed on an IL level specified by the ``il`` parameter, which then either executes the
+        next IL instruction, or completes the IL function. Note, the underlying operation is still performed at the
+        disassembly level because that is the only thing a debugger understands. The high-level operations are simulated
+        on top of the disassembly and analysis.
+
+        Some limitations are known with stepping over on IL.
+
+        The call is blocking and only returns when the target stops.
+
+        :param il: optional IL level to perform the operation at.
+        :return: the reason for the stop
+        """
         return DebugStopReason(dbgcore.BNDebuggerStepOver(self.handle, il))
 
     def step_return(self) -> DebugStopReason:
+        """
+        Perform a step return on the target.
+
+        Step return completes the execution of the current function and returns to its caller. This operation relies
+        heavily on stack frame analysis, which is done by the DebugAdapters.
+
+        If a DebugAdapter does not support (i.e., overload) this function, a fallback handling is provided by the
+        DebuggerController. It checks the MLIL function and put breakpoints on all returning instructions and then resume
+        the target. By the time it breaks, the target is about to return from the current function.
+
+        This fallback behavior is slightly different from that offered by the LLDB and DbgEng adapter, which returns
+        from the current function and break afterwards.
+
+        The call is blocking and only returns when the target stops.
+
+        :return: the reason for the stop
+        """
         return DebugStopReason(dbgcore.BNDebuggerStepReturn(self.handle))
 
-    def step_to(self, address) -> DebugStopReason:
+    def run_to(self, address) -> DebugStopReason:
+        """
+        Resume the target, and wait for it to break at the given address(es).
+
+        The address parameter can be either an integer, or a list of integers.
+
+        Internally, the debugger places breeakpoints on these addresses, resume the target, and wait for the target
+        to break. Then the debugger removes the added breakpoints.
+
+        The call is blocking and only returns when the target stops.
+
+        """
         if isinstance(address, int):
             address = [address]
 
@@ -474,10 +676,17 @@ class DebuggerController:
         addr_list = (ctypes.c_uint64 * len(address))()
         for i in range(len(address)):
             addr_list[i] = address[i]
-        return DebugStopReason(dbgcore.BNDebuggerStepTo(self.handle, addr_list, len(address)))
+
+        return DebugStopReason(dbgcore.BNDebuggerRunTo(self.handle, addr_list, len(address)))
 
     @property
     def adapter_type(self) -> str:
+        """
+        The name fo the current DebugAdapter. (read/write)
+
+        :getter: returns the name of the current DebugAdapter
+        :setter: sets the DebugAdapter to use
+        """
         return dbgcore.BNDebuggerGetAdapterType(self.handle)
 
     @adapter_type.setter
@@ -486,14 +695,32 @@ class DebuggerController:
 
     @property
     def connection_status(self) -> DebugAdapterConnectionStatus:
+        """
+        Get the connection status of the debugger
+
+        :return:
+        """
         return DebugAdapterConnectionStatus(dbgcore.BNDebuggerGetConnectionStatus(self.handle))
 
     @property
     def target_status(self) -> DebugAdapterTargetStatus:
+        """
+        Get the status of the target
+
+        :return:
+        """
         return DebugAdapterTargetStatus(dbgcore.BNDebuggerGetTargetStatus(self.handle))
 
     @property
     def remote_host(self) -> str:
+        """
+        The remote host to connect to. (read/write)
+
+        ``remote_host`` and ``remote_port`` are only useful for remote debugging.
+
+        :getter: returns the remote host
+        :setter: sets the remote host
+        """
         return dbgcore.BNDebuggerGetRemoteHost(self.handle)
 
     @remote_host.setter
@@ -502,6 +729,14 @@ class DebuggerController:
 
     @property
     def remote_port(self) -> int:
+        """
+        The remote port to connect to. (read/write)
+
+        ``remote_host`` and ``remote_port`` are only useful for remote debugging.
+
+        :getter: returns the remote port
+        :setter: sets the remote port
+        """
         return dbgcore.BNDebuggerGetRemotePort(self.handle)
 
     @remote_port.setter
@@ -510,6 +745,15 @@ class DebuggerController:
 
     @property
     def executable_path(self) -> str:
+        """
+        The path of the executable. (read/write)
+
+        This can be set before launching the target. Be default, it is the path of the FileMetadata
+        (``bv.file.filename``)
+
+        :getter: returns the executable path
+        :setter: sets the executable path
+        """
         return dbgcore.BNDebuggerGetExecutablePath(self.handle)
 
     @executable_path.setter
@@ -518,6 +762,16 @@ class DebuggerController:
 
     @property
     def working_directory(self) -> str:
+        """
+        The path of the target. (read/write)
+
+        This can be set before launching the target to configure a working directory. Be default, it is the path of the
+        binaryninja executable. In the future, we will change the default workding directory to the folder that the
+        executable is in.
+
+        :getter: returns the working directory
+        :setter: sets the working directory
+        """
         return dbgcore.BNDebuggerGetWorkingDirectory(self.handle)
 
     @working_directory.setter
@@ -526,6 +780,19 @@ class DebuggerController:
 
     @property
     def request_terminal_emulator(self) -> bool:
+        """
+        Whether to run the target in a separate terminal. (read/write)
+
+        The default value is false.
+
+        This can be set before launching the target to configure whether the target should be executed in a separate
+        terminal. On Linux and macOS, when set, the target runs in its own terminal and the DebuggerController cannot
+        receive notification of stdout output, or write to its stdin. All input/output must be performed in the target's
+        console. On Windows, this option has no effect and the target always runs in its own terminal.
+
+        :getter: returns whether to run the target in a separate terminal
+        :setter: sets whether to run the target in a separate terminal
+        """
         return dbgcore.BNDebuggerGetRequestTerminalEmulator(self.handle)
 
     @request_terminal_emulator.setter
@@ -534,6 +801,15 @@ class DebuggerController:
 
     @property
     def cmd_line(self) -> str:
+        """
+        The command line arguments of the target. (read/write)
+
+        This can be set before launching the target to specify the command line arguments. The arguments are supplied as
+        a single string. The string is NOT shell expanded, which means the user must properly escape it if needed.
+
+        :getter: returns the command line arguments
+        :setter: sets the command line arguments
+        """
         return dbgcore.BNDebuggerGetCommandLineArguments(self.handle)
 
     @cmd_line.setter
@@ -542,6 +818,11 @@ class DebuggerController:
 
     @property
     def breakpoints(self) -> List[DebugBreakpoint]:
+        """
+        The list of breakpoints
+
+        :return:
+        """
         count = ctypes.c_ulonglong()
         breakpoints = dbgcore.BNDebuggerGetBreakpoints(self.handle, count)
         result = []
@@ -553,6 +834,15 @@ class DebuggerController:
         return result
 
     def delete_breakpoint(self, address):
+        """
+        Delete a breakpoint
+
+        The input can be either an absolute address, or a ModuleNameAndOffset, which specifies a relative address to the
+        start of a module. The latter is useful for ASLR.
+
+        :param address: the address of breakpoint to delete
+        :return:
+        """
         if isinstance(address, int):
             dbgcore.BNDebuggerDeleteAbsoluteBreakpoint(self.handle, address)
         elif isinstance(address, ModuleNameAndOffset):
@@ -561,6 +851,15 @@ class DebuggerController:
             raise NotImplementedError
 
     def add_breakpoint(self, address):
+        """
+        Add a breakpoint
+
+        The input can be either an absolute address, or a ModuleNameAndOffset, which specifies a relative address to the
+        start of a module. The latter is useful for ASLR.
+
+        :param address: the address of breakpoint to add
+        :return:
+        """
         if isinstance(address, int):
             dbgcore.BNDebuggerAddAbsoluteBreakpoint(self.handle, address)
         elif isinstance(address, ModuleNameAndOffset):
@@ -569,6 +868,15 @@ class DebuggerController:
             raise NotImplementedError
 
     def has_breakpoint(self, address) -> bool:
+        """
+        Checks whether a breakpoint exists at the specified address
+
+        The input can be either an absolute address, or a ModuleNameAndOffset, which specifies a relative address to the
+        start of a module. The latter is useful for ASLR.
+
+        :param address: the address of breakpoint to query
+        :return:
+        """
         if isinstance(address, int):
             return dbgcore.BNDebuggerContainsAbsoluteBreakpoint(self.handle, address)
         elif isinstance(address, ModuleNameAndOffset):
@@ -578,23 +886,66 @@ class DebuggerController:
 
     @property
     def ip(self) -> int:
+        """
+        The IP (instruction pointer) of the target
+
+        For x86_64, it returns the value of ``rip`` register.
+
+        For x86, it returns the value of ``eip`` register.
+
+        For armv7/aarch64, or any other architecture that is not native to BN, it returns the value of ``pc`` register.
+
+        :return:
+        """
         return dbgcore.BNDebuggerGetIP(self.handle)
 
     @property
     def last_ip(self) -> int:
+        """
+        The IP (instruction pointer) when the target breaks last time.
+
+        :return:
+        """
         return dbgcore.BNDebuggerGetLastIP(self.handle)
 
     @property
     def exit_code(self) -> int:
+        """
+        The exit code of the target (read-only)
+
+        This is only meaningful after the target has executed and exited.
+
+        :return:
+        """
         return dbgcore.BNDebuggerGetExitCode(self.handle)
 
     def register_event_callback(self, callback) -> int:
+        """
+        Register a debugger event callback to receive notification when various events happen.
+
+        TODO:
+
+        :param callback:
+        :return: an integer handle to the registered event callback
+        """
         return DebuggerEventWrapper.register(self, callback)
 
     def remove_event_callback(self, index: int):
+        """
+        Remove the debuggeer event callback from the DebuggerController
+
+        :param index:
+        :return:
+        """
         DebuggerEventWrapper.remove(self, index)
 
     def frames_of_thread(self, tid: int) -> List[DebugFrame]:
+        """
+        Get the stack frames of the thread specified by ``tid``
+
+        :param tid:
+        :return: list of stack frames
+        """
         count = ctypes.c_ulonglong()
         frames = dbgcore.BNDebuggerGetFramesOfThread(self.handle, tid, count)
         result = []
@@ -608,15 +959,48 @@ class DebuggerController:
 
     @property
     def stop_reason(self) -> DebugStopReason:
+        """
+        The reason for the target to stop
+
+        This is the same value to the return value of the function that resumed the target, e.g., ``go()``
+        :return:
+        """
         return DebugStopReason(dbgcore.BNDebuggerGetStopReason(self.handle))
 
     @property
     def stop_reason_str(self) -> str:
+        """
+        String description of the target stop reason
+
+        :return:
+        """
         return dbgcore.BNDebuggerGetStopReasonString(self.stop_reason)
 
     def write_stdin(self, data: str) -> None:
+        """
+        Write to the stdin of the target. Only works on Linux and macOS.
+
+        :param data:
+        :return:
+        """
         dbgcore.BNDebuggerWriteStdin(self.handle, data)
 
     def execute_backend_command(self, command: str) -> str:
+        """
+        Execute a backend command and get the output
+
+        For LLDB adapter (on Linux and macOS), any LLDB commands can be executed. The returned string is what gets
+        printed if one executes the command in the LLDB prompt.
+
+        For DbgEnd adapter (on Windows), any Windbg commands can be executed. However, nothing will be returned.
+        This is because the backend processes the command asynchronously. By the time it returns, the commands are not
+        executed yet. However, the output are still printed to the Debugger console in the global area.
+
+        Note, the user should never run any command that resumes the target (either running or stepping). It will
+        cause the UI to de-synchronize and even hang. This is a known limitation, and we will try to asddress it.
+
+        :param command:
+        :return:
+        """
         return dbgcore.BNDebuggerInvokeBackendCommand(self.handle, command)
 
