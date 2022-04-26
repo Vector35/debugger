@@ -453,16 +453,16 @@ class DebuggerController:
         return dbgcore.BNDebuggerAttach(self.handle, pid)
 
     def go(self) -> DebugStopReason:
-        return dbgcore.BNDebuggerGo(self.handle)
+        return DebugStopReason(dbgcore.BNDebuggerGo(self.handle))
 
     def step_into(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
-        return dbgcore.BNDebuggerStepInto(self.handle, il)
+        return DebugStopReason(dbgcore.BNDebuggerStepInto(self.handle, il))
 
     def step_over(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
-        return dbgcore.BNDebuggerStepOver(self.handle, il)
+        return DebugStopReason(dbgcore.BNDebuggerStepOver(self.handle, il))
 
     def step_return(self) -> DebugStopReason:
-        return dbgcore.BNDebuggerStepReturn(self.handle)
+        return DebugStopReason(dbgcore.BNDebuggerStepReturn(self.handle))
 
     def step_to(self, address) -> DebugStopReason:
         if isinstance(address, int):
@@ -474,7 +474,7 @@ class DebuggerController:
         addr_list = (ctypes.c_uint64 * len(address))()
         for i in range(len(address)):
             addr_list[i] = address[i]
-        return dbgcore.BNDebuggerStepTo(self.handle, addr_list, len(address))
+        return DebugStopReason(dbgcore.BNDebuggerStepTo(self.handle, addr_list, len(address)))
 
     @property
     def adapter_type(self) -> str:
@@ -486,11 +486,11 @@ class DebuggerController:
 
     @property
     def connection_status(self) -> DebugAdapterConnectionStatus:
-        return dbgcore.BNDebuggerGetConnectionStatus(self.handle)
+        return DebugAdapterConnectionStatus(dbgcore.BNDebuggerGetConnectionStatus(self.handle))
 
     @property
     def target_status(self) -> DebugAdapterTargetStatus:
-        return dbgcore.BNDebuggerGetTargetStatus(self.handle)
+        return DebugAdapterTargetStatus(dbgcore.BNDebuggerGetTargetStatus(self.handle))
 
     @property
     def remote_host(self) -> str:
@@ -608,7 +608,7 @@ class DebuggerController:
 
     @property
     def stop_reason(self) -> DebugStopReason:
-        return dbgcore.BNDebuggerGetStopReason(self.handle)
+        return DebugStopReason(dbgcore.BNDebuggerGetStopReason(self.handle))
 
     @property
     def stop_reason_str(self) -> str:
