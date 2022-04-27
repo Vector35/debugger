@@ -32,8 +32,9 @@ void InitDebugAdapterTypes()
     InitDbgEngAdapterType();
 #endif
 
-    InitGdbAdapterType();
-    InitLldbRspAdapterType();
+//	Disable these adapters because they are not tested, and will get replaced later
+//    InitGdbAdapterType();
+//    InitLldbRspAdapterType();
 	InitLldbAdapterType();
 }
 
