@@ -47,10 +47,10 @@ GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 		m_window->statusBar()->insertWidget(0, m_status);
 	}
 
-	auto* globalDebuggerConsoleContainer = new GlobalConsoleContainer("Debugger Target Console");
+	auto* globalDebuggerConsoleContainer = new GlobalConsoleContainer("Target Terminal");
 	context->globalArea()->addWidget(globalDebuggerConsoleContainer);
 
-	auto* globalAdapterConsoleContainer = new GlobalAdapterConsoleContainer("DebugAdapter Console");
+	auto* globalAdapterConsoleContainer = new GlobalAdapterConsoleContainer("Debugger Console");
 	context->globalArea()->addWidget(globalAdapterConsoleContainer);
 
 	auto* globalThreadFramesContainer = new GlobalThreadFramesContainer("Stack Trace");
