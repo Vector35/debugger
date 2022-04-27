@@ -376,9 +376,11 @@ class DebuggerEvent:
         self.data = data
 
 
+DebuggerEventCallback = Callable[['DebuggerEvent'], None]
+
+
 class DebuggerEventWrapper:
 
-    DebuggerEventCallback = Callable[['DebuggerEvent'], None]
     # This has no functional purposes;
     # we just need it to stop Python from prematurely freeing the object
     _debugger_events = {}
@@ -1024,11 +1026,11 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerGetExitCode(self.handle)
 
-    def register_event_callback(self, callback) -> int:
+    def register_event_callback(self, callback: DebuggerEventCallback) -> int:
         """
         Register a debugger event callback to receive notification when various events happen.
 
-        TODO:
+        The callback receives DebuggerEvent object that contains the type of the event and associated data.
 
         :param callback:
         :return: an integer handle to the registered event callback
