@@ -16,6 +16,7 @@ limitations under the License.
 
 #include <QPainter>
 #include <QHeaderView>
+#include <QFileInfo>
 #include "breakpointswidget.h"
 #include "ui.h"
 #include "menus.h"
@@ -117,8 +118,11 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
 		}
 		else
 		{
+			// TODO: This should probably be done at the API level, e.g., also returning a short name of the module
+			QFileInfo fileInfo(QString::fromStdString(item->location().module));
+			auto fileName = fileInfo.fileName();
 			text = QString::fromStdString(
-					fmt::format("{} + 0x{:x}", item->location().module, item->location().offset));
+					fmt::format("{} + 0x{:x}", fileName.toStdString(), item->location().offset));
 		}
         return QVariant(text);
     }
@@ -289,23 +293,24 @@ void DebugBreakpointsWidget::contextMenuEvent(QContextMenuEvent* event)
 
 void DebugBreakpointsWidget::jump()
 {
-    const auto item_row = this->m_table->indexAt(this->m_last_selected_point).row();
-    const auto item = this->m_table->model()->index(item_row, 2);
-	if (!item.isValid())
+	QModelIndexList sel = m_table->selectionModel()->selectedRows();
+	if (sel.empty())
 		return;
 
-    Ref<BinaryView> view = m_controller->GetData();
-    auto address_or_offset = std::stoull(item.data().toString().toLocal8Bit().data(), nullptr, 16);
-    if (!address_or_offset || !view)
-        return;
+	BreakpointItem bp = m_model->getRow(sel[0].row());
 
+	auto address_or_offset = bp.address();
+	Ref<BinaryView> view = m_controller->GetData();
     const auto is_absolute = m_controller->IsConnected();
     if (!is_absolute)
         address_or_offset += view->GetStart();
 
     UIContext* context = UIContext::contextForWidget(this);
     ViewFrame* frame = context->getCurrentViewFrame();
-    frame->navigate(m_controller->GetLiveView(), address_or_offset, true, true);
+	if (m_controller->GetLiveView())
+    	frame->navigate(m_controller->GetLiveView(), address_or_offset, true, true);
+	else
+		frame->navigate(m_controller->GetData(), address_or_offset, true, true);
 }
 
 
