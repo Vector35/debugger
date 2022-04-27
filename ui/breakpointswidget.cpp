@@ -102,11 +102,11 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
 
     switch (index.column())
     {
-    case DebugBreakpointsListModel::EnabledColumn:
-    {
-        QString text = item->enabled() ? "true" : "false";
-        return QVariant(text);
-    }
+//    case DebugBreakpointsListModel::EnabledColumn:
+//    {
+//        QString text = item->enabled() ? "true" : "false";
+//        return QVariant(text);
+//    }
     case DebugBreakpointsListModel::LocationColumn:
     {
 		QString text;
@@ -143,8 +143,8 @@ QVariant DebugBreakpointsListModel::headerData(int column, Qt::Orientation orien
 
 	switch (column)
 	{
-		case DebugBreakpointsListModel::EnabledColumn:
-			return "Enabled";
+//		case DebugBreakpointsListModel::EnabledColumn:
+//			return "Enabled";
 		case DebugBreakpointsListModel::LocationColumn:
 			return "Location";
 		case DebugBreakpointsListModel::AddressColumn:
@@ -189,7 +189,7 @@ void DebugBreakpointsItemDelegate::paint(QPainter* painter, const QStyleOptionVi
 	auto data = idx.data(Qt::DisplayRole);
 	switch (idx.column())
 	{
-	case DebugBreakpointsListModel::EnabledColumn:
+//	case DebugBreakpointsListModel::EnabledColumn:
 	case DebugBreakpointsListModel::LocationColumn:
 	case DebugBreakpointsListModel::AddressColumn:
 	{
@@ -241,7 +241,7 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* v
 
     m_table->resizeColumnsToContents();
     m_table->resizeRowsToContents();
-    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
 
     QVBoxLayout* layout = new QVBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
