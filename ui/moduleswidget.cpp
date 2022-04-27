@@ -105,7 +105,7 @@ QVariant DebugModulesListModel::data(const QModelIndex& index, int role) const
     {
     case DebugModulesListModel::AddressColumn:
     {
-        QString text = QString::asprintf("%" PRIx64, item->address());
+        QString text = QString::asprintf("0x%" PRIx64, item->address());
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
@@ -113,7 +113,7 @@ QVariant DebugModulesListModel::data(const QModelIndex& index, int role) const
     }
     case DebugModulesListModel::SizeColumn:
     {
-        QString text = QString::asprintf("%" PRIx64, item->size());
+        QString text = QString::asprintf("0x%" PRIx64, item->size());
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
