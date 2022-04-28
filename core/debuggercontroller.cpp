@@ -1213,12 +1213,10 @@ void DebuggerController::UpdateStackVariables()
 	auto oldAddressWithComment = m_addressesWithComment;
 	m_addressesWithComment.clear();
 
-	for (const DebugThread& thread: threads)
+	const DebugThread thread = GetActiveThread();
+	std::vector<DebugFrame> frames = GetFramesOfThread(thread.m_tid);
+	if (frames.size() >= 2)
 	{
-		std::vector<DebugFrame> frames = GetFramesOfThread(thread.m_tid);
-		if (frames.size() < 2)
-			continue;
-
 		for (size_t i = 0; i < frames.size() - 1; i++)
 		{
 			const DebugFrame& frame = frames[i];
