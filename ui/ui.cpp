@@ -30,6 +30,7 @@ limitations under the License.
 #include "threadframes.h"
 #include "syncgroup.h"
 #include "codedatarenderer.h"
+#include <thread>
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -470,7 +471,9 @@ static void RunToHereCallback(BinaryView* view, uint64_t addr)
 	DebuggerController* controller = DebuggerController::GetController(view);
 	if (!controller)
 		return;
-	controller->RunTo(addr);
+	std::thread([=](){
+		controller->RunTo(addr);
+	}).detach();
 }
 
 
@@ -524,11 +527,15 @@ void GlobalDebuggerUI::InitializeUI()
 						return;
 					if (controller->IsConnected() && (!controller->IsRunning()))
 					{
-						controller->Go();
+						std::thread([=](){
+							controller->Go();
+						}).detach();
 					}
 					else if (!controller->IsConnected())
 					{
-						controller->LaunchOrConnect();
+						std::thread([=](){
+							controller->LaunchOrConnect();
+						}).detach();
 					}
 				},
 			BinaryViewValid);
@@ -549,7 +556,9 @@ void GlobalDebuggerUI::InitializeUI()
 					UIContext* context = UIContext::activeContext();
 					if (context && context->getCurrentView())
 						graphType = context->getCurrentView()->getILViewType();
-					controller->StepInto(graphType);
+					std::thread([=](){
+						controller->StepInto(graphType);
+					}).detach();
 				},
 			ConnectedAndStopped);
 	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
@@ -569,7 +578,9 @@ void GlobalDebuggerUI::InitializeUI()
 					UIContext* context = UIContext::activeContext();
 					if (context && context->getCurrentView())
 						graphType = context->getCurrentView()->getILViewType();
-					controller->StepOver(graphType);
+					std::thread([=](){
+						controller->StepOver(graphType);
+					}).detach();
 				},
 			ConnectedAndStopped);
 	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
@@ -585,7 +596,9 @@ void GlobalDebuggerUI::InitializeUI()
 					DebuggerController* controller = DebuggerController::GetController(view);
 					if (!controller)
 						return;
-					controller->StepReturn();
+					std::thread([=](){
+						controller->StepReturn();
+					}).detach();
 				},
 			ConnectedAndStopped);
 	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
@@ -601,7 +614,9 @@ void GlobalDebuggerUI::InitializeUI()
 					DebuggerController* controller = DebuggerController::GetController(view);
 					if (!controller)
 						return;
-					controller->Pause();
+					std::thread([=](){
+						controller->Pause();
+					}).detach();
 				},
 			ConnectedAndRunning);
 	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
