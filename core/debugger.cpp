@@ -62,7 +62,11 @@ extern "C"
 		SetCurrentPluginLoadOrder(LatePluginLoadOrder);
 	}
 
+#ifdef DEMO_VERSION
+	bool DebuggerPluginInit()
+#else
 	BINARYNINJAPLUGIN bool CorePluginInit()
+#endif
 	{
 		Log(BNLogLevel::DebugLog, "Native debugger loaded!" );
         InitDebugAdapterTypes();

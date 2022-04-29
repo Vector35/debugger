@@ -717,12 +717,19 @@ extern "C"
 	BN_DECLARE_UI_ABI_VERSION
 	BN_DECLARE_CORE_ABI_VERSION
 
+// This causes duplicate symbol in demo, since both debugger.cpp and this file calls this function
+#ifndef DEMO_VERSION
 	BINARYNINJAPLUGIN void CorePluginDependencies()
 	{
 		SetCurrentPluginLoadOrder(LatePluginLoadOrder);
 	}
+#endif
 
+#ifdef DEMO_VERSION
+	bool DebuggerUIPluginInit()
+#else
 	BINARYNINJAPLUGIN bool UIPluginInit()
+#endif
 	{
 		GlobalDebuggerUI::InitializeUI();
 		NotificationListener::init();
