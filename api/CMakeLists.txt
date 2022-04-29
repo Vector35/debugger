@@ -64,4 +64,6 @@ set_target_properties(debuggerapi PROPERTIES
 
 include_directories(../vendor)
 
-add_subdirectory(python)
+if (NOT DEMO)
+    add_subdirectory(python)
+endif()

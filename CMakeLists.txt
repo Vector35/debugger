@@ -19,4 +19,6 @@ if(NOT HEADLESS)
 	add_subdirectory(ui)
 endif()
 
-add_subdirectory(cli)
+if (NOT DEMO)
+	add_subdirectory(cli)
+endif()
