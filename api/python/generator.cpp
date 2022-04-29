@@ -262,7 +262,7 @@ int main(int argc, char* argv[])
 	fprintf(out, "import ctypes, os\n\n");
 	fprintf(out, "from typing import Optional\n");
 	fprintf(out, "from . import debugger_enums\n");
-	fprintf(enums, "from .. import enum\n");
+	fprintf(enums, "import enum\n");
 
 	fprintf(out, "# Load core module\n");
 	fprintf(out, "import platform\n");
