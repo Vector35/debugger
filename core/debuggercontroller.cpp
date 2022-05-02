@@ -1109,7 +1109,11 @@ uint32_t DebuggerController::GetExitCode()
 
 void DebuggerController::WriteStdIn(const std::string message)
 {
-	m_adapter->WriteStdin(message);
+	if (m_adapter && m_state->IsConnected())
+	{
+		m_adapter->WriteStdin(message);
+	}
+	NotifyError("Cannot send to stdin, target is not running");
 }
 
 
