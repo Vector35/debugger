@@ -198,7 +198,7 @@ bool DebuggerController::ExpectSingleStep(DebugStopReason reason)
 //	On macOS, the stop reason we get for a single step is also the Breakpoint.
 //	To keep things working, we loosen the check.
 //	TODO: check how it works on other systems
-	return (reason == SingleStep) || (reason == Breakpoint);
+	return (reason == SingleStep) || (reason == Breakpoint) || (reason == UnknownReason);
 }
 
 
@@ -313,6 +313,7 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 		break;
 	}
 	case HighLevelILFunctionGraph:
+	case HighLevelLanguageRepresentationFunctionGraph:
 	{
 		// TODO: This might cause infinite loop
 		while (true)
@@ -473,6 +474,7 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
         break;
     }
     case HighLevelILFunctionGraph:
+	case HighLevelLanguageRepresentationFunctionGraph:
     {
         // TODO: This might cause infinite loop
         while (true)
