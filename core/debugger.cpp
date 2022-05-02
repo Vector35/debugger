@@ -43,14 +43,14 @@ static void RegisterSettings()
 {
 	Ref<Settings> settings = Settings::Instance();
 	settings->RegisterGroup("debugger", "Debugger");
-	settings->RegisterSetting("debugger.blockPythonDebugger",
-			R"({
-			"title" : "Block Python Debugger",
-			"type" : "boolean",
-			"default" : true,
-			"description" : "Block the Python debugger to avoid conflict with the C++ debugger.",
-			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
-			})");
+	/*
+
+	Removed blockPython -- we can re-add it once this debugger is enabled by
+	default
+
+	Leaving this function for migration of the settings popup.
+
+	*/
 }
 
 extern "C"
