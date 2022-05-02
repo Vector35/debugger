@@ -17,6 +17,7 @@ limitations under the License.
 #include <chrono>
 #include <thread>
 #include <utility>
+#include <filesystem>
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
@@ -711,8 +712,8 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 	if (metadata && metadata->IsString())
 		m_workingDirectory = metadata->GetString();
 
-//	if (m_workingDirectory == "")
-//		m_workingDirectory = m_controller->GetData()->GetFile()->GetOriginalFilename();
+	if (m_workingDirectory == "")
+		m_workingDirectory = filesystem::path(m_executablePath).parent_path().string();
 
     metadata = m_controller->GetData()->QueryMetadata("debugger.remote_host");
     if (metadata && metadata->IsString())
