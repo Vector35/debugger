@@ -495,6 +495,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 bool DbgEngAdapter::BreakInto()
 {
     m_lastOperationIsStepInto = false;
+//	After we call SetInterrupt(), the WatiForEvent() function will return due to a breakpoint exception
     if (this->m_debugControl->SetInterrupt(DEBUG_INTERRUPT_ACTIVE) != S_OK )
         return false;
 

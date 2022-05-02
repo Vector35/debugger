@@ -138,8 +138,9 @@ void DebugControlsWidget::performSettings()
 
 void DebugControlsWidget::performPause()
 {
-    m_controller->Pause();
-//    Don't update state here-- one of the other thread is running in a thread and updating for us
+	std::thread([&](){
+		m_controller->Pause();
+	}).detach();
 }
 
 

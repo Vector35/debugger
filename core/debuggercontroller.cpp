@@ -625,6 +625,7 @@ DebugStopReason DebuggerController::RunTo(const std::vector<uint64_t>& remoteAdd
 
 void DebuggerController::HandleTargetStop(DebugStopReason reason)
 {
+//	If the stop is caused by a call to Pause(), do not handle the stop here. The Pause() call will handle it
     if (m_userRequestedBreak)
     {
         m_userRequestedBreak = false;
@@ -800,11 +801,9 @@ void DebuggerController::Quit()
 
     if (m_state->IsRunning())
     {
-        // We must pause the target if it is currently running
+        // We must pause the target if it is currently running, at least for DbgEngAdapter
         PauseInternal();
     }
-
-//    NotifyEvent(DetachEventType);
 
     // TODO: return whether the operation is successful
     m_adapter->Quit();
@@ -821,13 +820,22 @@ void DebuggerController::Quit()
 
 void DebuggerController::PauseInternal()
 {
-    // Setting this flag tells other threads to skip handling the DebugStopReason. That thread will also reset this
-    // flag to false
     m_userRequestedBreak = true;
     if (m_state->IsRunning())
     {
         m_adapter->BreakInto();
-        while (m_state->IsRunning()) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); }
+        while (m_state->IsRunning())
+        {
+            // Suppose the target is resumed by a Go() call, and it executes without stopping. After that, the user
+            // clicks the pause button. Here, we will pause the target, wait the Go() call to return first, and
+            // then return from the Pause() function.
+            // Since PauseInternal() is called by Quit() to pause the target (without notifying about the event),
+            // PauseInternal should not return before the Go() returns. Otherwise, the debugger is in a race condition,
+            // where the Go() is still calling the DebuggerEvent callbacks, but the Quit() function has already started
+            // to terminate the target. Which typically results in a deadlock.
+            // Note, once we switch to asynchronous communication, this problem should be non-existent.
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
     }
 }
 
@@ -839,6 +847,7 @@ void DebuggerController::Pause()
 
     PauseInternal();
 
+    //	Pause() to notify about the stop, because the function that resumes the target (e.g., Go()) will NOT handle it
     m_state->MarkDirty();
     m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
 
