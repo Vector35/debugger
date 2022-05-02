@@ -1119,7 +1119,11 @@ void DebuggerController::WriteStdIn(const std::string message)
 
 std::string DebuggerController::InvokeBackendCommand(const std::string &cmd)
 {
-	return m_adapter->InvokeBackendCommand(cmd);
+	if (m_adapter && m_state->IsConnected())
+	{
+		return m_adapter->InvokeBackendCommand(cmd);
+	}
+	return "Error: target is not running yet\n";
 }
 
 
