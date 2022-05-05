@@ -471,7 +471,10 @@ class DebuggerController:
     @property
     def data(self) -> binaryninja.BinaryView:
         """Get the (rebased) BinaryView of the debugger"""
-        result = ctypes.cast(dbgcore.BNDebuggerGetData(self.handle), ctypes.POINTER(binaryninja.core.BNBinaryView))
+        result = dbgcore.BNDebuggerGetData(self.handle)
+        if result is None:
+            return None
+        result = ctypes.cast(result, ctypes.POINTER(binaryninja.core.BNBinaryView))
         if result is None:
             return None
         return binaryninja.BinaryView(handle=result)
@@ -479,7 +482,10 @@ class DebuggerController:
     @property
     def live_view(self) -> binaryninja.BinaryView:
         """Get the live BinaryView of the debugger"""
-        result = ctypes.cast(dbgcore.BNDebuggerGetLiveView(self.handle), ctypes.POINTER(binaryninja.core.BNBinaryView))
+        result = dbgcore.BNDebuggerGetLiveView(self.handle)
+        if result is None:
+            return None
+        result = ctypes.cast(result, ctypes.POINTER(binaryninja.core.BNBinaryView))
         if result is None:
             return None
         return binaryninja.BinaryView(handle=result)
@@ -489,7 +495,10 @@ class DebuggerController:
         """
         Get the architecture of the running target (read-only). This could be different from the architecture of the original binary.
         """
-        result = ctypes.cast(dbgcore.BNDebuggerGetRemoteArchitecture(self.handle), ctypes.POINTER(binaryninja.core.BNArchitecture))
+        result = dbgcore.BNDebuggerGetRemoteArchitecture(self.handle)
+        if result is None:
+            return None
+        result = ctypes.cast(result, ctypes.POINTER(binaryninja.core.BNArchitecture))
         if result is None:
             return None
         return binaryninja.CoreArchitecture(handle=result)
@@ -520,7 +529,10 @@ class DebuggerController:
         :param size: number of bytes to read
         :return: always returns a DataBuffer. When the operation fails, the size of the DataBuffer is 0x0
         """
-        buffer = ctypes.cast(dbgcore.BNDebuggerReadMemory(self.handle, address, size), ctypes.POINTER(binaryninja.core.BNDataBuffer))
+        result = dbgcore.BNDebuggerReadMemory(self.handle, address, size)
+        if result is None:
+            return None
+        buffer = ctypes.cast(result, ctypes.POINTER(binaryninja.core.BNDataBuffer))
         if buffer is None:
             return None
         return binaryninja.DataBuffer(handle=buffer)
