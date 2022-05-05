@@ -104,7 +104,10 @@ bool DebuggerController::Launch()
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
         m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 		HandleInitialBreakpoint();
-		result = Go();
+		// On Linux, when a binary has no loader, the debugger will break at the entry point initially, rather than
+		// breaking inside the loader. If we wrongly resume the target, it will execute on its own.
+		if (m_state->IP() != m_liveView->GetEntryPoint())
+			result = Go();
 	}
 	else
 	{
