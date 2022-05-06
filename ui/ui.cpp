@@ -717,7 +717,7 @@ extern "C"
 	BN_DECLARE_UI_ABI_VERSION
 	BN_DECLARE_CORE_ABI_VERSION
 
-// This causes duplicate symbol in demo, since both debugger.cpp and this file calls this function
+// In Demo, plugins are explicitly loaded. So there is no need to specify dependencies
 #ifndef DEMO_VERSION
 	BINARYNINJAPLUGIN void CorePluginDependencies()
 	{
