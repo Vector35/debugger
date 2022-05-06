@@ -207,11 +207,6 @@ void DebugRegistersListModel::updateRows(std::vector<DebugRegister> newRows)
 
     for (const DebugRegister& reg: newRows)
     {
-		// Do not display registers whose value is 0x0.
-		// In the future we should make user decide if these should be hidden.
-		if (reg.m_value == 0)
-			continue;
-
         auto iter = oldRegValues.find(reg.m_name);
         DebugRegisterValueStatus status;
         if (iter == oldRegValues.end())
@@ -341,7 +336,7 @@ void DebugRegistersItemDelegate::setEditorData(QWidget *editor, const QModelInde
         QLineEdit* lineEditor = static_cast<QLineEdit*>(editor);
         if (lineEditor)
         {
-            // index.data() returns a pair of colar and QString
+            // index.data() returns a pair of color and QString
             lineEditor->setText(index.data().toList()[1].toString());
         }
     }
