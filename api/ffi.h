@@ -22,18 +22,22 @@ extern "C"
 #endif
 
 #ifdef __GNUC__
-#  ifdef DEBUGGER_LIBRARY
-#    define DEBUGGER_FFI_API __attribute__((visibility("default")))
-#  else // DEBUGGER_LIBRARY
-#    define DEBUGGER_FFI_API
-#  endif // DEBUGGER_LIBRARY
+	#ifdef DEBUGGER_LIBRARY
+		#define DEBUGGER_FFI_API __attribute__((visibility("default")))
+	#else // DEBUGGER_LIBRARY
+		#define DEBUGGER_FFI_API
+	#endif // DEBUGGER_LIBRARY
 #else // __GNUC__
 #ifdef _MSC_VER
-#  ifdef DEBUGGER_LIBRARY
-#    define DEBUGGER_FFI_API __declspec(dllexport)
-#  else // DEBUGGER_LIBRARY
-#    define DEBUGGER_FFI_API __declspec(dllimport)
-#  endif // DEBUGGER_LIBRARY
+	#ifndef DEMO_VERSION
+		#ifdef DEBUGGER_LIBRARY
+			#define DEBUGGER_FFI_API __declspec(dllexport)
+		#else // DEBUGGER_LIBRARY
+			#define DEBUGGER_FFI_API __declspec(dllimport)
+		#endif // DEBUGGER_LIBRARY
+	#else
+		#define DEBUGGER_FFI_API
+	#endif
 #else // _MSC_VER
 #define DEBUGGER_FFI_API
 #endif // _MSC_VER
