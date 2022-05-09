@@ -23,15 +23,15 @@ file(GLOB COMMON_SOURCES
 file(GLOB ADAPTER_SOURCES
 		adapters/lldbadapter.cpp
 		adapters/lldbadapter.h
-		adapters/lldbrspadapter.cpp
-		adapters/lldbrspadapter.h
-		adapters/gdbadapter.cpp
-		adapters/gdbadapter.h
-		adapters/queuedadapter.cpp
-		adapters/queuedadapter.h
-		adapters/rspconnector.cpp
-		adapters/rspconnector.h
-		adapters/socket.h
+#		adapters/lldbrspadapter.cpp
+#		adapters/lldbrspadapter.h
+#		adapters/gdbadapter.cpp
+#		adapters/gdbadapter.h
+#		adapters/queuedadapter.cpp
+#		adapters/queuedadapter.h
+#		adapters/rspconnector.cpp
+#		adapters/rspconnector.h
+#		adapters/socket.h
 	)
 
 if(WIN32)

@@ -571,7 +571,7 @@ void DebuggerBreakpoints::Apply()
         uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
         if (std::find(remoteBreakpoints.begin(), remoteBreakpoints.end(), remoteAddress) == remoteBreakpoints.end())
         {
-            LogDebug(fmt::format("adding breakpoint at remote address {:x}", remoteAddress).c_str());
+            LogDebug("%s", fmt::format("adding breakpoint at remote address {:x}", remoteAddress).c_str());
 			// DO not skip the controller, otherwise the breakpoint added event is not posted
 			m_state->GetController()->AddBreakpoint(remoteAddress);
         }

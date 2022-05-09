@@ -176,6 +176,8 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 		case TargetExitedEventType:
 		{
 			ViewFrame* frame = m_context->getCurrentViewFrame();
+			if (!frame)
+				break;
 			FileContext* fileContext = frame->getFileContext();
 			fileContext->refreshDataViewCache();
 			ViewFrame* newFrame = m_context->openFileContext(fileContext);

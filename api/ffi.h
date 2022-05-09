@@ -314,16 +314,23 @@ extern "C"
 	DEBUGGER_FFI_API void BNDebuggerQuit(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerConnect(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerDetach(BNDebuggerController* controller);
-	DEBUGGER_FFI_API void BNDebuggerPause(BNDebuggerController* controller);
 	// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
 	DEBUGGER_FFI_API void BNDebuggerLaunchOrConnect(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerAttach(BNDebuggerController* controller, uint32_t pid);
 
-	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerGo(BNDebuggerController* controller);
-	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepInto(BNDebuggerController* controller, BNFunctionGraphType il);
-	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepOver(BNDebuggerController* controller, BNFunctionGraphType il);
-	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepReturn(BNDebuggerController* controller);
-	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRunTo(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
+	DEBUGGER_FFI_API bool BNDebuggerGo(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerStepInto(BNDebuggerController* controller, BNFunctionGraphType il);
+	DEBUGGER_FFI_API bool BNDebuggerStepOver(BNDebuggerController* controller, BNFunctionGraphType il);
+	DEBUGGER_FFI_API bool BNDebuggerStepReturn(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerRunTo(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
+	DEBUGGER_FFI_API void BNDebuggerPause(BNDebuggerController* controller);
+
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerGoAndWait(BNDebuggerController* controller);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepIntoAndWait(BNDebuggerController* controller, BNFunctionGraphType il);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepOverAndWait(BNDebuggerController* controller, BNFunctionGraphType il);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepReturnAndWait(BNDebuggerController* controller);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRunToAndWait(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerPauseAndWait(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API char* BNDebuggerGetAdapterType(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerSetAdapterType(BNDebuggerController* controller, const char* adapter);

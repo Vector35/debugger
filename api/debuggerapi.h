@@ -265,17 +265,25 @@ namespace BinaryNinjaDebuggerAPI
 		void Quit();
 		void Connect();
 		void Detach();
-		void Pause();
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
 		void LaunchOrConnect();
 		bool Attach(uint32_t pid);
 
-		DebugStopReason Go();
-		DebugStopReason StepInto(BNFunctionGraphType il = NormalFunctionGraph);
-		DebugStopReason StepOver(BNFunctionGraphType il = NormalFunctionGraph);
-		DebugStopReason StepReturn();
-		DebugStopReason RunTo(uint64_t remoteAddresses);
-		DebugStopReason RunTo(const std::vector<uint64_t> &remoteAddresses);
+		bool Go();
+		bool StepInto(BNFunctionGraphType il = NormalFunctionGraph);
+		bool StepOver(BNFunctionGraphType il = NormalFunctionGraph);
+		bool StepReturn();
+		bool RunTo(uint64_t remoteAddresses);
+		bool RunTo(const std::vector<uint64_t> &remoteAddresses);
+		void Pause();
+
+		DebugStopReason GoAndWait();
+		DebugStopReason StepIntoAndWait(BNFunctionGraphType il = NormalFunctionGraph);
+		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph);
+		DebugStopReason StepReturnAndWait();
+		DebugStopReason RunToAndWait(uint64_t remoteAddresses);
+		DebugStopReason RunToAndWait(const std::vector<uint64_t> &remoteAddresses);
+		DebugStopReason PauseAndWait();
 
 		std::string GetAdapterType();
 		void SetAdapterType(const std::string& adapter);

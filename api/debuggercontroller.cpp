@@ -222,9 +222,15 @@ bool DebuggerController::SetRegisterValue(const std::string &name, uint64_t valu
 }
 
 
-DebugStopReason DebuggerController::Go()
+bool DebuggerController::Go()
 {
 	return BNDebuggerGo(m_object);
+}
+
+
+DebugStopReason DebuggerController::GoAndWait()
+{
+	return BNDebuggerGoAndWait(m_object);
 }
 
 
@@ -283,33 +289,69 @@ bool DebuggerController::Attach(uint32_t pid)
 }
 
 
-DebugStopReason DebuggerController::StepInto(BNFunctionGraphType il)
+bool DebuggerController::StepInto(BNFunctionGraphType il)
 {
 	return BNDebuggerStepInto(m_object, il);
 }
 
 
-DebugStopReason DebuggerController::StepOver(BNFunctionGraphType il)
+bool DebuggerController::StepOver(BNFunctionGraphType il)
 {
 	return BNDebuggerStepOver(m_object, il);
 }
 
 
-DebugStopReason DebuggerController::StepReturn()
+bool DebuggerController::StepReturn()
 {
 	return BNDebuggerStepReturn(m_object);
 }
 
 
-DebugStopReason DebuggerController::RunTo(uint64_t remoteAddresses)
+bool DebuggerController::RunTo(uint64_t remoteAddresses)
 {
 	return RunTo(std::vector<uint64_t>{remoteAddresses});
 }
 
 
-DebugStopReason DebuggerController::RunTo(const std::vector<uint64_t> &remoteAddresses)
+bool DebuggerController::RunTo(const std::vector<uint64_t> &remoteAddresses)
 {
 	return BNDebuggerRunTo(m_object, remoteAddresses.data(), remoteAddresses.size());
+}
+
+
+DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il)
+{
+	return BNDebuggerStepIntoAndWait(m_object, il);
+}
+
+
+DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il)
+{
+	return BNDebuggerStepOverAndWait(m_object, il);
+}
+
+
+DebugStopReason DebuggerController::StepReturnAndWait()
+{
+	return BNDebuggerStepReturnAndWait(m_object);
+}
+
+
+DebugStopReason DebuggerController::RunToAndWait(uint64_t remoteAddresses)
+{
+	return RunToAndWait(std::vector<uint64_t>{remoteAddresses});
+}
+
+
+DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t> &remoteAddresses)
+{
+	return BNDebuggerRunToAndWait(m_object, remoteAddresses.data(), remoteAddresses.size());
+}
+
+
+DebugStopReason DebuggerController::PauseAndWait()
+{
+	return BNDebuggerPauseAndWait(m_object);
 }
 
 

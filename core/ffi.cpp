@@ -373,31 +373,31 @@ bool BNDebuggerAttach(BNDebuggerController* controller, uint32_t pid)
 }
 
 
-BNDebugStopReason BNDebuggerGo(BNDebuggerController* controller)
+bool BNDebuggerGo(BNDebuggerController* controller)
 {
 	return controller->object->Go();
 }
 
 
-BNDebugStopReason BNDebuggerStepInto(BNDebuggerController* controller, BNFunctionGraphType il)
+bool BNDebuggerStepInto(BNDebuggerController* controller, BNFunctionGraphType il)
 {
 	return controller->object->StepInto(il);
 }
 
 
-BNDebugStopReason BNDebuggerStepOver(BNDebuggerController* controller, BNFunctionGraphType il)
+bool BNDebuggerStepOver(BNDebuggerController* controller, BNFunctionGraphType il)
 {
 	return controller->object->StepOver(il);
 }
 
 
-BNDebugStopReason BNDebuggerStepReturn(BNDebuggerController* controller)
+bool BNDebuggerStepReturn(BNDebuggerController* controller)
 {
 	return controller->object->StepReturn();
 }
 
 
-BNDebugStopReason BNDebuggerRunTo(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count)
+bool BNDebuggerRunTo(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count)
 {
 	std::vector<uint64_t> addresses;
 	addresses.reserve(count);
@@ -406,6 +406,48 @@ BNDebugStopReason BNDebuggerRunTo(BNDebuggerController* controller, const uint64
 		addresses.push_back(remoteAddresses[i]);
 	}
 	return controller->object->RunTo(addresses);
+}
+
+
+BNDebugStopReason BNDebuggerGoAndWait(BNDebuggerController* controller)
+{
+	return controller->object->GoAndWait();
+}
+
+
+BNDebugStopReason BNDebuggerStepIntoAndWait(BNDebuggerController* controller, BNFunctionGraphType il)
+{
+	return controller->object->StepIntoAndWait(il);
+}
+
+
+BNDebugStopReason BNDebuggerStepOverAndWait(BNDebuggerController* controller, BNFunctionGraphType il)
+{
+	return controller->object->StepOverAndWait(il);
+}
+
+
+BNDebugStopReason BNDebuggerStepReturnAndWait(BNDebuggerController* controller)
+{
+	return controller->object->StepReturnAndWait();
+}
+
+
+BNDebugStopReason BNDebuggerRunToAndWait(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count)
+{
+	std::vector<uint64_t> addresses;
+	addresses.reserve(count);
+	for (size_t i = 0; i < count; i++)
+	{
+		addresses.push_back(remoteAddresses[i]);
+	}
+	return controller->object->RunToAndWait(addresses);
+}
+
+
+DebugStopReason BNDebuggerPauseAndWait(BNDebuggerController* controller)
+{
+	return controller->object->PauseAndWait();
 }
 
 

@@ -53,6 +53,7 @@ void DbgEngAdapter::Start()
     QUERY_DEBUG_INTERFACE(IDebugSymbols, &this->m_debugSymbols);
     QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
 
+	m_debugEventCallbacks.SetAdapter(this);
     if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks);
             result != S_OK)
         throw std::runtime_error("Failed to set event callbacks");
@@ -99,7 +100,6 @@ void DbgEngAdapter::Reset()
 
 DbgEngAdapter::DbgEngAdapter(BinaryView* data): DebugAdapter(data)
 {
-    this->Start();
 }
 
 DbgEngAdapter::~DbgEngAdapter()
@@ -112,15 +112,29 @@ bool DbgEngAdapter::Execute(const std::string& path, const LaunchConfigurations&
     return this->ExecuteWithArgs(path, "", "", {});
 }
 
-bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string &args, const std::string& workingDir,
+
+bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
+									const LaunchConfigurations& configs)
+{
+	std::atomic_bool ret = false;
+	std::atomic_bool finished = false;
+	// Doing the operation on a different thread ensures the same thread starts the session and runs EngineLoop().
+	// This is required by DngEng. Although things sometimes work even if it is violated, it can fail randomly.
+	std::thread([=, &ret, &finished](){
+		ret = ExecuteWithArgsInternal(path, args, workingDir, configs);
+		finished = true;
+		if (ret)
+			EngineLoop();
+	}).detach();
+
+	while (!finished) {}
+	return ret;
+}
+
+
+bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string &args, const std::string& workingDir,
                                     const LaunchConfigurations& configs)
 {
-    auto& ProcessInfo = DbgEngAdapter::ProcessCallbackInfo;
-    ProcessInfo.m_created = false;
-    ProcessInfo.m_exited = false;
-    ProcessInfo.m_hasOneBreakpoint = false;
-    ProcessInfo.m_lastSessionStatus = DEBUG_SESSION_FAILURE;
-
     if ( this->m_debugActive ) {
         this->Reset();
     }
@@ -164,30 +178,85 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string &
         return false;
     }
 
-    for (std::size_t timeout_attempts{}; timeout_attempts < 10; timeout_attempts++) {
-        LogInfo("timeout attempt @ 0x%x", timeout_attempts);
-        if (this->Wait(std::chrono::milliseconds(100)))
-            if (ProcessInfo.m_created && ProcessInfo.m_hasOneBreakpoint)
-            {
-                if (m_data->GetDefaultArchitecture()->GetName() == "x86")
-                {
-                    Go();
-                }
-                return true;
-            }
-    }
-
-    return false;
+	// The WaitForEvent() must be called once before the engine fully attaches to the target.
+	Wait();
+	return true;
 }
 
-bool DbgEngAdapter::Attach(std::uint32_t pid)
-{
-    auto& ProcessInfo = DbgEngAdapter::ProcessCallbackInfo;
-    ProcessInfo.m_created = false;
-    ProcessInfo.m_exited = false;
-    ProcessInfo.m_hasOneBreakpoint = false;
-    ProcessInfo.m_lastSessionStatus = DEBUG_SESSION_FAILURE;
 
+void DbgEngAdapter::EngineLoop()
+{
+	bool finished = false;
+	while (true)
+	{
+		if (finished)
+			break;
+
+//		Wait();
+		while (true)
+		{
+			unsigned long execution_status {};
+			if (this->m_debugControl->GetExecutionStatus(&execution_status) != S_OK)
+			{}
+
+			if (execution_status == DEBUG_STATUS_BREAK)
+			{
+				// TODO: we should only send the event when the status changed to DEBUG_STATUS_BREAK
+				if (m_initialBreakpointSend)
+				{
+					DebuggerEvent event;
+					event.type = AdapterStoppedEventType;
+					event.data.targetStoppedData.reason = StopReason();
+					PostDebuggerEvent(event);
+				}
+				else
+				{
+					m_initialBreakpointSend = true;
+				}
+
+				// This is NOT actually dispatching callback, since the callbacks are already dispatched in WaitForEvent().
+				// The real purpose of this call is to wait until the UI/API initiates another control operation,
+				// which then calls ExitDispatch(), which causes the DispatchCallbacks() to return.
+				m_debugClient->DispatchCallbacks(INFINITE);
+			}
+			// TODO: add step branch and step backs
+			else if ((execution_status == DEBUG_STATUS_GO) || (execution_status == DEBUG_STATUS_STEP_INTO) ||
+				(execution_status == DEBUG_STATUS_STEP_OVER) || (execution_status == DEBUG_STATUS_GO_HANDLED)
+				|| (execution_status == DEBUG_STATUS_GO_NOT_HANDLED))
+			{
+				DebuggerEvent dbgevt;
+				if (execution_status == DEBUG_STATUS_GO)
+				{
+					dbgevt.type = ResumeEventType;
+					PostDebuggerEvent(dbgevt);
+				}
+				else if ((execution_status == DEBUG_STATUS_STEP_INTO) || (execution_status == DEBUG_STATUS_STEP_OVER))
+				{
+					dbgevt.type = StepIntoEventType;
+					PostDebuggerEvent(dbgevt);
+				}
+				break;
+			}
+			else if (execution_status == DEBUG_STATUS_NO_DEBUGGEE)
+			{
+				finished = true;
+				DebuggerEvent event;
+				event.type = TargetExitedEventType;
+				event.data.exitData.exitCode = ExitCode();
+				PostDebuggerEvent(event);
+				Reset();
+				break;
+			}
+		}
+		if (finished)
+			break;
+
+		Wait();
+	}
+}
+
+bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
+{
     if ( this->m_debugActive )
         this->Reset();
 
@@ -207,12 +276,25 @@ bool DbgEngAdapter::Attach(std::uint32_t pid)
         return false;
     }
 
-    for (std::size_t timeout_attempts{}; timeout_attempts < 10; timeout_attempts++)
-        if (this->Wait(std::chrono::milliseconds(100)))
-            if (ProcessInfo.m_lastSessionStatus == DEBUG_SESSION_ACTIVE )
-                return this->m_debugActive;
+	Wait();
+	return true;
+}
 
-    return false;
+bool DbgEngAdapter::Attach(std::uint32_t pid)
+{
+	std::atomic_bool ret = false;
+	std::atomic_bool finished = false;
+	// Doing the operation on a different thread ensures the same thread starts the session and runs EngineLoop().
+	// This is required by DngEng. Although things sometimes work even if it is violated, it can fail randomly.
+	std::thread([=, &ret, &finished](){
+		ret = AttachInternal(pid);
+		finished = true;
+		if (ret)
+			EngineLoop();
+	}).detach();
+
+	while (!finished) {}
+	return ret;
 }
 
 bool DbgEngAdapter::Connect(const std::string &server, std::uint32_t port)
@@ -227,7 +309,7 @@ void DbgEngAdapter::Detach()
     if ( this->m_debugClient )
         this->m_debugClient->DetachProcesses();
 
-    this->Reset();
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
 }
 
 void DbgEngAdapter::Quit()
@@ -238,7 +320,7 @@ void DbgEngAdapter::Quit()
         HRESULT result = this->m_debugClient->TerminateProcesses();
     }
 
-    this->Reset();
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
 }
 
 std::vector<DebugThread> DbgEngAdapter::GetThreadList()
@@ -495,7 +577,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 bool DbgEngAdapter::BreakInto()
 {
     m_lastOperationIsStepInto = false;
-//	After we call SetInterrupt(), the WatiForEvent() function will return due to a breakpoint exception
+//	After we call SetInterrupt(), the WaitForEvent() function will return due to a breakpoint exception
     if (this->m_debugControl->SetInterrupt(DEBUG_INTERRUPT_ACTIVE) != S_OK )
         return false;
 
@@ -508,8 +590,8 @@ DebugStopReason DbgEngAdapter::Go()
     if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK )
         return DebugStopReason::InternalError;
 
-    this->Wait();
-    return StopReason();
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return UnknownReason;
 }
 
 DebugStopReason DbgEngAdapter::StepInto()
@@ -518,8 +600,8 @@ DebugStopReason DbgEngAdapter::StepInto()
     if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_INTO) != S_OK )
         return DebugStopReason::InternalError;
 
-    this->Wait();
-    return StopReason();
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return UnknownReason;
 }
 
 DebugStopReason DbgEngAdapter::StepOver()
@@ -528,16 +610,14 @@ DebugStopReason DbgEngAdapter::StepOver()
     if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_OVER) != S_OK )
         return DebugStopReason::InternalError;
 
-    this->Wait();
-    return StopReason();
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return UnknownReason;
 }
 
 DebugStopReason DbgEngAdapter::StepReturn()
 {
 	InvokeBackendCommand("gu");
-
-	this->Wait();
-	return StopReason();
+	return UnknownReason;
 }
 
 bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
@@ -638,6 +718,7 @@ uint64_t DbgEngAdapter::ExitCode()
 std::string DbgEngAdapter::InvokeBackendCommand(const std::string& command)
 {
     this->m_debugControl->Execute(DEBUG_OUTCTL_ALL_CLIENTS, command.c_str(), DEBUG_EXECUTE_NO_REPEAT);
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
 	// The output is handled by DbgEngOutputCallbacks::Output()
 	return "";
 }
@@ -698,11 +779,6 @@ HRESULT DbgEngEventCallbacks::Exception(EXCEPTION_RECORD64* exception, unsigned 
 //    if (exception->ExceptionCode == STATUS_WX86_BREAKPOINT)
 //        return DEBUG_STATUS_GO;
 
-    if ( exception->ExceptionCode == EXCEPTION_BREAKPOINT )
-    {
-        DbgEngAdapter::ProcessCallbackInfo.m_hasOneBreakpoint = true;
-    }
-
     return DEBUG_STATUS_NO_CHANGE;
 }
 
@@ -722,15 +798,11 @@ HRESULT DbgEngEventCallbacks::CreateProcess(uint64_t image_file_handle, uint64_t
                                              uint64_t initial_thread_handle, uint64_t thread_data_offset,
                                              uint64_t start_offset)
 {
-    DbgEngAdapter::ProcessCallbackInfo.m_imageBase = base_offset;
-    DbgEngAdapter::ProcessCallbackInfo.m_created = true;
-
-    return DEBUG_STATUS_GO;
+    return DEBUG_STATUS_NO_CHANGE;
 }
 
 HRESULT DbgEngEventCallbacks::ExitProcess(unsigned long exit_code)
 {
-    DbgEngAdapter::ProcessCallbackInfo.m_exited = true;
     DbgEngAdapter::ProcessCallbackInfo.m_exitCode = exit_code;
     return DEBUG_STATUS_NO_CHANGE;
 }
@@ -754,8 +826,6 @@ HRESULT DbgEngEventCallbacks::SystemError(unsigned long error, unsigned long lev
 
 HRESULT DbgEngEventCallbacks::SessionStatus(unsigned long session_status)
 {
-    DbgEngAdapter::ProcessCallbackInfo.m_lastSessionStatus = session_status;
-
     return S_OK;
 }
 
@@ -766,6 +836,12 @@ HRESULT DbgEngEventCallbacks::ChangeDebuggeeState(unsigned long flags, uint64_t 
 
 HRESULT DbgEngEventCallbacks::ChangeEngineState(unsigned long flags, uint64_t argument)
 {
+//	if (flags == DEBUG_CES_EXECUTION_STATUS)
+//	{
+//		if (argument == DEBUG_STATUS_STEP_OVER)
+//		{
+//		}
+//	}
     return S_OK;
 }
 

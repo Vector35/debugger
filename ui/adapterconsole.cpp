@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <thread>
 #include "adapterconsole.h"
 #include "binaryninjaapi.h"
 #include "debuggerapi.h"
@@ -104,8 +105,10 @@ void AdapterConsole::addMessage(const QString &msg)
 
 void AdapterConsole::sendText(const QString &msg)
 {
-	std::string result = m_debugger->InvokeBackendCommand(msg.toStdString());
-	addMessage(QString::fromStdString(result));
+	std::thread([=](){
+		std::string result = m_debugger->InvokeBackendCommand(msg.toStdString());
+		addMessage(QString::fromStdString(result));
+	}).detach();
 }
 
 

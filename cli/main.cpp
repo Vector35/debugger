@@ -320,7 +320,7 @@ void PrintStopReason(DebuggerController* controller, DebugStopReason reason)
 		Log::print<Log::Info>("Exited with code: {}\n", controller->GetExitCode());
 		return;
 	}
-	Log::print<Log::Info>("stopped: {}\n", reason);
+	Log::print<Log::Info>("stopped: {}\n", controller->GetDebugStopReasonString(reason));
 }
 
 
@@ -380,7 +380,7 @@ int main(int argc, const char* argv[])
 		debugger->SetExecutablePath(argv[1]);
 		if (!debugger->Launch())
 		{
-			LogError(fmt::format("failed to execute {}\n", argv[1]).c_str());
+			LogError("%s", fmt::format("failed to execute {}\n", argv[1]).c_str());
 			return -1;
 		}
 	}
@@ -467,10 +467,11 @@ int main(int argc, const char* argv[])
 			print_arg("es", "display execution status");
 			print_arg("bp", "add a breakpoint", "address (hex)");
 			print_arg("bpr", "remove a breakpoint", "address (hex)");
-			print_arg("go", "go");
+			print_arg("c", "go");
+			print_arg("r", "launch");
 			print_arg("force_go", "increment instruction pointer and go");
-			print_arg("so", "step over");
-			print_arg("sot", "step out");
+			print_arg("ni", "step over");
+			print_arg("finish", "step out");
 			print_arg("si", "step into");
 			print_arg("st", "step to", "address (hex)");
 			print_arg("ts", "set active thread", "thread id");
@@ -552,16 +553,21 @@ int main(int argc, const char* argv[])
 		}
 		else if ( input == "sr" )
 		{
-//                Log::print<Log::Warning>("stop reason : {}\n", debugger->StopReason());
+			auto reason = debugger->StopReason();
+			Log::print<Log::Warning>("stop reason : {}\n", DebuggerController::GetDebugStopReasonString(reason));
 		}
 		else if ( input == "es" )
 		{
 			Log::print<Log::Info>("execution status : {}\n", debugger->GetTargetStatus());
 		}
-		else if (input == "go")
+		else if (input == "c")
 		{
-			DebugStopReason reason = debugger->Go();
+			DebugStopReason reason = debugger->GoAndWait();
 			PrintStopReason(debugger, reason);
+		}
+		else if (input == "r")
+		{
+			bool result = debugger->Launch();
 		}
 		else if (input == "force_go")
 		{
@@ -576,39 +582,42 @@ int main(int argc, const char* argv[])
 
 			const auto ip = debugger->IP();
 			debugger->SetRegisterValue(ip_name, ip + 1);
-			DebugStopReason reason = debugger->Go();
+			DebugStopReason reason = debugger->GoAndWait();
 			PrintStopReason(debugger, reason);
 		}
-		else if (input == "so")
+		else if (input == "ni")
 		{
-			DebugStopReason reason = debugger->StepOver();
+			DebugStopReason reason = debugger->StepOverAndWait();
 			PrintStopReason(debugger, reason);
 		}
 		else if ( input == "sot" )
 		{
-			DebugStopReason reason = debugger->StepReturn();
+			DebugStopReason reason = debugger->StepReturnAndWait();
 			PrintStopReason(debugger, reason);
 		}
 		else if ( input == "si" )
 		{
-			DebugStopReason reason = debugger->StepInto();
+			DebugStopReason reason = debugger->StepIntoAndWait();
+			PrintStopReason(debugger, reason);
+		}
+		else if ( input == "finish" )
+		{
+			DebugStopReason reason = debugger->StepReturnAndWait();
 			PrintStopReason(debugger, reason);
 		}
 		else if (auto loc = input.find("st ");
 				loc != std::string::npos)
 		{
-			DebugStopReason reason = debugger->RunTo(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
+			DebugStopReason reason = debugger->RunToAndWait(std::stoull(input.substr(loc + 3).c_str(), nullptr, 16));
 			PrintStopReason(debugger, reason);
 		}
 		else if (input == "detach")
 		{
 			debugger->Detach();
-			break;
 		}
 		else if (input == "kill")
 		{
 			debugger->Quit();
-			break;
 		}
 		else if (input == "break")
 		{

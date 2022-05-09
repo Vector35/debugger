@@ -703,16 +703,112 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerAttach(self.handle, pid)
 
-    def go(self) -> DebugStopReason:
+    def go(self) -> bool:
+        """
+        Resume the target.
+
+        The call is asynchronous and returns before the target stops.
+        :return: the reason for the stop
+        """
+        return dbgcore.BNDebuggerGo(self.handle)
+
+    def step_into(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> bool:
+        """
+        Perform a step into on the target.
+
+        When the next instruction is not a call, execute the next instruction. When the next instruction is a call,
+        follow the call the get into the first instruction of the call.
+
+        The operation can be performed on an IL level specified by the ``il`` parameter, which then either executes the
+        next IL instruction, or follow into the IL function. Note, the underlying operation is still performed at the
+        disassembly level because that is the only thing a debugger understands. The high-level operations are simulated
+        on top of the disassembly and analysis.
+
+        Some limitations are known with stepping into on IL.
+
+        The call is asynchronous and returns before the target stops.
+
+        :param il: optional IL level to perform the operation at.
+        :return: the reason for the stop
+        """
+        return dbgcore.BNDebuggerStepInto(self.handle, il)
+
+    def step_over(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> bool:
+        """
+        Perform a step over on the target.
+
+        When the next instruction is not a call, execute the next instruction. When the next instruction is a call,
+        complete the execution of the function and break at next instruction.
+
+        The operation can be performed on an IL level specified by the ``il`` parameter, which then either executes the
+        next IL instruction, or completes the IL function. Note, the underlying operation is still performed at the
+        disassembly level because that is the only thing a debugger understands. The high-level operations are simulated
+        on top of the disassembly and analysis.
+
+        Some limitations are known with stepping over on IL.
+
+        The call is asynchronous and returns before the target stops.
+
+        :param il: optional IL level to perform the operation at.
+        :return: the reason for the stop
+        """
+        return dbgcore.BNDebuggerStepOver(self.handle, il)
+
+    def step_return(self) -> bool:
+        """
+        Perform a step return on the target.
+
+        Step return completes the execution of the current function and returns to its caller. This operation relies
+        heavily on stack frame analysis, which is done by the DebugAdapters.
+
+        If a DebugAdapter does not support (i.e., overload) this function, a fallback handling is provided by the
+        DebuggerController. It checks the MLIL function and put breakpoints on all returning instructions and then resume
+        the target. By the time it breaks, the target is about to return from the current function.
+
+        This fallback behavior is slightly different from that offered by the LLDB and DbgEng adapter, which returns
+        from the current function and break afterwards.
+
+        The call is asynchronous and returns before the target stops.
+
+        :return: the reason for the stop
+        """
+        return dbgcore.BNDebuggerStepReturn(self.handle)
+
+    def run_to(self, address) -> bool:
+        """
+        Resume the target, and wait for it to break at the given address(es).
+
+        The address parameter can be either an integer, or a list of integers.
+
+        Internally, the debugger places breeakpoints on these addresses, resume the target, and wait for the target
+        to break. Then the debugger removes the added breakpoints.
+
+       The call is asynchronous and returns before the target stops.
+
+        """
+        if isinstance(address, int):
+            address = [address]
+
+        if not isinstance(address, list):
+            raise NotImplementedError
+
+        addr_list = (ctypes.c_uint64 * len(address))()
+        for i in range(len(address)):
+            addr_list[i] = address[i]
+
+        return dbgcore.BNDebuggerRunTo(self.handle, addr_list, len(address))
+
+    def go_and_wait(self) -> DebugStopReason:
         """
         Resume the target.
 
         The call is blocking and only returns when the target stops.
         :return: the reason for the stop
         """
-        return DebugStopReason(dbgcore.BNDebuggerGo(self.handle))
+        return DebugStopReason(dbgcore.BNDebuggerGoAndWait(self.handle))
 
-    def step_into(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
+    def step_into_and_wait(self, il: binaryninja.FunctionGraphType =
+                binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
         """
         Perform a step into on the target.
 
@@ -731,9 +827,10 @@ class DebuggerController:
         :param il: optional IL level to perform the operation at.
         :return: the reason for the stop
         """
-        return DebugStopReason(dbgcore.BNDebuggerStepInto(self.handle, il))
+        return DebugStopReason(dbgcore.BNDebuggerStepIntoAndWait(self.handle, il))
 
-    def step_over(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
+    def step_over_and_wait(self, il: binaryninja.FunctionGraphType =
+                binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
         """
         Perform a step over on the target.
 
@@ -752,9 +849,9 @@ class DebuggerController:
         :param il: optional IL level to perform the operation at.
         :return: the reason for the stop
         """
-        return DebugStopReason(dbgcore.BNDebuggerStepOver(self.handle, il))
+        return DebugStopReason(dbgcore.BNDebuggerStepOverAndWait(self.handle, il))
 
-    def step_return(self) -> DebugStopReason:
+    def step_return_and_wait(self) -> DebugStopReason:
         """
         Perform a step return on the target.
 
@@ -772,9 +869,9 @@ class DebuggerController:
 
         :return: the reason for the stop
         """
-        return DebugStopReason(dbgcore.BNDebuggerStepReturn(self.handle))
+        return DebugStopReason(dbgcore.BNDebuggerStepReturnAndWait(self.handle))
 
-    def run_to(self, address) -> DebugStopReason:
+    def run_to_and_wait(self, address) -> DebugStopReason:
         """
         Resume the target, and wait for it to break at the given address(es).
 
@@ -796,7 +893,17 @@ class DebuggerController:
         for i in range(len(address)):
             addr_list[i] = address[i]
 
-        return DebugStopReason(dbgcore.BNDebuggerRunTo(self.handle, addr_list, len(address)))
+        return DebugStopReason(dbgcore.BNDebuggerRunToAndWait(self.handle, addr_list, len(address)))
+
+    def pause_and_wait(self) -> None:
+        """
+        Pause a running target.
+
+        The call is blocking and only returns when the target stops.
+
+        :return:
+        """
+        dbgcore.BNDebuggerPauseAndWait(self.handle)
 
     @property
     def adapter_type(self) -> str:

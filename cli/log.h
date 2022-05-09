@@ -100,7 +100,7 @@ namespace Log
         {
             const auto binja_string = fmt::format("[BINARYNINJA] {}",
                                                   fmt::format(str.data(), std::forward<Args>(args)...));
-            BinaryNinja::Log(static_cast<BNLogLevel>(LogMode), binja_string.c_str());
+            BinaryNinja::Log(static_cast<BNLogLevel>(LogMode), "%s", binja_string.c_str());
         }
 
         return true;

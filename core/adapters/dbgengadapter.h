@@ -27,14 +27,9 @@ namespace BinaryNinjaDebugger
 {
 	struct ProcessCallbackInformation
 	{
-		bool m_created{false};
-		bool m_exited{false};
-		bool m_hasOneBreakpoint{false};
 		DebugBreakpoint m_lastBreakpoint{};
 		EXCEPTION_RECORD64 m_lastException{};
-		std::uint64_t m_imageBase{};
 		unsigned long m_exitCode{};
-		unsigned long m_lastSessionStatus{DEBUG_SESSION_FAILURE};
 	};
 
 	#define CALLBACK_METHOD(return_type) return_type __declspec(nothrow) __stdcall
@@ -50,9 +45,13 @@ namespace BinaryNinjaDebugger
 		void SetAdapter(DebugAdapter* adapter);
 	};
 
+	class DbgEngAdapter;
 	class DbgEngEventCallbacks : public DebugBaseEventCallbacks
 	{
+	private:
+		DbgEngAdapter* m_adapter;
 	public:
+		void SetAdapter(DbgEngAdapter* adapter) { m_adapter = adapter; }
 		CALLBACK_METHOD(unsigned long) AddRef() override;
 		CALLBACK_METHOD(unsigned long) Release() override;
 		CALLBACK_METHOD(HRESULT) GetInterestMask(unsigned long* mask) override;
@@ -106,10 +105,13 @@ namespace BinaryNinjaDebugger
 
 		void Start();
 		void Reset();
-		bool Wait(std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
 		std::vector<DebugBreakpoint> m_debug_breakpoints{};
         bool m_lastOperationIsStepInto = false;
+
+		bool m_initialBreakpointSend = false;
+
+		unsigned long m_exitCode{};
 
 	public:
 		inline static ProcessCallbackInformation ProcessCallbackInfo{};
@@ -122,11 +124,19 @@ namespace BinaryNinjaDebugger
 		[[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string &args,
 										   const std::string& workingDir,
 										   const LaunchConfigurations& configs = {}) override;
+		[[nodiscard]] bool ExecuteWithArgsInternal(const std::string& path, const std::string &args,
+											const std::string& workingDir,
+											const LaunchConfigurations& configs = {});
 		[[nodiscard]] bool Attach(std::uint32_t pid) override;
+		[[nodiscard]] bool AttachInternal(std::uint32_t pid);
 		[[nodiscard]] bool Connect(const std::string &server, std::uint32_t port) override;
 
 		void Detach() override;
 		void Quit() override;
+
+		bool Wait(std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+
+		void EngineLoop();
 
 		std::vector<DebugThread> GetThreadList() override;
 		DebugThread GetActiveThread() const override;

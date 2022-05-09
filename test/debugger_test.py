@@ -61,14 +61,14 @@ class DebuggerAPI(unittest.TestCase):
             self.assertTrue(dbg.launch())
 
             # continue execution to the entry point, and check the stop reason
-            reason = dbg.step_into()
+            reason = dbg.step_into_and_wait()
             self.assertEqual(reason, DebugStopReason.SingleStep)
-            reason = dbg.step_into()
+            reason = dbg.step_into_and_wait()
             self.assertEqual(reason, DebugStopReason.SingleStep)
-            reason = dbg.step_into()
+            reason = dbg.step_into_and_wait()
             self.assertEqual(reason, DebugStopReason.SingleStep)
             # go until executing done
-            reason = dbg.go()
+            reason = dbg.go_and_wait()
             self.assertEqual(reason, DebugStopReason.ProcessExited)
 
         # Do the same thing for 10 times
@@ -95,7 +95,7 @@ class DebuggerAPI(unittest.TestCase):
             dbg.cmd_line = arg
 
             self.assertTrue(dbg.launch())
-            reason = dbg.go()
+            reason = dbg.go_and_wait()
             self.assertEqual(reason, DebugStopReason.ProcessExited)
             exit_code = dbg.exit_code
             self.assertIn(exit_code, expected)
@@ -113,7 +113,8 @@ class DebuggerAPI(unittest.TestCase):
 
         dbg.cmd_line = 'segfault'
         self.assertTrue(dbg.launch())
-        reason = dbg.go()
+        # time.sleep(1)
+        reason = dbg.go_and_wait()
         self.expect_segfault(reason)
         dbg.quit()
 
@@ -147,7 +148,7 @@ class DebuggerAPI(unittest.TestCase):
         if not self.arch == 'arm64':
             dbg.cmd_line = 'divzero'
             self.assertTrue(dbg.launch())
-            reason = dbg.go()
+            reason = dbg.go_and_wait()
             self.expect_divide_by_zero(reason)
             dbg.quit()
 
@@ -157,11 +158,11 @@ class DebuggerAPI(unittest.TestCase):
         dbg = DebuggerController(bv)
         dbg.cmd_line = 'foobar'
         self.assertTrue(dbg.launch())
-        reason = dbg.step_into()
+        reason = dbg.step_into_and_wait()
         self.assertEqual(reason, DebugStopReason.SingleStep)
-        reason = dbg.step_into()
+        reason = dbg.step_into_and_wait()
         self.assertEqual(reason, DebugStopReason.SingleStep)
-        reason = dbg.go()
+        reason = dbg.go_and_wait()
         self.assertEqual(reason, DebugStopReason.ProcessExited)
 
     def test_breakpoint(self):
@@ -236,23 +237,14 @@ class DebuggerAPI(unittest.TestCase):
 
     # @unittest.skip
     def test_thread(self):
-        def break_target(dbg):
-            time.sleep(1)
-            dbg.pause()
-
         fpath = name_to_fpath('helloworld_thread', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
         self.assertTrue(dbg.launch())
 
-        t = threading.Thread(target=break_target, args=(dbg,))
-        t.start()
-
-        reason = dbg.go()
-        # This is important. By the time go() returns, dbg.pause() (running on a different thread) is still calling
-        # callbacks. If we do not wait for it to finish, we are in a race condition.
-        # In the future, once we adopt asynchronous communication, this problem can be resolved.
+        dbg.go()
         time.sleep(1)
+        dbg.pause_and_wait()
 
         # print('switching to bad thread')
         # self.assertFalse(dbg.thread_select(999))
@@ -260,11 +252,9 @@ class DebuggerAPI(unittest.TestCase):
         threads = dbg.threads
         self.assertGreater(len(threads), 1)
 
-        t = threading.Thread(target=break_target, args=(dbg,))
-        t.start()
-
-        reason = dbg.go()
+        dbg.go()
         time.sleep(1)
+        dbg.pause_and_wait()
 
         threads = dbg.threads
         self.assertGreater(len(threads), 1)
@@ -281,21 +271,21 @@ class DebuggerAPI(unittest.TestCase):
 
             # TODO: we can use BN to disassemble the binary and find out how long is the instruction
             # step into nop
-            dbg.step_into()
+            dbg.step_into_and_wait()
             self.assertEqual(dbg.ip, entry+1)
             # step into call, return
-            dbg.step_into()
-            dbg.step_into()
+            dbg.step_into_and_wait()
+            dbg.step_into_and_wait()
             # back
             self.assertEqual(dbg.ip, entry+6)
-            dbg.step_into()
+            dbg.step_into_and_wait()
             # step into call, return
-            dbg.step_into()
-            dbg.step_into()
+            dbg.step_into_and_wait()
+            dbg.step_into_and_wait()
             # back
             self.assertEqual(dbg.ip, entry+12)
 
-            reason = dbg.go()
+            reason = dbg.go_and_wait()
             self.assertEqual(reason, DebugStopReason.ProcessExited)
 
     @unittest.skipIf(platform.system() == 'Linux', 'Cannot attach to pid unless running as root')
@@ -334,7 +324,7 @@ class Debuggerx64Test(DebuggerAPI):
         self.arch = 'x86_64'
 
 
-@unittest.skipIf(platform.system() == 'Darwin', 'x86 tests not supported on macOS')
+@unittest.skipIf(platform.system() in ['Darwin', 'Windows'], 'x86 tests not supported on macOS/Windows')
 class Debuggerx86Test(DebuggerAPI):
     def setUp(self) -> None:
         self.arch = 'x86'

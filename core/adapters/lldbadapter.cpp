@@ -27,6 +27,11 @@ LldbAdapter::LldbAdapter(BinaryView *data): DebugAdapter(data)
 	m_debugger = SBDebugger::Create();
 	if (!m_debugger.IsValid())
 		LogWarn("invalid debugger");
+
+	// Set auto-confirm to true so operations that ask for confirmation will proceed automatically.
+	// Otherwise, the confirmation prompt will be sent to the terminal that BN is launched from, which is a very
+	// confusing behavior.
+	InvokeBackendCommand("settings set auto-confirm true");
 	m_debugger.SetAsync(false);
 	std::thread thread([&](){ EventListener(); });
 	thread.detach();
@@ -42,7 +47,7 @@ LldbAdapterType::LldbAdapterType(): DebugAdapterType("LLDB")
 DebugAdapter* LldbAdapterType::Create(BinaryNinja::BinaryView *data)
 {
 	// TODO: someone should free this.
-    return new QueuedAdapter(new LldbAdapter(data));
+	return new LldbAdapter(data);
 }
 
 
@@ -117,6 +122,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 		PostDebuggerEvent(event);
 		return false;
 	}
+	m_debugger.SetAsync(true);
 	return true;
 }
 
@@ -847,11 +853,28 @@ bool LldbAdapter::SupportFeature(DebugAdapterCapacity feature)
 void LldbAdapter::EventListener()
 {
 	SBEvent event;
-	auto listener = m_debugger.GetListener();
+	SBListener listener = SBListener("listener");
+	listener.StartListeningForEventClass(m_debugger, SBProcess::GetBroadcasterClassName(),
+		lldb::SBProcess::eBroadcastBitStateChanged |
+		lldb::SBProcess::eBroadcastBitSTDERR |
+		lldb::SBProcess::eBroadcastBitSTDOUT);
+
+	listener.StartListeningForEventClass(m_debugger, SBTarget::GetBroadcasterClassName(),
+		lldb::SBTarget::eBroadcastBitBreakpointChanged |
+		lldb::SBTarget::eBroadcastBitModulesLoaded |
+		lldb::SBTarget::eBroadcastBitModulesUnloaded);
+
+	listener.StartListeningForEventClass(m_debugger, SBCommandInterpreter::GetBroadcasterClass(),
+		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousErrorData |
+		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousOutputData
+		);
+
 	bool done = false;
 	while (!done)
 	{
-		listener.WaitForEvent(1, event);
+		if (!listener.WaitForEvent(1, event))
+			continue;
+
 		uint32_t event_type = event.GetType();
 		if (lldb::SBProcess::EventIsProcessEvent(event))
 		{
@@ -862,26 +885,52 @@ void LldbAdapter::EventListener()
 				// the UI is not updated. However, in order to receive the eBroadcastBitStateChanged notification,
 				// We need to turn on async mode, which requires other changes as well.
 
-//				StateType state = SBProcess::GetStateFromEvent(event);
-//				switch (state)
-//				{
-//				case lldb::eStateStopped:
-//				{
-//					DebuggerEvent dbgevt;
-//					dbgevt.type = TargetStoppedEventType;
-//					dbgevt.data.targetStoppedData.reason = StopReason();
-//					PostDebuggerEvent(dbgevt);
-//					break;
-//				}
-//				case lldb::eStateExited:
-//				{
-//					DebuggerEvent dbgevt;
-//					dbgevt.type = TargetExitedEventType;
-//					dbgevt.data.exitData.exitCode = ExitCode();
-//					PostDebuggerEvent(dbgevt);
-//					break;
-//				}
-//				}
+				StateType state = SBProcess::GetStateFromEvent(event);
+				switch (state)
+				{
+				case lldb::eStateRunning:
+				{
+					DebuggerEvent dbgevt;
+					dbgevt.type = ResumeEventType;
+					PostDebuggerEvent(dbgevt);
+					break;
+				}
+				// LLDB seems to always report eStateRunning instead of eStateStepping
+				case lldb::eStateStepping:
+				{
+					DebuggerEvent dbgevt;
+					dbgevt.type = StepIntoEventType;
+					PostDebuggerEvent(dbgevt);
+					break;
+				}
+				case lldb::eStateStopped:
+				{
+					DebuggerEvent dbgevt;
+					dbgevt.type = AdapterStoppedEventType;
+					dbgevt.data.targetStoppedData.reason = StopReason();
+					PostDebuggerEvent(dbgevt);
+					break;
+				}
+				case lldb::eStateExited:
+				{
+					done = true;
+					DebuggerEvent dbgevt;
+					dbgevt.type = TargetExitedEventType;
+					dbgevt.data.exitData.exitCode = ExitCode();
+					PostDebuggerEvent(dbgevt);
+					break;
+				}
+				case lldb::eStateDetached:
+				{
+					done = true;
+					DebuggerEvent dbgevt;
+					dbgevt.type = DetachedEventType;
+					PostDebuggerEvent(dbgevt);
+					break;
+				}
+				default:
+					break;
+				}
 			}
 			else if ((event_type & lldb::SBProcess::eBroadcastBitSTDOUT) ||
 				(event_type & lldb::SBProcess::eBroadcastBitSTDERR))
@@ -907,7 +956,95 @@ void LldbAdapter::EventListener()
 				PostDebuggerEvent(event);
 			}
 		}
-
+		else if (lldb::SBTarget::EventIsTargetEvent(event))
+		{
+			SBTarget target = lldb::SBTarget::GetTargetFromEvent(event);
+			if (event_type & lldb::SBTarget::eBroadcastBitModulesLoaded)
+			{
+				size_t numModules = SBTarget::GetNumModulesFromEvent(event);
+			}
+		}
+		else if (lldb::SBBreakpoint::EventIsBreakpointEvent(event))
+		{
+			if (event_type & lldb::SBTarget::eBroadcastBitBreakpointChanged)
+			{
+				auto bpEventType = lldb::SBBreakpoint::GetBreakpointEventTypeFromEvent(event);
+				auto bp = lldb::SBBreakpoint::GetBreakpointFromEvent(event);
+				for (size_t i = 0; i < bp.GetNumLocations(); i++)
+				{
+					if (bpEventType == lldb::eBreakpointEventTypeAdded)
+					{
+						auto location = bp.GetLocationAtIndex(i);
+						auto address = location.GetAddress();
+						auto module = address.GetModule();
+						if (module.IsValid())
+						{
+							SBAddress headerAddress = module.GetObjectFileHeaderAddress();
+							uint64_t moduleBase = headerAddress.GetLoadAddress(m_target);
+							uint64_t bpAddress = location.GetAddress().GetLoadAddress(m_target);
+							auto fileSpec = module.GetFileSpec();
+							char path[1024];
+							size_t bytes = fileSpec.GetPath(path, sizeof(path));
+							DebuggerEvent evt;
+							evt.type = RelativeBreakpointAddedEvent;
+							evt.data.relativeAddress.module = std::string(path, bytes);
+							evt.data.relativeAddress.offset = bpAddress - moduleBase;
+							PostDebuggerEvent(evt);
+						}
+						else
+						{
+							DebuggerEvent evt;
+							evt.type = AbsoluteBreakpointAddedEvent;
+							evt.data.absoluteAddress = location.GetAddress().GetLoadAddress(m_target);
+							PostDebuggerEvent(evt);
+						}
+					}
+					else if (bpEventType == lldb::eBreakpointEventTypeRemoved)
+					{
+						auto location = bp.GetLocationAtIndex(i);
+						auto address = location.GetAddress();
+						auto module = address.GetModule();
+						if (module.IsValid())
+						{
+							SBAddress headerAddress = module.GetObjectFileHeaderAddress();
+							uint64_t moduleBase = headerAddress.GetLoadAddress(m_target);
+							uint64_t bpAddress = location.GetAddress().GetLoadAddress(m_target);
+							auto fileSpec = module.GetFileSpec();
+							char path[1024];
+							size_t bytes = fileSpec.GetPath(path, sizeof(path));
+							DebuggerEvent evt;
+							evt.type = RelativeBreakpointRemovedEvent;
+							evt.data.relativeAddress.module = std::string(path, bytes);
+							evt.data.relativeAddress.offset = bpAddress - moduleBase;
+							PostDebuggerEvent(evt);
+						}
+						else
+						{
+							DebuggerEvent evt;
+							evt.type = AbsoluteBreakpointRemovedEvent;
+							evt.data.absoluteAddress = location.GetAddress().GetLoadAddress(m_target);
+							PostDebuggerEvent(evt);
+						}
+					}
+				}
+			}
+		}
+		else if (lldb::SBCommandInterpreter::EventIsCommandInterpreterEvent(event))
+		{
+			LogDebug("command line interpreter event");
+		}
+		else if (lldb::SBThread::EventIsThreadEvent(event))
+		{
+			LogDebug("thread events");
+		}
+		else if (lldb::SBWatchpoint::EventIsWatchpointEvent(event))
+		{
+			LogDebug("watchpoint event");
+		}
+		else if (lldb::SBProcess::EventIsStructuredDataEvent(event))
+		{
+			LogDebug("structured data event");
+		}
 	}
 }
 

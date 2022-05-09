@@ -104,9 +104,7 @@ void DebugControlsWidget::performRestart()
 
 void DebugControlsWidget::performQuit()
 {
-    std::thread([&](){
-        m_controller->Quit();
-    }).detach();
+    m_controller->Quit();
 }
 
 
@@ -120,9 +118,7 @@ void DebugControlsWidget::performConnect()
 
 void DebugControlsWidget::performDetach()
 {
-    std::thread([&](){
-        m_controller->Detach();
-    }).detach();
+	m_controller->Detach();
 }
 
 
@@ -138,17 +134,13 @@ void DebugControlsWidget::performSettings()
 
 void DebugControlsWidget::performPause()
 {
-	std::thread([&](){
-		m_controller->Pause();
-	}).detach();
+	m_controller->Pause();
 }
 
 
 void DebugControlsWidget::performResume()
 {
-	std::thread([&](){
-    	m_controller->Go();
-	}).detach();
+	m_controller->Go();
 }
 
 
@@ -162,9 +154,7 @@ void DebugControlsWidget::performStepInto()
 	if (graphType == InvalidILViewType)
 		graphType = NormalFunctionGraph;
 
-    std::thread([&, graphType](){
-        m_controller->StepInto(graphType);
-    }).detach();
+    m_controller->StepInto(graphType);
 }
 
 
@@ -178,17 +168,13 @@ void DebugControlsWidget::performStepOver()
 	if (graphType == InvalidILViewType)
 		graphType = NormalFunctionGraph;
 
-    std::thread([&, graphType](){
-        m_controller->StepOver(graphType);
-    }).detach();
+    m_controller->StepOver(graphType);
 }
 
 
 void DebugControlsWidget::performStepReturn()
 {
-    std::thread([&](){
-        m_controller->StepReturn();
-    }).detach();
+    m_controller->StepReturn();
 }
 
 
