@@ -278,20 +278,13 @@ int main(int argc, char* argv[])
 	fprintf(out, "# Load core module\n");
 	fprintf(out, "import platform\n");
 	fprintf(out, "core = None\n");
-	fprintf(out, "_base_path = None\n");
-	fprintf(out, "# By the time the debugger is loaded, binaryninja has not fully initialized.\n");
-	fprintf(out, "# So we cannot call binaryninja.bundled_plugin_path()\n");
-	fprintf(out, "from binaryninja._binaryninjacore import BNGetBundledPluginDirectory\n");
 	fprintf(out, "core_platform = platform.system()\n");
 	fprintf(out, "if core_platform == \"Darwin\":\n");
-	fprintf(out, "\t_base_path = BNGetBundledPluginDirectory()\n");
-	fprintf(out, "\tcore = ctypes.CDLL(os.path.join(_base_path, \"libdebuggercore.dylib\"))\n\n");
+	fprintf(out, "\tcore = ctypes.CDLL(\"libdebuggercore.dylib\")\n\n");
 	fprintf(out, "elif core_platform == \"Linux\":\n");
-	fprintf(out, "\t_base_path = BNGetBundledPluginDirectory()\n");
-	fprintf(out, "\tcore = ctypes.CDLL(os.path.join(_base_path, \"libdebuggercore.so.1\"))\n\n");
+	fprintf(out, "\tcore = ctypes.CDLL(\"libdebuggercore.so\")\n\n");
 	fprintf(out, "elif (core_platform == \"Windows\") or (core_platform.find(\"CYGWIN_NT\") == 0):\n");
-	fprintf(out, "\t_base_path = BNGetBundledPluginDirectory()\n");
-	fprintf(out, "\tcore = ctypes.CDLL(os.path.join(_base_path, \"debuggercore.dll\"))\n");
+	fprintf(out, "\tcore = ctypes.CDLL(\"debuggercore.dll\")\n");
 	fprintf(out, "else:\n");
 	fprintf(out, "\traise Exception(\"OS not supported\")\n\n\n");
 

@@ -27,22 +27,19 @@ The build instructions are **outdated**. The stable branch of the debugger is sh
 # Get the source
 git clone https://github.com/Vector35/binaryninja-api.git
 git clone https://github.com/Vector35/debugger.git
-cd debugger
-git checkout dev
 
 # Do an out-of-source build
-cd ../
 mkdir build
 cd build
 
 # Build it
-cmake -DBN_API_PATH=../binaryninja-api -DBN_INSTALL_DIR=/path/to/binaryninja/installation ../debugger/
-make -j8
+cmake -DBN_API_PATH=../binaryninja-api -DBN_INSTALL_DIR=/path/to/binaryninja/installation -DLLDB_PATH=/path/to/lldb ../debugger/
+make
 ```
 
-If you wish a debug build, add `-DCMAKE_BUILD_TYPE=Debug` to the cmake command line.
+The build artifacts will be in the folder `out`.
 
-To install it, first disable `corePlugins.debugger` so the debugger that comes with Binary Ninja is not loaded. Then copy the built `libdebuggercore.so/dll` and the `libdebuggerui.so/dll` to the user plugin folder and relaunch BinaryNinja.
+To install it, first disable `corePlugins.debugger` so the debugger that comes with Binary Ninja is not loaded. Then copy everything in the `out` folder to the user plugin folder and relaunch BinaryNinja.
 
 
 ## License

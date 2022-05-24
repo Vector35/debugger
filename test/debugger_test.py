@@ -11,7 +11,10 @@ import subprocess
 import unittest
 
 from binaryninja import BinaryView, BinaryViewType, LowLevelILOperation, mainthread
-from binaryninja.debugger import DebuggerController, DebugStopReason
+try:
+    from binaryninja.debugger import DebuggerController, DebugStopReason
+except:
+    from debugger import DebuggerController, DebugStopReason
 
 
 # 'helloworld' -> '{BN_SOURCE_ROOT}\public\debugger\test\binaries\Windows-x64\helloworld.exe' (windows)

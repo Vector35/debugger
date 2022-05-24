@@ -15,7 +15,13 @@
 import os
 from binaryninja.settings import Settings
 
-if os.environ.get('BN_EXPERIMENTAL_DEBUGGER') or Settings().get_bool('corePlugins.debugger'):
+# when we build and run the debugger as a user plugin, we must let BN load it for us
+if os.environ.get('BN_STANDALONE_DEBUGGER'):
+    from binaryninja import _init_plugins
+    _init_plugins()
+
+if os.environ.get('BN_EXPERIMENTAL_DEBUGGER') or os.environ.get('BN_STANDALONE_DEBUGGER') \
+        or Settings().get_bool('corePlugins.debugger'):
     from .debuggercontroller import *
     from .debugadaptertype import *
     from .debugger_enums import *

@@ -22,5 +22,3 @@ set_target_properties(debugger-cli PROPERTIES
         POSITION_INDEPENDENT_CODE ON
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out/bin
         )
-
-include_directories(../vendor)

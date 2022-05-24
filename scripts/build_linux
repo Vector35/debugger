@@ -1,0 +1,4 @@
+#!/bin/bash
+export PATH=~/.local/bin:$PATH
+export PYTHONUNBUFFERED=1
+python3 scripts/build.py "$@"
