@@ -39,6 +39,8 @@ make
 
 The build artifacts will be in the folder `out`.
 
+Note, the above instruction requries LLDB, whose build instruction is not included here. We will update this later.
+
 To install it, first disable `corePlugins.debugger` so the debugger that comes with Binary Ninja is not loaded. Then copy everything in the `out` folder to the user plugin folder and relaunch BinaryNinja.
 
 
