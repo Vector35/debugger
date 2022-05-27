@@ -217,8 +217,8 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 
 				if (newFrame)
 				{
-//					newFrame->navigate(m_controller->GetLiveView(), address, true, true);
 					m_context->closeTab(m_context->getTabForFile(fileContext));
+					navigateDebugger(address);
 					QCoreApplication::processEvents();
 				}
 			}

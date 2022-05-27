@@ -90,7 +90,6 @@ namespace BinaryNinjaDebugger
 		void UpdateStackVariables();
 		DebugAdapter *CreateDebugAdapter();
 		void HandleInitialBreakpoint();
-		void AddEntryBreakpoint();
 
 		void SetLiveView(BinaryViewRef view) { m_liveView = view; }
 

@@ -51,6 +51,24 @@ static void RegisterSettings()
 	Leaving this function for migration of the settings popup.
 
 	*/
+
+	settings->RegisterSetting("debugger.stopAtSystemEntryPoint",
+			R"({
+			"title" : "Stop At System Entry Point",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "Stop the target at program entry point",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
+
+	settings->RegisterSetting("debugger.stopAtEntryPoint",
+			R"({
+			"title" : "Stop At Entry Point",
+			"type" : "boolean",
+			"default" : true,
+			"description" : "Stop the target at system entry point",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
 }
 
 extern "C"

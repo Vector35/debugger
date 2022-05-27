@@ -30,19 +30,6 @@ DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
     RegisterEventCallback([this](const DebuggerEvent& event){
         EventHandler(event);
     });
-
-	// TODO: we should add an option whether to add a breakpoint at program entry
-	AddEntryBreakpoint();
-}
-
-
-void DebuggerController::AddEntryBreakpoint()
-{
-    uint64_t entryPoint = m_data->GetEntryPoint();
-    uint64_t localEntryOffset = entryPoint - m_data->GetStart();
-    ModuleNameAndOffset address(m_data->GetFile()->GetOriginalFilename(), localEntryOffset);
-
-    AddBreakpoint(address);
 }
 
 
@@ -104,10 +91,6 @@ bool DebuggerController::Launch()
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
         m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 		HandleInitialBreakpoint();
-		// On Linux, when a binary has no loader, the debugger will break at the entry point initially, rather than
-		// breaking inside the loader. If we wrongly resume the target, it will execute on its own.
-		if (m_state->IP() != m_liveView->GetEntryPoint())
-			GoAndWait();
 	}
 	else
 	{
@@ -672,10 +655,6 @@ DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& re
 void DebuggerController::HandleInitialBreakpoint()
 {
 	m_state->UpdateCaches();
-	// We need to apply the breakpoints that the user has set up before launching the target. Note this requires
-	// the modules to be updated properly beforehand.
-	m_state->ApplyBreakpoints();
-
 	// Rebase the binary and create DebugView
 	uint64_t remoteBase = m_state->GetRemoteBase();
 

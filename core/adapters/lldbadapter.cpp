@@ -96,8 +96,17 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 	if (!m_target.IsValid())
 		return false;
 
+	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
+	{
+		uint64_t entry = m_data->GetEntryPoint();
+		std::string entryBreakpointCommand = fmt::format("b -s {} -a {:x}", path, entry);
+		auto ret = InvokeBackendCommand(entryBreakpointCommand);
+	}
+
 	std::string launchCommand = "process launch";
-	launchCommand += " --stop-at-entry";
+	if (Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint"))
+		launchCommand += " --stop-at-entry";
+
 	if (configs.requestTerminalEmulator)
 		launchCommand += " --tty";
 
