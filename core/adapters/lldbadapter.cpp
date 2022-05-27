@@ -95,30 +95,26 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 	m_target = m_debugger.CreateTarget(path.c_str());
 	if (!m_target.IsValid())
 		return false;
-	const char** argsArray = new const char*[2];
-	argsArray[0] = args.c_str();
-	argsArray[1] = nullptr;
 
-	SBLaunchInfo info(argsArray);
-	// We must set this flag; otherwise, the target will be launched, run freely, and then exit
-	// TODO: check for other useful flags to set
-	uint32_t flag = lldb::eLaunchFlagStopAtEntry;
+	std::string launchCommand = "process launch";
+	launchCommand += " --stop-at-entry";
 	if (configs.requestTerminalEmulator)
-		flag |= lldb::eLaunchFlagLaunchInTTY;
+		launchCommand += " --tty";
 
-	info.SetLaunchFlags(flag);
 	if (!workingDir.empty())
-		info.SetWorkingDirectory(workingDir.c_str());
+		launchCommand += fmt::format(" --working-dir \"{}\"", workingDir);
 
-	// TODO: support setting environment
+	if (!args.empty())
+		launchCommand += (" -- " + args);
 
-	SBError error;
-	m_process = m_target.Launch(info, error);
-	if (!(m_process.IsValid() && error.Success()))
+	auto result = InvokeBackendCommand(launchCommand);
+
+	m_process = m_target.GetProcess();
+	if (!m_process.IsValid())
 	{
 		DebuggerEvent event;
 		event.type = ErrorEventType;
-		event.data.errorData.error = fmt::format("failed to launch: {}", error.GetCString() ? error.GetCString() : "");
+		event.data.errorData.error = fmt::format("failed to launch: {}", result.c_str());
 		PostDebuggerEvent(event);
 		return false;
 	}
