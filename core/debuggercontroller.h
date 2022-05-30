@@ -88,7 +88,7 @@ namespace BinaryNinjaDebugger
 
 		void EventHandler(const DebuggerEvent &event);
 		void UpdateStackVariables();
-		DebugAdapter *CreateDebugAdapter();
+		bool CreateDebugAdapter();
 		void HandleInitialBreakpoint();
 
 		void SetLiveView(BinaryViewRef view) { m_liveView = view; }
@@ -116,6 +116,8 @@ namespace BinaryNinjaDebugger
 		std::set<uint64_t> m_addressesWithComment;
 		void ProcessOneVariable(uint64_t address, Confidence<Ref<Type>> type, const std::string& name);
 		void DefineVariablesRecursive(uint64_t address, Confidence<Ref<Type>> type);
+
+		void ApplyBreakpoints();
 
 	public:
 		DebuggerController(BinaryViewRef data);

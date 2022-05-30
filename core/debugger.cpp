@@ -57,7 +57,7 @@ static void RegisterSettings()
 			"title" : "Stop At System Entry Point",
 			"type" : "boolean",
 			"default" : false,
-			"description" : "Stop the target at program entry point",
+			"description" : "Stop the target at system entry point",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 
@@ -66,7 +66,7 @@ static void RegisterSettings()
 			"title" : "Stop At Entry Point",
 			"type" : "boolean",
 			"default" : true,
-			"description" : "Stop the target at system entry point",
+			"description" : "Stop the target at program entry point",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 }

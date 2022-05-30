@@ -33,6 +33,12 @@ LldbAdapter::LldbAdapter(BinaryView *data): DebugAdapter(data)
 	// confusing behavior.
 	InvokeBackendCommand("settings set auto-confirm true");
 	m_debugger.SetAsync(false);
+
+	// Hacky way to supply the path info into the LLDB
+	m_target = m_debugger.CreateTarget(data->GetFile()->GetOriginalFilename().c_str());
+	if (!m_target.IsValid())
+		return;
+
 	std::thread thread([&](){ EventListener(); });
 	thread.detach();
 }
@@ -92,16 +98,11 @@ bool LldbAdapter::Execute(const std::string & path, const LaunchConfigurations &
 bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &args, const std::string &workingDir,
 					 const LaunchConfigurations &configs)
 {
-	m_target = m_debugger.CreateTarget(path.c_str());
 	if (!m_target.IsValid())
 		return false;
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
-	{
-		uint64_t entry = m_data->GetEntryPoint();
-		std::string entryBreakpointCommand = fmt::format("b -s {} -a {:x}", path, entry);
-		auto ret = InvokeBackendCommand(entryBreakpointCommand);
-	}
+		AddBreakpoint(ModuleNameAndOffset(path, m_data->GetEntryPoint() - m_data->GetStart()));
 
 	std::string launchCommand = "process launch";
 	if (Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint"))
@@ -134,8 +135,6 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 
 bool LldbAdapter::Attach(std::uint32_t pid)
 {
-	// Hacky way to supply the path info into the LLDB
-	m_target = m_debugger.CreateTarget(m_data->GetFile()->GetOriginalFilename().c_str());
 	if (!m_target.IsValid())
 		return false;
 
@@ -148,8 +147,6 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 
 bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 {
-	// Hacky way to supply the path info into the LLDB
-	m_target = m_debugger.CreateTarget(m_data->GetFile()->GetOriginalFilename().c_str());
 	if (!m_target.IsValid())
 		return false;
 
@@ -305,6 +302,16 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigne
 }
 
 
+DebugBreakpoint LldbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
+{
+	uint64_t addr = address.offset + m_data->GetStart();
+	std::string entryBreakpointCommand = fmt::format("b -s {} -a {:x}", address.module, addr);
+	auto ret = InvokeBackendCommand(entryBreakpointCommand);
+
+	return DebugBreakpoint{};
+}
+
+
 bool LldbAdapter::RemoveBreakpoint(const DebugBreakpoint & breakpoint)
 {
 	// Only the address is valid. We cannot use the .m_id info.
@@ -325,6 +332,12 @@ bool LldbAdapter::RemoveBreakpoint(const DebugBreakpoint & breakpoint)
 		}
 	}
 	return ok;
+}
+
+
+bool LldbAdapter::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
+{
+	return true;
 }
 
 

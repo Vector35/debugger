@@ -424,11 +424,11 @@ bool DebuggerBreakpoints::AddOffset(const ModuleNameAndOffset& address)
         m_breakpoints.push_back(address);
         SerializeMetadata();
 
-        // Only add the breakpoint via the adapter when it is connected
+        // If the adapter is already created, we ask it to add the breakpoint.
+		// Otherwise, all breakpoints will be added to the adapter when the adapter is created.
         if (m_state->GetAdapter() && m_state->IsConnected())
         {
-            uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
-            m_state->GetAdapter()->AddBreakpoint(remoteAddress);
+			m_state->GetAdapter()->AddBreakpoint(address);
             return true;
         }
         return true;
@@ -567,15 +567,7 @@ void DebuggerBreakpoints::Apply()
 
     std::vector<DebugBreakpoint> remoteBreakpoints = m_state->GetAdapter()->GetBreakpointList();
     for (const ModuleNameAndOffset& address: m_breakpoints)
-    {
-        uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
-        if (std::find(remoteBreakpoints.begin(), remoteBreakpoints.end(), remoteAddress) == remoteBreakpoints.end())
-        {
-            LogDebug("%s", fmt::format("adding breakpoint at remote address {:x}", remoteAddress).c_str());
-			// DO not skip the controller, otherwise the breakpoint added event is not posted
-			m_state->GetController()->AddBreakpoint(remoteAddress);
-        }
-    }
+		m_state->GetAdapter()->AddBreakpoint(address);
 }
 
 

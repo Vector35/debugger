@@ -58,7 +58,11 @@ namespace BinaryNinjaDebugger {
 
 		DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type) override;
 
+		virtual DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0) override;
+
 		bool RemoveBreakpoint(const DebugBreakpoint &breakpoint) override;
+
+		virtual bool RemoveBreakpoint(const ModuleNameAndOffset& address) override;
 
 		std::vector<DebugBreakpoint> GetBreakpointList() const override;
 

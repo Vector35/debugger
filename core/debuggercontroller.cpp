@@ -79,11 +79,9 @@ bool DebuggerController::Launch()
 	event.type = LaunchEventType;
 	PostDebuggerEvent(event);
 
-	m_adapter = CreateDebugAdapter();
-	if (!m_adapter)
+	if (!CreateDebugAdapter())
 		return false;
 
-	m_state->SetAdapter(m_adapter);
     m_state->MarkDirty();
 	bool result = Execute();
 	if (result)
@@ -105,11 +103,9 @@ bool DebuggerController::Launch()
 bool DebuggerController::Attach(int32_t pid)
 {
 	NotifyEvent(AttachEventType);
-	m_adapter = CreateDebugAdapter();
-	if (!m_adapter)
+	if (!CreateDebugAdapter())
 		return false;
 
-	m_state->SetAdapter(m_adapter);
 	m_state->MarkDirty();
 	bool result = m_adapter->Attach(pid);
 	if (result)
@@ -150,26 +146,37 @@ bool DebuggerController::Execute()
 }
 
 
-DebugAdapter* DebuggerController::CreateDebugAdapter()
+bool DebuggerController::CreateDebugAdapter()
 {
     DebugAdapterType* type = DebugAdapterType::GetByName(m_state->GetAdapterType());
     if (!type)
     {
         LogWarn("fail to get an debug adapter of type %s", m_state->GetAdapterType().c_str());
-		return nullptr;
+		return false;
     }
-    DebugAdapter* adapter = type->Create(m_data);
-	if (!adapter)
+    m_adapter = type->Create(m_data);
+	if (!m_adapter)
 	{
 		LogWarn("fail to create an adapter of type %s", m_state->GetAdapterType().c_str());
-		return nullptr;
+		return false;
 	}
 
+	m_state->SetAdapter(m_adapter);
+
+	ApplyBreakpoints();
+
 	// Forward the DebuggerEvent from the adapters to the controller
-	adapter->SetEventCallback([this](const DebuggerEvent& event){
+	m_adapter->SetEventCallback([this](const DebuggerEvent& event){
 		PostDebuggerEvent(event);
 	});
-	return adapter;
+	return true;
+}
+
+
+// Apply all breakpoints that are added before the adapter is created
+void DebuggerController::ApplyBreakpoints()
+{
+	m_state->ApplyBreakpoints();
 }
 
 
@@ -733,11 +740,9 @@ void DebuggerController::Connect()
     if (m_state->IsConnected())
         return;
 
-    m_adapter = CreateDebugAdapter();
-    if (!m_adapter)
+    if (!CreateDebugAdapter())
         return;
 
-    m_state->SetAdapter(m_adapter);
     m_state->MarkDirty();
 
     m_state->SetConnectionStatus(DebugAdapterConnectingStatus);
