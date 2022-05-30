@@ -24,6 +24,7 @@ limitations under the License.
 #include <mediumlevelilinstruction.h>
 #include <highlevelilinstruction.h>
 #include <memory>
+#include <filesystem>
 #include "dbgengadapter.h"
 #include "../../cli/log.h"
 #include "queuedadapter.h"
@@ -148,6 +149,7 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
         this->Reset();
         return false;
     }
+
     /* TODO: parse args better */
     std::string path_with_args{ path };
     if ( !args.empty())
@@ -180,6 +182,15 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 
 	// The WaitForEvent() must be called once before the engine fully attaches to the target.
 	Wait();
+
+    if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
+    {
+        AddBreakpoint(ModuleNameAndOffset(path, m_data->GetEntryPoint() - m_data->GetStart()));
+        if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK )
+            return false;
+        Wait();
+    }
+
 	return true;
 }
 
@@ -193,26 +204,21 @@ void DbgEngAdapter::EngineLoop()
 			break;
 
 //		Wait();
+        unsigned long execution_status {};
 		while (true)
 		{
-			unsigned long execution_status {};
 			if (this->m_debugControl->GetExecutionStatus(&execution_status) != S_OK)
 			{}
 
 			if (execution_status == DEBUG_STATUS_BREAK)
 			{
-				// TODO: we should only send the event when the status changed to DEBUG_STATUS_BREAK
-				if (m_initialBreakpointSend)
-				{
-					DebuggerEvent event;
-					event.type = AdapterStoppedEventType;
-					event.data.targetStoppedData.reason = StopReason();
-					PostDebuggerEvent(event);
-				}
-				else
-				{
-					m_initialBreakpointSend = true;
-				}
+                if (m_lastExecutionStatus != DEBUG_STATUS_BREAK)
+                {
+                    DebuggerEvent event;
+                    event.type = AdapterStoppedEventType;
+                    event.data.targetStoppedData.reason = StopReason();
+                    PostDebuggerEvent(event);
+                }
 
 				// This is NOT actually dispatching callback, since the callbacks are already dispatched in WaitForEvent().
 				// The real purpose of this call is to wait until the UI/API initiates another control operation,
@@ -247,8 +253,11 @@ void DbgEngAdapter::EngineLoop()
 				Reset();
 				break;
 			}
+            m_lastExecutionStatus = execution_status;
 		}
-		if (finished)
+        m_lastExecutionStatus = execution_status;
+
+        if (finished)
 			break;
 
 		Wait();
@@ -412,6 +421,16 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
     return new_breakpoint;
 }
 
+DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
+{
+//    DbgEng does not take a full path. It can take "hello.exe", or simply "hello". E.g., "bp helloworld+0x1338"
+    auto fileName = std::filesystem::path(address.module).filename();
+    std::string breakpointCommand = fmt::format("bp {}+0x{:x}", fileName.string(), address.offset);
+    auto ret = InvokeBackendCommand(breakpointCommand);
+
+    return DebugBreakpoint{};
+}
+
 bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint &breakpoint)
 {
     IDebugBreakpoint2* debug_breakpoint{};
@@ -442,7 +461,8 @@ bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint &breakpoint)
 
 std::vector<DebugBreakpoint> DbgEngAdapter::GetBreakpointList() const
 {
-    return this->m_debug_breakpoints;
+//    return this->m_debug_breakpoints;
+    return {};
 }
 
 DebugRegister DbgEngAdapter::ReadRegister(const std::string &reg)

@@ -212,11 +212,17 @@ namespace BinaryNinjaDebugger
 
 		virtual DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type = 0) = 0;
 
-		virtual DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0) {}
+		virtual DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0)
+        {
+            return DebugBreakpoint{};
+        }
 
 		virtual bool RemoveBreakpoint(const DebugBreakpoint &breakpoint) = 0;
 
-		virtual bool RemoveBreakpoint(const ModuleNameAndOffset& address) {}
+		virtual bool RemoveBreakpoint(const ModuleNameAndOffset& address)
+        {
+            return false;
+        }
 
 		virtual std::vector<DebugBreakpoint> GetBreakpointList() const = 0;
 

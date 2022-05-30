@@ -592,23 +592,23 @@ BNDebugBreakpoint* BNDebuggerGetBreakpoints(BNDebuggerController* controller, si
 	std::vector<ModuleNameAndOffset> breakpoints = state->GetBreakpoints()->GetBreakpointList();
 	*count = breakpoints.size();
 
-	std::vector<DebugBreakpoint> remoteList;
-	if (state->IsConnected() && state->GetAdapter())
-		remoteList = state->GetAdapter()->GetBreakpointList();
+//	std::vector<DebugBreakpoint> remoteList;
+//	if (state->IsConnected() && state->GetAdapter())
+//		remoteList = state->GetAdapter()->GetBreakpointList();
 
 	BNDebugBreakpoint* result = new BNDebugBreakpoint[breakpoints.size()];
 	for (size_t i = 0; i < breakpoints.size(); i++)
 	{
 		uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(breakpoints[i]);
 		bool enabled = false;
-		for (const DebugBreakpoint& bp: remoteList)
-		{
-			if (bp.m_address == remoteAddress)
-			{
-				enabled = true;
-				break;
-			}
-		}
+//		for (const DebugBreakpoint& bp: remoteList)
+//		{
+//			if (bp.m_address == remoteAddress)
+//			{
+//				enabled = true;
+//				break;
+//			}
+//		}
 		result[i].module = BNDebuggerAllocString(breakpoints[i].module.c_str());
 		result[i].offset = breakpoints[i].offset;
 		result[i].address = remoteAddress;

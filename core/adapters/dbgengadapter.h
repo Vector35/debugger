@@ -109,7 +109,7 @@ namespace BinaryNinjaDebugger
 		std::vector<DebugBreakpoint> m_debug_breakpoints{};
         bool m_lastOperationIsStepInto = false;
 
-		bool m_initialBreakpointSend = false;
+        uint64_t m_lastExecutionStatus = DEBUG_STATUS_BREAK;
 
 		unsigned long m_exitCode{};
 
@@ -145,6 +145,7 @@ namespace BinaryNinjaDebugger
 		bool SetActiveThreadId(std::uint32_t tid) override;
 
 		DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags = 0) override;
+        DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0) override;
 
 		bool RemoveBreakpoint(const DebugBreakpoint &breakpoint) override;
 
