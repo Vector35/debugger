@@ -815,7 +815,7 @@ void DebuggerState::UpdateCaches()
 
 uint64_t DebuggerState::GetRemoteBase(BinaryViewRef relativeView)
 {
-    return m_modules->GetModuleBase(m_controller->GetData()->GetFile()->GetOriginalFilename());
+    return m_modules->GetModuleBase(GetExecutablePath());
 }
 
 

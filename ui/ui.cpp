@@ -241,7 +241,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
             for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(lastIP))
             {
                 ModuleNameAndOffset addr;
-                addr.module = data->GetFile()->GetOriginalFilename();
+                addr.module = m_controller->GetExecutablePath();
                 addr.offset = lastIP - data->GetStart();
 
                 BNHighlightStandardColor oldColor = NoHighlightColor;
@@ -289,8 +289,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 			if (m_controller->GetLiveView())
 				dataAndAddress.emplace_back(m_controller->GetLiveView(), address);
 
-			if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module,
-											  m_controller->GetData()->GetFile()->GetOriginalFilename()))
+			if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetExecutablePath()))
 			{
 				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + event.data.relativeAddress.offset);
 			}
@@ -329,7 +328,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 				dataAndAddress.emplace_back(data, address);
 
 			ModuleNameAndOffset relative = m_controller->AbsoluteAddressToRelative(address);
-			if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetData()->GetFile()->GetOriginalFilename()))
+			if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetExecutablePath()))
 			{
 				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + relative.offset);
 			}
@@ -366,8 +365,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 			if (m_controller->GetLiveView())
 				dataAndAddress.emplace_back(m_controller->GetLiveView(), address);
 
-			if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module,
-											  m_controller->GetData()->GetFile()->GetOriginalFilename()))
+			if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetExecutablePath()))
 			{
 				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + event.data.relativeAddress.offset);
 			}
@@ -398,7 +396,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 				dataAndAddress.emplace_back(data, address);
 
 			ModuleNameAndOffset relative = m_controller->AbsoluteAddressToRelative(address);
-			if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetData()->GetFile()->GetOriginalFilename()))
+			if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetExecutablePath()))
 			{
 				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + relative.offset);
 			}
@@ -447,7 +445,7 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
     }
     else
     {
-        std::string filename = view->GetFile()->GetOriginalFilename();
+        std::string filename = controller->GetExecutablePath();
         uint64_t offset = addr - view->GetStart();
         ModuleNameAndOffset info = {filename, offset};
         if (controller->ContainsBreakpoint(info))
