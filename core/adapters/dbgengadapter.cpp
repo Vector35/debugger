@@ -186,12 +186,15 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
     // Apply the breakpoints added before the m_debugClient is created
     ApplyBreakpoints();
 
-    if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
-    {
+    auto settings = Settings::Instance();
+    if (settings->Get<bool>("debugger.stopAtEntryPoint")) {
         AddBreakpoint(ModuleNameAndOffset(path, m_data->GetEntryPoint() - m_data->GetStart()));
-        if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK )
-            return false;
-        Wait();
+        if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
+        {
+            if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK)
+                return false;
+            Wait();
+        }
     }
 
 	return true;
