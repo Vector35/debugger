@@ -183,6 +183,9 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	// The WaitForEvent() must be called once before the engine fully attaches to the target.
 	Wait();
 
+    // Apply the breakpoints added before the m_debugClient is created
+    ApplyBreakpoints();
+
     if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
     {
         AddBreakpoint(ModuleNameAndOffset(path, m_data->GetEntryPoint() - m_data->GetStart()));
@@ -423,46 +426,82 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
 
 DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
 {
-//    DbgEng does not take a full path. It can take "hello.exe", or simply "hello". E.g., "bp helloworld+0x1338"
-    auto fileName = std::filesystem::path(address.module).filename();
-    std::string breakpointCommand = fmt::format("bp {}+0x{:x}", fileName.string(), address.offset);
-    auto ret = InvokeBackendCommand(breakpointCommand);
+    // If the backend has been created, we add the breakpoints directly. Otherwise, keep track of the breakpoints,
+    // and add them when we launch/attach the target.
+    if (m_debugActive)
+    {
+        // DbgEng does not take a full path. It can take "hello.exe", or simply "hello". E.g., "bp helloworld+0x1338"
+        auto fileName = std::filesystem::path(address.module).filename();
+        std::string breakpointCommand = fmt::format("bp {}+0x{:x}", fileName.string(), address.offset);
+        auto ret = InvokeBackendCommand(breakpointCommand);
+    }
+    else
+    {
+        if (std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end())
+            m_pendingBreakpoints.push_back(address);
+    }
 
     return DebugBreakpoint{};
 }
 
 bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint &breakpoint)
 {
-    IDebugBreakpoint2* debug_breakpoint{};
-
-    const auto remove_breakpoint_from_list = [&]
-    {
-        if (auto location = std::find(this->m_debug_breakpoints.begin(), this->m_debug_breakpoints.end(), breakpoint);
-                location != this->m_debug_breakpoints.end())
-            this->m_debug_breakpoints.erase(location);
-    };
-
-    if (this->m_debugControl->GetBreakpointById2(breakpoint.m_id, &debug_breakpoint) != S_OK )
-    {
-        remove_breakpoint_from_list();
+    bool done = false;
+    ULONG numBreakpoints{};
+    if (m_debugControl->GetNumberBreakpoints(&numBreakpoints) != S_OK)
         return false;
-    }
 
-    if (this->m_debugControl->RemoveBreakpoint2(debug_breakpoint) != S_OK )
+    for (size_t i = 0; i < numBreakpoints; i++)
     {
-        remove_breakpoint_from_list();
-        return false;
+        IDebugBreakpoint2* bp{};
+        if (m_debugControl->GetBreakpointByIndex2(i, &bp) != S_OK)
+            continue;
+
+        ULONG64 address{};
+        if (bp->GetOffset(&address) != S_OK)
+            continue;
+
+        // Right now, only the address info of the breakpoint is valid.
+        // Once the ID info is also valid, we can call GetBreakpointById2() to get the breakpoint by ID.
+        if (address == breakpoint.m_address)
+        {
+            m_debugControl->RemoveBreakpoint2(bp);
+            done = true;
+            break;
+        }
     }
+    return done;
+}
 
-    remove_breakpoint_from_list();
-
-    return true;
+bool DbgEngAdapter::RemoveBreakpoint(const ModuleNameAndOffset &breakpoint)
+{
+    // If the backend has been created, we remove the breakpoints directly. Otherwise, remove it from the list of
+    // pending breakpoints.
+    if (m_debugActive)
+    {
+        // TODO. This is not used by the controller right now.
+    }
+    else
+    {
+        auto it = std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), breakpoint);
+        if (it != m_pendingBreakpoints.end())
+            m_pendingBreakpoints.erase(it);
+    }
 }
 
 std::vector<DebugBreakpoint> DbgEngAdapter::GetBreakpointList() const
 {
+    // TODO: this list is maintained properly and can become outdated. Also, it is not used by the controller
 //    return this->m_debug_breakpoints;
     return {};
+}
+
+void DbgEngAdapter::ApplyBreakpoints()
+{
+    for (const auto bp: m_pendingBreakpoints)
+    {
+        AddBreakpoint(bp);
+    }
 }
 
 DebugRegister DbgEngAdapter::ReadRegister(const std::string &reg)

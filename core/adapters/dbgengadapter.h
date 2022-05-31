@@ -113,6 +113,8 @@ namespace BinaryNinjaDebugger
 
 		unsigned long m_exitCode{};
 
+        std::vector<ModuleNameAndOffset> m_pendingBreakpoints{};
+
 	public:
 		inline static ProcessCallbackInformation ProcessCallbackInfo{};
 		static constexpr unsigned long StepoutBreakpointID = 0x5be9c948;
@@ -148,6 +150,7 @@ namespace BinaryNinjaDebugger
         DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0) override;
 
 		bool RemoveBreakpoint(const DebugBreakpoint &breakpoint) override;
+        bool RemoveBreakpoint(const ModuleNameAndOffset& breakpoint) override;
 
 		std::vector<DebugBreakpoint> GetBreakpointList() const override;
 
@@ -182,6 +185,8 @@ namespace BinaryNinjaDebugger
 		bool SupportFeature(DebugAdapterCapacity feature) override;
 
 		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid) override;
+
+        void ApplyBreakpoints();
 	};
 
 	class LocalDbgEngAdapterType: public DebugAdapterType
