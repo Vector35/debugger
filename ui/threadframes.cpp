@@ -118,8 +118,9 @@ void ThreadFramesWidget::updateContent()
 	{
 		QString text = QString::asprintf("#%d: 0x%" PRIx64, (int)frame.m_index, frame.m_pc);
 		uint64_t offset = frame.m_pc - frame.m_functionStart;
-		QString symbolizedInfo = QString::asprintf("%s`%s + 0x%" PRIx64 ", sp: 0x%llx, fp: 0x%llx", frame.m_module.c_str(),
-												   frame.m_functionName.c_str(), offset, frame.m_sp, frame.m_fp);
+		QString symbolizedInfo = QString::asprintf("%s`%s + 0x%" PRIx64 ", sp: 0x%" PRIx64 ", fp: 0x%" PRIx64,
+												   frame.m_module.c_str(), frame.m_functionName.c_str(), offset,
+												   frame.m_sp, frame.m_fp);
 		m_threadFrames->addItem(text + ' ' + symbolizedInfo);
 	}
 }
