@@ -262,9 +262,11 @@ int main(int argc, char* argv[])
 	else
 		Settings::Instance()->Reset("analysis.types.parserName");
 
-	fprintf(stderr, "Errors: %s\n", errors.c_str());
 	if (!ok)
+	{
+		fprintf(stderr, "Errors: %s\n", errors.c_str());
 		return 1;
+	}
 
 	FILE* out = fopen(argv[2], "w");
 	FILE* enums = fopen(argv[3], "w");
