@@ -35,7 +35,7 @@ endif()
 add_custom_target(debugger_generator_copy ALL
 	BYPRODUCTS ${PROJECT_SOURCE_DIR}/_debuggercore.py ${PROJECT_SOURCE_DIR}/enums.py
 	DEPENDS ${PYTHON_SOURCES} ${PROJECT_SOURCE_DIR}/../ffi.h $<TARGET_FILE:debugger_generator>
-	COMMAND ${CMAKE_COMMAND} -E echo "Copying Python Sources"
+	COMMAND ${CMAKE_COMMAND} -E echo "Copying Debugger Python Sources"
 	COMMAND ${CMAKE_COMMAND} -E make_directory ${PYTHON_OUTPUT_DIRECTORY}
 	COMMAND ${CMAKE_COMMAND} -E env ASAN_OPTIONS=detect_leaks=0 $<TARGET_FILE:debugger_generator> ${PROJECT_SOURCE_DIR}/../ffi.h ${PROJECT_SOURCE_DIR}/_debuggercore.py ${PROJECT_SOURCE_DIR}/debugger_enums.py
 	COMMAND ${CMAKE_COMMAND} -E copy ${PYTHON_SOURCES} ${PYTHON_OUTPUT_DIRECTORY}
