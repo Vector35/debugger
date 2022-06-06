@@ -126,9 +126,9 @@ QVariant DebugStackListModel::data(const QModelIndex& index, int role) const
         ptrdiff_t value = item->offset();
         QString valueStr;
         if (value < 0)
-            valueStr = QString::asprintf("-%" PRIx64, -value);
+            valueStr = QString::asprintf("-%" PRIx64, (uint64_t)-value);
         else
-            valueStr = QString::asprintf("%" PRIx64, value);
+            valueStr = QString::asprintf("%" PRIx64, (uint64_t)value);
 
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)valueStr.size());

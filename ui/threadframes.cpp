@@ -101,7 +101,7 @@ void ThreadFramesWidget::updateContent()
 	m_threadList->clear();
 	for (const DebugThread thread: threads)
 	{
-		m_threadList->addItem(QString::asprintf("0x%" PRIx64 " @ 0x%" PRIx64, thread.m_tid, thread.m_rip),
+		m_threadList->addItem(QString::asprintf("0x%" PRIx64 " @ 0x%" PRIx64, (uint64_t)thread.m_tid, (uint64_t)thread.m_rip),
 							  QVariant(thread.m_tid));
 	}
 
@@ -116,7 +116,7 @@ void ThreadFramesWidget::updateContent()
 	m_threadFrames->clear();
 	for (const DebugFrame& frame: frames)
 	{
-		QString text = QString::asprintf("#%d: 0x%" PRIx64, frame.m_index, frame.m_pc);
+		QString text = QString::asprintf("#%d: 0x%" PRIx64, (int)frame.m_index, frame.m_pc);
 		uint64_t offset = frame.m_pc - frame.m_functionStart;
 		QString symbolizedInfo = QString::asprintf("%s`%s + 0x%" PRIx64 ", sp: 0x%llx, fp: 0x%llx", frame.m_module.c_str(),
 												   frame.m_functionName.c_str(), offset, frame.m_sp, frame.m_fp);

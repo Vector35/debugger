@@ -113,7 +113,7 @@ QVariant DebugModulesListModel::data(const QModelIndex& index, int role) const
     }
     case DebugModulesListModel::SizeColumn:
     {
-        QString text = QString::asprintf("0x%" PRIx64, item->size());
+        QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->size());
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
