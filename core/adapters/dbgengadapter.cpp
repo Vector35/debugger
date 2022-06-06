@@ -29,7 +29,11 @@ limitations under the License.
 #include "../../cli/log.h"
 #include "queuedadapter.h"
 #include "../debuggerevent.h"
+#pragma warning(push)
+// warning C40005, macro redefinition
+#pragma warning(disable: 5)
 #include "ntstatus.h"
+#pragma warning(pop)
 
 using namespace BinaryNinjaDebugger;
 

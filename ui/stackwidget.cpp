@@ -477,7 +477,7 @@ void DebugStackWidget::updateContent()
             default:
                 break;
             }
-        } catch (const std::exception& except)
+        } catch (const std::exception&)
         {
             /* TODO: just ignoring this is probably not a great idea... */
         }

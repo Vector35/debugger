@@ -172,7 +172,7 @@ void AdapterSettingsDialog::apply()
         port = stoull(portString);
 
     }
-    catch(const std::exception& e)
+    catch(const std::exception&)
     {
         port = 31337;
     }
