@@ -29,6 +29,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
 
     m_controller = controller;
 
+	setModal(true);
     QVBoxLayout* layout = new QVBoxLayout;
     layout->setSpacing(0);
 

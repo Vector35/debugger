@@ -30,7 +30,9 @@ limitations under the License.
 #include "threadframes.h"
 #include "syncgroup.h"
 #include "codedatarenderer.h"
+#include "adaptersettings.h"
 #include <thread>
+#include <QInputDialog>
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -48,6 +50,8 @@ GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 		m_window->statusBar()->insertWidget(0, m_status);
 	}
 
+	SetupMenu(context);
+
 	auto* globalDebuggerConsoleContainer = new GlobalConsoleContainer("Target Terminal");
 	context->globalArea()->addWidget(globalDebuggerConsoleContainer);
 
@@ -63,6 +67,199 @@ GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 
 GlobalDebuggerUI::~GlobalDebuggerUI()
 {
+}
+
+
+void GlobalDebuggerUI::SetupMenu(UIContext* context)
+{
+	auto notConnected = [=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return false;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return false;
+
+		return !controller->IsConnected();
+	};
+
+	auto connected = [=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return false;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return false;
+
+		return controller->IsConnected();
+	};
+
+	auto connectedAndStopped = [=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return false;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return false;
+
+		return controller->IsConnected() && (!controller->IsRunning());
+	};
+
+	auto connectedAndRunning = [=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return false;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return false;
+
+		return controller->IsConnected() && controller->IsRunning();
+	};
+
+	UIAction::registerAction("Launch/Connect Settings...");
+	context->globalActions()->bindAction("Launch/Connect Settings...", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		if (!context->mainWindow())
+			return;
+
+		auto* dialog = new AdapterSettingsDialog(context->mainWindow(), controller);
+		dialog->show();
+	}));
+
+	Menu* debuggerMenu = Menu::mainMenu("Debugger");
+	Menu::setMainMenuOrder("Debugger", MENU_ORDER_LATE);
+	debuggerMenu->addAction("Launch/Connect Settings...", "Settings", MENU_ORDER_FIRST);
+
+	UIAction::registerAction("Launch");
+	context->globalActions()->bindAction("Launch", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		controller->Launch();
+	}, notConnected));
+	debuggerMenu->addAction("Launch", "Launch");
+
+	UIAction::registerAction("Kill");
+	context->globalActions()->bindAction("Kill", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		controller->Quit();
+	}, connected));
+	debuggerMenu->addAction("Kill", "Launch");
+
+	UIAction::registerAction("Resume", QKeySequence(Qt::Key_F9));
+	context->globalActions()->bindAction("Resume", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		controller->Go();
+	}, connectedAndStopped));
+	debuggerMenu->addAction("Resume", "Control");
+
+	UIAction::registerAction("Step Into", QKeySequence(Qt::Key_F7));
+	context->globalActions()->bindAction("Step Into", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		BNFunctionGraphType graphType = NormalFunctionGraph;
+		if (ctxt.context && ctxt.context->getCurrentView())
+			graphType = ctxt.context->getCurrentView()->getILViewType();
+		controller->StepInto(graphType);
+	}, connectedAndStopped));
+	debuggerMenu->addAction("Step Into", "Control");
+
+	UIAction::registerAction("Step Over", QKeySequence(Qt::Key_F8));
+	context->globalActions()->bindAction("Step Over", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		BNFunctionGraphType graphType = NormalFunctionGraph;
+		if (ctxt.context && ctxt.context->getCurrentView())
+			graphType = ctxt.context->getCurrentView()->getILViewType();
+		controller->StepOver(graphType);
+	}, connectedAndStopped));
+	debuggerMenu->addAction("Step Over", "Control");
+
+	UIAction::registerAction("Step Return", QKeySequence(Qt::ControlModifier | Qt::Key_F9));
+	context->globalActions()->bindAction("Step Return", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		controller->StepReturn();
+	}, connectedAndStopped));
+	debuggerMenu->addAction("Step Return", "Control");
+
+	UIAction::registerAction("Detach");
+	context->globalActions()->bindAction("Detach", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		controller->Detach();
+	}, connected));
+	debuggerMenu->addAction("Detach", "Launch");
+
+	UIAction::registerAction("Restart");
+	context->globalActions()->bindAction("Restart", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		controller->Restart();
+	}, connected));
+	debuggerMenu->addAction("Restart", "Launch");
+
+	UIAction::registerAction("Pause", QKeySequence(Qt::Key_F12));
+	context->globalActions()->bindAction("Pause", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		controller->Pause();
+	}, connectedAndRunning));
+	debuggerMenu->addAction("Pause", "Control");
+
+	UIAction::registerAction("Attach To Process...");
+	context->globalActions()->bindAction("Attach To Process...", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		int pid = QInputDialog::getInt(context->mainWindow(), "PID", "Input PID:");
+		if (pid == 0)
+			return;
+
+		controller->Attach(pid);
+	}, notConnected));
+	debuggerMenu->addAction("Attach To Process...", "Launch");
 }
 
 
@@ -539,8 +736,6 @@ void GlobalDebuggerUI::InitializeUI()
 					}
 				},
 			BinaryViewValid);
-	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
-								{ QKeySequence(Qt::Key_F9) });
 
 	actionName = "Step Into";
 	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
@@ -561,8 +756,6 @@ void GlobalDebuggerUI::InitializeUI()
 					}).detach();
 				},
 			ConnectedAndStopped);
-	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
-								{ QKeySequence(Qt::Key_F7) });
 
 	actionName = "Step Over";
 	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
@@ -583,8 +776,6 @@ void GlobalDebuggerUI::InitializeUI()
 					}).detach();
 				},
 			ConnectedAndStopped);
-	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
-								{ QKeySequence(Qt::Key_F8) });
 
 	actionName = "Step Return";
 	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
@@ -601,8 +792,6 @@ void GlobalDebuggerUI::InitializeUI()
 					}).detach();
 				},
 			ConnectedAndStopped);
-	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
-								{ QKeySequence(Qt::ControlModifier | Qt::Key_F9) });
 
 	actionName = "Pause";
 	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
@@ -619,8 +808,6 @@ void GlobalDebuggerUI::InitializeUI()
 					}).detach();
 				},
 			ConnectedAndRunning);
-	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
-								{ QKeySequence(Qt::Key_F12) });
 
 	actionName = "Make Code";
 	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
@@ -632,8 +819,6 @@ void GlobalDebuggerUI::InitializeUI()
 					MakeCodeHelper(view, addr);
 				},
 			BinaryViewValid);
-	UIAction::setUserKeyBinding(QString::asprintf("Debugger\\%s", actionName.c_str()),
-								{ QKeySequence(Qt::Key_C) });
 }
 
 

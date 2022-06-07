@@ -49,6 +49,8 @@ public:
 	static void RemoveForContext(UIContext* context);
 
 	void SetActiveFrame(ViewFrame* frame);
+
+	void SetupMenu(UIContext* context);
 };
 
 

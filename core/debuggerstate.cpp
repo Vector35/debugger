@@ -829,3 +829,52 @@ Ref<Architecture> DebuggerState::GetRemoteArchitecture() const
 {
 	return m_controller->GetData()->GetDefaultArchitecture();
 }
+
+
+void DebuggerState::SetAdapterType(const std::string& adapter)
+{
+	m_adapterType = adapter;
+	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+}
+
+
+void DebuggerState::SetExecutablePath(const std::string& path)
+{
+	m_executablePath = path;
+	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+}
+
+
+void DebuggerState::SetWorkingDirectory(const std::string& directory)
+{
+	m_workingDirectory = directory;
+	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+}
+
+
+void DebuggerState::SetCommandLineArguments(const std::string& arguments)
+{
+	m_commandLineArgs = arguments;
+	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+}
+
+
+void DebuggerState::SetRemoteHost(const std::string& host)
+{
+	m_remoteHost = host;
+	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+}
+
+
+void DebuggerState::SetRemotePort(uint32_t port)
+{
+	m_remotePort = port;
+	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+}
+
+
+void DebuggerState::SetRequestTerminalEmulator(bool requested)
+{
+	m_requestTerminalEmulator = requested;
+	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+}

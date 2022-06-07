@@ -220,7 +220,9 @@ extern "C"
 		AbsoluteBreakpointRemovedEvent,
 		RelativeBreakpointRemovedEvent,
 
-		ActiveThreadChangedEvent
+		ActiveThreadChangedEvent,
+
+		DebuggerSettingsChangedEvent,
 	};
 
 

@@ -42,8 +42,8 @@ AdapterConsole::AdapterConsole(QWidget* parent, ViewFrame* frame, BinaryViewRef 
 	QHBoxLayout* inputLayout = new QHBoxLayout();
 	inputLayout->setContentsMargins(4, 4, 4, 4);
 
-	QLabel* promptLabel = new QLabel(m_prompt + ' ');
-	inputLayout->addWidget(promptLabel);
+	m_promptLabel = new QLabel(m_prompt + ' ');
+	inputLayout->addWidget(m_promptLabel);
 
 	m_consoleInput = new QLineEdit(this);
 	m_consoleInput->setPlaceholderText("");
@@ -67,6 +67,13 @@ AdapterConsole::AdapterConsole(QWidget* parent, ViewFrame* frame, BinaryViewRef 
 			const std::string message = event.data.messageData.message;
 			ExecuteOnMainThreadAndWait([&](){
 				addMessage(QString::fromStdString(message));
+			});
+		}
+		else if (event.type == DebuggerSettingsChangedEvent)
+		{
+			m_prompt = QString::fromStdString(m_debugger->GetAdapterType());
+			ExecuteOnMainThreadAndWait([&](){
+				m_promptLabel->setText(m_prompt + ' ');
 			});
 		}
 	});

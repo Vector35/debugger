@@ -37,6 +37,7 @@ class AdapterConsole: public QWidget
 
 	QLineEdit* m_consoleInput;
 	QTextEdit* m_consoleLog;
+	QLabel* m_promptLabel;
 	QString m_prompt;
 
 	size_t m_debuggerEventCallback;

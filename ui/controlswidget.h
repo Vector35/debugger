@@ -57,8 +57,7 @@ private:
     QAction* m_actionQuit;
     QAction* m_actionConnect;
     QAction* m_actionDetach;
-    QAction* m_actionSettings;
-    QAction* m_actionPause;
+	QAction* m_actionPause;
     QAction* m_actionResume;
     QAction* m_actionStepInto;
     QAction* m_actionStepOver;
@@ -77,9 +76,7 @@ public:
     void setStoppingEnabled(bool enabled);
     void setSteppingEnabled(bool enabled);
 
-    void uiEventHandler(const DebuggerEvent& event);
-
-    void updateButtons();
+	void updateButtons();
 
 public Q_SLOTS:
 	void performLaunch();
@@ -88,8 +85,8 @@ public Q_SLOTS:
     void performQuit();
     void performConnect();
     void performDetach();
-    void performSettings();
-    void performPause();
+
+	void performPause();
     void performResume();
     void performStepInto();
     void performStepOver();

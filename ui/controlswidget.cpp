@@ -63,8 +63,6 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
                                [this](){ performStepReturn(); });
     addSeparator();
 
-    m_actionSettings = addAction("Settings...",[this](){ performSettings(); });
-
     updateButtons();
 }
 
@@ -119,16 +117,6 @@ void DebugControlsWidget::performConnect()
 void DebugControlsWidget::performDetach()
 {
 	m_controller->Detach();
-}
-
-
-void DebugControlsWidget::performSettings()
-{
-    AdapterSettingsDialog* dialog = new AdapterSettingsDialog(this, m_controller);
-    dialog->show();
-    QObject::connect(dialog, &QDialog::finished, [this](){
-        updateButtons();
-    });
 }
 
 
@@ -236,12 +224,6 @@ void DebugControlsWidget::setSteppingEnabled(bool enabled)
     m_actionStepInto->setEnabled(enabled);
     m_actionStepOver->setEnabled(enabled);
     m_actionStepReturn->setEnabled(enabled);    
-}
-
-
-void DebugControlsWidget::uiEventHandler(const DebuggerEvent &event)
-{
-	updateButtons();
 }
 
 
