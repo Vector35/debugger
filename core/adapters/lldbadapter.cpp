@@ -141,6 +141,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	SBAttachInfo info(pid);
 	SBError error;
 	m_process = m_target.Attach(info, error);
+	m_debugger.SetAsync(true);
 	return m_process.IsValid() && error.Success();
 }
 
