@@ -786,23 +786,27 @@ DebugStopReason LldbAdapter::StepOver()
 
 DebugStopReason LldbAdapter::StepReturn()
 {
-#ifndef WIN32
-	SBThread thread = m_process.GetSelectedThread();
-	if (!thread.IsValid())
-		return DebugStopReason::InternalError;
+//	The following method, calling StepOutOfFrame(), will receive an unexpected lldb::eStateRunning event when the
+//	operation failed, e.g., due to inability to place the breakpoint at the return address. This seems to be a LLDB
+//	bug. For now, we just run the `finish` command instead.
 
-	size_t frameCount = thread.GetNumFrames();
-	if (frameCount > 0)
-	{
-		SBFrame frame = thread.GetFrameAtIndex(0);
-		SBError error;
-		thread.StepOutOfFrame(frame, error);
-		if (error.Fail())
-			return DebugStopReason::InternalError;
-	}
-#else
+//#ifndef WIN32
+//	SBThread thread = m_process.GetSelectedThread();
+//	if (!thread.IsValid())
+//		return DebugStopReason::InternalError;
+//
+//	size_t frameCount = thread.GetNumFrames();
+//	if (frameCount > 0)
+//	{
+//		SBFrame frame = thread.GetFrameAtIndex(0);
+//		SBError error;
+//		thread.StepOutOfFrame(frame, error);
+//		if (error.Fail())
+//			return DebugStopReason::InternalError;
+//	}
+//#else
 	InvokeBackendCommand("finish");
-#endif
+//#endif
 	return StopReason();
 }
 
