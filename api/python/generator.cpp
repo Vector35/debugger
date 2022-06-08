@@ -239,9 +239,9 @@ void OutputSwizzledType(FILE* out, Type* type)
 
 int main(int argc, char* argv[])
 {
-	if (argc < 4)
+	if (argc < 5)
 	{
-		fprintf(stderr, "Usage: generator <header> <output> <output_enum>\n");
+		fprintf(stderr, "Usage: generator <header> <output> <output_template> <output_enum>\n");
 		return 1;
 	}
 
@@ -269,42 +269,15 @@ int main(int argc, char* argv[])
 	}
 
 	FILE* out = fopen(argv[2], "w");
-	FILE* enums = fopen(argv[3], "w");
+	FILE* out_template = fopen(argv[3], "r");
+	FILE* enums = fopen(argv[4], "w");
 
-	fprintf(out, "import binaryninja\n");
-	fprintf(out, "import ctypes, os\n\n");
-	fprintf(out, "from typing import Optional\n");
-	fprintf(out, "from . import debugger_enums\n");
 	fprintf(enums, "import enum\n");
 
-	fprintf(out, "# Load core module\n");
-	fprintf(out, "import platform\n");
-	fprintf(out, "core = None\n");
-	fprintf(out, "core_platform = platform.system()\n");
-	fprintf(out, "if core_platform == \"Darwin\":\n");
-	fprintf(out, "\tcore = ctypes.CDLL(\"libdebuggercore.dylib\")\n\n");
-	fprintf(out, "elif core_platform == \"Linux\":\n");
-	fprintf(out, "\tcore = ctypes.CDLL(\"libdebuggercore.so\")\n\n");
-	fprintf(out, "elif (core_platform == \"Windows\") or (core_platform.find(\"CYGWIN_NT\") == 0):\n");
-	fprintf(out, "\tcore = ctypes.CDLL(\"debuggercore.dll\")\n");
-	fprintf(out, "else:\n");
-	fprintf(out, "\traise Exception(\"OS not supported\")\n\n\n");
-
-	fprintf(out, "def cstr(var) -> Optional[ctypes.c_char_p]:\n");
-	fprintf(out, "	if var is None:\n");
-	fprintf(out, "		return None\n");
-	fprintf(out, "	if isinstance(var, bytes):\n");
-	fprintf(out, "		return var\n");
-	fprintf(out, "	return var.encode(\"utf-8\")\n\n");
-
-	fprintf(out, "def pyNativeStr(arg):\n");
-	fprintf(out, "	if isinstance(arg, str):\n");
-	fprintf(out, "		return arg\n");
-	fprintf(out, "	else:\n");
-	fprintf(out, "		return arg.decode('utf8')\n\n");
-
-	fprintf(out, "def free_string(value:ctypes.c_char_p) -> None:\n");
-	fprintf(out, "	BNDebuggerFreeString(ctypes.cast(value, ctypes.POINTER(ctypes.c_byte)))\n\n");
+	// Copy the content of the template to the output file
+	int c;
+	while((c = fgetc(out_template)) != EOF)
+		fputc(c, out);
 
 	// Create type objects
 	fprintf(out, "# Type definitions\n");
