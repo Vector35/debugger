@@ -52,7 +52,7 @@ GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 
 	SetupMenu(context);
 
-	auto* globalDebuggerConsoleContainer = new GlobalConsoleContainer("Target Terminal");
+	auto* globalDebuggerConsoleContainer = new GlobalConsoleContainer("Target I/O");
 	context->globalArea()->addWidget(globalDebuggerConsoleContainer);
 
 	auto* globalAdapterConsoleContainer = new GlobalAdapterConsoleContainer("Debugger Console");
