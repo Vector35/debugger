@@ -108,6 +108,8 @@ namespace BinaryNinjaDebugger {
 		void EventListener();
 
 		void WriteStdin(const std::string& msg) override;
+
+		void FixActiveThread();
 	};
 
 	class LldbAdapterType: public DebugAdapterType

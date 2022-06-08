@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <inttypes.h>
 #include "lldbadapter.h"
 #include "queuedadapter.h"
 #include "thread"
@@ -873,6 +874,48 @@ bool LldbAdapter::SupportFeature(DebugAdapterCapacity feature)
 }
 
 
+static bool ThreadHasValidStopReason(SBThread thread)
+{
+	if (!thread.IsValid())
+		return false;
+
+	auto reason = thread.GetStopReason();
+	if ((reason == eStopReasonInvalid) || (reason == eStopReasonNone) || (reason == eStopReasonThreadExiting))
+		return false;
+
+	return true;
+}
+
+
+void LldbAdapter::FixActiveThread()
+{
+	// If there are no more than one thread, we are done
+	size_t threadCount = m_process.GetNumThreads();
+	if (threadCount < 2)
+		return;
+
+	// If the active thread has a valid stop reason, we are done
+	auto activeThread = m_process.GetSelectedThread();
+	if (ThreadHasValidStopReason(activeThread))
+		return;
+
+	// Find the first thread that has a valid reason, and set it as the active thread
+	for (size_t i = 0; i < threadCount; i++)
+	{
+		SBThread thread = m_process.GetThreadAtIndex(i);
+		if (ThreadHasValidStopReason(thread))
+		{
+			if (m_process.SetSelectedThread(thread))
+			{
+				LogDebug("Active thread is override from 0x%" PRIx64 " to 0x%" PRIX64, activeThread.GetThreadID(),
+						 thread.GetThreadID());
+				break;
+			}
+		}
+	}
+}
+
+
 void LldbAdapter::EventListener()
 {
 	SBEvent event;
@@ -928,6 +971,7 @@ void LldbAdapter::EventListener()
 				}
 				case lldb::eStateStopped:
 				{
+					FixActiveThread();
 					DebuggerEvent dbgevt;
 					dbgevt.type = AdapterStoppedEventType;
 					dbgevt.data.targetStoppedData.reason = StopReason();
