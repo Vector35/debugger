@@ -29,7 +29,7 @@ else:
 
     elif core_platform == "Linux":
         _base_path = BNGetBundledPluginDirectory()
-        core = ctypes.CDLL(os.path.join(_base_path, "libdebuggercore.so.1"))
+        core = ctypes.CDLL(os.path.join(_base_path, "libdebuggercore.so"))
 
     elif (core_platform == "Windows") or (core_platform.find("CYGWIN_NT") == 0):
         _base_path = BNGetBundledPluginDirectory()
