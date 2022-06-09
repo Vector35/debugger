@@ -204,7 +204,7 @@ elif platform.system() == "Windows":
     bn_python_path = bn_core_path / 'python'
     winpath = os.environ["LOCALAPPDATA"] + "\\Programs\\Python\\Python38\\Scripts\\"
 
-pythonpath = f'{bn_python_path}{os.pathsep}{build_output_path / "python"}'
+pythonpath = f'{bn_python_path}{os.pathsep}{build_output_path / "plugins"}'
 env["PYTHONPATH"] = str(pythonpath)
 print('PYTHONPATH: ', pythonpath)
 

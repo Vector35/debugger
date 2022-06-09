@@ -9,14 +9,20 @@ core = None
 core_platform = platform.system()
 
 if os.environ.get('BN_STANDALONE_DEBUGGER'):
+    # By the time the debugger is loaded, binaryninja has not fully initialized.
+    # So we cannot call binaryninja.user_plugin_path()
+    from binaryninja._binaryninjacore import BNGetUserPluginDirectory
     if core_platform == "Darwin":
-        core = ctypes.CDLL("libdebuggercore.dylib")
+        _base_path = BNGetUserPluginDirectory()
+        core = ctypes.CDLL(os.path.join(_base_path, "libdebuggercore.dylib"))
 
     elif core_platform == "Linux":
-        core = ctypes.CDLL("libdebuggercore.so")
+        _base_path = BNGetUserPluginDirectory()
+        core = ctypes.CDLL(os.path.join(_base_path, "libdebuggercore.so"))
 
     elif (core_platform == "Windows") or (core_platform.find("CYGWIN_NT") == 0):
-        core = ctypes.CDLL("debuggercore.dll")
+        _base_path = BNGetUserPluginDirectory()
+        core = ctypes.CDLL(os.path.join(_base_path, "debuggercore.dll"))
     else:
         raise Exception("OS not supported")
 else:

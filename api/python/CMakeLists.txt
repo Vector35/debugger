@@ -19,7 +19,7 @@ set_target_properties(debugger_generator PROPERTIES
 if(BN_INTERNAL_BUILD)
 	set(PYTHON_OUTPUT_DIRECTORY ${BN_RESOURCE_DIR}/python/binaryninja/debugger/)
 else()
-	set(PYTHON_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out/python/debugger/)
+	set(PYTHON_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out/plugins/debugger/)
 endif()
 
 if(WIN32)

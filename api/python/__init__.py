@@ -15,13 +15,18 @@
 import os
 from binaryninja.settings import Settings
 
-# when we build and run the debugger as a user plugin, we must let BN load it for us
-if os.environ.get('BN_STANDALONE_DEBUGGER'):
-    from binaryninja import _init_plugins
-    _init_plugins()
+from binaryninja._binaryninjacore import BNGetUserPluginDirectory
+user_plugin_dir = os.path.realpath(BNGetUserPluginDirectory())
+current_path = os.path.realpath(__file__)
 
-if os.environ.get('BN_EXPERIMENTAL_DEBUGGER') or os.environ.get('BN_STANDALONE_DEBUGGER') \
-        or Settings().get_bool('corePlugins.debugger'):
-    from .debuggercontroller import *
-    from .debugadaptertype import *
-    from .debugger_enums import *
+# If BN_STANDALONE_DEBUGGER is set, only initialize the python module when it is loaded from the user plugin dir
+if os.environ.get('BN_STANDALONE_DEBUGGER'):
+    if current_path.startswith(user_plugin_dir):
+        from .debuggercontroller import *
+        from .debugadaptertype import *
+        from .debugger_enums import *
+else:
+    if os.environ.get('BN_EXPERIMENTAL_DEBUGGER') or Settings().get_bool('corePlugins.debugger'):
+        from .debuggercontroller import *
+        from .debugadaptertype import *
+        from .debugger_enums import *
