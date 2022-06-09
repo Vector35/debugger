@@ -71,10 +71,10 @@ AdapterConsole::AdapterConsole(QWidget* parent, ViewFrame* frame, BinaryViewRef 
 		}
 		else if (event.type == DebuggerSettingsChangedEvent)
 		{
-			m_prompt = QString::fromStdString(m_debugger->GetAdapterType());
-			ExecuteOnMainThreadAndWait([&](){
-				m_promptLabel->setText(m_prompt + ' ');
-			});
+//			m_prompt = QString::fromStdString(m_debugger->GetAdapterType());
+//			ExecuteOnMainThreadAndWait([&](){
+//				m_promptLabel->setText(m_prompt + ' ');
+//			});
 		}
 	});
 }
@@ -112,10 +112,8 @@ void AdapterConsole::addMessage(const QString &msg)
 
 void AdapterConsole::sendText(const QString &msg)
 {
-	std::thread([=](){
-		std::string result = m_debugger->InvokeBackendCommand(msg.toStdString());
-		addMessage(QString::fromStdString(result));
-	}).detach();
+	std::string result = m_debugger->InvokeBackendCommand(msg.toStdString());
+	addMessage(QString::fromStdString(result));
 }
 
 
