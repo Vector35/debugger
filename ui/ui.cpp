@@ -175,7 +175,9 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		if (!controller)
 			return;
 
-		controller->Launch();
+        std::thread([&, controller](){
+            controller->Launch();
+        }).detach();
 	}, notConnected));
 	debuggerMenu->addAction("Launch", "Launch");
 
