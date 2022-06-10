@@ -70,6 +70,42 @@ GlobalDebuggerUI::~GlobalDebuggerUI()
 }
 
 
+static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
+{
+    DebuggerController* controller = DebuggerController::GetController(view);
+    bool isAbsoluteAddress = false;
+    // TODO: check if this works
+    if (view->GetTypeName() == "Debugger")
+        isAbsoluteAddress = true;
+
+    if (isAbsoluteAddress)
+    {
+        if (controller->ContainsBreakpoint(addr))
+        {
+            controller->DeleteBreakpoint(addr);
+        }
+        else
+        {
+            controller->AddBreakpoint(addr);
+        }
+    }
+    else
+    {
+        std::string filename = controller->GetExecutablePath();
+        uint64_t offset = addr - view->GetStart();
+        ModuleNameAndOffset info = {filename, offset};
+        if (controller->ContainsBreakpoint(info))
+        {
+            controller->DeleteBreakpoint(info);
+        }
+        else
+        {
+            controller->AddBreakpoint(info);
+        }
+    }
+}
+
+
 void GlobalDebuggerUI::SetupMenu(UIContext* context)
 {
 	auto notConnected = [=](const UIActionContext& ctxt) {
@@ -260,6 +296,18 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		controller->Attach(pid);
 	}, notConnected));
 	debuggerMenu->addAction("Attach To Process...", "Launch");
+
+	UIAction::registerAction("Toggle Breakpoint", QKeySequence(Qt::Key_F4));
+	context->globalActions()->bindAction("Toggle Breakpoint", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		BreakpointToggleCallback(ctxt.binaryView, ctxt.address);
+	}, connectedAndStopped));
+	debuggerMenu->addAction("Toggle Breakpoint", "Breakpoint");
 }
 
 
@@ -621,42 +669,6 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 }
 
 
-static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
-{
-    DebuggerController* controller = DebuggerController::GetController(view);
-    bool isAbsoluteAddress = false;
-    // TODO: check if this works
-    if (view->GetTypeName() == "Debugger")
-        isAbsoluteAddress = true;
-
-    if (isAbsoluteAddress)
-    {
-        if (controller->ContainsBreakpoint(addr))
-        {
-            controller->DeleteBreakpoint(addr);
-        }
-        else
-        {
-            controller->AddBreakpoint(addr);
-        }
-    }
-    else
-    {
-        std::string filename = controller->GetExecutablePath();
-        uint64_t offset = addr - view->GetStart();
-        ModuleNameAndOffset info = {filename, offset};
-        if (controller->ContainsBreakpoint(info))
-        {
-            controller->DeleteBreakpoint(info);
-        }
-        else
-        {
-            controller->AddBreakpoint(info);
-        }
-    }
-}
-
-
 static bool BinaryViewValid(BinaryView* view, uint64_t addr)
 {
     return true;
@@ -704,7 +716,6 @@ void GlobalDebuggerUI::InitializeUI()
 	PluginCommand::RegisterForAddress("Debugger\\Toggle Breakpoint",
             "Sets/clears breakpoint at right-clicked address",
             BreakpointToggleCallback, BinaryViewValid);
-    UIAction::setUserKeyBinding("Debugger\\Toggle Breakpoint", { QKeySequence(Qt::Key_F2) });
 
 	UIAction::registerAction("Debugger\\Run To Here");
 	UIAction::registerAction("Selection Target\\Debugger\\Run To Here");
