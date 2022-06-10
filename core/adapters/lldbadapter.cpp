@@ -121,8 +121,10 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 	auto result = InvokeBackendCommand(launchCommand);
 
 	m_process = m_target.GetProcess();
-	if (!m_process.IsValid())
+	if (!m_process.IsValid() || (result.rfind("error: ", 0) == 0))
 	{
+		auto it = result.find_last_not_of('\n');
+		result.erase(it + 1);
 		DebuggerEvent event;
 		event.type = ErrorEventType;
 		event.data.errorData.error = fmt::format("failed to launch: {}", result.c_str());
