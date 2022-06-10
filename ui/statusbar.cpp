@@ -23,6 +23,8 @@ limitations under the License.
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 
+constexpr size_t STATUS_STRING_MAX_LEN = 50;
+
 DebuggerStatusBarWidget::DebuggerStatusBarWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data):
 	QWidget(parent), m_parent(parent), m_view(frame)
 {
@@ -57,7 +59,12 @@ DebuggerStatusBarWidget::~DebuggerStatusBarWidget()
 
 void DebuggerStatusBarWidget::setStatusText(const QString &text)
 {
-	m_status->setText(text);
+	setToolTip(text);
+	QString displayText = text;
+	if (displayText.length() >= STATUS_STRING_MAX_LEN)
+		displayText = displayText.left(STATUS_STRING_MAX_LEN - 3) + "...";
+
+	m_status->setText(displayText);
 	m_parent->setFixedWidth(m_status->sizeHint().width());
 }
 
@@ -132,7 +139,7 @@ DebuggerStatusBarContainer::DebuggerStatusBarContainer():
 	layout->setContentsMargins(0, 0, 0, 0);
 	layout->addWidget(m_consoleStack);
 
-	auto* noViewLabel = new QLabel("No active view");
+	auto* noViewLabel = new QLabel("");
 	noViewLabel->setAlignment(Qt::AlignLeft);
 
 	m_consoleStack->addWidget(noViewLabel);
