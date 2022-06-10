@@ -297,7 +297,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	}, notConnected));
 	debuggerMenu->addAction("Attach To Process...", "Launch");
 
-	UIAction::registerAction("Toggle Breakpoint", QKeySequence(Qt::Key_F4));
+	UIAction::registerAction("Toggle Breakpoint", QKeySequence(Qt::Key_F2));
 	context->globalActions()->bindAction("Toggle Breakpoint", UIAction([=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
 			return;
