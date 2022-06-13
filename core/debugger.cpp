@@ -69,6 +69,25 @@ static void RegisterSettings()
 			"description" : "Stop the target at program entry point",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
+
+#ifdef WIN32
+    settings->RegisterSetting("debugger.x64dbgEngPath",
+  R"({
+			"title" : "x64 DbgEng Installation Path",
+			"type" : "string",
+			"default" : "",
+			"description" : "Path of the x64 DbgEng Installation. This folder should contain an x64 dbgeng.dll.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
+    settings->RegisterSetting("debugger.x86dbgEngPath",
+                              R"({
+			"title" : "x86 DbgEng Installation Path",
+			"type" : "string",
+			"default" : "",
+			"description" : "Path of the x86 DbgEng Installation. This folder should contain an x86 dbgeng.dll.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
+#endif
 }
 
 extern "C"

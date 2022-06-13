@@ -34,14 +34,6 @@ LldbAdapter::LldbAdapter(BinaryView *data): DebugAdapter(data)
 	// confusing behavior.
 	InvokeBackendCommand("settings set auto-confirm true");
 	m_debugger.SetAsync(false);
-
-	// Hacky way to supply the path info into the LLDB
-	m_target = m_debugger.CreateTarget(data->GetFile()->GetOriginalFilename().c_str());
-	if (!m_target.IsValid())
-		return;
-
-	std::thread thread([&](){ EventListener(); });
-	thread.detach();
 }
 
 
@@ -99,8 +91,14 @@ bool LldbAdapter::Execute(const std::string & path, const LaunchConfigurations &
 bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &args, const std::string &workingDir,
 					 const LaunchConfigurations &configs)
 {
+	m_debugger.SetAsync(false);
+
+	m_target = m_debugger.CreateTarget(path.c_str());
 	if (!m_target.IsValid())
 		return false;
+
+	std::thread thread([&](){ EventListener(); });
+	thread.detach();
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
 		AddBreakpoint(ModuleNameAndOffset(path, m_data->GetEntryPoint() - m_data->GetStart()));
@@ -138,8 +136,15 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 
 bool LldbAdapter::Attach(std::uint32_t pid)
 {
+	m_debugger.SetAsync(false);
+
+	// Hacky way to supply the path info into the LLDB
+	m_target = m_debugger.CreateTarget(m_data->GetFile()->GetOriginalFilename().c_str());
 	if (!m_target.IsValid())
 		return false;
+
+	std::thread thread([&](){ EventListener(); });
+	thread.detach();
 
 	SBAttachInfo info(pid);
 	SBError error;
@@ -1115,6 +1120,21 @@ void LldbAdapter::EventListener()
 			LogDebug("structured data event");
 		}
 	}
+
+	listener.StopListeningForEventClass(m_debugger, SBProcess::GetBroadcasterClassName(),
+		lldb::SBProcess::eBroadcastBitStateChanged |
+		lldb::SBProcess::eBroadcastBitSTDERR |
+		lldb::SBProcess::eBroadcastBitSTDOUT);
+
+	listener.StopListeningForEventClass(m_debugger, SBTarget::GetBroadcasterClassName(),
+		lldb::SBTarget::eBroadcastBitBreakpointChanged |
+		lldb::SBTarget::eBroadcastBitModulesLoaded |
+		lldb::SBTarget::eBroadcastBitModulesUnloaded);
+
+	listener.StopListeningForEventClass(m_debugger, SBCommandInterpreter::GetBroadcasterClass(),
+		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousErrorData |
+		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousOutputData
+		);
 }
 
 

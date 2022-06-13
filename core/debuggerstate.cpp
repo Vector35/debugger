@@ -565,7 +565,6 @@ void DebuggerBreakpoints::Apply()
     if (!m_state->GetAdapter())
         return;
 
-    std::vector<DebugBreakpoint> remoteBreakpoints = m_state->GetAdapter()->GetBreakpointList();
     for (const ModuleNameAndOffset& address: m_breakpoints)
 		m_state->GetAdapter()->AddBreakpoint(address);
 }

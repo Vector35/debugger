@@ -148,6 +148,10 @@ bool DebuggerController::Execute()
 
 bool DebuggerController::CreateDebugAdapter()
 {
+    // The current adapter type is the same as the last one, and the last adapter is still valid
+    if (m_state->GetAdapterType() == m_lastAdapterName && m_adapter != nullptr)
+        return true;
+
     DebugAdapterType* type = DebugAdapterType::GetByName(m_state->GetAdapterType());
     if (!type)
     {
@@ -161,6 +165,7 @@ bool DebuggerController::CreateDebugAdapter()
 		return false;
 	}
 
+    m_lastAdapterName = m_state->GetAdapterType();
 	m_state->SetAdapter(m_adapter);
 
 	ApplyBreakpoints();
@@ -765,6 +770,39 @@ void DebuggerController::Connect()
 }
 
 
+bool DebuggerController::ConnectToDebugServer()
+{
+    if (m_state->IsConnectedToDebugServer())
+        return true;
+
+    if (!CreateDebugAdapter())
+        return false;
+
+    bool ok = m_adapter->ConnectToDebugServer(m_state->GetRemoteHost(), m_state->GetRemotePort());
+    if (!ok)
+        LogWarn("fail to connect to the debug server");
+    else
+        m_state->SetConnectedToDebugServer(true);
+
+    return ok;
+}
+
+
+bool DebuggerController::DisconnectDebugServer()
+{
+    if (!m_state->IsConnectedToDebugServer())
+        return true;
+
+    bool ok = m_adapter->DisconnectDebugServer();
+    if (!ok)
+        LogWarn("fail to disconnect from the debug server");
+    else
+        m_state->SetConnectedToDebugServer(false);
+
+    return ok;
+}
+
+
 void DebuggerController::Detach()
 {
     if (!m_state->IsConnected())
@@ -902,7 +940,6 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		m_exitCode = event.data.exitData.exitCode;
 	case DetachedEventType:
 	{
-        m_adapter = nullptr;
         SetLiveView(nullptr);
         m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
         m_state->SetExecutionStatus(DebugAdapterInvalidStatus);

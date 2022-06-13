@@ -33,6 +33,8 @@ limitations under the License.
 #include "adaptersettings.h"
 #include <thread>
 #include <QInputDialog>
+#include <filesystem>
+#include <QMessageBox>
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -106,6 +108,70 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 }
 
 
+#ifdef WIN32
+#include "msi.h"
+#include <Shlobj.h>
+
+static bool InstallDbgEngRedistributable()
+{
+    std::filesystem::path dbgEngPath;
+    if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
+    {
+        auto pluginsPath = BinaryNinja::GetUserPluginDirectory();
+        if (pluginsPath.empty())
+            return false;
+
+        auto path = std::filesystem::path(pluginsPath);
+        dbgEngPath = path / "dbgeng";
+    }
+    else
+    {
+        auto installPath = BinaryNinja::GetInstallDirectory();
+        if (installPath.empty())
+            return false;
+
+        auto path = std::filesystem::path(installPath);
+        dbgEngPath = path / "plugins" / "dbgeng";
+    }
+
+    if (!std::filesystem::exists(dbgEngPath))
+    {
+        LogWarn("path %d does not exists", dbgEngPath.string().c_str());
+        return false;
+    }
+
+	string cmdLine = "ACTION=ADMIN TARGETDIR=";
+
+	char appData[MAX_PATH];
+	if (!SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appData)))
+		return false;
+
+	auto debuggerRoot = filesystem::path(appData) / "Binary Ninja" / "dbgeng";
+	cmdLine = cmdLine + '"' + debuggerRoot.string() + '"';
+
+	auto x64Path = dbgEngPath / "X64 Debuggers And Tools-x64_en-us.msi";
+	auto ret = MsiInstallProductA(x64Path.string().c_str(), cmdLine.c_str());
+	if (ret != ERROR_SUCCESS)
+		return false;
+
+	auto x86Path = dbgEngPath / "X86 Debuggers And Tools-x86_en-us.msi";
+	ret = MsiInstallProductA((char*)x86Path.string().c_str(), cmdLine.c_str());
+	if (ret != ERROR_SUCCESS)
+		return false;
+
+	auto versionFilePath = debuggerRoot / "version.txt";
+	auto file = fopen(versionFilePath.string().c_str(), "w");
+	if (file == nullptr)
+		return false;
+
+	const char* DEBUGGER_REDIST_VERSION = "10.0.22621.1";
+	fwrite(DEBUGGER_REDIST_VERSION, 1, strlen(DEBUGGER_REDIST_VERSION), file);
+	fclose(file);
+	return true;
+}
+#endif
+
+
 void GlobalDebuggerUI::SetupMenu(UIContext* context)
 {
 	auto notConnected = [=](const UIActionContext& ctxt) {
@@ -147,6 +213,26 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 		return controller->IsConnected() && controller->IsRunning();
 	};
+
+    auto connectedToDebugServer = [=](const UIActionContext& ctxt) {
+        if (!ctxt.binaryView)
+            return false;
+        auto controller = DebuggerController::GetController(ctxt.binaryView);
+        if (!controller)
+            return false;
+
+        return controller->IsConnectedToDebugServer();
+    };
+
+    auto notConnectedToDebugServer = [=](const UIActionContext& ctxt) {
+        if (!ctxt.binaryView)
+            return false;
+        auto controller = DebuggerController::GetController(ctxt.binaryView);
+        if (!controller)
+            return false;
+
+        return !controller->IsConnectedToDebugServer();
+    };
 
 	UIAction::registerAction("Launch/Connect Settings...");
 	context->globalActions()->bindAction("Launch/Connect Settings...", UIAction([=](const UIActionContext& ctxt) {
@@ -310,6 +396,57 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		BreakpointToggleCallback(ctxt.binaryView, ctxt.address);
 	}, connectedAndStopped));
 	debuggerMenu->addAction("Toggle Breakpoint", "Breakpoint");
+
+#ifdef WIN32
+    UIAction::registerAction("Reinstall DbgEng Redistributable");
+    context->globalActions()->bindAction("Reinstall DbgEng Redistributable", UIAction([=](const UIActionContext& ctxt) {
+        if (!InstallDbgEngRedistributable())
+        {
+            QMessageBox::warning(nullptr, QString("Failed to install"), QString("Failed to install DbgEng redistributable. "
+                                                                    "The debugger is likely to malfunction"));
+        }
+        else
+        {
+            QMessageBox::warning(nullptr, QString("Successfully installed"),
+                                 QString("Successfully installed DbgEng redistributable."));
+        }
+    }));
+    debuggerMenu->addAction("Reinstall DbgEng Redistributable", "Misc");
+
+    UIAction::registerAction("Connect to Debug Server");
+    context->globalActions()->bindAction("Connect to Debug Server", UIAction([=](const UIActionContext& ctxt) {
+        if (!ctxt.binaryView)
+            return;
+        auto controller = DebuggerController::GetController(ctxt.binaryView);
+        if (!controller)
+            return;
+
+        if (controller->ConnectToDebugServer())
+        {
+            QMessageBox::information(context->mainWindow(), "Successfully connected",
+                                     "Successfully connected to the debug server. Now you can launch or attach to a process.");
+        }
+        else
+        {
+            QMessageBox::information(context->mainWindow(), "Failed to connect",
+                                     "Cannot connect to the debug server. Please check the connection configuration.");
+        }
+    }, notConnectedToDebugServer));
+    debuggerMenu->addAction("Connect to Debug Server", "Launch");
+
+    UIAction::registerAction("Disconnect from Debug Server");
+    context->globalActions()->bindAction("Disconnect from Debug Server", UIAction([=](const UIActionContext& ctxt) {
+        if (!ctxt.binaryView)
+            return;
+        auto controller = DebuggerController::GetController(ctxt.binaryView);
+        if (!controller)
+            return;
+
+        controller->DisconnectDebugServer();
+    }, connectedToDebugServer));
+    debuggerMenu->addAction("Disconnect from Debug Server", "Launch");
+
+#endif
 }
 
 

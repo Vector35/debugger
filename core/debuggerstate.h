@@ -163,6 +163,8 @@ namespace BinaryNinjaDebugger
 
 		Ref<Architecture> m_remoteArch;
 
+        bool m_connectedToDebugServer = false;
+
 	public:
 		DebuggerState(Ref<BinaryView> data, DebuggerController* controller);
 
@@ -209,6 +211,9 @@ namespace BinaryNinjaDebugger
 		bool IsRunning() const { return m_targetStatus == DebugAdapterRunningStatus; }
 		DebugAdapterConnectionStatus GetConnectionStatus() const { return m_connectionStatus; }
 		DebugAdapterTargetStatus GetTargetStatus() const { return m_targetStatus; }
+
+        bool IsConnectedToDebugServer() { return m_connectedToDebugServer; }
+        void SetConnectedToDebugServer(bool connected) { m_connectedToDebugServer = connected; }
 
 		// This is slightly different from the Python implementation. The caller does not need to first
 		// retrieve the DebuggerThreads object and then call SetActiveThread() on it. They call this function.

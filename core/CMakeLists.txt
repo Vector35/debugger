@@ -49,7 +49,8 @@ endif()
 target_link_libraries(debuggercore binaryninjaapi)
 
 if(WIN32)
-    target_link_libraries(debuggercore dbgeng.lib wsock32 ws2_32)
+    target_link_libraries(debuggercore Msi.lib delayimp.lib wsock32 ws2_32)
+	target_link_options(debuggercore PRIVATE /DELAYLOAD:liblldb.dll)
 endif()
 
 set_target_properties(debuggercore PROPERTIES
@@ -193,6 +194,27 @@ else()
 	endif()
 endif()
 
+if (WIN32)
+	if(NOT DEMO)
+		add_custom_command(TARGET debuggercore PRE_LINK
+				COMMAND ${CMAKE_COMMAND} -E echo "Copying DbgEng Redistributable"
+				COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_DIRECTORY_PATH}/dbgeng
+				COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/adapters/dbgeng/X64 Debuggers And Tools-x64_en-us.msi"
+													${LIBRARY_OUTPUT_DIRECTORY_PATH}/dbgeng
+				COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/adapters/dbgeng/X86 Debuggers And Tools-x86_en-us.msi"
+													${LIBRARY_OUTPUT_DIRECTORY_PATH}/dbgeng
+				)
+	else()
+		add_custom_command(TARGET debuggercore PRE_LINK
+				COMMAND ${CMAKE_COMMAND} -E echo "Copying DbgEng Redistributable"
+				COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_OUTPUT_DIR}/dbgeng
+				COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/adapters/dbgeng/X64 Debuggers And Tools-x64_en-us.msi"
+													${BN_CORE_OUTPUT_DIR}/dbgeng
+				COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/adapters/dbgeng/X64 Debuggers And Tools-x64_en-us.msi"
+													${BN_BINARY_DIR}/dbgeng
+				)
+	endif()
+endif()
 
 if(APPLE)
 	add_custom_command(TARGET debuggercore POST_BUILD

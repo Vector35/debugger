@@ -241,6 +241,7 @@ namespace BinaryNinjaDebuggerAPI
 		Ref<Architecture> GetRemoteArchitecture();
 
 		bool IsConnected();
+        bool IsConnectedToDebugServer();
 		bool IsRunning();
 
 		uint64_t StackPointer();
@@ -264,7 +265,9 @@ namespace BinaryNinjaDebuggerAPI
 		void Restart();
 		void Quit();
 		void Connect();
-		void Detach();
+        bool ConnectToDebugServer();
+        bool DisconnectDebugServer();
+        void Detach();
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
 		void LaunchOrConnect();
 		bool Attach(uint32_t pid);

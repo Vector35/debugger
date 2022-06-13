@@ -137,6 +137,12 @@ bool BNDebuggerIsConnected(BNDebuggerController* controller)
 }
 
 
+bool BNDebuggerIsConnectedToDebugServer(BNDebuggerController* controller)
+{
+    return controller->object->GetState()->IsConnectedToDebugServer();
+}
+
+
 bool BNDebuggerIsRunning(BNDebuggerController* controller)
 {
 	return controller->object->GetState()->IsRunning();
@@ -345,6 +351,18 @@ void BNDebuggerQuit(BNDebuggerController* controller)
 void BNDebuggerConnect(BNDebuggerController* controller)
 {
 	controller->object->Connect();
+}
+
+
+bool BNDebuggerConnectToDebugServer(BNDebuggerController* controller)
+{
+    return controller->object->ConnectToDebugServer();
+}
+
+
+bool BNDebuggerDisconnectDebugServer(BNDebuggerController* controller)
+{
+    return controller->object->DisconnectDebugServer();
 }
 
 

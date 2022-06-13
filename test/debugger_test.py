@@ -330,7 +330,7 @@ class Debuggerx64Test(DebuggerAPI):
         self.arch = 'x86_64'
 
 
-@unittest.skipIf(platform.system() in ['Darwin', 'Windows'], 'x86 tests not supported on macOS/Windows')
+@unittest.skipIf(platform.system() in ['Darwin'], 'x86 tests not supported on macOS/Windows')
 class Debuggerx86Test(DebuggerAPI):
     def setUp(self) -> None:
         self.arch = 'x86'

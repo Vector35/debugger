@@ -100,3 +100,15 @@ std::vector<DebugFrame> DebugAdapter::GetFramesOfThread(std::uint32_t tid)
 {
 	return {};
 }
+
+
+bool DebugAdapter::ConnectToDebugServer(const std::string &server, std::uint32_t port)
+{
+    return false;
+}
+
+
+bool DebugAdapter::DisconnectDebugServer()
+{
+    return true;
+}

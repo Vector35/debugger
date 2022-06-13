@@ -75,6 +75,12 @@ bool DebuggerController::IsConnected()
 }
 
 
+bool DebuggerController::IsConnectedToDebugServer()
+{
+    return BNDebuggerIsConnectedToDebugServer(m_object);
+}
+
+
 bool DebuggerController::IsRunning()
 {
 	return BNDebuggerIsRunning(m_object);
@@ -261,6 +267,18 @@ void DebuggerController::Quit()
 void DebuggerController::Connect()
 {
 	BNDebuggerConnect(m_object);
+}
+
+
+bool DebuggerController::ConnectToDebugServer()
+{
+    return BNDebuggerConnectToDebugServer(m_object);
+}
+
+
+bool DebuggerController::DisconnectDebugServer()
+{
+    return BNDebuggerDisconnectDebugServer(m_object);
 }
 
 

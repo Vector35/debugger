@@ -29,6 +29,7 @@ limitations under the License.
 #include "../../cli/log.h"
 #include "queuedadapter.h"
 #include "../debuggerevent.h"
+#include "shlobj_core.h"
 #pragma warning(push)
 // warning C40005, macro redefinition
 #pragma warning(disable: 5)
@@ -36,17 +37,152 @@ limitations under the License.
 #pragma warning(pop)
 
 using namespace BinaryNinjaDebugger;
-
+using namespace std;
 
 #define QUERY_DEBUG_INTERFACE(query, out) \
     if ( const auto result = this->m_debugClient->QueryInterface(__uuidof(query), reinterpret_cast<void**>(out) ); \
             result != S_OK) \
         throw std::runtime_error("Failed to create "#query)
 
-void DbgEngAdapter::Start()
+std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 {
-    if ( this->m_debugActive )
-        this->Reset();
+    std::string path;
+    if (arch == "x64")
+        path = Settings::Instance()->Get<string>("debugger.x64dbgEngPath");
+    else
+        path = Settings::Instance()->Get<string>("debugger.x86dbgEngPath");
+
+    if (path.empty())
+    {
+        char appData[MAX_PATH];
+        if (!SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appData)))
+            return "";
+        auto debuggerRoot = filesystem::path(appData) / "Binary Ninja" / "dbgeng" / "Windows Kits" / "10" / "Debuggers" / arch;
+        if (!filesystem::exists(debuggerRoot))
+            return "";
+
+        path = debuggerRoot.string();
+    }
+
+    auto enginePath = filesystem::path(path);
+    if (!filesystem::exists(enginePath))
+        return "";
+
+    if (!filesystem::exists(enginePath / "dbgeng.dll"))
+        return "";
+
+    if (!filesystem::exists(enginePath / "dbghelp.dll"))
+        return "";
+
+    if (!filesystem::exists(enginePath / "dbgmodel.dll"))
+        return "";
+
+    if (!filesystem::exists(enginePath / "dbgcore.dll"))
+        return "";
+
+    if (!filesystem::exists(enginePath / "dbgsrv.exe"))
+        return "";
+
+    return enginePath.string();
+}
+
+bool DbgEngAdapter::LoadDngEngLibraries()
+{
+    auto enginePath = GetDbgEngPath();
+    if (!enginePath.empty())
+    {
+        if (!SetDllDirectoryA(enginePath.c_str()))
+            LogWarn("Failed to set DLL directory to %s. The debugger is going to load the system dbgeng DLLs and they may"
+                    "not work as expected", enginePath.c_str());
+    }
+    else
+    {
+        LogWarn("debugger.x64dbgEngPath is empty or invalid. The debugger is going to load the system dbgeng DLLs and they may"
+                "not work as expected");
+    }
+
+    HMODULE handle;
+    handle = LoadLibraryA("dbgcore.dll");
+    if (handle == nullptr)
+    {
+        LogWarn("fail to load dbgcore.dll, %d", GetLastError());
+        return false;
+    }
+
+    handle = LoadLibraryA("dbghelp.dll");
+    if (handle == nullptr)
+    {
+        LogWarn("fail to load dbghelp.dll, %d", GetLastError());
+        return false;
+    }
+
+    handle = LoadLibraryA("dbgmodel.dll");
+    if (handle == nullptr)
+    {
+        LogWarn("fail to load dbgmodel.dll, %d", GetLastError());
+        return false;
+    }
+
+    handle = LoadLibraryA("dbgeng.dll");
+    if (handle == nullptr)
+    {
+        LogWarn("fail to load dbgeng.dll, %d", GetLastError());
+        return false;
+    }
+}
+
+std::string DbgEngAdapter::GenerateRandomPipeName()
+{
+    const std::string chars = "abcdefghijklmnopqrstuvwxyz1234567890";
+    constexpr size_t length = 16;
+    srand(time(NULL));
+
+    std::string result;
+    result.resize(length);
+    for (size_t i = 0; i < length; i++)
+        result[i] = chars[rand() % chars.length()];
+
+    return result;
+}
+
+bool DbgEngAdapter::LaunchDbgSrv(const std::string& commandLine)
+{
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    memset(&pi, 0, sizeof(pi));
+    if (!CreateProcessA(NULL,
+                        (LPSTR)commandLine.c_str(),
+                        NULL,
+                        NULL,
+                        FALSE,
+                        0,
+                        NULL,
+                        NULL,
+                        &si,
+                        &pi))
+    {
+        return false;
+    }
+    m_dbgSrvLaunchedByAdapter = true;
+    return true;
+}
+
+bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionString)
+{
+    auto handle = GetModuleHandleA("dbgeng.dll");
+    if (handle == nullptr)
+        false;
+
+    //    HRESULT DebugCreate(
+    //    [in]  REFIID InterfaceId,
+    //    [out] PVOID  *Interface
+    //    );
+    typedef HRESULT(__stdcall *pfunDebugCreate)(REFIID, PVOID*);
+    auto DebugCreate = (pfunDebugCreate)GetProcAddress(handle, "DebugCreate");
+    if (DebugCreate == nullptr)
+        return false;
 
     if (const auto result = DebugCreate(__uuidof(IDebugClient5), reinterpret_cast<void**>(&this->m_debugClient));
             result != S_OK)
@@ -57,6 +193,44 @@ void DbgEngAdapter::Start()
     QUERY_DEBUG_INTERFACE(IDebugRegisters, &this->m_debugRegisters);
     QUERY_DEBUG_INTERFACE(IDebugSymbols, &this->m_debugSymbols);
     QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
+
+    constexpr size_t CONNECTION_MAX_TRY = 300;
+    for (size_t i = 0; i < CONNECTION_MAX_TRY; i++)
+    {
+        auto result = m_debugClient->ConnectProcessServer(connectionString.c_str(), &m_server);
+        if (result == S_OK)
+        {
+            m_connectedToDebugServer = true;
+            return true;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    return false;
+}
+
+bool DbgEngAdapter::Start()
+{
+    if ( this->m_debugActive )
+        this->Reset();
+
+    if (!m_connectedToDebugServer)
+    {
+        auto pipeName = GenerateRandomPipeName();
+        auto connectString = fmt::format("npipe:pipe={},Server=localhost", pipeName);
+        auto arch = m_data->GetDefaultArchitecture()->GetName() == "x86_64" ? "x64" : "x86";
+        auto dbgsrvCommandLine = fmt::format("\"{}\\dbgsrv.exe\" -t {}", GetDbgEngPath(arch), connectString);
+        if (!LaunchDbgSrv(dbgsrvCommandLine)) {
+            LogWarn("Command %s failed", dbgsrvCommandLine.c_str());
+            return false;
+        }
+
+        if (!ConnectToDebugServerInternal(connectString)) {
+            LogWarn("Failed to connect process server");
+            return false;
+        }
+    }
 
 	m_debugEventCallbacks.SetAdapter(this);
     if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks);
@@ -69,6 +243,7 @@ void DbgEngAdapter::Start()
         throw std::runtime_error("Failed to set output callbacks");
 
     this->m_debugActive = true;
+    return true;
 }
 
 #undef QUERY_DEBUG_INTERFACE
@@ -85,15 +260,24 @@ void DbgEngAdapter::Reset()
     if ( !this->m_debugActive )
         return;
 
-    SAFE_RELEASE(this->m_debugControl);
-    SAFE_RELEASE(this->m_debugDataSpaces);
-    SAFE_RELEASE(this->m_debugRegisters);
-    SAFE_RELEASE(this->m_debugSymbols);
-    SAFE_RELEASE(this->m_debugSystemObjects);
-
-    if ( this->m_debugClient )
+    // Free up the resources if the dbgsrv is launched by the adapter. Otherwise, the dbgsrv is launched outside BN,
+    // we should keep everything active.
+    if (m_dbgSrvLaunchedByAdapter)
     {
-        this->m_debugClient->EndSession(DEBUG_END_PASSIVE);
+        SAFE_RELEASE(this->m_debugControl);
+        SAFE_RELEASE(this->m_debugDataSpaces);
+        SAFE_RELEASE(this->m_debugRegisters);
+        SAFE_RELEASE(this->m_debugSymbols);
+        SAFE_RELEASE(this->m_debugSystemObjects);
+
+        if ( this->m_debugClient )
+        {
+            this->m_debugClient->EndSession(DEBUG_END_PASSIVE);
+            this->m_debugClient->EndProcessServer(m_server);
+            m_dbgSrvLaunchedByAdapter = false;
+            m_connectedToDebugServer = false;
+            m_server = 0;
+        }
         this->m_debugClient->Release();
         this->m_debugClient = nullptr;
     }
@@ -105,6 +289,7 @@ void DbgEngAdapter::Reset()
 
 DbgEngAdapter::DbgEngAdapter(BinaryView* data): DebugAdapter(data)
 {
+    LoadDngEngLibraries();
 }
 
 DbgEngAdapter::~DbgEngAdapter()
@@ -144,7 +329,8 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
         this->Reset();
     }
 
-    this->Start();
+    if (!Start())
+        return false;
 
     if (const auto result = this->m_debugControl->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK);
             result != S_OK)
@@ -174,7 +360,7 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	if (workingDir.empty())
 		directory = nullptr;
 
-	if (const auto result = this->m_debugClient->CreateProcess2(0,
+	if (const auto result = this->m_debugClient->CreateProcess2(m_server,
 			const_cast<char*>( path_with_args.c_str() ), &options, sizeof(DEBUG_CREATE_PROCESS_OPTIONS),
 			directory, nullptr);
             result != S_OK)
@@ -272,6 +458,8 @@ void DbgEngAdapter::EngineLoop()
 
 		Wait();
 	}
+
+    m_lastExecutionStatus = DEBUG_STATUS_BREAK;
 }
 
 bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
@@ -288,7 +476,7 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
         return false;
     }
 
-    if (const auto result = this->m_debugClient->AttachProcess(0, pid, 0);
+    if (const auto result = this->m_debugClient->AttachProcess(m_server, pid, 0);
         result != S_OK )
     {
         this->Reset();
@@ -320,6 +508,24 @@ bool DbgEngAdapter::Connect(const std::string &server, std::uint32_t port)
 {
     static_assert("not implemented");
     return false;
+}
+
+bool DbgEngAdapter::ConnectToDebugServer(const std::string &server, std::uint32_t port)
+{
+    std::string connectionString = fmt::format("tcp:port={}, Server={}", port, server);
+    return ConnectToDebugServerInternal(connectionString);
+}
+
+bool DbgEngAdapter::DisconnectDebugServer()
+{
+    if (!m_connectedToDebugServer)
+        return true;
+
+    auto ret = m_debugClient->DisconnectProcessServer(m_server);
+    m_connectedToDebugServer = false;
+    m_server = 0;
+
+    return ret == S_OK;
 }
 
 void DbgEngAdapter::Detach()
@@ -1057,7 +1263,7 @@ bool LocalDbgEngAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
 
 bool LocalDbgEngAdapterType::CanConnect(BinaryNinja::BinaryView *data)
 {
-    return false;
+    return true;
 }
 
 
