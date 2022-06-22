@@ -35,6 +35,7 @@ limitations under the License.
 #include <QInputDialog>
 #include <filesystem>
 #include <QMessageBox>
+#include "debugserversetting.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -419,6 +420,10 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
             return;
         auto controller = DebuggerController::GetController(ctxt.binaryView);
         if (!controller)
+            return;
+
+        auto dialog = new DebugServerSettingsDialog(context->mainWindow(), controller);
+        if (dialog->exec () != QDialog::Accepted)
             return;
 
         if (controller->ConnectToDebugServer())
