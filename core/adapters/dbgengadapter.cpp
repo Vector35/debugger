@@ -1242,7 +1242,7 @@ std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
 }
 
 
-LocalDbgEngAdapterType::LocalDbgEngAdapterType(): DebugAdapterType("Local DBGENG")
+LocalDbgEngAdapterType::LocalDbgEngAdapterType(): DebugAdapterType("DBGENG")
 {
 
 }

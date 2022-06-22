@@ -73,7 +73,7 @@ std::vector<std::string> DebugAdapterType::GetAvailableAdapters(BinaryNinja::Bin
 std::string DebugAdapterType::GetBestAdapterForCurrentSystem(BinaryNinja::BinaryView *data)
 {
 #ifdef WIN32
-    return "Local DBGENG";
+    return "DBGENG";
 #else
     return "LLDB";
 #endif
