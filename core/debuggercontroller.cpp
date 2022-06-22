@@ -121,18 +121,6 @@ bool DebuggerController::Attach(int32_t pid)
 bool DebuggerController::Execute()
 {
 	std::string filePath = m_state->GetExecutablePath();
-	// We should switch to use std::filesystem::exists() later
-	FILE* file = fopen(filePath.c_str(), "r");
-	if (!file)
-	{
-		LogWarn("file \"%s\" does not exist, fail to execute it", filePath.c_str());
-		return false;
-	}
-	else
-	{
-		fclose(file);
-	}
-
 	bool requestTerminal = m_state->GetRequestTerminalEmulator();
 	LaunchConfigurations configs = {requestTerminal};
 
