@@ -398,22 +398,6 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	}, connectedAndStopped));
 	debuggerMenu->addAction("Toggle Breakpoint", "Breakpoint");
 
-#ifdef WIN32
-    UIAction::registerAction("Reinstall DbgEng Redistributable");
-    context->globalActions()->bindAction("Reinstall DbgEng Redistributable", UIAction([=](const UIActionContext& ctxt) {
-        if (!InstallDbgEngRedistributable())
-        {
-            QMessageBox::warning(nullptr, QString("Failed to install"), QString("Failed to install DbgEng redistributable. "
-                                                                    "The debugger is likely to malfunction"));
-        }
-        else
-        {
-            QMessageBox::warning(nullptr, QString("Successfully installed"),
-                                 QString("Successfully installed DbgEng redistributable."));
-        }
-    }));
-    debuggerMenu->addAction("Reinstall DbgEng Redistributable", "Misc");
-
     UIAction::registerAction("Connect to Debug Server");
     context->globalActions()->bindAction("Connect to Debug Server", UIAction([=](const UIActionContext& ctxt) {
         if (!ctxt.binaryView)
@@ -460,6 +444,21 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
     }, connectedToDebugServer));
     debuggerMenu->addAction("Disconnect from Debug Server", "Launch");
 
+#ifdef WIN32
+    UIAction::registerAction("Reinstall DbgEng Redistributable");
+    context->globalActions()->bindAction("Reinstall DbgEng Redistributable", UIAction([=](const UIActionContext& ctxt) {
+        if (!InstallDbgEngRedistributable())
+        {
+            QMessageBox::warning(nullptr, QString("Failed to install"), QString("Failed to install DbgEng redistributable. "
+                                                                    "The debugger is likely to malfunction"));
+        }
+        else
+        {
+            QMessageBox::warning(nullptr, QString("Successfully installed"),
+                                 QString("Successfully installed DbgEng redistributable."));
+        }
+    }));
+    debuggerMenu->addAction("Reinstall DbgEng Redistributable", "Misc");
 #endif
 }
 
