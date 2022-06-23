@@ -28,19 +28,17 @@ limitations under the License.
 #include "fontsettings.h"
 #include "debuggerapi.h"
 
-using namespace BinaryNinjaDebuggerAPI;
-
 class DebugServerSettingsDialog: public QDialog
 {
     Q_OBJECT
 
 private:
-    DebuggerController* m_controller;
+    BinaryNinjaDebuggerAPI::DebuggerController* m_controller;
     QLineEdit* m_addressEntry;
     QLineEdit* m_portEntry;
 
 public:
-    DebugServerSettingsDialog(QWidget* parent, DebuggerController* controller);
+    DebugServerSettingsDialog(QWidget* parent, BinaryNinjaDebuggerAPI::DebuggerController* controller);
 
 private Q_SLOTS:
     void apply();

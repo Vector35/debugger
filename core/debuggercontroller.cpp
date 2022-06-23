@@ -1477,3 +1477,18 @@ DebugStopReason DebuggerController::WaitForAdapterStop()
 	RemoveEventCallback(callback);
 	return reason;
 }
+
+
+Ref<Metadata> DebuggerController::GetAdapterProperty(const std::string& name)
+{
+    if (!m_adapter)
+        return nullptr;
+
+    return m_adapter->GetProperty(name);
+}
+
+
+bool DebuggerController::SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value)
+{
+    return true;
+}

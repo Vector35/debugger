@@ -665,3 +665,18 @@ DebugStopReason DebuggerController::StopReason()
 {
 	return BNDebuggerGetStopReason(m_object);
 }
+
+
+Ref<Metadata> DebuggerController::GetAdapterProperty(const std::string& name)
+{
+    BNMetadata* value = BNDebuggerGetAdapterProperty(m_object, name.c_str());
+    if (!value)
+        return nullptr;
+    return new Metadata(value);
+}
+
+
+bool DebuggerController::SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<Metadata>& value)
+{
+    return BNDebuggerSetAdapterProperty(m_object, name.c_str(), value->m_object);
+}

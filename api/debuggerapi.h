@@ -334,6 +334,9 @@ namespace BinaryNinjaDebuggerAPI
 
 		static std::string GetDebugStopReasonString(DebugStopReason reason);
 		DebugStopReason StopReason();
+
+        BinaryNinja::Ref<Metadata> GetAdapterProperty(const std::string& name);
+        bool SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<Metadata>& value);
 	};
 
 
