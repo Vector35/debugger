@@ -314,7 +314,7 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigne
 DebugBreakpoint LldbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
 {
 	uint64_t addr = address.offset + m_data->GetStart();
-	std::string entryBreakpointCommand = fmt::format("b -s {} -a 0x{:x}", address.module, addr);
+	std::string entryBreakpointCommand = fmt::format("b -s \"{}\" -a 0x{:x}", address.module, addr);
 	auto ret = InvokeBackendCommand(entryBreakpointCommand);
 
 	return DebugBreakpoint{};

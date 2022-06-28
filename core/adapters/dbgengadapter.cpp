@@ -637,6 +637,15 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
     return new_breakpoint;
 }
 
+static std::string EscapeModuleName(const std::string& name)
+{
+    std::string result = name;
+    const std::string charsToEscape = " -'~`";
+    auto shouldReplace = [&](char c) -> bool { return charsToEscape.find(c) != std::string::npos; };
+    std::replace_if(result.begin(), result.end(), shouldReplace, '_');
+    return result;
+}
+
 DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
 {
     // If the backend has been created, we add the breakpoints directly. Otherwise, keep track of the breakpoints,
@@ -644,8 +653,8 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address,
     if (m_debugActive)
     {
         // DbgEng does not take a full path. It can take "hello.exe", or simply "hello". E.g., "bp helloworld+0x1338"
-        auto fileName = std::filesystem::path(address.module).filename();
-        std::string breakpointCommand = fmt::format("bp {}+0x{:x}", fileName.string(), address.offset);
+        auto fileName = std::filesystem::path(address.module).stem();
+        std::string breakpointCommand = fmt::format("bp {}+0x{:x}", EscapeModuleName(fileName.string()), address.offset);
         auto ret = InvokeBackendCommand(breakpointCommand);
     }
     else
