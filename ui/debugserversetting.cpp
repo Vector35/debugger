@@ -110,5 +110,10 @@ void DebugServerSettingsDialog::apply()
     data = new Metadata(port);
     m_controller->GetData()->StoreMetadata("debugger.remote_port", data);
 
+	const auto platform = m_platformEntry->currentText().toStdString();
+	data = new Metadata(platform);
+	m_controller->SetAdapterProperty("current_platform", data);
+	m_controller->GetData()->StoreMetadata("debugger.platform", data);
+
     accept();
 }

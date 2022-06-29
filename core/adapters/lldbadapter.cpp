@@ -1166,5 +1166,18 @@ Ref<Metadata> LldbAdapter::GetProperty(const std::string &name)
 
 bool LldbAdapter::SetProperty(const std::string &name, const Ref<Metadata> &value)
 {
+	if (name == "current_platform")
+	{
+		if (value->IsString())
+		{
+			auto platform = value->GetString();
+			if (!platform.empty())
+			{
+				auto error = m_debugger.SetCurrentPlatform(platform.c_str());
+				if (error.Success())
+					return true;
+			}
+		}
+	}
 	return false;
 }

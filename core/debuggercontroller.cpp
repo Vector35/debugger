@@ -1490,7 +1490,10 @@ Ref<Metadata> DebuggerController::GetAdapterProperty(const std::string& name)
 
 bool DebuggerController::SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value)
 {
-    return true;
+    if (!m_adapter)
+        return false;
+
+    return m_adapter->SetProperty(name, value);
 }
 
 
