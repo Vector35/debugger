@@ -36,16 +36,16 @@ DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerCo
     titleLayout->setContentsMargins(0, 0, 0, 0);
 
     m_platformEntry = new QComboBox(this);
-    auto platformsMetaData = m_controller->GetAdapterProperty("platforms");
-    if (platformsMetaData->IsStringList())
-    {
-        auto platforms = platformsMetaData->GetStringList();
-        for (const auto& platform: platforms)
-            m_platformEntry->addItem(QString::fromStdString(platform));
-    }
+//    auto platformsMetaData = m_controller->GetAdapterProperty("platforms");
+//    if (platformsMetaData->IsStringList())
+//    {
+//        auto platforms = platformsMetaData->GetStringList();
+//        for (const auto& platform: platforms)
+//            m_platformEntry->addItem(QString::fromStdString(platform));
+//    }
 
     auto currentPlatformMetadata = m_controller->GetAdapterProperty("current_platform");
-    if (currentPlatformMetadata->IsString())
+    if (currentPlatformMetadata && currentPlatformMetadata->IsString())
     {
         const auto currentPlatform = currentPlatformMetadata->GetString();
         m_platformEntry->setCurrentText(QString::fromStdString(currentPlatform));
@@ -55,6 +55,7 @@ DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerCo
     m_portEntry = new QLineEdit(this);
 
     QFormLayout* formLayout = new QFormLayout;
+    formLayout->addRow("Platform", m_platformEntry);
     formLayout->addRow("Host", m_addressEntry);
     formLayout->addRow("Port", m_portEntry);
 

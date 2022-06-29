@@ -1142,3 +1142,29 @@ void LldbAdapter::WriteStdin(const std::string &msg)
 {
 	m_process.PutSTDIN(msg.c_str(), msg.length());
 }
+
+
+Ref<Metadata> LldbAdapter::GetProperty(const std::string &name)
+{
+	if (name == "current_platform")
+	{
+		auto platform = m_debugger.GetSelectedPlatform();
+		return new Metadata(platform.GetName());
+	}
+	else if (name == "platforms")
+	{
+		std::vector<std::string> platforms;
+		for (size_t i = 0; i < m_debugger.GetNumAvailablePlatforms(); i++)
+		{
+			auto platform = m_debugger.GetAvailablePlatformInfoAtIndex(i);
+		}
+//		return Metadata(platforms);
+	}
+	return nullptr;
+}
+
+
+bool LldbAdapter::SetProperty(const std::string &name, const Ref<Metadata> &value)
+{
+	return false;
+}

@@ -273,8 +273,8 @@ namespace BinaryNinjaDebugger
 
 		virtual void WriteStdin(const std::string& msg);
 
-        BinaryNinja::Ref<BinaryNinja::Metadata> GetProperty(const std::string& name);
+        virtual BinaryNinja::Ref<BinaryNinja::Metadata> GetProperty(const std::string& name);
 
-        bool SetProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value);
+        virtual bool SetProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value);
 	};
 };

@@ -110,6 +110,10 @@ namespace BinaryNinjaDebugger {
 		void WriteStdin(const std::string& msg) override;
 
 		void FixActiveThread();
+
+		Ref<Metadata> GetProperty(const std::string& name) override;
+
+		bool SetProperty(const std::string& name, const Ref<Metadata>& value) override;
 	};
 
 	class LldbAdapterType: public DebugAdapterType
