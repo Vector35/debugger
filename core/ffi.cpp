@@ -832,3 +832,9 @@ DEBUGGER_FFI_API bool BNDebuggerSetAdapterProperty(BNDebuggerController* control
 {
     return controller->object->SetAdapterProperty(name, new Metadata(BNNewMetadataReference(value)));
 }
+
+
+bool BNDebuggerActivateDebugAdapter(BNDebuggerController* controller)
+{
+	return controller->object->ActivateDebugAdapter();
+}

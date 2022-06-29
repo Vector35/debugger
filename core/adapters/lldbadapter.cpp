@@ -1149,7 +1149,7 @@ Ref<Metadata> LldbAdapter::GetProperty(const std::string &name)
 	if (name == "current_platform")
 	{
 		auto platform = m_debugger.GetSelectedPlatform();
-		return new Metadata(platform.GetName());
+		return new Metadata(std::string(platform.GetName()));
 	}
 	else if (name == "platforms")
 	{

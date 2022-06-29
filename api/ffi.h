@@ -383,6 +383,8 @@ extern "C"
 	DEBUGGER_FFI_API char* BNDebuggerGetStopReasonString(BNDebugStopReason reason);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerGetStopReason(BNDebuggerController* controller);
 
+	DEBUGGER_FFI_API bool BNDebuggerActivateDebugAdapter(BNDebuggerController* controller);
+
 	// DebugAdapterType
 	DEBUGGER_FFI_API BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name);
 	DEBUGGER_FFI_API bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, BNBinaryView* data);

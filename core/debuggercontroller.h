@@ -229,5 +229,7 @@ namespace BinaryNinjaDebugger
 
         BinaryNinja::Ref<BinaryNinja::Metadata> GetAdapterProperty(const std::string& name);
         bool SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value);
+
+		bool ActivateDebugAdapter();
 	};
 };

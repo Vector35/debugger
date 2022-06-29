@@ -680,3 +680,9 @@ bool DebuggerController::SetAdapterProperty(const std::string& name, const Binar
 {
     return BNDebuggerSetAdapterProperty(m_object, name.c_str(), value->m_object);
 }
+
+
+bool DebuggerController::ActivateDebugAdapter()
+{
+	return BNDebuggerActivateDebugAdapter(m_object);
+}

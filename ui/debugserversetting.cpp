@@ -36,6 +36,9 @@ DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerCo
     titleLayout->setContentsMargins(0, 0, 0, 0);
 
     m_platformEntry = new QComboBox(this);
+	// workaround for the missing Metadata API
+	m_platformEntry->setEditable(true);
+
 //    auto platformsMetaData = m_controller->GetAdapterProperty("platforms");
 //    if (platformsMetaData->IsStringList())
 //    {

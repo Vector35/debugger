@@ -1492,3 +1492,9 @@ bool DebuggerController::SetAdapterProperty(const std::string& name, const Binar
 {
     return true;
 }
+
+
+bool DebuggerController::ActivateDebugAdapter()
+{
+	return CreateDebugAdapter();
+}
