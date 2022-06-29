@@ -156,13 +156,28 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 
 bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 {
+	m_debugger.SetAsync(false);
+
+	// Hacky way to supply the path info into the LLDB
+	m_target = m_debugger.CreateTarget(m_data->GetFile()->GetOriginalFilename().c_str());
 	if (!m_target.IsValid())
 		return false;
+
+	std::thread thread([&](){ EventListener(); });
+	thread.detach();
+
+	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
+		AddBreakpoint(ModuleNameAndOffset(m_data->GetFile()->GetOriginalFilename(),
+										  m_data->GetEntryPoint() - m_data->GetStart()));
 
 	std::string url = fmt::format("connect://{}:{}", server, port);
 	SBError error;
 	SBListener listener;
-	m_process = m_target.ConnectRemote(listener, url.c_str(), nullptr, error);
+	const char* plugin = nullptr;
+	if (!m_processPlugin.empty() && m_processPlugin != "debugserver/lldb")
+		plugin = m_processPlugin.c_str();
+	m_process = m_target.ConnectRemote(listener, url.c_str(), plugin, error);
+	m_debugger.SetAsync(true);
 	return m_process.IsValid() && error.Success();
 }
 
@@ -1141,4 +1156,84 @@ void LldbAdapter::EventListener()
 void LldbAdapter::WriteStdin(const std::string &msg)
 {
 	m_process.PutSTDIN(msg.c_str(), msg.length());
+}
+
+
+Ref<Metadata> LldbAdapter::GetProperty(const std::string &name)
+{
+	if (name == "current_platform")
+	{
+		auto platform = m_debugger.GetSelectedPlatform();
+		return new Metadata(std::string(platform.GetName()));
+	}
+	else if (name == "platforms")
+	{
+		std::vector<std::string> platforms;
+		for (size_t i = 0; i < m_debugger.GetNumAvailablePlatforms(); i++)
+		{
+			auto platform = m_debugger.GetAvailablePlatformInfoAtIndex(i);
+			auto nameData = platform.GetValueForKey("name");
+			char name[1024];
+			nameData.GetStringValue(name, 1024);
+			platforms.emplace_back(name);
+		}
+		return new Metadata(platforms);
+	}
+	else if (name == "process_plugins")
+	{
+		std::vector<std::string> plugins;
+		plugins.emplace_back("gdb-remote");
+		plugins.emplace_back("debugserver/lldb");
+		return new Metadata(plugins);
+	}
+	else if (name == "current_process_plugin")
+	{
+		return new Metadata(m_processPlugin);
+	}
+	return nullptr;
+}
+
+
+bool LldbAdapter::SetProperty(const std::string &name, const Ref<Metadata> &value)
+{
+	if (name == "current_platform")
+	{
+		if (value->IsString())
+		{
+			auto platform = value->GetString();
+			if (!platform.empty())
+			{
+				auto error = m_debugger.SetCurrentPlatform(platform.c_str());
+				if (error.Success())
+					return true;
+			}
+		}
+	}
+	else if (name == "current_process_plugin")
+	{
+		if (value->IsString())
+		{
+			m_processPlugin = value->GetString();
+			return true;
+		}
+	}
+	return false;
+}
+
+
+bool LldbAdapter::ConnectToDebugServer(const std::string &server, std::uint32_t port)
+{
+	auto platform = m_debugger.GetSelectedPlatform();
+	auto connectionString = fmt::format("connect://{}:{}", server, port);
+	SBPlatformConnectOptions options(connectionString.c_str());
+	auto error = platform.ConnectRemote(options);
+	return error.Success();
+}
+
+
+bool LldbAdapter::DisconnectDebugServer()
+{
+	auto platform = m_debugger.GetSelectedPlatform();
+	platform.DisconnectRemote();
+	return true;
 }

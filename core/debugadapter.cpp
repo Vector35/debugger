@@ -112,3 +112,15 @@ bool DebugAdapter::DisconnectDebugServer()
 {
     return true;
 }
+
+
+Ref<Metadata> DebugAdapter::GetProperty(const std::string &name)
+{
+    return nullptr;
+}
+
+
+bool DebugAdapter::SetProperty(const std::string &name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value)
+{
+    return false;
+}

@@ -7,9 +7,29 @@ The debugger is currently in beta status, so it is disabled by default. To enabl
 
 ## Platform and Target Support
 
-Currently, the debugger supports local debugging on Windows, Linux, and macOS.
+This is the current comparability matrix of the debugger. The horizontal line stands for where we run BN, and lines mean targets.
 
-We plan to support remote debugging across different operating systems, as well as attaching to gdb/lldb stub. The progress is tracked in [this issue](https://github.com/Vector35/debugger/issues/122).
+| Target  🔽 Host ▶️    | macOS              | Linux              | Windows            | Note |
+|-----------------------|--------------------|--------------------|--------------------|------|
+| macOS                 | Yes (Local/Remote) | Yes (Remote)       | Yes (Remote)       |      |
+| Linux                 | Yes (Remote)       | Yes (Local/Remote) | Yes (Remote)       |      |
+| Windows               | Planned            | Planned            | Yes (Local/Remote) |      |
+| GDB Server            | Yes                | Yes                | Yes                | (1)  |
+| LLDB Server           | Yes                | Yes                | Yes                |      |
+| Windows Kernel        | TBD                | TBD                | Planned            |      |
+| DebugAdapter Protocol | Planned            | Planned            | Planned            |      |
+
+Explanation:
+- `Yes` means the feature is supported.
+- `Planned` means that we plan to implement it.
+- `TBD` means that we have not decided whether to support it, or how to support it.
+- `No` means it is not possible to do, at least for now.
+
+Notes:
+
+(1). Right now, we only support gdbserver with android remote debugging. Support for other gdbserver or gdb stub, e.g., qiling, VMWare, QEMU, will be added later.
+
+The progress is tracked in [this issue](https://github.com/Vector35/debugger/issues/122).
 
 
 

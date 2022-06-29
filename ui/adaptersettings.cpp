@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "adaptersettings.h"
 #include "uicontext.h"
+#include "qfiledialog.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
@@ -32,11 +33,6 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
 	setModal(true);
     QVBoxLayout* layout = new QVBoxLayout;
     layout->setSpacing(0);
-
-    QLabel* titleLabel = new QLabel("Adapter Settings");
-    QHBoxLayout* titleLayout = new QHBoxLayout;
-    titleLayout->setContentsMargins(0, 0, 0, 0);
-    titleLayout->addWidget(titleLabel);
 
     m_adapterEntry = new QComboBox(this);
 	for (const std::string& adapter: DebugAdapterType::GetAvailableAdapters(m_controller->GetData()))
@@ -55,20 +51,49 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
     connect(m_adapterEntry, &QComboBox::currentTextChanged, this, &AdapterSettingsDialog::selectAdapter);
 
     m_pathEntry = new QLineEdit(this);
+	m_pathEntry->setMinimumWidth(800);
     m_argumentsEntry = new QLineEdit(this);
     m_workingDirectoryEntry = new QLineEdit(this);
-    m_addressEntry = new QLineEdit(this);
-    m_portEntry = new QLineEdit(this);
 	m_terminalEmulator = new QCheckBox(this);
 
-    QFormLayout* formLayout = new QFormLayout;
-    formLayout->addRow("Adapter Type", m_adapterEntry);
-    formLayout->addRow("Executable Path", m_pathEntry);
-    formLayout->addRow("Working Directory", m_workingDirectoryEntry);
-    formLayout->addRow("Command Line Arguments", m_argumentsEntry);
-	formLayout->addRow("Run In Separate Terminal", m_terminalEmulator);
-    formLayout->addRow("Address", m_addressEntry);
-    formLayout->addRow("Port", m_portEntry);
+	auto* pathSelector = new QPushButton("...", this);
+	pathSelector->setMaximumWidth(30);
+	connect(pathSelector, &QPushButton::clicked, [&](){
+		auto fileName = QFileDialog::getOpenFileName(this, "Select Executable Path", m_workingDirectoryEntry->text());
+		if (!fileName.isEmpty())
+			m_pathEntry->setText(fileName);
+	});
+
+	auto* workingDirSelector = new QPushButton("...", this);
+	workingDirSelector->setMaximumWidth(30);
+	connect(workingDirSelector, &QPushButton::clicked, [&](){
+		auto pathName = QFileDialog::getExistingDirectory(this, "Specify Working Directory",
+														  m_workingDirectoryEntry->text(),
+														  QFileDialog::ShowDirsOnly| QFileDialog::DontResolveSymlinks);
+		if (!pathName.isEmpty())
+			m_workingDirectoryEntry->setText(pathName);
+	});
+
+	auto pathEntryLayout = new QHBoxLayout;
+	pathEntryLayout->addWidget(m_pathEntry);
+	pathEntryLayout->addWidget(pathSelector);
+
+	auto workingDirLayout = new QHBoxLayout;
+	workingDirLayout->addWidget(m_workingDirectoryEntry);
+	workingDirLayout->addWidget(workingDirSelector);
+
+	QVBoxLayout* contentLayout = new QVBoxLayout;
+	contentLayout->setSpacing(10);
+	contentLayout->addWidget(new QLabel("Adapter Type"));
+	contentLayout->addWidget(m_adapterEntry);
+	contentLayout->addWidget(new QLabel("Executable Path"));
+	contentLayout->addLayout(pathEntryLayout);
+	contentLayout->addWidget(new QLabel("Working Directory"));
+	contentLayout->addLayout(workingDirLayout);
+	contentLayout->addWidget(new QLabel("Command Line Arguments"));
+	contentLayout->addWidget(m_argumentsEntry);
+	contentLayout->addWidget(new QLabel("Run In Separate Terminal"));
+	contentLayout->addWidget(m_terminalEmulator);
 
     QHBoxLayout* buttonLayout = new QHBoxLayout;
     buttonLayout->setContentsMargins(0, 0, 0, 0);
@@ -83,16 +108,12 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController
     buttonLayout->addWidget(cancelButton);
     buttonLayout->addWidget(acceptButton);
 
-    layout->addLayout(titleLayout);
-    layout->addSpacing(10);
-    layout->addLayout(formLayout);
+    layout->addLayout(contentLayout);
     layout->addStretch(1);
     layout->addSpacing(10);
     layout->addLayout(buttonLayout);
     setLayout(layout);
 
-    m_addressEntry->setText(QString::fromStdString(m_controller->GetRemoteHost()));
-    m_portEntry->setText(QString::number(m_controller->GetRemotePort()));
     m_pathEntry->setText(QString::fromStdString(m_controller->GetExecutablePath()));
 	m_terminalEmulator->setChecked(m_controller->GetRequestTerminalEmulator());
     m_argumentsEntry->setText(QString::fromStdString(m_controller->GetCommandLineArguments()));
@@ -120,17 +141,6 @@ void AdapterSettingsDialog::selectAdapter(const QString& adapter)
 		m_argumentsEntry->setEnabled(false);
 		m_terminalEmulator->setEnabled(false);
     }
-
-	if (adapterType->CanConnect(m_controller->GetData()))
-    {
-        m_addressEntry->setEnabled(true);
-        m_portEntry->setEnabled(true);
-    }
-	else
-	{
-		m_addressEntry->setEnabled(false);
-		m_portEntry->setEnabled(false);
-	}
 }
 
 
@@ -160,27 +170,6 @@ void AdapterSettingsDialog::apply()
 	m_controller->SetWorkingDirectory(workingDir);
 	data = new Metadata(workingDir);
 	m_controller->GetData()->StoreMetadata("debugger.working_directory", data);
-
-    std::string host = m_addressEntry->text().toStdString();
-    m_controller->SetRemoteHost(host);
-    data = new Metadata(host);
-    m_controller->GetData()->StoreMetadata("debugger.remote_host", data);
-
-    std::string portString = m_portEntry->text().toStdString();
-    uint64_t port;
-    try
-    {
-        port = stoull(portString);
-
-    }
-    catch(const std::exception&)
-    {
-        port = 31337;
-    }
-    
-    m_controller->SetRemotePort(port);
-    data = new Metadata(port);
-    m_controller->GetData()->StoreMetadata("debugger.remote_port", data);
 
 	bool requestTerminal = m_terminalEmulator->isChecked();
 	m_controller->SetRequestTerminalEmulator(requestTerminal);

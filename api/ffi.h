@@ -51,6 +51,7 @@ extern "C"
 	struct BNBinaryView;
 	struct BNArchitecture;
 	struct BNDataBuffer;
+    struct BNMetadata;
 	enum BNFunctionGraphType;
 
 	struct BNDebugThread
@@ -382,6 +383,8 @@ extern "C"
 	DEBUGGER_FFI_API char* BNDebuggerGetStopReasonString(BNDebugStopReason reason);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerGetStopReason(BNDebuggerController* controller);
 
+	DEBUGGER_FFI_API bool BNDebuggerActivateDebugAdapter(BNDebuggerController* controller);
+
 	// DebugAdapterType
 	DEBUGGER_FFI_API BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name);
 	DEBUGGER_FFI_API bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, BNBinaryView* data);
@@ -398,6 +401,10 @@ extern "C"
 															void (*callback)(void* ctx, BNDebuggerEvent* event),
 															void* ctx);
 	DEBUGGER_FFI_API void BNDebuggerRemoveEventCallback(BNDebuggerController* controller, size_t index);
+
+    DEBUGGER_FFI_API BNMetadata* BNDebuggerGetAdapterProperty(BNDebuggerController* controller, const char* name);
+    DEBUGGER_FFI_API bool BNDebuggerSetAdapterProperty(BNDebuggerController* controller, const char* name,
+                                                      BNMetadata* value);
 
 #ifdef __cplusplus
 }

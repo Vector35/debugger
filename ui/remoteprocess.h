@@ -28,24 +28,19 @@ limitations under the License.
 #include "fontsettings.h"
 #include "debuggerapi.h"
 
-using namespace BinaryNinjaDebuggerAPI;
-
-class AdapterSettingsDialog: public QDialog
+class RemoteProcessSettingsDialog: public QDialog
 {
-    Q_OBJECT
+	Q_OBJECT
 
 private:
-    DebuggerController* m_controller;
-    QComboBox* m_adapterEntry;
-    QLineEdit* m_pathEntry;
-	QLineEdit* m_workingDirectoryEntry;
-    QLineEdit* m_argumentsEntry;
-	QCheckBox* m_terminalEmulator;
+	BinaryNinjaDebuggerAPI::DebuggerController* m_controller;
+	QComboBox* m_pluginEntry;
+	QLineEdit* m_addressEntry;
+	QLineEdit* m_portEntry;
 
 public:
-    AdapterSettingsDialog(QWidget* parent, DebuggerController* controller);
+	RemoteProcessSettingsDialog(QWidget* parent, BinaryNinjaDebuggerAPI::DebuggerController* controller);
 
 private Q_SLOTS:
-    void apply();
-    void selectAdapter(const QString& adapter);
+	void apply();
 };

@@ -110,6 +110,16 @@ namespace BinaryNinjaDebugger {
 		void WriteStdin(const std::string& msg) override;
 
 		void FixActiveThread();
+
+		Ref<Metadata> GetProperty(const std::string& name) override;
+
+		bool SetProperty(const std::string& name, const Ref<Metadata>& value) override;
+
+		bool ConnectToDebugServer(const std::string &server, std::uint32_t port) override;
+
+		bool DisconnectDebugServer() override;
+
+		std::string m_processPlugin;
 	};
 
 	class LldbAdapterType: public DebugAdapterType

@@ -14,15 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "debugserversetting.h"
+#include "remoteprocess.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
-DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerController* controller): QDialog()
+RemoteProcessSettingsDialog::RemoteProcessSettingsDialog(QWidget* parent, DebuggerController* controller): QDialog()
 {
-    setWindowTitle("Debug Server Settings");
+    setWindowTitle("Remote Process Settings");
     setMinimumSize(UIContext::getScaledWindowSize(400, 130));
     setAttribute(Qt::WA_DeleteOnClose);
 
@@ -35,27 +35,27 @@ DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerCo
     QHBoxLayout* titleLayout = new QHBoxLayout;
     titleLayout->setContentsMargins(0, 0, 0, 0);
 
-    m_platformEntry = new QComboBox(this);
-    auto platformsMetaData = m_controller->GetAdapterProperty("platforms");
-    if (platformsMetaData && platformsMetaData->IsStringList())
+    m_pluginEntry = new QComboBox(this);
+    auto pluginsMetadata = m_controller->GetAdapterProperty("process_plugins");
+    if (pluginsMetadata && pluginsMetadata->IsStringList())
     {
-        auto platforms = platformsMetaData->GetStringList();
-        for (const auto& platform: platforms)
-            m_platformEntry->addItem(QString::fromStdString(platform));
+        auto plugins = pluginsMetadata->GetStringList();
+        for (const auto& plugin: plugins)
+            m_pluginEntry->addItem(QString::fromStdString(plugin));
     }
 
-    auto currentPlatformMetadata = m_controller->GetAdapterProperty("current_platform");
-    if (currentPlatformMetadata && currentPlatformMetadata->IsString())
+    auto currentPluginMetadata = m_controller->GetAdapterProperty("current_process_plugin");
+    if (currentPluginMetadata && currentPluginMetadata->IsString())
     {
-        const auto currentPlatform = currentPlatformMetadata->GetString();
-        m_platformEntry->setCurrentText(QString::fromStdString(currentPlatform));
+        const auto currentPlugin = currentPluginMetadata->GetString();
+        m_pluginEntry->setCurrentText(QString::fromStdString(currentPlugin));
     }
 
     m_addressEntry = new QLineEdit(this);
     m_portEntry = new QLineEdit(this);
 
     QFormLayout* formLayout = new QFormLayout;
-    formLayout->addRow("Platform", m_platformEntry);
+    formLayout->addRow("Plugin", m_pluginEntry);
     formLayout->addRow("Host", m_addressEntry);
     formLayout->addRow("Port", m_portEntry);
 
@@ -85,11 +85,11 @@ DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerCo
 }
 
 
-void DebugServerSettingsDialog::apply()
+void RemoteProcessSettingsDialog::apply()
 {
     std::string host = m_addressEntry->text().toStdString();
     m_controller->SetRemoteHost(host);
-    Ref<Metadata> data = new Metadata(host);
+    auto data = new Metadata(host);
     m_controller->GetData()->StoreMetadata("debugger.remote_host", data);
 
     std::string portString = m_portEntry->text().toStdString();
@@ -107,12 +107,12 @@ void DebugServerSettingsDialog::apply()
     data = new Metadata(port);
     m_controller->GetData()->StoreMetadata("debugger.remote_port", data);
 
-	const auto platform = m_platformEntry->currentText().toStdString();
-	if (!platform.empty())
+	const auto plugin = m_pluginEntry->currentText().toStdString();
+	if (!plugin.empty())
 	{
-		data = new Metadata(platform);
-		m_controller->SetAdapterProperty("current_platform", data);
-		m_controller->GetData()->StoreMetadata("debugger.platform", data);
+		Ref<Metadata> pluginMetadata = new Metadata(plugin);
+		m_controller->SetAdapterProperty("current_process_plugin", pluginMetadata);
+		m_controller->GetData()->StoreMetadata("debugger.process_plugin", pluginMetadata);
 	}
 
     accept();

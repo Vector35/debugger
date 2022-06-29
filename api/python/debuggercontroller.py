@@ -665,11 +665,31 @@ class DebuggerController:
 
     def connect(self) -> None:
         """
-        Connect to a remote target.
+        Connect to a remote target (process)
+
+        The host and port of the remote target must first be specified by setting `remote_host` and `remote_port`
 
         :return:
         """
         dbgcore.BNDebuggerConnect(self.handle)
+
+    def connect_to_debug_server(self) -> bool:
+        """
+        Connect to a debug server.
+
+        The host and port of the debug server must first be specified by setting `remote_host` and `remote_port`
+
+        :return:
+        """
+        return dbgcore.BNDebuggerConnectToDebugServer(self.handle)
+
+    def disconnect_from_debug_server(self) -> None:
+        """`
+        Disconnect from a debug server.
+
+        :return:
+        """
+        dbgcore.BNDebuggerDisconnectDebugServer(self.handle)
 
     def detach(self) -> None:
         """
@@ -1230,3 +1250,16 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerInvokeBackendCommand(self.handle, command)
 
+    def get_adapter_property(self, name: str) -> 'binaryninja.metadata.MetadataValueType':
+        md_handle = dbgcore.BNDebuggerGetAdapterProperty(self.handle, name)
+        if md_handle is None:
+            raise KeyError(name)
+        md_handle_BN = ctypes.cast(md_handle, ctypes.POINTER(binaryninja.core.BNMetadata))
+        return binaryninja.metadata.Metadata(handle=md_handle_BN).value
+
+    def set_adapter_property(self, name: str, value: binaryninja.metadata.MetadataValueType) -> bool:
+        _value = value
+        if not isinstance(_value, binaryninja.metadata.Metadata):
+            _value = binaryninja.metadata.Metadata(_value)
+        handle = ctypes.cast(_value.handle, ctypes.POINTER(dbgcore.BNMetadata))
+        return dbgcore.BNDebuggerSetAdapterProperty(self.handle, name, handle)

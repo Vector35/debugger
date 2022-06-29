@@ -819,3 +819,22 @@ DEBUGGER_FFI_API DebugStopReason BNDebuggerGetStopReason(BNDebuggerController* c
 {
 	return controller->object->StopReason();
 }
+
+
+DEBUGGER_FFI_API BNMetadata* BNDebuggerGetAdapterProperty(BNDebuggerController* controller, const char* name)
+{
+    return API_OBJECT_REF(controller->object->GetAdapterProperty(name));
+}
+
+
+DEBUGGER_FFI_API bool BNDebuggerSetAdapterProperty(BNDebuggerController* controller, const char* name,
+                                                   BNMetadata* value)
+{
+    return controller->object->SetAdapterProperty(name, new Metadata(BNNewMetadataReference(value)));
+}
+
+
+bool BNDebuggerActivateDebugAdapter(BNDebuggerController* controller)
+{
+	return controller->object->ActivateDebugAdapter();
+}

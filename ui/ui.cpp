@@ -36,6 +36,7 @@ limitations under the License.
 #include <filesystem>
 #include <QMessageBox>
 #include "debugserversetting.h"
+#include "remoteprocess.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -235,8 +236,8 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
         return !controller->IsConnectedToDebugServer();
     };
 
-	UIAction::registerAction("Launch/Connect Settings...");
-	context->globalActions()->bindAction("Launch/Connect Settings...", UIAction([=](const UIActionContext& ctxt) {
+	UIAction::registerAction("Debug Adapter Settings...");
+	context->globalActions()->bindAction("Debug Adapter Settings...", UIAction([=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
 			return;
 		auto controller = DebuggerController::GetController(ctxt.binaryView);
@@ -252,7 +253,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 	Menu* debuggerMenu = Menu::mainMenu("Debugger");
 	Menu::setMainMenuOrder("Debugger", MENU_ORDER_LATE);
-	debuggerMenu->addAction("Launch/Connect Settings...", "Settings", MENU_ORDER_FIRST);
+	debuggerMenu->addAction("Debug Adapter Settings...", "Settings", MENU_ORDER_FIRST);
 
 	UIAction::registerAction("Launch");
 	context->globalActions()->bindAction("Launch", UIAction([=](const UIActionContext& ctxt) {
@@ -398,22 +399,6 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	}, connectedAndStopped));
 	debuggerMenu->addAction("Toggle Breakpoint", "Breakpoint");
 
-#ifdef WIN32
-    UIAction::registerAction("Reinstall DbgEng Redistributable");
-    context->globalActions()->bindAction("Reinstall DbgEng Redistributable", UIAction([=](const UIActionContext& ctxt) {
-        if (!InstallDbgEngRedistributable())
-        {
-            QMessageBox::warning(nullptr, QString("Failed to install"), QString("Failed to install DbgEng redistributable. "
-                                                                    "The debugger is likely to malfunction"));
-        }
-        else
-        {
-            QMessageBox::warning(nullptr, QString("Successfully installed"),
-                                 QString("Successfully installed DbgEng redistributable."));
-        }
-    }));
-    debuggerMenu->addAction("Reinstall DbgEng Redistributable", "Misc");
-
     UIAction::registerAction("Connect to Debug Server");
     context->globalActions()->bindAction("Connect to Debug Server", UIAction([=](const UIActionContext& ctxt) {
         if (!ctxt.binaryView)
@@ -433,7 +418,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
         }
         else
         {
-            QMessageBox::information(context->mainWindow(), "Failed to connect",
+            QMessageBox::warning(context->mainWindow(), "Failed to connect",
                                      "Cannot connect to the debug server. Please check the connection configuration.");
         }
     }, notConnectedToDebugServer));
@@ -447,10 +432,73 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
         if (!controller)
             return;
 
-        controller->DisconnectDebugServer();
+        if (controller->DisconnectDebugServer())
+        {
+            QMessageBox::information(context->mainWindow(), "Successfully disconnected",
+                                     "Successfully disconnected from the debug server");
+        }
+        else
+        {
+            QMessageBox::warning(context->mainWindow(), "Failed to disconnect",
+                                     "Cannot disconnect from the debug server.");
+        }
     }, connectedToDebugServer));
     debuggerMenu->addAction("Disconnect from Debug Server", "Launch");
 
+    UIAction::registerAction("Connect to Remote Process");
+    context->globalActions()->bindAction("Connect to Remote Process", UIAction([=](const UIActionContext& ctxt) {
+        if (!ctxt.binaryView)
+            return;
+        auto controller = DebuggerController::GetController(ctxt.binaryView);
+        if (!controller)
+            return;
+
+        auto dialog = new RemoteProcessSettingsDialog(context->mainWindow(), controller);
+        if (dialog->exec () != QDialog::Accepted)
+            return;
+
+        controller->Connect();
+    }, notConnected));
+    debuggerMenu->addAction("Connect to Remote Process", "Launch");
+
+//	There is no longer a need to manually create the debug adapter. It will be automatically created if it is accessed
+//	but not created yet.
+//	UIAction::registerAction("Activate Debug Adapter");
+//	context->globalActions()->bindAction("Activate Debug Adapter", UIAction([=](const UIActionContext& ctxt) {
+//		if (!ctxt.binaryView)
+//			return;
+//		auto controller = DebuggerController::GetController(ctxt.binaryView);
+//		if (!controller)
+//			return;
+//
+//		if (controller->ActivateDebugAdapter())
+//        {
+//            QMessageBox::information(context->mainWindow(), "Successfully activated",
+//                                     "Successfully activated the debug adapter. Now you can run backend commands directly.");
+//        }
+//		else
+//        {
+//            QMessageBox::information(context->mainWindow(), "Failed to activate",
+//                                     "Cannot activate to the debug adapter.");
+//        }
+//	}));
+//	debuggerMenu->addAction("Activate Debug Adapter", "Launch");
+
+#ifdef WIN32
+    UIAction::registerAction("Reinstall DbgEng Redistributable");
+    context->globalActions()->bindAction("Reinstall DbgEng Redistributable", UIAction([=](const UIActionContext& ctxt) {
+        if (!InstallDbgEngRedistributable())
+        {
+            QMessageBox::warning(nullptr, QString("Failed to install"), QString("Failed to install DbgEng redistributable. "
+                                                                    "The debugger is likely to malfunction"));
+        }
+        else
+        {
+            QMessageBox::warning(nullptr, QString("Successfully installed"),
+                                 QString("Successfully installed DbgEng redistributable."));
+        }
+    }));
+    debuggerMenu->addAction("Reinstall DbgEng Redistributable", "Misc");
 #endif
 }
 

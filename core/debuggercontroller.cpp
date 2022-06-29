@@ -27,6 +27,7 @@ DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 	INIT_DEBUGGER_API_OBJECT();
 
     m_state = new DebuggerState(data, this);
+	m_adapter = nullptr;
     RegisterEventCallback([this](const DebuggerEvent& event){
         EventHandler(event);
     });
@@ -1140,11 +1141,16 @@ void DebuggerController::WriteStdIn(const std::string message)
 
 std::string DebuggerController::InvokeBackendCommand(const std::string &cmd)
 {
-	if (m_adapter && m_state->IsConnected())
+	if (!m_adapter)
 	{
-		return m_adapter->InvokeBackendCommand(cmd);
+		if (!CreateDebugAdapter())
+			return "Error: invalid adapter\n";
 	}
-	return "Error: target is not running yet\n";
+
+    if (m_adapter)
+		return m_adapter->InvokeBackendCommand(cmd);
+
+    return "Error: invalid adapter\n";
 }
 
 
@@ -1476,4 +1482,40 @@ DebugStopReason DebuggerController::WaitForAdapterStop()
 	sem.Wait();
 	RemoveEventCallback(callback);
 	return reason;
+}
+
+
+Ref<Metadata> DebuggerController::GetAdapterProperty(const std::string& name)
+{
+    if (!m_adapter)
+	{
+		if (!CreateDebugAdapter())
+			return nullptr;
+
+		if (!m_adapter)
+			return nullptr;
+	}
+
+    return m_adapter->GetProperty(name);
+}
+
+
+bool DebuggerController::SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value)
+{
+    if (!m_adapter)
+	{
+		if (!CreateDebugAdapter())
+			return false;
+
+		if (!m_adapter)
+			return false;
+	}
+
+    return m_adapter->SetProperty(name, value);
+}
+
+
+bool DebuggerController::ActivateDebugAdapter()
+{
+	return CreateDebugAdapter();
 }
