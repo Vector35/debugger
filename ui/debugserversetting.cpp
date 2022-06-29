@@ -35,6 +35,22 @@ DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerCo
     QHBoxLayout* titleLayout = new QHBoxLayout;
     titleLayout->setContentsMargins(0, 0, 0, 0);
 
+    m_platformEntry = new QComboBox(this);
+    auto platformsMetaData = m_controller->GetAdapterProperty("platforms");
+    if (platformsMetaData->IsStringList())
+    {
+        auto platforms = platformsMetaData->GetStringList();
+        for (const auto& platform: platforms)
+            m_platformEntry->addItem(QString::fromStdString(platform));
+    }
+
+    auto currentPlatformMetadata = m_controller->GetAdapterProperty("current_platform");
+    if (currentPlatformMetadata->IsString())
+    {
+        const auto currentPlatform = currentPlatformMetadata->GetString();
+        m_platformEntry->setCurrentText(QString::fromStdString(currentPlatform));
+    }
+
     m_addressEntry = new QLineEdit(this);
     m_portEntry = new QLineEdit(this);
 

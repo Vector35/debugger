@@ -34,6 +34,7 @@ class DebugServerSettingsDialog: public QDialog
 
 private:
     BinaryNinjaDebuggerAPI::DebuggerController* m_controller;
+    QComboBox* m_platformEntry;
     QLineEdit* m_addressEntry;
     QLineEdit* m_portEntry;
 
