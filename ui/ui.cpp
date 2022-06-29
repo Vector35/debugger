@@ -433,7 +433,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
         }
         else
         {
-            QMessageBox::information(context->mainWindow(), "Failed to connect",
+            QMessageBox::warning(context->mainWindow(), "Failed to connect",
                                      "Cannot connect to the debug server. Please check the connection configuration.");
         }
     }, notConnectedToDebugServer));
@@ -447,7 +447,16 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
         if (!controller)
             return;
 
-        controller->DisconnectDebugServer();
+        if (controller->DisconnectDebugServer())
+        {
+            QMessageBox::information(context->mainWindow(), "Successfully disconnected",
+                                     "Successfully disconnected from the debug server");
+        }
+        else
+        {
+            QMessageBox::warning(context->mainWindow(), "Failed to disconnect",
+                                     "Cannot disconnect from the debug server.");
+        }
     }, connectedToDebugServer));
     debuggerMenu->addAction("Disconnect from Debug Server", "Launch");
 
