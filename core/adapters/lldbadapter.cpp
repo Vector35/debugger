@@ -1157,8 +1157,12 @@ Ref<Metadata> LldbAdapter::GetProperty(const std::string &name)
 		for (size_t i = 0; i < m_debugger.GetNumAvailablePlatforms(); i++)
 		{
 			auto platform = m_debugger.GetAvailablePlatformInfoAtIndex(i);
+			auto nameData = platform.GetValueForKey("name");
+			char name[1024];
+			nameData.GetStringValue(name, 1024);
+			platforms.emplace_back(name);
 		}
-//		return Metadata(platforms);
+		return new Metadata(platforms);
 	}
 	return nullptr;
 }
@@ -1180,4 +1184,22 @@ bool LldbAdapter::SetProperty(const std::string &name, const Ref<Metadata> &valu
 		}
 	}
 	return false;
+}
+
+
+bool LldbAdapter::ConnectToDebugServer(const std::string &server, std::uint32_t port)
+{
+	auto platform = m_debugger.GetSelectedPlatform();
+	auto connectionString = fmt::format("connect://{}:{}", server, port);
+	SBPlatformConnectOptions options(connectionString.c_str());
+	auto error = platform.ConnectRemote(options);
+	return error.Success();
+}
+
+
+bool LldbAdapter::DisconnectDebugServer()
+{
+	auto platform = m_debugger.GetSelectedPlatform();
+	platform.DisconnectRemote();
+	return true;
 }

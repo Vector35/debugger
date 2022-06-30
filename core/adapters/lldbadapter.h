@@ -114,6 +114,10 @@ namespace BinaryNinjaDebugger {
 		Ref<Metadata> GetProperty(const std::string& name) override;
 
 		bool SetProperty(const std::string& name, const Ref<Metadata>& value) override;
+
+		bool ConnectToDebugServer(const std::string &server, std::uint32_t port) override;
+
+		bool DisconnectDebugServer() override;
 	};
 
 	class LldbAdapterType: public DebugAdapterType

@@ -36,16 +36,13 @@ DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerCo
     titleLayout->setContentsMargins(0, 0, 0, 0);
 
     m_platformEntry = new QComboBox(this);
-	// workaround for the missing Metadata API
-	m_platformEntry->setEditable(true);
-
-//    auto platformsMetaData = m_controller->GetAdapterProperty("platforms");
-//    if (platformsMetaData->IsStringList())
-//    {
-//        auto platforms = platformsMetaData->GetStringList();
-//        for (const auto& platform: platforms)
-//            m_platformEntry->addItem(QString::fromStdString(platform));
-//    }
+    auto platformsMetaData = m_controller->GetAdapterProperty("platforms");
+    if (platformsMetaData->IsStringList())
+    {
+        auto platforms = platformsMetaData->GetStringList();
+        for (const auto& platform: platforms)
+            m_platformEntry->addItem(QString::fromStdString(platform));
+    }
 
     auto currentPlatformMetadata = m_controller->GetAdapterProperty("current_platform");
     if (currentPlatformMetadata && currentPlatformMetadata->IsString())
@@ -111,9 +108,12 @@ void DebugServerSettingsDialog::apply()
     m_controller->GetData()->StoreMetadata("debugger.remote_port", data);
 
 	const auto platform = m_platformEntry->currentText().toStdString();
-	data = new Metadata(platform);
-	m_controller->SetAdapterProperty("current_platform", data);
-	m_controller->GetData()->StoreMetadata("debugger.platform", data);
+	if (!platform.empty())
+	{
+		data = new Metadata(platform);
+		m_controller->SetAdapterProperty("current_platform", data);
+		m_controller->GetData()->StoreMetadata("debugger.platform", data);
+	}
 
     accept();
 }
