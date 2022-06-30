@@ -89,7 +89,7 @@ void DebugServerSettingsDialog::apply()
 {
     std::string host = m_addressEntry->text().toStdString();
     m_controller->SetRemoteHost(host);
-    auto data = new Metadata(host);
+    Ref<Metadata> data = new Metadata(host);
     m_controller->GetData()->StoreMetadata("debugger.remote_host", data);
 
     std::string portString = m_portEntry->text().toStdString();
