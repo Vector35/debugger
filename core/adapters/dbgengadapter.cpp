@@ -998,9 +998,12 @@ uint64_t DbgEngAdapter::ExitCode()
 
 std::string DbgEngAdapter::InvokeBackendCommand(const std::string& command)
 {
-    this->m_debugControl->Execute(DEBUG_OUTCTL_ALL_CLIENTS, command.c_str(), DEBUG_EXECUTE_NO_REPEAT);
-	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
-	// The output is handled by DbgEngOutputCallbacks::Output()
+    if (m_debugControl)
+    {
+        this->m_debugControl->Execute(DEBUG_OUTCTL_ALL_CLIENTS, command.c_str(), DEBUG_EXECUTE_NO_REPEAT);
+        m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+        // The output is handled by DbgEngOutputCallbacks::Output()
+    }
 	return "";
 }
 
