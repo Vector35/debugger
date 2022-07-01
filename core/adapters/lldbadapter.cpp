@@ -166,6 +166,10 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 	std::thread thread([&](){ EventListener(); });
 	thread.detach();
 
+	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
+		AddBreakpoint(ModuleNameAndOffset(m_data->GetFile()->GetOriginalFilename(),
+										  m_data->GetEntryPoint() - m_data->GetStart()));
+
 	std::string url = fmt::format("connect://{}:{}", server, port);
 	SBError error;
 	SBListener listener;
