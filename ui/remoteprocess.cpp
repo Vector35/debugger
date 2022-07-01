@@ -37,7 +37,7 @@ RemoteProcessSettingsDialog::RemoteProcessSettingsDialog(QWidget* parent, Debugg
 
     m_pluginEntry = new QComboBox(this);
     auto pluginsMetadata = m_controller->GetAdapterProperty("process_plugins");
-    if (pluginsMetadata->IsStringList())
+    if (pluginsMetadata && pluginsMetadata->IsStringList())
     {
         auto plugins = pluginsMetadata->GetStringList();
         for (const auto& plugin: plugins)

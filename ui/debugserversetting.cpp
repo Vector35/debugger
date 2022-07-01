@@ -37,7 +37,7 @@ DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerCo
 
     m_platformEntry = new QComboBox(this);
     auto platformsMetaData = m_controller->GetAdapterProperty("platforms");
-    if (platformsMetaData->IsStringList())
+    if (platformsMetaData && platformsMetaData->IsStringList())
     {
         auto platforms = platformsMetaData->GetStringList();
         for (const auto& platform: platforms)
