@@ -118,6 +118,8 @@ namespace BinaryNinjaDebugger {
 		bool ConnectToDebugServer(const std::string &server, std::uint32_t port) override;
 
 		bool DisconnectDebugServer() override;
+
+		std::string m_processPlugin;
 	};
 
 	class LldbAdapterType: public DebugAdapterType

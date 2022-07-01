@@ -156,13 +156,24 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 
 bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 {
+	m_debugger.SetAsync(false);
+
+	// Hacky way to supply the path info into the LLDB
+	m_target = m_debugger.CreateTarget(m_data->GetFile()->GetOriginalFilename().c_str());
 	if (!m_target.IsValid())
 		return false;
+
+	std::thread thread([&](){ EventListener(); });
+	thread.detach();
 
 	std::string url = fmt::format("connect://{}:{}", server, port);
 	SBError error;
 	SBListener listener;
-	m_process = m_target.ConnectRemote(listener, url.c_str(), nullptr, error);
+	const char* plugin = nullptr;
+	if (!m_processPlugin.empty() && m_processPlugin != "debugserver/lldb")
+		plugin = m_processPlugin.c_str();
+	m_process = m_target.ConnectRemote(listener, url.c_str(), plugin, error);
+	m_debugger.SetAsync(true);
 	return m_process.IsValid() && error.Success();
 }
 
@@ -1164,6 +1175,17 @@ Ref<Metadata> LldbAdapter::GetProperty(const std::string &name)
 		}
 		return new Metadata(platforms);
 	}
+	else if (name == "process_plugins")
+	{
+		std::vector<std::string> plugins;
+		plugins.emplace_back("gdb-remote");
+		plugins.emplace_back("debugserver/lldb");
+		return new Metadata(plugins);
+	}
+	else if (name == "current_process_plugin")
+	{
+		return new Metadata(m_processPlugin);
+	}
 	return nullptr;
 }
 
@@ -1181,6 +1203,14 @@ bool LldbAdapter::SetProperty(const std::string &name, const Ref<Metadata> &valu
 				if (error.Success())
 					return true;
 			}
+		}
+	}
+	else if (name == "current_process_plugin")
+	{
+		if (value->IsString())
+		{
+			m_processPlugin = value->GetString();
+			return true;
 		}
 	}
 	return false;

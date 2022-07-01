@@ -36,6 +36,7 @@ limitations under the License.
 #include <filesystem>
 #include <QMessageBox>
 #include "debugserversetting.h"
+#include "remoteprocess.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -443,6 +444,22 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
         }
     }, connectedToDebugServer));
     debuggerMenu->addAction("Disconnect from Debug Server", "Launch");
+
+    UIAction::registerAction("Connect to Remote Process");
+    context->globalActions()->bindAction("Connect to Remote Process", UIAction([=](const UIActionContext& ctxt) {
+        if (!ctxt.binaryView)
+            return;
+        auto controller = DebuggerController::GetController(ctxt.binaryView);
+        if (!controller)
+            return;
+
+        auto dialog = new RemoteProcessSettingsDialog(context->mainWindow(), controller);
+        if (dialog->exec () != QDialog::Accepted)
+            return;
+
+        controller->Connect();
+    }, notConnected));
+    debuggerMenu->addAction("Connect to Remote Process", "Launch");
 
 	UIAction::registerAction("Activate Debug Adapter");
 	context->globalActions()->bindAction("Activate Debug Adapter", UIAction([=](const UIActionContext& ctxt) {
