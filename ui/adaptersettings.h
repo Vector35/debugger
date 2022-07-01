@@ -40,8 +40,6 @@ private:
     QLineEdit* m_pathEntry;
 	QLineEdit* m_workingDirectoryEntry;
     QLineEdit* m_argumentsEntry;
-    QLineEdit* m_addressEntry;
-    QLineEdit* m_portEntry;
 	QCheckBox* m_terminalEmulator;
 
 public:

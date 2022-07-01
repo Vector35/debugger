@@ -236,8 +236,8 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
         return !controller->IsConnectedToDebugServer();
     };
 
-	UIAction::registerAction("Launch/Connect Settings...");
-	context->globalActions()->bindAction("Launch/Connect Settings...", UIAction([=](const UIActionContext& ctxt) {
+	UIAction::registerAction("Debug Adapter Settings...");
+	context->globalActions()->bindAction("Debug Adapter Settings...", UIAction([=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
 			return;
 		auto controller = DebuggerController::GetController(ctxt.binaryView);
@@ -253,7 +253,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 	Menu* debuggerMenu = Menu::mainMenu("Debugger");
 	Menu::setMainMenuOrder("Debugger", MENU_ORDER_LATE);
-	debuggerMenu->addAction("Launch/Connect Settings...", "Settings", MENU_ORDER_FIRST);
+	debuggerMenu->addAction("Debug Adapter Settings...", "Settings", MENU_ORDER_FIRST);
 
 	UIAction::registerAction("Launch");
 	context->globalActions()->bindAction("Launch", UIAction([=](const UIActionContext& ctxt) {
