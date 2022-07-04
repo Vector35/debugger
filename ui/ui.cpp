@@ -461,26 +461,28 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
     }, notConnected));
     debuggerMenu->addAction("Connect to Remote Process", "Launch");
 
-	UIAction::registerAction("Activate Debug Adapter");
-	context->globalActions()->bindAction("Activate Debug Adapter", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
-
-		if (controller->ActivateDebugAdapter())
-        {
-            QMessageBox::information(context->mainWindow(), "Successfully activated",
-                                     "Successfully activated the debug adapter. Now you can run backend commands directly.");
-        }
-		else
-        {
-            QMessageBox::information(context->mainWindow(), "Failed to activate",
-                                     "Cannot activate to the debug adapter.");
-        }
-	}));
-	debuggerMenu->addAction("Activate Debug Adapter", "Launch");
+//	There is no longer a need to manually create the debug adapter. It will be automatically created if it is accessed
+//	but not created yet.
+//	UIAction::registerAction("Activate Debug Adapter");
+//	context->globalActions()->bindAction("Activate Debug Adapter", UIAction([=](const UIActionContext& ctxt) {
+//		if (!ctxt.binaryView)
+//			return;
+//		auto controller = DebuggerController::GetController(ctxt.binaryView);
+//		if (!controller)
+//			return;
+//
+//		if (controller->ActivateDebugAdapter())
+//        {
+//            QMessageBox::information(context->mainWindow(), "Successfully activated",
+//                                     "Successfully activated the debug adapter. Now you can run backend commands directly.");
+//        }
+//		else
+//        {
+//            QMessageBox::information(context->mainWindow(), "Failed to activate",
+//                                     "Cannot activate to the debug adapter.");
+//        }
+//	}));
+//	debuggerMenu->addAction("Activate Debug Adapter", "Launch");
 
 #ifdef WIN32
     UIAction::registerAction("Reinstall DbgEng Redistributable");
