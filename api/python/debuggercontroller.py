@@ -665,11 +665,31 @@ class DebuggerController:
 
     def connect(self) -> None:
         """
-        Connect to a remote target.
+        Connect to a remote target (process)
+
+        The host and port of the remote target must first be specified by setting `remote_host` and `remote_port`
 
         :return:
         """
         dbgcore.BNDebuggerConnect(self.handle)
+
+    def connect_to_debug_server(self) -> bool:
+        """
+        Connect to a debug server.
+
+        The host and port of the debug server must first be specified by setting `remote_host` and `remote_port`
+
+        :return:
+        """
+        return dbgcore.BNDebuggerConnectToDebugServer(self.handle)
+
+    def disconnect_from_debug_server(self) -> None:
+        """`
+        Disconnect from a debug server.
+
+        :return:
+        """
+        dbgcore.BNDebuggerDisconnectDebugServer(self.handle)
 
     def detach(self) -> None:
         """
