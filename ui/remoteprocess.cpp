@@ -107,11 +107,12 @@ void RemoteProcessSettingsDialog::apply()
     data = new Metadata(port);
     m_controller->GetData()->StoreMetadata("debugger.remote_port", data);
 
-	const auto platform = m_pluginEntry->currentText().toStdString();
-	if (!platform.empty())
+	const auto plugin = m_pluginEntry->currentText().toStdString();
+	if (!plugin.empty())
 	{
-		m_controller->SetAdapterProperty("current_process_plugin", new Metadata(platform));
-		m_controller->GetData()->StoreMetadata("debugger.process_plugin", new Metadata(platform));
+		Ref<Metadata> pluginMetadata = new Metadata(plugin);
+		m_controller->SetAdapterProperty("current_process_plugin", pluginMetadata);
+		m_controller->GetData()->StoreMetadata("debugger.process_plugin", pluginMetadata);
 	}
 
     accept();
