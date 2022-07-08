@@ -1250,3 +1250,16 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerInvokeBackendCommand(self.handle, command)
 
+    def get_adapter_property(self, name: str) -> 'binaryninja.metadata.MetadataValueType':
+        md_handle = dbgcore.BNDebuggerGetAdapterProperty(self.handle, name)
+        if md_handle is None:
+            raise KeyError(name)
+        md_handle_BN = ctypes.cast(md_handle, ctypes.POINTER(binaryninja.core.BNMetadata))
+        return binaryninja.metadata.Metadata(handle=md_handle_BN).value
+
+    def set_adapter_property(self, name: str, value: binaryninja.metadata.MetadataValueType) -> bool:
+        _value = value
+        if not isinstance(_value, binaryninja.metadata.Metadata):
+            _value = binaryninja.metadata.Metadata(_value)
+        handle = ctypes.cast(_value.handle, ctypes.POINTER(dbgcore.BNMetadata))
+        return dbgcore.BNDebuggerSetAdapterProperty(self.handle, name, handle)
