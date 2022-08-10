@@ -18,14 +18,20 @@ limitations under the License.
 #include <QHeaderView>
 #include <QLineEdit>
  #include <QListView>
+#include <QGuiApplication>
+#include <QMimeData>
+#include <QClipboard>
+#include "clickablelabel.h"
 #include "registerswidget.h"
 
 using namespace BinaryNinja;
 using namespace std;
 
+constexpr int SortFilterRole = Qt::UserRole + 1;
+
 DebugRegisterItem::DebugRegisterItem(const string& name, uint64_t value, DebugRegisterValueStatus valueStatus,
-    const string& hint):
-    m_name(name), m_value(value), m_valueStatus(valueStatus), m_hint(hint)
+    const string& hint, bool used):
+    m_name(name), m_value(value), m_valueStatus(valueStatus), m_hint(hint), m_used(used)
 {
 }
 
@@ -33,7 +39,7 @@ DebugRegisterItem::DebugRegisterItem(const string& name, uint64_t value, DebugRe
 bool DebugRegisterItem::operator==(const DebugRegisterItem& other) const
 {
     return (m_name == other.name()) && (m_value == other.value()) && (m_valueStatus == other.valueStatus()) &&
-        (m_hint == other.hint());
+        (m_hint == other.hint() && (m_used == other.used()));
 }
 
 
@@ -57,7 +63,11 @@ bool DebugRegisterItem::operator<(const DebugRegisterItem& other) const
         return true;
     else if (m_valueStatus > other.valueStatus())
         return false;
-    return m_hint < other.hint();
+	else if (m_hint < other.hint())
+		return true;
+	else if (m_hint > other.hint())
+		return false;
+    return m_used < other.used();
 }
 
 
@@ -113,7 +123,7 @@ QVariant DebugRegistersListModel::data(const QModelIndex& index, int role) const
 		return QVariant();
 
 
-    if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole))
+    if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole) && (role != SortFilterRole))
         return QVariant();
 
     switch (index.column())
@@ -123,8 +133,11 @@ QVariant DebugRegistersListModel::data(const QModelIndex& index, int role) const
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)item->name().size());
 
+		if (role == SortFilterRole)
+			return QVariant(QString::fromStdString(item->name()));
+
         QList<QVariant> line;
-        line.push_back(getThemeColor(WhiteStandardHighlightColor).rgba());
+        line.push_back(getThemeColor(RegisterColor).rgba());
 		line.push_back(QString::fromStdString(item->name()));
 		return QVariant(line);
     }
@@ -136,17 +149,20 @@ QVariant DebugRegistersListModel::data(const QModelIndex& index, int role) const
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)valueStr.size());
 
+		if (role == SortFilterRole)
+			return QVariant(valueStr);
+
         QList<QVariant> line;
         switch (item->valueStatus())
         {
         case DebugRegisterValueNormal:
-            line.push_back(getThemeColor(WhiteStandardHighlightColor).rgba());
+            line.push_back(getThemeColor(NumberColor).rgba());
             break;
         case DebugRegisterValueChanged:
-            line.push_back(getThemeColor(BlueStandardHighlightColor).rgba());
+            line.push_back(getThemeColor(RedStandardHighlightColor).rgba());
             break;
         case DebugRegisterValueModified:
-            line.push_back(getThemeColor(OrangeStandardHighlightColor).rgba());
+            line.push_back(getThemeColor(RedStandardHighlightColor).rgba());
             break;
         }
 
@@ -157,6 +173,9 @@ QVariant DebugRegistersListModel::data(const QModelIndex& index, int role) const
     {
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)item->hint().size());
+
+		if (role == SortFilterRole)
+			return QVariant(QString::fromStdString(item->hint()));
 
         QList<QVariant> line;
         line.push_back(getThemeColor(StringColor).rgba());
@@ -189,9 +208,41 @@ QVariant DebugRegistersListModel::headerData(int column, Qt::Orientation orienta
 }
 
 
+std::set<std::string> DebugRegistersListModel::getUsedRegisterNames()
+{
+	std::set<std::string> usedRegisterNames;
+	if (!m_controller->GetLiveView())
+		return usedRegisterNames;
+
+	auto pc = m_controller->IP();
+	auto arch = m_controller->GetLiveView()->GetDefaultArchitecture();
+	if (!arch)
+		return usedRegisterNames;
+
+	auto functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(pc);
+	if (functions.empty() || (!functions[0]))
+		return usedRegisterNames;
+
+	auto llil = functions[0]->GetLowLevelILIfAvailable();
+	if (!llil)
+		return usedRegisterNames;
+
+	auto regs = llil->GetRegisters();
+	for (const auto reg: regs)
+	{
+		const auto name = arch->GetRegisterName(reg);
+		usedRegisterNames.insert(name);
+	}
+
+	return usedRegisterNames;
+}
+
+
 void DebugRegistersListModel::updateRows(std::vector<DebugRegister> newRows)
 {
-    // TODO: This might cause performance problems. We can instead only update the chagned registers.
+	const auto usedRegisterNames = getUsedRegisterNames();
+
+    // TODO: This might cause performance problems. We can instead only update the chained registers.
     // However, the cost for that is we need to attach an index to each item and sort accordingly
     beginResetModel();
     std::map<std::string, uint64_t> oldRegValues;
@@ -225,8 +276,8 @@ void DebugRegistersListModel::updateRows(std::vector<DebugRegister> newRows)
             }
         }
 
-
-        m_items.emplace_back(reg.m_name, reg.m_value, status, reg.m_hint);
+		bool used = usedRegisterNames.find(reg.m_name) != usedRegisterNames.end();
+        m_items.emplace_back(reg.m_name, reg.m_value, status, reg.m_hint, used);
     }
     endResetModel();
 }
@@ -248,20 +299,20 @@ bool DebugRegistersListModel::setData(const QModelIndex &index, const QVariant &
 	if (!item)
         return false;
 
-    bool ok = false;
-    uint64_t newValue = valueStr.toULongLong(&ok, 16);
-    if (!ok)
+	uint64_t currentValue = item->value();
+
+	uint64_t newValue = 0;
+	std::string errorString;
+	if (!BinaryView::ParseExpression(m_controller->GetLiveView(), valueStr.toStdString(), newValue, currentValue, errorString))
+		return false;
+
+    if (newValue == currentValue)
         return false;
 
-    if (newValue == item->value())
+    if (!m_controller->SetRegisterValue(item->name(), newValue))
         return false;
 
-    ok = m_controller->SetRegisterValue(item->name(), newValue);
-    if (!ok)
-        return false;
-
-    item->setValue(newValue);
-    item->setValueStatus(DebugRegisterValueModified);
+	emit dataChanged(index, index);
     return true;
 }
 
@@ -343,14 +394,17 @@ void DebugRegistersItemDelegate::setEditorData(QWidget *editor, const QModelInde
 }
 
 
-DebugRegistersWidget::DebugRegistersWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
-    SidebarWidget(name), m_view(view)
+DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, Menu* menu):
+    m_view(view)
 {
     m_controller = DebuggerController::GetController(data);
 
     m_table = new QTableView(this);
     m_model = new DebugRegistersListModel(m_table, m_controller, view);
-    m_table->setModel(m_model);
+	m_filter = new DebugRegisterFilterProxyModel(this);
+	m_filter->setSourceModel(m_model);
+	m_table->setModel(m_filter);
+	m_table->setEditTriggers(QAbstractItemView::EditKeyPressed);
 
     m_delegate = new DebugRegistersItemDelegate(this);
     m_table->setItemDelegate(m_delegate);
@@ -374,6 +428,65 @@ DebugRegistersWidget::DebugRegistersWidget(const QString& name, ViewFrame* view,
     layout->addWidget(m_table);
     setLayout(layout);
 
+	m_actionHandler.setupActionHandler(this);
+	m_contextMenuManager = new ContextMenuManager(this);
+	m_handler = UIActionHandler::actionHandlerFromWidget(this);
+	m_menu = menu;
+	if (m_menu == nullptr)
+		m_menu = new Menu();
+
+	QString actionName = QString::fromStdString("Set To Zero");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(actionName, UIAction([=](){ setToZero(); }));
+
+	actionName = QString::fromStdString("Edit Value");
+	UIAction::registerAction(actionName, QKeySequence(Qt::Key_Enter));
+	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(actionName, UIAction([=](){ editValue(); }));
+
+	actionName = QString::fromStdString("Jump To Address");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(actionName, UIAction([=](){ jump(); }));
+
+	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy", UIAction([&](){ copy(); }, [&](){ return canCopy(); }));
+	m_actionHandler.setActionDisplayName("Copy", [&](){
+		QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+		if (sel.empty())
+			return "Copy";
+
+		switch (sel[0].column())
+		{
+		case DebugRegistersListModel::NameColumn:
+			return "Copy Name";
+		case DebugRegistersListModel::ValueColumn:
+			return "Copy Value";
+		case DebugRegistersListModel::HintColumn:
+			return "Copy Hint";
+		default:
+			return "Copy";
+		}
+	});
+
+	m_menu->addAction("Paste", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Paste", UIAction([&](){ paste(); }, [&](){ return canPaste(); }));
+
+	actionName = QString::fromStdString("Hide Unused Registers");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(actionName, UIAction([=](){
+		m_filter->toggleHideUnusedRegisters();
+	}));
+	m_actionHandler.setChecked(actionName, [this]() { return m_filter->getHideUnusedRegisters();});
+
+	connect(m_model, &DebugRegistersListModel::dataChanged, [&](){
+		updateContent();
+	});
+
+	connect(m_table, &QTableView::doubleClicked, this, &DebugRegistersWidget::onDoubleClicked);
+
     updateContent();
 }
 
@@ -386,9 +499,15 @@ void DebugRegistersWidget::notifyRegistersChanged(std::vector<DebugRegister> reg
 }
 
 
-void DebugRegistersWidget::notifyFontChanged()
+void DebugRegistersWidget::contextMenuEvent(QContextMenuEvent* event)
 {
-    m_delegate->updateFonts();
+    showContextMenu();
+}
+
+
+void DebugRegistersWidget::showContextMenu()
+{
+	m_contextMenuManager->show(m_menu, m_handler);
 }
 
 
@@ -399,4 +518,245 @@ void DebugRegistersWidget::updateContent()
 
     std::vector<DebugRegister> registers = m_controller->GetRegisters();
     notifyRegistersChanged(registers);
+}
+
+
+void DebugRegistersWidget::setToZero()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto reg = m_model->getRow(sourceIndex.row());
+	m_controller->SetRegisterValue(reg.name(), 0);
+
+	updateContent();
+}
+
+
+void DebugRegistersWidget::jump()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto reg = m_model->getRow(sourceIndex.row());
+	uint64_t value = reg.value();
+
+	UIContext* context = UIContext::contextForWidget(this);
+	if (!context)
+		return;
+
+	ViewFrame* frame = context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	if (m_controller->GetLiveView())
+		frame->navigate(m_controller->GetLiveView(), value, true, true);
+	else
+		frame->navigate(m_controller->GetData(), value, true, true);
+}
+
+
+void DebugRegistersWidget::copy()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto reg = m_model->getRow(sourceIndex.row());
+	QString text;
+
+	switch (sel[0].column())
+	{
+	case DebugRegistersListModel::NameColumn:
+		text = QString::fromStdString(reg.name());
+		break;
+	case DebugRegistersListModel::ValueColumn:
+		text = QString::asprintf("0x%" PRIx64, reg.value());
+		break;
+	case DebugRegistersListModel::HintColumn:
+		text = QString::fromStdString(reg.hint());
+		break;
+	default:
+		break;
+	}
+
+	auto* clipboard = QGuiApplication::clipboard();
+	clipboard->clear();
+	auto* mime = new QMimeData();
+	mime->setText(text);
+	clipboard->setMimeData(mime);
+}
+
+
+void DebugRegistersWidget::paste()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	if (sel[0].column() != DebugRegistersListModel::ValueColumn)
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto reg = m_model->getRow(sourceIndex.row());
+
+	QClipboard* clipboard = QGuiApplication::clipboard();
+	auto text = clipboard->text();
+
+	uint64_t newValue = 0;
+	std::string errorString;
+	if (!BinaryView::ParseExpression(m_controller->GetLiveView(), text.toStdString(), newValue, reg.value(), errorString))
+		return;
+
+	if (newValue == reg.value())
+		return;
+
+	if (!m_controller->SetRegisterValue(reg.name(), newValue))
+		return;
+
+	updateContent();
+}
+
+
+bool DebugRegistersWidget::canCopy()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	return !sel.empty();
+}
+
+
+bool DebugRegistersWidget::canPaste()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return false;
+
+	return sel[0].column() == DebugRegistersListModel::ValueColumn;
+}
+
+
+void DebugRegistersWidget::onDoubleClicked()
+{
+	jump();
+}
+
+
+void DebugRegistersWidget::editValue()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	if (sel[0].column() != DebugRegistersListModel::ValueColumn)
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	m_table->edit(sourceIndex);
+}
+
+
+void DebugRegistersWidget::setFilter(const string & filter)
+{
+	m_filter->setFilterRegularExpression(QString::fromStdString(filter));
+}
+
+
+void DebugRegistersWidget::scrollToFirstItem()
+{
+
+}
+
+
+void DebugRegistersWidget::scrollToCurrentItem()
+{
+
+}
+
+
+void DebugRegistersWidget::selectFirstItem()
+{
+
+}
+
+
+void DebugRegistersWidget::activateFirstItem()
+{
+
+}
+
+
+DebugRegistersContainer::DebugRegistersContainer(ViewFrame* view, BinaryViewRef data, Menu* menu): m_view(view)
+{
+	m_separateEdit = new FilterEdit(m_register);
+
+	m_register = new DebugRegistersWidget(view, data, menu);
+	m_filter = new FilteredView(this, m_register, m_register, m_separateEdit);
+	m_filter->setFilterPlaceholderText("Search registers");
+
+	auto headerLayout = new QHBoxLayout;
+	headerLayout->setContentsMargins(0, 0, 0, 0);
+	headerLayout->addWidget(m_separateEdit, 1);
+
+	ClickableIcon* icon = new ClickableIcon(QImage(":/icons/images/menu.png"), QSize(16, 16));
+	connect(icon, &ClickableIcon::clicked, m_register, &DebugRegistersWidget::showContextMenu);
+	headerLayout->addWidget(icon);
+
+	QVBoxLayout* layout = new QVBoxLayout(this);
+	layout->setContentsMargins(0, 0, 0 ,0);
+	layout->addLayout(headerLayout);
+	layout->addWidget(m_filter, 1);
+}
+
+
+void DebugRegistersContainer::updateContent()
+{
+	m_register->updateContent();
+}
+
+
+DebugRegisterFilterProxyModel::DebugRegisterFilterProxyModel(QObject *parent): QSortFilterProxyModel(parent)
+{
+	setFilterCaseSensitivity(Qt::CaseInsensitive);
+}
+
+
+bool DebugRegisterFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const
+{
+	QRegularExpression regExp = filterRegularExpression();
+	if (!regExp.isValid())
+		return true;
+
+	QModelIndex index = sourceModel()->index(sourceRow, 0, sourceParent);
+	DebugRegisterItem* item = static_cast<DebugRegisterItem*>(index.internalPointer());
+	if (m_hideUnusedRegisters && !item->used())
+		return false;
+
+	for (int column = 0; column < sourceModel()->columnCount(sourceParent); column++)
+	{
+		QModelIndex index = sourceModel()->index(sourceRow, column, sourceParent);
+		QString data = index.data(SortFilterRole).toString();
+		if (data.indexOf(regExp) != -1)
+			return true;
+	}
+	return false;
 }

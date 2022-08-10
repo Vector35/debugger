@@ -40,14 +40,10 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
     m_splitter->setChildrenCollapsible(true);
 
     m_controlsWidget = new DebugControlsWidget(this, "Controls", data);
-    m_registersWidget = new DebugRegistersWidget("Debugger Registers", m_view, m_data);
-    m_breakpointsWidget = new DebugBreakpointsWidget("Debugger Breakpoints", m_view, m_data, m_menu);
-    m_modulesWidget = new DebugModulesWidget("Debugger Modules", m_view, m_data);
+    m_registersWidget = new DebugRegistersContainer(m_view, m_data, m_menu);
 
     m_splitter->addWidget(m_controlsWidget);
     m_splitter->addWidget(m_registersWidget);
-    m_splitter->addWidget(m_breakpointsWidget);
-    m_splitter->addWidget(m_modulesWidget);
 
     layout->addWidget(m_splitter);
     setLayout(layout);
@@ -71,7 +67,6 @@ void DebuggerWidget::notifyFontChanged()
 void DebuggerWidget::updateContent()
 {
     m_registersWidget->updateContent();
-    m_modulesWidget->updateContent();
 }
 
 
@@ -85,17 +80,8 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
     case DetachedEventType:
     case QuitDebuggingEventType:
     case BackEndDisconnectedEventType:
-		updateContent();
-		break;
 	case ActiveThreadChangedEvent:
-		// The registers are thread-related
-		m_registersWidget->updateContent();
-		break;
-    case RelativeBreakpointAddedEvent:
-    case AbsoluteBreakpointAddedEvent:
-    case RelativeBreakpointRemovedEvent:
-    case AbsoluteBreakpointRemovedEvent:
-		m_breakpointsWidget->updateContent();
+		updateContent();
 		break;
     default:
         break;

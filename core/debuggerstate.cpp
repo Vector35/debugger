@@ -86,7 +86,9 @@ bool DebuggerRegisters::SetRegisterValue(const std::string& name, uint64_t value
 	if (!ok)
 		return false;
 
-	iter->second.m_value = value;
+	// Because some registers are correlated, changing the value of one register could invalidate the value of other
+	// registers as well.
+	MarkDirty();
 	return true;
 }
 

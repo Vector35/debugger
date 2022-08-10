@@ -27,6 +27,7 @@ limitations under the License.
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "theme.h"
+#include "globalarea.h"
 #include "debuggerapi.h"
 
 using namespace BinaryNinjaDebuggerAPI;
@@ -104,7 +105,7 @@ public:
 };
 
 
-class DebugModulesWidget: public SidebarWidget
+class DebugModulesWidget: public QWidget
 {
     Q_OBJECT
 
@@ -116,12 +117,14 @@ class DebugModulesWidget: public SidebarWidget
     DebugModulesListModel* m_model;
     DebugModulesItemDelegate* m_delegate;
 
+	size_t m_debuggerEventCallback;
+
     // void shouldBeVisible()
-    virtual void notifyFontChanged() override;
 
 
 public:
-    DebugModulesWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
+    DebugModulesWidget(ViewFrame* view, BinaryViewRef data);
+	~DebugModulesWidget();
 
     void notifyModulesChanged(std::vector<DebugModule> modules);
 
@@ -130,13 +133,22 @@ public slots:
 };
 
 
-class DebugModulesWidgetType : public SidebarWidgetType {
+class GlobalDebugModulesContainer : public GlobalAreaWidget
+{
+	ViewFrame *m_currentFrame;
+	std::map<Ref<BinaryNinjaDebuggerAPI::DebuggerController>, DebugModulesWidget*> m_widgetMap;
+
+	QStackedWidget* m_consoleStack;
+
+	//! Get the current active DebuggerConsole. Returns nullptr in the event of an error
+	//! or if there is no active ChatBox.
+	DebugModulesWidget* currentWidget() const;
+
+	//! Delete the DebuggerConsole for the given view.
+	void freeWidgetForView(QObject*);
+
 public:
-    DebugModulesWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
+	GlobalDebugModulesContainer(const QString& title);
 
-    bool isInReferenceArea() const override { return false; }
-
-    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
-        return new DebugModulesWidget("Debugger Modules", frame, data);
-    }
+	void notifyViewChanged(ViewFrame *) override;
 };

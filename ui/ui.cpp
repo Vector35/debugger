@@ -65,6 +65,9 @@ GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 	auto* globalThreadFramesContainer = new GlobalThreadFramesContainer("Stack Trace");
 	context->globalArea()->addWidget(globalThreadFramesContainer);
 
+	auto* globalDebugModulesContainer = new GlobalDebugModulesContainer("Debugger Modules");
+	context->globalArea()->addWidget(globalDebugModulesContainer);
+
 	auto ui = DebuggerUI::CreateForViewFrame(context->getCurrentViewFrame());
 }
 
@@ -911,6 +914,9 @@ void GlobalDebuggerUI::InitializeUI()
 {
     Sidebar::addSidebarWidgetType(
         new DebuggerWidgetType(QImage(":/icons/images/debugger/debugger.svg"), "Debugger"));
+
+	Sidebar::addSidebarWidgetType(
+            new BreakpointWidgetType(QImage(":/icons/images/debugger/debugger.svg"), "Breakpoint"));
 
 	// We must use the sequence of these four calls to do the job, otherwise the keybinding does not work.
 	// Though it really should be the case where I can specify the keybinding in the first registerAction() call.

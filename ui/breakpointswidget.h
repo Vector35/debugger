@@ -141,3 +141,42 @@ private slots:
 public slots:
     void updateContent();
 };
+
+
+class DebuggerUI;
+class BreakpointSideBarWidget: public SidebarWidget
+{
+Q_OBJECT;
+
+	ViewFrame* m_view;
+	BinaryViewRef m_data;
+	DebuggerController* m_controller;
+
+	UIActionHandler* M_actionHandler;
+	DebugBreakpointsWidget* m_breakpointsWidget;
+
+	DebuggerUI* m_ui;
+
+	virtual void notifyFontChanged() override;
+
+private slots:
+	void uiEventHandler(const DebuggerEvent &event);
+
+public:
+	BreakpointSideBarWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
+	~BreakpointSideBarWidget();
+
+	void updateContent();
+};
+
+
+class BreakpointWidgetType : public SidebarWidgetType {
+public:
+	BreakpointWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
+
+	bool isInReferenceArea() const override { return false; }
+
+	SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
+		return new BreakpointSideBarWidget("Breakpoint", frame, data);
+	}
+};

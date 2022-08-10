@@ -343,3 +343,60 @@ void DebugBreakpointsWidget::updateContent()
 
     m_model->updateRows(bps);
 }
+
+
+BreakpointSideBarWidget::BreakpointSideBarWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
+    SidebarWidget(name), m_view(view), m_data(data)
+{
+    m_controller = DebuggerController::GetController(m_data);
+
+    QVBoxLayout* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    layout->setAlignment(Qt::AlignTop);
+
+    m_breakpointsWidget = new DebugBreakpointsWidget("Debugger Breakpoints", m_view, m_data, m_menu);
+
+    layout->addWidget(m_breakpointsWidget);
+    setLayout(layout);
+
+	m_ui = DebuggerUI::GetForViewFrame(view);
+	connect(m_ui, &DebuggerUI::debuggerEvent, this, &BreakpointSideBarWidget::uiEventHandler);
+}
+
+
+BreakpointSideBarWidget::~BreakpointSideBarWidget()
+{
+}
+
+
+
+void BreakpointSideBarWidget::uiEventHandler(const DebuggerEvent &event)
+{
+    switch (event.type)
+    {
+    case TargetStoppedEventType:
+    case DetachedEventType:
+    case QuitDebuggingEventType:
+    case BackEndDisconnectedEventType:
+    case RelativeBreakpointAddedEvent:
+    case AbsoluteBreakpointAddedEvent:
+    case RelativeBreakpointRemovedEvent:
+    case AbsoluteBreakpointRemovedEvent:
+		updateContent();
+    default:
+        break;
+    }
+}
+
+
+void BreakpointSideBarWidget::updateContent()
+{
+	m_breakpointsWidget->updateContent();
+}
+
+
+void BreakpointSideBarWidget::notifyFontChanged()
+{
+
+}

@@ -50,9 +50,7 @@ class DebuggerWidget: public SidebarWidget
     QSplitter *m_splitter;
 
     DebugControlsWidget* m_controlsWidget;
-    DebugRegistersWidget* m_registersWidget;
-    DebugBreakpointsWidget* m_breakpointsWidget;
-    DebugModulesWidget* m_modulesWidget;
+	DebugRegistersContainer* m_registersWidget;
 
 	DebuggerUI* m_ui;
 

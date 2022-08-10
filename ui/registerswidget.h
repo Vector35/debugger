@@ -21,6 +21,7 @@ limitations under the License.
 #include <QModelIndex>
 #include <QTableView>
 #include <QStyledItemDelegate>
+#include <QSortFilterProxyModel>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "dockhandler.h"
@@ -28,6 +29,8 @@ limitations under the License.
 #include "fontsettings.h"
 #include "theme.h"
 #include "debuggerapi.h"
+#include "menus.h"
+#include "filter.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 
@@ -48,14 +51,17 @@ private:
     std::string m_name;
     uint64_t m_value;
     DebugRegisterValueStatus m_valueStatus;
-    // TODO: We probably need a more robust mechenism for this
+    // TODO: We probably need a more robust mechanism for this
     std::string m_hint;
+	bool m_used;
 
 public:
     DebugRegisterItem(const std::string& name, uint64_t value,
-        DebugRegisterValueStatus valueStatus = DebugRegisterValueNormal, const std::string& hint = "");
+        DebugRegisterValueStatus valueStatus = DebugRegisterValueNormal, const std::string& hint = "",
+		bool used = false);
     std::string name() const { return m_name; }
     uint64_t value() const { return m_value; }
+	bool used() const { return m_used; }
     void setValue(uint64_t value) { m_value = value; }
     DebugRegisterValueStatus valueStatus() const { return m_valueStatus; }
     void setValueStatus(DebugRegisterValueStatus newStatus) { m_valueStatus = newStatus; }
@@ -100,6 +106,8 @@ public:
     virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
     void updateRows(std::vector<DebugRegister> newRows);
     bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole) override;
+
+	std::set<std::string> getUsedRegisterNames();
 };
 
 
@@ -119,7 +127,27 @@ public:
 };
 
 
-class DebugRegistersWidget: public SidebarWidget
+class DebugRegisterFilterProxyModel : public QSortFilterProxyModel
+{
+	Q_OBJECT
+
+	bool m_hideZeroRegister = false;
+	bool m_onlyShowFullWidthRegisters = false;
+	bool m_hideUnusedRegisters = true;
+
+public:
+	DebugRegisterFilterProxyModel(QObject* parent);
+
+protected:
+	virtual bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override;
+
+public:
+	bool getHideUnusedRegisters() const { return m_hideUnusedRegisters; }
+	void toggleHideUnusedRegisters() { m_hideUnusedRegisters = !m_hideUnusedRegisters; invalidate(); }
+};
+
+
+class DebugRegistersWidget: public QWidget, public FilterTarget
 {
     Q_OBJECT;
 
@@ -130,28 +158,52 @@ class DebugRegistersWidget: public SidebarWidget
     QTableView* m_table;
     DebugRegistersListModel* m_model;
     DebugRegistersItemDelegate* m_delegate;
+	DebugRegisterFilterProxyModel* m_filter;
 
-    // void shouldBeVisible()
+	UIActionHandler* m_handler;
+	UIActionHandler m_actionHandler;
+	ContextMenuManager* m_contextMenuManager;
+	Menu* m_menu;
 
-    virtual void notifyFontChanged() override;
+	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
+	bool canCopy();
+	bool canPaste();
+
+	virtual void setFilter(const std::string& filter) override;
+	virtual void scrollToFirstItem() override;
+	virtual void scrollToCurrentItem() override;
+	virtual void selectFirstItem() override;
+	virtual void activateFirstItem() override;
 
 public:
-    DebugRegistersWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
+    DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, Menu* menu);
     void notifyRegistersChanged(std::vector<DebugRegister> regs);
+
+private slots:
+	void setToZero();
+	void jump();
+	void copy();
+	void paste();
+	void editValue();
+	void onDoubleClicked();
 
 public slots:
     void updateContent();
+	void showContextMenu();
 };
 
 
-class DebugRegistersWidgetType : public SidebarWidgetType {
+class DebugRegistersContainer: public QWidget
+{
+	Q_OBJECT
+
+	ViewFrame* m_view;
+	DebugRegistersWidget* m_register;
+	FilteredView* m_filter;
+	FilterEdit* m_separateEdit = nullptr;
+
 public:
-    DebugRegistersWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
-
-    bool isInReferenceArea() const override { return true; }
-
-    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
-        return new DebugRegistersWidget("Debugger Registers", frame, data);
-    }
+	DebugRegistersContainer(ViewFrame* view, BinaryViewRef data, Menu* menu);
+	void updateContent();
 };
