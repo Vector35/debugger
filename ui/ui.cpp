@@ -592,6 +592,16 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 			}
 		}
 	}
+
+	openDebuggerSideBar();
+}
+
+
+void DebuggerUI::openDebuggerSideBar()
+{
+	auto currentSidebar = Sidebar::current();
+	if (currentSidebar)
+		currentSidebar->activate("Debugger");
 }
 
 
@@ -624,6 +634,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 			{
 				newFrame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
 				m_context->closeTab(m_context->getTabForFile(fileContext));
+				openDebuggerSideBar();
 				QCoreApplication::processEvents();
 			}
 			else
