@@ -136,7 +136,7 @@ public slots:
 class GlobalDebugModulesContainer : public GlobalAreaWidget
 {
 	ViewFrame *m_currentFrame;
-	std::map<Ref<BinaryNinjaDebuggerAPI::DebuggerController>, DebugModulesWidget*> m_widgetMap;
+	QHash<ViewFrame*, DebugModulesWidget*> m_widgetMap;
 
 	QStackedWidget* m_consoleStack;
 

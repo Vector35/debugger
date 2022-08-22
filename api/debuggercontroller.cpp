@@ -594,11 +594,12 @@ uint32_t DebuggerController::GetExitCode()
 }
 
 
-size_t DebuggerController::RegisterEventCallback(std::function<void(const DebuggerEvent &event)> callback)
+size_t DebuggerController::RegisterEventCallback(std::function<void(const DebuggerEvent &event)> callback,
+												const std::string& name)
 {
 	DebuggerEventCallbackObject* object = new DebuggerEventCallbackObject;
 	object->action = callback;
-	return BNDebuggerRegisterEventCallback(GetObject(), DebuggerEventCallback, object);
+	return BNDebuggerRegisterEventCallback(GetObject(), DebuggerEventCallback, name.c_str(), object);
 }
 
 

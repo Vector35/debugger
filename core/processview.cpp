@@ -41,7 +41,7 @@ DebugProcessView::DebugProcessView(BinaryView* parent):
     m_controller = DebuggerController::GetController(parent);
 	m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
 		eventHandler(event);
-	});
+	}, "Process View");
 }
 
 

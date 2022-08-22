@@ -65,9 +65,7 @@ AdapterConsole::AdapterConsole(QWidget* parent, ViewFrame* frame, BinaryViewRef 
 		if (event.type == BackendMessageEventType)
 		{
 			const std::string message = event.data.messageData.message;
-			ExecuteOnMainThreadAndWait([&](){
-				addMessage(QString::fromStdString(message));
-			});
+			addMessage(QString::fromStdString(message));
 		}
 		else if (event.type == DebuggerSettingsChangedEvent)
 		{
@@ -76,7 +74,7 @@ AdapterConsole::AdapterConsole(QWidget* parent, ViewFrame* frame, BinaryViewRef 
 //				m_promptLabel->setText(m_prompt + ' ');
 //			});
 		}
-	});
+	}, "Adapter Console Widget");
 }
 
 
@@ -147,20 +145,17 @@ void GlobalAdapterConsoleContainer::freeDebuggerConsoleForView(QObject* obj)
 	// the object is on the brink of deletion.
 	auto* vf = (ViewFrame*)obj;
 
-	auto data = vf->getCurrentBinaryView();
-	auto controller = DebuggerController::GetController(data);
-
 	// Confirm there is a record of this view.
-	if (!m_consoleMap.count(controller)) {
+	if (!m_consoleMap.count(vf)) {
 		LogWarn("Attempted to free AdapterConsole for untracked view %p", obj);
 		return;
 	}
 
-	auto* console = m_consoleMap[controller];
+	auto* console = m_consoleMap[vf];
 	m_consoleStack->removeWidget(console);
-	m_consoleMap.erase(controller);
+	m_consoleMap.remove(vf);
 
-	// Must be called so the ChatBox is guaranteed to be destoryed. If two
+	// Must be called so the ChatBox is guaranteed to be destroyed. If two
 	// instances for the same view/database exist, things will break.
 	console->deleteLater();
 }
@@ -194,29 +189,21 @@ void GlobalAdapterConsoleContainer::notifyViewChanged(ViewFrame* frame)
 		return;
 	m_currentFrame = frame;
 
-	auto data = frame->getCurrentBinaryView();
-	Ref<DebuggerController> controller = DebuggerController::GetController(data);
-
 	// Get the appropriate AdapterConsole for this ViewFrame, or create a new one if it
 	// doesn't yet exist. The default value for non-existent keys of pointer
 	// types in Qt containers is nullptr, which allows this logic below to work.
-	auto iter = m_consoleMap.find(controller);
-	AdapterConsole* currentConsole;
-	if (iter == m_consoleMap.end())
+	auto* currentConsole = m_consoleMap.value(frame);
+	if (!currentConsole)
 	{
-		currentConsole = new AdapterConsole(this, frame, data);
+		currentConsole = new AdapterConsole(this, frame, frame->getCurrentBinaryView());
 
 		// DockWidgets related to a ViewFrame are automatically cleaned up as
 		// part of the ViewFrame destructor. To ensure there is never a AdapterConsole
 		// for a non-existent ViewFrame, the cleanup must be configured manually.
-//		connect(frame, &QObject::destroyed, this, &GlobalAdapterConsoleContainer::freeDebuggerConsoleForView);
+		connect(frame, &QObject::destroyed, this, &GlobalAdapterConsoleContainer::freeDebuggerConsoleForView);
 
-		m_consoleMap[controller] = currentConsole;
+		m_consoleMap.insert(frame, currentConsole);
 		m_consoleStack->addWidget(currentConsole);
-	}
-	else
-	{
-		currentConsole = iter->second;
 	}
 
 	m_consoleStack->setCurrentWidget(currentConsole);

@@ -53,7 +53,7 @@ public:
 class GlobalThreadFramesContainer : public GlobalAreaWidget
 {
 	ViewFrame *m_currentFrame;
-	std::map<Ref<BinaryNinjaDebuggerAPI::DebuggerController>, ThreadFramesWidget*> m_consoleMap;
+	QHash<ViewFrame*, ThreadFramesWidget*> m_consoleMap;
 
 	QStackedWidget* m_consoleStack;
 

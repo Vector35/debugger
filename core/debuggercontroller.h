@@ -19,6 +19,7 @@ limitations under the License.
 #include "debuggerstate.h"
 #include "debuggerevent.h"
 #include <queue>
+#include <list>
 #include "ffi_global.h"
 
 DECLARE_DEBUGGER_API_OBJECT(BNDebuggerController, DebuggerController);
@@ -29,6 +30,7 @@ namespace BinaryNinjaDebugger
 	{
 		std::function<void(const DebuggerEvent &event)> function;
 		size_t index;
+		std::string name;
 	};
 
 	// This is used by the debugger to track stack variables it defined. It is simpler than
@@ -71,8 +73,9 @@ namespace BinaryNinjaDebugger
 		inline static std::vector<DebuggerController *> g_debuggerControllers;
 
 		std::atomic<size_t> m_callbackIndex = 0;
-		std::vector<DebuggerEventCallback> m_eventCallbacks;
+		std::list<DebuggerEventCallback> m_eventCallbacks;
 		std::recursive_mutex m_callbackMutex;
+		std::set<size_t> m_disabledCallbacks;
 
 		uint64_t m_lastIP = 0;
 		uint64_t m_currentIP = 0;
@@ -169,12 +172,14 @@ namespace BinaryNinjaDebugger
 		bool WriteMemory(std::uintptr_t address, const DataBuffer &buffer);
 
 		// debugger events
-		size_t RegisterEventCallback(std::function<void(const DebuggerEvent &event)> callback);
+		size_t RegisterEventCallback(std::function<void(const DebuggerEvent &event)> callback, const std::string& name = "");
 		bool RemoveEventCallback(size_t index);
+		bool RemoveEventCallbackInternal(size_t index);
 		void NotifyStopped(DebugStopReason reason, void *data = nullptr);
 		void NotifyError(const std::string &error, void *data = nullptr);
 		void NotifyEvent(DebuggerEventType event);
 		void PostDebuggerEvent(const DebuggerEvent &event);
+		void CleanUpDisabledEvent();
 
 		// shortcut for instruction pointer
 		uint64_t GetLastIP() const { return m_lastIP; }

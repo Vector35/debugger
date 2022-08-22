@@ -752,8 +752,8 @@ bool BNDebuggerIsSameBaseModule(const char* module1, const char* module2)
 
 
 size_t BNDebuggerRegisterEventCallback(BNDebuggerController* controller,
-									   void (*callback)(void* ctx, BNDebuggerEvent* event),
-									   void* ctx)
+									   	void (*callback)(void* ctx, BNDebuggerEvent* event), const char* name,
+										void* ctx)
 {
 	return controller->object->RegisterEventCallback([=](const DebuggerEvent& event){
 		BNDebuggerEvent* evt = new BNDebuggerEvent;
@@ -778,7 +778,7 @@ size_t BNDebuggerRegisterEventCallback(BNDebuggerController* controller,
 
 		callback(ctx, evt);
 		delete evt;
-	});
+	}, name);
 }
 
 

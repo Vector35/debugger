@@ -42,7 +42,7 @@ using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 using namespace std;
 
-std::map<Ref<DebuggerController>, std::unique_ptr<DebuggerUI>> g_controllerMap;
+std::map<ViewFrame*, std::unique_ptr<DebuggerUI>> g_viewFrameMap;
 std::map<UIContext*, std::unique_ptr<GlobalDebuggerUI>> g_contextMap;
 
 GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
@@ -67,8 +67,6 @@ GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 
 	auto* globalDebugModulesContainer = new GlobalDebugModulesContainer("Debugger Modules");
 	context->globalArea()->addWidget(globalDebugModulesContainer);
-
-	auto ui = DebuggerUI::CreateForViewFrame(context->getCurrentViewFrame());
 }
 
 
@@ -512,10 +510,8 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateUI);
 
     m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
-		ExecuteOnMainThreadAndWait([=](){
-			emit debuggerEvent(event);
-		});
-    });
+		emit debuggerEvent(event);
+    }, "UI");
 
 	// Since the Controller is constructed earlier than the UI, any breakpoints added before the construction of the UI,
 	// e.g. the entry point breakpoint, will be missing the visual indicator.
@@ -1056,30 +1052,32 @@ DebuggerUI* DebuggerUI::CreateForViewFrame(ViewFrame* frame)
 	if (!controller)
 		return nullptr;
 
-	if (g_controllerMap.find(controller) != g_controllerMap.end())
+	if (g_viewFrameMap.find(frame) != g_viewFrameMap.end())
 	{
-		return g_controllerMap[controller].get();
+		return g_viewFrameMap[frame].get();
 	}
-	g_controllerMap.try_emplace(controller, std::make_unique<DebuggerUI>(context, controller));
-	return g_controllerMap[controller].get();
+	g_viewFrameMap.try_emplace(frame, std::make_unique<DebuggerUI>(context, controller));
+	connect(frame, &QObject::destroyed, [&](QObject* obj){
+		auto* vf = (ViewFrame*)obj;
+		g_viewFrameMap.erase(vf);
+	});
+	return g_viewFrameMap[frame].get();
 }
 
 
 DebuggerUI* DebuggerUI::GetForViewFrame(ViewFrame* frame)
 {
-	BinaryViewRef data = frame->getCurrentBinaryView();
-	if (!data)
-		return nullptr;
-
-	Ref<DebuggerController> controller = DebuggerController::GetController(data);
-	if (!controller)
-		return nullptr;
-
-	if (g_controllerMap.find(controller) != g_controllerMap.end())
+	if (g_viewFrameMap.find(frame) != g_viewFrameMap.end())
 	{
-		return g_controllerMap[controller].get();
+		return g_viewFrameMap[frame].get();
 	}
 	return nullptr;
+}
+
+
+void DebuggerUI::DeleteForViewFrame(ViewFrame* frame)
+{
+	g_viewFrameMap.erase(frame);
 }
 
 

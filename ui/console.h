@@ -55,7 +55,7 @@ public:
 class GlobalConsoleContainer : public GlobalAreaWidget
 {
 	ViewFrame *m_currentFrame;
-	std::map<Ref<BinaryNinjaDebuggerAPI::DebuggerController>, DebuggerConsole*> m_consoleMap;
+	QHash<ViewFrame*, DebuggerConsole*> m_consoleMap;
 
 	QStackedWidget* m_consoleStack;
 

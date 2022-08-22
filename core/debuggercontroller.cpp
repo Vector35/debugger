@@ -30,7 +30,7 @@ DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 	m_adapter = nullptr;
     RegisterEventCallback([this](const DebuggerEvent& event){
         EventHandler(event);
-    });
+    }, "Debugger Core");
 }
 
 
@@ -663,26 +663,22 @@ void DebuggerController::HandleInitialBreakpoint()
 	if (remoteBase != m_data->GetStart())
 	{
 		// remote base is different from the local base, first need a rebase
-		ExecuteOnMainThreadAndWait([=](){
 //			ProgressIndicator progress(nullptr, "Rebase", "Rebasing...");
-			if (!fileMetadata->Rebase(m_data, remoteBase,
-									  [&](size_t cur, size_t total) { return true; }))
-			{
-				LogWarn("rebase failed");
-			}
-		});
+		if (!fileMetadata->Rebase(m_data, remoteBase,
+								  [&](size_t cur, size_t total) { return true; }))
+		{
+			LogWarn("rebase failed");
+		}
 	}
 
 	Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
 	SetData(rebasedView);
 
-	ExecuteOnMainThreadAndWait([=](){
 //		ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
-		bool ok = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger",
-												[&](size_t cur, size_t total) { return true; });
-		if (!ok)
-			LogWarn("create snapshoted view failed");
-	});
+	bool ok = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger",
+											[&](size_t cur, size_t total) { return true; });
+	if (!ok)
+		LogWarn("create snapshoted view failed");
 
 	BinaryViewRef liveView = fileMetadata->GetViewOfType("Debugger");
 	if (!liveView)
@@ -957,12 +953,13 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 }
 
 
-size_t DebuggerController::RegisterEventCallback(std::function<void(const DebuggerEvent&)> callback)
+size_t DebuggerController::RegisterEventCallback(std::function<void(const DebuggerEvent&)> callback, const std::string& name)
 {
 	std::unique_lock<std::recursive_mutex> lock(m_callbackMutex);
     DebuggerEventCallback object;
     object.function = callback;
     object.index = m_callbackIndex++;
+	object.name = name;
     m_eventCallbacks.push_back(object);
     return object.index;
 }
@@ -971,40 +968,68 @@ size_t DebuggerController::RegisterEventCallback(std::function<void(const Debugg
 bool DebuggerController::RemoveEventCallback(size_t index)
 {
 	std::unique_lock<std::recursive_mutex> lock(m_callbackMutex);
-    for (auto it = m_eventCallbacks.begin(); it != m_eventCallbacks.end(); it++)
-    {
-        if (it->index == index)
-        {
-            m_eventCallbacks.erase(it);
-            return true;
-        }
-    }
-    return false;
+	m_disabledCallbacks.insert(index);
+	return RemoveEventCallbackInternal(index);
+}
+
+
+bool DebuggerController::RemoveEventCallbackInternal(size_t index)
+{
+	for (auto it = m_eventCallbacks.begin(); it != m_eventCallbacks.end(); it++)
+	{
+		if (it->index == index)
+		{
+			m_eventCallbacks.erase(it);
+			return true;
+		}
+	}
+	return false;
 }
 
 
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 {
     std::unique_lock<std::recursive_mutex> callbackLock(m_callbackMutex);
-    std::vector<DebuggerEventCallback> eventCallbacks = m_eventCallbacks;
+    std::list<DebuggerEventCallback> eventCallbacks = m_eventCallbacks;
     callbackLock.unlock();
 
-    for (const auto& cb: eventCallbacks)
-    {
-        cb.function(event);
-    }
-
-	// If the current event is an AdapterStoppedEvent, and no callback objects it, then we also notify a
-	// TargetStoppedEvent.
-	if (event.type == AdapterStoppedEventType && m_treatAdapterStopAsTargetStop)
-	{
-		DebuggerEvent stopEvent = event;
-		stopEvent.type = TargetStoppedEventType;
-		for (const auto& cb: eventCallbacks)
+	ExecuteOnMainThreadAndWait([&](){
+		for (const DebuggerEventCallback cb: eventCallbacks)
 		{
-			cb.function(stopEvent);
+			if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
+				continue;
+
+			cb.function(event);
 		}
+
+		// If the current event is an AdapterStoppedEvent, and no callback objects it, then we also notify a
+		// TargetStoppedEvent.
+		if (event.type == AdapterStoppedEventType && m_treatAdapterStopAsTargetStop)
+		{
+			DebuggerEvent stopEvent = event;
+			stopEvent.type = TargetStoppedEventType;
+			for (const DebuggerEventCallback cb: eventCallbacks)
+			{
+				if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
+					continue;
+
+				cb.function(stopEvent);
+			}
+		}
+	});
+
+	CleanUpDisabledEvent();
+}
+
+
+void DebuggerController::CleanUpDisabledEvent()
+{
+	std::unique_lock<std::recursive_mutex> lock(m_callbackMutex);
+	for (const auto index: m_disabledCallbacks)
+	{
+		RemoveEventCallbackInternal(index);
 	}
+	m_disabledCallbacks.clear();
 }
 
 
@@ -1461,7 +1486,7 @@ DebugStopReason DebuggerController::WaitForTargetStop()
 		default:
 			break;
 		}
-	});
+	}, "WaitForTargetStop");
 	sem.Wait();
 	RemoveEventCallback(callback);
 	return reason;
@@ -1478,7 +1503,7 @@ DebugStopReason DebuggerController::WaitForAdapterStop()
 			reason = event.data.targetStoppedData.reason;
 			sem.Release();
 		}
-	});
+	}, "WaitForAdapterStop");
 	sem.Wait();
 	RemoveEventCallback(callback);
 	return reason;

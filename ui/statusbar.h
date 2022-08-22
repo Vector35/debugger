@@ -58,7 +58,7 @@ private slots:
 class DebuggerStatusBarContainer : public QWidget
 {
 	ViewFrame *m_currentFrame;
-	std::map<Ref<BinaryNinjaDebuggerAPI::DebuggerController>, DebuggerStatusBarWidget*> m_consoleMap;
+	QHash<ViewFrame*, DebuggerStatusBarWidget*> m_consoleMap;
 
 	QStackedWidget* m_consoleStack;
 

@@ -34,7 +34,6 @@ Q_OBJECT
 
 private:
 	UIContext* m_context;
-	DebuggerController* m_controller;
 	QMainWindow* m_window;
 	DebuggerStatusBarContainer* m_status;
 
@@ -61,9 +60,7 @@ class DebuggerUI: public QObject
 
 private:
 	UIContext* m_context;
-    DebuggerController* m_controller;
-	QMainWindow* m_window;
-	QLabel* m_status;
+    Ref<DebuggerController> m_controller;
 
 	size_t m_eventCallback;
 
@@ -71,12 +68,9 @@ public:
     DebuggerUI(UIContext* context, DebuggerController* controller);
 	~DebuggerUI();
 
-    static void InitializeUI();
-
 	static DebuggerUI* CreateForViewFrame(ViewFrame* frame);
 	static DebuggerUI* GetForViewFrame(ViewFrame* frame);
-
-	void SetActiveFrame(ViewFrame* frame);
+	static void DeleteForViewFrame(ViewFrame* frame);
 
 	TagTypeRef getPCTagType(BinaryViewRef data);
 	TagTypeRef getBreakpointTagType(BinaryViewRef data);
