@@ -223,7 +223,7 @@ std::set<std::string> DebugRegistersListModel::getUsedRegisterNames()
 	if (functions.empty() || (!functions[0]))
 		return usedRegisterNames;
 
-	auto llil = functions[0]->GetLowLevelILIfAvailable();
+	auto llil = functions[0]->GetLowLevelIL();
 	if (!llil)
 		return usedRegisterNames;
 
@@ -241,6 +241,7 @@ std::set<std::string> DebugRegistersListModel::getUsedRegisterNames()
 void DebugRegistersListModel::updateRows(std::vector<DebugRegister> newRows)
 {
 	const auto usedRegisterNames = getUsedRegisterNames();
+	bool emptyUsedRegisters = usedRegisterNames.size() == 0;
 
     // TODO: This might cause performance problems. We can instead only update the chained registers.
     // However, the cost for that is we need to attach an index to each item and sort accordingly
@@ -276,7 +277,8 @@ void DebugRegistersListModel::updateRows(std::vector<DebugRegister> newRows)
             }
         }
 
-		bool used = usedRegisterNames.find(reg.m_name) != usedRegisterNames.end();
+		// If we get an empty list of used registers, we wish to show all regs
+		bool used = (emptyUsedRegisters || (usedRegisterNames.find(reg.m_name) != usedRegisterNames.end()));
         m_items.emplace_back(reg.m_name, reg.m_value, status, reg.m_hint, used);
     }
     endResetModel();
