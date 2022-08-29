@@ -102,14 +102,31 @@ void BNDebuggerFreeStringList(char** strs, size_t count)
 
 BNDebuggerController* BNGetDebuggerController(BNBinaryView* data)
 {
+	if (!data)
+		return nullptr;
+
 	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
-	return DebuggerController::GetController(view)->GetAPIObject();
+	DebuggerController* controller = DebuggerController::GetController(view);
+	if (!controller)
+		return nullptr;
+
+	return DBG_API_OBJECT_REF(controller);
 }
 
 
 void BNDebuggerDestroyController(BNDebuggerController* controller)
 {
 	controller->object->Destroy();
+}
+
+
+bool BNDebuggerControllerExists(BNBinaryView* data)
+{
+	if (!data)
+		false;
+
+	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	return DebuggerController::ControllerExists(view);
 }
 
 
@@ -146,6 +163,18 @@ bool BNDebuggerIsConnectedToDebugServer(BNDebuggerController* controller)
 bool BNDebuggerIsRunning(BNDebuggerController* controller)
 {
 	return controller->object->GetState()->IsRunning();
+}
+
+
+BNDebuggerController* BNDebuggerNewControllerReference(BNDebuggerController* controller)
+{
+	return DBG_API_OBJECT_NEW_REF(controller);
+}
+
+
+void BNDebuggerFreeController(BNDebuggerController* view)
+{
+	DBG_API_OBJECT_FREE(view);
 }
 
 
@@ -345,6 +374,12 @@ void BNDebuggerRestart(BNDebuggerController* controller)
 void BNDebuggerQuit(BNDebuggerController* controller)
 {
 	controller->object->Quit();
+}
+
+
+void BNDebuggerQuitAndWait(BNDebuggerController* controller)
+{
+	controller->object->QuitAndWait();
 }
 
 

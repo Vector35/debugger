@@ -33,7 +33,7 @@ class AdapterConsole: public QWidget
 	Q_OBJECT
 
 	ViewFrame* m_view;
-	Ref<BinaryNinjaDebuggerAPI::DebuggerController> m_debugger;
+	BinaryNinjaDebuggerAPI::DbgRef<BinaryNinjaDebuggerAPI::DebuggerController> m_debugger;
 
 	QLineEdit* m_consoleInput;
 	QTextEdit* m_consoleLog;

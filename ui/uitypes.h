@@ -16,32 +16,6 @@ limitations under the License.
 
 #pragma once
 
-#include <QDialog>
-#include <QPushButton>
-#include <QLineEdit>
-#include <QComboBox>
-#include <QFormLayout>
-#include <QCheckBox>
-#include "inttypes.h"
-#include "binaryninjaapi.h"
-#include "viewframe.h"
-#include "fontsettings.h"
 #include "debuggerapi.h"
-#include "uitypes.h"
 
-class RemoteProcessSettingsDialog: public QDialog
-{
-	Q_OBJECT
-
-private:
-	DebuggerControllerRef m_controller;
-	QComboBox* m_pluginEntry;
-	QLineEdit* m_addressEntry;
-	QLineEdit* m_portEntry;
-
-public:
-	RemoteProcessSettingsDialog(QWidget* parent, DebuggerControllerRef controller);
-
-private Q_SLOTS:
-	void apply();
-};
+typedef BinaryNinjaDebuggerAPI::DbgRef<BinaryNinjaDebuggerAPI::DebuggerController> DebuggerControllerRef;

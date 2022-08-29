@@ -58,8 +58,8 @@ bool BreakpointItem::operator<(const BreakpointItem& other) const
 }
 
 
-DebugBreakpointsListModel::DebugBreakpointsListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view):
-    QAbstractTableModel(parent), m_data(data), m_view(view)
+DebugBreakpointsListModel::DebugBreakpointsListModel(QWidget* parent, ViewFrame* view):
+    QAbstractTableModel(parent), m_view(view)
 {
 }
 
@@ -226,7 +226,7 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* v
     m_controller = DebuggerController::GetController(data);
 
     m_table = new QTableView(this);
-    m_model = new DebugBreakpointsListModel(m_table, data, view);
+    m_model = new DebugBreakpointsListModel(m_table, view);
     m_table->setModel(m_model);
     m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
     m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -346,16 +346,14 @@ void DebugBreakpointsWidget::updateContent()
 
 
 BreakpointSideBarWidget::BreakpointSideBarWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
-    SidebarWidget(name), m_view(view), m_data(data)
+    SidebarWidget(name), m_view(view)
 {
-    m_controller = DebuggerController::GetController(m_data);
-
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     layout->setAlignment(Qt::AlignTop);
 
-    m_breakpointsWidget = new DebugBreakpointsWidget("Debugger Breakpoints", m_view, m_data, m_menu);
+    m_breakpointsWidget = new DebugBreakpointsWidget("Debugger Breakpoints", m_view, data, m_menu);
 
     layout->addWidget(m_breakpointsWidget);
     setLayout(layout);

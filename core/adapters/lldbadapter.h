@@ -32,6 +32,7 @@ namespace BinaryNinjaDebugger {
 	public:
 
 		LldbAdapter(BinaryView* data);
+		virtual ~LldbAdapter();
 
 		bool Execute(const std::string &path, const LaunchConfigurations &configs) override;
 

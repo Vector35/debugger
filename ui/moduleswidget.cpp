@@ -59,8 +59,8 @@ bool ModuleItem::operator<(const ModuleItem& other) const
 }
 
 
-DebugModulesListModel::DebugModulesListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view):
-    QAbstractTableModel(parent), m_data(data), m_view(view)
+DebugModulesListModel::DebugModulesListModel(QWidget* parent, ViewFrame* view):
+    QAbstractTableModel(parent), m_view(view)
 {
 }
 
@@ -251,7 +251,7 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
     m_controller = DebuggerController::GetController(data);
 
     m_table = new QTableView(this);
-    m_model = new DebugModulesListModel(m_table, data, view);
+    m_model = new DebugModulesListModel(m_table, view);
     m_table->setModel(m_model);
 
     m_delegate = new DebugModulesItemDelegate(this);

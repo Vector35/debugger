@@ -34,7 +34,7 @@ class ThreadFramesWidget: public QWidget
 	Q_OBJECT
 
 	ViewFrame* m_view;
-	Ref<BinaryNinjaDebuggerAPI::DebuggerController> m_debugger;
+	BinaryNinjaDebuggerAPI::DbgRef<BinaryNinjaDebuggerAPI::DebuggerController> m_debugger;
 
 	QComboBox* m_threadList;
 	QListWidget* m_threadFrames;

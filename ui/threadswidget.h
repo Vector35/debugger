@@ -69,7 +69,6 @@ class DebugThreadsListModel: public QAbstractTableModel
 
 protected:
     QWidget* m_owner;
-    BinaryViewRef m_data;
     ViewFrame* m_view;
     std::vector<ThreadItem> m_items;
 
@@ -80,7 +79,7 @@ public:
         LocationColumn
     };
 
-    DebugThreadsListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view);
+    DebugThreadsListModel(QWidget* parent, ViewFrame* view);
     virtual ~DebugThreadsListModel();
 
     virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
@@ -115,7 +114,7 @@ class DebugThreadsWidget: public QWidget
     Q_OBJECT
 
     ViewFrame* m_view;
-    DebuggerController* m_controller;
+    DbgRef<DebuggerController> m_controller;
 
     UIActionHandler* M_actionHandler;
     QTableView* m_table;

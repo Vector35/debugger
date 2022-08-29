@@ -1263,3 +1263,20 @@ class DebuggerController:
             _value = binaryninja.metadata.Metadata(_value)
         handle = ctypes.cast(_value.handle, ctypes.POINTER(dbgcore.BNMetadata))
         return dbgcore.BNDebuggerSetAdapterProperty(self.handle, name, handle)
+
+    def __del__(self):
+        if dbgcore is not None:
+            dbgcore.BNDebuggerFreeController(self.handle)
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return ctypes.addressof(self.handle.contents) == ctypes.addressof(other.handle.contents)
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+
+    def __hash__(self):
+        return hash(ctypes.addressof(self.handle.contents))

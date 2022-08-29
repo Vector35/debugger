@@ -27,9 +27,22 @@ limitations under the License.
 using namespace BinaryNinjaDebugger;
 
 
-DebugAdapter::DebugAdapter(BinaryView* data): m_data(data)
+DebugAdapter::DebugAdapter(BinaryView* data)
 {
 	INIT_DEBUGGER_API_OBJECT();
+
+	// These are just a workaround to avoid holding a reference to the data. Note, when DebugAdapter is constructed,
+	// the binary view passed in is the one *before* rebasing. After the debugger launches the target and rebases the
+	// binary view, the un-rebased binary view is released by the core and the debugger becomes the only place where
+	// we hold a reference to it.
+	// Though, a better approach would be to add a function SetData() to the DebugAdapter class and update the binary
+	// view after the launch, similar to what we do for the DebuggerController. However, we will need to add new APIs
+	// to get the original image base of the binary view, because LLDB requires the breakpoint address be relative to
+	// the original image base, and it does not work with a rebased one.
+	m_entryPoint = data->GetEntryPoint();
+	m_start = data->GetStart();
+	m_defaultArchitecture = data->GetDefaultArchitecture()->GetName();
+	m_originalFileName = data->GetFile()->GetOriginalFilename();
 }
 
 

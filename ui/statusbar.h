@@ -35,7 +35,7 @@ Q_OBJECT
 
 	QWidget* m_parent;
 	ViewFrame* m_view;
-	Ref<BinaryNinjaDebuggerAPI::DebuggerController> m_debugger;
+	BinaryNinjaDebuggerAPI::DbgRef<BinaryNinjaDebuggerAPI::DebuggerController> m_debugger;
 	QLabel* m_status;
 
 	size_t m_debuggerEventCallback;

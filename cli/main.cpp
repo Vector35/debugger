@@ -43,7 +43,7 @@ void signalHandler(int sigNum)
 }
 
 
-void RegisterDisplay(DebuggerController* debugger)
+void RegisterDisplay(DbgRef<DebuggerController> debugger)
 {
     const auto arch = debugger->GetRemoteArchitecture();
     if (!arch)
@@ -135,7 +135,7 @@ void RegisterDisplay(DebuggerController* debugger)
 }
 
 
-void DisasmDisplay(DebuggerController* debugger, const std::uint32_t count)
+void DisasmDisplay(DbgRef<DebuggerController> debugger, const std::uint32_t count)
 {
     using namespace BinaryNinja;
 
@@ -313,7 +313,7 @@ bool is_file(const char* fname)
 }
 
 
-void PrintStopReason(DebuggerController* controller, DebugStopReason reason)
+void PrintStopReason(DbgRef<DebuggerController> controller, DebugStopReason reason)
 {
 	if (reason == ProcessExited)
 	{
@@ -371,7 +371,7 @@ int main(int argc, const char* argv[])
 
 	bv->UpdateAnalysisAndWait();
 
-	Ref<DebuggerController> debugger = DebuggerController::GetController(bv);
+	DbgRef<DebuggerController> debugger = DebuggerController::GetController(bv);
 	if (!debugger)
 		LogError("fail to create a debugger for the binaryview\n");
 

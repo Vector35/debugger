@@ -77,7 +77,7 @@ GlobalDebuggerUI::~GlobalDebuggerUI()
 
 static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 {
-    DebuggerController* controller = DebuggerController::GetController(view);
+    auto controller = DebuggerController::GetController(view);
     bool isAbsoluteAddress = false;
     // TODO: check if this works
     if (view->GetTypeName() == "Debugger")
@@ -504,7 +504,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 }
 
 
-DebuggerUI::DebuggerUI(UIContext* context, DebuggerController* controller):
+DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller):
 	m_context(context), m_controller(controller)
 {
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateUI);
@@ -879,7 +879,7 @@ static bool BinaryViewValid(BinaryView* view, uint64_t addr)
 
 static void RunToHereCallback(BinaryView* view, uint64_t addr)
 {
-	DebuggerController* controller = DebuggerController::GetController(view);
+	auto controller = DebuggerController::GetController(view);
 	if (!controller)
 		return;
 	std::thread([=](){
@@ -890,7 +890,7 @@ static void RunToHereCallback(BinaryView* view, uint64_t addr)
 
 static bool ConnectedAndStopped(BinaryView* view, uint64_t addr)
 {
-	DebuggerController* controller = DebuggerController::GetController(view);
+	auto controller = DebuggerController::GetController(view);
 	if (!controller)
 		return false;
 	return controller->IsConnected() && (!controller->IsRunning());
@@ -899,7 +899,7 @@ static bool ConnectedAndStopped(BinaryView* view, uint64_t addr)
 
 static bool ConnectedAndRunning(BinaryView* view, uint64_t addr)
 {
-	DebuggerController* controller = DebuggerController::GetController(view);
+	auto controller = DebuggerController::GetController(view);
 	if (!controller)
 		return false;
 	return controller->IsConnected() && controller->IsRunning();
@@ -935,7 +935,7 @@ void GlobalDebuggerUI::InitializeUI()
 			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
 			"Launch, connect to or resume the target",
 			[](BinaryView* view, uint64_t addr){
-					DebuggerController* controller = DebuggerController::GetController(view);
+					auto controller = DebuggerController::GetController(view);
 					if (!controller)
 						return;
 					if (controller->IsConnected() && (!controller->IsRunning()))
@@ -960,7 +960,7 @@ void GlobalDebuggerUI::InitializeUI()
 			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
 			"Step into",
 			[](BinaryView* view, uint64_t){
-					DebuggerController* controller = DebuggerController::GetController(view);
+					auto controller = DebuggerController::GetController(view);
 					if (!controller)
 						return;
 					BNFunctionGraphType graphType = NormalFunctionGraph;
@@ -980,7 +980,7 @@ void GlobalDebuggerUI::InitializeUI()
 			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
 			"Step over",
 			[](BinaryView* view, uint64_t){
-					DebuggerController* controller = DebuggerController::GetController(view);
+					auto controller = DebuggerController::GetController(view);
 					if (!controller)
 						return;
 					BNFunctionGraphType graphType = NormalFunctionGraph;
@@ -1000,7 +1000,7 @@ void GlobalDebuggerUI::InitializeUI()
 			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
 			"Step return",
 			[](BinaryView* view, uint64_t){
-					DebuggerController* controller = DebuggerController::GetController(view);
+					auto controller = DebuggerController::GetController(view);
 					if (!controller)
 						return;
 					std::thread([=](){
@@ -1016,7 +1016,7 @@ void GlobalDebuggerUI::InitializeUI()
 			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
 			"Pause the target",
 			[](BinaryView* view, uint64_t){
-					DebuggerController* controller = DebuggerController::GetController(view);
+					auto controller = DebuggerController::GetController(view);
 					if (!controller)
 						return;
 					std::thread([=](){
@@ -1048,7 +1048,7 @@ DebuggerUI* DebuggerUI::CreateForViewFrame(ViewFrame* frame)
 	if (!data)
 		return nullptr;
 
-	Ref<DebuggerController> controller = DebuggerController::GetController(data);
+	auto controller = DebuggerController::GetController(data);
 	if (!controller)
 		return nullptr;
 

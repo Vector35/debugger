@@ -37,6 +37,12 @@ LldbAdapter::LldbAdapter(BinaryView *data): DebugAdapter(data)
 }
 
 
+LldbAdapter::~LldbAdapter()
+{
+
+}
+
+
 LldbAdapterType::LldbAdapterType(): DebugAdapterType("LLDB")
 {
 
@@ -101,7 +107,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 	thread.detach();
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
-		AddBreakpoint(ModuleNameAndOffset(path, m_data->GetEntryPoint() - m_data->GetStart()));
+		AddBreakpoint(ModuleNameAndOffset(path, m_entryPoint - m_start));
 
 	std::string launchCommand = "process launch";
 	if (Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint"))
@@ -139,7 +145,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	m_debugger.SetAsync(false);
 
 	// Hacky way to supply the path info into the LLDB
-	m_target = m_debugger.CreateTarget(m_data->GetFile()->GetOriginalFilename().c_str());
+	m_target = m_debugger.CreateTarget(m_originalFileName.c_str());
 	if (!m_target.IsValid())
 		return false;
 
@@ -159,7 +165,7 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 	m_debugger.SetAsync(false);
 
 	// Hacky way to supply the path info into the LLDB
-	m_target = m_debugger.CreateTarget(m_data->GetFile()->GetOriginalFilename().c_str());
+	m_target = m_debugger.CreateTarget(m_originalFileName.c_str());
 	if (!m_target.IsValid())
 		return false;
 
@@ -167,8 +173,7 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 	thread.detach();
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
-		AddBreakpoint(ModuleNameAndOffset(m_data->GetFile()->GetOriginalFilename(),
-										  m_data->GetEntryPoint() - m_data->GetStart()));
+		AddBreakpoint(ModuleNameAndOffset(m_originalFileName, m_entryPoint - m_start));
 
 	std::string url = fmt::format("connect://{}:{}", server, port);
 	SBError error;
@@ -328,7 +333,7 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigne
 
 DebugBreakpoint LldbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
 {
-	uint64_t addr = address.offset + m_data->GetStart();
+	uint64_t addr = address.offset + m_start;
 	std::string entryBreakpointCommand = fmt::format("b -s \"{}\" -a 0x{:x}", address.module, addr);
 	auto ret = InvokeBackendCommand(entryBreakpointCommand);
 

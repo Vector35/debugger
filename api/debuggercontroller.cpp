@@ -20,7 +20,7 @@ using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 using namespace std;
 
-DebuggerController* DebuggerController::GetController(Ref<BinaryNinja::BinaryView> data)
+DbgRef<DebuggerController> DebuggerController::GetController(Ref<BinaryNinja::BinaryView> data)
 {
 	BNDebuggerController* controller = BNGetDebuggerController(data->GetObject());
 	if (!controller)
@@ -33,6 +33,12 @@ DebuggerController* DebuggerController::GetController(Ref<BinaryNinja::BinaryVie
 DebuggerController::DebuggerController(BNDebuggerController* controller)
 {
 	m_object = controller;
+}
+
+
+bool DebuggerController::ControllerExists(Ref<BinaryNinja::BinaryView> data)
+{
+	return BNDebuggerControllerExists(data->GetObject());
 }
 
 
@@ -261,6 +267,12 @@ void DebuggerController::Restart()
 void DebuggerController::Quit()
 {
 	BNDebuggerQuit(m_object);
+}
+
+
+void DebuggerController::QuitAndWait()
+{
+	BNDebuggerQuitAndWait(m_object);
 }
 
 

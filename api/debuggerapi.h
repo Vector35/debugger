@@ -24,7 +24,7 @@ using namespace BinaryNinja;
 namespace BinaryNinjaDebuggerAPI
 {
 	template <class T>
-	class DebuggerObject
+	class DbgRefCountObject
 	{
 		void AddRefInternal()
 		{
@@ -40,12 +40,12 @@ namespace BinaryNinjaDebuggerAPI
 	public:
 		std::atomic<int> m_refs;
 		T* m_object;
-		DebuggerObject(): m_refs(0), m_object(nullptr) {}
-		virtual ~DebuggerObject() {}
+		DbgRefCountObject(): m_refs(0), m_object(nullptr) {}
+		virtual ~DbgRefCountObject() {}
 
 		T* GetObject() const { return m_object; }
 
-		static T* GetObject(DebuggerObject* obj)
+		static T* GetObject(DbgRefCountObject* obj)
 		{
 			if (!obj)
 				return nullptr;
@@ -66,6 +66,189 @@ namespace BinaryNinjaDebuggerAPI
 		{
 			AddRefInternal();
 		}
+	};
+
+
+	template <class T, T* (*AddObjectReference)(T*), void (*FreeObjectReference)(T*)>
+	class DbgCoreRefCountObject
+	{
+		void AddRefInternal() { m_refs.fetch_add(1); }
+
+		void ReleaseInternal()
+		{
+			if (m_refs.fetch_sub(1) == 1)
+			{
+				if (!m_registeredRef)
+					delete this;
+			}
+		}
+
+	public:
+		std::atomic<int> m_refs;
+		bool m_registeredRef = false;
+		T* m_object;
+		DbgCoreRefCountObject() : m_refs(0), m_object(nullptr) {}
+		virtual ~DbgCoreRefCountObject() {}
+
+		T* GetObject() const { return m_object; }
+
+		static T* GetObject(DbgCoreRefCountObject* obj)
+		{
+			if (!obj)
+				return nullptr;
+			return obj->GetObject();
+		}
+
+		void AddRef()
+		{
+			if (m_object && (m_refs != 0))
+				AddObjectReference(m_object);
+			AddRefInternal();
+		}
+
+		void Release()
+		{
+			if (m_object)
+				FreeObjectReference(m_object);
+			ReleaseInternal();
+		}
+
+		void AddRefForRegistration() { m_registeredRef = true; }
+
+		void ReleaseForRegistration()
+		{
+			m_object = nullptr;
+			m_registeredRef = false;
+			if (m_refs == 0)
+				delete this;
+		}
+	};
+
+
+	template <class T>
+	class DbgRef
+	{
+		T* m_obj;
+#ifdef BN_REF_COUNT_DEBUG
+		void* m_assignmentTrace = nullptr;
+#endif
+
+	public:
+		DbgRef<T>() : m_obj(NULL) {}
+
+		DbgRef<T>(T* obj) : m_obj(obj)
+		{
+			if (m_obj)
+			{
+				m_obj->AddRef();
+#ifdef BN_REF_COUNT_DEBUG
+				m_assignmentTrace = BNRegisterObjectRefDebugTrace(typeid(T).name());
+#endif
+			}
+		}
+
+		DbgRef<T>(const DbgRef<T>& obj) : m_obj(obj.m_obj)
+		{
+			if (m_obj)
+			{
+				m_obj->AddRef();
+#ifdef BN_REF_COUNT_DEBUG
+				m_assignmentTrace = BNRegisterObjectRefDebugTrace(typeid(T).name());
+#endif
+			}
+		}
+
+		DbgRef<T>(DbgRef<T>&& other) : m_obj(other.m_obj)
+		{
+			other.m_obj = 0;
+#ifdef BN_REF_COUNT_DEBUG
+			m_assignmentTrace = other.m_assignmentTrace;
+#endif
+		}
+
+		~DbgRef<T>()
+		{
+			if (m_obj)
+			{
+				m_obj->Release();
+#ifdef BN_REF_COUNT_DEBUG
+				BNUnregisterObjectRefDebugTrace(typeid(T).name(), m_assignmentTrace);
+#endif
+			}
+		}
+
+		DbgRef<T>& operator=(const Ref<T>& obj)
+		{
+#ifdef BN_REF_COUNT_DEBUG
+			if (m_obj)
+				BNUnregisterObjectRefDebugTrace(typeid(T).name(), m_assignmentTrace);
+			if (obj.m_obj)
+				m_assignmentTrace = BNRegisterObjectRefDebugTrace(typeid(T).name());
+#endif
+			T* oldObj = m_obj;
+			m_obj = obj.m_obj;
+			if (m_obj)
+				m_obj->AddRef();
+			if (oldObj)
+				oldObj->Release();
+			return *this;
+		}
+
+		DbgRef<T>& operator=(DbgRef<T>&& other)
+		{
+			if (m_obj)
+			{
+#ifdef BN_REF_COUNT_DEBUG
+				BNUnregisterObjectRefDebugTrace(typeid(T).name(), m_assignmentTrace);
+#endif
+				m_obj->Release();
+			}
+			m_obj = other.m_obj;
+			other.m_obj = 0;
+#ifdef BN_REF_COUNT_DEBUG
+			m_assignmentTrace = other.m_assignmentTrace;
+#endif
+			return *this;
+		}
+
+		DbgRef<T>& operator=(T* obj)
+		{
+#ifdef BN_REF_COUNT_DEBUG
+			if (m_obj)
+				BNUnregisterObjectRefDebugTrace(typeid(T).name(), m_assignmentTrace);
+			if (obj)
+				m_assignmentTrace = BNRegisterObjectRefDebugTrace(typeid(T).name());
+#endif
+			T* oldObj = m_obj;
+			m_obj = obj;
+			if (m_obj)
+				m_obj->AddRef();
+			if (oldObj)
+				oldObj->Release();
+			return *this;
+		}
+
+		operator T*() const { return m_obj; }
+
+		T* operator->() const { return m_obj; }
+
+		T& operator*() const { return *m_obj; }
+
+		bool operator!() const { return m_obj == NULL; }
+
+		bool operator==(const T* obj) const { return T::GetObject(m_obj) == T::GetObject(obj); }
+
+		bool operator==(const DbgRef<T>& obj) const { return T::GetObject(m_obj) == T::GetObject(obj.m_obj); }
+
+		bool operator!=(const T* obj) const { return T::GetObject(m_obj) != T::GetObject(obj); }
+
+		bool operator!=(const DbgRef<T>& obj) const { return T::GetObject(m_obj) != T::GetObject(obj.m_obj); }
+
+		bool operator<(const T* obj) const { return T::GetObject(m_obj) < T::GetObject(obj); }
+
+		bool operator<(const DbgRef<T>& obj) const { return T::GetObject(m_obj) < T::GetObject(obj.m_obj); }
+
+		T* GetPtr() const { return m_obj; }
 	};
 
 
@@ -225,7 +408,7 @@ namespace BinaryNinjaDebuggerAPI
 	typedef BNDebugAdapterConnectionStatus DebugAdapterConnectionStatus;
 	typedef BNDebugAdapterTargetStatus DebugAdapterTargetStatus;
 
-	class DebuggerController: public DebuggerObject<BNDebuggerController>
+	class DebuggerController: public DbgCoreRefCountObject<BNDebuggerController, BNDebuggerNewControllerReference, BNDebuggerFreeController>
 	{
 		struct DebuggerEventCallbackObject
 		{
@@ -234,7 +417,8 @@ namespace BinaryNinjaDebuggerAPI
 
 	public:
 		DebuggerController(BNDebuggerController* controller);
-		static DebuggerController* GetController(Ref<BinaryNinja::BinaryView> data);
+		static DbgRef<DebuggerController> GetController(Ref<BinaryNinja::BinaryView> data);
+		static bool ControllerExists(Ref<BinaryNinja::BinaryView> data);
 		void Destroy();
 		Ref<BinaryView> GetLiveView();
 		Ref<BinaryView> GetData();
@@ -264,6 +448,7 @@ namespace BinaryNinjaDebuggerAPI
 		bool Execute();
 		void Restart();
 		void Quit();
+		void QuitAndWait();
 		void Connect();
         bool ConnectToDebugServer();
         bool DisconnectDebugServer();
@@ -343,7 +528,7 @@ namespace BinaryNinjaDebuggerAPI
 	};
 
 
-	class DebugAdapterType: public DebuggerObject<BNDebugAdapterType>
+	class DebugAdapterType: public DbgRefCountObject<BNDebugAdapterType>
 	{
 	public:
 		DebugAdapterType(BNDebugAdapterType* adapterType);

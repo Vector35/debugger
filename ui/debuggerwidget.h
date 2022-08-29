@@ -43,8 +43,7 @@ class DebuggerWidget: public SidebarWidget
     Q_OBJECT;
 
     ViewFrame* m_view;
-    BinaryViewRef m_data;
-    DebuggerController* m_controller;
+    DbgRef<DebuggerController> m_controller;
 
     UIActionHandler* M_actionHandler;
     QSplitter *m_splitter;

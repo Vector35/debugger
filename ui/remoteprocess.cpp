@@ -20,13 +20,12 @@ using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
-RemoteProcessSettingsDialog::RemoteProcessSettingsDialog(QWidget* parent, DebuggerController* controller): QDialog()
+RemoteProcessSettingsDialog::RemoteProcessSettingsDialog(QWidget* parent, DebuggerControllerRef controller):
+	QDialog(), m_controller(controller)
 {
     setWindowTitle("Remote Process Settings");
     setMinimumSize(UIContext::getScaledWindowSize(400, 130));
     setAttribute(Qt::WA_DeleteOnClose);
-
-    m_controller = controller;
 
     setModal(true);
     QVBoxLayout* layout = new QVBoxLayout;

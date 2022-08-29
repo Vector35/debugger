@@ -35,7 +35,7 @@ class AdapterSettingsDialog: public QDialog
     Q_OBJECT
 
 private:
-    DebuggerController* m_controller;
+    DbgRef<DebuggerController> m_controller;
     QComboBox* m_adapterEntry;
     QLineEdit* m_pathEntry;
 	QLineEdit* m_workingDirectoryEntry;
@@ -43,7 +43,7 @@ private:
 	QCheckBox* m_terminalEmulator;
 
 public:
-    AdapterSettingsDialog(QWidget* parent, DebuggerController* controller);
+    AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller);
 
 private Q_SLOTS:
     void apply();

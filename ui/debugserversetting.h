@@ -27,19 +27,20 @@ limitations under the License.
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "debuggerapi.h"
+#include "uitypes.h"
 
 class DebugServerSettingsDialog: public QDialog
 {
     Q_OBJECT
 
 private:
-    BinaryNinjaDebuggerAPI::DebuggerController* m_controller;
+	DebuggerControllerRef m_controller;
     QComboBox* m_platformEntry;
     QLineEdit* m_addressEntry;
     QLineEdit* m_portEntry;
 
 public:
-    DebugServerSettingsDialog(QWidget* parent, BinaryNinjaDebuggerAPI::DebuggerController* controller);
+    DebugServerSettingsDialog(QWidget* parent, DebuggerControllerRef controller);
 
 private Q_SLOTS:
     void apply();

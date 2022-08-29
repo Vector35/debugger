@@ -20,13 +20,12 @@ using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
-DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerController* controller): QDialog()
+DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerControllerRef controller):
+	QDialog(), m_controller(controller)
 {
     setWindowTitle("Debug Server Settings");
     setMinimumSize(UIContext::getScaledWindowSize(400, 130));
     setAttribute(Qt::WA_DeleteOnClose);
-
-    m_controller = controller;
 
     setModal(true);
     QVBoxLayout* layout = new QVBoxLayout;

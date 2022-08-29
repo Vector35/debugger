@@ -219,7 +219,7 @@ bool DbgEngAdapter::Start()
     {
         auto pipeName = GenerateRandomPipeName();
         auto connectString = fmt::format("npipe:pipe={},Server=localhost", pipeName);
-        auto arch = m_data->GetDefaultArchitecture()->GetName() == "x86_64" ? "x64" : "x86";
+        auto arch = m_defaultArchitecture == "x86_64" ? "x64" : "x86";
         auto dbgsrvCommandLine = fmt::format("\"{}\\dbgsrv.exe\" -t {}", GetDbgEngPath(arch), connectString);
         if (!LaunchDbgSrv(dbgsrvCommandLine)) {
             LogWarn("Command %s failed", dbgsrvCommandLine.c_str());
@@ -378,7 +378,7 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 
     auto settings = Settings::Instance();
     if (settings->Get<bool>("debugger.stopAtEntryPoint")) {
-        AddBreakpoint(ModuleNameAndOffset(path, m_data->GetEntryPoint() - m_data->GetStart()));
+        AddBreakpoint(ModuleNameAndOffset(path, m_entryPoint - m_start));
         if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
         {
             if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK)

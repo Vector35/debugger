@@ -52,8 +52,8 @@ bool ThreadItem::operator<(const ThreadItem& other) const
 }
 
 
-DebugThreadsListModel::DebugThreadsListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view):
-    QAbstractTableModel(parent), m_data(data), m_view(view)
+DebugThreadsListModel::DebugThreadsListModel(QWidget* parent, ViewFrame* view):
+    QAbstractTableModel(parent), m_view(view)
 {
 }
 
@@ -257,7 +257,7 @@ DebugThreadsWidget::DebugThreadsWidget(const QString& name, ViewFrame* view, Bin
     m_controller = DebuggerController::GetController(data);
 
     m_table = new QTableView(this);
-    m_model = new DebugThreadsListModel(m_table, data, view);
+    m_model = new DebugThreadsListModel(m_table, view);
     m_table->setModel(m_model);
 
     m_delegate = new DebugThreadsItemDelegate(this);

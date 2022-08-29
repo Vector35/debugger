@@ -27,9 +27,9 @@ using namespace std;
 
 
 DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
-    SidebarWidget(name), m_view(view), m_data(data)
+    SidebarWidget(name), m_view(view)
 {
-    m_controller = DebuggerController::GetController(m_data);
+    m_controller = DebuggerController::GetController(data);
 
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -40,7 +40,7 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
     m_splitter->setChildrenCollapsible(true);
 
     m_controlsWidget = new DebugControlsWidget(this, "Controls", data);
-    m_registersWidget = new DebugRegistersContainer(m_view, m_data, m_menu);
+    m_registersWidget = new DebugRegistersContainer(m_view, data, m_menu);
 
     m_splitter->addWidget(m_controlsWidget);
     m_splitter->addWidget(m_registersWidget);

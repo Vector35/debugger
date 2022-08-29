@@ -59,7 +59,6 @@ class DebugBreakpointsListModel: public QAbstractTableModel
 
 protected:
     QWidget* m_owner;
-    BinaryViewRef m_data;
     ViewFrame* m_view;
     std::vector<BreakpointItem> m_items;
 
@@ -71,7 +70,7 @@ public:
         AddressColumn,
     };
 
-    DebugBreakpointsListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view);
+    DebugBreakpointsListModel(QWidget* parent, ViewFrame* view);
     virtual ~DebugBreakpointsListModel();
 
     virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
@@ -105,7 +104,7 @@ class DebugBreakpointsWidget : public QWidget
     Q_OBJECT
 
     ViewFrame* m_view;
-    DebuggerController* m_controller;
+    DbgRef<DebuggerController> m_controller;
 
     UIActionHandler* M_actionHandler;
     QTableView* m_table;
@@ -149,8 +148,6 @@ class BreakpointSideBarWidget: public SidebarWidget
 Q_OBJECT;
 
 	ViewFrame* m_view;
-	BinaryViewRef m_data;
-	DebuggerController* m_controller;
 
 	UIActionHandler* M_actionHandler;
 	DebugBreakpointsWidget* m_breakpointsWidget;

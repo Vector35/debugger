@@ -281,12 +281,16 @@ extern "C"
 
 	DEBUGGER_FFI_API BNDebuggerController* BNGetDebuggerController(BNBinaryView* data);
 	DEBUGGER_FFI_API void BNDebuggerDestroyController(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerControllerExists(BNBinaryView* data);
 	DEBUGGER_FFI_API BNBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNArchitecture* BNDebuggerGetRemoteArchitecture(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerIsConnected(BNDebuggerController* controller);
     DEBUGGER_FFI_API bool BNDebuggerIsConnectedToDebugServer(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerIsRunning(BNDebuggerController* controller);
+
+	DEBUGGER_FFI_API BNDebuggerController* BNDebuggerNewControllerReference(BNDebuggerController* controller);
+	DEBUGGER_FFI_API void BNDebuggerFreeController(BNDebuggerController* view);
 
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetStackPointer(BNDebuggerController* controller);
 
@@ -316,6 +320,7 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerExecute(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerRestart(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerQuit(BNDebuggerController* controller);
+	DEBUGGER_FFI_API void BNDebuggerQuitAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerConnect(BNDebuggerController* controller);
     DEBUGGER_FFI_API bool BNDebuggerConnectToDebugServer(BNDebuggerController* controller);
     DEBUGGER_FFI_API bool BNDebuggerDisconnectDebugServer(BNDebuggerController* controller);

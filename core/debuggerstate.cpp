@@ -134,7 +134,7 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters()
     });
 
 	// TODO: maybe we should not hold a m_state at all; instead we just hold a m_controller
-	DebuggerController* controller = m_state->GetController();
+	auto controller = m_state->GetController();
     if (!controller->GetState()->IsConnected())
         return result;
 
@@ -731,6 +731,17 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
         m_requestTerminalEmulator = false;
 
     SetConnectionStatus(DebugAdapterNotConnectedStatus);
+}
+
+
+DebuggerState::~DebuggerState()
+{
+	delete m_adapter;
+	delete m_modules;
+	delete m_registers;
+	delete m_threads;
+	delete m_breakpoints;
+	delete m_memory;
 }
 
 

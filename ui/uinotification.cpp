@@ -23,6 +23,7 @@ limitations under the License.
 #include <QPushButton>
 #include <QObject>
 #include "ui.h"
+#include <thread>
 
 using namespace BinaryNinja;
 
@@ -81,6 +82,34 @@ void NotificationListener::OnAfterSaveFile(UIContext* context, FileContext* file
 }
 
 
+static void DestroyControllers(FileContext* file)
+{
+	for (auto view: file->getAllDataViews())
+	{
+		if (DebuggerController::ControllerExists(view))
+		{
+			auto controller = DebuggerController::GetController(view);
+			if (controller)
+				controller->Destroy();
+		}
+	}
+}
+
+
+static void DestroyControllers(const std::vector<BinaryViewRef>& datas)
+{
+	for (auto view: datas)
+	{
+		if (DebuggerController::ControllerExists(view))
+		{
+			auto controller = DebuggerController::GetController(view);
+			if (controller)
+				controller->Destroy();
+		}
+	}
+}
+
+
 bool NotificationListener::OnBeforeCloseFile(UIContext* context, FileContext* file, ViewFrame* frame)
 {
 	auto currentTab = context->getCurrentTab();
@@ -127,10 +156,20 @@ bool NotificationListener::OnBeforeCloseFile(UIContext* context, FileContext* fi
 				return false;
 			else if (result == QMessageBox::Yes)
 			{
-				controller->Quit();
+				// Since the UIContext is not ref-counted, it would have been deleted when the thread we create below
+				// gets a chance to run. So we need to take all its data views and pass them as a parameter.
+				auto datas = file->getAllDataViews();
+				std::thread([=](){
+					// Since we cannot wait for the target to stop on the main thread, we must create a new thread and
+					// wait from there.
+					controller->QuitAndWait();
+					DestroyControllers(datas);
+				}).detach();
 				return true;
 			}
 		}
+
+		DestroyControllers(file);
 	}
 	return true;
 }

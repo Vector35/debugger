@@ -175,10 +175,15 @@ namespace BinaryNinjaDebugger
 		// Other components should register their callbacks to the controller, who is responsible for notify them.
 		std::function<void(const DebuggerEvent &event)> m_eventCallback;
 
-	public:
-		Ref<BinaryView> m_data;
+	protected:
+		uint64_t m_entryPoint;
+		uint64_t m_start;
+		std::string m_defaultArchitecture;
+		std::string m_originalFileName;
 
+	public:
 		DebugAdapter(BinaryView* data);
+		virtual ~DebugAdapter() {}
 
 		virtual void SetEventCallback(std::function<void(const DebuggerEvent &event)> function) {
 			m_eventCallback = function;

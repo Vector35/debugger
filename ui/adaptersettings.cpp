@@ -22,13 +22,12 @@ using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
-AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DebuggerController* controller): QDialog()
+AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller):
+	QDialog(), m_controller(controller)
 {
     setWindowTitle("Debug Adapter Settings");
     setMinimumSize(UIContext::getScaledWindowSize(400, 130));
     setAttribute(Qt::WA_DeleteOnClose);
-
-    m_controller = controller;
 
 	setModal(true);
     QVBoxLayout* layout = new QVBoxLayout;

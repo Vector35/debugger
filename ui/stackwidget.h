@@ -75,7 +75,7 @@ class DebugStackListModel: public QAbstractTableModel
 
 protected:
     QWidget* m_owner;
-    DebuggerController* m_controller;
+    DbgRef<DebuggerController> m_controller;
     ViewFrame* m_view;
     std::vector<DebugStackItem> m_items;
 
@@ -126,7 +126,7 @@ class DebugStackWidget: public QWidget
     Q_OBJECT;
 
     ViewFrame* m_view;
-    DebuggerController* m_controller;
+    DbgRef<DebuggerController> m_controller;
 
     UIActionHandler* M_actionHandler;
     QTableView* m_table;

@@ -23,6 +23,7 @@ limitations under the License.
 #include "debuggercommon.h"
 #include "semaphore.h"
 #include "ffi_global.h"
+#include "refcountobject.h"
 
 DECLARE_DEBUGGER_API_OBJECT(BNDebuggerState, DebuggerState);
 
@@ -167,6 +168,7 @@ namespace BinaryNinjaDebugger
 
 	public:
 		DebuggerState(Ref<BinaryView> data, DebuggerController* controller);
+		~DebuggerState();
 
 		DebugAdapter* GetAdapter() const { return m_adapter; }
 		DebuggerController* GetController() const { return m_controller; }

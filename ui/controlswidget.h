@@ -49,7 +49,7 @@ class DebugControlsWidget: public QToolBar
 
 private:
     std::string m_name;
-    DebuggerController* m_controller;
+    DbgRef<DebuggerController> m_controller;
 
 	QAction* m_actionRun;
 	QAction* m_actionAttachPid;

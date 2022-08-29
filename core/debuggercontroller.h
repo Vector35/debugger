@@ -21,6 +21,7 @@ limitations under the License.
 #include <queue>
 #include <list>
 #include "ffi_global.h"
+#include "refcountobject.h"
 
 DECLARE_DEBUGGER_API_OBJECT(BNDebuggerController, DebuggerController);
 
@@ -60,7 +61,7 @@ namespace BinaryNinjaDebugger
 
 	// This is the controller class of the debugger. It receives the input from the UI/API, and then route them to
 	// the state and UI, etc. Most actions should reach here.
-	class DebuggerController
+	class DebuggerController: public DbgRefCountObject
 	{
 		IMPLEMENT_DEBUGGER_API_OBJECT(BNDebuggerController);
 
@@ -70,7 +71,7 @@ namespace BinaryNinjaDebugger
 		BinaryViewRef m_data;
 		BinaryViewRef m_liveView;
 
-		inline static std::vector<DebuggerController *> g_debuggerControllers;
+		inline static std::vector<DbgRef<DebuggerController>> g_debuggerControllers;
 
 		std::atomic<size_t> m_callbackIndex = 0;
 		std::list<DebuggerEventCallback> m_eventCallbacks;
@@ -126,12 +127,14 @@ namespace BinaryNinjaDebugger
 
 	public:
 		DebuggerController(BinaryViewRef data);
-		static DebuggerController *GetController(BinaryViewRef data);
+		static DbgRef<DebuggerController> GetController(BinaryViewRef data);
 		static void DeleteController(BinaryViewRef data);
+		static bool ControllerExists(BinaryViewRef data);
 		// Explicitly destroy the current controller, so a new controller on the same binaryview will be brand new.
 		// I am not super sure that this is the correct way of doing things, but it addresses the controller reuse
 		// problem.
 		void Destroy();
+		~DebuggerController();
 
 		// breakpoints
 		void AddBreakpoint(uint64_t address);
@@ -190,6 +193,7 @@ namespace BinaryNinjaDebugger
 		bool Execute();
 		void Restart();
 		void Quit();
+		void QuitAndWait();
 		void Connect();
         bool ConnectToDebugServer();
         bool DisconnectDebugServer();

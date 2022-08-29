@@ -71,7 +71,7 @@ bool DebugRegisterItem::operator<(const DebugRegisterItem& other) const
 }
 
 
-DebugRegistersListModel::DebugRegistersListModel(QWidget* parent, DebuggerController* controller, ViewFrame* view):
+DebugRegistersListModel::DebugRegistersListModel(QWidget* parent, DebuggerControllerRef controller, ViewFrame* view):
     QAbstractTableModel(parent), m_controller(controller), m_view(view)
 {   
 }

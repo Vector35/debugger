@@ -18,6 +18,7 @@ limitations under the License.
 
 #include "binaryninjaapi.h"
 #include "debuggerevent.h"
+#include "refcountobject.h"
 
 using namespace BinaryNinja;
 
@@ -33,7 +34,7 @@ namespace BinaryNinjaDebugger
 		Ref<Architecture> m_arch;
 		Ref<Platform> m_platform;
 
-		DebuggerController* m_controller = nullptr;
+		DbgRef<DebuggerController> m_controller;
 		size_t m_eventCallback;
 
 		virtual uint64_t PerformGetEntryPoint() const override;

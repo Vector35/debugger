@@ -34,6 +34,17 @@ DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
 }
 
 
+DebuggerController::~DebuggerController()
+{
+	// This is not necessary since m_state should have been deleted by DebuggerController::Destroy()
+	if (m_state)
+	{
+		delete m_state;
+		m_state = nullptr;
+	}
+}
+
+
 void DebuggerController::AddBreakpoint(uint64_t address)
 {
     m_state->AddBreakpoint(address);
@@ -814,6 +825,13 @@ void DebuggerController::Quit()
 }
 
 
+void DebuggerController::QuitAndWait()
+{
+	Quit();
+	WaitForTargetStop();
+}
+
+
 void DebuggerController::PauseInternal()
 {
 	if (m_state->IsRunning())
@@ -859,7 +877,7 @@ void DebuggerController::LaunchOrConnect()
 }
 
 
-DebuggerController* DebuggerController::GetController(BinaryViewRef data)
+DbgRef<DebuggerController> DebuggerController::GetController(BinaryViewRef data)
 {
     for (auto& controller: g_debuggerControllers)
     {
@@ -877,7 +895,10 @@ DebuggerController* DebuggerController::GetController(BinaryViewRef data)
 //            return controller;
     }
 
-    DebuggerController* controller = new DebuggerController(data);
+	if (data->GetTypeName() == "Debugger")
+		return nullptr;
+
+    auto controller = new DebuggerController(data);
     g_debuggerControllers.push_back(controller);
     return controller;
 }
@@ -887,7 +908,7 @@ void DebuggerController::DeleteController(BinaryViewRef data)
 {
     for (auto it = g_debuggerControllers.begin(); it != g_debuggerControllers.end(); )
     {
-        if ((*it)->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
+        if (((*it)->GetData() == data) || (((*it)->GetLiveView() == data)))
         {
             it = g_debuggerControllers.erase(it);
         }
@@ -899,13 +920,25 @@ void DebuggerController::DeleteController(BinaryViewRef data)
 }
 
 
+bool DebuggerController::ControllerExists(BinaryViewRef data)
+{
+    for (auto& controller: g_debuggerControllers)
+    {
+		if (controller->GetData() == data)
+			return true;
+		if (controller->GetLiveView() == data)
+			return true;
+    }
+
+	return false;
+}
+
+
 void DebuggerController::Destroy()
 {
 	DebuggerController::DeleteController(m_data);
-	// Uncommenting this line of code disrupts ref counting and causes crashes. This is not the correct way to
-	// free up a DebuggerController anyways.
-	// TODO: we need to do ref-counting on the debugger objects later.
-//	delete this;
+	m_data = nullptr;
+	m_liveView = nullptr;
 }
 
 

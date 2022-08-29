@@ -31,6 +31,7 @@ limitations under the License.
 #include "debuggerapi.h"
 #include "menus.h"
 #include "filter.h"
+#include "uitypes.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 
@@ -80,7 +81,7 @@ class DebugRegistersListModel: public QAbstractTableModel
 
 protected:
     QWidget* m_owner;
-    DebuggerController* m_controller;
+    DbgRef<DebuggerController> m_controller;
     ViewFrame* m_view;
     std::vector<DebugRegisterItem> m_items;
 
@@ -92,7 +93,7 @@ public:
         HintColumn,
     };
 
-    DebugRegistersListModel(QWidget* parent, DebuggerController* m_controller, ViewFrame* view);
+    DebugRegistersListModel(QWidget* parent, DebuggerControllerRef m_controller, ViewFrame* view);
     virtual ~DebugRegistersListModel();
 
     virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
@@ -152,7 +153,7 @@ class DebugRegistersWidget: public QWidget, public FilterTarget
     Q_OBJECT;
 
     ViewFrame* m_view;
-    DebuggerController* m_controller;
+    DbgRef<DebuggerController> m_controller;
 
     UIActionHandler* M_actionHandler;
     QTableView* m_table;

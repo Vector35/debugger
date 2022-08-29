@@ -62,7 +62,6 @@ class DebugModulesListModel: public QAbstractTableModel
 
 protected:
     QWidget* m_owner;
-    BinaryViewRef m_data;
     ViewFrame* m_view;
     std::vector<ModuleItem> m_items;
 
@@ -75,7 +74,7 @@ public:
         PathColumn,
     };
 
-    DebugModulesListModel(QWidget* parent, BinaryViewRef data, ViewFrame* view);
+    DebugModulesListModel(QWidget* parent, ViewFrame* view);
     virtual ~DebugModulesListModel();
 
     virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
@@ -110,7 +109,7 @@ class DebugModulesWidget: public QWidget
     Q_OBJECT
 
     ViewFrame* m_view;
-    DebuggerController* m_controller;
+    DbgRef<DebuggerController> m_controller;
 
     UIActionHandler* M_actionHandler;
     QTableView* m_table;
