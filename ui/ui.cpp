@@ -912,7 +912,7 @@ void GlobalDebuggerUI::InitializeUI()
         new DebuggerWidgetType(QImage(":/icons/images/debugger/debugger.svg"), "Debugger"));
 
 	Sidebar::addSidebarWidgetType(
-            new BreakpointWidgetType(QImage(":/icons/images/debugger/debugger.svg"), "Breakpoint"));
+            new BreakpointWidgetType(QImage(":/icons/images/debugger/breakpoint.svg"), "Breakpoint"));
 
 	// We must use the sequence of these four calls to do the job, otherwise the keybinding does not work.
 	// Though it really should be the case where I can specify the keybinding in the first registerAction() call.
