@@ -37,6 +37,8 @@ limitations under the License.
 #include <QMessageBox>
 #include "debugserversetting.h"
 #include "remoteprocess.h"
+#include "debugadapterscriptingprovider.h"
+#include "targetscriptingprovier.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -56,17 +58,26 @@ GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 
 	SetupMenu(context);
 
-	auto* globalDebuggerConsoleContainer = new GlobalConsoleContainer("Target I/O");
-	context->globalArea()->addWidget(globalDebuggerConsoleContainer);
+	auto globalArea = context->globalArea();
+	if (!globalArea)
+		return;
 
-	auto* globalAdapterConsoleContainer = new GlobalAdapterConsoleContainer("Debugger Console");
-	context->globalArea()->addWidget(globalAdapterConsoleContainer);
+	// Hacky way to create the Debugger Console. Note, since MainWindow internally keeps a list of scripting consoles,
+	// even if we construct a ScriptingConsole instance in the very same way, the instance will not be tracked by the
+	// MainWindow. The end result is the ScriptInstance will not be receiving callbacks like SetCurrentBinaryView, etc.
+	// However, since MainWindow registers these operations in the command palette, we can trigger the action here to
+	// emulate what happens when the user clicks the "Create Debugger Console" item.
+	if (m_context->getCurrentActionHandler())
+	{
+		m_context->getCurrentActionHandler()->executeAction("Create Debugger Console");
+		m_context->getCurrentActionHandler()->executeAction("Create Target Console");
+	}
 
 	auto* globalThreadFramesContainer = new GlobalThreadFramesContainer("Stack Trace");
-	context->globalArea()->addWidget(globalThreadFramesContainer);
+	globalArea->addWidget(globalThreadFramesContainer);
 
 	auto* globalDebugModulesContainer = new GlobalDebugModulesContainer("Debugger Modules");
-	context->globalArea()->addWidget(globalDebugModulesContainer);
+	globalArea->addWidget(globalDebugModulesContainer);
 }
 
 
@@ -1137,6 +1148,8 @@ extern "C"
 		GlobalDebuggerUI::InitializeUI();
 		NotificationListener::init();
 		DataRendererContainer::RegisterTypeSpecificDataRenderer(new CodeDataRenderer);
+		RegisterDebugAdapterScriptingProvider();
+		RegisterTargetScriptingProvider();
 		return true;
 	}
 }
