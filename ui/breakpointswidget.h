@@ -128,7 +128,7 @@ class DebugBreakpointsWidget : public QWidget
     virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
 public:
-    DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data, Menu* menu);
+    DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu);
     ~DebugBreakpointsWidget();
 
     void uiEventHandler(const DebuggerEvent& event);
@@ -167,13 +167,13 @@ public:
 };
 
 
-class BreakpointWidgetType : public SidebarWidgetType {
-public:
-	BreakpointWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
-
-	bool isInReferenceArea() const override { return false; }
-
-	SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
-		return new BreakpointSideBarWidget("Breakpoint", frame, data);
-	}
-};
+//class BreakpointWidgetType : public SidebarWidgetType {
+//public:
+//	BreakpointWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
+//
+//	bool isInReferenceArea() const override { return false; }
+//
+//	SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
+//		return new BreakpointSideBarWidget("Breakpoint", frame, data);
+//	}
+//};

@@ -21,6 +21,7 @@ limitations under the License.
 #include <QModelIndex>
 #include <QTableView>
 #include <QStyledItemDelegate>
+#include <QTabWidget>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "viewframe.h"
@@ -47,9 +48,11 @@ class DebuggerWidget: public SidebarWidget
 
     UIActionHandler* M_actionHandler;
     QSplitter *m_splitter;
+	QTabWidget* m_tabs;
 
     DebugControlsWidget* m_controlsWidget;
 	DebugRegistersContainer* m_registersWidget;
+	DebugBreakpointsWidget* m_breakpointsWidget;
 
 	DebuggerUI* m_ui;
 

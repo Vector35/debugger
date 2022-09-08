@@ -40,10 +40,17 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
     m_splitter->setChildrenCollapsible(true);
 
     m_controlsWidget = new DebugControlsWidget(this, "Controls", data);
+
+	m_tabs = new QTabWidget(this);
+
     m_registersWidget = new DebugRegistersContainer(m_view, data, m_menu);
+	m_breakpointsWidget = new DebugBreakpointsWidget(m_view, data, m_menu);
+
+	m_tabs->addTab(m_registersWidget, "Registers");
+	m_tabs->addTab(m_breakpointsWidget, "Breakpoints");
 
     m_splitter->addWidget(m_controlsWidget);
-    m_splitter->addWidget(m_registersWidget);
+    m_splitter->addWidget(m_tabs);
 
     layout->addWidget(m_splitter);
     setLayout(layout);
@@ -82,6 +89,12 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
     case BackEndDisconnectedEventType:
 	case ActiveThreadChangedEvent:
 		updateContent();
+		break;
+    case RelativeBreakpointAddedEvent:
+    case AbsoluteBreakpointAddedEvent:
+    case RelativeBreakpointRemovedEvent:
+    case AbsoluteBreakpointRemovedEvent:
+		m_breakpointsWidget->updateContent();
 		break;
     default:
         break;

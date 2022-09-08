@@ -220,7 +220,7 @@ void DebugBreakpointsItemDelegate::updateFonts()
 }
 
 
-DebugBreakpointsWidget::DebugBreakpointsWidget(const QString& name, ViewFrame* view, BinaryViewRef data, Menu* menu):
+DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu):
     m_view(view)
 {
     m_controller = DebuggerController::GetController(data);
@@ -353,7 +353,7 @@ BreakpointSideBarWidget::BreakpointSideBarWidget(const QString& name, ViewFrame*
     layout->setSpacing(0);
     layout->setAlignment(Qt::AlignTop);
 
-    m_breakpointsWidget = new DebugBreakpointsWidget("Debugger Breakpoints", m_view, data, m_menu);
+    m_breakpointsWidget = new DebugBreakpointsWidget(m_view, data, m_menu);
 
     layout->addWidget(m_breakpointsWidget);
     setLayout(layout);
