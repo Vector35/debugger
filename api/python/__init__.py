@@ -26,7 +26,7 @@ if os.environ.get('BN_STANDALONE_DEBUGGER'):
         from .debugadaptertype import *
         from .debugger_enums import *
 else:
-    if os.environ.get('BN_EXPERIMENTAL_DEBUGGER') or Settings().get_bool('corePlugins.debugger'):
+    if Settings().get_bool('corePlugins.debugger'):
         from .debuggercontroller import *
         from .debugadaptertype import *
         from .debugger_enums import *

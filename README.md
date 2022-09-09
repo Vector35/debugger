@@ -2,9 +2,6 @@
 
 This is the repository for Binary Ninja Debugger. The debugger is written in C++ and is shipped with BN as a plugin.
 
-The debugger is currently in beta status, so it is disabled by default. To enable it, check "Settings" -> "corePlugins" -> "Debugger Plugin (Beta)".
-
-
 ## Platform and Target Support
 
 This is the current comparability matrix of the debugger. The horizontal line stands for where we run BN, and lines mean targets.
@@ -59,7 +56,7 @@ make
 
 The build artifacts will be in the folder `out`.
 
-Note, the above instruction requries LLDB, whose build instruction is not included here. We will update this later.
+Note, the above instruction requires LLDB, whose build instruction is not included here. We will update this later.
 
 To install it, first disable `corePlugins.debugger` so the debugger that comes with Binary Ninja is not loaded. Then copy everything in the `out` folder to the user plugin folder and relaunch BinaryNinja.
 
