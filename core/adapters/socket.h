@@ -40,7 +40,7 @@ namespace BinaryNinjaDebugger
 	#endif
 
 		socket_type m_socket{};
-		std::int32_t m_addressFamily{}, m_type{}, m_protocol{};
+		[[maybe_unused]] std::int32_t m_addressFamily{}, m_type{}, m_protocol{};
 		std::uint32_t m_port{};
 
 	public:

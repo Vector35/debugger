@@ -48,8 +48,6 @@ DebuggerConsole::DebuggerConsole(QWidget* parent, ViewFrame* frame, BinaryViewRe
 
 	// Set up colors
 	QPalette widgetPalette = this->palette();
-	QColor foreground = widgetPalette.color(QWidget::foregroundRole());
-	QColor background = widgetPalette.color(QWidget::backgroundRole());
 
 	m_debuggerEventCallback = m_debugger->RegisterEventCallback([&](const DebuggerEvent& event){
 		if (event.type == StdoutMessageEventType)

@@ -123,7 +123,7 @@ void BNDebuggerDestroyController(BNDebuggerController* controller)
 bool BNDebuggerControllerExists(BNBinaryView* data)
 {
 	if (!data)
-		false;
+		return false;
 
 	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
 	return DebuggerController::ControllerExists(view);

@@ -25,7 +25,7 @@ using namespace std;
 
 DebugStackItem::DebugStackItem(ptrdiff_t offset, uint64_t address, uint64_t value, std::string hint,
     DebugStackValueStatus valueStatus):
-    m_offset(offset), m_address(address), m_value(value), m_valueStatus(valueStatus), m_hint(std::move(hint))
+    m_offset(offset), m_address(address), m_value(value), m_hint(std::move(hint)), m_valueStatus(valueStatus)
 {
 }
 

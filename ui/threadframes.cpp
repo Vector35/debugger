@@ -42,8 +42,6 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 
 	// Set up colors
 	QPalette widgetPalette = this->palette();
-	QColor foreground = widgetPalette.color(QWidget::foregroundRole());
-	QColor background = widgetPalette.color(QWidget::backgroundRole());
 
 	connect(m_threadList, &QComboBox::activated, [&](int index){
 		uint32_t tid = m_threadList->currentData().toInt();

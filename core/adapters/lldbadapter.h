@@ -16,10 +16,14 @@ limitations under the License.
 
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
+#ifdef WIN32
 #pragma warning(push)
 #pragma warning(disable: 4251)
 #include "lldb/API/LLDB.h"
 #pragma warning(pop)
+#else
+#include "lldb/API/LLDB.h"
+#endif
 
 namespace BinaryNinjaDebugger {
 	class LldbAdapter: public DebugAdapter

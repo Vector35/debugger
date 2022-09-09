@@ -1027,7 +1027,7 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
     callbackLock.unlock();
 
 	ExecuteOnMainThreadAndWait([&](){
-		for (const DebuggerEventCallback cb: eventCallbacks)
+		for (const DebuggerEventCallback& cb: eventCallbacks)
 		{
 			if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
 				continue;
@@ -1041,7 +1041,7 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 		{
 			DebuggerEvent stopEvent = event;
 			stopEvent.type = TargetStoppedEventType;
-			for (const DebuggerEventCallback cb: eventCallbacks)
+			for (const DebuggerEventCallback& cb: eventCallbacks)
 			{
 				if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
 					continue;
@@ -1299,7 +1299,6 @@ void DebuggerController::UpdateStackVariables()
 	std::string archName = m_liveView->GetDefaultArchitecture()->GetName();
 	if ((archName == "x86") || (archName == "x86_64"))
 		frameAdjustment = 8;
-	size_t addressSize = m_liveView->GetAddressSize();
 
 	m_oldAddresses = m_addressesWithVariable;
 	m_addressesWithVariable.clear();

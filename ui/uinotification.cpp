@@ -38,7 +38,7 @@ void NotificationListener::init()
 
 void NotificationListener::OnContextOpen(UIContext* context)
 {
-	GlobalDebuggerUI* ui = GlobalDebuggerUI::CreateForContext(context);
+	[[maybe_unused]] GlobalDebuggerUI* ui = GlobalDebuggerUI::CreateForContext(context);
 }
 
 

@@ -1055,7 +1055,7 @@ void LldbAdapter::EventListener()
 			SBTarget target = lldb::SBTarget::GetTargetFromEvent(event);
 			if (event_type & lldb::SBTarget::eBroadcastBitModulesLoaded)
 			{
-				size_t numModules = SBTarget::GetNumModulesFromEvent(event);
+				[[maybe_unused]] size_t numModules = SBTarget::GetNumModulesFromEvent(event);
 			}
 		}
 		else if (lldb::SBBreakpoint::EventIsBreakpointEvent(event))

@@ -415,7 +415,7 @@ bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
         SerializeMetadata();
     }
 
-    return true;
+    return result;
 }
 
 

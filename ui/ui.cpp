@@ -1176,7 +1176,7 @@ void GlobalDebuggerUI::RemoveForContext(UIContext *context)
 
 void GlobalDebuggerUI::SetActiveFrame(ViewFrame *frame)
 {
-	auto ui = DebuggerUI::CreateForViewFrame(frame);
+	[[maybe_unused]] auto ui = DebuggerUI::CreateForViewFrame(frame);
 	m_status->notifyViewChanged(frame);
 }
 

@@ -567,7 +567,7 @@ int main(int argc, const char* argv[])
 		}
 		else if (input == "r")
 		{
-			bool result = debugger->Launch();
+			[[maybe_unused]] bool result = debugger->Launch();
 		}
 		else if (input == "force_go")
 		{
