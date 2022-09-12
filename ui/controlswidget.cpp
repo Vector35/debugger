@@ -20,6 +20,7 @@ limitations under the License.
 #include <QInputDialog>
 #include "binaryninjaapi.h"
 #include "disassemblyview.h"
+#include "theme.h"
 #include "ui.h"
 #include <thread>
 
@@ -32,34 +33,39 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 {
     m_controller = DebuggerController::GetController(data);
 
-    m_actionRun = addAction(QIcon(":/icons/images/debugger/run.svg"), "Run",
+	auto cyan = getThemeColor(CyanStandardHighlightColor);
+	auto green = getThemeColor(GreenStandardHighlightColor);
+	auto red = getThemeColor(RedStandardHighlightColor);
+	auto white = getThemeColor(WhiteStandardHighlightColor);
+
+    m_actionRun = addAction(getColoredIcon(":/icons/images/debugger/run.svg", white), "Run",
                         [this](){ performLaunch(); });
 	// TODO: we need a different icon here
-	m_actionAttachPid = addAction(QIcon(":/icons/images/debugger/connect.svg"), "Attach PID",
+	m_actionAttachPid = addAction(getColoredIcon(":/icons/images/debugger/connect.svg", white), "Attach PID",
 							[this](){ performAttachPID(); });
-    m_actionRestart = addAction(QIcon(":/icons/images/debugger/restart.svg"), "Restart",
+    m_actionRestart = addAction(getColoredIcon(":/icons/images/debugger/restart.svg", red), "Restart",
                                 [this](){ performRestart(); });
-    m_actionQuit = addAction(QIcon(":/icons/images/debugger/cancel.svg"), "Quit",
+    m_actionQuit = addAction(getColoredIcon(":/icons/images/debugger/cancel.svg", red), "Quit",
                              [this](){ performQuit(); });
     addSeparator();
 
-    m_actionConnect = addAction(QIcon(":/icons/images/debugger/connect.svg"), "Connect",
+    m_actionConnect = addAction(getColoredIcon(":/icons/images/debugger/connect.svg", white), "Connect",
                             [this](){ performConnect(); });
-    m_actionDetach = addAction(QIcon(":/icons/images/debugger/disconnect.svg"), "Detach",
+    m_actionDetach = addAction(getColoredIcon(":/icons/images/debugger/disconnect.svg", red), "Detach",
                                [this](){ performDetach(); });
     addSeparator();
 
-    m_actionPause = addAction(QIcon(":/icons/images/debugger/pause.svg"), "Pause",
+    m_actionPause = addAction(getColoredIcon(":/icons/images/debugger/pause.svg", white), "Pause",
                               [this](){ performPause(); });
-    m_actionResume = addAction(QIcon(":/icons/images/debugger/resume.svg"), "Resume",
+    m_actionResume = addAction(getColoredIcon(":/icons/images/debugger/resume.svg", green), "Resume",
                                [this](){ performResume(); });
     addSeparator();
 
-    m_actionStepInto = addAction(QIcon(":/icons/images/debugger/stepinto.svg"), "Step Into",
+    m_actionStepInto = addAction(getColoredIcon(":/icons/images/debugger/stepinto.svg", cyan), "Step Into",
                                  [this](){ performStepInto(); });
-    m_actionStepOver = addAction(QIcon(":/icons/images/debugger/stepover.svg"), "Step Over",
+    m_actionStepOver = addAction(getColoredIcon(":/icons/images/debugger/stepover.svg", cyan), "Step Over",
                                  [this](){ performStepOver(); });
-    m_actionStepReturn = addAction(QIcon(":/icons/images/debugger/stepout.svg"), "Step Out",
+    m_actionStepReturn = addAction(getColoredIcon(":/icons/images/debugger/stepout.svg", cyan), "Step Out",
                                [this](){ performStepReturn(); });
     addSeparator();
 
@@ -69,6 +75,16 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 
 DebugControlsWidget::~DebugControlsWidget()
 {
+}
+
+
+QIcon DebugControlsWidget::getColoredIcon(const QString& iconPath, const QColor& color)
+{
+	auto pixmap = QPixmap(iconPath);
+	auto mask = pixmap.createMaskFromColor(QColor("transparent"), Qt::MaskInColor);
+	pixmap.fill(color);
+	pixmap.setMask(mask);
+	return QIcon(pixmap);
 }
 
 

@@ -32,21 +32,6 @@ class DebugControlsWidget: public QToolBar
 {
     Q_OBJECT
 
-    enum DebugControlAction
-    {
-        DebugControlRunAction,
-        DebugControlRestartAction,
-        DebugControlQuitAction,
-        DebugControlAttachAction,
-        DebugControlDetachAction,
-        DebugControlSettingsAction,
-        DebugControlPauseAction,
-        DebugControlResumeAction,
-        DebugControlStepIntoAction,
-        DebugControlStepOverAction,
-        DebugControlStepReturnAction,
-    };
-
 private:
     std::string m_name;
     DbgRef<DebuggerController> m_controller;
@@ -65,6 +50,8 @@ private:
 
     bool canExec();
     bool canConnect();
+
+	QIcon getColoredIcon(const QString& iconPath, const QColor& color);
 
 public:
     DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data);
