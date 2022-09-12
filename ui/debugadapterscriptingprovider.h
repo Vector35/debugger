@@ -24,12 +24,13 @@ class DebugAdapterScriptingInstance: public ScriptingInstance
 {
 private:
 	Ref<BinaryView> m_data;
-	DebuggerControllerRef m_controller;
-	size_t m_debuggerEventCallback;
+	DebuggerControllerRef m_controller = nullptr;
+	size_t m_debuggerEventCallback = -1;
 	BNScriptingProviderInputReadyState m_readyStatus;
 
 public:
 	DebugAdapterScriptingInstance(ScriptingProvider* provider);
+	~DebugAdapterScriptingInstance();
 
 	virtual BNScriptingProviderExecuteResult ExecuteScriptInput(const std::string& input);
 	virtual BNScriptingProviderExecuteResult ExecuteScriptInputFromFilename(const std::string& filename);

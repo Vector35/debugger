@@ -53,6 +53,13 @@ DebugAdapterScriptingInstance::DebugAdapterScriptingInstance(ScriptingProvider* 
 }
 
 
+DebugAdapterScriptingInstance::~DebugAdapterScriptingInstance()
+{
+	if (m_controller)
+		m_controller->RemoveEventCallback(m_debuggerEventCallback);
+}
+
+
 void DebugAdapterScriptingInstance::SetCurrentBinaryView(BinaryNinja::BinaryView* view)
 {
 	if (m_data.operator!=(view))
@@ -83,6 +90,7 @@ void DebugAdapterScriptingInstance::SetCurrentBinaryView(BinaryNinja::BinaryView
 			{
 				m_controller->RemoveEventCallback(m_debuggerEventCallback);
 				m_controller = nullptr;
+				m_debuggerEventCallback = -1;
 			}
 		}
 	}

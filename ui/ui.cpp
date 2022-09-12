@@ -49,6 +49,7 @@ std::map<UIContext*, std::unique_ptr<GlobalDebuggerUI>> g_contextMap;
 
 GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 {
+	LogWarn("GlobalDebuggerUI::GlobalDebuggerUI, context: %llx", context);
 	m_window = context->mainWindow();
 	if (m_window && m_window->statusBar())
 	{
@@ -57,27 +58,6 @@ GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 	}
 
 	SetupMenu(context);
-
-	auto globalArea = context->globalArea();
-	if (!globalArea)
-		return;
-
-	// Hacky way to create the Debugger Console. Note, since MainWindow internally keeps a list of scripting consoles,
-	// even if we construct a ScriptingConsole instance in the very same way, the instance will not be tracked by the
-	// MainWindow. The end result is the ScriptInstance will not be receiving callbacks like SetCurrentBinaryView, etc.
-	// However, since MainWindow registers these operations in the command palette, we can trigger the action here to
-	// emulate what happens when the user clicks the "Create Debugger Console" item.
-	if (m_context->getCurrentActionHandler())
-	{
-		m_context->getCurrentActionHandler()->executeAction("Create Debugger Console");
-		m_context->getCurrentActionHandler()->executeAction("Create Target Console");
-	}
-
-	auto* globalThreadFramesContainer = new GlobalThreadFramesContainer("Stack Trace");
-	globalArea->addWidget(globalThreadFramesContainer);
-
-	auto* globalDebugModulesContainer = new GlobalDebugModulesContainer("Debugger Modules");
-	globalArea->addWidget(globalDebugModulesContainer);
 }
 
 
@@ -496,6 +476,12 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 //	}));
 //	debuggerMenu->addAction("Activate Debug Adapter", "Launch");
 
+	UIAction::registerAction("Hide Debugger Global Area Widgets");
+	context->globalActions()->bindAction("Hide Debugger Global Area Widgets", UIAction([=](const UIActionContext& ctxt) {
+		CloseGlobalAreaWidgets(ctxt.context);
+	}));
+	debuggerMenu->addAction("Hide Debugger Global Area Widgets", "Options");
+
 #ifdef WIN32
     UIAction::registerAction("Reinstall DbgEng Redistributable");
     context->globalActions()->bindAction("Reinstall DbgEng Redistributable", UIAction([=](const UIActionContext& ctxt) {
@@ -521,6 +507,10 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller):
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateUI);
 
     m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
+		if (event.type == LaunchEventType)
+		{
+			CreateGlobalAreaWidgets(m_context);
+		}
 		emit debuggerEvent(event);
     }, "UI");
 
@@ -541,6 +531,70 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller):
 DebuggerUI::~DebuggerUI()
 {
 	m_controller->RemoveEventCallback(m_eventCallback);
+}
+
+
+static void CreateGlobalAreaWidgets(UIContext* context)
+{
+	LogWarn("context: %llx", context);
+	auto globalArea = context->globalArea();
+	if (!globalArea)
+		return;
+
+	// Hacky way to create the Debugger Console. Note, since MainWindow internally keeps a list of scripting consoles,
+	// even if we construct a ScriptingConsole instance in the very same way, the instance will not be tracked by the
+	// MainWindow. The end result is the ScriptInstance will not be receiving callbacks like SetCurrentBinaryView, etc.
+	// However, since MainWindow registers these operations in the command palette, we can trigger the action here to
+	// emulate what happens when the user clicks the "Create Debugger Console" item.
+	if (context->contentActionHandler())
+	{
+		LogWarn("action handler: 0x%llx", context->getCurrentActionHandler());
+		auto widget = globalArea->widget("Debugger Console");
+		if (!widget)
+			context->contentActionHandler()->executeAction("Create Debugger Console");
+
+		widget = globalArea->widget("Target Console");
+		if (!widget)
+			context->contentActionHandler()->executeAction("Create Target Console");
+	}
+
+	auto widget = globalArea->widget("Stack Trace");
+	if (!widget)
+	{
+		auto* globalThreadFramesContainer = new GlobalThreadFramesContainer("Stack Trace");
+		globalArea->addWidget(globalThreadFramesContainer);
+	}
+
+	widget = globalArea->widget("Debugger Modules");
+	if (!widget)
+	{
+		auto* globalDebugModulesContainer = new GlobalDebugModulesContainer("Debugger Modules");
+		globalArea->addWidget(globalDebugModulesContainer);
+	}
+}
+
+
+static void CloseGlobalAreaWidgets(UIContext* context)
+{
+	auto globalArea = context->globalArea();
+	if (!globalArea)
+		return;
+
+	auto widget = globalArea->widget("Stack Trace");
+	if (widget)
+		globalArea->closeTab(widget);
+
+	widget = globalArea->widget("Debugger Modules");
+	if (widget)
+		globalArea->closeTab(widget);
+
+	widget = globalArea->widget("Debugger Console");
+	if (widget)
+		globalArea->closeTab(widget);
+
+	widget = globalArea->widget("Target Console");
+	if (widget)
+		globalArea->closeTab(widget);
 }
 
 
