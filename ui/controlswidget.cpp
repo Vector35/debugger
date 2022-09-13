@@ -47,10 +47,6 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
                                 [this](){ performRestart(); });
     m_actionQuit = addAction(getColoredIcon(":/icons/images/debugger/cancel.svg", red), "Quit",
                              [this](){ performQuit(); });
-    addSeparator();
-
-    m_actionConnect = addAction(getColoredIcon(":/icons/images/debugger/connect.svg", white), "Connect",
-                            [this](){ performConnect(); });
     m_actionDetach = addAction(getColoredIcon(":/icons/images/debugger/disconnect.svg", red), "Detach",
                                [this](){ performDetach(); });
     addSeparator();
@@ -119,14 +115,6 @@ void DebugControlsWidget::performRestart()
 void DebugControlsWidget::performQuit()
 {
     m_controller->Quit();
-}
-
-
-void DebugControlsWidget::performConnect()
-{
-    std::thread([&](){
-        m_controller->Connect();
-    }).detach();
 }
 
 
@@ -223,7 +211,6 @@ void DebugControlsWidget::setStartingEnabled(bool enabled)
     m_actionRun->setEnabled(enabled && canExec());
 	// TODO: we need to support specifying whether the adapter supports attaching to a pid
     m_actionAttachPid->setEnabled(enabled && canExec());
-    m_actionConnect->setEnabled(enabled && canConnect());
 }
 
 

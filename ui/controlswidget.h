@@ -40,7 +40,6 @@ private:
 	QAction* m_actionAttachPid;
     QAction* m_actionRestart;
     QAction* m_actionQuit;
-    QAction* m_actionConnect;
     QAction* m_actionDetach;
 	QAction* m_actionPause;
     QAction* m_actionResume;
@@ -70,7 +69,6 @@ public Q_SLOTS:
 	void performAttachPID();
     void performRestart();
     void performQuit();
-    void performConnect();
     void performDetach();
 
 	void performPause();
