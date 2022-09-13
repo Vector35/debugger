@@ -38,7 +38,7 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	auto red = getThemeColor(RedStandardHighlightColor);
 	auto white = getThemeColor(WhiteStandardHighlightColor);
 
-    m_actionRun = addAction(getColoredIcon(":/icons/images/debugger/run.svg", white), "Run",
+    m_actionRun = addAction(getColoredIcon(":/icons/images/debugger/run.svg", red), "Run",
                         [this](){ performLaunch(); });
 	// TODO: we need a different icon here
 	m_actionAttachPid = addAction(getColoredIcon(":/icons/images/debugger/connect.svg", white), "Attach PID",
