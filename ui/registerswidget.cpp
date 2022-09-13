@@ -497,8 +497,8 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 void DebugRegistersWidget::notifyRegistersChanged(std::vector<DebugRegister> regs)
 {
     m_model->updateRows(regs);
-    // TODO: we could also set the columns' ResizeMode to ResizeToContents
-    m_table->resizeColumnsToContents();
+	m_table->resizeColumnToContents(DebugRegistersListModel::NameColumn);
+	m_table->resizeColumnToContents(DebugRegistersListModel::ValueColumn);
 }
 
 
