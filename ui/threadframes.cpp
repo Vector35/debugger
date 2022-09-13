@@ -84,6 +84,8 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 			break;
 		}
 	}, "Thread Frame");
+
+	updateContent();
 }
 
 
