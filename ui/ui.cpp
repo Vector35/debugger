@@ -513,7 +513,7 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller):
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateUI);
 
     m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
-		if (event.type == LaunchEventType)
+		if ((event.type == LaunchEventType) || (event.type == AttachEventType) || (event.type == ConnectEventType))
 		{
 			CreateGlobalAreaWidgets(m_context);
 		}
