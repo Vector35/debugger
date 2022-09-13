@@ -536,7 +536,6 @@ DebuggerUI::~DebuggerUI()
 
 static void CreateGlobalAreaWidgets(UIContext* context)
 {
-	LogWarn("context: %llx", context);
 	auto globalArea = context->globalArea();
 	if (!globalArea)
 		return;
@@ -548,7 +547,6 @@ static void CreateGlobalAreaWidgets(UIContext* context)
 	// emulate what happens when the user clicks the "Create Debugger Console" item.
 	if (context->contentActionHandler())
 	{
-		LogWarn("action handler: 0x%llx", context->getCurrentActionHandler());
 		auto widget = globalArea->widget("Debugger Console");
 		if (!widget)
 			context->contentActionHandler()->executeAction("Create Debugger Console");
