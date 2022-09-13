@@ -194,18 +194,6 @@ bool DebugControlsWidget::canConnect()
 }
 
 
-void DebugControlsWidget::setStepIntoEnabled(bool enabled)
-{
-    m_actionStepInto->setEnabled(enabled);
-}
-
-
-void DebugControlsWidget::setStepOverEnabled(bool enabled)
-{
-    m_actionStepOver->setEnabled(enabled);
-}
-
-
 void DebugControlsWidget::setStartingEnabled(bool enabled)
 {
     m_actionRun->setEnabled(enabled && canExec());

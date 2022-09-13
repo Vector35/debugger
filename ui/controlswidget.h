@@ -56,8 +56,6 @@ public:
     DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data);
     virtual ~DebugControlsWidget();
 
-    void setStepIntoEnabled(bool enabled);
-    void setStepOverEnabled(bool enabled);
     void setStartingEnabled(bool enabled);
     void setStoppingEnabled(bool enabled);
     void setSteppingEnabled(bool enabled);
