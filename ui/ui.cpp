@@ -482,6 +482,12 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	}));
 	debuggerMenu->addAction("Hide Debugger Global Area Widgets", "Options");
 
+	UIAction::registerAction("Show Debugger Global Area Widgets");
+	context->globalActions()->bindAction("Show Debugger Global Area Widgets", UIAction([=](const UIActionContext& ctxt) {
+		CreateGlobalAreaWidgets(ctxt.context);
+	}));
+	debuggerMenu->addAction("Show Debugger Global Area Widgets", "Options");
+
 #ifdef WIN32
     UIAction::registerAction("Reinstall DbgEng Redistributable");
     context->globalActions()->bindAction("Reinstall DbgEng Redistributable", UIAction([=](const UIActionContext& ctxt) {
