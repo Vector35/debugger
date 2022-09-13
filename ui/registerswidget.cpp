@@ -407,6 +407,7 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	m_filter->setSourceModel(m_model);
 	m_table->setModel(m_filter);
 	m_table->setEditTriggers(QAbstractItemView::EditKeyPressed);
+	m_table->setShowGrid(false);
 
     m_delegate = new DebugRegistersItemDelegate(this);
     m_table->setItemDelegate(m_delegate);

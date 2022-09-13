@@ -253,6 +253,7 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
     m_table = new QTableView(this);
     m_model = new DebugModulesListModel(m_table, view);
     m_table->setModel(m_model);
+	m_table->setShowGrid(false);
 
     m_delegate = new DebugModulesItemDelegate(this);
     m_table->setItemDelegate(m_delegate);
