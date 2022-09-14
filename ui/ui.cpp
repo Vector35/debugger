@@ -49,7 +49,6 @@ std::map<UIContext*, std::unique_ptr<GlobalDebuggerUI>> g_contextMap;
 
 GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 {
-	LogWarn("GlobalDebuggerUI::GlobalDebuggerUI, context: %llx", context);
 	m_window = context->mainWindow();
 	if (m_window && m_window->statusBar())
 	{
