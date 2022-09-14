@@ -640,7 +640,8 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 	else
 	{
 		// Otherwise, the user is viewing some data. Do not navigate the current SyncGroup.
-		// Instead, find a SyncGroup which is viewing a function. If none, do not navigate anything.
+		// Instead, find a SyncGroup which is viewing a function. If none, fallback to navigating in the current frame.
+		bool navigated = false;
 		auto fileContext = frame->getFileContext();
 		if (fileContext)
 		{
@@ -653,11 +654,15 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 					if (groupView->getCurrentFunction())
 					{
 						i->navigate(m_controller->GetLiveView(), address, true, true);
+						navigated = true;
 						break;
 					}
 				}
 			}
 		}
+
+		if (!navigated)
+			frame->navigate(m_controller->GetLiveView(), address, true, true);
 	}
 
 	openDebuggerSideBar();
