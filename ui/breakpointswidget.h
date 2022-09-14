@@ -106,7 +106,6 @@ class DebugBreakpointsWidget : public QWidget
     ViewFrame* m_view;
     DbgRef<DebuggerController> m_controller;
 
-    UIActionHandler* M_actionHandler;
     QTableView* m_table;
     DebugBreakpointsListModel* m_model;
     DebugBreakpointsItemDelegate* m_delegate;
@@ -149,7 +148,6 @@ Q_OBJECT;
 
 	ViewFrame* m_view;
 
-	UIActionHandler* M_actionHandler;
 	DebugBreakpointsWidget* m_breakpointsWidget;
 
 	DebuggerUI* m_ui;

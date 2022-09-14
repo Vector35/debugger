@@ -111,7 +111,6 @@ class DebugModulesWidget: public QWidget
     ViewFrame* m_view;
     DbgRef<DebuggerController> m_controller;
 
-    UIActionHandler* M_actionHandler;
     QTableView* m_table;
     DebugModulesListModel* m_model;
     DebugModulesItemDelegate* m_delegate;

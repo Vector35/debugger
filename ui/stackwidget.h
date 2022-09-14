@@ -128,7 +128,6 @@ class DebugStackWidget: public QWidget
     ViewFrame* m_view;
     DbgRef<DebuggerController> m_controller;
 
-    UIActionHandler* M_actionHandler;
     QTableView* m_table;
     DebugStackListModel* m_model;
     DebugStackItemDelegate* m_delegate;

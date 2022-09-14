@@ -155,7 +155,6 @@ class DebugRegistersWidget: public QWidget, public FilterTarget
     ViewFrame* m_view;
     DbgRef<DebuggerController> m_controller;
 
-    UIActionHandler* M_actionHandler;
     QTableView* m_table;
     DebugRegistersListModel* m_model;
     DebugRegistersItemDelegate* m_delegate;

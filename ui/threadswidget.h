@@ -116,7 +116,6 @@ class DebugThreadsWidget: public QWidget
     ViewFrame* m_view;
     DbgRef<DebuggerController> m_controller;
 
-    UIActionHandler* M_actionHandler;
     QTableView* m_table;
     DebugThreadsListModel* m_model;
     DebugThreadsItemDelegate* m_delegate;
