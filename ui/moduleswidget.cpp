@@ -202,6 +202,7 @@ void DebugModulesItemDelegate::paint(QPainter* painter, const QStyleOptionViewIt
 		painter->setBrush(option.backgroundBrush);
 
 	painter->setPen(Qt::NoPen);
+	painter->setFont(m_font);
 
 	QRect textRect = option.rect;
 	textRect.setBottom(textRect.top() + m_charHeight + 2);
@@ -211,11 +212,16 @@ void DebugModulesItemDelegate::paint(QPainter* painter, const QStyleOptionViewIt
 	switch (idx.column())
 	{
 	case DebugModulesListModel::AddressColumn:
+		painter->setPen(getThemeColor(AddressColor).rgba());
+		painter->drawText(textRect, data.toString());
+		break;
 	case DebugModulesListModel::SizeColumn:
+		painter->setPen(getThemeColor(NumberColor).rgba());
+		painter->drawText(textRect, data.toString());
+		break;
 	case DebugModulesListModel::NameColumn:
 	case DebugModulesListModel::PathColumn:
 	{
-        painter->setFont(m_font);
         painter->setPen(option.palette.color(QPalette::WindowText).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
@@ -258,8 +264,7 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
     m_delegate = new DebugModulesItemDelegate(this);
     m_table->setItemDelegate(m_delegate);
 
-    m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
 
     m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_table->verticalHeader()->setVisible(false);

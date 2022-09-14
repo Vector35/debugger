@@ -156,7 +156,7 @@ QVariant DebugRegistersListModel::data(const QModelIndex& index, int role) const
         switch (item->valueStatus())
         {
         case DebugRegisterValueNormal:
-            line.push_back(getThemeColor(NumberColor).rgba());
+            line.push_back(getThemeColor(AddressColor).rgba());
             break;
         case DebugRegisterValueChanged:
             line.push_back(getThemeColor(RedStandardHighlightColor).rgba());
