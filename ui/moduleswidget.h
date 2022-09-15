@@ -124,7 +124,7 @@ public:
 };
 
 
-class DebugModulesWidget: public QWidget
+class DebugModulesWidget: public QWidget, public FilterTarget
 {
     Q_OBJECT
 
@@ -146,6 +146,12 @@ class DebugModulesWidget: public QWidget
 
 	bool canCopy();
 
+	virtual void setFilter(const std::string& filter) override;
+	virtual void scrollToFirstItem() override;
+	virtual void scrollToCurrentItem() override;
+	virtual void selectFirstItem() override;
+	virtual void activateFirstItem() override;
+
 public:
     DebugModulesWidget(ViewFrame* view, BinaryViewRef data);
 	~DebugModulesWidget();
@@ -164,16 +170,31 @@ public slots:
 };
 
 
+class DebugModulesWithFilter: public QWidget
+{
+Q_OBJECT
+
+	ViewFrame* m_view;
+	DebugModulesWidget* m_modules;
+	FilteredView* m_filter;
+	FilterEdit* m_separateEdit = nullptr;
+
+public:
+	DebugModulesWithFilter(ViewFrame* view, BinaryViewRef data);
+	void updateContent();
+};
+
+
 class GlobalDebugModulesContainer : public GlobalAreaWidget
 {
 	ViewFrame *m_currentFrame;
-	QHash<ViewFrame*, DebugModulesWidget*> m_widgetMap;
+	QHash<ViewFrame*, DebugModulesWithFilter*> m_widgetMap;
 
 	QStackedWidget* m_consoleStack;
 
 	//! Get the current active DebuggerConsole. Returns nullptr in the event of an error
 	//! or if there is no active ChatBox.
-	DebugModulesWidget* currentWidget() const;
+	DebugModulesWithFilter* currentWidget() const;
 
 	//! Delete the DebuggerConsole for the given view.
 	void freeWidgetForView(QObject*);

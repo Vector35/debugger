@@ -21,6 +21,7 @@ limitations under the License.
 #include <QClipboard>
 #include "ui.h"
 #include "moduleswidget.h"
+#include "clickablelabel.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -514,6 +515,58 @@ void DebugModulesWidget::onDoubleClicked()
 };
 
 
+void DebugModulesWidget::setFilter(const string & filter)
+{
+	m_filter->setFilterRegularExpression(QString::fromStdString(filter));
+}
+
+
+void DebugModulesWidget::scrollToFirstItem()
+{
+
+}
+
+
+void DebugModulesWidget::scrollToCurrentItem()
+{
+
+}
+
+
+void DebugModulesWidget::selectFirstItem()
+{
+
+}
+
+
+void DebugModulesWidget::activateFirstItem()
+{
+
+}
+
+
+DebugModulesWithFilter::DebugModulesWithFilter(ViewFrame* view, BinaryViewRef data): m_view(view)
+{
+	m_modules = new DebugModulesWidget(view, data);
+	m_separateEdit = new FilterEdit(m_modules);
+	m_filter = new FilteredView(this, m_modules, m_modules, m_separateEdit);
+	m_filter->setFilterPlaceholderText("Search modules");
+
+	auto headerLayout = new QHBoxLayout;
+	headerLayout->setContentsMargins(0, 0, 0, 0);
+	headerLayout->addWidget(m_separateEdit, 1);
+
+	auto* icon = new ClickableIcon(QImage(":/icons/images/menu.png"), QSize(16, 16));
+	connect(icon, &ClickableIcon::clicked, m_modules, &DebugModulesWidget::showContextMenu);
+	headerLayout->addWidget(icon);
+
+	auto* layout = new QVBoxLayout(this);
+	layout->setContentsMargins(0, 0, 0 ,0);
+	layout->addLayout(headerLayout);
+	layout->addWidget(m_filter, 1);
+}
+
+
 GlobalDebugModulesContainer::GlobalDebugModulesContainer(const QString& title) : GlobalAreaWidget(title),
 	m_currentFrame(nullptr), m_consoleStack(new QStackedWidget)
 {
@@ -529,12 +582,12 @@ GlobalDebugModulesContainer::GlobalDebugModulesContainer(const QString& title) :
 }
 
 
-DebugModulesWidget* GlobalDebugModulesContainer::currentWidget() const
+DebugModulesWithFilter* GlobalDebugModulesContainer::currentWidget() const
 {
 	if (m_consoleStack->currentIndex() == 0)
 		return nullptr;
 
-	return qobject_cast<DebugModulesWidget*>(m_consoleStack->currentWidget());
+	return qobject_cast<DebugModulesWithFilter*>(m_consoleStack->currentWidget());
 }
 
 
@@ -584,7 +637,7 @@ void GlobalDebugModulesContainer::notifyViewChanged(ViewFrame* frame)
 	auto* currentConsole = m_widgetMap.value(frame);
 	if (!currentConsole)
 	{
-		currentConsole = new DebugModulesWidget(frame, frame->getCurrentBinaryView());
+		currentConsole = new DebugModulesWithFilter(frame, frame->getCurrentBinaryView());
 
 		// DockWidgets related to a ViewFrame are automatically cleaned up as
 		// part of the ViewFrame destructor. To ensure there is never a DebuggerConsole
