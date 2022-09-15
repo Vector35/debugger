@@ -116,7 +116,6 @@ class DebugBreakpointsWidget : public QWidget
     QAction* m_remove_action;
     QAction* m_jump_action;
 
-    UIActionHandler* m_handler;
     UIActionHandler m_actionHandler;
     ContextMenuManager* m_contextMenuManager;
     Menu* m_menu;

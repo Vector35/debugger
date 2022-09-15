@@ -255,7 +255,6 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 
     m_actionHandler.setupActionHandler(this);
     m_contextMenuManager = new ContextMenuManager(this);
-    m_handler = UIActionHandler::actionHandlerFromWidget(this);
     m_menu = menu;
     if (m_menu == nullptr)
         m_menu = new Menu();
@@ -263,7 +262,7 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
     QString removeBreakpointActionName = QString::fromStdString("Remove Breakpoint");
     UIAction::registerAction(removeBreakpointActionName, QKeySequence::Delete);
     m_menu->addAction(removeBreakpointActionName, "Options", MENU_ORDER_NORMAL);
-    m_handler->bindAction(removeBreakpointActionName, UIAction([&](){ remove(); }));
+    m_actionHandler.bindAction(removeBreakpointActionName, UIAction([&](){ remove(); }));
 
     QString jumpToBreakpointActionName = QString::fromStdString("Jump To Breakpoint");
     UIAction::registerAction(jumpToBreakpointActionName);
@@ -287,7 +286,7 @@ DebugBreakpointsWidget::~DebugBreakpointsWidget()
 
 void DebugBreakpointsWidget::contextMenuEvent(QContextMenuEvent* event)
 {
-    m_contextMenuManager->show(m_menu, m_handler);
+    m_contextMenuManager->show(m_menu, &m_actionHandler);
 }
 
 

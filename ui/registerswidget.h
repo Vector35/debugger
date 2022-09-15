@@ -160,7 +160,6 @@ class DebugRegistersWidget: public QWidget, public FilterTarget
     DebugRegistersItemDelegate* m_delegate;
 	DebugRegisterFilterProxyModel* m_filter;
 
-	UIActionHandler* m_handler;
 	UIActionHandler m_actionHandler;
 	ContextMenuManager* m_contextMenuManager;
 	Menu* m_menu;

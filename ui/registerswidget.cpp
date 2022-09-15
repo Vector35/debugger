@@ -433,7 +433,6 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
-	m_handler = UIActionHandler::actionHandlerFromWidget(this);
 	m_menu = menu;
 	if (m_menu == nullptr)
 		m_menu = new Menu();
@@ -510,7 +509,7 @@ void DebugRegistersWidget::contextMenuEvent(QContextMenuEvent* event)
 
 void DebugRegistersWidget::showContextMenu()
 {
-	m_contextMenuManager->show(m_menu, m_handler);
+	m_contextMenuManager->show(m_menu, &m_actionHandler);
 }
 
 
