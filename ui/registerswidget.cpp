@@ -709,9 +709,8 @@ void DebugRegistersWidget::activateFirstItem()
 
 DebugRegistersContainer::DebugRegistersContainer(ViewFrame* view, BinaryViewRef data, Menu* menu): m_view(view)
 {
-	m_separateEdit = new FilterEdit(m_register);
-
 	m_register = new DebugRegistersWidget(view, data, menu);
+	m_separateEdit = new FilterEdit(m_register);
 	m_filter = new FilteredView(this, m_register, m_register, m_separateEdit);
 	m_filter->setFilterPlaceholderText("Search registers");
 
