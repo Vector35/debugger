@@ -35,7 +35,7 @@ DebuggerStatusBarWidget::DebuggerStatusBarWidget(QWidget* parent, ViewFrame* fra
 	layout->setSpacing(0);
 	setFont(getMonospaceFont(this));
 
-	m_status = new QLabel("Inactive");
+	m_status = new QLabel("");
 	m_parent->setFixedWidth(m_status->sizeHint().width());
 
 	layout->addWidget(m_status);
