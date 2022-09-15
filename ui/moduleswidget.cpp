@@ -16,11 +16,16 @@ limitations under the License.
 
 #include <QPainter>
 #include <QHeaderView>
+#include <QGuiApplication>
+#include <QMimeData>
+#include <QClipboard>
 #include "ui.h"
 #include "moduleswidget.h"
 
 using namespace BinaryNinja;
 using namespace std;
+
+constexpr int SortFilterRole = Qt::UserRole + 1;
 
 ModuleItem::ModuleItem(uint64_t address, size_t size, std::string name, std::string path):
     m_address(address), m_size(size), m_name(name), m_path(path)
@@ -99,7 +104,7 @@ QVariant DebugModulesListModel::data(const QModelIndex& index, int role) const
 	if (!item)
 		return QVariant();
 
-    if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole))
+    if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole) && (role != SortFilterRole))
         return QVariant();
 
     switch (index.column())
@@ -258,7 +263,9 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
 
     m_table = new QTableView(this);
     m_model = new DebugModulesListModel(m_table, view);
-    m_table->setModel(m_model);
+	m_filter = new DebugModulesFilterProxyModel(this);
+	m_filter->setSourceModel(m_model);
+	m_table->setModel(m_filter);
 	m_table->setShowGrid(false);
 
     m_delegate = new DebugModulesItemDelegate(this);
@@ -280,6 +287,44 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
     layout->setSpacing(0);
     layout->addWidget(m_table);
     setLayout(layout);
+
+	m_actionHandler.setupActionHandler(this);
+	m_contextMenuManager = new ContextMenuManager(this);
+	m_menu = new Menu();
+
+	QString actionName = QString::fromStdString("Jump To Start Address");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(actionName, UIAction([=](){ jumpToStart(); }));
+
+	actionName = QString::fromStdString("Jump To End Address");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(actionName, UIAction([=](){ jumpToEnd(); }));
+
+	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy", UIAction([&](){ copy(); }, [&](){ return canCopy(); }));
+	m_actionHandler.setActionDisplayName("Copy", [&](){
+		QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+		if (sel.empty())
+			return "Copy";
+
+		switch (sel[0].column())
+		{
+		case DebugModulesListModel::AddressColumn:
+			return "Copy Address";
+		case DebugModulesListModel::SizeColumn:
+			return "Copy Size";
+		case DebugModulesListModel::NameColumn:
+			return "Copy Name";
+		case DebugModulesListModel::PathColumn:
+			return "Copy Path";
+		default:
+			return "Copy";
+		}
+	});
+
+	connect(m_table, &QTableView::doubleClicked, this, &DebugModulesWidget::onDoubleClicked);
 
 	m_debuggerEventCallback = m_controller->RegisterEventCallback([&](const DebuggerEvent& event){
 		switch (event.type)
@@ -322,6 +367,151 @@ void DebugModulesWidget::updateContent()
     std::vector<DebugModule> modules = m_controller->GetModules();
     notifyModulesChanged(modules);
 }
+
+
+void DebugModulesWidget::contextMenuEvent(QContextMenuEvent* event)
+{
+    showContextMenu();
+}
+
+
+void DebugModulesWidget::showContextMenu()
+{
+	m_contextMenuManager->show(m_menu, &m_actionHandler);
+}
+
+
+void DebugModulesWidget::jumpToStart()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto module = m_model->getRow(sourceIndex.row());
+	uint64_t adderss = module.address();
+
+	UIContext* context = UIContext::contextForWidget(this);
+	if (!context)
+		return;
+
+	ViewFrame* frame = context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	if (m_controller->GetLiveView())
+		frame->navigate(m_controller->GetLiveView(), adderss, true, true);
+	else
+		frame->navigate(m_controller->GetData(), adderss, true, true);
+}
+
+
+void DebugModulesWidget::jumpToEnd()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto module = m_model->getRow(sourceIndex.row());
+	uint64_t adderss = module.address() + module.size();
+
+	UIContext* context = UIContext::contextForWidget(this);
+	if (!context)
+		return;
+
+	ViewFrame* frame = context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	if (m_controller->GetLiveView())
+		frame->navigate(m_controller->GetLiveView(), adderss, true, true);
+	else
+		frame->navigate(m_controller->GetData(), adderss, true, true);
+}
+
+
+bool DebugModulesWidget::canCopy()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	return !sel.empty();
+}
+
+
+void DebugModulesWidget::copy()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto module = m_model->getRow(sourceIndex.row());
+	QString text;
+
+	switch (sel[0].column())
+	{
+	case DebugModulesListModel::AddressColumn:
+		text = QString::asprintf("0x%" PRIx64, module.address());
+		break;
+	case DebugModulesListModel::SizeColumn:
+		text = QString::asprintf("0x%" PRIx64, (uint64_t)module.size());
+		break;
+	case DebugModulesListModel::NameColumn:
+		text = QString::fromStdString(module.name());
+		break;
+	case DebugModulesListModel::PathColumn:
+		text = QString::fromStdString(module.path());
+		break;
+	default:
+		break;
+	}
+
+	auto* clipboard = QGuiApplication::clipboard();
+	clipboard->clear();
+	auto* mime = new QMimeData();
+	mime->setText(text);
+	clipboard->setMimeData(mime);
+}
+
+
+void DebugModulesWidget::onDoubleClicked()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	if (sel[0].column() != DebugModulesListModel::AddressColumn)
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto module = m_model->getRow(sourceIndex.row());
+	uint64_t address = module.address();
+
+	UIContext* context = UIContext::contextForWidget(this);
+	if (!context)
+		return;
+
+	ViewFrame* frame = context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	if (m_controller->GetLiveView())
+		frame->navigate(m_controller->GetLiveView(), address, true, true);
+	else
+		frame->navigate(m_controller->GetData(), address, true, true);
+};
 
 
 GlobalDebugModulesContainer::GlobalDebugModulesContainer(const QString& title) : GlobalAreaWidget(title),
@@ -406,4 +596,30 @@ void GlobalDebugModulesContainer::notifyViewChanged(ViewFrame* frame)
 	}
 
 	m_consoleStack->setCurrentWidget(currentConsole);
+}
+
+
+DebugModulesFilterProxyModel::DebugModulesFilterProxyModel(QObject *parent): QSortFilterProxyModel(parent)
+{
+	setFilterCaseSensitivity(Qt::CaseInsensitive);
+}
+
+
+bool DebugModulesFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const
+{
+	QRegularExpression regExp = filterRegularExpression();
+	if (!regExp.isValid())
+		return true;
+
+	QModelIndex index = sourceModel()->index(sourceRow, 0, sourceParent);
+	ModuleItem* item = static_cast<ModuleItem*>(index.internalPointer());
+
+	for (int column = 0; column < sourceModel()->columnCount(sourceParent); column++)
+	{
+		QModelIndex index = sourceModel()->index(sourceRow, column, sourceParent);
+		QString data = index.data(SortFilterRole).toString();
+		if (data.indexOf(regExp) != -1)
+			return true;
+	}
+	return false;
 }

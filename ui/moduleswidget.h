@@ -104,6 +104,26 @@ public:
 };
 
 
+class DebugModulesFilterProxyModel : public QSortFilterProxyModel
+{
+Q_OBJECT
+
+//	bool m_hideZeroRegister = false;
+//	bool m_onlyShowFullWidthRegisters = false;
+//	bool m_hideUnusedRegisters = true;
+
+public:
+	DebugModulesFilterProxyModel(QObject* parent);
+
+protected:
+	virtual bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override;
+
+public:
+//	bool getHideUnusedRegisters() const { return m_hideUnusedRegisters; }
+//	void toggleHideUnusedRegisters() { m_hideUnusedRegisters = !m_hideUnusedRegisters; invalidate(); }
+};
+
+
 class DebugModulesWidget: public QWidget
 {
     Q_OBJECT
@@ -114,11 +134,17 @@ class DebugModulesWidget: public QWidget
     QTableView* m_table;
     DebugModulesListModel* m_model;
     DebugModulesItemDelegate* m_delegate;
+	DebugModulesFilterProxyModel* m_filter;
 
 	size_t m_debuggerEventCallback;
 
-    // void shouldBeVisible()
+	UIActionHandler m_actionHandler;
+	ContextMenuManager* m_contextMenuManager;
+	Menu* m_menu;
 
+	virtual void contextMenuEvent(QContextMenuEvent* event) override;
+
+	bool canCopy();
 
 public:
     DebugModulesWidget(ViewFrame* view, BinaryViewRef data);
@@ -126,8 +152,15 @@ public:
 
     void notifyModulesChanged(std::vector<DebugModule> modules);
 
+private slots:
+	void jumpToStart();
+	void jumpToEnd();
+	void copy();
+	void onDoubleClicked();
+
 public slots:
     void updateContent();
+	void showContextMenu();
 };
 
 
