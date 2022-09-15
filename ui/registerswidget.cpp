@@ -17,7 +17,7 @@ limitations under the License.
 #include <QPainter>
 #include <QHeaderView>
 #include <QLineEdit>
- #include <QListView>
+#include <QListView>
 #include <QGuiApplication>
 #include <QMimeData>
 #include <QClipboard>
