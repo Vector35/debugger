@@ -4,7 +4,7 @@ This is the repository for Binary Ninja Debugger. The debugger is written in C++
 
 ## Platform and Target Support
 
-This is the current comparability matrix of the debugger. The horizontal line stands for where we run BN, and lines mean targets.
+This is the current comparability matrix of the debugger. The horizontal lines stands for where we run BN and the vertical lines stands for the targets.
 
 | Target  🔽 Host ▶️    | macOS              | Linux              | Windows            | Note |
 |-----------------------|--------------------|--------------------|--------------------|------|
