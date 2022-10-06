@@ -53,7 +53,11 @@ GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 	if (m_window && m_window->statusBar())
 	{
 		m_status = new DebuggerStatusBarContainer;
-		m_window->statusBar()->insertWidget(-1, m_status);
+		auto statusBar = m_window->statusBar();
+		if (statusBar)
+		{
+			statusBar->addWidget(m_status);
+		}
 	}
 
 	SetupMenu(context);
