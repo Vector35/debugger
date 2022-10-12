@@ -69,6 +69,9 @@ GlobalDebuggerUI::~GlobalDebuggerUI()
 }
 
 
+static void CreateGlobalAreaWidgets(UIContext* context);
+static void CloseGlobalAreaWidgets(UIContext* context);
+
 static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 {
     auto controller = DebuggerController::GetController(view);

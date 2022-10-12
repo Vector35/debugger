@@ -86,6 +86,3 @@ private slots:
 	void updateUI(const DebuggerEvent& event);
 };
 
-
-static void CreateGlobalAreaWidgets(UIContext* context);
-static void CloseGlobalAreaWidgets(UIContext* context);

@@ -664,9 +664,6 @@ bool DebugModulesFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelI
 	if (!regExp.isValid())
 		return true;
 
-	QModelIndex index = sourceModel()->index(sourceRow, 0, sourceParent);
-	ModuleItem* item = static_cast<ModuleItem*>(index.internalPointer());
-
 	for (int column = 0; column < sourceModel()->columnCount(sourceParent); column++)
 	{
 		QModelIndex index = sourceModel()->index(sourceRow, column, sourceParent);
