@@ -18,6 +18,7 @@ limitations under the License.
 using namespace BinaryNinja;
 
 
+
 CodeDataRenderer::CodeDataRenderer()
 {
 
@@ -32,7 +33,7 @@ bool CodeDataRenderer::IsValidForData(BinaryView *data, uint64_t addr, Type *typ
 		return false;
 
 	auto name = sym->GetFullName();
-	if (name.substr(0, 5) != "CODE_")
+	if (name.substr(0, 14) != "BN_CODE_start_")
 		return false;
 
 	return type->GetClass() == ArrayTypeClass && type->GetElementCount() == 1;
@@ -51,15 +52,9 @@ std::vector<DisassemblyTextLine> CodeDataRenderer::GetLinesForData(
     std::vector<DisassemblyTextLine> result;
 	DisassemblyTextLine contents;
 
-    BinaryReader* reader = new BinaryReader(data);
-    if (!reader)
-        return result;
-
-    reader->Seek(addr);
-    uint8_t* buffer = (uint8_t*)malloc(readLength);
-    bool ok = reader->TryRead(buffer, readLength);
-    if (!ok)
-    	return result;
+	auto buffer = data->ReadBuffer(addr, readLength);
+	if (buffer.GetLength() == 0)
+		return result;
 
     size_t totalRead = 0;
     for (size_t i = 0; i < instCount; i++)
@@ -67,7 +62,7 @@ std::vector<DisassemblyTextLine> CodeDataRenderer::GetLinesForData(
         uint64_t lineAddr = addr + totalRead;
         size_t length = readLength - totalRead;
         std::vector<InstructionTextToken> insnTokens;
-        ok = arch->GetInstructionText(buffer + totalRead, lineAddr, length, insnTokens);
+        auto ok = arch->GetInstructionText((uint8_t *)buffer.GetDataAt(totalRead), lineAddr, length, insnTokens);
         if ((!ok) || (insnTokens.size() == 0))
         {
             insnTokens = { InstructionTextToken(TextToken, "??") };
@@ -83,6 +78,5 @@ std::vector<DisassemblyTextLine> CodeDataRenderer::GetLinesForData(
         totalRead += length;
     }
 
-	free(buffer);
 	return result;
 }

@@ -169,6 +169,49 @@ static bool InstallDbgEngRedistributable()
 #endif
 
 
+static bool ShowAsCode(BinaryView* view, uint64_t addr)
+{
+	DataVariable var;
+	if (view->GetDataVariableAtAddress(addr, var))
+	{
+		auto sym = view->GetSymbolByAddress(addr);
+		if (sym)
+		{
+			auto name = sym->GetFullName();
+			if (name.substr(0, 14) == "BN_CODE_start_")
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+
+static void MakeCodeHelper(BinaryView* view, uint64_t addr)
+{
+	if (!view)
+		return;
+
+	if (ShowAsCode(view, addr))
+	{
+		view->BeginUndoActions();
+		view->UndefineUserDataVariable(addr);
+		auto sym = view->GetSymbolByAddress(addr);
+		view->UndefineUserSymbol(sym);
+		view->CommitUndoActions();
+		return;
+	}
+
+	view->BeginUndoActions();
+	view->DefineUserDataVariable(addr, Type::ArrayType(Type::IntegerType(1, false), 1));
+	const std::string name = fmt::format("BN_CODE_start_{:08x}", addr);
+	SymbolRef sym = new Symbol(DataSymbol, name, name, name, addr);
+	view->DefineUserSymbol(sym);
+	view->CommitUndoActions();
+}
+
+
 void GlobalDebuggerUI::SetupMenu(UIContext* context)
 {
 	auto notConnected = [=](const UIActionContext& ctxt) {
@@ -491,6 +534,25 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	}));
 	debuggerMenu->addAction("Show Debugger Global Area Widgets", "Options");
 
+	UIAction::registerAction("Make Code", QKeySequence(Qt::Key_C));
+	context->globalActions()->bindAction("Make Code", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+
+		MakeCodeHelper(ctxt.binaryView, ctxt.address);
+	}));
+	debuggerMenu->addAction("Make Code", "Misc");
+
+	UIAction::setActionDisplayName("Make Code", [](const UIActionContext& ctxt) -> QString {
+		if (!ctxt.binaryView)
+			return "Make Code";
+
+		if (ShowAsCode(ctxt.binaryView, ctxt.address))
+			return "Undefine Code";
+
+		return "Make Code";
+	});
+
 #ifdef WIN32
     UIAction::registerAction("Reinstall DbgEng Redistributable");
     context->globalActions()->bindAction("Reinstall DbgEng Redistributable", UIAction([=](const UIActionContext& ctxt) {
@@ -678,15 +740,6 @@ void DebuggerUI::openDebuggerSideBar()
 	auto currentSidebar = Sidebar::current();
 	if (currentSidebar)
 		currentSidebar->activate("Debugger");
-}
-
-
-static void MakeCodeHelper(BinaryView* view, uint64_t addr)
-{
-	view->DefineDataVariable(addr, Type::ArrayType(Type::IntegerType(1, false), 1));
-	const std::string name = fmt::format("CODE_start_{:08x}", addr);
-	SymbolRef sym = new Symbol(DataSymbol, name, name, name, addr);
-	view->DefineUserSymbol(sym);
 }
 
 
@@ -1109,6 +1162,26 @@ void GlobalDebuggerUI::InitializeUI()
 					MakeCodeHelper(view, addr);
 				},
 			BinaryViewValid);
+
+	UIAction::setActionDisplayName("Debugger\\Make Code", [](const UIActionContext& ctxt) -> QString {
+		if (!ctxt.binaryView)
+			return "Make Code";
+
+		if (ShowAsCode(ctxt.binaryView, ctxt.address))
+			return "Undefine Code";
+
+		return "Make Code";
+	});
+
+	UIAction::setActionDisplayName("Selection Target\\Debugger\\Make Code", [](const UIActionContext& ctxt) -> QString{
+		if (!ctxt.binaryView)
+			return "Selection Target\\Debugger\\Make Code";
+
+		if (ShowAsCode(ctxt.binaryView, ctxt.address))
+			return "Selection Target\\Debugger\\Undefine Code";
+
+		return "Selection Target\\Debugger\\Make Code";
+	});
 }
 
 
