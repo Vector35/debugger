@@ -106,11 +106,8 @@ if (APPLE)
 	find_library(lib_lldb NAMES lldb PATHS ${LLDB_PATH}/lib REQUIRED)
 	target_link_libraries(debuggercore ${lib_lldb})
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
-#	This is weird. The BUILD_RPATH must be set for local builds to have the proper rpath;
-#	The INSTALL_RPATH must be set for the build server builds to have the proper rpath.
-	set_property(TARGET debuggercore APPEND PROPERTY BUILD_RPATH "@loader_path/lldb/lib")
 	set_property(TARGET debuggercore APPEND PROPERTY INSTALL_RPATH "@loader_path/lldb/lib")
-	set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+	set(BUILD_WITH_INSTALL_RPATH TRUE)
 	set(MACOSX_RPATH TRUE)
 #	The way we extract the lldb-build artifact zip file causes files to lose executable permissions.
 #	Here, we add it back directly.
@@ -143,9 +140,8 @@ elseif (UNIX)
 	find_library(lib_lldb NAMES lldb PATHS ${LLDB_PATH}/lib REQUIRED)
 	target_link_libraries(debuggercore ${lib_lldb})
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
-	set_property(TARGET debuggercore APPEND PROPERTY BUILD_RPATH "\$ORIGIN/lldb/lib")
 	set_property(TARGET debuggercore APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/lldb/lib")
-	set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+	set(BUILD_WITH_INSTALL_RPATH TRUE)
 	file(
 		COPY ${LLDB_PATH}/bin/lldb
 		DESTINATION ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/bin
