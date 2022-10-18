@@ -1155,36 +1155,36 @@ void GlobalDebuggerUI::InitializeUI()
 				},
 			ConnectedAndRunning);
 
-	actionName = "Make Code";
-	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
-	PluginCommand::RegisterForAddress(
-			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
-			"Pause the target",
-			[](BinaryView* view, uint64_t addr){
-					MakeCodeHelper(view, addr);
-				},
-			BinaryViewValid);
+	// actionName = "Make Code";
+	// UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
+	// UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
+	// PluginCommand::RegisterForAddress(
+	// 		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
+	// 		"Pause the target",
+	// 		[](BinaryView* view, uint64_t addr){
+	// 				MakeCodeHelper(view, addr);
+	// 			},
+	// 		BinaryViewValid);
 
-	UIAction::setActionDisplayName("Debugger\\Make Code", [](const UIActionContext& ctxt) -> QString {
-		if (!ctxt.binaryView)
-			return "Make Code";
+	// UIAction::setActionDisplayName("Debugger\\Make Code", [](const UIActionContext& ctxt) -> QString {
+	// 	if (!ctxt.binaryView)
+	// 		return "Make Code";
 
-		if (ShowAsCode(ctxt.binaryView, ctxt.address))
-			return "Undefine Code";
+	// 	if (ShowAsCode(ctxt.binaryView, ctxt.address))
+	// 		return "Undefine Code";
 
-		return "Make Code";
-	});
+	// 	return "Make Code";
+	// });
 
-	UIAction::setActionDisplayName("Selection Target\\Debugger\\Make Code", [](const UIActionContext& ctxt) -> QString{
-		if (!ctxt.binaryView)
-			return "Selection Target\\Debugger\\Make Code";
+	// UIAction::setActionDisplayName("Selection Target\\Debugger\\Make Code", [](const UIActionContext& ctxt) -> QString{
+	// 	if (!ctxt.binaryView)
+	// 		return "Selection Target\\Debugger\\Make Code";
 
-		if (ShowAsCode(ctxt.binaryView, ctxt.address))
-			return "Selection Target\\Debugger\\Undefine Code";
+	// 	if (ShowAsCode(ctxt.binaryView, ctxt.address))
+	// 		return "Selection Target\\Debugger\\Undefine Code";
 
-		return "Selection Target\\Debugger\\Make Code";
-	});
+	// 	return "Selection Target\\Debugger\\Make Code";
+	// });
 }
 
 
@@ -1286,7 +1286,7 @@ extern "C"
 	{
 		GlobalDebuggerUI::InitializeUI();
 		NotificationListener::init();
-		DataRendererContainer::RegisterTypeSpecificDataRenderer(new CodeDataRenderer);
+		// DataRendererContainer::RegisterTypeSpecificDataRenderer(new CodeDataRenderer);
 		RegisterDebugAdapterScriptingProvider();
 		RegisterTargetScriptingProvider();
 		return true;
