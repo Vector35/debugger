@@ -580,6 +580,8 @@ std::vector<DebugThread> DbgEngAdapter::GetThreadList()
 DebugThread DbgEngAdapter::GetActiveThread() const
 {
     // Temporary hacky to get the code compile without changing everything
+    if (!m_debugRegisters)
+		return DebugThread{};
     return DebugThread(this->GetActiveThreadId(), ((DbgEngAdapter*)this)->GetInstructionOffset());
 }
 
@@ -1009,6 +1011,8 @@ std::string DbgEngAdapter::InvokeBackendCommand(const std::string& command)
 
 std::uintptr_t DbgEngAdapter::GetInstructionOffset()
 {
+	if (!m_debugRegisters)
+		return -1;
     std::uintptr_t register_offset{};
     this->m_debugRegisters->GetInstructionOffset(&register_offset);
 
