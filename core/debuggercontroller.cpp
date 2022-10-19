@@ -155,13 +155,13 @@ bool DebuggerController::CreateDebugAdapter()
     DebugAdapterType* type = DebugAdapterType::GetByName(m_state->GetAdapterType());
     if (!type)
     {
-        LogWarn("fail to get an debug adapter of type %s", m_state->GetAdapterType().c_str());
+        LogWarn("Failed to get an debug adapter of type %s", m_state->GetAdapterType().c_str());
 		return false;
     }
     m_adapter = type->Create(m_data);
 	if (!m_adapter)
 	{
-		LogWarn("fail to create an adapter of type %s", m_state->GetAdapterType().c_str());
+		LogWarn("Failed to create an adapter of type %s", m_state->GetAdapterType().c_str());
 		return false;
 	}
 
@@ -761,7 +761,7 @@ void DebuggerController::Connect()
     }
     else
     {
-        LogWarn("fail to connect to the target");
+        LogWarn("Failed to connect to the target");
     }
 }
 
@@ -776,7 +776,7 @@ bool DebuggerController::ConnectToDebugServer()
 
     bool ok = m_adapter->ConnectToDebugServer(m_state->GetRemoteHost(), m_state->GetRemotePort());
     if (!ok)
-        LogWarn("fail to connect to the debug server");
+        LogWarn("Failed to connect to the debug server");
     else
         m_state->SetConnectedToDebugServer(true);
 
@@ -791,7 +791,7 @@ bool DebuggerController::DisconnectDebugServer()
 
     bool ok = m_adapter->DisconnectDebugServer();
     if (!ok)
-        LogWarn("fail to disconnect from the debug server");
+        LogWarn("Failed to disconnect from the debug server");
     else
         m_state->SetConnectedToDebugServer(false);
 

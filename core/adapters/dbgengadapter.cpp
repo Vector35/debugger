@@ -92,12 +92,12 @@ bool DbgEngAdapter::LoadDngEngLibraries()
     if (!enginePath.empty())
     {
         if (!SetDllDirectoryA(enginePath.c_str()))
-            LogWarn("Failed to set DLL directory to %s. The debugger is going to load the system dbgeng DLLs and they may"
+            LogWarn("Failed to set DLL directory to %s. The debugger is going to load the system dbgeng DLLs, which may "
                     "not work as expected", enginePath.c_str());
     }
     else
     {
-        LogWarn("debugger.x64dbgEngPath is empty or invalid. The debugger is going to load the system dbgeng DLLs and they may"
+        LogWarn("debugger.x64dbgEngPath is empty or invalid. The debugger is going to load the system dbgeng DLLs, which may "
                 "not work as expected");
     }
 
@@ -105,28 +105,28 @@ bool DbgEngAdapter::LoadDngEngLibraries()
     handle = LoadLibraryA("dbgcore.dll");
     if (handle == nullptr)
     {
-        LogWarn("fail to load dbgcore.dll, %d", GetLastError());
+        LogWarn("Failed to load dbgcore.dll, %d", GetLastError());
         return false;
     }
 
     handle = LoadLibraryA("dbghelp.dll");
     if (handle == nullptr)
     {
-        LogWarn("fail to load dbghelp.dll, %d", GetLastError());
+        LogWarn("Failed to load dbghelp.dll, %d", GetLastError());
         return false;
     }
 
     handle = LoadLibraryA("dbgmodel.dll");
     if (handle == nullptr)
     {
-        LogWarn("fail to load dbgmodel.dll, %d", GetLastError());
+        LogWarn("Failed to load dbgmodel.dll, %d", GetLastError());
         return false;
     }
 
     handle = LoadLibraryA("dbgeng.dll");
     if (handle == nullptr)
     {
-        LogWarn("fail to load dbgeng.dll, %d", GetLastError());
+        LogWarn("Failed to load dbgeng.dll, %d", GetLastError());
         return false;
     }
 }

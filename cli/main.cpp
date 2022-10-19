@@ -320,7 +320,7 @@ void PrintStopReason(DbgRef<DebuggerController> controller, DebugStopReason reas
 		Log::print<Log::Info>("Exited with code: {}\n", controller->GetExitCode());
 		return;
 	}
-	Log::print<Log::Info>("stopped: {}\n", controller->GetDebugStopReasonString(reason));
+	Log::print<Log::Info>("Stopped: {}\n", controller->GetDebugStopReasonString(reason));
 }
 
 
@@ -365,7 +365,7 @@ int main(int argc, const char* argv[])
 
 	if (!bv || bv->GetTypeName() == "Raw")
 	{
-		fprintf(stderr, "Input file does not appear to be an exectuable\n");
+		fprintf(stderr, "Input file does not appear to be an executable\n");
 		return -1;
 	}
 
@@ -373,14 +373,14 @@ int main(int argc, const char* argv[])
 
 	DbgRef<DebuggerController> debugger = DebuggerController::GetController(bv);
 	if (!debugger)
-		LogError("fail to create a debugger for the binaryview\n");
+		LogError("Failed to create a debugger for the BinaryView\n");
 
 	if (argc == 2)
 	{
 		debugger->SetExecutablePath(argv[1]);
 		if (!debugger->Launch())
 		{
-			LogError("%s", fmt::format("failed to execute {}\n", argv[1]).c_str());
+			LogError("%s", fmt::format("Failed to execute {}\n", argv[1]).c_str());
 			return -1;
 		}
 	}
@@ -498,7 +498,7 @@ int main(int argc, const char* argv[])
 			for ( const auto& module : debugger->GetModules() )
 				Log::print<Log::Info>( "[{}, {}] {} @ 0x{:X} with size 0x{:X}\n",
 									   module.m_name.c_str(), module.m_short_name.c_str(),
-									   module.m_loaded ? "is loaded" : "was unloaded", module.m_address, module.m_size );
+									   module.m_loaded ? "was loaded" : "was unloaded", module.m_address, module.m_size );
 		}
 		else if ( input == "lt" )
 		{
@@ -629,7 +629,7 @@ int main(int argc, const char* argv[])
 		}
 		else if (!input.empty())
 		{
-			Log::print<Log::Info>("invalid command\n");
+			Log::print<Log::Info>("Invalid command\n");
 		}
 	}
 

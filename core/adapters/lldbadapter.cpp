@@ -27,7 +27,7 @@ LldbAdapter::LldbAdapter(BinaryView *data): DebugAdapter(data)
 	SBDebugger::Initialize();
 	m_debugger = SBDebugger::Create();
 	if (!m_debugger.IsValid())
-		LogWarn("invalid debugger");
+		LogWarn("Invalid debugger");
 
 	// Set auto-confirm to true so operations that ask for confirmation will proceed automatically.
 	// Otherwise, the confirmation prompt will be sent to the terminal that BN is launched from, which is a very
@@ -951,7 +951,7 @@ void LldbAdapter::FixActiveThread()
 		{
 			if (m_process.SetSelectedThread(thread))
 			{
-				LogDebug("Active thread is override from 0x%" PRIx64 " to 0x%" PRIX64, activeThread.GetThreadID(),
+				LogDebug("Active thread is overriden from 0x%" PRIx64 " to 0x%" PRIX64, activeThread.GetThreadID(),
 						 thread.GetThreadID());
 				break;
 			}

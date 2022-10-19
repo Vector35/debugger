@@ -605,7 +605,7 @@ std::string GdbAdapter::GetRemoteFile(const std::string& path)
     int32_t error;
     int32_t ret = this->m_rspConnector.HostFileIO(RspData("vFile:setfs:0"), output, error);
     if (ret < 0)
-        throw runtime_error("could not set remote filesystem");
+        throw runtime_error("Could not set remote filesystem");
 
     std::string path_hex_string{};
     for ( const auto& ch : path )
@@ -614,7 +614,7 @@ std::string GdbAdapter::GetRemoteFile(const std::string& path)
     ret = this->m_rspConnector.HostFileIO(
                     RspData("vFile:open:{},{:X},{:X}", path_hex_string.c_str(), 0, 0), output, error);
     if (ret < 0)
-        throw runtime_error("unable to open file with host I/O");
+        throw runtime_error("Unable to open file with host I/O");
 
     int32_t fd = ret;
 
