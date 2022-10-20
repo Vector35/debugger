@@ -441,7 +441,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			return;
 
 		BreakpointToggleCallback(ctxt.binaryView, ctxt.address);
-	}, connectedAndStopped));
+	}, requireBinaryView));
 	debuggerMenu->addAction("Toggle Breakpoint", "Breakpoint");
 
     UIAction::registerAction("Connect to Debug Server");
