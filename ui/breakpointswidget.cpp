@@ -325,14 +325,18 @@ void DebugBreakpointsWidget::jump()
 void DebugBreakpointsWidget::remove()
 {
     QModelIndexList sel = m_table->selectionModel()->selectedRows();
+	std::vector<ModuleNameAndOffset> breakpointsToRemove;
+
     for (const QModelIndex& index: sel)
     {
-        // Process the selection one by one
+		// We cannot delete the breakpoint inside this loop because deleting a breakpoint will cause this widget to
+		// remove the breakpoint from the list, which will invalidate the index of the remaining breakpoints.
         BreakpointItem bp = m_model->getRow(index.row());
-//        We need better handling here
-//        state->DeleteBreakpoint(bp.address());
-        m_controller->DeleteBreakpoint(bp.location());
+		breakpointsToRemove.push_back(bp.location());
     }
+
+	for (const auto& bp: breakpointsToRemove)
+		m_controller->DeleteBreakpoint(bp);
 }
 
 
