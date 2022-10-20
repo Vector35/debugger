@@ -667,14 +667,14 @@ void DebugRegistersWidget::editValue()
 	if (sel.empty())
 		return;
 
-	if (sel[0].column() != DebugRegistersListModel::ValueColumn)
+	auto cell = sel[0];
+	if (cell.column() != DebugRegistersListModel::ValueColumn)
+		cell = cell.siblingAtColumn(DebugRegistersListModel::ValueColumn);
+
+	if (!cell.isValid())
 		return;
 
-	auto sourceIndex = m_filter->mapToSource(sel[0]);
-	if (!sourceIndex.isValid())
-		return;
-
-	m_table->edit(sourceIndex);
+	m_table->edit(cell);
 }
 
 
