@@ -40,6 +40,17 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 
     m_actionRun = addAction(getColoredIcon(":/icons/images/debugger/run.svg", red), "Run",
                         [this](){ performLaunch(); });
+
+	m_actionPause = addAction(getColoredIcon(":/icons/images/debugger/pause.svg", white), "Pause",
+		[this](){ performPause(); });
+
+	m_actionResume = addAction(getColoredIcon(":/icons/images/debugger/resume.svg", green), "Resume",
+		[this](){ performResume(); });
+
+	// m_actionRun->setVisible(true);
+	m_actionPause->setVisible(false);
+	m_actionResume->setVisible(false);
+
 	// TODO: we need a different icon here
 	m_actionAttachPid = addAction(getColoredIcon(":/icons/images/debugger/connect.svg", white), "Attach PID",
 							[this](){ performAttachPID(); });
@@ -51,19 +62,12 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
                                [this](){ performDetach(); });
     addSeparator();
 
-    m_actionPause = addAction(getColoredIcon(":/icons/images/debugger/pause.svg", white), "Pause",
-                              [this](){ performPause(); });
-    m_actionResume = addAction(getColoredIcon(":/icons/images/debugger/resume.svg", green), "Resume",
-                               [this](){ performResume(); });
-    addSeparator();
-
     m_actionStepInto = addAction(getColoredIcon(":/icons/images/debugger/stepinto.svg", cyan), "Step Into",
                                  [this](){ performStepInto(); });
     m_actionStepOver = addAction(getColoredIcon(":/icons/images/debugger/stepover.svg", cyan), "Step Over",
                                  [this](){ performStepOver(); });
     m_actionStepReturn = addAction(getColoredIcon(":/icons/images/debugger/stepout.svg", cyan), "Step Out",
                                [this](){ performStepReturn(); });
-    addSeparator();
 
     updateButtons();
 }
@@ -214,7 +218,7 @@ void DebugControlsWidget::setSteppingEnabled(bool enabled)
 {
     m_actionStepInto->setEnabled(enabled);
     m_actionStepOver->setEnabled(enabled);
-    m_actionStepReturn->setEnabled(enabled);    
+    m_actionStepReturn->setEnabled(enabled);
 }
 
 
@@ -230,6 +234,10 @@ void DebugControlsWidget::updateButtons()
         setSteppingEnabled(false);
         m_actionPause->setEnabled(false);
         m_actionResume->setEnabled(false);
+
+		m_actionRun->setVisible(true);
+		m_actionPause->setVisible(false);
+		m_actionResume->setVisible(false);
     }
     else if (status == DebugAdapterRunningStatus)
     {
@@ -238,13 +246,21 @@ void DebugControlsWidget::updateButtons()
         setSteppingEnabled(false);
         m_actionPause->setEnabled(true);
         m_actionResume->setEnabled(false);
+
+		m_actionRun->setVisible(false);
+		m_actionPause->setVisible(true);
+		m_actionResume->setVisible(false);
     }
-    else
+    else // status == DebugAdapterPausedStatus
     {
         setStartingEnabled(false);
         setStoppingEnabled(true);
         setSteppingEnabled(true);
         m_actionPause->setEnabled(false);
         m_actionResume->setEnabled(true);
+
+		m_actionRun->setVisible(false);
+		m_actionPause->setVisible(false);
+		m_actionResume->setVisible(true);
     }
 }
