@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "debugserversetting.h"
+#include "progresstask.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
@@ -24,7 +25,7 @@ DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerCo
 	QDialog(), m_controller(controller)
 {
     setWindowTitle("Debug Server Settings");
-    setMinimumSize(UIContext::getScaledWindowSize(400, 130));
+    setMinimumSize(UIContext::getScaledWindowSize(600, 130));
     setAttribute(Qt::WA_DeleteOnClose);
 
     setModal(true);
@@ -58,25 +59,52 @@ DebugServerSettingsDialog::DebugServerSettingsDialog(QWidget* parent, DebuggerCo
     formLayout->addRow("Host", m_addressEntry);
     formLayout->addRow("Port", m_portEntry);
 
+	auto *bottomRowLayout = new QHBoxLayout();
+
     QHBoxLayout* buttonLayout = new QHBoxLayout;
     buttonLayout->setContentsMargins(0, 0, 0, 0);
 
     QPushButton* cancelButton = new QPushButton("Cancel");
     connect(cancelButton, &QPushButton::clicked, [&](){ reject(); });
-    QPushButton* acceptButton = new QPushButton("Accept");
-    connect(acceptButton, &QPushButton::clicked, [&](){ apply(); });
-    acceptButton->setDefault(true);
+    m_acceptButton = new QPushButton("Connect");
+    connect(m_acceptButton, &QPushButton::clicked, [&](){ apply(); });
+	m_acceptButton->setDefault(true);
 
     buttonLayout->addStretch(1);
     buttonLayout->addWidget(cancelButton);
-    buttonLayout->addWidget(acceptButton);
+    buttonLayout->addWidget(m_acceptButton);
 
-    layout->addLayout(titleLayout);
-    layout->addSpacing(10);
-    layout->addLayout(formLayout);
-    layout->addStretch(1);
-    layout->addSpacing(10);
-    layout->addLayout(buttonLayout);
+	auto* hintLayout = new QHBoxLayout();
+
+	m_hintLabel = new QLabel("");
+	QPalette labelPalette;
+	labelPalette.setColor(m_hintLabel->foregroundRole(), getThemeColor(ScriptConsoleOutputColor));
+	m_hintLabel->setPalette(labelPalette);
+
+	m_hintIcon = new QLabel("");
+	QIcon icon = style()->standardIcon(QStyle::SP_MessageBoxInformation);
+	QPixmap pixmap = icon.pixmap(QSize(fontMetrics().height(), fontMetrics().height()));
+	m_hintIcon->setPixmap(pixmap);
+
+	resetHintMessages();
+
+	hintLayout->addWidget(m_hintIcon, 0, Qt::AlignRight);
+	hintLayout->addWidget(m_hintLabel, 0, Qt::AlignLeft);
+
+	hintLayout->setAlignment(Qt::AlignLeft);
+	buttonLayout->setAlignment(Qt::AlignRight);
+
+	bottomRowLayout->addLayout(hintLayout);
+	bottomRowLayout->addLayout(buttonLayout);
+
+	layout->addLayout(titleLayout);
+	layout->addSpacing(10);
+	layout->addLayout(formLayout);
+	layout->addStretch(1);
+	layout->addSpacing(10);
+
+	layout->addLayout(bottomRowLayout);
+
     setLayout(layout);
 
     m_addressEntry->setText(QString::fromStdString(m_controller->GetRemoteHost()));
@@ -114,5 +142,95 @@ void DebugServerSettingsDialog::apply()
 		m_controller->GetData()->StoreMetadata("debugger.platform", data);
 	}
 
-    accept();
+	BackgroundThread::create()
+		->thenMainThread([=](QVariant) {
+			displayInfoWithText("Connecting...");
+			m_acceptButton->setEnabled(false);
+			m_closeBlocking = true;
+		})
+		->thenBackground([=](QVariant) {
+			return m_controller->ConnectToDebugServer(); // This can block UI on failure.
+		})
+		->thenMainThread([=](QVariant var) {
+			m_acceptButton->setEnabled(true);
+			m_closeBlocking = false;
+			if (var.value<bool>() && m_controller->IsConnected())
+				accept();
+			else
+				displayErrorWithText("Could not connect.");
+		})
+		->catchMainThread([=](std::exception_ptr exc) {
+			try {
+				std::rethrow_exception(exc);
+			}
+			catch (std::exception e) {
+				LogError("Failed to connect with exception %s", e.what());
+				displayErrorWithText("Could not connect.");
+				m_acceptButton->setEnabled(true);
+				m_closeBlocking = false;
+			}
+		})->start();
 }
+
+void DebugServerSettingsDialog::reject()
+{
+	if (!m_closeBlocking)
+		QDialog::reject();
+}
+
+void DebugServerSettingsDialog::displayInfoWithText(const QString& text) const
+{
+	QIcon icon = style()->standardIcon(QStyle::SP_MessageBoxInformation);
+	QPixmap pixmap = icon.pixmap(QSize(fontMetrics().height(), fontMetrics().height()));
+	m_hintIcon->setPixmap(pixmap);
+
+	QPalette labelPalette;
+	labelPalette.setColor(m_hintLabel->foregroundRole(), getThemeColor(ScriptConsoleOutputColor));
+	m_hintLabel->setPalette(labelPalette);
+
+	m_hintLabel->setText(text);
+	m_hintIcon->setVisible(true);
+	m_hintLabel->setVisible(true);
+}
+
+void DebugServerSettingsDialog::displayWarningWithText(const QString &text) const
+{
+	QIcon icon = style()->standardIcon(QStyle::SP_MessageBoxWarning);
+	QPixmap pixmap = icon.pixmap(QSize(fontMetrics().height(), fontMetrics().height()));
+	m_hintIcon->setPixmap(pixmap);
+
+	QPalette labelPalette;
+	labelPalette.setColor(m_hintLabel->foregroundRole(), getThemeColor(ScriptConsoleWarningColor));
+	m_hintLabel->setPalette(labelPalette);
+
+	m_hintLabel->setText(text);
+	m_hintIcon->setVisible(true);
+	m_hintLabel->setVisible(true);
+}
+
+void DebugServerSettingsDialog::displayErrorWithText(const QString &text, bool disableAcceptanceButton) const
+{
+	QIcon icon = style()->standardIcon(QStyle::SP_MessageBoxCritical);
+	QPixmap pixmap = icon.pixmap(QSize(fontMetrics().height(), fontMetrics().height()));
+	m_hintIcon->setPixmap(pixmap);
+
+	QPalette labelPalette;
+	labelPalette.setColor(m_hintLabel->foregroundRole(), getThemeColor(ScriptConsoleErrorColor));
+	m_hintLabel->setPalette(labelPalette);
+
+	m_hintLabel->setText(text);
+	m_hintIcon->setVisible(true);
+	m_hintLabel->setVisible(true);
+
+	if (disableAcceptanceButton)
+		m_acceptButton->setEnabled(false);
+}
+
+void DebugServerSettingsDialog::resetHintMessages()
+{
+	m_hintLabel->setText("");
+	m_hintIcon->setVisible(false);
+	m_hintLabel->setVisible(false);
+	m_acceptButton->setEnabled(true);
+}
+

@@ -456,15 +456,10 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
         if (dialog->exec () != QDialog::Accepted)
             return;
 
-        if (controller->ConnectToDebugServer())
+        if (controller->IsConnected())
         {
             QMessageBox::information(context->mainWindow(), "Successfully connected",
                                      "Successfully connected to the debug server. Now you can launch or attach to a process.");
-        }
-        else
-        {
-            QMessageBox::warning(context->mainWindow(), "Failed to connect",
-                                     "Cannot connect to the debug server. Please check the connection configuration.");
         }
     }, notConnectedToDebugServer));
     debuggerMenu->addAction("Connect to Debug Server", "Launch");
@@ -502,7 +497,11 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
         if (dialog->exec () != QDialog::Accepted)
             return;
 
-        controller->Connect();
+		if (controller->IsConnected())
+		{
+			QMessageBox::information(context->mainWindow(), "Successfully connected",
+				"Successfully connected to the remote process.");
+		}
     }, notConnected));
     debuggerMenu->addAction("Connect to Remote Process", "Launch");
 

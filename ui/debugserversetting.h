@@ -39,6 +39,19 @@ private:
     QLineEdit* m_addressEntry;
     QLineEdit* m_portEntry;
 
+	QPushButton *m_acceptButton;
+
+	QLabel* m_hintIcon;
+	QLabel* m_hintLabel;
+	bool m_closeBlocking;
+
+	void displayWarningWithText(const QString& text) const;
+	void displayErrorWithText(const QString& text, bool disableAcceptanceButton = false) const;
+	void displayInfoWithText(const QString& text) const;
+
+	void resetHintMessages();
+	void reject() override;
+
 public:
     DebugServerSettingsDialog(QWidget* parent, DebuggerControllerRef controller);
 

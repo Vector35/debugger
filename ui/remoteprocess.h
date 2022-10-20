@@ -38,6 +38,19 @@ private:
 	QComboBox* m_pluginEntry;
 	QLineEdit* m_addressEntry;
 	QLineEdit* m_portEntry;
+	bool m_closeBlocking;
+
+	QPushButton *m_acceptButton;
+
+	QLabel* m_hintIcon;
+	QLabel* m_hintLabel;
+
+	void displayWarningWithText(const QString& text) const;
+	void displayErrorWithText(const QString& text, bool disableAcceptanceButton = false) const;
+	void displayInfoWithText(const QString& text) const;
+
+	void resetHintMessages();
+	void reject() override;
 
 public:
 	RemoteProcessSettingsDialog(QWidget* parent, DebuggerControllerRef controller);
