@@ -478,7 +478,9 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 
 	actionName = QString::fromStdString("Hide Unused Registers");
 	UIAction::registerAction(actionName);
-	m_menu->addAction(actionName, "ZDisplay", MENU_ORDER_NORMAL);
+
+	m_menu->addAction(actionName, "Display", MENU_ORDER_NORMAL);
+	m_menu->setGroupOrdering("Display", MENU_ORDER_LAST);
 	m_actionHandler.bindAction(actionName, UIAction([=](){
 		m_filter->toggleHideUnusedRegisters();
 	}));
