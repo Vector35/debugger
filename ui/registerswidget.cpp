@@ -413,6 +413,7 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
     m_table->setItemDelegate(m_delegate);
 
     m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
+    m_table->setSelectionMode(QAbstractItemView::SingleSelection);
 
     m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_table->verticalHeader()->setVisible(false);
