@@ -716,8 +716,13 @@ DebugRegistersContainer::DebugRegistersContainer(ViewFrame* view, BinaryViewRef 
 	m_filter->setFilterPlaceholderText("Search registers");
 
 	auto headerLayout = new QHBoxLayout;
-	headerLayout->setContentsMargins(0, 0, 0, 0);
 	headerLayout->addWidget(m_separateEdit, 1);
+
+	// Vertically-align the hamburger icon with the text field and give the
+	// layout just a bit more breathing room since it's really close to
+	// the surrounding elements.
+	headerLayout->setContentsMargins(1, 1, 6, 0);
+	headerLayout->setAlignment(Qt::AlignBaseline);
 
 	ClickableIcon* icon = new ClickableIcon(QImage(":/icons/images/menu.png"), QSize(16, 16));
 	connect(icon, &ClickableIcon::clicked, m_register, &DebugRegistersWidget::showContextMenu);
