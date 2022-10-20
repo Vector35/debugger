@@ -438,7 +438,7 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	if (m_menu == nullptr)
 		m_menu = new Menu();
 
-	QString actionName = QString::fromStdString("Set To Zero");
+	QString actionName = QString::fromStdString("Set to Zero");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(actionName, UIAction([=](){ setToZero(); }));
@@ -448,7 +448,7 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(actionName, UIAction([=](){ editValue(); }));
 
-	actionName = QString::fromStdString("Jump To Address");
+	actionName = QString::fromStdString("Jump to Address");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([=](){ jump(); }));
@@ -478,7 +478,7 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 
 	actionName = QString::fromStdString("Hide Unused Registers");
 	UIAction::registerAction(actionName);
-	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
+	m_menu->addAction(actionName, "ZDisplay", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(actionName, UIAction([=](){
 		m_filter->toggleHideUnusedRegisters();
 	}));
