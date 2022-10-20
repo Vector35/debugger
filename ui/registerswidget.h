@@ -144,7 +144,7 @@ protected:
 
 public:
 	bool getHideUnusedRegisters() const { return m_hideUnusedRegisters; }
-	void toggleHideUnusedRegisters() { m_hideUnusedRegisters = !m_hideUnusedRegisters; invalidate(); }
+	void toggleHideUnusedRegisters();
 };
 
 

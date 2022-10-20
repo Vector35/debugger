@@ -734,10 +734,17 @@ void DebugRegistersContainer::updateContent()
 	m_register->updateContent();
 }
 
+// TODO: Group this with other settings key constants if more pop up.
+constexpr auto HideUnusedRegistersKey = "ui/debugger/registers/hideUnused";
 
 DebugRegisterFilterProxyModel::DebugRegisterFilterProxyModel(QObject *parent): QSortFilterProxyModel(parent)
 {
 	setFilterCaseSensitivity(Qt::CaseInsensitive);
+
+	QSettings settings;
+	auto hideUnused = settings.value(HideUnusedRegistersKey);
+	if (!hideUnused.isNull())
+		m_hideUnusedRegisters = hideUnused.toBool();
 }
 
 
@@ -760,4 +767,12 @@ bool DebugRegisterFilterProxyModel::filterAcceptsRow(int sourceRow, const QModel
 			return true;
 	}
 	return false;
+}
+
+void DebugRegisterFilterProxyModel::toggleHideUnusedRegisters()
+{
+	m_hideUnusedRegisters = !m_hideUnusedRegisters;
+	QSettings().setValue(HideUnusedRegistersKey, m_hideUnusedRegisters);
+
+	invalidate();
 }
