@@ -26,6 +26,11 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	QWidget(parent), m_view(frame)
 {
 	m_debugger = DebuggerController::GetController(data);
+	// In rare cases, m_debugger could be nullptr. This only happens when 1. a target exits and the live view of the
+	// DebuggerController is set to nullptr, 2. the UI still shows the live view. This is a short time span, since
+	// the debugger UI will reopen the file context after the target exits, which no longer contains teh live view.
+	if (!m_debugger)
+		return;
 
 	QVBoxLayout* layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
@@ -89,7 +94,8 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 
 ThreadFramesWidget::~ThreadFramesWidget()
 {
-	m_debugger->RemoveEventCallback(m_debuggerEventCallback);
+	if (m_debugger)
+		m_debugger->RemoveEventCallback(m_debuggerEventCallback);
 }
 
 

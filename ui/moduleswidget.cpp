@@ -261,6 +261,8 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
     m_view(view)
 {
     m_controller = DebuggerController::GetController(data);
+	if (!m_controller)
+		return;
 
     m_table = new QTableView(this);
     m_model = new DebugModulesListModel(m_table, view);
@@ -349,7 +351,8 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
 
 DebugModulesWidget::~DebugModulesWidget()
 {
-	m_controller->RemoveEventCallback(m_debuggerEventCallback);
+	if (m_controller)
+		m_controller->RemoveEventCallback(m_debuggerEventCallback);
 }
 
 
