@@ -60,6 +60,8 @@ GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 		}
 	}
 
+	m_displayingGlobalAreaWidgets = false;
+
 	SetupMenu(context);
 }
 
@@ -67,10 +69,6 @@ GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 GlobalDebuggerUI::~GlobalDebuggerUI()
 {
 }
-
-
-static void CreateGlobalAreaWidgets(UIContext* context);
-static void CloseGlobalAreaWidgets(UIContext* context);
 
 static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 {
@@ -529,17 +527,32 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 //	}));
 //	debuggerMenu->addAction("Activate Debug Adapter", "Launch");
 
-	UIAction::registerAction("Hide Debugger Global Area Widgets");
-	context->globalActions()->bindAction("Hide Debugger Global Area Widgets", UIAction([=](const UIActionContext& ctxt) {
-		CloseGlobalAreaWidgets(ctxt.context);
-	}));
-	debuggerMenu->addAction("Hide Debugger Global Area Widgets", "Options");
+	QString showAreaWidgets = "Show Debugger Global Area Widgets";
+	UIAction::registerAction(showAreaWidgets);
 
-	UIAction::registerAction("Show Debugger Global Area Widgets");
-	context->globalActions()->bindAction("Show Debugger Global Area Widgets", UIAction([=](const UIActionContext& ctxt) {
-		CreateGlobalAreaWidgets(ctxt.context);
+	context->globalActions()->bindAction(showAreaWidgets, UIAction([](const UIActionContext& ctxt) {
+		auto uiContext = ctxt.context;
+		if (uiContext)
+		{
+			auto globalUI = GlobalDebuggerUI::GetForContext(uiContext);
+			if (globalUI)
+			{
+				globalUI->SetDisplayingGlobalAreaWidgets(!globalUI->m_displayingGlobalAreaWidgets);
+			}
+		}
 	}));
-	debuggerMenu->addAction("Show Debugger Global Area Widgets", "Options");
+	context->globalActions()->setChecked(showAreaWidgets, [=](const UIActionContext& ctxt) {
+		auto uiContext = ctxt.context;
+		if (uiContext)
+		{
+			auto* globalUI = GlobalDebuggerUI::GetForContext(uiContext);
+			if (globalUI)
+				return globalUI->m_displayingGlobalAreaWidgets;
+		}
+		return false;
+	});
+
+	debuggerMenu->addAction(showAreaWidgets, "Options");
 
 	UIAction::registerAction("Make Code", QKeySequence(Qt::Key_C));
 	context->globalActions()->bindAction("Make Code", UIAction([=](const UIActionContext& ctxt) {
@@ -587,7 +600,9 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller):
     m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
 		if ((event.type == LaunchEventType) || (event.type == AttachEventType) || (event.type == ConnectEventType))
 		{
-			CreateGlobalAreaWidgets(m_context);
+			auto* globalUI = GlobalDebuggerUI::GetForContext(m_context);
+			if (globalUI)
+				globalUI->SetDisplayingGlobalAreaWidgets(true);
 		}
 		emit debuggerEvent(event);
     }, "UI");
@@ -612,7 +627,17 @@ DebuggerUI::~DebuggerUI()
 }
 
 
-static void CreateGlobalAreaWidgets(UIContext* context)
+void GlobalDebuggerUI::SetDisplayingGlobalAreaWidgets(bool display)
+{
+	if (display)
+		CreateGlobalAreaWidgets(m_context);
+	else
+		CloseGlobalAreaWidgets(m_context);
+
+	m_displayingGlobalAreaWidgets = display;
+}
+
+void GlobalDebuggerUI::CreateGlobalAreaWidgets(UIContext* context)
 {
 	auto globalArea = context->globalArea();
 	if (!globalArea)
@@ -650,7 +675,7 @@ static void CreateGlobalAreaWidgets(UIContext* context)
 }
 
 
-static void CloseGlobalAreaWidgets(UIContext* context)
+void GlobalDebuggerUI::CloseGlobalAreaWidgets(UIContext* context)
 {
 	auto globalArea = context->globalArea();
 	if (!globalArea)

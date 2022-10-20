@@ -37,6 +37,10 @@ private:
 	UIContext* m_context;
 	QMainWindow* m_window;
 	DebuggerStatusBarContainer* m_status;
+	bool m_displayingGlobalAreaWidgets;
+
+	static void CreateGlobalAreaWidgets(UIContext* context);
+	static void CloseGlobalAreaWidgets(UIContext* context);
 
 public:
 	GlobalDebuggerUI(UIContext* context);
@@ -51,6 +55,8 @@ public:
 	void SetActiveFrame(ViewFrame* frame);
 
 	void SetupMenu(UIContext* context);
+
+	void SetDisplayingGlobalAreaWidgets(bool display);
 };
 
 
