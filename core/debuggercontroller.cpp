@@ -956,8 +956,10 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	}
 	case TargetExitedEventType:
 		m_exitCode = event.data.exitData.exitCode;
+	case QuitDebuggingEventType:
 	case DetachedEventType:
 	{
+		m_liveView->GetFile()->UnregisterViewOfType("Debugger", m_liveView);
         SetLiveView(nullptr);
         m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
         m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
