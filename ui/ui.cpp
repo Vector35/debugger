@@ -217,6 +217,10 @@ static void MakeCodeHelper(BinaryView* view, uint64_t addr)
 
 void GlobalDebuggerUI::SetupMenu(UIContext* context)
 {
+	auto requireBinaryView = [](const UIActionContext& ctxt) {
+		return ctxt.binaryView;
+	};
+
 	auto notConnected = [=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
 			return false;
@@ -290,7 +294,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 		auto* dialog = new AdapterSettingsDialog(context->mainWindow(), controller);
 		dialog->show();
-	}));
+	}, requireBinaryView));
 
 	Menu* debuggerMenu = Menu::mainMenu("Debugger");
 	Menu::setMainMenuOrder("Debugger", MENU_ORDER_LATE);
@@ -543,7 +547,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			return;
 
 		MakeCodeHelper(ctxt.binaryView, ctxt.address);
-	}));
+	}, requireBinaryView));
 	debuggerMenu->addAction("Make Code", "Misc");
 
 	UIAction::setActionDisplayName("Make Code", [](const UIActionContext& ctxt) -> QString {
