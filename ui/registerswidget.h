@@ -166,7 +166,7 @@ class DebugRegistersWidget: public QWidget, public FilterTarget
 
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
-	bool canCopy();
+	bool selectionNotEmpty();
 	bool canPaste();
 
 	virtual void setFilter(const std::string& filter) override;

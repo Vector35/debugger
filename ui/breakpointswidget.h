@@ -120,6 +120,8 @@ class DebugBreakpointsWidget : public QWidget
     ContextMenuManager* m_contextMenuManager;
     Menu* m_menu;
 
+	bool selectionNotEmpty();
+
     // void shouldBeVisible()
 //    virtual void notifyFontChanged() override;
 

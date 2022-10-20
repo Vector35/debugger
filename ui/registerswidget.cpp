@@ -441,20 +441,20 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	QString actionName = QString::fromStdString("Set to Zero");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction(actionName, UIAction([=](){ setToZero(); }));
+	m_actionHandler.bindAction(actionName, UIAction([=](){ setToZero(); }, [&](){ return selectionNotEmpty(); }));
 
 	actionName = QString::fromStdString("Edit Value");
 	UIAction::registerAction(actionName, QKeySequence(Qt::Key_Enter));
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction(actionName, UIAction([=](){ editValue(); }));
+	m_actionHandler.bindAction(actionName, UIAction([=](){ editValue(); }, [&](){ return selectionNotEmpty(); }));
 
 	actionName = QString::fromStdString("Jump to Address");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=](){ jump(); }));
+	m_actionHandler.bindAction(actionName, UIAction([=](){ jump(); }, [&](){ return selectionNotEmpty(); }));
 
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction("Copy", UIAction([&](){ copy(); }, [&](){ return canCopy(); }));
+	m_actionHandler.bindAction("Copy", UIAction([&](){ copy(); }, [&](){ return selectionNotEmpty(); }));
 	m_actionHandler.setActionDisplayName("Copy", [&](){
 		QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
 		if (sel.empty())
@@ -638,10 +638,10 @@ void DebugRegistersWidget::paste()
 }
 
 
-bool DebugRegistersWidget::canCopy()
+bool DebugRegistersWidget::selectionNotEmpty()
 {
 	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
-	return !sel.empty();
+	return (!sel.empty()) && sel[0].isValid();
 }
 
 

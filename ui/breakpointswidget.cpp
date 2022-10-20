@@ -262,12 +262,14 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
     QString removeBreakpointActionName = QString::fromStdString("Remove Breakpoint");
     UIAction::registerAction(removeBreakpointActionName, QKeySequence::Delete);
     m_menu->addAction(removeBreakpointActionName, "Options", MENU_ORDER_NORMAL);
-    m_actionHandler.bindAction(removeBreakpointActionName, UIAction([&](){ remove(); }));
+    m_actionHandler.bindAction(removeBreakpointActionName, UIAction([&](){ remove(); },
+															   [&](){ return selectionNotEmpty(); }));
 
     QString jumpToBreakpointActionName = QString::fromStdString("Jump To Breakpoint");
     UIAction::registerAction(jumpToBreakpointActionName);
     m_menu->addAction(jumpToBreakpointActionName, "Options", MENU_ORDER_NORMAL);
-    m_actionHandler.bindAction(jumpToBreakpointActionName, UIAction([&](){ jump(); }));
+    m_actionHandler.bindAction(jumpToBreakpointActionName, UIAction([&](){ jump(); },
+															   [&](){ return selectionNotEmpty(); }));
 
     updateContent();
 }
@@ -287,6 +289,13 @@ DebugBreakpointsWidget::~DebugBreakpointsWidget()
 void DebugBreakpointsWidget::contextMenuEvent(QContextMenuEvent* event)
 {
     m_contextMenuManager->show(m_menu, &m_actionHandler);
+}
+
+
+bool DebugBreakpointsWidget::selectionNotEmpty()
+{
+	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	return (!sel.empty()) && sel[0].isValid();
 }
 
 
