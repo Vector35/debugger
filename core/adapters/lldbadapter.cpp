@@ -133,7 +133,14 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 	// either reuse the previous session as much as possible, or always create a new one.
 	m_target = m_debugger.CreateTarget(path.c_str());
 	if (!m_target.IsValid())
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.error = fmt::format("LLDB failed to create target. "
+			"The file might be unsupported or malformed.");
+		PostDebuggerEvent(event);
 		return false;
+	}
 
 	m_targetActive = true;
 	// Breakpoints are added to this adapter right after the adapter gets created. However, at that time, the target is
