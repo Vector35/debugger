@@ -22,6 +22,24 @@ limitations under the License.
 using namespace lldb;
 using namespace BinaryNinjaDebugger;
 
+std::string lldbArchNameForBinaryNinjaArchName(std::string name)
+{
+	if (name == "x86_64")
+		return "x86_64";
+	else if (name == "x86")
+		return "x86";
+	else if (name == "aarch64")
+		return "arm64";
+	else if (name == "armv7")
+		return "arm";
+	else if (name == "ppc")
+		return "powerpc";
+	else if (name == "ppc64")
+		return "powerpc64";
+
+	return "";
+}
+
 LldbAdapter::LldbAdapter(BinaryView *data): DebugAdapter(data)
 {
 	m_targetActive = false;
@@ -129,15 +147,33 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 {
 	m_debugger.SetAsync(false);
 
-	// Always create a new target to avoid leftovers from the last debugging session. We shall revisit the decision to
-	// either reuse the previous session as much as possible, or always create a new one.
-	m_target = m_debugger.CreateTarget(path.c_str());
+	SBError err;
+
+	// *Attempt* to create a functional target triple for the binary.
+	// This allows attaching to fat binaries. If the triple is empty, it will still attach on thin binaries.
+	auto archName = lldbArchNameForBinaryNinjaArchName(m_defaultArchitecture);
+	std::string triple = "";
+	if (!archName.empty())
+		triple = archName + "-unknown-none";
+
+	m_target = m_debugger.CreateTarget(path.c_str(), triple.c_str(), "", true, err);
+
+	if (!m_target.IsValid())
+	{
+		// It is likely lldb did not like our target triple.
+		if (std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
+		{
+			// Last-ditch effort. If it is a thin binary, we will be able to attach without passing a triple.
+			m_target = m_debugger.CreateTarget(path.c_str(), "", "", true, err);
+		}
+	}
+
 	if (!m_target.IsValid())
 	{
 		DebuggerEvent event;
 		event.type = ErrorEventType;
-		event.data.errorData.error = fmt::format("LLDB failed to create target. "
-			"The file might be unsupported or malformed.");
+		event.data.errorData.shortError = "LLDB failed to create target.";
+		event.data.errorData.error = fmt::format("LLDB Failed to create target with \"{}\"", err.GetCString());
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -177,7 +213,8 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 		result.erase(it + 1);
 		DebuggerEvent event;
 		event.type = ErrorEventType;
-		event.data.errorData.error = fmt::format("failed to launch: {}", result.c_str());
+		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
+		event.data.errorData.error = fmt::format("LLDB Failed to attach to target with \"{}\"", err.GetCString());
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -190,10 +227,36 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 {
 	m_debugger.SetAsync(false);
 
-	// Hacky way to supply the path info into the LLDB
-	m_target = m_debugger.CreateTarget(m_originalFileName.c_str());
+	SBError err;
+
+	// *Attempt* to create a functional target triple for the binary.
+	// This allows attaching to fat binaries. If the triple is empty, it will still attach on thin binaries.
+	auto archName = lldbArchNameForBinaryNinjaArchName(m_defaultArchitecture);
+	std::string triple = "";
+	if (!archName.empty())
+		triple = archName + "-unknown-none";
+
+	m_target = m_debugger.CreateTarget(m_originalFileName.c_str(), triple.c_str(), "", true, err);
+
 	if (!m_target.IsValid())
+	{
+		// It is likely lldb did not like our target triple.
+		if (std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
+		{
+			// Last-ditch effort. If it is a thin binary, we will be able to attach without passing a triple.
+			m_target = m_debugger.CreateTarget(m_originalFileName.c_str(), "", "", true, err);
+		}
+	}
+
+	if (!m_target.IsValid())
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
+		event.data.errorData.error = fmt::format("LLDB failed to attach to target with \"{}\"", err.GetCString());
+		PostDebuggerEvent(event);
 		return false;
+	}
 
 	m_targetActive = true;
 	ApplyBreakpoints();
@@ -213,10 +276,36 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 {
 	m_debugger.SetAsync(false);
 
-	// Hacky way to supply the path info into the LLDB
-	m_target = m_debugger.CreateTarget(m_originalFileName.c_str());
+	SBError err;
+
+	// *Attempt* to create a functional target triple for the binary.
+	// This allows attaching to fat binaries. If the triple is empty, it will still attach on thin binaries.
+	auto archName = lldbArchNameForBinaryNinjaArchName(m_defaultArchitecture);
+	std::string triple = "";
+	if (!archName.empty())
+		triple = archName + "-unknown-none";
+
+	m_target = m_debugger.CreateTarget(m_originalFileName.c_str(), triple.c_str(), "", true, err);
+
 	if (!m_target.IsValid())
+	{
+		// It is likely lldb did not like our target triple.
+		if (std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
+		{
+			// Last-ditch effort. If it is a thin binary, we will be able to attach without passing a triple.
+			m_target = m_debugger.CreateTarget(m_originalFileName.c_str(), "", "", true, err);
+		}
+	}
+
+	if (!m_target.IsValid())
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
+		event.data.errorData.error = fmt::format("LLDB failed to attach to target with \"{}\"", err.GetCString());
+		PostDebuggerEvent(event);
 		return false;
+	}
 
 	m_targetActive = true;
 	ApplyBreakpoints();

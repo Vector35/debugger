@@ -36,6 +36,7 @@ namespace BinaryNinjaDebugger
 
 	struct ErrorEventData
 	{
+		std::string shortError{};
 		std::string error{};
 		void* data;
 	};
