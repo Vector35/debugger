@@ -24,6 +24,7 @@ using namespace BinaryNinjaDebugger;
 
 LldbAdapter::LldbAdapter(BinaryView *data): DebugAdapter(data)
 {
+	m_targetActive = false;
 	SBDebugger::Initialize();
 	m_debugger = SBDebugger::Create();
 	if (!m_debugger.IsValid())
@@ -105,6 +106,18 @@ void BinaryNinjaDebugger::InitLldbAdapterType()
 }
 
 
+void LldbAdapter::ApplyBreakpoints()
+{
+	for (const auto bp: m_pendingBreakpoints)
+	{
+		AddBreakpoint(bp);
+	}
+	// Clear the pending breakpoint list so that when the adapter launch/attach/connect to the target for the next time,
+	// it always gets a clean list of breakpoints from the controller.
+	m_pendingBreakpoints.clear();
+}
+
+
 bool LldbAdapter::Execute(const std::string & path, const LaunchConfigurations & configs)
 {
 	return ExecuteWithArgs(path, "", "", configs);
@@ -116,9 +129,18 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 {
 	m_debugger.SetAsync(false);
 
+	// Always create a new target to avoid leftovers from the last debugging session. We shall revisit the decision to
+	// either reuse the previous session as much as possible, or always create a new one.
 	m_target = m_debugger.CreateTarget(path.c_str());
 	if (!m_target.IsValid())
 		return false;
+
+	m_targetActive = true;
+	// Breakpoints are added to this adapter right after the adapter gets created. However, at that time, the target is
+	// not created yet, so there is no way the adapter could apply the breakpoints to the target. Instead, the adapter
+	// stores all the breakpoints in m_pendingBreakpoints, and applies them when launching/connecting/attaching to the
+	// target.
+	ApplyBreakpoints();
 
 	std::thread thread([&](){ EventListener(); });
 	thread.detach();
@@ -166,6 +188,9 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	if (!m_target.IsValid())
 		return false;
 
+	m_targetActive = true;
+	ApplyBreakpoints();
+
 	std::thread thread([&](){ EventListener(); });
 	thread.detach();
 
@@ -185,6 +210,9 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 	m_target = m_debugger.CreateTarget(m_originalFileName.c_str());
 	if (!m_target.IsValid())
 		return false;
+
+	m_targetActive = true;
+	ApplyBreakpoints();
 
 	std::thread thread([&](){ EventListener(); });
 	thread.detach();
@@ -350,9 +378,17 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigne
 
 DebugBreakpoint LldbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
 {
-	uint64_t addr = address.offset + m_start;
-	std::string entryBreakpointCommand = fmt::format("b -s \"{}\" -a 0x{:x}", address.module, addr);
-	auto ret = InvokeBackendCommand(entryBreakpointCommand);
+	if (!m_targetActive)
+	{
+		if (std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end())
+			m_pendingBreakpoints.push_back(address);
+	}
+	else
+	{
+		uint64_t addr = address.offset + m_start;
+		std::string entryBreakpointCommand = fmt::format("b -s \"{}\" -a 0x{:x}", address.module, addr);
+		auto ret = InvokeBackendCommand(entryBreakpointCommand);
+	}
 
 	return DebugBreakpoint{};
 }
@@ -360,6 +396,10 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, u
 
 bool LldbAdapter::RemoveBreakpoint(const DebugBreakpoint & breakpoint)
 {
+	// This is what gets called when we delete a breakpoint from the controller. Because the adapter would have no
+	// convenient way of mapping a ModuleNameAndOffset to an actual address, so the controller uses the address of the
+	// breakpoint to carry out deletion.
+
 	// Only the address is valid. We cannot use the .m_id info.
 	bool ok = false;
 	uint64_t address = breakpoint.m_address;
@@ -383,6 +423,12 @@ bool LldbAdapter::RemoveBreakpoint(const DebugBreakpoint & breakpoint)
 
 bool LldbAdapter::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
 {
+	// This function is actually never called, because the adapter handles the cache of the breakpoints when the target
+	// is inactive. When the target is active, the `LldbAdapter::RemoveBreakpoint(const DebugBreakpoint & breakpoint)`
+	// above is called.
+	auto it = std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), breakpoint);
+	if (it != m_pendingBreakpoints.end())
+		m_pendingBreakpoints.erase(it);
 	return true;
 }
 
@@ -1025,6 +1071,7 @@ void LldbAdapter::EventListener()
 				case lldb::eStateExited:
 				{
 					done = true;
+					m_targetActive = false;
 					DebuggerEvent dbgevt;
 					dbgevt.type = TargetExitedEventType;
 					dbgevt.data.exitData.exitCode = ExitCode();
@@ -1034,6 +1081,7 @@ void LldbAdapter::EventListener()
 				case lldb::eStateDetached:
 				{
 					done = true;
+					m_targetActive = false;
 					DebuggerEvent dbgevt;
 					dbgevt.type = DetachedEventType;
 					PostDebuggerEvent(dbgevt);

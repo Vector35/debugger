@@ -150,7 +150,10 @@ bool DebuggerController::CreateDebugAdapter()
 {
     // The current adapter type is the same as the last one, and the last adapter is still valid
     if (m_state->GetAdapterType() == m_lastAdapterName && m_adapter != nullptr)
+	{
+		ApplyBreakpoints();
         return true;
+	}
 
     DebugAdapterType* type = DebugAdapterType::GetByName(m_state->GetAdapterType());
     if (!type)

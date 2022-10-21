@@ -33,6 +33,9 @@ namespace BinaryNinjaDebugger {
 		lldb::SBTarget m_target;
 		lldb::SBProcess m_process;
 
+		bool m_targetActive;
+		std::vector<ModuleNameAndOffset> m_pendingBreakpoints{};
+
 	public:
 
 		LldbAdapter(BinaryView* data);
@@ -125,6 +128,8 @@ namespace BinaryNinjaDebugger {
 		bool DisconnectDebugServer() override;
 
 		std::string m_processPlugin;
+
+		void ApplyBreakpoints();
 	};
 
 	class LldbAdapterType: public DebugAdapterType
