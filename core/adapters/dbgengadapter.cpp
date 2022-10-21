@@ -365,7 +365,10 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 			directory, nullptr);
             result != S_OK)
     {
-		LogWarn("failed to launch");
+        DebuggerEvent event;
+        event.type = ErrorEventType;
+        event.data.errorData.error = fmt::format("CreateProcess2 failed with code: 0x{:x}", result);
+        PostDebuggerEvent(event);
         this->Reset();
         return false;
     }
