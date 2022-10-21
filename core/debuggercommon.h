@@ -30,7 +30,7 @@ namespace BinaryNinjaDebugger
 		ModuleNameAndOffset(std::string mod, uint64_t off): module(mod), offset(off) {}
 		bool operator==(const ModuleNameAndOffset& other) const
 		{
-			return (module == other.module) && (offset == other.offset);
+			return IsSameBaseModule(other) && (offset == other.offset);
 		}
 		bool operator<(const ModuleNameAndOffset& other) const
 		{
@@ -48,5 +48,39 @@ namespace BinaryNinjaDebugger
 				return false;
 			return offset > other.offset;
 		}
+
+
+        static std::string GetPathBaseName(const std::string& path)
+        {
+        #ifdef WIN32
+            // TODO: someone please write it on Windows!
+            char baseName[MAX_PATH];
+            _splitpath(path.c_str(), NULL, NULL, baseName, NULL);
+            return std::string(baseName);
+        #else
+            return basename(strdup(path.c_str()));
+        #endif
+        }
+
+
+        bool IsSameBaseModule(const ModuleNameAndOffset& other) const
+        {
+            return ((module == other.module) ||
+                    (GetPathBaseName(module) == GetPathBaseName(other.module)));
+        }
+
+
+        bool ModuleNameAndOffset::IsSameBaseModule(const std::string& other) const
+        {
+            return ((module == other) ||
+                    (GetPathBaseName(module) == GetPathBaseName(other)));
+        }
+
+
+        static bool ModuleNameAndOffset::IsSameBaseModule(const std::string& module1, const std::string& module2)
+        {
+            return ((module1 == module2) ||
+                    (GetPathBaseName(module1) == GetPathBaseName(module2)));
+        }
 	};
 };

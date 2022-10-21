@@ -484,6 +484,9 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
     }
 
 	Wait();
+
+    ApplyBreakpoints();
+
 	return true;
 }
 
@@ -726,6 +729,7 @@ void DbgEngAdapter::ApplyBreakpoints()
     {
         AddBreakpoint(bp);
     }
+    m_pendingBreakpoints.clear();
 }
 
 DebugRegister DbgEngAdapter::ReadRegister(const std::string &reg)
