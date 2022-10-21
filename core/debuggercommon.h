@@ -15,6 +15,10 @@ limitations under the License.
 */
 
 #pragma once
+#include <string.h>
+#ifndef WIN32
+	#include "libgen.h"
+#endif
 
 namespace BinaryNinjaDebugger
 {
@@ -70,14 +74,14 @@ namespace BinaryNinjaDebugger
         }
 
 
-        bool ModuleNameAndOffset::IsSameBaseModule(const std::string& other) const
+        bool IsSameBaseModule(const std::string& other) const
         {
             return ((module == other) ||
                     (GetPathBaseName(module) == GetPathBaseName(other)));
         }
 
 
-        static bool ModuleNameAndOffset::IsSameBaseModule(const std::string& module1, const std::string& module2)
+        static bool IsSameBaseModule(const std::string& module1, const std::string& module2)
         {
             return ((module1 == module2) ||
                     (GetPathBaseName(module1) == GetPathBaseName(module2)));
