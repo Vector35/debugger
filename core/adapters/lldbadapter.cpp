@@ -129,15 +129,14 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 {
 	m_debugger.SetAsync(false);
 
-	// Always create a new target to avoid leftovers from the last debugging session. We shall revisit the decision to
-	// either reuse the previous session as much as possible, or always create a new one.
-	m_target = m_debugger.CreateTarget(path.c_str());
+	SBError err;
+	auto hostPlatform = SBPlatform::GetHostPlatform();
+	m_target = m_debugger.CreateTarget(path.c_str(), hostPlatform.GetTriple(), "", true, err);
 	if (!m_target.IsValid())
 	{
 		DebuggerEvent event;
 		event.type = ErrorEventType;
-		event.data.errorData.error = fmt::format("LLDB failed to create target. "
-			"The file might be unsupported or malformed.");
+		event.data.errorData.error = fmt::format("LLDB failed to create target: %s", err.GetCString());
 		PostDebuggerEvent(event);
 		return false;
 	}
