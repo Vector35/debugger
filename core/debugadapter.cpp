@@ -41,7 +41,9 @@ DebugAdapter::DebugAdapter(BinaryView* data)
 	// the original image base, and it does not work with a rebased one.
 	m_entryPoint = data->GetEntryPoint();
 	m_start = data->GetStart();
-	m_defaultArchitecture = data->GetDefaultArchitecture()->GetName();
+	if (data->GetDefaultArchitecture())
+		m_defaultArchitecture = data->GetDefaultArchitecture()->GetName();
+
 	m_originalFileName = data->GetFile()->GetOriginalFilename();
 }
 
