@@ -44,6 +44,33 @@ using namespace std;
             result != S_OK) \
         throw std::runtime_error("Failed to create "#query)
 
+static bool IsValidDbgEngPaths(const std::string& path)
+{
+    if (path.empty())
+        return false;
+
+    auto enginePath = filesystem::path(path);
+    if (!filesystem::exists(enginePath))
+        return false;
+
+    if (!filesystem::exists(enginePath / "dbgeng.dll"))
+        return false;
+
+    if (!filesystem::exists(enginePath / "dbghelp.dll"))
+        return false;
+
+    if (!filesystem::exists(enginePath / "dbgmodel.dll"))
+        return false;
+
+    if (!filesystem::exists(enginePath / "dbgcore.dll"))
+        return false;
+
+    if (!filesystem::exists(enginePath / "dbgsrv.exe"))
+        return false;
+
+    return true;
+}
+
 std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 {
     std::string path;
@@ -52,38 +79,28 @@ std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
     else
         path = Settings::Instance()->Get<string>("debugger.x86dbgEngPath");
 
-    if (path.empty())
-    {
-        char appData[MAX_PATH];
-        if (!SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appData)))
-            return "";
-        auto debuggerRoot = filesystem::path(appData) / "Binary Ninja" / "dbgeng" / "Windows Kits" / "10" / "Debuggers" / arch;
-        if (!filesystem::exists(debuggerRoot))
-            return "";
+    if (IsValidDbgEngPaths(path))
+        return path;
 
-        path = debuggerRoot.string();
+    char appData[MAX_PATH];
+    // For a system installation, the path is %APPDATA%\Binary Ninja\dbgeng\Windows Kits\10\Debuggers
+    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appData)))
+    {
+        auto debuggerRoot =
+                filesystem::path(appData) / "Binary Ninja" / "dbgeng" / "Windows Kits" / "10" / "Debuggers" / arch;
+        if (IsValidDbgEngPaths(debuggerRoot.string()))
+            return debuggerRoot.string();
     }
 
-    auto enginePath = filesystem::path(path);
-    if (!filesystem::exists(enginePath))
-        return "";
-
-    if (!filesystem::exists(enginePath / "dbgeng.dll"))
-        return "";
-
-    if (!filesystem::exists(enginePath / "dbghelp.dll"))
-        return "";
-
-    if (!filesystem::exists(enginePath / "dbgmodel.dll"))
-        return "";
-
-    if (!filesystem::exists(enginePath / "dbgcore.dll"))
-        return "";
-
-    if (!filesystem::exists(enginePath / "dbgsrv.exe"))
-        return "";
-
-    return enginePath.string();
+    // For a system installation, the path is %PROGRAMDATA%\Binary Ninja\dbgeng\Windows Kits\10\Debuggers
+    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_COMMON_APPDATA, NULL, 0, appData)))
+    {
+        auto debuggerRoot =
+                filesystem::path(appData) / "Binary Ninja" / "dbgeng" / "Windows Kits" / "10" / "Debuggers" / arch;
+        if (IsValidDbgEngPaths(debuggerRoot.string()))
+            return debuggerRoot.string();
+    }
+    return "";
 }
 
 bool DbgEngAdapter::LoadDngEngLibraries()
@@ -91,6 +108,7 @@ bool DbgEngAdapter::LoadDngEngLibraries()
     auto enginePath = GetDbgEngPath();
     if (!enginePath.empty())
     {
+        LogDebug("DbgEng libraries in path %s", enginePath.c_str());
         if (!SetDllDirectoryA(enginePath.c_str()))
             LogWarn("Failed to set DLL directory to %s. The debugger is going to load the system dbgeng DLLs, which may "
                     "not work as expected", enginePath.c_str());
