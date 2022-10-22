@@ -395,6 +395,9 @@ void DebuggerController::StepOverInternal()
 
     // TODO: support the case where we cannot determined the remote arch
 	ArchitectureRef remoteArch = m_state->GetRemoteArchitecture();
+	if (!remoteArch)
+		return;
+
     size_t size = remoteArch->GetMaxInstructionLength();
     DataBuffer buffer = m_adapter->ReadMemory(remoteIP, size);
     size_t bytesRead = buffer.GetLength();
@@ -1301,6 +1304,9 @@ void DebuggerController::UpdateStackVariables()
 {
 	std::vector<DebugThread> threads = GetAllThreads();
 	uint64_t frameAdjustment = 0;
+	if (!m_liveView->GetDefaultArchitecture())
+		return;
+
 	std::string archName = m_liveView->GetDefaultArchitecture()->GetName();
 	if ((archName == "x86") || (archName == "x86_64"))
 		frameAdjustment = 8;
