@@ -52,14 +52,16 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	m_actionResume->setVisible(false);
 
 	// TODO: we need a different icon here
-	m_actionAttachPid = addAction(getColoredIcon(":/icons/images/debugger/connect.svg", white), "Attach PID",
+	m_actionAttachPid = addAction(getColoredIcon(":/icons/images/debugger/connect.svg", white), "Attach to PID",
 							[this](){ performAttachPID(); });
+	m_actionDetach = addAction(getColoredIcon(":/icons/images/debugger/disconnect.svg", red), "Detach",
+		[this](){ performDetach(); });
+	m_actionDetach->setVisible(false);
+
     m_actionRestart = addAction(getColoredIcon(":/icons/images/debugger/restart.svg", red), "Restart",
                                 [this](){ performRestart(); });
     m_actionQuit = addAction(getColoredIcon(":/icons/images/debugger/cancel.svg", red), "Quit",
                              [this](){ performQuit(); });
-    m_actionDetach = addAction(getColoredIcon(":/icons/images/debugger/disconnect.svg", red), "Detach",
-                               [this](){ performDetach(); });
     addSeparator();
 
     m_actionStepInto = addAction(getColoredIcon(":/icons/images/debugger/stepinto.svg", cyan), "Step Into",
@@ -203,6 +205,7 @@ void DebugControlsWidget::setStartingEnabled(bool enabled)
     m_actionRun->setEnabled(enabled && canExec());
 	// TODO: we need to support specifying whether the adapter supports attaching to a pid
     m_actionAttachPid->setEnabled(enabled && canExec());
+	m_actionAttachPid->setVisible(enabled);
 }
 
 
@@ -211,6 +214,7 @@ void DebugControlsWidget::setStoppingEnabled(bool enabled)
     m_actionRestart->setEnabled(enabled);
     m_actionQuit->setEnabled(enabled);
     m_actionDetach->setEnabled(enabled);
+	m_actionDetach->setVisible(enabled);
 }
 
 
