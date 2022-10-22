@@ -800,6 +800,7 @@ size_t BNDebuggerRegisterEventCallback(BNDebuggerController* controller,
 		evt->data.targetStoppedData.data = event.data.targetStoppedData.data;
 
 		evt->data.errorData.error = BNDebuggerAllocString(event.data.errorData.error.c_str());
+		evt->data.errorData.shortError = BNDebuggerAllocString(event.data.errorData.shortError.c_str());
 		evt->data.errorData.data = event.data.errorData.data;
 
 		evt->data.exitData.exitCode = event.data.exitData.exitCode;

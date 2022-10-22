@@ -988,6 +988,11 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
         m_currentIP = m_state->IP();
         break;
     }
+	case ErrorEventType:
+	{
+		LogError("%s", event.data.errorData.error.c_str());
+		break;
+	}
     default:
         break;
     }
@@ -1084,11 +1089,12 @@ void DebuggerController::NotifyStopped(DebugStopReason reason, void *data)
 }
 
 
-void DebuggerController::NotifyError(const std::string& error, void *data)
+void DebuggerController::NotifyError(const std::string& error, const std::string &shortError, void *data)
 {
     DebuggerEvent event;
     event.type = ErrorEventType;
     event.data.errorData.error = error;
+	event.data.errorData.shortError = shortError;
     event.data.errorData.data = data;
     PostDebuggerEvent(event);
 }
@@ -1201,7 +1207,7 @@ void DebuggerController::WriteStdIn(const std::string message)
 	{
 		m_adapter->WriteStdin(message);
 	}
-	NotifyError("Cannot send to stdin, target is not running");
+	NotifyError("Cannot send to stdin, target is not running", "Cannot send to stdin, target is not running");
 }
 
 

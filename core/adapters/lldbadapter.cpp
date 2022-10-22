@@ -26,8 +26,6 @@ std::string lldbArchNameForBinaryNinjaArchName(std::string name)
 {
 	if (name == "x86_64")
 		return "x86_64";
-	else if (name == "x86")
-		return "x86";
 	else if (name == "aarch64")
 		return "arm64";
 	else if (name == "armv7")

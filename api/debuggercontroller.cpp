@@ -626,7 +626,9 @@ void DebuggerController::DebuggerEventCallback(void* ctxt, BNDebuggerEvent* even
 	evt.data.targetStoppedData.data = event->data.targetStoppedData.data;
 
 	evt.data.errorData.error = string(event->data.errorData.error);
+	evt.data.errorData.shortError = string(event->data.errorData.shortError);
 	BNDebuggerFreeString(event->data.errorData.error);
+	BNDebuggerFreeString(event->data.errorData.shortError);
 	evt.data.errorData.data = event->data.errorData.data;
 
 	evt.data.exitData.exitCode = event->data.exitData.exitCode;

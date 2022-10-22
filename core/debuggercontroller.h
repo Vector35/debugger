@@ -179,7 +179,7 @@ namespace BinaryNinjaDebugger
 		bool RemoveEventCallback(size_t index);
 		bool RemoveEventCallbackInternal(size_t index);
 		void NotifyStopped(DebugStopReason reason, void *data = nullptr);
-		void NotifyError(const std::string &error, void *data = nullptr);
+		void NotifyError(const std::string &error, const std::string &shortError, void *data = nullptr);
 		void NotifyEvent(DebuggerEventType event);
 		void PostDebuggerEvent(const DebuggerEvent &event);
 		void CleanUpDisabledEvent();

@@ -370,6 +370,7 @@ namespace BinaryNinjaDebuggerAPI
 	struct ErrorEventData
 	{
 		std::string error;
+		std::string shortError;
 		void* data;
 	};
 

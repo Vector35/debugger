@@ -122,7 +122,7 @@ void DebuggerStatusBarWidget::updateStatusText(const DebuggerEvent &event)
 		setStatusText("Backend disconnected");
 		break;
 	case ErrorEventType:
-		setStatusText(QString::fromStdString(event.data.errorData.error));
+		setStatusText(QString::fromStdString(event.data.errorData.shortError));
 		break;
 	default:
 		break;

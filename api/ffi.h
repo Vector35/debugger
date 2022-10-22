@@ -239,6 +239,7 @@ extern "C"
 	struct BNErrorEventData
 	{
 		char* error;
+		char* shortError;
 		void* data;
 	};
 
