@@ -763,15 +763,21 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 			frame->navigate(m_controller->GetLiveView(), address, true, true);
 	}
 
-	openDebuggerSideBar();
+	openDebuggerSideBar(frame);
 }
 
 
-void DebuggerUI::openDebuggerSideBar()
+void DebuggerUI::openDebuggerSideBar(ViewFrame* frame)
 {
-	auto currentSidebar = Sidebar::current();
-	if (currentSidebar)
-		currentSidebar->activate("Debugger");
+	Sidebar* sidebar = nullptr;
+	if (frame)
+		sidebar = frame->getSidebar();
+
+	if (!sidebar)
+		sidebar = Sidebar::current();
+
+	if (sidebar)
+		sidebar->activate("Debugger");
 }
 
 
@@ -795,7 +801,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 			{
 				newFrame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
 				m_context->closeTab(m_context->getTabForFile(fileContext));
-				openDebuggerSideBar();
+				openDebuggerSideBar(newFrame);
 				QCoreApplication::processEvents();
 			}
 			else

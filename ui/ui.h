@@ -83,7 +83,7 @@ public:
 	TagTypeRef getBreakpointTagType(BinaryViewRef data);
 
 	void navigateDebugger(uint64_t address);
-	void openDebuggerSideBar();
+	void openDebuggerSideBar(ViewFrame* frame = nullptr);
 
 signals:
 	void debuggerEvent(const DebuggerEvent& event);
