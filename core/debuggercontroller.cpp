@@ -1308,6 +1308,8 @@ void DebuggerController::DefineVariablesRecursive(uint64_t address, Confidence<R
 
 void DebuggerController::UpdateStackVariables()
 {
+	if (!m_liveView)
+		return;
 	std::vector<DebugThread> threads = GetAllThreads();
 	uint64_t frameAdjustment = 0;
 	if (!m_liveView->GetDefaultArchitecture())

@@ -39,7 +39,7 @@ limitations under the License.
 #include "remoteprocess.h"
 #include "debugadapterscriptingprovider.h"
 #include "targetscriptingprovier.h"
-#include "launchdialog.h"
+#include "progresstask.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -306,11 +306,18 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		auto controller = DebuggerController::GetController(ctxt.binaryView);
 		if (!controller)
 			return;
+		QString text = QString("The debugger is launching the target and preparing the debugger binary view. \n"
+			"This might take a while.");
+		ProgressTask* task = new ProgressTask(ctxt.widget, "Launching", text, "",
+			[&](std::function<bool(size_t, size_t)> progress) {
+				controller->Launch();
 
-		[[maybe_unused]] auto dialog = new DebuggerLaunchDialog(ctxt.widget, controller, LaunchOperation);
-        std::thread([&, controller](){
-            controller->Launch();
-        }).detach();
+				// For now, this cant be canceled, as the Debugger model wasn't
+			    // designed with that in mind. This function below can return false if canceling is enabled
+				progress(1, 1);
+				return;
+			});
+		task->wait();
 	}, notConnected));
 	debuggerMenu->addAction("Launch", "Launch");
 
@@ -428,8 +435,18 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		if (pid == 0)
 			return;
 
-		[[maybe_unused]] auto dialog = new DebuggerLaunchDialog(ctxt.widget, controller, AttachOperation);
-		controller->Attach(pid);
+		QString text = QString("The debugger is attaching to the target and preparing the debugger binary view. \n"
+			"This might take a while.");
+		ProgressTask* task = new ProgressTask(ctxt.widget, "Attaching", text, "",
+			[&](std::function<bool(size_t, size_t)> progress) {
+				controller->Attach(pid);
+
+				// For now, this cant be canceled, as the Debugger model wasn't
+			    // designed with that in mind. This function below can return false if canceling is enabled
+				progress(1, 1);
+				return;
+			});
+		task->wait();
 	}, notConnected));
 	debuggerMenu->addAction("Attach To Process...", "Launch");
 
@@ -503,8 +520,18 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
         if (dialog->exec () != QDialog::Accepted)
             return;
 
-		[[maybe_unused]] auto launchDialog = new DebuggerLaunchDialog(ctxt.widget, controller, ConnectOperation);
-        controller->Connect();
+		QString text = QString("The debugger is connecting to the target and preparing the debugger binary view. \n"
+			"This might take a while.");
+		ProgressTask* task = new ProgressTask(ctxt.widget, "Connecting", text, "",
+			[&](std::function<bool(size_t, size_t)> progress) {
+				controller->Connect();
+
+				// For now, this cant be canceled, as the Debugger model wasn't
+			    // designed with that in mind. This function below can return false if canceling is enabled
+				progress(1, 1);
+				return;
+			});
+		task->wait();
     }, notConnected));
     debuggerMenu->addAction("Connect to Remote Process", "Launch");
 
@@ -1115,10 +1142,18 @@ void GlobalDebuggerUI::InitializeUI()
 					}
 					else if (!controller->IsConnected())
 					{
-						[[maybe_unused]] auto dialog = new DebuggerLaunchDialog(nullptr, controller, LaunchOperation);
-						std::thread([=](){
-							controller->Launch();
-						}).detach();
+						QString text = QString("The debugger is launching the target and preparing the debugger binary view. \n"
+							"This might take a while.");
+						ProgressTask* task = new ProgressTask(nullptr, "Launching", text, "",
+							[&](std::function<bool(size_t, size_t)> progress) {
+								controller->Launch();
+
+								// For now, this cant be canceled, as the Debugger model wasn't
+				                // designed with that in mind. This function below can return false if canceling is enabled
+								progress(1, 1);
+								return;
+							});
+						task->wait();
 					}
 				},
 			BinaryViewValid);

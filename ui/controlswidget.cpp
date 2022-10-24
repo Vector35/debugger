@@ -22,8 +22,8 @@ limitations under the License.
 #include "disassemblyview.h"
 #include "theme.h"
 #include "ui.h"
-#include "launchdialog.h"
 #include <thread>
+#include "progresstask.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
@@ -93,12 +93,18 @@ QIcon DebugControlsWidget::getColoredIcon(const QString& iconPath, const QColor&
 
 void DebugControlsWidget::performLaunch()
 {
-	[[maybe_unused]] auto dialog = new DebuggerLaunchDialog(this, m_controller, LaunchOperation);
-	// Do not call show() on dialog, as the dialog will wait a few seconds before showing up
+	QString text = QString("The debugger is %1 the target and preparing the debugger binary view. \n"
+		"This might take a while.").arg("launching");
+	ProgressTask* task = new ProgressTask(this, "Launching", text, "",
+		[=](std::function<bool(size_t, size_t)> progress) {
+			m_controller->Launch();
 
-    std::thread([&](){
-        m_controller->Launch();
-    }).detach();
+			// For now, this cant be canceled, as the Debugger model wasn't
+		    // designed with that in mind. This function below can return false if canceling is enabled
+			progress(1, 1);
+			return;
+		});
+	task->wait();
 }
 
 
@@ -108,12 +114,18 @@ void DebugControlsWidget::performAttachPID()
 	if (pid == 0)
 		return;
 
-	[[maybe_unused]] auto dialog = new DebuggerLaunchDialog(this, m_controller, AttachOperation);
-	// Do not call show() on dialog, as the dialog will wait a few seconds before showing up
+	QString text = QString("The debugger is %1 the target and preparing the debugger binary view. \n"
+		"This might take a while.").arg("attaching to");
+	ProgressTask* task = new ProgressTask(this, "Attaching", text, "",
+		[=](std::function<bool(size_t, size_t)> progress) {
+			m_controller->Attach(pid);
 
-    std::thread([=](){
-        m_controller->Attach(pid);
-    }).detach();
+			// For now, this cant be canceled, as the Debugger model wasn't
+			// designed with that in mind. This function below can return false if canceling is enabled
+			progress(1, 1);
+			return;
+		});
+	task->wait();
 }
 
 
