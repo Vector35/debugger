@@ -109,7 +109,9 @@ void DebuggerStatusBarWidget::updateStatusText(const DebuggerEvent &event)
 	case TargetExitedEventType:
 	{
 		uint8_t exitCode = event.data.exitData.exitCode;
-		setStatusText(QString::fromStdString(fmt::format("Exited with code {}", exitCode)));
+		const std::string exitInfo = fmt::format("Exited with code {}", exitCode);
+		setStatusText(QString::fromStdString(exitInfo));
+		LogWarn("%s", exitInfo.c_str());
 		break;
 	}
     case DetachedEventType:
