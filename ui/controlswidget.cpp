@@ -22,6 +22,7 @@ limitations under the License.
 #include "disassemblyview.h"
 #include "theme.h"
 #include "ui.h"
+#include "launchdialog.h"
 #include <thread>
 
 using namespace BinaryNinjaDebuggerAPI;
@@ -92,6 +93,9 @@ QIcon DebugControlsWidget::getColoredIcon(const QString& iconPath, const QColor&
 
 void DebugControlsWidget::performLaunch()
 {
+	[[maybe_unused]] auto dialog = new DebuggerLaunchDialog(this, m_controller, LaunchOperation);
+	// Do not call show() on dialog, as the dialog will wait a few seconds before showing up
+
     std::thread([&](){
         m_controller->Launch();
     }).detach();
@@ -103,6 +107,9 @@ void DebugControlsWidget::performAttachPID()
 	int pid = QInputDialog::getInt(this, "PID", "Input PID:");
 	if (pid == 0)
 		return;
+
+	[[maybe_unused]] auto dialog = new DebuggerLaunchDialog(this, m_controller, AttachOperation);
+	// Do not call show() on dialog, as the dialog will wait a few seconds before showing up
 
     std::thread([=](){
         m_controller->Attach(pid);

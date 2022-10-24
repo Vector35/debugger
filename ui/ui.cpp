@@ -39,6 +39,7 @@ limitations under the License.
 #include "remoteprocess.h"
 #include "debugadapterscriptingprovider.h"
 #include "targetscriptingprovier.h"
+#include "launchdialog.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -306,6 +307,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		if (!controller)
 			return;
 
+		[[maybe_unused]] auto dialog = new DebuggerLaunchDialog(ctxt.widget, controller, LaunchOperation);
         std::thread([&, controller](){
             controller->Launch();
         }).detach();
@@ -426,6 +428,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		if (pid == 0)
 			return;
 
+		[[maybe_unused]] auto dialog = new DebuggerLaunchDialog(ctxt.widget, controller, AttachOperation);
 		controller->Attach(pid);
 	}, notConnected));
 	debuggerMenu->addAction("Attach To Process...", "Launch");
@@ -500,6 +503,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
         if (dialog->exec () != QDialog::Accepted)
             return;
 
+		[[maybe_unused]] auto launchDialog = new DebuggerLaunchDialog(ctxt.widget, controller, ConnectOperation);
         controller->Connect();
     }, notConnected));
     debuggerMenu->addAction("Connect to Remote Process", "Launch");
@@ -1098,7 +1102,7 @@ void GlobalDebuggerUI::InitializeUI()
 	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
 			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
-			"Launch, connect to or resume the target",
+			"Launch or resume the target",
 			[](BinaryView* view, uint64_t addr){
 					auto controller = DebuggerController::GetController(view);
 					if (!controller)
@@ -1111,8 +1115,9 @@ void GlobalDebuggerUI::InitializeUI()
 					}
 					else if (!controller->IsConnected())
 					{
+						[[maybe_unused]] auto dialog = new DebuggerLaunchDialog(nullptr, controller, LaunchOperation);
 						std::thread([=](){
-							controller->LaunchOrConnect();
+							controller->Launch();
 						}).detach();
 					}
 				},
