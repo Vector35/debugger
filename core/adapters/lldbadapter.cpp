@@ -159,7 +159,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 	if (!m_target.IsValid())
 	{
 		// It is likely lldb did not like our target triple.
-		if (std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
+		if (err.GetCString() && std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
 		{
 			// Last-ditch effort. If it is a thin binary, we will be able to attach without passing a triple.
 			m_target = m_debugger.CreateTarget(path.c_str(), "", "", true, err);
@@ -171,7 +171,8 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 		DebuggerEvent event;
 		event.type = ErrorEventType;
 		event.data.errorData.shortError = "LLDB failed to create target.";
-		event.data.errorData.error = fmt::format("LLDB Failed to create target with \"{}\"", err.GetCString());
+		event.data.errorData.error = fmt::format("LLDB Failed to create target with \"{}\"",
+												 err.GetCString() ? err.GetCString() : "");
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -211,8 +212,8 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 		result.erase(it + 1);
 		DebuggerEvent event;
 		event.type = ErrorEventType;
-		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
-		event.data.errorData.error = fmt::format("LLDB Failed to attach to target with \"{}\"", err.GetCString());
+		event.data.errorData.shortError = fmt::format("LLDB failed to launch target.");
+		event.data.errorData.error = fmt::format("LLDB Failed to launch target with \"{}\"", result.c_str());
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -239,7 +240,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	if (!m_target.IsValid())
 	{
 		// It is likely lldb did not like our target triple.
-		if (std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
+		if (err.GetCString() && std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
 		{
 			// Last-ditch effort. If it is a thin binary, we will be able to attach without passing a triple.
 			m_target = m_debugger.CreateTarget(m_originalFileName.c_str(), "", "", true, err);
@@ -251,7 +252,8 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 		DebuggerEvent event;
 		event.type = ErrorEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
-		event.data.errorData.error = fmt::format("LLDB failed to attach to target with \"{}\"", err.GetCString());
+		event.data.errorData.error = fmt::format("LLDB failed to attach to target with \"{}\"",
+												 err.GetCString() ? err.GetCString() : "");
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -265,8 +267,18 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	SBAttachInfo info(pid);
 	SBError error;
 	m_process = m_target.Attach(info, error);
+	if (!m_process.IsValid() || error.Fail())
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
+		event.data.errorData.error = fmt::format("LLDB Failed to attach to target with \"{}\"",
+												 err.GetCString() ? err.GetCString() : "");
+		PostDebuggerEvent(event);
+		return false;
+	}
 	m_debugger.SetAsync(true);
-	return m_process.IsValid() && error.Success();
+	return true;
 }
 
 
@@ -288,7 +300,7 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 	if (!m_target.IsValid())
 	{
 		// It is likely lldb did not like our target triple.
-		if (std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
+		if (err.GetCString() && std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
 		{
 			// Last-ditch effort. If it is a thin binary, we will be able to attach without passing a triple.
 			m_target = m_debugger.CreateTarget(m_originalFileName.c_str(), "", "", true, err);
@@ -299,8 +311,9 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 	{
 		DebuggerEvent event;
 		event.type = ErrorEventType;
-		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
-		event.data.errorData.error = fmt::format("LLDB failed to attach to target with \"{}\"", err.GetCString());
+		event.data.errorData.shortError = fmt::format("LLDB failed to connect to target.");
+		event.data.errorData.error = fmt::format("LLDB failed to connect to target with \"{}\"",
+												 err.GetCString() ? err.GetCString() : "");
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -321,8 +334,18 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 	if (!m_processPlugin.empty() && m_processPlugin != "debugserver/lldb")
 		plugin = m_processPlugin.c_str();
 	m_process = m_target.ConnectRemote(listener, url.c_str(), plugin, error);
+	if (!m_process.IsValid() || error.Fail())
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = fmt::format("LLDB failed to connect to target.");
+		event.data.errorData.error = fmt::format("LLDB Failed to connect to target with \"{}\"",
+												 err.GetCString() ? err.GetCString() : "");
+		PostDebuggerEvent(event);
+		return false;
+	}
 	m_debugger.SetAsync(true);
-	return m_process.IsValid() && error.Success();
+	return true;
 }
 
 
