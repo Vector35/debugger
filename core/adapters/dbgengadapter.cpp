@@ -296,8 +296,7 @@ void DbgEngAdapter::Reset()
             m_connectedToDebugServer = false;
             m_server = 0;
         }
-        this->m_debugClient->Release();
-        this->m_debugClient = nullptr;
+		SAFE_RELEASE(this->m_debugClient);
     }
 
     this->m_debugActive = false;
