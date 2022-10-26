@@ -275,6 +275,8 @@ bool DbgEngAdapter::Start()
 
 void DbgEngAdapter::Reset()
 {
+    m_aboutToBeKilled = false;
+
     if ( !this->m_debugActive )
         return;
 
@@ -342,6 +344,8 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string& 
 bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string &args, const std::string& workingDir,
                                     const LaunchConfigurations& configs)
 {
+    m_aboutToBeKilled = false;
+
     if ( this->m_debugActive ) {
         this->Reset();
     }
@@ -485,6 +489,8 @@ void DbgEngAdapter::EngineLoop()
 
 bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 {
+    m_aboutToBeKilled = false;
+
     if ( this->m_debugActive )
         this->Reset();
 
@@ -554,6 +560,7 @@ bool DbgEngAdapter::DisconnectDebugServer()
 
 void DbgEngAdapter::Detach()
 {
+    m_aboutToBeKilled = true;
     m_lastOperationIsStepInto = false;
     if ( this->m_debugClient )
         this->m_debugClient->DetachProcesses();
@@ -563,6 +570,7 @@ void DbgEngAdapter::Detach()
 
 void DbgEngAdapter::Quit()
 {
+    m_aboutToBeKilled = true;
     m_lastOperationIsStepInto = false;
     if ( this->m_debugClient )
     {
@@ -1230,6 +1238,13 @@ bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer
 std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
 {
 	std::vector<DebugFrame> result;
+    // Due to https://github.com/Vector35/debugger/issues/304 and that we pause the target before killing it, we would
+    // not be able to even kill or restart a GUI app on Windows. That is really bad. To mitigate the issue, I created
+    // this boolean, which help skip any update on thread information when the target is about to be killed, thus
+    // allowing the target to be killed or restarted normally. This needs to be reworked later.
+    if (m_aboutToBeKilled)
+        return result;
+
 	DebugThread activeThead = GetActiveThread();
 
 	SetActiveThreadId(tid);

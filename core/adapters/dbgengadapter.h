@@ -119,6 +119,8 @@ namespace BinaryNinjaDebugger
         bool m_connectedToDebugServer = false;
         bool m_dbgSrvLaunchedByAdapter = false;
 
+        bool m_aboutToBeKilled = false;
+
 	public:
 		inline static ProcessCallbackInformation ProcessCallbackInfo{};
 		static constexpr unsigned long StepoutBreakpointID = 0x5be9c948;
