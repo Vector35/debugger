@@ -139,19 +139,25 @@ void DebugControlsWidget::performRestart()
 
 void DebugControlsWidget::performQuit()
 {
-    m_controller->Quit();
+    std::thread([&](){
+        m_controller->Quit();
+    }).detach();
 }
 
 
 void DebugControlsWidget::performDetach()
 {
-	m_controller->Detach();
+    std::thread([&](){
+        m_controller->Detach();
+    }).detach();
 }
 
 
 void DebugControlsWidget::performPause()
 {
-	m_controller->Pause();
+    std::thread([&](){
+        m_controller->Pause();
+    }).detach();
 }
 
 

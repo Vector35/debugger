@@ -823,7 +823,7 @@ void DebuggerController::Quit()
     if (m_state->IsRunning())
     {
         // We must pause the target if it is currently running, at least for DbgEngAdapter
-        PauseInternal();
+        PauseAndWait();
     }
 
     // TODO: return whether the operation is successful

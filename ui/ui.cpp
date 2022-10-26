@@ -329,7 +329,9 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		if (!controller)
 			return;
 
-		controller->Quit();
+        std::thread([=](){
+            controller->Quit();
+        }).detach();
 	}, connected));
 	debuggerMenu->addAction("Kill", "Launch");
 
@@ -395,7 +397,9 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		if (!controller)
 			return;
 
-		controller->Detach();
+        std::thread([=](){
+            controller->Detach();
+        }).detach();
 	}, connected));
 	debuggerMenu->addAction("Detach", "Launch");
 
@@ -419,7 +423,9 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		if (!controller)
 			return;
 
-		controller->Pause();
+        std::thread([=](){
+            controller->Pause();
+        }).detach();
 	}, connectedAndRunning));
 	debuggerMenu->addAction("Pause", "Control");
 
