@@ -193,13 +193,11 @@ void NotificationListener::OnAddressChange(UIContext* context, ViewFrame* frame,
 
 bool NotificationListener::GetNameForFile(UIContext* context, FileContext* file, QString& name)
 {
-	name = file->getFilename();
-	return true;
+	return false;
 }
 
 
 bool NotificationListener::GetNameForPath(UIContext* context, const QString& path, QString& name)
 {
-	name = path;
-	return true;
+	return false;
 }
