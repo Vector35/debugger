@@ -1235,9 +1235,9 @@ std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
 	SetActiveThreadId(tid);
 
 	const size_t numFrames = 16;
-	PDEBUG_STACK_FRAME frames = new DEBUG_STACK_FRAME[numFrames];
+	PDEBUG_STACK_FRAME_EX frames = new DEBUG_STACK_FRAME_EX[numFrames];
 	unsigned long framesFilled = 0;
-	if (m_debugControl->GetStackTrace(0, 0, 0, frames, numFrames, &framesFilled) != S_OK)
+	if (m_debugControl->GetStackTraceEx(0, 0, 0, frames, numFrames, &framesFilled) != S_OK)
 		return result;
 
 	for (size_t i = 0; i < framesFilled; i++)
