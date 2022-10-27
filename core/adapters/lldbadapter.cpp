@@ -143,6 +143,19 @@ bool LldbAdapter::Execute(const std::string & path, const LaunchConfigurations &
 bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &args, const std::string &workingDir,
 					 const LaunchConfigurations &configs)
 {
+    auto n = std::thread::hardware_concurrency();
+    if (n <= 2)
+    {
+        DebuggerEvent event;
+        event.type = ErrorEventType;
+        event.data.errorData.shortError = "Not enough CPU threads to launch the target.";
+        event.data.errorData.error = fmt::format("This CPU can only run {} threads. "
+                                                 "on Linux, the debugger is known to malfunction when the CPU cannot "
+                                                 "run at least 4 threads. We will fix this ASAP.", n);
+        PostDebuggerEvent(event);
+        return false;
+    }
+
 	m_debugger.SetAsync(false);
 
 	SBError err;
