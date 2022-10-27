@@ -1232,7 +1232,10 @@ void DebuggerController::WriteStdIn(const std::string message)
 	{
 		m_adapter->WriteStdin(message);
 	}
-	NotifyError("Cannot send to stdin, target is not running", "Cannot send to stdin, target is not running");
+    else
+    {
+        NotifyError("Cannot send to stdin, target is not running", "Cannot send to stdin, target is not running");
+    }
 }
 
 
