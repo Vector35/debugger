@@ -579,13 +579,17 @@ std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 	for (size_t i = 0; i < numGroups; i++)
 	{
 		SBValue regGroupInfo = regGroups.GetValueAtIndex(i);
+		if (!regGroupInfo.IsValid())
+			continue;
+
 		size_t numRegs = regGroupInfo.GetNumChildren();
 		for (size_t j = 0; j < numRegs; j++)
 		{
 			SBValue reg = regGroupInfo.GetChildAtIndex(j);
 			// TODO: register width and internal index
 			// Right now we basically rely on LLDB to always return the registers in the same order
-			result[reg.GetName()] = DebugRegister(reg.GetName(), reg.GetValueAsUnsigned(), 0, regIndex++);
+			if (reg.IsValid() && reg.GetName())
+				result[reg.GetName()] = DebugRegister(reg.GetName(), reg.GetValueAsUnsigned(), 0, regIndex++);
 		}
 	}
 	return result;
