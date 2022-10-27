@@ -266,7 +266,11 @@ void DebuggerController::StepIntoIL(BNFunctionGraphType il)
 			uint64_t newRemoteRip = m_state->IP();
 			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.size() == 0)
-			    return;
+			{
+				m_treatAdapterStopAsTargetStop = true;
+				NotifyStopped(reason);
+				return;
+			}
 
 			for (FunctionRef& func: functions)
 			{
@@ -302,7 +306,11 @@ void DebuggerController::StepIntoIL(BNFunctionGraphType il)
 			uint64_t newRemoteRip = m_state->IP();
 			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
-                return;
+			{
+				m_treatAdapterStopAsTargetStop = true;
+				NotifyStopped(reason);
+				return;
+			}
 
 			for (FunctionRef& func: functions)
 			{
@@ -334,12 +342,17 @@ void DebuggerController::StepIntoIL(BNFunctionGraphType il)
 			{
 				m_treatAdapterStopAsTargetStop = true;
 				NotifyStopped(reason);
+				return;
 			}
 
 			uint64_t newRemoteRip = m_state->IP();
 			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
-                return;
+			{
+				m_treatAdapterStopAsTargetStop = true;
+				NotifyStopped(reason);
+				return;
+			}
 
 			for (FunctionRef& func: functions)
 			{
@@ -457,7 +470,11 @@ void DebuggerController::StepOverIL(BNFunctionGraphType il)
             uint64_t newRemoteRip = m_state->IP();
             std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
-                return;
+			{
+				m_treatAdapterStopAsTargetStop = true;
+				NotifyStopped(reason);
+				return;
+			}
 
             for (FunctionRef& func: functions)
             {
@@ -493,7 +510,11 @@ void DebuggerController::StepOverIL(BNFunctionGraphType il)
             uint64_t newRemoteRip = m_state->IP();
             std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
-                return;
+			{
+				m_treatAdapterStopAsTargetStop = true;
+				NotifyStopped(reason);
+				return;
+			}
 
             for (FunctionRef& func: functions)
             {
@@ -530,7 +551,11 @@ void DebuggerController::StepOverIL(BNFunctionGraphType il)
             uint64_t newRemoteRip = m_state->IP();
             std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
             if (functions.size() == 0)
-			    return;
+			{
+				m_treatAdapterStopAsTargetStop = true;
+				NotifyStopped(reason);
+				return;
+			}
 
             for (FunctionRef& func: functions)
             {
