@@ -265,9 +265,8 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	thread.detach();
 
 	SBAttachInfo info(pid);
-	SBError error;
-	m_process = m_target.Attach(info, error);
-	if (!m_process.IsValid() || error.Fail())
+	m_process = m_target.Attach(info, err);
+	if (!m_process.IsValid() || err.Fail())
 	{
 		DebuggerEvent event;
 		event.type = ErrorEventType;
@@ -328,13 +327,12 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 		AddBreakpoint(ModuleNameAndOffset(m_originalFileName, m_entryPoint - m_start));
 
 	std::string url = fmt::format("connect://{}:{}", server, port);
-	SBError error;
 	SBListener listener;
 	const char* plugin = nullptr;
 	if (!m_processPlugin.empty() && m_processPlugin != "debugserver/lldb")
 		plugin = m_processPlugin.c_str();
-	m_process = m_target.ConnectRemote(listener, url.c_str(), plugin, error);
-	if (!m_process.IsValid() || error.Fail())
+	m_process = m_target.ConnectRemote(listener, url.c_str(), plugin, err);
+	if (!m_process.IsValid() || err.Fail())
 	{
 		DebuggerEvent event;
 		event.type = ErrorEventType;
