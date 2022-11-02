@@ -118,6 +118,14 @@ QVariant DebugModulesListModel::data(const QModelIndex& index, int role) const
 
         return QVariant(text);
     }
+	case DebugModulesListModel::EndAddressColumn:
+    {
+        QString text = QString::asprintf("0x%" PRIx64, item->endAddress());
+        if (role == Qt::SizeHintRole)
+            return QVariant((qulonglong)text.size());
+
+        return QVariant(text);
+    }
     case DebugModulesListModel::SizeColumn:
     {
         QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->size());
@@ -158,7 +166,9 @@ QVariant DebugModulesListModel::headerData(int column, Qt::Orientation orientati
 	switch (column)
 	{
 		case DebugModulesListModel::AddressColumn:
-			return "Address";
+			return "Start";
+		case DebugModulesListModel::EndAddressColumn:
+			return "End";
 		case DebugModulesListModel::SizeColumn:
 			return "Size";
 		case DebugModulesListModel::NameColumn:
@@ -218,6 +228,10 @@ void DebugModulesItemDelegate::paint(QPainter* painter, const QStyleOptionViewIt
 	switch (idx.column())
 	{
 	case DebugModulesListModel::AddressColumn:
+		painter->setPen(getThemeColor(AddressColor).rgba());
+		painter->drawText(textRect, data.toString());
+		break;
+	case DebugModulesListModel::EndAddressColumn:
 		painter->setPen(getThemeColor(AddressColor).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
@@ -295,12 +309,12 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
 	m_contextMenuManager = new ContextMenuManager(this);
 	m_menu = new Menu();
 
-	QString actionName = QString::fromStdString("Jump To Start Address");
+	QString actionName = QString::fromStdString("Jump To Start");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([=](){ jumpToStart(); }));
 
-	actionName = QString::fromStdString("Jump To End Address");
+	actionName = QString::fromStdString("Jump To End");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([=](){ jumpToEnd(); }));
@@ -315,7 +329,9 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
 		switch (sel[0].column())
 		{
 		case DebugModulesListModel::AddressColumn:
-			return "Copy Address";
+			return "Copy Start";
+		case DebugModulesListModel::EndAddressColumn:
+			return "Copy End";
 		case DebugModulesListModel::SizeColumn:
 			return "Copy Size";
 		case DebugModulesListModel::NameColumn:
@@ -396,7 +412,7 @@ void DebugModulesWidget::jumpToStart()
 		return;
 
 	auto module = m_model->getRow(sourceIndex.row());
-	uint64_t adderss = module.address();
+	uint64_t address = module.address();
 
 	UIContext* context = UIContext::contextForWidget(this);
 	if (!context)
@@ -407,9 +423,9 @@ void DebugModulesWidget::jumpToStart()
 		return;
 
 	if (m_controller->GetLiveView())
-		frame->navigate(m_controller->GetLiveView(), adderss, true, true);
+		frame->navigate(m_controller->GetLiveView(), address, true, true);
 	else
-		frame->navigate(m_controller->GetData(), adderss, true, true);
+		frame->navigate(m_controller->GetData(), address, true, true);
 }
 
 
@@ -424,7 +440,7 @@ void DebugModulesWidget::jumpToEnd()
 		return;
 
 	auto module = m_model->getRow(sourceIndex.row());
-	uint64_t adderss = module.address() + module.size();
+	uint64_t address = module.endAddress();
 
 	UIContext* context = UIContext::contextForWidget(this);
 	if (!context)
@@ -435,9 +451,9 @@ void DebugModulesWidget::jumpToEnd()
 		return;
 
 	if (m_controller->GetLiveView())
-		frame->navigate(m_controller->GetLiveView(), adderss, true, true);
+		frame->navigate(m_controller->GetLiveView(), address, true, true);
 	else
-		frame->navigate(m_controller->GetData(), adderss, true, true);
+		frame->navigate(m_controller->GetData(), address, true, true);
 }
 
 
@@ -466,6 +482,9 @@ void DebugModulesWidget::copy()
 	case DebugModulesListModel::AddressColumn:
 		text = QString::asprintf("0x%" PRIx64, module.address());
 		break;
+	case DebugModulesListModel::EndAddressColumn:
+		text = QString::asprintf("0x%" PRIx64, module.endAddress());
+		break;
 	case DebugModulesListModel::SizeColumn:
 		text = QString::asprintf("0x%" PRIx64, (uint64_t)module.size());
 		break;
@@ -493,15 +512,21 @@ void DebugModulesWidget::onDoubleClicked()
 	if (sel.empty())
 		return;
 
-	if (sel[0].column() != DebugModulesListModel::AddressColumn)
+	if (sel[0].column() != DebugModulesListModel::AddressColumn && 
+		sel[0].column() != DebugModulesListModel::EndAddressColumn)
 		return;
 
 	auto sourceIndex = m_filter->mapToSource(sel[0]);
 	if (!sourceIndex.isValid())
 		return;
-
+	
 	auto module = m_model->getRow(sourceIndex.row());
-	uint64_t address = module.address();
+	uint64_t address;
+
+	if (sourceIndex.column() == DebugModulesListModel::AddressColumn)
+		address = module.address();
+	else
+		address = module.endAddress();
 
 	UIContext* context = UIContext::contextForWidget(this);
 	if (!context)

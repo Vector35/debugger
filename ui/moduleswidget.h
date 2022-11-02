@@ -45,6 +45,7 @@ private:
 public:
     ModuleItem(uint64_t address, size_t size, std::string name, std::string path);
     uint64_t address() const { return m_address; }
+    uint64_t endAddress() const { return m_address + m_size; }
     size_t size() const { return m_size; }
     std::string name() const { return m_name; }
     std::string path() const { return m_path; }
@@ -69,6 +70,7 @@ public:
     enum ColumnHeaders
     {
         AddressColumn,
+        EndAddressColumn,
         SizeColumn,
         NameColumn,
         PathColumn,
@@ -81,7 +83,7 @@ public:
 
     virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override
         { (void) parent; return (int)m_items.size(); }
-    virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 4; }
+    virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 5; }
     ModuleItem getRow(int row) const;
     virtual QVariant data(const QModelIndex& i, int role) const override;
     virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
