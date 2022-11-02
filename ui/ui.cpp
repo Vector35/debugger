@@ -106,6 +106,21 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
     }
 }
 
+static void JumpToIPCallback(BinaryView* view, UIContext* context)
+{
+	auto controller = DebuggerController::GetController(view);
+	if (!controller)
+		return;
+
+	ViewFrame* frame = context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	if (controller->GetLiveView())
+		frame->navigate(controller->GetLiveView(), controller->IP(), true, true);
+	else
+		frame->navigate(controller->GetData(), controller->IP(), true, true);
+}
 
 #ifdef WIN32
 #include "msi.h"
@@ -609,6 +624,15 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 		return "Make Code";
 	});
+
+	UIAction::registerAction("Jump to IP");
+	context->globalActions()->bindAction("Jump to IP", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+
+		JumpToIPCallback(ctxt.binaryView, context);
+	}, connectedAndStopped));
+	debuggerMenu->addAction("Jump to IP", "Misc");
 
 #ifdef WIN32
     UIAction::registerAction("Reinstall DbgEng Redistributable");
