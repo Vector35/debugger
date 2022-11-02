@@ -271,12 +271,20 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
     m_actionHandler.bindAction(jumpToBreakpointActionName, UIAction([&](){ jump(); },
 															   [&](){ return selectionNotEmpty(); }));
 
+    connect(m_table, &QTableView::doubleClicked, this, &DebugBreakpointsWidget::onDoubleClicked);
+
     updateContent();
 }
 
 
 DebugBreakpointsWidget::~DebugBreakpointsWidget()
 {
+}
+
+
+void DebugBreakpointsWidget::onDoubleClicked()
+{
+    jump();
 }
 
 
