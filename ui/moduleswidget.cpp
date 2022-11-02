@@ -118,6 +118,14 @@ QVariant DebugModulesListModel::data(const QModelIndex& index, int role) const
 
         return QVariant(text);
     }
+	case DebugModulesListModel::EndAddressColumn:
+    {
+        QString text = QString::asprintf("0x%" PRIx64, item->endAddress());
+        if (role == Qt::SizeHintRole)
+            return QVariant((qulonglong)text.size());
+
+        return QVariant(text);
+    }
     case DebugModulesListModel::SizeColumn:
     {
         QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->size());
@@ -159,6 +167,8 @@ QVariant DebugModulesListModel::headerData(int column, Qt::Orientation orientati
 	{
 		case DebugModulesListModel::AddressColumn:
 			return "Address";
+		case DebugModulesListModel::EndAddressColumn:
+			return "End Address";
 		case DebugModulesListModel::SizeColumn:
 			return "Size";
 		case DebugModulesListModel::NameColumn:
@@ -218,6 +228,10 @@ void DebugModulesItemDelegate::paint(QPainter* painter, const QStyleOptionViewIt
 	switch (idx.column())
 	{
 	case DebugModulesListModel::AddressColumn:
+		painter->setPen(getThemeColor(AddressColor).rgba());
+		painter->drawText(textRect, data.toString());
+		break;
+	case DebugModulesListModel::EndAddressColumn:
 		painter->setPen(getThemeColor(AddressColor).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
@@ -316,6 +330,8 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
 		{
 		case DebugModulesListModel::AddressColumn:
 			return "Copy Address";
+		case DebugModulesListModel::EndAddressColumn:
+			return "Copy End Address";
 		case DebugModulesListModel::SizeColumn:
 			return "Copy Size";
 		case DebugModulesListModel::NameColumn:
@@ -424,7 +440,7 @@ void DebugModulesWidget::jumpToEnd()
 		return;
 
 	auto module = m_model->getRow(sourceIndex.row());
-	uint64_t adderss = module.address() + module.size();
+	uint64_t adderss = module.endAddress();
 
 	UIContext* context = UIContext::contextForWidget(this);
 	if (!context)
@@ -466,6 +482,9 @@ void DebugModulesWidget::copy()
 	case DebugModulesListModel::AddressColumn:
 		text = QString::asprintf("0x%" PRIx64, module.address());
 		break;
+	case DebugModulesListModel::EndAddressColumn:
+		text = QString::asprintf("0x%" PRIx64, module.endAddress());
+		break;
 	case DebugModulesListModel::SizeColumn:
 		text = QString::asprintf("0x%" PRIx64, (uint64_t)module.size());
 		break;
@@ -493,15 +512,21 @@ void DebugModulesWidget::onDoubleClicked()
 	if (sel.empty())
 		return;
 
-	if (sel[0].column() != DebugModulesListModel::AddressColumn)
+	if (sel[0].column() != DebugModulesListModel::AddressColumn && 
+		sel[0].column() != DebugModulesListModel::EndAddressColumn)
 		return;
 
 	auto sourceIndex = m_filter->mapToSource(sel[0]);
 	if (!sourceIndex.isValid())
 		return;
-
+	
 	auto module = m_model->getRow(sourceIndex.row());
-	uint64_t address = module.address();
+	uint64_t address;
+
+	if (sourceIndex.column() == DebugModulesListModel::AddressColumn)
+		address = module.address();
+	else
+		address = module.endAddress();
 
 	UIContext* context = UIContext::contextForWidget(this);
 	if (!context)
