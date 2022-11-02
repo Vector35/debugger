@@ -136,6 +136,7 @@ public:
 private slots:
     void jump();
     void remove();
+    void onDoubleClicked();
 
 public slots:
     void updateContent();
