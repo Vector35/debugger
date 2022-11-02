@@ -83,7 +83,7 @@ public:
 
     virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override
         { (void) parent; return (int)m_items.size(); }
-    virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 4; }
+    virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 5; }
     ModuleItem getRow(int row) const;
     virtual QVariant data(const QModelIndex& i, int role) const override;
     virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
