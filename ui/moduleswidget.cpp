@@ -412,7 +412,7 @@ void DebugModulesWidget::jumpToStart()
 		return;
 
 	auto module = m_model->getRow(sourceIndex.row());
-	uint64_t adderss = module.address();
+	uint64_t address = module.address();
 
 	UIContext* context = UIContext::contextForWidget(this);
 	if (!context)
@@ -423,9 +423,9 @@ void DebugModulesWidget::jumpToStart()
 		return;
 
 	if (m_controller->GetLiveView())
-		frame->navigate(m_controller->GetLiveView(), adderss, true, true);
+		frame->navigate(m_controller->GetLiveView(), address, true, true);
 	else
-		frame->navigate(m_controller->GetData(), adderss, true, true);
+		frame->navigate(m_controller->GetData(), address, true, true);
 }
 
 
@@ -440,7 +440,7 @@ void DebugModulesWidget::jumpToEnd()
 		return;
 
 	auto module = m_model->getRow(sourceIndex.row());
-	uint64_t adderss = module.endAddress();
+	uint64_t address = module.endAddress();
 
 	UIContext* context = UIContext::contextForWidget(this);
 	if (!context)
@@ -451,9 +451,9 @@ void DebugModulesWidget::jumpToEnd()
 		return;
 
 	if (m_controller->GetLiveView())
-		frame->navigate(m_controller->GetLiveView(), adderss, true, true);
+		frame->navigate(m_controller->GetLiveView(), address, true, true);
 	else
-		frame->navigate(m_controller->GetData(), adderss, true, true);
+		frame->navigate(m_controller->GetData(), address, true, true);
 }
 
 
