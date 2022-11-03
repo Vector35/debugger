@@ -113,6 +113,8 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
     layout->addLayout(buttonLayout);
     setLayout(layout);
 
+	UnserializeMetadata();
+
     m_pathEntry->setText(QString::fromStdString(m_controller->GetExecutablePath()));
 	m_terminalEmulator->setChecked(m_controller->GetRequestTerminalEmulator());
     m_argumentsEntry->setText(QString::fromStdString(m_controller->GetCommandLineArguments()));
@@ -176,4 +178,38 @@ void AdapterSettingsDialog::apply()
 	m_controller->GetData()->StoreMetadata("debugger.terminal_emulator", data);
 
     accept();
+}
+
+
+void AdapterSettingsDialog::UnserializeMetadata()
+{
+	auto adapterType = m_controller->GetData()->QueryMetadata("debugger.adapter_type");
+	if (adapterType && adapterType->IsString())
+	{
+		m_controller->SetAdapterType(adapterType->GetString());
+	}
+
+	auto commandLineArgs = m_controller->GetData()->QueryMetadata("debugger.command_line_args");
+	if (commandLineArgs && commandLineArgs->IsString())
+	{
+		m_controller->SetCommandLineArguments(commandLineArgs->GetString());
+	}
+
+	auto executablePath = m_controller->GetData()->QueryMetadata("debugger.executable_path");
+	if (executablePath && executablePath->IsString())
+	{
+		m_controller->SetExecutablePath(executablePath->GetString());
+	}
+
+	auto workingDirectory = m_controller->GetData()->QueryMetadata("debugger.working_directory");
+	if (workingDirectory && workingDirectory->IsString())
+	{
+		m_controller->SetWorkingDirectory(workingDirectory->GetString());
+	}
+
+	auto terminalEmulator = m_controller->GetData()->QueryMetadata("debugger.terminal_emulator");
+	if (terminalEmulator && terminalEmulator->IsBoolean())
+	{
+		m_controller->SetRequestTerminalEmulator(terminalEmulator->GetBoolean());
+	}
 }

@@ -44,6 +44,7 @@ private:
 
 public:
     AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller);
+    void UnserializeMetadata();
 
 private Q_SLOTS:
     void apply();
