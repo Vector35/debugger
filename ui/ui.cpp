@@ -112,7 +112,8 @@ static void SetIPCallback(BinaryView* view, uint64_t addr)
 	if (!controller)
 		return;
 
-	controller->SetIP(addr);
+	if (!controller->SetIP(addr))
+		LogWarn("Failed to set new IP to 0x%" PRIx64, addr);
 }
 
 #ifdef WIN32
