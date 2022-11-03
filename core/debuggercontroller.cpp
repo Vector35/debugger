@@ -85,6 +85,29 @@ void DebuggerController::DeleteBreakpoint(const ModuleNameAndOffset& address)
 }
 
 
+bool DebuggerController::SetIP(uint64_t address)
+{
+	std::string ipRegisterName;
+	std::string targetArch = GetRemoteArchitecture()->GetName();
+
+    if ((targetArch == "x86") || (targetArch == "i386"))
+        ipRegisterName = "eip";
+    else if (targetArch == "x86_64")
+        ipRegisterName = "rip";
+    else if ((targetArch == "aarch64") || (targetArch == "arm64"))
+        ipRegisterName = "pc";
+    else
+        ipRegisterName = "pc";
+
+	if (!SetRegisterValue(ipRegisterName, address))
+		return false;
+
+	NotifyStopped(UnknownReason);
+
+	return true;
+}
+
+
 bool DebuggerController::Launch()
 {
 	DebuggerEvent event;

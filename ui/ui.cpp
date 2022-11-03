@@ -106,6 +106,14 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
     }
 }
 
+static void SetIPCallback(BinaryView* view, uint64_t addr)
+{
+	auto controller = DebuggerController::GetController(view);
+	if (!controller)
+		return;
+
+	controller->SetIP(addr);
+}
 
 #ifdef WIN32
 #include "msi.h"
@@ -609,6 +617,15 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 		return "Make Code";
 	});
+
+	UIAction::registerAction("Set IP");
+	context->globalActions()->bindAction("Set IP", UIAction([=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return;
+
+		SetIPCallback(ctxt.binaryView, ctxt.address);
+	}, connectedAndStopped));
+	debuggerMenu->addAction("Set IP", "Misc");
 
 #ifdef WIN32
     UIAction::registerAction("Reinstall DbgEng Redistributable");

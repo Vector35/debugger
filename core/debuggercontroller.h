@@ -187,6 +187,7 @@ namespace BinaryNinjaDebugger
 		// shortcut for instruction pointer
 		uint64_t GetLastIP() const { return m_lastIP; }
 		uint64_t GetCurrentIP() const { return m_currentIP; }
+		bool SetIP(uint64_t address);
 
 		// target control
 		bool Launch();
