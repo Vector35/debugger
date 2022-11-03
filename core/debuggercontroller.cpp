@@ -1037,9 +1037,11 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
         break;
     }
 	case RegisterChangedEvent:
+	{
 		m_lastIP = m_currentIP;
 		m_currentIP = m_state->IP();
 		break;
+	}
 	case ErrorEventType:
 	{
 		LogError("%s", event.data.errorData.error.c_str());
