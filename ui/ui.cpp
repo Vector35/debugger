@@ -106,16 +106,6 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
     }
 }
 
-static void SetIPCallback(BinaryView* view, uint64_t addr)
-{
-	auto controller = DebuggerController::GetController(view);
-	if (!controller)
-		return;
-
-	if (!controller->SetIP(addr))
-		LogWarn("Failed to set new IP to 0x%" PRIx64, addr);
-}
-
 #ifdef WIN32
 #include "msi.h"
 #include <Shlobj.h>
@@ -624,7 +614,13 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		if (!ctxt.binaryView)
 			return;
 
-		SetIPCallback(ctxt.binaryView, ctxt.address);
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return;
+
+		if (!controller->SetIP(ctxt.address))
+			LogWarn("Failed to set new IP to 0x%" PRIx64, ctxt.address);
+			
 	}, connectedAndStopped));
 	debuggerMenu->addAction("Set IP", "Misc");
 
@@ -838,8 +834,6 @@ void DebuggerUI::openDebuggerSideBar(ViewFrame* frame)
 
 void DebuggerUI::updateIPHighlight()
 {
-	uint64_t address = m_controller->IP();
-
 	// Remove old instruction pointer highlight
 	uint64_t lastIP = m_controller->GetLastIP();
 	BinaryViewRef data = m_controller->GetLiveView();
@@ -865,6 +859,8 @@ void DebuggerUI::updateIPHighlight()
 			func->RemoveUserAddressTag(data->GetDefaultArchitecture(), lastIP, tag);
 		}
 	}
+
+	uint64_t address = m_controller->IP();
 
 	// Add new instruction pointer highlight
 	for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
