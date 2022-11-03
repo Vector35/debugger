@@ -88,6 +88,7 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
     case QuitDebuggingEventType:
     case BackEndDisconnectedEventType:
 	case ActiveThreadChangedEvent:
+    case RegisterChangedEvent:
 		updateContent();
 		break;
     case RelativeBreakpointAddedEvent:

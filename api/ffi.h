@@ -224,6 +224,7 @@ extern "C"
 		ActiveThreadChangedEvent,
 
 		DebuggerSettingsChangedEvent,
+		RegisterChangedEvent,
 	};
 
 

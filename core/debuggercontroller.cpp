@@ -102,7 +102,7 @@ bool DebuggerController::SetIP(uint64_t address)
 	if (!SetRegisterValue(ipRegisterName, address))
 		return false;
 
-	NotifyStopped(UnknownReason);
+	NotifyEvent(RegisterChangedEvent);
 
 	return true;
 }
@@ -1036,6 +1036,10 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
         m_currentIP = m_state->IP();
         break;
     }
+	case RegisterChangedEvent:
+		m_lastIP = m_currentIP;
+		m_currentIP = m_state->IP();
+		break;
 	case ErrorEventType:
 	{
 		LogError("%s", event.data.errorData.error.c_str());
