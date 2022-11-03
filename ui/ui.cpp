@@ -631,7 +631,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			return;
 
 		JumpToIPCallback(ctxt.binaryView, context);
-	}, connected));
+	}, connectedAndStopped));
 	debuggerMenu->addAction("Jump to IP", "Misc");
 
 #ifdef WIN32
