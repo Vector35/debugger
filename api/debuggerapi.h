@@ -504,6 +504,7 @@ namespace BinaryNinjaDebuggerAPI
 
 		uint64_t IP();
 		uint64_t GetLastIP();
+		bool SetIP(uint64_t address);
 		uint32_t GetExitCode();
 
 		uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& address);

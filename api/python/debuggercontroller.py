@@ -1145,6 +1145,22 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerGetIP(self.handle)
 
+    @ip.setter
+    def ip(self, addr: int) -> bool:
+        """
+        Overrides the IP (instruction pointer) of the target
+
+        For x86_64, it set the value of ``rip`` register.
+
+        For x86, it set the value of ``eip`` register.
+
+        For armv7/aarch64, or any other architecture that is not native to BN, it set the value of ``pc`` register.
+
+        :param addr: the new value of the IP
+        :return: whether the operation succeeds
+        """
+        return dbgcore.BNDebuggerSetIP(self.handle, addr)
+
     @property
     def last_ip(self) -> int:
         """

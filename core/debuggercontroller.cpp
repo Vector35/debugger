@@ -85,6 +85,34 @@ void DebuggerController::DeleteBreakpoint(const ModuleNameAndOffset& address)
 }
 
 
+bool DebuggerController::SetIP(uint64_t address)
+{
+	std::string ipRegisterName;
+	std::string targetArch = GetRemoteArchitecture()->GetName();
+
+	if ((targetArch == "x86") || (targetArch == "i386"))
+		ipRegisterName = "eip";
+	else if (targetArch == "x86_64")
+		ipRegisterName = "rip";
+	else if ((targetArch == "aarch64") || (targetArch == "arm64"))
+		ipRegisterName = "pc";
+	else
+		ipRegisterName = "pc";
+
+	if (!SetRegisterValue(ipRegisterName, address))
+		return false;
+
+	// This allows the thread frame widget to update properly
+	m_state->GetThreads()->MarkDirty();
+
+	// TODO: we should notify RegisterChangedEvent within SetRegisterValue, so that any modifications to the register
+	// values trigger that event.
+	NotifyEvent(RegisterChangedEvent);
+
+	return true;
+}
+
+
 bool DebuggerController::Launch()
 {
 	DebuggerEvent event;
@@ -1013,6 +1041,12 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
         m_currentIP = m_state->IP();
         break;
     }
+	case RegisterChangedEvent:
+	{
+		m_lastIP = m_currentIP;
+		m_currentIP = m_state->IP();
+		break;
+	}
 	case ErrorEventType:
 	{
 		LogError("%s", event.data.errorData.error.c_str());

@@ -224,6 +224,9 @@ extern "C"
 		ActiveThreadChangedEvent,
 
 		DebuggerSettingsChangedEvent,
+		// This event is only emitted when the value of a register is modified explicitly (e.g., using Python API,
+		// in the register widget, etc.). It is not emitted when the target executes and then stops.
+		RegisterChangedEvent,
 	};
 
 
@@ -376,6 +379,7 @@ extern "C"
 
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetIP(BNDebuggerController* controller);
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetLastIP(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerSetIP(BNDebuggerController* controller, uint64_t address);
 
 	DEBUGGER_FFI_API uint64_t BNDebuggerRelativeAddressToAbsolute(BNDebuggerController* controller, const char* module, uint64_t offset);
 	DEBUGGER_FFI_API BNModuleNameAndOffset BNDebuggerAbsoluteAddressToRelative(BNDebuggerController* controller, uint64_t address);

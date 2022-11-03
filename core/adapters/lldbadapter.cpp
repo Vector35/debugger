@@ -643,25 +643,35 @@ DebugRegister LldbAdapter::ReadRegister(const std::string & name)
 
 bool LldbAdapter::WriteRegister(const std::string & name, std::uintptr_t value)
 {
-	SBThread thread = m_process.GetSelectedThread();
-	if (!thread.IsValid())
+//	SBThread thread = m_process.GetSelectedThread();
+//	if (!thread.IsValid())
+//		return false;
+//
+//	size_t frameCount = thread.GetNumFrames();
+//	if (frameCount == 0)
+//		return false;
+//
+//	SBFrame frame = thread.GetFrameAtIndex(0);
+//	if (!frame.IsValid())
+//		return false;
+//
+//	SBValue reg = frame.FindRegister(name.c_str());
+//	if (!reg.IsValid())
+//		return false;
+//
+//	SBError error;
+//	bool ok = reg.SetValueFromCString(fmt::format("{}", value).c_str(), error);
+//	return ok && error.Success();
+
+//	An LLDB bug forces the use of a command rather than the above code via API. When one tries to update the pc value
+//	using the API, the GetInstructionOffset() function will still return the old value, making the current instruction
+// 	highlight inaccurate.
+	auto command = fmt::format("reg write {} 0x{:x}", name, value);
+	auto result = InvokeBackendCommand(command);
+	if ((result.rfind("error: ", 0) == 0))
 		return false;
 
-	size_t frameCount = thread.GetNumFrames();
-	if (frameCount == 0)
-		return false;
-
-	SBFrame frame = thread.GetFrameAtIndex(0);
-	if (!frame.IsValid())
-		return false;
-
-	SBValue reg = frame.FindRegister(name.c_str());
-	if (!reg.IsValid())
-		return false;
-
-	SBError error;
-	bool ok = reg.SetValueFromCString(fmt::format("{}", value).c_str(), error);
-	return ok && error.Success();
+	return true;
 }
 
 
