@@ -725,7 +725,7 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
         m_adapterType = metadata->GetString();
 
     metadata = m_controller->GetData()->QueryMetadata("debugger.terminal_emulator");
-    if (metadata && metadata->IsUnsignedInteger())
+    if (metadata && metadata->IsBoolean())
         m_requestTerminalEmulator = metadata->GetBoolean();
     else
         m_requestTerminalEmulator = false;
