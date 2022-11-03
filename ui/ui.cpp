@@ -609,8 +609,8 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		return "Make Code";
 	});
 
-	UIAction::registerAction("Set IP");
-	context->globalActions()->bindAction("Set IP", UIAction([=](const UIActionContext& ctxt) {
+	UIAction::registerAction("Override IP");
+	context->globalActions()->bindAction("Override IP", UIAction([=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
 			return;
 
@@ -619,10 +619,10 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			return;
 
 		if (!controller->SetIP(ctxt.address))
-			LogWarn("Failed to set new IP to 0x%" PRIx64, ctxt.address);
+			LogWarn("Failed to override IP to 0x%" PRIx64, ctxt.address);
 			
 	}, connectedAndStopped));
-	debuggerMenu->addAction("Set IP", "Misc");
+	debuggerMenu->addAction("Override IP", "Misc");
 
 #ifdef WIN32
     UIAction::registerAction("Reinstall DbgEng Redistributable");
