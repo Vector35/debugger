@@ -835,10 +835,63 @@ void DebuggerUI::openDebuggerSideBar(ViewFrame* frame)
 }
 
 
+void DebuggerUI::updateIPHighlight()
+{
+	uint64_t address = m_controller->IP();
+
+	// Remove old instruction pointer highlight
+	uint64_t lastIP = m_controller->GetLastIP();
+	BinaryViewRef data = m_controller->GetLiveView();
+	if (!data)
+		return;
+
+	for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(lastIP))
+	{
+		ModuleNameAndOffset addr;
+		addr.module = m_controller->GetExecutablePath();
+		addr.offset = lastIP - data->GetStart();
+
+		BNHighlightStandardColor oldColor = NoHighlightColor;
+		if (m_controller->ContainsBreakpoint(addr))
+			oldColor = RedHighlightColor;
+
+		func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), lastIP, oldColor);
+		for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), lastIP))
+		{
+			if (tag->GetType() != getPCTagType(data))
+				continue;
+
+			func->RemoveUserAddressTag(data->GetDefaultArchitecture(), lastIP, tag);
+		}
+	}
+
+	// Add new instruction pointer highlight
+	for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
+	{
+		bool tagFound = false;
+		for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
+		{
+			if (tag->GetType() == getPCTagType(data))
+			{
+				tagFound = true;
+				break;
+			}
+		}
+
+		if (!tagFound)
+		{
+			func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, BlueHighlightColor);
+			func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getPCTagType(data),
+						"program counter");
+		}
+	}
+}
+
+
 void DebuggerUI::updateUI(const DebuggerEvent &event)
 {
-    switch (event.type)
-    {
+	switch (event.type)
+	{
 		case DetachedEventType:
 		case QuitDebuggingEventType:
 		case TargetExitedEventType:
@@ -901,52 +954,7 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 				QCoreApplication::processEvents();
 			}
 
-            // Remove old instruction pointer highlight
-            uint64_t lastIP = m_controller->GetLastIP();
-            BinaryViewRef data = m_controller->GetLiveView();
-            if (!data)
-                break;
-
-            for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(lastIP))
-            {
-                ModuleNameAndOffset addr;
-                addr.module = m_controller->GetExecutablePath();
-                addr.offset = lastIP - data->GetStart();
-
-                BNHighlightStandardColor oldColor = NoHighlightColor;
-                if (m_controller->ContainsBreakpoint(addr))
-                    oldColor = RedHighlightColor;
-
-                func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), lastIP, oldColor);
-                for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), lastIP))
-                {
-                    if (tag->GetType() != getPCTagType(data))
-                        continue;
-
-                    func->RemoveUserAddressTag(data->GetDefaultArchitecture(), lastIP, tag);
-                }
-            }
-
-            // Add new instruction pointer highlight
-            for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
-            {
-                bool tagFound = false;
-                for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
-                {
-                    if (tag->GetType() == getPCTagType(data))
-                    {
-                        tagFound = true;
-                        break;
-                    }
-                }
-
-                if (!tagFound)
-                {
-                    func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, BlueHighlightColor);
-                    func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getPCTagType(data),
-                                               "program counter");
-                }
-            }
+            updateIPHighlight();
             break;
         }
 
@@ -1088,55 +1096,8 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 		}
 		case RegisterChangedEvent:
 		{
-			uint64_t address = m_controller->IP();
-
-			// Remove old instruction pointer highlight
-            uint64_t lastIP = m_controller->GetLastIP();
-            BinaryViewRef data = m_controller->GetLiveView();
-            if (!data)
-                break;
-
-            for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(lastIP))
-            {
-                ModuleNameAndOffset addr;
-                addr.module = m_controller->GetExecutablePath();
-                addr.offset = lastIP - data->GetStart();
-
-                BNHighlightStandardColor oldColor = NoHighlightColor;
-                if (m_controller->ContainsBreakpoint(addr))
-                    oldColor = RedHighlightColor;
-
-                func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), lastIP, oldColor);
-                for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), lastIP))
-                {
-                    if (tag->GetType() != getPCTagType(data))
-                        continue;
-
-                    func->RemoveUserAddressTag(data->GetDefaultArchitecture(), lastIP, tag);
-                }
-            }
-
-            // Add new instruction pointer highlight
-            for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
-            {
-                bool tagFound = false;
-                for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
-                {
-                    if (tag->GetType() == getPCTagType(data))
-                    {
-                        tagFound = true;
-                        break;
-                    }
-                }
-
-                if (!tagFound)
-                {
-                    func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, BlueHighlightColor);
-                    func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getPCTagType(data),
-                                               "program counter");
-                }
-            }
-            break;
+			updateIPHighlight();
+			break;
 		}
 
         default:
