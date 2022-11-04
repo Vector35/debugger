@@ -1229,7 +1229,7 @@ class DebuggerController:
         :param data:
         :return:
         """
-        dbgcore.BNDebuggerWriteStdin(self.handle, data)
+        dbgcore.BNDebuggerWriteStdin(self.handle, data, len(data))
 
     def execute_backend_command(self, command: str) -> str:
         """
