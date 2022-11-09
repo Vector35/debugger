@@ -1259,6 +1259,7 @@ std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
 	{
 		DebugFrame frame;
 		auto engineFrame = frames[i];
+        frame.m_index = i;
 		frame.m_fp = engineFrame.FrameOffset;
 		frame.m_sp = engineFrame.StackOffset;
 		frame.m_pc = engineFrame.InstructionOffset;
