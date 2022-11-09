@@ -171,18 +171,18 @@ QVariant ThreadFramesListModel::headerData(int column, Qt::Orientation orientati
 
 	switch (column)
 	{
-		case ThreadFramesListModel::IndexColumn:
-			return "#";
-		case ThreadFramesListModel::ModuleColumn:
-			return "Module";
-		case ThreadFramesListModel::FunctionColumn:
-			return "Function";
-		case ThreadFramesListModel::PcColumn:
-			return "PC";
-		case ThreadFramesListModel::SpColumn:
-			return "SP";
-		case ThreadFramesListModel::FpColumn:
-			return "FP";
+	case ThreadFramesListModel::IndexColumn:
+		return "#";
+	case ThreadFramesListModel::ModuleColumn:
+		return "Module";
+	case ThreadFramesListModel::FunctionColumn:
+		return "Function";
+	case ThreadFramesListModel::PcColumn:
+		return "PC";
+	case ThreadFramesListModel::SpColumn:
+		return "SP";
+	case ThreadFramesListModel::FpColumn:
+		return "FP";
 	}
 	return QVariant();
 }
