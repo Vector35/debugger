@@ -690,9 +690,9 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 	}
 
     Ref<Metadata> metadata;
-    // metadata = m_data->QueryMetadata("debugger.command_line_args");
-    // if (metadata && metadata->IsStringList())
-    //     m_commandLineArgs = metadata->GetStringList();
+	metadata = m_controller->GetData()->QueryMetadata("debugger.command_line_args");
+	if (metadata && metadata->IsString())
+		m_commandLineArgs = metadata->GetString();
 
 	metadata = m_controller->GetData()->QueryMetadata("debugger.executable_path");
 	if (metadata && metadata->IsString())
