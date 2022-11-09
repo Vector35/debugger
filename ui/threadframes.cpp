@@ -145,7 +145,7 @@ QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
     }
     case ThreadFramesListModel::SpColumn:
     {
-		QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->pc());
+		QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->sp());
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
