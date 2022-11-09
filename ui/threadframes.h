@@ -38,6 +38,7 @@ using namespace std;
 class FrameItem
 {
 private:
+    int m_frameIndex;
 	std::string m_module;
 	std::string m_function;
 	uint64_t m_pc;
@@ -45,10 +46,11 @@ private:
 	uint64_t m_fp;
 
 public:
-    FrameItem(std::string m_module, std::string m_function, uint64_t m_pc, uint64_t m_sp, uint64_t m_fp);
+    FrameItem(int index, std::string module, std::string function, uint64_t pc, uint64_t sp, uint64_t fp);
     uint64_t pc() const { return m_pc; }
     uint64_t sp() const { return m_sp; }
     uint64_t fp() const { return m_fp; }
+    int frameIndex() const { return m_frameIndex; }
     std::string module() const { return m_module; }
     std::string function() const { return m_function; }
     bool operator==(const FrameItem& other) const;
@@ -71,12 +73,12 @@ protected:
 public:
     enum ColumnHeaders
     {
-		PcColumn,
+        IndexColumn,
         ModuleColumn,
-        FpColumn,
+        FunctionColumn,
+        PcColumn,
         SpColumn,
-		FunctionColumn,
-
+        FpColumn,
     };
 
     ThreadFramesListModel(QWidget* parent, ViewFrame* view);
@@ -86,7 +88,7 @@ public:
 
     virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override
         { (void) parent; return (int)m_items.size(); }
-    virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 5; }
+    virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 6; }
     FrameItem getRow(int row) const;
     virtual QVariant data(const QModelIndex& i, int role) const override;
     virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;

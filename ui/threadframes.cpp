@@ -25,8 +25,8 @@ using namespace BinaryNinjaDebuggerAPI;
 
 constexpr int SortFilterRole = Qt::UserRole + 1;
 
-FrameItem::FrameItem(std::string m_module, std::string m_function, uint64_t m_pc, uint64_t m_sp, uint64_t m_fp):
-    m_module(m_module), m_function(m_function), m_pc(m_pc), m_sp(m_sp), m_fp(m_fp)
+FrameItem::FrameItem(int index, std::string module, std::string function, uint64_t pc, uint64_t sp, uint64_t fp):
+    m_frameIndex(index), m_module(module), m_function(function), m_pc(pc), m_sp(sp), m_fp(fp)
 {
 }
 
@@ -109,6 +109,14 @@ QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
 
     switch (index.column())
     {
+	case ThreadFramesListModel::IndexColumn:
+	{
+		QString text = QString::asprintf("%d", item->frameIndex());
+        if (role == Qt::SizeHintRole)
+            return QVariant((qulonglong)text.size());
+
+        return QVariant(text);
+	}
     case ThreadFramesListModel::ModuleColumn:
     {
 		QString text = QString::fromStdString(item->module());
@@ -133,17 +141,17 @@ QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
 
         return QVariant(text);
     }
-    case ThreadFramesListModel::FpColumn:
+    case ThreadFramesListModel::SpColumn:
     {
-        QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->fp());
+		QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->pc());
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
         return QVariant(text);
     }
-    case ThreadFramesListModel::SpColumn:
+	case ThreadFramesListModel::FpColumn:
     {
-		QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->pc());
+        QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->fp());
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
@@ -164,16 +172,18 @@ QVariant ThreadFramesListModel::headerData(int column, Qt::Orientation orientati
 
 	switch (column)
 	{
+		case ThreadFramesListModel::IndexColumn:
+			return "#";
 		case ThreadFramesListModel::ModuleColumn:
 			return "Module";
 		case ThreadFramesListModel::FunctionColumn:
 			return "Function";
 		case ThreadFramesListModel::PcColumn:
 			return "PC";
-		case ThreadFramesListModel::FpColumn:
-			return "FP";
 		case ThreadFramesListModel::SpColumn:
 			return "SP";
+		case ThreadFramesListModel::FpColumn:
+			return "FP";
 	}
 	return QVariant();
 }
@@ -196,14 +206,10 @@ void ThreadFramesListModel::updateRows(std::vector<BinaryNinjaDebuggerAPI::Debug
 	std::vector<FrameItem> newRows;
 	for (const DebugFrame& frame: frames)
 	{
-		newRows.emplace_back(frame.m_module, frame.m_functionName, frame.m_pc, frame.m_sp, frame.m_sp);
+		LogInfo("DebugFrame: %d, %s", frame.m_index, frame.m_functionName);
+		newRows.emplace_back((int)frame.m_index, frame.m_module, frame.m_functionName, frame.m_pc, frame.m_sp, frame.m_fp);
 	}
 
-   // std::sort(newRows.begin(), newRows.end(), [=](const FrameItem& a, const FrameItem& b)
-   //     {
-   //         return a.address() < b.address();
-   //     });
-//
 	m_items = newRows;
 	endResetModel();
 }
@@ -237,22 +243,24 @@ void ThreadFramesItemDelegate::paint(QPainter* painter, const QStyleOptionViewIt
 	auto data = idx.data(Qt::DisplayRole);
 	switch (idx.column())
 	{
-	case ThreadFramesListModel::ModuleColumn:
-		painter->setPen(getThemeColor(AddressColor).rgba());
-		painter->drawText(textRect, data.toString());
-		break;
-	case ThreadFramesListModel::FunctionColumn:
-		painter->setPen(getThemeColor(AddressColor).rgba());
-		painter->drawText(textRect, data.toString());
-		break;
-	case ThreadFramesListModel::PcColumn:
+	case ThreadFramesListModel::IndexColumn:
+	{
 		painter->setPen(getThemeColor(NumberColor).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
+	}
+	case ThreadFramesListModel::ModuleColumn:
+	case ThreadFramesListModel::FunctionColumn:
+	{
+		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
+		painter->drawText(textRect, data.toString());
+		break;
+	}
+	case ThreadFramesListModel::PcColumn:
 	case ThreadFramesListModel::FpColumn:
 	case ThreadFramesListModel::SpColumn:
 	{
-		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
+		painter->setPen(getThemeColor(AddressColor).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
 	}
