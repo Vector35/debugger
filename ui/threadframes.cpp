@@ -294,29 +294,29 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 
 	m_threadList = new QComboBox(this);
 
-	m_threadFrames = new QTableView(this);
-	m_model = new ThreadFramesListModel(m_threadFrames, frame);
+	m_threadFramesTable = new QTableView(this);
+	m_model = new ThreadFramesListModel(m_threadFramesTable, frame);
 	
-	m_threadFrames->setModel(m_model);
-	m_threadFrames->setShowGrid(false);
+	m_threadFramesTable->setModel(m_model);
+	m_threadFramesTable->setShowGrid(false);
 
 	m_delegate = new ThreadFramesItemDelegate(this);
-    m_threadFrames->setItemDelegate(m_delegate);
+    m_threadFramesTable->setItemDelegate(m_delegate);
 
-	m_threadFrames->setSelectionBehavior(QAbstractItemView::SelectItems);
+	m_threadFramesTable->setSelectionBehavior(QAbstractItemView::SelectItems);
 
-    m_threadFrames->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    m_threadFrames->verticalHeader()->setVisible(false);
+    m_threadFramesTable->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    m_threadFramesTable->verticalHeader()->setVisible(false);
 
-    m_threadFrames->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-    m_threadFrames->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_threadFramesTable->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_threadFramesTable->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
-    m_threadFrames->resizeColumnsToContents();
-    m_threadFrames->resizeRowsToContents();
+    m_threadFramesTable->resizeColumnsToContents();
+    m_threadFramesTable->resizeRowsToContents();
 
 	layout->addWidget(new QLabel("Thread:"));
 	layout->addWidget(m_threadList);
-	layout->addWidget(m_threadFrames);
+	layout->addWidget(m_threadFramesTable);
 	setLayout(layout);
 
 	// Set up colors
@@ -328,26 +328,6 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 		if (tid != currentTid)
 			m_debugger->SetActiveThread(tid);
 	});
-
-	//connect(m_threadFrames, &QListWidget::itemDoubleClicked, [&](QListWidgetItem* item){
-	//	std::string text = item->text().toStdString();
-	//	auto pos = text.find("0x");
-	//	if (pos == std::string::npos)
-	//		return;
-//
-	//	text = text.substr(pos, text.length());
-	//	pos = text.find(" ");
-	//	if (pos != std::string::npos)
-	//		text = text.substr(0, pos);
-//
-	//	uint64_t address = strtoull(text.c_str(), nullptr, 16);
-	//	if (address != 0)
-	//	{
-	//		UIContext* context = UIContext::contextForWidget(this);
-	//		ViewFrame* frame = context->getCurrentViewFrame();
-	//		frame->navigate(m_debugger->GetLiveView(), address, true, true);
-	//	}
-	//});
 
 	m_debuggerEventCallback = m_debugger->RegisterEventCallback([&](const DebuggerEvent& event){
 		switch (event.type)
@@ -392,7 +372,7 @@ void ThreadFramesWidget::updateContent()
 
 	std::vector<DebugFrame> frames = m_debugger->GetFramesOfThread(activeThread.m_tid);
 	m_model->updateRows(frames);
-	m_threadFrames->resizeColumnsToContents();
+	m_threadFramesTable->resizeColumnsToContents();
 }
 
 

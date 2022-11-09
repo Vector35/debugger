@@ -118,7 +118,7 @@ class ThreadFramesWidget: public QWidget
 	DbgRef<DebuggerController> m_debugger;
 
 	QComboBox* m_threadList;
-	QTableView* m_threadFrames;
+	QTableView* m_threadFramesTable;
 	ThreadFramesListModel* m_model;
 	ThreadFramesItemDelegate* m_delegate;
 
