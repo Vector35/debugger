@@ -16,11 +16,13 @@ limitations under the License.
 
 #pragma once
 
-#include <QtWidgets/QComboBox>
-#include <QtWidgets/QListWidget>
-#include <QtWidgets/QTextEdit>
-#include <QtWidgets/QLineEdit>
-#include <QtWidgets/QPushButton>
+#include <QtWidgets/QTableView>
+#include <QStyledItemDelegate>
+#include <QAbstractItemModel>
+#include <QItemSelectionModel>
+#include <QModelIndex>
+#include <QStyledItemDelegate>
+#include <QHeaderView>
 #include "binaryninjaapi.h"
 #include "dockhandler.h"
 #include "globalarea.h"
@@ -28,16 +30,93 @@ limitations under the License.
 #include "fontsettings.h"
 #include "debuggerapi.h"
 
+using namespace BinaryNinjaDebuggerAPI;
+using namespace BinaryNinja;
+using namespace std;
+
+class FrameItem
+{
+private:
+	std::string m_module;
+	std::string m_function;
+	uint64_t m_pc;
+	uint64_t m_sp;
+	uint64_t m_fp;
+
+public:
+    FrameItem(std::string m_module, std::string m_function, uint64_t m_pc, uint64_t m_sp, uint64_t m_fp);
+    uint64_t pc() const { return m_pc; }
+    uint64_t sp() const { return m_sp; }
+    uint64_t fp() const { return m_fp; }
+    std::string module() const { return m_module; }
+    std::string function() const { return m_function; }
+    bool operator==(const FrameItem& other) const;
+    bool operator!=(const FrameItem& other) const;
+    bool operator<(const FrameItem& other) const;
+};
+
+Q_DECLARE_METATYPE(FrameItem);
+
+
+class ThreadFramesListModel: public QAbstractTableModel
+{
+    Q_OBJECT
+
+protected:
+    QWidget* m_owner;
+    ViewFrame* m_view;
+    std::vector<FrameItem> m_items;
+
+public:
+    enum ColumnHeaders
+    {
+        ModuleColumn,
+        FunctionColumn,
+        PcColumn,
+        FpColumn,
+        SpColumn,
+    };
+
+    ThreadFramesListModel(QWidget* parent, ViewFrame* view);
+    virtual ~ThreadFramesListModel();
+
+    virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
+
+    virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override
+        { (void) parent; return (int)m_items.size(); }
+    virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 5; }
+    FrameItem getRow(int row) const;
+    virtual QVariant data(const QModelIndex& i, int role) const override;
+    virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
+    void updateRows(std::vector<DebugFrame> frames);
+};
+
+
+class ThreadFramesItemDelegate: public QStyledItemDelegate
+{
+    Q_OBJECT
+
+    QFont m_font;
+    int m_baseline, m_charWidth, m_charHeight, m_charOffset;
+
+public:
+    ThreadFramesItemDelegate(QWidget* parent);
+    void updateFonts();
+    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const;
+    QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
+};
 
 class ThreadFramesWidget: public QWidget
 {
 	Q_OBJECT
 
 	ViewFrame* m_view;
-	BinaryNinjaDebuggerAPI::DbgRef<BinaryNinjaDebuggerAPI::DebuggerController> m_debugger;
+	DbgRef<DebuggerController> m_debugger;
 
 	QComboBox* m_threadList;
-	QListWidget* m_threadFrames;
+	QTableView* m_threadFrames;
+	ThreadFramesListModel* m_model;
+	ThreadFramesItemDelegate* m_delegate;
 
 	size_t m_debuggerEventCallback;
 
