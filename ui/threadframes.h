@@ -131,6 +131,9 @@ public:
 	~ThreadFramesWidget();
 
 	void notifyFontChanged();
+
+private slots:
+	void onDoubleClicked();
 };
 
 class GlobalThreadFramesContainer : public GlobalAreaWidget

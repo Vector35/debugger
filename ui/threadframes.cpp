@@ -322,6 +322,8 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	// Set up colors
 	QPalette widgetPalette = this->palette();
 
+	connect(m_threadFramesTable, &QTableView::doubleClicked, this, &ThreadFramesWidget::onDoubleClicked);
+
 	connect(m_threadList, &QComboBox::activated, [&](int index){
 		uint32_t tid = m_threadList->currentData().toInt();
 		uint32_t currentTid = m_debugger->GetActiveThread().m_tid;
@@ -373,6 +375,50 @@ void ThreadFramesWidget::updateContent()
 	std::vector<DebugFrame> frames = m_debugger->GetFramesOfThread(activeThread.m_tid);
 	m_model->updateRows(frames);
 	m_threadFramesTable->resizeColumnsToContents();
+}
+
+
+void ThreadFramesWidget::onDoubleClicked()
+{
+	QModelIndexList sel = m_threadFramesTable->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	//TODO: support for function column?
+	if (sel[0].column() != ThreadFramesListModel::PcColumn && 
+		sel[0].column() != ThreadFramesListModel::SpColumn &&
+		sel[0].column() != ThreadFramesListModel::FpColumn)
+		return;
+
+
+	auto frameItem = m_model->getRow(sel[0].row());
+
+	uint64_t addrToJump = 0;
+	switch (sel[0].column())
+	{
+	case ThreadFramesListModel::PcColumn:
+		addrToJump = frameItem.pc();
+		break;
+	case ThreadFramesListModel::SpColumn:
+		addrToJump = frameItem.sp();
+		break;
+	case ThreadFramesListModel::FpColumn:
+		addrToJump = frameItem.fp();
+		break;
+	}
+
+	UIContext* context = UIContext::contextForWidget(this);
+	if (!context)
+		return;
+
+	ViewFrame* frame = context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	if (m_debugger->GetLiveView())
+		frame->navigate(m_debugger->GetLiveView(), addrToJump, true, true);
+	else
+		frame->navigate(m_debugger->GetData(), addrToJump, true, true);
 }
 
 
