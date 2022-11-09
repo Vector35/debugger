@@ -22,7 +22,6 @@ limitations under the License.
 #include <QAbstractItemModel>
 #include <QItemSelectionModel>
 #include <QModelIndex>
-#include <QStyledItemDelegate>
 #include <QHeaderView>
 #include "binaryninjaapi.h"
 #include "dockhandler.h"
