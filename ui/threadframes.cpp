@@ -46,21 +46,23 @@ bool FrameItem::operator!=(const FrameItem& other) const
 
 bool FrameItem::operator<(const FrameItem& other) const
 {
-    //if (m_address < other.address())
-    //    return true;
-    //else if (m_address > other.address())
-    //    return false;
-    //else if (m_size < other.size())
-    //    return true;
-    //else if (m_size > other.size())
-    //    return false;
-    //else if (m_name < other.name())
-    //    return true;
-    //else if (m_name > other.name())
-    //    return false;
-    //return m_path < other.path();
-
-	return false;
+    if (m_module < other.module())
+        return true;
+    else if (m_module > other.module())
+        return false;
+    else if (m_function < other.function())
+        return true;
+    else if (m_function > other.function())
+        return false;
+    else if (m_pc < other.pc())
+        return true;
+    else if (m_pc > other.pc())
+        return false;
+	else if (m_sp < other.sp())
+        return true;
+    else if (m_sp > other.sp())
+        return false;
+    return m_fp < other.fp();
 }
 
 
@@ -193,20 +195,10 @@ void ThreadFramesListModel::updateRows(std::vector<BinaryNinjaDebuggerAPI::Debug
 {
 	beginResetModel();
 
-	//for (const DebugFrame& frame: frames)
-	//{
-	//	QString text = QString::asprintf("#%d: 0x%" PRIx64, (int)frame.m_index, frame.m_pc);
-	//	uint64_t offset = frame.m_pc - frame.m_functionStart;
-	//	QString symbolizedInfo = QString::asprintf("%s`%s + 0x%" PRIx64 ", sp: 0x%" PRIx64 ", fp: 0x%" PRIx64,
-	//											   frame.m_module.c_str(), frame.m_functionName.c_str(), offset,
-	//											   frame.m_sp, frame.m_fp);
-	//	m_threadFrames->addItem(text + ' ' + symbolizedInfo);
-	//}
-
+	//TODO: add one more element for FunctionName + offset?
 	std::vector<FrameItem> newRows;
 	for (const DebugFrame& frame: frames)
 	{
-		LogInfo("DebugFrame: %d, %s", frame.m_index, frame.m_functionName);
 		newRows.emplace_back((int)frame.m_index, frame.m_module, frame.m_functionName, frame.m_pc, frame.m_sp, frame.m_fp);
 	}
 
