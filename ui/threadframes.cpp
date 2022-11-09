@@ -196,8 +196,6 @@ void ThreadFramesListModel::updateRows(std::vector<BinaryNinjaDebuggerAPI::Debug
 	std::vector<FrameItem> newRows;
 	for (const DebugFrame& frame: frames)
 	{
-		LogInfo("loop");
-		LogInfo("mofule: %s, func :%s", frame.m_module, frame.m_functionName);
 		newRows.emplace_back(frame.m_module, frame.m_functionName, frame.m_pc, frame.m_sp, frame.m_sp);
 	}
 
@@ -286,9 +284,6 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	QWidget(parent), m_view(frame)
 {
 	m_debugger = DebuggerController::GetController(data);
-	// In rare cases, m_debugger could be nullptr. This only happens when 1. a target exits and the live view of the
-	// DebuggerController is set to nullptr, 2. the UI still shows the live view. This is a short time span, since
-	// the debugger UI will reopen the file context after the target exits, which no longer contains teh live view.
 	if (!m_debugger)
 		return;
 
@@ -396,9 +391,8 @@ void ThreadFramesWidget::updateContent()
 	m_threadList->setCurrentIndex(index);
 
 	std::vector<DebugFrame> frames = m_debugger->GetFramesOfThread(activeThread.m_tid);
-	//m_threadFrames->clear();
-
 	m_model->updateRows(frames);
+	m_threadFrames->resizeColumnsToContents();
 }
 
 

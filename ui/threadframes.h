@@ -17,6 +17,7 @@ limitations under the License.
 #pragma once
 
 #include <QtWidgets/QTableView>
+#include <QtWidgets/QComboBox>
 #include <QStyledItemDelegate>
 #include <QAbstractItemModel>
 #include <QItemSelectionModel>
@@ -70,11 +71,12 @@ protected:
 public:
     enum ColumnHeaders
     {
+		PcColumn,
         ModuleColumn,
-        FunctionColumn,
-        PcColumn,
         FpColumn,
         SpColumn,
+		FunctionColumn,
+
     };
 
     ThreadFramesListModel(QWidget* parent, ViewFrame* view);
