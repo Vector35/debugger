@@ -37,7 +37,7 @@ using namespace std;
 class FrameItem
 {
 private:
-    int m_frameIndex;
+	int m_frameIndex;
 	std::string m_module;
 	std::string m_function;
 	uint64_t m_pc;
@@ -45,16 +45,16 @@ private:
 	uint64_t m_fp;
 
 public:
-    FrameItem(int index, std::string module, std::string function, uint64_t pc, uint64_t sp, uint64_t fp);
-    uint64_t pc() const { return m_pc; }
-    uint64_t sp() const { return m_sp; }
-    uint64_t fp() const { return m_fp; }
-    int frameIndex() const { return m_frameIndex; }
-    std::string module() const { return m_module; }
-    std::string function() const { return m_function; }
-    bool operator==(const FrameItem& other) const;
-    bool operator!=(const FrameItem& other) const;
-    bool operator<(const FrameItem& other) const;
+	FrameItem(int index, std::string module, std::string function, uint64_t pc, uint64_t sp, uint64_t fp);
+	uint64_t pc() const { return m_pc; }
+	uint64_t sp() const { return m_sp; }
+	uint64_t fp() const { return m_fp; }
+	int frameIndex() const { return m_frameIndex; }
+	std::string module() const { return m_module; }
+	std::string function() const { return m_function; }
+	bool operator==(const FrameItem& other) const;
+	bool operator!=(const FrameItem& other) const;
+	bool operator<(const FrameItem& other) const;
 };
 
 Q_DECLARE_METATYPE(FrameItem);
@@ -62,51 +62,51 @@ Q_DECLARE_METATYPE(FrameItem);
 
 class ThreadFramesListModel: public QAbstractTableModel
 {
-    Q_OBJECT
+	Q_OBJECT
 
 protected:
-    QWidget* m_owner;
-    ViewFrame* m_view;
-    std::vector<FrameItem> m_items;
+	QWidget* m_owner;
+	ViewFrame* m_view;
+	std::vector<FrameItem> m_items;
 
 public:
-    enum ColumnHeaders
-    {
-        IndexColumn,
-        ModuleColumn,
-        FunctionColumn,
-        PcColumn,
-        SpColumn,
-        FpColumn,
-    };
+	enum ColumnHeaders
+	{
+		IndexColumn,
+		ModuleColumn,
+		FunctionColumn,
+		PcColumn,
+		SpColumn,
+		FpColumn,
+	};
 
-    ThreadFramesListModel(QWidget* parent, ViewFrame* view);
-    virtual ~ThreadFramesListModel();
+	ThreadFramesListModel(QWidget* parent, ViewFrame* view);
+	virtual ~ThreadFramesListModel();
 
-    virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
+	virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
 
-    virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override
-        { (void) parent; return (int)m_items.size(); }
-    virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 6; }
-    FrameItem getRow(int row) const;
-    virtual QVariant data(const QModelIndex& i, int role) const override;
-    virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
-    void updateRows(std::vector<DebugFrame> frames);
+	virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override
+		{ (void) parent; return (int)m_items.size(); }
+	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 6; }
+	FrameItem getRow(int row) const;
+	virtual QVariant data(const QModelIndex& i, int role) const override;
+	virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
+	void updateRows(std::vector<DebugFrame> frames);
 };
 
 
 class ThreadFramesItemDelegate: public QStyledItemDelegate
 {
-    Q_OBJECT
+	Q_OBJECT
 
-    QFont m_font;
-    int m_baseline, m_charWidth, m_charHeight, m_charOffset;
+	QFont m_font;
+	int m_baseline, m_charWidth, m_charHeight, m_charOffset;
 
 public:
-    ThreadFramesItemDelegate(QWidget* parent);
-    void updateFonts();
-    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const;
-    QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
+	ThreadFramesItemDelegate(QWidget* parent);
+	void updateFonts();
+	void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const;
+	QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
 };
 
 class ThreadFramesWidget: public QWidget

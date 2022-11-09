@@ -23,48 +23,48 @@ limitations under the License.
 constexpr int SortFilterRole = Qt::UserRole + 1;
 
 FrameItem::FrameItem(int index, std::string module, std::string function, uint64_t pc, uint64_t sp, uint64_t fp):
-    m_frameIndex(index), m_module(module), m_function(function), m_pc(pc), m_sp(sp), m_fp(fp)
+	m_frameIndex(index), m_module(module), m_function(function), m_pc(pc), m_sp(sp), m_fp(fp)
 {
 }
 
 
 bool FrameItem::operator==(const FrameItem& other) const
 {
-    return (m_module == other.module()) && (m_function == other.function()) && (m_pc == other.pc()) &&
-        (m_fp == other.fp()) && (m_sp == other.sp());
+	return (m_module == other.module()) && (m_function == other.function()) && (m_pc == other.pc()) &&
+		(m_fp == other.fp()) && (m_sp == other.sp());
 }
 
 
 bool FrameItem::operator!=(const FrameItem& other) const
 {
-    return !(*this == other);
+	return !(*this == other);
 }
 
 
 bool FrameItem::operator<(const FrameItem& other) const
 {
-    if (m_module < other.module())
-        return true;
-    else if (m_module > other.module())
-        return false;
-    else if (m_function < other.function())
-        return true;
-    else if (m_function > other.function())
-        return false;
-    else if (m_pc < other.pc())
-        return true;
-    else if (m_pc > other.pc())
-        return false;
+	if (m_module < other.module())
+		return true;
+	else if (m_module > other.module())
+		return false;
+	else if (m_function < other.function())
+		return true;
+	else if (m_function > other.function())
+		return false;
+	else if (m_pc < other.pc())
+		return true;
+	else if (m_pc > other.pc())
+		return false;
 	else if (m_sp < other.sp())
-        return true;
-    else if (m_sp > other.sp())
-        return false;
-    return m_fp < other.fp();
+		return true;
+	else if (m_sp > other.sp())
+		return false;
+	return m_fp < other.fp();
 }
 
 
 ThreadFramesListModel::ThreadFramesListModel(QWidget* parent, ViewFrame* view):
-    QAbstractTableModel(parent), m_view(view)
+	QAbstractTableModel(parent), m_view(view)
 {
 }
 
@@ -76,10 +76,10 @@ ThreadFramesListModel::~ThreadFramesListModel()
 
 FrameItem ThreadFramesListModel::getRow(int row) const
 {
-    if ((size_t)row >= m_items.size())
+	if ((size_t)row >= m_items.size())
 		throw std::runtime_error("row index out-of-bound");
 
-    return m_items[row];
+	return m_items[row];
 }
 
 
@@ -96,68 +96,68 @@ QModelIndex ThreadFramesListModel::index(int row, int column, const QModelIndex 
 
 QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
 {
-    if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
+	if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
 		return QVariant();
 
 	FrameItem *item = static_cast<FrameItem*>(index.internalPointer());
 	if (!item)
 		return QVariant();
 
-    if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole) && (role != SortFilterRole))
-        return QVariant();
+	if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole) && (role != SortFilterRole))
+		return QVariant();
 
-    switch (index.column())
-    {
+	switch (index.column())
+	{
 	case ThreadFramesListModel::IndexColumn:
 	{
 		QString text = QString::asprintf("%d", item->frameIndex());
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)text.size());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
+		return QVariant(text);
 	}
-    case ThreadFramesListModel::ModuleColumn:
-    {
+	case ThreadFramesListModel::ModuleColumn:
+	{
 		QString text = QString::fromStdString(item->module());
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)text.size());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
-    }
+		return QVariant(text);
+	}
 	case ThreadFramesListModel::FunctionColumn:
-    {
+	{
 		QString text = QString::fromStdString(item->function());
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)text.size());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
-    }
-    case ThreadFramesListModel::PcColumn:
-    {
-        QString text = QString::asprintf("0x%" PRIx64, item->pc());
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)text.size());
+		return QVariant(text);
+	}
+	case ThreadFramesListModel::PcColumn:
+	{
+		QString text = QString::asprintf("0x%" PRIx64, item->pc());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
-    }
-    case ThreadFramesListModel::SpColumn:
-    {
+		return QVariant(text);
+	}
+	case ThreadFramesListModel::SpColumn:
+	{
 		QString text = QString::asprintf("0x%" PRIx64, item->sp());
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)text.size());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
-    }
+		return QVariant(text);
+	}
 	case ThreadFramesListModel::FpColumn:
-    {
-        QString text = QString::asprintf("0x%" PRIx64, item->fp());
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)text.size());
+	{
+		QString text = QString::asprintf("0x%" PRIx64, item->fp());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
-    }
-    }
-    return QVariant();
+		return QVariant(text);
+	}
+	}
+	return QVariant();
 }
 
 
@@ -205,9 +205,9 @@ void ThreadFramesListModel::updateRows(std::vector<BinaryNinjaDebuggerAPI::Debug
 
 
 ThreadFramesItemDelegate::ThreadFramesItemDelegate(QWidget* parent):
-    QStyledItemDelegate(parent)
+	QStyledItemDelegate(parent)
 {
-    updateFonts();
+	updateFonts();
 }
 
 
@@ -273,8 +273,8 @@ void ThreadFramesItemDelegate::updateFonts()
 
 QSize ThreadFramesItemDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const
 {
-    auto totalWidth = (idx.data(Qt::SizeHintRole).toInt() + 2) * m_charWidth + 4;
-    return QSize(totalWidth, m_charHeight + 2);
+	auto totalWidth = (idx.data(Qt::SizeHintRole).toInt() + 2) * m_charWidth + 4;
+	return QSize(totalWidth, m_charHeight + 2);
 }
 
 ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data):
@@ -298,18 +298,18 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	m_threadFramesTable->setShowGrid(false);
 
 	m_delegate = new ThreadFramesItemDelegate(this);
-    m_threadFramesTable->setItemDelegate(m_delegate);
+	m_threadFramesTable->setItemDelegate(m_delegate);
 
 	m_threadFramesTable->setSelectionBehavior(QAbstractItemView::SelectItems);
 
-    m_threadFramesTable->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    m_threadFramesTable->verticalHeader()->setVisible(false);
+	m_threadFramesTable->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+	m_threadFramesTable->verticalHeader()->setVisible(false);
 
-    m_threadFramesTable->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-    m_threadFramesTable->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+	m_threadFramesTable->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+	m_threadFramesTable->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
-    m_threadFramesTable->resizeColumnsToContents();
-    m_threadFramesTable->resizeRowsToContents();
+	m_threadFramesTable->resizeColumnsToContents();
+	m_threadFramesTable->resizeRowsToContents();
 
 	layout->addWidget(new QLabel("Thread:"));
 	layout->addWidget(m_threadList);
