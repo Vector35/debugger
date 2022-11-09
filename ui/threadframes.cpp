@@ -20,9 +20,6 @@ limitations under the License.
 #include "inttypes.h"
 
 
-using namespace BinaryNinja;
-using namespace BinaryNinjaDebuggerAPI;
-
 constexpr int SortFilterRole = Qt::UserRole + 1;
 
 FrameItem::FrameItem(int index, std::string module, std::string function, uint64_t pc, uint64_t sp, uint64_t fp):
@@ -137,7 +134,7 @@ QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
     }
     case ThreadFramesListModel::PcColumn:
     {
-        QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->pc());
+        QString text = QString::asprintf("0x%" PRIx64, item->pc());
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
@@ -145,7 +142,7 @@ QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
     }
     case ThreadFramesListModel::SpColumn:
     {
-		QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->sp());
+		QString text = QString::asprintf("0x%" PRIx64, item->sp());
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
@@ -153,7 +150,7 @@ QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
     }
 	case ThreadFramesListModel::FpColumn:
     {
-        QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->fp());
+        QString text = QString::asprintf("0x%" PRIx64, item->fp());
         if (role == Qt::SizeHintRole)
             return QVariant((qulonglong)text.size());
 
