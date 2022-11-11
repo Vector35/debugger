@@ -86,6 +86,15 @@ static void RegisterSettings()
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 #endif
+
+	settings->RegisterSetting("debugger.stackAnnotations",
+			R"({
+			"title" : "Stack Annotations",
+			"type" : "boolean",
+			"default" : true,
+			"description" : "Enable stack annotations",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
 }
 
 extern "C"

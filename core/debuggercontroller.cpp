@@ -1370,6 +1370,9 @@ void DebuggerController::DefineVariablesRecursive(uint64_t address, Confidence<R
 
 void DebuggerController::UpdateStackVariables()
 {
+	if (Settings::Instance()->Get<bool>("debugger.stackAnnotations") == false)
+		return;
+
 	if (!m_liveView)
 		return;
 	std::vector<DebugThread> threads = GetAllThreads();
