@@ -15,8 +15,6 @@ endif()
 file(GLOB COMMON_SOURCES
     *.cpp
     *.h
-    ../vendor/pugixml/*.cpp
-    ../vendor/pugixml/*.hpp
     ../vendor/fmt/*.h
     )
 

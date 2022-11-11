@@ -16,7 +16,6 @@ limitations under the License.
 
 #include <inttypes.h>
 #include "lldbadapter.h"
-#include "queuedadapter.h"
 #include "thread"
 
 using namespace lldb;

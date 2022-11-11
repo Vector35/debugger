@@ -32,7 +32,6 @@ limitations under the License.
 #include "breakpointswidget.h"
 #include "registerswidget.h"
 #include "moduleswidget.h"
-#include "threadswidget.h"
 #include "controlswidget.h"
 #include "ui.h"
 #include "debuggerapi.h"

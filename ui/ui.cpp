@@ -18,15 +18,12 @@ limitations under the License.
 #include "binaryninjaapi.h"
 #include "breakpointswidget.h"
 #include "moduleswidget.h"
-#include "threadswidget.h"
 #include "stackwidget.h"
 #include "uinotification.h"
 #include "QPainter"
 #include <QStatusBar>
 #include <QCoreApplication>
 #include "fmt/format.h"
-#include "console.h"
-#include "adapterconsole.h"
 #include "threadframes.h"
 #include "syncgroup.h"
 #include "codedatarenderer.h"
