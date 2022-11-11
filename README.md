@@ -38,28 +38,7 @@ The progress is tracked in [this issue](https://github.com/Vector35/debugger/iss
 
 ## Building
 
-The build instructions are **outdated**. The stable branch of the debugger is shipped with Binary Ninja on latest dev.
-
-```
-# Get the source
-git clone https://github.com/Vector35/binaryninja-api.git
-git clone https://github.com/Vector35/debugger.git
-
-# Do an out-of-source build
-mkdir build
-cd build
-
-# Build it
-cmake -DBN_API_PATH=../binaryninja-api -DBN_INSTALL_DIR=/path/to/binaryninja/installation -DLLDB_PATH=/path/to/lldb ../debugger/
-make
-```
-
-The build artifacts will be in the folder `out`.
-
-Note, the above instruction requires LLDB, whose build instruction is not included here. We will update this later.
-
-To install it, first disable `corePlugins.debugger` so the debugger that comes with Binary Ninja is not loaded. Then copy everything in the `out` folder to the user plugin folder and relaunch BinaryNinja.
-
+The debugger is already shipped with Binary Ninja in stable and development branch. If you wish to contribute code, see [build](build.md) instructions.
 
 ## License
 
