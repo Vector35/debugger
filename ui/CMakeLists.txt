@@ -6,7 +6,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 
-file(GLOB SOURCES *.cpp *.h)
+file(GLOB SOURCES *.cpp *.h ../debuggerui.qrc)
 list(FILTER SOURCES EXCLUDE REGEX moc_.*)
 list(FILTER SOURCES EXCLUDE REGEX qrc_.*)
 

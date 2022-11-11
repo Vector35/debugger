@@ -1185,7 +1185,7 @@ static bool ConnectedAndRunning(BinaryView* view, uint64_t addr)
 void GlobalDebuggerUI::InitializeUI()
 {
     Sidebar::addSidebarWidgetType(
-        new DebuggerWidgetType(QImage(":/icons/images/debugger/debugger.svg"), "Debugger"));
+        new DebuggerWidgetType(QImage(":/debugger_icons/icons/debugger.svg"), "Debugger"));
 
 	// We must use the sequence of these four calls to do the job, otherwise the keybinding does not work.
 	// Though it really should be the case where I can specify the keybinding in the first registerAction() call.

@@ -726,7 +726,7 @@ DebugRegistersContainer::DebugRegistersContainer(ViewFrame* view, BinaryViewRef 
 	headerLayout->setContentsMargins(1, 1, 6, 0);
 	headerLayout->setAlignment(Qt::AlignBaseline);
 
-	ClickableIcon* icon = new ClickableIcon(QImage(":/icons/images/menu.png"), QSize(16, 16));
+	ClickableIcon* icon = new ClickableIcon(QImage(":/debugger_icons/icons/menu.png"), QSize(16, 16));
 	connect(icon, &ClickableIcon::clicked, m_register, &DebugRegistersWidget::showContextMenu);
 	headerLayout->addWidget(icon);
 
