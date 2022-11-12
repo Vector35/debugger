@@ -717,6 +717,12 @@ uint64_t BNDebuggerGetLastIP(BNDebuggerController* controller)
 }
 
 
+bool BNDebuggerSetIP(BNDebuggerController* controller, uint64_t address)
+{
+	return controller->object->SetIP(address);
+}
+
+
 bool BNDebuggerContainsAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t address)
 {
 	DebuggerState* state = controller->object->GetState();

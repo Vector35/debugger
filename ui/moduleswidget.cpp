@@ -584,7 +584,7 @@ DebugModulesWithFilter::DebugModulesWithFilter(ViewFrame* view, BinaryViewRef da
 	headerLayout->setContentsMargins(0, 0, 0, 0);
 	headerLayout->addWidget(m_separateEdit, 1);
 
-	auto* icon = new ClickableIcon(QImage(":/icons/images/menu.png"), QSize(16, 16));
+	auto* icon = new ClickableIcon(QImage(":/debugger_icons/icons/menu.png"), QSize(16, 16));
 	connect(icon, &ClickableIcon::clicked, m_modules, &DebugModulesWidget::showContextMenu);
 	headerLayout->addWidget(icon);
 

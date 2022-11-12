@@ -15,23 +15,12 @@ endif()
 file(GLOB COMMON_SOURCES
     *.cpp
     *.h
-    ../vendor/pugixml/*.cpp
-    ../vendor/pugixml/*.hpp
     ../vendor/fmt/*.h
     )
 
 file(GLOB ADAPTER_SOURCES
 		adapters/lldbadapter.cpp
 		adapters/lldbadapter.h
-#		adapters/lldbrspadapter.cpp
-#		adapters/lldbrspadapter.h
-#		adapters/gdbadapter.cpp
-#		adapters/gdbadapter.h
-#		adapters/queuedadapter.cpp
-#		adapters/queuedadapter.h
-#		adapters/rspconnector.cpp
-#		adapters/rspconnector.h
-#		adapters/socket.h
 	)
 
 if(WIN32)
@@ -76,11 +65,6 @@ set_target_properties(debuggercore PROPERTIES
 #bn_install_plugin(${PROJECT_NAME})
 
 target_compile_definitions(debuggercore PRIVATE DEBUGGER_LIBRARY)
-
-if(BN_INTERNAL_BUILD)
-	add_custom_command(TARGET debuggercore POST_BUILD
-			COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/adapters/gdb ${BN_RESOURCE_DIR}/gdb)
-endif()
 
 if(DEFINED ENV{LLDB_PATH})
 	set(LLDB_PATH $ENV{LLDB_PATH})

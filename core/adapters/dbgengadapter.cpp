@@ -27,7 +27,6 @@ limitations under the License.
 #include <filesystem>
 #include "dbgengadapter.h"
 #include "../../cli/log.h"
-#include "queuedadapter.h"
 #include "../debuggerevent.h"
 #include "shlobj_core.h"
 #pragma warning(push)

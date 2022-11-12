@@ -333,6 +333,7 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 		{
 		case TargetStoppedEventType:
 		case ActiveThreadChangedEvent:
+		case RegisterChangedEvent:
 		{
 			updateContent();
 		}

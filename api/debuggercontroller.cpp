@@ -600,6 +600,12 @@ uint64_t DebuggerController::GetLastIP()
 }
 
 
+bool DebuggerController::SetIP(uint64_t address)
+{
+	return BNDebuggerSetIP(m_object, address);
+}
+
+
 uint32_t DebuggerController::GetExitCode()
 {
 	return BNDebuggerGetExitCode(m_object);

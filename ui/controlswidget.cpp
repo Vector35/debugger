@@ -39,13 +39,13 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	auto red = getThemeColor(RedStandardHighlightColor);
 	auto white = getThemeColor(WhiteStandardHighlightColor);
 
-    m_actionRun = addAction(getColoredIcon(":/icons/images/debugger/run.svg", red), "Run",
+    m_actionRun = addAction(getColoredIcon(":/debugger_icons/icons/run.svg", red), "Run",
                         [this](){ performLaunch(); });
 
-	m_actionPause = addAction(getColoredIcon(":/icons/images/debugger/pause.svg", white), "Pause",
+	m_actionPause = addAction(getColoredIcon(":/debugger_icons/icons/pause.svg", white), "Pause",
 		[this](){ performPause(); });
 
-	m_actionResume = addAction(getColoredIcon(":/icons/images/debugger/resume.svg", green), "Resume",
+	m_actionResume = addAction(getColoredIcon(":/debugger_icons/icons/resume.svg", green), "Resume",
 		[this](){ performResume(); });
 
 	// m_actionRun->setVisible(true);
@@ -53,23 +53,23 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	m_actionResume->setVisible(false);
 
 	// TODO: we need a different icon here
-	m_actionAttachPid = addAction(getColoredIcon(":/icons/images/debugger/connect.svg", white), "Attach to PID",
+	m_actionAttachPid = addAction(getColoredIcon(":/debugger_icons/icons/connect.svg", white), "Attach to PID",
 							[this](){ performAttachPID(); });
-	m_actionDetach = addAction(getColoredIcon(":/icons/images/debugger/disconnect.svg", red), "Detach",
+	m_actionDetach = addAction(getColoredIcon(":/debugger_icons/icons/disconnect.svg", red), "Detach",
 		[this](){ performDetach(); });
 	m_actionDetach->setVisible(false);
 
-    m_actionRestart = addAction(getColoredIcon(":/icons/images/debugger/restart.svg", red), "Restart",
+    m_actionRestart = addAction(getColoredIcon(":/debugger_icons/icons/restart.svg", red), "Restart",
                                 [this](){ performRestart(); });
-    m_actionQuit = addAction(getColoredIcon(":/icons/images/debugger/cancel.svg", red), "Quit",
+    m_actionQuit = addAction(getColoredIcon(":/debugger_icons/icons/cancel.svg", red), "Quit",
                              [this](){ performQuit(); });
     addSeparator();
 
-    m_actionStepInto = addAction(getColoredIcon(":/icons/images/debugger/stepinto.svg", cyan), "Step Into",
+    m_actionStepInto = addAction(getColoredIcon(":/debugger_icons/icons/stepinto.svg", cyan), "Step Into",
                                  [this](){ performStepInto(); });
-    m_actionStepOver = addAction(getColoredIcon(":/icons/images/debugger/stepover.svg", cyan), "Step Over",
+    m_actionStepOver = addAction(getColoredIcon(":/debugger_icons/icons/stepover.svg", cyan), "Step Over",
                                  [this](){ performStepOver(); });
-    m_actionStepReturn = addAction(getColoredIcon(":/icons/images/debugger/stepout.svg", cyan), "Step Out",
+    m_actionStepReturn = addAction(getColoredIcon(":/debugger_icons/icons/stepout.svg", cyan), "Step Out",
                                [this](){ performStepReturn(); });
 
     updateButtons();

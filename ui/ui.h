@@ -84,6 +84,8 @@ public:
 
 	void navigateDebugger(uint64_t address);
 	void openDebuggerSideBar(ViewFrame* frame = nullptr);
+	void updateIPHighlight();
+	void navigateToCurrentIP();
 
 signals:
 	void debuggerEvent(const DebuggerEvent& event);

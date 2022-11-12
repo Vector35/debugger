@@ -1,0 +1,18 @@
+<RCC>
+    <qresource prefix="/debugger_icons">
+        <file>icons/run.svg</file>
+        <file>icons/cancel.svg</file>
+        <file>icons/connect.svg</file>
+        <file>icons/disconnect.svg</file>
+        <file>icons/pause.svg</file>
+        <file>icons/restart.svg</file>
+        <file>icons/resume.svg</file>
+        <file>icons/stepinto.svg</file>
+        <file>icons/stepout.svg</file>
+        <file>icons/stepover.svg</file>
+        <file>icons/stop.svg</file>
+        <file>icons/debugger.svg</file>
+        <file>icons/breakpoint.svg</file>
+        <file>icons/menu.png</file>
+    </qresource>
+</RCC>
