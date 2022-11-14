@@ -1446,5 +1446,8 @@ bool LldbAdapter::DisconnectDebugServer()
 {
 	auto platform = m_debugger.GetSelectedPlatform();
 	platform.DisconnectRemote();
+	// Since connecting to a debug server will set the platform remote-xxxx, we must reset it to host
+	// Otherwise, launching the target (on the host) would not work after disconnecting from a debug server.
+	[[maybe_unused]] auto error = m_debugger.SetCurrentPlatform("host");
 	return true;
 }
