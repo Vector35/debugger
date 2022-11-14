@@ -216,6 +216,10 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 		launchCommand += (" -- " + args);
 
 	auto result = InvokeBackendCommand(launchCommand);
+    DebuggerEvent evt;
+    evt.type = BackendMessageEventType;
+    evt.data.messageData.message = result;
+    PostDebuggerEvent(evt);
 
 	m_process = m_target.GetProcess();
 	if (!m_process.IsValid() || (m_process.GetState() != StateType::eStateStopped) ||
@@ -516,6 +520,10 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, u
 		uint64_t addr = address.offset + m_start;
 		std::string entryBreakpointCommand = fmt::format("b -s \"{}\" -a 0x{:x}", address.module, addr);
 		auto ret = InvokeBackendCommand(entryBreakpointCommand);
+        DebuggerEvent evt;
+        evt.type = BackendMessageEventType;
+        evt.data.messageData.message = ret;
+        PostDebuggerEvent(evt);
 	}
 
 	return DebugBreakpoint{};
