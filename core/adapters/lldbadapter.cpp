@@ -218,7 +218,8 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 	auto result = InvokeBackendCommand(launchCommand);
 
 	m_process = m_target.GetProcess();
-	if (!m_process.IsValid() || (result.rfind("error: ", 0) == 0))
+	if (!m_process.IsValid() || (m_process.GetState() != StateType::eStateStopped) ||
+            (result.rfind("error: ", 0) == 0))
 	{
 		auto it = result.find_last_not_of('\n');
 		result.erase(it + 1);
@@ -278,7 +279,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 
 	SBAttachInfo info(pid);
 	m_process = m_target.Attach(info, err);
-	if (!m_process.IsValid() || err.Fail())
+	if (!m_process.IsValid() || (m_process.GetState() != StateType::eStateStopped) || err.Fail())
 	{
 		DebuggerEvent event;
 		event.type = ErrorEventType;
@@ -344,7 +345,7 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 	if (!m_processPlugin.empty() && m_processPlugin != "debugserver/lldb")
 		plugin = m_processPlugin.c_str();
 	m_process = m_target.ConnectRemote(listener, url.c_str(), plugin, err);
-	if (!m_process.IsValid() || err.Fail())
+	if (!m_process.IsValid() || (m_process.GetState() != StateType::eStateStopped) || err.Fail())
 	{
 		DebuggerEvent event;
 		event.type = ErrorEventType;
