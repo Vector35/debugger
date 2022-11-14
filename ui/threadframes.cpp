@@ -385,18 +385,15 @@ void ThreadFramesWidget::onDoubleClicked()
 	if (sel.empty())
 		return;
 
-	//TODO: support for function column?
-	if (sel[0].column() != ThreadFramesListModel::PcColumn && 
-		sel[0].column() != ThreadFramesListModel::SpColumn &&
-		sel[0].column() != ThreadFramesListModel::FpColumn)
+	if (sel[0].column() < ThreadFramesListModel::FunctionColumn)
 		return;
-
 
 	auto frameItem = m_model->getRow(sel[0].row());
 
 	uint64_t addrToJump = 0;
 	switch (sel[0].column())
 	{
+	case ThreadFramesListModel::FunctionColumn:
 	case ThreadFramesListModel::PcColumn:
 		addrToJump = frameItem.pc();
 		break;
