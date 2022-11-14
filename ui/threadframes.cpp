@@ -192,7 +192,6 @@ void ThreadFramesListModel::updateRows(std::vector<BinaryNinjaDebuggerAPI::Debug
 {
 	beginResetModel();
 
-	//TODO: add one more element for FunctionName + offset?
 	std::vector<FrameItem> newRows;
 	for (const DebugFrame& frame: frames)
 	{
