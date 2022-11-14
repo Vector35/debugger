@@ -196,7 +196,10 @@ void ThreadFramesListModel::updateRows(std::vector<BinaryNinjaDebuggerAPI::Debug
 	std::vector<FrameItem> newRows;
 	for (const DebugFrame& frame: frames)
 	{
-		newRows.emplace_back((int)frame.m_index, frame.m_module, frame.m_functionName, frame.m_pc, frame.m_sp, frame.m_fp);
+		uint64_t offset = frame.m_pc - frame.m_functionStart;
+		QString funcName = QString::asprintf("%s + 0x%" PRIx64, frame.m_functionName.c_str(), offset);
+
+		newRows.emplace_back((int)frame.m_index, frame.m_module, funcName.toStdString(), frame.m_pc, frame.m_sp, frame.m_fp);
 	}
 
 	m_items = newRows;
