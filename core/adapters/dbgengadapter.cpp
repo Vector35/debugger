@@ -1284,7 +1284,7 @@ std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
 		char functionName[1024];
 		unsigned long functionNameLen = 0;
 		uint64_t displacement = 0;
-		if (S_OK == m_debugSymbols->GetNameByOffset(engineFrame.FuncTableEntry, functionName, sizeof(functionName),
+		if (S_OK == m_debugSymbols->GetNameByOffset(engineFrame.InstructionOffset, functionName, sizeof(functionName),
 						  &functionNameLen, &displacement))
 		{
 			frame.m_functionName = functionName;
