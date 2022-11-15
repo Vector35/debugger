@@ -483,6 +483,9 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	m_menu->setGroupOrdering("Display", MENU_ORDER_LAST);
 	m_actionHandler.bindAction(actionName, UIAction([=](){
 		m_filter->toggleHideUnusedRegisters();
+		
+		m_table->resizeColumnToContents(DebugRegistersListModel::NameColumn);
+		m_table->resizeColumnToContents(DebugRegistersListModel::ValueColumn);
 	}));
 	m_actionHandler.setChecked(actionName, [this]() { return m_filter->getHideUnusedRegisters();});
 
@@ -683,6 +686,9 @@ void DebugRegistersWidget::editValue()
 void DebugRegistersWidget::setFilter(const string & filter)
 {
 	m_filter->setFilterRegularExpression(QString::fromStdString(filter));
+
+	m_table->resizeColumnToContents(DebugRegistersListModel::NameColumn);
+	m_table->resizeColumnToContents(DebugRegistersListModel::ValueColumn);
 }
 
 
