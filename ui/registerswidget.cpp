@@ -396,6 +396,13 @@ void DebugRegistersItemDelegate::setEditorData(QWidget *editor, const QModelInde
 }
 
 
+static void updateColumnWidths(QTableView* table)
+{
+	table->resizeColumnToContents(DebugRegistersListModel::NameColumn);
+	table->resizeColumnToContents(DebugRegistersListModel::ValueColumn);
+}
+
+
 DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, Menu* menu):
     m_view(view)
 {
@@ -483,6 +490,7 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	m_menu->setGroupOrdering("Display", MENU_ORDER_LAST);
 	m_actionHandler.bindAction(actionName, UIAction([=](){
 		m_filter->toggleHideUnusedRegisters();
+		updateColumnWidths(m_table);
 	}));
 	m_actionHandler.setChecked(actionName, [this]() { return m_filter->getHideUnusedRegisters();});
 
@@ -499,8 +507,7 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 void DebugRegistersWidget::notifyRegistersChanged(std::vector<DebugRegister> regs)
 {
     m_model->updateRows(regs);
-	m_table->resizeColumnToContents(DebugRegistersListModel::NameColumn);
-	m_table->resizeColumnToContents(DebugRegistersListModel::ValueColumn);
+	updateColumnWidths(m_table);
 }
 
 
@@ -683,6 +690,7 @@ void DebugRegistersWidget::editValue()
 void DebugRegistersWidget::setFilter(const string & filter)
 {
 	m_filter->setFilterRegularExpression(QString::fromStdString(filter));
+	updateColumnWidths(m_table);
 }
 
 
