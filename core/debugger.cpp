@@ -114,7 +114,7 @@ extern "C"
 	BINARYNINJAPLUGIN bool CorePluginInit()
 #endif
 	{
-		Log(BNLogLevel::DebugLog, "Native debugger loaded!" );
+		LogDebug("Native debugger loaded!");
         InitDebugAdapterTypes();
         InitDebugProcessViewType();
 		RegisterSettings();
