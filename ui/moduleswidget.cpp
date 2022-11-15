@@ -581,8 +581,13 @@ DebugModulesWithFilter::DebugModulesWithFilter(ViewFrame* view, BinaryViewRef da
 	m_filter->setFilterPlaceholderText("Search modules");
 
 	auto headerLayout = new QHBoxLayout;
-	headerLayout->setContentsMargins(0, 0, 0, 0);
 	headerLayout->addWidget(m_separateEdit, 1);
+
+	// Vertically-align the hamburger icon with the text field and give the
+	// layout just a bit more breathing room since it's really close to
+	// the surrounding elements.
+	headerLayout->setContentsMargins(1, 1, 6, 0);
+	headerLayout->setAlignment(Qt::AlignBaseline);
 
 	auto* icon = new ClickableIcon(QImage(":/debugger_icons/icons/menu.png"), QSize(16, 16));
 	connect(icon, &ClickableIcon::clicked, m_modules, &DebugModulesWidget::showContextMenu);
