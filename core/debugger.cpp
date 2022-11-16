@@ -85,6 +85,14 @@ static void RegisterSettings()
 			"description" : "Path of the x86 DbgEng Installation. This folder should contain an x86 dbgeng.dll.",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
+	settings->RegisterSetting("debugger.strictEnginePath",
+			R"({
+			"title" : "Strict checks for debug engine",
+			"type" : "boolean",
+			"default" : true,
+			"description" : "Enables strict checks for debug engine dlls. Loading incorrect dlls may make debugger not work as expected.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
 #endif
 
 	settings->RegisterSetting("debugger.stackVariableAnnotations",
