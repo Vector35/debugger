@@ -122,7 +122,7 @@ BinaryView* DebugProcessViewType::Parse(BinaryView* data)
 }
 
 
-void BinaryNinjaDebugger::InitDebugProcessViewType()
+void BNDebuggerInitDebugProcessViewType()
 {
     static DebugProcessViewType type;
     BinaryViewType::Register(&type);

@@ -1331,7 +1331,7 @@ bool LocalDbgEngAdapterType::CanExecute(BinaryNinja::BinaryView *data)
     return false;
 }
 
-void BinaryNinjaDebugger::InitDbgEngAdapterType()
+void BNDebuggerInitDbgEngAdapterType()
 {
     static LocalDbgEngAdapterType localType;
     DebugAdapterType::Register(&localType);
