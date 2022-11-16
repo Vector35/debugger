@@ -593,8 +593,16 @@ std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 			SBValue reg = regGroupInfo.GetChildAtIndex(j);
 			// TODO: register width and internal index
 			// Right now we basically rely on LLDB to always return the registers in the same order
-			if (reg.IsValid() && reg.GetName())
-				result[reg.GetName()] = DebugRegister(reg.GetName(), reg.GetValueAsUnsigned(), 0, regIndex++);
+
+			// SBValue::GetName() sometimes returns NULL on the second call. So we must get its value only once and save
+			// it. Calling it twice causes problem.
+			const char* regNameStr = reg.GetName();
+			if (reg.IsValid() && (regNameStr != nullptr))
+			{
+				std::string regName(regNameStr);
+				if (!regName.empty())
+					result[regName] = DebugRegister(regName, reg.GetValueAsUnsigned(), 0, regIndex++);
+			}
 		}
 	}
 	return result;
