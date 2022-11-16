@@ -114,7 +114,7 @@ bool LldbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
 }
 
 
-void BinaryNinjaDebugger::InitLldbAdapterType()
+void BNDebuggerInitLldbAdapterType()
 {
     static LldbAdapterType lldbType;
     DebugAdapterType::Register(&lldbType);
