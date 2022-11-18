@@ -813,9 +813,6 @@ std::vector<DebugFrame> DebuggerController::GetFramesOfThread(uint64_t tid)
 
 bool DebuggerController::Restart()
 {
-    if (!m_targetControlMutex.try_lock())
-        return false;
-
     if (!m_state->IsConnected())
     {
         m_targetControlMutex.unlock();
@@ -826,15 +823,12 @@ bool DebuggerController::Restart()
        RestartAndWait();
     }).detach();
 
-    m_targetControlMutex.unlock();
     return true;
 }
 
 
 DebugStopReason DebuggerController::RestartAndWait()
 {
-    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
-
     if (!m_state->IsConnected())
         return InvalidStatusOrOperation;
 
@@ -916,13 +910,49 @@ bool DebuggerController::DisconnectDebugServer()
 }
 
 
-void DebuggerController::Detach()
+bool DebuggerController::DetachInternal()
+{
+    if (m_state->IsRunning())
+    {
+        // We must pause the target if it is currently running, at least for DbgEngAdapter
+        if (!PauseInternal())
+            return false;
+    }
+
+    m_adapter->Detach();
+    return true;
+}
+
+
+bool DebuggerController::Detach()
 {
     if (!m_state->IsConnected())
-        return;
+    {
+        return false;
+    }
 
-    // TODO: return whether the operation is successful
-    m_adapter->Detach();
+    std::thread([&](){
+        DetachAndWait();
+    }).detach();
+
+    return true;
+}
+
+
+DebugStopReason DebuggerController::DetachAndWait()
+{
+    if (!m_state->IsConnected())
+        return InvalidStatusOrOperation;
+
+    if (DetachInternal())
+    {
+        NotifyStopped(ProcessExited);
+        return ProcessExited;
+    }
+    else
+    {
+        return InternalError;
+    }
 }
 
 
@@ -943,12 +973,8 @@ bool DebuggerController::QuitInternal()
 
 bool DebuggerController::Quit()
 {
-    if (!m_targetControlMutex.try_lock())
-        return false;
-
     if (!m_state->IsConnected())
     {
-        m_targetControlMutex.unlock();
         return false;
     }
 
@@ -956,15 +982,12 @@ bool DebuggerController::Quit()
         QuitAndWait();
     }).detach();
 
-    m_targetControlMutex.unlock();
     return true;
 }
 
 
 DebugStopReason DebuggerController::QuitAndWait()
 {
-    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
-
     if (!m_state->IsConnected())
         return InvalidStatusOrOperation;
 

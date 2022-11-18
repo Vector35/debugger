@@ -113,6 +113,7 @@ namespace BinaryNinjaDebugger
 		DebugStopReason StepIntoIL(BNFunctionGraphType il);
         DebugStopReason StepOverIL(BNFunctionGraphType il);
         bool QuitInternal();
+        bool DetachInternal();
 
 		// Whether we can resume the execution of the target, including stepping.
 		bool CanResumeTarget();
@@ -200,7 +201,6 @@ namespace BinaryNinjaDebugger
 		void Connect();
         bool ConnectToDebugServer();
         bool DisconnectDebugServer();
-		void Detach();
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
 		void LaunchOrConnect();
 		bool Attach(int32_t pid);
@@ -214,6 +214,7 @@ namespace BinaryNinjaDebugger
         bool Pause();
         bool Quit();
         bool Restart();
+        bool Detach();
 
 		// Synchronous APIs
 		DebugStopReason GoAndWait();
@@ -224,6 +225,7 @@ namespace BinaryNinjaDebugger
 		DebugStopReason PauseAndWait();
         DebugStopReason QuitAndWait();
         DebugStopReason RestartAndWait();
+        DebugStopReason DetachAndWait();
 
 		// getters
 		DebugAdapter *GetAdapter() { return m_adapter; }

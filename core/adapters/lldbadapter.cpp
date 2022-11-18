@@ -1219,15 +1219,15 @@ void LldbAdapter::EventListener()
 //					PostDebuggerEvent(dbgevt);
 //					break;
 //				}
-				case lldb::eStateDetached:
-				{
-					done = true;
-					m_targetActive = false;
-					DebuggerEvent dbgevt;
-					dbgevt.type = DetachedEventType;
-					PostDebuggerEvent(dbgevt);
-					break;
-				}
+//				case lldb::eStateDetached:
+//				{
+//					done = true;
+//					m_targetActive = false;
+//					DebuggerEvent dbgevt;
+//					dbgevt.type = DetachedEventType;
+//					PostDebuggerEvent(dbgevt);
+//					break;
+//				}
 				default:
 					break;
 				}
