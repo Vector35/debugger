@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 
-project(binaryninja-debugger)
+project(debugger)
 add_definitions(-DFMT_HEADER_ONLY)
 
 if((NOT BN_API_PATH) AND (NOT BN_INTERNAL_BUILD))
@@ -30,7 +30,6 @@ endif()
 
 include_directories(vendor)
 
-add_subdirectory(plugin)
 add_subdirectory(core)
 add_subdirectory(api)
 if(NOT HEADLESS)
