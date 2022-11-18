@@ -194,6 +194,9 @@ namespace BinaryNinjaDebugger
 
 		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid) override;
 
+		bool SuspendThread(std::uint32_t tid) override;
+		bool ResumeThread(std::uint32_t tid) override;
+
         void ApplyBreakpoints();
 
         std::string GetDbgEngPath(const std::string& arch = "x64");

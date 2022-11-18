@@ -114,6 +114,8 @@ namespace BinaryNinjaDebugger
 		bool IsDirty() const { return m_dirty; }
 		std::vector<DebugThread> GetAllThreads();
 		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid);
+		bool SuspendThread(std::uint32_t tid);
+		bool ResumeThread(std::uint32_t tid);
 	};
 
 

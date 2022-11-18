@@ -638,6 +638,32 @@ bool DbgEngAdapter::SetActiveThreadId(std::uint32_t tid)
     return true;
 }
 
+
+bool DbgEngAdapter::SuspendThread(std::uint32_t tid)
+{
+	ULONG Id = 0;
+
+	if (m_debugSystemObjects->GetThreadIdBySystemId(tid, &Id) != S_OK)
+		return false;
+
+	std::string suspendCmd = fmt::format("~{}n", Id);
+	InvokeBackendCommand(suspendCmd);
+	return true;
+}
+
+bool DbgEngAdapter::ResumeThread(std::uint32_t tid)
+{
+	ULONG Id = 0;
+
+	if (m_debugSystemObjects->GetThreadIdBySystemId(tid, &Id) != S_OK)
+		return false;
+
+	std::string resumeCmd = fmt::format("~{:u}m", Id);
+	InvokeBackendCommand(resumeCmd);
+	return true;
+}
+
+
 DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags)
 {
     IDebugBreakpoint2* debug_breakpoint{};

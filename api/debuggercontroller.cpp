@@ -150,6 +150,18 @@ void DebuggerController::SetActiveThread(const DebugThread& thread)
 }
 
 
+bool DebuggerController::SuspendThread(std::uint32_t tid)
+{
+	return BNDebuggerSuspendThread(m_object, tid);
+}
+
+
+bool DebuggerController::ResumeThread(std::uint32_t tid)
+{
+	return BNDebuggerResumeThread(m_object, tid);
+}
+
+
 std::vector<DebugFrame> DebuggerController::GetFramesOfThread(uint32_t tid)
 {
 	size_t count;

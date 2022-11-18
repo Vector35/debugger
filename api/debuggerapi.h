@@ -438,6 +438,8 @@ namespace BinaryNinjaDebuggerAPI
 		DebugThread GetActiveThread();
 		void SetActiveThread(const DebugThread& thread);
 		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid);
+		bool SuspendThread(std::uint32_t tid);
+		bool ResumeThread(std::uint32_t tid);
 
 		std::vector<DebugModule> GetModules();
 		std::vector<DebugRegister> GetRegisters();

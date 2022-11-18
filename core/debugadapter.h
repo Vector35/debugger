@@ -217,6 +217,10 @@ namespace BinaryNinjaDebugger
 
 		virtual bool SetActiveThreadId(std::uint32_t tid) = 0;
 
+		virtual bool SuspendThread(std::uint32_t tid) = 0;
+
+		virtual bool ResumeThread(std::uint32_t tid) = 0;
+
 		virtual std::vector<DebugFrame> GetFramesOfThread(std::uint32_t tid);
 
 		virtual DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type = 0) = 0;

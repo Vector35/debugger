@@ -243,6 +243,18 @@ void BNDebuggerSetActiveThread(BNDebuggerController* controller, BNDebugThread t
 }
 
 
+bool BNDebuggerSuspendThread(BNDebuggerController* controller, uint32_t tid)
+{
+	return controller->object->SuspendThread(tid);
+}
+
+
+bool BNDebuggerResumeThread(BNDebuggerController* controller, uint32_t tid)
+{
+	return controller->object->ResumeThread(tid);
+}
+
+
 BNDebugFrame* BNDebuggerGetFramesOfThread(BNDebuggerController* controller, uint32_t tid, size_t* count)
 {
 	std::vector<DebugFrame> frames = controller->object->GetFramesOfThread(tid);

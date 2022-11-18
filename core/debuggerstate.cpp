@@ -254,6 +254,31 @@ std::vector<DebugFrame> DebuggerThreads::GetFramesOfThread(uint32_t tid)
 }
 
 
+bool DebuggerThreads::SuspendThread(std::uint32_t tid)
+{
+	if (!m_state)
+		return false;
+
+	DebugAdapter *adapter = m_state->GetAdapter();
+	if (!adapter)
+		return false;
+
+	return adapter->SuspendThread(tid);
+}
+
+bool DebuggerThreads::ResumeThread(std::uint32_t tid)
+{
+	if (!m_state)
+		return false;
+
+	DebugAdapter *adapter = m_state->GetAdapter();
+	if (!adapter)
+		return false;
+
+	return adapter->ResumeThread(tid);
+}
+
+
 DebuggerModules::DebuggerModules(DebuggerState* state):
     m_state(state)
 {

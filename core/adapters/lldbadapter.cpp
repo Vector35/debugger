@@ -448,6 +448,18 @@ bool LldbAdapter::SetActiveThreadId(std::uint32_t tid)
 }
 
 
+bool LldbAdapter::SuspendThread(std::uint32_t tid)
+{
+	// TODO implement this
+	return false;
+}
+
+bool LldbAdapter::ResumeThread(std::uint32_t tid)
+{
+	return false;
+}
+
+
 std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
 {
 	size_t threadCount = m_process.GetNumThreads();

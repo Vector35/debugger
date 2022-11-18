@@ -306,6 +306,8 @@ extern "C"
 
 	DEBUGGER_FFI_API BNDebugThread BNDebuggerGetActiveThread(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerSetActiveThread(BNDebuggerController* controller, BNDebugThread thread);
+	DEBUGGER_FFI_API bool BNDebuggerSuspendThread(BNDebuggerController* controller, uint32_t tid);
+	DEBUGGER_FFI_API bool BNDebuggerResumeThread(BNDebuggerController* controller, uint32_t tid);
 
 	DEBUGGER_FFI_API BNDebugFrame* BNDebuggerGetFramesOfThread(BNDebuggerController* controller, uint32_t tid,
 															   size_t* count);

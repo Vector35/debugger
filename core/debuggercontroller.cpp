@@ -781,6 +781,17 @@ void DebuggerController::SetActiveThread(const DebugThread &thread)
 }
 
 
+bool DebuggerController::SuspendThread(std::uint32_t tid)
+{
+	return m_state->GetThreads()->SuspendThread(tid);
+}
+
+bool DebuggerController::ResumeThread(std::uint32_t tid)
+{
+	return m_state->GetThreads()->ResumeThread(tid);
+}
+
+
 std::vector<DebugFrame> DebuggerController::GetFramesOfThread(uint64_t tid)
 {
 	return m_state->GetThreads()->GetFramesOfThread(tid);
