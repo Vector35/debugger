@@ -131,9 +131,7 @@ void DebugControlsWidget::performAttachPID()
 
 void DebugControlsWidget::performRestart()
 {
-    std::thread([&](){
-        m_controller->Restart();
-    }).detach();
+    m_controller->Restart();
 }
 
 

@@ -78,6 +78,8 @@ namespace BinaryNinjaDebugger
 		std::recursive_mutex m_callbackMutex;
 		std::set<size_t> m_disabledCallbacks;
 
+        std::recursive_mutex m_targetControlMutex;
+
 		uint64_t m_lastIP = 0;
 		uint64_t m_currentIP = 0;
 
@@ -195,7 +197,6 @@ namespace BinaryNinjaDebugger
 		// target control
 		bool Launch();
 		bool Execute();
-		void Restart();
 		void Connect();
         bool ConnectToDebugServer();
         bool DisconnectDebugServer();
@@ -212,6 +213,7 @@ namespace BinaryNinjaDebugger
         bool RunTo(const std::vector<uint64_t> &remoteAddresses);
         bool Pause();
         bool Quit();
+        bool Restart();
 
 		// Synchronous APIs
 		DebugStopReason GoAndWait();
@@ -221,6 +223,7 @@ namespace BinaryNinjaDebugger
 		DebugStopReason RunToAndWait(const std::vector<uint64_t> &remoteAddresses);
 		DebugStopReason PauseAndWait();
         DebugStopReason QuitAndWait();
+        DebugStopReason RestartAndWait();
 
 		// getters
 		DebugAdapter *GetAdapter() { return m_adapter; }

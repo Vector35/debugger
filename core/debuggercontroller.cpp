@@ -115,6 +115,8 @@ bool DebuggerController::SetIP(uint64_t address)
 
 bool DebuggerController::Launch()
 {
+    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+
 	DebuggerEvent event;
 	event.type = LaunchEventType;
 	PostDebuggerEvent(event);
@@ -142,6 +144,8 @@ bool DebuggerController::Launch()
 
 bool DebuggerController::Attach(int32_t pid)
 {
+    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+
 	NotifyEvent(AttachEventType);
 	if (!CreateDebugAdapter())
 		return false;
@@ -240,6 +244,8 @@ DebugStopReason DebuggerController::GoInternal()
 
 DebugStopReason DebuggerController::GoAndWait()
 {
+    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
 		return InvalidStatusOrOperation;
@@ -256,12 +262,21 @@ DebugStopReason DebuggerController::GoAndWait()
 
 bool DebuggerController::Go()
 {
-    if (!CanResumeTarget())
+    // If another thread has the lock, fail the operation
+    if (!m_targetControlMutex.try_lock())
         return false;
+
+    if (!CanResumeTarget())
+    {
+        m_targetControlMutex.unlock();
+        return false;
+    }
 
     std::thread([&](){
         GoAndWait();
     }).detach();
+
+    m_targetControlMutex.unlock();
     return true;
 }
 
@@ -380,6 +395,8 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 
 DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il)
 {
+    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+
 	if (!CanResumeTarget())
         return InvalidStatusOrOperation;
 
@@ -395,12 +412,21 @@ DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il)
 
 bool DebuggerController::StepInto(BNFunctionGraphType il)
 {
-    if (!CanResumeTarget())
+    // If another thread has the lock, fail the operation
+    if (!m_targetControlMutex.try_lock())
         return false;
+
+    if (!CanResumeTarget())
+    {
+        m_targetControlMutex.unlock();
+        return false;
+    }
 
     std::thread([&, il](){
         StepIntoAndWait(il);
     }).detach();
+
+    m_targetControlMutex.unlock();
     return true;
 }
 
@@ -557,6 +583,8 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
 
 DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il)
 {
+    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+
     if (!CanResumeTarget())
         return InvalidStatusOrOperation;
 
@@ -572,12 +600,21 @@ DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il)
 
 bool DebuggerController::StepOver(BNFunctionGraphType il)
 {
-    if (!CanResumeTarget())
+    // If another thread has the lock, fail the operation
+    if (!m_targetControlMutex.try_lock())
         return false;
+
+    if (!CanResumeTarget())
+    {
+        m_targetControlMutex.unlock();
+        return false;
+    }
 
     std::thread([&, il](){
         StepIntoAndWait(il);
     }).detach();
+
+    m_targetControlMutex.unlock();
     return true;
 }
 
@@ -612,6 +649,8 @@ DebugStopReason DebuggerController::StepReturnInternal()
 
 DebugStopReason DebuggerController::StepReturnAndWait()
 {
+    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+
 	if (!CanResumeTarget())
 	    return InvalidStatusOrOperation;
 
@@ -627,12 +666,21 @@ DebugStopReason DebuggerController::StepReturnAndWait()
 
 bool DebuggerController::StepReturn()
 {
-    if (!CanResumeTarget())
+    // If another thread has the lock, fail the operation
+    if (!m_targetControlMutex.try_lock())
         return false;
+
+    if (!CanResumeTarget())
+    {
+        m_targetControlMutex.unlock();
+        return false;
+    }
 
     std::thread([&](){
         StepReturnAndWait();
     }).detach();
+
+    m_targetControlMutex.unlock();
     return true;
 }
 
@@ -663,6 +711,8 @@ DebugStopReason DebuggerController::RunToInternal(const std::vector<uint64_t>& r
 
 DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& remoteAddresses)
 {
+    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+
 	if (!CanResumeTarget())
 	    return InvalidStatusOrOperation;
 
@@ -678,12 +728,21 @@ DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& re
 
 bool DebuggerController::RunTo(const std::vector<uint64_t>& remoteAddresses)
 {
-    if (!CanResumeTarget())
+    // If another thread has the lock, fail the operation
+    if (!m_targetControlMutex.try_lock())
         return false;
+
+    if (!CanResumeTarget())
+    {
+        m_targetControlMutex.unlock();
+        return false;
+    }
 
     std::thread([&, remoteAddresses](){
         RunToAndWait(remoteAddresses);
     }).detach();
+
+    m_targetControlMutex.unlock();
     return true;
 }
 
@@ -752,15 +811,46 @@ std::vector<DebugFrame> DebuggerController::GetFramesOfThread(uint64_t tid)
 }
 
 
-void DebuggerController::Restart()
+bool DebuggerController::Restart()
 {
-    QuitInternal();
+    if (!m_targetControlMutex.try_lock())
+        return false;
+
+    if (!m_state->IsConnected())
+    {
+        m_targetControlMutex.unlock();
+        return false;
+    }
+
+    std::thread([&](){
+       RestartAndWait();
+    }).detach();
+
+    m_targetControlMutex.unlock();
+    return true;
+}
+
+
+DebugStopReason DebuggerController::RestartAndWait()
+{
+    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+
+    if (!m_state->IsConnected())
+        return InvalidStatusOrOperation;
+
+    // We must wait for all callbacks to be called before we launch the target again. Otherwise, the debuggers internal
+    // state can be corrupted.
+    QuitAndWait();
     Launch();
+    // We do not need to notify the target's status, since Launch() will do it
+    return InitialBreakpoint;
 }
 
 
 void DebuggerController::Connect()
 {
+    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+
     if (m_state->IsConnected())
         return;
 
@@ -791,6 +881,8 @@ void DebuggerController::Connect()
 
 bool DebuggerController::ConnectToDebugServer()
 {
+    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+
     if (m_state->IsConnectedToDebugServer())
         return true;
 
@@ -809,6 +901,8 @@ bool DebuggerController::ConnectToDebugServer()
 
 bool DebuggerController::DisconnectDebugServer()
 {
+    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+
     if (!m_state->IsConnectedToDebugServer())
         return true;
 
@@ -849,18 +943,28 @@ bool DebuggerController::QuitInternal()
 
 bool DebuggerController::Quit()
 {
-    if (!m_state->IsConnected())
+    if (!m_targetControlMutex.try_lock())
         return false;
+
+    if (!m_state->IsConnected())
+    {
+        m_targetControlMutex.unlock();
+        return false;
+    }
 
     std::thread([&](){
         QuitAndWait();
     }).detach();
+
+    m_targetControlMutex.unlock();
     return true;
 }
 
 
 DebugStopReason DebuggerController::QuitAndWait()
 {
+    std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+
     if (!m_state->IsConnected())
         return InvalidStatusOrOperation;
 
