@@ -123,6 +123,7 @@ std::vector<DebugThread> DebuggerController::GetThreads()
 		DebugThread thread;
 		thread.m_rip = threads[i].m_rip;
 		thread.m_tid = threads[i].m_tid;
+		thread.m_isFrozen = threads[i].m_isFrozen;
 		result.push_back(thread);
 	}
 	BNDebuggerFreeThreads(threads, count);
@@ -147,6 +148,18 @@ void DebuggerController::SetActiveThread(const DebugThread& thread)
 	activeThread.m_rip = thread.m_rip;
 	activeThread.m_tid = thread.m_tid;
 	BNDebuggerSetActiveThread(m_object, activeThread);
+}
+
+
+bool DebuggerController::SuspendThread(std::uint32_t tid)
+{
+	return BNDebuggerSuspendThread(m_object, tid);
+}
+
+
+bool DebuggerController::ResumeThread(std::uint32_t tid)
+{
+	return BNDebuggerResumeThread(m_object, tid);
 }
 
 

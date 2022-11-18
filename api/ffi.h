@@ -58,6 +58,7 @@ extern "C"
 	{
 		uint32_t m_tid;
 		uint64_t m_rip;
+		bool m_isFrozen;
 	};
 
 	struct BNDebugFrame
@@ -227,6 +228,7 @@ extern "C"
 		// This event is only emitted when the value of a register is modified explicitly (e.g., using Python API,
 		// in the register widget, etc.). It is not emitted when the target executes and then stops.
 		RegisterChangedEvent,
+		ThreadStateChangedEvent,
 	};
 
 
@@ -319,6 +321,8 @@ extern "C"
 
 	DEBUGGER_FFI_API BNDebugThread BNDebuggerGetActiveThread(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerSetActiveThread(BNDebuggerController* controller, BNDebugThread thread);
+	DEBUGGER_FFI_API bool BNDebuggerSuspendThread(BNDebuggerController* controller, uint32_t tid);
+	DEBUGGER_FFI_API bool BNDebuggerResumeThread(BNDebuggerController* controller, uint32_t tid);
 
 	DEBUGGER_FFI_API BNDebugFrame* BNDebuggerGetFramesOfThread(
 		BNDebuggerController* controller, uint32_t tid, size_t* count);

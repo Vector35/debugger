@@ -585,6 +585,24 @@ class DebuggerController:
     def active_thread(self, thread: DebugThread) -> None:
         dbgcore.BNDebuggerSetActiveThread(self.handle, dbgcore.BNDebugThread(thread.tid, thread.rip))
 
+    def suspend_thread(self, tid: int) -> bool:
+        """
+        Suspends a thread by thread id.
+
+        :param tid: thread id
+        :return:
+        """
+        return dbgcore.BNDebuggerSuspendThread(self.handle, tid)
+
+    def resume_thread(self, tid: int) -> bool:
+        """
+        Resumes a thread by thread id.
+
+        :param tid: thread id
+        :return:
+        """
+        return dbgcore.BNDebuggerResumeThread(self.handle, tid)
+
     @property
     def modules(self) -> List[DebugModule]:
         """
