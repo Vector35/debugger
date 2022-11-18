@@ -155,8 +155,6 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
         return false;
     }
 
-	m_debugger.SetAsync(false);
-
 	SBError err;
 
 	// *Attempt* to create a functional target triple for the binary.
@@ -234,15 +232,12 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 		PostDebuggerEvent(event);
 		return false;
 	}
-	m_debugger.SetAsync(true);
 	return true;
 }
 
 
 bool LldbAdapter::Attach(std::uint32_t pid)
 {
-	m_debugger.SetAsync(false);
-
 	SBError err;
 
 	// *Attempt* to create a functional target triple for the binary.
@@ -293,15 +288,12 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 		PostDebuggerEvent(event);
 		return false;
 	}
-	m_debugger.SetAsync(true);
 	return true;
 }
 
 
 bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 {
-	m_debugger.SetAsync(false);
-
 	SBError err;
 
 	// *Attempt* to create a functional target triple for the binary.
@@ -359,7 +351,6 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 		PostDebuggerEvent(event);
 		return false;
 	}
-	m_debugger.SetAsync(true);
 	return true;
 }
 

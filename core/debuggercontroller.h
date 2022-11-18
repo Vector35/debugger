@@ -90,6 +90,8 @@ namespace BinaryNinjaDebugger
 		// and call a NotifyStopped when the sequence of operation is done.
 		bool m_treatAdapterStopAsTargetStop = true;
 
+        bool m_userRequestedBreak = false;
+
 		void EventHandler(const DebuggerEvent &event);
 		void UpdateStackVariables();
 		bool CreateDebugAdapter();
@@ -100,14 +102,14 @@ namespace BinaryNinjaDebugger
 		void SetData(BinaryViewRef view) { m_data = view; }
 
 		// Internal control APIs
-		void PauseInternal();
-		void GoInternal();
-		void StepIntoInternal();
-		void StepOverInternal();
-		void StepReturnInternal();
-		void RunToInternal(const std::vector<uint64_t> &remoteAddresses);
-		void StepIntoIL(BNFunctionGraphType il);
-		void StepOverIL(BNFunctionGraphType il);
+        bool PauseInternal();
+        DebugStopReason GoInternal();
+		DebugStopReason StepIntoInternal();
+        DebugStopReason StepOverInternal();
+        DebugStopReason StepReturnInternal();
+        DebugStopReason RunToInternal(const std::vector<uint64_t> &remoteAddresses);
+		DebugStopReason StepIntoIL(BNFunctionGraphType il);
+        DebugStopReason StepOverIL(BNFunctionGraphType il);
 
 		// Whether we can resume the execution of the target, including stepping.
 		bool CanResumeTarget();
@@ -204,12 +206,12 @@ namespace BinaryNinjaDebugger
 		bool Attach(int32_t pid);
 
 		// Asynchronous APIs.
-		bool Go();
-		bool StepInto(BNFunctionGraphType il = NormalFunctionGraph);
-		bool StepOver(BNFunctionGraphType il = NormalFunctionGraph);
-		bool StepReturn();
-		bool RunTo(const std::vector<uint64_t> &remoteAddresses);
-		bool Pause();
+        bool Go();
+        bool StepInto(BNFunctionGraphType il = NormalFunctionGraph);
+        bool StepOver(BNFunctionGraphType il = NormalFunctionGraph);
+        bool StepReturn();
+        bool RunTo(const std::vector<uint64_t> &remoteAddresses);
+        bool Pause();
 
 		// Synchronous APIs
 		DebugStopReason GoAndWait();

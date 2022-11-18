@@ -155,9 +155,7 @@ void DebugControlsWidget::performDetach()
 
 void DebugControlsWidget::performPause()
 {
-    std::thread([&](){
-        m_controller->Pause();
-    }).detach();
+    m_controller->Pause();
 }
 
 
