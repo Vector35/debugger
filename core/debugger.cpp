@@ -15,29 +15,25 @@ limitations under the License.
 */
 
 #include <inttypes.h>
-#include "binaryninjaapi.h"
-
-extern "C" void BNDebuggerInitLldbAdapterType();
+#include "processview.h"
+#include "adapters/lldbadapter.h"
 #ifdef WIN32
-	extern "C" void BNDebuggerInitDbgEngAdapterType();
+#include "adapters/dbgengadapter.h"
 #endif
-extern "C" void BNDebuggerInitDebugProcessViewType();
 
 using namespace BinaryNinja;
+using namespace BinaryNinjaDebugger;
 
 void InitDebugAdapterTypes()
 {
 #ifdef WIN32
-    BNDebuggerInitDbgEngAdapterType();
+    InitDbgEngAdapterType();
 #endif
 
-	BNDebuggerInitLldbAdapterType();
-}
-
-
-void InitDebugProcessViewType()
-{
-	BNDebuggerInitDebugProcessViewType();
+//	Disable these adapters because they are not tested, and will get replaced later
+//    InitGdbAdapterType();
+//    InitLldbRspAdapterType();
+	InitLldbAdapterType();
 }
 
 

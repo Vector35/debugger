@@ -1420,6 +1420,7 @@ void GlobalDebuggerUI::SetActiveFrame(ViewFrame *frame)
 extern "C"
 {
 	BN_DECLARE_UI_ABI_VERSION
+	BN_DECLARE_CORE_ABI_VERSION
 
 // In Demo, plugins are explicitly loaded. So there is no need to specify dependencies
 #ifndef DEMO_VERSION

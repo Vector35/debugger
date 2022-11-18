@@ -90,4 +90,6 @@ namespace BinaryNinjaDebugger
 		void MarkDirty();
 		void eventHandler(const DebuggerEvent& event);
 	};
+
+	void InitDebugProcessViewType();
 };

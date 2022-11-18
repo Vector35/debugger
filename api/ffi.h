@@ -417,12 +417,6 @@ extern "C"
     DEBUGGER_FFI_API bool BNDebuggerSetAdapterProperty(BNDebuggerController* controller, const char* name,
                                                       BNMetadata* value);
 
-	DEBUGGER_FFI_API void BNDebuggerInitLldbAdapterType();
-	DEBUGGER_FFI_API void BNDebuggerInitDebugProcessViewType();
-#ifdef WIN32
-	DEBUGGER_FFI_API void BNDebuggerInitDbgEngAdapterType();
-#endif
-
 #ifdef __cplusplus
 }
 #endif
