@@ -178,8 +178,9 @@ DebuggerThreads::DebuggerThreads(DebuggerState* state) : m_state(state)
 void DebuggerThreads::MarkDirty()
 {
 	m_dirty = true;
-	m_threads.clear();
-	m_frames.clear();
+	// clearing these here corrupts thread state updating in ::Update() below
+	// m_threads.clear();
+	// m_frames.clear();
 	// TODO: consider also caching the last active thread
 }
 
@@ -196,11 +197,24 @@ void DebuggerThreads::Update()
 	if (!adapter)
 		return;
 
-	m_threads.clear();
+	m_frames.clear();
 
-	m_threads = adapter->GetThreadList();
-	for (const DebugThread thread : m_threads)
-		m_frames[thread.m_tid] = adapter->GetFramesOfThread(thread.m_tid);
+	std::vector<DebugThread> newThreads = adapter->GetThreadList();
+	for (auto thread = newThreads.begin(); thread != newThreads.end(); thread++)
+	{
+		m_frames[thread->m_tid] = adapter->GetFramesOfThread(thread->m_tid);
+
+		// update thread states in new thread list
+		auto oldThread = std::find_if(m_threads.begin(), m_threads.end(), [&](DebugThread const& t) {
+			return t.m_tid == thread->m_tid;
+		});
+
+		if (oldThread != m_threads.end() && thread->m_isFrozen != oldThread->m_isFrozen)
+			thread->m_isFrozen = oldThread->m_isFrozen;
+	}
+
+	m_threads.clear();
+	m_threads = newThreads;
 
 	m_dirty = false;
 }
@@ -252,6 +266,63 @@ std::vector<DebugFrame> DebuggerThreads::GetFramesOfThread(uint32_t tid)
 	return {};
 }
 
+
+bool DebuggerThreads::SuspendThread(std::uint32_t tid)
+{
+	if (!m_state)
+		return false;
+
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return false;
+
+	auto thread = std::find_if(m_threads.begin(), m_threads.end(), [&](DebugThread const& t) {
+		return t.m_tid == tid;
+	});
+
+	if (thread == m_threads.end())
+		return false;
+
+
+	if (thread->m_isFrozen)
+		return true;
+
+	auto result = adapter->SuspendThread(tid);
+	if (!result)
+		return false;
+
+	thread->m_isFrozen = true;
+
+	return true;
+}
+
+bool DebuggerThreads::ResumeThread(std::uint32_t tid)
+{
+	if (!m_state)
+		return false;
+
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return false;
+
+	auto thread = std::find_if(m_threads.begin(), m_threads.end(), [&](DebugThread const& t) {
+		return t.m_tid == tid;
+	});
+
+	if (thread == m_threads.end())
+		return false;
+
+	if (!thread->m_isFrozen)
+		return true;
+
+	auto result = adapter->ResumeThread(tid);
+	if (!result)
+		return false;
+
+	thread->m_isFrozen = false;
+
+	return true;
+}
 
 DebuggerModules::DebuggerModules(DebuggerState* state) : m_state(state)
 {
@@ -324,7 +395,7 @@ DebugModule DebuggerModules::GetModuleForAddress(uint64_t remoteAddress)
 	{
 		// This is slighlty different from the Python implementation, which finds the largest module start that is
 		// smaller than the remoteAddress.
-		//if ((module.m_address <= remoteAddress) && (remoteAddress < module.m_address + module.m_size))
+		// if ((module.m_address <= remoteAddress) && (remoteAddress < module.m_address + module.m_size))
 		//	return module;
 		if ((module.m_address <= remoteAddress) && (module.m_address > closestAddress))
 		{

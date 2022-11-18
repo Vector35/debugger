@@ -433,6 +433,39 @@ bool LldbAdapter::SetActiveThreadId(std::uint32_t tid)
 }
 
 
+bool LldbAdapter::SuspendThread(std::uint32_t tid)
+{
+	SBError error;
+	SBThread thread = m_process.GetThreadByID(tid);
+	if (!thread.IsValid())
+		return false;
+	
+	if (!thread.Suspend(error))
+		return false;
+
+	if (!error.Success())
+		return false;
+	
+	return true;
+}
+
+bool LldbAdapter::ResumeThread(std::uint32_t tid)
+{
+	SBError error;
+	SBThread thread = m_process.GetThreadByID(tid);
+	if (!thread.IsValid())
+		return false;
+	
+	if (!thread.Resume(error))
+		return false;
+
+	if (!error.Success())
+		return false;
+
+	return true;
+}
+
+
 std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
 {
 	size_t threadCount = m_process.GetNumThreads();

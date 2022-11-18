@@ -63,6 +63,9 @@ namespace BinaryNinjaDebugger {
 
 		bool SetActiveThreadId(std::uint32_t tid) override;
 
+		bool SuspendThread(std::uint32_t tid) override;
+		bool ResumeThread(std::uint32_t tid) override;
+
 		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid) override;
 
 		DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type) override;
