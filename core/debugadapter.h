@@ -71,6 +71,7 @@ namespace BinaryNinjaDebugger {
 	{
 		std::uint32_t m_tid {};
 		std::uintptr_t m_rip {};
+		bool m_isFrozen {};
 
 		DebugThread() {}
 
@@ -210,6 +211,10 @@ namespace BinaryNinjaDebugger {
 		virtual bool SetActiveThread(const DebugThread& thread) = 0;
 
 		virtual bool SetActiveThreadId(std::uint32_t tid) = 0;
+
+		virtual bool SuspendThread(std::uint32_t tid) = 0;
+
+		virtual bool ResumeThread(std::uint32_t tid) = 0;
 
 		virtual std::vector<DebugFrame> GetFramesOfThread(std::uint32_t tid);
 

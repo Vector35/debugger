@@ -210,6 +210,7 @@ BNDebugThread* BNDebuggerGetThreads(BNDebuggerController* controller, size_t* si
 	{
 		results[i].m_tid = threads[i].m_tid;
 		results[i].m_rip = threads[i].m_rip;
+		results[i].m_isFrozen = threads[i].m_isFrozen;
 	}
 
 	return results;
@@ -239,6 +240,18 @@ void BNDebuggerSetActiveThread(BNDebuggerController* controller, BNDebugThread t
 	activeThread.m_tid = thread.m_tid;
 
 	controller->object->SetActiveThread(activeThread);
+}
+
+
+bool BNDebuggerSuspendThread(BNDebuggerController* controller, uint32_t tid)
+{
+	return controller->object->SuspendThread(tid);
+}
+
+
+bool BNDebuggerResumeThread(BNDebuggerController* controller, uint32_t tid)
+{
+	return controller->object->ResumeThread(tid);
 }
 
 

@@ -15,104 +15,112 @@ limitations under the License.
 */
 
 #include "threadframes.h"
-#include "binaryninjaapi.h"
-#include "debuggerapi.h"
-#include "inttypes.h"
 
-
-constexpr int SortFilterRole = Qt::UserRole + 1;
-
-FrameItem::FrameItem(int index, std::string module, std::string function, uint64_t pc, uint64_t sp, uint64_t fp) :
-	m_frameIndex(index), m_module(module), m_function(function), m_pc(pc), m_sp(sp), m_fp(fp)
-{}
-
-
-bool FrameItem::operator==(const FrameItem& other) const
+FrameItem::~FrameItem()
 {
-	return (m_module == other.module()) && (m_function == other.function()) && (m_pc == other.pc())
-		&& (m_fp == other.fp()) && (m_sp == other.sp());
+	qDeleteAll(m_childItems);
 }
 
 
-bool FrameItem::operator!=(const FrameItem& other) const
+void FrameItem::appendChild(FrameItem* item)
 {
-	return !(*this == other);
+	m_childItems.append(item);
 }
 
 
-bool FrameItem::operator<(const FrameItem& other) const
+FrameItem* FrameItem::child(int row)
 {
-	if (m_module < other.module())
-		return true;
-	else if (m_module > other.module())
-		return false;
-	else if (m_function < other.function())
-		return true;
-	else if (m_function > other.function())
-		return false;
-	else if (m_pc < other.pc())
-		return true;
-	else if (m_pc > other.pc())
-		return false;
-	else if (m_sp < other.sp())
-		return true;
-	else if (m_sp > other.sp())
-		return false;
-	return m_fp < other.fp();
+	if (row < 0 || row >= m_childItems.size())
+		return nullptr;
+	return m_childItems.at(row);
 }
 
 
-ThreadFramesListModel::ThreadFramesListModel(QWidget* parent, ViewFrame* view) :
-	QAbstractTableModel(parent), m_view(view)
-{}
-
-
-ThreadFramesListModel::~ThreadFramesListModel() {}
-
-
-FrameItem ThreadFramesListModel::getRow(int row) const
+int FrameItem::childCount() const
 {
-	if ((size_t)row >= m_items.size())
-		throw std::runtime_error("row index out-of-bound");
-
-	return m_items[row];
+	return m_childItems.count();
 }
 
 
-QModelIndex ThreadFramesListModel::index(int row, int column, const QModelIndex&) const
+FrameItem* FrameItem::parentItem()
 {
-	if (row < 0 || (size_t)row >= m_items.size() || column >= columnCount())
-	{
-		return QModelIndex();
-	}
-
-	return createIndex(row, column, (void*)&m_items[row]);
+	return m_parentItem;
 }
 
 
-QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
+int FrameItem::row() const
 {
-	if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
+	if (m_parentItem)
+		return m_parentItem->m_childItems.indexOf(const_cast<FrameItem*>(this));
+
+	return 0;
+}
+
+
+ThreadFrameModel::ThreadFrameModel(QObject* parent) : QAbstractItemModel(parent)
+{
+	rootItem = new FrameItem();
+}
+
+
+ThreadFrameModel::~ThreadFrameModel()
+{
+	delete rootItem;
+}
+
+
+QVariant ThreadFrameModel::data(const QModelIndex& index, int role) const
+{
+	if (!index.isValid())
+		return QVariant();
+
+	if (role != Qt::DisplayRole && role != Qt::SizeHintRole)
+		return QVariant();
+
+	if (index.column() >= columnCount())
 		return QVariant();
 
 	FrameItem* item = static_cast<FrameItem*>(index.internalPointer());
 	if (!item)
 		return QVariant();
 
-	if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole) && (role != SortFilterRole))
+	// do not use columns other than thread info & state for thread rows
+	if (!item->isFrame() && index.column() > ThreadFrameModel::ThreadColumn)
 		return QVariant();
 
 	switch (index.column())
 	{
-	case ThreadFramesListModel::IndexColumn:
+	case ThreadFrameModel::StateColumn:
 	{
-		QString text = QString::asprintf("%d", item->frameIndex());
+		if (item->isFrame())
+			return QVariant();
+
+		QString text = item->isFrozen() ? "Frozen" : "Unfrozen";
 		if (role == Qt::SizeHintRole)
 			return QVariant((qulonglong)text.size());
 
 		return QVariant(text);
 	}
-	case ThreadFramesListModel::ModuleColumn:
+	case ThreadFrameModel::ThreadColumn:
+	{
+		if (item->isFrame())
+			return QVariant();
+
+		QString text = QString::asprintf("0x%x @ 0x%" PRIx64, item->tid(), item->threadPc());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
+
+		return QVariant(text);
+	}
+	case ThreadFrameModel::FrameIndexColumn:
+	{
+		QString text = QString::asprintf("%lu", item->frameIndex());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
+
+		return QVariant(text);
+	}
+	case ThreadFrameModel::ModuleColumn:
 	{
 		QString text = QString::fromStdString(item->module());
 		if (role == Qt::SizeHintRole)
@@ -120,7 +128,7 @@ QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
 
 		return QVariant(text);
 	}
-	case ThreadFramesListModel::FunctionColumn:
+	case ThreadFrameModel::FunctionColumn:
 	{
 		QString text = QString::fromStdString(item->function());
 		if (role == Qt::SizeHintRole)
@@ -128,15 +136,15 @@ QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
 
 		return QVariant(text);
 	}
-	case ThreadFramesListModel::PcColumn:
+	case ThreadFrameModel::PcColumn:
 	{
-		QString text = QString::asprintf("0x%" PRIx64, item->pc());
+		QString text = QString::asprintf("0x%" PRIx64, item->framePc());
 		if (role == Qt::SizeHintRole)
 			return QVariant((qulonglong)text.size());
 
 		return QVariant(text);
 	}
-	case ThreadFramesListModel::SpColumn:
+	case ThreadFrameModel::SpColumn:
 	{
 		QString text = QString::asprintf("0x%" PRIx64, item->sp());
 		if (role == Qt::SizeHintRole)
@@ -144,7 +152,7 @@ QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
 
 		return QVariant(text);
 	}
-	case ThreadFramesListModel::FpColumn:
+	case ThreadFrameModel::FpColumn:
 	{
 		QString text = QString::asprintf("0x%" PRIx64, item->fp());
 		if (role == Qt::SizeHintRole)
@@ -157,7 +165,40 @@ QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
 }
 
 
-QVariant ThreadFramesListModel::headerData(int column, Qt::Orientation orientation, int role) const
+void ThreadFrameModel::updateRows(DebuggerController* controller)
+{
+	beginResetModel();
+
+	if (rootItem)
+	{
+		delete rootItem;
+		rootItem = new FrameItem();
+	}
+
+	QList<FrameItem*> parents;
+	parents << rootItem;
+
+	std::vector<DebugThread> threads = controller->GetThreads();
+	for (const DebugThread& thread : threads)
+	{
+		parents.last()->appendChild(new FrameItem(thread, parents.last()));
+
+		parents << parents.last()->child(parents.last()->childCount() - 1);
+
+		std::vector<DebugFrame> frames = controller->GetFramesOfThread(thread.m_tid);
+		for (const DebugFrame& frame : frames)
+		{
+			parents.last()->appendChild(new FrameItem(thread, frame, parents.last()));
+		}
+
+		parents.pop_back();
+	}
+
+	endResetModel();
+}
+
+
+QVariant ThreadFrameModel::headerData(int column, Qt::Orientation orientation, int role) const
 {
 	if (role != Qt::DisplayRole)
 		return QVariant();
@@ -167,43 +208,81 @@ QVariant ThreadFramesListModel::headerData(int column, Qt::Orientation orientati
 
 	switch (column)
 	{
-	case ThreadFramesListModel::IndexColumn:
-		return "#";
-	case ThreadFramesListModel::ModuleColumn:
+	case ThreadFrameModel::StateColumn:
+		return "State";
+	case ThreadFrameModel::ThreadColumn:
+		return "Thread";
+	case ThreadFrameModel::FrameIndexColumn:
+		return "Frame #";
+	case ThreadFrameModel::ModuleColumn:
 		return "Module";
-	case ThreadFramesListModel::FunctionColumn:
+	case ThreadFrameModel::FunctionColumn:
 		return "Function";
-	case ThreadFramesListModel::PcColumn:
+	case ThreadFrameModel::PcColumn:
 		return "PC";
-	case ThreadFramesListModel::SpColumn:
+	case ThreadFrameModel::SpColumn:
 		return "SP";
-	case ThreadFramesListModel::FpColumn:
+	case ThreadFrameModel::FpColumn:
 		return "FP";
 	}
+
 	return QVariant();
 }
 
 
-void ThreadFramesListModel::updateRows(std::vector<BinaryNinjaDebuggerAPI::DebugFrame> frames)
+QModelIndex ThreadFrameModel::index(int row, int column, const QModelIndex& parent) const
 {
-	beginResetModel();
+	if (!hasIndex(row, column, parent))
+		return QModelIndex();
 
-	std::vector<FrameItem> newRows;
-	for (const DebugFrame& frame : frames)
-	{
-		uint64_t offset = frame.m_pc - frame.m_functionStart;
-		QString funcName = QString::asprintf("%s + 0x%" PRIx64, frame.m_functionName.c_str(), offset);
+	FrameItem* parentItem;
 
-		newRows.emplace_back((int)frame.m_index, frame.m_module, funcName.toStdString(), frame.m_pc, frame.m_sp, frame.m_fp);
-	}
+	if (!parent.isValid())
+		parentItem = rootItem;
+	else
+		parentItem = static_cast<FrameItem*>(parent.internalPointer());
 
-	m_items = newRows;
-	endResetModel();
+	FrameItem* childItem = parentItem->child(row);
+	if (childItem)
+		return createIndex(row, column, childItem);
+	return QModelIndex();
 }
 
 
-ThreadFramesItemDelegate::ThreadFramesItemDelegate(QWidget* parent) : QStyledItemDelegate(parent)
+QModelIndex ThreadFrameModel::parent(const QModelIndex& index) const
 {
+	if (!index.isValid())
+		return QModelIndex();
+
+	FrameItem* childItem = static_cast<FrameItem*>(index.internalPointer());
+	FrameItem* parentItem = childItem->parentItem();
+
+	if (parentItem == rootItem)
+		return QModelIndex();
+
+	return createIndex(parentItem->row(), 0, parentItem);
+}
+
+
+int ThreadFrameModel::rowCount(const QModelIndex& parent) const
+{
+	FrameItem* parentItem;
+	if (parent.column() > 0)
+		return 0;
+
+	if (!parent.isValid())
+		parentItem = rootItem;
+	else
+		parentItem = static_cast<FrameItem*>(parent.internalPointer());
+
+	return parentItem->childCount();
+}
+
+
+ThreadFramesItemDelegate::ThreadFramesItemDelegate(QWidget* parent, DebuggerController* controller) :
+	QStyledItemDelegate(parent)
+{
+	m_debugger = controller;
 	updateFonts();
 }
 
@@ -211,8 +290,6 @@ ThreadFramesItemDelegate::ThreadFramesItemDelegate(QWidget* parent) : QStyledIte
 void ThreadFramesItemDelegate::paint(
 	QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const
 {
-	painter->setFont(m_font);
-
 	bool selected = (option.state & QStyle::State_Selected) != 0;
 	if (selected)
 		painter->setBrush(getThemeColor(SelectionColor));
@@ -229,22 +306,47 @@ void ThreadFramesItemDelegate::paint(
 	auto data = idx.data(Qt::DisplayRole);
 	switch (idx.column())
 	{
-	case ThreadFramesListModel::IndexColumn:
-	{
-		painter->setPen(getThemeColor(NumberColor).rgba());
-		painter->drawText(textRect, data.toString());
-		break;
-	}
-	case ThreadFramesListModel::ModuleColumn:
-	case ThreadFramesListModel::FunctionColumn:
+	case ThreadFrameModel::StateColumn:
 	{
 		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
 	}
-	case ThreadFramesListModel::PcColumn:
-	case ThreadFramesListModel::FpColumn:
-	case ThreadFramesListModel::SpColumn:
+	case ThreadFrameModel::ThreadColumn:
+	{
+		// make thread column bold, if this is active thread
+		FrameItem* threadItem = static_cast<FrameItem*>(idx.internalPointer());
+		if (threadItem)
+		{
+			auto currentTid = m_debugger->GetActiveThread().m_tid;
+			if (!threadItem->isFrame() && (currentTid == threadItem->tid()))
+			{
+				QFont font = m_font;
+				font.setBold(true);
+				painter->setFont(font);
+			}
+		}
+
+		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
+		painter->drawText(textRect, data.toString());
+		break;
+	}
+	case ThreadFrameModel::FrameIndexColumn:
+	{
+		painter->setPen(getThemeColor(NumberColor).rgba());
+		painter->drawText(textRect, data.toString());
+		break;
+	}
+	case ThreadFrameModel::ModuleColumn:
+	case ThreadFrameModel::FunctionColumn:
+	{
+		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
+		painter->drawText(textRect, data.toString());
+		break;
+	}
+	case ThreadFrameModel::PcColumn:
+	case ThreadFrameModel::FpColumn:
+	case ThreadFrameModel::SpColumn:
 	{
 		painter->setPen(getThemeColor(AddressColor).rgba());
 		painter->drawText(textRect, data.toString());
@@ -274,6 +376,176 @@ QSize ThreadFramesItemDelegate::sizeHint(const QStyleOptionViewItem& option, con
 	return QSize(totalWidth, m_charHeight + 2);
 }
 
+
+void ThreadFramesWidget::contextMenuEvent(QContextMenuEvent* event)
+{
+	m_contextMenuManager->show(m_menu, &m_actionHandler);
+}
+
+void ThreadFramesWidget::makeItSoloThread()
+{
+	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	FrameItem* item = static_cast<FrameItem*>(sel[0].internalPointer());
+	if (!item)
+		return;
+
+	auto soloTid = item->tid();
+	auto isSoloFrozen = item->isFrozen();
+
+	LogInfo("make it solo called for tid=%x", soloTid);
+
+	auto threads = m_debugger->GetThreads();
+	for (const DebugThread& thread : threads)
+	{
+		if (thread.m_tid != soloTid && !thread.m_isFrozen)
+		{
+			LogInfo("(solo) suspening thread %x", thread.m_tid);
+			m_debugger->SuspendThread(thread.m_tid);
+		}
+	}
+
+	// make sure solo thread is unfrozen and activated
+	if (isSoloFrozen)
+	{
+		LogInfo("(solo) resuming thread %x", soloTid);
+		m_debugger->ResumeThread(soloTid);
+	}
+
+	if (m_debugger->GetActiveThread().m_tid != soloTid)
+	{
+		LogInfo("(solo) changing activated thread to %x", soloTid);
+		m_debugger->SetActiveThread(soloTid);
+	}
+}
+
+void ThreadFramesWidget::resumeThread()
+{
+	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	FrameItem* item = static_cast<FrameItem*>(sel[0].internalPointer());
+	if (!item)
+		return;
+
+	// resume & suspend only works at thread rows
+	if (item->isFrame())
+		return;
+
+	// TODO: remove this after thread state indicator
+	LogInfo("resumeThread called with column=%d row=%d is_frame=%d, tid=%x", sel[0].column(), sel[0].row(),
+		item->isFrame(), item->tid());
+
+	m_debugger->ResumeThread(item->tid());
+}
+
+
+void ThreadFramesWidget::suspendThread()
+{
+	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	FrameItem* item = static_cast<FrameItem*>(sel[0].internalPointer());
+	if (!item)
+		return;
+
+	if (item->isFrame())
+		return;
+
+	LogInfo("suspendThread called with column=%d row=%d is_frame=%d, tid=%x", sel[0].column(), sel[0].row(),
+		item->isFrame(), item->tid());
+
+	m_debugger->SuspendThread(item->tid());
+}
+
+
+bool ThreadFramesWidget::selectionNotEmpty()
+{
+	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	return (!sel.empty()) && sel[0].isValid();
+}
+
+
+bool ThreadFramesWidget::canSuspendOrResume()
+{
+	if (!m_debugger->IsConnected() || m_debugger->IsRunning())
+		return false;
+
+	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	if (sel.empty() || !sel[0].isValid())
+		return false;
+
+	FrameItem* item = static_cast<FrameItem*>(sel[0].internalPointer());
+	if (!item)
+		return false;
+
+	if (item->isFrame())
+		return false;
+
+	return true;
+}
+
+
+void ThreadFramesWidget::copy()
+{
+	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	if (sel.empty() || !sel[0].isValid())
+		return;
+
+	FrameItem* item = static_cast<FrameItem*>(sel[0].internalPointer());
+	if (!item)
+		return;
+
+	QString text;
+
+	switch (sel[0].column())
+	{
+	case ThreadFrameModel::StateColumn:
+		if (item->isFrame())
+			return;
+
+		text = item->isFrozen() ? "Frozen" : "Unfrozen";
+		break;
+	case ThreadFrameModel::ThreadColumn:
+		if (item->isFrame())
+			return;
+
+		text = QString::asprintf("0x%x @ 0x%" PRIx64, item->tid(), item->threadPc());
+		break;
+	case ThreadFrameModel::FrameIndexColumn:
+		text = QString::asprintf("%lu", item->frameIndex());
+		break;
+	case ThreadFrameModel::ModuleColumn:
+		text = QString::fromStdString(item->module());
+		break;
+	case ThreadFrameModel::FunctionColumn:
+		text = QString::fromStdString(item->function());
+		break;
+	case ThreadFrameModel::PcColumn:
+		text = QString::asprintf("0x%" PRIx64, item->framePc());
+		break;
+	case ThreadFrameModel::SpColumn:
+		text = QString::asprintf("0x%" PRIx64, item->sp());
+		break;
+	case ThreadFrameModel::FpColumn:
+		text = QString::asprintf("0x%" PRIx64, item->fp());
+		break;
+	default:
+		break;
+	}
+
+	auto* clipboard = QGuiApplication::clipboard();
+	clipboard->clear();
+	auto* mime = new QMimeData();
+	mime->setText(text);
+	clipboard->setMimeData(mime);
+}
+
+
 ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data) :
 	QWidget(parent), m_view(frame)
 {
@@ -286,44 +558,79 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	layout->setSpacing(0);
 	setFont(getMonospaceFont(this));
 
-	m_threadList = new QComboBox(this);
+	m_threadFramesTree = new QTreeView(this);
+	m_threadFramesTree->setExpandsOnDoubleClick(false);
+	m_threadFramesTree->setSelectionBehavior(QAbstractItemView::SelectItems);
+	m_threadFramesTree->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+	m_threadFramesTree->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+	m_threadFramesTree->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
-	m_threadFramesTable = new QTableView(this);
-	m_model = new ThreadFramesListModel(m_threadFramesTable, frame);
+	m_model = new ThreadFrameModel(m_threadFramesTree);
+	m_threadFramesTree->setModel(m_model);
 
-	m_threadFramesTable->setModel(m_model);
-	m_threadFramesTable->setShowGrid(false);
+	m_delegate = new ThreadFramesItemDelegate(this, m_debugger);
+	m_threadFramesTree->setItemDelegate(m_delegate);
 
-	m_delegate = new ThreadFramesItemDelegate(this);
-	m_threadFramesTable->setItemDelegate(m_delegate);
-
-	m_threadFramesTable->setSelectionBehavior(QAbstractItemView::SelectItems);
-
-	m_threadFramesTable->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-	m_threadFramesTable->verticalHeader()->setVisible(false);
-
-	m_threadFramesTable->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-	m_threadFramesTable->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-
-	m_threadFramesTable->resizeColumnsToContents();
-	m_threadFramesTable->resizeRowsToContents();
-
-	layout->addWidget(new QLabel("Thread:"));
-	layout->addWidget(m_threadList);
-	layout->addWidget(m_threadFramesTable);
+	layout->addWidget(m_threadFramesTree);
 	setLayout(layout);
 
 	// Set up colors
 	QPalette widgetPalette = this->palette();
 
-	connect(m_threadFramesTable, &QTableView::doubleClicked, this, &ThreadFramesWidget::onDoubleClicked);
+	m_actionHandler.setupActionHandler(this);
+	m_contextMenuManager = new ContextMenuManager(this);
+	m_menu = new Menu();
 
-	connect(m_threadList, &QComboBox::activated, [&](int index) {
-		uint32_t tid = m_threadList->currentData().toInt();
-		uint32_t currentTid = m_debugger->GetActiveThread().m_tid;
-		if (tid != currentTid)
-			m_debugger->SetActiveThread(tid);
+	QString actionName = QString::fromStdString("Suspend");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(
+		actionName, UIAction([=]() { suspendThread(); }, [=]() { return canSuspendOrResume(); }));
+
+	actionName = QString::fromStdString("Resume");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(actionName, UIAction([=]() { resumeThread(); }, [=]() { return canSuspendOrResume(); }));
+
+	actionName = QString::fromStdString("Make It Solo Thread");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(
+		actionName, UIAction([=]() { makeItSoloThread(); }, [=]() { return canSuspendOrResume(); }));
+
+	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return selectionNotEmpty(); }));
+	m_actionHandler.setActionDisplayName("Copy", [&]() {
+		QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+		if (sel.empty())
+			return "Copy";
+
+		switch (sel[0].column())
+		{
+		case ThreadFrameModel::StateColumn:
+			return "Copy State";
+		case ThreadFrameModel::ThreadColumn:
+			return "Copy Thread";
+		case ThreadFrameModel::FrameIndexColumn:
+			return "Copy Frame Index";
+		case ThreadFrameModel::ModuleColumn:
+			return "Copy Module";
+		case ThreadFrameModel::FunctionColumn:
+			return "Copy Function";
+		case ThreadFrameModel::PcColumn:
+			return "Copy PC";
+		case ThreadFrameModel::SpColumn:
+			return "Copy SP";
+		case ThreadFrameModel::FpColumn:
+			return "Copy FP";
+		default:
+			return "Copy";
+		}
 	});
+
+	// TODO: set as active thread action?
+
+	connect(m_threadFramesTree, &QTreeView::doubleClicked, this, &ThreadFramesWidget::onDoubleClicked);
 
 	m_debuggerEventCallback = m_debugger->RegisterEventCallback(
 		[&](const DebuggerEvent& event) {
@@ -332,6 +639,7 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 			case TargetStoppedEventType:
 			case ActiveThreadChangedEvent:
 			case RegisterChangedEvent:
+			case ThreadStateChangedEvent:
 			{
 				updateContent();
 			}
@@ -354,51 +662,73 @@ ThreadFramesWidget::~ThreadFramesWidget()
 
 void ThreadFramesWidget::updateContent()
 {
-	std::vector<DebugThread> threads = m_debugger->GetThreads();
-	m_threadList->clear();
-	for (const DebugThread thread : threads)
-	{
-		m_threadList->addItem(
-			QString::asprintf("0x%" PRIx64 " @ 0x%" PRIx64, (uint64_t)thread.m_tid, (uint64_t)thread.m_rip),
-			QVariant(thread.m_tid));
-	}
-
-	DebugThread activeThread = m_debugger->GetActiveThread();
-	int index = m_threadList->findData(QVariant(activeThread.m_tid));
-	if (index == -1)
+	if (!m_debugger->IsConnected())
 		return;
 
-	m_threadList->setCurrentIndex(index);
-
-	std::vector<DebugFrame> frames = m_debugger->GetFramesOfThread(activeThread.m_tid);
-	m_model->updateRows(frames);
-	m_threadFramesTable->resizeColumnsToContents();
+	m_model->updateRows(m_debugger);
 }
 
 
 void ThreadFramesWidget::onDoubleClicked()
 {
-	QModelIndexList sel = m_threadFramesTable->selectionModel()->selectedIndexes();
+	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 
-	if (sel[0].column() < ThreadFramesListModel::FunctionColumn)
+	auto column = sel[0].column();
+
+	if (column == ThreadFrameModel::FrameIndexColumn || column == ThreadFrameModel::ModuleColumn)
 		return;
 
-	auto frameItem = m_model->getRow(sel[0].row());
+	FrameItem* frameItem = static_cast<FrameItem*>(sel[0].internalPointer());
+	if (!frameItem)
+		return;
+
+	if (!frameItem->isFrame() && column > ThreadFrameModel::ThreadColumn)
+		return;
+
+	if (frameItem->isFrame() && column <= ThreadFrameModel::ThreadColumn)
+		return;
+
+	LogInfo("double click called");
+
+	// Double clicking on thread column changes active thread
+	if (!frameItem->isFrame() && column == ThreadFrameModel::ThreadColumn)
+	{
+		uint32_t tid = frameItem->tid();
+		uint32_t currentTid = m_debugger->GetActiveThread().m_tid;
+		if (tid != currentTid && !m_debugger->IsRunning())
+		{
+			LogInfo("set active thread");
+			m_debugger->SetActiveThread(tid);
+		}
+
+		return;
+	}
+
+	// double clicking on state column toggles thread state
+	if (!frameItem->isFrame() && column == ThreadFrameModel::StateColumn)
+	{
+		if (frameItem->isFrozen())
+			m_debugger->ResumeThread(frameItem->tid());
+		else
+			m_debugger->SuspendThread(frameItem->tid());
+
+		return;
+	}
 
 	uint64_t addrToJump = 0;
-	switch (sel[0].column())
+	switch (column)
 	{
-	case ThreadFramesListModel::FunctionColumn:
-	case ThreadFramesListModel::PcColumn:
-		addrToJump = frameItem.pc();
+	case ThreadFrameModel::FunctionColumn:
+	case ThreadFrameModel::PcColumn:
+		addrToJump = frameItem->framePc();
 		break;
-	case ThreadFramesListModel::SpColumn:
-		addrToJump = frameItem.sp();
+	case ThreadFrameModel::SpColumn:
+		addrToJump = frameItem->sp();
 		break;
-	case ThreadFramesListModel::FpColumn:
-		addrToJump = frameItem.fp();
+	case ThreadFrameModel::FpColumn:
+		addrToJump = frameItem->fp();
 		break;
 	}
 

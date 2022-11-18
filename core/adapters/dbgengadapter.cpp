@@ -633,6 +633,22 @@ bool DbgEngAdapter::SetActiveThreadId(std::uint32_t tid)
 	return true;
 }
 
+
+bool DbgEngAdapter::SuspendThread(std::uint32_t tid)
+{
+	std::string suspendCmd = fmt::format("~{}f", tid);
+	InvokeBackendCommand(suspendCmd);
+	return true;
+}
+
+bool DbgEngAdapter::ResumeThread(std::uint32_t tid)
+{
+	std::string resumeCmd = fmt::format("~{}u", tid);
+	InvokeBackendCommand(resumeCmd);
+	return true;
+}
+
+
 DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags)
 {
 	IDebugBreakpoint2* debug_breakpoint {};
