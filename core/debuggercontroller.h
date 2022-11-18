@@ -110,6 +110,7 @@ namespace BinaryNinjaDebugger
         DebugStopReason RunToInternal(const std::vector<uint64_t> &remoteAddresses);
 		DebugStopReason StepIntoIL(BNFunctionGraphType il);
         DebugStopReason StepOverIL(BNFunctionGraphType il);
+        bool QuitInternal();
 
 		// Whether we can resume the execution of the target, including stepping.
 		bool CanResumeTarget();
@@ -195,8 +196,6 @@ namespace BinaryNinjaDebugger
 		bool Launch();
 		bool Execute();
 		void Restart();
-		void Quit();
-		void QuitAndWait();
 		void Connect();
         bool ConnectToDebugServer();
         bool DisconnectDebugServer();
@@ -212,6 +211,7 @@ namespace BinaryNinjaDebugger
         bool StepReturn();
         bool RunTo(const std::vector<uint64_t> &remoteAddresses);
         bool Pause();
+        bool Quit();
 
 		// Synchronous APIs
 		DebugStopReason GoAndWait();
@@ -220,6 +220,7 @@ namespace BinaryNinjaDebugger
 		DebugStopReason StepReturnAndWait();
 		DebugStopReason RunToAndWait(const std::vector<uint64_t> &remoteAddresses);
 		DebugStopReason PauseAndWait();
+        DebugStopReason QuitAndWait();
 
 		// getters
 		DebugAdapter *GetAdapter() { return m_adapter; }

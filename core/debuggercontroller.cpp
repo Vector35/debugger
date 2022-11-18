@@ -754,8 +754,7 @@ std::vector<DebugFrame> DebuggerController::GetFramesOfThread(uint64_t tid)
 
 void DebuggerController::Restart()
 {
-    Quit();
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    QuitInternal();
     Launch();
 }
 
@@ -833,26 +832,47 @@ void DebuggerController::Detach()
 }
 
 
-void DebuggerController::Quit()
+bool DebuggerController::QuitInternal()
 {
-    if (!m_state->IsConnected())
-        return;
-
     if (m_state->IsRunning())
     {
         // We must pause the target if it is currently running, at least for DbgEngAdapter
-        PauseAndWait();
+        if (!PauseInternal())
+            return false;
     }
 
     // TODO: return whether the operation is successful
     m_adapter->Quit();
+    return true;
 }
 
 
-void DebuggerController::QuitAndWait()
+bool DebuggerController::Quit()
 {
-	Quit();
-	WaitForTargetStop();
+    if (!m_state->IsConnected())
+        return false;
+
+    std::thread([&](){
+        QuitAndWait();
+    }).detach();
+    return true;
+}
+
+
+DebugStopReason DebuggerController::QuitAndWait()
+{
+    if (!m_state->IsConnected())
+        return InvalidStatusOrOperation;
+
+    if (QuitInternal())
+    {
+        NotifyStopped(ProcessExited);
+        return ProcessExited;
+    }
+    else
+    {
+        return InternalError;
+    }
 }
 
 

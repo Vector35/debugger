@@ -1209,16 +1209,16 @@ void LldbAdapter::EventListener()
 					PostDebuggerEvent(dbgevt);
 					break;
 				}
-				case lldb::eStateExited:
-				{
-					done = true;
-					m_targetActive = false;
-					DebuggerEvent dbgevt;
-					dbgevt.type = TargetExitedEventType;
-					dbgevt.data.exitData.exitCode = ExitCode();
-					PostDebuggerEvent(dbgevt);
-					break;
-				}
+//				case lldb::eStateExited:
+//				{
+//					done = true;
+//					m_targetActive = false;
+//					DebuggerEvent dbgevt;
+//					dbgevt.type = TargetExitedEventType;
+//					dbgevt.data.exitData.exitCode = ExitCode();
+//					PostDebuggerEvent(dbgevt);
+//					break;
+//				}
 				case lldb::eStateDetached:
 				{
 					done = true;
