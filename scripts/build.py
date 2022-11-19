@@ -29,7 +29,7 @@ if sys.platform.startswith("win"):
     cmake_generator_array = ["-G", "Ninja"]
 
     # Import vcvars from Visual Studio
-    vcvars = subprocess.check_output(fR"""call "C:\Program Files (x86)\Microsoft Visual Studio\{vs_version}\Professional\VC\Auxiliary\Build\vcvars64.bat" -vcvars_ver={msvc_build} && set""", shell=True)
+    vcvars = subprocess.check_output(fR"""call "C:\Program Files\Microsoft Visual Studio\{vs_version}\Professional\VC\Auxiliary\Build\vcvars64.bat" -vcvars_ver={msvc_build} && set""", shell=True)
     for line in vcvars.split(b'\r\n'):
         line = line.strip()
         if b'=' not in line:
