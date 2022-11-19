@@ -12,7 +12,7 @@ endif()
 
 if (NOT BN_INTERNAL_BUILD)
 	if(WIN32)
-		set(MSVC_VERSION msvc2019_64 CACHE STRING "Version of MSVC Qt is built with" )
+		set(MSVC_VERSION msvc2022_64 CACHE STRING "Version of MSVC Qt is built with" )
 	endif()
 	set(QT_VERSION 6.4.1 CACHE STRING "Version of Qt to use")
 
