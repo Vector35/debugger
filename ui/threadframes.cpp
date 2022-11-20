@@ -570,6 +570,9 @@ ThreadFramesWidget::~ThreadFramesWidget()
 
 void ThreadFramesWidget::updateContent()
 {
+	if (!m_debugger->IsConnected())
+		return;
+
 	m_model->updateRows(m_debugger);
 }
 
