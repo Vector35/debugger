@@ -389,9 +389,15 @@ void ThreadFramesWidget::resumeThread()
 	if (item->isFrame())
 		return;
 
-	LogInfo("resumeThread called with column=%d row=%d is_frame=%d", sel[0].column(), sel[0].row(), item->isFrame());
+	if (m_debugger->GetActiveThread().m_tid == item->tid())
+	{
+		LogInfo("Can not resume current thread.");
+		return;
+	}
 
-	// TODO: call resumeThread
+	LogInfo("resumeThread called with column=%d row=%d is_frame=%d, tid=%x", sel[0].column(), sel[0].row(), item->isFrame(), item->tid());
+
+	m_debugger->ResumeThread(item->tid());
 }
 
 
@@ -408,9 +414,15 @@ void ThreadFramesWidget::suspendThread()
 	if (item->isFrame())
 		return;
 
-	LogInfo("suspendThread called with column=%d row=%d is_frame=%d", sel[0].column(), sel[0].row(), item->isFrame());
+	if (m_debugger->GetActiveThread().m_tid == item->tid())
+	{
+		LogInfo("Can not suspend current thread.");
+		return;
+	}
 
-	// TODO: call suspendThread
+	LogInfo("suspendThread called with column=%d row=%d is_frame=%d, tid=%x", sel[0].column(), sel[0].row(), item->isFrame(), item->tid());
+	
+	m_debugger->SuspendThread(item->tid());
 }
 
 
@@ -449,8 +461,9 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	m_contextMenuManager = new ContextMenuManager(this);
 	m_menu = new Menu();
 
-	// TODO show suspend and resume only for thread rows
-	QString actionName = QString::fromStdString("Suspend");
+	// TODO: show suspend and resume only for thread rows
+	// TODO: suspend and resume should only work when debugger connected and stopped
+ 	QString actionName = QString::fromStdString("Suspend");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([=](){ suspendThread(); }));
