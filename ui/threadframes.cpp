@@ -412,11 +412,33 @@ void ThreadFramesWidget::suspendThread()
 	m_debugger->SuspendThread(item->tid());
 }
 
+
 bool ThreadFramesWidget::selectionNotEmpty()
 {
 	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
 	return (!sel.empty()) && sel[0].isValid();
 }
+
+
+bool ThreadFramesWidget::canSuspendOrResume()
+{
+	if (!m_debugger->IsConnected() || m_debugger->IsRunning())
+		return false;
+
+	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	if (sel.empty() || !sel[0].isValid())
+		return false;
+
+	FrameItem *item = static_cast<FrameItem *>(sel[0].internalPointer());
+	if (!item)
+		return false;
+
+	if (item->isFrame())
+		return false;
+
+	return true;
+}
+
 
 void ThreadFramesWidget::copy()
 {
@@ -500,16 +522,15 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	m_contextMenuManager = new ContextMenuManager(this);
 	m_menu = new Menu();
 
-	// TODO: show suspend and resume only for thread rows
  	QString actionName = QString::fromStdString("Suspend");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=](){ suspendThread(); }, [=]() { return m_debugger->IsConnected() && (!m_debugger->IsRunning()); }));
+	m_actionHandler.bindAction(actionName, UIAction([=](){ suspendThread(); }, [=]() { return canSuspendOrResume(); }));
 
 	actionName = QString::fromStdString("Resume");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=]() { resumeThread(); }, [=]() { return m_debugger->IsConnected() && (!m_debugger->IsRunning()); }));
+	m_actionHandler.bindAction(actionName, UIAction([=]() { resumeThread(); }, [=]() { return canSuspendOrResume(); }));
 
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&](){ copy(); }, [&]() { return selectionNotEmpty(); }));

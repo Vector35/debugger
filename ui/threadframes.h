@@ -165,6 +165,7 @@ class ThreadFramesWidget: public QWidget
 
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 	bool selectionNotEmpty();
+    bool canSuspendOrResume();
 
 public slots:
     void updateContent();
