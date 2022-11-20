@@ -16,19 +16,18 @@ limitations under the License.
 
 #pragma once
 
-#include <QtWidgets/QTableView>
-#include <QtWidgets/QComboBox>
+#include <QtWidgets/QTreeView>
 #include <QStyledItemDelegate>
 #include <QAbstractItemModel>
-#include <QItemSelectionModel>
-#include <QModelIndex>
 #include <QHeaderView>
 #include "binaryninjaapi.h"
-#include "dockhandler.h"
 #include "globalarea.h"
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "debuggerapi.h"
+#include "inttypes.h"
+#include "ui.h"
+
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
@@ -36,125 +35,175 @@ using namespace std;
 
 class FrameItem
 {
-private:
-	int m_frameIndex;
-	std::string m_module;
-	std::string m_function;
-	uint64_t m_pc;
-	uint64_t m_sp;
-	uint64_t m_fp;
-
 public:
-	FrameItem(int index, std::string module, std::string function, uint64_t pc, uint64_t sp, uint64_t fp);
-	uint64_t pc() const { return m_pc; }
+    FrameItem() = default;
+
+    FrameItem(uint32_t tid, uint64_t threadPc, FrameItem* parentItem = nullptr) : 
+        m_tid(tid),
+        m_threadPc(threadPc),
+        m_parentItem(parentItem) {}
+
+    FrameItem(
+        uint32_t tid,
+        uint64_t threadPc,
+        int frameIndex,
+        std::string module,
+        std::string function,
+        uint64_t framePc, 
+        uint64_t sp,
+        uint64_t fp,
+        bool isFrame,
+        FrameItem *parentItem = nullptr) : 
+        
+        m_tid(tid), 
+        m_threadPc(threadPc),
+        m_frameIndex(frameIndex), 
+        m_module(module), 
+        m_function(function),
+        m_framePc(framePc), 
+        m_sp(sp),
+        m_fp(fp), 
+        m_isFrame(isFrame),
+        m_parentItem(parentItem) {}
+        
+    ~FrameItem();
+
+    void appendChild(FrameItem *child);
+
+    FrameItem *child(int row);
+    int childCount() const;
+    int row() const;
+    FrameItem *parentItem();
+
+    bool isFrame() const { return m_isFrame; }
+    uint32_t tid() const { return m_tid; }
+    uint64_t threadPc() const { return m_threadPc; }
+    uint64_t framePc() const { return m_framePc; }
 	uint64_t sp() const { return m_sp; }
 	uint64_t fp() const { return m_fp; }
 	int frameIndex() const { return m_frameIndex; }
 	std::string module() const { return m_module; }
 	std::string function() const { return m_function; }
-	bool operator==(const FrameItem& other) const;
-	bool operator!=(const FrameItem& other) const;
-	bool operator<(const FrameItem& other) const;
+
+private:
+    bool m_isFrame;
+    uint32_t m_tid;
+    uint64_t m_threadPc;
+	int m_frameIndex;
+	std::string m_module;
+	std::string m_function;
+	uint64_t m_framePc;
+	uint64_t m_sp;
+	uint64_t m_fp;
+
+    QList<FrameItem *> m_childItems;
+    FrameItem *m_parentItem;
 };
 
 Q_DECLARE_METATYPE(FrameItem);
 
-
-class ThreadFramesListModel: public QAbstractTableModel
+class ThreadFrameModel : public QAbstractItemModel
 {
-	Q_OBJECT
-
-protected:
-	QWidget* m_owner;
-	ViewFrame* m_view;
-	std::vector<FrameItem> m_items;
+    Q_OBJECT
 
 public:
-	enum ColumnHeaders
-	{
-		IndexColumn,
-		ModuleColumn,
-		FunctionColumn,
-		PcColumn,
-		SpColumn,
-		FpColumn,
-	};
+    enum ColumnHeaders
+    {
+		ThreadColumn,
+        FrameIndexColumn,
+        ModuleColumn,
+        FunctionColumn,
+        PcColumn,
+        SpColumn,
+        FpColumn,
+    };
 
-	ThreadFramesListModel(QWidget* parent, ViewFrame* view);
-	virtual ~ThreadFramesListModel();
+    explicit ThreadFrameModel(DebuggerController* m_debugger, QObject *parent = nullptr);
+    ~ThreadFrameModel();
 
-	virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
+    QVariant data(const QModelIndex &index, int role) const override;
+    QVariant headerData(int column, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
+    QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override;
+    QModelIndex parent(const QModelIndex &index) const override;
+    int rowCount(const QModelIndex &parent = QModelIndex()) const override;
+	int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 7; }
+	void updateRows(DebuggerController* controller);
 
-	virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override
-		{ (void) parent; return (int)m_items.size(); }
-	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 6; }
-	FrameItem getRow(int row) const;
-	virtual QVariant data(const QModelIndex& i, int role) const override;
-	virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
-	void updateRows(std::vector<DebugFrame> frames);
+private:
+    FrameItem *rootItem;
 };
 
 
 class ThreadFramesItemDelegate: public QStyledItemDelegate
 {
-	Q_OBJECT
+    Q_OBJECT
 
-	QFont m_font;
-	int m_baseline, m_charWidth, m_charHeight, m_charOffset;
+    QFont m_font;
+    int m_baseline, m_charWidth, m_charHeight, m_charOffset;
+	DbgRef<DebuggerController> m_debugger;
 
 public:
-	ThreadFramesItemDelegate(QWidget* parent);
-	void updateFonts();
-	void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const;
-	QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
+    ThreadFramesItemDelegate(QWidget* parent, DebuggerController* controller);
+    void updateFonts();
+    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const;
+    QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
 };
 
 class ThreadFramesWidget: public QWidget
 {
-	Q_OBJECT
+    Q_OBJECT
 
-	ViewFrame* m_view;
-	DbgRef<DebuggerController> m_debugger;
+    ViewFrame* m_view;
+    DbgRef<DebuggerController> m_debugger;
 
-	QComboBox* m_threadList;
-	QTableView* m_threadFramesTable;
-	ThreadFramesListModel* m_model;
-	ThreadFramesItemDelegate* m_delegate;
+    QTreeView* m_threadFramesTree;
+    ThreadFrameModel* m_model;
+    ThreadFramesItemDelegate* m_delegate;
+	
+	UIActionHandler m_actionHandler;
+	ContextMenuManager* m_contextMenuManager;
+	Menu* m_menu;
 
-	size_t m_debuggerEventCallback;
+    size_t m_debuggerEventCallback;
 
-	void updateContent();
+	virtual void contextMenuEvent(QContextMenuEvent* event) override;
+
+public slots:
+    void updateContent();
 
 public:
-	ThreadFramesWidget(QWidget* parent, ViewFrame* view, BinaryViewRef debugger);
-	~ThreadFramesWidget();
+    ThreadFramesWidget(QWidget* parent, ViewFrame* view, BinaryViewRef debugger);
+    ~ThreadFramesWidget();
 
-	void notifyFontChanged();
+    void notifyFontChanged();
 
 private slots:
-	void onDoubleClicked();
+    void onDoubleClicked();
+	void suspendThread();
+	void resumeThread();
+
 };
 
 class GlobalThreadFramesContainer : public GlobalAreaWidget
 {
-	ViewFrame *m_currentFrame;
-	QHash<ViewFrame*, ThreadFramesWidget*> m_consoleMap;
+    ViewFrame *m_currentFrame;
+    QHash<ViewFrame*, ThreadFramesWidget*> m_consoleMap;
 
-	QStackedWidget* m_consoleStack;
+    QStackedWidget* m_consoleStack;
 
-	//! Get the current active DebuggerConsole. Returns nullptr in the event of an error
-	//! or if there is no active ChatBox.
-	ThreadFramesWidget* currentConsole() const;
+    //! Get the current active DebuggerConsole. Returns nullptr in the event of an error
+    //! or if there is no active ChatBox.
+    ThreadFramesWidget* currentConsole() const;
 
-	//! Delete the DebuggerConsole for the given view.
-	void freeDebuggerConsoleForView(QObject*);
+    //! Delete the DebuggerConsole for the given view.
+    void freeDebuggerConsoleForView(QObject*);
 
 public:
-	GlobalThreadFramesContainer(const QString& title);
+    GlobalThreadFramesContainer(const QString& title);
 
-	//! Send text to the actively-focused ChatBox. If there is no active ChatBox,
-	//! no action will be taken.
-	void sendText(const QString& msg) const;
+    //! Send text to the actively-focused ChatBox. If there is no active ChatBox,
+    //! no action will be taken.
+    void sendText(const QString& msg) const;
 
-	void notifyViewChanged(ViewFrame *) override;
+    void notifyViewChanged(ViewFrame *) override;
 };
