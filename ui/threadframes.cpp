@@ -501,15 +501,15 @@ void ThreadFramesWidget::onDoubleClicked()
     if (sel.empty())
         return;
 
-	FrameItem *frameItem = static_cast<FrameItem *>(sel[0].internalPointer());
-	if (!frameItem)
-		return;
-
 	auto column = sel[0].column();
 	
 	if (column == ThreadFrameModel::FrameIndexColumn ||
 		column == ThreadFrameModel::ModuleColumn)
 		return;	
+
+	FrameItem *frameItem = static_cast<FrameItem *>(sel[0].internalPointer());
+	if (!frameItem)
+		return;
 
 	if (!frameItem->isFrame() && column > ThreadFrameModel::ThreadColumn)
 		return;
