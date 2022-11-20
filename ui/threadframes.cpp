@@ -514,6 +514,8 @@ void ThreadFramesWidget::onDoubleClicked()
 	if (!frameItem->isFrame() && column > ThreadFrameModel::ThreadColumn)
 		return;
 
+	if (frameItem->isFrame() && column == ThreadFrameModel::ThreadColumn)
+		return;
     
     LogInfo("double click called");
 
