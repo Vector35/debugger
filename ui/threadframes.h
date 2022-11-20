@@ -86,15 +86,15 @@ public:
 	std::string function() const { return m_function; }
 
 private:
-    bool m_isFrame;
-    uint32_t m_tid;
-    uint64_t m_threadPc;
-	int m_frameIndex;
-	std::string m_module;
-	std::string m_function;
-	uint64_t m_framePc;
-	uint64_t m_sp;
-	uint64_t m_fp;
+    bool m_isFrame{false};
+    uint32_t m_tid{};
+    uint64_t m_threadPc{};
+	int m_frameIndex{};
+	std::string m_module{};
+	std::string m_function{};
+	uint64_t m_framePc{};
+	uint64_t m_sp{};
+	uint64_t m_fp{};
 
     QList<FrameItem *> m_childItems;
     FrameItem *m_parentItem;
