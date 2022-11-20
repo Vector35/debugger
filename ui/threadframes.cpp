@@ -101,7 +101,7 @@ QVariant ThreadFrameModel::data(const QModelIndex &index, int role) const
 	}
 	case ThreadFrameModel::FrameIndexColumn:
 	{
-		QString text = QString::asprintf("%d", item->frameIndex());
+		QString text = QString::asprintf("%lu", item->frameIndex());
 		if (role == Qt::SizeHintRole)
 			return QVariant((qulonglong)text.size());
 
@@ -436,7 +436,7 @@ void ThreadFramesWidget::copy()
 		text = QString::asprintf("0x%x @ 0x%" PRIx64, item->tid(), item->threadPc());
 		break;
 	case ThreadFrameModel::FrameIndexColumn:
-		text = QString::asprintf("%d", item->frameIndex());
+		text = QString::asprintf("%lu", item->frameIndex());
 		break;
 	case ThreadFrameModel::ModuleColumn:
 		text = QString::fromStdString(item->module());
