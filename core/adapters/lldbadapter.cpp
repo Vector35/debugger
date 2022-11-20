@@ -450,13 +450,26 @@ bool LldbAdapter::SetActiveThreadId(std::uint32_t tid)
 
 bool LldbAdapter::SuspendThread(std::uint32_t tid)
 {
-	// TODO implement this
-	return false;
+	SBThread thread = m_process.GetThreadByID(tid);
+	if (!thread.IsValid())
+		return false;
+	
+	// TODO 
+	//if (thread.IsSuspended())
+
+	return thread.Suspend();
 }
 
 bool LldbAdapter::ResumeThread(std::uint32_t tid)
 {
-	return false;
+	SBThread thread = m_process.GetThreadByID(tid);
+	if (!thread.IsValid())
+		return false;
+	
+	// TODO
+	//if (thread.IsSuspended())
+
+	return thread.Resume();
 }
 
 
