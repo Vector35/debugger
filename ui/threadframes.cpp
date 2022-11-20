@@ -168,27 +168,14 @@ void ThreadFrameModel::updateRows(DebuggerController *controller)
 	std::vector<DebugThread> threads = controller->GetThreads();
 	for (const DebugThread &thread : threads)
 	{
-		parents.last()->appendChild(new FrameItem(thread.m_tid, thread.m_rip, parents.last()));
+		parents.last()->appendChild(new FrameItem(thread, parents.last()));
 
 		parents << parents.last()->child(parents.last()->childCount() - 1);
 
 		std::vector<DebugFrame> frames = controller->GetFramesOfThread(thread.m_tid);
 		for (const DebugFrame &frame : frames)
 		{
-			uint64_t offset = frame.m_pc - frame.m_functionStart;
-			QString funcName = QString::asprintf("%s + 0x%" PRIx64, frame.m_functionName.c_str(), offset);
-
-			parents.last()->appendChild(new FrameItem(
-				thread.m_tid,
-				thread.m_rip,
-				frame.m_index,
-				frame.m_module,
-				funcName.toStdString(),
-				frame.m_pc,
-				frame.m_sp,
-				frame.m_fp,
-				true,
-				parents.last()));
+			parents.last()->appendChild(new FrameItem(thread, frame, parents.last()));
 		}
 
 		parents.pop_back();

@@ -41,33 +41,27 @@ class FrameItem
 public:
     FrameItem() = default;
 
-    FrameItem(uint32_t tid, uint64_t threadPc, FrameItem* parentItem = nullptr) : 
-        m_tid(tid),
-        m_threadPc(threadPc),
-        m_parentItem(parentItem) {}
+	FrameItem(const DebugThread& thread, FrameItem* parentItem = nullptr) :
+		m_tid(thread.m_tid),
+		m_threadPc(thread.m_rip),
+		m_parentItem(parentItem) {}
 
-    FrameItem(
-        uint32_t tid,
-        uint64_t threadPc,
-        int frameIndex,
-        std::string module,
-        std::string function,
-        uint64_t framePc, 
-        uint64_t sp,
-        uint64_t fp,
-        bool isFrame,
-        FrameItem *parentItem = nullptr) : 
-        
-        m_tid(tid), 
-        m_threadPc(threadPc),
-        m_frameIndex(frameIndex), 
-        m_module(module), 
-        m_function(function),
-        m_framePc(framePc), 
-        m_sp(sp),
-        m_fp(fp), 
-        m_isFrame(isFrame),
-        m_parentItem(parentItem) {}
+	FrameItem(const DebugThread& thread, const DebugFrame& frame, FrameItem* parentItem = nullptr) : 
+		m_tid(thread.m_tid),
+		m_threadPc(thread.m_rip),
+        m_frameIndex(frame.m_index), 
+        m_module(frame.m_module), 
+        m_framePc(frame.m_pc), 
+        m_sp(frame.m_sp),
+        m_fp(frame.m_fp), 
+        m_isFrame(true),
+        m_parentItem(parentItem) 
+		{
+			uint64_t offset = frame.m_pc - frame.m_functionStart;
+			QString funcName = QString::asprintf("%s + 0x%" PRIx64, frame.m_functionName.c_str(), offset);
+
+			m_function = funcName.toStdString();
+		}
         
     ~FrameItem();
 
