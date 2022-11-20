@@ -466,12 +466,12 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
  	QString actionName = QString::fromStdString("Suspend");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=](){ suspendThread(); }));
+	m_actionHandler.bindAction(actionName, UIAction([=](){ suspendThread(); }, [=]() { return m_debugger->IsConnected() && (!m_debugger->IsRunning()); }));
 
 	actionName = QString::fromStdString("Resume");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=](){ resumeThread(); }));
+	m_actionHandler.bindAction(actionName, UIAction([=]() { resumeThread(); }, [=]() { return m_debugger->IsConnected() && (!m_debugger->IsRunning()); }));
 	
 	// TODO: set as active thread action?
 
