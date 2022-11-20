@@ -627,7 +627,7 @@ void ThreadFramesWidget::onDoubleClicked()
 	{
 		uint32_t tid = frameItem->tid();
 		uint32_t currentTid = m_debugger->GetActiveThread().m_tid;
-		if (tid != currentTid)
+		if (tid != currentTid && !m_debugger->IsRunning())
 		{
 			LogInfo("set active thread");
 			m_debugger->SetActiveThread(tid);
