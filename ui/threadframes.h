@@ -115,7 +115,7 @@ public:
         FpColumn,
     };
 
-    explicit ThreadFrameModel(DebuggerController* m_debugger, QObject *parent = nullptr);
+    explicit ThreadFrameModel(QObject *parent = nullptr);
     ~ThreadFrameModel();
 
     QVariant data(const QModelIndex &index, int role) const override;

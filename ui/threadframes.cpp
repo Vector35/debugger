@@ -57,7 +57,7 @@ int FrameItem::row() const
 }
 
 
-ThreadFrameModel::ThreadFrameModel(DebuggerController* m_debugger, QObject *parent) : 
+ThreadFrameModel::ThreadFrameModel(QObject *parent) : 
 	QAbstractItemModel(parent)
 {
 	rootItem = new FrameItem();
@@ -484,7 +484,7 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	m_threadFramesTree->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 	m_threadFramesTree->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
-	m_model = new ThreadFrameModel(m_debugger);
+	m_model = new ThreadFrameModel(m_threadFramesTree);
     m_threadFramesTree->setModel(m_model);
 
     m_delegate = new ThreadFramesItemDelegate(this, m_debugger);
