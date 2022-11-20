@@ -78,7 +78,7 @@ public:
     uint64_t framePc() const { return m_framePc; }
 	uint64_t sp() const { return m_sp; }
 	uint64_t fp() const { return m_fp; }
-	int frameIndex() const { return m_frameIndex; }
+	size_t frameIndex() const { return m_frameIndex; }
 	std::string module() const { return m_module; }
 	std::string function() const { return m_function; }
 
@@ -86,7 +86,7 @@ private:
     bool m_isFrame{false};
     uint32_t m_tid{};
     uint64_t m_threadPc{};
-	int m_frameIndex{};
+	size_t m_frameIndex{};
 	std::string m_module{};
 	std::string m_function{};
 	uint64_t m_framePc{};
