@@ -20,6 +20,9 @@ limitations under the License.
 #include <QStyledItemDelegate>
 #include <QAbstractItemModel>
 #include <QHeaderView>
+#include <QGuiApplication>
+#include <QMimeData>
+#include <QClipboard>
 #include "binaryninjaapi.h"
 #include "globalarea.h"
 #include "viewframe.h"
@@ -167,6 +170,7 @@ class ThreadFramesWidget: public QWidget
     size_t m_debuggerEventCallback;
 
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
+	bool selectionNotEmpty();
 
 public slots:
     void updateContent();
@@ -181,6 +185,7 @@ private slots:
     void onDoubleClicked();
 	void suspendThread();
 	void resumeThread();
+	void copy();
 
 };
 

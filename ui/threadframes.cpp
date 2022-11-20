@@ -425,6 +425,58 @@ void ThreadFramesWidget::suspendThread()
 	m_debugger->SuspendThread(item->tid());
 }
 
+bool ThreadFramesWidget::selectionNotEmpty()
+{
+	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	return (!sel.empty()) && sel[0].isValid();
+}
+
+void ThreadFramesWidget::copy()
+{
+	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	if (sel.empty() || !sel[0].isValid())
+		return;
+
+	FrameItem *item = static_cast<FrameItem *>(sel[0].internalPointer());
+	if (!item)
+		return;
+
+	QString text;
+
+	switch (sel[0].column())
+	{
+	case ThreadFrameModel::ThreadColumn:
+		text = QString::asprintf("0x%x @ 0x%" PRIx64, item->tid(), item->threadPc());
+		break;
+	case ThreadFrameModel::FrameIndexColumn:
+		text = QString::asprintf("%d", item->frameIndex());
+		break;
+	case ThreadFrameModel::ModuleColumn:
+		text = QString::fromStdString(item->module());
+		break;
+	case ThreadFrameModel::FunctionColumn:
+		text = QString::fromStdString(item->function());
+		break;
+	case ThreadFrameModel::PcColumn:
+		text = QString::asprintf("0x%" PRIx64, item->framePc());
+		break;
+	case ThreadFrameModel::SpColumn:
+		text = QString::asprintf("0x%" PRIx64, item->sp());
+		break;
+	case ThreadFrameModel::FpColumn:
+		text = QString::asprintf("0x%" PRIx64, item->fp());
+		break;
+	default:
+		break;
+	}
+
+	auto* clipboard = QGuiApplication::clipboard();
+	clipboard->clear();
+	auto* mime = new QMimeData();
+	mime->setText(text);
+	clipboard->setMimeData(mime);
+}
+
 
 ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data):
     QWidget(parent), m_view(frame)
@@ -462,7 +514,6 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	m_menu = new Menu();
 
 	// TODO: show suspend and resume only for thread rows
-	// TODO: suspend and resume should only work when debugger connected and stopped
  	QString actionName = QString::fromStdString("Suspend");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
@@ -472,7 +523,35 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([=]() { resumeThread(); }, [=]() { return m_debugger->IsConnected() && (!m_debugger->IsRunning()); }));
-	
+
+	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy", UIAction([&](){ copy(); }, [&]() { return selectionNotEmpty(); }));
+	m_actionHandler.setActionDisplayName("Copy", [&]() {
+	 	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+     	if (sel.empty())
+         	return "Copy";
+ 		
+		switch (sel[0].column())
+	 	{
+	 	case ThreadFrameModel::ThreadColumn:
+	 		return "Copy Thread";
+	 	case ThreadFrameModel::FrameIndexColumn:
+	 		return "Copy Frame Index";
+	 	case ThreadFrameModel::ModuleColumn:
+	 		return "Copy Module";
+	 	case ThreadFrameModel::FunctionColumn:
+	 		return "Copy Function";
+	 	case ThreadFrameModel::PcColumn:
+	 		return "Copy PC";
+	 	case ThreadFrameModel::SpColumn:
+	 		return "Copy SP";
+	 	case ThreadFrameModel::FpColumn:
+	 		return "Copy FP";
+	 	default:
+	 		return "Copy";
+	 	}
+	});
+
 	// TODO: set as active thread action?
 
     connect(m_threadFramesTree, &QTreeView::doubleClicked, this, &ThreadFramesWidget::onDoubleClicked);
