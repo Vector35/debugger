@@ -647,7 +647,7 @@ void ThreadFramesWidget::onDoubleClicked()
     	addrToJump = frameItem->sp();
     	break;
     case ThreadFrameModel::FpColumn:
-    	addrToJump = frameItem->sp();
+    	addrToJump = frameItem->fp();
     	break;
      }
 
