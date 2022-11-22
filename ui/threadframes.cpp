@@ -93,6 +93,9 @@ QVariant ThreadFrameModel::data(const QModelIndex &index, int role) const
 	{
 	case ThreadFrameModel::ThreadColumn:
 	{
+		if (item->isFrame())
+			return QVariant();
+
 		QString text = QString::asprintf("0x%x @ 0x%" PRIx64, item->tid(), item->threadPc());
 		if (role == Qt::SizeHintRole)
 			return QVariant((qulonglong)text.size());
@@ -455,6 +458,9 @@ void ThreadFramesWidget::copy()
 	switch (sel[0].column())
 	{
 	case ThreadFrameModel::ThreadColumn:
+		if (item->isFrame())
+			return;
+	
 		text = QString::asprintf("0x%x @ 0x%" PRIx64, item->tid(), item->threadPc());
 		break;
 	case ThreadFrameModel::FrameIndexColumn:
