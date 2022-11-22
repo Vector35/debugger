@@ -285,6 +285,7 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : m_
 
 	m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 	m_table->verticalHeader()->setVisible(false);
+	m_table->horizontalHeader()->setStretchLastSection(true);
 
 	m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
 	m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
