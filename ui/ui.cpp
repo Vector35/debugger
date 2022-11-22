@@ -45,7 +45,7 @@ using namespace std;
 std::map<ViewFrame*, std::unique_ptr<DebuggerUI>> g_viewFrameMap;
 std::map<UIContext*, std::unique_ptr<GlobalDebuggerUI>> g_contextMap;
 
-GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
+GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context) : m_context(context)
 {
 	m_window = context->mainWindow();
 	if (m_window && m_window->statusBar())
@@ -64,43 +64,41 @@ GlobalDebuggerUI::GlobalDebuggerUI(UIContext* context):	m_context(context)
 }
 
 
-GlobalDebuggerUI::~GlobalDebuggerUI()
-{
-}
+GlobalDebuggerUI::~GlobalDebuggerUI() {}
 
 static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 {
-    auto controller = DebuggerController::GetController(view);
-    bool isAbsoluteAddress = false;
-    // TODO: check if this works
-    if (view->GetTypeName() == "Debugger")
-        isAbsoluteAddress = true;
+	auto controller = DebuggerController::GetController(view);
+	bool isAbsoluteAddress = false;
+	// TODO: check if this works
+	if (view->GetTypeName() == "Debugger")
+		isAbsoluteAddress = true;
 
-    if (isAbsoluteAddress)
-    {
-        if (controller->ContainsBreakpoint(addr))
-        {
-            controller->DeleteBreakpoint(addr);
-        }
-        else
-        {
-            controller->AddBreakpoint(addr);
-        }
-    }
-    else
-    {
-        std::string filename = controller->GetExecutablePath();
-        uint64_t offset = addr - view->GetStart();
-        ModuleNameAndOffset info = {filename, offset};
-        if (controller->ContainsBreakpoint(info))
-        {
-            controller->DeleteBreakpoint(info);
-        }
-        else
-        {
-            controller->AddBreakpoint(info);
-        }
-    }
+	if (isAbsoluteAddress)
+	{
+		if (controller->ContainsBreakpoint(addr))
+		{
+			controller->DeleteBreakpoint(addr);
+		}
+		else
+		{
+			controller->AddBreakpoint(addr);
+		}
+	}
+	else
+	{
+		std::string filename = controller->GetExecutablePath();
+		uint64_t offset = addr - view->GetStart();
+		ModuleNameAndOffset info = {filename, offset};
+		if (controller->ContainsBreakpoint(info))
+		{
+			controller->DeleteBreakpoint(info);
+		}
+		else
+		{
+			controller->AddBreakpoint(info);
+		}
+	}
 }
 
 static void JumpToIPCallback(BinaryView* view, UIContext* context)
@@ -120,36 +118,36 @@ static void JumpToIPCallback(BinaryView* view, UIContext* context)
 }
 
 #ifdef WIN32
-#include "msi.h"
-#include <Shlobj.h>
+	#include "msi.h"
+	#include <Shlobj.h>
 
 static bool InstallDbgEngRedistributable()
 {
-    std::filesystem::path dbgEngPath;
-    if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
-    {
-        auto pluginsPath = BinaryNinja::GetUserPluginDirectory();
-        if (pluginsPath.empty())
-            return false;
+	std::filesystem::path dbgEngPath;
+	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
+	{
+		auto pluginsPath = BinaryNinja::GetUserPluginDirectory();
+		if (pluginsPath.empty())
+			return false;
 
-        auto path = std::filesystem::path(pluginsPath);
-        dbgEngPath = path / "dbgeng";
-    }
-    else
-    {
-        auto installPath = BinaryNinja::GetInstallDirectory();
-        if (installPath.empty())
-            return false;
+		auto path = std::filesystem::path(pluginsPath);
+		dbgEngPath = path / "dbgeng";
+	}
+	else
+	{
+		auto installPath = BinaryNinja::GetInstallDirectory();
+		if (installPath.empty())
+			return false;
 
-        auto path = std::filesystem::path(installPath);
-        dbgEngPath = path / "plugins" / "dbgeng";
-    }
+		auto path = std::filesystem::path(installPath);
+		dbgEngPath = path / "plugins" / "dbgeng";
+	}
 
-    if (!std::filesystem::exists(dbgEngPath))
-    {
-        LogWarn("path %d does not exists", dbgEngPath.string().c_str());
-        return false;
-    }
+	if (!std::filesystem::exists(dbgEngPath))
+	{
+		LogWarn("path %d does not exists", dbgEngPath.string().c_str());
+		return false;
+	}
 
 	string cmdLine = "ACTION=ADMIN TARGETDIR=";
 
@@ -272,309 +270,351 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		return controller->IsConnected() && controller->IsRunning();
 	};
 
-    auto connectedToDebugServer = [=](const UIActionContext& ctxt) {
-        if (!ctxt.binaryView)
-            return false;
-        auto controller = DebuggerController::GetController(ctxt.binaryView);
-        if (!controller)
-            return false;
-
-        return controller->IsConnectedToDebugServer();
-    };
-
-    auto notConnectedToDebugServer = [=](const UIActionContext& ctxt) {
-        if (!ctxt.binaryView)
-            return false;
-        auto controller = DebuggerController::GetController(ctxt.binaryView);
-        if (!controller)
-            return false;
-
-        return !controller->IsConnectedToDebugServer();
-    };
-
-	UIAction::registerAction("Debug Adapter Settings...");
-	context->globalActions()->bindAction("Debug Adapter Settings...", UIAction([=](const UIActionContext& ctxt) {
+	auto connectedToDebugServer = [=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
-			return;
+			return false;
 		auto controller = DebuggerController::GetController(ctxt.binaryView);
 		if (!controller)
-			return;
+			return false;
 
-		if (!context->mainWindow())
-			return;
+		return controller->IsConnectedToDebugServer();
+	};
 
-		auto* dialog = new AdapterSettingsDialog(context->mainWindow(), controller);
-		dialog->show();
-	}, requireBinaryView));
+	auto notConnectedToDebugServer = [=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return false;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return false;
+
+		return !controller->IsConnectedToDebugServer();
+	};
+
+	UIAction::registerAction("Debug Adapter Settings...");
+	context->globalActions()->bindAction("Debug Adapter Settings...",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				if (!context->mainWindow())
+					return;
+
+				auto* dialog = new AdapterSettingsDialog(context->mainWindow(), controller);
+				dialog->show();
+			},
+			requireBinaryView));
 
 	Menu* debuggerMenu = Menu::mainMenu("Debugger");
 	Menu::setMainMenuOrder("Debugger", MENU_ORDER_LATE);
 	debuggerMenu->addAction("Debug Adapter Settings...", "Settings", MENU_ORDER_FIRST);
 
 	UIAction::registerAction("Launch");
-	context->globalActions()->bindAction("Launch", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
-		QString text = QString("The debugger is launching the target and preparing the debugger binary view. \n"
-			"This might take a while.");
-		ProgressTask* task = new ProgressTask(ctxt.widget, "Launching", text, "",
-			[&](std::function<bool(size_t, size_t)> progress) {
-				controller->Launch();
+	context->globalActions()->bindAction("Launch",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+				QString text = QString(
+					"The debugger is launching the target and preparing the debugger binary view. \n"
+					"This might take a while.");
+				ProgressTask* task = new ProgressTask(
+					ctxt.widget, "Launching", text, "", [&](std::function<bool(size_t, size_t)> progress) {
+						controller->Launch();
 
-				// For now, this cant be canceled, as the Debugger model wasn't
-			    // designed with that in mind. This function below can return false if canceling is enabled
-				progress(1, 1);
-				return;
-			});
-		task->wait();
-	}, notConnected));
+						// For now, this cant be canceled, as the Debugger model wasn't
+			            // designed with that in mind. This function below can return false if canceling is enabled
+						progress(1, 1);
+						return;
+					});
+				task->wait();
+			},
+			notConnected));
 	debuggerMenu->addAction("Launch", "Launch");
 
 	UIAction::registerAction("Kill");
-	context->globalActions()->bindAction("Kill", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
+	context->globalActions()->bindAction("Kill",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-        std::thread([=](){
-            controller->Quit();
-        }).detach();
-	}, connected));
+				std::thread([=]() { controller->Quit(); }).detach();
+			},
+			connected));
 	debuggerMenu->addAction("Kill", "Launch");
 
 	UIAction::registerAction("Resume", QKeySequence(Qt::Key_F9));
-	context->globalActions()->bindAction("Resume", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
+	context->globalActions()->bindAction("Resume",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-		controller->Go();
-	}, connectedAndStopped));
+				controller->Go();
+			},
+			connectedAndStopped));
 	debuggerMenu->addAction("Resume", "Control");
 
 	UIAction::registerAction("Step Into", QKeySequence(Qt::Key_F7));
-	context->globalActions()->bindAction("Step Into", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
+	context->globalActions()->bindAction("Step Into",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-		BNFunctionGraphType graphType = NormalFunctionGraph;
-		if (ctxt.context && ctxt.context->getCurrentView())
-			graphType = ctxt.context->getCurrentView()->getILViewType();
-		controller->StepInto(graphType);
-	}, connectedAndStopped));
+				BNFunctionGraphType graphType = NormalFunctionGraph;
+				if (ctxt.context && ctxt.context->getCurrentView())
+					graphType = ctxt.context->getCurrentView()->getILViewType();
+				controller->StepInto(graphType);
+			},
+			connectedAndStopped));
 	debuggerMenu->addAction("Step Into", "Control");
 
 	UIAction::registerAction("Step Over", QKeySequence(Qt::Key_F8));
-	context->globalActions()->bindAction("Step Over", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
+	context->globalActions()->bindAction("Step Over",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-		BNFunctionGraphType graphType = NormalFunctionGraph;
-		if (ctxt.context && ctxt.context->getCurrentView())
-			graphType = ctxt.context->getCurrentView()->getILViewType();
-		controller->StepOver(graphType);
-	}, connectedAndStopped));
+				BNFunctionGraphType graphType = NormalFunctionGraph;
+				if (ctxt.context && ctxt.context->getCurrentView())
+					graphType = ctxt.context->getCurrentView()->getILViewType();
+				controller->StepOver(graphType);
+			},
+			connectedAndStopped));
 	debuggerMenu->addAction("Step Over", "Control");
 
 	UIAction::registerAction("Step Return", QKeySequence(Qt::ControlModifier | Qt::Key_F9));
-	context->globalActions()->bindAction("Step Return", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
+	context->globalActions()->bindAction("Step Return",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-		controller->StepReturn();
-	}, connectedAndStopped));
+				controller->StepReturn();
+			},
+			connectedAndStopped));
 	debuggerMenu->addAction("Step Return", "Control");
 
 	UIAction::registerAction("Detach");
-	context->globalActions()->bindAction("Detach", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
+	context->globalActions()->bindAction("Detach",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-        std::thread([=](){
-            controller->Detach();
-        }).detach();
-	}, connected));
+				std::thread([=]() { controller->Detach(); }).detach();
+			},
+			connected));
 	debuggerMenu->addAction("Detach", "Launch");
 
 	UIAction::registerAction("Restart");
-	context->globalActions()->bindAction("Restart", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
+	context->globalActions()->bindAction("Restart",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-		controller->Restart();
-	}, connected));
+				controller->Restart();
+			},
+			connected));
 	debuggerMenu->addAction("Restart", "Launch");
 
 	UIAction::registerAction("Pause", QKeySequence(Qt::Key_F12));
-	context->globalActions()->bindAction("Pause", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
+	context->globalActions()->bindAction("Pause",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-        std::thread([=](){
-            controller->Pause();
-        }).detach();
-	}, connectedAndRunning));
+				std::thread([=]() { controller->Pause(); }).detach();
+			},
+			connectedAndRunning));
 	debuggerMenu->addAction("Pause", "Control");
 
 	UIAction::registerAction("Attach To Process...");
-	context->globalActions()->bindAction("Attach To Process...", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
+	context->globalActions()->bindAction("Attach To Process...",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-		int pid = QInputDialog::getInt(context->mainWindow(), "PID", "Input PID:");
-		if (pid == 0)
-			return;
+				int pid = QInputDialog::getInt(context->mainWindow(), "PID", "Input PID:");
+				if (pid == 0)
+					return;
 
-		QString text = QString("The debugger is attaching to the target and preparing the debugger binary view. \n"
-			"This might take a while.");
-		ProgressTask* task = new ProgressTask(ctxt.widget, "Attaching", text, "",
-			[&](std::function<bool(size_t, size_t)> progress) {
-				controller->Attach(pid);
+				QString text = QString(
+					"The debugger is attaching to the target and preparing the debugger binary view. \n"
+					"This might take a while.");
+				ProgressTask* task = new ProgressTask(
+					ctxt.widget, "Attaching", text, "", [&](std::function<bool(size_t, size_t)> progress) {
+						controller->Attach(pid);
 
-				// For now, this cant be canceled, as the Debugger model wasn't
-			    // designed with that in mind. This function below can return false if canceling is enabled
-				progress(1, 1);
-				return;
-			});
-		task->wait();
-	}, notConnected));
+						// For now, this cant be canceled, as the Debugger model wasn't
+			            // designed with that in mind. This function below can return false if canceling is enabled
+						progress(1, 1);
+						return;
+					});
+				task->wait();
+			},
+			notConnected));
 	debuggerMenu->addAction("Attach To Process...", "Launch");
 
 	UIAction::registerAction("Toggle Breakpoint", QKeySequence(Qt::Key_F2));
-	context->globalActions()->bindAction("Toggle Breakpoint", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
+	context->globalActions()->bindAction("Toggle Breakpoint",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-		BreakpointToggleCallback(ctxt.binaryView, ctxt.address);
-	}, requireBinaryView));
+				BreakpointToggleCallback(ctxt.binaryView, ctxt.address);
+			},
+			requireBinaryView));
 	debuggerMenu->addAction("Toggle Breakpoint", "Breakpoint");
 
-    UIAction::registerAction("Connect to Debug Server");
-    context->globalActions()->bindAction("Connect to Debug Server", UIAction([=](const UIActionContext& ctxt) {
-        if (!ctxt.binaryView)
-            return;
-        auto controller = DebuggerController::GetController(ctxt.binaryView);
-        if (!controller)
-            return;
+	UIAction::registerAction("Connect to Debug Server");
+	context->globalActions()->bindAction("Connect to Debug Server",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-        auto dialog = new DebugServerSettingsDialog(context->mainWindow(), controller);
-        if (dialog->exec () != QDialog::Accepted)
-            return;
+				auto dialog = new DebugServerSettingsDialog(context->mainWindow(), controller);
+				if (dialog->exec() != QDialog::Accepted)
+					return;
 
-        if (controller->ConnectToDebugServer())
-        {
-            QMessageBox::information(context->mainWindow(), "Successfully connected",
-                                     "Successfully connected to the debug server. Now you can launch or attach to a process.");
-        }
-        else
-        {
-            QMessageBox::warning(context->mainWindow(), "Failed to connect",
-                                     "Cannot connect to the debug server. Please check the connection configuration.");
-        }
-    }, notConnectedToDebugServer));
-    debuggerMenu->addAction("Connect to Debug Server", "Launch");
+				if (controller->ConnectToDebugServer())
+				{
+					QMessageBox::information(context->mainWindow(), "Successfully connected",
+						"Successfully connected to the debug server. Now you can launch or attach to a process.");
+				}
+				else
+				{
+					QMessageBox::warning(context->mainWindow(), "Failed to connect",
+						"Cannot connect to the debug server. Please check the connection configuration.");
+				}
+			},
+			notConnectedToDebugServer));
+	debuggerMenu->addAction("Connect to Debug Server", "Launch");
 
-    UIAction::registerAction("Disconnect from Debug Server");
-    context->globalActions()->bindAction("Disconnect from Debug Server", UIAction([=](const UIActionContext& ctxt) {
-        if (!ctxt.binaryView)
-            return;
-        auto controller = DebuggerController::GetController(ctxt.binaryView);
-        if (!controller)
-            return;
+	UIAction::registerAction("Disconnect from Debug Server");
+	context->globalActions()->bindAction("Disconnect from Debug Server",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-        if (controller->DisconnectDebugServer())
-        {
-            QMessageBox::information(context->mainWindow(), "Successfully disconnected",
-                                     "Successfully disconnected from the debug server");
-        }
-        else
-        {
-            QMessageBox::warning(context->mainWindow(), "Failed to disconnect",
-                                     "Cannot disconnect from the debug server.");
-        }
-    }, connectedToDebugServer));
-    debuggerMenu->addAction("Disconnect from Debug Server", "Launch");
+				if (controller->DisconnectDebugServer())
+				{
+					QMessageBox::information(context->mainWindow(), "Successfully disconnected",
+						"Successfully disconnected from the debug server");
+				}
+				else
+				{
+					QMessageBox::warning(
+						context->mainWindow(), "Failed to disconnect", "Cannot disconnect from the debug server.");
+				}
+			},
+			connectedToDebugServer));
+	debuggerMenu->addAction("Disconnect from Debug Server", "Launch");
 
-    UIAction::registerAction("Connect to Remote Process");
-    context->globalActions()->bindAction("Connect to Remote Process", UIAction([=](const UIActionContext& ctxt) {
-        if (!ctxt.binaryView)
-            return;
-        auto controller = DebuggerController::GetController(ctxt.binaryView);
-        if (!controller)
-            return;
+	UIAction::registerAction("Connect to Remote Process");
+	context->globalActions()->bindAction("Connect to Remote Process",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-        auto dialog = new RemoteProcessSettingsDialog(context->mainWindow(), controller);
-        if (dialog->exec () != QDialog::Accepted)
-            return;
+				auto dialog = new RemoteProcessSettingsDialog(context->mainWindow(), controller);
+				if (dialog->exec() != QDialog::Accepted)
+					return;
 
-		QString text = QString("The debugger is connecting to the target and preparing the debugger binary view. \n"
-			"This might take a while.");
-		ProgressTask* task = new ProgressTask(ctxt.widget, "Connecting", text, "",
-			[&](std::function<bool(size_t, size_t)> progress) {
-				controller->Connect();
+				QString text = QString(
+					"The debugger is connecting to the target and preparing the debugger binary view. \n"
+					"This might take a while.");
+				ProgressTask* task = new ProgressTask(
+					ctxt.widget, "Connecting", text, "", [&](std::function<bool(size_t, size_t)> progress) {
+						controller->Connect();
 
-				// For now, this cant be canceled, as the Debugger model wasn't
-			    // designed with that in mind. This function below can return false if canceling is enabled
-				progress(1, 1);
-				return;
-			});
-		task->wait();
-    }, notConnected));
-    debuggerMenu->addAction("Connect to Remote Process", "Launch");
+						// For now, this cant be canceled, as the Debugger model wasn't
+			            // designed with that in mind. This function below can return false if canceling is enabled
+						progress(1, 1);
+						return;
+					});
+				task->wait();
+			},
+			notConnected));
+	debuggerMenu->addAction("Connect to Remote Process", "Launch");
 
-//	There is no longer a need to manually create the debug adapter. It will be automatically created if it is accessed
-//	but not created yet.
-//	UIAction::registerAction("Activate Debug Adapter");
-//	context->globalActions()->bindAction("Activate Debug Adapter", UIAction([=](const UIActionContext& ctxt) {
-//		if (!ctxt.binaryView)
-//			return;
-//		auto controller = DebuggerController::GetController(ctxt.binaryView);
-//		if (!controller)
-//			return;
-//
-//		if (controller->ActivateDebugAdapter())
-//        {
-//            QMessageBox::information(context->mainWindow(), "Successfully activated",
-//                                     "Successfully activated the debug adapter. Now you can run backend commands directly.");
-//        }
-//		else
-//        {
-//            QMessageBox::information(context->mainWindow(), "Failed to activate",
-//                                     "Cannot activate to the debug adapter.");
-//        }
-//	}));
-//	debuggerMenu->addAction("Activate Debug Adapter", "Launch");
+	//	There is no longer a need to manually create the debug adapter. It will be automatically created if it is
+	//  accessed but not created yet.
+	//	UIAction::registerAction("Activate Debug Adapter");
+	//	context->globalActions()->bindAction("Activate Debug Adapter", UIAction([=](const UIActionContext& ctxt) {
+	//		if (!ctxt.binaryView)
+	//			return;
+	//		auto controller = DebuggerController::GetController(ctxt.binaryView);
+	//		if (!controller)
+	//			return;
+	//
+	//		if (controller->ActivateDebugAdapter())
+	//        {
+	//            QMessageBox::information(context->mainWindow(), "Successfully activated",
+	//                                     "Successfully activated the debug adapter. Now you can run backend commands directly.");
+	//        }
+	//		else
+	//        {
+	//            QMessageBox::information(context->mainWindow(), "Failed to activate",
+	//                                     "Cannot activate to the debug adapter.");
+	//        }
+	//	}));
+	//	debuggerMenu->addAction("Activate Debug Adapter", "Launch");
 
 	QString showAreaWidgets = "Show Debugger Global Area Widgets";
 	UIAction::registerAction(showAreaWidgets);
@@ -604,12 +644,15 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction(showAreaWidgets, "Options");
 
 	UIAction::registerAction("Make Code", QKeySequence(Qt::Key_C));
-	context->globalActions()->bindAction("Make Code", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
+	context->globalActions()->bindAction("Make Code",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
 
-		MakeCodeHelper(ctxt.binaryView, ctxt.address);
-	}, requireBinaryView));
+				MakeCodeHelper(ctxt.binaryView, ctxt.address);
+			},
+			requireBinaryView));
 	debuggerMenu->addAction("Make Code", "Misc");
 
 	UIAction::setActionDisplayName("Make Code", [](const UIActionContext& ctxt) -> QString {
@@ -623,72 +666,80 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	});
 
 	UIAction::registerAction("Jump to IP");
-	context->globalActions()->bindAction("Jump to IP", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
+	context->globalActions()->bindAction("Jump to IP",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
 
-		JumpToIPCallback(ctxt.binaryView, context);
-	}, connectedAndStopped));
+				JumpToIPCallback(ctxt.binaryView, context);
+			},
+			connectedAndStopped));
 	debuggerMenu->addAction("Jump to IP", "Misc");
 
 	UIAction::registerAction("Override IP");
-	context->globalActions()->bindAction("Override IP", UIAction([=](const UIActionContext& ctxt) {
-		if (!ctxt.binaryView)
-			return;
+	context->globalActions()->bindAction("Override IP",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
 
-		auto controller = DebuggerController::GetController(ctxt.binaryView);
-		if (!controller)
-			return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
 
-		uint64_t address = 0;
-		if (!ViewFrame::getAddressFromInput(ctxt.context->getCurrentViewFrame(), ctxt.binaryView, address, ctxt.address,
-											"Override IP", "New Instruction Pointer Value:", true))
-			return;
+				uint64_t address = 0;
+				if (!ViewFrame::getAddressFromInput(ctxt.context->getCurrentViewFrame(), ctxt.binaryView, address,
+						ctxt.address, "Override IP", "New Instruction Pointer Value:", true))
+					return;
 
-		if (!controller->SetIP(address))
-			LogWarn("Failed to override IP to 0x%" PRIx64, address);
-
-	}, connectedAndStopped));
+				if (!controller->SetIP(address))
+					LogWarn("Failed to override IP to 0x%" PRIx64, address);
+			},
+			connectedAndStopped));
 	debuggerMenu->addAction("Override IP", "Misc");
 
 #ifdef WIN32
-    UIAction::registerAction("Reinstall DbgEng Redistributable");
-    context->globalActions()->bindAction("Reinstall DbgEng Redistributable", UIAction([=](const UIActionContext& ctxt) {
-        if (!InstallDbgEngRedistributable())
-        {
-            QMessageBox::warning(nullptr, QString("Failed to install"), QString("Failed to install DbgEng redistributable. "
-                                                                    "The debugger is likely to malfunction"));
-        }
-        else
-        {
-            QMessageBox::warning(nullptr, QString("Successfully installed"),
-                                 QString("Successfully installed DbgEng redistributable."));
-        }
-    }));
-    debuggerMenu->addAction("Reinstall DbgEng Redistributable", "Misc");
+	UIAction::registerAction("Reinstall DbgEng Redistributable");
+	context->globalActions()->bindAction("Reinstall DbgEng Redistributable", UIAction([=](const UIActionContext& ctxt) {
+		if (!InstallDbgEngRedistributable())
+		{
+			QMessageBox::warning(nullptr, QString("Failed to install"),
+				QString("Failed to install DbgEng redistributable. "
+						"The debugger is likely to malfunction"));
+		}
+		else
+		{
+			QMessageBox::warning(
+				nullptr, QString("Successfully installed"), QString("Successfully installed DbgEng redistributable."));
+		}
+	}));
+	debuggerMenu->addAction("Reinstall DbgEng Redistributable", "Misc");
 #endif
 }
 
 
-DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller):
+DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller) :
 	m_context(context), m_controller(controller)
 {
 	connect(this, &DebuggerUI::debuggerEvent, this, &DebuggerUI::updateUI);
 
-    m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
-		if ((event.type == LaunchEventType) || (event.type == AttachEventType) || (event.type == ConnectEventType))
-		{
-			auto* globalUI = GlobalDebuggerUI::GetForContext(m_context);
-			if (globalUI)
-				globalUI->SetDisplayingGlobalAreaWidgets(true);
-		}
-		emit debuggerEvent(event);
-    }, "UI");
+	m_eventCallback = m_controller->RegisterEventCallback(
+		[this](const DebuggerEvent& event) {
+			if ((event.type == LaunchEventType) || (event.type == AttachEventType) || (event.type == ConnectEventType))
+			{
+				auto* globalUI = GlobalDebuggerUI::GetForContext(m_context);
+				if (globalUI)
+					globalUI->SetDisplayingGlobalAreaWidgets(true);
+			}
+			emit debuggerEvent(event);
+		},
+		"UI");
 
 	// Since the Controller is constructed earlier than the UI, any breakpoints added before the construction of the UI,
 	// e.g. the entry point breakpoint, will be missing the visual indicator.
 	// Here, we forcibly add them.
-	for (auto bp: m_controller->GetBreakpoints())
+	for (auto bp : m_controller->GetBreakpoints())
 	{
 		DebuggerEvent event;
 		event.type = RelativeBreakpointAddedEvent;
@@ -779,25 +830,25 @@ void GlobalDebuggerUI::CloseGlobalAreaWidgets(UIContext* context)
 
 TagTypeRef DebuggerUI::getPCTagType(BinaryViewRef data)
 {
-    TagTypeRef type = data->GetTagType("Program Counter");
-    if (type)
-        return type;
+	TagTypeRef type = data->GetTagType("Program Counter");
+	if (type)
+		return type;
 
-    TagTypeRef pcTagType = new TagType(data, "Program Counter", "=>");
-    data->AddTagType(pcTagType);
-    return pcTagType;
+	TagTypeRef pcTagType = new TagType(data, "Program Counter", "=>");
+	data->AddTagType(pcTagType);
+	return pcTagType;
 }
 
 
 TagTypeRef DebuggerUI::getBreakpointTagType(BinaryViewRef data)
 {
-    TagTypeRef type = data->GetTagType("Breakpoints");
-    if (type)
-        return type;
+	TagTypeRef type = data->GetTagType("Breakpoints");
+	if (type)
+		return type;
 
-    TagTypeRef pcTagType = new TagType(data, "Breakpoints", "🛑");
-    data->AddTagType(pcTagType);
-    return pcTagType;
+	TagTypeRef pcTagType = new TagType(data, "Breakpoints", "🛑");
+	data->AddTagType(pcTagType);
+	return pcTagType;
 }
 
 
@@ -822,9 +873,9 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 		if (fileContext)
 		{
 			auto syncGroups = frame->getFileContext()->allSyncGroups();
-			for (const auto& syncGroup: syncGroups)
+			for (const auto& syncGroup : syncGroups)
 			{
-				for (auto i: syncGroup->members())
+				for (auto i : syncGroup->members())
 				{
 					View* groupView = i->getCurrentViewInterface();
 					if (groupView->getCurrentFunction())
@@ -871,7 +922,7 @@ void DebuggerUI::updateIPHighlight()
 		return;
 
 	// Remove old instruction pointer highlight
-	for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(lastIP))
+	for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(lastIP))
 	{
 		ModuleNameAndOffset addr;
 		addr.module = m_controller->GetExecutablePath();
@@ -882,7 +933,7 @@ void DebuggerUI::updateIPHighlight()
 			oldColor = RedHighlightColor;
 
 		func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), lastIP, oldColor);
-		for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), lastIP))
+		for (TagRef tag : func->GetAddressTags(data->GetDefaultArchitecture(), lastIP))
 		{
 			if (tag->GetType() != getPCTagType(data))
 				continue;
@@ -892,10 +943,10 @@ void DebuggerUI::updateIPHighlight()
 	}
 
 	// Add new instruction pointer highlight
-	for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
+	for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(address))
 	{
 		bool tagFound = false;
-		for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
+		for (TagRef tag : func->GetAddressTags(data->GetDefaultArchitecture(), address))
 		{
 			if (tag->GetType() == getPCTagType(data))
 			{
@@ -907,8 +958,7 @@ void DebuggerUI::updateIPHighlight()
 		if (!tagFound)
 		{
 			func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, BlueHighlightColor);
-			func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getPCTagType(data),
-						"program counter");
+			func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getPCTagType(data), "program counter");
 		}
 	}
 }
@@ -933,17 +983,50 @@ void DebuggerUI::navigateToCurrentIP()
 }
 
 
-void DebuggerUI::updateUI(const DebuggerEvent &event)
+void DebuggerUI::updateUI(const DebuggerEvent& event)
 {
 	switch (event.type)
 	{
-		case DetachedEventType:
-		case QuitDebuggingEventType:
-		case TargetExitedEventType:
+	case DetachedEventType:
+	case QuitDebuggingEventType:
+	case TargetExitedEventType:
+	{
+		ViewFrame* frame = m_context->getCurrentViewFrame();
+		if (!frame)
+			break;
+		FileContext* fileContext = frame->getFileContext();
+		fileContext->refreshDataViewCache();
+		ViewFrame* newFrame = m_context->openFileContext(fileContext);
+		QCoreApplication::processEvents();
+
+		if (newFrame)
+		{
+			newFrame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
+			m_context->closeTab(m_context->getTabForFile(fileContext));
+			openDebuggerSideBar(newFrame);
+			QCoreApplication::processEvents();
+		}
+		else
+		{
+			LogWarn("fail to navigate to the original view");
+		}
+		break;
+	}
+
+	case TargetStoppedEventType:
+	case ActiveThreadChangedEvent:
+	{
+		uint64_t address = m_controller->IP();
+		// If there is no function at the current address, define one. This might be a little aggressive,
+		// but given that we are lacking the ability to "show as code", this feels like an OK workaround.
+		BinaryViewRef liveView = m_controller->GetLiveView();
+		if (!liveView)
+			break;
+
+		if (event.type == TargetStoppedEventType
+			&& event.data.targetStoppedData.reason == DebugStopReason::InitialBreakpoint)
 		{
 			ViewFrame* frame = m_context->getCurrentViewFrame();
-			if (!frame)
-				break;
 			FileContext* fileContext = frame->getFileContext();
 			fileContext->refreshDataViewCache();
 			ViewFrame* newFrame = m_context->openFileContext(fileContext);
@@ -951,205 +1034,170 @@ void DebuggerUI::updateUI(const DebuggerEvent &event)
 
 			if (newFrame)
 			{
-				newFrame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
 				m_context->closeTab(m_context->getTabForFile(fileContext));
-				openDebuggerSideBar(newFrame);
+				navigateDebugger(address);
 				QCoreApplication::processEvents();
 			}
-			else
-			{
-				LogWarn("fail to navigate to the original view");
-			}
-			break;
 		}
-
-        case TargetStoppedEventType:
-		case ActiveThreadChangedEvent:
-        {
-            uint64_t address = m_controller->IP();
-			// If there is no function at the current address, define one. This might be a little aggressive,
-			// but given that we are lacking the ability to "show as code", this feels like an OK workaround.
-            BinaryViewRef liveView = m_controller->GetLiveView();
-            if (!liveView)
-                break;
-
-			if (event.type == TargetStoppedEventType &&
-				event.data.targetStoppedData.reason == DebugStopReason::InitialBreakpoint)
-			{
-				ViewFrame* frame = m_context->getCurrentViewFrame();
-				FileContext* fileContext = frame->getFileContext();
-				fileContext->refreshDataViewCache();
-				ViewFrame* newFrame = m_context->openFileContext(fileContext);
-				QCoreApplication::processEvents();
-
-				if (newFrame)
-				{
-					m_context->closeTab(m_context->getTabForFile(fileContext));
-					navigateDebugger(address);
-					QCoreApplication::processEvents();
-				}
-			}
-			else
-			{
-				navigateToCurrentIP();
-			}
-
-            updateIPHighlight();
-            break;
-        }
-
-		case RelativeBreakpointAddedEvent:
-		{
-			uint64_t address = m_controller->RelativeAddressToAbsolute(event.data.relativeAddress);
-
-			std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-			if (m_controller->GetLiveView())
-				dataAndAddress.emplace_back(m_controller->GetLiveView(), address);
-
-			if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetExecutablePath()))
-			{
-				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + event.data.relativeAddress.offset);
-			}
-
-			for (auto& [data, addr]: dataAndAddress)
-			{
-				for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(addr))
-				{
-					bool tagFound = false;
-					for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), addr))
-					{
-						if (tag->GetType() == getBreakpointTagType(data))
-						{
-							tagFound = true;
-							break;
-						}
-					}
-
-					if (!tagFound)
-					{
-						func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), addr, RedHighlightColor);
-						func->CreateUserAddressTag(data->GetDefaultArchitecture(), addr, getBreakpointTagType(data),
-													   "breakpoint");
-					}
-				}
-			}
-			break;
-		}
-		case AbsoluteBreakpointAddedEvent:
-		{
-			uint64_t address = event.data.absoluteAddress;
-
-			std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-			BinaryViewRef data = m_controller->GetLiveView();
-			if (data)
-				dataAndAddress.emplace_back(data, address);
-
-			ModuleNameAndOffset relative = m_controller->AbsoluteAddressToRelative(address);
-			if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetExecutablePath()))
-			{
-				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + relative.offset);
-			}
-
-			for (auto& [data, address]: dataAndAddress)
-			{
-				for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
-				{
-					bool tagFound = false;
-					for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
-					{
-						if (tag->GetType() == getBreakpointTagType(data))
-						{
-							tagFound = true;
-							break;
-						}
-					}
-
-					if (!tagFound)
-					{
-						func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
-						func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data),
-													   "breakpoint");
-					}
-				}
-			}
-			break;
-		}
-		case RelativeBreakpointRemovedEvent:
-		{
-			uint64_t address = m_controller->RelativeAddressToAbsolute(event.data.relativeAddress);
-
-			std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-			if (m_controller->GetLiveView())
-				dataAndAddress.emplace_back(m_controller->GetLiveView(), address);
-
-			if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetExecutablePath()))
-			{
-				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + event.data.relativeAddress.offset);
-			}
-
-			for (auto& [data, address]: dataAndAddress)
-			{
-				for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
-				{
-					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, NoHighlightColor);
-					for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
-					{
-						if (tag->GetType() != getBreakpointTagType(data))
-							continue;
-
-						func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
-					}
-				}
-			}
-			break;
-		}
-		case AbsoluteBreakpointRemovedEvent:
-		{
-			uint64_t address = event.data.absoluteAddress;
-
-			std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-			BinaryViewRef data = m_controller->GetLiveView();
-			if (data)
-				dataAndAddress.emplace_back(data, address);
-
-			ModuleNameAndOffset relative = m_controller->AbsoluteAddressToRelative(address);
-			if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetExecutablePath()))
-			{
-				dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + relative.offset);
-			}
-
-			for (auto& [data, address]: dataAndAddress)
-			{
-				for (FunctionRef func: data->GetAnalysisFunctionsContainingAddress(address))
-				{
-					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, NoHighlightColor);
-					for (TagRef tag: func->GetAddressTags(data->GetDefaultArchitecture(), address))
-					{
-						if (tag->GetType() != getBreakpointTagType(data))
-							continue;
-
-						func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
-					}
-				}
-			}
-			break;
-		}
-		case RegisterChangedEvent:
+		else
 		{
 			navigateToCurrentIP();
-			updateIPHighlight();
-			break;
 		}
 
-        default:
-            break;
-    }
+		updateIPHighlight();
+		break;
+	}
+
+	case RelativeBreakpointAddedEvent:
+	{
+		uint64_t address = m_controller->RelativeAddressToAbsolute(event.data.relativeAddress);
+
+		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
+		if (m_controller->GetLiveView())
+			dataAndAddress.emplace_back(m_controller->GetLiveView(), address);
+
+		if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetExecutablePath()))
+		{
+			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + event.data.relativeAddress.offset);
+		}
+
+		for (auto& [data, addr] : dataAndAddress)
+		{
+			for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(addr))
+			{
+				bool tagFound = false;
+				for (TagRef tag : func->GetAddressTags(data->GetDefaultArchitecture(), addr))
+				{
+					if (tag->GetType() == getBreakpointTagType(data))
+					{
+						tagFound = true;
+						break;
+					}
+				}
+
+				if (!tagFound)
+				{
+					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), addr, RedHighlightColor);
+					func->CreateUserAddressTag(data->GetDefaultArchitecture(), addr, getBreakpointTagType(data), "breakpoint");
+				}
+			}
+		}
+		break;
+	}
+	case AbsoluteBreakpointAddedEvent:
+	{
+		uint64_t address = event.data.absoluteAddress;
+
+		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
+		BinaryViewRef data = m_controller->GetLiveView();
+		if (data)
+			dataAndAddress.emplace_back(data, address);
+
+		ModuleNameAndOffset relative = m_controller->AbsoluteAddressToRelative(address);
+		if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetExecutablePath()))
+		{
+			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + relative.offset);
+		}
+
+		for (auto& [data, address] : dataAndAddress)
+		{
+			for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(address))
+			{
+				bool tagFound = false;
+				for (TagRef tag : func->GetAddressTags(data->GetDefaultArchitecture(), address))
+				{
+					if (tag->GetType() == getBreakpointTagType(data))
+					{
+						tagFound = true;
+						break;
+					}
+				}
+
+				if (!tagFound)
+				{
+					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
+					func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data), "breakpoint");
+				}
+			}
+		}
+		break;
+	}
+	case RelativeBreakpointRemovedEvent:
+	{
+		uint64_t address = m_controller->RelativeAddressToAbsolute(event.data.relativeAddress);
+
+		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
+		if (m_controller->GetLiveView())
+			dataAndAddress.emplace_back(m_controller->GetLiveView(), address);
+
+		if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetExecutablePath()))
+		{
+			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + event.data.relativeAddress.offset);
+		}
+
+		for (auto& [data, address] : dataAndAddress)
+		{
+			for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(address))
+			{
+				func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, NoHighlightColor);
+				for (TagRef tag : func->GetAddressTags(data->GetDefaultArchitecture(), address))
+				{
+					if (tag->GetType() != getBreakpointTagType(data))
+						continue;
+
+					func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
+				}
+			}
+		}
+		break;
+	}
+	case AbsoluteBreakpointRemovedEvent:
+	{
+		uint64_t address = event.data.absoluteAddress;
+
+		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
+		BinaryViewRef data = m_controller->GetLiveView();
+		if (data)
+			dataAndAddress.emplace_back(data, address);
+
+		ModuleNameAndOffset relative = m_controller->AbsoluteAddressToRelative(address);
+		if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetExecutablePath()))
+		{
+			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + relative.offset);
+		}
+
+		for (auto& [data, address] : dataAndAddress)
+		{
+			for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(address))
+			{
+				func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, NoHighlightColor);
+				for (TagRef tag : func->GetAddressTags(data->GetDefaultArchitecture(), address))
+				{
+					if (tag->GetType() != getBreakpointTagType(data))
+						continue;
+
+					func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
+				}
+			}
+		}
+		break;
+	}
+	case RegisterChangedEvent:
+	{
+		navigateToCurrentIP();
+		updateIPHighlight();
+		break;
+	}
+
+	default:
+		break;
+	}
 }
 
 
 static bool BinaryViewValid(BinaryView* view, uint64_t addr)
 {
-    return true;
+	return true;
 }
 
 
@@ -1158,9 +1206,7 @@ static void RunToHereCallback(BinaryView* view, uint64_t addr)
 	auto controller = DebuggerController::GetController(view);
 	if (!controller)
 		return;
-	std::thread([=](){
-		controller->RunTo(addr);
-	}).detach();
+	std::thread([=]() { controller->RunTo(addr); }).detach();
 }
 
 
@@ -1184,128 +1230,111 @@ static bool ConnectedAndRunning(BinaryView* view, uint64_t addr)
 
 void GlobalDebuggerUI::InitializeUI()
 {
-    Sidebar::addSidebarWidgetType(
-        new DebuggerWidgetType(QImage(":/debugger_icons/icons/debugger.svg"), "Debugger"));
+	Sidebar::addSidebarWidgetType(new DebuggerWidgetType(QImage(":/debugger_icons/icons/debugger.svg"), "Debugger"));
 
 	// We must use the sequence of these four calls to do the job, otherwise the keybinding does not work.
 	// Though it really should be the case where I can specify the keybinding in the first registerAction() call.
 	UIAction::registerAction("Debugger\\Toggle Breakpoint");
 	UIAction::registerAction("Selection Target\\Debugger\\Toggle Breakpoint");
-	PluginCommand::RegisterForAddress("Debugger\\Toggle Breakpoint",
-            "Sets/clears breakpoint at right-clicked address",
-            BreakpointToggleCallback, BinaryViewValid);
+	PluginCommand::RegisterForAddress("Debugger\\Toggle Breakpoint", "Sets/clears breakpoint at right-clicked address",
+		BreakpointToggleCallback, BinaryViewValid);
 
 	UIAction::registerAction("Debugger\\Run To Here");
 	UIAction::registerAction("Selection Target\\Debugger\\Run To Here");
-	PluginCommand::RegisterForAddress("Debugger\\Run To Here",
-            "Run until the current address",
-            RunToHereCallback, ConnectedAndStopped);
+	PluginCommand::RegisterForAddress(
+		"Debugger\\Run To Here", "Run until the current address", RunToHereCallback, ConnectedAndStopped);
 
 	std::string actionName = "Run";
 	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
 	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
-			"Launch or resume the target",
-			[](BinaryView* view, uint64_t addr){
-					auto controller = DebuggerController::GetController(view);
-					if (!controller)
-						return;
-					if (controller->IsConnected() && (!controller->IsRunning()))
-					{
-						std::thread([=](){
-							controller->Go();
-						}).detach();
-					}
-					else if (!controller->IsConnected())
-					{
-						QString text = QString("The debugger is launching the target and preparing the debugger binary view. \n"
-							"This might take a while.");
-						ProgressTask* task = new ProgressTask(nullptr, "Launching", text, "",
-							[&](std::function<bool(size_t, size_t)> progress) {
-								controller->Launch();
+		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Launch or resume the target",
+		[](BinaryView* view, uint64_t addr) {
+			auto controller = DebuggerController::GetController(view);
+			if (!controller)
+				return;
+			if (controller->IsConnected() && (!controller->IsRunning()))
+			{
+				std::thread([=]() { controller->Go(); }).detach();
+			}
+			else if (!controller->IsConnected())
+			{
+				QString text = QString(
+					"The debugger is launching the target and preparing the debugger binary view. \n"
+					"This might take a while.");
+				ProgressTask* task =
+					new ProgressTask(nullptr, "Launching", text, "", [&](std::function<bool(size_t, size_t)> progress) {
+						controller->Launch();
 
-								// For now, this cant be canceled, as the Debugger model wasn't
-				                // designed with that in mind. This function below can return false if canceling is enabled
-								progress(1, 1);
-								return;
-							});
-						task->wait();
-					}
-				},
-			BinaryViewValid);
+						// For now, this cant be canceled, as the Debugger model wasn't
+				        // designed with that in mind. This function below can return false if canceling is enabled
+						progress(1, 1);
+						return;
+					});
+				task->wait();
+			}
+		},
+		BinaryViewValid);
 
 	actionName = "Step Into";
 	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
 	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
-			"Step into",
-			[](BinaryView* view, uint64_t){
-					auto controller = DebuggerController::GetController(view);
-					if (!controller)
-						return;
-					BNFunctionGraphType graphType = NormalFunctionGraph;
-					UIContext* context = UIContext::activeContext();
-					if (context && context->getCurrentView())
-						graphType = context->getCurrentView()->getILViewType();
-					std::thread([=](){
-						controller->StepInto(graphType);
-					}).detach();
-				},
-			ConnectedAndStopped);
+		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Step into",
+		[](BinaryView* view, uint64_t) {
+			auto controller = DebuggerController::GetController(view);
+			if (!controller)
+				return;
+			BNFunctionGraphType graphType = NormalFunctionGraph;
+			UIContext* context = UIContext::activeContext();
+			if (context && context->getCurrentView())
+				graphType = context->getCurrentView()->getILViewType();
+			std::thread([=]() { controller->StepInto(graphType); }).detach();
+		},
+		ConnectedAndStopped);
 
 	actionName = "Step Over";
 	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
 	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
-			"Step over",
-			[](BinaryView* view, uint64_t){
-					auto controller = DebuggerController::GetController(view);
-					if (!controller)
-						return;
-					BNFunctionGraphType graphType = NormalFunctionGraph;
-					UIContext* context = UIContext::activeContext();
-					if (context && context->getCurrentView())
-						graphType = context->getCurrentView()->getILViewType();
-					std::thread([=](){
-						controller->StepOver(graphType);
-					}).detach();
-				},
-			ConnectedAndStopped);
+		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Step over",
+		[](BinaryView* view, uint64_t) {
+			auto controller = DebuggerController::GetController(view);
+			if (!controller)
+				return;
+			BNFunctionGraphType graphType = NormalFunctionGraph;
+			UIContext* context = UIContext::activeContext();
+			if (context && context->getCurrentView())
+				graphType = context->getCurrentView()->getILViewType();
+			std::thread([=]() { controller->StepOver(graphType); }).detach();
+		},
+		ConnectedAndStopped);
 
 	actionName = "Step Return";
 	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
 	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
-			"Step return",
-			[](BinaryView* view, uint64_t){
-					auto controller = DebuggerController::GetController(view);
-					if (!controller)
-						return;
-					std::thread([=](){
-						controller->StepReturn();
-					}).detach();
-				},
-			ConnectedAndStopped);
+		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Step return",
+		[](BinaryView* view, uint64_t) {
+			auto controller = DebuggerController::GetController(view);
+			if (!controller)
+				return;
+			std::thread([=]() { controller->StepReturn(); }).detach();
+		},
+		ConnectedAndStopped);
 
 	actionName = "Pause";
 	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
 	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
-			"Pause the target",
-			[](BinaryView* view, uint64_t){
-					auto controller = DebuggerController::GetController(view);
-					if (!controller)
-						return;
-					std::thread([=](){
-						controller->Pause();
-					}).detach();
-				},
-			ConnectedAndRunning);
+		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Pause the target",
+		[](BinaryView* view, uint64_t) {
+			auto controller = DebuggerController::GetController(view);
+			if (!controller)
+				return;
+			std::thread([=]() { controller->Pause(); }).detach();
+		},
+		ConnectedAndRunning);
 
 	// actionName = "Make Code";
 	// UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
@@ -1328,9 +1357,8 @@ void GlobalDebuggerUI::InitializeUI()
 	// 	return "Make Code";
 	// });
 
-	// UIAction::setActionDisplayName("Selection Target\\Debugger\\Make Code", [](const UIActionContext& ctxt) -> QString{
-	// 	if (!ctxt.binaryView)
-	// 		return "Selection Target\\Debugger\\Make Code";
+	// UIAction::setActionDisplayName("Selection Target\\Debugger\\Make Code", [](const UIActionContext& ctxt) ->
+	// QString{ 	if (!ctxt.binaryView) 		return "Selection Target\\Debugger\\Make Code";
 
 	// 	if (ShowAsCode(ctxt.binaryView, ctxt.address))
 	// 		return "Selection Target\\Debugger\\Undefine Code";
@@ -1359,7 +1387,7 @@ DebuggerUI* DebuggerUI::CreateForViewFrame(ViewFrame* frame)
 		return g_viewFrameMap[frame].get();
 	}
 	g_viewFrameMap.try_emplace(frame, std::make_unique<DebuggerUI>(context, controller));
-	connect(frame, &QObject::destroyed, [&](QObject* obj){
+	connect(frame, &QObject::destroyed, [&](QObject* obj) {
 		auto* vf = (ViewFrame*)obj;
 		g_viewFrameMap.erase(vf);
 	});
@@ -1404,13 +1432,13 @@ GlobalDebuggerUI* GlobalDebuggerUI::GetForContext(UIContext* context)
 }
 
 
-void GlobalDebuggerUI::RemoveForContext(UIContext *context)
+void GlobalDebuggerUI::RemoveForContext(UIContext* context)
 {
 	g_contextMap.erase(context);
 }
 
 
-void GlobalDebuggerUI::SetActiveFrame(ViewFrame *frame)
+void GlobalDebuggerUI::SetActiveFrame(ViewFrame* frame)
 {
 	[[maybe_unused]] auto ui = DebuggerUI::CreateForViewFrame(frame);
 	m_status->notifyViewChanged(frame);

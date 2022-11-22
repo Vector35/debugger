@@ -20,8 +20,7 @@ limitations under the License.
 #include "debuggercommon.h"
 #include "../api/ffi.h"
 
-namespace BinaryNinjaDebugger
-{
+namespace BinaryNinjaDebugger {
 	typedef BNDebuggerEventType DebuggerEventType;
 	typedef BNDebugStopReason DebugStopReason;
 
@@ -36,8 +35,8 @@ namespace BinaryNinjaDebugger
 
 	struct ErrorEventData
 	{
-		std::string shortError{};
-		std::string error{};
+		std::string shortError {};
+		std::string error {};
 		void* data;
 	};
 
@@ -71,4 +70,4 @@ namespace BinaryNinjaDebugger
 		DebuggerEventType type;
 		DebuggerEventData data;
 	};
-};
+};  // namespace BinaryNinjaDebugger

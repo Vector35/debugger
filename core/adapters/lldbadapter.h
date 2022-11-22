@@ -17,16 +17,16 @@ limitations under the License.
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
 #ifdef WIN32
-#pragma warning(push)
-#pragma warning(disable: 4251)
-#include "lldb/API/LLDB.h"
-#pragma warning(pop)
+	#pragma warning(push)
+	#pragma warning(disable : 4251)
+	#include "lldb/API/LLDB.h"
+	#pragma warning(pop)
 #else
-#include "lldb/API/LLDB.h"
+	#include "lldb/API/LLDB.h"
 #endif
 
 namespace BinaryNinjaDebugger {
-	class LldbAdapter: public DebugAdapter
+	class LldbAdapter : public DebugAdapter
 	{
 	private:
 		lldb::SBDebugger m_debugger;
@@ -34,22 +34,20 @@ namespace BinaryNinjaDebugger {
 		lldb::SBProcess m_process;
 
 		bool m_targetActive;
-		std::vector<ModuleNameAndOffset> m_pendingBreakpoints{};
+		std::vector<ModuleNameAndOffset> m_pendingBreakpoints {};
 
 	public:
-
 		LldbAdapter(BinaryView* data);
 		virtual ~LldbAdapter();
 
-		bool Execute(const std::string &path, const LaunchConfigurations &configs) override;
+		bool Execute(const std::string& path, const LaunchConfigurations& configs) override;
 
-		bool
-		ExecuteWithArgs(const std::string &path, const std::string &args, const std::string &workingDir,
-						const LaunchConfigurations &configs) override;
+		bool ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
+			const LaunchConfigurations& configs) override;
 
 		bool Attach(std::uint32_t pid) override;
 
-		bool Connect(const std::string &server, std::uint32_t port) override;
+		bool Connect(const std::string& server, std::uint32_t port) override;
 
 		void Detach() override;
 
@@ -61,7 +59,7 @@ namespace BinaryNinjaDebugger {
 
 		uint32_t GetActiveThreadId() const override;
 
-		bool SetActiveThread(const DebugThread &thread) override;
+		bool SetActiveThread(const DebugThread& thread) override;
 
 		bool SetActiveThreadId(std::uint32_t tid) override;
 
@@ -69,9 +67,10 @@ namespace BinaryNinjaDebugger {
 
 		DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type) override;
 
-		virtual DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0) override;
+		virtual DebugBreakpoint AddBreakpoint(
+			const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0) override;
 
-		bool RemoveBreakpoint(const DebugBreakpoint &breakpoint) override;
+		bool RemoveBreakpoint(const DebugBreakpoint& breakpoint) override;
 
 		virtual bool RemoveBreakpoint(const ModuleNameAndOffset& address) override;
 
@@ -79,13 +78,13 @@ namespace BinaryNinjaDebugger {
 
 		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
 
-		DebugRegister ReadRegister(const std::string &reg) override;
+		DebugRegister ReadRegister(const std::string& reg) override;
 
-		bool WriteRegister(const std::string &reg, std::uintptr_t value) override;
+		bool WriteRegister(const std::string& reg, std::uintptr_t value) override;
 
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) override;
 
-		bool WriteMemory(std::uintptr_t address, const DataBuffer &buffer) override;
+		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) override;
 
 		std::vector<DebugModule> GetModuleList() override;
 
@@ -105,7 +104,7 @@ namespace BinaryNinjaDebugger {
 
 		DebugStopReason StepReturn() override;
 
-		std::string InvokeBackendCommand(const std::string &command) override;
+		std::string InvokeBackendCommand(const std::string& command) override;
 
 		uintptr_t GetInstructionOffset() override;
 
@@ -123,7 +122,7 @@ namespace BinaryNinjaDebugger {
 
 		bool SetProperty(const std::string& name, const Ref<Metadata>& value) override;
 
-		bool ConnectToDebugServer(const std::string &server, std::uint32_t port) override;
+		bool ConnectToDebugServer(const std::string& server, std::uint32_t port) override;
 
 		bool DisconnectDebugServer() override;
 
@@ -132,7 +131,7 @@ namespace BinaryNinjaDebugger {
 		void ApplyBreakpoints();
 	};
 
-	class LldbAdapterType: public DebugAdapterType
+	class LldbAdapterType : public DebugAdapterType
 	{
 	public:
 		LldbAdapterType();
@@ -144,4 +143,4 @@ namespace BinaryNinjaDebugger {
 
 
 	void InitLldbAdapterType();
-}
+}  // namespace BinaryNinjaDebugger

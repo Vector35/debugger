@@ -24,57 +24,55 @@ using namespace BinaryNinjaDebugger;
 static DebugProcessViewType* g_debugProcessViewType = nullptr;
 
 
-DebugProcessView::DebugProcessView(DebugProcessMemoryView* memory, BinaryView* parent):
-    BinaryView("Debugger", memory->GetFile(), memory)
+DebugProcessView::DebugProcessView(DebugProcessMemoryView* memory, BinaryView* parent) :
+	BinaryView("Debugger", memory->GetFile(), memory)
 {
-    m_arch = parent->GetDefaultArchitecture();
-    m_platform = parent->GetDefaultPlatform();
-    m_addressSize = parent->GetAddressSize();
+	m_arch = parent->GetDefaultArchitecture();
+	m_platform = parent->GetDefaultPlatform();
+	m_addressSize = parent->GetAddressSize();
 	auto bits = m_addressSize * 8;
 	if (bits >= 64)
 		m_length = UINT64_MAX;
 	else
 		m_length = (1ULL << bits) - 1;
 
-    m_entryPoints.push_back(parent->GetEntryPoint());
+	m_entryPoints.push_back(parent->GetEntryPoint());
 	m_endian = parent->GetDefaultEndianness();
 
-    // TODO: Read segments from debugger
-    uint64_t length = PerformGetLength();
-    AddAutoSegment(0, length, 0, length, SegmentReadable | SegmentWritable | SegmentExecutable);
-    AddAutoSection("Memory", 0, length);
+	// TODO: Read segments from debugger
+	uint64_t length = PerformGetLength();
+	AddAutoSegment(0, length, 0, length, SegmentReadable | SegmentWritable | SegmentExecutable);
+	AddAutoSection("Memory", 0, length);
 }
 
 
-DebugProcessView::~DebugProcessView()
-{
-}
+DebugProcessView::~DebugProcessView() {}
 
 
 bool DebugProcessView::Init()
 {
-    return true;
+	return true;
 }
 
 
 uint64_t DebugProcessView::PerformGetEntryPoint() const
 {
-    if (m_entryPoints.size() == 0)
-        return 0;
+	if (m_entryPoints.size() == 0)
+		return 0;
 
-    return m_entryPoints[0];
+	return m_entryPoints[0];
 }
 
 
 BNEndianness DebugProcessView::PerformGetDefaultEndianness() const
 {
-    return m_endian;
+	return m_endian;
 }
 
 
 size_t DebugProcessView::PerformGetAddressSize() const
 {
-    return m_addressSize;
+	return m_addressSize;
 }
 
 
@@ -84,10 +82,7 @@ uint64_t DebugProcessView::PerformGetLength() const
 }
 
 
-DebugProcessViewType::DebugProcessViewType():
-    BinaryViewType("Debugger", "Debugger")
-{
-}
+DebugProcessViewType::DebugProcessViewType() : BinaryViewType("Debugger", "Debugger") {}
 
 
 BinaryView* DebugProcessViewType::Create(BinaryView* data)
@@ -124,15 +119,14 @@ BinaryView* DebugProcessViewType::Parse(BinaryView* data)
 
 void BinaryNinjaDebugger::InitDebugProcessViewType()
 {
-    static DebugProcessViewType type;
-    BinaryViewType::Register(&type);
+	static DebugProcessViewType type;
+	BinaryViewType::Register(&type);
 	g_debugProcessViewType = &type;
 }
 
 
-
-DebugProcessMemoryView::DebugProcessMemoryView(BinaryView* parent):
-    BinaryView("Debugger memory", parent->GetFile(), parent)
+DebugProcessMemoryView::DebugProcessMemoryView(BinaryView* parent) :
+	BinaryView("Debugger memory", parent->GetFile(), parent)
 {
 	auto bits = parent->GetAddressSize() * 8;
 	if (bits >= 64)
@@ -140,10 +134,9 @@ DebugProcessMemoryView::DebugProcessMemoryView(BinaryView* parent):
 	else
 		m_length = (1ULL << bits) - 1;
 
-    m_controller = DebuggerController::GetController(parent);
-	m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
-		eventHandler(event);
-	}, "Debug Memory View");
+	m_controller = DebuggerController::GetController(parent);
+	m_eventCallback = m_controller->RegisterEventCallback(
+		[this](const DebuggerEvent& event) { eventHandler(event); }, "Debug Memory View");
 }
 
 
@@ -162,7 +155,7 @@ uint64_t DebugProcessMemoryView::PerformGetLength() const
 
 bool DebugProcessMemoryView::PerformIsOffsetBackedByFile(uint64_t offset)
 {
-    return offset <= m_length;
+	return offset <= m_length;
 }
 
 
@@ -190,13 +183,11 @@ size_t DebugProcessMemoryView::PerformWrite(uint64_t offset, const void* data, s
 void DebugProcessMemoryView::MarkDirty()
 {
 	// This hack will let the views (linear/graph) update its display
-	ExecuteOnMainThread([this](){
-		BinaryView::NotifyDataWritten(0, 1);
-	});
+	ExecuteOnMainThread([this]() { BinaryView::NotifyDataWritten(0, 1); });
 }
 
 
-void DebugProcessMemoryView::eventHandler(const DebuggerEvent &event)
+void DebugProcessMemoryView::eventHandler(const DebuggerEvent& event)
 {
 	switch (event.type)
 	{

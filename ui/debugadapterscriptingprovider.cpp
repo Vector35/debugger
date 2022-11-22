@@ -21,11 +21,7 @@ using namespace BinaryNinjaDebuggerAPI;
 
 static DebugAdapterScriptingProvider* g_debugAdapterScriptingProvider = nullptr;
 
-DebugAdapterScriptingProvider::DebugAdapterScriptingProvider():
-	ScriptingProvider("Debugger", "debugger")
-{
-
-}
+DebugAdapterScriptingProvider::DebugAdapterScriptingProvider() : ScriptingProvider("Debugger", "debugger") {}
 
 
 Ref<ScriptingInstance> DebugAdapterScriptingProvider::CreateNewInstance()
@@ -46,8 +42,7 @@ bool DebugAdapterScriptingProvider::InstallModules(const std::string& modules)
 }
 
 
-DebugAdapterScriptingInstance::DebugAdapterScriptingInstance(ScriptingProvider* provider):
-	ScriptingInstance(provider)
+DebugAdapterScriptingInstance::DebugAdapterScriptingInstance(ScriptingProvider* provider) : ScriptingInstance(provider)
 {
 	m_readyStatus = NotReadyForInput;
 }
@@ -124,7 +119,8 @@ BNScriptingProviderExecuteResult DebugAdapterScriptingInstance::ExecuteScriptInp
 }
 
 
-BNScriptingProviderExecuteResult DebugAdapterScriptingInstance::ExecuteScriptInputFromFilename(const std::string& filename)
+BNScriptingProviderExecuteResult DebugAdapterScriptingInstance::ExecuteScriptInputFromFilename(
+	const std::string& filename)
 {
 	return SuccessfulScriptExecution;
 }

@@ -38,44 +38,46 @@ limitations under the License.
 
 class DebuggerUI;
 
-class DebuggerWidget: public SidebarWidget
+class DebuggerWidget : public SidebarWidget
 {
-    Q_OBJECT;
+	Q_OBJECT;
 
-    ViewFrame* m_view;
-    DbgRef<DebuggerController> m_controller;
+	ViewFrame* m_view;
+	DbgRef<DebuggerController> m_controller;
 
-    QSplitter *m_splitter;
+	QSplitter* m_splitter;
 	QTabWidget* m_tabs;
 
-    DebugControlsWidget* m_controlsWidget;
+	DebugControlsWidget* m_controlsWidget;
 	DebugRegistersContainer* m_registersWidget;
 	DebugBreakpointsWidget* m_breakpointsWidget;
 
 	DebuggerUI* m_ui;
 
-    // void shouldBeVisible()
+	//void shouldBeVisible()
 
-    virtual void notifyFontChanged() override;
+	virtual void notifyFontChanged() override;
 
 private slots:
-	void uiEventHandler(const DebuggerEvent &event);
+	void uiEventHandler(const DebuggerEvent& event);
 
 public:
-    DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
-    ~DebuggerWidget();
+	DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
+	~DebuggerWidget();
 
 	void updateContent();
 };
 
 
-class DebuggerWidgetType : public SidebarWidgetType {
+class DebuggerWidgetType : public SidebarWidgetType
+{
 public:
-    DebuggerWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
+	DebuggerWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) {}
 
-    bool isInReferenceArea() const override { return false; }
+	bool isInReferenceArea() const override { return false; }
 
-    SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
-        return new DebuggerWidget("Debugger", frame, data);
-    }
+	SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override
+	{
+		return new DebuggerWidget("Debugger", frame, data);
+	}
 };

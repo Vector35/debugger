@@ -25,7 +25,7 @@ using namespace BinaryNinjaDebuggerAPI;
 
 constexpr size_t STATUS_STRING_MAX_LEN = 50;
 
-DebuggerStatusBarWidget::DebuggerStatusBarWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data):
+DebuggerStatusBarWidget::DebuggerStatusBarWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data) :
 	QWidget(parent), m_parent(parent), m_view(frame)
 {
 	m_debugger = DebuggerController::GetController(data);
@@ -43,9 +43,8 @@ DebuggerStatusBarWidget::DebuggerStatusBarWidget(QWidget* parent, ViewFrame* fra
 	setLayout(layout);
 
 	connect(this, &DebuggerStatusBarWidget::debuggerEvent, this, &DebuggerStatusBarWidget::updateStatusText);
-    m_debuggerEventCallback = m_debugger->RegisterEventCallback([this](const DebuggerEvent& event){
-		emit debuggerEvent(event);
-    }, "Status Bar");
+	m_debuggerEventCallback = m_debugger->RegisterEventCallback(
+		[this](const DebuggerEvent& event) { emit debuggerEvent(event); }, "Status Bar");
 }
 
 
@@ -55,7 +54,7 @@ DebuggerStatusBarWidget::~DebuggerStatusBarWidget()
 }
 
 
-void DebuggerStatusBarWidget::setStatusText(const QString &text)
+void DebuggerStatusBarWidget::setStatusText(const QString& text)
 {
 	setToolTip(text);
 	QString displayText = text;
@@ -67,7 +66,7 @@ void DebuggerStatusBarWidget::setStatusText(const QString &text)
 }
 
 
-void DebuggerStatusBarWidget::updateStatusText(const DebuggerEvent &event)
+void DebuggerStatusBarWidget::updateStatusText(const DebuggerEvent& event)
 {
 	switch (event.type)
 	{
@@ -99,7 +98,7 @@ void DebuggerStatusBarWidget::updateStatusText(const DebuggerEvent &event)
 		setStatusText("Connecting");
 		break;
 
-    case TargetStoppedEventType:
+	case TargetStoppedEventType:
 	{
 		DebugStopReason reason = event.data.targetStoppedData.reason;
 		const std::string reasonString = DebuggerController::GetDebugStopReasonString(reason);
@@ -114,13 +113,13 @@ void DebuggerStatusBarWidget::updateStatusText(const DebuggerEvent &event)
 		LogWarn("%s", exitInfo.c_str());
 		break;
 	}
-    case DetachedEventType:
+	case DetachedEventType:
 		setStatusText("Detached");
 		break;
-    case QuitDebuggingEventType:
+	case QuitDebuggingEventType:
 		setStatusText("Aborted");
 		break;
-    case BackEndDisconnectedEventType:
+	case BackEndDisconnectedEventType:
 		setStatusText("Backend disconnected");
 		break;
 	case ErrorEventType:
@@ -132,10 +131,9 @@ void DebuggerStatusBarWidget::updateStatusText(const DebuggerEvent &event)
 }
 
 
-DebuggerStatusBarContainer::DebuggerStatusBarContainer():
-	m_currentFrame(nullptr), m_consoleStack(new QStackedWidget)
+DebuggerStatusBarContainer::DebuggerStatusBarContainer() : m_currentFrame(nullptr), m_consoleStack(new QStackedWidget)
 {
-	auto *layout = new QVBoxLayout(this);
+	auto* layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
 	layout->addWidget(m_consoleStack);
 
@@ -163,7 +161,8 @@ void DebuggerStatusBarContainer::freeDebuggerConsoleForView(QObject* obj)
 	auto* vf = (ViewFrame*)obj;
 
 	// Confirm there is a record of this view.
-	if (!m_consoleMap.count(vf)) {
+	if (!m_consoleMap.count(vf))
+	{
 		LogWarn("Attempted to free DebuggerConsole for untracked view %p", obj);
 		return;
 	}
@@ -182,7 +181,8 @@ void DebuggerStatusBarContainer::notifyViewChanged(ViewFrame* frame)
 {
 	// The "no active view" message widget is always located at index 0. If the
 	// frame passed is nullptr, show it.
-	if (!frame) {
+	if (!frame)
+	{
 		m_consoleStack->setCurrentIndex(0);
 		m_currentFrame = nullptr;
 

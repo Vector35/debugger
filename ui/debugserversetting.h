@@ -29,19 +29,19 @@ limitations under the License.
 #include "debuggerapi.h"
 #include "uitypes.h"
 
-class DebugServerSettingsDialog: public QDialog
+class DebugServerSettingsDialog : public QDialog
 {
-    Q_OBJECT
+	Q_OBJECT
 
 private:
 	DebuggerControllerRef m_controller;
-    QComboBox* m_platformEntry;
-    QLineEdit* m_addressEntry;
-    QLineEdit* m_portEntry;
+	QComboBox* m_platformEntry;
+	QLineEdit* m_addressEntry;
+	QLineEdit* m_portEntry;
 
 public:
-    DebugServerSettingsDialog(QWidget* parent, DebuggerControllerRef controller);
+	DebugServerSettingsDialog(QWidget* parent, DebuggerControllerRef controller);
 
 private Q_SLOTS:
-    void apply();
+	void apply();
 };

@@ -27,8 +27,7 @@ limitations under the License.
 
 DECLARE_DEBUGGER_API_OBJECT(BNDebuggerState, DebuggerState);
 
-namespace BinaryNinjaDebugger
-{
+namespace BinaryNinjaDebugger {
 	class DebuggerState;
 
 	typedef BNDebugAdapterConnectionStatus DebugAdapterConnectionStatus;
@@ -135,8 +134,9 @@ namespace BinaryNinjaDebugger
 
 	class DebuggerController;
 
-	// DebuggerState is the core of the debugger. Every operation is sent to this class, which then sends it the backend.
-	// After the backend responds, it first updates its internal state, and then update the UI (if the UI is enabled).
+	// DebuggerState is the core of the debugger. Every operation is sent to this class, which then sends it the
+	// backend. After the backend responds, it first updates its internal state, and then update the UI (if the UI is
+	// enabled).
 	class DebuggerState
 	{
 		IMPLEMENT_DEBUGGER_API_OBJECT(BNDebuggerState);
@@ -164,7 +164,7 @@ namespace BinaryNinjaDebugger
 
 		Ref<Architecture> m_remoteArch;
 
-        bool m_connectedToDebugServer = false;
+		bool m_connectedToDebugServer = false;
 
 	public:
 		DebuggerState(Ref<BinaryView> data, DebuggerController* controller);
@@ -214,8 +214,8 @@ namespace BinaryNinjaDebugger
 		DebugAdapterConnectionStatus GetConnectionStatus() const { return m_connectionStatus; }
 		DebugAdapterTargetStatus GetTargetStatus() const { return m_targetStatus; }
 
-        bool IsConnectedToDebugServer() { return m_connectedToDebugServer; }
-        void SetConnectedToDebugServer(bool connected) { m_connectedToDebugServer = connected; }
+		bool IsConnectedToDebugServer() { return m_connectedToDebugServer; }
+		void SetConnectedToDebugServer(bool connected) { m_connectedToDebugServer = connected; }
 
 		// This is slightly different from the Python implementation. The caller does not need to first
 		// retrieve the DebuggerThreads object and then call SetActiveThread() on it. They call this function.
@@ -229,13 +229,10 @@ namespace BinaryNinjaDebugger
 		void ApplyBreakpoints();
 
 		void SetConnectionStatus(DebugAdapterConnectionStatus status) { m_connectionStatus = status; }
-		void SetExecutionStatus(DebugAdapterTargetStatus status)
-		{
-			m_targetStatus = status;
-		}
+		void SetExecutionStatus(DebugAdapterTargetStatus status) { m_targetStatus = status; }
 
 		std::vector<std::string> GetAvailableAdapters() { return m_availableAdapters; }
 
 		void SetAdapter(DebugAdapter* adapter) { m_adapter = adapter; }
 	};
-};
+};  // namespace BinaryNinjaDebugger

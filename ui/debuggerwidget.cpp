@@ -26,78 +26,76 @@ using namespace BinaryNinja;
 using namespace std;
 
 
-DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
-    SidebarWidget(name), m_view(view)
+DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewRef data) :
+	SidebarWidget(name), m_view(view)
 {
-    m_controller = DebuggerController::GetController(data);
+	m_controller = DebuggerController::GetController(data);
 
-    QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-    layout->setAlignment(Qt::AlignTop);
+	QVBoxLayout* layout = new QVBoxLayout(this);
+	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setSpacing(0);
+	layout->setAlignment(Qt::AlignTop);
 
-    m_splitter = new QSplitter(Qt::Vertical, this);
-    m_splitter->setChildrenCollapsible(true);
+	m_splitter = new QSplitter(Qt::Vertical, this);
+	m_splitter->setChildrenCollapsible(true);
 
-    m_controlsWidget = new DebugControlsWidget(this, "Controls", data);
+	m_controlsWidget = new DebugControlsWidget(this, "Controls", data);
 
 	m_tabs = new QTabWidget(this);
 
-    m_registersWidget = new DebugRegistersContainer(m_view, data, m_menu);
+	m_registersWidget = new DebugRegistersContainer(m_view, data, m_menu);
 	m_breakpointsWidget = new DebugBreakpointsWidget(m_view, data, m_menu);
 
 	m_tabs->addTab(m_registersWidget, "Registers");
 	m_tabs->addTab(m_breakpointsWidget, "Breakpoints");
 
-    m_splitter->addWidget(m_controlsWidget);
-    m_splitter->addWidget(m_tabs);
+	m_splitter->addWidget(m_controlsWidget);
+	m_splitter->addWidget(m_tabs);
 
-    layout->addWidget(m_splitter);
-    setLayout(layout);
+	layout->addWidget(m_splitter);
+	setLayout(layout);
 
 	m_ui = DebuggerUI::GetForViewFrame(view);
 	connect(m_ui, &DebuggerUI::debuggerEvent, this, &DebuggerWidget::uiEventHandler);
 }
 
 
-DebuggerWidget::~DebuggerWidget()
-{
-}
+DebuggerWidget::~DebuggerWidget() {}
 
 
 void DebuggerWidget::notifyFontChanged()
 {
-    LogWarn("font changed");
+	LogWarn("font changed");
 }
 
 
 void DebuggerWidget::updateContent()
 {
-    m_registersWidget->updateContent();
+	m_registersWidget->updateContent();
 }
 
 
-void DebuggerWidget::uiEventHandler(const DebuggerEvent &event)
+void DebuggerWidget::uiEventHandler(const DebuggerEvent& event)
 {
 	m_controlsWidget->updateButtons();
-    switch (event.type)
-    {
-    case TargetStoppedEventType:
-        // These updates ensure the widgets become empty after the target stops
-    case DetachedEventType:
-    case QuitDebuggingEventType:
-    case BackEndDisconnectedEventType:
+	switch (event.type)
+	{
+	case TargetStoppedEventType:
+		// These updates ensure the widgets become empty after the target stops
+	case DetachedEventType:
+	case QuitDebuggingEventType:
+	case BackEndDisconnectedEventType:
 	case ActiveThreadChangedEvent:
-    case RegisterChangedEvent:
+	case RegisterChangedEvent:
 		updateContent();
 		break;
-    case RelativeBreakpointAddedEvent:
-    case AbsoluteBreakpointAddedEvent:
-    case RelativeBreakpointRemovedEvent:
-    case AbsoluteBreakpointRemovedEvent:
+	case RelativeBreakpointAddedEvent:
+	case AbsoluteBreakpointAddedEvent:
+	case RelativeBreakpointRemovedEvent:
+	case AbsoluteBreakpointRemovedEvent:
 		m_breakpointsWidget->updateContent();
 		break;
-    default:
-        break;
-    }
+	default:
+		break;
+	}
 }

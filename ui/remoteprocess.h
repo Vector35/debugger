@@ -29,7 +29,7 @@ limitations under the License.
 #include "debuggerapi.h"
 #include "uitypes.h"
 
-class RemoteProcessSettingsDialog: public QDialog
+class RemoteProcessSettingsDialog : public QDialog
 {
 	Q_OBJECT
 

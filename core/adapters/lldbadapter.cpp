@@ -37,7 +37,7 @@ std::string lldbArchNameForBinaryNinjaArchName(std::string name)
 	return "";
 }
 
-LldbAdapter::LldbAdapter(BinaryView *data): DebugAdapter(data)
+LldbAdapter::LldbAdapter(BinaryView* data) : DebugAdapter(data)
 {
 	m_targetActive = false;
 	SBDebugger::Initialize();
@@ -53,35 +53,29 @@ LldbAdapter::LldbAdapter(BinaryView *data): DebugAdapter(data)
 }
 
 
-LldbAdapter::~LldbAdapter()
-{
-
-}
+LldbAdapter::~LldbAdapter() {}
 
 
-LldbAdapterType::LldbAdapterType(): DebugAdapterType("LLDB")
-{
-
-}
+LldbAdapterType::LldbAdapterType() : DebugAdapterType("LLDB") {}
 
 
-DebugAdapter* LldbAdapterType::Create(BinaryNinja::BinaryView *data)
+DebugAdapter* LldbAdapterType::Create(BinaryNinja::BinaryView* data)
 {
 #ifdef WIN32
-    // Since we have applied delay load on liblldb.dll, we must explicitly specify the directory the liblldb.dll is in
-    // and load it by ourselves. This is because the delay load only search for the directory that the binaryninja.exe
-    // is in, and it does not search for the directory where the user/default plugin is in, which is exactly where
-    // the liblldb.dll is located.
-    // As a note, the reason for us to apply delay load on liblldb.dll is that if we load it early, it will also load
-    // the system's default dbgeng dlls, which does not work for our dbgeng adapter.
-    if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
-        SetDllDirectoryA(GetUserPluginDirectory().c_str());
-    else
-        SetDllDirectoryA(GetBundledPluginDirectory().c_str());
+	// Since we have applied delay load on liblldb.dll, we must explicitly specify the directory the liblldb.dll is in
+	// and load it by ourselves. This is because the delay load only search for the directory that the binaryninja.exe
+	// is in, and it does not search for the directory where the user/default plugin is in, which is exactly where
+	// the liblldb.dll is located.
+	// As a note, the reason for us to apply delay load on liblldb.dll is that if we load it early, it will also load
+	// the system's default dbgeng dlls, which does not work for our dbgeng adapter.
+	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
+		SetDllDirectoryA(GetUserPluginDirectory().c_str());
+	else
+		SetDllDirectoryA(GetBundledPluginDirectory().c_str());
 
-    auto module = LoadLibraryA("liblldb.dll");
-    if (module == NULL)
-        throw std::runtime_error("fail to load liblldb");
+	auto module = LoadLibraryA("liblldb.dll");
+	if (module == NULL)
+		throw std::runtime_error("fail to load liblldb");
 #endif
 
 	// TODO: someone should free this.
@@ -89,41 +83,42 @@ DebugAdapter* LldbAdapterType::Create(BinaryNinja::BinaryView *data)
 }
 
 
-bool LldbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
+bool LldbAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
 {
-//	it does not matter what the BinaryViewType is -- as long as we can connect to it, it is fine.
+	//	it does not matter what the BinaryViewType is -- as long as we can connect to it, it is fine.
 	return true;
 }
 
 
-bool LldbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
+bool LldbAdapterType::CanConnect(BinaryNinja::BinaryView* data)
 {
-//	We can connect to remote lldb on any host system
-//  TODO: we need to create a new API to get available adapters, rather the DebugAdapterType::GetAvailableAdapters(),
-//  which returns true when either the CanConnect() and CanExecute() returns true.
-    return false;
+	//	We can connect to remote lldb on any host system
+	//  TODO: we need to create a new API to get available adapters, rather the
+	//  DebugAdapterType::GetAvailableAdapters(), which returns true when either the CanConnect() and CanExecute()
+	//  returns true.
+	return false;
 }
 
 
-bool LldbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
+bool LldbAdapterType::CanExecute(BinaryNinja::BinaryView* data)
 {
 	if (data->GetTypeName() == "PE" && data->GetDefaultArchitecture()->GetName() == "x86")
 		return false;
 
-    return true;
+	return true;
 }
 
 
 void BinaryNinjaDebugger::InitLldbAdapterType()
 {
-    static LldbAdapterType lldbType;
-    DebugAdapterType::Register(&lldbType);
+	static LldbAdapterType lldbType;
+	DebugAdapterType::Register(&lldbType);
 }
 
 
 void LldbAdapter::ApplyBreakpoints()
 {
-	for (const auto bp: m_pendingBreakpoints)
+	for (const auto bp : m_pendingBreakpoints)
 	{
 		AddBreakpoint(bp);
 	}
@@ -133,27 +128,29 @@ void LldbAdapter::ApplyBreakpoints()
 }
 
 
-bool LldbAdapter::Execute(const std::string & path, const LaunchConfigurations & configs)
+bool LldbAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
 	return ExecuteWithArgs(path, "", "", configs);
 }
 
 
-bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &args, const std::string &workingDir,
-					 const LaunchConfigurations &configs)
+bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
+	const LaunchConfigurations& configs)
 {
-    auto n = std::thread::hardware_concurrency();
-    if (n <= 2)
-    {
-        DebuggerEvent event;
-        event.type = ErrorEventType;
-        event.data.errorData.shortError = "Not enough CPU threads to launch the target.";
-        event.data.errorData.error = fmt::format("This CPU can only run {} threads. "
-                                                 "on Linux, the debugger is known to malfunction when the CPU cannot "
-                                                 "run at least 4 threads. We will fix this ASAP.", n);
-        PostDebuggerEvent(event);
-        return false;
-    }
+	auto n = std::thread::hardware_concurrency();
+	if (n <= 2)
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = "Not enough CPU threads to launch the target.";
+		event.data.errorData.error = fmt::format(
+			"This CPU can only run {} threads. "
+			"on Linux, the debugger is known to malfunction when the CPU cannot "
+			"run at least 4 threads. We will fix this ASAP.",
+			n);
+		PostDebuggerEvent(event);
+		return false;
+	}
 
 	m_debugger.SetAsync(false);
 
@@ -183,8 +180,8 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 		DebuggerEvent event;
 		event.type = ErrorEventType;
 		event.data.errorData.shortError = "LLDB failed to create target.";
-		event.data.errorData.error = fmt::format("LLDB Failed to create target with \"{}\"",
-												 err.GetCString() ? err.GetCString() : "");
+		event.data.errorData.error =
+			fmt::format("LLDB Failed to create target with \"{}\"", err.GetCString() ? err.GetCString() : "");
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -196,7 +193,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 	// target.
 	ApplyBreakpoints();
 
-	std::thread thread([&](){ EventListener(); });
+	std::thread thread([&]() { EventListener(); });
 	thread.detach();
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
@@ -216,14 +213,13 @@ bool LldbAdapter::ExecuteWithArgs(const std::string &path, const std::string &ar
 		launchCommand += (" -- " + args);
 
 	auto result = InvokeBackendCommand(launchCommand);
-    DebuggerEvent evt;
-    evt.type = BackendMessageEventType;
-    evt.data.messageData.message = result;
-    PostDebuggerEvent(evt);
+	DebuggerEvent evt;
+	evt.type = BackendMessageEventType;
+	evt.data.messageData.message = result;
+	PostDebuggerEvent(evt);
 
 	m_process = m_target.GetProcess();
-	if (!m_process.IsValid() || (m_process.GetState() != StateType::eStateStopped) ||
-            (result.rfind("error: ", 0) == 0))
+	if (!m_process.IsValid() || (m_process.GetState() != StateType::eStateStopped) || (result.rfind("error: ", 0) == 0))
 	{
 		auto it = result.find_last_not_of('\n');
 		result.erase(it + 1);
@@ -269,8 +265,8 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 		DebuggerEvent event;
 		event.type = ErrorEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
-		event.data.errorData.error = fmt::format("LLDB failed to attach to target with \"{}\"",
-												 err.GetCString() ? err.GetCString() : "");
+		event.data.errorData.error =
+			fmt::format("LLDB failed to attach to target with \"{}\"", err.GetCString() ? err.GetCString() : "");
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -278,7 +274,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	m_targetActive = true;
 	ApplyBreakpoints();
 
-	std::thread thread([&](){ EventListener(); });
+	std::thread thread([&]() { EventListener(); });
 	thread.detach();
 
 	SBAttachInfo info(pid);
@@ -288,8 +284,8 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 		DebuggerEvent event;
 		event.type = ErrorEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
-		event.data.errorData.error = fmt::format("LLDB Failed to attach to target with \"{}\"",
-												 err.GetCString() ? err.GetCString() : "");
+		event.data.errorData.error =
+			fmt::format("LLDB Failed to attach to target with \"{}\"", err.GetCString() ? err.GetCString() : "");
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -298,7 +294,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 }
 
 
-bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
+bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 {
 	m_debugger.SetAsync(false);
 
@@ -328,8 +324,8 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 		DebuggerEvent event;
 		event.type = ErrorEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to connect to target.");
-		event.data.errorData.error = fmt::format("LLDB failed to connect to target with \"{}\"",
-												 err.GetCString() ? err.GetCString() : "");
+		event.data.errorData.error =
+			fmt::format("LLDB failed to connect to target with \"{}\"", err.GetCString() ? err.GetCString() : "");
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -337,7 +333,7 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 	m_targetActive = true;
 	ApplyBreakpoints();
 
-	std::thread thread([&](){ EventListener(); });
+	std::thread thread([&]() { EventListener(); });
 	thread.detach();
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
@@ -354,8 +350,8 @@ bool LldbAdapter::Connect(const std::string & server, std::uint32_t port)
 		DebuggerEvent event;
 		event.type = ErrorEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to connect to target.");
-		event.data.errorData.error = fmt::format("LLDB Failed to connect to target with \"{}\"",
-												 err.GetCString() ? err.GetCString() : "");
+		event.data.errorData.error =
+			fmt::format("LLDB Failed to connect to target with \"{}\"", err.GetCString() ? err.GetCString() : "");
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -407,7 +403,7 @@ DebugThread LldbAdapter::GetActiveThread() const
 {
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())
-		return DebugThread{};
+		return DebugThread {};
 
 	auto tid = thread.GetThreadID();
 
@@ -436,7 +432,7 @@ uint32_t LldbAdapter::GetActiveThreadId() const
 }
 
 
-bool LldbAdapter::SetActiveThread(const DebugThread & thread)
+bool LldbAdapter::SetActiveThread(const DebugThread& thread)
 {
 	return SetActiveThreadId(thread.m_tid);
 }
@@ -488,7 +484,8 @@ std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
 				std::string frameFunctionName;
 				if (frame.GetFunctionName())
 					frameFunctionName = std::string(frame.GetFunctionName());
-				DebugFrame f(j, frame.GetPC(), frame.GetSP(), frame.GetFP(), frameFunctionName, startAddress, modulePath);
+				DebugFrame f(
+					j, frame.GetPC(), frame.GetSP(), frame.GetFP(), frameFunctionName, startAddress, modulePath);
 				result.push_back(f);
 			}
 			return result;
@@ -502,7 +499,7 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigne
 {
 	SBBreakpoint bp = m_target.BreakpointCreateByAddress(address);
 	if (!bp.IsValid())
-		return DebugBreakpoint{};
+		return DebugBreakpoint {};
 
 	return DebugBreakpoint(address, bp.GetID(), bp.IsEnabled());
 }
@@ -520,17 +517,17 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, u
 		uint64_t addr = address.offset + m_start;
 		std::string entryBreakpointCommand = fmt::format("b -s \"{}\" -a 0x{:x}", address.module, addr);
 		auto ret = InvokeBackendCommand(entryBreakpointCommand);
-        DebuggerEvent evt;
-        evt.type = BackendMessageEventType;
-        evt.data.messageData.message = ret;
-        PostDebuggerEvent(evt);
+		DebuggerEvent evt;
+		evt.type = BackendMessageEventType;
+		evt.data.messageData.message = ret;
+		PostDebuggerEvent(evt);
 	}
 
-	return DebugBreakpoint{};
+	return DebugBreakpoint {};
 }
 
 
-bool LldbAdapter::RemoveBreakpoint(const DebugBreakpoint & breakpoint)
+bool LldbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 {
 	// This is what gets called when we delete a breakpoint from the controller. Because the adapter would have no
 	// convenient way of mapping a ModuleNameAndOffset to an actual address, so the controller uses the address of the
@@ -615,9 +612,9 @@ std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 }
 
 
-DebugRegister LldbAdapter::ReadRegister(const std::string & name)
+DebugRegister LldbAdapter::ReadRegister(const std::string& name)
 {
-	DebugRegister result{};
+	DebugRegister result {};
 
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())
@@ -649,31 +646,31 @@ DebugRegister LldbAdapter::ReadRegister(const std::string & name)
 }
 
 
-bool LldbAdapter::WriteRegister(const std::string & name, std::uintptr_t value)
+bool LldbAdapter::WriteRegister(const std::string& name, std::uintptr_t value)
 {
-//	SBThread thread = m_process.GetSelectedThread();
-//	if (!thread.IsValid())
-//		return false;
-//
-//	size_t frameCount = thread.GetNumFrames();
-//	if (frameCount == 0)
-//		return false;
-//
-//	SBFrame frame = thread.GetFrameAtIndex(0);
-//	if (!frame.IsValid())
-//		return false;
-//
-//	SBValue reg = frame.FindRegister(name.c_str());
-//	if (!reg.IsValid())
-//		return false;
-//
-//	SBError error;
-//	bool ok = reg.SetValueFromCString(fmt::format("{}", value).c_str(), error);
-//	return ok && error.Success();
+	//	SBThread thread = m_process.GetSelectedThread();
+	//	if (!thread.IsValid())
+	//		return false;
+	//
+	//	size_t frameCount = thread.GetNumFrames();
+	//	if (frameCount == 0)
+	//		return false;
+	//
+	//	SBFrame frame = thread.GetFrameAtIndex(0);
+	//	if (!frame.IsValid())
+	//		return false;
+	//
+	//	SBValue reg = frame.FindRegister(name.c_str());
+	//	if (!reg.IsValid())
+	//		return false;
+	//
+	//	SBError error;
+	//	bool ok = reg.SetValueFromCString(fmt::format("{}", value).c_str(), error);
+	//	return ok && error.Success();
 
-//	An LLDB bug forces the use of a command rather than the above code via API. When one tries to update the pc value
-//	using the API, the GetInstructionOffset() function will still return the old value, making the current instruction
-// 	highlight inaccurate.
+	//	An LLDB bug forces the use of a command rather than the above code via API. When one tries to update the pc
+	//  value using the API, the GetInstructionOffset() function will still return the old value, making the current
+	//  instruction highlight inaccurate.
 	auto command = fmt::format("reg write {} 0x{:x}", name, value);
 	auto result = InvokeBackendCommand(command);
 	if ((result.rfind("error: ", 0) == 0))
@@ -693,12 +690,12 @@ DataBuffer LldbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 	{
 		result.Append(buffer, bytesRead);
 	}
-	delete []buffer;
+	delete[] buffer;
 	return result;
 }
 
 
-bool LldbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer & buffer)
+bool LldbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
 	SBError error;
 	size_t bytesWritten = m_process.WriteMemory(address, buffer.GetData(), buffer.GetLength(), error);
@@ -755,7 +752,7 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
 std::string LldbAdapter::GetTargetArchitecture()
 {
 	SBPlatform platform = m_target.GetPlatform();
-//	"arm64-apple-macosx" ==> "arm64"
+	//	"arm64-apple-macosx" ==> "arm64"
 	std::string triple(platform.GetTriple());
 	auto position = triple.find('-');
 	if (position == std::string::npos)
@@ -808,40 +805,34 @@ static DebugStopReason GetWindowsStopReasonFromExceptionDescription(const std::s
 
 static DebugStopReason GetUnixStopReasonFromExceptionDescription(const std::string exceptionString)
 {
-// Right now, the only we to distinguish different kind of exceptions is to parse this.
-// The API fails to give the correct exception code (as well as the associated address).
-//  Examples:
-//	EXC_BAD_ACCESS (code=2, address=0x16fdff57c)
-//	EXC_ARITHMETIC (code=EXC_I386_DIV, subcode=0x0)
-//  The description is generated in StopInfoMachException::GetDescription()
+	// Right now, the only we to distinguish different kind of exceptions is to parse this.
+	// The API fails to give the correct exception code (as well as the associated address).
+	//  Examples:
+	//	EXC_BAD_ACCESS (code=2, address=0x16fdff57c)
+	//	EXC_ARITHMETIC (code=EXC_I386_DIV, subcode=0x0)
+	//  The description is generated in StopInfoMachException::GetDescription()
 
-//	static std::unordered_map<std::uint64_t, DebugStopReason> metype_lookup =
-//	{
-//		{1, DebugStopReason::AccessViolation},
-//		{2, DebugStopReason::IllegalInstruction},
-//		{3, DebugStopReason::Calculation},
-//		{4, DebugStopReason::ExcEmulation},
-//		{5, DebugStopReason::ExcSoftware},
-//		{6, DebugStopReason::Breakpoint},
-//		{7, DebugStopReason::ExcSyscall},
-//		{8, DebugStopReason::ExcMachSyscall},
-//		{9, DebugStopReason::ExcRpcAlert},
-//		{10, DebugStopReason::ExcCrash}
-//	};
+	//	static std::unordered_map<std::uint64_t, DebugStopReason> metype_lookup =
+	//	{
+	//		{1, DebugStopReason::AccessViolation},
+	//		{2, DebugStopReason::IllegalInstruction},
+	//		{3, DebugStopReason::Calculation},
+	//		{4, DebugStopReason::ExcEmulation},
+	//		{5, DebugStopReason::ExcSoftware},
+	//		{6, DebugStopReason::Breakpoint},
+	//		{7, DebugStopReason::ExcSyscall},
+	//		{8, DebugStopReason::ExcMachSyscall},
+	//		{9, DebugStopReason::ExcRpcAlert},
+	//		{10, DebugStopReason::ExcCrash}
+	//	};
 
-	static std::unordered_map<std::string, DebugStopReason> mestring_lookup =
-	{
+	static std::unordered_map<std::string, DebugStopReason> mestring_lookup = {
 		{"EXC_BAD_ACCESS", DebugStopReason::AccessViolation},
-		{"EXC_BAD_INSTRUCTION", DebugStopReason::IllegalInstruction},
-		{"EXC_ARITHMETIC", DebugStopReason::Calculation},
-		{"EXC_EMULATION", DebugStopReason::ExcEmulation},
-		{"EXC_SOFTWARE", DebugStopReason::ExcSoftware},
-		{"EXC_BREAKPOINT", DebugStopReason::Breakpoint},
-		{"EXC_SYSCALL", DebugStopReason::ExcSyscall},
-		{"EXC_MACH_SYSCALL", DebugStopReason::ExcMachSyscall},
-		{"EXC_RPC_ALERT", DebugStopReason::ExcRpcAlert},
-		{"EXC_CRASH", DebugStopReason::ExcCrash}
-	};
+		{"EXC_BAD_INSTRUCTION", DebugStopReason::IllegalInstruction}, {"EXC_ARITHMETIC", DebugStopReason::Calculation},
+		{"EXC_EMULATION", DebugStopReason::ExcEmulation}, {"EXC_SOFTWARE", DebugStopReason::ExcSoftware},
+		{"EXC_BREAKPOINT", DebugStopReason::Breakpoint}, {"EXC_SYSCALL", DebugStopReason::ExcSyscall},
+		{"EXC_MACH_SYSCALL", DebugStopReason::ExcMachSyscall}, {"EXC_RPC_ALERT", DebugStopReason::ExcRpcAlert},
+		{"EXC_CRASH", DebugStopReason::ExcCrash}};
 
 	if (auto pos = exceptionString.find(' '); pos != std::string::npos)
 	{
@@ -858,37 +849,37 @@ static DebugStopReason GetUnixStopReasonFromExceptionDescription(const std::stri
 static DebugStopReason GetStopReasonFromLinuxSignal(uint64_t signal)
 {
 	static std::unordered_map<std::uint64_t, DebugStopReason> signal_lookup = {
-		{ 1 , DebugStopReason::SignalHup },
-		{ 2 , DebugStopReason::SignalInt },
-		{ 3 , DebugStopReason::SignalQuit },
-		{ 4 , DebugStopReason::IllegalInstruction },
-		{ 5 , DebugStopReason::SingleStep },
-		{ 6 , DebugStopReason::SignalAbrt },
-		{ 7 , DebugStopReason::SignalEmt },
-		{ 8 , DebugStopReason::SignalFpe },
-		{ 9 , DebugStopReason::SignalKill },
-		{ 10, DebugStopReason::SignalBus },
-		{ 11, DebugStopReason::SignalSegv },
-		{ 12, DebugStopReason::SignalSys },
-		{ 13, DebugStopReason::SignalPipe },
-		{ 14, DebugStopReason::SignalAlrm },
-		{ 15, DebugStopReason::SignalTerm },
-		{ 16, DebugStopReason::SignalUrg },
-		{ 17, DebugStopReason::SignalStop },
-		{ 18, DebugStopReason::SignalTstp },
-		{ 19, DebugStopReason::SignalCont },
-		{ 20, DebugStopReason::SignalChld },
-		{ 21, DebugStopReason::SignalTtin },
-		{ 22, DebugStopReason::SignalTtou },
-		{ 23, DebugStopReason::SignalIo },
-		{ 24, DebugStopReason::SignalXcpu },
-		{ 25, DebugStopReason::SignalXfsz },
-		{ 26, DebugStopReason::SignalVtalrm },
-		{ 27, DebugStopReason::SignalProf },
-		{ 28, DebugStopReason::SignalWinch },
-		{ 29, DebugStopReason::SignalInfo },
-		{ 30, DebugStopReason::SignalUsr1 },
-		{ 31, DebugStopReason::SignalUsr2 },
+		{1, DebugStopReason::SignalHup},
+		{2, DebugStopReason::SignalInt},
+		{3, DebugStopReason::SignalQuit},
+		{4, DebugStopReason::IllegalInstruction},
+		{5, DebugStopReason::SingleStep},
+		{6, DebugStopReason::SignalAbrt},
+		{7, DebugStopReason::SignalEmt},
+		{8, DebugStopReason::SignalFpe},
+		{9, DebugStopReason::SignalKill},
+		{10, DebugStopReason::SignalBus},
+		{11, DebugStopReason::SignalSegv},
+		{12, DebugStopReason::SignalSys},
+		{13, DebugStopReason::SignalPipe},
+		{14, DebugStopReason::SignalAlrm},
+		{15, DebugStopReason::SignalTerm},
+		{16, DebugStopReason::SignalUrg},
+		{17, DebugStopReason::SignalStop},
+		{18, DebugStopReason::SignalTstp},
+		{19, DebugStopReason::SignalCont},
+		{20, DebugStopReason::SignalChld},
+		{21, DebugStopReason::SignalTtin},
+		{22, DebugStopReason::SignalTtou},
+		{23, DebugStopReason::SignalIo},
+		{24, DebugStopReason::SignalXcpu},
+		{25, DebugStopReason::SignalXfsz},
+		{26, DebugStopReason::SignalVtalrm},
+		{27, DebugStopReason::SignalProf},
+		{28, DebugStopReason::SignalWinch},
+		{29, DebugStopReason::SignalInfo},
+		{30, DebugStopReason::SignalUsr1},
+		{31, DebugStopReason::SignalUsr2},
 	};
 
 	if (signal_lookup.find(signal) != signal_lookup.end())
@@ -898,7 +889,6 @@ static DebugStopReason GetStopReasonFromLinuxSignal(uint64_t signal)
 
 	return DebugStopReason::UnknownReason;
 }
-
 
 
 DebugStopReason LldbAdapter::StopReason()
@@ -971,7 +961,7 @@ uint64_t LldbAdapter::ExitCode()
 
 bool LldbAdapter::BreakInto()
 {
-//	Since we are in Sync mode, if we call m_process.Stop(), it will hang
+	//	Since we are in Sync mode, if we call m_process.Stop(), it will hang
 	m_process.SendAsyncInterrupt();
 	return true;
 }
@@ -1028,32 +1018,32 @@ DebugStopReason LldbAdapter::StepOver()
 
 DebugStopReason LldbAdapter::StepReturn()
 {
-//	The following method, calling StepOutOfFrame(), will receive an unexpected lldb::eStateRunning event when the
-//	operation failed, e.g., due to inability to place the breakpoint at the return address. This seems to be a LLDB
-//	bug. For now, we just run the `finish` command instead.
+	//	The following method, calling StepOutOfFrame(), will receive an unexpected lldb::eStateRunning event when the
+	//	operation failed, e.g., due to inability to place the breakpoint at the return address. This seems to be a LLDB
+	//	bug. For now, we just run the `finish` command instead.
 
-//#ifndef WIN32
-//	SBThread thread = m_process.GetSelectedThread();
-//	if (!thread.IsValid())
-//		return DebugStopReason::InternalError;
-//
-//	size_t frameCount = thread.GetNumFrames();
-//	if (frameCount > 0)
-//	{
-//		SBFrame frame = thread.GetFrameAtIndex(0);
-//		SBError error;
-//		thread.StepOutOfFrame(frame, error);
-//		if (error.Fail())
-//			return DebugStopReason::InternalError;
-//	}
-//#else
+	//#ifndef WIN32
+	//	SBThread thread = m_process.GetSelectedThread();
+	//	if (!thread.IsValid())
+	//		return DebugStopReason::InternalError;
+	//
+	//	size_t frameCount = thread.GetNumFrames();
+	//	if (frameCount > 0)
+	//	{
+	//		SBFrame frame = thread.GetFrameAtIndex(0);
+	//		SBError error;
+	//		thread.StepOutOfFrame(frame, error);
+	//		if (error.Fail())
+	//			return DebugStopReason::InternalError;
+	//	}
+	//#else
 	InvokeBackendCommand("finish");
-//#endif
+	//#endif
 	return StopReason();
 }
 
 
-std::string LldbAdapter::InvokeBackendCommand(const std::string & command)
+std::string LldbAdapter::InvokeBackendCommand(const std::string& command)
 {
 	SBCommandInterpreter interpreter = m_debugger.GetCommandInterpreter();
 	SBCommandReturnObject commandResult;
@@ -1148,7 +1138,7 @@ void LldbAdapter::FixActiveThread()
 			if (m_process.SetSelectedThread(thread))
 			{
 				LogDebug("Active thread is overriden from 0x%" PRIx64 " to 0x%" PRIX64, activeThread.GetThreadID(),
-						 thread.GetThreadID());
+					thread.GetThreadID());
 				break;
 			}
 		}
@@ -1172,8 +1162,7 @@ void LldbAdapter::EventListener()
 
 	listener.StartListeningForEventClass(m_debugger, SBCommandInterpreter::GetBroadcasterClass(),
 		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousErrorData |
-		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousOutputData
-		);
+		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousOutputData);
 
 	bool done = false;
 	while (!done)
@@ -1241,12 +1230,12 @@ void LldbAdapter::EventListener()
 					break;
 				}
 			}
-			else if ((event_type & lldb::SBProcess::eBroadcastBitSTDOUT) ||
-				(event_type & lldb::SBProcess::eBroadcastBitSTDERR))
+			else if ((event_type & lldb::SBProcess::eBroadcastBitSTDOUT)
+				|| (event_type & lldb::SBProcess::eBroadcastBitSTDERR))
 			{
 				char buffer[1024];
 				size_t count = 0;
-				std::string output{};
+				std::string output {};
 				// TODO: we should differentiate stdout and stderr
 				while ((count = process.GetSTDOUT(buffer, 1024)) > 0)
 					output += std::string(buffer, count);
@@ -1368,18 +1357,17 @@ void LldbAdapter::EventListener()
 
 	listener.StopListeningForEventClass(m_debugger, SBCommandInterpreter::GetBroadcasterClass(),
 		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousErrorData |
-		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousOutputData
-		);
+		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousOutputData);
 }
 
 
-void LldbAdapter::WriteStdin(const std::string &msg)
+void LldbAdapter::WriteStdin(const std::string& msg)
 {
 	m_process.PutSTDIN(msg.c_str(), msg.length());
 }
 
 
-Ref<Metadata> LldbAdapter::GetProperty(const std::string &name)
+Ref<Metadata> LldbAdapter::GetProperty(const std::string& name)
 {
 	if (name == "current_platform")
 	{
@@ -1414,7 +1402,7 @@ Ref<Metadata> LldbAdapter::GetProperty(const std::string &name)
 }
 
 
-bool LldbAdapter::SetProperty(const std::string &name, const Ref<Metadata> &value)
+bool LldbAdapter::SetProperty(const std::string& name, const Ref<Metadata>& value)
 {
 	if (name == "current_platform")
 	{
@@ -1441,7 +1429,7 @@ bool LldbAdapter::SetProperty(const std::string &name, const Ref<Metadata> &valu
 }
 
 
-bool LldbAdapter::ConnectToDebugServer(const std::string &server, std::uint32_t port)
+bool LldbAdapter::ConnectToDebugServer(const std::string& server, std::uint32_t port)
 {
 	auto platform = m_debugger.GetSelectedPlatform();
 	auto connectionString = fmt::format("connect://{}:{}", server, port);

@@ -28,50 +28,50 @@ limitations under the License.
 using namespace BinaryNinjaDebuggerAPI;
 
 
-class DebugControlsWidget: public QToolBar
+class DebugControlsWidget : public QToolBar
 {
-    Q_OBJECT
+	Q_OBJECT
 
 private:
-    std::string m_name;
-    DbgRef<DebuggerController> m_controller;
+	std::string m_name;
+	DbgRef<DebuggerController> m_controller;
 
 	QAction* m_actionRun;
 	QAction* m_actionAttachPid;
-    QAction* m_actionRestart;
-    QAction* m_actionQuit;
-    QAction* m_actionDetach;
+	QAction* m_actionRestart;
+	QAction* m_actionQuit;
+	QAction* m_actionDetach;
 	QAction* m_actionPause;
-    QAction* m_actionResume;
-    QAction* m_actionStepInto;
-    QAction* m_actionStepOver;
-    QAction* m_actionStepReturn;
+	QAction* m_actionResume;
+	QAction* m_actionStepInto;
+	QAction* m_actionStepOver;
+	QAction* m_actionStepReturn;
 
-    bool canExec();
-    bool canConnect();
+	bool canExec();
+	bool canConnect();
 
 	QIcon getColoredIcon(const QString& iconPath, const QColor& color);
 
 public:
-    DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data);
-    virtual ~DebugControlsWidget();
+	DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data);
+	virtual ~DebugControlsWidget();
 
-    void setStartingEnabled(bool enabled);
-    void setStoppingEnabled(bool enabled);
-    void setSteppingEnabled(bool enabled);
+	void setStartingEnabled(bool enabled);
+	void setStoppingEnabled(bool enabled);
+	void setSteppingEnabled(bool enabled);
 
 	void updateButtons();
 
 public Q_SLOTS:
 	void performLaunch();
 	void performAttachPID();
-    void performRestart();
-    void performQuit();
-    void performDetach();
+	void performRestart();
+	void performQuit();
+	void performDetach();
 
 	void performPause();
-    void performResume();
-    void performStepInto();
-    void performStepOver();
-    void performStepReturn();
+	void performResume();
+	void performStepInto();
+	void performStepOver();
+	void performStepReturn();
 };

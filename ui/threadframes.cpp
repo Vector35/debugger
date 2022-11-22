@@ -22,16 +22,15 @@ limitations under the License.
 
 constexpr int SortFilterRole = Qt::UserRole + 1;
 
-FrameItem::FrameItem(int index, std::string module, std::string function, uint64_t pc, uint64_t sp, uint64_t fp):
+FrameItem::FrameItem(int index, std::string module, std::string function, uint64_t pc, uint64_t sp, uint64_t fp) :
 	m_frameIndex(index), m_module(module), m_function(function), m_pc(pc), m_sp(sp), m_fp(fp)
-{
-}
+{}
 
 
 bool FrameItem::operator==(const FrameItem& other) const
 {
-	return (m_module == other.module()) && (m_function == other.function()) && (m_pc == other.pc()) &&
-		(m_fp == other.fp()) && (m_sp == other.sp());
+	return (m_module == other.module()) && (m_function == other.function()) && (m_pc == other.pc())
+		&& (m_fp == other.fp()) && (m_sp == other.sp());
 }
 
 
@@ -63,15 +62,12 @@ bool FrameItem::operator<(const FrameItem& other) const
 }
 
 
-ThreadFramesListModel::ThreadFramesListModel(QWidget* parent, ViewFrame* view):
+ThreadFramesListModel::ThreadFramesListModel(QWidget* parent, ViewFrame* view) :
 	QAbstractTableModel(parent), m_view(view)
-{
-}
+{}
 
 
-ThreadFramesListModel::~ThreadFramesListModel()
-{
-}
+ThreadFramesListModel::~ThreadFramesListModel() {}
 
 
 FrameItem ThreadFramesListModel::getRow(int row) const
@@ -83,7 +79,7 @@ FrameItem ThreadFramesListModel::getRow(int row) const
 }
 
 
-QModelIndex ThreadFramesListModel::index(int row, int column, const QModelIndex &) const
+QModelIndex ThreadFramesListModel::index(int row, int column, const QModelIndex&) const
 {
 	if (row < 0 || (size_t)row >= m_items.size() || column >= columnCount())
 	{
@@ -99,7 +95,7 @@ QVariant ThreadFramesListModel::data(const QModelIndex& index, int role) const
 	if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
 		return QVariant();
 
-	FrameItem *item = static_cast<FrameItem*>(index.internalPointer());
+	FrameItem* item = static_cast<FrameItem*>(index.internalPointer());
 	if (!item)
 		return QVariant();
 
@@ -193,7 +189,7 @@ void ThreadFramesListModel::updateRows(std::vector<BinaryNinjaDebuggerAPI::Debug
 	beginResetModel();
 
 	std::vector<FrameItem> newRows;
-	for (const DebugFrame& frame: frames)
+	for (const DebugFrame& frame : frames)
 	{
 		uint64_t offset = frame.m_pc - frame.m_functionStart;
 		QString funcName = QString::asprintf("%s + 0x%" PRIx64, frame.m_functionName.c_str(), offset);
@@ -206,15 +202,14 @@ void ThreadFramesListModel::updateRows(std::vector<BinaryNinjaDebuggerAPI::Debug
 }
 
 
-ThreadFramesItemDelegate::ThreadFramesItemDelegate(QWidget* parent):
-	QStyledItemDelegate(parent)
+ThreadFramesItemDelegate::ThreadFramesItemDelegate(QWidget* parent) : QStyledItemDelegate(parent)
 {
 	updateFonts();
 }
 
 
-void ThreadFramesItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option,
-	const QModelIndex& idx) const
+void ThreadFramesItemDelegate::paint(
+	QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const
 {
 	painter->setFont(m_font);
 
@@ -279,7 +274,7 @@ QSize ThreadFramesItemDelegate::sizeHint(const QStyleOptionViewItem& option, con
 	return QSize(totalWidth, m_charHeight + 2);
 }
 
-ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data):
+ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data) :
 	QWidget(parent), m_view(frame)
 {
 	m_debugger = DebuggerController::GetController(data);
@@ -295,7 +290,7 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 
 	m_threadFramesTable = new QTableView(this);
 	m_model = new ThreadFramesListModel(m_threadFramesTable, frame);
-	
+
 	m_threadFramesTable->setModel(m_model);
 	m_threadFramesTable->setShowGrid(false);
 
@@ -323,26 +318,28 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 
 	connect(m_threadFramesTable, &QTableView::doubleClicked, this, &ThreadFramesWidget::onDoubleClicked);
 
-	connect(m_threadList, &QComboBox::activated, [&](int index){
+	connect(m_threadList, &QComboBox::activated, [&](int index) {
 		uint32_t tid = m_threadList->currentData().toInt();
 		uint32_t currentTid = m_debugger->GetActiveThread().m_tid;
 		if (tid != currentTid)
 			m_debugger->SetActiveThread(tid);
 	});
 
-	m_debuggerEventCallback = m_debugger->RegisterEventCallback([&](const DebuggerEvent& event){
-		switch (event.type)
-		{
-		case TargetStoppedEventType:
-		case ActiveThreadChangedEvent:
-		case RegisterChangedEvent:
-		{
-			updateContent();
-		}
-		default:
-			break;
-		}
-	}, "Thread Frame");
+	m_debuggerEventCallback = m_debugger->RegisterEventCallback(
+		[&](const DebuggerEvent& event) {
+			switch (event.type)
+			{
+			case TargetStoppedEventType:
+			case ActiveThreadChangedEvent:
+			case RegisterChangedEvent:
+			{
+				updateContent();
+			}
+			default:
+				break;
+			}
+		},
+		"Thread Frame");
 
 	updateContent();
 }
@@ -359,10 +356,11 @@ void ThreadFramesWidget::updateContent()
 {
 	std::vector<DebugThread> threads = m_debugger->GetThreads();
 	m_threadList->clear();
-	for (const DebugThread thread: threads)
+	for (const DebugThread thread : threads)
 	{
-		m_threadList->addItem(QString::asprintf("0x%" PRIx64 " @ 0x%" PRIx64, (uint64_t)thread.m_tid, (uint64_t)thread.m_rip),
-							  QVariant(thread.m_tid));
+		m_threadList->addItem(
+			QString::asprintf("0x%" PRIx64 " @ 0x%" PRIx64, (uint64_t)thread.m_tid, (uint64_t)thread.m_rip),
+			QVariant(thread.m_tid));
 	}
 
 	DebugThread activeThread = m_debugger->GetActiveThread();
@@ -419,10 +417,10 @@ void ThreadFramesWidget::onDoubleClicked()
 }
 
 
-GlobalThreadFramesContainer::GlobalThreadFramesContainer(const QString& title) : GlobalAreaWidget(title),
-	m_currentFrame(nullptr), m_consoleStack(new QStackedWidget)
+GlobalThreadFramesContainer::GlobalThreadFramesContainer(const QString& title) :
+	GlobalAreaWidget(title), m_currentFrame(nullptr), m_consoleStack(new QStackedWidget)
 {
-	auto *layout = new QVBoxLayout(this);
+	auto* layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
 	layout->addWidget(m_consoleStack);
 
@@ -450,7 +448,8 @@ void GlobalThreadFramesContainer::freeDebuggerConsoleForView(QObject* obj)
 	auto* vf = (ViewFrame*)obj;
 
 	// Confirm there is a record of this view.
-	if (!m_consoleMap.count(vf)) {
+	if (!m_consoleMap.count(vf))
+	{
 		LogWarn("Attempted to free DebuggerConsole for untracked view %p", obj);
 		return;
 	}
@@ -469,7 +468,8 @@ void GlobalThreadFramesContainer::notifyViewChanged(ViewFrame* frame)
 {
 	// The "no active view" message widget is always located at index 0. If the
 	// frame passed is nullptr, show it.
-	if (!frame) {
+	if (!frame)
+	{
 		m_consoleStack->setCurrentIndex(0);
 		m_currentFrame = nullptr;
 

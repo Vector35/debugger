@@ -21,11 +21,7 @@ using namespace BinaryNinjaDebuggerAPI;
 
 static TargetScriptingProvider* g_targetScriptingProvider = nullptr;
 
-TargetScriptingProvider::TargetScriptingProvider():
-	ScriptingProvider("Target", "target")
-{
-
-}
+TargetScriptingProvider::TargetScriptingProvider() : ScriptingProvider("Target", "target") {}
 
 
 Ref<ScriptingInstance> TargetScriptingProvider::CreateNewInstance()
@@ -46,8 +42,7 @@ bool TargetScriptingProvider::InstallModules(const std::string& modules)
 }
 
 
-TargetScriptingInstance::TargetScriptingInstance(ScriptingProvider* provider):
-	ScriptingInstance(provider)
+TargetScriptingInstance::TargetScriptingInstance(ScriptingProvider* provider) : ScriptingInstance(provider)
 {
 	m_readyStatus = NotReadyForInput;
 }

@@ -19,16 +19,16 @@ using namespace BinaryNinjaDebugger;
 
 void Semaphore::Release()
 {
-    std::unique_lock<decltype(m_mutex)> lock(m_mutex);
-    ++m_count;
-    m_cv.notify_one();
+	std::unique_lock<decltype(m_mutex)> lock(m_mutex);
+	++m_count;
+	m_cv.notify_one();
 }
 
 
 void Semaphore::Wait()
 {
-    std::unique_lock<decltype(m_mutex)> lock(m_mutex);
-    while (!m_count)
-        m_cv.wait(lock);
-    --m_count;
+	std::unique_lock<decltype(m_mutex)> lock(m_mutex);
+	while (!m_count)
+		m_cv.wait(lock);
+	--m_count;
 }

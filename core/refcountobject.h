@@ -23,21 +23,17 @@ limitations under the License.
 #include <vector>
 #include <atomic>
 
-namespace BinaryNinjaDebugger
-{
+namespace BinaryNinjaDebugger {
 	class DbgRefCountObject
 	{
-//		CORE_ALLOCATED_CLASS(RefCountObject)
+		//CORE_ALLOCATED_CLASS(RefCountObject)
 
 	public:
 		std::atomic<int> m_refs;
-		DbgRefCountObject(): m_refs(0) {}
+		DbgRefCountObject() : m_refs(0) {}
 		virtual ~DbgRefCountObject() {}
 
-		virtual void AddRef()
-		{
-			m_refs.fetch_add(1);
-		}
+		virtual void AddRef() { m_refs.fetch_add(1); }
 
 		virtual void Release()
 		{
@@ -45,15 +41,9 @@ namespace BinaryNinjaDebugger
 				delete this;
 		}
 
-		virtual void AddAPIRef()
-		{
-			AddRef();
-		}
+		virtual void AddAPIRef() { AddRef(); }
 
-		virtual void ReleaseAPIRef()
-		{
-			Release();
-		}
+		virtual void ReleaseAPIRef() { Release(); }
 	};
 
 
@@ -66,11 +56,9 @@ namespace BinaryNinjaDebugger
 #endif
 
 	public:
-		DbgRef<T>(): m_obj(NULL)
-		{
-		}
+		DbgRef<T>() : m_obj(NULL) {}
 
-		DbgRef<T>(T* obj): m_obj(obj)
+		DbgRef<T>(T* obj) : m_obj(obj)
 		{
 			if (m_obj)
 			{
@@ -81,7 +69,7 @@ namespace BinaryNinjaDebugger
 			}
 		}
 
-		DbgRef<T>(const DbgRef<T>& obj): m_obj(obj.m_obj)
+		DbgRef<T>(const DbgRef<T>& obj) : m_obj(obj.m_obj)
 		{
 			if (m_obj)
 			{
@@ -231,14 +219,14 @@ namespace BinaryNinjaDebugger
 		return obj->GetAPIObject();
 	}
 
-//	template <class T>
-//	static typename T::APIHandle DBG_API_OBJECT_REF(const APIRef<T>& obj)
-//	{
-//		if (!obj)
-//			return nullptr;
-//		obj->AddAPIRef();
-//		return obj->GetAPIObject();
-//	}
+	//template <class T>
+	//static typename T::APIHandle DBG_API_OBJECT_REF(const APIRef<T>& obj)
+	//{
+	//	if (!obj)
+	//		return nullptr;
+	//	obj->AddAPIRef();
+	//	return obj->GetAPIObject();
+	//}
 
 	template <class T>
 	static T* DBG_API_OBJECT_NEW_REF(T* obj)
@@ -255,4 +243,4 @@ namespace BinaryNinjaDebugger
 			obj->object->ReleaseAPIRef();
 	}
 
-};
+};  // namespace BinaryNinjaDebugger

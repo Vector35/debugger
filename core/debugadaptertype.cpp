@@ -17,8 +17,8 @@ limitations under the License.
 #include "debugadaptertype.h"
 
 #ifdef WIN32
-#include "./adapters/dbgengadapter.h"
-#include "./adapters/lldbadapter.h"
+	#include "./adapters/dbgengadapter.h"
+	#include "./adapters/lldbadapter.h"
 #endif
 
 #include "debuggerexceptions.h"
@@ -27,39 +27,38 @@ limitations under the License.
 using namespace BinaryNinjaDebugger;
 
 
-DebugAdapterType::DebugAdapterType(const std::string& name): m_name(name)
+DebugAdapterType::DebugAdapterType(const std::string& name) : m_name(name)
 {
 	INIT_DEBUGGER_API_OBJECT();
 }
 
 
-void DebugAdapterType::Register(DebugAdapterType *type)
+void DebugAdapterType::Register(DebugAdapterType* type)
 {
-    m_types.push_back(type);
+	m_types.push_back(type);
 }
 
 
-DebugAdapterType* DebugAdapterType::GetByName(const std::string &name)
+DebugAdapterType* DebugAdapterType::GetByName(const std::string& name)
 {
-    for (DebugAdapterType* adapter: m_types)
-    {
-        if (adapter->GetName() == name)
-            return adapter;
-    }
-    return nullptr;
+	for (DebugAdapterType* adapter : m_types)
+	{
+		if (adapter->GetName() == name)
+			return adapter;
+	}
+	return nullptr;
 }
 
 
 std::vector<std::string> DebugAdapterType::GetAvailableAdapters(BinaryNinja::BinaryView* data)
 {
 	std::vector<std::string> result;
-	for (DebugAdapterType* adapter: m_types)
+	for (DebugAdapterType* adapter : m_types)
 	{
 		// The adapter must be:
 		// 1. valid for the data
 		// 2. can connect/execute on the current host system
-		if (adapter->IsValidForData(data) &&
-			(adapter->CanConnect(data) || adapter->CanExecute(data)))
+		if (adapter->IsValidForData(data) && (adapter->CanConnect(data) || adapter->CanExecute(data)))
 		{
 			result.push_back(adapter->GetName());
 		}
@@ -68,11 +67,11 @@ std::vector<std::string> DebugAdapterType::GetAvailableAdapters(BinaryNinja::Bin
 }
 
 
-std::string DebugAdapterType::GetBestAdapterForCurrentSystem(BinaryNinja::BinaryView *data)
+std::string DebugAdapterType::GetBestAdapterForCurrentSystem(BinaryNinja::BinaryView* data)
 {
 #ifdef WIN32
-    return "DBGENG";
+	return "DBGENG";
 #else
-    return "LLDB";
+	return "LLDB";
 #endif
 }

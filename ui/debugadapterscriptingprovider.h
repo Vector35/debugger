@@ -20,7 +20,7 @@ limitations under the License.
 #include "debuggerapi.h"
 #include "uitypes.h"
 
-class DebugAdapterScriptingInstance: public ScriptingInstance
+class DebugAdapterScriptingInstance : public ScriptingInstance
 {
 private:
 	Ref<BinaryView> m_data;
@@ -39,7 +39,7 @@ public:
 };
 
 
-class DebugAdapterScriptingProvider: public ScriptingProvider
+class DebugAdapterScriptingProvider : public ScriptingProvider
 {
 public:
 	DebugAdapterScriptingProvider();

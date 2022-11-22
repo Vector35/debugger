@@ -34,119 +34,126 @@ using namespace BinaryNinjaDebuggerAPI;
 class BreakpointItem
 {
 private:
-    // TODO: this field actually means whether the breakpoint is active in the target. E.g., when the target is not
-    // running, it will be false. However, we do need to support disable/enable breakpoints while the target is running
-    bool m_enabled;
-    ModuleNameAndOffset m_location;
-    uint64_t m_address;
+	// TODO: this field actually means whether the breakpoint is active in the target. E.g., when the target is not
+	// running, it will be false. However, we do need to support disable/enable breakpoints while the target is running
+	bool m_enabled;
+	ModuleNameAndOffset m_location;
+	uint64_t m_address;
 
 public:
-    BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t remoteAddress);
-    bool enabled() const { return m_enabled; }
-    ModuleNameAndOffset location() const { return m_location; }
-    uint64_t address() const { return m_address; }
-    bool operator==(const BreakpointItem& other) const;
-    bool operator!=(const BreakpointItem& other) const;
-    bool operator<(const BreakpointItem& other) const;
+	BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t remoteAddress);
+	bool enabled() const { return m_enabled; }
+	ModuleNameAndOffset location() const { return m_location; }
+	uint64_t address() const { return m_address; }
+	bool operator==(const BreakpointItem& other) const;
+	bool operator!=(const BreakpointItem& other) const;
+	bool operator<(const BreakpointItem& other) const;
 };
 
 Q_DECLARE_METATYPE(BreakpointItem);
 
 
-class DebugBreakpointsListModel: public QAbstractTableModel
+class DebugBreakpointsListModel : public QAbstractTableModel
 {
-    Q_OBJECT
+	Q_OBJECT
 
 protected:
-    QWidget* m_owner;
-    ViewFrame* m_view;
-    std::vector<BreakpointItem> m_items;
+	QWidget* m_owner;
+	ViewFrame* m_view;
+	std::vector<BreakpointItem> m_items;
 
 public:
-    enum ColumnHeaders
-    {
-//        EnabledColumn,
-        LocationColumn,
-        AddressColumn,
-    };
+	enum ColumnHeaders
+	{
+		//EnabledColumn,
+		LocationColumn,
+		AddressColumn,
+	};
 
-    DebugBreakpointsListModel(QWidget* parent, ViewFrame* view);
-    virtual ~DebugBreakpointsListModel();
+	DebugBreakpointsListModel(QWidget* parent, ViewFrame* view);
+	virtual ~DebugBreakpointsListModel();
 
-    virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
+	virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
 
-    virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override
-        { (void) parent; return (int)m_items.size(); }
-    virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 2; }
-    BreakpointItem getRow(int row) const;
-    virtual QVariant data(const QModelIndex& i, int role) const override;
-    virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
-    void updateRows(std::vector<BreakpointItem> newRows);
+	virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override
+	{
+		(void)parent;
+		return (int)m_items.size();
+	}
+	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override
+	{
+		(void)parent;
+		return 2;
+	}
+	BreakpointItem getRow(int row) const;
+	virtual QVariant data(const QModelIndex& i, int role) const override;
+	virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
+	void updateRows(std::vector<BreakpointItem> newRows);
 };
 
 
 class DebugBreakpointsItemDelegate : public QStyledItemDelegate
 {
-    Q_OBJECT
+	Q_OBJECT
 
-    QFont m_font;
-    int m_baseline, m_charWidth, m_charHeight, m_charOffset;
+	QFont m_font;
+	int m_baseline, m_charWidth, m_charHeight, m_charOffset;
 
 public:
-    DebugBreakpointsItemDelegate(QWidget* parent);
-    void updateFonts();
-    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const;
+	DebugBreakpointsItemDelegate(QWidget* parent);
+	void updateFonts();
+	void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const;
 };
 
 
 class DebugBreakpointsWidget : public QWidget
 {
-    Q_OBJECT
+	Q_OBJECT
 
-    ViewFrame* m_view;
-    DbgRef<DebuggerController> m_controller;
+	ViewFrame* m_view;
+	DbgRef<DebuggerController> m_controller;
 
-    QTableView* m_table;
-    DebugBreakpointsListModel* m_model;
-    DebugBreakpointsItemDelegate* m_delegate;
+	QTableView* m_table;
+	DebugBreakpointsListModel* m_model;
+	DebugBreakpointsItemDelegate* m_delegate;
 
-    QPoint m_last_selected_point{};
-    QHeaderView* m_horizontal_header;
-    QHeaderView* m_vertical_header;
-    QAction* m_remove_action;
-    QAction* m_jump_action;
+	QPoint m_last_selected_point {};
+	QHeaderView* m_horizontal_header;
+	QHeaderView* m_vertical_header;
+	QAction* m_remove_action;
+	QAction* m_jump_action;
 
-    UIActionHandler m_actionHandler;
-    ContextMenuManager* m_contextMenuManager;
-    Menu* m_menu;
+	UIActionHandler m_actionHandler;
+	ContextMenuManager* m_contextMenuManager;
+	Menu* m_menu;
 
 	bool selectionNotEmpty();
 
-    // void shouldBeVisible()
-//    virtual void notifyFontChanged() override;
+	//void shouldBeVisible()
+	//virtual void notifyFontChanged() override;
 
-    virtual void contextMenuEvent(QContextMenuEvent* event) override;
+	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
 public:
-    DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu);
-    ~DebugBreakpointsWidget();
+	DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu);
+	~DebugBreakpointsWidget();
 
-    void uiEventHandler(const DebuggerEvent& event);
+	void uiEventHandler(const DebuggerEvent& event);
 
 private slots:
-    void jump();
-    void remove();
-    void onDoubleClicked();
+	void jump();
+	void remove();
+	void onDoubleClicked();
 
 public slots:
-    void updateContent();
+	void updateContent();
 };
 
 
 class DebuggerUI;
-class BreakpointSideBarWidget: public SidebarWidget
+class BreakpointSideBarWidget : public SidebarWidget
 {
-Q_OBJECT;
+	Q_OBJECT;
 
 	ViewFrame* m_view;
 
@@ -157,7 +164,7 @@ Q_OBJECT;
 	virtual void notifyFontChanged() override;
 
 private slots:
-	void uiEventHandler(const DebuggerEvent &event);
+	void uiEventHandler(const DebuggerEvent& event);
 
 public:
 	BreakpointSideBarWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
@@ -167,8 +174,8 @@ public:
 };
 
 
-//class BreakpointWidgetType : public SidebarWidgetType {
-//public:
+// class BreakpointWidgetType : public SidebarWidgetType {
+// public:
 //	BreakpointWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
 //
 //	bool isInReferenceArea() const override { return false; }
@@ -176,4 +183,4 @@ public:
 //	SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
 //		return new BreakpointSideBarWidget("Breakpoint", frame, data);
 //	}
-//};
+// };
