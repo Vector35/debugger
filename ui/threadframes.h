@@ -180,6 +180,7 @@ private slots:
     void onDoubleClicked();
 	void suspendThread();
 	void resumeThread();
+    void makeItSoloThread();
 	void copy();
 
 };

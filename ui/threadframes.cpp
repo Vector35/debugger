@@ -364,6 +364,25 @@ void ThreadFramesWidget::contextMenuEvent(QContextMenuEvent* event)
     m_contextMenuManager->show(m_menu, &m_actionHandler);
 }
 
+void ThreadFramesWidget::makeItSoloThread()
+{
+	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	FrameItem *item = static_cast<FrameItem *>(sel[0].internalPointer());
+	if (!item)
+		return;
+
+	auto threads = m_debugger->GetThreads();
+	for (const DebugThread &thread : threads)
+	{
+		if (thread.m_tid != item->tid())
+		{
+			m_debugger->SuspendThread(thread.m_tid);
+		}
+	}
+}
 
 void ThreadFramesWidget::resumeThread()
 {
@@ -526,6 +545,11 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([=]() { resumeThread(); }, [=]() { return canSuspendOrResume(); }));
+
+	actionName = QString::fromStdString("Make It Solo Thread");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(actionName, UIAction([=]() { makeItSoloThread(); }, [=]() { return canSuspendOrResume(); }));
 
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&](){ copy(); }, [&]() { return selectionNotEmpty(); }));
