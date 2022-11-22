@@ -29,80 +29,76 @@ using namespace std;
 
 constexpr int SortFilterRole = Qt::UserRole + 1;
 
-DebugRegisterItem::DebugRegisterItem(const string& name, uint64_t value, DebugRegisterValueStatus valueStatus,
-    const string& hint, bool used):
-    m_name(name), m_value(value), m_valueStatus(valueStatus), m_hint(hint), m_used(used)
-{
-}
+DebugRegisterItem::DebugRegisterItem(
+	const string& name, uint64_t value, DebugRegisterValueStatus valueStatus, const string& hint, bool used) :
+	m_name(name),
+	m_value(value), m_valueStatus(valueStatus), m_hint(hint), m_used(used)
+{}
 
 
 bool DebugRegisterItem::operator==(const DebugRegisterItem& other) const
 {
-    return (m_name == other.name()) && (m_value == other.value()) && (m_valueStatus == other.valueStatus()) &&
-        (m_hint == other.hint() && (m_used == other.used()));
+	return (m_name == other.name()) && (m_value == other.value()) && (m_valueStatus == other.valueStatus())
+		&& (m_hint == other.hint() && (m_used == other.used()));
 }
 
 
 bool DebugRegisterItem::operator!=(const DebugRegisterItem& other) const
 {
-    return !(*this == other);
+	return !(*this == other);
 }
 
 
 bool DebugRegisterItem::operator<(const DebugRegisterItem& other) const
 {
-    if (m_name < other.name())
-        return true;
-    else if (m_name > other.name())
-        return false;
-    else if (m_value < other.value())
-        return true;
-    else if (m_value > other.value())
-        return false;
-    else if (m_valueStatus < other.valueStatus())
-        return true;
-    else if (m_valueStatus > other.valueStatus())
-        return false;
+	if (m_name < other.name())
+		return true;
+	else if (m_name > other.name())
+		return false;
+	else if (m_value < other.value())
+		return true;
+	else if (m_value > other.value())
+		return false;
+	else if (m_valueStatus < other.valueStatus())
+		return true;
+	else if (m_valueStatus > other.valueStatus())
+		return false;
 	else if (m_hint < other.hint())
 		return true;
 	else if (m_hint > other.hint())
 		return false;
-    return m_used < other.used();
+	return m_used < other.used();
 }
 
 
-DebugRegistersListModel::DebugRegistersListModel(QWidget* parent, DebuggerControllerRef controller, ViewFrame* view):
-    QAbstractTableModel(parent), m_controller(controller), m_view(view)
-{   
-}
+DebugRegistersListModel::DebugRegistersListModel(QWidget* parent, DebuggerControllerRef controller, ViewFrame* view) :
+	QAbstractTableModel(parent), m_controller(controller), m_view(view)
+{}
 
 
-DebugRegistersListModel::~DebugRegistersListModel()
+DebugRegistersListModel::~DebugRegistersListModel() {}
+
+
+Qt::ItemFlags DebugRegistersListModel::flags(const QModelIndex& index) const
 {
-}
+	Qt::ItemFlags flag = QAbstractTableModel::flags(index);
+	if (index.column() == DebugRegistersListModel::ValueColumn)
+		flag |= Qt::ItemIsEditable;
 
-
-
-Qt::ItemFlags DebugRegistersListModel::flags(const QModelIndex &index) const
-{
-    Qt::ItemFlags flag = QAbstractTableModel::flags(index);
-    if (index.column() == DebugRegistersListModel::ValueColumn)
-        flag |= Qt::ItemIsEditable;
-
-    return flag;
+	return flag;
 }
 
 
 DebugRegisterItem DebugRegistersListModel::getRow(int row) const
 {
-    if ((size_t)row >= m_items.size())
+	if ((size_t)row >= m_items.size())
 		throw std::runtime_error("row index out-of-bound");
 
-    return m_items[row];
+	return m_items[row];
 }
 
 
-QModelIndex DebugRegistersListModel::index(int row, int column, const QModelIndex &) const
+QModelIndex DebugRegistersListModel::index(int row, int column, const QModelIndex&) const
 {
 	if (row < 0 || (size_t)row >= m_items.size() || column >= columnCount())
 	{
@@ -115,75 +111,75 @@ QModelIndex DebugRegistersListModel::index(int row, int column, const QModelInde
 
 QVariant DebugRegistersListModel::data(const QModelIndex& index, int role) const
 {
-    if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
+	if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
 		return QVariant();
 
-	DebugRegisterItem *item = static_cast<DebugRegisterItem*>(index.internalPointer());
+	DebugRegisterItem* item = static_cast<DebugRegisterItem*>(index.internalPointer());
 	if (!item)
 		return QVariant();
 
 
-    if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole) && (role != SortFilterRole))
-        return QVariant();
+	if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole) && (role != SortFilterRole))
+		return QVariant();
 
-    switch (index.column())
-    {
-    case DebugRegistersListModel::NameColumn:
-    {
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)item->name().size());
+	switch (index.column())
+	{
+	case DebugRegistersListModel::NameColumn:
+	{
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)item->name().size());
 
 		if (role == SortFilterRole)
 			return QVariant(QString::fromStdString(item->name()));
 
-        QList<QVariant> line;
-        line.push_back(getThemeColor(RegisterColor).rgba());
+		QList<QVariant> line;
+		line.push_back(getThemeColor(RegisterColor).rgba());
 		line.push_back(QString::fromStdString(item->name()));
 		return QVariant(line);
-    }
-    case DebugRegistersListModel::ValueColumn:
-    {
-        // TODO: We need better alignment for values
-        uint64_t value = item->value();
-        QString valueStr = QString::asprintf("0x%" PRIx64, value);
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)valueStr.size());
+	}
+	case DebugRegistersListModel::ValueColumn:
+	{
+		// TODO: We need better alignment for values
+		uint64_t value = item->value();
+		QString valueStr = QString::asprintf("0x%" PRIx64, value);
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)valueStr.size());
 
 		if (role == SortFilterRole)
 			return QVariant(valueStr);
 
-        QList<QVariant> line;
-        switch (item->valueStatus())
-        {
-        case DebugRegisterValueNormal:
-            line.push_back(getThemeColor(AddressColor).rgba());
-            break;
-        case DebugRegisterValueChanged:
-            line.push_back(getThemeColor(RedStandardHighlightColor).rgba());
-            break;
-        case DebugRegisterValueModified:
-            line.push_back(getThemeColor(RedStandardHighlightColor).rgba());
-            break;
-        }
+		QList<QVariant> line;
+		switch (item->valueStatus())
+		{
+		case DebugRegisterValueNormal:
+			line.push_back(getThemeColor(AddressColor).rgba());
+			break;
+		case DebugRegisterValueChanged:
+			line.push_back(getThemeColor(RedStandardHighlightColor).rgba());
+			break;
+		case DebugRegisterValueModified:
+			line.push_back(getThemeColor(RedStandardHighlightColor).rgba());
+			break;
+		}
 
 		line.push_back(valueStr);
 		return QVariant(line);
-    }
-    case DebugRegistersListModel::HintColumn:
-    {
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)item->hint().size());
+	}
+	case DebugRegistersListModel::HintColumn:
+	{
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)item->hint().size());
 
 		if (role == SortFilterRole)
 			return QVariant(QString::fromStdString(item->hint()));
 
-        QList<QVariant> line;
-        line.push_back(getThemeColor(StringColor).rgba());
+		QList<QVariant> line;
+		line.push_back(getThemeColor(StringColor).rgba());
 		line.push_back(QString::fromStdString(item->hint()));
 		return QVariant(line);
-    }
-    }
-    return QVariant();
+	}
+	}
+	return QVariant();
 }
 
 
@@ -197,12 +193,12 @@ QVariant DebugRegistersListModel::headerData(int column, Qt::Orientation orienta
 
 	switch (column)
 	{
-		case DebugRegistersListModel::NameColumn:
-			return "Name";
-		case DebugRegistersListModel::ValueColumn:
-			return "Value";
-		case DebugRegistersListModel::HintColumn:
-			return "Hint";
+	case DebugRegistersListModel::NameColumn:
+		return "Name";
+	case DebugRegistersListModel::ValueColumn:
+		return "Value";
+	case DebugRegistersListModel::HintColumn:
+		return "Hint";
 	}
 	return QVariant();
 }
@@ -228,7 +224,7 @@ std::set<std::string> DebugRegistersListModel::getUsedRegisterNames()
 		return usedRegisterNames;
 
 	auto regs = llil->GetRegisters();
-	for (const auto reg: regs)
+	for (const auto reg : regs)
 	{
 		const auto name = arch->GetRegisterName(reg);
 		usedRegisterNames.insert(name);
@@ -243,91 +239,91 @@ void DebugRegistersListModel::updateRows(std::vector<DebugRegister> newRows)
 	const auto usedRegisterNames = getUsedRegisterNames();
 	bool emptyUsedRegisters = usedRegisterNames.size() == 0;
 
-    // TODO: This might cause performance problems. We can instead only update the chained registers.
-    // However, the cost for that is we need to attach an index to each item and sort accordingly
-    beginResetModel();
-    std::map<std::string, uint64_t> oldRegValues;
-    for (const DebugRegisterItem& item: m_items)
-        oldRegValues[item.name()] = item.value();
+	// TODO: This might cause performance problems. We can instead only update the chained registers.
+	// However, the cost for that is we need to attach an index to each item and sort accordingly
+	beginResetModel();
+	std::map<std::string, uint64_t> oldRegValues;
+	for (const DebugRegisterItem& item : m_items)
+		oldRegValues[item.name()] = item.value();
 
-    m_items.clear();
-    if (newRows.size() == 0)
-    {
-        endResetModel();
-        return;
-    }
+	m_items.clear();
+	if (newRows.size() == 0)
+	{
+		endResetModel();
+		return;
+	}
 
-    for (const DebugRegister& reg: newRows)
-    {
-        auto iter = oldRegValues.find(reg.m_name);
-        DebugRegisterValueStatus status;
-        if (iter == oldRegValues.end())
-        {
-            status = DebugRegisterValueNormal;
-        }
-        else
-        {
-            if (iter->second == reg.m_value)
-            {
-                status = DebugRegisterValueNormal;
-            }
-            else
-            {
-                status = DebugRegisterValueChanged;
-            }
-        }
+	for (const DebugRegister& reg : newRows)
+	{
+		auto iter = oldRegValues.find(reg.m_name);
+		DebugRegisterValueStatus status;
+		if (iter == oldRegValues.end())
+		{
+			status = DebugRegisterValueNormal;
+		}
+		else
+		{
+			if (iter->second == reg.m_value)
+			{
+				status = DebugRegisterValueNormal;
+			}
+			else
+			{
+				status = DebugRegisterValueChanged;
+			}
+		}
 
 		// If we get an empty list of used registers, we wish to show all regs
 		bool used = (emptyUsedRegisters || (usedRegisterNames.find(reg.m_name) != usedRegisterNames.end()));
-        m_items.emplace_back(reg.m_name, reg.m_value, status, reg.m_hint, used);
-    }
-    endResetModel();
+		m_items.emplace_back(reg.m_name, reg.m_value, status, reg.m_hint, used);
+	}
+	endResetModel();
 }
 
 
-bool DebugRegistersListModel::setData(const QModelIndex &index, const QVariant &value, int role)
+bool DebugRegistersListModel::setData(const QModelIndex& index, const QVariant& value, int role)
 {
-    if ((flags(index) & Qt::ItemIsEditable) != Qt::ItemIsEditable)
-        return false;
-
-    QString valueStr = value.toString();
-    if (valueStr.size() == 0)
-        return false;
-
-    if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
+	if ((flags(index) & Qt::ItemIsEditable) != Qt::ItemIsEditable)
 		return false;
 
-	DebugRegisterItem *item = static_cast<DebugRegisterItem*>(index.internalPointer());
+	QString valueStr = value.toString();
+	if (valueStr.size() == 0)
+		return false;
+
+	if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
+		return false;
+
+	DebugRegisterItem* item = static_cast<DebugRegisterItem*>(index.internalPointer());
 	if (!item)
-        return false;
+		return false;
 
 	uint64_t currentValue = item->value();
 
 	uint64_t newValue = 0;
 	std::string errorString;
-	if (!BinaryView::ParseExpression(m_controller->GetLiveView(), valueStr.toStdString(), newValue, currentValue, errorString))
+	if (!BinaryView::ParseExpression(
+			m_controller->GetLiveView(), valueStr.toStdString(), newValue, currentValue, errorString))
 		return false;
 
-    if (newValue == currentValue)
-        return false;
+	if (newValue == currentValue)
+		return false;
 
-    if (!m_controller->SetRegisterValue(item->name(), newValue))
-        return false;
+	if (!m_controller->SetRegisterValue(item->name(), newValue))
+		return false;
 
 	emit dataChanged(index, index);
-    return true;
+	return true;
 }
 
 
-DebugRegistersItemDelegate::DebugRegistersItemDelegate(QWidget* parent):
-    QStyledItemDelegate(parent)
+DebugRegistersItemDelegate::DebugRegistersItemDelegate(QWidget* parent) : QStyledItemDelegate(parent)
 {
-    updateFonts();
+	updateFonts();
 }
 
 
-void DebugRegistersItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option,
-	const QModelIndex& idx) const
+void DebugRegistersItemDelegate::paint(
+	QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const
 {
 	painter->setFont(m_font);
 
@@ -377,22 +373,22 @@ void DebugRegistersItemDelegate::updateFonts()
 
 QSize DebugRegistersItemDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const
 {
-    auto totalWidth = (idx.data(Qt::SizeHintRole).toInt() + 2) * m_charWidth + 4;
-    return QSize(totalWidth, m_charHeight + 2);
+	auto totalWidth = (idx.data(Qt::SizeHintRole).toInt() + 2) * m_charWidth + 4;
+	return QSize(totalWidth, m_charHeight + 2);
 }
 
 
-void DebugRegistersItemDelegate::setEditorData(QWidget *editor, const QModelIndex &index) const
+void DebugRegistersItemDelegate::setEditorData(QWidget* editor, const QModelIndex& index) const
 {
-    if (index.column() == DebugRegistersListModel::ValueColumn)
-    {
-        QLineEdit* lineEditor = static_cast<QLineEdit*>(editor);
-        if (lineEditor)
-        {
-            // index.data() returns a pair of color and QString
-            lineEditor->setText(index.data().toList()[1].toString());
-        }
-    }
+	if (index.column() == DebugRegistersListModel::ValueColumn)
+	{
+		QLineEdit* lineEditor = static_cast<QLineEdit*>(editor);
+		if (lineEditor)
+		{
+			// index.data() returns a pair of color and QString
+			lineEditor->setText(index.data().toList()[1].toString());
+		}
+	}
 }
 
 
@@ -403,41 +399,40 @@ static void updateColumnWidths(QTableView* table)
 }
 
 
-DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, Menu* menu):
-    m_view(view)
+DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, Menu* menu) : m_view(view)
 {
-    m_controller = DebuggerController::GetController(data);
+	m_controller = DebuggerController::GetController(data);
 
-    m_table = new QTableView(this);
-    m_model = new DebugRegistersListModel(m_table, m_controller, view);
+	m_table = new QTableView(this);
+	m_model = new DebugRegistersListModel(m_table, m_controller, view);
 	m_filter = new DebugRegisterFilterProxyModel(this);
 	m_filter->setSourceModel(m_model);
 	m_table->setModel(m_filter);
 	m_table->setEditTriggers(QAbstractItemView::EditKeyPressed);
 	m_table->setShowGrid(false);
 
-    m_delegate = new DebugRegistersItemDelegate(this);
-    m_table->setItemDelegate(m_delegate);
+	m_delegate = new DebugRegistersItemDelegate(this);
+	m_table->setItemDelegate(m_delegate);
 
-    m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
-    m_table->setSelectionMode(QAbstractItemView::SingleSelection);
+	m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
+	m_table->setSelectionMode(QAbstractItemView::SingleSelection);
 
-    m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    m_table->verticalHeader()->setVisible(false);
+	m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+	m_table->verticalHeader()->setVisible(false);
 
 	m_table->horizontalHeader()->setStretchLastSection(true);
 	m_table->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-    m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+	m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+	m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
-    m_table->resizeColumnsToContents();
-    m_table->resizeRowsToContents();
+	m_table->resizeColumnsToContents();
+	m_table->resizeRowsToContents();
 
-    QVBoxLayout* layout = new QVBoxLayout;
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-    layout->addWidget(m_table);
-    setLayout(layout);
+	QVBoxLayout* layout = new QVBoxLayout;
+	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setSpacing(0);
+	layout->addWidget(m_table);
+	setLayout(layout);
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
@@ -448,21 +443,21 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	QString actionName = QString::fromStdString("Set to Zero");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction(actionName, UIAction([=](){ setToZero(); }, [&](){ return selectionNotEmpty(); }));
+	m_actionHandler.bindAction(actionName, UIAction([=]() { setToZero(); }, [&]() { return selectionNotEmpty(); }));
 
 	actionName = QString::fromStdString("Edit Value");
 	UIAction::registerAction(actionName, QKeySequence(Qt::Key_Enter));
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction(actionName, UIAction([=](){ editValue(); }, [&](){ return selectionNotEmpty(); }));
+	m_actionHandler.bindAction(actionName, UIAction([=]() { editValue(); }, [&]() { return selectionNotEmpty(); }));
 
 	actionName = QString::fromStdString("Jump to Address");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=](){ jump(); }, [&](){ return selectionNotEmpty(); }));
+	m_actionHandler.bindAction(actionName, UIAction([=]() { jump(); }, [&]() { return selectionNotEmpty(); }));
 
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction("Copy", UIAction([&](){ copy(); }, [&](){ return selectionNotEmpty(); }));
-	m_actionHandler.setActionDisplayName("Copy", [&](){
+	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return selectionNotEmpty(); }));
+	m_actionHandler.setActionDisplayName("Copy", [&]() {
 		QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
 		if (sel.empty())
 			return "Copy";
@@ -481,39 +476,37 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	});
 
 	m_menu->addAction("Paste", "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction("Paste", UIAction([&](){ paste(); }, [&](){ return canPaste(); }));
+	m_actionHandler.bindAction("Paste", UIAction([&]() { paste(); }, [&]() { return canPaste(); }));
 
 	actionName = QString::fromStdString("Hide Unused Registers");
 	UIAction::registerAction(actionName);
 
 	m_menu->addAction(actionName, "Display", MENU_ORDER_NORMAL);
 	m_menu->setGroupOrdering("Display", MENU_ORDER_LAST);
-	m_actionHandler.bindAction(actionName, UIAction([=](){
+	m_actionHandler.bindAction(actionName, UIAction([=]() {
 		m_filter->toggleHideUnusedRegisters();
 		updateColumnWidths(m_table);
 	}));
-	m_actionHandler.setChecked(actionName, [this]() { return m_filter->getHideUnusedRegisters();});
+	m_actionHandler.setChecked(actionName, [this]() { return m_filter->getHideUnusedRegisters(); });
 
-	connect(m_model, &DebugRegistersListModel::dataChanged, [&](){
-		updateContent();
-	});
+	connect(m_model, &DebugRegistersListModel::dataChanged, [&]() { updateContent(); });
 
 	connect(m_table, &QTableView::doubleClicked, this, &DebugRegistersWidget::onDoubleClicked);
 
-    updateContent();
+	updateContent();
 }
 
 
 void DebugRegistersWidget::notifyRegistersChanged(std::vector<DebugRegister> regs)
 {
-    m_model->updateRows(regs);
+	m_model->updateRows(regs);
 	updateColumnWidths(m_table);
 }
 
 
 void DebugRegistersWidget::contextMenuEvent(QContextMenuEvent* event)
 {
-    showContextMenu();
+	showContextMenu();
 }
 
 
@@ -525,11 +518,11 @@ void DebugRegistersWidget::showContextMenu()
 
 void DebugRegistersWidget::updateContent()
 {
-    if (!m_controller->IsConnected())
-        return;
+	if (!m_controller->IsConnected())
+		return;
 
-    std::vector<DebugRegister> registers = m_controller->GetRegisters();
-    notifyRegistersChanged(registers);
+	std::vector<DebugRegister> registers = m_controller->GetRegisters();
+	notifyRegistersChanged(registers);
 }
 
 
@@ -634,7 +627,8 @@ void DebugRegistersWidget::paste()
 
 	uint64_t newValue = 0;
 	std::string errorString;
-	if (!BinaryView::ParseExpression(m_controller->GetLiveView(), text.toStdString(), newValue, reg.value(), errorString))
+	if (!BinaryView::ParseExpression(
+			m_controller->GetLiveView(), text.toStdString(), newValue, reg.value(), errorString))
 		return;
 
 	if (newValue == reg.value())
@@ -687,38 +681,26 @@ void DebugRegistersWidget::editValue()
 }
 
 
-void DebugRegistersWidget::setFilter(const string & filter)
+void DebugRegistersWidget::setFilter(const string& filter)
 {
 	m_filter->setFilterRegularExpression(QString::fromStdString(filter));
 	updateColumnWidths(m_table);
 }
 
 
-void DebugRegistersWidget::scrollToFirstItem()
-{
-
-}
+void DebugRegistersWidget::scrollToFirstItem() {}
 
 
-void DebugRegistersWidget::scrollToCurrentItem()
-{
-
-}
+void DebugRegistersWidget::scrollToCurrentItem() {}
 
 
-void DebugRegistersWidget::selectFirstItem()
-{
-
-}
+void DebugRegistersWidget::selectFirstItem() {}
 
 
-void DebugRegistersWidget::activateFirstItem()
-{
-
-}
+void DebugRegistersWidget::activateFirstItem() {}
 
 
-DebugRegistersContainer::DebugRegistersContainer(ViewFrame* view, BinaryViewRef data, Menu* menu): m_view(view)
+DebugRegistersContainer::DebugRegistersContainer(ViewFrame* view, BinaryViewRef data, Menu* menu) : m_view(view)
 {
 	m_register = new DebugRegistersWidget(view, data, menu);
 	m_separateEdit = new FilterEdit(m_register);
@@ -739,7 +721,7 @@ DebugRegistersContainer::DebugRegistersContainer(ViewFrame* view, BinaryViewRef 
 	headerLayout->addWidget(icon);
 
 	QVBoxLayout* layout = new QVBoxLayout(this);
-	layout->setContentsMargins(0, 0, 0 ,0);
+	layout->setContentsMargins(0, 0, 0, 0);
 	layout->addLayout(headerLayout);
 	layout->addWidget(m_filter, 1);
 }
@@ -753,7 +735,7 @@ void DebugRegistersContainer::updateContent()
 // TODO: Group this with other settings key constants if more pop up.
 constexpr auto HideUnusedRegistersKey = "ui/debugger/registers/hideUnused";
 
-DebugRegisterFilterProxyModel::DebugRegisterFilterProxyModel(QObject *parent): QSortFilterProxyModel(parent)
+DebugRegisterFilterProxyModel::DebugRegisterFilterProxyModel(QObject* parent) : QSortFilterProxyModel(parent)
 {
 	setFilterCaseSensitivity(Qt::CaseInsensitive);
 
@@ -764,7 +746,7 @@ DebugRegisterFilterProxyModel::DebugRegisterFilterProxyModel(QObject *parent): Q
 }
 
 
-bool DebugRegisterFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const
+bool DebugRegisterFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const
 {
 	QRegularExpression regExp = filterRegularExpression();
 	if (!regExp.isValid())

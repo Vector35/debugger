@@ -30,59 +30,59 @@ using namespace BinaryNinja;
 using namespace std;
 using namespace BinaryNinjaDebugger;
 
-DebuggerRegisters::DebuggerRegisters(DebuggerState* state): m_state(state)
+DebuggerRegisters::DebuggerRegisters(DebuggerState* state) : m_state(state)
 {
-    MarkDirty();
+	MarkDirty();
 }
 
 
 void DebuggerRegisters::MarkDirty()
 {
-    m_dirty = true;
-    m_registerCache.clear();
+	m_dirty = true;
+	m_registerCache.clear();
 }
 
 
 void DebuggerRegisters::Update()
 {
-    DebugAdapter* adapter = m_state->GetAdapter();
-    if (!adapter)
-        return;
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return;
 
 	if (!m_state->IsConnected())
 		return;
 
-    m_registerCache = adapter->ReadAllRegisters();
-    m_dirty = false;
+	m_registerCache = adapter->ReadAllRegisters();
+	m_dirty = false;
 }
 
 
 uint64_t DebuggerRegisters::GetRegisterValue(const std::string& name)
 {
-    // Unlike the Python implementation, we require the DebuggerState to explicitly check for dirty caches
-    // and update the values when necessary. This is mainly because the update can be expensive.
-    if (IsDirty())
-        Update();
+	// Unlike the Python implementation, we require the DebuggerState to explicitly check for dirty caches
+	// and update the values when necessary. This is mainly because the update can be expensive.
+	if (IsDirty())
+		Update();
 
-    auto iter = m_registerCache.find(name);
-    if (iter == m_registerCache.end())
-        return 0x0;
+	auto iter = m_registerCache.find(name);
+	if (iter == m_registerCache.end())
+		return 0x0;
 
-    return iter->second.m_value;
+	return iter->second.m_value;
 }
 
 
 bool DebuggerRegisters::SetRegisterValue(const std::string& name, uint64_t value)
 {
-    DebugAdapter* adapter = m_state->GetAdapter();
-    if (!adapter)
-        return false;
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return false;
 
 	auto iter = m_registerCache.find(name);
 	if (iter == m_registerCache.end())
 		return false;
 
-    bool ok = adapter->WriteRegister(name, value);
+	bool ok = adapter->WriteRegister(name, value);
 	if (!ok)
 		return false;
 
@@ -122,35 +122,34 @@ static std::string CheckForPrintableString(const DataBuffer& memory)
 std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters()
 {
 	if (IsDirty())
-	 	Update();
+		Update();
 
-    std::vector<DebugRegister> result{};
-    for (auto& [reg_name, reg]: m_registerCache)
-        result.push_back(reg);
+	std::vector<DebugRegister> result {};
+	for (auto& [reg_name, reg] : m_registerCache)
+		result.push_back(reg);
 
-    std::sort(result.begin(), result.end(),
-              [](const DebugRegister& lhs, const DebugRegister& rhs) {
-        return lhs.m_registerIndex < rhs.m_registerIndex;
-    });
+	std::sort(result.begin(), result.end(), [](const DebugRegister& lhs, const DebugRegister& rhs) {
+		return lhs.m_registerIndex < rhs.m_registerIndex;
+	});
 
 	// TODO: maybe we should not hold a m_state at all; instead we just hold a m_controller
 	auto controller = m_state->GetController();
-    if (!controller->GetState()->IsConnected())
-        return result;
+	if (!controller->GetState()->IsConnected())
+		return result;
 
-    for (auto& reg : result)
+	for (auto& reg : result)
 	{
-        const DataBuffer memory = controller->ReadMemory(reg.m_value, 128);
-        std::string reg_string = CheckForPrintableString(memory);
+		const DataBuffer memory = controller->ReadMemory(reg.m_value, 128);
+		std::string reg_string = CheckForPrintableString(memory);
 		if (reg_string.size() > 3)
-        {
-            reg.m_hint = fmt::format("\"{}\"", reg_string);
-        }
-        else
-        {
+		{
+			reg.m_hint = fmt::format("\"{}\"", reg_string);
+		}
+		else
+		{
 			reg.m_hint = "";
-            DataBuffer buffer = controller->ReadMemory(reg.m_value, reg.m_width);
-            if (buffer.GetLength() > 0)
+			DataBuffer buffer = controller->ReadMemory(reg.m_value, reg.m_width);
+			if (buffer.GetLength() > 0)
 			{
 				uint64_t pointerValue = *reinterpret_cast<std::uintptr_t*>(buffer.GetData());
 				if (pointerValue != 0)
@@ -163,23 +162,23 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters()
 					}
 				}
 			}
-        }
-    }
+		}
+	}
 
-    return result;
+	return result;
 }
 
 
-DebuggerThreads::DebuggerThreads(DebuggerState* state): m_state(state)
+DebuggerThreads::DebuggerThreads(DebuggerState* state) : m_state(state)
 {
-    MarkDirty();
+	MarkDirty();
 }
 
 
 void DebuggerThreads::MarkDirty()
 {
-    m_dirty = true;
-    m_threads.clear();
+	m_dirty = true;
+	m_threads.clear();
 	m_frames.clear();
 	// TODO: consider also caching the last active thread
 }
@@ -187,49 +186,49 @@ void DebuggerThreads::MarkDirty()
 
 void DebuggerThreads::Update()
 {
-    if (!m_state)
-        return;
+	if (!m_state)
+		return;
 
 	if (!m_state->IsConnected())
 		return;
 
-    DebugAdapter* adapter = m_state->GetAdapter();
-    if (!adapter)
-        return;
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return;
 
-    m_threads.clear();
+	m_threads.clear();
 
 	m_threads = adapter->GetThreadList();
-	for (const DebugThread thread: m_threads)
+	for (const DebugThread thread : m_threads)
 		m_frames[thread.m_tid] = adapter->GetFramesOfThread(thread.m_tid);
 
-    m_dirty = false;
+	m_dirty = false;
 }
 
 
 DebugThread DebuggerThreads::GetActiveThread() const
 {
-    if (!m_state)
-        return DebugThread{};
+	if (!m_state)
+		return DebugThread {};
 
-    DebugAdapter* adapter = m_state->GetAdapter();
-    if (!adapter)
-        return DebugThread{};
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return DebugThread {};
 
-    return adapter->GetActiveThread();
+	return adapter->GetActiveThread();
 }
 
 
 bool DebuggerThreads::SetActiveThread(const DebugThread& thread)
 {
-    if (!m_state)
-        return false;
+	if (!m_state)
+		return false;
 
-    DebugAdapter* adapter = m_state->GetAdapter();
-    if (!adapter)
-        return false;
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return false;
 
-    return adapter->SetActiveThread(thread);
+	return adapter->SetActiveThread(thread);
 }
 
 
@@ -254,31 +253,30 @@ std::vector<DebugFrame> DebuggerThreads::GetFramesOfThread(uint32_t tid)
 }
 
 
-DebuggerModules::DebuggerModules(DebuggerState* state):
-    m_state(state)
+DebuggerModules::DebuggerModules(DebuggerState* state) : m_state(state)
 {
-    MarkDirty();
+	MarkDirty();
 }
 
 
 void DebuggerModules::MarkDirty()
 {
-    m_dirty = true;
-    m_modules.clear();
+	m_dirty = true;
+	m_modules.clear();
 }
 
 
 void DebuggerModules::Update()
 {
-    DebugAdapter* adapter = m_state->GetAdapter();
-    if (!adapter)
-        return;
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return;
 
 	if (!m_state->IsConnected())
 		return;
 
-    m_modules = adapter->GetModuleList();
-    m_dirty = false;
+	m_modules = adapter->GetModuleList();
+	m_dirty = false;
 }
 
 
@@ -287,14 +285,14 @@ uint64_t DebuggerModules::GetModuleBase(const std::string& name)
 	if (IsDirty())
 		Update();
 
-    for (const DebugModule& module: m_modules)
-    {
-        if (module.IsSameBaseModule(name))
-        {
-            return module.m_address;
-        }
-    }
-    return 0;
+	for (const DebugModule& module : m_modules)
+	{
+		if (module.IsSameBaseModule(name))
+		{
+			return module.m_address;
+		}
+	}
+	return 0;
 }
 
 
@@ -303,12 +301,12 @@ DebugModule DebuggerModules::GetModuleByName(const std::string& name)
 	if (IsDirty())
 		Update();
 
-	for (const DebugModule& module: m_modules)
-    {
-        if (module.IsSameBaseModule(name))
-            return module;
-    }
-    return DebugModule();
+	for (const DebugModule& module : m_modules)
+	{
+		if (module.IsSameBaseModule(name))
+			return module;
+	}
+	return DebugModule();
 }
 
 
@@ -320,22 +318,22 @@ DebugModule DebuggerModules::GetModuleForAddress(uint64_t remoteAddress)
 	// lldb does not properly return the size of a module, so we have to find the nearest module base that is smaller
 	// than the remoteAddress
 	uint64_t closestAddress = 0;
-	DebugModule result{};
+	DebugModule result {};
 
-    for (const DebugModule& module: m_modules)
-    {
-        // This is slighlty different from the Python implementation, which finds the largest module start that is
-        // smaller than the remoteAddress. 
-//        if ((module.m_address <= remoteAddress) && (remoteAddress < module.m_address + module.m_size))
-//            return module;
+	for (const DebugModule& module : m_modules)
+	{
+		// This is slighlty different from the Python implementation, which finds the largest module start that is
+		// smaller than the remoteAddress.
+		//if ((module.m_address <= remoteAddress) && (remoteAddress < module.m_address + module.m_size))
+		//	return module;
 		if ((module.m_address <= remoteAddress) && (module.m_address > closestAddress))
 		{
 			closestAddress = module.m_address;
 			result = module;
 		}
-    }
+	}
 
-    return result;
+	return result;
 }
 
 
@@ -344,19 +342,19 @@ ModuleNameAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absolute
 	if (IsDirty())
 		Update();
 
-    DebugModule module = GetModuleForAddress(absoluteAddress);
-    uint64_t relativeAddress;
+	DebugModule module = GetModuleForAddress(absoluteAddress);
+	uint64_t relativeAddress;
 
-    if (module.m_name != "")
-    {
-        relativeAddress = absoluteAddress - module.m_address;
-    }
-    else
-    {
-        relativeAddress = absoluteAddress;
-    }
+	if (module.m_name != "")
+	{
+		relativeAddress = absoluteAddress - module.m_address;
+	}
+	else
+	{
+		relativeAddress = absoluteAddress;
+	}
 
-    return ModuleNameAndOffset(module.m_name, relativeAddress);
+	return ModuleNameAndOffset(module.m_name, relativeAddress);
 }
 
 
@@ -365,18 +363,18 @@ uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& r
 	if (IsDirty())
 		Update();
 
-    if (!relativeAddress.module.empty())
+	if (!relativeAddress.module.empty())
 	{
-        for (const DebugModule& module: m_modules)
+		for (const DebugModule& module : m_modules)
 		{
-            if (module.IsSameBaseModule(relativeAddress.module))
+			if (module.IsSameBaseModule(relativeAddress.module))
 			{
-                return module.m_address + relativeAddress.offset;
-            }
-        }
-    }
+				return module.m_address + relativeAddress.offset;
+			}
+		}
+	}
 
-    return relativeAddress.offset;
+	return relativeAddress.offset;
 }
 
 
@@ -389,16 +387,15 @@ std::vector<DebugModule> DebuggerModules::GetAllModules()
 }
 
 
-DebuggerBreakpoints::DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial):
-    m_state(state), m_breakpoints(std::move(initial))
-{
-}
+DebuggerBreakpoints::DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial) :
+	m_state(state), m_breakpoints(std::move(initial))
+{}
 
 
 bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
 {
-    if (!m_state->GetAdapter())
-        return false;
+	if (!m_state->GetAdapter())
+		return false;
 
 	bool result = false;
 	// Always add the breakpoint as long as the adapter is connected, even if it may be already present
@@ -412,170 +409,166 @@ bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
 	{
 		ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
 		m_breakpoints.push_back(info);
-        SerializeMetadata();
-    }
+		SerializeMetadata();
+	}
 
-    return result;
+	return result;
 }
 
 
 bool DebuggerBreakpoints::AddOffset(const ModuleNameAndOffset& address)
 {
-    if (!ContainsOffset(address))
-    {
-        m_breakpoints.push_back(address);
-        SerializeMetadata();
+	if (!ContainsOffset(address))
+	{
+		m_breakpoints.push_back(address);
+		SerializeMetadata();
 
-        // If the adapter is already created, we ask it to add the breakpoint.
+		// If the adapter is already created, we ask it to add the breakpoint.
 		// Otherwise, all breakpoints will be added to the adapter when the adapter is created.
-        if (m_state->GetAdapter() && m_state->IsConnected())
-        {
+		if (m_state->GetAdapter() && m_state->IsConnected())
+		{
 			m_state->GetAdapter()->AddBreakpoint(address);
-            return true;
-        }
-        return true;
-    }
-    return false;
+			return true;
+		}
+		return true;
+	}
+	return false;
 }
 
 
 bool DebuggerBreakpoints::RemoveAbsolute(uint64_t remoteAddress)
 {
-    if (!m_state->GetAdapter())
-        return false;
+	if (!m_state->GetAdapter())
+		return false;
 
-    ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
-    if (ContainsOffset(info))
-    {
-        auto iter = std::find(m_breakpoints.begin(), m_breakpoints.end(), info);
-        if (iter != m_breakpoints.end())
-        {
-            m_breakpoints.erase(iter);
-        }
-        SerializeMetadata();
-        m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
-        return true;
-    }
-    return false;
+	ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
+	if (ContainsOffset(info))
+	{
+		auto iter = std::find(m_breakpoints.begin(), m_breakpoints.end(), info);
+		if (iter != m_breakpoints.end())
+		{
+			m_breakpoints.erase(iter);
+		}
+		SerializeMetadata();
+		m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
+		return true;
+	}
+	return false;
 }
 
 
 bool DebuggerBreakpoints::RemoveOffset(const ModuleNameAndOffset& address)
 {
-    if (ContainsOffset(address))
-    {
-        if (auto iter = std::find(m_breakpoints.begin(), m_breakpoints.end(), address);
-                iter != m_breakpoints.end())
-            m_breakpoints.erase(iter);
+	if (ContainsOffset(address))
+	{
+		if (auto iter = std::find(m_breakpoints.begin(), m_breakpoints.end(), address); iter != m_breakpoints.end())
+			m_breakpoints.erase(iter);
 
-        SerializeMetadata();
+		SerializeMetadata();
 
-        if (m_state->GetAdapter() && m_state->IsConnected())
-        {
-            uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
-            m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
-            return true;
-        }
-        return true;
-    }
-    return false;
+		if (m_state->GetAdapter() && m_state->IsConnected())
+		{
+			uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(address);
+			m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
+			return true;
+		}
+		return true;
+	}
+	return false;
 }
 
 
 bool DebuggerBreakpoints::ContainsOffset(const ModuleNameAndOffset& address)
 {
-    // If there is no backend, then only check if the breakpoint is in the list
-    // This is useful when we deal with the breakpoint before the target is launched
-    if (!m_state->GetAdapter())
-        return std::find(m_breakpoints.begin(), m_breakpoints.end(), address) != m_breakpoints.end();
+	// If there is no backend, then only check if the breakpoint is in the list
+	// This is useful when we deal with the breakpoint before the target is launched
+	if (!m_state->GetAdapter())
+		return std::find(m_breakpoints.begin(), m_breakpoints.end(), address) != m_breakpoints.end();
 
-    // When the backend is live, convert the relative address to absolute address and check its existence
-    uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
-    return ContainsAbsolute(absolute);
+	// When the backend is live, convert the relative address to absolute address and check its existence
+	uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
+	return ContainsAbsolute(absolute);
 }
 
 
 bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
 {
-    if (!m_state->GetAdapter())
-        return false;
+	if (!m_state->GetAdapter())
+		return false;
 
-    // We need to convert every ModuleAndOffset to absolute address and compare with the input address
-    // Because every ModuleAndOffset can be converted to an absolute address, but there is no guarantee that it works
-    // backward
-    // Well, that is because lldb does not report the size of the loaded libraries, so it is currently screwed up
-    for (const ModuleNameAndOffset& breakpoint: m_breakpoints)
-    {
-        uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(breakpoint);
-        if (absolute == address)
-            return true;
-    }
-    return false;
+	// We need to convert every ModuleAndOffset to absolute address and compare with the input address
+	// Because every ModuleAndOffset can be converted to an absolute address, but there is no guarantee that it works
+	// backward
+	// Well, that is because lldb does not report the size of the loaded libraries, so it is currently screwed up
+	for (const ModuleNameAndOffset& breakpoint : m_breakpoints)
+	{
+		uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(breakpoint);
+		if (absolute == address)
+			return true;
+	}
+	return false;
 }
 
 
 void DebuggerBreakpoints::SerializeMetadata()
 {
-    // TODO: who should free these Metadata objects?
-    std::vector<Ref<Metadata>> breakpoints;
-    for (const ModuleNameAndOffset& bp: m_breakpoints)
-    {
-        std::map<std::string, Ref<Metadata>> info;
-        info["module"] = new Metadata(bp.module);
-        info["offset"] = new Metadata(bp.offset);
-        breakpoints.push_back(new Metadata(info));
-    }
-    m_state->GetController()->GetData()->StoreMetadata("debugger.breakpoints", new Metadata(breakpoints));
+	// TODO: who should free these Metadata objects?
+	std::vector<Ref<Metadata>> breakpoints;
+	for (const ModuleNameAndOffset& bp : m_breakpoints)
+	{
+		std::map<std::string, Ref<Metadata>> info;
+		info["module"] = new Metadata(bp.module);
+		info["offset"] = new Metadata(bp.offset);
+		breakpoints.push_back(new Metadata(info));
+	}
+	m_state->GetController()->GetData()->StoreMetadata("debugger.breakpoints", new Metadata(breakpoints));
 }
 
 
 void DebuggerBreakpoints::UnserializedMetadata()
 {
-    Ref<Metadata> metadata = m_state->GetController()->GetData()->QueryMetadata("debugger.breakpoints");
-    if (!metadata || (!metadata->IsArray()))
-        return;
+	Ref<Metadata> metadata = m_state->GetController()->GetData()->QueryMetadata("debugger.breakpoints");
+	if (!metadata || (!metadata->IsArray()))
+		return;
 
-    vector<Ref<Metadata>> array = metadata->GetArray();
-    std::vector<ModuleNameAndOffset> newBreakpoints;
+	vector<Ref<Metadata>> array = metadata->GetArray();
+	std::vector<ModuleNameAndOffset> newBreakpoints;
 
-    for (auto& element: array)
-    {
-        if (!element || (!element->IsKeyValueStore()))
-            continue;
+	for (auto& element : array)
+	{
+		if (!element || (!element->IsKeyValueStore()))
+			continue;
 
-        std::map<std::string, Ref<Metadata>> info = element->GetKeyValueStore();
-        ModuleNameAndOffset address;
+		std::map<std::string, Ref<Metadata>> info = element->GetKeyValueStore();
+		ModuleNameAndOffset address;
 
-        if (!(info["module"] && info["module"]->IsString()))
-            continue;
+		if (!(info["module"] && info["module"]->IsString()))
+			continue;
 
-        address.module = info["module"]->GetString();
+		address.module = info["module"]->GetString();
 
-        if (!(info["offset"] && info["offset"]->IsUnsignedInteger()))
-            continue;
+		if (!(info["offset"] && info["offset"]->IsUnsignedInteger()))
+			continue;
 
-        address.offset = info["offset"]->GetUnsignedInteger();
-        newBreakpoints.push_back(address);        
-    }
+		address.offset = info["offset"]->GetUnsignedInteger();
+		newBreakpoints.push_back(address);
+	}
 
-    m_breakpoints = newBreakpoints;
+	m_breakpoints = newBreakpoints;
 }
 
 
 void DebuggerBreakpoints::Apply()
 {
-    if (!m_state->GetAdapter())
-        return;
+	if (!m_state->GetAdapter())
+		return;
 
-    for (const ModuleNameAndOffset& address: m_breakpoints)
+	for (const ModuleNameAndOffset& address : m_breakpoints)
 		m_state->GetAdapter()->AddBreakpoint(address);
 }
 
 
-DebuggerMemory::DebuggerMemory(DebuggerState *state): m_state(state)
-{
-
-}
+DebuggerMemory::DebuggerMemory(DebuggerState* state) : m_state(state) {}
 
 
 void DebuggerMemory::MarkDirty()
@@ -654,22 +647,22 @@ bool DebuggerMemory::WriteMemory(std::uintptr_t address, const DataBuffer& buffe
 	if (!adapter->WriteMemory(address, buffer))
 		return false;
 
-//	TODO: Assume any memory change invalidates memory cache (suboptimal, may not be necessary)
+	//	TODO: Assume any memory change invalidates memory cache (suboptimal, may not be necessary)
 	MarkDirty();
 	return true;
 }
 
 
-DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller): m_controller(controller)
+DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller) : m_controller(controller)
 {
 	INIT_DEBUGGER_API_OBJECT();
 
 	m_adapter = nullptr;
-    m_modules = new DebuggerModules(this);
-    m_registers = new DebuggerRegisters(this);
-    m_threads = new DebuggerThreads(this);
-    m_breakpoints = new DebuggerBreakpoints(this);
-    m_breakpoints->UnserializedMetadata();
+	m_modules = new DebuggerModules(this);
+	m_registers = new DebuggerRegisters(this);
+	m_threads = new DebuggerThreads(this);
+	m_breakpoints = new DebuggerBreakpoints(this);
+	m_breakpoints->UnserializedMetadata();
 	m_memory = new DebuggerMemory(this);
 
 	// TODO: A better way to deal with this is to have the adapters return a fitness score, and then we pick the highest
@@ -681,15 +674,15 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 	{
 		m_adapterType = "";
 	}
-	else if (std::find(m_availableAdapters.begin(), m_availableAdapters.end(), m_adapterType) ==
-		m_availableAdapters.end())
+	else if (std::find(m_availableAdapters.begin(), m_availableAdapters.end(), m_adapterType)
+		== m_availableAdapters.end())
 	{
 		// The system's default adapter does not work with the current data, e.g., an .exe is opened on macOS,
 		// then pick one from the available ones.
 		m_adapterType = m_availableAdapters[0];
 	}
 
-    Ref<Metadata> metadata;
+	Ref<Metadata> metadata;
 	metadata = m_controller->GetData()->QueryMetadata("debugger.command_line_args");
 	if (metadata && metadata->IsString())
 		m_commandLineArgs = metadata->GetString();
@@ -708,29 +701,29 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 	if (m_workingDirectory == "")
 		m_workingDirectory = filesystem::path(m_executablePath).parent_path().string();
 
-    metadata = m_controller->GetData()->QueryMetadata("debugger.remote_host");
-    if (metadata && metadata->IsString())
-        m_remoteHost = metadata->GetString();
+	metadata = m_controller->GetData()->QueryMetadata("debugger.remote_host");
+	if (metadata && metadata->IsString())
+		m_remoteHost = metadata->GetString();
 	if (m_remoteHost.empty())
 		m_remoteHost = "127.0.0.1";
 
-    metadata = m_controller->GetData()->QueryMetadata("debugger.remote_port");
-    if (metadata && metadata->IsUnsignedInteger())
-        m_remotePort = metadata->GetUnsignedInteger();
+	metadata = m_controller->GetData()->QueryMetadata("debugger.remote_port");
+	if (metadata && metadata->IsUnsignedInteger())
+		m_remotePort = metadata->GetUnsignedInteger();
 	if (m_remotePort == 0)
-        m_remotePort = 31337;
+		m_remotePort = 31337;
 
-    metadata = m_controller->GetData()->QueryMetadata("debugger.adapter_type");
-    if (metadata && metadata->IsString())
-        m_adapterType = metadata->GetString();
+	metadata = m_controller->GetData()->QueryMetadata("debugger.adapter_type");
+	if (metadata && metadata->IsString())
+		m_adapterType = metadata->GetString();
 
-    metadata = m_controller->GetData()->QueryMetadata("debugger.terminal_emulator");
-    if (metadata && metadata->IsUnsignedInteger())
-        m_requestTerminalEmulator = metadata->GetBoolean();
-    else
-        m_requestTerminalEmulator = false;
+	metadata = m_controller->GetData()->QueryMetadata("debugger.terminal_emulator");
+	if (metadata && metadata->IsUnsignedInteger())
+		m_requestTerminalEmulator = metadata->GetBoolean();
+	else
+		m_requestTerminalEmulator = false;
 
-    SetConnectionStatus(DebugAdapterNotConnectedStatus);
+	SetConnectionStatus(DebugAdapterNotConnectedStatus);
 }
 
 
@@ -747,32 +740,32 @@ DebuggerState::~DebuggerState()
 
 void DebuggerState::AddBreakpoint(uint64_t address)
 {
-    m_breakpoints->AddAbsolute(address);
+	m_breakpoints->AddAbsolute(address);
 }
 
 
 void DebuggerState::AddBreakpoint(const ModuleNameAndOffset& address)
 {
-    m_breakpoints->AddOffset(address);
+	m_breakpoints->AddOffset(address);
 }
 
 
 void DebuggerState::DeleteBreakpoint(uint64_t address)
 {
-    m_breakpoints->RemoveAbsolute(address);
+	m_breakpoints->RemoveAbsolute(address);
 }
 
 
 void DebuggerState::DeleteBreakpoint(const ModuleNameAndOffset& address)
 {
-    m_breakpoints->RemoveOffset(address);
+	m_breakpoints->RemoveOffset(address);
 }
 
 
 uint64_t DebuggerState::IP()
 {
-    if (!IsConnected())
-        return 0;
+	if (!IsConnected())
+		return 0;
 
 	return m_adapter->GetInstructionOffset();
 }
@@ -780,9 +773,9 @@ uint64_t DebuggerState::IP()
 
 uint64_t DebuggerState::StackPointer()
 {
-    // TODO: we would better have the DebugAdapter either tell us which register holds the stack pointer
-    if (!IsConnected())
-        return 0;
+	// TODO: we would better have the DebugAdapter either tell us which register holds the stack pointer
+	if (!IsConnected())
+		return 0;
 
 	return m_adapter->GetStackPointer();
 }
@@ -790,18 +783,18 @@ uint64_t DebuggerState::StackPointer()
 
 bool DebuggerState::SetActiveThread(const DebugThread& thread)
 {
-    if (!m_threads)
-        return false;
+	if (!m_threads)
+		return false;
 
-    return m_threads->SetActiveThread(thread);
+	return m_threads->SetActiveThread(thread);
 }
 
 
 void DebuggerState::MarkDirty()
 {
-    m_registers->MarkDirty();
-    m_threads->MarkDirty();
-    m_modules->MarkDirty();
+	m_registers->MarkDirty();
+	m_threads->MarkDirty();
+	m_modules->MarkDirty();
 	m_memory->MarkDirty();
 }
 
@@ -814,26 +807,26 @@ void DebuggerState::UpdateCaches()
 	if (!IsConnected())
 		return;
 
-    if (m_registers->IsDirty())
-        m_registers->Update();
+	if (m_registers->IsDirty())
+		m_registers->Update();
 
-    if (m_threads->IsDirty())
-        m_threads->Update();
+	if (m_threads->IsDirty())
+		m_threads->Update();
 
-    if (m_modules->IsDirty())
-        m_modules->Update();
+	if (m_modules->IsDirty())
+		m_modules->Update();
 }
 
 
 uint64_t DebuggerState::GetRemoteBase(BinaryViewRef relativeView)
 {
-    return m_modules->GetModuleBase(GetExecutablePath());
+	return m_modules->GetModuleBase(GetExecutablePath());
 }
 
 
 void DebuggerState::ApplyBreakpoints()
 {
-    m_breakpoints->Apply();
+	m_breakpoints->Apply();
 }
 
 

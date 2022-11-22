@@ -60,7 +60,7 @@ public:
 Q_DECLARE_METATYPE(FrameItem);
 
 
-class ThreadFramesListModel: public QAbstractTableModel
+class ThreadFramesListModel : public QAbstractTableModel
 {
 	Q_OBJECT
 
@@ -86,8 +86,15 @@ public:
 	virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
 
 	virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override
-		{ (void) parent; return (int)m_items.size(); }
-	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 6; }
+	{
+		(void)parent;
+		return (int)m_items.size();
+	}
+	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override
+	{
+		(void)parent;
+		return 6;
+	}
 	FrameItem getRow(int row) const;
 	virtual QVariant data(const QModelIndex& i, int role) const override;
 	virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
@@ -95,7 +102,7 @@ public:
 };
 
 
-class ThreadFramesItemDelegate: public QStyledItemDelegate
+class ThreadFramesItemDelegate : public QStyledItemDelegate
 {
 	Q_OBJECT
 
@@ -109,7 +116,7 @@ public:
 	QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
 };
 
-class ThreadFramesWidget: public QWidget
+class ThreadFramesWidget : public QWidget
 {
 	Q_OBJECT
 
@@ -137,7 +144,7 @@ private slots:
 
 class GlobalThreadFramesContainer : public GlobalAreaWidget
 {
-	ViewFrame *m_currentFrame;
+	ViewFrame* m_currentFrame;
 	QHash<ViewFrame*, ThreadFramesWidget*> m_consoleMap;
 
 	QStackedWidget* m_consoleStack;
@@ -156,5 +163,5 @@ public:
 	//! no action will be taken.
 	void sendText(const QString& msg) const;
 
-	void notifyViewChanged(ViewFrame *) override;
+	void notifyViewChanged(ViewFrame*) override;
 };

@@ -30,22 +30,22 @@ limitations under the License.
 
 using namespace BinaryNinjaDebuggerAPI;
 
-class AdapterSettingsDialog: public QDialog
+class AdapterSettingsDialog : public QDialog
 {
-    Q_OBJECT
+	Q_OBJECT
 
 private:
-    DbgRef<DebuggerController> m_controller;
-    QComboBox* m_adapterEntry;
-    QLineEdit* m_pathEntry;
+	DbgRef<DebuggerController> m_controller;
+	QComboBox* m_adapterEntry;
+	QLineEdit* m_pathEntry;
 	QLineEdit* m_workingDirectoryEntry;
-    QLineEdit* m_argumentsEntry;
+	QLineEdit* m_argumentsEntry;
 	QCheckBox* m_terminalEmulator;
 
 public:
-    AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller);
+	AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller);
 
 private Q_SLOTS:
-    void apply();
-    void selectAdapter(const QString& adapter);
+	void apply();
+	void selectAdapter(const QString& adapter);
 };

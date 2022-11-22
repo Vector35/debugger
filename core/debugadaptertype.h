@@ -23,8 +23,7 @@ limitations under the License.
 
 DECLARE_DEBUGGER_API_OBJECT(BNDebugAdapterType, DebugAdapterType);
 
-namespace BinaryNinjaDebugger
-{
+namespace BinaryNinjaDebugger {
 	class DebugAdapter;
 
 	class DebugAdapterType
@@ -33,29 +32,28 @@ namespace BinaryNinjaDebugger
 
 	private:
 		std::string m_name;
-		inline static std::vector<DebugAdapterType *> m_types;
+		inline static std::vector<DebugAdapterType*> m_types;
 
 	public:
+		DebugAdapterType(const std::string& name);
 
-		DebugAdapterType(const std::string &name);
+		static void Register(DebugAdapterType* type);
 
-		static void Register(DebugAdapterType *type);
+		virtual DebugAdapter* Create(BinaryNinja::BinaryView* data) = 0;
 
-		virtual DebugAdapter *Create(BinaryNinja::BinaryView *data) = 0;
+		virtual bool IsValidForData(BinaryNinja::BinaryView* data) = 0;
 
-		virtual bool IsValidForData(BinaryNinja::BinaryView *data) = 0;
+		virtual bool CanExecute(BinaryNinja::BinaryView* data) = 0;
 
-		virtual bool CanExecute(BinaryNinja::BinaryView *data) = 0;
-
-		virtual bool CanConnect(BinaryNinja::BinaryView *data) = 0;
+		virtual bool CanConnect(BinaryNinja::BinaryView* data) = 0;
 
 		std::string GetName() const { return m_name; }
 
-		static DebugAdapterType *GetByName(const std::string &name);
+		static DebugAdapterType* GetByName(const std::string& name);
 
 		// Returns a list of usable DebugAdapters on the current system
-		static std::vector<std::string> GetAvailableAdapters(BinaryNinja::BinaryView *data);
+		static std::vector<std::string> GetAvailableAdapters(BinaryNinja::BinaryView* data);
 
-		static std::string GetBestAdapterForCurrentSystem(BinaryNinja::BinaryView *data);
+		static std::string GetBestAdapterForCurrentSystem(BinaryNinja::BinaryView* data);
 	};
-};
+};  // namespace BinaryNinjaDebugger

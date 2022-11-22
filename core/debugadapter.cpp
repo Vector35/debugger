@@ -20,7 +20,7 @@ limitations under the License.
 #include <mediumlevelilinstruction.h>
 #include <highlevelilinstruction.h>
 #ifndef WIN32
-#include "libgen.h"
+	#include "libgen.h"
 #endif
 #include "debugadapter.h"
 
@@ -48,7 +48,7 @@ DebugAdapter::DebugAdapter(BinaryView* data)
 }
 
 
-void DebugAdapter::PostDebuggerEvent(const DebuggerEvent &event)
+void DebugAdapter::PostDebuggerEvent(const DebuggerEvent& event)
 {
 	if (m_eventCallback)
 		m_eventCallback(event);
@@ -58,38 +58,34 @@ void DebugAdapter::PostDebuggerEvent(const DebuggerEvent &event)
 std::string DebugModule::GetPathBaseName(const std::string& path)
 {
 #ifdef WIN32
-    // TODO: someone please write it on Windows!
-    char baseName[MAX_PATH];
-    _splitpath(path.c_str(), NULL, NULL, baseName, NULL);
-    return std::string(baseName);
+	// TODO: someone please write it on Windows!
+	char baseName[MAX_PATH];
+	_splitpath(path.c_str(), NULL, NULL, baseName, NULL);
+	return std::string(baseName);
 #else
-    return basename(strdup(path.c_str()));
+	return basename(strdup(path.c_str()));
 #endif
 }
 
 
 bool DebugModule::IsSameBaseModule(const DebugModule& other) const
 {
-    return ((m_name == other.m_name) ||
-        (m_short_name == other.m_short_name) ||
-        (GetPathBaseName(m_name) == GetPathBaseName(other.m_name)) ||
-        (GetPathBaseName(m_short_name) == GetPathBaseName(other.m_short_name)));
+	return ((m_name == other.m_name) || (m_short_name == other.m_short_name)
+		|| (GetPathBaseName(m_name) == GetPathBaseName(other.m_name))
+		|| (GetPathBaseName(m_short_name) == GetPathBaseName(other.m_short_name)));
 }
 
 
 bool DebugModule::IsSameBaseModule(const std::string& name) const
 {
-    return ((m_name == name) ||
-        (m_short_name == name) ||
-        (GetPathBaseName(m_name) == GetPathBaseName(name)) ||
-        (GetPathBaseName(m_short_name) == GetPathBaseName(name)));
+	return ((m_name == name) || (m_short_name == name) || (GetPathBaseName(m_name) == GetPathBaseName(name))
+		|| (GetPathBaseName(m_short_name) == GetPathBaseName(name)));
 }
 
 
 bool DebugModule::IsSameBaseModule(const std::string& module1, const std::string& module2)
 {
-    return ((module1 == module2) ||
-        (GetPathBaseName(module1) == GetPathBaseName(module2)));
+	return ((module1 == module2) || (GetPathBaseName(module1) == GetPathBaseName(module2)));
 }
 
 
@@ -105,7 +101,7 @@ uint64_t DebugAdapter::GetStackPointer()
 }
 
 
-void DebugAdapter::WriteStdin(const std::string &msg)
+void DebugAdapter::WriteStdin(const std::string& msg)
 {
 	LogWarn("WriteStdin operation not supported");
 }
@@ -117,25 +113,25 @@ std::vector<DebugFrame> DebugAdapter::GetFramesOfThread(std::uint32_t tid)
 }
 
 
-bool DebugAdapter::ConnectToDebugServer(const std::string &server, std::uint32_t port)
+bool DebugAdapter::ConnectToDebugServer(const std::string& server, std::uint32_t port)
 {
-    return false;
+	return false;
 }
 
 
 bool DebugAdapter::DisconnectDebugServer()
 {
-    return true;
+	return true;
 }
 
 
-Ref<Metadata> DebugAdapter::GetProperty(const std::string &name)
+Ref<Metadata> DebugAdapter::GetProperty(const std::string& name)
 {
-    return nullptr;
+	return nullptr;
 }
 
 
-bool DebugAdapter::SetProperty(const std::string &name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value)
+bool DebugAdapter::SetProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value)
 {
-    return false;
+	return false;
 }

@@ -99,7 +99,6 @@ void BNDebuggerFreeStringList(char** strs, size_t count)
 }
 
 
-
 BNDebuggerController* BNGetDebuggerController(BNBinaryView* data)
 {
 	if (!data)
@@ -156,7 +155,7 @@ bool BNDebuggerIsConnected(BNDebuggerController* controller)
 
 bool BNDebuggerIsConnectedToDebugServer(BNDebuggerController* controller)
 {
-    return controller->object->GetState()->IsConnectedToDebugServer();
+	return controller->object->GetState()->IsConnectedToDebugServer();
 }
 
 
@@ -273,7 +272,7 @@ void BNDebuggerFreeFrames(BNDebugFrame* frames, size_t count)
 		BNDebuggerFreeString(frames[i].m_module);
 	}
 
-	delete []frames;
+	delete[] frames;
 }
 
 
@@ -391,13 +390,13 @@ void BNDebuggerConnect(BNDebuggerController* controller)
 
 bool BNDebuggerConnectToDebugServer(BNDebuggerController* controller)
 {
-    return controller->object->ConnectToDebugServer();
+	return controller->object->ConnectToDebugServer();
 }
 
 
 bool BNDebuggerDisconnectDebugServer(BNDebuggerController* controller)
 {
-    return controller->object->DisconnectDebugServer();
+	return controller->object->DisconnectDebugServer();
 }
 
 
@@ -486,7 +485,8 @@ BNDebugStopReason BNDebuggerStepReturnAndWait(BNDebuggerController* controller)
 }
 
 
-BNDebugStopReason BNDebuggerRunToAndWait(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count)
+BNDebugStopReason BNDebuggerRunToAndWait(
+	BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count)
 {
 	std::vector<uint64_t> addresses;
 	addresses.reserve(count);
@@ -556,7 +556,7 @@ char** BNGetAvailableDebugAdapterTypes(BNBinaryView* data, size_t* count)
 
 	std::vector<const char*> cstrings;
 	cstrings.reserve(adapters.size());
-	for (auto& str: adapters)
+	for (auto& str : adapters)
 	{
 		cstrings.push_back(str.c_str());
 	}
@@ -645,23 +645,23 @@ BNDebugBreakpoint* BNDebuggerGetBreakpoints(BNDebuggerController* controller, si
 	std::vector<ModuleNameAndOffset> breakpoints = state->GetBreakpoints()->GetBreakpointList();
 	*count = breakpoints.size();
 
-//	std::vector<DebugBreakpoint> remoteList;
-//	if (state->IsConnected() && state->GetAdapter())
-//		remoteList = state->GetAdapter()->GetBreakpointList();
+	//std::vector<DebugBreakpoint> remoteList;
+	//if (state->IsConnected() && state->GetAdapter())
+	//	remoteList = state->GetAdapter()->GetBreakpointList();
 
 	BNDebugBreakpoint* result = new BNDebugBreakpoint[breakpoints.size()];
 	for (size_t i = 0; i < breakpoints.size(); i++)
 	{
 		uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(breakpoints[i]);
 		bool enabled = false;
-//		for (const DebugBreakpoint& bp: remoteList)
-//		{
-//			if (bp.m_address == remoteAddress)
-//			{
-//				enabled = true;
-//				break;
-//			}
-//		}
+		//for (const DebugBreakpoint& bp: remoteList)
+		//{
+		//	if (bp.m_address == remoteAddress)
+		//	{
+		//		enabled = true;
+		//		break;
+		//	}
+		//}
 		result[i].module = BNDebuggerAllocString(breakpoints[i].module.c_str());
 		result[i].offset = breakpoints[i].offset;
 		result[i].address = remoteAddress;
@@ -792,35 +792,36 @@ bool BNDebuggerIsSameBaseModule(const char* module1, const char* module2)
 }
 
 
-size_t BNDebuggerRegisterEventCallback(BNDebuggerController* controller,
-									   	void (*callback)(void* ctx, BNDebuggerEvent* event), const char* name,
-										void* ctx)
+size_t BNDebuggerRegisterEventCallback(
+	BNDebuggerController* controller, void (*callback)(void* ctx, BNDebuggerEvent* event), const char* name, void* ctx)
 {
-	return controller->object->RegisterEventCallback([=](const DebuggerEvent& event){
-		BNDebuggerEvent* evt = new BNDebuggerEvent;
+	return controller->object->RegisterEventCallback(
+		[=](const DebuggerEvent& event) {
+			BNDebuggerEvent* evt = new BNDebuggerEvent;
 
-		evt->type = event.type;
-		evt->data.targetStoppedData.reason = event.data.targetStoppedData.reason;
-		evt->data.targetStoppedData.exitCode = event.data.targetStoppedData.exitCode;
-		evt->data.targetStoppedData.lastActiveThread = event.data.targetStoppedData.lastActiveThread;
-		evt->data.targetStoppedData.data = event.data.targetStoppedData.data;
+			evt->type = event.type;
+			evt->data.targetStoppedData.reason = event.data.targetStoppedData.reason;
+			evt->data.targetStoppedData.exitCode = event.data.targetStoppedData.exitCode;
+			evt->data.targetStoppedData.lastActiveThread = event.data.targetStoppedData.lastActiveThread;
+			evt->data.targetStoppedData.data = event.data.targetStoppedData.data;
 
-		evt->data.errorData.error = BNDebuggerAllocString(event.data.errorData.error.c_str());
-		evt->data.errorData.shortError = BNDebuggerAllocString(event.data.errorData.shortError.c_str());
-		evt->data.errorData.data = event.data.errorData.data;
+			evt->data.errorData.error = BNDebuggerAllocString(event.data.errorData.error.c_str());
+			evt->data.errorData.shortError = BNDebuggerAllocString(event.data.errorData.shortError.c_str());
+			evt->data.errorData.data = event.data.errorData.data;
 
-		evt->data.exitData.exitCode = event.data.exitData.exitCode;
+			evt->data.exitData.exitCode = event.data.exitData.exitCode;
 
-		evt->data.relativeAddress.module = BNDebuggerAllocString(event.data.relativeAddress.module.c_str());
-		evt->data.relativeAddress.offset = event.data.relativeAddress.offset;
+			evt->data.relativeAddress.module = BNDebuggerAllocString(event.data.relativeAddress.module.c_str());
+			evt->data.relativeAddress.offset = event.data.relativeAddress.offset;
 
-		evt->data.absoluteAddress = event.data.absoluteAddress;
+			evt->data.absoluteAddress = event.data.absoluteAddress;
 
-		evt->data.messageData.message = BNDebuggerAllocString(event.data.messageData.message.c_str());
+			evt->data.messageData.message = BNDebuggerAllocString(event.data.messageData.message.c_str());
 
-		callback(ctx, evt);
-		delete evt;
-	}, name);
+			callback(ctx, evt);
+			delete evt;
+		},
+		name);
 }
 
 
@@ -865,14 +866,14 @@ DEBUGGER_FFI_API DebugStopReason BNDebuggerGetStopReason(BNDebuggerController* c
 
 DEBUGGER_FFI_API BNMetadata* BNDebuggerGetAdapterProperty(BNDebuggerController* controller, const char* name)
 {
-    return API_OBJECT_REF(controller->object->GetAdapterProperty(name));
+	return API_OBJECT_REF(controller->object->GetAdapterProperty(name));
 }
 
 
-DEBUGGER_FFI_API bool BNDebuggerSetAdapterProperty(BNDebuggerController* controller, const char* name,
-                                                   BNMetadata* value)
+DEBUGGER_FFI_API bool BNDebuggerSetAdapterProperty(
+	BNDebuggerController* controller, const char* name, BNMetadata* value)
 {
-    return controller->object->SetAdapterProperty(name, new Metadata(BNNewMetadataReference(value)));
+	return controller->object->SetAdapterProperty(name, new Metadata(BNNewMetadataReference(value)));
 }
 
 

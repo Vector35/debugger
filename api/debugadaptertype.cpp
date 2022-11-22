@@ -21,7 +21,7 @@ using namespace BinaryNinjaDebuggerAPI;
 using namespace std;
 
 
-DebugAdapterType* DebugAdapterType::GetByName(const std::string &name)
+DebugAdapterType* DebugAdapterType::GetByName(const std::string& name)
 {
 	BNDebugAdapterType* adapter = BNGetDebugAdapterTypeByName(name.c_str());
 	if (!adapter)
@@ -56,7 +56,7 @@ std::vector<std::string> DebugAdapterType::GetAvailableAdapters(Ref<BinaryView> 
 
 	std::vector<std::string> result;
 	result.reserve(count);
-	for(size_t i = 0; i < count; i++)
+	for (size_t i = 0; i < count; i++)
 	{
 		result.push_back(adapters[i]);
 	}

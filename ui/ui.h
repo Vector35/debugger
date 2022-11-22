@@ -29,9 +29,9 @@ limitations under the License.
 #include "uitypes.h"
 
 // Each UIContext has exactly one GlobalDebuggerUI. One GlobalDebuggerUI can contain multiple DebuggerUI.
-class GlobalDebuggerUI: public QObject
+class GlobalDebuggerUI : public QObject
 {
-Q_OBJECT
+	Q_OBJECT
 
 private:
 	UIContext* m_context;
@@ -60,19 +60,18 @@ public:
 };
 
 
-
-class DebuggerUI: public QObject
+class DebuggerUI : public QObject
 {
-    Q_OBJECT
+	Q_OBJECT
 
 private:
 	UIContext* m_context;
-    DbgRef<DebuggerController> m_controller;
+	DbgRef<DebuggerController> m_controller;
 
 	size_t m_eventCallback;
 
 public:
-    DebuggerUI(UIContext* context, DebuggerControllerRef controller);
+	DebuggerUI(UIContext* context, DebuggerControllerRef controller);
 	~DebuggerUI();
 
 	static DebuggerUI* CreateForViewFrame(ViewFrame* frame);
@@ -93,4 +92,3 @@ signals:
 private slots:
 	void updateUI(const DebuggerEvent& event);
 };
-

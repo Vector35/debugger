@@ -19,8 +19,7 @@ limitations under the License.
 #include <condition_variable>
 #include <mutex>
 
-namespace BinaryNinjaDebugger
-{
+namespace BinaryNinjaDebugger {
 	class Semaphore
 	{
 		std::mutex m_mutex;
@@ -31,4 +30,4 @@ namespace BinaryNinjaDebugger
 		void Release();
 		void Wait();
 	};
-};
+};  // namespace BinaryNinjaDebugger

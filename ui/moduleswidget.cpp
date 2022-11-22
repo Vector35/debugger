@@ -28,64 +28,60 @@ using namespace std;
 
 constexpr int SortFilterRole = Qt::UserRole + 1;
 
-ModuleItem::ModuleItem(uint64_t address, size_t size, std::string name, std::string path):
-    m_address(address), m_size(size), m_name(name), m_path(path)
-{
-}
+ModuleItem::ModuleItem(uint64_t address, size_t size, std::string name, std::string path) :
+	m_address(address), m_size(size), m_name(name), m_path(path)
+{}
 
 
 bool ModuleItem::operator==(const ModuleItem& other) const
 {
-    return (m_address == other.address()) && (m_size == other.size()) && (m_name == other.name()) &&
-        (m_path == other.path());
+	return (m_address == other.address()) && (m_size == other.size()) && (m_name == other.name())
+		&& (m_path == other.path());
 }
 
 
 bool ModuleItem::operator!=(const ModuleItem& other) const
 {
-    return !(*this == other);
+	return !(*this == other);
 }
 
 
 bool ModuleItem::operator<(const ModuleItem& other) const
 {
-    if (m_address < other.address())
-        return true;
-    else if (m_address > other.address())
-        return false;
-    else if (m_size < other.size())
-        return true;
-    else if (m_size > other.size())
-        return false;
-    else if (m_name < other.name())
-        return true;
-    else if (m_name > other.name())
-        return false;
-    return m_path < other.path();
+	if (m_address < other.address())
+		return true;
+	else if (m_address > other.address())
+		return false;
+	else if (m_size < other.size())
+		return true;
+	else if (m_size > other.size())
+		return false;
+	else if (m_name < other.name())
+		return true;
+	else if (m_name > other.name())
+		return false;
+	return m_path < other.path();
 }
 
 
-DebugModulesListModel::DebugModulesListModel(QWidget* parent, ViewFrame* view):
-    QAbstractTableModel(parent), m_view(view)
-{
-}
+DebugModulesListModel::DebugModulesListModel(QWidget* parent, ViewFrame* view) :
+	QAbstractTableModel(parent), m_view(view)
+{}
 
 
-DebugModulesListModel::~DebugModulesListModel()
-{
-}
+DebugModulesListModel::~DebugModulesListModel() {}
 
 
 ModuleItem DebugModulesListModel::getRow(int row) const
 {
-    if ((size_t)row >= m_items.size())
+	if ((size_t)row >= m_items.size())
 		throw std::runtime_error("row index out-of-bound");
 
-    return m_items[row];
+	return m_items[row];
 }
 
 
-QModelIndex DebugModulesListModel::index(int row, int column, const QModelIndex &) const
+QModelIndex DebugModulesListModel::index(int row, int column, const QModelIndex&) const
 {
 	if (row < 0 || (size_t)row >= m_items.size() || column >= columnCount())
 	{
@@ -98,60 +94,60 @@ QModelIndex DebugModulesListModel::index(int row, int column, const QModelIndex 
 
 QVariant DebugModulesListModel::data(const QModelIndex& index, int role) const
 {
-    if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
+	if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
 		return QVariant();
 
-	ModuleItem *item = static_cast<ModuleItem*>(index.internalPointer());
+	ModuleItem* item = static_cast<ModuleItem*>(index.internalPointer());
 	if (!item)
 		return QVariant();
 
-    if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole) && (role != SortFilterRole))
-        return QVariant();
+	if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole) && (role != SortFilterRole))
+		return QVariant();
 
-    switch (index.column())
-    {
-    case DebugModulesListModel::AddressColumn:
-    {
-        QString text = QString::asprintf("0x%" PRIx64, item->address());
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)text.size());
+	switch (index.column())
+	{
+	case DebugModulesListModel::AddressColumn:
+	{
+		QString text = QString::asprintf("0x%" PRIx64, item->address());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
-    }
+		return QVariant(text);
+	}
 	case DebugModulesListModel::EndAddressColumn:
-    {
-        QString text = QString::asprintf("0x%" PRIx64, item->endAddress());
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)text.size());
+	{
+		QString text = QString::asprintf("0x%" PRIx64, item->endAddress());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
-    }
-    case DebugModulesListModel::SizeColumn:
-    {
-        QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->size());
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)text.size());
+		return QVariant(text);
+	}
+	case DebugModulesListModel::SizeColumn:
+	{
+		QString text = QString::asprintf("0x%" PRIx64, (uint64_t)item->size());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
-    }
-    case DebugModulesListModel::NameColumn:
-    {
-        QString text = QString::fromStdString(item->name());
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)text.size());
+		return QVariant(text);
+	}
+	case DebugModulesListModel::NameColumn:
+	{
+		QString text = QString::fromStdString(item->name());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
-    }
-    case DebugModulesListModel::PathColumn:
-    {
-        QString text = QString::fromStdString(item->path());
-        if (role == Qt::SizeHintRole)
-            return QVariant((qulonglong)text.size());
+		return QVariant(text);
+	}
+	case DebugModulesListModel::PathColumn:
+	{
+		QString text = QString::fromStdString(item->path());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
 
-        return QVariant(text);
-    }
-    }
-    return QVariant();
+		return QVariant(text);
+	}
+	}
+	return QVariant();
 }
 
 
@@ -165,16 +161,16 @@ QVariant DebugModulesListModel::headerData(int column, Qt::Orientation orientati
 
 	switch (column)
 	{
-		case DebugModulesListModel::AddressColumn:
-			return "Start";
-		case DebugModulesListModel::EndAddressColumn:
-			return "End";
-		case DebugModulesListModel::SizeColumn:
-			return "Size";
-		case DebugModulesListModel::NameColumn:
-			return "Name";
-		case DebugModulesListModel::PathColumn:
-			return "Path";
+	case DebugModulesListModel::AddressColumn:
+		return "Start";
+	case DebugModulesListModel::EndAddressColumn:
+		return "End";
+	case DebugModulesListModel::SizeColumn:
+		return "Size";
+	case DebugModulesListModel::NameColumn:
+		return "Name";
+	case DebugModulesListModel::PathColumn:
+		return "Path";
 	}
 	return QVariant();
 }
@@ -182,32 +178,30 @@ QVariant DebugModulesListModel::headerData(int column, Qt::Orientation orientati
 
 void DebugModulesListModel::updateRows(std::vector<DebugModule> newModules)
 {
-    beginResetModel();
-    std::vector<ModuleItem> newRows;
-    for (const DebugModule& module: newModules)
-    {
-        newRows.emplace_back(module.m_address, module.m_size, module.m_short_name, module.m_name);
-    }
+	beginResetModel();
+	std::vector<ModuleItem> newRows;
+	for (const DebugModule& module : newModules)
+	{
+		newRows.emplace_back(module.m_address, module.m_size, module.m_short_name, module.m_name);
+	}
 
-    std::sort(newRows.begin(), newRows.end(), [=](const ModuleItem& a, const ModuleItem& b)
-        {
-            return a.address() < b.address();
-        });
+	std::sort(newRows.begin(), newRows.end(), [=](const ModuleItem& a, const ModuleItem& b) {
+		return a.address() < b.address();
+	});
 
-    m_items = newRows;
-    endResetModel();
+	m_items = newRows;
+	endResetModel();
 }
 
 
-DebugModulesItemDelegate::DebugModulesItemDelegate(QWidget* parent):
-    QStyledItemDelegate(parent)
+DebugModulesItemDelegate::DebugModulesItemDelegate(QWidget* parent) : QStyledItemDelegate(parent)
 {
-    updateFonts();
+	updateFonts();
 }
 
 
-void DebugModulesItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option,
-	const QModelIndex& idx) const
+void DebugModulesItemDelegate::paint(
+	QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const
 {
 	painter->setFont(m_font);
 
@@ -242,7 +236,7 @@ void DebugModulesItemDelegate::paint(QPainter* painter, const QStyleOptionViewIt
 	case DebugModulesListModel::NameColumn:
 	case DebugModulesListModel::PathColumn:
 	{
-        painter->setPen(option.palette.color(QPalette::WindowText).rgba());
+		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
 	}
@@ -266,44 +260,43 @@ void DebugModulesItemDelegate::updateFonts()
 
 QSize DebugModulesItemDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const
 {
-    auto totalWidth = (idx.data(Qt::SizeHintRole).toInt() + 2) * m_charWidth + 4;
-    return QSize(totalWidth, m_charHeight + 2);
+	auto totalWidth = (idx.data(Qt::SizeHintRole).toInt() + 2) * m_charWidth + 4;
+	return QSize(totalWidth, m_charHeight + 2);
 }
 
 
-DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
-    m_view(view)
+DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : m_view(view)
 {
-    m_controller = DebuggerController::GetController(data);
+	m_controller = DebuggerController::GetController(data);
 	if (!m_controller)
 		return;
 
-    m_table = new QTableView(this);
-    m_model = new DebugModulesListModel(m_table, view);
+	m_table = new QTableView(this);
+	m_model = new DebugModulesListModel(m_table, view);
 	m_filter = new DebugModulesFilterProxyModel(this);
 	m_filter->setSourceModel(m_model);
 	m_table->setModel(m_filter);
 	m_table->setShowGrid(false);
 
-    m_delegate = new DebugModulesItemDelegate(this);
-    m_table->setItemDelegate(m_delegate);
+	m_delegate = new DebugModulesItemDelegate(this);
+	m_table->setItemDelegate(m_delegate);
 
-    m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
+	m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
 
-    m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    m_table->verticalHeader()->setVisible(false);
+	m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+	m_table->verticalHeader()->setVisible(false);
 
-    m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-    m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+	m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+	m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
-    m_table->resizeColumnsToContents();
-    m_table->resizeRowsToContents();
+	m_table->resizeColumnsToContents();
+	m_table->resizeRowsToContents();
 
-    QVBoxLayout* layout = new QVBoxLayout;
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-    layout->addWidget(m_table);
-    setLayout(layout);
+	QVBoxLayout* layout = new QVBoxLayout;
+	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setSpacing(0);
+	layout->addWidget(m_table);
+	setLayout(layout);
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
@@ -312,16 +305,16 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
 	QString actionName = QString::fromStdString("Jump To Start");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=](){ jumpToStart(); }));
+	m_actionHandler.bindAction(actionName, UIAction([=]() { jumpToStart(); }));
 
 	actionName = QString::fromStdString("Jump To End");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=](){ jumpToEnd(); }));
+	m_actionHandler.bindAction(actionName, UIAction([=]() { jumpToEnd(); }));
 
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction("Copy", UIAction([&](){ copy(); }, [&](){ return canCopy(); }));
-	m_actionHandler.setActionDisplayName("Copy", [&](){
+	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return canCopy(); }));
+	m_actionHandler.setActionDisplayName("Copy", [&]() {
 		QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
 		if (sel.empty())
 			return "Copy";
@@ -345,23 +338,25 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data):
 
 	connect(m_table, &QTableView::doubleClicked, this, &DebugModulesWidget::onDoubleClicked);
 
-	m_debuggerEventCallback = m_controller->RegisterEventCallback([&](const DebuggerEvent& event){
-		switch (event.type)
-		{
-		case TargetStoppedEventType:
-		case TargetExitedEventType:
-			// These updates ensure the widgets become empty after the target stops
-		case DetachedEventType:
-		case QuitDebuggingEventType:
-		case BackEndDisconnectedEventType:
-			updateContent();
-			break;
-		default:
-			break;
-		}
-	}, "Modules Widget");
+	m_debuggerEventCallback = m_controller->RegisterEventCallback(
+		[&](const DebuggerEvent& event) {
+			switch (event.type)
+			{
+			case TargetStoppedEventType:
+			case TargetExitedEventType:
+				// These updates ensure the widgets become empty after the target stops
+			case DetachedEventType:
+			case QuitDebuggingEventType:
+			case BackEndDisconnectedEventType:
+				updateContent();
+				break;
+			default:
+				break;
+			}
+		},
+		"Modules Widget");
 
-    updateContent();
+	updateContent();
 }
 
 
@@ -374,24 +369,24 @@ DebugModulesWidget::~DebugModulesWidget()
 
 void DebugModulesWidget::notifyModulesChanged(std::vector<DebugModule> modules)
 {
-    m_model->updateRows(modules);
-    m_table->resizeColumnsToContents();
+	m_model->updateRows(modules);
+	m_table->resizeColumnsToContents();
 }
 
 
 void DebugModulesWidget::updateContent()
 {
-    if (!m_controller->IsConnected())
-        return;
+	if (!m_controller->IsConnected())
+		return;
 
-    std::vector<DebugModule> modules = m_controller->GetModules();
-    notifyModulesChanged(modules);
+	std::vector<DebugModule> modules = m_controller->GetModules();
+	notifyModulesChanged(modules);
 }
 
 
 void DebugModulesWidget::contextMenuEvent(QContextMenuEvent* event)
 {
-    showContextMenu();
+	showContextMenu();
 }
 
 
@@ -512,14 +507,14 @@ void DebugModulesWidget::onDoubleClicked()
 	if (sel.empty())
 		return;
 
-	if (sel[0].column() != DebugModulesListModel::AddressColumn && 
-		sel[0].column() != DebugModulesListModel::EndAddressColumn)
+	if (sel[0].column() != DebugModulesListModel::AddressColumn
+		&& sel[0].column() != DebugModulesListModel::EndAddressColumn)
 		return;
 
 	auto sourceIndex = m_filter->mapToSource(sel[0]);
 	if (!sourceIndex.isValid())
 		return;
-	
+
 	auto module = m_model->getRow(sourceIndex.row());
 	uint64_t address;
 
@@ -543,37 +538,25 @@ void DebugModulesWidget::onDoubleClicked()
 };
 
 
-void DebugModulesWidget::setFilter(const string & filter)
+void DebugModulesWidget::setFilter(const string& filter)
 {
 	m_filter->setFilterRegularExpression(QString::fromStdString(filter));
 }
 
 
-void DebugModulesWidget::scrollToFirstItem()
-{
-
-}
+void DebugModulesWidget::scrollToFirstItem() {}
 
 
-void DebugModulesWidget::scrollToCurrentItem()
-{
-
-}
+void DebugModulesWidget::scrollToCurrentItem() {}
 
 
-void DebugModulesWidget::selectFirstItem()
-{
-
-}
+void DebugModulesWidget::selectFirstItem() {}
 
 
-void DebugModulesWidget::activateFirstItem()
-{
-
-}
+void DebugModulesWidget::activateFirstItem() {}
 
 
-DebugModulesWithFilter::DebugModulesWithFilter(ViewFrame* view, BinaryViewRef data): m_view(view)
+DebugModulesWithFilter::DebugModulesWithFilter(ViewFrame* view, BinaryViewRef data) : m_view(view)
 {
 	m_modules = new DebugModulesWidget(view, data);
 	m_separateEdit = new FilterEdit(m_modules);
@@ -594,16 +577,16 @@ DebugModulesWithFilter::DebugModulesWithFilter(ViewFrame* view, BinaryViewRef da
 	headerLayout->addWidget(icon);
 
 	auto* layout = new QVBoxLayout(this);
-	layout->setContentsMargins(0, 0, 0 ,0);
+	layout->setContentsMargins(0, 0, 0, 0);
 	layout->addLayout(headerLayout);
 	layout->addWidget(m_filter, 1);
 }
 
 
-GlobalDebugModulesContainer::GlobalDebugModulesContainer(const QString& title) : GlobalAreaWidget(title),
-	m_currentFrame(nullptr), m_consoleStack(new QStackedWidget)
+GlobalDebugModulesContainer::GlobalDebugModulesContainer(const QString& title) :
+	GlobalAreaWidget(title), m_currentFrame(nullptr), m_consoleStack(new QStackedWidget)
 {
-	auto *layout = new QVBoxLayout(this);
+	auto* layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
 	layout->addWidget(m_consoleStack);
 
@@ -631,7 +614,8 @@ void GlobalDebugModulesContainer::freeWidgetForView(QObject* obj)
 	auto* vf = (ViewFrame*)obj;
 
 	// Confirm there is a record of this view.
-	if (!m_widgetMap.count(vf)) {
+	if (!m_widgetMap.count(vf))
+	{
 		LogWarn("Attempted to free DebuggerConsole for untracked view %p", obj);
 		return;
 	}
@@ -650,7 +634,8 @@ void GlobalDebugModulesContainer::notifyViewChanged(ViewFrame* frame)
 {
 	// The "no active view" message widget is always located at index 0. If the
 	// frame passed is nullptr, show it.
-	if (!frame) {
+	if (!frame)
+	{
 		m_consoleStack->setCurrentIndex(0);
 		m_currentFrame = nullptr;
 
@@ -685,13 +670,13 @@ void GlobalDebugModulesContainer::notifyViewChanged(ViewFrame* frame)
 }
 
 
-DebugModulesFilterProxyModel::DebugModulesFilterProxyModel(QObject *parent): QSortFilterProxyModel(parent)
+DebugModulesFilterProxyModel::DebugModulesFilterProxyModel(QObject* parent) : QSortFilterProxyModel(parent)
 {
 	setFilterCaseSensitivity(Qt::CaseInsensitive);
 }
 
 
-bool DebugModulesFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const
+bool DebugModulesFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const
 {
 	QRegularExpression regExp = filterRegularExpression();
 	if (!regExp.isValid())

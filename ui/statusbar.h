@@ -29,9 +29,9 @@ limitations under the License.
 #include "debuggerapi.h"
 
 
-class DebuggerStatusBarWidget: public QWidget
+class DebuggerStatusBarWidget : public QWidget
 {
-Q_OBJECT
+	Q_OBJECT
 
 	QWidget* m_parent;
 	ViewFrame* m_view;
@@ -57,7 +57,7 @@ private slots:
 
 class DebuggerStatusBarContainer : public QWidget
 {
-	ViewFrame *m_currentFrame;
+	ViewFrame* m_currentFrame;
 	QHash<ViewFrame*, DebuggerStatusBarWidget*> m_consoleMap;
 
 	QStackedWidget* m_consoleStack;
@@ -76,5 +76,5 @@ public:
 	//! no action will be taken.
 	void sendText(const QString& msg) const;
 
-	void notifyViewChanged(ViewFrame *);
+	void notifyViewChanged(ViewFrame*);
 };

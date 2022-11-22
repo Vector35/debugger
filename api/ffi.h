@@ -24,24 +24,24 @@ extern "C"
 #ifdef __GNUC__
 	#ifdef DEBUGGER_LIBRARY
 		#define DEBUGGER_FFI_API __attribute__((visibility("default")))
-	#else // DEBUGGER_LIBRARY
+	#else  // DEBUGGER_LIBRARY
 		#define DEBUGGER_FFI_API
-	#endif // DEBUGGER_LIBRARY
-#else // __GNUC__
-#ifdef _MSC_VER
-	#ifndef DEMO_VERSION
-		#ifdef DEBUGGER_LIBRARY
-			#define DEBUGGER_FFI_API __declspec(dllexport)
-		#else // DEBUGGER_LIBRARY
-			#define DEBUGGER_FFI_API __declspec(dllimport)
-		#endif // DEBUGGER_LIBRARY
-	#else
+	#endif  // DEBUGGER_LIBRARY
+#else       // __GNUC__
+	#ifdef _MSC_VER
+		#ifndef DEMO_VERSION
+			#ifdef DEBUGGER_LIBRARY
+				#define DEBUGGER_FFI_API __declspec(dllexport)
+			#else  // DEBUGGER_LIBRARY
+				#define DEBUGGER_FFI_API __declspec(dllimport)
+			#endif  // DEBUGGER_LIBRARY
+		#else
+			#define DEBUGGER_FFI_API
+		#endif
+	#else  // _MSC_VER
 		#define DEBUGGER_FFI_API
-	#endif
-#else // _MSC_VER
-#define DEBUGGER_FFI_API
-#endif // _MSC_VER
-#endif // __GNUC__C
+	#endif  // _MSC_VER
+#endif      // __GNUC__C
 
 	struct BNDebuggerController;
 	struct BNDebugAdapterType;
@@ -51,7 +51,7 @@ extern "C"
 	struct BNBinaryView;
 	struct BNArchitecture;
 	struct BNDataBuffer;
-    struct BNMetadata;
+	struct BNMetadata;
 	enum BNFunctionGraphType;
 
 	struct BNDebugThread
@@ -290,7 +290,7 @@ extern "C"
 	DEBUGGER_FFI_API BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNArchitecture* BNDebuggerGetRemoteArchitecture(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerIsConnected(BNDebuggerController* controller);
-    DEBUGGER_FFI_API bool BNDebuggerIsConnectedToDebugServer(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerIsConnectedToDebugServer(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerIsRunning(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API BNDebuggerController* BNDebuggerNewControllerReference(BNDebuggerController* controller);
@@ -298,8 +298,10 @@ extern "C"
 
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetStackPointer(BNDebuggerController* controller);
 
-	DEBUGGER_FFI_API BNDataBuffer* BNDebuggerReadMemory(BNDebuggerController* controller, uint64_t address, size_t size);
-	DEBUGGER_FFI_API bool BNDebuggerWriteMemory(BNDebuggerController* controller, uint64_t address, BNDataBuffer* buffer);
+	DEBUGGER_FFI_API BNDataBuffer* BNDebuggerReadMemory(
+		BNDebuggerController* controller, uint64_t address, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerWriteMemory(
+		BNDebuggerController* controller, uint64_t address, BNDataBuffer* buffer);
 
 	DEBUGGER_FFI_API BNDebugThread* BNDebuggerGetThreads(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeThreads(BNDebugThread* threads, size_t count);
@@ -307,8 +309,8 @@ extern "C"
 	DEBUGGER_FFI_API BNDebugThread BNDebuggerGetActiveThread(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerSetActiveThread(BNDebuggerController* controller, BNDebugThread thread);
 
-	DEBUGGER_FFI_API BNDebugFrame* BNDebuggerGetFramesOfThread(BNDebuggerController* controller, uint32_t tid,
-															   size_t* count);
+	DEBUGGER_FFI_API BNDebugFrame* BNDebuggerGetFramesOfThread(
+		BNDebuggerController* controller, uint32_t tid, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeFrames(BNDebugFrame* frames, size_t count);
 
 	DEBUGGER_FFI_API BNDebugModule* BNDebuggerGetModules(BNDebuggerController* controller, size_t* count);
@@ -316,7 +318,8 @@ extern "C"
 
 	DEBUGGER_FFI_API BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeRegisters(BNDebugRegister* modules, size_t count);
-	DEBUGGER_FFI_API bool BNDebuggerSetRegisterValue(BNDebuggerController* controller, const char* name, uint64_t value);
+	DEBUGGER_FFI_API bool BNDebuggerSetRegisterValue(
+		BNDebuggerController* controller, const char* name, uint64_t value);
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetRegisterValue(BNDebuggerController* controller, const char* name);
 
 	// target control
@@ -326,9 +329,9 @@ extern "C"
 	DEBUGGER_FFI_API void BNDebuggerQuit(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerQuitAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerConnect(BNDebuggerController* controller);
-    DEBUGGER_FFI_API bool BNDebuggerConnectToDebugServer(BNDebuggerController* controller);
-    DEBUGGER_FFI_API bool BNDebuggerDisconnectDebugServer(BNDebuggerController* controller);
-    DEBUGGER_FFI_API void BNDebuggerDetach(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerConnectToDebugServer(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerDisconnectDebugServer(BNDebuggerController* controller);
+	DEBUGGER_FFI_API void BNDebuggerDetach(BNDebuggerController* controller);
 	// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
 	DEBUGGER_FFI_API void BNDebuggerLaunchOrConnect(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerAttach(BNDebuggerController* controller, uint32_t pid);
@@ -337,14 +340,18 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerStepInto(BNDebuggerController* controller, BNFunctionGraphType il);
 	DEBUGGER_FFI_API bool BNDebuggerStepOver(BNDebuggerController* controller, BNFunctionGraphType il);
 	DEBUGGER_FFI_API bool BNDebuggerStepReturn(BNDebuggerController* controller);
-	DEBUGGER_FFI_API bool BNDebuggerRunTo(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
+	DEBUGGER_FFI_API bool BNDebuggerRunTo(
+		BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerPause(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerGoAndWait(BNDebuggerController* controller);
-	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepIntoAndWait(BNDebuggerController* controller, BNFunctionGraphType il);
-	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepOverAndWait(BNDebuggerController* controller, BNFunctionGraphType il);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepIntoAndWait(
+		BNDebuggerController* controller, BNFunctionGraphType il);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepOverAndWait(
+		BNDebuggerController* controller, BNFunctionGraphType il);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepReturnAndWait(BNDebuggerController* controller);
-	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRunToAndWait(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRunToAndWait(
+		BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerPauseAndWait(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API char* BNDebuggerGetAdapterType(BNDebuggerController* controller);
@@ -371,18 +378,23 @@ extern "C"
 	DEBUGGER_FFI_API void BNDebuggerFreeBreakpoints(BNDebugBreakpoint* breakpoints, size_t count);
 
 	DEBUGGER_FFI_API void BNDebuggerDeleteAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t address);
-	DEBUGGER_FFI_API void BNDebuggerDeleteRelativeBreakpoint(BNDebuggerController* controller, const char* module, uint64_t offset);
+	DEBUGGER_FFI_API void BNDebuggerDeleteRelativeBreakpoint(
+		BNDebuggerController* controller, const char* module, uint64_t offset);
 	DEBUGGER_FFI_API void BNDebuggerAddAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t address);
-	DEBUGGER_FFI_API void BNDebuggerAddRelativeBreakpoint(BNDebuggerController* controller, const char* module, uint64_t offset);
+	DEBUGGER_FFI_API void BNDebuggerAddRelativeBreakpoint(
+		BNDebuggerController* controller, const char* module, uint64_t offset);
 	DEBUGGER_FFI_API bool BNDebuggerContainsAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t address);
-	DEBUGGER_FFI_API bool BNDebuggerContainsRelativeBreakpoint(BNDebuggerController* controller, const char* module, uint64_t offset);
+	DEBUGGER_FFI_API bool BNDebuggerContainsRelativeBreakpoint(
+		BNDebuggerController* controller, const char* module, uint64_t offset);
 
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetIP(BNDebuggerController* controller);
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetLastIP(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerSetIP(BNDebuggerController* controller, uint64_t address);
 
-	DEBUGGER_FFI_API uint64_t BNDebuggerRelativeAddressToAbsolute(BNDebuggerController* controller, const char* module, uint64_t offset);
-	DEBUGGER_FFI_API BNModuleNameAndOffset BNDebuggerAbsoluteAddressToRelative(BNDebuggerController* controller, uint64_t address);
+	DEBUGGER_FFI_API uint64_t BNDebuggerRelativeAddressToAbsolute(
+		BNDebuggerController* controller, const char* module, uint64_t offset);
+	DEBUGGER_FFI_API BNModuleNameAndOffset BNDebuggerAbsoluteAddressToRelative(
+		BNDebuggerController* controller, uint64_t address);
 
 	DEBUGGER_FFI_API uint32_t BNDebuggerGetExitCode(BNDebuggerController* controller);
 
@@ -408,14 +420,12 @@ extern "C"
 
 	// Debugger events
 	DEBUGGER_FFI_API size_t BNDebuggerRegisterEventCallback(BNDebuggerController* controller,
-															void (*callback)(void* ctx, BNDebuggerEvent* event),
-															const char* name,
-															void* ctx);
+		void (*callback)(void* ctx, BNDebuggerEvent* event), const char* name, void* ctx);
 	DEBUGGER_FFI_API void BNDebuggerRemoveEventCallback(BNDebuggerController* controller, size_t index);
 
-    DEBUGGER_FFI_API BNMetadata* BNDebuggerGetAdapterProperty(BNDebuggerController* controller, const char* name);
-    DEBUGGER_FFI_API bool BNDebuggerSetAdapterProperty(BNDebuggerController* controller, const char* name,
-                                                      BNMetadata* value);
+	DEBUGGER_FFI_API BNMetadata* BNDebuggerGetAdapterProperty(BNDebuggerController* controller, const char* name);
+	DEBUGGER_FFI_API bool BNDebuggerSetAdapterProperty(
+		BNDebuggerController* controller, const char* name, BNMetadata* value);
 
 #ifdef __cplusplus
 }

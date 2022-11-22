@@ -83,7 +83,7 @@ bool DebuggerController::IsConnected()
 
 bool DebuggerController::IsConnectedToDebugServer()
 {
-    return BNDebuggerIsConnectedToDebugServer(m_object);
+	return BNDebuggerIsConnectedToDebugServer(m_object);
 }
 
 
@@ -101,7 +101,7 @@ uint64_t DebuggerController::StackPointer()
 
 DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t size)
 {
-    return DataBuffer(BNDebuggerReadMemory(m_object, address, size));
+	return DataBuffer(BNDebuggerReadMemory(m_object, address, size));
 }
 
 
@@ -222,13 +222,13 @@ std::vector<DebugRegister> DebuggerController::GetRegisters()
 }
 
 
-uint64_t DebuggerController::GetRegisterValue(const std::string &name)
+uint64_t DebuggerController::GetRegisterValue(const std::string& name)
 {
 	return BNDebuggerGetRegisterValue(m_object, name.c_str());
 }
 
 
-bool DebuggerController::SetRegisterValue(const std::string &name, uint64_t value)
+bool DebuggerController::SetRegisterValue(const std::string& name, uint64_t value)
 {
 	return BNDebuggerSetRegisterValue(m_object, name.c_str(), value);
 }
@@ -284,13 +284,13 @@ void DebuggerController::Connect()
 
 bool DebuggerController::ConnectToDebugServer()
 {
-    return BNDebuggerConnectToDebugServer(m_object);
+	return BNDebuggerConnectToDebugServer(m_object);
 }
 
 
 bool DebuggerController::DisconnectDebugServer()
 {
-    return BNDebuggerDisconnectDebugServer(m_object);
+	return BNDebuggerDisconnectDebugServer(m_object);
 }
 
 
@@ -339,11 +339,11 @@ bool DebuggerController::StepReturn()
 
 bool DebuggerController::RunTo(uint64_t remoteAddresses)
 {
-	return RunTo(std::vector<uint64_t>{remoteAddresses});
+	return RunTo(std::vector<uint64_t> {remoteAddresses});
 }
 
 
-bool DebuggerController::RunTo(const std::vector<uint64_t> &remoteAddresses)
+bool DebuggerController::RunTo(const std::vector<uint64_t>& remoteAddresses)
 {
 	return BNDebuggerRunTo(m_object, remoteAddresses.data(), remoteAddresses.size());
 }
@@ -369,11 +369,11 @@ DebugStopReason DebuggerController::StepReturnAndWait()
 
 DebugStopReason DebuggerController::RunToAndWait(uint64_t remoteAddresses)
 {
-	return RunToAndWait(std::vector<uint64_t>{remoteAddresses});
+	return RunToAndWait(std::vector<uint64_t> {remoteAddresses});
 }
 
 
-DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t> &remoteAddresses)
+DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& remoteAddresses)
 {
 	return BNDebuggerRunToAndWait(m_object, remoteAddresses.data(), remoteAddresses.size());
 }
@@ -398,7 +398,7 @@ std::string DebuggerController::GetAdapterType()
 }
 
 
-void DebuggerController::SetAdapterType(const std::string &adapter)
+void DebuggerController::SetAdapterType(const std::string& adapter)
 {
 	BNDebuggerSetAdapterType(m_object, adapter.c_str());
 }
@@ -565,7 +565,7 @@ bool DebuggerController::ContainsBreakpoint(uint64_t address)
 }
 
 
-bool DebuggerController::ContainsBreakpoint(const ModuleNameAndOffset &breakpoint)
+bool DebuggerController::ContainsBreakpoint(const ModuleNameAndOffset& breakpoint)
 {
 	return BNDebuggerContainsRelativeBreakpoint(m_object, breakpoint.module.c_str(), breakpoint.offset);
 }
@@ -612,8 +612,8 @@ uint32_t DebuggerController::GetExitCode()
 }
 
 
-size_t DebuggerController::RegisterEventCallback(std::function<void(const DebuggerEvent &event)> callback,
-												const std::string& name)
+size_t DebuggerController::RegisterEventCallback(
+	std::function<void(const DebuggerEvent& event)> callback, const std::string& name)
 {
 	DebuggerEventCallbackObject* object = new DebuggerEventCallbackObject;
 	object->action = callback;
@@ -645,7 +645,7 @@ void DebuggerController::DebuggerEventCallback(void* ctxt, BNDebuggerEvent* even
 
 	evt.data.absoluteAddress = event->data.absoluteAddress;
 
-	evt.data.messageData.message = string (event->data.messageData.message);
+	evt.data.messageData.message = string(event->data.messageData.message);
 	BNDebuggerFreeString(event->data.messageData.message);
 
 	object->action(evt);
@@ -658,13 +658,13 @@ void DebuggerController::RemoveEventCallback(size_t index)
 }
 
 
-void DebuggerController::WriteStdin(const std::string &msg)
+void DebuggerController::WriteStdin(const std::string& msg)
 {
 	BNDebuggerWriteStdin(m_object, msg.c_str(), msg.length());
 }
 
 
-std::string DebuggerController::InvokeBackendCommand(const std::string &command)
+std::string DebuggerController::InvokeBackendCommand(const std::string& command)
 {
 	char* output = BNDebuggerInvokeBackendCommand(m_object, command.c_str());
 	std::string result = std::string(output);
@@ -690,16 +690,16 @@ DebugStopReason DebuggerController::StopReason()
 
 Ref<Metadata> DebuggerController::GetAdapterProperty(const std::string& name)
 {
-    BNMetadata* value = BNDebuggerGetAdapterProperty(m_object, name.c_str());
-    if (!value)
-        return nullptr;
-    return new Metadata(value);
+	BNMetadata* value = BNDebuggerGetAdapterProperty(m_object, name.c_str());
+	if (!value)
+		return nullptr;
+	return new Metadata(value);
 }
 
 
 bool DebuggerController::SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<Metadata>& value)
 {
-    return BNDebuggerSetAdapterProperty(m_object, name.c_str(), value->m_object);
+	return BNDebuggerSetAdapterProperty(m_object, name.c_str(), value->m_object);
 }
 
 
