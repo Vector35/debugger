@@ -379,12 +379,7 @@ void ThreadFramesWidget::resumeThread()
 	if (item->isFrame())
 		return;
 
-	if (m_debugger->GetActiveThread().m_tid == item->tid())
-	{
-		LogInfo("Can not resume current thread.");
-		return;
-	}
-
+	// TODO: remove this after thread state indicator
 	LogInfo("resumeThread called with column=%d row=%d is_frame=%d, tid=%x", sel[0].column(), sel[0].row(), item->isFrame(), item->tid());
 
 	m_debugger->ResumeThread(item->tid());
@@ -403,12 +398,6 @@ void ThreadFramesWidget::suspendThread()
 
 	if (item->isFrame())
 		return;
-
-	if (m_debugger->GetActiveThread().m_tid == item->tid())
-	{
-		LogInfo("Can not suspend current thread.");
-		return;
-	}
 
 	LogInfo("suspendThread called with column=%d row=%d is_frame=%d, tid=%x", sel[0].column(), sel[0].row(), item->isFrame(), item->tid());
 	
