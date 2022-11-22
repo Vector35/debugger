@@ -26,59 +26,55 @@ using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
-BreakpointItem::BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t address):
-    m_enabled(enabled), m_location(location), m_address(address)
-{
-}
+BreakpointItem::BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t address) :
+	m_enabled(enabled), m_location(location), m_address(address)
+{}
 
 
 bool BreakpointItem::operator==(const BreakpointItem& other) const
 {
-    return (m_enabled == other.enabled()) && (m_location == other.location()) && (m_address == other.address());
+	return (m_enabled == other.enabled()) && (m_location == other.location()) && (m_address == other.address());
 }
 
 
 bool BreakpointItem::operator!=(const BreakpointItem& other) const
 {
-    return !(*this == other);
+	return !(*this == other);
 }
 
 
 bool BreakpointItem::operator<(const BreakpointItem& other) const
 {
-    if (m_enabled < other.enabled())
-        return true;
-    else if (m_enabled > other.enabled())
-        return false;
-    else if (m_location < other.location())
-        return true;
-    else if (m_location > other.location())
-        return false;
-    return m_address < other.address();
+	if (m_enabled < other.enabled())
+		return true;
+	else if (m_enabled > other.enabled())
+		return false;
+	else if (m_location < other.location())
+		return true;
+	else if (m_location > other.location())
+		return false;
+	return m_address < other.address();
 }
 
 
-DebugBreakpointsListModel::DebugBreakpointsListModel(QWidget* parent, ViewFrame* view):
-    QAbstractTableModel(parent), m_view(view)
-{
-}
+DebugBreakpointsListModel::DebugBreakpointsListModel(QWidget* parent, ViewFrame* view) :
+	QAbstractTableModel(parent), m_view(view)
+{}
 
 
-DebugBreakpointsListModel::~DebugBreakpointsListModel()
-{
-}
+DebugBreakpointsListModel::~DebugBreakpointsListModel() {}
 
 
 BreakpointItem DebugBreakpointsListModel::getRow(int row) const
 {
-    if ((size_t)row >= m_items.size())
+	if ((size_t)row >= m_items.size())
 		throw std::runtime_error("row index out-of-bound");
 
-    return m_items[row];
+	return m_items[row];
 }
 
 
-QModelIndex DebugBreakpointsListModel::index(int row, int column, const QModelIndex &) const
+QModelIndex DebugBreakpointsListModel::index(int row, int column, const QModelIndex&) const
 {
 	if (row < 0 || (size_t)row >= m_items.size() || column >= columnCount())
 	{
@@ -91,49 +87,46 @@ QModelIndex DebugBreakpointsListModel::index(int row, int column, const QModelIn
 
 QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) const
 {
-    if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
+	if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
 		return QVariant();
 
-	BreakpointItem *item = static_cast<BreakpointItem*>(index.internalPointer());
+	BreakpointItem* item = static_cast<BreakpointItem*>(index.internalPointer());
 	if (!item)
 		return QVariant();
 
-    if (role != Qt::DisplayRole)
-        return QVariant();
+	if (role != Qt::DisplayRole)
+		return QVariant();
 
-    switch (index.column())
-    {
-//    case DebugBreakpointsListModel::EnabledColumn:
-//    {
-//        QString text = item->enabled() ? "true" : "false";
-//        return QVariant(text);
-//    }
-    case DebugBreakpointsListModel::LocationColumn:
-    {
+	switch (index.column())
+	{
+//	case DebugBreakpointsListModel::EnabledColumn:
+//	{
+//		QString text = item->enabled() ? "true" : "false";
+//		return QVariant(text);
+//	}
+	case DebugBreakpointsListModel::LocationColumn:
+	{
 		QString text;
 		if (item->location().module == "")
 		{
-			text = QString::fromStdString(
-					fmt::format("0x{:x}", item->location().offset));
+			text = QString::fromStdString(fmt::format("0x{:x}", item->location().offset));
 		}
 		else
 		{
 			// TODO: This should probably be done at the API level, e.g., also returning a short name of the module
 			QFileInfo fileInfo(QString::fromStdString(item->location().module));
 			auto fileName = fileInfo.fileName();
-			text = QString::fromStdString(
-					fmt::format("{} + 0x{:x}", fileName.toStdString(), item->location().offset));
+			text = QString::fromStdString(fmt::format("{} + 0x{:x}", fileName.toStdString(), item->location().offset));
 		}
-        return QVariant(text);
-    }
-    case DebugBreakpointsListModel::AddressColumn:
-    {
-        QString text = QString::fromStdString(
-                fmt::format("0x{:x}", item->address()));
-        return QVariant(text);
-    }
-    }
-    return QVariant();
+		return QVariant(text);
+	}
+	case DebugBreakpointsListModel::AddressColumn:
+	{
+		QString text = QString::fromStdString(fmt::format("0x{:x}", item->address()));
+		return QVariant(text);
+	}
+	}
+	return QVariant();
 }
 
 
@@ -147,12 +140,12 @@ QVariant DebugBreakpointsListModel::headerData(int column, Qt::Orientation orien
 
 	switch (column)
 	{
-//		case DebugBreakpointsListModel::EnabledColumn:
-//			return "Enabled";
-		case DebugBreakpointsListModel::LocationColumn:
-			return "Location";
-		case DebugBreakpointsListModel::AddressColumn:
-			return "Remote Address";
+//	case DebugBreakpointsListModel::EnabledColumn:
+//		return "Enabled";
+	case DebugBreakpointsListModel::LocationColumn:
+		return "Location";
+	case DebugBreakpointsListModel::AddressColumn:
+		return "Remote Address";
 	}
 	return QVariant();
 }
@@ -160,21 +153,20 @@ QVariant DebugBreakpointsListModel::headerData(int column, Qt::Orientation orien
 
 void DebugBreakpointsListModel::updateRows(std::vector<BreakpointItem> newRows)
 {
-    beginResetModel();
-    m_items = newRows;
-    endResetModel();
+	beginResetModel();
+	m_items = newRows;
+	endResetModel();
 }
 
 
-DebugBreakpointsItemDelegate::DebugBreakpointsItemDelegate(QWidget* parent):
-    QStyledItemDelegate(parent)
+DebugBreakpointsItemDelegate::DebugBreakpointsItemDelegate(QWidget* parent) : QStyledItemDelegate(parent)
 {
-    updateFonts();
+	updateFonts();
 }
 
 
-void DebugBreakpointsItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option,
-	const QModelIndex& idx) const
+void DebugBreakpointsItemDelegate::paint(
+	QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const
 {
 	painter->setFont(m_font);
 
@@ -197,8 +189,8 @@ void DebugBreakpointsItemDelegate::paint(QPainter* painter, const QStyleOptionVi
 	case DebugBreakpointsListModel::LocationColumn:
 	case DebugBreakpointsListModel::AddressColumn:
 	{
-        painter->setFont(m_font);
-        painter->setPen(option.palette.color(QPalette::WindowText).rgba());
+		painter->setFont(m_font);
+		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
 	}
@@ -220,83 +212,80 @@ void DebugBreakpointsItemDelegate::updateFonts()
 }
 
 
-DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu):
-    m_view(view)
+DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu) : m_view(view)
 {
-    m_controller = DebuggerController::GetController(data);
+	m_controller = DebuggerController::GetController(data);
 
-    m_table = new QTableView(this);
-    m_model = new DebugBreakpointsListModel(m_table, view);
-    m_table->setModel(m_model);
-    m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
-    m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+	m_table = new QTableView(this);
+	m_model = new DebugBreakpointsListModel(m_table, view);
+	m_table->setModel(m_model);
+	m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
+	m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
-    m_delegate = new DebugBreakpointsItemDelegate(this);
-    m_table->setItemDelegate(m_delegate);
+	m_delegate = new DebugBreakpointsItemDelegate(this);
+	m_table->setItemDelegate(m_delegate);
 
-    m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+	m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+	m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
-    m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    m_table->verticalHeader()->setVisible(false);
+	m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+	m_table->verticalHeader()->setVisible(false);
 
-    m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-    m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+	m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+	m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
-    m_table->resizeColumnsToContents();
-    m_table->resizeRowsToContents();
-    m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+	m_table->resizeColumnsToContents();
+	m_table->resizeRowsToContents();
+	m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
 
-    QVBoxLayout* layout = new QVBoxLayout;
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-    layout->addWidget(m_table);
-    setLayout(layout);
+	QVBoxLayout* layout = new QVBoxLayout;
+	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setSpacing(0);
+	layout->addWidget(m_table);
+	setLayout(layout);
 
-    m_actionHandler.setupActionHandler(this);
-    m_contextMenuManager = new ContextMenuManager(this);
-    m_menu = menu;
-    if (m_menu == nullptr)
-        m_menu = new Menu();
+	m_actionHandler.setupActionHandler(this);
+	m_contextMenuManager = new ContextMenuManager(this);
+	m_menu = menu;
+	if (m_menu == nullptr)
+		m_menu = new Menu();
 
-    QString removeBreakpointActionName = QString::fromStdString("Remove Breakpoint");
-    UIAction::registerAction(removeBreakpointActionName, QKeySequence::Delete);
-    m_menu->addAction(removeBreakpointActionName, "Options", MENU_ORDER_NORMAL);
-    m_actionHandler.bindAction(removeBreakpointActionName, UIAction([&](){ remove(); },
-															   [&](){ return selectionNotEmpty(); }));
+	QString removeBreakpointActionName = QString::fromStdString("Remove Breakpoint");
+	UIAction::registerAction(removeBreakpointActionName, QKeySequence::Delete);
+	m_menu->addAction(removeBreakpointActionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		removeBreakpointActionName, UIAction([&]() { remove(); }, [&]() { return selectionNotEmpty(); }));
 
-    QString jumpToBreakpointActionName = QString::fromStdString("Jump To Breakpoint");
-    UIAction::registerAction(jumpToBreakpointActionName);
-    m_menu->addAction(jumpToBreakpointActionName, "Options", MENU_ORDER_NORMAL);
-    m_actionHandler.bindAction(jumpToBreakpointActionName, UIAction([&](){ jump(); },
-															   [&](){ return selectionNotEmpty(); }));
+	QString jumpToBreakpointActionName = QString::fromStdString("Jump To Breakpoint");
+	UIAction::registerAction(jumpToBreakpointActionName);
+	m_menu->addAction(jumpToBreakpointActionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		jumpToBreakpointActionName, UIAction([&]() { jump(); }, [&]() { return selectionNotEmpty(); }));
 
-    connect(m_table, &QTableView::doubleClicked, this, &DebugBreakpointsWidget::onDoubleClicked);
+	connect(m_table, &QTableView::doubleClicked, this, &DebugBreakpointsWidget::onDoubleClicked);
 
-    updateContent();
+	updateContent();
 }
 
 
-DebugBreakpointsWidget::~DebugBreakpointsWidget()
-{
-}
+DebugBreakpointsWidget::~DebugBreakpointsWidget() {}
 
 
 void DebugBreakpointsWidget::onDoubleClicked()
 {
-    jump();
+	jump();
 }
 
 
 //void DebugBreakpointsWidget::notifyFontChanged()
 //{
-//    m_delegate->updateFonts();
+//	m_delegate->updateFonts();
 //}
 
 
 void DebugBreakpointsWidget::contextMenuEvent(QContextMenuEvent* event)
 {
-    m_contextMenuManager->show(m_menu, &m_actionHandler);
+	m_contextMenuManager->show(m_menu, &m_actionHandler);
 }
 
 
@@ -317,14 +306,14 @@ void DebugBreakpointsWidget::jump()
 
 	auto address_or_offset = bp.address();
 	Ref<BinaryView> view = m_controller->GetData();
-    const auto is_absolute = m_controller->IsConnected();
-    if (!is_absolute)
-        address_or_offset += view->GetStart();
+	const auto is_absolute = m_controller->IsConnected();
+	if (!is_absolute)
+		address_or_offset += view->GetStart();
 
-    UIContext* context = UIContext::contextForWidget(this);
-    ViewFrame* frame = context->getCurrentViewFrame();
+	UIContext* context = UIContext::contextForWidget(this);
+	ViewFrame* frame = context->getCurrentViewFrame();
 	if (m_controller->GetLiveView())
-    	frame->navigate(m_controller->GetLiveView(), address_or_offset, true, true);
+		frame->navigate(m_controller->GetLiveView(), address_or_offset, true, true);
 	else
 		frame->navigate(m_controller->GetData(), address_or_offset, true, true);
 }
@@ -332,18 +321,18 @@ void DebugBreakpointsWidget::jump()
 
 void DebugBreakpointsWidget::remove()
 {
-    QModelIndexList sel = m_table->selectionModel()->selectedRows();
+	QModelIndexList sel = m_table->selectionModel()->selectedRows();
 	std::vector<ModuleNameAndOffset> breakpointsToRemove;
 
-    for (const QModelIndex& index: sel)
-    {
+	for (const QModelIndex& index : sel)
+	{
 		// We cannot delete the breakpoint inside this loop because deleting a breakpoint will cause this widget to
 		// remove the breakpoint from the list, which will invalidate the index of the remaining breakpoints.
-        BreakpointItem bp = m_model->getRow(index.row());
+		BreakpointItem bp = m_model->getRow(index.row());
 		breakpointsToRemove.push_back(bp.location());
-    }
+	}
 
-	for (const auto& bp: breakpointsToRemove)
+	for (const auto& bp : breakpointsToRemove)
 		m_controller->DeleteBreakpoint(bp);
 }
 
@@ -352,59 +341,56 @@ void DebugBreakpointsWidget::updateContent()
 {
 	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
 
-    std::vector<BreakpointItem> bps;
-    for (const DebugBreakpoint& bp: breakpoints)
-    {
+	std::vector<BreakpointItem> bps;
+	for (const DebugBreakpoint& bp : breakpoints)
+	{
 		ModuleNameAndOffset info;
 		info.module = bp.module;
 		info.offset = bp.offset;
-        bps.emplace_back(bp.enabled, info, bp.address);
-    }
+		bps.emplace_back(bp.enabled, info, bp.address);
+	}
 
-    m_model->updateRows(bps);
+	m_model->updateRows(bps);
 }
 
 
-BreakpointSideBarWidget::BreakpointSideBarWidget(const QString& name, ViewFrame* view, BinaryViewRef data):
-    SidebarWidget(name), m_view(view)
+BreakpointSideBarWidget::BreakpointSideBarWidget(const QString& name, ViewFrame* view, BinaryViewRef data) :
+	SidebarWidget(name), m_view(view)
 {
-    QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-    layout->setAlignment(Qt::AlignTop);
+	QVBoxLayout* layout = new QVBoxLayout(this);
+	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setSpacing(0);
+	layout->setAlignment(Qt::AlignTop);
 
-    m_breakpointsWidget = new DebugBreakpointsWidget(m_view, data, m_menu);
+	m_breakpointsWidget = new DebugBreakpointsWidget(m_view, data, m_menu);
 
-    layout->addWidget(m_breakpointsWidget);
-    setLayout(layout);
+	layout->addWidget(m_breakpointsWidget);
+	setLayout(layout);
 
 	m_ui = DebuggerUI::GetForViewFrame(view);
 	connect(m_ui, &DebuggerUI::debuggerEvent, this, &BreakpointSideBarWidget::uiEventHandler);
 }
 
 
-BreakpointSideBarWidget::~BreakpointSideBarWidget()
+BreakpointSideBarWidget::~BreakpointSideBarWidget() {}
+
+
+void BreakpointSideBarWidget::uiEventHandler(const DebuggerEvent& event)
 {
-}
-
-
-
-void BreakpointSideBarWidget::uiEventHandler(const DebuggerEvent &event)
-{
-    switch (event.type)
-    {
-    case TargetStoppedEventType:
-    case DetachedEventType:
-    case QuitDebuggingEventType:
-    case BackEndDisconnectedEventType:
-    case RelativeBreakpointAddedEvent:
-    case AbsoluteBreakpointAddedEvent:
-    case RelativeBreakpointRemovedEvent:
-    case AbsoluteBreakpointRemovedEvent:
+	switch (event.type)
+	{
+	case TargetStoppedEventType:
+	case DetachedEventType:
+	case QuitDebuggingEventType:
+	case BackEndDisconnectedEventType:
+	case RelativeBreakpointAddedEvent:
+	case AbsoluteBreakpointAddedEvent:
+	case RelativeBreakpointRemovedEvent:
+	case AbsoluteBreakpointRemovedEvent:
 		updateContent();
-    default:
-        break;
-    }
+	default:
+		break;
+	}
 }
 
 
@@ -414,7 +400,4 @@ void BreakpointSideBarWidget::updateContent()
 }
 
 
-void BreakpointSideBarWidget::notifyFontChanged()
-{
-
-}
+void BreakpointSideBarWidget::notifyFontChanged() {}

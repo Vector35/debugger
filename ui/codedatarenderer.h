@@ -18,15 +18,13 @@ limitations under the License.
 
 #include "binaryninjaapi.h"
 
-class CodeDataRenderer: public BinaryNinja::DataRenderer
+class CodeDataRenderer : public BinaryNinja::DataRenderer
 {
 public:
 	CodeDataRenderer();
-	virtual bool IsValidForData(
-			BinaryNinja::BinaryView* data, uint64_t addr, BinaryNinja::Type* type,
-			std::vector<std::pair<BinaryNinja::Type*, size_t>>& context) override;
-	virtual std::vector<BinaryNinja::DisassemblyTextLine> GetLinesForData(
-			BinaryNinja::BinaryView* data, uint64_t addr, BinaryNinja::Type* type,
-			const std::vector<BinaryNinja::InstructionTextToken>& prefix, size_t width,
-			std::vector<std::pair<BinaryNinja::Type*, size_t>>& context) override;
+	virtual bool IsValidForData(BinaryNinja::BinaryView* data, uint64_t addr, BinaryNinja::Type* type,
+		std::vector<std::pair<BinaryNinja::Type*, size_t>>& context) override;
+	virtual std::vector<BinaryNinja::DisassemblyTextLine> GetLinesForData(BinaryNinja::BinaryView* data, uint64_t addr,
+		BinaryNinja::Type* type, const std::vector<BinaryNinja::InstructionTextToken>& prefix, size_t width,
+		std::vector<std::pair<BinaryNinja::Type*, size_t>>& context) override;
 };

@@ -29,56 +29,64 @@ using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 
 
-DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data):
-    QToolBar(parent), m_name(name)
+DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data) :
+	QToolBar(parent), m_name(name)
 {
-    m_controller = DebuggerController::GetController(data);
+	m_controller = DebuggerController::GetController(data);
 
 	auto cyan = getThemeColor(CyanStandardHighlightColor);
 	auto green = getThemeColor(GreenStandardHighlightColor);
 	auto red = getThemeColor(RedStandardHighlightColor);
 	auto white = getThemeColor(WhiteStandardHighlightColor);
 
-    m_actionRun = addAction(getColoredIcon(":/debugger_icons/icons/run.svg", red), "Run",
-                        [this](){ performLaunch(); });
+	m_actionRun = addAction(getColoredIcon(":/debugger_icons/icons/run.svg", red), "Run", [this]() {
+		performLaunch();
+	});
 
-	m_actionPause = addAction(getColoredIcon(":/debugger_icons/icons/pause.svg", white), "Pause",
-		[this](){ performPause(); });
+	m_actionPause = addAction(getColoredIcon(":/debugger_icons/icons/pause.svg", white), "Pause", [this]() {
+		performPause();
+	});
 
-	m_actionResume = addAction(getColoredIcon(":/debugger_icons/icons/resume.svg", green), "Resume",
-		[this](){ performResume(); });
+	m_actionResume = addAction(getColoredIcon(":/debugger_icons/icons/resume.svg", green), "Resume", [this]() {
+		performResume();
+	});
 
 	// m_actionRun->setVisible(true);
 	m_actionPause->setVisible(false);
 	m_actionResume->setVisible(false);
 
 	// TODO: we need a different icon here
-	m_actionAttachPid = addAction(getColoredIcon(":/debugger_icons/icons/connect.svg", white), "Attach to PID",
-							[this](){ performAttachPID(); });
-	m_actionDetach = addAction(getColoredIcon(":/debugger_icons/icons/disconnect.svg", red), "Detach",
-		[this](){ performDetach(); });
+	m_actionAttachPid = addAction(getColoredIcon(":/debugger_icons/icons/connect.svg", white), "Attach to PID", [this]() { 
+		performAttachPID(); 
+	});
+	m_actionDetach = addAction(getColoredIcon(":/debugger_icons/icons/disconnect.svg", red), "Detach", [this]() {
+		performDetach();
+	});
 	m_actionDetach->setVisible(false);
 
-    m_actionRestart = addAction(getColoredIcon(":/debugger_icons/icons/restart.svg", red), "Restart",
-                                [this](){ performRestart(); });
-    m_actionQuit = addAction(getColoredIcon(":/debugger_icons/icons/cancel.svg", red), "Quit",
-                             [this](){ performQuit(); });
-    addSeparator();
+	m_actionRestart = addAction(getColoredIcon(":/debugger_icons/icons/restart.svg", red), "Restart", [this]() {
+		performRestart();
+	});
+	m_actionQuit = addAction(getColoredIcon(":/debugger_icons/icons/cancel.svg", red), "Quit", [this]() {
+		performQuit();
+	});
+	addSeparator();
 
-    m_actionStepInto = addAction(getColoredIcon(":/debugger_icons/icons/stepinto.svg", cyan), "Step Into",
-                                 [this](){ performStepInto(); });
-    m_actionStepOver = addAction(getColoredIcon(":/debugger_icons/icons/stepover.svg", cyan), "Step Over",
-                                 [this](){ performStepOver(); });
-    m_actionStepReturn = addAction(getColoredIcon(":/debugger_icons/icons/stepout.svg", cyan), "Step Out",
-                               [this](){ performStepReturn(); });
+	m_actionStepInto = addAction(getColoredIcon(":/debugger_icons/icons/stepinto.svg", cyan), "Step Into", [this]() {
+		performStepInto();
+	});
+	m_actionStepOver = addAction(getColoredIcon(":/debugger_icons/icons/stepover.svg", cyan), "Step Over", [this]() {
+		performStepOver();
+	});
+	m_actionStepReturn = addAction(getColoredIcon(":/debugger_icons/icons/stepout.svg", cyan), "Step Out", [this]() {
+		performStepReturn();
+	});
 
-    updateButtons();
+	updateButtons();
 }
 
 
-DebugControlsWidget::~DebugControlsWidget()
-{
-}
+DebugControlsWidget::~DebugControlsWidget() {}
 
 
 QIcon DebugControlsWidget::getColoredIcon(const QString& iconPath, const QColor& color)
@@ -93,10 +101,11 @@ QIcon DebugControlsWidget::getColoredIcon(const QString& iconPath, const QColor&
 
 void DebugControlsWidget::performLaunch()
 {
-	QString text = QString("The debugger is %1 the target and preparing the debugger binary view. \n"
+	QString text = QString(
+		"The debugger is %1 the target and preparing the debugger binary view. \n"
 		"This might take a while.").arg("launching");
-	ProgressTask* task = new ProgressTask(this, "Launching", text, "",
-		[=](std::function<bool(size_t, size_t)> progress) {
+	ProgressTask* task =
+		new ProgressTask(this, "Launching", text, "", [=](std::function<bool(size_t, size_t)> progress) {
 			m_controller->Launch();
 
 			// For now, this cant be canceled, as the Debugger model wasn't
@@ -114,14 +123,15 @@ void DebugControlsWidget::performAttachPID()
 	if (pid == 0)
 		return;
 
-	QString text = QString("The debugger is %1 the target and preparing the debugger binary view. \n"
+	QString text = QString(
+		"The debugger is %1 the target and preparing the debugger binary view. \n"
 		"This might take a while.").arg("attaching to");
-	ProgressTask* task = new ProgressTask(this, "Attaching", text, "",
-		[=](std::function<bool(size_t, size_t)> progress) {
+	ProgressTask* task =
+		new ProgressTask(this, "Attaching", text, "", [=](std::function<bool(size_t, size_t)> progress) {
 			m_controller->Attach(pid);
 
 			// For now, this cant be canceled, as the Debugger model wasn't
-			// designed with that in mind. This function below can return false if canceling is enabled
+		    // designed with that in mind. This function below can return false if canceling is enabled
 			progress(1, 1);
 			return;
 		});
@@ -131,33 +141,25 @@ void DebugControlsWidget::performAttachPID()
 
 void DebugControlsWidget::performRestart()
 {
-    std::thread([&](){
-        m_controller->Restart();
-    }).detach();
+	std::thread([&]() { m_controller->Restart(); }).detach();
 }
 
 
 void DebugControlsWidget::performQuit()
 {
-    std::thread([&](){
-        m_controller->Quit();
-    }).detach();
+	std::thread([&]() { m_controller->Quit(); }).detach();
 }
 
 
 void DebugControlsWidget::performDetach()
 {
-    std::thread([&](){
-        m_controller->Detach();
-    }).detach();
+	std::thread([&]() { m_controller->Detach(); }).detach();
 }
 
 
 void DebugControlsWidget::performPause()
 {
-    std::thread([&](){
-        m_controller->Pause();
-    }).detach();
+	std::thread([&]() { m_controller->Pause(); }).detach();
 }
 
 
@@ -169,35 +171,35 @@ void DebugControlsWidget::performResume()
 
 void DebugControlsWidget::performStepInto()
 {
-    BNFunctionGraphType graphType = NormalFunctionGraph;
-    UIContext* context = UIContext::contextForWidget(this);
-    if (context && context->getCurrentView())
-        graphType = context->getCurrentView()->getILViewType();
+	BNFunctionGraphType graphType = NormalFunctionGraph;
+	UIContext* context = UIContext::contextForWidget(this);
+	if (context && context->getCurrentView())
+		graphType = context->getCurrentView()->getILViewType();
 
 	if (graphType == InvalidILViewType)
 		graphType = NormalFunctionGraph;
 
-    m_controller->StepInto(graphType);
+	m_controller->StepInto(graphType);
 }
 
 
 void DebugControlsWidget::performStepOver()
 {
-    BNFunctionGraphType graphType = NormalFunctionGraph;
-    UIContext* context = UIContext::contextForWidget(this);
-    if (context && context->getCurrentView())
-        graphType = context->getCurrentView()->getILViewType();
+	BNFunctionGraphType graphType = NormalFunctionGraph;
+	UIContext* context = UIContext::contextForWidget(this);
+	if (context && context->getCurrentView())
+		graphType = context->getCurrentView()->getILViewType();
 
 	if (graphType == InvalidILViewType)
 		graphType = NormalFunctionGraph;
 
-    m_controller->StepOver(graphType);
+	m_controller->StepOver(graphType);
 }
 
 
 void DebugControlsWidget::performStepReturn()
 {
-    m_controller->StepReturn();
+	m_controller->StepReturn();
 }
 
 
@@ -206,7 +208,7 @@ bool DebugControlsWidget::canExec()
 	auto currentAdapter = m_controller->GetAdapterType();
 	if (currentAdapter == "")
 		return false;
-    auto adapter = DebugAdapterType::GetByName(currentAdapter);
+	auto adapter = DebugAdapterType::GetByName(currentAdapter);
 	if (!adapter)
 		return false;
 	return adapter->CanExecute(m_controller->GetData());
@@ -221,75 +223,75 @@ bool DebugControlsWidget::canConnect()
 	auto adapter = DebugAdapterType::GetByName(currentAdapter);
 	if (!adapter)
 		return false;
-    return adapter->CanConnect(m_controller->GetData());
+	return adapter->CanConnect(m_controller->GetData());
 }
 
 
 void DebugControlsWidget::setStartingEnabled(bool enabled)
 {
-    m_actionRun->setEnabled(enabled && canExec());
+	m_actionRun->setEnabled(enabled && canExec());
 	// TODO: we need to support specifying whether the adapter supports attaching to a pid
-    m_actionAttachPid->setEnabled(enabled && canExec());
+	m_actionAttachPid->setEnabled(enabled && canExec());
 	m_actionAttachPid->setVisible(enabled);
 }
 
 
 void DebugControlsWidget::setStoppingEnabled(bool enabled)
 {
-    m_actionRestart->setEnabled(enabled);
-    m_actionQuit->setEnabled(enabled);
-    m_actionDetach->setEnabled(enabled);
+	m_actionRestart->setEnabled(enabled);
+	m_actionQuit->setEnabled(enabled);
+	m_actionDetach->setEnabled(enabled);
 	m_actionDetach->setVisible(enabled);
 }
 
 
 void DebugControlsWidget::setSteppingEnabled(bool enabled)
 {
-    m_actionStepInto->setEnabled(enabled);
-    m_actionStepOver->setEnabled(enabled);
-    m_actionStepReturn->setEnabled(enabled);
+	m_actionStepInto->setEnabled(enabled);
+	m_actionStepOver->setEnabled(enabled);
+	m_actionStepReturn->setEnabled(enabled);
 }
 
 
 void DebugControlsWidget::updateButtons()
 {
-    DebugAdapterConnectionStatus connection = m_controller->GetConnectionStatus();
-    DebugAdapterTargetStatus status = m_controller->GetTargetStatus();
+	DebugAdapterConnectionStatus connection = m_controller->GetConnectionStatus();
+	DebugAdapterTargetStatus status = m_controller->GetTargetStatus();
 
-    if (connection == DebugAdapterNotConnectedStatus)
-    {
-        setStartingEnabled(true);
-        setStoppingEnabled(false);
-        setSteppingEnabled(false);
-        m_actionPause->setEnabled(false);
-        m_actionResume->setEnabled(false);
+	if (connection == DebugAdapterNotConnectedStatus)
+	{
+		setStartingEnabled(true);
+		setStoppingEnabled(false);
+		setSteppingEnabled(false);
+		m_actionPause->setEnabled(false);
+		m_actionResume->setEnabled(false);
 
 		m_actionRun->setVisible(true);
 		m_actionPause->setVisible(false);
 		m_actionResume->setVisible(false);
-    }
-    else if (status == DebugAdapterRunningStatus)
-    {
-        setStartingEnabled(false);
-        setStoppingEnabled(true);
-        setSteppingEnabled(false);
-        m_actionPause->setEnabled(true);
-        m_actionResume->setEnabled(false);
+	}
+	else if (status == DebugAdapterRunningStatus)
+	{
+		setStartingEnabled(false);
+		setStoppingEnabled(true);
+		setSteppingEnabled(false);
+		m_actionPause->setEnabled(true);
+		m_actionResume->setEnabled(false);
 
 		m_actionRun->setVisible(false);
 		m_actionPause->setVisible(true);
 		m_actionResume->setVisible(false);
-    }
-    else // status == DebugAdapterPausedStatus
-    {
-        setStartingEnabled(false);
-        setStoppingEnabled(true);
-        setSteppingEnabled(true);
-        m_actionPause->setEnabled(false);
-        m_actionResume->setEnabled(true);
+	}
+	else  // status == DebugAdapterPausedStatus
+	{
+		setStartingEnabled(false);
+		setStoppingEnabled(true);
+		setSteppingEnabled(true);
+		m_actionPause->setEnabled(false);
+		m_actionResume->setEnabled(true);
 
 		m_actionRun->setVisible(false);
 		m_actionPause->setVisible(false);
 		m_actionResume->setVisible(true);
-    }
+	}
 }

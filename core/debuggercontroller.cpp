@@ -22,15 +22,13 @@ limitations under the License.
 
 using namespace BinaryNinjaDebugger;
 
-DebuggerController::DebuggerController(BinaryViewRef data): m_data(data)
+DebuggerController::DebuggerController(BinaryViewRef data) : m_data(data)
 {
 	INIT_DEBUGGER_API_OBJECT();
 
-    m_state = new DebuggerState(data, this);
+	m_state = new DebuggerState(data, this);
 	m_adapter = nullptr;
-    RegisterEventCallback([this](const DebuggerEvent& event){
-        EventHandler(event);
-    }, "Debugger Core");
+	RegisterEventCallback([this](const DebuggerEvent& event) { EventHandler(event); }, "Debugger Core");
 }
 
 
@@ -47,41 +45,41 @@ DebuggerController::~DebuggerController()
 
 void DebuggerController::AddBreakpoint(uint64_t address)
 {
-    m_state->AddBreakpoint(address);
-    DebuggerEvent event;
-    event.type = AbsoluteBreakpointAddedEvent;
-    event.data.absoluteAddress = address;
-    PostDebuggerEvent(event);
+	m_state->AddBreakpoint(address);
+	DebuggerEvent event;
+	event.type = AbsoluteBreakpointAddedEvent;
+	event.data.absoluteAddress = address;
+	PostDebuggerEvent(event);
 }
 
 
 void DebuggerController::AddBreakpoint(const ModuleNameAndOffset& address)
 {
-    m_state->AddBreakpoint(address);
-    DebuggerEvent event;
-    event.type = RelativeBreakpointAddedEvent;
-    event.data.relativeAddress = address;
-    PostDebuggerEvent(event);
+	m_state->AddBreakpoint(address);
+	DebuggerEvent event;
+	event.type = RelativeBreakpointAddedEvent;
+	event.data.relativeAddress = address;
+	PostDebuggerEvent(event);
 }
 
 
 void DebuggerController::DeleteBreakpoint(uint64_t address)
 {
-    m_state->DeleteBreakpoint(address);
-    DebuggerEvent event;
-    event.type = AbsoluteBreakpointRemovedEvent;
-    event.data.absoluteAddress = address;
-    PostDebuggerEvent(event);
+	m_state->DeleteBreakpoint(address);
+	DebuggerEvent event;
+	event.type = AbsoluteBreakpointRemovedEvent;
+	event.data.absoluteAddress = address;
+	PostDebuggerEvent(event);
 }
 
 
 void DebuggerController::DeleteBreakpoint(const ModuleNameAndOffset& address)
 {
-    m_state->DeleteBreakpoint(address);
-    DebuggerEvent event;
-    event.type = RelativeBreakpointRemovedEvent;
-    event.data.relativeAddress = address;
-    PostDebuggerEvent(event);
+	m_state->DeleteBreakpoint(address);
+	DebuggerEvent event;
+	event.type = RelativeBreakpointRemovedEvent;
+	event.data.relativeAddress = address;
+	PostDebuggerEvent(event);
 }
 
 
@@ -122,19 +120,19 @@ bool DebuggerController::Launch()
 	if (!CreateDebugAdapter())
 		return false;
 
-    m_state->MarkDirty();
+	m_state->MarkDirty();
 	bool result = Execute();
 	if (result)
 	{
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
-        m_state->SetExecutionStatus(DebugAdapterPausedStatus);
+		m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 		HandleInitialBreakpoint();
 	}
 	else
 	{
-//		TODO: Right now, the LLDBAdapter directly notifies about the failure. In the future, we should let the backend
-//		return both an error value and an error string. And the error will be notified at API level.
-//		NotifyError("Failed to launch the target");
+		// TODO: Right now, the LLDBAdapter directly notifies about the failure. In the future, we should let the
+		// backend return both an error value and an error string. And the error will be notified at API level.
+		// NotifyError("Failed to launch the target");
 	}
 	return result;
 }
@@ -164,47 +162,45 @@ bool DebuggerController::Execute()
 	bool requestTerminal = m_state->GetRequestTerminalEmulator();
 	LaunchConfigurations configs = {requestTerminal};
 
-	#ifdef WIN32
-		/* temporary solution (not great, sorry!), we probably won't have to do this once we introduce std::filesystem::path */
-		std::replace(filePath.begin(), filePath.end(), '/', '\\');
-	#endif
+#ifdef WIN32
+	/* temporary solution (not great, sorry!), we probably won't have to do this once we introduce std::filesystem::path */
+	std::replace(filePath.begin(), filePath.end(), '/', '\\');
+#endif
 
-	return m_adapter->ExecuteWithArgs(filePath, m_state->GetCommandLineArguments(), m_state->GetWorkingDirectory(),
-									  configs);
+	return m_adapter->ExecuteWithArgs(
+		filePath, m_state->GetCommandLineArguments(), m_state->GetWorkingDirectory(), configs);
 }
 
 
 bool DebuggerController::CreateDebugAdapter()
 {
-    // The current adapter type is the same as the last one, and the last adapter is still valid
-    if (m_state->GetAdapterType() == m_lastAdapterName && m_adapter != nullptr)
+	// The current adapter type is the same as the last one, and the last adapter is still valid
+	if (m_state->GetAdapterType() == m_lastAdapterName && m_adapter != nullptr)
 	{
 		ApplyBreakpoints();
-        return true;
+		return true;
 	}
 
-    DebugAdapterType* type = DebugAdapterType::GetByName(m_state->GetAdapterType());
-    if (!type)
-    {
-        LogWarn("Failed to get an debug adapter of type %s", m_state->GetAdapterType().c_str());
+	DebugAdapterType* type = DebugAdapterType::GetByName(m_state->GetAdapterType());
+	if (!type)
+	{
+		LogWarn("Failed to get an debug adapter of type %s", m_state->GetAdapterType().c_str());
 		return false;
-    }
-    m_adapter = type->Create(m_data);
+	}
+	m_adapter = type->Create(m_data);
 	if (!m_adapter)
 	{
 		LogWarn("Failed to create an adapter of type %s", m_state->GetAdapterType().c_str());
 		return false;
 	}
 
-    m_lastAdapterName = m_state->GetAdapterType();
+	m_lastAdapterName = m_state->GetAdapterType();
 	m_state->SetAdapter(m_adapter);
 
 	ApplyBreakpoints();
 
 	// Forward the DebuggerEvent from the adapters to the controller
-	m_adapter->SetEventCallback([this](const DebuggerEvent& event){
-		PostDebuggerEvent(event);
-	});
+	m_adapter->SetEventCallback([this](const DebuggerEvent& event) { PostDebuggerEvent(event); });
 	return true;
 }
 
@@ -224,9 +220,9 @@ bool DebuggerController::CanResumeTarget()
 
 bool DebuggerController::ExpectSingleStep(DebugStopReason reason)
 {
-//	On macOS, the stop reason we get for a single step is also the Breakpoint.
-//	To keep things working, we loosen the check.
-//	TODO: check how it works on other systems
+	//	On macOS, the stop reason we get for a single step is also the Breakpoint.
+	//	To keep things working, we loosen the check.
+	//	TODO: check how it works on other systems
 	return (reason == SingleStep) || (reason == Breakpoint) || (reason == UnknownReason);
 }
 
@@ -244,9 +240,7 @@ bool DebuggerController::Go()
 	if (!CanResumeTarget())
 		return false;
 
-	std::thread([&](){
-		GoInternal();
-	}).detach();
+	std::thread([&]() { GoInternal(); }).detach();
 
 	return true;
 }
@@ -300,7 +294,7 @@ void DebuggerController::StepIntoIL(BNFunctionGraphType il)
 				return;
 			}
 
-			for (FunctionRef& func: functions)
+			for (FunctionRef& func : functions)
 			{
 				LowLevelILFunctionRef llil = func->GetLowLevelIL();
 				size_t start = llil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
@@ -333,14 +327,14 @@ void DebuggerController::StepIntoIL(BNFunctionGraphType il)
 
 			uint64_t newRemoteRip = m_state->IP();
 			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
-            if (functions.size() == 0)
+			if (functions.size() == 0)
 			{
 				m_treatAdapterStopAsTargetStop = true;
 				NotifyStopped(reason);
 				return;
 			}
 
-			for (FunctionRef& func: functions)
+			for (FunctionRef& func : functions)
 			{
 				MediumLevelILFunctionRef mlil = func->GetMediumLevelIL();
 				size_t start = mlil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
@@ -375,14 +369,14 @@ void DebuggerController::StepIntoIL(BNFunctionGraphType il)
 
 			uint64_t newRemoteRip = m_state->IP();
 			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
-            if (functions.size() == 0)
+			if (functions.size() == 0)
 			{
 				m_treatAdapterStopAsTargetStop = true;
 				NotifyStopped(reason);
 				return;
 			}
 
-			for (FunctionRef& func: functions)
+			for (FunctionRef& func : functions)
 			{
 				HighLevelILFunctionRef hlil = func->GetHighLevelIL();
 				for (size_t i = 0; i < hlil->GetInstructionCount(); i++)
@@ -400,7 +394,7 @@ void DebuggerController::StepIntoIL(BNFunctionGraphType il)
 	}
 	default:
 		LogWarn("step into unimplemented in the current il type");
-        return;
+		return;
 	}
 }
 
@@ -408,11 +402,9 @@ void DebuggerController::StepIntoIL(BNFunctionGraphType il)
 bool DebuggerController::StepInto(BNFunctionGraphType il)
 {
 	if (!CanResumeTarget())
-        return false;
+		return false;
 
-	std::thread([&, il](){
-		StepIntoIL(il);
-	}).detach();
+	std::thread([&, il]() { StepIntoIL(il); }).detach();
 
 	return true;
 }
@@ -432,61 +424,61 @@ void DebuggerController::StepOverInternal()
 	if ((reason != DebugStopReason::OperationNotSupported) && (reason != DebugStopReason::InternalError))
 		return;
 
-    uint64_t remoteIP = m_state->IP();
+	uint64_t remoteIP = m_state->IP();
 
-    // TODO: support the case where we cannot determined the remote arch
+	// TODO: support the case where we cannot determined the remote arch
 	ArchitectureRef remoteArch = m_state->GetRemoteArchitecture();
 	if (!remoteArch)
 		return;
 
-    size_t size = remoteArch->GetMaxInstructionLength();
-    DataBuffer buffer = m_adapter->ReadMemory(remoteIP, size);
-    size_t bytesRead = buffer.GetLength();
+	size_t size = remoteArch->GetMaxInstructionLength();
+	DataBuffer buffer = m_adapter->ReadMemory(remoteIP, size);
+	size_t bytesRead = buffer.GetLength();
 
-    Ref<LowLevelILFunction> ilFunc = new LowLevelILFunction(remoteArch, nullptr);
-    ilFunc->SetCurrentAddress(remoteArch, remoteIP);
-    remoteArch->GetInstructionLowLevelIL((const uint8_t*)buffer.GetData(), remoteIP, bytesRead, *ilFunc);
+	Ref<LowLevelILFunction> ilFunc = new LowLevelILFunction(remoteArch, nullptr);
+	ilFunc->SetCurrentAddress(remoteArch, remoteIP);
+	remoteArch->GetInstructionLowLevelIL((const uint8_t*)buffer.GetData(), remoteIP, bytesRead, *ilFunc);
 
-    const auto& instr = (*ilFunc)[0];
-    if (instr.operation != LLIL_CALL)
-    {
-        StepIntoInternal();
-    }
-    else
-    {
-        InstructionInfo info;
-        if (!remoteArch->GetInstructionInfo((const uint8_t*)buffer.GetData(), remoteIP, bytesRead, info))
-        {
-            // Whenever there is a failure, we fail back to step into
+	const auto& instr = (*ilFunc)[0];
+	if (instr.operation != LLIL_CALL)
+	{
+		StepIntoInternal();
+	}
+	else
+	{
+		InstructionInfo info;
+		if (!remoteArch->GetInstructionInfo((const uint8_t*)buffer.GetData(), remoteIP, bytesRead, info))
+		{
+			// Whenever there is a failure, we fail back to step into
 			StepIntoInternal();
-        }
+		}
 
-        if (info.length == 0)
-        {
+		if (info.length == 0)
+		{
 			return StepIntoInternal();
-        }
+		}
 
-        uint64_t remoteIPNext = remoteIP + info.length;
-        RunToInternal({remoteIPNext});
-    }
+		uint64_t remoteIPNext = remoteIP + info.length;
+		RunToInternal({remoteIPNext});
+	}
 }
 
 
 void DebuggerController::StepOverIL(BNFunctionGraphType il)
 {
-    switch (il)
-    {
-    case NormalFunctionGraph:
-    {
-        StepOverInternal();
+	switch (il)
+	{
+	case NormalFunctionGraph:
+	{
+		StepOverInternal();
 		return;
-    }
-    case LowLevelILFunctionGraph:
-    {
+	}
+	case LowLevelILFunctionGraph:
+	{
 		m_treatAdapterStopAsTargetStop = false;
-        // TODO: This might cause infinite loop
-        while (true)
-        {
+		// TODO: This might cause infinite loop
+		while (true)
+		{
 			StepOverInternal();
 			DebugStopReason reason = WaitForAdapterStop();
 			if (!ExpectSingleStep(reason))
@@ -495,38 +487,38 @@ void DebuggerController::StepOverIL(BNFunctionGraphType il)
 				NotifyStopped(reason);
 			}
 
-            uint64_t newRemoteRip = m_state->IP();
-            std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
-            if (functions.size() == 0)
+			uint64_t newRemoteRip = m_state->IP();
+			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			if (functions.size() == 0)
 			{
 				m_treatAdapterStopAsTargetStop = true;
 				NotifyStopped(reason);
 				return;
 			}
 
-            for (FunctionRef& func: functions)
-            {
-                LowLevelILFunctionRef llil = func->GetLowLevelIL();
-                size_t start = llil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
-                if (start < llil->GetInstructionCount())
-                {
-                    if (llil->GetInstruction(start).address == newRemoteRip)
+			for (FunctionRef& func : functions)
+			{
+				LowLevelILFunctionRef llil = func->GetLowLevelIL();
+				size_t start = llil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				if (start < llil->GetInstructionCount())
+				{
+					if (llil->GetInstruction(start).address == newRemoteRip)
 					{
 						m_treatAdapterStopAsTargetStop = true;
 						NotifyStopped(SingleStep);
 						return;
 					}
-                }
-            }
-        }
-        break;
-    }
-    case MediumLevelILFunctionGraph:
-    {
+				}
+			}
+		}
+		break;
+	}
+	case MediumLevelILFunctionGraph:
+	{
 		m_treatAdapterStopAsTargetStop = false;
-        // TODO: This might cause infinite loop
-        while (true)
-        {
+		// TODO: This might cause infinite loop
+		while (true)
+		{
 			StepOverInternal();
 			DebugStopReason reason = WaitForAdapterStop();
 			if (!ExpectSingleStep(reason))
@@ -535,39 +527,39 @@ void DebuggerController::StepOverIL(BNFunctionGraphType il)
 				NotifyStopped(reason);
 			}
 
-            uint64_t newRemoteRip = m_state->IP();
-            std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
-            if (functions.size() == 0)
+			uint64_t newRemoteRip = m_state->IP();
+			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			if (functions.size() == 0)
 			{
 				m_treatAdapterStopAsTargetStop = true;
 				NotifyStopped(reason);
 				return;
 			}
 
-            for (FunctionRef& func: functions)
-            {
-                MediumLevelILFunctionRef mlil = func->GetMediumLevelIL();
-                size_t start = mlil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
-                if (start < mlil->GetInstructionCount())
-                {
-                    if (mlil->GetInstruction(start).address == newRemoteRip)
+			for (FunctionRef& func : functions)
+			{
+				MediumLevelILFunctionRef mlil = func->GetMediumLevelIL();
+				size_t start = mlil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				if (start < mlil->GetInstructionCount())
+				{
+					if (mlil->GetInstruction(start).address == newRemoteRip)
 					{
 						m_treatAdapterStopAsTargetStop = true;
 						NotifyStopped(SingleStep);
 						return;
 					}
-                }
-            }
-        }
-        break;
-    }
-    case HighLevelILFunctionGraph:
+				}
+			}
+		}
+		break;
+	}
+	case HighLevelILFunctionGraph:
 	case HighLevelLanguageRepresentationFunctionGraph:
-    {
+	{
 		m_treatAdapterStopAsTargetStop = false;
-        // TODO: This might cause infinite loop
-        while (true)
-        {
+		// TODO: This might cause infinite loop
+		while (true)
+		{
 			StepOverInternal();
 			DebugStopReason reason = WaitForAdapterStop();
 			if (!ExpectSingleStep(reason))
@@ -576,46 +568,44 @@ void DebuggerController::StepOverIL(BNFunctionGraphType il)
 				NotifyStopped(reason);
 			}
 
-            uint64_t newRemoteRip = m_state->IP();
-            std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
-            if (functions.size() == 0)
+			uint64_t newRemoteRip = m_state->IP();
+			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			if (functions.size() == 0)
 			{
 				m_treatAdapterStopAsTargetStop = true;
 				NotifyStopped(reason);
 				return;
 			}
 
-            for (FunctionRef& func: functions)
-            {
-                HighLevelILFunctionRef hlil = func->GetHighLevelIL();
-                for (size_t i = 0; i < hlil->GetInstructionCount(); i++)
-                {
-                    if (hlil->GetInstruction(i).address == newRemoteRip)
+			for (FunctionRef& func : functions)
+			{
+				HighLevelILFunctionRef hlil = func->GetHighLevelIL();
+				for (size_t i = 0; i < hlil->GetInstructionCount(); i++)
+				{
+					if (hlil->GetInstruction(i).address == newRemoteRip)
 					{
 						m_treatAdapterStopAsTargetStop = true;
 						NotifyStopped(SingleStep);
 						return;
 					}
-                }
-            }
-        }
-        break;
-    }
-    default:
-        LogWarn("step over unimplemented in the current il type");
-        return;
-    }
+				}
+			}
+		}
+		break;
+	}
+	default:
+		LogWarn("step over unimplemented in the current il type");
+		return;
+	}
 }
 
 
 bool DebuggerController::StepOver(BNFunctionGraphType il)
 {
 	if (!CanResumeTarget())
-	    return false;
+		return false;
 
-	std::thread([&, il](){
-		StepOverIL(il);
-	}).detach();
+	std::thread([&, il]() { StepOverIL(il); }).detach();
 
 	return true;
 }
@@ -640,7 +630,7 @@ void DebuggerController::StepReturnInternal()
 	uint64_t address = m_state->IP();
 	std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(address);
 	if (functions.size() == 0)
-        return;
+		return;
 
 	std::vector<uint64_t> returnAddresses;
 	FunctionRef function = functions[0];
@@ -659,11 +649,9 @@ void DebuggerController::StepReturnInternal()
 bool DebuggerController::StepReturn()
 {
 	if (!CanResumeTarget())
-	    return false;
+		return false;
 
-	std::thread([&](){
-		StepReturnInternal();
-	}).detach();
+	std::thread([&]() { StepReturnInternal(); }).detach();
 
 	return false;
 }
@@ -678,26 +666,26 @@ DebugStopReason DebuggerController::StepReturnAndWait()
 
 void DebuggerController::RunToInternal(const std::vector<uint64_t>& remoteAddresses)
 {
-    for (uint64_t remoteAddress: remoteAddresses)
-    {
-        if (!m_state->GetBreakpoints()->ContainsAbsolute(remoteAddress))
-        {
-            m_adapter->AddBreakpoint(remoteAddress);
-        }
-    }
+	for (uint64_t remoteAddress : remoteAddresses)
+	{
+		if (!m_state->GetBreakpoints()->ContainsAbsolute(remoteAddress))
+		{
+			m_adapter->AddBreakpoint(remoteAddress);
+		}
+	}
 
 	m_treatAdapterStopAsTargetStop = false;
 	GoInternal();
 	WaitForAdapterStop();
 	m_treatAdapterStopAsTargetStop = true;
 
-    for (uint64_t remoteAddress: remoteAddresses)
-    {
-        if (!m_state->GetBreakpoints()->ContainsAbsolute(remoteAddress))
-        {
-            m_adapter->RemoveBreakpoint(remoteAddress);
-        }
-    }
+	for (uint64_t remoteAddress : remoteAddresses)
+	{
+		if (!m_state->GetBreakpoints()->ContainsAbsolute(remoteAddress))
+		{
+			m_adapter->RemoveBreakpoint(remoteAddress);
+		}
+	}
 
 	NotifyStopped(Breakpoint);
 }
@@ -706,11 +694,9 @@ void DebuggerController::RunToInternal(const std::vector<uint64_t>& remoteAddres
 bool DebuggerController::RunTo(const std::vector<uint64_t>& remoteAddresses)
 {
 	if (!CanResumeTarget())
-	    return false;
+		return false;
 
-	std::thread([&, remoteAddresses](){
-		RunToInternal(remoteAddresses);
-	}).detach();
+	std::thread([&, remoteAddresses]() { RunToInternal(remoteAddresses); }).detach();
 
 	return true;
 }
@@ -733,9 +719,8 @@ void DebuggerController::HandleInitialBreakpoint()
 	if (remoteBase != m_data->GetStart())
 	{
 		// remote base is different from the local base, first need a rebase
-//			ProgressIndicator progress(nullptr, "Rebase", "Rebasing...");
-		if (!fileMetadata->Rebase(m_data, remoteBase,
-								  [&](size_t cur, size_t total) { return true; }))
+		// ProgressIndicator progress(nullptr, "Rebase", "Rebasing...");
+		if (!fileMetadata->Rebase(m_data, remoteBase, [&](size_t cur, size_t total) { return true; }))
 		{
 			LogWarn("rebase failed");
 		}
@@ -744,9 +729,10 @@ void DebuggerController::HandleInitialBreakpoint()
 	Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
 	SetData(rebasedView);
 
-//		ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
-	bool ok = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger",
-											[&](size_t cur, size_t total) { return true; });
+	// ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
+	bool ok = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger", [&](size_t cur, size_t total) {
+		return true;
+	});
 	if (!ok)
 		LogWarn("create snapshoted view failed");
 
@@ -768,7 +754,7 @@ DebugThread DebuggerController::GetActiveThread() const
 }
 
 
-void DebuggerController::SetActiveThread(const DebugThread &thread)
+void DebuggerController::SetActiveThread(const DebugThread& thread)
 {
 	// TODO: check if the new thread is the same as the old one. If so, do nothing and return
 	m_state->GetThreads()->SetActiveThread(thread);
@@ -789,98 +775,98 @@ std::vector<DebugFrame> DebuggerController::GetFramesOfThread(uint64_t tid)
 
 void DebuggerController::Restart()
 {
-    Quit();
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    Launch();
+	Quit();
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+	Launch();
 }
 
 
 void DebuggerController::Connect()
 {
-    if (m_state->IsConnected())
-        return;
+	if (m_state->IsConnected())
+		return;
 
-    if (!CreateDebugAdapter())
-        return;
+	if (!CreateDebugAdapter())
+		return;
 
-    m_state->MarkDirty();
+	m_state->MarkDirty();
 
-    m_state->SetConnectionStatus(DebugAdapterConnectingStatus);
+	m_state->SetConnectionStatus(DebugAdapterConnectingStatus);
 
-    NotifyEvent(ConnectEventType);
+	NotifyEvent(ConnectEventType);
 
-    bool ok = m_adapter->Connect(m_state->GetRemoteHost(), m_state->GetRemotePort());
+	bool ok = m_adapter->Connect(m_state->GetRemoteHost(), m_state->GetRemotePort());
 
-    if (ok)
-    {
-        m_state->MarkDirty();
-        m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
-        m_state->SetExecutionStatus(DebugAdapterPausedStatus);
+	if (ok)
+	{
+		m_state->MarkDirty();
+		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
+		m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 		HandleInitialBreakpoint();
-    }
-    else
-    {
-        LogWarn("Failed to connect to the target");
-    }
+	}
+	else
+	{
+		LogWarn("Failed to connect to the target");
+	}
 }
 
 
 bool DebuggerController::ConnectToDebugServer()
 {
-    if (m_state->IsConnectedToDebugServer())
-        return true;
+	if (m_state->IsConnectedToDebugServer())
+		return true;
 
-    if (!CreateDebugAdapter())
-        return false;
+	if (!CreateDebugAdapter())
+		return false;
 
-    bool ok = m_adapter->ConnectToDebugServer(m_state->GetRemoteHost(), m_state->GetRemotePort());
-    if (!ok)
-        LogWarn("Failed to connect to the debug server");
-    else
-        m_state->SetConnectedToDebugServer(true);
+	bool ok = m_adapter->ConnectToDebugServer(m_state->GetRemoteHost(), m_state->GetRemotePort());
+	if (!ok)
+		LogWarn("Failed to connect to the debug server");
+	else
+		m_state->SetConnectedToDebugServer(true);
 
-    return ok;
+	return ok;
 }
 
 
 bool DebuggerController::DisconnectDebugServer()
 {
-    if (!m_state->IsConnectedToDebugServer())
-        return true;
+	if (!m_state->IsConnectedToDebugServer())
+		return true;
 
-    bool ok = m_adapter->DisconnectDebugServer();
-    if (!ok)
-        LogWarn("Failed to disconnect from the debug server");
-    else
-        m_state->SetConnectedToDebugServer(false);
+	bool ok = m_adapter->DisconnectDebugServer();
+	if (!ok)
+		LogWarn("Failed to disconnect from the debug server");
+	else
+		m_state->SetConnectedToDebugServer(false);
 
-    return ok;
+	return ok;
 }
 
 
 void DebuggerController::Detach()
 {
-    if (!m_state->IsConnected())
-        return;
+	if (!m_state->IsConnected())
+		return;
 
-    // TODO: return whether the operation is successful
-    m_adapter->Detach();
+	// TODO: return whether the operation is successful
+	m_adapter->Detach();
 }
 
 
 void DebuggerController::Quit()
 {
-    if (!m_state->IsConnected())
-        return;
+	if (!m_state->IsConnected())
+		return;
 
-    if (m_state->IsRunning())
-    {
-        // We must pause the target if it is currently running, at least for DbgEngAdapter
-        PauseAndWait();
-    }
+	if (m_state->IsRunning())
+	{
+		// We must pause the target if it is currently running, at least for DbgEngAdapter
+		PauseAndWait();
+	}
 
-    // TODO: return whether the operation is successful
-    m_adapter->Quit();
+	// TODO: return whether the operation is successful
+	m_adapter->Quit();
 }
 
 
@@ -894,20 +880,18 @@ void DebuggerController::QuitAndWait()
 void DebuggerController::PauseInternal()
 {
 	if (m_state->IsRunning())
-    {
-        m_adapter->BreakInto();
-    }
+	{
+		m_adapter->BreakInto();
+	}
 }
 
 
 bool DebuggerController::Pause()
 {
-    if (!(m_state->IsConnected() && m_state->IsRunning()))
-        return false;
+	if (!(m_state->IsConnected() && m_state->IsRunning()))
+		return false;
 
-	std::thread([&](){
-		PauseInternal();
-	}).detach();
+	std::thread([&]() { PauseInternal(); }).detach();
 
 	return true;
 }
@@ -938,56 +922,56 @@ void DebuggerController::LaunchOrConnect()
 
 DbgRef<DebuggerController> DebuggerController::GetController(BinaryViewRef data)
 {
-    for (auto& controller: g_debuggerControllers)
-    {
+	for (auto& controller : g_debuggerControllers)
+	{
 		if (controller->GetData() == data)
 			return controller;
 		if (controller->GetLiveView() == data)
 			return controller;
-//        if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
-//            return controller;
-//        if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetParentView()->GetFile()->GetOriginalFilename())
-//            return controller;
-//        if (controller->GetData()->GetFile() == data->GetFile())
-//            return controller;
-//        if (controller->GetLiveView() && (controller->GetLiveView()->GetFile() == data->GetFile()))
-//            return controller;
-    }
+		//if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
+		//	return controller;
+		//if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetParentView()->GetFile()->GetOriginalFilename())
+		//	return controller;
+		//if (controller->GetData()->GetFile() == data->GetFile())
+		//	return controller;
+		//if (controller->GetLiveView() && (controller->GetLiveView()->GetFile() == data->GetFile()))
+		//	return controller;
+	}
 
 	if (data->GetTypeName() == "Debugger")
 		return nullptr;
 
-    auto controller = new DebuggerController(data);
-    g_debuggerControllers.push_back(controller);
-    return controller;
+	auto controller = new DebuggerController(data);
+	g_debuggerControllers.push_back(controller);
+	return controller;
 }
 
 
 void DebuggerController::DeleteController(BinaryViewRef data)
 {
-    for (auto it = g_debuggerControllers.begin(); it != g_debuggerControllers.end(); )
-    {
-        if (((*it)->GetData() == data) || (((*it)->GetLiveView() == data)))
-        {
-            it = g_debuggerControllers.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
-    }
+	for (auto it = g_debuggerControllers.begin(); it != g_debuggerControllers.end();)
+	{
+		if (((*it)->GetData() == data) || (((*it)->GetLiveView() == data)))
+		{
+			it = g_debuggerControllers.erase(it);
+		}
+		else
+		{
+			++it;
+		}
+	}
 }
 
 
 bool DebuggerController::ControllerExists(BinaryViewRef data)
 {
-    for (auto& controller: g_debuggerControllers)
-    {
+	for (auto& controller : g_debuggerControllers)
+	{
 		if (controller->GetData() == data)
 			return true;
 		if (controller->GetLiveView() == data)
 			return true;
-    }
+	}
 
 	return false;
 }
@@ -1004,8 +988,8 @@ void DebuggerController::Destroy()
 // This is the central hub of event dispatch. All events first arrive here and then get dispatched based on the content
 void DebuggerController::EventHandler(const DebuggerEvent& event)
 {
-    switch (event.type)
-    {
+	switch (event.type)
+	{
 	case ResumeEventType:
 	case StepIntoEventType:
 	{
@@ -1019,12 +1003,12 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	case DetachedEventType:
 	{
 		m_liveView->GetFile()->UnregisterViewOfType("Debugger", m_liveView);
-        SetLiveView(nullptr);
-        m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
-        m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
+		SetLiveView(nullptr);
+		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
+		m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
 		break;
 	}
-    case TargetStoppedEventType:
+	case TargetStoppedEventType:
 	{
 		m_state->UpdateCaches();
 		m_state->SetExecutionStatus(DebugAdapterPausedStatus);
@@ -1035,12 +1019,12 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		break;
 	}
 	case ActiveThreadChangedEvent:
-    {
+	{
 		m_state->UpdateCaches();
 		m_lastIP = m_currentIP;
-        m_currentIP = m_state->IP();
-        break;
-    }
+		m_currentIP = m_state->IP();
+		break;
+	}
 	case RegisterChangedEvent:
 	{
 		m_lastIP = m_currentIP;
@@ -1052,21 +1036,22 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		LogError("%s", event.data.errorData.error.c_str());
 		break;
 	}
-    default:
-        break;
-    }
+	default:
+		break;
+	}
 }
 
 
-size_t DebuggerController::RegisterEventCallback(std::function<void(const DebuggerEvent&)> callback, const std::string& name)
+size_t DebuggerController::RegisterEventCallback(
+	std::function<void(const DebuggerEvent&)> callback, const std::string& name)
 {
 	std::unique_lock<std::recursive_mutex> lock(m_callbackMutex);
-    DebuggerEventCallback object;
-    object.function = callback;
-    object.index = m_callbackIndex++;
+	DebuggerEventCallback object;
+	object.function = callback;
+	object.index = m_callbackIndex++;
 	object.name = name;
-    m_eventCallbacks.push_back(object);
-    return object.index;
+	m_eventCallbacks.push_back(object);
+	return object.index;
 }
 
 
@@ -1094,12 +1079,12 @@ bool DebuggerController::RemoveEventCallbackInternal(size_t index)
 
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 {
-    std::unique_lock<std::recursive_mutex> callbackLock(m_callbackMutex);
-    std::list<DebuggerEventCallback> eventCallbacks = m_eventCallbacks;
-    callbackLock.unlock();
+	std::unique_lock<std::recursive_mutex> callbackLock(m_callbackMutex);
+	std::list<DebuggerEventCallback> eventCallbacks = m_eventCallbacks;
+	callbackLock.unlock();
 
-	ExecuteOnMainThreadAndWait([&](){
-		for (const DebuggerEventCallback& cb: eventCallbacks)
+	ExecuteOnMainThreadAndWait([&]() {
+		for (const DebuggerEventCallback& cb : eventCallbacks)
 		{
 			if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
 				continue;
@@ -1113,7 +1098,7 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 		{
 			DebuggerEvent stopEvent = event;
 			stopEvent.type = TargetStoppedEventType;
-			for (const DebuggerEventCallback& cb: eventCallbacks)
+			for (const DebuggerEventCallback& cb : eventCallbacks)
 			{
 				if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
 					continue;
@@ -1130,7 +1115,7 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 void DebuggerController::CleanUpDisabledEvent()
 {
 	std::unique_lock<std::recursive_mutex> lock(m_callbackMutex);
-	for (const auto index: m_disabledCallbacks)
+	for (const auto index : m_disabledCallbacks)
 	{
 		RemoveEventCallbackInternal(index);
 	}
@@ -1138,50 +1123,50 @@ void DebuggerController::CleanUpDisabledEvent()
 }
 
 
-void DebuggerController::NotifyStopped(DebugStopReason reason, void *data)
+void DebuggerController::NotifyStopped(DebugStopReason reason, void* data)
 {
-    DebuggerEvent event;
-    event.type = TargetStoppedEventType;
-    event.data.targetStoppedData.reason = reason;
-    event.data.targetStoppedData.data = data;
-    PostDebuggerEvent(event);
+	DebuggerEvent event;
+	event.type = TargetStoppedEventType;
+	event.data.targetStoppedData.reason = reason;
+	event.data.targetStoppedData.data = data;
+	PostDebuggerEvent(event);
 }
 
 
-void DebuggerController::NotifyError(const std::string& error, const std::string &shortError, void *data)
+void DebuggerController::NotifyError(const std::string& error, const std::string& shortError, void* data)
 {
-    DebuggerEvent event;
-    event.type = ErrorEventType;
-    event.data.errorData.error = error;
+	DebuggerEvent event;
+	event.type = ErrorEventType;
+	event.data.errorData.error = error;
 	event.data.errorData.shortError = shortError;
-    event.data.errorData.data = data;
-    PostDebuggerEvent(event);
+	event.data.errorData.data = data;
+	PostDebuggerEvent(event);
 }
 
 
 void DebuggerController::NotifyEvent(DebuggerEventType eventType)
 {
-    DebuggerEvent event;
-    event.type = eventType;
-    PostDebuggerEvent(event);
+	DebuggerEvent event;
+	event.type = eventType;
+	PostDebuggerEvent(event);
 }
 
 
 // We should call these two function instead of DebugAdapter::ReadMemory(), which will skip the memory cache
 DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t size)
 {
-    if (!m_liveView)
-        return DataBuffer{};
+	if (!m_liveView)
+		return DataBuffer {};
 
 	if (!m_state->IsConnected())
-		return DataBuffer{};
+		return DataBuffer {};
 
 	if (m_state->IsRunning())
-		return DataBuffer{};
+		return DataBuffer {};
 
 	DebuggerMemory* memory = m_state->GetMemory();
 	if (!memory)
-		return DataBuffer{};
+		return DataBuffer {};
 
 	return memory->ReadMemory(address, size);
 }
@@ -1189,8 +1174,8 @@ DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t si
 
 bool DebuggerController::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
-    if (!m_liveView)
-        return false;
+	if (!m_liveView)
+		return false;
 
 	if (!m_state->IsConnected())
 		return false;
@@ -1224,13 +1209,13 @@ std::vector<DebugRegister> DebuggerController::GetAllRegisters()
 }
 
 
-uint64_t DebuggerController::GetRegisterValue(const std::string &name)
+uint64_t DebuggerController::GetRegisterValue(const std::string& name)
 {
 	return m_state->GetRegisters()->GetRegisterValue(name);
 }
 
 
-bool DebuggerController::SetRegisterValue(const std::string &name, uint64_t value)
+bool DebuggerController::SetRegisterValue(const std::string& name, uint64_t value)
 {
 	return m_state->GetRegisters()->SetRegisterValue(name, value);
 }
@@ -1266,14 +1251,14 @@ void DebuggerController::WriteStdIn(const std::string message)
 	{
 		m_adapter->WriteStdin(message);
 	}
-    else
-    {
-        NotifyError("Cannot send to stdin, target is not running", "Cannot send to stdin, target is not running");
-    }
+	else
+	{
+		NotifyError("Cannot send to stdin, target is not running", "Cannot send to stdin, target is not running");
+	}
 }
 
 
-std::string DebuggerController::InvokeBackendCommand(const std::string &cmd)
+std::string DebuggerController::InvokeBackendCommand(const std::string& cmd)
 {
 	if (!m_adapter)
 	{
@@ -1281,14 +1266,14 @@ std::string DebuggerController::InvokeBackendCommand(const std::string &cmd)
 			return "Error: invalid adapter\n";
 	}
 
-    if (m_adapter)
+	if (m_adapter)
 		return m_adapter->InvokeBackendCommand(cmd);
 
-    return "Error: invalid adapter\n";
+	return "Error: invalid adapter\n";
 }
 
 
-void DebuggerController::ProcessOneVariable(uint64_t varAddress, Confidence<Ref<Type>> type, const std::string &name)
+void DebuggerController::ProcessOneVariable(uint64_t varAddress, Confidence<Ref<Type>> type, const std::string& name)
 {
 	StackVariableNameAndType varNameAndType(type, name);
 	auto iter = m_debuggerVariables.find(varAddress);
@@ -1409,7 +1394,7 @@ void DebuggerController::UpdateStackVariables()
 			// before the current stack frame is created. Here we take the stack pointer of the previous stack frame,
 			// and subtract the size of return address from it
 			uint64_t framePointer = prevFrame.m_sp - frameAdjustment;
-			for (const auto& [var, varNameAndType]: vars)
+			for (const auto& [var, varNameAndType] : vars)
 			{
 				if (var.type != StackVariableSourceType)
 					continue;
@@ -1420,7 +1405,7 @@ void DebuggerController::UpdateStackVariables()
 			}
 		}
 
-		for (const DebugFrame& frame: frames)
+		for (const DebugFrame& frame : frames)
 		{
 			// Annotate the stack pointer and the frame pointer, using the current stack frame
 			m_liveView->SetCommentForAddress(frame.m_sp, fmt::format("Stack #{}\n====================", frame.m_index));
@@ -1438,7 +1423,7 @@ void DebuggerController::UpdateStackVariables()
 		}
 	}
 
-	for (uint64_t address: m_oldAddresses)
+	for (uint64_t address : m_oldAddresses)
 	{
 		auto iter = m_addressesWithVariable.find(address);
 		if (iter != m_addressesWithVariable.end())
@@ -1450,7 +1435,7 @@ void DebuggerController::UpdateStackVariables()
 			m_liveView->UndefineUserSymbol(symbol);
 	}
 
-	for (uint64_t address: oldAddressWithComment)
+	for (uint64_t address : oldAddressWithComment)
 	{
 		m_liveView->SetCommentForAddress(address, "");
 	}
@@ -1580,29 +1565,31 @@ DebugStopReason DebuggerController::StopReason() const
 
 DebugStopReason DebuggerController::WaitForTargetStop()
 {
-//	TODO: we need to explicitly set m_state as running before we turn this on. Currently, the state transition is done
-//	in the callback to LaunchEvent, which executes LATER than WaitForTargetStop().
-//	if (!m_state->IsRunning())
-//		LogWarn("target is not running\n");
+	// TODO: we need to explicitly set m_state as running before we turn this on. Currently, the state transition is
+	// done in the callback to LaunchEvent, which executes LATER than WaitForTargetStop().
+	//if (!m_state->IsRunning())
+	//	LogWarn("target is not running\n");
 
 	Semaphore sem;
 	DebugStopReason reason = UnknownReason;
-	size_t callback = RegisterEventCallback([&](const DebuggerEvent& event){
-		switch (event.type)
-		{
-		case TargetStoppedEventType:
-			reason = event.data.targetStoppedData.reason;
-			sem.Release();
-			break;
-		case TargetExitedEventType:
-		case DetachedEventType:
-			reason = ProcessExited;
-			sem.Release();
-			break;
-		default:
-			break;
-		}
-	}, "WaitForTargetStop");
+	size_t callback = RegisterEventCallback(
+		[&](const DebuggerEvent& event) {
+			switch (event.type)
+			{
+			case TargetStoppedEventType:
+				reason = event.data.targetStoppedData.reason;
+				sem.Release();
+				break;
+			case TargetExitedEventType:
+			case DetachedEventType:
+				reason = ProcessExited;
+				sem.Release();
+				break;
+			default:
+				break;
+			}
+		},
+		"WaitForTargetStop");
 	sem.Wait();
 	RemoveEventCallback(callback);
 	return reason;
@@ -1613,13 +1600,15 @@ DebugStopReason DebuggerController::WaitForAdapterStop()
 {
 	Semaphore sem;
 	DebugStopReason reason = UnknownReason;
-	size_t callback = RegisterEventCallback([&](const DebuggerEvent& event){
-		if (event.type == AdapterStoppedEventType)
-		{
-			reason = event.data.targetStoppedData.reason;
-			sem.Release();
-		}
-	}, "WaitForAdapterStop");
+	size_t callback = RegisterEventCallback(
+		[&](const DebuggerEvent& event) {
+			if (event.type == AdapterStoppedEventType)
+			{
+				reason = event.data.targetStoppedData.reason;
+				sem.Release();
+			}
+		},
+		"WaitForAdapterStop");
 	sem.Wait();
 	RemoveEventCallback(callback);
 	return reason;
@@ -1628,7 +1617,7 @@ DebugStopReason DebuggerController::WaitForAdapterStop()
 
 Ref<Metadata> DebuggerController::GetAdapterProperty(const std::string& name)
 {
-    if (!m_adapter)
+	if (!m_adapter)
 	{
 		if (!CreateDebugAdapter())
 			return nullptr;
@@ -1637,13 +1626,14 @@ Ref<Metadata> DebuggerController::GetAdapterProperty(const std::string& name)
 			return nullptr;
 	}
 
-    return m_adapter->GetProperty(name);
+	return m_adapter->GetProperty(name);
 }
 
 
-bool DebuggerController::SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value)
+bool DebuggerController::SetAdapterProperty(
+	const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value)
 {
-    if (!m_adapter)
+	if (!m_adapter)
 	{
 		if (!CreateDebugAdapter())
 			return false;
@@ -1652,7 +1642,7 @@ bool DebuggerController::SetAdapterProperty(const std::string& name, const Binar
 			return false;
 	}
 
-    return m_adapter->SetProperty(name, value);
+	return m_adapter->SetProperty(name, value);
 }
 
 

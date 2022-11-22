@@ -20,91 +20,91 @@ using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
-RemoteProcessSettingsDialog::RemoteProcessSettingsDialog(QWidget* parent, DebuggerControllerRef controller):
+RemoteProcessSettingsDialog::RemoteProcessSettingsDialog(QWidget* parent, DebuggerControllerRef controller) :
 	QDialog(), m_controller(controller)
 {
-    setWindowTitle("Remote Process Settings");
-    setMinimumSize(UIContext::getScaledWindowSize(400, 130));
-    setAttribute(Qt::WA_DeleteOnClose);
+	setWindowTitle("Remote Process Settings");
+	setMinimumSize(UIContext::getScaledWindowSize(400, 130));
+	setAttribute(Qt::WA_DeleteOnClose);
 
-    setModal(true);
-    QVBoxLayout* layout = new QVBoxLayout;
-    layout->setSpacing(0);
+	setModal(true);
+	QVBoxLayout* layout = new QVBoxLayout;
+	layout->setSpacing(0);
 
-    QHBoxLayout* titleLayout = new QHBoxLayout;
-    titleLayout->setContentsMargins(0, 0, 0, 0);
+	QHBoxLayout* titleLayout = new QHBoxLayout;
+	titleLayout->setContentsMargins(0, 0, 0, 0);
 
-    m_pluginEntry = new QComboBox(this);
-    auto pluginsMetadata = m_controller->GetAdapterProperty("process_plugins");
-    if (pluginsMetadata && pluginsMetadata->IsStringList())
-    {
-        auto plugins = pluginsMetadata->GetStringList();
-        for (const auto& plugin: plugins)
-            m_pluginEntry->addItem(QString::fromStdString(plugin));
-    }
+	m_pluginEntry = new QComboBox(this);
+	auto pluginsMetadata = m_controller->GetAdapterProperty("process_plugins");
+	if (pluginsMetadata && pluginsMetadata->IsStringList())
+	{
+		auto plugins = pluginsMetadata->GetStringList();
+		for (const auto& plugin : plugins)
+			m_pluginEntry->addItem(QString::fromStdString(plugin));
+	}
 
-    auto currentPluginMetadata = m_controller->GetAdapterProperty("current_process_plugin");
-    if (currentPluginMetadata && currentPluginMetadata->IsString())
-    {
-        const auto currentPlugin = currentPluginMetadata->GetString();
-        m_pluginEntry->setCurrentText(QString::fromStdString(currentPlugin));
-    }
+	auto currentPluginMetadata = m_controller->GetAdapterProperty("current_process_plugin");
+	if (currentPluginMetadata && currentPluginMetadata->IsString())
+	{
+		const auto currentPlugin = currentPluginMetadata->GetString();
+		m_pluginEntry->setCurrentText(QString::fromStdString(currentPlugin));
+	}
 
-    m_addressEntry = new QLineEdit(this);
-    m_portEntry = new QLineEdit(this);
+	m_addressEntry = new QLineEdit(this);
+	m_portEntry = new QLineEdit(this);
 
-    QFormLayout* formLayout = new QFormLayout;
-    formLayout->addRow("Plugin", m_pluginEntry);
-    formLayout->addRow("Host", m_addressEntry);
-    formLayout->addRow("Port", m_portEntry);
+	QFormLayout* formLayout = new QFormLayout;
+	formLayout->addRow("Plugin", m_pluginEntry);
+	formLayout->addRow("Host", m_addressEntry);
+	formLayout->addRow("Port", m_portEntry);
 
-    QHBoxLayout* buttonLayout = new QHBoxLayout;
-    buttonLayout->setContentsMargins(0, 0, 0, 0);
+	QHBoxLayout* buttonLayout = new QHBoxLayout;
+	buttonLayout->setContentsMargins(0, 0, 0, 0);
 
-    QPushButton* cancelButton = new QPushButton("Cancel");
-    connect(cancelButton, &QPushButton::clicked, [&](){ reject(); });
-    QPushButton* acceptButton = new QPushButton("Accept");
-    connect(acceptButton, &QPushButton::clicked, [&](){ apply(); });
-    acceptButton->setDefault(true);
+	QPushButton* cancelButton = new QPushButton("Cancel");
+	connect(cancelButton, &QPushButton::clicked, [&]() { reject(); });
+	QPushButton* acceptButton = new QPushButton("Accept");
+	connect(acceptButton, &QPushButton::clicked, [&]() { apply(); });
+	acceptButton->setDefault(true);
 
-    buttonLayout->addStretch(1);
-    buttonLayout->addWidget(cancelButton);
-    buttonLayout->addWidget(acceptButton);
+	buttonLayout->addStretch(1);
+	buttonLayout->addWidget(cancelButton);
+	buttonLayout->addWidget(acceptButton);
 
-    layout->addLayout(titleLayout);
-    layout->addSpacing(10);
-    layout->addLayout(formLayout);
-    layout->addStretch(1);
-    layout->addSpacing(10);
-    layout->addLayout(buttonLayout);
-    setLayout(layout);
+	layout->addLayout(titleLayout);
+	layout->addSpacing(10);
+	layout->addLayout(formLayout);
+	layout->addStretch(1);
+	layout->addSpacing(10);
+	layout->addLayout(buttonLayout);
+	setLayout(layout);
 
-    m_addressEntry->setText(QString::fromStdString(m_controller->GetRemoteHost()));
-    m_portEntry->setText(QString::number(m_controller->GetRemotePort()));
+	m_addressEntry->setText(QString::fromStdString(m_controller->GetRemoteHost()));
+	m_portEntry->setText(QString::number(m_controller->GetRemotePort()));
 }
 
 
 void RemoteProcessSettingsDialog::apply()
 {
-    std::string host = m_addressEntry->text().toStdString();
-    m_controller->SetRemoteHost(host);
-    auto data = new Metadata(host);
-    m_controller->GetData()->StoreMetadata("debugger.remote_host", data);
+	std::string host = m_addressEntry->text().toStdString();
+	m_controller->SetRemoteHost(host);
+	auto data = new Metadata(host);
+	m_controller->GetData()->StoreMetadata("debugger.remote_host", data);
 
-    std::string portString = m_portEntry->text().toStdString();
-    uint64_t port;
-    try
-    {
-        port = stoull(portString);
-    }
-    catch(const std::exception&)
-    {
-        port = 31337;
-    }
+	std::string portString = m_portEntry->text().toStdString();
+	uint64_t port;
+	try
+	{
+		port = stoull(portString);
+	}
+	catch (const std::exception&)
+	{
+		port = 31337;
+	}
 
-    m_controller->SetRemotePort(port);
-    data = new Metadata(port);
-    m_controller->GetData()->StoreMetadata("debugger.remote_port", data);
+	m_controller->SetRemotePort(port);
+	data = new Metadata(port);
+	m_controller->GetData()->StoreMetadata("debugger.remote_port", data);
 
 	const auto plugin = m_pluginEntry->currentText().toStdString();
 	if (!plugin.empty())
@@ -114,5 +114,5 @@ void RemoteProcessSettingsDialog::apply()
 		m_controller->GetData()->StoreMetadata("debugger.process_plugin", pluginMetadata);
 	}
 
-    accept();
+	accept();
 }

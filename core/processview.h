@@ -22,12 +22,11 @@ limitations under the License.
 
 using namespace BinaryNinja;
 
-namespace BinaryNinjaDebugger
-{
+namespace BinaryNinjaDebugger {
 	class DebuggerController;
 	class DebugProcessMemoryView;
 
-	class DebugProcessView: public BinaryView
+	class DebugProcessView : public BinaryView
 	{
 		std::vector<uint64_t> m_entryPoints;
 		size_t m_addressSize;
@@ -55,7 +54,7 @@ namespace BinaryNinjaDebugger
 	};
 
 
-	class DebugProcessViewType: public BinaryViewType
+	class DebugProcessViewType : public BinaryViewType
 	{
 	public:
 		DebugProcessViewType();
@@ -71,7 +70,7 @@ namespace BinaryNinjaDebugger
 		virtual bool IsDeprecated() override { return true; };
 	};
 
-	class DebugProcessMemoryView: public BinaryView
+	class DebugProcessMemoryView : public BinaryView
 	{
 		uint64_t m_length;
 		DbgRef<DebuggerController> m_controller;
@@ -92,4 +91,4 @@ namespace BinaryNinjaDebugger
 	};
 
 	void InitDebugProcessViewType();
-};
+};  // namespace BinaryNinjaDebugger

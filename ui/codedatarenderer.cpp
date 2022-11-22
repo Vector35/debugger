@@ -18,15 +18,11 @@ limitations under the License.
 using namespace BinaryNinja;
 
 
-
-CodeDataRenderer::CodeDataRenderer()
-{
-
-}
+CodeDataRenderer::CodeDataRenderer() {}
 
 
-bool CodeDataRenderer::IsValidForData(BinaryView *data, uint64_t addr, Type *type,
-									  std::vector<std::pair<BinaryNinja::Type *, size_t>> &context)
+bool CodeDataRenderer::IsValidForData(
+	BinaryView* data, uint64_t addr, Type* type, std::vector<std::pair<BinaryNinja::Type*, size_t>>& context)
 {
 	auto sym = data->GetSymbolByAddress(addr);
 	if (!sym)
@@ -40,43 +36,41 @@ bool CodeDataRenderer::IsValidForData(BinaryView *data, uint64_t addr, Type *typ
 }
 
 
-std::vector<DisassemblyTextLine> CodeDataRenderer::GetLinesForData(
-			BinaryView* data, uint64_t addr, Type* type,
-			const std::vector<InstructionTextToken>& prefix, size_t width,
-			std::vector<std::pair<Type*, size_t>>& context)
+std::vector<DisassemblyTextLine> CodeDataRenderer::GetLinesForData(BinaryView* data, uint64_t addr, Type* type,
+	const std::vector<InstructionTextToken>& prefix, size_t width, std::vector<std::pair<Type*, size_t>>& context)
 {
-    size_t instCount = 50;
-    auto arch = data->GetDefaultArchitecture();
-    size_t readLength = arch->GetMaxInstructionLength() * instCount;
+	size_t instCount = 50;
+	auto arch = data->GetDefaultArchitecture();
+	size_t readLength = arch->GetMaxInstructionLength() * instCount;
 
-    std::vector<DisassemblyTextLine> result;
+	std::vector<DisassemblyTextLine> result;
 	DisassemblyTextLine contents;
 
 	auto buffer = data->ReadBuffer(addr, readLength);
 	if (buffer.GetLength() == 0)
 		return result;
 
-    size_t totalRead = 0;
-    for (size_t i = 0; i < instCount; i++)
-    {
-        uint64_t lineAddr = addr + totalRead;
-        size_t length = readLength - totalRead;
-        std::vector<InstructionTextToken> insnTokens;
-        auto ok = arch->GetInstructionText((uint8_t *)buffer.GetDataAt(totalRead), lineAddr, length, insnTokens);
-        if ((!ok) || (insnTokens.size() == 0))
-        {
-            insnTokens = { InstructionTextToken(TextToken, "??") };
-            length = arch->GetInstructionAlignment();
-            if (length == 0)
-                length = 1;
-        }
+	size_t totalRead = 0;
+	for (size_t i = 0; i < instCount; i++)
+	{
+		uint64_t lineAddr = addr + totalRead;
+		size_t length = readLength - totalRead;
+		std::vector<InstructionTextToken> insnTokens;
+		auto ok = arch->GetInstructionText((uint8_t*)buffer.GetDataAt(totalRead), lineAddr, length, insnTokens);
+		if ((!ok) || (insnTokens.size() == 0))
+		{
+			insnTokens = {InstructionTextToken(TextToken, "??")};
+			length = arch->GetInstructionAlignment();
+			if (length == 0)
+				length = 1;
+		}
 
-        contents.addr = lineAddr;
-        contents.tokens = insnTokens;
+		contents.addr = lineAddr;
+		contents.tokens = insnTokens;
 
-        result.push_back(contents);
-        totalRead += length;
-    }
+		result.push_back(contents);
+		totalRead += length;
+	}
 
 	return result;
 }

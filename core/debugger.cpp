@@ -18,7 +18,7 @@ limitations under the License.
 #include "processview.h"
 #include "adapters/lldbadapter.h"
 #ifdef WIN32
-#include "adapters/dbgengadapter.h"
+	#include "adapters/dbgengadapter.h"
 #endif
 
 using namespace BinaryNinja;
@@ -27,12 +27,12 @@ using namespace BinaryNinjaDebugger;
 void InitDebugAdapterTypes()
 {
 #ifdef WIN32
-    InitDbgEngAdapterType();
+	InitDbgEngAdapterType();
 #endif
 
-//	Disable these adapters because they are not tested, and will get replaced later
-//    InitGdbAdapterType();
-//    InitLldbRspAdapterType();
+	// Disable these adapters because they are not tested, and will get replaced later
+	//InitGdbAdapterType();
+	//InitLldbRspAdapterType();
 	InitLldbAdapterType();
 }
 
@@ -51,7 +51,7 @@ static void RegisterSettings()
 	*/
 
 	settings->RegisterSetting("debugger.stopAtSystemEntryPoint",
-			R"({
+		R"({
 			"title" : "Stop At System Entry Point",
 			"type" : "boolean",
 			"default" : false,
@@ -60,7 +60,7 @@ static void RegisterSettings()
 			})");
 
 	settings->RegisterSetting("debugger.stopAtEntryPoint",
-			R"({
+		R"({
 			"title" : "Stop At Entry Point",
 			"type" : "boolean",
 			"default" : true,
@@ -69,16 +69,16 @@ static void RegisterSettings()
 			})");
 
 #ifdef WIN32
-    settings->RegisterSetting("debugger.x64dbgEngPath",
-  R"({
+	settings->RegisterSetting("debugger.x64dbgEngPath",
+		R"({
 			"title" : "x64 DbgEng Installation Path",
 			"type" : "string",
 			"default" : "",
 			"description" : "Path of the x64 DbgEng Installation. This folder should contain an x64 dbgeng.dll.",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
-    settings->RegisterSetting("debugger.x86dbgEngPath",
-                              R"({
+	settings->RegisterSetting("debugger.x86dbgEngPath",
+		R"({
 			"title" : "x86 DbgEng Installation Path",
 			"type" : "string",
 			"default" : "",
@@ -88,7 +88,7 @@ static void RegisterSettings()
 #endif
 
 	settings->RegisterSetting("debugger.stackVariableAnnotations",
-			R"({
+		R"({
 			"title" : "Stack Variable Annotations",
 			"type" : "boolean",
 			"default" : true,
@@ -115,8 +115,8 @@ extern "C"
 #endif
 	{
 		LogDebug("Native debugger loaded!");
-        InitDebugAdapterTypes();
-        InitDebugProcessViewType();
+		InitDebugAdapterTypes();
+		InitDebugProcessViewType();
 		RegisterSettings();
 		return true;
 	}

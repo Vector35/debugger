@@ -25,11 +25,10 @@ limitations under the License.
 
 DECLARE_DEBUGGER_API_OBJECT(BNDebuggerController, DebuggerController);
 
-namespace BinaryNinjaDebugger
-{
+namespace BinaryNinjaDebugger {
 	struct DebuggerEventCallback
 	{
-		std::function<void(const DebuggerEvent &event)> function;
+		std::function<void(const DebuggerEvent& event)> function;
 		size_t index;
 		std::string name;
 	};
@@ -48,26 +47,20 @@ namespace BinaryNinjaDebugger
 			name = n;
 		}
 
-		bool operator==(const StackVariableNameAndType& other)
-		{
-			return (type == other.type) && (name == other.name);
-		}
+		bool operator==(const StackVariableNameAndType& other) { return (type == other.type) && (name == other.name); }
 
-		bool operator!=(const StackVariableNameAndType& other)
-		{
-			return !(*this == other);
-		}
+		bool operator!=(const StackVariableNameAndType& other) { return !(*this == other); }
 	};
 
 	// This is the controller class of the debugger. It receives the input from the UI/API, and then route them to
 	// the state and UI, etc. Most actions should reach here.
-	class DebuggerController: public DbgRefCountObject
+	class DebuggerController : public DbgRefCountObject
 	{
 		IMPLEMENT_DEBUGGER_API_OBJECT(BNDebuggerController);
 
 	private:
-		DebugAdapter *m_adapter;
-		DebuggerState *m_state;
+		DebugAdapter* m_adapter;
+		DebuggerState* m_state;
 		BinaryViewRef m_data;
 		BinaryViewRef m_liveView;
 
@@ -90,7 +83,7 @@ namespace BinaryNinjaDebugger
 		// and call a NotifyStopped when the sequence of operation is done.
 		bool m_treatAdapterStopAsTargetStop = true;
 
-		void EventHandler(const DebuggerEvent &event);
+		void EventHandler(const DebuggerEvent& event);
 		void UpdateStackVariables();
 		bool CreateDebugAdapter();
 		void HandleInitialBreakpoint();
@@ -105,7 +98,7 @@ namespace BinaryNinjaDebugger
 		void StepIntoInternal();
 		void StepOverInternal();
 		void StepReturnInternal();
-		void RunToInternal(const std::vector<uint64_t> &remoteAddresses);
+		void RunToInternal(const std::vector<uint64_t>& remoteAddresses);
 		void StepIntoIL(BNFunctionGraphType il);
 		void StepOverIL(BNFunctionGraphType il);
 
@@ -123,7 +116,7 @@ namespace BinaryNinjaDebugger
 
 		void ApplyBreakpoints();
 
-        std::string m_lastAdapterName;
+		std::string m_lastAdapterName;
 
 	public:
 		DebuggerController(BinaryViewRef data);
@@ -138,29 +131,29 @@ namespace BinaryNinjaDebugger
 
 		// breakpoints
 		void AddBreakpoint(uint64_t address);
-		void AddBreakpoint(const ModuleNameAndOffset &address);
+		void AddBreakpoint(const ModuleNameAndOffset& address);
 		void DeleteBreakpoint(uint64_t address);
-		void DeleteBreakpoint(const ModuleNameAndOffset &address);
+		void DeleteBreakpoint(const ModuleNameAndOffset& address);
 		DebugBreakpoint GetAllBreakpoints();
 
 		// registers
-		uint64_t GetRegisterValue(const std::string &name);
-		bool SetRegisterValue(const std::string &name, uint64_t value);
+		uint64_t GetRegisterValue(const std::string& name);
+		bool SetRegisterValue(const std::string& name, uint64_t value);
 		std::vector<DebugRegister> GetAllRegisters();
 
 		// threads
 		DebugThread GetActiveThread() const;
-		void SetActiveThread(const DebugThread &thread);
+		void SetActiveThread(const DebugThread& thread);
 		std::vector<DebugThread> GetAllThreads();
 		std::vector<DebugFrame> GetFramesOfThread(uint64_t tid);
 
 		// modules
 		std::vector<DebugModule> GetAllModules();
-		DebugModule GetModuleByName(const std::string &module);
-		uint64_t GetModuleBase(const std::string &name);
+		DebugModule GetModuleByName(const std::string& module);
+		uint64_t GetModuleBase(const std::string& name);
 		DebugModule GetModuleForAddress(uint64_t remoteAddress);
 		ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t absoluteAddress);
-		uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset &relativeAddress);
+		uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress);
 
 		// arch
 		ArchitectureRef GetRemoteArchitecture();
@@ -172,16 +165,17 @@ namespace BinaryNinjaDebugger
 
 		// memory
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size);
-		bool WriteMemory(std::uintptr_t address, const DataBuffer &buffer);
+		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
 
 		// debugger events
-		size_t RegisterEventCallback(std::function<void(const DebuggerEvent &event)> callback, const std::string& name = "");
+		size_t RegisterEventCallback(
+			std::function<void(const DebuggerEvent& event)> callback, const std::string& name = "");
 		bool RemoveEventCallback(size_t index);
 		bool RemoveEventCallbackInternal(size_t index);
-		void NotifyStopped(DebugStopReason reason, void *data = nullptr);
-		void NotifyError(const std::string &error, const std::string &shortError, void *data = nullptr);
+		void NotifyStopped(DebugStopReason reason, void* data = nullptr);
+		void NotifyError(const std::string& error, const std::string& shortError, void* data = nullptr);
 		void NotifyEvent(DebuggerEventType event);
-		void PostDebuggerEvent(const DebuggerEvent &event);
+		void PostDebuggerEvent(const DebuggerEvent& event);
 		void CleanUpDisabledEvent();
 
 		// shortcut for instruction pointer
@@ -196,10 +190,11 @@ namespace BinaryNinjaDebugger
 		void Quit();
 		void QuitAndWait();
 		void Connect();
-        bool ConnectToDebugServer();
-        bool DisconnectDebugServer();
+		bool ConnectToDebugServer();
+		bool DisconnectDebugServer();
 		void Detach();
-		// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
+		// Convenience function, either launch the target process or connect to a remote, depending on the selected
+		// adapter
 		void LaunchOrConnect();
 		bool Attach(int32_t pid);
 
@@ -208,7 +203,7 @@ namespace BinaryNinjaDebugger
 		bool StepInto(BNFunctionGraphType il = NormalFunctionGraph);
 		bool StepOver(BNFunctionGraphType il = NormalFunctionGraph);
 		bool StepReturn();
-		bool RunTo(const std::vector<uint64_t> &remoteAddresses);
+		bool RunTo(const std::vector<uint64_t>& remoteAddresses);
 		bool Pause();
 
 		// Synchronous APIs
@@ -216,12 +211,12 @@ namespace BinaryNinjaDebugger
 		DebugStopReason StepIntoAndWait(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepReturnAndWait();
-		DebugStopReason RunToAndWait(const std::vector<uint64_t> &remoteAddresses);
+		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
 		DebugStopReason PauseAndWait();
 
 		// getters
-		DebugAdapter *GetAdapter() { return m_adapter; }
-		DebuggerState *GetState() { return m_state; }
+		DebugAdapter* GetAdapter() { return m_adapter; }
+		DebuggerState* GetState() { return m_state; }
 		BinaryViewRef GetData() const { return m_data; }
 		BinaryViewRef GetLiveView() const { return m_liveView; }
 
@@ -237,9 +232,9 @@ namespace BinaryNinjaDebugger
 		DebugStopReason WaitForTargetStop();
 		DebugStopReason WaitForAdapterStop();
 
-        BinaryNinja::Ref<BinaryNinja::Metadata> GetAdapterProperty(const std::string& name);
-        bool SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value);
+		BinaryNinja::Ref<BinaryNinja::Metadata> GetAdapterProperty(const std::string& name);
+		bool SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value);
 
 		bool ActivateDebugAdapter();
 	};
-};
+};  // namespace BinaryNinjaDebugger

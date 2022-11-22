@@ -21,15 +21,11 @@ limitations under the License.
 
 using namespace BinaryNinja;
 
-namespace BinaryNinjaDebuggerAPI
-{
+namespace BinaryNinjaDebuggerAPI {
 	template <class T>
 	class DbgRefCountObject
 	{
-		void AddRefInternal()
-		{
-			m_refs.fetch_add(1);
-		}
+		void AddRefInternal() { m_refs.fetch_add(1); }
 
 		void ReleaseInternal()
 		{
@@ -40,7 +36,7 @@ namespace BinaryNinjaDebuggerAPI
 	public:
 		std::atomic<int> m_refs;
 		T* m_object;
-		DbgRefCountObject(): m_refs(0), m_object(nullptr) {}
+		DbgRefCountObject() : m_refs(0), m_object(nullptr) {}
 		virtual ~DbgRefCountObject() {}
 
 		T* GetObject() const { return m_object; }
@@ -52,20 +48,11 @@ namespace BinaryNinjaDebuggerAPI
 			return obj->GetObject();
 		}
 
-		void AddRef()
-		{
-			AddRefInternal();
-		}
+		void AddRef() { AddRefInternal(); }
 
-		void Release()
-		{
-			ReleaseInternal();
-		}
+		void Release() { ReleaseInternal(); }
 
-		void AddRefForRegistration()
-		{
-			AddRefInternal();
-		}
+		void AddRefForRegistration() { AddRefInternal(); }
 	};
 
 
@@ -228,46 +215,75 @@ namespace BinaryNinjaDebuggerAPI
 			return *this;
 		}
 
-		operator T*() const { return m_obj; }
+		operator T*() const
+		{
+			return m_obj;
+		}
 
-		T* operator->() const { return m_obj; }
+		T* operator->() const
+		{
+			return m_obj;
+		}
 
-		T& operator*() const { return *m_obj; }
+		T& operator*() const
+		{
+			return *m_obj;
+		}
 
-		bool operator!() const { return m_obj == NULL; }
+		bool operator!() const
+		{
+			return m_obj == NULL;
+		}
 
-		bool operator==(const T* obj) const { return T::GetObject(m_obj) == T::GetObject(obj); }
+		bool operator==(const T* obj) const
+		{
+			return T::GetObject(m_obj) == T::GetObject(obj);
+		}
 
-		bool operator==(const DbgRef<T>& obj) const { return T::GetObject(m_obj) == T::GetObject(obj.m_obj); }
+		bool operator==(const DbgRef<T>& obj) const
+		{
+			return T::GetObject(m_obj) == T::GetObject(obj.m_obj);
+		}
 
-		bool operator!=(const T* obj) const { return T::GetObject(m_obj) != T::GetObject(obj); }
+		bool operator!=(const T* obj) const
+		{
+			return T::GetObject(m_obj) != T::GetObject(obj);
+		}
 
-		bool operator!=(const DbgRef<T>& obj) const { return T::GetObject(m_obj) != T::GetObject(obj.m_obj); }
+		bool operator!=(const DbgRef<T>& obj) const
+		{
+			return T::GetObject(m_obj) != T::GetObject(obj.m_obj);
+		}
 
-		bool operator<(const T* obj) const { return T::GetObject(m_obj) < T::GetObject(obj); }
+		bool operator<(const T* obj) const
+		{
+			return T::GetObject(m_obj) < T::GetObject(obj);
+		}
 
-		bool operator<(const DbgRef<T>& obj) const { return T::GetObject(m_obj) < T::GetObject(obj.m_obj); }
+		bool operator<(const DbgRef<T>& obj) const
+		{
+			return T::GetObject(m_obj) < T::GetObject(obj.m_obj);
+		}
 
-		T* GetPtr() const { return m_obj; }
+		T* GetPtr() const
+		{
+			return m_obj;
+		}
 	};
 
 
 	struct DebugThread
 	{
-		std::uint32_t m_tid{};
-		std::uintptr_t m_rip{};
+		std::uint32_t m_tid {};
+		std::uintptr_t m_rip {};
 
 		DebugThread() {}
 		DebugThread(std::uint32_t tid) : m_tid(tid) {}
 		DebugThread(std::uint32_t tid, std::uintptr_t rip) : m_tid(tid), m_rip(rip) {}
 
-		bool operator==(const DebugThread &rhs) const {
-			return (m_tid == rhs.m_tid) && (m_rip == rhs.m_rip);
-		}
+		bool operator==(const DebugThread& rhs) const { return (m_tid == rhs.m_tid) && (m_rip == rhs.m_rip); }
 
-		bool operator!=(const DebugThread &rhs) const {
-			return !(*this == rhs);
-		}
+		bool operator!=(const DebugThread& rhs) const { return !(*this == rhs); }
 	};
 
 
@@ -283,35 +299,35 @@ namespace BinaryNinjaDebuggerAPI
 
 		DebugFrame() = default;
 		DebugFrame(size_t index, uint64_t pc, uint64_t sp, uint64_t fp, const std::string& functionName,
-				   uint64_t functionStart, const std::string& module):
-				m_index(index), m_pc(pc), m_sp(sp), m_fp(fp), m_functionName(functionName),
-				m_functionStart(functionStart), m_module(module)
+			uint64_t functionStart, const std::string& module) :
+			m_index(index),
+			m_pc(pc), m_sp(sp), m_fp(fp), m_functionName(functionName), m_functionStart(functionStart), m_module(module)
 		{}
 	};
 
 
 	struct DebugModule
 	{
-		std::string m_name{}, m_short_name{};
-		std::uintptr_t m_address{};
-		std::size_t m_size{};
-		bool m_loaded{};
+		std::string m_name {}, m_short_name {};
+		std::uintptr_t m_address {};
+		std::size_t m_size {};
+		bool m_loaded {};
 
-		// These are useful for remote debugging. Paths can be different on the host and guest systems, e.g., /usr/bin/ls,
-		// and C:\Users\user\Desktop\ls. So we must compare the base file name, rather than the full path.
-		bool IsSameBaseModule(const DebugModule &other) const;
-		bool IsSameBaseModule(const std::string &name) const;
-		static bool IsSameBaseModule(const std::string &module, const std::string &module2);
-		static std::string GetPathBaseName(const std::string &path);
+		// These are useful for remote debugging. Paths can be different on the host and guest systems, e.g.,
+		// /usr/bin/ls, and C:\Users\user\Desktop\ls. So we must compare the base file name, rather than the full path.
+		bool IsSameBaseModule(const DebugModule& other) const;
+		bool IsSameBaseModule(const std::string& name) const;
+		static bool IsSameBaseModule(const std::string& module, const std::string& module2);
+		static std::string GetPathBaseName(const std::string& path);
 	};
 
 
 	struct DebugRegister
 	{
-		std::string m_name{};
-		std::uintptr_t m_value{};
-		std::size_t m_width{}, m_registerIndex{};
-		std::string m_hint{};
+		std::string m_name {};
+		std::uintptr_t m_value {};
+		std::size_t m_width {}, m_registerIndex {};
+		std::string m_hint {};
 	};
 
 
@@ -333,10 +349,7 @@ namespace BinaryNinjaDebuggerAPI
 		{
 			return (module == other.module) && (offset == other.offset);
 		}
-		bool operator!=(const ModuleNameAndOffset& other) const
-		{
-			return !(*this == other);
-		}
+		bool operator!=(const ModuleNameAndOffset& other) const { return !(*this == other); }
 		bool operator<(const ModuleNameAndOffset& other) const
 		{
 			if (module < other.module)
@@ -409,7 +422,8 @@ namespace BinaryNinjaDebuggerAPI
 	typedef BNDebugAdapterConnectionStatus DebugAdapterConnectionStatus;
 	typedef BNDebugAdapterTargetStatus DebugAdapterTargetStatus;
 
-	class DebuggerController: public DbgCoreRefCountObject<BNDebuggerController, BNDebuggerNewControllerReference, BNDebuggerFreeController>
+	class DebuggerController :
+		public DbgCoreRefCountObject<BNDebuggerController, BNDebuggerNewControllerReference, BNDebuggerFreeController>
 	{
 		struct DebuggerEventCallbackObject
 		{
@@ -426,13 +440,13 @@ namespace BinaryNinjaDebuggerAPI
 		Ref<Architecture> GetRemoteArchitecture();
 
 		bool IsConnected();
-        bool IsConnectedToDebugServer();
+		bool IsConnectedToDebugServer();
 		bool IsRunning();
 
 		uint64_t StackPointer();
 
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size);
-		bool WriteMemory(std::uintptr_t address, const DataBuffer &buffer);
+		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
 
 		std::vector<DebugThread> GetThreads();
 		DebugThread GetActiveThread();
@@ -441,7 +455,7 @@ namespace BinaryNinjaDebuggerAPI
 
 		std::vector<DebugModule> GetModules();
 		std::vector<DebugRegister> GetRegisters();
-		uint64_t GetRegisterValue(const std::string &name);
+		uint64_t GetRegisterValue(const std::string& name);
 		bool SetRegisterValue(const std::string& name, uint64_t value);
 
 		// target control
@@ -451,10 +465,11 @@ namespace BinaryNinjaDebuggerAPI
 		void Quit();
 		void QuitAndWait();
 		void Connect();
-        bool ConnectToDebugServer();
-        bool DisconnectDebugServer();
-        void Detach();
-		// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
+		bool ConnectToDebugServer();
+		bool DisconnectDebugServer();
+		void Detach();
+		// Convenience function, either launch the target process or connect to a remote, depending on the selected
+		// adapter
 		void LaunchOrConnect();
 		bool Attach(uint32_t pid);
 
@@ -463,7 +478,7 @@ namespace BinaryNinjaDebuggerAPI
 		bool StepOver(BNFunctionGraphType il = NormalFunctionGraph);
 		bool StepReturn();
 		bool RunTo(uint64_t remoteAddresses);
-		bool RunTo(const std::vector<uint64_t> &remoteAddresses);
+		bool RunTo(const std::vector<uint64_t>& remoteAddresses);
 		void Pause();
 
 		DebugStopReason GoAndWait();
@@ -471,7 +486,7 @@ namespace BinaryNinjaDebuggerAPI
 		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepReturnAndWait();
 		DebugStopReason RunToAndWait(uint64_t remoteAddresses);
-		DebugStopReason RunToAndWait(const std::vector<uint64_t> &remoteAddresses);
+		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
 		DebugStopReason PauseAndWait();
 
 		std::string GetAdapterType();
@@ -510,8 +525,8 @@ namespace BinaryNinjaDebuggerAPI
 		uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& address);
 		ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t address);
 
-		size_t RegisterEventCallback(std::function<void(const DebuggerEvent &event)> callback,
-									const std::string& name = "");
+		size_t RegisterEventCallback(
+			std::function<void(const DebuggerEvent& event)> callback, const std::string& name = "");
 		static void DebuggerEventCallback(void* ctxt, BNDebuggerEvent* view);
 
 		void RemoveEventCallback(size_t index);
@@ -523,14 +538,14 @@ namespace BinaryNinjaDebuggerAPI
 		static std::string GetDebugStopReasonString(DebugStopReason reason);
 		DebugStopReason StopReason();
 
-        BinaryNinja::Ref<Metadata> GetAdapterProperty(const std::string& name);
-        bool SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<Metadata>& value);
+		BinaryNinja::Ref<Metadata> GetAdapterProperty(const std::string& name);
+		bool SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<Metadata>& value);
 
 		bool ActivateDebugAdapter();
 	};
 
 
-	class DebugAdapterType: public DbgRefCountObject<BNDebugAdapterType>
+	class DebugAdapterType : public DbgRefCountObject<BNDebugAdapterType>
 	{
 	public:
 		DebugAdapterType(BNDebugAdapterType* adapterType);
@@ -539,4 +554,4 @@ namespace BinaryNinjaDebuggerAPI
 		bool CanConnect(Ref<BinaryView> data);
 		static std::vector<std::string> GetAvailableAdapters(Ref<BinaryView> data);
 	};
-};
+};  // namespace BinaryNinjaDebuggerAPI
