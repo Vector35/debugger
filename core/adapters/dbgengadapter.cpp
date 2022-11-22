@@ -641,14 +641,14 @@ bool DbgEngAdapter::SetActiveThreadId(std::uint32_t tid)
 
 bool DbgEngAdapter::SuspendThread(std::uint32_t tid)
 {
-	std::string suspendCmd = fmt::format("~{}n", tid);
+	std::string suspendCmd = fmt::format("~{}f", tid);
 	InvokeBackendCommand(suspendCmd);
 	return true;
 }
 
 bool DbgEngAdapter::ResumeThread(std::uint32_t tid)
 {
-	std::string resumeCmd = fmt::format("~{}m", tid);
+	std::string resumeCmd = fmt::format("~{}u", tid);
 	InvokeBackendCommand(resumeCmd);
 	return true;
 }
