@@ -93,7 +93,6 @@ namespace BinaryNinjaDebugger
 
 	class DbgEngAdapter : public DebugAdapter
 	{
-		bool engineDllsLoaded{false};
 		DbgEngEventCallbacks m_debugEventCallbacks{};
 		DbgEngOutputCallbacks m_outputCallbacks{};
 		IDebugClient5* m_debugClient{nullptr};
