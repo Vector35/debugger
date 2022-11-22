@@ -104,80 +104,48 @@ std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 
 bool DbgEngAdapter::LoadDngEngLibraries()
 {
-	if (engineDllsLoaded)
-		return true;
+    auto enginePath = GetDbgEngPath();
+    if (!enginePath.empty())
+    {
+        LogDebug("DbgEng libraries in path %s", enginePath.c_str());
+        if (!SetDllDirectoryA(enginePath.c_str()))
+            LogWarn("Failed to set DLL directory to %s. The debugger is going to load the system dbgeng DLLs, which may "
+                    "not work as expected", enginePath.c_str());
+    }
+    else
+    {
+        LogWarn("debugger.x64dbgEngPath is empty or invalid. The debugger is going to load the system dbgeng DLLs, which may "
+                "not work as expected");
+    }
 
-	auto enginePath = GetDbgEngPath();
-	if (!enginePath.empty())
-	{
-		LogDebug("DbgEng libraries in path %s", enginePath.c_str());
-		if (!SetDllDirectoryA(enginePath.c_str()))
-			LogWarn("Failed to set DLL directory to %s. The debugger is going to load the system dbgeng DLLs, which may "
-					"not work as expected", enginePath.c_str());
-	}
-	else
-	{
-		LogWarn("debugger.x64dbgEngPath is empty or invalid. The debugger is going to load the system dbgeng DLLs, which may "
-				"not work as expected");
-	}
+    HMODULE handle;
+    handle = LoadLibraryA("dbgcore.dll");
+    if (handle == nullptr)
+    {
+        LogWarn("Failed to load dbgcore.dll, %d", GetLastError());
+        return false;
+    }
 
-	char *dllNames[4] = {
-		"dbgcore.dll",
-		"dbghelp.dll",
-		"dbgmodel.dll",
-		"dbgeng.dll"};
+    handle = LoadLibraryA("dbghelp.dll");
+    if (handle == nullptr)
+    {
+        LogWarn("Failed to load dbghelp.dll, %d", GetLastError());
+        return false;
+    }
 
-	bool strict = Settings::Instance()->Get<bool>("debugger.strictEnginePath");
+    handle = LoadLibraryA("dbgmodel.dll");
+    if (handle == nullptr)
+    {
+        LogWarn("Failed to load dbgmodel.dll, %d", GetLastError());
+        return false;
+    }
 
-	for (int i = 0; i < 4; i++)
-	{
-		HMODULE handle = nullptr;
-		char *dllName = dllNames[i];
-
-		handle = GetModuleHandleA(dllName);
-		if (handle)
-		{
-			char dllPath[MAX_PATH];
-			if (GetModuleFileNameA(handle, dllPath, sizeof(dllPath)) == 0)
-			{
-				if (strict && (strcmpi(dllName, "dbghelp.dll") != 0))
-				{
-					LogError("Could not get already loaded engine dll path for %s. Shutting down the debugger because of strict checks enabled.", dllName);
-					return false;
-				}
-				else
-				{
-					LogWarn("Could not get already loaded engine dll path for %s. The debugger may not work as expected.", dllName);
-					continue;
-				}
-			}
-
-			auto modulePath = std::filesystem::path(dllPath).remove_filename();
-			if (modulePath.compare(enginePath) != 0)
-			{
-				// we can tolerate dbghelp, but others must be loaded from engine path
-				if (strict && (strcmpi(dllName, "dbghelp.dll") != 0))
-				{
-					LogError("%s loaded from different directory than expected. Shutting down the debugger because of strict checks enabled.", dllName);
-					return false;
-				}
-				else
-					LogWarn("%s loaded from different directory than expected. The debugger may not work as expected.", dllName);
-			}
-		}
-		else
-		{
-			handle = LoadLibraryA(dllName);
-			if (handle == nullptr)
-			{
-				LogWarn("Failed to load %s, %d", dllName, GetLastError());
-				return false;
-			}
-		}
-	}
-
-	engineDllsLoaded = true;
-	return true;
+    handle = LoadLibraryA("dbgeng.dll");
+    if (handle == nullptr)
+    {
+        LogWarn("Failed to load dbgeng.dll, %d", GetLastError());
+        return false;
+    }
 }
 
 std::string DbgEngAdapter::GenerateRandomPipeName()
@@ -261,9 +229,6 @@ bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionSt
 
 bool DbgEngAdapter::Start()
 {
-    if (!LoadDngEngLibraries())
-        return false;
-
     if ( this->m_debugActive )
         this->Reset();
 
@@ -342,6 +307,7 @@ void DbgEngAdapter::Reset()
 
 DbgEngAdapter::DbgEngAdapter(BinaryView* data): DebugAdapter(data)
 {
+    LoadDngEngLibraries();
 }
 
 DbgEngAdapter::~DbgEngAdapter()
