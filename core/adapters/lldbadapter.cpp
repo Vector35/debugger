@@ -460,7 +460,7 @@ bool LldbAdapter::SuspendThread(std::uint32_t tid)
 
 	if (!error.Success())
 		return false;
-
+	
 	return true;
 }
 
@@ -471,7 +471,7 @@ bool LldbAdapter::ResumeThread(std::uint32_t tid)
 	if (!thread.IsValid())
 		return false;
 	
-	if (!thread.Suspend(error))
+	if (!thread.Resume(error))
 		return false;
 
 	if (!error.Success())
