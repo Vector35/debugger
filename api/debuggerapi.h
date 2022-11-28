@@ -256,11 +256,12 @@ namespace BinaryNinjaDebuggerAPI
 	{
 		std::uint32_t m_tid{};
 		std::uintptr_t m_rip{};
+		bool m_isFrozen{};
 
 		DebugThread() {}
 		DebugThread(std::uint32_t tid) : m_tid(tid) {}
 		DebugThread(std::uint32_t tid, std::uintptr_t rip) : m_tid(tid), m_rip(rip) {}
-
+		
 		bool operator==(const DebugThread &rhs) const {
 			return (m_tid == rhs.m_tid) && (m_rip == rhs.m_rip);
 		}

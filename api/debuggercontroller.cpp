@@ -123,6 +123,7 @@ std::vector<DebugThread> DebuggerController::GetThreads()
 		DebugThread thread;
 		thread.m_rip = threads[i].m_rip;
 		thread.m_tid = threads[i].m_tid;
+		thread.m_isFrozen = threads[i].m_isFrozen;
 		result.push_back(thread);
 	}
 	BNDebuggerFreeThreads(threads, count);

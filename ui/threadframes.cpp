@@ -85,12 +85,23 @@ QVariant ThreadFrameModel::data(const QModelIndex &index, int role) const
 	if (!item)
 		return QVariant();
 
-	// do not use columns other than thread info for thread rows
-	if (!item->isFrame() && index.column() != ThreadFrameModel::ThreadColumn)
+	// do not use columns other than thread info & state for thread rows
+	if (!item->isFrame() && index.column() > ThreadFrameModel::ThreadColumn)
 		return QVariant();
 
 	switch (index.column())
 	{
+	case ThreadFrameModel::StateColumn:
+	{
+		if (item->isFrame())
+			return QVariant();
+
+		QString text = item->isFrozen() ? "Frozen" : "Unfrozen";
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
+
+		return QVariant(text);
+	}	
 	case ThreadFrameModel::ThreadColumn:
 	{
 		if (item->isFrame())
@@ -198,6 +209,8 @@ QVariant ThreadFrameModel::headerData(int column, Qt::Orientation orientation, i
 
 	switch (column)
 	{
+	case ThreadFrameModel::StateColumn:
+		return "State";
 	case ThreadFrameModel::ThreadColumn:
 		return "Thread";
 	case ThreadFrameModel::FrameIndexColumn:
@@ -294,6 +307,12 @@ void ThreadFramesItemDelegate::paint(QPainter* painter, const QStyleOptionViewIt
 	auto data = idx.data(Qt::DisplayRole);
 	switch (idx.column())
 	{
+	case ThreadFrameModel::StateColumn:
+	{
+		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
+		painter->drawText(textRect, data.toString());
+		break;
+	}
 	case ThreadFrameModel::ThreadColumn:
 	{
 		// make thread column bold, if this is active thread
@@ -308,7 +327,7 @@ void ThreadFramesItemDelegate::paint(QPainter* painter, const QStyleOptionViewIt
 				painter->setFont(font);
 			}
 		}
-
+		
 		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
@@ -374,13 +393,32 @@ void ThreadFramesWidget::makeItSoloThread()
 	if (!item)
 		return;
 
+	auto soloTid = item->tid();
+	auto isSoloFrozen = item->isFrozen();
+
+	LogInfo("make it solo called for tid=%x", soloTid);
+
 	auto threads = m_debugger->GetThreads();
 	for (const DebugThread &thread : threads)
 	{
-		if (thread.m_tid != item->tid())
-		{
+		if (thread.m_tid != soloTid && !thread.m_isFrozen)
+		{	
+			LogInfo("(solo) suspening thread %x", thread.m_tid);
 			m_debugger->SuspendThread(thread.m_tid);
 		}
+	}
+
+	// make sure solo thread is unfrozen and activated
+	if (isSoloFrozen)
+	{
+		LogInfo("(solo) resuming thread %x", soloTid);
+		m_debugger->ResumeThread(soloTid);
+	}
+
+	if (m_debugger->GetActiveThread().m_tid != soloTid)
+	{
+		LogInfo("(solo) changing activated thread to %x", soloTid);
+		m_debugger->SetActiveThread(soloTid);
 	}
 }
 
@@ -465,6 +503,12 @@ void ThreadFramesWidget::copy()
 
 	switch (sel[0].column())
 	{
+	case ThreadFrameModel::StateColumn:
+		if (item->isFrame())
+			return;
+		
+		text = item->isFrozen() ? "Frozen" : "Unfrozen";
+		break;
 	case ThreadFrameModel::ThreadColumn:
 		if (item->isFrame())
 			return;
@@ -560,6 +604,8 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
  		
 		switch (sel[0].column())
 	 	{
+		case ThreadFrameModel::StateColumn:
+			return "Copy State";
 	 	case ThreadFrameModel::ThreadColumn:
 	 		return "Copy Thread";
 	 	case ThreadFrameModel::FrameIndexColumn:
@@ -589,6 +635,7 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
         case TargetStoppedEventType:
         case ActiveThreadChangedEvent:
         case RegisterChangedEvent:
+		case ThreadStateChangedEvent:
         {
             updateContent();
         }
@@ -636,7 +683,7 @@ void ThreadFramesWidget::onDoubleClicked()
 	if (!frameItem->isFrame() && column > ThreadFrameModel::ThreadColumn)
 		return;
 
-	if (frameItem->isFrame() && column == ThreadFrameModel::ThreadColumn)
+	if (frameItem->isFrame() && column <= ThreadFrameModel::ThreadColumn)
 		return;
     
     LogInfo("double click called");
@@ -651,6 +698,17 @@ void ThreadFramesWidget::onDoubleClicked()
 			LogInfo("set active thread");
 			m_debugger->SetActiveThread(tid);
 		}
+
+		return;
+	}
+
+	// double clicking on state column toggles thread state
+	if (!frameItem->isFrame() && column == ThreadFrameModel::StateColumn)
+	{
+		if (frameItem->isFrozen())
+			m_debugger->ResumeThread(frameItem->tid());
+		else
+			m_debugger->SuspendThread(frameItem->tid());
 
 		return;
 	}

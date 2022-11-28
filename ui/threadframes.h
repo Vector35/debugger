@@ -44,6 +44,7 @@ public:
 	FrameItem(const DebugThread& thread, FrameItem* parentItem = nullptr) :
 		m_tid(thread.m_tid),
 		m_threadPc(thread.m_rip),
+		m_isFrozen(thread.m_isFrozen),
 		m_parentItem(parentItem) {}
 
 	FrameItem(const DebugThread& thread, const DebugFrame& frame, FrameItem* parentItem = nullptr) : 
@@ -73,6 +74,7 @@ public:
     FrameItem *parentItem();
 
     bool isFrame() const { return m_isFrame; }
+	bool isFrozen() const { return m_isFrozen; }
     uint32_t tid() const { return m_tid; }
     uint64_t threadPc() const { return m_threadPc; }
     uint64_t framePc() const { return m_framePc; }
@@ -84,6 +86,7 @@ public:
 
 private:
     bool m_isFrame{false};
+	bool m_isFrozen{false};
     uint32_t m_tid{};
     uint64_t m_threadPc{};
 	size_t m_frameIndex{};
@@ -106,6 +109,7 @@ class ThreadFrameModel : public QAbstractItemModel
 public:
     enum ColumnHeaders
     {
+		StateColumn,
 		ThreadColumn,
         FrameIndexColumn,
         ModuleColumn,
@@ -123,7 +127,7 @@ public:
     QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override;
     QModelIndex parent(const QModelIndex &index) const override;
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
-	int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 7; }
+	int columnCount(const QModelIndex& parent = QModelIndex()) const override { (void) parent; return 8; }
 	void updateRows(DebuggerController* controller);
 
 private:

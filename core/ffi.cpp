@@ -211,6 +211,7 @@ BNDebugThread* BNDebuggerGetThreads(BNDebuggerController* controller, size_t* si
 	{
 		results[i].m_tid = threads[i].m_tid;
 		results[i].m_rip = threads[i].m_rip;
+		results[i].m_isFrozen = threads[i].m_isFrozen;
 	}
 
 	return results;

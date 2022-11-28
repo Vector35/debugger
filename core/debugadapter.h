@@ -72,6 +72,7 @@ namespace BinaryNinjaDebugger
 	{
 		std::uint32_t m_tid{};
 		std::uintptr_t m_rip{};
+		bool m_isFrozen{};
 
 		DebugThread() {}
 
