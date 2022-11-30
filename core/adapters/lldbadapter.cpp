@@ -385,6 +385,8 @@ std::vector<DebugProcess> LldbAdapter::GetProcessList()
 		return (lhs == rhs) && (lhs == ' ');
 	};
 
+	// regex to improve: ^(\d*) (\d*) (.*\n*)
+
 	std::vector<DebugProcess> debug_processes {};
 	while (getline(f, l, '\n'))
 	{
