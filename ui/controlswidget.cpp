@@ -24,6 +24,7 @@ limitations under the License.
 #include "ui.h"
 #include <thread>
 #include "progresstask.h"
+#include "attachprocess.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
@@ -119,7 +120,11 @@ void DebugControlsWidget::performLaunch()
 
 void DebugControlsWidget::performAttachPID()
 {
-	int pid = QInputDialog::getInt(this, "PID", "Input PID:");
+	auto dialog = new AttachProcessDialog(this, m_controller);
+	if (dialog->exec() != QDialog::Accepted)
+		return;
+
+	uint32_t pid = dialog->GetSelectedPid();
 	if (pid == 0)
 		return;
 

@@ -110,6 +110,25 @@ bool DebuggerController::WriteMemory(std::uintptr_t address, const DataBuffer& b
 	return BNDebuggerWriteMemory(m_object, address, buffer.GetBufferObject());
 }
 
+std::vector<DebugProcess> DebuggerController::GetProcessList()
+{
+	size_t count;
+	BNDebugProcess* processes = BNDebuggerGetProcessList(m_object, &count);
+
+	vector<DebugProcess> result;
+	result.reserve(count);
+	for (size_t i = 0; i < count; i++)
+	{
+		DebugProcess process;
+		process.m_pid = processes[i].m_pid;
+		process.m_processName = processes[i].m_processName;
+		result.push_back(process);
+	}
+	BNDebuggerFreeProcessList(processes, count);
+
+	return result;
+}
+
 
 std::vector<DebugThread> DebuggerController::GetThreads()
 {

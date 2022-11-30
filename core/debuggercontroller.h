@@ -141,6 +141,9 @@ namespace BinaryNinjaDebugger {
 		bool SetRegisterValue(const std::string& name, uint64_t value);
 		std::vector<DebugRegister> GetAllRegisters();
 
+		// processes
+		std::vector<DebugProcess> GetProcessList();
+
 		// threads
 		DebugThread GetActiveThread() const;
 		void SetActiveThread(const DebugThread& thread);

@@ -67,6 +67,26 @@ namespace BinaryNinjaDebugger {
 	};
 
 
+	struct DebugProcess
+	{
+		std::uint32_t m_pid {};
+		std::string m_processName {};
+
+		DebugProcess() {}
+
+		DebugProcess(std::uint32_t pid) : m_pid(pid) {}
+
+		DebugProcess(std::uint32_t pid, std::string name) : m_pid(pid), m_processName(name) {}
+
+		bool operator==(const DebugProcess& rhs) const
+		{
+			return (m_pid == rhs.m_pid) && (m_processName == rhs.m_processName);
+		}
+
+		bool operator!=(const DebugProcess& rhs) const { return !(*this == rhs); }
+	};
+
+
 	struct DebugThread
 	{
 		std::uint32_t m_tid {};
@@ -82,6 +102,7 @@ namespace BinaryNinjaDebugger {
 
 		bool operator!=(const DebugThread& rhs) const { return !(*this == rhs); }
 	};
+
 
 	struct DebugBreakpoint
 	{
@@ -200,6 +221,8 @@ namespace BinaryNinjaDebugger {
 		virtual void Detach() = 0;
 
 		virtual void Quit() = 0;
+
+		virtual std::vector<DebugProcess> GetProcessList() = 0;
 
 		virtual std::vector<DebugThread> GetThreadList() = 0;
 

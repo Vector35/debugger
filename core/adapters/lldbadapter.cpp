@@ -374,6 +374,33 @@ void LldbAdapter::Quit()
 }
 
 
+std::vector<DebugProcess> LldbAdapter::GetProcessList()
+{
+	std::string result = InvokeBackendCommand("platform process list");
+
+	std::istringstream f(result);
+	std::string l;
+
+	auto BothAreSpaces = [=](char lhs, char rhs) {
+		return (lhs == rhs) && (lhs == ' ');
+	};
+
+	std::vector<DebugProcess> debug_processes {};
+	while (getline(f, l, '\n'))
+	{
+		uint32_t pid;
+		std::string::iterator new_end = std::unique(l.begin(), l.end(), BothAreSpaces);
+		l.erase(new_end, l.end());
+		LogInfo("%s", l.c_str());
+
+		sscanf(l.c_str(), "%d", &pid);
+		debug_processes.emplace_back(pid);
+	}
+
+	return debug_processes;
+}
+
+
 std::vector<DebugThread> LldbAdapter::GetThreadList()
 {
 	size_t threadCount = m_process.GetNumThreads();
