@@ -994,6 +994,17 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		ViewFrame* frame = m_context->getCurrentViewFrame();
 		if (!frame)
 			break;
+
+		// Workaround for https://github.com/Vector35/debugger/issues/367
+		auto settings = Settings::Instance();
+		bool oldRestoreView = false;
+		if (settings->Contains("files.restore.viewState"))
+		{
+			oldRestoreView = settings->Get<bool>("files.restore.viewState");
+			if (oldRestoreView)
+				settings->Set("files.restore.viewState", false);
+		}
+
 		FileContext* fileContext = frame->getFileContext();
 		fileContext->refreshDataViewCache();
 		ViewFrame* newFrame = m_context->openFileContext(fileContext);
@@ -1010,6 +1021,10 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		{
 			LogWarn("fail to navigate to the original view");
 		}
+
+		if (oldRestoreView)
+			settings->Set("files.restore.viewState", true);
+
 		break;
 	}
 
