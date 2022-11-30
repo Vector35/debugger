@@ -250,17 +250,10 @@ int main(int argc, char* argv[])
 	string errors;
 	auto arch = new CoreArchitecture(BNGetNativeTypeParserArchitecture());
 
-	string oldParser;
-	if (Settings::Instance()->Contains("analysis.types.parserName"))
-		oldParser = Settings::Instance()->Get<string>("analysis.types.parserName");
+	// Enable ephemeral settings
+	Settings::Instance()->LoadSettingsFile("");
 	Settings::Instance()->Set("analysis.types.parserName", "CoreTypeParser");
-
 	bool ok = arch->GetStandalonePlatform()->ParseTypesFromSourceFile(argv[1], types, vars, funcs, errors);
-
-	if (!oldParser.empty())
-		Settings::Instance()->Set("analysis.types.parserName", oldParser);
-	else
-		Settings::Instance()->Reset("analysis.types.parserName");
 
 	if (!ok)
 	{
