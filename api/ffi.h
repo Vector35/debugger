@@ -54,6 +54,12 @@ extern "C"
 	struct BNMetadata;
 	enum BNFunctionGraphType;
 
+	struct BNDebugProcess
+	{
+		uint32_t m_pid;
+		char* m_processName;
+	};
+
 	struct BNDebugThread
 	{
 		uint32_t m_tid;
@@ -315,6 +321,9 @@ extern "C"
 		BNDebuggerController* controller, uint64_t address, size_t size);
 	DEBUGGER_FFI_API bool BNDebuggerWriteMemory(
 		BNDebuggerController* controller, uint64_t address, BNDataBuffer* buffer);
+
+	DEBUGGER_FFI_API BNDebugProcess* BNDebuggerGetProcessList(BNDebuggerController* controller, size_t* count);
+	DEBUGGER_FFI_API void BNDebuggerFreeProcessList(BNDebugProcess* processes, size_t count);
 
 	DEBUGGER_FFI_API BNDebugThread* BNDebuggerGetThreads(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeThreads(BNDebugThread* threads, size_t count);

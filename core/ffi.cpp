@@ -199,6 +199,34 @@ bool BNDebuggerWriteMemory(BNDebuggerController* controller, uint64_t address, B
 }
 
 
+BNDebugProcess* BNDebuggerGetProcessList(BNDebuggerController* controller, size_t* size)
+{
+	std::vector<DebugProcess> processes = controller->object->GetProcessList();
+
+	*size = processes.size();
+	BNDebugProcess* results = new BNDebugProcess[processes.size()];
+
+	for (size_t i = 0; i < processes.size(); i++)
+	{
+		results[i].m_pid = processes[i].m_pid;
+		results[i].m_processName = BNDebuggerAllocString(processes[i].m_processName.c_str());
+	}
+
+	return results;
+}
+
+
+void BNDebuggerFreeProcessList(BNDebugProcess* processes, size_t count)
+{
+	for (size_t i = 0; i < count; i++)
+	{
+		BNDebuggerFreeString(processes[i].m_processName);
+	}
+
+	delete[] processes;
+}
+
+
 BNDebugThread* BNDebuggerGetThreads(BNDebuggerController* controller, size_t* size)
 {
 	std::vector<DebugThread> threads = controller->object->GetAllThreads();

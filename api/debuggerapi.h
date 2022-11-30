@@ -272,6 +272,26 @@ namespace BinaryNinjaDebuggerAPI {
 	};
 
 
+	struct DebugProcess
+	{
+		std::uint32_t m_pid {};
+		std::string m_processName {};
+
+		DebugProcess() {}
+
+		DebugProcess(std::uint32_t pid) : m_pid(pid) {}
+
+		DebugProcess(std::uint32_t pid, std::string name) : m_pid(pid), m_processName(name) {}
+
+		bool operator==(const DebugProcess& rhs) const
+		{
+			return (m_pid == rhs.m_pid) && (m_processName == rhs.m_processName);
+		}
+
+		bool operator!=(const DebugProcess& rhs) const { return !(*this == rhs); }
+	};
+
+
 	struct DebugThread
 	{
 		std::uint32_t m_tid {};
@@ -448,6 +468,8 @@ namespace BinaryNinjaDebuggerAPI {
 
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size);
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
+
+		std::vector<DebugProcess> GetProcessList();
 
 		std::vector<DebugThread> GetThreads();
 		DebugThread GetActiveThread();

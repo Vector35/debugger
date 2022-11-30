@@ -574,6 +574,56 @@ void DbgEngAdapter::Quit()
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
 }
 
+std::vector<DebugProcess> DbgEngAdapter::GetProcessList()
+{
+	// we need to start dbgserver in order to get process list
+	
+	if (!m_debugActive)
+	{
+		if (!Start())
+			return {};
+	}
+
+	ULONG Count = 0;
+	if (m_debugClient->GetRunningProcessSystemIds(m_server, 0, 0, &Count) != S_OK)
+	{
+		LogError("Failed to get system process count.");
+		return {};
+	}
+
+	auto procIds = std::make_unique<unsigned long[]>(Count);
+	if (m_debugClient->GetRunningProcessSystemIds(m_server, procIds.get(), Count, &Count) != S_OK)
+	{
+		LogError("Failed to get system process ids.");
+		return {};
+	}
+
+	std::vector<DebugProcess> debug_processes {};
+	for (int i = 0; i < Count; i++)
+	{
+		char processName[MAX_PATH];
+		ZeroMemory(processName, MAX_PATH);
+
+		if (m_debugClient->GetRunningProcessDescription(
+			m_server, 
+			procIds[i], 
+			DEBUG_PROC_DESC_DEFAULT, 
+			processName,
+			sizeof(processName), 
+			NULL, 
+			NULL, 
+			0, 
+			NULL) != S_OK)
+		{
+			strcpy_s(processName, MAX_PATH, "<could not get process name>");
+		}	
+
+		debug_processes.emplace_back(procIds[i], processName);
+	}
+
+	return debug_processes;
+}
+
 std::vector<DebugThread> DbgEngAdapter::GetThreadList()
 {
 	if (!m_debugSystemObjects)

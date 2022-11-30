@@ -145,6 +145,8 @@ namespace BinaryNinjaDebugger {
 
 		void EngineLoop();
 
+		std::vector<DebugProcess> GetProcessList() override;
+
 		std::vector<DebugThread> GetThreadList() override;
 		DebugThread GetActiveThread() const override;
 		std::uint32_t GetActiveThreadId() const override;

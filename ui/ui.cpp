@@ -37,6 +37,7 @@ limitations under the License.
 #include "debugadapterscriptingprovider.h"
 #include "targetscriptingprovier.h"
 #include "progresstask.h"
+#include "attachprocess.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -470,11 +471,16 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			[=](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
+					
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
 				if (!controller)
 					return;
 
-				int pid = QInputDialog::getInt(context->mainWindow(), "PID", "Input PID:");
+				auto dialog = new AttachProcessDialog(context->mainWindow(), controller);
+				if (dialog->exec() != QDialog::Accepted)
+					return;
+
+				uint32_t pid = dialog->GetSelectedPid();
 				if (pid == 0)
 					return;
 

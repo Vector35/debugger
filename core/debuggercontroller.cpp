@@ -1232,6 +1232,17 @@ std::vector<DebugModule> DebuggerController::GetAllModules()
 	return m_state->GetModules()->GetAllModules();
 }
 
+std::vector<DebugProcess> DebuggerController::GetProcessList()
+{
+	if (!m_adapter)
+	{
+		if (!CreateDebugAdapter())
+			return {};
+	}
+	
+	return m_adapter->GetProcessList();
+}
+
 
 std::vector<DebugThread> DebuggerController::GetAllThreads()
 {
