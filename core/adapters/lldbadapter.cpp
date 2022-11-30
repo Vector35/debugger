@@ -118,7 +118,7 @@ void BinaryNinjaDebugger::InitLldbAdapterType()
 
 void LldbAdapter::ApplyBreakpoints()
 {
-	for (const auto bp : m_pendingBreakpoints)
+	for (const auto& bp : m_pendingBreakpoints)
 	{
 		AddBreakpoint(bp);
 	}
