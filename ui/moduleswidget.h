@@ -117,9 +117,9 @@ class DebugModulesFilterProxyModel : public QSortFilterProxyModel
 {
 	Q_OBJECT
 
-	//bool m_hideZeroRegister = false;
-	//bool m_onlyShowFullWidthRegisters = false;
-	//bool m_hideUnusedRegisters = true;
+	// bool m_hideZeroRegister = false;
+	// bool m_onlyShowFullWidthRegisters = false;
+	// bool m_hideUnusedRegisters = true;
 
 public:
 	DebugModulesFilterProxyModel(QObject* parent);
@@ -128,8 +128,8 @@ protected:
 	virtual bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override;
 
 public:
-	//bool getHideUnusedRegisters() const { return m_hideUnusedRegisters; }
-	//void toggleHideUnusedRegisters() { m_hideUnusedRegisters = !m_hideUnusedRegisters; invalidate(); }
+	// bool getHideUnusedRegisters() const { return m_hideUnusedRegisters; }
+	// void toggleHideUnusedRegisters() { m_hideUnusedRegisters = !m_hideUnusedRegisters; invalidate(); }
 };
 
 
@@ -165,6 +165,7 @@ public:
 	DebugModulesWidget(ViewFrame* view, BinaryViewRef data);
 	~DebugModulesWidget();
 
+	void updateColumnWidths();
 	void notifyModulesChanged(std::vector<DebugModule> modules);
 
 private slots:
