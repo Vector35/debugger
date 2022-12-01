@@ -223,6 +223,13 @@ bool DebugProcessFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelI
 	return false;
 }
 
+
+void DebugProcessWidget::contextMenuEvent(QContextMenuEvent* event)
+{
+	m_contextMenuManager->show(m_menu, &m_actionHandler);
+}
+
+
 DebugProcessWidget::DebugProcessWidget(QWidget* parent, DebuggerController* controller) : QWidget(parent)
 {
 	m_controller = controller;
@@ -261,11 +268,19 @@ DebugProcessWidget::DebugProcessWidget(QWidget* parent, DebuggerController* cont
 	layout->setSpacing(0);
 	layout->addWidget(m_table);
 
+	m_actionHandler.setupActionHandler(this);
+	m_contextMenuManager = new ContextMenuManager(this);
+	m_menu = new Menu();
+
+	QString actionName = QString::fromStdString("Refresh");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(actionName, UIAction([=]() { updateContent(); }));
+
 	setLayout(layout);
 
 	// TODO: ESC close dialog
 	// TODO: context menu refresh
-	// TODO: double click attach
 	// TODO: context menu copy
 
 	updateContent();

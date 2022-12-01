@@ -128,11 +128,11 @@ class DebugProcessWidget : public QWidget, public FilterTarget
 
 	// size_t m_debuggerEventCallback;
 
-	// UIActionHandler m_actionHandler;
-	// ContextMenuManager* m_contextMenuManager;
-	// Menu* m_menu;
+	UIActionHandler m_actionHandler;
+	ContextMenuManager* m_contextMenuManager;
+	Menu* m_menu;
 
-	// virtual void contextMenuEvent(QContextMenuEvent* event) override;
+	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
 	// bool canCopy();
 
