@@ -268,7 +268,10 @@ DebugProcessWidget::DebugProcessWidget(DebuggerController* controller)
 	layout->setSpacing(0);
 	layout->addWidget(m_table);
 	setLayout(layout);
-
+	// TODO: ESC close dialog
+	// TODO: context menu refresh
+	// TODO: double click attach
+	// TODO: context menu copy
 	updateContent();
 }
 
@@ -296,7 +299,7 @@ void DebugProcessWidget::updateContent()
 
 void DebugProcessWidget::setFilter(const string& filter)
 {
-	m_filter->setFilterRegularExpression(QString::fromStdString(filter));
+	m_filter->setFilterFixedString(QString::fromStdString(filter));
 }
 
 
