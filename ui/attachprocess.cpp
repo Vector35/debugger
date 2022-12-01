@@ -321,7 +321,7 @@ void ProcessListWidget::activateFirstItem() {}
 AttachProcessDialog::AttachProcessDialog(QWidget* parent, DbgRef<DebuggerController> controller) : QDialog(parent)
 {
 	setWindowTitle("Attach to process");
-	setMinimumSize(UIContext::getScaledWindowSize(350, 600));
+	setMinimumSize(UIContext::getScaledWindowSize(450, 600));
 	setAttribute(Qt::WA_DeleteOnClose);
 	setSizeGripEnabled(true);
 	setModal(true);
