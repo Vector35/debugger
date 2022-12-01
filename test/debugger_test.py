@@ -12,10 +12,9 @@ import unittest
 
 from binaryninja import BinaryView, BinaryViewType, LowLevelILOperation, mainthread, Settings
 try:
-    from binaryninja.debugger import DebuggerController, DebugStopReason
-except:
     from debugger import DebuggerController, DebugStopReason
-
+except:
+    from binaryninja.debugger import DebuggerController, DebugStopReason
 
 # 'helloworld' -> '{BN_SOURCE_ROOT}\public\debugger\test\binaries\Windows-x64\helloworld.exe' (windows)
 # 'helloworld' -> '{BN_SOURCE_ROOT}/public/debugger/test/binaries/Darwin/arm64/helloworld' (linux, macOS)
@@ -116,7 +115,7 @@ class DebuggerAPI(unittest.TestCase):
         # time.sleep(1)
         reason = dbg.go_and_wait()
         self.expect_segfault(reason)
-        dbg.quit()
+        dbg.quit_and_wait()
 
     # # This would not work until we fix the test binary
     # def test_exception_illegalinstr(self):
@@ -133,7 +132,7 @@ class DebuggerAPI(unittest.TestCase):
     #         expected = DebugStopReason.IllegalInstruction
     #
     #     self.assertEqual(reason, expected)
-    #     dbg.quit()
+    #     dbg.quit_and_wait()
 
     def expect_divide_by_zero(self, reason):
         if platform.system() == 'Linux':
@@ -150,7 +149,7 @@ class DebuggerAPI(unittest.TestCase):
             self.assertTrue(dbg.launch())
             reason = dbg.go_and_wait()
             self.expect_divide_by_zero(reason)
-            dbg.quit()
+            dbg.quit_and_wait()
 
     def test_step_into(self):
         fpath = name_to_fpath('helloworld', self.arch)
@@ -181,7 +180,7 @@ class DebuggerAPI(unittest.TestCase):
         self.assertIsNone(dbg.add_breakpoint(entry))
 
         self.assertEqual(dbg.ip, entry)
-        dbg.quit()
+        dbg.quit_and_wait()
 
     def test_register_read_write(self):
         fpath = name_to_fpath('helloworld', self.arch)
@@ -213,7 +212,7 @@ class DebuggerAPI(unittest.TestCase):
         dbg.set_reg_value(xbx, rbx)
         self.assertEqual(dbg.get_reg_value(xbx), rbx)
 
-        dbg.quit()
+        dbg.quit_and_wait()
 
     def test_memory_read_write(self):
         fpath = name_to_fpath('helloworld', self.arch)
@@ -233,7 +232,7 @@ class DebuggerAPI(unittest.TestCase):
         dbg.write_memory(addr, data)
         self.assertEqual(dbg.read_memory(addr, 256), data)
 
-        dbg.quit()
+        dbg.quit_and_wait()
 
     # @unittest.skip
     def test_thread(self):
@@ -258,7 +257,7 @@ class DebuggerAPI(unittest.TestCase):
 
         threads = dbg.threads
         self.assertGreater(len(threads), 1)
-        dbg.quit()
+        dbg.quit_and_wait()
 
     def test_assembly_code(self):
         if self.arch == 'x86_64':
@@ -316,7 +315,7 @@ class DebuggerAPI(unittest.TestCase):
         self.assertTrue(dbg.attach(pid))
         self.assertGreater(len(dbg.regs), 0)
 
-        dbg.quit()
+        dbg.quit_and_wait()
 
 
 @unittest.skipIf(platform.system() != 'Darwin' or platform.machine() != 'arm64', "Only run arm64 tests on arm Mac")

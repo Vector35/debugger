@@ -22,7 +22,8 @@ limitations under the License.
 
 namespace BinaryNinjaDebugger {
 	typedef BNDebuggerEventType DebuggerEventType;
-	typedef BNDebugStopReason DebugStopReason;
+    typedef BNDebugStopReason DebugStopReason;
+    typedef BNDebuggerAdapterOperation DebugAdapterOperation;
 
 	struct TargetStoppedEventData
 	{

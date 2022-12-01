@@ -137,21 +137,6 @@ bool LldbAdapter::Execute(const std::string& path, const LaunchConfigurations& c
 bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
 	const LaunchConfigurations& configs)
 {
-	auto n = std::thread::hardware_concurrency();
-	if (n <= 2)
-	{
-		DebuggerEvent event;
-		event.type = ErrorEventType;
-		event.data.errorData.shortError = "Not enough CPU threads to launch the target.";
-		event.data.errorData.error = fmt::format(
-			"This CPU can only run {} threads. "
-			"on Linux, the debugger is known to malfunction when the CPU cannot "
-			"run at least 4 threads. We will fix this ASAP.",
-			n);
-		PostDebuggerEvent(event);
-		return false;
-	}
-
 	m_debugger.SetAsync(false);
 
 	SBError err;
@@ -961,6 +946,16 @@ uint64_t LldbAdapter::ExitCode()
 
 bool LldbAdapter::BreakInto()
 {
+	if ((m_process.GetState() != lldb::eStateRunning) && (m_process.GetState() != lldb::eStateStepping))
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = "pause failed";
+		event.data.errorData.error = fmt::format("LLDB: pause failed, process state is not running");
+		PostDebuggerEvent(event);
+		return false;
+	}
+
 	//	Since we are in Sync mode, if we call m_process.Stop(), it will hang
 	m_process.SendAsyncInterrupt();
 	return true;
@@ -969,6 +964,16 @@ bool LldbAdapter::BreakInto()
 
 DebugStopReason LldbAdapter::Go()
 {
+	if (m_process.GetState() != lldb::eStateStopped)
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = "Go failed";
+		event.data.errorData.error = fmt::format("LLDB: go failed, process state is not stopped");
+		PostDebuggerEvent(event);
+		return DebugStopReason::InternalError;
+	}
+
 #ifndef WIN32
 	SBError error = m_process.Continue();
 	if (!error.Success())
@@ -982,15 +987,40 @@ DebugStopReason LldbAdapter::Go()
 
 DebugStopReason LldbAdapter::StepInto()
 {
+	if (m_process.GetState() != lldb::eStateStopped)
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = "step into failed";
+		event.data.errorData.error = fmt::format("LLDB: step into failed, process state is not stopped");
+		PostDebuggerEvent(event);
+		return DebugStopReason::InternalError;
+	}
+
 #ifndef WIN32
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = "Step into failed";
+		event.data.errorData.error = fmt::format("LLDB: step into failed, invalid thread");
+		PostDebuggerEvent(event);
 		return DebugStopReason::InternalError;
+	}
 
 	SBError error;
 	thread.StepInstruction(false, error);
 	if (!error.Success())
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = "Step into failed";
+		event.data.errorData.error =
+			fmt::format("LLDB: step into failed {}", error.GetCString() ? error.GetCString() : "");
+		PostDebuggerEvent(event);
 		return DebugStopReason::InternalError;
+	}
 #else
 	InvokeBackendCommand("si");
 #endif
@@ -1000,15 +1030,40 @@ DebugStopReason LldbAdapter::StepInto()
 
 DebugStopReason LldbAdapter::StepOver()
 {
+	if (m_process.GetState() != lldb::eStateStopped)
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = "Step over failed";
+		event.data.errorData.error = fmt::format("LLDB: step over failed, process state is not stopped");
+		PostDebuggerEvent(event);
+		return DebugStopReason::InternalError;
+	}
+
 #ifndef WIN32
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = "Step over failed";
+		event.data.errorData.error = fmt::format("LLDB: step over failed, invalid thread");
+		PostDebuggerEvent(event);
 		return DebugStopReason::InternalError;
+	}
 
 	SBError error;
 	thread.StepInstruction(true, error);
 	if (!error.Success())
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = "Step over failed";
+		event.data.errorData.error =
+			fmt::format("LLDB: step over failed {}", error.GetCString() ? error.GetCString() : "");
+		PostDebuggerEvent(event);
 		return DebugStopReason::InternalError;
+	}
 #else
 	InvokeBackendCommand("ni");
 #endif
@@ -1018,6 +1073,16 @@ DebugStopReason LldbAdapter::StepOver()
 
 DebugStopReason LldbAdapter::StepReturn()
 {
+	if (m_process.GetState() != lldb::eStateStopped)
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = "Step return failed";
+		event.data.errorData.error = fmt::format("LLDB: step return failed, process state is not stopped");
+		PostDebuggerEvent(event);
+		return DebugStopReason::InternalError;
+	}
+
 	//	The following method, calling StepOutOfFrame(), will receive an unexpected lldb::eStateRunning event when the
 	//	operation failed, e.g., due to inability to place the breakpoint at the return address. This seems to be a LLDB
 	//	bug. For now, we just run the `finish` command instead.

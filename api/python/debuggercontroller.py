@@ -663,6 +663,14 @@ class DebuggerController:
         """
         dbgcore.BNDebuggerQuit(self.handle)
 
+    def quit_and_wait(self) -> None:
+        """
+        Terminate the target, and wait for all callback to be called
+
+        :return:
+        """
+        dbgcore.BNDebuggerQuitAndWait(self.handle)
+
     def connect(self) -> None:
         """
         Connect to a remote target (process)

@@ -277,6 +277,17 @@ extern "C"
 		BNDebuggerEventData data;
 	};
 
+    enum BNDebuggerAdapterOperation
+    {
+        DebugAdapterGo,
+        DebugAdapterStepInto,
+        DebugAdapterStepOver,
+        DebugAdapterStepReturn,
+        DebugAdapterPause,
+        DebugAdapterQuit,
+        DebugAdapterDetach
+    };
+
 
 	DEBUGGER_FFI_API char* BNDebuggerAllocString(const char* string);
 	DEBUGGER_FFI_API char** BNDebuggerAllocStringList(const char** stringList, size_t count);

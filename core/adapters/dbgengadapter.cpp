@@ -910,6 +910,9 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 
 bool DbgEngAdapter::BreakInto()
 {
+	if (ExecStatus() == DEBUG_STATUS_BREAK)
+		return InvalidStatusOrOperation;
+
 	m_lastOperationIsStepInto = false;
 	//	After we call SetInterrupt(), the WaitForEvent() function will return due to a breakpoint exception
 	if (this->m_debugControl->SetInterrupt(DEBUG_INTERRUPT_ACTIVE) != S_OK)
@@ -920,6 +923,11 @@ bool DbgEngAdapter::BreakInto()
 
 DebugStopReason DbgEngAdapter::Go()
 {
+	// TODO: we should have the debugger core to detect the failure and notify the user about it.
+	// Currently, LLDB directly notifies such errors, which needs to be changed in the future.
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return InvalidStatusOrOperation;
+
 	m_lastOperationIsStepInto = false;
 	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK)
 		return DebugStopReason::InternalError;
@@ -930,6 +938,9 @@ DebugStopReason DbgEngAdapter::Go()
 
 DebugStopReason DbgEngAdapter::StepInto()
 {
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return InvalidStatusOrOperation;
+
 	m_lastOperationIsStepInto = true;
 	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_INTO) != S_OK)
 		return DebugStopReason::InternalError;
@@ -940,6 +951,9 @@ DebugStopReason DbgEngAdapter::StepInto()
 
 DebugStopReason DbgEngAdapter::StepOver()
 {
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return InvalidStatusOrOperation;
+
 	m_lastOperationIsStepInto = false;
 	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_OVER) != S_OK)
 		return DebugStopReason::InternalError;
@@ -950,6 +964,9 @@ DebugStopReason DbgEngAdapter::StepOver()
 
 DebugStopReason DbgEngAdapter::StepReturn()
 {
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return InvalidStatusOrOperation;
+
 	InvokeBackendCommand("gu");
 	return UnknownReason;
 }

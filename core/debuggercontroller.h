@@ -71,6 +71,12 @@ namespace BinaryNinjaDebugger {
 		std::recursive_mutex m_callbackMutex;
 		std::set<size_t> m_disabledCallbacks;
 
+		// m_adapterMutex is a low-level mutex that protects the adapter access. It cannot be locked recursively.
+		// m_targetControlMutex is a high-level mutex that prevents two threads from controlling the debugger at the
+		// same time
+		std::mutex m_adapterMutex;
+		std::recursive_mutex m_targetControlMutex;
+
 		uint64_t m_lastIP = 0;
 		uint64_t m_currentIP = 0;
 
@@ -78,10 +84,9 @@ namespace BinaryNinjaDebugger {
 		// status before returning the value
 		uint32_t m_exitCode = 0;
 
-		// Whether to treat a debug adapter stop as the target has stopped. Default to true.
-		// Functions that wish to have more control over this, e.g., StopIntoIL(), should set this to false,
-		// and call a NotifyStopped when the sequence of operation is done.
-		bool m_treatAdapterStopAsTargetStop = true;
+		bool m_userRequestedBreak = false;
+
+		bool m_lastAdapterStopEventConsumed = true;
 
 		void EventHandler(const DebuggerEvent& event);
 		void UpdateStackVariables();
@@ -92,15 +97,20 @@ namespace BinaryNinjaDebugger {
 
 		void SetData(BinaryViewRef view) { m_data = view; }
 
-		// Internal control APIs
-		void PauseInternal();
-		void GoInternal();
-		void StepIntoInternal();
-		void StepOverInternal();
-		void StepReturnInternal();
-		void RunToInternal(const std::vector<uint64_t>& remoteAddresses);
-		void StepIntoIL(BNFunctionGraphType il);
-		void StepOverIL(BNFunctionGraphType il);
+		DebugStopReason StepIntoIL(BNFunctionGraphType il);
+		DebugStopReason StepOverIL(BNFunctionGraphType il);
+
+		// Low-level internal synchronous APIs. They resume the target and wait for the adapter to stop.
+		// They do NOT dispatch the debugger event callbacks. Higher-level APIs must take care of notifying
+		// the callbacks.
+		DebugStopReason PauseAndWaitInternal();
+		DebugStopReason GoAndWaitInternal();
+		DebugStopReason StepIntoAndWaitInternal();
+		DebugStopReason EmulateStepOverAndWait();
+		DebugStopReason StepOverAndWaitInternal();
+		DebugStopReason EmulateStepReturnAndWait();
+		DebugStopReason StepReturnAndWaitInternal();
+		DebugStopReason RunToAndWaitInternal(const std::vector<uint64_t> &remoteAddresses);
 
 		// Whether we can resume the execution of the target, including stepping.
 		bool CanResumeTarget();
@@ -193,6 +203,7 @@ namespace BinaryNinjaDebugger {
 		bool ConnectToDebugServer();
 		bool DisconnectDebugServer();
 		void Detach();
+		void DetachAndWait();
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected
 		// adapter
 		void LaunchOrConnect();
@@ -205,6 +216,8 @@ namespace BinaryNinjaDebugger {
 		bool StepReturn();
 		bool RunTo(const std::vector<uint64_t>& remoteAddresses);
 		bool Pause();
+
+		DebugStopReason ExecuteAdapterAndWait(const DebugAdapterOperation operation);
 
 		// Synchronous APIs
 		DebugStopReason GoAndWait();
@@ -228,9 +241,6 @@ namespace BinaryNinjaDebugger {
 
 		static std::string GetStopReasonString(DebugStopReason);
 		DebugStopReason StopReason() const;
-
-		DebugStopReason WaitForTargetStop();
-		DebugStopReason WaitForAdapterStop();
 
 		BinaryNinja::Ref<BinaryNinja::Metadata> GetAdapterProperty(const std::string& name);
 		bool SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value);
