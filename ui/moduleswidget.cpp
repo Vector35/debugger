@@ -285,7 +285,9 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : m_
 
 	m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 	m_table->verticalHeader()->setVisible(false);
+
 	m_table->horizontalHeader()->setStretchLastSection(true);
+	m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
 	m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
 	m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
@@ -368,10 +370,20 @@ DebugModulesWidget::~DebugModulesWidget()
 }
 
 
+void DebugModulesWidget::updateColumnWidths()
+{
+	m_table->resizeColumnToContents(DebugModulesListModel::AddressColumn);
+	m_table->resizeColumnToContents(DebugModulesListModel::EndAddressColumn);
+	m_table->resizeColumnToContents(DebugModulesListModel::SizeColumn);
+	m_table->resizeColumnToContents(DebugModulesListModel::NameColumn);
+	m_table->resizeColumnToContents(DebugModulesListModel::PathColumn);
+}
+
+
 void DebugModulesWidget::notifyModulesChanged(std::vector<DebugModule> modules)
 {
 	m_model->updateRows(modules);
-	m_table->resizeColumnsToContents();
+	updateColumnWidths();
 }
 
 
@@ -542,6 +554,7 @@ void DebugModulesWidget::onDoubleClicked()
 void DebugModulesWidget::setFilter(const string& filter)
 {
 	m_filter->setFilterRegularExpression(QString::fromStdString(filter));
+	updateColumnWidths();
 }
 
 
