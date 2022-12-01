@@ -254,7 +254,8 @@ ProcessListWidget::ProcessListWidget(QWidget* parent, DbgRef<DebuggerController>
 
 	m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
 	m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-
+	m_table->setAutoScroll(false);
+	
 	m_table->resizeColumnsToContents();
 	m_table->resizeRowsToContents();
 
