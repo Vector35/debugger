@@ -47,13 +47,14 @@ bool ProcessItem::operator<(const ProcessItem& other) const
 	return m_processName < other.processName();
 }
 
-DebugProcessListModel::DebugProcessListModel(QWidget* parent) : QAbstractTableModel(parent) {}
+
+ProcessListModel::ProcessListModel(QWidget* parent) : QAbstractTableModel(parent) {}
 
 
-DebugProcessListModel::~DebugProcessListModel() {}
+ProcessListModel::~ProcessListModel() {}
 
 
-ProcessItem DebugProcessListModel::getRow(int row) const
+ProcessItem ProcessListModel::getRow(int row) const
 {
 	if ((size_t)row >= m_items.size())
 		throw std::runtime_error("row index out-of-bound");
@@ -62,7 +63,7 @@ ProcessItem DebugProcessListModel::getRow(int row) const
 }
 
 
-QModelIndex DebugProcessListModel::index(int row, int column, const QModelIndex&) const
+QModelIndex ProcessListModel::index(int row, int column, const QModelIndex&) const
 {
 	if (row < 0 || (size_t)row >= m_items.size() || column >= columnCount())
 	{
@@ -73,7 +74,7 @@ QModelIndex DebugProcessListModel::index(int row, int column, const QModelIndex&
 }
 
 
-QVariant DebugProcessListModel::data(const QModelIndex& index, int role) const
+QVariant ProcessListModel::data(const QModelIndex& index, int role) const
 {
 	if (index.column() >= columnCount() || (size_t)index.row() >= m_items.size())
 		return QVariant();
@@ -87,7 +88,7 @@ QVariant DebugProcessListModel::data(const QModelIndex& index, int role) const
 
 	switch (index.column())
 	{
-	case DebugProcessListModel::PidColumn:
+	case ProcessListModel::PidColumn:
 	{
 		QString text = QString::asprintf("%d", item->pid());
 		if (role == Qt::SizeHintRole)
@@ -95,7 +96,7 @@ QVariant DebugProcessListModel::data(const QModelIndex& index, int role) const
 
 		return QVariant(text);
 	}
-	case DebugProcessListModel::ProcessNameColumn:
+	case ProcessListModel::ProcessNameColumn:
 	{
 		QString text = QString::fromStdString(item->processName());
 		if (role == Qt::SizeHintRole)
@@ -108,7 +109,7 @@ QVariant DebugProcessListModel::data(const QModelIndex& index, int role) const
 }
 
 
-QVariant DebugProcessListModel::headerData(int column, Qt::Orientation orientation, int role) const
+QVariant ProcessListModel::headerData(int column, Qt::Orientation orientation, int role) const
 {
 	if (role != Qt::DisplayRole)
 		return QVariant();
@@ -118,41 +119,36 @@ QVariant DebugProcessListModel::headerData(int column, Qt::Orientation orientati
 
 	switch (column)
 	{
-	case DebugProcessListModel::PidColumn:
+	case ProcessListModel::PidColumn:
 		return "PID";
-	case DebugProcessListModel::ProcessNameColumn:
+	case ProcessListModel::ProcessNameColumn:
 		return "Name";
 	}
 	return QVariant();
 }
 
 
-void DebugProcessListModel::updateRows(std::vector<DebugProcess> newModules)
+void ProcessListModel::updateRows(std::vector<DebugProcess> processList)
 {
 	beginResetModel();
 
-	std::vector<ProcessItem> newRows;
-	for (const DebugProcess& process : newModules)
-	{
-		newRows.emplace_back(process.m_pid, process.m_processName);
-	}
+	std::vector<ProcessItem> newProcessList;
+	for (const DebugProcess& process : processList)
+		newProcessList.emplace_back(process.m_pid, process.m_processName);
 
-	m_items = newRows;
+	m_items = newProcessList;
 
 	endResetModel();
 }
 
-DebugProcessItemDelegate::DebugProcessItemDelegate(QWidget* parent) : QStyledItemDelegate(parent)
+ProcessItemDelegate::ProcessItemDelegate(QWidget* parent) : QStyledItemDelegate(parent)
 {
 	updateFonts();
 }
 
 
-void DebugProcessItemDelegate::paint(
-	QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const
+void ProcessItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const
 {
-	painter->setFont(m_font);
-
 	bool selected = (option.state & QStyle::State_Selected) != 0;
 	if (selected)
 		painter->setBrush(getThemeColor(SelectionColor));
@@ -169,11 +165,11 @@ void DebugProcessItemDelegate::paint(
 	auto data = idx.data(Qt::DisplayRole);
 	switch (idx.column())
 	{
-	case DebugProcessListModel::PidColumn:
+	case ProcessListModel::PidColumn:
 		painter->setPen(getThemeColor(NumberColor).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
-	case DebugProcessListModel::ProcessNameColumn:
+	case ProcessListModel::ProcessNameColumn:
 		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
@@ -183,9 +179,8 @@ void DebugProcessItemDelegate::paint(
 }
 
 
-void DebugProcessItemDelegate::updateFonts()
+void ProcessItemDelegate::updateFonts()
 {
-	// Get font and compute character sizes
 	m_font = getMonospaceFont(dynamic_cast<QWidget*>(parent()));
 	m_font.setKerning(false);
 	m_baseline = (int)QFontMetricsF(m_font).ascent();
@@ -195,19 +190,20 @@ void DebugProcessItemDelegate::updateFonts()
 }
 
 
-QSize DebugProcessItemDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const
+QSize ProcessItemDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const
 {
 	auto totalWidth = (idx.data(Qt::SizeHintRole).toInt() + 2) * m_charWidth + 4;
 	return QSize(totalWidth, m_charHeight + 2);
 }
 
-DebugProcessFilterProxyModel::DebugProcessFilterProxyModel(QObject* parent) : QSortFilterProxyModel(parent)
+
+ProcessListFilterProxyModel::ProcessListFilterProxyModel(QObject* parent) : QSortFilterProxyModel(parent)
 {
 	setFilterCaseSensitivity(Qt::CaseInsensitive);
 }
 
 
-bool DebugProcessFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const
+bool ProcessListFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const
 {
 	QRegularExpression regExp = filterRegularExpression();
 	if (!regExp.isValid())
@@ -224,20 +220,19 @@ bool DebugProcessFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelI
 }
 
 
-void DebugProcessWidget::contextMenuEvent(QContextMenuEvent* event)
+void ProcessListWidget::contextMenuEvent(QContextMenuEvent* event)
 {
 	m_contextMenuManager->show(m_menu, &m_actionHandler);
 }
 
 
-DebugProcessWidget::DebugProcessWidget(QWidget* parent, DebuggerController* controller) : QWidget(parent)
+ProcessListWidget::ProcessListWidget(QWidget* parent, DbgRef<DebuggerController> controller) :
+	QWidget(parent), m_controller(controller)
 {
-	m_controller = controller;
-
 	m_table = new QTableView(this);
-	m_model = new DebugProcessListModel(m_table);
-	m_delegate = new DebugProcessItemDelegate(this);
-	m_filter = new DebugProcessFilterProxyModel(this);
+	m_model = new ProcessListModel(m_table);
+	m_delegate = new ProcessItemDelegate(this);
+	m_filter = new ProcessListFilterProxyModel(this);
 
 	m_filter->setSourceModel(m_model);
 	m_table->setModel(m_filter);
@@ -251,7 +246,7 @@ DebugProcessWidget::DebugProcessWidget(QWidget* parent, DebuggerController* cont
 	m_table->verticalHeader()->setVisible(false);
 
 	m_table->setShowGrid(false);
-	//m_table->setAlternatingRowColors(true);
+	// m_table->setAlternatingRowColors(true);
 
 	m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
 	m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -280,61 +275,50 @@ DebugProcessWidget::DebugProcessWidget(QWidget* parent, DebuggerController* cont
 	setLayout(layout);
 
 	// TODO: ESC close dialog
-	// TODO: context menu refresh
 	// TODO: context menu copy
 
 	updateContent();
 }
 
 
-DebugProcessWidget::~DebugProcessWidget()
+ProcessListWidget::~ProcessListWidget() {}
+
+
+void ProcessListWidget::updateColumnWidths()
 {
-	// if (m_controller)
-	//	m_controller->RemoveEventCallback(m_debuggerEventCallback);
+	m_table->resizeColumnToContents(ProcessListModel::PidColumn);
+	m_table->resizeColumnToContents(ProcessListModel::ProcessNameColumn);
 }
 
 
-void DebugProcessWidget::updateColumnWidths()
+void ProcessListWidget::updateContent()
 {
-	m_table->resizeColumnToContents(DebugProcessListModel::PidColumn);
-	m_table->resizeColumnToContents(DebugProcessListModel::ProcessNameColumn);
-}
-
-void DebugProcessWidget::notifyModulesChanged(std::vector<DebugProcess> modules)
-{
-	m_model->updateRows(modules);
+	std::vector<DebugProcess> processList = m_controller->GetProcessList();
+	m_model->updateRows(processList);
 	updateColumnWidths();
 }
 
 
-void DebugProcessWidget::updateContent()
-{
-	std::vector<DebugProcess> modules = m_controller->GetProcessList();
-	notifyModulesChanged(modules);
-}
-
-
-void DebugProcessWidget::setFilter(const string& filter)
+void ProcessListWidget::setFilter(const string& filter)
 {
 	m_filter->setFilterFixedString(QString::fromStdString(filter));
 	updateColumnWidths();
 }
 
 
-void DebugProcessWidget::scrollToFirstItem() {}
+void ProcessListWidget::scrollToFirstItem() {}
 
 
-void DebugProcessWidget::scrollToCurrentItem() {}
+void ProcessListWidget::scrollToCurrentItem() {}
 
 
-void DebugProcessWidget::selectFirstItem() {}
+void ProcessListWidget::selectFirstItem() {}
 
 
-void DebugProcessWidget::activateFirstItem() {}
+void ProcessListWidget::activateFirstItem() {}
 
 
-AttachProcessDialog::AttachProcessDialog(QWidget* parent, DebuggerController* controller) :
-	QDialog(parent), m_controller(controller)
+AttachProcessDialog::AttachProcessDialog(QWidget* parent, DbgRef<DebuggerController> controller) : QDialog(parent)
 {
 	setWindowTitle("Attach to process");
 	setMinimumSize(UIContext::getScaledWindowSize(350, 600));
@@ -342,9 +326,9 @@ AttachProcessDialog::AttachProcessDialog(QWidget* parent, DebuggerController* co
 	setSizeGripEnabled(true);
 	setModal(true);
 
-	m_processes = new DebugProcessWidget(this, controller);
-	m_separateEdit = new FilterEdit(m_processes);
-	m_filter = new FilteredView(this, m_processes, m_processes, m_separateEdit);
+	m_processListWidget = new ProcessListWidget(this, controller);
+	m_separateEdit = new FilterEdit(m_processListWidget);
+	m_filter = new FilteredView(this, m_processListWidget, m_processListWidget, m_separateEdit);
 	m_filter->setFilterPlaceholderText("Search process");
 
 	auto headerLayout = new QHBoxLayout();
@@ -368,7 +352,7 @@ AttachProcessDialog::AttachProcessDialog(QWidget* parent, DebuggerController* co
 	connect(acceptButton, &QPushButton::clicked, [&]() { apply(); });
 	acceptButton->setDefault(true);
 
-	connect(m_processes->getProcessTableView(), &QTableView::doubleClicked, [&]() { apply(); });
+	connect(m_processListWidget->GetProcessTableView(), &QTableView::doubleClicked, [&]() { apply(); });
 
 	buttonLayout->addStretch(1);
 	buttonLayout->addWidget(cancelButton);
@@ -382,13 +366,13 @@ AttachProcessDialog::AttachProcessDialog(QWidget* parent, DebuggerController* co
 
 uint32_t AttachProcessDialog::GetSelectedPid()
 {
-	return m_pid;
+	return m_selectedPid;
 }
 
 void AttachProcessDialog::apply()
 {
-	m_pid = m_processes->getSelectedPid();
-	if (!m_pid)
+	m_selectedPid = m_processListWidget->GetSelectedPid();
+	if (!m_selectedPid)
 	{
 		reject();
 		return;

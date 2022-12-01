@@ -25,14 +25,9 @@ limitations under the License.
 #include <QTableView>
 #include <QHeaderView>
 #include <QStyledItemDelegate>
-#include "inttypes.h"
-#include "binaryninjaapi.h"
-#include "dockhandler.h"
-#include "viewframe.h"
-#include "fontsettings.h"
-#include "theme.h"
 #include "debuggerapi.h"
 #include "ui.h"
+
 
 class ProcessItem
 {
@@ -51,12 +46,12 @@ public:
 
 Q_DECLARE_METATYPE(ProcessItem);
 
-class DebugProcessListModel : public QAbstractTableModel
+
+class ProcessListModel : public QAbstractTableModel
 {
-	Q_OBJECT
+	Q_OBJECT;
 
 protected:
-	QWidget* m_owner;
 	std::vector<ProcessItem> m_items;
 
 public:
@@ -66,8 +61,8 @@ public:
 		ProcessNameColumn,
 	};
 
-	DebugProcessListModel(QWidget* parent);
-	virtual ~DebugProcessListModel();
+	ProcessListModel(QWidget* parent);
+	virtual ~ProcessListModel();
 
 	virtual QModelIndex index(int row, int col, const QModelIndex& parent = QModelIndex()) const override;
 
@@ -84,57 +79,53 @@ public:
 	ProcessItem getRow(int row) const;
 	virtual QVariant data(const QModelIndex& i, int role) const override;
 	virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
-	void updateRows(std::vector<DebugProcess> newModules);
+	void updateRows(std::vector<DebugProcess> processList);
 };
 
-class DebugProcessItemDelegate : public QStyledItemDelegate
+
+class ProcessItemDelegate : public QStyledItemDelegate
 {
-	Q_OBJECT
+	Q_OBJECT;
 
 	QFont m_font;
 	int m_baseline, m_charWidth, m_charHeight, m_charOffset;
 
 public:
-	DebugProcessItemDelegate(QWidget* parent);
+	ProcessItemDelegate(QWidget* parent);
 	void updateFonts();
 	void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const;
 	QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
 };
 
-class DebugProcessFilterProxyModel : public QSortFilterProxyModel
+
+class ProcessListFilterProxyModel : public QSortFilterProxyModel
 {
-	Q_OBJECT
+	Q_OBJECT;
 
 public:
-	DebugProcessFilterProxyModel(QObject* parent);
+	ProcessListFilterProxyModel(QObject* parent);
 
 protected:
 	virtual bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override;
-
-public:
-	//
 };
 
-class DebugProcessWidget : public QWidget, public FilterTarget
-{
-	Q_OBJECT
 
-	DebuggerController* m_controller;
+class ProcessListWidget : public QWidget, public FilterTarget
+{
+	Q_OBJECT;
+
+	DbgRef<DebuggerController> m_controller;
 
 	QTableView* m_table;
-	DebugProcessListModel* m_model;
-	DebugProcessItemDelegate* m_delegate;
-	DebugProcessFilterProxyModel* m_filter;
-
-	// size_t m_debuggerEventCallback;
+	ProcessListModel* m_model;
+	ProcessItemDelegate* m_delegate;
+	ProcessListFilterProxyModel* m_filter;
 
 	UIActionHandler m_actionHandler;
 	ContextMenuManager* m_contextMenuManager;
 	Menu* m_menu;
 
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
-
-	// bool canCopy();
 
 	virtual void setFilter(const std::string& filter) override;
 	virtual void scrollToFirstItem() override;
@@ -143,55 +134,44 @@ class DebugProcessWidget : public QWidget, public FilterTarget
 	virtual void activateFirstItem() override;
 
 public:
-	DebugProcessWidget(QWidget* parent, DebuggerController* controller);
-	~DebugProcessWidget();
+	ProcessListWidget(QWidget* parent, DbgRef<DebuggerController> controller);
+	~ProcessListWidget();
 
-	QTableView* getProcessTableView() const { return m_table; }
+	QTableView* GetProcessTableView() const { return m_table; }
 
-	uint32_t getSelectedPid()
+	uint32_t GetSelectedPid()
 	{
 		QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
-		if (sel.empty())
+		if (sel.empty() || !sel[0].isValid())
 			return 0;
 
 		auto sourceIndex = m_filter->mapToSource(sel[0]);
 		if (!sourceIndex.isValid())
 			return 0;
 
-		auto item = m_model->getRow(sourceIndex.row());
-		return item.pid();
+		auto processItem = m_model->getRow(sourceIndex.row());
+		return processItem.pid();
 	}
 
 	void updateColumnWidths();
-	void notifyModulesChanged(std::vector<DebugProcess> modules);
-
-	// private slots:
-	// void jumpToStart();
-	// void jumpToEnd();
-	// void copy();
-	// void onDoubleClicked();
 
 public slots:
 	void updateContent();
-	// void showContextMenu();
 };
 
 
 class AttachProcessDialog : public QDialog
 {
-	Q_OBJECT
+	Q_OBJECT;
 
 private:
-	DebuggerController* m_controller;
-	ViewFrame* m_view;
-	DebugProcessWidget* m_processes;
+	ProcessListWidget* m_processListWidget;
 	FilteredView* m_filter;
 	FilterEdit* m_separateEdit;
-	uint32_t m_pid {};
-
+	uint32_t m_selectedPid {};
 
 public:
-	AttachProcessDialog(QWidget* parent, DebuggerController* controller);
+	AttachProcessDialog(QWidget* parent, DbgRef<DebuggerController> controller);
 	uint32_t GetSelectedPid();
 
 private Q_SLOTS:
