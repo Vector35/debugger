@@ -23,9 +23,7 @@ using namespace std;
 
 constexpr int SortFilterRole = Qt::UserRole + 1;
 
-ProcessItem::ProcessItem(uint32_t pid, std::string processName) :
-	m_pid(pid), m_processName(processName)
-{}
+ProcessItem::ProcessItem(uint32_t pid, std::string processName) : m_pid(pid), m_processName(processName) {}
 
 
 bool ProcessItem::operator==(const ProcessItem& other) const
@@ -49,9 +47,7 @@ bool ProcessItem::operator<(const ProcessItem& other) const
 	return m_processName < other.processName();
 }
 
-DebugProcessListModel::DebugProcessListModel(QWidget* parent) :
-	QAbstractTableModel(parent)
-{}
+DebugProcessListModel::DebugProcessListModel(QWidget* parent) : QAbstractTableModel(parent) {}
 
 
 DebugProcessListModel::~DebugProcessListModel() {}
@@ -142,7 +138,7 @@ void DebugProcessListModel::updateRows(std::vector<DebugProcess> newModules)
 	}
 
 	m_items = newRows;
-	
+
 	endResetModel();
 }
 
@@ -227,23 +223,24 @@ bool DebugProcessFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelI
 	return false;
 }
 
-DebugProcessWidget::DebugProcessWidget(DebuggerController* controller)
+DebugProcessWidget::DebugProcessWidget(QWidget* parent, DebuggerController* controller) : QWidget(parent)
 {
 	m_controller = controller;
 
 	m_table = new QTableView(this);
 	m_model = new DebugProcessListModel(m_table);
+	m_delegate = new DebugProcessItemDelegate(this);
 	m_filter = new DebugProcessFilterProxyModel(this);
 
 	m_filter->setSourceModel(m_model);
 	m_table->setModel(m_filter);
-
-	m_delegate = new DebugProcessItemDelegate(this);
 	m_table->setItemDelegate(m_delegate);
 
-	m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
+	m_table->horizontalHeader()->setStretchLastSection(true);
+	m_table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
+	m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
-	//m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+	m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 	m_table->verticalHeader()->setVisible(false);
 
 	m_table->setShowGrid(false);
@@ -255,38 +252,43 @@ DebugProcessWidget::DebugProcessWidget(DebuggerController* controller)
 
 	m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
 	m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-	
-	//m_table->horizontalHeader()->setStretchLastSection(true);
-	m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-	m_table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
 
 	m_table->resizeColumnsToContents();
 	m_table->resizeRowsToContents();
 
-	QVBoxLayout* layout = new QVBoxLayout;
+	QVBoxLayout* layout = new QVBoxLayout();
 	layout->setContentsMargins(0, 0, 0, 0);
 	layout->setSpacing(0);
 	layout->addWidget(m_table);
+
 	setLayout(layout);
+
 	// TODO: ESC close dialog
 	// TODO: context menu refresh
 	// TODO: double click attach
 	// TODO: context menu copy
+
 	updateContent();
 }
 
 
 DebugProcessWidget::~DebugProcessWidget()
 {
-	//if (m_controller)
+	// if (m_controller)
 	//	m_controller->RemoveEventCallback(m_debuggerEventCallback);
 }
 
 
+void DebugProcessWidget::updateColumnWidths()
+{
+	m_table->resizeColumnToContents(DebugProcessListModel::PidColumn);
+	m_table->resizeColumnToContents(DebugProcessListModel::ProcessNameColumn);
+}
+
 void DebugProcessWidget::notifyModulesChanged(std::vector<DebugProcess> modules)
 {
 	m_model->updateRows(modules);
-	m_table->resizeColumnsToContents();
+	updateColumnWidths();
 }
 
 
@@ -300,6 +302,7 @@ void DebugProcessWidget::updateContent()
 void DebugProcessWidget::setFilter(const string& filter)
 {
 	m_filter->setFilterFixedString(QString::fromStdString(filter));
+	updateColumnWidths();
 }
 
 
@@ -314,25 +317,9 @@ void DebugProcessWidget::selectFirstItem() {}
 
 void DebugProcessWidget::activateFirstItem() {}
 
-DebugProcessWidgetWithFilter::DebugProcessWidgetWithFilter(DebuggerController* controller)
-{
-	m_processes = new DebugProcessWidget(controller);
-	m_separateEdit = new FilterEdit(m_processes);
-	m_filter = new FilteredView(this, m_processes, m_processes, m_separateEdit);
-	m_filter->setFilterPlaceholderText("Search process");
-
-	auto headerLayout = new QHBoxLayout();
-	headerLayout->addWidget(m_separateEdit, 1);
-	//headerLayout->setAlignment(Qt::AlignBaseline);
-
-	auto* layout = new QVBoxLayout(this);
-	layout->setContentsMargins(0, 0, 0, 0);
-	layout->addLayout(headerLayout);
-	layout->addWidget(m_filter, 1);
-}
 
 AttachProcessDialog::AttachProcessDialog(QWidget* parent, DebuggerController* controller) :
-	QDialog(), m_controller(controller)
+	QDialog(parent), m_controller(controller)
 {
 	setWindowTitle("Attach to process");
 	setMinimumSize(UIContext::getScaledWindowSize(350, 600));
@@ -340,11 +327,21 @@ AttachProcessDialog::AttachProcessDialog(QWidget* parent, DebuggerController* co
 	setSizeGripEnabled(true);
 	setModal(true);
 
-	QVBoxLayout* layout = new QVBoxLayout();
-	layout->setSpacing(0);
+	m_processes = new DebugProcessWidget(this, controller);
+	m_separateEdit = new FilterEdit(m_processes);
+	m_filter = new FilteredView(this, m_processes, m_processes, m_separateEdit);
+	m_filter->setFilterPlaceholderText("Search process");
 
-	m_processWidget = new DebugProcessWidgetWithFilter(m_controller);
-	layout->addWidget(m_processWidget);
+	auto headerLayout = new QHBoxLayout();
+	headerLayout->addWidget(m_separateEdit, 1);
+
+	auto filterLayout = new QVBoxLayout();
+	filterLayout->setContentsMargins(0, 0, 0, 0);
+	filterLayout->addLayout(headerLayout);
+	filterLayout->addWidget(m_filter, 1);
+
+	QVBoxLayout* layout = new QVBoxLayout();
+	layout->addLayout(filterLayout);
 
 	QHBoxLayout* buttonLayout = new QHBoxLayout();
 	buttonLayout->setContentsMargins(0, 0, 0, 0);
@@ -373,22 +370,12 @@ uint32_t AttachProcessDialog::GetSelectedPid()
 
 void AttachProcessDialog::apply()
 {
-	// TODO get selected pid from table
-	// if (!m_processTable->selectionModel()->hasSelection())
-	// {
-	// 	reject();
-	// 	return;
-	// }
-
-	// QModelIndexList sel = m_processTable->selectionModel()->selectedIndexes();
-	// if (sel.empty() || !sel[0].isValid())
-	// {
-	// 	reject();
-	// 	return;
-	// }
-
-	// QTableWidgetItem* processSelected = m_processTable->item(sel[0].row(), 0);
-	// m_pid = processSelected->text().toInt();
+	m_pid = m_processes->getSelectedPid();
+	if (!m_pid)
+	{
+		reject();
+		return;
+	}
 
 	accept();
 }
