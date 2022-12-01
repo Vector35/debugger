@@ -353,6 +353,8 @@ AttachProcessDialog::AttachProcessDialog(QWidget* parent, DebuggerController* co
 	connect(acceptButton, &QPushButton::clicked, [&]() { apply(); });
 	acceptButton->setDefault(true);
 
+	connect(m_processes->getProcessTableView(), &QTableView::doubleClicked, [&]() { apply(); });
+
 	buttonLayout->addStretch(1);
 	buttonLayout->addWidget(cancelButton);
 	buttonLayout->addWidget(acceptButton);

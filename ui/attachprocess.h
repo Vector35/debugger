@@ -146,6 +146,8 @@ public:
 	DebugProcessWidget(QWidget* parent, DebuggerController* controller);
 	~DebugProcessWidget();
 
+	QTableView* getProcessTableView() const { return m_table; }
+
 	uint32_t getSelectedPid()
 	{
 		QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
