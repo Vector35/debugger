@@ -53,7 +53,11 @@ LldbAdapter::LldbAdapter(BinaryView* data) : DebugAdapter(data)
 }
 
 
-LldbAdapter::~LldbAdapter() {}
+LldbAdapter::~LldbAdapter()
+{
+	m_process.Destroy();
+	SBDebugger::Destroy(m_debugger);
+}
 
 
 LldbAdapterType::LldbAdapterType() : DebugAdapterType("LLDB") {}
@@ -1213,25 +1217,12 @@ void LldbAdapter::FixActiveThread()
 
 void LldbAdapter::EventListener()
 {
-	SBEvent event;
-	SBListener listener = SBListener("listener");
-	listener.StartListeningForEventClass(m_debugger, SBProcess::GetBroadcasterClassName(),
-		lldb::SBProcess::eBroadcastBitStateChanged |
-		lldb::SBProcess::eBroadcastBitSTDERR |
-		lldb::SBProcess::eBroadcastBitSTDOUT);
-
-	listener.StartListeningForEventClass(m_debugger, SBTarget::GetBroadcasterClassName(),
-		lldb::SBTarget::eBroadcastBitBreakpointChanged |
-		lldb::SBTarget::eBroadcastBitModulesLoaded |
-		lldb::SBTarget::eBroadcastBitModulesUnloaded);
-
-	listener.StartListeningForEventClass(m_debugger, SBCommandInterpreter::GetBroadcasterClass(),
-		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousErrorData |
-		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousOutputData);
+	auto listener = m_debugger.GetListener();
 
 	bool done = false;
 	while (!done)
 	{
+		SBEvent event;
 		if (!listener.WaitForEvent(1, event))
 			continue;
 
@@ -1410,19 +1401,7 @@ void LldbAdapter::EventListener()
 		}
 	}
 
-	listener.StopListeningForEventClass(m_debugger, SBProcess::GetBroadcasterClassName(),
-		lldb::SBProcess::eBroadcastBitStateChanged |
-		lldb::SBProcess::eBroadcastBitSTDERR |
-		lldb::SBProcess::eBroadcastBitSTDOUT);
-
-	listener.StopListeningForEventClass(m_debugger, SBTarget::GetBroadcasterClassName(),
-		lldb::SBTarget::eBroadcastBitBreakpointChanged |
-		lldb::SBTarget::eBroadcastBitModulesLoaded |
-		lldb::SBTarget::eBroadcastBitModulesUnloaded);
-
-	listener.StopListeningForEventClass(m_debugger, SBCommandInterpreter::GetBroadcasterClass(),
-		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousErrorData |
-		lldb::SBCommandInterpreter::eBroadcastBitAsynchronousOutputData);
+	listener.Clear();
 }
 
 
