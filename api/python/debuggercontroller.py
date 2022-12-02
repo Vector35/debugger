@@ -23,6 +23,42 @@ from .debugger_enums import *
 from typing import Callable, List
 
 
+class DebugProcess:
+    """
+    DebugProcess represents a process in the target. It has the following fields:
+
+    * ``pid``: the ID of the process
+    * ``name``: the name of the process
+
+    """
+
+    def __init__(self, pid, name):
+        self.pid = pid
+        self.name = name
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.pid == other.pid and self.name == other.name
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.pid, self.pid))
+
+    def __setattr__(self, name, value):
+        try:
+            object.__setattr__(self, name, value)
+        except AttributeError:
+            raise AttributeError(f"attribute '{name}' is read only")
+
+    def __repr__(self):
+        return f"<DebugProcess: {self.pid:#x}, {self.name}>"
+
+
 class DebugThread:
     """
     DebugThread represents a thread in the target. It has the following fields:
@@ -552,6 +588,23 @@ class DebuggerController:
             buffer = binaryninja.DataBuffer(buffer)
         buffer_obj = ctypes.cast(buffer.handle, ctypes.POINTER(dbgcore.BNDataBuffer))
         return dbgcore.BNDebuggerWriteMemory(self.handle, address, buffer_obj)
+
+    @property
+    def processes(self) -> List[DebugProcess]:
+        """
+        The processes of the target.
+
+        :return:
+        """
+        count = ctypes.c_ulonglong()
+        process_list = dbgcore.BNDebuggerGetProcessList(self.handle, count)
+        result = []
+        for i in range(0, count.value):
+            process = DebugProcess(process_list[i].m_pid, process_list[i].m_processName)
+            result.append(process)
+
+        dbgcore.BNDebuggerFreeProcessList(process_list, count.value)
+        return result
 
     @property
     def threads(self) -> List[DebugThread]:
