@@ -183,7 +183,7 @@ size_t DebugProcessMemoryView::PerformWrite(uint64_t offset, const void* data, s
 void DebugProcessMemoryView::MarkDirty()
 {
 	// This hack will let the views (linear/graph) update its display
-	ExecuteOnMainThread([this]() { BinaryView::NotifyDataWritten(0, 1); });
+	BinaryView::NotifyDataWritten(0, 1);
 }
 
 
@@ -192,10 +192,8 @@ void DebugProcessMemoryView::eventHandler(const DebuggerEvent& event)
 	switch (event.type)
 	{
 	case TargetStoppedEventType:
-	case TargetExitedEventType:
-	case DetachedEventType:
-	case QuitDebuggingEventType:
-	case BackEndDisconnectedEventType:
+	// We should not call MarkDirty() in case of a TargetExitedEvent, since the debugger binary view is about to be
+	// deleted. And it can cause a crash in certain cases.
 		MarkDirty();
 		break;
 	default:
