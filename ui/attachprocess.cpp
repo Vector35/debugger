@@ -202,6 +202,35 @@ ProcessListFilterProxyModel::ProcessListFilterProxyModel(QObject* parent) : QSor
 	setFilterCaseSensitivity(Qt::CaseInsensitive);
 }
 
+void ProcessListModel::sort(int col, Qt::SortOrder order)
+{
+	std::sort(m_items.begin(), m_items.end(), [&](ProcessItem a, ProcessItem b) {
+		if (col == ProcessListModel::PidColumn)
+		{
+			if (order == Qt::AscendingOrder)
+				return a.pid() < b.pid();
+			else
+				return a.pid() > b.pid();
+		}
+		else if (col == ProcessListModel::ProcessNameColumn)
+		{
+			if (order == Qt::AscendingOrder)
+				return a.processName() < b.processName();
+			else
+				return a.processName() > b.processName();
+		}
+		return false;
+	});
+}
+
+
+void ProcessListFilterProxyModel::sort(int col, Qt::SortOrder order)
+{
+	beginResetModel();
+	sourceModel()->sort(col, order);
+	endResetModel();
+}
+
 
 bool ProcessListFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const
 {
@@ -238,15 +267,15 @@ ProcessListWidget::ProcessListWidget(QWidget* parent, DbgRef<DebuggerController>
 	m_table->setModel(m_filter);
 	m_table->setItemDelegate(m_delegate);
 
+	m_table->setShowGrid(false);
+	m_table->setSortingEnabled(true);
+
 	m_table->horizontalHeader()->setStretchLastSection(true);
 	m_table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
 	m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
 	m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 	m_table->verticalHeader()->setVisible(false);
-
-	m_table->setShowGrid(false);
-	// m_table->setAlternatingRowColors(true);
 
 	m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
 	m_table->setSelectionBehavior(QAbstractItemView::SelectRows);

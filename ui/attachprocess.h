@@ -79,6 +79,8 @@ public:
 	ProcessItem getRow(int row) const;
 	virtual QVariant data(const QModelIndex& i, int role) const override;
 	virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
+	virtual void sort(int col, Qt::SortOrder order) override;
+	
 	void updateRows(std::vector<DebugProcess> processList);
 };
 
@@ -107,6 +109,7 @@ public:
 
 protected:
 	virtual bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override;
+	virtual void sort(int col, Qt::SortOrder order) override;
 };
 
 
