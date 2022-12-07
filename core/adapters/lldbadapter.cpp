@@ -1106,7 +1106,17 @@ DebugStopReason LldbAdapter::StepReturn()
 	//			return DebugStopReason::InternalError;
 	//	}
 	//#else
-	InvokeBackendCommand("finish");
+	auto result = InvokeBackendCommand("finish");
+	if (result.rfind("error: ", 0) == 0)
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = "Step return failed";
+		event.data.errorData.error = fmt::format("LLDB: step return failed, {}", result);
+		PostDebuggerEvent(event);
+		return DebugStopReason::InternalError;
+	}
+
 	//#endif
 	return StopReason();
 }
