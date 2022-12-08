@@ -998,11 +998,11 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		// Workaround for https://github.com/Vector35/debugger/issues/367
 		auto settings = Settings::Instance();
 		bool oldRestoreView = false;
-		if (settings->Contains("files.restore.viewState"))
+		if (settings->Contains("ui.files.restore.viewState"))
 		{
-			oldRestoreView = settings->Get<bool>("files.restore.viewState");
+			oldRestoreView = settings->Get<bool>("ui.files.restore.viewState");
 			if (oldRestoreView)
-				settings->Set("files.restore.viewState", false);
+				settings->Set("ui.files.restore.viewState", false);
 		}
 
 		FileContext* fileContext = frame->getFileContext();
@@ -1023,7 +1023,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		}
 
 		if (oldRestoreView)
-			settings->Set("files.restore.viewState", true);
+			settings->Set("ui.files.restore.viewState", true);
 
 		break;
 	}
