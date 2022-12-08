@@ -24,8 +24,8 @@ using namespace BinaryNinjaDebugger;
 static DebugProcessViewType* g_debugProcessViewType = nullptr;
 
 
-DebugProcessView::DebugProcessView(DebugProcessMemoryView* memory, BinaryView* parent) :
-	BinaryView("Debugger", memory->GetFile(), memory)
+DebugProcessView::DebugProcessView(BinaryView* parent):
+	BinaryView("Debugger", parent->GetFile(), parent)
 {
 	m_arch = parent->GetDefaultArchitecture();
 	m_platform = parent->GetDefaultPlatform();
@@ -43,10 +43,19 @@ DebugProcessView::DebugProcessView(DebugProcessMemoryView* memory, BinaryView* p
 	uint64_t length = PerformGetLength();
 	AddAutoSegment(0, length, 0, length, SegmentReadable | SegmentWritable | SegmentExecutable);
 	AddAutoSection("Memory", 0, length);
+
+	m_controller = DebuggerController::GetController(parent);
+	m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
+		eventHandler(event);
+	}, "Process View");
 }
 
 
-DebugProcessView::~DebugProcessView() {}
+DebugProcessView::~DebugProcessView()
+{
+	if (m_controller)
+		m_controller->RemoveEventCallback(m_eventCallback);
+}
 
 
 bool DebugProcessView::Init()
@@ -89,9 +98,7 @@ BinaryView* DebugProcessViewType::Create(BinaryView* data)
 {
 	try
 	{
-		// memory must be ref-counted, otherwise there will be a memory leak
-		Ref<DebugProcessMemoryView> memory = new DebugProcessMemoryView(data);
-		return new DebugProcessView(memory, data);
+		return new DebugProcessView(data);
 	}
 	catch (std::exception& e)
 	{
@@ -105,9 +112,7 @@ BinaryView* DebugProcessViewType::Parse(BinaryView* data)
 {
 	try
 	{
-		// memory must be ref-counted, otherwise there will be a memory leak
-		Ref<DebugProcessMemoryView> memory = new DebugProcessMemoryView(data);
-		return new DebugProcessView(memory, data);
+		return new DebugProcessView(data);
 	}
 	catch (std::exception& e)
 	{
@@ -125,41 +130,7 @@ void BinaryNinjaDebugger::InitDebugProcessViewType()
 }
 
 
-DebugProcessMemoryView::DebugProcessMemoryView(BinaryView* parent) :
-	BinaryView("Debugger memory", parent->GetFile(), parent)
-{
-	auto bits = parent->GetAddressSize() * 8;
-	if (bits >= 64)
-		m_length = UINT64_MAX;
-	else
-		m_length = (1ULL << bits) - 1;
-
-	m_controller = DebuggerController::GetController(parent);
-	m_eventCallback = m_controller->RegisterEventCallback(
-		[this](const DebuggerEvent& event) { eventHandler(event); }, "Debug Memory View");
-}
-
-
-DebugProcessMemoryView::~DebugProcessMemoryView()
-{
-	if (m_controller)
-		m_controller->RemoveEventCallback(m_eventCallback);
-}
-
-
-uint64_t DebugProcessMemoryView::PerformGetLength() const
-{
-	return m_length;
-}
-
-
-bool DebugProcessMemoryView::PerformIsOffsetBackedByFile(uint64_t offset)
-{
-	return offset <= m_length;
-}
-
-
-size_t DebugProcessMemoryView::PerformRead(void* dest, uint64_t offset, size_t len)
+size_t DebugProcessView::PerformRead(void* dest, uint64_t offset, size_t len)
 {
 	DataBuffer buffer = m_controller->ReadMemory(offset, len);
 	memcpy(dest, buffer.GetData(), buffer.GetLength());
@@ -168,7 +139,7 @@ size_t DebugProcessMemoryView::PerformRead(void* dest, uint64_t offset, size_t l
 }
 
 
-size_t DebugProcessMemoryView::PerformWrite(uint64_t offset, const void* data, size_t len)
+size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t len)
 {
 	if (m_controller->WriteMemory(offset, DataBuffer(data, len)))
 	{
@@ -180,14 +151,14 @@ size_t DebugProcessMemoryView::PerformWrite(uint64_t offset, const void* data, s
 }
 
 
-void DebugProcessMemoryView::MarkDirty()
+void DebugProcessView::MarkDirty()
 {
 	// This hack will let the views (linear/graph) update its display
 	BinaryView::NotifyDataWritten(0, 1);
 }
 
 
-void DebugProcessMemoryView::eventHandler(const DebuggerEvent& event)
+void DebugProcessView::eventHandler(const DebuggerEvent &event)
 {
 	switch (event.type)
 	{
