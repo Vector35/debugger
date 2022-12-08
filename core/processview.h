@@ -22,18 +22,18 @@ limitations under the License.
 
 using namespace BinaryNinja;
 
-namespace BinaryNinjaDebugger {
+namespace BinaryNinjaDebugger
+{
 	class DebuggerController;
-	class DebugProcessMemoryView;
 
 	class DebugProcessView : public BinaryView
 	{
 		std::vector<uint64_t> m_entryPoints;
 		size_t m_addressSize;
-		uint64_t m_length;
 		BNEndianness m_endian;
 		Ref<Architecture> m_arch;
 		Ref<Platform> m_platform;
+		uint64_t m_length;
 
 		DbgRef<DebuggerController> m_controller;
 		size_t m_eventCallback;
@@ -47,10 +47,16 @@ namespace BinaryNinjaDebugger {
 		virtual bool PerformIsValidOffset(uint64_t addr) override { return true; }
 		virtual uint64_t PerformGetLength() const override;
 
+		virtual size_t PerformRead(void* dest, uint64_t offset, size_t len) override;
+		virtual size_t PerformWrite(uint64_t offset, const void* data, size_t len) override;
+
 	public:
-		DebugProcessView(DebugProcessMemoryView* memory, BinaryView* data);
+		DebugProcessView(BinaryView* data);
 		virtual ~DebugProcessView();
 		virtual bool Init() override;
+
+		void MarkDirty();
+		void eventHandler(const DebuggerEvent& event);
 	};
 
 
@@ -70,25 +76,5 @@ namespace BinaryNinjaDebugger {
 		virtual bool IsDeprecated() override { return true; };
 	};
 
-	class DebugProcessMemoryView : public BinaryView
-	{
-		uint64_t m_length;
-		DbgRef<DebuggerController> m_controller;
-		size_t m_eventCallback;
-
-		virtual uint64_t PerformGetLength() const override;
-		bool PerformIsOffsetBackedByFile(uint64_t offset) override;
-
-		virtual size_t PerformRead(void* dest, uint64_t offset, size_t len) override;
-		virtual size_t PerformWrite(uint64_t offset, const void* data, size_t len) override;
-
-	public:
-		DebugProcessMemoryView(BinaryView* data);
-		virtual ~DebugProcessMemoryView();
-
-		void MarkDirty();
-		void eventHandler(const DebuggerEvent& event);
-	};
-
 	void InitDebugProcessViewType();
-};  // namespace BinaryNinjaDebugger
+};
