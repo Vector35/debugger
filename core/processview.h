@@ -25,6 +25,7 @@ using namespace BinaryNinja;
 namespace BinaryNinjaDebugger
 {
 	class DebuggerController;
+	class DebugNullView;
 
 	class DebugProcessView : public BinaryView
 	{
@@ -51,7 +52,7 @@ namespace BinaryNinjaDebugger
 		virtual size_t PerformWrite(uint64_t offset, const void* data, size_t len) override;
 
 	public:
-		DebugProcessView(BinaryView* data);
+		DebugProcessView(DebugNullView* nullView, BinaryView* data);
 		virtual ~DebugProcessView();
 		virtual bool Init() override;
 
@@ -75,6 +76,18 @@ namespace BinaryNinjaDebugger
 		// TODO: we should probably create a different API, or rename the IsDeprecated() API.
 		virtual bool IsDeprecated() override { return true; };
 	};
+
+
+	class DebugNullView : public BinaryView
+	{
+		virtual uint64_t PerformGetLength() const override;
+		bool PerformIsOffsetBackedByFile(uint64_t offset) override;
+
+	public:
+		DebugNullView(BinaryView* data);
+		virtual ~DebugNullView();
+	};
+
 
 	void InitDebugProcessViewType();
 };
