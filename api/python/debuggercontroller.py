@@ -151,6 +151,31 @@ class DebugRegister:
         return f"<DebugRegister: {self.name}, {self.value:#x}{hint_str}>"
 
 
+class DebugRegisters:
+    """
+    DebugRegisters represents all registers of the target.
+    """
+    def __init__(self, handle):
+        self.handle = handle
+        self.regs = []
+        count = ctypes.c_ulonglong()
+        registers = dbgcore.BNDebuggerGetRegisters(handle, count)
+        for i in range(0, count.value):
+            bp = DebugRegister(registers[i].m_name, registers[i].m_value,
+                               registers[i].m_width, registers[i].m_registerIndex, registers[i].m_hint)
+            self.regs.append(bp)
+        dbgcore.BNDebuggerFreeRegisters(registers, count.value)
+
+    def __repr__(self) -> str:
+        return self.regs.__repr__()
+
+    def __getitem__(self, name):
+        return dbgcore.BNDebuggerGetRegisterValue(self.handle, name)
+
+    def __setitem__(self, name, val):
+        dbgcore.BNDebuggerSetRegisterValue(self.handle, name, val)
+
+
 class DebugBreakpoint:
     """
     DebugBreakpoint represents a breakpoint in the target. It has the following fields:
@@ -603,21 +628,13 @@ class DebuggerController:
         return result
 
     @property
-    def regs(self) -> List[DebugRegister]:
+    def regs(self) -> DebugRegisters:
         """
         All registers of the target
 
         :return: a list of ``DebugRegister``
         """
-        count = ctypes.c_ulonglong()
-        registers = dbgcore.BNDebuggerGetRegisters(self.handle, count)
-        result = []
-        for i in range(0, count.value):
-            bp = DebugRegister(registers[i].m_name, registers[i].m_value, registers[i].m_width, registers[i].m_registerIndex, registers[i].m_hint)
-            result.append(bp)
-
-        dbgcore.BNDebuggerFreeRegisters(registers, count.value)
-        return result
+        return DebugRegisters(self.handle)
 
     def get_reg_value(self, reg: str) -> int:
         """
