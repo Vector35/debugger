@@ -312,7 +312,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	Menu::setMainMenuOrder("Debugger", MENU_ORDER_LATE);
 	debuggerMenu->addAction("Debug Adapter Settings...", "Settings", MENU_ORDER_FIRST);
 
-	UIAction::registerAction("Launch");
+	UIAction::registerAction("Launch", QKeySequence(Qt::Key_F6));
 	context->globalActions()->bindAction("Launch",
 		UIAction(
 			[=](const UIActionContext& ctxt) {

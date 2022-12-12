@@ -39,48 +39,61 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	auto red = getThemeColor(RedStandardHighlightColor);
 	auto white = getThemeColor(WhiteStandardHighlightColor);
 
-	m_actionRun = addAction(getColoredIcon(":/debugger_icons/icons/run.svg", red), "Run", [this]() {
+	m_actionRun = addAction(getColoredIcon(":/debugger_icons/icons/run.svg", red), "Launch", [this]() {
 		performLaunch();
 	});
+	m_actionRun->setToolTip(getToolTip("Launch"));
 
 	m_actionPause = addAction(getColoredIcon(":/debugger_icons/icons/pause.svg", white), "Pause", [this]() {
 		performPause();
 	});
+	m_actionPause->setToolTip(getToolTip("Pause"));
 
 	m_actionResume = addAction(getColoredIcon(":/debugger_icons/icons/resume.svg", green), "Resume", [this]() {
 		performResume();
 	});
+	m_actionResume->setToolTip(getToolTip("Resume"));
 
 	// m_actionRun->setVisible(true);
 	m_actionPause->setVisible(false);
 	m_actionResume->setVisible(false);
 
-	// TODO: we need a different icon here
-	m_actionAttachPid = addAction(getColoredIcon(":/debugger_icons/icons/connect.svg", white), "Attach to PID", [this]() { 
+	m_actionAttachPid = addAction(getColoredIcon(":/debugger_icons/icons/connect.svg", white), "Attach To Process...", [this]() {
 		performAttachPID(); 
 	});
+	m_actionAttachPid->setToolTip(getToolTip("Attach To Process..."));
+
 	m_actionDetach = addAction(getColoredIcon(":/debugger_icons/icons/disconnect.svg", red), "Detach", [this]() {
 		performDetach();
 	});
 	m_actionDetach->setVisible(false);
+	m_actionDetach->setToolTip(getToolTip("Detach"));
 
 	m_actionRestart = addAction(getColoredIcon(":/debugger_icons/icons/restart.svg", red), "Restart", [this]() {
 		performRestart();
 	});
-	m_actionQuit = addAction(getColoredIcon(":/debugger_icons/icons/cancel.svg", red), "Quit", [this]() {
+	m_actionRestart->setToolTip(getToolTip("Restart"));
+
+	m_actionQuit = addAction(getColoredIcon(":/debugger_icons/icons/cancel.svg", red), "Kill", [this]() {
 		performQuit();
 	});
+	m_actionQuit->setToolTip(getToolTip("Kill"));
 	addSeparator();
 
 	m_actionStepInto = addAction(getColoredIcon(":/debugger_icons/icons/stepinto.svg", cyan), "Step Into", [this]() {
 		performStepInto();
 	});
+	m_actionStepInto->setToolTip(getToolTip("Step Into"));
+
 	m_actionStepOver = addAction(getColoredIcon(":/debugger_icons/icons/stepover.svg", cyan), "Step Over", [this]() {
 		performStepOver();
 	});
-	m_actionStepReturn = addAction(getColoredIcon(":/debugger_icons/icons/stepout.svg", cyan), "Step Out", [this]() {
+	m_actionStepOver->setToolTip(getToolTip("Step Over"));
+
+	m_actionStepReturn = addAction(getColoredIcon(":/debugger_icons/icons/stepout.svg", cyan), "Step Return", [this]() {
 		performStepReturn();
 	});
+	m_actionStepReturn->setToolTip(getToolTip("Step Return"));
 
 	updateButtons();
 }
@@ -96,6 +109,17 @@ QIcon DebugControlsWidget::getColoredIcon(const QString& iconPath, const QColor&
 	pixmap.fill(color);
 	pixmap.setMask(mask);
 	return QIcon(pixmap);
+}
+
+
+QString DebugControlsWidget::getToolTip(const QString& name)
+{
+	QString result = name;
+	auto keyBinding = UIAction::getKeyBinding(name);
+	if (!keyBinding.isEmpty())
+		result += (QString(" (") + keyBinding[0].toString() + ")");
+
+	return result;
 }
 
 

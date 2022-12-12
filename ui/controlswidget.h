@@ -51,6 +51,7 @@ private:
 	bool canConnect();
 
 	QIcon getColoredIcon(const QString& iconPath, const QColor& color);
+	QString getToolTip(const QString& name);
 
 public:
 	DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data);
