@@ -183,6 +183,7 @@ env["BN_DISABLE_USER_SETTINGS"] = "true"
 env["BN_DISABLE_REPOSITORY_PLUGINS"] = "true"
 env["BN_USER_DIRECTORY"] = str(build_output_path)
 env["BN_STANDALONE_DEBUGGER"] = "true"
+env["BN_DISABLE_CORE_DEBUGGER"] = "true"
 
 license_path = 'license.dat'
 if platform.system() == "Linux":
