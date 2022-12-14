@@ -376,27 +376,37 @@ void LldbAdapter::Quit()
 
 std::vector<DebugProcess> LldbAdapter::GetProcessList()
 {
-	std::string result = InvokeBackendCommand("platform process list");
-
-	std::istringstream f(result);
-	std::string l;
-
-	auto BothAreSpaces = [=](char lhs, char rhs) {
-		return (lhs == rhs) && (lhs == ' ');
-	};
-
-	// regex to improve: ^(\d*) (\d*) (.*\n*)
-
 	std::vector<DebugProcess> debug_processes {};
-	while (getline(f, l, '\n'))
-	{
-		uint32_t pid;
-		std::string::iterator new_end = std::unique(l.begin(), l.end(), BothAreSpaces);
-		l.erase(new_end, l.end());
-		LogInfo("%s", l.c_str());
 
-		sscanf(l.c_str(), "%d", &pid);
-		debug_processes.emplace_back(pid);
+	std::istringstream processList(InvokeBackendCommand("platform process list"));
+	std::string line;
+
+	while (getline(processList, line, '\n'))
+	{
+		uint32_t pid{};
+
+		// skip header lines and lines that have len <= 56
+		if (line.rfind("matching processes were found on") != std::string::npos
+			|| line.rfind("PID    PARENT USER") != std::string::npos
+			|| line.rfind("====== ======") != std::string::npos
+			|| line.size() <= 56)
+		{
+			continue;
+		}
+
+		if (sscanf(line.c_str(), "%d", &pid) == 0)
+			continue;
+
+		// example output lines:
+		//	1268   944                                              csrss.exe
+		//  37635  9677   xusheng    arm64-apple-*                  Code Helper (Renderer)
+		// 
+		// we've 56 bytes until process name which is calculated like this:
+		// (6 + 1) + (6 + 1) + (10 + 1) + (30 + 1)
+
+		std::string processName(std::next(line.begin(), 56), line.end());
+
+		debug_processes.emplace_back(pid, processName);
 	}
 
 	return debug_processes;
