@@ -643,27 +643,27 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 	debuggerMenu->addAction(showAreaWidgets, "Options");
 
-	UIAction::registerAction("Make Code", QKeySequence(Qt::Key_C));
-	context->globalActions()->bindAction("Make Code",
-		UIAction(
-			[=](const UIActionContext& ctxt) {
-				if (!ctxt.binaryView)
-					return;
-
-				MakeCodeHelper(ctxt.binaryView, ctxt.address);
-			},
-			requireBinaryView));
-	debuggerMenu->addAction("Make Code", "Misc");
-
-	UIAction::setActionDisplayName("Make Code", [](const UIActionContext& ctxt) -> QString {
-		if (!ctxt.binaryView)
-			return "Make Code";
-
-		if (ShowAsCode(ctxt.binaryView, ctxt.address))
-			return "Undefine Code";
-
-		return "Make Code";
-	});
+//	UIAction::registerAction("Make Code", QKeySequence(Qt::Key_C));
+//	context->globalActions()->bindAction("Make Code",
+//		UIAction(
+//			[=](const UIActionContext& ctxt) {
+//				if (!ctxt.binaryView)
+//					return;
+//
+//				MakeCodeHelper(ctxt.binaryView, ctxt.address);
+//			},
+//			requireBinaryView));
+//	debuggerMenu->addAction("Make Code", "Misc");
+//
+//	UIAction::setActionDisplayName("Make Code", [](const UIActionContext& ctxt) -> QString {
+//		if (!ctxt.binaryView)
+//			return "Make Code";
+//
+//		if (ShowAsCode(ctxt.binaryView, ctxt.address))
+//			return "Undefine Code";
+//
+//		return "Make Code";
+//	});
 
 	UIAction::registerAction("Jump to IP");
 	context->globalActions()->bindAction("Jump to IP",
