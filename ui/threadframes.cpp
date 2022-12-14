@@ -565,13 +565,13 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	m_contextMenuManager = new ContextMenuManager(this);
 	m_menu = new Menu();
 
-	QString actionName = QString::fromStdString("Suspend");
+	QString actionName = QString::fromStdString("Suspend Thread");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(
 		actionName, UIAction([=]() { suspendThread(); }, [=]() { return canSuspendOrResume(); }));
 
-	actionName = QString::fromStdString("Resume");
+	actionName = QString::fromStdString("Resume Thread");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([=]() { resumeThread(); }, [=]() { return canSuspendOrResume(); }));
