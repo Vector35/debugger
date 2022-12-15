@@ -89,6 +89,8 @@ bool DebuggerRegisters::SetRegisterValue(const std::string& name, uint64_t value
 	// Because some registers are correlated, changing the value of one register could invalidate the value of other
 	// registers as well.
 	MarkDirty();
+
+	m_state->GetController()->NotifyEvent(RegisterChangedEvent);
 	return true;
 }
 

@@ -311,7 +311,6 @@ bool DebugRegistersListModel::setData(const QModelIndex& index, const QVariant& 
 	if (!m_controller->SetRegisterValue(item->name(), newValue))
 		return false;
 
-	emit dataChanged(index, index);
 	return true;
 }
 
@@ -489,8 +488,6 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	}));
 	m_actionHandler.setChecked(actionName, [this]() { return m_filter->getHideUnusedRegisters(); });
 
-	connect(m_model, &DebugRegistersListModel::dataChanged, [&]() { updateContent(); });
-
 	connect(m_table, &QTableView::doubleClicked, this, &DebugRegistersWidget::onDoubleClicked);
 
 	updateContent();
@@ -538,8 +535,6 @@ void DebugRegistersWidget::setToZero()
 
 	auto reg = m_model->getRow(sourceIndex.row());
 	m_controller->SetRegisterValue(reg.name(), 0);
-
-	updateContent();
 }
 
 
@@ -636,8 +631,6 @@ void DebugRegistersWidget::paste()
 
 	if (!m_controller->SetRegisterValue(reg.name(), newValue))
 		return;
-
-	updateContent();
 }
 
 

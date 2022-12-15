@@ -103,10 +103,6 @@ bool DebuggerController::SetIP(uint64_t address)
 	// This allows the thread frame widget to update properly
 	m_state->GetThreads()->MarkDirty();
 
-	// TODO: we should notify RegisterChangedEvent within SetRegisterValue, so that any modifications to the register
-	// values trigger that event.
-	NotifyEvent(RegisterChangedEvent);
-
 	return true;
 }
 
