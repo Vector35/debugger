@@ -214,6 +214,9 @@ class DebugRegisters:
     def __setitem__(self, name, val):
         dbgcore.BNDebuggerSetRegisterValue(self.handle, name, val)
 
+    def __len__(self):
+        return len(self.regs)
+
 
 class DebugBreakpoint:
     """
