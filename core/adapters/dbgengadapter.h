@@ -188,6 +188,7 @@ namespace BinaryNinjaDebugger {
 
 		std::string InvokeBackendCommand(const std::string& command) override;
 		std::uintptr_t GetInstructionOffset() override;
+		uint64_t GetStackPointer() override;
 
 		bool SupportFeature(DebugAdapterCapacity feature) override;
 

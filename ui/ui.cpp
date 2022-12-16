@@ -705,6 +705,26 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			connectedAndStopped));
 	debuggerMenu->addAction("Override IP", "Misc");
 
+	UIAction::registerAction("Create Stack View");
+	context->globalActions()->bindAction("Create Stack View",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				auto view = ctxt.context->getCurrentView();
+				if (!view)
+					return;
+
+				view->navigateOnOtherPane(controller->StackPointer());
+			},
+			connectedAndStopped));
+	debuggerMenu->addAction("Create Stack View", "Misc");
+
 #ifdef WIN32
 	UIAction::registerAction("Reinstall DbgEng Redistributable");
 	context->globalActions()->bindAction("Reinstall DbgEng Redistributable", UIAction([=](const UIActionContext& ctxt) {
