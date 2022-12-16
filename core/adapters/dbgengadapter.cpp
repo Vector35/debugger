@@ -1157,6 +1157,16 @@ std::uintptr_t DbgEngAdapter::GetInstructionOffset()
 	return register_offset;
 }
 
+uint64_t DbgEngAdapter::GetStackPointer()
+{
+	if (!m_debugRegisters)
+		return 0;
+
+	uint64_t stackPointer {};
+	m_debugRegisters->GetStackOffset(&stackPointer);
+	return stackPointer;
+}
+
 unsigned long DbgEngEventCallbacks::AddRef()
 {
 	return 1;
