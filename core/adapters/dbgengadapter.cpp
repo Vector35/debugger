@@ -203,7 +203,7 @@ bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionSt
 	QUERY_DEBUG_INTERFACE(IDebugControl5, &this->m_debugControl);
 	QUERY_DEBUG_INTERFACE(IDebugDataSpaces, &this->m_debugDataSpaces);
 	QUERY_DEBUG_INTERFACE(IDebugRegisters, &this->m_debugRegisters);
-	QUERY_DEBUG_INTERFACE(IDebugSymbols, &this->m_debugSymbols);
+	QUERY_DEBUG_INTERFACE(IDebugSymbols3, &this->m_debugSymbols);
 	QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
 
 	constexpr size_t CONNECTION_MAX_TRY = 300;
@@ -302,6 +302,9 @@ void DbgEngAdapter::Reset()
 
 DbgEngAdapter::DbgEngAdapter(BinaryView* data) : DebugAdapter(data)
 {
+    auto metadata = data->QueryMetadata("PDB_FILENAME");
+    if (metadata && metadata->IsString())
+        m_pdbFileName = metadata->GetString();
 	LoadDngEngLibraries();
 }
 
@@ -748,8 +751,15 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address,
 	// and add them when we launch/attach the target.
 	if (m_debugActive)
 	{
+        auto moduleToUse = address.module;
+        if (DebugModule::IsSameBaseModule(moduleToUse, m_originalFileName))
+        {
+            if (!m_pdbFileName.empty())
+                moduleToUse = m_pdbFileName;
+        }
+
 		// DbgEng does not take a full path. It can take "hello.exe", or simply "hello". E.g., "bp helloworld+0x1338"
-		auto fileName = std::filesystem::path(address.module).stem();
+		auto fileName = std::filesystem::path(moduleToUse).stem();
 		std::string breakpointCommand =
 			fmt::format("bp {}+0x{:x}", EscapeModuleName(fileName.string()), address.offset);
 		auto ret = InvokeBackendCommand(breakpointCommand);
@@ -966,6 +976,9 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 				module_index, 0, name, 1024, nullptr, short_name, 1024, nullptr, loaded_image_name, 1024, nullptr)
 			!= S_OK)
 			continue;
+
+        if ((!m_pdbFileName.empty()) && DebugModule::IsSameBaseModule(short_name, m_pdbFileName))
+            strcpy_s(name, 1024, m_originalFileName.c_str());
 
 		modules.emplace_back(
 			name, short_name, parameters.Base, parameters.Size, !(parameters.Flags & DEBUG_MODULE_UNLOADED));

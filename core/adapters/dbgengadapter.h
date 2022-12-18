@@ -98,7 +98,7 @@ namespace BinaryNinjaDebugger {
 		IDebugControl5* m_debugControl {nullptr};
 		IDebugDataSpaces* m_debugDataSpaces {nullptr};
 		IDebugRegisters* m_debugRegisters {nullptr};
-		IDebugSymbols* m_debugSymbols {nullptr};
+		IDebugSymbols3* m_debugSymbols {nullptr};
 		IDebugSystemObjects* m_debugSystemObjects {nullptr};
 		bool m_debugActive {false};
 
@@ -119,6 +119,8 @@ namespace BinaryNinjaDebugger {
 		bool m_dbgSrvLaunchedByAdapter = false;
 
 		bool m_aboutToBeKilled = false;
+
+        std::string m_pdbFileName {};
 
 	public:
 		inline static ProcessCallbackInformation ProcessCallbackInfo {};
