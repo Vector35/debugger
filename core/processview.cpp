@@ -164,7 +164,8 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
 void DebugProcessView::MarkDirty()
 {
 	// This hack will let the views (linear/graph) update its display
-	BinaryView::NotifyDataWritten(0, 1);
+    // We must treat the entire binary view as modified, otherwise, self-modifying code may not be updated properly
+	BinaryView::NotifyDataWritten(0, GetLength());
 }
 
 
