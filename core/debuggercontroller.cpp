@@ -1045,6 +1045,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		m_currentIP = m_state->IP();
 
 		UpdateStackVariables();
+		AddRegisterValuesToExpressionParser();
 		break;
 	}
 	case ActiveThreadChangedEvent:
@@ -1052,12 +1053,14 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		m_state->UpdateCaches();
 		m_lastIP = m_currentIP;
 		m_currentIP = m_state->IP();
+		AddRegisterValuesToExpressionParser();
 		break;
 	}
 	case RegisterChangedEvent:
 	{
 		m_lastIP = m_currentIP;
 		m_currentIP = m_state->IP();
+		AddRegisterValuesToExpressionParser();
 		break;
 	}
 	case ErrorEventType:
@@ -1482,6 +1485,24 @@ void DebuggerController::UpdateStackVariables()
 	{
 		m_liveView->SetCommentForAddress(address, "");
 	}
+}
+
+
+void DebuggerController::AddRegisterValuesToExpressionParser()
+{
+	auto regs = GetAllRegisters();
+	std::vector<std::string> names;
+	names.reserve(regs.size());
+	std::vector<uint64_t> values;
+	values.reserve(regs.size());
+
+	for (const auto& reg: regs)
+	{
+		names.push_back(std::string(reg.m_name));
+		values.emplace_back(reg.m_value);
+	}
+
+	m_liveView->AddExpressionParserMagicValues(names, values);
 }
 
 

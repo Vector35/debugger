@@ -90,6 +90,7 @@ namespace BinaryNinjaDebugger {
 
 		void EventHandler(const DebuggerEvent& event);
 		void UpdateStackVariables();
+		void AddRegisterValuesToExpressionParser();
 		bool CreateDebugAdapter();
 		void HandleInitialBreakpoint();
 
