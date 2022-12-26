@@ -45,6 +45,8 @@ LldbAdapter::LldbAdapter(BinaryView* data) : DebugAdapter(data)
 	if (!m_debugger.IsValid())
 		LogWarn("Invalid debugger");
 
+	m_isElFWithoutDynamicLoader = IsELFWithoutDynamicLoader(data);
+
 	// Set auto-confirm to true so operations that ask for confirmation will proceed automatically.
 	// Otherwise, the confirmation prompt will be sent to the terminal that BN is launched from, which is a very
 	// confusing behavior.
@@ -132,6 +134,20 @@ void LldbAdapter::ApplyBreakpoints()
 }
 
 
+bool LldbAdapter::IsELFWithoutDynamicLoader(BinaryView* data)
+{
+	if (!data)
+		return false;
+
+	auto name = data->GetTypeName();
+	if (name != "ELF")
+		return false;
+
+	auto syms = data->GetSymbolsByName("__elf_interp");
+	return syms.empty();
+}
+
+
 bool LldbAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
 	return ExecuteWithArgs(path, "", "", configs);
@@ -189,7 +205,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 		AddBreakpoint(ModuleNameAndOffset(path, m_entryPoint - m_start));
 
 	std::string launchCommand = "process launch";
-	if (Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint"))
+	if (Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint") || m_isElFWithoutDynamicLoader)
 		launchCommand += " --stop-at-entry";
 
 	if (configs.requestTerminalEmulator)

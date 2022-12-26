@@ -264,13 +264,7 @@ class DebuggerAPI(unittest.TestCase):
             fpath = name_to_fpath('asmtest', 'x86_64')
             bv = BinaryViewType.get_view_of_file(fpath)
             dbg = DebuggerController(bv)
-            if platform.system() == 'Linux':
-                Settings().set_bool('debugger.stopAtSystemEntryPoint', True)
-
             self.assertTrue(dbg.launch())
-            if platform.system() == 'Linux':
-                Settings().set_bool('debugger.stopAtSystemEntryPoint', False)
-
             entry = dbg.live_view.entry_point
             self.assertEqual(dbg.ip, entry)
 

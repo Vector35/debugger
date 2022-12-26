@@ -36,6 +36,11 @@ namespace BinaryNinjaDebugger {
 		bool m_targetActive;
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints {};
 
+		// To launch an ELF without dynamic loader, we must set `debugger.stopAtSystemEntryPoint`.
+		// Otherwise, the process will run freely on its own and not stop.
+		bool m_isElFWithoutDynamicLoader = false;
+		bool IsELFWithoutDynamicLoader(BinaryView* data);
+
 	public:
 		LldbAdapter(BinaryView* data);
 		virtual ~LldbAdapter();
