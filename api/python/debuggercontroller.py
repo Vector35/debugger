@@ -624,8 +624,6 @@ class DebuggerController:
     def processes(self) -> List[DebugProcess]:
         """
         The processes of the target.
-
-        :return:
         """
         count = ctypes.c_ulonglong()
         process_list = dbgcore.BNDebuggerGetProcessList(self.handle, count)
@@ -641,8 +639,6 @@ class DebuggerController:
     def threads(self) -> List[DebugThread]:
         """
         The threads of the target.
-
-        :return:
         """
         count = ctypes.c_ulonglong()
         threads = dbgcore.BNDebuggerGetThreads(self.handle, count)
@@ -674,7 +670,6 @@ class DebuggerController:
         Suspends a thread by thread id.
 
         :param tid: thread id
-        :return:
         """
         return dbgcore.BNDebuggerSuspendThread(self.handle, tid)
 
@@ -683,7 +678,6 @@ class DebuggerController:
         Resumes a thread by thread id.
 
         :param tid: thread id
-        :return:
         """
         return dbgcore.BNDebuggerResumeThread(self.handle, tid)
 
@@ -718,7 +712,6 @@ class DebuggerController:
         Get the value of one register by its name
 
         :param reg: the name of the register
-        :return:
         """
         return dbgcore.BNDebuggerGetRegisterValue(self.handle, reg)
 
@@ -728,7 +721,6 @@ class DebuggerController:
 
         :param reg: the name of the register
         :param value: new value of the register
-        :return:
         """
         return dbgcore.BNDebuggerSetRegisterValue(self.handle, reg, value)
 
@@ -736,32 +728,24 @@ class DebuggerController:
     def launch(self) -> bool:
         """
         Launch the target
-
-        :return:
         """
         return dbgcore.BNDebuggerLaunch(self.handle)
 
     def restart(self) -> None:
         """
         Restart the target
-
-        :return:
         """
         dbgcore.BNDebuggerRestart(self.handle)
 
     def quit(self) -> None:
         """
         Terminate the target
-
-        :return:
         """
         dbgcore.BNDebuggerQuit(self.handle)
 
     def quit_and_wait(self) -> None:
         """
         Terminate the target, and wait for all callback to be called
-
-        :return:
         """
         dbgcore.BNDebuggerQuitAndWait(self.handle)
 
@@ -770,8 +754,6 @@ class DebuggerController:
         Connect to a remote target (process)
 
         The host and port of the remote target must first be specified by setting `remote_host` and `remote_port`
-
-        :return:
         """
         dbgcore.BNDebuggerConnect(self.handle)
 
@@ -780,39 +762,30 @@ class DebuggerController:
         Connect to a debug server.
 
         The host and port of the debug server must first be specified by setting `remote_host` and `remote_port`
-
-        :return:
         """
         return dbgcore.BNDebuggerConnectToDebugServer(self.handle)
 
     def disconnect_from_debug_server(self) -> None:
         """`
         Disconnect from a debug server.
-
-        :return:
         """
         dbgcore.BNDebuggerDisconnectDebugServer(self.handle)
 
     def detach(self) -> None:
         """
         Detach the target, and let it execute on its own.
-
-        :return:
         """
         dbgcore.BNDebuggerQuit(self.handle)
 
     def pause(self) -> None:
         """
         Pause a running target
-
-        :return:
         """
         dbgcore.BNDebuggerPause(self.handle)
 
     def launch_or_connect(self) -> None:
         """
         Launch or connect to the target. Intended for internal use. Ordinary users do not need to call it.
-        :return:
         """
         dbgcore.BNDebuggerLaunchOrConnect(self.handle)
 
@@ -821,7 +794,6 @@ class DebuggerController:
         Attach to a running process by its PID
 
         :param pid: the PID of the process to attach to
-        :return:
         """
         return dbgcore.BNDebuggerAttach(self.handle, pid)
 
@@ -830,6 +802,7 @@ class DebuggerController:
         Resume the target.
 
         The call is asynchronous and returns before the target stops.
+
         :return: the reason for the stop
         """
         return dbgcore.BNDebuggerGo(self.handle)
@@ -850,7 +823,7 @@ class DebuggerController:
 
         The call is asynchronous and returns before the target stops.
 
-        :param il: optional IL level to perform the operation at.
+        :param il: optional IL level to perform the operation at
         :return: the reason for the stop
         """
         return dbgcore.BNDebuggerStepInto(self.handle, il)
@@ -871,7 +844,7 @@ class DebuggerController:
 
         The call is asynchronous and returns before the target stops.
 
-        :param il: optional IL level to perform the operation at.
+        :param il: optional IL level to perform the operation at
         :return: the reason for the stop
         """
         return dbgcore.BNDebuggerStepOver(self.handle, il)
@@ -925,6 +898,7 @@ class DebuggerController:
         Resume the target.
 
         The call is blocking and only returns when the target stops.
+
         :return: the reason for the stop
         """
         return DebugStopReason(dbgcore.BNDebuggerGoAndWait(self.handle))
@@ -946,7 +920,7 @@ class DebuggerController:
 
         The call is blocking and only returns when the target stops.
 
-        :param il: optional IL level to perform the operation at.
+        :param il: optional IL level to perform the operation at
         :return: the reason for the stop
         """
         return DebugStopReason(dbgcore.BNDebuggerStepIntoAndWait(self.handle, il))
@@ -968,7 +942,7 @@ class DebuggerController:
 
         The call is blocking and only returns when the target stops.
 
-        :param il: optional IL level to perform the operation at.
+        :param il: optional IL level to perform the operation at
         :return: the reason for the stop
         """
         return DebugStopReason(dbgcore.BNDebuggerStepOverAndWait(self.handle, il))
@@ -1022,8 +996,6 @@ class DebuggerController:
         Pause a running target.
 
         The call is blocking and only returns when the target stops.
-
-        :return:
         """
         dbgcore.BNDebuggerPauseAndWait(self.handle)
 
@@ -1045,8 +1017,6 @@ class DebuggerController:
     def connection_status(self) -> DebugAdapterConnectionStatus:
         """
         Get the connection status of the debugger
-
-        :return:
         """
         return DebugAdapterConnectionStatus(dbgcore.BNDebuggerGetConnectionStatus(self.handle))
 
@@ -1054,8 +1024,6 @@ class DebuggerController:
     def target_status(self) -> DebugAdapterTargetStatus:
         """
         Get the status of the target
-
-        :return:
         """
         return DebugAdapterTargetStatus(dbgcore.BNDebuggerGetTargetStatus(self.handle))
 
@@ -1168,8 +1136,6 @@ class DebuggerController:
     def breakpoints(self) -> List[DebugBreakpoint]:
         """
         The list of breakpoints
-
-        :return:
         """
         count = ctypes.c_ulonglong()
         breakpoints = dbgcore.BNDebuggerGetBreakpoints(self.handle, count)
@@ -1189,7 +1155,6 @@ class DebuggerController:
         start of a module. The latter is useful for ASLR.
 
         :param address: the address of breakpoint to delete
-        :return:
         """
         if isinstance(address, int):
             dbgcore.BNDebuggerDeleteAbsoluteBreakpoint(self.handle, address)
@@ -1206,7 +1171,6 @@ class DebuggerController:
         start of a module. The latter is useful for ASLR.
 
         :param address: the address of breakpoint to add
-        :return:
         """
         if isinstance(address, int):
             dbgcore.BNDebuggerAddAbsoluteBreakpoint(self.handle, address)
@@ -1223,7 +1187,6 @@ class DebuggerController:
         start of a module. The latter is useful for ASLR.
 
         :param address: the address of breakpoint to query
-        :return:
         """
         if isinstance(address, int):
             return dbgcore.BNDebuggerContainsAbsoluteBreakpoint(self.handle, address)
@@ -1242,8 +1205,6 @@ class DebuggerController:
         For x86, it returns the value of ``eip`` register.
 
         For armv7/aarch64, or any other architecture that is not native to BN, it returns the value of ``pc`` register.
-
-        :return:
         """
         return dbgcore.BNDebuggerGetIP(self.handle)
 
@@ -1267,8 +1228,6 @@ class DebuggerController:
     def last_ip(self) -> int:
         """
         The IP (instruction pointer) when the target breaks last time.
-
-        :return:
         """
         return dbgcore.BNDebuggerGetLastIP(self.handle)
 
@@ -1278,8 +1237,6 @@ class DebuggerController:
         The exit code of the target (read-only)
 
         This is only meaningful after the target has executed and exited.
-
-        :return:
         """
         return dbgcore.BNDebuggerGetExitCode(self.handle)
 
@@ -1297,9 +1254,6 @@ class DebuggerController:
     def remove_event_callback(self, index: int):
         """
         Remove the debuggeer event callback from the DebuggerController
-
-        :param index:
-        :return:
         """
         DebuggerEventWrapper.remove(self, index)
 
@@ -1307,7 +1261,7 @@ class DebuggerController:
         """
         Get the stack frames of the thread specified by ``tid``
 
-        :param tid:
+        :param tid: thread id
         :return: list of stack frames
         """
         count = ctypes.c_ulonglong()
@@ -1327,7 +1281,6 @@ class DebuggerController:
         The reason for the target to stop
 
         This is the same value to the return value of the function that resumed the target, e.g., ``go()``
-        :return:
         """
         return DebugStopReason(dbgcore.BNDebuggerGetStopReason(self.handle))
 
@@ -1335,8 +1288,6 @@ class DebuggerController:
     def stop_reason_str(self) -> str:
         """
         String description of the target stop reason
-
-        :return:
         """
         return dbgcore.BNDebuggerGetStopReasonString(self.stop_reason)
 
@@ -1344,8 +1295,6 @@ class DebuggerController:
         """
         Write to the stdin of the target. Only works on Linux and macOS.
 
-        :param data:
-        :return:
         """
         dbgcore.BNDebuggerWriteStdin(self.handle, data, len(data))
 
@@ -1361,10 +1310,8 @@ class DebuggerController:
         executed yet. However, the output are still printed to the Debugger console in the global area.
 
         Note, the user should never run any command that resumes the target (either running or stepping). It will
-        cause the UI to de-synchronize and even hang. This is a known limitation, and we will try to asddress it.
+        cause the UI to de-synchronize and even hang. This is a known limitation, and we will try to address it.
 
-        :param command:
-        :return:
         """
         return dbgcore.BNDebuggerInvokeBackendCommand(self.handle, command)
 
