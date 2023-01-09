@@ -45,6 +45,20 @@ namespace BinaryNinjaDebugger {
 		void SetAdapter(DebugAdapter* adapter);
 	};
 
+    class DbgEngInputCallbacks : public IDebugInputCallbacks
+    {
+    private:
+        IDebugControl5* m_control;
+
+    public:
+        CALLBACK_METHOD(unsigned long) AddRef() override;
+        CALLBACK_METHOD(unsigned long) Release() override;
+        CALLBACK_METHOD(HRESULT) QueryInterface(const IID& interface_id, void** _interface) override;
+        CALLBACK_METHOD(HRESULT) StartInput(ULONG BufferSize);
+        CALLBACK_METHOD(HRESULT) EndInput();
+        void SetDbgControl(IDebugControl5* control);
+    };
+
 	class DbgEngAdapter;
 	class DbgEngEventCallbacks : public DebugBaseEventCallbacks
 	{
@@ -93,7 +107,8 @@ namespace BinaryNinjaDebugger {
 	class DbgEngAdapter : public DebugAdapter
 	{
 		DbgEngEventCallbacks m_debugEventCallbacks {};
-		DbgEngOutputCallbacks m_outputCallbacks {};
+        DbgEngOutputCallbacks m_outputCallbacks {};
+        DbgEngInputCallbacks m_inputCallbacks {};
 		IDebugClient5* m_debugClient {nullptr};
 		IDebugControl5* m_debugControl {nullptr};
 		IDebugDataSpaces* m_debugDataSpaces {nullptr};

@@ -254,6 +254,10 @@ bool DbgEngAdapter::Start()
 	if (const auto result = this->m_debugClient->SetOutputCallbacks(&this->m_outputCallbacks); result != S_OK)
 		throw std::runtime_error("Failed to set output callbacks");
 
+    m_inputCallbacks.SetDbgControl(m_debugControl);
+    if (const auto result = this->m_debugClient->SetInputCallbacks(&this->m_inputCallbacks); result != S_OK)
+        throw std::runtime_error("Failed to set input callbacks");
+
 	this->m_debugActive = true;
 	return true;
 }
@@ -1323,6 +1327,41 @@ HRESULT DbgEngOutputCallbacks::QueryInterface(const IID& interface_id, void** _i
 void DbgEngOutputCallbacks::SetAdapter(DebugAdapter* adapter)
 {
 	m_adapter = adapter;
+}
+
+HRESULT DbgEngInputCallbacks::StartInput(ULONG BufferSize)
+{
+    // TODO: we should let the user type in some input when asked to. For now, we simply return an empty string,
+    // otherwise, the debugger will hang.
+    PCSTR input = "";
+    if (m_control)
+        m_control->ReturnInput(input);
+    return S_OK;
+}
+
+HRESULT DbgEngInputCallbacks::EndInput()
+{
+    return S_OK;
+}
+
+unsigned long DbgEngInputCallbacks::AddRef()
+{
+    return 1;
+}
+
+unsigned long DbgEngInputCallbacks::Release()
+{
+    return 0;
+}
+
+HRESULT DbgEngInputCallbacks::QueryInterface(const IID& interface_id, void** _interface)
+{
+    return S_OK;
+}
+
+void DbgEngInputCallbacks::SetDbgControl(IDebugControl5* control)
+{
+    m_control = control;
 }
 
 bool DbgEngAdapter::SupportFeature(DebugAdapterCapacity feature)
