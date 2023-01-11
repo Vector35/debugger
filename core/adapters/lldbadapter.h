@@ -36,6 +36,10 @@ namespace BinaryNinjaDebugger {
 		bool m_targetActive;
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints {};
 
+		// Since when SBProcess::Kill() and SBProcess::ReadMemory() are called at the same time, LLDB will hang,
+		// we must use this mutex to prevent the quit operation and read memory operation to happen at the same time.
+		std::mutex m_quitingMutex;
+
 		// To launch an ELF without dynamic loader, we must set `debugger.stopAtSystemEntryPoint`.
 		// Otherwise, the process will run freely on its own and not stop.
 		bool m_isElFWithoutDynamicLoader = false;

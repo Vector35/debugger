@@ -367,6 +367,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 
 void LldbAdapter::Detach()
 {
+	std::unique_lock<std::mutex> lock(m_quitingMutex);
 	// TODO: return if the operation succeeds
 	SBError error = m_process.Detach();
 }
@@ -374,6 +375,7 @@ void LldbAdapter::Detach()
 
 void LldbAdapter::Quit()
 {
+	std::unique_lock<std::mutex> lock(m_quitingMutex);
 	// TODO: return if the operation succeeds
 	SBError error = m_process.Kill();
 }
@@ -767,6 +769,9 @@ bool LldbAdapter::WriteRegister(const std::string& name, std::uintptr_t value)
 
 DataBuffer LldbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 {
+	if (!m_quitingMutex.try_lock())
+		return DataBuffer{};
+
 	auto buffer = new uint8_t[size];
 	SBError error;
 	size_t bytesRead = m_process.ReadMemory(address, buffer, size, error);
@@ -776,17 +781,25 @@ DataBuffer LldbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 		result.Append(buffer, bytesRead);
 	}
 	delete[] buffer;
+	m_quitingMutex.unlock();
 	return result;
 }
 
 
 bool LldbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
+	if (!m_quitingMutex.try_lock())
+		return false;
+
 	SBError error;
 	size_t bytesWritten = m_process.WriteMemory(address, buffer.GetData(), buffer.GetLength(), error);
 	if ((bytesWritten == buffer.GetLength()) && error.Success())
+	{
+		m_quitingMutex.unlock();
 		return true;
+	}
 
+	m_quitingMutex.unlock();
 	return false;
 }
 
@@ -1220,6 +1233,9 @@ DebugStopReason LldbAdapter::StepReturn()
 
 std::string LldbAdapter::InvokeBackendCommand(const std::string& command)
 {
+	// Since the `kill` command can cause the target to quit, we must guard this function with the mutex as well
+	std::unique_lock<std::mutex> lock(m_quitingMutex);
+
 	SBCommandInterpreter interpreter = m_debugger.GetCommandInterpreter();
 	SBCommandReturnObject commandResult;
 	interpreter.HandleCommand(command.c_str(), commandResult);
