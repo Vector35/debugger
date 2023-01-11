@@ -1681,9 +1681,11 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 		operationRequested = m_adapter->BreakInto();
 		break;
 	case DebugAdapterQuit:
+		m_liveView->AbortAnalysis();
 		m_adapter->Quit();
 		break;
 	case DebugAdapterDetach:
+		m_liveView->AbortAnalysis();
 		m_adapter->Detach();
 		break;
 	default:
