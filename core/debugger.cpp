@@ -95,6 +95,15 @@ static void RegisterSettings()
 			"description" : "Add stack variable annotations",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
+
+	settings->RegisterSetting("debugger.aggressiveAnalysisUpdate",
+		R"({
+			"title" : "Update the analysis aggressively",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "Whether to aggressively update the memory cache and analysis. If the target has self-modifying code, turning this on makes sure every function is re-analyzed every time the target stops, which gives the most accurate analysis. However, for large binaries with lots of functions, this may cause performance issues.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
 }
 
 extern "C"

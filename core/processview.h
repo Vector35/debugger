@@ -39,6 +39,8 @@ namespace BinaryNinjaDebugger
 		DbgRef<DebuggerController> m_controller;
 		size_t m_eventCallback;
 
+		bool m_aggressiveAnalysisUpdate;
+
 		virtual uint64_t PerformGetEntryPoint() const override;
 
 		virtual bool PerformIsExecutable() const override { return true; }
