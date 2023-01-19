@@ -696,7 +696,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 				uint64_t address = 0;
 				if (!ViewFrame::getAddressFromInput(ctxt.context->getCurrentViewFrame(), ctxt.binaryView, address,
-						ctxt.address, "Override IP", "New Instruction Pointer Value:", true))
+						ctxt.address, "Override IP", "New instruction pointer value:", true))
 					return;
 
 				if (!controller->SetIP(address))
