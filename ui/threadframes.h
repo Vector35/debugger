@@ -42,12 +42,12 @@ public:
 	FrameItem() = default;
 
 	FrameItem(const DebugThread& thread, FrameItem* parentItem = nullptr) :
-		m_tid(thread.m_tid), m_threadPc(thread.m_rip), m_isFrozen(thread.m_isFrozen), m_parentItem(parentItem)
+		m_isFrozen(thread.m_isFrozen), m_tid(thread.m_tid), m_threadPc(thread.m_rip), m_parentItem(parentItem)
 	{}
 
 	FrameItem(const DebugThread& thread, const DebugFrame& frame, FrameItem* parentItem = nullptr) :
-		m_tid(thread.m_tid), m_threadPc(thread.m_rip), m_frameIndex(frame.m_index), m_module(frame.m_module),
-		m_framePc(frame.m_pc), m_sp(frame.m_sp), m_fp(frame.m_fp), m_isFrame(true), m_parentItem(parentItem)
+		m_isFrame(true), m_tid(thread.m_tid), m_threadPc(thread.m_rip), m_frameIndex(frame.m_index),
+		m_module(frame.m_module), m_framePc(frame.m_pc), m_sp(frame.m_sp), m_fp(frame.m_fp), m_parentItem(parentItem)
 	{
 		uint64_t offset = frame.m_pc - frame.m_functionStart;
 		QString funcName = QString::asprintf("%s + 0x%" PRIx64, frame.m_functionName.c_str(), offset);

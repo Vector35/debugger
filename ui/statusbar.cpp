@@ -23,7 +23,7 @@ limitations under the License.
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 
-constexpr size_t STATUS_STRING_MAX_LEN = 50;
+constexpr int STATUS_STRING_MAX_LEN = 50;
 
 DebuggerStatusBarWidget::DebuggerStatusBarWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data) :
 	QWidget(parent), m_parent(parent), m_view(frame)
