@@ -102,7 +102,7 @@ uint64_t DebugProcessView::PerformGetLength() const
 DebugProcessViewType::DebugProcessViewType() : BinaryViewType("Debugger", "Debugger") {}
 
 
-BinaryView* DebugProcessViewType::Create(BinaryView* data)
+Ref<BinaryView> DebugProcessViewType::Create(BinaryView* data)
 {
 	try
 	{
@@ -118,7 +118,7 @@ BinaryView* DebugProcessViewType::Create(BinaryView* data)
 }
 
 
-BinaryView* DebugProcessViewType::Parse(BinaryView* data)
+Ref<BinaryView> DebugProcessViewType::Parse(BinaryView* data)
 {
 	try
 	{

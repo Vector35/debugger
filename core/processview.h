@@ -67,8 +67,8 @@ namespace BinaryNinjaDebugger
 	{
 	public:
 		DebugProcessViewType();
-		virtual BinaryView* Create(BinaryView* data) override;
-		virtual BinaryView* Parse(BinaryView* data) override;
+		virtual Ref<BinaryView> Create(BinaryView* data) override;
+		virtual Ref<BinaryView> Parse(BinaryView* data) override;
 		virtual bool IsTypeValidForData(BinaryView* data) override { return true; }
 		virtual Ref<Settings> GetLoadSettingsForData(BinaryView* data) override { return nullptr; }
 		// Here we abuse (smartly use) the IsDeprecated() API to achieve our goal of stopping BN to construct
