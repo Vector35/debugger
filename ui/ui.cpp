@@ -725,6 +725,24 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			connectedAndStopped));
 	debuggerMenu->addAction("Create Stack View", "Misc");
 
+	UIAction::registerAction("Force Update Memory Cache");
+	context->globalActions()->bindAction("Force Update Memory Cache",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				DebuggerEvent event;
+				event.type = ForceMemoryCacheUpdateEvent;
+				controller->PostDebuggerEvent(event);
+			},
+			connectedAndStopped));
+	debuggerMenu->addAction("Force Update Memory Cache", "Misc");
+
 #ifdef WIN32
 	UIAction::registerAction("Reinstall DbgEng Redistributable");
 	context->globalActions()->bindAction("Reinstall DbgEng Redistributable", UIAction([=](const UIActionContext& ctxt) {

@@ -235,6 +235,8 @@ extern "C"
 		// in the register widget, etc.). It is not emitted when the target executes and then stops.
 		RegisterChangedEvent,
 		ThreadStateChangedEvent,
+
+		ForceMemoryCacheUpdateEvent,
 	};
 
 
@@ -430,6 +432,8 @@ extern "C"
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerGetStopReason(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API bool BNDebuggerActivateDebugAdapter(BNDebuggerController* controller);
+
+	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 
 	// DebugAdapterType
 	DEBUGGER_FFI_API BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name);

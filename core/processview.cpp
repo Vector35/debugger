@@ -171,6 +171,12 @@ void DebugProcessView::MarkDirty()
 }
 
 
+void DebugProcessView::ForceMemoryCacheUpdate()
+{
+	BinaryView::NotifyDataWritten(0, GetLength());
+}
+
+
 void DebugProcessView::eventHandler(const DebuggerEvent &event)
 {
 	switch (event.type)
@@ -179,6 +185,9 @@ void DebugProcessView::eventHandler(const DebuggerEvent &event)
 	// We should not call MarkDirty() in case of a TargetExitedEvent, since the debugger binary view is about to be
 	// deleted. And it can cause a crash in certain cases.
 		MarkDirty();
+		break;
+	case ForceMemoryCacheUpdateEvent:
+		ForceMemoryCacheUpdate();
 		break;
 	default:
 		break;

@@ -567,6 +567,8 @@ namespace BinaryNinjaDebuggerAPI {
 		bool SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<Metadata>& value);
 
 		bool ActivateDebugAdapter();
+
+		void PostDebuggerEvent(const DebuggerEvent& event);
 	};
 
 

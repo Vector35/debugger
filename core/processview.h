@@ -59,6 +59,7 @@ namespace BinaryNinjaDebugger
 		virtual bool Init() override;
 
 		void MarkDirty();
+		void ForceMemoryCacheUpdate();
 		void eventHandler(const DebuggerEvent& event);
 	};
 
