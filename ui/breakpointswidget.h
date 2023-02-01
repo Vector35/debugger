@@ -144,6 +144,7 @@ private slots:
 	void jump();
 	void remove();
 	void onDoubleClicked();
+	void add();
 
 public slots:
 	void updateContent();

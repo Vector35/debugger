@@ -262,6 +262,12 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 	m_actionHandler.bindAction(
 		jumpToBreakpointActionName, UIAction([&]() { jump(); }, [&]() { return selectionNotEmpty(); }));
 
+	QString addBreakpointActionName = QString::fromStdString("Add Breakpoint...");
+	UIAction::registerAction(addBreakpointActionName);
+	m_menu->addAction(addBreakpointActionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		addBreakpointActionName, UIAction([&]() { add(); }));
+
 	connect(m_table, &QTableView::doubleClicked, this, &DebugBreakpointsWidget::onDoubleClicked);
 
 	updateContent();
@@ -316,6 +322,43 @@ void DebugBreakpointsWidget::jump()
 		frame->navigate(m_controller->GetLiveView(), address_or_offset, true, true);
 	else
 		frame->navigate(m_controller->GetData(), address_or_offset, true, true);
+}
+
+
+void DebugBreakpointsWidget::add()
+{
+	UIContext* ctxt = UIContext::contextForWidget(this);
+	if (!ctxt)
+		return;
+
+	ViewFrame* frame = ctxt->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	auto view = frame->getCurrentBinaryView();
+	if (!view)
+		return;
+
+	uint64_t address = 0;
+	if (!ViewFrame::getAddressFromInput(frame, view, address,
+			frame->getCurrentOffset(), "Add Breakpoint", "The address of the breakpoint:", true))
+		return;
+
+	bool isAbsoluteAddress = false;
+	if (view->GetTypeName() == "Debugger")
+		isAbsoluteAddress = true;
+
+	if (isAbsoluteAddress)
+	{
+		m_controller->AddBreakpoint(address);
+	}
+	else
+	{
+		std::string filename = m_controller->GetExecutablePath();
+		uint64_t offset = address - view->GetStart();
+		ModuleNameAndOffset info = {filename, offset};
+		m_controller->AddBreakpoint(info);
+	}
 }
 
 
