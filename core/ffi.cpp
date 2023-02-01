@@ -860,6 +860,11 @@ size_t BNDebuggerRegisterEventCallback(
 			evt->data.messageData.message = BNDebuggerAllocString(event.data.messageData.message.c_str());
 
 			callback(ctx, evt);
+
+			BNDebuggerFreeString(evt->data.errorData.error);
+			BNDebuggerFreeString(evt->data.errorData.shortError);
+			BNDebuggerFreeString(evt->data.relativeAddress.module);
+			BNDebuggerFreeString(evt->data.messageData.message);
 			delete evt;
 		},
 		name);

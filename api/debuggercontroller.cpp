@@ -665,20 +665,16 @@ void DebuggerController::DebuggerEventCallback(void* ctxt, BNDebuggerEvent* even
 
 	evt.data.errorData.error = string(event->data.errorData.error);
 	evt.data.errorData.shortError = string(event->data.errorData.shortError);
-	BNDebuggerFreeString(event->data.errorData.error);
-	BNDebuggerFreeString(event->data.errorData.shortError);
 	evt.data.errorData.data = event->data.errorData.data;
 
 	evt.data.exitData.exitCode = event->data.exitData.exitCode;
 
 	evt.data.relativeAddress.module = string(event->data.relativeAddress.module);
-	BNDebuggerFreeString(event->data.relativeAddress.module);
 	evt.data.relativeAddress.offset = event->data.relativeAddress.offset;
 
 	evt.data.absoluteAddress = event->data.absoluteAddress;
 
 	evt.data.messageData.message = string(event->data.messageData.message);
-	BNDebuggerFreeString(event->data.messageData.message);
 
 	object->action(evt);
 }
