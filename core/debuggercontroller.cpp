@@ -949,10 +949,18 @@ void DebuggerController::LaunchOrConnect()
 }
 
 
+// Can't use a vector here as initialization order is not guaranteed.
+DbgRef<DebuggerController>* DebuggerController::g_debuggerControllers = nullptr;
+size_t DebuggerController::g_controllerCount = 0;
+
+
 DbgRef<DebuggerController> DebuggerController::GetController(BinaryViewRef data)
 {
-	for (auto& controller : g_debuggerControllers)
+	for (size_t i = 0; i < g_controllerCount; i++)
 	{
+		DebuggerController* controller = g_debuggerControllers[i];
+		if (!controller)
+			continue;
 		if (controller->GetData() == data)
 			return controller;
 		if (controller->GetLiveView() == data)
@@ -971,22 +979,31 @@ DbgRef<DebuggerController> DebuggerController::GetController(BinaryViewRef data)
 		return nullptr;
 
 	auto controller = new DebuggerController(data);
-	g_debuggerControllers.push_back(controller);
+	g_debuggerControllers = (DbgRef<DebuggerController>*)realloc(g_debuggerControllers,
+							sizeof(DbgRef<DebuggerController>) * (g_controllerCount + 1));
+
+	// We must call the DbgRef ctor on the newly allocated space explicitly. If we do a
+	// g_debuggerControllers[g_controllerCount] = controller;
+	// The `=` operator on the next line will cause a call to `DbgRef<T>& operator=(T* obj)` on an uninitialized DbgRef
+	// object, leading to a crash when `DbgRef::m_obj` is de-referenced.
+	// In fact, this is how std::vector does things inside `push_back`.
+	new (&g_debuggerControllers[g_controllerCount]) DbgRef<DebuggerController>(controller);
+	g_controllerCount++;
 	return controller;
 }
 
 
 void DebuggerController::DeleteController(BinaryViewRef data)
 {
-	for (auto it = g_debuggerControllers.begin(); it != g_debuggerControllers.end();)
+	for (size_t i = 0; i < g_controllerCount; i++)
 	{
-		if (((*it)->GetData() == data) || (((*it)->GetLiveView() == data)))
+		DbgRef<DebuggerController> controller = g_debuggerControllers[i];
+		if (!controller)
+			continue;
+
+		if ((controller->GetData() == data) || (controller->GetLiveView() == data))
 		{
-			it = g_debuggerControllers.erase(it);
-		}
-		else
-		{
-			++it;
+			g_debuggerControllers[i] = nullptr;
 		}
 	}
 }
@@ -994,8 +1011,11 @@ void DebuggerController::DeleteController(BinaryViewRef data)
 
 bool DebuggerController::ControllerExists(BinaryViewRef data)
 {
-	for (auto& controller : g_debuggerControllers)
+	for (size_t i = 0; i < g_controllerCount; i++)
 	{
+		DbgRef<DebuggerController> controller = g_debuggerControllers[i];
+		if (!controller)
+			continue;
 		if (controller->GetData() == data)
 			return true;
 		if (controller->GetLiveView() == data)

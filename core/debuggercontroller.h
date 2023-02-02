@@ -64,7 +64,9 @@ namespace BinaryNinjaDebugger {
 		BinaryViewRef m_data;
 		BinaryViewRef m_liveView;
 
-		inline static std::vector<DbgRef<DebuggerController>> g_debuggerControllers;
+//		inline static std::vector<DbgRef<DebuggerController>> g_debuggerControllers;
+		static DbgRef<DebuggerController>* g_debuggerControllers;
+		static size_t g_controllerCount;
 
 		std::atomic<size_t> m_callbackIndex = 0;
 		std::list<DebuggerEventCallback> m_eventCallbacks;
