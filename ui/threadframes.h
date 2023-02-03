@@ -175,7 +175,7 @@ public:
 	ThreadFramesWidget(QWidget* parent, ViewFrame* view, BinaryViewRef debugger);
 	~ThreadFramesWidget();
 
-	void notifyFontChanged();
+	void updateFonts();
 
 private slots:
 	void onDoubleClicked();
@@ -207,4 +207,5 @@ public:
 	void sendText(const QString& msg) const;
 
 	void notifyViewChanged(ViewFrame*) override;
+	void notifyFontChanged() override;
 };

@@ -558,6 +558,12 @@ void DebugModulesWidget::setFilter(const string& filter)
 }
 
 
+void DebugModulesWidget::updateFonts()
+{
+	m_delegate->updateFonts();
+}
+
+
 void DebugModulesWidget::scrollToFirstItem() {}
 
 
@@ -594,6 +600,12 @@ DebugModulesWithFilter::DebugModulesWithFilter(ViewFrame* view, BinaryViewRef da
 	layout->setContentsMargins(0, 0, 0, 0);
 	layout->addLayout(headerLayout);
 	layout->addWidget(m_filter, 1);
+}
+
+
+void DebugModulesWithFilter::updateFonts()
+{
+	m_modules->updateFonts();
 }
 
 
@@ -681,6 +693,16 @@ void GlobalDebugModulesContainer::notifyViewChanged(ViewFrame* frame)
 	}
 
 	m_consoleStack->setCurrentWidget(currentConsole);
+}
+
+
+void GlobalDebugModulesContainer::notifyFontChanged()
+{
+	for (auto it = m_widgetMap.begin(); it != m_widgetMap.end(); it++)
+	{
+		if (it.value())
+			it.value()->updateFonts();
+	}
 }
 
 

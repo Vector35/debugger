@@ -94,7 +94,7 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
 	if (!item)
 		return QVariant();
 
-	if (role != Qt::DisplayRole)
+	if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole))
 		return QVariant();
 
 	switch (index.column())
@@ -118,11 +118,18 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
 			auto fileName = fileInfo.fileName();
 			text = QString::fromStdString(fmt::format("{} + 0x{:x}", fileName.toStdString(), item->location().offset));
 		}
+
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
+
 		return QVariant(text);
 	}
 	case DebugBreakpointsListModel::AddressColumn:
 	{
 		QString text = QString::fromStdString(fmt::format("0x{:x}", item->address()));
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
+
 		return QVariant(text);
 	}
 	}
@@ -212,6 +219,13 @@ void DebugBreakpointsItemDelegate::updateFonts()
 }
 
 
+QSize DebugBreakpointsItemDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const
+{
+	auto totalWidth = (idx.data(Qt::SizeHintRole).toInt() + 2) * m_charWidth + 4;
+	return QSize(totalWidth, m_charHeight + 2);
+}
+
+
 DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu) : m_view(view)
 {
 	m_controller = DebuggerController::GetController(data);
@@ -283,10 +297,10 @@ void DebugBreakpointsWidget::onDoubleClicked()
 }
 
 
-//void DebugBreakpointsWidget::notifyFontChanged()
-//{
-//	m_delegate->updateFonts();
-//}
+void DebugBreakpointsWidget::updateFonts()
+{
+	m_delegate->updateFonts();
+}
 
 
 void DebugBreakpointsWidget::contextMenuEvent(QContextMenuEvent* event)
@@ -395,52 +409,3 @@ void DebugBreakpointsWidget::updateContent()
 
 	m_model->updateRows(bps);
 }
-
-
-BreakpointSideBarWidget::BreakpointSideBarWidget(const QString& name, ViewFrame* view, BinaryViewRef data) :
-	SidebarWidget(name), m_view(view)
-{
-	QVBoxLayout* layout = new QVBoxLayout(this);
-	layout->setContentsMargins(0, 0, 0, 0);
-	layout->setSpacing(0);
-	layout->setAlignment(Qt::AlignTop);
-
-	m_breakpointsWidget = new DebugBreakpointsWidget(m_view, data, m_menu);
-
-	layout->addWidget(m_breakpointsWidget);
-	setLayout(layout);
-
-	m_ui = DebuggerUI::GetForViewFrame(view);
-	connect(m_ui, &DebuggerUI::debuggerEvent, this, &BreakpointSideBarWidget::uiEventHandler);
-}
-
-
-BreakpointSideBarWidget::~BreakpointSideBarWidget() {}
-
-
-void BreakpointSideBarWidget::uiEventHandler(const DebuggerEvent& event)
-{
-	switch (event.type)
-	{
-	case TargetStoppedEventType:
-	case DetachedEventType:
-	case QuitDebuggingEventType:
-	case BackEndDisconnectedEventType:
-	case RelativeBreakpointAddedEvent:
-	case AbsoluteBreakpointAddedEvent:
-	case RelativeBreakpointRemovedEvent:
-	case AbsoluteBreakpointRemovedEvent:
-		updateContent();
-	default:
-		break;
-	}
-}
-
-
-void BreakpointSideBarWidget::updateContent()
-{
-	m_breakpointsWidget->updateContent();
-}
-
-
-void BreakpointSideBarWidget::notifyFontChanged() {}

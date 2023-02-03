@@ -412,6 +412,11 @@ void ThreadFramesWidget::makeItSoloThread()
 		m_debugger->SetActiveThread(soloTid);
 }
 
+void ThreadFramesWidget::updateFonts()
+{
+	m_delegate->updateFonts();
+}
+
 void ThreadFramesWidget::resumeThread()
 {
 	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
@@ -833,4 +838,14 @@ void GlobalThreadFramesContainer::notifyViewChanged(ViewFrame* frame)
 	}
 
 	m_consoleStack->setCurrentWidget(currentConsole);
+}
+
+
+void GlobalThreadFramesContainer::notifyFontChanged()
+{
+	for (auto it = m_consoleMap.begin(); it != m_consoleMap.end(); it++)
+	{
+		if (it.value())
+			it.value()->updateFonts();
+	}
 }

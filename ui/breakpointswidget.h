@@ -103,6 +103,7 @@ public:
 	DebugBreakpointsItemDelegate(QWidget* parent);
 	void updateFonts();
 	void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& idx) const;
+	QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
 };
 
 
@@ -139,6 +140,7 @@ public:
 	~DebugBreakpointsWidget();
 
 	void uiEventHandler(const DebuggerEvent& event);
+	void updateFonts();
 
 private slots:
 	void jump();
@@ -152,36 +154,3 @@ public slots:
 
 
 class DebuggerUI;
-class BreakpointSideBarWidget : public SidebarWidget
-{
-	Q_OBJECT;
-
-	ViewFrame* m_view;
-
-	DebugBreakpointsWidget* m_breakpointsWidget;
-
-	DebuggerUI* m_ui;
-
-	virtual void notifyFontChanged() override;
-
-private slots:
-	void uiEventHandler(const DebuggerEvent& event);
-
-public:
-	BreakpointSideBarWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
-	~BreakpointSideBarWidget();
-
-	void updateContent();
-};
-
-
-// class BreakpointWidgetType : public SidebarWidgetType {
-// public:
-//	BreakpointWidgetType(const QImage& icon, const QString& name) : SidebarWidgetType(icon, name) { }
-//
-//	bool isInReferenceArea() const override { return false; }
-//
-//	SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override {
-//		return new BreakpointSideBarWidget("Breakpoint", frame, data);
-//	}
-// };

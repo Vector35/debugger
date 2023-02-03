@@ -167,6 +167,7 @@ public:
 
 	void updateColumnWidths();
 	void notifyModulesChanged(std::vector<DebugModule> modules);
+	void updateFonts();
 
 private slots:
 	void jumpToStart();
@@ -191,7 +192,7 @@ class DebugModulesWithFilter : public QWidget
 
 public:
 	DebugModulesWithFilter(ViewFrame* view, BinaryViewRef data);
-	void updateContent();
+	void updateFonts();
 };
 
 
@@ -213,4 +214,5 @@ public:
 	GlobalDebugModulesContainer(const QString& title);
 
 	void notifyViewChanged(ViewFrame*) override;
+	void notifyFontChanged() override;
 };

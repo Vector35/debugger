@@ -65,7 +65,8 @@ DebuggerWidget::~DebuggerWidget() {}
 
 void DebuggerWidget::notifyFontChanged()
 {
-	LogWarn("font changed");
+	m_registersWidget->updateFonts();
+	m_breakpointsWidget->updateFonts();
 }
 
 

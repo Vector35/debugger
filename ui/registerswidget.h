@@ -185,6 +185,7 @@ class DebugRegistersWidget : public QWidget, public FilterTarget
 public:
 	DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, Menu* menu);
 	void notifyRegistersChanged(std::vector<DebugRegister> regs);
+	void updateFonts();
 
 private slots:
 	void setToZero();
@@ -212,4 +213,5 @@ class DebugRegistersContainer : public QWidget
 public:
 	DebugRegistersContainer(ViewFrame* view, BinaryViewRef data, Menu* menu);
 	void updateContent();
+	void updateFonts();
 };

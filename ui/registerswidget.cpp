@@ -523,6 +523,12 @@ void DebugRegistersWidget::updateContent()
 }
 
 
+void DebugRegistersWidget::updateFonts()
+{
+	m_delegate->updateFonts();
+}
+
+
 void DebugRegistersWidget::setToZero()
 {
 	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
@@ -724,6 +730,13 @@ void DebugRegistersContainer::updateContent()
 {
 	m_register->updateContent();
 }
+
+
+void DebugRegistersContainer::updateFonts()
+{
+	m_register->updateFonts();
+}
+
 
 // TODO: Group this with other settings key constants if more pop up.
 constexpr auto HideUnusedRegistersKey = "ui/debugger/registers/hideUnused";
