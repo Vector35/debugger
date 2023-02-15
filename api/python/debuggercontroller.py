@@ -453,10 +453,10 @@ class DebuggerEventWrapper:
     _debugger_events = {}
 
     @classmethod
-    def register(cls, controller: 'DebuggerController', callback: DebuggerEventCallback) -> int:
+    def register(cls, controller: 'DebuggerController', callback: DebuggerEventCallback, name: str) -> int:
         callback_obj = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(dbgcore.BNDebuggerEvent))\
                                         (lambda ctxt, event: cls._notify(event[0], callback))
-        handle = dbgcore.BNDebuggerRegisterEventCallback(controller.handle, callback_obj, None)
+        handle = dbgcore.BNDebuggerRegisterEventCallback(controller.handle, callback_obj, name, None)
         cls._debugger_events[handle] = callback_obj
         return handle
 
@@ -1240,16 +1240,17 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerGetExitCode(self.handle)
 
-    def register_event_callback(self, callback: DebuggerEventCallback) -> int:
+    def register_event_callback(self, callback: DebuggerEventCallback, name: str = '') -> int:
         """
         Register a debugger event callback to receive notification when various events happen.
 
         The callback receives DebuggerEvent object that contains the type of the event and associated data.
 
-        :param callback:
+        :param callback: the callback to register
+        :param name: name of the callback
         :return: an integer handle to the registered event callback
         """
-        return DebuggerEventWrapper.register(self, callback)
+        return DebuggerEventWrapper.register(self, callback, name)
 
     def remove_event_callback(self, index: int):
         """
