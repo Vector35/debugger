@@ -765,7 +765,8 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address,
 		// DbgEng does not take a full path. It can take "hello.exe", or simply "hello". E.g., "bp helloworld+0x1338"
 		auto fileName = std::filesystem::path(moduleToUse).stem();
 		std::string breakpointCommand =
-			fmt::format("bp {}+0x{:x}", EscapeModuleName(fileName.string()), address.offset);
+			fmt::format("bp @!\"{}\"+0x{:x}", EscapeModuleName(fileName.string()), address.offset);
+        LogDebug("Breakpoint command: %s", breakpointCommand.c_str());
 		auto ret = InvokeBackendCommand(breakpointCommand);
 	}
 	else
