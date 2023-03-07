@@ -1330,6 +1330,9 @@ class DebuggerController:
         handle = ctypes.cast(_value.handle, ctypes.POINTER(dbgcore.BNMetadata))
         return dbgcore.BNDebuggerSetAdapterProperty(self.handle, name, handle)
 
+    def get_addr_info(self, addr: int):
+        return dbgcore.BNDebuggerGetAddressInformation(self.handle, addr)
+
     def __del__(self):
         if dbgcore is not None:
             dbgcore.BNDebuggerFreeController(self.handle)

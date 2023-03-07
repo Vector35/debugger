@@ -95,32 +95,6 @@ bool DebuggerRegisters::SetRegisterValue(const std::string& name, uint64_t value
 }
 
 
-// TODO: we definitely need better string detection
-static std::string CheckForPrintableString(const DataBuffer& memory)
-{
-	std::string reg_string;
-	if (memory.GetLength() > 0)
-		reg_string = std::string((const char*)memory.GetData(), memory.GetLength());
-	else
-		return "";
-
-	size_t printableChars = 0;
-	for (size_t i = 0; i < reg_string.size(); i++)
-	{
-		int c = reg_string[i];
-		if (c == '\n' || std::isprint(c))
-			printableChars++;
-		else
-			break;
-	}
-
-	if (printableChars > 0)
-		return reg_string.substr(0, printableChars);
-	else
-		return "";
-}
-
-
 std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters()
 {
 	if (IsDirty())
@@ -139,32 +113,16 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters()
 	if (!controller->GetState()->IsConnected())
 		return result;
 
+	std::map<uint64_t, std::string> regHints;
 	for (auto& reg : result)
 	{
-		const DataBuffer memory = controller->ReadMemory(reg.m_value, 128);
-		std::string reg_string = CheckForPrintableString(memory);
-		if (reg_string.size() > 3)
-		{
-			reg.m_hint = fmt::format("\"{}\"", reg_string);
-		}
+		auto it = regHints.find(reg.m_value);
+		if (it != regHints.end())
+			reg.m_hint = it->second;
 		else
-		{
-			reg.m_hint = "";
-			DataBuffer buffer = controller->ReadMemory(reg.m_value, reg.m_width);
-			if (buffer.GetLength() > 0)
-			{
-				uint64_t pointerValue = *reinterpret_cast<std::uintptr_t*>(buffer.GetData());
-				if (pointerValue != 0)
-				{
-					const DataBuffer memory = controller->ReadMemory(pointerValue, 128);
-					std::string reg_string = CheckForPrintableString(memory);
-					if (reg_string.size() > 3)
-					{
-						reg.m_hint = fmt::format("&\"{}\"", reg_string);
-					}
-				}
-			}
-		}
+			it->second = controller->GetAddressInformation(reg.m_value);
+
+		reg.m_hint = it->second;
 	}
 
 	return result;

@@ -737,6 +737,15 @@ bool DebuggerController::ActivateDebugAdapter()
 }
 
 
+std::string DebuggerController::GetAddressInformation(uint64_t address)
+{
+	char* info = BNDebuggerGetAddressInformation(m_object, address);
+	std::string result = std::string(info);
+	BNDebuggerFreeString(info);
+	return result;
+}
+
+
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent &event)
 {
 	BNDebuggerEvent* evt = new BNDebuggerEvent;

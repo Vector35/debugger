@@ -929,6 +929,12 @@ bool BNDebuggerActivateDebugAdapter(BNDebuggerController* controller)
 }
 
 
+char* BNDebuggerGetAddressInformation(BNDebuggerController* controller, uint64_t address)
+{
+	return BNDebuggerAllocString(controller->object->GetAddressInformation(address).c_str());
+}
+
+
 void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event)
 {
 	DebuggerEvent evt;

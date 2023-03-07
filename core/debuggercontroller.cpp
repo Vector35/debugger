@@ -1773,3 +1773,212 @@ bool DebuggerController::ActivateDebugAdapter()
 {
 	return CreateDebugAdapter();
 }
+
+
+static inline bool IsPrintableChar(uint8_t c)
+{
+	return (c == '\r') || (c == '\n') || (c == '\t') || ((c >= 0x20) && (c <= 0x7e));
+}
+
+
+static std::string CheckForASCIIString(const DataBuffer& memory)
+{
+	std::string result;
+	size_t i = 0;
+	while (true)
+	{
+		if (i > memory.GetLength() - 1)
+			break;
+		if (IsPrintableChar(memory[i]))
+		{
+			result += memory[i];
+			i++;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	if (result.length() >= 4)
+		return result;
+	else
+		return "";
+}
+
+
+static std::string CheckForUTF16String(const DataBuffer& memory)
+{
+	std::string result;
+	size_t i = 0;
+	while (true)
+	{
+		if (i > memory.GetLength() - 2)
+			break;
+		if (IsPrintableChar(memory[i]) && (memory[i + 1] == 0))
+		{
+			result += memory[i];
+			i += 2;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	if (result.length() >= 4)
+		return result;
+	else
+		return "";
+}
+
+
+static std::string CheckForUTF32String(const DataBuffer& memory)
+{
+	std::string result;
+	size_t i = 0;
+	while (true)
+	{
+		if (i > memory.GetLength() - 4)
+			break;
+		if (IsPrintableChar(memory[i]) && (memory[i + 1] == 0) && (memory[i + 2] == 0) && (memory[i + 3] == 0))
+		{
+			result += memory[i];
+			i += 4;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	if (result.length() >= 4)
+		return result;
+	else
+		return "";
+}
+
+
+static std::string CheckForPrintableString(const DataBuffer& memory)
+{
+	std::string result;
+	result = CheckForASCIIString(memory);
+	if (!result.empty())
+		return result;
+
+	result = CheckForUTF16String(memory);
+	if (!result.empty())
+		return result;
+
+	result = CheckForUTF32String(memory);
+	if (!result.empty())
+		return result;
+
+	return "";
+}
+
+
+static std::string CheckForLiteralString(uint64_t address)
+{
+	bool ok = true;
+	bool zeroFound = false;
+	std::string result;
+	for (size_t i = 0; i < 8; i++)
+	{
+		uint8_t c = (address >> (8 * i)) & 0xff;
+		if (IsPrintableChar(c) && (!zeroFound))
+		{
+			result = std::string(1, c) + result;
+		}
+		else if (c == 0)
+		{
+			zeroFound = true;
+		}
+		else if (c != 0)
+		{
+			ok = false;
+			break;
+		}
+	}
+
+	if (ok)
+		return result;
+
+	return "";
+}
+
+
+std::string DebuggerController::GetAddressInformation(uint64_t address)
+{
+	const DataBuffer memory = ReadMemory(address, 128);
+	auto result = CheckForPrintableString(memory);
+	// If we can find a string at the address, return it
+	if (!result.empty())
+		return fmt::format("\"{}\"", BinaryNinja::EscapeString(result));
+
+	// Check pointer to strings
+	auto buffer = m_liveView->ReadBuffer(address, m_liveView->GetAddressSize());
+	if (buffer.GetLength() == m_liveView->GetAddressSize())
+	{
+		uint64_t pointerValue = *reinterpret_cast<std::uintptr_t*>(buffer.GetData());
+		if (pointerValue != 0)
+		{
+			const DataBuffer pointerMemory = ReadMemory(pointerValue, 128);
+			result = CheckForPrintableString(pointerMemory);
+			if (!result.empty())
+				return fmt::format("&\"{}\"", BinaryNinja::EscapeString(result));
+		}
+	}
+
+
+	// Look for functions starting at the address
+	auto func = m_liveView->GetAnalysisFunction(m_liveView->GetDefaultPlatform(), address);
+	if (func)
+	{
+		auto sym = func->GetSymbol();
+		if (sym)
+			return sym->GetShortName();
+	}
+
+	// Look for functions containing the address
+	for (const auto& func: m_liveView->GetAnalysisFunctionsContainingAddress(address))
+	{
+		auto sym = func->GetSymbol();
+		if (sym)
+		{
+			return fmt::format("{} + 0x{:x}", sym->GetShortName(), address - func->GetStart());
+		}
+	}
+
+	// Look for symbols
+	auto sym = m_liveView->GetSymbolByAddress(address);
+	if (sym)
+	{
+		return sym->GetShortName();
+	}
+
+	//	Look for data variables
+	DataVariable var;
+	if (m_liveView->GetDataVariableAtAddress(address, var))
+	{
+		sym = m_liveView->GetSymbolByAddress(var.address);
+		if (sym)
+		{
+			return fmt::format("{} + 0x{:x}", sym->GetShortName(), address - var.address);
+		}
+		else
+		{
+			result = fmt::format("data_{:x}", var.address);
+			if (address != var.address)
+				result += fmt::format(" + 0x{:x}", address - var.address);
+			return result;
+		}
+	}
+
+	// Check if the address itself is a printable string, e.g., 0x61626364 ==> "abcd"
+	result = CheckForLiteralString(address);
+	if (!result.empty())
+		return result;
+
+	return "";
+}

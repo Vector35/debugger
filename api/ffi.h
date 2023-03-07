@@ -433,6 +433,8 @@ extern "C"
 
 	DEBUGGER_FFI_API bool BNDebuggerActivateDebugAdapter(BNDebuggerController* controller);
 
+	DEBUGGER_FFI_API char* BNDebuggerGetAddressInformation(BNDebuggerController* controller, uint64_t address);
+
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 
 	// DebugAdapterType

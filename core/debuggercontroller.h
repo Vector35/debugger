@@ -254,5 +254,8 @@ namespace BinaryNinjaDebugger {
 		bool SetAdapterProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value);
 
 		bool ActivateDebugAdapter();
+
+		// Dereference an address and check for printable strings, functions, symbols, etc
+		std::string GetAddressInformation(uint64_t address);
 	};
 };  // namespace BinaryNinjaDebugger
