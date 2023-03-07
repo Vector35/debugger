@@ -395,6 +395,7 @@ static void updateColumnWidths(QTableView* table)
 {
 	table->resizeColumnToContents(DebugRegistersListModel::NameColumn);
 	table->resizeColumnToContents(DebugRegistersListModel::ValueColumn);
+	table->resizeColumnToContents(DebugRegistersListModel::HintColumn);
 }
 
 
