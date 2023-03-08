@@ -170,6 +170,9 @@ class DebugRegistersWidget : public QTableView, public FilterTarget
 	ContextMenuManager* m_contextMenuManager;
 	Menu* m_menu;
 
+	QTimer* m_hoverTimer;
+	QPointF m_previewPos;
+
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
 	bool selectionNotEmpty();
@@ -183,6 +186,8 @@ class DebugRegistersWidget : public QTableView, public FilterTarget
 
 	void updateColumnWidths();
 
+	void startHoverTimer(QMouseEvent* event);
+
 public:
 	DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, Menu* menu);
 	void notifyRegistersChanged(std::vector<DebugRegister> regs);
@@ -195,6 +200,7 @@ private slots:
 	void paste();
 	void editValue();
 	void onDoubleClicked();
+	void hoverTimerEvent();
 
 public slots:
 	void updateContent();
@@ -202,6 +208,7 @@ public slots:
 
 protected:
 	virtual void mousePressEvent(QMouseEvent* event) override;
+	virtual void mouseMoveEvent(QMouseEvent* event) override;
 };
 
 

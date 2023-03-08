@@ -22,6 +22,7 @@ limitations under the License.
 #include <QMimeData>
 #include <QClipboard>
 #include "pane.h"
+#include "util.h"
 #include "clickablelabel.h"
 #include "registerswidget.h"
 
@@ -484,6 +485,12 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	}));
 	m_actionHandler.setChecked(actionName, [this]() { return m_filter->getHideUnusedRegisters(); });
 
+	setMouseTracking(true);
+	// Create a timer for handling hover previews
+	m_hoverTimer = new QTimer(this);
+	m_hoverTimer->setSingleShot(true);
+	connect(m_hoverTimer, &QTimer::timeout, this, &DebugRegistersWidget::hoverTimerEvent);
+
 	connect(this, &QTableView::doubleClicked, this, &DebugRegistersWidget::onDoubleClicked);
 
 	updateContent();
@@ -661,6 +668,8 @@ void DebugRegistersWidget::onDoubleClicked()
 
 void DebugRegistersWidget::mousePressEvent(QMouseEvent *event)
 {
+	startHoverTimer(event);
+
 	if (event->button() == Qt::MiddleButton)
 	{
 		auto index = indexAt(event->pos());
@@ -701,6 +710,68 @@ void DebugRegistersWidget::mousePressEvent(QMouseEvent *event)
 	else
 	{
 		QTableView::mousePressEvent(event);
+	}
+}
+
+
+void DebugRegistersWidget::mouseMoveEvent(QMouseEvent *event)
+{
+	startHoverTimer(event);
+	QTableView::mouseMoveEvent(event);
+}
+
+
+void DebugRegistersWidget::hoverTimerEvent()
+{
+	if (!underMouse())
+		return;
+	if (Settings::Instance()->Get<bool>("ui.manualTooltip") && ! (QGuiApplication::queryKeyboardModifiers() & UIAction::rawControl() ))
+		return;
+	if (m_contextMenuManager->isActive())
+		return;
+
+	auto index = indexAt(m_previewPos.toPoint());
+	if (!index.isValid())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(index);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto reg = m_model->getRow(sourceIndex.row());
+	uint64_t addr = reg.value();
+
+	auto liveView = m_controller->GetLiveView();
+	if (!liveView)
+		return;
+
+	ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+	if (!frame)
+		return;
+
+	View* view = frame->getCurrentViewInterface();
+	if (!view)
+		return;
+
+	auto funcs = liveView->GetAnalysisFunctionsContainingAddress(addr);
+	if (!funcs.empty())
+	{
+		if (showDisassemblyPreview(this, frame, mapToGlobal(m_previewPos.toPoint()), liveView, funcs[0],
+								   ViewLocation(funcs[0], addr, view->getILViewType(), BN_INVALID_EXPR)))
+			return;
+	}
+
+	showHexPreview(this, frame, mapToGlobal(m_previewPos.toPoint()), liveView, addr);
+}
+
+
+void DebugRegistersWidget::startHoverTimer(QMouseEvent* event)
+{
+	if (!(event->modifiers() & Qt::AltModifier))
+	{
+		UIContext::closePreview();
+		m_previewPos = event->pos();
+		m_hoverTimer->start(PREVIEW_HOVER_TIME);
 	}
 }
 
