@@ -133,14 +133,13 @@ public:
 };
 
 
-class DebugModulesWidget : public QWidget, public FilterTarget
+class DebugModulesWidget : public QTableView, public FilterTarget
 {
 	Q_OBJECT
 
 	ViewFrame* m_view;
 	DbgRef<DebuggerController> m_controller;
 
-	QTableView* m_table;
 	DebugModulesListModel* m_model;
 	DebugModulesItemDelegate* m_delegate;
 	DebugModulesFilterProxyModel* m_filter;

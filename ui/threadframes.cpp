@@ -386,7 +386,7 @@ void ThreadFramesWidget::contextMenuEvent(QContextMenuEvent* event)
 
 void ThreadFramesWidget::makeItSoloThread()
 {
-	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 
@@ -419,7 +419,7 @@ void ThreadFramesWidget::updateFonts()
 
 void ThreadFramesWidget::resumeThread()
 {
-	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 
@@ -437,7 +437,7 @@ void ThreadFramesWidget::resumeThread()
 
 void ThreadFramesWidget::suspendThread()
 {
-	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 
@@ -454,7 +454,7 @@ void ThreadFramesWidget::suspendThread()
 
 bool ThreadFramesWidget::selectionNotEmpty()
 {
-	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	return (!sel.empty()) && sel[0].isValid();
 }
 
@@ -464,7 +464,7 @@ bool ThreadFramesWidget::canSuspendOrResume()
 	if (!m_debugger->IsConnected() || m_debugger->IsRunning())
 		return false;
 
-	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty() || !sel[0].isValid())
 		return false;
 
@@ -481,7 +481,7 @@ bool ThreadFramesWidget::canSuspendOrResume()
 
 void ThreadFramesWidget::copy()
 {
-	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty() || !sel[0].isValid())
 		return;
 
@@ -536,32 +536,23 @@ void ThreadFramesWidget::copy()
 
 
 ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data) :
-	QWidget(parent), m_view(frame)
+	QTreeView(parent), m_view(frame)
 {
 	m_debugger = DebuggerController::GetController(data);
 	if (!m_debugger)
 		return;
 
-	QVBoxLayout* layout = new QVBoxLayout(this);
-	layout->setContentsMargins(0, 0, 0, 0);
-	layout->setSpacing(0);
-	setFont(getMonospaceFont(this));
+	setExpandsOnDoubleClick(false);
+	setSelectionBehavior(QAbstractItemView::SelectItems);
+	setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+	setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+	header()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
-	m_threadFramesTree = new QTreeView(this);
-	m_threadFramesTree->setExpandsOnDoubleClick(false);
-	m_threadFramesTree->setSelectionBehavior(QAbstractItemView::SelectItems);
-	m_threadFramesTree->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-	m_threadFramesTree->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-	m_threadFramesTree->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
-
-	m_model = new ThreadFrameModel(m_threadFramesTree, m_debugger);
-	m_threadFramesTree->setModel(m_model);
+	m_model = new ThreadFrameModel(this, m_debugger);
+	setModel(m_model);
 
 	m_delegate = new ThreadFramesItemDelegate(this, m_debugger);
-	m_threadFramesTree->setItemDelegate(m_delegate);
-
-	layout->addWidget(m_threadFramesTree);
-	setLayout(layout);
+	setItemDelegate(m_delegate);
 
 	// Set up colors
 	QPalette widgetPalette = this->palette();
@@ -590,7 +581,7 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return selectionNotEmpty(); }));
 	m_actionHandler.setActionDisplayName("Copy", [&]() {
-		QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+		QModelIndexList sel = selectionModel()->selectedIndexes();
 		if (sel.empty())
 			return "Copy";
 
@@ -619,7 +610,7 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 
 	// TODO: set as active thread action?
 
-	connect(m_threadFramesTree, &QTreeView::doubleClicked, this, &ThreadFramesWidget::onDoubleClicked);
+	connect(this, &QTreeView::doubleClicked, this, &ThreadFramesWidget::onDoubleClicked);
 
 	m_debuggerEventCallback = m_debugger->RegisterEventCallback(
 		[&](const DebuggerEvent& event) {
@@ -663,7 +654,7 @@ void ThreadFramesWidget::expandCurrentThread()
 
 		if (m_debugger->GetActiveThread().m_tid == item->tid())
 		{
-			m_threadFramesTree->expand(index);
+			expand(index);
 			return;
 		}
 	}
@@ -682,7 +673,7 @@ void ThreadFramesWidget::updateContent()
 
 void ThreadFramesWidget::onDoubleClicked()
 {
-	QModelIndexList sel = m_threadFramesTree->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 

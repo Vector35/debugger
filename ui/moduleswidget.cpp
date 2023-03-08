@@ -265,41 +265,34 @@ QSize DebugModulesItemDelegate::sizeHint(const QStyleOptionViewItem& option, con
 }
 
 
-DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : m_view(view)
+DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : QTableView(view), m_view(view)
 {
 	m_controller = DebuggerController::GetController(data);
 	if (!m_controller)
 		return;
 
-	m_table = new QTableView(this);
-	m_model = new DebugModulesListModel(m_table, view);
+	m_model = new DebugModulesListModel(this, view);
 	m_filter = new DebugModulesFilterProxyModel(this);
 	m_filter->setSourceModel(m_model);
-	m_table->setModel(m_filter);
-	m_table->setShowGrid(false);
+	setModel(m_filter);
+	setShowGrid(false);
 
 	m_delegate = new DebugModulesItemDelegate(this);
-	m_table->setItemDelegate(m_delegate);
+	setItemDelegate(m_delegate);
 
-	m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
+	setSelectionBehavior(QAbstractItemView::SelectItems);
 
-	m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-	m_table->verticalHeader()->setVisible(false);
+	verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+	verticalHeader()->setVisible(false);
 
-	m_table->horizontalHeader()->setStretchLastSection(true);
-	m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+	horizontalHeader()->setStretchLastSection(true);
+	horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
-	m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-	m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+	setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+	setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
-	m_table->resizeColumnsToContents();
-	m_table->resizeRowsToContents();
-
-	QVBoxLayout* layout = new QVBoxLayout;
-	layout->setContentsMargins(0, 0, 0, 0);
-	layout->setSpacing(0);
-	layout->addWidget(m_table);
-	setLayout(layout);
+	resizeColumnsToContents();
+	resizeRowsToContents();
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
@@ -318,7 +311,7 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : m_
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return canCopy(); }));
 	m_actionHandler.setActionDisplayName("Copy", [&]() {
-		QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+		QModelIndexList sel = selectionModel()->selectedIndexes();
 		if (sel.empty())
 			return "Copy";
 
@@ -339,7 +332,7 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : m_
 		}
 	});
 
-	connect(m_table, &QTableView::doubleClicked, this, &DebugModulesWidget::onDoubleClicked);
+	connect(this, &QTableView::doubleClicked, this, &DebugModulesWidget::onDoubleClicked);
 
 	m_debuggerEventCallback = m_controller->RegisterEventCallback(
 		[&](const DebuggerEvent& event) {
@@ -372,11 +365,11 @@ DebugModulesWidget::~DebugModulesWidget()
 
 void DebugModulesWidget::updateColumnWidths()
 {
-	m_table->resizeColumnToContents(DebugModulesListModel::AddressColumn);
-	m_table->resizeColumnToContents(DebugModulesListModel::EndAddressColumn);
-	m_table->resizeColumnToContents(DebugModulesListModel::SizeColumn);
-	m_table->resizeColumnToContents(DebugModulesListModel::NameColumn);
-	m_table->resizeColumnToContents(DebugModulesListModel::PathColumn);
+	resizeColumnToContents(DebugModulesListModel::AddressColumn);
+	resizeColumnToContents(DebugModulesListModel::EndAddressColumn);
+	resizeColumnToContents(DebugModulesListModel::SizeColumn);
+	resizeColumnToContents(DebugModulesListModel::NameColumn);
+	resizeColumnToContents(DebugModulesListModel::PathColumn);
 }
 
 
@@ -411,7 +404,7 @@ void DebugModulesWidget::showContextMenu()
 
 void DebugModulesWidget::jumpToStart()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 
@@ -439,7 +432,7 @@ void DebugModulesWidget::jumpToStart()
 
 void DebugModulesWidget::jumpToEnd()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 
@@ -467,14 +460,14 @@ void DebugModulesWidget::jumpToEnd()
 
 bool DebugModulesWidget::canCopy()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	return !sel.empty();
 }
 
 
 void DebugModulesWidget::copy()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 
@@ -516,7 +509,7 @@ void DebugModulesWidget::copy()
 
 void DebugModulesWidget::onDoubleClicked()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 

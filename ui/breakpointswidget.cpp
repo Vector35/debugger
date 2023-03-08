@@ -226,37 +226,31 @@ QSize DebugBreakpointsItemDelegate::sizeHint(const QStyleOptionViewItem& option,
 }
 
 
-DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu) : m_view(view)
+DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu):
+	QTableView(view), m_view(view)
 {
 	m_controller = DebuggerController::GetController(data);
 
-	m_table = new QTableView(this);
-	m_model = new DebugBreakpointsListModel(m_table, view);
-	m_table->setModel(m_model);
-	m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
-	m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+	m_model = new DebugBreakpointsListModel(this, view);
+	setModel(m_model);
+	setSelectionBehavior(QAbstractItemView::SelectItems);
+	setSelectionMode(QAbstractItemView::ExtendedSelection);
 
 	m_delegate = new DebugBreakpointsItemDelegate(this);
-	m_table->setItemDelegate(m_delegate);
+	setItemDelegate(m_delegate);
 
-	m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
-	m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+	setSelectionBehavior(QAbstractItemView::SelectRows);
+	setSelectionMode(QAbstractItemView::ExtendedSelection);
 
-	m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-	m_table->verticalHeader()->setVisible(false);
+	verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+	verticalHeader()->setVisible(false);
 
-	m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-	m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+	setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+	setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
-	m_table->resizeColumnsToContents();
-	m_table->resizeRowsToContents();
-	m_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-
-	QVBoxLayout* layout = new QVBoxLayout;
-	layout->setContentsMargins(0, 0, 0, 0);
-	layout->setSpacing(0);
-	layout->addWidget(m_table);
-	setLayout(layout);
+	resizeColumnsToContents();
+	resizeRowsToContents();
+	horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
@@ -282,7 +276,7 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 	m_actionHandler.bindAction(
 		addBreakpointActionName, UIAction([&]() { add(); }));
 
-	connect(m_table, &QTableView::doubleClicked, this, &DebugBreakpointsWidget::onDoubleClicked);
+	connect(this, &QTableView::doubleClicked, this, &DebugBreakpointsWidget::onDoubleClicked);
 
 	updateContent();
 }
@@ -311,14 +305,14 @@ void DebugBreakpointsWidget::contextMenuEvent(QContextMenuEvent* event)
 
 bool DebugBreakpointsWidget::selectionNotEmpty()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	return (!sel.empty()) && sel[0].isValid();
 }
 
 
 void DebugBreakpointsWidget::jump()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedRows();
+	QModelIndexList sel = selectionModel()->selectedRows();
 	if (sel.empty())
 		return;
 
@@ -378,7 +372,7 @@ void DebugBreakpointsWidget::add()
 
 void DebugBreakpointsWidget::remove()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedRows();
+	QModelIndexList sel = selectionModel()->selectedRows();
 	std::vector<ModuleNameAndOffset> breakpointsToRemove;
 
 	for (const QModelIndex& index : sel)

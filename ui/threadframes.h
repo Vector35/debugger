@@ -146,14 +146,13 @@ public:
 	QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
 };
 
-class ThreadFramesWidget : public QWidget
+class ThreadFramesWidget : public QTreeView
 {
 	Q_OBJECT
 
 	ViewFrame* m_view;
 	DbgRef<DebuggerController> m_debugger;
 
-	QTreeView* m_threadFramesTree;
 	ThreadFrameModel* m_model;
 	ThreadFramesItemDelegate* m_delegate;
 

@@ -399,7 +399,8 @@ void DebugRegistersWidget::updateColumnWidths()
 }
 
 
-DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, Menu* menu) : m_view(view)
+DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, Menu* menu) :
+	QTableView(view), m_view(view)
 {
 	m_controller = DebuggerController::GetController(data);
 

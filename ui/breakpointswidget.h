@@ -107,14 +107,13 @@ public:
 };
 
 
-class DebugBreakpointsWidget : public QWidget
+class DebugBreakpointsWidget : public QTableView
 {
 	Q_OBJECT
 
 	ViewFrame* m_view;
 	DbgRef<DebuggerController> m_controller;
 
-	QTableView* m_table;
 	DebugBreakpointsListModel* m_model;
 	DebugBreakpointsItemDelegate* m_delegate;
 
