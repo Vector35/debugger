@@ -446,7 +446,7 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	m_actionHandler.bindAction(actionName, UIAction([=]() { setToZero(); }, [&]() { return selectionNotEmpty(); }));
 
 	actionName = QString::fromStdString("Edit Value");
-	UIAction::registerAction(actionName, QKeySequence(Qt::Key_Enter));
+	UIAction::registerAction(actionName, QKeySequence(Qt::Key_E));
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(actionName, UIAction([=]() { editValue(); }, [&]() { return selectionNotEmpty(); }));
 
