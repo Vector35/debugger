@@ -1864,15 +1864,15 @@ static std::string CheckForPrintableString(const DataBuffer& memory)
 	std::string result;
 	result = CheckForASCIIString(memory);
 	if (!result.empty())
-		return result;
+		return fmt::format("\"{}\"", BinaryNinja::EscapeString(result));
 
 	result = CheckForUTF16String(memory);
 	if (!result.empty())
-		return result;
+		return fmt::format("L\"{}\"", BinaryNinja::EscapeString(result));;
 
 	result = CheckForUTF32String(memory);
 	if (!result.empty())
-		return result;
+		return fmt::format("L\"{}\"", BinaryNinja::EscapeString(result));;
 
 	return "";
 }
@@ -1918,7 +1918,7 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 	auto result = CheckForPrintableString(memory);
 	// If we can find a string at the address, return it
 	if (!result.empty())
-		return fmt::format("\"{}\"", BinaryNinja::EscapeString(result));
+		return result;
 
 	// Check pointer to strings
 	auto buffer = m_liveView->ReadBuffer(address, m_liveView->GetAddressSize());
@@ -1930,7 +1930,7 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 			const DataBuffer pointerMemory = ReadMemory(pointerValue, 128);
 			result = CheckForPrintableString(pointerMemory);
 			if (!result.empty())
-				return fmt::format("&\"{}\"", BinaryNinja::EscapeString(result));
+				return std::string("&") + result;
 		}
 	}
 
