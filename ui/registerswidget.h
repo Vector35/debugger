@@ -155,14 +155,13 @@ public:
 };
 
 
-class DebugRegistersWidget : public QWidget, public FilterTarget
+class DebugRegistersWidget : public QTableView, public FilterTarget
 {
 	Q_OBJECT;
 
 	ViewFrame* m_view;
 	DbgRef<DebuggerController> m_controller;
 
-	QTableView* m_table;
 	DebugRegistersListModel* m_model;
 	DebugRegistersItemDelegate* m_delegate;
 	DebugRegisterFilterProxyModel* m_filter;
@@ -181,6 +180,8 @@ class DebugRegistersWidget : public QWidget, public FilterTarget
 	virtual void scrollToCurrentItem() override;
 	virtual void selectFirstItem() override;
 	virtual void activateFirstItem() override;
+
+	void updateColumnWidths();
 
 public:
 	DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, Menu* menu);

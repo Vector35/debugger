@@ -391,11 +391,11 @@ void DebugRegistersItemDelegate::setEditorData(QWidget* editor, const QModelInde
 }
 
 
-static void updateColumnWidths(QTableView* table)
+void DebugRegistersWidget::updateColumnWidths()
 {
-	table->resizeColumnToContents(DebugRegistersListModel::NameColumn);
-	table->resizeColumnToContents(DebugRegistersListModel::ValueColumn);
-	table->resizeColumnToContents(DebugRegistersListModel::HintColumn);
+	resizeColumnToContents(DebugRegistersListModel::NameColumn);
+	resizeColumnToContents(DebugRegistersListModel::ValueColumn);
+	resizeColumnToContents(DebugRegistersListModel::HintColumn);
 }
 
 
@@ -403,36 +403,29 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 {
 	m_controller = DebuggerController::GetController(data);
 
-	m_table = new QTableView(this);
-	m_model = new DebugRegistersListModel(m_table, m_controller, view);
+	m_model = new DebugRegistersListModel(this, m_controller, view);
 	m_filter = new DebugRegisterFilterProxyModel(this);
 	m_filter->setSourceModel(m_model);
-	m_table->setModel(m_filter);
-	m_table->setEditTriggers(QAbstractItemView::EditKeyPressed);
-	m_table->setShowGrid(false);
+	setModel(m_filter);
+	setEditTriggers(QAbstractItemView::EditKeyPressed);
+	setShowGrid(false);
 
 	m_delegate = new DebugRegistersItemDelegate(this);
-	m_table->setItemDelegate(m_delegate);
+	setItemDelegate(m_delegate);
 
-	m_table->setSelectionBehavior(QAbstractItemView::SelectItems);
-	m_table->setSelectionMode(QAbstractItemView::SingleSelection);
+	setSelectionBehavior(QAbstractItemView::SelectItems);
+	setSelectionMode(QAbstractItemView::SingleSelection);
 
-	m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-	m_table->verticalHeader()->setVisible(false);
+	verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+	verticalHeader()->setVisible(false);
 
-	m_table->horizontalHeader()->setStretchLastSection(true);
-	m_table->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-	m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-	m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+	horizontalHeader()->setStretchLastSection(true);
+	setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+	setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+	setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
-	m_table->resizeColumnsToContents();
-	m_table->resizeRowsToContents();
-
-	QVBoxLayout* layout = new QVBoxLayout;
-	layout->setContentsMargins(0, 0, 0, 0);
-	layout->setSpacing(0);
-	layout->addWidget(m_table);
-	setLayout(layout);
+	resizeColumnsToContents();
+	resizeRowsToContents();
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
@@ -458,7 +451,7 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return selectionNotEmpty(); }));
 	m_actionHandler.setActionDisplayName("Copy", [&]() {
-		QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+		QModelIndexList sel = selectionModel()->selectedIndexes();
 		if (sel.empty())
 			return "Copy";
 
@@ -485,11 +478,11 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	m_menu->setGroupOrdering("Display", MENU_ORDER_LAST);
 	m_actionHandler.bindAction(actionName, UIAction([=]() {
 		m_filter->toggleHideUnusedRegisters();
-		updateColumnWidths(m_table);
+		updateColumnWidths();
 	}));
 	m_actionHandler.setChecked(actionName, [this]() { return m_filter->getHideUnusedRegisters(); });
 
-	connect(m_table, &QTableView::doubleClicked, this, &DebugRegistersWidget::onDoubleClicked);
+	connect(this, &QTableView::doubleClicked, this, &DebugRegistersWidget::onDoubleClicked);
 
 	updateContent();
 }
@@ -498,7 +491,7 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 void DebugRegistersWidget::notifyRegistersChanged(std::vector<DebugRegister> regs)
 {
 	m_model->updateRows(regs);
-	updateColumnWidths(m_table);
+	updateColumnWidths();
 }
 
 
@@ -532,7 +525,7 @@ void DebugRegistersWidget::updateFonts()
 
 void DebugRegistersWidget::setToZero()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 
@@ -547,7 +540,7 @@ void DebugRegistersWidget::setToZero()
 
 void DebugRegistersWidget::jump()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 
@@ -575,7 +568,7 @@ void DebugRegistersWidget::jump()
 
 void DebugRegistersWidget::copy()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 
@@ -611,7 +604,7 @@ void DebugRegistersWidget::copy()
 
 void DebugRegistersWidget::paste()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 
@@ -643,14 +636,14 @@ void DebugRegistersWidget::paste()
 
 bool DebugRegistersWidget::selectionNotEmpty()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	return (!sel.empty()) && sel[0].isValid();
 }
 
 
 bool DebugRegistersWidget::canPaste()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return false;
 
@@ -666,7 +659,7 @@ void DebugRegistersWidget::onDoubleClicked()
 
 void DebugRegistersWidget::editValue()
 {
-	QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
 		return;
 
@@ -677,14 +670,14 @@ void DebugRegistersWidget::editValue()
 	if (!cell.isValid())
 		return;
 
-	m_table->edit(cell);
+	edit(cell);
 }
 
 
 void DebugRegistersWidget::setFilter(const string& filter)
 {
 	m_filter->setFilterRegularExpression(QString::fromStdString(filter));
-	updateColumnWidths(m_table);
+	updateColumnWidths();
 }
 
 
