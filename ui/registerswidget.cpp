@@ -21,6 +21,7 @@ limitations under the License.
 #include <QGuiApplication>
 #include <QMimeData>
 #include <QClipboard>
+#include "pane.h"
 #include "clickablelabel.h"
 #include "registerswidget.h"
 
@@ -662,26 +663,40 @@ void DebugRegistersWidget::mousePressEvent(QMouseEvent *event)
 {
 	if (event->button() == Qt::MiddleButton)
 	{
-		QModelIndexList sel = selectionModel()->selectedIndexes();
-		if (sel.empty())
+		auto index = indexAt(event->pos());
+		if (!index.isValid())
 			return;
 
-		auto sourceIndex = m_filter->mapToSource(sel[0]);
+		auto sourceIndex = m_filter->mapToSource(index);
 		if (!sourceIndex.isValid())
 			return;
 
 		auto reg = m_model->getRow(sourceIndex.row());
 		uint64_t value = reg.value();
 
-		UIContext* context = UIContext::contextForWidget(this);
-		if (!context)
-			return;
+		ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+		auto* currentWindow = UIContext::contextForWidget(m_view);
+		if (frame && currentWindow)
+		{
+			auto* splitPaneWidget = qobject_cast<SplitPaneWidget*>(currentWindow->getCurrentTab());
+			if (!splitPaneWidget)
+				return;
 
-		View* view = context->getCurrentView();
-		if (!view)
-			return;
+			Qt::Orientation defaultSplitDirection = splitPaneWidget->defaultSplitDirection();
+			splitPaneWidget->splitCurrentPane(defaultSplitDirection);
 
-		view->navigateOnOtherPane(value);
+			ViewPane* newPane = splitPaneWidget->currentViewPane();
+
+			if (!newPane)
+				return;
+
+			ViewFrame* newViewFrame = newPane->viewFrame();
+			if (newViewFrame)
+			{
+				newViewFrame->disableSync();
+				newViewFrame->navigate(m_controller->GetLiveView(), value);
+			}
+		}
 	}
 	else
 	{
