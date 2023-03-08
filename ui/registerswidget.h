@@ -199,6 +199,9 @@ private slots:
 public slots:
 	void updateContent();
 	void showContextMenu();
+
+protected:
+	virtual void mousePressEvent(QMouseEvent* event) override;
 };
 
 

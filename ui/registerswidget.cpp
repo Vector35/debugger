@@ -657,6 +657,38 @@ void DebugRegistersWidget::onDoubleClicked()
 }
 
 
+void DebugRegistersWidget::mousePressEvent(QMouseEvent *event)
+{
+	if (event->button() == Qt::MiddleButton)
+	{
+		QModelIndexList sel = selectionModel()->selectedIndexes();
+		if (sel.empty())
+			return;
+
+		auto sourceIndex = m_filter->mapToSource(sel[0]);
+		if (!sourceIndex.isValid())
+			return;
+
+		auto reg = m_model->getRow(sourceIndex.row());
+		uint64_t value = reg.value();
+
+		UIContext* context = UIContext::contextForWidget(this);
+		if (!context)
+			return;
+
+		View* view = context->getCurrentView();
+		if (!view)
+			return;
+
+		view->navigateOnOtherPane(value);
+	}
+	else
+	{
+		QTableView::mousePressEvent(event);
+	}
+}
+
+
 void DebugRegistersWidget::editValue()
 {
 	QModelIndexList sel = selectionModel()->selectedIndexes();
