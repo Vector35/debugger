@@ -118,11 +118,15 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters()
 	{
 		auto it = regHints.find(reg.m_value);
 		if (it != regHints.end())
-			reg.m_hint = it->second;
+        {
+            reg.m_hint = it->second;
+        }
 		else
-			it->second = controller->GetAddressInformation(reg.m_value);
-
-		reg.m_hint = it->second;
+        {
+            const std::string hint = controller->GetAddressInformation(reg.m_value);
+            regHints[reg.m_value] = hint;
+            reg.m_hint = hint;
+        }
 	}
 
 	return result;
