@@ -155,8 +155,8 @@ namespace BinaryNinjaDebugger {
 		bool ConnectToDebugServer(const std::string& server, std::uint32_t port) override;
 		bool DisconnectDebugServer() override;
 
-		void Detach() override;
-		void Quit() override;
+		bool Detach() override;
+		bool Quit() override;
 
 		bool Wait(std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
@@ -198,13 +198,13 @@ namespace BinaryNinjaDebugger {
 		uint64_t ExitCode() override;
 
 		bool BreakInto() override;
-		DebugStopReason Go() override;
-		DebugStopReason StepInto() override;
-		DebugStopReason StepOver() override;
-		DebugStopReason StepReturn() override;
+		bool Go() override;
+		bool StepInto() override;
+		bool StepOver() override;
+		bool StepReturn() override;
 
 		std::string InvokeBackendCommand(const std::string& command) override;
-		std::uintptr_t GetInstructionOffset() override;
+		uint64_t GetInstructionOffset() override;
 		uint64_t GetStackPointer() override;
 
 		bool SupportFeature(DebugAdapterCapacity feature) override;

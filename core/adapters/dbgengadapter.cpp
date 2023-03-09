@@ -559,26 +559,32 @@ bool DbgEngAdapter::DisconnectDebugServer()
 	return ret == S_OK;
 }
 
-void DbgEngAdapter::Detach()
+bool DbgEngAdapter::Detach()
 {
 	m_aboutToBeKilled = true;
 	m_lastOperationIsStepInto = false;
-	if (this->m_debugClient)
-		this->m_debugClient->DetachProcesses();
+	if (!this->m_debugClient)
+		return false;
+
+	if (this->m_debugClient->DetachProcesses() != S_OK)
+		return false;
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return true;
 }
 
-void DbgEngAdapter::Quit()
+bool DbgEngAdapter::Quit()
 {
 	m_aboutToBeKilled = true;
 	m_lastOperationIsStepInto = false;
-	if (this->m_debugClient)
-	{
-		HRESULT result = this->m_debugClient->TerminateProcesses();
-	}
+	if (!this->m_debugClient)
+		return false;
+
+	if (this->m_debugClient->TerminateProcesses() != S_OK)
+		return false;
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return true;
 }
 
 std::vector<DebugProcess> DbgEngAdapter::GetProcessList()
@@ -995,7 +1001,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 bool DbgEngAdapter::BreakInto()
 {
 	if (ExecStatus() == DEBUG_STATUS_BREAK)
-		return InvalidStatusOrOperation;
+		return false;
 
 	m_lastOperationIsStepInto = false;
 	//	After we call SetInterrupt(), the WaitForEvent() function will return due to a breakpoint exception
@@ -1005,54 +1011,54 @@ bool DbgEngAdapter::BreakInto()
 	return true;
 }
 
-DebugStopReason DbgEngAdapter::Go()
+bool DbgEngAdapter::Go()
 {
 	// TODO: we should have the debugger core to detect the failure and notify the user about it.
 	// Currently, LLDB directly notifies such errors, which needs to be changed in the future.
 	if (ExecStatus() != DEBUG_STATUS_BREAK)
-		return InvalidStatusOrOperation;
+		return false;
 
 	m_lastOperationIsStepInto = false;
 	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK)
-		return DebugStopReason::InternalError;
+		return false;
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
-	return UnknownReason;
+	return true;
 }
 
-DebugStopReason DbgEngAdapter::StepInto()
+bool DbgEngAdapter::StepInto()
 {
 	if (ExecStatus() != DEBUG_STATUS_BREAK)
 		return InvalidStatusOrOperation;
 
 	m_lastOperationIsStepInto = true;
 	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_INTO) != S_OK)
-		return DebugStopReason::InternalError;
+		return false;
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
-	return UnknownReason;
+	return true;
 }
 
-DebugStopReason DbgEngAdapter::StepOver()
+bool DbgEngAdapter::StepOver()
 {
 	if (ExecStatus() != DEBUG_STATUS_BREAK)
-		return InvalidStatusOrOperation;
+		return false;
 
 	m_lastOperationIsStepInto = false;
 	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_OVER) != S_OK)
-		return DebugStopReason::InternalError;
+		return false;
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
-	return UnknownReason;
+	return true;
 }
 
-DebugStopReason DbgEngAdapter::StepReturn()
+bool DbgEngAdapter::StepReturn()
 {
 	if (ExecStatus() != DEBUG_STATUS_BREAK)
-		return InvalidStatusOrOperation;
+		return false;
 
 	InvokeBackendCommand("gu");
-	return UnknownReason;
+	return true;
 }
 
 bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
@@ -1165,7 +1171,7 @@ std::string DbgEngAdapter::InvokeBackendCommand(const std::string& command)
 	return "";
 }
 
-std::uintptr_t DbgEngAdapter::GetInstructionOffset()
+uint64_t DbgEngAdapter::GetInstructionOffset()
 {
 	if (!m_debugRegisters)
 		return -1;
