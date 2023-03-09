@@ -365,19 +365,19 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 }
 
 
-void LldbAdapter::Detach()
+bool LldbAdapter::Detach()
 {
 	std::unique_lock<std::mutex> lock(m_quitingMutex);
-	// TODO: return if the operation succeeds
 	SBError error = m_process.Detach();
+	return error.Success();
 }
 
 
-void LldbAdapter::Quit()
+bool LldbAdapter::Quit()
 {
 	std::unique_lock<std::mutex> lock(m_quitingMutex);
-	// TODO: return if the operation succeeds
 	SBError error = m_process.Kill();
+	return error.Success();
 }
 
 
@@ -1075,7 +1075,7 @@ bool LldbAdapter::BreakInto()
 }
 
 
-DebugStopReason LldbAdapter::Go()
+bool LldbAdapter::Go()
 {
 	if (m_process.GetState() != lldb::eStateStopped)
 	{
@@ -1084,21 +1084,21 @@ DebugStopReason LldbAdapter::Go()
 		event.data.errorData.shortError = "Go failed";
 		event.data.errorData.error = fmt::format("LLDB: go failed, process state is not stopped");
 		PostDebuggerEvent(event);
-		return DebugStopReason::InternalError;
+		return false;
 	}
 
 #ifndef WIN32
 	SBError error = m_process.Continue();
 	if (!error.Success())
-		return DebugStopReason::InternalError;
+		return false;
 #else
 	InvokeBackendCommand("c");
 #endif
-	return StopReason();
+	return true;
 }
 
 
-DebugStopReason LldbAdapter::StepInto()
+bool LldbAdapter::StepInto()
 {
 	if (m_process.GetState() != lldb::eStateStopped)
 	{
@@ -1107,7 +1107,7 @@ DebugStopReason LldbAdapter::StepInto()
 		event.data.errorData.shortError = "step into failed";
 		event.data.errorData.error = fmt::format("LLDB: step into failed, process state is not stopped");
 		PostDebuggerEvent(event);
-		return DebugStopReason::InternalError;
+		return false;
 	}
 
 #ifndef WIN32
@@ -1119,7 +1119,7 @@ DebugStopReason LldbAdapter::StepInto()
 		event.data.errorData.shortError = "Step into failed";
 		event.data.errorData.error = fmt::format("LLDB: step into failed, invalid thread");
 		PostDebuggerEvent(event);
-		return DebugStopReason::InternalError;
+		return false;
 	}
 
 	SBError error;
@@ -1132,16 +1132,16 @@ DebugStopReason LldbAdapter::StepInto()
 		event.data.errorData.error =
 			fmt::format("LLDB: step into failed {}", error.GetCString() ? error.GetCString() : "");
 		PostDebuggerEvent(event);
-		return DebugStopReason::InternalError;
+		return false;
 	}
 #else
 	InvokeBackendCommand("si");
 #endif
-	return StopReason();
+	return true;
 }
 
 
-DebugStopReason LldbAdapter::StepOver()
+bool LldbAdapter::StepOver()
 {
 	if (m_process.GetState() != lldb::eStateStopped)
 	{
@@ -1150,7 +1150,7 @@ DebugStopReason LldbAdapter::StepOver()
 		event.data.errorData.shortError = "Step over failed";
 		event.data.errorData.error = fmt::format("LLDB: step over failed, process state is not stopped");
 		PostDebuggerEvent(event);
-		return DebugStopReason::InternalError;
+		return false;
 	}
 
 #ifndef WIN32
@@ -1162,7 +1162,7 @@ DebugStopReason LldbAdapter::StepOver()
 		event.data.errorData.shortError = "Step over failed";
 		event.data.errorData.error = fmt::format("LLDB: step over failed, invalid thread");
 		PostDebuggerEvent(event);
-		return DebugStopReason::InternalError;
+		return false;
 	}
 
 	SBError error;
@@ -1175,16 +1175,16 @@ DebugStopReason LldbAdapter::StepOver()
 		event.data.errorData.error =
 			fmt::format("LLDB: step over failed {}", error.GetCString() ? error.GetCString() : "");
 		PostDebuggerEvent(event);
-		return DebugStopReason::InternalError;
+		return false;
 	}
 #else
 	InvokeBackendCommand("ni");
 #endif
-	return StopReason();
+	return true;
 }
 
 
-DebugStopReason LldbAdapter::StepReturn()
+bool LldbAdapter::StepReturn()
 {
 	if (m_process.GetState() != lldb::eStateStopped)
 	{
@@ -1193,7 +1193,7 @@ DebugStopReason LldbAdapter::StepReturn()
 		event.data.errorData.shortError = "Step return failed";
 		event.data.errorData.error = fmt::format("LLDB: step return failed, process state is not stopped");
 		PostDebuggerEvent(event);
-		return DebugStopReason::InternalError;
+		return false;
 	}
 
 	//	The following method, calling StepOutOfFrame(), will receive an unexpected lldb::eStateRunning event when the
@@ -1223,11 +1223,11 @@ DebugStopReason LldbAdapter::StepReturn()
 		event.data.errorData.shortError = "Step return failed";
 		event.data.errorData.error = fmt::format("LLDB: step return failed, {}", result);
 		PostDebuggerEvent(event);
-		return DebugStopReason::InternalError;
+		return false;
 	}
 
 	//#endif
-	return StopReason();
+	return true;
 }
 
 
@@ -1251,7 +1251,7 @@ std::string LldbAdapter::InvokeBackendCommand(const std::string& command)
 }
 
 
-uintptr_t LldbAdapter::GetInstructionOffset()
+uint64_t LldbAdapter::GetInstructionOffset()
 {
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())

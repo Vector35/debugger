@@ -89,9 +89,9 @@ bool DebugModule::IsSameBaseModule(const std::string& module1, const std::string
 }
 
 
-DebugStopReason DebugAdapter::StepReturn()
+bool DebugAdapter::StepReturn()
 {
-	return OperationNotSupported;
+	return false;
 }
 
 

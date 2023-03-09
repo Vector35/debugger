@@ -58,9 +58,9 @@ namespace BinaryNinjaDebugger {
 
 		bool Connect(const std::string& server, std::uint32_t port) override;
 
-		void Detach() override;
+		bool Detach() override;
 
-		void Quit() override;
+		bool Quit() override;
 
 		std::vector<DebugProcess> GetProcessList() override;
 
@@ -110,17 +110,17 @@ namespace BinaryNinjaDebugger {
 
 		bool BreakInto() override;
 
-		DebugStopReason Go() override;
+		bool Go() override;
 
-		DebugStopReason StepInto() override;
+		bool StepInto() override;
 
-		DebugStopReason StepOver() override;
+		bool StepOver() override;
 
-		DebugStopReason StepReturn() override;
+		bool StepReturn() override;
 
 		std::string InvokeBackendCommand(const std::string& command) override;
 
-		uintptr_t GetInstructionOffset() override;
+		uint64_t GetInstructionOffset() override;
 
 		uint64_t GetStackPointer() override;
 

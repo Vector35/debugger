@@ -1680,22 +1680,21 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 		},
 		"WaitForAdapterStop");
 
-	// TODO: the operations like Go() should return a bool to indicate whether it succeeds
-	DebugStopReason resumeReason;
+	bool resumeOK = false;
 	bool operationRequested = false;
 	switch (operation)
 	{
 	case DebugAdapterGo:
-		resumeReason = m_adapter->Go();
+		resumeOK = m_adapter->Go();
 		break;
 	case DebugAdapterStepInto:
-		resumeReason = m_adapter->StepInto();
+		resumeOK = m_adapter->StepInto();
 		break;
 	case DebugAdapterStepOver:
-		resumeReason = m_adapter->StepOver();
+		resumeOK = m_adapter->StepOver();
 		break;
 	case DebugAdapterStepReturn:
-		resumeReason = m_adapter->StepReturn();
+		resumeOK = m_adapter->StepReturn();
 		break;
 	case DebugAdapterPause:
 		operationRequested = m_adapter->BreakInto();
@@ -1716,8 +1715,7 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 	if ((operation == DebugAdapterGo) || (operation == DebugAdapterStepInto) || (operation == DebugAdapterStepOver)
 		|| (operation == DebugAdapterStepReturn))
 	{
-		if (resumeReason != InternalError)
-			ok = true;
+		ok = resumeOK;
 	}
 	else if (operation == DebugAdapterPause)
 	{

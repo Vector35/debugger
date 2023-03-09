@@ -219,9 +219,9 @@ namespace BinaryNinjaDebugger {
 
 		virtual bool DisconnectDebugServer();
 
-		virtual void Detach() = 0;
+		virtual bool Detach() = 0;
 
-		virtual void Quit() = 0;
+		virtual bool Quit() = 0;
 
 		virtual std::vector<DebugProcess> GetProcessList() = 0;
 
@@ -243,10 +243,7 @@ namespace BinaryNinjaDebugger {
 
 		virtual DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type = 0) = 0;
 
-		virtual DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0)
-		{
-			return DebugBreakpoint {};
-		}
+		virtual DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0) = 0;
 
 		virtual bool RemoveBreakpoint(const DebugBreakpoint& breakpoint) = 0;
 
@@ -274,18 +271,18 @@ namespace BinaryNinjaDebugger {
 
 		virtual bool BreakInto() = 0;
 
-		virtual DebugStopReason Go() = 0;
+		virtual bool Go() = 0;
 
-		virtual DebugStopReason StepInto() = 0;
+		virtual bool StepInto() = 0;
 
-		virtual DebugStopReason StepOver() = 0;
+		virtual bool StepOver() = 0;
 		//    virtual bool RunTo(std::uintptr_t address) = 0;
 
-		virtual DebugStopReason StepReturn();
+		virtual bool StepReturn();
 
 		virtual std::string InvokeBackendCommand(const std::string& command) = 0;
 
-		virtual std::uintptr_t GetInstructionOffset() = 0;
+		virtual uint64_t GetInstructionOffset() = 0;
 
 		virtual uint64_t GetStackPointer();
 
