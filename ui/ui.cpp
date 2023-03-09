@@ -201,28 +201,28 @@ static bool ShowAsCode(BinaryView* view, uint64_t addr)
 }
 
 
-static void MakeCodeHelper(BinaryView* view, uint64_t addr)
-{
-	if (!view)
-		return;
-
-	if (ShowAsCode(view, addr))
-	{
-		view->BeginUndoActions();
-		view->UndefineUserDataVariable(addr);
-		auto sym = view->GetSymbolByAddress(addr);
-		view->UndefineUserSymbol(sym);
-		view->CommitUndoActions();
-		return;
-	}
-
-	view->BeginUndoActions();
-	view->DefineUserDataVariable(addr, Type::ArrayType(Type::IntegerType(1, false), 1));
-	const std::string name = fmt::format("BN_CODE_start_{:08x}", addr);
-	SymbolRef sym = new Symbol(DataSymbol, name, name, name, addr);
-	view->DefineUserSymbol(sym);
-	view->CommitUndoActions();
-}
+//static void MakeCodeHelper(BinaryView* view, uint64_t addr)
+//{
+//	if (!view)
+//		return;
+//
+//	if (ShowAsCode(view, addr))
+//	{
+//		view->BeginUndoActions();
+//		view->UndefineUserDataVariable(addr);
+//		auto sym = view->GetSymbolByAddress(addr);
+//		view->UndefineUserSymbol(sym);
+//		view->CommitUndoActions();
+//		return;
+//	}
+//
+//	view->BeginUndoActions();
+//	view->DefineUserDataVariable(addr, Type::ArrayType(Type::IntegerType(1, false), 1));
+//	const std::string name = fmt::format("BN_CODE_start_{:08x}", addr);
+//	SymbolRef sym = new Symbol(DataSymbol, name, name, name, addr);
+//	view->DefineUserSymbol(sym);
+//	view->CommitUndoActions();
+//}
 
 
 void GlobalDebuggerUI::SetupMenu(UIContext* context)
