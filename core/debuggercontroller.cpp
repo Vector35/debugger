@@ -614,8 +614,28 @@ DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& re
 void DebuggerController::HandleInitialBreakpoint()
 {
 	m_state->UpdateCaches();
+
+	// Create the debugger view
+	BinaryViewTypeRef viewType = BinaryViewType::GetByName("Debugger");
+	if (!viewType)
+		return;
+
+	BinaryViewRef liveView = viewType->Create(m_data);
+	if (!liveView)
+		return;
+
+	SetLiveView(liveView);
+	DetectLoadedModule();
+	NotifyStopped(DebugStopReason::InitialBreakpoint);
+}
+
+
+void DebuggerController::DetectLoadedModule()
+{
 	// Rebase the binary and create DebugView
-	uint64_t remoteBase = m_state->GetRemoteBase();
+	uint64_t remoteBase;
+	if (!m_state->GetRemoteBase(remoteBase))
+		return;
 
 	FileMetadataRef fileMetadata = m_data->GetFile();
 	if (remoteBase != m_data->GetStart())
@@ -637,16 +657,6 @@ void DebuggerController::HandleInitialBreakpoint()
 	});
 	if (!ok)
 		LogWarn("create snapshoted view failed");
-
-	BinaryViewRef liveView = fileMetadata->GetViewOfType("Debugger");
-	if (!liveView)
-	{
-		LogWarn("Invalid Debugger view!");
-		return;
-	}
-	SetLiveView(liveView);
-
-	NotifyStopped(DebugStopReason::InitialBreakpoint);
 }
 
 

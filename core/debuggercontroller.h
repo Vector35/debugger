@@ -131,6 +131,8 @@ namespace BinaryNinjaDebugger {
 
 		std::string m_lastAdapterName;
 
+		void DetectLoadedModule();
+
 	public:
 		DebuggerController(BinaryViewRef data);
 		static DbgRef<DebuggerController> GetController(BinaryViewRef data);
@@ -168,7 +170,7 @@ namespace BinaryNinjaDebugger {
 		// modules
 		std::vector<DebugModule> GetAllModules();
 		DebugModule GetModuleByName(const std::string& module);
-		uint64_t GetModuleBase(const std::string& name);
+		bool GetModuleBase(const std::string& name, uint64_t& address);
 		DebugModule GetModuleForAddress(uint64_t remoteAddress);
 		ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t absoluteAddress);
 		uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress);

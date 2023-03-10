@@ -315,7 +315,7 @@ void DebuggerModules::Update()
 }
 
 
-uint64_t DebuggerModules::GetModuleBase(const std::string& name)
+bool DebuggerModules::GetModuleBase(const std::string& name, uint64_t& address)
 {
 	if (IsDirty())
 		Update();
@@ -324,10 +324,11 @@ uint64_t DebuggerModules::GetModuleBase(const std::string& name)
 	{
 		if (module.IsSameBaseModule(name))
 		{
-			return module.m_address;
+			address = module.m_address;
+			return true;
 		}
 	}
-	return 0;
+	return false;
 }
 
 
@@ -853,7 +854,7 @@ void DebuggerState::UpdateCaches()
 }
 
 
-uint64_t DebuggerState::GetRemoteBase(BinaryViewRef relativeView)
+bool DebuggerState::GetRemoteBase(uint64_t& address)
 {
 	return m_modules->GetModuleBase(GetExecutablePath());
 }

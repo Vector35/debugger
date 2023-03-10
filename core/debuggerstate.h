@@ -68,7 +68,7 @@ namespace BinaryNinjaDebugger {
 		std::vector<DebugModule> GetAllModules();
 		// TODO: These conversion functions are not very robust for lookup failures. They need to be improved for it.
 		DebugModule GetModuleByName(const std::string& module);
-		uint64_t GetModuleBase(const std::string& name);
+		bool GetModuleBase(const std::string& name, uint64_t& address);
 		DebugModule GetModuleForAddress(uint64_t remoteAddress);
 		ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t absoluteAddress);
 		uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress);
@@ -226,7 +226,7 @@ namespace BinaryNinjaDebugger {
 		void MarkDirty();
 		void UpdateCaches();
 
-		uint64_t GetRemoteBase(Ref<BinaryView> relativeView = nullptr);
+		bool GetRemoteBase(uint64_t& address);
 
 		void ApplyBreakpoints();
 
