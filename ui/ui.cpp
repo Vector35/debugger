@@ -1094,7 +1094,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			if (newFrame)
 			{
 				m_context->closeTab(m_context->getTabForFile(fileContext));
-				navigateDebugger(address);
+				navigateToCurrentIP();
 				QCoreApplication::processEvents();
 			}
 		}

@@ -624,6 +624,13 @@ void DebuggerController::HandleInitialBreakpoint()
 	if (!liveView)
 		return;
 
+	// The bvt does not set the arch and platform for the created binary view. We must set them explicitly.
+	// TODO: in the future, when we add support for using the debugger without a base binary view (i.e., the m_data in
+	// this code), we will need to either read these info from the adapter backends, or make a UI to allow the user to
+	// inform us the values.
+	liveView->SetDefaultArchitecture(m_data->GetDefaultArchitecture());
+	liveView->SetDefaultPlatform(m_data->GetDefaultPlatform());
+
 	SetLiveView(liveView);
 	DetectLoadedModule();
 	NotifyStopped(DebugStopReason::InitialBreakpoint);

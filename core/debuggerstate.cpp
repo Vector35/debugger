@@ -856,7 +856,7 @@ void DebuggerState::UpdateCaches()
 
 bool DebuggerState::GetRemoteBase(uint64_t& address)
 {
-	return m_modules->GetModuleBase(GetExecutablePath());
+	return m_modules->GetModuleBase(GetExecutablePath(), address);
 }
 
 
