@@ -405,6 +405,8 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	QTableView(view), m_view(view)
 {
 	m_controller = DebuggerController::GetController(data);
+	if (!m_controller)
+		return;
 
 	m_model = new DebugRegistersListModel(this, m_controller, view);
 	m_filter = new DebugRegisterFilterProxyModel(this);

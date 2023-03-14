@@ -618,6 +618,12 @@ uint32_t BNDebuggerGetRemotePort(BNDebuggerController* controller)
 }
 
 
+char* BNDebuggerGetInputFile(BNDebuggerController* controller)
+{
+	return BNDebuggerAllocString(controller->object->GetState()->GetInputFile().c_str());
+}
+
+
 char* BNDebuggerGetExecutablePath(BNDebuggerController* controller)
 {
 	return BNDebuggerAllocString(controller->object->GetState()->GetExecutablePath().c_str());
@@ -651,6 +657,12 @@ void BNDebuggerSetRemoteHost(BNDebuggerController* controller, const char* host)
 void BNDebuggerSetRemotePort(BNDebuggerController* controller, uint32_t port)
 {
 	controller->object->GetState()->SetRemotePort(port);
+}
+
+
+void BNDebuggerSetInputFile(BNDebuggerController* controller, const char* path)
+{
+	controller->object->GetState()->SetInputFile(path);
 }
 
 

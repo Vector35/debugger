@@ -522,11 +522,13 @@ namespace BinaryNinjaDebuggerAPI {
 
 		std::string GetRemoteHost();
 		uint32_t GetRemotePort();
+		std::string GetInputFile();
 		std::string GetExecutablePath();
 		std::string GetWorkingDirectory();
 		bool GetRequestTerminalEmulator();
 		std::string GetCommandLineArguments();
 
+		void SetInputFile(const std::string& path);
 		void SetExecutablePath(const std::string& path);
 		void SetWorkingDirectory(const std::string& directory);
 		void SetCommandLineArguments(const std::string& arguments);

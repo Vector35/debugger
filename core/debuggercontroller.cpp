@@ -632,7 +632,6 @@ void DebuggerController::HandleInitialBreakpoint()
 	liveView->SetDefaultPlatform(m_data->GetDefaultPlatform());
 
 	SetLiveView(liveView);
-	DetectLoadedModule();
 	NotifyStopped(DebugStopReason::InitialBreakpoint);
 }
 
@@ -1081,6 +1080,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		m_lastIP = m_currentIP;
 		m_currentIP = m_state->IP();
 
+		DetectLoadedModule();
 		UpdateStackVariables();
 		AddRegisterValuesToExpressionParser();
 		break;

@@ -230,6 +230,8 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 	QTableView(view), m_view(view)
 {
 	m_controller = DebuggerController::GetController(data);
+	if (!m_controller)
+		return;
 
 	m_model = new DebugBreakpointsListModel(this, view);
 	setModel(m_model);
@@ -362,7 +364,7 @@ void DebugBreakpointsWidget::add()
 	}
 	else
 	{
-		std::string filename = m_controller->GetExecutablePath();
+		std::string filename = m_controller->GetInputFile();
 		uint64_t offset = address - view->GetStart();
 		ModuleNameAndOffset info = {filename, offset};
 		m_controller->AddBreakpoint(info);

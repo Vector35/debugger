@@ -156,6 +156,7 @@ namespace BinaryNinjaDebugger {
 		DebuggerMemory* m_memory;
 
 		std::string m_executablePath;
+		std::string m_inputFile;
 		std::string m_workingDirectory;
 		std::string m_commandLineArgs;
 		std::string m_remoteHost;
@@ -185,6 +186,7 @@ namespace BinaryNinjaDebugger {
 
 		std::string GetAdapterType() const { return m_adapterType; }
 		std::string GetExecutablePath() const { return m_executablePath; }
+		std::string GetInputFile() const { return m_inputFile; }
 		std::string GetWorkingDirectory() const { return m_workingDirectory; }
 		std::string GetCommandLineArguments() const { return m_commandLineArgs; }
 		std::string GetRemoteHost() const { return m_remoteHost; }
@@ -193,6 +195,7 @@ namespace BinaryNinjaDebugger {
 
 		void SetAdapterType(const std::string& adapter);
 		void SetExecutablePath(const std::string& path);
+		void SetInputFile(const std::string& path);
 		void SetWorkingDirectory(const std::string& directory);
 		void SetCommandLineArguments(const std::string& arguments);
 		void SetRemoteHost(const std::string& host);

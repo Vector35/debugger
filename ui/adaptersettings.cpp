@@ -48,11 +48,21 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 
 	connect(m_adapterEntry, &QComboBox::currentTextChanged, this, &AdapterSettingsDialog::selectAdapter);
 
+	m_inputFile = new QLineEdit(this);
+	m_inputFile->setMinimumWidth(800);
 	m_pathEntry = new QLineEdit(this);
 	m_pathEntry->setMinimumWidth(800);
 	m_argumentsEntry = new QLineEdit(this);
 	m_workingDirectoryEntry = new QLineEdit(this);
 	m_terminalEmulator = new QCheckBox(this);
+
+	auto* fileSelector = new QPushButton("...", this);
+	fileSelector->setMaximumWidth(30);
+	connect(fileSelector, &QPushButton::clicked, [&]() {
+		auto fileName = QFileDialog::getOpenFileName(this, "Select Input File", m_workingDirectoryEntry->text());
+		if (!fileName.isEmpty())
+			m_inputFile->setText(fileName);
+	});
 
 	auto* pathSelector = new QPushButton("...", this);
 	pathSelector->setMaximumWidth(30);
@@ -71,6 +81,10 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 			m_workingDirectoryEntry->setText(pathName);
 	});
 
+	auto fileEntryLayout = new QHBoxLayout;
+	fileEntryLayout->addWidget(m_inputFile);
+	fileEntryLayout->addWidget(fileSelector);
+
 	auto pathEntryLayout = new QHBoxLayout;
 	pathEntryLayout->addWidget(m_pathEntry);
 	pathEntryLayout->addWidget(pathSelector);
@@ -83,6 +97,8 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 	contentLayout->setSpacing(10);
 	contentLayout->addWidget(new QLabel("Adapter Type"));
 	contentLayout->addWidget(m_adapterEntry);
+	contentLayout->addWidget(new QLabel("Input File"));
+	contentLayout->addLayout(fileEntryLayout);
 	contentLayout->addWidget(new QLabel("Executable Path"));
 	contentLayout->addLayout(pathEntryLayout);
 	contentLayout->addWidget(new QLabel("Working Directory"));
@@ -111,6 +127,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 	layout->addLayout(buttonLayout);
 	setLayout(layout);
 
+	m_inputFile->setText(QString::fromStdString(m_controller->GetInputFile()));
 	m_pathEntry->setText(QString::fromStdString(m_controller->GetExecutablePath()));
 	m_terminalEmulator->setChecked(m_controller->GetRequestTerminalEmulator());
 	m_argumentsEntry->setText(QString::fromStdString(m_controller->GetCommandLineArguments()));
@@ -158,6 +175,11 @@ void AdapterSettingsDialog::apply()
 	m_controller->SetCommandLineArguments(args);
 	data = new Metadata(args);
 	m_controller->GetData()->StoreMetadata("debugger.command_line_args", data);
+
+	std::string file = m_inputFile->text().toStdString();
+	m_controller->SetInputFile(file);
+	data = new Metadata(file);
+	m_controller->GetData()->StoreMetadata("debugger.input_file", data);
 
 	std::string path = m_pathEntry->text().toStdString();
 	m_controller->SetExecutablePath(path);

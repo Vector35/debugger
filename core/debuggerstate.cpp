@@ -723,6 +723,13 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 	if (metadata && metadata->IsString())
 		m_commandLineArgs = metadata->GetString();
 
+	metadata = m_controller->GetData()->QueryMetadata("debugger.input_file");
+	if (metadata && metadata->IsString())
+		m_inputFile = metadata->GetString();
+
+	if (m_inputFile == "")
+		m_inputFile = m_controller->GetData()->GetFile()->GetOriginalFilename();
+
 	metadata = m_controller->GetData()->QueryMetadata("debugger.executable_path");
 	if (metadata && metadata->IsString())
 		m_executablePath = metadata->GetString();
@@ -856,7 +863,7 @@ void DebuggerState::UpdateCaches()
 
 bool DebuggerState::GetRemoteBase(uint64_t& address)
 {
-	return m_modules->GetModuleBase(GetExecutablePath(), address);
+	return m_modules->GetModuleBase(GetInputFile(), address);
 }
 
 
@@ -882,6 +889,13 @@ void DebuggerState::SetAdapterType(const std::string& adapter)
 void DebuggerState::SetExecutablePath(const std::string& path)
 {
 	m_executablePath = path;
+	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+}
+
+
+void DebuggerState::SetInputFile(const std::string& path)
+{
+	m_inputFile = path;
 	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
 }
 

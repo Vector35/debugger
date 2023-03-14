@@ -34,6 +34,8 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	QToolBar(parent), m_name(name)
 {
 	m_controller = DebuggerController::GetController(data);
+	if (!m_controller)
+		return;
 
 	auto cyan = getThemeColor(CyanStandardHighlightColor);
 	auto green = getThemeColor(GreenStandardHighlightColor);

@@ -29,6 +29,8 @@ DebuggerStatusBarWidget::DebuggerStatusBarWidget(QWidget* parent, ViewFrame* fra
 	QWidget(parent), m_parent(parent), m_view(frame)
 {
 	m_debugger = DebuggerController::GetController(data);
+	if (!m_debugger)
+		return;
 
 	auto* layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
@@ -50,7 +52,8 @@ DebuggerStatusBarWidget::DebuggerStatusBarWidget(QWidget* parent, ViewFrame* fra
 
 DebuggerStatusBarWidget::~DebuggerStatusBarWidget()
 {
-	m_debugger->RemoveEventCallback(m_debuggerEventCallback);
+	if (m_debugger)
+		m_debugger->RemoveEventCallback(m_debuggerEventCallback);
 }
 
 

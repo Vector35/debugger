@@ -466,6 +466,18 @@ uint32_t DebuggerController::GetRemotePort()
 }
 
 
+std::string DebuggerController::GetInputFile()
+{
+	char* path = BNDebuggerGetInputFile(m_object);
+	if (!path)
+		return "";
+
+	std::string result = path;
+	BNDebuggerFreeString(path);
+	return result;
+}
+
+
 std::string DebuggerController::GetExecutablePath()
 {
 	char* path = BNDebuggerGetExecutablePath(m_object);
@@ -505,6 +517,12 @@ std::string DebuggerController::GetCommandLineArguments()
 	std::string result = args;
 	BNDebuggerFreeString(args);
 	return result;
+}
+
+
+void DebuggerController::SetInputFile(const std::string& path)
+{
+	BNDebuggerSetInputFile(m_object, path.c_str());
 }
 
 

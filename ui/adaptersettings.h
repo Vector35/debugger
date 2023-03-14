@@ -37,6 +37,7 @@ class AdapterSettingsDialog : public QDialog
 private:
 	DbgRef<DebuggerController> m_controller;
 	QComboBox* m_adapterEntry;
+	QLineEdit* m_inputFile;
 	QLineEdit* m_pathEntry;
 	QLineEdit* m_workingDirectoryEntry;
 	QLineEdit* m_argumentsEntry;
