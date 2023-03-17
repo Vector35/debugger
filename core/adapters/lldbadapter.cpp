@@ -593,8 +593,7 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, u
 	}
 	else
 	{
-		uint64_t addr = address.offset + m_start;
-		std::string entryBreakpointCommand = fmt::format("b -s \"{}\" -a 0x{:x}", address.module, addr);
+		std::string entryBreakpointCommand = fmt::format("b -s \"{}\" -a 0x{:x}", address.module, address.offset);
 		auto ret = InvokeBackendCommand(entryBreakpointCommand);
 		DebuggerEvent evt;
 		evt.type = BackendMessageEventType;
