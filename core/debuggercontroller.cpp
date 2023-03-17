@@ -632,8 +632,8 @@ void DebuggerController::HandleInitialBreakpoint()
 	// inform us the values.
 	liveView->SetDefaultArchitecture(m_data->GetDefaultArchitecture());
 	liveView->SetDefaultPlatform(m_data->GetDefaultPlatform());
-
 	SetLiveView(liveView);
+
 	NotifyStopped(DebugStopReason::InitialBreakpoint);
 }
 
@@ -742,9 +742,7 @@ void DebuggerController::Connect()
 
 	m_inputFileLoaded = false;
 	m_state->MarkDirty();
-
 	m_state->SetConnectionStatus(DebugAdapterConnectingStatus);
-
 	NotifyEvent(ConnectEventType);
 
 	bool ok = m_adapter->Connect(m_state->GetRemoteHost(), m_state->GetRemotePort());
