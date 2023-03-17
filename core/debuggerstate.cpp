@@ -320,6 +320,9 @@ bool DebuggerModules::GetModuleBase(const std::string& name, uint64_t& address)
 	if (IsDirty())
 		Update();
 
+	if (name.empty())
+		return false;
+
 	for (const DebugModule& module : m_modules)
 	{
 		if (module.IsSameBaseModule(name))

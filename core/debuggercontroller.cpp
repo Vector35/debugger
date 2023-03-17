@@ -118,6 +118,7 @@ bool DebuggerController::Launch()
 	if (!CreateDebugAdapter())
 		return false;
 
+	m_inputFileLoaded = false;
 	m_state->MarkDirty();
 	bool result = Execute();
 	if (result)
@@ -144,6 +145,7 @@ bool DebuggerController::Attach(int32_t pid)
 	if (!CreateDebugAdapter())
 		return false;
 
+	m_inputFileLoaded = false;
 	m_state->MarkDirty();
 	bool result = m_adapter->Attach(pid);
 	if (result)
@@ -640,7 +642,10 @@ void DebuggerController::DetectLoadedModule()
 {
 	// Rebase the binary and create DebugView
 	uint64_t remoteBase;
-	if (!m_state->GetRemoteBase(remoteBase))
+	// Right now we only support applying the analysis info from one module into the debugger view, So we use a bool
+	// here. In the future, we would like to support loading multiple modules, and we will need a more
+	// robust mechanism.
+	if (m_inputFileLoaded || (!m_state->GetRemoteBase(remoteBase)))
 		return;
 
 	FileMetadataRef fileMetadata = m_data->GetFile();
@@ -663,6 +668,8 @@ void DebuggerController::DetectLoadedModule()
 	});
 	if (!ok)
 		LogWarn("create snapshoted view failed");
+
+	m_inputFileLoaded = true;
 }
 
 
@@ -733,6 +740,7 @@ void DebuggerController::Connect()
 	if (!CreateDebugAdapter())
 		return;
 
+	m_inputFileLoaded = false;
 	m_state->MarkDirty();
 
 	m_state->SetConnectionStatus(DebugAdapterConnectingStatus);

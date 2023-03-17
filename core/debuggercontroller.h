@@ -90,6 +90,8 @@ namespace BinaryNinjaDebugger {
 
 		bool m_lastAdapterStopEventConsumed = true;
 
+		bool m_inputFileLoaded = false;
+
 		void EventHandler(const DebuggerEvent& event);
 		void UpdateStackVariables();
 		void AddRegisterValuesToExpressionParser();
