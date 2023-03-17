@@ -40,6 +40,9 @@ DebugAdapter::DebugAdapter(BinaryView* data)
 	// to get the original image base of the binary view, because LLDB requires the breakpoint address be relative to
 	// the original image base, and it does not work with a rebased one.
 	m_entryPoint = data->GetEntryPoint();
+	// For shared libraries which do not have a valid entry point, the GetEntryPoint will return 0x0 anyways.
+	// Here we check if there is actually a function at the entry point, to determine if the entry point is real.
+	m_hasEntryFunction = (data->GetAnalysisEntryPoint() != nullptr);
 	m_start = data->GetStart();
 	if (data->GetDefaultArchitecture())
 		m_defaultArchitecture = data->GetDefaultArchitecture()->GetName();

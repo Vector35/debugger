@@ -201,7 +201,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	std::thread thread([&]() { EventListener(); });
 	thread.detach();
 
-	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
+	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 		AddBreakpoint(ModuleNameAndOffset(path, m_entryPoint - m_start));
 
 	std::string launchCommand = "process launch";
@@ -341,7 +341,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	std::thread thread([&]() { EventListener(); });
 	thread.detach();
 
-	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint"))
+	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 		AddBreakpoint(ModuleNameAndOffset(m_originalFileName, m_entryPoint - m_start));
 
 	std::string url = fmt::format("connect://{}:{}", server, port);

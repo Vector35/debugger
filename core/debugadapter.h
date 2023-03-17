@@ -193,6 +193,7 @@ namespace BinaryNinjaDebugger {
 
 	protected:
 		uint64_t m_entryPoint;
+		bool m_hasEntryFunction;
 		uint64_t m_start;
 		std::string m_defaultArchitecture;
 		std::string m_originalFileName;
