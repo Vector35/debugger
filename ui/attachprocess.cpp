@@ -256,42 +256,36 @@ void ProcessListWidget::contextMenuEvent(QContextMenuEvent* event)
 
 
 ProcessListWidget::ProcessListWidget(QWidget* parent, DbgRef<DebuggerController> controller) :
-	QWidget(parent), m_controller(controller)
+	QTableView(parent), m_controller(controller)
 {
-	m_table = new QTableView(this);
-	m_model = new ProcessListModel(m_table);
+	m_model = new ProcessListModel(this);
 	m_delegate = new ProcessItemDelegate(this);
 	m_filter = new ProcessListFilterProxyModel(this);
 
 	m_filter->setSourceModel(m_model);
-	m_table->setModel(m_filter);
-	m_table->setItemDelegate(m_delegate);
+	setModel(m_filter);
+	setItemDelegate(m_delegate);
 
-	m_table->setShowGrid(false);
-	m_table->setSortingEnabled(true);
+	setShowGrid(false);
+	setSortingEnabled(true);
 
-	m_table->horizontalHeader()->setStretchLastSection(true);
-	m_table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
-	m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+	horizontalHeader()->setStretchLastSection(true);
+	horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
+	horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
-	m_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-	m_table->verticalHeader()->setVisible(false);
+	verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+	verticalHeader()->setVisible(false);
 
-	m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-	m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
-	m_table->setSelectionMode(QAbstractItemView::SingleSelection);
+	setEditTriggers(QAbstractItemView::NoEditTriggers);
+	setSelectionBehavior(QAbstractItemView::SelectRows);
+	setSelectionMode(QAbstractItemView::SingleSelection);
 
-	m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-	m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-	m_table->setAutoScroll(false);
+	setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+	setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+	setAutoScroll(false);
 	
-	m_table->resizeColumnsToContents();
-	m_table->resizeRowsToContents();
-
-	QVBoxLayout* layout = new QVBoxLayout();
-	layout->setContentsMargins(0, 0, 0, 0);
-	layout->setSpacing(0);
-	layout->addWidget(m_table);
+	resizeColumnsToContents();
+	resizeRowsToContents();
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
@@ -302,22 +296,19 @@ ProcessListWidget::ProcessListWidget(QWidget* parent, DbgRef<DebuggerController>
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([=]() { updateContent(); }));
 
-	setLayout(layout);
-
-	// TODO: ESC close dialog
 	// TODO: context menu copy
 
 	updateContent();
 }
 
 
-ProcessListWidget::~ProcessListWidget() {}
+ProcessListWidget::~ProcessListWidget(){}
 
 
 void ProcessListWidget::updateColumnWidths()
 {
-	m_table->resizeColumnToContents(ProcessListModel::PidColumn);
-	m_table->resizeColumnToContents(ProcessListModel::ProcessNameColumn);
+	resizeColumnToContents(ProcessListModel::PidColumn);
+	resizeColumnToContents(ProcessListModel::ProcessNameColumn);
 }
 
 
@@ -381,7 +372,7 @@ AttachProcessDialog::AttachProcessDialog(QWidget* parent, DbgRef<DebuggerControl
 	connect(acceptButton, &QPushButton::clicked, [&]() { apply(); });
 	acceptButton->setDefault(true);
 
-	connect(m_processListWidget->GetProcessTableView(), &QTableView::doubleClicked, [&]() { apply(); });
+	connect(m_processListWidget, &QTableView::doubleClicked, [&]() { apply(); });
 
 	buttonLayout->addStretch(1);
 	buttonLayout->addWidget(cancelButton);
@@ -395,7 +386,7 @@ AttachProcessDialog::AttachProcessDialog(QWidget* parent, DbgRef<DebuggerControl
 
 uint32_t AttachProcessDialog::GetSelectedPid()
 {
-	return m_selectedPid;
+	return m_processListWidget->GetSelectedPid();
 }
 
 void AttachProcessDialog::apply()

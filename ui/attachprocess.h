@@ -113,13 +113,12 @@ protected:
 };
 
 
-class ProcessListWidget : public QWidget, public FilterTarget
+class ProcessListWidget : public QTableView, public FilterTarget
 {
 	Q_OBJECT;
 
 	DbgRef<DebuggerController> m_controller;
 
-	QTableView* m_table;
 	ProcessListModel* m_model;
 	ProcessItemDelegate* m_delegate;
 	ProcessListFilterProxyModel* m_filter;
@@ -140,11 +139,9 @@ public:
 	ProcessListWidget(QWidget* parent, DbgRef<DebuggerController> controller);
 	~ProcessListWidget();
 
-	QTableView* GetProcessTableView() const { return m_table; }
-
 	uint32_t GetSelectedPid()
 	{
-		QModelIndexList sel = m_table->selectionModel()->selectedIndexes();
+		QModelIndexList sel = selectionModel()->selectedIndexes();
 		if (sel.empty() || !sel[0].isValid())
 			return 0;
 
