@@ -352,7 +352,6 @@ AttachProcessDialog::AttachProcessDialog(QWidget* parent, DbgRef<DebuggerControl
 {
 	setWindowTitle("Attach to process");
 	setMinimumSize(UIContext::getScaledWindowSize(450, 600));
-	setAttribute(Qt::WA_DeleteOnClose);
 	setSizeGripEnabled(true);
 	setModal(true);
 

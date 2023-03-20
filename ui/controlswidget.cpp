@@ -146,11 +146,11 @@ void DebugControlsWidget::performLaunch()
 
 void DebugControlsWidget::performAttachPID()
 {
-	auto dialog = new AttachProcessDialog(this, m_controller);
-	if (dialog->exec() != QDialog::Accepted)
+	AttachProcessDialog dialog(this, m_controller);
+	if (dialog.exec() != QDialog::Accepted)
 		return;
 
-	uint32_t pid = dialog->GetSelectedPid();
+	uint32_t pid = dialog.GetSelectedPid();
 	if (pid == 0)
 		return;
 
