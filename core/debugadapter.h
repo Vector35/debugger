@@ -60,10 +60,13 @@ namespace BinaryNinjaDebugger {
 	struct LaunchConfigurations
 	{
 		bool requestTerminalEmulator;
+		std::string inputFile;
 
 		LaunchConfigurations() : requestTerminalEmulator(true) {}
 
-		LaunchConfigurations(bool terminal) : requestTerminalEmulator(terminal) {}
+		LaunchConfigurations(bool terminal, const std::string& file) : requestTerminalEmulator(terminal),
+			inputFile(file)
+		{}
 	};
 
 

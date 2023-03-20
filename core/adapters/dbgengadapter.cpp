@@ -403,15 +403,16 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	ApplyBreakpoints();
 
 	auto settings = Settings::Instance();
-	if (settings->Get<bool>("debugger.stopAtEntryPoint"))
+	if (settings->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 	{
-		AddBreakpoint(ModuleNameAndOffset(path, m_entryPoint - m_start));
-		if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
-		{
-			if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK)
-				return false;
-			Wait();
-		}
+		AddBreakpoint(ModuleNameAndOffset(configs.inputFile, m_entryPoint - m_start));
+	}
+
+	if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
+	{
+		if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK)
+			return false;
+		Wait();
 	}
 
 	return true;

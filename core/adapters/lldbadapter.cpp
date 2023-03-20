@@ -202,7 +202,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	thread.detach();
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
-		AddBreakpoint(ModuleNameAndOffset(path, m_entryPoint - m_start));
+		AddBreakpoint(ModuleNameAndOffset(configs.inputFile, m_entryPoint - m_start));
 
 	std::string launchCommand = "process launch";
 	if (Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint") || m_isElFWithoutDynamicLoader)
