@@ -654,6 +654,7 @@ void DebuggerController::DetectLoadedModule()
 	if (!ok)
 		LogWarn("create snapshoted view failed");
 
+	m_liveView->UpdateAnalysis();
 	m_inputFileLoaded = true;
 }
 
