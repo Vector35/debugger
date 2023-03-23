@@ -412,7 +412,6 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	{
 		if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK)
 			return false;
-		Wait();
 	}
 
 	return true;
@@ -421,6 +420,7 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 
 void DbgEngAdapter::EngineLoop()
 {
+	m_lastExecutionStatus = DEBUG_STATUS_NO_DEBUGGEE;
 	bool finished = false;
 	while (true)
 	{
@@ -487,7 +487,7 @@ void DbgEngAdapter::EngineLoop()
 		Wait();
 	}
 
-	m_lastExecutionStatus = DEBUG_STATUS_BREAK;
+	m_lastExecutionStatus = DEBUG_STATUS_NO_DEBUGGEE;
 }
 
 bool DbgEngAdapter::AttachInternal(std::uint32_t pid)

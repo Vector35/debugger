@@ -123,7 +123,7 @@ namespace BinaryNinjaDebugger {
 		std::vector<DebugBreakpoint> m_debug_breakpoints {};
 		bool m_lastOperationIsStepInto = false;
 
-		uint64_t m_lastExecutionStatus = DEBUG_STATUS_BREAK;
+		uint64_t m_lastExecutionStatus = DEBUG_STATUS_NO_DEBUGGEE;
 
 		unsigned long m_exitCode {};
 
