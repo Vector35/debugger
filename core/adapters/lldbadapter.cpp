@@ -157,7 +157,12 @@ bool LldbAdapter::Execute(const std::string& path, const LaunchConfigurations& c
 bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
 	const LaunchConfigurations& configs)
 {
-	m_debugger.SetAsync(false);
+	m_debugger.SetAsync(true);
+
+	// We must start the event listener before calling CreateTarget, since CreateTarget will send out the initial
+	// batch of module load events.
+	std::thread thread([&]() { EventListener(); });
+	thread.detach();
 
 	SBError err;
 
@@ -198,9 +203,6 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	// target.
 	ApplyBreakpoints();
 
-	std::thread thread([&]() { EventListener(); });
-	thread.detach();
-
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 		AddBreakpoint(ModuleNameAndOffset(configs.inputFile, m_entryPoint - m_start));
 
@@ -224,7 +226,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	PostDebuggerEvent(evt);
 
 	m_process = m_target.GetProcess();
-	if (!m_process.IsValid() || (m_process.GetState() != StateType::eStateStopped) || (result.rfind("error: ", 0) == 0))
+	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || (result.rfind("error: ", 0) == 0))
 	{
 		auto it = result.find_last_not_of('\n');
 		result.erase(it + 1);
@@ -235,14 +237,16 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 		PostDebuggerEvent(event);
 		return false;
 	}
-	m_debugger.SetAsync(true);
 	return true;
 }
 
 
 bool LldbAdapter::Attach(std::uint32_t pid)
 {
-	m_debugger.SetAsync(false);
+	m_debugger.SetAsync(true);
+
+	std::thread thread([&]() { EventListener(); });
+	thread.detach();
 
 	SBError err;
 
@@ -279,12 +283,9 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	m_targetActive = true;
 	ApplyBreakpoints();
 
-	std::thread thread([&]() { EventListener(); });
-	thread.detach();
-
 	SBAttachInfo info(pid);
 	m_process = m_target.Attach(info, err);
-	if (!m_process.IsValid() || (m_process.GetState() != StateType::eStateStopped) || err.Fail())
+	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || err.Fail())
 	{
 		DebuggerEvent event;
 		event.type = ErrorEventType;
@@ -294,14 +295,21 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 		PostDebuggerEvent(event);
 		return false;
 	}
-	m_debugger.SetAsync(true);
+
+	DebuggerEvent dbgevt;
+	dbgevt.type = TargetStoppedEventType;
+	dbgevt.data.targetStoppedData.reason = InitialBreakpoint;
+	PostDebuggerEvent(dbgevt);
 	return true;
 }
 
 
 bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 {
-	m_debugger.SetAsync(false);
+	m_debugger.SetAsync(true);
+
+	std::thread thread([&]() { EventListener(); });
+	thread.detach();
 
 	SBError err;
 
@@ -338,9 +346,6 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	m_targetActive = true;
 	ApplyBreakpoints();
 
-	std::thread thread([&]() { EventListener(); });
-	thread.detach();
-
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 		AddBreakpoint(ModuleNameAndOffset(m_originalFileName, m_entryPoint - m_start));
 
@@ -350,7 +355,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	if (!m_processPlugin.empty() && m_processPlugin != "debugserver/lldb")
 		plugin = m_processPlugin.c_str();
 	m_process = m_target.ConnectRemote(listener, url.c_str(), plugin, err);
-	if (!m_process.IsValid() || (m_process.GetState() != StateType::eStateStopped) || err.Fail())
+	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || err.Fail())
 	{
 		DebuggerEvent event;
 		event.type = ErrorEventType;
@@ -360,7 +365,6 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 		PostDebuggerEvent(event);
 		return false;
 	}
-	m_debugger.SetAsync(true);
 	return true;
 }
 

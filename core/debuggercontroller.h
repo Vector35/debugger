@@ -91,12 +91,13 @@ namespace BinaryNinjaDebugger {
 		bool m_lastAdapterStopEventConsumed = true;
 
 		bool m_inputFileLoaded = false;
+		bool m_initialBreakpointSeen = false;
 
 		void EventHandler(const DebuggerEvent& event);
 		void UpdateStackVariables();
 		void AddRegisterValuesToExpressionParser();
 		bool CreateDebugAdapter();
-		void HandleInitialBreakpoint();
+		bool CreateDebuggerBinaryView();
 
 		void SetLiveView(BinaryViewRef view) { m_liveView = view; }
 

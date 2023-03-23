@@ -119,21 +119,12 @@ bool DebuggerController::Launch()
 		return false;
 
 	m_inputFileLoaded = false;
+	m_initialBreakpointSeen = false;
 	m_state->MarkDirty();
-	bool result = Execute();
-	if (result)
-	{
-		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
-		m_state->SetExecutionStatus(DebugAdapterPausedStatus);
-		HandleInitialBreakpoint();
-	}
-	else
-	{
-		// TODO: Right now, the LLDBAdapter directly notifies about the failure. In the future, we should let the
-		// backend return both an error value and an error string. And the error will be notified at API level.
-		// NotifyError("Failed to launch the target");
-	}
-	return result;
+	if (!CreateDebuggerBinaryView())
+		return false;
+
+	return Execute();
 }
 
 
@@ -146,15 +137,12 @@ bool DebuggerController::Attach(int32_t pid)
 		return false;
 
 	m_inputFileLoaded = false;
+	m_initialBreakpointSeen = false;
 	m_state->MarkDirty();
-	bool result = m_adapter->Attach(pid);
-	if (result)
-	{
-		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
-		m_state->SetExecutionStatus(DebugAdapterPausedStatus);
-		HandleInitialBreakpoint();
-	}
-	return result;
+	if (!CreateDebuggerBinaryView())
+		return false;
+
+	return m_adapter->Attach(pid);
 }
 
 
@@ -613,18 +601,15 @@ DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& re
 }
 
 
-void DebuggerController::HandleInitialBreakpoint()
+bool DebuggerController::CreateDebuggerBinaryView()
 {
-	m_state->UpdateCaches();
-
-	// Create the debugger view
 	BinaryViewTypeRef viewType = BinaryViewType::GetByName("Debugger");
 	if (!viewType)
-		return;
+		return false;
 
 	BinaryViewRef liveView = viewType->Create(m_data);
 	if (!liveView)
-		return;
+		return false;
 
 	// The bvt does not set the arch and platform for the created binary view. We must set them explicitly.
 	// TODO: in the future, when we add support for using the debugger without a base binary view (i.e., the m_data in
@@ -634,7 +619,7 @@ void DebuggerController::HandleInitialBreakpoint()
 	liveView->SetDefaultPlatform(m_data->GetDefaultPlatform());
 	SetLiveView(liveView);
 
-	NotifyStopped(DebugStopReason::InitialBreakpoint);
+	return true;
 }
 
 
@@ -741,23 +726,12 @@ void DebuggerController::Connect()
 		return;
 
 	m_inputFileLoaded = false;
+	m_initialBreakpointSeen = false;
 	m_state->MarkDirty();
 	m_state->SetConnectionStatus(DebugAdapterConnectingStatus);
 	NotifyEvent(ConnectEventType);
 
 	bool ok = m_adapter->Connect(m_state->GetRemoteHost(), m_state->GetRemotePort());
-
-	if (ok)
-	{
-		m_state->MarkDirty();
-		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
-		m_state->SetExecutionStatus(DebugAdapterPausedStatus);
-		HandleInitialBreakpoint();
-	}
-	else
-	{
-		LogWarn("Failed to connect to the target");
-	}
 }
 
 
@@ -1064,6 +1038,8 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	case ResumeEventType:
 	case StepIntoEventType:
 	{
+		// Todo: this is just a temporary workaround. Otherwise, the connection status would not be set properly
+		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 		m_state->MarkDirty();
 		break;
@@ -1073,6 +1049,8 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	case QuitDebuggingEventType:
 	case DetachedEventType:
 	{
+		m_inputFileLoaded = false;
+		m_initialBreakpointSeen = false;
 		m_liveView->GetFile()->UnregisterViewOfType("Debugger", m_liveView);
 		SetLiveView(nullptr);
 		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
@@ -1082,6 +1060,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	case TargetStoppedEventType:
 	{
 		m_state->UpdateCaches();
+		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 		m_lastIP = m_currentIP;
 		m_currentIP = m_state->IP();
@@ -1162,12 +1141,19 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 		m_lastAdapterStopEventConsumed = false;
 
 	ExecuteOnMainThreadAndWait([&]() {
+		DebuggerEvent eventToSend = event;
+		if ((eventToSend.type == TargetStoppedEventType) && !m_initialBreakpointSeen)
+		{
+			m_initialBreakpointSeen = true;
+			eventToSend.data.targetStoppedData.reason = InitialBreakpoint;
+		}
+
 		for (const DebuggerEventCallback& cb : eventCallbacks)
 		{
 			if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
 				continue;
 
-			cb.function(event);
+			cb.function(eventToSend);
 		}
 
 		// If the current event is an AdapterStoppedEvent, and it is not consumed by any callback, then the adapter
@@ -1176,6 +1162,11 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 		{
 			DebuggerEvent stopEvent = event;
 			stopEvent.type = TargetStoppedEventType;
+			if (!m_initialBreakpointSeen)
+			{
+				m_initialBreakpointSeen = true;
+				stopEvent.data.targetStoppedData.reason = InitialBreakpoint;
+			}
 			for (const DebuggerEventCallback& cb : eventCallbacks)
 			{
 				if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
@@ -1336,7 +1327,7 @@ uint32_t DebuggerController::GetExitCode()
 
 void DebuggerController::WriteStdIn(const std::string message)
 {
-	if (m_adapter && m_state->IsConnected())
+	if (m_adapter && m_state->IsRunning())
 	{
 		m_adapter->WriteStdin(message);
 	}
