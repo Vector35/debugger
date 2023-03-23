@@ -1030,7 +1030,7 @@ bool DbgEngAdapter::Go()
 bool DbgEngAdapter::StepInto()
 {
 	if (ExecStatus() != DEBUG_STATUS_BREAK)
-		return InvalidStatusOrOperation;
+		return false;
 
 	m_lastOperationIsStepInto = true;
 	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_INTO) != S_OK)
