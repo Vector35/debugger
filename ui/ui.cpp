@@ -916,7 +916,7 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 		auto fileContext = frame->getFileContext();
 		if (fileContext)
 		{
-			auto syncGroups = frame->getFileContext()->allSyncGroups();
+			auto syncGroups = fileContext->allSyncGroups();
 			for (const auto& syncGroup : syncGroups)
 			{
 				for (auto i : syncGroup->members())
@@ -924,9 +924,9 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 					View* groupView = i->getCurrentViewInterface();
 					if (groupView->getCurrentFunction())
 					{
-						i->navigate(m_controller->GetLiveView(), address, true, true);
-						navigated = true;
-						break;
+						navigated = i->navigate(m_controller->GetLiveView(), address, true, true);
+						if (navigated)
+							break;
 					}
 				}
 			}
