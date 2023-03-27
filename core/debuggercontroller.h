@@ -207,6 +207,8 @@ namespace BinaryNinjaDebugger {
 		bool SetIP(uint64_t address);
 
 		// target control
+		DebugStopReason LaunchAndWait();
+		DebugStopReason LaunchAndWaitInternal();
 		bool Launch();
 		bool Execute();
 		void Restart();

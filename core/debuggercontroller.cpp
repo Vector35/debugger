@@ -109,22 +109,41 @@ bool DebuggerController::SetIP(uint64_t address)
 
 bool DebuggerController::Launch()
 {
-	std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+	std::thread([&]() { LaunchAndWait(); }).detach();
+	return true;
+}
 
+
+DebugStopReason DebuggerController::LaunchAndWaitInternal()
+{
 	DebuggerEvent event;
 	event.type = LaunchEventType;
 	PostDebuggerEvent(event);
 
 	if (!CreateDebugAdapter())
-		return false;
+		return InternalError;
 
 	m_inputFileLoaded = false;
-	m_initialBreakpointSeen = false;
+	m_initialBreakpointSeen	 = false;
 	m_state->MarkDirty();
 	if (!CreateDebuggerBinaryView())
-		return false;
+		return InternalError;
 
-	return Execute();
+	return ExecuteAdapterAndWait(DebugAdapterLaunch);
+}
+
+
+DebugStopReason DebuggerController::LaunchAndWait()
+{
+	if (!m_targetControlMutex.try_lock())
+		return InternalError;
+
+	auto reason = LaunchAndWaitInternal();
+	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+		NotifyStopped(reason);
+
+	m_targetControlMutex.unlock();
+	return reason;
 }
 
 
@@ -1722,13 +1741,16 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 		m_liveView->AbortAnalysis();
 		m_adapter->Detach();
 		break;
+	case DebugAdapterLaunch:
+		resumeOK = Execute();
+		break;
 	default:
 		break;
 	}
 
 	bool ok = false;
 	if ((operation == DebugAdapterGo) || (operation == DebugAdapterStepInto) || (operation == DebugAdapterStepOver)
-		|| (operation == DebugAdapterStepReturn))
+		|| (operation == DebugAdapterStepReturn) || (operation == DebugAdapterLaunch))
 	{
 		ok = resumeOK;
 	}

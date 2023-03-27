@@ -289,6 +289,7 @@ extern "C"
 
     enum BNDebuggerAdapterOperation
     {
+		DebugAdapterLaunch,
         DebugAdapterGo,
         DebugAdapterStepInto,
         DebugAdapterStepOver,
