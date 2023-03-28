@@ -1073,6 +1073,8 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		m_initialBreakpointSeen = false;
 		m_liveView->GetFile()->UnregisterViewOfType("Debugger", m_liveView);
 		SetLiveView(nullptr);
+		m_currentIP = 0;
+		m_lastIP = 0;
 		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
 		break;
