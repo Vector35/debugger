@@ -217,15 +217,6 @@ pytest_sources = [
     str(base_dir / "test" / "debugger_test.py")
 ]
 
-# Prevents https://github.com/pypa/pipenv/issues/5052
-subprocess.run(["pipenv", "--rm"], env=env)
-
-p = subprocess.Popen(["pipenv", "run", winpath + "py.test", "--junitxml", str(results)] + pytest_sources, env=env)
-# wait for process to complete
-p_stdout, p_stderr = p.communicate()
-assert 0 <= p.returncode < 128, f"pipenv run failed: {p_stdout} {p_stderr}"
-p = subprocess.Popen(["pipenv", "--rm"], env=env)
-p_stdout, p_stderr = p.communicate()
-assert p.returncode == 0, f"pipenv --rm failed: {p_stdout} {p_stderr}"
+subprocess.run(["poetry", "run", winpath + "py.test", "--junitxml", str(results)] + pytest_sources, env=env, check=True)
 
 sys.exit(0)
