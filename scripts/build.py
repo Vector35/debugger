@@ -220,7 +220,7 @@ pytest_sources = [
 # Prevents https://github.com/pypa/pipenv/issues/5052
 subprocess.run(["pipenv", "--rm"], env=env)
 
-p = subprocess.Popen(["pipenv", "run", winpath + "py.test", "--junitxml", str(results)] + pytest_sources, env=env)
+p = subprocess.Popen(["pipenv", "run", winpath + "py.test", "-x", "--junitxml", str(results)] + pytest_sources, env=env)
 # wait for process to complete
 p_stdout, p_stderr = p.communicate()
 assert 0 <= p.returncode < 128, f"pipenv run failed: {p_stdout} {p_stderr}"
