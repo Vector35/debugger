@@ -398,6 +398,12 @@ bool BNDebuggerLaunch(BNDebuggerController* controller)
 }
 
 
+bool BNDebuggerLaunchAndWait(BNDebuggerController* controller)
+{
+	return controller->object->LaunchAndWait();
+}
+
+
 bool BNDebuggerExecute(BNDebuggerController* controller)
 {
 	return controller->object->Execute();

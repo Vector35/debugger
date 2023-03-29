@@ -57,7 +57,7 @@ class DebuggerAPI(unittest.TestCase):
         def run_once():
             dbg = DebuggerController(bv)
             dbg.cmd_line = 'foobar'
-            self.assertTrue(dbg.launch())
+            self.assertTrue(dbg.launch_and_wait())
 
             # continue execution to the entry point, and check the stop reason
             reason = dbg.step_into_and_wait()
@@ -93,7 +93,7 @@ class DebuggerAPI(unittest.TestCase):
             dbg = DebuggerController(bv)
             dbg.cmd_line = arg
 
-            self.assertTrue(dbg.launch())
+            self.assertTrue(dbg.launch_and_wait())
             reason = dbg.go_and_wait()
             self.assertEqual(reason, DebugStopReason.ProcessExited)
             exit_code = dbg.exit_code
@@ -111,7 +111,7 @@ class DebuggerAPI(unittest.TestCase):
         dbg = DebuggerController(bv)
 
         dbg.cmd_line = 'segfault'
-        self.assertTrue(dbg.launch())
+        self.assertTrue(dbg.launch_and_wait())
         # time.sleep(1)
         reason = dbg.go_and_wait()
         self.expect_segfault(reason)
@@ -123,7 +123,7 @@ class DebuggerAPI(unittest.TestCase):
     #     bv = BinaryViewType.get_view_of_file(fpath)
     #     dbg = DebuggerController(bv)
     #     dbg.cmd_line = 'illegalinstr'
-    #     self.assertTrue(dbg.launch())
+    #     self.assertTrue(dbg.launch_and_wait())
     #     dbg.go()
     #     reason = dbg.go()
     #     if platform.system() in ['Windows', 'Linux']:
@@ -146,7 +146,7 @@ class DebuggerAPI(unittest.TestCase):
         dbg = DebuggerController(bv)
         if not self.arch == 'arm64':
             dbg.cmd_line = 'divzero'
-            self.assertTrue(dbg.launch())
+            self.assertTrue(dbg.launch_and_wait())
             reason = dbg.go_and_wait()
             self.expect_divide_by_zero(reason)
             dbg.quit_and_wait()
@@ -156,7 +156,7 @@ class DebuggerAPI(unittest.TestCase):
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
         dbg.cmd_line = 'foobar'
-        self.assertTrue(dbg.launch())
+        self.assertTrue(dbg.launch_and_wait())
         reason = dbg.step_into_and_wait()
         self.assertEqual(reason, DebugStopReason.SingleStep)
         reason = dbg.step_into_and_wait()
@@ -168,7 +168,7 @@ class DebuggerAPI(unittest.TestCase):
         fpath = name_to_fpath('helloworld', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
-        self.assertTrue(dbg.launch())
+        self.assertTrue(dbg.launch_and_wait())
         # TODO: right now we are not returning whether the operation succeeds, so we cannot use assertTrue/assertFalse
         # breakpoint set/clear should fail at 0
         self.assertIsNone(dbg.add_breakpoint(0))
@@ -186,7 +186,7 @@ class DebuggerAPI(unittest.TestCase):
         fpath = name_to_fpath('helloworld', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
-        self.assertTrue(dbg.launch())
+        self.assertTrue(dbg.launch_and_wait())
 
         arch_name = bv.arch.name
         if arch_name == 'x86':
@@ -218,7 +218,7 @@ class DebuggerAPI(unittest.TestCase):
         fpath = name_to_fpath('helloworld', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
-        self.assertTrue(dbg.launch())
+        self.assertTrue(dbg.launch_and_wait())
 
         # Due to https://github.com/Vector35/debugger/issues/124, we have to skip the bytes at the entry point
         addr = dbg.ip + 10
@@ -239,7 +239,7 @@ class DebuggerAPI(unittest.TestCase):
         fpath = name_to_fpath('helloworld_thread', self.arch)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
-        self.assertTrue(dbg.launch())
+        self.assertTrue(dbg.launch_and_wait())
 
         dbg.go()
         time.sleep(1)
@@ -264,7 +264,7 @@ class DebuggerAPI(unittest.TestCase):
             fpath = name_to_fpath('asmtest', 'x86_64')
             bv = BinaryViewType.get_view_of_file(fpath)
             dbg = DebuggerController(bv)
-            self.assertTrue(dbg.launch())
+            self.assertTrue(dbg.launch_and_wait())
             entry = dbg.live_view.entry_point
             self.assertEqual(dbg.ip, entry)
 

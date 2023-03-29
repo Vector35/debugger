@@ -284,6 +284,12 @@ bool DebuggerController::Launch()
 }
 
 
+bool DebuggerController::LaunchAndWait()
+{
+	return BNDebuggerLaunchAndWait(m_object);
+}
+
+
 bool DebuggerController::Execute()
 {
 	return BNDebuggerExecute(m_object);

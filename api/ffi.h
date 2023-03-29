@@ -351,6 +351,7 @@ extern "C"
 
 	// target control
 	DEBUGGER_FFI_API bool BNDebuggerLaunch(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerLaunchAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerExecute(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerRestart(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerQuit(BNDebuggerController* controller);

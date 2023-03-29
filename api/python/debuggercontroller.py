@@ -731,6 +731,12 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerLaunch(self.handle)
 
+    def launch_and_wait(self) -> bool:
+        """
+        Launch the target and wait for all debugger events to be processed
+        """
+        return dbgcore.BNDebuggerLaunchAndWait(self.handle)
+
     def restart(self) -> None:
         """
         Restart the target

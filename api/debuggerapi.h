@@ -485,6 +485,7 @@ namespace BinaryNinjaDebuggerAPI {
 
 		// target control
 		bool Launch();
+		bool LaunchAndWait();
 		bool Execute();
 		void Restart();
 		void Quit();
