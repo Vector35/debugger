@@ -399,7 +399,7 @@ int main(int argc, const char* argv[])
 		int32_t port = std::stoi(portStr);
 		debugger->SetRemoteHost(host);
 		debugger->SetRemotePort(port);
-		debugger->Connect();
+		debugger->ConnectAndWait();
 	}
 	else if (strcmp(argv[2], "--attach") == 0)
 	{

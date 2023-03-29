@@ -314,9 +314,15 @@ void DebuggerController::QuitAndWait()
 }
 
 
-void DebuggerController::Connect()
+bool DebuggerController::Connect()
 {
-	BNDebuggerConnect(m_object);
+	return BNDebuggerConnect(m_object);
+}
+
+
+DebugStopReason DebuggerController::ConnectAndWait()
+{
+	return BNDebuggerConnectAndWait(m_object);
 }
 
 

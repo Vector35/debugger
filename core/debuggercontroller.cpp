@@ -187,6 +187,46 @@ DebugStopReason DebuggerController::AttachAndWait()
 }
 
 
+bool DebuggerController::Connect()
+{
+	std::thread([&]() { ConnectAndWait(); }).detach();
+	return true;
+}
+
+
+DebugStopReason DebuggerController::ConnectAndWaitInternal()
+{
+	DebuggerEvent event;
+	event.type = LaunchEventType;
+	PostDebuggerEvent(event);
+
+	if (!CreateDebugAdapter())
+		return InternalError;
+
+	m_inputFileLoaded = false;
+	m_initialBreakpointSeen	 = false;
+	m_state->MarkDirty();
+	if (!CreateDebuggerBinaryView())
+		return InternalError;
+
+	return ExecuteAdapterAndWait(DebugAdapterConnect);
+}
+
+
+DebugStopReason DebuggerController::ConnectAndWait()
+{
+	if (!m_targetControlMutex.try_lock())
+		return InternalError;
+
+	auto reason = ConnectAndWaitInternal();
+	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+		NotifyStopped(reason);
+
+	m_targetControlMutex.unlock();
+	return reason;
+}
+
+
 bool DebuggerController::Execute()
 {
 	std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
@@ -756,25 +796,6 @@ void DebuggerController::Restart()
 {
 	QuitAndWait();
 	Launch();
-}
-
-
-void DebuggerController::Connect()
-{
-	if (m_state->IsConnected())
-		return;
-
-	if (!CreateDebugAdapter())
-		return;
-
-	m_inputFileLoaded = false;
-	m_initialBreakpointSeen = false;
-	m_state->MarkDirty();
-	m_state->SetConnectionStatus(DebugAdapterConnectingStatus);
-	CreateDebuggerBinaryView();
-	NotifyEvent(ConnectEventType);
-
-	bool ok = m_adapter->Connect(m_state->GetRemoteHost(), m_state->GetRemotePort());
 }
 
 
@@ -1773,13 +1794,17 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 	case DebugAdapterAttach:
 		resumeOK = m_adapter->Attach(m_state->GetPIDAttach());
 		break;
+	case DebugAdapterConnect:
+		resumeOK = m_adapter->Connect(m_state->GetRemoteHost(), m_state->GetRemotePort());
+		break;
 	default:
 		break;
 	}
 
 	bool ok = false;
 	if ((operation == DebugAdapterGo) || (operation == DebugAdapterStepInto) || (operation == DebugAdapterStepOver)
-		|| (operation == DebugAdapterStepReturn) || (operation == DebugAdapterLaunch))
+		|| (operation == DebugAdapterStepReturn) || (operation == DebugAdapterLaunch)
+		|| (operation == DebugAdapterConnect) || (operation == DebugAdapterAttach))
 	{
 		ok = resumeOK;
 	}

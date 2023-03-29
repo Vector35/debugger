@@ -755,13 +755,21 @@ class DebuggerController:
         """
         dbgcore.BNDebuggerQuitAndWait(self.handle)
 
-    def connect(self) -> None:
+    def connect(self) -> bool:
         """
         Connect to a remote target (process)
 
         The host and port of the remote target must first be specified by setting `remote_host` and `remote_port`
         """
-        dbgcore.BNDebuggerConnect(self.handle)
+        return dbgcore.BNDebuggerConnect(self.handle)
+
+    def connect_and_wait(self) -> bool:
+        """
+        Connect to a remote target (process) and wait for all debugger events to be processed
+
+        The host and port of the remote target must first be specified by setting `remote_host` and `remote_port`
+        """
+        return dbgcore.BNDebuggerConnectAndWait(self.handle)
 
     def connect_to_debug_server(self) -> bool:
         """

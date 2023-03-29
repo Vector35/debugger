@@ -292,6 +292,7 @@ extern "C"
     {
 		DebugAdapterLaunch,
 		DebugAdapterAttach,
+		DebugAdapterConnect,
         DebugAdapterGo,
         DebugAdapterStepInto,
         DebugAdapterStepOver,
@@ -358,7 +359,8 @@ extern "C"
 	DEBUGGER_FFI_API void BNDebuggerRestart(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerQuit(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerQuitAndWait(BNDebuggerController* controller);
-	DEBUGGER_FFI_API void BNDebuggerConnect(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerConnect(BNDebuggerController* controller);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerConnectAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerConnectToDebugServer(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerDisconnectDebugServer(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerDetach(BNDebuggerController* controller);

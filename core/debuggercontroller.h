@@ -111,6 +111,7 @@ namespace BinaryNinjaDebugger {
 		// the callbacks.
 		DebugStopReason LaunchAndWaitInternal();
 		DebugStopReason AttachAndWaitInternal();
+		DebugStopReason ConnectAndWaitInternal();
 		DebugStopReason PauseAndWaitInternal();
 		DebugStopReason GoAndWaitInternal();
 		DebugStopReason StepIntoAndWaitInternal();
@@ -211,16 +212,16 @@ namespace BinaryNinjaDebugger {
 		// target control
 		bool Execute();
 		void Restart();
-		void Connect();
 		bool ConnectToDebugServer();
 		bool DisconnectDebugServer();
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected
 		// adapter
 		void LaunchOrConnect();
-		bool Attach();
 
 		// Asynchronous APIs.
 		bool Launch();
+		bool Connect();
+		bool Attach();
 		void Detach();
 		bool Go();
 		void Quit();
@@ -236,6 +237,7 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason LaunchAndWait();
 		DebugStopReason GoAndWait();
 		DebugStopReason AttachAndWait();
+		DebugStopReason ConnectAndWait();
 		DebugStopReason StepIntoAndWait(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepReturnAndWait();

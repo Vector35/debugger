@@ -429,9 +429,15 @@ void BNDebuggerQuitAndWait(BNDebuggerController* controller)
 }
 
 
-void BNDebuggerConnect(BNDebuggerController* controller)
+bool BNDebuggerConnect(BNDebuggerController* controller)
 {
-	controller->object->Connect();
+	return controller->object->Connect();
+}
+
+
+BNDebugStopReason BNDebuggerConnectAndWait(BNDebuggerController* controller)
+{
+	return controller->object->ConnectAndWait();
 }
 
 

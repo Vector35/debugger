@@ -490,7 +490,8 @@ namespace BinaryNinjaDebuggerAPI {
 		void Restart();
 		void Quit();
 		void QuitAndWait();
-		void Connect();
+		bool Connect();
+		DebugStopReason ConnectAndWait();
 		bool ConnectToDebugServer();
 		bool DisconnectDebugServer();
 		void Detach();

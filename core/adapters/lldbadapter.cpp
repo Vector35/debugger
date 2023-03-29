@@ -337,7 +337,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	if (!m_target.IsValid())
 	{
 		DebuggerEvent event;
-		event.type = ErrorEventType;
+		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to connect to target.");
 		event.data.errorData.error =
 			fmt::format("LLDB failed to connect to target with \"{}\"", err.GetCString() ? err.GetCString() : "");
@@ -360,7 +360,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || err.Fail())
 	{
 		DebuggerEvent event;
-		event.type = ErrorEventType;
+		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to connect to target.");
 		event.data.errorData.error =
 			fmt::format("LLDB Failed to connect to target with \"{}\"", err.GetCString() ? err.GetCString() : "");
