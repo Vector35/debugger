@@ -248,15 +248,24 @@ bool DbgEngAdapter::Start()
 
 	m_debugEventCallbacks.SetAdapter(this);
 	if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks); result != S_OK)
-		throw std::runtime_error("Failed to set event callbacks");
+	{
+		LogWarn("Failed to set event callbacks");
+		return false;
+	}
 
 	m_outputCallbacks.SetAdapter(this);
 	if (const auto result = this->m_debugClient->SetOutputCallbacks(&this->m_outputCallbacks); result != S_OK)
-		throw std::runtime_error("Failed to set output callbacks");
+	{
+		LogWarn("Failed to set output callbacks");
+		return false;
+	}
 
     m_inputCallbacks.SetDbgControl(m_debugControl);
     if (const auto result = this->m_debugClient->SetInputCallbacks(&this->m_inputCallbacks); result != S_OK)
-        throw std::runtime_error("Failed to set input callbacks");
+	{
+		LogWarn("Failed to set input callbacks");
+		return false;
+	}
 
 	this->m_debugActive = true;
 	return true;
@@ -354,12 +363,24 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	}
 
 	if (!Start())
+	{
+		this->Reset();
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = fmt::format("Failed to initialize DbgEng");
+		event.data.errorData.shortError = fmt::format("Failed to initialize DbgEng");
+		PostDebuggerEvent(event);
 		return false;
+	}
 
 	if (const auto result = this->m_debugControl->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK); result != S_OK)
 	{
-		LogError("Failed to set engine options...");
 		this->Reset();
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = fmt::format("Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK");
+		event.data.errorData.shortError = fmt::format("Failed to engine option");
+		PostDebuggerEvent(event);
 		return false;
 	}
 
@@ -387,17 +408,24 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 			&options, sizeof(DEBUG_CREATE_PROCESS_OPTIONS), directory, nullptr);
 		result != S_OK)
 	{
-		DebuggerEvent event;
-		event.type = ErrorEventType;
-		event.data.errorData.error = fmt::format("CreateProcess2 failed with code: 0x{:x}", result);
-		event.data.errorData.shortError = fmt::format("CreateProcess2 failed with code: 0x{:x}", result);
-		PostDebuggerEvent(event);
 		this->Reset();
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = fmt::format("CreateProcess2 failed: 0x{:x}", result);
+		event.data.errorData.shortError = fmt::format("CreateProcess2 failed: 0x{:x}", result);
+		PostDebuggerEvent(event);
 		return false;
 	}
 
 	// The WaitForEvent() must be called once before the engine fully attaches to the target.
-	Wait();
+	if (!Wait())
+	{
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = fmt::format("WaitForEvent failed");
+		event.data.errorData.shortError = fmt::format("WaitForEvent failed");
+		PostDebuggerEvent(event);
+	}
 
 	// Apply the breakpoints added before the m_debugClient is created
 	ApplyBreakpoints();
@@ -411,7 +439,15 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
 	{
 		if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK)
+		{
+			this->Reset();
+			DebuggerEvent event;
+			event.type = LaunchFailureEventType;
+			event.data.errorData.error = fmt::format("Failed to resume the target after the system entry point");
+			event.data.errorData.shortError = fmt::format("Failed to resume target");
+			PostDebuggerEvent(event);
 			return false;
+		}
 	}
 
 	return true;
@@ -502,16 +538,33 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 	if (const auto result = this->m_debugControl->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK); result != S_OK)
 	{
 		this->Reset();
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = fmt::format("Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK");
+		event.data.errorData.shortError = fmt::format("Failed to engine option");
+		PostDebuggerEvent(event);
 		return false;
 	}
 
 	if (const auto result = this->m_debugClient->AttachProcess(m_server, pid, 0); result != S_OK)
 	{
 		this->Reset();
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = fmt::format("AttachProcess failed: 0x{:x}", result);
+		event.data.errorData.shortError = fmt::format("AttachProcess failed: 0x{:x}", result);
+		PostDebuggerEvent(event);
 		return false;
 	}
 
-	Wait();
+	if (!Wait())
+	{
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = fmt::format("WaitForEvent failed");
+		event.data.errorData.shortError = fmt::format("WaitForEvent failed");
+		PostDebuggerEvent(event);
+	}
 
 	ApplyBreakpoints();
 
@@ -538,7 +591,11 @@ bool DbgEngAdapter::Attach(std::uint32_t pid)
 
 bool DbgEngAdapter::Connect(const std::string& server, std::uint32_t port)
 {
-	static_assert("not implemented");
+	DebuggerEvent event;
+	event.type = LaunchFailureEventType;
+	event.data.errorData.error = fmt::format("Connect() is not implemented in DbgEng");
+	event.data.errorData.shortError = fmt::format("Connect() is not implemented in DbgEng");
+	PostDebuggerEvent(event);
 	return false;
 }
 
