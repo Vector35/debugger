@@ -484,12 +484,13 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (pid == 0)
 					return;
 
+				controller->SetPIDAttach(pid);
 				QString text = QString(
 					"The debugger is attaching to the target and preparing the debugger binary view. \n"
 					"This might take a while.");
 				ProgressTask* task = new ProgressTask(
 					ctxt.widget, "Attaching", text, "", [&](std::function<bool(size_t, size_t)> progress) {
-						controller->Attach(pid);
+						controller->Attach();
 
 						// For now, this cant be canceled, as the Debugger model wasn't
 			            // designed with that in mind. This function below can return false if canceling is enabled

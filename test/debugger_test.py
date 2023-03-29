@@ -306,7 +306,8 @@ class DebuggerAPI(unittest.TestCase):
         self.assertIsNotNone(pid)
         bv = BinaryViewType.get_view_of_file(fpath)
         dbg = DebuggerController(bv)
-        self.assertTrue(dbg.attach(pid))
+        dbg.pid_attach = pid
+        self.assertTrue(dbg.attach_and_wait())
         self.assertGreater(len(dbg.regs), 0)
 
         dbg.quit_and_wait()

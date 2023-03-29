@@ -284,7 +284,7 @@ bool DebuggerController::Launch()
 }
 
 
-bool DebuggerController::LaunchAndWait()
+DebugStopReason DebuggerController::LaunchAndWait()
 {
 	return BNDebuggerLaunchAndWait(m_object);
 }
@@ -351,10 +351,17 @@ void DebuggerController::LaunchOrConnect()
 }
 
 
-bool DebuggerController::Attach(uint32_t pid)
+bool DebuggerController::Attach()
 {
-	return BNDebuggerAttach(m_object, pid);
+	return BNDebuggerAttach(m_object);
 }
+
+
+DebugStopReason DebuggerController::AttachAndWait()
+{
+	return BNDebuggerAttachAndWait(m_object);
+}
+
 
 
 bool DebuggerController::StepInto(BNFunctionGraphType il)
@@ -472,6 +479,12 @@ uint32_t DebuggerController::GetRemotePort()
 }
 
 
+int32_t DebuggerController::GetPIDAttach()
+{
+	return BNDebuggerGetPIDAttach(m_object);
+}
+
+
 std::string DebuggerController::GetInputFile()
 {
 	char* path = BNDebuggerGetInputFile(m_object);
@@ -559,6 +572,12 @@ void DebuggerController::SetRemoteHost(const std::string& host)
 void DebuggerController::SetRemotePort(uint32_t port)
 {
 	BNDebuggerSetRemotePort(m_object, port);
+}
+
+
+void DebuggerController::SetPIDAttach(int32_t port)
+{
+	BNDebuggerSetPIDAttach(m_object, port);
 }
 
 

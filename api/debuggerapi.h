@@ -485,7 +485,7 @@ namespace BinaryNinjaDebuggerAPI {
 
 		// target control
 		bool Launch();
-		bool LaunchAndWait();
+		BNDebugStopReason LaunchAndWait();
 		bool Execute();
 		void Restart();
 		void Quit();
@@ -497,7 +497,8 @@ namespace BinaryNinjaDebuggerAPI {
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected
 		// adapter
 		void LaunchOrConnect();
-		bool Attach(uint32_t pid);
+		bool Attach();
+		DebugStopReason AttachAndWait();
 
 		bool Go();
 		bool StepInto(BNFunctionGraphType il = NormalFunctionGraph);
@@ -528,6 +529,7 @@ namespace BinaryNinjaDebuggerAPI {
 		std::string GetWorkingDirectory();
 		bool GetRequestTerminalEmulator();
 		std::string GetCommandLineArguments();
+		int32_t GetPIDAttach();
 
 		void SetInputFile(const std::string& path);
 		void SetExecutablePath(const std::string& path);
@@ -536,6 +538,7 @@ namespace BinaryNinjaDebuggerAPI {
 		void SetRemoteHost(const std::string& host);
 		void SetRemotePort(uint32_t port);
 		void SetRequestTerminalEmulator(bool requested);
+		void SetPIDAttach(int32_t pid);
 
 		std::vector<DebugBreakpoint> GetBreakpoints();
 		void DeleteBreakpoint(uint64_t address);

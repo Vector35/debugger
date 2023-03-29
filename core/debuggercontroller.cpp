@@ -147,21 +147,43 @@ DebugStopReason DebuggerController::LaunchAndWait()
 }
 
 
-bool DebuggerController::Attach(int32_t pid)
+bool DebuggerController::Attach()
 {
-	std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
+	std::thread([&]() { AttachAndWait(); }).detach();
+	return true;
+}
 
-	NotifyEvent(AttachEventType);
+
+DebugStopReason DebuggerController::AttachAndWaitInternal()
+{
+	DebuggerEvent event;
+	event.type = LaunchEventType;
+	PostDebuggerEvent(event);
+
 	if (!CreateDebugAdapter())
-		return false;
+		return InternalError;
 
 	m_inputFileLoaded = false;
-	m_initialBreakpointSeen = false;
+	m_initialBreakpointSeen	 = false;
 	m_state->MarkDirty();
 	if (!CreateDebuggerBinaryView())
-		return false;
+		return InternalError;
 
-	return m_adapter->Attach(pid);
+	return ExecuteAdapterAndWait(DebugAdapterAttach);
+}
+
+
+DebugStopReason DebuggerController::AttachAndWait()
+{
+	if (!m_targetControlMutex.try_lock())
+		return InternalError;
+
+	auto reason = AttachAndWaitInternal();
+	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+		NotifyStopped(reason);
+
+	m_targetControlMutex.unlock();
+	return reason;
 }
 
 
@@ -749,6 +771,7 @@ void DebuggerController::Connect()
 	m_initialBreakpointSeen = false;
 	m_state->MarkDirty();
 	m_state->SetConnectionStatus(DebugAdapterConnectingStatus);
+	CreateDebuggerBinaryView();
 	NotifyEvent(ConnectEventType);
 
 	bool ok = m_adapter->Connect(m_state->GetRemoteHost(), m_state->GetRemotePort());
@@ -1746,6 +1769,9 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 		break;
 	case DebugAdapterLaunch:
 		resumeOK = Execute();
+		break;
+	case DebugAdapterAttach:
+		resumeOK = m_adapter->Attach(m_state->GetPIDAttach());
 		break;
 	default:
 		break;

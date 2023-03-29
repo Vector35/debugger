@@ -406,7 +406,8 @@ int main(int argc, const char* argv[])
 		uint32_t pid = std::stoi(argv[3]);
 		if (pid == 0)
 			return -1;
-		if (!debugger->Attach(pid))
+		debugger->SetPIDAttach(pid);
+		if (!debugger->AttachAndWait())
 			return -1;
 	}
 
@@ -561,7 +562,7 @@ int main(int argc, const char* argv[])
 		}
 		else if (input == "r")
 		{
-			[[maybe_unused]] bool result = debugger->Launch();
+			[[maybe_unused]] bool result = debugger->LaunchAndWait();
 		}
 		else if (input == "force_go")
 		{

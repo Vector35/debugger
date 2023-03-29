@@ -161,6 +161,7 @@ namespace BinaryNinjaDebugger {
 		std::string m_commandLineArgs;
 		std::string m_remoteHost;
 		uint32_t m_remotePort = 0;
+		int32_t m_pidAttach = 0;
 		bool m_requestTerminalEmulator;
 		std::string m_adapterType;
 		std::vector<std::string> m_availableAdapters;
@@ -192,6 +193,7 @@ namespace BinaryNinjaDebugger {
 		std::string GetRemoteHost() const { return m_remoteHost; }
 		uint32_t GetRemotePort() const { return m_remotePort; }
 		bool GetRequestTerminalEmulator() const { return m_requestTerminalEmulator; }
+		int32_t GetPIDAttach() const { return m_pidAttach; }
 
 		void SetAdapterType(const std::string& adapter);
 		void SetExecutablePath(const std::string& path);
@@ -201,6 +203,7 @@ namespace BinaryNinjaDebugger {
 		void SetRemoteHost(const std::string& host);
 		void SetRemotePort(uint32_t port);
 		void SetRequestTerminalEmulator(bool requested);
+		void SetPIDAttach(int32_t pid);
 
 		// This is the center hub for adding and deleting breakpoints. It is called from DebugView, the CLI, the
 		// DebugBreakpointsWidget, and the planned C++/Python API.

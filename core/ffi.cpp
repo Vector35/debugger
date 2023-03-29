@@ -398,7 +398,7 @@ bool BNDebuggerLaunch(BNDebuggerController* controller)
 }
 
 
-bool BNDebuggerLaunchAndWait(BNDebuggerController* controller)
+BNDebugStopReason BNDebuggerLaunchAndWait(BNDebuggerController* controller)
 {
 	return controller->object->LaunchAndWait();
 }
@@ -466,9 +466,15 @@ void BNDebuggerLaunchOrConnect(BNDebuggerController* controller)
 }
 
 
-bool BNDebuggerAttach(BNDebuggerController* controller, uint32_t pid)
+bool BNDebuggerAttach(BNDebuggerController* controller)
 {
-	return controller->object->Attach(pid);
+	return controller->object->Attach();
+}
+
+
+BNDebugStopReason BNDebuggerAttachAndWait(BNDebuggerController* controller)
+{
+	return controller->object->AttachAndWait();
 }
 
 
@@ -624,6 +630,12 @@ uint32_t BNDebuggerGetRemotePort(BNDebuggerController* controller)
 }
 
 
+int32_t BNDebuggerGetPIDAttach(BNDebuggerController* controller)
+{
+	return controller->object->GetState()->GetPIDAttach();
+}
+
+
 char* BNDebuggerGetInputFile(BNDebuggerController* controller)
 {
 	return BNDebuggerAllocString(controller->object->GetState()->GetInputFile().c_str());
@@ -663,6 +675,12 @@ void BNDebuggerSetRemoteHost(BNDebuggerController* controller, const char* host)
 void BNDebuggerSetRemotePort(BNDebuggerController* controller, uint32_t port)
 {
 	controller->object->GetState()->SetRemotePort(port);
+}
+
+
+void BNDebuggerSetPIDAttach(BNDebuggerController* controller, int32_t pid)
+{
+	controller->object->GetState()->SetPIDAttach(pid);
 }
 
 

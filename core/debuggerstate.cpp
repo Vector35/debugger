@@ -936,3 +936,9 @@ void DebuggerState::SetRequestTerminalEmulator(bool requested)
 	m_requestTerminalEmulator = requested;
 	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
 }
+
+
+void DebuggerState::SetPIDAttach(int32_t pid)
+{
+	m_pidAttach = pid;
+}

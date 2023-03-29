@@ -155,12 +155,13 @@ void DebugControlsWidget::performAttachPID()
 	if (pid == 0)
 		return;
 
+	m_controller->SetPIDAttach(pid);
 	QString text = QString(
 		"The debugger is %1 the target and preparing the debugger binary view. \n"
 		"This might take a while.").arg("attaching to");
 	ProgressTask* task =
 		new ProgressTask(this, "Attaching", text, "", [=](std::function<bool(size_t, size_t)> progress) {
-			m_controller->Attach(pid);
+			m_controller->Attach();
 
 			// For now, this cant be canceled, as the Debugger model wasn't
 		    // designed with that in mind. This function below can return false if canceling is enabled

@@ -795,13 +795,21 @@ class DebuggerController:
         """
         dbgcore.BNDebuggerLaunchOrConnect(self.handle)
 
-    def attach(self, pid: int) -> bool:
+    def attach(self) -> bool:
         """
-        Attach to a running process by its PID
+        Attach to a running process
 
-        :param pid: the PID of the process to attach to
+        The PID of the target process must be set via DebuggerState.pid_attach
         """
-        return dbgcore.BNDebuggerAttach(self.handle, pid)
+        return dbgcore.BNDebuggerAttach(self.handle)
+
+    def attach_and_wait(self) -> bool:
+        """
+        Attach to a running process and wait until all debugger events are processed
+
+        The PID of the target process must be set via DebuggerState.pid_attach
+        """
+        return dbgcore.BNDebuggerAttachAndWait(self.handle)
 
     def go(self) -> bool:
         """
@@ -1064,6 +1072,22 @@ class DebuggerController:
     @remote_port.setter
     def remote_port(self, port: int) -> None:
         dbgcore.BNDebuggerSetRemotePort(self.handle, port)
+
+    @property
+    def pid_attach(self) -> int:
+        """
+        The PID to attach to. (read/write)
+
+        ``pid_attach`` is only useful for connecting to a running process using PID.
+
+        :getter: returns the remote port
+        :setter: sets the remote port
+        """
+        return dbgcore.BNDebuggerGetPIDAttach(self.handle)
+
+    @remote_port.setter
+    def pid_attach(self, pid: int) -> None:
+        dbgcore.BNDebuggerSetPIDAttach(self.handle, pid)
 
     @property
     def executable_path(self) -> str:

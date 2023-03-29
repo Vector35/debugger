@@ -291,6 +291,7 @@ extern "C"
     enum BNDebuggerAdapterOperation
     {
 		DebugAdapterLaunch,
+		DebugAdapterAttach,
         DebugAdapterGo,
         DebugAdapterStepInto,
         DebugAdapterStepOver,
@@ -352,7 +353,7 @@ extern "C"
 
 	// target control
 	DEBUGGER_FFI_API bool BNDebuggerLaunch(BNDebuggerController* controller);
-	DEBUGGER_FFI_API bool BNDebuggerLaunchAndWait(BNDebuggerController* controller);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerLaunchAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerExecute(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerRestart(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerQuit(BNDebuggerController* controller);
@@ -363,7 +364,8 @@ extern "C"
 	DEBUGGER_FFI_API void BNDebuggerDetach(BNDebuggerController* controller);
 	// Convenience function, either launch the target process or connect to a remote, depending on the selected adapter
 	DEBUGGER_FFI_API void BNDebuggerLaunchOrConnect(BNDebuggerController* controller);
-	DEBUGGER_FFI_API bool BNDebuggerAttach(BNDebuggerController* controller, uint32_t pid);
+	DEBUGGER_FFI_API bool BNDebuggerAttach(BNDebuggerController* controller);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerAttachAndWait(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API bool BNDebuggerGo(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerStepInto(BNDebuggerController* controller, BNFunctionGraphType il);
@@ -391,6 +393,7 @@ extern "C"
 
 	DEBUGGER_FFI_API char* BNDebuggerGetRemoteHost(BNDebuggerController* controller);
 	DEBUGGER_FFI_API uint32_t BNDebuggerGetRemotePort(BNDebuggerController* controller);
+	DEBUGGER_FFI_API int32_t BNDebuggerGetPIDAttach(BNDebuggerController* controller);
 	DEBUGGER_FFI_API char* BNDebuggerGetInputFile(BNDebuggerController* controller);
 	DEBUGGER_FFI_API char* BNDebuggerGetExecutablePath(BNDebuggerController* controller);
 	DEBUGGER_FFI_API char* BNDebuggerGetWorkingDirectory(BNDebuggerController* controller);
@@ -399,6 +402,7 @@ extern "C"
 
 	DEBUGGER_FFI_API void BNDebuggerSetRemoteHost(BNDebuggerController* controller, const char* host);
 	DEBUGGER_FFI_API void BNDebuggerSetRemotePort(BNDebuggerController* controller, uint32_t port);
+	DEBUGGER_FFI_API void BNDebuggerSetPIDAttach(BNDebuggerController* controller, int32_t pid);
 	DEBUGGER_FFI_API void BNDebuggerSetInputFile(BNDebuggerController* controller, const char* path);
 	DEBUGGER_FFI_API void BNDebuggerSetExecutablePath(BNDebuggerController* controller, const char* path);
 	DEBUGGER_FFI_API void BNDebuggerSetWorkingDirectory(BNDebuggerController* controller, const char* path);

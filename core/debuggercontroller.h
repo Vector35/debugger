@@ -109,6 +109,8 @@ namespace BinaryNinjaDebugger {
 		// Low-level internal synchronous APIs. They resume the target and wait for the adapter to stop.
 		// They do NOT dispatch the debugger event callbacks. Higher-level APIs must take care of notifying
 		// the callbacks.
+		DebugStopReason LaunchAndWaitInternal();
+		DebugStopReason AttachAndWaitInternal();
 		DebugStopReason PauseAndWaitInternal();
 		DebugStopReason GoAndWaitInternal();
 		DebugStopReason StepIntoAndWaitInternal();
@@ -207,25 +209,21 @@ namespace BinaryNinjaDebugger {
 		bool SetIP(uint64_t address);
 
 		// target control
-		DebugStopReason LaunchAndWait();
-		DebugStopReason LaunchAndWaitInternal();
-		bool Launch();
 		bool Execute();
 		void Restart();
-		void Quit();
-		void QuitAndWait();
 		void Connect();
 		bool ConnectToDebugServer();
 		bool DisconnectDebugServer();
-		void Detach();
-		void DetachAndWait();
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected
 		// adapter
 		void LaunchOrConnect();
-		bool Attach(int32_t pid);
+		bool Attach();
 
 		// Asynchronous APIs.
+		bool Launch();
+		void Detach();
 		bool Go();
+		void Quit();
 		bool StepInto(BNFunctionGraphType il = NormalFunctionGraph);
 		bool StepOver(BNFunctionGraphType il = NormalFunctionGraph);
 		bool StepReturn();
@@ -235,12 +233,16 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason ExecuteAdapterAndWait(const DebugAdapterOperation operation);
 
 		// Synchronous APIs
+		DebugStopReason LaunchAndWait();
 		DebugStopReason GoAndWait();
+		DebugStopReason AttachAndWait();
 		DebugStopReason StepIntoAndWait(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepReturnAndWait();
 		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
 		DebugStopReason PauseAndWait();
+		void DetachAndWait();
+		void QuitAndWait();
 
 		// getters
 		DebugAdapter* GetAdapter() { return m_adapter; }

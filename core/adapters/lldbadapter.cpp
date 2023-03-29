@@ -272,7 +272,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	if (!m_target.IsValid())
 	{
 		DebuggerEvent event;
-		event.type = ErrorEventType;
+		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
 		event.data.errorData.error =
 			fmt::format("LLDB failed to attach to target with \"{}\"", err.GetCString() ? err.GetCString() : "");
@@ -288,7 +288,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || err.Fail())
 	{
 		DebuggerEvent event;
-		event.type = ErrorEventType;
+		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
 		event.data.errorData.error =
 			fmt::format("LLDB Failed to attach to target with \"{}\"", err.GetCString() ? err.GetCString() : "");
@@ -299,7 +299,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	// LLDB event listener does not get an event when the attach operation completes, so we must send an event here.
 	// This is NOT needed for Connect(), since LLDB event listener sends an event in that case.
 	DebuggerEvent dbgevt;
-	dbgevt.type = TargetStoppedEventType;
+	dbgevt.type = AdapterStoppedEventType;
 	dbgevt.data.targetStoppedData.reason = InitialBreakpoint;
 	PostDebuggerEvent(dbgevt);
 	return true;
