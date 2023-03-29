@@ -922,9 +922,11 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 				for (auto i : syncGroup->members())
 				{
 					View* groupView = i->getCurrentViewInterface();
-					if (groupView->getCurrentFunction())
+					auto data = groupView->getData();
+					bool dataMatch = (data && (data == m_controller->GetLiveView() || data == m_controller->GetData()));
+					if (dataMatch && groupView->getCurrentFunction())
 					{
-						navigated = i->navigate(m_controller->GetLiveView(), address, true, true);
+						navigated |= i->navigate(m_controller->GetLiveView(), address, true, true);
 						if (navigated)
 							break;
 					}
@@ -1089,7 +1091,6 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			FileContext* fileContext = frame->getFileContext();
 			fileContext->refreshDataViewCache();
 			ViewFrame* newFrame = m_context->openFileContext(fileContext);
-			QCoreApplication::processEvents();
 
 			if (newFrame)
 			{
