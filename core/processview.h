@@ -29,7 +29,6 @@ namespace BinaryNinjaDebugger
 
 	class DebugProcessView : public BinaryView
 	{
-		std::vector<uint64_t> m_entryPoints;
 		size_t m_addressSize;
 		BNEndianness m_endian;
 		Ref<Architecture> m_arch;

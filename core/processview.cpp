@@ -36,7 +36,6 @@ DebugProcessView::DebugProcessView(DebugNullView* nullView, BinaryView* parent):
 	else
 		m_length = (1ULL << bits) - 1;
 
-	m_entryPoints.push_back(parent->GetEntryPoint());
 	m_endian = parent->GetDefaultEndianness();
 
 	// TODO: Read segments from debugger
@@ -74,10 +73,7 @@ bool DebugProcessView::Init()
 
 uint64_t DebugProcessView::PerformGetEntryPoint() const
 {
-	if (m_entryPoints.size() == 0)
-		return 0;
-
-	return m_entryPoints[0];
+	return 0;
 }
 
 

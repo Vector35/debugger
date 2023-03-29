@@ -175,7 +175,7 @@ class DebuggerAPI(unittest.TestCase):
         self.assertIsNone(dbg.delete_breakpoint(0))
 
         # breakpoint set/clear should succeed at entrypoint
-        entry = dbg.live_view.entry_point
+        entry = dbg.data.entry_point
         self.assertIsNone(dbg.delete_breakpoint(entry))
         self.assertIsNone(dbg.add_breakpoint(entry))
 
@@ -265,7 +265,7 @@ class DebuggerAPI(unittest.TestCase):
             bv = BinaryViewType.get_view_of_file(fpath)
             dbg = DebuggerController(bv)
             self.assertTrue(dbg.launch_and_wait())
-            entry = dbg.live_view.entry_point
+            entry = dbg.data.entry_point
             self.assertEqual(dbg.ip, entry)
 
             # TODO: we can use BN to disassemble the binary and find out how long is the instruction
