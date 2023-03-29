@@ -214,6 +214,7 @@ extern "C"
 		TargetStoppedEventType,
 		ErrorEventType,
 		GeneralEventType,
+		LaunchFailureEventType,
 
 		StdoutMessageEventType,
 		BackendMessageEventType,

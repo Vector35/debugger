@@ -1068,6 +1068,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		m_exitCode = event.data.exitData.exitCode;
 	case QuitDebuggingEventType:
 	case DetachedEventType:
+	case LaunchFailureEventType:
 	{
 		m_inputFileLoaded = false;
 		m_initialBreakpointSeen = false;
@@ -1767,6 +1768,8 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 
 	if (ok)
 		sem.Wait();
+	else
+		reason = InternalError;
 
 	RemoveEventCallback(callback);
 	if ((operation != DebugAdapterPause) && (operation != DebugAdapterQuit) && (operation != DebugAdapterDetach))

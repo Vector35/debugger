@@ -1074,6 +1074,13 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		break;
 	}
 
+	case LaunchFailureEventType:
+	{
+		QMessageBox::critical(nullptr, QString::fromStdString(event.data.errorData.shortError),
+			QString::fromStdString(event.data.errorData.error));
+		break;
+	}
+
 	case TargetStoppedEventType:
 	case ActiveThreadChangedEvent:
 	{

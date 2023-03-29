@@ -188,7 +188,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	if (!m_target.IsValid())
 	{
 		DebuggerEvent event;
-		event.type = ErrorEventType;
+		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = "LLDB failed to create target.";
 		event.data.errorData.error =
 			fmt::format("LLDB Failed to create target with \"{}\"", err.GetCString() ? err.GetCString() : "");
@@ -231,7 +231,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 		auto it = result.find_last_not_of('\n');
 		result.erase(it + 1);
 		DebuggerEvent event;
-		event.type = ErrorEventType;
+		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to launch target.");
 		event.data.errorData.error = fmt::format("LLDB Failed to launch target with \"{}\"", result.c_str());
 		PostDebuggerEvent(event);
@@ -296,6 +296,8 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 		return false;
 	}
 
+	// LLDB event listener does not get an event when the attach operation completes, so we must send an event here.
+	// This is NOT needed for Connect(), since LLDB event listener sends an event in that case.
 	DebuggerEvent dbgevt;
 	dbgevt.type = TargetStoppedEventType;
 	dbgevt.data.targetStoppedData.reason = InitialBreakpoint;
