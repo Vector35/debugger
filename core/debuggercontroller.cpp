@@ -116,6 +116,17 @@ bool DebuggerController::Launch()
 
 DebugStopReason DebuggerController::LaunchAndWaitInternal()
 {
+	if (Settings::Instance()->Get<bool>("debugger.safeMode"))
+	{
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.shortError = "Safe mode enabled";
+		event.data.errorData.error =
+			fmt::format("Cannot launch the target because the debugger is in safe mode.");
+		PostDebuggerEvent(event);
+		return InternalError;
+	}
+
 	DebuggerEvent event;
 	event.type = LaunchEventType;
 	PostDebuggerEvent(event);
@@ -1116,7 +1127,9 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	{
 		m_inputFileLoaded = false;
 		m_initialBreakpointSeen = false;
-		m_liveView->GetFile()->UnregisterViewOfType("Debugger", m_liveView);
+		// The m_liveView can be nullptr if the launch attempt fails because of the safe mode
+		if (m_liveView)
+			m_liveView->GetFile()->UnregisterViewOfType("Debugger", m_liveView);
 		SetLiveView(nullptr);
 		m_currentIP = 0;
 		m_lastIP = 0;
