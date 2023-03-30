@@ -26,7 +26,6 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 	QDialog(), m_controller(controller)
 {
 	setWindowTitle("Debug Adapter Settings");
-	setMinimumSize(UIContext::getScaledWindowSize(400, 130));
 	setAttribute(Qt::WA_DeleteOnClose);
 
 	setModal(true);
@@ -118,6 +117,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 	m_workingDirectoryEntry->setText(QString::fromStdString(m_controller->GetWorkingDirectory()));
 
 	selectAdapter(m_adapterEntry->currentText());
+	setFixedSize(QDialog::sizeHint());
 }
 
 
