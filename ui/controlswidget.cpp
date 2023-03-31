@@ -98,7 +98,12 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 		performStepReturn();
 	});
 	m_actionStepReturn->setToolTip(getToolTip("Step Return"));
+	addSeparator();
 
+	m_actionSettings = addAction(getColoredIcon(":/debugger_icons/icons/settings.svg", cyan), "Settings", [this]() {
+		performSettings();
+	});
+	m_actionSettings->setToolTip(getToolTip("Debug Adapter Settings"));
 	updateButtons();
 }
 
@@ -241,6 +246,13 @@ void DebugControlsWidget::performStepOver()
 void DebugControlsWidget::performStepReturn()
 {
 	m_controller->StepReturn();
+}
+
+
+void DebugControlsWidget::performSettings()
+{
+	auto* dialog = new AdapterSettingsDialog(this, m_controller);
+	dialog->show();
 }
 
 

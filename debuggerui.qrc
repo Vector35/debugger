@@ -14,5 +14,6 @@
         <file>icons/debugger.svg</file>
         <file>icons/breakpoint.svg</file>
         <file>icons/menu.png</file>
+        <file>icons/settings.svg</file>
     </qresource>
 </RCC>

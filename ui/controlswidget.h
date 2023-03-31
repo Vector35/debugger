@@ -47,6 +47,8 @@ private:
 	QAction* m_actionStepOver;
 	QAction* m_actionStepReturn;
 
+	QAction* m_actionSettings;
+
 	bool canExec();
 	bool canConnect();
 
@@ -75,4 +77,6 @@ public Q_SLOTS:
 	void performStepInto();
 	void performStepOver();
 	void performStepReturn();
+
+	void performSettings();
 };
