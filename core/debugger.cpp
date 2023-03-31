@@ -113,6 +113,15 @@ static void RegisterSettings()
 			"description" : "When enabled, this prevents the debugger from launching any file.",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
+
+	settings->RegisterSetting("debugger.confirmFirstLaunch",
+		R"({
+			"title" : "Confirm on first launch",
+			"type" : "boolean",
+			"default" : true,
+			"description" : "Asks the user to confirm the operation when the target is launched for the first time.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
 }
 
 extern "C"

@@ -977,6 +977,12 @@ char* BNDebuggerGetAddressInformation(BNDebuggerController* controller, uint64_t
 }
 
 
+bool BNDebuggerIsFirstLaunch(BNDebuggerController* controller)
+{
+	return controller->object->IsFirstLaunch();
+}
+
+
 void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event)
 {
 	DebuggerEvent evt;

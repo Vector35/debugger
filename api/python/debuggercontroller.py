@@ -1371,6 +1371,10 @@ class DebuggerController:
     def get_addr_info(self, addr: int):
         return dbgcore.BNDebuggerGetAddressInformation(self.handle, addr)
 
+    @property
+    def is_first_launch(self):
+        return dbgcore.BNDebuggerIsFirstLaunch(self.handle)
+
     def __del__(self):
         if dbgcore is not None:
             dbgcore.BNDebuggerFreeController(self.handle)

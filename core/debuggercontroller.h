@@ -93,6 +93,8 @@ namespace BinaryNinjaDebugger {
 		bool m_inputFileLoaded = false;
 		bool m_initialBreakpointSeen = false;
 
+		bool m_firstLaunch = true;
+
 		void EventHandler(const DebuggerEvent& event);
 		void UpdateStackVariables();
 		void AddRegisterValuesToExpressionParser();
@@ -268,5 +270,7 @@ namespace BinaryNinjaDebugger {
 
 		// Dereference an address and check for printable strings, functions, symbols, etc
 		std::string GetAddressInformation(uint64_t address);
+
+		bool IsFirstLaunch();
 	};
 };  // namespace BinaryNinjaDebugger

@@ -18,6 +18,7 @@ limitations under the License.
 #include "adaptersettings.h"
 #include <QPixmap>
 #include <QInputDialog>
+#include <QMessageBox>
 #include "binaryninjaapi.h"
 #include "disassemblyview.h"
 #include "theme.h"
@@ -128,20 +129,27 @@ QString DebugControlsWidget::getToolTip(const QString& name)
 
 void DebugControlsWidget::performLaunch()
 {
-//	QString text = QString(
-//		"The debugger is %1 the target and preparing the debugger binary view. \n"
-//		"This might take a while.").arg("launching");
-//	ProgressTask* task =
-//		new ProgressTask(this, "Launching", text, "", [=](std::function<bool(size_t, size_t)> progress) {
-//			m_controller->Launch();
-//
-//			// For now, this cant be canceled, as the Debugger model wasn't
-//		    // designed with that in mind. This function below can return false if canceling is enabled
-//			progress(1, 1);
-//			return;
-//		});
-//	task->wait();
-	std::thread([&]() { m_controller->Launch(); }).detach();
+	if (m_controller->IsFirstLaunch() && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
+	{
+		auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
+			"This may harm your machine. Are you sure to continue?").arg(QString::fromStdString(m_controller->GetExecutablePath()));
+		if (QMessageBox::question(this, "Launch Target", prompt) != QMessageBox::Yes)
+			return;
+	}
+
+	QString text = QString(
+		"The debugger is %1 the target and preparing the debugger binary view. \n"
+		"This might take a while.").arg("launching");
+	ProgressTask* task =
+		new ProgressTask(this, "Launching", text, "", [=](std::function<bool(size_t, size_t)> progress) {
+			m_controller->Launch();
+
+			// For now, this cant be canceled, as the Debugger model wasn't
+		    // designed with that in mind. This function below can return false if canceling is enabled
+			progress(1, 1);
+			return;
+		});
+	task->wait();
 }
 
 

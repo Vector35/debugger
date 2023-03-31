@@ -576,6 +576,7 @@ namespace BinaryNinjaDebuggerAPI {
 		bool ActivateDebugAdapter();
 
 		std::string GetAddressInformation(uint64_t address);
+		bool IsFirstLaunch();
 
 		void PostDebuggerEvent(const DebuggerEvent& event);
 	};

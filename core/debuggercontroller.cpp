@@ -127,6 +127,9 @@ DebugStopReason DebuggerController::LaunchAndWaitInternal()
 		return InternalError;
 	}
 
+	if (m_firstLaunch)
+		m_firstLaunch = false;
+
 	DebuggerEvent event;
 	event.type = LaunchEventType;
 	PostDebuggerEvent(event);
@@ -2089,4 +2092,10 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 		return result;
 
 	return "";
+}
+
+
+bool DebuggerController::IsFirstLaunch()
+{
+	return m_firstLaunch;
 }

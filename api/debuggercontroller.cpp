@@ -795,6 +795,12 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 }
 
 
+bool DebuggerController::IsFirstLaunch()
+{
+	return BNDebuggerIsFirstLaunch(m_object);
+}
+
+
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent &event)
 {
 	BNDebuggerEvent* evt = new BNDebuggerEvent;

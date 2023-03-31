@@ -322,6 +322,14 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
 				if (!controller)
 					return;
+				if (controller->IsFirstLaunch() && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
+				{
+					auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
+						"This may harm your machine. Are you sure to continue?").
+					  	arg(QString::fromStdString(controller->GetExecutablePath()));
+					if (QMessageBox::question(ctxt.context->mainWindow(), "Launch Target", prompt) != QMessageBox::Yes)
+						return;
+				}
 				QString text = QString(
 					"The debugger is launching the target and preparing the debugger binary view. \n"
 					"This might take a while.");
