@@ -57,7 +57,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 	auto* pathSelector = new QPushButton("...", this);
 	pathSelector->setMaximumWidth(30);
 	connect(pathSelector, &QPushButton::clicked, [&]() {
-		auto fileName = QFileDialog::getOpenFileName(this, "Select Executable Path", m_workingDirectoryEntry->text());
+		auto fileName = QFileDialog::getOpenFileName(this, "Select Executable Path", m_pathEntry->text());
 		if (!fileName.isEmpty())
 			m_pathEntry->setText(fileName);
 	});
