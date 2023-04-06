@@ -728,26 +728,36 @@ void DebuggerController::DetectLoadedModule()
 	if (m_inputFileLoaded || (!m_state->GetRemoteBase(remoteBase)))
 		return;
 
-	FileMetadataRef fileMetadata = m_data->GetFile();
-	if (remoteBase != m_data->GetStart())
+	if (BinaryNinja::IsUIEnabled())
 	{
-		// remote base is different from the local base, first need a rebase
-		// ProgressIndicator progress(nullptr, "Rebase", "Rebasing...");
-		if (!fileMetadata->Rebase(m_data, remoteBase, [&](size_t cur, size_t total) { return true; }))
-		{
-			LogWarn("rebase failed");
-		}
+		// When the UI is enabled, let the debugger UI do the work. It can show a progress bar if the operation takes
+		// a while.
+		DebuggerEvent event;
+		event.type = ModuleLoadedEvent;
+		event.data.absoluteAddress = remoteBase;
+		PostDebuggerEvent(event);
 	}
+	else
+	{
+		FileMetadataRef fileMetadata = m_data->GetFile();
+		if (remoteBase != m_data->GetStart())
+		{
+			// remote base is different from the local base, first need a rebase
+			if (!fileMetadata->Rebase(m_data, remoteBase, [&](size_t cur, size_t total) { return true; }))
+			{
+				LogWarn("rebase failed");
+			}
+		}
 
-	Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
-	SetData(rebasedView);
+		Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
+		SetData(rebasedView);
 
-	// ProgressIndicator progress(nullptr, "Debugger View", "Creating debugger view...");
-	bool ok = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger", [&](size_t cur, size_t total) {
-		return true;
-	});
-	if (!ok)
-		LogWarn("create snapshoted view failed");
+		bool ok = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger", [&](size_t cur, size_t total) {
+			return true;
+		});
+		if (!ok)
+			LogWarn("create snapshoted view failed");
+	}
 
 	m_liveView->UpdateAnalysis();
 	m_inputFileLoaded = true;

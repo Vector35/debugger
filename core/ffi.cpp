@@ -141,6 +141,12 @@ BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller)
 }
 
 
+void BNDebuggerSetData(BNDebuggerController* controller, BNBinaryView* data)
+{
+	controller->object->SetData(new BinaryView(data));
+}
+
+
 BNArchitecture* BNDebuggerGetRemoteArchitecture(BNDebuggerController* controller)
 {
 	return API_OBJECT_STATIC(controller->object->GetRemoteArchitecture());

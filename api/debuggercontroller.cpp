@@ -66,6 +66,12 @@ Ref<BinaryView> DebuggerController::GetData()
 }
 
 
+void DebuggerController::SetData(const Ref<BinaryView>& data)
+{
+	BNDebuggerSetData(m_object, data->GetObject());
+}
+
+
 Ref<Architecture> DebuggerController::GetRemoteArchitecture()
 {
 	BNArchitecture* arch = BNDebuggerGetRemoteArchitecture(m_object);

@@ -38,6 +38,7 @@ limitations under the License.
 #include "targetscriptingprovier.h"
 #include "progresstask.h"
 #include "attachprocess.h"
+#include "progresstask.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -1121,6 +1122,50 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		}
 
 		updateIPHighlight();
+		break;
+	}
+
+	case ModuleLoadedEvent:
+	{
+		uint64_t remoteBase = event.data.absoluteAddress;
+		Ref<BinaryView> data = m_controller->GetData();
+		FileMetadataRef fileMetadata = data->GetFile();
+		ViewFrame* frame = m_context->getCurrentViewFrame();
+
+		if (remoteBase != data->GetStart())
+		{
+			bool result = false;
+			QString text = QString("Rebasing the input view...");
+			ProgressTask* task =
+				new ProgressTask(frame, "Rebase", text, "Cancel", [&](std::function<bool(size_t, size_t)> progress) {
+					result = fileMetadata->Rebase(data, remoteBase, progress);
+				});
+			task->wait();
+
+			if (!result)
+			{
+				LogWarn("failed to rebase the input view");
+				break;
+			}
+		}
+
+		Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(data->GetTypeName());
+		m_controller->SetData(rebasedView);
+
+		bool result = false;
+		QString text = QString("Adding the input view into the debugger view...");
+		ProgressTask* task =
+			new ProgressTask(frame, "Adding view", text, "Cancel", [&](std::function<bool(size_t, size_t)> progress) {
+				result = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger", progress);
+			});
+		task->wait();
+
+		if (!result)
+		{
+			LogWarn("failed add the input view into the debugger view");
+			break;
+		}
+
 		break;
 	}
 

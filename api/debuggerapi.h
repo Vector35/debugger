@@ -458,6 +458,7 @@ namespace BinaryNinjaDebuggerAPI {
 		void Destroy();
 		Ref<BinaryView> GetLiveView();
 		Ref<BinaryView> GetData();
+		void SetData(const Ref<BinaryView>& data);
 		Ref<Architecture> GetRemoteArchitecture();
 
 		bool IsConnected();

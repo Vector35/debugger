@@ -103,8 +103,6 @@ namespace BinaryNinjaDebugger {
 
 		void SetLiveView(BinaryViewRef view) { m_liveView = view; }
 
-		void SetData(BinaryViewRef view) { m_data = view; }
-
 		DebugStopReason StepIntoIL(BNFunctionGraphType il);
 		DebugStopReason StepOverIL(BNFunctionGraphType il);
 
@@ -252,6 +250,7 @@ namespace BinaryNinjaDebugger {
 		DebugAdapter* GetAdapter() { return m_adapter; }
 		DebuggerState* GetState() { return m_state; }
 		BinaryViewRef GetData() const { return m_data; }
+		void SetData(BinaryViewRef view) { m_data = view; }
 		BinaryViewRef GetLiveView() const { return m_liveView; }
 
 		uint32_t GetExitCode();
