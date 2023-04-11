@@ -999,7 +999,10 @@ DebugStopReason LldbAdapter::StopReason()
 {
 	StateType state = m_process.GetState();
 	if (state == lldb::eStateExited)
+	{
+		LogWarn("target exited");
 		return DebugStopReason::ProcessExited;
+	}
 
 	if (state == lldb::eStateStopped)
 	{
@@ -1387,7 +1390,12 @@ void LldbAdapter::EventListener()
 					FixActiveThread();
 					DebuggerEvent dbgevt;
 					dbgevt.type = AdapterStoppedEventType;
-					dbgevt.data.targetStoppedData.reason = StopReason();
+					// LLDB sometimes fails to update the process status when it is already sending eStateStopped event.
+					// When we restart the process, the target will appear to have exited
+					auto reason = StopReason();
+					if (reason == ProcessExited)
+						reason = UnknownReason;
+					dbgevt.data.targetStoppedData.reason = reason;
 					PostDebuggerEvent(dbgevt);
 					break;
 				}
