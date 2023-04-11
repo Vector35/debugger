@@ -1115,6 +1115,23 @@ class DebuggerController:
         dbgcore.BNDebuggerSetExecutablePath(self.handle, path)
 
     @property
+    def input_file(self) -> str:
+        """
+        The input file used to create the database
+
+        This should be set before launching the target. Be default, it is the path of the FileMetadata
+        (``bv.file.filename``)
+
+        :getter: returns the input file path
+        :setter: sets the input file path
+        """
+        return dbgcore.BNDebuggerGetInputFile(self.handle)
+
+    @input_file.setter
+    def input_file(self, path: str) -> None:
+        dbgcore.BNDebuggerSetInputFile(self.handle, path)
+
+    @property
     def working_directory(self) -> str:
         """
         The path of the target. (read/write)
