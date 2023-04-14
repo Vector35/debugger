@@ -335,7 +335,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					"The debugger is launching the target and preparing the debugger binary view. \n"
 					"This might take a while.");
 				ProgressTask* task = new ProgressTask(
-					ctxt.widget, "Launching", text, "", [&](std::function<bool(size_t, size_t)> progress) {
+					context->mainWindow(), "Launching", text, "", [&](std::function<bool(size_t, size_t)> progress) {
 						controller->Launch();
 
 						// For now, this cant be canceled, as the Debugger model wasn't
@@ -498,7 +498,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					"The debugger is attaching to the target and preparing the debugger binary view. \n"
 					"This might take a while.");
 				ProgressTask* task = new ProgressTask(
-					ctxt.widget, "Attaching", text, "", [&](std::function<bool(size_t, size_t)> progress) {
+					context->mainWindow(), "Attaching", text, "", [&](std::function<bool(size_t, size_t)> progress) {
 						controller->Attach();
 
 						// For now, this cant be canceled, as the Debugger model wasn't
@@ -596,7 +596,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					"The debugger is connecting to the target and preparing the debugger binary view. \n"
 					"This might take a while.");
 				ProgressTask* task = new ProgressTask(
-					ctxt.widget, "Connecting", text, "", [&](std::function<bool(size_t, size_t)> progress) {
+					context->mainWindow(), "Connecting", text, "", [&](std::function<bool(size_t, size_t)> progress) {
 						controller->Connect();
 
 						// For now, this cant be canceled, as the Debugger model wasn't
