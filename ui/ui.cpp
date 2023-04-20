@@ -183,23 +183,23 @@ static bool InstallDbgEngRedistributable()
 #endif
 
 
-static bool ShowAsCode(BinaryView* view, uint64_t addr)
-{
-	DataVariable var;
-	if (view->GetDataVariableAtAddress(addr, var))
-	{
-		auto sym = view->GetSymbolByAddress(addr);
-		if (sym)
-		{
-			auto name = sym->GetFullName();
-			if (name.substr(0, 14) == "BN_CODE_start_")
-			{
-				return true;
-			}
-		}
-	}
-	return false;
-}
+//static bool ShowAsCode(BinaryView* view, uint64_t addr)
+//{
+//	DataVariable var;
+//	if (view->GetDataVariableAtAddress(addr, var))
+//	{
+//		auto sym = view->GetSymbolByAddress(addr);
+//		if (sym)
+//		{
+//			auto name = sym->GetFullName();
+//			if (name.substr(0, 14) == "BN_CODE_start_")
+//			{
+//				return true;
+//			}
+//		}
+//	}
+//	return false;
+//}
 
 
 //static void MakeCodeHelper(BinaryView* view, uint64_t addr)
@@ -1094,7 +1094,6 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 	case TargetStoppedEventType:
 	case ActiveThreadChangedEvent:
 	{
-		uint64_t address = m_controller->IP();
 		// If there is no function at the current address, define one. This might be a little aggressive,
 		// but given that we are lacking the ability to "show as code", this feels like an OK workaround.
 		BinaryViewRef liveView = m_controller->GetLiveView();
