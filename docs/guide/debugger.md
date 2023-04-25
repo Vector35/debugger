@@ -72,11 +72,22 @@ There is a `Debugger` menu in the main window menu bar.
 
 It contains duplicates of the debugger control operations available via icons and also shows the hotkeys bound to those actions.
 
-The `Launch/Connect Settings...` menu item will trigger a `Debug Adapter Settings` dialog:
+The `Debug Adapter Settings...` menu item will trigger a `Debug Adapter Settings` dialog:
 
 ![](../img/debugger/adaptersettings.png)
 
 Within this dialog, you can select which DebugAdapter to use, as well as configure debugger settings such as command-line arguments or the working directory.
+
+The `Executable Path` specifies the path of the executable to run, and `Input File` specifies the input file used to create the database. 
+These two should be the same if you wish to debug the code in an executable. 
+However, if you wish to debug a shared library or DLL, they should be different -- the `Input File` will be the library or DLL you opened in Binary Ninja, while `Executable Path` will be the executable that loads the library or DLL.  
+
+For example, if you wish to debug a `sample.dll` on Windows, then you should open the `sample.dll` in Binary Ninja, and configure the adapter as follows: 
+
+```
+Input File: path of sample.dll
+Executable Path: C:\Windows\System32\rundll32.exe (or the .exe that loads the DLL)
+```
 
 `Run in Seperate Terminal` will cause the target to run in its own terminal, and the debugger will not be able to monitor its `stdout/stderr`, or send input `stdin`.
 This is suitable when the target sends complex output, and the debugger's console emulator (which is quite basic now) cannot handle it.
