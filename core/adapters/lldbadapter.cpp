@@ -697,7 +697,7 @@ std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 			{
 				std::string regName(regNameStr);
 				if (!regName.empty())
-					result[regName] = DebugRegister(regName, reg.GetValueAsUnsigned(), 0, regIndex++);
+					result[regName] = DebugRegister(regName, reg.GetValueAsUnsigned(), reg.GetByteSize() * 8, regIndex++);
 			}
 		}
 	}
