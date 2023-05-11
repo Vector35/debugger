@@ -453,6 +453,11 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([=]() { jump(); }, [&]() { return selectionNotEmpty(); }));
 
+	actionName = QString::fromStdString("Jump to Address in New Pane");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(actionName, UIAction([=]() { jumpInNewPane(); }, [&]() { return selectionNotEmpty(); }));
+
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return selectionNotEmpty(); }));
 	m_actionHandler.setActionDisplayName("Copy", [&]() {
@@ -577,6 +582,16 @@ void DebugRegistersWidget::jump()
 }
 
 
+void DebugRegistersWidget::jumpInNewPane()
+{
+	QModelIndexList sel = selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	jumpInNewPaneInternal(sel[0]);
+}
+
+
 void DebugRegistersWidget::copy()
 {
 	QModelIndexList sel = selectionModel()->selectedIndexes();
@@ -668,6 +683,44 @@ void DebugRegistersWidget::onDoubleClicked()
 }
 
 
+void DebugRegistersWidget::jumpInNewPaneInternal(const QModelIndex &index)
+{
+	if (!index.isValid())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(index);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto reg = m_model->getRow(sourceIndex.row());
+	uint64_t value = reg.value();
+
+	ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+	auto* currentWindow = UIContext::contextForWidget(m_view);
+	if (frame && currentWindow)
+	{
+		auto* splitPaneWidget = qobject_cast<SplitPaneWidget*>(currentWindow->getCurrentTab());
+		if (!splitPaneWidget)
+			return;
+
+		Qt::Orientation defaultSplitDirection = splitPaneWidget->defaultSplitDirection();
+		splitPaneWidget->splitCurrentPane(defaultSplitDirection);
+
+		ViewPane* newPane = splitPaneWidget->currentViewPane();
+
+		if (!newPane)
+			return;
+
+		ViewFrame* newViewFrame = newPane->viewFrame();
+		if (newViewFrame)
+		{
+			newViewFrame->disableSync();
+			newViewFrame->navigate(m_controller->GetLiveView(), value);
+		}
+	}
+}
+
+
 void DebugRegistersWidget::mousePressEvent(QMouseEvent *event)
 {
 	startHoverTimer(event);
@@ -675,39 +728,7 @@ void DebugRegistersWidget::mousePressEvent(QMouseEvent *event)
 	if (event->button() == Qt::MiddleButton)
 	{
 		auto index = indexAt(event->pos());
-		if (!index.isValid())
-			return;
-
-		auto sourceIndex = m_filter->mapToSource(index);
-		if (!sourceIndex.isValid())
-			return;
-
-		auto reg = m_model->getRow(sourceIndex.row());
-		uint64_t value = reg.value();
-
-		ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
-		auto* currentWindow = UIContext::contextForWidget(m_view);
-		if (frame && currentWindow)
-		{
-			auto* splitPaneWidget = qobject_cast<SplitPaneWidget*>(currentWindow->getCurrentTab());
-			if (!splitPaneWidget)
-				return;
-
-			Qt::Orientation defaultSplitDirection = splitPaneWidget->defaultSplitDirection();
-			splitPaneWidget->splitCurrentPane(defaultSplitDirection);
-
-			ViewPane* newPane = splitPaneWidget->currentViewPane();
-
-			if (!newPane)
-				return;
-
-			ViewFrame* newViewFrame = newPane->viewFrame();
-			if (newViewFrame)
-			{
-				newViewFrame->disableSync();
-				newViewFrame->navigate(m_controller->GetLiveView(), value);
-			}
-		}
+		jumpInNewPaneInternal(index);
 	}
 	else
 	{

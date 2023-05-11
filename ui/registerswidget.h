@@ -185,6 +185,7 @@ class DebugRegistersWidget : public QTableView, public FilterTarget
 	virtual void activateFirstItem() override;
 
 	void updateColumnWidths();
+	void jumpInNewPaneInternal(const QModelIndex& index);
 
 	void startHoverTimer(QMouseEvent* event);
 
@@ -196,6 +197,7 @@ public:
 private slots:
 	void setToZero();
 	void jump();
+	void jumpInNewPane();
 	void copy();
 	void paste();
 	void editValue();
