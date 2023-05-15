@@ -281,6 +281,12 @@ bool DebuggerController::CreateDebugAdapter()
 		return false;
 	}
 
+	if (!m_adapter->Init())
+	{
+		LogWarn("Failed to init an adapter of type %s", m_state->GetAdapterType().c_str());
+		return false;
+	}
+
 	m_lastAdapterName = m_state->GetAdapterType();
 	m_state->SetAdapter(m_adapter);
 

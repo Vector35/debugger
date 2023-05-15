@@ -24,7 +24,12 @@ file(GLOB ADAPTER_SOURCES
 	)
 
 if(WIN32)
-	set(SOURCES ${COMMON_SOURCES} ${ADAPTER_SOURCES} adapters/dbgengadapter.cpp adapters/dbgengadapter.h)
+	set(SOURCES ${COMMON_SOURCES} ${ADAPTER_SOURCES}
+			adapters/dbgengadapter.cpp
+			adapters/dbgengadapter.h
+			adapters/dbgengttdadapter.cpp
+			adapters/dbgengttdadapter.h
+			)
 else()
 	set(SOURCES ${COMMON_SOURCES} ${ADAPTER_SOURCES})
 endif()

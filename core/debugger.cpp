@@ -19,6 +19,7 @@ limitations under the License.
 #include "adapters/lldbadapter.h"
 #ifdef WIN32
 	#include "adapters/dbgengadapter.h"
+	#include "adapters/dbgengttdadapter.h"
 #endif
 
 using namespace BinaryNinja;
@@ -27,7 +28,8 @@ using namespace BinaryNinjaDebugger;
 void InitDebugAdapterTypes()
 {
 #ifdef WIN32
-	InitDbgEngAdapterType();
+    InitDbgEngAdapterType();
+    InitDbgEngTTDAdapterType();
 #endif
 
 	// Disable these adapters because they are not tested, and will get replaced later
@@ -151,9 +153,9 @@ extern "C"
 #endif
 	{
 		LogDebug("Native debugger loaded!");
+		RegisterSettings();
 		InitDebugAdapterTypes();
 		InitDebugProcessViewType();
-		RegisterSettings();
 		return true;
 	}
 }

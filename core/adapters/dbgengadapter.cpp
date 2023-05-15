@@ -38,11 +38,6 @@ limitations under the License.
 using namespace BinaryNinjaDebugger;
 using namespace std;
 
-#define QUERY_DEBUG_INTERFACE(query, out) \
-	if (const auto result = this->m_debugClient->QueryInterface(__uuidof(query), reinterpret_cast<void**>(out)); \
-		result != S_OK) \
-	throw std::runtime_error("Failed to create " #query)
-
 static bool IsValidDbgEngPaths(const std::string& path)
 {
 	if (path.empty())
@@ -104,7 +99,7 @@ std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 
 bool DbgEngAdapter::LoadDngEngLibraries()
 {
-	auto enginePath = GetDbgEngPath();
+	auto enginePath = GetDbgEngPath("x64");
 	if (!enginePath.empty())
 	{
 		LogDebug("DbgEng libraries in path %s", enginePath.c_str());
@@ -196,11 +191,11 @@ bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionSt
 	if (DebugCreate == nullptr)
 		return false;
 
-	if (const auto result = DebugCreate(__uuidof(IDebugClient5), reinterpret_cast<void**>(&this->m_debugClient));
+	if (const auto result = DebugCreate(__uuidof(IDebugClient7), reinterpret_cast<void**>(&this->m_debugClient));
 		result != S_OK)
-		throw std::runtime_error("Failed to create IDebugClient5");
+		throw std::runtime_error("Failed to create IDebugClient7");
 
-	QUERY_DEBUG_INTERFACE(IDebugControl5, &this->m_debugControl);
+	QUERY_DEBUG_INTERFACE(IDebugControl7, &this->m_debugControl);
 	QUERY_DEBUG_INTERFACE(IDebugDataSpaces, &this->m_debugDataSpaces);
 	QUERY_DEBUG_INTERFACE(IDebugRegisters, &this->m_debugRegisters);
 	QUERY_DEBUG_INTERFACE(IDebugSymbols3, &this->m_debugSymbols);
@@ -271,14 +266,6 @@ bool DbgEngAdapter::Start()
 	return true;
 }
 
-#undef QUERY_DEBUG_INTERFACE
-
-#define SAFE_RELEASE(ptr) \
-	if (ptr) \
-	{ \
-		ptr->Release(); \
-		ptr = nullptr; \
-	}
 
 void DbgEngAdapter::Reset()
 {
@@ -305,26 +292,31 @@ void DbgEngAdapter::Reset()
 			m_connectedToDebugServer = false;
 			m_server = 0;
 		}
+
 		SAFE_RELEASE(this->m_debugClient);
 	}
 
 	this->m_debugActive = false;
 }
 
-#undef SAFE_RELEASE
 
 DbgEngAdapter::DbgEngAdapter(BinaryView* data) : DebugAdapter(data)
 {
     auto metadata = data->QueryMetadata("PDB_FILENAME");
     if (metadata && metadata->IsString())
         m_pdbFileName = metadata->GetString();
-	LoadDngEngLibraries();
 }
 
 DbgEngAdapter::~DbgEngAdapter()
 {
-	this->Reset();
 }
+
+
+bool DbgEngAdapter::Init()
+{
+	return LoadDngEngLibraries();
+}
+
 
 bool DbgEngAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
@@ -496,15 +488,25 @@ void DbgEngAdapter::EngineLoop()
 			// TODO: add step branch and step backs
 			else if ((execution_status == DEBUG_STATUS_GO) || (execution_status == DEBUG_STATUS_STEP_INTO)
 				|| (execution_status == DEBUG_STATUS_STEP_OVER) || (execution_status == DEBUG_STATUS_GO_HANDLED)
-				|| (execution_status == DEBUG_STATUS_GO_NOT_HANDLED))
+				|| (execution_status == DEBUG_STATUS_STEP_BRANCH)
+				|| (execution_status == DEBUG_STATUS_GO_NOT_HANDLED) || (execution_status == DEBUG_STATUS_REVERSE_GO)
+				|| (execution_status == DEBUG_STATUS_REVERSE_STEP_OVER)
+				|| (execution_status == DEBUG_STATUS_REVERSE_STEP_INTO)
+				|| (execution_status == DEBUG_STATUS_REVERSE_STEP_BRANCH))
 			{
 				DebuggerEvent dbgevt;
-				if (execution_status == DEBUG_STATUS_GO)
+				if ((execution_status == DEBUG_STATUS_GO) || (execution_status == DEBUG_STATUS_REVERSE_GO)
+					|| ((execution_status == DEBUG_STATUS_GO_HANDLED))
+					|| (execution_status == DEBUG_STATUS_GO_NOT_HANDLED))
 				{
 					dbgevt.type = ResumeEventType;
 					PostDebuggerEvent(dbgevt);
 				}
-				else if ((execution_status == DEBUG_STATUS_STEP_INTO) || (execution_status == DEBUG_STATUS_STEP_OVER))
+				else if ((execution_status == DEBUG_STATUS_STEP_INTO) || (execution_status == DEBUG_STATUS_STEP_OVER)
+					|| (execution_status == DEBUG_STATUS_STEP_BRANCH)
+					|| (execution_status == DEBUG_STATUS_REVERSE_STEP_OVER)
+					|| (execution_status == DEBUG_STATUS_REVERSE_STEP_INTO)
+					|| (execution_status == DEBUG_STATUS_REVERSE_STEP_BRANCH))
 				{
 					dbgevt.type = StepIntoEventType;
 					PostDebuggerEvent(dbgevt);
@@ -782,10 +784,11 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
 {
 	IDebugBreakpoint2* debug_breakpoint {};
 
-	/* attempt to read/write at breakpoint location to confirm its valid */
+	/* attempt to read at breakpoint location to confirm its valid */
 	/* DbgEng won't tell us if its valid until continue/go so this is a hacky fix */
-	auto val = this->ReadMemory(address, sizeof(std::uint16_t));
-	if (!this->WriteMemory(address, val))
+    /* Note we cannot write to it if we are replaying TTD trace */
+	auto val = this->ReadMemory(address, 1);
+	if (val.GetLength() != 1)
 		return {};
 
 	if (const auto result =
@@ -1132,7 +1135,7 @@ bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
 	std::memset(&DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint, 0, sizeof(DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint));
 	std::memset(&DbgEngAdapter::ProcessCallbackInfo.m_lastException, 0, sizeof(DbgEngAdapter::ProcessCallbackInfo.m_lastException));
 
-	const auto wait_result = this->m_debugControl->WaitForEvent(0, timeout.count());
+	const auto wait_result = this->m_debugControl->WaitForEvent(0, INFINITE);
 	return wait_result == S_OK;
 }
 
@@ -1439,7 +1442,7 @@ HRESULT DbgEngInputCallbacks::QueryInterface(const IID& interface_id, void** _in
     return S_OK;
 }
 
-void DbgEngInputCallbacks::SetDbgControl(IDebugControl5* control)
+void DbgEngInputCallbacks::SetDbgControl(IDebugControl7* control)
 {
     m_control = control;
 }

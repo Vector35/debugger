@@ -24,6 +24,18 @@ limitations under the License.
 #include <chrono>
 
 namespace BinaryNinjaDebugger {
+	#define SAFE_RELEASE(ptr) \
+		if (ptr) \
+		{ \
+			ptr->Release(); \
+			ptr = nullptr; \
+		}
+
+	#define QUERY_DEBUG_INTERFACE(query, out) \
+		if (const auto result = this->m_debugClient->QueryInterface(__uuidof(query), reinterpret_cast<void**>(out)); \
+			result != S_OK) \
+		throw std::runtime_error("Failed to create " #query)
+
 	struct ProcessCallbackInformation
 	{
 		DebugBreakpoint m_lastBreakpoint {};
@@ -48,7 +60,7 @@ namespace BinaryNinjaDebugger {
     class DbgEngInputCallbacks : public IDebugInputCallbacks
     {
     private:
-        IDebugControl5* m_control;
+        IDebugControl7* m_control;
 
     public:
         CALLBACK_METHOD(unsigned long) AddRef() override;
@@ -56,7 +68,7 @@ namespace BinaryNinjaDebugger {
         CALLBACK_METHOD(HRESULT) QueryInterface(const IID& interface_id, void** _interface) override;
         CALLBACK_METHOD(HRESULT) StartInput(ULONG BufferSize);
         CALLBACK_METHOD(HRESULT) EndInput();
-        void SetDbgControl(IDebugControl5* control);
+        void SetDbgControl(IDebugControl7* control);
     };
 
 	class DbgEngAdapter;
@@ -106,19 +118,20 @@ namespace BinaryNinjaDebugger {
 
 	class DbgEngAdapter : public DebugAdapter
 	{
+    public:
 		DbgEngEventCallbacks m_debugEventCallbacks {};
         DbgEngOutputCallbacks m_outputCallbacks {};
         DbgEngInputCallbacks m_inputCallbacks {};
-		IDebugClient5* m_debugClient {nullptr};
-		IDebugControl5* m_debugControl {nullptr};
+		IDebugClient7* m_debugClient {nullptr};
+		IDebugControl7* m_debugControl {nullptr};
 		IDebugDataSpaces* m_debugDataSpaces {nullptr};
 		IDebugRegisters* m_debugRegisters {nullptr};
 		IDebugSymbols3* m_debugSymbols {nullptr};
 		IDebugSystemObjects* m_debugSystemObjects {nullptr};
 		bool m_debugActive {false};
 
-		bool Start();
-		void Reset();
+		virtual bool Start();
+		virtual void Reset();
 
 		std::vector<DebugBreakpoint> m_debug_breakpoints {};
 		bool m_lastOperationIsStepInto = false;
@@ -144,10 +157,12 @@ namespace BinaryNinjaDebugger {
 		DbgEngAdapter(BinaryView* data);
 		~DbgEngAdapter();
 
+		bool Init() override;
+
 		[[nodiscard]] bool Execute(const std::string& path, const LaunchConfigurations& configs = {}) override;
 		[[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string& args,
 			const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
-		[[nodiscard]] bool ExecuteWithArgsInternal(const std::string& path, const std::string& args,
+		[[nodiscard]] virtual bool ExecuteWithArgsInternal(const std::string& path, const std::string& args,
 			const std::string& workingDir, const LaunchConfigurations& configs = {});
 		[[nodiscard]] bool Attach(std::uint32_t pid) override;
 		[[nodiscard]] bool AttachInternal(std::uint32_t pid);
@@ -216,7 +231,7 @@ namespace BinaryNinjaDebugger {
 
 		void ApplyBreakpoints();
 
-		std::string GetDbgEngPath(const std::string& arch = "x64");
+		virtual std::string GetDbgEngPath(const std::string& arch);
 
 		bool LoadDngEngLibraries();
 

@@ -205,6 +205,8 @@ namespace BinaryNinjaDebugger {
 		DebugAdapter(BinaryView* data);
 		virtual ~DebugAdapter() {}
 
+		virtual bool Init() { return true; }
+
 		virtual void SetEventCallback(std::function<void(const DebuggerEvent& event)> function)
 		{
 			m_eventCallback = function;
