@@ -745,7 +745,22 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 		m_workingDirectory = metadata->GetString();
 
 	if (m_workingDirectory == "")
-		m_workingDirectory = filesystem::path(m_executablePath).parent_path().string();
+    {
+        // This mitigates https://github.com/Vector35/debugger/issues/469. However, it is NOT a proper fix since the
+        // debugger still will not be able to launch the target properly. We will need to deal with the charset issue
+        // to get this really fixed.
+        try
+        {
+            m_workingDirectory = filesystem::path(m_executablePath).parent_path().string();
+        }
+        catch (const exception&)
+        {
+            LogWarn("Cannot get the default working directory for the input file. "
+                    "There might be special characters in the file path. "
+                    "The debugger may not be able to launch the target correctly. "
+                    "You can try changing the file path to ASCII allow.");
+        }
+    }
 
 	metadata = m_controller->GetData()->QueryMetadata("debugger.remote_host");
 	if (metadata && metadata->IsString())
