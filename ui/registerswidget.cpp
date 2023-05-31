@@ -221,7 +221,7 @@ std::set<std::string> DebugRegistersListModel::getUsedRegisterNames()
 	if (functions.empty() || (!functions[0]))
 		return usedRegisterNames;
 
-	auto llil = functions[0]->GetLowLevelIL();
+	auto llil = functions[0]->GetLowLevelILIfAvailable();
 	if (!llil)
 		return usedRegisterNames;
 
