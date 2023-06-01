@@ -274,6 +274,14 @@ bool DebuggerController::CreateDebugAdapter()
 		LogWarn("Failed to get an debug adapter of type %s", m_state->GetAdapterType().c_str());
 		return false;
 	}
+
+    if (!m_data->GetDefaultArchitecture() || !m_data->GetDefaultPlatform())
+    {
+        LogWarn("The current binary view is missing a default architecture or platform. "
+                "Please set a default architecture and platform before debugging it");
+        return false;
+    }
+
 	m_adapter = type->Create(m_data);
 	if (!m_adapter)
 	{
