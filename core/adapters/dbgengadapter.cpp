@@ -456,6 +456,9 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 
 void DbgEngAdapter::EngineLoop()
 {
+	auto settings = Settings::Instance();
+	bool outputStateOnStop = settings->Get<bool>("debugger.dbgEngOutputStateOnStop");
+
 	m_lastExecutionStatus = DEBUG_STATUS_NO_DEBUGGEE;
 	bool finished = false;
 	while (true)
@@ -474,6 +477,11 @@ void DbgEngAdapter::EngineLoop()
 			{
 				if (m_lastExecutionStatus != DEBUG_STATUS_BREAK)
 				{
+					if (outputStateOnStop)
+					{
+						// m_debugRegisters->OutputRegisters(DEBUG_OUTCTL_THIS_CLIENT, DEBUG_REGISTERS_DEFAULT);
+						m_debugControl->OutputCurrentState(DEBUG_OUTCTL_THIS_CLIENT, DEBUG_CURRENT_DEFAULT);
+					}
 					DebuggerEvent event;
 					event.type = AdapterStoppedEventType;
 					event.data.targetStoppedData.reason = StopReason();

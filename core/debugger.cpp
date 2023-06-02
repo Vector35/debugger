@@ -122,6 +122,15 @@ static void RegisterSettings()
 			"description" : "Asks the user to confirm the operation when the target is launched for the first time.",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
+
+	settings->RegisterSetting("debugger.dbgEngOutputStateOnStop",
+		R"({
+			"title" : "Output current state when the DbgEng engine stops",
+			"type" : "boolean",
+			"default" : true,
+			"description" : "Output the current state (e.g., register values, next instruction) in the debugger console when the target stops.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
 }
 
 extern "C"
