@@ -1141,7 +1141,14 @@ std::unordered_map<std::string, DebugRegister> DbgEngAdapter::ReadAllRegisters()
 	std::unordered_map<std::string, DebugRegister> all_regs {};
 
 	for (const auto& reg : this->GetRegisterList())
-		all_regs[reg] = this->ReadRegister(reg);
+	{
+		const auto regRead = this->ReadRegister(reg);
+		// During TTD replay, some registers are present in the list, but their values are unavailable, e.g., ymm0.
+		// A better way is to have ReadRegister() fail for them. However, here I am doing it in a simple and dirty way
+		// by checking whether the name of the returned register is empty.
+		if (!regRead.m_name.empty())
+			all_regs[reg] = regRead;
+	}
 
 	return all_regs;
 }
