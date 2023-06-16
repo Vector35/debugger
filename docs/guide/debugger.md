@@ -332,6 +332,9 @@ This is especially helpful to quickly navigate to the stack variables since they
 
 See [Remote Debugging Guide](remote-debugging.md)
 
+### Time-travel Debugging (beta)
+
+See [Time Travel Debugging (beta) Guide](dbgeng-ttd.md)
 
 ## Known Issues and Workarounds
 
