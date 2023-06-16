@@ -136,6 +136,7 @@ namespace BinaryNinjaDebugger {
 		void ApplyBreakpoints();
 
 		std::string m_lastAdapterName;
+		std::string m_lastCommand;
 
 		void DetectLoadedModule();
 

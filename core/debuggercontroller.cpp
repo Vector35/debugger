@@ -1440,7 +1440,15 @@ std::string DebuggerController::InvokeBackendCommand(const std::string& cmd)
 	}
 
 	if (m_adapter)
-		return m_adapter->InvokeBackendCommand(cmd);
+	{
+		std::string cmdToSend = cmd;
+		if (cmdToSend.empty())
+			cmdToSend = m_lastCommand;
+		else
+			m_lastCommand = cmdToSend;
+
+		return m_adapter->InvokeBackendCommand(cmdToSend);
+	}
 
 	return "Error: invalid adapter\n";
 }
