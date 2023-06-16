@@ -586,7 +586,11 @@ void BNDebuggerSetAdapterType(BNDebuggerController* controller, const char* adap
 
 BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name)
 {
-	return DebugAdapterType::GetByName(name)->GetAPIObject();
+	DebugAdapterType* type = DebugAdapterType::GetByName(name);
+ 	if (!type)
+		return nullptr;
+
+	return type->GetAPIObject();
 }
 
 
