@@ -1039,6 +1039,22 @@ void DebuggerUI::navigateToCurrentIP()
 }
 
 
+void DebuggerUI::checkFocusDebuggerConsole()
+{
+	auto context = UIContext::activeContext();
+	if (!context)
+		return;
+
+	auto globalArea = context->globalArea();
+	if (!globalArea)
+		return;
+
+	auto widget = globalArea->widget("Debugger Console");
+	if (widget)
+		globalArea->focusWidget("Debugger Console");
+}
+
+
 void DebuggerUI::updateUI(const DebuggerEvent& event)
 {
 	switch (event.type)
@@ -1121,6 +1137,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		}
 
 		updateIPHighlight();
+		checkFocusDebuggerConsole();
 		break;
 	}
 

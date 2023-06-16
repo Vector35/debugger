@@ -85,6 +85,7 @@ public:
 	void openDebuggerSideBar(ViewFrame* frame = nullptr);
 	void updateIPHighlight();
 	void navigateToCurrentIP();
+	void checkFocusDebuggerConsole();
 
 signals:
 	void debuggerEvent(const DebuggerEvent& event);
