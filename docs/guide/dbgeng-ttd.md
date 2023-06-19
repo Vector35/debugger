@@ -13,8 +13,8 @@ Below is a guide to set it up.
 - Navigate to https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/
 - Click the `Download WinDbg` button
 - Run the downloaded `windbg.appinstaller` and proceed with the installation
-  - In case the downloaded installer does not work, open it in a text editor and find the download link that looks like `https://windbg.download.prss.microsoft.com/dbazure/prod/1-2306-12001-0/windbg.msixbundle`
-  - Open the link in the browser, download the full installer, and install it
+    - In case the downloaded installer does not work, open it in a text editor and find the download link that looks like `https://windbg.download.prss.microsoft.com/dbazure/prod/1-2306-12001-0/windbg.msixbundle`
+    - Open the link in the browser, download the full installer, and install it
 
 
 ## Update Binary Ninja to the Development Build
@@ -32,16 +32,16 @@ So you will need to copy the entire WinDbg installation folder to a place that B
 
 - Create a new folder in your home directory, e.g., `C:\Users\user_name\windbgx`
 - Find out the installation path of WinDbg
-  - Launch WinDbg
-  - Open Task Manager, go to `Details` tab, find `DbgX.Shell.exe`
-  - Right-click it, and then click `Open File location`
-  - The explorer should open up a path like `C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2306.12001.0_x64__8wekyb3d8bbwe`
+    - Launch WinDbg
+    - Open Task Manager, go to `Details` tab, find `DbgX.Shell.exe`
+    - Right-click it, and then click `Open File location`
+    - The explorer should open up a path like `C:\Program Files\WindowsApps\Microsoft.WinDbg_1.2306.12001.0_x64__8wekyb3d8bbwe`
 - Copy everything in the WinDbg installation folder into the new folder you created earlier
-  - Simply select everything and press `Ctrl+C`, since you cannot navigate to its parent folder `C:\Program Files\WindowsApps`
+    - Simply select everything and press `Ctrl+C`, since you cannot navigate to its parent folder `C:\Program Files\WindowsApps`
 - Open Binary Ninja and click `Edit` -> `Preferences` -> `Settings`
 - Search for the setting `debugger.x64dbgEngPath`
 - Put path `C:\Users\user_name\windbgx\amd64` in it
-  - Do not forget to append `amd64` to the path of the folder
+    - Do not forget to append `amd64` to the path of the folder
 - There is a plan to automate this process: https://github.com/Vector35/debugger/issues/486
 
 
@@ -54,7 +54,7 @@ So you will need to copy the entire WinDbg installation folder to a place that B
 - In the popup dialog, select a folder to save the recorded trace
 - Wait for the process to exit, or click `Stop and Debug` when appropriate
 - WinDbg then loads the trace and indexes it
-  - The index will make it faster to work with the trace
+    - The index will make it faster to work with the trace
 - Close WinDbg
 - Or check out the official guide at https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-record
 - There is a plan to automate this process: https://github.com/Vector35/debugger/issues/485
@@ -66,7 +66,7 @@ So you will need to copy the entire WinDbg installation folder to a place that B
 - Click `Debugger` -> `Debug Adapter Settings`
 - For `Adapter Type`, select `DBGENG_TTD (BETA)`
 - For `Executable Path`, select the trace file recorded by WinDbg in the previous step
-  - E.g., `C:/Users/xushe/Documents/helloworld01.run`
+    - E.g., `C:/Users/xushe/Documents/helloworld01.run`
 - Click `Accept`
 
 <img src="../img/debugger/dbgeng_ttd.png" width="600px">
@@ -77,20 +77,20 @@ So you will need to copy the entire WinDbg installation folder to a place that B
 - Click `Launch` to launch the target
 - Most of the debugger functionalities should work in the very same way as a forward debugging
 - To make the target run forward, you can either use the buttons in the debugger sidebar, or use the following commands in the debugger console:
-  - [g](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/g--go-): go
-  - [p](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/p--step-): step over
-  - [t](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/t--trace-): step into
-  - [gu](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/gu--go-up-): step out
+    - [g](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/g--go-): go
+    - [p](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/p--step-): step over
+    - [t](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/t--trace-): step into
+    - [gu](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/gu--go-up-): step out
 - To make the target run backward, you will need to use one of these [commands](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-navigation-commands):
-  - g-: go back
-  - p-: step over back
-  - t-: step into back
-  - g-u: step out back
-  - There is a plan to add several new buttons that do reverse execution: https://github.com/Vector35/debugger/issues/484
+    - g-: go back
+    - p-: step over back
+    - t-: step into back
+    - g-u: step out back
+    - There is a plan to add several new buttons that do reverse execution: https://github.com/Vector35/debugger/issues/484
 - The [!position](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-extension-positions) command prints the `position` of all active threads
 - The [!tt](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-extension-tt) command navigates to a `position` in the trace
-  - E.g., `!tt 1A0:12F`
-  - While using the debugger, when the target stops, the current position will be printed in the debugger console
+    - E.g., `!tt 1A0:12F`
+    - While using the debugger, when the target stops, the current position will be printed in the debugger console
 
 
 ## Feedback and Suggestions
