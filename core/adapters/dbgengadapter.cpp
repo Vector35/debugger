@@ -26,6 +26,15 @@ limitations under the License.
 #include <memory>
 #include <filesystem>
 #include "dbgengadapter.h"
+#include <dbgmodel.h>
+#include <wrl\async.h>
+#include <wrl\client.h>
+#include <wrl\event.h>
+#include <wrl\ftm.h>
+#include <wrl\implements.h>
+#include <wrl\internal.h>
+#include <wrl\module.h>
+#include "DbgModelClientEx.h"
 #include "../../cli/log.h"
 #include "../debuggerevent.h"
 #include "shlobj_core.h"
@@ -37,6 +46,7 @@ limitations under the License.
 
 using namespace BinaryNinjaDebugger;
 using namespace std;
+using namespace Debugger::DataModel::ClientEx;
 
 static bool IsValidDbgEngPaths(const std::string& path)
 {
