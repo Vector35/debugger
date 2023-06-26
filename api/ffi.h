@@ -43,31 +43,51 @@ extern "C"
 	#endif  // _MSC_VER
 #endif      // __GNUC__C
 
-	struct BNDebuggerController;
-	struct BNDebugAdapterType;
-	struct BNDebugAdapter;
-	struct BNDebuggerState;
+	typedef struct BNDebuggerController BNDebuggerController;
+	typedef struct BNDebugAdapterType BNDebugAdapterType;
+	typedef struct BNDebugAdapter BNDebugAdapter;
+	typedef struct BNDebuggerState BNDebuggerState;
 
-	struct BNBinaryView;
-	struct BNArchitecture;
-	struct BNDataBuffer;
-	struct BNMetadata;
-	enum BNFunctionGraphType;
+	typedef struct BNBinaryView BNBinaryView;
+	typedef struct BNArchitecture BNArchitecture;
+	typedef struct BNDataBuffer BNDataBuffer;
+	typedef struct BNMetadata BNMetadata;
 
-	struct BNDebugProcess
+//	When `ffi.h` gets parsed by clang type parser, the binaryninjacore.h is NOT included so this enum will become not
+//	defined. As a workaround, I duplicate its definition here. When the code gets compiled, the `BN_TYPE_PARSER` is
+//	not defined so the enum will not be redefined.
+#ifdef BN_TYPE_PARSER
+	typedef enum BNFunctionGraphType
+	{
+		InvalidILViewType = -1,
+		NormalFunctionGraph = 0,
+		LowLevelILFunctionGraph = 1,
+		LiftedILFunctionGraph = 2,
+		LowLevelILSSAFormFunctionGraph = 3,
+		MediumLevelILFunctionGraph = 4,
+		MediumLevelILSSAFormFunctionGraph = 5,
+		MappedMediumLevelILFunctionGraph = 6,
+		MappedMediumLevelILSSAFormFunctionGraph = 7,
+		HighLevelILFunctionGraph = 8,
+		HighLevelILSSAFormFunctionGraph = 9,
+		HighLevelLanguageRepresentationFunctionGraph = 10,
+	} BNFunctionGraphType;
+#endif
+
+	typedef struct BNDebugProcess
 	{
 		uint32_t m_pid;
 		char* m_processName;
-	};
+	} BNDebugProcess;
 
-	struct BNDebugThread
+	typedef struct BNDebugThread
 	{
 		uint32_t m_tid;
 		uint64_t m_rip;
 		bool m_isFrozen;
-	};
+	} BNDebugThread;
 
-	struct BNDebugFrame
+	typedef struct BNDebugFrame
 	{
 		size_t m_index;
 		uint64_t m_pc;
@@ -76,47 +96,47 @@ extern "C"
 		char* m_functionName;
 		uint64_t m_functionStart;
 		char* m_module;
-	};
+	} BNDebugFrame;
 
 
-	struct BNDebugModule
+	typedef struct BNDebugModule
 	{
 		char* m_name;
 		char* m_short_name;
 		uint64_t m_address;
 		size_t m_size;
 		bool m_loaded;
-	};
+	} BNDebugModule;
 
 
-	struct BNDebugRegister
+	typedef struct BNDebugRegister
 	{
 		char* m_name;
 		uint64_t m_value;
 		size_t m_width;
 		size_t m_registerIndex;
 		char* m_hint;
-	};
+	} BNDebugRegister;
 
 
-	struct BNDebugBreakpoint
+	typedef struct BNDebugBreakpoint
 	{
 		// TODO: we should add an absolute address to this, along with a boolean telling whether it is valid
 		char* module;
 		uint64_t offset;
 		uint64_t address;
 		bool enabled;
-	};
+	} BNDebugBreakpoint;
 
 
-	struct BNModuleNameAndOffset
+	typedef struct BNModuleNameAndOffset
 	{
 		char* module;
 		uint64_t offset;
-	};
+	} BNModuleNameAndOffset;
 
 
-	enum BNDebugStopReason
+	typedef enum BNDebugStopReason
 	{
 		UnknownReason = 0,
 		InitialBreakpoint,
@@ -172,27 +192,27 @@ extern "C"
 		UserRequestedBreak,
 
 		OperationNotSupported
-	};
+	} BNDebugStopReason;
 
 
-	enum BNDebugAdapterConnectionStatus
+	typedef enum BNDebugAdapterConnectionStatus
 	{
 		DebugAdapterNotConnectedStatus,
 		DebugAdapterConnectingStatus,
 		DebugAdapterConnectedStatus,
-	};
+	} BNDebugAdapterConnectionStatus;
 
 
-	enum BNDebugAdapterTargetStatus
+	typedef enum BNDebugAdapterTargetStatus
 	{
 		// Target is not created yet, or not connected to yet
 		DebugAdapterInvalidStatus,
 		DebugAdapterRunningStatus,
 		DebugAdapterPausedStatus,
-	};
+	} BNDebugAdapterTargetStatus;
 
 
-	enum BNDebuggerEventType
+	typedef enum BNDebuggerEventType
 	{
 		LaunchEventType,
 		ResumeEventType,
@@ -239,40 +259,40 @@ extern "C"
 
 		ForceMemoryCacheUpdateEvent,
 		ModuleLoadedEvent,
-	};
+	} BNDebuggerEventType;
 
 
-	struct BNTargetStoppedEventData
+	typedef struct BNTargetStoppedEventData
 	{
 		BNDebugStopReason reason;
 		uint32_t lastActiveThread;
 		size_t exitCode;
 		void* data;
-	};
+	} BNTargetStoppedEventData;
 
 
-	struct BNErrorEventData
+	typedef struct BNErrorEventData
 	{
 		char* error;
 		char* shortError;
 		void* data;
-	};
+	} BNErrorEventData;
 
 
-	struct BNTargetExitedEventData
+	typedef struct BNTargetExitedEventData
 	{
 		uint64_t exitCode;
-	};
+	} BNTargetExitedEventData;
 
 
-	struct BNStdoutMessageEventData
+	typedef struct BNStdoutMessageEventData
 	{
 		char* message;
-	};
+	} BNStdoutMessageEventData;
 
 
 	// This should really be a union, but gcc complains...
-	struct BNDebuggerEventData
+	typedef struct BNDebuggerEventData
 	{
 		BNTargetStoppedEventData targetStoppedData;
 		BNErrorEventData errorData;
@@ -280,16 +300,16 @@ extern "C"
 		BNModuleNameAndOffset relativeAddress;
 		BNTargetExitedEventData exitData;
 		BNStdoutMessageEventData messageData;
-	};
+	} BNDebuggerEventData;
 
 
-	struct BNDebuggerEvent
+	typedef struct BNDebuggerEvent
 	{
 		BNDebuggerEventType type;
 		BNDebuggerEventData data;
-	};
+	} BNDebuggerEvent;
 
-    enum BNDebuggerAdapterOperation
+    typedef enum BNDebuggerAdapterOperation
     {
 		DebugAdapterLaunch,
 		DebugAdapterAttach,
@@ -301,7 +321,7 @@ extern "C"
         DebugAdapterPause,
         DebugAdapterQuit,
         DebugAdapterDetach
-    };
+    } BNDebuggerAdapterOperation;
 
 
 	DEBUGGER_FFI_API char* BNDebuggerAllocString(const char* string);

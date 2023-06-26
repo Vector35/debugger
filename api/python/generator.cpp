@@ -252,7 +252,7 @@ int main(int argc, char* argv[])
 
 	// Enable ephemeral settings
 	Settings::Instance()->LoadSettingsFile("");
-	Settings::Instance()->Set("analysis.types.parserName", "CoreTypeParser");
+	Settings::Instance()->Set("analysis.types.parserName", "ClangTypeParser");
 	bool ok = arch->GetStandalonePlatform()->ParseTypesFromSourceFile(argv[1], types, vars, funcs, errors);
 
 	if (!ok)
