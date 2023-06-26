@@ -31,8 +31,8 @@ class DebugAdapterType:
     Right now, the DebugAdapterType class cannot be used to create a DebuggerController. This is planned for the future.
     """
 
-    def __init__(self, hande: dbgcore.BNDebugAdapterType):
-        self.handle = hande
+    def __init__(self, handle: dbgcore.BNDebugAdapterType):
+        self.handle = handle
 
     @classmethod
     def get_by_name(cls, name: str) -> None:
@@ -63,6 +63,24 @@ class DebugAdapterType:
         """
         bv_obj = ctypes.cast(bv.handle, ctypes.POINTER(dbgcore.BNBinaryView))
         return dbgcore.BNDebugAdapterTypeCanConnect(self.handle, bv_obj)
+
+    def is_valid_for_data(self, bv: binaryninja.BinaryView) -> bool:
+        bv_obj = ctypes.cast(bv.handle, ctypes.POINTER(dbgcore.BNBinaryView))
+        return dbgcore.BNDebugAdapterTypeIsValidForData(self.handle, bv_obj)
+
+    @staticmethod
+    def register(da: binaryninja.DebugAdapterType) -> None:
+        """
+        Register a DebugAdapterType for use in Binary Ninja
+
+        :param da: the DebugAdapterType to register
+        :return:
+        """
+        da_obj = ctypes.cast(da.handle, ctypes.POINTER(dbgcore.BNDebugAdapterType))
+        dbgcore.BNDebugAdapterTypeRegister(da_obj)
+
+    def register(self) -> None:
+        self.register(self)
 
     @staticmethod
     def get_available_adapters(bv: binaryninja.BinaryView) -> List[str]:

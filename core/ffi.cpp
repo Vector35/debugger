@@ -606,6 +606,18 @@ bool BNDebugAdapterTypeCanConnect(BNDebugAdapterType* adapter, BNBinaryView* dat
 }
 
 
+bool BNDebugAdapterTypeIsValidForData(BNDebugAdapterType* adapter, BNBinaryView* data)
+{
+	return adapter->object->IsValidForData(new BinaryView(data));
+}
+
+
+void BNDebugAdapterTypeRegister(BNDebugAdapterType* adapter)
+{
+	DebugAdapterType::Register(adapter->object);
+}
+
+
 BNDebugAdapterConnectionStatus BNDebuggerGetConnectionStatus(BNDebuggerController* controller)
 {
 	return controller->object->GetConnectionStatus();

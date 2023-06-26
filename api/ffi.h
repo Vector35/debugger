@@ -453,8 +453,10 @@ extern "C"
 
 	// DebugAdapterType
 	DEBUGGER_FFI_API BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name);
+	DEBUGGER_FFI_API void BNDebugAdapterTypeRegister(BNDebugAdapterType* adapter);
 	DEBUGGER_FFI_API bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, BNBinaryView* data);
 	DEBUGGER_FFI_API bool BNDebugAdapterTypeCanConnect(BNDebugAdapterType* adapter, BNBinaryView* data);
+	DEBUGGER_FFI_API bool BNDebugAdapterTypeIsValidForData(BNDebugAdapterType* adapter, BNBinaryView* data);
 	DEBUGGER_FFI_API char** BNGetAvailableDebugAdapterTypes(BNBinaryView* data, size_t* count);
 
 
