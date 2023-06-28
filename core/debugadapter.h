@@ -30,6 +30,7 @@ limitations under the License.
 #include "ffi_global.h"
 #include "debuggercommon.h"
 #include "debuggerevent.h"
+#include "refcountobject.h"
 
 DECLARE_DEBUGGER_API_OBJECT(BNDebugAdapter, DebugAdapter);
 
@@ -72,14 +73,14 @@ namespace BinaryNinjaDebugger {
 
 	struct DebugProcess
 	{
-		std::uint32_t m_pid {};
+		uint32_t m_pid {};
 		std::string m_processName {};
 
 		DebugProcess() {}
 
-		DebugProcess(std::uint32_t pid) : m_pid(pid) {}
+		DebugProcess(uint32_t pid) : m_pid(pid) {}
 
-		DebugProcess(std::uint32_t pid, std::string name) : m_pid(pid), m_processName(name) {}
+		DebugProcess(uint32_t pid, std::string name) : m_pid(pid), m_processName(name) {}
 
 		bool operator==(const DebugProcess& rhs) const
 		{
@@ -92,15 +93,15 @@ namespace BinaryNinjaDebugger {
 
 	struct DebugThread
 	{
-		std::uint32_t m_tid {};
-		std::uintptr_t m_rip {};
+		uint32_t m_tid {};
+		uint64_t m_rip {};
 		bool m_isFrozen {};
 
 		DebugThread() {}
 
-		DebugThread(std::uint32_t tid) : m_tid(tid) {}
+		DebugThread(uint32_t tid) : m_tid(tid) {}
 
-		DebugThread(std::uint32_t tid, std::uintptr_t rip) : m_tid(tid), m_rip(rip) {}
+		DebugThread(uint32_t tid, uint64_t rip) : m_tid(tid), m_rip(rip) {}
 
 		bool operator==(const DebugThread& rhs) const { return (m_tid == rhs.m_tid) && (m_rip == rhs.m_rip); }
 
@@ -110,15 +111,15 @@ namespace BinaryNinjaDebugger {
 
 	struct DebugBreakpoint
 	{
-		std::uintptr_t m_address {};
+		uint64_t m_address {};
 		unsigned long m_id {};
 		bool m_is_active {};
 
-		DebugBreakpoint(std::uintptr_t address, unsigned long id, bool active) :
+		DebugBreakpoint(uint64_t address, unsigned long id, bool active) :
 			m_address(address), m_id(id), m_is_active(active)
 		{}
 
-		DebugBreakpoint(std::uintptr_t address) : m_address(address) {}
+		DebugBreakpoint(uint64_t address) : m_address(address) {}
 
 		DebugBreakpoint() {}
 
@@ -130,13 +131,13 @@ namespace BinaryNinjaDebugger {
 	struct DebugRegister
 	{
 		std::string m_name {};
-		std::uintptr_t m_value {};
-		std::size_t m_width {}, m_registerIndex {};
+		uint64_t m_value {};
+		size_t m_width {}, m_registerIndex {};
 		std::string m_hint {};
 
 		DebugRegister() = default;
 
-		DebugRegister(std::string name, std::uintptr_t value, std::size_t width, std::size_t register_index) :
+		DebugRegister(std::string name, uint64_t value, size_t width, size_t register_index) :
 			m_name(std::move(name)), m_value(value), m_width(width), m_registerIndex(register_index)
 		{}
 	};
@@ -144,13 +145,13 @@ namespace BinaryNinjaDebugger {
 	struct DebugModule
 	{
 		std::string m_name {}, m_short_name {};
-		std::uintptr_t m_address {};
-		std::size_t m_size {};
+		uint64_t m_address {};
+		size_t m_size {};
 		bool m_loaded {};
 
 		DebugModule() : m_name(""), m_short_name(""), m_address(0), m_size(0) {}
 
-		DebugModule(std::string name, std::string short_name, std::uintptr_t address, std::size_t size, bool loaded) :
+		DebugModule(std::string name, std::string short_name, uint64_t address, size_t size, bool loaded) :
 			m_name(std::move(name)), m_short_name(std::move(short_name)), m_address(address), m_size(size),
 			m_loaded(loaded)
 		{}
@@ -184,7 +185,7 @@ namespace BinaryNinjaDebugger {
 		{}
 	};
 
-	class DebugAdapter
+	class DebugAdapter: public DbgRefCountObject
 	{
 		IMPLEMENT_DEBUGGER_API_OBJECT(BNDebugAdapter);
 
@@ -212,16 +213,14 @@ namespace BinaryNinjaDebugger {
 			m_eventCallback = function;
 		}
 
-		[[nodiscard]] virtual bool Execute(const std::string& path, const LaunchConfigurations& configs = {}) = 0;
-
 		[[nodiscard]] virtual bool ExecuteWithArgs(const std::string& path, const std::string& args,
 			const std::string& workingDir, const LaunchConfigurations& configs = {}) = 0;
 
-		[[nodiscard]] virtual bool Attach(std::uint32_t pid) = 0;
+		[[nodiscard]] virtual bool Attach(uint32_t pid) = 0;
 
-		[[nodiscard]] virtual bool Connect(const std::string& server, std::uint32_t port) = 0;
+		[[nodiscard]] virtual bool Connect(const std::string& server, uint32_t port) = 0;
 
-		virtual bool ConnectToDebugServer(const std::string& server, std::uint32_t port);
+		virtual bool ConnectToDebugServer(const std::string& server, uint32_t port);
 
 		virtual bool DisconnectDebugServer();
 
@@ -235,19 +234,19 @@ namespace BinaryNinjaDebugger {
 
 		virtual DebugThread GetActiveThread() const = 0;
 
-		virtual std::uint32_t GetActiveThreadId() const = 0;
+		virtual uint32_t GetActiveThreadId() const = 0;
 
 		virtual bool SetActiveThread(const DebugThread& thread) = 0;
 
-		virtual bool SetActiveThreadId(std::uint32_t tid) = 0;
+		virtual bool SetActiveThreadId(uint32_t tid) = 0;
 
-		virtual bool SuspendThread(std::uint32_t tid) = 0;
+		virtual bool SuspendThread(uint32_t tid) = 0;
 
-		virtual bool ResumeThread(std::uint32_t tid) = 0;
+		virtual bool ResumeThread(uint32_t tid) = 0;
 
-		virtual std::vector<DebugFrame> GetFramesOfThread(std::uint32_t tid);
+		virtual std::vector<DebugFrame> GetFramesOfThread(uint32_t tid);
 
-		virtual DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type = 0) = 0;
+		virtual DebugBreakpoint AddBreakpoint(const uint64_t address, unsigned long breakpoint_type = 0) = 0;
 
 		virtual DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0) = 0;
 
@@ -257,15 +256,15 @@ namespace BinaryNinjaDebugger {
 
 		virtual std::vector<DebugBreakpoint> GetBreakpointList() const = 0;
 
-		virtual std::unordered_map<std::string, DebugRegister> ReadAllRegisters() = 0;
+		virtual std::map<std::string, DebugRegister> ReadAllRegisters() = 0;
 
 		virtual DebugRegister ReadRegister(const std::string& reg) = 0;
 
-		virtual bool WriteRegister(const std::string& reg, std::uintptr_t value) = 0;
+		virtual bool WriteRegister(const std::string& reg, uint64_t value) = 0;
 
-		virtual DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) = 0;
+		virtual DataBuffer ReadMemory(uint64_t address, size_t size) = 0;
 
-		virtual bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) = 0;
+		virtual bool WriteMemory(uint64_t address, const DataBuffer& buffer) = 0;
 
 		virtual std::vector<DebugModule> GetModuleList() = 0;
 
@@ -282,7 +281,6 @@ namespace BinaryNinjaDebugger {
 		virtual bool StepInto() = 0;
 
 		virtual bool StepOver() = 0;
-		//    virtual bool RunTo(std::uintptr_t address) = 0;
 
 		virtual bool StepReturn();
 

@@ -127,13 +127,13 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
 }
 
 
-bool DbgEngTTDAdapter::WriteMemory(std::uintptr_t address, const BinaryNinja::DataBuffer& buffer)
+bool DbgEngTTDAdapter::WriteMemory(uint64_t address, const BinaryNinja::DataBuffer& buffer)
 {
 	return false;
 }
 
 
-bool DbgEngTTDAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
+bool DbgEngTTDAdapter::WriteRegister(const std::string& reg, uint64_t value)
 {
 	return false;
 }

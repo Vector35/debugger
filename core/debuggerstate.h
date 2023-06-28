@@ -37,7 +37,7 @@ namespace BinaryNinjaDebugger {
 	{
 	private:
 		DebuggerState* m_state;
-		std::unordered_map<std::string, DebugRegister> m_registerCache;
+		std::map<std::string, DebugRegister> m_registerCache;
 		bool m_dirty;
 
 	public:
@@ -113,8 +113,8 @@ namespace BinaryNinjaDebugger {
 		bool IsDirty() const { return m_dirty; }
 		std::vector<DebugThread> GetAllThreads();
 		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid);
-		bool SuspendThread(std::uint32_t tid);
-		bool ResumeThread(std::uint32_t tid);
+		bool SuspendThread(uint32_t tid);
+		bool ResumeThread(uint32_t tid);
 	};
 
 
@@ -130,7 +130,7 @@ namespace BinaryNinjaDebugger {
 
 		void MarkDirty();
 		DataBuffer ReadMemory(uint64_t offset, size_t len);
-		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
+		bool WriteMemory(uint64_t address, const DataBuffer& buffer);
 	};
 
 

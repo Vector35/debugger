@@ -231,7 +231,7 @@ std::vector<DebugFrame> DebuggerThreads::GetFramesOfThread(uint32_t tid)
 }
 
 
-bool DebuggerThreads::SuspendThread(std::uint32_t tid)
+bool DebuggerThreads::SuspendThread(uint32_t tid)
 {
 	if (!m_state)
 		return false;
@@ -260,7 +260,7 @@ bool DebuggerThreads::SuspendThread(std::uint32_t tid)
 	return true;
 }
 
-bool DebuggerThreads::ResumeThread(std::uint32_t tid)
+bool DebuggerThreads::ResumeThread(uint32_t tid)
 {
 	if (!m_state)
 		return false;
@@ -675,7 +675,7 @@ DataBuffer DebuggerMemory::ReadMemory(uint64_t offset, size_t len)
 }
 
 
-bool DebuggerMemory::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
+bool DebuggerMemory::WriteMemory(uint64_t address, const DataBuffer& buffer)
 {
 	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
 

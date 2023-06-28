@@ -789,7 +789,7 @@ void DebuggerController::SetActiveThread(const DebugThread& thread)
 }
 
 
-bool DebuggerController::SuspendThread(std::uint32_t tid)
+bool DebuggerController::SuspendThread(uint32_t tid)
 {
 	auto result = m_state->GetThreads()->SuspendThread(tid);
 	if (!result)
@@ -802,7 +802,7 @@ bool DebuggerController::SuspendThread(std::uint32_t tid)
 	return result;
 }
 
-bool DebuggerController::ResumeThread(std::uint32_t tid)
+bool DebuggerController::ResumeThread(uint32_t tid)
 {
 	auto result = m_state->GetThreads()->ResumeThread(tid);
 	if (!result)
@@ -1321,7 +1321,7 @@ void DebuggerController::NotifyEvent(DebuggerEventType eventType)
 
 
 // We should call these two function instead of DebugAdapter::ReadMemory(), which will skip the memory cache
-DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t size)
+DataBuffer DebuggerController::ReadMemory(uint64_t address, size_t size)
 {
 	if (!m_liveView)
 		return DataBuffer {};
@@ -1340,7 +1340,7 @@ DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t si
 }
 
 
-bool DebuggerController::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
+bool DebuggerController::WriteMemory(uint64_t address, const DataBuffer& buffer)
 {
 	if (!m_liveView)
 		return false;
@@ -2055,7 +2055,7 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 	auto buffer = m_liveView->ReadBuffer(address, m_liveView->GetAddressSize());
 	if (buffer.GetLength() == m_liveView->GetAddressSize())
 	{
-		uint64_t pointerValue = *reinterpret_cast<std::uintptr_t*>(buffer.GetData());
+		uint64_t pointerValue = *reinterpret_cast<uint64_t*>(buffer.GetData());
 		if (pointerValue != 0)
 		{
 			const DataBuffer pointerMemory = ReadMemory(pointerValue, 128);

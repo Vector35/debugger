@@ -498,7 +498,7 @@ void DebugStackWidget::updateContent()
 				DataBuffer buffer = m_controller->ReadMemory(value, addressSize);
 				if (buffer.GetLength() > 0)
 				{
-					hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.GetData()));
+					hint = fmt::format("{:x}", *reinterpret_cast<uint64_t*>(buffer.GetData()));
 				}
 				else
 				{

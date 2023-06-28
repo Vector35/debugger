@@ -123,7 +123,7 @@ void RegisterDisplay(DbgRef<DebuggerController> debugger)
 }
 
 
-void DisasmDisplay(DbgRef<DebuggerController> debugger, const std::uint32_t count)
+void DisasmDisplay(DbgRef<DebuggerController> debugger, const uint32_t count)
 {
 	using namespace BinaryNinja;
 
@@ -132,8 +132,8 @@ void DisasmDisplay(DbgRef<DebuggerController> debugger, const std::uint32_t coun
 	std::vector<std::string> mlil_strings {};
 	std::vector<std::string> hlil_strings {};
 
-	std::uintptr_t instruction_increment {};
-	for (std::uint32_t steps {}; steps < count; steps++)
+	uint64_t instruction_increment {};
+	for (uint32_t steps {}; steps < count; steps++)
 	{
 		const auto instruction_offset = debugger->IP() + instruction_increment;
 		if (!instruction_offset)
@@ -211,7 +211,7 @@ void DisasmDisplay(DbgRef<DebuggerController> debugger, const std::uint32_t coun
 
 			for (auto& llil_block : llil->GetBasicBlocks())
 			{
-				for (std::size_t llil_index = llil_block->GetStart(); llil_index < llil_block->GetEnd(); llil_index++)
+				for (size_t llil_index = llil_block->GetStart(); llil_index < llil_block->GetEnd(); llil_index++)
 				{
 					const auto current_llil_instruction = llil->GetInstruction(llil_index);
 					std::vector<InstructionTextToken> llil_tokens;
@@ -232,7 +232,7 @@ void DisasmDisplay(DbgRef<DebuggerController> debugger, const std::uint32_t coun
 
 			for (auto& mlil_block : mlil->GetBasicBlocks())
 			{
-				for (std::size_t mlil_index = mlil_block->GetStart(); mlil_index < mlil_block->GetEnd(); mlil_index++)
+				for (size_t mlil_index = mlil_block->GetStart(); mlil_index < mlil_block->GetEnd(); mlil_index++)
 				{
 					const auto current_mlil_instruction = mlil->GetInstruction(mlil_index);
 					std::vector<InstructionTextToken> mlil_tokens;
@@ -253,7 +253,7 @@ void DisasmDisplay(DbgRef<DebuggerController> debugger, const std::uint32_t coun
 
 			for (auto& hlil_block : hlil->GetBasicBlocks())
 			{
-				for (std::size_t hlil_index = hlil_block->GetStart(); hlil_index < hlil_block->GetEnd(); hlil_index++)
+				for (size_t hlil_index = hlil_block->GetStart(); hlil_index < hlil_block->GetEnd(); hlil_index++)
 				{
 					const auto current_hlil_instruction = hlil->GetInstruction(hlil_index);
 

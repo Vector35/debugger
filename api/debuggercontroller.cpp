@@ -105,13 +105,13 @@ uint64_t DebuggerController::StackPointer()
 }
 
 
-DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t size)
+DataBuffer DebuggerController::ReadMemory(uint64_t address, size_t size)
 {
 	return DataBuffer(BNDebuggerReadMemory(m_object, address, size));
 }
 
 
-bool DebuggerController::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
+bool DebuggerController::WriteMemory(uint64_t address, const DataBuffer& buffer)
 {
 	return BNDebuggerWriteMemory(m_object, address, buffer.GetBufferObject());
 }
@@ -176,13 +176,13 @@ void DebuggerController::SetActiveThread(const DebugThread& thread)
 }
 
 
-bool DebuggerController::SuspendThread(std::uint32_t tid)
+bool DebuggerController::SuspendThread(uint32_t tid)
 {
 	return BNDebuggerSuspendThread(m_object, tid);
 }
 
 
-bool DebuggerController::ResumeThread(std::uint32_t tid)
+bool DebuggerController::ResumeThread(uint32_t tid)
 {
 	return BNDebuggerResumeThread(m_object, tid);
 }

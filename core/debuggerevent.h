@@ -28,7 +28,7 @@ namespace BinaryNinjaDebugger {
 	struct TargetStoppedEventData
 	{
 		DebugStopReason reason;
-		std::uint32_t lastActiveThread;
+		uint32_t lastActiveThread;
 		size_t exitCode;
 		void* data;
 	};

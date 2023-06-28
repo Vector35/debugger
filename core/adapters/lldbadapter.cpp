@@ -148,12 +148,6 @@ bool LldbAdapter::IsELFWithoutDynamicLoader(BinaryView* data)
 }
 
 
-bool LldbAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
-{
-	return ExecuteWithArgs(path, "", "", configs);
-}
-
-
 bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
 	const LaunchConfigurations& configs)
 {
@@ -242,7 +236,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 }
 
 
-bool LldbAdapter::Attach(std::uint32_t pid)
+bool LldbAdapter::Attach(uint32_t pid)
 {
 	m_debugger.SetAsync(true);
 
@@ -307,7 +301,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 }
 
 
-bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
+bool LldbAdapter::Connect(const std::string& server, uint32_t port)
 {
 	m_debugger.SetAsync(true);
 
@@ -491,13 +485,13 @@ bool LldbAdapter::SetActiveThread(const DebugThread& thread)
 }
 
 
-bool LldbAdapter::SetActiveThreadId(std::uint32_t tid)
+bool LldbAdapter::SetActiveThreadId(uint32_t tid)
 {
 	return m_process.SetSelectedThreadByID(tid);
 }
 
 
-bool LldbAdapter::SuspendThread(std::uint32_t tid)
+bool LldbAdapter::SuspendThread(uint32_t tid)
 {
 	SBError error;
 	SBThread thread = m_process.GetThreadByID(tid);
@@ -513,7 +507,7 @@ bool LldbAdapter::SuspendThread(std::uint32_t tid)
 	return true;
 }
 
-bool LldbAdapter::ResumeThread(std::uint32_t tid)
+bool LldbAdapter::ResumeThread(uint32_t tid)
 {
 	SBError error;
 	SBThread thread = m_process.GetThreadByID(tid);
@@ -581,7 +575,7 @@ std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
 }
 
 
-DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
+DebugBreakpoint LldbAdapter::AddBreakpoint(const uint64_t address, unsigned long breakpoint_type)
 {
 	SBBreakpoint bp = m_target.BreakpointCreateByAddress(address);
 	if (!bp.IsValid())
@@ -658,9 +652,9 @@ std::vector<DebugBreakpoint> LldbAdapter::GetBreakpointList() const
 }
 
 
-std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
+std::map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 {
-	std::unordered_map<std::string, DebugRegister> result;
+	std::map<std::string, DebugRegister> result;
 
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())
@@ -739,7 +733,7 @@ DebugRegister LldbAdapter::ReadRegister(const std::string& name)
 }
 
 
-bool LldbAdapter::WriteRegister(const std::string& name, std::uintptr_t value)
+bool LldbAdapter::WriteRegister(const std::string& name, uint64_t value)
 {
 	//	SBThread thread = m_process.GetSelectedThread();
 	//	if (!thread.IsValid())
@@ -773,7 +767,7 @@ bool LldbAdapter::WriteRegister(const std::string& name, std::uintptr_t value)
 }
 
 
-DataBuffer LldbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
+DataBuffer LldbAdapter::ReadMemory(uint64_t address, size_t size)
 {
 	if (!m_quitingMutex.try_lock())
 		return DataBuffer{};
@@ -792,7 +786,7 @@ DataBuffer LldbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 }
 
 
-bool LldbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
+bool LldbAdapter::WriteMemory(uint64_t address, const DataBuffer& buffer)
 {
 	if (!m_quitingMutex.try_lock())
 		return false;
@@ -916,7 +910,7 @@ static DebugStopReason GetUnixStopReasonFromExceptionDescription(const std::stri
 	//	EXC_ARITHMETIC (code=EXC_I386_DIV, subcode=0x0)
 	//  The description is generated in StopInfoMachException::GetDescription()
 
-	//	static std::unordered_map<std::uint64_t, DebugStopReason> metype_lookup =
+	//	static std::map<std::uint64_t, DebugStopReason> metype_lookup =
 	//	{
 	//		{1, DebugStopReason::AccessViolation},
 	//		{2, DebugStopReason::IllegalInstruction},
@@ -930,7 +924,7 @@ static DebugStopReason GetUnixStopReasonFromExceptionDescription(const std::stri
 	//		{10, DebugStopReason::ExcCrash}
 	//	};
 
-	static std::unordered_map<std::string, DebugStopReason> mestring_lookup = {
+	static std::map<std::string, DebugStopReason> mestring_lookup = {
 		{"EXC_BAD_ACCESS", DebugStopReason::AccessViolation},
 		{"EXC_BAD_INSTRUCTION", DebugStopReason::IllegalInstruction}, {"EXC_ARITHMETIC", DebugStopReason::Calculation},
 		{"EXC_EMULATION", DebugStopReason::ExcEmulation}, {"EXC_SOFTWARE", DebugStopReason::ExcSoftware},
@@ -952,7 +946,7 @@ static DebugStopReason GetUnixStopReasonFromExceptionDescription(const std::stri
 
 static DebugStopReason GetStopReasonFromLinuxSignal(uint64_t signal)
 {
-	static std::unordered_map<std::uint64_t, DebugStopReason> signal_lookup = {
+	static std::map<std::uint64_t, DebugStopReason> signal_lookup = {
 		{1, DebugStopReason::SignalHup},
 		{2, DebugStopReason::SignalInt},
 		{3, DebugStopReason::SignalQuit},
@@ -1609,7 +1603,7 @@ bool LldbAdapter::SetProperty(const std::string& name, const Ref<Metadata>& valu
 }
 
 
-bool LldbAdapter::ConnectToDebugServer(const std::string& server, std::uint32_t port)
+bool LldbAdapter::ConnectToDebugServer(const std::string& server, uint32_t port)
 {
 	auto platform = m_debugger.GetSelectedPlatform();
 	auto connectionString = fmt::format("connect://{}:{}", server, port);

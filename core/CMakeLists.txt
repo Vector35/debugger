@@ -21,6 +21,8 @@ file(GLOB COMMON_SOURCES
 file(GLOB ADAPTER_SOURCES
 		adapters/lldbadapter.cpp
 		adapters/lldbadapter.h
+		adapters/customdebugadapter.cpp
+		adapters/customdebugadapter.h
 	)
 
 if(WIN32)

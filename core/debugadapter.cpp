@@ -110,13 +110,13 @@ void DebugAdapter::WriteStdin(const std::string& msg)
 }
 
 
-std::vector<DebugFrame> DebugAdapter::GetFramesOfThread(std::uint32_t tid)
+std::vector<DebugFrame> DebugAdapter::GetFramesOfThread(uint32_t tid)
 {
 	return {};
 }
 
 
-bool DebugAdapter::ConnectToDebugServer(const std::string& server, std::uint32_t port)
+bool DebugAdapter::ConnectToDebugServer(const std::string& server, uint32_t port)
 {
 	return false;
 }

@@ -274,14 +274,14 @@ namespace BinaryNinjaDebuggerAPI {
 
 	struct DebugProcess
 	{
-		std::uint32_t m_pid {};
+		uint32_t m_pid {};
 		std::string m_processName {};
 
 		DebugProcess() {}
 
-		DebugProcess(std::uint32_t pid) : m_pid(pid) {}
+		DebugProcess(uint32_t pid) : m_pid(pid) {}
 
-		DebugProcess(std::uint32_t pid, std::string name) : m_pid(pid), m_processName(name) {}
+		DebugProcess(uint32_t pid, std::string name) : m_pid(pid), m_processName(name) {}
 
 		bool operator==(const DebugProcess& rhs) const
 		{
@@ -294,13 +294,13 @@ namespace BinaryNinjaDebuggerAPI {
 
 	struct DebugThread
 	{
-		std::uint32_t m_tid {};
-		std::uintptr_t m_rip {};
+		uint32_t m_tid {};
+		uint64_t m_rip {};
 		bool m_isFrozen {};
 
 		DebugThread() {}
-		DebugThread(std::uint32_t tid) : m_tid(tid) {}
-		DebugThread(std::uint32_t tid, std::uintptr_t rip) : m_tid(tid), m_rip(rip) {}
+		DebugThread(uint32_t tid) : m_tid(tid) {}
+		DebugThread(uint32_t tid, uint64_t rip) : m_tid(tid), m_rip(rip) {}
 
 		bool operator==(const DebugThread& rhs) const { return (m_tid == rhs.m_tid) && (m_rip == rhs.m_rip); }
 
@@ -330,8 +330,8 @@ namespace BinaryNinjaDebuggerAPI {
 	struct DebugModule
 	{
 		std::string m_name {}, m_short_name {};
-		std::uintptr_t m_address {};
-		std::size_t m_size {};
+		uint64_t m_address {};
+		size_t m_size {};
 		bool m_loaded {};
 
 		// These are useful for remote debugging. Paths can be different on the host and guest systems, e.g.,
@@ -346,8 +346,8 @@ namespace BinaryNinjaDebuggerAPI {
 	struct DebugRegister
 	{
 		std::string m_name {};
-		std::uintptr_t m_value {};
-		std::size_t m_width {}, m_registerIndex {};
+		uint64_t m_value {};
+		size_t m_width {}, m_registerIndex {};
 		std::string m_hint {};
 	};
 
@@ -395,7 +395,7 @@ namespace BinaryNinjaDebuggerAPI {
 	struct TargetStoppedEventData
 	{
 		DebugStopReason reason;
-		std::uint32_t lastActiveThread;
+		uint32_t lastActiveThread;
 		size_t exitCode;
 		void* data;
 	};
@@ -440,6 +440,13 @@ namespace BinaryNinjaDebuggerAPI {
 	};
 
 
+	struct LaunchConfigurations
+	{
+		bool requestTerminalEmulator;
+		std::string inputFile;
+	};
+
+
 	typedef BNDebugAdapterConnectionStatus DebugAdapterConnectionStatus;
 	typedef BNDebugAdapterTargetStatus DebugAdapterTargetStatus;
 
@@ -467,8 +474,8 @@ namespace BinaryNinjaDebuggerAPI {
 
 		uint64_t StackPointer();
 
-		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size);
-		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
+		DataBuffer ReadMemory(uint64_t address, size_t size);
+		bool WriteMemory(uint64_t address, const DataBuffer& buffer);
 
 		std::vector<DebugProcess> GetProcessList();
 
@@ -476,8 +483,8 @@ namespace BinaryNinjaDebuggerAPI {
 		DebugThread GetActiveThread();
 		void SetActiveThread(const DebugThread& thread);
 		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid);
-		bool SuspendThread(std::uint32_t tid);
-		bool ResumeThread(std::uint32_t tid);
+		bool SuspendThread(uint32_t tid);
+		bool ResumeThread(uint32_t tid);
 
 		std::vector<DebugModule> GetModules();
 		std::vector<DebugRegister> GetRegisters();

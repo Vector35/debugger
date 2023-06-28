@@ -171,8 +171,8 @@ namespace BinaryNinjaDebugger {
 		void SetActiveThread(const DebugThread& thread);
 		std::vector<DebugThread> GetAllThreads();
 		std::vector<DebugFrame> GetFramesOfThread(uint64_t tid);
-		bool SuspendThread(std::uint32_t tid);
-		bool ResumeThread(std::uint32_t tid);
+		bool SuspendThread(uint32_t tid);
+		bool ResumeThread(uint32_t tid);
 
 		// modules
 		std::vector<DebugModule> GetAllModules();
@@ -191,8 +191,8 @@ namespace BinaryNinjaDebugger {
 		DebugAdapterTargetStatus GetExecutionStatus();
 
 		// memory
-		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size);
-		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
+		DataBuffer ReadMemory(uint64_t address, size_t size);
+		bool WriteMemory(uint64_t address, const DataBuffer& buffer);
 
 		// debugger events
 		size_t RegisterEventCallback(

@@ -1017,3 +1017,15 @@ void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEve
 
 	controller->object->PostDebuggerEvent(evt);
 }
+
+
+BNDebugAdapter* BNDebuggerNewDebugAdapterReference(BNDebugAdapter* adapter)
+{
+	return DBG_API_OBJECT_NEW_REF(adapter);
+}
+
+
+void BNDebuggerFreeDebugAdapter(BNDebugAdapter* adapter)
+{
+	DBG_API_OBJECT_FREE(adapter);
+}

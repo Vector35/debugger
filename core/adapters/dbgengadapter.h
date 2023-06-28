@@ -159,15 +159,14 @@ namespace BinaryNinjaDebugger {
 
 		bool Init() override;
 
-		[[nodiscard]] bool Execute(const std::string& path, const LaunchConfigurations& configs = {}) override;
 		[[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string& args,
 			const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
 		[[nodiscard]] virtual bool ExecuteWithArgsInternal(const std::string& path, const std::string& args,
 			const std::string& workingDir, const LaunchConfigurations& configs = {});
-		[[nodiscard]] bool Attach(std::uint32_t pid) override;
-		[[nodiscard]] bool AttachInternal(std::uint32_t pid);
-		[[nodiscard]] bool Connect(const std::string& server, std::uint32_t port) override;
-		bool ConnectToDebugServer(const std::string& server, std::uint32_t port) override;
+		[[nodiscard]] bool Attach(uint32_t pid) override;
+		[[nodiscard]] bool AttachInternal(uint32_t pid);
+		[[nodiscard]] bool Connect(const std::string& server, uint32_t port) override;
+		bool ConnectToDebugServer(const std::string& server, uint32_t port) override;
 		bool DisconnectDebugServer() override;
 
 		bool Detach() override;
@@ -181,11 +180,11 @@ namespace BinaryNinjaDebugger {
 
 		std::vector<DebugThread> GetThreadList() override;
 		DebugThread GetActiveThread() const override;
-		std::uint32_t GetActiveThreadId() const override;
+		uint32_t GetActiveThreadId() const override;
 		bool SetActiveThread(const DebugThread& thread) override;
-		bool SetActiveThreadId(std::uint32_t tid) override;
+		bool SetActiveThreadId(uint32_t tid) override;
 
-		DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags = 0) override;
+		DebugBreakpoint AddBreakpoint(const uint64_t address, unsigned long breakpoint_flags = 0) override;
 		DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0) override;
 
 		bool RemoveBreakpoint(const DebugBreakpoint& breakpoint) override;
@@ -193,17 +192,17 @@ namespace BinaryNinjaDebugger {
 
 		std::vector<DebugBreakpoint> GetBreakpointList() const override;
 
-		std::string GetRegisterNameByIndex(std::uint32_t index) const;
-		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
+		std::string GetRegisterNameByIndex(uint32_t index) const;
+		std::map<std::string, DebugRegister> ReadAllRegisters() override;
 		DebugRegister ReadRegister(const std::string& reg) override;
-		bool WriteRegister(const std::string& reg, std::uintptr_t value) override;
+		bool WriteRegister(const std::string& reg, uint64_t value) override;
 		std::vector<std::string> GetRegisterList() const;
 
-		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) override;
-		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) override;
+		DataBuffer ReadMemory(uint64_t address, size_t size) override;
+		bool WriteMemory(uint64_t address, const DataBuffer& buffer) override;
 
-		// bool ReadMemory(std::uintptr_t address, void* out, std::size_t size) override;
-		// bool WriteMemory(std::uintptr_t address, const void* out, std::size_t size) override;
+		// bool ReadMemory(uint64_t address, void* out, size_t size) override;
+		// bool WriteMemory(uint64_t address, const void* out, size_t size) override;
 		std::vector<DebugModule> GetModuleList() override;
 
 		std::string GetTargetArchitecture() override;
@@ -226,8 +225,8 @@ namespace BinaryNinjaDebugger {
 
 		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid) override;
 
-		bool SuspendThread(std::uint32_t tid) override;
-		bool ResumeThread(std::uint32_t tid) override;
+		bool SuspendThread(uint32_t tid) override;
+		bool ResumeThread(uint32_t tid) override;
 
 		void ApplyBreakpoints();
 

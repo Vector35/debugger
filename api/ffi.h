@@ -323,6 +323,65 @@ extern "C"
         DebugAdapterDetach
     } BNDebuggerAdapterOperation;
 
+	typedef struct BNLaunchConfigurations
+	{
+		bool requestTerminalEmulator;
+		const char* inputFile;
+	} BNLaunchConfigurations;
+
+	typedef struct BNDebuggerDebugProces
+	{
+		uint32_t pid;
+		const char* processName;
+	} BNDebugProces;
+
+	typedef struct BNDebuggerCustomDebugAdapter
+	{
+		void* context;
+		bool (*init)(void* ctxt);
+		bool (*executeWithArgs)(void* ctxt, const char* path, const char* args, const char* workingDir,
+				const BNLaunchConfigurations* configs);
+		bool (*attach)(void* ctxt, uint32_t pid);
+		bool (*connect)(void* ctxt, const char* server, uint32_t port);
+		bool (*connectToDebugServer)(void* ctxt, const char* server, uint32_t port);
+		bool (*disConnectDebugServer)(void* ctxt);
+		bool (*detach)(void* ctxt);
+		bool (*quit)(void* ctxt);
+		BNDebugProces* (*getProcessList)(void* ctxt, size_t* count);
+		BNDebugThread* (*getThreadList)(void* ctxt, size_t* count);
+		BNDebugThread* (*getActiveThread)(void* ctxt);
+		uint32_t (*getActiveThreadId)(void* ctxt);
+		bool (*setActiveThread)(void* ctxt, BNDebugThread* thread);
+		bool (*setActiveThreadId)(void* ctxt, uint32_t tid);
+		bool (*suspendThread)(void* ctxt, uint32_t tid);
+		bool (*resumeThread)(void* ctxt, uint32_t tid);
+		BNDebugFrame* (*getFramesOfThread)(void* ctxt, uint32_t tid, size_t* count);
+		BNDebugBreakpoint* (*addBreakpointWithAddress)(void* ctxt, uint64_t address, unsigned long type);
+		BNDebugBreakpoint* (*addBreakpointWithModuleAndOffset)(void* ctxt, const char* module, uint64_t offset,
+															  unsigned long type);
+		bool (*removeBreakpoint)(void* ctxt, BNDebugBreakpoint* breakpoint);
+		bool (*removeBreakpointWithModuleAndOffset)(void* ctxt, const char* module, uint64_t offset);
+		BNDebugBreakpoint* (*getBreakpointList)(void* ctxt, size_t* count);
+		BNDebugRegister* (*readAllRegisters)(void* ctxt, size_t* count);
+		BNDebugRegister* (*readRegister)(void* ctxt, const char* reg);
+		bool (*writeRegister)(void* ctxt, const char* reg, uint64_t value);
+		BNDataBuffer* (*readMemory)(void* ctxt, uint64_t address, size_t size);
+		bool (*writeMemory)(void* ctxt, uint64_t address, BNDataBuffer* buffer);
+		BNDebugModule* (*getModuleList)(void* ctxt, size_t* count);
+		char* (*getTargetArchitecture)(void* ctxt);
+		BNDebugStopReason (*stopReason)(void* ctxt);
+		uint64_t (*exitCode)(void* ctxt);
+		bool (*breakInto)(void* ctxt);
+		bool (*go)(void* ctxt);
+		bool (*stepInto)(void* ctxt);
+		bool (*stepOver)(void* ctxt);
+		bool (*stepReturn)(void* ctxt);
+		char* (*invokeBackendCommand)(void* ctxt, const char* command);
+		uint64_t (*getInstructionOffset)(void* ctxt);
+		uint64_t (*getStackPointer)(void* ctxt);
+		void (*writeStdin)(void* ctxt, const char* msg);
+
+	} BNDebuggerCustomDebugAdapter;
 
 	DEBUGGER_FFI_API char* BNDebuggerAllocString(const char* string);
 	DEBUGGER_FFI_API char** BNDebuggerAllocStringList(const char** stringList, size_t count);
@@ -373,6 +432,7 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerSetRegisterValue(
 		BNDebuggerController* controller, const char* name, uint64_t value);
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetRegisterValue(BNDebuggerController* controller, const char* name);
+
 
 	// target control
 	DEBUGGER_FFI_API bool BNDebuggerLaunch(BNDebuggerController* controller);
@@ -490,6 +550,9 @@ extern "C"
 	DEBUGGER_FFI_API BNMetadata* BNDebuggerGetAdapterProperty(BNDebuggerController* controller, const char* name);
 	DEBUGGER_FFI_API bool BNDebuggerSetAdapterProperty(
 		BNDebuggerController* controller, const char* name, BNMetadata* value);
+
+	DEBUGGER_FFI_API BNDebugAdapter* BNDebuggerNewDebugAdapterReference(BNDebugAdapter* adapter);
+	DEBUGGER_FFI_API void BNDebuggerFreeDebugAdapter(BNDebugAdapter* adapter);
 
 #ifdef __cplusplus
 }

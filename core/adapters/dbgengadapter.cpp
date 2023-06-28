@@ -318,12 +318,6 @@ bool DbgEngAdapter::Init()
 }
 
 
-bool DbgEngAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
-{
-	return this->ExecuteWithArgs(path, "", "", {});
-}
-
-
 bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
 	const LaunchConfigurations& configs)
 {
@@ -536,7 +530,7 @@ void DbgEngAdapter::EngineLoop()
 	m_lastExecutionStatus = DEBUG_STATUS_NO_DEBUGGEE;
 }
 
-bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
+bool DbgEngAdapter::AttachInternal(uint32_t pid)
 {
 	m_aboutToBeKilled = false;
 
@@ -581,7 +575,7 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 	return true;
 }
 
-bool DbgEngAdapter::Attach(std::uint32_t pid)
+bool DbgEngAdapter::Attach(uint32_t pid)
 {
 	std::atomic_bool ret = false;
 	std::atomic_bool finished = false;
@@ -599,7 +593,7 @@ bool DbgEngAdapter::Attach(std::uint32_t pid)
 	return ret;
 }
 
-bool DbgEngAdapter::Connect(const std::string& server, std::uint32_t port)
+bool DbgEngAdapter::Connect(const std::string& server, uint32_t port)
 {
 	DebuggerEvent event;
 	event.type = LaunchFailureEventType;
@@ -609,7 +603,7 @@ bool DbgEngAdapter::Connect(const std::string& server, std::uint32_t port)
 	return false;
 }
 
-bool DbgEngAdapter::ConnectToDebugServer(const std::string& server, std::uint32_t port)
+bool DbgEngAdapter::ConnectToDebugServer(const std::string& server, uint32_t port)
 {
 	std::string connectionString = fmt::format("tcp:port={}, Server={}", port, server);
 	return ConnectToDebugServerInternal(connectionString);
@@ -721,7 +715,7 @@ std::vector<DebugThread> DbgEngAdapter::GetThreadList()
 
 	std::vector<DebugThread> debug_threads {};
 	DebugThread activeThead = GetActiveThread();
-	for (std::size_t index {}; index < number_threads; index++)
+	for (size_t index {}; index < number_threads; index++)
 	{
 		SetActiveThreadId(tids[index]);
 		uint64_t pc = GetInstructionOffset();
@@ -742,7 +736,7 @@ DebugThread DbgEngAdapter::GetActiveThread() const
 	return DebugThread(this->GetActiveThreadId(), ((DbgEngAdapter*)this)->GetInstructionOffset());
 }
 
-std::uint32_t DbgEngAdapter::GetActiveThreadId() const
+uint32_t DbgEngAdapter::GetActiveThreadId() const
 {
 	unsigned long current_tid {};
 	if (this->m_debugSystemObjects->GetCurrentThreadId(&current_tid) != S_OK)
@@ -756,7 +750,7 @@ bool DbgEngAdapter::SetActiveThread(const DebugThread& thread)
 	return this->SetActiveThreadId(thread.m_tid);
 }
 
-bool DbgEngAdapter::SetActiveThreadId(std::uint32_t tid)
+bool DbgEngAdapter::SetActiveThreadId(uint32_t tid)
 {
 	if (this->m_debugSystemObjects->SetCurrentThreadId(tid) != S_OK)
 		return false;
@@ -765,14 +759,14 @@ bool DbgEngAdapter::SetActiveThreadId(std::uint32_t tid)
 }
 
 
-bool DbgEngAdapter::SuspendThread(std::uint32_t tid)
+bool DbgEngAdapter::SuspendThread(uint32_t tid)
 {
 	std::string suspendCmd = fmt::format("~{}f", tid);
 	InvokeBackendCommand(suspendCmd);
 	return true;
 }
 
-bool DbgEngAdapter::ResumeThread(std::uint32_t tid)
+bool DbgEngAdapter::ResumeThread(uint32_t tid)
 {
 	std::string resumeCmd = fmt::format("~{}u", tid);
 	InvokeBackendCommand(resumeCmd);
@@ -780,7 +774,7 @@ bool DbgEngAdapter::ResumeThread(std::uint32_t tid)
 }
 
 
-DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags)
+DebugBreakpoint DbgEngAdapter::AddBreakpoint(const uint64_t address, unsigned long breakpoint_flags)
 {
 	IDebugBreakpoint2* debug_breakpoint {};
 
@@ -934,7 +928,7 @@ DebugRegister DbgEngAdapter::ReadRegister(const std::string& reg)
 	if (this->m_debugRegisters->GetDescription(reg_index, buf, 256, &reg_length, &register_descriptor) != S_OK)
 		return {};
 
-	std::size_t width {};
+	size_t width {};
 	switch (register_descriptor.Type)
 	{
 	case DEBUG_VALUE_INT8:
@@ -974,7 +968,7 @@ DebugRegister DbgEngAdapter::ReadRegister(const std::string& reg)
 	return DebugRegister {reg, debug_value.I64, width, reg_index};
 }
 
-bool DbgEngAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
+bool DbgEngAdapter::WriteRegister(const std::string& reg, uint64_t value)
 {
 	unsigned long reg_index {};
 
@@ -992,7 +986,7 @@ bool DbgEngAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
 }
 
 
-std::string DbgEngAdapter::GetRegisterNameByIndex(std::uint32_t index) const
+std::string DbgEngAdapter::GetRegisterNameByIndex(uint32_t index) const
 {
 	if (!m_debugRegisters)
 		return {};
@@ -1018,7 +1012,7 @@ std::vector<std::string> DbgEngAdapter::GetRegisterList() const
 		return {};
 
 	std::vector<std::string> register_list {};
-	for (std::size_t reg_index {}; reg_index < register_count; reg_index++)
+	for (size_t reg_index {}; reg_index < register_count; reg_index++)
 		register_list.push_back(this->GetRegisterNameByIndex(reg_index));
 
 	return register_list;
@@ -1045,7 +1039,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 	if (this->m_debugSymbols->GetModuleParameters(total_modules, nullptr, 0, module_parameters.get()) != S_OK)
 		return {};
 
-	for (std::size_t module_index {}; module_index < total_modules; module_index++)
+	for (size_t module_index {}; module_index < total_modules; module_index++)
 	{
 		const auto& parameters = module_parameters[module_index];
 
@@ -1139,9 +1133,9 @@ bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
 	return wait_result == S_OK;
 }
 
-std::unordered_map<std::string, DebugRegister> DbgEngAdapter::ReadAllRegisters()
+std::map<std::string, DebugRegister> DbgEngAdapter::ReadAllRegisters()
 {
-	std::unordered_map<std::string, DebugRegister> all_regs {};
+	std::map<std::string, DebugRegister> all_regs {};
 
 	for (const auto& reg : this->GetRegisterList())
 	{
@@ -1251,7 +1245,7 @@ uint64_t DbgEngAdapter::GetInstructionOffset()
 {
 	if (!m_debugRegisters)
 		return -1;
-	std::uintptr_t register_offset {};
+	uint64_t register_offset {};
 	this->m_debugRegisters->GetInstructionOffset(&register_offset);
 
 	return register_offset;
@@ -1299,7 +1293,7 @@ HRESULT DbgEngEventCallbacks::GetInterestMask(unsigned long* mask)
 
 HRESULT DbgEngEventCallbacks::Breakpoint(IDebugBreakpoint* breakpoint)
 {
-	std::uintptr_t address {};
+	uint64_t address {};
 	if (breakpoint->GetOffset(&address) == S_OK)
 		DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint = DebugBreakpoint(address);
 
@@ -1463,7 +1457,7 @@ bool DbgEngAdapter::SupportFeature(DebugAdapterCapacity feature)
 }
 
 
-DataBuffer DbgEngAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
+DataBuffer DbgEngAdapter::ReadMemory(uint64_t address, size_t size)
 {
 	const auto source = std::make_unique<std::uint8_t[]>(size);
 
@@ -1476,7 +1470,7 @@ DataBuffer DbgEngAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 	return {source.get(), size};
 }
 
-bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
+bool DbgEngAdapter::WriteMemory(uint64_t address, const DataBuffer& buffer)
 {
 	unsigned long bytes_written {};
 	return this->m_debugDataSpaces->WriteVirtual(address, const_cast<void*>(buffer.GetData()), buffer.GetLength(), &bytes_written) == S_OK
