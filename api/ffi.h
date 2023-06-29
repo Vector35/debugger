@@ -329,12 +329,6 @@ extern "C"
 		const char* inputFile;
 	} BNLaunchConfigurations;
 
-	typedef struct BNDebuggerDebugProces
-	{
-		uint32_t pid;
-		const char* processName;
-	} BNDebugProces;
-
 	typedef struct BNDebuggerCustomDebugAdapter
 	{
 		void* context;
@@ -347,11 +341,11 @@ extern "C"
 		bool (*disConnectDebugServer)(void* ctxt);
 		bool (*detach)(void* ctxt);
 		bool (*quit)(void* ctxt);
-		BNDebugProces* (*getProcessList)(void* ctxt, size_t* count);
+		BNDebugProcess* (*getProcessList)(void* ctxt, size_t* count);
 		BNDebugThread* (*getThreadList)(void* ctxt, size_t* count);
-		BNDebugThread* (*getActiveThread)(void* ctxt);
+		BNDebugThread (*getActiveThread)(void* ctxt);
 		uint32_t (*getActiveThreadId)(void* ctxt);
-		bool (*setActiveThread)(void* ctxt, BNDebugThread* thread);
+		bool (*setActiveThread)(void* ctxt, BNDebugThread thread);
 		bool (*setActiveThreadId)(void* ctxt, uint32_t tid);
 		bool (*suspendThread)(void* ctxt, uint32_t tid);
 		bool (*resumeThread)(void* ctxt, uint32_t tid);

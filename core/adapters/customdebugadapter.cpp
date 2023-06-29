@@ -94,7 +94,7 @@ std::vector<DebugProcess> CustomDebugAdapter::GetProcessList()
 	size_t count = 0;
 	std::vector<DebugProcess> result;
 
-	BNDebugProces* processes = m_adapter.getProcessList(m_adapter.context, &count);
+	BNDebugProcess* processes = m_adapter.getProcessList(m_adapter.context, &count);
 	if (!processes || (count == 0))
 		return {};
 
@@ -102,12 +102,12 @@ std::vector<DebugProcess> CustomDebugAdapter::GetProcessList()
 	for (size_t i = 0; i < count; i++)
 	{
 		DebugProcess process;
-		process.m_pid = processes[i].pid;
-		processes->processName = processes[i].processName;
+		process.m_pid = processes[i].m_pid;
+		process.m_processName = processes[i].m_processName;
 		result.push_back(process);
 	}
 
-	delete[] processes;
+	BNDebuggerFreeProcessList(processes, count);
 	return result;
 }
 
@@ -134,7 +134,7 @@ std::vector<DebugThread> CustomDebugAdapter::GetThreadList()
 		result.push_back(thread);
 	}
 
-	delete[] threads;
+	BNDebuggerFreeThreads(threads, count);
 	return result;
 }
 
@@ -144,12 +144,11 @@ DebugThread CustomDebugAdapter::GetActiveThread() const
 	if (!m_adapter.getActiveThread)
 		return {};
 
-	BNDebugThread* thread = m_adapter.getActiveThread(m_adapter.context);
+	BNDebugThread thread = m_adapter.getActiveThread(m_adapter.context);
 	DebugThread result;
-	result.m_tid = thread->m_tid;
-	result.m_rip = thread->m_rip;
-	result.m_isFrozen = thread->m_isFrozen;
-	delete thread;
+	result.m_tid = thread.m_tid;
+	result.m_rip = thread.m_rip;
+	result.m_isFrozen = thread.m_isFrozen;
 	return result;
 }
 
@@ -171,7 +170,7 @@ bool CustomDebugAdapter::SetActiveThread(const BinaryNinjaDebugger::DebugThread 
 	t.m_rip = thread.m_rip;
 	t.m_tid = thread.m_tid;
 	t.m_isFrozen = thread.m_isFrozen;
-	return m_adapter.setActiveThread(m_adapter.context, &t);
+	return m_adapter.setActiveThread(m_adapter.context, t);
 }
 
 
@@ -224,7 +223,7 @@ std::vector<DebugFrame> CustomDebugAdapter::GetFramesOfThread(uint32_t tid)
 		result.push_back(frame);
 	}
 
-	delete[] frames;
+	BNDebuggerFreeFrames(frames, count);
 	return result;
 }
 
