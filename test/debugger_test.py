@@ -10,7 +10,7 @@ import threading
 import subprocess
 import unittest
 
-from binaryninja import BinaryView, BinaryViewType, LowLevelILOperation, mainthread, Settings
+from binaryninja import load
 try:
     from debugger import DebuggerController, DebugStopReason
 except:
@@ -52,7 +52,7 @@ class DebuggerAPI(unittest.TestCase):
 
     def test_repeated_use(self):
         fpath = name_to_fpath('helloworld', self.arch)
-        bv = BinaryViewType.get_view_of_file(fpath)
+        bv = load(fpath)
 
         def run_once():
             dbg = DebuggerController(bv)
@@ -78,7 +78,7 @@ class DebuggerAPI(unittest.TestCase):
     def test_return_code(self):
         # return code tests
         fpath = name_to_fpath('exitcode', self.arch)
-        bv = BinaryViewType.get_view_of_file(fpath)
+        bv = load(fpath)
 
         # some systems return byte, or low byte of 32-bit code and others return 32-bit code
         testvals = [('-11', [245, 4294967285]),
@@ -107,7 +107,7 @@ class DebuggerAPI(unittest.TestCase):
 
     def test_exception_segfault(self):
         fpath = name_to_fpath('do_exception', self.arch)
-        bv = BinaryViewType.get_view_of_file(fpath)
+        bv = load(fpath)
         dbg = DebuggerController(bv)
 
         dbg.cmd_line = 'segfault'
@@ -120,7 +120,7 @@ class DebuggerAPI(unittest.TestCase):
     # # This would not work until we fix the test binary
     # def test_exception_illegalinstr(self):
     #     fpath = name_to_fpath('do_exception', self.arch)
-    #     bv = BinaryViewType.get_view_of_file(fpath)
+    #     bv = load(fpath)
     #     dbg = DebuggerController(bv)
     #     dbg.cmd_line = 'illegalinstr'
     #     self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
@@ -142,7 +142,7 @@ class DebuggerAPI(unittest.TestCase):
 
     def test_exception_divzero(self):
         fpath = name_to_fpath('do_exception', self.arch)
-        bv = BinaryViewType.get_view_of_file(fpath)
+        bv = load(fpath)
         dbg = DebuggerController(bv)
         if not self.arch == 'arm64':
             dbg.cmd_line = 'divzero'
@@ -153,7 +153,7 @@ class DebuggerAPI(unittest.TestCase):
 
     def test_step_into(self):
         fpath = name_to_fpath('helloworld', self.arch)
-        bv = BinaryViewType.get_view_of_file(fpath)
+        bv = load(fpath)
         dbg = DebuggerController(bv)
         dbg.cmd_line = 'foobar'
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
@@ -166,7 +166,7 @@ class DebuggerAPI(unittest.TestCase):
 
     def test_breakpoint(self):
         fpath = name_to_fpath('helloworld', self.arch)
-        bv = BinaryViewType.get_view_of_file(fpath)
+        bv = load(fpath)
         dbg = DebuggerController(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         # TODO: right now we are not returning whether the operation succeeds, so we cannot use assertTrue/assertFalse
@@ -184,7 +184,7 @@ class DebuggerAPI(unittest.TestCase):
 
     def test_register_read_write(self):
         fpath = name_to_fpath('helloworld', self.arch)
-        bv = BinaryViewType.get_view_of_file(fpath)
+        bv = load(fpath)
         dbg = DebuggerController(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
@@ -216,7 +216,7 @@ class DebuggerAPI(unittest.TestCase):
 
     def test_memory_read_write(self):
         fpath = name_to_fpath('helloworld', self.arch)
-        bv = BinaryViewType.get_view_of_file(fpath)
+        bv = load(fpath)
         dbg = DebuggerController(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
@@ -237,7 +237,7 @@ class DebuggerAPI(unittest.TestCase):
     # @unittest.skip
     def test_thread(self):
         fpath = name_to_fpath('helloworld_thread', self.arch)
-        bv = BinaryViewType.get_view_of_file(fpath)
+        bv = load(fpath)
         dbg = DebuggerController(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
@@ -262,7 +262,7 @@ class DebuggerAPI(unittest.TestCase):
     def test_assembly_code(self):
         if self.arch == 'x86_64':
             fpath = name_to_fpath('asmtest', 'x86_64')
-            bv = BinaryViewType.get_view_of_file(fpath)
+            bv = load(fpath)
             dbg = DebuggerController(bv)
             self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
             entry = dbg.data.entry_point
@@ -304,7 +304,7 @@ class DebuggerAPI(unittest.TestCase):
             print('attaching test not yet implemented on %s' % platform.system())
 
         self.assertIsNotNone(pid)
-        bv = BinaryViewType.get_view_of_file(fpath)
+        bv = load(fpath)
         dbg = DebuggerController(bv)
         dbg.pid_attach = pid
         self.assertTrue(dbg.attach_and_wait())

@@ -497,7 +497,7 @@ class DebuggerController:
 
     Most operations of the debugger are performed on this class. For example, we can launch the debugger as follows::
 
-        >>> bv = BinaryViewType.get_view_of_file("test/binaries/helloworld")
+        >>> bv = load("test/binaries/helloworld")
         >>> dbg = DebuggerController(bv)
         >>> dbg.launch()
         True
