@@ -18,6 +18,7 @@ limitations under the License.
 #include "debuggercontroller.h"
 #include "debuggercommon.h"
 #include "../api/ffi.h"
+#include "./adapters/customdebugadapter.h"
 
 using namespace BinaryNinjaDebugger;
 
@@ -382,6 +383,14 @@ void BNDebuggerFreeRegisters(BNDebugRegister* registers, size_t count)
 		BNDebuggerFreeString(registers[i].m_hint);
 	}
 	delete[] registers;
+}
+
+
+void BNDebuggerFreeRegister(BNDebugRegister* reg)
+{
+	BNDebuggerFreeString(reg->m_name);
+	BNDebuggerFreeString(reg->m_hint);
+	delete reg;
 }
 
 
@@ -1029,3 +1038,18 @@ void BNDebuggerFreeDebugAdapter(BNDebugAdapter* adapter)
 {
 	DBG_API_OBJECT_FREE(adapter);
 }
+
+
+BNDebugAdapter* BNDebuggerCreateCustomDebugAdapter(BNBinaryView* data, BNDebuggerCustomDebugAdapter* adpater)
+{
+	BinaryView* view = new BinaryView(data);
+	CustomDebugAdapter* ret = new CustomDebugAdapter(view, adpater);
+	return DBG_API_OBJECT_REF(ret);
+}
+
+
+//BNBinaryView* BNCreateCustomBinaryView(const char* typeName, BNFileMetadata* file, BNBinaryView* parent, BNCustomBinaryView* view)
+//{
+//	CustomBinaryView* result = new CustomBinaryView(typeName, file->object, parent ? parent->object : nullptr, view);
+//	return API_OBJECT_REF(result);
+//}

@@ -9,6 +9,7 @@ namespace BinaryNinjaDebuggerAPI
 	{
 	private:
 		static bool InitCallback(void* ctxt);
+		static void FreeCallback(void* ctxt);
 		static bool ExecuteWithArgsCallback(void* ctxt, const char* path, const char* args, const char* workingDir,
 											const BNLaunchConfigurations* configs);
 		static bool AttachCallback(void* ctxt, uint32_t pid);
@@ -26,10 +27,10 @@ namespace BinaryNinjaDebuggerAPI
 		static bool SuspendThreadCallback(void* ctxt, uint32_t tid);
 		static bool ResumeThreadCallback(void* ctxt, uint32_t tid);
 		static BNDebugFrame* GetFramesOfThreadCallback(void* ctxt, uint32_t tid, size_t* count);
-		static BNDebugBreakpoint* AddBreakpointWithAddressCallback(void* ctxt, const uint64_t address, unsigned long breakpoint_type);
-		static BNDebugBreakpoint* AddBreakpointWithModuleAndOffsetCallback(void* ctxt, const char* module, uint64_t offset,
+		static BNDebugBreakpoint AddBreakpointWithAddressCallback(void* ctxt, const uint64_t address, unsigned long breakpoint_type);
+		static BNDebugBreakpoint AddBreakpointWithModuleAndOffsetCallback(void* ctxt, const char* module, uint64_t offset,
 																		   unsigned long type);
-		static bool RemoveBreakpointCallback(void* ctxt, BNDebugBreakpoint* breakpoint);
+		static bool RemoveBreakpointCallback(void* ctxt, BNDebugBreakpoint breakpoint);
 		static bool RemoveBreakpointWithModuleAndOffsetCallback(void* ctxt, const char* module, uint64_t offset);
 		static BNDebugBreakpoint* GetBreakpointListCallback(void* ctxt, size_t* count);
 		static BNDebugRegister* ReadAllRegistersCallback(void* ctxt, size_t* count);

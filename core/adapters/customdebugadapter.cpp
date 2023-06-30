@@ -4,7 +4,8 @@ using namespace BinaryNinjaDebugger;
 using namespace BinaryNinja;
 using namespace std;
 
-CustomDebugAdapter::CustomDebugAdapter(BinaryView* data): DebugAdapter(data)
+CustomDebugAdapter::CustomDebugAdapter(BinaryView* data, BNDebuggerCustomDebugAdapter* adapter):
+	DebugAdapter(data), m_adapter(*adapter)
 {
 
 }
@@ -12,7 +13,8 @@ CustomDebugAdapter::CustomDebugAdapter(BinaryView* data): DebugAdapter(data)
 
 CustomDebugAdapter::~CustomDebugAdapter()
 {
-
+	if (m_adapter.freeObject)
+		m_adapter.freeObject(m_adapter.context);
 }
 
 
@@ -233,14 +235,15 @@ DebugBreakpoint CustomDebugAdapter::AddBreakpoint(const uint64_t address, unsign
 	if (m_adapter.addBreakpointWithAddress)
 		return {};
 
-	BNDebugBreakpoint* bp = m_adapter.addBreakpointWithAddress(m_adapter.context, address, breakpoint_type);
+	BNDebugBreakpoint bp = m_adapter.addBreakpointWithAddress(m_adapter.context, address, breakpoint_type);
 	// TODO: the structures to hold information about the breakpoints are different in the API and the core.
 	// Better unify them later.
 	DebugBreakpoint breakpoint;
-	breakpoint.m_address = bp->address;
+	breakpoint.m_address = bp.address;
 	breakpoint.m_is_active = true;
 	breakpoint.m_id = 0;
-	delete bp;
+
+	BNDebuggerFreeString(bp.module);
 	return breakpoint;
 }
 
@@ -251,15 +254,16 @@ DebugBreakpoint CustomDebugAdapter::AddBreakpoint(const BinaryNinjaDebugger::Mod
 	if (m_adapter.addBreakpointWithModuleAndOffset)
 		return {};
 
-	BNDebugBreakpoint* bp = m_adapter.addBreakpointWithModuleAndOffset(m_adapter.context, address.module.c_str(),
+	BNDebugBreakpoint bp = m_adapter.addBreakpointWithModuleAndOffset(m_adapter.context, address.module.c_str(),
 																	   address.offset, breakpoint_type);
 	// TODO: the structures to hold information about the breakpoints are different in the API and the core.
 	// Better unify them later.
 	DebugBreakpoint breakpoint;
-	breakpoint.m_address = bp->address;
+	breakpoint.m_address = bp.address;
 	breakpoint.m_is_active = true;
 	breakpoint.m_id = 0;
-	delete bp;
+
+	BNDebuggerFreeString(bp.module);
 	return breakpoint;
 }
 
@@ -270,7 +274,7 @@ bool CustomDebugAdapter::RemoveBreakpoint(const BinaryNinjaDebugger::DebugBreakp
 		return false;
 	BNDebugBreakpoint bp;
 	bp.address = breakpoint.m_address;
-	return m_adapter.removeBreakpoint(m_adapter.context, &bp);
+	return m_adapter.removeBreakpoint(m_adapter.context, bp);
 }
 
 
@@ -303,7 +307,7 @@ std::vector<DebugBreakpoint> CustomDebugAdapter::GetBreakpointList() const
 		breakpoint.m_is_active = true;
 	}
 
-	delete[] breakpoints;
+	BNDebuggerFreeBreakpoints(breakpoints, count);
 	return result;
 }
 
@@ -334,7 +338,7 @@ std::map<std::string, DebugRegister> CustomDebugAdapter::ReadAllRegisters()
 		result[reg.m_name] = reg;
 	}
 
-	delete[] registers;
+	BNDebuggerFreeRegisters(registers, count);
 	return result;
 }
 
@@ -344,13 +348,17 @@ DebugRegister CustomDebugAdapter::ReadRegister(const std::string &reg)
 	if (!m_adapter.readRegister)
 		return {};
 	BNDebugRegister* r = m_adapter.readRegister(m_adapter.context, reg.c_str());
+	if (!r)
+		return {};
+
 	DebugRegister result;
 	result.m_name = r->m_name;
 	result.m_width= r->m_width;
 	result.m_registerIndex = r->m_registerIndex;
 	result.m_value = r->m_value;
 	result.m_hint = r->m_hint;
-	delete r;
+
+	BNDebuggerFreeRegister(r);
 	return result;
 }
 
@@ -403,7 +411,7 @@ std::vector<DebugModule> CustomDebugAdapter::GetModuleList()
 		result.push_back(module);
 	}
 
-	delete[] modules;
+	BNDebuggerFreeModules(modules, count);
 	return result;
 }
 
@@ -412,7 +420,12 @@ std::string CustomDebugAdapter::GetTargetArchitecture()
 {
 	if (!m_adapter.getTargetArchitecture)
 		return "";
-	return m_adapter.getTargetArchitecture(m_adapter.context);
+	char* arch = m_adapter.getTargetArchitecture(m_adapter.context);
+	if (!arch)
+		return "";
+	std::string result = arch;
+	BNDebuggerFreeString(arch);
+	return result;
 }
 
 
@@ -476,7 +489,12 @@ std::string CustomDebugAdapter::InvokeBackendCommand(const std::string &command)
 {
 	if (!m_adapter.invokeBackendCommand)
 		return "";
-	return m_adapter.invokeBackendCommand(m_adapter.context, command.c_str());
+	char* ret = m_adapter.invokeBackendCommand(m_adapter.context, command.c_str());
+	if (!ret)
+		return "";
+	std::string result = ret;
+	BNDebuggerFreeString(ret);
+	return result;
 }
 
 

@@ -333,6 +333,7 @@ extern "C"
 	{
 		void* context;
 		bool (*init)(void* ctxt);
+		void (*freeObject)(void* ctxt);
 		bool (*executeWithArgs)(void* ctxt, const char* path, const char* args, const char* workingDir,
 				const BNLaunchConfigurations* configs);
 		bool (*attach)(void* ctxt, uint32_t pid);
@@ -350,10 +351,10 @@ extern "C"
 		bool (*suspendThread)(void* ctxt, uint32_t tid);
 		bool (*resumeThread)(void* ctxt, uint32_t tid);
 		BNDebugFrame* (*getFramesOfThread)(void* ctxt, uint32_t tid, size_t* count);
-		BNDebugBreakpoint* (*addBreakpointWithAddress)(void* ctxt, uint64_t address, unsigned long type);
-		BNDebugBreakpoint* (*addBreakpointWithModuleAndOffset)(void* ctxt, const char* module, uint64_t offset,
+		BNDebugBreakpoint (*addBreakpointWithAddress)(void* ctxt, uint64_t address, unsigned long type);
+		BNDebugBreakpoint (*addBreakpointWithModuleAndOffset)(void* ctxt, const char* module, uint64_t offset,
 															  unsigned long type);
-		bool (*removeBreakpoint)(void* ctxt, BNDebugBreakpoint* breakpoint);
+		bool (*removeBreakpoint)(void* ctxt, BNDebugBreakpoint breakpoint);
 		bool (*removeBreakpointWithModuleAndOffset)(void* ctxt, const char* module, uint64_t offset);
 		BNDebugBreakpoint* (*getBreakpointList)(void* ctxt, size_t* count);
 		BNDebugRegister* (*readAllRegisters)(void* ctxt, size_t* count);
@@ -374,8 +375,10 @@ extern "C"
 		uint64_t (*getInstructionOffset)(void* ctxt);
 		uint64_t (*getStackPointer)(void* ctxt);
 		void (*writeStdin)(void* ctxt, const char* msg);
-
 	} BNDebuggerCustomDebugAdapter;
+
+	DEBUGGER_FFI_API BNDebugAdapter* BNDebuggerCreateCustomDebugAdapter(BNBinaryView *View,
+																		BNDebuggerCustomDebugAdapter adapter);
 
 	DEBUGGER_FFI_API char* BNDebuggerAllocString(const char* string);
 	DEBUGGER_FFI_API char** BNDebuggerAllocStringList(const char** stringList, size_t count);
@@ -422,7 +425,8 @@ extern "C"
 	DEBUGGER_FFI_API void BNDebuggerFreeModules(BNDebugModule* modules, size_t count);
 
 	DEBUGGER_FFI_API BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t* count);
-	DEBUGGER_FFI_API void BNDebuggerFreeRegisters(BNDebugRegister* modules, size_t count);
+	DEBUGGER_FFI_API void BNDebuggerFreeRegisters(BNDebugRegister* registers, size_t count);
+	DEBUGGER_FFI_API void BNDebuggerFreeRegister(BNDebugRegister* reg);
 	DEBUGGER_FFI_API bool BNDebuggerSetRegisterValue(
 		BNDebuggerController* controller, const char* name, uint64_t value);
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetRegisterValue(BNDebuggerController* controller, const char* name);

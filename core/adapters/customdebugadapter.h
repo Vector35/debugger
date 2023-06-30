@@ -7,7 +7,7 @@ namespace BinaryNinjaDebugger
 		BNDebuggerCustomDebugAdapter m_adapter;
 
 	public:
-		CustomDebugAdapter(BinaryView* data);
+		CustomDebugAdapter(BinaryView* data, BNDebuggerCustomDebugAdapter* adapter);
 		virtual ~CustomDebugAdapter();
 
 		virtual bool Init() override;
