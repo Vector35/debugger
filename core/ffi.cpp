@@ -603,6 +603,12 @@ BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name)
 }
 
 
+bool BNDebugAdapterTypeIsValidForData(BNDebugAdapterType* adapter, BNBinaryView* data)
+{
+	return adapter->object->IsValidForData(new BinaryView(data));
+}
+
+
 bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, BNBinaryView* data)
 {
 	return adapter->object->CanExecute(new BinaryView(data));
@@ -640,6 +646,12 @@ char** BNGetAvailableDebugAdapterTypes(BNBinaryView* data, size_t* count)
 	}
 	*count = adapters.size();
 	return BNDebuggerAllocStringList(cstrings.data(), *count);
+}
+
+
+BNDebugAdapter* BNDebugCreateDebugAdapterOfType(BNDebugAdapterType* type, BNBinaryView* data)
+{
+	return nullptr;
 }
 
 
@@ -1034,7 +1046,7 @@ BNDebugAdapter* BNDebuggerNewDebugAdapterReference(BNDebugAdapter* adapter)
 }
 
 
-void BNDebuggerFreeDebugAdapter(BNDebugAdapter* adapter)
+void BNDebuggerFreeDebugAdapter(BNDebugAdapter *adapter)
 {
 	DBG_API_OBJECT_FREE(adapter);
 }

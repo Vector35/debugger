@@ -1,4 +1,4 @@
-#include "debugadapter.h"
+#include "debuggerapi.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
@@ -51,7 +51,13 @@ DebugAdapter::DebugAdapter(BinaryNinja::BinaryView *data)
 	adapter.writeStdin = WriteStdinCallback;
 
 	AddRefForRegistration();
-	m_object = BNDebuggerCreateCustomDebugAdapter(data ? data->GetObject() : nullptr, adapter);
+	m_object = BNDebuggerCreateCustomDebugAdapter(data ? data->GetObject() : nullptr, &adapter);
+}
+
+
+DebugAdapter::DebugAdapter(BNDebugAdapter *adapter)
+{
+	m_object = adapter;
 }
 
 

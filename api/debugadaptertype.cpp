@@ -27,25 +27,98 @@ DebugAdapterType* DebugAdapterType::GetByName(const std::string& name)
 	if (!adapter)
 		return nullptr;
 
-	return new DebugAdapterType(adapter);
+	return new DbgCoreDebugAdapterType(adapter);
 }
 
 
-DebugAdapterType::DebugAdapterType(BNDebugAdapterType* controller)
+DebugAdapterType::DebugAdapterType(BNDebugAdapterType* type)
 {
-	m_object = controller;
+	m_object = type;
 }
 
 
-bool DebugAdapterType::CanConnect(Ref<BinaryView> data)
+DebugAdapterType::DebugAdapterType(const std::string &name): m_nameForRegister(name)
+{
+	m_object = nullptr;
+}
+
+
+void DebugAdapterType::Register(BinaryNinjaDebuggerAPI::DebugAdapterType *type)
+{
+	BNDebugAdapterTypeWrapper callback;
+	callback.context = this;
+	callback.create = CreateCallback;
+	callback.isValidForData = IsvalidForDataCallback;
+	callback.canExecute = CanExecuteCallback;
+	callback.canConnect = CanConnectCallback;
+}
+
+
+BNDebugAdapter* DebugAdapterType::CreateCallback(void *ctxt, BNBinaryView *data)
+{
+	DebugAdapterType* type = (DebugAdapterType*)ctxt;
+	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	DbgRef<DebugAdapter> result = type->Create(view);
+	if (!result)
+		return nullptr;
+
+	return BNDebuggerNewDebugAdapterReference(result->GetObject());
+}
+
+
+bool DebugAdapterType::IsvalidForDataCallback(void *ctxt, BNBinaryView *data)
+{
+	DebugAdapterType* type = (DebugAdapterType*)ctxt;
+	return type->IsValidForData(new BinaryView(data));
+}
+
+
+bool DebugAdapterType::CanExecuteCallback(void *ctxt, BNBinaryView *data)
+{
+	DebugAdapterType* type = (DebugAdapterType*)ctxt;
+	return type->CanExecute(new BinaryView(data));
+
+}
+
+
+bool DebugAdapterType::CanConnectCallback(void *ctxt, BNBinaryView *data)
+{
+	DebugAdapterType* type = (DebugAdapterType*)ctxt;
+	return type->CanConnect(new BinaryView(data));
+}
+
+
+DbgCoreDebugAdapterType::DbgCoreDebugAdapterType(BNDebugAdapterType *type): DebugAdapterType(type)
+{
+
+}
+
+
+bool DbgCoreDebugAdapterType::IsValidForData(Ref<BinaryNinja::BinaryView> data)
+{
+	return BNDebugAdapterTypeIsValidForData(m_object, data->GetObject());
+}
+
+
+bool DbgCoreDebugAdapterType::CanConnect(Ref<BinaryView> data)
 {
 	return BNDebugAdapterTypeCanConnect(m_object, data->GetObject());
 }
 
 
-bool DebugAdapterType::CanExecute(Ref<BinaryView> data)
+bool DbgCoreDebugAdapterType::CanExecute(Ref<BinaryView> data)
 {
 	return BNDebugAdapterTypeCanExecute(m_object, data->GetObject());
+}
+
+
+DbgRef<DebugAdapter> DbgCoreDebugAdapterType::Create(BinaryNinja::BinaryView *data)
+{
+	BNDebugAdapter* adapter = BNDebugCreateDebugAdapterOfType(m_object, data->GetObject());
+	if (!adapter)
+		return nullptr;
+
+	return new DebugAdapter(adapter);
 }
 
 

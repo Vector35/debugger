@@ -329,6 +329,15 @@ extern "C"
 		const char* inputFile;
 	} BNLaunchConfigurations;
 
+	typedef struct BNDebugAdapterTypeWrapper
+	{
+		void* context;
+		BNDebugAdapter* (*create)(void* ctxt, BNBinaryView* data);
+		bool (*isValidForData)(void* ctxt, BNBinaryView* data);
+		bool (*canExecute)(void* ctxt, BNBinaryView* data);
+		bool (*canConnect)(void* ctxt, BNBinaryView* data);
+	} BNDebugAdapterTypeWrapper;
+
 	typedef struct BNDebuggerCustomDebugAdapter
 	{
 		void* context;
@@ -378,7 +387,7 @@ extern "C"
 	} BNDebuggerCustomDebugAdapter;
 
 	DEBUGGER_FFI_API BNDebugAdapter* BNDebuggerCreateCustomDebugAdapter(BNBinaryView *View,
-																		BNDebuggerCustomDebugAdapter adapter);
+																		BNDebuggerCustomDebugAdapter* adapter);
 
 	DEBUGGER_FFI_API char* BNDebuggerAllocString(const char* string);
 	DEBUGGER_FFI_API char** BNDebuggerAllocStringList(const char** stringList, size_t count);
@@ -531,10 +540,11 @@ extern "C"
 
 	// DebugAdapterType
 	DEBUGGER_FFI_API BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name);
+	DEBUGGER_FFI_API bool BNDebugAdapterTypeIsValidForData(BNDebugAdapterType* adapter, BNBinaryView* data);
 	DEBUGGER_FFI_API bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, BNBinaryView* data);
 	DEBUGGER_FFI_API bool BNDebugAdapterTypeCanConnect(BNDebugAdapterType* adapter, BNBinaryView* data);
 	DEBUGGER_FFI_API char** BNGetAvailableDebugAdapterTypes(BNBinaryView* data, size_t* count);
-
+	DEBUGGER_FFI_API BNDebugAdapter* BNDebugCreateDebugAdapterOfType(BNDebugAdapterType* type, BNBinaryView* data);
 
 	// DebugModule
 	DEBUGGER_FFI_API bool BNDebuggerIsSameBaseModule(const char* module1, const char* module2);
@@ -550,7 +560,7 @@ extern "C"
 		BNDebuggerController* controller, const char* name, BNMetadata* value);
 
 	DEBUGGER_FFI_API BNDebugAdapter* BNDebuggerNewDebugAdapterReference(BNDebugAdapter* adapter);
-	DEBUGGER_FFI_API void BNDebuggerFreeDebugAdapter(BNDebugAdapter* adapter);
+	DEBUGGER_FFI_API void BNDebuggerFreeDebugAdapter(BNDebugAdapter *adapter);
 
 #ifdef __cplusplus
 }
