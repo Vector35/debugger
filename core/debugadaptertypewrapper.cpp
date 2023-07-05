@@ -22,7 +22,7 @@ DebugAdapter* DebugAdapterTypeWrapper::Create(BinaryNinja::BinaryView *data)
 		LogError("Failed to create DebugAdapter for: '%s'\n", GetName().c_str());
 		return nullptr;
 	}
-	DebugAdapter* result = adapter->object;
+	DbgRef<DebugAdapter> result = adapter->object;
 	BNDebuggerFreeDebugAdapter(adapter);
 	return result;
 }

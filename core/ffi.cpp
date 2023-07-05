@@ -1041,6 +1041,32 @@ void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEve
 }
 
 
+void BNDebuggerPostDebuggerEventFromAdapter(BNDebugAdapter* adapter, BNDebuggerEvent* event)
+{
+	DebuggerEvent evt;
+	evt.type = event->type;
+	evt.data.targetStoppedData.reason = event->data.targetStoppedData.reason;
+	evt.data.targetStoppedData.exitCode = event->data.targetStoppedData.exitCode;
+	evt.data.targetStoppedData.lastActiveThread = event->data.targetStoppedData.lastActiveThread;
+	evt.data.targetStoppedData.data = event->data.targetStoppedData.data;
+
+	evt.data.errorData.error = event->data.errorData.error;
+	evt.data.errorData.shortError = event->data.errorData.shortError;
+	evt.data.errorData.data = event->data.errorData.data;
+
+	evt.data.exitData.exitCode = event->data.exitData.exitCode;
+
+	evt.data.relativeAddress.module = event->data.relativeAddress.module;
+	evt.data.relativeAddress.offset = event->data.relativeAddress.offset;
+
+	evt.data.absoluteAddress = event->data.absoluteAddress;
+
+	evt.data.messageData.message = event->data.messageData.message;
+
+	adapter->object->PostDebuggerEvent(evt);
+}
+
+
 BNDebugAdapter* BNDebuggerNewDebugAdapterReference(BNDebugAdapter* adapter)
 {
 	return DBG_API_OBJECT_NEW_REF(adapter);

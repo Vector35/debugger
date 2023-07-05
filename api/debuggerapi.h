@@ -713,13 +713,16 @@ namespace BinaryNinjaDebuggerAPI {
 		static char* InvokeBackendCommandCallback(void* ctxt, const char*command);
 		static uint64_t GetInstructionOffsetCallback(void* ctxt);
 		static uint64_t GetStackPointerCallback(void* ctxt);
-//		bool SupportFeature(DebugAdapterCapacity feature);
-		// This is implemented by the (base) DebugAdapter class.
-		// Sub-classes should use it to post debugger events directly (only when needed).
-		void PostDebuggerEvent(const DebuggerEvent& event);
 		static void WriteStdinCallback(void* ctxt, const char* msg);
 //		BinaryNinja::Ref<BinaryNinja::Metadata> GetProperty(const std::string& name);
 //		bool SetProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value);
+
+	protected:
+		//		bool SupportFeature(DebugAdapterCapacity feature);
+				// This is implemented by the (base) DebugAdapter class.
+				// Sub-classes should use it to post debugger events directly (only when needed).
+				void PostDebuggerEvent(const DebuggerEvent& event);
+
 	public:
 		DebugAdapter(BinaryView* data);
 		DebugAdapter(BNDebugAdapter* adapter);

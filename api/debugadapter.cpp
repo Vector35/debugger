@@ -483,3 +483,36 @@ void DebugAdapter::WriteStdinCallback(void *ctxt, const char *msg)
 	DebugAdapter* adapter = (DebugAdapter*)ctxt;
 	adapter->WriteStdin(msg);
 }
+
+
+void DebugAdapter::PostDebuggerEvent(const BinaryNinjaDebuggerAPI::DebuggerEvent& event)
+{
+	BNDebuggerEvent* evt = new BNDebuggerEvent;
+
+	evt->type = event.type;
+	evt->data.targetStoppedData.reason = event.data.targetStoppedData.reason;
+	evt->data.targetStoppedData.exitCode = event.data.targetStoppedData.exitCode;
+	evt->data.targetStoppedData.lastActiveThread = event.data.targetStoppedData.lastActiveThread;
+	evt->data.targetStoppedData.data = event.data.targetStoppedData.data;
+
+	evt->data.errorData.error = BNDebuggerAllocString(event.data.errorData.error.c_str());
+	evt->data.errorData.shortError = BNDebuggerAllocString(event.data.errorData.shortError.c_str());
+	evt->data.errorData.data = event.data.errorData.data;
+
+	evt->data.exitData.exitCode = event.data.exitData.exitCode;
+
+	evt->data.relativeAddress.module = BNDebuggerAllocString(event.data.relativeAddress.module.c_str());
+	evt->data.relativeAddress.offset = event.data.relativeAddress.offset;
+
+	evt->data.absoluteAddress = event.data.absoluteAddress;
+
+	evt->data.messageData.message = BNDebuggerAllocString(event.data.messageData.message.c_str());
+
+	BNDebuggerPostDebuggerEventFromAdapter(m_object, evt);
+
+	BNDebuggerFreeString(evt->data.errorData.error);
+	BNDebuggerFreeString(evt->data.errorData.shortError);
+	BNDebuggerFreeString(evt->data.relativeAddress.module);
+	BNDebuggerFreeString(evt->data.messageData.message);
+	delete evt;
+}

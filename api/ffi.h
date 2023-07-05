@@ -565,6 +565,8 @@ extern "C"
 	DEBUGGER_FFI_API BNDebugAdapterType* BNDebuggerRegisterDebugAdapterType(const char* name,
 		BNDebuggerCustomDebugAdapterType* type);
 
+	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEventFromAdapter(BNDebugAdapter* adapter, BNDebuggerEvent* event);
+
 #ifdef __cplusplus
 }
 #endif
