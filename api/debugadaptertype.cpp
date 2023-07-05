@@ -45,12 +45,14 @@ DebugAdapterType::DebugAdapterType(const std::string &name): m_nameForRegister(n
 
 void DebugAdapterType::Register(BinaryNinjaDebuggerAPI::DebugAdapterType *type)
 {
-	BNDebugAdapterTypeWrapper callback;
-	callback.context = this;
+	BNDebuggerCustomDebugAdapterType callback;
+	callback.context = type;
 	callback.create = CreateCallback;
 	callback.isValidForData = IsvalidForDataCallback;
 	callback.canExecute = CanExecuteCallback;
 	callback.canConnect = CanConnectCallback;
+	type->AddRefForRegistration();
+	type->m_object = BNDebuggerRegisterDebugAdapterType(type->m_nameForRegister.c_str(), &callback);
 }
 
 

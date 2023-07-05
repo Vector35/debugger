@@ -19,6 +19,7 @@ limitations under the License.
 #include "debuggercommon.h"
 #include "../api/ffi.h"
 #include "./adapters/customdebugadapter.h"
+#include "debugadaptertypewrapper.h"
 
 using namespace BinaryNinjaDebugger;
 
@@ -1060,8 +1061,12 @@ BNDebugAdapter* BNDebuggerCreateCustomDebugAdapter(BNBinaryView* data, BNDebugge
 }
 
 
-//BNBinaryView* BNCreateCustomBinaryView(const char* typeName, BNFileMetadata* file, BNBinaryView* parent, BNCustomBinaryView* view)
-//{
-//	CustomBinaryView* result = new CustomBinaryView(typeName, file->object, parent ? parent->object : nullptr, view);
-//	return API_OBJECT_REF(result);
-//}
+BNDebugAdapterType* BNDebuggerRegisterDebugAdapterType(const char* name, BNDebuggerCustomDebugAdapterType* type)
+{
+	auto* wrapper = new DebugAdapterTypeWrapper(name, type);
+	if (!wrapper)
+		return nullptr;
+
+	DebugAdapterType::Register(wrapper);
+	return wrapper->GetAPIObject();
+}

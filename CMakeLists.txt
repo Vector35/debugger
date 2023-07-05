@@ -39,3 +39,5 @@ endif()
 if (NOT DEMO)
 	add_subdirectory(cli)
 endif()
+
+add_subdirectory(adapters)

@@ -1,0 +1,3 @@
+project(debug_adapters)
+
+add_subdirectory(win32debugadapter)

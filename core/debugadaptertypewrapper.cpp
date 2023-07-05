@@ -5,7 +5,7 @@ using namespace BinaryNinja;
 using namespace std;
 
 
-DebugAdapterTypeWrapper::DebugAdapterTypeWrapper(const std::string &name, BNDebugAdapterTypeWrapper *type):
+DebugAdapterTypeWrapper::DebugAdapterTypeWrapper(const std::string &name, BNDebuggerCustomDebugAdapterType *type):
 	DebugAdapterType(name), m_type(*type)
 {
 

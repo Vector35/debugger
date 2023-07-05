@@ -5,10 +5,10 @@ namespace BinaryNinjaDebugger
 {
 	class DebugAdapterTypeWrapper: public DebugAdapterType
 	{
-		BNDebugAdapterTypeWrapper m_type;
+		BNDebuggerCustomDebugAdapterType m_type;
 
 	public:
-		DebugAdapterTypeWrapper(const std::string& name, BNDebugAdapterTypeWrapper* type);
+		DebugAdapterTypeWrapper(const std::string& name, BNDebuggerCustomDebugAdapterType* type);
 		DebugAdapter* Create(BinaryNinja::BinaryView* data) override;
 		bool IsValidForData(BinaryNinja::BinaryView* data) override;
 		bool CanExecute(BinaryNinja::BinaryView* data) override;

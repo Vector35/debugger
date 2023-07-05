@@ -329,14 +329,14 @@ extern "C"
 		const char* inputFile;
 	} BNLaunchConfigurations;
 
-	typedef struct BNDebugAdapterTypeWrapper
+	typedef struct BNDebuggerCustomDebugAdapterType
 	{
 		void* context;
 		BNDebugAdapter* (*create)(void* ctxt, BNBinaryView* data);
 		bool (*isValidForData)(void* ctxt, BNBinaryView* data);
 		bool (*canExecute)(void* ctxt, BNBinaryView* data);
 		bool (*canConnect)(void* ctxt, BNBinaryView* data);
-	} BNDebugAdapterTypeWrapper;
+	} BNDebuggerCustomDebugAdapterType;
 
 	typedef struct BNDebuggerCustomDebugAdapter
 	{
@@ -561,6 +561,9 @@ extern "C"
 
 	DEBUGGER_FFI_API BNDebugAdapter* BNDebuggerNewDebugAdapterReference(BNDebugAdapter* adapter);
 	DEBUGGER_FFI_API void BNDebuggerFreeDebugAdapter(BNDebugAdapter *adapter);
+
+	DEBUGGER_FFI_API BNDebugAdapterType* BNDebuggerRegisterDebugAdapterType(const char* name,
+		BNDebuggerCustomDebugAdapterType* type);
 
 #ifdef __cplusplus
 }

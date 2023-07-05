@@ -644,7 +644,7 @@ namespace BinaryNinjaDebuggerAPI {
 
 	public:
 		explicit DebugAdapterType(const std::string& name);
-		void Register(DebugAdapterType* type);
+		static void Register(DebugAdapterType* type);
 
 		static DebugAdapterType* GetByName(const std::string& name);
 		static std::vector<std::string> GetAvailableAdapters(Ref<BinaryView> data);
