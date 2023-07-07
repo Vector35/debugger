@@ -155,6 +155,9 @@ void Win32DebugAdapter::DebugLoop()
 			continue;
 		}
 
+		m_activeThreadID = dbgEvent.dwThreadId;
+		LogWarn("active thread id: %d", m_activeThreadID);
+
 		switch (dbgEvent.dwDebugEventCode)
 		{
 		case EXCEPTION_DEBUG_EVENT:
@@ -177,16 +180,26 @@ void Win32DebugAdapter::DebugLoop()
 		case CREATE_THREAD_DEBUG_EVENT:
 		{
 			LogWarn("CREATE_THREAD_DEBUG_EVENT");
+			DWORD tid = GetThreadId(dbgEvent.u.CreateThread.hThread);
+			m_threads[tid] = {dbgEvent.u.CreateThread.hThread, tid, (uint64_t)dbgEvent.u.CreateThread.lpStartAddress,
+				(uint64_t)dbgEvent.u.CreateThread.lpThreadLocalBase};
 			break;
 		}
 		case CREATE_PROCESS_DEBUG_EVENT:
 		{
 			LogWarn("CREATE_PROCESS_DEBUG_EVENT");
+			// There is no CREATE_THREAD_DEBUG_EVENT for the very first thread, we need to simulate it here
+			DWORD tid = dbgEvent.dwThreadId;
+			m_threads[tid] = {dbgEvent.u.CreateProcessInfo.hThread, tid,
+				(uint64_t)dbgEvent.u.CreateProcessInfo.lpStartAddress,
+				(uint64_t)dbgEvent.u.CreateProcessInfo.lpThreadLocalBase};
 			break;
 		}
 		case EXIT_THREAD_DEBUG_EVENT:
 		{
 			LogWarn("EXIT_THREAD_DEBUG_EVENT");
+			DWORD tid = GetThreadId(dbgEvent.u.CreateThread.hThread);
+			m_threads.erase(tid);
 			break;
 		}
 		case EXIT_PROCESS_DEBUG_EVENT:
@@ -230,9 +243,14 @@ std::map<std::string, DebugRegister> Win32DebugAdapter::ReadAllRegisters()
 {
 	LogWarn("Win32DebugAdapter::ReadAllRegisters");
 	CONTEXT context;
-	GetThreadContext(m_processInfo.hThread, &context);
-	size_t index = 0;
 	std::map<std::string, DebugRegister> result;
+
+	auto it = m_threads.find(m_activeThreadID);
+	if (it == m_threads.end())
+		return result;
+
+	GetThreadContext(it->second.m_handle, &context);
+	size_t index = 0;
 
 	result["rax"] = DebugRegister("rax", context.Rax, 64, index++);
 	result["rcx"] = DebugRegister("rcx", context.Rcx, 64, index++);
@@ -287,6 +305,49 @@ bool Win32DebugAdapter::WriteMemory(uint64_t address, const void* buffer, size_t
 	size_t bytesWritten = 0;
 	bool ok = WriteProcessMemory(m_processInfo.hProcess, (LPVOID)address, buffer, size, &bytesWritten);
 	return ok && (size == bytesWritten);
+}
+
+
+uint32_t Win32DebugAdapter::GetActiveThreadId()
+{
+	return m_activeThreadID;
+}
+
+
+DebugThread Win32DebugAdapter::GetActiveThread()
+{
+	auto it = m_threads.find(m_activeThreadID);
+	if (it == m_threads.end())
+		return {};
+
+	CONTEXT context;
+	GetThreadContext(it->second.m_handle, &context);
+
+	DebugThread thread;
+	thread.m_tid = m_activeThreadID;
+	thread.m_rip = context.Rip;
+	// TODO: is this really used?
+	thread.m_isFrozen = false;
+
+	return thread;
+}
+
+
+std::vector<DebugThread> Win32DebugAdapter::GetThreadList()
+{
+	std::vector<DebugThread> result;
+
+	for (const auto& it: m_threads)
+	{
+		CONTEXT context;
+		GetThreadContext(it.second.m_handle, &context);
+		DebugThread thread;
+		thread.m_tid = it.second.m_tid;
+		thread.m_rip = context.Rip;
+		thread.m_isFrozen = false;
+		result.emplace_back(thread);
+	}
+	return result;
 }
 
 
