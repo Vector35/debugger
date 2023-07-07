@@ -705,8 +705,8 @@ namespace BinaryNinjaDebuggerAPI {
 		static BNDebugRegister* ReadAllRegistersCallback(void* ctxt, size_t* count);
 		static BNDebugRegister* ReadRegisterCallback(void* ctxt, const char* reg);
 		static bool WriteRegisterCallback(void* ctxt, const char* reg, uint64_t value);
-		static BNDataBuffer* ReadMemoryCallback(void* ctxt, uint64_t address, size_t size);
-		static bool WriteMemoryCallback(void* ctxt, uint64_t address, BNDataBuffer* buffer);
+		static size_t ReadMemoryCallback(void* ctxt, void* dest, uint64_t address, size_t size);
+		static bool WriteMemoryCallback(void* ctxt, uint64_t address, const void* data, size_t size);
 		static BNDebugModule* GetModuleListCallback(void* ctxt, size_t* count);
 		static char* GetTargetArchitectureCallback(void* ctxt);
 		static DebugStopReason StopReasonCallback(void* ctxt);
@@ -866,12 +866,12 @@ namespace BinaryNinjaDebuggerAPI {
 			return false;
 		}
 
-		virtual DataBuffer ReadMemory(uint64_t address, size_t size)
+		virtual size_t ReadMemory(void* dest, uint64_t address, size_t size)
 		{
-			return {};
+			return 0;
 		}
 
-		virtual bool WriteMemory(uint64_t address, const DataBuffer& buffer)
+		virtual bool WriteMemory(uint64_t address, const void* buffer, size_t size)
 		{
 			return false;
 		}

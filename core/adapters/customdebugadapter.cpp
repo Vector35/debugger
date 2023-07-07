@@ -371,20 +371,19 @@ bool CustomDebugAdapter::WriteRegister(const std::string &reg, uint64_t value)
 }
 
 
-DataBuffer CustomDebugAdapter::ReadMemory(uint64_t address, size_t size)
+size_t CustomDebugAdapter::ReadMemory(void* dest, uint64_t address, size_t size)
 {
 	if (!m_adapter.readMemory)
 		return {};
-	BNDataBuffer* buffer = m_adapter.readMemory(m_adapter.context, address, size);
-	return DataBuffer(buffer);
+	return m_adapter.readMemory(m_adapter.context, dest, address, size);
 }
 
 
-bool CustomDebugAdapter::WriteMemory(uint64_t address, const BinaryNinja::DataBuffer &buffer)
+bool CustomDebugAdapter::WriteMemory(uint64_t address, const void* buffer, size_t size)
 {
 	if (!m_adapter.writeMemory)
 		return false;
-	return m_adapter.writeMemory(m_adapter.context, address, buffer.GetBufferObject());
+	return m_adapter.writeMemory(m_adapter.context, address, buffer, size);
 }
 
 

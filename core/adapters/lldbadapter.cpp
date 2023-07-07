@@ -767,33 +767,26 @@ bool LldbAdapter::WriteRegister(const std::string& name, uint64_t value)
 }
 
 
-DataBuffer LldbAdapter::ReadMemory(uint64_t address, size_t size)
+size_t LldbAdapter::ReadMemory(void* dest, uint64_t address, size_t size)
 {
 	if (!m_quitingMutex.try_lock())
-		return DataBuffer{};
+		return 0;
 
-	auto buffer = new uint8_t[size];
 	SBError error;
-	size_t bytesRead = m_process.ReadMemory(address, buffer, size, error);
-	DataBuffer result;
-	if (bytesRead > 0 && error.Success())
-	{
-		result.Append(buffer, bytesRead);
-	}
-	delete[] buffer;
+	size_t bytesRead = m_process.ReadMemory(address, dest, size, error);
 	m_quitingMutex.unlock();
-	return result;
+	return bytesRead;
 }
 
 
-bool LldbAdapter::WriteMemory(uint64_t address, const DataBuffer& buffer)
+bool LldbAdapter::WriteMemory(uint64_t address, const void* buffer, size_t size)
 {
 	if (!m_quitingMutex.try_lock())
 		return false;
 
 	SBError error;
-	size_t bytesWritten = m_process.WriteMemory(address, buffer.GetData(), buffer.GetLength(), error);
-	if ((bytesWritten == buffer.GetLength()) && error.Success())
+	size_t bytesWritten = m_process.WriteMemory(address, buffer, size, error);
+	if ((bytesWritten == size) && error.Success())
 	{
 		m_quitingMutex.unlock();
 		return true;

@@ -273,13 +273,20 @@ std::map<std::string, DebugRegister> Win32DebugAdapter::ReadAllRegisters()
 }
 
 
-DataBuffer Win32DebugAdapter::ReadMemory(uint64_t address, size_t size)
+size_t Win32DebugAdapter::ReadMemory(void* dest, uint64_t address, size_t size)
 {
-	uint8_t* buffer = new uint8_t[size];
 	size_t bytesRead = 0;
-	if (!ReadProcessMemory(m_processInfo.hProcess, (const char*)address, buffer, size, &bytesRead))
-		return {};
-	return DataBuffer(buffer, bytesRead);
+	if (!ReadProcessMemory(m_processInfo.hProcess, (const char*)address, dest, size, &bytesRead))
+		return 0;
+	return bytesRead;
+}
+
+
+bool Win32DebugAdapter::WriteMemory(uint64_t address, const void* buffer, size_t size)
+{
+	size_t bytesWritten = 0;
+	bool ok = WriteProcessMemory(m_processInfo.hProcess, (LPVOID)address, buffer, size, &bytesWritten);
+	return ok && (size == bytesWritten);
 }
 
 

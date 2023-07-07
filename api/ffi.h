@@ -369,8 +369,8 @@ extern "C"
 		BNDebugRegister* (*readAllRegisters)(void* ctxt, size_t* count);
 		BNDebugRegister* (*readRegister)(void* ctxt, const char* reg);
 		bool (*writeRegister)(void* ctxt, const char* reg, uint64_t value);
-		BNDataBuffer* (*readMemory)(void* ctxt, uint64_t address, size_t size);
-		bool (*writeMemory)(void* ctxt, uint64_t address, BNDataBuffer* buffer);
+		size_t (*readMemory)(void* ctxt, void* buffer, uint64_t address, size_t size);
+		bool (*writeMemory)(void* ctxt, uint64_t address, const void* buffer, size_t size);
 		BNDebugModule* (*getModuleList)(void* ctxt, size_t* count);
 		char* (*getTargetArchitecture)(void* ctxt);
 		BNDebugStopReason (*stopReason)(void* ctxt);

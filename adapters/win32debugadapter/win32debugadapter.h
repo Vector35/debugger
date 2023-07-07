@@ -17,7 +17,8 @@ namespace BinaryNinjaDebuggerAPI
 		bool ExecuteWithArgsInternal(const std::string& path, const std::string& args, const std::string& workingDir,
 			const LaunchConfigurations& configs);
 		std::map<std::string, DebugRegister> ReadAllRegisters() override;
-		DataBuffer ReadMemory(uint64_t address, size_t size) override;
+		size_t ReadMemory(void* dest, uint64_t address, size_t size) override;
+		bool WriteMemory(uint64_t address, const void* buffer, size_t size) override;
 	};
 
 

@@ -94,9 +94,9 @@ namespace BinaryNinjaDebugger {
 
 		bool WriteRegister(const std::string& reg, uint64_t value) override;
 
-		DataBuffer ReadMemory(uint64_t address, size_t size) override;
+		size_t ReadMemory(void* dest, uint64_t address, size_t size) override;
 
-		bool WriteMemory(uint64_t address, const DataBuffer& buffer) override;
+		bool WriteMemory(uint64_t address, const void* buffer, size_t size) override;
 
 		std::vector<DebugModule> GetModuleList() override;
 

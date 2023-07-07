@@ -369,19 +369,17 @@ bool DebugAdapter::WriteRegisterCallback(void *ctxt, const char *reg, uint64_t v
 }
 
 
-BNDataBuffer* DebugAdapter::ReadMemoryCallback(void *ctxt, uint64_t address, size_t size)
+size_t DebugAdapter::ReadMemoryCallback(void *ctxt, void* dest, uint64_t address, size_t size)
 {
 	DebugAdapter* adapter = (DebugAdapter*)ctxt;
-	return adapter->ReadMemory(address, size).GetBufferObject();
+	return adapter->ReadMemory(dest, address, size);
 }
 
 
-bool DebugAdapter::WriteMemoryCallback(void *ctxt, uint64_t address, BNDataBuffer *buffer)
+bool DebugAdapter::WriteMemoryCallback(void *ctxt, uint64_t address,  const void* buffer, size_t size)
 {
 	DebugAdapter* adapter = (DebugAdapter*)ctxt;
-	DataBuffer buf;
-	BNAppendDataBuffer(buf.GetBufferObject(), buffer);
-	return adapter->WriteMemory(address, buf);
+	return adapter->WriteMemory(address, buffer, size);
 }
 
 

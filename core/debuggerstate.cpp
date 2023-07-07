@@ -623,6 +623,7 @@ DataBuffer DebuggerMemory::ReadMemory(uint64_t offset, size_t len)
 	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
 
 	DataBuffer result;
+	uint8_t buffer[0x100];
 
 	// ProcessView implements read caching in a manner inspired by CPU cache:
 	// Reads are aligned on 256-byte boundaries and 256 bytes long
@@ -644,11 +645,11 @@ DataBuffer DebuggerMemory::ReadMemory(uint64_t offset, size_t len)
 		if (iter == m_valueCache.end())
 		{
 			// The ReadMemory() function should return the number of bytes read
-			DataBuffer buffer = m_state->GetAdapter()->ReadMemory(block, 0x100);
+			size_t bytesRead = m_state->GetAdapter()->ReadMemory(buffer, block, 0x100);
 			// TODO: what if the buffer's size is smaller than 0x100
-			if (buffer.GetLength() > 0)
+			if (bytesRead > 0)
 			{
-				m_valueCache[block] = buffer;
+				m_valueCache[block] = DataBuffer(buffer, bytesRead);
 			}
 			else
 			{
@@ -683,7 +684,7 @@ bool DebuggerMemory::WriteMemory(uint64_t address, const DataBuffer& buffer)
 	if (!adapter)
 		return false;
 
-	if (!adapter->WriteMemory(address, buffer))
+	if (!adapter->WriteMemory(address, buffer.GetBufferObject(), buffer.GetLength()))
 		return false;
 
 	//	TODO: Assume any memory change invalidates memory cache (suboptimal, may not be necessary)

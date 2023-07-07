@@ -781,8 +781,8 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const uint64_t address, unsigned lo
 	/* attempt to read at breakpoint location to confirm its valid */
 	/* DbgEng won't tell us if its valid until continue/go so this is a hacky fix */
     /* Note we cannot write to it if we are replaying TTD trace */
-	auto val = this->ReadMemory(address, 1);
-	if (val.GetLength() != 1)
+	uint8_t byte;
+	if (this->ReadMemory(&byte, address, 1))
 		return {};
 
 	if (const auto result =
@@ -1457,24 +1457,22 @@ bool DbgEngAdapter::SupportFeature(DebugAdapterCapacity feature)
 }
 
 
-DataBuffer DbgEngAdapter::ReadMemory(uint64_t address, size_t size)
+size_t DbgEngAdapter::ReadMemory(void* dest, uint64_t address, size_t size)
 {
-	const auto source = std::make_unique<std::uint8_t[]>(size);
-
-	unsigned long bytesRead {};
+	ULONG bytesRead = 0;
 	const auto success =
-		this->m_debugDataSpaces->ReadVirtual(address, source.get(), size, &bytesRead) == S_OK && bytesRead == size;
+		this->m_debugDataSpaces->ReadVirtual(address, dest, size, &bytesRead) == S_OK && bytesRead == size;
 	if (!success)
-		return {};
+		return 0;
 
-	return {source.get(), size};
+	return bytesRead;
 }
 
-bool DbgEngAdapter::WriteMemory(uint64_t address, const DataBuffer& buffer)
+bool DbgEngAdapter::WriteMemory(uint64_t address, const void* buffer, size_t size)
 {
 	unsigned long bytes_written {};
-	return this->m_debugDataSpaces->WriteVirtual(address, const_cast<void*>(buffer.GetData()), buffer.GetLength(), &bytes_written) == S_OK
-		&& bytes_written == buffer.GetLength();
+	return this->m_debugDataSpaces->WriteVirtual(address, (PVOID)buffer, size, &bytes_written) == S_OK
+		&& bytes_written == size;
 }
 
 

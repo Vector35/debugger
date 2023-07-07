@@ -25,7 +25,7 @@ namespace BinaryNinjaDebugger {
 
         [[nodiscard]] bool ExecuteWithArgsInternal(const std::string& path, const std::string& args,
            const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
-		bool WriteMemory(uint64_t address, const DataBuffer& buffer) override;
+		bool WriteMemory(uint64_t address, const void* buffer, size_t size) override;
 		bool WriteRegister(const std::string& reg, uint64_t value) override;
 
 		bool Start() override;

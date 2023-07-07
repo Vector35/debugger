@@ -262,9 +262,9 @@ namespace BinaryNinjaDebugger {
 
 		virtual bool WriteRegister(const std::string& reg, uint64_t value) = 0;
 
-		virtual DataBuffer ReadMemory(uint64_t address, size_t size) = 0;
+		virtual size_t ReadMemory(void* dest, uint64_t address, size_t size) = 0;
 
-		virtual bool WriteMemory(uint64_t address, const DataBuffer& buffer) = 0;
+		virtual bool WriteMemory(uint64_t address, const void* buffer, size_t size) = 0;
 
 		virtual std::vector<DebugModule> GetModuleList() = 0;
 
