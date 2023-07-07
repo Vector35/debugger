@@ -5,10 +5,19 @@ namespace BinaryNinjaDebuggerAPI
 {
 	class Win32DebugAdapter: public DebugAdapter
 	{
+		PROCESS_INFORMATION m_processInfo;
+		HANDLE m_debugEvent;
+		void DebugLoop();
+		void Reset();
+
 	public:
 		Win32DebugAdapter(BinaryNinja::BinaryView* data);
 		bool ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
 			const LaunchConfigurations& configs) override;
+		bool ExecuteWithArgsInternal(const std::string& path, const std::string& args, const std::string& workingDir,
+			const LaunchConfigurations& configs);
+		std::map<std::string, DebugRegister> ReadAllRegisters() override;
+		DataBuffer ReadMemory(uint64_t address, size_t size) override;
 	};
 
 

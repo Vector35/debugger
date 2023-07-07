@@ -23,7 +23,7 @@ DebugAdapter* DebugAdapterTypeWrapper::Create(BinaryNinja::BinaryView *data)
 		return nullptr;
 	}
 	DbgRef<DebugAdapter> result = adapter->object;
-	BNDebuggerFreeDebugAdapter(adapter);
+//	BNDebuggerFreeDebugAdapter(adapter);
 	return result;
 }
 

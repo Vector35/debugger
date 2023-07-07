@@ -385,6 +385,12 @@ namespace BinaryNinjaDebuggerAPI {
 		uint64_t m_value {};
 		size_t m_width {}, m_registerIndex {};
 		std::string m_hint {};
+
+		DebugRegister() {}
+		DebugRegister(const std::string& name, uint64_t value, size_t width, size_t registerIndex,
+			const std::string& hint = ""): m_name(name), m_value(value), m_width(width), m_registerIndex(registerIndex),
+			m_hint(hint)
+		{}
 	};
 
 
@@ -718,10 +724,16 @@ namespace BinaryNinjaDebuggerAPI {
 //		bool SetProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value);
 
 	protected:
-		//		bool SupportFeature(DebugAdapterCapacity feature);
-				// This is implemented by the (base) DebugAdapter class.
-				// Sub-classes should use it to post debugger events directly (only when needed).
-				void PostDebuggerEvent(const DebuggerEvent& event);
+//		bool SupportFeature(DebugAdapterCapacity feature);
+		// This is implemented by the (base) DebugAdapter class.
+		// Sub-classes should use it to post debugger events directly (only when needed).
+		void PostDebuggerEvent(const DebuggerEvent& event);
+
+		uint64_t m_entryPoint;
+		bool m_hasEntryFunction;
+		uint64_t m_start;
+		std::string m_defaultArchitecture;
+		std::string m_originalFileName;
 
 	public:
 		DebugAdapter(BinaryView* data);

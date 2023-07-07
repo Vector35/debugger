@@ -326,7 +326,7 @@ std::map<std::string, DebugRegister> CustomDebugAdapter::ReadAllRegisters()
 
 	for (size_t i = 0; i < count; i++)
 	{
-		if (!registers->m_name)
+		if (!registers[i].m_name)
 			continue;
 
 		DebugRegister reg;

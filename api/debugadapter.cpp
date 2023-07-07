@@ -52,6 +52,16 @@ DebugAdapter::DebugAdapter(BinaryNinja::BinaryView *data)
 
 	AddRefForRegistration();
 	m_object = BNDebuggerCreateCustomDebugAdapter(data ? data->GetObject() : nullptr, &adapter);
+
+	m_entryPoint = data->GetEntryPoint();
+	// For shared libraries which do not have a valid entry point, the GetEntryPoint will return 0x0 anyways.
+	// Here we check if there is actually a function at the entry point, to determine if the entry point is real.
+	m_hasEntryFunction = (data->GetAnalysisEntryPoint() != nullptr);
+	m_start = data->GetStart();
+	if (data->GetDefaultArchitecture())
+		m_defaultArchitecture = data->GetDefaultArchitecture()->GetName();
+
+	m_originalFileName = data->GetFile()->GetOriginalFilename();
 }
 
 
@@ -332,6 +342,7 @@ BNDebugRegister* DebugAdapter::ReadAllRegistersCallback(void *ctxt, size_t *coun
 		result[i].m_value = it.second.m_value;
 		result[i].m_registerIndex = it.second.m_registerIndex;
 		result[i].m_width = it.second.m_width;
+		i++;
 	}
 	return result;
 }
