@@ -4,7 +4,7 @@ project(debugger-python-api)
 
 file(GLOB PYTHON_SOURCES ${PROJECT_SOURCE_DIR}/*.py)
 list(REMOVE_ITEM PYTHON_SOURCES ${PROJECT_SOURCE_DIR}/_debuggercore.py)
-list(REMOVE_ITEM PYTHON_SOURCES ${PROJECT_SOURCE_DIR}/enums.py)
+list(REMOVE_ITEM PYTHON_SOURCES ${PROJECT_SOURCE_DIR}/debugger_enums.py)
 
 add_executable(debugger_generator
 	${PROJECT_SOURCE_DIR}/generator.cpp)
@@ -32,18 +32,35 @@ if(WIN32)
 	endif()
 endif()
 
-add_custom_target(debugger_generator_copy ALL
-	BYPRODUCTS ${PROJECT_SOURCE_DIR}/_debuggercore.py ${PROJECT_SOURCE_DIR}/enums.py
-	DEPENDS ${PYTHON_SOURCES} ${PROJECT_SOURCE_DIR}/../ffi.h $<TARGET_FILE:debugger_generator>
-	COMMAND ${CMAKE_COMMAND} -E echo "Copying Debugger Python Sources"
-	COMMAND ${CMAKE_COMMAND} -E make_directory ${PYTHON_OUTPUT_DIRECTORY}
-	COMMAND ${CMAKE_COMMAND} -E env ASAN_OPTIONS=detect_leaks=0 $<TARGET_FILE:debugger_generator>
+foreach(SOURCE ${PYTHON_SOURCES})
+	string(REPLACE ${PROJECT_SOURCE_DIR} ${PYTHON_OUTPUT_DIRECTORY} OUTPUT_SOURCE ${SOURCE})
+	list(APPEND OUTPUT_PYTHON_SOURCES ${OUTPUT_SOURCE})
+endforeach()
+list(APPEND OUTPUT_PYTHON_SOURCES
+	${PYTHON_OUTPUT_DIRECTORY}/_debuggercore.py
+	${PYTHON_OUTPUT_DIRECTORY}/debugger_enums.py
+)
+
+add_custom_command(
+	OUTPUT ${PROJECT_SOURCE_DIR}/_debuggercore.py ${PROJECT_SOURCE_DIR}/debugger_enums.py
+	DEPENDS ${PROJECT_SOURCE_DIR}/../ffi.h debugger_generator
+	COMMENT "Generating _debuggercore.py"
+	COMMAND ${CMAKE_COMMAND} -E env ASAN_OPTIONS=detect_leaks=0
+		$<TARGET_FILE:debugger_generator>
 		${PROJECT_SOURCE_DIR}/../ffi.h
 		${PROJECT_SOURCE_DIR}/_debuggercore.py
 		${PROJECT_SOURCE_DIR}/_debuggercore_template.py
 		${PROJECT_SOURCE_DIR}/debugger_enums.py
+)
 
+add_custom_command(
+	OUTPUT ${OUTPUT_PYTHON_SOURCES}
+	DEPENDS ${PYTHON_SOURCES} ${PROJECT_SOURCE_DIR}/_debuggercore.py ${PROJECT_SOURCE_DIR}/debugger_enums.py
+	COMMENT "Copying Debugger Python Sources"
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${PYTHON_OUTPUT_DIRECTORY}
 	COMMAND ${CMAKE_COMMAND} -E copy ${PYTHON_SOURCES} ${PYTHON_OUTPUT_DIRECTORY}
 	COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/_debuggercore.py ${PYTHON_OUTPUT_DIRECTORY}
-	COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/debugger_enums.py ${PYTHON_OUTPUT_DIRECTORY})
+	COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/debugger_enums.py ${PYTHON_OUTPUT_DIRECTORY}
+)
 
+add_custom_target(debugger_generator_copy DEPENDS ${OUTPUT_PYTHON_SOURCES})
