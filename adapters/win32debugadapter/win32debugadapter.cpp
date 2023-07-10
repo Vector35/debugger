@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <psapi.h>
 #include <tlhelp32.h>
+#include <dbghelp.h>
 #include "fmt/format.h"
 
 using namespace BinaryNinjaDebuggerAPI;
@@ -286,7 +287,13 @@ void Win32DebugAdapter::DebugLoop()
 
 HANDLE Win32DebugAdapter::GetActiveThreadHandle()
 {
-	auto it = m_threads.find(m_activeThreadID);
+	return GetThreadHandleFromTid(m_activeThreadID);
+}
+
+
+HANDLE Win32DebugAdapter::GetThreadHandleFromTid(DWORD tid)
+{
+	auto it = m_threads.find(tid);
 	if (it == m_threads.end())
 		return INVALID_HANDLE_VALUE;
 	return it->second.m_handle;
@@ -296,7 +303,8 @@ HANDLE Win32DebugAdapter::GetActiveThreadHandle()
 std::map<std::string, DebugRegister> Win32DebugAdapter::ReadAllRegisters()
 {
 	LogWarn("Win32DebugAdapter::ReadAllRegisters");
-	CONTEXT context;
+	CONTEXT context{};
+	context.ContextFlags = CONTEXT_ALL;
 	std::map<std::string, DebugRegister> result;
 
 	HANDLE activeThreadHandle = GetActiveThreadHandle();
@@ -374,8 +382,9 @@ DebugThread Win32DebugAdapter::GetActiveThread()
 	if (activeThreadHandle == INVALID_HANDLE_VALUE)
 		return {};
 
-	CONTEXT context;
-	GetThreadContext(INVALID_HANDLE_VALUE, &context);
+	CONTEXT context{};
+	context.ContextFlags = CONTEXT_ALL;
+	GetThreadContext(activeThreadHandle, &context);
 
 	DebugThread thread;
 	thread.m_tid = m_activeThreadID;
@@ -393,7 +402,8 @@ std::vector<DebugThread> Win32DebugAdapter::GetThreadList()
 
 	for (const auto& it: m_threads)
 	{
-		CONTEXT context;
+		CONTEXT context{};
+		context.ContextFlags = CONTEXT_ALL;
 		GetThreadContext(it.second.m_handle, &context);
 		DebugThread thread;
 		thread.m_tid = it.second.m_tid;
@@ -435,6 +445,45 @@ std::vector<DebugModule> Win32DebugAdapter::GetModuleList()
 	while (Module32Next(snapshot, &me32));
 
 	CloseHandle(snapshot);
+	return result;
+}
+
+
+std::vector<DebugFrame> Win32DebugAdapter::GetFramesOfThread(uint32_t tid)
+{
+	std::vector<DebugFrame> result;
+	HANDLE handle = GetThreadHandleFromTid(tid);
+	if (handle == INVALID_HANDLE_VALUE)
+		return result;
+
+	CONTEXT context{};
+	context.ContextFlags = CONTEXT_ALL;
+	if (!GetThreadContext(handle, &context))
+		return result;
+
+	STACKFRAME64 frame{};
+	frame.AddrPC.Offset = context.Rip;
+	frame.AddrPC.Mode = AddrModeFlat;
+	frame.AddrStack.Offset = context.Rsp;
+	frame.AddrStack.Mode = AddrModeFlat;
+	frame.AddrFrame.Offset = context.Rbp;
+	frame.AddrFrame.Mode = AddrModeFlat;
+
+	size_t i = 0;
+	while (true)
+	{
+		if (!StackWalk64(IMAGE_FILE_MACHINE_AMD64, m_process, handle, &frame, &context,
+				NULL, SymFunctionTableAccess64, SymGetModuleBase64, NULL))
+			break;
+		if (frame.AddrPC.Offset == 0)
+			break;
+		DebugFrame debugFrame;
+		debugFrame.m_index = i++;
+		debugFrame.m_fp = frame.AddrFrame.Offset;
+		debugFrame.m_sp = frame.AddrStack.Offset;
+		debugFrame.m_pc = frame.AddrPC.Offset;
+		result.push_back(debugFrame);
+	}
 	return result;
 }
 

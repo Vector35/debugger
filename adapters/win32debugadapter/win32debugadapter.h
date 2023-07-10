@@ -43,6 +43,7 @@ namespace BinaryNinjaDebuggerAPI
 
 	private:
 		HANDLE GetActiveThreadHandle();
+		HANDLE GetThreadHandleFromTid(DWORD tid);
 		void PopulateModuleSizeInfo();
 		bool firstBreakpointSeen = false;
 
@@ -65,6 +66,7 @@ namespace BinaryNinjaDebuggerAPI
 //		bool ResumeThread(uint32_t tid) override;
 
 		std::vector<DebugModule> GetModuleList() override;
+		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid) override;
 
 		bool Go() override;
 		bool Quit() override;

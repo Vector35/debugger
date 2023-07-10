@@ -12,7 +12,7 @@ if(WIN32)
         add_library(win32debugadapter SHARED ${SOURCES})
     endif()
 
-    target_link_libraries(win32debugadapter debuggerapi binaryninjaapi)
+    target_link_libraries(win32debugadapter debuggerapi binaryninjaapi DbgHelp.lib)
 
     if(BN_INTERNAL_BUILD)
         set(LIBRARY_OUTPUT_DIRECTORY_PATH "${BN_CORE_PLUGIN_DIR}")
