@@ -2,6 +2,7 @@
 #include <processthreadsapi.h>
 #include <windows.h>
 #include <psapi.h>
+#include <tlhelp32.h>
 #include "fmt/format.h"
 
 using namespace BinaryNinjaDebuggerAPI;
@@ -224,45 +225,44 @@ void Win32DebugAdapter::DebugLoop()
 		case LOAD_DLL_DEBUG_EVENT:
 		{
 			LogWarn("LOAD_DLL_DEBUG_EVENT");
-			ModuleInfo module;
-			module.m_fileHandle = dbgEvent.u.LoadDll.hFile;
-			module.m_base = (uint64_t)dbgEvent.u.LoadDll.lpBaseOfDll;
-
-			HMODULE handle{};
-			if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCSTR)module.m_base, &handle))
-			{
-				LogWarn("GetModuleHandleExA failed");
-			}
-			else
-			{
-				module.m_moduleHandle = handle;
-			}
-
-			// dbgEvent.u.LoadDll.lpImageName is unreliable -- we need to figure out the file path ourselves
-			// TODO: consider using GetModuleFileName
-			char path[MAX_PATH] = {0};
-			DWORD bytes = GetModuleFileNameA(module.m_moduleHandle, path, MAX_PATH);
-			module.m_fileName = std::string(path, bytes);
-			// TODO: add m_shortFileName
-
-			// Calling GetModuleInformation will fail now, probably because the DLL has not fully initialized.
-			// We will populate the information when we get the initial breakpoint EXCEPTION_BREAKPOINT
-
-			m_modules.push_back(module);
+//			ModuleInfo module;
+//			module.m_fileHandle = dbgEvent.u.LoadDll.hFile;
+//			module.m_base = (uint64_t)dbgEvent.u.LoadDll.lpBaseOfDll;
+//
+//			HMODULE handle{};
+//			if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCSTR)module.m_base, &handle))
+//			{
+//				LogWarn("GetModuleHandleExA failed");
+//			}
+//			else
+//			{
+//				module.m_moduleHandle = handle;
+//			}
+//
+//			// dbgEvent.u.LoadDll.lpImageName is unreliable -- we need to figure out the file path ourselves
+//			char path[MAX_PATH] = {0};
+//			DWORD bytes = GetModuleFileNameA(module.m_moduleHandle, path, MAX_PATH);
+//			module.m_fileName = std::string(path, bytes);
+//			// TODO: add m_shortFileName
+//
+//			// Calling GetModuleInformation will fail now, probably because the DLL has not fully initialized.
+//			// We will populate the information when we get the initial breakpoint EXCEPTION_BREAKPOINT
+//
+//			m_modules.push_back(module);
 			break;
 		}
 		case UNLOAD_DLL_DEBUG_EVENT:
 		{
 			LogWarn("UNLOAD_DLL_DEBUG_EVENT");
-			uint64_t base = (uint64_t)dbgEvent.u.UnloadDll.lpBaseOfDll;
-			for (auto it = m_modules.begin(); it != m_modules.end(); it++)
-			{
-				if (it->m_base == base)
-				{
-					m_modules.erase(it);
-					break;
-				}
-			}
+//			uint64_t base = (uint64_t)dbgEvent.u.UnloadDll.lpBaseOfDll;
+//			for (auto it = m_modules.begin(); it != m_modules.end(); it++)
+//			{
+//				if (it->m_base == base)
+//				{
+//					m_modules.erase(it);
+//					break;
+//				}
+//			}
 			break;
 		}
 		case OUTPUT_DEBUG_STRING_EVENT:
@@ -409,27 +409,32 @@ std::vector<DebugModule> Win32DebugAdapter::GetModuleList()
 {
 	std::vector<DebugModule> result;
 
-	for (auto& module: m_modules)
+	HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, m_processInfo.dwProcessId);
+	if (snapshot == INVALID_HANDLE_VALUE)
+		return result;
+
+	MODULEENTRY32 me32;
+	me32.dwSize = sizeof(MODULEENTRY32);
+
+	if (!Module32First(snapshot, &me32))
 	{
-		MODULEINFO info{};
-		DebugModule mod;
-
-		if (!module.m_sizeInfoAvailable)
-		{
-			if (GetModuleInformation(m_process, module.m_moduleHandle, &info, sizeof(info)))
-			{
-				module.m_size = info.SizeOfImage;
-				module.m_sizeInfoAvailable = true;
-			}
-		}
-
-		mod.m_name = module.m_fileName;
-		mod.m_short_name = module.m_shortName;
-		mod.m_address = module.m_base;
-		mod.m_loaded = true;
-		mod.m_size = module.m_size;
-		result.push_back(mod);
+		CloseHandle(snapshot);
+		return result;
 	}
+
+	do
+	{
+		DebugModule module;
+		module.m_size = me32.modBaseSize;
+		module.m_address = (uint64_t)me32.modBaseAddr;
+		module.m_loaded = true;
+		module.m_name = std::string(me32.szExePath);
+		module.m_short_name = std::string(me32.szModule);
+		result.push_back(module);
+	}
+	while (Module32Next(snapshot, &me32));
+
+	CloseHandle(snapshot);
 	return result;
 }
 
