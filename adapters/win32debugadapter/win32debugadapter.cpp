@@ -1,6 +1,7 @@
 #include "win32debugadapter.h"
 #include <processthreadsapi.h>
 #include <windows.h>
+#include <psapi.h>
 #include "fmt/format.h"
 
 using namespace BinaryNinjaDebuggerAPI;
@@ -129,6 +130,12 @@ bool Win32DebugAdapter::ExecuteWithArgsInternal(const std::string& path, const s
 
 void Win32DebugAdapter::Reset()
 {
+	m_threads.clear();
+	for (const auto& module: m_modules)
+	{
+		CloseHandle(module.m_fileHandle);
+	}
+	m_modules.clear();
 	CloseHandle(m_debugEvent);
 	CloseHandle(m_processInfo.hThread);
 	CloseHandle(m_processInfo.hProcess);
@@ -167,6 +174,7 @@ void Win32DebugAdapter::DebugLoop()
 			{
 			case EXCEPTION_BREAKPOINT:
 			{
+				GetModuleList();
 				DebuggerEvent event;
 				event.type = AdapterStoppedEventType;
 				event.data.targetStoppedData.reason = Breakpoint;
@@ -188,6 +196,7 @@ void Win32DebugAdapter::DebugLoop()
 		case CREATE_PROCESS_DEBUG_EVENT:
 		{
 			LogWarn("CREATE_PROCESS_DEBUG_EVENT");
+			m_process = dbgEvent.u.CreateProcessInfo.hProcess;
 			// There is no CREATE_THREAD_DEBUG_EVENT for the very first thread, we need to simulate it here
 			DWORD tid = dbgEvent.dwThreadId;
 			m_threads[tid] = {dbgEvent.u.CreateProcessInfo.hThread, tid,
@@ -215,11 +224,45 @@ void Win32DebugAdapter::DebugLoop()
 		case LOAD_DLL_DEBUG_EVENT:
 		{
 			LogWarn("LOAD_DLL_DEBUG_EVENT");
+			ModuleInfo module;
+			module.m_fileHandle = dbgEvent.u.LoadDll.hFile;
+			module.m_base = (uint64_t)dbgEvent.u.LoadDll.lpBaseOfDll;
+
+			HMODULE handle{};
+			if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, (LPCSTR)module.m_base, &handle))
+			{
+				LogWarn("GetModuleHandleExA failed");
+			}
+			else
+			{
+				module.m_moduleHandle = handle;
+			}
+
+			// dbgEvent.u.LoadDll.lpImageName is unreliable -- we need to figure out the file path ourselves
+			// TODO: consider using GetModuleFileName
+			char path[MAX_PATH] = {0};
+			DWORD bytes = GetModuleFileNameA(module.m_moduleHandle, path, MAX_PATH);
+			module.m_fileName = std::string(path, bytes);
+			// TODO: add m_shortFileName
+
+			// Calling GetModuleInformation will fail now, probably because the DLL has not fully initialized.
+			// We will populate the information when we get the initial breakpoint EXCEPTION_BREAKPOINT
+
+			m_modules.push_back(module);
 			break;
 		}
 		case UNLOAD_DLL_DEBUG_EVENT:
 		{
 			LogWarn("UNLOAD_DLL_DEBUG_EVENT");
+			uint64_t base = (uint64_t)dbgEvent.u.UnloadDll.lpBaseOfDll;
+			for (auto it = m_modules.begin(); it != m_modules.end(); it++)
+			{
+				if (it->m_base == base)
+				{
+					m_modules.erase(it);
+					break;
+				}
+			}
 			break;
 		}
 		case OUTPUT_DEBUG_STRING_EVENT:
@@ -236,6 +279,17 @@ void Win32DebugAdapter::DebugLoop()
 
 		ContinueDebugEvent(dbgEvent.dwProcessId, dbgEvent.dwThreadId, dwContinueStatus);
 	}
+
+	Reset();
+}
+
+
+HANDLE Win32DebugAdapter::GetActiveThreadHandle()
+{
+	auto it = m_threads.find(m_activeThreadID);
+	if (it == m_threads.end())
+		return INVALID_HANDLE_VALUE;
+	return it->second.m_handle;
 }
 
 
@@ -245,11 +299,11 @@ std::map<std::string, DebugRegister> Win32DebugAdapter::ReadAllRegisters()
 	CONTEXT context;
 	std::map<std::string, DebugRegister> result;
 
-	auto it = m_threads.find(m_activeThreadID);
-	if (it == m_threads.end())
+	HANDLE activeThreadHandle = GetActiveThreadHandle();
+	if (activeThreadHandle == INVALID_HANDLE_VALUE)
 		return result;
 
-	GetThreadContext(it->second.m_handle, &context);
+	GetThreadContext(activeThreadHandle, &context);
 	size_t index = 0;
 
 	result["rax"] = DebugRegister("rax", context.Rax, 64, index++);
@@ -294,7 +348,7 @@ std::map<std::string, DebugRegister> Win32DebugAdapter::ReadAllRegisters()
 size_t Win32DebugAdapter::ReadMemory(void* dest, uint64_t address, size_t size)
 {
 	size_t bytesRead = 0;
-	if (!ReadProcessMemory(m_processInfo.hProcess, (const char*)address, dest, size, &bytesRead))
+	if (!ReadProcessMemory(m_process, (const char*)address, dest, size, &bytesRead))
 		return 0;
 	return bytesRead;
 }
@@ -303,7 +357,7 @@ size_t Win32DebugAdapter::ReadMemory(void* dest, uint64_t address, size_t size)
 bool Win32DebugAdapter::WriteMemory(uint64_t address, const void* buffer, size_t size)
 {
 	size_t bytesWritten = 0;
-	bool ok = WriteProcessMemory(m_processInfo.hProcess, (LPVOID)address, buffer, size, &bytesWritten);
+	bool ok = WriteProcessMemory(m_process, (LPVOID)address, buffer, size, &bytesWritten);
 	return ok && (size == bytesWritten);
 }
 
@@ -316,12 +370,12 @@ uint32_t Win32DebugAdapter::GetActiveThreadId()
 
 DebugThread Win32DebugAdapter::GetActiveThread()
 {
-	auto it = m_threads.find(m_activeThreadID);
-	if (it == m_threads.end())
+	HANDLE activeThreadHandle = GetActiveThreadHandle();
+	if (activeThreadHandle == INVALID_HANDLE_VALUE)
 		return {};
 
 	CONTEXT context;
-	GetThreadContext(it->second.m_handle, &context);
+	GetThreadContext(INVALID_HANDLE_VALUE, &context);
 
 	DebugThread thread;
 	thread.m_tid = m_activeThreadID;
@@ -348,6 +402,53 @@ std::vector<DebugThread> Win32DebugAdapter::GetThreadList()
 		result.emplace_back(thread);
 	}
 	return result;
+}
+
+
+std::vector<DebugModule> Win32DebugAdapter::GetModuleList()
+{
+	std::vector<DebugModule> result;
+
+	for (auto& module: m_modules)
+	{
+		MODULEINFO info{};
+		DebugModule mod;
+
+		if (!module.m_sizeInfoAvailable)
+		{
+			if (GetModuleInformation(m_process, module.m_moduleHandle, &info, sizeof(info)))
+			{
+				module.m_size = info.SizeOfImage;
+				module.m_sizeInfoAvailable = true;
+			}
+		}
+
+		mod.m_name = module.m_fileName;
+		mod.m_short_name = module.m_shortName;
+		mod.m_address = module.m_base;
+		mod.m_loaded = true;
+		mod.m_size = module.m_size;
+		result.push_back(mod);
+	}
+	return result;
+}
+
+
+bool Win32DebugAdapter::Quit()
+{
+	if (!SetEvent(m_debugEvent))
+		return false;
+
+	return TerminateProcess(m_process, -1);
+}
+
+
+bool Win32DebugAdapter::Go()
+{
+	if (!SetEvent(m_debugEvent))
+		return false;
+
+	return true;
 }
 
 

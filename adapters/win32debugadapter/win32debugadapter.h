@@ -19,13 +19,32 @@ namespace BinaryNinjaDebuggerAPI
 			{}
 		};
 
+		struct ModuleInfo
+		{
+			HANDLE m_fileHandle{};
+			HMODULE m_moduleHandle;
+			std::string m_fileName{};
+			std::string m_shortName{};
+			uint64_t m_base{};
+			size_t m_size{};
+			uint64_t m_entryPoint{};
+			bool m_sizeInfoAvailable = false;
+		};
+
 		PROCESS_INFORMATION m_processInfo;
 		HANDLE m_debugEvent;
 		void DebugLoop();
 		void Reset();
 
 		std::map<DWORD, ThreadInfo> m_threads;
+		std::vector<ModuleInfo> m_modules;
 		DWORD m_activeThreadID;
+		HANDLE m_process;
+
+	private:
+		HANDLE GetActiveThreadHandle();
+		void PopulateModuleSizeInfo();
+		bool firstBreakpointSeen = false;
 
 	public:
 		Win32DebugAdapter(BinaryNinja::BinaryView* data);
@@ -44,6 +63,11 @@ namespace BinaryNinjaDebuggerAPI
 //		bool SetActiveThreadId(uint32_t tid) override;
 //		bool SuspendThread(uint32_t tid) override;
 //		bool ResumeThread(uint32_t tid) override;
+
+		std::vector<DebugModule> GetModuleList() override;
+
+		bool Go() override;
+		bool Quit() override;
 	};
 
 
