@@ -46,6 +46,7 @@ namespace BinaryNinjaDebuggerAPI
 		HANDLE GetThreadHandleFromTid(DWORD tid);
 		void PopulateModuleSizeInfo();
 		bool firstBreakpointSeen = false;
+		bool m_symInitialized = false;
 
 	public:
 		Win32DebugAdapter(BinaryNinja::BinaryView* data);

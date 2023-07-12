@@ -132,6 +132,9 @@ bool Win32DebugAdapter::ExecuteWithArgsInternal(const std::string& path, const s
 
 void Win32DebugAdapter::Reset()
 {
+	if (m_symInitialized)
+		SymCleanup(m_process);
+
 	m_threads.clear();
 	for (const auto& module: m_modules)
 	{
@@ -171,12 +174,26 @@ void Win32DebugAdapter::DebugLoop()
 		{
 		case EXCEPTION_DEBUG_EVENT:
 		{
+			if (!m_symInitialized)
+			{
+				SymSetHomeDirectory(m_process, "C:\\ProgramData\\Dbg");
+				// TODO: we should load the symbols on demand
+				if (!SymInitialize(m_process, NULL, true))
+				{
+					LogWarn("SymInitialize failed");
+				}
+				else
+				{
+					m_symInitialized = true;
+					SymSetOptions(SYMOPT_UNDNAME);
+				}
+			}
+
 			LogWarn("EXCEPTION_DEBUG_EVENT, code: 0x%lx", dbgEvent.u.Exception.ExceptionRecord.ExceptionCode);
 			switch(dbgEvent.u.Exception.ExceptionRecord.ExceptionCode)
 			{
 			case EXCEPTION_BREAKPOINT:
 			{
-				GetModuleList();
 				DebuggerEvent event;
 				event.type = AdapterStoppedEventType;
 				event.data.targetStoppedData.reason = Breakpoint;
@@ -204,6 +221,15 @@ void Win32DebugAdapter::DebugLoop()
 			m_threads[tid] = {dbgEvent.u.CreateProcessInfo.hThread, tid,
 				(uint64_t)dbgEvent.u.CreateProcessInfo.lpStartAddress,
 				(uint64_t)dbgEvent.u.CreateProcessInfo.lpThreadLocalBase};
+//			if (!SymInitialize(m_process, NULL, false))
+//			{
+//				LogWarn("SymInitialize failed");
+//			}
+//			else
+//			{
+//				m_symInitialized = true;
+//				SymSetOptions(SYMOPT_UNDNAME);
+//			}
 			break;
 		}
 		case EXIT_THREAD_DEBUG_EVENT:
@@ -419,6 +445,7 @@ std::vector<DebugModule> Win32DebugAdapter::GetModuleList()
 {
 	std::vector<DebugModule> result;
 
+	// TODO: cosider switching to EnumProcessModules
 	HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, m_processInfo.dwProcessId);
 	if (snapshot == INVALID_HANDLE_VALUE)
 		return result;
@@ -461,19 +488,23 @@ std::vector<DebugFrame> Win32DebugAdapter::GetFramesOfThread(uint32_t tid)
 	if (!GetThreadContext(handle, &context))
 		return result;
 
-	STACKFRAME64 frame{};
+	// TODO: this needs to be repeated for each thread. We should cache the result
+	const auto modules = GetModuleList();
+
+	STACKFRAME_EX frame{};
 	frame.AddrPC.Offset = context.Rip;
 	frame.AddrPC.Mode = AddrModeFlat;
 	frame.AddrStack.Offset = context.Rsp;
 	frame.AddrStack.Mode = AddrModeFlat;
 	frame.AddrFrame.Offset = context.Rbp;
 	frame.AddrFrame.Mode = AddrModeFlat;
+	frame.StackFrameSize = sizeof(STACKFRAME_EX);
 
 	size_t i = 0;
 	while (true)
 	{
-		if (!StackWalk64(IMAGE_FILE_MACHINE_AMD64, m_process, handle, &frame, &context,
-				NULL, SymFunctionTableAccess64, SymGetModuleBase64, NULL))
+		if (!StackWalkEx(IMAGE_FILE_MACHINE_AMD64, m_process, handle, &frame, &context,
+				NULL, SymFunctionTableAccess64, SymGetModuleBase64, NULL, SYM_STKWALK_FORCE_FRAMEPTR ))
 			break;
 		if (frame.AddrPC.Offset == 0)
 			break;
@@ -482,6 +513,28 @@ std::vector<DebugFrame> Win32DebugAdapter::GetFramesOfThread(uint32_t tid)
 		debugFrame.m_fp = frame.AddrFrame.Offset;
 		debugFrame.m_sp = frame.AddrStack.Offset;
 		debugFrame.m_pc = frame.AddrPC.Offset;
+
+		char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+		PSYMBOL_INFO pSymbol = (PSYMBOL_INFO)buffer;
+
+		pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+		pSymbol->MaxNameLen = MAX_SYM_NAME;
+
+		DWORD64 displacement{};
+		if (SymFromAddr(m_process, frame.AddrPC.Offset, &displacement, pSymbol))
+		{
+			debugFrame.m_functionStart = pSymbol->Address;
+			debugFrame.m_functionName = std::string((char*)pSymbol->Name);
+			for (const auto& module: modules)
+			{
+				if (module.m_address == pSymbol->ModBase)
+				{
+					debugFrame.m_module = module.m_short_name;
+					break;
+				}
+			}
+		}
+
 		result.push_back(debugFrame);
 	}
 	return result;
