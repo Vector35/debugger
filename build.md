@@ -46,3 +46,9 @@ The build artifacts will be in the folder `out`. You should find two files `libd
   - Copy everything in the `out` folder to the user plugin folder - `cp -r out/plugins/* ~/.binaryninja/plugins/`
   - Set the environment variable `BN_STANDALONE_DEBUGGER=1`
   - Launch BinaryNinja
+
+
+## Notes:
+
+- On Windows, building the debugger in Debug mode may cause obscure bugs since the debug ABI of MSVC can be different from that of the release build.
+It is recommended to build with `RelWithDebInfo` on Windows.
