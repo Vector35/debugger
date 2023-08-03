@@ -149,6 +149,7 @@ namespace BinaryNinjaDebugger {
 		bool m_aboutToBeKilled = false;
 
         std::string m_pdbFileName {};
+        bool m_usePDBFileName = false;
 
 	public:
 		inline static ProcessCallbackInformation ProcessCallbackInfo {};

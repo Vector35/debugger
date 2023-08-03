@@ -833,7 +833,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address,
         auto moduleToUse = address.module;
         if (DebugModule::IsSameBaseModule(moduleToUse, m_originalFileName))
         {
-            if (!m_pdbFileName.empty())
+            if (m_usePDBFileName && (!m_pdbFileName.empty()))
                 moduleToUse = m_pdbFileName;
         }
 
@@ -1057,8 +1057,11 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 			!= S_OK)
 			continue;
 
-        if ((!m_pdbFileName.empty()) && DebugModule::IsSameBaseModule(short_name, m_pdbFileName))
-            strcpy_s(name, 1024, m_originalFileName.c_str());
+		if (m_usePDBFileName &&(!m_pdbFileName.empty()) &&
+			DebugModule::IsSameBaseModule(short_name, m_pdbFileName))
+		{
+			strcpy_s(name, 1024, m_originalFileName.c_str());
+		}
 
 		modules.emplace_back(
 			name, short_name, parameters.Base, parameters.Size, !(parameters.Flags & DEBUG_MODULE_UNLOADED));

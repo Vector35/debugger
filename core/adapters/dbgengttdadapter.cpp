@@ -7,7 +7,7 @@ using namespace std;
 
 DbgEngTTDAdapter::DbgEngTTDAdapter(BinaryView* data) : DbgEngAdapter(data)
 {
-
+    m_usePDBFileName = false;
 }
 
 
