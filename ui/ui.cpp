@@ -235,6 +235,13 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	auto notConnected = [=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
 			return false;
+		// TODO: these two calls should be combined into something like GetControllerIfExists
+		// The reason why we must avoid creating a new debugger controller here is because these enable callbacks
+		// are called in unpredictable order compared to the destroy of the controller when we close a tab.
+		// There is a chance that we first destroy the controller, and they quickly recreate it, causing a memory
+		// leak for the underlying binary view.
+		if (!DebuggerController::ControllerExists(ctxt.binaryView))
+			return false;
 		auto controller = DebuggerController::GetController(ctxt.binaryView);
 		if (!controller)
 			return false;
@@ -244,6 +251,8 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 	auto connected = [=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
+			return false;
+		if (!DebuggerController::ControllerExists(ctxt.binaryView))
 			return false;
 		auto controller = DebuggerController::GetController(ctxt.binaryView);
 		if (!controller)
@@ -255,6 +264,8 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	auto connectedAndStopped = [=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
 			return false;
+		if (!DebuggerController::ControllerExists(ctxt.binaryView))
+			return false;
 		auto controller = DebuggerController::GetController(ctxt.binaryView);
 		if (!controller)
 			return false;
@@ -264,6 +275,8 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 	auto connectedAndRunning = [=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
+			return false;
+		if (!DebuggerController::ControllerExists(ctxt.binaryView))
 			return false;
 		auto controller = DebuggerController::GetController(ctxt.binaryView);
 		if (!controller)
@@ -275,6 +288,8 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	auto connectedToDebugServer = [=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
 			return false;
+		if (!DebuggerController::ControllerExists(ctxt.binaryView))
+			return false;
 		auto controller = DebuggerController::GetController(ctxt.binaryView);
 		if (!controller)
 			return false;
@@ -284,6 +299,8 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 	auto notConnectedToDebugServer = [=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
+			return false;
+		if (!DebuggerController::ControllerExists(ctxt.binaryView))
 			return false;
 		auto controller = DebuggerController::GetController(ctxt.binaryView);
 		if (!controller)
@@ -1349,6 +1366,8 @@ static void RunToHereCallback(BinaryView* view, uint64_t addr)
 
 static bool ConnectedAndStopped(BinaryView* view, uint64_t addr)
 {
+	if (!DebuggerController::ControllerExists(view))
+		return false;
 	auto controller = DebuggerController::GetController(view);
 	if (!controller)
 		return false;
@@ -1358,6 +1377,8 @@ static bool ConnectedAndStopped(BinaryView* view, uint64_t addr)
 
 static bool ConnectedAndRunning(BinaryView* view, uint64_t addr)
 {
+	if (!DebuggerController::ControllerExists(view))
+		return false;
 	auto controller = DebuggerController::GetController(view);
 	if (!controller)
 		return false;
