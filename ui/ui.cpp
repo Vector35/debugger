@@ -1095,14 +1095,15 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		}
 
 		FileContext* fileContext = frame->getFileContext();
-		fileContext->refreshDataViewCache();
+		auto tab = m_context->getTabForFile(fileContext);
 		ViewFrame* newFrame = m_context->openFileContext(fileContext);
 		QCoreApplication::processEvents();
 
 		if (newFrame)
 		{
 			newFrame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
-			m_context->closeTab(m_context->getTabForFile(fileContext));
+			m_context->closeTab(tab);
+			fileContext->refreshDataViewCache();
 			openDebuggerSideBar(newFrame);
 			QCoreApplication::processEvents();
 		}
@@ -1139,11 +1140,12 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			ViewFrame* frame = m_context->getCurrentViewFrame();
 			FileContext* fileContext = frame->getFileContext();
 			fileContext->refreshDataViewCache();
+			auto tab = m_context->getTabForFile(fileContext);
 			ViewFrame* newFrame = m_context->openFileContext(fileContext);
 
 			if (newFrame)
 			{
-				m_context->closeTab(m_context->getTabForFile(fileContext));
+				m_context->closeTab(tab);
 				navigateToCurrentIP();
 				QCoreApplication::processEvents();
 			}
