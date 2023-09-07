@@ -108,25 +108,18 @@ static void DestroyControllers(const std::vector<BinaryViewRef>& datas)
 
 bool NotificationListener::OnBeforeCloseFile(UIContext* context, FileContext* file, ViewFrame* frame)
 {
-	auto currentTab = context->getCurrentTab();
 	auto mainWindow = context->mainWindow();
 	auto tabs = context->getTabs();
-	bool tabRemaining = false;
+	size_t count = 0;
 	for (auto tab : tabs)
 	{
-		if (tab == currentTab)
-			continue;
-
 		auto viewFrame = context->getViewFrameForTab(tab);
 		if (viewFrame && (viewFrame->getFileContext() == file))
-		{
-			tabRemaining = true;
-			break;
-		}
+			count++;
 	}
 
 	// This is the last tab of the file being closed. Check whether the debugger is connected
-	if (!tabRemaining)
+	if (count == 1)
 	{
 		auto viewFrame = context->getCurrentViewFrame();
 		if (!viewFrame)
