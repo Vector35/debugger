@@ -68,7 +68,7 @@ Ref<BinaryView> DebuggerController::GetData()
 
 void DebuggerController::SetData(const Ref<BinaryView>& data)
 {
-	BNDebuggerSetData(m_object, data->GetObject());
+	BNDebuggerSetData(m_object, BNNewViewReference(data->GetObject()));
 }
 
 
