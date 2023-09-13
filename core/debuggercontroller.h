@@ -61,7 +61,8 @@ namespace BinaryNinjaDebugger {
 	private:
 		DebugAdapter* m_adapter;
 		DebuggerState* m_state;
-		BinaryViewRef m_data;
+		FileMetadataRef m_file;
+		std::string m_viewName;
 		BinaryViewRef m_liveView;
 
 //		inline static std::vector<DbgRef<DebuggerController>> g_debuggerControllers;
@@ -250,8 +251,8 @@ namespace BinaryNinjaDebugger {
 		// getters
 		DebugAdapter* GetAdapter() { return m_adapter; }
 		DebuggerState* GetState() { return m_state; }
-		BinaryViewRef GetData() const { return m_data; }
-		void SetData(BinaryViewRef view) { m_data = view; }
+		BinaryViewRef GetData() { return m_file->GetViewOfType(m_viewName); }
+		void SetData(BinaryViewRef view) {}
 		BinaryViewRef GetLiveView() const { return m_liveView; }
 
 		uint32_t GetExitCode();

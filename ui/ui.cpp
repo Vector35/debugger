@@ -1185,7 +1185,6 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		}
 
 		Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(data->GetTypeName());
-		m_controller->SetData(rebasedView);
 
 		bool result = false;
 		QString text = QString("Adding the input view into the debugger view...");
