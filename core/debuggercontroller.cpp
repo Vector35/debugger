@@ -22,9 +22,12 @@ limitations under the License.
 
 using namespace BinaryNinjaDebugger;
 
-DebuggerController::DebuggerController(BinaryViewRef data) : m_data(data)
+DebuggerController::DebuggerController(BinaryViewRef data)
 {
 	INIT_DEBUGGER_API_OBJECT();
+
+	m_file = data->GetFile();
+	m_viewName = data->GetTypeName();
 
 	m_state = new DebuggerState(data, this);
 	m_adapter = nullptr;
@@ -274,7 +277,7 @@ bool DebuggerController::CreateDebugAdapter()
 		LogWarn("Failed to get an debug adapter of type %s", m_state->GetAdapterType().c_str());
 		return false;
 	}
-	m_adapter = type->Create(m_data);
+	m_adapter = type->Create(GetData());
 	if (!m_adapter)
 	{
 		LogWarn("Failed to create an adapter of type %s", m_state->GetAdapterType().c_str());
@@ -726,17 +729,18 @@ bool DebuggerController::CreateDebuggerBinaryView()
 	if (!viewType)
 		return false;
 
-	BinaryViewRef liveView = viewType->Create(m_data);
+	BinaryViewRef liveView = viewType->Create(GetData());
 	if (!liveView)
 		return false;
 
-	if (!m_data->GetDefaultArchitecture() || !m_data->GetDefaultPlatform())
+	BinaryViewRef data = GetData();
+	if (!data->GetDefaultArchitecture() || !data->GetDefaultPlatform())
 	{
 		LogWarn("Fail to create debugger view. The input view must have an architecture and platform");
 		return false;
 	}
-	liveView->SetDefaultArchitecture(m_data->GetDefaultArchitecture());
-	liveView->SetDefaultPlatform(m_data->GetDefaultPlatform());
+	liveView->SetDefaultArchitecture(data->GetDefaultArchitecture());
+	liveView->SetDefaultPlatform(data->GetDefaultPlatform());
 	SetLiveView(liveView);
 
 	return true;
@@ -764,22 +768,18 @@ void DebuggerController::DetectLoadedModule()
 	}
 	else
 	{
-		FileMetadataRef fileMetadata = m_data->GetFile();
-		if (remoteBase != m_data->GetStart())
+		if (remoteBase != GetData()->GetStart())
 		{
 			// remote base is different from the local base, first need a rebase
-			if (!fileMetadata->Rebase(m_data, remoteBase, [&](size_t cur, size_t total) { return true; }))
+			if (!m_file->Rebase(GetData(), remoteBase, [&](size_t cur, size_t total) { return true; }))
 			{
 				LogWarn("rebase failed");
 			}
 		}
 
-		Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(m_data->GetTypeName());
-		SetData(rebasedView);
+		Ref<BinaryView> rebasedView = m_file->GetViewOfType(m_viewName);
 
-		bool ok = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger", [&](size_t cur, size_t total) {
-			return true;
-		});
+		bool ok = m_file->CreateSnapshotedView(rebasedView, "Debugger", [&](size_t cur, size_t total) { return true; });
 		if (!ok)
 			LogWarn("create snapshoted view failed");
 	}
@@ -1051,9 +1051,9 @@ void DebuggerController::LaunchOrConnect()
 	if (!adapterType)
 		return;
 
-	if (adapterType->CanExecute(m_data))
+	if (adapterType->CanExecute(GetData()))
 		Launch();
-	else if (adapterType->CanConnect(m_data))
+	else if (adapterType->CanConnect(GetData()))
 		Connect();
 }
 
@@ -1070,18 +1070,8 @@ DbgRef<DebuggerController> DebuggerController::GetController(BinaryViewRef data)
 		DebuggerController* controller = g_debuggerControllers[i];
 		if (!controller)
 			continue;
-		if (controller->GetData() == data)
+		if (controller->m_file.operator==(data->GetFile()))
 			return controller;
-		if (controller->GetLiveView() == data)
-			return controller;
-		//if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetFile()->GetOriginalFilename())
-		//	return controller;
-		//if (controller->GetData()->GetFile()->GetOriginalFilename() == data->GetParentView()->GetFile()->GetOriginalFilename())
-		//	return controller;
-		//if (controller->GetData()->GetFile() == data->GetFile())
-		//	return controller;
-		//if (controller->GetLiveView() && (controller->GetLiveView()->GetFile() == data->GetFile()))
-		//	return controller;
 	}
 
 	if (data->GetTypeName() == "Debugger")
@@ -1137,8 +1127,8 @@ bool DebuggerController::ControllerExists(BinaryViewRef data)
 
 void DebuggerController::Destroy()
 {
-	DebuggerController::DeleteController(m_data);
-	m_data = nullptr;
+	DebuggerController::DeleteController(GetData());
+	m_file = nullptr;
 	m_liveView = nullptr;
 }
 
