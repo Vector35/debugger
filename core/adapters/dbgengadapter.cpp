@@ -180,7 +180,10 @@ bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionSt
 {
 	auto handle = GetModuleHandleA("dbgeng.dll");
 	if (handle == nullptr)
-		false;
+	{
+		LogWarn("Failed to get module handle for dbgeng.dll");
+		return false;
+	}
 
 	//    HRESULT DebugCreate(
 	//    [in]  REFIID InterfaceId,
@@ -189,11 +192,17 @@ bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionSt
 	typedef HRESULT(__stdcall * pfunDebugCreate)(REFIID, PVOID*);
 	auto DebugCreate = (pfunDebugCreate)GetProcAddress(handle, "DebugCreate");
 	if (DebugCreate == nullptr)
+	{
+		LogWarn("Failed to get the address of DebugCreate function");
 		return false;
+	}
 
 	if (const auto result = DebugCreate(__uuidof(IDebugClient7), reinterpret_cast<void**>(&this->m_debugClient));
 		result != S_OK)
-		throw std::runtime_error("Failed to create IDebugClient7");
+	{
+		LogWarn("Failed to create IDebugClient7");
+		return false;
+	}
 
 	QUERY_DEBUG_INTERFACE(IDebugControl7, &this->m_debugControl);
 	QUERY_DEBUG_INTERFACE(IDebugDataSpaces, &this->m_debugDataSpaces);
@@ -214,6 +223,7 @@ bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionSt
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 
+	LogWarn("ConnectToDebugServerInternal timeout");
 	return false;
 }
 
