@@ -35,5 +35,5 @@ set_target_properties(debuggerui PROPERTIES
         POSITION_INDEPENDENT_CODE ON
         )
 
-target_link_libraries(debuggerui debuggerapi binaryninjaui binaryninjaapi Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(debuggerui debuggerapi binaryninjaui Qt6::Core Qt6::Gui Qt6::Widgets)
 

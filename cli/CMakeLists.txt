@@ -9,9 +9,9 @@ file(GLOB SOURCES *.cpp *.h)
 add_executable(debugger-cli ${SOURCES})
 
 if(UNIX AND NOT APPLE)
-    target_link_libraries(debugger-cli debuggerapi binaryninjaapi pthread)
+    target_link_libraries(debugger-cli debuggerapi pthread)
 else()
-    target_link_libraries(debugger-cli debuggerapi binaryninjaapi)
+    target_link_libraries(debugger-cli debuggerapi)
 endif()
 
 set_target_properties(debugger-cli PROPERTIES
