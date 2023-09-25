@@ -2041,9 +2041,9 @@ static std::string CheckForLiteralString(uint64_t address)
 
 std::string DebuggerController::GetAddressInformation(uint64_t address)
 {
-    // Avoid too many results in the register widget when the address is 0x0
-    if (address == 0)
-        return "";
+	// Avoid too many results in the register widget when the address is 0x0
+	if (address == 0)
+		return "";
 
 	const DataBuffer memory = ReadMemory(address, 128);
 	auto result = CheckForPrintableString(memory);
