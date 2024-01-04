@@ -123,6 +123,9 @@ if subprocess.call(["git", "clone", "https://github.com/Vector35/binaryninja-api
     print("Failed to clone BN API git repository")
     sys.exit(1)
 
+if subprocess.call(["git", "submodule", "update", "--init", "--recursive"], cwd=api_path) != 0:
+    print("Failed to init submodules for BN API")
+    sys.exit(1)
 
 print("\nConfiguring debugger...")
 if not build_path.exists():

@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 
 project(debugger)
-add_definitions(-DFMT_HEADER_ONLY)
 
 if((NOT BN_API_PATH) AND (NOT BN_INTERNAL_BUILD))
 	set(BN_API_PATH $ENV{BN_API_PATH})
@@ -27,8 +26,6 @@ if (NOT BN_INTERNAL_BUILD)
 	endif()
 	message("CMAKE_PREFIX_PATH is: ${CMAKE_PREFIX_PATH}")
 endif()
-
-include_directories(vendor)
 
 add_subdirectory(core)
 add_subdirectory(api)
