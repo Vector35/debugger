@@ -44,6 +44,7 @@ DebugAdapter::DebugAdapter(BinaryView* data)
 	// Here we check if there is actually a function at the entry point, to determine if the entry point is real.
 	m_hasEntryFunction = (data->GetAnalysisEntryPoint() != nullptr);
 	m_start = data->GetStart();
+	m_originalBase = data->GetOriginalBase();
 	if (data->GetDefaultArchitecture())
 		m_defaultArchitecture = data->GetDefaultArchitecture()->GetName();
 
