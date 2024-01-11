@@ -22,6 +22,7 @@ limitations under the License.
 #include "binaryninjaapi.h"
 #include "disassemblyview.h"
 #include "theme.h"
+#include "platformdialog.h"
 #include "ui.h"
 #include <thread>
 #include "progresstask.h"
@@ -142,6 +143,34 @@ void DebugControlsWidget::performLaunch()
 			return;
 	}
 
+	auto data = m_controller->GetData();
+	if (!data->GetDefaultPlatform())
+	{
+		// No default platform, prompt user to choose one
+		PlatformDialog dlg(this);
+		if (dlg.exec() != QDialog::Accepted)
+		{
+			QMessageBox::warning(this, "No Platform", "The debugger cannot work if the binary view has no "
+													  "platform and architecture");
+			return;
+		}
+
+		auto platform = dlg.getPlatform();
+		if (platform)
+		{
+			dlg.saveDefaults();
+		}
+		else
+		{
+			QMessageBox::warning(this, "Invalid Platform", "The debugger cannot work if the binary view has no "
+													  "platform and architecture");
+			return;
+		}
+
+		data->SetDefaultArchitecture(platform->GetArchitecture());
+		data->SetDefaultPlatform(platform);
+	}
+
 	QString text = QString(
 		"The debugger is %1 the target and preparing the debugger binary view. \n"
 		"This might take a while.").arg("launching");
@@ -167,6 +196,34 @@ void DebugControlsWidget::performAttachPID()
 	uint32_t pid = dialog.GetSelectedPid();
 	if (pid == 0)
 		return;
+
+	auto data = m_controller->GetData();
+	if (!data->GetDefaultPlatform())
+	{
+		// No default platform, prompt user to choose one
+		PlatformDialog dlg(this);
+		if (dlg.exec() != QDialog::Accepted)
+		{
+			QMessageBox::warning(this, "No Platform", "The debugger cannot work if the binary view has no "
+													  "platform and architecture");
+			return;
+		}
+
+		auto platform = dlg.getPlatform();
+		if (platform)
+		{
+			dlg.saveDefaults();
+		}
+		else
+		{
+			QMessageBox::warning(this, "Invalid Platform", "The debugger cannot work if the binary view has no "
+													  "platform and architecture");
+			return;
+		}
+
+		data->SetDefaultArchitecture(platform->GetArchitecture());
+		data->SetDefaultPlatform(platform);
+	}
 
 	m_controller->SetPIDAttach(pid);
 	QString text = QString(

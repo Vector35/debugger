@@ -20,6 +20,7 @@ limitations under the License.
 #include "moduleswidget.h"
 #include "stackwidget.h"
 #include "uinotification.h"
+#include "platformdialog.h"
 #include "QPainter"
 #include <QStatusBar>
 #include <QCoreApplication>
@@ -309,6 +310,37 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		return !controller->IsConnectedToDebugServer();
 	};
 
+	auto ensureBinaryViewHasPlatform = [&](BinaryViewRef data, QWidget* parent) -> bool
+	{
+		if (!data->GetDefaultPlatform())
+		{
+			// No default platform, prompt user to choose one
+			PlatformDialog dlg(parent);
+			if (dlg.exec() != QDialog::Accepted)
+			{
+				QMessageBox::warning(parent, "No Platform",
+									 "The debugger cannot work if the binary view has no platform and architecture");
+				return false;
+			}
+
+			auto platform = dlg.getPlatform();
+			if (platform)
+			{
+				dlg.saveDefaults();
+			}
+			else
+			{
+				QMessageBox::warning(parent, "Invalid Platform",
+									 "The debugger cannot work if the binary view has no platform and architecture");
+				return false;
+			}
+
+			data->SetDefaultArchitecture(platform->GetArchitecture());
+			data->SetDefaultPlatform(platform);
+		}
+		return true;
+	};
+
 	UIAction::registerAction("Debug Adapter Settings...");
 	context->globalActions()->bindAction("Debug Adapter Settings...",
 		UIAction(
@@ -348,6 +380,10 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					if (QMessageBox::question(ctxt.context->mainWindow(), "Launch Target", prompt) != QMessageBox::Yes)
 						return;
 				}
+
+				if (!ensureBinaryViewHasPlatform(controller->GetData(), ctxt.context->mainWindow()))
+					return;
+
 				QString text = QString(
 					"The debugger is launching the target and preparing the debugger binary view. \n"
 					"This might take a while.");
@@ -511,6 +547,10 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					return;
 
 				controller->SetPIDAttach(pid);
+
+				if (!ensureBinaryViewHasPlatform(controller->GetData(), ctxt.context->mainWindow()))
+					return;
+
 				QString text = QString(
 					"The debugger is attaching to the target and preparing the debugger binary view. \n"
 					"This might take a while.");
@@ -607,6 +647,9 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 				auto dialog = new RemoteProcessSettingsDialog(context->mainWindow(), controller);
 				if (dialog->exec() != QDialog::Accepted)
+					return;
+
+				if (!ensureBinaryViewHasPlatform(controller->GetData(), ctxt.context->mainWindow()))
 					return;
 
 				QString text = QString(
