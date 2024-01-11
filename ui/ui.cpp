@@ -1011,7 +1011,9 @@ void DebuggerUI::updateIPHighlight()
 			if (tag->GetType() != getPCTagType(data))
 				continue;
 
+			auto id = data->BeginUndoActions();
 			func->RemoveUserAddressTag(data->GetDefaultArchitecture(), lastIP, tag);
+			data->ForgetUndoActions(id);
 		}
 	}
 
@@ -1030,8 +1032,10 @@ void DebuggerUI::updateIPHighlight()
 
 		if (!tagFound)
 		{
+			auto id = data->BeginUndoActions();
 			func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, BlueHighlightColor);
 			func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getPCTagType(data), "program counter");
+			data->ForgetUndoActions(id);
 		}
 	}
 }
@@ -1050,7 +1054,12 @@ void DebuggerUI::navigateToCurrentIP()
 
 	auto functions = liveView->GetAnalysisFunctionsContainingAddress(address);
 	if (functions.empty())
-		liveView->CreateUserFunction(m_controller->GetLiveView()->GetDefaultPlatform(), address);
+	{
+		auto data = m_controller->GetLiveView();
+		auto id = data->BeginUndoActions();
+		liveView->CreateUserFunction(data->GetDefaultPlatform(), address);
+		data->ForgetUndoActions(id);
+	}
 
 	navigateDebugger(address);
 }
@@ -1233,8 +1242,10 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 
 				if (!tagFound)
 				{
+					auto id = data->BeginUndoActions();
 					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), addr, RedHighlightColor);
 					func->CreateUserAddressTag(data->GetDefaultArchitecture(), addr, getBreakpointTagType(data), "breakpoint");
+					data->ForgetUndoActions(id);
 				}
 			}
 		}
@@ -1271,8 +1282,10 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 
 				if (!tagFound)
 				{
+					auto id = data->BeginUndoActions();
 					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
 					func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data), "breakpoint");
+					data->ForgetUndoActions(id);
 				}
 			}
 		}
@@ -1301,7 +1314,9 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 					if (tag->GetType() != getBreakpointTagType(data))
 						continue;
 
+					auto id = data->BeginUndoActions();
 					func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
+					data->ForgetUndoActions(id);
 				}
 			}
 		}
@@ -1332,7 +1347,9 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 					if (tag->GetType() != getBreakpointTagType(data))
 						continue;
 
+					auto id = data->BeginUndoActions();
 					func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
+					data->ForgetUndoActions(id);
 				}
 			}
 		}
