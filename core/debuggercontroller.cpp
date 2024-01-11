@@ -1538,6 +1538,8 @@ void DebuggerController::UpdateStackVariables()
 
 	if (!m_liveView)
 		return;
+
+	auto id = m_liveView->BeginUndoActions();
 	std::vector<DebugThread> threads = GetAllThreads();
 	uint64_t frameAdjustment = 0;
 	if (!m_liveView->GetDefaultArchitecture())
@@ -1617,6 +1619,7 @@ void DebuggerController::UpdateStackVariables()
 	{
 		m_liveView->SetCommentForAddress(address, "");
 	}
+	m_liveView->ForgetUndoActions(id);
 }
 
 
