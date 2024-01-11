@@ -719,8 +719,14 @@ bool DebuggerController::CreateDebuggerBinaryView()
 	// TODO: in the future, when we add support for using the debugger without a base binary view (i.e., the m_data in
 	// this code), we will need to either read these info from the adapter backends, or make a UI to allow the user to
 	// inform us the values.
-	liveView->SetDefaultArchitecture(GetData()->GetDefaultArchitecture());
-	liveView->SetDefaultPlatform(GetData()->GetDefaultPlatform());
+	BinaryViewRef data = GetData();
+	if (!data->GetDefaultArchitecture() || !data->GetDefaultPlatform())
+	{
+		LogWarn("Fail to create debugger view. The input view must have an architecture and platform");
+		return false;
+	}
+	liveView->SetDefaultArchitecture(data->GetDefaultArchitecture());
+	liveView->SetDefaultPlatform(data->GetDefaultPlatform());
 	SetLiveView(liveView);
 
 	return true;
