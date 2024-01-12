@@ -260,7 +260,7 @@ DebugAdapter* DbgEngTTDAdapterType::Create(BinaryNinja::BinaryView* data)
 
 bool DbgEngTTDAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
 {
-    return data->GetTypeName() == "PE";
+	return data->GetTypeName() == "PE" || data->GetTypeName() == "Raw";
 }
 
 
