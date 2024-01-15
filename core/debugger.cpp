@@ -20,6 +20,8 @@ limitations under the License.
 #ifdef WIN32
 	#include "adapters/dbgengadapter.h"
 	#include "adapters/dbgengttdadapter.h"
+	#include "adapters/windowskerneladapter.h"
+	#include "adapters/localwindowskerneladapter.h"
 #endif
 
 using namespace BinaryNinja;
@@ -29,7 +31,9 @@ void InitDebugAdapterTypes()
 {
 #ifdef WIN32
     InitDbgEngAdapterType();
-    InitDbgEngTTDAdapterType();
+	InitDbgEngTTDAdapterType();
+	InitWindowsKernelAdapterType();
+	InitLocalWindowsKernelAdapterType();
 #endif
 
 	// Disable these adapters because they are not tested, and will get replaced later

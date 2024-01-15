@@ -336,6 +336,11 @@ See [Remote Debugging Guide](remote-debugging.md)
 
 See [Time Travel Debugging (beta) Guide](dbgeng-ttd.md)
 
+### Windows Kernel Debugging
+
+See [Windows Kernel Debugging Guide](windows-kd.md)
+
+
 ## Known Issues and Workarounds
 
 There are some known issues and limitations with the current debugger. Here is a list including potential workarounds.
