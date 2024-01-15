@@ -29,6 +29,10 @@ if(WIN32)
 			adapters/dbgengadapter.h
 			adapters/dbgengttdadapter.cpp
 			adapters/dbgengttdadapter.h
+			adapters/windowskerneladapter.cpp
+			adapters/windowskerneladapter.h
+			adapters/localwindowskerneladapter.cpp
+			adapters/localwindowskerneladapter.h
 			)
 else()
 	set(SOURCES ${COMMON_SOURCES} ${ADAPTER_SOURCES})
