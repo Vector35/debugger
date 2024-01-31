@@ -373,7 +373,10 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 
 			for (FunctionRef& func : functions)
 			{
-				LowLevelILFunctionRef llil = func->GetLowLevelIL();
+				LowLevelILFunctionRef llil = func->GetLowLevelILIfAvailable();
+				if (!llil)
+					return SingleStep;
+
 				size_t start = llil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
 				if (start < llil->GetInstructionCount())
 				{
@@ -400,7 +403,10 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 
 			for (FunctionRef& func : functions)
 			{
-				MediumLevelILFunctionRef mlil = func->GetMediumLevelIL();
+				MediumLevelILFunctionRef mlil = func->GetMediumLevelILIfAvailable();
+				if (!mlil)
+					return SingleStep;
+
 				size_t start = mlil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
 				if (start < mlil->GetInstructionCount())
 				{
@@ -428,7 +434,10 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 
 			for (FunctionRef& func : functions)
 			{
-				HighLevelILFunctionRef hlil = func->GetHighLevelIL();
+				HighLevelILFunctionRef hlil = func->GetHighLevelILIfAvailable();
+				if (!hlil)
+					return SingleStep;
+
 				for (size_t i = 0; i < hlil->GetInstructionCount(); i++)
 				{
 					if (hlil->GetInstruction(i).address == newRemoteRip)
@@ -494,7 +503,10 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
 
 			for (FunctionRef& func : functions)
 			{
-				LowLevelILFunctionRef llil = func->GetLowLevelIL();
+				LowLevelILFunctionRef llil = func->GetLowLevelILIfAvailable();
+				if (!llil)
+					return SingleStep;
+
 				size_t start = llil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
 				if (start < llil->GetInstructionCount())
 				{
@@ -520,7 +532,10 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
 
 			for (FunctionRef& func : functions)
 			{
-				MediumLevelILFunctionRef mlil = func->GetMediumLevelIL();
+				MediumLevelILFunctionRef mlil = func->GetMediumLevelILIfAvailable();
+				if (!mlil)
+					return SingleStep;
+
 				size_t start = mlil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
 				if (start < mlil->GetInstructionCount())
 				{
@@ -548,7 +563,10 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
 
 			for (FunctionRef& func : functions)
 			{
-				HighLevelILFunctionRef hlil = func->GetHighLevelIL();
+				HighLevelILFunctionRef hlil = func->GetHighLevelILIfAvailable();
+				if (!hlil)
+					return SingleStep;
+
 				for (size_t i = 0; i < hlil->GetInstructionCount(); i++)
 				{
 					if (hlil->GetInstruction(i).address == newRemoteRip)
