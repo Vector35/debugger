@@ -377,11 +377,11 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
 						"This may harm your machine. Are you sure to continue?").
 					  	arg(QString::fromStdString(controller->GetExecutablePath()));
-					if (QMessageBox::question(ctxt.context->mainWindow(), "Launch Target", prompt) != QMessageBox::Yes)
+					if (QMessageBox::question(context->mainWindow(), "Launch Target", prompt) != QMessageBox::Yes)
 						return;
 				}
 
-				if (!ensureBinaryViewHasPlatform(controller->GetData(), ctxt.context->mainWindow()))
+				if (!ensureBinaryViewHasPlatform(controller->GetData(), context->mainWindow()))
 					return;
 
 				QString text = QString(
@@ -548,7 +548,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 				controller->SetPIDAttach(pid);
 
-				if (!ensureBinaryViewHasPlatform(controller->GetData(), ctxt.context->mainWindow()))
+				if (!ensureBinaryViewHasPlatform(controller->GetData(), context->mainWindow()))
 					return;
 
 				QString text = QString(
@@ -649,7 +649,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (dialog->exec() != QDialog::Accepted)
 					return;
 
-				if (!ensureBinaryViewHasPlatform(controller->GetData(), ctxt.context->mainWindow()))
+				if (!ensureBinaryViewHasPlatform(controller->GetData(), context->mainWindow()))
 					return;
 
 				QString text = QString(
