@@ -746,7 +746,7 @@ void ThreadFramesWidget::onDoubleClicked()
 
 
 GlobalThreadFramesContainer::GlobalThreadFramesContainer(const QString& title) :
-	GlobalAreaWidget(title), m_currentFrame(nullptr), m_consoleStack(new QStackedWidget)
+	SidebarWidget(title), m_currentFrame(nullptr), m_consoleStack(new QStackedWidget)
 {
 	auto* layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
@@ -840,3 +840,8 @@ void GlobalThreadFramesContainer::notifyFontChanged()
 			it.value()->updateFonts();
 	}
 }
+
+
+ThreadFramesSidebarWidgetType::ThreadFramesSidebarWidgetType() :
+	SidebarWidgetType(QImage(":/letters/images/letter-icons/letter-T.png"), "Stack Trace")
+{}

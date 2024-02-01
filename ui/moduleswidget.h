@@ -195,7 +195,7 @@ public:
 };
 
 
-class GlobalDebugModulesContainer : public GlobalAreaWidget
+class GlobalDebugModulesContainer : public SidebarWidget
 {
 	ViewFrame* m_currentFrame;
 	QHash<ViewFrame*, DebugModulesWithFilter*> m_widgetMap;
@@ -214,4 +214,14 @@ public:
 
 	void notifyViewChanged(ViewFrame*) override;
 	void notifyFontChanged() override;
+};
+
+
+class DebugModulesSidebarWidgetType : public SidebarWidgetType
+{
+public:
+	DebugModulesSidebarWidgetType();
+	SidebarWidgetLocation defaultLocation() const override { return SidebarWidgetLocation::RightBottom; }
+	SidebarContextSensitivity contextSensitivity() const override { return SelfManagedSidebarContext; }
+	bool hideIfNoContent() const override { return true; }
 };

@@ -603,7 +603,7 @@ void DebugModulesWithFilter::updateFonts()
 
 
 GlobalDebugModulesContainer::GlobalDebugModulesContainer(const QString& title) :
-	GlobalAreaWidget(title), m_currentFrame(nullptr), m_consoleStack(new QStackedWidget)
+	SidebarWidget(title), m_currentFrame(nullptr), m_consoleStack(new QStackedWidget)
 {
 	auto* layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
@@ -720,3 +720,8 @@ bool DebugModulesFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelI
 	}
 	return false;
 }
+
+
+DebugModulesSidebarWidgetType::DebugModulesSidebarWidgetType() :
+	SidebarWidgetType(QImage(":/letters/images/letter-icons/letter-M.png"), "Debugger Modules")
+{}

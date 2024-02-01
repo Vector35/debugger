@@ -692,7 +692,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	//	}));
 	//	debuggerMenu->addAction("Activate Debug Adapter", "Launch");
 
-	QString showAreaWidgets = "Show Debugger Global Area Widgets";
+	QString showAreaWidgets = "Show Debugger Sidebar Widgets";
 	UIAction::registerAction(showAreaWidgets);
 
 	context->globalActions()->bindAction(showAreaWidgets, UIAction([](const UIActionContext& ctxt) {
@@ -882,8 +882,8 @@ void GlobalDebuggerUI::SetDisplayingGlobalAreaWidgets(bool display)
 
 void GlobalDebuggerUI::CreateGlobalAreaWidgets(UIContext* context)
 {
-	auto globalArea = context->globalArea();
-	if (!globalArea)
+	auto sidebar = context->sidebar();
+	if (!sidebar)
 		return;
 
 	// Hacky way to create the Debugger Console. Note, since MainWindow internally keeps a list of scripting consoles,
@@ -893,52 +893,50 @@ void GlobalDebuggerUI::CreateGlobalAreaWidgets(UIContext* context)
 	// emulate what happens when the user clicks the "Create Debugger Console" item.
 	if (context->contentActionHandler())
 	{
-		auto widget = globalArea->widget("Debugger Console");
-		if (!widget)
+		if (!sidebar->hasWidgetWithTitle("Console", "Debugger"))
 			context->contentActionHandler()->executeAction("Create Debugger Console");
 
-		widget = globalArea->widget("Target Console");
-		if (!widget)
+		if (!sidebar->hasWidgetWithTitle("Console", "Target"))
 			context->contentActionHandler()->executeAction("Create Target Console");
 	}
 
-	auto widget = globalArea->widget("Stack Trace");
+	auto widget = sidebar->widget("Stack Trace");
 	if (!widget)
 	{
 		auto* globalThreadFramesContainer = new GlobalThreadFramesContainer("Stack Trace");
-		globalArea->addWidget(globalThreadFramesContainer);
+		sidebar->addWidget("Stack Trace", globalThreadFramesContainer);
 	}
 
-	widget = globalArea->widget("Debugger Modules");
+	widget = sidebar->widget("Debugger Modules");
 	if (!widget)
 	{
 		auto* globalDebugModulesContainer = new GlobalDebugModulesContainer("Debugger Modules");
-		globalArea->addWidget(globalDebugModulesContainer);
+		sidebar->addWidget("Debugger Modules", globalDebugModulesContainer);
 	}
 }
 
 
 void GlobalDebuggerUI::CloseGlobalAreaWidgets(UIContext* context)
 {
-	auto globalArea = context->globalArea();
-	if (!globalArea)
+	auto sidebar = context->sidebar();
+	if (!sidebar)
 		return;
 
-	auto widget = globalArea->widget("Stack Trace");
+	auto widget = sidebar->widget("Stack Trace");
 	if (widget)
-		globalArea->closeTab(widget);
+		sidebar->removeWidget("Stack Trace", widget);
 
-	widget = globalArea->widget("Debugger Modules");
+	widget = sidebar->widget("Debugger Modules");
 	if (widget)
-		globalArea->closeTab(widget);
+		sidebar->removeWidget("Debugger Modules", widget);
 
-	widget = globalArea->widget("Debugger Console");
+	widget = sidebar->widgetWithTitle("Console", "Debugger");
 	if (widget)
-		globalArea->closeTab(widget);
+		sidebar->removeWidget("Console", widget);
 
-	widget = globalArea->widget("Target Console");
+	widget = sidebar->widgetWithTitle("Console", "Target");
 	if (widget)
-		globalArea->closeTab(widget);
+		sidebar->removeWidget("Console", widget);
 }
 
 
@@ -1451,6 +1449,8 @@ static bool ConnectedAndRunning(BinaryView* view, uint64_t addr)
 void GlobalDebuggerUI::InitializeUI()
 {
 	Sidebar::addSidebarWidgetType(new DebuggerWidgetType(QImage(":/debugger_icons/icons/debugger.svg"), "Debugger"));
+	Sidebar::addSidebarWidgetType(new DebugModulesSidebarWidgetType());
+	Sidebar::addSidebarWidgetType(new ThreadFramesSidebarWidgetType());
 
 	// We must use the sequence of these four calls to do the job, otherwise the keybinding does not work.
 	// Though it really should be the case where I can specify the keybinding in the first registerAction() call.
