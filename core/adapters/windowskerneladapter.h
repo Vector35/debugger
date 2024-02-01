@@ -31,8 +31,6 @@ namespace BinaryNinjaDebugger {
 
 		bool Detach() override;
 		bool Quit() override;
-
-//		std::string GetDbgEngPath(const std::string& arch) override;
     };
 
     class WindowsKernelAdapterType : public DebugAdapterType

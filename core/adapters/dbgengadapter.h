@@ -232,9 +232,9 @@ namespace BinaryNinjaDebugger {
 
 		void ApplyBreakpoints();
 
-		virtual std::string GetDbgEngPath(const std::string& arch);
+		static std::string GetDbgEngPath(const std::string& arch);
 
-		bool LoadDngEngLibraries();
+		static bool LoadDngEngLibraries();
 
 		std::string GenerateRandomPipeName();
 

@@ -11,50 +11,6 @@ DbgEngTTDAdapter::DbgEngTTDAdapter(BinaryView* data) : DbgEngAdapter(data)
 }
 
 
-static bool IsValidDbgEngPaths(const std::string& path)
-{
-	if (path.empty())
-		return false;
-
-	auto enginePath = filesystem::path(path);
-	if (!filesystem::exists(enginePath))
-		return false;
-
-	if (!filesystem::exists(enginePath / "dbgeng.dll"))
-		return false;
-
-	if (!filesystem::exists(enginePath / "dbghelp.dll"))
-		return false;
-
-	if (!filesystem::exists(enginePath / "dbgmodel.dll"))
-		return false;
-
-	if (!filesystem::exists(enginePath / "dbgcore.dll"))
-		return false;
-
-	if (!filesystem::exists(enginePath / "dbgsrv.exe"))
-		return false;
-
-	if (!filesystem::exists(enginePath / "ttd"))
-		return false;
-
-	if (!filesystem::exists(enginePath / "ttd" / "TTDReplay.dll"))
-		return false;
-
-	return true;
-}
-
-
-std::string DbgEngTTDAdapter::GetDbgEngPath(const std::string& arch)
-{
-	std::string path = Settings::Instance()->Get<string>("debugger.x64dbgEngPath");
-	if (IsValidDbgEngPaths(path))
-		return path;
-
-	return "";
-}
-
-
 bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
                                             const std::string& workingDir, const LaunchConfigurations& configs) {
     m_aboutToBeKilled = false;
