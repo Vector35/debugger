@@ -73,9 +73,17 @@ std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 	else
 		path = Settings::Instance()->Get<string>("debugger.x86dbgEngPath");
 
-	if (IsValidDbgEngPaths(path))
-		return path;
+	if (!path.empty())
+	{
+		// If the user has specified the path in the setting, then check it for validity. If it is valid, then use it;
+		// if it is invalid, fail the operation -- do not fallback to the default one
+		if (IsValidDbgEngPaths(path))
+			return path;
+		else
+			return "";
+	}
 
+	// If the user does not specify a path (the default case), find the one from the %APPDATA% or %PROGRAMDATA%
 	char appData[MAX_PATH];
 	// For a system installation, the path is %APPDATA%\Binary Ninja\dbgeng\Windows Kits\10\Debuggers
 	if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appData)))
@@ -97,54 +105,99 @@ std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 	return "";
 }
 
+
+static bool LoadOneDLL(const string& path, const string& name, bool strictCheckPath = true, bool forceUnload = true)
+{
+	auto handle = GetModuleHandleA(name.c_str());
+	if (handle)
+	{
+		LogDebug("Module %s is already loaded before the debugger tries to load it, this is suspicious", name.c_str());
+		if (!strictCheckPath)
+			// The module is already loaded and we do not wish to validate its path, treat it as a success
+			return true;
+
+		char actualPath[MAX_PATH];
+		if (!GetModuleFileNameA(handle, actualPath, MAX_PATH))
+		{
+			LogWarn("Failed to get the path of the loaded %s, error: %lu", name.c_str(), GetLastError());
+			return false;
+		}
+		string path1 = actualPath;
+		std::transform(path1.begin(), path1.end(), path1.begin(), ::toupper);
+		string path2 = path + '\\' + name;
+		std::transform(path2.begin(), path2.end(), path2.begin(), ::toupper);
+		if (path1 == path2)
+			// two paths match, ok
+			return true;
+
+		LogWarn("%s is loaded from %s, but we expect it from %s", name.c_str(), actualPath, path.c_str());
+		if (!forceUnload)
+			return false;
+
+		size_t unloadMaxTries = 100;
+		bool unloaded = false;
+		for (size_t i = 0; i < unloadMaxTries; i++)
+		{
+			FreeLibrary(handle);
+			handle = GetModuleHandleA(name.c_str());
+			if (handle == NULL)
+			{
+				unloaded = true;
+				break;
+			}
+		}
+		if (!unloaded)
+		{
+			LogDebug("Failed to unload module %s", name.c_str());
+			return false;
+		}
+		else
+		{
+			LogDebug("Module %s has been unloaded", name.c_str());
+		}
+	}
+
+	auto dllFullPath = path + '\\' + name;
+	handle = LoadLibraryA(dllFullPath.c_str());
+	if (handle == nullptr)
+	{
+		LogWarn("Failed to load %s, error: %lu", dllFullPath.c_str(), GetLastError());
+		return false;
+	}
+
+	return true;
+}
+
+
 bool DbgEngAdapter::LoadDngEngLibraries()
 {
 	auto enginePath = GetDbgEngPath("x64");
-	if (!enginePath.empty())
+	if (enginePath.empty())
 	{
-		LogDebug("DbgEng libraries in path %s", enginePath.c_str());
-		if (!SetDllDirectoryA(enginePath.c_str()))
-			LogWarn(
-				"Failed to set DLL directory to %s. The debugger is going to load the system dbgeng DLLs, which may "
-				"not work as expected",
-				enginePath.c_str());
-	}
-	else
-	{
-		LogWarn(
-			"debugger.x64dbgEngPath is empty or invalid. The debugger is going to load the system dbgeng DLLs, which "
-		    "may "
-			"not work as expected");
-	}
-
-	HMODULE handle;
-	handle = LoadLibraryA("dbgcore.dll");
-	if (handle == nullptr)
-	{
-		LogWarn("Failed to load dbgcore.dll, %d", GetLastError());
+		LogWarn("The debugger cannot find the path for the DbgEng DLLs. "
+			"If you have set debugger.x64dbgEngPath, check its correctness; if you have not set it, "
+			"reinstall the DbgEng redistributable");
 		return false;
 	}
+	LogDebug("DbgEng libraries in path %s", enginePath.c_str());
 
-	handle = LoadLibraryA("dbghelp.dll");
-	if (handle == nullptr)
-	{
-		LogWarn("Failed to load dbghelp.dll, %d", GetLastError());
-		return false;
-	}
+	auto settings = Settings::Instance();
+	auto strictCheckPath = settings->Get<bool>("debugger.checkDbgEngDLLPath");
+	auto forceUnload = settings->Get<bool>("debugger.tryUnloadWrongDbgEngDLL");
 
-	handle = LoadLibraryA("dbgmodel.dll");
-	if (handle == nullptr)
-	{
-		LogWarn("Failed to load dbgmodel.dll, %d", GetLastError());
+	if (!LoadOneDLL(enginePath, "dbghelp.dll", strictCheckPath, forceUnload))
 		return false;
-	}
 
-	handle = LoadLibraryA("dbgeng.dll");
-	if (handle == nullptr)
-	{
-		LogWarn("Failed to load dbgeng.dll, %d", GetLastError());
+	if (!LoadOneDLL(enginePath, "dbgcore.dll", strictCheckPath, forceUnload))
 		return false;
-	}
+
+	if (!LoadOneDLL(enginePath, "dbgmodel.dll", strictCheckPath, forceUnload))
+		return false;
+
+	if (!LoadOneDLL(enginePath, "dbgeng.dll", strictCheckPath, forceUnload))
+		return false;
+
+	return true;
 }
 
 std::string DbgEngAdapter::GenerateRandomPipeName()
@@ -237,7 +290,11 @@ bool DbgEngAdapter::Start()
 		auto pipeName = GenerateRandomPipeName();
 		auto connectString = fmt::format("npipe:pipe={},Server=localhost", pipeName);
 		auto arch = m_defaultArchitecture == "x86_64" ? "x64" : "x86";
-		auto dbgsrvCommandLine = fmt::format("\"{}\\dbgsrv.exe\" -t {}", GetDbgEngPath(arch), connectString);
+		auto enginePath = GetDbgEngPath(arch);
+		if (enginePath.empty())
+			return false;
+
+		auto dbgsrvCommandLine = fmt::format("\"{}\\dbgsrv.exe\" -t {}", enginePath, connectString);
 		if (!LaunchDbgSrv(dbgsrvCommandLine))
 		{
 			LogWarn("Command %s failed", dbgsrvCommandLine.c_str());
@@ -324,7 +381,7 @@ DbgEngAdapter::~DbgEngAdapter()
 
 bool DbgEngAdapter::Init()
 {
-	return LoadDngEngLibraries();
+	return true;
 }
 
 

@@ -30,6 +30,10 @@ using namespace BinaryNinjaDebugger;
 void InitDebugAdapterTypes()
 {
 #ifdef WIN32
+	if (!DbgEngAdapter::LoadDngEngLibraries())
+	{
+		LogWarn("Failed to load DbgEng DLLs, the DbgEng adapter cannot work properly");
+	}
     InitDbgEngAdapterType();
 	InitDbgEngTTDAdapterType();
 	InitWindowsKernelAdapterType();
@@ -89,6 +93,22 @@ static void RegisterSettings()
 			"type" : "string",
 			"default" : "",
 			"description" : "Path of the x86 DbgEng Installation. This folder should contain an x86 dbgeng.dll.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
+	settings->RegisterSetting("debugger.checkDbgEngDLLPath",
+		R"({
+			"title" : "Check DbgEng DLL path",
+			"type" : "boolean",
+			"default" : true,
+			"description" : "Check if the DbgEng DLLs are loaded from the correct path. This ensures the debugger is using the correct version of DLLs",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
+	settings->RegisterSetting("debugger.tryUnloadWrongDbgEngDLL",
+		R"({
+			"title" : "Attempt to unload the DLL with wrong path",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "Attempt to unload the already loaded DLL if they are from a wrong path. You may turn this on if the DbgEng DLLs, e.g., dbghelp.dll, is loaded from a wrong path, but it happens early than the debugger initialization",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 #endif

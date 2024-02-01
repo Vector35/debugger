@@ -13,7 +13,6 @@ LocalWindowsKernelAdapter::LocalWindowsKernelAdapter(BinaryView* data) : DbgEngA
 
 bool LocalWindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
                                             const std::string& workingDir, const LaunchConfigurations& configs) {
-	LogWarn("here");
     m_aboutToBeKilled = false;
 
     if (this->m_debugActive) {

@@ -74,14 +74,16 @@ DebugAdapter* LldbAdapterType::Create(BinaryNinja::BinaryView* data)
 	// the liblldb.dll is located.
 	// As a note, the reason for us to apply delay load on liblldb.dll is that if we load it early, it will also load
 	// the system's default dbgeng dlls, which does not work for our dbgeng adapter.
+	std::string lldbDir;
 	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
-		SetDllDirectoryA(GetUserPluginDirectory().c_str());
+		lldbDir = GetUserPluginDirectory();
 	else
-		SetDllDirectoryA(GetBundledPluginDirectory().c_str());
+		lldbDir = GetBundledPluginDirectory();
 
-	auto module = LoadLibraryA("liblldb.dll");
+	auto lldbPath = lldbDir + '\\' + "liblldb.dll";
+	auto module = LoadLibraryA(lldbPath.c_str());
 	if (module == NULL)
-		throw std::runtime_error("fail to load liblldb");
+		throw std::runtime_error(std::string("fail to load ") + lldbPath);
 #endif
 
 	// TODO: someone should free this.

@@ -32,8 +32,6 @@ namespace BinaryNinjaDebugger {
 		void Reset() override;
 
 		bool Quit() override;
-
-		std::string GetDbgEngPath(const std::string& arch) override;
     };
 
     class DbgEngTTDAdapterType : public DebugAdapterType
