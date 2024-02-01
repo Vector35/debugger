@@ -184,7 +184,7 @@ private slots:
 	void copy();
 };
 
-class GlobalThreadFramesContainer : public GlobalAreaWidget
+class GlobalThreadFramesContainer : public SidebarWidget
 {
 	ViewFrame* m_currentFrame;
 	QHash<ViewFrame*, ThreadFramesWidget*> m_consoleMap;
@@ -207,4 +207,14 @@ public:
 
 	void notifyViewChanged(ViewFrame*) override;
 	void notifyFontChanged() override;
+};
+
+
+class ThreadFramesSidebarWidgetType : public SidebarWidgetType
+{
+public:
+	ThreadFramesSidebarWidgetType();
+	SidebarWidgetLocation defaultLocation() const override { return SidebarWidgetLocation::RightBottom; }
+	SidebarContextSensitivity contextSensitivity() const override { return SelfManagedSidebarContext; }
+	bool hideIfNoContent() const override { return true; }
 };
