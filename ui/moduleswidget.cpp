@@ -723,5 +723,5 @@ bool DebugModulesFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelI
 
 
 DebugModulesSidebarWidgetType::DebugModulesSidebarWidgetType() :
-	SidebarWidgetType(QImage(":/letters/images/letter-icons/letter-M.png"), "Debugger Modules")
+	SidebarWidgetType(QImage(":/icons/images/squares.png"), "Debugger Modules")
 {}
