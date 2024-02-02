@@ -9,6 +9,7 @@ import platform
 import threading
 import subprocess
 import unittest
+from enum import Enum
 
 from binaryninja import load
 try:
@@ -16,17 +17,27 @@ try:
 except:
     from binaryninja.debugger import DebuggerController, DebugStopReason
 
+
+FileType = Enum("FileType", ["EXECUTABLE", "LIBRARY", "OTHER"])
+
 # 'helloworld' -> '{BN_SOURCE_ROOT}\public\debugger\test\binaries\Windows-x64\helloworld.exe' (windows)
 # 'helloworld' -> '{BN_SOURCE_ROOT}/public/debugger/test/binaries/Darwin/arm64/helloworld' (linux, macOS)
-def name_to_fpath(testbin, arch=None, os_str=None):
+def name_to_fpath(testbin, arch=None, file_type = FileType.EXECUTABLE):
     if arch is None:
         arch = platform.machine()
 
-    if os_str is None:
-        os_str = platform.system()
+    os_str = platform.system()
 
-    if os_str == 'Windows' and not testbin.endswith('.exe'):
-        testbin += '.exe'
+    if file_type == FileType.EXECUTABLE:
+        if os_str == 'Windows' and not testbin.endswith('.exe'):
+            testbin += '.exe'
+    elif file_type == FileType.LIBRARY:
+        if os_str == 'Windows' and not testbin.endswith('.dll'):
+            testbin += '.dll'
+        elif os_str == 'Linux' and not testbin.endswith('.so'):
+            testbin += '.so'
+        elif os_str == 'Darwin' and not testbin.endswith('.dylib'):
+            testbin += '.dylib'
 
     signed = ''
     if os_str == 'Darwin':
@@ -312,6 +323,18 @@ class DebuggerAPI(unittest.TestCase):
 
         dbg.quit_and_wait()
 
+
+    @unittest.skipIf(platform.system() != 'Windows', 'Only run debug library test on Windows')
+    def test_debug_libary(self):
+        executable_path = name_to_fpath('test_library', self.arch)
+        library_path  = name_to_fpath('library', self.arch, FileType.LIBRARY)
+        bv = load(library_path)
+        dbg = DebuggerController(bv)
+        dbg.executable_path = executable_path
+
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+
+        dbg.quit_and_wait()
 
 @unittest.skipIf(platform.system() != 'Darwin' or platform.machine() != 'arm64', "Only run arm64 tests on arm Mac")
 class DebuggerArm64Test(DebuggerAPI):
