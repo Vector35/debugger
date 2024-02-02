@@ -1020,7 +1020,7 @@ void DebuggerUI::openDebuggerSideBar(ViewFrame* frame)
 		sidebar = Sidebar::current();
 
 	if (sidebar)
-		sidebar->activate("Debugger");
+		sidebar->activate("Debugger", false);
 }
 
 
