@@ -320,7 +320,10 @@ extern "C"
         DebugAdapterStepReturn,
         DebugAdapterPause,
         DebugAdapterQuit,
-        DebugAdapterDetach
+        DebugAdapterDetach,
+		DebugAdapterStepIntoReverse,
+    	DebugAdapterStepOverReverse,
+    	DebugAdapterGoReverse,
     } BNDebuggerAdapterOperation;
 
 
@@ -392,17 +395,27 @@ extern "C"
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerAttachAndWait(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API bool BNDebuggerGo(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerGoReverse(BNDebuggerController* controller);
+
 	DEBUGGER_FFI_API bool BNDebuggerStepInto(BNDebuggerController* controller, BNFunctionGraphType il);
+	DEBUGGER_FFI_API bool BNDebuggerStepIntoReverse(BNDebuggerController* controller, BNFunctionGraphType il);
 	DEBUGGER_FFI_API bool BNDebuggerStepOver(BNDebuggerController* controller, BNFunctionGraphType il);
+	DEBUGGER_FFI_API bool BNDebuggerStepOverReverse(BNDebuggerController* controller, BNFunctionGraphType il);
 	DEBUGGER_FFI_API bool BNDebuggerStepReturn(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerRunTo(
 		BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerPause(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerGoAndWait(BNDebuggerController* controller);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerGoReverseAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepIntoAndWait(
 		BNDebuggerController* controller, BNFunctionGraphType il);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepIntoReverseAndWait(
+		BNDebuggerController* controller, BNFunctionGraphType il);
+	
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepOverAndWait(
+		BNDebuggerController* controller, BNFunctionGraphType il);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepOverReverseAndWait(
 		BNDebuggerController* controller, BNFunctionGraphType il);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepReturnAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRunToAndWait(
@@ -468,6 +481,7 @@ extern "C"
 
 	DEBUGGER_FFI_API char* BNDebuggerGetAddressInformation(BNDebuggerController* controller, uint64_t address);
 	DEBUGGER_FFI_API bool BNDebuggerIsFirstLaunch(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerIsTTD(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 

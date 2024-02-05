@@ -105,6 +105,22 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 		performSettings();
 	});
 	m_actionSettings->setToolTip(getToolTip("Debug Adapter Settings"));
+	addSeparator();
+	
+	m_actionStepIntoBack = addAction(getColoredIcon(":/debugger_icons/icons/stepinto.svg", red), "Step Into Backwards", [this]() {
+		performStepIntoReverse();
+	});
+	m_actionStepIntoBack->setToolTip(getToolTip("Step Into Backwards"));
+
+	m_actionStepOverBack = addAction(getColoredIcon(":/debugger_icons/icons/stepoverback.svg", red), "Step Over Backwards", [this]() {
+		performStepOverReverse();
+	});
+	m_actionStepOverBack->setToolTip(getToolTip("Step Over Backwards"));
+
+	m_actionGoBack = addAction(getColoredIcon(":/debugger_icons/icons/resumeback.svg", red), "Go Backwards", [this]() {
+		performGoReverse();
+	});
+	m_actionGoBack->setToolTip(getToolTip("Go Backwards"));
 	updateButtons();
 }
 
@@ -272,6 +288,12 @@ void DebugControlsWidget::performResume()
 }
 
 
+void DebugControlsWidget::performGoReverse()
+{
+	m_controller->GoReverse();
+}
+
+
 void DebugControlsWidget::performStepInto()
 {
 	BNFunctionGraphType graphType = NormalFunctionGraph;
@@ -281,8 +303,20 @@ void DebugControlsWidget::performStepInto()
 
 	if (graphType == InvalidILViewType)
 		graphType = NormalFunctionGraph;
-
 	m_controller->StepInto(graphType);
+}
+
+
+void DebugControlsWidget::performStepIntoReverse()
+{
+	BNFunctionGraphType graphType = NormalFunctionGraph;
+	UIContext* context = UIContext::contextForWidget(this);
+	if (context && context->getCurrentView())
+		graphType = context->getCurrentView()->getILViewType();
+
+	if (graphType == InvalidILViewType)
+		graphType = NormalFunctionGraph;
+	m_controller->StepIntoReverse(graphType);
 }
 
 
@@ -297,6 +331,20 @@ void DebugControlsWidget::performStepOver()
 		graphType = NormalFunctionGraph;
 
 	m_controller->StepOver(graphType);
+}
+
+
+void DebugControlsWidget::performStepOverReverse()
+{
+	BNFunctionGraphType graphType = NormalFunctionGraph;
+	UIContext* context = UIContext::contextForWidget(this);
+	if (context && context->getCurrentView())
+		graphType = context->getCurrentView()->getILViewType();
+
+	if (graphType == InvalidILViewType)
+		graphType = NormalFunctionGraph;
+
+	m_controller->StepOverReverse(graphType);
 }
 
 
@@ -363,6 +411,15 @@ void DebugControlsWidget::setSteppingEnabled(bool enabled)
 }
 
 
+void DebugControlsWidget::setReverseSteppingEnabled(bool enabled)
+{
+	m_actionStepIntoBack->setEnabled(enabled);
+	m_actionStepIntoBack->setVisible(enabled);
+	m_actionStepOverBack->setEnabled(enabled);
+	m_actionStepOverBack->setVisible(enabled);
+}
+
+
 void DebugControlsWidget::updateButtons()
 {
 	DebugAdapterConnectionStatus connection = m_controller->GetConnectionStatus();
@@ -373,35 +430,47 @@ void DebugControlsWidget::updateButtons()
 		setStartingEnabled(true);
 		setStoppingEnabled(false);
 		setSteppingEnabled(false);
+		setReverseSteppingEnabled(false);
 		m_actionPause->setEnabled(false);
 		m_actionResume->setEnabled(false);
+		m_actionGoBack->setEnabled(false);
 
 		m_actionRun->setVisible(true);
 		m_actionPause->setVisible(false);
 		m_actionResume->setVisible(false);
+		m_actionGoBack->setVisible(false);
 	}
 	else if (status == DebugAdapterRunningStatus)
 	{
 		setStartingEnabled(false);
 		setStoppingEnabled(true);
 		setSteppingEnabled(false);
+		setReverseSteppingEnabled(false);
+		m_actionStepIntoBack->setVisible(m_controller->IsTTD());
+		m_actionStepOverBack->setVisible(m_controller->IsTTD());
+		
 		m_actionPause->setEnabled(true);
 		m_actionResume->setEnabled(false);
+		m_actionGoBack->setEnabled(false);
 
 		m_actionRun->setVisible(false);
 		m_actionPause->setVisible(true);
 		m_actionResume->setVisible(false);
+		m_actionGoBack->setVisible(false);
 	}
 	else  // status == DebugAdapterPausedStatus
 	{
 		setStartingEnabled(false);
 		setStoppingEnabled(true);
 		setSteppingEnabled(true);
+		setReverseSteppingEnabled(m_controller->IsTTD());
 		m_actionPause->setEnabled(false);
 		m_actionResume->setEnabled(true);
+		m_actionGoBack->setEnabled(m_controller->IsTTD());
 
 		m_actionRun->setVisible(false);
 		m_actionPause->setVisible(false);
 		m_actionResume->setVisible(true);
+		m_actionGoBack->setVisible(m_controller->IsTTD());
 	}
 }

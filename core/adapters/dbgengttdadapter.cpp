@@ -143,7 +143,6 @@ bool DbgEngTTDAdapter::Start()
 		LogWarn("Failed to set input callbacks");
 		return false;
 	}
-
 	this->m_debugActive = true;
 	return true;
 }
@@ -184,6 +183,54 @@ void DbgEngTTDAdapter::Reset()
 	SAFE_RELEASE(this->m_debugClient);
 
 	this->m_debugActive = false;
+}
+
+
+bool DbgEngTTDAdapter::GoReverse()
+{
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return false;
+
+	m_lastOperationIsStepInto = false;
+	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_REVERSE_GO) != S_OK)
+		return false;
+
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return true;
+}
+
+
+bool DbgEngTTDAdapter::StepIntoReverse()
+{
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return false;
+
+	m_lastOperationIsStepInto = true;
+	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_REVERSE_STEP_INTO) != S_OK)
+		return false;
+
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return true;
+}
+
+
+bool DbgEngTTDAdapter::StepOverReverse()
+{
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return false;
+
+	m_lastOperationIsStepInto = true;
+	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_REVERSE_STEP_OVER) != S_OK)
+		return false;
+
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return true;
+}
+
+
+bool DbgEngTTDAdapter::SupportFeature(DebugAdapterCapacity feature)
+{
+	return DbgEngAdapter::SupportFeature(feature) || feature == DebugAdapterSupportTTD;
 }
 
 

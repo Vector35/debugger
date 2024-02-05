@@ -54,6 +54,7 @@ namespace BinaryNinjaDebugger {
 		DebugAdapterSupportStepOver,
 		DebugAdapterSupportModules,
 		DebugAdapterSupportThreads,
+		DebugAdapterSupportTTD,
 	};
 
 
@@ -285,6 +286,9 @@ namespace BinaryNinjaDebugger {
 		virtual bool StepOver() = 0;
 		//    virtual bool RunTo(std::uintptr_t address) = 0;
 
+		virtual bool GoReverse();		
+		virtual bool StepIntoReverse();
+		virtual bool StepOverReverse();
 		virtual bool StepReturn();
 
 		virtual std::string InvokeBackendCommand(const std::string& command) = 0;

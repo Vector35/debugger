@@ -503,16 +503,23 @@ namespace BinaryNinjaDebuggerAPI {
 		DebugStopReason AttachAndWait();
 
 		bool Go();
+		bool GoReverse();
 		bool StepInto(BNFunctionGraphType il = NormalFunctionGraph);
+		bool StepIntoReverse(BNFunctionGraphType il = NormalFunctionGraph);
 		bool StepOver(BNFunctionGraphType il = NormalFunctionGraph);
+		bool StepOverReverse(BNFunctionGraphType il = NormalFunctionGraph);
 		bool StepReturn();
+		
 		bool RunTo(uint64_t remoteAddresses);
 		bool RunTo(const std::vector<uint64_t>& remoteAddresses);
 		void Pause();
 
 		DebugStopReason GoAndWait();
+		DebugStopReason GoReverseAndWait();
 		DebugStopReason StepIntoAndWait(BNFunctionGraphType il = NormalFunctionGraph);
+		DebugStopReason StepIntoReverseAndWait(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph);
+		DebugStopReason StepOverReverseAndWait(BNFunctionGraphType il);
 		DebugStopReason StepReturnAndWait();
 		DebugStopReason RunToAndWait(uint64_t remoteAddresses);
 		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
@@ -578,8 +585,10 @@ namespace BinaryNinjaDebuggerAPI {
 
 		std::string GetAddressInformation(uint64_t address);
 		bool IsFirstLaunch();
+		bool IsTTD();
 
 		void PostDebuggerEvent(const DebuggerEvent& event);
+
 	};
 
 

@@ -829,6 +829,17 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerGo(self.handle)
 
+    # To do: Improve the documentation on reverse-execution functions
+    def go_reverse(self) -> bool:
+        """
+        Resume the target in reverse.
+
+        The call is asynchronous and returns before the target stops.
+
+        :return: the reason for the stop
+        """
+        return dbgcore.BNDebuggerGoReverse(self.handle)
+
     def step_into(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> bool:
         """
         Perform a step into on the target.
@@ -850,6 +861,27 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerStepInto(self.handle, il)
 
+    def step_into_reverse(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> bool:
+        """
+        Perform a step into on the target in reverse.
+
+        When the next instruction is not a call, execute the next instruction. When the next instruction is a call,
+        follow the call the get into the first instruction of the call.
+
+        The operation can be performed on an IL level specified by the ``il`` parameter, which then either executes the
+        next IL instruction, or follow into the IL function. Note, the underlying operation is still performed at the
+        disassembly level because that is the only thing a debugger understands. The high-level operations are simulated
+        on top of the disassembly and analysis.
+
+        Some limitations are known with stepping into on IL.
+
+        The call is asynchronous and returns before the target stops.
+
+        :param il: optional IL level to perform the operation at
+        :return: the reason for the stop
+        """
+        return dbgcore.BNDebuggerStepIntoReverse(self.handle, il)
+
     def step_over(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> bool:
         """
         Perform a step over on the target.
@@ -870,6 +902,27 @@ class DebuggerController:
         :return: the reason for the stop
         """
         return dbgcore.BNDebuggerStepOver(self.handle, il)
+
+    def step_over_reverse(self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph) -> bool:
+        """
+        Perform a step over on the target in reverse.
+
+        When the next instruction is not a call, execute the next instruction. When the next instruction is a call,
+        complete the execution of the function and break at next instruction.
+
+        The operation can be performed on an IL level specified by the ``il`` parameter, which then either executes the
+        next IL instruction, or completes the IL function. Note, the underlying operation is still performed at the
+        disassembly level because that is the only thing a debugger understands. The high-level operations are simulated
+        on top of the disassembly and analysis.
+
+        Some limitations are known with stepping over on IL.
+
+        The call is asynchronous and returns before the target stops.
+
+        :param il: optional IL level to perform the operation at
+        :return: the reason for the stop
+        """
+        return dbgcore.BNDebuggerStepOverReverse(self.handle, il)
 
     def step_return(self) -> bool:
         """
@@ -925,10 +978,20 @@ class DebuggerController:
         """
         return DebugStopReason(dbgcore.BNDebuggerGoAndWait(self.handle))
 
+    def go_reverse_and_wait(self) -> DebugStopReason:
+        """
+        Resume the target in reverse.
+
+        The call is blocking and only returns when the target stops.
+
+        :return: the reason for the stop
+        """
+        return DebugStopReason(dbgcore.BNDebuggerGoReverseAndWait(self.handle))
+
     def step_into_and_wait(self, il: binaryninja.FunctionGraphType =
                 binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
         """
-        Perform a step into on the target.
+        Perform a step into on the target in reverse.
 
         When the next instruction is not a call, execute the next instruction. When the next instruction is a call,
         follow the call the get into the first instruction of the call.
@@ -946,6 +1009,28 @@ class DebuggerController:
         :return: the reason for the stop
         """
         return DebugStopReason(dbgcore.BNDebuggerStepIntoAndWait(self.handle, il))
+
+
+    def step_into_reverse_and_wait(self, il: binaryninja.FunctionGraphType =
+    binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
+        """
+        Perform a reverse step into on the target.
+
+        When the previous instruction is not a call, reverse the program to the previous state. When the previous instruction is a call,
+        follow the call to get into the last instruction of the call.
+
+        The operation can be performed on an IL level specified by the ``il`` parameter, which then either reverses the current IL instruction, or follow into the previous IL function. Note, the underlying operation is still performed at the
+        disassembly level because that is the only thing a debugger understands. The high-level operations are simulated
+        on top of the disassembly and analysis.
+
+        Some limitations are known with stepping into on IL.
+
+        The call is blocking and only returns when the target stops.
+
+        :param il: optional IL level to perform the operation at
+        :return: the reason for the stop
+        """
+        return DebugStopReason(dbgcore.BNDebuggerStepIntoReverseAndWait(self.handle, il))
 
     def step_over_and_wait(self, il: binaryninja.FunctionGraphType =
                 binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
@@ -968,6 +1053,28 @@ class DebuggerController:
         :return: the reason for the stop
         """
         return DebugStopReason(dbgcore.BNDebuggerStepOverAndWait(self.handle, il))
+
+    def step_over_reverse_and_wait(self, il: binaryninja.FunctionGraphType =
+    binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
+        """
+        Perform a step over on the target in reverse.
+
+        When the next instruction is not a call, execute the next instruction. When the next instruction is a call,
+        complete the execution of the function and break at next instruction.
+
+        The operation can be performed on an IL level specified by the ``il`` parameter, which then either executes the
+        next IL instruction, or completes the IL function. Note, the underlying operation is still performed at the
+        disassembly level because that is the only thing a debugger understands. The high-level operations are simulated
+        on top of the disassembly and analysis.
+
+        Some limitations are known with stepping over on IL.
+
+        The call is blocking and only returns when the target stops.
+
+        :param il: optional IL level to perform the operation at
+        :return: the reason for the stop
+        """
+        return DebugStopReason(dbgcore.BNDebuggerStepOverReverseAndWait(self.handle, il))
 
     def step_return_and_wait(self) -> DebugStopReason:
         """

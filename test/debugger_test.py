@@ -11,6 +11,7 @@ import subprocess
 import unittest
 
 from binaryninja import load
+
 try:
     from debugger import DebuggerController, DebugStopReason
 except:
@@ -163,6 +164,29 @@ class DebuggerAPI(unittest.TestCase):
         self.assertEqual(reason, DebugStopReason.SingleStep)
         reason = dbg.go_and_wait()
         self.assertEqual(reason, DebugStopReason.ProcessExited)
+
+    def test_step_into_reverse(self):
+        fpath = name_to_fpath('helloworld', self.arch)
+        tpath = fpath + '.run'
+        bv = load(fpath)
+        dbg = DebuggerController(bv)
+        dbg.adapter_type = 'DBGENG_TTD (BETA)'
+        dbg.executable_path = tpath
+     
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        reason = dbg.go_and_wait()
+        self.assertEqual(reason, DebugStopReason.UnknownReason) # we reached the end of the trace
+        reason = dbg.step_over_reverse_and_wait()
+        self.assertEqual(reason, DebugStopReason.SingleStep)
+        dbg.step_into_reverse_and_wait()
+        self.assertEqual(reason, DebugStopReason.SingleStep)
+    
+        entry = dbg.data.entry_point
+        dbg.add_breakpoint(entry)
+        reason = dbg.go_reverse_and_wait()
+        self.assertEqual(reason, DebugStopReason.Breakpoint)
+        dbg.delete_breakpoint(entry)
+        dbg.quit_and_wait()
 
     def test_breakpoint(self):
         fpath = name_to_fpath('helloworld', self.arch)

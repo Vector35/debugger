@@ -43,8 +43,11 @@ private:
 	QAction* m_actionDetach;
 	QAction* m_actionPause;
 	QAction* m_actionResume;
+	QAction* m_actionGoBack;
 	QAction* m_actionStepInto;
+	QAction* m_actionStepIntoBack;
 	QAction* m_actionStepOver;
+	QAction* m_actionStepOverBack;
 	QAction* m_actionStepReturn;
 
 	QAction* m_actionSettings;
@@ -62,6 +65,7 @@ public:
 	void setStartingEnabled(bool enabled);
 	void setStoppingEnabled(bool enabled);
 	void setSteppingEnabled(bool enabled);
+	void setReverseSteppingEnabled(bool enabled);
 
 	void updateButtons();
 
@@ -74,8 +78,11 @@ public Q_SLOTS:
 
 	void performPause();
 	void performResume();
+	void performGoReverse();
 	void performStepInto();
+	void performStepIntoReverse();
 	void performStepOver();
+	void performStepOverReverse();
 	void performStepReturn();
 
 	void performSettings();

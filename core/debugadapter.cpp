@@ -93,6 +93,24 @@ bool DebugModule::IsSameBaseModule(const std::string& module1, const std::string
 }
 
 
+bool DebugAdapter::GoReverse()
+{
+	return false;
+}
+
+
+bool DebugAdapter::StepIntoReverse()
+{
+	return false;
+}
+
+
+bool DebugAdapter::StepOverReverse()
+{
+	return false;
+}
+
+
 bool DebugAdapter::StepReturn()
 {
 	return false;
