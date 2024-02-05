@@ -299,10 +299,21 @@ bool DebuggerController::Go()
 	return BNDebuggerGo(m_object);
 }
 
+bool DebuggerController::GoReverse()
+{
+	return BNDebuggerGoReverse(m_object);
+}
+
 
 DebugStopReason DebuggerController::GoAndWait()
 {
 	return BNDebuggerGoAndWait(m_object);
+}
+
+
+DebugStopReason DebuggerController::GoReverseAndWait()
+{
+	return BNDebuggerGoReverseAndWait(m_object);
 }
 
 
@@ -404,15 +415,33 @@ bool DebuggerController::StepInto(BNFunctionGraphType il)
 }
 
 
+bool DebuggerController::StepIntoReverse(BNFunctionGraphType il)
+{
+	return BNDebuggerStepIntoReverse(m_object, il);
+}
+
+
 bool DebuggerController::StepOver(BNFunctionGraphType il)
 {
 	return BNDebuggerStepOver(m_object, il);
 }
 
 
+bool DebuggerController::StepOverReverse(BNFunctionGraphType il)
+{
+	return BNDebuggerStepOverReverse(m_object, il);
+}
+
+
 bool DebuggerController::StepReturn()
 {
 	return BNDebuggerStepReturn(m_object);
+}
+
+
+bool DebuggerController::StepReturnReverse()
+{
+	return BNDebuggerStepReturnReverse(m_object);
 }
 
 
@@ -434,15 +463,32 @@ DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il)
 }
 
 
+DebugStopReason DebuggerController::StepIntoReverseAndWait(BNFunctionGraphType il)
+{
+	return BNDebuggerStepIntoReverseAndWait(m_object, il);
+}
+
+
 DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il)
 {
 	return BNDebuggerStepOverAndWait(m_object, il);
 }
 
 
+DebugStopReason DebuggerController::StepOverReverseAndWait(BNFunctionGraphType il)
+{
+	return BNDebuggerStepOverReverseAndWait(m_object, il);
+}
+
+
 DebugStopReason DebuggerController::StepReturnAndWait()
 {
 	return BNDebuggerStepReturnAndWait(m_object);
+}
+
+DebugStopReason DebuggerController::StepReturnReverseAndWait()
+{
+	return BNDebuggerStepReturnReverseAndWait(m_object);
 }
 
 
@@ -826,6 +872,12 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 bool DebuggerController::IsFirstLaunch()
 {
 	return BNDebuggerIsFirstLaunch(m_object);
+}
+
+
+bool DebuggerController::IsTTD()
+{
+	return BNDebuggerIsTTD(m_object);
 }
 
 

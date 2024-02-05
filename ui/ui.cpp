@@ -274,6 +274,18 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		return controller->IsConnected() && (!controller->IsRunning());
 	};
 
+	auto connectedAndStoppedWithTTD = [=](const UIActionContext& ctxt) {
+		if (!ctxt.binaryView)
+			return false;
+		if (!DebuggerController::ControllerExists(ctxt.binaryView))
+			return false;
+		auto controller = DebuggerController::GetController(ctxt.binaryView);
+		if (!controller)
+			return false;
+
+		return controller->IsConnected() && (!controller->IsRunning()) && controller->IsTTD();
+	};
+
 	auto connectedAndRunning = [=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
 			return false;
@@ -431,6 +443,20 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			connectedAndStopped));
 	debuggerMenu->addAction("Resume", "Control");
 
+	UIAction::registerAction("Go Backwards", QKeySequence(Qt::ShiftModifier | Qt::Key_F9));
+	context->globalActions()->bindAction("Go Backwards",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				controller->GoReverse();
+			},
+			connectedAndStoppedWithTTD));
+
 	UIAction::registerAction("Step Into", QKeySequence(Qt::Key_F7));
 	context->globalActions()->bindAction("Step Into",
 		UIAction(
@@ -448,6 +474,23 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			connectedAndStopped));
 	debuggerMenu->addAction("Step Into", "Control");
+
+	UIAction::registerAction("Step Into Backwards", QKeySequence(Qt::ShiftModifier | Qt::Key_F7));
+	context->globalActions()->bindAction("Step Into Backwards",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				BNFunctionGraphType graphType = NormalFunctionGraph;
+				if (ctxt.context && ctxt.context->getCurrentView())
+					graphType = ctxt.context->getCurrentView()->getILViewType();
+				controller->StepIntoReverse(graphType);
+			},
+			connectedAndStoppedWithTTD));
 
 	UIAction::registerAction("Step Over", QKeySequence(Qt::Key_F8));
 	context->globalActions()->bindAction("Step Over",
@@ -467,6 +510,23 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			connectedAndStopped));
 	debuggerMenu->addAction("Step Over", "Control");
 
+	UIAction::registerAction("Step Over Backwards", QKeySequence(Qt::ShiftModifier | Qt::Key_F8));
+	context->globalActions()->bindAction("Step Over Backwards",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				BNFunctionGraphType graphType = NormalFunctionGraph;
+				if (ctxt.context && ctxt.context->getCurrentView())
+					graphType = ctxt.context->getCurrentView()->getILViewType();
+				controller->StepOverReverse(graphType);
+			},
+			connectedAndStoppedWithTTD));
+
 	UIAction::registerAction("Step Return", QKeySequence(Qt::ControlModifier | Qt::Key_F9));
 	context->globalActions()->bindAction("Step Return",
 		UIAction(
@@ -481,6 +541,20 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			connectedAndStopped));
 	debuggerMenu->addAction("Step Return", "Control");
+
+	UIAction::registerAction("Step Return Backwards", QKeySequence( Qt::ControlModifier | Qt::ShiftModifier | Qt::Key_F9 ));
+	context->globalActions()->bindAction("Step Return Backwards",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				controller->StepReturnReverse();
+			},
+			connectedAndStoppedWithTTD));
 
 	UIAction::registerAction("Detach");
 	context->globalActions()->bindAction("Detach",

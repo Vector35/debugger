@@ -31,6 +31,13 @@ namespace BinaryNinjaDebugger {
 		bool Start() override;
 		void Reset() override;
 
+        bool GoReverse() override;
+        bool StepIntoReverse() override;
+    	bool StepOverReverse() override;
+    	bool StepReturnReverse() override;
+    	
+    	bool SupportFeature(DebugAdapterCapacity feature) override;
+    	
 		bool Quit() override;
     };
 

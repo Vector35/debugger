@@ -477,10 +477,21 @@ bool BNDebuggerGo(BNDebuggerController* controller)
 }
 
 
+bool BNDebuggerGoReverse(BNDebuggerController* controller)
+{
+	return controller->object->GoReverse();
+}
+
+
 bool BNDebuggerStepInto(BNDebuggerController* controller, BNFunctionGraphType il)
 {
 	return controller->object->StepInto(il);
 }
+
+bool BNDebuggerStepIntoReverse(BNDebuggerController* controller, BNFunctionGraphType il)
+ {
+ 	return controller->object->StepIntoReverse(il);
+ }
 
 
 bool BNDebuggerStepOver(BNDebuggerController* controller, BNFunctionGraphType il)
@@ -489,9 +500,21 @@ bool BNDebuggerStepOver(BNDebuggerController* controller, BNFunctionGraphType il
 }
 
 
+bool BNDebuggerStepOverReverse(BNDebuggerController* controller, BNFunctionGraphType il)
+{
+	return controller->object->StepOverReverse(il);
+}
+
+
 bool BNDebuggerStepReturn(BNDebuggerController* controller)
 {
 	return controller->object->StepReturn();
+}
+
+
+bool BNDebuggerStepReturnReverse(BNDebuggerController* controller)
+{
+	return controller->object->StepReturnReverse();
 }
 
 
@@ -513,9 +536,21 @@ BNDebugStopReason BNDebuggerGoAndWait(BNDebuggerController* controller)
 }
 
 
+BNDebugStopReason BNDebuggerGoReverseAndWait(BNDebuggerController* controller)
+{
+	return controller->object->GoReverseAndWait();
+}
+
+
 BNDebugStopReason BNDebuggerStepIntoAndWait(BNDebuggerController* controller, BNFunctionGraphType il)
 {
 	return controller->object->StepIntoAndWait(il);
+}
+
+
+BNDebugStopReason BNDebuggerStepIntoReverseAndWait(BNDebuggerController* controller, BNFunctionGraphType il)
+{
+	return controller->object->StepIntoReverseAndWait(il);
 }
 
 
@@ -524,10 +559,21 @@ BNDebugStopReason BNDebuggerStepOverAndWait(BNDebuggerController* controller, BN
 	return controller->object->StepOverAndWait(il);
 }
 
+BNDebugStopReason BNDebuggerStepOverReverseAndWait(BNDebuggerController* controller, BNFunctionGraphType il)
+{
+	return controller->object->StepOverReverseAndWait(il);
+}
+
 
 BNDebugStopReason BNDebuggerStepReturnAndWait(BNDebuggerController* controller)
 {
 	return controller->object->StepReturnAndWait();
+}
+
+
+BNDebugStopReason BNDebuggerStepReturnReverseAndWait(BNDebuggerController* controller)
+{
+	return controller->object->StepReturnReverseAndWait();
 }
 
 
@@ -977,6 +1023,12 @@ char* BNDebuggerGetAddressInformation(BNDebuggerController* controller, uint64_t
 bool BNDebuggerIsFirstLaunch(BNDebuggerController* controller)
 {
 	return controller->object->IsFirstLaunch();
+}
+
+
+bool BNDebuggerIsTTD(BNDebuggerController* controller)
+{
+	return controller->object->IsTTD();
 }
 
 

@@ -336,6 +336,17 @@ bool DebuggerController::Go()
 	return true;
 }
 
+bool DebuggerController::GoReverse()
+{
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanResumeTarget())
+		return false;
+
+	std::thread([&]() { GoReverseAndWait(); }).detach();
+
+	return true;
+}
+
 
 DebugStopReason DebuggerController::GoAndWait()
 {
@@ -343,6 +354,19 @@ DebugStopReason DebuggerController::GoAndWait()
 		return InternalError;
 
 	auto reason = GoAndWaitInternal();
+	if (!m_userRequestedBreak && (reason != ProcessExited))
+		NotifyStopped(reason);
+
+	m_targetControlMutex.unlock();
+	return reason;
+}
+
+DebugStopReason DebuggerController::GoReverseAndWait()
+{
+	if (!m_targetControlMutex.try_lock())
+		return InternalError;
+
+	auto reason = GoReverseAndWaitInternal();
 	if (!m_userRequestedBreak && (reason != ProcessExited))
 		NotifyStopped(reason);
 
@@ -456,6 +480,118 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 }
 
 
+DebugStopReason DebuggerController::StepIntoReverseIL(BNFunctionGraphType il)
+{
+	switch (il)
+	{
+	case NormalFunctionGraph:
+	{
+		return StepIntoReverseAndWaitInternal();
+	}
+	case LowLevelILFunctionGraph:
+	{
+		// TODO: This might cause infinite loop
+		while (true)
+		{
+			DebugStopReason reason = StepIntoReverseAndWaitInternal();
+			if (!ExpectSingleStep(reason))
+				return reason;
+
+			uint64_t newRemoteRip = m_state->IP();
+			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			if (functions.empty())
+				return SingleStep;
+
+			for (FunctionRef& func : functions)
+			{
+				LowLevelILFunctionRef llil = func->GetLowLevelILIfAvailable();
+				if (!llil)
+					return SingleStep;
+
+				size_t start = llil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				if (start < llil->GetInstructionCount())
+				{
+					if (llil->GetInstruction(start).address == newRemoteRip)
+						return SingleStep;
+				}
+			}
+		}
+		break;
+	}
+	case MediumLevelILFunctionGraph:
+	{
+		// TODO: This might cause infinite loop
+		while (true)
+		{
+			DebugStopReason reason = StepIntoReverseAndWaitInternal();
+			if (!ExpectSingleStep(reason))
+				return reason;
+
+			uint64_t newRemoteRip = m_state->IP();
+			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			if (functions.empty())
+				return SingleStep;
+
+			for (FunctionRef& func : functions)
+			{
+				MediumLevelILFunctionRef mlil = func->GetMediumLevelILIfAvailable();
+				if (!mlil)
+					return SingleStep;
+
+				size_t start = mlil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				if (start < mlil->GetInstructionCount())
+				{
+					if (mlil->GetInstruction(start).address == newRemoteRip)
+						return SingleStep;
+				}
+			}
+		}
+		break;
+	}
+	case HighLevelILFunctionGraph:
+	case HighLevelLanguageRepresentationFunctionGraph:
+	{
+		// TODO: This might cause infinite loop
+		while (true)
+		{
+			DebugStopReason reason = StepIntoReverseAndWaitInternal();
+			if (!ExpectSingleStep(reason))
+				return reason;
+
+			uint64_t newRemoteRip = m_state->IP();
+			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			if (functions.empty())
+				return SingleStep;
+
+			for (FunctionRef& func : functions)
+			{
+				HighLevelILFunctionRef hlil = func->GetHighLevelILIfAvailable();
+				if (!hlil)
+					return SingleStep;
+
+				for (size_t i = 0; i < hlil->GetInstructionCount(); i++)
+				{
+					if (hlil->GetInstruction(i).address == newRemoteRip)
+						return SingleStep;
+				}
+			}
+		}
+		break;
+	}
+	default:
+		LogWarn("step into unimplemented in the current il type");
+		return InvalidStatusOrOperation;
+	}
+}
+
+
+DebugStopReason DebuggerController::StepIntoReverseAndWaitInternal()
+{
+	m_userRequestedBreak = false;
+	// TODO: check if StepInto() succeeds
+	return ExecuteAdapterAndWait(DebugAdapterStepIntoReverse);
+}
+
 bool DebuggerController::StepInto(BNFunctionGraphType il)
 {
 	if (!CanResumeTarget())
@@ -466,6 +602,28 @@ bool DebuggerController::StepInto(BNFunctionGraphType il)
 	return true;
 }
 
+bool DebuggerController::StepIntoReverse(BNFunctionGraphType il)
+{
+	if (!CanResumeTarget())
+		return false;
+
+	std::thread([&, il]() { StepIntoReverseAndWait(il); }).detach();
+
+	return true;
+}
+
+DebugStopReason DebuggerController::StepIntoReverseAndWait(BNFunctionGraphType il)
+{
+	if (!m_targetControlMutex.try_lock())
+		return InternalError;
+
+	auto reason = StepIntoReverseIL(il);
+	if (!m_userRequestedBreak && (reason != ProcessExited))
+		NotifyStopped(reason);
+
+	m_targetControlMutex.unlock();
+	return reason;
+}
 
 DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il)
 {
@@ -479,7 +637,6 @@ DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il)
 	m_targetControlMutex.unlock();
 	return reason;
 }
-
 
 DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
 {
@@ -584,6 +741,109 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
 	}
 }
 
+DebugStopReason DebuggerController::StepOverReverseIL(BNFunctionGraphType il)
+{
+	switch (il)
+	{
+	case NormalFunctionGraph:
+	{
+		return StepOverReverseAndWaitInternal();
+	}
+	case LowLevelILFunctionGraph:
+	{
+		// TODO: This might cause infinite loop
+		while (true)
+		{
+			DebugStopReason reason = StepOverReverseAndWaitInternal();
+			if (!ExpectSingleStep(reason))
+				return reason;
+
+			uint64_t newRemoteRip = m_state->IP();
+			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			if (functions.empty())
+				return SingleStep;
+
+			for (FunctionRef& func : functions)
+			{
+				LowLevelILFunctionRef llil = func->GetLowLevelILIfAvailable();
+				if (!llil)
+					return SingleStep;
+
+				size_t start = llil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				if (start < llil->GetInstructionCount())
+				{
+					if (llil->GetInstruction(start).address == newRemoteRip)
+						return SingleStep;
+				}
+			}
+		}
+		break;
+	}
+	case MediumLevelILFunctionGraph:
+	{
+		// TODO: This might cause infinite loop
+		while (true)
+		{
+			DebugStopReason reason = StepOverReverseAndWaitInternal();
+			if (!ExpectSingleStep(reason))
+				return reason;
+			uint64_t newRemoteRip = m_state->IP();
+			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			if (functions.empty())
+				return SingleStep;
+
+			for (FunctionRef& func : functions)
+			{
+				MediumLevelILFunctionRef mlil = func->GetMediumLevelILIfAvailable();
+				if (!mlil)
+					return SingleStep;
+
+				size_t start = mlil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				if (start < mlil->GetInstructionCount())
+				{
+					if (mlil->GetInstruction(start).address == newRemoteRip)
+						return SingleStep;
+				}
+			}
+		}
+		break;
+	}
+	case HighLevelILFunctionGraph:
+	case HighLevelLanguageRepresentationFunctionGraph:
+	{
+		// TODO: This might cause infinite loop
+		while (true)
+		{
+			DebugStopReason reason = StepOverReverseAndWaitInternal();
+			if (!ExpectSingleStep(reason))
+				return reason;
+
+			uint64_t newRemoteRip = m_state->IP();
+			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			if (functions.empty())
+				return SingleStep;
+
+			for (FunctionRef& func : functions)
+			{
+				HighLevelILFunctionRef hlil = func->GetHighLevelILIfAvailable();
+				if (!hlil)
+					return SingleStep;
+
+				for (size_t i = 0; i < hlil->GetInstructionCount(); i++)
+				{
+					if (hlil->GetInstruction(i).address == newRemoteRip)
+						return SingleStep;
+				}
+			}
+		}
+		break;
+	}
+	default:
+		LogWarn("reverse step over unimplemented in the current il type");
+		return InvalidStatusOrOperation;
+	}
+}
+
 
 bool DebuggerController::StepOver(BNFunctionGraphType il)
 {
@@ -596,12 +856,37 @@ bool DebuggerController::StepOver(BNFunctionGraphType il)
 }
 
 
+bool DebuggerController::StepOverReverse(BNFunctionGraphType il)
+{
+	if (!CanResumeTarget())
+		return false;
+
+	std::thread([&, il]() { StepOverReverseAndWait(il); }).detach();
+
+	return true;
+}
+
+
 DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il)
 {
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
 	auto reason = StepOverIL(il);
+	if (!m_userRequestedBreak && (reason != ProcessExited))
+		NotifyStopped(reason);
+
+	m_targetControlMutex.unlock();
+	return reason;
+}
+
+
+DebugStopReason DebuggerController::StepOverReverseAndWait(BNFunctionGraphType il)
+{
+	if (!m_targetControlMutex.try_lock())
+		return InternalError;
+
+	auto reason = StepOverReverseIL(il);
 	if (!m_userRequestedBreak && (reason != ProcessExited))
 		NotifyStopped(reason);
 
@@ -647,6 +932,17 @@ DebugStopReason DebuggerController::StepReturnAndWaitInternal()
 }
 
 
+DebugStopReason DebuggerController::StepReturnReverseAndWaitInternal()
+{
+	m_userRequestedBreak = false;
+
+	if (true /* StepReturnReverseAvailable() */)
+	{
+		return ExecuteAdapterAndWait(DebugAdapterStepReturnReverse);
+	}
+}
+
+
 bool DebuggerController::StepReturn()
 {
 	if (!CanResumeTarget())
@@ -658,12 +954,37 @@ bool DebuggerController::StepReturn()
 }
 
 
+bool DebuggerController::StepReturnReverse()
+{
+	if (!CanResumeTarget())
+		return false;
+
+	std::thread([&]() { StepReturnReverseAndWait(); }).detach();
+
+	return true;
+}
+
+
 DebugStopReason DebuggerController::StepReturnAndWait()
 {
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
 	auto reason = StepReturnAndWaitInternal();
+	if (!m_userRequestedBreak && (reason != ProcessExited))
+		NotifyStopped(reason);
+
+	m_targetControlMutex.unlock();
+	return reason;
+}
+
+
+DebugStopReason DebuggerController::StepReturnReverseAndWait()
+{
+	if (!m_targetControlMutex.try_lock())
+		return InternalError;
+
+	auto reason = StepReturnReverseAndWaitInternal();
 	if (!m_userRequestedBreak && (reason != ProcessExited))
 		NotifyStopped(reason);
 
@@ -979,6 +1300,12 @@ DebugStopReason DebuggerController::GoAndWaitInternal()
 	return ExecuteAdapterAndWait(DebugAdapterGo);
 }
 
+DebugStopReason DebuggerController::GoReverseAndWaitInternal()
+{
+	m_userRequestedBreak = false;
+	return ExecuteAdapterAndWait(DebugAdapterGoReverse);
+}
+
 
 DebugStopReason DebuggerController::StepIntoAndWaitInternal()
 {
@@ -1037,6 +1364,21 @@ DebugStopReason DebuggerController::StepOverAndWaitInternal()
 	if (true /* StepOverAvailable() */)
 	{
 		return ExecuteAdapterAndWait(DebugAdapterStepOver);
+	}
+	else
+	{
+		// Emulate a step over
+		return EmulateStepOverAndWait();
+	}
+}
+
+DebugStopReason DebuggerController::StepOverReverseAndWaitInternal()
+{
+	m_userRequestedBreak = false;
+
+	if (true /* StepOverAvailable() */)
+	{
+		return ExecuteAdapterAndWait(DebugAdapterStepOverReverse);
 	}
 	else
 	{
@@ -1871,14 +2213,26 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 	case DebugAdapterGo:
 		resumeOK = m_adapter->Go();
 		break;
+	case DebugAdapterGoReverse:
+        resumeOK = m_adapter->GoReverse();
+        break;
 	case DebugAdapterStepInto:
 		resumeOK = m_adapter->StepInto();
 		break;
+	case DebugAdapterStepIntoReverse:
+        resumeOK = m_adapter->StepIntoReverse();
+        break;
 	case DebugAdapterStepOver:
 		resumeOK = m_adapter->StepOver();
 		break;
+	case DebugAdapterStepOverReverse:
+        resumeOK = m_adapter->StepOverReverse();
+        break;
 	case DebugAdapterStepReturn:
 		resumeOK = m_adapter->StepReturn();
+		break;
+	case DebugAdapterStepReturnReverse:
+		resumeOK = m_adapter->StepReturnReverse();
 		break;
 	case DebugAdapterPause:
 		operationRequested = m_adapter->BreakInto();
@@ -2185,4 +2539,12 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 bool DebuggerController::IsFirstLaunch()
 {
 	return m_firstLaunch;
+}
+
+
+bool DebuggerController::IsTTD()
+{
+	if(!m_adapter)
+		return false;
+	return m_adapter->SupportFeature(DebugAdapterSupportTTD);
 }

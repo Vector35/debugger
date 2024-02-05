@@ -105,7 +105,9 @@ namespace BinaryNinjaDebugger {
 		void SetLiveView(BinaryViewRef view) { m_liveView = view; }
 
 		DebugStopReason StepIntoIL(BNFunctionGraphType il);
+		DebugStopReason StepIntoReverseIL(BNFunctionGraphType il);
 		DebugStopReason StepOverIL(BNFunctionGraphType il);
+		DebugStopReason StepOverReverseIL(BNFunctionGraphType il);
 
 		// Low-level internal synchronous APIs. They resume the target and wait for the adapter to stop.
 		// They do NOT dispatch the debugger event callbacks. Higher-level APIs must take care of notifying
@@ -115,11 +117,15 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason ConnectAndWaitInternal();
 		DebugStopReason PauseAndWaitInternal();
 		DebugStopReason GoAndWaitInternal();
+		DebugStopReason GoReverseAndWaitInternal();
 		DebugStopReason StepIntoAndWaitInternal();
+		DebugStopReason StepIntoReverseAndWaitInternal();
 		DebugStopReason EmulateStepOverAndWait();
 		DebugStopReason StepOverAndWaitInternal();
+		DebugStopReason StepOverReverseAndWaitInternal();
 		DebugStopReason EmulateStepReturnAndWait();
 		DebugStopReason StepReturnAndWaitInternal();
+		DebugStopReason StepReturnReverseAndWaitInternal();
 		DebugStopReason RunToAndWaitInternal(const std::vector<uint64_t> &remoteAddresses);
 
 		// Whether we can resume the execution of the target, including stepping.
@@ -231,10 +237,14 @@ namespace BinaryNinjaDebugger {
 		bool Attach();
 		void Detach();
 		bool Go();
+		bool GoReverse();
 		void Quit();
 		bool StepInto(BNFunctionGraphType il = NormalFunctionGraph);
+		bool StepIntoReverse(BNFunctionGraphType il = NormalFunctionGraph);
 		bool StepOver(BNFunctionGraphType il = NormalFunctionGraph);
+		bool StepOverReverse(BNFunctionGraphType il);
 		bool StepReturn();
+		bool StepReturnReverse();
 		bool RunTo(const std::vector<uint64_t>& remoteAddresses);
 		bool Pause();
 
@@ -243,11 +253,15 @@ namespace BinaryNinjaDebugger {
 		// Synchronous APIs
 		DebugStopReason LaunchAndWait();
 		DebugStopReason GoAndWait();
+		DebugStopReason GoReverseAndWait();
 		DebugStopReason AttachAndWait();
 		DebugStopReason ConnectAndWait();
 		DebugStopReason StepIntoAndWait(BNFunctionGraphType il = NormalFunctionGraph);
+		DebugStopReason StepIntoReverseAndWait(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph);
+		DebugStopReason StepOverReverseAndWait(BNFunctionGraphType il);
 		DebugStopReason StepReturnAndWait();
+		DebugStopReason StepReturnReverseAndWait();
 		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
 		DebugStopReason PauseAndWait();
 		void DetachAndWait();
@@ -279,5 +293,6 @@ namespace BinaryNinjaDebugger {
 		std::string GetAddressInformation(uint64_t address);
 
 		bool IsFirstLaunch();
+		bool IsTTD();
 	};
 };  // namespace BinaryNinjaDebugger
