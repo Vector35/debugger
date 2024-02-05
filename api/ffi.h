@@ -321,7 +321,7 @@ extern "C"
         DebugAdapterPause,
         DebugAdapterQuit,
         DebugAdapterDetach,
-		DebugAdapterStepIntoReverse,
+	DebugAdapterStepIntoReverse,
     	DebugAdapterStepOverReverse,
     	DebugAdapterGoReverse,
     } BNDebuggerAdapterOperation;
