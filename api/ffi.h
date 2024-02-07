@@ -324,6 +324,7 @@ extern "C"
 		DebugAdapterStepIntoReverse,
     	DebugAdapterStepOverReverse,
     	DebugAdapterGoReverse,
+    	DebugAdapterStepReturnReverse,
     } BNDebuggerAdapterOperation;
 
 
@@ -402,6 +403,7 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerStepOver(BNDebuggerController* controller, BNFunctionGraphType il);
 	DEBUGGER_FFI_API bool BNDebuggerStepOverReverse(BNDebuggerController* controller, BNFunctionGraphType il);
 	DEBUGGER_FFI_API bool BNDebuggerStepReturn(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerStepReturnReverse(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerRunTo(
 		BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerPause(BNDebuggerController* controller);
@@ -418,6 +420,7 @@ extern "C"
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepOverReverseAndWait(
 		BNDebuggerController* controller, BNFunctionGraphType il);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepReturnAndWait(BNDebuggerController* controller);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepReturnReverseAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRunToAndWait(
 		BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerPauseAndWait(BNDebuggerController* controller);

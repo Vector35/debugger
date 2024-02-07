@@ -829,7 +829,7 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerGo(self.handle)
 
-    # To do: Improve the documentation on reverse-execution functions
+    # TODO: Improve the documentation on reverse-execution functions
     def go_reverse(self) -> bool:
         """
         Resume the target in reverse.
@@ -865,8 +865,8 @@ class DebuggerController:
         """
         Perform a step into on the target in reverse.
 
-        When the next instruction is not a call, execute the next instruction. When the next instruction is a call,
-        follow the call the get into the first instruction of the call.
+        When the previous instruction is not a call, step backwards. When the previous instruction is a call,
+        follow the call into the last instruction of the function.
 
         The operation can be performed on an IL level specified by the ``il`` parameter, which then either executes the
         next IL instruction, or follow into the IL function. Note, the underlying operation is still performed at the
@@ -907,8 +907,8 @@ class DebuggerController:
         """
         Perform a step over on the target in reverse.
 
-        When the next instruction is not a call, execute the next instruction. When the next instruction is a call,
-        complete the execution of the function and break at next instruction.
+        When the previous instruction is not a call, step backwards. When the previous instruction is a call,
+        step back over the call.
 
         The operation can be performed on an IL level specified by the ``il`` parameter, which then either executes the
         next IL instruction, or completes the IL function. Note, the underlying operation is still performed at the
@@ -943,6 +943,26 @@ class DebuggerController:
         :return: the reason for the stop
         """
         return dbgcore.BNDebuggerStepReturn(self.handle)
+    
+    def step_return_reverse(self) -> bool:
+        """
+        Perform a step return on the target in reverse.
+
+        Step return reverses the execution of the current function and returns to its caller. This operation relies
+        heavily on stack frame analysis, which is done by the DebugAdapters.
+
+        If a DebugAdapter does not support (i.e., overload) this function, a fallback handling is provided by the
+        DebuggerController. It checks the MLIL function and put breakpoints on all returning instructions and then resume
+        the target. By the time it breaks, the target is about to return from the current function.
+
+        This fallback behavior is slightly different from that offered by the LLDB and DbgEng adapter, which returns
+        from the current function and break afterwards.
+
+        The call is asynchronous and returns before the target stops.
+
+        :return: the reason for the stop
+        """
+        return dbgcore.BNDebuggerStepReturnReverse(self.handle)
 
     def run_to(self, address) -> bool:
         """
@@ -1498,6 +1518,10 @@ class DebuggerController:
     @property
     def is_first_launch(self):
         return dbgcore.BNDebuggerIsFirstLaunch(self.handle)
+
+    @property
+    def is_ttd(self):
+        return dbgcore.BNDebuggerIsTTD(self.handle)
 
     def __del__(self):
         if dbgcore is not None:

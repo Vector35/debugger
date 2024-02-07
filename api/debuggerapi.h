@@ -509,7 +509,8 @@ namespace BinaryNinjaDebuggerAPI {
 		bool StepOver(BNFunctionGraphType il = NormalFunctionGraph);
 		bool StepOverReverse(BNFunctionGraphType il = NormalFunctionGraph);
 		bool StepReturn();
-		
+		bool StepReturnReverse();
+
 		bool RunTo(uint64_t remoteAddresses);
 		bool RunTo(const std::vector<uint64_t>& remoteAddresses);
 		void Pause();
@@ -521,6 +522,7 @@ namespace BinaryNinjaDebuggerAPI {
 		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepOverReverseAndWait(BNFunctionGraphType il);
 		DebugStopReason StepReturnAndWait();
+		DebugStopReason StepReturnReverseAndWait();
 		DebugStopReason RunToAndWait(uint64_t remoteAddresses);
 		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
 		DebugStopReason PauseAndWait();
@@ -567,6 +569,7 @@ namespace BinaryNinjaDebuggerAPI {
 
 		size_t RegisterEventCallback(
 			std::function<void(const DebuggerEvent& event)> callback, const std::string& name = "");
+		void RecordTrace();
 		static void DebuggerEventCallback(void* ctxt, BNDebuggerEvent* view);
 
 		void RemoveEventCallback(size_t index);

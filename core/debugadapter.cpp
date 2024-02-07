@@ -116,6 +116,11 @@ bool DebugAdapter::StepReturn()
 	return false;
 }
 
+bool DebugAdapter::StepReturnReverse()
+{
+	return false;
+}
+
 
 uint64_t DebugAdapter::GetStackPointer()
 {

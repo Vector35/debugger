@@ -124,6 +124,7 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason StepOverReverseAndWaitInternal();
 		DebugStopReason EmulateStepReturnAndWait();
 		DebugStopReason StepReturnAndWaitInternal();
+		DebugStopReason StepReturnReverseAndWaitInternal();
 		DebugStopReason RunToAndWaitInternal(const std::vector<uint64_t> &remoteAddresses);
 
 		// Whether we can resume the execution of the target, including stepping.
@@ -237,6 +238,7 @@ namespace BinaryNinjaDebugger {
 		bool StepOver(BNFunctionGraphType il = NormalFunctionGraph);
 		bool StepOverReverse(BNFunctionGraphType il);
 		bool StepReturn();
+		bool StepReturnReverse();
 		bool RunTo(const std::vector<uint64_t>& remoteAddresses);
 		bool Pause();
 
@@ -253,6 +255,7 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepOverReverseAndWait(BNFunctionGraphType il);
 		DebugStopReason StepReturnAndWait();
+		DebugStopReason StepReturnReverseAndWait();
 		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
 		DebugStopReason PauseAndWait();
 		void DetachAndWait();

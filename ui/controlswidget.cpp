@@ -105,22 +105,29 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 		performSettings();
 	});
 	m_actionSettings->setToolTip(getToolTip("Debug Adapter Settings"));
-	addSeparator();
+
+	if(m_controller->IsTTD())
+		addSeparator(); //TODO: IsTTD only updates when the adapter is connected. This leaves the separator in place when the adapter is disconnected.
+	
+	m_actionGoBack = addAction(getColoredIcon(":/debugger_icons/icons/resume.svg", red), "Go Backwards", [this]() {
+		performGoReverse();
+	});
+	m_actionGoBack->setToolTip(getToolTip("Go Backwards"));
 	
 	m_actionStepIntoBack = addAction(getColoredIcon(":/debugger_icons/icons/stepinto.svg", red), "Step Into Backwards", [this]() {
 		performStepIntoReverse();
 	});
 	m_actionStepIntoBack->setToolTip(getToolTip("Step Into Backwards"));
 
-	m_actionStepOverBack = addAction(getColoredIcon(":/debugger_icons/icons/stepoverback.svg", red), "Step Over Backwards", [this]() {
+	m_actionStepOverBack = addAction(getColoredIcon(":/debugger_icons/icons/stepover.svg", red), "Step Over Backwards", [this]() {
 		performStepOverReverse();
 	});
 	m_actionStepOverBack->setToolTip(getToolTip("Step Over Backwards"));
 
-	m_actionGoBack = addAction(getColoredIcon(":/debugger_icons/icons/resumeback.svg", red), "Go Backwards", [this]() {
-		performGoReverse();
+	m_actionStepReturnBack = addAction(getColoredIcon(":/debugger_icons/icons/stepout.svg", red), "Step Return Backwards", [this]() {
+		performStepReturnReverse();
 	});
-	m_actionGoBack->setToolTip(getToolTip("Go Backwards"));
+	m_actionStepReturnBack->setToolTip(getToolTip("Step Return Backwards"));
 	updateButtons();
 }
 
@@ -353,6 +360,10 @@ void DebugControlsWidget::performStepReturn()
 	m_controller->StepReturn();
 }
 
+void DebugControlsWidget::performStepReturnReverse()
+{
+	m_controller->StepReturnReverse();
+}
 
 void DebugControlsWidget::performSettings()
 {
@@ -417,6 +428,8 @@ void DebugControlsWidget::setReverseSteppingEnabled(bool enabled)
 	m_actionStepIntoBack->setVisible(enabled);
 	m_actionStepOverBack->setEnabled(enabled);
 	m_actionStepOverBack->setVisible(enabled);
+	m_actionStepReturnBack->setEnabled(enabled);
+	m_actionStepReturnBack->setVisible(enabled);
 }
 
 

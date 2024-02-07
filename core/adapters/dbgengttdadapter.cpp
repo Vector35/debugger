@@ -227,6 +227,15 @@ bool DbgEngTTDAdapter::StepOverReverse()
 	return true;
 }
 
+bool DbgEngTTDAdapter::StepReturnReverse()
+{
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return false;
+
+	InvokeBackendCommand("g-u");
+	return true;
+}
+
 
 bool DbgEngTTDAdapter::SupportFeature(DebugAdapterCapacity feature)
 {

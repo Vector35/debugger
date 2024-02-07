@@ -417,6 +417,12 @@ bool DebuggerController::StepReturn()
 }
 
 
+bool DebuggerController::StepReturnReverse()
+{
+	return BNDebuggerStepReturnReverse(m_object);
+}
+
+
 bool DebuggerController::RunTo(uint64_t remoteAddresses)
 {
 	return RunTo(std::vector<uint64_t> {remoteAddresses});
@@ -456,6 +462,11 @@ DebugStopReason DebuggerController::StepOverReverseAndWait(BNFunctionGraphType i
 DebugStopReason DebuggerController::StepReturnAndWait()
 {
 	return BNDebuggerStepReturnAndWait(m_object);
+}
+
+DebugStopReason DebuggerController::StepReturnReverseAndWait()
+{
+	return BNDebuggerStepReturnReverseAndWait(m_object);
 }
 
 

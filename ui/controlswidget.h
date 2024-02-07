@@ -49,6 +49,7 @@ private:
 	QAction* m_actionStepOver;
 	QAction* m_actionStepOverBack;
 	QAction* m_actionStepReturn;
+	QAction* m_actionStepReturnBack;
 
 	QAction* m_actionSettings;
 
@@ -84,6 +85,7 @@ public Q_SLOTS:
 	void performStepOver();
 	void performStepOverReverse();
 	void performStepReturn();
+	void performStepReturnReverse();
 
 	void performSettings();
 };

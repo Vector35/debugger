@@ -281,15 +281,20 @@ namespace BinaryNinjaDebugger {
 
 		virtual bool Go() = 0;
 
+		virtual bool GoReverse();
+		
 		virtual bool StepInto() = 0;
+		
+		virtual bool StepIntoReverse();
 
 		virtual bool StepOver() = 0;
-		//    virtual bool RunTo(std::uintptr_t address) = 0;
-
-		virtual bool GoReverse();		
-		virtual bool StepIntoReverse();
+		
 		virtual bool StepOverReverse();
+		//    virtual bool RunTo(std::uintptr_t address) = 0;
+		
 		virtual bool StepReturn();
+
+		virtual bool StepReturnReverse();
 
 		virtual std::string InvokeBackendCommand(const std::string& command) = 0;
 

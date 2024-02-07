@@ -927,6 +927,17 @@ DebugStopReason DebuggerController::StepReturnAndWaitInternal()
 }
 
 
+DebugStopReason DebuggerController::StepReturnReverseAndWaitInternal()
+{
+	m_userRequestedBreak = false;
+
+	if (true /* StepReturnReverseAvailable() */)
+	{
+		return ExecuteAdapterAndWait(DebugAdapterStepReturnReverse);
+	}
+}
+
+
 bool DebuggerController::StepReturn()
 {
 	if (!CanResumeTarget())
@@ -938,12 +949,37 @@ bool DebuggerController::StepReturn()
 }
 
 
+bool DebuggerController::StepReturnReverse()
+{
+	if (!CanResumeTarget())
+		return false;
+
+	std::thread([&]() { StepReturnReverseAndWait(); }).detach();
+
+	return true;
+}
+
+
 DebugStopReason DebuggerController::StepReturnAndWait()
 {
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
 	auto reason = StepReturnAndWaitInternal();
+	if (!m_userRequestedBreak && (reason != ProcessExited))
+		NotifyStopped(reason);
+
+	m_targetControlMutex.unlock();
+	return reason;
+}
+
+
+DebugStopReason DebuggerController::StepReturnReverseAndWait()
+{
+	if (!m_targetControlMutex.try_lock())
+		return InternalError;
+
+	auto reason = StepReturnReverseAndWaitInternal();
 	if (!m_userRequestedBreak && (reason != ProcessExited))
 		NotifyStopped(reason);
 
@@ -2153,6 +2189,9 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
         break;
 	case DebugAdapterStepReturn:
 		resumeOK = m_adapter->StepReturn();
+		break;
+	case DebugAdapterStepReturnReverse:
+		resumeOK = m_adapter->StepReturnReverse();
 		break;
 	case DebugAdapterPause:
 		operationRequested = m_adapter->BreakInto();

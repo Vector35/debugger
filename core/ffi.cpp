@@ -531,6 +531,12 @@ bool BNDebuggerStepReturn(BNDebuggerController* controller)
 }
 
 
+bool BNDebuggerStepReturnReverse(BNDebuggerController* controller)
+{
+	return controller->object->StepReturnReverse();
+}
+
+
 bool BNDebuggerRunTo(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count)
 {
 	std::vector<uint64_t> addresses;
@@ -581,6 +587,12 @@ BNDebugStopReason BNDebuggerStepOverReverseAndWait(BNDebuggerController* control
 BNDebugStopReason BNDebuggerStepReturnAndWait(BNDebuggerController* controller)
 {
 	return controller->object->StepReturnAndWait();
+}
+
+
+BNDebugStopReason BNDebuggerStepReturnReverseAndWait(BNDebuggerController* controller)
+{
+	return controller->object->StepReturnReverseAndWait();
 }
 
 
