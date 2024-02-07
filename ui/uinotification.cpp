@@ -170,7 +170,9 @@ void NotificationListener::OnAfterCloseFile(UIContext* context, FileContext* fil
 
 void NotificationListener::OnViewChange(UIContext* context, ViewFrame* frame, const QString& type)
 {
-	GlobalDebuggerUI::GetForContext(context)->SetActiveFrame(frame);
+	auto ui = GlobalDebuggerUI::GetForContext(context);
+	if (ui != nullptr)
+		ui->SetActiveFrame(frame);
 }
 
 
