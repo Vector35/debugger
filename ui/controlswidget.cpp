@@ -44,17 +44,17 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	auto red = getThemeColor(RedStandardHighlightColor);
 	auto white = getThemeColor(WhiteStandardHighlightColor);
 
-	m_actionRun = addAction(getColoredIcon(":/debugger_icons/icons/run.svg", red), "Launch", [this]() {
+	m_actionRun = addAction(getColoredIcon(":/debugger/start", red), "Launch", [this]() {
 		performLaunch();
 	});
 	m_actionRun->setToolTip(getToolTip("Launch"));
 
-	m_actionPause = addAction(getColoredIcon(":/debugger_icons/icons/pause.svg", white), "Pause", [this]() {
+	m_actionPause = addAction(getColoredIcon(":/debugger/pause", white), "Pause", [this]() {
 		performPause();
 	});
 	m_actionPause->setToolTip(getToolTip("Pause"));
 
-	m_actionResume = addAction(getColoredIcon(":/debugger_icons/icons/resume.svg", green), "Resume", [this]() {
+	m_actionResume = addAction(getColoredIcon(":/debugger/resume", green), "Resume", [this]() {
 		performResume();
 	});
 	m_actionResume->setToolTip(getToolTip("Resume"));
@@ -63,45 +63,45 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	m_actionPause->setVisible(false);
 	m_actionResume->setVisible(false);
 
-	m_actionAttachPid = addAction(getColoredIcon(":/debugger_icons/icons/connect.svg", white), "Attach To Process...", [this]() {
+	m_actionAttachPid = addAction(getColoredIcon(":/debugger/connect", white), "Attach To Process...", [this]() {
 		performAttachPID(); 
 	});
 	m_actionAttachPid->setToolTip(getToolTip("Attach To Process..."));
 
-	m_actionDetach = addAction(getColoredIcon(":/debugger_icons/icons/disconnect.svg", red), "Detach", [this]() {
+	m_actionDetach = addAction(getColoredIcon(":/debugger/disconnect", red), "Detach", [this]() {
 		performDetach();
 	});
 	m_actionDetach->setVisible(false);
 	m_actionDetach->setToolTip(getToolTip("Detach"));
 
-	m_actionRestart = addAction(getColoredIcon(":/debugger_icons/icons/restart.svg", red), "Restart", [this]() {
+	m_actionRestart = addAction(getColoredIcon(":/debugger/restart", red), "Restart", [this]() {
 		performRestart();
 	});
 	m_actionRestart->setToolTip(getToolTip("Restart"));
 
-	m_actionQuit = addAction(getColoredIcon(":/debugger_icons/icons/cancel.svg", red), "Kill", [this]() {
+	m_actionQuit = addAction(getColoredIcon(":/debugger/cancel", red), "Kill", [this]() {
 		performQuit();
 	});
 	m_actionQuit->setToolTip(getToolTip("Kill"));
 	addSeparator();
 
-	m_actionStepInto = addAction(getColoredIcon(":/debugger_icons/icons/stepinto.svg", cyan), "Step Into", [this]() {
+	m_actionStepInto = addAction(getColoredIcon(":/debugger/step-into", cyan), "Step Into", [this]() {
 		performStepInto();
 	});
 	m_actionStepInto->setToolTip(getToolTip("Step Into"));
 
-	m_actionStepOver = addAction(getColoredIcon(":/debugger_icons/icons/stepover.svg", cyan), "Step Over", [this]() {
+	m_actionStepOver = addAction(getColoredIcon(":/debugger/step-over", cyan), "Step Over", [this]() {
 		performStepOver();
 	});
 	m_actionStepOver->setToolTip(getToolTip("Step Over"));
 
-	m_actionStepReturn = addAction(getColoredIcon(":/debugger_icons/icons/stepout.svg", cyan), "Step Return", [this]() {
+	m_actionStepReturn = addAction(getColoredIcon(":/debugger/step-out", cyan), "Step Return", [this]() {
 		performStepReturn();
 	});
 	m_actionStepReturn->setToolTip(getToolTip("Step Return"));
 	addSeparator();
 
-	m_actionSettings = addAction(getColoredIcon(":/debugger_icons/icons/settings.svg", cyan), "Settings", [this]() {
+	m_actionSettings = addAction(getColoredIcon(":/debugger/settings", cyan), "Settings", [this]() {
 		performSettings();
 	});
 	m_actionSettings->setToolTip(getToolTip("Debug Adapter Settings"));
@@ -115,7 +115,7 @@ DebugControlsWidget::~DebugControlsWidget() {}
 QIcon DebugControlsWidget::getColoredIcon(const QString& iconPath, const QColor& color)
 {
 	auto pixmap = QPixmap(iconPath);
-	auto mask = pixmap.createMaskFromColor(QColor("transparent"), Qt::MaskInColor);
+	auto mask = pixmap.createMaskFromColor(QColor(0, 0, 0), Qt::MaskInColor);
 	pixmap.fill(color);
 	pixmap.setMask(mask);
 	return QIcon(pixmap);

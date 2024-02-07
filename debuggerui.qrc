@@ -1,19 +1,22 @@
 <RCC>
-    <qresource prefix="/debugger_icons">
-        <file>icons/run.svg</file>
-        <file>icons/cancel.svg</file>
-        <file>icons/connect.svg</file>
-        <file>icons/disconnect.svg</file>
-        <file>icons/pause.svg</file>
-        <file>icons/restart.svg</file>
-        <file>icons/resume.svg</file>
-        <file>icons/stepinto.svg</file>
-        <file>icons/stepout.svg</file>
-        <file>icons/stepover.svg</file>
-        <file>icons/stop.svg</file>
-        <file>icons/debugger.svg</file>
-        <file>icons/breakpoint.svg</file>
-        <file>icons/menu.png</file>
-        <file>icons/settings.svg</file>
+    <qresource prefix="/debugger">
+        <file alias="add">icons/add.png</file>
+        <file alias="breakpoint">icons/breakpoint.png</file>
+        <file alias="cancel">icons/cancel.png</file>
+        <file alias="connect">icons/connect.png</file>
+        <file alias="debugger">icons/debugger.png</file>
+        <file alias="disconnect">icons/disconnect.png</file>
+        <file alias="menu">icons/menu.png</file>
+        <file alias="pause">icons/pause.png</file>
+        <file alias="remove">icons/remove.png</file>
+        <file alias="restart">icons/restart.png</file>
+        <file alias="resume">icons/resume.png</file>
+        <file alias="settings">icons/settings.png</file>
+        <file alias="start">icons/start.png</file>
+        <file alias="step-back">icons/step-back.png</file>
+        <file alias="step-into">icons/step-into.png</file>
+        <file alias="step-out">icons/step-out.png</file>
+        <file alias="step-over">icons/step-over.png</file>
+        <file alias="stop">icons/stop.png</file>
     </qresource>
 </RCC>

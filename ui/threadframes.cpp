@@ -843,5 +843,5 @@ void GlobalThreadFramesContainer::notifyFontChanged()
 
 
 ThreadFramesSidebarWidgetType::ThreadFramesSidebarWidgetType() :
-	SidebarWidgetType(QImage(":/icons/images/stack_new.png"), "Stack Trace")
+	SidebarWidgetType(QImage(":/icons/images/stack-trace.png"), "Stack Trace")
 {}
