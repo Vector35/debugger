@@ -1448,7 +1448,7 @@ static bool ConnectedAndRunning(BinaryView* view, uint64_t addr)
 
 void GlobalDebuggerUI::InitializeUI()
 {
-	Sidebar::addSidebarWidgetType(new DebuggerWidgetType(QImage(":/debugger_icons/icons/debugger.svg"), "Debugger"));
+	Sidebar::addSidebarWidgetType(new DebuggerWidgetType(QImage(":/debugger/debugger"), "Debugger"));
 	Sidebar::addSidebarWidgetType(new DebugModulesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new ThreadFramesSidebarWidgetType());
 

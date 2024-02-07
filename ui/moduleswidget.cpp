@@ -585,7 +585,7 @@ DebugModulesWithFilter::DebugModulesWithFilter(ViewFrame* view, BinaryViewRef da
 	headerLayout->setContentsMargins(1, 1, 6, 0);
 	headerLayout->setAlignment(Qt::AlignBaseline);
 
-	auto* icon = new ClickableIcon(QImage(":/debugger_icons/icons/menu.png"), QSize(16, 16));
+	auto* icon = new ClickableIcon(QImage(":/debugger/menu"), QSize(16, 16));
 	connect(icon, &ClickableIcon::clicked, m_modules, &DebugModulesWidget::showContextMenu);
 	headerLayout->addWidget(icon);
 
@@ -723,5 +723,5 @@ bool DebugModulesFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelI
 
 
 DebugModulesSidebarWidgetType::DebugModulesSidebarWidgetType() :
-	SidebarWidgetType(QImage(":/icons/images/squares.png"), "Debugger Modules")
+	SidebarWidgetType(QImage(":/icons/images/squares-bug.png"), "Debugger Modules")
 {}
