@@ -365,6 +365,8 @@ void DebugControlsWidget::setSteppingEnabled(bool enabled)
 
 void DebugControlsWidget::updateButtons()
 {
+	this->setIconSize(QSize(20, 20));
+
 	DebugAdapterConnectionStatus connection = m_controller->GetConnectionStatus();
 	DebugAdapterTargetStatus status = m_controller->GetTargetStatus();
 
