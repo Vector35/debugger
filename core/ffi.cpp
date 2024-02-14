@@ -22,59 +22,6 @@ limitations under the License.
 using namespace BinaryNinjaDebugger;
 
 
-// Macro-like function to convert an non-referenced object to the external API reference
-template <typename T>
-static auto* API_OBJECT_STATIC(T* obj)
-{
-	if (obj == nullptr)
-		return nullptr;
-	return obj->GetAPIObject();
-}
-
-template <typename T>
-static auto* API_OBJECT_STATIC(const BinaryNinja::Ref<T>& obj)
-{
-	if (!obj)
-		return (decltype(obj->m_object))nullptr;
-	obj->AddRef();
-	return obj->GetObject();
-}
-
-// From refcountobject.h
-template <typename T>
-static auto* API_OBJECT_REF(T* obj)
-{
-	if (obj == nullptr)
-		return (decltype(obj->m_object))nullptr;
-	obj->AddRef();
-	return obj->m_object;
-}
-
-template <typename T>
-static auto* API_OBJECT_REF(const BinaryNinja::Ref<T>& obj)
-{
-	if (!obj)
-		return (decltype(obj->m_object))nullptr;
-	obj->AddRef();
-	return obj->m_object;
-}
-
-template <class T>
-static T* API_OBJECT_NEW_REF(T* obj)
-{
-	if (obj)
-		obj->object->AddRef();
-	return obj;
-}
-
-template <class T>
-static void API_OBJECT_FREE(T* obj)
-{
-	if (obj)
-		obj->object->ReleaseAPIRef();
-}
-
-
 char* BNDebuggerAllocString(const char* contents)
 {
 	return BNAllocString(contents);
@@ -131,25 +78,35 @@ bool BNDebuggerControllerExists(BNBinaryView* data)
 
 BNBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller)
 {
-	return API_OBJECT_REF(controller->object->GetLiveView());
+	BinaryViewRef result = controller->object->GetLiveView();
+	if (result)
+		return BNNewViewReference(result->GetObject());
+	return nullptr;
 }
 
 
 BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller)
 {
-	return API_OBJECT_REF(controller->object->GetData());
+	BinaryViewRef result = controller->object->GetData();
+	if (result)
+		return BNNewViewReference(result->GetObject());
+	return nullptr;
 }
 
 
 void BNDebuggerSetData(BNDebuggerController* controller, BNBinaryView* data)
 {
-	controller->object->SetData(new BinaryView(data));
+	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	controller->object->SetData(view);
 }
 
 
 BNArchitecture* BNDebuggerGetRemoteArchitecture(BNDebuggerController* controller)
 {
-	return API_OBJECT_STATIC(controller->object->GetRemoteArchitecture());
+	ArchitectureRef result = controller->object->GetRemoteArchitecture();
+	if (result)
+		return result->GetObject();
+	return nullptr;
 }
 
 
@@ -596,13 +553,15 @@ BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name)
 
 bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, BNBinaryView* data)
 {
-	return adapter->object->CanExecute(new BinaryView(data));
+	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	return adapter->object->CanExecute(view);
 }
 
 
 bool BNDebugAdapterTypeCanConnect(BNDebugAdapterType* adapter, BNBinaryView* data)
 {
-	return adapter->object->CanConnect(new BinaryView(data));
+	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	return adapter->object->CanConnect(view);
 }
 
 
@@ -620,7 +579,8 @@ BNDebugAdapterTargetStatus BNDebuggerGetTargetStatus(BNDebuggerController* contr
 
 char** BNGetAvailableDebugAdapterTypes(BNBinaryView* data, size_t* count)
 {
-	std::vector<std::string> adapters = DebugAdapterType::GetAvailableAdapters(new BinaryView(data));
+	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	std::vector<std::string> adapters = DebugAdapterType::GetAvailableAdapters(view);
 	*count = adapters.size();
 
 	std::vector<const char*> cstrings;
@@ -964,7 +924,10 @@ DEBUGGER_FFI_API DebugStopReason BNDebuggerGetStopReason(BNDebuggerController* c
 
 DEBUGGER_FFI_API BNMetadata* BNDebuggerGetAdapterProperty(BNDebuggerController* controller, const char* name)
 {
-	return API_OBJECT_REF(controller->object->GetAdapterProperty(name));
+	Ref<Metadata> result = controller->object->GetAdapterProperty(name);
+	if (result)
+		return BNNewMetadataReference(result->GetObject());
+	return nullptr;
 }
 
 
