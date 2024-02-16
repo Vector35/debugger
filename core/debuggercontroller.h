@@ -146,6 +146,11 @@ namespace BinaryNinjaDebugger {
 		static DbgRef<DebuggerController> GetController(BinaryViewRef data);
 		static void DeleteController(BinaryViewRef data);
 		static bool ControllerExists(BinaryViewRef data);
+
+		static DbgRef<DebuggerController> GetController(FileMetadataRef file);
+		static void DeleteController(FileMetadataRef file);
+		static bool ControllerExists(FileMetadataRef file);
+
 		// Explicitly destroy the current controller, so a new controller on the same binaryview will be brand new.
 		// I am not super sure that this is the correct way of doing things, but it addresses the controller reuse
 		// problem.
@@ -252,6 +257,7 @@ namespace BinaryNinjaDebugger {
 		DebugAdapter* GetAdapter() { return m_adapter; }
 		DebuggerState* GetState() { return m_state; }
 		BinaryViewRef GetData() { return m_file->GetViewOfType(m_viewName); }
+		FileMetadataRef GetFile() { return m_file; }
 		void SetData(BinaryViewRef view) {}
 		BinaryViewRef GetLiveView() const { return m_liveView; }
 

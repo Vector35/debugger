@@ -1125,11 +1125,63 @@ bool DebuggerController::ControllerExists(BinaryViewRef data)
 }
 
 
+DbgRef<DebuggerController> DebuggerController::GetController(FileMetadataRef file)
+{
+	for (size_t i = 0; i < g_controllerCount; i++)
+	{
+		DebuggerController* controller = g_debuggerControllers[i];
+		if (!controller)
+			continue;
+		if (controller->GetFile() == file)
+			return controller;
+	}
+
+	// You cannot create a controller from a file -- you must use a binary view for it
+	return nullptr;
+}
+
+
+bool DebuggerController::ControllerExists(FileMetadataRef file)
+{
+	for (size_t i = 0; i < g_controllerCount; i++)
+	{
+		DbgRef<DebuggerController> controller = g_debuggerControllers[i];
+		if (!controller)
+			continue;
+		if (controller->GetFile() == file)
+			return true;
+	}
+
+	return false;
+}
+
+
+void DebuggerController::DeleteController(FileMetadataRef file)
+{
+	for (size_t i = 0; i < g_controllerCount; i++)
+	{
+		DbgRef<DebuggerController> controller = g_debuggerControllers[i];
+		if (!controller)
+			continue;
+
+		if (controller->GetFile() == file)
+		{
+			g_debuggerControllers[i] = nullptr;
+		}
+	}
+}
+
+
 void DebuggerController::Destroy()
 {
-	DebuggerController::DeleteController(GetData());
+	DebuggerController::DeleteController(GetFile());
 	m_file = nullptr;
 	m_liveView = nullptr;
+	if (m_state)
+	{
+		delete m_state;
+		m_state = nullptr;
+	}
 }
 
 

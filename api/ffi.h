@@ -49,6 +49,7 @@ extern "C"
 	typedef struct BNDebuggerState BNDebuggerState;
 
 	typedef struct BNBinaryView BNBinaryView;
+	typedef struct BNFileMetadata BNFileMetadata;
 	typedef struct BNArchitecture BNArchitecture;
 	typedef struct BNDataBuffer BNDataBuffer;
 	typedef struct BNMetadata BNMetadata;
@@ -332,6 +333,8 @@ extern "C"
 	DEBUGGER_FFI_API BNDebuggerController* BNGetDebuggerController(BNBinaryView* data);
 	DEBUGGER_FFI_API void BNDebuggerDestroyController(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerControllerExists(BNBinaryView* data);
+	DEBUGGER_FFI_API BNDebuggerController* BNGetDebuggerControllerFromFile(BNFileMetadata* file);
+	DEBUGGER_FFI_API bool BNDebuggerControllerExistsFromFile(BNFileMetadata* file);
 	DEBUGGER_FFI_API BNBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerSetData(BNDebuggerController* controller, BNBinaryView* data);

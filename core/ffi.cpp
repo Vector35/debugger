@@ -76,6 +76,30 @@ bool BNDebuggerControllerExists(BNBinaryView* data)
 }
 
 
+BNDebuggerController* BNGetDebuggerControllerFromFile(BNFileMetadata* file)
+{
+	if (!file)
+		return nullptr;
+
+	Ref<FileMetadata> fileObject = new FileMetadata(BNNewFileReference(file));
+	DebuggerController* controller = DebuggerController::GetController(fileObject);
+	if (!controller)
+		return nullptr;
+
+	return DBG_API_OBJECT_REF(controller);
+}
+
+
+bool BNDebuggerControllerExistsFromFile(BNFileMetadata* file)
+{
+	if (!file)
+		return false;
+
+	Ref<FileMetadata> fileObject = new FileMetadata(BNNewFileReference(file));
+	return DebuggerController::ControllerExists(fileObject);
+}
+
+
 BNBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller)
 {
 	BinaryViewRef result = controller->object->GetLiveView();

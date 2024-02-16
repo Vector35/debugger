@@ -78,34 +78,6 @@ bool NotificationListener::OnBeforeSaveFile(UIContext* context, FileContext* fil
 void NotificationListener::OnAfterSaveFile(UIContext* context, FileContext* file, ViewFrame* frame) {}
 
 
-static void DestroyControllers(FileContext* file)
-{
-	for (auto view : file->getAllDataViews())
-	{
-		if (DebuggerController::ControllerExists(view))
-		{
-			auto controller = DebuggerController::GetController(view);
-			if (controller)
-				controller->Destroy();
-		}
-	}
-}
-
-
-static void DestroyControllers(const std::vector<BinaryViewRef>& datas)
-{
-	for (auto view : datas)
-	{
-		if (DebuggerController::ControllerExists(view))
-		{
-			auto controller = DebuggerController::GetController(view);
-			if (controller)
-				controller->Destroy();
-		}
-	}
-}
-
-
 bool NotificationListener::OnBeforeCloseFile(UIContext* context, FileContext* file, ViewFrame* frame)
 {
 	auto mainWindow = context->mainWindow();
@@ -118,48 +90,44 @@ bool NotificationListener::OnBeforeCloseFile(UIContext* context, FileContext* fi
 			count++;
 	}
 
-	// This is the last tab of the file being closed. Check whether the debugger is connected
-	if (count == 1)
-	{
-		auto viewFrame = context->getCurrentViewFrame();
-		if (!viewFrame)
-			return true;
-		auto data = viewFrame->getCurrentBinaryView();
-		if (!data)
-			return true;
-		auto controller = DebuggerController::GetController(data);
-		if (controller && controller->IsConnected())
-		{
-			QMessageBox* msgBox = new QMessageBox(mainWindow);
-			msgBox->setAttribute(Qt::WA_DeleteOnClose);
-			msgBox->setIcon(QMessageBox::Question);
-			msgBox->setText(QObject::tr("The debugger file ") + file->getShortFileName(mainWindow)
-				+ QObject::tr(" is active. Do you want to stop it before closing?"));
-			msgBox->setWindowTitle(QObject::tr("Debugger Active"));
-			msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::Cancel);
-			msgBox->setDefaultButton(QMessageBox::Yes);
-			msgBox->show();
-			msgBox->move(mainWindow->frameGeometry().center() - msgBox->rect().center());
-			msgBox->setAttribute(Qt::WA_KeyboardFocusChange);
-			int result = msgBox->exec();
-			if (result == QMessageBox::Cancel)
-				return false;
-			else if (result == QMessageBox::Yes)
-			{
-				// Since the UIContext is not ref-counted, it would have been deleted when the thread we create below
-				// gets a chance to run. So we need to take all its data views and pass them as a parameter.
-				auto datas = file->getAllDataViews();
-				std::thread([=]() {
-					// Since we cannot wait for the target to stop on the main thread, we must create a new thread and
-					// wait from there.
-					controller->QuitAndWait();
-					DestroyControllers(datas);
-				}).detach();
-				return true;
-			}
-		}
+	// If this is not the last tab of the file being closed, return
+	if (count != 1)
+		return true;
 
-		DestroyControllers(file);
+	auto controller = DebuggerController::GetController(file->getMetadata());
+	if (!controller)
+		return true;
+
+	if (controller->IsConnected())
+	{
+		QMessageBox* msgBox = new QMessageBox(mainWindow);
+		msgBox->setAttribute(Qt::WA_DeleteOnClose);
+		msgBox->setIcon(QMessageBox::Question);
+		msgBox->setText(QObject::tr("The debugger file ") + file->getShortFileName(mainWindow)
+			+ QObject::tr(" is active. Do you want to stop it before closing?"));
+		msgBox->setWindowTitle(QObject::tr("Debugger Active"));
+		msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::Cancel);
+		msgBox->setDefaultButton(QMessageBox::Yes);
+		msgBox->show();
+		msgBox->move(mainWindow->frameGeometry().center() - msgBox->rect().center());
+		msgBox->setAttribute(Qt::WA_KeyboardFocusChange);
+		int result = msgBox->exec();
+		if (result == QMessageBox::Cancel)
+			return false;
+		else if (result == QMessageBox::Yes)
+		{
+			std::thread([=]() {
+				// Since we cannot wait for the target to stop on the main thread, we must create a new thread and
+				// wait from there.
+				controller->QuitAndWait();
+				controller->Destroy();
+			}).detach();
+			return true;
+		}
+	}
+	else
+	{
+		controller->Destroy();
 	}
 	return true;
 }

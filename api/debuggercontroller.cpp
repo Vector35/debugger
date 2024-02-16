@@ -22,7 +22,23 @@ using namespace std;
 
 DbgRef<DebuggerController> DebuggerController::GetController(Ref<BinaryNinja::BinaryView> data)
 {
+	if (!data)
+		return nullptr;
+
 	BNDebuggerController* controller = BNGetDebuggerController(data->GetObject());
+	if (!controller)
+		return nullptr;
+
+	return new DebuggerController(controller);
+}
+
+
+DbgRef<DebuggerController> DebuggerController::GetController(Ref<BinaryNinja::FileMetadata> file)
+{
+	if (!file)
+		return nullptr;
+
+	BNDebuggerController* controller = BNGetDebuggerControllerFromFile(file->GetObject());
 	if (!controller)
 		return nullptr;
 
@@ -39,6 +55,12 @@ DebuggerController::DebuggerController(BNDebuggerController* controller)
 bool DebuggerController::ControllerExists(Ref<BinaryNinja::BinaryView> data)
 {
 	return BNDebuggerControllerExists(data->GetObject());
+}
+
+
+bool DebuggerController::ControllerExists(Ref<BinaryNinja::FileMetadata> file)
+{
+	return BNDebuggerControllerExistsFromFile(file->GetObject());
 }
 
 

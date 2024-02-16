@@ -455,6 +455,8 @@ namespace BinaryNinjaDebuggerAPI {
 		DebuggerController(BNDebuggerController* controller);
 		static DbgRef<DebuggerController> GetController(Ref<BinaryNinja::BinaryView> data);
 		static bool ControllerExists(Ref<BinaryNinja::BinaryView> data);
+		static DbgRef<DebuggerController> GetController(Ref<BinaryNinja::FileMetadata> file);
+		static bool ControllerExists(Ref<BinaryNinja::FileMetadata> file);
 		void Destroy();
 		Ref<BinaryView> GetLiveView();
 		Ref<BinaryView> GetData();
