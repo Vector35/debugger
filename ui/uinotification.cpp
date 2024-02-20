@@ -81,13 +81,17 @@ void NotificationListener::OnAfterSaveFile(UIContext* context, FileContext* file
 bool NotificationListener::OnBeforeCloseFile(UIContext* context, FileContext* file, ViewFrame* frame)
 {
 	auto mainWindow = context->mainWindow();
-	auto tabs = context->getTabs();
+
 	size_t count = 0;
-	for (auto tab : tabs)
+	for (const auto& ctx: UIContext::allContexts())
 	{
-		auto viewFrame = context->getViewFrameForTab(tab);
-		if (viewFrame && (viewFrame->getFileContext() == file))
-			count++;
+		auto tabs = ctx->getTabs();
+		for (auto tab : tabs)
+		{
+			auto viewFrame = ctx->getViewFrameForTab(tab);
+			if (viewFrame && (viewFrame->getFileContext() == file))
+				count++;
+		}
 	}
 
 	// If this is not the last tab of the file being closed, return
