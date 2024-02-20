@@ -404,4 +404,5 @@ void DebugBreakpointsWidget::updateContent()
 	}
 
 	m_model->updateRows(bps);
+	resizeColumnsToContents();
 }

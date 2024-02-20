@@ -161,8 +161,6 @@ The size of the main executable is still calculated correctly.
 
 ![](../img/debugger/statuswidget.png)
 
-![](../img/debugger/statuswidget2.png)
-
 A debugger status widget is added to the main window's status bar. It indicates the current status of the target.
 
 For example, when the target stops, it will include the reason for the stop. When the target exits, the exit code is reported. When an error occurs during certain operations, an error message will also be displayed here.
@@ -190,19 +188,15 @@ Among these actions, target control actions, e.g., `Run`/`Step Into` have the sa
 
 When the target breaks and a stack trace is available, the debugger annotates the stack variables in the linear view as data variables.
 
-The above image shows the annotated stack with three stack frames. The start and end of each stack frame are marked, and stack variables are defined according to the stack variables in the functions.
+The above image shows the annotated stack with two stack frames. The start and end of each stack frame are marked, and stack variables are defined according to the stack variables in the functions.
 
-To view the stack variable annotations, switch to the linear view of the Debugger binary view, and then navigate to the stack pointer address (such as by double-clicking the stack pointer in the Registers view).
-
-A useful setup is a split view that shows the code on the left, and the stack on the right. If the user adopts this layout, remember to put the linear view that shows the stack region on a different sync group, so executing the target would not lead to navigation of the linear view. This way, we can observe how variables on the stack change.
-
-In the future, we will offer a way to set up this side-by-side view in one click.
+To quickly create a split view that views code and stack side-by-side, in the main window menu, click `Debugger`->`Create Stack View`.
 
 Only the stack frames and variables of the current (active) thread are annotated to avoid confusion. If you wish to view stack variables from a different thread, first switch to that thread in the `Stack Trace` global area panel.
 
 The annotation is done only when there are at least two frames in the stack trace. This is a known limitation, and we will address it later.
 
-If the stack variable annotation does not work in certain cases or even causes extra problems, it can be disabled by setting `debugger.stackVariableAnnotations` to false.
+If the stack variable annotation does not work in certain cases or even causes problems, it can be disabled by setting `debugger.stackVariableAnnotations` to false.
 
 
 ### Other UI Elements
