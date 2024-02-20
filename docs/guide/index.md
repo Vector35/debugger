@@ -7,7 +7,7 @@ The debugger plugin is shipped with Binary Ninja. It is [open-source](https://gi
 
 ## UI
 
-[<img src="../img/debugger/ui.png" width="100%" align="center"/>](../img/debugger/ui.png)
+[<img src="../../img/debugger/ui.png" width="100%" align="center"/>](../../img/debugger/ui.png)
 
 The debugger UI mainly consists of six parts:
 
@@ -28,7 +28,7 @@ The debugger sidebar contains three widgets: the control buttons, the register w
 
 #### Control Buttons
 
-![](../img/debugger/controlbuttons.png)
+![](../../img/debugger/controlbuttons.png)
 
 There is a row of buttons at the top of the debugger sidebar. They control the execution of the target. The behavior of each button is hopefully intuitive from its icon. You can also hover over the button to see the name of the icon.
 
@@ -40,11 +40,11 @@ For `Step Into` and `Step Over`, if the current view is viewing an IL function, 
 
 When the `Attach To Process...` button is clicked, a dialog pops up and shows all the running processes on the system. Selecting one of them and clicking `Attach` will attach to the process.
 
-![](../img/debugger/attachtopid.png)
+![](../../img/debugger/attachtopid.png)
 
 #### Register Widget
 
-![](../img/debugger/registerwidget.png)
+![](../../img/debugger/registerwidget.png)
 
 Register widget lists registers and their values. A hint column presents anything interesting pointed to by the register. Currently, only strings and pointers to strings are considered. In the future, we would also annotate variables.
 
@@ -57,7 +57,7 @@ An experimental feature is added to shorten the list: registers with a value of 
 
 #### Breakpoint Widget
 
-![](../img/debugger/breakpointwidget.png)
+![](../../img/debugger/breakpointwidget.png)
 
 The breakpoint widget lists breakpoints in the target. There are two columns in it, the left one shows the address in the format of `module + offset`, and the right column shows the absolute address.
 
@@ -68,13 +68,13 @@ The context menu of the widget offers to delete a breakpoint or to jump to the a
 
 There is a `Debugger` menu in the main window menu bar.
 
-![](../img/debugger/debuggermenu.png)
+![](../../img/debugger/debuggermenu.png)
 
 It contains duplicates of the debugger control operations available via icons and also shows the hotkeys bound to those actions.
 
 The `Debug Adapter Settings...` menu item will trigger a `Debug Adapter Settings` dialog:
 
-![](../img/debugger/adaptersettings.png)
+![](../../img/debugger/adaptersettings.png)
 
 Within this dialog, you can select which DebugAdapter to use, as well as configure debugger settings such as command-line arguments or the working directory.
 
@@ -99,7 +99,7 @@ There are several useful actions in the debugger menu that are worth explaining:
 3. `Override IP` allows changing the instruction pointer value. This is useful when we wish to revert a branch -- simply set the new IP at the other target of the branch. 
 The new IP defaults to the currently selected address. A dialog will pop up after clicking this action, which allows confirming and editing the new IP.
 
-![](../img/debugger/overrideip.png)
+![](../../img/debugger/overrideip.png)
 
 ### Global Area Panels
 
@@ -107,7 +107,7 @@ The debugger adds four new global area widgets: Target Console (terminal), Debug
 
 #### Target Console
 
-![](../img/debugger/targetterminal.png)
+![](../../img/debugger/targetterminal.png)
 
 The `Target Console` panel simulates a terminal for the target. If the process writes to stdout, the content will be printed here. There is an input box at the bottom, and anything entered into it will be sent to the target's stdin.
 
@@ -117,7 +117,7 @@ On macOS and Linux, the default setting redirects the stdin/stdout here. However
 
 #### Debugger Console
 
-![](../img/debugger/debuggerconsole.png)
+![](../../img/debugger/debuggerconsole.png)
 
 The debugger console allows the user to execute backend commands and get the result.
 
@@ -131,7 +131,7 @@ Like the Python console, all addresses in the debugger console is clickable -- c
 
 #### Stack Trace
 
-![](../img/debugger/stacktracewidget.png)
+![](../../img/debugger/stacktracewidget.png)
 
 The stack trace widget lists all the threads along with the stack frames. 
 
@@ -141,13 +141,13 @@ Double-clicking the addresses in the PC (program counter), SP (stack pointer), a
 
 The active thread is marked with `(*)`. Double-clicking another thread will set that as the active thread. As a result, the register widget will show the registers from the new active thread.
 
-![](../img/debugger/threadwidgetcontextmenu.png)
+![](../../img/debugger/threadwidgetcontextmenu.png)
 
 The context menu offers to suspend and resume each thread individually. A convenience method is offered to make a thread "solo", which suspends all other threads and resumes the thread. Note, resuming the thread does NOT cause the thread to start executing immediately. It only makes the thread execute the next time the target is resumed, e.g., by pressing the `Go` or `Step Over` button. There are some known issues when suspending/resuming individual threads with LLDB adapter.
 
 #### Module Widget
 
-![](../img/debugger/modulewidget.png)
+![](../../img/debugger/modulewidget.png)
 
 The module widget shows the start/end address, size, name, and path information of the target's modules.
 
@@ -159,9 +159,7 @@ The size of the main executable is still calculated correctly.
 
 ### Debugger Status Widget
 
-![](../img/debugger/statuswidget.png)
-
-![](../img/debugger/statuswidget2.png)
+![](../../img/debugger/statuswidget.png)
 
 A debugger status widget is added to the main window's status bar. It indicates the current status of the target.
 
@@ -172,7 +170,7 @@ The widget shows the status of the debugger for the current binary view if a deb
 
 ### Context menu
 
-![](../img/debugger/contextmenu.png)
+![](../../img/debugger/contextmenu.png)
 
 The debugger registers a series of useful actions along with keyboard shortcuts. These shortcuts can be customized using Binary Ninja's keybindings support.
 
@@ -186,23 +184,19 @@ Among these actions, target control actions, e.g., `Run`/`Step Into` have the sa
 
 ### Stack Variable Annotation
 
-![](../img/debugger/stackvariable.png)
+![](../../img/debugger/stackvariable.png)
 
 When the target breaks and a stack trace is available, the debugger annotates the stack variables in the linear view as data variables.
 
-The above image shows the annotated stack with three stack frames. The start and end of each stack frame are marked, and stack variables are defined according to the stack variables in the functions.
+The above image shows the annotated stack with two stack frames. The start and end of each stack frame are marked, and stack variables are defined according to the stack variables in the functions.
 
-To view the stack variable annotations, switch to the linear view of the Debugger binary view, and then navigate to the stack pointer address (such as by double-clicking the stack pointer in the Registers view).
-
-A useful setup is a split view that shows the code on the left, and the stack on the right. If the user adopts this layout, remember to put the linear view that shows the stack region on a different sync group, so executing the target would not lead to navigation of the linear view. This way, we can observe how variables on the stack change.
-
-In the future, we will offer a way to set up this side-by-side view in one click.
+To quickly create a split view that views code and stack side-by-side, in the main window menu, click `Debugger`->`Create Stack View`.
 
 Only the stack frames and variables of the current (active) thread are annotated to avoid confusion. If you wish to view stack variables from a different thread, first switch to that thread in the `Stack Trace` global area panel.
 
 The annotation is done only when there are at least two frames in the stack trace. This is a known limitation, and we will address it later.
 
-If the stack variable annotation does not work in certain cases or even causes extra problems, it can be disabled by setting `debugger.stackVariableAnnotations` to false.
+If the stack variable annotation does not work in certain cases or even causes problems, it can be disabled by setting `debugger.stackVariableAnnotations` to false.
 
 
 ### Other UI Elements
@@ -245,7 +239,7 @@ The Debugger BinaryView reads and writes its memory from the connected `DebugAda
 
 When the target is launched, the debugger automatically switches the view to the Debugger BinaryView.
 
-![](../img/debugger/debuggerview.png)
+![](../../img/debugger/debuggerview.png)
 
 The debugger automatically applies all analysis data to the Debugger BinaryView, including functions and types, etc. This means the user can conveniently use types that are present in the static analysis.
 
@@ -326,7 +320,7 @@ We can use `$eip`/`$rip`/`pc` to navigate to the current program counter, or `$e
 Thanks to the power of the expression parse, these register values can be combined with other arithmetic operations.
 This is especially helpful to quickly navigate to the stack variables since they typically have an address like `$rsp+0x20` or `$rbp-0x8`, which the expression parser can calculate properly:
 
-![](../img/debugger/expressionparser.png)
+![](../../img/debugger/expressionparser.png)
 
 ### Remote Debugging
 
@@ -351,7 +345,7 @@ Cannot debug binaries that require Administrator (Windows) or root (Linux/macOS)
 
 - On Windows, run Binary Ninja with Administrator privilege (not recommended).
 - Launch the process with necessary privilege, and connect to it using Binary Ninja debugger. See [Remote Debugging Guide](remote-debugging.md) for more details.
-  - Must be an admin or in the \_developer group on macOS to debug.
+    - Must be an admin or in the \_developer group on macOS to debug.
 
 ### macOS
 
@@ -398,7 +392,7 @@ If you encounter a bug, please file [an issue](https://github.com/Vector35/debug
 
 Vector 35 is grateful for the following open source packages that are used in Binary Ninja debugger:
 
-- [fmt](https://github.com/fmtlib/fmt) ([fmt license](https://github.com/fmtlib/fmt/blob/master/LICENSE.rst) - MIT)
+- [fmt](https://github.com/fmtlib/fmt) ([fmt license](https://github.com/fmtlib/fmt/blob/master/LICENSE) - MIT)
 - [pugixml](https://pugixml.org/) ([pugixml license](https://pugixml.org/license.html) - MIT)
 - [gdb](https://www.gnu.org/software/gdb) ([GPLv3](https://www.gnu.org/licenses/gpl-3.0.html))
 - [lldb](https://lldb.llvm.org/) ([Apache 2.0 License with LLVM exceptions](https://llvm.org/docs/DeveloperPolicy.html#new-llvm-project-license-framework))
