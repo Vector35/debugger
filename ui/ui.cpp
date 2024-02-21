@@ -1190,15 +1190,9 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			ViewFrame* frame = m_context->getCurrentViewFrame();
 			FileContext* fileContext = frame->getFileContext();
 			fileContext->refreshDataViewCache();
-			auto tab = m_context->getTabForFile(fileContext);
-			ViewFrame* newFrame = m_context->openFileContext(fileContext);
-
-			if (newFrame)
-			{
-				m_context->closeTab(tab);
-				navigateToCurrentIP();
-				QCoreApplication::processEvents();
-			}
+			m_context->recreateViewFrames(fileContext);
+			navigateToCurrentIP();
+			QCoreApplication::processEvents();
 		}
 		else
 		{

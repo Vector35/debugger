@@ -192,7 +192,7 @@ void DebugProcessView::eventHandler(const DebuggerEvent &event)
 
 
 DebugNullView::DebugNullView(BinaryView* parent) :
-	BinaryView("Debugger Null", parent->GetFile(), parent)
+	BinaryView("Debugger Null", parent->GetFile(), nullptr)
 {
 }
 
