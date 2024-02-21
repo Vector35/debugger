@@ -37,7 +37,9 @@ DebuggerController::DebuggerController(BinaryViewRef data)
 
 DebuggerController::~DebuggerController()
 {
-	// This is not necessary since m_state should have been deleted by DebuggerController::Destroy()
+	m_file = nullptr;
+	m_liveView = nullptr;
+
 	if (m_state)
 	{
 		delete m_state;
@@ -1174,14 +1176,11 @@ void DebuggerController::DeleteController(FileMetadataRef file)
 
 void DebuggerController::Destroy()
 {
-	DebuggerController::DeleteController(GetFile());
-	m_file = nullptr;
-	m_liveView = nullptr;
-	if (m_state)
-	{
-		delete m_state;
-		m_state = nullptr;
-	}
+	// Contrary to the name, DebuggerController::Destroy() actually only removes the object from the global debugger
+	// controller array (g_debuggerControllers). This enabling its ref count to go down to zero and eventually get freed.
+	// The actual cleanup happens in DebuggerController::~DebuggerController().
+	// TODO: I should change the function name later
+	DebuggerController::DeleteController(m_file);
 }
 
 
