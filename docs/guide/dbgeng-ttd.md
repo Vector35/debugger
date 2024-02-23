@@ -69,7 +69,7 @@ So you will need to copy the entire WinDbg installation folder to a place that B
     - E.g., `C:/Users/xushe/Documents/helloworld01.run`
 - Click `Accept`
 
-<img src="../img/debugger/dbgeng_ttd.png" width="600px">
+<img src="../../img/debugger/dbgeng_ttd.png" width="600px">
 
 
 ## Work with the TTD Trace
