@@ -345,7 +345,7 @@ Cannot debug binaries that require Administrator (Windows) or root (Linux/macOS)
 
 - On Windows, run Binary Ninja with Administrator privilege (not recommended).
 - Launch the process with necessary privilege, and connect to it using Binary Ninja debugger. See [Remote Debugging Guide](remote-debugging.md) for more details.
-  - Must be an admin or in the \_developer group on macOS to debug.
+    - Must be an admin or in the \_developer group on macOS to debug.
 
 ### macOS
 
