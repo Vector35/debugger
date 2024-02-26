@@ -107,9 +107,9 @@ System Uptime: 0 days 21:40:55.173
 
 ## Troubleshooting & Known Issues
 
-1. Running certain commands that takes a while to complete can lead to a brief hang: https://github.com/Vector35/debugger/issues/532
-2. When we end the remote kernel debugging, the guest system is always paused: https://github.com/Vector35/debugger/issues/533
-3. Once we have enabled kernel debugging with `kdnet`, the system will always wait for a kernel debugger to connect during boot. 
+1. Running certain commands that takes a while to complete can lead to a [brief hang](https://github.com/Vector35/debugger/issues/532)
+2. When we end the remote kernel debugging, the guest system is [always paused](https://github.com/Vector35/debugger/issues/533)
+3. Once we have enabled kernel debugging with `kdnet`, the system will always wait for a kernel debugger to connect during boot.
 It would hang if we do not attach a kernel debugger, even if we do not plan to do kernel debugging at all.
 To avoid this, I highly recommend taking a snapshot of the VM before attempting to do kernel debugging.
 If you know there is a way to reset the kernel debugging status and let the system boot in the normal way, please let me know!

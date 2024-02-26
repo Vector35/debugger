@@ -368,7 +368,7 @@ To avoid the need to manually force an update frequently, set `debugger.aggressi
 Any changes, e.g., annotations, comments, are lost after the target exits. This is because the debugger binary view is a separate binary view, and edits to it would not carry over to the original binary view.
 As a temporary workaround, try to apply changes to the original binary view, whose changes will always be carried over to the debugger binary view when the target launches.
 
-We are also working on https://github.com/Vector35/debugger/issues/213 which will resolve the problem by offering a viable way to selectively carry over some changes made to the debugger binary view to the original binary view.
+We are also working on [an issue](https://github.com/Vector35/debugger/issues/213) which will resolve the problem by offering a viable way to selectively carry over some changes made to the debugger binary view to the original binary view.
 
 
 ## Troubleshooting

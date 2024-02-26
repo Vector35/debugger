@@ -42,7 +42,7 @@ So you will need to copy the entire WinDbg installation folder to a place that B
 - Search for the setting `debugger.x64dbgEngPath`
 - Put path `C:\Users\user_name\windbgx\amd64` in it
     - Do not forget to append `amd64` to the path of the folder
-- There is a plan to automate this process: https://github.com/Vector35/debugger/issues/486
+- There is [a plan](https://github.com/Vector35/debugger/issues/486) to automate this process.
 
 
 ## Record a TTD Trace
@@ -57,7 +57,7 @@ So you will need to copy the entire WinDbg installation folder to a place that B
     - The index will make it faster to work with the trace
 - Close WinDbg
 - Or check out the official guide at https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-record
-- There is a plan to automate this process: https://github.com/Vector35/debugger/issues/485
+- There is [a plan](https://github.com/Vector35/debugger/issues/485) to automate this process.
 
 
 ## Configure the TTD Trace in Binary Ninja Debugger
@@ -86,7 +86,7 @@ So you will need to copy the entire WinDbg installation folder to a place that B
     - p-: step over back
     - t-: step into back
     - g-u: step out back
-    - There is a plan to add several new buttons that do reverse execution: https://github.com/Vector35/debugger/issues/484
+    - There is [a plan](https://github.com/Vector35/debugger/issues/484) to add several new buttons that do reverse execution.
 - The [!position](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-extension-positions) command prints the `position` of all active threads
 - The [!tt](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-extension-tt) command navigates to a `position` in the trace
     - E.g., `!tt 1A0:12F`
@@ -96,5 +96,5 @@ So you will need to copy the entire WinDbg installation folder to a place that B
 ## Feedback and Suggestions
 
 The TTD integration in Binary Ninja debugger is still in the beta stage so it will likely contain some bugs or lack certain features.
-The good news is the debugger is [open-source](https://github.com/Vector35/debugger) and we have a public issue repository for it: https://github.com/Vector35/debugger/issues/.
+The good news is the debugger is [open-source](https://github.com/Vector35/debugger) and we have a public issue repository for it: [https://github.com/Vector35/debugger/issues/](https://github.com/Vector35/debugger/issues/).
 Please feel free to file bug reports, and request new features, either specifically for the TTD or more generally for the debugger. Or even better, join our public [Slack](https://slack.binary.ninja/) and talk to the developers and users!
