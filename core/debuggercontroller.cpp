@@ -31,6 +31,7 @@ DebuggerController::DebuggerController(BinaryViewRef data)
 
 	m_state = new DebuggerState(data, this);
 	m_adapter = nullptr;
+	m_inputFileLoaded = false;
 	RegisterEventCallback([this](const DebuggerEvent& event) { EventHandler(event); }, "Debugger Core");
 }
 
@@ -142,7 +143,6 @@ DebugStopReason DebuggerController::LaunchAndWaitInternal()
 	if (!CreateDebugAdapter())
 		return InternalError;
 
-	m_inputFileLoaded = false;
 	m_initialBreakpointSeen	 = false;
 	m_state->MarkDirty();
 	if (!CreateDebuggerBinaryView())
@@ -182,7 +182,6 @@ DebugStopReason DebuggerController::AttachAndWaitInternal()
 	if (!CreateDebugAdapter())
 		return InternalError;
 
-	m_inputFileLoaded = false;
 	m_initialBreakpointSeen	 = false;
 	m_state->MarkDirty();
 	if (!CreateDebuggerBinaryView())
@@ -222,7 +221,6 @@ DebugStopReason DebuggerController::ConnectAndWaitInternal()
 	if (!CreateDebugAdapter())
 		return InternalError;
 
-	m_inputFileLoaded = false;
 	m_initialBreakpointSeen	 = false;
 	m_state->MarkDirty();
 	if (!CreateDebuggerBinaryView())
@@ -1207,7 +1205,6 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	case DetachedEventType:
 	case LaunchFailureEventType:
 	{
-		m_inputFileLoaded = false;
 		m_initialBreakpointSeen = false;
 		m_currentIP = 0;
 		m_lastIP = 0;

@@ -1134,37 +1134,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		if (!frame)
 			break;
 
-		// Workaround for https://github.com/Vector35/debugger/issues/367
-		auto settings = Settings::Instance();
-		bool oldRestoreView = false;
-		if (settings->Contains("ui.files.restore.viewState"))
-		{
-			oldRestoreView = settings->Get<bool>("ui.files.restore.viewState");
-			if (oldRestoreView)
-				settings->Set("ui.files.restore.viewState", false);
-		}
-
-//		FileContext* fileContext = frame->getFileContext();
-//		auto tab = m_context->getTabForFile(fileContext);
-//		ViewFrame* newFrame = m_context->openFileContext(fileContext);
-//		QCoreApplication::processEvents();
-//
-//		if (newFrame)
-//		{
-//			newFrame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
-//			m_context->closeTab(tab);
-//			fileContext->refreshDataViewCache();
-//			openDebuggerSideBar(newFrame);
-//			QCoreApplication::processEvents();
-//		}
-//		else
-//		{
-//			LogWarn("fail to navigate to the original view");
-//		}
-
-		if (oldRestoreView)
-			settings->Set("ui.files.restore.viewState", true);
-
+		frame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
 		break;
 	}
 
