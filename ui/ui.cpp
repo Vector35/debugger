@@ -1144,23 +1144,23 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 				settings->Set("ui.files.restore.viewState", false);
 		}
 
-		FileContext* fileContext = frame->getFileContext();
-		auto tab = m_context->getTabForFile(fileContext);
-		ViewFrame* newFrame = m_context->openFileContext(fileContext);
-		QCoreApplication::processEvents();
-
-		if (newFrame)
-		{
-			newFrame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
-			m_context->closeTab(tab);
-			fileContext->refreshDataViewCache();
-			openDebuggerSideBar(newFrame);
-			QCoreApplication::processEvents();
-		}
-		else
-		{
-			LogWarn("fail to navigate to the original view");
-		}
+//		FileContext* fileContext = frame->getFileContext();
+//		auto tab = m_context->getTabForFile(fileContext);
+//		ViewFrame* newFrame = m_context->openFileContext(fileContext);
+//		QCoreApplication::processEvents();
+//
+//		if (newFrame)
+//		{
+//			newFrame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
+//			m_context->closeTab(tab);
+//			fileContext->refreshDataViewCache();
+//			openDebuggerSideBar(newFrame);
+//			QCoreApplication::processEvents();
+//		}
+//		else
+//		{
+//			LogWarn("fail to navigate to the original view");
+//		}
 
 		if (oldRestoreView)
 			settings->Set("ui.files.restore.viewState", true);

@@ -727,6 +727,9 @@ DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& re
 
 bool DebuggerController::CreateDebuggerBinaryView()
 {
+	if (m_liveView)
+		return true;
+
 	BinaryViewTypeRef viewType = BinaryViewType::GetByName("Debugger");
 	if (!viewType)
 		return false;
@@ -1206,10 +1209,6 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	{
 		m_inputFileLoaded = false;
 		m_initialBreakpointSeen = false;
-		// The m_liveView can be nullptr if the launch attempt fails because of the safe mode
-		if (m_liveView)
-			m_liveView->GetFile()->UnregisterViewOfType("Debugger", m_liveView);
-		SetLiveView(nullptr);
 		m_currentIP = 0;
 		m_lastIP = 0;
 		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
@@ -1884,11 +1883,9 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 		operationRequested = m_adapter->BreakInto();
 		break;
 	case DebugAdapterQuit:
-		m_liveView->AbortAnalysis();
 		m_adapter->Quit();
 		break;
 	case DebugAdapterDetach:
-		m_liveView->AbortAnalysis();
 		m_adapter->Detach();
 		break;
 	case DebugAdapterLaunch:
