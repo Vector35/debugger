@@ -162,8 +162,16 @@ size_t DebugProcessView::PerformWrite(uint64_t offset, const void* data, size_t 
 void DebugProcessView::MarkDirty()
 {
 	// This hack will let the views (linear/graph) update its display
-	uint64_t end = m_aggressiveAnalysisUpdate ? GetLength() : 1;
-	BinaryView::NotifyDataWritten(0, end);
+	if (m_aggressiveAnalysisUpdate)
+	{
+		BinaryView::NotifyDataWritten(0, GetLength());
+	}
+	else
+	{
+		// This ensures or the BinaryDataListener, e.g, the linear view, refreshes its display. But it avoids any
+		// functions get marked as update required
+		BinaryView::NotifyDataWritten(0xdeadbeefdeadbeef, 0);
+	}
 }
 
 
