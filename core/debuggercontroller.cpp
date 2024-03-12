@@ -1103,7 +1103,7 @@ void DebuggerController::DeleteController(BinaryViewRef data)
 		if (!controller)
 			continue;
 
-		if ((controller->GetData() == data) || (controller->GetLiveView() == data))
+		if (controller->GetFile().operator==(data->GetFile()))
 		{
 			g_debuggerControllers[i] = nullptr;
 		}
@@ -1118,9 +1118,7 @@ bool DebuggerController::ControllerExists(BinaryViewRef data)
 		DbgRef<DebuggerController> controller = g_debuggerControllers[i];
 		if (!controller)
 			continue;
-		if (controller->GetData() == data)
-			return true;
-		if (controller->GetLiveView() == data)
+		if (controller->GetFile().operator==(data->GetFile()))
 			return true;
 	}
 
@@ -1182,6 +1180,9 @@ void DebuggerController::Destroy()
 	// The actual cleanup happens in DebuggerController::~DebuggerController().
 	// TODO: I should change the function name later
 	DebuggerController::DeleteController(m_file);
+	// Only release the binary view, and not the file here. Since the file is used by DebuggerController::GetController
+	// to find the controller. The file will be eventually released in DebuggerController::~DebuggerController
+	m_liveView = nullptr;
 }
 
 
