@@ -22,6 +22,7 @@ limitations under the License.
 #include <QFileInfo>
 #include <QPushButton>
 #include <QObject>
+#include <QCheckBox>
 #include "ui.h"
 #include <thread>
 
@@ -102,6 +103,41 @@ bool NotificationListener::OnBeforeCloseFile(UIContext* context, FileContext* fi
 	if (!controller)
 		return true;
 
+	auto settings = Settings::Instance();
+	if (controller->GetLiveView() && settings->Get<bool>("debugger.ui.warnDebuggerBinaryViewLost"))
+	{
+		QMessageBox* msgBox = new QMessageBox(mainWindow);
+		msgBox->setAttribute(Qt::WA_DeleteOnClose, false);
+		msgBox->setIcon(QMessageBox::Question);
+		msgBox->setText(QObject::tr("The debugger binary view for ") + file->getShortFileName(mainWindow)
+			+ QObject::tr(" cannot be saved into the database. Changes in it will be permanently lost after closing. \n\n"
+						  "If you wish to save them, please manually copy the changes to the ")
+						  + QString::fromStdString(controller->GetData()->GetTypeName()) +
+						  QObject::tr(" view.\n\n"
+						  "Would you like to close the file?"));
+
+		msgBox->setWindowTitle(QObject::tr("Debugger Binary View"));
+		msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::Cancel);
+		msgBox->setDefaultButton(QMessageBox::Cancel);
+		msgBox->setAttribute(Qt::WA_KeyboardFocusChange);
+
+		QCheckBox* checkBox = new QCheckBox(QObject::tr("Do not ask again"));
+		msgBox->setCheckBox(checkBox);
+
+		int result = msgBox->exec();
+		auto state = checkBox->checkState();
+		delete msgBox;
+
+		if (result == QMessageBox::Cancel)
+		{
+			return false;
+		}
+		else if (state == Qt::Checked)
+		{
+			settings->Set("debugger.ui.warnDebuggerBinaryViewLost", false);
+		}
+	}
+
 	if (controller->IsConnected())
 	{
 		QMessageBox* msgBox = new QMessageBox(mainWindow);
@@ -111,9 +147,7 @@ bool NotificationListener::OnBeforeCloseFile(UIContext* context, FileContext* fi
 			+ QObject::tr(" is active. Do you want to stop it before closing?"));
 		msgBox->setWindowTitle(QObject::tr("Debugger Active"));
 		msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::Cancel);
-		msgBox->setDefaultButton(QMessageBox::Yes);
-		msgBox->show();
-		msgBox->move(mainWindow->frameGeometry().center() - msgBox->rect().center());
+		msgBox->setDefaultButton(QMessageBox::Cancel);
 		msgBox->setAttribute(Qt::WA_KeyboardFocusChange);
 		int result = msgBox->exec();
 		if (result == QMessageBox::Cancel)

@@ -157,6 +157,15 @@ static void RegisterSettings()
 			"description" : "Output the current state (e.g., register values, next instruction) in the debugger console when the target stops.",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
+
+	settings->RegisterSetting("debugger.ui.warnDebuggerBinaryViewLost",
+			R"({
+			"title" : "Debugger Binary View Analysis Loss Warning",
+			"type" : "boolean",
+			"default" : true,
+			"description" : "When closing a file, warn the user that the debugger binary view is not saved into the database and its content will be lost after closing.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
 }
 
 extern "C"
