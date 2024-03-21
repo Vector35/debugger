@@ -326,9 +326,9 @@ This is especially helpful to quickly navigate to the stack variables since they
 
 See [Remote Debugging Guide](remote-debugging.md)
 
-### Time-travel Debugging (beta)
+### Time-travel Debugging
 
-See [Time Travel Debugging (beta) Guide](dbgeng-ttd.md)
+See [Time Travel Debugging Guide](dbgeng-ttd.md)
 
 ### Windows Kernel Debugging
 

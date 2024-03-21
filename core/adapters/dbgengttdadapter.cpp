@@ -261,7 +261,7 @@ bool DbgEngTTDAdapter::Quit()
 }
 
 
-DbgEngTTDAdapterType::DbgEngTTDAdapterType() : DebugAdapterType("DBGENG_TTD (BETA)") {}
+DbgEngTTDAdapterType::DbgEngTTDAdapterType() : DebugAdapterType("DBGENG_TTD") {}
 
 
 DebugAdapter* DbgEngTTDAdapterType::Create(BinaryNinja::BinaryView* data)

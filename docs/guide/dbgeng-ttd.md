@@ -1,4 +1,4 @@
-# Time Travel Debugging (beta)
+# Time Travel Debugging
 
 Time travel debugging (TTD) allows you to record an execution trace of a program or system and replay it back and forth.
 It can speed up the process of reverse engineering/vulnerability research, and deal with certain tasks that are not easy to handle in regular forward debugging.
@@ -64,7 +64,7 @@ So you will need to copy the entire WinDbg installation folder to a place that B
 
 - Open the .exe or .dll file in Binary Ninja
 - Click `Debugger` -> `Debug Adapter Settings`
-- For `Adapter Type`, select `DBGENG_TTD (BETA)`
+- For `Adapter Type`, select `DBGENG_TTD`
 - For `Executable Path`, select the trace file recorded by WinDbg in the previous step
     - E.g., `C:/Users/xushe/Documents/helloworld01.run`
 - Click `Accept`
