@@ -68,7 +68,7 @@ static bool IsValidDbgEngPaths(const std::string& path)
 std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 {
 	std::string path;
-	if (arch == "x64")
+	if (arch == "amd64")
 		path = Settings::Instance()->Get<string>("debugger.x64dbgEngPath");
 	else
 		path = Settings::Instance()->Get<string>("debugger.x86dbgEngPath");
@@ -84,21 +84,11 @@ std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 	}
 
 	// If the user does not specify a path (the default case), find the one from the %APPDATA% or %PROGRAMDATA%
-	char appData[MAX_PATH];
-	// For a system installation, the path is %APPDATA%\Binary Ninja\dbgeng\Windows Kits\10\Debuggers
-	if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appData)))
+	char debuggerPath[MAX_PATH];
+	HMODULE handle = GetModuleHandleA("debuggercore.dll");
+	if (handle && (GetModuleFileNameA(handle, debuggerPath, MAX_PATH)))
 	{
-		auto debuggerRoot =
-			filesystem::path(appData) / "Binary Ninja" / "dbgeng" / "Windows Kits" / "10" / "Debuggers" / arch;
-		if (IsValidDbgEngPaths(debuggerRoot.string()))
-			return debuggerRoot.string();
-	}
-
-	// For a system installation, the path is %PROGRAMDATA%\Binary Ninja\dbgeng\Windows Kits\10\Debuggers
-	if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_COMMON_APPDATA, NULL, 0, appData)))
-	{
-		auto debuggerRoot =
-			filesystem::path(appData) / "Binary Ninja" / "dbgeng" / "Windows Kits" / "10" / "Debuggers" / arch;
+		auto debuggerRoot = filesystem::path(debuggerPath).parent_path()  / "dbgeng" / arch;
 		if (IsValidDbgEngPaths(debuggerRoot.string()))
 			return debuggerRoot.string();
 	}
@@ -171,7 +161,7 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 
 bool DbgEngAdapter::LoadDngEngLibraries()
 {
-	auto enginePath = GetDbgEngPath("x64");
+	auto enginePath = GetDbgEngPath("amd64");
 	if (enginePath.empty())
 	{
 		LogWarn("The debugger cannot find the path for the DbgEng DLLs. "
@@ -289,7 +279,7 @@ bool DbgEngAdapter::Start()
 	{
 		auto pipeName = GenerateRandomPipeName();
 		auto connectString = fmt::format("npipe:pipe={},Server=localhost", pipeName);
-		auto arch = m_defaultArchitecture == "x86_64" ? "x64" : "x86";
+		auto arch = m_defaultArchitecture == "x86_64" ? "amd64" : "x86";
 		auto enginePath = GetDbgEngPath(arch);
 		if (enginePath.empty())
 			return false;

@@ -196,12 +196,10 @@ endif()
 
 if (WIN32)
 	add_custom_command(TARGET debuggercore PRE_LINK
-		COMMAND ${CMAKE_COMMAND} -E echo "Copying DbgEng Redistributable"
-		COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_PLUGIN_DIR}/dbgeng
-		COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/adapters/dbgeng/X64 Debuggers And Tools-x64_en-us.msi"
-											${BN_CORE_PLUGIN_DIR}/dbgeng
-		COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/adapters/dbgeng/X86 Debuggers And Tools-x86_en-us.msi"
-											${BN_CORE_PLUGIN_DIR}/dbgeng
+		COMMAND ${CMAKE_COMMAND} -E echo "Copying DbgEng DLLs"
+		COMMAND ${CMAKE_COMMAND} -E copy_directory
+			"${PROJECT_SOURCE_DIR}/adapters/dbgeng/"
+			${LIBRARY_OUTPUT_DIRECTORY_PATH}/dbgeng
 		)
 endif()
 
