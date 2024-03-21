@@ -22,6 +22,7 @@ limitations under the License.
 	#include "adapters/dbgengttdadapter.h"
 	#include "adapters/windowskerneladapter.h"
 	#include "adapters/localwindowskerneladapter.h"
+	#include "adapters/windowsdumpfile.h"
 #endif
 
 using namespace BinaryNinja;
@@ -38,6 +39,7 @@ void InitDebugAdapterTypes()
 	InitDbgEngTTDAdapterType();
 	InitWindowsKernelAdapterType();
 	InitLocalWindowsKernelAdapterType();
+	InitWindowsDumpFileAdapterType();
 #endif
 
 	// Disable these adapters because they are not tested, and will get replaced later

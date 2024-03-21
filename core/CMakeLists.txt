@@ -33,6 +33,8 @@ if(WIN32)
 			adapters/windowskerneladapter.h
 			adapters/localwindowskerneladapter.cpp
 			adapters/localwindowskerneladapter.h
+			adapters/windowsdumpfile.cpp
+			adapters/windowsdumpfile.h
 			)
 else()
 	set(SOURCES ${COMMON_SOURCES} ${ADAPTER_SOURCES})
