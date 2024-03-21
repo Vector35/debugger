@@ -198,7 +198,6 @@ elif platform.system() == "Windows":
 with open(license_path, 'r') as f:
     env["BN_LICENSE"] = f.read()
 
-winpath = ''
 if platform.system() == "Linux":
     bn_python_path = bn_core_path / 'python'
 elif platform.system() == "Darwin":
@@ -206,7 +205,6 @@ elif platform.system() == "Darwin":
     bn_python_path = bn_python_path.resolve()
 elif platform.system() == "Windows":
     bn_python_path = bn_core_path / 'python'
-    winpath = os.environ["LOCALAPPDATA"] + "\\Programs\\Python\\Python38\\Scripts\\"
 
 pythonpath = f'{bn_python_path}{os.pathsep}{build_output_path / "plugins"}'
 env["PYTHONPATH"] = str(pythonpath)
@@ -220,15 +218,10 @@ pytest_sources = [
     str(base_dir / "test" / "debugger_test.py")
 ]
 
-# Prevents https://github.com/pypa/pipenv/issues/5052
-subprocess.run(["pipenv", "--rm"], env=env)
 
-p = subprocess.Popen(["pipenv", "run", winpath + "py.test", "-x", "--junitxml", str(results)] + pytest_sources, env=env)
+p = subprocess.Popen(["pytest", "-s", "--junitxml", str(results)] + pytest_sources, env=env)
 # wait for process to complete
 p_stdout, p_stderr = p.communicate()
-assert 0 <= p.returncode < 128, f"pipenv run failed: {p_stdout} {p_stderr}"
-p = subprocess.Popen(["pipenv", "--rm"], env=env)
-p_stdout, p_stderr = p.communicate()
-assert p.returncode == 0, f"pipenv --rm failed: {p_stdout} {p_stderr}"
+assert 0 <= p.returncode < 128, f"test run failed: {p_stdout} {p_stderr}"
 
 sys.exit(0)
