@@ -119,7 +119,7 @@ static void RegisterSettings()
 		R"({
 			"title" : "Stack Variable Annotations",
 			"type" : "boolean",
-			"default" : true,
+			"default" : false,
 			"description" : "Add stack variable annotations",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");

@@ -95,6 +95,7 @@ namespace BinaryNinjaDebugger {
 		bool m_initialBreakpointSeen = false;
 
 		bool m_firstLaunch = true;
+		bool m_shouldAnnotateStackVariable = false;
 
 		void EventHandler(const DebuggerEvent& event);
 		void UpdateStackVariables();

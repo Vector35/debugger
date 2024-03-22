@@ -31,6 +31,7 @@ DebuggerController::DebuggerController(BinaryViewRef data)
 
 	m_state = new DebuggerState(data, this);
 	m_adapter = nullptr;
+	m_shouldAnnotateStackVariable = Settings::Instance()->Get<bool>("debugger.stackVariableAnnotations");
 	RegisterEventCallback([this](const DebuggerEvent& event) { EventHandler(event); }, "Debugger Core");
 }
 
@@ -1944,7 +1945,7 @@ void DebuggerController::DefineVariablesRecursive(uint64_t address, Confidence<R
 
 void DebuggerController::UpdateStackVariables()
 {
-	if (!Settings::Instance()->Get<bool>("debugger.stackVariableAnnotations"))
+	if (!m_shouldAnnotateStackVariable)
 		return;
 
 	if (!m_liveView)
