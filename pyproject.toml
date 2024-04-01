@@ -6,7 +6,7 @@ authors = ["Xusheng <xusheng@vector35.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 pathlib = "^1.0.1"
 pytest = "^8.1.1"
 
