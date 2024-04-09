@@ -11,11 +11,14 @@
         <file alias="remove">icons/remove.png</file>
         <file alias="restart">icons/restart.png</file>
         <file alias="resume">icons/resume.png</file>
+        <file alias="resume-reverse">icons/resume-reverse.png</file>
         <file alias="settings">icons/settings.png</file>
         <file alias="start">icons/start.png</file>
         <file alias="step-back">icons/step-back.png</file>
         <file alias="step-into">icons/step-into.png</file>
+        <file alias="step-into-reverse">icons/step-into-reverse.png</file>
         <file alias="step-out">icons/step-out.png</file>
+        <file alias="step-out-reverse">icons/step-out-reverse.png</file>
         <file alias="step-over">icons/step-over.png</file>
         <file alias="stop">icons/stop.png</file>
     </qresource>

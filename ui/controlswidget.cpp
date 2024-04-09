@@ -109,22 +109,22 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	if(m_controller->IsTTD())
 		addSeparator(); //TODO: IsTTD only updates when the adapter is connected. This leaves the separator in place when the adapter is disconnected.
 	
-	m_actionGoBack = addAction(getColoredIcon(":/debugger/resume", red), "Go Backwards", [this]() {
+	m_actionGoBack = addAction(getColoredIcon(":/debugger/resume-reverse", red), "Go Backwards", [this]() {
 		performGoReverse();
 	});
 	m_actionGoBack->setToolTip(getToolTip("Go Backwards"));
 	
-	m_actionStepIntoBack = addAction(getColoredIcon(":/debugger/step-into", red), "Step Into Backwards", [this]() {
+	m_actionStepIntoBack = addAction(getColoredIcon(":/debugger/step-into-reverse", red), "Step Into Backwards", [this]() {
 		performStepIntoReverse();
 	});
 	m_actionStepIntoBack->setToolTip(getToolTip("Step Into Backwards"));
 
-	m_actionStepOverBack = addAction(getColoredIcon(":/debugger/step-over", red), "Step Over Backwards", [this]() {
+	m_actionStepOverBack = addAction(getColoredIcon(":/debugger/step-back", red), "Step Over Backwards", [this]() {
 		performStepOverReverse();
 	});
 	m_actionStepOverBack->setToolTip(getToolTip("Step Over Backwards"));
 
-	m_actionStepReturnBack = addAction(getColoredIcon(":/debugger/step-out", red), "Step Return Backwards", [this]() {
+	m_actionStepReturnBack = addAction(getColoredIcon(":/debugger/step-out-reverse", red), "Step Return Backwards", [this]() {
 		performStepReturnReverse();
 	});
 	m_actionStepReturnBack->setToolTip(getToolTip("Step Return Backwards"));
