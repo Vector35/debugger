@@ -58,7 +58,7 @@ if sys.platform == 'darwin':
 base_dir = Path(__file__).resolve().parent.parent
 build_path = base_dir / "build"
 api_path = build_path / "api"
-bn_dev_artifact_path = base_dir / "artifacts-extern" / "artifacts"
+bn_dev_artifact_path = base_dir / "artifacts-extern"
 bn_dev_path = build_path / "BN-dev"
 
 if platform.system() == 'Darwin':
