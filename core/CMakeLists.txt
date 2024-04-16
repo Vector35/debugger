@@ -175,28 +175,14 @@ else()
 	find_library(lib_lldb NAMES liblldb PATHS ${LLDB_PATH}/lib REQUIRED)
 	target_link_libraries(debuggercore ${lib_lldb})
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
-	if(NOT DEMO)
-		add_custom_command(TARGET debuggercore PRE_LINK
-				COMMAND ${CMAKE_COMMAND} -E echo "Copying LLDB Libs"
-				COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
-				COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
-				COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
-				COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-argdumper.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
-				COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/liblldb.dll ${LIBRARY_OUTPUT_DIRECTORY_PATH}
-				)
-	else()
-		# On Windows, there is no rpath, so we must put the liblldb.dll in the same folder as binaryninja.exe.
-		# This is NOT needed for non-demo builds, because the debuggercore and the liblldb.dll are both in the
-		# plugins folder.
-		add_custom_command(TARGET debuggercore PRE_LINK
-				COMMAND ${CMAKE_COMMAND} -E echo "Copying LLDB Libs"
-				COMMAND ${CMAKE_COMMAND} -E make_directory ${BN_CORE_OUTPUT_DIR}/lldb
-				COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb.exe ${BN_CORE_OUTPUT_DIR}/lldb
-				COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server.exe ${BN_BINARY_DIR}/lldb
-				COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-argdumper.exe ${BN_CORE_OUTPUT_DIR}/lldb
-				COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/liblldb.dll ${BN_CORE_OUTPUT_DIR}
-				)
-	endif()
+	add_custom_command(TARGET debuggercore PRE_LINK
+			COMMAND ${CMAKE_COMMAND} -E echo "Copying LLDB Libs"
+			COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
+			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
+			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-server.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
+			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-argdumper.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
+			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/liblldb.dll ${LIBRARY_OUTPUT_DIRECTORY_PATH}
+			)
 endif()
 
 if (WIN32)
