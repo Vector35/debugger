@@ -208,6 +208,14 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 		AddBreakpoint(ModuleNameAndOffset(configs.inputFile, m_entryPoint - m_start));
 
+	if (configs.connectedToDebugServer)
+	{
+		// During remote debugging. lldb will try to upload the samples to the working directory before launching.
+		// The working directory defaults to the path the lldb-server is in, which is likely not the intended one.
+		// Here we set the remote working directory to the one specified by the user
+		auto result = InvokeBackendCommand(fmt::format("platform settings -w \"{}\"", workingDir));
+	}
+
 	std::string launchCommand = "process launch";
 	if (Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint") ||
 	        (m_isElFWithoutDynamicLoader && (path == configs.inputFile)))

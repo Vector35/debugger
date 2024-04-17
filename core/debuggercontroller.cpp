@@ -253,7 +253,7 @@ bool DebuggerController::Execute()
 
 	std::string filePath = m_state->GetExecutablePath();
 	bool requestTerminal = m_state->GetRequestTerminalEmulator();
-	LaunchConfigurations configs = {requestTerminal, m_state->GetInputFile()};
+	LaunchConfigurations configs = {requestTerminal, m_state->GetInputFile(), m_state->IsConnectedToDebugServer()};
 
 #ifdef WIN32
 	/* temporary solution (not great, sorry!), we probably won't have to do this once we introduce std::filesystem::path */

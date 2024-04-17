@@ -62,11 +62,12 @@ namespace BinaryNinjaDebugger {
 	{
 		bool requestTerminalEmulator;
 		std::string inputFile;
+		bool connectedToDebugServer;
 
 		LaunchConfigurations() : requestTerminalEmulator(true) {}
 
-		LaunchConfigurations(bool terminal, const std::string& file) : requestTerminalEmulator(terminal),
-			inputFile(file)
+		LaunchConfigurations(bool terminal, const std::string& file, bool debugServer) :
+			requestTerminalEmulator(terminal), inputFile(file), connectedToDebugServer(debugServer)
 		{}
 	};
 

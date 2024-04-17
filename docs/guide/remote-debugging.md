@@ -202,9 +202,8 @@ If the remote host is a macOS system, select `remote-macosx`. If the remote host
 
 
 - Click `Accept`. A message box will show up if the connection is successful.
-- Now one can launch the target in the same way as local debugging. However, since the path of the executable on the remote machine is very likely to be different from the path on the local machine. There are two ways to deal with it.
-    - Do nothing. LLDB will copy the executable on the local system to the remote system, likely into a tmp folder, and then execute it. This works when the executable is insensitive to its location.
-    - Change the platform working directory. If the executable already exists on the remote system, we can change the platform working directory to the folder which the executable is in. LLDB will detect the existence of the executable and launch it. To do it, run the command `platform settings -w /path/to/desided/directory` in the Debugger Console widget in the global area panel. 
+- Open the `Debug Adapter Settings` dialog, and set the `Working Directory` to the *remote* directory that you wish to launch the process in. Do not leave the path unchanged since it will then be a local path, and there will be an error during launch.
+- Do NOT change the `Executable Path` to a remote path. Set it to the local path where the executable is in. During launch, LLDB will copy the executable to the remote host, put it in the working directory we supplied above, and launch it. Setting a remote path here will cause errors. LLDB is smart enough to check the hash of the file so that it will only copy the file once. 
 - Launch the target
 
 One can also attach to a process running on the remote machine via its PID. In that case, there is no need to change the current working directory.
