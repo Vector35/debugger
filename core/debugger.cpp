@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 #include <inttypes.h>
-#include "processview.h"
 #include "adapters/lldbadapter.h"
 #ifdef WIN32
 	#include "adapters/dbgengadapter.h"
@@ -181,7 +180,6 @@ extern "C"
 		LogDebug("Native debugger loaded!");
 		RegisterSettings();
 		InitDebugAdapterTypes();
-		InitDebugProcessViewType();
 		return true;
 	}
 }

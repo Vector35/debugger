@@ -593,6 +593,11 @@ namespace BinaryNinjaDebuggerAPI {
 		bool IsTTD();
 
 		void PostDebuggerEvent(const DebuggerEvent& event);
+
+		bool RemoveDebuggerMemoryRegion();
+		bool ReAddDebuggerMemoryRegion();
+
+		uint64_t GetViewFileSegmentsStart();
 	};
 
 

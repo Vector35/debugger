@@ -777,14 +777,6 @@ BNDebugBreakpoint* BNDebuggerGetBreakpoints(BNDebuggerController* controller, si
 	{
 		uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(breakpoints[i]);
 		bool enabled = false;
-		//for (const DebugBreakpoint& bp: remoteList)
-		//{
-		//	if (bp.m_address == remoteAddress)
-		//	{
-		//		enabled = true;
-		//		break;
-		//	}
-		//}
 		result[i].module = BNDebuggerAllocString(breakpoints[i].module.c_str());
 		result[i].offset = breakpoints[i].offset;
 		result[i].address = remoteAddress;
@@ -1055,4 +1047,22 @@ void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEve
 	evt.data.messageData.message = event->data.messageData.message;
 
 	controller->object->PostDebuggerEvent(evt);
+}
+
+
+bool BNDebuggerRemoveMemoryRegion(BNDebuggerController* controller)
+{
+	return controller->object->RemoveDebuggerMemoryRegion();
+}
+
+
+bool BNDebuggerReAddMemoryRegion(BNDebuggerController* controller)
+{
+	return controller->object->ReAddDebuggerMemoryRegion();
+}
+
+
+uint64_t BNDebuggerGetViewFileSegmentsStart(BNDebuggerController* controller)
+{
+	return controller->object->GetViewFileSegmentsStart();
 }

@@ -912,3 +912,21 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent &event)
 	BNDebuggerFreeString(evt->data.messageData.message);
 	delete evt;
 }
+
+
+bool DebuggerController::RemoveDebuggerMemoryRegion()
+{
+	return BNDebuggerRemoveMemoryRegion(m_object);
+}
+
+
+bool DebuggerController::ReAddDebuggerMemoryRegion()
+{
+	return BNDebuggerReAddMemoryRegion(m_object);
+}
+
+
+uint64_t DebuggerController::GetViewFileSegmentsStart()
+{
+	return BNDebuggerGetViewFileSegmentsStart(m_object);
+}

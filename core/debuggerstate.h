@@ -18,7 +18,6 @@ limitations under the License.
 
 #include "binaryninjaapi.h"
 #include "ui/uitypes.h"
-#include "processview.h"
 #include "debugadaptertype.h"
 #include "debuggercommon.h"
 #include "semaphore.h"

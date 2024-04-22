@@ -491,6 +491,11 @@ extern "C"
 
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 
+	DEBUGGER_FFI_API bool BNDebuggerRemoveMemoryRegion(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerReAddMemoryRegion(BNDebuggerController* controller);
+
+	DEBUGGER_FFI_API uint64_t BNDebuggerGetViewFileSegmentsStart(BNDebuggerController* controller);
+
 	// DebugAdapterType
 	DEBUGGER_FFI_API BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name);
 	DEBUGGER_FFI_API bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, BNBinaryView* data);

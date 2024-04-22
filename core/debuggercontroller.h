@@ -22,6 +22,7 @@ limitations under the License.
 #include <list>
 #include "ffi_global.h"
 #include "refcountobject.h"
+#include "debuggerfileaccessor.h"
 
 DECLARE_DEBUGGER_API_OBJECT(BNDebuggerController, DebuggerController);
 
@@ -54,7 +55,7 @@ namespace BinaryNinjaDebugger {
 
 	// This is the controller class of the debugger. It receives the input from the UI/API, and then route them to
 	// the state and UI, etc. Most actions should reach here.
-	class DebuggerController : public DbgRefCountObject
+	class DebuggerController : public DbgRefCountObject, BinaryNinja::BinaryDataNotification
 	{
 		IMPLEMENT_DEBUGGER_API_OBJECT(BNDebuggerController);
 
@@ -62,8 +63,12 @@ namespace BinaryNinjaDebugger {
 		DebugAdapter* m_adapter;
 		DebuggerState* m_state;
 		FileMetadataRef m_file;
-		std::string m_viewName;
-		BinaryViewRef m_liveView;
+		BinaryViewRef m_data;
+		DebuggerFileAccessor* m_accessor;
+		// This is the start address of the first file segments in the m_data. Unlike the return value of GetStart(),
+		// this does not change even if we add the debugger memory region. In the future, this should be provided by
+		// the binary view -- we will no longer need to track it ourselves
+		uint64_t m_viewStart;
 
 //		inline static std::vector<DbgRef<DebuggerController>> g_debuggerControllers;
 		static DbgRef<DebuggerController>* g_debuggerControllers;
@@ -102,8 +107,6 @@ namespace BinaryNinjaDebugger {
 		void AddRegisterValuesToExpressionParser();
 		bool CreateDebugAdapter();
 		bool CreateDebuggerBinaryView();
-
-		void SetLiveView(BinaryViewRef view) { m_liveView = view; }
 
 		DebugStopReason StepIntoIL(BNFunctionGraphType il);
 		DebugStopReason StepIntoReverseIL(BNFunctionGraphType il);
@@ -271,10 +274,11 @@ namespace BinaryNinjaDebugger {
 		// getters
 		DebugAdapter* GetAdapter() { return m_adapter; }
 		DebuggerState* GetState() { return m_state; }
-		BinaryViewRef GetData() { return m_file->GetViewOfType(m_viewName); }
+		BinaryViewRef GetData() { return m_data; }
 		FileMetadataRef GetFile() { return m_file; }
 		void SetData(BinaryViewRef view) {}
-		BinaryViewRef GetLiveView() const { return m_liveView; }
+		BinaryViewRef GetLiveView() const { return m_data; }
+		DebuggerFileAccessor* GetMemoryAccessor() const { return m_accessor; }
 
 		uint32_t GetExitCode();
 
@@ -295,5 +299,19 @@ namespace BinaryNinjaDebugger {
 
 		bool IsFirstLaunch();
 		bool IsTTD();
+
+		void OnRebased(BinaryView* oldView, BinaryView* newView) override {
+			m_data = newView;
+			m_viewStart = newView->GetStart();
+			// UnregisterNotification() is not designed to be called from one of the callbacks, so we cannot call it
+			// here. Also, there is no need to do so -- the oldView is about to be deleted
+			// oldView->UnregisterNotification(this);
+			newView->RegisterNotification(this);
+		}
+
+		bool RemoveDebuggerMemoryRegion();
+		bool ReAddDebuggerMemoryRegion();
+
+		uint64_t GetViewFileSegmentsStart() { return m_viewStart; }
 	};
 };  // namespace BinaryNinjaDebugger

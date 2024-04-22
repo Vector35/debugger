@@ -411,6 +411,11 @@ uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& r
 				return module.m_address + relativeAddress.offset;
 			}
 		}
+		if (DebugModule::IsSameBaseModule(m_state->GetController()->GetData()->GetFile()->GetOriginalFilename(),
+										  relativeAddress.module))
+		{
+			return m_state->GetController()->GetViewFileSegmentsStart() + relativeAddress.offset;
+		}
 	}
 
 	return relativeAddress.offset;

@@ -19,6 +19,7 @@ limitations under the License.
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
+#include "debuggerfileaccessor.h"
 
 using namespace BinaryNinjaDebugger;
 
@@ -27,7 +28,9 @@ DebuggerController::DebuggerController(BinaryViewRef data)
 	INIT_DEBUGGER_API_OBJECT();
 
 	m_file = data->GetFile();
-	m_viewName = data->GetTypeName();
+	m_data = data;
+	m_data->RegisterNotification(this);
+	m_viewStart = m_data->GetStart();
 
 	m_state = new DebuggerState(data, this);
 	m_adapter = nullptr;
@@ -39,7 +42,6 @@ DebuggerController::DebuggerController(BinaryViewRef data)
 DebuggerController::~DebuggerController()
 {
 	m_file = nullptr;
-	m_liveView = nullptr;
 
 	if (m_state)
 	{
@@ -394,7 +396,7 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 				return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
-			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.empty())
 				return SingleStep;
 
@@ -404,7 +406,7 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 				if (!llil)
 					return SingleStep;
 
-				size_t start = llil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				size_t start = llil->GetInstructionStart(GetData()->GetDefaultArchitecture(), newRemoteRip);
 				if (start < llil->GetInstructionCount())
 				{
 					if (llil->GetInstruction(start).address == newRemoteRip)
@@ -424,7 +426,7 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 				return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
-			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.empty())
 				return SingleStep;
 
@@ -434,7 +436,7 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 				if (!mlil)
 					return SingleStep;
 
-				size_t start = mlil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				size_t start = mlil->GetInstructionStart(GetData()->GetDefaultArchitecture(), newRemoteRip);
 				if (start < mlil->GetInstructionCount())
 				{
 					if (mlil->GetInstruction(start).address == newRemoteRip)
@@ -455,7 +457,7 @@ DebugStopReason DebuggerController::StepIntoIL(BNFunctionGraphType il)
 				return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
-			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.empty())
 				return SingleStep;
 
@@ -499,7 +501,7 @@ DebugStopReason DebuggerController::StepIntoReverseIL(BNFunctionGraphType il)
 				return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
-			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.empty())
 				return SingleStep;
 
@@ -509,7 +511,7 @@ DebugStopReason DebuggerController::StepIntoReverseIL(BNFunctionGraphType il)
 				if (!llil)
 					return SingleStep;
 
-				size_t start = llil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				size_t start = llil->GetInstructionStart(GetData()->GetDefaultArchitecture(), newRemoteRip);
 				if (start < llil->GetInstructionCount())
 				{
 					if (llil->GetInstruction(start).address == newRemoteRip)
@@ -529,7 +531,7 @@ DebugStopReason DebuggerController::StepIntoReverseIL(BNFunctionGraphType il)
 				return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
-			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.empty())
 				return SingleStep;
 
@@ -539,7 +541,7 @@ DebugStopReason DebuggerController::StepIntoReverseIL(BNFunctionGraphType il)
 				if (!mlil)
 					return SingleStep;
 
-				size_t start = mlil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				size_t start = mlil->GetInstructionStart(GetData()->GetDefaultArchitecture(), newRemoteRip);
 				if (start < mlil->GetInstructionCount())
 				{
 					if (mlil->GetInstruction(start).address == newRemoteRip)
@@ -560,7 +562,7 @@ DebugStopReason DebuggerController::StepIntoReverseIL(BNFunctionGraphType il)
 				return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
-			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.empty())
 				return SingleStep;
 
@@ -657,7 +659,7 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
 				return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
-			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.empty())
 				return SingleStep;
 
@@ -667,7 +669,7 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
 				if (!llil)
 					return SingleStep;
 
-				size_t start = llil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				size_t start = llil->GetInstructionStart(GetData()->GetDefaultArchitecture(), newRemoteRip);
 				if (start < llil->GetInstructionCount())
 				{
 					if (llil->GetInstruction(start).address == newRemoteRip)
@@ -686,7 +688,7 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
 			if (!ExpectSingleStep(reason))
 				return reason;
 			uint64_t newRemoteRip = m_state->IP();
-			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.empty())
 				return SingleStep;
 
@@ -696,7 +698,7 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
 				if (!mlil)
 					return SingleStep;
 
-				size_t start = mlil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				size_t start = mlil->GetInstructionStart(GetData()->GetDefaultArchitecture(), newRemoteRip);
 				if (start < mlil->GetInstructionCount())
 				{
 					if (mlil->GetInstruction(start).address == newRemoteRip)
@@ -717,7 +719,7 @@ DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
 				return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
-			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.empty())
 				return SingleStep;
 
@@ -760,7 +762,7 @@ DebugStopReason DebuggerController::StepOverReverseIL(BNFunctionGraphType il)
 				return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
-			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.empty())
 				return SingleStep;
 
@@ -770,7 +772,7 @@ DebugStopReason DebuggerController::StepOverReverseIL(BNFunctionGraphType il)
 				if (!llil)
 					return SingleStep;
 
-				size_t start = llil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				size_t start = llil->GetInstructionStart(GetData()->GetDefaultArchitecture(), newRemoteRip);
 				if (start < llil->GetInstructionCount())
 				{
 					if (llil->GetInstruction(start).address == newRemoteRip)
@@ -789,7 +791,7 @@ DebugStopReason DebuggerController::StepOverReverseIL(BNFunctionGraphType il)
 			if (!ExpectSingleStep(reason))
 				return reason;
 			uint64_t newRemoteRip = m_state->IP();
-			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.empty())
 				return SingleStep;
 
@@ -799,7 +801,7 @@ DebugStopReason DebuggerController::StepOverReverseIL(BNFunctionGraphType il)
 				if (!mlil)
 					return SingleStep;
 
-				size_t start = mlil->GetInstructionStart(m_liveView->GetDefaultArchitecture(), newRemoteRip);
+				size_t start = mlil->GetInstructionStart(GetData()->GetDefaultArchitecture(), newRemoteRip);
 				if (start < mlil->GetInstructionCount())
 				{
 					if (mlil->GetInstruction(start).address == newRemoteRip)
@@ -820,7 +822,7 @@ DebugStopReason DebuggerController::StepOverReverseIL(BNFunctionGraphType il)
 				return reason;
 
 			uint64_t newRemoteRip = m_state->IP();
-			std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(newRemoteRip);
+			std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(newRemoteRip);
 			if (functions.empty())
 				return SingleStep;
 
@@ -899,7 +901,7 @@ DebugStopReason DebuggerController::StepOverReverseAndWait(BNFunctionGraphType i
 DebugStopReason DebuggerController::EmulateStepReturnAndWait()
 {
 	uint64_t address = m_state->IP();
-	std::vector<FunctionRef> functions = m_liveView->GetAnalysisFunctionsContainingAddress(address);
+	std::vector<FunctionRef> functions = GetData()->GetAnalysisFunctionsContainingAddress(address);
 	if (functions.empty())
 		return InternalError;
 
@@ -1049,24 +1051,9 @@ DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& re
 
 bool DebuggerController::CreateDebuggerBinaryView()
 {
-	BinaryViewTypeRef viewType = BinaryViewType::GetByName("Debugger");
-	if (!viewType)
-		return false;
-
-	BinaryViewRef liveView = viewType->Create(GetData());
-	if (!liveView)
-		return false;
-
 	BinaryViewRef data = GetData();
-	if (!data->GetDefaultArchitecture() || !data->GetDefaultPlatform())
-	{
-		LogWarn("Fail to create debugger view. The input view must have an architecture and platform");
-		return false;
-	}
-	liveView->SetDefaultArchitecture(data->GetDefaultArchitecture());
-	liveView->SetDefaultPlatform(data->GetDefaultPlatform());
-	SetLiveView(liveView);
-
+	m_accessor = new DebuggerFileAccessor(data);
+	data->GetMemoryMap()->AddRemoteMemoryRegion("debugger", 0, m_accessor);
 	return true;
 }
 
@@ -1092,7 +1079,7 @@ void DebuggerController::DetectLoadedModule()
 	}
 	else
 	{
-		if (remoteBase != GetData()->GetStart())
+		if (remoteBase != GetViewFileSegmentsStart())
 		{
 			// remote base is different from the local base, first need a rebase
 			if (!m_file->Rebase(GetData(), remoteBase, [&](size_t cur, size_t total) { return true; }))
@@ -1100,15 +1087,9 @@ void DebuggerController::DetectLoadedModule()
 				LogWarn("rebase failed");
 			}
 		}
-
-		Ref<BinaryView> rebasedView = m_file->GetViewOfType(m_viewName);
-
-		bool ok = m_file->CreateSnapshotedView(rebasedView, "Debugger", [&](size_t cur, size_t total) { return true; });
-		if (!ok)
-			LogWarn("create snapshoted view failed");
 	}
 
-	m_liveView->UpdateAnalysis();
+	GetData()->UpdateAnalysis();
 	m_inputFileLoaded = true;
 }
 
@@ -1549,12 +1530,14 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	{
 		m_inputFileLoaded = false;
 		m_initialBreakpointSeen = false;
-		// The m_liveView can be nullptr if the launch attempt fails because of the safe mode
-		if (m_liveView)
-			m_liveView->GetFile()->UnregisterViewOfType("Debugger", m_liveView);
-		SetLiveView(nullptr);
+		RemoveDebuggerMemoryRegion();
+		if (m_accessor)
+		{
+			delete m_accessor;
+			m_accessor = nullptr;
+		}
+		m_lastIP = m_currentIP;
 		m_currentIP = 0;
-		m_lastIP = 0;
 		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
 		break;
@@ -1726,7 +1709,7 @@ void DebuggerController::NotifyEvent(DebuggerEventType eventType)
 // We should call these two function instead of DebugAdapter::ReadMemory(), which will skip the memory cache
 DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t size)
 {
-	if (!m_liveView)
+	if (!GetData())
 		return DataBuffer {};
 
 	if (!m_state->IsConnected())
@@ -1745,7 +1728,7 @@ DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t si
 
 bool DebuggerController::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
-	if (!m_liveView)
+	if (!GetData())
 		return false;
 
 	if (!m_state->IsConnected())
@@ -1871,11 +1854,11 @@ void DebuggerController::ProcessOneVariable(uint64_t varAddress, Confidence<Ref<
 	{
 		// The variable is not yet defined, or has changed. Define it.
 		// Should we use DataVariable, or UserDataVariable?
-		m_liveView->DefineDataVariable(varAddress, type);
+		GetData()->DefineDataVariable(varAddress, type);
 		if (!name.empty())
 		{
 			SymbolRef sym = new Symbol(DataSymbol, name, name, name, varAddress);
-			m_liveView->DefineUserSymbol(sym);
+			GetData()->DefineUserSymbol(sym);
 		}
 		m_debuggerVariables[varAddress] = varNameAndType;
 	}
@@ -1894,10 +1877,10 @@ void DebuggerController::ProcessOneVariable(uint64_t varAddress, Confidence<Ref<
 
 void DebuggerController::DefineVariablesRecursive(uint64_t address, Confidence<Ref<Type>> type)
 {
-	size_t addressSize = m_liveView->GetAddressSize();
+	size_t addressSize = GetData()->GetAddressSize();
 	if (type->IsPointer())
 	{
-		auto reader = BinaryReader(m_liveView);
+		auto reader = BinaryReader(GetData());
 		reader.Seek(address);
 		uint64_t targetAddress = 0;
 		bool readOk = false;
@@ -1948,16 +1931,16 @@ void DebuggerController::UpdateStackVariables()
 	if (!m_shouldAnnotateStackVariable)
 		return;
 
-	if (!m_liveView)
+	if (!GetData())
 		return;
 
-	auto id = m_liveView->BeginUndoActions();
+	auto id = GetData()->BeginUndoActions();
 	std::vector<DebugThread> threads = GetAllThreads();
 	uint64_t frameAdjustment = 0;
-	if (!m_liveView->GetDefaultArchitecture())
+	if (!GetData()->GetDefaultArchitecture())
 		return;
 
-	std::string archName = m_liveView->GetDefaultArchitecture()->GetName();
+	std::string archName = GetData()->GetDefaultArchitecture()->GetName();
 	if ((archName == "x86") || (archName == "x86_64"))
 		frameAdjustment = 8;
 
@@ -1975,7 +1958,7 @@ void DebuggerController::UpdateStackVariables()
 			const DebugFrame& frame = frames[i];
 			const DebugFrame& prevFrame = frames[i + 1];
 			// If there is no function at a stacktrace function start, add one
-			auto functions = m_liveView->GetAnalysisFunctionsForAddress(frame.m_functionStart);
+			auto functions = GetData()->GetAnalysisFunctionsForAddress(frame.m_functionStart);
 			if (functions.empty())
 				continue;
 
@@ -2000,8 +1983,8 @@ void DebuggerController::UpdateStackVariables()
 		for (const DebugFrame& frame : frames)
 		{
 			// Annotate the stack pointer and the frame pointer, using the current stack frame
-			m_liveView->SetCommentForAddress(frame.m_sp, fmt::format("Stack #{}\n====================", frame.m_index));
-			m_liveView->SetCommentForAddress(frame.m_fp, fmt::format("Frame #{}", frame.m_index));
+			GetData()->SetCommentForAddress(frame.m_sp, fmt::format("Stack #{}\n====================", frame.m_index));
+			GetData()->SetCommentForAddress(frame.m_fp, fmt::format("Frame #{}", frame.m_index));
 			m_addressesWithComment.insert(frame.m_sp);
 			m_addressesWithComment.insert(frame.m_fp);
 
@@ -2021,17 +2004,17 @@ void DebuggerController::UpdateStackVariables()
 		if (iter != m_addressesWithVariable.end())
 			m_addressesWithVariable.erase(iter);
 
-		m_liveView->UndefineDataVariable(address);
-		auto symbol = m_liveView->GetSymbolByAddress(address);
+		GetData()->UndefineDataVariable(address);
+		auto symbol = GetData()->GetSymbolByAddress(address);
 		if (symbol)
-			m_liveView->UndefineUserSymbol(symbol);
+			GetData()->UndefineUserSymbol(symbol);
 	}
 
 	for (uint64_t address : oldAddressWithComment)
 	{
-		m_liveView->SetCommentForAddress(address, "");
+		GetData()->SetCommentForAddress(address, "");
 	}
-	m_liveView->ForgetUndoActions(id);
+	GetData()->ForgetUndoActions(id);
 }
 
 
@@ -2049,7 +2032,7 @@ void DebuggerController::AddRegisterValuesToExpressionParser()
 		values.emplace_back(reg.m_value);
 	}
 
-	m_liveView->AddExpressionParserMagicValues(names, values);
+	GetData()->AddExpressionParserMagicValues(names, values);
 }
 
 
@@ -2239,11 +2222,9 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 		operationRequested = m_adapter->BreakInto();
 		break;
 	case DebugAdapterQuit:
-		m_liveView->AbortAnalysis();
 		m_adapter->Quit();
 		break;
 	case DebugAdapterDetach:
-		m_liveView->AbortAnalysis();
 		m_adapter->Detach();
 		break;
 	case DebugAdapterLaunch:
@@ -2470,8 +2451,8 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 		return result;
 
 	// Check pointer to strings
-	auto buffer = m_liveView->ReadBuffer(address, m_liveView->GetAddressSize());
-	if (buffer.GetLength() == m_liveView->GetAddressSize())
+	auto buffer = GetData()->ReadBuffer(address, GetData()->GetAddressSize());
+	if (buffer.GetLength() == GetData()->GetAddressSize())
 	{
 		uint64_t pointerValue = *reinterpret_cast<std::uintptr_t*>(buffer.GetData());
 		if (pointerValue != 0)
@@ -2485,7 +2466,7 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 
 
 	// Look for functions starting at the address
-	auto func = m_liveView->GetAnalysisFunction(m_liveView->GetDefaultPlatform(), address);
+	auto func = GetData()->GetAnalysisFunction(GetData()->GetDefaultPlatform(), address);
 	if (func)
 	{
 		auto sym = func->GetSymbol();
@@ -2494,7 +2475,7 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 	}
 
 	// Look for functions containing the address
-	for (const auto& func: m_liveView->GetAnalysisFunctionsContainingAddress(address))
+	for (const auto& func: GetData()->GetAnalysisFunctionsContainingAddress(address))
 	{
 		auto sym = func->GetSymbol();
 		if (sym)
@@ -2504,7 +2485,7 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 	}
 
 	// Look for symbols
-	auto sym = m_liveView->GetSymbolByAddress(address);
+	auto sym = GetData()->GetSymbolByAddress(address);
 	if (sym)
 	{
 		return sym->GetShortName();
@@ -2512,9 +2493,9 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 
 	//	Look for data variables
 	DataVariable var;
-	if (m_liveView->GetDataVariableAtAddress(address, var))
+	if (GetData()->GetDataVariableAtAddress(address, var))
 	{
-		sym = m_liveView->GetSymbolByAddress(var.address);
+		sym = GetData()->GetSymbolByAddress(var.address);
 		if (sym)
 		{
 			return fmt::format("{} + 0x{:x}", sym->GetShortName(), address - var.address);
@@ -2548,4 +2529,24 @@ bool DebuggerController::IsTTD()
 	if(!m_adapter)
 		return false;
 	return m_adapter->SupportFeature(DebugAdapterSupportTTD);
+}
+
+
+bool DebuggerController::RemoveDebuggerMemoryRegion()
+{
+	bool ret = GetData()->GetMemoryMap()->RemoveMemoryRegion("debugger");
+	if (!ret)
+		return false;
+
+	auto segment = m_data->GetSegmentAt(0);
+	if (segment)
+		m_data->RemoveAutoSegment(segment->GetStart(), segment->GetLength());
+
+	return true;
+}
+
+
+bool DebuggerController::ReAddDebuggerMemoryRegion()
+{
+	return GetData()->GetMemoryMap()->AddRemoteMemoryRegion("debugger", 0, GetMemoryAccessor());
 }

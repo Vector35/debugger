@@ -73,8 +73,7 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 {
 	auto controller = DebuggerController::GetController(view);
 	bool isAbsoluteAddress = false;
-	// TODO: check if this works
-	if (view->GetTypeName() == "Debugger")
+	if (controller->IsConnected())
 		isAbsoluteAddress = true;
 
 	if (isAbsoluteAddress)
@@ -91,7 +90,7 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 	else
 	{
 		std::string filename = controller->GetInputFile();
-		uint64_t offset = addr - view->GetStart();
+		uint64_t offset = addr - controller->GetViewFileSegmentsStart();
 		ModuleNameAndOffset info = {filename, offset};
 		if (controller->ContainsBreakpoint(info))
 		{
@@ -1037,7 +1036,7 @@ void DebuggerUI::openDebuggerSideBar(ViewFrame* frame)
 }
 
 
-void DebuggerUI::updateIPHighlight()
+void DebuggerUI::removeOldIPHighlight()
 {
 	uint64_t lastIP = m_controller->GetLastIP();
 	uint64_t address = m_controller->IP();
@@ -1053,7 +1052,7 @@ void DebuggerUI::updateIPHighlight()
 	{
 		ModuleNameAndOffset addr;
 		addr.module = m_controller->GetInputFile();
-		addr.offset = lastIP - data->GetStart();
+		addr.offset = lastIP - m_controller->GetViewFileSegmentsStart();
 
 		BNHighlightStandardColor oldColor = NoHighlightColor;
 		if (m_controller->ContainsBreakpoint(addr))
@@ -1070,6 +1069,21 @@ void DebuggerUI::updateIPHighlight()
 			data->ForgetUndoActions(id);
 		}
 	}
+}
+
+
+void DebuggerUI::updateIPHighlight()
+{
+	removeOldIPHighlight();
+
+	uint64_t lastIP = m_controller->GetLastIP();
+	uint64_t address = m_controller->IP();
+	if (address == lastIP)
+		return;
+
+	BinaryViewRef data = m_controller->GetLiveView();
+	if (!data)
+		return;
 
 	// Add new instruction pointer highlight
 	for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(address))
@@ -1143,41 +1157,12 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 	case QuitDebuggingEventType:
 	case TargetExitedEventType:
 	{
+		removeOldIPHighlight();
 		ViewFrame* frame = m_context->getCurrentViewFrame();
-		if (!frame)
-			break;
-
-		// Workaround for https://github.com/Vector35/debugger/issues/367
-		auto settings = Settings::Instance();
-		bool oldRestoreView = false;
-		if (settings->Contains("ui.files.restore.viewState"))
-		{
-			oldRestoreView = settings->Get<bool>("ui.files.restore.viewState");
-			if (oldRestoreView)
-				settings->Set("ui.files.restore.viewState", false);
-		}
-
 		FileContext* fileContext = frame->getFileContext();
-		auto tab = m_context->getTabForFile(fileContext);
-		ViewFrame* newFrame = m_context->openFileContext(fileContext);
+		fileContext->refreshDataViewCache();
+		m_context->recreateViewFrames(fileContext);
 		QCoreApplication::processEvents();
-
-		if (newFrame)
-		{
-			newFrame->navigate(m_controller->GetData(), m_controller->GetData()->GetEntryPoint(), true, true);
-			m_context->closeTab(tab);
-			fileContext->refreshDataViewCache();
-			openDebuggerSideBar(newFrame);
-			QCoreApplication::processEvents();
-		}
-		else
-		{
-			LogWarn("fail to navigate to the original view");
-		}
-
-		if (oldRestoreView)
-			settings->Set("ui.files.restore.viewState", true);
-
 		break;
 	}
 
@@ -1197,21 +1182,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		if (!liveView)
 			break;
 
-		if (event.type == TargetStoppedEventType
-			&& event.data.targetStoppedData.reason == DebugStopReason::InitialBreakpoint)
-		{
-			ViewFrame* frame = m_context->getCurrentViewFrame();
-			FileContext* fileContext = frame->getFileContext();
-			fileContext->refreshDataViewCache();
-			m_context->recreateViewFrames(fileContext);
-			navigateToCurrentIP();
-			QCoreApplication::processEvents();
-		}
-		else
-		{
-			navigateToCurrentIP();
-		}
-
+		navigateToCurrentIP();
 		updateIPHighlight();
 		checkFocusDebuggerConsole();
 		break;
@@ -1224,8 +1195,9 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		FileMetadataRef fileMetadata = data->GetFile();
 		ViewFrame* frame = m_context->getCurrentViewFrame();
 
-		if (remoteBase != data->GetStart())
+		if (remoteBase != m_controller->GetViewFileSegmentsStart())
 		{
+			m_controller->RemoveDebuggerMemoryRegion();
 			bool result = false;
 			QString text = QString("Rebasing the input view...");
 			ProgressTask* task =
@@ -1239,22 +1211,15 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 				LogWarn("failed to rebase the input view");
 				break;
 			}
-		}
 
-		Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(data->GetTypeName());
+			m_controller->ReAddDebuggerMemoryRegion();
 
-		bool result = false;
-		QString text = QString("Adding the input view into the debugger view...");
-		ProgressTask* task =
-			new ProgressTask(frame, "Adding view", text, "Cancel", [&](std::function<bool(size_t, size_t)> progress) {
-				result = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger", progress);
-			});
-		task->wait();
-
-		if (!result)
-		{
-			LogWarn("failed add the input view into the debugger view");
-			break;
+			ViewFrame* frame = m_context->getCurrentViewFrame();
+			FileContext* fileContext = frame->getFileContext();
+			fileContext->refreshDataViewCache();
+			m_context->recreateViewFrames(fileContext);
+			navigateToCurrentIP();
+			QCoreApplication::processEvents();
 		}
 
 		break;
@@ -1270,7 +1235,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 
 		if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetInputFile()))
 		{
-			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + event.data.relativeAddress.offset);
+			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + event.data.relativeAddress.offset);
 		}
 
 		for (auto& [data, addr] : dataAndAddress)
@@ -1310,7 +1275,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		ModuleNameAndOffset relative = m_controller->AbsoluteAddressToRelative(address);
 		if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetInputFile()))
 		{
-			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + relative.offset);
+			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + relative.offset);
 		}
 
 		for (auto& [data, address] : dataAndAddress)
@@ -1348,7 +1313,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 
 		if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetInputFile()))
 		{
-			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + event.data.relativeAddress.offset);
+			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + event.data.relativeAddress.offset);
 		}
 
 		for (auto& [data, address] : dataAndAddress)
@@ -1381,7 +1346,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		ModuleNameAndOffset relative = m_controller->AbsoluteAddressToRelative(address);
 		if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetInputFile()))
 		{
-			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetData()->GetStart() + relative.offset);
+			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + relative.offset);
 		}
 
 		for (auto& [data, address] : dataAndAddress)

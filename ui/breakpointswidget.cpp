@@ -319,19 +319,10 @@ void DebugBreakpointsWidget::jump()
 		return;
 
 	BreakpointItem bp = m_model->getRow(sel[0].row());
-
-	auto address_or_offset = bp.address();
-	Ref<BinaryView> view = m_controller->GetData();
-	const auto is_absolute = m_controller->IsConnected();
-	if (!is_absolute)
-		address_or_offset += view->GetStart();
-
 	UIContext* context = UIContext::contextForWidget(this);
 	ViewFrame* frame = context->getCurrentViewFrame();
 	if (m_controller->GetLiveView())
-		frame->navigate(m_controller->GetLiveView(), address_or_offset, true, true);
-	else
-		frame->navigate(m_controller->GetData(), address_or_offset, true, true);
+		frame->navigate(m_controller->GetLiveView(), bp.address(), true, true);
 }
 
 
@@ -365,7 +356,7 @@ void DebugBreakpointsWidget::add()
 	else
 	{
 		std::string filename = m_controller->GetInputFile();
-		uint64_t offset = address - view->GetStart();
+		uint64_t offset = address - m_controller->GetViewFileSegmentsStart();
 		ModuleNameAndOffset info = {filename, offset};
 		m_controller->AddBreakpoint(info);
 	}
