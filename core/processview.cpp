@@ -24,11 +24,10 @@ using namespace BinaryNinjaDebugger;
 static DebugProcessViewType* g_debugProcessViewType = nullptr;
 
 
-DebugProcessView::DebugProcessView(DebugNullView* nullView, BinaryView* parent):
-	BinaryView("Debugger", parent->GetFile(), nullView)
+DebugProcessView::DebugProcessView(BinaryView* parent):	BinaryView("Debugger", parent->GetFile())
 {
-	m_arch = parent->GetDefaultArchitecture();
-	m_platform = parent->GetDefaultPlatform();
+//	m_arch = parent->GetDefaultArchitecture();
+//	m_platform = parent->GetDefaultPlatform();
 	m_addressSize = parent->GetAddressSize();
 	auto bits = m_addressSize * 8;
 	if (bits >= 64)
@@ -103,8 +102,7 @@ Ref<BinaryView> DebugProcessViewType::Create(BinaryView* data)
 	try
 	{
 		// the null view must be ref-counted, otherwise there will be a memory leak
-		Ref<DebugNullView> nullView = new DebugNullView(data);
-		return new DebugProcessView(nullView, data);
+		return new DebugProcessView(data);
 	}
 	catch (std::exception& e)
 	{
@@ -118,9 +116,7 @@ Ref<BinaryView> DebugProcessViewType::Parse(BinaryView* data)
 {
 	try
 	{
-		// the null view must be ref-counted, otherwise there will be a memory leak
-		Ref<DebugNullView> nullView = new DebugNullView(data);
-		return new DebugProcessView(nullView, data);
+		return new DebugProcessView(data);
 	}
 	catch (std::exception& e)
 	{
@@ -199,24 +195,24 @@ void DebugProcessView::eventHandler(const DebuggerEvent &event)
 }
 
 
-DebugNullView::DebugNullView(BinaryView* parent) :
-	BinaryView("Debugger Null", parent->GetFile(), nullptr)
-{
-}
-
-
-DebugNullView::~DebugNullView()
-{
-}
-
-
-uint64_t DebugNullView::PerformGetLength() const
-{
-	return 1;
-}
-
-
-bool DebugNullView::PerformIsOffsetBackedByFile(uint64_t offset)
-{
-	return offset == 0;
-}
+//DebugNullView::DebugNullView(BinaryView* parent) :
+//	BinaryView("Debugger Null", parent->GetFile(), nullptr)
+//{
+//}
+//
+//
+//DebugNullView::~DebugNullView()
+//{
+//}
+//
+//
+//uint64_t DebugNullView::PerformGetLength() const
+//{
+//	return 1;
+//}
+//
+//
+//bool DebugNullView::PerformIsOffsetBackedByFile(uint64_t offset)
+//{
+//	return offset == 0;
+//}

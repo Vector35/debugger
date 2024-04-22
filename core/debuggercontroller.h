@@ -103,7 +103,7 @@ namespace BinaryNinjaDebugger {
 		bool CreateDebugAdapter();
 		bool CreateDebuggerBinaryView();
 
-		void SetLiveView(BinaryViewRef view) { m_liveView = view; }
+		void SetLiveView(BinaryViewRef view) { }
 
 		DebugStopReason StepIntoIL(BNFunctionGraphType il);
 		DebugStopReason StepIntoReverseIL(BNFunctionGraphType il);

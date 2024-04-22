@@ -53,7 +53,7 @@ namespace BinaryNinjaDebugger
 		virtual size_t PerformWrite(uint64_t offset, const void* data, size_t len) override;
 
 	public:
-		DebugProcessView(DebugNullView* nullView, BinaryView* data);
+		DebugProcessView(BinaryView* data);
 		virtual ~DebugProcessView();
 		virtual bool Init() override;
 

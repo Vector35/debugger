@@ -1221,21 +1221,21 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			}
 		}
 
-		Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(data->GetTypeName());
-
-		bool result = false;
-		QString text = QString("Adding the input view into the debugger view...");
-		ProgressTask* task =
-			new ProgressTask(frame, "Adding view", text, "Cancel", [&](std::function<bool(size_t, size_t)> progress) {
-				result = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger", progress);
-			});
-		task->wait();
-
-		if (!result)
-		{
-			LogWarn("failed add the input view into the debugger view");
-			break;
-		}
+//		Ref<BinaryView> rebasedView = fileMetadata->GetViewOfType(data->GetTypeName());
+//
+//		bool result = false;
+//		QString text = QString("Adding the input view into the debugger view...");
+//		ProgressTask* task =
+//			new ProgressTask(frame, "Adding view", text, "Cancel", [&](std::function<bool(size_t, size_t)> progress) {
+//				result = fileMetadata->CreateSnapshotedView(rebasedView, "Debugger", progress);
+//			});
+//		task->wait();
+//
+//		if (!result)
+//		{
+//			LogWarn("failed add the input view into the debugger view");
+//			break;
+//		}
 
 		break;
 	}

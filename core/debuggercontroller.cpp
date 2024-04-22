@@ -28,6 +28,7 @@ DebuggerController::DebuggerController(BinaryViewRef data)
 
 	m_file = data->GetFile();
 	m_viewName = data->GetTypeName();
+	m_liveView = data;
 
 	m_state = new DebuggerState(data, this);
 	m_adapter = nullptr;
@@ -1058,14 +1059,15 @@ bool DebuggerController::CreateDebuggerBinaryView()
 		return false;
 
 	BinaryViewRef data = GetData();
-	if (!data->GetDefaultArchitecture() || !data->GetDefaultPlatform())
-	{
-		LogWarn("Fail to create debugger view. The input view must have an architecture and platform");
-		return false;
-	}
-	liveView->SetDefaultArchitecture(data->GetDefaultArchitecture());
-	liveView->SetDefaultPlatform(data->GetDefaultPlatform());
-	SetLiveView(liveView);
+	data->AddMemoryRegionAsBinaryView("debugger", 0, liveView);
+//	if (!data->GetDefaultArchitecture() || !data->GetDefaultPlatform())
+//	{
+//		LogWarn("Fail to create debugger view. The input view must have an architecture and platform");
+//		return false;
+//	}
+//	liveView->SetDefaultArchitecture(data->GetDefaultArchitecture());
+//	liveView->SetDefaultPlatform(data->GetDefaultPlatform());
+//	SetLiveView(liveView);
 
 	return true;
 }
