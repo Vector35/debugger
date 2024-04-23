@@ -37,17 +37,6 @@ DebugProcessView::DebugProcessView(BinaryView* parent):	BinaryView("Debugger", p
 
 	m_endian = parent->GetDefaultEndianness();
 
-	// TODO: Read segments from debugger
-	uint64_t length = PerformGetLength();
-	// If we do not add any segments, BN will malfunction. If we add a binary view that is large, e.g., 0xffffffff,
-	// it will be truncated to the size of the parent view. And the region from 0x0 to the size of the parent view will
-	// be unreadable, because BN will try to read the byte values from the parent view, rather from the debug process
-	// view, which eventually reads from the debug adapter backend. So, as a workaround, we add a segment that has size
-	// 0x1, which minimizes the unreadable regions.
-	// See https://github.com/Vector35/debugger/issues/334 for more details.
-	AddAutoSegment(0, 1, 0, 1, SegmentReadable | SegmentWritable | SegmentExecutable);
-	AddAutoSection("Memory", 0, length);
-
 	m_aggressiveAnalysisUpdate = Settings::Instance()->Get<bool>("debugger.aggressiveAnalysisUpdate");
 
 	m_controller = DebuggerController::GetController(parent);
@@ -193,26 +182,3 @@ void DebugProcessView::eventHandler(const DebuggerEvent &event)
 		break;
 	}
 }
-
-
-//DebugNullView::DebugNullView(BinaryView* parent) :
-//	BinaryView("Debugger Null", parent->GetFile(), nullptr)
-//{
-//}
-//
-//
-//DebugNullView::~DebugNullView()
-//{
-//}
-//
-//
-//uint64_t DebugNullView::PerformGetLength() const
-//{
-//	return 1;
-//}
-//
-//
-//bool DebugNullView::PerformIsOffsetBackedByFile(uint64_t offset)
-//{
-//	return offset == 0;
-//}
