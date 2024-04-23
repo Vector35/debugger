@@ -1060,14 +1060,8 @@ bool DebuggerController::CreateDebuggerBinaryView()
 
 	BinaryViewRef data = GetData();
 	data->AddMemoryRegionAsBinaryView("debugger", 0, liveView);
-//	if (!data->GetDefaultArchitecture() || !data->GetDefaultPlatform())
-//	{
-//		LogWarn("Fail to create debugger view. The input view must have an architecture and platform");
-//		return false;
-//	}
-//	liveView->SetDefaultArchitecture(data->GetDefaultArchitecture());
-//	liveView->SetDefaultPlatform(data->GetDefaultPlatform());
-//	SetLiveView(liveView);
+	data->SetCustomStart(0);
+	data->SetCustomLength(liveView->GetLength());
 
 	return true;
 }

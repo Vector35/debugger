@@ -1204,7 +1204,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		FileMetadataRef fileMetadata = data->GetFile();
 		ViewFrame* frame = m_context->getCurrentViewFrame();
 
-		if (remoteBase != data->GetStart())
+		if (remoteBase != data->GetOriginalBase())
 		{
 			bool result = false;
 			QString text = QString("Rebasing the input view...");
