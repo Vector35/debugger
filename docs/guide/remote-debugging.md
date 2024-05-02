@@ -32,17 +32,15 @@ For now, `DbgEng` adapter supports debug server, and `LLDB` adapter supports bot
 
 ### Windows
 
-To use remote debugging, first install two DbgEng redistributable on the remote machine.
-
-- Find the DbgEng redistributable. There are two MSIs that come with Binary Ninja installation, `X64 Debuggers And Tools-x64_en-us.msi` and `X86 Debuggers And Tools-x86_en-us.msi`. They can be found in `<BN_INSTALL_DIR>\plugins\dbgeng`.
-- Alternatively, the redistributable can be found at the debugger release page on GitHub. Download and extract the [debugger-win32.zip](https://github.com/Vector35/debugger/releases/download/0.1/debugger-win32.zip), and navigate to `debugger-win32\plugins\dbgeng`.
-- Install the redistributable on the remote machine. Copy them to the remote machine and double-click to install them. By default, the `x64` version will be installed into `C:\Program Files\Windows Kits\10\Debuggers`, and the x86 version will be installed to `C:\Program Files (x86)\Windows Kits\10\Debuggers`.
-- If you do not have admin privilege to install the two redistributable, extract the redistributable to any appropriate location by running command `msiexec /a X64 Debuggers And Tools-x64_en-us.msi TARGETDIR=<EXTRACT_DIR>` and `msiexec /a X86 Debuggers And Tools-x86_en-us.msi TARGETDIR=<EXTRACT_DIR>`.
-- Once installed properly, there should be a `dbgsrv.exe` in both folders, `C:\Program Files\Windows Kits\10\Debuggers\x64` and `C:\Program Files\Windows Kits\10\Debuggers\x86`.
+- Download and extract [debugger-win32.zip](https://github.com/Vector35/debugger/releases/download/1.0/debugger-win32.zip)
+- Find the `plugins/dbgeng` folder in it
+- If you wish to debug a x64 program, copy the `amd64` folder to the remote host.
+- If you wish to debug a x86 program, copy the `x86` folder to the remote host.
+- There should be a `dbgsrv.exe` folder you just copied.
 
 ### macOS
 
-- Download and extract [debugger-darwin.zip](https://github.com/Vector35/debugger/releases/download/0.1/debugger-darwin.zip).
+- Download and extract [debugger-darwin.zip](https://github.com/Vector35/debugger/releases/download/1.0/debugger-darwin.zip).
 - Find the `lldb` folder at `debugger-darwin/plugins/lldb` and copy it to the remote host.
 - Note, the entire lldb folder must be copied. Only copying the `lldb-server` or `debugserver` executable does not work.
 
@@ -52,7 +50,7 @@ There are two ways to prepare a Linux remote host, i.e., using lldb-server (reco
 
 #### lldb-server (recommended)
 
-- Download and extract [debugger-linux.zip](https://github.com/Vector35/debugger/releases/download/0.1/debugger-linux.zip).
+- Download and extract [debugger-linux.zip](https://github.com/Vector35/debugger/releases/download/1.0/debugger-linux.zip).
 - Find the `lldb` folder at `debugger-linux/plugins/lldb` and copy it to the remote host.
 - Note, the entire lldb folder must be copied. Only copying the `lldb-server` executable does not work.
 - One can also use the `lldb-server` or `gdbserver` that comes with the host system's Linux distribution. However, that might cause compatability issues.
