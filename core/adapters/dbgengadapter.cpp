@@ -83,15 +83,11 @@ std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 			return "";
 	}
 
-	// If the user does not specify a path (the default case), find the one from the %APPDATA% or %PROGRAMDATA%
-	char debuggerPath[MAX_PATH];
-	HMODULE handle = GetModuleHandleA("debuggercore.dll");
-	if (handle && (GetModuleFileNameA(handle, debuggerPath, MAX_PATH)))
-	{
-		auto debuggerRoot = filesystem::path(debuggerPath).parent_path()  / "dbgeng" / arch;
-		if (IsValidDbgEngPaths(debuggerRoot.string()))
-			return debuggerRoot.string();
-	}
+	// If the user does not specify a path (the default case), find the one from the plugins/dbgeng/arch
+    auto debuggerRoot = filesystem::path(GetBundledPluginDirectory())  / "dbgeng" / arch;
+    if (IsValidDbgEngPaths(debuggerRoot.string()))
+        return debuggerRoot.string();
+
 	return "";
 }
 
@@ -165,8 +161,7 @@ bool DbgEngAdapter::LoadDngEngLibraries()
 	if (enginePath.empty())
 	{
 		LogWarn("The debugger cannot find the path for the DbgEng DLLs. "
-			"If you have set debugger.x64dbgEngPath, check its correctness; if you have not set it, "
-			"reinstall the DbgEng redistributable");
+			"If you have set debugger.x64dbgEngPath, check if it valid");
 		return false;
 	}
 	LogDebug("DbgEng libraries in path %s", enginePath.c_str());
