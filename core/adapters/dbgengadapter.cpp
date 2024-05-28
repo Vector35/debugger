@@ -274,7 +274,7 @@ bool DbgEngAdapter::Start()
 	{
 		auto pipeName = GenerateRandomPipeName();
 		auto connectString = fmt::format("npipe:pipe={},Server=localhost", pipeName);
-		auto arch = m_defaultArchitecture == "x86_64" ? "amd64" : "x86";
+		auto arch = m_defaultArchitecture == "x86" ? "x86" : "amd64";
 		auto enginePath = GetDbgEngPath(arch);
 		if (enginePath.empty())
 			return false;
