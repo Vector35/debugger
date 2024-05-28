@@ -110,7 +110,7 @@ bool LldbAdapterType::CanConnect(BinaryNinja::BinaryView* data)
 
 bool LldbAdapterType::CanExecute(BinaryNinja::BinaryView* data)
 {
-	if (data->GetTypeName() == "PE" && data->GetDefaultArchitecture()->GetName() == "x86")
+	if (data->GetTypeName() == "PE")
 		return false;
 
 	return true;
