@@ -62,6 +62,8 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
     // Apply the breakpoints added before the m_debugClient is created
     ApplyBreakpoints();
 
+    DbgEngAdapter::InvokeBackendCommand("!index");
+
     auto settings = Settings::Instance();
     if (settings->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction) {
         AddBreakpoint(ModuleNameAndOffset(configs.inputFile, m_entryPoint - m_start));

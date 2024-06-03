@@ -83,8 +83,14 @@ std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 			return "";
 	}
 
+	std::string pluginRoot;
+	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
+		pluginRoot = GetUserPluginDirectory();
+	else
+		pluginRoot = GetBundledPluginDirectory();
+
 	// If the user does not specify a path (the default case), find the one from the plugins/dbgeng/arch
-    auto debuggerRoot = filesystem::path(GetBundledPluginDirectory())  / "dbgeng" / arch;
+    auto debuggerRoot = filesystem::path(pluginRoot)  / "dbgeng" / arch;
     if (IsValidDbgEngPaths(debuggerRoot.string()))
         return debuggerRoot.string();
 

@@ -42,6 +42,8 @@ private:
 	static void CreateGlobalAreaWidgets(UIContext* context);
 	static void CloseGlobalAreaWidgets(UIContext* context);
 
+	void installTTD(const UIActionContext& ctxt);
+
 public:
 	GlobalDebuggerUI(UIContext* context);
 	~GlobalDebuggerUI();

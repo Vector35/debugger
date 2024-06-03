@@ -41,6 +41,12 @@ limitations under the License.
 #include "attachprocess.h"
 #include "progresstask.h"
 
+#ifdef WIN32
+	#include "ttdrecord.h"
+	#include "scriptingconsole.h"
+#endif
+
+
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 using namespace std;
@@ -840,7 +846,54 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			connectedAndStopped));
 	debuggerMenu->addAction("Force Update Memory Cache", "Misc");
+
+#ifdef WIN32
+	UIAction::registerAction("Record TTD Trace");
+	context->globalActions()->bindAction("Record TTD Trace",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				auto* dialog = new TTDRecordDialog(context->mainWindow(), ctxt.binaryView);
+				dialog->show();
+			}));
+	debuggerMenu->addAction("Record TTD Trace", "TTD");
+
+	UIAction::registerAction("Install WinDbg/TTD");
+	context->globalActions()->bindAction("Install WinDbg/TTD",
+		UIAction(
+			[=](const UIActionContext& ctxt) { installTTD(ctxt); }));
+	debuggerMenu->addAction("Install WinDbg/TTD", "TTD");
+#endif
 }
+
+
+#ifdef WIN32
+void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
+{
+	std::string pluginRoot;
+	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
+		pluginRoot = GetUserPluginDirectory();
+	else
+		pluginRoot = GetBundledPluginDirectory();
+
+	auto ttdInstallerScript = filesystem::path(pluginRoot) / "dbgeng" / "install_windbg.py";
+	LogDebug("WinDbg/TTD installer script expected at: %s", ttdInstallerScript.string().c_str());
+	if (!std::filesystem::exists(ttdInstallerScript))
+	{
+		LogWarn("WinDbg/TTD installer script does not exist at: %s", ttdInstallerScript.string().c_str());
+		return;
+	}
+
+	auto sidebar = ctxt.context->sidebar();
+	if (!sidebar)
+		return;
+
+	auto *widget = qobject_cast<ScriptingConsole*>(sidebar->widget("Console"));
+	if (!widget)
+		return;
+
+	widget->runScriptFromFile(ttdInstallerScript.string());
+}
+#endif
 
 
 DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller) :
