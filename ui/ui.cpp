@@ -121,47 +121,66 @@ static void JumpToIPCallback(BinaryView* view, UIContext* context)
 }
 
 
-//static bool ShowAsCode(BinaryView* view, uint64_t addr)
-//{
-//	DataVariable var;
-//	if (view->GetDataVariableAtAddress(addr, var))
-//	{
-//		auto sym = view->GetSymbolByAddress(addr);
-//		if (sym)
-//		{
-//			auto name = sym->GetFullName();
-//			if (name.substr(0, 14) == "BN_CODE_start_")
-//			{
-//				return true;
-//			}
-//		}
-//	}
-//	return false;
-//}
+static bool ShowAsCode(BinaryView* view, uint64_t addr)
+{
+	DataVariable var;
+	if (view->GetDataVariableAtAddress(addr, var))
+	{
+		auto sym = view->GetSymbolByAddress(addr);
+		if (sym)
+		{
+			auto name = sym->GetFullName();
+			if (name.substr(0, 14) == "BN_CODE_start_")
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
 
 
-//static void MakeCodeHelper(BinaryView* view, uint64_t addr)
-//{
-//	if (!view)
-//		return;
-//
-//	if (ShowAsCode(view, addr))
-//	{
-//		view->BeginUndoActions();
-//		view->UndefineUserDataVariable(addr);
-//		auto sym = view->GetSymbolByAddress(addr);
-//		view->UndefineUserSymbol(sym);
-//		view->CommitUndoActions();
-//		return;
-//	}
-//
-//	view->BeginUndoActions();
-//	view->DefineUserDataVariable(addr, Type::ArrayType(Type::IntegerType(1, false), 1));
-//	const std::string name = fmt::format("BN_CODE_start_{:08x}", addr);
-//	SymbolRef sym = new Symbol(DataSymbol, name, name, name, addr);
-//	view->DefineUserSymbol(sym);
-//	view->CommitUndoActions();
-//}
+static void MakeCodeHelper(BinaryView* view, BNAddressRange selection)
+{
+	if (!view)
+		return;
+
+	auto addr = selection.start;
+	auto end = selection.end;
+	if (end - addr <= 1)
+	{
+		end = view->GetEnd();
+		auto nextData = view->GetNextDataVariableStartAfterAddress(addr);
+		auto nextCode = view->GetNextBasicBlockStartAfterAddress(addr);
+		auto localSegment = view->GetSegmentAt(addr);
+		if (nextData != 0)
+			end = std::min(nextData, end);
+		if (nextCode != 0)
+			end = std::min(nextCode, end);
+		if (localSegment)
+			end = std::min(localSegment->GetEnd(), end);
+
+		if (end <= addr)
+			end = addr + 0x30;
+	}
+
+	if (ShowAsCode(view, addr))
+	{
+		auto id = view->BeginUndoActions();
+		view->UndefineUserDataVariable(addr);
+		auto sym = view->GetSymbolByAddress(addr);
+		view->UndefineUserSymbol(sym);
+		view->CommitUndoActions(id);
+		return;
+	}
+
+	auto id = view->BeginUndoActions();
+	view->DefineUserDataVariable(addr, Type::ArrayType(Type::IntegerType(1, false), end - addr));
+	const std::string name = fmt::format("BN_CODE_start_0x{:x}_size_0x{:x}", addr, end - addr);
+	SymbolRef sym = new Symbol(DataSymbol, name, name, name, addr);
+	view->DefineUserSymbol(sym);
+	view->CommitUndoActions(id);
+}
 
 
 void GlobalDebuggerUI::SetupMenu(UIContext* context)
@@ -544,7 +563,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			[=](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
-					
+
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
 				if (!controller)
 					return;
@@ -730,27 +749,28 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 	debuggerMenu->addAction(showAreaWidgets, "Options");
 
-//	UIAction::registerAction("Make Code", QKeySequence(Qt::Key_C));
-//	context->globalActions()->bindAction("Make Code",
-//		UIAction(
-//			[=](const UIActionContext& ctxt) {
-//				if (!ctxt.binaryView)
-//					return;
-//
-//				MakeCodeHelper(ctxt.binaryView, ctxt.address);
-//			},
-//			requireBinaryView));
-//	debuggerMenu->addAction("Make Code", "Misc");
-//
-//	UIAction::setActionDisplayName("Make Code", [](const UIActionContext& ctxt) -> QString {
-//		if (!ctxt.binaryView)
-//			return "Make Code";
-//
-//		if (ShowAsCode(ctxt.binaryView, ctxt.address))
-//			return "Undefine Code";
-//
-//		return "Make Code";
-//	});
+	UIAction::registerAction("Make Code", QKeySequence(Qt::Key_C));
+	context->globalActions()->bindAction("Make Code",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if ((!ctxt.binaryView) || (!ctxt.view))
+					return;
+
+				auto selection = ctxt.view->getSelectionOffsets();
+				MakeCodeHelper(ctxt.binaryView, selection);
+			},
+			requireBinaryView));
+	debuggerMenu->addAction("Make Code", "Misc");
+
+	UIAction::setActionDisplayName("Make Code", [](const UIActionContext& ctxt) -> QString {
+		if (!ctxt.binaryView)
+			return "Make Code";
+
+		if (ShowAsCode(ctxt.binaryView, ctxt.address))
+			return "Undefine Code";
+
+		return "Make Code";
+	});
 
 	UIAction::registerAction("Jump to IP");
 	context->globalActions()->bindAction("Jump to IP",
@@ -1542,35 +1562,26 @@ void GlobalDebuggerUI::InitializeUI()
 		},
 		ConnectedAndRunning);
 
-	// actionName = "Make Code";
-	// UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
-	// UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
-	// PluginCommand::RegisterForAddress(
-	// 		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
-	// 		"Pause the target",
-	// 		[](BinaryView* view, uint64_t addr){
-	// 				MakeCodeHelper(view, addr);
-	// 			},
-	// 		BinaryViewValid);
-
-	// UIAction::setActionDisplayName("Debugger\\Make Code", [](const UIActionContext& ctxt) -> QString {
-	// 	if (!ctxt.binaryView)
-	// 		return "Make Code";
-
-	// 	if (ShowAsCode(ctxt.binaryView, ctxt.address))
-	// 		return "Undefine Code";
-
-	// 	return "Make Code";
-	// });
-
-	// UIAction::setActionDisplayName("Selection Target\\Debugger\\Make Code", [](const UIActionContext& ctxt) ->
-	// QString{ 	if (!ctxt.binaryView) 		return "Selection Target\\Debugger\\Make Code";
-
-	// 	if (ShowAsCode(ctxt.binaryView, ctxt.address))
-	// 		return "Selection Target\\Debugger\\Undefine Code";
-
-	// 	return "Selection Target\\Debugger\\Make Code";
-	// });
+//	actionName = "Make Code";
+//	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()), QKeySequence(Qt::Key_C));
+//	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
+//	PluginCommand::RegisterForAddress(
+//			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
+//			"Create raw disassembly",
+//			[](BinaryView* view, uint64_t addr){
+//					MakeCodeHelper(view, addr);
+//				},
+//			BinaryViewValid);
+//
+//	UIAction::setActionDisplayName("Debugger\\Make Code", [](const UIActionContext& ctxt) -> QString {
+//		if (!ctxt.binaryView)
+//			return "Make Code";
+//
+//		if (ShowAsCode(ctxt.binaryView, ctxt.address))
+//			return "Undefine Code";
+//
+//		return "Make Code";
+//	});
 }
 
 
@@ -1672,7 +1683,7 @@ extern "C"
 	{
 		GlobalDebuggerUI::InitializeUI();
 		NotificationListener::init();
-		// DataRendererContainer::RegisterTypeSpecificDataRenderer(new CodeDataRenderer);
+		DataRendererContainer::RegisterTypeSpecificDataRenderer(new CodeDataRenderer);
 		RegisterDebugAdapterScriptingProvider();
 		RegisterTargetScriptingProvider();
 		return true;
