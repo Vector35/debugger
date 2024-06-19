@@ -209,15 +209,15 @@ QVariant DebugRegistersListModel::headerData(int column, Qt::Orientation orienta
 std::set<std::string> DebugRegistersListModel::getUsedRegisterNames()
 {
 	std::set<std::string> usedRegisterNames;
-	if (!m_controller->GetLiveView())
+	if (!m_controller->GetData())
 		return usedRegisterNames;
 
 	auto pc = m_controller->IP();
-	auto arch = m_controller->GetLiveView()->GetDefaultArchitecture();
+	auto arch = m_controller->GetData()->GetDefaultArchitecture();
 	if (!arch)
 		return usedRegisterNames;
 
-	auto functions = m_controller->GetLiveView()->GetAnalysisFunctionsContainingAddress(pc);
+	auto functions = m_controller->GetData()->GetAnalysisFunctionsContainingAddress(pc);
 	if (functions.empty() || (!functions[0]))
 		return usedRegisterNames;
 
@@ -304,7 +304,7 @@ bool DebugRegistersListModel::setData(const QModelIndex& index, const QVariant& 
 	uint64_t newValue = 0;
 	std::string errorString;
 	if (!BinaryView::ParseExpression(
-			m_controller->GetLiveView(), valueStr.toStdString(), newValue, currentValue, errorString))
+			m_controller->GetData(), valueStr.toStdString(), newValue, currentValue, errorString))
 		return false;
 
 	if (newValue == currentValue)
@@ -575,9 +575,7 @@ void DebugRegistersWidget::jump()
 	if (!frame)
 		return;
 
-	if (m_controller->GetLiveView())
-		frame->navigate(m_controller->GetLiveView(), value, true, true);
-	else
+	if (m_controller->GetData())
 		frame->navigate(m_controller->GetData(), value, true, true);
 }
 
@@ -649,7 +647,7 @@ void DebugRegistersWidget::paste()
 	uint64_t newValue = 0;
 	std::string errorString;
 	if (!BinaryView::ParseExpression(
-			m_controller->GetLiveView(), text.toStdString(), newValue, reg.value(), errorString))
+			m_controller->GetData(), text.toStdString(), newValue, reg.value(), errorString))
 		return;
 
 	if (newValue == reg.value())
@@ -715,7 +713,7 @@ void DebugRegistersWidget::jumpInNewPaneInternal(const QModelIndex &index)
 		if (newViewFrame)
 		{
 			newViewFrame->disableSync();
-			newViewFrame->navigate(m_controller->GetLiveView(), value);
+			newViewFrame->navigate(m_controller->GetData(), value);
 		}
 	}
 }
@@ -764,7 +762,7 @@ void DebugRegistersWidget::hoverTimerEvent()
 	auto reg = m_model->getRow(sourceIndex.row());
 	uint64_t addr = reg.value();
 
-	auto liveView = m_controller->GetLiveView();
+	auto liveView = m_controller->GetData();
 	if (!liveView)
 		return;
 

@@ -113,9 +113,7 @@ static void JumpToIPCallback(BinaryView* view, UIContext* context)
 	if (!frame)
 		return;
 
-	if (controller->GetLiveView())
-		frame->navigate(controller->GetLiveView(), controller->IP(), true, true);
-	else
+	if (controller->GetData())
 		frame->navigate(controller->GetData(), controller->IP(), true, true);
 }
 
@@ -986,7 +984,7 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 	if (function)
 	{
 		// If the user is viewing a function in the current View, then navigate the current frame.
-		frame->navigate(m_controller->GetLiveView(), address, true, true);
+		frame->navigate(m_controller->GetData(), address, true, true);
 	}
 	else
 	{
@@ -1003,10 +1001,10 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 				{
 					View* groupView = i->getCurrentViewInterface();
 					auto data = groupView->getData();
-					bool dataMatch = (data && (data == m_controller->GetLiveView() || data == m_controller->GetData()));
+					bool dataMatch = data && (data == m_controller->GetData());
 					if (dataMatch && groupView->getCurrentFunction())
 					{
-						navigated |= i->navigate(m_controller->GetLiveView(), address, true, true);
+						navigated |= i->navigate(m_controller->GetData(), address, true, true);
 						if (navigated)
 							break;
 					}
@@ -1015,7 +1013,7 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 		}
 
 		if (!navigated)
-			frame->navigate(m_controller->GetLiveView(), address, true, true);
+			frame->navigate(m_controller->GetData(), address, true, true);
 	}
 
 	openDebuggerSideBar(frame);
@@ -1043,7 +1041,7 @@ void DebuggerUI::removeOldIPHighlight()
 	if (address == lastIP)
 		return;
 
-	BinaryViewRef data = m_controller->GetLiveView();
+	BinaryViewRef data = m_controller->GetData();
 	if (!data)
 		return;
 
@@ -1081,7 +1079,7 @@ void DebuggerUI::updateIPHighlight()
 	if (address == lastIP)
 		return;
 
-	BinaryViewRef data = m_controller->GetLiveView();
+	BinaryViewRef data = m_controller->GetData();
 	if (!data)
 		return;
 
@@ -1116,14 +1114,14 @@ void DebuggerUI::navigateToCurrentIP()
 	if (address == lastIp)
 		return;
 
-	BinaryViewRef liveView = m_controller->GetLiveView();
+	BinaryViewRef liveView = m_controller->GetData();
 	if (!liveView)
 		return;
 
 	auto functions = liveView->GetAnalysisFunctionsContainingAddress(address);
 	if (functions.empty())
 	{
-		auto data = m_controller->GetLiveView();
+		auto data = m_controller->GetData();
 		auto id = data->BeginUndoActions();
 		liveView->CreateUserFunction(data->GetDefaultPlatform(), address);
 		data->ForgetUndoActions(id);
@@ -1178,7 +1176,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 	{
 		// If there is no function at the current address, define one. This might be a little aggressive,
 		// but given that we are lacking the ability to "show as code", this feels like an OK workaround.
-		BinaryViewRef liveView = m_controller->GetLiveView();
+		BinaryViewRef liveView = m_controller->GetData();
 		if (!liveView)
 			break;
 
@@ -1230,8 +1228,8 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		uint64_t address = m_controller->RelativeAddressToAbsolute(event.data.relativeAddress);
 
 		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		if (m_controller->GetLiveView())
-			dataAndAddress.emplace_back(m_controller->GetLiveView(), address);
+		if (m_controller->GetData())
+			dataAndAddress.emplace_back(m_controller->GetData(), address);
 
 		if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetInputFile()))
 		{
@@ -1268,7 +1266,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		uint64_t address = event.data.absoluteAddress;
 
 		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		BinaryViewRef data = m_controller->GetLiveView();
+		BinaryViewRef data = m_controller->GetData();
 		if (data)
 			dataAndAddress.emplace_back(data, address);
 
@@ -1308,8 +1306,8 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		uint64_t address = m_controller->RelativeAddressToAbsolute(event.data.relativeAddress);
 
 		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		if (m_controller->GetLiveView())
-			dataAndAddress.emplace_back(m_controller->GetLiveView(), address);
+		if (m_controller->GetData())
+			dataAndAddress.emplace_back(m_controller->GetData(), address);
 
 		if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetInputFile()))
 		{
@@ -1339,7 +1337,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		uint64_t address = event.data.absoluteAddress;
 
 		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		BinaryViewRef data = m_controller->GetLiveView();
+		BinaryViewRef data = m_controller->GetData();
 		if (data)
 			dataAndAddress.emplace_back(data, address);
 

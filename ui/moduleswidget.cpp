@@ -423,9 +423,7 @@ void DebugModulesWidget::jumpToStart()
 	if (!frame)
 		return;
 
-	if (m_controller->GetLiveView())
-		frame->navigate(m_controller->GetLiveView(), address, true, true);
-	else
+	if (m_controller->GetData())
 		frame->navigate(m_controller->GetData(), address, true, true);
 }
 
@@ -451,9 +449,7 @@ void DebugModulesWidget::jumpToEnd()
 	if (!frame)
 		return;
 
-	if (m_controller->GetLiveView())
-		frame->navigate(m_controller->GetLiveView(), address, true, true);
-	else
+	if (m_controller->GetData())
 		frame->navigate(m_controller->GetData(), address, true, true);
 }
 
@@ -537,9 +533,7 @@ void DebugModulesWidget::onDoubleClicked()
 	if (!frame)
 		return;
 
-	if (m_controller->GetLiveView())
-		frame->navigate(m_controller->GetLiveView(), address, true, true);
-	else
+	if (m_controller->GetData())
 		frame->navigate(m_controller->GetData(), address, true, true);
 };
 

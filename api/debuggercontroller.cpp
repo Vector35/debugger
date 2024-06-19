@@ -70,15 +70,6 @@ void DebuggerController::Destroy()
 }
 
 
-Ref<BinaryView> DebuggerController::GetLiveView()
-{
-	BNBinaryView* view = BNDebuggerGetLiveView(m_object);
-	if (!view)
-		return nullptr;
-	return new BinaryView(view);
-}
-
-
 Ref<BinaryView> DebuggerController::GetData()
 {
 	BNBinaryView* view = BNDebuggerGetData(m_object);

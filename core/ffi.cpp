@@ -100,15 +100,6 @@ bool BNDebuggerControllerExistsFromFile(BNFileMetadata* file)
 }
 
 
-BNBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller)
-{
-	BinaryViewRef result = controller->object->GetLiveView();
-	if (result)
-		return BNNewViewReference(result->GetObject());
-	return nullptr;
-}
-
-
 BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller)
 {
 	BinaryViewRef result = controller->object->GetData();

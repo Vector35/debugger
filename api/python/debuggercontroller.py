@@ -515,10 +515,10 @@ class DebuggerController:
     target breaks. In the future, we will switch to an asyunchrounous communication model where these functions return
     before the operation is performed.
 
-    For each insteance of DebuggerController, there are two BinaryViews associated with it. The first one is the
-    original BinaryView that gets rebased to the proper offset according to the target's actual base. The second is a
-    "live" BinaryView that represents the entire memory space of the target process. They can be accessed by ``data``
-    and ``live_view``, respectively.
+    Starting from 4.1.5542-dev (0ad6b08b), the debugger no longer involves two binary views during debugging. Instead,
+    it always uses the incoming binary view that is used to create the controller, and memory regions that are not
+    present in the original binary view are represented using the new MemoryRegion API. The binary view can be accessed
+    by the ``data`` property.
 
     """
     def __init__(self, bv: binaryninja.BinaryView):
@@ -547,15 +547,10 @@ class DebuggerController:
         return binaryninja.BinaryView(handle=result)
 
     @property
+    @binaryninja.deprecation.deprecated(deprecated_in="4.1.5542", details='Debugger no longer uses the live view, Use :py:attr:`data` instead')
     def live_view(self) -> binaryninja.BinaryView:
         """Get the live BinaryView of the debugger"""
-        result = dbgcore.BNDebuggerGetLiveView(self.handle)
-        if result is None:
-            return None
-        result = ctypes.cast(result, ctypes.POINTER(binaryninja.core.BNBinaryView))
-        if result is None:
-            return None
-        return binaryninja.BinaryView(handle=result)
+        return self.data
 
     @property
     def remote_arch(self) -> binaryninja.Architecture:
@@ -589,7 +584,7 @@ class DebuggerController:
         """
         Read memory from the target.
 
-        One can also get the ``live_view`` BinaryView of the DebuggerController, and use ordinary read methods to read
+        One can also get the ``data`` BinaryView of the DebuggerController, and use ordinary read methods to read
         its content.
 
         :param address: address to read from
@@ -608,7 +603,7 @@ class DebuggerController:
         """
         Write memory of the target.
 
-        One can also get the ``live_view`` BinaryView of the DebuggerController, and use ordinary write methods to write
+        One can also get the ``data`` BinaryView of the DebuggerController, and use ordinary write methods to write
         its content.
 
         :param address: address to write to

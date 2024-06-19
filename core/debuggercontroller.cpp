@@ -1426,7 +1426,7 @@ void DebuggerController::DeleteController(BinaryViewRef data)
 		if (!controller)
 			continue;
 
-		if ((controller->GetData() == data) || (controller->GetLiveView() == data))
+		if (controller->GetData() == data)
 		{
 			g_debuggerControllers[i] = nullptr;
 		}
@@ -1442,8 +1442,6 @@ bool DebuggerController::ControllerExists(BinaryViewRef data)
 		if (!controller)
 			continue;
 		if (controller->GetData() == data)
-			return true;
-		if (controller->GetLiveView() == data)
 			return true;
 	}
 

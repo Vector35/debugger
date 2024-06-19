@@ -275,7 +275,7 @@ bool DebugStackListModel::setData(const QModelIndex& index, const QVariant& valu
 		return false;
 
 	size_t addressSize = m_controller->GetRemoteArchitecture()->GetAddressSize();
-	BinaryWriter* writer = new BinaryWriter(m_controller->GetLiveView());
+	BinaryWriter* writer = new BinaryWriter(m_controller->GetData());
 	ok = false;
 	writer->Seek(item->address());
 	switch (addressSize)
@@ -432,11 +432,11 @@ void DebugStackWidget::updateContent()
 	if (!m_controller->IsConnected())
 		return;
 
-	if (!m_controller->GetLiveView())
+	if (!m_controller->GetData())
 		return;
 
 	std::vector<DebugStackItem> stackItems;
-	BinaryReader* reader = new BinaryReader(m_controller->GetLiveView());
+	BinaryReader* reader = new BinaryReader(m_controller->GetData());
 	uint64_t stackPointer = m_controller->StackPointer();
 	size_t addressSize = m_controller->GetRemoteArchitecture()->GetAddressSize();
 	for (ptrdiff_t i = -8; i < 60 + 1; i++)

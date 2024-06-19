@@ -458,7 +458,6 @@ namespace BinaryNinjaDebuggerAPI {
 		static DbgRef<DebuggerController> GetController(Ref<BinaryNinja::FileMetadata> file);
 		static bool ControllerExists(Ref<BinaryNinja::FileMetadata> file);
 		void Destroy();
-		Ref<BinaryView> GetLiveView();
 		Ref<BinaryView> GetData();
 		void SetData(const Ref<BinaryView>& data);
 		Ref<Architecture> GetRemoteArchitecture();

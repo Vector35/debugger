@@ -738,9 +738,7 @@ void ThreadFramesWidget::onDoubleClicked()
 	if (!frame)
 		return;
 
-	if (m_debugger->GetLiveView())
-		frame->navigate(m_debugger->GetLiveView(), addrToJump, true, true);
-	else
+	if (m_debugger->GetData())
 		frame->navigate(m_debugger->GetData(), addrToJump, true, true);
 }
 

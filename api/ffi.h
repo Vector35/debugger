@@ -339,7 +339,6 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerControllerExists(BNBinaryView* data);
 	DEBUGGER_FFI_API BNDebuggerController* BNGetDebuggerControllerFromFile(BNFileMetadata* file);
 	DEBUGGER_FFI_API bool BNDebuggerControllerExistsFromFile(BNFileMetadata* file);
-	DEBUGGER_FFI_API BNBinaryView* BNDebuggerGetLiveView(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerSetData(BNDebuggerController* controller, BNBinaryView* data);
 	DEBUGGER_FFI_API BNArchitecture* BNDebuggerGetRemoteArchitecture(BNDebuggerController* controller);

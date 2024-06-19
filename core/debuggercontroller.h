@@ -277,7 +277,6 @@ namespace BinaryNinjaDebugger {
 		BinaryViewRef GetData() { return m_data; }
 		FileMetadataRef GetFile() { return m_file; }
 		void SetData(BinaryViewRef view) {}
-		BinaryViewRef GetLiveView() const { return m_data; }
 		DebuggerFileAccessor* GetMemoryAccessor() const { return m_accessor; }
 
 		uint32_t GetExitCode();
