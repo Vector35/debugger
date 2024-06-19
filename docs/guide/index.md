@@ -226,26 +226,19 @@ Right now, the debugger comes with two debug adapters. The `LLDBAdapter` uses [L
 
 New debug adapters can be created by subclassing `DebugAdapter` to support other targets.
 
-Remote debugging is a planned feature. Specifically, the capacity to connect to a target via [RSP protocol](https://sourceware.org/gdb/current/onlinedocs/gdb/Remote-Protocol.html) is already baked into the LLDBAdapter, though not tested.
 
+### The Debugger Memory Region
 
-### The Debugger BinaryView
+Starting from 4.1.5542-dev (0ad6b08b), the debugger no longer involves two binary views during debugging. Instead,
+it always uses the incoming binary view (e.g., PE view) that is used to create the controller. Memory regions 
+that are not present in the original binary view are represented using the new Memory Map/Region API.
 
-To represent the memory space of the target, the debugger creates a specialized `BinaryView` called `DebugProcessView`. Throughout this document, it is also called the `Debugger` BinaryView.
+These regions get added automatically when the target is launched, and gets removed after debugging. Analysis is no longer lost after debugging.
 
-[//]: # (On the other hand, there is a `base` BinaryView that is the BinaryView used to create the debugger. The base binaryView gets rebased to the correct location when the target launches. )
+During debugging, the binary view reads and writes its memory from the connected `DebugAdapter` backend.
+Writing to it will also cause the target's memory to change.
 
-The Debugger BinaryView reads and writes its memory from the connected `DebugAdapter`. To save on data transfer, the debugger caches all read operations from the adapter. Whenever the debugger executes instructions or writes data, the cached data is cleared.
-
-When the target is launched, the debugger automatically switches the view to the Debugger BinaryView.
-
-![](../../img/debugger/debuggerview.png)
-
-The debugger automatically applies all analysis data to the Debugger BinaryView, including functions and types, etc. This means the user can conveniently use types that are present in the static analysis.
-
-The Debugger BinaryView can be accessed by `dbg.live_view` once the target is launched. You can read/write to it in the normal way. Writing to it will also cause the target's memory to change.
-
-Right now, the Debugger BinaryView is discarded once the target exits. It cannot be easily reused due to ASLR, which makes the base of the program different in each run. As a result, any changes the user made to the Debugger BinaryView will be discarded after the target exits.
+The binary view can be accessed by the ``data`` property of the controller.
 
 ## API
 
@@ -304,7 +297,7 @@ There are several ways to launch the target:
 ### View/Edit Memory
 
 - Switch to Linear or hex view of the Debugger BinaryView, and view/edit in the normal way
-- Get the Debugger BinaryView by `dbg.live_view`, and read/write it in the normal way
+- Get the BinaryView by `dbg.data`, and read/write it in the normal way
 
 
 ### Navigating the binary
@@ -361,14 +354,6 @@ According to [https://lldb.llvm.org/](https://lldb.llvm.org/), ARM and AArch64 s
 If the target contains self-modifying code (SMC), when the target stops, the code in the linear/graph view may not always be up-to-date. To force a memory cache update and re-analysis of the function, right click and select "Reanalyze Current Function" in the context menu.
 
 To avoid the need to manually force an update frequently, set `debugger.aggressiveAnalysisUpdate` to true. Then the debugger will explicitly refresh the memory cache and re-analyze all functions every time the target stops. This is very helpful for obfuscated code with lots of SMC. However, it could cause lag in response if the target is large and has a lot of functions.
-
-
-### Changes made to the debugger binary view are lost after debugging
-
-Any changes, e.g., annotations, comments, are lost after the target exits. This is because the debugger binary view is a separate binary view, and edits to it would not carry over to the original binary view.
-As a temporary workaround, try to apply changes to the original binary view, whose changes will always be carried over to the debugger binary view when the target launches.
-
-We are also working on [an issue](https://github.com/Vector35/debugger/issues/213) which will resolve the problem by offering a viable way to selectively carry over some changes made to the debugger binary view to the original binary view.
 
 
 ## Troubleshooting
