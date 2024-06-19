@@ -1081,11 +1081,13 @@ void DebuggerController::DetectLoadedModule()
 	{
 		if (remoteBase != GetViewFileSegmentsStart())
 		{
+			RemoveDebuggerMemoryRegion();
 			// remote base is different from the local base, first need a rebase
 			if (!m_file->Rebase(GetData(), remoteBase, [&](size_t cur, size_t total) { return true; }))
 			{
 				LogWarn("rebase failed");
 			}
+			ReAddDebuggerMemoryRegion();
 		}
 	}
 
