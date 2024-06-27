@@ -64,9 +64,9 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	outputDirSelector->setMaximumWidth(30);
 	connect(outputDirSelector, &QPushButton::clicked, [&]() {
 		auto pathName = QFileDialog::getExistingDirectory(this, "Specify Trace Output Directory",
-			m_workingDirectoryEntry->text(), QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+			m_outputDirectory->text(), QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
 		if (!pathName.isEmpty())
-			m_workingDirectoryEntry->setText(pathName);
+            m_outputDirectory->setText(pathName);
 	});
 
 	auto pathEntryLayout = new QHBoxLayout;
