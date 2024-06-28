@@ -188,6 +188,7 @@ extern "C"
 		ExcCrash,
 
 		InternalError,
+		InternalErrorFoobar,
 		InvalidStatusOrOperation,
 
 		UserRequestedBreak,

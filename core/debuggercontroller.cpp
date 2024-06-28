@@ -2247,7 +2247,7 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 	if (ok)
 		sem.Wait();
 	else
-		reason = InternalError;
+		reason = InternalErrorFoobar;
 
 	RemoveEventCallback(callback);
 	if ((operation != DebugAdapterPause) && (operation != DebugAdapterQuit) && (operation != DebugAdapterDetach))
