@@ -1390,9 +1390,6 @@ DbgRef<DebuggerController> DebuggerController::GetController(BinaryViewRef data)
 			return controller;
 	}
 
-	if (data->GetTypeName() == "Debugger")
-		return nullptr;
-
 	auto controller = new DebuggerController(data);
 	g_debuggerControllers = (DbgRef<DebuggerController>*)realloc(g_debuggerControllers,
 							sizeof(DbgRef<DebuggerController>) * (g_controllerCount + 1));

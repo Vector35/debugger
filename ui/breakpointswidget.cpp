@@ -346,7 +346,8 @@ void DebugBreakpointsWidget::add()
 		return;
 
 	bool isAbsoluteAddress = false;
-	if (view->GetTypeName() == "Debugger")
+	auto controller = DebuggerController::GetController(view);
+	if (controller->IsConnected())
 		isAbsoluteAddress = true;
 
 	if (isAbsoluteAddress)
