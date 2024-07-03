@@ -41,6 +41,7 @@ DebuggerController::DebuggerController(BinaryViewRef data)
 
 DebuggerController::~DebuggerController()
 {
+	m_data->UnregisterNotification(this);
 	m_file = nullptr;
 
 	if (m_state)
@@ -1126,7 +1127,7 @@ bool DebuggerController::ResumeThread(std::uint32_t tid)
 	auto result = m_state->GetThreads()->ResumeThread(tid);
 	if (!result)
 		return false;
-	
+
 	DebuggerEvent event;
 	event.type = ThreadStateChangedEvent;
 	PostDebuggerEvent(event);
@@ -1742,7 +1743,7 @@ std::vector<DebugProcess> DebuggerController::GetProcessList()
 		if (!CreateDebugAdapter())
 			return {};
 	}
-	
+
 	return m_adapter->GetProcessList();
 }
 
