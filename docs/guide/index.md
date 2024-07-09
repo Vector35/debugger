@@ -180,7 +180,7 @@ Among these actions, target control actions, e.g., `Run`/`Step Into` have the sa
 
 `Run To Here` lets the target execute until the current line is hit.
 
-[//]: # (`Make Code` is an experimental feature that displays the selected region as code. If the region is indeed code, the user can use `P` to create a function there.)
+[//]: # (`Make Code` is an experimental feature that displays the selected region as code. If the region is indeed code, the user can use `P` to create a function there. Note that we recommend in _most_ situations that `p` be used, or if some code is incorrectly associated with another function, the fix is resolving the reason for that mistake. For example, adding a `No Return` property to a function.
 
 ### Stack Variable Annotation
 
