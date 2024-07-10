@@ -149,6 +149,8 @@ namespace BinaryNinjaDebugger {
 		std::string m_lastAdapterName;
 		std::string m_lastCommand;
 
+        bool m_zeroSegmentAddedByDebugger = false;
+
 		void DetectLoadedModule();
 
 	public:
