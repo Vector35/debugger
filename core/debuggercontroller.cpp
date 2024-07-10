@@ -1046,8 +1046,8 @@ DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& re
 bool DebuggerController::CreateDebuggerBinaryView()
 {
 	BinaryViewRef data = GetData();
-    auto segment = data->GetSegmentAt(0);
-    m_zeroSegmentAddedByDebugger = segment == nullptr;
+	auto segment = data->GetSegmentAt(0);
+	m_zeroSegmentAddedByDebugger = segment == nullptr;
 	m_accessor = new DebuggerFileAccessor(data);
 	data->GetMemoryMap()->AddRemoteMemoryRegion("debugger", 0, m_accessor);
 	return true;

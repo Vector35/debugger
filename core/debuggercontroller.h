@@ -70,7 +70,7 @@ namespace BinaryNinjaDebugger {
 		// the binary view -- we will no longer need to track it ourselves
 		uint64_t m_viewStart;
 
-//		inline static std::vector<DbgRef<DebuggerController>> g_debuggerControllers;
+		//	inline static std::vector<DbgRef<DebuggerController>> g_debuggerControllers;
 		static DbgRef<DebuggerController>* g_debuggerControllers;
 		static size_t g_controllerCount;
 
@@ -149,7 +149,7 @@ namespace BinaryNinjaDebugger {
 		std::string m_lastAdapterName;
 		std::string m_lastCommand;
 
-        bool m_zeroSegmentAddedByDebugger = false;
+		bool m_zeroSegmentAddedByDebugger = false;
 
 		void DetectLoadedModule();
 
