@@ -313,18 +313,19 @@ class DebuggerAPI(unittest.TestCase):
         dbg.quit_and_wait()
 
 
-@unittest.skipIf(platform.system() != 'Darwin' or platform.machine() != 'arm64', "Only run arm64 tests on arm Mac")
+@unittest.skipIf(platform.machine() not in ['arm64', 'aarch64'], "Only run arm64 tests on arm Mac or Linux")
 class DebuggerArm64Test(DebuggerAPI):
     def setUp(self) -> None:
         self.arch = 'arm64'
 
 
+@unittest.skipIf(platform.system() == 'Linux' and platform.machine() in ['arm64', 'aarch64'], 'x86 tests not supported on arm64 macOS or Linux')
 class Debuggerx64Test(DebuggerAPI):
     def setUp(self) -> None:
         self.arch = 'x86_64'
 
 
-@unittest.skipIf(platform.system() in ['Darwin'], 'x86 tests not supported on macOS/Windows')
+@unittest.skipIf(platform.machine() in ['arm64', 'aarch64'], 'x86 tests not supported on macOS or arm64 Linux')
 class Debuggerx86Test(DebuggerAPI):
     def setUp(self) -> None:
         self.arch = 'x86'
