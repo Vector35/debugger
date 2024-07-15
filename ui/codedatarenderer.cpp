@@ -55,6 +55,8 @@ std::vector<DisassemblyTextLine> CodeDataRenderer::GetLinesForData(BinaryView* d
 
 	auto codeSize = type->GetElementCount();
 	auto arch = data->GetDefaultArchitecture();
+	if (!arch)
+		return result;
 	auto buffer = data->ReadBuffer(addr, codeSize);
 	if (buffer.GetLength() == 0)
 		return result;
