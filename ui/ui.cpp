@@ -540,7 +540,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
-				controller->Restart();
+				std::thread([=]() { controller->Restart(); }).detach();
 			},
 			connected));
 	debuggerMenu->addAction("Restart", "Launch");
