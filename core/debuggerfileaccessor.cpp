@@ -29,6 +29,8 @@ DebuggerFileAccessor::DebuggerFileAccessor(BinaryView* parent)
 	else
 		m_length = (1ULL << bits) - 1;
 
+	m_aggressiveAnalysisUpdate = Settings::Instance()->Get<bool>("debugger.aggressiveAnalysisUpdate");
+
 	m_controller = DebuggerController::GetController(parent);
 	m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
 		eventHandler(event);
