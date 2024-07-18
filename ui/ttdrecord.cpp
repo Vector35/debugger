@@ -18,6 +18,7 @@ limitations under the License.
 #include "uicontext.h"
 #include "qfiledialog.h"
 #include "fmt/format.h"
+#include <QMessageBox>
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
@@ -189,7 +190,7 @@ void TTDRecordDialog::DoTTDTrace()
 	auto ttdPath = GetTTDRecorderPath();
 	if (ttdPath.empty())
 	{
-		LogWarn("The debugger cannot find the path for the TTD recorder. "
+		QMessageBox::critical(this, "Recording Failed", "The debugger cannot find the path for the TTD recorder. "
 			"If you have set debugger.x64dbgEngPath, check if it valid");
 		return;
 	}
@@ -203,15 +204,22 @@ void TTDRecordDialog::DoTTDTrace()
 		m_argumentsEntry->text().toStdString());
 	LogWarn("TTD tracer cmd: %s %s", ttdRecorder.c_str(), ttdCommandLine.c_str());
 
-	HINSTANCE ret = ShellExecuteA(
-		NULL,
-		"runas",
-		ttdRecorder.c_str(),
-		ttdCommandLine.c_str(),
-		m_workingDirectoryEntry->text().toStdString().c_str(),
-		SW_NORMAL
-		);
+	SHELLEXECUTEINFOA info = {0};
+	info.cbSize = sizeof(SHELLEXECUTEINFOA);
+	info.fMask = SEE_MASK_NOCLOSEPROCESS;
+	info.lpVerb = "runas";
+	info.lpFile = ttdRecorder.c_str();
+	info.lpParameters = ttdCommandLine.c_str();
+	info.lpDirectory = m_workingDirectoryEntry->text().toStdString().c_str();
+	info.nShow = SW_NORMAL;
+	bool ret = ShellExecuteExA(&info);
+	if (ret == FALSE)
+	{
+		QMessageBox::critical(this, "Recording Failed", QString::asprintf("TTD recording failed: %lu", GetLastError()));
+		return;
+	}
 
-	if ((INT_PTR)ret < 32)
-		LogWarn("TTD recording failed: %d", ret);
+	LogDebug("info.hProcess: %d", info.hProcess);
+	WaitForSingleObject(info.hProcess, INFINITE);
+	QMessageBox::information(this, "Recording Completed", "The TTD recording has completed and you can now debug the trace");
 }
