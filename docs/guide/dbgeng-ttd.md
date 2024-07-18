@@ -20,8 +20,8 @@ The WinDbg installation only needs to be done once.
 - Open Binary Ninja
 - Click Menu -> "Debugger" -> "Install WinDbg/TTD"
 - Wait for the script to finish
-  - Behind the scenes, this runs the Python [script](https://github.com/Vector35/debugger/blob/dev/core/adapters/dbgeng/install_windbg.py) to download and configure WinDbg
-  - The WinDbg will be installed to `%APPDATA%\Binary Ninja\windbg`
+    - Behind the scenes, this runs the Python [script](https://github.com/Vector35/debugger/blob/dev/core/adapters/dbgeng/install_windbg.py) to download and configure WinDbg
+    - The WinDbg will be installed to `%APPDATA%\Binary Ninja\windbg`
 - Restart Binary Ninja
 
 
