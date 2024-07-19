@@ -13,7 +13,7 @@ if (NOT BN_INTERNAL_BUILD)
 	if(WIN32)
 		set(MSVC_VERSION msvc2022_64 CACHE STRING "Version of MSVC Qt is built with" )
 	endif()
-	set(QT_VERSION 6.6.1 CACHE STRING "Version of Qt to use")
+	set(QT_VERSION 6.7.2 CACHE STRING "Version of Qt to use")
 
 	if(NOT CMAKE_PREFIX_PATH)
 		if(APPLE)
