@@ -424,7 +424,7 @@ std::vector<DebugProcess> LldbAdapter::GetProcessList()
 		// example output lines:
 		//	1268   944                                              csrss.exe
 		//  37635  9677   xusheng    arm64-apple-*                  Code Helper (Renderer)
-		// 
+		//
 		// we've 56 bytes until process name which is calculated like this:
 		// (6 + 1) + (6 + 1) + (10 + 1) + (30 + 1)
 
@@ -513,13 +513,13 @@ bool LldbAdapter::SuspendThread(std::uint32_t tid)
 	SBThread thread = m_process.GetThreadByID(tid);
 	if (!thread.IsValid())
 		return false;
-	
+
 	if (!thread.Suspend(error))
 		return false;
 
 	if (!error.Success())
 		return false;
-	
+
 	return true;
 }
 
@@ -529,7 +529,7 @@ bool LldbAdapter::ResumeThread(std::uint32_t tid)
 	SBThread thread = m_process.GetThreadByID(tid);
 	if (!thread.IsValid())
 		return false;
-	
+
 	if (!thread.Resume(error))
 		return false;
 
@@ -610,7 +610,7 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, u
 	}
 	else
 	{
-		uint64_t addr = address.offset + m_originalBase;
+		uint64_t addr = address.offset + m_originalImageBase;
 		std::string entryBreakpointCommand = fmt::format("b -s \"{}\" -a 0x{:x}", address.module, addr);
 		auto ret = InvokeBackendCommand(entryBreakpointCommand);
 		DebuggerEvent evt;

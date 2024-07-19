@@ -200,7 +200,7 @@ namespace BinaryNinjaDebugger {
 		uint64_t m_entryPoint;
 		bool m_hasEntryFunction;
 		uint64_t m_start;
-		uint64_t m_originalBase;
+		uint64_t m_originalImageBase;
 		std::string m_defaultArchitecture;
 		std::string m_originalFileName;
 
@@ -283,13 +283,13 @@ namespace BinaryNinjaDebugger {
 		virtual bool Go() = 0;
 
 		virtual bool GoReverse();
-		
+
 		virtual bool StepInto() = 0;
-		
+
 		virtual bool StepIntoReverse();
 
 		virtual bool StepOver() = 0;
-		
+
 		virtual bool StepOverReverse();
 		//    virtual bool RunTo(std::uintptr_t address) = 0;
 

@@ -2522,18 +2522,7 @@ bool DebuggerController::IsTTD()
 
 bool DebuggerController::RemoveDebuggerMemoryRegion()
 {
-	bool ret = GetData()->GetMemoryMap()->RemoveMemoryRegion("debugger");
-	if (!ret)
-		return false;
-
-    if (m_zeroSegmentAddedByDebugger)
-    {
-        auto segment = m_data->GetSegmentAt(0);
-        if (segment)
-            m_data->RemoveAutoSegment(segment->GetStart(), segment->GetLength());
-    }
-
-	return true;
+	return GetData()->GetMemoryMap()->RemoveMemoryRegion("debugger");
 }
 
 
