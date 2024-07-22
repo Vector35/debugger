@@ -328,6 +328,36 @@ See [Time Travel Debugging Guide](dbgeng-ttd.md)
 See [Windows Kernel Debugging Guide](windows-kd.md)
 
 
+### Debugging without Opening a File
+
+Normally one would first open a file and then start debugging. However, the debugger can also be used without first opening a file.
+For example, if you debug a virtual machine or the Windows kernel and do not have a specific module to look at, then there is no motivation to open a file first.
+Or, if the file is huge and rebasing it takes too long during the launch, then using the debugger directly can save a lot of time.
+
+Below are the steps to use the debugger without opening a file:
+
+- Create an empty mapped file
+    - In menu, click `File`->`New Mapped Data`
+    - In the popup dialog, select the architecture and platform of your target
+    - Click `Accept`
+    - This step is necessary and it would not work on a `Raw` view
+- Configure the debugger
+    - Open the debugger sidebar
+    - Open the debug adapter settings dialog by clicking the right-most button in the control buttons area
+    - Select the appropriate debug adapter
+    - Set the Executable Path
+    - Set other fields as needed
+- Start debugging as usual
+
+Please be advised when using the debugger in this way, the debugger would not be able to add the initial breakpoint at
+the entry point (because the debugger does not have analysis information about the target). The target will execute on
+its own freely. One can set the `debugger.stopAtSystemEntryPoint` setting to true and which will stop the target at a
+proper time. 
+
+Note, this does not work if you first create a raw view and then create a mapped view from it -- you must directly create
+a mapped view in the above way.
+
+
 ## Known Issues and Workarounds
 
 There are some known issues and limitations with the current debugger. Here is a list including potential workarounds.
