@@ -187,7 +187,7 @@ DebugAdapter* LocalWindowsKernelAdapterType::Create(BinaryNinja::BinaryView* dat
 
 bool LocalWindowsKernelAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
 {
-	return data->GetTypeName() == "PE" || data->GetTypeName() == "Raw";
+	return data->GetTypeName() == "PE" || data->GetTypeName() == "Raw" || data->GetTypeName() == "Mapped";
 }
 
 
