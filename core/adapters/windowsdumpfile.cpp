@@ -197,7 +197,7 @@ DebugAdapter* WindowsDumpFileAdapterType::Create(BinaryNinja::BinaryView* data)
 
 bool WindowsDumpFileAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
 {
-	return data->GetTypeName() == "PE" || data->GetTypeName() == "Raw";
+	return data->GetTypeName() == "PE" || data->GetTypeName() == "Raw" || data->GetTypeName() == "Mapped";
 }
 
 

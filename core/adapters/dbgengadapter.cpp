@@ -1622,7 +1622,7 @@ DebugAdapter* LocalDbgEngAdapterType::Create(BinaryNinja::BinaryView* data)
 
 bool LocalDbgEngAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
 {
-	return data->GetTypeName() == "PE" || data->GetTypeName() == "Raw";
+	return data->GetTypeName() == "PE" || data->GetTypeName() == "Raw" || data->GetTypeName() == "Mapped";
 }
 
 
