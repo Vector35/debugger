@@ -415,6 +415,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				controller->GoReverse();
 			},
 			connectedAndStoppedWithTTD));
+	debuggerMenu->addAction("Go Backwards", "Control Backwards");
 
 	UIAction::registerAction("Step Into", QKeySequence(Qt::Key_F7));
 	context->globalActions()->bindAction("Step Into",
@@ -450,6 +451,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				controller->StepIntoReverse(graphType);
 			},
 			connectedAndStoppedWithTTD));
+	debuggerMenu->addAction("Step Into Backwards", "Control Backwards");
 
 	UIAction::registerAction("Step Over", QKeySequence(Qt::Key_F8));
 	context->globalActions()->bindAction("Step Over",
@@ -485,6 +487,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				controller->StepOverReverse(graphType);
 			},
 			connectedAndStoppedWithTTD));
+	debuggerMenu->addAction("Step Over Backwards", "Control Backwards");
 
 	UIAction::registerAction("Step Return", QKeySequence(Qt::ControlModifier | Qt::Key_F9));
 	context->globalActions()->bindAction("Step Return",
@@ -514,6 +517,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				controller->StepReturnReverse();
 			},
 			connectedAndStoppedWithTTD));
+	debuggerMenu->addAction("Step Return Backwards", "Control Backwards");
 
 	UIAction::registerAction("Detach");
 	context->globalActions()->bindAction("Detach",
