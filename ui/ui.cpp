@@ -1474,23 +1474,14 @@ void GlobalDebuggerUI::InitializeUI()
 	Sidebar::addSidebarWidgetType(new DebugModulesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new ThreadFramesSidebarWidgetType());
 
-	// We must use the sequence of these four calls to do the job, otherwise the keybinding does not work.
-	// Though it really should be the case where I can specify the keybinding in the first registerAction() call.
-	UIAction::registerAction("Debugger\\Toggle Breakpoint");
-	UIAction::registerAction("Selection Target\\Debugger\\Toggle Breakpoint");
-	PluginCommand::RegisterForAddress("Debugger\\Toggle Breakpoint", "Sets/clears breakpoint at right-clicked address",
+	PluginCommand::RegisterForAddress("Toggle Breakpoint", "Sets/clears breakpoint at right-clicked address",
 		BreakpointToggleCallback, BinaryViewValid);
 
-	UIAction::registerAction("Debugger\\Run To Here");
-	UIAction::registerAction("Selection Target\\Debugger\\Run To Here");
 	PluginCommand::RegisterForAddress(
-		"Debugger\\Run To Here", "Run until the current address", RunToHereCallback, ConnectedAndStopped);
+		"Run To Here", "Run until the current address", RunToHereCallback, ConnectedAndStopped);
 
-	std::string actionName = "Run";
-	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Launch or resume the target",
+		"Run", "Launch or resume the target",
 		[](BinaryView* view, uint64_t addr) {
 			auto controller = DebuggerController::GetController(view);
 			if (!controller)
@@ -1518,11 +1509,8 @@ void GlobalDebuggerUI::InitializeUI()
 		},
 		BinaryViewValid);
 
-	actionName = "Step Into";
-	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Step into",
+		"Step Into", "Step Into",
 		[](BinaryView* view, uint64_t) {
 			auto controller = DebuggerController::GetController(view);
 			if (!controller)
@@ -1535,11 +1523,8 @@ void GlobalDebuggerUI::InitializeUI()
 		},
 		ConnectedAndStopped);
 
-	actionName = "Step Over";
-	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Step over",
+		"Step Over", "Step Over",
 		[](BinaryView* view, uint64_t) {
 			auto controller = DebuggerController::GetController(view);
 			if (!controller)
@@ -1552,11 +1537,8 @@ void GlobalDebuggerUI::InitializeUI()
 		},
 		ConnectedAndStopped);
 
-	actionName = "Step Return";
-	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Step return",
+		"Step Return", "Step Return",
 		[](BinaryView* view, uint64_t) {
 			auto controller = DebuggerController::GetController(view);
 			if (!controller)
@@ -1565,11 +1547,8 @@ void GlobalDebuggerUI::InitializeUI()
 		},
 		ConnectedAndStopped);
 
-	actionName = "Pause";
-	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
 	PluginCommand::RegisterForAddress(
-		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Pause the target",
+		"Pause", "Pause the target",
 		[](BinaryView* view, uint64_t) {
 			auto controller = DebuggerController::GetController(view);
 			if (!controller)
@@ -1578,26 +1557,21 @@ void GlobalDebuggerUI::InitializeUI()
 		},
 		ConnectedAndRunning);
 
-//	actionName = "Make Code";
-//	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()), QKeySequence(Qt::Key_C));
-//	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
-//	PluginCommand::RegisterForAddress(
-//			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
-//			"Create raw disassembly",
-//			[](BinaryView* view, uint64_t addr){
-//					MakeCodeHelper(view, addr);
-//				},
-//			BinaryViewValid);
-//
-//	UIAction::setActionDisplayName("Debugger\\Make Code", [](const UIActionContext& ctxt) -> QString {
-//		if (!ctxt.binaryView)
-//			return "Make Code";
-//
-//		if (ShowAsCode(ctxt.binaryView, ctxt.address))
-//			return "Undefine Code";
-//
-//		return "Make Code";
-//	});
+	PluginCommand::RegisterForRange(
+			"Make Code", "Create raw disassembly",
+			[](BinaryView* view, uint64_t addr, uint64_t len){
+					MakeCodeHelper(view, {addr, addr + len});
+				});
+
+	UIAction::setActionDisplayName("Debugger\\Make Code", [](const UIActionContext& ctxt) -> QString {
+		if (!ctxt.binaryView)
+			return "Make Code";
+
+		if (ShowAsCode(ctxt.binaryView, ctxt.address))
+			return "Undefine Code";
+
+		return "Make Code";
+	});
 }
 
 
