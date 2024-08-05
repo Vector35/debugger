@@ -1450,6 +1450,17 @@ static void RunToHereCallback(BinaryView* view, uint64_t addr)
 }
 
 
+static bool NotConnected(BinaryView* view, uint64_t addr)
+{
+	if (!DebuggerController::ControllerExists(view))
+		return false;
+	auto controller = DebuggerController::GetController(view);
+	if (!controller)
+		return false;
+	return !controller->IsConnected();
+}
+
+
 static bool ConnectedAndStopped(BinaryView* view, uint64_t addr)
 {
 	if (!DebuggerController::ControllerExists(view))
@@ -1485,7 +1496,7 @@ void GlobalDebuggerUI::InitializeUI()
 		"Run To Here", "Run until the current address", RunToHereCallback, ConnectedAndStopped);
 
 	PluginCommand::RegisterForAddress(
-		"Run", "Launch or resume the target",
+		"Resume", "Resume the target",
 		[](BinaryView* view, uint64_t addr) {
 			auto controller = DebuggerController::GetController(view);
 			if (!controller)
@@ -1494,7 +1505,16 @@ void GlobalDebuggerUI::InitializeUI()
 			{
 				controller->Go();
 			}
-			else if (!controller->IsConnected())
+		},
+		ConnectedAndStopped);
+
+	PluginCommand::RegisterForAddress(
+		"Launch", "Launch the target",
+		[](BinaryView* view, uint64_t addr) {
+			auto controller = DebuggerController::GetController(view);
+			if (!controller)
+				return;
+			if (!controller->IsConnected())
 			{
 				QString text = QString(
 					"The debugger is launching the target and preparing the debugger binary view. \n"
@@ -1511,7 +1531,7 @@ void GlobalDebuggerUI::InitializeUI()
 				task->wait();
 			}
 		},
-		BinaryViewValid);
+		NotConnected);
 
 	PluginCommand::RegisterForAddress(
 		"Step Into", "Step Into",
