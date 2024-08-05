@@ -732,11 +732,17 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerLaunchAndWait(self.handle)
 
-    def restart(self) -> None:
+    def restart(self) -> bool:
         """
         Restart the target
         """
-        dbgcore.BNDebuggerRestart(self.handle)
+        return dbgcore.BNDebuggerRestart(self.handle)
+
+    def restart_and_wait(self) -> DebugStopReason:
+        """
+        Restart the target
+        """
+        return dbgcore.BNDebuggerRestartAndWait(self.handle)
 
     def quit(self) -> None:
         """

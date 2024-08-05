@@ -384,7 +384,8 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerLaunch(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerLaunchAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerExecute(BNDebuggerController* controller);
-	DEBUGGER_FFI_API void BNDebuggerRestart(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerRestart(BNDebuggerController* controller);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRestartAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerQuit(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerQuitAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerConnect(BNDebuggerController* controller);

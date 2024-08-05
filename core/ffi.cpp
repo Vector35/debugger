@@ -388,10 +388,15 @@ bool BNDebuggerExecute(BNDebuggerController* controller)
 }
 
 
-// TODO: Maybe this should return bool?
-void BNDebuggerRestart(BNDebuggerController* controller)
+bool BNDebuggerRestart(BNDebuggerController* controller)
 {
-	controller->object->Restart();
+	return controller->object->Restart();
+}
+
+
+BNDebugStopReason BNDebuggerRestartAndWait(BNDebuggerController* controller)
+{
+	return controller->object->RestartAndWait();
 }
 
 

@@ -1144,10 +1144,18 @@ std::vector<DebugFrame> DebuggerController::GetFramesOfThread(uint64_t tid)
 }
 
 
-void DebuggerController::Restart()
+bool DebuggerController::Restart()
+{
+	// TODO: validate debugger status before performing restart
+	std::thread([&]() { RestartAndWait(); }).detach();
+	return true;
+}
+
+
+DebugStopReason DebuggerController::RestartAndWait()
 {
 	QuitAndWait();
-	Launch();
+	return LaunchAndWait();
 }
 
 

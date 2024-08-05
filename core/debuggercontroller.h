@@ -230,7 +230,7 @@ namespace BinaryNinjaDebugger {
 
 		// target control
 		bool Execute();
-		void Restart();
+		bool Restart();
 		bool ConnectToDebugServer();
 		bool DisconnectDebugServer();
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected
@@ -270,6 +270,7 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason StepReturnReverseAndWait();
 		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
 		DebugStopReason PauseAndWait();
+		DebugStopReason RestartAndWait();
 		void DetachAndWait();
 		void QuitAndWait();
 

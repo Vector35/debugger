@@ -382,7 +382,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
-				std::thread([=]() { controller->Quit(); }).detach();
+				controller->Quit();
 			},
 			connected));
 	debuggerMenu->addAction("Kill", "Launch");
@@ -525,7 +525,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
-				std::thread([=]() { controller->Detach(); }).detach();
+				controller->Detach();
 			},
 			connected));
 	debuggerMenu->addAction("Detach", "Launch");
@@ -540,7 +540,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
-				std::thread([=]() { controller->Restart(); }).detach();
+				controller->Restart();
 			},
 			connected));
 	debuggerMenu->addAction("Restart", "Launch");
@@ -555,7 +555,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
-				std::thread([=]() { controller->Pause(); }).detach();
+				controller->Pause();
 			},
 			connectedAndRunning));
 	debuggerMenu->addAction("Pause", "Control");
@@ -1442,7 +1442,7 @@ static void RunToHereCallback(BinaryView* view, uint64_t addr)
 	auto controller = DebuggerController::GetController(view);
 	if (!controller)
 		return;
-	std::thread([=]() { controller->RunTo(addr); }).detach();
+	controller->RunTo(addr);
 }
 
 
@@ -1488,7 +1488,7 @@ void GlobalDebuggerUI::InitializeUI()
 				return;
 			if (controller->IsConnected() && (!controller->IsRunning()))
 			{
-				std::thread([=]() { controller->Go(); }).detach();
+				controller->Go();
 			}
 			else if (!controller->IsConnected())
 			{
@@ -1519,7 +1519,7 @@ void GlobalDebuggerUI::InitializeUI()
 			UIContext* context = UIContext::activeContext();
 			if (context && context->getCurrentView())
 				graphType = context->getCurrentView()->getILViewType();
-			std::thread([=]() { controller->StepInto(graphType); }).detach();
+			controller->StepInto(graphType);
 		},
 		ConnectedAndStopped);
 
@@ -1533,7 +1533,7 @@ void GlobalDebuggerUI::InitializeUI()
 			UIContext* context = UIContext::activeContext();
 			if (context && context->getCurrentView())
 				graphType = context->getCurrentView()->getILViewType();
-			std::thread([=]() { controller->StepOver(graphType); }).detach();
+			controller->StepOver(graphType);
 		},
 		ConnectedAndStopped);
 
@@ -1543,7 +1543,7 @@ void GlobalDebuggerUI::InitializeUI()
 			auto controller = DebuggerController::GetController(view);
 			if (!controller)
 				return;
-			std::thread([=]() { controller->StepReturn(); }).detach();
+			controller->StepReturn();
 		},
 		ConnectedAndStopped);
 
@@ -1553,7 +1553,7 @@ void GlobalDebuggerUI::InitializeUI()
 			auto controller = DebuggerController::GetController(view);
 			if (!controller)
 				return;
-			std::thread([=]() { controller->Pause(); }).detach();
+			controller->Pause();
 		},
 		ConnectedAndRunning);
 

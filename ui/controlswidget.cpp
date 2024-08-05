@@ -24,7 +24,6 @@ limitations under the License.
 #include "theme.h"
 #include "platformdialog.h"
 #include "ui.h"
-#include <thread>
 #include "progresstask.h"
 #include "attachprocess.h"
 
@@ -267,25 +266,25 @@ void DebugControlsWidget::performAttachPID()
 
 void DebugControlsWidget::performRestart()
 {
-	std::thread([&]() { m_controller->Restart(); }).detach();
+	m_controller->Restart();
 }
 
 
 void DebugControlsWidget::performQuit()
 {
-	std::thread([&]() { m_controller->Quit(); }).detach();
+	m_controller->Quit();
 }
 
 
 void DebugControlsWidget::performDetach()
 {
-	std::thread([&]() { m_controller->Detach(); }).detach();
+	m_controller->Detach();
 }
 
 
 void DebugControlsWidget::performPause()
 {
-	std::thread([&]() { m_controller->Pause(); }).detach();
+	m_controller->Pause();
 }
 
 

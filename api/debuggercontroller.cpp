@@ -326,9 +326,15 @@ bool DebuggerController::Execute()
 }
 
 
-void DebuggerController::Restart()
+bool DebuggerController::Restart()
 {
-	BNDebuggerRestart(m_object);
+	return BNDebuggerRestart(m_object);
+}
+
+
+DebugStopReason DebuggerController::RestartAndWait()
+{
+	return BNDebuggerRestartAndWait(m_object);
 }
 
 

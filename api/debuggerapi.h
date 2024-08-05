@@ -489,7 +489,7 @@ namespace BinaryNinjaDebuggerAPI {
 		bool Launch();
 		BNDebugStopReason LaunchAndWait();
 		bool Execute();
-		void Restart();
+		bool Restart();
 		void Quit();
 		void QuitAndWait();
 		bool Connect();
@@ -527,6 +527,7 @@ namespace BinaryNinjaDebuggerAPI {
 		DebugStopReason RunToAndWait(uint64_t remoteAddresses);
 		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
 		DebugStopReason PauseAndWait();
+		DebugStopReason RestartAndWait();
 
 		std::string GetAdapterType();
 		void SetAdapterType(const std::string& adapter);
