@@ -31,8 +31,8 @@ class DebugAdapterType:
     Right now, the DebugAdapterType class cannot be used to create a DebuggerController. This is planned for the future.
     """
 
-    def __init__(self, hande: dbgcore.BNDebugAdapterType):
-        self.handle = hande
+    def __init__(self, handle: dbgcore.BNDebugAdapterType):
+        self.handle = handle
 
     @classmethod
     def get_by_name(cls, name: str) -> None:

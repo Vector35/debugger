@@ -511,8 +511,8 @@ class DebuggerController:
 
     Since there are no other breakpoints in the target, the process executes and then exits.
 
-    All target control funciotns, e.g., ``go()``, ``step_into()``, etc, are blocking. They will not return until the
-    target breaks. In the future, we will switch to an asyunchrounous communication model where these functions return
+    All target control functions, e.g., ``go()``, ``step_into()``, etc, are blocking. They will not return until the
+    target breaks. In the future, we will switch to an asynchronous communication model where these functions return
     before the operation is performed.
 
     Starting from 4.1.5542-dev (0ad6b08b), the debugger no longer involves two binary views during debugging. Instead,
@@ -965,7 +965,7 @@ class DebuggerController:
 
         The address parameter can be either an integer, or a list of integers.
 
-        Internally, the debugger places breeakpoints on these addresses, resume the target, and wait for the target
+        Internally, the debugger places breakpoints on these addresses, resume the target, and wait for the target
         to break. Then the debugger removes the added breakpoints.
 
        The call is asynchronous and returns before the target stops.
@@ -1117,7 +1117,7 @@ class DebuggerController:
 
         The address parameter can be either an integer, or a list of integers.
 
-        Internally, the debugger places breeakpoints on these addresses, resume the target, and wait for the target
+        Internally, the debugger places breakpoints on these addresses, resume the target, and wait for the target
         to break. Then the debugger removes the added breakpoints.
 
         The call is blocking and only returns when the target stops.
@@ -1146,7 +1146,7 @@ class DebuggerController:
     @property
     def adapter_type(self) -> str:
         """
-        The name fo the current DebugAdapter. (read/write)
+        The name for the current DebugAdapter. (read/write)
 
         :getter: returns the name of the current DebugAdapter
         :setter: sets the DebugAdapter to use
@@ -1259,7 +1259,7 @@ class DebuggerController:
         The path of the target. (read/write)
 
         This can be set before launching the target to configure a working directory. Be default, it is the path of the
-        binaryninja executable. In the future, we will change the default workding directory to the folder that the
+        binaryninja executable. In the future, we will change the default working directory to the folder that the
         executable is in.
 
         :getter: returns the working directory
@@ -1431,7 +1431,7 @@ class DebuggerController:
 
     def remove_event_callback(self, index: int):
         """
-        Remove the debuggeer event callback from the DebuggerController
+        Remove the debugger event callback from the DebuggerController
         """
         DebuggerEventWrapper.remove(self, index)
 
@@ -1488,7 +1488,7 @@ class DebuggerController:
         executed yet. However, the output are still printed to the Debugger console in the global area.
 
         Note, the user should never run any command that resumes the target (either running or stepping). It will
-        cause the UI to de-synchronize and even hang. This is a known limitation, and we will try to address it.
+        cause the UI to desynchronize and even hang. This is a known limitation, and we will try to address it.
 
         """
         return dbgcore.BNDebuggerInvokeBackendCommand(self.handle, command)
