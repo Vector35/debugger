@@ -618,8 +618,62 @@ DebuggerMemory::DebuggerMemory(DebuggerState* state) : m_state(state) {}
 void DebuggerMemory::MarkDirty()
 {
 	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
-	m_valueCache.clear();
-	m_errorCache.clear();
+	for (auto& it: m_valueCache)
+	{
+		if (it.second.status == UpToDateStatus)
+			it.second.status = OutOfDateStatus;
+		else
+			it.second.status = DefaultStatus;
+	}
+}
+
+
+DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
+{
+	auto iter = m_valueCache.find(block);
+	if (iter != m_valueCache.end())
+	{
+		switch (iter->second.status)
+		{
+		case FailedToReadStatus:
+			return {};
+		case OutOfDateStatus:
+		{
+			if (m_state->IsConnected() && m_state->IsRunning())
+			{
+				// The cache is old but the target is running, return old value
+				return iter->second.value;
+			}
+			// Break out and try to read the new value
+			break;
+		}
+		case UpToDateStatus:
+		{
+			// Cache is up-to-date, return the value
+			return iter->second.value;
+		}
+		case DefaultStatus:
+			// There is no useful information about the status, break out and try to read it
+			break;
+		}
+	}
+
+	// Try to read the memory value from the backend
+	if (m_state->IsConnected() && !m_state->IsRunning())
+	{
+		// The cache is old and the target is stopped, try to update the cache value
+		DataBuffer buffer = m_state->GetAdapter()->ReadMemory(block, 0x100);
+		if (buffer.GetLength() > 0)
+		{
+			// Successfully updated
+			m_valueCache[block] = {buffer, UpToDateStatus};
+			return buffer;
+		}
+	}
+
+	// Update failed
+	m_valueCache[block] = {{}, FailedToReadStatus};
+	return {};
 }
 
 
@@ -639,30 +693,10 @@ DataBuffer DebuggerMemory::ReadMemory(uint64_t offset, size_t len)
 	// List of 256-byte block addresses to read into the cache to fully cover this region
 	for (uint64_t block = cacheStart; block < cacheEnd; block += 0x100)
 	{
-		// If any block cannot be read, then return false
-		if (m_errorCache.find(block) != m_errorCache.end())
-		{
+		auto cached = ReadBlock(block);
+		if (cached.GetLength() == 0)
 			return result;
-		}
 
-		auto iter = m_valueCache.find(block);
-		if (iter == m_valueCache.end())
-		{
-			// The ReadMemory() function should return the number of bytes read
-			DataBuffer buffer = m_state->GetAdapter()->ReadMemory(block, 0x100);
-			// TODO: what if the buffer's size is smaller than 0x100
-			if (buffer.GetLength() > 0)
-			{
-				m_valueCache[block] = buffer;
-			}
-			else
-			{
-				m_errorCache.insert(block);
-				return result;
-			}
-		}
-
-		DataBuffer cached = m_valueCache[block];
 		if (offset + len < block + cached.GetLength())
 		{
 			// Last block
