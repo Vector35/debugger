@@ -1507,11 +1507,11 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		// Todo: this is just a temporary workaround. Otherwise, the connection status would not be set properly
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterRunningStatus);
-		m_state->MarkDirty();
 		break;
 	}
 	case TargetExitedEventType:
 		m_exitCode = event.data.exitData.exitCode;
+		m_state->MarkDirty();
 	case QuitDebuggingEventType:
 	case DetachedEventType:
 	case LaunchFailureEventType:
@@ -1532,6 +1532,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	}
 	case TargetStoppedEventType:
 	{
+		m_state->MarkDirty();
 		m_state->UpdateCaches();
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterPausedStatus);
