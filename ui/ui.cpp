@@ -335,6 +335,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("Debug Adapter Settings...", "Settings", MENU_ORDER_FIRST);
 
 	UIAction::registerAction("Launch", QKeySequence(Qt::Key_F6));
+	UIAction::registerAction("Selection Target\\Launch");
 	context->globalActions()->bindAction("Launch",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
@@ -373,6 +374,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("Launch", "Launch");
 
 	UIAction::registerAction("Kill");
+	UIAction::registerAction("Selection Target\\Kill");
 	context->globalActions()->bindAction("Kill",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
@@ -388,6 +390,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("Kill", "Launch");
 
 	UIAction::registerAction("Resume", QKeySequence(Qt::Key_F9));
+	UIAction::registerAction("Selection Target\\Resume");
 	context->globalActions()->bindAction("Resume",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
@@ -418,6 +421,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("Go Backwards", "Control Backwards");
 
 	UIAction::registerAction("Step Into", QKeySequence(Qt::Key_F7));
+	UIAction::registerAction("Selection Target\\Step Into");
 	context->globalActions()->bindAction("Step Into",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
@@ -454,21 +458,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("Step Into Backwards", "Control Backwards");
 
 	UIAction::registerAction("Step Over", QKeySequence(Qt::Key_F8));
-	context->globalActions()->bindAction("Step Over",
-		UIAction(
-			[=](const UIActionContext& ctxt) {
-				if (!ctxt.binaryView)
-					return;
-				auto controller = DebuggerController::GetController(ctxt.binaryView);
-				if (!controller)
-					return;
-
-				BNFunctionGraphType graphType = NormalFunctionGraph;
-				if (ctxt.context && ctxt.context->getCurrentView())
-					graphType = ctxt.context->getCurrentView()->getILViewType();
-				controller->StepOver(graphType);
-			},
-			connectedAndStopped));
+	UIAction::registerAction("Selection Target\\Step Over");
 	debuggerMenu->addAction("Step Over", "Control");
 
 	UIAction::registerAction("Step Over Backwards", QKeySequence(Qt::ShiftModifier | Qt::Key_F8));
@@ -490,6 +480,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("Step Over Backwards", "Control Backwards");
 
 	UIAction::registerAction("Step Return", QKeySequence(Qt::ControlModifier | Qt::Key_F9));
+	UIAction::registerAction("Selection Target\\Step Return");
 	context->globalActions()->bindAction("Step Return",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
@@ -550,6 +541,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("Restart", "Launch");
 
 	UIAction::registerAction("Pause", QKeySequence(Qt::Key_F12));
+	UIAction::registerAction("Selection Target\\Pause");
 	context->globalActions()->bindAction("Pause",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
@@ -606,6 +598,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("Attach To Process...", "Launch");
 
 	UIAction::registerAction("Toggle Breakpoint", QKeySequence(Qt::Key_F2));
+	UIAction::registerAction("Selection Target\\Toggle Breakpoint");
 	context->globalActions()->bindAction("Toggle Breakpoint",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
@@ -757,6 +750,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction(showAreaWidgets, "Options");
 
 	UIAction::registerAction("Make Code", QKeySequence(Qt::Key_C));
+	UIAction::registerAction("Selection Target\\Make Code");
 	context->globalActions()->bindAction("Make Code",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
@@ -1492,6 +1486,8 @@ void GlobalDebuggerUI::InitializeUI()
 	PluginCommand::RegisterForAddress("Toggle Breakpoint", "Sets/clears breakpoint at right-clicked address",
 		BreakpointToggleCallback, BinaryViewValid);
 
+	UIAction::registerAction("Run To Here");
+	UIAction::registerAction("Selection Target\\Run To Here");
 	PluginCommand::RegisterForAddress(
 		"Run To Here", "Run until the current address", RunToHereCallback, ConnectedAndStopped);
 
