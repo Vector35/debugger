@@ -1049,7 +1049,9 @@ bool DebuggerController::CreateDebuggerBinaryView()
 	auto segment = data->GetSegmentAt(0);
 	m_zeroSegmentAddedByDebugger = segment == nullptr;
 	m_accessor = new DebuggerFileAccessor(data);
+	data->SetFunctionAnalysisUpdateDisabled(true);
 	data->GetMemoryMap()->AddRemoteMemoryRegion("debugger", 0, m_accessor);
+	data->SetFunctionAnalysisUpdateDisabled(false);
 	return true;
 }
 
@@ -2522,11 +2524,17 @@ bool DebuggerController::IsTTD()
 
 bool DebuggerController::RemoveDebuggerMemoryRegion()
 {
-	return GetData()->GetMemoryMap()->RemoveMemoryRegion("debugger");
+	GetData()->SetFunctionAnalysisUpdateDisabled(true);
+	auto ret = GetData()->GetMemoryMap()->RemoveMemoryRegion("debugger");
+	GetData()->SetFunctionAnalysisUpdateDisabled(false);
+	return ret;
 }
 
 
 bool DebuggerController::ReAddDebuggerMemoryRegion()
 {
-	return GetData()->GetMemoryMap()->AddRemoteMemoryRegion("debugger", 0, GetMemoryAccessor());
+	GetData()->SetFunctionAnalysisUpdateDisabled(true);
+	auto ret = GetData()->GetMemoryMap()->AddRemoteMemoryRegion("debugger", 0, GetMemoryAccessor());
+	GetData()->SetFunctionAnalysisUpdateDisabled(false);
+	return ret;
 }
