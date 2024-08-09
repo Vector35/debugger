@@ -116,18 +116,33 @@ namespace BinaryNinjaDebugger {
 		bool ResumeThread(std::uint32_t tid);
 	};
 
+	enum MemoryByteCacheStatus
+	{
+		DefaultStatus,
+		UpToDateStatus,
+		OutOfDateStatus,
+		FailedToReadStatus
+	};
+
+
+	struct MemoryBytesCache
+	{
+		DataBuffer value;
+		MemoryByteCacheStatus status;
+	};
+
 
 	class DebuggerMemory
 	{
 		DebuggerState* m_state;
-		std::map<uint64_t, DataBuffer> m_valueCache;
-		std::set<uint64_t> m_errorCache;
+		std::map<uint64_t, MemoryBytesCache> m_valueCache;
 		std::recursive_mutex m_memoryMutex;
 
 	public:
 		DebuggerMemory(DebuggerState* state);
 
 		void MarkDirty();
+		DataBuffer ReadBlock(uint64_t block);
 		DataBuffer ReadMemory(uint64_t offset, size_t len);
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
 	};

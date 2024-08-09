@@ -1706,8 +1706,8 @@ DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t si
 	if (!m_state->IsConnected())
 		return DataBuffer {};
 
-	if (m_state->IsRunning())
-		return DataBuffer {};
+//	if (m_state->IsRunning())
+//		return DataBuffer {};
 
 	DebuggerMemory* memory = m_state->GetMemory();
 	if (!memory)
