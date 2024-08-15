@@ -125,6 +125,8 @@ bool DebuggerController::Launch()
 
 DebugStopReason DebuggerController::LaunchAndWaitInternal()
 {
+	m_userRequestedBreak = false;
+
 	if (Settings::Instance()->Get<bool>("debugger.safeMode"))
 	{
 		DebuggerEvent event;
@@ -162,7 +164,7 @@ DebugStopReason DebuggerController::LaunchAndWait()
 		return InternalError;
 
 	auto reason = LaunchAndWaitInternal();
-	if ((reason != ProcessExited) && (reason != InternalError))
+	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
 	m_targetControlMutex.unlock();
@@ -179,6 +181,8 @@ bool DebuggerController::Attach()
 
 DebugStopReason DebuggerController::AttachAndWaitInternal()
 {
+	m_userRequestedBreak = false;
+
 	DebuggerEvent event;
 	event.type = LaunchEventType;
 	PostDebuggerEvent(event);
@@ -202,7 +206,7 @@ DebugStopReason DebuggerController::AttachAndWait()
 		return InternalError;
 
 	auto reason = AttachAndWaitInternal();
-	if ((reason != ProcessExited) && (reason != InternalError))
+	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
 	m_targetControlMutex.unlock();
@@ -219,6 +223,8 @@ bool DebuggerController::Connect()
 
 DebugStopReason DebuggerController::ConnectAndWaitInternal()
 {
+	m_userRequestedBreak = false;
+
 	DebuggerEvent event;
 	event.type = LaunchEventType;
 	PostDebuggerEvent(event);
@@ -242,7 +248,7 @@ DebugStopReason DebuggerController::ConnectAndWait()
 		return InternalError;
 
 	auto reason = ConnectAndWaitInternal();
-	if ((reason != ProcessExited) && (reason != InternalError))
+	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
 	m_targetControlMutex.unlock();
@@ -591,6 +597,7 @@ DebugStopReason DebuggerController::StepIntoReverseIL(BNFunctionGraphType il)
 
 DebugStopReason DebuggerController::StepIntoReverseAndWaitInternal()
 {
+	m_userRequestedBreak = false;
 	// TODO: check if StepInto() succeeds
 	return ExecuteAdapterAndWait(DebugAdapterStepIntoReverse);
 }
@@ -921,6 +928,8 @@ DebugStopReason DebuggerController::EmulateStepReturnAndWait()
 
 DebugStopReason DebuggerController::StepReturnAndWaitInternal()
 {
+	m_userRequestedBreak = false;
+
 	if (true /* StepReturnAvailable() */)
 	{
 		return ExecuteAdapterAndWait(DebugAdapterStepReturn);
@@ -935,6 +944,8 @@ DebugStopReason DebuggerController::StepReturnAndWaitInternal()
 
 DebugStopReason DebuggerController::StepReturnReverseAndWaitInternal()
 {
+	m_userRequestedBreak = false;
+
 	if (true /* StepReturnReverseAvailable() */)
 	{
 		return ExecuteAdapterAndWait(DebugAdapterStepReturnReverse);
@@ -994,6 +1005,8 @@ DebugStopReason DebuggerController::StepReturnReverseAndWait()
 
 DebugStopReason DebuggerController::RunToAndWaitInternal(const std::vector<uint64_t>& remoteAddresses)
 {
+	m_userRequestedBreak = false;
+
 	for (uint64_t remoteAddress : remoteAddresses)
 	{
 		if (!m_state->GetBreakpoints()->ContainsAbsolute(remoteAddress))
@@ -1264,9 +1277,7 @@ bool DebuggerController::Pause()
 DebugStopReason DebuggerController::PauseAndWaitInternal()
 {
 	m_userRequestedBreak = true;
-	auto ret = ExecuteAdapterAndWait(DebugAdapterPause);
-	m_userRequestedBreak = false;
-	return ret;
+	return ExecuteAdapterAndWait(DebugAdapterPause);
 }
 
 
@@ -1280,17 +1291,20 @@ DebugStopReason DebuggerController::PauseAndWait()
 
 DebugStopReason DebuggerController::GoAndWaitInternal()
 {
+	m_userRequestedBreak = false;
 	return ExecuteAdapterAndWait(DebugAdapterGo);
 }
 
 DebugStopReason DebuggerController::GoReverseAndWaitInternal()
 {
+	m_userRequestedBreak = false;
 	return ExecuteAdapterAndWait(DebugAdapterGoReverse);
 }
 
 
 DebugStopReason DebuggerController::StepIntoAndWaitInternal()
 {
+	m_userRequestedBreak = false;
 	// TODO: check if StepInto() succeeds
 	return ExecuteAdapterAndWait(DebugAdapterStepInto);
 }
@@ -1340,6 +1354,8 @@ DebugStopReason DebuggerController::EmulateStepOverAndWait()
 
 DebugStopReason DebuggerController::StepOverAndWaitInternal()
 {
+	m_userRequestedBreak = false;
+
 	if (true /* StepOverAvailable() */)
 	{
 		return ExecuteAdapterAndWait(DebugAdapterStepOver);
@@ -1353,6 +1369,8 @@ DebugStopReason DebuggerController::StepOverAndWaitInternal()
 
 DebugStopReason DebuggerController::StepOverReverseAndWaitInternal()
 {
+	m_userRequestedBreak = false;
+
 	if (true /* StepOverAvailable() */)
 	{
 		return ExecuteAdapterAndWait(DebugAdapterStepOverReverse);
