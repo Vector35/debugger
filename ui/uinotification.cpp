@@ -18,6 +18,9 @@ limitations under the License.
 #include "uinotification.h"
 #include "filecontext.h"
 #include "viewframe.h"
+#include "linearview.h"
+#include "flowgraphwidget.h"
+#include "hexeditor.h"
 #include <QMessageBox>
 #include <QFileInfo>
 #include <QPushButton>
@@ -162,4 +165,24 @@ bool NotificationListener::GetNameForFile(UIContext* context, FileContext* file,
 bool NotificationListener::GetNameForPath(UIContext* context, const QString& path, QString& name)
 {
 	return false;
+}
+
+
+void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, Menu &menu)
+{
+	// Only add the context menu to the linear/graph/hex views
+	if (!dynamic_cast<LinearView*>(view) && !dynamic_cast<FlowGraphWidget*>(view)
+		&& !dynamic_cast<HexEditor*>(view))
+		return;
+
+	menu.addAction("Debugger", "Toggle Breakpoint", "Breakpoint");
+	menu.addAction("Debugger", "Launch", "Control");
+	menu.addAction("Debugger", "Pause", "Control");
+	menu.addAction("Debugger", "Restart", "Control");
+	menu.addAction("Debugger", "Resume", "Control");
+	menu.addAction("Debugger", "Step Into", "Control");
+	menu.addAction("Debugger", "Step Over", "Control");
+	menu.addAction("Debugger", "Step Return", "Control");
+	menu.addAction("Debugger", "Run To Here", "Control");
+	menu.addAction("Debugger", "Create Stack View", "Misc");
 }

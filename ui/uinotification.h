@@ -39,5 +39,6 @@ public:
 	virtual bool GetNameForFile(UIContext* context, FileContext* file, QString& name) override;
 	virtual bool GetNameForPath(UIContext* context, const QString& path, QString& name) override;
 
+	virtual void OnContextMenuCreated(UIContext* context, View* view, Menu& menu) override;
 	static void init();
 };

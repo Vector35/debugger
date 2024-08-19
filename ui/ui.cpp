@@ -515,6 +515,21 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			connectedAndStoppedWithTTD));
 
+	UIAction::registerAction("Run To Here");
+	context->globalActions()->bindAction("Run To Here",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				controller->RunTo(ctxt.address);
+			},
+			connectedAndStopped));
+	debuggerMenu->addAction("Run To Here", "Control");
+
 	UIAction::registerAction("Detach");
 	context->globalActions()->bindAction("Detach",
 		UIAction(
@@ -701,29 +716,6 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			notConnected));
 	debuggerMenu->addAction("Connect to Remote Process", "Launch");
-
-	//	There is no longer a need to manually create the debug adapter. It will be automatically created if it is
-	//  accessed but not created yet.
-	//	UIAction::registerAction("Activate Debug Adapter");
-	//	context->globalActions()->bindAction("Activate Debug Adapter", UIAction([=](const UIActionContext& ctxt) {
-	//		if (!ctxt.binaryView)
-	//			return;
-	//		auto controller = DebuggerController::GetController(ctxt.binaryView);
-	//		if (!controller)
-	//			return;
-	//
-	//		if (controller->ActivateDebugAdapter())
-	//        {
-	//            QMessageBox::information(context->mainWindow(), "Successfully activated",
-	//                                     "Successfully activated the debug adapter. Now you can run backend commands directly.");
-	//        }
-	//		else
-	//        {
-	//            QMessageBox::information(context->mainWindow(), "Failed to activate",
-	//                                     "Cannot activate to the debug adapter.");
-	//        }
-	//	}));
-	//	debuggerMenu->addAction("Activate Debug Adapter", "Launch");
 
 	QString showAreaWidgets = "Show Debugger Sidebar Widgets";
 	UIAction::registerAction(showAreaWidgets);
@@ -1431,173 +1423,11 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 }
 
 
-static bool BinaryViewValid(BinaryView* view, uint64_t addr)
-{
-	return true;
-}
-
-
-static void RunToHereCallback(BinaryView* view, uint64_t addr)
-{
-	auto controller = DebuggerController::GetController(view);
-	if (!controller)
-		return;
-	std::thread([=]() { controller->RunTo(addr); }).detach();
-}
-
-
-static bool ConnectedAndStopped(BinaryView* view, uint64_t addr)
-{
-	if (!DebuggerController::ControllerExists(view))
-		return false;
-	auto controller = DebuggerController::GetController(view);
-	if (!controller)
-		return false;
-	return controller->IsConnected() && (!controller->IsRunning());
-}
-
-
-static bool ConnectedAndRunning(BinaryView* view, uint64_t addr)
-{
-	if (!DebuggerController::ControllerExists(view))
-		return false;
-	auto controller = DebuggerController::GetController(view);
-	if (!controller)
-		return false;
-	return controller->IsConnected() && controller->IsRunning();
-}
-
-
 void GlobalDebuggerUI::InitializeUI()
 {
 	Sidebar::addSidebarWidgetType(new DebuggerWidgetType(QImage(":/debugger/debugger"), "Debugger"));
 	Sidebar::addSidebarWidgetType(new DebugModulesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new ThreadFramesSidebarWidgetType());
-
-	// We must use the sequence of these four calls to do the job, otherwise the keybinding does not work.
-	// Though it really should be the case where I can specify the keybinding in the first registerAction() call.
-	UIAction::registerAction("Debugger\\Toggle Breakpoint");
-	UIAction::registerAction("Selection Target\\Debugger\\Toggle Breakpoint");
-	PluginCommand::RegisterForAddress("Debugger\\Toggle Breakpoint", "Sets/clears breakpoint at right-clicked address",
-		BreakpointToggleCallback, BinaryViewValid);
-
-	UIAction::registerAction("Debugger\\Run To Here");
-	UIAction::registerAction("Selection Target\\Debugger\\Run To Here");
-	PluginCommand::RegisterForAddress(
-		"Debugger\\Run To Here", "Run until the current address", RunToHereCallback, ConnectedAndStopped);
-
-	std::string actionName = "Run";
-	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
-	PluginCommand::RegisterForAddress(
-		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Launch or resume the target",
-		[](BinaryView* view, uint64_t addr) {
-			auto controller = DebuggerController::GetController(view);
-			if (!controller)
-				return;
-			if (controller->IsConnected() && (!controller->IsRunning()))
-			{
-				std::thread([=]() { controller->Go(); }).detach();
-			}
-			else if (!controller->IsConnected())
-			{
-				QString text = QString(
-					"The debugger is launching the target and preparing the debugger binary view. \n"
-					"This might take a while.");
-				ProgressTask* task =
-					new ProgressTask(nullptr, "Launching", text, "", [&](std::function<bool(size_t, size_t)> progress) {
-						controller->Launch();
-
-						// For now, this cant be canceled, as the Debugger model wasn't
-				        // designed with that in mind. This function below can return false if canceling is enabled
-						progress(1, 1);
-						return;
-					});
-				task->wait();
-			}
-		},
-		BinaryViewValid);
-
-	actionName = "Step Into";
-	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
-	PluginCommand::RegisterForAddress(
-		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Step into",
-		[](BinaryView* view, uint64_t) {
-			auto controller = DebuggerController::GetController(view);
-			if (!controller)
-				return;
-			BNFunctionGraphType graphType = NormalFunctionGraph;
-			UIContext* context = UIContext::activeContext();
-			if (context && context->getCurrentView())
-				graphType = context->getCurrentView()->getILViewType();
-			std::thread([=]() { controller->StepInto(graphType); }).detach();
-		},
-		ConnectedAndStopped);
-
-	actionName = "Step Over";
-	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
-	PluginCommand::RegisterForAddress(
-		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Step over",
-		[](BinaryView* view, uint64_t) {
-			auto controller = DebuggerController::GetController(view);
-			if (!controller)
-				return;
-			BNFunctionGraphType graphType = NormalFunctionGraph;
-			UIContext* context = UIContext::activeContext();
-			if (context && context->getCurrentView())
-				graphType = context->getCurrentView()->getILViewType();
-			std::thread([=]() { controller->StepOver(graphType); }).detach();
-		},
-		ConnectedAndStopped);
-
-	actionName = "Step Return";
-	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
-	PluginCommand::RegisterForAddress(
-		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Step return",
-		[](BinaryView* view, uint64_t) {
-			auto controller = DebuggerController::GetController(view);
-			if (!controller)
-				return;
-			std::thread([=]() { controller->StepReturn(); }).detach();
-		},
-		ConnectedAndStopped);
-
-	actionName = "Pause";
-	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()));
-	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
-	PluginCommand::RegisterForAddress(
-		QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(), "Pause the target",
-		[](BinaryView* view, uint64_t) {
-			auto controller = DebuggerController::GetController(view);
-			if (!controller)
-				return;
-			std::thread([=]() { controller->Pause(); }).detach();
-		},
-		ConnectedAndRunning);
-
-//	actionName = "Make Code";
-//	UIAction::registerAction(QString::asprintf("Debugger\\%s", actionName.c_str()), QKeySequence(Qt::Key_C));
-//	UIAction::registerAction(QString::asprintf("Selection Target\\Debugger\\%s", actionName.c_str()));
-//	PluginCommand::RegisterForAddress(
-//			QString::asprintf("Debugger\\%s", actionName.c_str()).toStdString(),
-//			"Create raw disassembly",
-//			[](BinaryView* view, uint64_t addr){
-//					MakeCodeHelper(view, addr);
-//				},
-//			BinaryViewValid);
-//
-//	UIAction::setActionDisplayName("Debugger\\Make Code", [](const UIActionContext& ctxt) -> QString {
-//		if (!ctxt.binaryView)
-//			return "Make Code";
-//
-//		if (ShowAsCode(ctxt.binaryView, ctxt.address))
-//			return "Undefine Code";
-//
-//		return "Make Code";
-//	});
 }
 
 
