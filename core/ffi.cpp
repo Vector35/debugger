@@ -587,6 +587,12 @@ DebugStopReason BNDebuggerPauseAndWait(BNDebuggerController* controller)
 }
 
 
+DebugStopReason BNDebuggerRestartAndWait(BNDebuggerController* controller)
+{
+	return controller->object->RestartAndWait();
+}
+
+
 char* BNDebuggerGetAdapterType(BNDebuggerController* controller)
 {
 	if (!controller->object->GetState())

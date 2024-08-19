@@ -1159,10 +1159,23 @@ std::vector<DebugFrame> DebuggerController::GetFramesOfThread(uint64_t tid)
 }
 
 
-void DebuggerController::Restart()
+bool DebuggerController::Restart()
 {
+	if (!m_state->IsConnected())
+		return false;
+
+	std::thread([&]() { RestartAndWait(); }).detach();
+	return true;
+}
+
+
+DebugStopReason DebuggerController::RestartAndWait()
+{
+	if (!m_state->IsConnected())
+		return InvalidStatusOrOperation;
+
 	QuitAndWait();
-	Launch();
+	return LaunchAndWait();
 }
 
 

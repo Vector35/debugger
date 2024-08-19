@@ -501,6 +501,12 @@ DebugStopReason DebuggerController::PauseAndWait()
 }
 
 
+DebugStopReason DebuggerController::RestartAndWait()
+{
+	return BNDebuggerRestartAndWait(m_object);
+}
+
+
 std::string DebuggerController::GetAdapterType()
 {
 	char* adapter = BNDebuggerGetAdapterType(m_object);

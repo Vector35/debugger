@@ -426,6 +426,7 @@ extern "C"
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRunToAndWait(
 		BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerPauseAndWait(BNDebuggerController* controller);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRestartAndWait(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API char* BNDebuggerGetAdapterType(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerSetAdapterType(BNDebuggerController* controller, const char* adapter);

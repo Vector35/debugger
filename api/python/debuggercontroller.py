@@ -1143,6 +1143,14 @@ class DebuggerController:
         """
         dbgcore.BNDebuggerPauseAndWait(self.handle)
 
+    def restart_and_wait(self) -> None:
+        """
+        Restart a running target.
+
+        The call is blocking and only returns when the target stops again after the restart.
+        """
+        dbgcore.BNDebuggerRestartAndWait(self.handle)
+
     @property
     def adapter_type(self) -> str:
         """

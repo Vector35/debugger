@@ -230,7 +230,7 @@ namespace BinaryNinjaDebugger {
 
 		// target control
 		bool Execute();
-		void Restart();
+		bool Restart();
 		bool ConnectToDebugServer();
 		bool DisconnectDebugServer();
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected
@@ -261,6 +261,7 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason GoAndWait();
 		DebugStopReason GoReverseAndWait();
 		DebugStopReason AttachAndWait();
+		DebugStopReason RestartAndWait();
 		DebugStopReason ConnectAndWait();
 		DebugStopReason StepIntoAndWait(BNFunctionGraphType il = NormalFunctionGraph);
 		DebugStopReason StepIntoReverseAndWait(BNFunctionGraphType il = NormalFunctionGraph);

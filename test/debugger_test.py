@@ -259,6 +259,26 @@ class DebuggerAPI(unittest.TestCase):
         self.assertGreater(len(threads), 1)
         dbg.quit_and_wait()
 
+    def test_restart(self):
+        fpath = name_to_fpath('helloworld_thread', self.arch)
+        bv = load(fpath)
+        dbg = DebuggerController(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+
+        dbg.go()
+        time.sleep(1)
+        dbg.pause_and_wait()
+        self.assertGreater(len(dbg.threads), 1)
+
+        ret = dbg.restart_and_wait()
+        self.assertNotIn(ret, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+
+        dbg.go()
+        time.sleep(1)
+        ret = dbg.restart_and_wait()
+        self.assertNotIn(ret, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        dbg.quit_and_wait()
+
     def test_assembly_code(self):
         if self.arch == 'x86_64':
             fpath = name_to_fpath('asmtest', 'x86_64')
