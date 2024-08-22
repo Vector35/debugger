@@ -37,7 +37,8 @@ bool CodeDataRenderer::IsValidForData(
 
 
 std::vector<DisassemblyTextLine> CodeDataRenderer::GetLinesForData(BinaryView* data, uint64_t addr, Type* type,
-	const std::vector<InstructionTextToken>& prefix, size_t width, std::vector<std::pair<Type*, size_t>>& context)
+	const std::vector<InstructionTextToken>& prefix, size_t width, std::vector<std::pair<Type*, size_t>>& context,
+	const std::string&)
 {
 	std::vector<DisassemblyTextLine> result;
 	DisassemblyTextLine contents;

@@ -26,5 +26,5 @@ public:
 		std::vector<std::pair<BinaryNinja::Type*, size_t>>& context) override;
 	virtual std::vector<BinaryNinja::DisassemblyTextLine> GetLinesForData(BinaryNinja::BinaryView* data, uint64_t addr,
 		BinaryNinja::Type* type, const std::vector<BinaryNinja::InstructionTextToken>& prefix, size_t width,
-		std::vector<std::pair<BinaryNinja::Type*, size_t>>& context) override;
+		std::vector<std::pair<BinaryNinja::Type*, size_t>>& context, const std::string& language) override;
 };
