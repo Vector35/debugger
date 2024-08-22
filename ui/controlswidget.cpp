@@ -306,7 +306,7 @@ void DebugControlsWidget::performStepInto()
 	BNFunctionGraphType graphType = NormalFunctionGraph;
 	UIContext* context = UIContext::contextForWidget(this);
 	if (context && context->getCurrentView())
-		graphType = context->getCurrentView()->getILViewType();
+		graphType = context->getCurrentView()->getILViewType().type;
 
 	if (graphType == InvalidILViewType)
 		graphType = NormalFunctionGraph;
@@ -320,7 +320,7 @@ void DebugControlsWidget::performStepIntoReverse()
 	BNFunctionGraphType graphType = NormalFunctionGraph;
 	UIContext* context = UIContext::contextForWidget(this);
 	if (context && context->getCurrentView())
-		graphType = context->getCurrentView()->getILViewType();
+		graphType = context->getCurrentView()->getILViewType().type;
 
 	if (graphType == InvalidILViewType)
 		graphType = NormalFunctionGraph;
@@ -333,7 +333,7 @@ void DebugControlsWidget::performStepOver()
 	BNFunctionGraphType graphType = NormalFunctionGraph;
 	UIContext* context = UIContext::contextForWidget(this);
 	if (context && context->getCurrentView())
-		graphType = context->getCurrentView()->getILViewType();
+		graphType = context->getCurrentView()->getILViewType().type;
 
 	if (graphType == InvalidILViewType)
 		graphType = NormalFunctionGraph;
@@ -347,7 +347,7 @@ void DebugControlsWidget::performStepOverReverse()
 	BNFunctionGraphType graphType = NormalFunctionGraph;
 	UIContext* context = UIContext::contextForWidget(this);
 	if (context && context->getCurrentView())
-		graphType = context->getCurrentView()->getILViewType();
+		graphType = context->getCurrentView()->getILViewType().type;
 
 	if (graphType == InvalidILViewType)
 		graphType = NormalFunctionGraph;

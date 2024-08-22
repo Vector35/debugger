@@ -429,7 +429,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 				BNFunctionGraphType graphType = NormalFunctionGraph;
 				if (ctxt.context && ctxt.context->getCurrentView())
-					graphType = ctxt.context->getCurrentView()->getILViewType();
+					graphType = ctxt.context->getCurrentView()->getILViewType().type;
 				controller->StepInto(graphType);
 			},
 			connectedAndStopped));
@@ -447,7 +447,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 				BNFunctionGraphType graphType = NormalFunctionGraph;
 				if (ctxt.context && ctxt.context->getCurrentView())
-					graphType = ctxt.context->getCurrentView()->getILViewType();
+					graphType = ctxt.context->getCurrentView()->getILViewType().type;
 				controller->StepIntoReverse(graphType);
 			},
 			connectedAndStoppedWithTTD));
@@ -464,7 +464,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 				BNFunctionGraphType graphType = NormalFunctionGraph;
 				if (ctxt.context && ctxt.context->getCurrentView())
-					graphType = ctxt.context->getCurrentView()->getILViewType();
+					graphType = ctxt.context->getCurrentView()->getILViewType().type;
 				controller->StepOver(graphType);
 			},
 			connectedAndStopped));
@@ -482,7 +482,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 				BNFunctionGraphType graphType = NormalFunctionGraph;
 				if (ctxt.context && ctxt.context->getCurrentView())
-					graphType = ctxt.context->getCurrentView()->getILViewType();
+					graphType = ctxt.context->getCurrentView()->getILViewType().type;
 				controller->StepOverReverse(graphType);
 			},
 			connectedAndStoppedWithTTD));

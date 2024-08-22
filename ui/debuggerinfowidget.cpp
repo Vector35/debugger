@@ -557,7 +557,7 @@ vector<DebuggerInfoEntry> DebuggerInfoTable::getILInfoEntries(const ViewLocation
 	if (!m_debugger->IsConnected())
 		return result;
 
-	switch (location.getILViewType())
+	switch (location.getILViewType().type)
 	{
 	case NormalFunctionGraph:
 	{
@@ -608,6 +608,7 @@ vector<DebuggerInfoEntry> DebuggerInfoTable::getILInfoEntries(const ViewLocation
 		break;
 	}
 	case HighLevelILFunctionGraph:
+	case HighLevelLanguageRepresentationFunctionGraph:
 	{
 		auto func = location.getFunction();
 		if (!func)
