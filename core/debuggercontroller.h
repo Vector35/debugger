@@ -315,5 +315,20 @@ namespace BinaryNinjaDebugger {
 		bool ReAddDebuggerMemoryRegion();
 
 		uint64_t GetViewFileSegmentsStart() { return m_viewStart; }
+
+		bool ComputeExprValueAPI(const LowLevelILInstruction& instr, uint64_t& value);
+		bool ComputeExprValue(const LowLevelILInstruction& instr, uint64_t& value);
+		uint64_t GetValueFromComparison(const BNLowLevelILOperation op, uint64_t left, uint64_t right, size_t size);
+
+		bool ComputeExprValueAPI(const MediumLevelILInstruction& instr, uint64_t& value);
+		bool ComputeExprValue(const MediumLevelILInstruction& instr, uint64_t& value);
+		uint64_t GetValueFromComparison(const BNMediumLevelILOperation op, uint64_t left, uint64_t right, size_t size);
+
+		bool ComputeExprValueAPI(const HighLevelILInstruction& instr, uint64_t& value);
+		bool ComputeExprValue(const HighLevelILInstruction& instr, uint64_t& value);
+		uint64_t GetValueFromComparison(const BNHighLevelILOperation op, uint64_t left, uint64_t right, size_t size);
+
+		bool GetVariableValueAPI(const Variable& var, uint64_t address, size_t size, uint64_t& value);
+		bool GetVariableValue(const Variable& var, uint64_t address, size_t size, uint64_t& value);
 	};
 };  // namespace BinaryNinjaDebugger

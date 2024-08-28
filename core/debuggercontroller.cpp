@@ -2451,7 +2451,7 @@ static std::string CheckForLiteralString(uint64_t address)
 	}
 
 	if (ok)
-		return result;
+		return BinaryNinja::EscapeString(result);
 
 	return "";
 }
@@ -2566,4 +2566,1130 @@ bool DebuggerController::ReAddDebuggerMemoryRegion()
 	auto ret = GetData()->GetMemoryMap()->AddRemoteMemoryRegion("debugger", 0, GetMemoryAccessor());
 	GetData()->SetFunctionAnalysisUpdateDisabled(false);
 	return ret;
+}
+
+
+
+// TODO: these 3 functions should be moved to the BinaryNinjaAPI namespace for wider audiences
+static int64_t MaskToSize(int64_t value, size_t size)
+{
+	if (size >= 8)
+		return value;
+	if (size == 0)
+		return value & 1;
+	return value & ((1LL << (size * 8)) - 1);
+}
+
+
+static int64_t ZeroExtend(int64_t value, size_t sourceSize, size_t destSize)
+{
+	if (destSize <= sourceSize)
+		return MaskToSize(value, destSize);
+	return MaskToSize(value & ((1LL << (sourceSize * 8)) - 1), destSize);
+}
+
+
+static int64_t SignExtend(int64_t value, size_t sourceSize, size_t destSize)
+{
+	if (destSize <= sourceSize)
+		return MaskToSize(value, destSize);
+	if (value & (1LL << ((sourceSize * 8) - 1)))
+		return MaskToSize(value | (~((1LL << (sourceSize * 8)) - 1)), destSize);
+	else
+		return MaskToSize(value & ((1LL << (sourceSize * 8)) - 1), destSize);
+}
+
+
+static inline uint64_t GetActualShift(uint64_t value, size_t instrSize)
+{
+	if (instrSize <= 4)
+		return value & 0b11111;
+	else
+		return value & 0b111111;
+}
+
+
+bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::LowLevelILInstruction &instr, uint64_t& value)
+{
+	// We only want to do this check once before the recursion
+	if (!m_state->IsConnected() || m_state->IsRunning())
+		return false;
+
+	return ComputeExprValue(instr, value);
+}
+
+
+bool DebuggerController::ComputeExprValue(const LowLevelILInstruction &instr, uint64_t& value)
+{
+	if (instr.size > 8)
+		return false;
+
+	uint64_t left, right;
+
+	int64_t sizeMask = -1;
+	if (instr.size > 0 && instr.size < 8)
+		sizeMask = (1LL << (instr.size * 8)) - 1;
+
+	switch (instr.operation)
+	{
+	case LLIL_CONST:
+		value = instr.GetConstant<LLIL_CONST>() & sizeMask;
+		return true;
+	case LLIL_CONST_PTR:
+		value = instr.GetConstant<LLIL_CONST_PTR>() & sizeMask;
+		return true;
+	case LLIL_FLOAT_CONST:
+		value = instr.GetConstant<LLIL_FLOAT_CONST>() & sizeMask;
+		return true;
+	case LLIL_REG:
+	{
+		auto reg = instr.GetSourceRegister<LLIL_REG>();
+		if (LLIL_REG_IS_TEMP(reg))
+			return false;
+
+		auto name = GetData()->GetDefaultArchitecture()->GetRegisterName(reg);
+		// TODO: what if the name reported by the adapter is different from that in the architecture?
+		// GetRegisterValue should return if the value can be retrieved
+
+		// Cheat for arm64
+		if (name == "x29") name = "fp";
+
+		value = GetRegisterValue(name) & sizeMask;
+		return true;
+	}
+	case LLIL_ADD:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_ADD>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_ADD>(), right))
+			return false;
+		value = left + right;
+		value &= sizeMask;
+		return true;
+	case LLIL_SUB:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_SUB>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_SUB>(), right))
+			return false;
+		value = left - right;
+		value &= sizeMask;
+		return true;
+	case LLIL_LOAD:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_LOAD>(), left))
+			return false;
+		auto buffer = ReadMemory(left, instr.size);
+		if (buffer.GetLength() != instr.size)
+			return false;
+
+		switch (instr.size)
+		{
+		case 1:
+			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 2:
+			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 4:
+			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 8:
+			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		default:
+			return false;
+		}
+	}
+	case LLIL_STORE:
+	{
+		if (!ComputeExprValue(instr.GetDestExpr<LLIL_STORE>(), left))
+			return false;
+		auto buffer = ReadMemory(left, instr.size);
+		if (buffer.GetLength() != instr.size)
+			return false;
+
+		switch (instr.size)
+		{
+		case 1:
+			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 2:
+			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 4:
+			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 8:
+			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		default:
+			return false;
+		}
+	}
+	case LLIL_LSL:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_LSL>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_LSL>(), right))
+			return false;
+		value = left << GetActualShift(right, instr.size);
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_LSR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_LSR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_LSR>(), right))
+			return false;
+		value = left >> GetActualShift(right, instr.size);
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_ASR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_ASR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_ASR>(), right))
+			return false;
+		if (left & (1LL << ((instr.size * 8) - 1)))
+			left |= ~sizeMask;
+		else
+			left &= sizeMask;
+		value = ((int64_t)left) >> GetActualShift(right, instr.size);
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_XOR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_XOR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_XOR>(), right))
+			return false;
+		value = left ^ right;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_AND:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_AND>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_AND>(), right))
+			return false;
+		value = left & right;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_OR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_OR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_OR>(), right))
+			return false;
+		value = left | right;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_NEG:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_NEG>(), left))
+			return false;
+		value = -left;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_NOT:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_NOT>(), left))
+			return false;
+		value = ~left;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_SX:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_SX>(), left))
+			return false;
+		value = SignExtend(left, instr.GetSourceExpr<LLIL_SX>().size, instr.size);
+		return true;
+	}
+	case LLIL_ZX:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_ZX>(), left))
+			return false;
+		value = ZeroExtend(left, instr.GetSourceExpr<LLIL_ZX>().size, instr.size);
+		return true;
+	}
+	case LLIL_PUSH:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_PUSH>(), left))
+			return false;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_POP:
+	{
+		auto stackPointer = GetState()->StackPointer();
+		auto buffer = ReadMemory(stackPointer, instr.size);
+		if (buffer.GetLength() != instr.size)
+			return false;
+
+		switch (instr.size)
+		{
+		case 1:
+			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 2:
+			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 4:
+			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 8:
+			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		default:
+			return false;
+		}
+	}
+	case LLIL_CMP_E:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_E>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_E>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_NE:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_NE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_NE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_SLT:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_SLT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_SLT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_ULT:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_ULT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_ULT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_SLE:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_SLE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_SLE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_ULE:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_ULE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_ULE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_SGE:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_SGE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_SGE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_UGE:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_UGE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_UGE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_SGT:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_SGT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_SGT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_UGT:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_UGT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_UGT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	default:
+		break;
+	}
+	return false;
+}
+
+
+uint64_t DebuggerController::GetValueFromComparison(const BNLowLevelILOperation op, uint64_t left, uint64_t right,
+	size_t size)
+{
+	switch (op)
+	{
+		case LLIL_CMP_E:
+			return left == right;
+			break;
+		case LLIL_CMP_NE:
+			return left != right;
+			break;
+		case LLIL_CMP_SLT:
+			return SignExtend(left, size, 8) < SignExtend(right, size, 8);
+			break;
+		case LLIL_CMP_ULT:
+			return (uint64_t)(left) < (uint64_t)(right);
+			break;
+		case LLIL_CMP_SLE:
+			return SignExtend(left, size, 8) <= SignExtend(right, size, 8);
+			break;
+		case LLIL_CMP_ULE:
+			return (uint64_t)(left) <= (uint64_t)(right);
+			break;
+		case LLIL_CMP_SGE:
+			return SignExtend(left, size, 8) >= SignExtend(right, size, 8);
+			break;
+		case LLIL_CMP_UGE:
+			return (uint64_t)(left) >= (uint64_t)(right);
+			break;
+		case LLIL_CMP_SGT:
+			return SignExtend(left, size, 8) > SignExtend(right, size, 8);
+			break;
+		case LLIL_CMP_UGT:
+			return (uint64_t)(left) > (uint64_t)(right);
+			break;
+		default:
+			break;
+	}
+	return -1;
+}
+
+
+uint64_t DebuggerController::GetValueFromComparison(const BNMediumLevelILOperation op, uint64_t left, uint64_t right,
+	size_t size)
+{
+	switch (op)
+	{
+		case MLIL_CMP_E:
+			return left == right;
+			break;
+		case MLIL_CMP_NE:
+			return left != right;
+			break;
+		case MLIL_CMP_SLT:
+			return SignExtend(left, size, 8) < SignExtend(right, size, 8);
+			break;
+		case MLIL_CMP_ULT:
+			return (uint64_t)(left) < (uint64_t)(right);
+			break;
+		case MLIL_CMP_SLE:
+			return SignExtend(left, size, 8) <= SignExtend(right, size, 8);
+			break;
+		case MLIL_CMP_ULE:
+			return (uint64_t)(left) <= (uint64_t)(right);
+			break;
+		case MLIL_CMP_SGE:
+			return SignExtend(left, size, 8) >= SignExtend(right, size, 8);
+			break;
+		case MLIL_CMP_UGE:
+			return (uint64_t)(left) >= (uint64_t)(right);
+			break;
+		case MLIL_CMP_SGT:
+			return SignExtend(left, size, 8) > SignExtend(right, size, 8);
+			break;
+		case MLIL_CMP_UGT:
+			return (uint64_t)(left) > (uint64_t)(right);
+			break;
+		default:
+			break;
+	}
+	return -1;
+}
+
+
+uint64_t DebuggerController::GetValueFromComparison(const BNHighLevelILOperation op, uint64_t left, uint64_t right,
+	size_t size)
+{
+	switch (op)
+	{
+		case HLIL_CMP_E:
+			return left == right;
+			break;
+		case HLIL_CMP_NE:
+			return left != right;
+			break;
+		case HLIL_CMP_SLT:
+			return SignExtend(left, size, 8) < SignExtend(right, size, 8);
+			break;
+		case HLIL_CMP_ULT:
+			return (uint64_t)(left) < (uint64_t)(right);
+			break;
+		case HLIL_CMP_SLE:
+			return SignExtend(left, size, 8) <= SignExtend(right, size, 8);
+			break;
+		case HLIL_CMP_ULE:
+			return (uint64_t)(left) <= (uint64_t)(right);
+			break;
+		case HLIL_CMP_SGE:
+			return SignExtend(left, size, 8) >= SignExtend(right, size, 8);
+			break;
+		case HLIL_CMP_UGE:
+			return (uint64_t)(left) >= (uint64_t)(right);
+			break;
+		case HLIL_CMP_SGT:
+			return SignExtend(left, size, 8) > SignExtend(right, size, 8);
+			break;
+		case HLIL_CMP_UGT:
+			return (uint64_t)(left) > (uint64_t)(right);
+			break;
+		default:
+			break;
+	}
+	return -1;
+}
+
+
+bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::MediumLevelILInstruction &instr, uint64_t& value)
+{
+	// We only want to do this check once before the recursion
+	if (!m_state->IsConnected() || m_state->IsRunning())
+		return false;
+
+	return ComputeExprValue(instr, value);
+}
+
+
+bool DebuggerController::ComputeExprValue(const MediumLevelILInstruction &instr, uint64_t& value)
+{
+	if (instr.size > 8)
+		return false;
+
+	uint64_t left, right;
+
+	int64_t sizeMask = -1;
+	if (instr.size > 0 && instr.size < 8)
+		sizeMask = (1LL << (instr.size * 8)) - 1;
+
+	switch (instr.operation)
+	{
+	case MLIL_CONST:
+		value = instr.GetConstant<MLIL_CONST>() & sizeMask;
+		return true;
+	case MLIL_CONST_PTR:
+		value = instr.GetConstant<MLIL_CONST_PTR>() & sizeMask;
+		return true;
+	case MLIL_FLOAT_CONST:
+		value = instr.GetConstant<MLIL_CONST_PTR>() & sizeMask;
+		return true;
+	case MLIL_VAR:
+	{
+		const auto var = instr.GetSourceVariable<MLIL_VAR>();
+		return GetVariableValue(var, instr.address, instr.size, value);
+		break;
+	}
+	case MLIL_ADD:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_ADD>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_ADD>(), right))
+			return false;
+		value = left + right;
+		value &= sizeMask;
+		return true;
+	case MLIL_SUB:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_SUB>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_SUB>(), right))
+			return false;
+		value = left - right;
+		value &= sizeMask;
+		return true;
+	case MLIL_LOAD:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<MLIL_LOAD>(), left))
+			return false;
+		auto buffer = ReadMemory(left, instr.size);
+		if (buffer.GetLength() != instr.size)
+			return false;
+
+		switch (instr.size)
+		{
+		case 1:
+			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 2:
+			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 4:
+			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 8:
+			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		default:
+			return false;
+		}
+	}
+	case MLIL_STORE:
+	{
+		if (!ComputeExprValue(instr.GetDestExpr<MLIL_STORE>(), left))
+			return false;
+		auto buffer = ReadMemory(left, instr.size);
+		if (buffer.GetLength() != instr.size)
+			return false;
+
+		switch (instr.size)
+		{
+		case 1:
+			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 2:
+			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 4:
+			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 8:
+			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		default:
+			return false;
+		}
+	}
+	case MLIL_LSL:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_LSL>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_LSL>(), right))
+			return false;
+		value = left << GetActualShift(right, instr.size);
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_LSR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_LSR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_LSR>(), right))
+			return false;
+		value = left >> GetActualShift(right, instr.size);
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_ASR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_ASR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_ASR>(), right))
+			return false;
+		if (left & (1LL << ((instr.size * 8) - 1)))
+			left |= ~sizeMask;
+		else
+			left &= sizeMask;
+		value = ((int64_t)left) >> GetActualShift(right, instr.size);
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_XOR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_XOR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_XOR>(), right))
+			return false;
+		value = left ^ right;
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_AND:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_AND>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_AND>(), right))
+			return false;
+		value = left & right;
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_OR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_OR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_OR>(), right))
+			return false;
+		value = left | right;
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_NEG:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<MLIL_NEG>(), left))
+			return false;
+		value = -left;
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_NOT:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<MLIL_NOT>(), left))
+			return false;
+		value = ~left;
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_SX:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<MLIL_SX>(), left))
+			return false;
+		value = SignExtend(left, instr.GetSourceExpr<MLIL_SX>().size, instr.size);
+		return true;
+	}
+	case MLIL_ZX:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<MLIL_ZX>(), left))
+			return false;
+		value = ZeroExtend(left, instr.GetSourceExpr<MLIL_ZX>().size, instr.size);
+		return true;
+	}
+	case MLIL_CMP_E:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_CMP_E>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_CMP_E>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case MLIL_CMP_NE:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_CMP_NE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_CMP_NE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case MLIL_CMP_SLT:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_CMP_SLT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_CMP_SLT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case MLIL_CMP_ULT:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_CMP_ULT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_CMP_ULT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case MLIL_CMP_SLE:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_CMP_SLE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_CMP_SLE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case MLIL_CMP_ULE:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_CMP_ULE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_CMP_ULE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case MLIL_CMP_SGE:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_CMP_SGE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_CMP_SGE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case MLIL_CMP_UGE:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_CMP_UGE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_CMP_UGE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case MLIL_CMP_SGT:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_CMP_SGT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_CMP_SGT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case MLIL_CMP_UGT:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_CMP_UGT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_CMP_UGT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+
+bool DebuggerController::GetVariableValueAPI(const Variable& var, uint64_t address, size_t size, uint64_t& value)
+{
+	// We only want to do this check once before the recursion
+	if (!m_state->IsConnected() || m_state->IsRunning())
+		return false;
+
+	return GetVariableValue(var, address, size, value);
+}
+
+
+bool DebuggerController::GetVariableValue(const Variable& var, uint64_t address, size_t size, uint64_t &value)
+{
+	int64_t sizeMask = -1;
+	if (size > 0 && size < 8)
+		sizeMask = (1LL << (size * 8)) - 1;
+
+	if (var.type == RegisterVariableSourceType)
+	{
+		auto reg = var.storage;
+		if (LLIL_REG_IS_TEMP(reg))
+			return false;
+
+		auto name = GetData()->GetDefaultArchitecture()->GetRegisterName(reg);
+		// TODO: what if the name reported by the adapter is different from that in the architecture?
+		// GetRegisterValue should return if the value can be retrieved
+
+		// Cheat for arm64
+		if (name == "x29") name = "fp";
+
+		value = GetRegisterValue(name) & sizeMask;
+		return true;
+	}
+	else if (var.type == StackVariableSourceType)
+	{
+		auto stack = m_state->StackPointer();
+		auto ip = m_state->IP();
+		auto funcs = GetData()->GetAnalysisFunctionsContainingAddress(address);
+		if (funcs.empty())
+			return false;
+		auto func = funcs[0];
+		if (!func)
+			return false;
+		auto arch = GetData()->GetDefaultArchitecture();
+		if (!arch)
+			return false;
+		auto stackReg = arch->GetStackPointerRegister();
+		auto stackValue = func->GetRegisterValueAtInstruction(arch, ip, stackReg);
+		if (stackValue.state != StackFrameOffset)
+			return false;
+		auto stackAtFuncEntry = stack - stackValue.value;
+		auto addrOfVar = stackAtFuncEntry + var.storage;
+
+		auto type = func->GetVariableType(var);
+		if (!type)
+			return false;
+
+		auto width = type->GetWidth();
+		if (width > 8)
+			return false;
+
+		auto buffer = ReadMemory(addrOfVar, width);
+		if (buffer.GetLength() != width)
+			return false;
+
+		switch (width)
+		{
+		case 1:
+			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 2:
+			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 4:
+			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 8:
+			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	return false;
+}
+
+
+bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::HighLevelILInstruction &instr, uint64_t& value)
+{
+	// We only want to do this check once before the recursion
+	if (!m_state->IsConnected() || m_state->IsRunning())
+		return false;
+
+	return ComputeExprValue(instr, value);
+}
+
+
+bool DebuggerController::ComputeExprValue(const HighLevelILInstruction &instr, uint64_t& value)
+{
+	if (instr.size > 8)
+		return false;
+
+	uint64_t left, right;
+
+	int64_t sizeMask = -1;
+	if (instr.size > 0 && instr.size < 8)
+		sizeMask = (1LL << (instr.size * 8)) - 1;
+
+	switch (instr.operation)
+	{
+	case HLIL_CONST:
+		value = instr.GetConstant<HLIL_CONST>() & sizeMask;
+		return true;
+	case HLIL_CONST_PTR:
+		value = instr.GetConstant<HLIL_CONST_PTR>() & sizeMask;
+		return true;
+	case HLIL_FLOAT_CONST:
+		value = instr.GetConstant<HLIL_CONST_PTR>() & sizeMask;
+		return true;
+	case HLIL_VAR:
+	{
+		const auto var = instr.GetVariable<HLIL_VAR>();
+		return GetVariableValue(var, instr.address, instr.size, value);
+		break;
+	}
+	case HLIL_ADD:
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_ADD>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_ADD>(), right))
+			return false;
+		value = left + right;
+		value &= sizeMask;
+		return true;
+	case HLIL_SUB:
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_SUB>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_SUB>(), right))
+			return false;
+		value = left - right;
+		value &= sizeMask;
+		return true;
+	case HLIL_LSL:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_LSL>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_LSL>(), right))
+			return false;
+		value = left << GetActualShift(right, instr.size);
+		value &= sizeMask;
+		return true;
+	}
+	case HLIL_LSR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_LSR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_LSR>(), right))
+			return false;
+		value = left >> GetActualShift(right, instr.size);
+		value &= sizeMask;
+		return true;
+	}
+	case HLIL_ASR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_ASR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_ASR>(), right))
+			return false;
+		if (left & (1LL << ((instr.size * 8) - 1)))
+			left |= ~sizeMask;
+		else
+			left &= sizeMask;
+		value = ((int64_t)left) >> GetActualShift(right, instr.size);
+		value &= sizeMask;
+		return true;
+	}
+	case HLIL_XOR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_XOR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_XOR>(), right))
+			return false;
+		value = left ^ right;
+		value &= sizeMask;
+		return true;
+	}
+	case HLIL_AND:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_AND>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_AND>(), right))
+			return false;
+		value = left & right;
+		value &= sizeMask;
+		return true;
+	}
+	case HLIL_OR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_OR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_OR>(), right))
+			return false;
+		value = left | right;
+		value &= sizeMask;
+		return true;
+	}
+	case HLIL_NEG:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<HLIL_NEG>(), left))
+			return false;
+		value = -left;
+		value &= sizeMask;
+		return true;
+	}
+	case HLIL_NOT:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<HLIL_NOT>(), left))
+			return false;
+		value = ~left;
+		value &= sizeMask;
+		return true;
+	}
+	case HLIL_SX:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<HLIL_SX>(), left))
+			return false;
+		value = SignExtend(left, instr.GetSourceExpr<HLIL_SX>().size, instr.size);
+		return true;
+	}
+	case HLIL_ZX:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<HLIL_ZX>(), left))
+			return false;
+		value = ZeroExtend(left, instr.GetSourceExpr<HLIL_ZX>().size, instr.size);
+		return true;
+	}
+	case HLIL_CMP_E:
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_CMP_E>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_CMP_E>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case HLIL_CMP_NE:
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_CMP_NE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_CMP_NE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case HLIL_CMP_SLT:
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_CMP_SLT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_CMP_SLT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case HLIL_CMP_ULT:
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_CMP_ULT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_CMP_ULT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case HLIL_CMP_SLE:
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_CMP_SLE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_CMP_SLE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case HLIL_CMP_ULE:
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_CMP_ULE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_CMP_ULE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case HLIL_CMP_SGE:
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_CMP_SGE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_CMP_SGE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case HLIL_CMP_UGE:
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_CMP_UGE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_CMP_UGE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case HLIL_CMP_SGT:
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_CMP_SGT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_CMP_SGT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case HLIL_CMP_UGT:
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_CMP_UGT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_CMP_UGT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	default:
+		return false;
+	}
 }

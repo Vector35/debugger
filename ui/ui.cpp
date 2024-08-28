@@ -40,6 +40,7 @@ limitations under the License.
 #include "progresstask.h"
 #include "attachprocess.h"
 #include "progresstask.h"
+#include "debuggerinfowidget.h"
 
 #ifdef WIN32
 	#include "ttdrecord.h"
@@ -1428,6 +1429,7 @@ void GlobalDebuggerUI::InitializeUI()
 	Sidebar::addSidebarWidgetType(new DebuggerWidgetType(QImage(":/debugger/debugger"), "Debugger"));
 	Sidebar::addSidebarWidgetType(new DebugModulesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new ThreadFramesSidebarWidgetType());
+	Sidebar::addSidebarWidgetType(new DebugInfoWidgetType());
 }
 
 
