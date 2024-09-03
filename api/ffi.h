@@ -29,7 +29,7 @@ extern "C"
 	#endif  // DEBUGGER_LIBRARY
 #else       // __GNUC__
 	#ifdef _MSC_VER
-		#ifndef DEMO_VERSION
+		#ifndef DEMO_EDITION
 			#ifdef DEBUGGER_LIBRARY
 				#define DEBUGGER_FFI_API __declspec(dllexport)
 			#else  // DEBUGGER_LIBRARY

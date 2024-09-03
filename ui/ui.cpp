@@ -1684,14 +1684,14 @@ extern "C"
 	BN_DECLARE_CORE_ABI_VERSION
 
 // In Demo, plugins are explicitly loaded. So there is no need to specify dependencies
-#ifndef DEMO_VERSION
+#ifndef DEMO_EDITION
 	BINARYNINJAPLUGIN void CorePluginDependencies()
 	{
 		SetCurrentPluginLoadOrder(LatePluginLoadOrder);
 	}
 #endif
 
-#ifdef DEMO_VERSION
+#ifdef DEMO_EDITION
 	bool DebuggerUIPluginInit()
 #else
 	BINARYNINJAPLUGIN bool UIPluginInit()
