@@ -56,6 +56,7 @@ Q_OBJECT
 //	virtual void contextMenuEvent(QContextMenuEvent*) override;
 
 	virtual void notifyViewLocationChanged(View* /*view*/, const ViewLocation& /*viewLocation*/) override;
+	QString getInfoString(const ViewLocation& location);
 
 	void itemDoubleClicked(const QModelIndex& index);
 	void scrollBarValueChanged(int value);

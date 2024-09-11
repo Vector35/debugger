@@ -21,6 +21,7 @@ limitations under the License.
 #include <QClipboard>
 #include "ui.h"
 #include "debuggerinfowidget.h"
+#include "lowlevelilinstruction.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -37,9 +38,52 @@ DebugInfoSidebarWidget::DebugInfoSidebarWidget(BinaryViewRef data): SidebarWidge
 }
 
 
-void DebugInfoSidebarWidget::notifyViewLocationChanged(View* view, const ViewLocation& location)
+QString DebugInfoSidebarWidget::getInfoString(const ViewLocation &location)
 {
 	auto info = QString::asprintf("View type: %s, offset: 0x%llx, il: %d", location.getViewType().toStdString().c_str(), location.getOffset(), location.getILViewType());
+	if (!m_debugger->IsConnected())
+		return info;
+
+	switch (location.getILViewType())
+	{
+	case NormalFunctionGraph:
+		break;
+	case LowLevelILFunctionGraph:
+	{
+		auto func = location.getFunction();
+		if (!func)
+			break;
+		auto llil = func->GetLowLevelILIfAvailable();
+		if (!llil)
+			break;
+		if (location.getInstrIndex() == BN_INVALID_EXPR)
+			break;
+		auto instr = llil->GetInstruction(location.getInstrIndex());
+		std::set<uint32_t> regs;
+
+		instr.VisitExprs([=](const LowLevelILInstruction& expr){
+			switch (expr.operation)
+			{
+			case LLIL_REG:
+				break;
+			default:
+				break;
+			}
+			return true;
+		});
+		break;
+	}
+	default:
+		break;
+	}
+
+	return info;
+}
+
+
+void DebugInfoSidebarWidget::notifyViewLocationChanged(View* view, const ViewLocation& location)
+{
+	auto info = getInfoString(location);
 	m_label->setText(info);
 }
 
