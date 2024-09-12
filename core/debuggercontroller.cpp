@@ -2598,6 +2598,10 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 		auto name = GetData()->GetDefaultArchitecture()->GetRegisterName(reg);
 		// TODO: what if the name reported by the adapter is different from that in the architecture?
 		// GetRegisterValue should return if the value can be retrieved
+
+		// Cheat for arm64
+		if (name == "x29") name = "sp";
+
 		value = GetRegisterValue(name);
 		return true;
 	}
