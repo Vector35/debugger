@@ -63,19 +63,34 @@ QString DebugInfoSidebarWidget::getInfoString(const ViewLocation &location)
 		auto instr = llil->GetInstruction(location.getInstrIndex());
 		for (const auto operand: instr.GetOperands())
 		{
-			if (operand.GetType() != ExprLowLevelOperand)
-				continue;
-			uint64_t value;
-			if (!m_debugger->ComputeExprValue(llil, operand.GetExpr(), value))
-				continue;
-			std::vector<InstructionTextToken> tokens;
-			if (!llil->GetExprText(func->GetArchitecture(), operand.GetExpr().exprIndex, tokens))
-				continue;
-			QString line;
-			for (const auto& token: tokens)
-				line += token.text;
-			line += QString::asprintf(" = %llx\n", value);
-			info += line;
+			switch (operand.GetType())
+			{
+			case ExprLowLevelOperand:
+			{
+				uint64_t value;
+				if (!m_debugger->ComputeExprValue(llil, operand.GetExpr(), value))
+					continue;
+				std::vector<InstructionTextToken> tokens;
+				if (!llil->GetExprText(func->GetArchitecture(), operand.GetExpr().exprIndex, tokens))
+					continue;
+				QString line;
+				for (const auto& token: tokens)
+					line += token.text;
+				line += QString::asprintf(" = 0x%llx\n", value);
+				info += line;
+				break;
+			}
+			case RegisterLowLevelOperand:
+			{
+				auto reg = operand.GetRegister();
+				auto name = func->GetArchitecture()->GetRegisterName(reg);
+				auto value = m_debugger->GetRegisterValue(name);
+				info += QString::asprintf("%s = 0x%llx\n", name.c_str(), value);
+				break;
+			}
+			default:
+				break;
+			}
 		}
 		break;
 	}

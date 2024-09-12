@@ -2592,6 +2592,12 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 
 	switch (instr.operation)
 	{
+	case LLIL_CONST:
+		value = instr.GetConstant<LLIL_CONST>();
+		return true;
+	case LLIL_CONST_PTR:
+		value = instr.GetConstant<LLIL_CONST_PTR>();
+		return true;
 	case LLIL_REG:
 	{
 		auto reg = instr.GetSourceRegister<LLIL_REG>();
@@ -2622,6 +2628,32 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 	case LLIL_LOAD:
 	{
 		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_LOAD>(), left))
+			return false;
+		auto buffer = ReadMemory(left, instr.size);
+		if (buffer.GetLength() != instr.size)
+			return false;
+
+		switch (instr.size)
+		{
+		case 1:
+			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
+			return true;
+		case 2:
+			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
+			return true;
+		case 4:
+			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
+			return true;
+		case 8:
+			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
+			return true;
+		default:
+			return false;
+		}
+	}
+	case LLIL_STORE:
+	{
+		if (!ComputeExprValue(instr.GetDestExpr<LLIL_STORE>(), left))
 			return false;
 		auto buffer = ReadMemory(left, instr.size);
 		if (buffer.GetLength() != instr.size)
