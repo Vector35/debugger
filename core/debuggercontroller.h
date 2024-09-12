@@ -315,5 +315,13 @@ namespace BinaryNinjaDebugger {
 		bool ReAddDebuggerMemoryRegion();
 
 		uint64_t GetViewFileSegmentsStart() { return m_viewStart; }
+
+		bool ComputeExprValueInternal(const LowLevelILInstruction& instr, uint64_t& value);
+		RegisterValue ComputeExprValueInternal(const MediumLevelILInstruction& instr);
+		RegisterValue ComputeExprValueInternal(const HighLevelILInstruction& instr);
+
+		bool ComputeExprValue(const LowLevelILInstruction& instr, uint64_t& value);
+		RegisterValue ComputeExprValue(const MediumLevelILInstruction& instr);
+		RegisterValue ComputeExprValue(const HighLevelILInstruction& instr);
 	};
 };  // namespace BinaryNinjaDebugger

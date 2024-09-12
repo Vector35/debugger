@@ -44,6 +44,8 @@ QString DebugInfoSidebarWidget::getInfoString(const ViewLocation &location)
 	if (!m_debugger->IsConnected())
 		return info;
 
+	info += "\n\n";
+
 	switch (location.getILViewType())
 	{
 	case NormalFunctionGraph:
@@ -59,18 +61,22 @@ QString DebugInfoSidebarWidget::getInfoString(const ViewLocation &location)
 		if (location.getInstrIndex() == BN_INVALID_EXPR)
 			break;
 		auto instr = llil->GetInstruction(location.getInstrIndex());
-		std::set<uint32_t> regs;
-
-		instr.VisitExprs([=](const LowLevelILInstruction& expr){
-			switch (expr.operation)
-			{
-			case LLIL_REG:
-				break;
-			default:
-				break;
-			}
-			return true;
-		});
+		for (const auto operand: instr.GetOperands())
+		{
+			if (operand.GetType() != ExprLowLevelOperand)
+				continue;
+			uint64_t value;
+			if (!m_debugger->ComputeExprValue(llil, operand.GetExpr(), value))
+				continue;
+			std::vector<InstructionTextToken> tokens;
+			if (!llil->GetExprText(func->GetArchitecture(), operand.GetExpr().exprIndex, tokens))
+				continue;
+			QString line;
+			for (const auto& token: tokens)
+				line += token.text;
+			line += QString::asprintf(" = %llx\n", value);
+			info += line;
+		}
 		break;
 	}
 	default:

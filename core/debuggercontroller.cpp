@@ -2567,3 +2567,85 @@ bool DebuggerController::ReAddDebuggerMemoryRegion()
 	GetData()->SetFunctionAnalysisUpdateDisabled(false);
 	return ret;
 }
+
+
+bool DebuggerController::ComputeExprValue(const BinaryNinja::LowLevelILInstruction &instr, uint64_t& value)
+{
+	// We only want to do this check once before the recursion
+	if (!m_state->IsConnected() || m_state->IsRunning())
+		return false;
+
+	return ComputeExprValueInternal(instr, value);
+}
+
+
+bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &instr, uint64_t& value)
+{
+	if (instr.size > 8)
+		return false;
+
+	uint64_t left, right;
+
+	int64_t sizeMask = -1;
+	if (instr.size > 0 && instr.size < 8)
+		sizeMask = (1LL << (instr.size * 8)) - 1;
+
+	switch (instr.operation)
+	{
+	case LLIL_REG:
+	{
+		auto reg = instr.GetSourceRegister<LLIL_REG>();
+		auto name = GetData()->GetDefaultArchitecture()->GetRegisterName(reg);
+		// TODO: what if the name reported by the adapter is different from that in the architecture?
+		// GetRegisterValue should return if the value can be retrieved
+		value = GetRegisterValue(name);
+		return true;
+	}
+	case LLIL_ADD:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_ADD>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_ADD>(), right))
+			return false;
+		value = left + right;
+		return true;
+	case LLIL_SUB:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_SUB>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_SUB>(), right))
+			return false;
+		value = left - right;
+		return true;
+	case LLIL_LOAD:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_LOAD>(), left))
+			return false;
+		auto buffer = ReadMemory(left, instr.size);
+		if (buffer.GetLength() != instr.size)
+			return false;
+
+		switch (instr.size)
+		{
+		case 1:
+			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
+			return true;
+		case 2:
+			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
+			return true;
+		case 4:
+			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
+			return true;
+		case 8:
+			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
+			return true;
+		default:
+			return false;
+		}
+	}
+	default:
+		break;
+	}
+	return false;
+}
+
+
+

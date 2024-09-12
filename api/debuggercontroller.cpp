@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "debuggerapi.h"
+#include "lowlevelilinstruction.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -926,4 +927,11 @@ bool DebuggerController::ReAddDebuggerMemoryRegion()
 uint64_t DebuggerController::GetViewFileSegmentsStart()
 {
 	return BNDebuggerGetViewFileSegmentsStart(m_object);
+}
+
+
+bool DebuggerController::ComputeExprValue(const Ref<LowLevelILFunction>& func,
+	const BinaryNinja::LowLevelILInstruction &expr, uint64_t &value)
+{
+	return BNDebuggerComputeLLILExprValue(m_object, func->GetObject(), expr.exprIndex, value);
 }

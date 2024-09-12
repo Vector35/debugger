@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "binaryninjaapi.h"
+#include "lowlevelilinstruction.h"
 #include "debuggercontroller.h"
 #include "debuggercommon.h"
 #include "../api/ffi.h"
@@ -1062,4 +1063,13 @@ bool BNDebuggerReAddMemoryRegion(BNDebuggerController* controller)
 uint64_t BNDebuggerGetViewFileSegmentsStart(BNDebuggerController* controller)
 {
 	return controller->object->GetViewFileSegmentsStart();
+}
+
+
+bool BNDebuggerComputeLLILExprValue(BNDebuggerController* controller, BNLowLevelILFunction* function, size_t expr,
+	uint64_t& value)
+{
+	Ref<LowLevelILFunction> llil = new LowLevelILFunction(function);
+	auto instr = llil->GetExpr(expr);
+	return controller->object->ComputeExprValue(instr, value);
 }

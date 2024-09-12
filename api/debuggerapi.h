@@ -598,6 +598,9 @@ namespace BinaryNinjaDebuggerAPI {
 		bool ReAddDebuggerMemoryRegion();
 
 		uint64_t GetViewFileSegmentsStart();
+
+		bool ComputeExprValue(const Ref<LowLevelILFunction>& func, const LowLevelILInstruction& expr,
+			  uint64_t & value);
 	};
 
 
