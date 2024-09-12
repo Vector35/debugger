@@ -1069,7 +1069,7 @@ uint64_t BNDebuggerGetViewFileSegmentsStart(BNDebuggerController* controller)
 bool BNDebuggerComputeLLILExprValue(BNDebuggerController* controller, BNLowLevelILFunction* function, size_t expr,
 	uint64_t& value)
 {
-	Ref<LowLevelILFunction> llil = new LowLevelILFunction(function);
+	Ref<LowLevelILFunction> llil = new LowLevelILFunction(BNNewLowLevelILFunctionReference(function));
 	auto instr = llil->GetExpr(expr);
 	return controller->object->ComputeExprValue(instr, value);
 }
