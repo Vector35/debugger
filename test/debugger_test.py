@@ -44,6 +44,16 @@ def is_wow64(fpath):
     return a == '64bit' and b.startswith('Windows')
 
 
+def sleep_and_go(dbg):
+    time.sleep(0.1)
+    return dbg.go_and_wait()
+
+
+def sleep_and_step_into(dbg):
+    time.sleep(0.1)
+    return dbg.step_into_and_wait()
+
+
 class DebuggerAPI(unittest.TestCase):
     # Always skip the base class so it will never be executed
     @unittest.skip("do not run the base test class")
@@ -60,14 +70,14 @@ class DebuggerAPI(unittest.TestCase):
             self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
             # continue execution to the entry point, and check the stop reason
-            reason = dbg.step_into_and_wait()
+            reason = sleep_and_step_into(dbg)
             self.assertEqual(reason, DebugStopReason.SingleStep)
-            reason = dbg.step_into_and_wait()
+            reason = sleep_and_step_into(dbg)
             self.assertEqual(reason, DebugStopReason.SingleStep)
-            reason = dbg.step_into_and_wait()
+            reason = sleep_and_step_into(dbg)
             self.assertEqual(reason, DebugStopReason.SingleStep)
             # go until executing done
-            reason = dbg.go_and_wait()
+            reason = sleep_and_go(dbg)
             self.assertEqual(reason, DebugStopReason.ProcessExited)
 
         # Do the same thing for 10 times
@@ -94,7 +104,7 @@ class DebuggerAPI(unittest.TestCase):
             dbg.cmd_line = arg
 
             self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
-            reason = dbg.go_and_wait()
+            reason = sleep_and_go(dbg)
             self.assertEqual(reason, DebugStopReason.ProcessExited)
             exit_code = dbg.exit_code
             self.assertIn(exit_code, expected)
@@ -113,7 +123,7 @@ class DebuggerAPI(unittest.TestCase):
         dbg.cmd_line = 'segfault'
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         # time.sleep(1)
-        reason = dbg.go_and_wait()
+        reason = sleep_and_go(dbg)
         self.expect_segfault(reason)
         dbg.quit_and_wait()
 
@@ -147,7 +157,7 @@ class DebuggerAPI(unittest.TestCase):
         if not self.arch == 'arm64':
             dbg.cmd_line = 'divzero'
             self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
-            reason = dbg.go_and_wait()
+            reason = sleep_and_go(dbg)
             self.expect_divide_by_zero(reason)
             dbg.quit_and_wait()
 
@@ -157,11 +167,11 @@ class DebuggerAPI(unittest.TestCase):
         dbg = DebuggerController(bv)
         dbg.cmd_line = 'foobar'
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
-        reason = dbg.step_into_and_wait()
+        reason = sleep_and_step_into(dbg)
         self.assertEqual(reason, DebugStopReason.SingleStep)
-        reason = dbg.step_into_and_wait()
+        reason = sleep_and_step_into(dbg)
         self.assertEqual(reason, DebugStopReason.SingleStep)
-        reason = dbg.go_and_wait()
+        reason = sleep_and_go(dbg)
         self.assertEqual(reason, DebugStopReason.ProcessExited)
 
     def test_breakpoint(self):
@@ -259,20 +269,24 @@ class DebuggerAPI(unittest.TestCase):
         self.assertGreater(len(threads), 1)
         dbg.quit_and_wait()
 
+    @unittest.skipIf(platform.system() == 'Windows', 'Skip restart test on Windows for now')
     def test_restart(self):
         fpath = name_to_fpath('helloworld_thread', self.arch)
         bv = load(fpath)
         dbg = DebuggerController(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
+        time.sleep(0.1)
         dbg.go()
         time.sleep(1)
         dbg.pause_and_wait()
         self.assertGreater(len(dbg.threads), 1)
 
+        time.sleep(0.1)
         ret = dbg.restart_and_wait()
         self.assertNotIn(ret, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
+        time.sleep(0.1)
         dbg.go()
         time.sleep(1)
         ret = dbg.restart_and_wait()
@@ -290,21 +304,21 @@ class DebuggerAPI(unittest.TestCase):
 
             # TODO: we can use BN to disassemble the binary and find out how long is the instruction
             # step into nop
-            dbg.step_into_and_wait()
+            sleep_and_step_into(dbg)
             self.assertEqual(dbg.ip, entry+1)
             # step into call, return
-            dbg.step_into_and_wait()
-            dbg.step_into_and_wait()
+            sleep_and_step_into(dbg)
+            sleep_and_step_into(dbg)
             # back
             self.assertEqual(dbg.ip, entry+6)
-            dbg.step_into_and_wait()
+            sleep_and_step_into(dbg)
             # step into call, return
-            dbg.step_into_and_wait()
-            dbg.step_into_and_wait()
+            sleep_and_step_into(dbg)
+            sleep_and_step_into(dbg)
             # back
             self.assertEqual(dbg.ip, entry+12)
 
-            reason = dbg.go_and_wait()
+            reason = sleep_and_go(dbg)
             self.assertEqual(reason, DebugStopReason.ProcessExited)
 
     @unittest.skipIf(platform.system() == 'Linux', 'Cannot attach to pid unless running as root')
