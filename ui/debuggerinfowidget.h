@@ -57,6 +57,7 @@ Q_OBJECT
 
 	virtual void notifyViewLocationChanged(View* /*view*/, const ViewLocation& /*viewLocation*/) override;
 	QString getInfoString(const ViewLocation& location);
+	QString getInfoForLLIL(LowLevelILFunctionRef llil, const LowLevelILInstruction& instr);
 
 	void itemDoubleClicked(const QModelIndex& index);
 	void scrollBarValueChanged(int value);
