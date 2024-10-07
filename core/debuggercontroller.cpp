@@ -2600,6 +2600,15 @@ static int64_t SignExtend(int64_t value, size_t sourceSize, size_t destSize)
 }
 
 
+static inline uint64_t GetActualShift(uint64_t value, size_t instrSize)
+{
+	if (instrSize <= 4)
+		return value & 0b11111;
+	else
+		return value & 0b111111;
+}
+
+
 bool DebuggerController::ComputeExprValue(const BinaryNinja::LowLevelILInstruction &instr, uint64_t& value)
 {
 	// We only want to do this check once before the recursion
@@ -2628,6 +2637,9 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 		return true;
 	case LLIL_CONST_PTR:
 		value = instr.GetConstant<LLIL_CONST_PTR>() & sizeMask;
+		return true;
+	case LLIL_FLOAT_CONST:
+		value = instr.GetConstant<LLIL_FLOAT_CONST>() & sizeMask;
 		return true;
 	case LLIL_REG:
 	{
@@ -2724,7 +2736,31 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 			return false;
 		if (!ComputeExprValue(instr.GetRightExpr<LLIL_LSL>(), right))
 			return false;
-		value = left << right;
+		value = left << GetActualShift(right, instr.size);
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_LSR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_LSR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_LSR>(), right))
+			return false;
+		value = left >> GetActualShift(right, instr.size);
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_ASR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_ASR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_ASR>(), right))
+			return false;
+		if (left & (1LL << ((instr.size * 8) - 1)))
+			left |= ~sizeMask;
+		else
+			left &= sizeMask;
+		value = ((int64_t)left) >> GetActualShift(right, instr.size);
 		value &= sizeMask;
 		return true;
 	}
