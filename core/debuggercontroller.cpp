@@ -2451,7 +2451,7 @@ static std::string CheckForLiteralString(uint64_t address)
 	}
 
 	if (ok)
-		return BinaryNinja::EscapeString(result);
+		return fmt::format("\"{}\"", BinaryNinja::EscapeString(result));
 
 	return "";
 }
@@ -2796,6 +2796,7 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 		return true;
 	}
 	case LLIL_POP:
+	case LLIL_RET:
 	{
 		auto stackPointer = GetState()->StackPointer();
 		auto buffer = ReadMemory(stackPointer, instr.size);
