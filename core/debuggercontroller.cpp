@@ -2451,7 +2451,7 @@ static std::string CheckForLiteralString(uint64_t address)
 	}
 
 	if (ok)
-		return result;
+		return BinaryNinja::EscapeString(result);
 
 	return "";
 }
@@ -2569,6 +2569,37 @@ bool DebuggerController::ReAddDebuggerMemoryRegion()
 }
 
 
+
+// TODO: these 3 functions should be moved to the BinaryNinjaAPI namespace for wider audiences
+static int64_t MaskToSize(int64_t value, size_t size)
+{
+	if (size >= 8)
+		return value;
+	if (size == 0)
+		return value & 1;
+	return value & ((1LL << (size * 8)) - 1);
+}
+
+
+static int64_t ZeroExtend(int64_t value, size_t sourceSize, size_t destSize)
+{
+	if (destSize <= sourceSize)
+		return MaskToSize(value, destSize);
+	return MaskToSize(value & ((1LL << (sourceSize * 8)) - 1), destSize);
+}
+
+
+static int64_t SignExtend(int64_t value, size_t sourceSize, size_t destSize)
+{
+	if (destSize <= sourceSize)
+		return MaskToSize(value, destSize);
+	if (value & (1LL << ((sourceSize * 8) - 1)))
+		return MaskToSize(value | (~((1LL << (sourceSize * 8)) - 1)), destSize);
+	else
+		return MaskToSize(value & ((1LL << (sourceSize * 8)) - 1), destSize);
+}
+
+
 bool DebuggerController::ComputeExprValue(const BinaryNinja::LowLevelILInstruction &instr, uint64_t& value)
 {
 	// We only want to do this check once before the recursion
@@ -2593,10 +2624,10 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 	switch (instr.operation)
 	{
 	case LLIL_CONST:
-		value = instr.GetConstant<LLIL_CONST>();
+		value = instr.GetConstant<LLIL_CONST>() & sizeMask;
 		return true;
 	case LLIL_CONST_PTR:
-		value = instr.GetConstant<LLIL_CONST_PTR>();
+		value = instr.GetConstant<LLIL_CONST_PTR>() & sizeMask;
 		return true;
 	case LLIL_REG:
 	{
@@ -2608,7 +2639,7 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 		// Cheat for arm64
 		if (name == "x29") name = "sp";
 
-		value = GetRegisterValue(name);
+		value = GetRegisterValue(name) & sizeMask;
 		return true;
 	}
 	case LLIL_ADD:
@@ -2617,6 +2648,7 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 		if (!ComputeExprValue(instr.GetRightExpr<LLIL_ADD>(), right))
 			return false;
 		value = left + right;
+		value &= sizeMask;
 		return true;
 	case LLIL_SUB:
 		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_SUB>(), left))
@@ -2624,6 +2656,7 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 		if (!ComputeExprValue(instr.GetRightExpr<LLIL_SUB>(), right))
 			return false;
 		value = left - right;
+		value &= sizeMask;
 		return true;
 	case LLIL_LOAD:
 	{
@@ -2637,15 +2670,19 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 		{
 		case 1:
 			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
+			value &= sizeMask;
 			return true;
 		case 2:
 			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
+			value &= sizeMask;
 			return true;
 		case 4:
 			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
+			value &= sizeMask;
 			return true;
 		case 8:
 			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
+			value &= sizeMask;
 			return true;
 		default:
 			return false;
@@ -2663,20 +2700,131 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 		{
 		case 1:
 			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
+			value &= sizeMask;
 			return true;
 		case 2:
 			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
+			value &= sizeMask;
 			return true;
 		case 4:
 			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
+			value &= sizeMask;
 			return true;
 		case 8:
 			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
+			value &= sizeMask;
 			return true;
 		default:
 			return false;
 		}
 	}
+	case LLIL_LSL:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_LSL>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_LSL>(), right))
+			return false;
+		value = left << right;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_XOR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_XOR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_XOR>(), right))
+			return false;
+		value = left ^ right;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_AND:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_AND>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_AND>(), right))
+			return false;
+		value = left & right;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_OR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_OR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_OR>(), right))
+			return false;
+		value = left | right;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_NEG:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_NEG>(), left))
+			return false;
+		value = -left;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_NOT:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_NOT>(), left))
+			return false;
+		value = ~left;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_SX:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_SX>(), left))
+			return false;
+		value = SignExtend(left, instr.GetSourceExpr<LLIL_SX>().size, instr.size);
+		return true;
+	}
+	case LLIL_ZX:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_ZX>(), left))
+			return false;
+		value = ZeroExtend(left, instr.GetSourceExpr<LLIL_ZX>().size, instr.size);
+		return true;
+	}
+	case LLIL_PUSH:
+	{
+		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_PUSH>(), left))
+			return false;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_POP:
+	{
+		auto stackPointer = GetState()->StackPointer();
+		auto buffer = ReadMemory(stackPointer, instr.size);
+		if (buffer.GetLength() != instr.size)
+			return false;
+
+		switch (instr.size)
+		{
+		case 1:
+			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 2:
+			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 4:
+			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		case 8:
+			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
+			value &= sizeMask;
+			return true;
+		default:
+			return false;
+		}
+	}
+
 	default:
 		break;
 	}
