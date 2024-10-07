@@ -76,8 +76,12 @@ QString DebugInfoSidebarWidget::getInfoString(const ViewLocation &location)
 				QString line;
 				for (const auto& token: tokens)
 					line += token.text;
-				line += QString::asprintf(" = 0x%llx\n", value);
+				line += QString::asprintf(" = 0x%llx", value);
 				info += line;
+				auto hint = m_debugger->GetAddressInformation(value);
+				if (!hint.empty())
+					info += QString::asprintf(" {%s}", hint.c_str());
+				info += '\n';
 				break;
 			}
 			case RegisterLowLevelOperand:
@@ -85,7 +89,11 @@ QString DebugInfoSidebarWidget::getInfoString(const ViewLocation &location)
 				auto reg = operand.GetRegister();
 				auto name = func->GetArchitecture()->GetRegisterName(reg);
 				auto value = m_debugger->GetRegisterValue(name);
-				info += QString::asprintf("%s = 0x%llx\n", name.c_str(), value);
+				info += QString::asprintf("%s = 0x%llx", name.c_str(), value);
+				auto hint = m_debugger->GetAddressInformation(value);
+				if (!hint.empty())
+					info += QString::asprintf(" {%s}", hint.c_str());
+				info += '\n';
 				break;
 			}
 			default:
