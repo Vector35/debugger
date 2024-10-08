@@ -27,6 +27,7 @@ limitations under the License.
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "theme.h"
+#include "render.h"
 //#include "globalarea.h"
 #include "debuggerapi.h"
 
@@ -36,19 +37,105 @@ using namespace BinaryNinja;
 using namespace std;
 
 
+enum ColumnHeaders
+{
+	ExprColumn,
+	ValueColumn,
+	HintColumn,
+};
+
+
+struct DebuggerInfoEntry
+{
+	std::vector<InstructionTextToken> tokens;
+	uint64_t value;
+	std::string hints;
+	size_t instrIndex;
+	size_t operandIndex;
+	uint64_t address;
+
+	DebuggerInfoEntry(const std::vector<InstructionTextToken>& t, uint64_t v, const std::string& h, size_t i, size_t o,
+					  uint64_t a): tokens(t), value(v), hints(h), instrIndex(i), operandIndex(o), address(a)
+	{}
+};
+
+
+class BINARYNINJAUIAPI DebuggerInfoEntryItemModel : public QAbstractTableModel
+{
+	std::vector<DebuggerInfoEntry> m_infoEntries;
+
+	FileMetadataRef m_file;
+	std::vector<BinaryViewRef> m_views;
+	QSettings m_settings;
+
+	UndoEntryRef entryForRow(int row) const;
+
+	void hardReload();
+
+public:
+	DebuggerInfoEntryItemModel(QWidget* parent, BinaryViewRef data);
+	~DebuggerInfoEntryItemModel();
+
+	virtual QModelIndex index(int row, int column, const QModelIndex& parent = QModelIndex()) const override;
+	virtual QModelIndex parent(const QModelIndex& child) const override;
+
+	virtual int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override;
+
+	virtual QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
+	void updateRows(std::vector<DebuggerInfoEntry>& newRows);
+	virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
+};
+
+
+class BINARYNINJAUIAPI DebuggerInfoEntryItemDelegate : public QStyledItemDelegate
+{
+Q_OBJECT
+
+	QFont m_font;
+	int m_baseline, m_charWidth, m_charHeight, m_charOffset;
+
+	RenderContext m_render;
+
+public:
+	DebuggerInfoEntryItemDelegate(QWidget* parent = nullptr);
+
+	void updateFonts();
+
+	virtual void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
+};
+
+
+class DebuggerInfoTable : public QTableView
+{
+Q_OBJECT;
+
+	DebuggerInfoEntryItemModel* m_model;
+	DebuggerInfoEntryItemDelegate* m_itemDelegate;
+
+	BinaryViewRef m_data;
+	DebuggerControllerRef m_debugger;
+
+	std::vector<DebuggerInfoEntry> getILInfoEntries(const ViewLocation& location);
+	std::vector<DebuggerInfoEntry> getInfoForLLIL(LowLevelILFunctionRef llil, const LowLevelILInstruction& instr);
+
+public:
+	DebuggerInfoTable(BinaryViewRef data);
+
+	void updateContents(const ViewLocation& location);
+};
+
 
 class BINARYNINJAUIAPI DebugInfoSidebarWidget : public SidebarWidget
 {
 Q_OBJECT
-	QListView* m_entryList;
-//	HistoryEntryItemModel* m_model;
-//	HistoryEntryItemDelegate* m_itemDelegate;
+	DebuggerInfoTable* m_entryList;
 
 	QWidget* m_header;
 	BinaryViewRef m_data;
 	DebuggerControllerRef m_debugger;
 
-	QLabel* m_label;
+//	QLabel* m_label;
 
 	bool m_updating = false;
 	bool m_atBottom = true;
@@ -56,8 +143,6 @@ Q_OBJECT
 //	virtual void contextMenuEvent(QContextMenuEvent*) override;
 
 	virtual void notifyViewLocationChanged(View* /*view*/, const ViewLocation& /*viewLocation*/) override;
-	QString getInfoString(const ViewLocation& location);
-	QString getInfoForLLIL(LowLevelILFunctionRef llil, const LowLevelILInstruction& instr);
 
 	void itemDoubleClicked(const QModelIndex& index);
 	void scrollBarValueChanged(int value);

@@ -30,17 +30,19 @@ using namespace std;
 DebugInfoSidebarWidget::DebugInfoSidebarWidget(BinaryViewRef data): SidebarWidget("Debugger Info"), m_data(data)
 {
 	m_debugger = DebuggerController::GetController(data);
-	m_label = new QLabel("nothing");
 	auto* layout = new QVBoxLayout();
 	layout->setContentsMargins(0, 0, 0, 0);
-	layout->addWidget(m_label);
+
+	m_entryList = new DebuggerInfoTable(data);
+	layout->addWidget(m_entryList);
+
 	setLayout(layout);
 }
 
 
-QString DebugInfoSidebarWidget::getInfoForLLIL(LowLevelILFunctionRef llil, const LowLevelILInstruction &instr)
+std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLIL(LowLevelILFunctionRef llil, const LowLevelILInstruction &instr)
 {
-	QString info;
+	std::vector<DebuggerInfoEntry> result;
 	auto func = llil->GetFunction();
 	for (const auto operand: instr.GetOperands())
 	{
@@ -54,15 +56,8 @@ QString DebugInfoSidebarWidget::getInfoForLLIL(LowLevelILFunctionRef llil, const
 			std::vector<InstructionTextToken> tokens;
 			if (!llil->GetExprText(func->GetArchitecture(), operand.GetExpr().exprIndex, tokens))
 				continue;
-			QString line;
-			for (const auto& token: tokens)
-				line += token.text;
-			line += QString::asprintf(" = 0x%llx", value);
-			info += line;
-			auto hint = m_debugger->GetAddressInformation(value);
-			if (!hint.empty())
-				info += QString::asprintf(" {%s}", hint.c_str());
-			info += '\n';
+			auto hints = m_debugger->GetAddressInformation(value);
+			result.emplace_back(tokens, value, hints, instr.instructionIndex, operand.GetExpr().exprIndex, instr.address);
 			break;
 		}
 		case RegisterLowLevelOperand:
@@ -70,28 +65,31 @@ QString DebugInfoSidebarWidget::getInfoForLLIL(LowLevelILFunctionRef llil, const
 			auto reg = operand.GetRegister();
 			auto name = func->GetArchitecture()->GetRegisterName(reg);
 			auto value = m_debugger->GetRegisterValue(name);
-			info += QString::asprintf("%s = 0x%llx", name.c_str(), value);
-			auto hint = m_debugger->GetAddressInformation(value);
-			if (!hint.empty())
-				info += QString::asprintf(" {%s}", hint.c_str());
-			info += '\n';
+			auto hints = m_debugger->GetAddressInformation(value);
+			std::vector<InstructionTextToken> tokens;
+			tokens.emplace_back(RegisterToken, name);
+			result.emplace_back(tokens, value, hints, instr.instructionIndex, BN_INVALID_EXPR, instr.address);
 			break;
 		}
 		default:
 			break;
 		}
 	}
-	return info;
+	return result;
 }
 
 
-QString DebugInfoSidebarWidget::getInfoString(const ViewLocation &location)
+vector<DebuggerInfoEntry> DebuggerInfoTable::getILInfoEntries(const ViewLocation &location)
 {
-	auto info = QString::asprintf("View type: %s, offset: 0x%llx, il: %d", location.getViewType().toStdString().c_str(), location.getOffset(), location.getILViewType());
+	vector<DebuggerInfoEntry> result;
 	if (!m_debugger->IsConnected())
-		return info;
+		return result;
 
-	info += "\n\n";
+//	auto info = QString::asprintf("View type: %s, offset: 0x%llx, il: %d", location.getViewType().toStdString().c_str(), location.getOffset(), location.getILViewType());
+//	if (!m_debugger->IsConnected())
+//		return info;
+//
+//	info += "\n\n";
 
 	switch (location.getILViewType())
 	{
@@ -108,7 +106,8 @@ QString DebugInfoSidebarWidget::getInfoString(const ViewLocation &location)
 		for (const auto index: llils)
 		{
 			auto instr = llil->GetInstruction(index);
-			info += getInfoForLLIL(llil, instr);
+			auto entries = getInfoForLLIL(llil, instr);
+			result.insert(result.end(), entries.begin(), entries.end());
 		}
 		break;
 	}
@@ -123,21 +122,21 @@ QString DebugInfoSidebarWidget::getInfoString(const ViewLocation &location)
 		if (location.getInstrIndex() == BN_INVALID_EXPR)
 			break;
 		auto instr = llil->GetInstruction(location.getInstrIndex());
-		info += getInfoForLLIL(llil, instr);
+		auto entries = getInfoForLLIL(llil, instr);
+		result.insert(result.end(), entries.begin(), entries.end());
 		break;
 	}
 	default:
 		break;
 	}
 
-	return info;
+	return result;
 }
 
 
 void DebugInfoSidebarWidget::notifyViewLocationChanged(View* view, const ViewLocation& location)
 {
-	auto info = getInfoString(location);
-	m_label->setText(info);
+	m_entryList->updateContents(location);
 }
 
 
@@ -146,6 +145,115 @@ DebugInfoSidebarWidget::~DebugInfoSidebarWidget()
 
 }
 
+
+DebuggerInfoEntryItemDelegate::DebuggerInfoEntryItemDelegate(QWidget* parent): m_render(parent)
+{
+
+}
+
+
+void DebuggerInfoEntryItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
+										  const QModelIndex &index) const
+{
+
+}
+
+
+DebuggerInfoEntryItemModel::DebuggerInfoEntryItemModel(QWidget *parent, BinaryViewRef data)
+{
+
+}
+
+
+DebuggerInfoEntryItemModel::~DebuggerInfoEntryItemModel()
+{
+
+}
+
+
+QModelIndex DebuggerInfoEntryItemModel::index(int row, int column, const QModelIndex &parent) const
+{
+	return {};
+}
+
+
+QModelIndex DebuggerInfoEntryItemModel::parent(const QModelIndex &child) const
+{
+	return {};
+}
+
+
+int DebuggerInfoEntryItemModel::rowCount(const QModelIndex &parent) const
+{
+	return 0;
+}
+
+int DebuggerInfoEntryItemModel::columnCount(const QModelIndex &parent) const
+{
+	return 3;
+}
+
+
+QVariant DebuggerInfoEntryItemModel::data(const QModelIndex &index, int role) const
+{
+	return {};
+}
+
+
+void DebuggerInfoEntryItemModel::updateRows(std::vector<DebuggerInfoEntry>& newRows)
+{
+	beginResetModel();
+	m_infoEntries = newRows;
+	endResetModel();
+}
+
+
+QVariant DebuggerInfoEntryItemModel::headerData(int column, Qt::Orientation orientation, int role) const
+{
+	if (role != Qt::DisplayRole)
+		return QVariant();
+
+	if (orientation == Qt::Vertical)
+		return QVariant();
+
+	switch (column)
+	{
+	case ExprColumn:
+		return "Expr";
+	case ValueColumn:
+		return "Value";
+	case HintColumn:
+		return "Hint";
+	}
+	return QVariant();
+}
+
+
+DebuggerInfoTable::DebuggerInfoTable(BinaryViewRef data): m_data(data)
+{
+	m_debugger = DebuggerController::GetController(data);
+
+	m_model = new DebuggerInfoEntryItemModel(this, data);
+	m_itemDelegate = new DebuggerInfoEntryItemDelegate(this);
+
+	setModel(m_model);
+	setSelectionMode(QListView::SingleSelection);
+	setSelectionBehavior(QListView::SelectRows);
+	setEditTriggers(QListView::NoEditTriggers);
+	setDragEnabled(false);
+	setDragDropMode(QListView::NoDragDrop);
+	setItemDelegate(m_itemDelegate);
+}
+
+
+void DebuggerInfoTable::updateContents(const ViewLocation &location)
+{
+	auto info = getILInfoEntries(location);
+	m_model->updateRows(info);
+}
+
+
+//int Debugger
 
 DebugInfoWidgetType::DebugInfoWidgetType():
 	SidebarWidgetType(QIcon(":/debugger/debugger").pixmap(QSize(64, 64)).toImage(), "Debugger Info")
