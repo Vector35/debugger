@@ -155,6 +155,48 @@ DebuggerInfoEntryItemDelegate::DebuggerInfoEntryItemDelegate(QWidget* parent): m
 void DebuggerInfoEntryItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
 										  const QModelIndex &index) const
 {
+	// Draw the item background, highlighting it if selected.
+	bool selected = (option.state & QStyle::State_Selected) != 0;
+	if (selected)
+		painter->setBrush(getThemeColor(SelectionColor));
+	else
+		painter->setBrush(option.backgroundBrush);
+
+	auto* entry = qvariant_cast<DebuggerInfoEntry*>(index.data(Qt::DisplayRole));
+	if (!entry)
+	{
+		QStyledItemDelegate::paint(painter, option, index);
+		return;
+	}
+
+	painter->setPen(Qt::NoPen);
+	painter->drawRect(option.rect);
+
+	painter->setPen(option.palette.text().color());
+	painter->setFont(m_font);
+
+	QRect textRect = option.rect;
+//	textRect.setLeft(textRect.left() + 8);
+
+	switch (index.column())
+	{
+	case ExprColumn:
+	{
+		HighlightTokenState highlight;
+		m_render.drawDisassemblyLine(*painter, textRect.left(), textRect.top(), entry->tokens, highlight);
+		break;
+	}
+	case ValueColumn:
+		painter->setPen(getThemeColor(AddressColor));
+		painter->drawText(textRect, "0x" + QString::number(entry->value, 16));
+		break;
+	case HintColumn:
+		painter->setPen(getThemeColor(StringColor));
+		painter->drawText(textRect, QString::fromStdString(entry->hints));
+		break;
+	default:
+		break;
+	}
 
 }
 
@@ -173,7 +215,12 @@ DebuggerInfoEntryItemModel::~DebuggerInfoEntryItemModel()
 
 QModelIndex DebuggerInfoEntryItemModel::index(int row, int column, const QModelIndex &parent) const
 {
-	return {};
+	if (row < 0 || (size_t)row >= m_infoEntries.size() || column >= columnCount())
+	{
+		return QModelIndex();
+	}
+
+	return createIndex(row, column, (void*)&m_infoEntries[row]);
 }
 
 
@@ -185,8 +232,9 @@ QModelIndex DebuggerInfoEntryItemModel::parent(const QModelIndex &child) const
 
 int DebuggerInfoEntryItemModel::rowCount(const QModelIndex &parent) const
 {
-	return 0;
+	return m_infoEntries.size();
 }
+
 
 int DebuggerInfoEntryItemModel::columnCount(const QModelIndex &parent) const
 {
@@ -196,7 +244,55 @@ int DebuggerInfoEntryItemModel::columnCount(const QModelIndex &parent) const
 
 QVariant DebuggerInfoEntryItemModel::data(const QModelIndex &index, int role) const
 {
-	return {};
+	if (index.column() >= columnCount() || (size_t)index.row() >= m_infoEntries.size())
+		return QVariant();
+
+	DebuggerInfoEntry* item = static_cast<DebuggerInfoEntry*>(index.internalPointer());
+	if (!item)
+		return QVariant();
+
+	QVariant result;
+	if (role == Qt::DisplayRole)
+	{
+		switch (index.column())
+		{
+		case ExprColumn:
+		case ValueColumn:
+		case HintColumn:
+			result.setValue(item);
+			break;
+		default:
+			break;
+		}
+	}
+	else if (role == Qt::SizeHintRole)
+	{
+		switch (index.column())
+		{
+		case ExprColumn:
+		{
+			std::string expr;
+			for (const auto& token: item->tokens)
+				expr += token.text;
+
+			result.setValue(expr.size());
+			break;
+		}
+		case ValueColumn:
+		{
+			auto str = "0x" + QString::number(item->value, 16);
+			result.setValue(str.size());
+			break;
+		}
+		case HintColumn:
+			result.setValue(item->hints.size());
+			break;
+		default:
+			break;
+		}
+	}
+
+	return result;
 }
 
 
@@ -243,6 +339,8 @@ DebuggerInfoTable::DebuggerInfoTable(BinaryViewRef data): m_data(data)
 	setDragEnabled(false);
 	setDragDropMode(QListView::NoDragDrop);
 	setItemDelegate(m_itemDelegate);
+
+	horizontalHeader()->setStretchLastSection(true);
 }
 
 
@@ -250,6 +348,15 @@ void DebuggerInfoTable::updateContents(const ViewLocation &location)
 {
 	auto info = getILInfoEntries(location);
 	m_model->updateRows(info);
+	updateColumnWidths();
+}
+
+
+void DebuggerInfoTable::updateColumnWidths()
+{
+	resizeColumnToContents(ExprColumn);
+	resizeColumnToContents(ValueColumn);
+	resizeColumnToContents(HintColumn);
 }
 
 

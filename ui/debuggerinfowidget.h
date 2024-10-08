@@ -119,6 +119,8 @@ Q_OBJECT;
 	std::vector<DebuggerInfoEntry> getILInfoEntries(const ViewLocation& location);
 	std::vector<DebuggerInfoEntry> getInfoForLLIL(LowLevelILFunctionRef llil, const LowLevelILInstruction& instr);
 
+	void updateColumnWidths();
+
 public:
 	DebuggerInfoTable(BinaryViewRef data);
 
