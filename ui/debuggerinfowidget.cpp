@@ -148,7 +148,7 @@ DebugInfoSidebarWidget::~DebugInfoSidebarWidget()
 
 
 DebugInfoWidgetType::DebugInfoWidgetType():
-	SidebarWidgetType(QIcon(":/icons/images/history.png").pixmap(QSize(64, 64)).toImage(), "Debugger Info")
+	SidebarWidgetType(QIcon(":/debugger/debugger").pixmap(QSize(64, 64)).toImage(), "Debugger Info")
 {
 }
 
