@@ -2861,6 +2861,15 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 			return false;
 		}
 	}
+	case LLIL_CMP_SGE:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_SGE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_SGE>(), right))
+			return false;
+		value = left >= right;
+		return true;
+	}
 
 	default:
 		break;

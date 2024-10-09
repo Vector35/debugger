@@ -122,6 +122,39 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLILCalls(LowLevelIL
 }
 
 
+std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLILConditions(LowLevelILFunctionRef llil,
+	const LowLevelILInstruction &instr)
+{
+	std::vector<DebuggerInfoEntry> result;
+	if (instr.operation != LLIL_IF)
+		return result;
+
+	auto func = llil->GetFunction();
+	auto condition = instr.GetConditionExpr<LLIL_IF>();
+	uint64_t value;
+	if (!m_debugger->ComputeExprValue(llil, condition, value))
+		return result;
+
+	// The value of a conditional expression must be 0 or 1 if it can be evaluated
+	if ((value != 1) && (value != 0))
+		return result;
+
+	std::vector<InstructionTextToken> tokens;
+	if (!llil->GetExprText(func->GetArchitecture(), condition.exprIndex, tokens))
+		return result;
+
+	auto trueBranch = instr.GetTrueTarget<LLIL_IF>();
+	auto falseBranch = instr.GetFalseTarget<LLIL_IF>();
+	auto targetIL = value == 1 ? trueBranch : falseBranch;
+	auto il = llil->GetInstruction(targetIL);
+	auto targetAddr = il.address;
+
+	string hints = fmt::format("Branch to {} @ {:#x}", targetIL, targetAddr);
+	result.emplace_back(tokens, value, hints, instr.instructionIndex, instr.exprIndex, instr.address);
+	return result;
+}
+
+
 std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLIL(LowLevelILFunctionRef llil, const LowLevelILInstruction &instr)
 {
 	std::vector<DebuggerInfoEntry> result;
@@ -158,8 +191,13 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLIL(LowLevelILFunct
 		}
 	}
 
-	// Also display the info of the function arguments if the current LLIL is a call instruction
+	// Display the info of the function arguments if the current LLIL is a call instruction
 	auto lines = getInfoForLLILCalls(llil, instr);
+	if (!lines.empty())
+		result.insert(result.end(), lines.begin(), lines.end());
+
+	// Display the info of the conditional expressions
+	lines = getInfoForLLILConditions(llil, instr);
 	if (!lines.empty())
 		result.insert(result.end(), lines.begin(), lines.end());
 
