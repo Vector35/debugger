@@ -22,6 +22,7 @@ limitations under the License.
 #include "ui.h"
 #include "debuggerinfowidget.h"
 #include "lowlevelilinstruction.h"
+#include "binaryninjaapi.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -37,6 +38,87 @@ DebugInfoSidebarWidget::DebugInfoSidebarWidget(BinaryViewRef data): SidebarWidge
 	layout->addWidget(m_entryList);
 
 	setLayout(layout);
+}
+
+
+std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLILCalls(LowLevelILFunctionRef llil,
+	const LowLevelILInstruction &instr)
+{
+	std::vector<DebuggerInfoEntry> result;
+	if (instr.operation != LLIL_CALL && instr.operation != LLIL_TAILCALL)
+		return result;
+
+	auto dest = instr.GetDestExpr();
+	if (dest.operation != LLIL_CONST_PTR && dest.operation != LLIL_CONST)
+		return result;
+
+	auto callTarget = dest.GetConstant();
+	auto functions = m_data->GetAnalysisFunctionsForAddress(callTarget);
+	if (functions.empty())
+		return result;
+
+	auto func = functions[0];
+	if (!func)
+		return result;
+
+	auto arch = func->GetArchitecture();
+	if (!arch)
+		return result;
+
+	for (const auto& param: func->GetParameterVariables().GetValue())
+	{
+		switch (param.type)
+		{
+		case RegisterVariableSourceType:
+		{
+			auto paramName = func->GetVariableName(param);
+			auto reg = param.storage;
+			auto regName = arch->GetRegisterName(reg);
+			auto value = m_debugger->GetRegisterValue(regName);
+			auto hints = m_debugger->GetAddressInformation(value);
+			std::vector<InstructionTextToken> tokens;
+			tokens.emplace_back(LocalVariableToken, paramName);
+			tokens.emplace_back(TextToken, " @ ");
+			tokens.emplace_back(RegisterToken, regName);
+			result.emplace_back(tokens, value, hints, instr.instructionIndex, BN_INVALID_EXPR, instr.address);
+			break;
+		}
+		case StackVariableSourceType:
+		{
+			auto offset = param.storage;
+			// Account for the return address on the stack for x64/x86_64, not sure if we should do it for other arch
+			offset -= arch->GetAddressSize();
+			auto realOffset = offset + m_debugger->StackPointer();
+
+			BinaryReader reader(m_data);
+			reader.Seek(realOffset);
+			auto value = reader.ReadPointer();
+			auto hints = m_debugger->GetAddressInformation(value);
+
+			auto paramName = func->GetVariableName(param);
+			std::vector<InstructionTextToken> tokens;
+			tokens.emplace_back(LocalVariableToken, paramName);
+			tokens.emplace_back(TextToken, " @ ");
+
+			auto stackReg = arch->GetStackPointerRegister();
+			auto stackRegName = arch->GetRegisterName(stackReg);
+			tokens.emplace_back(RegisterToken, stackRegName);
+			if (offset != 0)
+			{
+				tokens.emplace_back(TextToken, " + ");
+				char buf[64] = {0};
+				snprintf(buf, sizeof(buf), "%#llx", offset);
+				tokens.emplace_back(IntegerToken, buf, offset);
+			}
+			result.emplace_back(tokens, value, hints, instr.instructionIndex, BN_INVALID_EXPR, instr.address);
+			break;
+		}
+		case FlagVariableSourceType:
+			break;
+		}
+	}
+
+	return result;
 }
 
 
@@ -75,6 +157,12 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLIL(LowLevelILFunct
 			break;
 		}
 	}
+
+	// Also display the info of the function arguments if the current LLIL is a call instruction
+	auto lines = getInfoForLLILCalls(llil, instr);
+	if (!lines.empty())
+		result.insert(result.end(), lines.begin(), lines.end());
+
 	return result;
 }
 
