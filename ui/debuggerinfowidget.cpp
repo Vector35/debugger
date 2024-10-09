@@ -376,6 +376,9 @@ DebuggerInfoTable::DebuggerInfoTable(BinaryViewRef data): m_data(data)
 
 void DebuggerInfoTable::updateContents(const ViewLocation &location)
 {
+	if (!location.isValid() || !location.getFunction())
+		return;
+
 	auto info = getILInfoEntries(location);
 	m_model->updateRows(info);
 	updateColumnWidths();
