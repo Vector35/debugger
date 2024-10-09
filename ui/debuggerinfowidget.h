@@ -60,7 +60,7 @@ struct DebuggerInfoEntry
 };
 
 
-class BINARYNINJAUIAPI DebuggerInfoEntryItemModel : public QAbstractTableModel
+class DebuggerInfoEntryItemModel : public QAbstractTableModel
 {
 	std::vector<DebuggerInfoEntry> m_infoEntries;
 
@@ -85,7 +85,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebuggerInfoEntryItemDelegate : public QStyledItemDelegate
+class DebuggerInfoEntryItemDelegate : public QStyledItemDelegate
 {
 Q_OBJECT
 
@@ -130,7 +130,7 @@ public:
 };
 
 
-class BINARYNINJAUIAPI DebugInfoSidebarWidget : public SidebarWidget
+class DebugInfoSidebarWidget : public SidebarWidget
 {
 Q_OBJECT
 	DebuggerInfoTable* m_entryList;
