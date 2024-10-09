@@ -85,6 +85,7 @@ public:
 	virtual QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
 	void updateRows(std::vector<DebuggerInfoEntry>& newRows);
 	virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
+	DebuggerInfoEntry getRow(int row) const;
 };
 
 
@@ -102,7 +103,7 @@ public:
 
 	void updateFonts();
 
-	QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
+	QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const override;
 	virtual void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 };
 
@@ -121,6 +122,9 @@ Q_OBJECT;
 	std::vector<DebuggerInfoEntry> getInfoForLLIL(LowLevelILFunctionRef llil, const LowLevelILInstruction& instr);
 
 	void updateColumnWidths();
+
+private slots:
+	void onDoubleClicked();
 
 public:
 	DebuggerInfoTable(BinaryViewRef data);

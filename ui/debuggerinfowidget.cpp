@@ -350,6 +350,15 @@ QVariant DebuggerInfoEntryItemModel::headerData(int column, Qt::Orientation orie
 }
 
 
+DebuggerInfoEntry DebuggerInfoEntryItemModel::getRow(int row) const
+{
+	if ((size_t)row >= m_infoEntries.size())
+		throw std::runtime_error("row index out-of-bound");
+
+	return m_infoEntries[row];
+}
+
+
 DebuggerInfoTable::DebuggerInfoTable(BinaryViewRef data): m_data(data)
 {
 	m_debugger = DebuggerController::GetController(data);
@@ -366,6 +375,8 @@ DebuggerInfoTable::DebuggerInfoTable(BinaryViewRef data): m_data(data)
 	setItemDelegate(m_itemDelegate);
 
 	horizontalHeader()->setStretchLastSection(true);
+
+	connect(this, &QTableView::doubleClicked, this, &DebuggerInfoTable::onDoubleClicked);
 }
 
 
@@ -388,6 +399,28 @@ void DebuggerInfoTable::updateColumnWidths()
 void DebuggerInfoTable::updateFonts()
 {
 	m_itemDelegate->updateFonts();
+}
+
+
+void DebuggerInfoTable::onDoubleClicked()
+{
+	QModelIndexList sel = selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	auto info = m_model->getRow(sel[0].row());
+	uint64_t value = info.value;
+
+	UIContext* context = UIContext::contextForWidget(this);
+	if (!context)
+		return;
+
+	ViewFrame* frame = context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	if (m_debugger->GetData())
+		frame->navigate(m_debugger->GetData(), value, true, true);
 }
 
 
