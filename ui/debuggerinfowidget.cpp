@@ -146,9 +146,15 @@ DebugInfoSidebarWidget::~DebugInfoSidebarWidget()
 }
 
 
+void DebugInfoSidebarWidget::notifyFontChanged()
+{
+	m_entryList->updateFonts();
+}
+
+
 DebuggerInfoEntryItemDelegate::DebuggerInfoEntryItemDelegate(QWidget* parent): m_render(parent)
 {
-
+	updateFonts();
 }
 
 
@@ -198,6 +204,25 @@ void DebuggerInfoEntryItemDelegate::paint(QPainter *painter, const QStyleOptionV
 		break;
 	}
 
+}
+
+
+void DebuggerInfoEntryItemDelegate::updateFonts()
+{
+	// Get font and compute character sizes
+	m_font = getMonospaceFont(dynamic_cast<QWidget*>(parent()));
+	m_font.setKerning(false);
+	m_baseline = (int)QFontMetricsF(m_font).ascent();
+	m_charWidth = getFontWidthAndAdjustSpacing(m_font);
+	m_charHeight = (int)(QFontMetricsF(m_font).height() + getExtraFontSpacing());
+	m_charOffset = getFontVerticalOffset();
+}
+
+
+QSize DebuggerInfoEntryItemDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const
+{
+	auto totalWidth = (idx.data(Qt::SizeHintRole).toInt() + 2) * m_charWidth + 4;
+	return QSize(totalWidth, m_charHeight + 2);
 }
 
 
@@ -360,7 +385,11 @@ void DebuggerInfoTable::updateColumnWidths()
 }
 
 
-//int Debugger
+void DebuggerInfoTable::updateFonts()
+{
+	m_itemDelegate->updateFonts();
+}
+
 
 DebugInfoWidgetType::DebugInfoWidgetType():
 	SidebarWidgetType(QIcon(":/debugger/debugger").pixmap(QSize(64, 64)).toImage(), "Debugger Info")

@@ -102,6 +102,7 @@ public:
 
 	void updateFonts();
 
+	QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& idx) const;
 	virtual void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 };
 
@@ -123,6 +124,7 @@ Q_OBJECT;
 
 public:
 	DebuggerInfoTable(BinaryViewRef data);
+	void updateFonts();
 
 	void updateContents(const ViewLocation& location);
 };
@@ -155,7 +157,7 @@ Q_OBJECT
 public:
 	DebugInfoSidebarWidget(BinaryViewRef data);
 	~DebugInfoSidebarWidget();
-//	void notifyFontChanged() override;
+	void notifyFontChanged() override;
 //	QWidget* headerWidget() override { return m_header; }
 };
 
