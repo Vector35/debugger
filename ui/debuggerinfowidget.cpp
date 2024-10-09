@@ -85,12 +85,6 @@ vector<DebuggerInfoEntry> DebuggerInfoTable::getILInfoEntries(const ViewLocation
 	if (!m_debugger->IsConnected())
 		return result;
 
-//	auto info = QString::asprintf("View type: %s, offset: 0x%llx, il: %d", location.getViewType().toStdString().c_str(), location.getOffset(), location.getILViewType());
-//	if (!m_debugger->IsConnected())
-//		return info;
-//
-//	info += "\n\n";
-
 	switch (location.getILViewType())
 	{
 	case NormalFunctionGraph:

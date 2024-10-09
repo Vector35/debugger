@@ -68,10 +68,6 @@ class BINARYNINJAUIAPI DebuggerInfoEntryItemModel : public QAbstractTableModel
 	std::vector<BinaryViewRef> m_views;
 	QSettings m_settings;
 
-	UndoEntryRef entryForRow(int row) const;
-
-	void hardReload();
-
 public:
 	DebuggerInfoEntryItemModel(QWidget* parent, BinaryViewRef data);
 	~DebuggerInfoEntryItemModel();
@@ -142,11 +138,6 @@ Q_OBJECT
 	QWidget* m_header;
 	BinaryViewRef m_data;
 	DebuggerControllerRef m_debugger;
-
-//	QLabel* m_label;
-
-	bool m_updating = false;
-	bool m_atBottom = true;
 
 //	virtual void contextMenuEvent(QContextMenuEvent*) override;
 
