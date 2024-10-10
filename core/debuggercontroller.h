@@ -321,6 +321,7 @@ namespace BinaryNinjaDebugger {
 		RegisterValue ComputeExprValueInternal(const HighLevelILInstruction& instr);
 
 		bool ComputeExprValue(const LowLevelILInstruction& instr, uint64_t& value);
+		uint64_t GetValueFromComparison(const BNLowLevelILOperation op, uint64_t left, uint64_t right, size_t size);
 		RegisterValue ComputeExprValue(const MediumLevelILInstruction& instr);
 		RegisterValue ComputeExprValue(const HighLevelILInstruction& instr);
 	};

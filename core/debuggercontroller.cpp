@@ -2861,15 +2861,85 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 			return false;
 		}
 	}
+	case LLIL_CMP_E:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_E>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_E>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_NE:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_NE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_NE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_SLT:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_SLT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_SLT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_ULT:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_ULT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_ULT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_SLE:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_SLE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_SLE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_ULE:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_ULE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_ULE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
 	case LLIL_CMP_SGE:
-	{
 		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_SGE>(), left))
 			return false;
 		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_SGE>(), right))
 			return false;
-		value = left >= right;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
 		return true;
-	}
+
+	case LLIL_CMP_UGE:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_UGE>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_UGE>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_SGT:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_SGT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_SGT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
+
+	case LLIL_CMP_UGT:
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_UGT>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_CMP_UGT>(), right))
+			return false;
+		value = GetValueFromComparison(instr.operation, left, right, instr.size);
+		return true;
 
 	default:
 		break;
@@ -2878,4 +2948,43 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 }
 
 
-
+uint64_t DebuggerController::GetValueFromComparison(const BNLowLevelILOperation op, uint64_t left, uint64_t right,
+	size_t size)
+{
+	switch (op)
+	{
+		case LLIL_CMP_E:
+			return left == right;
+			break;
+		case LLIL_CMP_NE:
+			return left != right;
+			break;
+		case LLIL_CMP_SLT:
+			return SignExtend(left, size, 8) < SignExtend(right, size, 8);
+			break;
+		case LLIL_CMP_ULT:
+			return (uint64_t)(left) < (uint64_t)(right);
+			break;
+		case LLIL_CMP_SLE:
+			return SignExtend(left, size, 8) <= SignExtend(right, size, 8);
+			break;
+		case LLIL_CMP_ULE:
+			return (uint64_t)(left) <= (uint64_t)(right);
+			break;
+		case LLIL_CMP_SGE:
+			return SignExtend(left, size, 8) >= SignExtend(right, size, 8);
+			break;
+		case LLIL_CMP_UGE:
+			return (uint64_t)(left) >= (uint64_t)(right);
+			break;
+		case LLIL_CMP_SGT:
+			return SignExtend(left, size, 8) > SignExtend(right, size, 8);
+			break;
+		case LLIL_CMP_UGT:
+			return (uint64_t)(left) > (uint64_t)(right);
+			break;
+		default:
+			break;
+	}
+	return -1;
+}
