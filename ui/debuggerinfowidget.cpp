@@ -178,6 +178,8 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLIL(LowLevelILFunct
 		case RegisterLowLevelOperand:
 		{
 			auto reg = operand.GetRegister();
+			if (LLIL_REG_IS_TEMP(reg))
+				break;
 			auto name = func->GetArchitecture()->GetRegisterName(reg);
 			auto value = m_debugger->GetRegisterValue(name);
 			auto hints = m_debugger->GetAddressInformation(value);

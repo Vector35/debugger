@@ -2644,6 +2644,9 @@ bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &i
 	case LLIL_REG:
 	{
 		auto reg = instr.GetSourceRegister<LLIL_REG>();
+		if (LLIL_REG_IS_TEMP(reg))
+			return false;
+
 		auto name = GetData()->GetDefaultArchitecture()->GetRegisterName(reg);
 		// TODO: what if the name reported by the adapter is different from that in the architecture?
 		// GetRegisterValue should return if the value can be retrieved
