@@ -149,6 +149,38 @@ void DebuggerThreads::MarkDirty()
 }
 
 
+void DebuggerThreads::SymbolizeFrames(std::vector<DebugFrame>& frames)
+{
+	if (!m_state || !m_state->GetController())
+		return;
+
+	auto data = m_state->GetController()->GetData();
+	if (!data)
+		return;
+
+	for (DebugFrame& frame: frames)
+	{
+		// Try to find a better symbol than the one provided by the debugger backend
+		auto funcs = data->GetAnalysisFunctionsContainingAddress(frame.m_pc);
+		if (!funcs.empty())
+		{
+			auto func = funcs[0];
+			if (!func)
+				continue;
+
+			frame.m_functionStart = func->GetStart();
+			auto symbol = func->GetSymbol();
+			if (symbol)
+				frame.m_functionName = symbol->GetShortName();
+			else
+				frame.m_functionName = fmt::format("sub_{:x}", func->GetStart());
+
+			continue;
+		}
+	}
+}
+
+
 void DebuggerThreads::Update()
 {
 	if (!m_state)
@@ -166,7 +198,9 @@ void DebuggerThreads::Update()
 	std::vector<DebugThread> newThreads = adapter->GetThreadList();
 	for (auto thread = newThreads.begin(); thread != newThreads.end(); thread++)
 	{
-		m_frames[thread->m_tid] = adapter->GetFramesOfThread(thread->m_tid);
+		auto frames = adapter->GetFramesOfThread(thread->m_tid);
+		SymbolizeFrames(frames);
+		m_frames[thread->m_tid] = frames;
 
 		// update thread states in new thread list
 		auto oldThread = std::find_if(m_threads.begin(), m_threads.end(), [&](DebugThread const& t) {
@@ -954,6 +988,12 @@ void DebuggerState::SetInputFile(const std::string& path)
 {
 	m_inputFile = path;
 	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+}
+
+
+std::string DebuggerState::GetInputFile()
+{
+	return m_inputFile;
 }
 
 

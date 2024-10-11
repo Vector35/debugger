@@ -114,6 +114,7 @@ namespace BinaryNinjaDebugger {
 		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid);
 		bool SuspendThread(std::uint32_t tid);
 		bool ResumeThread(std::uint32_t tid);
+		void SymbolizeFrames(std::vector<DebugFrame>& frames);
 	};
 
 	enum MemoryByteCacheStatus
@@ -212,6 +213,7 @@ namespace BinaryNinjaDebugger {
 		void SetAdapterType(const std::string& adapter);
 		void SetExecutablePath(const std::string& path);
 		void SetInputFile(const std::string& path);
+		std::string GetInputFile();
 		void SetWorkingDirectory(const std::string& directory);
 		void SetCommandLineArguments(const std::string& arguments);
 		void SetRemoteHost(const std::string& host);

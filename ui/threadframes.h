@@ -30,6 +30,7 @@ limitations under the License.
 #include "debuggerapi.h"
 #include "inttypes.h"
 #include "ui.h"
+#include "fmt/format.h"
 
 
 using namespace BinaryNinjaDebuggerAPI;
@@ -49,10 +50,18 @@ public:
 		m_isFrame(true), m_tid(thread.m_tid), m_threadPc(thread.m_rip), m_frameIndex(frame.m_index),
 		m_module(frame.m_module), m_framePc(frame.m_pc), m_sp(frame.m_sp), m_fp(frame.m_fp), m_parentItem(parentItem)
 	{
-		uint64_t offset = frame.m_pc - frame.m_functionStart;
-		QString funcName = QString::asprintf("%s + 0x%" PRIx64, frame.m_functionName.c_str(), offset);
+		// WinDbg always reports the function name with the module prefix, we remove it for conciseness
+		auto trimmedFunctionName = frame.m_functionName;
+		auto prefix = m_module + '!';
+		if (trimmedFunctionName.compare(0, prefix.size(), prefix) == 0)
+			trimmedFunctionName.erase(0, prefix.size());
 
-		m_function = funcName.toStdString();
+		// Only show the offset if it is not 0x0
+		uint64_t offset = frame.m_pc - frame.m_functionStart;
+		if (offset != 0)
+			m_function = fmt::format("{} + {:#x}", trimmedFunctionName, offset);
+		else
+			m_function = trimmedFunctionName;
 	}
 
 	~FrameItem();
