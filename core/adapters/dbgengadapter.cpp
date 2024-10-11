@@ -1559,11 +1559,14 @@ std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
 
 	SetActiveThreadId(tid);
 
-	const size_t numFrames = 16;
+	const size_t numFrames = 100;
 	PDEBUG_STACK_FRAME_EX frames = new DEBUG_STACK_FRAME_EX[numFrames];
 	unsigned long framesFilled = 0;
 	if (m_debugControl->GetStackTraceEx(0, 0, 0, frames, numFrames, &framesFilled) != S_OK)
+	{
+		delete []frames;
 		return result;
+	}
 
 	for (size_t i = 0; i < framesFilled; i++)
 	{
@@ -1573,7 +1576,8 @@ std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
 		frame.m_fp = engineFrame.FrameOffset;
 		frame.m_sp = engineFrame.StackOffset;
 		frame.m_pc = engineFrame.InstructionOffset;
-		frame.m_functionStart = engineFrame.FuncTableEntry;
+		// FuncTableEntry is always 0x0, so it cannot be used
+		//frame.m_functionStart = engineFrame.FuncTableEntry;
 
 		// Get module info
 		ULONG moduleIndex = 0;
@@ -1600,12 +1604,15 @@ std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
 				&functionNameLen, &displacement))
 		{
 			frame.m_functionName = functionName;
+			frame.m_functionStart = engineFrame.InstructionOffset - displacement;
 		}
 
 		result.push_back(frame);
 	}
 
 	SetActiveThread(activeThead);
+
+	delete []frames;
 	return result;
 }
 
