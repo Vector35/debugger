@@ -48,6 +48,7 @@ namespace BinaryNinjaDebugger {
 	{
 	private:
 		DebugAdapter* m_adapter;
+		std::string m_output;
 
 	public:
 		CALLBACK_METHOD(unsigned long) AddRef() override;
@@ -55,6 +56,8 @@ namespace BinaryNinjaDebugger {
 		CALLBACK_METHOD(HRESULT) QueryInterface(const IID& interface_id, void** _interface) override;
 		CALLBACK_METHOD(HRESULT) Output(unsigned long mask, const char* text);
 		void SetAdapter(DebugAdapter* adapter);
+		void StartOutput();
+		std::string EndOutput();
 	};
 
     class DbgEngInputCallbacks : public IDebugInputCallbacks

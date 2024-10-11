@@ -112,7 +112,15 @@ BNScriptingProviderExecuteResult DebugAdapterScriptingInstance::ExecuteScriptInp
 		auto trimmedInput = input;
 		trimmedInput.erase(trimmedInput.find_last_not_of('\n') + 1);
 		auto ret = m_controller->InvokeBackendCommand(trimmedInput);
-		Output(ret);
+		// Do not output the returned string if it is DbgEng, since the output from DbgEng backend is already handled
+		// by the BackendMessageEventType event
+		if ((m_controller->GetAdapterType() != "DBGENG") && (m_controller->GetAdapterType() != "DBGENG_TTD")
+			&& (m_controller->GetAdapterType() != "LOCAL_WINDOWS_KERNEL")
+			&& (m_controller->GetAdapterType() != "WINDOWS_KERNEL")
+			&& (m_controller->GetAdapterType() != "WINDOWS_DUMP_FILE"))
+		{
+			Output(ret);
+		}
 		return SuccessfulScriptExecution;
 	}
 	return InvalidScriptInput;

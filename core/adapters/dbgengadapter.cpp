@@ -1301,9 +1301,13 @@ std::string DbgEngAdapter::InvokeBackendCommand(const std::string& command)
 {
 	if (m_debugControl)
 	{
+		m_outputCallbacks.StartOutput();
 		this->m_debugControl->Execute(DEBUG_OUTCTL_ALL_CLIENTS, command.c_str(), DEBUG_EXECUTE_NO_REPEAT);
 		m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
-		// The output is handled by DbgEngOutputCallbacks::Output()
+		// The output is handled by DbgEngOutputCallbacks::Output(), and Execute() would not return until all output
+		// has been dumped, so we can get the full output here
+		auto ret = m_outputCallbacks.EndOutput();
+		return ret;
 	}
 	return "";
 }
@@ -1450,6 +1454,7 @@ HRESULT DbgEngOutputCallbacks::Output(unsigned long mask, const char* text)
 	event.type = BackendMessageEventType;
 	event.data.messageData.message = text;
 	m_adapter->PostDebuggerEvent(event);
+	m_output += text;
 	return S_OK;
 }
 
@@ -1461,6 +1466,16 @@ unsigned long DbgEngOutputCallbacks::AddRef()
 unsigned long DbgEngOutputCallbacks::Release()
 {
 	return 0;
+}
+
+void DbgEngOutputCallbacks::StartOutput()
+{
+	m_output.clear();
+}
+
+std::string DbgEngOutputCallbacks::EndOutput()
+{
+	return m_output;
 }
 
 HRESULT DbgEngOutputCallbacks::QueryInterface(const IID& interface_id, void** _interface)
