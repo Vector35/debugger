@@ -3016,7 +3016,108 @@ bool DebuggerController::ComputeExprValue(const MediumLevelILInstruction &instr,
 
 	switch (instr.operation)
 	{
+	case MLIL_CONST:
+		value = instr.GetConstant<MLIL_CONST>() & sizeMask;
+		return true;
+	case MLIL_CONST_PTR:
+		value = instr.GetConstant<MLIL_CONST_PTR>() & sizeMask;
+		return true;
+	case MLIL_FLOAT_CONST:
+		value = instr.GetConstant<MLIL_CONST_PTR>() & sizeMask;
+		return true;
+	case MLIL_VAR:
+	{
+		const auto var = instr.GetSourceVariable<MLIL_VAR>();
+		if (var.type == RegisterVariableSourceType)
+		{
+			auto reg = var.storage;
+			if (LLIL_REG_IS_TEMP(reg))
+				return false;
 
+			auto name = GetData()->GetDefaultArchitecture()->GetRegisterName(reg);
+			// TODO: what if the name reported by the adapter is different from that in the architecture?
+			// GetRegisterValue should return if the value can be retrieved
+
+			// Cheat for arm64
+			if (name == "x29") name = "sp";
+
+			value = GetRegisterValue(name) & sizeMask;
+			return true;
+		}
+		else if (var.type == StackVariableSourceType)
+		{
+			auto stack = m_state->StackPointer();
+			auto ip = m_state->IP();
+			auto funcs = GetData()->GetAnalysisFunctionsContainingAddress(instr.address);
+			if (funcs.empty())
+				return false;
+			auto func = funcs[0];
+			if (!func)
+				return false;
+			auto arch = GetData()->GetDefaultArchitecture();
+			if (!arch)
+				return false;
+			auto stackReg = arch->GetStackPointerRegister();
+			auto stackValue = func->GetRegisterValueAtInstruction(arch, ip, stackReg);
+			if (stackValue.state != StackFrameOffset)
+				return false;
+			auto stackAtFuncEntry = stack - stackValue.value;
+			auto addrOfVar = stackAtFuncEntry + var.storage;
+
+			auto type = func->GetVariableType(var);
+			if (!type)
+				return false;
+
+			auto width = type->GetWidth();
+			if (width > 8)
+				return false;
+
+			auto buffer = ReadMemory(addrOfVar, width);
+			if (buffer.GetLength() != width)
+				return false;
+
+			switch (width)
+			{
+			case 1:
+				value = *reinterpret_cast<uint8_t*>(buffer.GetData());
+				value &= sizeMask;
+				return true;
+			case 2:
+				value = *reinterpret_cast<uint16_t*>(buffer.GetData());
+				value &= sizeMask;
+				return true;
+			case 4:
+				value = *reinterpret_cast<uint32_t*>(buffer.GetData());
+				value &= sizeMask;
+				return true;
+			case 8:
+				value = *reinterpret_cast<uint64_t*>(buffer.GetData());
+				value &= sizeMask;
+				return true;
+			default:
+				return false;
+			}
+		}
+
+		return false;
+		break;
+	}
+	case MLIL_ADD:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_ADD>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_ADD>(), right))
+			return false;
+		value = left + right;
+		value &= sizeMask;
+		return true;
+	case MLIL_SUB:
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_SUB>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_SUB>(), right))
+			return false;
+		value = left - right;
+		value &= sizeMask;
+		return true;
 	default:
 		return false;
 	}
