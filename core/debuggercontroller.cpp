@@ -2609,17 +2609,17 @@ static inline uint64_t GetActualShift(uint64_t value, size_t instrSize)
 }
 
 
-bool DebuggerController::ComputeExprValue(const BinaryNinja::LowLevelILInstruction &instr, uint64_t& value)
+bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::LowLevelILInstruction &instr, uint64_t& value)
 {
 	// We only want to do this check once before the recursion
 	if (!m_state->IsConnected() || m_state->IsRunning())
 		return false;
 
-	return ComputeExprValueInternal(instr, value);
+	return ComputeExprValue(instr, value);
 }
 
 
-bool DebuggerController::ComputeExprValueInternal(const LowLevelILInstruction &instr, uint64_t& value)
+bool DebuggerController::ComputeExprValue(const LowLevelILInstruction &instr, uint64_t& value)
 {
 	if (instr.size > 8)
 		return false;
@@ -2990,4 +2990,64 @@ uint64_t DebuggerController::GetValueFromComparison(const BNLowLevelILOperation 
 			break;
 	}
 	return -1;
+}
+
+
+bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::MediumLevelILInstruction &instr, uint64_t& value)
+{
+	// We only want to do this check once before the recursion
+	if (!m_state->IsConnected() || m_state->IsRunning())
+		return false;
+
+	return ComputeExprValue(instr, value);
+}
+
+
+bool DebuggerController::ComputeExprValue(const MediumLevelILInstruction &instr, uint64_t& value)
+{
+	if (instr.size > 8)
+		return false;
+
+	uint64_t left, right;
+
+	int64_t sizeMask = -1;
+	if (instr.size > 0 && instr.size < 8)
+		sizeMask = (1LL << (instr.size * 8)) - 1;
+
+	switch (instr.operation)
+	{
+
+	default:
+		return false;
+	}
+}
+
+
+bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::HighLevelILInstruction &instr, uint64_t& value)
+{
+	// We only want to do this check once before the recursion
+	if (!m_state->IsConnected() || m_state->IsRunning())
+		return false;
+
+	return ComputeExprValue(instr, value);
+}
+
+
+bool DebuggerController::ComputeExprValue(const HighLevelILInstruction &instr, uint64_t& value)
+{
+	if (instr.size > 8)
+		return false;
+
+	uint64_t left, right;
+
+	int64_t sizeMask = -1;
+	if (instr.size > 0 && instr.size < 8)
+		sizeMask = (1LL << (instr.size * 8)) - 1;
+
+	switch (instr.operation)
+	{
+
+	default:
+		return false;
+	}
 }

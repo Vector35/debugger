@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "binaryninjaapi.h"
 #include "lowlevelilinstruction.h"
+#include "mediumlevelilinstruction.h"
+#include "highlevelilinstruction.h"
 #include "debuggercontroller.h"
 #include "debuggercommon.h"
 #include "../api/ffi.h"
@@ -1071,5 +1073,23 @@ bool BNDebuggerComputeLLILExprValue(BNDebuggerController* controller, BNLowLevel
 {
 	Ref<LowLevelILFunction> llil = new LowLevelILFunction(BNNewLowLevelILFunctionReference(function));
 	auto instr = llil->GetExpr(expr);
-	return controller->object->ComputeExprValue(instr, value);
+	return controller->object->ComputeExprValueAPI(instr, value);
+}
+
+
+bool BNDebuggerComputeMLILExprValue(BNDebuggerController* controller, BNMediumLevelILFunction* function, size_t expr,
+	uint64_t& value)
+{
+	Ref<MediumLevelILFunction> mlil = new MediumLevelILFunction(BNNewMediumLevelILFunctionReference(function));
+	auto instr = mlil->GetExpr(expr);
+	return controller->object->ComputeExprValueAPI(instr, value);
+}
+
+
+bool BNDebuggerComputeHLILExprValue(BNDebuggerController* controller, BNHighLevelILFunction* function, size_t expr,
+	uint64_t& value)
+{
+	Ref<HighLevelILFunction> hlil = new HighLevelILFunction(BNNewHighLevelILFunctionReference(function));
+	auto instr = hlil->GetExpr(expr);
+	return controller->object->ComputeExprValueAPI(instr, value);
 }

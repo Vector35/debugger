@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "debuggerapi.h"
 #include "lowlevelilinstruction.h"
+#include "mediumlevelilinstruction.h"
+#include "highlevelilinstruction.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -934,4 +936,18 @@ bool DebuggerController::ComputeExprValue(const Ref<LowLevelILFunction>& func,
 	const BinaryNinja::LowLevelILInstruction &expr, uint64_t &value)
 {
 	return BNDebuggerComputeLLILExprValue(m_object, func->GetObject(), expr.exprIndex, value);
+}
+
+
+bool DebuggerController::ComputeExprValue(const Ref<MediumLevelILFunction>& func,
+	const BinaryNinja::MediumLevelILInstruction &expr, uint64_t &value)
+{
+	return BNDebuggerComputeMLILExprValue(m_object, func->GetObject(), expr.exprIndex, value);
+}
+
+
+bool DebuggerController::ComputeExprValue(const Ref<HighLevelILFunction>& func,
+	const BinaryNinja::HighLevelILInstruction &expr, uint64_t &value)
+{
+	return BNDebuggerComputeHLILExprValue(m_object, func->GetObject(), expr.exprIndex, value);
 }

@@ -22,6 +22,8 @@ limitations under the License.
 #include "ui.h"
 #include "debuggerinfowidget.h"
 #include "lowlevelilinstruction.h"
+#include "mediumlevelilinstruction.h"
+#include "highlevelilinstruction.h"
 #include "binaryninjaapi.h"
 
 using namespace BinaryNinja;
@@ -207,6 +209,132 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLIL(LowLevelILFunct
 }
 
 
+std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForMLIL(MediumLevelILFunctionRef mlil,
+	const MediumLevelILInstruction& instr)
+{
+	std::vector<DebuggerInfoEntry> result;
+	auto func = mlil->GetFunction();
+	for (const auto operand: instr.GetOperands())
+	{
+		switch (operand.GetType())
+		{
+		case ExprMediumLevelOperand:
+		{
+			uint64_t value;
+			if (!m_debugger->ComputeExprValue(mlil, operand.GetExpr(), value))
+				continue;
+			std::vector<InstructionTextToken> tokens;
+			if (!mlil->GetExprText(func->GetArchitecture(), operand.GetExpr().exprIndex, tokens))
+				continue;
+			auto hints = m_debugger->GetAddressInformation(value);
+			result.emplace_back(tokens, value, hints, instr.instructionIndex, operand.GetExpr().exprIndex, instr.address);
+			break;
+		}
+		case VariableMediumLevelOperand:
+		{
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+	// Display the info of the function arguments if the current MLIL is a call instruction
+	auto lines = getInfoForMLILCalls(mlil, instr);
+	if (!lines.empty())
+		result.insert(result.end(), lines.begin(), lines.end());
+
+	// Display the info of the conditional expressions
+	lines = getInfoForMLILConditions(mlil, instr);
+	if (!lines.empty())
+		result.insert(result.end(), lines.begin(), lines.end());
+
+	return result;
+}
+
+
+std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForMLILCalls(MediumLevelILFunctionRef mlil,
+	const MediumLevelILInstruction &instr)
+{
+	std::vector<DebuggerInfoEntry> result;
+	return result;
+}
+
+
+std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForMLILConditions(MediumLevelILFunctionRef llil,
+	const MediumLevelILInstruction &instr)
+{
+	std::vector<DebuggerInfoEntry> result;
+	return result;
+}
+
+
+std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForHLIL(HighLevelILFunctionRef hlil,
+	const HighLevelILInstruction& instr)
+{
+	std::vector<DebuggerInfoEntry> result;
+	auto func = hlil->GetFunction();
+	for (const auto operand: instr.GetOperands())
+	{
+		switch (operand.GetType())
+		{
+		case ExprHighLevelOperand:
+		{
+			uint64_t value;
+			if (!m_debugger->ComputeExprValue(hlil, operand.GetExpr(), value))
+				continue;
+			std::vector<DisassemblyTextLine> lines = hlil->GetExprText(operand.GetExpr().exprIndex);
+			if (lines.empty())
+				continue;
+			std::vector<InstructionTextToken> tokens;
+			for (const auto& line: lines)
+				tokens.insert(tokens.end(), line.tokens.begin(), line.tokens.end());
+			if (tokens.empty())
+				continue;
+
+			auto hints = m_debugger->GetAddressInformation(value);
+			result.emplace_back(tokens, value, hints, instr.instructionIndex, operand.GetExpr().exprIndex, instr.address);
+			break;
+		}
+		case VariableHighLevelOperand:
+		{
+			break;
+		}
+		default:
+			break;
+		}
+	}
+
+	// Display the info of the function arguments if the current HLIL is a call instruction
+	auto lines = getInfoForHLILCalls(hlil, instr);
+	if (!lines.empty())
+		result.insert(result.end(), lines.begin(), lines.end());
+
+	// Display the info of the conditional expressions
+	lines = getInfoForHLILConditions(hlil, instr);
+	if (!lines.empty())
+		result.insert(result.end(), lines.begin(), lines.end());
+
+	return result;
+}
+
+
+std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForHLILCalls(HighLevelILFunctionRef hlil,
+	const HighLevelILInstruction &instr)
+{
+	std::vector<DebuggerInfoEntry> result;
+	return result;
+}
+
+
+std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForHLILConditions(HighLevelILFunctionRef hlil,
+	const HighLevelILInstruction &instr)
+{
+	std::vector<DebuggerInfoEntry> result;
+	return result;
+}
+
+
 vector<DebuggerInfoEntry> DebuggerInfoTable::getILInfoEntries(const ViewLocation &location)
 {
 	vector<DebuggerInfoEntry> result;
@@ -245,6 +373,21 @@ vector<DebuggerInfoEntry> DebuggerInfoTable::getILInfoEntries(const ViewLocation
 			break;
 		auto instr = llil->GetInstruction(location.getInstrIndex());
 		auto entries = getInfoForLLIL(llil, instr);
+		result.insert(result.end(), entries.begin(), entries.end());
+		break;
+	}
+	case MediumLevelILFunctionGraph:
+	{
+		auto func = location.getFunction();
+		if (!func)
+			break;
+		auto mlil = func->GetMediumLevelILIfAvailable();
+		if (!mlil)
+			break;
+		if (location.getInstrIndex() == BN_INVALID_EXPR)
+			break;
+		auto instr = mlil->GetInstruction(location.getInstrIndex());
+		auto entries = getInfoForMLIL(mlil, instr);
 		result.insert(result.end(), entries.begin(), entries.end());
 		break;
 	}

@@ -119,6 +119,14 @@ Q_OBJECT;
 	std::vector<DebuggerInfoEntry> getInfoForLLILCalls(LowLevelILFunctionRef llil, const LowLevelILInstruction& instr);
 	std::vector<DebuggerInfoEntry> getInfoForLLILConditions(LowLevelILFunctionRef llil, const LowLevelILInstruction& instr);
 
+	std::vector<DebuggerInfoEntry> getInfoForMLIL(MediumLevelILFunctionRef mlil, const MediumLevelILInstruction& instr);
+	std::vector<DebuggerInfoEntry> getInfoForMLILCalls(MediumLevelILFunctionRef mlil, const MediumLevelILInstruction& instr);
+	std::vector<DebuggerInfoEntry> getInfoForMLILConditions(MediumLevelILFunctionRef mlil, const MediumLevelILInstruction& instr);
+
+	std::vector<DebuggerInfoEntry> getInfoForHLIL(HighLevelILFunctionRef hlil, const HighLevelILInstruction& instr);
+	std::vector<DebuggerInfoEntry> getInfoForHLILCalls(HighLevelILFunctionRef hlil, const HighLevelILInstruction& instr);
+	std::vector<DebuggerInfoEntry> getInfoForHLILConditions(HighLevelILFunctionRef hlil, const HighLevelILInstruction& instr);
+
 	void updateColumnWidths();
 
 private slots:

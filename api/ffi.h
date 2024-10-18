@@ -54,6 +54,8 @@ extern "C"
 	typedef struct BNDataBuffer BNDataBuffer;
 	typedef struct BNMetadata BNMetadata;
 	typedef struct BNLowLevelILFunction BNLowLevelILFunction;
+	typedef struct BNMediumLevelILFunction BNMediumLevelILFunction;
+	typedef struct BNHighLevelILFunction BNHighLevelILFunction;
 
 //	When `ffi.h` gets parsed by clang type parser, the binaryninjacore.h is NOT included so this enum will become not
 //	defined. As a workaround, I duplicate its definition here. When the code gets compiled, the `BN_TYPE_PARSER` is
@@ -520,6 +522,10 @@ extern "C"
 	// Compute expression values
 	DEBUGGER_FFI_API bool BNDebuggerComputeLLILExprValue(BNDebuggerController* controller,
 		 BNLowLevelILFunction* function, size_t expr, uint64_t& value);
+	DEBUGGER_FFI_API bool BNDebuggerComputeMLILExprValue(BNDebuggerController* controller,
+		 BNMediumLevelILFunction* function, size_t expr, uint64_t& value);
+	DEBUGGER_FFI_API bool BNDebuggerComputeHLILExprValue(BNDebuggerController* controller,
+		 BNHighLevelILFunction* function, size_t expr, uint64_t& value);
 
 #ifdef __cplusplus
 }

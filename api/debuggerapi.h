@@ -601,6 +601,10 @@ namespace BinaryNinjaDebuggerAPI {
 
 		bool ComputeExprValue(const Ref<LowLevelILFunction>& func, const LowLevelILInstruction& expr,
 			  uint64_t & value);
+		bool ComputeExprValue(const Ref<MediumLevelILFunction>& func, const MediumLevelILInstruction& expr,
+							  uint64_t & value);
+		bool ComputeExprValue(const Ref<HighLevelILFunction>& func, const HighLevelILInstruction& expr,
+							  uint64_t & value);
 	};
 
 
