@@ -168,13 +168,37 @@ void DebuggerThreads::SymbolizeFrames(std::vector<DebugFrame>& frames)
 			if (!func)
 				continue;
 
-			frame.m_functionStart = func->GetStart();
-			auto symbol = func->GetSymbol();
-			if (symbol)
-				frame.m_functionName = symbol->GetShortName();
+			if (func->GetStart() != frame.m_functionStart)
+			{
+				// Found a better function start from the analysis, use it
+				frame.m_functionStart = func->GetStart();
+				auto symbol = func->GetSymbol();
+				if (symbol)
+					frame.m_functionName = symbol->GetShortName();
+				else
+					frame.m_functionName = fmt::format("sub_{:x}", func->GetStart());
+			}
 			else
-				frame.m_functionName = fmt::format("sub_{:x}", func->GetStart());
+			{
+				std::string symName;
+				auto symbol = func->GetSymbol();
+				if (symbol)
+					symName = symbol->GetShortName();
 
+				auto defaultName = fmt::format("sub_{:x}", func->GetStart());
+				if (frame.m_functionName.empty())
+				{
+					if (!symName.empty())
+						frame.m_functionName = symName;
+					else
+						frame.m_functionName = defaultName;
+				}
+				else
+				{
+					if ((!symName.empty()) && symName != defaultName)
+						frame.m_functionName = symName;
+				}
+			}
 			continue;
 		}
 	}
