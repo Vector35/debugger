@@ -349,7 +349,10 @@ class DebugFrame:
 
     def __repr__(self):
         offset = self.pc - self.func_start
-        return f"<DebugFrame: {self.module}`{self.func_name} + {offset:#x}, sp: {self.sp:#x}, fp: {self.fp:#x}>"
+        if self.func_name != '':
+            return f"<DebugFrame: {self.module}`{self.func_name} + {offset:#x}, sp: {self.sp:#x}, fp: {self.fp:#x}>"
+        else:
+            return f"<DebugFrame: {self.module} + {offset:#x}, sp: {self.sp:#x}, fp: {self.fp:#x}>"
 
 
 class TargetStoppedEventData:

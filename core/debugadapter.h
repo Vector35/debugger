@@ -170,13 +170,13 @@ namespace BinaryNinjaDebugger {
 
 	struct DebugFrame
 	{
-		size_t m_index;
-		uint64_t m_pc;
-		uint64_t m_sp;
-		uint64_t m_fp;
+		size_t m_index = 0;
+		uint64_t m_pc = 0;
+		uint64_t m_sp = 0;
+		uint64_t m_fp = 0;
 		std::string m_functionName;
-		uint64_t m_functionStart;
-		std::string m_module;
+		uint64_t m_functionStart = 0;
+		std::string m_module = "<unknown>";
 
 		DebugFrame() = default;
 		DebugFrame(size_t index, uint64_t pc, uint64_t sp, uint64_t fp, const std::string& functionName,

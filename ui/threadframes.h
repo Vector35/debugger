@@ -58,10 +58,12 @@ public:
 
 		// Only show the offset if it is not 0x0
 		uint64_t offset = frame.m_pc - frame.m_functionStart;
-		if (offset != 0)
+		if (offset != 0 && !trimmedFunctionName.empty())
 			m_function = fmt::format("{} + {:#x}", trimmedFunctionName, offset);
-		else
+		else if (offset == 0)
 			m_function = trimmedFunctionName;
+		else
+			m_function = fmt::format("{:#x}", offset);
 	}
 
 	~FrameItem();

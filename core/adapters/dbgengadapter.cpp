@@ -1597,17 +1597,18 @@ std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
 		// Get module info
 		ULONG moduleIndex = 0;
 		uint64_t moduleBase = 0;
-		m_debugSymbols->GetModuleByOffset(engineFrame.InstructionOffset, 0, &moduleIndex, &moduleBase);
-
-		char name[1024];
-		char short_name[1024];
-		char loaded_image_name[1024];
-		if (this->m_debugSymbols->GetModuleNames(moduleIndex, 0,
-				name, 1024, nullptr,
-				short_name, 1024, nullptr,
-				loaded_image_name, 1024, nullptr) == S_OK)
+		if (m_debugSymbols->GetModuleByOffset(engineFrame.InstructionOffset, 0, &moduleIndex, &moduleBase) == S_OK)
 		{
-			frame.m_module = short_name;
+			char name[1024];
+			char short_name[1024];
+			char loaded_image_name[1024];
+			if (this->m_debugSymbols->GetModuleNames(moduleIndex, 0,
+					name, 1024, nullptr,
+					short_name, 1024, nullptr,
+					loaded_image_name, 1024, nullptr) == S_OK)
+			{
+				frame.m_module = short_name;
+			}
 		}
 
 		// Get function info
