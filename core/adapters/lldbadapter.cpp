@@ -104,7 +104,7 @@ bool LldbAdapterType::CanConnect(BinaryNinja::BinaryView* data)
 	//  TODO: we need to create a new API to get available adapters, rather the
 	//  DebugAdapterType::GetAvailableAdapters(), which returns true when either the CanConnect() and CanExecute()
 	//  returns true.
-	return false;
+	return true;
 }
 
 
