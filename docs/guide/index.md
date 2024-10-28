@@ -369,15 +369,12 @@ Cannot debug binaries that require Administrator (Windows) or root (Linux/macOS)
 - On Windows, run Binary Ninja with Administrator privilege (not recommended).
 - Launch the process with necessary privilege, and connect to it using Binary Ninja debugger. See [Remote Debugging Guide](remote-debugging.md) for more details.
     - Must be an admin or in the \_developer group on macOS to debug.
+- This is tracked by https://github.com/Vector35/debugger/issues/563
 
 ### macOS
 
 - For fat binaries on macOS, the currently viewed architecture will be debugged. For example, if a fat binary contains both x86 and arm code, and the current binary view is x86, then the debugger will debug x86 code in it.
 - Cannot debug certain protected applications due to SIP (System Integrity Protection) on macOS. This includes applications in `/Applications`. While this can be circumvented by disabling the SIP, it will pose serious threat to the safety of you device. So we do not recommend it and you will need to proceed with it at your own risk.
-
-### ARM/AArch64 support
-
-According to [https://lldb.llvm.org/](https://lldb.llvm.org/), ARM and AArch64 support should be considered experimental. While in our experience it has worked fairly well, one particular bug we've observed is that [single stepping](https://github.com/Vector35/debugger/issues/308) _over_ a return instruction will fail.
 
 ### Self-modifying code
 
