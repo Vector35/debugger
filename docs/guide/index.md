@@ -358,6 +358,88 @@ Note, this does not work if you first create a raw view and then create a mapped
 a mapped view in the above way.
 
 
+## Running Debug Adapter Backend Commands
+
+Although the debugger already provides UI interfaces for most its functionalities, there are still plenty of features
+that do not have a readily available UI. luckily, since we the debugger is using WinDbg/LLDB as backends, we can do
+plenty of them by running a backend command directly.
+
+To do so, first find the [`Debugger`](#debugger-console) console in the global area widget, type a command into the
+input box, and then press enter.
+
+### Hardware Breakpoints
+
+Hardware breakpoint is very useful and we plan to add better support for it soon. It is tracked by this
+[issue](https://github.com/Vector35/debugger/issues/53). For now, we can run a backend command directly to set
+hardware breakpoints.
+
+#### WinDbg/DbgEng
+
+For WinDbg/EbgEng, hardware breakpoints can be added using the
+[`ba` (break-on-access)](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/ba--break-on-access-)
+command. It is followed by one of r/w/e to specify the access type, followed by an integer that specifies the size of
+the access. For example:
+
+- `ba e1 0x12345678`: add a hardware execution breakpoint at 0x12345678
+- `ba r4 0x12345678`: add a four-byte hardware read/write breakpoint at 0x12345678
+- `ba w2 0x12345678`: add a two-byte hardware write breakpoint at 0x12345678
+
+#### LLDB
+
+- `breakpoint set --address 0x12345678 -H`: add a hardware execution breakpoint at 0x12345678
+- `watchpoint set expression -w read -s 1 -- 0x100003f9f`: add an one-byte hardware read watchpoint at 0x100003f9f
+- `watchpoint set expression -w write -s 4 -- 0x100003f9f`: add a four-byte hardware write watchpoint at 0x100003f9f
+- The parameter after the `-w` can be `read | write | read_write`
+- The parameter after the `-s` can be `1 | 2 | 4 | 8`
+- Run `help watchpoint set expression` for more information on setting watchpoints
+
+
+### Managing Breakpoints
+
+Breakpoints added outside the debugger (i.e., directly with a backend command) are not shown in the breakpoint
+widget. We can manage them using backend commands directly.
+
+#### WinDbg/DbgEng
+
+- `bl`: show all the breakpoints
+- `bc n`: delete the nth breakpoint
+- `bd n`: disable the nth breakpoint
+- `be n`: enable the nth breakpoint
+
+#### LLDB
+
+- `breakpoint list`: list all the breakpoints
+- `breakpoint delete n`: delete the nth breakpoint
+- `breakpoint disable n`: disable the nth breakpoint
+- `breakpoint enable n`: enable the nth breakpoint
+
+
+### View Registers Wider than 8 Bytes
+
+Right now the debugger uses an `uint64_t` to represent a register value, and value wider than that is truncated. Until
+we have a proper fix for it, one can run a backend command to view the register value directly.
+
+#### WinDbg/DbgEng
+
+- `r`: show all registers and their values
+- `r <register-name>`: read the value of a specific register
+
+#### LLDB
+
+- `reg read -a`: show all registers and their values
+- `reg read <register-name>`: read the value of a specific register
+
+
+### Handle Fork
+
+When a `fork` or `vfork` happens, LLDB folows the parent process by default. To change the behavior, one can run:
+
+- `settings set target.process.follow-fork-mode child`: make LLDB follow the child process during `fork` or `vfork`
+- `settings set target.process.follow-fork-mode parent`: make LLDB follow the parent process during `fork` or `vfork`
+
+
+
+
 ## Known Issues and Workarounds
 
 There are some known issues and limitations with the current debugger. Here is a list including potential workarounds.
