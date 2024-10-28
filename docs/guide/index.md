@@ -386,6 +386,19 @@ If the target contains self-modifying code (SMC), when the target stops, the cod
 To avoid the need to manually force an update frequently, set `debugger.aggressiveAnalysisUpdate` to true. Then the debugger will explicitly refresh the memory cache and re-analyze all functions every time the target stops. This is very helpful for obfuscated code with lots of SMC. However, it could cause lag in response if the target is large and has a lot of functions.
 
 
+### Single-stepping using the API with LLDB Adapter
+
+If you are debugging with the LLDB adapter and using the API to repeatedly single-step the target at a fast pace, you
+may run into a case that when you resume the target, instead of resuming the target, LLDB unexpectedly reports the
+target is still running and cannot be resumed. Failure to account for this can cause the debugger's internal state to
+de-synchronize and later lead to a crash.
+
+We are still working to understand the nature of this unexpected behavior. We highly suspect that this is a timing
+related issue in LLDB. Until we have a proper fix for it, please add a tiny wait before you resume the target, e.g., 
+add a `time.sleep(0.1)` before `dbg.step_into_and_wait()`, like we do in our debugger unit test
+[script](https://github.com/Vector35/debugger/blob/2012056e9c1ece686735ec165d9a1d4f0192ff5d/test/debugger_test.py#L52-L54). 
+
+
 ## Troubleshooting
 
 While we have tested the debugger in many scenarios, it may still malfunction in certain cases. Here are some basic steps to troubleshoot the situation.
