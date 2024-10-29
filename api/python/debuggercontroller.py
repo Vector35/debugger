@@ -20,7 +20,7 @@ import binaryninja
 # import debugger
 from . import _debuggercore as dbgcore
 from .debugger_enums import *
-from typing import Callable, List
+from typing import Callable, List, Union
 
 
 class DebugProcess:
@@ -116,7 +116,7 @@ class DebugModule:
         self.loaded = loaded
 
     @staticmethod
-    def is_same_base_module(module1: str, module2: str) -> bool:
+    def is_same_base_module(module1: Union[str, bytes], module2: Union[str, bytes]) -> bool:
         return dbgcore.BNDebuggerIsSameBaseModule(module1, module2)
 
     def __eq__(self, other):
@@ -456,7 +456,7 @@ class DebuggerEventWrapper:
     _debugger_events = {}
 
     @classmethod
-    def register(cls, controller: 'DebuggerController', callback: DebuggerEventCallback, name: str) -> int:
+    def register(cls, controller: 'DebuggerController', callback: DebuggerEventCallback, name: Union[str, bytes]) -> int:
         callback_obj = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(dbgcore.BNDebuggerEvent))\
                                         (lambda ctxt, event: cls._notify(event[0], callback))
         handle = dbgcore.BNDebuggerRegisterEventCallback(controller.handle, callback_obj, name, None)
@@ -705,7 +705,7 @@ class DebuggerController:
         """
         return DebugRegisters(self.handle)
 
-    def get_reg_value(self, reg: str) -> int:
+    def get_reg_value(self, reg: Union[str, bytes]) -> int:
         """
         Get the value of one register by its name
 
@@ -713,7 +713,7 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerGetRegisterValue(self.handle, reg)
 
-    def set_reg_value(self, reg: str, value: int) -> bool:
+    def set_reg_value(self, reg: Union[str, bytes], value: int) -> bool:
         """
         Set value of register
 
@@ -1165,7 +1165,7 @@ class DebuggerController:
         return dbgcore.BNDebuggerGetAdapterType(self.handle)
 
     @adapter_type.setter
-    def adapter_type(self, adapter: str) -> None:
+    def adapter_type(self, adapter: Union[str, bytes]) -> None:
         dbgcore.BNDebuggerSetAdapterType(self.handle, adapter)
 
     @property
@@ -1195,7 +1195,7 @@ class DebuggerController:
         return dbgcore.BNDebuggerGetRemoteHost(self.handle)
 
     @remote_host.setter
-    def remote_host(self, host: str) -> None:
+    def remote_host(self, host: Union[str, bytes]) -> None:
         dbgcore.BNDebuggerSetRemoteHost(self.handle, host)
 
     @property
@@ -1244,7 +1244,7 @@ class DebuggerController:
         return dbgcore.BNDebuggerGetExecutablePath(self.handle)
 
     @executable_path.setter
-    def executable_path(self, path: str) -> None:
+    def executable_path(self, path: Union[str, bytes]) -> None:
         dbgcore.BNDebuggerSetExecutablePath(self.handle, path)
 
     @property
@@ -1261,7 +1261,7 @@ class DebuggerController:
         return dbgcore.BNDebuggerGetInputFile(self.handle)
 
     @input_file.setter
-    def input_file(self, path: str) -> None:
+    def input_file(self, path: Union[str, bytes]) -> None:
         dbgcore.BNDebuggerSetInputFile(self.handle, path)
 
     @property
@@ -1279,7 +1279,7 @@ class DebuggerController:
         return dbgcore.BNDebuggerGetWorkingDirectory(self.handle)
 
     @working_directory.setter
-    def working_directory(self, path: str) -> None:
+    def working_directory(self, path: Union[str, bytes]) -> None:
         dbgcore.BNDebuggerSetWorkingDirectory(self.handle, path)
 
     @property
@@ -1317,7 +1317,7 @@ class DebuggerController:
         return dbgcore.BNDebuggerGetCommandLineArguments(self.handle)
 
     @cmd_line.setter
-    def cmd_line(self, arguments: str) -> None:
+    def cmd_line(self, arguments: Union[str, bytes]) -> None:
         dbgcore.BNDebuggerSetCommandLineArguments(self.handle, arguments)
 
     @property
@@ -1428,7 +1428,7 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerGetExitCode(self.handle)
 
-    def register_event_callback(self, callback: DebuggerEventCallback, name: str = '') -> int:
+    def register_event_callback(self, callback: DebuggerEventCallback, name: Union[str, bytes] = '') -> int:
         """
         Register a debugger event callback to receive notification when various events happen.
 
@@ -1480,14 +1480,14 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerGetStopReasonString(self.stop_reason)
 
-    def write_stdin(self, data: str) -> None:
+    def write_stdin(self, data: Union[str, bytes]) -> None:
         """
         Write to the stdin of the target. Only works on Linux and macOS.
 
         """
         dbgcore.BNDebuggerWriteStdin(self.handle, data, len(data))
 
-    def execute_backend_command(self, command: str) -> str:
+    def execute_backend_command(self, command: Union[str, bytes]) -> str:
         """
         Execute a backend command and get the output
 
@@ -1504,14 +1504,14 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerInvokeBackendCommand(self.handle, command)
 
-    def get_adapter_property(self, name: str) -> 'binaryninja.metadata.MetadataValueType':
+    def get_adapter_property(self, name: Union[str, bytes]) -> 'binaryninja.metadata.MetadataValueType':
         md_handle = dbgcore.BNDebuggerGetAdapterProperty(self.handle, name)
         if md_handle is None:
             raise KeyError(name)
         md_handle_BN = ctypes.cast(md_handle, ctypes.POINTER(binaryninja.core.BNMetadata))
         return binaryninja.metadata.Metadata(handle=md_handle_BN).value
 
-    def set_adapter_property(self, name: str, value: binaryninja.metadata.MetadataValueType) -> bool:
+    def set_adapter_property(self, name: Union[str, bytes], value: binaryninja.metadata.MetadataValueType) -> bool:
         _value = value
         if not isinstance(_value, binaryninja.metadata.Metadata):
             _value = binaryninja.metadata.Metadata(_value)
