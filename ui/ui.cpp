@@ -862,6 +862,12 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 #ifdef WIN32
 void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 {
+#ifdef DEMO_EDITION
+	FreeVersionLimitation dialog("installing WinDbg/TTD automatically.\n"
+		"Please refer to the documentation to install it manually:\n"
+		"https://docs.binary.ninja/guide/debugger/dbgeng-ttd.html#install-windbg-manually");
+	dialog.exec();
+#else
 	std::string pluginRoot;
 	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
 		pluginRoot = GetUserPluginDirectory();
@@ -885,6 +891,7 @@ void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 		return;
 
 	widget->runScriptFromFile(ttdInstallerScript.string());
+#endif
 }
 #endif
 
