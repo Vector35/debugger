@@ -41,6 +41,7 @@ limitations under the License.
 #include "attachprocess.h"
 #include "progresstask.h"
 #include "debuggerinfowidget.h"
+#include "freeversion.h"
 
 #ifdef WIN32
 	#include "ttdrecord.h"
