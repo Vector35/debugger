@@ -465,6 +465,25 @@ If the target contains self-modifying code (SMC), when the target stops, the cod
 To avoid the need to manually force an update frequently, set `debugger.aggressiveAnalysisUpdate` to true. Then the debugger will explicitly refresh the memory cache and re-analyze all functions every time the target stops. This is very helpful for obfuscated code with lots of SMC. However, it could cause lag in response if the target is large and has a lot of functions.
 
 
+### Network Adapter on Windows
+
+On Windows, the debugging sometimes does not work if the machine does not have a network adapter. The reason for this
+is yet unknown; the debugger itself does not require a network connection to work. This is probably a bug in WinDbg
+itself, or a bug in the way that we use the DbgEng API.
+
+To fix this, just create a network adapter in the VM but do not connect it to any actual network. The presence of a
+network adapter is enough for the debugger to work. We will also try to fix the issue in a proper way.
+
+
+### Slow launching Speed on Windows on Slow Networks
+
+When the DbgEng adapter launches the target, the DbgEng automatically downloads symbols for the loaded DLLs from
+the Microsoft symbol server. As a result, if you are on a slow network, the launch can be slow. If you on a network
+that has access to the Internet, but not to the Microsoft symbol server in particular, the launch could also hang.
+To fix this, disconnect from the network before launching. We will also create a proper fix for it as tracked in
+https://github.com/Vector35/debugger/issues/519
+
+
 ### Single-stepping using the API with LLDB Adapter
 
 If you are debugging with the LLDB adapter and using the API to repeatedly single-step the target at a fast pace, you
