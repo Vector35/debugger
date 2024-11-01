@@ -162,6 +162,28 @@ Note: on macOS 13, the size of system dylib are calculated wrong. The bizarrely 
 The size of the main executable is still calculated correctly.
 
 
+#### Debugger Info Widget
+
+The debugger info widget shows the relevant information of the current (or selected) instruction. It shows the value of
+registers, memory read/writes, as long as any hints if the value can be dereferenced. The goal is to provide more
+context for the target and offer the relevant information directly.
+
+![](../../img/debugger/debuggerinfo0.png)
+
+If the selected instruction is a function call, the call parameters are listed:
+
+![](../../img/debugger/debuggerinfo1.png)
+
+If the selected instruction is a conditional branch, the values being compared are listed and the result (token or not
+taken) are predicted:
+
+![](../../img/debugger/debuggerinfo2.png)
+
+Please be aware that the widget always uses the target's current status (registers, memory) to calculate the value of
+the requested expressions. If you select an instruction different from the active one, the value could be wrong even if
+it could be calculated.
+
+
 ### Debugger Status Widget
 
 ![](../../img/debugger/statuswidget.png)
