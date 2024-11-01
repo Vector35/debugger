@@ -429,7 +429,7 @@ widget. We can manage them using backend commands directly.
 - `breakpoint enable n`: enable the nth breakpoint
 
 
-### View Registers Wider than 8 Bytes
+### Viewing Registers Wider than 8 Bytes
 
 Right now the debugger uses an `uint64_t` to represent a register value, and value wider than that is truncated. Until
 we have a proper fix for it, one can run a backend command to view the register value directly.
