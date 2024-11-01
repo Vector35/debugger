@@ -453,6 +453,39 @@ When a `fork` or `vfork` happens, LLDB folows the parent process by default. To 
 - `settings set target.process.follow-fork-mode parent`: make LLDB follow the parent process during `fork` or `vfork`
 
 
+### Creating Dump Files
+
+Right now we do not yet support keeping the contents of a dynamically allocated segment/section after debugging. 
+However, as a workaround, we can use the WinDbg/DbgEng or LLDB's own capacity to generate a dump file which can then
+be loaded by the debugger.
+
+#### WinDbg/DbgEng
+
+- `.dump /ma FilePath`
+- See [docs](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/-dump--create-dump-file-) for more
+details
+
+#### LLDB
+
+- `process save-core <file_path>`
+
+
+### Listing Symbol At/Near an Address
+
+Before we have the capacity to [read symbols](https://github.com/Vector35/debugger/issues/210) from the backend, as a
+workaround, we can check the symbols at or near a specific address.
+
+#### WinDbg/DbgEng
+
+- `ln Address`
+- See [docs](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/ln--list-nearest-symbols-) for more
+  details
+
+#### LLDB
+
+- `image lookup --address <address>`
+
+
 
 
 ## Known Issues and Workarounds
