@@ -328,6 +328,21 @@ See [Time Travel Debugging Guide](dbgeng-ttd.md)
 See [Windows Kernel Debugging Guide](windows-kd.md)
 
 
+### Loading Windows Dump Files
+
+- (optional) Open the executable file used to generate the dump
+- Open `Debug Adapter Settings` dialog
+- Select `WINDOWS_DUMP_FILE` adapter
+- Change the executable path to the path of the dump file
+- <img src="../../img/debugger/windows_dump_file.png" width="600px">
+- Click OK and then launch the target
+- These information should be available if they have been recorded in the dump file:
+    - Register values
+    - Threads and stack traces
+    - Memory bytes
+- Buttons to resume the target would have no effects
+
+
 ### Debugging without Opening a File
 
 Normally one would first open a file and then start debugging. However, the debugger can also be used without first opening a file.
