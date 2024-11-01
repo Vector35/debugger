@@ -1491,16 +1491,11 @@ class DebuggerController:
         """
         Execute a backend command and get the output
 
-        For LLDB adapter (on Linux and macOS), any LLDB commands can be executed. The returned string is what gets
-        printed if one executes the command in the LLDB prompt.
+        For LLDB adapter, any LLDB commands can be executed. The returned string is what gets printed if one executes
+        the command in the LLDB prompt.
 
-        For DbgEnd adapter (on Windows), any Windbg commands can be executed. However, nothing will be returned.
-        This is because the backend processes the command asynchronously. By the time it returns, the commands are not
-        executed yet. However, the output are still printed to the Debugger console in the global area.
-
-        Note, the user should never run any command that resumes the target (either running or stepping). It will
-        cause the UI to desynchronize and even hang. This is a known limitation, and we will try to address it.
-
+        For DbgEnd adapter, any WinDbg commands can be executed. The returned string is what gets printed if one
+        executes the command in WinDbg.
         """
         return dbgcore.BNDebuggerInvokeBackendCommand(self.handle, command)
 

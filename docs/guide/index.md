@@ -141,6 +141,11 @@ Double-clicking the addresses in the PC (program counter), SP (stack pointer), a
 
 The active thread is marked with `(*)`. Double-clicking another thread will set that as the active thread. As a result, the register widget will show the registers from the new active thread.
 
+The stack trace is symbolized using both information from the analysis and the debug adapter backend.
+In the above screenshot, we can see that function names like `MD5Update` and `MD5Init` are from the analysis (named by
+the user), and the `start` function in the `dyld` module comes from the LLDB backend, which can read symbols from other
+modules other than the current one.
+
 ![](../../img/debugger/threadwidgetcontextmenu.png)
 
 The context menu offers to suspend and resume each thread individually. A convenience method is offered to make a thread "solo", which suspends all other threads and resumes the thread. Note, resuming the thread does NOT cause the thread to start executing immediately. It only makes the thread execute the next time the target is resumed, e.g., by pressing the `Go` or `Step Over` button. There are some known issues when suspending/resuming individual threads with LLDB adapter.
@@ -186,6 +191,9 @@ Among these actions, target control actions, e.g., `Run`/`Step Into` have the sa
 
 ![](../../img/debugger/stackvariable.png)
 
+Note: stack variable annotation is disabled by default because it is sometimes inaccurate.
+It can be turned on by setting `debugger.stackVariableAnnotations` to true.
+
 When the target breaks and a stack trace is available, the debugger annotates the stack variables in the linear view as data variables.
 
 The above image shows the annotated stack with two stack frames. The start and end of each stack frame are marked, and stack variables are defined according to the stack variables in the functions.
@@ -195,8 +203,6 @@ To quickly create a split view that views code and stack side-by-side, in the ma
 Only the stack frames and variables of the current (active) thread are annotated to avoid confusion. If you wish to view stack variables from a different thread, first switch to that thread in the `Stack Trace` global area panel.
 
 The annotation is done only when there are at least two frames in the stack trace. This is a known limitation, and we will address it later.
-
-If the stack variable annotation does not work in certain cases or even causes problems, it can be disabled by setting `debugger.stackVariableAnnotations` to false.
 
 
 ### Other UI Elements
@@ -381,6 +387,14 @@ plenty of them by running a backend command directly.
 
 To do so, first find the [`Debugger`](#debugger-console) console in the global area widget, type a command into the
 input box, and then press enter.
+
+To run a backend command with the API, use the
+[execute_backend_command](https://api.binary.ninja/binaryninja.debugger.debuggercontroller-module.html#binaryninja.debugger.debuggercontroller.DebuggerController.execute_backend_command)
+API. For example, this will return all loaded modules (for LLDB adapter):
+
+```Python
+dbg.execute_backend_command('image list')
+```
 
 ### Hardware Breakpoints
 
