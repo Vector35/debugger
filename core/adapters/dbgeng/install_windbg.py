@@ -59,8 +59,8 @@ def install_windbg():
 
     zip_file = zipfile.ZipFile(msix_file)
     temp_dir = tempfile.mkdtemp()
-    inner_msix = zip_file.extract('windbg_win7-x64.msix', temp_dir)
-    print('Extracted windbg_win7-x64 to %s' % inner_msix)
+    inner_msix = zip_file.extract('windbg_win-x64.msix', temp_dir)
+    print('Extracted windbg_win-x64 to %s' % inner_msix)
 
     install_target = os.path.join(binaryninja.user_directory(), 'windbg')
     print('Installing to: %s' % install_target)
