@@ -925,7 +925,7 @@ void DebuggerInfoTable::onDoubleClicked()
 
 
 DebugInfoWidgetType::DebugInfoWidgetType():
-	SidebarWidgetType(QIcon(":/debugger/debugger").pixmap(QSize(64, 64)).toImage(), "Debugger Info")
+	SidebarWidgetType(QIcon(":/debugger/cctv-camera").pixmap(QSize(64, 64)).toImage(), "Debugger Info")
 {
 }
 

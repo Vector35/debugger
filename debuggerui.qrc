@@ -3,6 +3,7 @@
         <file alias="add">icons/add.png</file>
         <file alias="breakpoint">icons/breakpoint.png</file>
         <file alias="cancel">icons/cancel.png</file>
+        <file alias="cctv-camera">icons/cctv-camera.png</file>
         <file alias="connect">icons/connect.png</file>
         <file alias="debugger">icons/debugger.png</file>
         <file alias="disconnect">icons/disconnect.png</file>
