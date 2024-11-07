@@ -587,15 +587,13 @@ While we have tested the debugger in many scenarios, it may still malfunction in
 If you encounter a bug, please file [an issue](https://github.com/Vector35/debugger/issues) with reproduction steps, and if possible, attach the binary involved.
 
 1. If it crashes Binary Ninja, then it is always considered a bug.
-2. If the debugger cannot launch the file properly, first check to make sure the file can be executed directly without a debugger.
+2. If the debugger cannot launch the file properly, first check to make sure the file can be executed properly outside of a debugger.
 3. Try to relaunch Binary Ninja and retry. There could be unintended side effects from previous debugging sessions. Whether it fixes the problem or not, please [file an issue](https://github.com/vector35/debugger/issues).
-4. Try to use the LLDB/WinDbg binding that comes with Binary Ninja to debug the file directly. If LLDB/WinDbg can debug it properly, then it is a Binary Ninja issue. Otherwise, it is a bug in the LLDB/WinDbg itself. In both cases, please file an issue and let us know which case it is.
+4. Try to use the LLDB/WinDbg that comes with Binary Ninja to debug the file directly. If LLDB/WinDbg can debug it properly, then it is a Binary Ninja issue. Otherwise, it is a bug in the LLDB/WinDbg itself. In both cases, please file an issue and let us know which case it is.
     The LLDB/WinDbg path can be found in the following path:
-    - Windows, user installation: %APPDATA%\Binary Ninja\dbgeng\Windows Kits\10\Debuggers\x64\windbg.exe
-    - Windows, system installation: %PROGRAMDATA%\Binary Ninja\dbgeng\Windows Kits\10\Debuggers\x64\windbg.exe
-    - If the program you are debugging is x86, replace `x64` with `x86` in the above path.
-    - Linux: [Binary Ninja Installation folder]/plugins/lldb/bin/lldb
-    - macOS: /Applications/Binary Ninja.app/Contents/MacOS/plugins/lldb/bin/lldb
+    - Windows: first install the full WinDbg following this [guide](dbgeng-ttd.md#install-windbg), and then use `%APPDATA%\Binary Ninja\windbg\DbgX.Shell.exe` to debug it
+    - Linux: `<Binary Ninja Installation folder>/plugins/lldb/bin/lldb`
+    - macOS: `/Applications/Binary Ninja.app/Contents/MacOS/plugins/lldb/bin/lldb`
 
 
 ## Open-Source
