@@ -418,11 +418,11 @@ API. For example, this will return all loaded modules (for LLDB adapter):
 dbg.execute_backend_command('image list')
 ```
 
-### Hardware Breakpoints
+### Hardware Breakpoints/Watchpoints
 
-Hardware breakpoint is very useful and we plan to add better support for it soon. It is tracked by this
-[issue](https://github.com/Vector35/debugger/issues/53). For now, we can run a backend command directly to set
-hardware breakpoints.
+Hardware breakpoints and watchpoints are very useful and we plan to add better support for it soon. It is tracked by
+this [issue](https://github.com/Vector35/debugger/issues/53). For now, we can run a backend command directly to set
+hardware breakpoints/watchpoints.
 
 #### WinDbg/DbgEng
 
