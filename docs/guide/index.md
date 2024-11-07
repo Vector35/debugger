@@ -7,7 +7,7 @@ The debugger plugin is shipped with Binary Ninja. It is [open-source](https://gi
 
 ## UI
 
-[<img src="../../img/debugger/ui.png" width="100%" align="center"/>](../../img/debugger/ui.png)
+<img src="../../img/debugger/ui.png" width="600px">
 
 The debugger UI mainly consists of six parts:
 

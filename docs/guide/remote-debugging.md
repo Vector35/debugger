@@ -79,7 +79,7 @@ a process locally.
 
 - Click "Debugger" -> "Debug Adapter Settings..." in the main window menu bar
 
-![](../../img/debugger/remoteadaptersettings.png)
+<img src="../../img/debugger/remoteadaptersettings.png" width="600px">
 
 - Specify the executable path and working directory on the remote machine. This is likely different from the local path
   which is shown by default
