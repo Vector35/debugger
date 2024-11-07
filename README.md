@@ -44,4 +44,5 @@ The debugger is already shipped with Binary Ninja in stable and development bran
 
 The Binary Ninja Debugger is open-source with [Apache License 2.0](https://raw.githubusercontent.com/Vector35/debugger/dev/LICENSE)
 
-For other open-source components and their respective licenses, please refer to this [list](open-source.md).
+For other open-source or redistributable components and their respective licenses, please refer to this
+[list](https://dev-docs.binary.ninja/guide/debugger/index.html#open-source).
