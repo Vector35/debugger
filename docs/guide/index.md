@@ -123,7 +123,10 @@ The debugger console allows the user to execute backend commands and get the res
 
 On Linux and macOS, the backend is based on LLDB and the console accepts LLDB commands.
 
-On Windows, the backend is based on Windows Debugger Engine, and it supports WinDbg command syntax. All WinDbg extension command, e.g., `!peb` are also supported.
+On Windows, the backend is based on Windows Debugger Engine, and it supports WinDbg command syntax. All WinDbg base
+[commands](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/commands) are supproted and can be
+used directly. Certain extension commands, e.g., `!peb`, requires first installing the full WinDbg following this
+[guide](dbgeng-ttd.md#install-windbg).
 
 The console supports resuming the target, e.g., stepping.
 
