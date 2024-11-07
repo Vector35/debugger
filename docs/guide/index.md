@@ -119,7 +119,10 @@ On macOS and Linux, the default setting redirects the stdin/stdout here. However
 
 ![](../../img/debugger/debuggerconsole.png)
 
-The debugger console allows the user to execute backend commands and get the result.
+The debugger console allows the user to execute backend commands and get the result. Feel free to use it if you are
+more comfortable with issuing LLDB/WinDbg commands rather than clicking the buttons. It can also be helpful when
+certain features do not yet have a first-class UI (e.g., hardware breakpoints), but can be done via a backend command.
+For some useful ones, see the [docs](#running-debug-adapter-backend-commands) below.
 
 On Linux and macOS, the backend is based on LLDB and the console accepts LLDB commands.
 
@@ -128,7 +131,7 @@ On Windows, the backend is based on Windows Debugger Engine, and it supports Win
 used directly. Certain extension commands, e.g., `!peb`, requires first installing the full WinDbg following this
 [guide](dbgeng-ttd.md#install-windbg).
 
-The console supports resuming the target, e.g., stepping.
+The console supports commands that resume the target, e.g., stepping.
 
 Like the Python console, all addresses in the debugger console is clickable -- clicking it navigates to the address.
 
