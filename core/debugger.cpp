@@ -86,7 +86,8 @@ static void RegisterSettings()
 			"type" : "string",
 			"default" : "",
 			"description" : "Path of the x64 DbgEng Installation. This folder should contain an x64 dbgeng.dll.",
-			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"],
+			"requiresRestart" : true
 			})");
 	settings->RegisterSetting("debugger.x86dbgEngPath",
 		R"({
@@ -94,7 +95,8 @@ static void RegisterSettings()
 			"type" : "string",
 			"default" : "",
 			"description" : "Path of the x86 DbgEng Installation. This folder should contain an x86 dbgeng.dll.",
-			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"],
+			"requiresRestart" : true
 			})");
 	settings->RegisterSetting("debugger.checkDbgEngDLLPath",
 		R"({
