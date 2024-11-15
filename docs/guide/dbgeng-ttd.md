@@ -35,10 +35,10 @@ The WinDbg installation only needs to be done once.
     - The download URL should look like https://windbg.download.prss.microsoft.com/dbazure/prod/1-2402-24001-0/windbg.msixbundle
 - Download the MSIX bundle using the URL found in the above step (this can take a while to finish)
 - The downloaded MSIX bundle is a Zip archive. Extract it with a tool like 7Zip
-- Find the `windbg_win7-x64.msix` in it. Again it is a Zip archive, extract it
+- Find the `windbg_win-x64.msix` in it. Again it is a Zip archive, extract it
 - Find the path of the DbgEng DLLs you have extracted
-    - It should be inside the `amd64` folder of where you extracted the `windbg_win7-x64.msix`
-    - For example, it can be `C:\Users\XXXXX\Downloads\windbg\windbg_win7-x64\amd64`
+    - It should be inside the `amd64` folder of where you extracted the `windbg_win-x64.msix`
+    - For example, it can be `C:\Users\XXXXX\Downloads\windbg\windbg_win-x64\amd64`
     - There should be an x64 version of `dbgeng.dll` in it
 - In Binary Ninja, open the Settings view via the menu `Edit`->`Settings`, or use the shortcut (Ctrl+,)
 - Search for `debugger.x64dbgEngPath`, and set it to the folder that the DbgEng DLL is in in the last step
