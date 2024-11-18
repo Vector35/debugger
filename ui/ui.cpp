@@ -517,7 +517,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			connectedAndStoppedWithTTD));
 
-	UIAction::registerAction("Run To Here");
+	UIAction::registerAction("Run To Here", QKeySequence(Qt::Key_F4));
 	context->globalActions()->bindAction("Run To Here",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
