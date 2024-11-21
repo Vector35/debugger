@@ -823,7 +823,7 @@ class DebuggerController:
 
         The call is asynchronous and returns before the target stops.
 
-        :return: the reason for the stop
+        :return: whether the operation is successfully requested
         """
         return dbgcore.BNDebuggerGo(self.handle)
 
@@ -834,7 +834,7 @@ class DebuggerController:
 
         The call is asynchronous and returns before the target stops.
 
-        :return: the reason for the stop
+        :return: whether the operation is successfully requested
         """
         return dbgcore.BNDebuggerGoReverse(self.handle)
 
@@ -855,7 +855,7 @@ class DebuggerController:
         The call is asynchronous and returns before the target stops.
 
         :param il: optional IL level to perform the operation at
-        :return: the reason for the stop
+        :return: whether the operation is successfully requested
         """
         return dbgcore.BNDebuggerStepInto(self.handle, il)
 
@@ -876,7 +876,7 @@ class DebuggerController:
         The call is asynchronous and returns before the target stops.
 
         :param il: optional IL level to perform the operation at
-        :return: the reason for the stop
+        :return: whether the operation is successfully requested
         """
         return dbgcore.BNDebuggerStepIntoReverse(self.handle, il)
 
@@ -897,7 +897,7 @@ class DebuggerController:
         The call is asynchronous and returns before the target stops.
 
         :param il: optional IL level to perform the operation at
-        :return: the reason for the stop
+        :return: whether the operation is successfully requested
         """
         return dbgcore.BNDebuggerStepOver(self.handle, il)
 
@@ -918,7 +918,7 @@ class DebuggerController:
         The call is asynchronous and returns before the target stops.
 
         :param il: optional IL level to perform the operation at
-        :return: the reason for the stop
+        :return: whether the operation is successfully requested
         """
         return dbgcore.BNDebuggerStepOverReverse(self.handle, il)
 
@@ -938,7 +938,7 @@ class DebuggerController:
 
         The call is asynchronous and returns before the target stops.
 
-        :return: the reason for the stop
+        :return: whether the operation is successfully requested
         """
         return dbgcore.BNDebuggerStepReturn(self.handle)
     
@@ -958,7 +958,7 @@ class DebuggerController:
 
         The call is asynchronous and returns before the target stops.
 
-        :return: the reason for the stop
+        :return: whether the operation is successfully requested
         """
         return dbgcore.BNDebuggerStepReturnReverse(self.handle)
 
@@ -971,8 +971,9 @@ class DebuggerController:
         Internally, the debugger places breakpoints on these addresses, resume the target, and wait for the target
         to break. Then the debugger removes the added breakpoints.
 
-       The call is asynchronous and returns before the target stops.
+        The call is asynchronous and returns before the target stops.
 
+        :return: whether the operation is successfully requested
         """
         if isinstance(address, int):
             address = [address]
@@ -1125,6 +1126,7 @@ class DebuggerController:
 
         The call is blocking and only returns when the target stops.
 
+        :return: the reason for the stop
         """
         if isinstance(address, int):
             address = [address]
