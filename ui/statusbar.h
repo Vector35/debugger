@@ -23,7 +23,6 @@ limitations under the License.
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QLabel>
 #include "binaryninjaapi.h"
-#include "dockhandler.h"
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "debuggerapi.h"

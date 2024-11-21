@@ -24,7 +24,6 @@ limitations under the License.
 #include <QSortFilterProxyModel>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
-#include "dockhandler.h"
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "theme.h"
