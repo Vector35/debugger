@@ -547,7 +547,7 @@ class DebuggerController:
         result = ctypes.cast(result, ctypes.POINTER(binaryninja.core.BNBinaryView))
         if result is None:
             return None
-        return binaryninja.BinaryView(handle=result)
+        return binaryninja.BinaryView._from_cache_or_new(handle=result)
 
     @property
     @binaryninja.deprecation.deprecated(deprecated_in="4.1.5542", details='Debugger no longer uses the live view, Use :py:attr:`data` instead')
