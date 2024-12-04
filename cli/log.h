@@ -114,7 +114,7 @@ struct fmt::formatter<Log::Style>
 	}
 
 	template <typename FormatContext>
-	auto format(const Log::Style& style, FormatContext& ctx) -> decltype(ctx.out())
+	auto format(const Log::Style& style, FormatContext& ctx) const -> decltype(ctx.out())
 	{
 		return format_to(ctx.out(), "{}", style.AsAnsi());
 	}
