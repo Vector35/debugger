@@ -121,9 +121,9 @@ namespace BinaryNinjaDebuggerAPI {
 #endif
 
 	public:
-		DbgRef<T>() : m_obj(NULL) {}
+		DbgRef() : m_obj(NULL) {}
 
-		DbgRef<T>(T* obj) : m_obj(obj)
+		DbgRef(T* obj) : m_obj(obj)
 		{
 			if (m_obj)
 			{
@@ -134,7 +134,7 @@ namespace BinaryNinjaDebuggerAPI {
 			}
 		}
 
-		DbgRef<T>(const DbgRef<T>& obj) : m_obj(obj.m_obj)
+		DbgRef(const DbgRef<T>& obj) : m_obj(obj.m_obj)
 		{
 			if (m_obj)
 			{
@@ -145,7 +145,7 @@ namespace BinaryNinjaDebuggerAPI {
 			}
 		}
 
-		DbgRef<T>(DbgRef<T>&& other) : m_obj(other.m_obj)
+		DbgRef(DbgRef<T>&& other) : m_obj(other.m_obj)
 		{
 			other.m_obj = 0;
 #ifdef BN_REF_COUNT_DEBUG
@@ -153,7 +153,7 @@ namespace BinaryNinjaDebuggerAPI {
 #endif
 		}
 
-		~DbgRef<T>()
+		~DbgRef()
 		{
 			if (m_obj)
 			{
