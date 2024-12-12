@@ -104,7 +104,7 @@ endif()
 message(STATUS "lldb: using install at ${LLDB_PATH}")
 
 if (APPLE)
-	find_library(lib_lldb NAMES lldb PATHS ${LLDB_PATH}/lib REQUIRED)
+	find_library(lib_lldb NAMES lldb.${LLVM_VERSION} lldb PATHS ${LLDB_PATH}/lib REQUIRED)
 	target_link_libraries(debuggercore ${lib_lldb})
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
 	set_property(TARGET debuggercore APPEND PROPERTY INSTALL_RPATH "@loader_path/lldb/lib")
@@ -144,7 +144,8 @@ if (APPLE)
 		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
 	)
 elseif (UNIX)
-	find_library(lib_lldb NAMES lldb PATHS ${LLDB_PATH}/lib REQUIRED)
+	string(REGEX MATCH "^[0-9]+" LLVM_VERSION_MAJOR ${LLVM_VERSION})
+	find_library(lib_lldb NAMES lldb.so.${LLVM_VERSION_MAJOR} lldb PATHS ${LLDB_PATH}/lib REQUIRED)
 	target_link_libraries(debuggercore ${lib_lldb})
 	target_include_directories(debuggercore PRIVATE ${LLDB_PATH}/include)
 	set_property(TARGET debuggercore APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/lldb/lib")
@@ -165,7 +166,6 @@ elseif (UNIX)
 		DESTINATION ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/bin
 		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
 	)
-	string(REGEX MATCH "^[0-9]+" LLVM_VERSION_MAJOR ${LLVM_VERSION})
 	file(
 		COPY ${LLDB_PATH}/lib/liblldb.so.${LLVM_VERSION_MAJOR}
 		DESTINATION ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/lib
