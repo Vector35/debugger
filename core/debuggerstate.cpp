@@ -30,6 +30,8 @@ using namespace BinaryNinja;
 using namespace std;
 using namespace BinaryNinjaDebugger;
 
+constexpr size_t MemoryCacheBlock = 0x4000;
+
 DebuggerRegisters::DebuggerRegisters(DebuggerState* state) : m_state(state)
 {
 	MarkDirty();
@@ -720,7 +722,7 @@ DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
 	if (m_state->IsConnected() && !m_state->IsRunning())
 	{
 		// The cache is old and the target is stopped, try to update the cache value
-		DataBuffer buffer = m_state->GetAdapter()->ReadMemory(block, 0x100);
+		DataBuffer buffer = m_state->GetAdapter()->ReadMemory(block, MemoryCacheBlock);
 		if (buffer.GetLength() > 0)
 		{
 			// Successfully updated
@@ -745,11 +747,11 @@ DataBuffer DebuggerMemory::ReadMemory(uint64_t offset, size_t len)
 	// Reads are aligned on 256-byte boundaries and 256 bytes long
 
 	// Cache read start: round down addr to nearest 256 byte boundary
-	size_t cacheStart = offset & (~0xffLL);
+	size_t cacheStart = offset & (~(MemoryCacheBlock - 1));
 	// Cache read end: round up addr+length to nearest 256 byte boundary
-	size_t cacheEnd = (offset + len + 0xFF) & (~0xffLL);
+	size_t cacheEnd = (offset + len + MemoryCacheBlock - 1) & (~(MemoryCacheBlock - 1));
 	// List of 256-byte block addresses to read into the cache to fully cover this region
-	for (uint64_t block = cacheStart; block < cacheEnd; block += 0x100)
+	for (uint64_t block = cacheStart; block < cacheEnd; block += MemoryCacheBlock)
 	{
 		auto cached = ReadBlock(block);
 		if (cached.GetLength() == 0)
