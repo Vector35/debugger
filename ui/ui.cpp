@@ -176,6 +176,7 @@ static void MakeCodeHelper(BinaryView* view, BNAddressRange selection)
 		auto sym = view->GetSymbolByAddress(addr);
 		view->UndefineUserSymbol(sym);
 		view->CommitUndoActions(id);
+		view->UpdateAnalysis();
 		return;
 	}
 
@@ -185,6 +186,7 @@ static void MakeCodeHelper(BinaryView* view, BNAddressRange selection)
 	SymbolRef sym = new Symbol(DataSymbol, name, name, name, addr);
 	view->DefineUserSymbol(sym);
 	view->CommitUndoActions(id);
+	view->UpdateAnalysis();
 }
 
 
