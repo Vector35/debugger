@@ -15,12 +15,20 @@ endif()
 file(GLOB COMMON_SOURCES
     *.cpp
     *.h
+    ../vendor/pugixml/*.cpp
+    ../vendor/pugixml/*.hpp
     ../vendor/fmt/*.h
     )
 
 file(GLOB ADAPTER_SOURCES
 		adapters/lldbadapter.cpp
 		adapters/lldbadapter.h
+		adapters/gdbadapter.cpp
+		adapters/gdbadapter.h
+		adapters/queuedadapter.cpp
+		adapters/queuedadapter.h
+		adapters/rspconnector.cpp
+		adapters/rspconnector.h
 	)
 
 if(WIN32)

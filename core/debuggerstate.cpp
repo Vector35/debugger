@@ -247,6 +247,9 @@ DebugThread DebuggerThreads::GetActiveThread() const
 	if (!m_state)
 		return DebugThread {};
 
+	if (!m_state->IsConnected())
+		return DebugThread {};
+
 	DebugAdapter* adapter = m_state->GetAdapter();
 	if (!adapter)
 		return DebugThread {};
@@ -258,6 +261,9 @@ DebugThread DebuggerThreads::GetActiveThread() const
 bool DebuggerThreads::SetActiveThread(const DebugThread& thread)
 {
 	if (!m_state)
+		return false;
+
+	if (!m_state->IsConnected())
 		return false;
 
 	DebugAdapter* adapter = m_state->GetAdapter();

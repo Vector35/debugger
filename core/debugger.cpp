@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 #include <inttypes.h>
+#include "adapters/gdbadapter.h"
+#include "adapters/lldbrspadapter.h"
 #include "adapters/lldbadapter.h"
 #ifdef WIN32
 	#include "adapters/dbgengadapter.h"
@@ -29,6 +31,8 @@ using namespace BinaryNinjaDebugger;
 
 void InitDebugAdapterTypes()
 {
+	auto settings = Settings::Instance();
+
 #ifdef WIN32
 	if (!DbgEngAdapter::LoadDngEngLibraries())
 	{
@@ -41,9 +45,12 @@ void InitDebugAdapterTypes()
 	InitWindowsDumpFileAdapterType();
 #endif
 
-	// Disable these adapters because they are not tested, and will get replaced later
-	//InitGdbAdapterType();
-	//InitLldbRspAdapterType();
+
+	if (settings->Get<bool>("debugger.corelliumAdapter"))
+	{
+		InitGdbAdapterType();
+	}
+
 	InitLldbAdapterType();
 }
 
@@ -169,6 +176,14 @@ static void RegisterSettings()
 			"description" : "When enabled, this holds the analysis for the binary view during debugging to increase performance."
 			})");
 
+	settings->RegisterSetting("debugger.corelliumAdapter",
+	R"({
+			"title" : "Enable Corellium Adapter",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "Whether or not to enable the corellium adapter.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
 }
 
 extern "C"

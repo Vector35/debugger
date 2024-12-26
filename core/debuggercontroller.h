@@ -155,6 +155,11 @@ namespace BinaryNinjaDebugger {
 
 		void DetectLoadedModule();
 
+		bool m_adapterSupportsStepOver = false;
+		// bool m_adapterSupportsModules = false;
+		// bool m_adapterSupportsThreads = false;
+		bool m_adapterSupportsTTD = false;
+
 	public:
 		DebuggerController(BinaryViewRef data);
 		static DbgRef<DebuggerController> GetController(BinaryViewRef data);

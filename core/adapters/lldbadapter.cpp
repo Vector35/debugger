@@ -1311,7 +1311,19 @@ uint64_t LldbAdapter::GetStackPointer()
 
 bool LldbAdapter::SupportFeature(DebugAdapterCapacity feature)
 {
-	return false;
+	switch (feature)
+	{
+		case DebugAdapterSupportStepOver:
+			return true;
+		case DebugAdapterSupportModules:
+			return true;
+		case DebugAdapterSupportThreads:
+			return true;
+		case DebugAdapterSupportTTD:
+			return false;
+		default:
+			return false;
+	}
 }
 
 
