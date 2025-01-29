@@ -18,6 +18,7 @@ limitations under the License.
 #include "binaryninjaapi.h"
 #include "breakpointswidget.h"
 #include "moduleswidget.h"
+#include "renderlayer.h"
 #include "stackwidget.h"
 #include "uinotification.h"
 #include "platformdialog.h"
@@ -409,6 +410,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					return;
 
 				controller->Go();
+				m_context->refreshCurrentViewContents();
 			},
 			connectedAndStopped));
 	debuggerMenu->addAction("Resume", "Control");
@@ -424,6 +426,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					return;
 
 				controller->GoReverse();
+				m_context->refreshCurrentViewContents();
 			},
 			connectedAndStoppedWithTTD));
 
@@ -441,6 +444,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (ctxt.context && ctxt.context->getCurrentView())
 					graphType = ctxt.context->getCurrentView()->getILViewType().type;
 				controller->StepInto(graphType);
+				m_context->refreshCurrentViewContents();
 			},
 			connectedAndStopped));
 	debuggerMenu->addAction("Step Into", "Control");
@@ -459,6 +463,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (ctxt.context && ctxt.context->getCurrentView())
 					graphType = ctxt.context->getCurrentView()->getILViewType().type;
 				controller->StepIntoReverse(graphType);
+				m_context->refreshCurrentViewContents();
 			},
 			connectedAndStoppedWithTTD));
 
@@ -476,6 +481,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (ctxt.context && ctxt.context->getCurrentView())
 					graphType = ctxt.context->getCurrentView()->getILViewType().type;
 				controller->StepOver(graphType);
+				m_context->refreshCurrentViewContents();
 			},
 			connectedAndStopped));
 	debuggerMenu->addAction("Step Over", "Control");
@@ -494,6 +500,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (ctxt.context && ctxt.context->getCurrentView())
 					graphType = ctxt.context->getCurrentView()->getILViewType().type;
 				controller->StepOverReverse(graphType);
+				m_context->refreshCurrentViewContents();
 			},
 			connectedAndStoppedWithTTD));
 
@@ -508,6 +515,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					return;
 
 				controller->StepReturn();
+				m_context->refreshCurrentViewContents();
 			},
 			connectedAndStopped));
 	debuggerMenu->addAction("Step Return", "Control");
@@ -523,6 +531,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					return;
 
 				controller->StepReturnReverse();
+				m_context->refreshCurrentViewContents();
 			},
 			connectedAndStoppedWithTTD));
 
@@ -537,6 +546,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					return;
 
 				controller->RunTo(ctxt.address);
+				m_context->refreshCurrentViewContents();
 			},
 			connectedAndStopped));
 	debuggerMenu->addAction("Run To Here", "Control");
@@ -1026,30 +1036,6 @@ void GlobalDebuggerUI::CloseGlobalAreaWidgets(UIContext* context)
 }
 
 
-TagTypeRef DebuggerUI::getPCTagType(BinaryViewRef data)
-{
-	TagTypeRef type = data->GetTagType("Program Counter");
-	if (type)
-		return type;
-
-	TagTypeRef pcTagType = new TagType(data, "Program Counter", "=>");
-	data->AddTagType(pcTagType);
-	return pcTagType;
-}
-
-
-TagTypeRef DebuggerUI::getBreakpointTagType(BinaryViewRef data)
-{
-	TagTypeRef type = data->GetTagType("Breakpoints");
-	if (type)
-		return type;
-
-	TagTypeRef pcTagType = new TagType(data, "Breakpoints", "🛑");
-	data->AddTagType(pcTagType);
-	return pcTagType;
-}
-
-
 // Navigate to the address. This has some special handling of the process which is useful for a debugging scenario.
 // I believe at least some logic should be built into the default navigation behavior.
 void DebuggerUI::navigateDebugger(uint64_t address)
@@ -1093,6 +1079,7 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 	}
 
 	openDebuggerSideBar(frame);
+	m_context->refreshCurrentViewContents();
 }
 
 
@@ -1107,79 +1094,6 @@ void DebuggerUI::openDebuggerSideBar(ViewFrame* frame)
 
 	if (sidebar)
 		sidebar->activate("Debugger", false);
-}
-
-
-void DebuggerUI::removeOldIPHighlight()
-{
-	uint64_t lastIP = m_controller->GetLastIP();
-	uint64_t address = m_controller->IP();
-	if (address == lastIP)
-		return;
-
-	BinaryViewRef data = m_controller->GetData();
-	if (!data)
-		return;
-
-	// Remove old instruction pointer highlight
-	for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(lastIP))
-	{
-		ModuleNameAndOffset addr;
-		addr.module = m_controller->GetInputFile();
-		addr.offset = lastIP - m_controller->GetViewFileSegmentsStart();
-
-		BNHighlightStandardColor oldColor = NoHighlightColor;
-		if (m_controller->ContainsBreakpoint(addr))
-			oldColor = RedHighlightColor;
-
-		func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), lastIP, oldColor);
-		for (TagRef tag : func->GetAddressTags(data->GetDefaultArchitecture(), lastIP))
-		{
-			if (tag->GetType() != getPCTagType(data))
-				continue;
-
-			auto id = data->BeginUndoActions();
-			func->RemoveUserAddressTag(data->GetDefaultArchitecture(), lastIP, tag);
-			data->ForgetUndoActions(id);
-		}
-	}
-}
-
-
-void DebuggerUI::updateIPHighlight()
-{
-	removeOldIPHighlight();
-
-	uint64_t lastIP = m_controller->GetLastIP();
-	uint64_t address = m_controller->IP();
-	if (address == lastIP)
-		return;
-
-	BinaryViewRef data = m_controller->GetData();
-	if (!data)
-		return;
-
-	// Add new instruction pointer highlight
-	for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(address))
-	{
-		bool tagFound = false;
-		for (TagRef tag : func->GetAddressTags(data->GetDefaultArchitecture(), address))
-		{
-			if (tag->GetType() == getPCTagType(data))
-			{
-				tagFound = true;
-				break;
-			}
-		}
-
-		if (!tagFound)
-		{
-			auto id = data->BeginUndoActions();
-			func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, BlueHighlightColor);
-			func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getPCTagType(data), "program counter");
-			data->ForgetUndoActions(id);
-		}
-	}
 }
 
 
@@ -1231,7 +1145,6 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 	case QuitDebuggingEventType:
 	case TargetExitedEventType:
 	{
-		removeOldIPHighlight();
 		ViewFrame* frame = m_context->getCurrentViewFrame();
 		FileContext* fileContext = frame->getFileContext();
 		fileContext->refreshDataViewCache();
@@ -1257,7 +1170,6 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			break;
 
 		navigateToCurrentIP();
-		updateIPHighlight();
 		checkFocusDebuggerConsole();
 		break;
 	}
@@ -1332,29 +1244,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + event.data.relativeAddress.offset);
 		}
 
-		for (auto& [data, addr] : dataAndAddress)
-		{
-			for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(addr))
-			{
-				bool tagFound = false;
-				for (TagRef tag : func->GetAddressTags(data->GetDefaultArchitecture(), addr))
-				{
-					if (tag->GetType() == getBreakpointTagType(data))
-					{
-						tagFound = true;
-						break;
-					}
-				}
-
-				if (!tagFound)
-				{
-					auto id = data->BeginUndoActions();
-					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), addr, RedHighlightColor);
-					func->CreateUserAddressTag(data->GetDefaultArchitecture(), addr, getBreakpointTagType(data), "breakpoint");
-					data->ForgetUndoActions(id);
-				}
-			}
-		}
+		m_context->refreshCurrentViewContents();
 		break;
 	}
 	case AbsoluteBreakpointAddedEvent:
@@ -1372,29 +1262,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + relative.offset);
 		}
 
-		for (auto& [data, address] : dataAndAddress)
-		{
-			for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(address))
-			{
-				bool tagFound = false;
-				for (TagRef tag : func->GetAddressTags(data->GetDefaultArchitecture(), address))
-				{
-					if (tag->GetType() == getBreakpointTagType(data))
-					{
-						tagFound = true;
-						break;
-					}
-				}
-
-				if (!tagFound)
-				{
-					auto id = data->BeginUndoActions();
-					func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, RedHighlightColor);
-					func->CreateUserAddressTag(data->GetDefaultArchitecture(), address, getBreakpointTagType(data), "breakpoint");
-					data->ForgetUndoActions(id);
-				}
-			}
-		}
+		m_context->refreshCurrentViewContents();
 		break;
 	}
 	case RelativeBreakpointRemovedEvent:
@@ -1410,22 +1278,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + event.data.relativeAddress.offset);
 		}
 
-		for (auto& [data, address] : dataAndAddress)
-		{
-			for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(address))
-			{
-				func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, NoHighlightColor);
-				for (TagRef tag : func->GetAddressTags(data->GetDefaultArchitecture(), address))
-				{
-					if (tag->GetType() != getBreakpointTagType(data))
-						continue;
-
-					auto id = data->BeginUndoActions();
-					func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
-					data->ForgetUndoActions(id);
-				}
-			}
-		}
+		m_context->refreshCurrentViewContents();
 		break;
 	}
 	case AbsoluteBreakpointRemovedEvent:
@@ -1443,28 +1296,17 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + relative.offset);
 		}
 
-		for (auto& [data, address] : dataAndAddress)
-		{
-			for (FunctionRef func : data->GetAnalysisFunctionsContainingAddress(address))
-			{
-				func->SetAutoInstructionHighlight(data->GetDefaultArchitecture(), address, NoHighlightColor);
-				for (TagRef tag : func->GetAddressTags(data->GetDefaultArchitecture(), address))
-				{
-					if (tag->GetType() != getBreakpointTagType(data))
-						continue;
-
-					auto id = data->BeginUndoActions();
-					func->RemoveUserAddressTag(data->GetDefaultArchitecture(), address, tag);
-					data->ForgetUndoActions(id);
-				}
-			}
-		}
+		m_context->refreshCurrentViewContents();
 		break;
 	}
 	case RegisterChangedEvent:
 	{
 		navigateToCurrentIP();
-		updateIPHighlight();
+		break;
+	}
+	case ResumeEventType:
+	{
+		m_context->refreshCurrentViewContents();
 		break;
 	}
 
@@ -1584,6 +1426,7 @@ extern "C"
 		DataRendererContainer::RegisterTypeSpecificDataRenderer(new CodeDataRenderer);
 		RegisterDebugAdapterScriptingProvider();
 		RegisterTargetScriptingProvider();
+		RegisterRenderLayers();
 		return true;
 	}
 }

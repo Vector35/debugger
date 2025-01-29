@@ -80,13 +80,8 @@ public:
 	static DebuggerUI* GetForViewFrame(ViewFrame* frame);
 	static void DeleteForViewFrame(ViewFrame* frame);
 
-	TagTypeRef getPCTagType(BinaryViewRef data);
-	TagTypeRef getBreakpointTagType(BinaryViewRef data);
-
 	void navigateDebugger(uint64_t address);
 	void openDebuggerSideBar(ViewFrame* frame = nullptr);
-	void removeOldIPHighlight();
-	void updateIPHighlight();
 	void navigateToCurrentIP();
 	void checkFocusDebuggerConsole();
 
