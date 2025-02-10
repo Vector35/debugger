@@ -55,7 +55,7 @@ all types of recording supported by WinDbg (e.g., attach to a running process an
 ### Record a TTD Trace in Binary Ninja
 
 - Open the file you wish to trace in Binary Ninja (optional)
-- Click Menu -> "Debugger" -> "Install WinDbg/TTD"
+- Click Menu -> "Debugger" -> "Record TTD Trace"
 - <img src="../../img/debugger/ttd_record.png" width="600px">
 - In the "TTD Record" dialog, configure the recording as you wish:
     - Executable Path: the path of the executable to trace
