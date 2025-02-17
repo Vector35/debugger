@@ -54,7 +54,7 @@ BNDebuggerController* BNGetDebuggerController(BNBinaryView* data)
 	if (!data)
 		return nullptr;
 
-	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	Ref<BinaryView> view = BinaryView::LookupOrCreate(BNNewViewReference(data));
 	DebuggerController* controller = DebuggerController::GetController(view);
 	if (!controller)
 		return nullptr;
@@ -74,7 +74,7 @@ bool BNDebuggerControllerExists(BNBinaryView* data)
 	if (!data)
 		return false;
 
-	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	Ref<BinaryView> view = BinaryView::LookupOrCreate(BNNewViewReference(data));
 	return DebuggerController::ControllerExists(view);
 }
 
@@ -114,7 +114,7 @@ BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller)
 
 void BNDebuggerSetData(BNDebuggerController* controller, BNBinaryView* data)
 {
-	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	Ref<BinaryView> view = BinaryView::LookupOrCreate(BNNewViewReference(data));
 	controller->object->SetData(view);
 }
 
@@ -623,14 +623,14 @@ BNDebugAdapterType* BNGetDebugAdapterTypeByName(const char* name)
 
 bool BNDebugAdapterTypeCanExecute(BNDebugAdapterType* adapter, BNBinaryView* data)
 {
-	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	Ref<BinaryView> view = BinaryView::LookupOrCreate(BNNewViewReference(data));
 	return adapter->object->CanExecute(view);
 }
 
 
 bool BNDebugAdapterTypeCanConnect(BNDebugAdapterType* adapter, BNBinaryView* data)
 {
-	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	Ref<BinaryView> view = BinaryView::LookupOrCreate(BNNewViewReference(data));
 	return adapter->object->CanConnect(view);
 }
 
@@ -649,7 +649,7 @@ BNDebugAdapterTargetStatus BNDebuggerGetTargetStatus(BNDebuggerController* contr
 
 char** BNGetAvailableDebugAdapterTypes(BNBinaryView* data, size_t* count)
 {
-	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	Ref<BinaryView> view = BinaryView::LookupOrCreate(BNNewViewReference(data));
 	std::vector<std::string> adapters = DebugAdapterType::GetAvailableAdapters(view);
 	*count = adapters.size();
 

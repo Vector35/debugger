@@ -78,7 +78,7 @@ Ref<BinaryView> DebuggerController::GetData()
 	BNBinaryView* view = BNDebuggerGetData(m_object);
 	if (!view)
 		return nullptr;
-	return new BinaryView(view);
+	return BinaryView::LookupOrCreate(view);
 }
 
 
