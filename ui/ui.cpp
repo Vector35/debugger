@@ -1256,7 +1256,27 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			QString text = QString("Rebasing the input view...");
 			ProgressTask* task =
 				new ProgressTask(frame, "Rebase", text, "Cancel", [&](std::function<bool(size_t, size_t)> progress) {
+					// If analysis hold during debugging is active, we must first turn it off, rebase, wait for the
+					// analysis to complete, and then set the analysis hold back on. This is because during rebasing,
+					// all the advanced analysis data is discarded has to be regenerated. If we still holds the
+					// analysis, these function will become un-analyzed and not show up in the linear view
+					auto shouldHoldAnalysis = Settings::Instance()->Get<bool>("debugger.holdAnalysis");
+					if (shouldHoldAnalysis)
+						data->SetAnalysisHold(false);
+
+					auto viewType = data->GetTypeName();
 					result = fileMetadata->Rebase(data, remoteBase, progress);
+					auto rebasedView = fileMetadata->GetViewOfType(viewType);
+					if (!rebasedView)
+						return;
+
+					if (shouldHoldAnalysis)
+					{
+						static auto completionEvent = rebasedView->AddAnalysisCompletionEvent([=](){
+							rebasedView->SetAnalysisHold(true);
+						});
+						rebasedView->UpdateAnalysis();
+					}
 				});
 			task->wait();
 

@@ -1106,11 +1106,30 @@ void DebuggerController::DetectLoadedModule()
 		if (remoteBase != GetViewFileSegmentsStart())
 		{
 			RemoveDebuggerMemoryRegion();
+
+			auto shouldHoldAnalysis = Settings::Instance()->Get<bool>("debugger.holdAnalysis");
+			auto data = GetData();
+			if (shouldHoldAnalysis)
+				data->SetAnalysisHold(false);
+
 			// remote base is different from the local base, first need a rebase
-			if (!m_file->Rebase(GetData(), remoteBase, [&](size_t cur, size_t total) { return true; }))
+			auto viewType = data->GetTypeName();
+			if (!m_file->Rebase(data, remoteBase, [&](size_t cur, size_t total) { return true; }))
 			{
 				LogWarn("rebase failed");
 			}
+			auto rebasedView = m_file->GetViewOfType(viewType);
+			if (!rebasedView)
+				return;
+
+			if (shouldHoldAnalysis)
+			{
+				static auto completionEvent = rebasedView->AddAnalysisCompletionEvent([=](){
+					rebasedView->SetAnalysisHold(true);
+				});
+				rebasedView->UpdateAnalysis();
+			}
+
 			ReAddDebuggerMemoryRegion();
 		}
 	}
