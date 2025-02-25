@@ -58,7 +58,7 @@ if sys.platform == 'darwin':
 base_dir = Path(__file__).resolve().parent.parent
 build_path = base_dir / "build"
 api_path = build_path / "api"
-bn_dev_artifact_path = base_dir / "artifacts-extern"
+external_artifacts_path = base_dir / "artifacts-extern"
 bn_dev_path = build_path / "BN-dev"
 
 if platform.system() == 'Darwin':
@@ -94,7 +94,7 @@ if (base_dir / "CMakeCache.txt").exists():
 
 
 # Copy BN dev to the build directory
-path = '{}/{}'.format(bn_dev_artifact_path, 'binaryninja_*.zip')
+path = '{}/{}'.format(external_artifacts_path, 'binaryninja_*.zip')
 print(path)
 files = glob.glob(path)
 if len(files) == 0:
@@ -114,6 +114,18 @@ def extract_zip(bundle, target):
 
 if not os.path.exists(bn_dev_path):
     os.makedirs(bn_dev_path)
+
+try:
+    qt_artifact_path = next(external_artifacts_path.glob('qt*.zip'))
+    extract_zip(qt_artifact_path, external_artifacts_path)
+except StopIteration:
+    pass
+
+try:
+    lldb_artifact_path = next(external_artifacts_path.glob('LLDB*.zip'))
+    extract_zip(lldb_artifact_path, external_artifacts_path)
+except StopIteration:
+    pass
 
 if not extract_zip(files[0], bn_dev_path):
     print('Failed to unzip binaryninja dev artifact')
