@@ -169,6 +169,14 @@ Ref<Settings> LldbAdapterType::RegisterAdapterSettings()
 			"description" : "Execute the target in a separate terminal. The user can then interact with the process in that terminal",
 			"readOnly" : false
 			})");
+	settings->RegisterSetting("launch.disableAslr",
+	R"({
+			"title" : "Disable ASLR",
+			"type" : "boolean",
+			"default" : true,
+			"description" : "Disable ASLR during launch.",
+			"readOnly" : false
+			})");
 
 	settings->RegisterSetting("connect.ipAddress",
 			R"({
@@ -313,6 +321,8 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
 	scope = SettingsResourceScope;
 	auto separateTerminal = adapterSettings->Get<bool>("launch.terminalEmulator", data, &scope);
+	scope = SettingsResourceScope;
+	auto disableASLR = adapterSettings->Get<bool>("launch.disableAslr", data, &scope);
 
 	// *Attempt* to create a functional target triple for the binary.
 	// This allows attaching to fat binaries. If the triple is empty, it will still attach on thin binaries.
@@ -374,6 +384,9 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 
 	if (!workingDirectory.empty())
 		launchCommand += fmt::format(" --working-dir \"{}\"", workingDirectory);
+
+	launchCommand += " --disable-aslr ";
+	launchCommand += disableASLR ? "true" : "false";
 
 	if (!commandLineArgs.empty())
 		launchCommand += (" -- " + commandLineArgs);
