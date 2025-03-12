@@ -419,6 +419,8 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	auto commandLineArgs = adapterSettings->Get<std::string>("launch.commandLineArguments", data, &scope);
 	scope = SettingsResourceScope;
 	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	scope = SettingsResourceScope;
+	auto envVariables = adapterSettings->Get<vector<string>>("launch.environmentVariables", data, &scope);
 
 	if (this->m_debugActive)
 	{
@@ -467,8 +469,22 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	if (workingDirectory.empty())
 		directory = nullptr;
 
+	char* env = nullptr;
+	std::string envWithNull{};
+	if (!envVariables.empty())
+	{
+		for (const auto& var : envVariables)
+		{
+			envWithNull += var;
+			envWithNull += '\0';
+		}
+		envWithNull += '\0';
+		env = (char*)malloc(envWithNull.length());
+		memcpy(env, envWithNull.c_str(), envWithNull.length());
+	}
+
 	if (const auto result = this->m_debugClient->CreateProcess2(m_server, const_cast<char*>(path_with_args.c_str()),
-			&options, sizeof(DEBUG_CREATE_PROCESS_OPTIONS), directory, nullptr);
+			&options, sizeof(DEBUG_CREATE_PROCESS_OPTIONS), directory, env);
 		result != S_OK)
 	{
 		this->Reset();
@@ -1740,6 +1756,15 @@ Ref<Settings> LocalDbgEngAdapterType::RegisterAdapterSettings()
 			"type" : "string",
 			"default" : "",
 			"description" : "Command line arguments to pass to the target",
+			"readOnly" : false
+			})");
+	settings->RegisterSetting("launch.environmentVariables",
+		R"({
+			"title" : "Environment Variables",
+			"type" : "array",
+			"sorted" : false,
+			"default" : [],
+			"description" : "Environment Variables for the target. Provide the list of in the form of [\"var1=val1\", \"var2=val2\"]",
 			"readOnly" : false
 			})");
 

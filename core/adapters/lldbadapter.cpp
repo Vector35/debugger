@@ -204,6 +204,15 @@ Ref<Settings> LldbAdapterType::RegisterAdapterSettings()
 			"readOnly" : false,
 			"uiSelectionAction" : "file"
 			})");
+	settings->RegisterSetting("launch.environmentVariables",
+		R"({
+			"title" : "Environment Variables",
+			"type" : "array",
+			"sorted" : false,
+			"default" : [],
+			"description" : "Environment Variables for the target. Provide the list of in the form of [\"var1=val1\", \"var2=val2\"]",
+			"readOnly" : false
+			})");
 
 	settings->RegisterSetting("connect.ipAddress",
 			R"({
@@ -356,6 +365,8 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	auto redirectStdout = adapterSettings->Get<std::string>("launch.redirectStdout", data, &scope);
 	scope = SettingsResourceScope;
 	auto redirectStderr = adapterSettings->Get<std::string>("launch.redirectStderr", data, &scope);
+	scope = SettingsResourceScope;
+	auto envVariables = adapterSettings->Get<vector<string>>("launch.environmentVariables", data, &scope);
 
 	// *Attempt* to create a functional target triple for the binary.
 	// This allows attaching to fat binaries. If the triple is empty, it will still attach on thin binaries.
@@ -429,6 +440,16 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 
 	if (!redirectStderr.empty())
 		launchCommand += fmt::format(" --stderr \"{}\"", redirectStderr);
+
+	if (!envVariables.empty())
+	{
+		for (const auto& var : envVariables)
+		{
+			if (var.empty())
+				continue;
+			launchCommand += fmt::format(" --environment \"{}\"", var);
+		}
+	}
 
 	if (!commandLineArgs.empty())
 		launchCommand += (" -- " + commandLineArgs);
