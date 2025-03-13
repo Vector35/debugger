@@ -177,6 +177,33 @@ Ref<Settings> LldbAdapterType::RegisterAdapterSettings()
 			"description" : "Disable ASLR during launch.",
 			"readOnly" : false
 			})");
+	settings->RegisterSetting("launch.redirectStdin",
+		R"({
+			"title" : "Redirect stdin",
+			"type" : "string",
+			"default" : "",
+			"description" : "Redirect stdin from the selected file.",
+			"readOnly" : false,
+			"uiSelectionAction" : "file"
+			})");
+	settings->RegisterSetting("launch.redirectStdout",
+		R"({
+			"title" : "Redirect stdout",
+			"type" : "string",
+			"default" : "",
+			"description" : "Redirect stdout to the selected file.",
+			"readOnly" : false,
+			"uiSelectionAction" : "file"
+			})");
+	settings->RegisterSetting("launch.redirectStderr",
+		R"({
+			"title" : "Redirect stderr",
+			"type" : "string",
+			"default" : "",
+			"description" : "Redirect stderr to the selected file.",
+			"readOnly" : false,
+			"uiSelectionAction" : "file"
+			})");
 
 	settings->RegisterSetting("connect.ipAddress",
 			R"({
@@ -323,6 +350,12 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	auto separateTerminal = adapterSettings->Get<bool>("launch.terminalEmulator", data, &scope);
 	scope = SettingsResourceScope;
 	auto disableASLR = adapterSettings->Get<bool>("launch.disableAslr", data, &scope);
+	scope = SettingsResourceScope;
+	auto redirectStdin = adapterSettings->Get<std::string>("launch.redirectStdin", data, &scope);
+	scope = SettingsResourceScope;
+	auto redirectStdout = adapterSettings->Get<std::string>("launch.redirectStdout", data, &scope);
+	scope = SettingsResourceScope;
+	auto redirectStderr = adapterSettings->Get<std::string>("launch.redirectStderr", data, &scope);
 
 	// *Attempt* to create a functional target triple for the binary.
 	// This allows attaching to fat binaries. If the triple is empty, it will still attach on thin binaries.
@@ -387,6 +420,15 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 
 	launchCommand += " --disable-aslr ";
 	launchCommand += disableASLR ? "true" : "false";
+
+	if (!redirectStdin.empty())
+		launchCommand += fmt::format(" --stdin \"{}\"", redirectStdin);
+
+	if (!redirectStdout.empty())
+		launchCommand += fmt::format(" --stdout \"{}\"", redirectStdout);
+
+	if (!redirectStderr.empty())
+		launchCommand += fmt::format(" --stderr \"{}\"", redirectStderr);
 
 	if (!commandLineArgs.empty())
 		launchCommand += (" -- " + commandLineArgs);
