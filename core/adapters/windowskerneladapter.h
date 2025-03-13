@@ -31,16 +31,22 @@ namespace BinaryNinjaDebugger {
 
 		bool Detach() override;
 		bool Quit() override;
+
+    	void GenerateDefaultAdapterSettings(BinaryView* data);
+    	Ref<Settings> GetAdapterSettings() override;
     };
 
     class WindowsKernelAdapterType : public DebugAdapterType
     {
+    	static Ref<Settings> RegisterAdapterSettings();
+
     public:
 		WindowsKernelAdapterType();
         virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
         virtual bool IsValidForData(BinaryNinja::BinaryView* data);
         virtual bool CanExecute(BinaryNinja::BinaryView* data);
         virtual bool CanConnect(BinaryNinja::BinaryView* data);
+    	static Ref<Settings> GetAdapterSettings();
     };
 
     void InitWindowsKernelAdapterType();

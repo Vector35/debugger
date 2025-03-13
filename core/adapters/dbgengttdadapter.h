@@ -39,16 +39,22 @@ namespace BinaryNinjaDebugger {
     	bool SupportFeature(DebugAdapterCapacity feature) override;
     	
 		bool Quit() override;
+
+    	void GenerateDefaultAdapterSettings(BinaryView* data);
+    	Ref<Settings> GetAdapterSettings() override;
     };
 
     class DbgEngTTDAdapterType : public DebugAdapterType
     {
+    	static Ref<Settings> RegisterAdapterSettings();
+
     public:
         DbgEngTTDAdapterType();
         virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
         virtual bool IsValidForData(BinaryNinja::BinaryView* data);
         virtual bool CanExecute(BinaryNinja::BinaryView* data);
         virtual bool CanConnect(BinaryNinja::BinaryView* data);
+    	static Ref<Settings> GetAdapterSettings();
     };
 
     void InitDbgEngTTDAdapterType();

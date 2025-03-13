@@ -33,8 +33,6 @@ limitations under the License.
 #include <QInputDialog>
 #include <filesystem>
 #include <QMessageBox>
-#include "debugserversetting.h"
-#include "remoteprocess.h"
 #include "debugadapterscriptingprovider.h"
 #include "targetscriptingprovier.h"
 #include "progresstask.h"
@@ -347,7 +345,16 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
 				if (!controller)
 					return;
-				if (controller->IsFirstLaunch() && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
+
+				bool firstLaunch = controller->IsFirstLaunch();
+                if (firstLaunch)
+                {
+                	auto adapterSettings = new AdapterSettingsDialog(context->mainWindow(), controller, "launch");
+                	if (adapterSettings->exec() != QDialog::Accepted)
+                		return;
+                }
+
+				if (firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
 				{
 					auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
 						"This may harm your machine. Are you sure to continue?").
@@ -590,6 +597,13 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
+				if (controller->IsFirstAttach())
+				{
+					auto adapterSettings = new AdapterSettingsDialog(context->mainWindow(), controller, "attach");
+					if (adapterSettings->exec() != QDialog::Accepted)
+						return;
+				}
+
 				auto dialog = new AttachProcessDialog(context->mainWindow(), controller);
 				if (dialog->exec() != QDialog::Accepted)
 					return;
@@ -645,9 +659,12 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
-				auto dialog = new DebugServerSettingsDialog(context->mainWindow(), controller);
-				if (dialog->exec() != QDialog::Accepted)
-					return;
+                if (controller->IsFirstConnectToDebugServer())
+                {
+                	auto adapterSettings = new AdapterSettingsDialog(context->mainWindow(), controller, "debug_server");
+                	if (adapterSettings->exec() != QDialog::Accepted)
+                		return;
+                }
 
 				if (controller->ConnectToDebugServer())
 				{
@@ -697,9 +714,12 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
-				auto dialog = new RemoteProcessSettingsDialog(context->mainWindow(), controller);
-				if (dialog->exec() != QDialog::Accepted)
-					return;
+				if (controller->IsFirstConnect())
+				{
+					auto adapterSettings = new AdapterSettingsDialog(context->mainWindow(), controller, "connect");
+					if (adapterSettings->exec() != QDialog::Accepted)
+						return;
+				}
 
 				if (!ensureBinaryViewHasPlatform(controller->GetData(), context->mainWindow()))
 					return;

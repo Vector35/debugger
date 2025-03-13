@@ -170,20 +170,14 @@ namespace BinaryNinjaDebugger {
 		DebuggerBreakpoints* m_breakpoints;
 		DebuggerMemory* m_memory;
 
-		std::string m_executablePath;
-		std::string m_inputFile;
-		std::string m_workingDirectory;
-		std::string m_commandLineArgs;
-		std::string m_remoteHost;
-		uint32_t m_remotePort = 0;
-		int32_t m_pidAttach = 0;
-		bool m_requestTerminalEmulator;
 		std::string m_adapterType;
 		std::vector<std::string> m_availableAdapters;
 
 		Ref<Architecture> m_remoteArch;
 
 		bool m_connectedToDebugServer = false;
+
+		std::string GetBestAdapter(BinaryViewRef data);
 
 	public:
 		DebuggerState(Ref<BinaryView> data, DebuggerController* controller);
@@ -201,19 +195,18 @@ namespace BinaryNinjaDebugger {
 		Ref<Architecture> GetRemoteArchitecture() const;
 
 		std::string GetAdapterType() const { return m_adapterType; }
-		std::string GetExecutablePath() const { return m_executablePath; }
-		std::string GetInputFile() const { return m_inputFile; }
-		std::string GetWorkingDirectory() const { return m_workingDirectory; }
-		std::string GetCommandLineArguments() const { return m_commandLineArgs; }
-		std::string GetRemoteHost() const { return m_remoteHost; }
-		uint32_t GetRemotePort() const { return m_remotePort; }
-		bool GetRequestTerminalEmulator() const { return m_requestTerminalEmulator; }
-		int32_t GetPIDAttach() const { return m_pidAttach; }
+		std::string GetExecutablePath();
+		std::string GetInputFile();
+		std::string GetWorkingDirectory();
+		std::string GetCommandLineArguments();
+		std::string GetRemoteHost();
+		uint32_t GetRemotePort();
+		bool GetRequestTerminalEmulator();
+		int32_t GetPIDAttach();
 
 		void SetAdapterType(const std::string& adapter);
 		void SetExecutablePath(const std::string& path);
 		void SetInputFile(const std::string& path);
-		std::string GetInputFile();
 		void SetWorkingDirectory(const std::string& directory);
 		void SetCommandLineArguments(const std::string& arguments);
 		void SetRemoteHost(const std::string& host);
@@ -258,5 +251,9 @@ namespace BinaryNinjaDebugger {
 		std::vector<std::string> GetAvailableAdapters() { return m_availableAdapters; }
 
 		void SetAdapter(DebugAdapter* adapter) { m_adapter = adapter; }
+
+		// Check a debug adapter exists, or create one if necessary. Return true if an adapter exists or get created,
+		// return false if the adapter is still nullptr despite trying to create it
+		bool EnsureDebugAdapterExists();
 	};
 };  // namespace BinaryNinjaDebugger

@@ -186,6 +186,7 @@ namespace BinaryNinjaDebugger {
 		{}
 	};
 
+	class DebuggerController;
 	class DebugAdapter
 	{
 		IMPLEMENT_DEBUGGER_API_OBJECT(BNDebugAdapter);
@@ -195,6 +196,7 @@ namespace BinaryNinjaDebugger {
 		// TODO: we should not use a vector here; only the DebuggerController should register one here;
 		// Other components should register their callbacks to the controller, who is responsible for notify them.
 		std::function<void(const DebuggerEvent& event)> m_eventCallback;
+		DebuggerController* m_controller;
 
 	protected:
 		uint64_t m_entryPoint;
@@ -314,5 +316,14 @@ namespace BinaryNinjaDebugger {
 		virtual BinaryNinja::Ref<BinaryNinja::Metadata> GetProperty(const std::string& name);
 
 		virtual bool SetProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value);
+
+		// The debug adapter some times need to have access to the controller and the binary view. However, it is
+		// better NOT to directly keep a reference to the binary view, since the rebasing can make the view
+		void SetController(DebuggerController* controller) { m_controller = controller; }
+		DebuggerController* GetController() { return m_controller; }
+		Ref<BinaryView> GetData();
+
+		virtual Ref<Settings> GetAdapterSettings();
+
 	};
 };  // namespace BinaryNinjaDebugger

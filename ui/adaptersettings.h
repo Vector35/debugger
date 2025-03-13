@@ -27,6 +27,7 @@ limitations under the License.
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "debuggerapi.h"
+#include "settingsview.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 
@@ -37,16 +38,17 @@ class AdapterSettingsDialog : public QDialog
 private:
 	DbgRef<DebuggerController> m_controller;
 	QComboBox* m_adapterEntry;
-	QLineEdit* m_inputFile;
-	QLineEdit* m_pathEntry;
-	QLineEdit* m_workingDirectoryEntry;
-	QLineEdit* m_argumentsEntry;
-	QCheckBox* m_terminalEmulator;
+	SettingsView* m_settingsView;
+	QStackedWidget* m_stack;
+	QMap<QString, QWidget*> m_viewMap;
+	QLabel* m_noSettingsLabel;
+
+	QWidget* getWidgetForAdapter(const QString& adapter);
 
 public:
-	AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller);
+	AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller, const std::string& highlightGroup = "");
 
 private Q_SLOTS:
-	void apply();
 	void selectAdapter(const QString& adapter);
+	void apply();
 };

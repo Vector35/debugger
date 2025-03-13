@@ -37,16 +37,22 @@ namespace BinaryNinjaDebugger {
 		std::vector<DebugProcess> GetProcessList() override {return {}; }
 		bool ConnectToDebugServer(const std::string& server, std::uint32_t port) override { return false; }
 		bool DisconnectDebugServer() override { return false; }
+
+    	void GenerateDefaultAdapterSettings(BinaryView* data);
+    	Ref<Settings> GetAdapterSettings() override;
     };
 
     class LocalWindowsKernelAdapterType : public DebugAdapterType
     {
+    	static Ref<Settings> RegisterAdapterSettings();
+
     public:
 		LocalWindowsKernelAdapterType();
         virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
         virtual bool IsValidForData(BinaryNinja::BinaryView* data);
         virtual bool CanExecute(BinaryNinja::BinaryView* data);
         virtual bool CanConnect(BinaryNinja::BinaryView* data);
+    	static Ref<Settings> GetAdapterSettings();
     };
 
     void InitLocalWindowsKernelAdapterType();

@@ -244,16 +244,22 @@ namespace BinaryNinjaDebugger {
 		bool LaunchDbgSrv(const std::string& commandLine);
 
 		bool ConnectToDebugServerInternal(const std::string& connectionString);
+
+		void GenerateDefaultAdapterSettings(BinaryView* data);
+		Ref<Settings> GetAdapterSettings() override;
 	};
 
 	class LocalDbgEngAdapterType : public DebugAdapterType
 	{
+		static Ref<Settings> RegisterAdapterSettings();
+
 	public:
 		LocalDbgEngAdapterType();
 		virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
 		virtual bool IsValidForData(BinaryNinja::BinaryView* data);
 		virtual bool CanExecute(BinaryNinja::BinaryView* data);
 		virtual bool CanConnect(BinaryNinja::BinaryView* data);
+		static Ref<Settings> GetAdapterSettings();
 	};
 
 

@@ -158,7 +158,24 @@ QString DebugControlsWidget::getToolTip(const QString& name)
 
 void DebugControlsWidget::performLaunch()
 {
-	if (m_controller->IsFirstLaunch() && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
+	bool firstLaunch = m_controller->IsFirstLaunch();
+	if (firstLaunch)
+	{
+		auto adapterSettings = new AdapterSettingsDialog(this, m_controller, "launch");
+		if (adapterSettings->exec() != QDialog::Accepted)
+			return;
+	}
+
+	// TODO: we should have the adapter returns this property
+	bool isLocalLaunch = true;
+	auto adapter = m_controller->GetAdapterType();
+	if ((adapter == "DBGENG_TTD") || (adapter == "LOCAL_WINDOWS_KERNEL") || (adapter != "WINDOWS_KERNEL") ||
+		(adapter == "WINDOWS_DUMP_FILE"))
+	{
+		isLocalLaunch = false;
+	}
+
+	if (isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
 	{
 		auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
 			"This may harm your machine. Are you sure to continue?").arg(QString::fromStdString(m_controller->GetExecutablePath()));
@@ -212,6 +229,10 @@ void DebugControlsWidget::performLaunch()
 
 void DebugControlsWidget::performAttachPID()
 {
+	// We do not show the adapter settings dialog during "attach to PID" since:
+	// 1. We will show another dialog to select the PID from
+	// 2. There is probably no settings for the "attach to PID" operation
+
 	AttachProcessDialog dialog(this, m_controller);
 	if (dialog.exec() != QDialog::Accepted)
 		return;

@@ -8,12 +8,20 @@ using namespace std;
 DbgEngTTDAdapter::DbgEngTTDAdapter(BinaryView* data) : DbgEngAdapter(data)
 {
     m_usePDBFileName = false;
+	GenerateDefaultAdapterSettings(data);
 }
 
 
 bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
                                             const std::string& workingDir, const LaunchConfigurations& configs) {
     m_aboutToBeKilled = false;
+
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	auto tracePath = adapterSettings->Get<std::string>("launch.trace_path", data, &scope);
+	scope = SettingsResourceScope;
+	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
 
     if (this->m_debugActive) {
         this->Reset();
@@ -39,7 +47,7 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
         return false;
     }
 
-    if (const auto result = this->m_debugClient->OpenDumpFile(const_cast<char *>(path.c_str()));
+    if (const auto result = this->m_debugClient->OpenDumpFile(const_cast<char *>(tracePath.c_str()));
             result != S_OK) {
         this->Reset();
         DebuggerEvent event;
@@ -66,7 +74,7 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
 
     auto settings = Settings::Instance();
     if (settings->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction) {
-        AddBreakpoint(ModuleNameAndOffset(configs.inputFile, m_entryPoint - m_start));
+        AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
     }
 
     if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint")) {
@@ -292,6 +300,57 @@ bool DbgEngTTDAdapterType::CanExecute(BinaryNinja::BinaryView* data)
 #endif
     return false;
 }
+
+
+Ref<Settings> DbgEngTTDAdapter::GetAdapterSettings()
+{
+	return DbgEngTTDAdapterType::GetAdapterSettings();
+}
+
+
+Ref<Settings> DbgEngTTDAdapterType::GetAdapterSettings()
+{
+	static Ref<Settings> settings = RegisterAdapterSettings();
+	return settings;
+}
+
+
+Ref<Settings> DbgEngTTDAdapterType::RegisterAdapterSettings()
+{
+	Ref<Settings> settings = Settings::Instance("DbgEngTTDAdapterSettings");
+	settings->SetResourceId("dbgeng_ttd_adapter_settings");
+	settings->RegisterSetting("common.inputFile",
+		R"({
+			"title" : "Input File",
+			"type" : "string",
+			"default" : "",
+			"description" : "Input file to use to find the base address of the binary view",
+			"readOnly" : false,
+			"uiSelectionAction" : "file"
+			})");
+	settings->RegisterSetting("launch.trace_path",
+		R"({
+			"title" : "Trace Path",
+			"type" : "string",
+			"default" : "",
+			"description" : "Path of the trace file to replay.",
+			"readOnly" : false,
+			"uiSelectionAction" : "file"
+			})");
+
+	return settings;
+}
+
+
+void DbgEngTTDAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
+{
+	auto adapterSettings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	if (scope != SettingsResourceScope)
+		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
+}
+
 
 void BinaryNinjaDebugger::InitDbgEngTTDAdapterType()
 {

@@ -590,6 +590,10 @@ namespace BinaryNinjaDebuggerAPI {
 
 		std::string GetAddressInformation(uint64_t address);
 		bool IsFirstLaunch();
+		bool IsFirstConnect();
+		bool IsFirstConnectToDebugServer();
+		bool IsFirstAttach();
+
 		bool IsTTD();
 
 		void PostDebuggerEvent(const DebuggerEvent& event);
@@ -606,6 +610,8 @@ namespace BinaryNinjaDebuggerAPI {
 		bool ComputeExprValue(const Ref<HighLevelILFunction>& func, const HighLevelILInstruction& expr,
 							  uint64_t & value);
 		bool GetVariableValue(Variable& var, uint64_t address, size_t size, uint64_t& value);
+
+		Ref<Settings> GetAdapterSettings();
 	};
 
 

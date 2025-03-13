@@ -138,8 +138,7 @@ DebugStopReason DebuggerController::LaunchAndWaitInternal()
 		return InternalError;
 	}
 
-	if (m_firstLaunch)
-		m_firstLaunch = false;
+	m_firstLaunch = false;
 
 	DebuggerEvent event;
 	event.type = LaunchEventType;
@@ -181,6 +180,7 @@ bool DebuggerController::Attach()
 
 DebugStopReason DebuggerController::AttachAndWaitInternal()
 {
+	m_firstAttach = false;
 	m_userRequestedBreak = false;
 
 	DebuggerEvent event;
@@ -223,6 +223,7 @@ bool DebuggerController::Connect()
 
 DebugStopReason DebuggerController::ConnectAndWaitInternal()
 {
+	m_firstConnect = false;
 	m_userRequestedBreak = false;
 
 	DebuggerEvent event;
@@ -304,6 +305,9 @@ bool DebuggerController::CreateDebugAdapter()
 
 	m_lastAdapterName = m_state->GetAdapterType();
 	m_state->SetAdapter(m_adapter);
+	// This is a very hacky way to let the adapter have a handle to the controller, and then be able to access the
+	// Binary View object
+	m_adapter->SetController(this);
 
 	m_adapterSupportsStepOver = m_adapter->SupportFeature(DebugAdapterSupportStepOver);
 	m_adapterSupportsTTD = m_adapter->SupportFeature(DebugAdapterSupportTTD);
@@ -1213,6 +1217,7 @@ DebugStopReason DebuggerController::RestartAndWait()
 
 bool DebuggerController::ConnectToDebugServer()
 {
+	m_firstConnectToDebugServer = false;
 	if (m_state->IsConnectedToDebugServer())
 		return true;
 
@@ -2580,6 +2585,24 @@ bool DebuggerController::IsFirstLaunch()
 }
 
 
+bool DebuggerController::IsFirstConnect()
+{
+	return m_firstConnect;
+}
+
+
+bool DebuggerController::IsFirstConnectToDebugServer()
+{
+	return m_firstConnectToDebugServer;
+}
+
+
+bool DebuggerController::IsFirstAttach()
+{
+	return m_firstAttach;
+}
+
+
 bool DebuggerController::IsTTD()
 {
 	if(!m_adapter)
@@ -3730,4 +3753,14 @@ bool DebuggerController::ComputeExprValue(const HighLevelILInstruction &instr, u
 	default:
 		return false;
 	}
+}
+
+
+Ref<Settings> DebuggerController::GetAdapterSettings()
+{
+	CreateDebugAdapter();
+	if (!m_adapter)
+		return nullptr;
+
+	return m_adapter->GetAdapterSettings();
 }

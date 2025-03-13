@@ -363,6 +363,8 @@ DbgEngAdapter::DbgEngAdapter(BinaryView* data) : DebugAdapter(data)
     auto metadata = data->QueryMetadata("PDB_FILENAME");
     if (metadata && metadata->IsString())
         m_pdbFileName = metadata->GetString();
+
+	GenerateDefaultAdapterSettings(data);
 }
 
 DbgEngAdapter::~DbgEngAdapter()
@@ -407,6 +409,17 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 {
 	m_aboutToBeKilled = false;
 
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	auto executablePath = adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
+	scope = SettingsResourceScope;
+	auto workingDirectory = adapterSettings->Get<std::string>("launch.workingDirectory", data, &scope);
+	scope = SettingsResourceScope;
+	auto commandLineArgs = adapterSettings->Get<std::string>("launch.commandLineArguments", data, &scope);
+	scope = SettingsResourceScope;
+	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+
 	if (this->m_debugActive)
 	{
 		this->Reset();
@@ -435,11 +448,11 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	}
 
 	/* TODO: parse args better */
-	std::string path_with_args {path};
-	if (!args.empty())
+	std::string path_with_args {executablePath};
+	if (!commandLineArgs.empty())
 	{
 		path_with_args.append(" ");
-		path_with_args.append(args);
+		path_with_args.append(commandLineArgs);
 	}
 
 	DEBUG_CREATE_PROCESS_OPTIONS options;
@@ -450,8 +463,8 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 
 	// CreateProcess2() is picky about the InitialDirectory parameter. It is OK to send in a NULL, but if a non-NULL
 	// string which is empty gets passed in, the call fails.
-	char* directory = _strdup(workingDir.c_str());
-	if (workingDir.empty())
+	char* directory = _strdup(workingDirectory.c_str());
+	if (workingDirectory.empty())
 		directory = nullptr;
 
 	if (const auto result = this->m_debugClient->CreateProcess2(m_server, const_cast<char*>(path_with_args.c_str()),
@@ -483,7 +496,7 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	auto settings = Settings::Instance();
 	if (settings->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 	{
-		AddBreakpoint(ModuleNameAndOffset(configs.inputFile, m_entryPoint - m_start));
+		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
 	}
 
 	if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
@@ -598,6 +611,11 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 {
 	m_aboutToBeKilled = false;
 
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
+
 	if (this->m_debugActive)
 		this->Reset();
 
@@ -614,7 +632,7 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 		return false;
 	}
 
-	if (const auto result = this->m_debugClient->AttachProcess(m_server, pid, 0); result != S_OK)
+	if (const auto result = this->m_debugClient->AttachProcess(m_server, attachPID, 0); result != S_OK)
 	{
 		this->Reset();
 		DebuggerEvent event;
@@ -669,7 +687,14 @@ bool DbgEngAdapter::Connect(const std::string& server, std::uint32_t port)
 
 bool DbgEngAdapter::ConnectToDebugServer(const std::string& server, std::uint32_t port)
 {
-	std::string connectionString = fmt::format("tcp:port={}, Server={}", port, server);
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	auto ipAddress = adapterSettings->Get<std::string>("debugServer.ipAddress", data, &scope);
+	scope = SettingsResourceScope;
+	auto serverPort = adapterSettings->Get<uint64_t>("debugServer.port", data, &scope);
+
+	std::string connectionString = fmt::format("tcp:port={}, Server={}", serverPort, ipAddress);
 	return ConnectToDebugServerInternal(connectionString);
 }
 
@@ -1662,6 +1687,135 @@ bool LocalDbgEngAdapterType::CanExecute(BinaryNinja::BinaryView* data)
 #endif
 	return false;
 }
+
+
+Ref<Settings> DbgEngAdapter::GetAdapterSettings()
+{
+	return LocalDbgEngAdapterType::GetAdapterSettings();
+}
+
+
+Ref<Settings> LocalDbgEngAdapterType::GetAdapterSettings()
+{
+	static Ref<Settings> settings = LocalDbgEngAdapterType::RegisterAdapterSettings();
+	return settings;
+}
+
+
+Ref<Settings> LocalDbgEngAdapterType::RegisterAdapterSettings()
+{
+	Ref<Settings> settings = Settings::Instance("DbgEngAdapterSettings");
+	settings->SetResourceId("dbgeng_adapter_settings");
+	settings->RegisterSetting("common.inputFile",
+		R"({
+			"title" : "Input File",
+			"type" : "string",
+			"default" : "",
+			"description" : "Input file to use to find the base address of the binary view",
+			"readOnly" : false,
+			"uiSelectionAction" : "file"
+			})");
+
+	settings->RegisterSetting("launch.executablePath",
+		R"({
+			"title" : "Executable Path",
+			"type" : "string",
+			"default" : "",
+			"description" : "Path of the executable to launch.",
+			"readOnly" : false,
+			"uiSelectionAction" : "file"
+			})");
+	settings->RegisterSetting("launch.workingDirectory",
+			R"({
+			"title" : "Working Directory",
+			"type" : "string",
+			"default" : "",
+			"description" : "Working directory to launch the target in.",
+			"readOnly" : false,
+			"uiSelectionAction" : "directory"
+			})");
+	settings->RegisterSetting("launch.commandLineArguments",
+			R"({
+			"title" : "Command Line Arguments",
+			"type" : "string",
+			"default" : "",
+			"description" : "Command line arguments to pass to the target",
+			"readOnly" : false
+			})");
+
+	settings->RegisterSetting("debugServer.ipAddress",
+			R"({
+			"title" : "IP Address",
+			"type" : "string",
+			"default" : "127.0.0.1",
+			"description" : "IP address of the debug server to connect to",
+			"readOnly" : false
+			})");
+	settings->RegisterSetting("debugServer.port",
+			R"({
+			"title" : "Port",
+			"type" : "number",
+			"default" : 31337,
+			"minValue" : 0,
+			"maxValue" : 65535,
+			"description" : "Port of the debug server to connect to",
+			"readOnly" : false
+			})");
+
+	settings->RegisterSetting("attach.pid",
+		R"({
+			"title" : "PID to attach to",
+			"type" : "number",
+			"default" : 0,
+			"minValue" : 0,
+			"maxValue" : 4294967295,
+			"description" : "PID of the process to attach to",
+			"readOnly" : false
+			})");
+
+	return settings;
+}
+
+
+void DbgEngAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
+{
+	auto adapterSettings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	auto executablePath = adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
+	// If the value is not loaded from the database, we need to populate it with a default value
+	if (scope != SettingsResourceScope)
+	{
+		executablePath = data->GetFile()->GetOriginalFilename();
+		adapterSettings->Set("launch.executablePath", executablePath, data, SettingsResourceScope);
+	}
+
+	scope = SettingsResourceScope;
+	adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	if (scope != SettingsResourceScope)
+		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
+
+	scope = SettingsResourceScope;
+	auto workingDirectory = adapterSettings->Get<std::string>("launch.workingDirectory", data, &scope);
+	if (scope != SettingsResourceScope)
+	{
+		// This mitigates https://github.com/Vector35/debugger/issues/469. However, it is NOT a proper fix since the
+		// debugger still will not be able to launch the target properly. We will need to deal with the charset issue
+		// to get this really fixed.
+		try
+		{
+			workingDirectory = filesystem::path(executablePath).parent_path().string();
+		}
+		catch (const exception&)
+		{
+			LogWarn("Cannot get the default working directory for the input file. "
+					"There might be special characters in the file path. "
+					"The debugger may not be able to launch the target correctly. "
+					"You can try changing the file path to ASCII allow.");
+		}
+		adapterSettings->Set("launch.workingDirectory", workingDirectory, data, SettingsResourceScope);
+	}
+}
+
 
 void BinaryNinjaDebugger::InitDbgEngAdapterType()
 {

@@ -57,6 +57,7 @@ extern "C"
 	typedef struct BNMediumLevelILFunction BNMediumLevelILFunction;
 	typedef struct BNHighLevelILFunction BNHighLevelILFunction;
 	typedef struct BNVariable BNVariable;
+	typedef struct BNSettings BNSettings;
 
 //	When `ffi.h` gets parsed by clang type parser, the binaryninjacore.h is NOT included so this enum will become not
 //	defined. As a workaround, I duplicate its definition here. When the code gets compiled, the `BN_TYPE_PARSER` is
@@ -491,6 +492,10 @@ extern "C"
 
 	DEBUGGER_FFI_API char* BNDebuggerGetAddressInformation(BNDebuggerController* controller, uint64_t address);
 	DEBUGGER_FFI_API bool BNDebuggerIsFirstLaunch(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerIsFirstConnect(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerIsFirstConnectToDebugServer(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerIsFirstAttach(BNDebuggerController* controller);
+
 	DEBUGGER_FFI_API bool BNDebuggerIsTTD(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
@@ -529,6 +534,8 @@ extern "C"
 		 BNHighLevelILFunction* function, size_t expr, uint64_t& value);
 	DEBUGGER_FFI_API bool BNDebuggerGetVariableValue(BNDebuggerController* controller,
 		BNVariable* variable, uint64_t address, size_t size, uint64_t& value);
+
+	DEBUGGER_FFI_API BNSettings* BNDebuggerGetAdapterSettings(BNDebuggerController* controller);
 
 #ifdef __cplusplus
 }

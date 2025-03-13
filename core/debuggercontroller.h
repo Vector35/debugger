@@ -100,12 +100,15 @@ namespace BinaryNinjaDebugger {
 		bool m_initialBreakpointSeen = false;
 
 		bool m_firstLaunch = true;
+		bool m_firstConnect = true;
+		bool m_firstConnectToDebugServer = true;
+		bool m_firstAttach = true;
+
 		bool m_shouldAnnotateStackVariable = false;
 
 		void EventHandler(const DebuggerEvent& event);
 		void UpdateStackVariables();
 		void AddRegisterValuesToExpressionParser();
-		bool CreateDebugAdapter();
 		bool CreateDebuggerBinaryView();
 
 		DebugStopReason StepIntoIL(BNFunctionGraphType il);
@@ -307,6 +310,9 @@ namespace BinaryNinjaDebugger {
 		std::string GetAddressInformation(uint64_t address);
 
 		bool IsFirstLaunch();
+		bool IsFirstConnect();
+		bool IsFirstConnectToDebugServer();
+		bool IsFirstAttach();
 		bool IsTTD();
 
 		void OnRebased(BinaryView* oldView, BinaryView* newView) override {
@@ -337,5 +343,8 @@ namespace BinaryNinjaDebugger {
 
 		bool GetVariableValueAPI(const Variable& var, uint64_t address, size_t size, uint64_t& value);
 		bool GetVariableValue(const Variable& var, uint64_t address, size_t size, uint64_t& value);
+
+		Ref<Settings> GetAdapterSettings();
+		bool CreateDebugAdapter();
 	};
 };  // namespace BinaryNinjaDebugger

@@ -23,6 +23,7 @@ limitations under the License.
 	#include "libgen.h"
 #endif
 #include "debugadapter.h"
+#include "debuggercontroller.h"
 
 using namespace BinaryNinjaDebugger;
 
@@ -161,4 +162,19 @@ Ref<Metadata> DebugAdapter::GetProperty(const std::string& name)
 bool DebugAdapter::SetProperty(const std::string& name, const BinaryNinja::Ref<BinaryNinja::Metadata>& value)
 {
 	return false;
+}
+
+
+Ref<BinaryView> DebugAdapter::GetData()
+{
+	if (!m_controller)
+		return nullptr;
+
+	return m_controller->GetData();
+}
+
+
+Ref<Settings> DebugAdapter::GetAdapterSettings()
+{
+	return nullptr;
 }

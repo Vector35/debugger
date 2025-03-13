@@ -1018,6 +1018,24 @@ bool BNDebuggerIsFirstLaunch(BNDebuggerController* controller)
 }
 
 
+bool BNDebuggerIsFirstConnect(BNDebuggerController* controller)
+{
+	return controller->object->IsFirstConnect();
+}
+
+
+bool BNDebuggerIsFirstConnectToDebugServer(BNDebuggerController* controller)
+{
+	return controller->object->IsFirstConnectToDebugServer();
+}
+
+
+bool BNDebuggerIsFirstAttach(BNDebuggerController* controller)
+{
+	return controller->object->IsFirstAttach();
+}
+
+
 bool BNDebuggerIsTTD(BNDebuggerController* controller)
 {
 	return controller->object->IsTTD();
@@ -1099,4 +1117,13 @@ bool BNDebuggerGetVariableValue(BNDebuggerController* controller, BNVariable* va
 	uint64_t& value)
 {
 	return controller->object->GetVariableValue(*variable, address, size, value);
+}
+
+
+BNSettings* BNDebuggerGetAdapterSettings(BNDebuggerController* controller)
+{
+	auto settings = controller->object->GetAdapterSettings();
+	if (!settings)
+		return nullptr;
+	return BNNewSettingsReference(settings->GetObject());
 }

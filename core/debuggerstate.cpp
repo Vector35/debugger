@@ -807,86 +807,8 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 	m_breakpoints->UnserializedMetadata();
 	m_memory = new DebuggerMemory(this);
 
-	// TODO: A better way to deal with this is to have the adapters return a fitness score, and then we pick the highest
-	// one from the list. Similar to what we do for the views.
 	m_availableAdapters = DebugAdapterType::GetAvailableAdapters(data);
-	m_adapterType = DebugAdapterType::GetBestAdapterForCurrentSystem(data);
-	// Check whether there is no available adapters at all
-	if (m_availableAdapters.size() == 0)
-	{
-		m_adapterType = "";
-	}
-	else if (std::find(m_availableAdapters.begin(), m_availableAdapters.end(), m_adapterType)
-		== m_availableAdapters.end())
-	{
-		// The system's default adapter does not work with the current data, e.g., an .exe is opened on macOS,
-		// then pick one from the available ones.
-		m_adapterType = m_availableAdapters[0];
-	}
-
-	Ref<Metadata> metadata;
-	metadata = m_controller->GetData()->QueryMetadata("debugger.command_line_args");
-	if (metadata && metadata->IsString())
-		m_commandLineArgs = metadata->GetString();
-
-	metadata = m_controller->GetData()->QueryMetadata("debugger.input_file");
-	if (metadata && metadata->IsString())
-		m_inputFile = metadata->GetString();
-
-	if (m_inputFile == "")
-		m_inputFile = m_controller->GetData()->GetFile()->GetOriginalFilename();
-
-	metadata = m_controller->GetData()->QueryMetadata("debugger.executable_path");
-	if (metadata && metadata->IsString())
-		m_executablePath = metadata->GetString();
-
-	if (m_executablePath == "")
-		m_executablePath = m_controller->GetData()->GetFile()->GetOriginalFilename();
-
-	metadata = m_controller->GetData()->QueryMetadata("debugger.working_directory");
-	if (metadata && metadata->IsString())
-		m_workingDirectory = metadata->GetString();
-
-	if (m_workingDirectory == "")
-    {
-        // This mitigates https://github.com/Vector35/debugger/issues/469. However, it is NOT a proper fix since the
-        // debugger still will not be able to launch the target properly. We will need to deal with the charset issue
-        // to get this really fixed.
-        try
-        {
-            m_workingDirectory = filesystem::path(m_executablePath).parent_path().string();
-        }
-        catch (const exception&)
-        {
-            LogWarn("Cannot get the default working directory for the input file. "
-                    "There might be special characters in the file path. "
-                    "The debugger may not be able to launch the target correctly. "
-                    "You can try changing the file path to ASCII allow.");
-        }
-    }
-
-	metadata = m_controller->GetData()->QueryMetadata("debugger.remote_host");
-	if (metadata && metadata->IsString())
-		m_remoteHost = metadata->GetString();
-	if (m_remoteHost.empty())
-		m_remoteHost = "127.0.0.1";
-
-	metadata = m_controller->GetData()->QueryMetadata("debugger.remote_port");
-	if (metadata && metadata->IsUnsignedInteger())
-		m_remotePort = metadata->GetUnsignedInteger();
-	if (m_remotePort == 0)
-		m_remotePort = 31337;
-
-	metadata = m_controller->GetData()->QueryMetadata("debugger.adapter_type");
-	if (metadata && metadata->IsString())
-		m_adapterType = metadata->GetString();
-
-	metadata = m_controller->GetData()->QueryMetadata("debugger.terminal_emulator");
-	if (metadata && metadata->IsUnsignedInteger())
-		m_requestTerminalEmulator = metadata->GetBoolean();
-	else
-		m_requestTerminalEmulator = false;
-
+	m_adapterType = GetBestAdapter(data);
 	SetConnectionStatus(DebugAdapterNotConnectedStatus);
 }
 
@@ -899,6 +821,29 @@ DebuggerState::~DebuggerState()
 	delete m_threads;
 	delete m_breakpoints;
 	delete m_memory;
+}
+
+
+std::string DebuggerState::GetBestAdapter(BinaryViewRef data)
+{
+	// TODO: A better way to deal with this is to have the adapters return a fitness score, and then we pick the highest
+	// one from the list. Similar to what we do for the views.
+
+	// Check whether there is no available adapter at all
+	if (m_availableAdapters.size() == 0)
+		return "";
+
+	// Next check the saved adapter type
+	auto metadata = data->QueryMetadata("debugger.adapter_type");
+	if (metadata && metadata->IsString())
+	{
+		auto candidateAdapter = m_adapterType = metadata->GetString();
+		if (std::find(m_availableAdapters.begin(), m_availableAdapters.end(), candidateAdapter)
+			!= m_availableAdapters.end())
+			return candidateAdapter;
+	}
+
+	return m_availableAdapters[0];
 }
 
 
@@ -1003,66 +948,259 @@ Ref<Architecture> DebuggerState::GetRemoteArchitecture() const
 void DebuggerState::SetAdapterType(const std::string& adapter)
 {
 	m_adapterType = adapter;
-	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
 }
 
 
 void DebuggerState::SetExecutablePath(const std::string& path)
 {
-	m_executablePath = path;
-	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+	if (!EnsureDebugAdapterExists())
+		return;
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("launch.executablePath"))
+		return;
+
+	settings->Set("launch.executablePath", path, data, scope);
 }
 
 
 void DebuggerState::SetInputFile(const std::string& path)
 {
-	m_inputFile = path;
-	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
-}
+	if (!EnsureDebugAdapterExists())
+		return;
 
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("common.inputFile"))
+		return;
 
-std::string DebuggerState::GetInputFile()
-{
-	return m_inputFile;
+	settings->Set("common.inputFile", path, data, scope);
 }
 
 
 void DebuggerState::SetWorkingDirectory(const std::string& directory)
 {
-	m_workingDirectory = directory;
-	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+	if (!EnsureDebugAdapterExists())
+		return;
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("launch.workingDirectory"))
+		return;
+
+	settings->Set("launch.workingDirectory", directory, data, scope);
 }
 
 
 void DebuggerState::SetCommandLineArguments(const std::string& arguments)
 {
-	m_commandLineArgs = arguments;
-	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+	if (!EnsureDebugAdapterExists())
+		return;
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("launch.commandLineArguments"))
+		return;
+
+	settings->Set("launch.commandLineArguments", arguments, data, scope);
 }
 
 
 void DebuggerState::SetRemoteHost(const std::string& host)
 {
-	m_remoteHost = host;
-	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+	if (!EnsureDebugAdapterExists())
+		return;
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("connect.ipAddress"))
+		return;
+
+	settings->Set("connect.ipAddress", host, data, scope);
 }
 
 
 void DebuggerState::SetRemotePort(uint32_t port)
 {
-	m_remotePort = port;
-	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+	if (!EnsureDebugAdapterExists())
+		return;
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("connect.port"))
+		return;
+
+	settings->Set("connect.port", (uint64_t)port, data, scope);
 }
 
 
 void DebuggerState::SetRequestTerminalEmulator(bool requested)
 {
-	m_requestTerminalEmulator = requested;
-	m_controller->NotifyEvent(DebuggerSettingsChangedEvent);
+	if (!EnsureDebugAdapterExists())
+		return;
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("launch.terminalEmulator"))
+		return;
+
+	settings->Set("launch.terminalEmulator", requested, data, scope);
 }
 
 
 void DebuggerState::SetPIDAttach(int32_t pid)
 {
-	m_pidAttach = pid;
+	if (!EnsureDebugAdapterExists())
+		return;
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("attach.pid"))
+		return;
+
+	settings->Set("attach.pid", (uint64_t)pid, data, scope);
+}
+
+
+bool DebuggerState::EnsureDebugAdapterExists()
+{
+	if (m_adapter)
+		return true;
+
+	// If the adapter is nullptr, try to have the controller create the debug adapter
+	m_controller->CreateDebugAdapter();
+	m_adapter = m_controller->GetAdapter();
+	if (m_adapter)
+		return true;
+
+	return false;
+}
+
+
+std::string DebuggerState::GetExecutablePath()
+{
+	if (!EnsureDebugAdapterExists())
+		return "";
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("launch.executablePath"))
+		return "";
+
+	return settings->Get<std::string>("launch.executablePath", data, &scope);
+}
+
+
+std::string DebuggerState::GetInputFile()
+{
+	if (!EnsureDebugAdapterExists())
+		return "";
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("common.inputFile"))
+		return "";
+
+	return settings->Get<std::string>("common.inputFile", data, &scope);
+}
+
+
+std::string DebuggerState::GetWorkingDirectory()
+{
+	if (!EnsureDebugAdapterExists())
+		return "";
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("launch.workingDirectory"))
+		return "";
+
+	return settings->Get<std::string>("launch.workingDirectory", data, &scope);
+}
+
+
+std::string DebuggerState::GetCommandLineArguments()
+{
+	if (!EnsureDebugAdapterExists())
+		return "";
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("launch.commandLineArguments"))
+		return "";
+
+	return settings->Get<std::string>("launch.commandLineArguments", data, &scope);
+}
+
+
+std::string DebuggerState::GetRemoteHost()
+{
+	if (!EnsureDebugAdapterExists())
+		return "";
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("connect.ipAddress"))
+		return "";
+
+	return settings->Get<std::string>("connect.ipAddress", data, &scope);
+}
+
+
+uint32_t DebuggerState::GetRemotePort()
+{
+	if (!EnsureDebugAdapterExists())
+		return 0;
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("connect.port"))
+		return 0;
+
+	return settings->Get<uint64_t>("connect.port", data, &scope);
+}
+
+
+bool DebuggerState::GetRequestTerminalEmulator()
+{
+	if (!EnsureDebugAdapterExists())
+		return false;
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("launch.terminalEmulator"))
+		return false;
+
+	return settings->Get<bool>("launch.terminalEmulator", data, &scope);
+}
+
+
+int32_t DebuggerState::GetPIDAttach()
+{
+	if (!EnsureDebugAdapterExists())
+		return false;
+
+	auto settings = m_adapter->GetAdapterSettings();
+	auto data = m_controller->GetData();
+	auto scope = SettingsResourceScope;
+	if (!settings->Contains("attach.pid"))
+		return 0;
+
+	return settings->Get<uint64_t>("attach.pid", data, &scope);
 }

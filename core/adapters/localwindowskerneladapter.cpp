@@ -8,12 +8,18 @@ using namespace std;
 LocalWindowsKernelAdapter::LocalWindowsKernelAdapter(BinaryView* data) : DbgEngAdapter(data)
 {
     m_usePDBFileName = false;
+	GenerateDefaultAdapterSettings(data);
 }
 
 
 bool LocalWindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
                                             const std::string& workingDir, const LaunchConfigurations& configs) {
     m_aboutToBeKilled = false;
+
+	// local Windows kernel debugging has no options, this is just some boilerplate code I copied
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
 
     if (this->m_debugActive) {
         this->Reset();
@@ -204,6 +210,35 @@ bool LocalWindowsKernelAdapterType::CanExecute(BinaryNinja::BinaryView* data)
 #endif
     return false;
 }
+
+
+Ref<Settings> LocalWindowsKernelAdapter::GetAdapterSettings()
+{
+	return LocalWindowsKernelAdapterType::GetAdapterSettings();
+}
+
+
+Ref<Settings> LocalWindowsKernelAdapterType::GetAdapterSettings()
+{
+	static Ref<Settings> settings = RegisterAdapterSettings();
+	return settings;
+}
+
+
+Ref<Settings> LocalWindowsKernelAdapterType::RegisterAdapterSettings()
+{
+	Ref<Settings> settings = Settings::Instance("LocalWindowsKernelAdapterSettings");
+	settings->SetResourceId("local_windows_kernel_adapter_settings");
+
+	return settings;
+}
+
+
+void LocalWindowsKernelAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
+{
+
+}
+
 
 void BinaryNinjaDebugger::InitLocalWindowsKernelAdapterType()
 {

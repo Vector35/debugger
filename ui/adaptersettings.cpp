@@ -17,18 +17,20 @@ limitations under the License.
 #include "adaptersettings.h"
 #include "uicontext.h"
 #include "qfiledialog.h"
+#include "settingsview.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
-AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller) :
+AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller, const std::string& highlightGroup) :
 	QDialog(), m_controller(controller)
 {
 	setWindowTitle("Debug Adapter Settings");
 	setAttribute(Qt::WA_DeleteOnClose);
 
 	setModal(true);
+	resize(QSize(1200, 800));
 	QVBoxLayout* layout = new QVBoxLayout;
 	layout->setSpacing(0);
 
@@ -37,7 +39,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 	{
 		m_adapterEntry->addItem(QString::fromStdString(adapter));
 	}
-	if (m_controller->GetAdapterType() != "")
+	if (!m_controller->GetAdapterType().empty())
 	{
 		m_adapterEntry->setCurrentText(QString::fromStdString(m_controller->GetAdapterType()));
 	}
@@ -48,93 +50,50 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 
 	connect(m_adapterEntry, &QComboBox::currentTextChanged, this, &AdapterSettingsDialog::selectAdapter);
 
-	m_inputFile = new QLineEdit(this);
-	m_inputFile->setMinimumWidth(800);
-	m_pathEntry = new QLineEdit(this);
-	m_pathEntry->setMinimumWidth(800);
-	m_argumentsEntry = new QLineEdit(this);
-	m_workingDirectoryEntry = new QLineEdit(this);
-	m_terminalEmulator = new QCheckBox(this);
+	QHBoxLayout* adapterLayout = new QHBoxLayout();
+	auto adapterLabel = new QLabel("Debug adapter: ");
+	adapterLayout->addWidget(adapterLabel);
+	adapterLayout->addWidget(m_adapterEntry);
+	adapterLayout->addStretch(1);
 
-	auto* fileSelector = new QPushButton("...", this);
-	fileSelector->setMaximumWidth(30);
-	connect(fileSelector, &QPushButton::clicked, [&]() {
-		auto fileName = QFileDialog::getOpenFileName(this, "Select Input File", m_workingDirectoryEntry->text());
-		if (!fileName.isEmpty())
-			m_inputFile->setText(fileName);
-	});
+	layout->addLayout(adapterLayout);
 
-	auto* pathSelector = new QPushButton("...", this);
-	pathSelector->setMaximumWidth(30);
-	connect(pathSelector, &QPushButton::clicked, [&]() {
-		auto fileName = QFileDialog::getOpenFileName(this, "Select Executable Path", m_pathEntry->text());
-		if (!fileName.isEmpty())
-			m_pathEntry->setText(fileName);
-	});
+	m_noSettingsLabel = new QLabel("No settings available for the current adapter");
+	m_noSettingsLabel->setAlignment(Qt::AlignCenter);
+	m_stack = new QStackedWidget(this);
+	m_stack->addWidget(m_noSettingsLabel);
 
-	auto* workingDirSelector = new QPushButton("...", this);
-	workingDirSelector->setMaximumWidth(30);
-	connect(workingDirSelector, &QPushButton::clicked, [&]() {
-		auto pathName = QFileDialog::getExistingDirectory(this, "Specify Working Directory",
-			m_workingDirectoryEntry->text(), QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
-		if (!pathName.isEmpty())
-			m_workingDirectoryEntry->setText(pathName);
-	});
+	auto widget = getWidgetForAdapter(m_adapterEntry->currentText());
+	m_stack->setCurrentWidget(widget);
+	layout->addWidget(m_stack);
 
-	auto fileEntryLayout = new QHBoxLayout;
-	fileEntryLayout->addWidget(m_inputFile);
-	fileEntryLayout->addWidget(fileSelector);
+	if (!highlightGroup.empty())
+	{
+		auto adapterSettings = qobject_cast<SettingsView*>(widget);
+		if (adapterSettings)
+		{
+			adapterSettings->setDefaultGroupSelection(QString::fromStdString(highlightGroup));
+		}
 
-	auto pathEntryLayout = new QHBoxLayout;
-	pathEntryLayout->addWidget(m_pathEntry);
-	pathEntryLayout->addWidget(pathSelector);
+		QHBoxLayout* buttonLayout = new QHBoxLayout;
+		buttonLayout->setContentsMargins(0, 0, 0, 0);
 
-	auto workingDirLayout = new QHBoxLayout;
-	workingDirLayout->addWidget(m_workingDirectoryEntry);
-	workingDirLayout->addWidget(workingDirSelector);
+		QPushButton* cancelButton = new QPushButton("Cancel");
+		connect(cancelButton, &QPushButton::clicked, [&]() { reject(); });
+		QPushButton* acceptButton = new QPushButton("Accept");
+		connect(acceptButton, &QPushButton::clicked, [&]() { apply(); });
+		acceptButton->setDefault(true);
 
-	QVBoxLayout* contentLayout = new QVBoxLayout;
-	contentLayout->setSpacing(10);
-	contentLayout->addWidget(new QLabel("Adapter Type"));
-	contentLayout->addWidget(m_adapterEntry);
-	contentLayout->addWidget(new QLabel("Input File"));
-	contentLayout->addLayout(fileEntryLayout);
-	contentLayout->addWidget(new QLabel("Executable Path"));
-	contentLayout->addLayout(pathEntryLayout);
-	contentLayout->addWidget(new QLabel("Working Directory"));
-	contentLayout->addLayout(workingDirLayout);
-	contentLayout->addWidget(new QLabel("Command Line Arguments"));
-	contentLayout->addWidget(m_argumentsEntry);
-	contentLayout->addWidget(new QLabel("Run In Separate Terminal"));
-	contentLayout->addWidget(m_terminalEmulator);
+		buttonLayout->addStretch(1);
+		buttonLayout->addWidget(cancelButton);
+		buttonLayout->addSpacing(10);
+		buttonLayout->addWidget(acceptButton);
 
-	QHBoxLayout* buttonLayout = new QHBoxLayout;
-	buttonLayout->setContentsMargins(0, 0, 0, 0);
+		layout->addSpacing(10);
+		layout->addLayout(buttonLayout);
+	}
 
-	QPushButton* cancelButton = new QPushButton("Cancel");
-	connect(cancelButton, &QPushButton::clicked, [&]() { reject(); });
-	QPushButton* acceptButton = new QPushButton("Accept");
-	connect(acceptButton, &QPushButton::clicked, [&]() { apply(); });
-	acceptButton->setDefault(true);
-
-	buttonLayout->addStretch(1);
-	buttonLayout->addWidget(cancelButton);
-	buttonLayout->addWidget(acceptButton);
-
-	layout->addLayout(contentLayout);
-	layout->addStretch(1);
-	layout->addSpacing(10);
-	layout->addLayout(buttonLayout);
 	setLayout(layout);
-
-	m_inputFile->setText(QString::fromStdString(m_controller->GetInputFile()));
-	m_pathEntry->setText(QString::fromStdString(m_controller->GetExecutablePath()));
-	m_terminalEmulator->setChecked(m_controller->GetRequestTerminalEmulator());
-	m_argumentsEntry->setText(QString::fromStdString(m_controller->GetCommandLineArguments()));
-	m_workingDirectoryEntry->setText(QString::fromStdString(m_controller->GetWorkingDirectory()));
-
-	selectAdapter(m_adapterEntry->currentText());
-	setFixedSize(QDialog::sizeHint());
 }
 
 
@@ -144,57 +103,41 @@ void AdapterSettingsDialog::selectAdapter(const QString& adapter)
 	if (!adapterType)
 		return;
 
-	if (adapterType->CanExecute(m_controller->GetData()))
+	m_controller->SetAdapterType(adapter.toStdString());
+	Ref<Metadata> data = new Metadata(adapter.toStdString());
+	m_controller->GetData()->StoreMetadata("debugger.adapter_type", data);
+
+	auto widget = getWidgetForAdapter(adapter);
+	m_stack->setCurrentWidget(widget);
+}
+
+
+QWidget* AdapterSettingsDialog::getWidgetForAdapter(const QString& adapter)
+{
+	// I know this looks odd that we do not need to use the adapter parameter here. The reason is that we must call
+	// SetAdapterType to set the active adapter before we can try to get its adapter settings object, so there is no
+	// need to do it again here
+	(void)adapter;
+
+	if (m_viewMap.contains(adapter))
+		return m_viewMap[adapter];
+
+	auto adapterSettings = m_controller->GetAdapterSettings();
+	if (adapterSettings)
 	{
-		m_pathEntry->setEnabled(true);
-		m_argumentsEntry->setEnabled(true);
-		m_terminalEmulator->setEnabled(true);
+		auto settingsView = new SettingsView(this, adapterSettings);
+		settingsView->setScope(SettingsResourceScope);
+        settingsView->setData(m_controller->GetData());
+		m_viewMap[adapter] = settingsView;
+		m_stack->addWidget(settingsView);
+		return settingsView;
 	}
-	else
-	{
-		m_pathEntry->setEnabled(false);
-		m_argumentsEntry->setEnabled(false);
-		m_terminalEmulator->setEnabled(false);
-	}
+
+	return m_noSettingsLabel;
 }
 
 
 void AdapterSettingsDialog::apply()
 {
-	std::string selectedAdapter = m_adapterEntry->currentText().toStdString();
-	auto adapterType = DebugAdapterType::GetByName(selectedAdapter);
-	if (adapterType == nullptr)
-		selectedAdapter = "";
-
-	m_controller->SetAdapterType(selectedAdapter);
-	Ref<Metadata> data = new Metadata(selectedAdapter);
-	m_controller->GetData()->StoreMetadata("debugger.adapter_type", data);
-
-	// We need better support for shell-style cmd arguments
-	std::string args = m_argumentsEntry->text().toStdString();
-	m_controller->SetCommandLineArguments(args);
-	data = new Metadata(args);
-	m_controller->GetData()->StoreMetadata("debugger.command_line_args", data);
-
-	std::string file = m_inputFile->text().toStdString();
-	m_controller->SetInputFile(file);
-	data = new Metadata(file);
-	m_controller->GetData()->StoreMetadata("debugger.input_file", data);
-
-	std::string path = m_pathEntry->text().toStdString();
-	m_controller->SetExecutablePath(path);
-	data = new Metadata(path);
-	m_controller->GetData()->StoreMetadata("debugger.executable_path", data);
-
-	std::string workingDir = m_workingDirectoryEntry->text().toStdString();
-	m_controller->SetWorkingDirectory(workingDir);
-	data = new Metadata(workingDir);
-	m_controller->GetData()->StoreMetadata("debugger.working_directory", data);
-
-	bool requestTerminal = m_terminalEmulator->isChecked();
-	m_controller->SetRequestTerminalEmulator(requestTerminal);
-	data = new Metadata(requestTerminal);
-	m_controller->GetData()->StoreMetadata("debugger.terminal_emulator", data);
-
 	accept();
 }

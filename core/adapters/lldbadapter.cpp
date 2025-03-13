@@ -15,11 +15,13 @@ limitations under the License.
 */
 
 #include <inttypes.h>
+#include <filesystem>
 #include "lldbadapter.h"
 #include "thread"
 
 using namespace lldb;
 using namespace BinaryNinjaDebugger;
+using namespace std;
 
 std::string lldbArchNameForBinaryNinjaArchName(std::string name)
 {
@@ -52,6 +54,8 @@ LldbAdapter::LldbAdapter(BinaryView* data) : DebugAdapter(data)
 	// confusing behavior.
 	InvokeBackendCommand("settings set auto-confirm true");
 	m_debugger.SetAsync(false);
+
+	GenerateDefaultAdapterSettings(data);
 }
 
 
@@ -117,6 +121,135 @@ bool LldbAdapterType::CanExecute(BinaryNinja::BinaryView* data)
 }
 
 
+Ref<Settings> LldbAdapterType::RegisterAdapterSettings()
+{
+	Ref<Settings> settings = Settings::Instance("LLDBAdapterSettings");
+	settings->SetResourceId("lldb_adapter_settings");
+	settings->RegisterSetting("common.inputFile",
+		R"({
+			"title" : "Input File",
+			"type" : "string",
+			"default" : "",
+			"description" : "Input file to use to find the base address of the binary view",
+			"readOnly" : false,
+			"uiSelectionAction" : "file"
+			})");
+
+	settings->RegisterSetting("launch.executablePath",
+		R"({
+			"title" : "Executable Path",
+			"type" : "string",
+			"default" : "",
+			"description" : "Path of the executable to launch.",
+			"readOnly" : false,
+			"uiSelectionAction" : "file"
+			})");
+	settings->RegisterSetting("launch.workingDirectory",
+			R"({
+			"title" : "Working Directory",
+			"type" : "string",
+			"default" : "",
+			"description" : "Working directory to launch the target in.",
+			"readOnly" : false,
+			"uiSelectionAction" : "directory"
+			})");
+	settings->RegisterSetting("launch.commandLineArguments",
+			R"({
+			"title" : "Command Line Arguments",
+			"type" : "string",
+			"default" : "",
+			"description" : "Command line arguments to pass to the target",
+			"readOnly" : false
+			})");
+	settings->RegisterSetting("launch.terminalEmulator",
+			R"({
+			"title" : "Run in Separate Terminal",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "Execute the target in a separate terminal. The user can then interact with the process in that terminal",
+			"readOnly" : false
+			})");
+
+	settings->RegisterSetting("connect.ipAddress",
+			R"({
+			"title" : "IP Address",
+			"type" : "string",
+			"default" : "127.0.0.1",
+			"description" : "IP address of the debug stub to connect to",
+			"readOnly" : false
+			})");
+	settings->RegisterSetting("connect.port",
+			R"({
+			"title" : "Port",
+			"type" : "number",
+			"default" : 31337,
+			"minValue" : 0,
+			"maxValue" : 65535,
+			"description" : "Port of the debug stub to connect to",
+			"readOnly" : false
+			})");
+	settings->RegisterSetting("connect.processPlugin",
+		R"({
+			"title" : "Process Plugin",
+			"type" : "string",
+			"enum" : ["debugserver/lldb", "gdb-remote"],
+			"enumDescriptions" : [
+				"The debug stub is lldb-server or debugserver",
+				"The debug stub is gdb-remote"],
+			"default" : "gdb-remote",
+			"description" : "Process plugin to use to connect to the debug stub",
+			"readOnly" : false
+			})");
+
+	settings->RegisterSetting("debugServer.ipAddress",
+			R"({
+			"title" : "IP Address",
+			"type" : "string",
+			"default" : "127.0.0.1",
+			"description" : "IP address of the debug server to connect to",
+			"readOnly" : false
+			})");
+	settings->RegisterSetting("debugServer.port",
+			R"({
+			"title" : "Port",
+			"type" : "number",
+			"default" : 31337,
+			"minValue" : 0,
+			"maxValue" : 65535,
+			"description" : "Port of the debug server to connect to",
+			"readOnly" : false
+			})");
+	settings->RegisterSetting("debugServer.platform",
+		R"({
+			"title" : "Platform",
+			"type" : "string",
+			"enum" : [""],
+			"description" : "LLDB platform plugin to use to connect to the debug server",
+			"readOnly" : false
+			})");
+
+	settings->RegisterSetting("attach.pid",
+		R"({
+			"title" : "PID to attach to",
+			"type" : "number",
+			"default" : 0,
+			"minValue" : 0,
+			"maxValue" : 4294967295,
+			"description" : "PID of the process to attach to",
+			"readOnly" : false
+			})");
+
+	return settings;
+}
+
+
+Ref<Settings> LldbAdapterType::GetAdapterSettings()
+{
+	static Ref<Settings> settings = LldbAdapterType::RegisterAdapterSettings();
+	return settings;
+}
+
+
 void BinaryNinjaDebugger::InitLldbAdapterType()
 {
 	static LldbAdapterType lldbType;
@@ -168,6 +301,19 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 
 	SBError err;
 
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	auto executablePath = adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
+	scope = SettingsResourceScope;
+	auto workingDirectory = adapterSettings->Get<std::string>("launch.workingDirectory", data, &scope);
+	scope = SettingsResourceScope;
+	auto commandLineArgs = adapterSettings->Get<std::string>("launch.commandLineArguments", data, &scope);
+	scope = SettingsResourceScope;
+	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	scope = SettingsResourceScope;
+	auto separateTerminal = adapterSettings->Get<bool>("launch.terminalEmulator", data, &scope);
+
 	// *Attempt* to create a functional target triple for the binary.
 	// This allows attaching to fat binaries. If the triple is empty, it will still attach on thin binaries.
 	auto archName = lldbArchNameForBinaryNinjaArchName(m_defaultArchitecture);
@@ -175,7 +321,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	if (!archName.empty())
 		triple = archName + "-unknown-none";
 
-	m_target = m_debugger.CreateTarget(path.c_str(), triple.c_str(), "", true, err);
+	m_target = m_debugger.CreateTarget(executablePath.c_str(), triple.c_str(), "", true, err);
 
 	if (!m_target.IsValid())
 	{
@@ -183,7 +329,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 		if (err.GetCString() && std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
 		{
 			// Last-ditch effort. If it is a thin binary, we will be able to attach without passing a triple.
-			m_target = m_debugger.CreateTarget(path.c_str(), "", "", true, err);
+			m_target = m_debugger.CreateTarget(executablePath.c_str(), "", "", true, err);
 		}
 	}
 
@@ -206,29 +352,33 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	ApplyBreakpoints();
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
-		AddBreakpoint(ModuleNameAndOffset(configs.inputFile, m_entryPoint - m_start));
+		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
 
+	// TODO: the adapter should record whether it is connected to a debug server itself, rather than relying on the
+	// info from the configs dict
 	if (configs.connectedToDebugServer)
 	{
 		// During remote debugging. lldb will try to upload the samples to the working directory before launching.
 		// The working directory defaults to the path the lldb-server is in, which is likely not the intended one.
 		// Here we set the remote working directory to the one specified by the user
-		auto result = InvokeBackendCommand(fmt::format("platform settings -w \"{}\"", workingDir));
+		auto result = InvokeBackendCommand(fmt::format("platform settings -w \"{}\"", workingDirectory));
 	}
 
 	std::string launchCommand = "process launch";
 	if (Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint") ||
-	        (m_isElFWithoutDynamicLoader && (path == configs.inputFile)))
+	        (m_isElFWithoutDynamicLoader && (executablePath == inputFile)))
 		launchCommand += " --stop-at-entry";
 
-	if (configs.requestTerminalEmulator)
+	if (separateTerminal)
 		launchCommand += " --tty";
 
-	if (!workingDir.empty())
-		launchCommand += fmt::format(" --working-dir \"{}\"", workingDir);
+	if (!workingDirectory.empty())
+		launchCommand += fmt::format(" --working-dir \"{}\"", workingDirectory);
 
-	if (!args.empty())
-		launchCommand += (" -- " + args);
+	if (!commandLineArgs.empty())
+		launchCommand += (" -- " + commandLineArgs);
+
+	LogWarn("LLDB launchCommand: %s", launchCommand.c_str());
 
 	auto result = InvokeBackendCommand(launchCommand);
 	DebuggerEvent evt;
@@ -261,6 +411,13 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 
 	SBError err;
 
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	scope = SettingsResourceScope;
+	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
+
 	// *Attempt* to create a functional target triple for the binary.
 	// This allows attaching to fat binaries. If the triple is empty, it will still attach on thin binaries.
 	auto archName = lldbArchNameForBinaryNinjaArchName(m_defaultArchitecture);
@@ -268,7 +425,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	if (!archName.empty())
 		triple = archName + "-unknown-none";
 
-	m_target = m_debugger.CreateTarget(m_originalFileName.c_str(), triple.c_str(), "", true, err);
+	m_target = m_debugger.CreateTarget(inputFile.c_str(), triple.c_str(), "", true, err);
 
 	if (!m_target.IsValid())
 	{
@@ -276,7 +433,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 		if (err.GetCString() && std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
 		{
 			// Last-ditch effort. If it is a thin binary, we will be able to attach without passing a triple.
-			m_target = m_debugger.CreateTarget(m_originalFileName.c_str(), "", "", true, err);
+			m_target = m_debugger.CreateTarget(inputFile.c_str(), "", "", true, err);
 		}
 	}
 
@@ -294,7 +451,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	m_targetActive = true;
 	ApplyBreakpoints();
 
-	SBAttachInfo info(pid);
+	SBAttachInfo info(attachPID);
 	m_process = m_target.Attach(info, err);
 	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || err.Fail())
 	{
@@ -326,6 +483,17 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 
 	SBError err;
 
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	scope = SettingsResourceScope;
+	auto ipAddress = adapterSettings->Get<std::string>("connect.ipAddress", data, &scope);
+	scope = SettingsResourceScope;
+	auto serverPort = adapterSettings->Get<uint64_t>("connect.port", data, &scope);
+	scope = SettingsResourceScope;
+	auto processPlugin = adapterSettings->Get<std::string>("connect.processPlugin", data, &scope);
+
 	// *Attempt* to create a functional target triple for the binary.
 	// This allows attaching to fat binaries. If the triple is empty, it will still attach on thin binaries.
 	auto archName = lldbArchNameForBinaryNinjaArchName(m_defaultArchitecture);
@@ -333,7 +501,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	if (!archName.empty())
 		triple = archName + "-unknown-none";
 
-	m_target = m_debugger.CreateTarget(m_originalFileName.c_str(), triple.c_str(), "", true, err);
+	m_target = m_debugger.CreateTarget(inputFile.c_str(), triple.c_str(), "", true, err);
 
 	if (!m_target.IsValid())
 	{
@@ -341,7 +509,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 		if (err.GetCString() && std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
 		{
 			// Last-ditch effort. If it is a thin binary, we will be able to attach without passing a triple.
-			m_target = m_debugger.CreateTarget(m_originalFileName.c_str(), "", "", true, err);
+			m_target = m_debugger.CreateTarget(inputFile.c_str(), "", "", true, err);
 		}
 	}
 
@@ -360,13 +528,13 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	ApplyBreakpoints();
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
-		AddBreakpoint(ModuleNameAndOffset(m_originalFileName, m_entryPoint - m_start));
+		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
 
-	std::string url = fmt::format("connect://{}:{}", server, port);
+	std::string url = fmt::format("connect://{}:{}", ipAddress, serverPort);
 	SBListener listener;
 	const char* plugin = nullptr;
-	if (!m_processPlugin.empty() && m_processPlugin != "debugserver/lldb")
-		plugin = m_processPlugin.c_str();
+	if (!processPlugin.empty() && processPlugin != "debugserver/lldb")
+		plugin = processPlugin.c_str();
 	m_process = m_target.ConnectRemote(listener, url.c_str(), plugin, err);
 	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || err.Fail())
 	{
@@ -1572,70 +1740,30 @@ void LldbAdapter::WriteStdin(const std::string& msg)
 
 Ref<Metadata> LldbAdapter::GetProperty(const std::string& name)
 {
-	if (name == "current_platform")
-	{
-		auto platform = m_debugger.GetSelectedPlatform();
-		return new Metadata(std::string(platform.GetName()));
-	}
-	else if (name == "platforms")
-	{
-		std::vector<std::string> platforms;
-		for (size_t i = 0; i < m_debugger.GetNumAvailablePlatforms(); i++)
-		{
-			auto platform = m_debugger.GetAvailablePlatformInfoAtIndex(i);
-			auto nameData = platform.GetValueForKey("name");
-			char name[1024];
-			nameData.GetStringValue(name, 1024);
-			platforms.emplace_back(name);
-		}
-		return new Metadata(platforms);
-	}
-	else if (name == "process_plugins")
-	{
-		std::vector<std::string> plugins;
-		plugins.emplace_back("gdb-remote");
-		plugins.emplace_back("debugserver/lldb");
-		return new Metadata(plugins);
-	}
-	else if (name == "current_process_plugin")
-	{
-		return new Metadata(m_processPlugin);
-	}
 	return nullptr;
 }
 
 
 bool LldbAdapter::SetProperty(const std::string& name, const Ref<Metadata>& value)
 {
-	if (name == "current_platform")
-	{
-		if (value->IsString())
-		{
-			auto platform = value->GetString();
-			if (!platform.empty())
-			{
-				auto error = m_debugger.SetCurrentPlatform(platform.c_str());
-				if (error.Success())
-					return true;
-			}
-		}
-	}
-	else if (name == "current_process_plugin")
-	{
-		if (value->IsString())
-		{
-			m_processPlugin = value->GetString();
-			return true;
-		}
-	}
 	return false;
 }
 
 
 bool LldbAdapter::ConnectToDebugServer(const std::string& server, std::uint32_t port)
 {
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	auto ipAddress = adapterSettings->Get<std::string>("debugServer.ipAddress", data, &scope);
+	scope = SettingsResourceScope;
+	auto serverPort = adapterSettings->Get<uint64_t>("debugServer.port", data, &scope);
+	scope = SettingsResourceScope;
+	auto platformStr = adapterSettings->Get<std::string>("debugServer.platform", data, &scope);
+
+	m_debugger.SetCurrentPlatform(platformStr.c_str());
 	auto platform = m_debugger.GetSelectedPlatform();
-	auto connectionString = fmt::format("connect://{}:{}", server, port);
+	auto connectionString = fmt::format("connect://{}:{}", ipAddress, serverPort);
 	SBPlatformConnectOptions options(connectionString.c_str());
 	auto error = platform.ConnectRemote(options);
 	return error.Success();
@@ -1650,4 +1778,65 @@ bool LldbAdapter::DisconnectDebugServer()
 	// Otherwise, launching the target (on the host) would not work after disconnecting from a debug server.
 	[[maybe_unused]] auto error = m_debugger.SetCurrentPlatform("host");
 	return true;
+}
+
+
+Ref<Settings> LldbAdapter::GetAdapterSettings()
+{
+	return LldbAdapterType::GetAdapterSettings();
+}
+
+
+void LldbAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
+{
+	auto adapterSettings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	auto executablePath = adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
+	// If the value is not loaded from the database, we need to populate it with a default value
+	if (scope != SettingsResourceScope)
+	{
+		executablePath = data->GetFile()->GetOriginalFilename();
+		adapterSettings->Set("launch.executablePath", executablePath, data, SettingsResourceScope);
+	}
+
+	scope = SettingsResourceScope;
+	adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	if (scope != SettingsResourceScope)
+		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
+
+	scope = SettingsResourceScope;
+	auto workingDirectory = adapterSettings->Get<std::string>("launch.workingDirectory", data, &scope);
+	if (scope != SettingsResourceScope)
+	{
+		// This mitigates https://github.com/Vector35/debugger/issues/469. However, it is NOT a proper fix since the
+		// debugger still will not be able to launch the target properly. We will need to deal with the charset issue
+		// to get this really fixed.
+		try
+		{
+			workingDirectory = filesystem::path(executablePath).parent_path().string();
+		}
+		catch (const exception&)
+		{
+			LogWarn("Cannot get the default working directory for the input file. "
+					"There might be special characters in the file path. "
+					"The debugger may not be able to launch the target correctly. "
+					"You can try changing the file path to ASCII allow.");
+		}
+		adapterSettings->Set("launch.workingDirectory", workingDirectory, data, SettingsResourceScope);
+	}
+
+	std::vector<std::string> platforms;
+	for (size_t i = 0; i < m_debugger.GetNumAvailablePlatforms(); i++)
+	{
+		auto platform = m_debugger.GetAvailablePlatformInfoAtIndex(i);
+		auto nameData = platform.GetValueForKey("name");
+		char name[1024];
+		nameData.GetStringValue(name, 1024);
+		platforms.emplace_back(name);
+	}
+
+	adapterSettings->UpdateProperty("debugServer.platform", "enum", platforms);
+
+	auto platform = m_debugger.GetSelectedPlatform();
+	adapterSettings->UpdateProperty("debugServer.platform", "default", platform.GetName());
 }

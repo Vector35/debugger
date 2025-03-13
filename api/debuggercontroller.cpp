@@ -875,6 +875,24 @@ bool DebuggerController::IsFirstLaunch()
 }
 
 
+bool DebuggerController::IsFirstConnect()
+{
+	return BNDebuggerIsFirstConnect(m_object);
+}
+
+
+bool DebuggerController::IsFirstConnectToDebugServer()
+{
+	return BNDebuggerIsFirstConnectToDebugServer(m_object);
+}
+
+
+bool DebuggerController::IsFirstAttach()
+{
+	return BNDebuggerIsFirstAttach(m_object);
+}
+
+
 bool DebuggerController::IsTTD()
 {
 	return BNDebuggerIsTTD(m_object);
@@ -957,4 +975,14 @@ bool DebuggerController::GetVariableValue(BinaryNinja::Variable &var, uint64_t a
 	uint64_t &value)
 {
 	return BNDebuggerGetVariableValue(m_object, &var, address, size, value);
+}
+
+
+Ref<Settings> DebuggerController::GetAdapterSettings()
+{
+	auto settings =  BNDebuggerGetAdapterSettings(m_object);
+	if (!settings)
+		return nullptr;
+
+	return new Settings(settings);
 }
