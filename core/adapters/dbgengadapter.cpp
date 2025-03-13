@@ -929,8 +929,13 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address,
 	// and add them when we launch/attach the target.
 	if (m_debugActive)
 	{
+		BNSettingsScope scope = SettingsResourceScope;
+		auto data = GetData();
+		auto adapterSettings = GetAdapterSettings();
+		auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+
         auto moduleToUse = address.module;
-        if (DebugModule::IsSameBaseModule(moduleToUse, m_originalFileName))
+        if (DebugModule::IsSameBaseModule(moduleToUse, inputFile))
         {
             if (m_usePDBFileName && (!m_pdbFileName.empty()))
                 moduleToUse = m_pdbFileName;
@@ -1139,6 +1144,12 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 
 	std::vector<DebugModule> modules {};
 
+	// TODO: the inputFile should probalby be cached in some more, but for now I am just retrieving it every time
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+
 	const auto total_modules = loaded_module_count + unloaded_module_count;
 	auto module_parameters = std::make_unique<DEBUG_MODULE_PARAMETERS[]>(total_modules);
 	if (this->m_debugSymbols->GetModuleParameters(total_modules, nullptr, 0, module_parameters.get()) != S_OK)
@@ -1159,7 +1170,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 		if (m_usePDBFileName &&(!m_pdbFileName.empty()) &&
 			DebugModule::IsSameBaseModule(short_name, m_pdbFileName))
 		{
-			strcpy_s(name, 1024, m_originalFileName.c_str());
+			strcpy_s(name, 1024, inputFile.c_str());
 		}
 
 		modules.emplace_back(

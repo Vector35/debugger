@@ -204,7 +204,6 @@ namespace BinaryNinjaDebugger {
 		uint64_t m_start;
 		uint64_t m_originalImageBase;
 		std::string m_defaultArchitecture;
-		std::string m_originalFileName;
 
 	public:
 		DebugAdapter(BinaryView* data);

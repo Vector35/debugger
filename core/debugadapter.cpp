@@ -48,8 +48,6 @@ DebugAdapter::DebugAdapter(BinaryView* data)
 	m_originalImageBase = data->GetOriginalImageBase();
 	if (data->GetDefaultArchitecture())
 		m_defaultArchitecture = data->GetDefaultArchitecture()->GetName();
-
-	m_originalFileName = data->GetFile()->GetOriginalFilename();
 }
 
 
