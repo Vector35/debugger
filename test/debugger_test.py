@@ -299,6 +299,9 @@ class DebuggerAPI(unittest.TestCase):
             bv = load(fpath)
             dbg = DebuggerController(bv)
             self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+            # Align the stack so the binary does not crash
+            dbg.set_reg_value('rsp', dbg.get_reg_value('rsp') & 0xfffffffffffffff0)
+
             entry = dbg.data.entry_point
             self.assertEqual(dbg.ip, entry)
 
