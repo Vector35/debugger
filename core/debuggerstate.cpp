@@ -948,6 +948,7 @@ Ref<Architecture> DebuggerState::GetRemoteArchitecture() const
 void DebuggerState::SetAdapterType(const std::string& adapter)
 {
 	m_adapterType = adapter;
+	m_controller->NotifyEvent(DebuggerAdapterChangedEvent);
 }
 
 

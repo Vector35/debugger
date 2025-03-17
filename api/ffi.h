@@ -257,7 +257,7 @@ extern "C"
 
 		ActiveThreadChangedEvent,
 
-		DebuggerSettingsChangedEvent,
+		DebuggerAdapterChangedEvent,
 		// This event is only emitted when the value of a register is modified explicitly (e.g., using Python API,
 		// in the register widget, etc.). It is not emitted when the target executes and then stops.
 		RegisterChangedEvent,
