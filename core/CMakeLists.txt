@@ -25,10 +25,10 @@ file(GLOB ADAPTER_SOURCES
 		adapters/lldbadapter.h
 		adapters/gdbadapter.cpp
 		adapters/gdbadapter.h
-		adapters/queuedadapter.cpp
-		adapters/queuedadapter.h
 		adapters/rspconnector.cpp
 		adapters/rspconnector.h
+		adapters/corelliumadapter.cpp
+		adapters/corelliumadapter.h
 	)
 
 if(WIN32)

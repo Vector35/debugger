@@ -128,6 +128,7 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason StepIntoAndWaitInternal();
 		DebugStopReason StepIntoReverseAndWaitInternal();
 		DebugStopReason EmulateStepOverAndWait();
+		DebugStopReason EmulateStepOverReverseAndWait();
 		DebugStopReason StepOverAndWaitInternal();
 		DebugStopReason StepOverReverseAndWaitInternal();
 		DebugStopReason EmulateStepReturnAndWait();
@@ -159,6 +160,7 @@ namespace BinaryNinjaDebugger {
 		void DetectLoadedModule();
 
 		bool m_adapterSupportsStepOver = false;
+		bool m_adapterSupportsStepOverReverse = false;
 		// bool m_adapterSupportsModules = false;
 		// bool m_adapterSupportsThreads = false;
 		bool m_adapterSupportsTTD = false;

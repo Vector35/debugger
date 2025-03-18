@@ -310,6 +310,7 @@ bool DebuggerController::CreateDebugAdapter()
 	m_adapter->SetController(this);
 
 	m_adapterSupportsStepOver = m_adapter->SupportFeature(DebugAdapterSupportStepOver);
+	m_adapterSupportsStepOverReverse = m_adapter->SupportFeature(DebugAdapterSupportStepOverReverse);
 	m_adapterSupportsTTD = m_adapter->SupportFeature(DebugAdapterSupportTTD);
 
 	ApplyBreakpoints();
@@ -1377,6 +1378,9 @@ DebugStopReason DebuggerController::EmulateStepOverAndWait()
 	ilFunc->SetCurrentAddress(remoteArch, remoteIP);
 	remoteArch->GetInstructionLowLevelIL((const uint8_t*)buffer.GetData(), remoteIP, bytesRead, *ilFunc);
 
+	if (ilFunc->GetInstructionCount() == 0)
+		return InternalError;
+
 	const auto& instr = (*ilFunc)[0];
 	if (instr.operation != LLIL_CALL)
 	{
@@ -1401,6 +1405,12 @@ DebugStopReason DebuggerController::EmulateStepOverAndWait()
 	}
 }
 
+DebugStopReason DebuggerController::EmulateStepOverReverseAndWait()
+{
+	// This cannot be implemented here unless we have hardware breakpoint supports
+	LogWarn("EmulateStepOverReverseAndWait() is not implemented");
+	return InternalError;
+}
 
 DebugStopReason DebuggerController::StepOverAndWaitInternal()
 {
@@ -1421,14 +1431,14 @@ DebugStopReason DebuggerController::StepOverReverseAndWaitInternal()
 {
 	m_userRequestedBreak = false;
 
-	if (m_adapterSupportsStepOver)
+	if (m_adapterSupportsStepOverReverse)
 	{
 		return ExecuteAdapterAndWait(DebugAdapterStepOverReverse);
 	}
 	else
 	{
-		// Emulate a step over
-		return EmulateStepOverAndWait();
+		// Emulate a step over reverse
+		return EmulateStepOverReverseAndWait();
 	}
 }
 

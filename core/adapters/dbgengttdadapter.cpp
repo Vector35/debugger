@@ -250,7 +250,8 @@ bool DbgEngTTDAdapter::StepReturnReverse()
 
 bool DbgEngTTDAdapter::SupportFeature(DebugAdapterCapacity feature)
 {
-	return DbgEngAdapter::SupportFeature(feature) || feature == DebugAdapterSupportTTD;
+	return DbgEngAdapter::SupportFeature(feature) || feature == DebugAdapterSupportTTD ||
+		feature == DebugAdapterSupportStepOverReverse;
 }
 
 

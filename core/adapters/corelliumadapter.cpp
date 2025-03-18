@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "gdbadapter.h"
+#include "corelliumadapter.h"
 #include <memory>
 #include <cstring>
 #ifdef WIN32
@@ -45,43 +45,41 @@ limitations under the License.
 #include <highlevelilinstruction.h>
 #include <inttypes.h>
 
-#include "../debuggercontroller.h"
-
 using namespace BinaryNinja;
 using namespace std;
 using namespace BinaryNinjaDebugger;
 
-GdbAdapter::GdbAdapter(BinaryView* data, bool redirectGDBServer): DebugAdapter(data)
+CorelliumAdapter::CorelliumAdapter(BinaryView* data, bool redirectGDBServer): DebugAdapter(data)
 {
     m_isTargetRunning = false;
-
 	GenerateDefaultAdapterSettings(data);
 }
 
-GdbAdapter::~GdbAdapter()
+CorelliumAdapter::~CorelliumAdapter()
 {
 }
 
-bool GdbAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
+
+bool CorelliumAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
-	LogWarn("GdbAdapter does not support Execute()");
+	LogWarn("CorelliumAdapter does not support Execute()");
     return false;
 }
 
-bool GdbAdapter::ExecuteWithArgs(const std::string &path, const std::string &args, const std::string &workingDir,
+bool CorelliumAdapter::ExecuteWithArgs(const std::string &path, const std::string &args, const std::string &workingDir,
 					 const LaunchConfigurations &configs)
 {
-	LogWarn("GdbAdapter does not support ExecuteWithArgs()");
+	LogWarn("CorelliumAdapter does not support ExecuteWithArgs()");
 	return false;
 }
 
-bool GdbAdapter::Attach(std::uint32_t pid)
+bool CorelliumAdapter::Attach(std::uint32_t pid)
 {
-	LogWarn("GdbAdapter does not support Attach()");
+	LogWarn("CorelliumAdapter does not support Attach()");
 	return false;
 }
 
-bool GdbAdapter::LoadRegisterInfo()
+bool CorelliumAdapter::LoadRegisterInfo()
 {
     if (m_isTargetRunning)
         return false;
@@ -96,59 +94,41 @@ bool GdbAdapter::LoadRegisterInfo()
     std::string architecture{};
     std::string os_abi{};
 	size_t lastRegIndex = -1;
-
-	auto processFeatures = [&](const pugi::xml_node& node) {
-		for (auto reg_child = node.child("reg"); reg_child; reg_child = reg_child.next_sibling())
-		{
-			std::string register_name{};
-			RegisterInfo register_info{};
-
-			for (auto reg_attribute = reg_child.attribute("name"); reg_attribute; reg_attribute = reg_attribute.next_attribute())
-			{
-				if (reg_attribute.name() == "name"s )
-					register_name = reg_attribute.value();
-				else if (reg_attribute.name() == "bitsize"s )
-					register_info.m_bitSize = reg_attribute.as_uint();
-
-				// A register must have an index, which is used in the g reply packet
-				// https://sourceware.org/gdb/current/onlinedocs/gdb.html/Target-Description-Format.html#Target-Description-Format
-				if (reg_attribute.name() == "regnum"s)
-					register_info.m_regNum = reg_attribute.as_uint();
-				else
-					register_info.m_regNum = lastRegIndex + 1;
-			}
-
-			this->m_registerInfo[register_name] = register_info;
-			lastRegIndex = register_info.m_regNum;
-		}
-	};
-
     for (auto node = doc.first_child().child("architecture"); node; node = node.next_sibling())
     {
         using namespace std::literals::string_literals;
 
         if ( node.name() == "architecture"s )
             architecture = node.child_value();
-        else if ( node.name() == "osabi"s )
+        if ( node.name() == "osabi"s )
             os_abi = node.child_value();
-        else if ( node.name() == "feature"s )
-			processFeatures(node);
-    	else if (node.name() == "xi:include"s )
-    	{
-    		auto includePath = node.attribute("href").value();
-    		const auto includedXml = this->m_rspConnector->GetXml(includePath);
-    		if (includedXml.empty())
-    			continue;
 
-    		pugi::xml_document includedDocs{};
-    		const auto includedParseResult = includedDocs.load_string(includedXml.c_str());
-    		if (!includedParseResult)
-    			continue;
+        if ( node.name() == "feature"s )
+        {
+            for (auto reg_child = node.child("reg"); reg_child; reg_child = reg_child.next_sibling())
+            {
+                std::string register_name{};
+                RegisterInfo register_info{};
 
-    		auto includedNode = includedDocs.first_child();
-    		if (includedNode.name() == "feature"s )
-    			processFeatures(includedNode);
-    	}
+                for (auto reg_attribute = reg_child.attribute("name"); reg_attribute; reg_attribute = reg_attribute.next_attribute())
+                {
+                    if (reg_attribute.name() == "name"s )
+                        register_name = reg_attribute.value();
+                    else if (reg_attribute.name() == "bitsize"s )
+                        register_info.m_bitSize = reg_attribute.as_uint();
+
+                	// A register must have an index, which is used in the g reply packet
+                	// https://sourceware.org/gdb/current/onlinedocs/gdb.html/Target-Description-Format.html#Target-Description-Format
+                    if (reg_attribute.name() == "regnum"s)
+                        register_info.m_regNum = reg_attribute.as_uint();
+                	else
+                		register_info.m_regNum = lastRegIndex + 1;
+                }
+
+                this->m_registerInfo[register_name] = register_info;
+            	lastRegIndex = register_info.m_regNum;
+            }
+        }
     }
 
 	if (architecture.empty())
@@ -186,20 +166,18 @@ bool GdbAdapter::LoadRegisterInfo()
     return true;
 }
 
-bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
+bool CorelliumAdapter::Connect(const std::string& server, std::uint32_t port)
 {
-	m_canReverseContinue = false;
-	m_canReverseStep = false;
-
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
 	auto adapterSettings = GetAdapterSettings();
-	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	scope = SettingsResourceScope;
 	auto ipAddress = adapterSettings->Get<std::string>("connect.ipAddress", data, &scope);
 	scope = SettingsResourceScope;
 	auto serverPort = adapterSettings->Get<uint64_t>("connect.port", data, &scope);
 	scope = SettingsResourceScope;
+	m_prefetchRegBytes = adapterSettings->Get<bool>("connect.prefetch_reg_bytes", data, &scope);
+	scope = SettingsResourceScope;
+	m_prefetchStackBytes = adapterSettings->Get<bool>("connect.prefetch_stack_bytes", data, &scope);
 
     bool connected = false;
     for ( std::uint8_t index{}; index < 30; index++ ) {
@@ -219,29 +197,22 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
-    if ( !connected )
-    {
-    	DebuggerEvent event;
-    	event.type = LaunchFailureEventType;
-    	event.data.errorData.shortError = "Connection failed";
-    	event.data.errorData.error =
+	if ( !connected )
+	{
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.shortError = "Connection failed";
+		event.data.errorData.error =
 			fmt::format("Failed to connect to {}:{}", ipAddress, serverPort);
-    	PostDebuggerEvent(event);
-    	return false;
-    }
+		PostDebuggerEvent(event);
+		return false;
+	}
 
     this->m_rspConnector = new RspConnector(this->m_socket);
     this->m_rspConnector->TransmitAndReceive(RspData("Hg0"));
     this->m_rspConnector->NegotiateCapabilities(
             { "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
                          "vContSupported+", "QThreadEvents+", "no-resumed+", "xmlRegisters=i386" } );
-
-	auto capacities = m_rspConnector->GetServerCapabilities();
-	if (std::find(capacities.begin(), capacities.end(), "ReverseContinue") != capacities.end())
-		m_canReverseContinue = true;
-	if (std::find(capacities.begin(), capacities.end(), "ReverseStep") != capacities.end())
-		m_canReverseStep = true;
-
     if ( !this->LoadRegisterInfo() )
     {
     	DebuggerEvent event;
@@ -250,7 +221,7 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
     	event.data.errorData.error =
 			fmt::format("Failed to read register info from the server");
     	PostDebuggerEvent(event);
-	    return false;
+    	return false;
     }
 
     const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("?"));
@@ -258,8 +229,26 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
 	this->m_lastActiveThreadId = map["thread"];
     m_isTargetRunning = false;
 
-	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
-		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
+	Ref<Settings> settings = Settings::Instance();
+	if (settings->Get<bool>("debugger.corellium.prefetch_reg_bytes"))
+	{
+		auto response = RunMonitorCommand("push deref-regs 0 0x100");
+		if (!response.empty())
+		{
+			LogWarn("monitor command 'push deref-regs 0 0x100' returned non-empty response: %s, the operation might"
+				"failed", response.c_str());
+		}
+	}
+
+	if (settings->Get<bool>("debugger.corellium.prefetch_stack_bytes"))
+	{
+		auto response = RunMonitorCommand("push deref-stack 0x100 0 0x100");
+		if (!response.empty())
+		{
+			LogWarn("monitor command 'push deref-stack 0x100 0 0x100' returned non-empty response: %s, the operation might"
+				"failed", response.c_str());
+		}
+	}
 
 	DebuggerEvent dbgevt;
 	dbgevt.type = AdapterStoppedEventType;
@@ -269,19 +258,12 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
     return true;
 }
 
-bool GdbAdapter::ConnectToDebugServer(const std::string &server, std::uint32_t port)
-{
-	LogWarn("DbgAdapter does not support connecting to a debug server, please use connect to remote process instead");
-	return false;
-}
-
-bool GdbAdapter::Detach()
+bool CorelliumAdapter::Detach()
 {
     this->m_rspConnector->SendPayload(RspData("D"));
     this->m_socket->Kill();
     m_isTargetRunning = false;
 	InvalidateCache();
-	ClearCachedBreakpoints();
 
 	if (m_rspConnector)
 	{
@@ -297,7 +279,7 @@ bool GdbAdapter::Detach()
 	return true;
 }
 
-bool GdbAdapter::Quit()
+bool CorelliumAdapter::Quit()
 {
 	// Modern gdbserver uses vkill to kill the taget:
 	// $vKill;7c3d#6e
@@ -306,7 +288,6 @@ bool GdbAdapter::Quit()
     this->m_socket->Kill();
     m_isTargetRunning = false;
 	InvalidateCache();
-	ClearCachedBreakpoints();
 
 	if (m_rspConnector)
 	{
@@ -327,7 +308,7 @@ bool GdbAdapter::Quit()
 	return true;
 }
 
-std::vector<DebugThread> GdbAdapter::GetThreadList()
+std::vector<DebugThread> CorelliumAdapter::GetThreadList()
 {
     if (m_isTargetRunning)
         return {};
@@ -336,10 +317,8 @@ std::vector<DebugThread> GdbAdapter::GetThreadList()
 
     auto reply = this->m_rspConnector->TransmitAndReceive(RspData("qfThreadInfo"));
     while(reply.m_data[0] != 'l') {
-        if (reply.m_data[0] != 'm') {
-	        LogWarn("RSP thread list error");
-        	return threads;
-        }
+        if (reply.m_data[0] != 'm')
+            throw std::runtime_error("thread list failed?");
 
         const auto shortened_string =
                 reply.AsString().substr(1);
@@ -353,26 +332,26 @@ std::vector<DebugThread> GdbAdapter::GetThreadList()
     return threads;
 }
 
-DebugThread GdbAdapter::GetActiveThread() const
+DebugThread CorelliumAdapter::GetActiveThread() const
 {
 	// TODO: GetInstructionOffset() should really be const, but changing it requires changes in lots of files,
 	// So I am abusing `this` and casting it to remove the const of it.
 	// Definitely remember to get back and fix this.
-	uint64_t pc = ((GdbAdapter*)this)->GetInstructionOffset();
+	uint64_t pc = ((CorelliumAdapter*)this)->GetInstructionOffset();
     return DebugThread(this->GetActiveThreadId(), pc);
 }
 
-std::uint32_t GdbAdapter::GetActiveThreadId() const
+std::uint32_t CorelliumAdapter::GetActiveThreadId() const
 {
     return m_lastActiveThreadId;
 }
 
-bool GdbAdapter::SetActiveThread(const DebugThread& thread)
+bool CorelliumAdapter::SetActiveThread(const DebugThread& thread)
 {
 	return SetActiveThreadId(thread.m_tid);
 }
 
-bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
+bool CorelliumAdapter::SetActiveThreadId(std::uint32_t tid)
 {
     if (m_isTargetRunning)
         return false;
@@ -391,7 +370,7 @@ bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
     return true;
 }
 
-DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
+DebugBreakpoint CorelliumAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
     if (m_isTargetRunning)
         return {};
@@ -416,7 +395,7 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned
     return new_breakpoint;
 }
 
-bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
+bool CorelliumAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 {
     if (m_isTargetRunning)
         return false;
@@ -432,10 +411,7 @@ bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
         kind = 4;
 
     if (this->m_rspConnector->TransmitAndReceive(RspData("z0,{:x},{}", breakpoint.m_address, kind)).AsString() != "OK" )
-    {
-    	LogDebug("rsp reply failure on remove breakpoint");
-    	return false;
-    }
+        throw std::runtime_error("rsp reply failure on remove breakpoint");
 
     if (auto location = std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(), breakpoint);
             location != this->m_debugBreakpoints.end())
@@ -444,20 +420,20 @@ bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
     return true;
 }
 
-std::vector<DebugBreakpoint> GdbAdapter::GetBreakpointList() const
+std::vector<DebugBreakpoint> CorelliumAdapter::GetBreakpointList() const
 {
     return this->m_debugBreakpoints;
 }
 
 
-bool GdbAdapter::BreakpointExists(uint64_t address) const
+bool CorelliumAdapter::BreakpointExists(uint64_t address) const
 {
     return std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(),
                    DebugBreakpoint(address)) != this->m_debugBreakpoints.end();
 }
 
 
-std::unordered_map<std::string, DebugRegister> GdbAdapter::ReadAllRegisters()
+std::unordered_map<std::string, DebugRegister> CorelliumAdapter::ReadAllRegisters()
 {
 	if (m_regCache.has_value())
 		return m_regCache.value();
@@ -499,7 +475,7 @@ std::unordered_map<std::string, DebugRegister> GdbAdapter::ReadAllRegisters()
     return all_regs;
 }
 
-DebugRegister GdbAdapter::ReadRegister(const std::string& reg)
+DebugRegister CorelliumAdapter::ReadRegister(const std::string& reg)
 {
     if (m_isTargetRunning)
         return DebugRegister{};
@@ -510,7 +486,7 @@ DebugRegister GdbAdapter::ReadRegister(const std::string& reg)
     return this->ReadAllRegisters()[reg];
 }
 
-bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
+bool CorelliumAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
 {
     if (m_isTargetRunning)
         return false;
@@ -537,7 +513,7 @@ bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
     return true;
 }
 
-DataBuffer GdbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
+DataBuffer CorelliumAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 {
     // This means whether the target is running. If it is, then we cannot read memory at the moment
     if (m_isTargetRunning)
@@ -580,7 +556,7 @@ DataBuffer GdbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 }
 
 
-bool GdbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
+bool CorelliumAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
     if (m_isTargetRunning)
         return false;
@@ -604,7 +580,7 @@ bool GdbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 }
 
 
-std::string GdbAdapter::GetRemoteFile(const std::string& path)
+std::string CorelliumAdapter::GetRemoteFile(const std::string& path)
 {
     if (m_isTargetRunning)
         return "";
@@ -613,10 +589,7 @@ std::string GdbAdapter::GetRemoteFile(const std::string& path)
     int32_t error;
     int32_t ret = this->m_rspConnector->HostFileIO(RspData("vFile:setfs:0"), output, error);
     if (ret < 0)
-    {
-	    LogDebug("Could not set remote filesystem");
-    	return "";
-    }
+        throw runtime_error("Could not set remote filesystem");
 
     std::string path_hex_string{};
     for ( const auto& ch : path )
@@ -625,10 +598,7 @@ std::string GdbAdapter::GetRemoteFile(const std::string& path)
     ret = this->m_rspConnector->HostFileIO(
                     RspData("vFile:open:{},{:X},{:X}", path_hex_string.c_str(), 0, 0), output, error);
     if (ret < 0)
-    {
-	    LogDebug("Unable to open file with host I/O");
-    	return "";
-    }
+        throw runtime_error("Unable to open file with host I/O");
 
     int32_t fd = ret;
 
@@ -641,113 +611,37 @@ std::string GdbAdapter::GetRemoteFile(const std::string& path)
         ret = this->m_rspConnector->HostFileIO(
                     RspData("vFile:pread:{:X},{:X},{:X}", fd, blockSize, offset), output, error);
         if (ret < 0)
-        {
-	        LogDebug(fmt::format("host i/o pread() failed, result=%d, errno=%d", ret, error).c_str());
-        	return data;
-        }
+            throw runtime_error(fmt::format("host i/o pread() failed, result=%d, errno=%d", ret, error));
         if (ret == 0)
             // EOF
             break;
-
         if (ret != (int32_t)output.AsString().length())
-        {
-	        LogDebug(fmt::format("host i/o pread() returned {:X} but decoded binary attachment is size {:X}",
-					ret, output.AsString().length()).c_str());
-        	return data;
-        }
-
+            throw runtime_error(fmt::format("host i/o pread() returned {:X} but decoded binary attachment is size {:X}",
+                    ret, output.AsString().length()));
+        
         data += output.AsString();
         offset += output.AsString().length();
     }
 
     ret = this->m_rspConnector->HostFileIO(RspData(fmt::format("vFile:close:{:X}", fd)), output, error);
     if (ret)
-    {
-	    LogDebug(fmt::format("host i/o close() failed, result={}, errno={}", ret, error).c_str());
-	    return data;
-    }
+        throw runtime_error(fmt::format("host i/o close() failed, result={}, errno={}", ret, error));
 
     return data;
 }
 
-std::vector<DebugModule> GdbAdapter::GetModuleList()
+std::vector<DebugModule> CorelliumAdapter::GetModuleList()
 {
-	if (m_moduleCache.has_value())
-		return m_moduleCache.value();
-
-    if (m_isTargetRunning)
-        return {};
-
-    std::map<std::string, BNAddressRange> moduleRanges;
-
-    const auto path = "/proc/" + std::to_string(this->m_lastActiveThreadId) + "/maps";
-    std::string data = GetRemoteFile(path);
-	if (data.empty())
-		return {};
-
-    for (const std::string& line: RspConnector::Split(data, "\n"))
-    {
-        std::string_view v = line;
-        v.remove_prefix(std::min(v.find_first_not_of(" "), v.size()));
-        auto trimPosition = v.find_last_not_of(" ");
-        if (trimPosition != v.npos)
-            v.remove_suffix(v.size() - trimPosition - 1);
-
-        // regex_match() requires the first argument to be const
-        const std::string trimmedLine = std::string(v);
-
-        std::smatch match;
-        const std::regex module_regex("^([0-9a-f]+)-([0-9a-f]+) [rwxp-]{4} .* (/.*)$");
-        bool found = std::regex_match(trimmedLine, match, module_regex);
-        if (found)
-        {
-            if (match.size() == 4) {
-                std::string startString = match[1].str();
-                uint64_t start = std::strtoull(startString.c_str(), nullptr, 16);
-                std::string endString = match[2].str();
-                uint64_t end = std::strtoull(endString.c_str(), nullptr, 16);
-                std::string path = match[3].str();
-
-                auto iter = moduleRanges.find(path);
-                if (iter != moduleRanges.end())
-                {
-                    BNAddressRange currentRange = iter->second;
-                    BNAddressRange newRange;
-                    newRange.start = std::min<uint64_t>(currentRange.start, start);
-                    newRange.end = std::max<uint64_t>(currentRange.end, end);
-                    iter->second = newRange;
-                }
-                else
-                {
-                    moduleRanges[path] = {start, end};
-                }
-            }
-        }
-    }
-
-    std::vector<DebugModule> result;
-    for (auto& iter: moduleRanges)
-    {
-        DebugModule module;
-        module.m_address = iter.second.start;
-        module.m_size = iter.second.end - iter.second.start;
-        module.m_name = iter.first;
-        module.m_short_name = iter.first;
-        module.m_loaded = true;
-        result.push_back(module);
-    }
-	m_moduleCache = result;
-
-    return result;
+	return {};
 }
 
 
-std::string GdbAdapter::GetTargetArchitecture()
+std::string CorelliumAdapter::GetTargetArchitecture()
 {
 	return m_remoteArch;
 }
 
-bool GdbAdapter::BreakInto()
+bool CorelliumAdapter::BreakInto()
 {
     char var = '\x03';
     this->m_rspConnector->SendRaw(RspData(&var, sizeof(var)));
@@ -756,7 +650,7 @@ bool GdbAdapter::BreakInto()
 }
 
 
-DebugStopReason GdbAdapter::ResponseHandler(bool notifyStopped)
+DebugStopReason CorelliumAdapter::ResponseHandler()
 {
 	while (true)
 	{
@@ -769,36 +663,26 @@ DebugStopReason GdbAdapter::ResponseHandler(bool notifyStopped)
 			m_isTargetRunning = false;
             m_lastActiveThreadId = tid;
 
-			CheckApplyPendingBreakpoints();
-
 			auto reason = SignalToStopReason(map);
-			if (notifyStopped)
-			{
-				DebuggerEvent dbgevt;
-				dbgevt.type = AdapterStoppedEventType;
-				dbgevt.data.targetStoppedData.reason = reason;
-				PostDebuggerEvent(dbgevt);
-			}
+			DebuggerEvent dbgevt;
+			dbgevt.type = AdapterStoppedEventType;
+			dbgevt.data.targetStoppedData.reason = reason;
+			PostDebuggerEvent(dbgevt);
+
             return reason;
 		}
 		else if (reply[0] == 'W')
 		{
-			InvalidateCache();
-			ClearCachedBreakpoints();
-
 			// Target exited
 			std::string exitCodeString = reply.AsString().substr(1);
 			uint8_t exitCode = strtoul(exitCodeString.c_str(), nullptr, 16);
 			m_isTargetRunning = false;
             m_exitCode = exitCode;
 
-			if (notifyStopped)
-			{
-				DebuggerEvent dbgevt;
-				dbgevt.type = TargetExitedEventType;
-				dbgevt.data.exitData.exitCode = m_exitCode;
-				PostDebuggerEvent(dbgevt);
-			}
+			DebuggerEvent dbgevt;
+			dbgevt.type = TargetExitedEventType;
+			dbgevt.data.exitData.exitCode = m_exitCode;
+			PostDebuggerEvent(dbgevt);
 
 			this->m_socket->Kill();
 			m_isTargetRunning = false;
@@ -818,7 +702,7 @@ DebugStopReason GdbAdapter::ResponseHandler(bool notifyStopped)
 			const auto string = reply.AsString();
 			const auto message = string.substr(1);
 
-			// These duplicate code in GdbAdapter::ReadMemory(). We should probably add a ParseFromHex() and EncodeAsHex()
+			// These duplicate code in CorelliumAdapter::ReadMemory(). We should probably add a ParseFromHex() and EncodeAsHex()
 			// to the RspData class.
 			if (message.size() % 2 == 1)
                 continue;
@@ -847,13 +731,10 @@ DebugStopReason GdbAdapter::ResponseHandler(bool notifyStopped)
 				}
 			}((const std::uint8_t*)message.c_str(), (std::uint8_t*)result.c_str());
 
-			if (notifyStopped)
-			{
-				DebuggerEvent event;
-				event.type = StdoutMessageEventType;
-				event.data.messageData.message = result;
-				PostDebuggerEvent(event);
-			}
+			DebuggerEvent event;
+			event.type = StdoutMessageEventType;
+			event.data.messageData.message = result;
+			PostDebuggerEvent(event);
 		}
 		else
 		{
@@ -864,194 +745,55 @@ DebugStopReason GdbAdapter::ResponseHandler(bool notifyStopped)
 
 
 // this should return the information about the target stop
-DebugStopReason GdbAdapter::GenericGo(const std::string& goCommand, bool notifyStopped)
+DebugStopReason CorelliumAdapter::GenericGo(const std::string& goCommand)
 {
 	m_isTargetRunning = true;
 	// TODO: these two calls should be combined
 	m_rspConnector->SendPayload(RspData(goCommand));
 	m_rspConnector->ExpectAck();
 
-	return ResponseHandler(notifyStopped);
+	return ResponseHandler();
 }
 
 
 // The return value only indicates whether the command is successfully sent
-bool GdbAdapter::Go()
+bool CorelliumAdapter::Go()
 {
 	DebuggerEvent dbgevt;
 	dbgevt.type = ResumeEventType;
 	PostDebuggerEvent(dbgevt);
 
-	auto pc = GetInstructionOffset();
-	if (BreakpointExists(pc))
-	{
-		RemoveBreakpoint(pc);
-		InvalidateCache();
-		// TODO: we should only skip notifying regular stops here. If the target exits after stepping, we should still
-		// notify the step within the GenericGo and skip the code below
-		GenericGo("vCont;s", false);
-		AddBreakpoint(pc);
-		GenericGo("vCont;c");
-	}
-	else
-	{
-		InvalidateCache();
-		GenericGo("vCont;c");
-	}
-
-	return true;
-}
-
-
-bool GdbAdapter::StepInto()
-{
-	DebuggerEvent dbgevt;
-	dbgevt.type = ResumeEventType;
-	PostDebuggerEvent(dbgevt);
-
-	auto pc = GetInstructionOffset();
-	if (BreakpointExists(pc))
-	{
-		RemoveBreakpoint(pc);
-		InvalidateCache();
-		GenericGo("vCont;s");
-		AddBreakpoint(pc);
-	}
-	else
-	{
-		InvalidateCache();
-		GenericGo("vCont;s");
-	}
-
-	return true;
-}
-
-
-bool GdbAdapter::StepOver()
-{
-	LogWarn("GdbAdapter does not support StepOver() by itself -- the debugger is responsible for emulating it");
-	return false;
-}
-
-
-bool GdbAdapter::StepReturn()
-{
-	LogWarn("GdbAdapter does not support StepReturn() yet");
-	return false;
-}
-
-
-// The return value only indicates whether the command is successfully sent
-bool GdbAdapter::GoReverse()
-{
-	DebuggerEvent dbgevt;
-	dbgevt.type = ResumeEventType;
-	PostDebuggerEvent(dbgevt);
-
-	// TODO: it seems rr actually masks the breakpoint in reverse debugging, so we do not really need to do it here.
-	// We should test it and remove it if this is unnecessary.
-	// P.S.: this is still needed for forward debugging in rr
-	auto pc = GetInstructionOffset();
-	if (BreakpointExists(pc))
-	{
-		RemoveBreakpoint(pc);
-		InvalidateCache();
-		// TODO: we should only skip notifying regular stops here. If the target exits after stepping, we should still
-		// notify the step within the GenericGo and skip the code below
-		GenericGo("bs", false);
-		AddBreakpoint(pc);
-		GenericGo("bc");
-	}
-	else
-	{
-		InvalidateCache();
-		GenericGo("bc");
-	}
-
-	return true;
-}
-
-
-bool GdbAdapter::StepIntoReverse()
-{
-	DebuggerEvent dbgevt;
-	dbgevt.type = ResumeEventType;
-	PostDebuggerEvent(dbgevt);
-
-	auto pc = GetInstructionOffset();
-	if (BreakpointExists(pc))
-	{
-		RemoveBreakpoint(pc);
-		InvalidateCache();
-		GenericGo("bs");
-		AddBreakpoint(pc);
-	}
-	else
-	{
-		InvalidateCache();
-		GenericGo("bs");
-	}
-
-	return true;
-}
-
-
-bool GdbAdapter::StepOverReverse()
-{
 	InvalidateCache();
-	auto status = GenericGo("bs");
-	if (status == InternalError)
-		return false;
+	GenericGo("vCont;c");
+	return true;
+}
 
-	uint64_t remoteIP = GetInstructionOffset();
-	uint64_t stack = GetStackPointer();
 
-	// TODO: support the case where we cannot determined the remote arch
-	ArchitectureRef remoteArch = GetController()->GetState()->GetRemoteArchitecture();
-	if (!remoteArch)
-		return InternalError;
+bool CorelliumAdapter::StepInto()
+{
+	DebuggerEvent dbgevt;
+	dbgevt.type = ResumeEventType;
+	PostDebuggerEvent(dbgevt);
 
-	size_t size = remoteArch->GetMaxInstructionLength();
-	DataBuffer buffer = ReadMemory(remoteIP, size);
-	size_t bytesRead = buffer.GetLength();
-
-	Ref<LowLevelILFunction> ilFunc = new LowLevelILFunction(remoteArch, nullptr);
-	ilFunc->SetCurrentAddress(remoteArch, remoteIP);
-	remoteArch->GetInstructionLowLevelIL((const uint8_t*)buffer.GetData(), remoteIP, bytesRead, *ilFunc);
-
-	if (ilFunc->GetInstructionCount() == 0)
-		return InternalError;
-
-	const auto& instr = (*ilFunc)[0];
-	if (instr.operation != LLIL_RET)
-		return true;
-
-	AddHardwareWriteBreakpoint(stack);
 	InvalidateCache();
-	status = GenericGo("bc");
-	RemoveHardwareWriteBreakpoint(stack);
-
-	return status != InternalError;
+    GenericGo("vCont;s");
+	return true;
 }
 
-bool GdbAdapter::AddHardwareWriteBreakpoint(uint64_t address)
-{
-	return this->m_rspConnector->TransmitAndReceive(RspData("Z2,{:x},{}", address, 1)).AsString() != "OK";
-}
 
-bool GdbAdapter::RemoveHardwareWriteBreakpoint(uint64_t address)
+bool CorelliumAdapter::StepOver()
 {
-	return this->m_rspConnector->TransmitAndReceive(RspData("Z2,{:x},{}", address, 1)).AsString() != "OK";
-}
+	DebuggerEvent dbgevt;
+	dbgevt.type = ResumeEventType;
+	PostDebuggerEvent(dbgevt);
 
-bool GdbAdapter::StepReturnReverse()
-{
-	LogWarn("GdbAdapter does not support StepReturnReverse() yet");
+    // CorelliumAdapter does not support StepOver(), it relies on DebuggerState to do a breakpoint and continue execution
+//    return DebugStopReason::UnknownReason;
 	return false;
 }
 
 
-std::string GdbAdapter::InvokeBackendCommand(const std::string& command)
+std::string CorelliumAdapter::InvokeBackendCommand(const std::string& command)
 {
 	if (command.substr(0, 4) == "mon ")
 		return RunMonitorCommand(command.substr(4));
@@ -1090,7 +832,7 @@ static std::string HexToAscii(const std::string& hex)
 }
 
 
-std::string GdbAdapter::RunMonitorCommand(const std::string& command)
+std::string CorelliumAdapter::RunMonitorCommand(const std::string& command)
 {
 	std::string commandToSend = "qRcmd,";
 	for (const auto& c: command)
@@ -1119,7 +861,7 @@ std::string GdbAdapter::RunMonitorCommand(const std::string& command)
 }
 
 
-uint64_t GdbAdapter::GetInstructionOffset()
+uint64_t CorelliumAdapter::GetInstructionOffset()
 {
     // TODO: obviously this will only support x86/x86_64, so we need a more systematic way for it
     std::string ipRegisterName = "";
@@ -1136,57 +878,35 @@ uint64_t GdbAdapter::GetInstructionOffset()
     return value;
 }
 
-uint64_t GdbAdapter::GetStackPointer()
-{
-	// TODO: obviously this will only support x86/x86_64, so we need a more systematic way for it
-	std::string ipRegisterName = "";
-	if ((m_remoteArch == "x86") || (m_remoteArch == "i386"))
-		ipRegisterName = "esp";
-	else if (m_remoteArch == "x86_64")
-		ipRegisterName = "rsp";
-	else if ((m_remoteArch == "aarch64") || (m_remoteArch == "arm64"))
-		ipRegisterName = "sp";
-	else
-		ipRegisterName = "sp";
-
-	uint64_t value = this->ReadRegister(ipRegisterName).m_value;
-	return value;
-}
-
-DebugStopReason GdbAdapter::StopReason()
+DebugStopReason CorelliumAdapter::StopReason()
 {
     return this->m_lastStopReason;
 }
 
 
-bool GdbAdapter::SupportFeature(DebugAdapterCapacity feature)
+bool CorelliumAdapter::SupportFeature(DebugAdapterCapacity feature)
 {
     switch (feature)
     {
     case DebugAdapterSupportStepOver:
         return false;
-    case DebugAdapterSupportStepOverReverse:
-    	return true;
     case DebugAdapterSupportModules:
         return true;
     case DebugAdapterSupportThreads:
         return true;
-    case DebugAdapterSupportTTD:
-    	return m_canReverseContinue && m_canReverseStep;
     default:
         return false;
     }
 }
 
 
-void GdbAdapter::InvalidateCache()
+void CorelliumAdapter::InvalidateCache()
 {
 	m_regCache.reset();
-	m_moduleCache.reset();
 }
 
 
-DebugStopReason GdbAdapter::SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& map)
+DebugStopReason CorelliumAdapter::SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& map)
 {
     static std::unordered_map<std::uint64_t, DebugStopReason> signal_lookup = {
             {1, DebugStopReason::SignalHup},
@@ -1239,7 +959,7 @@ DebugStopReason GdbAdapter::SignalToStopReason(std::unordered_map<std::string, s
 }
 
 
-void GdbAdapter::HandleAsyncPacket(const RspData& data)
+void CorelliumAdapter::HandleAsyncPacket(const RspData& data)
 {
     if ( data.m_data[0] != 'O' )
         return;
@@ -1247,7 +967,7 @@ void GdbAdapter::HandleAsyncPacket(const RspData& data)
     const auto string = data.AsString();
     const auto message = string.substr(1);
 
-	// These duplicate code in GdbAdapter::ReadMemory(). We should probably add a ParseFromHex() and EncodeAsHex()
+	// These duplicate code in CorelliumAdapter::ReadMemory(). We should probably add a ParseFromHex() and EncodeAsHex()
 	// to the RspData class.
 	if (message.size() % 2 == 1)
 		return;
@@ -1283,152 +1003,93 @@ void GdbAdapter::HandleAsyncPacket(const RspData& data)
 }
 
 
-std::vector<DebugProcess> GdbAdapter::GetProcessList()
+std::vector<DebugProcess> CorelliumAdapter::GetProcessList()
 {
 	return {};
 }
 
 
-bool GdbAdapter::SuspendThread(std::uint32_t tid)
+bool CorelliumAdapter::SuspendThread(std::uint32_t tid)
 {
 	return false;
 }
 
 
-bool GdbAdapter::ResumeThread(std::uint32_t tid)
+bool CorelliumAdapter::ResumeThread(std::uint32_t tid)
 {
 	return false;
 }
 
 
-bool GdbAdapter::GetModuleBase(const std::string &moduleName, uint64_t &base)
+DebugBreakpoint CorelliumAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
 {
-	if (moduleName.empty())
-	{
-		base = 0;
-		return true;
-	}
-
-	auto modules = GetModuleList();
-	for (const auto& module: modules)
-	{
-		if (DebugModule::IsSameBaseModule(moduleName, module.m_name))
-		{
-			base = module.m_address;
-			return true;
-		}
-	}
-
-	return false;
+	return {};
 }
 
 
-DebugBreakpoint GdbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
-{
-	uint64_t base{};
-	if (GetModuleBase(address.module, base))
-	{
-		auto addr = base + address.offset;
-		return AddBreakpoint(addr, breakpoint_type);
-	}
-	else
-	{
-		m_pendingBreakpoints.emplace_back(address, breakpoint_type);
-		return {};
-	}
-}
-
-
-void GdbAdapter::CheckApplyPendingBreakpoints()
-{
-	for (auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end(); )
-	{
-		uint64_t base{};
-		if (GetModuleBase(it->address.module, base))
-		{
-			uint64_t addr = base + it->address.offset;
-			// TODO: more robust check of whether the operation succeeds
-			if (AddBreakpoint(addr, it->type).m_address != 0)
-			{
-				it = m_pendingBreakpoints.erase(it);
-				continue;
-			}
-		}
-		it++;
-	}
-}
-
-
-RemoteGdbAdapterType::RemoteGdbAdapterType(): DebugAdapterType("GDB RSP")
+CorelliumAdapterType::CorelliumAdapterType(): DebugAdapterType("Corellium")
 {
 
 }
 
 
-DebugAdapter* RemoteGdbAdapterType::Create(BinaryNinja::BinaryView *data)
+DebugAdapter* CorelliumAdapterType::Create(BinaryNinja::BinaryView *data)
 {
 	// TODO: someone should free this.
-    return new GdbAdapter(data);
+    return new CorelliumAdapter(data);
 }
 
 
-bool RemoteGdbAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
+bool CorelliumAdapterType::IsValidForData(BinaryNinja::BinaryView *data)
 {
 //	it does not matter what the BinaryViewType is -- as long as we can connect to it, it is fine.
 	return true;
 }
 
 
-bool RemoteGdbAdapterType::CanConnect(BinaryNinja::BinaryView *data)
+bool CorelliumAdapterType::CanConnect(BinaryNinja::BinaryView *data)
 {
 //	We can connect to remote lldb on any host system
     return true;
 }
 
 
-bool RemoteGdbAdapterType::CanExecute(BinaryNinja::BinaryView *data)
+bool CorelliumAdapterType::CanExecute(BinaryNinja::BinaryView *data)
 {
     return false;
 }
 
-void BinaryNinjaDebugger::InitGdbAdapterType()
+
+void BinaryNinjaDebugger::InitCorelliumAdapterType()
 {
-    static RemoteGdbAdapterType remoteType;
+    static CorelliumAdapterType remoteType;
     DebugAdapterType::Register(&remoteType);
 }
 
 
-Ref<Settings> GdbAdapter::GetAdapterSettings()
+Ref<Settings> CorelliumAdapter::GetAdapterSettings()
 {
-	return RemoteGdbAdapterType::GetAdapterSettings();
+	return CorelliumAdapterType::GetAdapterSettings();
 }
 
 
-void GdbAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
+void CorelliumAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 {
 	auto adapterSettings = GetAdapterSettings();
-	BNSettingsScope scope = SettingsResourceScope;
-	adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	if (scope != SettingsResourceScope)
-		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
-
 }
 
 
-Ref<Settings> RemoteGdbAdapterType::RegisterAdapterSettings()
+Ref<Settings> CorelliumAdapterType::GetAdapterSettings()
 {
-	Ref<Settings> settings = Settings::Instance("GdbAdapterSettings");
-	settings->SetResourceId("gdb_adapter_settings");
-	settings->RegisterSetting("common.inputFile",
-		R"({
-			"title" : "Input File",
-			"type" : "string",
-			"default" : "",
-			"description" : "Input file to use to find the base address of the binary view",
-			"readOnly" : false,
-			"uiSelectionAction" : "file"
-			})");
+	static Ref<Settings> settings = CorelliumAdapterType::RegisterAdapterSettings();
+	return settings;
+}
 
+
+Ref<Settings> CorelliumAdapterType::RegisterAdapterSettings()
+{
+	Ref<Settings> settings = Settings::Instance("CorelliumAdapterSettings");
+	settings->SetResourceId("corellium_adapter_settings");
 	settings->RegisterSetting("connect.ipAddress",
 			R"({
 			"title" : "IP Address",
@@ -1448,12 +1109,20 @@ Ref<Settings> RemoteGdbAdapterType::RegisterAdapterSettings()
 			"readOnly" : false
 			})");
 
-	return settings;
-}
+	settings->RegisterSetting("connect.prefetch_reg_bytes",
+	R"({
+			"title" : "Prefetch Bytes From Registers",
+			"type" : "boolean",
+			"default" : true,
+			"description" : "Prefetch bytes from the register values"
+			})");
+	settings->RegisterSetting("connect.prefetch_stack_bytes",
+	R"({
+			"title" : "Prefetch Bytes From Stack Pointer",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "Prefetch bytes from the stack pointer"
+			})");
 
-
-Ref<Settings> RemoteGdbAdapterType::GetAdapterSettings()
-{
-	static Ref<Settings> settings = RegisterAdapterSettings();
 	return settings;
 }

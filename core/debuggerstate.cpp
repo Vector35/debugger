@@ -843,6 +843,11 @@ std::string DebuggerState::GetBestAdapter(BinaryViewRef data)
 			return candidateAdapter;
 	}
 
+	auto bestAdapterForSystem = DebugAdapterType::GetBestAdapterForCurrentSystem(data);
+	if (std::find(m_availableAdapters.begin(), m_availableAdapters.end(), bestAdapterForSystem)
+		!= m_availableAdapters.end())
+		return bestAdapterForSystem;
+
 	return m_availableAdapters[0];
 }
 

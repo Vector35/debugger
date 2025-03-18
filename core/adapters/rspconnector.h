@@ -201,5 +201,7 @@ namespace BinaryNinjaDebugger
 		int32_t HostFileIO(const RspData& data, RspData& output, int32_t& error);
 
 		std::string GetXml(const std::string& name);
+
+		std::vector<std::string> GetServerCapabilities() const { return m_serverCapabilities; }
 	};
 };

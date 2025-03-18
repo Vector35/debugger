@@ -52,6 +52,8 @@ namespace BinaryNinjaDebugger {
 	enum DebugAdapterCapacity
 	{
 		DebugAdapterSupportStepOver,
+		DebugAdapterSupportStepReturn,
+		DebugAdapterSupportStepOverReverse,
 		DebugAdapterSupportModules,
 		DebugAdapterSupportThreads,
 		DebugAdapterSupportTTD,

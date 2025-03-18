@@ -54,7 +54,10 @@ namespace BinaryNinjaDebugger
 				this->m_socket = ::socket(address_family, type, protocol);
 				SetSocketReusable();
 			} else {
-				for (std::int32_t index = 31337; index < 31337 + 1024; index++) {
+				// If we look for an available port starting from 31337, then it will have a weird side effect that if
+				// the user forgets to run gdbserver/rr on port 31337, the adapter will connect to the port itself and
+				// the communication will fail apart. As a workaround, I start to look for a usable one from port 33337
+				for (std::int32_t index = 33337; index < 33337 + 1024; index++) {
 					this->m_socket = ::socket(address_family, type, protocol);
 					SetSocketReusable();
 
@@ -65,7 +68,6 @@ namespace BinaryNinjaDebugger
 
 					if (this->Bind(address)) {
 						this->m_port = index;
-						this->Close();
 						break;
 					}
 				}

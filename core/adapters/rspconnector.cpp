@@ -25,6 +25,7 @@ limitations under the License.
 #include "rspconnector.h"
 
 using namespace BinaryNinjaDebugger;
+using namespace BinaryNinja;
 
 RspConnector::RspConnector(Socket* socket) : m_socket(socket) { }
 
@@ -344,7 +345,10 @@ int32_t RspConnector::HostFileIO(const RspData& data, RspData& output, int32_t& 
     this->ExpectAck();
     reply = this->ReceiveRspData();
     if (reply.m_data[0] != 'F')
-        throw std::runtime_error("host io packet is invalid");
+    {
+        LogDebug("host io packet is invalid");
+        return -1;
+    }
 
     std::string resultErrno = reply.AsString();
 

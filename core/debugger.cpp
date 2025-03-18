@@ -18,6 +18,7 @@ limitations under the License.
 #include "adapters/gdbadapter.h"
 #include "adapters/lldbrspadapter.h"
 #include "adapters/lldbadapter.h"
+#include "adapters/corelliumadapter.h"
 #ifdef WIN32
 	#include "adapters/dbgengadapter.h"
 	#include "adapters/dbgengttdadapter.h"
@@ -45,12 +46,8 @@ void InitDebugAdapterTypes()
 	InitWindowsDumpFileAdapterType();
 #endif
 
-
-	if (settings->Get<bool>("debugger.corelliumAdapter"))
-	{
-		InitGdbAdapterType();
-	}
-
+	InitCorelliumAdapterType();
+	InitGdbAdapterType();
 	InitLldbAdapterType();
 }
 
@@ -174,15 +171,6 @@ static void RegisterSettings()
 			"type" : "boolean",
 			"default" : true,
 			"description" : "When enabled, this holds the analysis for the binary view during debugging to increase performance."
-			})");
-
-	settings->RegisterSetting("debugger.corelliumAdapter",
-	R"({
-			"title" : "Enable Corellium Adapter",
-			"type" : "boolean",
-			"default" : false,
-			"description" : "Whether or not to enable the corellium adapter.",
-			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 }
 
