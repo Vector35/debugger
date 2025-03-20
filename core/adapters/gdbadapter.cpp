@@ -83,7 +83,7 @@ bool GdbAdapter::Attach(std::uint32_t pid)
 
 bool GdbAdapter::LoadRegisterInfo()
 {
-    if (m_isTargetRunning)
+    if (m_isTargetRunning || !m_rspConnector)
         return false;
 
     const auto xml = this->m_rspConnector->GetXml("target.xml");
@@ -277,6 +277,9 @@ bool GdbAdapter::ConnectToDebugServer(const std::string &server, std::uint32_t p
 
 bool GdbAdapter::Detach()
 {
+	if (!m_rspConnector)
+		return false;
+
     this->m_rspConnector->SendPayload(RspData("D"));
     this->m_socket->Kill();
     m_isTargetRunning = false;
@@ -299,6 +302,9 @@ bool GdbAdapter::Detach()
 
 bool GdbAdapter::Quit()
 {
+	if (!m_rspConnector)
+		return false;
+
 	// Modern gdbserver uses vkill to kill the taget:
 	// $vKill;7c3d#6e
 	// $OK#9a
@@ -329,7 +335,7 @@ bool GdbAdapter::Quit()
 
 std::vector<DebugThread> GdbAdapter::GetThreadList()
 {
-    if (m_isTargetRunning)
+	if (m_isTargetRunning || !m_rspConnector)
         return {};
 
     std::vector<DebugThread> threads{};
@@ -374,7 +380,7 @@ bool GdbAdapter::SetActiveThread(const DebugThread& thread)
 
 bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
 {
-    if (m_isTargetRunning)
+	if (m_isTargetRunning || !m_rspConnector)
         return false;
 
     if ( this->m_rspConnector->TransmitAndReceive(RspData(string("T{:x}"), tid)).AsString() != "OK" )
@@ -393,7 +399,7 @@ bool GdbAdapter::SetActiveThreadId(std::uint32_t tid)
 
 DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
-    if (m_isTargetRunning)
+	if (m_isTargetRunning || !m_rspConnector)
         return {};
 
     if ( std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(),
@@ -418,7 +424,7 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned
 
 bool GdbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 {
-    if (m_isTargetRunning)
+	if (m_isTargetRunning || !m_rspConnector)
         return false;
 
     if (auto location = std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(), breakpoint);
@@ -459,6 +465,9 @@ bool GdbAdapter::BreakpointExists(uint64_t address) const
 
 std::unordered_map<std::string, DebugRegister> GdbAdapter::ReadAllRegisters()
 {
+	if (m_isTargetRunning || !m_rspConnector)
+		return {};
+
 	if (m_regCache.has_value())
 		return m_regCache.value();
 
@@ -512,7 +521,7 @@ DebugRegister GdbAdapter::ReadRegister(const std::string& reg)
 
 bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
 {
-    if (m_isTargetRunning)
+    if (m_isTargetRunning || !m_rspConnector)
         return false;
 
     const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("P{}={:016X}",
@@ -540,7 +549,7 @@ bool GdbAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
 DataBuffer GdbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 {
     // This means whether the target is running. If it is, then we cannot read memory at the moment
-    if (m_isTargetRunning)
+	if (m_isTargetRunning || !m_rspConnector)
         return DataBuffer{};
 
     auto reply = this->m_rspConnector->TransmitAndReceive(RspData("m{:x},{:x}", address, size));
@@ -606,7 +615,7 @@ bool GdbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 
 std::string GdbAdapter::GetRemoteFile(const std::string& path)
 {
-    if (m_isTargetRunning)
+    if (m_isTargetRunning || !m_rspConnector)
         return "";
 
     RspData output;
@@ -749,6 +758,9 @@ std::string GdbAdapter::GetTargetArchitecture()
 
 bool GdbAdapter::BreakInto()
 {
+	if (!m_isTargetRunning || !m_rspConnector)
+		return false;
+
     char var = '\x03';
     this->m_rspConnector->SendRaw(RspData(&var, sizeof(var)));
     m_isTargetRunning = false;
@@ -758,6 +770,9 @@ bool GdbAdapter::BreakInto()
 
 DebugStopReason GdbAdapter::ResponseHandler(bool notifyStopped)
 {
+	if (!m_rspConnector)
+		return InternalError;
+
 	while (true)
 	{
 		const RspData reply = m_rspConnector->ReceiveRspData();
@@ -866,6 +881,9 @@ DebugStopReason GdbAdapter::ResponseHandler(bool notifyStopped)
 // this should return the information about the target stop
 DebugStopReason GdbAdapter::GenericGo(const std::string& goCommand, bool notifyStopped)
 {
+	if (!m_rspConnector)
+		return InternalError;
+
 	m_isTargetRunning = true;
 	// TODO: these two calls should be combined
 	m_rspConnector->SendPayload(RspData(goCommand));
@@ -1036,11 +1054,17 @@ bool GdbAdapter::StepOverReverse()
 
 bool GdbAdapter::AddHardwareWriteBreakpoint(uint64_t address)
 {
+	if (m_isTargetRunning || !m_rspConnector)
+		return false;
+
 	return this->m_rspConnector->TransmitAndReceive(RspData("Z2,{:x},{}", address, 1)).AsString() != "OK";
 }
 
 bool GdbAdapter::RemoveHardwareWriteBreakpoint(uint64_t address)
 {
+	if (m_isTargetRunning || !m_rspConnector)
+		return false;
+
 	return this->m_rspConnector->TransmitAndReceive(RspData("Z2,{:x},{}", address, 1)).AsString() != "OK";
 }
 
@@ -1053,6 +1077,9 @@ bool GdbAdapter::StepReturnReverse()
 
 std::string GdbAdapter::InvokeBackendCommand(const std::string& command)
 {
+	if (!m_rspConnector)
+		return {};
+
 	if (command.substr(0, 4) == "mon ")
 		return RunMonitorCommand(command.substr(4));
 	else if (command.substr(0, 8) == "monitor ")
@@ -1092,6 +1119,9 @@ static std::string HexToAscii(const std::string& hex)
 
 std::string GdbAdapter::RunMonitorCommand(const std::string& command)
 {
+	if (!m_rspConnector)
+		return {};
+
 	std::string commandToSend = "qRcmd,";
 	for (const auto& c: command)
 	{
@@ -1319,6 +1349,7 @@ bool GdbAdapter::GetModuleBase(const std::string &moduleName, uint64_t &base)
 		}
 	}
 
+	base = 0;
 	return false;
 }
 
