@@ -45,6 +45,8 @@ namespace BinaryNinjaDebugger {
 		bool m_isElFWithoutDynamicLoader = false;
 		bool IsELFWithoutDynamicLoader(BinaryView* data);
 
+		bool CreateTarget(const std::string& file);
+
 	public:
 		LldbAdapter(BinaryView* data);
 		virtual ~LldbAdapter();

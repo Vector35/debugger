@@ -25,6 +25,8 @@ using namespace std;
 
 std::string lldbArchNameForBinaryNinjaArchName(std::string name)
 {
+	if (name == "x86")
+		return "x86";
 	if (name == "x86_64")
 		return "x86_64";
 	else if (name == "aarch64")
@@ -368,24 +370,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	scope = SettingsResourceScope;
 	auto envVariables = adapterSettings->Get<vector<string>>("launch.environmentVariables", data, &scope);
 
-	// *Attempt* to create a functional target triple for the binary.
-	// This allows attaching to fat binaries. If the triple is empty, it will still attach on thin binaries.
-	auto archName = lldbArchNameForBinaryNinjaArchName(m_defaultArchitecture);
-	std::string triple = "";
-	if (!archName.empty())
-		triple = archName + "-unknown-none";
-
-	m_target = m_debugger.CreateTarget(executablePath.c_str(), triple.c_str(), "", true, err);
-
-	if (!m_target.IsValid())
-	{
-		// It is likely lldb did not like our target triple.
-		if (err.GetCString() && std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
-		{
-			// Last-ditch effort. If it is a thin binary, we will be able to attach without passing a triple.
-			m_target = m_debugger.CreateTarget(executablePath.c_str(), "", "", true, err);
-		}
-	}
+	CreateTarget(inputFile);
 
 	if (!m_target.IsValid())
 	{
@@ -494,24 +479,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	scope = SettingsResourceScope;
 	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
 
-	// *Attempt* to create a functional target triple for the binary.
-	// This allows attaching to fat binaries. If the triple is empty, it will still attach on thin binaries.
-	auto archName = lldbArchNameForBinaryNinjaArchName(m_defaultArchitecture);
-	std::string triple = "";
-	if (!archName.empty())
-		triple = archName + "-unknown-none";
-
-	m_target = m_debugger.CreateTarget(inputFile.c_str(), triple.c_str(), "", true, err);
-
-	if (!m_target.IsValid())
-	{
-		// It is likely lldb did not like our target triple.
-		if (err.GetCString() && std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
-		{
-			// Last-ditch effort. If it is a thin binary, we will be able to attach without passing a triple.
-			m_target = m_debugger.CreateTarget(inputFile.c_str(), "", "", true, err);
-		}
-	}
+	CreateTarget(inputFile);
 
 	if (!m_target.IsValid())
 	{
@@ -550,6 +518,40 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 }
 
 
+bool LldbAdapter::CreateTarget(const std::string &file)
+{
+	// We try different ways to create a target until one of them works...
+	auto archName = lldbArchNameForBinaryNinjaArchName(m_defaultArchitecture);
+	std::string triple = "";
+	if (!archName.empty())
+		triple = archName + "-unknown-none";
+
+	m_target = m_debugger.CreateTargetWithFileAndArch(file.c_str(), archName.c_str());
+	if (m_target.IsValid())
+		return true;
+
+	m_target = m_debugger.CreateTargetWithFileAndArch(file.c_str(), "");
+	if (m_target.IsValid())
+		return true;
+
+	SBError err;
+	m_target = m_debugger.CreateTarget(file.c_str(), triple.c_str(), "", true, err);
+	if (m_target.IsValid())
+		return true;
+
+	m_target = m_debugger.CreateTarget(file.c_str(), "", "", true, err);
+	if (m_target.IsValid())
+		return true;
+
+	m_target = m_debugger.CreateTarget("", "", "", true, err);
+	if (m_target.IsValid())
+		return true;
+
+	return false;
+}
+
+
+
 bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 {
 	m_debugger.SetAsync(true);
@@ -570,24 +572,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	scope = SettingsResourceScope;
 	auto processPlugin = adapterSettings->Get<std::string>("connect.processPlugin", data, &scope);
 
-	// *Attempt* to create a functional target triple for the binary.
-	// This allows attaching to fat binaries. If the triple is empty, it will still attach on thin binaries.
-	auto archName = lldbArchNameForBinaryNinjaArchName(m_defaultArchitecture);
-	std::string triple = "";
-	if (!archName.empty())
-		triple = archName + "-unknown-none";
-
-	m_target = m_debugger.CreateTarget(inputFile.c_str(), triple.c_str(), "", true, err);
-
-	if (!m_target.IsValid())
-	{
-		// It is likely lldb did not like our target triple.
-		if (err.GetCString() && std::string(err.GetCString()).find("is not compatible with") != std::string::npos)
-		{
-			// Last-ditch effort. If it is a thin binary, we will be able to attach without passing a triple.
-			m_target = m_debugger.CreateTarget(inputFile.c_str(), "", "", true, err);
-		}
-	}
+	CreateTarget(inputFile);
 
 	if (!m_target.IsValid())
 	{
