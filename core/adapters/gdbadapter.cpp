@@ -118,6 +118,9 @@ bool GdbAdapter::LoadRegisterInfo()
 					register_info.m_regNum = lastRegIndex + 1;
 			}
 
+			if (register_name.empty())
+				continue;
+
 			this->m_registerInfo[register_name] = register_info;
 			lastRegIndex = register_info.m_regNum;
 		}
