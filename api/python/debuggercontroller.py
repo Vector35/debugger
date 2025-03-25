@@ -502,26 +502,80 @@ class DebuggerController:
 
         >>> bv = load("test/binaries/helloworld")
         >>> dbg = DebuggerController(bv)
-        >>> dbg.launch()
+        >>> dbg.launch_and_wait()
+        <DebugStopReason.Breakpoint: 6>
+
+    When the ``launch_and_wait()`` returns ``DebugStopReason.Breakpoint``, it means the debugger has launched the target
+    successfully, and the target stopped at the entry point of the binary. Now we can perform other control operations
+    on it, e.g., resume the target by calling ``step_into_and_wait()``.
+
+        >>> dbg.step_into_and_wait()
+        <DebugStopReason.SingleStep: 4>
+
+    For all the API functions that resume the target, e.g., launch go, step into, etc, there are two variants of them.
+    One of them resumes the target and waits for it to stop again synchronously, ``step_into_and_wait`` will do a step
+    into, and it only returns AFTER the target stops again. This is more frequently used, and is suitable for automating
+    a sequence of actions. However, after calling such a synchronous API, if for any reason the target does not stop as
+    expected, Binary Ninja might be confused or hang.
+
+    The second set of API works asynchronously. For example, ``step into`` will only do a step into, but does NOT wait
+    for the target to stop again. Usually the asynchronous API is used with ``register_event_callback`` to listen for
+    the relevant events (e.g., target resumed, stopped, etc). The asynchronous API is harder to use and is only
+    recommended when the synchronous version does not suit your need. The Binary Ninja debugger UI uses the
+    asynchronous API.
+
+    To retrieve all the registers, run `regs`:
+
+        >>> dbg.regs
+        {'x0': <DebugRegister: x0, 0x1>, ...}
+
+    More often we only need get the value of one regisgter:
+
+        >>> dbg.regs['x1']
+        <DebugRegister: x1, 0x16fdffa70, &"/Users/xxxx//debugger/test/binaries/Darwin-arm64-signed/helloworld">
+
+    The result contains the register value as well as a string that can be dereferenced at its value.
+
+    ``ip`` returns the current intrudction pointer, and `stack_pointer`` returns the stack pointer:
+
+        >>> dbg.stack_pointer
+        6171916256
+        >>> dbg.ip
+        4294983364
+
+    To read/write memory value, use ``read_memory``/``write_memory``. Or you can directly read/write the binary view
+    object returned by `dbg.data`.
+
+        >>> dbg.read_memory(dbg.ip, 0x10)
+        <binaryninja.databuffer.DataBuffer object at 0x32ffa2f90>
+        >>> dbg.data.read(dbg.ip, 0x10)
+        b'\xfd{\x03\xa9\xfd\xc3\x00\x91\xbf\xc3\x1f\xb8\xa0\x83\x1f\xb8'
+
+        >>> dbg.write_memory(dbg.stack_pointer, b'a' * 0x10)
         True
+        >>> dbg.data.write(dbg.stack_pointer, b'a' * 0x10)
+        16
 
-    When the ``launch()`` returns True, it means the debugger has launched the target successfully. The target breaks at
-    the entry point of the binary. Now we can perform other control operations on it, e.g., resume the target by calling
-    ``go()``.
+    ``modules`` returns the list of modules, `threads` returns the list of threads.
 
-        >>> dbg.go()
+    Breakpoints can be added via `add_breakpoint`:
+
+        >>> dbg.add_breakpoint(0x100003ed0)
+
+    And it will be hit after we resume the target with ``go_and_wait``:
+
+        >>> dbg.go_and_wait()
+        <DebugStopReason.Breakpoint: 6>
+
+    We can resume it again:
+
+        >>> dbg.go_and_wait()
         <DebugStopReason.ProcessExited: 2>
 
     Since there are no other breakpoints in the target, the process executes and then exits.
 
-    All target control functions, e.g., ``go()``, ``step_into()``, etc, are blocking. They will not return until the
-    target breaks. In the future, we will switch to an asynchronous communication model where these functions return
-    before the operation is performed.
-
-    Starting from 4.1.5542-dev (0ad6b08b), the debugger no longer involves two binary views during debugging. Instead,
-    it always uses the incoming binary view that is used to create the controller, and memory regions that are not
-    present in the original binary view are represented using the new MemoryRegion API. The binary view can be accessed
-    by the ``data`` property.
+    For more examples of using the debugger Python API, feel free to get some inspirations from our
+    [unit tests](https://github.com/Vector35/debugger/blob/dev/test/debugger_test.py)
 
     """
     def __init__(self, bv: binaryninja.BinaryView):
