@@ -18,11 +18,14 @@ use kdnet as as example. Other configurations should be similar.
 2. Start up kernel debugging in Binary Ninja
     - Depending on your usage:
         - If you wish to debug code in a specific driver, open the file in Binary Ninja and analyze it, or
-        - If you wish to debug the kernel in general, do not open any file, and create an empty binary view by pressing Ctrl+N/Command+N
-    - Open debugger sidebar, click `Debug Adapter Settings` button, then
-        - Set `Adapter Type` to `WINDOWS_KERNEL`
-        - Set `Executable Path` to the kernel debugging connection string, e.g, `net:port=50000,key=m94cdr7mkd1g.2kr136s4s2gjn.g4fjk4arnn69.zjgk4tc396li`. Note, do not include the `windbg -k` part in it.
-        - Click `Accept`
+        - If you wish to debug the kernel in general, do not open any file, and create a new mapped data by Clicking "File" -> "New Mapped Data", and set the architecture/platform accordingly, e.g., to `windows-kernel-x86_64`
+    - Open the `Debug Adapter Settings` dialog
+    
+    <img src="../../img/debugger/windows-kd.png" width="600px">
+
+    - Select `WINDOWS_KERNEL` as the adapter type
+    - Set `Connection String` to the kernel debugging connection string, e.g, `net:port=50000,key=m94cdr7mkd1g.2kr136s4s2gjn.g4fjk4arnn69.zjgk4tc396li`. Note, do not include the `windbg -k` part in it.
+    - Click `Accept`
     - Click the `Launch` button to start kernel debugging
     - The debugger asks you to confirm the launch operation. Click `Yes` to proceed
     - If you did not open a file in the first step, the debugger asks you to specify the platform for the debugger binary view. Select `windows-kernel-x86_64` or `windows-kernel-x86` accordingly. Click `Accept` to proceed

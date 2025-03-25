@@ -2,17 +2,12 @@
 
 ## Support Status
 
-We currently support Windows remote debugging from Windows and Linux/macOS remote debugging from all platforms. Remote debugging of Windows executables from Linux/macOS is a planned feature.
+We currently support Windows remote debugging from Windows and Linux/macOS remote debugging from all platforms.
+Remote debugging of Windows executables from Linux/macOS is a planned feature.
 
-We also support gdbserver/lldb-server remote debugging from all platforms.
+We also support gdbserver/lldb-server/debugserver remote debugging from all platforms. Targets that expose a GDB stub
+that speaks the GDB RSP protocal, e.g., QEMU, VMWare, Qiling, Corellium, are also support from all platforms.
 
-| Target  🔽 Host ▶️    | macOS   | Linux   | Windows |
-|-----------------------|---------|---------|---------|
-| macOS                 | /       | Yes     | Yes     |
-| Linux                 | Yes     | /       | Yes     |
-| Windows               | Planned | Planned | /       |
-| GDB Server            | Yes     | Yes     | Yes     | 
-| LLDB Server           | Yes     | Yes     | Yes     |
 
 ## Debug Server v.s. Remote Process
 
@@ -37,7 +32,7 @@ feel free to track our progress:
 
 ### Preparing the Remote Host
 
-- Download or copy [debugger-win32.zip](https://github.com/Vector35/debugger/releases/download/1.0/debugger-win32.zip)
+- Download or copy the `debugger-win32.zip` from the [release page](https://github.com/Vector35/debugger/releases/latest)
   to the remote host
 - Extract it
 
@@ -65,11 +60,14 @@ To start a remote debugging session, launch the `dbgsrv.exe` on the remote machi
 Now, connect to a debug server in Binary Ninja using DbgEng adapter.
 
 - Open the binary you wish to debug
-- Click "Debugger" -> "Connect to Debug Server" in the main window menu bar
-- In the dialog, type in the IP and port to connect to:
+- Click "Debugger" -> "Connect to Debug Server" in the main window menu bar. The `Debug adapter settings` dialog will
+  popup
 
-![](../../img/debugger/debugserver.png)
+![](../../img/debugger/debugserver-dbgeng.png)
 
+- Make sure the "DbgEng" adapter is selected
+- Navigate to the "debugServer" settings group (if it is not selected by default)
+- Type in the `IP Address` and `Port` to connect to
 - Click `Accept`. A message box will show up if the connection is successful
 
 Now you can launch or connect to a process on the remote host. It works similarly as if you launch or attach to
@@ -81,6 +79,8 @@ a process locally.
 
 <img src="../../img/debugger/remoteadaptersettings.png" width="600px">
 
+- Make sure the "DbgEng" adapter is selected
+- Navigate to the "launch" settings group
 - Specify the executable path and working directory on the remote machine. This is likely different from the local path
   which is shown by default
 - Launch the target
@@ -110,7 +110,7 @@ recommended way. However, if it does not work for you, you can try using the rem
 
 ### Preparing the Remote Host
 
-- Download or copy [debugger-linux.zip](https://github.com/Vector35/debugger/releases/download/1.0/debugger-linux.zip)
+- Download or copy `debugger-linux.zip` from the [release page](https://github.com/Vector35/debugger/releases/latest) 
   to the remote host
 - Extract it
 - One can also use the `lldb-server` that can be installed via a package manager. However, it may have compatibility
@@ -128,26 +128,27 @@ an interface that the Binary Ninja debugger will later connect to.
 ### Connecting to the Debug Server
 
 - Open the binary you wish to debug
-- Click "Debugger" -> "Connect to Debug Server" in the main window menu bar
-- In the dialog, type in the IP and port to connect to:
+- Click "Debugger" -> "Connect to Debug Server" in the main window menu bar. The `Debug adapter settings` dialog will
+popup
 
 ![](../../img/debugger/debugserver-lldb.png)
 
-- There is a `Platform` dropdown menu. Select `remote-linux` in it
-
-![](../../img/debugger/platform-list.png)
-
-- Click `Accept`. A message box will show up if the connection is successful.
+- Navigate to the "debugServer" settings group (if it is not selected by default)
+- Type in the `IP Address` and `Port` to connect to
+- Select `remote-linux` in the `Platform` dropdown menu
+- Click `Accept`. A message box will show up if the connection is successful
 
 ### Launching a Process on the Remote Host
 
-- Open the `Debug Adapter Settings` dialog
+- Click "Launch", and the `Debug Adapter Settings` dialog will popup
+- Navigate to the "launch" settings group (if it is not selected by default)
 - Set the `Working Directory` to the *remote* directory that you wish to launch the process in. Do not leave the path
   unchanged since it will then be a local path, and there will be an error during launch.
 - Do NOT change the `Executable Path` to a remote path. Set it to the local path where the executable is in. During
   launch, LLDB will copy the executable to the remote host, put it in the working directory we supplied above, and
   launch it. Setting a remote path here will cause errors. LLDB is smart enough to check the hash of the file so that it
   will only copy the file once.
+- Configure other parameters as needed
 - Launch the target
 
 ### Attaching to a Process on the Remote Host
@@ -170,7 +171,7 @@ If the debug server does not work, you can try Linux remote debugging via the re
 
 ### Preparing the Remote Host
 
-- Download or copy [debugger-linux.zip](https://github.com/Vector35/debugger/releases/download/1.0/debugger-linux.zip)
+- Download or copy `debugger-linux.zip` from the [release page](https://github.com/Vector35/debugger/releases/latest)
   to the remote host
 - Extract it
 - One can also use the `lldb-server` that can be installed via a package manager. However, it may have compatibility
@@ -192,13 +193,15 @@ an interface that the Binary Ninja debugger will later connect to.
 ### Connecting to the Remote Process
 
 - Open the binary you wish to debug
-- Click "Debugger" -> "Connect to Remote Process" in the main window menu bar
-- In the dialog, type in the IP and port to connect to:
+- Click "Debugger" -> "Connect to Remote Process" in the main window menu bar. The `Debug adapter settings` dialog will
+  popup
 
-![](../../img/debugger/remoteprocess.png)
+![](../../img/debugger/remoteprocess-lldb.png)
 
-- For the `Plugin` dropdown menu, select `gdb-remote` accordingly.
-- Click `Accept`.
+- Navigate to the "connect" settings group (if it is not selected by default)
+- Type in the `IP Address` and `Port` to connect to
+- select `gdb-remote` For the `Process Plugin`
+- Click `Accept`
 - The debugger will now connect to the process launched or attached to in the previous step and start debugging
 
 When using the remote process mode, when the debugging stops (the target exits or gets killed), the connection is
@@ -220,7 +223,7 @@ recommended way. However, if it does not work for you, you can try using the rem
 
 ### Preparing the Remote Host
 
-- Download or copy [debugger-darwin.zip](https://github.com/Vector35/debugger/releases/download/1.0/debugger-darwin.zip)
+- Download or copy `debugger-darwin.zip` from the [release page](https://github.com/Vector35/debugger/releases/latest)
   to the remote host
 - Extract it
 
@@ -237,16 +240,15 @@ an interface that Binary Ninja debugger will later connect to.
 ### Connecting to the Debug Server
 
 - Open the binary you wish to debug
-- Click "Debugger" -> "Connect to Debug Server" in the main window menu bar
-- In the dialog, type in the IP and port to connect to:
+- Click "Debugger" -> "Connect to Debug Server" in the main window menu bar. The `Debug adapter settings` dialog will
+  popup
 
 ![](../../img/debugger/debugserver-lldb.png)
 
-- There is a `Platform` dropdown menu. Select `remote-macos` in it
-
-![](../../img/debugger/platform-list.png)
-
-- Click `Accept`. A message box will show up if the connection is successful.
+- Navigate to the "debugServer" settings group (if it is not selected by default)
+- Type in the `IP Address` and `Port` to connect to
+- Select `remote-macosx` in the `Platform` dropdown menu
+- Click `Accept`. A message box will show up if the connection is successful
 
 ### Launching a Process on the Remote Host
 
@@ -279,7 +281,7 @@ If the debug server does not work, you can try macOS remote debugging via the re
 
 ### Preparing the Remote Host
 
-- Download or copy [debugger-darwin.zip](https://github.com/Vector35/debugger/releases/download/1.0/debugger-darwin.zip)
+- Download or copy `debugger-darwin.zip` from the [release page](https://github.com/Vector35/debugger/releases/latest)
   to the remote host
 - Extract it
 - One can also use the `lldb-server` that can be installed via a package manager. However, it may have compatibility
@@ -301,13 +303,15 @@ an interface that the Binary Ninja debugger will later connect to.
 ### Connecting to the Remote Process
 
 - Open the binary you wish to debug
-- Click "Debugger" -> "Connect to Remote Process" in the main window menu bar
-- In the dialog, type in the IP and port to connect to:
+- Click "Debugger" -> "Connect to Remote Process" in the main window menu bar. The `Debug adapter settings` dialog will
+  popup
 
-![](../../img/debugger/remoteprocess.png)
+![](../../img/debugger/remoteprocess-lldb.png)
 
-- For the `Plugin` dropdown menu, select `gdb-remote` accordingly.
-- Click `Accept`.
+- Navigate to the "connect" settings group (if it is not selected by default)
+- Type in the `IP Address` and `Port` to connect to
+- select `gdb-remote` For the `Process Plugin`
+- Click `Accept`
 - The debugger will now connect to the process launched or attached to in the previous step and start debugging
 
 When using the remote process mode, when the debugging stops (the target exits or gets killed), the connection is
@@ -326,6 +330,8 @@ Please note that although the "GDB server" has a "server" in its name, normally 
 words, the debugging is one-shot, that when the target exits, the connection gets closed. If you wish to debug it
 again, you need to start the GDB server again.
 
+You can connect to a gdbserver/GDB Stub using either the LLDB adapter or the GDB RSP adatepr.
+
 ### Launching GDB Server
 
 - On Linux, to launch a new process, run `gdbserver 0.0.0.0:31337 -- /path/to/helloworld foo bar`
@@ -341,24 +347,38 @@ again, you need to start the GDB server again.
 - For other tools that also speak the GDB remote debugging protocol, please refer to their documentation on how to
   configure it
 
-
-### Connecting to GDB Server
-
-- Open the binary you wish to debug
-- Click "Debugger" -> "Connect to Remote Process" in the main window menu bar
-- In the dialog, type in the IP and port to connect to:
-
-![](../../img/debugger/remoteprocess.png)
-
-- For the `Plugin` dropdown menu, select `gdb-remote` accordingly.
-- Click `Accept`.
-- The debugger will now connect to the process launched or attached to in the previous step and start debugging
-
 Recent versions of the GDB server also support a debug server mode, which can be active using
 `gdbserver --multi 0.0.0.0:31337`. However, the Binary Ninja debugger does not yet support connecting to the GDB server in
 this mode.
 
 
+### Connecting to GDB Server (using LLDB adapter)
+
+- Open the binary you wish to debug
+- Click "Debugger" -> "Connect to Remote Process" in the main window menu bar. The `Debug adapter settings` dialog will
+  popup
+
+![](../../img/debugger/remoteprocess-lldb.png)
+
+- Select `LLDB` as the adapter
+- Navigate to the "connect" settings group (if it is not selected by default)
+- Type in the `IP Address` and `Port` to connect to
+- select `gdb-remote` For the `Process Plugin`
+- Click `Accept`
+
+
+### Connecting to GDB Server (using GDB RSP adapter)
+
+- Open the binary you wish to debug
+- Click "Debugger" -> "Connect to Remote Process" in the main window menu bar. The `Debug adapter settings` dialog will
+  popup
+
+![](../../img/debugger/remoteprocess-gdbrsp.png)
+
+- Select `GSB RSP` as the adapter
+- Navigate to the "connect" settings group (if it is not selected by default)
+- Type in the `IP Address` and `Port` to connect to
+- Click `Accept`
 
 
 ## iOS Remote Debugging
@@ -393,13 +413,17 @@ The high-level steps are:
 ### Connecting to the target
 
 - Open the binary you wish to debug
-- Click "Debugger" -> "Connect to Debug Server" in the main window menu bar
-- In the dialog, type in the IP and port entered in the previous step:
+- Click "Debugger" -> "Connect to Remote Process" in the main window menu bar. The `Debug adapter settings` dialog will
+  popup
 
-![](../../img/debugger/remoteprocess.png)
+![](../../img/debugger/remoteprocess-lldb.png)
 
-- For the `Plugin` dropdown menu, select `debugserver/lldb`
-- Click `Accept`.
+- Navigate to the "connect" settings group (if it is not selected by default)
+- Type in the `IP Address` and `Port` to connect to
+- select `debugserver/lldb` For the `Process Plugin`
+- Click `Accept`
+- The debugger will now connect to the process launched or attached to in the previous step and start debugging
+
 
 
 
@@ -436,10 +460,12 @@ The high-level steps are:
 ### Connecting to the target
 
 - Open the binary you wish to debug
-- Click "Debugger" -> "Connect to Debug Server" in the main window menu bar
-- In the dialog, type in the IP and port entered in the previous step:
+- Click "Debugger" -> "Connect to Remote Process" in the main window menu bar. The `Debug adapter settings` dialog will
+  popup
 
-![](../../img/debugger/remoteprocess.png)
+![](../../img/debugger/remoteprocess-lldb.png)
 
-- For the `Plugin` dropdown menu, select `gdb-remote`
-- Click `Accept`.
+- Navigate to the "connect" settings group (if it is not selected by default)
+- Type in the `IP Address` and `Port` to connect to
+- select `gdb-remote` For the `Process Plugin`
+- Click `Accept`

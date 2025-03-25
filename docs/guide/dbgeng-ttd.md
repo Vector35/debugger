@@ -1,9 +1,9 @@
-# Time Travel Debugging
+# Time Travel Debugging (Windows)
 
 Time travel debugging (TTD) allows you to record an execution trace of a program or system and replay it back and forth.
 It can speed up the process of reverse engineering/vulnerability research, and deal with certain tasks that are not easy to handle in regular forward debugging.
 
-Several tools implement TTD. As of now, Binary Ninja debugger integrates with the WinDbg/DbgEng TTD so that you can replay and analyze a trace recorded by WinDbg.
+Several tools implement TTD. On Windows, Binary Ninja debugger integrates with the WinDbg/DbgEng TTD so that you can replay and analyze a trace recorded by WinDbg.
 The combination of TTD and your familiar reverse engineer tool would hopefully supercharge the ability to time travel and make your workflow even more effective.
 
 Below is a guide to set it up.
@@ -54,9 +54,12 @@ all types of recording supported by WinDbg (e.g., attach to a running process an
 
 ### Record a TTD Trace in Binary Ninja
 
+- Make sure you have WinDbg property installed and configured
 - Open the file you wish to trace in Binary Ninja (optional)
 - Click Menu -> "Debugger" -> "Record TTD Trace"
-- <img src="../../img/debugger/ttd_record.png" width="600px">
+
+<img src="../../img/debugger/ttd_record.png" width="600px">
+
 - In the "TTD Record" dialog, configure the recording as you wish:
     - Executable Path: the path of the executable to trace
     - Working Directory: the working directory to launch the executable in
@@ -85,8 +88,8 @@ https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-
 
 - Open the .exe or .dll file in Binary Ninja
 - Click `Debugger` -> `Debug Adapter Settings`
-- For `Adapter Type`, select `DBGENG_TTD`
-- For `Executable Path`, select the trace file recorded in the previous step
+- Select `DBGENG_TTD` as the debug adapter
+- For `Trace Path`, select the trace file recorded in the previous step
     - E.g., `C:/Users/xushe/Documents/helloworld01.run`
 - Click `Accept`
 
@@ -107,9 +110,10 @@ https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-
     - t-: step into back
     - g-u: step out back
 - The [!position](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-extension-positions) command prints the `position` of all active threads
-- The [!tt](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-extension-tt) command navigates to a `position` in the trace
+- The [!tt navigation](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-extension-tt) command navigates to a `position` in the trace
     - E.g., `!tt 1A0:12F`
     - While using the debugger, when the target stops, the current position will be printed in the debugger console
+- The new [!tt breakpoint](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-extension-tt#tt-break-commands) now supports breaking the target when a memory is read/written/executed, a register value is changed, or a module has been loaded, both in forward and backward direction. This is very powerful and worth checking out!
 
 
 ## Feedback and Suggestions

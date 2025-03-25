@@ -14,10 +14,10 @@ git checkout dev
 # or git checkout commit_hash
 ```
 
-- Download LLDB development build for your OS at https://github.com/Vector35/lldb-artifacts/releases - make sure that the correct LLDB version is downloaded (`grep 'LLVM_VERSION ' core/CMakeLists.txt` can help)
+- Download LLDB development build for your OS at https://github.com/Vector35/lldb-artifacts/releases/latest - make sure that the correct LLDB version is downloaded (`grep 'LLVM_VERSION ' core/CMakeLists.txt` can help)
   - Extract the zip archive to `~/libclang`
 
-- Download Qt development build for your OS at https://github.com/Vector35/qt-artifacts/releases.
+- Download Qt development build for your OS at https://github.com/Vector35/qt-artifacts/releases/latest.
   - Extract the zip archive to `~/Qt`
 
 - Build the debugger

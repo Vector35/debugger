@@ -4,30 +4,25 @@ This is the repository for Binary Ninja Debugger. The debugger is written in C++
 
 ## Platform and Target Support
 
-This is the current comparability matrix of the debugger. The horizontal lines stand for where we run BN and the vertical lines stand for the targets.
+This is the current comparability matrix of the debugger. The columns stand for where we run BN and the rows stand for the targets.
 
-| Target  🔽 Host ▶️    | macOS              | Linux              | Windows            | Note |
-|-----------------------|--------------------|--------------------|--------------------|------|
-| macOS                 | Yes (Local/Remote) | Yes (Remote)       | Yes (Remote)       |      |
-| Linux                 | Yes (Remote)       | Yes (Local/Remote) | Yes (Remote)       |      |
-| Windows               | Planned            | Planned            | Yes (Local/Remote) |      |
-| GDB Server            | Yes                | Yes                | Yes                | (1)  |
-| LLDB Server           | Yes                | Yes                | Yes                |      |
-| Windows Kernel        | TBD                | TBD                | Planned            |      |
-| DebugAdapter Protocol | Planned            | Planned            | Planned            |      |
+| Target  🔽 Host ▶️                   | macOS                                                   | Linux                                                   | Windows                                                 | Note |
+|--------------------------------------|---------------------------------------------------------|---------------------------------------------------------|---------------------------------------------------------|------|
+| macOS user                           | Yes (Local/Remote)                                      | Yes (Remote)                                            | Yes (Remote)                                            |      |
+| Linux user                           | Yes (Remote)                                            | Yes (Local/Remote)                                      | Yes (Remote)                                            |      |
+| Windows user                         | [#70](https://github.com/Vector35/debugger/issues/70)   | [#70](https://github.com/Vector35/debugger/issues/70)   | Yes (Local/Remote)                                      |      |
+| GDB Server                           | Yes                                                     | Yes                                                     | Yes                                                     |      |
+| GDB RSP (QEMU/VMWare/Qiling/Android) | Yes                                                     | Yes                                                     | Yes                                                     |      |
+| GDB Machine Interface                | [#170](https://github.com/Vector35/debugger/issues/170) | [#170](https://github.com/Vector35/debugger/issues/170) | [#170](https://github.com/Vector35/debugger/issues/170) |      |
+| LLDB Server                          | Yes                                                     | Yes                                                     | Yes                                                     |      |
+| iOS/debugserver                      | Yes                                                     | Yes                                                     | Yes                                                     |      |
+| Windows Kernel                       | No                                                      | No                                                      | Yes (Local/Remote)                                      |      |
+| Windows TTD (WinDbg)                 | No                                                      | No                                                      | Yes (Local)                                             |      |
+| Linux TTD (rr)                       | Yes (Remote)                                            | Yes (Local/Remote)                                      | Yes (Remote)                                            |      |
+| Windows Dump File                    | No                                                      | No                                                      | Yes (Local)                                             |      |
+| Corellium                            | Yes (Remote)                                            | Yes (Remote)                                            | Yes (Remote)                                            |      |
 
-Explanation:
-- `Yes` means the feature is supported.
-- `Planned` means that we plan to implement it.
-- `TBD` means that we have not decided whether to support it, or how to support it.
-- `No` means it is not possible to do, at least for now.
-
-Notes:
-
-(1). Right now, we only support gdbserver with android remote debugging. Support for other gdbserver or gdb stub, e.g., qiling, VMWare, QEMU, will be added later.
-
-The progress is tracked in [this issue](https://github.com/Vector35/debugger/issues/122).
-
+The progress is also tracked in issue [#122](https://github.com/Vector35/debugger/issues/122).
 
 
 

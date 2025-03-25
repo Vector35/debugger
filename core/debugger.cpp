@@ -56,15 +56,6 @@ static void RegisterSettings()
 {
 	Ref<Settings> settings = Settings::Instance();
 	settings->RegisterGroup("debugger", "Debugger");
-	/*
-
-	Removed blockPython -- we can re-add it once this debugger is enabled by
-	default
-
-	Leaving this function for migration of the settings popup.
-
-	*/
-
 	settings->RegisterSetting("debugger.stopAtSystemEntryPoint",
 		R"({
 			"title" : "Stop At System Entry Point",
@@ -112,7 +103,7 @@ static void RegisterSettings()
 			})");
 	settings->RegisterSetting("debugger.tryUnloadWrongDbgEngDLL",
 		R"({
-			"title" : "Attempt to unload the DLL with wrong path",
+			"title" : "Attempt to unload the DbgEng DLLs from wrong path",
 			"type" : "boolean",
 			"default" : false,
 			"description" : "Attempt to unload the already loaded DLL if they are from a wrong path. You may turn this on if the DbgEng DLLs, e.g., dbghelp.dll, is loaded from a wrong path, but it happens early than the debugger initialization",
@@ -125,7 +116,7 @@ static void RegisterSettings()
 			"title" : "Stack Variable Annotations",
 			"type" : "boolean",
 			"default" : false,
-			"description" : "Add stack variable annotations",
+			"description" : "Annotate stack variables in linear view",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 

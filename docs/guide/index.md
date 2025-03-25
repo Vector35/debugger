@@ -5,6 +5,30 @@ Binary Ninja Debugger is a plugin that can debug executables on Windows, Linux, 
 The debugger plugin is shipped with Binary Ninja. It is [open-source](https://github.com/Vector35/debugger) under an Apache License 2.0. Bug reports and pull requests are welcome!
 
 
+## Platform and Target Support
+
+This is the current comparability matrix of the debugger. The columns stand for where we run BN and the rows stand for the targets.
+
+| Target  🔽 Host ▶️                   | macOS                                                   | Linux                                                   | Windows                                                 | Note |
+|--------------------------------------|---------------------------------------------------------|---------------------------------------------------------|---------------------------------------------------------|------|
+| macOS user                           | Yes (Local/Remote)                                      | Yes (Remote)                                            | Yes (Remote)                                            |      |
+| Linux user                           | Yes (Remote)                                            | Yes (Local/Remote)                                      | Yes (Remote)                                            |      |
+| Windows user                         | [#70](https://github.com/Vector35/debugger/issues/70)   | [#70](https://github.com/Vector35/debugger/issues/70)   | Yes (Local/Remote)                                      |      |
+| GDB Server                           | Yes                                                     | Yes                                                     | Yes                                                     |      |
+| GDB RSP (QEMU/VMWare/Qiling/Android) | Yes                                                     | Yes                                                     | Yes                                                     |      |
+| GDB Machine Interface                | [#170](https://github.com/Vector35/debugger/issues/170) | [#170](https://github.com/Vector35/debugger/issues/170) | [#170](https://github.com/Vector35/debugger/issues/170) |      |
+| LLDB Server                          | Yes                                                     | Yes                                                     | Yes                                                     |      |
+| iOS/debugserver                      | Yes                                                     | Yes                                                     | Yes                                                     |      |
+| Windows Kernel                       | No                                                      | No                                                      | Yes (Local/Remote)                                      |      |
+| Windows TTD (WinDbg)                 | No                                                      | No                                                      | Yes (Local)                                             |      |
+| Linux TTD (rr)                       | Yes (Remote)                                            | Yes (Local/Remote)                                      | Yes (Remote)                                            |      |
+| Windows Dump File                    | No                                                      | No                                                      | Yes (Local)                                             |      |
+| Corellium                            | Yes (Remote)                                            | Yes (Remote)                                            | Yes (Remote)                                            |      |
+
+The progress is also tracked in issue [#122](https://github.com/Vector35/debugger/issues/122).
+
+
+
 ## UI
 
 <img src="../../img/debugger/ui.png" width="600px">
@@ -40,6 +64,8 @@ For `Step Into` and `Step Over`, if the current view is viewing an IL function, 
 
 When the `Attach To Process...` button is clicked, a dialog pops up and shows all the running processes on the system. Selecting one of them and clicking `Attach` will attach to the process.
 
+The wheel button opens the `Debug Adatper Settings` dialog which will be explained below.
+
 ![](../../img/debugger/attachtopid.png)
 
 #### Register Widget
@@ -72,11 +98,26 @@ There is a `Debugger` menu in the main window menu bar.
 
 It contains duplicates of the debugger control operations available via icons and also shows the hotkeys bound to those actions.
 
-The `Debug Adapter Settings...` menu item will trigger a `Debug Adapter Settings` dialog:
+There are several useful actions in the debugger menu that are worth explaining:
+
+1. `Create Stack View` splits the active view and navigates to the stack pointer value in the new pane. Very useful for viewing stack variables.
+2. `Jump to IP` navigates to the value of the instruction pointer. This is especially helpful when one explores the binary and wishes to get back to the current instruction.
+3. `Override IP` allows changing the instruction pointer value. This is useful when we wish to revert a branch -- simply set the new IP at the other target of the branch.
+   The new IP defaults to the currently selected address. A dialog will pop up after clicking this action, which allows confirming and editing the new IP.
+
+#### Debug Adapter Settings Dialog
+
+The `Debug Adapter Settings...` menu item will trigger a `Debug Adapter Settings` dialog. It can also be opened via the
+wheel button in the control buttons widget.
 
 ![](../../img/debugger/adaptersettings.png)
 
-Within this dialog, you can select which DebugAdapter to use, as well as configure debugger settings such as command-line arguments or the working directory.
+This dialog is shown to you when you launch/attach/connect to a target for the first time. On subsequent operations,
+the last settings will be used and the dialog will not show up. If you wish to change them, you need to manually open
+the dialog.
+
+
+Within this dialog, you can select which the debug adapter to use, as well as configure debugger settings such as command-line arguments or the working directory.
 
 The `Executable Path` specifies the path of the executable to run, and `Input File` specifies the input file used to create the database. 
 These two should be the same if you wish to debug the code in an executable. 
@@ -89,15 +130,9 @@ Input File: path of sample.dll
 Executable Path: C:\Windows\System32\rundll32.exe (or the .exe that loads the DLL)
 ```
 
-`Run in Seperate Terminal` will cause the target to run in its own terminal, and the debugger will not be able to monitor its `stdout/stderr`, or send input `stdin`.
-This is suitable when the target sends complex output, and the debugger's console emulator (which is quite basic now) cannot handle it.
+Every adapter provides a different list of settings. For more details, please refer to the `Settings` section.
 
-There are several useful actions in the debugger menu that are worth explaining:
 
-1. `Create Stack View` splits the active view and navigates to the stack pointer value in the new pane. Very useful for viewing stack variables.
-2. `Jump to IP` navigates to the value of the instruction pointer. This is especially helpful when one explores the binary and wishes to get back to the current instruction.
-3. `Override IP` allows changing the instruction pointer value. This is useful when we wish to revert a branch -- simply set the new IP at the other target of the branch. 
-The new IP defaults to the currently selected address. A dialog will pop up after clicking this action, which allows confirming and editing the new IP.
 
 ![](../../img/debugger/overrideip.png)
 
@@ -238,12 +273,12 @@ The annotation is done only when there are at least two frames in the stack trac
 On every line that has a breakpoint, there are two visual indicators:
 
 - the line is highlighted in red
-- a red breakpoint tag is added to the left
+- a breakpoint indicator (🛑) is added to the left
 
 On the line where the program counter is at, there are two visual indicators:
 
 - the line is highlighted in blue
-- a program counter tag (=>) is added to the left
+- a program counter indicator (➞) is added to the left
 
 
 ## Design
@@ -256,7 +291,25 @@ To deal with this, we abstract the core functionalities of a debugger into a cla
 
 The debugger then **drives** the various adapters, creating a unified debugging experience, both in GUI and API.
 
-Right now, the debugger comes with two debug adapters. The `LLDBAdapter` uses [LLDB](https://lldb.llvm.org/) as its backend and debugs programs on macOS and Linux. The `DbgEngAdapter` uses [Windows debugger engine](https://docs.microsoft.com/en-us/windows-hardware/drivers/debugger/introduction), and debugs programs on Windows.
+The currently available debug adapters are: 
+
+- DbgEng adapter: for local and remote Windows user program debugging. Windows only
+- DbgEnd TTD adapter: for time-travel debugging (TTD). Windows only
+- Windows kernel debugging adapter: for remote Windows kernel debugging. Windows only
+- Windows local kernel debugging adapter: for local Windows kernel debugging. Windows only
+- Windows dump file adapter: for loading Windows dump files. Windows only
+- LLDB adapter: For local and remote debugging of Linux/macOS user program debugging. Works on Windows, Linux, and macOS.
+- GDB RSP adapter: For debugging anything that speaks the GDB RSP protocol, e.g., gdbserver, QEMU, VMWare, Qiling, rr, etc. Works on Windows, Linux, and macOS.
+- Corellium adapter: A variant of the GDB RSP adapter specifically tailored for debugger virtual devices in Corellium. Works on Windows, Linux, and macOS.
+
+Each debug adapter supports one or more operations to initialize the debugging:
+
+- Launch: launch a target and then debug it. The actual operation depends on the adapter. For example, DbgEng adapter launches a process, while DbgEng TTD adapter starts the replay of a recorded TTD trace
+- Attach: Attach to a running target and debug it. The target is usually a process identified by a PID
+- Connect to a remote process/debug server: Connect to a remote target or debug server. See the section on
+  [remote debugging](remote-debugging.md) for more details
+
+Each adapter may provide a list of configuration options. They can be configured via the debug adapter settings dialog.
 
 New debug adapters can be created by subclassing `DebugAdapter` to support other targets.
 
@@ -289,7 +342,22 @@ dbg = DebuggerController(bv)
 
 where `bv` is another magic variable that always represents the current BinaryView.
 
-You can simply run `dbg.launch()` in the Python console to launch the target.
+You can simply run `dbg.launch_and_wait()` in the Python console to launch the target.
+
+For all of the API functions that resume the target, e.g., go, step into, etc, there are two variants of them. One of
+them resumes the target and waits for it to stop again synchronously, e.g.,
+[step_into_and_wait](https://dev-api.binary.ninja/binaryninja.debugger.debuggercontroller-module.html#binaryninja.debugger.debuggercontroller.DebuggerController.step_into_and_wait)
+will do a step into, and it only returns after the target stops again. This is more frequently used, and is suitable
+for automating a series of sequential actions. However, after calling such a synchronous API, if for any reason the
+target does not stop as expected, Binary Ninja might be confused or hang.
+
+The second set of API works asynchronously. For example,
+[step into](https://dev-api.binary.ninja/binaryninja.debugger.debuggercontroller-module.html#binaryninja.debugger.debuggercontroller.DebuggerController.step_into)
+will only do a step into, but does NOT wait for the target to stop again. Usually the asynchronous API is used with
+[register_event_callback](https://dev-api.binary.ninja/binaryninja.debugger.debuggercontroller-module.html#binaryninja.debugger.debuggercontroller.DebuggerController.register_event_callback)
+to listen for the relevant events (e.g., target resumed, stopped, etc). The asynchronous API is harder to use and is
+only recommended when the synchronous version does not suit your need. The Binary Ninja debugger UI uses the
+asynchronous API.
 
 
 ## How-to Guide
@@ -353,23 +421,33 @@ This is especially helpful to quickly navigate to the stack variables since they
 
 See [Remote Debugging Guide](remote-debugging.md)
 
-### Time-travel Debugging
+### Time-travel Debugging (Windows)
 
-See [Time Travel Debugging Guide](dbgeng-ttd.md)
+See [Time Travel Debugging Guide (Windows)](dbgeng-ttd.md)
+
+### Time-travel Debugging (Linux)
+
+See [Time Travel Debugging Guide (Linux)](gdbrsp-ttd.md)
 
 ### Windows Kernel Debugging
 
 See [Windows Kernel Debugging Guide](windows-kd.md)
 
+### Corellium Remote Debugging
+
+See [Corellium Remote Debugging Guide](corellium-remote-debugging.md)
+
 
 ### Loading Windows Dump Files
 
 - (optional) Open the executable file used to generate the dump
-- Open `Debug Adapter Settings` dialog
+- Click "Launch", the `Debug Adapter Settings` will popup
+
+<img src="../../img/debugger/windows_dump_file.png" width="600px">
+
 - Select `WINDOWS_DUMP_FILE` adapter
-- Change the executable path to the path of the dump file
-- <img src="../../img/debugger/windows_dump_file.png" width="600px">
-- Click OK and then launch the target
+- Set the `Dump File Path` to the path of the dump file
+- Click Accept and then launch the target
 - These information should be available if they have been recorded in the dump file:
     - Register values
     - Threads and stack traces
@@ -528,6 +606,15 @@ workaround, we can check the symbols at or near a specific address.
 - `image lookup --address <address>`
 
 
+## Settings
+
+Binary Ninja debugger provides a wide range of settings to tweak its behavior. There are two categories of settings, the
+first category affects the debugger globally, e.g., whether to annotate stack variables in the linear view
+(controlled by setting `debugger.stackVariableAnnotations`). These
+settings are like the regular Binary Ninja settings, and can be edited in the Settings view.
+
+The second category affects the debug adapter, e.g., the executable path of the target. These are configured in the
+`Debug Adapter Settings` dialog, which will automatically popup before you launch/connect/attach to a target.
 
 
 ## Known Issues and Workarounds
