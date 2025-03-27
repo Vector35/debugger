@@ -368,6 +368,10 @@ bool DebuggerController::GoReverse()
 
 DebugStopReason DebuggerController::GoAndWait()
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanResumeTarget())
+		return InvalidStatusOrOperation;
+
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
@@ -381,6 +385,10 @@ DebugStopReason DebuggerController::GoAndWait()
 
 DebugStopReason DebuggerController::GoReverseAndWait()
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanResumeTarget())
+		return InvalidStatusOrOperation;
+
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
@@ -632,6 +640,10 @@ bool DebuggerController::StepIntoReverse(BNFunctionGraphType il)
 
 DebugStopReason DebuggerController::StepIntoReverseAndWait(BNFunctionGraphType il)
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanResumeTarget())
+		return InvalidStatusOrOperation;
+
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
@@ -645,6 +657,10 @@ DebugStopReason DebuggerController::StepIntoReverseAndWait(BNFunctionGraphType i
 
 DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il)
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanResumeTarget())
+		return InvalidStatusOrOperation;
+
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
@@ -887,6 +903,10 @@ bool DebuggerController::StepOverReverse(BNFunctionGraphType il)
 
 DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il)
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanResumeTarget())
+		return InvalidStatusOrOperation;
+
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
@@ -901,6 +921,10 @@ DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il)
 
 DebugStopReason DebuggerController::StepOverReverseAndWait(BNFunctionGraphType il)
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanResumeTarget())
+		return InvalidStatusOrOperation;
+
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
@@ -985,6 +1009,10 @@ bool DebuggerController::StepReturnReverse()
 
 DebugStopReason DebuggerController::StepReturnAndWait()
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanResumeTarget())
+		return InvalidStatusOrOperation;
+
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
@@ -999,6 +1027,10 @@ DebugStopReason DebuggerController::StepReturnAndWait()
 
 DebugStopReason DebuggerController::StepReturnReverseAndWait()
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanResumeTarget())
+		return InvalidStatusOrOperation;
+
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
@@ -1052,6 +1084,10 @@ bool DebuggerController::RunTo(const std::vector<uint64_t>& remoteAddresses)
 
 DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& remoteAddresses)
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanResumeTarget())
+		return InvalidStatusOrOperation;
+
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
