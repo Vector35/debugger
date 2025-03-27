@@ -169,8 +169,8 @@ void DebugControlsWidget::performLaunch()
 	// TODO: we should have the adapter returns this property
 	bool isLocalLaunch = true;
 	auto adapter = m_controller->GetAdapterType();
-	if ((adapter == "DBGENG_TTD") || (adapter == "LOCAL_WINDOWS_KERNEL") || (adapter != "WINDOWS_KERNEL") ||
-		(adapter == "WINDOWS_DUMP_FILE"))
+	if ((adapter == "DBGENG_TTD") || (adapter == "LOCAL_WINDOWS_KERNEL") || (adapter == "WINDOWS_KERNEL") ||
+		(adapter == "WINDOWS_DUMP_FILE") || (adapter == "Corellium") || (adapter == "GDB RSP"))
 	{
 		isLocalLaunch = false;
 	}

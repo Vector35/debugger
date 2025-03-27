@@ -355,7 +355,16 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
                 		return;
                 }
 
-				if (firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
+				// TODO: we should have the adapter returns this property
+				bool isLocalLaunch = true;
+				auto adapter = controller->GetAdapterType();
+				if ((adapter == "DBGENG_TTD") || (adapter == "LOCAL_WINDOWS_KERNEL") || (adapter == "WINDOWS_KERNEL") ||
+					(adapter == "WINDOWS_DUMP_FILE") || (adapter == "Corellium") || (adapter == "GDB RSP"))
+				{
+					isLocalLaunch = false;
+				}
+
+				if (isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
 				{
 					auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
 						"This may harm your machine. Are you sure to continue?").
