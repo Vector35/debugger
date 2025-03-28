@@ -119,12 +119,6 @@ void DebuggerStatusBarWidget::updateStatusText(const DebuggerEvent& event)
 	case DetachedEventType:
 		setStatusText("Detached");
 		break;
-	case QuitDebuggingEventType:
-		setStatusText("Aborted");
-		break;
-	case BackEndDisconnectedEventType:
-		setStatusText("Backend disconnected");
-		break;
 	case ErrorEventType:
 	case LaunchFailureEventType:
 		setStatusText(QString::fromStdString(event.data.errorData.shortError));

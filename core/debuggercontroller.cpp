@@ -1371,7 +1371,8 @@ DebugStopReason DebuggerController::PauseAndWaitInternal()
 DebugStopReason DebuggerController::PauseAndWait()
 {
 	auto reason = PauseAndWaitInternal();
-	NotifyStopped(reason);
+	if ((reason != ProcessExited) && (reason != InternalError))
+		NotifyStopped(reason);
 	return reason;
 }
 
@@ -1627,11 +1628,10 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	}
 	case TargetExitedEventType:
 		m_exitCode = event.data.exitData.exitCode;
-		m_state->MarkDirty();
-	case QuitDebuggingEventType:
 	case DetachedEventType:
 	case LaunchFailureEventType:
 	{
+		m_state->MarkDirty();
 		m_inputFileLoaded = false;
 		m_initialBreakpointSeen = false;
 		RemoveDebuggerMemoryRegion();
@@ -2268,9 +2268,22 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 {
 	// Due to the nature of the wait, this mutex should NOT be allowed to be locked recursively.
 	// If this is a pause operation, do not try to lock the mutex -- it is mostly likely held by another thread
-	if ((operation != DebugAdapterPause) && (operation != DebugAdapterQuit) && (operation != DebugAdapterDetach)
-		&& !m_adapterMutex.try_lock())
-		throw std::runtime_error("Cannot obtain mutex for debug adapter");
+	if ((operation != DebugAdapterPause) && (operation != DebugAdapterQuit) && (operation != DebugAdapterDetach))
+	{
+		if (!m_adapterMutex.try_lock())
+		{
+			LogWarn("Cannot obtain mutex1 for debug adapter, operation: %d", operation);
+			return InternalError;
+		}
+	}
+	else
+	{
+		if (!m_adapterMutex2.try_lock())
+		{
+			LogWarn("Cannot obtain mutex2 for debug adapter, operation: %d", operation);
+			return InternalError;
+		}
+	}
 
 	Semaphore sem;
 	DebugStopReason reason = UnknownReason;
@@ -2329,10 +2342,10 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 		operationRequested = m_adapter->BreakInto();
 		break;
 	case DebugAdapterQuit:
-		m_adapter->Quit();
+		operationRequested = m_adapter->Quit();
 		break;
 	case DebugAdapterDetach:
-		m_adapter->Detach();
+		operationRequested = m_adapter->Detach();
 		break;
 	case DebugAdapterLaunch:
 		resumeOK = Execute();
@@ -2350,11 +2363,13 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 	bool ok = false;
 	if ((operation == DebugAdapterGo) || (operation == DebugAdapterStepInto) || (operation == DebugAdapterStepOver)
 		|| (operation == DebugAdapterStepReturn) || (operation == DebugAdapterLaunch)
-		|| (operation == DebugAdapterConnect) || (operation == DebugAdapterAttach))
+		|| (operation == DebugAdapterConnect) || (operation == DebugAdapterAttach)
+		|| (operation == DebugAdapterGoReverse) || (operation == DebugAdapterStepIntoReverse)
+		|| (operation == DebugAdapterStepOverReverse) || (operation == DebugAdapterStepReturnReverse))
 	{
 		ok = resumeOK;
 	}
-	else if (operation == DebugAdapterPause)
+	else if ((operation == DebugAdapterPause) || (operation == DebugAdapterQuit) || (operation == DebugAdapterDetach))
 	{
 		ok = operationRequested;
 	}
@@ -2371,6 +2386,9 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 	RemoveEventCallback(callback);
 	if ((operation != DebugAdapterPause) && (operation != DebugAdapterQuit) && (operation != DebugAdapterDetach))
 		m_adapterMutex.unlock();
+	else
+		m_adapterMutex2.unlock();
+
 	return reason;
 }
 

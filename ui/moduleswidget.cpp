@@ -342,8 +342,6 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : QT
 			case TargetExitedEventType:
 				// These updates ensure the widgets become empty after the target stops
 			case DetachedEventType:
-			case QuitDebuggingEventType:
-			case BackEndDisconnectedEventType:
 				updateContent();
 				break;
 			default:

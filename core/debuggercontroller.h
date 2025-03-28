@@ -85,6 +85,11 @@ namespace BinaryNinjaDebugger {
 		std::mutex m_adapterMutex;
 		std::recursive_mutex m_targetControlMutex;
 
+		// m_adapterMutex2 is similar to m_adapterMutex, but it is used to protect only the Pause/Quit/Detach operation
+		// These operations cannot be protected by m_adapterMutex, since if the user resume the target and it remains
+		// running, we need the ability to pause or kill the target
+		std::mutex m_adapterMutex2;
+
 		uint64_t m_lastIP = 0;
 		uint64_t m_currentIP = 0;
 

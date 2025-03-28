@@ -1151,7 +1151,6 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 	switch (event.type)
 	{
 	case DetachedEventType:
-	case QuitDebuggingEventType:
 	case TargetExitedEventType:
 	{
 		ViewFrame* frame = m_context->getCurrentViewFrame();

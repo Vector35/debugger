@@ -84,8 +84,6 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent& event)
 	case TargetStoppedEventType:
 		// These updates ensure the widgets become empty after the target stops
 	case DetachedEventType:
-	case QuitDebuggingEventType:
-	case BackEndDisconnectedEventType:
 	case ActiveThreadChangedEvent:
 	case RegisterChangedEvent:
 		updateContent();

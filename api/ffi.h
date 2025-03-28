@@ -247,8 +247,6 @@ extern "C"
 
 		TargetExitedEventType,
 		DetachedEventType,
-		QuitDebuggingEventType,
-		BackEndDisconnectedEventType,
 
 		AbsoluteBreakpointAddedEvent,
 		RelativeBreakpointAddedEvent,
