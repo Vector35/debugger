@@ -1146,6 +1146,28 @@ void DebuggerUI::checkFocusDebuggerConsole()
 }
 
 
+void DebuggerUI::navigateToMappedAddress()
+{
+	auto frame = m_context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	auto address = frame->getCurrentOffset();
+	auto data = m_controller->GetData();
+	if (!data || data->GetSegmentAt(address))
+		return;
+
+	auto entryFunction = data->GetAnalysisEntryPoint();
+	if (entryFunction)
+	{
+		if (frame->navigate(data, entryFunction->GetStart(), true, true))
+			return;
+	}
+
+	frame->navigate(data, data->GetStart(), true, true);
+}
+
+
 void DebuggerUI::updateUI(const DebuggerEvent& event)
 {
 	switch (event.type)
@@ -1157,6 +1179,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		FileContext* fileContext = frame->getFileContext();
 		fileContext->refreshDataViewCache();
 		m_context->recreateViewFrames(fileContext);
+		navigateToMappedAddress();
 		QCoreApplication::processEvents();
 		break;
 	}
