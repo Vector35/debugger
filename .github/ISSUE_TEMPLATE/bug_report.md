@@ -35,11 +35,12 @@ If applicable, please provide us with the binary to help us work with the issue 
 This is especially helpful due to the dynamic nature of the debugger.
 Here are a few options:
 
-1. Directly attach it to this issue in a ZIP archive
-2. Share a publicly accessible link to it (For malware samples, we do not have access to VirusTotal; [Malshare](https://malshare.com/) is an option)
-3. Email it to binaryninja at vector35.com, or join our [slack](https://slack.binary.ninja/) and share with us in private
-4. We understand sometimes it is not possible to share the binary -- sure, no worries, we can still work with it!
-5. If your issue is general and not related to a specific binary, then there is no need to attach the binary as well
+- Upload it privately using the [Binary Ninja Portal file uploader](https://portal.binary.ninja/upload) and add the provided reference phrase here
+- Directly attach it to this issue in a ZIP archive
+- Share a publicly accessible link to it (For malware samples, we do not have access to VirusTotal; [Malshare](https://malshare.com/) is an option)
+- Email it to binaryninja at vector35.com, or join our [slack](https://slack.binary.ninja/) and share with us in private
+- We understand sometimes it is not possible to share the binary -- sure, no worries, we can still work with it!
+- If your issue is general and not related to a specific binary, then there is no need to attach the binary as well
 
 **Additional Information:**
 Please add any other context about the problem here.
