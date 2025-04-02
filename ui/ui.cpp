@@ -1176,7 +1176,13 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 	case TargetExitedEventType:
 	{
 		ViewFrame* frame = m_context->getCurrentViewFrame();
+		if (!frame)
+			break;
+
 		FileContext* fileContext = frame->getFileContext();
+		if (!fileContext)
+			break;
+
 		fileContext->refreshDataViewCache();
 		m_context->recreateViewFrames(fileContext);
 		navigateToMappedAddress();
@@ -1252,7 +1258,13 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			m_controller->ReAddDebuggerMemoryRegion();
 
 			ViewFrame* frame = m_context->getCurrentViewFrame();
+			if (!frame)
+				break;
+
 			FileContext* fileContext = frame->getFileContext();
+			if (!fileContext)
+				break;
+
 			fileContext->refreshDataViewCache();
 			m_context->recreateViewFrames(fileContext);
 			navigateToCurrentIP();
