@@ -654,7 +654,8 @@ std::string GdbAdapter::GetRemoteFile(const std::string& path)
                     RspData("vFile:pread:{:X},{:X},{:X}", fd, blockSize, offset), output, error);
         if (ret < 0)
         {
-	        LogDebug(fmt::format("host i/o pread() failed, result=%d, errno=%d", ret, error).c_str());
+        	auto msg = fmt::format("host i/o pread() failed, result={}, errno={}", ret, error);
+	        LogDebug("%s", msg.c_str());
         	return data;
         }
         if (ret == 0)
@@ -663,8 +664,9 @@ std::string GdbAdapter::GetRemoteFile(const std::string& path)
 
         if (ret != (int32_t)output.AsString().length())
         {
-	        LogDebug(fmt::format("host i/o pread() returned {:X} but decoded binary attachment is size {:X}",
-					ret, output.AsString().length()).c_str());
+        	auto msg = fmt::format("host i/o pread() returned {:X} but decoded binary attachment is size {:X}",
+					ret, output.AsString().length());
+	        LogDebug("%s", msg.c_str());
         	return data;
         }
 
@@ -675,7 +677,8 @@ std::string GdbAdapter::GetRemoteFile(const std::string& path)
     ret = this->m_rspConnector->HostFileIO(RspData(fmt::format("vFile:close:{:X}", fd)), output, error);
     if (ret)
     {
-	    LogDebug(fmt::format("host i/o close() failed, result={}, errno={}", ret, error).c_str());
+    	auto msg = fmt::format("host i/o close() failed, result={}, errno={}", ret, error);
+	    LogDebug("%s", msg.c_str());
 	    return data;
     }
 
