@@ -47,8 +47,21 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 
 		if (hasPC && hasBreakpoint)
 		{
-			InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑➞");
-			line.tokens.insert(line.tokens.begin(), indicator);
+			bool appliedTag = false;
+			for (size_t i = 0; i < line.tokens.size(); i++)
+			{
+				if (line.tokens[i].type == TagToken)
+				{
+					line.tokens[i].text = "🛑➞";
+					appliedTag = true;
+					break;
+				}
+			}
+			if (!appliedTag)
+			{
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑➞");
+				line.tokens.insert(line.tokens.begin(), indicator);
+			}
 
 			line.highlight.style = StandardHighlightColor;
 			line.highlight.color = MagentaHighlightColor;
@@ -61,8 +74,21 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 		}
 		else if (hasPC)
 		{
-			InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "➞");
-			line.tokens.insert(line.tokens.begin(), indicator);
+			bool appliedTag = false;
+			for (size_t i = 0; i < line.tokens.size(); i++)
+			{
+				if (line.tokens[i].type == TagToken)
+				{
+					line.tokens[i].text = "…➞";
+					appliedTag = true;
+					break;
+				}
+			}
+			if (!appliedTag)
+			{
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "➞");
+				line.tokens.insert(line.tokens.begin(), indicator);
+			}
 
 			line.highlight.style = StandardHighlightColor;
 			line.highlight.color = BlueHighlightColor;
@@ -75,8 +101,21 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 		}
 		else if (hasBreakpoint)
 		{
-			InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑");
-			line.tokens.insert(line.tokens.begin(), indicator);
+			bool appliedTag = false;
+			for (size_t i = 0; i < line.tokens.size(); i++)
+			{
+				if (line.tokens[i].type == TagToken)
+				{
+					line.tokens[i].text = "…🛑";
+					appliedTag = true;
+					break;
+				}
+			}
+			if (!appliedTag)
+			{
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑");
+				line.tokens.insert(line.tokens.begin(), indicator);
+			}
 
 			line.highlight.style = StandardHighlightColor;
 			line.highlight.color = RedHighlightColor;
@@ -108,8 +147,21 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 
 		if (hasPC && hasBreakpoint)
 		{
-			InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑➞");
-			line.tokens.insert(line.tokens.begin(), indicator);
+			bool appliedTag = false;
+			for (size_t i = 0; i < line.tokens.size(); i++)
+			{
+				if (line.tokens[i].type == TagToken)
+				{
+					line.tokens[i].text = "🛑➞";
+					appliedTag = true;
+					break;
+				}
+			}
+			if (!appliedTag)
+			{
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑➞");
+				line.tokens.insert(line.tokens.begin(), indicator);
+			}
 
 			line.highlight.style = StandardHighlightColor;
 			line.highlight.color = MagentaHighlightColor;
@@ -122,8 +174,21 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 		}
 		else if (hasPC)
 		{
-			InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "➞");
-			line.tokens.insert(line.tokens.begin(), indicator);
+			bool appliedTag = false;
+			for (size_t i = 0; i < line.tokens.size(); i++)
+			{
+				if (line.tokens[i].type == TagToken)
+				{
+					line.tokens[i].text = "…➞";
+					appliedTag = true;
+					break;
+				}
+			}
+			if (!appliedTag)
+			{
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "➞");
+				line.tokens.insert(line.tokens.begin(), indicator);
+			}
 
 			line.highlight.style = StandardHighlightColor;
 			line.highlight.color = BlueHighlightColor;
@@ -136,8 +201,21 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 		}
 		else if (hasBreakpoint)
 		{
-			InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑");
-			line.tokens.insert(line.tokens.begin(), indicator);
+			bool appliedTag = false;
+			for (size_t i = 0; i < line.tokens.size(); i++)
+			{
+				if (line.tokens[i].type == TagToken)
+				{
+					line.tokens[i].text = "…🛑";
+					appliedTag = true;
+					break;
+				}
+			}
+			if (!appliedTag)
+			{
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑");
+				line.tokens.insert(line.tokens.begin(), indicator);
+			}
 
 			line.highlight.style = StandardHighlightColor;
 			line.highlight.color = RedHighlightColor;
