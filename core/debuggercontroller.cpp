@@ -1106,7 +1106,7 @@ bool DebuggerController::CreateDebuggerBinaryView()
 	auto segment = data->GetSegmentAt(0);
 	m_zeroSegmentAddedByDebugger = segment == nullptr;
 
-	if (auto holdAnalysis = Settings::Instance()->Get<bool>("debugger.holdAnalysis"))
+	if (auto holdAnalysis = Settings::Instance()->Get<bool>("debugger.holdAnalysis"); holdAnalysis)
 	{
 		auto analysisProgress = data->GetAnalysisProgress();
 		m_oldAnalysisState = analysisProgress.state;
