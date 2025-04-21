@@ -23,7 +23,7 @@ limitations under the License.
 
 using namespace BinaryNinjaDebugger;
 
-DebuggerController::DebuggerController(BinaryViewRef data)
+DebuggerController::DebuggerController(BinaryViewRef data): BinaryDataNotification(Rebased)
 {
 	INIT_DEBUGGER_API_OBJECT();
 
