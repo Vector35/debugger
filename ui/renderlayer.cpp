@@ -42,7 +42,7 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 		if (line.tokens.empty() || (line.tokens[0].type == CommentToken))
 			continue;
 
-		bool hasPC = line.addr == ipAddr && paused;
+		bool hasPC = (line.addr == ipAddr) && paused;
 		bool hasBreakpoint = controller->ContainsBreakpoint(line.addr);
 
 		if (hasPC && hasBreakpoint)
@@ -138,11 +138,12 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 		return;
 
 	uint64_t ipAddr = controller->IP();
+	bool paused = controller->GetTargetStatus() == DebugAdapterPausedStatus;
 
 	for (auto& linearLine : lines)
 	{
 		DisassemblyTextLine& line = linearLine.contents;
-		bool hasPC = line.addr == ipAddr;
+		bool hasPC = (line.addr == ipAddr) && paused;
 		bool hasBreakpoint = controller->ContainsBreakpoint(line.addr);
 
 		if (hasPC && hasBreakpoint)
