@@ -215,7 +215,7 @@ void DebugControlsWidget::performLaunch()
 		"The debugger is %1 the target and preparing the debugger binary view. \n"
 		"This might take a while.").arg("launching");
 	ProgressTask* task =
-		new ProgressTask(this, "Launching", text, "", [=](std::function<bool(size_t, size_t)> progress) {
+		new ProgressTask(this, "Launching", text, "", [=](ProgressFunction progress) {
 			m_controller->Launch();
 
 			// For now, this cant be canceled, as the Debugger model wasn't
@@ -274,7 +274,7 @@ void DebugControlsWidget::performAttachPID()
 		"The debugger is %1 the target and preparing the debugger binary view. \n"
 		"This might take a while.").arg("attaching to");
 	ProgressTask* task =
-		new ProgressTask(this, "Attaching", text, "", [=](std::function<bool(size_t, size_t)> progress) {
+		new ProgressTask(this, "Attaching", text, "", [=](ProgressFunction progress) {
 			m_controller->Attach();
 
 			// For now, this cant be canceled, as the Debugger model wasn't

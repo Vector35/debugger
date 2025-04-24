@@ -380,7 +380,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					"The debugger is launching the target and preparing the debugger binary view. \n"
 					"This might take a while.");
 				ProgressTask* task = new ProgressTask(
-					context->mainWindow(), "Launching", text, "", [&](std::function<bool(size_t, size_t)> progress) {
+					context->mainWindow(), "Launching", text, "", [&](ProgressFunction progress) {
 						controller->Launch();
 
 						// For now, this cant be canceled, as the Debugger model wasn't
@@ -640,7 +640,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					"The debugger is attaching to the target and preparing the debugger binary view. \n"
 					"This might take a while.");
 				ProgressTask* task = new ProgressTask(
-					context->mainWindow(), "Attaching", text, "", [&](std::function<bool(size_t, size_t)> progress) {
+					context->mainWindow(), "Attaching", text, "", [&](ProgressFunction progress) {
 						controller->Attach();
 
 						// For now, this cant be canceled, as the Debugger model wasn't
@@ -747,7 +747,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					"The debugger is connecting to the target and preparing the debugger binary view. \n"
 					"This might take a while.");
 				ProgressTask* task = new ProgressTask(
-					context->mainWindow(), "Connecting", text, "", [&](std::function<bool(size_t, size_t)> progress) {
+					context->mainWindow(), "Connecting", text, "", [&](ProgressFunction progress) {
 						controller->Connect();
 
 						// For now, this cant be canceled, as the Debugger model wasn't
@@ -1224,7 +1224,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 			bool result = false;
 			QString text = QString("Rebasing the input view...");
 			ProgressTask* task =
-				new ProgressTask(frame, "Rebase", text, "Cancel", [&](std::function<bool(size_t, size_t)> progress) {
+				new ProgressTask(frame, "Rebase", text, "Cancel", [&](ProgressFunction progress) {
 					// If analysis hold during debugging is active, we must first turn it off, rebase, wait for the
 					// analysis to complete, and then set the analysis hold back on. This is because during rebasing,
 					// all the advanced analysis data is discarded has to be regenerated. If we still holds the
