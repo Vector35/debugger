@@ -1618,6 +1618,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 {
 	switch (event.type)
 	{
+	case LaunchEventType:
 	case ResumeEventType:
 	case StepIntoEventType:
 	{

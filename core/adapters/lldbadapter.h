@@ -47,6 +47,8 @@ namespace BinaryNinjaDebugger {
 
 		bool CreateTarget(const std::string& file);
 
+		bool m_userRequestedQuit = false;
+
 	public:
 		LldbAdapter(BinaryView* data);
 		virtual ~LldbAdapter();

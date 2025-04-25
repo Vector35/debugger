@@ -615,7 +615,14 @@ bool LldbAdapter::Detach()
 {
 	std::unique_lock<std::mutex> lock(m_quitingMutex);
 	SBError error = m_process.Detach();
-	return error.Success();
+	if (error.Success())
+		return true;
+
+	// There is a situation where the reqeust to Quit or Detach can fail, and the target will continue to execute but
+	// the DebuggerController is freed. To avoid UAF, when that happens, make sure at least we break from the
+	// EventListener() loop
+	m_userRequestedQuit = true;
+	return false;
 }
 
 
@@ -623,7 +630,14 @@ bool LldbAdapter::Quit()
 {
 	std::unique_lock<std::mutex> lock(m_quitingMutex);
 	SBError error = m_process.Kill();
-	return error.Success();
+	if (error.Success())
+		return true;
+
+	// There is a situation where the reqeust to Quit or Detach can fail, and the target will continue to execute but
+	// the DebuggerController is freed. To avoid UAF, when that happens, make sure at least we break from the
+	// EventListener() loop
+	m_userRequestedQuit = true;
+	return false;
 }
 
 
@@ -1608,6 +1622,12 @@ void LldbAdapter::EventListener()
 		SBEvent event;
 		if (!listener.WaitForEvent(1, event))
 			continue;
+
+		if (m_userRequestedQuit)
+		{
+			m_userRequestedQuit = false;
+			break;
+		}
 
 		uint32_t event_type = event.GetType();
 		if (lldb::SBProcess::EventIsProcessEvent(event))
