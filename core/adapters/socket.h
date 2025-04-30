@@ -47,34 +47,10 @@ namespace BinaryNinjaDebugger
 		Socket() = default;
 
 		/* if port is zero it will be bruteforced */
-		Socket(std::int32_t address_family, std::int32_t type, std::int32_t protocol, std::uint32_t port = 0)
-		: m_addressFamily(address_family), m_type(type), m_protocol(protocol), m_port(port) {
-
-			if (port) {
-				this->m_socket = ::socket(address_family, type, protocol);
-				SetSocketReusable();
-			} else {
-				// If we look for an available port starting from 31337, then it will have a weird side effect that if
-				// the user forgets to run gdbserver/rr on port 31337, the adapter will connect to the port itself and
-				// the communication will fail apart. As a workaround, I start to look for a usable one from port 33337
-				for (std::int32_t index = 33337; index < 33337 + 1024; index++) {
-					this->m_socket = ::socket(address_family, type, protocol);
-					SetSocketReusable();
-
-					sockaddr_in address{};
-					address.sin_family = AF_INET;
-					address.sin_addr.s_addr = ::inet_addr("127.0.0.1");
-					address.sin_port = htons(index);
-
-					if (this->Bind(address)) {
-						this->m_port = index;
-						break;
-					}
-				}
-			}
-
-			if ( !this->m_port )
-				throw std::runtime_error("failed to find a usable port");
+		Socket(std::int32_t address_family, std::int32_t type, std::int32_t protocol)
+		: m_addressFamily(address_family), m_type(type), m_protocol(protocol) {
+			this->m_socket = ::socket(address_family, type, protocol);
+			SetSocketReusable();
 		}
 
 		void SetSocketReusable()

@@ -29,6 +29,8 @@ file(GLOB ADAPTER_SOURCES
 		adapters/rspconnector.h
 		adapters/corelliumadapter.cpp
 		adapters/corelliumadapter.h
+		adapters/esrevenadapter.cpp
+		adapters/esrevenadapter.h
 	)
 
 if(WIN32)
