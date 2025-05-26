@@ -12,7 +12,7 @@ Below is a guide to set it up.
 
 ## Install rr
 
-- Download and install the latest release from https://github.com/rr-debugger/rr/releases
+- Download and install the latest release from [https://github.com/rr-debugger/rr/releases](https://github.com/rr-debugger/rr/releases)
 
 ## Record an rr Trace
 
