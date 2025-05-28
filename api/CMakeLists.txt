@@ -11,7 +11,7 @@ target_include_directories(debuggerapi
 target_link_libraries(debuggerapi PUBLIC debuggercore)
 
 set_target_properties(debuggerapi PROPERTIES
-        CXX_STANDARD 17
+        CXX_STANDARD 20
         CXX_VISIBILITY_PRESET hidden
         CXX_STANDARD_REQUIRED ON
         VISIBILITY_INLINES_HIDDEN ON

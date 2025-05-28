@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.9...3.15 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 project(debugger-python-api)
 
@@ -11,7 +11,7 @@ add_executable(debugger_generator
 target_link_libraries(debugger_generator binaryninjaapi)
 
 set_target_properties(debugger_generator PROPERTIES
-    CXX_STANDARD 17
+    CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
 	BUILD_WITH_INSTALL_RPATH OFF
 	RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
