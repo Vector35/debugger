@@ -22,7 +22,8 @@ limitations under the License.
 #endif
 #include "fmt/format.h"
 
-namespace Log {
+namespace Log
+{
 	enum Mode : std::int8_t
 	{
 		None = -1,
@@ -33,68 +34,25 @@ namespace Log {
 		Alert = 4
 	};
 
+
 	struct Style
 	{
-		float m_red {255.f}, m_green {255.f}, m_blue {255.f};
+		int m_red{255}, m_green{255}, m_blue{255};
 
 		Style() = default;
 
-		Style(float red, float green, float blue) : m_red(red), m_green(green), m_blue(blue) {}
+
+		Style(int red, int green, int blue) : m_red(red), m_green(green), m_blue(blue)
+		{}
+
 
 		[[nodiscard]] std::string AsAnsi() const
 		{
-			return fmt::format("\x1b[38;2;{:.0f};{:.0f};{:.0f}m", this->m_red, this->m_green, this->m_blue);
+			return fmt::format("\x1b[38;2;{};{};{}m", this->m_red, this->m_green, this->m_blue);
 		}
 	};
-
-	inline void SetupAnsi()
-	{
-#ifdef WIN32
-		const auto out_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-		const auto err_handle = GetStdHandle(STD_ERROR_HANDLE);
-		if (!out_handle || !err_handle)
-			return;
-
-		unsigned long old_out_mode {}, old_err_mode {};
-		if (!GetConsoleMode(out_handle, &old_out_mode) || !GetConsoleMode(err_handle, &old_err_mode))
-			return;
-
-		SetConsoleMode(out_handle, old_out_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-		SetConsoleMode(err_handle, old_err_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-#endif
-	}
-
-	template <Mode LogMode = Mode::None, typename... Args>
-	bool print(const std::string_view str, Args... args)
-	{
-		if constexpr (LogMode == Mode::Debug)
-			fmt::print("[{}DEBUG\033[0m] {}", Style(173, 216, 230), Style(173, 216, 230));
-
-		if constexpr (LogMode == Mode::Info)
-			fmt::print("[{}INFO\033[0m] {}", Style(144, 238, 144), Style(144, 238, 144));
-
-		if constexpr (LogMode == Mode::Warning)
-			fmt::print("[{}WARNING\033[0m] {}", Style(255, 255, 224), Style(255, 255, 224));
-
-		if constexpr (LogMode == Mode::Error)
-			fmt::print("[{}ERROR\033[0m] {}", Style(255, 114, 118), Style(255, 114, 118));
-
-		if constexpr (LogMode == Mode::Alert)
-			fmt::print("[{}ALERT\033[0m] {}", Style(255, 0, 0), Style(255, 0, 0));
-
-		fmt::print(str.data(), std::forward<Args>(args)...);
-		fmt::print("\033[0m");
-
-		if constexpr (LogMode != Mode::None)
-		{
-			const auto binja_string =
-				fmt::format("[BINARYNINJA] {}", fmt::format(str.data(), std::forward<Args>(args)...));
-			BinaryNinja::Log(static_cast<BNLogLevel>(LogMode), "%s", binja_string.c_str());
-		}
-
-		return true;
-	}
 }  // namespace Log
+
 
 /* overloading Log::Style for fmtlib so that we don't need to call .AsAnsi() when formatting */
 template <>
@@ -116,6 +74,61 @@ struct fmt::formatter<Log::Style>
 	template <typename FormatContext>
 	auto format(const Log::Style& style, FormatContext& ctx) const -> decltype(ctx.out())
 	{
-		return format_to(ctx.out(), "{}", style.AsAnsi());
+		return format_to(ctx.out(), "{}", style.AsAnsi().c_str());
 	}
 };
+
+
+namespace Log
+{
+	inline void SetupAnsi()
+	{
+#ifdef WIN32
+		const auto out_handle = GetStdHandle(STD_OUTPUT_HANDLE);
+		const auto err_handle = GetStdHandle(STD_ERROR_HANDLE);
+		if (!out_handle || !err_handle)
+			return;
+
+		unsigned long old_out_mode {}, old_err_mode {};
+		if (!GetConsoleMode(out_handle, &old_out_mode) || !GetConsoleMode(err_handle, &old_err_mode))
+			return;
+
+		SetConsoleMode(out_handle, old_out_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+		SetConsoleMode(err_handle, old_err_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+#endif
+	}
+
+
+	template <Mode LogMode = Mode::None, typename... Args>
+	bool print(const std::string_view str, Args... args)
+	{
+		if constexpr (LogMode == Mode::Debug)
+			fmt::print("[{}DEBUG\033[0m] {}", Style(173, 216, 230), Style(173, 216, 230));
+
+		if constexpr (LogMode == Mode::Info)
+			fmt::print("[{}INFO\033[0m] {}", Style(144, 238, 144), Style(144, 238, 144));
+
+		if constexpr (LogMode == Mode::Warning)
+			fmt::print("[{}WARNING\033[0m] {}", Style(255, 255, 224), Style(255, 255, 224));
+
+		if constexpr (LogMode == Mode::Error)
+			fmt::print("[{}ERROR\033[0m] {}", Style(255, 114, 118), Style(255, 114, 118));
+
+		if constexpr (LogMode == Mode::Alert)
+			fmt::print("[{}ALERT\033[0m] {}", Style(255, 0, 0), Style(255, 0, 0));
+
+		fmt::print(fmt::runtime(str.data()), std::forward<Args>(args)...);
+		fmt::print("\033[0m");
+
+		if constexpr (LogMode != Mode::None)
+		{
+			const auto binja_string =
+				fmt::format("[BINARYNINJA] {}", fmt::format(fmt::runtime(str.data()), std::forward<Args>(args)...));
+			BinaryNinja::Log(static_cast<BNLogLevel>(LogMode), "%s", binja_string.c_str());
+		}
+
+		return true;
+	}
+}  // namespace Log
+
+

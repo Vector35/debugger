@@ -96,16 +96,13 @@ namespace BinaryNinjaDebugger
 		template <typename... Args>
 		explicit RspData(const std::string& string, Args... args)
 		{
-			std::string content = fmt::format(string.c_str(), args...);
+			std::string content = fmt::format(fmt::runtime(string.c_str()), args...);
 			m_data = BinaryNinja::DataBuffer(content.data(), content.size());
 		}
 
-		explicit
-
-
-		RspData(const std::string& str)
+		explicit RspData(const std::string& string)
 		{
-			m_data = BinaryNinja::DataBuffer(str.data(), str.size());
+			m_data = BinaryNinja::DataBuffer(string.data(), string.size());
 		}
 
 		RspData(void* data, std::size_t size)
