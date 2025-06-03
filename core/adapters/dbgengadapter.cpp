@@ -1000,6 +1000,7 @@ bool DbgEngAdapter::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
 		if (it != m_pendingBreakpoints.end())
 			m_pendingBreakpoints.erase(it);
 	}
+	return true;
 }
 
 std::vector<DebugBreakpoint> DbgEngAdapter::GetBreakpointList() const
