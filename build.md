@@ -38,7 +38,7 @@ make
 
 While the code is compiling, it's a good time to check the [Binary Ninja slack](https://slack.binary.ninja) for any updates!
 
-The build artifacts will be in the folder `out`. You should find two files `libdebuggercore` and `libdebuggerui`, and two folders `python` and `lldb`. 
+The build artifacts will be in the folder `out`. You should find two files `libdebuggercore` and `libdebuggerui`, and two folders `debugger` (that contains the Python code) and `lldb`. 
 
 - Run the debugger
   - Open Binary Ninja, disable the setting `corePlugins.debugger` so the debugger that comes with Binary Ninja is not loaded
