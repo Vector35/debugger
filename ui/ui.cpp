@@ -411,7 +411,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Resume", QKeySequence(Qt::Key_F9));
 	context->globalActions()->bindAction("Resume",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
@@ -427,7 +427,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Go Backwards", QKeySequence(Qt::ShiftModifier | Qt::Key_F9));
 	context->globalActions()->bindAction("Go Backwards",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
@@ -442,7 +442,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Step Into", QKeySequence(Qt::Key_F7));
 	context->globalActions()->bindAction("Step Into",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
@@ -461,7 +461,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Step Into Backwards", QKeySequence(Qt::ShiftModifier | Qt::Key_F7));
 	context->globalActions()->bindAction("Step Into Backwards",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
@@ -479,7 +479,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Step Over", QKeySequence(Qt::Key_F8));
 	context->globalActions()->bindAction("Step Over",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
@@ -498,7 +498,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Step Over Backwards", QKeySequence(Qt::ShiftModifier | Qt::Key_F8));
 	context->globalActions()->bindAction("Step Over Backwards",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
@@ -516,7 +516,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Step Return", QKeySequence(Qt::ControlModifier | Qt::Key_F9));
 	context->globalActions()->bindAction("Step Return",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
@@ -532,7 +532,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Step Return Backwards", QKeySequence( Qt::ControlModifier | Qt::ShiftModifier | Qt::Key_F9 ));
 	context->globalActions()->bindAction("Step Return Backwards",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
@@ -547,7 +547,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Run To Here", QKeySequence(Qt::Key_F4));
 	context->globalActions()->bindAction("Run To Here",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 				auto controller = DebuggerController::GetController(ctxt.binaryView);

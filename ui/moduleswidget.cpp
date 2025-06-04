@@ -301,12 +301,12 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : QT
 	QString actionName = QString::fromStdString("Jump To Start");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=]() { jumpToStart(); }));
+	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpToStart(); }));
 
 	actionName = QString::fromStdString("Jump To End");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=]() { jumpToEnd(); }));
+	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpToEnd(); }));
 
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return canCopy(); }));

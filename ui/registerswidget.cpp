@@ -441,22 +441,22 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	QString actionName = QString::fromStdString("Set to Zero");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction(actionName, UIAction([=]() { setToZero(); }, [&]() { return selectionNotEmpty(); }));
+	m_actionHandler.bindAction(actionName, UIAction([this]() { setToZero(); }, [&]() { return selectionNotEmpty(); }));
 
 	actionName = QString::fromStdString("Edit Value");
 	UIAction::registerAction(actionName, QKeySequence(Qt::Key_E));
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction(actionName, UIAction([=]() { editValue(); }, [&]() { return selectionNotEmpty(); }));
+	m_actionHandler.bindAction(actionName, UIAction([this]() { editValue(); }, [&]() { return selectionNotEmpty(); }));
 
 	actionName = QString::fromStdString("Jump to Address");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=]() { jump(); }, [&]() { return selectionNotEmpty(); }));
+	m_actionHandler.bindAction(actionName, UIAction([this]() { jump(); }, [&]() { return selectionNotEmpty(); }));
 
 	actionName = QString::fromStdString("Jump to Address in New Pane");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=]() { jumpInNewPane(); }, [&]() { return selectionNotEmpty(); }));
+	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpInNewPane(); }, [&]() { return selectionNotEmpty(); }));
 
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return selectionNotEmpty(); }));
@@ -486,7 +486,7 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 
 	m_menu->addAction(actionName, "Display", MENU_ORDER_NORMAL);
 	m_menu->setGroupOrdering("Display", MENU_ORDER_LAST);
-	m_actionHandler.bindAction(actionName, UIAction([=]() {
+	m_actionHandler.bindAction(actionName, UIAction([this]() {
 		m_filter->toggleHideUnusedRegisters();
 		updateColumnWidths();
 	}));

@@ -294,7 +294,7 @@ ProcessListWidget::ProcessListWidget(QWidget* parent, DbgRef<DebuggerController>
 	QString actionName = QString::fromStdString("Refresh");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=]() { updateContent(); }));
+	m_actionHandler.bindAction(actionName, UIAction([this]() { updateContent(); }));
 
 	// TODO: context menu copy
 

@@ -565,18 +565,18 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(
-		actionName, UIAction([=]() { suspendThread(); }, [=]() { return canSuspendOrResume(); }));
+		actionName, UIAction([this]() { suspendThread(); }, [this]() { return canSuspendOrResume(); }));
 
 	actionName = QString::fromStdString("Resume Thread");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([=]() { resumeThread(); }, [=]() { return canSuspendOrResume(); }));
+	m_actionHandler.bindAction(actionName, UIAction([this]() { resumeThread(); }, [this]() { return canSuspendOrResume(); }));
 
 	actionName = QString::fromStdString("Make It Solo Thread");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(
-		actionName, UIAction([=]() { makeItSoloThread(); }, [=]() { return canSuspendOrResume(); }));
+		actionName, UIAction([this]() { makeItSoloThread(); }, [this]() { return canSuspendOrResume(); }));
 
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return selectionNotEmpty(); }));
