@@ -19,6 +19,7 @@ limitations under the License.
 #include "adapters/lldbrspadapter.h"
 #include "adapters/lldbadapter.h"
 #include "adapters/corelliumadapter.h"
+#include "adapters/lldbcoredumpadapter.h"
 #include "adapters/esrevenadapter.h"
 #ifdef WIN32
 	#include "adapters/dbgengadapter.h"
@@ -51,6 +52,7 @@ void InitDebugAdapterTypes()
 	InitGdbAdapterType();
 	InitLldbAdapterType();
 	InitEsrevenAdapterType();
+	InitLldbCoreDumpAdapterType();
 }
 
 

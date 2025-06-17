@@ -16,7 +16,7 @@ limitations under the License.
 
 #include <inttypes.h>
 #include <filesystem>
-#include "lldbadapter.h"
+#include "lldbcoredumpadapter.h"
 #include "thread"
 
 using namespace lldb;
@@ -41,15 +41,12 @@ static std::string lldbArchNameForBinaryNinjaArchName(std::string name)
 	return "";
 }
 
-LldbAdapter::LldbAdapter(BinaryView* data) : DebugAdapter(data)
+LldbCoreDumpAdapter::LldbCoreDumpAdapter(BinaryView* data) : DebugAdapter(data)
 {
-	m_targetActive = false;
 	SBDebugger::Initialize();
 	m_debugger = SBDebugger::Create();
 	if (!m_debugger.IsValid())
 		LogWarn("Invalid debugger");
-
-	m_isElFWithoutDynamicLoader = IsELFWithoutDynamicLoader(data);
 
 	// Set auto-confirm to true so operations that ask for confirmation will proceed automatically.
 	// Otherwise, the confirmation prompt will be sent to the terminal that BN is launched from, which is a very
@@ -61,17 +58,17 @@ LldbAdapter::LldbAdapter(BinaryView* data) : DebugAdapter(data)
 }
 
 
-LldbAdapter::~LldbAdapter()
+LldbCoreDumpAdapter::~LldbCoreDumpAdapter()
 {
 	m_process.Destroy();
 	SBDebugger::Destroy(m_debugger);
 }
 
 
-LldbAdapterType::LldbAdapterType() : DebugAdapterType("LLDB") {}
+LldbCoreDumpAdapterType::LldbCoreDumpAdapterType() : DebugAdapterType("LLDB Core Dump") {}
 
 
-DebugAdapter* LldbAdapterType::Create(BinaryNinja::BinaryView* data)
+DebugAdapter* LldbCoreDumpAdapterType::Create(BinaryNinja::BinaryView* data)
 {
 #ifdef WIN32
 	// Since we have applied delay load on liblldb.dll, we must explicitly specify the directory the liblldb.dll is in
@@ -93,18 +90,18 @@ DebugAdapter* LldbAdapterType::Create(BinaryNinja::BinaryView* data)
 #endif
 
 	// TODO: someone should free this.
-	return new LldbAdapter(data);
+	return new LldbCoreDumpAdapter(data);
 }
 
 
-bool LldbAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
+bool LldbCoreDumpAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
 {
 	//	it does not matter what the BinaryViewType is -- as long as we can connect to it, it is fine.
 	return true;
 }
 
 
-bool LldbAdapterType::CanConnect(BinaryNinja::BinaryView* data)
+bool LldbCoreDumpAdapterType::CanConnect(BinaryNinja::BinaryView* data)
 {
 	//	We can connect to remote lldb on any host system
 	//  TODO: we need to create a new API to get available adapters, rather the
@@ -114,7 +111,7 @@ bool LldbAdapterType::CanConnect(BinaryNinja::BinaryView* data)
 }
 
 
-bool LldbAdapterType::CanExecute(BinaryNinja::BinaryView* data)
+bool LldbCoreDumpAdapterType::CanExecute(BinaryNinja::BinaryView* data)
 {
 	if (data->GetTypeName() == "PE")
 		return false;
@@ -123,7 +120,7 @@ bool LldbAdapterType::CanExecute(BinaryNinja::BinaryView* data)
 }
 
 
-Ref<Settings> LldbAdapterType::RegisterAdapterSettings()
+Ref<Settings> LldbCoreDumpAdapterType::RegisterAdapterSettings()
 {
 	Ref<Settings> settings = Settings::Instance("LLDBAdapterSettings");
 	settings->SetResourceId("lldb_adapter_settings");
@@ -146,196 +143,32 @@ Ref<Settings> LldbAdapterType::RegisterAdapterSettings()
 			"readOnly" : false,
 			"uiSelectionAction" : "file"
 			})");
-	settings->RegisterSetting("launch.workingDirectory",
-			R"({
-			"title" : "Working Directory",
-			"type" : "string",
-			"default" : "",
-			"description" : "Working directory to launch the target in.",
-			"readOnly" : false,
-			"uiSelectionAction" : "directory"
-			})");
-	settings->RegisterSetting("launch.commandLineArguments",
-			R"({
-			"title" : "Command Line Arguments",
-			"type" : "string",
-			"default" : "",
-			"description" : "Command line arguments to pass to the target",
-			"readOnly" : false
-			})");
-	settings->RegisterSetting("launch.terminalEmulator",
-			R"({
-			"title" : "Run in Separate Terminal",
-			"type" : "boolean",
-			"default" : false,
-			"description" : "Execute the target in a separate terminal. The user can then interact with the process in that terminal",
-			"readOnly" : false
-			})");
-	settings->RegisterSetting("launch.disableAslr",
-	R"({
-			"title" : "Disable ASLR",
-			"type" : "boolean",
-			"default" : true,
-			"description" : "Disable ASLR during launch.",
-			"readOnly" : false
-			})");
-	settings->RegisterSetting("launch.redirectStdin",
-		R"({
-			"title" : "Redirect stdin",
-			"type" : "string",
-			"default" : "",
-			"description" : "Redirect stdin from the selected file.",
-			"readOnly" : false,
-			"uiSelectionAction" : "file"
-			})");
-	settings->RegisterSetting("launch.redirectStdout",
-		R"({
-			"title" : "Redirect stdout",
-			"type" : "string",
-			"default" : "",
-			"description" : "Redirect stdout to the selected file.",
-			"readOnly" : false,
-			"uiSelectionAction" : "file"
-			})");
-	settings->RegisterSetting("launch.redirectStderr",
-		R"({
-			"title" : "Redirect stderr",
-			"type" : "string",
-			"default" : "",
-			"description" : "Redirect stderr to the selected file.",
-			"readOnly" : false,
-			"uiSelectionAction" : "file"
-			})");
-	settings->RegisterSetting("launch.environmentVariables",
-		R"({
-			"title" : "Environment Variables",
-			"type" : "array",
-			"sorted" : false,
-			"default" : [],
-			"description" : "Environment Variables for the target. Provide the list of in the form of [\"var1=val1\", \"var2=val2\"]",
-			"readOnly" : false
-			})");
-
-	settings->RegisterSetting("connect.ipAddress",
-			R"({
-			"title" : "IP Address",
-			"type" : "string",
-			"default" : "127.0.0.1",
-			"description" : "IP address of the debug stub to connect to",
-			"readOnly" : false
-			})");
-	settings->RegisterSetting("connect.port",
-			R"({
-			"title" : "Port",
-			"type" : "number",
-			"default" : 31337,
-			"minValue" : 0,
-			"maxValue" : 65535,
-			"description" : "Port of the debug stub to connect to",
-			"readOnly" : false
-			})");
-	settings->RegisterSetting("connect.processPlugin",
-		R"({
-			"title" : "Process Plugin",
-			"type" : "string",
-			"enum" : ["debugserver/lldb", "gdb-remote"],
-			"enumDescriptions" : [
-				"The debug stub is lldb-server or debugserver",
-				"The debug stub is gdb-remote"],
-			"default" : "gdb-remote",
-			"description" : "Process plugin to use to connect to the debug stub",
-			"readOnly" : false
-			})");
-
-	settings->RegisterSetting("debugServer.ipAddress",
-			R"({
-			"title" : "IP Address",
-			"type" : "string",
-			"default" : "127.0.0.1",
-			"description" : "IP address of the debug server to connect to",
-			"readOnly" : false
-			})");
-	settings->RegisterSetting("debugServer.port",
-			R"({
-			"title" : "Port",
-			"type" : "number",
-			"default" : 31337,
-			"minValue" : 0,
-			"maxValue" : 65535,
-			"description" : "Port of the debug server to connect to",
-			"readOnly" : false
-			})");
-	settings->RegisterSetting("debugServer.platform",
-		R"({
-			"title" : "Platform",
-			"type" : "string",
-			"enum" : [""],
-			"description" : "LLDB platform plugin to use to connect to the debug server",
-			"readOnly" : false
-			})");
-
-	settings->RegisterSetting("attach.pid",
-		R"({
-			"title" : "PID to attach to",
-			"type" : "number",
-			"default" : 0,
-			"minValue" : 0,
-			"maxValue" : 4294967295,
-			"description" : "PID of the process to attach to",
-			"readOnly" : false
-			})");
 
 	return settings;
 }
 
 
-Ref<Settings> LldbAdapterType::GetAdapterSettings()
+Ref<Settings> LldbCoreDumpAdapterType::GetAdapterSettings()
 {
-	static Ref<Settings> settings = LldbAdapterType::RegisterAdapterSettings();
+	static Ref<Settings> settings = LldbCoreDumpAdapterType::RegisterAdapterSettings();
 	return settings;
 }
 
 
-void BinaryNinjaDebugger::InitLldbAdapterType()
+void BinaryNinjaDebugger::InitLldbCoreDumpAdapterType()
 {
-	static LldbAdapterType lldbType;
+	static LldbCoreDumpAdapterType lldbType;
 	DebugAdapterType::Register(&lldbType);
 }
 
 
-void LldbAdapter::ApplyBreakpoints()
-{
-	for (const auto& bp : m_pendingBreakpoints)
-	{
-		AddBreakpoint(bp);
-	}
-	// Clear the pending breakpoint list so that when the adapter launch/attach/connect to the target for the next time,
-	// it always gets a clean list of breakpoints from the controller.
-	m_pendingBreakpoints.clear();
-}
-
-
-bool LldbAdapter::IsELFWithoutDynamicLoader(BinaryView* data)
-{
-	if (!data)
-		return false;
-
-	auto name = data->GetTypeName();
-	if (name != "ELF")
-		return false;
-
-	auto syms = data->GetSymbolsByName("__elf_interp");
-	return syms.empty();
-}
-
-
-bool LldbAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
+bool LldbCoreDumpAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
 	return ExecuteWithArgs(path, "", "", configs);
 }
 
 
-bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
+bool LldbCoreDumpAdapter::ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
 	const LaunchConfigurations& configs)
 {
 	m_debugger.SetAsync(true);
@@ -352,23 +185,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	auto adapterSettings = GetAdapterSettings();
 	auto executablePath = adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
 	scope = SettingsResourceScope;
-	auto workingDirectory = adapterSettings->Get<std::string>("launch.workingDirectory", data, &scope);
-	scope = SettingsResourceScope;
-	auto commandLineArgs = adapterSettings->Get<std::string>("launch.commandLineArguments", data, &scope);
-	scope = SettingsResourceScope;
 	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	scope = SettingsResourceScope;
-	auto separateTerminal = adapterSettings->Get<bool>("launch.terminalEmulator", data, &scope);
-	scope = SettingsResourceScope;
-	auto disableASLR = adapterSettings->Get<bool>("launch.disableAslr", data, &scope);
-	scope = SettingsResourceScope;
-	auto redirectStdin = adapterSettings->Get<std::string>("launch.redirectStdin", data, &scope);
-	scope = SettingsResourceScope;
-	auto redirectStdout = adapterSettings->Get<std::string>("launch.redirectStdout", data, &scope);
-	scope = SettingsResourceScope;
-	auto redirectStderr = adapterSettings->Get<std::string>("launch.redirectStderr", data, &scope);
-	scope = SettingsResourceScope;
-	auto envVariables = adapterSettings->Get<vector<string>>("launch.environmentVariables", data, &scope);
 
 	CreateTarget(inputFile);
 
@@ -383,142 +200,35 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 		return false;
 	}
 
-	m_targetActive = true;
-	// Breakpoints are added to this adapter right after the adapter gets created. However, at that time, the target is
-	// not created yet, so there is no way the adapter could apply the breakpoints to the target. Instead, the adapter
-	// stores all the breakpoints in m_pendingBreakpoints, and applies them when launching/connecting/attaching to the
-	// target.
-	ApplyBreakpoints();
-
-	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
-		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
-
-	// TODO: the adapter should record whether it is connected to a debug server itself, rather than relying on the
-	// info from the configs dict
-	if (configs.connectedToDebugServer)
-	{
-		// During remote debugging. lldb will try to upload the samples to the working directory before launching.
-		// The working directory defaults to the path the lldb-server is in, which is likely not the intended one.
-		// Here we set the remote working directory to the one specified by the user
-		auto result = InvokeBackendCommand(fmt::format("platform settings -w \"{}\"", workingDirectory));
-	}
-
-	std::string launchCommand = "process launch";
-	if (Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint") ||
-	        (m_isElFWithoutDynamicLoader && (executablePath == inputFile)))
-		launchCommand += " --stop-at-entry";
-
-	if (separateTerminal)
-		launchCommand += " --tty";
-
-	if (!workingDirectory.empty())
-		launchCommand += fmt::format(" --working-dir \"{}\"", workingDirectory);
-
-	launchCommand += " --disable-aslr ";
-	launchCommand += disableASLR ? "true" : "false";
-
-	if (!redirectStdin.empty())
-		launchCommand += fmt::format(" --stdin \"{}\"", redirectStdin);
-
-	if (!redirectStdout.empty())
-		launchCommand += fmt::format(" --stdout \"{}\"", redirectStdout);
-
-	if (!redirectStderr.empty())
-		launchCommand += fmt::format(" --stderr \"{}\"", redirectStderr);
-
-	if (!envVariables.empty())
-	{
-		for (const auto& var : envVariables)
-		{
-			if (var.empty())
-				continue;
-			launchCommand += fmt::format(" --environment \"{}\"", var);
-		}
-	}
-
-	if (!commandLineArgs.empty())
-		launchCommand += (" -- " + commandLineArgs);
-
-	LogWarn("LLDB launchCommand: %s", launchCommand.c_str());
-
-	auto result = InvokeBackendCommand(launchCommand);
-	DebuggerEvent evt;
-	evt.type = BackendMessageEventType;
-	evt.data.messageData.message = result;
-	PostDebuggerEvent(evt);
-
-	m_process = m_target.GetProcess();
-	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || (result.rfind("error: ", 0) == 0))
-	{
-		auto it = result.find_last_not_of('\n');
-		result.erase(it + 1);
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.shortError = fmt::format("LLDB failed to launch target.");
-		event.data.errorData.error = fmt::format("LLDB Failed to launch target with \"{}\"", result.c_str());
-		PostDebuggerEvent(event);
-		return false;
-	}
-	return true;
-}
-
-
-bool LldbAdapter::Attach(std::uint32_t pid)
-{
-	m_debugger.SetAsync(true);
-
-	std::thread thread([&]() { EventListener(); });
-	thread.detach();
-
-	SBError err;
-
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	scope = SettingsResourceScope;
-	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
-
-	CreateTarget(inputFile);
-
-	if (!m_target.IsValid())
+	SBError error;
+	m_process = m_target.LoadCore(path.c_str(), error);
+	if (error.Fail())
 	{
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
+		event.data.errorData.shortError = fmt::format("LLDB failed to load the core.");
 		event.data.errorData.error =
-			fmt::format("LLDB failed to attach to target with \"{}\"", err.GetCString() ? err.GetCString() : "");
+			fmt::format("LLDB failed to load the core with \"{}\"", err.GetCString() ? err.GetCString() : "");
 		PostDebuggerEvent(event);
 		return false;
 	}
 
-	m_targetActive = true;
-	ApplyBreakpoints();
-
-	SBAttachInfo info(attachPID);
-	m_process = m_target.Attach(info, err);
-	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || err.Fail())
-	{
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
-		event.data.errorData.error =
-			fmt::format("LLDB Failed to attach to target with \"{}\"", err.GetCString() ? err.GetCString() : "");
-		PostDebuggerEvent(event);
-		return false;
-	}
-
-	// LLDB event listener does not get an event when the attach operation completes, so we must send an event here.
-	// This is NOT needed for Connect(), since LLDB event listener sends an event in that case.
 	DebuggerEvent dbgevt;
 	dbgevt.type = AdapterStoppedEventType;
 	dbgevt.data.targetStoppedData.reason = InitialBreakpoint;
 	PostDebuggerEvent(dbgevt);
+
 	return true;
 }
 
 
-bool LldbAdapter::CreateTarget(const std::string &file)
+bool LldbCoreDumpAdapter::Attach(std::uint32_t pid)
+{
+	return false;
+}
+
+
+bool LldbCoreDumpAdapter::CreateTarget(const std::string &file)
 {
 	// We try different ways to create a target until one of them works...
 	auto archName = lldbArchNameForBinaryNinjaArchName(m_defaultArchitecture);
@@ -552,135 +262,44 @@ bool LldbAdapter::CreateTarget(const std::string &file)
 
 
 
-bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
+bool LldbCoreDumpAdapter::Connect(const std::string& server, std::uint32_t port)
 {
-	m_debugger.SetAsync(true);
-
-	std::thread thread([&]() { EventListener(); });
-	thread.detach();
-
-	SBError err;
-
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	scope = SettingsResourceScope;
-	auto ipAddress = adapterSettings->Get<std::string>("connect.ipAddress", data, &scope);
-	scope = SettingsResourceScope;
-	auto serverPort = adapterSettings->Get<uint64_t>("connect.port", data, &scope);
-	scope = SettingsResourceScope;
-	auto processPlugin = adapterSettings->Get<std::string>("connect.processPlugin", data, &scope);
-
-	CreateTarget(inputFile);
-
-	if (!m_target.IsValid())
-	{
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.shortError = fmt::format("LLDB failed to connect to target.");
-		event.data.errorData.error =
-			fmt::format("LLDB failed to connect to target with \"{}\"", err.GetCString() ? err.GetCString() : "");
-		PostDebuggerEvent(event);
-		return false;
-	}
-
-	m_targetActive = true;
-	ApplyBreakpoints();
-
-	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
-		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
-
-	std::string url = fmt::format("connect://{}:{}", ipAddress, serverPort);
-	SBListener listener;
-	const char* plugin = nullptr;
-	if (!processPlugin.empty() && processPlugin != "debugserver/lldb")
-		plugin = processPlugin.c_str();
-	m_process = m_target.ConnectRemote(listener, url.c_str(), plugin, err);
-	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || err.Fail())
-	{
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.shortError = fmt::format("LLDB failed to connect to target.");
-		event.data.errorData.error =
-			fmt::format("LLDB Failed to connect to target with \"{}\"", err.GetCString() ? err.GetCString() : "");
-		PostDebuggerEvent(event);
-		return false;
-	}
-	return true;
+	return false;
 }
 
 
-bool LldbAdapter::Detach()
+bool LldbCoreDumpAdapter::Detach()
 {
 	std::unique_lock<std::mutex> lock(m_quitingMutex);
 	SBError error = m_process.Detach();
 	if (error.Success())
 		return true;
 
-	// There is a situation where the reqeust to Quit or Detach can fail, and the target will continue to execute but
-	// the DebuggerController is freed. To avoid UAF, when that happens, make sure at least we break from the
-	// EventListener() loop
-	m_userRequestedQuit = true;
 	return false;
 }
 
 
-bool LldbAdapter::Quit()
+bool LldbCoreDumpAdapter::Quit()
 {
 	std::unique_lock<std::mutex> lock(m_quitingMutex);
-	SBError error = m_process.Kill();
-	if (error.Success())
-		return true;
+	bool ok = m_debugger.DeleteTarget(m_target);
 
-	// There is a situation where the reqeust to Quit or Detach can fail, and the target will continue to execute but
-	// the DebuggerController is freed. To avoid UAF, when that happens, make sure at least we break from the
-	// EventListener() loop
-	m_userRequestedQuit = true;
-	return false;
+	DebuggerEvent dbgevt;
+	dbgevt.type = TargetExitedEventType;
+	dbgevt.data.exitData.exitCode = 0;
+	PostDebuggerEvent(dbgevt);
+
+	return ok;
 }
 
 
-std::vector<DebugProcess> LldbAdapter::GetProcessList()
+std::vector<DebugProcess> LldbCoreDumpAdapter::GetProcessList()
 {
-	std::vector<DebugProcess> debug_processes {};
-
-	std::istringstream processList(InvokeBackendCommand("platform process list"));
-	std::string line;
-
-	while (getline(processList, line, '\n'))
-	{
-		uint32_t pid{};
-
-		// skip header lines and lines that have len <= 56
-		if (line.rfind("matching processes were found on") != std::string::npos
-			|| line.rfind("PID    PARENT USER") != std::string::npos
-			|| line.rfind("====== ======") != std::string::npos
-			|| line.size() <= 56)
-		{
-			continue;
-		}
-
-		if (sscanf(line.c_str(), "%d", &pid) == 0)
-			continue;
-
-		// example output lines:
-		//	1268   944                                              csrss.exe
-		//  37635  9677   xusheng    arm64-apple-*                  Code Helper (Renderer)
-		//
-		// we've 56 bytes until process name which is calculated like this:
-		// (6 + 1) + (6 + 1) + (10 + 1) + (30 + 1)
-
-		std::string processName(std::next(line.begin(), 56), line.end());
-
-		debug_processes.emplace_back(pid, processName);
-	}
-
-	return debug_processes;
+	return {};
 }
 
 
-std::vector<DebugThread> LldbAdapter::GetThreadList()
+std::vector<DebugThread> LldbCoreDumpAdapter::GetThreadList()
 {
 	size_t threadCount = m_process.GetNumThreads();
 	std::vector<DebugThread> result;
@@ -705,7 +324,7 @@ std::vector<DebugThread> LldbAdapter::GetThreadList()
 }
 
 
-DebugThread LldbAdapter::GetActiveThread() const
+DebugThread LldbCoreDumpAdapter::GetActiveThread() const
 {
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())
@@ -726,7 +345,7 @@ DebugThread LldbAdapter::GetActiveThread() const
 }
 
 
-uint32_t LldbAdapter::GetActiveThreadId() const
+uint32_t LldbCoreDumpAdapter::GetActiveThreadId() const
 {
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())
@@ -738,52 +357,30 @@ uint32_t LldbAdapter::GetActiveThreadId() const
 }
 
 
-bool LldbAdapter::SetActiveThread(const DebugThread& thread)
+bool LldbCoreDumpAdapter::SetActiveThread(const DebugThread& thread)
 {
 	return SetActiveThreadId(thread.m_tid);
 }
 
 
-bool LldbAdapter::SetActiveThreadId(std::uint32_t tid)
+bool LldbCoreDumpAdapter::SetActiveThreadId(std::uint32_t tid)
 {
 	return m_process.SetSelectedThreadByID(tid);
 }
 
 
-bool LldbAdapter::SuspendThread(std::uint32_t tid)
+bool LldbCoreDumpAdapter::SuspendThread(std::uint32_t tid)
 {
-	SBError error;
-	SBThread thread = m_process.GetThreadByID(tid);
-	if (!thread.IsValid())
-		return false;
-
-	if (!thread.Suspend(error))
-		return false;
-
-	if (!error.Success())
-		return false;
-
-	return true;
+	return false;
 }
 
-bool LldbAdapter::ResumeThread(std::uint32_t tid)
+bool LldbCoreDumpAdapter::ResumeThread(std::uint32_t tid)
 {
-	SBError error;
-	SBThread thread = m_process.GetThreadByID(tid);
-	if (!thread.IsValid())
-		return false;
-
-	if (!thread.Resume(error))
-		return false;
-
-	if (!error.Success())
-		return false;
-
-	return true;
+	return false;
 }
 
 
-std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
+std::vector<DebugFrame> LldbCoreDumpAdapter::GetFramesOfThread(uint32_t tid)
 {
 	size_t threadCount = m_process.GetNumThreads();
 	std::vector<DebugFrame> result;
@@ -834,85 +431,38 @@ std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
 }
 
 
-DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
+DebugBreakpoint LldbCoreDumpAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
-	SBBreakpoint bp = m_target.BreakpointCreateByAddress(address);
-	if (!bp.IsValid())
-		return DebugBreakpoint {};
-
-	return DebugBreakpoint(address, bp.GetID(), bp.IsEnabled());
+	return {};
 }
 
 
-DebugBreakpoint LldbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
+DebugBreakpoint LldbCoreDumpAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
 {
-	if (!m_targetActive)
-	{
-		if (std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end())
-			m_pendingBreakpoints.push_back(address);
-	}
-	else
-	{
-		uint64_t addr = address.offset + m_originalImageBase;
-		std::string entryBreakpointCommand = fmt::format("b -s \"{}\" -a 0x{:x}", address.module, addr);
-		auto ret = InvokeBackendCommand(entryBreakpointCommand);
-		DebuggerEvent evt;
-		evt.type = BackendMessageEventType;
-		evt.data.messageData.message = ret;
-		PostDebuggerEvent(evt);
-	}
-
-	return DebugBreakpoint {};
+	return {};
 }
 
 
-bool LldbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
+bool LldbCoreDumpAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 {
-	// This is what gets called when we delete a breakpoint from the controller. Because the adapter would have no
-	// convenient way of mapping a ModuleNameAndOffset to an actual address, so the controller uses the address of the
-	// breakpoint to carry out deletion.
-
-	// Only the address is valid. We cannot use the .m_id info.
-	bool ok = false;
-	uint64_t address = breakpoint.m_address;
-	for (size_t i = 0; i < m_target.GetNumBreakpoints(); i++)
-	{
-		auto bp = m_target.GetBreakpointAtIndex(i);
-		for (size_t j = 0; j < bp.GetNumLocations(); j++)
-		{
-			auto location = bp.GetLocationAtIndex(j);
-			auto bpAddress = location.GetAddress().GetLoadAddress(m_target);
-			if (address == bpAddress)
-			{
-				ok |= m_target.BreakpointDelete(bp.GetID());
-				break;
-			}
-		}
-	}
-	return ok;
+	return true;
 }
 
 
-bool LldbAdapter::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
+bool LldbCoreDumpAdapter::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
 {
-	// This function is actually never called, because the adapter handles the cache of the breakpoints when the target
-	// is inactive. When the target is active, the `LldbAdapter::RemoveBreakpoint(const DebugBreakpoint & breakpoint)`
-	// above is called.
-	auto it = std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), breakpoint);
-	if (it != m_pendingBreakpoints.end())
-		m_pendingBreakpoints.erase(it);
 	return true;
 }
 
 
 // TODO: this should be deprecated
-std::vector<DebugBreakpoint> LldbAdapter::GetBreakpointList() const
+std::vector<DebugBreakpoint> LldbCoreDumpAdapter::GetBreakpointList() const
 {
 	return std::vector<DebugBreakpoint>();
 }
 
 
-std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
+std::unordered_map<std::string, DebugRegister> LldbCoreDumpAdapter::ReadAllRegisters()
 {
 	std::unordered_map<std::string, DebugRegister> result;
 
@@ -959,7 +509,7 @@ std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 }
 
 
-DebugRegister LldbAdapter::ReadRegister(const std::string& name)
+DebugRegister LldbCoreDumpAdapter::ReadRegister(const std::string& name)
 {
 	DebugRegister result {};
 
@@ -993,41 +543,13 @@ DebugRegister LldbAdapter::ReadRegister(const std::string& name)
 }
 
 
-bool LldbAdapter::WriteRegister(const std::string& name, std::uintptr_t value)
+bool LldbCoreDumpAdapter::WriteRegister(const std::string& name, std::uintptr_t value)
 {
-	//	SBThread thread = m_process.GetSelectedThread();
-	//	if (!thread.IsValid())
-	//		return false;
-	//
-	//	size_t frameCount = thread.GetNumFrames();
-	//	if (frameCount == 0)
-	//		return false;
-	//
-	//	SBFrame frame = thread.GetFrameAtIndex(0);
-	//	if (!frame.IsValid())
-	//		return false;
-	//
-	//	SBValue reg = frame.FindRegister(name.c_str());
-	//	if (!reg.IsValid())
-	//		return false;
-	//
-	//	SBError error;
-	//	bool ok = reg.SetValueFromCString(fmt::format("{}", value).c_str(), error);
-	//	return ok && error.Success();
-
-	//	An LLDB bug forces the use of a command rather than the above code via API. When one tries to update the pc
-	//  value using the API, the GetInstructionOffset() function will still return the old value, making the current
-	//  instruction highlight inaccurate.
-	auto command = fmt::format("reg write {} 0x{:x}", name, value);
-	auto result = InvokeBackendCommand(command);
-	if ((result.rfind("error: ", 0) == 0))
-		return false;
-
-	return true;
+	return false;
 }
 
 
-DataBuffer LldbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
+DataBuffer LldbCoreDumpAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 {
 	if (!m_quitingMutex.try_lock())
 		return DataBuffer{};
@@ -1046,20 +568,8 @@ DataBuffer LldbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 }
 
 
-bool LldbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
+bool LldbCoreDumpAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
-	if (!m_quitingMutex.try_lock())
-		return false;
-
-	SBError error;
-	size_t bytesWritten = m_process.WriteMemory(address, buffer.GetData(), buffer.GetLength(), error);
-	if ((bytesWritten == buffer.GetLength()) && error.Success())
-	{
-		m_quitingMutex.unlock();
-		return true;
-	}
-
-	m_quitingMutex.unlock();
 	return false;
 }
 
@@ -1081,7 +591,7 @@ static uint64_t GetModuleHighestAddress(SBModule& module, SBTarget& target)
 }
 
 
-std::vector<DebugModule> LldbAdapter::GetModuleList()
+std::vector<DebugModule> LldbCoreDumpAdapter::GetModuleList()
 {
 	std::vector<DebugModule> result;
 	size_t numModules = m_target.GetNumModules();
@@ -1107,7 +617,7 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
 }
 
 
-std::string LldbAdapter::GetTargetArchitecture()
+std::string LldbCoreDumpAdapter::GetTargetArchitecture()
 {
 	SBPlatform platform = m_target.GetPlatform();
 	//	"arm64-apple-macosx" ==> "arm64"
@@ -1249,7 +759,7 @@ static DebugStopReason GetStopReasonFromLinuxSignal(uint64_t signal)
 }
 
 
-DebugStopReason LldbAdapter::StopReason()
+DebugStopReason LldbCoreDumpAdapter::StopReason()
 {
 	StateType state = m_process.GetState();
 	if (state == lldb::eStateExited)
@@ -1311,7 +821,7 @@ DebugStopReason LldbAdapter::StopReason()
 }
 
 
-uint64_t LldbAdapter::ExitCode()
+uint64_t LldbCoreDumpAdapter::ExitCode()
 {
 	if (m_process.GetState() != lldb::eStateExited)
 		return -1;
@@ -1320,7 +830,7 @@ uint64_t LldbAdapter::ExitCode()
 }
 
 
-bool LldbAdapter::BreakInto()
+bool LldbCoreDumpAdapter::BreakInto()
 {
 	if ((m_process.GetState() != lldb::eStateRunning) && (m_process.GetState() != lldb::eStateStepping))
 	{
@@ -1338,163 +848,31 @@ bool LldbAdapter::BreakInto()
 }
 
 
-bool LldbAdapter::Go()
+bool LldbCoreDumpAdapter::Go()
 {
-	if (m_process.GetState() != lldb::eStateStopped)
-	{
-		DebuggerEvent event;
-		event.type = ErrorEventType;
-		event.data.errorData.shortError = "Go failed";
-		event.data.errorData.error = fmt::format("LLDB: go failed, process state is not stopped");
-		PostDebuggerEvent(event);
-		return false;
-	}
-
-#ifndef WIN32
-	SBError error = m_process.Continue();
-	if (!error.Success())
-		return false;
-#else
-	InvokeBackendCommand("c");
-#endif
-	return true;
+	return false;
 }
 
 
-bool LldbAdapter::StepInto()
+bool LldbCoreDumpAdapter::StepInto()
 {
-	if (m_process.GetState() != lldb::eStateStopped)
-	{
-		DebuggerEvent event;
-		event.type = ErrorEventType;
-		event.data.errorData.shortError = "step into failed";
-		event.data.errorData.error = fmt::format("LLDB: step into failed, process state is not stopped");
-		PostDebuggerEvent(event);
-		return false;
-	}
-
-#ifndef WIN32
-	SBThread thread = m_process.GetSelectedThread();
-	if (!thread.IsValid())
-	{
-		DebuggerEvent event;
-		event.type = ErrorEventType;
-		event.data.errorData.shortError = "Step into failed";
-		event.data.errorData.error = fmt::format("LLDB: step into failed, invalid thread");
-		PostDebuggerEvent(event);
-		return false;
-	}
-
-	SBError error;
-	thread.StepInstruction(false, error);
-	if (!error.Success())
-	{
-		DebuggerEvent event;
-		event.type = ErrorEventType;
-		event.data.errorData.shortError = "Step into failed";
-		event.data.errorData.error =
-			fmt::format("LLDB: step into failed {}", error.GetCString() ? error.GetCString() : "");
-		PostDebuggerEvent(event);
-		return false;
-	}
-#else
-	InvokeBackendCommand("si");
-#endif
-	return true;
+	return false;
 }
 
 
-bool LldbAdapter::StepOver()
+bool LldbCoreDumpAdapter::StepOver()
 {
-	if (m_process.GetState() != lldb::eStateStopped)
-	{
-		DebuggerEvent event;
-		event.type = ErrorEventType;
-		event.data.errorData.shortError = "Step over failed";
-		event.data.errorData.error = fmt::format("LLDB: step over failed, process state is not stopped");
-		PostDebuggerEvent(event);
-		return false;
-	}
-
-#ifndef WIN32
-	SBThread thread = m_process.GetSelectedThread();
-	if (!thread.IsValid())
-	{
-		DebuggerEvent event;
-		event.type = ErrorEventType;
-		event.data.errorData.shortError = "Step over failed";
-		event.data.errorData.error = fmt::format("LLDB: step over failed, invalid thread");
-		PostDebuggerEvent(event);
-		return false;
-	}
-
-	SBError error;
-	thread.StepInstruction(true, error);
-	if (!error.Success())
-	{
-		DebuggerEvent event;
-		event.type = ErrorEventType;
-		event.data.errorData.shortError = "Step over failed";
-		event.data.errorData.error =
-			fmt::format("LLDB: step over failed {}", error.GetCString() ? error.GetCString() : "");
-		PostDebuggerEvent(event);
-		return false;
-	}
-#else
-	InvokeBackendCommand("ni");
-#endif
-	return true;
+	return false;
 }
 
 
-bool LldbAdapter::StepReturn()
+bool LldbCoreDumpAdapter::StepReturn()
 {
-	if (m_process.GetState() != lldb::eStateStopped)
-	{
-		DebuggerEvent event;
-		event.type = ErrorEventType;
-		event.data.errorData.shortError = "Step return failed";
-		event.data.errorData.error = fmt::format("LLDB: step return failed, process state is not stopped");
-		PostDebuggerEvent(event);
-		return false;
-	}
-
-	//	The following method, calling StepOutOfFrame(), will receive an unexpected lldb::eStateRunning event when the
-	//	operation failed, e.g., due to inability to place the breakpoint at the return address. This seems to be a LLDB
-	//	bug. For now, we just run the `finish` command instead.
-
-	//#ifndef WIN32
-	//	SBThread thread = m_process.GetSelectedThread();
-	//	if (!thread.IsValid())
-	//		return DebugStopReason::InternalError;
-	//
-	//	size_t frameCount = thread.GetNumFrames();
-	//	if (frameCount > 0)
-	//	{
-	//		SBFrame frame = thread.GetFrameAtIndex(0);
-	//		SBError error;
-	//		thread.StepOutOfFrame(frame, error);
-	//		if (error.Fail())
-	//			return DebugStopReason::InternalError;
-	//	}
-	//#else
-	auto result = InvokeBackendCommand("finish");
-	if (result.rfind("error: ", 0) == 0)
-	{
-		DebuggerEvent event;
-		event.type = ErrorEventType;
-		event.data.errorData.shortError = "Step return failed";
-		event.data.errorData.error = fmt::format("LLDB: step return failed, {}", result);
-		PostDebuggerEvent(event);
-		return false;
-	}
-
-	//#endif
-	return true;
+	return false;
 }
 
 
-std::string LldbAdapter::InvokeBackendCommand(const std::string& command)
+std::string LldbCoreDumpAdapter::InvokeBackendCommand(const std::string& command)
 {
 	// Since the `kill` command can cause the target to quit, we must guard this function with the mutex as well
 	std::unique_lock<std::mutex> lock(m_quitingMutex);
@@ -1514,7 +892,7 @@ std::string LldbAdapter::InvokeBackendCommand(const std::string& command)
 }
 
 
-uint64_t LldbAdapter::GetInstructionOffset()
+uint64_t LldbCoreDumpAdapter::GetInstructionOffset()
 {
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())
@@ -1533,7 +911,7 @@ uint64_t LldbAdapter::GetInstructionOffset()
 }
 
 
-uint64_t LldbAdapter::GetStackPointer()
+uint64_t LldbCoreDumpAdapter::GetStackPointer()
 {
 	SBThread thread = m_process.GetSelectedThread();
 	if (!thread.IsValid())
@@ -1552,7 +930,7 @@ uint64_t LldbAdapter::GetStackPointer()
 }
 
 
-bool LldbAdapter::SupportFeature(DebugAdapterCapacity feature)
+bool LldbCoreDumpAdapter::SupportFeature(DebugAdapterCapacity feature)
 {
 	switch (feature)
 	{
@@ -1583,7 +961,7 @@ static bool ThreadHasValidStopReason(SBThread thread)
 }
 
 
-void LldbAdapter::FixActiveThread()
+void LldbCoreDumpAdapter::FixActiveThread()
 {
 	// If there are no more than one thread, we are done
 	size_t threadCount = m_process.GetNumThreads();
@@ -1612,7 +990,7 @@ void LldbAdapter::FixActiveThread()
 }
 
 
-void LldbAdapter::EventListener()
+void LldbCoreDumpAdapter::EventListener()
 {
 	auto listener = m_debugger.GetListener();
 
@@ -1622,12 +1000,6 @@ void LldbAdapter::EventListener()
 		SBEvent event;
 		if (!listener.WaitForEvent(1, event))
 			continue;
-
-		if (m_userRequestedQuit)
-		{
-			m_userRequestedQuit = false;
-			break;
-		}
 
 		uint32_t event_type = event.GetType();
 		if (lldb::SBProcess::EventIsProcessEvent(event))
@@ -1674,7 +1046,6 @@ void LldbAdapter::EventListener()
 				case lldb::eStateExited:
 				{
 					done = true;
-					m_targetActive = false;
 					DebuggerEvent dbgevt;
 					dbgevt.type = TargetExitedEventType;
 					dbgevt.data.exitData.exitCode = ExitCode();
@@ -1684,7 +1055,6 @@ void LldbAdapter::EventListener()
 				case lldb::eStateDetached:
 				{
 					done = true;
-					m_targetActive = false;
 					DebuggerEvent dbgevt;
 					dbgevt.type = DetachedEventType;
 					PostDebuggerEvent(dbgevt);
@@ -1813,62 +1183,43 @@ void LldbAdapter::EventListener()
 }
 
 
-void LldbAdapter::WriteStdin(const std::string& msg)
+void LldbCoreDumpAdapter::WriteStdin(const std::string& msg)
 {
 	m_process.PutSTDIN(msg.c_str(), msg.length());
 }
 
 
-Ref<Metadata> LldbAdapter::GetProperty(const std::string& name)
+Ref<Metadata> LldbCoreDumpAdapter::GetProperty(const std::string& name)
 {
 	return nullptr;
 }
 
 
-bool LldbAdapter::SetProperty(const std::string& name, const Ref<Metadata>& value)
+bool LldbCoreDumpAdapter::SetProperty(const std::string& name, const Ref<Metadata>& value)
 {
 	return false;
 }
 
 
-bool LldbAdapter::ConnectToDebugServer(const std::string& server, std::uint32_t port)
+bool LldbCoreDumpAdapter::ConnectToDebugServer(const std::string& server, std::uint32_t port)
 {
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto ipAddress = adapterSettings->Get<std::string>("debugServer.ipAddress", data, &scope);
-	scope = SettingsResourceScope;
-	auto serverPort = adapterSettings->Get<uint64_t>("debugServer.port", data, &scope);
-	scope = SettingsResourceScope;
-	auto platformStr = adapterSettings->Get<std::string>("debugServer.platform", data, &scope);
-
-	m_debugger.SetCurrentPlatform(platformStr.c_str());
-	auto platform = m_debugger.GetSelectedPlatform();
-	auto connectionString = fmt::format("connect://{}:{}", ipAddress, serverPort);
-	SBPlatformConnectOptions options(connectionString.c_str());
-	auto error = platform.ConnectRemote(options);
-	return error.Success();
+	return false;
 }
 
 
-bool LldbAdapter::DisconnectDebugServer()
+bool LldbCoreDumpAdapter::DisconnectDebugServer()
 {
-	auto platform = m_debugger.GetSelectedPlatform();
-	platform.DisconnectRemote();
-	// Since connecting to a debug server will set the platform remote-xxxx, we must reset it to host
-	// Otherwise, launching the target (on the host) would not work after disconnecting from a debug server.
-	[[maybe_unused]] auto error = m_debugger.SetCurrentPlatform("host");
-	return true;
+	return false;
 }
 
 
-Ref<Settings> LldbAdapter::GetAdapterSettings()
+Ref<Settings> LldbCoreDumpAdapter::GetAdapterSettings()
 {
-	return LldbAdapterType::GetAdapterSettings();
+	return LldbCoreDumpAdapterType::GetAdapterSettings();
 }
 
 
-void LldbAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
+void LldbCoreDumpAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 {
 	auto adapterSettings = GetAdapterSettings();
 	BNSettingsScope scope = SettingsResourceScope;
@@ -1884,40 +1235,4 @@ void LldbAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 	adapterSettings->Get<std::string>("common.inputFile", data, &scope);
 	if (scope != SettingsResourceScope)
 		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
-
-	scope = SettingsResourceScope;
-	auto workingDirectory = adapterSettings->Get<std::string>("launch.workingDirectory", data, &scope);
-	if (scope != SettingsResourceScope)
-	{
-		// This mitigates https://github.com/Vector35/debugger/issues/469. However, it is NOT a proper fix since the
-		// debugger still will not be able to launch the target properly. We will need to deal with the charset issue
-		// to get this really fixed.
-		try
-		{
-			workingDirectory = filesystem::path(executablePath).parent_path().string();
-		}
-		catch (const exception&)
-		{
-			LogWarn("Cannot get the default working directory for the input file. "
-					"There might be special characters in the file path. "
-					"The debugger may not be able to launch the target correctly. "
-					"You can try changing the file path to ASCII allow.");
-		}
-		adapterSettings->Set("launch.workingDirectory", workingDirectory, data, SettingsResourceScope);
-	}
-
-	std::vector<std::string> platforms;
-	for (size_t i = 0; i < m_debugger.GetNumAvailablePlatforms(); i++)
-	{
-		auto platform = m_debugger.GetAvailablePlatformInfoAtIndex(i);
-		auto nameData = platform.GetValueForKey("name");
-		char name[1024];
-		nameData.GetStringValue(name, 1024);
-		platforms.emplace_back(name);
-	}
-
-	adapterSettings->UpdateProperty("debugServer.platform", "enum", platforms);
-
-	auto platform = m_debugger.GetSelectedPlatform();
-	adapterSettings->UpdateProperty("debugServer.platform", "default", platform.GetName());
 }

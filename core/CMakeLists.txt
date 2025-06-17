@@ -31,6 +31,8 @@ file(GLOB ADAPTER_SOURCES
 		adapters/corelliumadapter.h
 		adapters/esrevenadapter.cpp
 		adapters/esrevenadapter.h
+		adapters/lldbcoredumpadapter.cpp
+		adapters/lldbcoredumpadapter.h
 	)
 
 if(WIN32)
