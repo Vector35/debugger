@@ -35,7 +35,7 @@ limitations under the License.
 #include <filesystem>
 #include <QMessageBox>
 #include "debugadapterscriptingprovider.h"
-#include "targetscriptingprovier.h"
+#include "targetscriptingprovider.h"
 #include "progresstask.h"
 #include "attachprocess.h"
 #include "progresstask.h"

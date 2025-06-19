@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "targetscriptingprovier.h"
+#include "targetscriptingprovider.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -57,7 +57,7 @@ TargetScriptingInstance::~TargetScriptingInstance()
 
 void TargetScriptingInstance::SetCurrentBinaryView(BinaryNinja::BinaryView* view)
 {
-	if (m_data.operator!=(view))
+	if (m_data != view)
 	{
 		m_data = view;
 		if (m_data)

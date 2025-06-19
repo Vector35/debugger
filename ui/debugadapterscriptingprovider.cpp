@@ -57,7 +57,7 @@ DebugAdapterScriptingInstance::~DebugAdapterScriptingInstance()
 
 void DebugAdapterScriptingInstance::SetCurrentBinaryView(BinaryNinja::BinaryView* view)
 {
-	if (m_data.operator!=(view))
+	if (m_data != view)
 	{
 		m_data = view;
 		if (m_data)

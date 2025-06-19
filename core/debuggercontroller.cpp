@@ -1506,7 +1506,7 @@ DbgRef<DebuggerController> DebuggerController::GetController(BinaryViewRef data)
 		DebuggerController* controller = g_debuggerControllers[i];
 		if (!controller)
 			continue;
-		if (controller->m_file.operator==(data->GetFile()))
+		if (controller->m_file == data->GetFile())
 			return controller;
 	}
 
