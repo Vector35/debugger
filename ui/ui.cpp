@@ -1004,20 +1004,6 @@ void GlobalDebuggerUI::CreateGlobalAreaWidgets(UIContext* context)
 		if (!sidebar->hasWidgetWithTitle("Console", "Target"))
 			context->contentActionHandler()->executeAction("Create Target Console");
 	}
-
-	auto widget = sidebar->widget("Stack Trace");
-	if (!widget)
-	{
-		auto* globalThreadFramesContainer = new GlobalThreadFramesContainer("Stack Trace");
-		sidebar->addWidget("Stack Trace", globalThreadFramesContainer);
-	}
-
-	widget = sidebar->widget("Debugger Modules");
-	if (!widget)
-	{
-		auto* globalDebugModulesContainer = new GlobalDebugModulesContainer("Debugger Modules");
-		sidebar->addWidget("Debugger Modules", globalDebugModulesContainer);
-	}
 }
 
 
@@ -1027,15 +1013,7 @@ void GlobalDebuggerUI::CloseGlobalAreaWidgets(UIContext* context)
 	if (!sidebar)
 		return;
 
-	auto widget = sidebar->widget("Stack Trace");
-	if (widget)
-		sidebar->removeWidget("Stack Trace", widget);
-
-	widget = sidebar->widget("Debugger Modules");
-	if (widget)
-		sidebar->removeWidget("Debugger Modules", widget);
-
-	widget = sidebar->widgetWithTitle("Console", "Debugger");
+	auto widget = sidebar->widgetWithTitle("Console", "Debugger");
 	if (widget)
 		sidebar->removeWidget("Console", widget);
 
@@ -1472,4 +1450,44 @@ extern "C"
 		RegisterRenderLayers();
 		return true;
 	}
+}
+
+
+ActiveDebugSessionSidebarContentClassifier::ActiveDebugSessionSidebarContentClassifier(BinaryViewRef data)
+{
+	m_debugger = DebuggerController::GetController(data);
+	if (m_debugger)
+	{
+		if (m_debugger->IsConnected())
+			m_contentClassification = SidebarHasRelevantContent;
+
+		m_eventIndex = m_debugger->RegisterEventCallback(
+			[this](const DebuggerEvent& event) {
+				switch (event.type)
+				{
+				case LaunchEventType:
+				case ResumeEventType:
+				case StepIntoEventType:
+				case TargetStoppedEventType:
+					m_contentClassification = SidebarHasRelevantContent;
+					Q_EMIT contentClassificationChanged();
+					break;
+				case DetachedEventType:
+				case LaunchFailureEventType:
+					m_contentClassification = SidebarHasNoContent;
+					Q_EMIT contentClassificationChanged();
+					break;
+				default:
+					break;
+				}
+			},
+			"Active Debug Session Sidebar Content Classifier");
+	}
+}
+
+
+ActiveDebugSessionSidebarContentClassifier::~ActiveDebugSessionSidebarContentClassifier()
+{
+	if (m_debugger)
+		m_debugger->RemoveEventCallback(m_eventIndex);
 }
