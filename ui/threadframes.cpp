@@ -743,103 +743,34 @@ void ThreadFramesWidget::onDoubleClicked()
 }
 
 
-GlobalThreadFramesContainer::GlobalThreadFramesContainer(const QString& title) :
-	SidebarWidget(title), m_currentFrame(nullptr), m_consoleStack(new QStackedWidget)
+ThreadFramesContainer::ThreadFramesContainer(ViewFrame* frame, BinaryViewRef data) : SidebarWidget("Stack Trace")
 {
+	m_widget = new ThreadFramesWidget(this, frame, data);
+
 	auto* layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
-	layout->addWidget(m_consoleStack);
-
-	auto* noViewLabel = new QLabel("No active view.");
-	noViewLabel->setStyleSheet("QLabel { background: palette(base); }");
-	noViewLabel->setAlignment(Qt::AlignCenter);
-
-	m_consoleStack->addWidget(noViewLabel);
+	layout->addWidget(m_widget);
 }
 
 
-ThreadFramesWidget* GlobalThreadFramesContainer::currentConsole() const
+void ThreadFramesContainer::notifyFontChanged()
 {
-	if (m_consoleStack->currentIndex() == 0)
-		return nullptr;
-
-	return qobject_cast<ThreadFramesWidget*>(m_consoleStack->currentWidget());
-}
-
-
-void GlobalThreadFramesContainer::freeDebuggerConsoleForView(QObject* obj)
-{
-	// A old-style cast must be used here since qobject_cast will fail because
-	// the object is on the brink of deletion.
-	auto* vf = (ViewFrame*)obj;
-
-	// Confirm there is a record of this view.
-	if (!m_consoleMap.count(vf))
-	{
-		LogWarn("Attempted to free DebuggerConsole for untracked view %p", obj);
-		return;
-	}
-
-	auto* console = m_consoleMap[vf];
-	m_consoleStack->removeWidget(console);
-	m_consoleMap.remove(vf);
-
-	// Must be called so the ChatBox is guaranteed to be destoryed. If two
-	// instances for the same view/database exist, things will break.
-	console->deleteLater();
-}
-
-
-void GlobalThreadFramesContainer::notifyViewChanged(ViewFrame* frame)
-{
-	// The "no active view" message widget is always located at index 0. If the
-	// frame passed is nullptr, show it.
-	if (!frame)
-	{
-		m_consoleStack->setCurrentIndex(0);
-		m_currentFrame = nullptr;
-
-		return;
-	}
-
-	// The notifyViewChanged event can fire multiple times for the same frame
-	// even if there is no apparent change. Compare the new frame to the
-	// current one before continuing to avoid unnecessary work.
-	if (frame == m_currentFrame)
-		return;
-	m_currentFrame = frame;
-
-	// Get the appropriate DebuggerConsole for this ViewFrame, or create a new one if it
-	// doesn't yet exist. The default value for non-existent keys of pointer
-	// types in Qt containers is nullptr, which allows this logic below to work.
-	auto* currentConsole = m_consoleMap.value(frame);
-	if (!currentConsole)
-	{
-		currentConsole = new ThreadFramesWidget(this, frame, frame->getCurrentBinaryView());
-
-		// DockWidgets related to a ViewFrame are automatically cleaned up as
-		// part of the ViewFrame destructor. To ensure there is never a DebuggerConsole
-		// for a non-existent ViewFrame, the cleanup must be configured manually.
-		connect(frame, &QObject::destroyed, this, &GlobalThreadFramesContainer::freeDebuggerConsoleForView);
-
-		m_consoleMap.insert(frame, currentConsole);
-		m_consoleStack->addWidget(currentConsole);
-	}
-
-	m_consoleStack->setCurrentWidget(currentConsole);
-}
-
-
-void GlobalThreadFramesContainer::notifyFontChanged()
-{
-	for (auto it = m_consoleMap.begin(); it != m_consoleMap.end(); it++)
-	{
-		if (it.value())
-			it.value()->updateFonts();
-	}
+	m_widget->updateFonts();
 }
 
 
 ThreadFramesSidebarWidgetType::ThreadFramesSidebarWidgetType() :
 	SidebarWidgetType(QImage(":/icons/images/stack-trace.png"), "Stack Trace")
 {}
+
+
+SidebarWidget* ThreadFramesSidebarWidgetType::createWidget(ViewFrame* frame, BinaryViewRef data)
+{
+	return new ThreadFramesContainer(frame, data);
+}
+
+
+SidebarContentClassifier* ThreadFramesSidebarWidgetType::contentClassifier(ViewFrame*, BinaryViewRef data)
+{
+	return new ActiveDebugSessionSidebarContentClassifier(data);
+}

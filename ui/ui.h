@@ -92,3 +92,18 @@ signals:
 private slots:
 	void updateUI(const DebuggerEvent& event);
 };
+
+
+class ActiveDebugSessionSidebarContentClassifier : public SidebarContentClassifier
+{
+	Q_OBJECT
+
+	size_t m_eventIndex;
+	SidebarContentClassification m_contentClassification = SidebarHasNoContent;
+	DebuggerControllerRef m_debugger;
+
+public:
+	ActiveDebugSessionSidebarContentClassifier(BinaryViewRef data);
+	~ActiveDebugSessionSidebarContentClassifier() override;
+	SidebarContentClassification contentClassification() override { return m_contentClassification; }
+};

@@ -173,5 +173,6 @@ public:
 	SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override;
 	SidebarWidgetLocation defaultLocation() const override { return SidebarWidgetLocation::RightBottom; }
 	SidebarContextSensitivity contextSensitivity() const override { return PerViewTypeSidebarContext; }
-//	bool hideIfNoContent() const override { return true; }
+	SidebarIconVisibility defaultIconVisibility() const override { return HideSidebarIconIfNoContent; }
+	SidebarContentClassifier* contentClassifier(ViewFrame*, BinaryViewRef) override;
 };

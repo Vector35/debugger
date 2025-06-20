@@ -934,3 +934,9 @@ SidebarWidget* DebugInfoWidgetType::createWidget(ViewFrame*, BinaryViewRef data)
 {
 	return new DebugInfoSidebarWidget(data);
 }
+
+
+SidebarContentClassifier* DebugInfoWidgetType::contentClassifier(ViewFrame*, BinaryViewRef data)
+{
+	return new ActiveDebugSessionSidebarContentClassifier(data);
+}

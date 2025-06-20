@@ -195,28 +195,12 @@ private slots:
 	void copy();
 };
 
-class GlobalThreadFramesContainer : public SidebarWidget
+class ThreadFramesContainer : public SidebarWidget
 {
-	ViewFrame* m_currentFrame;
-	QHash<ViewFrame*, ThreadFramesWidget*> m_consoleMap;
-
-	QStackedWidget* m_consoleStack;
-
-	//! Get the current active DebuggerConsole. Returns nullptr in the event of an error
-	//! or if there is no active ChatBox.
-	ThreadFramesWidget* currentConsole() const;
-
-	//! Delete the DebuggerConsole for the given view.
-	void freeDebuggerConsoleForView(QObject*);
+	ThreadFramesWidget* m_widget;
 
 public:
-	GlobalThreadFramesContainer(const QString& title);
-
-	//! Send text to the actively-focused ChatBox. If there is no active ChatBox,
-	//! no action will be taken.
-	void sendText(const QString& msg) const;
-
-	void notifyViewChanged(ViewFrame*) override;
+	ThreadFramesContainer(ViewFrame* frame, BinaryViewRef data);
 	void notifyFontChanged() override;
 };
 
@@ -225,7 +209,9 @@ class ThreadFramesSidebarWidgetType : public SidebarWidgetType
 {
 public:
 	ThreadFramesSidebarWidgetType();
+	SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override;
 	SidebarWidgetLocation defaultLocation() const override { return SidebarWidgetLocation::RightBottom; }
-	SidebarContextSensitivity contextSensitivity() const override { return SelfManagedSidebarContext; }
-	bool hideIfNoContent() const override { return true; }
+	SidebarContextSensitivity contextSensitivity() const override { return PerViewTypeSidebarContext; }
+	SidebarIconVisibility defaultIconVisibility() const override { return HideSidebarIconIfNoContent; }
+	SidebarContentClassifier* contentClassifier(ViewFrame*, BinaryViewRef) override;
 };
