@@ -684,10 +684,17 @@ void DebuggerMemory::MarkDirty()
 	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
 	for (auto& it: m_valueCache)
 	{
-		if (it.second.status == UpToDateStatus)
+		switch (it.second.status)
+		{
+		case UpToDateStatus:
 			it.second.status = OutOfDateStatus;
-		else
+			break;
+		case FailedToReadStatus:
 			it.second.status = DefaultStatus;
+			break;
+		default:
+			break;
+		}
 	}
 }
 
