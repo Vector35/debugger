@@ -285,6 +285,16 @@ Ref<Settings> LldbAdapterType::RegisterAdapterSettings()
 			"readOnly" : false
 			})");
 
+	settings->RegisterSetting("common.followForkMode",
+		R"({
+        "title": "Follow Fork Mode",
+        "type": "string",
+        "enum": ["default", "parent", "child"],
+        "default": "default",
+        "description": "Determines which process to follow when a fork occurs",
+        "readOnly": false
+    })");
+
 	return settings;
 }
 
@@ -369,6 +379,8 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	auto redirectStderr = adapterSettings->Get<std::string>("launch.redirectStderr", data, &scope);
 	scope = SettingsResourceScope;
 	auto envVariables = adapterSettings->Get<vector<string>>("launch.environmentVariables", data, &scope);
+	scope = SettingsResourceScope;
+	auto followForkMode = adapterSettings->Get<std::string>("common.followForkMode", data, &scope);
 
 	CreateTarget(inputFile);
 
@@ -402,6 +414,9 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 		// Here we set the remote working directory to the one specified by the user
 		auto result = InvokeBackendCommand(fmt::format("platform settings -w \"{}\"", workingDirectory));
 	}
+
+	if (followForkMode != "default")
+		InvokeBackendCommand(fmt::format("settings set target.process.follow-fork-mode \"{}\"", followForkMode));
 
 	std::string launchCommand = "process launch";
 	if (Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint") ||
@@ -478,6 +493,8 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
 	scope = SettingsResourceScope;
 	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
+	scope = SettingsResourceScope;
+	auto followForkMode = adapterSettings->Get<std::string>("common.followForkMode", data, &scope);
 
 	CreateTarget(inputFile);
 
@@ -494,6 +511,9 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 
 	m_targetActive = true;
 	ApplyBreakpoints();
+
+	if (followForkMode != "default")
+		InvokeBackendCommand(fmt::format("settings set target.process.follow-fork-mode \"{}\"", followForkMode));
 
 	SBAttachInfo info(attachPID);
 	m_process = m_target.Attach(info, err);
@@ -571,6 +591,8 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	auto serverPort = adapterSettings->Get<uint64_t>("connect.port", data, &scope);
 	scope = SettingsResourceScope;
 	auto processPlugin = adapterSettings->Get<std::string>("connect.processPlugin", data, &scope);
+	scope = SettingsResourceScope;
+	auto followForkMode = adapterSettings->Get<std::string>("common.followForkMode", data, &scope);
 
 	CreateTarget(inputFile);
 
@@ -587,6 +609,9 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 
 	m_targetActive = true;
 	ApplyBreakpoints();
+
+	if (followForkMode != "default")
+		InvokeBackendCommand(fmt::format("settings set target.process.follow-fork-mode \"{}\"", followForkMode));
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));

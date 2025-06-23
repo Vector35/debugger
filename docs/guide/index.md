@@ -567,11 +567,8 @@ we have a proper fix for it, one can run a backend command to view the register 
 
 ### Handle Fork
 
-When a `fork` or `vfork` happens, LLDB folows the parent process by default. To change the behavior, one can run:
-
-- `settings set target.process.follow-fork-mode child`: make LLDB follow the child process during `fork` or `vfork`
-- `settings set target.process.follow-fork-mode parent`: make LLDB follow the parent process during `fork` or `vfork`
-
+When a `fork` or `vfork` happens, LLDB follows the parent process by default. To change the behavior, one can set
+`common.followForkMode` to `child` or `parent` accordingly.
 
 ### Creating Dump Files
 
