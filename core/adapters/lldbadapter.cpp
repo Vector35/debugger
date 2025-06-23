@@ -294,6 +294,14 @@ Ref<Settings> LldbAdapterType::RegisterAdapterSettings()
         "description": "Determines which process to follow when a fork occurs",
         "readOnly": false
     })");
+	settings->RegisterSetting("common.initialLLDBCommand",
+	R"({
+        "title": "Initial LLDB Command",
+        "type": "string",
+        "default": "",
+        "description": "Specifies an LLDB command to execute immediately after launching/attaching/connecting to the target",
+        "readOnly": false
+    })");
 
 	return settings;
 }
@@ -381,6 +389,8 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	auto envVariables = adapterSettings->Get<vector<string>>("launch.environmentVariables", data, &scope);
 	scope = SettingsResourceScope;
 	auto followForkMode = adapterSettings->Get<std::string>("common.followForkMode", data, &scope);
+	scope = SettingsResourceScope;
+	auto initialLLDBCommand = adapterSettings->Get<std::string>("common.initialLLDBCommand", data, &scope);
 
 	CreateTarget(inputFile);
 
@@ -417,6 +427,9 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 
 	if (followForkMode != "default")
 		InvokeBackendCommand(fmt::format("settings set target.process.follow-fork-mode \"{}\"", followForkMode));
+
+	if (!initialLLDBCommand.empty())
+		InvokeBackendCommand(initialLLDBCommand);
 
 	std::string launchCommand = "process launch";
 	if (Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint") ||
@@ -495,6 +508,8 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
 	scope = SettingsResourceScope;
 	auto followForkMode = adapterSettings->Get<std::string>("common.followForkMode", data, &scope);
+	scope = SettingsResourceScope;
+	auto initialLLDBCommand = adapterSettings->Get<std::string>("common.initialLLDBCommand", data, &scope);
 
 	CreateTarget(inputFile);
 
@@ -514,6 +529,9 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 
 	if (followForkMode != "default")
 		InvokeBackendCommand(fmt::format("settings set target.process.follow-fork-mode \"{}\"", followForkMode));
+
+	if (!initialLLDBCommand.empty())
+		InvokeBackendCommand(initialLLDBCommand);
 
 	SBAttachInfo info(attachPID);
 	m_process = m_target.Attach(info, err);
@@ -593,6 +611,8 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	auto processPlugin = adapterSettings->Get<std::string>("connect.processPlugin", data, &scope);
 	scope = SettingsResourceScope;
 	auto followForkMode = adapterSettings->Get<std::string>("common.followForkMode", data, &scope);
+	scope = SettingsResourceScope;
+	auto initialLLDBCommand = adapterSettings->Get<std::string>("common.initialLLDBCommand", data, &scope);
 
 	CreateTarget(inputFile);
 
@@ -612,6 +632,9 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 
 	if (followForkMode != "default")
 		InvokeBackendCommand(fmt::format("settings set target.process.follow-fork-mode \"{}\"", followForkMode));
+
+	if (!initialLLDBCommand.empty())
+		InvokeBackendCommand(initialLLDBCommand);
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
