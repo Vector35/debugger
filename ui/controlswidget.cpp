@@ -105,6 +105,12 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 		performSettings();
 	});
 	m_actionSettings->setToolTip(getToolTip("Debug Adapter Settings"));
+	addSeparator();
+
+	m_actionToggleBreakpoint = addAction(getColoredIcon(":/debugger/breakpoint", red), "Breakpoint", [this]() {
+		toggleBreakpoint();
+	});
+	m_actionToggleBreakpoint->setToolTip(getToolTip("Toggle Breakpoint"));
 
 	if(m_controller->IsTTD())
 		addSeparator(); //TODO: IsTTD only updates when the adapter is connected. This leaves the separator in place when the adapter is disconnected.
@@ -391,6 +397,42 @@ void DebugControlsWidget::performSettings()
 {
 	auto* dialog = new AdapterSettingsDialog(this, m_controller);
 	dialog->show();
+}
+
+
+void DebugControlsWidget::toggleBreakpoint()
+{
+	UIContext* context = UIContext::contextForWidget(this);
+	auto addr = context->getCurrentView()->getCurrentOffset();
+	bool isAbsoluteAddress = false;
+	if (m_controller->IsConnected())
+		isAbsoluteAddress = true;
+
+	if (isAbsoluteAddress)
+	{
+		if (m_controller->ContainsBreakpoint(addr))
+		{
+			m_controller->DeleteBreakpoint(addr);
+		}
+		else
+		{
+			m_controller->AddBreakpoint(addr);
+		}
+	}
+	else
+	{
+		std::string filename = m_controller->GetInputFile();
+		uint64_t offset = addr - m_controller->GetViewFileSegmentsStart();
+		ModuleNameAndOffset info = {filename, offset};
+		if (m_controller->ContainsBreakpoint(info))
+		{
+			m_controller->DeleteBreakpoint(info);
+		}
+		else
+		{
+			m_controller->AddBreakpoint(info);
+		}
+	}
 }
 
 

@@ -52,6 +52,7 @@ private:
 	QAction* m_actionStepReturnBack;
 
 	QAction* m_actionSettings;
+	QAction* m_actionToggleBreakpoint;
 
 	bool canExec();
 	bool canConnect();
@@ -88,4 +89,5 @@ public Q_SLOTS:
 	void performStepReturnReverse();
 
 	void performSettings();
+	void toggleBreakpoint();
 };
