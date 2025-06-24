@@ -142,21 +142,21 @@ void OutputType(FILE* out, Type* type, bool isReturnType = false, bool isCallbac
 		else if (type->GetChildType()->GetClass() == FunctionTypeClass)
 		{
 			fprintf(out, "ctypes.CFUNCTYPE(");
-			OutputType(out, type->GetChildType()->GetChildType(), true, true);
+			OutputType(out, type->GetChildType()->GetChildType().GetValue(), true, true);
 			for (auto& i : type->GetChildType()->GetParameters())
 			{
 				fprintf(out, ", ");
-				OutputType(out, i.type);
+				OutputType(out, i.type.GetValue());
 			}
 			fprintf(out, ")");
 			break;
 		}
 		fprintf(out, "ctypes.POINTER(");
-		OutputType(out, type->GetChildType());
+		OutputType(out, type->GetChildType().GetValue());
 		fprintf(out, ")");
 		break;
 	case ArrayTypeClass:
-		OutputType(out, type->GetChildType());
+		OutputType(out, type->GetChildType().GetValue());
 		fprintf(out, " * %" PRId64, type->GetElementCount());
 		break;
 	default:
@@ -213,21 +213,21 @@ void OutputSwizzledType(FILE* out, Type* type)
 		else if (type->GetChildType()->GetClass() == FunctionTypeClass)
 		{
 			fprintf(out, "ctypes.CFUNCTYPE(");
-			OutputType(out, type->GetChildType()->GetChildType(), true, true);
+			OutputType(out, type->GetChildType()->GetChildType().GetValue(), true, true);
 			for (auto& i : type->GetChildType()->GetParameters())
 			{
 				fprintf(out, ", ");
-				OutputType(out, i.type);
+				OutputType(out, i.type.GetValue());
 			}
 			fprintf(out, ")");
 			break;
 		}
 		fprintf(out, "ctypes.POINTER(");
-		OutputType(out, type->GetChildType());
+		OutputType(out, type->GetChildType().GetValue());
 		fprintf(out, ")");
 		break;
 	case ArrayTypeClass:
-		OutputType(out, type->GetChildType());
+		OutputType(out, type->GetChildType().GetValue());
 		fprintf(out, " * %" PRId64, type->GetElementCount());
 		break;
 	default:
@@ -392,7 +392,7 @@ int main(int argc, char* argv[])
 						}
 					else
 						fprintf(out, "\t\t(\"%s\", ", j.name.c_str());
-					OutputType(out, j.type);
+					OutputType(out, j.type.GetValue());
 					fprintf(out, "),\n");
 				}
 				fprintf(out, "\t]\n");
@@ -462,7 +462,7 @@ int main(int argc, char* argv[])
 		fprintf(out, "# %s\n\n", funcName.c_str());
 		fprintf(out, "%s = core.%s\n", funcName.c_str(), name.c_str());
 		fprintf(out, "%s.restype = ", funcName.c_str());
-		OutputType(out, i.second->GetChildType(), true, callbackConvention);
+		OutputType(out, i.second->GetChildType().GetValue(), true, callbackConvention);
 		fprintf(out, "\n");
 		if (!i.second->HasVariableArguments())
 		{
@@ -475,11 +475,11 @@ int main(int argc, char* argv[])
 					// BNDebuggerFreeString expects a pointer to a string allocated by the core, so do not use
 					// a c_char_p here, as that would be allocated by the Python runtime.  This can
 					// be enforced by outputting like a return value.
-					OutputType(out, j.type, true);
+					OutputType(out, j.type.GetValue(), true);
 				}
 				else
 				{
-					OutputType(out, j.type);
+					OutputType(out, j.type.GetValue());
 				}
 				fprintf(out, ",\n");
 			}
@@ -523,9 +523,9 @@ int main(int argc, char* argv[])
 				fprintf(out, "\n\t\t");
 				fprintf(out, "%s: ", argName.c_str());
 				if (swizzleArgs)
-					OutputSwizzledType(out, arg.type);
+					OutputSwizzledType(out, arg.type.GetValue());
 				else
-					OutputType(out, arg.type);
+					OutputType(out, arg.type.GetValue());
 				argN ++;
 			}
 		}
@@ -534,13 +534,13 @@ int main(int argc, char* argv[])
 		{
 			if (stringResult || pointerResult)
 				fprintf(out, "Optional[");
-			OutputSwizzledType(out, i.second->GetChildType());
+			OutputSwizzledType(out, i.second->GetChildType().GetValue());
 			if (stringResult || pointerResult)
 				fprintf(out, "]");
 		}
 		else
 		{
-			OutputType(out, i.second->GetChildType());
+			OutputType(out, i.second->GetChildType().GetValue());
 		}
 		fprintf(out, ":\n");
 
