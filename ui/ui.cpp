@@ -833,12 +833,8 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
-				uint64_t address = 0;
-				if (!ViewFrame::getAddressFromInput(ctxt.context->getCurrentViewFrame(), ctxt.binaryView, address,
-						ctxt.address, "Override IP", "New instruction pointer value:", true))
-					return;
-
-				if (!controller->SetIP(address))
+				uint64_t address = ctxt.address;
+				if (!controller->SetIP(ctxt.address))
 					LogWarn("Failed to override IP to 0x%" PRIx64, address);
 			},
 			connectedAndStopped));

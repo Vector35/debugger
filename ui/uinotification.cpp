@@ -185,4 +185,5 @@ void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, 
 	menu.addAction("Debugger", "Step Return", "Control");
 	menu.addAction("Debugger", "Run To Here", "Control");
 	menu.addAction("Debugger", "Create Stack View", "Misc");
+	menu.addAction("Debugger", "Override IP", "Misc");
 }
