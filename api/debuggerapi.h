@@ -18,6 +18,7 @@ limitations under the License.
 
 #include "binaryninjaapi.h"
 #include "ffi.h"
+#include "../vendor/intx/intx.hpp"
 
 using namespace BinaryNinja;
 
@@ -346,7 +347,7 @@ namespace BinaryNinjaDebuggerAPI {
 	struct DebugRegister
 	{
 		std::string m_name {};
-		std::uintptr_t m_value {};
+		intx::uint512 m_value {};
 		std::size_t m_width {}, m_registerIndex {};
 		std::string m_hint {};
 	};
@@ -482,8 +483,8 @@ namespace BinaryNinjaDebuggerAPI {
 
 		std::vector<DebugModule> GetModules();
 		std::vector<DebugRegister> GetRegisters();
-		uint64_t GetRegisterValue(const std::string& name);
-		bool SetRegisterValue(const std::string& name, uint64_t value);
+		intx::uint512 GetRegisterValue(const std::string& name);
+		bool SetRegisterValue(const std::string& name, const intx::uint512& value);
 
 		// target control
 		bool Launch();
@@ -588,7 +589,7 @@ namespace BinaryNinjaDebuggerAPI {
 
 		bool ActivateDebugAdapter();
 
-		std::string GetAddressInformation(uint64_t address);
+		std::string GetAddressInformation(intx::uint512 address);
 		bool IsFirstLaunch();
 		bool IsFirstConnect();
 		bool IsFirstConnectToDebugServer();

@@ -194,8 +194,8 @@ namespace BinaryNinjaDebugger {
 		DebugBreakpoint GetAllBreakpoints();
 
 		// registers
-		uint64_t GetRegisterValue(const std::string& name);
-		bool SetRegisterValue(const std::string& name, uint64_t value);
+		intx::uint512 GetRegisterValue(const std::string& name);
+		bool SetRegisterValue(const std::string& name, intx::uint512 value);
 		std::vector<DebugRegister> GetAllRegisters();
 
 		// processes
@@ -314,7 +314,7 @@ namespace BinaryNinjaDebugger {
 		bool ActivateDebugAdapter();
 
 		// Dereference an address and check for printable strings, functions, symbols, etc
-		std::string GetAddressInformation(uint64_t address);
+		std::string GetAddressInformation(intx::uint512 value);
 
 		bool IsFirstLaunch();
 		bool IsFirstConnect();

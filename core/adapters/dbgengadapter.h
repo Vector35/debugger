@@ -200,7 +200,7 @@ namespace BinaryNinjaDebugger {
 		std::string GetRegisterNameByIndex(std::uint32_t index) const;
 		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
 		DebugRegister ReadRegister(const std::string& reg) override;
-		bool WriteRegister(const std::string& reg, std::uintptr_t value) override;
+		bool WriteRegister(const std::string& reg, intx::uint512 value) override;
 		std::vector<std::string> GetRegisterList() const;
 
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) override;

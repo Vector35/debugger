@@ -432,6 +432,23 @@ bool CorelliumAdapter::BreakpointExists(uint64_t address) const
                    DebugBreakpoint(address)) != this->m_debugBreakpoints.end();
 }
 
+static intx::uint512 parseLittleEndianHexToUint512(const std::string& hex) {
+	if (hex.size() % 2 != 0)
+		return {};
+
+	uint8_t buffer[64] = {};  // Zero-initialized
+
+	size_t byteCount = hex.size() / 2;
+	size_t limit = std::min(byteCount, size_t(64));
+
+	for (size_t i = 0; i < limit; ++i)
+	{
+		std::string byteStr = hex.substr(i * 2, 2);
+		buffer[i] = static_cast<uint8_t>(std::stoul(byteStr, nullptr, 16));
+	}
+
+	return intx::le::load<intx::uint512>(buffer);
+}
 
 std::unordered_map<std::string, DebugRegister> CorelliumAdapter::ReadAllRegisters()
 {
@@ -461,13 +478,10 @@ std::unordered_map<std::string, DebugRegister> CorelliumAdapter::ReadAllRegister
     for ( const auto& [register_name, register_info] : register_info_vec ) {
         const auto number_of_chars = 2 * ( register_info.m_bitSize / 8 );
         const auto value_string = register_info_reply_string.substr(0, number_of_chars);
-        if (number_of_chars <= 0x10 && !value_string.empty()) {
-			size_t size = value_string.length() / 2;
-            const auto value = RspConnector::SwapEndianness(std::stoull(value_string, nullptr, 16), size);
-            all_regs[register_name] = DebugRegister(register_name, value, register_info.m_bitSize, register_info.m_regNum);
-            // #warning "ignoring registers with a larger size than 0x10"
-            /* TODO: ^fix this^ */
-        }
+    	if (!value_string.empty()) {
+    		intx::uint512 value = parseLittleEndianHexToUint512(value_string);
+    		all_regs[register_name] = DebugRegister(register_name, value, register_info.m_bitSize, register_info.m_regNum);
+    	}
         register_info_reply_string.erase(0, number_of_chars);
     }
 
@@ -486,14 +500,33 @@ DebugRegister CorelliumAdapter::ReadRegister(const std::string& reg)
     return this->ReadAllRegisters()[reg];
 }
 
-bool CorelliumAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
+static std::string uint512ToLittleEndianHex(const intx::uint512& value, size_t width) {
+	// Truncate to 64 bytes (512 bits max)
+	if (width > 64)
+		width = 64;
+
+	uint8_t buffer[64] = {};
+	intx::le::store(buffer, value);  // Store as little-endian
+
+	std::string result;
+	for (size_t i = 0; i < width; ++i)
+		result += fmt::format("{:02X}", buffer[i]);
+
+	return result;
+}
+
+bool CorelliumAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
 {
     if (m_isTargetRunning)
         return false;
 
-    const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("P{}={:016X}",
-                                       this->m_registerInfo[reg].m_regNum, RspConnector::SwapEndianness(value)));
-    if (reply.m_data[0])
+	if (!this->m_registerInfo.contains(reg))
+		return false;
+
+	const auto newRegString = uint512ToLittleEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8);
+	const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("P{:02X}={}",
+									   this->m_registerInfo[reg].m_regNum, newRegString));
+	if (reply.m_data[0])
         return true;
 
     char query{'g'};
@@ -503,7 +536,7 @@ bool CorelliumAdapter::WriteRegister(const std::string& reg, std::uintptr_t valu
 	// TODO: check if this works for aarch64
     const auto first_half = generic_query.AsString().substr(0, 2 * (register_offset / 8));
     const auto second_half = generic_query.AsString().substr(2 * ((register_offset + this->m_registerInfo[reg].m_bitSize) / 8) );
-    const auto payload = "G" + first_half + fmt::format("{:016X}", RspConnector::SwapEndianness(value)) + second_half;
+	const auto payload = "G" + first_half + newRegString + second_half;
 
     if ( this->m_rspConnector->TransmitAndReceive(RspData(payload)).AsString() != "OK" )
         return false;
@@ -874,7 +907,7 @@ uint64_t CorelliumAdapter::GetInstructionOffset()
     else
         ipRegisterName = "pc";
 
-	uint64_t value = this->ReadRegister(ipRegisterName).m_value;
+	uint64_t value = (uint64_t)this->ReadRegister(ipRegisterName).m_value;
     return value;
 }
 

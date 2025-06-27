@@ -57,7 +57,7 @@ void DebuggerRegisters::Update()
 }
 
 
-uint64_t DebuggerRegisters::GetRegisterValue(const std::string& name)
+intx::uint512 DebuggerRegisters::GetRegisterValue(const std::string& name)
 {
 	// Unlike the Python implementation, we require the DebuggerState to explicitly check for dirty caches
 	// and update the values when necessary. This is mainly because the update can be expensive.
@@ -72,7 +72,7 @@ uint64_t DebuggerRegisters::GetRegisterValue(const std::string& name)
 }
 
 
-bool DebuggerRegisters::SetRegisterValue(const std::string& name, uint64_t value)
+bool DebuggerRegisters::SetRegisterValue(const std::string& name, intx::uint512 value)
 {
 	DebugAdapter* adapter = m_state->GetAdapter();
 	if (!adapter)
@@ -113,7 +113,7 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters()
 	if (!controller->GetState()->IsConnected())
 		return result;
 
-	std::map<uint64_t, std::string> regHints;
+	std::map<intx::uint512, std::string> regHints;
 	for (auto& reg : result)
 	{
 		auto it = regHints.find(reg.m_value);
@@ -123,6 +123,7 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters()
         }
 		else
         {
+			// TODO: create a new GetRegisterHint method that calls GetAddressInformation
             const std::string hint = controller->GetAddressInformation(reg.m_value);
             regHints[reg.m_value] = hint;
             reg.m_hint = hint;

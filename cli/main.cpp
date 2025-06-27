@@ -56,7 +56,7 @@ void RegisterDisplay(DbgRef<DebuggerController> debugger)
 		reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
 
 		return fmt::format(
-			"{}{}\033[0m={:016X}", Log::Style(255, 165, 0), original_name, debugger->GetRegisterValue(reg_name));
+			"{}{}\033[0m={:016X}", Log::Style(255, 165, 0), original_name, (uint64_t)debugger->GetRegisterValue(reg_name));
 	};
 
 	auto reg32 = [debugger](std::string reg_name) {
@@ -64,7 +64,7 @@ void RegisterDisplay(DbgRef<DebuggerController> debugger)
 		reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
 
 		return fmt::format(
-			"{}{}\033[0m={:08X}", Log::Style(255, 165, 0), original_name, debugger->GetRegisterValue(reg_name));
+			"{}{}\033[0m={:08X}", Log::Style(255, 165, 0), original_name, (uint64_t)debugger->GetRegisterValue(reg_name));
 	};
 
 	auto reg16 = [debugger](std::string reg_name) {
@@ -72,7 +72,7 @@ void RegisterDisplay(DbgRef<DebuggerController> debugger)
 		reg_name.erase(std::remove(reg_name.begin(), reg_name.end(), ' '), reg_name.end());
 
 		return fmt::format(
-			"{}{}\033[0m={:04X}", Log::Style(255, 165, 0), original_name, debugger->GetRegisterValue(reg_name));
+			"{}{}\033[0m={:04X}", Log::Style(255, 165, 0), original_name, (uint64_t)debugger->GetRegisterValue(reg_name));
 	};
 
 	if (arch->GetName() == "x86_64")

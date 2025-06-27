@@ -82,7 +82,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLILCalls(LowLevelIL
 			tokens.emplace_back(LocalVariableToken, paramName);
 			tokens.emplace_back(TextToken, " @ ");
 			tokens.emplace_back(RegisterToken, regName);
-			result.emplace_back(tokens, value, hints, instr.instructionIndex, BN_INVALID_EXPR, instr.address);
+			result.emplace_back(tokens, (uint64_t)value, hints, instr.instructionIndex, BN_INVALID_EXPR, instr.address);
 			break;
 		}
 		case StackVariableSourceType:
@@ -691,7 +691,7 @@ void DebuggerInfoEntryItemDelegate::paint(QPainter *painter, const QStyleOptionV
 	}
 	case ValueColumn:
 		painter->setPen(getThemeColor(AddressColor));
-		painter->drawText(textRect, "0x" + QString::number(entry->value, 16));
+		painter->drawText(textRect, QString::fromStdString("0x") + QString::fromStdString(intx::hex(entry->value)));
 		break;
 	case HintColumn:
 		painter->setPen(getThemeColor(StringColor));
@@ -802,7 +802,7 @@ QVariant DebuggerInfoEntryItemModel::data(const QModelIndex &index, int role) co
 		}
 		case ValueColumn:
 		{
-			auto str = "0x" + QString::number(item->value, 16);
+			auto str = QString::fromStdString("0x") + QString::fromStdString(intx::hex(item->value));
 			result.setValue(str.size());
 			break;
 		}
@@ -909,7 +909,7 @@ void DebuggerInfoTable::onDoubleClicked()
 		return;
 
 	auto info = m_model->getRow(sel[0].row());
-	uint64_t value = info.value;
+	uint64_t value = (uint64_t)info.value;
 
 	UIContext* context = UIContext::contextForWidget(this);
 	if (!context)

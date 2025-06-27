@@ -47,13 +47,13 @@ enum ColumnHeaders
 struct DebuggerInfoEntry
 {
 	std::vector<InstructionTextToken> tokens;
-	uint64_t value;
+	intx::uint512 value;
 	std::string hints;
 	size_t instrIndex;
 	size_t operandIndex;
 	uint64_t address;
 
-	DebuggerInfoEntry(const std::vector<InstructionTextToken>& t, uint64_t v, const std::string& h, size_t i, size_t o,
+	DebuggerInfoEntry(const std::vector<InstructionTextToken>& t, intx::uint512 v, const std::string& h, size_t i, size_t o,
 					  uint64_t a): tokens(t), value(v), hints(h), instrIndex(i), operandIndex(o), address(a)
 	{}
 };

@@ -59,7 +59,7 @@ namespace BinaryNinjaDebugger
 
 		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
 		DebugRegister ReadRegister(const std::string& reg) override;
-		bool WriteRegister(const std::string& reg, std::uintptr_t value) override;
+		bool WriteRegister(const std::string& reg, intx::uint512 value) override;
 
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) override;
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) override;

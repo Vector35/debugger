@@ -18,6 +18,7 @@ file(GLOB COMMON_SOURCES
     ../vendor/pugixml/*.cpp
     ../vendor/pugixml/*.hpp
     ../vendor/fmt/*.h
+	../vendor/intx/intx.hpp
     )
 
 file(GLOB ADAPTER_SOURCES

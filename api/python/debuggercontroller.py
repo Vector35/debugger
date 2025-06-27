@@ -197,7 +197,7 @@ class DebugRegisters:
         count = ctypes.c_ulonglong()
         registers = dbgcore.BNDebuggerGetRegisters(handle, count)
         for i in range(0, count.value):
-            bp = DebugRegister(registers[i].m_name, registers[i].m_value,
+            bp = DebugRegister(registers[i].m_name, int.from_bytes(registers[i].m_value, byteorder='little'),
                                registers[i].m_width, registers[i].m_registerIndex, registers[i].m_hint)
             self.regs[registers[i].m_name] = bp
         dbgcore.BNDebuggerFreeRegisters(registers, count.value)
@@ -212,7 +212,9 @@ class DebugRegisters:
         return self.regs[name]
 
     def __setitem__(self, name, val):
-        dbgcore.BNDebuggerSetRegisterValue(self.handle, name, val)
+        buffer = val.to_bytes(64, byteorder='little', signed=False)
+        c_buffer = (ctypes.c_ubyte * 64)(*buffer)
+        dbgcore.BNDebuggerSetRegisterValue(self.handle, name, c_buffer)
 
     def __len__(self):
         return len(self.regs)
@@ -765,7 +767,9 @@ class DebuggerController:
 
         :param reg: the name of the register
         """
-        return dbgcore.BNDebuggerGetRegisterValue(self.handle, reg)
+        buffer = (ctypes.c_ubyte * 64)()
+        dbgcore.BNDebuggerGetRegisterValue(self.handle, reg, buffer)
+        return int.from_bytes(buffer, byteorder='little')
 
     def set_reg_value(self, reg: Union[str, bytes], value: int) -> bool:
         """
@@ -774,7 +778,9 @@ class DebuggerController:
         :param reg: the name of the register
         :param value: new value of the register
         """
-        return dbgcore.BNDebuggerSetRegisterValue(self.handle, reg, value)
+        buffer = value.to_bytes(64, byteorder='little', signed=False)
+        c_buffer = (ctypes.c_ubyte * 64)(*buffer)
+        return dbgcore.BNDebuggerSetRegisterValue(self.handle, reg, c_buffer)
 
     # target control
     def launch(self) -> bool:

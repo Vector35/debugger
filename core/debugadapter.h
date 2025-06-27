@@ -30,6 +30,7 @@ limitations under the License.
 #include "ffi_global.h"
 #include "debuggercommon.h"
 #include "debuggerevent.h"
+#include "../vendor/intx/intx.hpp"
 
 DECLARE_DEBUGGER_API_OBJECT(BNDebugAdapter, DebugAdapter);
 
@@ -134,13 +135,13 @@ namespace BinaryNinjaDebugger {
 	struct DebugRegister
 	{
 		std::string m_name {};
-		std::uintptr_t m_value {};
+		intx::uint512 m_value {};
 		std::size_t m_width {}, m_registerIndex {};
 		std::string m_hint {};
 
 		DebugRegister() = default;
 
-		DebugRegister(std::string name, std::uintptr_t value, std::size_t width, std::size_t register_index) :
+		DebugRegister(std::string name, intx::uint512 value, std::size_t width, std::size_t register_index) :
 			m_name(std::move(name)), m_value(value), m_width(width), m_registerIndex(register_index)
 		{}
 	};
@@ -267,7 +268,7 @@ namespace BinaryNinjaDebugger {
 
 		virtual DebugRegister ReadRegister(const std::string& reg) = 0;
 
-		virtual bool WriteRegister(const std::string& reg, std::uintptr_t value) = 0;
+		virtual bool WriteRegister(const std::string& reg, intx::uint512 value) = 0;
 
 		virtual DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) = 0;
 

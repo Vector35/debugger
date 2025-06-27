@@ -1882,13 +1882,13 @@ std::vector<DebugRegister> DebuggerController::GetAllRegisters()
 }
 
 
-uint64_t DebuggerController::GetRegisterValue(const std::string& name)
+intx::uint512 DebuggerController::GetRegisterValue(const std::string& name)
 {
 	return m_state->GetRegisters()->GetRegisterValue(name);
 }
 
 
-bool DebuggerController::SetRegisterValue(const std::string& name, uint64_t value)
+bool DebuggerController::SetRegisterValue(const std::string& name, intx::uint512 value)
 {
 	return m_state->GetRegisters()->SetRegisterValue(name, value);
 }
@@ -2534,20 +2534,21 @@ static std::string CheckForPrintableString(const DataBuffer& memory)
 }
 
 
-static std::string CheckForLiteralString(uint64_t address)
+static std::string CheckForLiteralString(intx::uint512 value)
 {
 	bool ok = true;
 	bool zeroFound = false;
 	std::string result;
-	for (size_t i = 0; i < 8; i++)
+	for (size_t i = 0; i < 64; i++)
 	{
-		uint8_t c = (address >> (8 * i)) & 0xff;
+		uint8_t c = (uint8_t)(value >> (8 * i)) & 0xff;
 		if (IsPrintableChar(c) && (!zeroFound))
 		{
 			result = std::string(1, c) + result;
 		}
 		else if (c == 0)
 		{
+			// Skip 0x0 (e.g., for unicode strings)
 			zeroFound = true;
 		}
 		else if (c != 0)
@@ -2564,11 +2565,14 @@ static std::string CheckForLiteralString(uint64_t address)
 }
 
 
-std::string DebuggerController::GetAddressInformation(uint64_t address)
+std::string DebuggerController::GetAddressInformation(intx::uint512 value)
 {
 	// Avoid too many results in the register widget when the address is 0x0
-	if (address == 0)
+	if (value == 0)
 		return "";
+
+	// For the first few things, they still need an address to work with
+	uint64_t address = (uint64_t)value;
 
 	const DataBuffer memory = ReadMemory(address, 128);
 	auto result = CheckForPrintableString(memory);
@@ -2636,7 +2640,7 @@ std::string DebuggerController::GetAddressInformation(uint64_t address)
 	}
 
 	// Check if the address itself is a printable string, e.g., 0x61626364 ==> "abcd"
-	result = CheckForLiteralString(address);
+	result = CheckForLiteralString(value);
 	if (!result.empty())
 		return result;
 
@@ -2779,7 +2783,7 @@ bool DebuggerController::ComputeExprValue(const LowLevelILInstruction &instr, ui
 		// Cheat for arm64
 		if (name == "x29") name = "fp";
 
-		value = GetRegisterValue(name) & sizeMask;
+		value = (uint64_t)GetRegisterValue(name) & sizeMask;
 		return true;
 	}
 	case LLIL_ADD:
@@ -3525,7 +3529,7 @@ bool DebuggerController::GetVariableValue(const Variable& var, uint64_t address,
 		// Cheat for arm64
 		if (name == "x29") name = "fp";
 
-		value = GetRegisterValue(name) & sizeMask;
+		value = (uint64_t)GetRegisterValue(name) & sizeMask;
 		return true;
 	}
 	else if (var.type == StackVariableSourceType)

@@ -543,7 +543,7 @@ DebugRegister LldbCoreDumpAdapter::ReadRegister(const std::string& name)
 }
 
 
-bool LldbCoreDumpAdapter::WriteRegister(const std::string& name, std::uintptr_t value)
+bool LldbCoreDumpAdapter::WriteRegister(const std::string& name, intx::uint512 value)
 {
 	return false;
 }

@@ -49,20 +49,22 @@ class DebugRegisterItem
 {
 private:
 	std::string m_name;
-	uint64_t m_value;
+	intx::uint512 m_value;
+	size_t m_width;
 	DebugRegisterValueStatus m_valueStatus;
 	// TODO: We probably need a more robust mechanism for this
 	std::string m_hint;
 	bool m_used;
 
 public:
-	DebugRegisterItem(const std::string& name, uint64_t value,
+	DebugRegisterItem(const std::string& name, const intx::uint512 value, size_t width,
 		DebugRegisterValueStatus valueStatus = DebugRegisterValueNormal, const std::string& hint = "",
 		bool used = false);
 	std::string name() const { return m_name; }
-	uint64_t value() const { return m_value; }
+	intx::uint512 value() const { return m_value; }
+	size_t size() const { return m_width; }
 	bool used() const { return m_used; }
-	void setValue(uint64_t value) { m_value = value; }
+	void setValue(intx::uint512 value) { m_value = value; }
 	DebugRegisterValueStatus valueStatus() const { return m_valueStatus; }
 	void setValueStatus(DebugRegisterValueStatus newStatus) { m_valueStatus = newStatus; }
 	std::string hint() const { return m_hint; }

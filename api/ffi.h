@@ -118,7 +118,7 @@ extern "C"
 	typedef struct BNDebugRegister
 	{
 		char* m_name;
-		uint64_t m_value;
+		uint8_t m_value[64] = {0};
 		size_t m_width;
 		size_t m_registerIndex;
 		char* m_hint;
@@ -380,8 +380,9 @@ extern "C"
 	DEBUGGER_FFI_API BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeRegisters(BNDebugRegister* modules, size_t count);
 	DEBUGGER_FFI_API bool BNDebuggerSetRegisterValue(
-		BNDebuggerController* controller, const char* name, uint64_t value);
-	DEBUGGER_FFI_API uint64_t BNDebuggerGetRegisterValue(BNDebuggerController* controller, const char* name);
+		BNDebuggerController* controller, const char* name, const uint8_t* value);
+	DEBUGGER_FFI_API void BNDebuggerGetRegisterValue(BNDebuggerController* controller, const char* name,
+		uint8_t* buffer);
 
 	// target control
 	DEBUGGER_FFI_API bool BNDebuggerLaunch(BNDebuggerController* controller);
@@ -488,7 +489,7 @@ extern "C"
 
 	DEBUGGER_FFI_API bool BNDebuggerActivateDebugAdapter(BNDebuggerController* controller);
 
-	DEBUGGER_FFI_API char* BNDebuggerGetAddressInformation(BNDebuggerController* controller, uint64_t address);
+	DEBUGGER_FFI_API char* BNDebuggerGetAddressInformation(BNDebuggerController* controller, uint8_t* value);
 	DEBUGGER_FFI_API bool BNDebuggerIsFirstLaunch(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerIsFirstConnect(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerIsFirstConnectToDebugServer(BNDebuggerController* controller);

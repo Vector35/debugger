@@ -32,9 +32,9 @@ using namespace std;
 constexpr int SortFilterRole = Qt::UserRole + 1;
 
 DebugRegisterItem::DebugRegisterItem(
-	const string& name, uint64_t value, DebugRegisterValueStatus valueStatus, const string& hint, bool used) :
-	m_name(name),
-	m_value(value), m_valueStatus(valueStatus), m_hint(hint), m_used(used)
+	const string& name, const intx::uint512 value, size_t width,DebugRegisterValueStatus valueStatus,
+	const string& hint, bool used):
+	m_name(name), m_value(value), m_width(width), m_valueStatus(valueStatus), m_hint(hint), m_used(used)
 {}
 
 
@@ -142,8 +142,7 @@ QVariant DebugRegistersListModel::data(const QModelIndex& index, int role) const
 	case DebugRegistersListModel::ValueColumn:
 	{
 		// TODO: We need better alignment for values
-		uint64_t value = item->value();
-		QString valueStr = QString::asprintf("0x%" PRIx64, value);
+		QString valueStr = QString("0x") + QString::fromStdString(intx::hex(item->value()));
 		if (role == Qt::SizeHintRole)
 			return QVariant((qulonglong)valueStr.size());
 
@@ -244,7 +243,7 @@ void DebugRegistersListModel::updateRows(std::vector<DebugRegister> newRows)
 	// TODO: This might cause performance problems. We can instead only update the chained registers.
 	// However, the cost for that is we need to attach an index to each item and sort accordingly
 	beginResetModel();
-	std::map<std::string, uint64_t> oldRegValues;
+	std::map<std::string, intx::uint512> oldRegValues;
 	for (const DebugRegisterItem& item : m_items)
 		oldRegValues[item.name()] = item.value();
 
@@ -277,7 +276,7 @@ void DebugRegistersListModel::updateRows(std::vector<DebugRegister> newRows)
 
 		// If we get an empty list of used registers, we wish to show all regs
 		bool used = (emptyUsedRegisters || (usedRegisterNames.find(reg.m_name) != usedRegisterNames.end()));
-		m_items.emplace_back(reg.m_name, reg.m_value, status, reg.m_hint, used);
+		m_items.emplace_back(reg.m_name, reg.m_value, reg.m_width, status, reg.m_hint, used);
 	}
 	endResetModel();
 }
@@ -299,13 +298,22 @@ bool DebugRegistersListModel::setData(const QModelIndex& index, const QVariant& 
 	if (!item)
 		return false;
 
-	uint64_t currentValue = item->value();
+	auto currentValue = item->value();
+	intx::uint512 newValue;
 
-	uint64_t newValue = 0;
-	std::string errorString;
-	if (!BinaryView::ParseExpression(
-			m_controller->GetData(), valueStr.toStdString(), newValue, currentValue, errorString))
-		return false;
+	if (item->size() <= 64)
+	{
+		uint64_t newValueUInt64 = 0;
+		std::string errorString;
+		if (!BinaryView::ParseExpression(
+				m_controller->GetData(), valueStr.toStdString(), newValueUInt64, (uint64_t)currentValue, errorString))
+			return false;
+		newValue = newValueUInt64;
+	}
+	else
+	{
+		newValue = intx::from_string<intx::uint512>(valueStr.toStdString());
+	}
 
 	if (newValue == currentValue)
 		return false;
@@ -565,7 +573,7 @@ void DebugRegistersWidget::jump()
 		return;
 
 	auto reg = m_model->getRow(sourceIndex.row());
-	uint64_t value = reg.value();
+	uint64_t value = (int64_t)reg.value();
 
 	UIContext* context = UIContext::contextForWidget(this);
 	if (!context)
@@ -609,7 +617,7 @@ void DebugRegistersWidget::copy()
 		text = QString::fromStdString(reg.name());
 		break;
 	case DebugRegistersListModel::ValueColumn:
-		text = QString::asprintf("0x%" PRIx64, reg.value());
+		text = QString("0x") + QString::fromStdString(intx::hex(reg.value()));
 		break;
 	case DebugRegistersListModel::HintColumn:
 		text = QString::fromStdString(reg.hint());
@@ -644,14 +652,22 @@ void DebugRegistersWidget::paste()
 	QClipboard* clipboard = QGuiApplication::clipboard();
 	auto text = clipboard->text();
 
-	uint64_t newValue = 0;
-	std::string errorString;
-	if (!BinaryView::ParseExpression(
-			m_controller->GetData(), text.toStdString(), newValue, reg.value(), errorString))
-		return;
+	auto currentValue = reg.value();
+	intx::uint512 newValue;
 
-	if (newValue == reg.value())
-		return;
+	if (reg.size() <= 64)
+	{
+		uint64_t newValueUInt64 = 0;
+		std::string errorString;
+		if (!BinaryView::ParseExpression(
+				m_controller->GetData(), text.toStdString(), newValueUInt64, (uint64_t)currentValue, errorString))
+			return;
+		newValue = newValueUInt64;
+	}
+	else
+	{
+		newValue = intx::from_string<intx::uint512>(text.toStdString());
+	}
 
 	if (!m_controller->SetRegisterValue(reg.name(), newValue))
 		return;
@@ -691,7 +707,7 @@ void DebugRegistersWidget::jumpInNewPaneInternal(const QModelIndex &index)
 		return;
 
 	auto reg = m_model->getRow(sourceIndex.row());
-	uint64_t value = reg.value();
+	uint64_t value = (uint64_t)reg.value();
 
 	ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
 	auto* currentWindow = UIContext::contextForWidget(m_view);
@@ -760,7 +776,7 @@ void DebugRegistersWidget::hoverTimerEvent()
 		return;
 
 	auto reg = m_model->getRow(sourceIndex.row());
-	uint64_t addr = reg.value();
+	uint64_t addr = (uint64_t)reg.value();
 
 	auto liveView = m_controller->GetData();
 	if (!liveView)

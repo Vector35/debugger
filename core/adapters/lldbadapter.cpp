@@ -18,6 +18,7 @@ limitations under the License.
 #include <filesystem>
 #include "lldbadapter.h"
 #include "thread"
+#include "../../vendor/intx/intx.hpp"
 
 using namespace lldb;
 using namespace BinaryNinjaDebugger;
@@ -960,6 +961,37 @@ std::vector<DebugBreakpoint> LldbAdapter::GetBreakpointList() const
 }
 
 
+static intx::uint512 SBValueToUint512(lldb::SBValue& reg_val) {
+	using namespace lldb;
+	using namespace intx;
+
+	const intx::uint512 error_value = ~intx::uint512{0};
+
+	if (!reg_val.IsValid())
+		return error_value;
+
+	size_t size = reg_val.GetByteSize();
+	if (size == 0 || size > 64)
+		return error_value;
+
+	// Fast path for small registers
+	if (size <= 8)
+		return intx::uint512{reg_val.GetValueAsUnsigned(0)};
+
+	// Wide registers: read raw bytes
+	SBData data = reg_val.GetData();
+	if (!data.IsValid() || data.GetByteSize() != size)
+		return error_value;
+
+	uint8_t buffer[64] = {};
+	SBError error;
+	if (!data.ReadRawData(error, 0, buffer, size))
+		return error_value;
+
+	return le::load<intx::uint512>(buffer);
+}
+
+
 std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 {
 	std::unordered_map<std::string, DebugRegister> result;
@@ -999,7 +1031,7 @@ std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 			{
 				std::string regName(regNameStr);
 				if (!regName.empty())
-					result[regName] = DebugRegister(regName, reg.GetValueAsUnsigned(), reg.GetByteSize() * 8, regIndex++);
+					result[regName] = DebugRegister(regName, SBValueToUint512(reg), reg.GetByteSize() * 8, regIndex++);
 			}
 		}
 	}
@@ -1034,39 +1066,65 @@ DebugRegister LldbAdapter::ReadRegister(const std::string& name)
 			SBValue reg = regGroupInfo.GetChildAtIndex(j);
 			if (name == reg.GetName())
 				// TODO: register width and internal index
-				return DebugRegister(name, reg.GetValueAsUnsigned(), 0, 0);
+				return DebugRegister(name, SBValueToUint512(reg), 0, 0);
 		}
 	}
 	return result;
 }
 
 
-bool LldbAdapter::WriteRegister(const std::string& name, std::uintptr_t value)
+// Helper function to convert a register value to a string recognized by LLDB
+static std::string RegisterValueToLLDBString(const intx::uint512& value, SBValue& reg)
 {
-	//	SBThread thread = m_process.GetSelectedThread();
-	//	if (!thread.IsValid())
-	//		return false;
-	//
-	//	size_t frameCount = thread.GetNumFrames();
-	//	if (frameCount == 0)
-	//		return false;
-	//
-	//	SBFrame frame = thread.GetFrameAtIndex(0);
-	//	if (!frame.IsValid())
-	//		return false;
-	//
-	//	SBValue reg = frame.FindRegister(name.c_str());
-	//	if (!reg.IsValid())
-	//		return false;
-	//
-	//	SBError error;
-	//	bool ok = reg.SetValueFromCString(fmt::format("{}", value).c_str(), error);
-	//	return ok && error.Success();
+	size_t size = reg.GetByteSize();
+	if (size == 0 || size > 64)
+		return {};
+
+	// If the register size is less than or equal to 8 bytes
+	if (size <= 8)
+		return fmt::format("0x{:x}", (uint64_t)value);
+
+	// Handle values larger than 8 bytes
+	// Example: {0x02 0x29 0x02 0x3c 0x02 0x4f 0x02 0x62 0x02 0x75 0x02 0x98 0x04 0x32 0x04 0x45}
+	uint8_t buffer[64] = {};
+	intx::le::store(buffer, value);
+	string result = "{";
+	for (size_t i = 0; i < size; ++i)
+	{
+		result += fmt::format("0x{:x} ", buffer[i]);
+	}
+	result += "}";
+
+	return result;
+}
+
+
+bool LldbAdapter::WriteRegister(const std::string& name, intx::uint512 value)
+{
+		SBThread thread = m_process.GetSelectedThread();
+		if (!thread.IsValid())
+			return false;
+
+		size_t frameCount = thread.GetNumFrames();
+		if (frameCount == 0)
+			return false;
+
+		SBFrame frame = thread.GetFrameAtIndex(0);
+		if (!frame.IsValid())
+			return false;
+
+		SBValue reg = frame.FindRegister(name.c_str());
+		if (!reg.IsValid())
+			return false;
 
 	//	An LLDB bug forces the use of a command rather than the above code via API. When one tries to update the pc
 	//  value using the API, the GetInstructionOffset() function will still return the old value, making the current
 	//  instruction highlight inaccurate.
-	auto command = fmt::format("reg write {} 0x{:x}", name, value);
+	//	SBError error;
+	//	bool ok = reg.SetValueFromCString(fmt::format("{}", value).c_str(), error);
+	//	return ok && error.Success();
+
+	auto command = fmt::format("reg write {} \"{}\"", name, RegisterValueToLLDBString(value, reg));
 	auto result = InvokeBackendCommand(command);
 	if ((result.rfind("error: ", 0) == 0))
 		return false;

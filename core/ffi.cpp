@@ -339,7 +339,7 @@ BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t
 	for (size_t i = 0; i < registers.size(); i++)
 	{
 		results[i].m_name = BNDebuggerAllocString(registers[i].m_name.c_str());
-		results[i].m_value = registers[i].m_value;
+		intx::le::store(results[i].m_value, registers[i].m_value);
 		results[i].m_width = registers[i].m_width;
 		results[i].m_registerIndex = registers[i].m_registerIndex;
 		results[i].m_hint = BNDebuggerAllocString(registers[i].m_hint.c_str());
@@ -360,15 +360,20 @@ void BNDebuggerFreeRegisters(BNDebugRegister* registers, size_t count)
 }
 
 
-bool BNDebuggerSetRegisterValue(BNDebuggerController* controller, const char* name, uint64_t value)
+bool BNDebuggerSetRegisterValue(BNDebuggerController* controller, const char* name, const uint8_t* value)
 {
-	return controller->object->SetRegisterValue(std::string(name), value);
+	uint8_t buffer[64];
+	memcpy(buffer, value, 64);
+	return controller->object->SetRegisterValue(std::string(name), intx::le::load<intx::uint512>(buffer));
 }
 
 
-uint64_t BNDebuggerGetRegisterValue(BNDebuggerController* controller, const char* name)
+void BNDebuggerGetRegisterValue(BNDebuggerController* controller, const char* name, uint8_t* buffer)
 {
-	return controller->object->GetRegisterValue(std::string(name));
+	auto value = controller->object->GetRegisterValue(std::string(name));
+	uint8_t temp[64] = {};
+	intx::le::store(temp, value);
+	memcpy(buffer, temp, 64);
 }
 
 
@@ -1006,9 +1011,10 @@ bool BNDebuggerActivateDebugAdapter(BNDebuggerController* controller)
 }
 
 
-char* BNDebuggerGetAddressInformation(BNDebuggerController* controller, uint64_t address)
+char* BNDebuggerGetAddressInformation(BNDebuggerController* controller, uint8_t* buffer)
 {
-	return BNDebuggerAllocString(controller->object->GetAddressInformation(address).c_str());
+	auto value = intx::le::load<intx::uint512>(reinterpret_cast<uint8_t (&)[64]>(buffer));
+	return BNDebuggerAllocString(controller->object->GetAddressInformation(value).c_str());
 }
 
 

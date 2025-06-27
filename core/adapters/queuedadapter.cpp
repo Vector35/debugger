@@ -345,7 +345,7 @@ DebugRegister QueuedAdapter::ReadRegister(const std::string& reg)
 }
 
 
-bool QueuedAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
+bool QueuedAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);
 

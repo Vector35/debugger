@@ -264,7 +264,7 @@ std::vector<DebugRegister> DebuggerController::GetRegisters()
 	{
 		DebugRegister reg;
 		reg.m_name = registers[i].m_name;
-		reg.m_value = registers[i].m_value;
+		reg.m_value = intx::le::load<intx::uint512>(registers[i].m_value);
 		reg.m_width = registers[i].m_width;
 		reg.m_registerIndex = registers[i].m_registerIndex;
 		reg.m_hint = registers[i].m_hint;
@@ -276,15 +276,19 @@ std::vector<DebugRegister> DebuggerController::GetRegisters()
 }
 
 
-uint64_t DebuggerController::GetRegisterValue(const std::string& name)
+intx::uint512 DebuggerController::GetRegisterValue(const std::string& name)
 {
-	return BNDebuggerGetRegisterValue(m_object, name.c_str());
+	uint8_t buffer[64] = {0};
+	BNDebuggerGetRegisterValue(m_object, name.c_str(), buffer);
+	return intx::le::load<intx::uint512>(buffer);
 }
 
 
-bool DebuggerController::SetRegisterValue(const std::string& name, uint64_t value)
+bool DebuggerController::SetRegisterValue(const std::string& name, const intx::uint512& value)
 {
-	return BNDebuggerSetRegisterValue(m_object, name.c_str(), value);
+	uint8_t valueBytes[64] = {0};
+	intx::le::store(valueBytes, value);
+	return BNDebuggerSetRegisterValue(m_object, name.c_str(), valueBytes);
 }
 
 
@@ -860,9 +864,11 @@ bool DebuggerController::ActivateDebugAdapter()
 }
 
 
-std::string DebuggerController::GetAddressInformation(uint64_t address)
+std::string DebuggerController::GetAddressInformation(intx::uint512 address)
 {
-	char* info = BNDebuggerGetAddressInformation(m_object, address);
+	uint8_t buffer[64];
+	intx::le::store(buffer, address);
+	char* info = BNDebuggerGetAddressInformation(m_object, buffer);
 	std::string result = std::string(info);
 	BNDebuggerFreeString(info);
 	return result;

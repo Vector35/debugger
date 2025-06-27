@@ -42,8 +42,8 @@ namespace BinaryNinjaDebugger {
 	public:
 		DebuggerRegisters(DebuggerState* state);
 		// DebugRegister operator[](std::string name);
-		uint64_t GetRegisterValue(const std::string& name);
-		bool SetRegisterValue(const std::string& name, uint64_t value);
+		intx::uint512 GetRegisterValue(const std::string& name);
+		bool SetRegisterValue(const std::string& name, intx::uint512 value);
 		void MarkDirty();
 		bool IsDirty() const { return m_dirty; }
 		void Update();

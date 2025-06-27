@@ -99,7 +99,7 @@ bool DbgEngTTDAdapter::WriteMemory(std::uintptr_t address, const BinaryNinja::Da
 }
 
 
-bool DbgEngTTDAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
+bool DbgEngTTDAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
 {
 	return false;
 }

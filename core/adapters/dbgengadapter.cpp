@@ -1076,10 +1076,13 @@ DebugRegister DbgEngAdapter::ReadRegister(const std::string& reg)
 		break;
 	}
 
-	return DebugRegister {reg, debug_value.I64, width, reg_index};
+	uint8_t buffer[64] = {0};
+	memcpy(buffer, debug_value.RawBytes, width / 8);
+	auto value = intx::le::load<intx::uint512>(buffer);
+	return DebugRegister {reg, value, width, reg_index};
 }
 
-bool DbgEngAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
+bool DbgEngAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
 {
 	unsigned long reg_index {};
 
@@ -1087,8 +1090,11 @@ bool DbgEngAdapter::WriteRegister(const std::string& reg, std::uintptr_t value)
 		return false;
 
 	DEBUG_VALUE debug_value {};
-	debug_value.I64 = value;
-	debug_value.Type = DEBUG_VALUE_INT64;
+	uint8_t buffer[64] = {0};
+	intx::le::store(buffer, value);
+	// The DEBUG_VALUE can only store 24 bytes of the register value
+	memcpy(debug_value.RawBytes, buffer, 24);
+	debug_value.Type = DEBUG_VALUE_VECTOR128;
 
 	if (this->m_debugRegisters->SetValue(reg_index, &debug_value) != S_OK)
 		return false;
