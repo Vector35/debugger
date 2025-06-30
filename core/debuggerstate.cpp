@@ -676,7 +676,31 @@ void DebuggerBreakpoints::Apply()
 }
 
 
-DebuggerMemory::DebuggerMemory(DebuggerState* state) : m_state(state) {}
+DebuggerMemory::DebuggerMemory(DebuggerState* state) : m_state(state)
+{
+	PrefillValueCache();
+}
+
+
+void DebuggerMemory::PrefillValueCache()
+{
+	if (!m_state->GetController())
+		return;
+
+	auto data = m_state->GetController()->GetData();
+	if (!data)
+		return;
+
+	auto ranges = data->GetBackedAddressRanges();
+	for (const auto& range: ranges)
+	{
+		// If the range is larger than 1G, do not cache its content
+		if (range.end - range.start > 1024 * 1024 * 1024)
+			continue;
+
+		m_valueCachePrefilled[range.start] = {range.end, data->ReadBuffer(range.start, range.end - range.start)};
+	}
+}
 
 
 void DebuggerMemory::MarkDirty()
@@ -701,6 +725,9 @@ void DebuggerMemory::MarkDirty()
 
 DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
 {
+	if (!m_state->IsConnected())
+		return {};
+
 	auto iter = m_valueCache.find(block);
 	if (iter != m_valueCache.end())
 	{
@@ -710,7 +737,7 @@ DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
 			return {};
 		case OutOfDateStatus:
 		{
-			if (m_state->IsConnected() && m_state->IsRunning())
+			if (m_state->IsRunning())
 			{
 				// The cache is old but the target is running, return old value
 				return iter->second.value;
@@ -730,7 +757,7 @@ DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
 	}
 
 	// Try to read the memory value from the backend
-	if (m_state->IsConnected() && !m_state->IsRunning())
+	if (!m_state->IsRunning())
 	{
 		// The cache is old and the target is stopped, try to update the cache value
 		DataBuffer buffer = m_state->GetAdapter()->ReadMemory(block, 0x100);
@@ -739,6 +766,27 @@ DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
 			// Successfully updated
 			m_valueCache[block] = {buffer, UpToDateStatus};
 			return buffer;
+		}
+	}
+	else
+	{
+		// If the target is running, we try to read the bytes from the original binary view
+		auto iter = m_valueCachePrefilled.upper_bound(block);
+		if (iter != m_valueCachePrefilled.begin())
+		{
+			--iter;
+			if ((block >= iter->first) && (block < iter->second.first))
+			{
+				auto offset = block - iter->first;
+				auto buffer = iter->second.second.GetSlice(offset, 0x100);
+				// When the bytes are readable, we return it, but also mark it as out-of-date so that they can be
+				// replaced as soon as the target stops
+				if (buffer.GetLength() > 0)
+				{
+					m_valueCache[block] = {buffer, OutOfDateStatus};
+					return buffer;
+				}
+			}
 		}
 	}
 

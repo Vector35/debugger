@@ -137,7 +137,10 @@ namespace BinaryNinjaDebugger {
 	{
 		DebuggerState* m_state;
 		std::map<uint64_t, MemoryBytesCache> m_valueCache;
+		std::map<uint64_t, std::pair<uint64_t, DataBuffer>> m_valueCachePrefilled;
 		std::recursive_mutex m_memoryMutex;
+
+		void PrefillValueCache();
 
 	public:
 		DebuggerMemory(DebuggerState* state);
