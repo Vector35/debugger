@@ -605,12 +605,12 @@ namespace BinaryNinjaDebuggerAPI {
 		uint64_t GetViewFileSegmentsStart();
 
 		bool ComputeExprValue(const Ref<LowLevelILFunction>& func, const LowLevelILInstruction& expr,
-			  uint64_t & value);
+			  intx::uint512 & value);
 		bool ComputeExprValue(const Ref<MediumLevelILFunction>& func, const MediumLevelILInstruction& expr,
-							  uint64_t & value);
+							  intx::uint512 & value);
 		bool ComputeExprValue(const Ref<HighLevelILFunction>& func, const HighLevelILInstruction& expr,
-							  uint64_t & value);
-		bool GetVariableValue(Variable& var, uint64_t address, size_t size, uint64_t& value);
+							  intx::uint512 & value);
+		bool GetVariableValue(Variable& var, uint64_t address, size_t size, intx::uint512& value);
 
 		Ref<Settings> GetAdapterSettings();
 	};

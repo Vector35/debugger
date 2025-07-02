@@ -336,20 +336,20 @@ namespace BinaryNinjaDebugger {
 
 		uint64_t GetViewFileSegmentsStart() { return m_viewStart; }
 
-		bool ComputeExprValueAPI(const LowLevelILInstruction& instr, uint64_t& value);
-		bool ComputeExprValue(const LowLevelILInstruction& instr, uint64_t& value);
-		uint64_t GetValueFromComparison(const BNLowLevelILOperation op, uint64_t left, uint64_t right, size_t size);
+		bool ComputeExprValueAPI(const LowLevelILInstruction& instr, intx::uint512& value);
+		bool ComputeExprValue(const LowLevelILInstruction& instr, intx::uint512& value);
+		intx::uint512 GetValueFromComparison(const BNLowLevelILOperation op, intx::uint512 left, intx::uint512 right, size_t size);
 
-		bool ComputeExprValueAPI(const MediumLevelILInstruction& instr, uint64_t& value);
-		bool ComputeExprValue(const MediumLevelILInstruction& instr, uint64_t& value);
-		uint64_t GetValueFromComparison(const BNMediumLevelILOperation op, uint64_t left, uint64_t right, size_t size);
+		bool ComputeExprValueAPI(const MediumLevelILInstruction& instr, intx::uint512& value);
+		bool ComputeExprValue(const MediumLevelILInstruction& instr, intx::uint512& value);
+		intx::uint512 GetValueFromComparison(const BNMediumLevelILOperation op, intx::uint512 left, intx::uint512 right, size_t size);
 
-		bool ComputeExprValueAPI(const HighLevelILInstruction& instr, uint64_t& value);
-		bool ComputeExprValue(const HighLevelILInstruction& instr, uint64_t& value);
-		uint64_t GetValueFromComparison(const BNHighLevelILOperation op, uint64_t left, uint64_t right, size_t size);
+		bool ComputeExprValueAPI(const HighLevelILInstruction& instr, intx::uint512& value);
+		bool ComputeExprValue(const HighLevelILInstruction& instr, intx::uint512& value);
+		intx::uint512 GetValueFromComparison(const BNHighLevelILOperation op, intx::uint512 left, intx::uint512 right, size_t size);
 
-		bool GetVariableValueAPI(const Variable& var, uint64_t address, size_t size, uint64_t& value);
-		bool GetVariableValue(const Variable& var, uint64_t address, size_t size, uint64_t& value);
+		bool GetVariableValueAPI(const Variable& var, uint64_t address, size_t size, intx::uint512& value);
+		bool GetVariableValue(const Variable& var, uint64_t address, size_t size, intx::uint512& value);
 
 		Ref<Settings> GetAdapterSettings();
 		bool CreateDebugAdapter();

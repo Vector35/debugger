@@ -957,30 +957,46 @@ uint64_t DebuggerController::GetViewFileSegmentsStart()
 
 
 bool DebuggerController::ComputeExprValue(const Ref<LowLevelILFunction>& func,
-	const BinaryNinja::LowLevelILInstruction &expr, uint64_t &value)
+	const BinaryNinja::LowLevelILInstruction &expr, intx::uint512 &value)
 {
-	return BNDebuggerComputeLLILExprValue(m_object, func->GetObject(), expr.exprIndex, value);
+	uint8_t buffer[64] = {0};
+	if (!BNDebuggerComputeLLILExprValue(m_object, func->GetObject(), expr.exprIndex, buffer))
+		return false;
+	value = intx::le::load<intx::uint512>(buffer);
+	return true;
 }
 
 
 bool DebuggerController::ComputeExprValue(const Ref<MediumLevelILFunction>& func,
-	const BinaryNinja::MediumLevelILInstruction &expr, uint64_t &value)
+	const BinaryNinja::MediumLevelILInstruction &expr, intx::uint512 &value)
 {
-	return BNDebuggerComputeMLILExprValue(m_object, func->GetObject(), expr.exprIndex, value);
+	uint8_t buffer[64] = {0};
+	if (!BNDebuggerComputeMLILExprValue(m_object, func->GetObject(), expr.exprIndex, buffer))
+		return false;
+	value = intx::le::load<intx::uint512>(buffer);
+	return true;
 }
 
 
 bool DebuggerController::ComputeExprValue(const Ref<HighLevelILFunction>& func,
-	const BinaryNinja::HighLevelILInstruction &expr, uint64_t &value)
+	const BinaryNinja::HighLevelILInstruction &expr, intx::uint512 &value)
 {
-	return BNDebuggerComputeHLILExprValue(m_object, func->GetObject(), expr.exprIndex, value);
+	uint8_t buffer[64] = {0};
+	if (!BNDebuggerComputeHLILExprValue(m_object, func->GetObject(), expr.exprIndex, buffer))
+		return false;
+	value = intx::le::load<intx::uint512>(buffer);
+	return true;
 }
 
 
 bool DebuggerController::GetVariableValue(BinaryNinja::Variable &var, uint64_t address, size_t size,
-	uint64_t &value)
+	intx::uint512 &value)
 {
-	return BNDebuggerGetVariableValue(m_object, &var, address, size, value);
+	uint8_t buffer[64] = {0};
+	if (!BNDebuggerGetVariableValue(m_object, &var, address, size, buffer))
+		return false;
+	value = intx::le::load<intx::uint512>(buffer);
+	return true;
 }
 
 

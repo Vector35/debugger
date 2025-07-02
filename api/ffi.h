@@ -526,13 +526,13 @@ extern "C"
 
 	// Compute expression values
 	DEBUGGER_FFI_API bool BNDebuggerComputeLLILExprValue(BNDebuggerController* controller,
-		 BNLowLevelILFunction* function, size_t expr, uint64_t& value);
+		 BNLowLevelILFunction* function, size_t expr, uint8_t* buffer);
 	DEBUGGER_FFI_API bool BNDebuggerComputeMLILExprValue(BNDebuggerController* controller,
-		 BNMediumLevelILFunction* function, size_t expr, uint64_t& value);
+		 BNMediumLevelILFunction* function, size_t expr, uint8_t* buffer);
 	DEBUGGER_FFI_API bool BNDebuggerComputeHLILExprValue(BNDebuggerController* controller,
-		 BNHighLevelILFunction* function, size_t expr, uint64_t& value);
+		 BNHighLevelILFunction* function, size_t expr, uint8_t* buffer);
 	DEBUGGER_FFI_API bool BNDebuggerGetVariableValue(BNDebuggerController* controller,
-		BNVariable* variable, uint64_t address, size_t size, uint64_t& value);
+		BNVariable* variable, uint64_t address, size_t size, uint8_t* buffer);
 
 	DEBUGGER_FFI_API BNSettings* BNDebuggerGetAdapterSettings(BNDebuggerController* controller);
 

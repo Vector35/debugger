@@ -1013,7 +1013,9 @@ bool BNDebuggerActivateDebugAdapter(BNDebuggerController* controller)
 
 char* BNDebuggerGetAddressInformation(BNDebuggerController* controller, uint8_t* buffer)
 {
-	auto value = intx::le::load<intx::uint512>(reinterpret_cast<uint8_t (&)[64]>(buffer));
+	uint8_t temp[64] = {};
+	memcpy(temp, buffer, 64);
+	auto value = intx::le::load<intx::uint512>(temp);
 	return BNDebuggerAllocString(controller->object->GetAddressInformation(value).c_str());
 }
 
@@ -1093,36 +1095,64 @@ uint64_t BNDebuggerGetViewFileSegmentsStart(BNDebuggerController* controller)
 
 
 bool BNDebuggerComputeLLILExprValue(BNDebuggerController* controller, BNLowLevelILFunction* function, size_t expr,
-	uint64_t& value)
+	uint8_t* buffer)
 {
 	Ref<LowLevelILFunction> llil = new LowLevelILFunction(BNNewLowLevelILFunctionReference(function));
 	auto instr = llil->GetExpr(expr);
-	return controller->object->ComputeExprValueAPI(instr, value);
+	intx::uint512 value;
+	if (!controller->object->ComputeExprValueAPI(instr, value))
+		return false;
+
+	uint8_t temp[64] = {};
+	intx::le::store(temp, value);
+	memcpy(buffer, temp, 64);
+	return true;
 }
 
 
 bool BNDebuggerComputeMLILExprValue(BNDebuggerController* controller, BNMediumLevelILFunction* function, size_t expr,
-	uint64_t& value)
+	uint8_t* buffer)
 {
 	Ref<MediumLevelILFunction> mlil = new MediumLevelILFunction(BNNewMediumLevelILFunctionReference(function));
 	auto instr = mlil->GetExpr(expr);
-	return controller->object->ComputeExprValueAPI(instr, value);
+	intx::uint512 value;
+	if (!controller->object->ComputeExprValueAPI(instr, value))
+		return false;
+
+	uint8_t temp[64] = {};
+	intx::le::store(temp, value);
+	memcpy(buffer, temp, 64);
+	return true;
 }
 
 
 bool BNDebuggerComputeHLILExprValue(BNDebuggerController* controller, BNHighLevelILFunction* function, size_t expr,
-	uint64_t& value)
+	uint8_t* buffer)
 {
 	Ref<HighLevelILFunction> hlil = new HighLevelILFunction(BNNewHighLevelILFunctionReference(function));
 	auto instr = hlil->GetExpr(expr);
-	return controller->object->ComputeExprValueAPI(instr, value);
+	intx::uint512 value;
+	if (!controller->object->ComputeExprValueAPI(instr, value))
+		return false;
+
+	uint8_t temp[64] = {};
+	intx::le::store(temp, value);
+	memcpy(buffer, temp, 64);
+	return true;
 }
 
 
 bool BNDebuggerGetVariableValue(BNDebuggerController* controller, BNVariable* variable, uint64_t address, size_t size,
-	uint64_t& value)
+	uint8_t* buffer)
 {
-	return controller->object->GetVariableValue(*variable, address, size, value);
+	intx::uint512 value;
+	if (!controller->object->GetVariableValue(*variable, address, size, value))
+		return false;
+
+	uint8_t temp[64] = {};
+	intx::le::store(temp, value);
+	memcpy(buffer, temp, 64);
+	return true;
 }
 
 

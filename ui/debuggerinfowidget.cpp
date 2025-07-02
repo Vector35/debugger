@@ -82,7 +82,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLILCalls(LowLevelIL
 			tokens.emplace_back(LocalVariableToken, paramName);
 			tokens.emplace_back(TextToken, " @ ");
 			tokens.emplace_back(RegisterToken, regName);
-			result.emplace_back(tokens, (uint64_t)value, hints, instr.instructionIndex, BN_INVALID_EXPR, instr.address);
+			result.emplace_back(tokens, value, hints, instr.instructionIndex, BN_INVALID_EXPR, instr.address);
 			break;
 		}
 		case StackVariableSourceType:
@@ -133,7 +133,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLILConditions(LowLe
 
 	auto func = llil->GetFunction();
 	auto condition = instr.GetConditionExpr<LLIL_IF>();
-	uint64_t value;
+	intx::uint512 value;
 	if (!m_debugger->ComputeExprValue(llil, condition, value))
 		return result;
 
@@ -167,7 +167,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLIL(LowLevelILFunct
 		{
 		case ExprLowLevelOperand:
 		{
-			uint64_t value;
+			intx::uint512 value;
 			if (!m_debugger->ComputeExprValue(llil, operand.GetExpr(), value))
 				continue;
 			std::vector<InstructionTextToken> tokens;
@@ -220,7 +220,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForMLIL(MediumLevelILFu
 		{
 		case ExprMediumLevelOperand:
 		{
-			uint64_t value;
+			intx::uint512 value;
 			if (!m_debugger->ComputeExprValue(mlil, operand.GetExpr(), value))
 				continue;
 			std::vector<InstructionTextToken> tokens;
@@ -232,7 +232,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForMLIL(MediumLevelILFu
 		}
 		case VariableMediumLevelOperand:
 		{
-			uint64_t value;
+			intx::uint512 value;
 			auto var = operand.GetVariable();
 			if (!m_debugger->GetVariableValue(var, instr.address, instr.size, value))
 				break;
@@ -352,7 +352,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForMLILConditions(Mediu
 
 	auto func = mlil->GetFunction();
 	auto condition = instr.GetConditionExpr<MLIL_IF>();
-	uint64_t value;
+	intx::uint512 value;
 	if (!m_debugger->ComputeExprValue(mlil, condition, value))
 		return result;
 
@@ -387,7 +387,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForHLIL(HighLevelILFunc
 		{
 		case ExprHighLevelOperand:
 		{
-			uint64_t value;
+			intx::uint512 value;
 			if (!m_debugger->ComputeExprValue(hlil, operand.GetExpr(), value))
 				continue;
 			std::vector<DisassemblyTextLine> lines = hlil->GetExprText(operand.GetExpr().exprIndex);
@@ -405,7 +405,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForHLIL(HighLevelILFunc
 		}
 		case VariableHighLevelOperand:
 		{
-			uint64_t value;
+			intx::uint512 value;
 			auto var = operand.GetVariable();
 			if (!m_debugger->GetVariableValue(var, instr.address, instr.size, value))
 				break;
@@ -525,7 +525,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForHLILConditions(HighL
 
 	auto func = hlil->GetFunction();
 	auto condition = instr.GetConditionExpr<HLIL_IF>();
-	uint64_t value;
+	intx::uint512 value;
 	if (!m_debugger->ComputeExprValue(hlil, condition, value))
 		return result;
 

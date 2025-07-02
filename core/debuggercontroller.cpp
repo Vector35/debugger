@@ -2701,36 +2701,36 @@ bool DebuggerController::ReAddDebuggerMemoryRegion()
 
 
 // TODO: these 3 functions should be moved to the BinaryNinjaAPI namespace for wider audiences
-static int64_t MaskToSize(int64_t value, size_t size)
+static intx::uint512 MaskToSize(intx::uint512 value, size_t size)
 {
-	if (size >= 8)
+	if (size >= 64)
 		return value;
 	if (size == 0)
 		return value & 1;
-	return value & ((1LL << (size * 8)) - 1);
+	return value & ((intx::uint512(1) << (size * 8)) - 1);
 }
 
 
-static int64_t ZeroExtend(int64_t value, size_t sourceSize, size_t destSize)
+static intx::uint512 ZeroExtend(intx::uint512 value, size_t sourceSize, size_t destSize)
 {
 	if (destSize <= sourceSize)
 		return MaskToSize(value, destSize);
-	return MaskToSize(value & ((1LL << (sourceSize * 8)) - 1), destSize);
+	return MaskToSize(value & ((intx::uint512(1) << (sourceSize * 8)) - 1), destSize);
 }
 
 
-static int64_t SignExtend(int64_t value, size_t sourceSize, size_t destSize)
+static intx::uint512 SignExtend(intx::uint512 value, size_t sourceSize, size_t destSize)
 {
 	if (destSize <= sourceSize)
 		return MaskToSize(value, destSize);
 	if (value & (1LL << ((sourceSize * 8) - 1)))
-		return MaskToSize(value | (~((1LL << (sourceSize * 8)) - 1)), destSize);
+		return MaskToSize(value | (~((intx::uint512(1) << (sourceSize * 8)) - 1)), destSize);
 	else
-		return MaskToSize(value & ((1LL << (sourceSize * 8)) - 1), destSize);
+		return MaskToSize(value & ((intx::uint512(1) << (sourceSize * 8)) - 1), destSize);
 }
 
 
-static inline uint64_t GetActualShift(uint64_t value, size_t instrSize)
+static inline intx::uint512 GetActualShift(intx::uint512 value, size_t instrSize)
 {
 	if (instrSize <= 4)
 		return value & 0b11111;
@@ -2739,7 +2739,7 @@ static inline uint64_t GetActualShift(uint64_t value, size_t instrSize)
 }
 
 
-bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::LowLevelILInstruction &instr, uint64_t& value)
+bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::LowLevelILInstruction &instr, intx::uint512& value)
 {
 	// We only want to do this check once before the recursion
 	if (!m_state->IsConnected() || m_state->IsRunning())
@@ -2749,16 +2749,13 @@ bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::LowLevelILInstru
 }
 
 
-bool DebuggerController::ComputeExprValue(const LowLevelILInstruction &instr, uint64_t& value)
+bool DebuggerController::ComputeExprValue(const LowLevelILInstruction &instr, intx::uint512& value)
 {
-	if (instr.size > 8)
+	if (instr.size > 64)
 		return false;
 
-	uint64_t left, right;
-
-	int64_t sizeMask = -1;
-	if (instr.size > 0 && instr.size < 8)
-		sizeMask = (1LL << (instr.size * 8)) - 1;
+	intx::uint512 left, right;
+	intx::uint512 sizeMask = (intx::uint512(1) << (instr.size * 8)) - 1;
 
 	switch (instr.operation)
 	{
@@ -2784,7 +2781,7 @@ bool DebuggerController::ComputeExprValue(const LowLevelILInstruction &instr, ui
 		// Cheat for arm64
 		if (name == "x29") name = "fp";
 
-		value = (uint64_t)GetRegisterValue(name) & sizeMask;
+		value = GetRegisterValue(name) & sizeMask;
 		return true;
 	}
 	case LLIL_ADD:
@@ -2807,61 +2804,27 @@ bool DebuggerController::ComputeExprValue(const LowLevelILInstruction &instr, ui
 	{
 		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_LOAD>(), left))
 			return false;
-		auto buffer = ReadMemory(left, instr.size);
+		auto buffer = ReadMemory((uint64_t)left, instr.size);
 		if (buffer.GetLength() != instr.size)
 			return false;
 
-		switch (instr.size)
-		{
-		case 1:
-			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 2:
-			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 4:
-			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 8:
-			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		default:
-			return false;
-		}
+		uint8_t intxBuffer[64] = {};
+		memcpy(intxBuffer, buffer.GetData(), instr.size);
+		value = intx::le::load<intx::uint512>(intxBuffer) & sizeMask;
+		return true;
 	}
 	case LLIL_STORE:
 	{
 		if (!ComputeExprValue(instr.GetDestExpr<LLIL_STORE>(), left))
 			return false;
-		auto buffer = ReadMemory(left, instr.size);
+		auto buffer = ReadMemory((uint64_t)left, instr.size);
 		if (buffer.GetLength() != instr.size)
 			return false;
 
-		switch (instr.size)
-		{
-		case 1:
-			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 2:
-			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 4:
-			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 8:
-			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		default:
-			return false;
-		}
+		uint8_t intxBuffer[64] = {};
+		memcpy(intxBuffer, buffer.GetData(), instr.size);
+		value = intx::le::load<intx::uint512>(intxBuffer) & sizeMask;
+		return true;
 	}
 	case LLIL_LSL:
 	{
@@ -2972,27 +2935,10 @@ bool DebuggerController::ComputeExprValue(const LowLevelILInstruction &instr, ui
 		if (buffer.GetLength() != instr.size)
 			return false;
 
-		switch (instr.size)
-		{
-		case 1:
-			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 2:
-			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 4:
-			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 8:
-			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		default:
-			return false;
-		}
+		uint8_t intxBuffer[64] = {};
+		memcpy(intxBuffer, buffer.GetData(), instr.size);
+		value = intx::le::load<intx::uint512>(intxBuffer) & sizeMask;
+		return true;
 	}
 	case LLIL_CMP_E:
 		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_CMP_E>(), left))
@@ -3081,8 +3027,8 @@ bool DebuggerController::ComputeExprValue(const LowLevelILInstruction &instr, ui
 }
 
 
-uint64_t DebuggerController::GetValueFromComparison(const BNLowLevelILOperation op, uint64_t left, uint64_t right,
-	size_t size)
+intx::uint512 DebuggerController::GetValueFromComparison(const BNLowLevelILOperation op, intx::uint512 left,
+	intx::uint512 right, size_t size)
 {
 	switch (op)
 	{
@@ -3093,28 +3039,44 @@ uint64_t DebuggerController::GetValueFromComparison(const BNLowLevelILOperation 
 			return left != right;
 			break;
 		case LLIL_CMP_SLT:
-			return SignExtend(left, size, 8) < SignExtend(right, size, 8);
+		{
+			auto a = SignExtend(left, size, 64);
+			auto b = SignExtend(right, size, 64);
+			return slt(a, b);
 			break;
+		}
 		case LLIL_CMP_ULT:
-			return (uint64_t)(left) < (uint64_t)(right);
+			return left < right;
 			break;
 		case LLIL_CMP_SLE:
-			return SignExtend(left, size, 8) <= SignExtend(right, size, 8);
+		{
+			auto a = SignExtend(left, size, 64);
+			auto b = SignExtend(right, size, 64);
+			return slt(a, b) || (a == b);
 			break;
+		}
 		case LLIL_CMP_ULE:
-			return (uint64_t)(left) <= (uint64_t)(right);
+			return left <= right;
 			break;
 		case LLIL_CMP_SGE:
-			return SignExtend(left, size, 8) >= SignExtend(right, size, 8);
+		{
+			auto a = SignExtend(left, size, 64);
+			auto b = SignExtend(right, size, 64);
+			return !slt(a, b);
 			break;
+		}
 		case LLIL_CMP_UGE:
-			return (uint64_t)(left) >= (uint64_t)(right);
+			return left >= right;
 			break;
 		case LLIL_CMP_SGT:
-			return SignExtend(left, size, 8) > SignExtend(right, size, 8);
+		{
+			auto a = SignExtend(left, size, 64);
+			auto b = SignExtend(right, size, 64);
+			return !(slt(a, b) || (a == b));
 			break;
+		}
 		case LLIL_CMP_UGT:
-			return (uint64_t)(left) > (uint64_t)(right);
+			return left > right;
 			break;
 		default:
 			break;
@@ -3123,8 +3085,8 @@ uint64_t DebuggerController::GetValueFromComparison(const BNLowLevelILOperation 
 }
 
 
-uint64_t DebuggerController::GetValueFromComparison(const BNMediumLevelILOperation op, uint64_t left, uint64_t right,
-	size_t size)
+intx::uint512 DebuggerController::GetValueFromComparison(const BNMediumLevelILOperation op, intx::uint512 left,
+	intx::uint512 right, size_t size)
 {
 	switch (op)
 	{
@@ -3135,28 +3097,44 @@ uint64_t DebuggerController::GetValueFromComparison(const BNMediumLevelILOperati
 			return left != right;
 			break;
 		case MLIL_CMP_SLT:
-			return SignExtend(left, size, 8) < SignExtend(right, size, 8);
+		{
+			auto a = SignExtend(left, size, 64);
+			auto b = SignExtend(right, size, 64);
+			return slt(a, b);
 			break;
+		}
 		case MLIL_CMP_ULT:
-			return (uint64_t)(left) < (uint64_t)(right);
+			return left < right;
 			break;
 		case MLIL_CMP_SLE:
-			return SignExtend(left, size, 8) <= SignExtend(right, size, 8);
+		{
+			auto a = SignExtend(left, size, 64);
+			auto b = SignExtend(right, size, 64);
+			return slt(a, b) || (a == b);
 			break;
+		}
 		case MLIL_CMP_ULE:
-			return (uint64_t)(left) <= (uint64_t)(right);
+			return left <= right;
 			break;
 		case MLIL_CMP_SGE:
-			return SignExtend(left, size, 8) >= SignExtend(right, size, 8);
+		{
+			auto a = SignExtend(left, size, 64);
+			auto b = SignExtend(right, size, 64);
+			return !slt(a, b);
 			break;
+		}
 		case MLIL_CMP_UGE:
-			return (uint64_t)(left) >= (uint64_t)(right);
+			return left >= right;
 			break;
 		case MLIL_CMP_SGT:
-			return SignExtend(left, size, 8) > SignExtend(right, size, 8);
+		{
+			auto a = SignExtend(left, size, 64);
+			auto b = SignExtend(right, size, 64);
+			return !(slt(a, b) || (a == b));
 			break;
+		}
 		case MLIL_CMP_UGT:
-			return (uint64_t)(left) > (uint64_t)(right);
+			return left > right;
 			break;
 		default:
 			break;
@@ -3165,8 +3143,8 @@ uint64_t DebuggerController::GetValueFromComparison(const BNMediumLevelILOperati
 }
 
 
-uint64_t DebuggerController::GetValueFromComparison(const BNHighLevelILOperation op, uint64_t left, uint64_t right,
-	size_t size)
+intx::uint512 DebuggerController::GetValueFromComparison(const BNHighLevelILOperation op, intx::uint512 left,
+	intx::uint512 right, size_t size)
 {
 	switch (op)
 	{
@@ -3177,28 +3155,44 @@ uint64_t DebuggerController::GetValueFromComparison(const BNHighLevelILOperation
 			return left != right;
 			break;
 		case HLIL_CMP_SLT:
-			return SignExtend(left, size, 8) < SignExtend(right, size, 8);
+		{
+			auto a = SignExtend(left, size, 64);
+			auto b = SignExtend(right, size, 64);
+			return slt(a, b);
 			break;
+		}
 		case HLIL_CMP_ULT:
-			return (uint64_t)(left) < (uint64_t)(right);
+			return left < right;
 			break;
 		case HLIL_CMP_SLE:
-			return SignExtend(left, size, 8) <= SignExtend(right, size, 8);
+		{
+			auto a = SignExtend(left, size, 64);
+			auto b = SignExtend(right, size, 64);
+			return slt(a, b) || (a == b);
 			break;
+		}
 		case HLIL_CMP_ULE:
-			return (uint64_t)(left) <= (uint64_t)(right);
+			return left <= right;
 			break;
 		case HLIL_CMP_SGE:
-			return SignExtend(left, size, 8) >= SignExtend(right, size, 8);
+		{
+			auto a = SignExtend(left, size, 64);
+			auto b = SignExtend(right, size, 64);
+			return !slt(a, b);
 			break;
+		}
 		case HLIL_CMP_UGE:
-			return (uint64_t)(left) >= (uint64_t)(right);
+			return left >= right;
 			break;
 		case HLIL_CMP_SGT:
-			return SignExtend(left, size, 8) > SignExtend(right, size, 8);
+		{
+			auto a = SignExtend(left, size, 64);
+			auto b = SignExtend(right, size, 64);
+			return !(slt(a, b) || (a == b));
 			break;
+		}
 		case HLIL_CMP_UGT:
-			return (uint64_t)(left) > (uint64_t)(right);
+			return left > right;
 			break;
 		default:
 			break;
@@ -3207,7 +3201,7 @@ uint64_t DebuggerController::GetValueFromComparison(const BNHighLevelILOperation
 }
 
 
-bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::MediumLevelILInstruction &instr, uint64_t& value)
+bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::MediumLevelILInstruction &instr, intx::uint512& value)
 {
 	// We only want to do this check once before the recursion
 	if (!m_state->IsConnected() || m_state->IsRunning())
@@ -3217,16 +3211,13 @@ bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::MediumLevelILIns
 }
 
 
-bool DebuggerController::ComputeExprValue(const MediumLevelILInstruction &instr, uint64_t& value)
+bool DebuggerController::ComputeExprValue(const MediumLevelILInstruction &instr, intx::uint512& value)
 {
-	if (instr.size > 8)
+	if (instr.size > 64)
 		return false;
 
-	uint64_t left, right;
-
-	int64_t sizeMask = -1;
-	if (instr.size > 0 && instr.size < 8)
-		sizeMask = (1LL << (instr.size * 8)) - 1;
+	intx::uint512 left, right;
+	intx::uint512 sizeMask = (intx::uint512(1) << (instr.size * 8)) - 1;
 
 	switch (instr.operation)
 	{
@@ -3265,61 +3256,27 @@ bool DebuggerController::ComputeExprValue(const MediumLevelILInstruction &instr,
 	{
 		if (!ComputeExprValue(instr.GetSourceExpr<MLIL_LOAD>(), left))
 			return false;
-		auto buffer = ReadMemory(left, instr.size);
+		auto buffer = ReadMemory((uint64_t)left, instr.size);
 		if (buffer.GetLength() != instr.size)
 			return false;
 
-		switch (instr.size)
-		{
-		case 1:
-			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 2:
-			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 4:
-			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 8:
-			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		default:
-			return false;
-		}
+		uint8_t intxBuffer[64] = {};
+		memcpy(intxBuffer, buffer.GetData(), instr.size);
+		value = intx::le::load<intx::uint512>(intxBuffer) & sizeMask;
+		return true;
 	}
 	case MLIL_STORE:
 	{
 		if (!ComputeExprValue(instr.GetDestExpr<MLIL_STORE>(), left))
 			return false;
-		auto buffer = ReadMemory(left, instr.size);
+		auto buffer = ReadMemory((uint64_t)left, instr.size);
 		if (buffer.GetLength() != instr.size)
 			return false;
 
-		switch (instr.size)
-		{
-		case 1:
-			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 2:
-			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 4:
-			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 8:
-			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		default:
-			return false;
-		}
+		uint8_t intxBuffer[64] = {};
+		memcpy(intxBuffer, buffer.GetData(), instr.size);
+		value = intx::le::load<intx::uint512>(intxBuffer) & sizeMask;
+		return true;
 	}
 	case MLIL_LSL:
 	{
@@ -3351,7 +3308,7 @@ bool DebuggerController::ComputeExprValue(const MediumLevelILInstruction &instr,
 			left |= ~sizeMask;
 		else
 			left &= sizeMask;
-		value = ((int64_t)left) >> GetActualShift(right, instr.size);
+		value = left >> GetActualShift(right, instr.size);
 		value &= sizeMask;
 		return true;
 	}
@@ -3501,7 +3458,7 @@ bool DebuggerController::ComputeExprValue(const MediumLevelILInstruction &instr,
 }
 
 
-bool DebuggerController::GetVariableValueAPI(const Variable& var, uint64_t address, size_t size, uint64_t& value)
+bool DebuggerController::GetVariableValueAPI(const Variable& var, uint64_t address, size_t size, intx::uint512& value)
 {
 	// We only want to do this check once before the recursion
 	if (!m_state->IsConnected() || m_state->IsRunning())
@@ -3511,11 +3468,11 @@ bool DebuggerController::GetVariableValueAPI(const Variable& var, uint64_t addre
 }
 
 
-bool DebuggerController::GetVariableValue(const Variable& var, uint64_t address, size_t size, uint64_t &value)
+bool DebuggerController::GetVariableValue(const Variable& var, uint64_t address, size_t size, intx::uint512 &value)
 {
-	int64_t sizeMask = -1;
-	if (size > 0 && size < 8)
-		sizeMask = (1LL << (size * 8)) - 1;
+	intx::uint512 sizeMask = -1;
+	if (size > 0 && size < 64)
+		sizeMask = (intx::uint512(1) << (size * 8)) - 1;
 
 	if (var.type == RegisterVariableSourceType)
 	{
@@ -3530,7 +3487,7 @@ bool DebuggerController::GetVariableValue(const Variable& var, uint64_t address,
 		// Cheat for arm64
 		if (name == "x29") name = "fp";
 
-		value = (uint64_t)GetRegisterValue(name) & sizeMask;
+		value = GetRegisterValue(name) & sizeMask;
 		return true;
 	}
 	else if (var.type == StackVariableSourceType)
@@ -3557,42 +3514,25 @@ bool DebuggerController::GetVariableValue(const Variable& var, uint64_t address,
 		if (!type)
 			return false;
 
-		auto width = type->GetWidth();
-		if (width > 8)
+		size_t width = type->GetWidth();
+		if (width > 64)
 			return false;
 
 		auto buffer = ReadMemory(addrOfVar, width);
 		if (buffer.GetLength() != width)
 			return false;
 
-		switch (width)
-		{
-		case 1:
-			value = *reinterpret_cast<uint8_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 2:
-			value = *reinterpret_cast<uint16_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 4:
-			value = *reinterpret_cast<uint32_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		case 8:
-			value = *reinterpret_cast<uint64_t*>(buffer.GetData());
-			value &= sizeMask;
-			return true;
-		default:
-			return false;
-		}
+		uint8_t intxBuffer[64] = {};
+		memcpy(intxBuffer, buffer.GetData(), width);
+		value = intx::le::load<intx::uint512>(intxBuffer) & sizeMask;
+		return true;
 	}
 
 	return false;
 }
 
 
-bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::HighLevelILInstruction &instr, uint64_t& value)
+bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::HighLevelILInstruction &instr, intx::uint512& value)
 {
 	// We only want to do this check once before the recursion
 	if (!m_state->IsConnected() || m_state->IsRunning())
@@ -3602,16 +3542,13 @@ bool DebuggerController::ComputeExprValueAPI(const BinaryNinja::HighLevelILInstr
 }
 
 
-bool DebuggerController::ComputeExprValue(const HighLevelILInstruction &instr, uint64_t& value)
+bool DebuggerController::ComputeExprValue(const HighLevelILInstruction &instr, intx::uint512& value)
 {
-	if (instr.size > 8)
+	if (instr.size > 64)
 		return false;
 
-	uint64_t left, right;
-
-	int64_t sizeMask = -1;
-	if (instr.size > 0 && instr.size < 8)
-		sizeMask = (1LL << (instr.size * 8)) - 1;
+	intx::uint512 left, right;
+	intx::uint512 sizeMask = (intx::uint512(1) << (instr.size * 8)) - 1;
 
 	switch (instr.operation)
 	{
