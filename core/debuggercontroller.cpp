@@ -2559,7 +2559,7 @@ static std::string CheckForLiteralString(intx::uint512 value)
 	}
 
 	if (ok)
-		return fmt::format("\"{}\"", BinaryNinja::EscapeString(result));
+		return fmt::format("'{}'", BinaryNinja::EscapeString(result));
 
 	return "";
 }
