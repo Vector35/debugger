@@ -2544,7 +2544,8 @@ static std::string CheckForLiteralString(intx::uint512 value)
 		uint8_t c = (uint8_t)(value >> (8 * i)) & 0xff;
 		if (IsPrintableChar(c) && (!zeroFound))
 		{
-			result = std::string(1, c) + result;
+			// Add the new char at the end to account for little-endianness
+			result += c;
 		}
 		else if (c == 0)
 		{
