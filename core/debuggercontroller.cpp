@@ -36,6 +36,8 @@ DebuggerController::DebuggerController(BinaryViewRef data): BinaryDataNotificati
 	m_adapter = nullptr;
 	m_shouldAnnotateStackVariable = Settings::Instance()->Get<bool>("debugger.stackVariableAnnotations");
 	RegisterEventCallback([this](const DebuggerEvent& event) { EventHandler(event); }, "Debugger Core");
+
+	std::thread([&]{ DebuggerMainThread(); }).detach();
 }
 
 
@@ -1695,7 +1697,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 size_t DebuggerController::RegisterEventCallback(
 	std::function<void(const DebuggerEvent&)> callback, const std::string& name)
 {
-	std::unique_lock<std::recursive_mutex> lock(m_callbackMutex);
+	std::unique_lock lock(m_callbackMutex);
 	DebuggerEventCallback object;
 	object.function = callback;
 	object.index = m_callbackIndex++;
@@ -1707,9 +1709,22 @@ size_t DebuggerController::RegisterEventCallback(
 
 bool DebuggerController::RemoveEventCallback(size_t index)
 {
-	std::unique_lock<std::recursive_mutex> lock(m_callbackMutex);
-	m_disabledCallbacks.insert(index);
-	return RemoveEventCallbackInternal(index);
+	std::unique_lock lock(m_callbackMutex);
+	for (auto it = m_eventCallbacks.begin(); it != m_eventCallbacks.end(); it++)
+	{
+		if (it->index == index)
+		{
+			// It is fine to directly remove the callback from m_eventCallbacks. Because in DebuggerMainThread, the
+			// code makes a copy of the events before trying to dispatch them.
+			// The reason that we need m_disabledCallbacks is because during dispatching of an earlier event, the code
+			// may lead to the deletion of a later event. In that case, the change is not reflected on the copy of the
+			// list, so we must look up the index in m_disabledCallbacks before dispatching them
+			m_disabledCallbacks.insert(index);
+			m_eventCallbacks.erase(it);
+			return true;
+		}
+	}
+	return false;
 }
 
 
@@ -1729,61 +1744,88 @@ bool DebuggerController::RemoveEventCallbackInternal(size_t index)
 
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 {
-	std::unique_lock<std::recursive_mutex> callbackLock(m_callbackMutex);
-	std::list<DebuggerEventCallback> eventCallbacks = m_eventCallbacks;
-	callbackLock.unlock();
+	{
+		std::lock_guard lock(m_eventsMutex);
+		eventQueue.push(event);
+	}
+	cv.notify_one();
+}
 
-	if (event.type == AdapterStoppedEventType)
-		m_lastAdapterStopEventConsumed = false;
 
-	ExecuteOnMainThreadAndWait([&]() {
-		DebuggerEvent eventToSend = event;
-		if ((eventToSend.type == TargetStoppedEventType) && !m_initialBreakpointSeen)
-		{
-			m_initialBreakpointSeen = true;
-			eventToSend.data.targetStoppedData.reason = InitialBreakpoint;
-		}
+void DebuggerController::DebuggerMainThread()
+{
+	while (true)
+	{
+		DebuggerEvent event;
+		std::unique_lock lock(m_eventsMutex);
+		cv.wait(lock, [&] { return !eventQueue.empty() || stopFlag; });
 
-		for (const DebuggerEventCallback& cb : eventCallbacks)
-		{
-			if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
-				continue;
+		if (stopFlag && eventQueue.empty())
+			break;
 
-			cb.function(eventToSend);
-		}
+		event = eventQueue.front();
+		eventQueue.pop();
+		lock.unlock();
 
-		// If the current event is an AdapterStoppedEvent, and it is not consumed by any callback, then the adapter
-		// stop is not caused by the debugger core. Notify a target stop reason in this case.
-		if (event.type == AdapterStoppedEventType && !m_lastAdapterStopEventConsumed)
-		{
-			DebuggerEvent stopEvent = event;
-			stopEvent.type = TargetStoppedEventType;
-			if (!m_initialBreakpointSeen)
+		std::unique_lock callbackLock(m_callbackMutex);
+		std::list<DebuggerEventCallback> eventCallbacks = m_eventCallbacks;
+		callbackLock.unlock();
+
+		if (event.type == AdapterStoppedEventType)
+			m_lastAdapterStopEventConsumed = false;
+
+		ExecuteOnMainThreadAndWait([&]() {
+			DebuggerEvent eventToSend = event;
+			if ((eventToSend.type == TargetStoppedEventType) && !m_initialBreakpointSeen)
 			{
 				m_initialBreakpointSeen = true;
-				stopEvent.data.targetStoppedData.reason = InitialBreakpoint;
+				eventToSend.data.targetStoppedData.reason = InitialBreakpoint;
 			}
+
 			for (const DebuggerEventCallback& cb : eventCallbacks)
 			{
+				std::unique_lock callbackLock2(m_callbackMutex);
 				if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
 					continue;
 
-				cb.function(stopEvent);
+				callbackLock2.unlock();
+				cb.function(eventToSend);
 			}
-		}
-	});
 
-	CleanUpDisabledEvent();
+			// If the current event is an AdapterStoppedEvent, and it is not consumed by any callback, then the adapter
+			// stop is not caused by the debugger core. This can happen when the user run a "ni" command directly.
+			// Notify a target stop reason in this case.
+			if (event.type == AdapterStoppedEventType && !m_lastAdapterStopEventConsumed)
+			{
+				DebuggerEvent stopEvent = event;
+				stopEvent.type = TargetStoppedEventType;
+				if (!m_initialBreakpointSeen)
+				{
+					m_initialBreakpointSeen = true;
+					stopEvent.data.targetStoppedData.reason = InitialBreakpoint;
+				}
+				for (const DebuggerEventCallback& cb : eventCallbacks)
+				{
+					std::unique_lock callbackLock2(m_callbackMutex);
+					if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
+						continue;
+
+					callbackLock2.unlock();
+					cb.function(stopEvent);
+				}
+			}
+		});
+
+		CleanUpDisabledEvent();
+	}
 }
 
 
 void DebuggerController::CleanUpDisabledEvent()
 {
-	std::unique_lock<std::recursive_mutex> lock(m_callbackMutex);
-	for (const auto index : m_disabledCallbacks)
-	{
-		RemoveEventCallbackInternal(index);
-	}
+	std::unique_lock lock(m_callbackMutex);
+	// We only need to clear the vector of index here because the entries in m_eventCallbacks have already been
+	// deleted by RemoveEventCallback
 	m_disabledCallbacks.clear();
 }
 

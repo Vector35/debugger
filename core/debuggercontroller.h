@@ -76,7 +76,7 @@ namespace BinaryNinjaDebugger {
 
 		std::atomic<size_t> m_callbackIndex = 0;
 		std::list<DebuggerEventCallback> m_eventCallbacks;
-		std::recursive_mutex m_callbackMutex;
+		std::mutex m_callbackMutex;
 		std::set<size_t> m_disabledCallbacks;
 
 		// m_adapterMutex is a low-level mutex that protects the adapter access. It cannot be locked recursively.
@@ -169,6 +169,12 @@ namespace BinaryNinjaDebugger {
 		// bool m_adapterSupportsModules = false;
 		// bool m_adapterSupportsThreads = false;
 		bool m_adapterSupportsTTD = false;
+
+		std::mutex m_eventsMutex;
+		std::condition_variable cv;
+		std::queue<DebuggerEvent> eventQueue;
+		std::atomic<bool> stopFlag;
+		void DebuggerMainThread();
 
 	public:
 		DebuggerController(BinaryViewRef data);
