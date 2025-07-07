@@ -262,7 +262,6 @@ extern "C"
 		ThreadStateChangedEvent,
 
 		ForceMemoryCacheUpdateEvent,
-		ModuleLoadedEvent,
 	} BNDebuggerEventType;
 
 
@@ -331,6 +330,10 @@ extern "C"
     	DebugAdapterStepReturnReverse,
     } BNDebuggerAdapterOperation;
 
+	typedef struct BNDebuggerUICallbacks
+	{
+		void (*rebaseBinaryView)(void* ctxt, uint64_t newBase);
+	}BNDebuggerUICallbacks;
 
 	DEBUGGER_FFI_API char* BNDebuggerAllocString(const char* string);
 	DEBUGGER_FFI_API char** BNDebuggerAllocStringList(const char** stringList, size_t count);
@@ -519,6 +522,9 @@ extern "C"
 	DEBUGGER_FFI_API size_t BNDebuggerRegisterEventCallback(BNDebuggerController* controller,
 		void (*callback)(void* ctx, BNDebuggerEvent* event), const char* name, void* ctx);
 	DEBUGGER_FFI_API void BNDebuggerRemoveEventCallback(BNDebuggerController* controller, size_t index);
+
+	DEBUGGER_FFI_API void BNDebuggerSetDebuggerUICallbacks(BNDebuggerController* controller,
+		BNDebuggerUICallbacks* cb, void* ctx);
 
 	DEBUGGER_FFI_API BNMetadata* BNDebuggerGetAdapterProperty(BNDebuggerController* controller, const char* name);
 	DEBUGGER_FFI_API bool BNDebuggerSetAdapterProperty(

@@ -813,6 +813,12 @@ void DebuggerController::RemoveEventCallback(size_t index)
 }
 
 
+void DebuggerController::SetDebuggerUICallbacks(DebuggerUICallbacks* cb)
+{
+	BNDebuggerSetDebuggerUICallbacks(m_object, cb->GetCallbacks(), cb);
+}
+
+
 void DebuggerController::WriteStdin(const std::string& msg)
 {
 	BNDebuggerWriteStdin(m_object, msg.c_str(), msg.length());

@@ -962,6 +962,12 @@ uint32_t BNDebuggerGetExitCode(BNDebuggerController* controller)
 }
 
 
+void BNDebuggerSetDebuggerUICallbacks(BNDebuggerController* controller, BNDebuggerUICallbacks* cb, void* ctxt)
+{
+	controller->object->SetDebuggerUICallbacks(cb, ctxt);
+}
+
+
 void BNDebuggerWriteStdin(BNDebuggerController* controller, const char* data, size_t len)
 {
 	controller->object->WriteStdIn(std::string(data, len));

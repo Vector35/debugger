@@ -956,12 +956,33 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller) :
 		event.data.relativeAddress.offset = bp.offset;
 		updateUI(event);
 	}
+
+	m_uiCallbacks = new DebuggerUICallbacks;
+	m_uiCallbacks->rebaseBinaryViewImpl = [&](uint64_t address)
+	{
+		checkRebaseBinaryView(address);
+	};
+	m_controller->SetDebuggerUICallbacks(m_uiCallbacks);
 }
 
 
 DebuggerUI::~DebuggerUI()
 {
 	m_controller->RemoveEventCallback(m_eventCallback);
+}
+
+
+static void DebuggerUIRebaseCallback(void* ctxt, uint64_t address)
+{
+	DebuggerUICallbacks* object = (DebuggerUICallbacks* )ctxt;
+	if (object)
+		object->rebaseBinaryViewImpl(address);
+}
+
+
+DebuggerUICallbacks::DebuggerUICallbacks()
+{
+	m_callbacks.rebaseBinaryView = DebuggerUIRebaseCallback;
 }
 
 
@@ -1136,6 +1157,67 @@ void DebuggerUI::navigateToMappedAddress()
 }
 
 
+void DebuggerUI::checkRebaseBinaryView(uint64_t remoteBase)
+{
+	Ref<BinaryView> data = m_controller->GetData();
+	FileMetadataRef fileMetadata = data->GetFile();
+	ViewFrame* frame = m_context->getCurrentViewFrame();
+
+	ExecuteOnMainThreadAndWait([&]()
+	{
+		m_controller->RemoveDebuggerMemoryRegion();
+		bool result = false;
+		QString text = QString("Rebasing the input view...");
+		ProgressTask* task =
+			new ProgressTask(frame, "Rebase", text, "Cancel", [&](ProgressFunction progress) {
+				// If analysis hold during debugging is active, we must first turn it off, rebase, wait for the
+				// analysis to complete, and then set the analysis hold back on. This is because during rebasing,
+				// all the advanced analysis data is discarded has to be regenerated. If we still holds the
+				// analysis, these function will become un-analyzed and not show up in the linear view
+				auto shouldHoldAnalysis = Settings::Instance()->Get<bool>("debugger.holdAnalysis");
+				if (shouldHoldAnalysis)
+					data->SetAnalysisHold(false);
+
+				auto viewType = data->GetTypeName();
+				result = fileMetadata->Rebase(data, remoteBase, progress);
+				auto rebasedView = fileMetadata->GetViewOfType(viewType);
+				if (!rebasedView)
+					return;
+
+				if (shouldHoldAnalysis)
+				{
+					static auto completionEvent = rebasedView->AddAnalysisCompletionEvent([=](){
+						rebasedView->SetAnalysisHold(true);
+					});
+					rebasedView->UpdateAnalysis();
+				}
+			});
+		task->wait();
+
+		if (!result)
+		{
+			LogWarn("failed to rebase the input view");
+			return;
+		}
+
+		m_controller->ReAddDebuggerMemoryRegion();
+
+		ViewFrame* frame = m_context->getCurrentViewFrame();
+		if (!frame)
+			return;
+
+		FileContext* fileContext = frame->getFileContext();
+		if (!fileContext)
+			return;
+
+		fileContext->refreshDataViewCache();
+		m_context->recreateViewFrames(fileContext);
+		navigateToCurrentIP();
+		QCoreApplication::processEvents();
+	});
+}
+
+
 void DebuggerUI::updateUI(const DebuggerEvent& event)
 {
 	if ((event.type == LaunchEventType) || (event.type == AttachEventType) || (event.type == ConnectEventType))
@@ -1183,69 +1265,6 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 
 		navigateToCurrentIP();
 		checkFocusDebuggerConsole();
-		break;
-	}
-
-	case ModuleLoadedEvent:
-	{
-		uint64_t remoteBase = event.data.absoluteAddress;
-		Ref<BinaryView> data = m_controller->GetData();
-		FileMetadataRef fileMetadata = data->GetFile();
-		ViewFrame* frame = m_context->getCurrentViewFrame();
-
-		if (remoteBase != m_controller->GetViewFileSegmentsStart())
-		{
-			m_controller->RemoveDebuggerMemoryRegion();
-			bool result = false;
-			QString text = QString("Rebasing the input view...");
-			ProgressTask* task =
-				new ProgressTask(frame, "Rebase", text, "Cancel", [&](ProgressFunction progress) {
-					// If analysis hold during debugging is active, we must first turn it off, rebase, wait for the
-					// analysis to complete, and then set the analysis hold back on. This is because during rebasing,
-					// all the advanced analysis data is discarded has to be regenerated. If we still holds the
-					// analysis, these function will become un-analyzed and not show up in the linear view
-					auto shouldHoldAnalysis = Settings::Instance()->Get<bool>("debugger.holdAnalysis");
-					if (shouldHoldAnalysis)
-						data->SetAnalysisHold(false);
-
-					auto viewType = data->GetTypeName();
-					result = fileMetadata->Rebase(data, remoteBase, progress);
-					auto rebasedView = fileMetadata->GetViewOfType(viewType);
-					if (!rebasedView)
-						return;
-
-					if (shouldHoldAnalysis)
-					{
-						static auto completionEvent = rebasedView->AddAnalysisCompletionEvent([=](){
-							rebasedView->SetAnalysisHold(true);
-						});
-						rebasedView->UpdateAnalysis();
-					}
-				});
-			task->wait();
-
-			if (!result)
-			{
-				LogWarn("failed to rebase the input view");
-				break;
-			}
-
-			m_controller->ReAddDebuggerMemoryRegion();
-
-			ViewFrame* frame = m_context->getCurrentViewFrame();
-			if (!frame)
-				break;
-
-			FileContext* fileContext = frame->getFileContext();
-			if (!fileContext)
-				break;
-
-			fileContext->refreshDataViewCache();
-			m_context->recreateViewFrames(fileContext);
-			navigateToCurrentIP();
-			QCoreApplication::processEvents();
-		}
-
 		break;
 	}
 

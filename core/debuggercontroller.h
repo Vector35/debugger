@@ -55,6 +55,14 @@ namespace BinaryNinjaDebugger {
 		bool operator!=(const StackVariableNameAndType& other) { return !(*this == other); }
 	};
 
+	struct DebuggerUICallbacks
+	{
+		BNDebuggerUICallbacks* m_callbacks;
+		void* m_context;
+
+		void NotifyRebaseBinaryView(uint64_t base);
+	};
+
 	// This is the controller class of the debugger. It receives the input from the UI/API, and then route them to
 	// the state and UI, etc. Most actions should reach here.
 	class DebuggerController : public DbgRefCountObject, BinaryNinja::BinaryDataNotification
@@ -182,6 +190,8 @@ namespace BinaryNinjaDebugger {
 		std::queue<std::shared_ptr<PendingEvent>> m_eventQueue;
 		std::thread::id m_dispatcherThreadId;
 		void DebuggerMainThread();
+
+		DebuggerUICallbacks* g_uiCallbacks;
 
 	public:
 		DebuggerController(BinaryViewRef data);
@@ -366,5 +376,7 @@ namespace BinaryNinjaDebugger {
 
 		Ref<Settings> GetAdapterSettings();
 		bool CreateDebugAdapter();
+
+		void SetDebuggerUICallbacks(BNDebuggerUICallbacks* cb, void* ctxt);
 	};
 };  // namespace BinaryNinjaDebugger

@@ -72,6 +72,9 @@ private:
 
 	size_t m_eventCallback;
 
+	DebuggerUICallbacks* m_uiCallbacks;
+	void checkRebaseBinaryView(uint64_t address);
+
 public:
 	DebuggerUI(UIContext* context, DebuggerControllerRef controller);
 	~DebuggerUI();

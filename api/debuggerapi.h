@@ -441,6 +441,17 @@ namespace BinaryNinjaDebuggerAPI {
 	};
 
 
+	struct DebuggerUICallbacks
+	{
+		std::function<void(uint64_t base)> rebaseBinaryViewImpl;
+
+		BNDebuggerUICallbacks m_callbacks;
+		BNDebuggerUICallbacks* GetCallbacks() { return &m_callbacks; }
+
+		DebuggerUICallbacks();
+	};
+
+
 	typedef BNDebugAdapterConnectionStatus DebugAdapterConnectionStatus;
 	typedef BNDebugAdapterTargetStatus DebugAdapterTargetStatus;
 
@@ -576,6 +587,8 @@ namespace BinaryNinjaDebuggerAPI {
 		static void DebuggerEventCallback(void* ctxt, BNDebuggerEvent* view);
 
 		void RemoveEventCallback(size_t index);
+
+		void SetDebuggerUICallbacks(DebuggerUICallbacks* cb);
 
 		void WriteStdin(const std::string& msg);
 
