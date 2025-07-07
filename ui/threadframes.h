@@ -177,9 +177,13 @@ class ThreadFramesWidget : public QTreeView
 	bool selectionNotEmpty();
 	bool canSuspendOrResume();
 	void expandCurrentThread();
+	void updateContent();
+
+signals:
+	void debuggerEvent(const DebuggerEvent& event);
 
 public slots:
-	void updateContent();
+	void onDebuggerEvent(const DebuggerEvent& event);
 
 public:
 	ThreadFramesWidget(QWidget* parent, ViewFrame* view, BinaryViewRef debugger);

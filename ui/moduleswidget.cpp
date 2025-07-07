@@ -333,20 +333,11 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : QT
 	});
 
 	connect(this, &QTableView::doubleClicked, this, &DebugModulesWidget::onDoubleClicked);
+	connect(this, &DebugModulesWidget::debuggerEvent, this, &DebugModulesWidget::onDebuggerEvent);
 
 	m_debuggerEventCallback = m_controller->RegisterEventCallback(
 		[&](const DebuggerEvent& event) {
-			switch (event.type)
-			{
-			case TargetStoppedEventType:
-			case TargetExitedEventType:
-				// These updates ensure the widgets become empty after the target stops
-			case DetachedEventType:
-				updateContent();
-				break;
-			default:
-				break;
-			}
+			emit debuggerEvent(event);
 		},
 		"Modules Widget");
 
@@ -375,6 +366,22 @@ void DebugModulesWidget::notifyModulesChanged(std::vector<DebugModule> modules)
 {
 	m_model->updateRows(modules);
 	updateColumnWidths();
+}
+
+
+void DebugModulesWidget::onDebuggerEvent(const DebuggerEvent& event)
+{
+	switch (event.type)
+	{
+		case TargetStoppedEventType:
+		case TargetExitedEventType:
+			// These updates ensure the widgets become empty after the target stops
+		case DetachedEventType:
+			updateContent();
+			break;
+		default:
+			break;
+	}
 }
 
 

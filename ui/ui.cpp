@@ -941,12 +941,6 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller) :
 
 	m_eventCallback = m_controller->RegisterEventCallback(
 		[this](const DebuggerEvent& event) {
-			if ((event.type == LaunchEventType) || (event.type == AttachEventType) || (event.type == ConnectEventType))
-			{
-				auto* globalUI = GlobalDebuggerUI::GetForContext(m_context);
-				if (globalUI)
-					globalUI->SetDisplayingGlobalAreaWidgets(true);
-			}
 			emit debuggerEvent(event);
 		},
 		"UI");
@@ -1144,6 +1138,13 @@ void DebuggerUI::navigateToMappedAddress()
 
 void DebuggerUI::updateUI(const DebuggerEvent& event)
 {
+	if ((event.type == LaunchEventType) || (event.type == AttachEventType) || (event.type == ConnectEventType))
+	{
+		auto* globalUI = GlobalDebuggerUI::GetForContext(m_context);
+		if (globalUI)
+			globalUI->SetDisplayingGlobalAreaWidgets(true);
+	}
+
 	switch (event.type)
 	{
 	case DetachedEventType:

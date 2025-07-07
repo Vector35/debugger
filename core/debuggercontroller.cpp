@@ -1774,14 +1774,35 @@ void DebuggerController::DebuggerMainThread()
 		if (event.type == AdapterStoppedEventType)
 			m_lastAdapterStopEventConsumed = false;
 
-		ExecuteOnMainThreadAndWait([&]() {
-			DebuggerEvent eventToSend = event;
-			if ((eventToSend.type == TargetStoppedEventType) && !m_initialBreakpointSeen)
+		DebuggerEvent eventToSend = event;
+		if ((eventToSend.type == TargetStoppedEventType) && !m_initialBreakpointSeen)
+		{
+			m_initialBreakpointSeen = true;
+			eventToSend.data.targetStoppedData.reason = InitialBreakpoint;
+		}
+
+		for (const DebuggerEventCallback& cb : eventCallbacks)
+		{
+			std::unique_lock callbackLock2(m_callbackMutex);
+			if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
+				continue;
+
+			callbackLock2.unlock();
+			cb.function(eventToSend);
+		}
+
+		// If the current event is an AdapterStoppedEvent, and it is not consumed by any callback, then the adapter
+		// stop is not caused by the debugger core. This can happen when the user run a "ni" command directly.
+		// Notify a target stop reason in this case.
+		if (event.type == AdapterStoppedEventType && !m_lastAdapterStopEventConsumed)
+		{
+			DebuggerEvent stopEvent = event;
+			stopEvent.type = TargetStoppedEventType;
+			if (!m_initialBreakpointSeen)
 			{
 				m_initialBreakpointSeen = true;
-				eventToSend.data.targetStoppedData.reason = InitialBreakpoint;
+				stopEvent.data.targetStoppedData.reason = InitialBreakpoint;
 			}
-
 			for (const DebuggerEventCallback& cb : eventCallbacks)
 			{
 				std::unique_lock callbackLock2(m_callbackMutex);
@@ -1789,32 +1810,9 @@ void DebuggerController::DebuggerMainThread()
 					continue;
 
 				callbackLock2.unlock();
-				cb.function(eventToSend);
+				cb.function(stopEvent);
 			}
-
-			// If the current event is an AdapterStoppedEvent, and it is not consumed by any callback, then the adapter
-			// stop is not caused by the debugger core. This can happen when the user run a "ni" command directly.
-			// Notify a target stop reason in this case.
-			if (event.type == AdapterStoppedEventType && !m_lastAdapterStopEventConsumed)
-			{
-				DebuggerEvent stopEvent = event;
-				stopEvent.type = TargetStoppedEventType;
-				if (!m_initialBreakpointSeen)
-				{
-					m_initialBreakpointSeen = true;
-					stopEvent.data.targetStoppedData.reason = InitialBreakpoint;
-				}
-				for (const DebuggerEventCallback& cb : eventCallbacks)
-				{
-					std::unique_lock callbackLock2(m_callbackMutex);
-					if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
-						continue;
-
-					callbackLock2.unlock();
-					cb.function(stopEvent);
-				}
-			}
-		});
+		}
 
 		CleanUpDisabledEvent();
 	}

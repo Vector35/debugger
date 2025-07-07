@@ -611,21 +611,11 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	// TODO: set as active thread action?
 
 	connect(this, &QTreeView::doubleClicked, this, &ThreadFramesWidget::onDoubleClicked);
+	connect(this, &ThreadFramesWidget::debuggerEvent, this, &ThreadFramesWidget::onDebuggerEvent);
 
 	m_debuggerEventCallback = m_debugger->RegisterEventCallback(
 		[&](const DebuggerEvent& event) {
-			switch (event.type)
-			{
-			case TargetStoppedEventType:
-			case ActiveThreadChangedEvent:
-			case RegisterChangedEvent:
-			case ThreadStateChangedEvent:
-			{
-				updateContent();
-			}
-			default:
-				break;
-			}
+			emit debuggerEvent(event);
 		},
 		"Thread Frame");
 
@@ -657,6 +647,25 @@ void ThreadFramesWidget::expandCurrentThread()
 			expand(index);
 			return;
 		}
+	}
+}
+
+
+void ThreadFramesWidget::onDebuggerEvent(const DebuggerEvent& event)
+{
+	switch (event.type)
+	{
+	case TargetStoppedEventType:
+	case TargetExitedEventType:
+	case DetachedEventType:
+	case ActiveThreadChangedEvent:
+	case RegisterChangedEvent:
+	case ThreadStateChangedEvent:
+	{
+		updateContent();
+	}
+	default:
+		break;
 	}
 }
 

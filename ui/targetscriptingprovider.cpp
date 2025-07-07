@@ -68,6 +68,7 @@ void TargetScriptingInstance::SetCurrentBinaryView(BinaryNinja::BinaryView* view
 			m_controller = DebuggerController::GetController(view);
 			if (m_controller)
 			{
+				// A scripting instance is NOT a Qt widget, so it is fine to not do things on the main thread
 				m_debuggerEventCallback = m_controller->RegisterEventCallback(
 					[&](const DebuggerEvent& event) {
 						if (event.type == StdoutMessageEventType)

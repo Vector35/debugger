@@ -159,6 +159,8 @@ class DebugModulesWidget : public QTableView, public FilterTarget
 	virtual void selectFirstItem() override;
 	virtual void activateFirstItem() override;
 
+	void updateContent();
+
 public:
 	DebugModulesWidget(ViewFrame* view, BinaryViewRef data);
 	~DebugModulesWidget();
@@ -167,6 +169,9 @@ public:
 	void notifyModulesChanged(std::vector<DebugModule> modules);
 	void updateFonts();
 
+signals:
+	void debuggerEvent(const DebuggerEvent& event);
+
 private slots:
 	void jumpToStart();
 	void jumpToEnd();
@@ -174,7 +179,7 @@ private slots:
 	void onDoubleClicked();
 
 public slots:
-	void updateContent();
+	void onDebuggerEvent(const DebuggerEvent& event);
 	void showContextMenu();
 };
 
