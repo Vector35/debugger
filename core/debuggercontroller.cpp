@@ -1742,35 +1742,62 @@ bool DebuggerController::RemoveEventCallbackInternal(size_t index)
 }
 
 
+// The design goal here is:
+// 1. The PostDebuggerEvent is blocking, i.e., it only returns when the event has been processed. This is important for
+// ensuring proper internal state updates. The only exception is that when a new debugger event is posted from one of
+// the callbacks (the caller is already in the dispatcher loop), then PostDebuggerEvent will only queue the event but
+// not block on it. Because doing so will cause a deadlock.
+// 2. Thread-safe. Any thread can call PostDebuggerEvent and not cause unexpected behavior
+// 3. Re-entrant safe. PostDebuggerEvent can be called within a callback, and there would not be chaos. But at the same
+// time, as mentioned above, when it is re-entered from the dispatcher loop, the call is non-blocking. This means that
+// in DebuggerController::DetectLoadedModule(), the code cannot post a ModuleLoadedEvent and block on it. Instead, a
+// direct callback must be used to inform the UI to perform the rebase, and then the core can continue its processing
+
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 {
+	auto pending = std::make_shared<PendingEvent>();
+	pending->event = event;
+	std::future<void> future = pending->done.get_future();
+
 	{
 		std::lock_guard lock(m_eventsMutex);
-		eventQueue.push(event);
+		m_eventQueue.push(pending);
 	}
-	cv.notify_one();
+	m_cv.notify_one();
+
+	if (std::this_thread::get_id() == m_dispatcherThreadId)
+	{
+		// Posting a new debugger event from a callback should be *fine*, but it will also be non-blocking, so we should
+		// be aware of that
+		LogWarn("A debugger event with type %d is posted from the dispatcher thread and is unexpected", event.type);
+	}
+	else
+	{
+		// Block until the event is handled (unless this is the dispatcher thread)
+		future.get();
+	}
 }
 
 
 void DebuggerController::DebuggerMainThread()
 {
+	m_dispatcherThreadId = std::this_thread::get_id();
+
 	while (true)
 	{
-		DebuggerEvent event;
+		std::shared_ptr<PendingEvent> current;
 		std::unique_lock lock(m_eventsMutex);
-		cv.wait(lock, [&] { return !eventQueue.empty() || stopFlag; });
+		m_cv.wait(lock, [&] { return !m_eventQueue.empty(); });
 
-		if (stopFlag && eventQueue.empty())
-			break;
-
-		event = eventQueue.front();
-		eventQueue.pop();
+		current = m_eventQueue.front();
+		m_eventQueue.pop();
 		lock.unlock();
 
 		std::unique_lock callbackLock(m_callbackMutex);
 		std::list<DebuggerEventCallback> eventCallbacks = m_eventCallbacks;
 		callbackLock.unlock();
 
+		auto event = current->event;
 		if (event.type == AdapterStoppedEventType)
 			m_lastAdapterStopEventConsumed = false;
 
@@ -1815,6 +1842,7 @@ void DebuggerController::DebuggerMainThread()
 		}
 
 		CleanUpDisabledEvent();
+		current->done.set_value();
 	}
 }
 

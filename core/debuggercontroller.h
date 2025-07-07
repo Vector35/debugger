@@ -20,6 +20,8 @@ limitations under the License.
 #include "debuggerevent.h"
 #include <queue>
 #include <list>
+#include <future>
+#include <functional>
 #include "ffi_global.h"
 #include "refcountobject.h"
 #include "debuggerfileaccessor.h"
@@ -58,6 +60,11 @@ namespace BinaryNinjaDebugger {
 	class DebuggerController : public DbgRefCountObject, BinaryNinja::BinaryDataNotification
 	{
 		IMPLEMENT_DEBUGGER_API_OBJECT(BNDebuggerController);
+
+		struct PendingEvent {
+			DebuggerEvent event;
+			std::promise<void> done;
+		};
 
 	private:
 		DebugAdapter* m_adapter;
@@ -171,9 +178,9 @@ namespace BinaryNinjaDebugger {
 		bool m_adapterSupportsTTD = false;
 
 		std::mutex m_eventsMutex;
-		std::condition_variable cv;
-		std::queue<DebuggerEvent> eventQueue;
-		std::atomic<bool> stopFlag;
+		std::condition_variable m_cv;
+		std::queue<std::shared_ptr<PendingEvent>> m_eventQueue;
+		std::thread::id m_dispatcherThreadId;
 		void DebuggerMainThread();
 
 	public:
