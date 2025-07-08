@@ -1163,6 +1163,12 @@ void DebuggerUI::checkRebaseBinaryView(uint64_t remoteBase)
 	FileMetadataRef fileMetadata = data->GetFile();
 	ViewFrame* frame = m_context->getCurrentViewFrame();
 
+	// Halt analysis when replacing a BinaryView in the UI. If the view is replaced and the tab or
+	// application closes, then the old view may continue analysis without the updated UI having a
+	// reference to properly terminate it before UI destruction.
+	data->AbortAnalysis();
+	data->UpdateAnalysisAndWait();
+
 	ExecuteOnMainThreadAndWait([&]()
 	{
 		m_controller->RemoveDebuggerMemoryRegion();
@@ -1180,6 +1186,9 @@ void DebuggerUI::checkRebaseBinaryView(uint64_t remoteBase)
 
 				auto viewType = data->GetTypeName();
 				result = fileMetadata->Rebase(data, remoteBase, progress);
+				if (!result)
+					return;
+
 				auto rebasedView = fileMetadata->GetViewOfType(viewType);
 				if (!rebasedView)
 					return;

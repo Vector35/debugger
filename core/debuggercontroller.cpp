@@ -1148,10 +1148,14 @@ void DebuggerController::DetectLoadedModule()
 	}
 	else
 	{
+		// Halt analysis before rebasing. Otherwise, the old view may continue analysis which leads to various issues
+		auto data = GetData();
+		data->AbortAnalysis();
+		data->UpdateAnalysisAndWait();
+
 		RemoveDebuggerMemoryRegion();
 
 		auto shouldHoldAnalysis = Settings::Instance()->Get<bool>("debugger.holdAnalysis");
-		auto data = GetData();
 		if (shouldHoldAnalysis)
 			data->SetAnalysisHold(false);
 
