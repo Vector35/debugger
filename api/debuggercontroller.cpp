@@ -1014,3 +1014,9 @@ Ref<Settings> DebuggerController::GetAdapterSettings()
 
 	return new Settings(settings);
 }
+
+
+bool DebuggerController::FunctionExistsInOldView(uint64_t address)
+{
+	return BNDebuggerFunctionExistsInOldView(m_object, address);
+}

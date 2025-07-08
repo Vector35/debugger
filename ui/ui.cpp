@@ -1107,7 +1107,7 @@ void DebuggerUI::navigateToCurrentIP()
 		return;
 
 	auto functions = liveView->GetAnalysisFunctionsContainingAddress(address);
-	if (functions.empty())
+	if (functions.empty() && !m_controller->FunctionExistsInOldView(address))
 	{
 		auto data = m_controller->GetData();
 		auto id = data->BeginUndoActions();

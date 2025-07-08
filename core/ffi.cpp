@@ -1169,3 +1169,9 @@ BNSettings* BNDebuggerGetAdapterSettings(BNDebuggerController* controller)
 		return nullptr;
 	return BNNewSettingsReference(settings->GetObject());
 }
+
+
+bool BNDebuggerFunctionExistsInOldView(BNDebuggerController* controller, uint64_t address)
+{
+	return controller->object->FunctionExistsInOldView(address);
+}

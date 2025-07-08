@@ -1138,8 +1138,19 @@ void DebuggerController::DetectLoadedModule()
 		return;
 
 	m_inputFileLoaded = true;
-	if (remoteBase == GetViewFileSegmentsStart())
+	auto oldBase = GetViewFileSegmentsStart();
+	if (remoteBase == oldBase)
 		return;
+
+	m_ranges.clear();
+	m_oldViewBase = oldBase;
+	m_newViewBase = remoteBase;
+	auto data = GetData();
+	for (const auto& func: data->GetAnalysisFunctionList())
+	{
+		for (const auto& range: func->GetAddressRanges())
+			m_ranges.emplace_back(range);
+	}
 
 	if (BinaryNinja::IsUIEnabled())
 	{
@@ -1151,7 +1162,6 @@ void DebuggerController::DetectLoadedModule()
 	else
 	{
 		// Halt analysis before rebasing. Otherwise, the old view may continue analysis which leads to various issues
-		auto data = GetData();
 		data->AbortAnalysis();
 		data->UpdateAnalysisAndWait();
 
@@ -1666,6 +1676,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		m_state->UpdateCaches();
 		m_lastIP = m_currentIP;
 		m_currentIP = m_state->IP();
+		m_ranges.clear();
 
 		DetectLoadedModule();
 		UpdateStackVariables();
@@ -3867,4 +3878,19 @@ void DebuggerUICallbacks::NotifyRebaseBinaryView(uint64_t remoteBase)
 {
 	if (m_callbacks && m_callbacks->rebaseBinaryView)
 		m_callbacks->rebaseBinaryView(m_context, remoteBase);
+}
+
+
+bool DebuggerController::FunctionExistsInOldView(uint64_t address)
+{
+	if (m_ranges.empty())
+		return false;
+
+	address -= (m_newViewBase - m_oldViewBase);
+	for (const auto& range: m_ranges)
+	{
+		if (address >= range.start && address < range.end)
+			return true;
+	}
+	return false;
 }

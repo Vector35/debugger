@@ -193,6 +193,9 @@ namespace BinaryNinjaDebugger {
 
 		DebuggerUICallbacks* g_uiCallbacks;
 
+		uint64_t m_oldViewBase, m_newViewBase;
+		std::vector<BNAddressRange> m_ranges;
+
 	public:
 		DebuggerController(BinaryViewRef data);
 		static DbgRef<DebuggerController> GetController(BinaryViewRef data);
@@ -371,5 +374,7 @@ namespace BinaryNinjaDebugger {
 		bool CreateDebugAdapter();
 
 		void SetDebuggerUICallbacks(BNDebuggerUICallbacks* cb, void* ctxt);
+
+		bool FunctionExistsInOldView(uint64_t address);
 	};
 };  // namespace BinaryNinjaDebugger

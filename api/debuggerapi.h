@@ -626,6 +626,8 @@ namespace BinaryNinjaDebuggerAPI {
 		bool GetVariableValue(Variable& var, uint64_t address, size_t size, intx::uint512& value);
 
 		Ref<Settings> GetAdapterSettings();
+
+		bool FunctionExistsInOldView(uint64_t address);
 	};
 
 
