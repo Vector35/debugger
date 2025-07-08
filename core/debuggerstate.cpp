@@ -679,7 +679,6 @@ void DebuggerBreakpoints::Apply()
 
 DebuggerMemory::DebuggerMemory(DebuggerState* state) : m_state(state)
 {
-	PrefillValueCache();
 }
 
 
@@ -710,6 +709,10 @@ void DebuggerMemory::PrefillValueCache()
 void DebuggerMemory::OnRebased()
 {
 	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
+	// If the debugger is not active, do nothing. The pre-filled cache is only generated when starting debugging
+	if (!m_state->IsConnected())
+		return;
+
 	PrefillValueCache();
 	for (auto it = m_valueCache.begin(); it != m_valueCache.end();)
 	{
@@ -728,6 +731,14 @@ void DebuggerMemory::OnRebased()
 void DebuggerMemory::MarkDirty()
 {
 	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
+	if (!m_state->IsConnected())
+	{
+		// After the target exits, discard all the memory cache
+		m_valueCache.clear();
+		m_valueCachePrefilled.clear();
+		return;
+	}
+
 	for (auto& it: m_valueCache)
 	{
 		switch (it.second.status)

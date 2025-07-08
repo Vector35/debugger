@@ -147,7 +147,6 @@ namespace BinaryNinjaDebugger {
 		std::map<uint64_t, std::pair<uint64_t, DataBuffer>> m_valueCachePrefilled;
 		std::recursive_mutex m_memoryMutex;
 
-		void PrefillValueCache();
 
 	public:
 		DebuggerMemory(DebuggerState* state);
@@ -156,6 +155,7 @@ namespace BinaryNinjaDebugger {
 		DataBuffer ReadBlock(uint64_t block);
 		DataBuffer ReadMemory(uint64_t offset, size_t len);
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
+		void PrefillValueCache();
 		void OnRebased();
 	};
 

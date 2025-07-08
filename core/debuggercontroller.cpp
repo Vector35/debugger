@@ -1115,6 +1115,8 @@ bool DebuggerController::CreateDebuggerBinaryView()
 		data->SetAnalysisHold(true);
 	}
 
+	m_state->GetMemory()->PrefillValueCache();
+
 	m_accessor = new DebuggerFileAccessor(data);
 	data->SetFunctionAnalysisUpdateDisabled(true);
 	data->GetMemoryMap()->AddRemoteMemoryRegion("debugger", 0, m_accessor);
@@ -1636,6 +1638,8 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	case DetachedEventType:
 	case LaunchFailureEventType:
 	{
+		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
+		m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
 		m_state->MarkDirty();
 		m_inputFileLoaded = false;
 		m_initialBreakpointSeen = false;
@@ -1652,16 +1656,14 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		}
 		m_lastIP = m_currentIP;
 		m_currentIP = 0;
-		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
-		m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
 		break;
 	}
 	case TargetStoppedEventType:
 	{
-		m_state->MarkDirty();
-		m_state->UpdateCaches();
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterPausedStatus);
+		m_state->MarkDirty();
+		m_state->UpdateCaches();
 		m_lastIP = m_currentIP;
 		m_currentIP = m_state->IP();
 
