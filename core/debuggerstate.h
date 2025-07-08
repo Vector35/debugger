@@ -125,11 +125,18 @@ namespace BinaryNinjaDebugger {
 		FailedToReadStatus
 	};
 
+	enum MemoryByteCacheSource
+	{
+		NoSource,
+		PausedTargetSource,
+		BackingBinaryViewSource
+	};
 
 	struct MemoryBytesCache
 	{
 		DataBuffer value;
 		MemoryByteCacheStatus status;
+		MemoryByteCacheSource source;
 	};
 
 
@@ -149,6 +156,7 @@ namespace BinaryNinjaDebugger {
 		DataBuffer ReadBlock(uint64_t block);
 		DataBuffer ReadMemory(uint64_t offset, size_t len);
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
+		void OnRebased();
 	};
 
 

@@ -685,6 +685,9 @@ DebuggerMemory::DebuggerMemory(DebuggerState* state) : m_state(state)
 
 void DebuggerMemory::PrefillValueCache()
 {
+	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
+	m_valueCachePrefilled.clear();
+
 	if (!m_state->GetController())
 		return;
 
@@ -700,6 +703,24 @@ void DebuggerMemory::PrefillValueCache()
 			continue;
 
 		m_valueCachePrefilled[range.start] = {range.end, data->ReadBuffer(range.start, range.end - range.start)};
+	}
+}
+
+
+void DebuggerMemory::OnRebased()
+{
+	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
+	PrefillValueCache();
+	for (auto it = m_valueCache.begin(); it != m_valueCache.end();)
+	{
+		if (it->second.source == BackingBinaryViewSource)
+		{
+			it = m_valueCache.erase(it);
+		}
+		else
+		{
+			++it;
+		}
 	}
 }
 
@@ -765,7 +786,7 @@ DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
 		if (buffer.GetLength() > 0)
 		{
 			// Successfully updated
-			m_valueCache[block] = {buffer, UpToDateStatus};
+			m_valueCache[block] = {buffer, UpToDateStatus, PausedTargetSource};
 			return buffer;
 		}
 	}
@@ -784,7 +805,7 @@ DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
 				// replaced as soon as the target stops
 				if (buffer.GetLength() > 0)
 				{
-					m_valueCache[block] = {buffer, OutOfDateStatus};
+					m_valueCache[block] = {buffer, OutOfDateStatus, BackingBinaryViewSource};
 					return buffer;
 				}
 			}
@@ -792,7 +813,7 @@ DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
 	}
 
 	// Update failed
-	m_valueCache[block] = {{}, FailedToReadStatus};
+	m_valueCache[block] = {{}, FailedToReadStatus, NoSource};
 	return {};
 }
 

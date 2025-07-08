@@ -345,14 +345,7 @@ namespace BinaryNinjaDebugger {
 		bool IsFirstAttach();
 		bool IsTTD();
 
-		void OnRebased(BinaryView* oldView, BinaryView* newView) override {
-			m_data = newView;
-			m_viewStart = newView->GetStart();
-			// UnregisterNotification() is not designed to be called from one of the callbacks, so we cannot call it
-			// here. Also, there is no need to do so -- the oldView is about to be deleted
-			// oldView->UnregisterNotification(this);
-			newView->RegisterNotification(this);
-		}
+		void OnRebased(BinaryView* oldView, BinaryView* newView);
 
 		bool RemoveDebuggerMemoryRegion();
 		bool ReAddDebuggerMemoryRegion();
