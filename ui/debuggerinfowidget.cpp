@@ -568,7 +568,7 @@ vector<DebuggerInfoEntry> DebuggerInfoTable::getILInfoEntries(const ViewLocation
 		auto llil = func->GetLowLevelILIfAvailable();
 		if (!llil)
 			break;
-		auto llils = func->GetLowLevelILInstructionsForAddress(func->GetArchitecture(), addr);
+		auto llils = llil->GetInstructionsAt(func->GetArchitecture(), addr);
 		for (const auto index: llils)
 		{
 			auto instr = llil->GetInstruction(index);
