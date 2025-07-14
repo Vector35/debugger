@@ -37,12 +37,17 @@ DebuggerController::DebuggerController(BinaryViewRef data): BinaryDataNotificati
 	m_shouldAnnotateStackVariable = Settings::Instance()->Get<bool>("debugger.stackVariableAnnotations");
 	RegisterEventCallback([this](const DebuggerEvent& event) { EventHandler(event); }, "Debugger Core");
 
-	std::thread([&]{ DebuggerMainThread(); }).detach();
+	m_debuggerEventThread = std::thread([&]{ DebuggerMainThread(); });
 }
 
 
 DebuggerController::~DebuggerController()
 {
+	m_shouldExit = true;
+	m_cv.notify_all();
+	if (m_debuggerEventThread.joinable())
+		m_debuggerEventThread.join();
+
 	m_data->UnregisterNotification(this);
 	m_file = nullptr;
 
@@ -1796,13 +1801,17 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 
 void DebuggerController::DebuggerMainThread()
 {
+	m_shouldExit = false;
 	m_dispatcherThreadId = std::this_thread::get_id();
 
 	while (true)
 	{
 		std::shared_ptr<PendingEvent> current;
 		std::unique_lock lock(m_eventsMutex);
-		m_cv.wait(lock, [&] { return !m_eventQueue.empty(); });
+		m_cv.wait(lock, [&] { return !m_eventQueue.empty() || m_shouldExit; });
+
+		if (m_shouldExit && m_eventQueue.empty())
+			break;
 
 		current = m_eventQueue.front();
 		m_eventQueue.pop();

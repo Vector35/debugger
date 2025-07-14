@@ -189,6 +189,8 @@ namespace BinaryNinjaDebugger {
 		std::condition_variable m_cv;
 		std::queue<std::shared_ptr<PendingEvent>> m_eventQueue;
 		std::thread::id m_dispatcherThreadId;
+		std::atomic_bool m_shouldExit;
+		std::thread m_debuggerEventThread;
 		void DebuggerMainThread();
 
 		DebuggerUICallbacks* g_uiCallbacks;
