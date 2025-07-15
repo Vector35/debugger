@@ -1157,7 +1157,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 	auto adapterSettings = GetAdapterSettings();
 	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
 
-	const auto total_modules = loaded_module_count + unloaded_module_count;
+	const auto total_modules = loaded_module_count;
 	auto module_parameters = std::make_unique<DEBUG_MODULE_PARAMETERS[]>(total_modules);
 	if (this->m_debugSymbols->GetModuleParameters(total_modules, nullptr, 0, module_parameters.get()) != S_OK)
 		return {};
