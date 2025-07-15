@@ -193,7 +193,7 @@ namespace BinaryNinjaDebugger {
 		std::thread m_debuggerEventThread;
 		void DebuggerMainThread();
 
-		DebuggerUICallbacks* g_uiCallbacks;
+		std::unique_ptr<DebuggerUICallbacks> m_uiCallbacks;
 
 		uint64_t m_oldViewBase, m_newViewBase;
 		std::vector<BNAddressRange> m_ranges;

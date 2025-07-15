@@ -1161,8 +1161,8 @@ void DebuggerController::DetectLoadedModule()
 	{
 		// When the UI is enabled, let the debugger UI do the work. It can show a progress bar if the operation takes
 		// a while.
-		if (g_uiCallbacks)
-			g_uiCallbacks->NotifyRebaseBinaryView(remoteBase);
+		if (m_uiCallbacks)
+			m_uiCallbacks->NotifyRebaseBinaryView(remoteBase);
 	}
 	else
 	{
@@ -3879,7 +3879,7 @@ Ref<Settings> DebuggerController::GetAdapterSettings()
 
 void DebuggerController::SetDebuggerUICallbacks(BNDebuggerUICallbacks* cb, void* ctxt)
 {
-	g_uiCallbacks = new DebuggerUICallbacks(cb, ctxt);
+	m_uiCallbacks = std::make_unique<DebuggerUICallbacks>(cb, ctxt);
 }
 
 

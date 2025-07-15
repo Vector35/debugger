@@ -72,7 +72,7 @@ private:
 
 	size_t m_eventCallback;
 
-	DebuggerUICallbacks* m_uiCallbacks;
+	DebuggerUICallbacks* m_uiCallbacks = nullptr;
 	void checkRebaseBinaryView(uint64_t address);
 
 public:

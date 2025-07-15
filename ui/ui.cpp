@@ -968,6 +968,11 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller) :
 
 DebuggerUI::~DebuggerUI()
 {
+	if (m_uiCallbacks)
+	{
+		delete m_uiCallbacks;
+		m_uiCallbacks = nullptr;
+	}
 	m_controller->RemoveEventCallback(m_eventCallback);
 }
 
