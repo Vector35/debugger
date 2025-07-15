@@ -55,6 +55,18 @@ DebuggerController::DebuggerController(BNDebuggerController* controller)
 }
 
 
+DebuggerController::~DebuggerController()
+{
+	// Free all callback objects
+	for (auto& [index, object] : m_callbackObjects)
+	{
+		delete object;
+	}
+
+	m_callbackObjects.clear();
+}
+
+
 bool DebuggerController::ControllerExists(Ref<BinaryNinja::BinaryView> data)
 {
 	return BNDebuggerControllerExists(data->GetObject());
@@ -776,7 +788,13 @@ size_t DebuggerController::RegisterEventCallback(
 {
 	DebuggerEventCallbackObject* object = new DebuggerEventCallbackObject;
 	object->action = callback;
-	return BNDebuggerRegisterEventCallback(GetObject(), DebuggerEventCallback, name.c_str(), object);
+
+	size_t index = BNDebuggerRegisterEventCallback(GetObject(), DebuggerEventCallback, name.c_str(), object);
+
+	// Store the callback object in the map
+	m_callbackObjects[index] = object;
+
+	return index;
 }
 
 
@@ -809,7 +827,16 @@ void DebuggerController::DebuggerEventCallback(void* ctxt, BNDebuggerEvent* even
 
 void DebuggerController::RemoveEventCallback(size_t index)
 {
+	// Remove the event callback using the BN API
 	BNDebuggerRemoveEventCallback(m_object, index);
+
+	// Free the callback object from the map
+	auto it = m_callbackObjects.find(index);
+	if (it != m_callbackObjects.end())
+	{
+		delete it->second; // Free the dynamically allocated memory
+		m_callbackObjects.erase(it); // Remove the entry from the map
+	}
 }
 
 

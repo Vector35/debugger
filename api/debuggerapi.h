@@ -463,8 +463,12 @@ namespace BinaryNinjaDebuggerAPI {
 			std::function<void(const DebuggerEvent&)> action;
 		};
 
+		// Map callback indices to their respective objects
+		std::unordered_map<size_t, DebuggerEventCallbackObject*> m_callbackObjects;
+
 	public:
 		DebuggerController(BNDebuggerController* controller);
+		~DebuggerController();
 		static DbgRef<DebuggerController> GetController(Ref<BinaryNinja::BinaryView> data);
 		static bool ControllerExists(Ref<BinaryNinja::BinaryView> data);
 		static DbgRef<DebuggerController> GetController(Ref<BinaryNinja::FileMetadata> file);
