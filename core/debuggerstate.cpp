@@ -38,6 +38,7 @@ DebuggerRegisters::DebuggerRegisters(DebuggerState* state) : m_state(state)
 
 void DebuggerRegisters::MarkDirty()
 {
+	std::unique_lock lock(m_registersMutex);
 	m_dirty = true;
 	m_registerCache.clear();
 }
@@ -52,6 +53,7 @@ void DebuggerRegisters::Update()
 	if (!m_state->IsConnected())
 		return;
 
+	std::unique_lock lock(m_registersMutex);
 	m_registerCache = adapter->ReadAllRegisters();
 	m_dirty = false;
 }
@@ -59,13 +61,10 @@ void DebuggerRegisters::Update()
 
 intx::uint512 DebuggerRegisters::GetRegisterValue(const std::string& name)
 {
-	// Unlike the Python implementation, we require the DebuggerState to explicitly check for dirty caches
-	// and update the values when necessary. This is mainly because the update can be expensive.
-	if (IsDirty())
-		Update();
+	auto cachedRegs = GetCachedRegisters();
 
-	auto iter = m_registerCache.find(name);
-	if (iter == m_registerCache.end())
+	auto iter = cachedRegs.find(name);
+	if (iter == cachedRegs.end())
 		return 0x0;
 
 	return iter->second.m_value;
@@ -78,8 +77,10 @@ bool DebuggerRegisters::SetRegisterValue(const std::string& name, intx::uint512 
 	if (!adapter)
 		return false;
 
-	auto iter = m_registerCache.find(name);
-	if (iter == m_registerCache.end())
+	auto cachedRegs = GetCachedRegisters();
+
+	auto iter = cachedRegs.find(name);
+	if (iter == cachedRegs.end())
 		return false;
 
 	bool ok = adapter->WriteRegister(name, value);
@@ -97,11 +98,10 @@ bool DebuggerRegisters::SetRegisterValue(const std::string& name, intx::uint512 
 
 std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters()
 {
-	if (IsDirty())
-		Update();
+	auto cachedRegs = GetCachedRegisters();
 
 	std::vector<DebugRegister> result {};
-	for (auto& [reg_name, reg] : m_registerCache)
+	for (auto& [reg_name, reg] : cachedRegs)
 		result.push_back(reg);
 
 	std::sort(result.begin(), result.end(), [](const DebugRegister& lhs, const DebugRegister& rhs) {
@@ -134,6 +134,17 @@ std::vector<DebugRegister> DebuggerRegisters::GetAllRegisters()
 }
 
 
+std::unordered_map<std::string, DebugRegister> DebuggerRegisters::GetCachedRegisters()
+{
+	std::unique_lock lock(m_registersMutex);
+
+	if (IsDirty())
+		Update();
+
+	return m_registerCache;
+}
+
+
 DebuggerThreads::DebuggerThreads(DebuggerState* state) : m_state(state)
 {
 	MarkDirty();
@@ -142,6 +153,8 @@ DebuggerThreads::DebuggerThreads(DebuggerState* state) : m_state(state)
 
 void DebuggerThreads::MarkDirty()
 {
+	std::unique_lock lock(m_threadsMutex);
+
 	m_dirty = true;
 	// clearing these here corrupts thread state updating in ::Update() below
 	// m_threads.clear();
@@ -218,6 +231,7 @@ void DebuggerThreads::Update()
 	if (!adapter)
 		return;
 
+	std::unique_lock lock(m_threadsMutex);
 	m_frames.clear();
 
 	std::vector<DebugThread> newThreads = adapter->GetThreadList();
@@ -277,19 +291,30 @@ bool DebuggerThreads::SetActiveThread(const DebugThread& thread)
 
 std::vector<DebugThread> DebuggerThreads::GetAllThreads()
 {
+	std::unique_lock lock(m_threadsMutex);
+
 	if (IsDirty())
 		Update();
 	return m_threads;
 }
 
 
-std::vector<DebugFrame> DebuggerThreads::GetFramesOfThread(uint32_t tid)
+std::map<uint32_t, std::vector<DebugFrame>> DebuggerThreads::GetAllFrames()
 {
+	std::unique_lock lock(m_threadsMutex);
+
 	if (IsDirty())
 		Update();
+	return m_frames;
+}
 
-	auto iter = m_frames.find(tid);
-	if (iter != m_frames.end())
+
+std::vector<DebugFrame> DebuggerThreads::GetFramesOfThread(uint32_t tid)
+{
+	auto frame = GetAllFrames();
+
+	auto iter = frame.find(tid);
+	if (iter != frame.end())
 		return iter->second;
 
 	return {};
@@ -305,11 +330,12 @@ bool DebuggerThreads::SuspendThread(std::uint32_t tid)
 	if (!adapter)
 		return false;
 
-	auto thread = std::find_if(m_threads.begin(), m_threads.end(), [&](DebugThread const& t) {
+	auto threads = GetAllThreads();
+	auto thread = std::find_if(threads.begin(), threads.end(), [&](DebugThread const& t) {
 		return t.m_tid == tid;
 	});
 
-	if (thread == m_threads.end())
+	if (thread == threads.end())
 		return false;
 
 
@@ -334,11 +360,12 @@ bool DebuggerThreads::ResumeThread(std::uint32_t tid)
 	if (!adapter)
 		return false;
 
-	auto thread = std::find_if(m_threads.begin(), m_threads.end(), [&](DebugThread const& t) {
+	auto threads = GetAllThreads();
+	auto thread = std::find_if(threads.begin(), threads.end(), [&](DebugThread const& t) {
 		return t.m_tid == tid;
 	});
 
-	if (thread == m_threads.end())
+	if (thread == threads.end())
 		return false;
 
 	if (!thread->m_isFrozen)
@@ -361,6 +388,7 @@ DebuggerModules::DebuggerModules(DebuggerState* state) : m_state(state)
 
 void DebuggerModules::MarkDirty()
 {
+	std::unique_lock lock(m_modulesMutex);
 	m_dirty = true;
 	m_modules.clear();
 }
@@ -375,6 +403,7 @@ void DebuggerModules::Update()
 	if (!m_state->IsConnected())
 		return;
 
+	std::unique_lock lock(m_modulesMutex);
 	m_modules = adapter->GetModuleList();
 	m_dirty = false;
 }
@@ -382,13 +411,10 @@ void DebuggerModules::Update()
 
 bool DebuggerModules::GetModuleBase(const std::string& name, uint64_t& address)
 {
-	if (IsDirty())
-		Update();
-
 	if (name.empty())
 		return false;
 
-	for (const DebugModule& module : m_modules)
+	for (const DebugModule& module : GetAllModules())
 	{
 		if (module.IsSameBaseModule(name))
 		{
@@ -402,10 +428,7 @@ bool DebuggerModules::GetModuleBase(const std::string& name, uint64_t& address)
 
 DebugModule DebuggerModules::GetModuleByName(const std::string& name)
 {
-	if (IsDirty())
-		Update();
-
-	for (const DebugModule& module : m_modules)
+	for (const DebugModule& module : GetAllModules())
 	{
 		if (module.IsSameBaseModule(name))
 			return module;
@@ -416,15 +439,12 @@ DebugModule DebuggerModules::GetModuleByName(const std::string& name)
 
 DebugModule DebuggerModules::GetModuleForAddress(uint64_t remoteAddress)
 {
-	if (IsDirty())
-		Update();
-
 	// lldb does not properly return the size of a module, so we have to find the nearest module base that is smaller
 	// than the remoteAddress
 	uint64_t closestAddress = 0;
 	DebugModule result {};
 
-	for (const DebugModule& module : m_modules)
+	for (const DebugModule& module : GetAllModules())
 	{
 		// This is slighlty different from the Python implementation, which finds the largest module start that is
 		// smaller than the remoteAddress.
@@ -443,9 +463,6 @@ DebugModule DebuggerModules::GetModuleForAddress(uint64_t remoteAddress)
 
 ModuleNameAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absoluteAddress)
 {
-	if (IsDirty())
-		Update();
-
 	DebugModule module = GetModuleForAddress(absoluteAddress);
 	uint64_t relativeAddress;
 
@@ -464,12 +481,9 @@ ModuleNameAndOffset DebuggerModules::AbsoluteAddressToRelative(uint64_t absolute
 
 uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress)
 {
-	if (IsDirty())
-		Update();
-
 	if (!relativeAddress.module.empty())
 	{
-		for (const DebugModule& module : m_modules)
+		for (const DebugModule& module : GetAllModules())
 		{
 			if (module.IsSameBaseModule(relativeAddress.module))
 			{
@@ -489,6 +503,8 @@ uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& r
 
 std::vector<DebugModule> DebuggerModules::GetAllModules()
 {
+	std::unique_lock lock(m_modulesMutex);
+
 	if (IsDirty())
 		Update();
 

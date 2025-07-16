@@ -38,6 +38,8 @@ namespace BinaryNinjaDebugger {
 		DebuggerState* m_state;
 		std::unordered_map<std::string, DebugRegister> m_registerCache;
 		bool m_dirty;
+		std::recursive_mutex m_registersMutex;
+		std::unordered_map<std::string, DebugRegister> GetCachedRegisters();
 
 	public:
 		DebuggerRegisters(DebuggerState* state);
@@ -57,6 +59,7 @@ namespace BinaryNinjaDebugger {
 		DebuggerState* m_state;
 		std::vector<DebugModule> m_modules;
 		bool m_dirty;
+		std::recursive_mutex m_modulesMutex;
 
 	public:
 		DebuggerModules(DebuggerState* state);
@@ -102,6 +105,7 @@ namespace BinaryNinjaDebugger {
 		std::vector<DebugThread> m_threads;
 		std::map<uint32_t, std::vector<DebugFrame>> m_frames;
 		bool m_dirty;
+		std::recursive_mutex m_threadsMutex;
 
 	public:
 		DebuggerThreads(DebuggerState* state);
@@ -111,6 +115,7 @@ namespace BinaryNinjaDebugger {
 		bool SetActiveThread(const DebugThread& thread);
 		bool IsDirty() const { return m_dirty; }
 		std::vector<DebugThread> GetAllThreads();
+		std::map<uint32_t, std::vector<DebugFrame>> GetAllFrames();
 		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid);
 		bool SuspendThread(std::uint32_t tid);
 		bool ResumeThread(std::uint32_t tid);
