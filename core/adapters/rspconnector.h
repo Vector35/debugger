@@ -185,14 +185,14 @@ namespace BinaryNinjaDebugger
 		void DisableAcks();
 
 		char ExpectAck();
-		void SendAck() const;
+		void SendAck();
 
 		void NegotiateCapabilities(const std::vector<std::string>& capabilities);
 
-		void SendRaw(const RspData& data) const;
-		void SendPayload(const RspData& data) const;
+		void SendRaw(const RspData& data);
+		void SendPayload(const RspData& data);
 
-		RspData ReceiveRspData() const;
+		RspData ReceiveRspData();
 		RspData TransmitAndReceive(const RspData& data, const std::string& expect = "ack_then_reply",
 								   std::function<void(const RspData& data)> asyncPacketHandler = nullptr);
 		int32_t HostFileIO(const RspData& data, RspData& output, int32_t& error);
