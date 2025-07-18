@@ -219,6 +219,9 @@ void RspConnector::SendPayload(const RspData& data) const
 RspData RspConnector::ReceiveRspData() const
 {
     std::vector<char> buffer{};
+    auto startTime = std::chrono::steady_clock::now();
+    // TODO: We might wish to make this timeout configurable, but for now waiting 10 seconds I think is good enough
+    const std::chrono::milliseconds timeoutDuration(10000);
 
     while (true)
     {
@@ -230,6 +233,14 @@ RspData RspConnector::ReceiveRspData() const
 #endif
         if (n <= 0)
         {
+            // Check if timeout has been exceeded
+            auto elapsedTime = std::chrono::steady_clock::now() - startTime;
+            if (elapsedTime > timeoutDuration)
+            {
+                LogWarn("ReceiveRspData timeout: failed to receive data within the timeout period");
+                return {}; // Return an empty RspData object
+            }
+
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
@@ -261,7 +272,10 @@ RspData RspConnector::ReceiveRspData() const
     }
 
     if ((buffer.size() < 1) || (buffer[0] != '$'))
-        throw std::runtime_error("incorrect response, expected $");
+    {
+        LogWarn("ReceiveRspData: incorrect response, expected $");
+        return {}; // Return an empty RspData object
+    }
 
     // Swallow the '$' char
     buffer.erase(buffer.begin(), buffer.begin() + 1);
