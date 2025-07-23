@@ -154,6 +154,8 @@ namespace BinaryNinjaDebugger {
         std::string m_pdbFileName {};
         bool m_usePDBFileName = true;
 
+		std::recursive_mutex m_engineLoopMutex;
+
 	public:
 		inline static ProcessCallbackInformation ProcessCallbackInfo {};
 		static constexpr unsigned long StepoutBreakpointID = 0x5be9c948;

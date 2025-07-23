@@ -327,6 +327,7 @@ bool DbgEngAdapter::Start()
 
 void DbgEngAdapter::Reset()
 {
+	std::unique_lock lock(m_engineLoopMutex);
 	m_aboutToBeKilled = false;
 
 	if (!this->m_debugActive)
@@ -535,6 +536,14 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 
 void DbgEngAdapter::EngineLoop()
 {
+	// When the user rapidly restarts the target, there is a race condition that could lead to a crash:
+	// 1) The target is killed, and the EngineLoop is about to exit, but not yet
+	// 2) The restart code tries to restart the target, which calls ExecuteWithArgsInternal() -> Reset() -> set
+	//    m_debugControl to nullptr
+	// 3) Crash in EngineLoop
+	// This lock prevents Reset() from proceeding until the EngineLoop() actually exits
+	std::unique_lock lock(m_engineLoopMutex);
+
 	auto settings = Settings::Instance();
 	bool outputStateOnStop = settings->Get<bool>("debugger.dbgEngOutputStateOnStop");
 
