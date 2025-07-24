@@ -156,6 +156,8 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason StepReturnReverseAndWaitInternal();
 		DebugStopReason RunToAndWaitInternal(const std::vector<uint64_t> &remoteAddresses);
 
+		// Whether we can start debugging, e.g., launch/attach/connec to a target
+		bool CanStartDebgging();
 		// Whether we can resume the execution of the target, including stepping.
 		bool CanResumeTarget();
 
