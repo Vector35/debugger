@@ -125,6 +125,10 @@ bool DebuggerController::SetIP(uint64_t address)
 
 bool DebuggerController::Launch()
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanStartDebgging())
+		return false;
+
 	std::thread([&]() { LaunchAndWait(); }).detach();
 	return true;
 }
@@ -166,6 +170,10 @@ DebugStopReason DebuggerController::LaunchAndWaitInternal()
 
 DebugStopReason DebuggerController::LaunchAndWait()
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanStartDebgging())
+		return InvalidStatusOrOperation;
+
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
@@ -180,6 +188,10 @@ DebugStopReason DebuggerController::LaunchAndWait()
 
 bool DebuggerController::Attach()
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanStartDebgging())
+		return false;
+
 	std::thread([&]() { AttachAndWait(); }).detach();
 	return true;
 }
@@ -209,6 +221,10 @@ DebugStopReason DebuggerController::AttachAndWaitInternal()
 
 DebugStopReason DebuggerController::AttachAndWait()
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanStartDebgging())
+		return InvalidStatusOrOperation;
+
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
@@ -223,6 +239,10 @@ DebugStopReason DebuggerController::AttachAndWait()
 
 bool DebuggerController::Connect()
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanStartDebgging())
+		return false;
+
 	std::thread([&]() { ConnectAndWait(); }).detach();
 	return true;
 }
@@ -252,6 +272,10 @@ DebugStopReason DebuggerController::ConnectAndWaitInternal()
 
 DebugStopReason DebuggerController::ConnectAndWait()
 {
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanStartDebgging())
+		return InvalidStatusOrOperation;
+
 	if (!m_targetControlMutex.try_lock())
 		return InternalError;
 
@@ -332,6 +356,12 @@ bool DebuggerController::CreateDebugAdapter()
 void DebuggerController::ApplyBreakpoints()
 {
 	m_state->ApplyBreakpoints();
+}
+
+
+bool DebuggerController::CanStartDebgging()
+{
+	return !m_state->IsConnected();
 }
 
 
@@ -1373,7 +1403,7 @@ void DebuggerController::QuitAndWait()
 
 bool DebuggerController::Pause()
 {
-	if (!(m_state->IsConnected() && m_state->IsRunning()))
+	if (!m_state->IsConnected())
 		return false;
 
 	std::thread([&]() { PauseAndWait(); }).detach();
@@ -1391,6 +1421,9 @@ DebugStopReason DebuggerController::PauseAndWaitInternal()
 
 DebugStopReason DebuggerController::PauseAndWait()
 {
+	if (!m_state->IsConnected())
+		return InvalidStatusOrOperation;
+
 	auto reason = PauseAndWaitInternal();
 	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);

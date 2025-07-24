@@ -274,7 +274,10 @@ bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionSt
 bool DbgEngAdapter::Start()
 {
 	if (this->m_debugActive)
-		this->Reset();
+	{
+		LogWarn("DbgEngAdapter::Start, debugger is still active");
+		return false;
+	}
 
 	if (!m_connectedToDebugServer)
 	{
@@ -408,6 +411,14 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string& 
 bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
 	const std::string& workingDir, const LaunchConfigurations& configs)
 {
+	std::unique_lock lock(m_engineLoopMutex);
+
+	if (this->m_debugActive)
+	{
+		LogWarn("DbgEngAdapter::ExecuteWithArgsInternal, debugger is still active");
+		return false;
+	}
+
 	m_aboutToBeKilled = false;
 
 	BNSettingsScope scope = SettingsResourceScope;
@@ -422,11 +433,6 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
 	scope = SettingsResourceScope;
 	auto envVariables = adapterSettings->Get<vector<string>>("launch.environmentVariables", data, &scope);
-
-	if (this->m_debugActive)
-	{
-		this->Reset();
-	}
 
 	if (!Start())
 	{
@@ -634,15 +640,20 @@ void DbgEngAdapter::EngineLoop()
 
 bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 {
+	std::unique_lock lock(m_engineLoopMutex);
+
+	if (this->m_debugActive)
+	{
+		LogWarn("DbgEngAdapter::AttachInternal, debugger is still active");
+		return false;
+	}
+
 	m_aboutToBeKilled = false;
 
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
 	auto adapterSettings = GetAdapterSettings();
 	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
-
-	if (this->m_debugActive)
-		this->Reset();
 
 	this->Start();
 
@@ -1198,7 +1209,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 
 bool DbgEngAdapter::BreakInto()
 {
-	if (ExecStatus() == DEBUG_STATUS_BREAK)
+	if (ExecStatus() == DEBUG_STATUS_BREAK || ExecStatus() == DEBUG_STATUS_NO_DEBUGGEE)
 		return false;
 
 	m_lastOperationIsStepInto = false;
