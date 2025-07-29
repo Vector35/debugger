@@ -4,7 +4,7 @@ project(debugger-cli)
 
 remove_definitions(-DUNICODE -D_UNICODE)
 
-file(GLOB SOURCES *.cpp *.h)
+file(GLOB SOURCES CONFIGURE_DEPENDS *.cpp *.h)
 
 add_executable(debugger-cli ${SOURCES})
 

@@ -324,7 +324,7 @@ if (NOT WIN32)
 	target_compile_options(commandline_test PUBLIC -O3)
 endif()
 
-file(GLOB MD5_SOURCES
+file(GLOB MD5_SOURCES CONFIGURE_DEPENDS
 		src/md5/*.c
 		src/md5/*.h
 		)

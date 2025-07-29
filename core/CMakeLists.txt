@@ -12,7 +12,7 @@ if(NOT BN_INTERNAL_BUILD)
 	add_subdirectory(${BN_API_PATH} ${PROJECT_BINARY_DIR}/api)
 endif()
 
-file(GLOB COMMON_SOURCES
+file(GLOB COMMON_SOURCES CONFIGURE_DEPENDS
     *.cpp
     *.h
     ../vendor/pugixml/*.cpp
@@ -21,7 +21,7 @@ file(GLOB COMMON_SOURCES
 	../vendor/intx/intx.hpp
     )
 
-file(GLOB ADAPTER_SOURCES
+file(GLOB ADAPTER_SOURCES CONFIGURE_DEPENDS
 		adapters/lldbadapter.cpp
 		adapters/lldbadapter.h
 		adapters/gdbadapter.cpp

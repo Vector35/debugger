@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 
 project(debuggerapi)
 
-file(GLOB BN_DEBUGGER_API_SOURCES *.cpp *.h)
+file(GLOB BN_DEBUGGER_API_SOURCES CONFIGURE_DEPENDS *.cpp *.h)
 add_library(debuggerapi STATIC ${BN_DEBUGGER_API_SOURCES})
 
 target_include_directories(debuggerapi
