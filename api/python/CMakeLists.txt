@@ -2,9 +2,15 @@ cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 project(debugger-python-api)
 
-file(GLOB PYTHON_SOURCES ${PROJECT_SOURCE_DIR}/*.py)
+if(BN_API_PATH)
+	include(${BN_API_PATH}/cmake/PythonBindings.cmake)
+else()
+	include(${CMAKE_SOURCE_DIR}/api/cmake/PythonBindings.cmake)
+endif()
+
+file(GLOB PYTHON_SOURCES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/*.py)
 list(REMOVE_ITEM PYTHON_SOURCES ${PROJECT_SOURCE_DIR}/_debuggercore.py)
-list(REMOVE_ITEM PYTHON_SOURCES ${PROJECT_SOURCE_DIR}/enums.py)
+list(REMOVE_ITEM PYTHON_SOURCES ${PROJECT_SOURCE_DIR}/debugger_enums.py)
 
 add_executable(debugger_generator
 	${PROJECT_SOURCE_DIR}/generator.cpp)
@@ -32,18 +38,15 @@ if(WIN32)
 	endif()
 endif()
 
-add_custom_target(debugger_generator_copy ALL
-	BYPRODUCTS ${PROJECT_SOURCE_DIR}/_debuggercore.py ${PROJECT_SOURCE_DIR}/enums.py
-	DEPENDS ${PYTHON_SOURCES} ${PROJECT_SOURCE_DIR}/../ffi.h $<TARGET_FILE:debugger_generator>
-	COMMAND ${CMAKE_COMMAND} -E echo "Copying Debugger Python Sources"
-	COMMAND ${CMAKE_COMMAND} -E make_directory ${PYTHON_OUTPUT_DIRECTORY}
-	COMMAND ${CMAKE_COMMAND} -E env ASAN_OPTIONS=detect_leaks=0 $<TARGET_FILE:debugger_generator>
-		${PROJECT_SOURCE_DIR}/../ffi.h
-		${PROJECT_SOURCE_DIR}/_debuggercore.py
-		${PROJECT_SOURCE_DIR}/_debuggercore_template.py
-		${PROJECT_SOURCE_DIR}/debugger_enums.py
-
-	COMMAND ${CMAKE_COMMAND} -E copy ${PYTHON_SOURCES} ${PYTHON_OUTPUT_DIRECTORY}
-	COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/_debuggercore.py ${PYTHON_OUTPUT_DIRECTORY}
-	COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/debugger_enums.py ${PYTHON_OUTPUT_DIRECTORY})
+generate_python_bindings(
+	TARGET_NAME debugger_generator_copy
+	DISPLAY_NAME "Debugger"
+	GENERATOR_TARGET debugger_generator
+	HEADER_FILE ${PROJECT_SOURCE_DIR}/../ffi.h
+	TEMPLATE_FILE ${PROJECT_SOURCE_DIR}/_debuggercore_template.py
+	OUTPUT_DIRECTORY ${PYTHON_OUTPUT_DIRECTORY}
+	CORE_OUTPUT_FILE _debuggercore.py
+	ENUMS_OUTPUT_FILE debugger_enums.py
+	PYTHON_SOURCES ${PYTHON_SOURCES}
+)
 
