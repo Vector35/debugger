@@ -41,3 +41,5 @@ set_target_properties(debuggerui PROPERTIES
 
 target_link_libraries(debuggerui debuggerapi binaryninjaui Qt6::Core Qt6::Gui Qt6::Widgets)
 
+ui_plugin_rpath(debuggerui)
+
