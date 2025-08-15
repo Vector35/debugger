@@ -21,6 +21,7 @@ else()
 endif()
 
 if(BN_INTERNAL_BUILD)
+    ui_plugin_rpath(debuggerui)
     set_target_properties(debuggerui PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY ${BN_CORE_PLUGIN_DIR}
             RUNTIME_OUTPUT_DIRECTORY ${BN_CORE_PLUGIN_DIR})
@@ -40,6 +41,3 @@ set_target_properties(debuggerui PROPERTIES
         )
 
 target_link_libraries(debuggerui debuggerapi binaryninjaui Qt6::Core Qt6::Gui Qt6::Widgets)
-
-ui_plugin_rpath(debuggerui)
-
