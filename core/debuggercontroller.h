@@ -280,6 +280,7 @@ namespace BinaryNinjaDebugger {
 		bool Restart();
 		bool ConnectToDebugServer();
 		bool DisconnectDebugServer();
+		bool IsConnectedToDebugServer();
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected
 		// adapter
 		void LaunchOrConnect();

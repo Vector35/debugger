@@ -19,6 +19,7 @@ limitations under the License.
 #include "lldbadapter.h"
 #include "thread"
 #include "../../vendor/intx/intx.hpp"
+#include "../debuggercontroller.h"
 
 using namespace lldb;
 using namespace BinaryNinjaDebugger;
@@ -418,7 +419,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 
 	// TODO: the adapter should record whether it is connected to a debug server itself, rather than relying on the
 	// info from the configs dict
-	if (configs.connectedToDebugServer)
+	if (GetController()->IsConnectedToDebugServer())
 	{
 		// During remote debugging. lldb will try to upload the samples to the working directory before launching.
 		// The working directory defaults to the path the lldb-server is in, which is likely not the intended one.

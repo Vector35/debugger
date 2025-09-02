@@ -1337,6 +1337,12 @@ bool DebuggerController::DisconnectDebugServer()
 }
 
 
+bool DebuggerController::IsConnectedToDebugServer()
+{
+	return m_state->IsConnectedToDebugServer();
+}
+
+
 void DebuggerController::Detach()
 {
 	if (!m_state->IsConnected())
