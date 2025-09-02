@@ -218,8 +218,7 @@ If you wish to debug the target again, you will need to repeat the steps above t
 This section explains how to remotely debug a process running on MacOS. This can be done from all platforms, i.e.,
 Windows, Linux, and macOS.
 
-There are two ways to do MacOS remote debugging, i.e., using a debug server or a remote process. Debug server is the
-recommended way. However, if it does not work for you, you can try using the remote process approach documented below.
+You must use a debug server on macOS. Remote process does not work on macOS.
 
 ### Preparing the Remote Host
 
@@ -271,54 +270,6 @@ an interface that Binary Ninja debugger will later connect to.
 When connected to the debug server, the debugger can launch the executable multiple times using the same connection. There is no need to relaunch and reconnect to the debug server after the target exits.
 
 To disconnect from the debug server, click "Debugger" -> "Disconnect from Debug Server". After that, if we launch the target, it will execute on the local machine. Be careful!
-
-
-
-## macOS Remote Debugging (using Remote Process)
-
-If the debug server does not work, you can try macOS remote debugging via the remote process approach. This uses
-`lldb-server` in GDB mode and might be simpler to configure.
-
-### Preparing the Remote Host
-
-- Download or copy `debugger-darwin.zip` from the [release page](https://github.com/Vector35/debugger/releases/latest)
-  to the remote host
-- Extract it
-- One can also use the `lldb-server` that can be installed via a package manager. However, it may have compatibility
-  issues.
-
-### Launching or Attaching to a Remote Process
-
-- `cd debugger-darwin/plugins/lldb`
-- To launch a new process, run `./lldb-server g 0.0.0.0:31337 -- /path/to/helloworld foo bar`
-    - `/path/to/helloworld` is the path of the executable
-    - `foo bar` are two arguments
-- To attach to a running process by PID, run `./lldb-server g 0.0.0.0:31337 --attach 1234`
-    - `1234` is the PID of the target process
-
-Specifying `0.0.0.0` instructs lldb-server to listen on all interfaces. You can also specify a particular IP address of
-an interface that the Binary Ninja debugger will later connect to.
-
-
-### Connecting to the Remote Process
-
-- Open the binary you wish to debug
-- Click "Debugger" -> "Connect to Remote Process" in the main window menu bar. The `Debug adapter settings` dialog will
-  popup
-
-![](../../img/debugger/remoteprocess-lldb.png)
-
-- Navigate to the "connect" settings group (if it is not selected by default)
-- Type in the `IP Address` and `Port` to connect to
-- select `gdb-remote` For the `Process Plugin`
-- Click `Accept`
-- The debugger will now connect to the process launched or attached to in the previous step and start debugging
-
-When using the remote process mode, when the debugging stops (the target exits or gets killed), the connection is
-automatically closed. There is no extra steps needed to close the connection.
-
-If you wish to debug the target again, you will need to repeat the steps above to launch or attach to a remote process.
-
 
 
 ## GDB Server Remote Debugging
