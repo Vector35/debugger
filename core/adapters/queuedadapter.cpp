@@ -393,6 +393,40 @@ bool QueuedAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer
 }
 
 
+std::uintptr_t QueuedAdapter::AllocateMemory(std::size_t size, std::uint32_t permissions)
+{
+    std::unique_lock<std::mutex> lock(m_queueMutex);
+
+    std::uintptr_t ret;
+    Semaphore sem;
+    m_queue.push([&, size, permissions]{
+        ret = m_adapter->AllocateMemory(size, permissions);
+        sem.Release();
+    });
+
+    lock.unlock();
+    sem.Wait();
+    return ret;
+}
+
+
+bool QueuedAdapter::FreeMemory(std::uintptr_t address)
+{
+    std::unique_lock<std::mutex> lock(m_queueMutex);
+
+    bool ret;
+    Semaphore sem;
+    m_queue.push([&, address]{
+        ret = m_adapter->FreeMemory(address);
+        sem.Release();
+    });
+
+    lock.unlock();
+    sem.Wait();
+    return ret;
+}
+
+
 std::vector<DebugModule> QueuedAdapter::GetModuleList()
 {
     std::unique_lock<std::mutex> lock(m_queueMutex);

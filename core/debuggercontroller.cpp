@@ -1984,6 +1984,36 @@ bool DebuggerController::WriteMemory(std::uintptr_t address, const DataBuffer& b
 }
 
 
+std::uintptr_t DebuggerController::AllocateMemory(std::size_t size, std::uint32_t permissions)
+{
+	if (!GetData())
+		return 0;
+
+	if (!m_state->IsConnected())
+		return 0;
+
+	if (m_state->IsRunning())
+		return 0;
+
+	return m_adapter->AllocateMemory(size, permissions);
+}
+
+
+bool DebuggerController::FreeMemory(std::uintptr_t address)
+{
+	if (!GetData())
+		return false;
+
+	if (!m_state->IsConnected())
+		return false;
+
+	if (m_state->IsRunning())
+		return false;
+
+	return m_adapter->FreeMemory(address);
+}
+
+
 std::vector<DebugModule> DebuggerController::GetAllModules()
 {
 	return m_state->GetModules()->GetAllModules();

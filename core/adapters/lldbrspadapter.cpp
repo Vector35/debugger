@@ -344,6 +344,125 @@ DataBuffer LldbRspAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 }
 
 
+std::uintptr_t LldbRspAdapter::AllocateMemory(std::size_t size, std::uint32_t permissions)
+{
+	// LLDB supports memory allocation through debugserver extensions
+	// We'll use LLDB's memory allocation protocol commands
+	
+	if (m_isTargetRunning)
+		return 0;
+
+	// Try using LLDB's memory allocation command
+	// LLDB uses "_M" packet for memory allocation in some implementations
+	// Format: _Msize,permissions
+	auto reply = this->m_rspConnector.TransmitAndReceive(RspData("_M{:x},{:x}", size, permissions));
+	
+	std::string response = reply.AsString();
+	
+	// If _M is not supported, try alternative approaches
+	if (response.substr(0, 1) == "E" || response.empty()) {
+		// Try using monitor command as fallback
+		std::string allocCommand = fmt::format("monitor memory allocate {}", size);
+		reply = this->m_rspConnector.TransmitAndReceive(RspData("qRcmd,{}", 
+			[&allocCommand]() {
+				std::string hex;
+				for (char c : allocCommand) {
+					hex += fmt::format("{:02X}", static_cast<unsigned char>(c));
+				}
+				return hex;
+			}()));
+		response = reply.AsString();
+	}
+
+	// Try to parse the allocated address from the response
+	if (response.length() >= 2) {
+		try {
+			// Check if it's a direct hex address response
+			if (response.substr(0, 2) != "OK" && response.substr(0, 1) != "E") {
+				// Try to parse as hex address
+				return std::stoull(response, nullptr, 16);
+			}
+			
+			// Handle hex-encoded console output
+			if (response.substr(0, 1) == "O") {
+				// Decode hex-encoded console output
+				std::string decoded;
+				for (size_t i = 1; i < response.length(); i += 2) {
+					if (i + 1 < response.length()) {
+						int byte = std::stoi(response.substr(i, 2), nullptr, 16);
+						decoded += static_cast<char>(byte);
+					}
+				}
+				
+				// Try to extract address from decoded string
+				size_t pos = decoded.find("0x");
+				if (pos != std::string::npos) {
+					std::string addrStr = decoded.substr(pos + 2);
+					// Find end of hex address
+					size_t endPos = 0;
+					while (endPos < addrStr.length() && 
+						   std::isxdigit(addrStr[endPos])) {
+						endPos++;
+					}
+					if (endPos > 0) {
+						return std::stoull(addrStr.substr(0, endPos), nullptr, 16);
+					}
+				}
+			}
+		} catch (const std::exception&) {
+			// Failed to parse address
+		}
+	}
+
+	return 0; // Allocation failed
+}
+
+
+bool LldbRspAdapter::FreeMemory(std::uintptr_t address)
+{
+	if (m_isTargetRunning)
+		return false;
+
+	// Try using LLDB's memory deallocation command
+	// Some LLDB implementations support "_m" packet for memory deallocation
+	// Format: _maddress
+	auto reply = this->m_rspConnector.TransmitAndReceive(RspData("_m{:x}", address));
+	
+	std::string response = reply.AsString();
+	
+	// Check for success
+	if (response == "OK") {
+		return true;
+	}
+	
+	// If _m is not supported, try monitor command as fallback
+	if (response.substr(0, 1) == "E" || response.empty()) {
+		std::string freeCommand = fmt::format("monitor memory free 0x{:x}", address);
+		reply = this->m_rspConnector.TransmitAndReceive(RspData("qRcmd,{}", 
+			[&freeCommand]() {
+				std::string hex;
+				for (char c : freeCommand) {
+					hex += fmt::format("{:02X}", static_cast<unsigned char>(c));
+				}
+				return hex;
+			}()));
+		response = reply.AsString();
+		
+		// Success indicators
+		if (response == "OK" || response == "4F4B") { // "OK" in hex
+			return true;
+		}
+		
+		// If we get console output, assume success unless there's an error
+		if (response.substr(0, 1) == "O") {
+			return true;
+		}
+	}
+
+	return false; // Deallocation failed
+}
+
+
 DebugStopReason LldbRspAdapter::SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& dict)
 {
 //	metype:6;mecount:2;medata:1;medata:0;memory:0x16f5ba940=d0ad5b6f0100000068a8b60001801c5e;

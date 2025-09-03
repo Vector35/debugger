@@ -274,6 +274,10 @@ namespace BinaryNinjaDebugger {
 
 		virtual bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) = 0;
 
+		virtual std::uintptr_t AllocateMemory(std::size_t size, std::uint32_t permissions = 0x7) = 0;
+
+		virtual bool FreeMemory(std::uintptr_t address) = 0;
+
 		virtual std::vector<DebugModule> GetModuleList() = 0;
 
 		virtual std::string GetTargetArchitecture() = 0;

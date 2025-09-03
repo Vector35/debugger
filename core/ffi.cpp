@@ -180,6 +180,18 @@ bool BNDebuggerWriteMemory(BNDebuggerController* controller, uint64_t address, B
 }
 
 
+uint64_t BNDebuggerAllocateMemory(BNDebuggerController* controller, size_t size, uint32_t permissions)
+{
+	return controller->object->GetAdapter()->AllocateMemory(size, permissions);
+}
+
+
+bool BNDebuggerFreeMemory(BNDebuggerController* controller, uint64_t address)
+{
+	return controller->object->GetAdapter()->FreeMemory(address);
+}
+
+
 BNDebugProcess* BNDebuggerGetProcessList(BNDebuggerController* controller, size_t* size)
 {
 	std::vector<DebugProcess> processes = controller->object->GetProcessList();

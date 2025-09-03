@@ -104,6 +104,10 @@ namespace BinaryNinjaDebugger {
 
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) override;
 
+		std::uintptr_t AllocateMemory(std::size_t size, std::uint32_t permissions = 0x7) override;
+
+		bool FreeMemory(std::uintptr_t address) override;
+
 		std::vector<DebugModule> GetModuleList() override;
 
 		std::string GetTargetArchitecture() override;

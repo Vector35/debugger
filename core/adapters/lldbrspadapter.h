@@ -40,6 +40,8 @@ namespace BinaryNinjaDebugger
 		DebugRegister ReadRegister(const std::string& reg) override;
 
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) override;
+		std::uintptr_t AllocateMemory(std::size_t size, std::uint32_t permissions = 0x7) override;
+		bool FreeMemory(std::uintptr_t address) override;
 	};
 
 

@@ -258,6 +258,8 @@ namespace BinaryNinjaDebugger {
 		// memory
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size);
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
+		std::uintptr_t AllocateMemory(std::size_t size, std::uint32_t permissions = 0x7);
+		bool FreeMemory(std::uintptr_t address);
 
 		// debugger events
 		size_t RegisterEventCallback(

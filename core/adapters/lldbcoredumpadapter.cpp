@@ -574,6 +574,20 @@ bool LldbCoreDumpAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& 
 }
 
 
+std::uintptr_t LldbCoreDumpAdapter::AllocateMemory(std::size_t size, std::uint32_t permissions)
+{
+	// Core dumps are read-only, memory allocation is not supported
+	return 0;
+}
+
+
+bool LldbCoreDumpAdapter::FreeMemory(std::uintptr_t address)
+{
+	// Core dumps are read-only, memory deallocation is not supported
+	return false;
+}
+
+
 static uint64_t GetModuleHighestAddress(SBModule& module, SBTarget& target)
 {
 	uint64_t largestAddress = 0;

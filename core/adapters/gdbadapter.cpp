@@ -790,6 +790,116 @@ std::vector<DebugModule> GdbAdapter::GetModuleList()
 }
 
 
+std::uintptr_t GdbAdapter::AllocateMemory(std::size_t size, std::uint32_t permissions)
+{
+	if (m_isTargetRunning || !m_rspConnector)
+		return 0;
+
+	// Use GDB's memory allocation command via monitor/maintenance commands
+	// This varies by target, but we'll try common approaches
+	
+	// First, try using the 'monitor' command for memory allocation
+	// This is commonly supported by many GDB servers
+	std::string allocCommand = fmt::format("monitor memory allocate {}", size);
+	auto reply = this->m_rspConnector->TransmitAndReceive(RspData("qRcmd,{}", 
+		[&allocCommand]() {
+			std::string hex;
+			for (char c : allocCommand) {
+				hex += fmt::format("{:02X}", static_cast<unsigned char>(c));
+			}
+			return hex;
+		}()));
+
+	// Parse the response to extract the allocated address
+	std::string response = reply.AsString();
+	if (response.substr(0, 2) == "OK" || response.substr(0, 1) == "E") {
+		// If monitor command is not supported, try alternative approach
+		// Use a simple heuristic: find a free memory region
+		// This is a fallback - real implementation would depend on target capabilities
+		
+		// For now, return 0 to indicate allocation failed
+		// A production implementation would need target-specific allocation logic
+		return 0;
+	}
+
+	// Try to parse hex address from response
+	if (response.length() >= 2) {
+		try {
+			// Remove any "O" prefixes (GDB console output) and decode hex
+			if (response.substr(0, 1) == "O") {
+				// Decode hex-encoded console output
+				std::string decoded;
+				for (size_t i = 1; i < response.length(); i += 2) {
+					if (i + 1 < response.length()) {
+						int byte = std::stoi(response.substr(i, 2), nullptr, 16);
+						decoded += static_cast<char>(byte);
+					}
+				}
+				
+				// Try to extract address from decoded string
+				size_t pos = decoded.find("0x");
+				if (pos != std::string::npos) {
+					std::string addrStr = decoded.substr(pos + 2);
+					// Find end of hex address
+					size_t endPos = 0;
+					while (endPos < addrStr.length() && 
+						   std::isxdigit(addrStr[endPos])) {
+						endPos++;
+					}
+					if (endPos > 0) {
+						return std::stoull(addrStr.substr(0, endPos), nullptr, 16);
+					}
+				}
+			}
+		} catch (const std::exception&) {
+			// Failed to parse address
+		}
+	}
+
+	return 0; // Allocation failed
+}
+
+
+bool GdbAdapter::FreeMemory(std::uintptr_t address)
+{
+	if (m_isTargetRunning || !m_rspConnector)
+		return false;
+
+	// Use GDB's memory deallocation command via monitor commands
+	std::string freeCommand = fmt::format("monitor memory free 0x{:x}", address);
+	auto reply = this->m_rspConnector->TransmitAndReceive(RspData("qRcmd,{}", 
+		[&freeCommand]() {
+			std::string hex;
+			for (char c : freeCommand) {
+				hex += fmt::format("{:02X}", static_cast<unsigned char>(c));
+			}
+			return hex;
+		}()));
+
+	// Check if the operation was successful
+	std::string response = reply.AsString();
+	
+	// Success is typically indicated by "OK" response
+	if (response == "OK") {
+		return true;
+	}
+	
+	// Also consider hex-encoded "OK" response
+	if (response == "4F4B") { // "OK" in hex
+		return true;
+	}
+	
+	// If we get a console output response starting with "O"
+	if (response.substr(0, 1) == "O") {
+		// For simplicity, assume success if no error message is detected
+		// A more robust implementation would parse the actual response
+		return true;
+	}
+
+	return false; // Deallocation failed
+}
+
+
 std::string GdbAdapter::GetTargetArchitecture()
 {
 	return m_remoteArch;

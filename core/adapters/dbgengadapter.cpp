@@ -1639,6 +1639,24 @@ bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer
 }
 
 
+std::uintptr_t DbgEngAdapter::AllocateMemory(std::size_t size, std::uint32_t permissions)
+{
+	// DbgEng doesn't have a direct memory allocation API
+	// We would need to use VirtualAllocEx or similar Win32 APIs
+	// For now, return 0 to indicate allocation is not supported
+	return 0;
+}
+
+
+bool DbgEngAdapter::FreeMemory(std::uintptr_t address)
+{
+	// DbgEng doesn't have a direct memory deallocation API
+	// We would need to use VirtualFreeEx or similar Win32 APIs
+	// For now, return false to indicate deallocation is not supported
+	return false;
+}
+
+
 std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
 {
 	std::vector<DebugFrame> result;

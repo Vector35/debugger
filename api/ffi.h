@@ -361,6 +361,10 @@ extern "C"
 		BNDebuggerController* controller, uint64_t address, size_t size);
 	DEBUGGER_FFI_API bool BNDebuggerWriteMemory(
 		BNDebuggerController* controller, uint64_t address, BNDataBuffer* buffer);
+	DEBUGGER_FFI_API uint64_t BNDebuggerAllocateMemory(
+		BNDebuggerController* controller, size_t size, uint32_t permissions);
+	DEBUGGER_FFI_API bool BNDebuggerFreeMemory(
+		BNDebuggerController* controller, uint64_t address);
 
 	DEBUGGER_FFI_API BNDebugProcess* BNDebuggerGetProcessList(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeProcessList(BNDebugProcess* processes, size_t count);

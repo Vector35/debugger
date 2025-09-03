@@ -1171,6 +1171,39 @@ bool LldbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 }
 
 
+std::uintptr_t LldbAdapter::AllocateMemory(std::size_t size, std::uint32_t permissions)
+{
+	if (!m_quitingMutex.try_lock())
+		return 0;
+
+	// LLDB provides process.AllocateMemory() for memory allocation
+	SBError error;
+	addr_t allocatedAddr = m_process.AllocateMemory(size, permissions, error);
+	
+	m_quitingMutex.unlock();
+	
+	if (error.Success() && allocatedAddr != LLDB_INVALID_ADDRESS)
+		return allocatedAddr;
+	
+	return 0; // Allocation failed
+}
+
+
+bool LldbAdapter::FreeMemory(std::uintptr_t address)
+{
+	if (!m_quitingMutex.try_lock())
+		return false;
+
+	// LLDB provides process.DeallocateMemory() for memory deallocation
+	SBError error;
+	error = m_process.DeallocateMemory(address);
+	
+	m_quitingMutex.unlock();
+	
+	return error.Success();
+}
+
+
 static uint64_t GetModuleHighestAddress(SBModule& module, SBTarget& target)
 {
 	uint64_t largestAddress = 0;

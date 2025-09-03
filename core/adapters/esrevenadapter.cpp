@@ -652,6 +652,97 @@ bool EsrevenAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffe
 }
 
 
+std::uintptr_t EsrevenAdapter::AllocateMemory(std::size_t size, std::uint32_t permissions)
+{
+	if (m_isTargetRunning)
+		return 0;
+
+	// Use ESReven's memory allocation command via monitor/maintenance commands
+	// Similar to other RSP-based adapters
+	
+	std::string allocCommand = fmt::format("monitor memory allocate {}", size);
+	auto reply = this->m_rspConnector->TransmitAndReceive(RspData("qRcmd,{}", 
+		[&allocCommand]() {
+			std::string hex;
+			for (char c : allocCommand) {
+				hex += fmt::format("{:02X}", static_cast<unsigned char>(c));
+			}
+			return hex;
+		}()));
+
+	// Parse the response to extract the allocated address
+	std::string response = reply.AsString();
+	if (response.substr(0, 2) == "OK" || response.substr(0, 1) == "E") {
+		return 0;
+	}
+
+	// Try to parse hex address from response
+	if (response.length() >= 2) {
+		try {
+			if (response.substr(0, 1) == "O") {
+				// Decode hex-encoded console output
+				std::string decoded;
+				for (size_t i = 1; i < response.length(); i += 2) {
+					if (i + 1 < response.length()) {
+						int byte = std::stoi(response.substr(i, 2), nullptr, 16);
+						decoded += static_cast<char>(byte);
+					}
+				}
+				
+				// Try to extract address from decoded string
+				size_t pos = decoded.find("0x");
+				if (pos != std::string::npos) {
+					std::string addrStr = decoded.substr(pos + 2);
+					size_t endPos = 0;
+					while (endPos < addrStr.length() && 
+						   std::isxdigit(addrStr[endPos])) {
+						endPos++;
+					}
+					if (endPos > 0) {
+						return std::stoull(addrStr.substr(0, endPos), nullptr, 16);
+					}
+				}
+			}
+		} catch (const std::exception&) {
+			// Failed to parse address
+		}
+	}
+
+	return 0; // Allocation failed
+}
+
+
+bool EsrevenAdapter::FreeMemory(std::uintptr_t address)
+{
+	if (m_isTargetRunning)
+		return false;
+
+	// Use ESReven's memory deallocation command via monitor commands
+	std::string freeCommand = fmt::format("monitor memory free 0x{:x}", address);
+	auto reply = this->m_rspConnector->TransmitAndReceive(RspData("qRcmd,{}", 
+		[&freeCommand]() {
+			std::string hex;
+			for (char c : freeCommand) {
+				hex += fmt::format("{:02X}", static_cast<unsigned char>(c));
+			}
+			return hex;
+		}()));
+
+	// Check if the operation was successful
+	std::string response = reply.AsString();
+	
+	if (response == "OK" || response == "4F4B") { // "OK" in hex
+		return true;
+	}
+	
+	if (response.substr(0, 1) == "O") {
+		return true;
+	}
+
+	return false; // Deallocation failed
+}
+
+
 std::string EsrevenAdapter::GetRemoteFile(const std::string& path)
 {
     if (m_isTargetRunning || !m_rspConnector)

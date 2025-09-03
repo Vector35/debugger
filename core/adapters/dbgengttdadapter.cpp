@@ -99,6 +99,20 @@ bool DbgEngTTDAdapter::WriteMemory(std::uintptr_t address, const BinaryNinja::Da
 }
 
 
+std::uintptr_t DbgEngTTDAdapter::AllocateMemory(std::size_t size, std::uint32_t permissions)
+{
+	// TTD (Time Travel Debugging) traces are read-only, memory allocation is not supported
+	return 0;
+}
+
+
+bool DbgEngTTDAdapter::FreeMemory(std::uintptr_t address)
+{
+	// TTD (Time Travel Debugging) traces are read-only, memory deallocation is not supported
+	return false;
+}
+
+
 bool DbgEngTTDAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
 {
 	return false;

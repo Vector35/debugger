@@ -207,6 +207,8 @@ namespace BinaryNinjaDebugger {
 
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) override;
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) override;
+		std::uintptr_t AllocateMemory(std::size_t size, std::uint32_t permissions = 0x7) override;
+		bool FreeMemory(std::uintptr_t address) override;
 
 		// bool ReadMemory(std::uintptr_t address, void* out, std::size_t size) override;
 		// bool WriteMemory(std::uintptr_t address, const void* out, std::size_t size) override;
