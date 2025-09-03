@@ -232,7 +232,12 @@ bool DbgEngAdapter::LaunchDbgSrv(const std::string& commandLine)
 				exePath = commandLine.substr(1, endQuote - 1);
 				if (endQuote + 1 < commandLine.size())
 				{
-					args = commandLine.substr(endQuote + 2); // Skip quote and space
+					// Skip the closing quote and any leading space
+					size_t argsStart = endQuote + 1;
+					if (argsStart < commandLine.size() && commandLine[argsStart] == ' ')
+						argsStart++;
+					if (argsStart < commandLine.size())
+						args = commandLine.substr(argsStart);
 				}
 			}
 		}
