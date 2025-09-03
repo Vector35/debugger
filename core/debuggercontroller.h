@@ -156,6 +156,7 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason StepReturnAndWaitInternal();
 		DebugStopReason StepReturnReverseAndWaitInternal();
 		DebugStopReason RunToAndWaitInternal(const std::vector<uint64_t> &remoteAddresses);
+		DebugStopReason RunToReverseAndWaitInternal(const std::vector<uint64_t> &remoteAddresses);
 
 		// Whether we can start debugging, e.g., launch/attach/connec to a target
 		bool CanStartDebgging();
@@ -305,6 +306,7 @@ namespace BinaryNinjaDebugger {
 		bool StepReturn();
 		bool StepReturnReverse();
 		bool RunTo(const std::vector<uint64_t>& remoteAddresses);
+		bool RunToReverse(const std::vector<uint64_t>& remoteAddresses);
 		bool Pause();
 
 		DebugStopReason ExecuteAdapterAndWait(const DebugAdapterOperation operation);
@@ -323,6 +325,7 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason StepReturnAndWait();
 		DebugStopReason StepReturnReverseAndWait();
 		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
+		DebugStopReason RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses);
 		DebugStopReason PauseAndWait();
 		void DetachAndWait();
 		void QuitAndWait();

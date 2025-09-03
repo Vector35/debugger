@@ -461,6 +461,8 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerStepReturnReverse(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerRunTo(
 		BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
+	DEBUGGER_FFI_API bool BNDebuggerRunToReverse(
+		BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerPause(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerGoAndWait(BNDebuggerController* controller);
@@ -477,6 +479,8 @@ extern "C"
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepReturnAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerStepReturnReverseAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRunToAndWait(
+		BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
+	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRunToReverseAndWait(
 		BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerPauseAndWait(BNDebuggerController* controller);
 	DEBUGGER_FFI_API BNDebugStopReason BNDebuggerRestartAndWait(BNDebuggerController* controller);
