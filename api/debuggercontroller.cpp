@@ -760,6 +760,30 @@ void DebuggerController::AddBreakpoint(const ModuleNameAndOffset& breakpoint)
 }
 
 
+void DebuggerController::EnableBreakpoint(uint64_t address)
+{
+	BNDebuggerEnableAbsoluteBreakpoint(m_object, address);
+}
+
+
+void DebuggerController::EnableBreakpoint(const ModuleNameAndOffset& breakpoint)
+{
+	BNDebuggerEnableRelativeBreakpoint(m_object, breakpoint.module.c_str(), breakpoint.offset);
+}
+
+
+void DebuggerController::DisableBreakpoint(uint64_t address)
+{
+	BNDebuggerDisableAbsoluteBreakpoint(m_object, address);
+}
+
+
+void DebuggerController::DisableBreakpoint(const ModuleNameAndOffset& breakpoint)
+{
+	BNDebuggerDisableRelativeBreakpoint(m_object, breakpoint.module.c_str(), breakpoint.offset);
+}
+
+
 bool DebuggerController::ContainsBreakpoint(uint64_t address)
 {
 	return BNDebuggerContainsAbsoluteBreakpoint(m_object, address);

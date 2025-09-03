@@ -813,7 +813,7 @@ BNDebugBreakpoint* BNDebuggerGetBreakpoints(BNDebuggerController* controller, si
 	for (size_t i = 0; i < breakpoints.size(); i++)
 	{
 		uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(breakpoints[i]);
-		bool enabled = false;
+		bool enabled = state->GetBreakpoints()->IsEnabledOffset(breakpoints[i]);
 		result[i].module = BNDebuggerAllocString(breakpoints[i].module.c_str());
 		result[i].offset = breakpoints[i].offset;
 		result[i].address = remoteAddress;
@@ -854,6 +854,30 @@ void BNDebuggerAddAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t 
 void BNDebuggerAddRelativeBreakpoint(BNDebuggerController* controller, const char* module, uint64_t offset)
 {
 	controller->object->AddBreakpoint(ModuleNameAndOffset(module, offset));
+}
+
+
+void BNDebuggerEnableAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t address)
+{
+	controller->object->EnableBreakpoint(address);
+}
+
+
+void BNDebuggerEnableRelativeBreakpoint(BNDebuggerController* controller, const char* module, uint64_t offset)
+{
+	controller->object->EnableBreakpoint(ModuleNameAndOffset(module, offset));
+}
+
+
+void BNDebuggerDisableAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t address)
+{
+	controller->object->DisableBreakpoint(address);
+}
+
+
+void BNDebuggerDisableRelativeBreakpoint(BNDebuggerController* controller, const char* module, uint64_t offset)
+{
+	controller->object->DisableBreakpoint(ModuleNameAndOffset(module, offset));
 }
 
 
