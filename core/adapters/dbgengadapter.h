@@ -212,6 +212,8 @@ namespace BinaryNinjaDebugger {
 		// bool WriteMemory(std::uintptr_t address, const void* out, std::size_t size) override;
 		std::vector<DebugModule> GetModuleList() override;
 
+		std::vector<DebugMemoryRegion> GetMemoryRegions() override;
+
 		std::string GetTargetArchitecture() override;
 
 		DebugStopReason StopReason() override;

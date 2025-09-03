@@ -669,6 +669,14 @@ std::vector<DebugModule> CorelliumAdapter::GetModuleList()
 }
 
 
+std::vector<DebugMemoryRegion> CorelliumAdapter::GetMemoryRegions()
+{
+	// Corellium adapter currently doesn't implement memory region enumeration
+	// TODO: Implement this by querying the Corellium-specific memory layout APIs
+	return {};
+}
+
+
 std::string CorelliumAdapter::GetTargetArchitecture()
 {
 	return m_remoteArch;

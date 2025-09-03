@@ -1207,6 +1207,70 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 	return modules;
 }
 
+
+std::vector<DebugMemoryRegion> DbgEngAdapter::GetMemoryRegions()
+{
+	std::vector<DebugMemoryRegion> regions;
+	
+	if (!this->m_debugDataSpaces)
+		return regions;
+	
+	// Start from address 0 and enumerate all virtual memory regions
+	ULONG64 address = 0;
+	MEMORY_BASIC_INFORMATION64 mbi;
+	
+	while (true)
+	{
+		HRESULT hr = this->m_debugDataSpaces->QueryVirtual(address, &mbi);
+		if (hr != S_OK)
+			break;
+			
+		// Only include committed memory regions
+		if (mbi.State == MEM_COMMIT)
+		{
+			uint32_t permissions = 0;
+			if (mbi.Protect & (PAGE_READONLY | PAGE_READWRITE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE))
+				permissions |= DebugMemoryRegion::PermRead;
+			if (mbi.Protect & (PAGE_READWRITE | PAGE_EXECUTE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_WRITECOPY))
+				permissions |= DebugMemoryRegion::PermWrite;
+			if (mbi.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY))
+				permissions |= DebugMemoryRegion::PermExecute;
+			
+			std::string name;
+			switch (mbi.Type)
+			{
+				case MEM_IMAGE:
+					name = "[image]";
+					break;
+				case MEM_MAPPED:
+					name = "[mapped]";
+					break;
+				case MEM_PRIVATE:
+					name = "[private]";
+					break;
+				default:
+					name = "[unknown]";
+					break;
+			}
+			
+			regions.emplace_back(
+				mbi.BaseAddress,
+				mbi.BaseAddress + mbi.RegionSize,
+				permissions,
+				name,
+				""
+			);
+		}
+		
+		// Move to next region
+		address = mbi.BaseAddress + mbi.RegionSize;
+		if (address == 0) // Overflow check
+			break;
+	}
+	
+	return regions;
+}
+
 bool DbgEngAdapter::BreakInto()
 {
 	if (ExecStatus() == DEBUG_STATUS_BREAK || ExecStatus() == DEBUG_STATUS_NO_DEBUGGEE)

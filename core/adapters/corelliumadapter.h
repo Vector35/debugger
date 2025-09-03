@@ -106,6 +106,8 @@ namespace BinaryNinjaDebugger
 		std::string GetRemoteFile(const std::string& path);
 		std::vector<DebugModule> GetModuleList() override;
 
+		std::vector<DebugMemoryRegion> GetMemoryRegions() override;
+
 		std::string GetTargetArchitecture() override;
 
 		DebugStopReason StopReason() override;

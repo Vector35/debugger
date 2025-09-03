@@ -857,11 +857,15 @@ DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
 		return {};
 
 	// Check if the block address is in a valid memory region
-	if (!m_state->GetMemoryRegions()->IsAddressReadable(block))
+	auto regions = m_state->GetMemoryRegions()->GetAllRegions();
+	if (!regions.empty()) // Only check regions if they are available
 	{
-		// Address is not in a readable memory region, return empty buffer
-		m_valueCache[block] = {{}, FailedToReadStatus, NoSource};
-		return {};
+		if (!m_state->GetMemoryRegions()->IsAddressReadable(block))
+		{
+			// Address is not in a readable memory region, return empty buffer
+			m_valueCache[block] = {{}, FailedToReadStatus, NoSource};
+			return {};
+		}
 	}
 
 	auto iter = m_valueCache.find(block);
