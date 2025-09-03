@@ -135,6 +135,7 @@ class DebugBreakpointsWidget : public QTableView
 
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 	virtual void keyPressEvent(QKeyEvent* event) override;
+	virtual void mousePressEvent(QMouseEvent* event) override;
 
 public:
 	DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu);

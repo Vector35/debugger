@@ -22,6 +22,7 @@ limitations under the License.
 #include <QKeyEvent>
 #include <QStringList>
 #include <algorithm>
+#include <QMouseEvent>
 #include "breakpointswidget.h"
 #include "ui.h"
 #include "menus.h"
@@ -346,6 +347,25 @@ void DebugBreakpointsWidget::keyPressEvent(QKeyEvent* event)
 	}
 
 	QTableView::keyPressEvent(event);
+}
+
+
+void DebugBreakpointsWidget::mousePressEvent(QMouseEvent* event)
+{
+	QModelIndex index = indexAt(event->pos());
+	if (index.isValid() && index.column() == DebugBreakpointsListModel::EnabledColumn)
+	{
+		// Toggle breakpoint enabled state when clicking on enabled column
+		BreakpointItem bp = m_model->getRow(index.row());
+		if (bp.enabled())
+			m_controller->DisableBreakpoint(bp.location());
+		else
+			m_controller->EnableBreakpoint(bp.location());
+		return; // Don't call parent to avoid selection change
+	}
+
+	// Call parent for normal behavior
+	QTableView::mousePressEvent(event);
 }
 
 
