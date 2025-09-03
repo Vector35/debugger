@@ -65,7 +65,7 @@ protected:
 public:
 	enum ColumnHeaders
 	{
-		//EnabledColumn,
+		EnabledColumn,
 		LocationColumn,
 		AddressColumn,
 	};
@@ -83,7 +83,7 @@ public:
 	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override
 	{
 		(void)parent;
-		return 2;
+		return 3;
 	}
 	BreakpointItem getRow(int row) const;
 	virtual QVariant data(const QModelIndex& i, int role) const override;
@@ -148,6 +148,9 @@ private slots:
 	void remove();
 	void onDoubleClicked();
 	void add();
+	void enableSelected();
+	void disableSelected();
+	void toggleSelected();
 
 public slots:
 	void updateContent();

@@ -104,11 +104,11 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
 
 	switch (index.column())
 	{
-//	case DebugBreakpointsListModel::EnabledColumn:
-//	{
-//		QString text = item->enabled() ? "true" : "false";
-//		return QVariant(text);
-//	}
+	case DebugBreakpointsListModel::EnabledColumn:
+	{
+		QString text = item->enabled() ? "☑" : "☐";
+		return QVariant(text);
+	}
 	case DebugBreakpointsListModel::LocationColumn:
 	{
 		QString text;
@@ -152,8 +152,8 @@ QVariant DebugBreakpointsListModel::headerData(int column, Qt::Orientation orien
 
 	switch (column)
 	{
-//	case DebugBreakpointsListModel::EnabledColumn:
-//		return "Enabled";
+	case DebugBreakpointsListModel::EnabledColumn:
+		return "Enabled";
 	case DebugBreakpointsListModel::LocationColumn:
 		return "Location";
 	case DebugBreakpointsListModel::AddressColumn:
@@ -197,7 +197,7 @@ void DebugBreakpointsItemDelegate::paint(
 	auto data = idx.data(Qt::DisplayRole);
 	switch (idx.column())
 	{
-//	case DebugBreakpointsListModel::EnabledColumn:
+	case DebugBreakpointsListModel::EnabledColumn:
 	case DebugBreakpointsListModel::LocationColumn:
 	case DebugBreakpointsListModel::AddressColumn:
 	{
@@ -290,6 +290,24 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 	m_menu->addAction(addBreakpointActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		addBreakpointActionName, UIAction([&]() { add(); }));
+
+	QString enableBreakpointActionName = QString::fromStdString("Enable Breakpoint");
+	UIAction::registerAction(enableBreakpointActionName);
+	m_menu->addAction(enableBreakpointActionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		enableBreakpointActionName, UIAction([&]() { enableSelected(); }, [&]() { return selectionNotEmpty(); }));
+
+	QString disableBreakpointActionName = QString::fromStdString("Disable Breakpoint");
+	UIAction::registerAction(disableBreakpointActionName);
+	m_menu->addAction(disableBreakpointActionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		disableBreakpointActionName, UIAction([&]() { disableSelected(); }, [&]() { return selectionNotEmpty(); }));
+
+	QString toggleBreakpointActionName = QString::fromStdString("Toggle Breakpoint Enable/Disable");
+	UIAction::registerAction(toggleBreakpointActionName, QKeySequence("Ctrl+Shift+B"));
+	m_menu->addAction(toggleBreakpointActionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		toggleBreakpointActionName, UIAction([&]() { toggleSelected(); }, [&]() { return selectionNotEmpty(); }));
 
 	connect(this, &QTableView::doubleClicked, this, &DebugBreakpointsWidget::onDoubleClicked);
 
@@ -414,6 +432,42 @@ void DebugBreakpointsWidget::add()
 		uint64_t offset = address - m_controller->GetViewFileSegmentsStart();
 		ModuleNameAndOffset info = {filename, offset};
 		m_controller->AddBreakpoint(info);
+	}
+}
+
+
+void DebugBreakpointsWidget::enableSelected()
+{
+	QModelIndexList sel = selectionModel()->selectedRows();
+	for (const QModelIndex& index : sel)
+	{
+		BreakpointItem bp = m_model->getRow(index.row());
+		m_controller->EnableBreakpoint(bp.location());
+	}
+}
+
+
+void DebugBreakpointsWidget::disableSelected()
+{
+	QModelIndexList sel = selectionModel()->selectedRows();
+	for (const QModelIndex& index : sel)
+	{
+		BreakpointItem bp = m_model->getRow(index.row());
+		m_controller->DisableBreakpoint(bp.location());
+	}
+}
+
+
+void DebugBreakpointsWidget::toggleSelected()
+{
+	QModelIndexList sel = selectionModel()->selectedRows();
+	for (const QModelIndex& index : sel)
+	{
+		BreakpointItem bp = m_model->getRow(index.row());
+		if (bp.enabled())
+			m_controller->DisableBreakpoint(bp.location());
+		else
+			m_controller->EnableBreakpoint(bp.location());
 	}
 }
 
