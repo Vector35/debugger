@@ -203,29 +203,29 @@ else()
 			)
 endif()
 
-# Bundle GDB executable similar to LLDB
+# Bundle GDB server from the existing bundle
 if (APPLE)
 	# Extract gdbserver.zip and copy to output directory
 	add_custom_command(TARGET debuggercore PRE_LINK
-		COMMAND ${CMAKE_COMMAND} -E echo "Extracting and copying GDB"
-		COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb/bin
+		COMMAND ${CMAKE_COMMAND} -E echo "Extracting and copying GDB Server"
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_DIRECTORY_PATH}
 		COMMAND ${CMAKE_COMMAND} -E chdir ${PROJECT_SOURCE_DIR}/adapters/gdb ${CMAKE_COMMAND} -E tar xf gdbserver.zip
-		COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/adapters/gdb/gdbserver ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb/bin/gdb
-		COMMAND chmod +x ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb/bin/gdb
+		COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/adapters/gdb/gdbserver ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdbserver
+		COMMAND chmod +x ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdbserver
 		)
 elseif (UNIX)
 	# Extract gdbserver.zip and copy to output directory
 	add_custom_command(TARGET debuggercore PRE_LINK
-		COMMAND ${CMAKE_COMMAND} -E echo "Extracting and copying GDB"
-		COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb/bin
+		COMMAND ${CMAKE_COMMAND} -E echo "Extracting and copying GDB Server"
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_DIRECTORY_PATH}
 		COMMAND ${CMAKE_COMMAND} -E chdir ${PROJECT_SOURCE_DIR}/adapters/gdb ${CMAKE_COMMAND} -E tar xf gdbserver.zip
-		COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/adapters/gdb/gdbserver ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb/bin/gdb
-		COMMAND chmod +x ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb/bin/gdb
+		COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/adapters/gdb/gdbserver ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdbserver
+		COMMAND chmod +x ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdbserver
 		)
 else()
-	# For Windows, we would need a Windows GDB build
+	# For Windows, we would need a Windows GDB server build
 	add_custom_command(TARGET debuggercore PRE_LINK
-		COMMAND ${CMAKE_COMMAND} -E echo "GDB bundling not implemented for Windows"
+		COMMAND ${CMAKE_COMMAND} -E echo "GDB server bundling not implemented for Windows"
 		)
 endif()
 

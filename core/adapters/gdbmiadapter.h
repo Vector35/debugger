@@ -14,6 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+ * GDB Machine Interface (MI) Adapter
+ * 
+ * This adapter provides local debugging capabilities using GDB's Machine Interface
+ * protocol instead of the Remote Serial Protocol (RSP) used by the existing GdbAdapter.
+ * 
+ * Key differences from GdbAdapter:
+ * - Uses GDB MI protocol for structured communication
+ * - Supports local process execution (not just remote connection)
+ * - Requires system GDB installation with MI support
+ * - Can use bundled gdbserver for enhanced debugging features
+ * 
+ * Current implementation uses system GDB directly for simplicity, but can be
+ * extended to use gdbserver for more advanced scenarios.
+ */
+
 #pragma once
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
@@ -76,6 +92,7 @@ namespace BinaryNinjaDebugger
 		bool StartGdbProcess();
 		void StopGdbProcess();
 		std::string GetGdbExecutablePath();
+		std::string GetGdbServerPath();
 
 		// Helper methods
 		void GenerateDefaultAdapterSettings(BinaryView* data);
@@ -135,6 +152,9 @@ namespace BinaryNinjaDebugger
 		bool SupportFeature(DebugAdapterCapacity feature) override;
 
 		Ref<Settings> GetAdapterSettings() override;
+
+		// Public helper for adapter type validation
+		std::string GetGdbServerPath();
 	};
 
 	class GdbMiAdapterType : public DebugAdapterType

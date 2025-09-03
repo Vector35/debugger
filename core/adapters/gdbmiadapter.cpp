@@ -21,6 +21,14 @@ limitations under the License.
 #include <binaryninjaapi.h>
 #include <fmt/format.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#include <sys/wait.h>
+#include <signal.h>
+#endif
+
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebugger;
 using namespace std;
@@ -134,6 +142,49 @@ GdbMiAdapter::~GdbMiAdapter()
 
 std::string GdbMiAdapter::GetGdbExecutablePath()
 {
+	// First try to find system GDB
+	std::vector<std::string> gdbPaths = {
+		"/usr/bin/gdb",
+		"/usr/local/bin/gdb", 
+		"/opt/homebrew/bin/gdb",  // macOS Homebrew
+		"/opt/local/bin/gdb"      // macOS MacPorts
+	};
+
+#ifdef _WIN32
+	gdbPaths = {
+		"C:\\msys64\\mingw64\\bin\\gdb.exe",
+		"C:\\msys64\\usr\\bin\\gdb.exe",
+		"gdb.exe"  // Try PATH
+	};
+#endif
+
+	for (const auto& path : gdbPaths)
+	{
+		if (std::filesystem::exists(path))
+			return path;
+	}
+
+	// If no system GDB found, check for bundled GDB (future enhancement)
+	std::string pluginDir;
+	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
+		pluginDir = GetUserPluginDirectory();
+	else
+		pluginDir = GetBundledPluginDirectory();
+
+#ifdef _WIN32
+	std::string bundledPath = pluginDir + "\\gdb\\bin\\gdb.exe";
+#else
+	std::string bundledPath = pluginDir + "/gdb/bin/gdb";
+#endif
+
+	if (std::filesystem::exists(bundledPath))
+		return bundledPath;
+
+	return ""; // No GDB found
+}
+
+std::string GdbMiAdapter::GetGdbServerPath()
+{
 	// Get the directory where debugger plugins are installed
 	std::string pluginDir;
 	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
@@ -142,9 +193,9 @@ std::string GdbMiAdapter::GetGdbExecutablePath()
 		pluginDir = GetBundledPluginDirectory();
 
 #ifdef _WIN32
-	return pluginDir + "\\gdb\\bin\\gdb.exe";
+	return pluginDir + "\\gdbserver.exe";  // When Windows support is added
 #else
-	return pluginDir + "/gdb/bin/gdb";
+	return pluginDir + "/gdbserver";
 #endif
 }
 
@@ -408,6 +459,15 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 		return false;
 	}
 
+	// For local debugging, we need to launch gdbserver first, then connect GDB to it
+	// This is a more complex setup but provides the full power of GDB MI
+
+	// TODO: Launch gdbserver with the target
+	// gdbserver localhost:0 target_executable args...
+	// Then connect GDB to the gdbserver
+	// This requires additional process management for gdbserver
+
+	// For now, use direct file execution (simpler case)
 	// Set executable file
 	std::string cmd = fmt::format("-file-exec-and-symbols \"{}\"", path);
 	std::string response = SendCommand(cmd);
@@ -785,7 +845,7 @@ Ref<Settings> GdbMiAdapter::GetAdapterSettings()
 }
 
 // GdbMiAdapterType implementation
-GdbMiAdapterType::GdbMiAdapterType() : DebugAdapterType("GDB MI") {}
+GdbMiAdapterType::GdbMiAdapterType() : DebugAdapterType("GDB MI (Local)") {}
 
 DebugAdapter* GdbMiAdapterType::Create(BinaryNinja::BinaryView* data)
 {
@@ -794,10 +854,18 @@ DebugAdapter* GdbMiAdapterType::Create(BinaryNinja::BinaryView* data)
 
 bool GdbMiAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
 {
-	// Check if GDB executable exists
+	// Check if system GDB is available
 	GdbMiAdapter adapter(data);
 	std::string gdbPath = adapter.GetGdbExecutablePath();
-	return std::filesystem::exists(gdbPath);
+	if (gdbPath.empty())
+	{
+		LogInfo("GDB MI adapter requires system GDB installation");
+		return false;
+	}
+	
+	// Also check if gdbserver is bundled
+	std::string gdbServerPath = adapter.GetGdbServerPath();
+	return std::filesystem::exists(gdbServerPath);
 }
 
 bool GdbMiAdapterType::CanExecute(BinaryNinja::BinaryView* data)
