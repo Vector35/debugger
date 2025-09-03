@@ -26,6 +26,8 @@ file(GLOB ADAPTER_SOURCES CONFIGURE_DEPENDS
 		adapters/lldbadapter.h
 		adapters/gdbadapter.cpp
 		adapters/gdbadapter.h
+		adapters/gdbmiadapter.cpp
+		adapters/gdbmiadapter.h
 		adapters/rspconnector.cpp
 		adapters/rspconnector.h
 		adapters/corelliumadapter.cpp
@@ -199,6 +201,32 @@ else()
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/lldb-argdumper.exe ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/liblldb.dll ${LIBRARY_OUTPUT_DIRECTORY_PATH}
 			)
+endif()
+
+# Bundle GDB executable similar to LLDB
+if (APPLE)
+	# Extract gdbserver.zip and copy to output directory
+	add_custom_command(TARGET debuggercore PRE_LINK
+		COMMAND ${CMAKE_COMMAND} -E echo "Extracting and copying GDB"
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb/bin
+		COMMAND ${CMAKE_COMMAND} -E chdir ${PROJECT_SOURCE_DIR}/adapters/gdb ${CMAKE_COMMAND} -E tar xf gdbserver.zip
+		COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/adapters/gdb/gdbserver ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb/bin/gdb
+		COMMAND chmod +x ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb/bin/gdb
+		)
+elseif (UNIX)
+	# Extract gdbserver.zip and copy to output directory
+	add_custom_command(TARGET debuggercore PRE_LINK
+		COMMAND ${CMAKE_COMMAND} -E echo "Extracting and copying GDB"
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb/bin
+		COMMAND ${CMAKE_COMMAND} -E chdir ${PROJECT_SOURCE_DIR}/adapters/gdb ${CMAKE_COMMAND} -E tar xf gdbserver.zip
+		COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/adapters/gdb/gdbserver ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb/bin/gdb
+		COMMAND chmod +x ${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb/bin/gdb
+		)
+else()
+	# For Windows, we would need a Windows GDB build
+	add_custom_command(TARGET debuggercore PRE_LINK
+		COMMAND ${CMAKE_COMMAND} -E echo "GDB bundling not implemented for Windows"
+		)
 endif()
 
 if (WIN32)
