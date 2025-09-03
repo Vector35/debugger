@@ -77,6 +77,29 @@ namespace BinaryNinjaDebugger {
 	};
 
 
+	class DebuggerMemoryRegions
+	{
+	private:
+		DebuggerState* m_state;
+		std::vector<DebugMemoryRegion> m_regions;
+		bool m_dirty;
+		std::recursive_mutex m_regionsMutex;
+
+	public:
+		DebuggerMemoryRegions(DebuggerState* state);
+		void MarkDirty();
+		void Update();
+		bool IsDirty() const { return m_dirty; }
+
+		std::vector<DebugMemoryRegion> GetAllRegions();
+		DebugMemoryRegion GetRegionForAddress(uint64_t address);
+		bool IsAddressValid(uint64_t address);
+		bool IsAddressReadable(uint64_t address);
+		bool IsAddressWritable(uint64_t address);
+		bool IsAddressExecutable(uint64_t address);
+	};
+
+
 	class DebuggerBreakpoints
 	{
 	private:
@@ -181,6 +204,7 @@ namespace BinaryNinjaDebugger {
 
 		DebugAdapter* m_adapter;
 		DebuggerModules* m_modules;
+		DebuggerMemoryRegions* m_memoryRegions;
 		DebuggerRegisters* m_registers;
 		DebuggerThreads* m_threads;
 		DebuggerBreakpoints* m_breakpoints;
@@ -203,6 +227,7 @@ namespace BinaryNinjaDebugger {
 		DebuggerController* GetController() const { return m_controller; }
 
 		DebuggerModules* GetModules() const { return m_modules; }
+		DebuggerMemoryRegions* GetMemoryRegions() const { return m_memoryRegions; }
 		DebuggerBreakpoints* GetBreakpoints() const { return m_breakpoints; }
 		DebuggerRegisters* GetRegisters() const { return m_registers; }
 		DebuggerThreads* GetThreads() const { return m_threads; }

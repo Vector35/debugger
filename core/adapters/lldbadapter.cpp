@@ -1214,6 +1214,66 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
 }
 
 
+std::vector<DebugMemoryRegion> LldbAdapter::GetMemoryRegions()
+{
+	std::vector<DebugMemoryRegion> regions;
+	
+	if (!m_process.IsValid() || m_process.GetState() != lldb::eStateStopped)
+		return regions;
+
+	// LLDB doesn't have a direct API to enumerate all memory regions
+	// We'll use the memory region info API to build a list
+	// by probing the address space in chunks
+	
+	lldb::addr_t address = 0;
+	
+	while (address != LLDB_INVALID_ADDRESS)
+	{
+		lldb::SBMemoryRegionInfo regionInfo;
+		lldb::SBError error = m_process.GetMemoryRegionInfo(address, regionInfo);
+		
+		if (error.Fail())
+			break;
+			
+		if (regionInfo.IsMapped())
+		{
+			uint32_t permissions = 0;
+			if (regionInfo.IsReadable()) permissions |= DebugMemoryRegion::PermRead;
+			if (regionInfo.IsWritable()) permissions |= DebugMemoryRegion::PermWrite;
+			if (regionInfo.IsExecutable()) permissions |= DebugMemoryRegion::PermExecute;
+			
+			std::string name = regionInfo.GetName() ? regionInfo.GetName() : "";
+			if (name.empty())
+			{
+				if (permissions & DebugMemoryRegion::PermExecute)
+					name = "[executable]";
+				else if (permissions & DebugMemoryRegion::PermWrite)
+					name = "[heap/stack]";
+				else
+					name = "[anonymous]";
+			}
+			
+			DebugMemoryRegion region(
+				regionInfo.GetRegionBase(),
+				regionInfo.GetRegionEnd(),
+				permissions,
+				name,
+				name
+			);
+			regions.push_back(region);
+		}
+		
+		// Move to the next region
+		lldb::addr_t nextAddress = regionInfo.GetRegionEnd();
+		if (nextAddress <= address)
+			break; // Prevent infinite loop
+		address = nextAddress;
+	}
+	
+	return regions;
+}
+
+
 std::string LldbAdapter::GetTargetArchitecture()
 {
 	SBPlatform platform = m_target.GetPlatform();

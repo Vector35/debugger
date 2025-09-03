@@ -790,6 +790,69 @@ std::vector<DebugModule> GdbAdapter::GetModuleList()
 }
 
 
+std::vector<DebugMemoryRegion> GdbAdapter::GetMemoryRegions()
+{
+    if (m_isTargetRunning)
+        return {};
+
+    const auto path = "/proc/" + std::to_string(this->m_lastActiveThreadId) + "/maps";
+    std::string data = GetRemoteFile(path);
+    if (data.empty())
+        return {};
+
+    std::vector<DebugMemoryRegion> regions;
+
+    for (const std::string& line: RspConnector::Split(data, "\n"))
+    {
+        std::string_view v = line;
+        v.remove_prefix(std::min(v.find_first_not_of(" "), v.size()));
+        auto trimPosition = v.find_last_not_of(" ");
+        if (trimPosition != v.npos)
+            v.remove_suffix(v.size() - trimPosition - 1);
+
+        // regex_match() requires the first argument to be const
+        const std::string trimmedLine = std::string(v);
+
+        std::smatch match;
+        // Pattern: start-end permissions offset dev inode pathname
+        // Example: 00400000-00401000 r-xp 00000000 08:01 1234567 /bin/ls
+        const std::regex region_regex("^([0-9a-f]+)-([0-9a-f]+) ([rwxp-]{4}) [0-9a-f]+ [0-9a-f]+:[0-9a-f]+ [0-9]+(?: (.*))?$");
+        bool found = std::regex_match(trimmedLine, match, region_regex);
+        if (found && match.size() >= 4)
+        {
+            std::string startString = match[1].str();
+            uint64_t start = std::strtoull(startString.c_str(), nullptr, 16);
+            std::string endString = match[2].str();
+            uint64_t end = std::strtoull(endString.c_str(), nullptr, 16);
+            std::string perms = match[3].str();
+            std::string name = (match.size() > 4) ? match[4].str() : "";
+
+            // Parse permissions
+            uint32_t permissions = 0;
+            if (perms[0] == 'r') permissions |= DebugMemoryRegion::PermRead;
+            if (perms[1] == 'w') permissions |= DebugMemoryRegion::PermWrite;
+            if (perms[2] == 'x') permissions |= DebugMemoryRegion::PermExecute;
+
+            // Determine region type/name if empty
+            if (name.empty())
+            {
+                if (permissions & DebugMemoryRegion::PermExecute)
+                    name = "[executable]";
+                else if (permissions & DebugMemoryRegion::PermWrite)
+                    name = "[heap/stack]";
+                else
+                    name = "[anonymous]";
+            }
+
+            DebugMemoryRegion region(start, end, permissions, name, name);
+            regions.push_back(region);
+        }
+    }
+
+    return regions;
+}
+
+
 std::string GdbAdapter::GetTargetArchitecture()
 {
 	return m_remoteArch;

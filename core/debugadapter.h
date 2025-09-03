@@ -189,6 +189,32 @@ namespace BinaryNinjaDebugger {
 		{}
 	};
 
+	struct DebugMemoryRegion
+	{
+		std::uintptr_t m_start = 0;
+		std::uintptr_t m_end = 0;
+		uint32_t m_permissions = 0; // flags for read/write/execute permissions
+		std::string m_name;
+		std::string m_module; // associated module/file if applicable
+
+		// Permission flags
+		static constexpr uint32_t PermRead = 1;
+		static constexpr uint32_t PermWrite = 2;
+		static constexpr uint32_t PermExecute = 4;
+
+		DebugMemoryRegion() = default;
+		DebugMemoryRegion(std::uintptr_t start, std::uintptr_t end, uint32_t permissions, 
+			const std::string& name = "", const std::string& module = "") :
+			m_start(start), m_end(end), m_permissions(permissions), m_name(name), m_module(module)
+		{}
+
+		std::size_t GetSize() const { return m_end > m_start ? m_end - m_start : 0; }
+		bool IsReadable() const { return (m_permissions & PermRead) != 0; }
+		bool IsWritable() const { return (m_permissions & PermWrite) != 0; }
+		bool IsExecutable() const { return (m_permissions & PermExecute) != 0; }
+		bool Contains(std::uintptr_t address) const { return address >= m_start && address < m_end; }
+	};
+
 	class DebuggerController;
 	class DebugAdapter
 	{
@@ -275,6 +301,8 @@ namespace BinaryNinjaDebugger {
 		virtual bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) = 0;
 
 		virtual std::vector<DebugModule> GetModuleList() = 0;
+
+		virtual std::vector<DebugMemoryRegion> GetMemoryRegions() { return {}; }
 
 		virtual std::string GetTargetArchitecture() = 0;
 

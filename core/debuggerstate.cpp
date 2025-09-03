@@ -512,6 +512,85 @@ std::vector<DebugModule> DebuggerModules::GetAllModules()
 }
 
 
+DebuggerMemoryRegions::DebuggerMemoryRegions(DebuggerState* state) : m_state(state)
+{
+	MarkDirty();
+}
+
+
+void DebuggerMemoryRegions::MarkDirty()
+{
+	std::unique_lock lock(m_regionsMutex);
+	m_dirty = true;
+	m_regions.clear();
+}
+
+
+void DebuggerMemoryRegions::Update()
+{
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return;
+
+	if (!m_state->IsConnected())
+		return;
+
+	std::unique_lock lock(m_regionsMutex);
+	m_regions = adapter->GetMemoryRegions();
+	m_dirty = false;
+}
+
+
+std::vector<DebugMemoryRegion> DebuggerMemoryRegions::GetAllRegions()
+{
+	if (m_dirty)
+		Update();
+
+	std::unique_lock lock(m_regionsMutex);
+	return m_regions;
+}
+
+
+DebugMemoryRegion DebuggerMemoryRegions::GetRegionForAddress(uint64_t address)
+{
+	auto regions = GetAllRegions();
+	for (const auto& region : regions)
+	{
+		if (region.Contains(address))
+			return region;
+	}
+	return DebugMemoryRegion{}; // Return empty region if not found
+}
+
+
+bool DebuggerMemoryRegions::IsAddressValid(uint64_t address)
+{
+	auto region = GetRegionForAddress(address);
+	return region.GetSize() > 0; // Non-empty region means address is valid
+}
+
+
+bool DebuggerMemoryRegions::IsAddressReadable(uint64_t address)
+{
+	auto region = GetRegionForAddress(address);
+	return region.IsReadable();
+}
+
+
+bool DebuggerMemoryRegions::IsAddressWritable(uint64_t address)
+{
+	auto region = GetRegionForAddress(address);
+	return region.IsWritable();
+}
+
+
+bool DebuggerMemoryRegions::IsAddressExecutable(uint64_t address)
+{
+	auto region = GetRegionForAddress(address);
+	return region.IsExecutable();
+}
+
+
 DebuggerBreakpoints::DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial) :
 	m_state(state), m_breakpoints(std::move(initial))
 {}
@@ -777,6 +856,14 @@ DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
 	if (!m_state->IsConnected())
 		return {};
 
+	// Check if the block address is in a valid memory region
+	if (!m_state->GetMemoryRegions()->IsAddressReadable(block))
+	{
+		// Address is not in a readable memory region, return empty buffer
+		m_valueCache[block] = {{}, FailedToReadStatus, NoSource};
+		return {};
+	}
+
 	auto iter = m_valueCache.find(block);
 	if (iter != m_valueCache.end())
 	{
@@ -905,6 +992,7 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 
 	m_adapter = nullptr;
 	m_modules = new DebuggerModules(this);
+	m_memoryRegions = new DebuggerMemoryRegions(this);
 	m_registers = new DebuggerRegisters(this);
 	m_threads = new DebuggerThreads(this);
 	m_breakpoints = new DebuggerBreakpoints(this);
@@ -921,6 +1009,7 @@ DebuggerState::~DebuggerState()
 {
 	delete m_adapter;
 	delete m_modules;
+	delete m_memoryRegions;
 	delete m_registers;
 	delete m_threads;
 	delete m_breakpoints;
@@ -1013,6 +1102,7 @@ void DebuggerState::MarkDirty()
 	m_registers->MarkDirty();
 	m_threads->MarkDirty();
 	m_modules->MarkDirty();
+	m_memoryRegions->MarkDirty();
 	m_memory->MarkDirty();
 }
 
@@ -1033,6 +1123,9 @@ void DebuggerState::UpdateCaches()
 
 	if (m_modules->IsDirty())
 		m_modules->Update();
+
+	if (m_memoryRegions->IsDirty())
+		m_memoryRegions->Update();
 }
 
 
