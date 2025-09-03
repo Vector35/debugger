@@ -265,7 +265,7 @@ bool DbgEngAdapter::LaunchDbgSrv(const std::string& commandLine)
 		// Use ShellExecuteEx with "runas" verb to launch with elevated privileges
 		SHELLEXECUTEINFOA sei = { 0 };
 		sei.cbSize = sizeof(sei);
-		sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+		sei.fMask = 0;  // No special flags needed
 		sei.lpVerb = "runas";
 		sei.lpFile = exePath.c_str();
 		sei.lpParameters = args.empty() ? NULL : args.c_str();
