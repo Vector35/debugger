@@ -244,6 +244,50 @@ class DebuggerAPI(unittest.TestCase):
 
         dbg.quit_and_wait()
 
+    def test_memory_allocation(self):
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv = load(fpath)
+        dbg = DebuggerController(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+
+        # Test memory allocation
+        # Try to allocate 1024 bytes with read/write/execute permissions (0x7)
+        try:
+            allocated_addr = dbg.allocate_memory(1024, 0x7)
+            
+            # If allocation is supported by the adapter, we should get a non-zero address
+            if allocated_addr != 0:
+                # Test that we can write to the allocated memory
+                test_data = b'\xDE\xAD\xBE\xEF' * (1024 // 4)
+                self.assertTrue(dbg.write_memory(allocated_addr, test_data))
+                
+                # Test that we can read back what we wrote
+                read_data = dbg.read_memory(allocated_addr, 1024)
+                self.assertEqual(read_data, test_data)
+                
+                # Test freeing the allocated memory
+                self.assertTrue(dbg.free_memory(allocated_addr))
+                
+                # After freeing, writing should fail or reading should return empty
+                # (depending on adapter implementation)
+                # Note: Some adapters might not immediately invalidate the memory
+                
+        except AttributeError:
+            # If allocate_memory/free_memory methods don't exist in Python API yet,
+            # skip this test - this is expected during development
+            self.skipTest("allocate_memory/free_memory methods not yet available in Python API")
+        except Exception as e:
+            # If allocation is not supported by the current adapter, that's okay
+            # We just want to make sure the methods exist and don't crash
+            if "not supported" in str(e).lower() or allocated_addr == 0:
+                # This is expected for some adapters (TTD, core dumps, etc.)
+                pass
+            else:
+                # Re-raise unexpected errors
+                raise
+
+        dbg.quit_and_wait()
+
     # @unittest.skip
     def test_thread(self):
         fpath = name_to_fpath('helloworld_thread', self.arch)

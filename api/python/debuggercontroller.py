@@ -558,6 +558,14 @@ class DebuggerController:
         >>> dbg.data.write(dbg.stack_pointer, b'a' * 0x10)
         16
 
+    To allocate and free memory in the target process, use ``allocate_memory``/``free_memory``:
+
+        >>> addr = dbg.allocate_memory(1024)  # Allocate 1KB with default permissions
+        >>> if addr != 0:
+        ...     dbg.write_memory(addr, b'Hello, World!')
+        ...     dbg.free_memory(addr)
+        True
+
     ``modules`` returns the list of modules, `threads` returns the list of threads.
 
     Breakpoints can be added via `add_breakpoint`:
@@ -673,6 +681,25 @@ class DebuggerController:
             buffer = binaryninja.DataBuffer(buffer)
         buffer_obj = ctypes.cast(buffer.handle, ctypes.POINTER(dbgcore.BNDataBuffer))
         return dbgcore.BNDebuggerWriteMemory(self.handle, address, buffer_obj)
+
+    def allocate_memory(self, size: int, permissions: int = 0x7) -> int:
+        """
+        Allocate memory in the target process.
+
+        :param size: number of bytes to allocate
+        :param permissions: memory permissions (default 0x7 for read/write/execute)
+        :return: address of allocated memory, or 0 on failure
+        """
+        return dbgcore.BNDebuggerAllocateMemory(self.handle, size, permissions)
+
+    def free_memory(self, address: int) -> bool:
+        """
+        Free previously allocated memory in the target process.
+
+        :param address: address of memory to free (returned by allocate_memory)
+        :return: True on success, False on failure
+        """
+        return dbgcore.BNDebuggerFreeMemory(self.handle, address)
 
     @property
     def processes(self) -> List[DebugProcess]:
