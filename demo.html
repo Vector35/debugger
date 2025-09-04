@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binary Ninja Debugger - Bookmark Feature</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #2b2b2b;
+            color: #ffffff;
+        }
+        .debugger-window {
+            width: 800px;
+            margin: 0 auto;
+            background: #3c3c3c;
+            border: 1px solid #555;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .title-bar {
+            background: #4a4a4a;
+            padding: 8px 12px;
+            font-weight: bold;
+            border-bottom: 1px solid #555;
+        }
+        .controls {
+            background: #353535;
+            padding: 12px;
+            border-bottom: 1px solid #555;
+        }
+        .control-button {
+            display: inline-block;
+            padding: 4px 8px;
+            margin-right: 8px;
+            background: #4a4a4a;
+            border: 1px solid #666;
+            border-radius: 3px;
+            color: #fff;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        .control-button:hover {
+            background: #555;
+        }
+        .tabs {
+            background: #404040;
+            border-bottom: 1px solid #555;
+        }
+        .tab {
+            display: inline-block;
+            padding: 8px 16px;
+            border-right: 1px solid #555;
+            cursor: pointer;
+            color: #ccc;
+        }
+        .tab.active {
+            background: #3c3c3c;
+            color: #fff;
+            border-bottom: 1px solid #3c3c3c;
+        }
+        .tab:hover {
+            background: #484848;
+        }
+        .bookmark-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #3c3c3c;
+        }
+        .bookmark-table th {
+            background: #454545;
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #555;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .bookmark-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #484848;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+        .bookmark-table tr:hover {
+            background: #454545;
+            cursor: pointer;
+        }
+        .bookmark-table tr.selected {
+            background: #0078d4;
+        }
+        .bookmark-actions {
+            padding: 12px;
+            background: #353535;
+            border-top: 1px solid #555;
+        }
+        .action-button {
+            padding: 6px 12px;
+            margin-right: 8px;
+            background: #0078d4;
+            border: none;
+            border-radius: 3px;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .action-button:hover {
+            background: #106ebe;
+        }
+        .action-button.secondary {
+            background: #666;
+        }
+        .action-button.secondary:hover {
+            background: #777;
+        }
+        .description {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .keyboard-hint {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="keyboard-hint">
+        Press Ctrl+M to add bookmark
+    </div>
+    
+    <h1 style="text-align: center; color: #fff; margin-bottom: 30px;">
+        Binary Ninja Debugger - Bookmark Feature Demo
+    </h1>
+
+    <div class="debugger-window">
+        <div class="title-bar">
+            Debugger
+        </div>
+        
+        <div class="controls">
+            <span class="control-button">▶ Launch</span>
+            <span class="control-button">⏸ Pause</span>
+            <span class="control-button">⏹ Stop</span>
+            <span class="control-button">📄 Step</span>
+            <span class="control-button">🔄 Restart</span>
+            <span style="margin-left: 20px; color: #0f0;">● Connected</span>
+            <span style="margin-left: 10px; color: #ccc;">Target: sample.exe (TTD)</span>
+        </div>
+        
+        <div class="tabs">
+            <div class="tab">Registers</div>
+            <div class="tab">Breakpoints</div>
+            <div class="tab active">Bookmarks</div>
+        </div>
+        
+        <table class="bookmark-table">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>TTD Position</th>
+                    <th>Address</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="description">Main function entry point</td>
+                    <td>12A:B4</td>
+                    <td>0x401000</td>
+                    <td>14:30:15</td>
+                </tr>
+                <tr class="selected">
+                    <td class="description">Critical section lock acquired</td>
+                    <td>15C:A2</td>
+                    <td>0x402500</td>
+                    <td>14:35:22</td>
+                </tr>
+                <tr>
+                    <td class="description">Before suspicious API call</td>
+                    <td>18F:DC</td>
+                    <td>0x403100</td>
+                    <td>14:42:08</td>
+                </tr>
+                <tr>
+                    <td class="description">Exception handler triggered</td>
+                    <td>1A2:3F</td>
+                    <td>0x404800</td>
+                    <td>14:48:33</td>
+                </tr>
+                <tr>
+                    <td class="description">Loop iteration #5 - anomaly detected</td>
+                    <td>1C8:91</td>
+                    <td>0x402200</td>
+                    <td>14:52:17</td>
+                </tr>
+                <tr>
+                    <td class="description">Function return - unexpected value</td>
+                    <td>1E4:7A</td>
+                    <td>0x401850</td>
+                    <td>14:56:41</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="bookmark-actions">
+            <button class="action-button">Add Bookmark...</button>
+            <button class="action-button secondary">Remove</button>
+            <button class="action-button secondary">Jump To</button>
+            <span style="margin-left: 20px; color: #ccc; font-size: 11px;">
+                Double-click bookmark to navigate • Right-click for context menu
+            </span>
+        </div>
+    </div>
+    
+    <div style="margin-top: 30px; padding: 20px; background: #2a2a2a; border-radius: 8px; max-width: 800px; margin-left: auto; margin-right: auto;">
+        <h3 style="color: #0078d4; margin-top: 0;">Feature Highlights:</h3>
+        <ul style="color: #ccc; line-height: 1.6;">
+            <li><strong>Time Travel Navigation:</strong> Double-click any bookmark to navigate to that exact point in the TTD trace</li>
+            <li><strong>Smart Position Tracking:</strong> Automatically captures TTD position (e.g., "12A:B4") when creating bookmarks</li>
+            <li><strong>Persistent Storage:</strong> Bookmarks are saved with the binary view and restored across sessions</li>
+            <li><strong>Global Access:</strong> Create bookmarks anywhere with Ctrl+M or through the Debugger menu</li>
+            <li><strong>Fallback Navigation:</strong> If TTD positioning fails, automatically falls back to address navigation</li>
+            <li><strong>Rich Metadata:</strong> Each bookmark stores description, TTD position, address, and timestamp</li>
+        </ul>
+    </div>
+
+    <script>
+        // Add some interactivity to demonstrate the UI
+        document.querySelectorAll('.bookmark-table tr').forEach(row => {
+            if (row.querySelector('td')) {
+                row.addEventListener('click', function() {
+                    document.querySelectorAll('.bookmark-table tr').forEach(r => r.classList.remove('selected'));
+                    this.classList.add('selected');
+                });
+                
+                row.addEventListener('dblclick', function() {
+                    const desc = this.querySelector('.description').textContent;
+                    const position = this.querySelectorAll('td')[1].textContent;
+                    const address = this.querySelectorAll('td')[2].textContent;
+                    alert(`Navigating to bookmark: "${desc}"\n\nTTD Position: ${position}\nAddress: ${address}\n\nThis would execute TTD commands and navigate to the bookmarked location.`);
+                });
+            }
+        });
+        
+        document.querySelector('.action-button').addEventListener('click', function() {
+            const desc = prompt('Enter bookmark description:', 'Current debugging position');
+            if (desc) {
+                alert(`Bookmark "${desc}" would be added at current debugger position with TTD support.`);
+            }
+        });
+    </script>
+</body>
+</html>
