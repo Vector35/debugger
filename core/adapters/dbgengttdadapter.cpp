@@ -3,10 +3,6 @@
 #include <algorithm>
 #include <cctype>
 
-#ifdef WIN32
-#include <fmt/format.h>
-#endif
-
 using namespace BinaryNinjaDebugger;
 using namespace std;
 
@@ -15,8 +11,6 @@ DbgEngTTDAdapter::DbgEngTTDAdapter(BinaryView* data) : DbgEngAdapter(data)
 {
     m_usePDBFileName = false;
 #ifdef WIN32
-	m_dataModelManager = nullptr;
-	m_debugHost = nullptr;
 	m_ttdInitialized = false;
 #endif
 	GenerateDefaultAdapterSettings(data);
@@ -498,25 +492,10 @@ bool DbgEngTTDAdapter::InitializeTTDMemoryAnalysis()
 		return false;
 	}
 	
-	// Get the debug host interface
-	HRESULT hr = m_debugClient->QueryInterface(__uuidof(IDebugHost), reinterpret_cast<void**>(&m_debugHost));
-	if (FAILED(hr))
-	{
-		LogError("Failed to get IDebugHost interface: 0x%x", hr);
-		return false;
-	}
-	
-	// Get the data model manager
-	hr = m_debugHost->QueryInterface(__uuidof(IDataModelManager), reinterpret_cast<void**>(&m_dataModelManager));
-	if (FAILED(hr))
-	{
-		LogError("Failed to get IDataModelManager interface: 0x%x", hr);
-		SAFE_RELEASE(m_debugHost);
-		return false;
-	}
-	
+	// For now, we'll use basic TTD command-line interface
+	// This can be enhanced later with full data model APIs
 	m_ttdInitialized = true;
-	LogInfo("TTD memory analysis initialized successfully");
+	LogInfo("TTD memory analysis initialized successfully (basic mode)");
 	return true;
 #else
 	return false;
@@ -526,8 +505,6 @@ bool DbgEngTTDAdapter::InitializeTTDMemoryAnalysis()
 void DbgEngTTDAdapter::CleanupTTDMemoryAnalysis()
 {
 #ifdef WIN32
-	SAFE_RELEASE(m_dataModelManager);
-	SAFE_RELEASE(m_debugHost);
 	m_ttdInitialized = false;
 #endif
 }
@@ -535,15 +512,15 @@ void DbgEngTTDAdapter::CleanupTTDMemoryAnalysis()
 bool DbgEngTTDAdapter::QueryMemoryAccess(const TTDPosition& startPos, const TTDPosition& endPos, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
 {
 #ifdef WIN32
-	if (!m_dataModelManager || !m_debugHost)
+	if (!m_debugControl)
 	{
-		LogError("TTD data model interfaces not initialized");
+		LogError("Debug control interface not available");
 		return false;
 	}
 	
 	try
 	{
-		// This is a simplified implementation using DbgEng commands
+		// This is a basic implementation using DbgEng commands
 		// A full implementation would use the data model APIs directly
 		std::string accessTypeStr;
 		switch (accessType)
@@ -563,18 +540,20 @@ bool DbgEngTTDAdapter::QueryMemoryAccess(const TTDPosition& startPos, const TTDP
 		}
 		
 		// Use the dx command to query TTD memory objects
+		// This is a placeholder command - in a real implementation, we would
+		// parse the actual TTD memory objects data model
 		std::string command = fmt::format("dx @$cursession.TTD.Memory(0x0,0xFFFFFFFFFFFFFFFF,\"{}\").Count", accessTypeStr);
 		std::string output = InvokeBackendCommand(command);
 		
-		// This is a placeholder implementation
-		// The actual implementation would parse the data model objects
-		// and extract detailed memory access information
 		LogInfo("TTD memory query executed: %s", command.c_str());
-		LogInfo("Output: %s", output.c_str());
+		LogDebug("Output: %s", output.c_str());
 		
 		// For now, create a sample event to demonstrate the structure
-		if (!output.empty() && output.find("error") == std::string::npos)
+		// In a real implementation, we would parse the actual TTD data model output
+		if (!output.empty() && output.find("error") == std::string::npos && output.find("Error") == std::string::npos)
 		{
+			// Create a sample event for demonstration
+			// Real implementation would parse the data model objects
 			TTDMemoryEvent sampleEvent;
 			sampleEvent.position = startPos;
 			sampleEvent.accessType = accessType;
@@ -583,6 +562,8 @@ bool DbgEngTTDAdapter::QueryMemoryAccess(const TTDPosition& startPos, const TTDP
 			sampleEvent.threadId = 1; // Placeholder
 			sampleEvent.instructionAddress = 0x400000; // Placeholder
 			events.push_back(sampleEvent);
+			
+			LogInfo("Created sample TTD memory event (placeholder implementation)");
 		}
 		
 		return true;
