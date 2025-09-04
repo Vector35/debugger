@@ -21,9 +21,10 @@ limitations under the License.
 #include <QApplication>
 #include <QHeaderView>
 
-TTDMemoryWidget::TTDMemoryWidget(QWidget* parent, DbgRef<DebuggerController> controller)
-	: QWidget(parent), m_controller(controller)
+TTDMemoryWidget::TTDMemoryWidget(QWidget* parent, BinaryViewRef data)
+	: QWidget(parent), m_data(data)
 {
+	m_controller = DebuggerController::GetController(m_data);
 	setupUI();
 }
 
@@ -104,7 +105,29 @@ void TTDMemoryWidget::setupUI()
 	setLayout(mainLayout);
 	
 	// Update UI state based on controller
-	updateForController(m_controller);
+	bool canQuery = false;
+	if (m_controller)
+	{
+		canQuery = m_controller->IsTTD();
+	}
+	
+	m_queryButton->setEnabled(canQuery);
+	
+	if (!canQuery)
+	{
+		if (!m_controller)
+		{
+			updateStatus("No debugger controller available");
+		}
+		else if (!m_controller->IsTTD())
+		{
+			updateStatus("TTD (Time Travel Debugging) not available with current target");
+		}
+	}
+	else
+	{
+		updateStatus("Ready - TTD memory analysis available");
+	}
 }
 
 void TTDMemoryWidget::setupTable()
@@ -135,36 +158,6 @@ void TTDMemoryWidget::setupTable()
 	// Connect double-click handler
 	connect(m_resultsTable, &QTableWidget::cellDoubleClicked, 
 			this, &TTDMemoryWidget::onCellDoubleClicked);
-}
-
-void TTDMemoryWidget::updateForController(DbgRef<DebuggerController> controller)
-{
-	m_controller = controller;
-	
-	// Enable/disable controls based on controller availability and TTD support
-	bool canQuery = false;
-	if (m_controller)
-	{
-		canQuery = m_controller->IsTTD();
-	}
-	
-	m_queryButton->setEnabled(canQuery);
-	
-	if (!canQuery)
-	{
-		if (!m_controller)
-		{
-			updateStatus("No debugger controller available");
-		}
-		else if (!m_controller->IsTTD())
-		{
-			updateStatus("TTD (Time Travel Debugging) not available with current target");
-		}
-	}
-	else
-	{
-		updateStatus("Ready - TTD memory analysis available");
-	}
 }
 
 void TTDMemoryWidget::performQuery()
@@ -344,6 +337,43 @@ TTDMemoryAccessType TTDMemoryWidget::getSelectedAccessTypes()
 		accessType = static_cast<TTDMemoryAccessType>(accessType | TTDMemoryExecute);
 		
 	return accessType;
+}
+
+
+// TTDMemorySidebarWidget implementation
+TTDMemorySidebarWidget::TTDMemorySidebarWidget(BinaryViewRef data) 
+	: SidebarWidget("TTD Memory"), m_data(data)
+{
+	m_controller = DebuggerController::GetController(data);
+	
+	auto* layout = new QVBoxLayout();
+	layout->setContentsMargins(0, 0, 0, 0);
+	
+	m_memoryWidget = new TTDMemoryWidget(this, data);
+	layout->addWidget(m_memoryWidget);
+	
+	setLayout(layout);
+}
+
+TTDMemorySidebarWidget::~TTDMemorySidebarWidget()
+{
+}
+
+
+// TTDMemoryWidgetType implementation
+TTDMemoryWidgetType::TTDMemoryWidgetType()
+	: SidebarWidgetType(QIcon(":/debugger/cctv-camera").pixmap(QSize(64, 64)).toImage(), "TTD Memory")
+{
+}
+
+SidebarWidget* TTDMemoryWidgetType::createWidget(ViewFrame*, BinaryViewRef data)
+{
+	return new TTDMemorySidebarWidget(data);
+}
+
+SidebarContentClassifier* TTDMemoryWidgetType::contentClassifier(ViewFrame*, BinaryViewRef data)
+{
+	return new ActiveDebugSessionSidebarContentClassifier(data);
 }
 
 #include "ttdmemorywidget.moc"

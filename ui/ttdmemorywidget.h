@@ -29,6 +29,7 @@ limitations under the License.
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "debuggerapi.h"
+#include "viewframe.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -38,6 +39,7 @@ class TTDMemoryWidget : public QWidget
 	Q_OBJECT
 
 private:
+	BinaryViewRef m_data;
 	DbgRef<DebuggerController> m_controller;
 	
 	// Input controls
@@ -62,13 +64,38 @@ private:
 	TTDMemoryAccessType getSelectedAccessTypes();
 
 public:
-	TTDMemoryWidget(QWidget* parent, DbgRef<DebuggerController> controller);
+	TTDMemoryWidget(QWidget* parent, BinaryViewRef data);
 	virtual ~TTDMemoryWidget();
-	
-	void updateForController(DbgRef<DebuggerController> controller);
 
 private Q_SLOTS:
 	void performQuery();
 	void clearResults();
 	void onCellDoubleClicked(int row, int column);
+};
+
+
+class TTDMemorySidebarWidget : public SidebarWidget
+{
+	Q_OBJECT
+
+private:
+	TTDMemoryWidget* m_memoryWidget;
+	BinaryViewRef m_data;
+	DbgRef<DebuggerController> m_controller;
+
+public:
+	TTDMemorySidebarWidget(BinaryViewRef data);
+	~TTDMemorySidebarWidget();
+};
+
+
+class TTDMemoryWidgetType : public SidebarWidgetType
+{
+public:
+	TTDMemoryWidgetType();
+	SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override;
+	SidebarWidgetLocation defaultLocation() const override { return SidebarWidgetLocation::RightBottom; }
+	SidebarContextSensitivity contextSensitivity() const override { return PerViewTypeSidebarContext; }
+	SidebarIconVisibility defaultIconVisibility() const override { return HideSidebarIconIfNoContent; }
+	SidebarContentClassifier* contentClassifier(ViewFrame*, BinaryViewRef) override;
 };

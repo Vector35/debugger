@@ -40,6 +40,7 @@ limitations under the License.
 #include "attachprocess.h"
 #include "progresstask.h"
 #include "debuggerinfowidget.h"
+#include "ttdmemorywidget.h"
 #include "freeversion.h"
 
 #ifdef WIN32
@@ -1373,6 +1374,7 @@ void GlobalDebuggerUI::InitializeUI()
 	Sidebar::addSidebarWidgetType(new DebugModulesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new ThreadFramesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new DebugInfoWidgetType());
+	Sidebar::addSidebarWidgetType(new TTDMemoryWidgetType());
 }
 
 
