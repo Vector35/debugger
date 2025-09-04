@@ -18,6 +18,7 @@ limitations under the License.
 #include <QHeaderView>
 #include <QInputDialog>
 #include <QMessageBox>
+#include <QShowEvent>
 #include "bookmarkswidget.h"
 #include "ui.h"
 #include "menus.h"
@@ -321,6 +322,15 @@ void DebugBookmarksWidget::contextMenuEvent(QContextMenuEvent* event)
 }
 
 
+void DebugBookmarksWidget::showEvent(QShowEvent* event)
+{
+	QTableView::showEvent(event);
+	// Refresh bookmarks when the widget becomes visible
+	// This ensures we pick up any bookmarks added via global actions
+	updateContent();
+}
+
+
 void DebugBookmarksWidget::jump()
 {
 	QModelIndexList sel = selectionModel()->selectedIndexes();
@@ -333,6 +343,8 @@ void DebugBookmarksWidget::jump()
 	// Navigate to the bookmarked position
 	if (m_controller && m_controller->IsConnectedToDebugServer())
 	{
+		bool ttdSuccess = false;
+		
 		try 
 		{
 			// First, try to navigate to the TTD position if we have a valid one
@@ -345,12 +357,22 @@ void DebugBookmarksWidget::jump()
 				std::string posCmd = fmt::format("!tt {}", bookmark.ttdPosition());
 				auto result = m_controller->InvokeBackendCommand(posCmd);
 				
-				// If TTD position command failed, try alternate commands
-				if (result.empty() || result.find("Error") != std::string::npos)
+				// Check if command was successful (basic heuristic)
+				if (!result.empty() && result.find("Error") == std::string::npos && 
+					result.find("Invalid") == std::string::npos)
+				{
+					ttdSuccess = true;
+				}
+				else
 				{
 					// Try alternate TTD position command
 					posCmd = fmt::format("!position {}", bookmark.ttdPosition());
 					result = m_controller->InvokeBackendCommand(posCmd);
+					if (!result.empty() && result.find("Error") == std::string::npos && 
+						result.find("Invalid") == std::string::npos)
+					{
+						ttdSuccess = true;
+					}
 				}
 			}
 		}
@@ -366,9 +388,30 @@ void DebugBookmarksWidget::jump()
 			ViewFrame* frame = context->getCurrentViewFrame();
 			if (frame && m_controller->GetData())
 			{
-				frame->navigate(m_controller->GetData(), bookmark.address(), true, true);
+				bool navSuccess = frame->navigate(m_controller->GetData(), bookmark.address(), true, true);
+				
+				// Show feedback to user about navigation result
+				if (ttdSuccess && navSuccess)
+				{
+					// Success - no message needed, but could add status update
+				}
+				else if (!ttdSuccess && navSuccess)
+				{
+					// TTD positioning failed but address navigation worked
+					LogDebug("Bookmark: TTD position '%s' navigation failed, used address navigation", bookmark.ttdPosition().c_str());
+				}
+				else
+				{
+					// Both failed - show warning
+					QMessageBox::warning(this, "Navigate to Bookmark", 
+						QString("Failed to navigate to bookmark '%1'").arg(QString::fromStdString(bookmark.description())));
+				}
 			}
 		}
+	}
+	else
+	{
+		QMessageBox::warning(this, "Navigate to Bookmark", "Cannot navigate: not connected to debugger");
 	}
 }
 
@@ -404,24 +447,43 @@ void DebugBookmarksWidget::onDoubleClicked()
 
 void DebugBookmarksWidget::add()
 {
-	if (!m_controller || !m_controller->IsConnectedToDebugServer())
+	if (!m_controller)
+	{
+		QMessageBox::warning(this, "Add Bookmark", "Cannot add bookmark: no debugger controller available");
+		return;
+	}
+	
+	if (!m_controller->IsConnectedToDebugServer())
 	{
 		QMessageBox::warning(this, "Add Bookmark", "Cannot add bookmark: not connected to debugger");
 		return;
 	}
 
 	bool ok;
-	QString description = QInputDialog::getText(this, "Add Bookmark", "Bookmark description:", QLineEdit::Normal, "", &ok);
-	if (!ok || description.isEmpty())
+	QString description = QInputDialog::getText(this, "Add Bookmark", 
+		"Enter a description for this bookmark:", QLineEdit::Normal, "", &ok);
+	if (!ok || description.trimmed().isEmpty())
 		return;
 
-	// Get current position info
-	std::string ttdPosition = getCurrentTTDPosition();
-	uint64_t currentAddress = m_controller->GetCurrentIP();
+	try 
+	{
+		// Get current position info
+		std::string ttdPosition = getCurrentTTDPosition();
+		uint64_t currentAddress = m_controller->GetCurrentIP();
 
-	BookmarkItem bookmark(description.toStdString(), ttdPosition, currentAddress);
-	m_model->addBookmark(bookmark);
-	saveBookmarks();
+		// Create bookmark with trimmed description
+		BookmarkItem bookmark(description.trimmed().toStdString(), ttdPosition, currentAddress);
+		m_model->addBookmark(bookmark);
+		saveBookmarks();
+		
+		// Show success feedback
+		LogDebug("Added bookmark '%s' at address 0x%llx with TTD position '%s'", 
+			bookmark.description().c_str(), bookmark.address(), bookmark.ttdPosition().c_str());
+	}
+	catch (...)
+	{
+		QMessageBox::critical(this, "Add Bookmark", "Failed to create bookmark due to an error");
+	}
 }
 
 
@@ -510,6 +572,11 @@ void DebugBookmarksWidget::uiEventHandler(const DebuggerEvent& event)
 	{
 	case TargetStoppedEventType:
 	case DetachedEventType:
+		updateContent();
+		break;
+	case LaunchedEventType:
+	case ConnectedEventType:
+		// Reload bookmarks when we connect/launch as metadata may have changed
 		updateContent();
 		break;
 	default:

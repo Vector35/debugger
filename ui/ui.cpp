@@ -25,6 +25,9 @@ limitations under the License.
 #include "QPainter"
 #include <QStatusBar>
 #include <QCoreApplication>
+#include <QInputDialog>
+#include <QMessageBox>
+#include <QDateTime>
 #include "fmt/format.h"
 #include "threadframes.h"
 #include "syncgroup.h"
@@ -667,6 +670,95 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			requireBinaryView));
 	debuggerMenu->addAction("Toggle Breakpoint", "Breakpoint");
+
+	UIAction::registerAction("Add Bookmark", QKeySequence(Qt::ControlModifier | Qt::Key_M));
+	context->globalActions()->bindAction("Add Bookmark",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				if (!controller->IsConnectedToDebugServer())
+				{
+					QMessageBox::warning(context->mainWindow(), "Add Bookmark", 
+						"Cannot add bookmark: not connected to debugger");
+					return;
+				}
+
+				// Get bookmark description from user
+				bool ok;
+				QString description = QInputDialog::getText(context->mainWindow(), "Add Bookmark", 
+					"Enter a description for this bookmark:", QLineEdit::Normal, "", &ok);
+				if (!ok || description.trimmed().isEmpty())
+					return;
+
+				try 
+				{
+					// Get current position info
+					uint64_t currentAddress = controller->GetCurrentIP();
+					
+					// Try to get TTD position
+					std::string ttdPosition = "0:0"; // Default fallback
+					try 
+					{
+						auto result = controller->InvokeBackendCommand(".echo TTD_Position_Check");
+						if (!result.empty())
+						{
+							auto posResult = controller->InvokeBackendCommand("!tt");
+							if (!posResult.empty() && posResult.find("Position") != std::string::npos)
+							{
+								// Extract position from result (simplified)
+								size_t pos = posResult.find("Position");
+								if (pos != std::string::npos)
+								{
+									size_t start = posResult.find(":", pos);
+									if (start != std::string::npos)
+									{
+										size_t end = posResult.find_first_of(" \n\r\t", start);
+										if (end != std::string::npos)
+											ttdPosition = posResult.substr(start - 2, end - start + 2);
+									}
+								}
+							}
+						}
+					}
+					catch (...) {}
+
+					// Create bookmark metadata entry
+					std::map<std::string, Ref<Metadata>> bookmarkInfo;
+					bookmarkInfo["description"] = new Metadata(description.trimmed().toStdString());
+					bookmarkInfo["ttdPosition"] = new Metadata(ttdPosition);
+					bookmarkInfo["address"] = new Metadata(currentAddress);
+					bookmarkInfo["timestamp"] = new Metadata(QDateTime::currentDateTime().toString().toStdString());
+
+					// Get existing bookmarks
+					std::vector<Ref<Metadata>> bookmarks;
+					Ref<Metadata> metadata = ctxt.binaryView->QueryMetadata("debugger.bookmarks");
+					if (metadata && metadata->IsArray())
+					{
+						bookmarks = metadata->GetArray();
+					}
+
+					// Add new bookmark
+					bookmarks.push_back(new Metadata(bookmarkInfo));
+					ctxt.binaryView->StoreMetadata("debugger.bookmarks", new Metadata(bookmarks));
+
+					QMessageBox::information(context->mainWindow(), "Bookmark Added", 
+						QString("Bookmark '%1' added at address 0x%2")
+						.arg(description.trimmed())
+						.arg(currentAddress, 0, 16));
+				}
+				catch (...)
+				{
+					QMessageBox::critical(context->mainWindow(), "Add Bookmark", 
+						"Failed to create bookmark due to an error");
+				}
+			},
+			connectedAndStopped));
+	debuggerMenu->addAction("Add Bookmark", "Breakpoint");
 
 	UIAction::registerAction("Connect to Debug Server");
 	context->globalActions()->bindAction("Connect to Debug Server",

@@ -137,6 +137,7 @@ class DebugBookmarksWidget : public QTableView
 	std::string getCurrentTTDPosition();
 
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
+	virtual void showEvent(QShowEvent* event) override;
 
 public:
 	DebugBookmarksWidget(ViewFrame* view, BinaryViewRef data, Menu* menu);
