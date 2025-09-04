@@ -401,11 +401,25 @@ void DebugControlsWidget::performStepReturnReverse()
 
 void DebugControlsWidget::performNavigateToTimestamp()
 {
+	// Check if we're connected and in TTD mode
+	if (!m_controller->IsConnected() || !m_controller->IsTTD()) {
+		QMessageBox::warning(this, "Navigate to Timestamp", 
+			"Timestamp navigation is only available when connected to a TTD trace.");
+		return;
+	}
+
 	bool ok;
 	QString timestamp = QInputDialog::getText(this, "Navigate to Timestamp", 
-		"Enter timestamp (format: NNNNNN:NN or time value):", QLineEdit::Normal, "", &ok);
+		"Enter timestamp or position:\n"
+		"Examples:\n"
+		"  Position: 1A0:12F\n" 
+		"  Timestamp: 123456:AB\n"
+		"  For more formats, see TTD documentation", 
+		QLineEdit::Normal, "", &ok);
 	
 	if (ok && !timestamp.isEmpty()) {
+		// Trim whitespace
+		timestamp = timestamp.trimmed();
 		std::string command = "!tt " + timestamp.toStdString();
 		m_controller->InvokeBackendCommand(command);
 	}
