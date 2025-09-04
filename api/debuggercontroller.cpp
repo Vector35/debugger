@@ -938,46 +938,14 @@ bool DebuggerController::IsTTD()
 }
 
 
-std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryEvents(const TTDPosition& startPos, const TTDPosition& endPos, TTDMemoryAccessType accessType)
-{
-	std::vector<TTDMemoryEvent> result;
-	
-	BNTTDPosition start = {startPos.sequence, startPos.step};
-	BNTTDPosition end = {endPos.sequence, endPos.step};
-	BNTTDMemoryAccessType type = static_cast<BNTTDMemoryAccessType>(accessType);
-	
-	size_t count = 0;
-	BNTTDMemoryEvent* events = BNDebuggerGetTTDMemoryEvents(m_object, start, end, type, &count);
-	
-	if (events && count > 0)
-	{
-		result.reserve(count);
-		for (size_t i = 0; i < count; i++)
-		{
-			TTDMemoryEvent event;
-			event.position.sequence = events[i].position.sequence;
-			event.position.step = events[i].position.step;
-			event.accessType = static_cast<TTDMemoryAccessType>(events[i].accessType);
-			event.address = events[i].address;
-			event.size = events[i].size;
-			event.threadId = events[i].threadId;
-			event.instructionAddress = events[i].instructionAddress;
-			result.push_back(event);
-		}
-		BNDebuggerFreeTTDMemoryEvents(events);
-	}
-	
-	return result;
-}
-
-std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryEventsForAddress(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
 {
 	std::vector<TTDMemoryEvent> result;
 	
 	BNTTDMemoryAccessType type = static_cast<BNTTDMemoryAccessType>(accessType);
 	
 	size_t count = 0;
-	BNTTDMemoryEvent* events = BNDebuggerGetTTDMemoryEventsForAddress(m_object, address, size, type, &count);
+	BNTTDMemoryEvent* events = BNDebuggerGetTTDMemoryAccessForAddress(m_object, address, size, type, &count);
 	
 	if (events && count > 0)
 	{

@@ -2813,31 +2813,7 @@ bool DebuggerController::IsTTD()
 }
 
 
-std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryEvents(const TTDPosition& startPos, const TTDPosition& endPos, TTDMemoryAccessType accessType)
-{
-	std::vector<TTDMemoryEvent> events;
-	
-	if (!IsTTD())
-	{
-		LogError("Current adapter does not support TTD");
-		return events;
-	}
-	
-	// Cast to TTD adapter and call the TTD-specific method
-	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
-	if (ttdAdapter)
-	{
-		events = ttdAdapter->GetMemoryEvents(startPos, endPos, accessType);
-	}
-	else
-	{
-		LogError("Failed to cast adapter to TTD adapter");
-	}
-	
-	return events;
-}
-
-std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryEventsForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
+std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
 {
 	std::vector<TTDMemoryEvent> events;
 	
@@ -2850,7 +2826,7 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryEventsForAddress(uin
 	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
 	if (ttdAdapter)
 	{
-		events = ttdAdapter->GetMemoryEventsForAddress(startAddress, endAddress, accessType);
+		events = ttdAdapter->GetMemoryAccessForAddress(startAddress, endAddress, accessType);
 	}
 	else
 	{

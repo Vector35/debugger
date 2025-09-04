@@ -206,7 +206,7 @@ void TTDMemoryWidget::performQuery()
 	try
 	{
 		// Execute the TTD memory query
-		auto events = m_controller->GetTTDMemoryEventsForAddress(startAddress, endAddress, accessType);
+		auto events = m_controller->GetTTDMemoryAccessForAddress(startAddress, endAddress, accessType);
 		
 		// Populate the results table
 		m_resultsTable->setRowCount(events.size());

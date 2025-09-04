@@ -297,9 +297,9 @@ extern "C"
 	// TTD (Time Travel Debugging) structures
 	typedef enum BNTTDMemoryAccessType
 	{
-		BNTTDMemoryRead,
-		BNTTDMemoryWrite,
-		BNTTDMemoryExecute
+		BNTTDMemoryRead = 1,
+		BNTTDMemoryWrite = 2,
+		BNTTDMemoryExecute = 4
 	} BNTTDMemoryAccessType;
 
 	typedef struct BNTTDPosition
@@ -526,9 +526,7 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerIsTTD(BNDebuggerController* controller);
 
 	// TTD Memory Analysis Functions
-	DEBUGGER_FFI_API BNTTDMemoryEvent* BNDebuggerGetTTDMemoryEvents(BNDebuggerController* controller, 
-		BNTTDPosition startPos, BNTTDPosition endPos, BNTTDMemoryAccessType accessType, size_t* count);
-	DEBUGGER_FFI_API BNTTDMemoryEvent* BNDebuggerGetTTDMemoryEventsForAddress(BNDebuggerController* controller,
+	DEBUGGER_FFI_API BNTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* controller,
 		uint64_t address, uint64_t size, BNTTDMemoryAccessType accessType, size_t* count);
 	DEBUGGER_FFI_API BNTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNTTDPosition position);

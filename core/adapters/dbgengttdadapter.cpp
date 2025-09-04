@@ -383,49 +383,7 @@ Ref<Settings> DbgEngTTDAdapterType::RegisterAdapterSettings()
 }
 
 
-// TTD Memory Analysis Implementation
-std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryEvents(const TTDPosition& startPos, const TTDPosition& endPos, TTDMemoryAccessType accessType)
-{
-	std::vector<TTDMemoryEvent> events;
-	
-#ifdef WIN32
-	if (!m_ttdInitialized && !InitializeTTDMemoryAnalysis())
-	{
-		LogError("Failed to initialize TTD memory analysis");
-		return events;
-	}
-
-	// Query the entire memory space since we're not filtering by position anymore
-	// This follows the feedback to not limit queries to time points
-	if (!QueryMemoryAccessByAddress(0x0, 0xFFFFFFFFFFFFFFFF, accessType, events))
-	{
-		LogError("Failed to query TTD memory access events");
-	}
-	
-	// Optionally filter by position range if needed (though feedback suggests removing this)
-	// This is kept for backward compatibility but could be removed
-	std::vector<TTDMemoryEvent> filteredEvents;
-	for (const auto& event : events)
-	{
-		if (event.position.sequence >= startPos.sequence && event.position.sequence <= endPos.sequence)
-		{
-			if (event.position.sequence == startPos.sequence && event.position.step < startPos.step)
-				continue;
-			if (event.position.sequence == endPos.sequence && event.position.step > endPos.step)
-				continue;
-			filteredEvents.push_back(event);
-		}
-	}
-	
-	return filteredEvents;
-#else
-	LogError("TTD memory analysis is only supported on Windows");
-#endif
-	
-	return events;
-}
-
-std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryEventsForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
+std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
 {
 	std::vector<TTDMemoryEvent> events;
 	
@@ -703,26 +661,22 @@ std::string DbgEngTTDAdapter::EvaluateDataModelExpression(const std::string& exp
 		// Convert result to string
 		if (result)
 		{
-			// For simplicity, try to get intrinsic value if it's a basic type
+			// Try to get intrinsic value directly
 			VARIANT vtValue;
 			VariantInit(&vtValue);
 			
-			ComPtr<IModelObject> intrinsic;
-			if (SUCCEEDED(result->GetIntrinsicValue(intrinsic.GetAddressOf())) && intrinsic)
+			if (SUCCEEDED(result->GetIntrinsicValueAs(VT_BSTR, &vtValue)))
 			{
-				if (SUCCEEDED(intrinsic->GetIntrinsicValueAs(VT_BSTR, &vtValue)))
+				if (vtValue.vt == VT_BSTR && vtValue.bstrVal)
 				{
-					if (vtValue.vt == VT_BSTR && vtValue.bstrVal)
+					// Convert BSTR to std::string
+					int len = WideCharToMultiByte(CP_UTF8, 0, vtValue.bstrVal, -1, nullptr, 0, nullptr, nullptr);
+					if (len > 0)
 					{
-						// Convert BSTR to std::string
-						int len = WideCharToMultiByte(CP_UTF8, 0, vtValue.bstrVal, -1, nullptr, 0, nullptr, nullptr);
-						if (len > 0)
-						{
-							std::string result_str(len - 1, '\0');
-							WideCharToMultiByte(CP_UTF8, 0, vtValue.bstrVal, -1, &result_str[0], len, nullptr, nullptr);
-							VariantClear(&vtValue);
-							return result_str;
-						}
+						std::string result_str(len - 1, '\0');
+						WideCharToMultiByte(CP_UTF8, 0, vtValue.bstrVal, -1, &result_str[0], len, nullptr, nullptr);
+						VariantClear(&vtValue);
+						return result_str;
 					}
 				}
 			}
@@ -807,10 +761,9 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 
 		// Iterate through memory objects
 		ComPtr<IModelObject> memoryObject;
-		ComPtr<IKeyStore> indexKeyStore;
 		ComPtr<IKeyStore> metadataKeyStore;
 		
-		while (SUCCEEDED(iterator->GetNext(&memoryObject, &indexKeyStore, &metadataKeyStore)))
+		while (SUCCEEDED(iterator->GetNext(&memoryObject, &metadataKeyStore)))
 		{
 			if (!memoryObject)
 				break;

@@ -455,9 +455,9 @@ namespace BinaryNinjaDebuggerAPI {
 	// TTD (Time Travel Debugging) structures
 	enum TTDMemoryAccessType
 	{
-		TTDMemoryRead,
-		TTDMemoryWrite,
-		TTDMemoryExecute
+		TTDMemoryRead = 1,
+		TTDMemoryWrite = 2,
+		TTDMemoryExecute = 4
 	};
 
 	struct TTDPosition
@@ -661,8 +661,7 @@ namespace BinaryNinjaDebuggerAPI {
 		bool IsTTD();
 
 		// TTD Memory Analysis Methods
-		std::vector<TTDMemoryEvent> GetTTDMemoryEvents(const TTDPosition& startPos, const TTDPosition& endPos, TTDMemoryAccessType accessType = TTDMemoryRead);
-		std::vector<TTDMemoryEvent> GetTTDMemoryEventsForAddress(uint64_t address, uint64_t size, TTDMemoryAccessType accessType = TTDMemoryRead);
+		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t address, uint64_t size, TTDMemoryAccessType accessType = TTDMemoryRead);
 		TTDPosition GetCurrentTTDPosition();
 		bool SetTTDPosition(const TTDPosition& position);
 
