@@ -22,6 +22,9 @@ limitations under the License.
 #include <QComboBox>
 #include <QFormLayout>
 #include <QCheckBox>
+#include <QRadioButton>
+#include <QButtonGroup>
+#include <QGroupBox>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "viewframe.h"
@@ -29,6 +32,9 @@ limitations under the License.
 #include "debuggerapi.h"
 
 using namespace BinaryNinjaDebuggerAPI;
+
+// Forward declare the attach process dialog
+class AttachProcessDialog;
 
 class TTDRecordDialog : public QDialog
 {
@@ -41,6 +47,16 @@ private:
 	QLineEdit* m_argumentsEntry;
 	QLineEdit* m_outputDirectory;
 	QCheckBox* m_launchWithoutTracing;
+	
+	// New UI elements for attach mode
+	QRadioButton* m_launchModeRadio;
+	QRadioButton* m_attachModeRadio;
+	QButtonGroup* m_modeButtonGroup;
+	QGroupBox* m_launchGroup;
+	QGroupBox* m_attachGroup;
+	QPushButton* m_selectProcessButton;
+	QLineEdit* m_selectedProcessDisplay;
+	uint32_t m_selectedPid;
 
 public:
 	TTDRecordDialog(QWidget* parent, BinaryView* data);
@@ -49,4 +65,6 @@ public:
 
 private Q_SLOTS:
 	void apply();
+	void onModeChanged();
+	void selectProcess();
 };

@@ -19,13 +19,21 @@ limitations under the License.
 #include "qfiledialog.h"
 #include "fmt/format.h"
 #include <QMessageBox>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QFormLayout>
+#include <QGroupBox>
+#include <QRadioButton>
+#include <QButtonGroup>
+#include <QLabel>
+#include "attachprocess.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
 TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
-	QDialog()
+	QDialog(), m_selectedPid(0)
 {
 	if (data)
 		m_controller = DebuggerController::GetController(data);
@@ -35,13 +43,31 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 
 	setModal(true);
 	QVBoxLayout* layout = new QVBoxLayout;
-	layout->setSpacing(0);
+	layout->setSpacing(10);
 
+	// Mode selection
+	m_launchModeRadio = new QRadioButton("Launch new process", this);
+	m_attachModeRadio = new QRadioButton("Attach to running process", this);
+	m_modeButtonGroup = new QButtonGroup(this);
+	m_modeButtonGroup->addButton(m_launchModeRadio, 0);
+	m_modeButtonGroup->addButton(m_attachModeRadio, 1);
+	m_launchModeRadio->setChecked(true);
+	
+	connect(m_modeButtonGroup, QOverload<int>::of(&QButtonGroup::buttonClicked),
+		this, &TTDRecordDialog::onModeChanged);
+
+	QVBoxLayout* modeLayout = new QVBoxLayout;
+	modeLayout->addWidget(m_launchModeRadio);
+	modeLayout->addWidget(m_attachModeRadio);
+	
+	// Launch mode group
+	m_launchGroup = new QGroupBox("Launch Settings", this);
+	QVBoxLayout* launchLayout = new QVBoxLayout;
+	
 	m_pathEntry = new QLineEdit(this);
-	m_pathEntry->setMinimumWidth(800);
+	m_pathEntry->setMinimumWidth(600);
 	m_argumentsEntry = new QLineEdit(this);
 	m_workingDirectoryEntry = new QLineEdit(this);
-	m_outputDirectory = new QLineEdit(this);
 	m_launchWithoutTracing = new QCheckBox(this);
 
 	auto* pathSelector = new QPushButton("...", this);
@@ -61,6 +87,48 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 			m_workingDirectoryEntry->setText(pathName);
 	});
 
+	auto pathEntryLayout = new QHBoxLayout;
+	pathEntryLayout->addWidget(m_pathEntry);
+	pathEntryLayout->addWidget(pathSelector);
+
+	auto workingDirLayout = new QHBoxLayout;
+	workingDirLayout->addWidget(m_workingDirectoryEntry);
+	workingDirLayout->addWidget(workingDirSelector);
+
+	launchLayout->addWidget(new QLabel("Executable Path"));
+	launchLayout->addLayout(pathEntryLayout);
+	launchLayout->addWidget(new QLabel("Working Directory"));
+	launchLayout->addLayout(workingDirLayout);
+	launchLayout->addWidget(new QLabel("Command Line Arguments"));
+	launchLayout->addWidget(m_argumentsEntry);
+	launchLayout->addWidget(new QLabel("Start application With Recording Off"));
+	launchLayout->addWidget(m_launchWithoutTracing);
+	
+	m_launchGroup->setLayout(launchLayout);
+
+	// Attach mode group
+	m_attachGroup = new QGroupBox("Attach Settings", this);
+	QVBoxLayout* attachLayout = new QVBoxLayout;
+	
+	m_selectedProcessDisplay = new QLineEdit(this);
+	m_selectedProcessDisplay->setReadOnly(true);
+	m_selectedProcessDisplay->setPlaceholderText("No process selected");
+	
+	m_selectProcessButton = new QPushButton("Select Process...", this);
+	connect(m_selectProcessButton, &QPushButton::clicked, this, &TTDRecordDialog::selectProcess);
+	
+	QHBoxLayout* processLayout = new QHBoxLayout;
+	processLayout->addWidget(m_selectedProcessDisplay);
+	processLayout->addWidget(m_selectProcessButton);
+	
+	attachLayout->addWidget(new QLabel("Target Process"));
+	attachLayout->addLayout(processLayout);
+	
+	m_attachGroup->setLayout(attachLayout);
+	m_attachGroup->setEnabled(false);
+
+	// Common settings
+	m_outputDirectory = new QLineEdit(this);
 	auto* outputDirSelector = new QPushButton("...", this);
 	outputDirSelector->setMaximumWidth(30);
 	connect(outputDirSelector, &QPushButton::clicked, [&]() {
@@ -70,31 +138,11 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
             m_outputDirectory->setText(pathName);
 	});
 
-	auto pathEntryLayout = new QHBoxLayout;
-	pathEntryLayout->addWidget(m_pathEntry);
-	pathEntryLayout->addWidget(pathSelector);
-
-	auto workingDirLayout = new QHBoxLayout;
-	workingDirLayout->addWidget(m_workingDirectoryEntry);
-	workingDirLayout->addWidget(workingDirSelector);
-
 	auto outputLayout = new QHBoxLayout;
 	outputLayout->addWidget(m_outputDirectory);
 	outputLayout->addWidget(outputDirSelector);
 
-	QVBoxLayout* contentLayout = new QVBoxLayout;
-	contentLayout->setSpacing(10);
-	contentLayout->addWidget(new QLabel("Executable Path"));
-	contentLayout->addLayout(pathEntryLayout);
-	contentLayout->addWidget(new QLabel("Working Directory"));
-	contentLayout->addLayout(workingDirLayout);
-	contentLayout->addWidget(new QLabel("Command Line Arguments"));
-	contentLayout->addWidget(m_argumentsEntry);
-	contentLayout->addWidget(new QLabel("Trace Output Directory"));
-	contentLayout->addLayout(outputLayout);
-	contentLayout->addWidget(new QLabel("Start application With Recording Off"));
-	contentLayout->addWidget(m_launchWithoutTracing);
-
+	// Button layout
 	QHBoxLayout* buttonLayout = new QHBoxLayout;
 	buttonLayout->setContentsMargins(0, 0, 0, 0);
 
@@ -108,7 +156,12 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	buttonLayout->addWidget(cancelButton);
 	buttonLayout->addWidget(acceptButton);
 
-	layout->addLayout(contentLayout);
+	// Main layout
+	layout->addLayout(modeLayout);
+	layout->addWidget(m_launchGroup);
+	layout->addWidget(m_attachGroup);
+	layout->addWidget(new QLabel("Trace Output Directory"));
+	layout->addLayout(outputLayout);
 	layout->addStretch(1);
 	layout->addSpacing(10);
 	layout->addLayout(buttonLayout);
@@ -123,9 +176,29 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	}
 	m_launchWithoutTracing->setChecked(false);
 
-	setFixedSize(QDialog::sizeHint());
-
 	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+}
+
+
+void TTDRecordDialog::onModeChanged()
+{
+	bool isLaunchMode = m_launchModeRadio->isChecked();
+	m_launchGroup->setEnabled(isLaunchMode);
+	m_attachGroup->setEnabled(!isLaunchMode);
+}
+
+
+void TTDRecordDialog::selectProcess()
+{
+	AttachProcessDialog dialog(this, m_controller);
+	if (dialog.exec() == QDialog::Accepted)
+	{
+		m_selectedPid = dialog.GetSelectedPid();
+		if (m_selectedPid > 0)
+		{
+			m_selectedProcessDisplay->setText(QString("PID: %1").arg(m_selectedPid));
+		}
+	}
 }
 
 
@@ -197,11 +270,37 @@ void TTDRecordDialog::DoTTDTrace()
 	LogDebug("TTD Recorder in path %s", ttdPath.c_str());
 
 	auto ttdRecorder = fmt::format("\"{}\\TTD.exe\"", ttdPath);
-	auto ttdCommandLine = fmt::format("-accepteula -out \"{}\" {} -launch \"{}\" {}",
-		m_outputDirectory->text().toStdString(),
-		m_launchWithoutTracing->isChecked() ? "-tracingOff -recordMode Manual" : "",
-		m_pathEntry->text().toStdString(),
-		m_argumentsEntry->text().toStdString());
+	std::string ttdCommandLine;
+	
+	if (m_launchModeRadio->isChecked())
+	{
+		// Launch mode - existing functionality
+		if (m_pathEntry->text().isEmpty())
+		{
+			QMessageBox::critical(this, "Recording Failed", "Please specify an executable path for launch mode.");
+			return;
+		}
+		
+		ttdCommandLine = fmt::format("-accepteula -out \"{}\" {} -launch \"{}\" {}",
+			m_outputDirectory->text().toStdString(),
+			m_launchWithoutTracing->isChecked() ? "-tracingOff -recordMode Manual" : "",
+			m_pathEntry->text().toStdString(),
+			m_argumentsEntry->text().toStdString());
+	}
+	else
+	{
+		// Attach mode - new functionality
+		if (m_selectedPid == 0)
+		{
+			QMessageBox::critical(this, "Recording Failed", "Please select a process to attach to.");
+			return;
+		}
+		
+		ttdCommandLine = fmt::format("-accepteula -out \"{}\" -attach {}",
+			m_outputDirectory->text().toStdString(),
+			m_selectedPid);
+	}
+	
 	LogWarn("TTD tracer cmd: %s %s", ttdRecorder.c_str(), ttdCommandLine.c_str());
 
 	SHELLEXECUTEINFOA info = {0};
@@ -210,7 +309,8 @@ void TTDRecordDialog::DoTTDTrace()
 	info.lpVerb = "runas";
 	info.lpFile = ttdRecorder.c_str();
 	info.lpParameters = ttdCommandLine.c_str();
-	info.lpDirectory = m_workingDirectoryEntry->text().toStdString().c_str();
+	info.lpDirectory = m_launchModeRadio->isChecked() ? 
+		m_workingDirectoryEntry->text().toStdString().c_str() : nullptr;
 	info.nShow = SW_NORMAL;
 	bool ret = ShellExecuteExA(&info);
 	if (ret == FALSE)
