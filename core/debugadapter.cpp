@@ -120,6 +120,11 @@ bool DebugAdapter::StepReturnReverse()
 	return false;
 }
 
+bool DebugAdapter::NavigateToTimestamp(const std::string& timestamp)
+{
+	return false;
+}
+
 
 uint64_t DebugAdapter::GetStackPointer()
 {

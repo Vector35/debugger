@@ -247,6 +247,16 @@ bool DbgEngTTDAdapter::StepReturnReverse()
 	return true;
 }
 
+bool DbgEngTTDAdapter::NavigateToTimestamp(const std::string& timestamp)
+{
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return false;
+
+	std::string command = "!tt " + timestamp;
+	InvokeBackendCommand(command);
+	return true;
+}
+
 
 bool DbgEngTTDAdapter::SupportFeature(DebugAdapterCapacity feature)
 {

@@ -1043,6 +1043,17 @@ bool DebuggerController::StepReturnReverse()
 	return true;
 }
 
+bool DebuggerController::NavigateToTimestamp(const std::string& timestamp)
+{
+	if (!IsConnected() || !IsTTD())
+		return false;
+
+	if (!m_adapter)
+		return false;
+
+	return m_adapter->NavigateToTimestamp(timestamp);
+}
+
 
 DebugStopReason DebuggerController::StepReturnAndWait()
 {

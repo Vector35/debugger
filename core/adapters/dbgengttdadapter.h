@@ -36,6 +36,8 @@ namespace BinaryNinjaDebugger {
     	bool StepOverReverse() override;
     	bool StepReturnReverse() override;
     	
+    	bool NavigateToTimestamp(const std::string& timestamp) override;
+    	
     	bool SupportFeature(DebugAdapterCapacity feature) override;
     	
 		bool Quit() override;

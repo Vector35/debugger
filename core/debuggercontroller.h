@@ -299,6 +299,7 @@ namespace BinaryNinjaDebugger {
 		bool StepOverReverse(BNFunctionGraphType il);
 		bool StepReturn();
 		bool StepReturnReverse();
+		bool NavigateToTimestamp(const std::string& timestamp);
 		bool RunTo(const std::vector<uint64_t>& remoteAddresses);
 		bool Pause();
 

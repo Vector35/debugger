@@ -303,6 +303,8 @@ namespace BinaryNinjaDebugger {
 
 		virtual std::string InvokeBackendCommand(const std::string& command) = 0;
 
+		virtual bool NavigateToTimestamp(const std::string& timestamp);
+
 		virtual uint64_t GetInstructionOffset() = 0;
 
 		virtual uint64_t GetStackPointer();

@@ -894,6 +894,44 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			[=](const UIActionContext& ctxt) { installTTD(ctxt); }));
 	debuggerMenu->addAction("Install WinDbg/TTD", "TTD");
 #endif
+
+	UIAction::registerAction("Time Travel", QKeySequence(Qt::ControlModifier | Qt::Key_G));
+	context->globalActions()->bindAction("Time Travel",
+		UIAction(
+			[this](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				// Check if we're connected and in TTD mode
+				if (!controller->IsConnected() || !controller->IsTTD()) {
+					QMessageBox::warning(m_context->mainWindow(), "Time Travel",
+						"Time travel navigation is only available when connected to a TTD trace.");
+					return;
+				}
+
+				bool ok;
+				QString timestamp = QInputDialog::getText(m_context->mainWindow(), "Time Travel",
+					"Enter timestamp or position:\n"
+					"Examples:\n"
+					"  Position: 1A0:12F\n"
+					"  Timestamp: 123456:AB\n"
+					"  For more formats, see TTD documentation",
+					QLineEdit::Normal, "", &ok);
+
+				if (ok && !timestamp.isEmpty()) {
+					// Trim whitespace
+					timestamp = timestamp.trimmed();
+					if (!controller->NavigateToTimestamp(timestamp.toStdString())) {
+						QMessageBox::warning(m_context->mainWindow(), "Time Travel",
+							"Failed to navigate to the specified timestamp.");
+					}
+				}
+			},
+			connectedAndStoppedWithTTD));
+	debuggerMenu->addAction("Time Travel", "TTD");
 }
 
 

@@ -135,10 +135,10 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	});
 	m_actionStepReturnBack->setToolTip(getToolTip("Step Return Backwards"));
 	
-	m_actionNavigateToTimestamp = addAction(getColoredIcon(":/debugger/cctv-camera", red), "Navigate to Timestamp", [this]() {
+	m_actionNavigateToTimestamp = addAction(getColoredIcon(":/debugger/cctv-camera", red), "Time Travel", [this]() {
 		performNavigateToTimestamp();
 	});
-	m_actionNavigateToTimestamp->setToolTip(getToolTip("Navigate to Timestamp"));
+	m_actionNavigateToTimestamp->setToolTip(getToolTip("Time Travel"));
 	
 	updateButtons();
 }
@@ -403,13 +403,13 @@ void DebugControlsWidget::performNavigateToTimestamp()
 {
 	// Check if we're connected and in TTD mode
 	if (!m_controller->IsConnected() || !m_controller->IsTTD()) {
-		QMessageBox::warning(this, "Navigate to Timestamp", 
-			"Timestamp navigation is only available when connected to a TTD trace.");
+		QMessageBox::warning(this, "Time Travel", 
+			"Time travel navigation is only available when connected to a TTD trace.");
 		return;
 	}
 
 	bool ok;
-	QString timestamp = QInputDialog::getText(this, "Navigate to Timestamp", 
+	QString timestamp = QInputDialog::getText(this, "Time Travel", 
 		"Enter timestamp or position:\n"
 		"Examples:\n"
 		"  Position: 1A0:12F\n" 
@@ -420,8 +420,10 @@ void DebugControlsWidget::performNavigateToTimestamp()
 	if (ok && !timestamp.isEmpty()) {
 		// Trim whitespace
 		timestamp = timestamp.trimmed();
-		std::string command = "!tt " + timestamp.toStdString();
-		m_controller->InvokeBackendCommand(command);
+		if (!m_controller->NavigateToTimestamp(timestamp.toStdString())) {
+			QMessageBox::warning(this, "Time Travel", 
+				"Failed to navigate to the specified timestamp.");
+		}
 	}
 }
 
