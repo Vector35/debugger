@@ -763,7 +763,7 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 		ComPtr<IModelObject> memoryObject;
 		ComPtr<IKeyStore> metadataKeyStore;
 		
-		while (SUCCEEDED(iterator->GetNext(&memoryObject, &metadataKeyStore)))
+		while (SUCCEEDED(iterator->GetNext(&memoryObject, 0, nullptr, &metadataKeyStore)))
 		{
 			if (!memoryObject)
 				break;
