@@ -876,7 +876,6 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 			
 			// Reset objects for next iteration
 			memoryObject.Reset();
-			indexKeyStore.Reset();
 			metadataKeyStore.Reset();
 		}
 		
