@@ -620,8 +620,9 @@ There are some known issues and limitations with the current debugger. Here is a
 
 ### Administrative Access
 
-Cannot debug binaries that require Administrator (Windows) or root (Linux/macOS). There are two ways to get around it:
+Cannot debug binaries that require Administrator (Windows) or root (Linux/macOS). There are several ways to get around it:
 
+- On Windows with the DbgEng adapter, enable the "Run as Administrator" setting in the Debug Adapter Settings. This will launch the debug server (dbgsrv.exe) with administrator privileges, allowing it to debug processes that require elevated permissions. This setting applies to both launching new processes and attaching to existing ones.
 - On Windows, run Binary Ninja with Administrator privilege (not recommended).
 - Launch the process with necessary privilege, and connect to it using Binary Ninja debugger. See [Remote Debugging Guide](remote-debugging.md) for more details.
     - Must be an admin or in the \_developer group on macOS to debug.

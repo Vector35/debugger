@@ -25,6 +25,9 @@ limitations under the License.
 #include <highlevelilinstruction.h>
 #include <memory>
 #include <filesystem>
+#ifdef _WIN32
+#include <shellapi.h>
+#endif
 #include "dbgengadapter.h"
 #include "../../cli/log.h"
 #include "../debuggerevent.h"
@@ -207,17 +210,92 @@ std::string DbgEngAdapter::GenerateRandomPipeName()
 
 bool DbgEngAdapter::LaunchDbgSrv(const std::string& commandLine)
 {
-	STARTUPINFOA si;
-	PROCESS_INFORMATION pi;
-	memset(&si, 0, sizeof(si));
-	si.cb = sizeof(si);
-	memset(&pi, 0, sizeof(pi));
-	if (!CreateProcessA(NULL, (LPSTR)commandLine.c_str(), NULL, NULL, FALSE, DETACHED_PROCESS, NULL, NULL, &si, &pi))
+	// Check if we should run as administrator
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	bool runAsAdmin = adapterSettings->Get<bool>("common.runAsAdministrator", data, &scope);
+
+	if (runAsAdmin)
 	{
-		return false;
+		// Parse command line to extract executable path and arguments
+		// Command line format: "path\to\dbgsrv.exe" -t arguments
+		std::string exePath;
+		std::string args;
+		
+		if (commandLine.size() > 0 && commandLine[0] == '"')
+		{
+			// Find the closing quote
+			size_t endQuote = commandLine.find('"', 1);
+			if (endQuote != std::string::npos)
+			{
+				exePath = commandLine.substr(1, endQuote - 1);
+				if (endQuote + 1 < commandLine.size())
+				{
+					// Skip the closing quote and any leading space
+					size_t argsStart = endQuote + 1;
+					if (argsStart < commandLine.size() && commandLine[argsStart] == ' ')
+						argsStart++;
+					if (argsStart < commandLine.size())
+						args = commandLine.substr(argsStart);
+				}
+			}
+		}
+		else
+		{
+			// No quotes, split on first space
+			size_t spacePos = commandLine.find(' ');
+			if (spacePos != std::string::npos)
+			{
+				exePath = commandLine.substr(0, spacePos);
+				args = commandLine.substr(spacePos + 1);
+			}
+			else
+			{
+				exePath = commandLine;
+			}
+		}
+
+		if (exePath.empty())
+		{
+			LogWarn("Failed to parse executable path from command line: %s", commandLine.c_str());
+			return false;
+		}
+
+		// Use ShellExecuteEx with "runas" verb to launch with elevated privileges
+		SHELLEXECUTEINFOA sei = { 0 };
+		sei.cbSize = sizeof(sei);
+		sei.fMask = 0;  // No special flags needed
+		sei.lpVerb = "runas";
+		sei.lpFile = exePath.c_str();
+		sei.lpParameters = args.empty() ? NULL : args.c_str();
+		sei.nShow = SW_HIDE;
+
+		if (!ShellExecuteExA(&sei))
+		{
+			DWORD error = GetLastError();
+			LogWarn("Failed to launch dbgsrv.exe with administrator privileges. Error: %lu", error);
+			return false;
+		}
+
+		m_dbgSrvLaunchedByAdapter = true;
+		return true;
 	}
-	m_dbgSrvLaunchedByAdapter = true;
-	return true;
+	else
+	{
+		// Use original CreateProcess method
+		STARTUPINFOA si;
+		PROCESS_INFORMATION pi;
+		memset(&si, 0, sizeof(si));
+		si.cb = sizeof(si);
+		memset(&pi, 0, sizeof(pi));
+		if (!CreateProcessA(NULL, (LPSTR)commandLine.c_str(), NULL, NULL, FALSE, DETACHED_PROCESS, NULL, NULL, &si, &pi))
+		{
+			return false;
+		}
+		m_dbgSrvLaunchedByAdapter = true;
+		return true;
+	}
 }
 
 bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionString)
@@ -1833,6 +1911,15 @@ Ref<Settings> LocalDbgEngAdapterType::RegisterAdapterSettings()
 			"minValue" : 0,
 			"maxValue" : 4294967295,
 			"description" : "PID of the process to attach to",
+			"readOnly" : false
+			})");
+
+	settings->RegisterSetting("common.runAsAdministrator",
+		R"({
+			"title" : "Run as Administrator",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "Launch the debug server (dbgsrv.exe) with administrator privileges. Required when debugging processes that run with elevated privileges.",
 			"readOnly" : false
 			})");
 
