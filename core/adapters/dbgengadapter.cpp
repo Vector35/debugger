@@ -214,7 +214,7 @@ bool DbgEngAdapter::LaunchDbgSrv(const std::string& commandLine)
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
 	auto adapterSettings = GetAdapterSettings();
-	bool runAsAdmin = adapterSettings->Get<bool>("launch.runAsAdministrator", data, &scope);
+	bool runAsAdmin = adapterSettings->Get<bool>("common.runAsAdministrator", data, &scope);
 
 	if (runAsAdmin)
 	{
@@ -1914,7 +1914,7 @@ Ref<Settings> LocalDbgEngAdapterType::RegisterAdapterSettings()
 			"readOnly" : false
 			})");
 
-	settings->RegisterSetting("launch.runAsAdministrator",
+	settings->RegisterSetting("common.runAsAdministrator",
 		R"({
 			"title" : "Run as Administrator",
 			"type" : "boolean",
