@@ -2097,7 +2097,7 @@ void DebuggerController::ProcessOneVariable(uint64_t varAddress, Confidence<Ref<
 		GetData()->DefineDataVariable(varAddress, type);
 		if (!name.empty())
 		{
-			SymbolRef sym = new Symbol(DataSymbol, name, name, name, varAddress);
+			SymbolRef sym = new BinaryNinja::Symbol(DataSymbol, name, name, name, varAddress);
 			GetData()->DefineUserSymbol(sym);
 		}
 		m_debuggerVariables[varAddress] = varNameAndType;
