@@ -134,6 +134,12 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 		performStepReturnReverse();
 	});
 	m_actionStepReturnBack->setToolTip(getToolTip("Step Return Backwards"));
+	
+	m_actionNavigateToTimestamp = addAction(getColoredIcon(":/debugger/cctv-camera", red), "Navigate to Timestamp", [this]() {
+		performNavigateToTimestamp();
+	});
+	m_actionNavigateToTimestamp->setToolTip(getToolTip("Navigate to Timestamp"));
+	
 	updateButtons();
 }
 
@@ -393,6 +399,18 @@ void DebugControlsWidget::performStepReturnReverse()
 	m_controller->StepReturnReverse();
 }
 
+void DebugControlsWidget::performNavigateToTimestamp()
+{
+	bool ok;
+	QString timestamp = QInputDialog::getText(this, "Navigate to Timestamp", 
+		"Enter timestamp (format: NNNNNN:NN or time value):", QLineEdit::Normal, "", &ok);
+	
+	if (ok && !timestamp.isEmpty()) {
+		std::string command = "!tt " + timestamp.toStdString();
+		m_controller->InvokeBackendCommand(command);
+	}
+}
+
 void DebugControlsWidget::performSettings()
 {
 	auto* dialog = new AdapterSettingsDialog(this, m_controller);
@@ -494,6 +512,8 @@ void DebugControlsWidget::setReverseSteppingEnabled(bool enabled)
 	m_actionStepOverBack->setVisible(enabled);
 	m_actionStepReturnBack->setEnabled(enabled);
 	m_actionStepReturnBack->setVisible(enabled);
+	m_actionNavigateToTimestamp->setEnabled(enabled);
+	m_actionNavigateToTimestamp->setVisible(enabled);
 }
 
 

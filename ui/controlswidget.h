@@ -50,6 +50,7 @@ private:
 	QAction* m_actionStepOverBack;
 	QAction* m_actionStepReturn;
 	QAction* m_actionStepReturnBack;
+	QAction* m_actionNavigateToTimestamp;
 
 	QAction* m_actionSettings;
 	QAction* m_actionToggleBreakpoint;
@@ -87,6 +88,7 @@ public Q_SLOTS:
 	void performStepOverReverse();
 	void performStepReturn();
 	void performStepReturnReverse();
+	void performNavigateToTimestamp();
 
 	void performSettings();
 	void toggleBreakpoint();

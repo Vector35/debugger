@@ -113,6 +113,8 @@ https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-
 - The [!tt navigation](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-extension-tt) command navigates to a `position` in the trace
     - E.g., `!tt 1A0:12F`
     - While using the debugger, when the target stops, the current position will be printed in the debugger console
+- For timestamp-based navigation, you can use the "Navigate to Timestamp" button in the debugger controls (camera icon) which opens a dialog to enter a timestamp
+    - Alternatively, you can use the console with commands like `!tt timestamp` where timestamp can be in various formats
 - The new [!tt breakpoint](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-extension-tt#tt-break-commands) now supports breaking the target when a memory is read/written/executed, a register value is changed, or a module has been loaded, both in forward and backward direction. This is very powerful and worth checking out!
 
 
