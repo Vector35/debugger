@@ -84,12 +84,13 @@ namespace BinaryNinjaDebugger {
 		}
 	};
 
-	// TTD Memory Access Types
+	// TTD Memory Access Types - bitfield flags that can be combined
 	enum TTDMemoryAccessType
 	{
-		TTDMemoryRead,
-		TTDMemoryWrite,
-		TTDMemoryExecute
+		TTDMemoryRead = 1,
+		TTDMemoryWrite = 2,
+		TTDMemoryExecute = 4,
+		TTDMemoryAll = TTDMemoryRead | TTDMemoryWrite | TTDMemoryExecute
 	};
 
 	// TTD Position - represents a position in the TTD trace

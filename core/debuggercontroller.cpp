@@ -2837,7 +2837,7 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryEvents(const TTDPosi
 	return events;
 }
 
-std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryEventsForAddress(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryEventsForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
 {
 	std::vector<TTDMemoryEvent> events;
 	
@@ -2850,7 +2850,7 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryEventsForAddress(uin
 	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
 	if (ttdAdapter)
 	{
-		events = ttdAdapter->GetMemoryEventsForAddress(address, size, accessType);
+		events = ttdAdapter->GetMemoryEventsForAddress(startAddress, endAddress, accessType);
 	}
 	else
 	{

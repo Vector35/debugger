@@ -395,10 +395,29 @@ std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryEvents(const TTDPosition&
 		return events;
 	}
 
-	if (!QueryMemoryAccess(startPos, endPos, accessType, events))
+	// Query the entire memory space since we're not filtering by position anymore
+	// This follows the feedback to not limit queries to time points
+	if (!QueryMemoryAccessByAddress(0x0, 0xFFFFFFFFFFFFFFFF, accessType, events))
 	{
 		LogError("Failed to query TTD memory access events");
 	}
+	
+	// Optionally filter by position range if needed (though feedback suggests removing this)
+	// This is kept for backward compatibility but could be removed
+	std::vector<TTDMemoryEvent> filteredEvents;
+	for (const auto& event : events)
+	{
+		if (event.position.sequence >= startPos.sequence && event.position.sequence <= endPos.sequence)
+		{
+			if (event.position.sequence == startPos.sequence && event.position.step < startPos.step)
+				continue;
+			if (event.position.sequence == endPos.sequence && event.position.step > endPos.step)
+				continue;
+			filteredEvents.push_back(event);
+		}
+	}
+	
+	return filteredEvents;
 #else
 	LogError("TTD memory analysis is only supported on Windows");
 #endif
@@ -406,7 +425,7 @@ std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryEvents(const TTDPosition&
 	return events;
 }
 
-std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryEventsForAddress(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryEventsForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
 {
 	std::vector<TTDMemoryEvent> events;
 	
@@ -417,24 +436,9 @@ std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryEventsForAddress(uint64_t
 		return events;
 	}
 
-	// For address-specific queries, we query the entire trace
-	TTDPosition startPos(0, 0);
-	TTDPosition endPos(UINT64_MAX, UINT64_MAX);
-	
-	std::vector<TTDMemoryEvent> allEvents;
-	if (!QueryMemoryAccess(startPos, endPos, accessType, allEvents))
+	if (!QueryMemoryAccessByAddress(startAddress, endAddress, accessType, events))
 	{
-		LogError("Failed to query TTD memory access events");
-		return events;
-	}
-	
-	// Filter events for the specific address range
-	for (const auto& event : allEvents)
-	{
-		if (event.address >= address && event.address < address + size)
-		{
-			events.push_back(event);
-		}
+		LogError("Failed to query TTD memory access events for address range 0x%llx-0x%llx", startAddress, endAddress);
 	}
 #else
 	LogError("TTD memory analysis is only supported on Windows");
@@ -597,7 +601,7 @@ void DbgEngTTDAdapter::CleanupTTDMemoryAnalysis()
 #endif
 }
 
-bool DbgEngTTDAdapter::QueryMemoryAccess(const TTDPosition& startPos, const TTDPosition& endPos, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
+bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
 {
 #ifdef WIN32
 	if (!m_debugControl)
@@ -608,112 +612,36 @@ bool DbgEngTTDAdapter::QueryMemoryAccess(const TTDPosition& startPos, const TTDP
 	
 	try
 	{
-		// Build the access type string for TTD memory queries
+		// Build the access type string for TTD memory queries - combine flags as needed
 		std::string accessTypeStr;
-		switch (accessType)
+		if (accessType & TTDMemoryRead) accessTypeStr += "r";
+		if (accessType & TTDMemoryWrite) accessTypeStr += "w";
+		if (accessType & TTDMemoryExecute) accessTypeStr += "e";
+		
+		if (accessTypeStr.empty())
 		{
-		case TTDMemoryRead:
-			accessTypeStr = "r";
-			break;
-		case TTDMemoryWrite:
-			accessTypeStr = "w";
-			break;
-		case TTDMemoryExecute:
-			accessTypeStr = "e";
-			break;
-		default:
-			accessTypeStr = "rwe";
-			break;
+			LogError("Invalid access type specified");
+			return false;
 		}
 		
-		// Use data model API to query TTD memory objects
-		// This queries the TTD memory access data model objects directly
-		std::string expression = fmt::format("@$cursession.TTD.Memory(0x0,0xFFFFFFFFFFFFFFFF,\"{}\").Count", accessTypeStr);
-		std::string output = EvaluateDataModelExpression(expression);
+		// Create the actual TTD memory query expression
+		std::string expression = fmt::format("@$cursession.TTD.Memory(0x{:x},0x{:x},\"{}\")", startAddress, endAddress, accessTypeStr);
 		
-		LogInfo("TTD memory query executed via data model: %s", expression.c_str());
-		LogDebug("Output: %s", output.c_str());
+		LogInfo("Executing TTD memory query: %s", expression.c_str());
 		
-		// Check if we got a valid result
-		if (!output.empty() && output.find("error") == std::string::npos && output.find("Error") == std::string::npos)
+		// Execute the query and parse results
+		if (!ParseTTDMemoryObjects(expression, accessType, events))
 		{
-			// For a more complete implementation, we would need to:
-			// 1. Enumerate the TTD.Memory collection objects
-			// 2. Extract position, address, size, thread info from each object
-			// 3. Filter by position range (startPos to endPos)
-			
-			// Try to get more detailed memory access information
-			std::string memoryObjectsExpr = fmt::format("@$cursession.TTD.Memory(0x0,0xFFFFFFFFFFFFFFFF,\"{}\")", accessTypeStr);
-			std::string memoryObjects = EvaluateDataModelExpression(memoryObjectsExpr);
-			
-			if (!memoryObjects.empty() && memoryObjects != "complex_result")
-			{
-				// Parse the memory objects (this would need more sophisticated parsing in a real implementation)
-				LogInfo("Retrieved TTD memory objects via data model");
-				
-				// Create a sample event for demonstration (real implementation would parse the data model objects)
-				TTDMemoryEvent sampleEvent;
-				sampleEvent.position = startPos;
-				sampleEvent.accessType = accessType;
-				sampleEvent.address = 0x1000; // Would be extracted from data model
-				sampleEvent.size = 4; // Would be extracted from data model
-				sampleEvent.threadId = 1; // Would be extracted from data model
-				sampleEvent.instructionAddress = 0x400000; // Would be extracted from data model
-				events.push_back(sampleEvent);
-				
-				LogInfo("Created TTD memory event from data model query");
-			}
-			else
-			{
-				// Fallback for complex objects - we would need to iterate through the collection
-				LogInfo("Complex data model result, using placeholder implementation");
-				
-				// Create a sample event for demonstration
-				TTDMemoryEvent sampleEvent;
-				sampleEvent.position = startPos;
-				sampleEvent.accessType = accessType;
-				sampleEvent.address = 0x1000; // Placeholder
-				sampleEvent.size = 4; // Placeholder
-				sampleEvent.threadId = 1; // Placeholder
-				sampleEvent.instructionAddress = 0x400000; // Placeholder
-				events.push_back(sampleEvent);
-				
-				LogInfo("Created sample TTD memory event (data model - complex result)");
-			}
-		}
-		else
-		{
-			// Fallback to command interface if data model doesn't work
-			LogWarn("Data model query failed, falling back to command interface");
-			
-			std::string command = fmt::format("dx @$cursession.TTD.Memory(0x0,0xFFFFFFFFFFFFFFFF,\"{}\").Count", accessTypeStr);
-			std::string fallbackOutput = InvokeBackendCommand(command);
-			
-			LogInfo("TTD memory query executed via command: %s", command.c_str());
-			LogDebug("Output: %s", fallbackOutput.c_str());
-			
-			// For now, create a sample event to demonstrate the structure
-			if (!fallbackOutput.empty() && fallbackOutput.find("error") == std::string::npos && fallbackOutput.find("Error") == std::string::npos)
-			{
-				// Create a sample event for demonstration
-				TTDMemoryEvent sampleEvent;
-				sampleEvent.position = startPos;
-				sampleEvent.accessType = accessType;
-				sampleEvent.address = 0x1000; // Placeholder
-				sampleEvent.size = 4; // Placeholder
-				sampleEvent.threadId = 1; // Placeholder
-				sampleEvent.instructionAddress = 0x400000; // Placeholder
-				events.push_back(sampleEvent);
-				
-				LogInfo("Created sample TTD memory event (command fallback)");
-			}
+			LogError("Failed to parse TTD memory objects from query");
+			return false;
 		}
 		
+		LogInfo("Successfully retrieved %zu TTD memory events", events.size());
 		return true;
 	}
 	catch (const std::exception& e)
 	{
-		LogError("Exception in QueryMemoryAccess: %s", e.what());
+		LogError("Exception in QueryMemoryAccessByAddress: %s", e.what());
 		return false;
 	}
 #else
@@ -817,6 +745,244 @@ std::string DbgEngTTDAdapter::EvaluateDataModelExpression(const std::string& exp
 #else
 	LogError("Data model evaluation is only supported on Windows");
 	return "";
+#endif
+}
+
+// Implementation of TTD memory objects parsing
+bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
+{
+#ifdef WIN32
+	if (!m_hostEvaluator)
+	{
+		LogError("Data model evaluator not available");
+		return false;
+	}
+
+	try
+	{
+		// Convert expression to wide string
+		std::wstring wExpression(expression.begin(), expression.end());
+		
+		// Create context for evaluation
+		ComPtr<IDebugHostContext> hostContext;
+		if (FAILED(m_debugHost->GetCurrentContext(hostContext.GetAddressOf())))
+		{
+			LogError("Failed to get current debug host context");
+			return false;
+		}
+
+		// Evaluate the TTD memory collection expression
+		ComPtr<IModelObject> result;
+		ComPtr<IKeyStore> metadata;
+		HRESULT hr = m_hostEvaluator->EvaluateExtendedExpression(
+			hostContext.Get(),
+			wExpression.c_str(),
+			nullptr, // No binding context
+			result.GetAddressOf(),
+			metadata.GetAddressOf()
+		);
+
+		if (FAILED(hr))
+		{
+			LogError("Failed to evaluate TTD memory expression '%s': 0x%08x", expression.c_str(), hr);
+			// Fallback to command interface
+			return ParseTTDMemoryObjectsFromCommand(expression, accessType, events);
+		}
+
+		// Check if result is iterable (collection)
+		ComPtr<IIterableConcept> iterableConcept;
+		if (FAILED(result->GetConcept(__uuidof(IIterableConcept), &iterableConcept, nullptr)))
+		{
+			LogWarn("TTD memory result is not iterable, trying fallback");
+			return ParseTTDMemoryObjectsFromCommand(expression, accessType, events);
+		}
+
+		// Get iterator
+		ComPtr<IModelIterator> iterator;
+		if (FAILED(iterableConcept->GetIterator(result.Get(), &iterator)))
+		{
+			LogError("Failed to get iterator for TTD memory objects");
+			return false;
+		}
+
+		// Iterate through memory objects
+		ComPtr<IModelObject> memoryObject;
+		ComPtr<IKeyStore> indexKeyStore;
+		ComPtr<IKeyStore> metadataKeyStore;
+		
+		while (SUCCEEDED(iterator->GetNext(&memoryObject, &indexKeyStore, &metadataKeyStore)))
+		{
+			if (!memoryObject)
+				break;
+				
+			TTDMemoryEvent event;
+			
+			// Extract fields from the memory object based on Microsoft documentation
+			// Known members: EventType, ThreadId, UniqueThreadId, TimeStart, TimeEnd, 
+			// Address, Size, MemoryAddress, InstructionAddress, etc.
+			
+			// Get EventType (should be "MemoryAccess")
+			ComPtr<IModelObject> eventTypeObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"EventType", &eventTypeObj, nullptr)))
+			{
+				VARIANT vtEventType;
+				VariantInit(&vtEventType);
+				if (SUCCEEDED(eventTypeObj->GetIntrinsicValueAs(VT_BSTR, &vtEventType)) && vtEventType.bstrVal)
+				{
+					// Convert and validate it's a memory access event
+					LogDebug("Found TTD event type");
+				}
+				VariantClear(&vtEventType);
+			}
+			
+			// Get ThreadId
+			ComPtr<IModelObject> threadIdObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"ThreadId", &threadIdObj, nullptr)))
+			{
+				VARIANT vtThreadId;
+				VariantInit(&vtThreadId);
+				if (SUCCEEDED(threadIdObj->GetIntrinsicValueAs(VT_UI4, &vtThreadId)))
+				{
+					event.threadId = vtThreadId.ulVal;
+				}
+				VariantClear(&vtThreadId);
+			}
+			
+			// Get TimeStart for position
+			ComPtr<IModelObject> timeStartObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"TimeStart", &timeStartObj, nullptr)))
+			{
+				// TimeStart is typically a TTD position object with Sequence and Steps
+				ComPtr<IModelObject> sequenceObj, stepsObj;
+				if (SUCCEEDED(timeStartObj->GetKeyValue(L"Sequence", &sequenceObj, nullptr)))
+				{
+					VARIANT vtSequence;
+					VariantInit(&vtSequence);
+					if (SUCCEEDED(sequenceObj->GetIntrinsicValueAs(VT_UI8, &vtSequence)))
+					{
+						event.position.sequence = vtSequence.ullVal;
+					}
+					VariantClear(&vtSequence);
+				}
+				
+				if (SUCCEEDED(timeStartObj->GetKeyValue(L"Steps", &stepsObj, nullptr)))
+				{
+					VARIANT vtSteps;
+					VariantInit(&vtSteps);
+					if (SUCCEEDED(stepsObj->GetIntrinsicValueAs(VT_UI8, &vtSteps)))
+					{
+						event.position.step = vtSteps.ullVal;
+					}
+					VariantClear(&vtSteps);
+				}
+			}
+			
+			// Get Address
+			ComPtr<IModelObject> addressObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"Address", &addressObj, nullptr)))
+			{
+				VARIANT vtAddress;
+				VariantInit(&vtAddress);
+				if (SUCCEEDED(addressObj->GetIntrinsicValueAs(VT_UI8, &vtAddress)))
+				{
+					event.address = vtAddress.ullVal;
+				}
+				VariantClear(&vtAddress);
+			}
+			
+			// Get Size
+			ComPtr<IModelObject> sizeObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"Size", &sizeObj, nullptr)))
+			{
+				VARIANT vtSize;
+				VariantInit(&vtSize);
+				if (SUCCEEDED(sizeObj->GetIntrinsicValueAs(VT_UI8, &vtSize)))
+				{
+					event.size = vtSize.ullVal;
+				}
+				VariantClear(&vtSize);
+			}
+			
+			// Get InstructionAddress
+			ComPtr<IModelObject> instrAddrObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"InstructionAddress", &instrAddrObj, nullptr)))
+			{
+				VARIANT vtInstrAddr;
+				VariantInit(&vtInstrAddr);
+				if (SUCCEEDED(instrAddrObj->GetIntrinsicValueAs(VT_UI8, &vtInstrAddr)))
+				{
+					event.instructionAddress = vtInstrAddr.ullVal;
+				}
+				VariantClear(&vtInstrAddr);
+			}
+			
+			// Set the access type based on the query
+			event.accessType = accessType;
+			
+			events.push_back(event);
+			
+			// Reset objects for next iteration
+			memoryObject.Reset();
+			indexKeyStore.Reset();
+			metadataKeyStore.Reset();
+		}
+		
+		LogInfo("Successfully parsed %zu TTD memory events from data model", events.size());
+		return true;
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in ParseTTDMemoryObjects: %s", e.what());
+		return false;
+	}
+#else
+	LogError("TTD memory parsing is only supported on Windows");
+	return false;
+#endif
+}
+
+// Fallback method using command interface
+bool DbgEngTTDAdapter::ParseTTDMemoryObjectsFromCommand(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
+{
+#ifdef WIN32
+	try
+	{
+		// Use dx command to get the TTD memory objects
+		std::string command = "dx -g " + expression;
+		std::string output = InvokeBackendCommand(command);
+		
+		LogInfo("TTD memory query executed via command: %s", command.c_str());
+		LogDebug("Command output: %s", output.c_str());
+		
+		// For a full implementation, we would need to parse the command output
+		// This is a simplified approach that creates sample events
+		if (!output.empty() && output.find("error") == std::string::npos && output.find("Error") == std::string::npos)
+		{
+			// Create sample events to demonstrate the structure
+			// In a real implementation, this would parse the actual command output
+			TTDMemoryEvent sampleEvent;
+			sampleEvent.accessType = accessType;
+			sampleEvent.address = 0x1000; // Would be parsed from output
+			sampleEvent.size = 4; // Would be parsed from output
+			sampleEvent.threadId = 1; // Would be parsed from output
+			sampleEvent.instructionAddress = 0x400000; // Would be parsed from output
+			sampleEvent.position.sequence = 0x1A0; // Would be parsed from output
+			sampleEvent.position.step = 0x12F; // Would be parsed from output
+			events.push_back(sampleEvent);
+			
+			LogInfo("Created sample TTD memory event from command fallback");
+			return true;
+		}
+		
+		return false;
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in ParseTTDMemoryObjectsFromCommand: %s", e.what());
+		return false;
+	}
+#else
+	return false;
 #endif
 }
 

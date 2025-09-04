@@ -50,7 +50,7 @@ namespace BinaryNinjaDebugger {
 
 		// TTD Memory Analysis Methods
 		std::vector<TTDMemoryEvent> GetMemoryEvents(const TTDPosition& startPos, const TTDPosition& endPos, TTDMemoryAccessType accessType = TTDMemoryRead);
-		std::vector<TTDMemoryEvent> GetMemoryEventsForAddress(uint64_t address, uint64_t size, TTDMemoryAccessType accessType = TTDMemoryRead);
+		std::vector<TTDMemoryEvent> GetMemoryEventsForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead);
 		TTDPosition GetCurrentTTDPosition();
 		bool SetTTDPosition(const TTDPosition& position);
 
@@ -61,10 +61,12 @@ namespace BinaryNinjaDebugger {
 		// Helper methods for TTD memory analysis
 		bool InitializeTTDMemoryAnalysis();
 		void CleanupTTDMemoryAnalysis();
-		bool QueryMemoryAccess(const TTDPosition& startPos, const TTDPosition& endPos, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
+		bool QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
 		
 		// Data model helper methods
 		std::string EvaluateDataModelExpression(const std::string& expression);
+		bool ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
+		bool ParseTTDMemoryObjectsFromCommand(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
 
 #ifdef WIN32
 		// TTD analysis state
