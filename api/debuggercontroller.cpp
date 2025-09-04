@@ -942,10 +942,10 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uin
 {
 	std::vector<TTDMemoryEvent> result;
 	
-	BNTTDMemoryAccessType type = static_cast<BNTTDMemoryAccessType>(accessType);
+	BNDebuggerTTDMemoryAccessType type = static_cast<BNDebuggerTTDMemoryAccessType>(accessType);
 	
 	size_t count = 0;
-	BNTTDMemoryEvent* events = BNDebuggerGetTTDMemoryAccessForAddress(m_object, address, size, type, &count);
+	BNDebuggerTTDMemoryEvent* events = BNDebuggerGetTTDMemoryAccessForAddress(m_object, address, size, type, &count);
 	
 	if (events && count > 0)
 	{
@@ -970,13 +970,13 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uin
 
 TTDPosition DebuggerController::GetCurrentTTDPosition()
 {
-	BNTTDPosition pos = BNDebuggerGetCurrentTTDPosition(m_object);
+	BNDebuggerTTDPosition pos = BNDebuggerGetCurrentTTDPosition(m_object);
 	return TTDPosition(pos.sequence, pos.step);
 }
 
 bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 {
-	BNTTDPosition pos = {position.sequence, position.step};
+	BNDebuggerTTDPosition pos = {position.sequence, position.step};
 	return BNDebuggerSetTTDPosition(m_object, pos);
 }
 

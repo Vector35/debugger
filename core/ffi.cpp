@@ -1056,8 +1056,8 @@ bool BNDebuggerIsTTD(BNDebuggerController* controller)
 }
 
 
-BNTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* controller,
-	uint64_t address, uint64_t size, BNTTDMemoryAccessType accessType, size_t* count)
+BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* controller,
+	uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, size_t* count)
 {
 	if (!count)
 		return nullptr;
@@ -1070,13 +1070,13 @@ BNTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* c
 		return nullptr;
 		
 	*count = events.size();
-	auto result = new BNTTDMemoryEvent[events.size()];
+	auto result = new BNDebuggerTTDMemoryEvent[events.size()];
 	
 	for (size_t i = 0; i < events.size(); i++)
 	{
 		result[i].position.sequence = events[i].position.sequence;
 		result[i].position.step = events[i].position.step;
-		result[i].accessType = static_cast<BNTTDMemoryAccessType>(events[i].accessType);
+		result[i].accessType = static_cast<BNDebuggerTTDMemoryAccessType>(events[i].accessType);
 		result[i].address = events[i].address;
 		result[i].size = events[i].size;
 		result[i].threadId = events[i].threadId;
@@ -1086,22 +1086,22 @@ BNTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* c
 	return result;
 }
 
-BNTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller)
+BNDebuggerTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller)
 {
 	auto position = controller->object->GetCurrentTTDPosition();
-	BNTTDPosition result;
+	BNDebuggerTTDPosition result;
 	result.sequence = position.sequence;
 	result.step = position.step;
 	return result;
 }
 
-bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNTTDPosition position)
+bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPosition position)
 {
 	TTDPosition pos(position.sequence, position.step);
 	return controller->object->SetTTDPosition(pos);
 }
 
-void BNDebuggerFreeTTDMemoryEvents(BNTTDMemoryEvent* events)
+void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events)
 {
 	delete[] events;
 }

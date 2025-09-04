@@ -295,28 +295,28 @@ extern "C"
 
 
 	// TTD (Time Travel Debugging) structures
-	typedef enum BNTTDMemoryAccessType
+	typedef enum BNDebuggerTTDMemoryAccessType
 	{
-		BNTTDMemoryRead = 1,
-		BNTTDMemoryWrite = 2,
-		BNTTDMemoryExecute = 4
-	} BNTTDMemoryAccessType;
+		BNDebuggerTTDMemoryRead = 1,
+		BNDebuggerTTDMemoryWrite = 2,
+		BNDebuggerTTDMemoryExecute = 4
+	} BNDebuggerTTDMemoryAccessType;
 
-	typedef struct BNTTDPosition
+	typedef struct BNDebuggerTTDPosition
 	{
 		uint64_t sequence;
 		uint64_t step;
-	} BNTTDPosition;
+	} BNDebuggerTTDPosition;
 
-	typedef struct BNTTDMemoryEvent
+	typedef struct BNDebuggerTTDMemoryEvent
 	{
-		BNTTDPosition position;
-		BNTTDMemoryAccessType accessType;
+		BNDebuggerTTDPosition position;
+		BNDebuggerTTDMemoryAccessType accessType;
 		uint64_t address;
 		uint64_t size;
 		uint32_t threadId;
 		uint64_t instructionAddress;
-	} BNTTDMemoryEvent;
+	} BNDebuggerTTDMemoryEvent;
 
 
 	// This should really be a union, but gcc complains...
@@ -526,11 +526,11 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerIsTTD(BNDebuggerController* controller);
 
 	// TTD Memory Analysis Functions
-	DEBUGGER_FFI_API BNTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* controller,
-		uint64_t address, uint64_t size, BNTTDMemoryAccessType accessType, size_t* count);
-	DEBUGGER_FFI_API BNTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller);
-	DEBUGGER_FFI_API bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNTTDPosition position);
-	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNTTDMemoryEvent* events);
+	DEBUGGER_FFI_API BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* controller,
+		uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, size_t* count);
+	DEBUGGER_FFI_API BNDebuggerTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPosition position);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events);
 
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 
