@@ -45,9 +45,11 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 
 	m_registersWidget = new DebugRegistersContainer(m_view, data, m_menu);
 	m_breakpointsWidget = new DebugBreakpointsWidget(m_view, data, m_menu);
+	m_bookmarksWidget = new DebugBookmarksWidget(m_view, data, m_menu);
 
 	m_tabs->addTab(m_registersWidget, "Registers");
 	m_tabs->addTab(m_breakpointsWidget, "Breakpoints");
+	m_tabs->addTab(m_bookmarksWidget, "Bookmarks");
 
 	m_splitter->addWidget(m_controlsWidget);
 	m_splitter->addWidget(m_tabs);
@@ -67,6 +69,7 @@ void DebuggerWidget::notifyFontChanged()
 {
 	m_registersWidget->updateFonts();
 	m_breakpointsWidget->updateFonts();
+	m_bookmarksWidget->updateFonts();
 }
 
 
@@ -97,4 +100,7 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent& event)
 	default:
 		break;
 	}
+	
+	// Forward events to bookmarks widget
+	m_bookmarksWidget->uiEventHandler(event);
 }

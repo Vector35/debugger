@@ -33,6 +33,7 @@ limitations under the License.
 #include "registerswidget.h"
 #include "moduleswidget.h"
 #include "controlswidget.h"
+#include "bookmarkswidget.h"
 #include "ui.h"
 #include "debuggerapi.h"
 
@@ -51,6 +52,7 @@ class DebuggerWidget : public SidebarWidget
 	DebugControlsWidget* m_controlsWidget;
 	DebugRegistersContainer* m_registersWidget;
 	DebugBreakpointsWidget* m_breakpointsWidget;
+	DebugBookmarksWidget* m_bookmarksWidget;
 
 	DebuggerUI* m_ui;
 
