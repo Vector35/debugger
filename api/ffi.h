@@ -544,6 +544,140 @@ extern "C"
 
 	DEBUGGER_FFI_API bool BNDebuggerFunctionExistsInOldView(BNDebuggerController* controller, uint64_t address);
 
+	// Custom Debug Adapter support
+	typedef struct BNCustomDebugAdapter BNCustomDebugAdapter;
+	typedef struct BNCustomDebugAdapterType BNCustomDebugAdapterType;
+
+	// Callback function types for custom debug adapter implementations
+	typedef bool (*BNCustomDebugAdapterInit)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterExecute)(void* ctxt, const char* path);
+	typedef bool (*BNCustomDebugAdapterExecuteWithArgs)(void* ctxt, const char* path, const char* args, const char* workingDir);
+	typedef bool (*BNCustomDebugAdapterAttach)(void* ctxt, uint32_t pid);
+	typedef bool (*BNCustomDebugAdapterConnect)(void* ctxt, const char* server, uint32_t port);
+	typedef bool (*BNCustomDebugAdapterConnectToDebugServer)(void* ctxt, const char* server, uint32_t port);
+	typedef bool (*BNCustomDebugAdapterDetach)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterQuit)(void* ctxt);
+	typedef BNDebugProcess* (*BNCustomDebugAdapterGetProcessList)(void* ctxt, size_t* count);
+	typedef BNDebugThread* (*BNCustomDebugAdapterGetThreadList)(void* ctxt, size_t* count);
+	typedef BNDebugThread (*BNCustomDebugAdapterGetActiveThread)(void* ctxt);
+	typedef uint32_t (*BNCustomDebugAdapterGetActiveThreadId)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterSetActiveThread)(void* ctxt, BNDebugThread thread);
+	typedef bool (*BNCustomDebugAdapterSetActiveThreadId)(void* ctxt, uint32_t tid);
+	typedef bool (*BNCustomDebugAdapterSuspendThread)(void* ctxt, uint32_t tid);
+	typedef bool (*BNCustomDebugAdapterResumeThread)(void* ctxt, uint32_t tid);
+	typedef BNDebugBreakpoint (*BNCustomDebugAdapterAddBreakpoint)(void* ctxt, uint64_t address);
+	typedef BNDebugBreakpoint (*BNCustomDebugAdapterAddBreakpointRelative)(void* ctxt, const char* module, uint64_t offset);
+	typedef bool (*BNCustomDebugAdapterRemoveBreakpoint)(void* ctxt, uint64_t address);
+	typedef bool (*BNCustomDebugAdapterRemoveBreakpointRelative)(void* ctxt, const char* module, uint64_t offset);
+	typedef BNDebugBreakpoint* (*BNCustomDebugAdapterGetBreakpointList)(void* ctxt, size_t* count);
+	typedef BNDebugRegister* (*BNCustomDebugAdapterReadAllRegisters)(void* ctxt, size_t* count);
+	typedef BNDebugRegister (*BNCustomDebugAdapterReadRegister)(void* ctxt, const char* reg);
+	typedef bool (*BNCustomDebugAdapterWriteRegister)(void* ctxt, const char* reg, const uint8_t* value);
+	typedef BNDataBuffer* (*BNCustomDebugAdapterReadMemory)(void* ctxt, uint64_t address, size_t size);
+	typedef bool (*BNCustomDebugAdapterWriteMemory)(void* ctxt, uint64_t address, BNDataBuffer* buffer);
+	typedef BNDebugModule* (*BNCustomDebugAdapterGetModuleList)(void* ctxt, size_t* count);
+	typedef char* (*BNCustomDebugAdapterGetTargetArchitecture)(void* ctxt);
+	typedef BNDebugStopReason (*BNCustomDebugAdapterStopReason)(void* ctxt);
+	typedef uint64_t (*BNCustomDebugAdapterExitCode)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterBreakInto)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterGo)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterGoReverse)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterStepInto)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterStepIntoReverse)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterStepOver)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterStepOverReverse)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterStepReturn)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterStepReturnReverse)(void* ctxt);
+	typedef char* (*BNCustomDebugAdapterInvokeBackendCommand)(void* ctxt, const char* command);
+	typedef uint64_t (*BNCustomDebugAdapterGetInstructionOffset)(void* ctxt);
+	typedef uint64_t (*BNCustomDebugAdapterGetStackPointer)(void* ctxt);
+	typedef bool (*BNCustomDebugAdapterSupportFeature)(void* ctxt, uint32_t feature);
+	typedef void (*BNCustomDebugAdapterWriteStdin)(void* ctxt, const char* msg);
+	typedef BNMetadata* (*BNCustomDebugAdapterGetProperty)(void* ctxt, const char* name);
+	typedef bool (*BNCustomDebugAdapterSetProperty)(void* ctxt, const char* name, BNMetadata* value);
+	typedef BNSettings* (*BNCustomDebugAdapterGetAdapterSettings)(void* ctxt);
+	typedef void (*BNCustomDebugAdapterFreeCallback)(void* ctxt);
+
+	// Callback function types for custom debug adapter type implementations  
+	typedef BNCustomDebugAdapter* (*BNCustomDebugAdapterTypeCreate)(void* ctxt, BNBinaryView* data);
+	typedef bool (*BNCustomDebugAdapterTypeIsValidForData)(void* ctxt, BNBinaryView* data);
+	typedef bool (*BNCustomDebugAdapterTypeCanExecute)(void* ctxt, BNBinaryView* data);
+	typedef bool (*BNCustomDebugAdapterTypeCanConnect)(void* ctxt, BNBinaryView* data);
+	typedef void (*BNCustomDebugAdapterTypeFreeCallback)(void* ctxt);
+
+	// Callback structures
+	typedef struct BNCustomDebugAdapterCallbacks
+	{
+		void* context;
+		BNCustomDebugAdapterInit init;
+		BNCustomDebugAdapterExecute execute;
+		BNCustomDebugAdapterExecuteWithArgs executeWithArgs;
+		BNCustomDebugAdapterAttach attach;
+		BNCustomDebugAdapterConnect connect;
+		BNCustomDebugAdapterConnectToDebugServer connectToDebugServer;
+		BNCustomDebugAdapterDetach detach;
+		BNCustomDebugAdapterQuit quit;
+		BNCustomDebugAdapterGetProcessList getProcessList;
+		BNCustomDebugAdapterGetThreadList getThreadList;
+		BNCustomDebugAdapterGetActiveThread getActiveThread;
+		BNCustomDebugAdapterGetActiveThreadId getActiveThreadId;
+		BNCustomDebugAdapterSetActiveThread setActiveThread;
+		BNCustomDebugAdapterSetActiveThreadId setActiveThreadId;
+		BNCustomDebugAdapterSuspendThread suspendThread;
+		BNCustomDebugAdapterResumeThread resumeThread;
+		BNCustomDebugAdapterAddBreakpoint addBreakpoint;
+		BNCustomDebugAdapterAddBreakpointRelative addBreakpointRelative;
+		BNCustomDebugAdapterRemoveBreakpoint removeBreakpoint;
+		BNCustomDebugAdapterRemoveBreakpointRelative removeBreakpointRelative;
+		BNCustomDebugAdapterGetBreakpointList getBreakpointList;
+		BNCustomDebugAdapterReadAllRegisters readAllRegisters;
+		BNCustomDebugAdapterReadRegister readRegister;
+		BNCustomDebugAdapterWriteRegister writeRegister;
+		BNCustomDebugAdapterReadMemory readMemory;
+		BNCustomDebugAdapterWriteMemory writeMemory;
+		BNCustomDebugAdapterGetModuleList getModuleList;
+		BNCustomDebugAdapterGetTargetArchitecture getTargetArchitecture;
+		BNCustomDebugAdapterStopReason stopReason;
+		BNCustomDebugAdapterExitCode exitCode;
+		BNCustomDebugAdapterBreakInto breakInto;
+		BNCustomDebugAdapterGo go;
+		BNCustomDebugAdapterGoReverse goReverse;
+		BNCustomDebugAdapterStepInto stepInto;
+		BNCustomDebugAdapterStepIntoReverse stepIntoReverse;
+		BNCustomDebugAdapterStepOver stepOver;
+		BNCustomDebugAdapterStepOverReverse stepOverReverse;
+		BNCustomDebugAdapterStepReturn stepReturn;
+		BNCustomDebugAdapterStepReturnReverse stepReturnReverse;
+		BNCustomDebugAdapterInvokeBackendCommand invokeBackendCommand;
+		BNCustomDebugAdapterGetInstructionOffset getInstructionOffset;
+		BNCustomDebugAdapterGetStackPointer getStackPointer;
+		BNCustomDebugAdapterSupportFeature supportFeature;
+		BNCustomDebugAdapterWriteStdin writeStdin;
+		BNCustomDebugAdapterGetProperty getProperty;
+		BNCustomDebugAdapterSetProperty setProperty;
+		BNCustomDebugAdapterGetAdapterSettings getAdapterSettings;
+		BNCustomDebugAdapterFreeCallback freeCallback;
+	} BNCustomDebugAdapterCallbacks;
+
+	typedef struct BNCustomDebugAdapterTypeCallbacks
+	{
+		void* context;
+		BNCustomDebugAdapterTypeCreate create;
+		BNCustomDebugAdapterTypeIsValidForData isValidForData;
+		BNCustomDebugAdapterTypeCanExecute canExecute;
+		BNCustomDebugAdapterTypeCanConnect canConnect;
+		BNCustomDebugAdapterTypeFreeCallback freeCallback;
+	} BNCustomDebugAdapterTypeCallbacks;
+
+	// Functions for registering custom debug adapters
+	DEBUGGER_FFI_API BNCustomDebugAdapterType* BNRegisterCustomDebugAdapterType(
+		const char* name, BNCustomDebugAdapterTypeCallbacks* callbacks);
+	DEBUGGER_FFI_API void BNUnregisterCustomDebugAdapterType(BNCustomDebugAdapterType* adapterType);
+
+	// Functions for custom debug adapter creation
+	DEBUGGER_FFI_API BNCustomDebugAdapter* BNCreateCustomDebugAdapter(BNCustomDebugAdapterCallbacks* callbacks);
+	DEBUGGER_FFI_API void BNFreeCustomDebugAdapter(BNCustomDebugAdapter* adapter);
+
 #ifdef __cplusplus
 }
 #endif

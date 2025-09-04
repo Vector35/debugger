@@ -20,6 +20,7 @@ limitations under the License.
 #include "highlevelilinstruction.h"
 #include "debuggercontroller.h"
 #include "debuggercommon.h"
+#include "customdebugadapter.h"
 #include "../api/ffi.h"
 
 using namespace BinaryNinjaDebugger;
@@ -1174,4 +1175,50 @@ BNSettings* BNDebuggerGetAdapterSettings(BNDebuggerController* controller)
 bool BNDebuggerFunctionExistsInOldView(BNDebuggerController* controller, uint64_t address)
 {
 	return controller->object->FunctionExistsInOldView(address);
+}
+
+
+// Custom Debug Adapter support
+BNCustomDebugAdapterType* BNRegisterCustomDebugAdapterType(const char* name, BNCustomDebugAdapterTypeCallbacks* callbacks)
+{
+	if (!name || !callbacks)
+		return nullptr;
+
+	auto adapterType = new CustomDebugAdapterType(std::string(name), *callbacks);
+	DebugAdapterType::Register(adapterType);
+	return DBG_API_OBJECT_REF(adapterType);
+}
+
+
+void BNUnregisterCustomDebugAdapterType(BNCustomDebugAdapterType* adapterType)
+{
+	// Note: Currently there's no unregister mechanism in the core DebugAdapterType
+	// This would need to be added to the core system for full support
+	if (adapterType && adapterType->object)
+	{
+		// For now, we just release the reference
+		// TODO: Implement proper unregistration
+	}
+}
+
+
+BNCustomDebugAdapter* BNCreateCustomDebugAdapter(BNCustomDebugAdapterCallbacks* callbacks)
+{
+	if (!callbacks)
+		return nullptr;
+
+	// Create the adapter with a nullptr BinaryView since this is a generic creation function
+	// The actual BinaryView will be provided when the adapter is used
+	auto adapter = new CustomDebugAdapter(nullptr, *callbacks);
+	return DBG_API_OBJECT_REF(adapter);
+}
+
+
+void BNFreeCustomDebugAdapter(BNCustomDebugAdapter* adapter)
+{
+	if (adapter && adapter->object)
+	{
+		// Release the object reference
+		// TODO: Implement proper cleanup
+	}
 }

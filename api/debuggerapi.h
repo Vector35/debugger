@@ -644,4 +644,159 @@ namespace BinaryNinjaDebuggerAPI {
 		bool CanConnect(Ref<BinaryView> data);
 		static std::vector<std::string> GetAvailableAdapters(Ref<BinaryView> data);
 	};
+
+	// Base class for implementing custom debug adapters from the API side
+	class CustomDebugAdapter
+	{
+	protected:
+		BNCustomDebugAdapterCallbacks m_callbacks;
+
+	public:
+		CustomDebugAdapter();
+		virtual ~CustomDebugAdapter();
+
+		// Pure virtual methods that must be implemented by subclasses
+		virtual bool Execute(const std::string& path) = 0;
+		virtual bool ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir) = 0;
+		virtual bool Attach(uint32_t pid) = 0;
+		virtual bool Connect(const std::string& server, uint32_t port) = 0;
+		virtual bool ConnectToDebugServer(const std::string& server, uint32_t port) = 0;
+		virtual bool Detach() = 0;
+		virtual bool Quit() = 0;
+
+		virtual std::vector<DebugProcess> GetProcessList() = 0;
+		virtual std::vector<DebugThread> GetThreadList() = 0;
+		virtual DebugThread GetActiveThread() = 0;
+		virtual uint32_t GetActiveThreadId() = 0;
+		virtual bool SetActiveThread(const DebugThread& thread) = 0;
+		virtual bool SetActiveThreadId(uint32_t tid) = 0;
+		virtual bool SuspendThread(uint32_t tid) = 0;
+		virtual bool ResumeThread(uint32_t tid) = 0;
+
+		virtual DebugBreakpoint AddBreakpoint(uint64_t address) = 0;
+		virtual DebugBreakpoint AddBreakpointRelative(const std::string& module, uint64_t offset) = 0;
+		virtual bool RemoveBreakpoint(uint64_t address) = 0;
+		virtual bool RemoveBreakpointRelative(const std::string& module, uint64_t offset) = 0;
+		virtual std::vector<DebugBreakpoint> GetBreakpointList() = 0;
+
+		virtual std::unordered_map<std::string, DebugRegister> ReadAllRegisters() = 0;
+		virtual DebugRegister ReadRegister(const std::string& reg) = 0;
+		virtual bool WriteRegister(const std::string& reg, const std::vector<uint8_t>& value) = 0;
+
+		virtual std::vector<uint8_t> ReadMemory(uint64_t address, size_t size) = 0;
+		virtual bool WriteMemory(uint64_t address, const std::vector<uint8_t>& buffer) = 0;
+
+		virtual std::vector<DebugModule> GetModuleList() = 0;
+		virtual std::string GetTargetArchitecture() = 0;
+		virtual DebugStopReason StopReason() = 0;
+		virtual uint64_t ExitCode() = 0;
+
+		virtual bool BreakInto() = 0;
+		virtual bool Go() = 0;
+		virtual bool GoReverse() = 0;
+		virtual bool StepInto() = 0;
+		virtual bool StepIntoReverse() = 0;
+		virtual bool StepOver() = 0;
+		virtual bool StepOverReverse() = 0;
+		virtual bool StepReturn() = 0;
+		virtual bool StepReturnReverse() = 0;
+
+		virtual std::string InvokeBackendCommand(const std::string& command) = 0;
+		virtual uint64_t GetInstructionOffset() = 0;
+		virtual uint64_t GetStackPointer() = 0;
+		virtual bool SupportFeature(uint32_t feature) = 0;
+
+		// Optional virtual methods with default implementations
+		virtual bool Init() { return true; }
+		virtual void WriteStdin(const std::string& msg) {}
+		virtual Ref<BinaryNinja::Metadata> GetProperty(const std::string& name) { return nullptr; }
+		virtual bool SetProperty(const std::string& name, const Ref<BinaryNinja::Metadata>& value) { return false; }
+		virtual Ref<Settings> GetAdapterSettings() { return nullptr; }
+
+	private:
+		// Static callbacks that forward to instance methods
+		static bool InitCallback(void* ctxt);
+		static bool ExecuteCallback(void* ctxt, const char* path);
+		static bool ExecuteWithArgsCallback(void* ctxt, const char* path, const char* args, const char* workingDir);
+		static bool AttachCallback(void* ctxt, uint32_t pid);
+		static bool ConnectCallback(void* ctxt, const char* server, uint32_t port);
+		static bool ConnectToDebugServerCallback(void* ctxt, const char* server, uint32_t port);
+		static bool DetachCallback(void* ctxt);
+		static bool QuitCallback(void* ctxt);
+		static BNDebugProcess* GetProcessListCallback(void* ctxt, size_t* count);
+		static BNDebugThread* GetThreadListCallback(void* ctxt, size_t* count);
+		static BNDebugThread GetActiveThreadCallback(void* ctxt);
+		static uint32_t GetActiveThreadIdCallback(void* ctxt);
+		static bool SetActiveThreadCallback(void* ctxt, BNDebugThread thread);
+		static bool SetActiveThreadIdCallback(void* ctxt, uint32_t tid);
+		static bool SuspendThreadCallback(void* ctxt, uint32_t tid);
+		static bool ResumeThreadCallback(void* ctxt, uint32_t tid);
+		static BNDebugBreakpoint AddBreakpointCallback(void* ctxt, uint64_t address);
+		static BNDebugBreakpoint AddBreakpointRelativeCallback(void* ctxt, const char* module, uint64_t offset);
+		static bool RemoveBreakpointCallback(void* ctxt, uint64_t address);
+		static bool RemoveBreakpointRelativeCallback(void* ctxt, const char* module, uint64_t offset);
+		static BNDebugBreakpoint* GetBreakpointListCallback(void* ctxt, size_t* count);
+		static BNDebugRegister* ReadAllRegistersCallback(void* ctxt, size_t* count);
+		static BNDebugRegister ReadRegisterCallback(void* ctxt, const char* reg);
+		static bool WriteRegisterCallback(void* ctxt, const char* reg, const uint8_t* value);
+		static BNDataBuffer* ReadMemoryCallback(void* ctxt, uint64_t address, size_t size);
+		static bool WriteMemoryCallback(void* ctxt, uint64_t address, BNDataBuffer* buffer);
+		static BNDebugModule* GetModuleListCallback(void* ctxt, size_t* count);
+		static char* GetTargetArchitectureCallback(void* ctxt);
+		static BNDebugStopReason StopReasonCallback(void* ctxt);
+		static uint64_t ExitCodeCallback(void* ctxt);
+		static bool BreakIntoCallback(void* ctxt);
+		static bool GoCallback(void* ctxt);
+		static bool GoReverseCallback(void* ctxt);
+		static bool StepIntoCallback(void* ctxt);
+		static bool StepIntoReverseCallback(void* ctxt);
+		static bool StepOverCallback(void* ctxt);
+		static bool StepOverReverseCallback(void* ctxt);
+		static bool StepReturnCallback(void* ctxt);
+		static bool StepReturnReverseCallback(void* ctxt);
+		static char* InvokeBackendCommandCallback(void* ctxt, const char* command);
+		static uint64_t GetInstructionOffsetCallback(void* ctxt);
+		static uint64_t GetStackPointerCallback(void* ctxt);
+		static bool SupportFeatureCallback(void* ctxt, uint32_t feature);
+		static void WriteStdinCallback(void* ctxt, const char* msg);
+		static BNMetadata* GetPropertyCallback(void* ctxt, const char* name);
+		static bool SetPropertyCallback(void* ctxt, const char* name, BNMetadata* value);
+		static BNSettings* GetAdapterSettingsCallback(void* ctxt);
+		static void FreeCallback(void* ctxt);
+
+		void InitializeCallbacks();
+	};
+
+	// Base class for implementing custom debug adapter types from the API side
+	class CustomDebugAdapterType
+	{
+	protected:
+		std::string m_name;
+		BNCustomDebugAdapterTypeCallbacks m_callbacks;
+
+	public:
+		CustomDebugAdapterType(const std::string& name);
+		virtual ~CustomDebugAdapterType();
+
+		// Register this adapter type with the debugger system
+		void Register();
+
+		// Pure virtual methods that must be implemented by subclasses
+		virtual std::unique_ptr<CustomDebugAdapter> Create(Ref<BinaryView> data) = 0;
+		virtual bool IsValidForData(Ref<BinaryView> data) = 0;
+		virtual bool CanExecute(Ref<BinaryView> data) = 0;
+		virtual bool CanConnect(Ref<BinaryView> data) = 0;
+
+		std::string GetName() const { return m_name; }
+
+	private:
+		// Static callbacks that forward to instance methods
+		static BNCustomDebugAdapter* CreateCallback(void* ctxt, BNBinaryView* data);
+		static bool IsValidForDataCallback(void* ctxt, BNBinaryView* data);
+		static bool CanExecuteCallback(void* ctxt, BNBinaryView* data);
+		static bool CanConnectCallback(void* ctxt, BNBinaryView* data);
+		static void FreeCallback(void* ctxt);
+
+		void InitializeCallbacks();
+	};
 };  // namespace BinaryNinjaDebuggerAPI
