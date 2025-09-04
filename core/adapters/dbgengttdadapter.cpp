@@ -137,27 +137,60 @@ bool DbgEngTTDAdapter::Start()
 	QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
 
 	// Initialize data model interfaces for TTD
+	// Based on Microsoft documentation and the user's feedback,
+	// we need to get these interfaces correctly
+	HRESULT hr;
+	
+	// Step 1: Create the data model manager
+	IDataModelManager* dataModelManager = nullptr;
+	hr = DebugCreate(__uuidof(IDataModelManager), reinterpret_cast<void**>(&dataModelManager));
+	if (FAILED(hr) || !dataModelManager)
+	{
+		LogWarn("Failed to create IDataModelManager interface: 0x%08x", hr);
+		return false;
+	}
+	m_dataModelManager.Attach(dataModelManager);
+	
+	// Step 2: Get the debug host from the data model manager
+	// The proper way is to use the data model manager to get access to the host
+	ComPtr<IModelObject> rootNamespace;
+	hr = m_dataModelManager->GetRootNamespace(rootNamespace.GetAddressOf());
+	if (FAILED(hr))
+	{
+		LogWarn("Failed to get root namespace: 0x%08x", hr);
+		return false;
+	}
+	
+	// Step 3: Get the host context from the namespace
+	ComPtr<IDebugHostContext> hostContext;
+	hr = rootNamespace->GetContextObject(hostContext.GetAddressOf());
+	if (FAILED(hr))
+	{
+		LogWarn("Failed to get host context: 0x%08x", hr);
+		return false;
+	}
+	
+	// Step 4: Get the debug host from the context
 	IDebugHost* debugHost = nullptr;
-	if (SUCCEEDED(this->m_debugClient->QueryInterface(__uuidof(IDebugHost), reinterpret_cast<void**>(&debugHost))))
+	hr = hostContext->QueryInterface(__uuidof(IDebugHost), reinterpret_cast<void**>(&debugHost));
+	if (FAILED(hr) || !debugHost)
 	{
-		m_debugHost.Attach(debugHost);
-		
-		IDebugHostEvaluator* hostEvaluator = nullptr;
-		if (SUCCEEDED(m_debugHost->QueryInterface(__uuidof(IDebugHostEvaluator), 
-			reinterpret_cast<void**>(&hostEvaluator))))
-		{
-			m_hostEvaluator.Attach(hostEvaluator);
-			LogInfo("Data model interfaces initialized successfully for TTD");
-		}
-		else
-		{
-			LogWarn("Failed to get IDebugHostEvaluator interface");
-		}
+		LogWarn("Failed to get IDebugHost interface: 0x%08x", hr);
+		return false;
 	}
-	else
+	m_debugHost.Attach(debugHost);
+	
+	// Step 5: Get the evaluator from the debug host
+	IDebugHostEvaluator* hostEvaluator = nullptr;
+	hr = m_debugHost->QueryInterface(__uuidof(IDebugHostEvaluator), reinterpret_cast<void**>(&hostEvaluator));
+	if (FAILED(hr) || !hostEvaluator)
 	{
-		LogWarn("Failed to get IDebugHost interface");
+		LogWarn("Failed to get IDebugHostEvaluator interface: 0x%08x", hr);
+		return false;
 	}
+	m_hostEvaluator.Attach(hostEvaluator);
+	
+	LogInfo("Data model interfaces initialized successfully for TTD");
 
 	m_debugEventCallbacks.SetAdapter(this);
 	if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks); result != S_OK)
