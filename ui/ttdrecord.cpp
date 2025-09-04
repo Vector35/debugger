@@ -204,8 +204,32 @@ void TTDRecordDialog::selectProcess()
 
 void TTDRecordDialog::apply()
 {
+	// Validate output directory
+	if (m_outputDirectory->text().isEmpty())
+	{
+		QMessageBox::critical(this, "Invalid Configuration", "Please specify a trace output directory.");
+		return;
+	}
+	
+	// Mode-specific validation
+	if (m_launchModeRadio->isChecked())
+	{
+		if (m_pathEntry->text().isEmpty())
+		{
+			QMessageBox::critical(this, "Invalid Configuration", "Please specify an executable path for launch mode.");
+			return;
+		}
+	}
+	else
+	{
+		if (m_selectedPid == 0)
+		{
+			QMessageBox::critical(this, "Invalid Configuration", "Please select a process to attach to.");
+			return;
+		}
+	}
+	
 	DoTTDTrace();
-
 	accept();
 }
 
@@ -275,12 +299,6 @@ void TTDRecordDialog::DoTTDTrace()
 	if (m_launchModeRadio->isChecked())
 	{
 		// Launch mode - existing functionality
-		if (m_pathEntry->text().isEmpty())
-		{
-			QMessageBox::critical(this, "Recording Failed", "Please specify an executable path for launch mode.");
-			return;
-		}
-		
 		ttdCommandLine = fmt::format("-accepteula -out \"{}\" {} -launch \"{}\" {}",
 			m_outputDirectory->text().toStdString(),
 			m_launchWithoutTracing->isChecked() ? "-tracingOff -recordMode Manual" : "",
@@ -290,12 +308,6 @@ void TTDRecordDialog::DoTTDTrace()
 	else
 	{
 		// Attach mode - new functionality
-		if (m_selectedPid == 0)
-		{
-			QMessageBox::critical(this, "Recording Failed", "Please select a process to attach to.");
-			return;
-		}
-		
 		ttdCommandLine = fmt::format("-accepteula -out \"{}\" -attach {}",
 			m_outputDirectory->text().toStdString(),
 			m_selectedPid);

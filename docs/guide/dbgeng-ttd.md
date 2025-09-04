@@ -49,8 +49,7 @@ The WinDbg installation only needs to be done once.
 ## Record a TTD Trace
 
 Once we have installed and configured WinDbg, we can start recording a TTD trace. There are two ways to do it, we can either
-do it from within Binary Ninja, or do it from WinDbg. Doing it from Binary Ninja is more convenient, though it does not support
-all types of recording supported by WinDbg (e.g., attach to a running process and start recroding).
+do it from within Binary Ninja, or do it from WinDbg. Binary Ninja now supports both launching new processes and attaching to running processes for TTD recording.
 
 ### Record a TTD Trace in Binary Ninja
 
@@ -60,13 +59,17 @@ all types of recording supported by WinDbg (e.g., attach to a running process an
 
 <img src="../../img/debugger/ttd_record.png" width="600px">
 
-- In the "TTD Record" dialog, configure the recording as you wish:
-    - Executable Path: the path of the executable to trace
-    - Working Directory: the working directory to launch the executable in
-    - Command Line Arguments: the command line arguments to pass to the executable
-    - Trace Output Directory: the directory to write the trace. By default, it is equal to the working directory, but can be changed if necessary
-- Click "Record". A UAC dialog will pop up to because the TTD recording requires Administrator privilege
-- Accept the elevation. The program will be launched and recorded. Once it exits, find the trace file in the trace output directory
+- In the "TTD Record" dialog, you can choose between two recording modes:
+    - **Launch new process**: Records a new instance of an executable from the beginning
+        - Executable Path: the path of the executable to trace
+        - Working Directory: the working directory to launch the executable in
+        - Command Line Arguments: the command line arguments to pass to the executable
+        - Start application With Recording Off: checkbox to manually control when tracing begins
+    - **Attach to running process**: Attaches to an already running process and starts recording
+        - Target Process: click "Select Process..." to choose from running processes
+    - Trace Output Directory: the directory to write the trace (applies to both modes)
+- Click "Record". A UAC dialog will pop up because TTD recording requires Administrator privilege
+- Accept the elevation. The program will be launched/attached and recorded. Once it exits, find the trace file in the trace output directory
 
 
 ### Record a TTD Trace in WinDbg
