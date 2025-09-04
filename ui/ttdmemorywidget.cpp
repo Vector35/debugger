@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "ttdmemorywidget.h"
+#include "ui.h"
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QMessageBox>
