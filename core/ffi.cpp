@@ -1056,6 +1056,90 @@ bool BNDebuggerIsTTD(BNDebuggerController* controller)
 }
 
 
+BNTTDMemoryEvent* BNDebuggerGetTTDMemoryEvents(BNDebuggerController* controller, 
+	BNTTDPosition startPos, BNTTDPosition endPos, BNTTDMemoryAccessType accessType, size_t* count)
+{
+	if (!count)
+		return nullptr;
+		
+	*count = 0;
+	
+	TTDPosition start(startPos.sequence, startPos.step);
+	TTDPosition end(endPos.sequence, endPos.step);
+	TTDMemoryAccessType type = static_cast<TTDMemoryAccessType>(accessType);
+	
+	auto events = controller->object->GetTTDMemoryEvents(start, end, type);
+	if (events.empty())
+		return nullptr;
+		
+	*count = events.size();
+	auto result = new BNTTDMemoryEvent[events.size()];
+	
+	for (size_t i = 0; i < events.size(); i++)
+	{
+		result[i].position.sequence = events[i].position.sequence;
+		result[i].position.step = events[i].position.step;
+		result[i].accessType = static_cast<BNTTDMemoryAccessType>(events[i].accessType);
+		result[i].address = events[i].address;
+		result[i].size = events[i].size;
+		result[i].threadId = events[i].threadId;
+		result[i].instructionAddress = events[i].instructionAddress;
+	}
+	
+	return result;
+}
+
+BNTTDMemoryEvent* BNDebuggerGetTTDMemoryEventsForAddress(BNDebuggerController* controller,
+	uint64_t address, uint64_t size, BNTTDMemoryAccessType accessType, size_t* count)
+{
+	if (!count)
+		return nullptr;
+		
+	*count = 0;
+	
+	TTDMemoryAccessType type = static_cast<TTDMemoryAccessType>(accessType);
+	auto events = controller->object->GetTTDMemoryEventsForAddress(address, size, type);
+	if (events.empty())
+		return nullptr;
+		
+	*count = events.size();
+	auto result = new BNTTDMemoryEvent[events.size()];
+	
+	for (size_t i = 0; i < events.size(); i++)
+	{
+		result[i].position.sequence = events[i].position.sequence;
+		result[i].position.step = events[i].position.step;
+		result[i].accessType = static_cast<BNTTDMemoryAccessType>(events[i].accessType);
+		result[i].address = events[i].address;
+		result[i].size = events[i].size;
+		result[i].threadId = events[i].threadId;
+		result[i].instructionAddress = events[i].instructionAddress;
+	}
+	
+	return result;
+}
+
+BNTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller)
+{
+	auto position = controller->object->GetCurrentTTDPosition();
+	BNTTDPosition result;
+	result.sequence = position.sequence;
+	result.step = position.step;
+	return result;
+}
+
+bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNTTDPosition position)
+{
+	TTDPosition pos(position.sequence, position.step);
+	return controller->object->SetTTDPosition(pos);
+}
+
+void BNDebuggerFreeTTDMemoryEvents(BNTTDMemoryEvent* events)
+{
+	delete[] events;
+}
+
+
 void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event)
 {
 	DebuggerEvent evt;

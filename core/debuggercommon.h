@@ -83,4 +83,51 @@ namespace BinaryNinjaDebugger {
 			return ((module1 == module2) || (GetPathBaseName(module1) == GetPathBaseName(module2)));
 		}
 	};
+
+	// TTD Memory Access Types
+	enum TTDMemoryAccessType
+	{
+		TTDMemoryRead,
+		TTDMemoryWrite,
+		TTDMemoryExecute
+	};
+
+	// TTD Position - represents a position in the TTD trace
+	struct TTDPosition
+	{
+		uint64_t sequence;  // Sequence number in trace
+		uint64_t step;      // Step within sequence
+		
+		TTDPosition() : sequence(0), step(0) {}
+		TTDPosition(uint64_t seq, uint64_t st) : sequence(seq), step(st) {}
+		
+		bool operator==(const TTDPosition& other) const
+		{
+			return sequence == other.sequence && step == other.step;
+		}
+		
+		bool operator<(const TTDPosition& other) const
+		{
+			if (sequence < other.sequence)
+				return true;
+			if (sequence > other.sequence)
+				return false;
+			return step < other.step;
+		}
+	};
+
+	// TTD Memory Access Event
+	struct TTDMemoryEvent
+	{
+		TTDPosition position;           // Position in trace when event occurred
+		TTDMemoryAccessType accessType; // Type of memory access
+		uint64_t address;              // Memory address accessed
+		uint64_t size;                 // Size of memory access
+		uint32_t threadId;             // Thread ID that performed the access
+		uint64_t instructionAddress;   // Address of instruction that caused the access
+		
+		TTDMemoryEvent() : accessType(TTDMemoryRead), address(0), size(0), threadId(0), instructionAddress(0) {}
+		TTDMemoryEvent(const TTDPosition& pos, TTDMemoryAccessType type, uint64_t addr, uint64_t sz, uint32_t tid, uint64_t instrAddr)
+			: position(pos), accessType(type), address(addr), size(sz), threadId(tid), instructionAddress(instrAddr) {}
+	};
 };  // namespace BinaryNinjaDebugger

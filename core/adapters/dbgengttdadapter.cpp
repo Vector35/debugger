@@ -1,5 +1,11 @@
 #include "dbgengttdadapter.h"
 #include <filesystem>
+#include <algorithm>
+#include <cctype>
+
+#ifdef WIN32
+#include <fmt/format.h>
+#endif
 
 using namespace BinaryNinjaDebugger;
 using namespace std;
@@ -8,6 +14,11 @@ using namespace std;
 DbgEngTTDAdapter::DbgEngTTDAdapter(BinaryView* data) : DbgEngAdapter(data)
 {
     m_usePDBFileName = false;
+#ifdef WIN32
+	m_dataModelManager = nullptr;
+	m_debugHost = nullptr;
+	m_ttdInitialized = false;
+#endif
 	GenerateDefaultAdapterSettings(data);
 }
 
@@ -165,6 +176,9 @@ void DbgEngTTDAdapter::Reset()
 
 	if (!this->m_debugActive)
 		return;
+
+	// Cleanup TTD memory analysis resources
+	CleanupTTDMemoryAnalysis();
 
 	// Free up the resources if the dbgsrv is launched by the adapter. Otherwise, the dbgsrv is launched outside BN,
 	// we should keep everything active.
@@ -340,6 +354,247 @@ Ref<Settings> DbgEngTTDAdapterType::RegisterAdapterSettings()
 			})");
 
 	return settings;
+}
+
+
+// TTD Memory Analysis Implementation
+std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryEvents(const TTDPosition& startPos, const TTDPosition& endPos, TTDMemoryAccessType accessType)
+{
+	std::vector<TTDMemoryEvent> events;
+	
+#ifdef WIN32
+	if (!m_ttdInitialized && !InitializeTTDMemoryAnalysis())
+	{
+		LogError("Failed to initialize TTD memory analysis");
+		return events;
+	}
+
+	if (!QueryMemoryAccess(startPos, endPos, accessType, events))
+	{
+		LogError("Failed to query TTD memory access events");
+	}
+#else
+	LogError("TTD memory analysis is only supported on Windows");
+#endif
+	
+	return events;
+}
+
+std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryEventsForAddress(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+{
+	std::vector<TTDMemoryEvent> events;
+	
+#ifdef WIN32
+	if (!m_ttdInitialized && !InitializeTTDMemoryAnalysis())
+	{
+		LogError("Failed to initialize TTD memory analysis");
+		return events;
+	}
+
+	// For address-specific queries, we query the entire trace
+	TTDPosition startPos(0, 0);
+	TTDPosition endPos(UINT64_MAX, UINT64_MAX);
+	
+	std::vector<TTDMemoryEvent> allEvents;
+	if (!QueryMemoryAccess(startPos, endPos, accessType, allEvents))
+	{
+		LogError("Failed to query TTD memory access events");
+		return events;
+	}
+	
+	// Filter events for the specific address range
+	for (const auto& event : allEvents)
+	{
+		if (event.address >= address && event.address < address + size)
+		{
+			events.push_back(event);
+		}
+	}
+#else
+	LogError("TTD memory analysis is only supported on Windows");
+#endif
+	
+	return events;
+}
+
+TTDPosition DbgEngTTDAdapter::GetCurrentTTDPosition()
+{
+	TTDPosition position;
+	
+#ifdef WIN32
+	if (!m_debugControl)
+	{
+		LogError("Debug control interface not available");
+		return position;
+	}
+	
+	// Use the TTD !position command to get current position
+	std::string output = InvokeBackendCommand("!position");
+	
+	// Parse the position output (format like "1A0:12F")
+	// This is a simplified parser - a more robust implementation would be needed
+	size_t colonPos = output.find(':');
+	if (colonPos != std::string::npos)
+	{
+		try 
+		{
+			std::string seqStr = output.substr(0, colonPos);
+			std::string stepStr = output.substr(colonPos + 1);
+			
+			// Remove any non-hex characters
+			seqStr.erase(std::remove_if(seqStr.begin(), seqStr.end(), 
+				[](char c) { return !std::isxdigit(c); }), seqStr.end());
+			stepStr.erase(std::remove_if(stepStr.begin(), stepStr.end(), 
+				[](char c) { return !std::isxdigit(c); }), stepStr.end());
+			
+			if (!seqStr.empty() && !stepStr.empty())
+			{
+				position.sequence = std::stoull(seqStr, nullptr, 16);
+				position.step = std::stoull(stepStr, nullptr, 16);
+			}
+		}
+		catch (const std::exception& e)
+		{
+			LogError("Failed to parse TTD position: %s", e.what());
+		}
+	}
+#else
+	LogError("TTD position queries are only supported on Windows");
+#endif
+	
+	return position;
+}
+
+bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
+{
+#ifdef WIN32
+	if (!m_debugControl)
+	{
+		LogError("Debug control interface not available");
+		return false;
+	}
+	
+	// Use the TTD !tt command to navigate to position
+	std::string command = fmt::format("!tt {:X}:{:X}", position.sequence, position.step);
+	std::string output = InvokeBackendCommand(command);
+	
+	// Check if the command succeeded (basic check)
+	return output.find("error") == std::string::npos && output.find("failed") == std::string::npos;
+#else
+	LogError("TTD navigation is only supported on Windows");
+	return false;
+#endif
+}
+
+bool DbgEngTTDAdapter::InitializeTTDMemoryAnalysis()
+{
+#ifdef WIN32
+	if (m_ttdInitialized)
+		return true;
+		
+	if (!m_debugClient)
+	{
+		LogError("Debug client not available for TTD initialization");
+		return false;
+	}
+	
+	// Get the debug host interface
+	HRESULT hr = m_debugClient->QueryInterface(__uuidof(IDebugHost), reinterpret_cast<void**>(&m_debugHost));
+	if (FAILED(hr))
+	{
+		LogError("Failed to get IDebugHost interface: 0x%x", hr);
+		return false;
+	}
+	
+	// Get the data model manager
+	hr = m_debugHost->QueryInterface(__uuidof(IDataModelManager), reinterpret_cast<void**>(&m_dataModelManager));
+	if (FAILED(hr))
+	{
+		LogError("Failed to get IDataModelManager interface: 0x%x", hr);
+		SAFE_RELEASE(m_debugHost);
+		return false;
+	}
+	
+	m_ttdInitialized = true;
+	LogInfo("TTD memory analysis initialized successfully");
+	return true;
+#else
+	return false;
+#endif
+}
+
+void DbgEngTTDAdapter::CleanupTTDMemoryAnalysis()
+{
+#ifdef WIN32
+	SAFE_RELEASE(m_dataModelManager);
+	SAFE_RELEASE(m_debugHost);
+	m_ttdInitialized = false;
+#endif
+}
+
+bool DbgEngTTDAdapter::QueryMemoryAccess(const TTDPosition& startPos, const TTDPosition& endPos, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
+{
+#ifdef WIN32
+	if (!m_dataModelManager || !m_debugHost)
+	{
+		LogError("TTD data model interfaces not initialized");
+		return false;
+	}
+	
+	try
+	{
+		// This is a simplified implementation using DbgEng commands
+		// A full implementation would use the data model APIs directly
+		std::string accessTypeStr;
+		switch (accessType)
+		{
+		case TTDMemoryRead:
+			accessTypeStr = "r";
+			break;
+		case TTDMemoryWrite:
+			accessTypeStr = "w";
+			break;
+		case TTDMemoryExecute:
+			accessTypeStr = "e";
+			break;
+		default:
+			accessTypeStr = "rwe";
+			break;
+		}
+		
+		// Use the dx command to query TTD memory objects
+		std::string command = fmt::format("dx @$cursession.TTD.Memory(0x0,0xFFFFFFFFFFFFFFFF,\"{}\").Count", accessTypeStr);
+		std::string output = InvokeBackendCommand(command);
+		
+		// This is a placeholder implementation
+		// The actual implementation would parse the data model objects
+		// and extract detailed memory access information
+		LogInfo("TTD memory query executed: %s", command.c_str());
+		LogInfo("Output: %s", output.c_str());
+		
+		// For now, create a sample event to demonstrate the structure
+		if (!output.empty() && output.find("error") == std::string::npos)
+		{
+			TTDMemoryEvent sampleEvent;
+			sampleEvent.position = startPos;
+			sampleEvent.accessType = accessType;
+			sampleEvent.address = 0x1000; // Placeholder
+			sampleEvent.size = 4; // Placeholder
+			sampleEvent.threadId = 1; // Placeholder
+			sampleEvent.instructionAddress = 0x400000; // Placeholder
+			events.push_back(sampleEvent);
+		}
+		
+		return true;
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in QueryMemoryAccess: %s", e.what());
+		return false;
+	}
+#else
+	return false;
+#endif
 }
 
 

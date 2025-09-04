@@ -452,6 +452,52 @@ namespace BinaryNinjaDebuggerAPI {
 	};
 
 
+	// TTD (Time Travel Debugging) structures
+	enum TTDMemoryAccessType
+	{
+		TTDMemoryRead,
+		TTDMemoryWrite,
+		TTDMemoryExecute
+	};
+
+	struct TTDPosition
+	{
+		uint64_t sequence;
+		uint64_t step;
+		
+		TTDPosition() : sequence(0), step(0) {}
+		TTDPosition(uint64_t seq, uint64_t st) : sequence(seq), step(st) {}
+		
+		bool operator==(const TTDPosition& other) const
+		{
+			return sequence == other.sequence && step == other.step;
+		}
+		
+		bool operator<(const TTDPosition& other) const
+		{
+			if (sequence < other.sequence)
+				return true;
+			if (sequence > other.sequence)
+				return false;
+			return step < other.step;
+		}
+	};
+
+	struct TTDMemoryEvent
+	{
+		TTDPosition position;
+		TTDMemoryAccessType accessType;
+		uint64_t address;
+		uint64_t size;
+		uint32_t threadId;
+		uint64_t instructionAddress;
+		
+		TTDMemoryEvent() : accessType(TTDMemoryRead), address(0), size(0), threadId(0), instructionAddress(0) {}
+		TTDMemoryEvent(const TTDPosition& pos, TTDMemoryAccessType type, uint64_t addr, uint64_t sz, uint32_t tid, uint64_t instrAddr)
+			: position(pos), accessType(type), address(addr), size(sz), threadId(tid), instructionAddress(instrAddr) {}
+	};
+
+
 	typedef BNDebugAdapterConnectionStatus DebugAdapterConnectionStatus;
 	typedef BNDebugAdapterTargetStatus DebugAdapterTargetStatus;
 
@@ -613,6 +659,12 @@ namespace BinaryNinjaDebuggerAPI {
 		bool IsFirstAttach();
 
 		bool IsTTD();
+
+		// TTD Memory Analysis Methods
+		std::vector<TTDMemoryEvent> GetTTDMemoryEvents(const TTDPosition& startPos, const TTDPosition& endPos, TTDMemoryAccessType accessType = TTDMemoryRead);
+		std::vector<TTDMemoryEvent> GetTTDMemoryEventsForAddress(uint64_t address, uint64_t size, TTDMemoryAccessType accessType = TTDMemoryRead);
+		TTDPosition GetCurrentTTDPosition();
+		bool SetTTDPosition(const TTDPosition& position);
 
 		void PostDebuggerEvent(const DebuggerEvent& event);
 
