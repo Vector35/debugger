@@ -10,9 +10,7 @@ using namespace std;
 DbgEngTTDAdapter::DbgEngTTDAdapter(BinaryView* data) : DbgEngAdapter(data)
 {
     m_usePDBFileName = false;
-#ifdef WIN32
 	m_ttdInitialized = false;
-#endif
 	GenerateDefaultAdapterSettings(data);
 }
 
@@ -138,7 +136,6 @@ bool DbgEngTTDAdapter::Start()
 	QUERY_DEBUG_INTERFACE(IDebugSymbols3, &this->m_debugSymbols);
 	QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
 
-#ifdef WIN32
 	// Initialize data model interfaces for TTD
 	IDebugHost* debugHost = nullptr;
 	if (SUCCEEDED(this->m_debugClient->QueryInterface(__uuidof(IDebugHost), reinterpret_cast<void**>(&debugHost))))
@@ -161,7 +158,6 @@ bool DbgEngTTDAdapter::Start()
 	{
 		LogWarn("Failed to get IDebugHost interface");
 	}
-#endif
 
 	m_debugEventCallbacks.SetAdapter(this);
 	if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks); result != S_OK)
@@ -199,12 +195,10 @@ void DbgEngTTDAdapter::Reset()
 	// Cleanup TTD memory analysis resources
 	CleanupTTDMemoryAnalysis();
 
-#ifdef WIN32
 	// Release data model interfaces
 	m_hostEvaluator.Reset();
 	m_debugHost.Reset();
 	m_dataModelManager.Reset();
-#endif
 
 	// Free up the resources if the dbgsrv is launched by the adapter. Otherwise, the dbgsrv is launched outside BN,
 	// we should keep everything active.
@@ -336,10 +330,7 @@ bool DbgEngTTDAdapterType::CanConnect(BinaryNinja::BinaryView* data)
 
 bool DbgEngTTDAdapterType::CanExecute(BinaryNinja::BinaryView* data)
 {
-#ifdef WIN32
     return true;
-#endif
-    return false;
 }
 
 
@@ -387,7 +378,6 @@ std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryAccessForAddress(uint64_t
 {
 	std::vector<TTDMemoryEvent> events;
 	
-#ifdef WIN32
 	if (!m_ttdInitialized && !InitializeTTDMemoryAnalysis())
 	{
 		LogError("Failed to initialize TTD memory analysis");
@@ -398,9 +388,6 @@ std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryAccessForAddress(uint64_t
 	{
 		LogError("Failed to query TTD memory access events for address range 0x%llx-0x%llx", startAddress, endAddress);
 	}
-#else
-	LogError("TTD memory analysis is only supported on Windows");
-#endif
 	
 	return events;
 }
@@ -409,7 +396,6 @@ TTDPosition DbgEngTTDAdapter::GetCurrentTTDPosition()
 {
 	TTDPosition position;
 	
-#ifdef WIN32
 	if (!m_debugControl)
 	{
 		LogError("Debug control interface not available");
@@ -481,16 +467,14 @@ TTDPosition DbgEngTTDAdapter::GetCurrentTTDPosition()
 			}
 		}
 	}
-#else
-	LogError("TTD position queries are only supported on Windows");
-#endif
+	
+	return position;
 	
 	return position;
 }
 
 bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
 {
-#ifdef WIN32
 	if (!m_debugControl)
 	{
 		LogError("Debug control interface not available");
@@ -524,15 +508,10 @@ bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
 		LogInfo("Successfully navigated to TTD position {:X}:{:X} (fallback)", position.sequence, position.step);
 	}
 	return success;
-#else
-	LogError("TTD navigation is only supported on Windows");
-	return false;
-#endif
 }
 
 bool DbgEngTTDAdapter::InitializeTTDMemoryAnalysis()
 {
-#ifdef WIN32
 	if (m_ttdInitialized)
 		return true;
 		
@@ -547,21 +526,15 @@ bool DbgEngTTDAdapter::InitializeTTDMemoryAnalysis()
 	m_ttdInitialized = true;
 	LogInfo("TTD memory analysis initialized successfully (basic mode)");
 	return true;
-#else
-	return false;
-#endif
 }
 
 void DbgEngTTDAdapter::CleanupTTDMemoryAnalysis()
 {
-#ifdef WIN32
 	m_ttdInitialized = false;
-#endif
 }
 
 bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
 {
-#ifdef WIN32
 	if (!m_debugControl)
 	{
 		LogError("Debug control interface not available");
@@ -602,9 +575,6 @@ bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_
 		LogError("Exception in QueryMemoryAccessByAddress: %s", e.what());
 		return false;
 	}
-#else
-	return false;
-#endif
 }
 
 
@@ -621,7 +591,6 @@ void DbgEngTTDAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 // Data model helper method implementation
 std::string DbgEngTTDAdapter::EvaluateDataModelExpression(const std::string& expression)
 {
-#ifdef WIN32
 	if (!m_hostEvaluator)
 	{
 		LogError("Data model evaluator not available");
@@ -696,16 +665,11 @@ std::string DbgEngTTDAdapter::EvaluateDataModelExpression(const std::string& exp
 		LogError("Exception in EvaluateDataModelExpression: %s", e.what());
 		return "";
 	}
-#else
-	LogError("Data model evaluation is only supported on Windows");
-	return "";
-#endif
 }
 
 // Implementation of TTD memory objects parsing
 bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
 {
-#ifdef WIN32
 	if (!m_hostEvaluator)
 	{
 		LogError("Data model evaluator not available");
@@ -887,16 +851,11 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 		LogError("Exception in ParseTTDMemoryObjects: %s", e.what());
 		return false;
 	}
-#else
-	LogError("TTD memory parsing is only supported on Windows");
-	return false;
-#endif
 }
 
 // Fallback method using command interface
 bool DbgEngTTDAdapter::ParseTTDMemoryObjectsFromCommand(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
 {
-#ifdef WIN32
 	try
 	{
 		// Use dx command to get the TTD memory objects
@@ -933,9 +892,6 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjectsFromCommand(const std::string& expre
 		LogError("Exception in ParseTTDMemoryObjectsFromCommand: %s", e.what());
 		return false;
 	}
-#else
-	return false;
-#endif
 }
 
 

@@ -18,12 +18,10 @@ limitations under the License.
 #include "dbgengadapter.h"
 
 // Additional includes for TTD memory analysis
-#ifdef WIN32
 #include <dbgmodel.h>
 #include <comdef.h>
 #include <wrl/client.h>
 using namespace Microsoft::WRL;
-#endif
 
 namespace BinaryNinjaDebugger {
     class DbgEngTTDAdapter: public DbgEngAdapter
@@ -67,7 +65,6 @@ namespace BinaryNinjaDebugger {
 		bool ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
 		bool ParseTTDMemoryObjectsFromCommand(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
 
-#ifdef WIN32
 		// TTD analysis state
 		bool m_ttdInitialized;
 		
@@ -75,7 +72,6 @@ namespace BinaryNinjaDebugger {
 		ComPtr<IDataModelManager> m_dataModelManager;
 		ComPtr<IDebugHost> m_debugHost;
 		ComPtr<IDebugHostEvaluator> m_hostEvaluator;
-#endif
     };
 
     class DbgEngTTDAdapterType : public DebugAdapterType
