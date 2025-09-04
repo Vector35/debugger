@@ -64,3 +64,5 @@ test/__pycache__
 /test/Pipfile
 
 .DS_Store
+*.pyc
+__pycache__/
