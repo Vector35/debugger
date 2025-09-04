@@ -306,10 +306,7 @@ bool DbgEngTTDAdapterType::CanConnect(BinaryNinja::BinaryView* data)
 
 bool DbgEngTTDAdapterType::CanExecute(BinaryNinja::BinaryView* data)
 {
-#ifdef WIN32
     return true;
-#endif
-    return false;
 }
 
 
