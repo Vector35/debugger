@@ -19,9 +19,10 @@ limitations under the License.
 
 // Additional includes for TTD memory analysis
 #ifdef WIN32
-// We'll use the basic DbgEng interfaces first, then add data model if needed
-// #include <dbgmodel.h>
-// #include <comdef.h>
+#include <dbgmodel.h>
+#include <comdef.h>
+#include <wrl/client.h>
+using namespace Microsoft::WRL;
 #endif
 
 namespace BinaryNinjaDebugger {
@@ -61,10 +62,18 @@ namespace BinaryNinjaDebugger {
 		bool InitializeTTDMemoryAnalysis();
 		void CleanupTTDMemoryAnalysis();
 		bool QueryMemoryAccess(const TTDPosition& startPos, const TTDPosition& endPos, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
+		
+		// Data model helper methods
+		std::string EvaluateDataModelExpression(const std::string& expression);
 
 #ifdef WIN32
 		// TTD analysis state
 		bool m_ttdInitialized;
+		
+		// Data model interfaces for TTD
+		ComPtr<IDataModelManager> m_dataModelManager;
+		ComPtr<IDebugHost> m_debugHost;
+		ComPtr<IDebugHostEvaluator> m_hostEvaluator;
 #endif
     };
 
