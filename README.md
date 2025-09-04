@@ -2,6 +2,21 @@
 
 This is the repository for Binary Ninja Debugger. The debugger is written in C++ and is shipped with BN as a plugin.
 
+## Features
+
+- Multi-platform debugging support (Windows, Linux, macOS)
+- Multiple debug adapters (LLDB, GDB, WinDbg, etc.)
+- Remote debugging capabilities
+- **Custom Debug Adapter API** - Create your own debug adapters in C++ or Python
+- Time Travel Debugging (TTD) support
+- Kernel debugging on Windows
+
+## Custom Debug Adapters
+
+The debugger now supports custom debug adapters that can be implemented in both C++ and Python. This allows extending the debugger with support for new protocols, targets, or specialized debugging scenarios.
+
+See [docs/custom_debug_adapters.md](docs/custom_debug_adapters.md) for detailed documentation and examples.
+
 ## Platform and Target Support
 
 This is the current comparability matrix of the debugger. The columns stand for where we run BN and the rows stand for the targets.

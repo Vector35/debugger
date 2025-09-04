@@ -16,6 +16,9 @@ limitations under the License.
 
 #include "debuggerapi.h"
 #include "ffi.h"
+#include <cstring>
+#include <memory>
+#include <unordered_map>
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
