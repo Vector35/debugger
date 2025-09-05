@@ -416,7 +416,7 @@ void TTDMemoryQueryWidget::onCellDoubleClicked(int row, int column)
 				if (ok)
 				{
 					// Navigate to the address in the disassembly view
-					BinaryNinja::ViewFrame* frame = BinaryNinja::ViewFrame::viewFrameForWidget(this);
+					ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
 					if (frame)
 					{
 						frame->navigate(m_data, address);
