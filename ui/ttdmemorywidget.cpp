@@ -134,10 +134,10 @@ void TTDMemoryWidget::setupUI()
 void TTDMemoryWidget::setupTable()
 {
 	m_resultsTable = new QTableWidget();
-	m_resultsTable->setColumnCount(7);
+	m_resultsTable->setColumnCount(9);
 	
 	QStringList headers;
-	headers << "Position" << "Access Type" << "Address" << "Size" << "Thread ID" << "Instruction Address" << "Value";
+	headers << "Event Type" << "Time Start" << "Time End" << "Access Type" << "Address" << "Size" << "Thread ID" << "Unique Thread ID" << "Instruction Address";
 	m_resultsTable->setHorizontalHeaderLabels(headers);
 	
 	// Configure table appearance
@@ -149,12 +149,15 @@ void TTDMemoryWidget::setupTable()
 	// Set column widths
 	QHeaderView* header = m_resultsTable->horizontalHeader();
 	header->setStretchLastSection(true);
-	m_resultsTable->setColumnWidth(0, 120); // Position
-	m_resultsTable->setColumnWidth(1, 100); // Access Type
-	m_resultsTable->setColumnWidth(2, 120); // Address
-	m_resultsTable->setColumnWidth(3, 80);  // Size
-	m_resultsTable->setColumnWidth(4, 80);  // Thread ID
-	m_resultsTable->setColumnWidth(5, 120); // Instruction Address
+	m_resultsTable->setColumnWidth(0, 100); // Event Type
+	m_resultsTable->setColumnWidth(1, 120); // Time Start
+	m_resultsTable->setColumnWidth(2, 120); // Time End
+	m_resultsTable->setColumnWidth(3, 100); // Access Type
+	m_resultsTable->setColumnWidth(4, 120); // Address
+	m_resultsTable->setColumnWidth(5, 80);  // Size
+	m_resultsTable->setColumnWidth(6, 80);  // Thread ID
+	m_resultsTable->setColumnWidth(7, 100); // Unique Thread ID
+	// Instruction Address column will stretch
 	
 	// Connect double-click handler
 	connect(m_resultsTable, &QTableWidget::cellDoubleClicked, 
@@ -209,35 +212,44 @@ void TTDMemoryWidget::performQuery()
 		{
 			const auto& event = events[i];
 			
-			// Position
-			QString positionStr = QString("%1:%2")
-				.arg(event.position.sequence, 0, 16)
-				.arg(event.position.step, 0, 16);
-			m_resultsTable->setItem(i, 0, new QTableWidgetItem(positionStr));
+			// Event Type
+			m_resultsTable->setItem(i, 0, new QTableWidgetItem(QString::fromStdString(event.eventType)));
+			
+			// Time Start
+			QString timeStartStr = QString("%1:%2")
+				.arg(event.timeStart.sequence, 0, 16)
+				.arg(event.timeStart.step, 0, 16);
+			m_resultsTable->setItem(i, 1, new QTableWidgetItem(timeStartStr));
+			
+			// Time End
+			QString timeEndStr = QString("%1:%2")
+				.arg(event.timeEnd.sequence, 0, 16)
+				.arg(event.timeEnd.step, 0, 16);
+			m_resultsTable->setItem(i, 2, new QTableWidgetItem(timeEndStr));
 			
 			// Access Type
 			QString accessTypeStr;
 			if (event.accessType & TTDMemoryRead) accessTypeStr += "R";
 			if (event.accessType & TTDMemoryWrite) accessTypeStr += "W";
 			if (event.accessType & TTDMemoryExecute) accessTypeStr += "E";
-			m_resultsTable->setItem(i, 1, new QTableWidgetItem(accessTypeStr));
+			m_resultsTable->setItem(i, 3, new QTableWidgetItem(accessTypeStr));
 			
 			// Address
 			QString addressStr = QString("0x%1").arg(event.address, 0, 16);
-			m_resultsTable->setItem(i, 2, new QTableWidgetItem(addressStr));
+			m_resultsTable->setItem(i, 4, new QTableWidgetItem(addressStr));
 			
 			// Size
-			m_resultsTable->setItem(i, 3, new QTableWidgetItem(QString::number(event.size)));
+			m_resultsTable->setItem(i, 5, new QTableWidgetItem(QString::number(event.size)));
 			
 			// Thread ID
-			m_resultsTable->setItem(i, 4, new QTableWidgetItem(QString::number(event.threadId)));
+			m_resultsTable->setItem(i, 6, new QTableWidgetItem(QString::number(event.threadId)));
+			
+			// Unique Thread ID
+			m_resultsTable->setItem(i, 7, new QTableWidgetItem(QString::number(event.uniqueThreadId)));
 			
 			// Instruction Address
 			QString instrAddrStr = QString("0x%1").arg(event.instructionAddress, 0, 16);
-			m_resultsTable->setItem(i, 5, new QTableWidgetItem(instrAddrStr));
-			
-			// Value (placeholder for now - could be enhanced to show actual memory value)
-			m_resultsTable->setItem(i, 6, new QTableWidgetItem("N/A"));
+			m_resultsTable->setItem(i, 8, new QTableWidgetItem(instrAddrStr));
 		}
 		
 		updateStatus(QString("Found %1 memory access events").arg(events.size()));
@@ -265,10 +277,10 @@ void TTDMemoryWidget::onCellDoubleClicked(int row, int column)
 	if (row < 0 || row >= m_resultsTable->rowCount())
 		return;
 		
-	if (column == 0) // Position column
+	if (column == 1) // Time Start column
 	{
 		// Parse position and navigate to it
-		QTableWidgetItem* posItem = m_resultsTable->item(row, 0);
+		QTableWidgetItem* posItem = m_resultsTable->item(row, 1);
 		if (posItem && m_controller)
 		{
 			QString posStr = posItem->text();
@@ -294,7 +306,7 @@ void TTDMemoryWidget::onCellDoubleClicked(int row, int column)
 			}
 		}
 	}
-	else if (column == 2 || column == 5) // Address or Instruction Address columns
+	else if (column == 4 || column == 8) // Address or Instruction Address columns
 	{
 		// Could implement navigation to address in disassembly view
 		QTableWidgetItem* addrItem = m_resultsTable->item(row, column);

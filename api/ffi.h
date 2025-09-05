@@ -310,12 +310,16 @@ extern "C"
 
 	typedef struct BNDebuggerTTDMemoryEvent
 	{
-		BNDebuggerTTDPosition position;
-		BNDebuggerTTDMemoryAccessType accessType;
+		char* eventType;
+		uint32_t threadId;
+		uint32_t uniqueThreadId;
+		BNDebuggerTTDPosition timeStart;
+		BNDebuggerTTDPosition timeEnd;
 		uint64_t address;
 		uint64_t size;
-		uint32_t threadId;
+		uint64_t memoryAddress;
 		uint64_t instructionAddress;
+		BNDebuggerTTDMemoryAccessType accessType;
 	} BNDebuggerTTDMemoryEvent;
 
 

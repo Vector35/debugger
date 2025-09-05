@@ -56,18 +56,12 @@ namespace BinaryNinjaDebugger {
 
 	private:
 		// Helper methods for TTD memory analysis
-		bool InitializeTTDMemoryAnalysis();
-		void CleanupTTDMemoryAnalysis();
 		bool QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
 		
 		// Data model helper methods
 		std::string EvaluateDataModelExpression(const std::string& expression);
 		bool ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
-		bool ParseTTDMemoryObjectsFromCommand(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
 
-		// TTD analysis state
-		bool m_ttdInitialized;
-		
 		// Data model interfaces for TTD
 		IHostDataModelAccess* m_dataModelManager;
     	IDataModelManager* m_modelMgr;

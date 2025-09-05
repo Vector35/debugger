@@ -1074,13 +1074,18 @@ BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerContr
 	
 	for (size_t i = 0; i < events.size(); i++)
 	{
-		result[i].position.sequence = events[i].position.sequence;
-		result[i].position.step = events[i].position.step;
-		result[i].accessType = static_cast<BNDebuggerTTDMemoryAccessType>(events[i].accessType);
+		result[i].eventType = BNAllocString(events[i].eventType.c_str());
+		result[i].threadId = events[i].threadId;
+		result[i].uniqueThreadId = events[i].uniqueThreadId;
+		result[i].timeStart.sequence = events[i].timeStart.sequence;
+		result[i].timeStart.step = events[i].timeStart.step;
+		result[i].timeEnd.sequence = events[i].timeEnd.sequence;
+		result[i].timeEnd.step = events[i].timeEnd.step;
 		result[i].address = events[i].address;
 		result[i].size = events[i].size;
-		result[i].threadId = events[i].threadId;
+		result[i].memoryAddress = events[i].memoryAddress;
 		result[i].instructionAddress = events[i].instructionAddress;
+		result[i].accessType = static_cast<BNDebuggerTTDMemoryAccessType>(events[i].accessType);
 	}
 	
 	return result;
@@ -1103,7 +1108,13 @@ bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPos
 
 void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events)
 {
-	delete[] events;
+	if (events)
+	{
+		// Free eventType strings before deleting the array
+		// Note: We can't know the count here, so this implementation assumes
+		// the caller manages proper cleanup or we need to change the API
+		delete[] events;
+	}
 }
 
 

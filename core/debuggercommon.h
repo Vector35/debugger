@@ -117,18 +117,20 @@ namespace BinaryNinjaDebugger {
 		}
 	};
 
-	// TTD Memory Access Event
+	// TTD Memory Access Event - complete set of fields from Microsoft documentation
 	struct TTDMemoryEvent
 	{
-		TTDPosition position;           // Position in trace when event occurred
-		TTDMemoryAccessType accessType; // Type of memory access
+		std::string eventType;         // Event type (e.g., "MemoryAccess")
+		uint32_t threadId;             // Thread ID that performed the access
+		uint32_t uniqueThreadId;       // Unique thread identifier
+		TTDPosition timeStart;         // Position when event started
+		TTDPosition timeEnd;           // Position when event ended
 		uint64_t address;              // Memory address accessed
 		uint64_t size;                 // Size of memory access
-		uint32_t threadId;             // Thread ID that performed the access
+		uint64_t memoryAddress;        // Memory address (may be same as address)
 		uint64_t instructionAddress;   // Address of instruction that caused the access
+		TTDMemoryAccessType accessType; // Type of memory access (derived from query)
 		
-		TTDMemoryEvent() : accessType(TTDMemoryRead), address(0), size(0), threadId(0), instructionAddress(0) {}
-		TTDMemoryEvent(const TTDPosition& pos, TTDMemoryAccessType type, uint64_t addr, uint64_t sz, uint32_t tid, uint64_t instrAddr)
-			: position(pos), accessType(type), address(addr), size(sz), threadId(tid), instructionAddress(instrAddr) {}
+		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), address(0), size(0), memoryAddress(0), instructionAddress(0), accessType(TTDMemoryRead) {}
 	};
 };  // namespace BinaryNinjaDebugger
