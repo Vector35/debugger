@@ -26,7 +26,6 @@ limitations under the License.
 #include <QCheckBox>
 #include <QToolButton>
 #include <QPropertyAnimation>
-#include <QResizeEvent>
 #include <QFrame>
 
 // ExpandableGroupBox implementation
@@ -715,38 +714,26 @@ void TTDMemoryWidget::setupUI()
 	
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
 	
-	// Create a horizontal layout to hold the tab widget and + button
-	QWidget* tabContainer = new QWidget();
-	m_tabLayout = new QHBoxLayout(tabContainer);
-	m_tabLayout->setContentsMargins(0, 0, 0, 0);
-	m_tabLayout->setSpacing(0);
-	
 	// Tab widget setup
-	m_tabWidget = new QTabWidget();
+	m_tabWidget = new QTabWidget(this);
 	m_tabWidget->setTabsClosable(true);
 	connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &TTDMemoryWidget::closeTab);
 	
-	// Create "+" button
-	m_newTabButton = new QPushButton("+");
-	m_newTabButton->setMaximumSize(25, 25);
-	m_newTabButton->setMinimumSize(25, 25);
-	m_newTabButton->setToolTip("Create new query tab");
-	m_newTabButton->setStyleSheet("QPushButton { border: 1px solid #555; border-radius: 3px; margin-top: 2px; }");
-	connect(m_newTabButton, &QPushButton::clicked, this, &TTDMemoryWidget::createNewTab);
+	// Create "+" button as corner widget
+	m_newTabButton = new QToolButton(m_tabWidget);
+	m_newTabButton->setText("+");
+	m_newTabButton->setAutoRaise(true);
+	m_newTabButton->setToolTip("New tab");
+	connect(m_newTabButton, &QToolButton::clicked, this, &TTDMemoryWidget::createNewTab);
 	
-	// Add tab widget and button to horizontal layout
-	m_tabLayout->addWidget(m_tabWidget);
-	m_tabLayout->addWidget(m_newTabButton, 0, Qt::AlignTop);
+	// Set the button as corner widget
+	m_tabWidget->setCornerWidget(m_newTabButton, Qt::TopRightCorner);
 	
-	mainLayout->addWidget(tabContainer);
+	mainLayout->addWidget(m_tabWidget);
 	setLayout(mainLayout);
 	
 	// Create initial tab
 	createNewTab();
-	
-	// Update button position when tabs change
-	connect(m_tabWidget, &QTabWidget::currentChanged, this, &TTDMemoryWidget::updateNewTabButtonPosition);
-	connect(m_tabWidget, &QTabWidget::tabBarClicked, this, &TTDMemoryWidget::updateNewTabButtonPosition);
 }
 
 void TTDMemoryWidget::createNewTab()
@@ -754,7 +741,6 @@ void TTDMemoryWidget::createNewTab()
 	TTDMemoryQueryWidget* queryWidget = new TTDMemoryQueryWidget(this, m_data);
 	int tabIndex = m_tabWidget->addTab(queryWidget, QString("Query %1").arg(m_tabWidget->count() + 1));
 	m_tabWidget->setCurrentIndex(tabIndex);
-	updateNewTabButtonPosition();
 }
 
 void TTDMemoryWidget::closeTab(int index)
@@ -764,21 +750,9 @@ void TTDMemoryWidget::closeTab(int index)
 		QWidget* widget = m_tabWidget->widget(index);
 		m_tabWidget->removeTab(index);
 		widget->deleteLater();
-		updateNewTabButtonPosition();
 	}
 }
 
-void TTDMemoryWidget::updateNewTabButtonPosition()
-{
-	// This will be called to adjust the button position if needed
-	// For now, the horizontal layout should handle this automatically
-}
-
-void TTDMemoryWidget::resizeEvent(QResizeEvent* event)
-{
-	QWidget::resizeEvent(event);
-	updateNewTabButtonPosition();
-}
 
 
 // TTDMemorySidebarWidget implementation

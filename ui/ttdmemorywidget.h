@@ -137,19 +137,14 @@ class TTDMemoryWidget : public QWidget
 private:
 	BinaryViewRef m_data;
 	DbgRef<DebuggerController> m_controller;
-	QHBoxLayout* m_tabLayout;
 	QTabWidget* m_tabWidget;
-	QPushButton* m_newTabButton;
+	QToolButton* m_newTabButton;
 	
 	void setupUI();
-	void updateNewTabButtonPosition();
 
 public:
 	TTDMemoryWidget(QWidget* parent, BinaryViewRef data);
 	virtual ~TTDMemoryWidget();
-
-protected:
-	void resizeEvent(QResizeEvent* event) override;
 
 private Q_SLOTS:
 	void createNewTab();
