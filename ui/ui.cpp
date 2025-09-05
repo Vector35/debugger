@@ -209,15 +209,14 @@ void GlobalDebuggerUI::GetAddressRange(const UIActionContext& ctxt, uint64_t& st
 void GlobalDebuggerUI::QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_t startAddr, uint64_t endAddr, BNDebuggerTTDMemoryAccessType accessType)
 {
 	// Focus the TTD Memory sidebar widget
-	auto mainWindow = ctxt.context->mainWindow();
-	if (mainWindow)
-	{
-		auto sidebar = mainWindow->sidebar();
-		if (sidebar)
-		{
-			sidebar->activateWidget("TTD Memory");
-		}
-	}
+	if (!ctxt.context)
+		return;
+
+	auto sidebar = ctxt.context->sidebar();
+	if (!sidebar)
+		return;
+
+	sidebar->activate("TTD Memory");
 
 	// Get the TTD Memory widget and perform the query
 	auto controller = DebuggerController::GetController(ctxt.binaryView);

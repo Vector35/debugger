@@ -60,10 +60,6 @@ public:
 	void GetAddressRange(const UIActionContext& ctxt, uint64_t& startAddr, uint64_t& endAddr);
 	void QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_t startAddr, uint64_t endAddr, BNDebuggerTTDMemoryAccessType accessType);
 
-#ifdef WIN32
-	void installTTD(const UIActionContext& ctxt);
-#endif
-
 	void SetDisplayingGlobalAreaWidgets(bool display);
 };
 
