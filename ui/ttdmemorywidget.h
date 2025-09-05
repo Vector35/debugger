@@ -117,6 +117,9 @@ private:
 public:
 	TTDMemoryQueryWidget(QWidget* parent, BinaryViewRef data);
 	virtual ~TTDMemoryQueryWidget();
+	
+	// Method to set parameters and execute query from context menu
+	void setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
 
 private Q_SLOTS:
 	void performQuery();
@@ -145,6 +148,10 @@ private:
 public:
 	TTDMemoryWidget(QWidget* parent, BinaryViewRef data);
 	virtual ~TTDMemoryWidget();
+	
+	// Method to get current query widget or create new tab
+	TTDMemoryQueryWidget* getCurrentOrNewQueryWidget();
+	void setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
 
 private Q_SLOTS:
 	void createNewTab();
@@ -164,11 +171,22 @@ private:
 public:
 	TTDMemorySidebarWidget(BinaryViewRef data);
 	~TTDMemorySidebarWidget();
+	
+	// Method to access the TTD Memory widget for context menu actions
+	void setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
 };
 
 
 class TTDMemoryWidgetType : public SidebarWidgetType
 {
+private:
+	struct PendingQuery {
+		uint64_t startAddr;
+		uint64_t endAddr;
+		TTDMemoryAccessType accessType;
+	};
+	static std::map<std::pair<ViewFrame*, BinaryViewRef>, PendingQuery> s_pendingQueries;
+
 public:
 	TTDMemoryWidgetType();
 	SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override;
@@ -176,4 +194,7 @@ public:
 	SidebarContextSensitivity contextSensitivity() const override { return PerViewTypeSidebarContext; }
 	SidebarIconVisibility defaultIconVisibility() const override { return HideSidebarIconIfNoContent; }
 	SidebarContentClassifier* contentClassifier(ViewFrame*, BinaryViewRef) override;
+	
+	// Static method to set pending query parameters
+	static void SetPendingQuery(ViewFrame* frame, BinaryViewRef data, uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
 };

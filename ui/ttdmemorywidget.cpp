@@ -27,6 +27,7 @@ limitations under the License.
 #include <QToolButton>
 #include <QPropertyAnimation>
 #include <QFrame>
+#include <map>
 
 // ExpandableGroupBox implementation
 ExpandableGroupBox::ExpandableGroupBox(const QString& title, QWidget* parent)
@@ -708,6 +709,21 @@ TTDMemoryAccessType TTDMemoryQueryWidget::getSelectedAccessTypes()
 	return accessType;
 }
 
+void TTDMemoryQueryWidget::setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType)
+{
+	// Set address fields
+	m_startAddressEdit->setText(QString("0x%1").arg(startAddr, 0, 16));
+	m_endAddressEdit->setText(QString("0x%1").arg(endAddr, 0, 16));
+	
+	// Set access type checkboxes
+	m_readAccessCheck->setChecked(accessType & TTDMemoryRead);
+	m_writeAccessCheck->setChecked(accessType & TTDMemoryWrite);
+	m_executeAccessCheck->setChecked(accessType & TTDMemoryExecute);
+	
+	// Trigger the query
+	performQuery();
+}
+
 // TTDMemoryWidget implementation (tab container)
 TTDMemoryWidget::TTDMemoryWidget(QWidget* parent, BinaryViewRef data)
 	: QWidget(parent), m_data(data)
@@ -771,6 +787,27 @@ void TTDMemoryWidget::closeTab(int index)
 	}
 }
 
+TTDMemoryQueryWidget* TTDMemoryWidget::getCurrentOrNewQueryWidget()
+{
+	// Get current tab widget
+	TTDMemoryQueryWidget* currentWidget = qobject_cast<TTDMemoryQueryWidget*>(m_tabWidget->currentWidget());
+	if (currentWidget)
+		return currentWidget;
+	
+	// If no current widget or cast failed, create a new tab
+	createNewTab();
+	return qobject_cast<TTDMemoryQueryWidget*>(m_tabWidget->currentWidget());
+}
+
+void TTDMemoryWidget::setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType)
+{
+	TTDMemoryQueryWidget* queryWidget = getCurrentOrNewQueryWidget();
+	if (queryWidget)
+	{
+		queryWidget->setParametersAndQuery(startAddr, endAddr, accessType);
+	}
+}
+
 
 
 // TTDMemorySidebarWidget implementation
@@ -792,21 +829,56 @@ TTDMemorySidebarWidget::~TTDMemorySidebarWidget()
 {
 }
 
+void TTDMemorySidebarWidget::setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType)
+{
+	if (m_memoryWidget)
+	{
+		m_memoryWidget->setParametersAndQuery(startAddr, endAddr, accessType);
+	}
+}
+
 
 // TTDMemoryWidgetType implementation
+std::map<std::pair<ViewFrame*, BinaryViewRef>, TTDMemoryWidgetType::PendingQuery> TTDMemoryWidgetType::s_pendingQueries;
+
 TTDMemoryWidgetType::TTDMemoryWidgetType()
 	: SidebarWidgetType(QIcon(":/debugger/ttd-memory").pixmap(QSize(64, 64)).toImage(), "TTD Memory")
 {
 }
 
-SidebarWidget* TTDMemoryWidgetType::createWidget(ViewFrame*, BinaryViewRef data)
+SidebarWidget* TTDMemoryWidgetType::createWidget(ViewFrame* frame, BinaryViewRef data)
 {
-	return new TTDMemorySidebarWidget(data);
+	TTDMemorySidebarWidget* widget = new TTDMemorySidebarWidget(data);
+	
+	// Check if there's a pending query for this frame/data combination
+	auto key = std::make_pair(frame, data);
+	auto it = s_pendingQueries.find(key);
+	if (it != s_pendingQueries.end())
+	{
+		const PendingQuery& query = it->second;
+		widget->setParametersAndQuery(query.startAddr, query.endAddr, query.accessType);
+		s_pendingQueries.erase(it);
+	}
+	
+	return widget;
 }
 
 SidebarContentClassifier* TTDMemoryWidgetType::contentClassifier(ViewFrame*, BinaryViewRef data)
 {
 	return new ActiveDebugSessionSidebarContentClassifier(data);
+}
+
+void TTDMemoryWidgetType::SetPendingQuery(ViewFrame* frame, BinaryViewRef data, uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType)
+{
+	auto key = std::make_pair(frame, data);
+	PendingQuery query;
+	query.startAddr = startAddr;
+	query.endAddr = endAddr;
+	query.accessType = accessType;
+	s_pendingQueries[key] = query;
+	
+	// Try to find if the widget is already active and apply the query immediately
+	// This is a best-effort approach - the widget might apply the query when it becomes active
 }
 
 #include "ttdmemorywidget.moc"

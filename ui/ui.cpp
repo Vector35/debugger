@@ -218,15 +218,27 @@ void GlobalDebuggerUI::QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_
 
 	sidebar->activate("TTD Memory");
 
-	// Get the TTD Memory widget and perform the query
+	// Get the current view frame and find the TTD Memory widget
+	ViewFrame* frame = ctxt.context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
 	auto controller = DebuggerController::GetController(ctxt.binaryView);
 	if (!controller)
 		return;
 
-	// Find the TTD Memory widget instance and trigger a query
-	// This is a simplified approach - in a complete implementation, 
-	// we would need to access the widget and set its parameters
-	LogInfo("TTD Memory Access query: 0x%llx-0x%llx, access type: %d", startAddr, endAddr, accessType);
+	// Get the TTDMemoryWidgetType and find the widget instance
+	// For now, we'll use a simple approach: iterate through created widgets
+	// Note: This is a simplified implementation - in production code, 
+	// we might need a more robust widget discovery mechanism
+	
+	// Convert BNDebuggerTTDMemoryAccessType to TTDMemoryAccessType
+	TTDMemoryAccessType accessTypeEnum = static_cast<TTDMemoryAccessType>(accessType);
+	
+	// Try to find the TTD Memory sidebar widget
+	// Since we just activated it, we can try to access it through global widget tracking
+	// For this implementation, we'll use a callback approach through the widget type
+	TTDMemoryWidgetType::SetPendingQuery(frame, ctxt.binaryView, startAddr, endAddr, accessTypeEnum);
 }
 
 
