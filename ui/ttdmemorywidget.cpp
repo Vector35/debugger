@@ -149,13 +149,8 @@ void TTDMemoryQueryWidget::setupUI()
 	m_clearButton->setToolTip("Clear the results table");
 	connect(m_clearButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::clearResults);
 	
-	m_columnsButton = new QPushButton("Columns...");
-	m_columnsButton->setToolTip("Configure column visibility");
-	connect(m_columnsButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::showColumnVisibilityDialog);
-	
 	buttonLayout->addWidget(m_queryButton);
 	buttonLayout->addWidget(m_clearButton);
-	buttonLayout->addWidget(m_columnsButton);
 	buttonLayout->addStretch();
 	
 	inputLayout->addRow("", buttonLayout);
@@ -449,10 +444,13 @@ void TTDMemoryQueryWidget::showContextMenu(const QPoint& position)
 	QAction* copyCellAction = menu.addAction("Copy Cell");
 	QAction* copyRowAction = menu.addAction("Copy Row");
 	QAction* copyTableAction = menu.addAction("Copy Table");
+	menu.addSeparator();
+	QAction* columnsAction = menu.addAction("Columns...");
 	
 	connect(copyCellAction, &QAction::triggered, this, &TTDMemoryQueryWidget::copySelectedCell);
 	connect(copyRowAction, &QAction::triggered, this, &TTDMemoryQueryWidget::copySelectedRow);
 	connect(copyTableAction, &QAction::triggered, this, &TTDMemoryQueryWidget::copyEntireTable);
+	connect(columnsAction, &QAction::triggered, this, &TTDMemoryQueryWidget::showColumnVisibilityDialog);
 	
 	// Enable/disable actions based on selection
 	QTableWidgetItem* item = m_resultsTable->itemAt(position);
@@ -580,23 +578,21 @@ void TTDMemoryWidget::setupUI()
 	
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
 	
-	// Tab widget with new tab button
-	QHBoxLayout* tabHeaderLayout = new QHBoxLayout();
-	
+	// Tab widget setup
 	m_tabWidget = new QTabWidget();
 	m_tabWidget->setTabsClosable(true);
 	connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &TTDMemoryWidget::closeTab);
 	
+	// Create "+" button and set it as corner widget
 	m_newTabButton = new QPushButton("+");
 	m_newTabButton->setMaximumSize(30, 30);
 	m_newTabButton->setToolTip("Create new query tab");
 	connect(m_newTabButton, &QPushButton::clicked, this, &TTDMemoryWidget::createNewTab);
 	
-	tabHeaderLayout->addWidget(m_tabWidget);
-	tabHeaderLayout->addWidget(m_newTabButton);
-	tabHeaderLayout->setStretch(0, 1);
+	// Set the "+" button as a corner widget of the tab widget
+	m_tabWidget->setCornerWidget(m_newTabButton, Qt::TopRightCorner);
 	
-	mainLayout->addLayout(tabHeaderLayout);
+	mainLayout->addWidget(m_tabWidget);
 	setLayout(mainLayout);
 	
 	// Create initial tab

@@ -70,7 +70,6 @@ private:
 	QCheckBox* m_executeAccessCheck;
 	QPushButton* m_queryButton;
 	QPushButton* m_clearButton;
-	QPushButton* m_columnsButton;
 	
 	// Results table
 	QTableWidget* m_resultsTable;
