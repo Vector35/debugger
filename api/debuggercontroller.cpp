@@ -953,13 +953,19 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uin
 		for (size_t i = 0; i < count; i++)
 		{
 			TTDMemoryEvent event;
-			event.position.sequence = events[i].position.sequence;
-			event.position.step = events[i].position.step;
+			event.eventType = events[i].eventType ? std::string(events[i].eventType) : "";
+			event.threadId = events[i].threadId;
+			event.uniqueThreadId = events[i].uniqueThreadId;
+			event.timeStart.sequence = events[i].timeStart.sequence;
+			event.timeStart.step = events[i].timeStart.step;
+			event.timeEnd.sequence = events[i].timeEnd.sequence;
+			event.timeEnd.step = events[i].timeEnd.step;
 			event.accessType = static_cast<TTDMemoryAccessType>(events[i].accessType);
 			event.address = events[i].address;
 			event.size = events[i].size;
-			event.threadId = events[i].threadId;
+			event.memoryAddress = events[i].memoryAddress;
 			event.instructionAddress = events[i].instructionAddress;
+			event.value = events[i].value;
 			result.push_back(event);
 		}
 		BNDebuggerFreeTTDMemoryEvents(events);

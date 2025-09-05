@@ -831,21 +831,66 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 				VariantClear(&vtSize);
 			}
 			
-			// Get InstructionAddress
-			ComPtr<IModelObject> instrAddrObj;
-			if (SUCCEEDED(memoryObject->GetKeyValue(L"InstructionAddress", &instrAddrObj, nullptr)))
+			// Get IP (Instruction Pointer)
+			ComPtr<IModelObject> ipObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"IP", &ipObj, nullptr)))
 			{
-				VARIANT vtInstrAddr;
-				VariantInit(&vtInstrAddr);
-				if (SUCCEEDED(instrAddrObj->GetIntrinsicValueAs(VT_UI8, &vtInstrAddr)))
+				VARIANT vtIP;
+				VariantInit(&vtIP);
+				if (SUCCEEDED(ipObj->GetIntrinsicValueAs(VT_UI8, &vtIP)))
 				{
-					event.instructionAddress = vtInstrAddr.ullVal;
+					event.instructionAddress = vtIP.ullVal;
 				}
-				VariantClear(&vtInstrAddr);
+				VariantClear(&vtIP);
 			}
 			
-			// Set the access type based on the query
-			event.accessType = accessType;
+			// Get Value (the value that was read/written/executed)
+			ComPtr<IModelObject> valueObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"Value", &valueObj, nullptr)))
+			{
+				VARIANT vtValue;
+				VariantInit(&vtValue);
+				if (SUCCEEDED(valueObj->GetIntrinsicValueAs(VT_UI8, &vtValue)))
+				{
+					event.value = vtValue.ullVal;
+				}
+				VariantClear(&vtValue);
+			}
+			
+			// Get AccessType from the object itself
+			ComPtr<IModelObject> accessTypeObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"AccessType", &accessTypeObj, nullptr)))
+			{
+				VARIANT vtAccessType;
+				VariantInit(&vtAccessType);
+				if (SUCCEEDED(accessTypeObj->GetIntrinsicValueAs(VT_BSTR, &vtAccessType)))
+				{
+					_bstr_t bstr(vtAccessType.bstrVal);
+					std::string accessTypeStr = std::string(bstr);
+					
+					// Parse access type string to bitfield
+					TTDMemoryAccessType parsedAccessType = static_cast<TTDMemoryAccessType>(0);
+					if (accessTypeStr.find("Read") != std::string::npos)
+						parsedAccessType = static_cast<TTDMemoryAccessType>(parsedAccessType | TTDMemoryRead);
+					if (accessTypeStr.find("Write") != std::string::npos)
+						parsedAccessType = static_cast<TTDMemoryAccessType>(parsedAccessType | TTDMemoryWrite);
+					if (accessTypeStr.find("Execute") != std::string::npos)
+						parsedAccessType = static_cast<TTDMemoryAccessType>(parsedAccessType | TTDMemoryExecute);
+					
+					event.accessType = parsedAccessType;
+				}
+				else
+				{
+					// Fallback to query parameter if parsing fails
+					event.accessType = accessType;
+				}
+				VariantClear(&vtAccessType);
+			}
+			else
+			{
+				// Fallback to query parameter if field is not available
+				event.accessType = accessType;
+			}
 			
 			events.push_back(event);
 			

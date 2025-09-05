@@ -128,9 +128,10 @@ namespace BinaryNinjaDebugger {
 		uint64_t address;              // Memory address accessed
 		uint64_t size;                 // Size of memory access
 		uint64_t memoryAddress;        // Memory address (may be same as address)
-		uint64_t instructionAddress;   // Address of instruction that caused the access
-		TTDMemoryAccessType accessType; // Type of memory access (derived from query)
+		uint64_t instructionAddress;   // IP - Address of instruction that caused the access
+		uint64_t value;                // Value that was read/written/executed
+		TTDMemoryAccessType accessType; // Type of memory access (parsed from object)
 		
-		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), address(0), size(0), memoryAddress(0), instructionAddress(0), accessType(TTDMemoryRead) {}
+		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), address(0), size(0), memoryAddress(0), instructionAddress(0), value(0), accessType(TTDMemoryRead) {}
 	};
 };  // namespace BinaryNinjaDebugger

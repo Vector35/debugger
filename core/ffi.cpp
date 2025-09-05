@@ -1085,6 +1085,7 @@ BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerContr
 		result[i].size = events[i].size;
 		result[i].memoryAddress = events[i].memoryAddress;
 		result[i].instructionAddress = events[i].instructionAddress;
+		result[i].value = events[i].value;
 		result[i].accessType = static_cast<BNDebuggerTTDMemoryAccessType>(events[i].accessType);
 	}
 	

@@ -485,16 +485,19 @@ namespace BinaryNinjaDebuggerAPI {
 
 	struct TTDMemoryEvent
 	{
-		TTDPosition position;
-		TTDMemoryAccessType accessType;
-		uint64_t address;
-		uint64_t size;
-		uint32_t threadId;
-		uint64_t instructionAddress;
+		std::string eventType;         // Event type (e.g., "MemoryAccess")
+		uint32_t threadId;             // Thread ID that performed the access
+		uint32_t uniqueThreadId;       // Unique thread identifier
+		TTDPosition timeStart;         // Position when event started
+		TTDPosition timeEnd;           // Position when event ended
+		TTDMemoryAccessType accessType; // Type of memory access (parsed from object)
+		uint64_t address;              // Memory address accessed
+		uint64_t size;                 // Size of memory access
+		uint64_t memoryAddress;        // Memory address (may be same as address)
+		uint64_t instructionAddress;   // IP - Address of instruction that caused the access
+		uint64_t value;                // Value that was read/written/executed
 		
-		TTDMemoryEvent() : accessType(TTDMemoryRead), address(0), size(0), threadId(0), instructionAddress(0) {}
-		TTDMemoryEvent(const TTDPosition& pos, TTDMemoryAccessType type, uint64_t addr, uint64_t sz, uint32_t tid, uint64_t instrAddr)
-			: position(pos), accessType(type), address(addr), size(sz), threadId(tid), instructionAddress(instrAddr) {}
+		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), accessType(TTDMemoryRead), address(0), size(0), memoryAddress(0), instructionAddress(0), value(0) {}
 	};
 
 

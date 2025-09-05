@@ -318,7 +318,8 @@ extern "C"
 		uint64_t address;
 		uint64_t size;
 		uint64_t memoryAddress;
-		uint64_t instructionAddress;
+		uint64_t instructionAddress; // IP field
+		uint64_t value; // Value field - the value that was read/written/executed
 		BNDebuggerTTDMemoryAccessType accessType;
 	} BNDebuggerTTDMemoryEvent;
 
