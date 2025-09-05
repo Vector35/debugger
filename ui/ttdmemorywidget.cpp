@@ -516,7 +516,26 @@ void TTDMemoryQueryWidget::onCellDoubleClicked(int row, int column)
 					TTDPosition pos(sequence, step);
 					if (m_controller->SetTTDPosition(pos))
 					{
-						updateStatus(QString("Navigated to position %1").arg(posStr));
+						// After time traveling, also navigate to the instruction pointer
+						QTableWidgetItem* ipItem = m_resultsTable->item(row, 10); // IP column
+						if (ipItem && m_data)
+						{
+							QString ipStr = ipItem->text();
+							if (ipStr.startsWith("0x", Qt::CaseInsensitive))
+							{
+								bool ok;
+								uint64_t ipAddress = ipStr.mid(2).toULongLong(&ok, 16);
+								if (ok)
+								{
+									ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+									if (frame)
+									{
+										frame->navigate(m_data, ipAddress);
+									}
+								}
+							}
+						}
+						updateStatus(QString("Time traveled to position %1 and navigated to instruction").arg(posStr));
 					}
 					else
 					{
@@ -747,11 +766,6 @@ void TTDMemoryWidget::setupUI()
 	// Tab widget setup
 	m_tabWidget = new QTabWidget(this);
 	m_tabWidget->setTabsClosable(true);
-	
-	// Ensure proper theme inheritance
-	m_tabWidget->setAutoFillBackground(false);
-	m_tabWidget->setAttribute(Qt::WA_StyledBackground, false);
-	
 	connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &TTDMemoryWidget::closeTab);
 	
 	// Create "+" button as corner widget

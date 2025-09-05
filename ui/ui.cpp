@@ -200,9 +200,9 @@ void GlobalDebuggerUI::GetAddressRange(const UIActionContext& ctxt, uint64_t& st
 	}
 	else
 	{
-		// Use current address, default to 4 bytes
+		// Use current address, default to 1 byte
 		startAddr = ctxt.address;
-		endAddr = ctxt.address + 4;
+		endAddr = ctxt.address + 1;
 	}
 }
 

@@ -458,7 +458,7 @@ bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
 	}
 	
 	// Use data model API to navigate to position
-	std::string expression = fmt::format("@$cursession.TTD.SetPosition(0x{:X}:{:X})", position.sequence, position.step);
+	std::string expression = fmt::format("@$curprocess.TTD.SetPosition(\"{}:{}\")", position.sequence, position.step);
 	std::string output = EvaluateDataModelExpression(expression);
 	
 	if (!output.empty())
