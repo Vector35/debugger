@@ -26,6 +26,14 @@ limitations under the License.
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QLabel>
+#include <QTabWidget>
+#include <QDialog>
+#include <QListWidget>
+#include <QDialogButtonBox>
+#include <QMenu>
+#include <QAction>
+#include <QClipboard>
+#include <QPoint>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "debuggerapi.h"
@@ -34,7 +42,19 @@ limitations under the License.
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 
-class TTDMemoryWidget : public QWidget
+class ColumnVisibilityDialog : public QDialog
+{
+	Q_OBJECT
+
+public:
+	ColumnVisibilityDialog(QWidget* parent, const QStringList& columnNames, const QList<bool>& visibility);
+	QList<bool> getColumnVisibility() const;
+
+private:
+	QListWidget* m_columnList;
+};
+
+class TTDMemoryQueryWidget : public QWidget
 {
 	Q_OBJECT
 
@@ -50,6 +70,7 @@ private:
 	QCheckBox* m_executeAccessCheck;
 	QPushButton* m_queryButton;
 	QPushButton* m_clearButton;
+	QPushButton* m_columnsButton;
 	
 	// Results table
 	QTableWidget* m_resultsTable;
@@ -57,20 +78,52 @@ private:
 	// Status label
 	QLabel* m_statusLabel;
 	
+	// Column visibility
+	QStringList m_columnNames;
+	QList<bool> m_columnVisibility;
+	
 	void setupUI();
 	void setupTable();
 	void updateStatus(const QString& message);
 	uint64_t parseAddress(const QString& text);
 	TTDMemoryAccessType getSelectedAccessTypes();
+	void setupContextMenu();
+	void updateColumnVisibility();
+
+public:
+	TTDMemoryQueryWidget(QWidget* parent, BinaryViewRef data);
+	virtual ~TTDMemoryQueryWidget();
+
+private Q_SLOTS:
+	void performQuery();
+	void clearResults();
+	void onCellDoubleClicked(int row, int column);
+	void showColumnVisibilityDialog();
+	void showContextMenu(const QPoint& position);
+	void copySelectedCell();
+	void copySelectedRow();
+	void copyEntireTable();
+};
+
+class TTDMemoryWidget : public QWidget
+{
+	Q_OBJECT
+
+private:
+	BinaryViewRef m_data;
+	DbgRef<DebuggerController> m_controller;
+	QTabWidget* m_tabWidget;
+	QPushButton* m_newTabButton;
+	
+	void setupUI();
 
 public:
 	TTDMemoryWidget(QWidget* parent, BinaryViewRef data);
 	virtual ~TTDMemoryWidget();
 
 private Q_SLOTS:
-	void performQuery();
-	void clearResults();
-	void onCellDoubleClicked(int row, int column);
+	void createNewTab();
+	void closeTab(int index);
 };
 
 

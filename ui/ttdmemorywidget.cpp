@@ -21,21 +21,84 @@ limitations under the License.
 #include <QMessageBox>
 #include <QApplication>
 #include <QHeaderView>
+#include <QMenu>
+#include <QClipboard>
+#include <QCheckBox>
 
-TTDMemoryWidget::TTDMemoryWidget(QWidget* parent, BinaryViewRef data)
+// ColumnVisibilityDialog implementation
+ColumnVisibilityDialog::ColumnVisibilityDialog(QWidget* parent, const QStringList& columnNames, const QList<bool>& visibility)
+	: QDialog(parent)
+{
+	setWindowTitle("Column Visibility");
+	setModal(true);
+	resize(300, 400);
+	
+	QVBoxLayout* layout = new QVBoxLayout(this);
+	
+	QLabel* label = new QLabel("Select columns to display:");
+	layout->addWidget(label);
+	
+	m_columnList = new QListWidget();
+	
+	for (int i = 0; i < columnNames.size(); ++i)
+	{
+		QListWidgetItem* item = new QListWidgetItem(columnNames[i]);
+		item->setCheckState(visibility[i] ? Qt::Checked : Qt::Unchecked);
+		item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+		m_columnList->addItem(item);
+	}
+	
+	layout->addWidget(m_columnList);
+	
+	QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+	connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+	connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+	layout->addWidget(buttons);
+}
+
+QList<bool> ColumnVisibilityDialog::getColumnVisibility() const
+{
+	QList<bool> visibility;
+	for (int i = 0; i < m_columnList->count(); ++i)
+	{
+		QListWidgetItem* item = m_columnList->item(i);
+		visibility.append(item->checkState() == Qt::Checked);
+	}
+	return visibility;
+}
+
+// TTDMemoryQueryWidget implementation
+TTDMemoryQueryWidget::TTDMemoryQueryWidget(QWidget* parent, BinaryViewRef data)
 	: QWidget(parent), m_data(data)
 {
 	m_controller = DebuggerController::GetController(m_data);
+	
+	// Initialize column names and visibility
+	m_columnNames << "Index" << "Event Type" << "Time Start" << "Time End" << "Access Type" 
+	              << "Address" << "Size" << "Value" << "Thread ID" << "Unique Thread ID" << "IP";
+	
+	// Set default visibility (hide Event Type, Time End, Unique Thread ID)
+	m_columnVisibility << true  // Index
+	                   << false // Event Type (hidden by default)
+	                   << true  // Time Start
+	                   << false // Time End (hidden by default)
+	                   << true  // Access Type
+	                   << true  // Address
+	                   << true  // Size
+	                   << true  // Value
+	                   << true  // Thread ID
+	                   << false // Unique Thread ID (hidden by default)
+	                   << true; // IP
+	
 	setupUI();
 }
 
-TTDMemoryWidget::~TTDMemoryWidget()
+TTDMemoryQueryWidget::~TTDMemoryQueryWidget()
 {
 }
 
-void TTDMemoryWidget::setupUI()
+void TTDMemoryQueryWidget::setupUI()
 {
-	setWindowTitle("TTD Memory Analysis");
 	setMinimumSize(800, 600);
 	
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -80,14 +143,19 @@ void TTDMemoryWidget::setupUI()
 	QHBoxLayout* buttonLayout = new QHBoxLayout();
 	m_queryButton = new QPushButton("Query Memory Events");
 	m_queryButton->setToolTip("Execute TTD memory analysis query");
-	connect(m_queryButton, &QPushButton::clicked, this, &TTDMemoryWidget::performQuery);
+	connect(m_queryButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::performQuery);
 	
 	m_clearButton = new QPushButton("Clear Results");
 	m_clearButton->setToolTip("Clear the results table");
-	connect(m_clearButton, &QPushButton::clicked, this, &TTDMemoryWidget::clearResults);
+	connect(m_clearButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::clearResults);
+	
+	m_columnsButton = new QPushButton("Columns...");
+	m_columnsButton->setToolTip("Configure column visibility");
+	connect(m_columnsButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::showColumnVisibilityDialog);
 	
 	buttonLayout->addWidget(m_queryButton);
 	buttonLayout->addWidget(m_clearButton);
+	buttonLayout->addWidget(m_columnsButton);
 	buttonLayout->addStretch();
 	
 	inputLayout->addRow("", buttonLayout);
@@ -131,41 +199,61 @@ void TTDMemoryWidget::setupUI()
 	}
 }
 
-void TTDMemoryWidget::setupTable()
+void TTDMemoryQueryWidget::setupTable()
 {
 	m_resultsTable = new QTableWidget();
-	m_resultsTable->setColumnCount(10);
-	
-	QStringList headers;
-	headers << "Event Type" << "Time Start" << "Time End" << "Access Type" << "Address" << "Size" << "Value" << "Thread ID" << "Unique Thread ID" << "Instruction Address";
-	m_resultsTable->setHorizontalHeaderLabels(headers);
+	m_resultsTable->setColumnCount(m_columnNames.size());
+	m_resultsTable->setHorizontalHeaderLabels(m_columnNames);
 	
 	// Configure table appearance
 	m_resultsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
 	m_resultsTable->setAlternatingRowColors(true);
 	m_resultsTable->setSortingEnabled(true);
 	m_resultsTable->verticalHeader()->setVisible(false);
+	m_resultsTable->setEditTriggers(QAbstractItemView::NoEditTriggers); // Make cells non-editable
 	
 	// Set column widths
 	QHeaderView* header = m_resultsTable->horizontalHeader();
 	header->setStretchLastSection(true);
-	m_resultsTable->setColumnWidth(0, 100); // Event Type
-	m_resultsTable->setColumnWidth(1, 120); // Time Start
-	m_resultsTable->setColumnWidth(2, 120); // Time End
-	m_resultsTable->setColumnWidth(3, 100); // Access Type
-	m_resultsTable->setColumnWidth(4, 120); // Address
-	m_resultsTable->setColumnWidth(5, 80);  // Size
-	m_resultsTable->setColumnWidth(6, 120); // Value
-	m_resultsTable->setColumnWidth(7, 80);  // Thread ID
-	m_resultsTable->setColumnWidth(8, 100); // Unique Thread ID
-	// Instruction Address column will stretch
+	m_resultsTable->setColumnWidth(0, 80);  // Index
+	m_resultsTable->setColumnWidth(1, 100); // Event Type
+	m_resultsTable->setColumnWidth(2, 120); // Time Start
+	m_resultsTable->setColumnWidth(3, 120); // Time End
+	m_resultsTable->setColumnWidth(4, 100); // Access Type
+	m_resultsTable->setColumnWidth(5, 120); // Address
+	m_resultsTable->setColumnWidth(6, 80);  // Size
+	m_resultsTable->setColumnWidth(7, 120); // Value
+	m_resultsTable->setColumnWidth(8, 80);  // Thread ID
+	m_resultsTable->setColumnWidth(9, 100); // Unique Thread ID
+	// IP column will stretch
+	
+	// Apply initial column visibility
+	updateColumnVisibility();
 	
 	// Connect double-click handler
 	connect(m_resultsTable, &QTableWidget::cellDoubleClicked, 
-			this, &TTDMemoryWidget::onCellDoubleClicked);
+			this, &TTDMemoryQueryWidget::onCellDoubleClicked);
+	
+	// Setup context menu
+	setupContextMenu();
 }
 
-void TTDMemoryWidget::performQuery()
+void TTDMemoryQueryWidget::setupContextMenu()
+{
+	m_resultsTable->setContextMenuPolicy(Qt::CustomContextMenu);
+	connect(m_resultsTable, &QTableWidget::customContextMenuRequested,
+			this, &TTDMemoryQueryWidget::showContextMenu);
+}
+
+void TTDMemoryQueryWidget::updateColumnVisibility()
+{
+	for (int i = 0; i < m_columnVisibility.size(); ++i)
+	{
+		m_resultsTable->setColumnHidden(i, !m_columnVisibility[i]);
+	}
+}
+
+void TTDMemoryQueryWidget::performQuery()
 {
 	if (!m_controller || !m_controller->IsTTD())
 	{
@@ -213,48 +301,51 @@ void TTDMemoryWidget::performQuery()
 		{
 			const auto& event = events[i];
 			
+			// Index
+			m_resultsTable->setItem(i, 0, new QTableWidgetItem(QString("0x%1").arg(i, 0, 16)));
+			
 			// Event Type
-			m_resultsTable->setItem(i, 0, new QTableWidgetItem(QString::fromStdString(event.eventType)));
+			m_resultsTable->setItem(i, 1, new QTableWidgetItem(QString::fromStdString(event.eventType)));
 			
 			// Time Start
 			QString timeStartStr = QString("%1:%2")
 				.arg(event.timeStart.sequence, 0, 16)
 				.arg(event.timeStart.step, 0, 16);
-			m_resultsTable->setItem(i, 1, new QTableWidgetItem(timeStartStr));
+			m_resultsTable->setItem(i, 2, new QTableWidgetItem(timeStartStr));
 			
 			// Time End
 			QString timeEndStr = QString("%1:%2")
 				.arg(event.timeEnd.sequence, 0, 16)
 				.arg(event.timeEnd.step, 0, 16);
-			m_resultsTable->setItem(i, 2, new QTableWidgetItem(timeEndStr));
+			m_resultsTable->setItem(i, 3, new QTableWidgetItem(timeEndStr));
 			
 			// Access Type
 			QString accessTypeStr;
 			if (event.accessType & TTDMemoryRead) accessTypeStr += "R";
 			if (event.accessType & TTDMemoryWrite) accessTypeStr += "W";
 			if (event.accessType & TTDMemoryExecute) accessTypeStr += "E";
-			m_resultsTable->setItem(i, 3, new QTableWidgetItem(accessTypeStr));
+			m_resultsTable->setItem(i, 4, new QTableWidgetItem(accessTypeStr));
 			
 			// Address
 			QString addressStr = QString("0x%1").arg(event.address, 0, 16);
-			m_resultsTable->setItem(i, 4, new QTableWidgetItem(addressStr));
+			m_resultsTable->setItem(i, 5, new QTableWidgetItem(addressStr));
 			
 			// Size
-			m_resultsTable->setItem(i, 5, new QTableWidgetItem(QString::number(event.size)));
+			m_resultsTable->setItem(i, 6, new QTableWidgetItem(QString::number(event.size)));
 			
 			// Value
 			QString valueStr = QString("0x%1").arg(event.value, 0, 16);
-			m_resultsTable->setItem(i, 6, new QTableWidgetItem(valueStr));
+			m_resultsTable->setItem(i, 7, new QTableWidgetItem(valueStr));
 			
 			// Thread ID
-			m_resultsTable->setItem(i, 7, new QTableWidgetItem(QString::number(event.threadId)));
+			m_resultsTable->setItem(i, 8, new QTableWidgetItem(QString::number(event.threadId)));
 			
 			// Unique Thread ID
-			m_resultsTable->setItem(i, 8, new QTableWidgetItem(QString::number(event.uniqueThreadId)));
+			m_resultsTable->setItem(i, 9, new QTableWidgetItem(QString::number(event.uniqueThreadId)));
 			
-			// Instruction Address
+			// IP (Instruction Address)
 			QString instrAddrStr = QString("0x%1").arg(event.instructionAddress, 0, 16);
-			m_resultsTable->setItem(i, 9, new QTableWidgetItem(instrAddrStr));
+			m_resultsTable->setItem(i, 10, new QTableWidgetItem(instrAddrStr));
 		}
 		
 		updateStatus(QString("Found %1 memory access events").arg(events.size()));
@@ -270,22 +361,22 @@ void TTDMemoryWidget::performQuery()
 	m_queryButton->setEnabled(true);
 }
 
-void TTDMemoryWidget::clearResults()
+void TTDMemoryQueryWidget::clearResults()
 {
 	m_resultsTable->setRowCount(0);
 	updateStatus("Results cleared");
 }
 
-void TTDMemoryWidget::onCellDoubleClicked(int row, int column)
+void TTDMemoryQueryWidget::onCellDoubleClicked(int row, int column)
 {
-	// Handle double-click events - could navigate to address or position
+	// Handle double-click events - navigate to address or position
 	if (row < 0 || row >= m_resultsTable->rowCount())
 		return;
 		
-	if (column == 1) // Time Start column
+	if (column == 2) // Time Start column
 	{
 		// Parse position and navigate to it
-		QTableWidgetItem* posItem = m_resultsTable->item(row, 1);
+		QTableWidgetItem* posItem = m_resultsTable->item(row, 2);
 		if (posItem && m_controller)
 		{
 			QString posStr = posItem->text();
@@ -311,24 +402,137 @@ void TTDMemoryWidget::onCellDoubleClicked(int row, int column)
 			}
 		}
 	}
-	else if (column == 4 || column == 9) // Address or Instruction Address columns
+	else if (column == 5 || column == 10) // Address or IP columns
 	{
-		// Could implement navigation to address in disassembly view
+		// Navigate to address in disassembly view
 		QTableWidgetItem* addrItem = m_resultsTable->item(row, column);
-		if (addrItem)
+		if (addrItem && m_data)
 		{
 			QString addrStr = addrItem->text();
-			updateStatus(QString("Address: %1 (navigation could be implemented)").arg(addrStr));
+			if (addrStr.startsWith("0x", Qt::CaseInsensitive))
+			{
+				bool ok;
+				uint64_t address = addrStr.mid(2).toULongLong(&ok, 16);
+				if (ok)
+				{
+					// Navigate to the address in the disassembly view
+					BinaryNinja::ViewFrame* frame = BinaryNinja::ViewFrame::viewFrameForWidget(this);
+					if (frame)
+					{
+						frame->navigate(m_data, address);
+						updateStatus(QString("Navigated to address %1").arg(addrStr));
+					}
+					else
+					{
+						updateStatus(QString("Address: %1 (no view frame available)").arg(addrStr));
+					}
+				}
+			}
 		}
 	}
 }
 
-void TTDMemoryWidget::updateStatus(const QString& message)
+void TTDMemoryQueryWidget::showColumnVisibilityDialog()
+{
+	ColumnVisibilityDialog dialog(this, m_columnNames, m_columnVisibility);
+	if (dialog.exec() == QDialog::Accepted)
+	{
+		m_columnVisibility = dialog.getColumnVisibility();
+		updateColumnVisibility();
+	}
+}
+
+void TTDMemoryQueryWidget::showContextMenu(const QPoint& position)
+{
+	QMenu menu(this);
+	
+	QAction* copyCellAction = menu.addAction("Copy Cell");
+	QAction* copyRowAction = menu.addAction("Copy Row");
+	QAction* copyTableAction = menu.addAction("Copy Table");
+	
+	connect(copyCellAction, &QAction::triggered, this, &TTDMemoryQueryWidget::copySelectedCell);
+	connect(copyRowAction, &QAction::triggered, this, &TTDMemoryQueryWidget::copySelectedRow);
+	connect(copyTableAction, &QAction::triggered, this, &TTDMemoryQueryWidget::copyEntireTable);
+	
+	// Enable/disable actions based on selection
+	QTableWidgetItem* item = m_resultsTable->itemAt(position);
+	copyCellAction->setEnabled(item != nullptr);
+	copyRowAction->setEnabled(item != nullptr);
+	copyTableAction->setEnabled(m_resultsTable->rowCount() > 0);
+	
+	menu.exec(m_resultsTable->mapToGlobal(position));
+}
+
+void TTDMemoryQueryWidget::copySelectedCell()
+{
+	QTableWidgetItem* item = m_resultsTable->currentItem();
+	if (item)
+	{
+		QClipboard* clipboard = QApplication::clipboard();
+		clipboard->setText(item->text());
+	}
+}
+
+void TTDMemoryQueryWidget::copySelectedRow()
+{
+	int row = m_resultsTable->currentRow();
+	if (row >= 0)
+	{
+		QStringList rowData;
+		for (int col = 0; col < m_resultsTable->columnCount(); ++col)
+		{
+			if (!m_resultsTable->isColumnHidden(col))
+			{
+				QTableWidgetItem* item = m_resultsTable->item(row, col);
+				rowData << (item ? item->text() : "");
+			}
+		}
+		
+		QClipboard* clipboard = QApplication::clipboard();
+		clipboard->setText(rowData.join("\t"));
+	}
+}
+
+void TTDMemoryQueryWidget::copyEntireTable()
+{
+	QStringList tableData;
+	
+	// Add headers
+	QStringList headers;
+	for (int col = 0; col < m_resultsTable->columnCount(); ++col)
+	{
+		if (!m_resultsTable->isColumnHidden(col))
+		{
+			headers << m_columnNames[col];
+		}
+	}
+	tableData << headers.join("\t");
+	
+	// Add data rows
+	for (int row = 0; row < m_resultsTable->rowCount(); ++row)
+	{
+		QStringList rowData;
+		for (int col = 0; col < m_resultsTable->columnCount(); ++col)
+		{
+			if (!m_resultsTable->isColumnHidden(col))
+			{
+				QTableWidgetItem* item = m_resultsTable->item(row, col);
+				rowData << (item ? item->text() : "");
+			}
+		}
+		tableData << rowData.join("\t");
+	}
+	
+	QClipboard* clipboard = QApplication::clipboard();
+	clipboard->setText(tableData.join("\n"));
+}
+
+void TTDMemoryQueryWidget::updateStatus(const QString& message)
 {
 	m_statusLabel->setText(message);
 }
 
-uint64_t TTDMemoryWidget::parseAddress(const QString& text)
+uint64_t TTDMemoryQueryWidget::parseAddress(const QString& text)
 {
 	QString cleanText = text.trimmed();
 	if (cleanText.isEmpty())
@@ -343,7 +547,7 @@ uint64_t TTDMemoryWidget::parseAddress(const QString& text)
 	return ok ? address : 0;
 }
 
-TTDMemoryAccessType TTDMemoryWidget::getSelectedAccessTypes()
+TTDMemoryAccessType TTDMemoryQueryWidget::getSelectedAccessTypes()
 {
 	TTDMemoryAccessType accessType = static_cast<TTDMemoryAccessType>(0);
 	
@@ -355,6 +559,65 @@ TTDMemoryAccessType TTDMemoryWidget::getSelectedAccessTypes()
 		accessType = static_cast<TTDMemoryAccessType>(accessType | TTDMemoryExecute);
 		
 	return accessType;
+}
+
+// TTDMemoryWidget implementation (tab container)
+TTDMemoryWidget::TTDMemoryWidget(QWidget* parent, BinaryViewRef data)
+	: QWidget(parent), m_data(data)
+{
+	m_controller = DebuggerController::GetController(m_data);
+	setupUI();
+}
+
+TTDMemoryWidget::~TTDMemoryWidget()
+{
+}
+
+void TTDMemoryWidget::setupUI()
+{
+	setWindowTitle("TTD Memory Analysis");
+	setMinimumSize(900, 700);
+	
+	QVBoxLayout* mainLayout = new QVBoxLayout(this);
+	
+	// Tab widget with new tab button
+	QHBoxLayout* tabHeaderLayout = new QHBoxLayout();
+	
+	m_tabWidget = new QTabWidget();
+	m_tabWidget->setTabsClosable(true);
+	connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &TTDMemoryWidget::closeTab);
+	
+	m_newTabButton = new QPushButton("+");
+	m_newTabButton->setMaximumSize(30, 30);
+	m_newTabButton->setToolTip("Create new query tab");
+	connect(m_newTabButton, &QPushButton::clicked, this, &TTDMemoryWidget::createNewTab);
+	
+	tabHeaderLayout->addWidget(m_tabWidget);
+	tabHeaderLayout->addWidget(m_newTabButton);
+	tabHeaderLayout->setStretch(0, 1);
+	
+	mainLayout->addLayout(tabHeaderLayout);
+	setLayout(mainLayout);
+	
+	// Create initial tab
+	createNewTab();
+}
+
+void TTDMemoryWidget::createNewTab()
+{
+	TTDMemoryQueryWidget* queryWidget = new TTDMemoryQueryWidget(this, m_data);
+	int tabIndex = m_tabWidget->addTab(queryWidget, QString("Query %1").arg(m_tabWidget->count() + 1));
+	m_tabWidget->setCurrentIndex(tabIndex);
+}
+
+void TTDMemoryWidget::closeTab(int index)
+{
+	if (m_tabWidget->count() > 1)
+	{
+		QWidget* widget = m_tabWidget->widget(index);
+		m_tabWidget->removeTab(index);
+		widget->deleteLater();
+	}
 }
 
 
