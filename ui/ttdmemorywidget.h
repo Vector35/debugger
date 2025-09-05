@@ -34,6 +34,9 @@ limitations under the License.
 #include <QAction>
 #include <QClipboard>
 #include <QPoint>
+#include <QToolButton>
+#include <QPropertyAnimation>
+#include <QParallelAnimationGroup>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "debuggerapi.h"
@@ -41,6 +44,28 @@ limitations under the License.
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
+
+class ExpandableGroupBox : public QWidget
+{
+	Q_OBJECT
+
+public:
+	ExpandableGroupBox(const QString& title, QWidget* parent = nullptr);
+	void setContentWidget(QWidget* widget);
+	void setExpanded(bool expanded);
+	bool isExpanded() const { return m_expanded; }
+
+private Q_SLOTS:
+	void toggleExpanded();
+
+private:
+	QToolButton* m_toggleButton;
+	QWidget* m_contentWidget;
+	QPropertyAnimation* m_contentAnimation;
+	bool m_expanded;
+	
+	void setupAnimation();
+};
 
 class ColumnVisibilityDialog : public QDialog
 {
@@ -98,6 +123,7 @@ private Q_SLOTS:
 	void clearResults();
 	void onCellDoubleClicked(int row, int column);
 	void showColumnVisibilityDialog();
+	void resetColumnsToDefault();
 	void showContextMenu(const QPoint& position);
 	void copySelectedCell();
 	void copySelectedRow();
@@ -111,14 +137,19 @@ class TTDMemoryWidget : public QWidget
 private:
 	BinaryViewRef m_data;
 	DbgRef<DebuggerController> m_controller;
+	QHBoxLayout* m_tabLayout;
 	QTabWidget* m_tabWidget;
 	QPushButton* m_newTabButton;
 	
 	void setupUI();
+	void updateNewTabButtonPosition();
 
 public:
 	TTDMemoryWidget(QWidget* parent, BinaryViewRef data);
 	virtual ~TTDMemoryWidget();
+
+protected:
+	void resizeEvent(QResizeEvent* event) override;
 
 private Q_SLOTS:
 	void createNewTab();

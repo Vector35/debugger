@@ -24,6 +24,92 @@ limitations under the License.
 #include <QMenu>
 #include <QClipboard>
 #include <QCheckBox>
+#include <QToolButton>
+#include <QPropertyAnimation>
+#include <QResizeEvent>
+#include <QFrame>
+
+// ExpandableGroupBox implementation
+ExpandableGroupBox::ExpandableGroupBox(const QString& title, QWidget* parent)
+	: QWidget(parent), m_contentWidget(nullptr), m_expanded(true)
+{
+	QVBoxLayout* layout = new QVBoxLayout(this);
+	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setSpacing(0);
+	
+	// Create header with toggle button
+	QHBoxLayout* headerLayout = new QHBoxLayout();
+	headerLayout->setContentsMargins(5, 5, 5, 5);
+	
+	m_toggleButton = new QToolButton();
+	m_toggleButton->setArrowType(Qt::DownArrow);
+	m_toggleButton->setCheckable(true);
+	m_toggleButton->setChecked(true);
+	m_toggleButton->setText(title);
+	m_toggleButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+	m_toggleButton->setStyleSheet("QToolButton { border: none; font-weight: bold; text-align: left; }");
+	
+	connect(m_toggleButton, &QToolButton::clicked, this, &ExpandableGroupBox::toggleExpanded);
+	
+	headerLayout->addWidget(m_toggleButton);
+	headerLayout->addStretch();
+	
+	layout->addLayout(headerLayout);
+	
+	// Add a line separator
+	QFrame* line = new QFrame();
+	line->setFrameShape(QFrame::HLine);
+	line->setFrameShadow(QFrame::Sunken);
+	layout->addWidget(line);
+	
+	setLayout(layout);
+}
+
+void ExpandableGroupBox::setContentWidget(QWidget* widget)
+{
+	if (m_contentWidget)
+	{
+		layout()->removeWidget(m_contentWidget);
+		m_contentWidget->deleteLater();
+	}
+	
+	m_contentWidget = widget;
+	if (m_contentWidget)
+	{
+		layout()->addWidget(m_contentWidget);
+		setupAnimation();
+	}
+}
+
+void ExpandableGroupBox::setExpanded(bool expanded)
+{
+	if (m_expanded == expanded)
+		return;
+		
+	m_expanded = expanded;
+	m_toggleButton->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+	m_toggleButton->setChecked(expanded);
+	
+	if (m_contentWidget)
+	{
+		m_contentWidget->setVisible(expanded);
+	}
+}
+
+void ExpandableGroupBox::toggleExpanded()
+{
+	setExpanded(!m_expanded);
+}
+
+void ExpandableGroupBox::setupAnimation()
+{
+	if (!m_contentWidget)
+		return;
+		
+	m_contentAnimation = new QPropertyAnimation(m_contentWidget, "maximumHeight");
+	m_contentAnimation->setDuration(200);
+	m_contentAnimation->setEasingCurve(QEasingCurve::InOutQuad);
+}
 
 // ColumnVisibilityDialog implementation
 ColumnVisibilityDialog::ColumnVisibilityDialog(QWidget* parent, const QStringList& columnNames, const QList<bool>& visibility)
@@ -50,9 +136,33 @@ ColumnVisibilityDialog::ColumnVisibilityDialog(QWidget* parent, const QStringLis
 	
 	layout->addWidget(m_columnList);
 	
-	QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+	QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::RestoreDefaults);
 	connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
 	connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+	
+	// Handle restore defaults
+	connect(buttons->button(QDialogButtonBox::RestoreDefaults), &QPushButton::clicked, [this]() {
+		// Reset to default visibility (hide Event Type, Time End, Unique Thread ID)
+		QList<bool> defaultVisibility;
+		defaultVisibility << true  // Index
+		              << false // Event Type (hidden by default)
+		              << true  // Time Start
+		              << false // Time End (hidden by default)
+		              << true  // Access Type
+		              << true  // Address
+		              << true  // Size
+		              << true  // Value
+		              << true  // Thread ID
+		              << false // Unique Thread ID (hidden by default)
+		              << true; // IP
+		              
+		for (int i = 0; i < m_columnList->count() && i < defaultVisibility.size(); ++i)
+		{
+			QListWidgetItem* item = m_columnList->item(i);
+			item->setCheckState(defaultVisibility[i] ? Qt::Checked : Qt::Unchecked);
+		}
+	});
+	
 	layout->addWidget(buttons);
 }
 
@@ -103,9 +213,12 @@ void TTDMemoryQueryWidget::setupUI()
 	
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
 	
-	// Input controls group
-	QGroupBox* inputGroup = new QGroupBox("Query Parameters");
-	QFormLayout* inputLayout = new QFormLayout(inputGroup);
+	// Create expandable group for query parameters
+	ExpandableGroupBox* expandableGroup = new ExpandableGroupBox("Query Parameters");
+	
+	// Create content widget for the expandable group
+	QWidget* inputWidget = new QWidget();
+	QFormLayout* inputLayout = new QFormLayout(inputWidget);
 	
 	// Address range inputs
 	m_startAddressEdit = new QLineEdit();
@@ -155,7 +268,10 @@ void TTDMemoryQueryWidget::setupUI()
 	
 	inputLayout->addRow("", buttonLayout);
 	
-	mainLayout->addWidget(inputGroup);
+	// Set the input widget as the content of the expandable group
+	expandableGroup->setContentWidget(inputWidget);
+	
+	mainLayout->addWidget(expandableGroup);
 	
 	// Results table
 	setupTable();
@@ -446,11 +562,13 @@ void TTDMemoryQueryWidget::showContextMenu(const QPoint& position)
 	QAction* copyTableAction = menu.addAction("Copy Table");
 	menu.addSeparator();
 	QAction* columnsAction = menu.addAction("Columns...");
+	QAction* resetColumnsAction = menu.addAction("Reset Columns to Default");
 	
 	connect(copyCellAction, &QAction::triggered, this, &TTDMemoryQueryWidget::copySelectedCell);
 	connect(copyRowAction, &QAction::triggered, this, &TTDMemoryQueryWidget::copySelectedRow);
 	connect(copyTableAction, &QAction::triggered, this, &TTDMemoryQueryWidget::copyEntireTable);
 	connect(columnsAction, &QAction::triggered, this, &TTDMemoryQueryWidget::showColumnVisibilityDialog);
+	connect(resetColumnsAction, &QAction::triggered, this, &TTDMemoryQueryWidget::resetColumnsToDefault);
 	
 	// Enable/disable actions based on selection
 	QTableWidgetItem* item = m_resultsTable->itemAt(position);
@@ -525,6 +643,25 @@ void TTDMemoryQueryWidget::copyEntireTable()
 	clipboard->setText(tableData.join("\n"));
 }
 
+void TTDMemoryQueryWidget::resetColumnsToDefault()
+{
+	// Reset to default visibility (hide Event Type, Time End, Unique Thread ID)
+	m_columnVisibility.clear();
+	m_columnVisibility << true  // Index
+	                   << false // Event Type (hidden by default)
+	                   << true  // Time Start
+	                   << false // Time End (hidden by default)
+	                   << true  // Access Type
+	                   << true  // Address
+	                   << true  // Size
+	                   << true  // Value
+	                   << true  // Thread ID
+	                   << false // Unique Thread ID (hidden by default)
+	                   << true; // IP
+	
+	updateColumnVisibility();
+}
+
 void TTDMemoryQueryWidget::updateStatus(const QString& message)
 {
 	m_statusLabel->setText(message);
@@ -578,25 +715,38 @@ void TTDMemoryWidget::setupUI()
 	
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
 	
+	// Create a horizontal layout to hold the tab widget and + button
+	QWidget* tabContainer = new QWidget();
+	m_tabLayout = new QHBoxLayout(tabContainer);
+	m_tabLayout->setContentsMargins(0, 0, 0, 0);
+	m_tabLayout->setSpacing(0);
+	
 	// Tab widget setup
 	m_tabWidget = new QTabWidget();
 	m_tabWidget->setTabsClosable(true);
 	connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &TTDMemoryWidget::closeTab);
 	
-	// Create "+" button and set it as corner widget
+	// Create "+" button
 	m_newTabButton = new QPushButton("+");
-	m_newTabButton->setMaximumSize(30, 30);
+	m_newTabButton->setMaximumSize(25, 25);
+	m_newTabButton->setMinimumSize(25, 25);
 	m_newTabButton->setToolTip("Create new query tab");
+	m_newTabButton->setStyleSheet("QPushButton { border: 1px solid #555; border-radius: 3px; margin-top: 2px; }");
 	connect(m_newTabButton, &QPushButton::clicked, this, &TTDMemoryWidget::createNewTab);
 	
-	// Set the "+" button as a corner widget of the tab widget
-	m_tabWidget->setCornerWidget(m_newTabButton, Qt::TopRightCorner);
+	// Add tab widget and button to horizontal layout
+	m_tabLayout->addWidget(m_tabWidget);
+	m_tabLayout->addWidget(m_newTabButton, 0, Qt::AlignTop);
 	
-	mainLayout->addWidget(m_tabWidget);
+	mainLayout->addWidget(tabContainer);
 	setLayout(mainLayout);
 	
 	// Create initial tab
 	createNewTab();
+	
+	// Update button position when tabs change
+	connect(m_tabWidget, &QTabWidget::currentChanged, this, &TTDMemoryWidget::updateNewTabButtonPosition);
+	connect(m_tabWidget, &QTabWidget::tabBarClicked, this, &TTDMemoryWidget::updateNewTabButtonPosition);
 }
 
 void TTDMemoryWidget::createNewTab()
@@ -604,6 +754,7 @@ void TTDMemoryWidget::createNewTab()
 	TTDMemoryQueryWidget* queryWidget = new TTDMemoryQueryWidget(this, m_data);
 	int tabIndex = m_tabWidget->addTab(queryWidget, QString("Query %1").arg(m_tabWidget->count() + 1));
 	m_tabWidget->setCurrentIndex(tabIndex);
+	updateNewTabButtonPosition();
 }
 
 void TTDMemoryWidget::closeTab(int index)
@@ -613,7 +764,20 @@ void TTDMemoryWidget::closeTab(int index)
 		QWidget* widget = m_tabWidget->widget(index);
 		m_tabWidget->removeTab(index);
 		widget->deleteLater();
+		updateNewTabButtonPosition();
 	}
+}
+
+void TTDMemoryWidget::updateNewTabButtonPosition()
+{
+	// This will be called to adjust the button position if needed
+	// For now, the horizontal layout should handle this automatically
+}
+
+void TTDMemoryWidget::resizeEvent(QResizeEvent* event)
+{
+	QWidget::resizeEvent(event);
+	updateNewTabButtonPosition();
 }
 
 
