@@ -69,9 +69,10 @@ namespace BinaryNinjaDebugger {
 		bool m_ttdInitialized;
 		
 		// Data model interfaces for TTD
-		ComPtr<IDataModelManager> m_dataModelManager;
-		ComPtr<IDebugHost> m_debugHost;
-		ComPtr<IDebugHostEvaluator> m_hostEvaluator;
+		IHostDataModelAccess* m_dataModelManager;
+    	IDataModelManager* m_modelMgr;
+		IDebugHost* m_debugHost;
+		IDebugHostEvaluator* m_hostEvaluator;
     };
 
     class DbgEngTTDAdapterType : public DebugAdapterType

@@ -136,61 +136,13 @@ bool DbgEngTTDAdapter::Start()
 	QUERY_DEBUG_INTERFACE(IDebugSymbols3, &this->m_debugSymbols);
 	QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
 
-	// Initialize data model interfaces for TTD
-	// Based on Microsoft documentation and the user's feedback,
-	// we need to get these interfaces correctly
-	HRESULT hr;
-	
-	// Step 1: Create the data model manager
-	IDataModelManager* dataModelManager = nullptr;
-	hr = DebugCreate(__uuidof(IDataModelManager), reinterpret_cast<void**>(&dataModelManager));
-	if (FAILED(hr) || !dataModelManager)
+	QUERY_DEBUG_INTERFACE(IHostDataModelAccess, &this->m_dataModelManager);
+	m_dataModelManager->GetDataModel(&m_modelMgr, &m_debugHost);   // :contentReference[oaicite:0]{index=0}
+
+	if (m_debugHost->QueryInterface(__uuidof(IDebugHostEvaluator), reinterpret_cast<void**>(&m_hostEvaluator)) != S_OK)
 	{
-		LogWarn("Failed to create IDataModelManager interface: 0x%08x", hr);
-		return false;
+		LogWarn("Failed to get IDebugHostEvaluator interface");
 	}
-	m_dataModelManager.Attach(dataModelManager);
-	
-	// Step 2: Get the debug host from the data model manager
-	// The proper way is to use the data model manager to get access to the host
-	ComPtr<IModelObject> rootNamespace;
-	hr = m_dataModelManager->GetRootNamespace(rootNamespace.GetAddressOf());
-	if (FAILED(hr))
-	{
-		LogWarn("Failed to get root namespace: 0x%08x", hr);
-		return false;
-	}
-	
-	// Step 3: Get the host context from the namespace
-	ComPtr<IDebugHostContext> hostContext;
-	hr = rootNamespace->GetContextObject(hostContext.GetAddressOf());
-	if (FAILED(hr))
-	{
-		LogWarn("Failed to get host context: 0x%08x", hr);
-		return false;
-	}
-	
-	// Step 4: Get the debug host from the context
-	IDebugHost* debugHost = nullptr;
-	hr = hostContext->QueryInterface(__uuidof(IDebugHost), reinterpret_cast<void**>(&debugHost));
-	if (FAILED(hr) || !debugHost)
-	{
-		LogWarn("Failed to get IDebugHost interface: 0x%08x", hr);
-		return false;
-	}
-	m_debugHost.Attach(debugHost);
-	
-	// Step 5: Get the evaluator from the debug host
-	IDebugHostEvaluator* hostEvaluator = nullptr;
-	hr = m_debugHost->QueryInterface(__uuidof(IDebugHostEvaluator), reinterpret_cast<void**>(&hostEvaluator));
-	if (FAILED(hr) || !hostEvaluator)
-	{
-		LogWarn("Failed to get IDebugHostEvaluator interface: 0x%08x", hr);
-		return false;
-	}
-	m_hostEvaluator.Attach(hostEvaluator);
-	
-	LogInfo("Data model interfaces initialized successfully for TTD");
 
 	m_debugEventCallbacks.SetAdapter(this);
 	if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks); result != S_OK)
@@ -228,18 +180,16 @@ void DbgEngTTDAdapter::Reset()
 	// Cleanup TTD memory analysis resources
 	CleanupTTDMemoryAnalysis();
 
-	// Release data model interfaces
-	m_hostEvaluator.Reset();
-	m_debugHost.Reset();
-	m_dataModelManager.Reset();
-
 	// Free up the resources if the dbgsrv is launched by the adapter. Otherwise, the dbgsrv is launched outside BN,
 	// we should keep everything active.
 	SAFE_RELEASE(this->m_debugControl);
 	SAFE_RELEASE(this->m_debugDataSpaces);
 	SAFE_RELEASE(this->m_debugRegisters);
 	SAFE_RELEASE(this->m_debugSymbols);
-	SAFE_RELEASE(this->m_debugSystemObjects);
+	SAFE_RELEASE(this->m_dataModelManager);
+	SAFE_RELEASE(this->m_modelMgr);
+	SAFE_RELEASE(this->m_debugHost);
+	SAFE_RELEASE(this->m_hostEvaluator);
 
 	if (this->m_debugClient)
 	{
