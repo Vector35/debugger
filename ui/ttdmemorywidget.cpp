@@ -221,13 +221,26 @@ void TTDMemoryQueryWidget::setupUI()
 	
 	// Address range inputs
 	m_startAddressEdit = new QLineEdit();
-	m_startAddressEdit->setPlaceholderText("0x00000000");
 	m_startAddressEdit->setToolTip("Start address in hexadecimal format");
-	inputLayout->addRow("Start Address:", m_startAddressEdit);
 	
 	m_endAddressEdit = new QLineEdit();
-	m_endAddressEdit->setPlaceholderText("0xFFFFFFFF");
 	m_endAddressEdit->setToolTip("End address in hexadecimal format");
+	
+	// Set default values based on binary view address range
+	if (m_data)
+	{
+		uint64_t startAddr = m_data->GetStart();
+		uint64_t endAddr = m_data->GetEnd();
+		m_startAddressEdit->setText(QString::asprintf("0x%llx", startAddr));
+		m_endAddressEdit->setText(QString::asprintf("0x%llx", endAddr));
+	}
+	else
+	{
+		m_startAddressEdit->setPlaceholderText("0x00000000");
+		m_endAddressEdit->setPlaceholderText("0xFFFFFFFF");
+	}
+	
+	inputLayout->addRow("Start Address:", m_startAddressEdit);
 	inputLayout->addRow("End Address:", m_endAddressEdit);
 	
 	// Memory access type checkboxes
@@ -713,10 +726,16 @@ void TTDMemoryWidget::setupUI()
 	setMinimumSize(900, 700);
 	
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
+	mainLayout->setContentsMargins(0, 0, 0, 0);
 	
 	// Tab widget setup
 	m_tabWidget = new QTabWidget(this);
 	m_tabWidget->setTabsClosable(true);
+	
+	// Ensure proper theme inheritance
+	m_tabWidget->setAutoFillBackground(false);
+	m_tabWidget->setAttribute(Qt::WA_StyledBackground, false);
+	
 	connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &TTDMemoryWidget::closeTab);
 	
 	// Create "+" button as corner widget
@@ -730,7 +749,6 @@ void TTDMemoryWidget::setupUI()
 	m_tabWidget->setCornerWidget(m_newTabButton, Qt::TopRightCorner);
 	
 	mainLayout->addWidget(m_tabWidget);
-	setLayout(mainLayout);
 	
 	// Create initial tab
 	createNewTab();
@@ -777,7 +795,7 @@ TTDMemorySidebarWidget::~TTDMemorySidebarWidget()
 
 // TTDMemoryWidgetType implementation
 TTDMemoryWidgetType::TTDMemoryWidgetType()
-	: SidebarWidgetType(QIcon(":/debugger/cctv-camera").pixmap(QSize(64, 64)).toImage(), "TTD Memory")
+	: SidebarWidgetType(QIcon(":/debugger/ttd-memory").pixmap(QSize(64, 64)).toImage(), "TTD Memory")
 {
 }
 

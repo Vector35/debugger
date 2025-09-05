@@ -22,5 +22,6 @@
         <file alias="step-out-reverse">icons/step-out-reverse.png</file>
         <file alias="step-over">icons/step-over.png</file>
         <file alias="stop">icons/stop.png</file>
+        <file alias="ttd-memory">icons/ttd-memory.png</file>
     </qresource>
 </RCC>
