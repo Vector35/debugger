@@ -164,7 +164,7 @@ class DebugModule:
         return not (self == other)
 
     def __hash__(self):
-        return hash((self.name, self.short_name, self.address. self.size, self.loaded))
+        return hash((self.name, self.short_name, self.address, self.size, self.loaded))
 
     def __setattr__(self, name, value):
         try:
@@ -207,7 +207,7 @@ class DebugRegister:
         return not (self == other)
 
     def __hash__(self):
-        return hash((self.name, self.value, self.width. self.index, self.hint))
+        return hash((self.name, self.value, self.width, self.index, self.hint))
 
     def __setattr__(self, name, value):
         try:
@@ -236,7 +236,26 @@ class DebugRegisters:
         dbgcore.BNDebuggerFreeRegisters(registers, count.value)
 
     def __repr__(self) -> str:
-        return self.regs.__repr__()
+        if not self.regs:
+            return "<DebugRegisters: empty>"
+        
+        # Show registers in a more readable format
+        reg_entries = []
+        # Sort registers by name for consistent output
+        for name in sorted(self.regs.keys()):
+            reg = self.regs[name]
+            hint_str = f" ({reg.hint})" if reg.hint else ""
+            reg_entries.append(f"{name}={reg.value:#x}{hint_str}")
+        
+        # Limit the number of registers shown to avoid overly long output
+        if len(reg_entries) > 8:
+            shown_regs = reg_entries[:8]
+            remaining = len(reg_entries) - 8
+            reg_list = ", ".join(shown_regs) + f", ... (+{remaining} more)"
+        else:
+            reg_list = ", ".join(reg_entries)
+        
+        return f"<DebugRegisters: {reg_list}>"
 
     def __getitem__(self, name):
         if name not in self.regs:
@@ -2528,11 +2547,28 @@ class DebuggerController:
 
     def __repr__(self):
         try:
-            # Try to get meaningful info about the controller state
-            connected = "connected" if self.is_connected else "disconnected"
-            running = "running" if self.is_running else "stopped"
-            exec_path = getattr(self, 'executable_path', 'unknown')
-            return f"<DebuggerController: {connected}, {running}, {exec_path}>"
+            # Basic connection and status info
+            connected = "connected" if self.connected else "disconnected"
+            running = "running" if self.running else "stopped"
+            
+            # Debug adapter name
+            adapter_name = self.adapter_type
+            
+            # Determine if local or remote debugging
+            remote_host = self.remote_host
+            remote_port = self.remote_port
+            
+            if remote_host and remote_port > 0:
+                # Remote debugging
+                debugging_type = f"remote {remote_host}:{remote_port}"
+            else:
+                # Local debugging
+                debugging_type = "local"
+            
+            # Executable path
+            exec_path = self.executable_path or "unknown"
+            
+            return f"<DebuggerController: {connected}, {running}, {debugging_type}, adapter={adapter_name}, {exec_path}>"
         except:
             # Fallback to basic representation if we can't get state info
             return f"<DebuggerController: {hex(id(self))}>"
