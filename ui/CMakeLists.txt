@@ -41,3 +41,7 @@ set_target_properties(debuggerui PROPERTIES
         )
 
 target_link_libraries(debuggerui debuggerapi binaryninjaui Qt6::Core Qt6::Gui Qt6::Widgets)
+
+if(WIN32)
+    target_link_libraries(debuggerui urlmon.lib shell32.lib ole32.lib)
+endif()

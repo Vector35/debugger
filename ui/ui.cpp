@@ -25,6 +25,8 @@ limitations under the License.
 #include "QPainter"
 #include <QStatusBar>
 #include <QCoreApplication>
+#include <QProgressDialog>
+#include <QTimer>
 #include "fmt/format.h"
 #include "threadframes.h"
 #include "syncgroup.h"
@@ -49,6 +51,7 @@ limitations under the License.
 #ifdef WIN32
 	#include "ttdrecord.h"
 	#include "scriptingconsole.h"
+	#include "install_windbg.h"
 #endif
 
 
@@ -1148,36 +1151,55 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 #ifdef WIN32
 void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 {
-#ifdef DEMO_EDITION
-	FreeVersionLimitation dialog("installing WinDbg/TTD automatically.\n"
-		"Please refer to the documentation to install it manually:\n"
-		"https://docs.binary.ninja/guide/debugger/dbgeng-ttd.html#install-windbg-manually");
-	dialog.exec();
-#else
-	std::string pluginRoot;
-	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
-		pluginRoot = GetUserPluginDirectory();
-	else
-		pluginRoot = GetBundledPluginDirectory();
+	// Create and show progress dialog with actual progress range
+	QProgressDialog* progress = new QProgressDialog("Initializing installation...", nullptr, 0, 100, ctxt.context->mainWindow());
+	progress->setWindowModality(Qt::WindowModal);
+	progress->setMinimumDuration(0);
+	progress->setCancelButton(nullptr); // No cancel button since we can't safely cancel mid-installation
+	progress->show();
+	QCoreApplication::processEvents();
 
-	auto ttdInstallerScript = filesystem::path(pluginRoot) / "dbgeng" / "install_windbg.py";
-	LogDebug("WinDbg/TTD installer script expected at: %s", ttdInstallerScript.string().c_str());
-	if (!std::filesystem::exists(ttdInstallerScript))
-	{
-		LogWarn("WinDbg/TTD installer script does not exist at: %s", ttdInstallerScript.string().c_str());
-		return;
-	}
+	// Use QTimer to run installation asynchronously
+	QTimer::singleShot(100, [progress]() {
+		bool success = false;
+		try 
+		{
+			// Create progress callback to update the dialog
+			auto progressCallback = [progress](const std::string& step, int progressPercent) {
+				QMetaObject::invokeMethod(progress, [progress, step, progressPercent]() {
+					progress->setLabelText(QString::fromStdString(step));
+					if (progressPercent >= 0 && progressPercent <= 100)
+					{
+						progress->setValue(progressPercent);
+					}
+					QCoreApplication::processEvents();
+				}, Qt::QueuedConnection);
+			};
 
-	auto sidebar = ctxt.context->sidebar();
-	if (!sidebar)
-		return;
+			success = BinaryNinjaDebugger::InstallWinDbg(progressCallback);
+		}
+		catch (...)
+		{
+			success = false;
+		}
 
-	auto *widget = qobject_cast<ScriptingConsole*>(sidebar->widget("Console"));
-	if (!widget)
-		return;
-
-	widget->runScriptFromFile(ttdInstallerScript.string());
-#endif
+		progress->close();
+		progress->deleteLater();
+		
+		if (success)
+		{
+			QMessageBox::information(nullptr, "Installation Complete", 
+				"WinDbg/TTD has been successfully installed!\n\n"
+				"Please restart Binary Ninja to make the changes take effect.");
+		}
+		else
+		{
+			QMessageBox::warning(nullptr, "Installation Failed",
+				"Failed to install WinDbg/TTD. Please check the log for details.\n\n"
+				"You can also install WinDbg manually by following the documentation:\n"
+				"https://docs.binary.ninja/guide/debugger/dbgeng-ttd.html#install-windbg-manually");
+		}
+	});
 }
 #endif
 
