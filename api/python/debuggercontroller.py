@@ -27,29 +27,29 @@ from typing import Callable, List, Union
 def parse_ttd_access_type(access_spec):
     """
     Parse TTD memory access type from string specification.
-    
+
     Args:
         access_spec: String containing access type specification.
                      Can be combinations of 'r' (read), 'w' (write), 'e' (execute)
                      e.g., "r", "rw", "rwe", "we", etc.
-                     
+
     Returns:
         DebuggerTTDMemoryAccessType enum value
     """
     if isinstance(access_spec, str):
         access_value = 0
         access_spec = access_spec.lower()
-        
+
         if 'r' in access_spec:
             access_value |= DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead
         if 'w' in access_spec:
             access_value |= DebuggerTTDMemoryAccessType.DebuggerTTDMemoryWrite
         if 'e' in access_spec:
             access_value |= DebuggerTTDMemoryAccessType.DebuggerTTDMemoryExecute
-            
+
         if access_value == 0:
             raise ValueError(f"Invalid access type specification: '{access_spec}'. Use combinations of 'r', 'w', 'e'")
-            
+
         return access_value
     else:
         # Assume it's already a DebuggerTTDMemoryAccessType enum value
@@ -89,7 +89,7 @@ class DebugProcess:
             raise AttributeError(f"attribute '{name}' is read only")
 
     def __repr__(self):
-        return f"<DebugProcess: {self.pid:#x}, {self.name}>"
+        return f"<DebugProcess: pid={self.pid}, name='{self.name}'>"
 
 
 class DebugThread:
@@ -173,7 +173,7 @@ class DebugModule:
             raise AttributeError(f"attribute '{name}' is read only")
 
     def __repr__(self):
-        return f"<DebugModule: {self.name}, {self.address:#x}, {self.size:#x}>"
+        return f"<DebugModule: {self.short_name}, {self.address:#x}-{self.address+self.size:#x}, size={self.size:#x}>"
 
 
 class DebugRegister:
@@ -339,6 +339,9 @@ class ModuleNameAndOffset:
         except AttributeError:
             raise AttributeError(f"attribute '{name}' is read only")
 
+    def __repr__(self):
+        return f"<ModuleNameAndOffset: {self.module}+{self.offset:#x}>"
+
 
 class DebugFrame:
     """
@@ -407,6 +410,9 @@ class TargetStoppedEventData:
         self.exit_code = exit_code
         self.data = data
 
+    def __repr__(self):
+        return f"<TargetStoppedEventData: reason={self.reason}, thread={self.last_active_thread}, exit_code={self.exit_code}>"
+
 
 class ErrorEventData:
     """
@@ -420,6 +426,9 @@ class ErrorEventData:
         self.error = error
         self.data = data
 
+    def __repr__(self):
+        return f"<ErrorEventData: {self.error}>"
+
 
 class TargetExitedEventData:
     """
@@ -431,6 +440,9 @@ class TargetExitedEventData:
     def __init__(self, exit_code: int):
         self.exit_code = exit_code
 
+    def __repr__(self):
+        return f"<TargetExitedEventData: exit_code={self.exit_code}>"
+
 
 class StdOutMessageEventData:
     """
@@ -441,6 +453,11 @@ class StdOutMessageEventData:
     """
     def __init__(self, message: str):
         self.message = message
+
+    def __repr__(self):
+        # Truncate long messages for readability
+        msg = self.message[:50] + "..." if len(self.message) > 50 else self.message
+        return f"<StdOutMessageEventData: '{msg}'>"
 
 
 class DebuggerEventData:
@@ -468,6 +485,25 @@ class DebuggerEventData:
         self.exit_data = exit_data
         self.message_data = message_data
 
+    def __repr__(self):
+        # Show only the data that's not None for better readability
+        parts = []
+        if self.target_stopped_data is not None:
+            parts.append(f"stopped={self.target_stopped_data.reason}")
+        if self.error_data is not None:
+            parts.append(f"error='{self.error_data.error[:30]}..'" if len(self.error_data.error) > 30 else f"error='{self.error_data.error}'")
+        if self.absolute_address:
+            parts.append(f"abs_addr={self.absolute_address:#x}")
+        if self.relative_address:
+            parts.append(f"rel_addr={self.relative_address}")
+        if self.exit_data is not None:
+            parts.append(f"exit_code={self.exit_data.exit_code}")
+        if self.message_data is not None:
+            msg = self.message_data.message[:20] + "..." if len(self.message_data.message) > 20 else self.message_data.message
+            parts.append(f"msg='{msg}'")
+
+        return f"<DebuggerEventData: {', '.join(parts) if parts else 'empty'}>"
+
 
 class DebuggerEvent:
     """
@@ -480,6 +516,9 @@ class DebuggerEvent:
     def __init__(self, type: DebuggerEventType, data: DebuggerEventData):
         self.type = type
         self.data = data
+
+    def __repr__(self):
+        return f"<DebuggerEvent: type={self.type}, data={self.data}>"
 
 
 DebuggerEventCallback = Callable[['DebuggerEvent'], None]
@@ -531,43 +570,43 @@ class DebuggerEventWrapper:
 class TTDPosition:
     """
     TTDPosition represents a position in a time travel debugging trace.
-    
+
     It has the following fields:
-    
+
     * ``sequence``: the sequence number (as hex string or int)
     * ``step``: the step number within the sequence (as hex string or int)
     """
-    
+
     def __init__(self, sequence, step):
         if isinstance(sequence, str):
             self.sequence = int(sequence, 16)
         else:
             self.sequence = int(sequence)
-            
+
         if isinstance(step, str):
             self.step = int(step, 16)
         else:
             self.step = int(step)
-    
+
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return NotImplemented
         return self.sequence == other.sequence and self.step == other.step
-    
+
     def __ne__(self, other):
         if not isinstance(other, self.__class__):
             return NotImplemented
         return not (self == other)
-    
+
     def __hash__(self):
         return hash((self.sequence, self.step))
-    
+
     def __repr__(self):
         return f"<TTDPosition: {self.sequence:x}:{self.step:x}>"
-    
+
     def __str__(self):
         return f"{self.sequence:x}:{self.step:x}"
-    
+
     @classmethod
     def from_string(cls, timestamp_str):
         """
@@ -576,11 +615,11 @@ class TTDPosition:
         """
         if ':' not in timestamp_str:
             raise ValueError("Timestamp must be in format 'sequence:step'")
-        
+
         parts = timestamp_str.strip().split(':')
         if len(parts) != 2:
             raise ValueError("Timestamp must be in format 'sequence:step'")
-        
+
         return cls(parts[0], parts[1])
 
 
@@ -739,7 +778,7 @@ class TTDEventType:
 class TTDModule:
     """
     TTDModule represents information about modules that were loaded/unloaded during a TTD trace.
-    
+
     Attributes:
         name (str): name and path of the module
         address (int): address where the module was loaded
@@ -785,7 +824,7 @@ class TTDModule:
 class TTDThread:
     """
     TTDThread represents information about threads and their lifetime during a TTD trace.
-    
+
     Attributes:
         unique_id (int): unique ID for the thread across the trace
         id (int): TID of the thread
@@ -844,7 +883,7 @@ class TTDExceptionType:
 class TTDException:
     """
     TTDException represents information about exceptions that occurred during a TTD trace.
-    
+
     Attributes:
         type (int): type of exception (TTDExceptionType.Software or TTDExceptionType.Hardware)
         program_counter (int): instruction where exception was thrown
@@ -854,7 +893,7 @@ class TTDException:
         position (TTDPosition): position where exception occurred
     """
 
-    def __init__(self, type: int, program_counter: int, code: int, flags: int, 
+    def __init__(self, type: int, program_counter: int, code: int, flags: int,
                  record_address: int, position: TTDPosition):
         self.type = type
         self.program_counter = program_counter
@@ -896,7 +935,7 @@ class TTDException:
 class TTDEvent:
     """
     TTDEvent represents important events that happened during a TTD trace.
-    
+
     Attributes:
         type (int): type of event (TTDEventType enum value)
         position (TTDPosition): position where event occurred
@@ -938,7 +977,7 @@ class TTDEvent:
     def __repr__(self):
         type_names = {
             TTDEventType.ThreadCreated: "ThreadCreated",
-            TTDEventType.ThreadTerminated: "ThreadTerminated", 
+            TTDEventType.ThreadTerminated: "ThreadTerminated",
             TTDEventType.ModuleLoaded: "ModuleLoaded",
             TTDEventType.ModuleUnloaded: "ModuleUnloaded",
             TTDEventType.Exception: "Exception"
@@ -2136,13 +2175,13 @@ class DebuggerController:
     def current_ttd_position(self):
         """
         Get the current position in the TTD trace.
-        
+
         Returns:
             TTDPosition: Current position, or None if not in TTD mode
         """
         if not self.is_ttd:
             return None
-        
+
         pos = dbgcore.BNDebuggerGetCurrentTTDPosition(self.handle)
         return TTDPosition(pos.sequence, pos.step)
 
@@ -2150,23 +2189,23 @@ class DebuggerController:
     def current_ttd_position(self, position):
         """
         Navigate to a specific position in the TTD trace.
-        
+
         Args:
             position: TTDPosition object or string in format "sequence:step"
         """
         if not self.is_ttd:
             raise RuntimeError("TTD is not active")
-        
+
         if isinstance(position, str):
             position = TTDPosition.from_string(position)
         elif not isinstance(position, TTDPosition):
             raise TypeError("Position must be TTDPosition object or string")
-        
+
         # Create the C structure
         pos = dbgcore.BNDebuggerTTDPosition()
         pos.sequence = position.sequence
         pos.step = position.step
-        
+
         success = dbgcore.BNDebuggerSetTTDPosition(self.handle, pos)
         if not success:
             raise RuntimeError("Failed to navigate to the specified TTD position")
@@ -2174,35 +2213,35 @@ class DebuggerController:
     def set_ttd_position(self, position):
         """
         Navigate to a specific position in the TTD trace.
-        
+
         Args:
             position: TTDPosition object or string in format "sequence:step"
-            
+
         Returns:
             bool: True if navigation succeeded, False otherwise
         """
         if not self.is_ttd:
             return False
-        
+
         if isinstance(position, str):
             position = TTDPosition.from_string(position)
         elif not isinstance(position, TTDPosition):
             raise TypeError("Position must be TTDPosition object or string")
-        
+
         # Create the C structure
         pos = dbgcore.BNDebuggerTTDPosition()
         pos.sequence = position.sequence
         pos.step = position.step
-        
+
         return dbgcore.BNDebuggerSetTTDPosition(self.handle, pos)
 
     def navigate_to_timestamp(self, timestamp_str):
         """
         Convenience method to navigate to a timestamp string.
-        
+
         Args:
             timestamp_str: String in format "sequence:step" (hex or decimal)
-            
+
         Returns:
             bool: True if navigation succeeded, False otherwise
         """
@@ -2334,9 +2373,9 @@ class DebuggerController:
 
         for i in range(count.value):
             event = events[i]
-            
+
             position = TTDPosition(event.position.sequence, event.position.step)
-            
+
             # Convert optional module details
             module = None
             if event.module:
@@ -2347,7 +2386,7 @@ class DebuggerController:
                     checksum=event.module.contents.checksum,
                     timestamp=event.module.contents.timestamp
                 )
-            
+
             # Convert optional thread details
             thread = None
             if event.thread:
@@ -2355,7 +2394,7 @@ class DebuggerController:
                 lifetime_end = TTDPosition(event.thread.contents.lifetimeEnd.sequence, event.thread.contents.lifetimeEnd.step)
                 active_time_start = TTDPosition(event.thread.contents.activeTimeStart.sequence, event.thread.contents.activeTimeStart.step)
                 active_time_end = TTDPosition(event.thread.contents.activeTimeEnd.sequence, event.thread.contents.activeTimeEnd.step)
-                
+
                 thread = TTDThread(
                     unique_id=event.thread.contents.uniqueId,
                     id=event.thread.contents.id,
@@ -2364,12 +2403,12 @@ class DebuggerController:
                     active_time_start=active_time_start,
                     active_time_end=active_time_end
                 )
-            
+
             # Convert optional exception details
             exception = None
             if event.exception:
                 exception_position = TTDPosition(event.exception.contents.position.sequence, event.exception.contents.position.step)
-                
+
                 exception = TTDException(
                     type=event.exception.contents.type,
                     program_counter=event.exception.contents.programCounter,
@@ -2413,9 +2452,9 @@ class DebuggerController:
 
         for i in range(count.value):
             event = events[i]
-            
+
             position = TTDPosition(event.position.sequence, event.position.step)
-            
+
             # Convert optional module details
             module = None
             if event.module:
@@ -2426,7 +2465,7 @@ class DebuggerController:
                     checksum=event.module.contents.checksum,
                     timestamp=event.module.contents.timestamp
                 )
-            
+
             # Convert optional thread details
             thread = None
             if event.thread:
@@ -2434,7 +2473,7 @@ class DebuggerController:
                 lifetime_end = TTDPosition(event.thread.contents.lifetimeEnd.sequence, event.thread.contents.lifetimeEnd.step)
                 active_time_start = TTDPosition(event.thread.contents.activeTimeStart.sequence, event.thread.contents.activeTimeStart.step)
                 active_time_end = TTDPosition(event.thread.contents.activeTimeEnd.sequence, event.thread.contents.activeTimeEnd.step)
-                
+
                 thread = TTDThread(
                     unique_id=event.thread.contents.uniqueId,
                     id=event.thread.contents.id,
@@ -2443,12 +2482,12 @@ class DebuggerController:
                     active_time_start=active_time_start,
                     active_time_end=active_time_end
                 )
-            
+
             # Convert optional exception details
             exception = None
             if event.exception:
                 exception_position = TTDPosition(event.exception.contents.position.sequence, event.exception.contents.position.step)
-                
+
                 exception = TTDException(
                     type=event.exception.contents.type,
                     program_counter=event.exception.contents.programCounter,
@@ -2486,6 +2525,17 @@ class DebuggerController:
 
     def __hash__(self):
         return hash(ctypes.addressof(self.handle.contents))
+
+    def __repr__(self):
+        try:
+            # Try to get meaningful info about the controller state
+            connected = "connected" if self.is_connected else "disconnected"
+            running = "running" if self.is_running else "stopped"
+            exec_path = getattr(self, 'executable_path', 'unknown')
+            return f"<DebuggerController: {connected}, {running}, {exec_path}>"
+        except:
+            # Fallback to basic representation if we can't get state info
+            return f"<DebuggerController: {hex(id(self))}>"
 
 
 def _get_debugger(instance: binaryninja.PythonScriptingInstance):
