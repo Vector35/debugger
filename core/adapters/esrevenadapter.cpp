@@ -849,50 +849,11 @@ DebugStopReason EsrevenAdapter::ResponseHandler(bool notifyStopped)
 				std::string signalString = replyString.substr(1, 2);
 				uint64_t signal = std::stoull(signalString, nullptr, 16);
 				
-				// Signal to stop reason lookup table
-				static std::unordered_map<std::uint64_t, DebugStopReason> signal_lookup = {
-					{1, DebugStopReason::SignalHup},
-					{2, DebugStopReason::SignalInt},
-					{3, DebugStopReason::SignalQuit},
-					{4, DebugStopReason::IllegalInstruction},
-					{5, DebugStopReason::SingleStep},
-					{6, DebugStopReason::SignalAbrt},
-					{7, DebugStopReason::SignalBux},
-					{8, DebugStopReason::Calculation},
-					{9, DebugStopReason::SignalKill},
-					{10, DebugStopReason::SignalUsr1},
-					{11, DebugStopReason::AccessViolation},
-					{12, DebugStopReason::SignalUsr2},
-					{13, DebugStopReason::SignalPipe},
-					{14, DebugStopReason::SignalAlrm},
-					{15, DebugStopReason::SignalTerm},
-					{16, DebugStopReason::SignalStkflt},
-					{17, DebugStopReason::SignalChld},
-					{18, DebugStopReason::SignalCont},
-					{19, DebugStopReason::SignalStop},
-					{20, DebugStopReason::SignalTstp},
-					{21, DebugStopReason::SignalTtin},
-					{22, DebugStopReason::SignalTtou},
-					{23, DebugStopReason::SignalUrg},
-					{24, DebugStopReason::SignalXcpu},
-					{25, DebugStopReason::SignalXfsz},
-					{26, DebugStopReason::SignalVtalrm},
-					{27, DebugStopReason::SignalProf},
-					{28, DebugStopReason::SignalWinch},
-					{29, DebugStopReason::SignalPoll},
-					{30, DebugStopReason::SignalStkflt},
-					{31, DebugStopReason::SignalSys},
-				};
-				
 				m_isTargetRunning = false;
 				CheckApplyPendingBreakpoints();
 				
-				// Look up the signal directly
-				DebugStopReason reason = DebugStopReason::UnknownReason;
-				if (signal_lookup.find(signal) != signal_lookup.end())
-				{
-					reason = signal_lookup[signal];
-				}
+				// Look up the signal using helper function
+				DebugStopReason reason = SignalToDebugStopReason(signal);
 				
 				if (notifyStopped)
 				{
@@ -1273,40 +1234,6 @@ void EsrevenAdapter::InvalidateCache()
 
 DebugStopReason EsrevenAdapter::SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& map)
 {
-    static std::unordered_map<std::uint64_t, DebugStopReason> signal_lookup = {
-            {1, DebugStopReason::SignalHup},
-            { 2 , DebugStopReason::SignalInt },
-            { 3 , DebugStopReason::SignalQuit },
-            { 4 , DebugStopReason::IllegalInstruction },
-            { 5 , DebugStopReason::SingleStep },
-            { 6 , DebugStopReason::SignalAbrt },
-            { 7 , DebugStopReason::SignalBux },
-            { 8 , DebugStopReason::Calculation },
-            { 9 , DebugStopReason::SignalKill },
-            { 10, DebugStopReason::SignalUsr1 },
-            { 11, DebugStopReason::AccessViolation },
-            { 12, DebugStopReason::SignalUsr2 },
-            { 13, DebugStopReason::SignalPipe },
-            { 14, DebugStopReason::SignalAlrm },
-            { 15, DebugStopReason::SignalTerm },
-            { 16, DebugStopReason::SignalStkflt },
-            { 17, DebugStopReason::SignalChld },
-            { 18, DebugStopReason::SignalCont },
-            { 19, DebugStopReason::SignalStop },
-            { 20, DebugStopReason::SignalTstp },
-            { 21, DebugStopReason::SignalTtin },
-            { 22, DebugStopReason::SignalTtou },
-            { 23, DebugStopReason::SignalUrg },
-            { 24, DebugStopReason::SignalXcpu },
-            { 25, DebugStopReason::SignalXfsz },
-            { 26, DebugStopReason::SignalVtalrm },
-            { 27, DebugStopReason::SignalProf },
-            { 28, DebugStopReason::SignalWinch },
-            { 29, DebugStopReason::SignalPoll },
-            { 30, DebugStopReason::SignalStkflt },
-            { 31, DebugStopReason::SignalSys },
-    };
-
 	if (map.find("signal") != map.end())
 	{
 		uint64_t signal = map["signal"];
@@ -1314,9 +1241,9 @@ DebugStopReason EsrevenAdapter::SignalToStopReason(std::unordered_map<std::strin
 		{
 			return DebugStopReason::Breakpoint;
 		}
-		else if (signal_lookup.find(signal) != signal_lookup.end())
+		else
 		{
-			return signal_lookup[signal];
+			return SignalToDebugStopReason(signal);
 		}
 	}
 
