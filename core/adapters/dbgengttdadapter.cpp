@@ -23,7 +23,7 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
 	scope = SettingsResourceScope;
 	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
 
-    if (this->m_debugActive) {
+    if (this->m_dbgengInitialized) {
         this->Reset();
     }
 
@@ -107,7 +107,7 @@ bool DbgEngTTDAdapter::WriteRegister(const std::string& reg, intx::uint512 value
 
 bool DbgEngTTDAdapter::Start()
 {
-	if (this->m_debugActive)
+	if (this->m_dbgengInitialized)
 		this->Reset();
 
 	auto handle = GetModuleHandleA("dbgeng.dll");
@@ -154,7 +154,7 @@ bool DbgEngTTDAdapter::Start()
 		return false;
 	}
 
-	this->m_debugActive = true;
+	this->m_dbgengInitialized = true;
 	return true;
 }
 
@@ -163,7 +163,7 @@ void DbgEngTTDAdapter::Reset()
 {
 	m_aboutToBeKilled = false;
 
-	if (!this->m_debugActive)
+	if (!this->m_dbgengInitialized)
 		return;
 
 	// Free up the resources if the dbgsrv is launched by the adapter. Otherwise, the dbgsrv is launched outside BN,
@@ -193,7 +193,7 @@ void DbgEngTTDAdapter::Reset()
 
 	SAFE_RELEASE(this->m_debugClient);
 
-	this->m_debugActive = false;
+	this->m_dbgengInitialized = false;
 }
 
 
