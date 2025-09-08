@@ -842,16 +842,30 @@ DebugStopReason EsrevenAdapter::ResponseHandler(bool notifyStopped)
 		}
 		else if (reply[0] == 'S')
 		{
-			m_isTargetRunning = false;
-			auto reason = SingleStep;
-			if (notifyStopped)
+			// Target stopped with signal (equivalent to T response with no n:r pairs)
+			const auto replyString = reply.AsString();
+			if (replyString.length() >= 3)
 			{
-				DebuggerEvent dbgevt;
-				dbgevt.type = AdapterStoppedEventType;
-				dbgevt.data.targetStoppedData.reason = reason;
-				PostDebuggerEvent(dbgevt);
+				std::string signalString = replyString.substr(1, 2);
+				uint64_t signal = std::stoull(signalString, nullptr, 16);
+				
+				// Create a minimal map with just the signal for SignalToStopReason
+				std::unordered_map<std::string, std::uint64_t> map;
+				map["signal"] = signal;
+				
+				m_isTargetRunning = false;
+				CheckApplyPendingBreakpoints();
+				
+				auto reason = SignalToStopReason(map);
+				if (notifyStopped)
+				{
+					DebuggerEvent dbgevt;
+					dbgevt.type = AdapterStoppedEventType;
+					dbgevt.data.targetStoppedData.reason = reason;
+					PostDebuggerEvent(dbgevt);
+				}
+				return reason;
 			}
-			return reason;
 		}
 		else if (reply[0] == 'W')
 		{
