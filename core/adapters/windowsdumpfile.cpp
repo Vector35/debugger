@@ -23,7 +23,7 @@ bool WindowsDumpFileAdapter::ExecuteWithArgsInternal(const std::string& path, co
 	scope = SettingsResourceScope;
 	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
 
-    if (this->m_debugActive) {
+    if (this->m_dbgengInitialized) {
         this->Reset();
     }
 
@@ -73,7 +73,7 @@ bool WindowsDumpFileAdapter::ExecuteWithArgsInternal(const std::string& path, co
 
 bool WindowsDumpFileAdapter::Start()
 {
-	if (this->m_debugActive)
+	if (this->m_dbgengInitialized)
 		this->Reset();
 
 	auto handle = GetModuleHandleA("dbgeng.dll");
@@ -120,7 +120,7 @@ bool WindowsDumpFileAdapter::Start()
 		return false;
 	}
 
-	this->m_debugActive = true;
+	this->m_dbgengInitialized = true;
 	return true;
 }
 
@@ -129,7 +129,7 @@ void WindowsDumpFileAdapter::Reset()
 {
 	m_aboutToBeKilled = false;
 
-	if (!this->m_debugActive)
+	if (!this->m_dbgengInitialized)
 		return;
 
 	// Free up the resources if the dbgsrv is launched by the adapter. Otherwise, the dbgsrv is launched outside BN,
@@ -159,7 +159,7 @@ void WindowsDumpFileAdapter::Reset()
 
 	SAFE_RELEASE(this->m_debugClient);
 
-	this->m_debugActive = false;
+	this->m_dbgengInitialized = false;
 }
 
 

@@ -21,7 +21,7 @@ bool LocalWindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path,
 	auto data = GetData();
 	auto adapterSettings = GetAdapterSettings();
 
-    if (this->m_debugActive) {
+    if (this->m_dbgengInitialized) {
         this->Reset();
     }
 
@@ -61,7 +61,7 @@ bool LocalWindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path,
 
 bool LocalWindowsKernelAdapter::Start()
 {
-	if (this->m_debugActive)
+	if (this->m_dbgengInitialized)
 		this->Reset();
 
 	auto handle = GetModuleHandleA("dbgeng.dll");
@@ -108,7 +108,7 @@ bool LocalWindowsKernelAdapter::Start()
 		return false;
 	}
 
-	this->m_debugActive = true;
+	this->m_dbgengInitialized = true;
 	return true;
 }
 
@@ -117,7 +117,7 @@ void LocalWindowsKernelAdapter::Reset()
 {
 	m_aboutToBeKilled = false;
 
-	if (!this->m_debugActive)
+	if (!this->m_dbgengInitialized)
 		return;
 
 	// Free up the resources if the dbgsrv is launched by the adapter. Otherwise, the dbgsrv is launched outside BN,
@@ -147,7 +147,7 @@ void LocalWindowsKernelAdapter::Reset()
 
 	SAFE_RELEASE(this->m_debugClient);
 
-	this->m_debugActive = false;
+	this->m_dbgengInitialized = false;
 }
 
 

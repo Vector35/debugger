@@ -351,10 +351,10 @@ bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionSt
 
 bool DbgEngAdapter::Start()
 {
-	if (this->m_debugActive)
+	if (this->m_dbgengInitialized)
 	{
-		LogWarn("DbgEngAdapter::Start, debugger is still active");
-		return false;
+		// Debugger is already started, return success
+		return true;
 	}
 
 	if (!m_connectedToDebugServer)
@@ -401,7 +401,7 @@ bool DbgEngAdapter::Start()
 		return false;
 	}
 
-	this->m_debugActive = true;
+	this->m_dbgengInitialized = true;
 	return true;
 }
 
@@ -411,7 +411,7 @@ void DbgEngAdapter::Reset()
 	std::unique_lock lock(m_engineLoopMutex);
 	m_aboutToBeKilled = false;
 
-	if (!this->m_debugActive)
+	if (!this->m_dbgengInitialized)
 		return;
 
 	// Free up the resources if the dbgsrv is launched by the adapter. Otherwise, the dbgsrv is launched outside BN,
@@ -436,7 +436,8 @@ void DbgEngAdapter::Reset()
 		SAFE_RELEASE(this->m_debugClient);
 	}
 
-	this->m_debugActive = false;
+	this->m_dbgengInitialized = false;
+	this->m_activelyDebugging = false;
 }
 
 
@@ -491,9 +492,14 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 {
 	std::unique_lock lock(m_engineLoopMutex);
 
-	if (this->m_debugActive)
+	// If we're actively debugging, fail instead of resetting to prevent crashes
+	if (this->m_activelyDebugging)
 	{
-		LogWarn("DbgEngAdapter::ExecuteWithArgsInternal, debugger is still active");
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = fmt::format("Cannot launch while actively debugging another target");
+		event.data.errorData.shortError = fmt::format("Already debugging");
+		PostDebuggerEvent(event);
 		return false;
 	}
 
@@ -614,6 +620,9 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 		}
 	}
 
+	// Mark that we're now actively debugging a target
+	this->m_activelyDebugging = true;
+
 	return true;
 }
 
@@ -720,9 +729,14 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 {
 	std::unique_lock lock(m_engineLoopMutex);
 
-	if (this->m_debugActive)
+	// If we're actively debugging, fail instead of resetting to prevent crashes
+	if (this->m_activelyDebugging)
 	{
-		LogWarn("DbgEngAdapter::AttachInternal, debugger is still active");
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = fmt::format("Cannot attach while actively debugging another target");
+		event.data.errorData.shortError = fmt::format("Already debugging");
+		PostDebuggerEvent(event);
 		return false;
 	}
 
@@ -767,6 +781,9 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 	}
 
 	ApplyBreakpoints();
+
+	// Mark that we're now actively debugging a target
+	this->m_activelyDebugging = true;
 
 	return true;
 }
@@ -856,7 +873,7 @@ std::vector<DebugProcess> DbgEngAdapter::GetProcessList()
 {
 	// we need to start dbgserver in order to get process list
 	
-	if (!m_debugActive)
+	if (!m_dbgengInitialized)
 	{
 		if (!Start())
 			return {};
@@ -1025,7 +1042,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address,
 {
 	// If the backend has been created, we add the breakpoints directly. Otherwise, keep track of the breakpoints,
 	// and add them when we launch/attach the target.
-	if (m_debugActive)
+	if (m_dbgengInitialized)
 	{
 		BNSettingsScope scope = SettingsResourceScope;
 		auto data = GetData();
@@ -1088,7 +1105,7 @@ bool DbgEngAdapter::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
 {
 	// If the backend has been created, we remove the breakpoints directly. Otherwise, remove it from the list of
 	// pending breakpoints.
-	if (m_debugActive)
+	if (m_dbgengInitialized)
 	{
 		// TODO. This is not used by the controller right now.
 	}
