@@ -835,6 +835,9 @@ bool DbgEngAdapter::Detach()
 		return false;
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	
+	// Reset the debug active flag to allow subsequent attach operations
+	Reset();
 	return true;
 }
 
@@ -849,6 +852,9 @@ bool DbgEngAdapter::Quit()
 		return false;
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	
+	// Reset the debug active flag to allow subsequent attach operations
+	Reset();
 	return true;
 }
 
