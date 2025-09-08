@@ -353,8 +353,8 @@ bool DbgEngAdapter::Start()
 {
 	if (this->m_debugActive)
 	{
-		LogWarn("DbgEngAdapter::Start, debugger is still active");
-		return false;
+		// Debugger is already started, return success
+		return true;
 	}
 
 	if (!m_connectedToDebugServer)
@@ -490,12 +490,6 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	const std::string& workingDir, const LaunchConfigurations& configs)
 {
 	std::unique_lock lock(m_engineLoopMutex);
-
-	if (this->m_debugActive)
-	{
-		LogWarn("DbgEngAdapter::ExecuteWithArgsInternal, debugger is still active");
-		return false;
-	}
 
 	m_aboutToBeKilled = false;
 
@@ -720,12 +714,6 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 {
 	std::unique_lock lock(m_engineLoopMutex);
 
-	if (this->m_debugActive)
-	{
-		LogWarn("DbgEngAdapter::AttachInternal, debugger is still active");
-		return false;
-	}
-
 	m_aboutToBeKilled = false;
 
 	BNSettingsScope scope = SettingsResourceScope;
@@ -835,9 +823,6 @@ bool DbgEngAdapter::Detach()
 		return false;
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
-	
-	// Reset the debug active flag to allow subsequent attach operations
-	Reset();
 	return true;
 }
 
@@ -852,9 +837,6 @@ bool DbgEngAdapter::Quit()
 		return false;
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
-	
-	// Reset the debug active flag to allow subsequent attach operations
-	Reset();
 	return true;
 }
 
