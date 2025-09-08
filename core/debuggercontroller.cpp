@@ -3033,6 +3033,119 @@ bool DebuggerController::ComputeExprValue(const LowLevelILInstruction &instr, in
 		value &= sizeMask;
 		return true;
 	}
+	case LLIL_MUL:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_MUL>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_MUL>(), right))
+			return false;
+		value = left * right;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_MULU_HI:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_MULU_HI>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_MULU_HI>(), right))
+			return false;
+		auto result = left * right;
+		value = result >> (instr.size * 8);
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_MULS_HI:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_MULS_HI>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_MULS_HI>(), right))
+			return false;
+		// Sign extend operands for signed multiplication
+		auto leftSigned = SignExtend(left, instr.size, 64);
+		auto rightSigned = SignExtend(right, instr.size, 64);
+		auto result = leftSigned * rightSigned;
+		value = result >> (instr.size * 8);
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_DIVU:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_DIVU>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_DIVU>(), right))
+			return false;
+		if (right == 0)
+			return false; // Division by zero
+		value = left / right;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_DIVS:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_DIVS>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_DIVS>(), right))
+			return false;
+		if (right == 0)
+			return false; // Division by zero
+		// Sign extend operands for signed division
+		auto leftSigned = SignExtend(left, instr.size, 64);
+		auto rightSigned = SignExtend(right, instr.size, 64);
+		auto result = leftSigned / rightSigned;
+		value = result & sizeMask;
+		return true;
+	}
+	case LLIL_MODU:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_MODU>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_MODU>(), right))
+			return false;
+		if (right == 0)
+			return false; // Division by zero
+		value = left % right;
+		value &= sizeMask;
+		return true;
+	}
+	case LLIL_MODS:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_MODS>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_MODS>(), right))
+			return false;
+		if (right == 0)
+			return false; // Division by zero
+		// Sign extend operands for signed modulo
+		auto leftSigned = SignExtend(left, instr.size, 64);
+		auto rightSigned = SignExtend(right, instr.size, 64);
+		auto result = leftSigned % rightSigned;
+		value = result & sizeMask;
+		return true;
+	}
+	case LLIL_ROL:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_ROL>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_ROL>(), right))
+			return false;
+		auto shift = GetActualShift(right, instr.size);
+		auto bits = instr.size * 8;
+		shift %= bits; // Normalize rotation amount
+		value = ((left << shift) | (left >> (bits - shift))) & sizeMask;
+		return true;
+	}
+	case LLIL_ROR:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<LLIL_ROR>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<LLIL_ROR>(), right))
+			return false;
+		auto shift = GetActualShift(right, instr.size);
+		auto bits = instr.size * 8;
+		shift %= bits; // Normalize rotation amount
+		value = ((left >> shift) | (left << (bits - shift))) & sizeMask;
+		return true;
+	}
 	case LLIL_NEG:
 	{
 		if (!ComputeExprValue(instr.GetSourceExpr<LLIL_NEG>(), left))
@@ -3162,6 +3275,24 @@ bool DebuggerController::ComputeExprValue(const LowLevelILInstruction &instr, in
 			return false;
 		value = GetValueFromComparison(instr.operation, left, right, instr.size);
 		return true;
+
+	case LLIL_CALL:
+	{
+		// For CALL operations, we compute the destination address
+		// The actual function call would be executed by the debugger, not here
+		if (!ComputeExprValue(instr.GetDestExpr<LLIL_CALL>(), left))
+			return false;
+		value = left;
+		return true;
+	}
+	case LLIL_TAILCALL:
+	{
+		// For TAILCALL operations, we compute the destination address
+		if (!ComputeExprValue(instr.GetDestExpr<LLIL_TAILCALL>(), left))
+			return false;
+		value = left;
+		return true;
+	}
 
 	default:
 		break;
@@ -3485,6 +3616,95 @@ bool DebuggerController::ComputeExprValue(const MediumLevelILInstruction &instr,
 		value &= sizeMask;
 		return true;
 	}
+	case MLIL_MUL:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_MUL>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_MUL>(), right))
+			return false;
+		value = left * right;
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_MULU_HI:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_MULU_HI>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_MULU_HI>(), right))
+			return false;
+		auto result = left * right;
+		value = result >> (instr.size * 8);
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_MULS_HI:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_MULS_HI>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_MULS_HI>(), right))
+			return false;
+		// Sign extend operands for signed multiplication
+		auto leftSigned = SignExtend(left, instr.size, 64);
+		auto rightSigned = SignExtend(right, instr.size, 64);
+		auto result = leftSigned * rightSigned;
+		value = result >> (instr.size * 8);
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_DIVU:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_DIVU>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_DIVU>(), right))
+			return false;
+		if (right == 0)
+			return false; // Division by zero
+		value = left / right;
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_DIVS:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_DIVS>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_DIVS>(), right))
+			return false;
+		if (right == 0)
+			return false; // Division by zero
+		// Sign extend operands for signed division
+		auto leftSigned = SignExtend(left, instr.size, 64);
+		auto rightSigned = SignExtend(right, instr.size, 64);
+		auto result = leftSigned / rightSigned;
+		value = result & sizeMask;
+		return true;
+	}
+	case MLIL_MODU:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_MODU>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_MODU>(), right))
+			return false;
+		if (right == 0)
+			return false; // Division by zero
+		value = left % right;
+		value &= sizeMask;
+		return true;
+	}
+	case MLIL_MODS:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<MLIL_MODS>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<MLIL_MODS>(), right))
+			return false;
+		if (right == 0)
+			return false; // Division by zero
+		// Sign extend operands for signed modulo
+		auto leftSigned = SignExtend(left, instr.size, 64);
+		auto rightSigned = SignExtend(right, instr.size, 64);
+		auto result = leftSigned % rightSigned;
+		value = result & sizeMask;
+		return true;
+	}
 	case MLIL_NEG:
 	{
 		if (!ComputeExprValue(instr.GetSourceExpr<MLIL_NEG>(), left))
@@ -3594,6 +3814,23 @@ bool DebuggerController::ComputeExprValue(const MediumLevelILInstruction &instr,
 			return false;
 		value = GetValueFromComparison(instr.operation, left, right, instr.size);
 		return true;
+
+	case MLIL_CALL:
+	{
+		// For CALL operations, we compute the destination address
+		if (!ComputeExprValue(instr.GetDestExpr<MLIL_CALL>(), left))
+			return false;
+		value = left;
+		return true;
+	}
+	case MLIL_TAILCALL:
+	{
+		// For TAILCALL operations, we compute the destination address
+		if (!ComputeExprValue(instr.GetDestExpr<MLIL_TAILCALL>(), left))
+			return false;
+		value = left;
+		return true;
+	}
 
 	default:
 		return false;
@@ -3790,6 +4027,70 @@ bool DebuggerController::ComputeExprValue(const HighLevelILInstruction &instr, i
 		value &= sizeMask;
 		return true;
 	}
+	case HLIL_MUL:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_MUL>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_MUL>(), right))
+			return false;
+		value = left * right;
+		value &= sizeMask;
+		return true;
+	}
+	case HLIL_DIVU:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_DIVU>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_DIVU>(), right))
+			return false;
+		if (right == 0)
+			return false; // Division by zero
+		value = left / right;
+		value &= sizeMask;
+		return true;
+	}
+	case HLIL_DIVS:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_DIVS>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_DIVS>(), right))
+			return false;
+		if (right == 0)
+			return false; // Division by zero
+		// Sign extend operands for signed division
+		auto leftSigned = SignExtend(left, instr.size, 64);
+		auto rightSigned = SignExtend(right, instr.size, 64);
+		auto result = leftSigned / rightSigned;
+		value = result & sizeMask;
+		return true;
+	}
+	case HLIL_MODU:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_MODU>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_MODU>(), right))
+			return false;
+		if (right == 0)
+			return false; // Division by zero
+		value = left % right;
+		value &= sizeMask;
+		return true;
+	}
+	case HLIL_MODS:
+	{
+		if (!ComputeExprValue(instr.GetLeftExpr<HLIL_MODS>(), left))
+			return false;
+		if (!ComputeExprValue(instr.GetRightExpr<HLIL_MODS>(), right))
+			return false;
+		if (right == 0)
+			return false; // Division by zero
+		// Sign extend operands for signed modulo
+		auto leftSigned = SignExtend(left, instr.size, 64);
+		auto rightSigned = SignExtend(right, instr.size, 64);
+		auto result = leftSigned % rightSigned;
+		value = result & sizeMask;
+		return true;
+	}
 	case HLIL_NEG:
 	{
 		if (!ComputeExprValue(instr.GetSourceExpr<HLIL_NEG>(), left))
@@ -3899,6 +4200,23 @@ bool DebuggerController::ComputeExprValue(const HighLevelILInstruction &instr, i
 			return false;
 		value = GetValueFromComparison(instr.operation, left, right, instr.size);
 		return true;
+
+	case HLIL_CALL:
+	{
+		// For CALL operations, we compute the destination address
+		if (!ComputeExprValue(instr.GetDestExpr<HLIL_CALL>(), left))
+			return false;
+		value = left;
+		return true;
+	}
+	case HLIL_TAILCALL:
+	{
+		// For TAILCALL operations, we compute the destination address
+		if (!ComputeExprValue(instr.GetDestExpr<HLIL_TAILCALL>(), left))
+			return false;
+		value = left;
+		return true;
+	}
 
 	default:
 		return false;
