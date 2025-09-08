@@ -3293,6 +3293,15 @@ bool DebuggerController::ComputeExprValue(const LowLevelILInstruction &instr, in
 		value = left;
 		return true;
 	}
+	case LLIL_IF:
+	{
+		// For IF operations, we evaluate the condition and return 0 or 1
+		if (!ComputeExprValue(instr.GetConditionExpr<LLIL_IF>(), left))
+			return false;
+		// Convert to boolean (0 or 1)
+		value = (left != 0) ? 1 : 0;
+		return true;
+	}
 
 	default:
 		break;
@@ -3831,6 +3840,15 @@ bool DebuggerController::ComputeExprValue(const MediumLevelILInstruction &instr,
 		value = left;
 		return true;
 	}
+	case MLIL_IF:
+	{
+		// For IF operations, we evaluate the condition and return 0 or 1
+		if (!ComputeExprValue(instr.GetConditionExpr<MLIL_IF>(), left))
+			return false;
+		// Convert to boolean (0 or 1)
+		value = (left != 0) ? 1 : 0;
+		return true;
+	}
 
 	default:
 		return false;
@@ -4215,6 +4233,15 @@ bool DebuggerController::ComputeExprValue(const HighLevelILInstruction &instr, i
 		if (!ComputeExprValue(instr.GetDestExpr<HLIL_TAILCALL>(), left))
 			return false;
 		value = left;
+		return true;
+	}
+	case HLIL_IF:
+	{
+		// For IF operations, we evaluate the condition and return 0 or 1
+		if (!ComputeExprValue(instr.GetConditionExpr<HLIL_IF>(), left))
+			return false;
+		// Convert to boolean (0 or 1)
+		value = (left != 0) ? 1 : 0;
 		return true;
 	}
 
