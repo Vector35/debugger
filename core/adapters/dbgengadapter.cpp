@@ -351,7 +351,7 @@ bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionSt
 
 bool DbgEngAdapter::Start()
 {
-	if (this->m_debugActive)
+	if (this->m_dbgengInitialized)
 	{
 		// Debugger is already started, return success
 		return true;
@@ -401,7 +401,7 @@ bool DbgEngAdapter::Start()
 		return false;
 	}
 
-	this->m_debugActive = true;
+	this->m_dbgengInitialized = true;
 	return true;
 }
 
@@ -411,7 +411,7 @@ void DbgEngAdapter::Reset()
 	std::unique_lock lock(m_engineLoopMutex);
 	m_aboutToBeKilled = false;
 
-	if (!this->m_debugActive)
+	if (!this->m_dbgengInitialized)
 		return;
 
 	// Free up the resources if the dbgsrv is launched by the adapter. Otherwise, the dbgsrv is launched outside BN,
@@ -436,7 +436,7 @@ void DbgEngAdapter::Reset()
 		SAFE_RELEASE(this->m_debugClient);
 	}
 
-	this->m_debugActive = false;
+	this->m_dbgengInitialized = false;
 	this->m_activelyDebugging = false;
 }
 
@@ -873,7 +873,7 @@ std::vector<DebugProcess> DbgEngAdapter::GetProcessList()
 {
 	// we need to start dbgserver in order to get process list
 	
-	if (!m_debugActive)
+	if (!m_dbgengInitialized)
 	{
 		if (!Start())
 			return {};
@@ -1042,7 +1042,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address,
 {
 	// If the backend has been created, we add the breakpoints directly. Otherwise, keep track of the breakpoints,
 	// and add them when we launch/attach the target.
-	if (m_debugActive)
+	if (m_dbgengInitialized)
 	{
 		BNSettingsScope scope = SettingsResourceScope;
 		auto data = GetData();
@@ -1105,7 +1105,7 @@ bool DbgEngAdapter::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
 {
 	// If the backend has been created, we remove the breakpoints directly. Otherwise, remove it from the list of
 	// pending breakpoints.
-	if (m_debugActive)
+	if (m_dbgengInitialized)
 	{
 		// TODO. This is not used by the controller right now.
 	}
