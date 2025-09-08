@@ -132,6 +132,7 @@ namespace BinaryNinjaDebugger {
 		IDebugSymbols3* m_debugSymbols {nullptr};
 		IDebugSystemObjects* m_debugSystemObjects {nullptr};
 		bool m_debugActive {false};
+		bool m_activelyDebugging {false};
 
 		virtual bool Start();
 		virtual void Reset();

@@ -437,6 +437,7 @@ void DbgEngAdapter::Reset()
 	}
 
 	this->m_debugActive = false;
+	this->m_activelyDebugging = false;
 }
 
 
@@ -491,10 +492,15 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 {
 	std::unique_lock lock(m_engineLoopMutex);
 
-	// If debugger is already active (from previous debugging session), reset it first
-	if (this->m_debugActive)
+	// If we're actively debugging, fail instead of resetting to prevent crashes
+	if (this->m_activelyDebugging)
 	{
-		this->Reset();
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = fmt::format("Cannot launch while actively debugging another target");
+		event.data.errorData.shortError = fmt::format("Already debugging");
+		PostDebuggerEvent(event);
+		return false;
 	}
 
 	m_aboutToBeKilled = false;
@@ -614,6 +620,9 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 		}
 	}
 
+	// Mark that we're now actively debugging a target
+	this->m_activelyDebugging = true;
+
 	return true;
 }
 
@@ -720,10 +729,15 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 {
 	std::unique_lock lock(m_engineLoopMutex);
 
-	// If debugger is already active (from previous debugging session), reset it first
-	if (this->m_debugActive)
+	// If we're actively debugging, fail instead of resetting to prevent crashes
+	if (this->m_activelyDebugging)
 	{
-		this->Reset();
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = fmt::format("Cannot attach while actively debugging another target");
+		event.data.errorData.shortError = fmt::format("Already debugging");
+		PostDebuggerEvent(event);
+		return false;
 	}
 
 	m_aboutToBeKilled = false;
@@ -767,6 +781,9 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 	}
 
 	ApplyBreakpoints();
+
+	// Mark that we're now actively debugging a target
+	this->m_activelyDebugging = true;
 
 	return true;
 }
