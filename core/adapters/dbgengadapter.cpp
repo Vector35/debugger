@@ -491,6 +491,12 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 {
 	std::unique_lock lock(m_engineLoopMutex);
 
+	// If debugger is already active (from previous debugging session), reset it first
+	if (this->m_debugActive)
+	{
+		this->Reset();
+	}
+
 	m_aboutToBeKilled = false;
 
 	BNSettingsScope scope = SettingsResourceScope;
@@ -713,6 +719,12 @@ void DbgEngAdapter::EngineLoop()
 bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 {
 	std::unique_lock lock(m_engineLoopMutex);
+
+	// If debugger is already active (from previous debugging session), reset it first
+	if (this->m_debugActive)
+	{
+		this->Reset();
+	}
 
 	m_aboutToBeKilled = false;
 
