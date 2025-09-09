@@ -1169,90 +1169,58 @@ bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, std::v
 			ComPtr<IModelObject> timeStartObj;
 			if (SUCCEEDED(callObject->GetKeyValue(L"TimeStart", &timeStartObj, nullptr)))
 			{
-				// TTD Position is typically in format "sequence:step"
-				VARIANT vtTimeStart;
-				VariantInit(&vtTimeStart);
-				if (SUCCEEDED(timeStartObj->GetIntrinsicValueAs(VT_BSTR, &vtTimeStart)))
+				// TimeStart is typically a TTD position object with Sequence and Steps
+				ComPtr<IModelObject> sequenceObj, stepsObj;
+				if (SUCCEEDED(timeStartObj->GetKeyValue(L"Sequence", &sequenceObj, nullptr)))
 				{
-					_bstr_t bstr(vtTimeStart.bstrVal);
-					std::string timeStartStr = std::string(bstr);
-					
-					// Parse "sequence:step" format
-					size_t colonPos = timeStartStr.find(':');
-					if (colonPos != std::string::npos)
+					VARIANT vtSequence;
+					VariantInit(&vtSequence);
+					if (SUCCEEDED(sequenceObj->GetIntrinsicValueAs(VT_UI8, &vtSequence)))
 					{
-						try
-						{
-							std::string sequenceStr = timeStartStr.substr(0, colonPos);
-							std::string stepStr = timeStartStr.substr(colonPos + 1);
-							
-							// Handle hex format if present
-							if (sequenceStr.find("0x") == 0 || sequenceStr.find("0X") == 0)
-								event.timeStart.sequence = std::stoull(sequenceStr, nullptr, 16);
-							else
-								event.timeStart.sequence = std::stoull(sequenceStr, nullptr, 16); // TTD positions are typically hex
-								
-							if (stepStr.find("0x") == 0 || stepStr.find("0X") == 0)
-								event.timeStart.step = std::stoull(stepStr, nullptr, 16);
-							else
-								event.timeStart.step = std::stoull(stepStr, nullptr, 16); // TTD positions are typically hex
-						}
-						catch (const std::exception& e)
-						{
-							LogWarn("Failed to parse TimeStart position: %s", timeStartStr.c_str());
-						}
+						event.timeStart.sequence = vtSequence.ullVal;
 					}
+					VariantClear(&vtSequence);
 				}
-				VariantClear(&vtTimeStart);
+				
+				if (SUCCEEDED(timeStartObj->GetKeyValue(L"Steps", &stepsObj, nullptr)))
+				{
+					VARIANT vtSteps;
+					VariantInit(&vtSteps);
+					if (SUCCEEDED(stepsObj->GetIntrinsicValueAs(VT_UI8, &vtSteps)))
+					{
+						event.timeStart.step = vtSteps.ullVal;
+					}
+					VariantClear(&vtSteps);
+				}
 			}
 			
 			// Parse TimeEnd
 			ComPtr<IModelObject> timeEndObj;
 			if (SUCCEEDED(callObject->GetKeyValue(L"TimeEnd", &timeEndObj, nullptr)))
 			{
-				VARIANT vtTimeEnd;
-				VariantInit(&vtTimeEnd);
-				if (SUCCEEDED(timeEndObj->GetIntrinsicValueAs(VT_BSTR, &vtTimeEnd)))
+				// TimeEnd is typically a TTD position object with Sequence and Steps
+				ComPtr<IModelObject> sequenceObj, stepsObj;
+				if (SUCCEEDED(timeEndObj->GetKeyValue(L"Sequence", &sequenceObj, nullptr)))
 				{
-					_bstr_t bstr(vtTimeEnd.bstrVal);
-					std::string timeEndStr = std::string(bstr);
-					
-					// Handle "Max Position" case
-					if (timeEndStr.find("Max Position") != std::string::npos)
+					VARIANT vtSequence;
+					VariantInit(&vtSequence);
+					if (SUCCEEDED(sequenceObj->GetIntrinsicValueAs(VT_UI8, &vtSequence)))
 					{
-						event.timeEnd.sequence = UINT64_MAX;
-						event.timeEnd.step = UINT64_MAX;
+						event.timeEnd.sequence = vtSequence.ullVal;
 					}
-					else
-					{
-						// Parse "sequence:step" format
-						size_t colonPos = timeEndStr.find(':');
-						if (colonPos != std::string::npos)
-						{
-							try
-							{
-								std::string sequenceStr = timeEndStr.substr(0, colonPos);
-								std::string stepStr = timeEndStr.substr(colonPos + 1);
-								
-								// Handle hex format if present
-								if (sequenceStr.find("0x") == 0 || sequenceStr.find("0X") == 0)
-									event.timeEnd.sequence = std::stoull(sequenceStr, nullptr, 16);
-								else
-									event.timeEnd.sequence = std::stoull(sequenceStr, nullptr, 16); // TTD positions are typically hex
-									
-								if (stepStr.find("0x") == 0 || stepStr.find("0X") == 0)
-									event.timeEnd.step = std::stoull(stepStr, nullptr, 16);
-								else
-									event.timeEnd.step = std::stoull(stepStr, nullptr, 16); // TTD positions are typically hex
-							}
-							catch (const std::exception& e)
-							{
-								LogWarn("Failed to parse TimeEnd position: %s", timeEndStr.c_str());
-							}
-						}
-					}
+					VariantClear(&vtSequence);
 				}
-				VariantClear(&vtTimeEnd);
+				
+				if (SUCCEEDED(timeEndObj->GetKeyValue(L"Steps", &stepsObj, nullptr)))
+				{
+					VARIANT vtSteps;
+					VariantInit(&vtSteps);
+					if (SUCCEEDED(stepsObj->GetIntrinsicValueAs(VT_UI8, &vtSteps)))
+					{
+						event.timeEnd.step = vtSteps.ullVal;
+					}
+					VariantClear(&vtSteps);
+				}
 			}
 			
 			events.push_back(event);
