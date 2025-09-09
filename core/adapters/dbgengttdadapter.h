@@ -17,6 +17,12 @@ limitations under the License.
 #pragma once
 #include "dbgengadapter.h"
 
+// Additional includes for TTD analysis
+#include <dbgmodel.h>
+#include <comdef.h>
+#include <wrl/client.h>
+using namespace Microsoft::WRL;
+
 namespace BinaryNinjaDebugger {
     class DbgEngTTDAdapter: public DbgEngAdapter
     {
@@ -51,6 +57,16 @@ namespace BinaryNinjaDebugger {
 		std::vector<TTDCallEvent> ParseTTDCallsOutput(const std::string& output);
 		TTDPosition ParseTTDPosition(const std::string& output);
 		void ParseTTDPositionFromString(const std::string& posStr, TTDPosition& position);
+		
+		// Data model helper methods
+		std::string EvaluateDataModelExpression(const std::string& expression);
+		bool ParseTTDCallsObjects(const std::string& expression, std::vector<TTDCallEvent>& events);
+
+		// Data model interfaces for TTD
+		IHostDataModelAccess* m_dataModelManager;
+    	IDataModelManager* m_modelMgr;
+		IDebugHost* m_debugHost;
+		IDebugHostEvaluator* m_hostEvaluator;
 
     	void GenerateDefaultAdapterSettings(BinaryView* data);
     	Ref<Settings> GetAdapterSettings() override;

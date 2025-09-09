@@ -10,6 +10,11 @@ using namespace std;
 DbgEngTTDAdapter::DbgEngTTDAdapter(BinaryView* data) : DbgEngAdapter(data)
 {
     m_usePDBFileName = false;
+	// Initialize data model interfaces to nullptr
+	m_dataModelManager = nullptr;
+	m_modelMgr = nullptr;
+	m_debugHost = nullptr;
+	m_hostEvaluator = nullptr;
 	GenerateDefaultAdapterSettings(data);
 }
 
@@ -135,6 +140,21 @@ bool DbgEngTTDAdapter::Start()
 	QUERY_DEBUG_INTERFACE(IDebugSymbols3, &this->m_debugSymbols);
 	QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
 
+	QUERY_DEBUG_INTERFACE(IHostDataModelAccess, &this->m_dataModelManager);
+	if (m_dataModelManager)
+	{
+		m_dataModelManager->GetDataModel(&m_modelMgr, &m_debugHost);
+
+		if (m_debugHost && m_debugHost->QueryInterface(__uuidof(IDebugHostEvaluator), reinterpret_cast<void**>(&m_hostEvaluator)) != S_OK)
+		{
+			LogWarn("Failed to get IDebugHostEvaluator interface");
+		}
+	}
+	else
+	{
+		LogWarn("Failed to get IHostDataModelAccess interface - TTD data model features may not work");
+	}
+
 	m_debugEventCallbacks.SetAdapter(this);
 	if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks); result != S_OK)
 	{
@@ -175,6 +195,10 @@ void DbgEngTTDAdapter::Reset()
 	SAFE_RELEASE(this->m_debugRegisters);
 	SAFE_RELEASE(this->m_debugSymbols);
 	SAFE_RELEASE(this->m_debugSystemObjects);
+	SAFE_RELEASE(this->m_dataModelManager);
+	SAFE_RELEASE(this->m_modelMgr);
+	SAFE_RELEASE(this->m_debugHost);
+	SAFE_RELEASE(this->m_hostEvaluator);
 
 	if (this->m_debugClient)
 	{
@@ -370,11 +394,13 @@ std::vector<TTDCallEvent> DbgEngTTDAdapter::GetTTDCalls(const std::vector<std::s
 		symbolsQuery += "\"" + symbols[i] + "\"";
 	}
 	
-	std::string command = "dx -g @$cursession.TTD.Calls(" + symbolsQuery + ")";
+	std::string expression = "@$cursession.TTD.Calls(" + symbolsQuery + ")";
 	
-	// Execute the command and parse results
-	std::string result = InvokeBackendCommand(command);
-	events = ParseTTDCallsOutput(result);
+	// Use data model evaluation instead of InvokeBackendCommand
+	if (!ParseTTDCallsObjects(expression, events))
+	{
+		LogError("Failed to evaluate TTD.Calls expression");
+	}
 	
 	return events;
 }
@@ -395,12 +421,14 @@ std::vector<TTDCallEvent> DbgEngTTDAdapter::GetTTDCallsWithAddressFilter(const s
 		symbolsQuery += "\"" + symbols[i] + "\"";
 	}
 	
-	std::string command = fmt::format("dx -g @$cursession.TTD.Calls({}).Where(c => c.ReturnAddress >= 0x{:x} && c.ReturnAddress < 0x{:x})", 
+	std::string expression = fmt::format("@$cursession.TTD.Calls({}).Where(c => c.ReturnAddress >= 0x{:x} && c.ReturnAddress < 0x{:x})", 
 		symbolsQuery, minReturnAddress, maxReturnAddress);
 	
-	// Execute the command and parse results
-	std::string result = InvokeBackendCommand(command);
-	events = ParseTTDCallsOutput(result);
+	// Use data model evaluation instead of InvokeBackendCommand
+	if (!ParseTTDCallsObjects(expression, events))
+	{
+		LogError("Failed to evaluate TTD.Calls expression with address filter");
+	}
 	
 	return events;
 }
@@ -411,7 +439,7 @@ TTDPosition DbgEngTTDAdapter::GetCurrentTTDPosition()
 	if (!m_debugControl)
 		return TTDPosition();
 
-	std::string result = InvokeBackendCommand("dx @$cursession.TTD.Position");
+	std::string result = EvaluateDataModelExpression("@$cursession.TTD.Position");
 	return ParseTTDPosition(result);
 }
 
@@ -426,6 +454,330 @@ bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
 	
 	// Check if the command succeeded by verifying the position changed
 	return !result.empty();
+}
+
+
+std::string DbgEngTTDAdapter::EvaluateDataModelExpression(const std::string& expression)
+{
+	if (!m_hostEvaluator || !m_debugHost)
+	{
+		LogError("Data model evaluator not initialized");
+		return "";
+	}
+
+	// Convert expression to wide string
+	std::wstring wExpression(expression.begin(), expression.end());
+	
+	// Create context for evaluation
+	ComPtr<IDebugHostContext> hostContext;
+	if (FAILED(m_debugHost->GetCurrentContext(hostContext.GetAddressOf())))
+	{
+		LogError("Failed to get current debug host context");
+		return "";
+	}
+
+	// Evaluate the expression
+	ComPtr<IModelObject> result;
+	ComPtr<IKeyStore> metadata;
+	HRESULT hr = m_hostEvaluator->EvaluateExtendedExpression(
+		hostContext.Get(),
+		wExpression.c_str(),
+		nullptr, // No binding context
+		result.GetAddressOf(),
+		metadata.GetAddressOf()
+	);
+
+	if (FAILED(hr))
+	{
+		LogError("Failed to evaluate expression '%s': 0x%08x", expression.c_str(), hr);
+		return "";
+	}
+
+	// Convert result to string
+	if (result)
+	{
+		// Try to get intrinsic value directly
+		VARIANT vtValue;
+		VariantInit(&vtValue);
+		
+		if (SUCCEEDED(result->GetIntrinsicValue(&vtValue)))
+		{
+			std::string resultStr;
+			if (vtValue.vt == VT_BSTR && vtValue.bstrVal)
+			{
+				// Convert BSTR to string
+				_bstr_t bstr(vtValue.bstrVal, false);
+				resultStr = static_cast<const char*>(bstr);
+			}
+			else if (vtValue.vt == VT_I4 || vtValue.vt == VT_UI4)
+			{
+				resultStr = std::to_string(vtValue.lVal);
+			}
+			else if (vtValue.vt == VT_I8 || vtValue.vt == VT_UI8)
+			{
+				resultStr = std::to_string(vtValue.llVal);
+			}
+			
+			VariantClear(&vtValue);
+			return resultStr;
+		}
+		
+		VariantClear(&vtValue);
+	}
+
+	return "";
+}
+
+
+bool DbgEngTTDAdapter::ParseTTDCallsObjects(const std::string& expression, std::vector<TTDCallEvent>& events)
+{
+	if (!m_hostEvaluator || !m_debugHost)
+	{
+		LogError("Data model evaluator not initialized");
+		return false;
+	}
+
+	// Convert expression to wide string
+	std::wstring wExpression(expression.begin(), expression.end());
+	
+	// Create context for evaluation
+	ComPtr<IDebugHostContext> hostContext;
+	if (FAILED(m_debugHost->GetCurrentContext(hostContext.GetAddressOf())))
+	{
+		LogError("Failed to get current debug host context");
+		return false;
+	}
+
+	// Evaluate the TTD calls collection expression
+	ComPtr<IModelObject> result;
+	ComPtr<IKeyStore> metadata;
+	HRESULT hr = m_hostEvaluator->EvaluateExtendedExpression(
+		hostContext.Get(),
+		wExpression.c_str(),
+		nullptr, // No binding context
+		result.GetAddressOf(),
+		metadata.GetAddressOf()
+	);
+
+	if (FAILED(hr))
+	{
+		LogError("Failed to evaluate TTD calls expression '%s': 0x%08x", expression.c_str(), hr);
+		return false;
+	}
+
+	// Check if result is iterable (collection)
+	ComPtr<IIterableConcept> iterableConcept;
+	if (FAILED(result->GetConcept(__uuidof(IIterableConcept), &iterableConcept, nullptr)))
+	{
+		LogError("TTD calls result is not iterable");
+		return false;
+	}
+
+	// Get iterator
+	ComPtr<IModelIterator> iterator;
+	if (FAILED(iterableConcept->GetIterator(result.Get(), &iterator)))
+	{
+		LogError("Failed to get TTD calls iterator");
+		return false;
+	}
+
+	// Iterate through results
+	for (;;)
+	{
+		ComPtr<IModelObject> item;
+		ComPtr<IKeyStore> itemMetadata;
+		
+		HRESULT iterResult = iterator->GetNext(&item, &itemMetadata, nullptr);
+		if (iterResult == E_BOUNDS || FAILED(iterResult))
+			break;
+
+		if (!item)
+			continue;
+
+		// Parse call event from model object
+		TTDCallEvent callEvent = {};
+		
+		// Try to get each field from the call event object
+		ComPtr<IModelObject> fieldValue;
+		ComPtr<IKeyStore> fieldMetadata;
+		
+		// EventType
+		if (SUCCEEDED(item->GetKeyValue(L"EventType", &fieldValue, &fieldMetadata)))
+		{
+			VARIANT vtValue;
+			VariantInit(&vtValue);
+			if (SUCCEEDED(fieldValue->GetIntrinsicValue(&vtValue)) && vtValue.vt == VT_BSTR)
+			{
+				_bstr_t bstr(vtValue.bstrVal, false);
+				callEvent.eventType = static_cast<const char*>(bstr);
+			}
+			VariantClear(&vtValue);
+		}
+		
+		// ThreadId
+		if (SUCCEEDED(item->GetKeyValue(L"ThreadId", &fieldValue, &fieldMetadata)))
+		{
+			VARIANT vtValue;
+			VariantInit(&vtValue);
+			if (SUCCEEDED(fieldValue->GetIntrinsicValue(&vtValue)))
+			{
+				if (vtValue.vt == VT_I4 || vtValue.vt == VT_UI4)
+					callEvent.threadId = vtValue.ulVal;
+				else if (vtValue.vt == VT_I8 || vtValue.vt == VT_UI8)
+					callEvent.threadId = static_cast<uint32_t>(vtValue.ullVal);
+			}
+			VariantClear(&vtValue);
+		}
+		
+		// UniqueThreadId
+		if (SUCCEEDED(item->GetKeyValue(L"UniqueThreadId", &fieldValue, &fieldMetadata)))
+		{
+			VARIANT vtValue;
+			VariantInit(&vtValue);
+			if (SUCCEEDED(fieldValue->GetIntrinsicValue(&vtValue)))
+			{
+				if (vtValue.vt == VT_I4 || vtValue.vt == VT_UI4)
+					callEvent.uniqueThreadId = vtValue.ulVal;
+				else if (vtValue.vt == VT_I8 || vtValue.vt == VT_UI8)
+					callEvent.uniqueThreadId = static_cast<uint32_t>(vtValue.ullVal);
+			}
+			VariantClear(&vtValue);
+		}
+		
+		// Function
+		if (SUCCEEDED(item->GetKeyValue(L"Function", &fieldValue, &fieldMetadata)))
+		{
+			VARIANT vtValue;
+			VariantInit(&vtValue);
+			if (SUCCEEDED(fieldValue->GetIntrinsicValue(&vtValue)) && vtValue.vt == VT_BSTR)
+			{
+				_bstr_t bstr(vtValue.bstrVal, false);
+				callEvent.function = static_cast<const char*>(bstr);
+			}
+			VariantClear(&vtValue);
+		}
+		
+		// FunctionAddress
+		if (SUCCEEDED(item->GetKeyValue(L"FunctionAddress", &fieldValue, &fieldMetadata)))
+		{
+			VARIANT vtValue;
+			VariantInit(&vtValue);
+			if (SUCCEEDED(fieldValue->GetIntrinsicValue(&vtValue)))
+			{
+				if (vtValue.vt == VT_I8 || vtValue.vt == VT_UI8)
+					callEvent.functionAddress = vtValue.ullVal;
+				else if (vtValue.vt == VT_I4 || vtValue.vt == VT_UI4)
+					callEvent.functionAddress = vtValue.ulVal;
+			}
+			VariantClear(&vtValue);
+		}
+		
+		// ReturnAddress
+		if (SUCCEEDED(item->GetKeyValue(L"ReturnAddress", &fieldValue, &fieldMetadata)))
+		{
+			VARIANT vtValue;
+			VariantInit(&vtValue);
+			if (SUCCEEDED(fieldValue->GetIntrinsicValue(&vtValue)))
+			{
+				if (vtValue.vt == VT_I8 || vtValue.vt == VT_UI8)
+					callEvent.returnAddress = vtValue.ullVal;
+				else if (vtValue.vt == VT_I4 || vtValue.vt == VT_UI4)
+					callEvent.returnAddress = vtValue.ulVal;
+			}
+			VariantClear(&vtValue);
+		}
+		
+		// ReturnValue
+		if (SUCCEEDED(item->GetKeyValue(L"ReturnValue", &fieldValue, &fieldMetadata)))
+		{
+			VARIANT vtValue;
+			VariantInit(&vtValue);
+			if (SUCCEEDED(fieldValue->GetIntrinsicValue(&vtValue)))
+			{
+				if (vtValue.vt == VT_I8 || vtValue.vt == VT_UI8)
+					callEvent.returnValue = vtValue.ullVal;
+				else if (vtValue.vt == VT_I4 || vtValue.vt == VT_UI4)
+					callEvent.returnValue = vtValue.ulVal;
+			}
+			VariantClear(&vtValue);
+		}
+		
+		// TimeStart
+		if (SUCCEEDED(item->GetKeyValue(L"TimeStart", &fieldValue, &fieldMetadata)))
+		{
+			// TimeStart is a position object, need to parse its sequence and step
+			ComPtr<IModelObject> seqValue, stepValue;
+			ComPtr<IKeyStore> seqMetadata, stepMetadata;
+			
+			if (SUCCEEDED(fieldValue->GetKeyValue(L"Sequence", &seqValue, &seqMetadata)))
+			{
+				VARIANT vtValue;
+				VariantInit(&vtValue);
+				if (SUCCEEDED(seqValue->GetIntrinsicValue(&vtValue)))
+				{
+					if (vtValue.vt == VT_I8 || vtValue.vt == VT_UI8)
+						callEvent.timeStart.sequence = vtValue.ullVal;
+					else if (vtValue.vt == VT_I4 || vtValue.vt == VT_UI4)
+						callEvent.timeStart.sequence = vtValue.ulVal;
+				}
+				VariantClear(&vtValue);
+			}
+			
+			if (SUCCEEDED(fieldValue->GetKeyValue(L"Steps", &stepValue, &stepMetadata)))
+			{
+				VARIANT vtValue;
+				VariantInit(&vtValue);
+				if (SUCCEEDED(stepValue->GetIntrinsicValue(&vtValue)))
+				{
+					if (vtValue.vt == VT_I8 || vtValue.vt == VT_UI8)
+						callEvent.timeStart.step = vtValue.ullVal;
+					else if (vtValue.vt == VT_I4 || vtValue.vt == VT_UI4)
+						callEvent.timeStart.step = vtValue.ulVal;
+				}
+				VariantClear(&vtValue);
+			}
+		}
+		
+		// TimeEnd
+		if (SUCCEEDED(item->GetKeyValue(L"TimeEnd", &fieldValue, &fieldMetadata)))
+		{
+			// TimeEnd is a position object, need to parse its sequence and step
+			ComPtr<IModelObject> seqValue, stepValue;
+			ComPtr<IKeyStore> seqMetadata, stepMetadata;
+			
+			if (SUCCEEDED(fieldValue->GetKeyValue(L"Sequence", &seqValue, &seqMetadata)))
+			{
+				VARIANT vtValue;
+				VariantInit(&vtValue);
+				if (SUCCEEDED(seqValue->GetIntrinsicValue(&vtValue)))
+				{
+					if (vtValue.vt == VT_I8 || vtValue.vt == VT_UI8)
+						callEvent.timeEnd.sequence = vtValue.ullVal;
+					else if (vtValue.vt == VT_I4 || vtValue.vt == VT_UI4)
+						callEvent.timeEnd.sequence = vtValue.ulVal;
+				}
+				VariantClear(&vtValue);
+			}
+			
+			if (SUCCEEDED(fieldValue->GetKeyValue(L"Steps", &stepValue, &stepMetadata)))
+			{
+				VARIANT vtValue;
+				VariantInit(&vtValue);
+				if (SUCCEEDED(stepValue->GetIntrinsicValue(&vtValue)))
+				{
+					if (vtValue.vt == VT_I8 || vtValue.vt == VT_UI8)
+						callEvent.timeEnd.step = vtValue.ullVal;
+					else if (vtValue.vt == VT_I4 || vtValue.vt == VT_UI4)
+						callEvent.timeEnd.step = vtValue.ulVal;
+				}
+				VariantClear(&vtValue);
+			}
+		}
+		
+		events.push_back(callEvent);
+	}
+
+	return true;
 }
 
 
