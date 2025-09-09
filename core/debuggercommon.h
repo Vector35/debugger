@@ -83,4 +83,55 @@ namespace BinaryNinjaDebugger {
 			return ((module1 == module2) || (GetPathBaseName(module1) == GetPathBaseName(module2)));
 		}
 	};
+
+	// TTD Memory Access Types - bitfield flags that can be combined
+	enum TTDMemoryAccessType
+	{
+		TTDMemoryRead = 1,
+		TTDMemoryWrite = 2,
+		TTDMemoryExecute = 4,
+		TTDMemoryAll = TTDMemoryRead | TTDMemoryWrite | TTDMemoryExecute
+	};
+
+	// TTD Position - represents a position in the TTD trace
+	struct TTDPosition
+	{
+		uint64_t sequence;  // Sequence number in trace
+		uint64_t step;      // Step within sequence
+		
+		TTDPosition() : sequence(0), step(0) {}
+		TTDPosition(uint64_t seq, uint64_t st) : sequence(seq), step(st) {}
+		
+		bool operator==(const TTDPosition& other) const
+		{
+			return sequence == other.sequence && step == other.step;
+		}
+		
+		bool operator<(const TTDPosition& other) const
+		{
+			if (sequence < other.sequence)
+				return true;
+			if (sequence > other.sequence)
+				return false;
+			return step < other.step;
+		}
+	};
+
+	// TTD Memory Access Event - complete set of fields from Microsoft documentation
+	struct TTDMemoryEvent
+	{
+		std::string eventType;         // Event type (e.g., "MemoryAccess")
+		uint32_t threadId;             // Thread ID that performed the access
+		uint32_t uniqueThreadId;       // Unique thread identifier
+		TTDPosition timeStart;         // Position when event started
+		TTDPosition timeEnd;           // Position when event ended
+		uint64_t address;              // Memory address accessed
+		uint64_t size;                 // Size of memory access
+		uint64_t memoryAddress;        // Memory address (may be same as address)
+		uint64_t instructionAddress;   // IP - Address of instruction that caused the access
+		uint64_t value;                // Value that was read/written/executed
+		TTDMemoryAccessType accessType; // Type of memory access (parsed from object)
+		
+		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), address(0), size(0), memoryAddress(0), instructionAddress(0), value(0), accessType(TTDMemoryRead) {}
+	};
 };  // namespace BinaryNinjaDebugger

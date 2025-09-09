@@ -17,6 +17,12 @@ limitations under the License.
 #pragma once
 #include "dbgengadapter.h"
 
+// Additional includes for TTD memory analysis
+#include <dbgmodel.h>
+#include <comdef.h>
+#include <wrl/client.h>
+using namespace Microsoft::WRL;
+
 namespace BinaryNinjaDebugger {
     class DbgEngTTDAdapter: public DbgEngAdapter
     {
@@ -40,8 +46,27 @@ namespace BinaryNinjaDebugger {
     	
 		bool Quit() override;
 
+		// TTD Memory Analysis Methods
+		std::vector<TTDMemoryEvent> GetMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead);
+		TTDPosition GetCurrentTTDPosition();
+		bool SetTTDPosition(const TTDPosition& position);
+
     	void GenerateDefaultAdapterSettings(BinaryView* data);
     	Ref<Settings> GetAdapterSettings() override;
+
+	private:
+		// Helper methods for TTD memory analysis
+		bool QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
+		
+		// Data model helper methods
+		std::string EvaluateDataModelExpression(const std::string& expression);
+		bool ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
+
+		// Data model interfaces for TTD
+		IHostDataModelAccess* m_dataModelManager;
+    	IDataModelManager* m_modelMgr;
+		IDebugHost* m_debugHost;
+		IDebugHostEvaluator* m_hostEvaluator;
     };
 
     class DbgEngTTDAdapterType : public DebugAdapterType

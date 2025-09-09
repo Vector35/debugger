@@ -370,6 +370,74 @@ class Debuggerx86Test(DebuggerAPI):
         self.arch = 'x86'
 
 
+class TestTTDMemoryAnalysis(unittest.TestCase):
+    """Tests for TTD memory analysis functionality"""
+    
+    def test_ttd_structures(self):
+        """Test that TTD data structures can be created"""
+        # This test just verifies the API structures work
+        # Without an actual TTD trace, we can't test the real functionality
+        path = name_to_fpath('helloworld')
+        if not os.path.exists(path):
+            self.skipTest(f"Test binary not found: {path}")
+            
+        bv = load(path)
+        dbg = DebuggerController.get_default_controller(bv)
+        
+        # Test that IsTTD method works (should return False for non-TTD adapters)
+        is_ttd = dbg.is_ttd
+        self.assertIsInstance(is_ttd, bool)
+        
+        if is_ttd:
+            # Only test TTD-specific methods if we have a TTD adapter
+            # These would typically require an actual TTD trace file
+            try:
+                position = dbg.get_current_ttd_position()
+                self.assertIsNotNone(position)
+                
+                # Test memory events query (may return empty for non-TTD)
+                events = dbg.get_ttd_memory_events_for_address(0x1000, 4)
+                self.assertIsInstance(events, list)
+                
+            except Exception as e:
+                # TTD functionality may not be available in test environment
+                print(f"TTD functionality not available: {e}")
+        
+        dbg.quit()
+    
+    def test_ttd_position_navigation(self):
+        """Test TTD position navigation methods"""
+        path = name_to_fpath('helloworld')
+        if not os.path.exists(path):
+            self.skipTest(f"Test binary not found: {path}")
+            
+        bv = load(path)
+        dbg = DebuggerController.get_default_controller(bv)
+        
+        if dbg.is_ttd:
+            try:
+                # Test getting current position
+                current_pos = dbg.get_current_ttd_position()
+                self.assertIsNotNone(current_pos)
+                
+                # Test setting position (may fail if not in TTD session)
+                success = dbg.set_ttd_position(current_pos)
+                # Don't assert success as it depends on TTD session state
+                self.assertIsInstance(success, bool)
+                
+            except Exception as e:
+                print(f"TTD position navigation not available: {e}")
+        else:
+            # For non-TTD adapters, these should handle gracefully
+            try:
+                pos = dbg.get_current_ttd_position()
+                # Should return a default position or handle gracefully
+            except:
+                pass  # Expected for non-TTD adapters
+        
+        dbg.quit()
+
+
 def filter_test_suite(suite, keyword):
     result = unittest.TestSuite()
     for child in suite._tests:

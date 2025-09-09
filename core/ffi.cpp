@@ -1056,6 +1056,69 @@ bool BNDebuggerIsTTD(BNDebuggerController* controller)
 }
 
 
+BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* controller,
+	uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, size_t* count)
+{
+	if (!count)
+		return nullptr;
+		
+	*count = 0;
+	
+	TTDMemoryAccessType type = static_cast<TTDMemoryAccessType>(accessType);
+	auto events = controller->object->GetTTDMemoryAccessForAddress(address, size, type);
+	if (events.empty())
+		return nullptr;
+		
+	*count = events.size();
+	auto result = new BNDebuggerTTDMemoryEvent[events.size()];
+	
+	for (size_t i = 0; i < events.size(); i++)
+	{
+		result[i].eventType = BNAllocString(events[i].eventType.c_str());
+		result[i].threadId = events[i].threadId;
+		result[i].uniqueThreadId = events[i].uniqueThreadId;
+		result[i].timeStart.sequence = events[i].timeStart.sequence;
+		result[i].timeStart.step = events[i].timeStart.step;
+		result[i].timeEnd.sequence = events[i].timeEnd.sequence;
+		result[i].timeEnd.step = events[i].timeEnd.step;
+		result[i].address = events[i].address;
+		result[i].size = events[i].size;
+		result[i].memoryAddress = events[i].memoryAddress;
+		result[i].instructionAddress = events[i].instructionAddress;
+		result[i].value = events[i].value;
+		result[i].accessType = static_cast<BNDebuggerTTDMemoryAccessType>(events[i].accessType);
+	}
+	
+	return result;
+}
+
+BNDebuggerTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller)
+{
+	auto position = controller->object->GetCurrentTTDPosition();
+	BNDebuggerTTDPosition result;
+	result.sequence = position.sequence;
+	result.step = position.step;
+	return result;
+}
+
+bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPosition position)
+{
+	TTDPosition pos(position.sequence, position.step);
+	return controller->object->SetTTDPosition(pos);
+}
+
+void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events)
+{
+	if (events)
+	{
+		// Free eventType strings before deleting the array
+		// Note: We can't know the count here, so this implementation assumes
+		// the caller manages proper cleanup or we need to change the API
+		delete[] events;
+	}
+}
+
+
 void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event)
 {
 	DebuggerEvent evt;

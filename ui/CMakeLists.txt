@@ -12,6 +12,8 @@ list(FILTER SOURCES EXCLUDE REGEX qrc_.*)
 if (NOT WIN32)
     list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/ttdrecord.h)
     list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/ttdrecord.cpp)
+    list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/ttdmemorywidget.h)
+    list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/ttdmemorywidget.cpp)
 endif ()
 
 if(DEMO)

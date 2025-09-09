@@ -20,6 +20,7 @@ limitations under the License.
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
 #include "debuggerfileaccessor.h"
+#include "adapters/dbgengttdadapter.h"
 
 using namespace BinaryNinjaDebugger;
 
@@ -2096,7 +2097,7 @@ void DebuggerController::ProcessOneVariable(uint64_t varAddress, Confidence<Ref<
 		GetData()->DefineDataVariable(varAddress, type);
 		if (!name.empty())
 		{
-			SymbolRef sym = new Symbol(DataSymbol, name, name, name, varAddress);
+			SymbolRef sym = new BinaryNinja::Symbol(DataSymbol, name, name, name, varAddress);
 			GetData()->DefineUserSymbol(sym);
 		}
 		m_debuggerVariables[varAddress] = varNameAndType;
@@ -2809,6 +2810,73 @@ bool DebuggerController::IsTTD()
 	if(!m_adapter)
 		return false;
 	return m_adapter->SupportFeature(DebugAdapterSupportTTD);
+}
+
+
+std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
+{
+	std::vector<TTDMemoryEvent> events;
+	
+	if (!IsTTD())
+	{
+		LogError("Current adapter does not support TTD");
+		return events;
+	}
+	
+	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
+	if (ttdAdapter)
+	{
+		events = ttdAdapter->GetMemoryAccessForAddress(startAddress, endAddress, accessType);
+	}
+	else
+	{
+		LogError("Failed to cast adapter to TTD adapter");
+	}
+	
+	return events;
+}
+
+TTDPosition DebuggerController::GetCurrentTTDPosition()
+{
+	TTDPosition position;
+	
+	if (!IsTTD())
+	{
+		LogError("Current adapter does not support TTD");
+		return position;
+	}
+	
+	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
+	if (ttdAdapter)
+	{
+		position = ttdAdapter->GetCurrentTTDPosition();
+	}
+	else
+	{
+		LogError("Failed to cast adapter to TTD adapter");
+	}
+	
+	return position;
+}
+
+bool DebuggerController::SetTTDPosition(const TTDPosition& position)
+{
+	if (!IsTTD())
+	{
+		LogError("Current adapter does not support TTD");
+		return false;
+	}
+	
+	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
+	if (ttdAdapter)
+	{
+		return ttdAdapter->SetTTDPosition(position);
+	}
+	else
+	{
+		LogError("Failed to cast adapter to TTD adapter");
+		return false;
+	}
 }
 
 

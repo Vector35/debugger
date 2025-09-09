@@ -452,6 +452,55 @@ namespace BinaryNinjaDebuggerAPI {
 	};
 
 
+	// TTD (Time Travel Debugging) structures
+	enum TTDMemoryAccessType
+	{
+		TTDMemoryRead = 1,
+		TTDMemoryWrite = 2,
+		TTDMemoryExecute = 4
+	};
+
+	struct TTDPosition
+	{
+		uint64_t sequence;
+		uint64_t step;
+		
+		TTDPosition() : sequence(0), step(0) {}
+		TTDPosition(uint64_t seq, uint64_t st) : sequence(seq), step(st) {}
+		
+		bool operator==(const TTDPosition& other) const
+		{
+			return sequence == other.sequence && step == other.step;
+		}
+		
+		bool operator<(const TTDPosition& other) const
+		{
+			if (sequence < other.sequence)
+				return true;
+			if (sequence > other.sequence)
+				return false;
+			return step < other.step;
+		}
+	};
+
+	struct TTDMemoryEvent
+	{
+		std::string eventType;         // Event type (e.g., "MemoryAccess")
+		uint32_t threadId;             // Thread ID that performed the access
+		uint32_t uniqueThreadId;       // Unique thread identifier
+		TTDPosition timeStart;         // Position when event started
+		TTDPosition timeEnd;           // Position when event ended
+		TTDMemoryAccessType accessType; // Type of memory access (parsed from object)
+		uint64_t address;              // Memory address accessed
+		uint64_t size;                 // Size of memory access
+		uint64_t memoryAddress;        // Memory address (may be same as address)
+		uint64_t instructionAddress;   // IP - Address of instruction that caused the access
+		uint64_t value;                // Value that was read/written/executed
+		
+		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), accessType(TTDMemoryRead), address(0), size(0), memoryAddress(0), instructionAddress(0), value(0) {}
+	};
+
+
 	typedef BNDebugAdapterConnectionStatus DebugAdapterConnectionStatus;
 	typedef BNDebugAdapterTargetStatus DebugAdapterTargetStatus;
 
@@ -613,6 +662,11 @@ namespace BinaryNinjaDebuggerAPI {
 		bool IsFirstAttach();
 
 		bool IsTTD();
+
+		// TTD Memory Analysis Methods
+		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t address, uint64_t size, TTDMemoryAccessType accessType = TTDMemoryRead);
+		TTDPosition GetCurrentTTDPosition();
+		bool SetTTDPosition(const TTDPosition& position);
 
 		void PostDebuggerEvent(const DebuggerEvent& event);
 

@@ -294,6 +294,36 @@ extern "C"
 	} BNStdoutMessageEventData;
 
 
+	// TTD (Time Travel Debugging) structures
+	typedef enum BNDebuggerTTDMemoryAccessType
+	{
+		BNDebuggerTTDMemoryRead = 1,
+		BNDebuggerTTDMemoryWrite = 2,
+		BNDebuggerTTDMemoryExecute = 4
+	} BNDebuggerTTDMemoryAccessType;
+
+	typedef struct BNDebuggerTTDPosition
+	{
+		uint64_t sequence;
+		uint64_t step;
+	} BNDebuggerTTDPosition;
+
+	typedef struct BNDebuggerTTDMemoryEvent
+	{
+		char* eventType;
+		uint32_t threadId;
+		uint32_t uniqueThreadId;
+		BNDebuggerTTDPosition timeStart;
+		BNDebuggerTTDPosition timeEnd;
+		uint64_t address;
+		uint64_t size;
+		uint64_t memoryAddress;
+		uint64_t instructionAddress; // IP field
+		uint64_t value; // Value field - the value that was read/written/executed
+		BNDebuggerTTDMemoryAccessType accessType;
+	} BNDebuggerTTDMemoryEvent;
+
+
 	// This should really be a union, but gcc complains...
 	typedef struct BNDebuggerEventData
 	{
@@ -499,6 +529,13 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerIsFirstAttach(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API bool BNDebuggerIsTTD(BNDebuggerController* controller);
+
+	// TTD Memory Analysis Functions
+	DEBUGGER_FFI_API BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* controller,
+		uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, size_t* count);
+	DEBUGGER_FFI_API BNDebuggerTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPosition position);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events);
 
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 

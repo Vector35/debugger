@@ -353,6 +353,11 @@ namespace BinaryNinjaDebugger {
 		bool IsFirstAttach();
 		bool IsTTD();
 
+		// TTD Memory Analysis Methods
+		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead);
+		TTDPosition GetCurrentTTDPosition();
+		bool SetTTDPosition(const TTDPosition& position);
+
 		void OnRebased(BinaryView* oldView, BinaryView* newView);
 
 		bool RemoveDebuggerMemoryRegion();
