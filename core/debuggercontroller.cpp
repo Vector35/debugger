@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "debuggercontroller.h"
 #include <thread>
+#include <fstream>
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
@@ -2815,13 +2816,13 @@ bool DebuggerController::IsTTD()
 std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
 {
 	std::vector<TTDMemoryEvent> events;
-	
+
 	if (!IsTTD())
 	{
 		LogError("Current adapter does not support TTD");
 		return events;
 	}
-	
+
 	if (m_adapter)
 	{
 		events = m_adapter->GetTTDMemoryAccessForAddress(startAddress, endAddress, accessType);
@@ -2847,18 +2848,18 @@ std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::s
 TTDPosition DebuggerController::GetCurrentTTDPosition()
 {
 	TTDPosition position;
-	
+
 	if (!IsTTD())
 	{
 		LogError("Current adapter does not support TTD");
 		return position;
 	}
-	
+
 	if (m_adapter)
 	{
 		position = m_adapter->GetCurrentTTDPosition();
 	}
-	
+
 	return position;
 }
 
@@ -2869,13 +2870,177 @@ bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 		LogError("Current adapter does not support TTD");
 		return false;
 	}
-	
+
 	if (m_adapter)
 	{
 		return m_adapter->SetTTDPosition(position);
 	}
 
 	return false;
+}
+
+
+bool DebuggerController::IsInstructionExecuted(uint64_t address)
+{
+	if (!IsTTD())
+	{
+		return false;
+	}
+
+	if (!m_codeCoverageAnalysisRun)
+	{
+		return false;
+	}
+
+	return m_executedInstructions.find(address) != m_executedInstructions.end();
+}
+
+
+bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress)
+{
+	if (!IsTTD())
+	{
+		LogError("Current adapter does not support TTD");
+		return false;
+	}
+
+	if (startAddress >= endAddress)
+	{
+		LogError("Invalid address range: start address must be less than end address");
+		return false;
+	}
+
+	// Clear previous analysis results
+	m_executedInstructions.clear();
+	m_codeCoverageAnalysisRun = false;
+	
+	LogInfo("Starting TTD code coverage analysis for range 0x" PRIX64 " - 0x" PRIX64 "...", startAddress, endAddress);
+	
+	// Query TTD for execute access covering the specified range
+	auto events = GetTTDMemoryAccessForAddress(startAddress, endAddress, TTDMemoryExecute);
+	
+	for (const auto& event : events)
+	{
+		if (event.accessType == TTDMemoryExecute)
+		{
+			// Add all executed instruction addresses within the range
+			if (event.instructionAddress >= startAddress && event.instructionAddress <= endAddress)
+			{
+				m_executedInstructions.insert(event.instructionAddress);
+			}
+		}
+	}
+
+	m_codeCoverageAnalysisRun = true;
+	LogInfo("TTD code coverage analysis completed for range. Found %d executed instructions.",
+			m_executedInstructions.size());
+
+	return true;
+}
+
+
+size_t DebuggerController::GetExecutedInstructionCount() const
+{
+	return m_executedInstructions.size();
+}
+
+
+bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) const
+{
+	if (!m_codeCoverageAnalysisRun)
+	{
+		LogError("No code coverage analysis has been run");
+		return false;
+	}
+
+	try
+	{
+		std::ofstream file(filePath, std::ios::binary);
+		if (!file.is_open())
+		{
+			LogError("Failed to open file for writing: {}", filePath.c_str());
+			return false;
+		}
+
+		// Write header
+		uint32_t magic = 0x54544443; // "TTDC" - TTD Coverage
+		uint32_t version = 1;
+		size_t count = m_executedInstructions.size();
+
+		file.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
+		file.write(reinterpret_cast<const char*>(&version), sizeof(version));
+		file.write(reinterpret_cast<const char*>(&count), sizeof(count));
+
+		// Write addresses
+		for (uint64_t addr : m_executedInstructions)
+		{
+			file.write(reinterpret_cast<const char*>(&addr), sizeof(addr));
+		}
+
+		file.close();
+		LogInfo("Saved %d executed instruction addresses to %s", count, filePath.c_str());
+		return true;
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Error saving code coverage: {}", e.what());
+		return false;
+	}
+}
+
+
+bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
+{
+	try
+	{
+		std::ifstream file(filePath, std::ios::binary);
+		if (!file.is_open())
+		{
+			LogError("Failed to open file for reading: {}", filePath.c_str());
+			return false;
+		}
+
+		// Read header
+		uint32_t magic, version;
+		size_t count;
+
+		file.read(reinterpret_cast<char*>(&magic), sizeof(magic));
+		if (magic != 0x54544443)
+		{
+			LogError("Invalid file format (magic number mismatch)");
+			return false;
+		}
+
+		file.read(reinterpret_cast<char*>(&version), sizeof(version));
+		if (version != 1)
+		{
+			LogError("Unsupported file version: {}", version);
+			return false;
+		}
+
+		file.read(reinterpret_cast<char*>(&count), sizeof(count));
+
+		// Clear existing data and read addresses
+		m_executedInstructions.clear();
+
+		for (size_t i = 0; i < count; i++)
+		{
+			uint64_t addr;
+			file.read(reinterpret_cast<char*>(&addr), sizeof(addr));
+			m_executedInstructions.insert(addr);
+		}
+
+		file.close();
+		m_codeCoverageAnalysisRun = true;
+
+		LogInfo("Loaded {} executed instruction addresses from {}", count, filePath.c_str());
+		return true;
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Error loading code coverage: {}", e.what());
+		return false;
+	}
 }
 
 

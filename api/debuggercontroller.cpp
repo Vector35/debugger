@@ -1039,6 +1039,36 @@ std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::s
 }
 
 
+bool DebuggerController::IsInstructionExecuted(uint64_t address)
+{
+	return BNDebuggerIsInstructionExecuted(m_object, address);
+}
+
+
+bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress)
+{
+	return BNDebuggerRunCodeCoverageAnalysisRange(m_object, startAddress, endAddress);
+}
+
+
+size_t DebuggerController::GetExecutedInstructionCount() const
+{
+	return BNDebuggerGetExecutedInstructionCount(m_object);
+}
+
+
+bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) const
+{
+	return BNDebuggerSaveCodeCoverageToFile(m_object, filePath.c_str());
+}
+
+
+bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
+{
+	return BNDebuggerLoadCodeCoverageFromFile(m_object, filePath.c_str());
+}
+
+
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent &event)
 {
 	BNDebuggerEvent* evt = new BNDebuggerEvent;

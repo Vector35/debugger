@@ -1108,6 +1108,31 @@ bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPos
 	return controller->object->SetTTDPosition(pos);
 }
 
+bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t address)
+{
+	return controller->object->IsInstructionExecuted(address);
+}
+
+bool BNDebuggerRunCodeCoverageAnalysisRange(BNDebuggerController* controller, uint64_t startAddress, uint64_t endAddress)
+{
+	return controller->object->RunCodeCoverageAnalysis(startAddress, endAddress);
+}
+
+size_t BNDebuggerGetExecutedInstructionCount(BNDebuggerController* controller)
+{
+	return controller->object->GetExecutedInstructionCount();
+}
+
+bool BNDebuggerSaveCodeCoverageToFile(BNDebuggerController* controller, const char* filePath)
+{
+	return controller->object->SaveCodeCoverageToFile(filePath);
+}
+
+bool BNDebuggerLoadCodeCoverageFromFile(BNDebuggerController* controller, const char* filePath)
+{
+	return controller->object->LoadCodeCoverageFromFile(filePath);
+}
+
 void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count)
 {
 	if (events && count > 0)
@@ -1130,29 +1155,29 @@ BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* co
 {
 	if (!count)
 		return nullptr;
-		
+
 	*count = 0;
-	
+
 	if (!symbols)
 		return nullptr;
-	
+
 	std::string symbolsStr(symbols);
 	if (symbolsStr.empty())
 		return nullptr;
-	
+
 	auto events = controller->object->GetTTDCallsForSymbols(symbolsStr, startReturnAddress, endReturnAddress);
 	if (events.empty())
 		return nullptr;
-	
+
 	*count = events.size();
 	auto result = new BNDebuggerTTDCallEvent[events.size()];
-	
+
 	for (size_t i = 0; i < events.size(); ++i)
 	{
 		// Copy string fields
 		result[i].eventType = BNAllocString(events[i].eventType.c_str());
 		result[i].function = BNAllocString(events[i].function.c_str());
-		
+
 		// Copy primitive fields
 		result[i].threadId = events[i].threadId;
 		result[i].uniqueThreadId = events[i].uniqueThreadId;
@@ -1160,7 +1185,7 @@ BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* co
 		result[i].returnAddress = events[i].returnAddress;
 		result[i].returnValue = events[i].returnValue;
 		result[i].hasReturnValue = events[i].hasReturnValue;
-		
+
 		// Copy parameters array
 		result[i].parameterCount = events[i].parameters.size();
 		if (result[i].parameterCount > 0)
@@ -1175,14 +1200,14 @@ BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* co
 		{
 			result[i].parameters = nullptr;
 		}
-		
+
 		// Copy TTD positions
 		result[i].timeStart.sequence = events[i].timeStart.sequence;
 		result[i].timeStart.step = events[i].timeStart.step;
 		result[i].timeEnd.sequence = events[i].timeEnd.sequence;
 		result[i].timeEnd.step = events[i].timeEnd.step;
 	}
-	
+
 	return result;
 }
 
@@ -1191,7 +1216,7 @@ void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count)
 {
 	if (!events || count == 0)
 		return;
-		
+
 	// Free all strings for each event
 	for (size_t i = 0; i < count; ++i)
 	{
@@ -1203,7 +1228,7 @@ void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count)
 		{
 			BNFreeString(events[i].function);
 		}
-		
+
 		// Free parameter strings
 		if (events[i].parameters && events[i].parameterCount > 0)
 		{
@@ -1217,7 +1242,7 @@ void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count)
 			delete[] events[i].parameters;
 		}
 	}
-	
+
 	delete[] events;
 }
 

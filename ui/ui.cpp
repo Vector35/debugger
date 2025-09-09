@@ -42,6 +42,7 @@ limitations under the License.
 #include "debuggerinfowidget.h"
 #include "ttdmemorywidget.h"
 #include "ttdcallswidget.h"
+#include "ttdanalysisdialog.h"
 #include "freeversion.h"
 #include <QTimer>
 
@@ -269,10 +270,10 @@ void GlobalDebuggerUI::QueryTTDCalls(const UIActionContext& ctxt, const std::str
 
 	// Set pending query first
 	TTDCallsWidgetType::SetPendingQuery(frame, ctxt.binaryView, symbols, startReturnAddr, endReturnAddr);
-	
+
 	// Activate the sidebar widget
 	sidebar->activate("TTD Calls");
-	
+
 	// Try to find the widget that was just created/activated and apply the query immediately
 	// We'll give it a moment to be created if needed
 	QTimer::singleShot(100, [sidebar, ctxt, symbols, startReturnAddr, endReturnAddr]() {
@@ -1100,7 +1101,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			auto controller = DebuggerController::GetController(ctxt.binaryView);
 			if (!controller || !controller->IsConnected())
 				return;
-			
+
 			// Query all calls with wildcard
 			QueryTTDCalls(ctxt, "*!*");
 		},
@@ -1112,7 +1113,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			auto controller = DebuggerController::GetController(ctxt.binaryView);
 			if (!controller || !controller->IsConnected())
 				return;
-			
+
 			// Query kernel32 calls
 			QueryTTDCalls(ctxt, "kernel32!*");
 		},
@@ -1124,7 +1125,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			auto controller = DebuggerController::GetController(ctxt.binaryView);
 			if (!controller || !controller->IsConnected())
 				return;
-			
+
 			// Query ntdll calls
 			QueryTTDCalls(ctxt, "ntdll!*");
 		},
@@ -1137,7 +1138,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			auto controller = DebuggerController::GetController(ctxt.binaryView);
 			if (!controller || !controller->IsConnected())
 				return;
-			
+
 			// Get function name from context
 			if (ctxt.function)
 			{
@@ -1147,6 +1148,25 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		},
 		connectedToTTD));
 	debuggerMenu->addAction("TTD Calls\\Query Function", "TTD");
+
+	UIAction::registerAction("TTD Analysis...");
+	context->globalActions()->bindAction("TTD Analysis...",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsTTD())
+					return;
+
+				auto dialog = new TTDAnalysisDialog(ctxt.binaryView, nullptr);
+				dialog->show();
+				dialog->raise();
+				dialog->activateWindow();
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("TTD Analysis...", "TTD");
 #endif
 }
 

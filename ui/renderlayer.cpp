@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "renderlayer.h"
+#include "ttdcoveragerenderlayer.h"
 #include "debuggerapi.h"
 
 using namespace BinaryNinja;
@@ -234,5 +235,8 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 void RegisterRenderLayers()
 {
 	static DebuggerRenderLayer* g_debuggerRenderLayer = new DebuggerRenderLayer();
+	static TTDCoverageRenderLayer* g_ttdCoverageRenderLayer = new TTDCoverageRenderLayer();
+
 	RenderLayer::Register(g_debuggerRenderLayer, BNRenderLayerDefaultEnableState::AlwaysEnabledRenderLayerDefaultEnableState);
+	RenderLayer::Register(g_ttdCoverageRenderLayer, BNRenderLayerDefaultEnableState::DisabledByDefaultRenderLayerDefaultEnableState);
 }
