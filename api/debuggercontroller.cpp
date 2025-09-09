@@ -986,6 +986,67 @@ bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 	return BNDebuggerSetTTDPosition(m_object, pos);
 }
 
+std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
+{
+	std::vector<TTDCallEvent> result;
+	
+	// Convert std::vector<std::string> to const char** for FFI
+	std::vector<const char*> symbolCStrings;
+	symbolCStrings.reserve(symbols.size());
+	for (const auto& symbol : symbols)
+	{
+		symbolCStrings.push_back(symbol.c_str());
+	}
+	
+	size_t count = 0;
+	BNDebuggerTTDCallEvent* events = BNDebuggerGetTTDCallsForSymbols(m_object, 
+		symbolCStrings.data(), symbolCStrings.size(), 
+		startReturnAddress, endReturnAddress, &count);
+	
+	if (events && count > 0)
+	{
+		result.reserve(count);
+		for (size_t i = 0; i < count; i++)
+		{
+			TTDCallEvent event;
+			event.eventType = events[i].eventType ? std::string(events[i].eventType) : "";
+			event.threadId = events[i].threadId;
+			event.uniqueThreadId = events[i].uniqueThreadId;
+			event.function = events[i].function ? std::string(events[i].function) : "";
+			event.functionAddress = events[i].functionAddress;
+			event.returnAddress = events[i].returnAddress;
+			event.returnValue = events[i].returnValue;
+			event.hasReturnValue = events[i].hasReturnValue;
+			event.timeStart.sequence = events[i].timeStart.sequence;
+			event.timeStart.step = events[i].timeStart.step;
+			event.timeEnd.sequence = events[i].timeEnd.sequence;
+			event.timeEnd.step = events[i].timeEnd.step;
+			
+			// Convert parameters array
+			if (events[i].parameters && events[i].parameterCount > 0)
+			{
+				event.parameters.reserve(events[i].parameterCount);
+				for (size_t j = 0; j < events[i].parameterCount; j++)
+				{
+					if (events[i].parameters[j])
+					{
+						event.parameters.push_back(std::string(events[i].parameters[j]));
+					}
+					else
+					{
+						event.parameters.push_back("");
+					}
+				}
+			}
+			
+			result.push_back(event);
+		}
+		BNDebuggerFreeTTDCallEvents(events);
+	}
+	
+	return result;
+}
+
 
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent &event)
 {
