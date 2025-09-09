@@ -822,6 +822,17 @@ void TTDMemoryWidget::setParametersAndQuery(uint64_t startAddr, uint64_t endAddr
 	}
 }
 
+void TTDMemoryWidget::setParametersAndQueryInNewTab(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType)
+{
+	// Always create a new tab for context menu actions
+	createNewTab();
+	TTDMemoryQueryWidget* queryWidget = qobject_cast<TTDMemoryQueryWidget*>(m_tabWidget->currentWidget());
+	if (queryWidget)
+	{
+		queryWidget->setParametersAndQuery(startAddr, endAddr, accessType);
+	}
+}
+
 
 
 // TTDMemorySidebarWidget implementation
@@ -848,6 +859,14 @@ void TTDMemorySidebarWidget::setParametersAndQuery(uint64_t startAddr, uint64_t 
 	if (m_memoryWidget)
 	{
 		m_memoryWidget->setParametersAndQuery(startAddr, endAddr, accessType);
+	}
+}
+
+void TTDMemorySidebarWidget::setParametersAndQueryInNewTab(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType)
+{
+	if (m_memoryWidget)
+	{
+		m_memoryWidget->setParametersAndQueryInNewTab(startAddr, endAddr, accessType);
 	}
 }
 

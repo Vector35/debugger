@@ -242,7 +242,7 @@ void GlobalDebuggerUI::QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_
 		auto* sidebarWidget = sidebar->widget("TTD Memory");
 		if (auto* ttdWidget = qobject_cast<TTDMemorySidebarWidget*>(sidebarWidget))
 		{
-			ttdWidget->setParametersAndQuery(startAddr, endAddr, accessTypeEnum);
+			ttdWidget->setParametersAndQueryInNewTab(startAddr, endAddr, accessTypeEnum);
 		}
 	});
 }

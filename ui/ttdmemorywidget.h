@@ -152,6 +152,7 @@ public:
 	// Method to get current query widget or create new tab
 	TTDMemoryQueryWidget* getCurrentOrNewQueryWidget();
 	void setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
+	void setParametersAndQueryInNewTab(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
 
 private Q_SLOTS:
 	void createNewTab();
@@ -174,6 +175,7 @@ public:
 	
 	// Method to access the TTD Memory widget for context menu actions
 	void setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
+	void setParametersAndQueryInNewTab(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
 };
 
 
