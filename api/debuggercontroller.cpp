@@ -1051,6 +1051,24 @@ bool DebuggerController::RunCodeCoverageAnalysis()
 }
 
 
+size_t DebuggerController::GetExecutedInstructionCount() const
+{
+	return BNDebuggerGetExecutedInstructionCount(m_object);
+}
+
+
+bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) const
+{
+	return BNDebuggerSaveCodeCoverageToFile(m_object, filePath.c_str());
+}
+
+
+bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
+{
+	return BNDebuggerLoadCodeCoverageFromFile(m_object, filePath.c_str());
+}
+
+
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent &event)
 {
 	BNDebuggerEvent* evt = new BNDebuggerEvent;

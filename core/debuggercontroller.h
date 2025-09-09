@@ -367,6 +367,9 @@ namespace BinaryNinjaDebugger {
 		// TTD Code Coverage Analysis Methods
 		bool IsInstructionExecuted(uint64_t address);
 		bool RunCodeCoverageAnalysis();
+		size_t GetExecutedInstructionCount() const;
+		bool SaveCodeCoverageToFile(const std::string& filePath) const;
+		bool LoadCodeCoverageFromFile(const std::string& filePath);
 
 		void OnRebased(BinaryView* oldView, BinaryView* newView);
 

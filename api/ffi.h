@@ -559,6 +559,9 @@ extern "C"
 	// TTD Code Coverage Analysis Functions
 	DEBUGGER_FFI_API bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t address);
 	DEBUGGER_FFI_API bool BNDebuggerRunCodeCoverageAnalysis(BNDebuggerController* controller);
+	DEBUGGER_FFI_API size_t BNDebuggerGetExecutedInstructionCount(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerSaveCodeCoverageToFile(BNDebuggerController* controller, const char* filePath);
+	DEBUGGER_FFI_API bool BNDebuggerLoadCodeCoverageFromFile(BNDebuggerController* controller, const char* filePath);
 
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 

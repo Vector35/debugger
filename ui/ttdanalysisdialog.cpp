@@ -54,10 +54,8 @@ void TTDAnalysisWorker::run()
 		success = m_controller->RunCodeCoverageAnalysis();
 		if (success)
 		{
-			// The result count would need to be exposed from the controller
-			// For now, we'll use a placeholder
-			resultCount = 1; // Placeholder - would need API to get actual count
-			message = "Code coverage analysis completed successfully";
+			resultCount = m_controller->GetExecutedInstructionCount();
+			message = QString("Code coverage analysis completed successfully. Found %1 executed instructions.").arg(resultCount);
 		}
 		else
 		{
@@ -231,6 +229,15 @@ void TTDAnalysisDialog::populateAnalysisList()
 	codeCoverage.status = TTDAnalysisStatus::NotRun;
 	codeCoverage.cachePath = getDefaultCachePath(TTDAnalysisType::CodeCoverage);
 	codeCoverage.resultCount = 0;
+	
+	// Check if cache file exists
+	QFileInfo cacheFile(codeCoverage.cachePath);
+	QFileInfo dataFile(codeCoverage.cachePath + ".data");
+	if (cacheFile.exists() && dataFile.exists())
+	{
+		codeCoverage.description += "\n\nCached results available from: " + cacheFile.lastModified().toString();
+		codeCoverage.status = TTDAnalysisStatus::LoadedFromCache;
+	}
 	
 	m_analysisResults.append(codeCoverage);
 	
@@ -532,6 +539,7 @@ bool TTDAnalysisDialog::saveAnalysisResults(const TTDAnalysisResult& result)
 		cacheDir.mkpath(".");
 	}
 	
+	// Save metadata as JSON
 	QJsonObject json;
 	json["type"] = static_cast<int>(result.type);
 	json["name"] = result.name;
@@ -547,6 +555,15 @@ bool TTDAnalysisDialog::saveAnalysisResults(const TTDAnalysisResult& result)
 		return false;
 	
 	file.write(doc.toJson());
+	file.close();
+	
+	// Save actual analysis data using controller
+	if (result.type == TTDAnalysisType::CodeCoverage && m_controller)
+	{
+		QString dataPath = cachePath + ".data";
+		return m_controller->SaveCodeCoverageToFile(dataPath.toStdString());
+	}
+	
 	return true;
 }
 
@@ -569,6 +586,19 @@ bool TTDAnalysisDialog::loadAnalysisResults(TTDAnalysisResult& result)
 	
 	result.resultCount = json["resultCount"].toVariant().toULongLong();
 	result.lastRun = QDateTime::fromString(json["lastRun"].toString(), Qt::ISODate);
+	
+	file.close();
+	
+	// Load actual analysis data using controller
+	if (result.type == TTDAnalysisType::CodeCoverage && m_controller)
+	{
+		QString dataPath = cachePath + ".data";
+		QFileInfo dataFile(dataPath);
+		if (dataFile.exists())
+		{
+			return m_controller->LoadCodeCoverageFromFile(dataPath.toStdString());
+		}
+	}
 	
 	return true;
 }
