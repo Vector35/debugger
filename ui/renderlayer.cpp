@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "renderlayer.h"
+#include "ttdcoveragerenderlayer.h"
 #include "debuggerapi.h"
 
 using namespace BinaryNinja;
@@ -35,7 +36,6 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 
 	uint64_t ipAddr = controller->IP();
 	bool paused = controller->GetTargetStatus() == DebugAdapterPausedStatus;
-	bool isTTD = controller->IsTTD();
 
 	for (auto& line : lines)
 	{
@@ -45,7 +45,6 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 
 		bool hasPC = (line.addr == ipAddr) && paused;
 		bool hasBreakpoint = controller->ContainsBreakpoint(line.addr);
-		bool isExecuted = isTTD ? controller->IsInstructionExecuted(line.addr) : false;
 
 		if (hasPC && hasBreakpoint)
 		{
@@ -127,18 +126,6 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 			line.highlight.g = 0;
 			line.highlight.b = 0;
 			line.highlight.alpha = 255;
-		}
-		else if (isExecuted)
-		{
-			// Highlight executed instructions with a green color
-			line.highlight.style = StandardHighlightColor;
-			line.highlight.color = GreenHighlightColor;
-			line.highlight.mixColor = NoHighlightColor;
-			line.highlight.mix = 0;
-			line.highlight.r = 0;
-			line.highlight.g = 0;
-			line.highlight.b = 0;
-			line.highlight.alpha = 64; // Light highlight
 		}
 	}
 }
@@ -153,14 +140,12 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 
 	uint64_t ipAddr = controller->IP();
 	bool paused = controller->GetTargetStatus() == DebugAdapterPausedStatus;
-	bool isTTD = controller->IsTTD();
 
 	for (auto& linearLine : lines)
 	{
 		DisassemblyTextLine& line = linearLine.contents;
 		bool hasPC = (line.addr == ipAddr) && paused;
 		bool hasBreakpoint = controller->ContainsBreakpoint(line.addr);
-		bool isExecuted = isTTD ? controller->IsInstructionExecuted(line.addr) : false;
 
 		if (hasPC && hasBreakpoint)
 		{
@@ -243,18 +228,6 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 			line.highlight.b = 0;
 			line.highlight.alpha = 255;
 		}
-		else if (isExecuted)
-		{
-			// Highlight executed instructions with a green color
-			line.highlight.style = StandardHighlightColor;
-			line.highlight.color = GreenHighlightColor;
-			line.highlight.mixColor = NoHighlightColor;
-			line.highlight.mix = 0;
-			line.highlight.r = 0;
-			line.highlight.g = 0;
-			line.highlight.b = 0;
-			line.highlight.alpha = 64; // Light highlight
-		}
 	}
 }
 
@@ -262,5 +235,8 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 void RegisterRenderLayers()
 {
 	static DebuggerRenderLayer* g_debuggerRenderLayer = new DebuggerRenderLayer();
+	static TTDCoverageRenderLayer* g_ttdCoverageRenderLayer = new TTDCoverageRenderLayer();
+	
 	RenderLayer::Register(g_debuggerRenderLayer, BNRenderLayerDefaultEnableState::AlwaysEnabledRenderLayerDefaultEnableState);
+	RenderLayer::Register(g_ttdCoverageRenderLayer, BNRenderLayerDefaultEnableState::DisabledRenderLayerDefaultEnableState);
 }
