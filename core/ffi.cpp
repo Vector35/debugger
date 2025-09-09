@@ -244,6 +244,11 @@ void BNDebuggerFreeProcessList(BNDebugProcess* processes, size_t count)
 
 BNDebugThread* BNDebuggerGetThreads(BNDebuggerController* controller, size_t* size)
 {
+	if (!controller->object)
+	{
+		*size = 0;
+		return nullptr;
+	}
 	std::vector<DebugThread> threads = controller->object->GetAllThreads();
 
 	*size = threads.size();
@@ -268,8 +273,10 @@ void BNDebuggerFreeThreads(BNDebugThread* threads, size_t count)
 
 BNDebugThread BNDebuggerGetActiveThread(BNDebuggerController* controller)
 {
+	BNDebugThread result = {};
+	if (!controller->object)
+		return result;
 	DebugThread thread = controller->object->GetActiveThread();
-	BNDebugThread result;
 	result.m_tid = thread.m_tid;
 	result.m_rip = thread.m_rip;
 	return result;
@@ -278,6 +285,8 @@ BNDebugThread BNDebuggerGetActiveThread(BNDebuggerController* controller)
 
 void BNDebuggerSetActiveThread(BNDebuggerController* controller, BNDebugThread thread)
 {
+	if (!controller->object)
+		return;
 	DebugThread activeThread;
 	activeThread.m_rip = thread.m_rip;
 	activeThread.m_tid = thread.m_tid;
@@ -288,18 +297,27 @@ void BNDebuggerSetActiveThread(BNDebuggerController* controller, BNDebugThread t
 
 bool BNDebuggerSuspendThread(BNDebuggerController* controller, uint32_t tid)
 {
+	if (!controller->object)
+		return false;
 	return controller->object->SuspendThread(tid);
 }
 
 
 bool BNDebuggerResumeThread(BNDebuggerController* controller, uint32_t tid)
 {
+	if (!controller->object)
+		return false;
 	return controller->object->ResumeThread(tid);
 }
 
 
 BNDebugFrame* BNDebuggerGetFramesOfThread(BNDebuggerController* controller, uint32_t tid, size_t* count)
 {
+	if (!controller->object)
+	{
+		*count = 0;
+		return nullptr;
+	}
 	std::vector<DebugFrame> frames = controller->object->GetFramesOfThread(tid);
 	*count = frames.size();
 
@@ -334,6 +352,11 @@ void BNDebuggerFreeFrames(BNDebugFrame* frames, size_t count)
 
 BNDebugModule* BNDebuggerGetModules(BNDebuggerController* controller, size_t* size)
 {
+	if (!controller->object)
+	{
+		*size = 0;
+		return nullptr;
+	}
 	std::vector<DebugModule> modules = controller->object->GetAllModules();
 
 	*size = modules.size();
@@ -655,6 +678,8 @@ DebugStopReason BNDebuggerRestartAndWait(BNDebuggerController* controller)
 
 char* BNDebuggerGetAdapterType(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return nullptr;
 	if (!controller->object->GetState())
 		return nullptr;
 
@@ -664,7 +689,12 @@ char* BNDebuggerGetAdapterType(BNDebuggerController* controller)
 
 void BNDebuggerSetAdapterType(BNDebuggerController* controller, const char* adapter)
 {
-	controller->object->GetState()->SetAdapterType(adapter);
+	if (!controller->object)
+		return;
+	auto state = controller->object->GetState();
+	if (!state)
+		return;
+	state->SetAdapterType(adapter);
 }
 
 
