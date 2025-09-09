@@ -51,6 +51,9 @@ namespace BinaryNinjaDebugger {
 		TTDPosition GetCurrentTTDPosition() override;
 		bool SetTTDPosition(const TTDPosition& position) override;
 
+    	// TTD Calls Analysis Methods
+    	std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0) override;
+
     	void GenerateDefaultAdapterSettings(BinaryView* data);
     	Ref<Settings> GetAdapterSettings() override;
 
@@ -58,6 +61,10 @@ namespace BinaryNinjaDebugger {
 		// Helper methods for TTD memory analysis
 		bool QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
 		
+		// Helper methods for TTD calls analysis
+		bool QueryCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, std::vector<TTDCallEvent>& events);
+		bool ParseTTDCallObjects(const std::string& expression, std::vector<TTDCallEvent>& events);
+
 		// Data model helper methods
 		std::string EvaluateDataModelExpression(const std::string& expression);
 		bool ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);

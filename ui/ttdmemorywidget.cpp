@@ -29,88 +29,6 @@ limitations under the License.
 #include <QFrame>
 #include <map>
 
-// ExpandableGroupBox implementation
-ExpandableGroupBox::ExpandableGroupBox(const QString& title, QWidget* parent)
-	: QWidget(parent), m_contentWidget(nullptr), m_expanded(true)
-{
-	QVBoxLayout* layout = new QVBoxLayout(this);
-	layout->setContentsMargins(0, 0, 0, 0);
-	layout->setSpacing(0);
-	
-	// Create header with toggle button
-	QHBoxLayout* headerLayout = new QHBoxLayout();
-	headerLayout->setContentsMargins(5, 5, 5, 5);
-	
-	m_toggleButton = new QToolButton();
-	m_toggleButton->setArrowType(Qt::DownArrow);
-	m_toggleButton->setCheckable(true);
-	m_toggleButton->setChecked(true);
-	m_toggleButton->setText(title);
-	m_toggleButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-	m_toggleButton->setStyleSheet("QToolButton { border: none; font-weight: bold; text-align: left; }");
-	
-	connect(m_toggleButton, &QToolButton::clicked, this, &ExpandableGroupBox::toggleExpanded);
-	
-	headerLayout->addWidget(m_toggleButton);
-	headerLayout->addStretch();
-	
-	layout->addLayout(headerLayout);
-	
-	// Add a line separator
-	QFrame* line = new QFrame();
-	line->setFrameShape(QFrame::HLine);
-	line->setFrameShadow(QFrame::Sunken);
-	layout->addWidget(line);
-	
-	setLayout(layout);
-}
-
-void ExpandableGroupBox::setContentWidget(QWidget* widget)
-{
-	if (m_contentWidget)
-	{
-		layout()->removeWidget(m_contentWidget);
-		m_contentWidget->deleteLater();
-	}
-	
-	m_contentWidget = widget;
-	if (m_contentWidget)
-	{
-		layout()->addWidget(m_contentWidget);
-		setupAnimation();
-	}
-}
-
-void ExpandableGroupBox::setExpanded(bool expanded)
-{
-	if (m_expanded == expanded)
-		return;
-		
-	m_expanded = expanded;
-	m_toggleButton->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
-	m_toggleButton->setChecked(expanded);
-	
-	if (m_contentWidget)
-	{
-		m_contentWidget->setVisible(expanded);
-	}
-}
-
-void ExpandableGroupBox::toggleExpanded()
-{
-	setExpanded(!m_expanded);
-}
-
-void ExpandableGroupBox::setupAnimation()
-{
-	if (!m_contentWidget)
-		return;
-		
-	m_contentAnimation = new QPropertyAnimation(m_contentWidget, "maximumHeight");
-	m_contentAnimation->setDuration(200);
-	m_contentAnimation->setEasingCurve(QEasingCurve::InOutQuad);
-}
-
 // ColumnVisibilityDialog implementation
 ColumnVisibilityDialog::ColumnVisibilityDialog(QWidget* parent, const QStringList& columnNames, const QList<bool>& visibility)
 	: QDialog(parent)
@@ -214,8 +132,6 @@ void TTDMemoryQueryWidget::setupUI()
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
 	
 	// Create expandable group for query parameters
-	ExpandableGroupBox* expandableGroup = new ExpandableGroupBox("Query Parameters");
-	
 	// Create content widget for the expandable group
 	QWidget* inputWidget = new QWidget();
 	QFormLayout* inputLayout = new QFormLayout(inputWidget);
@@ -282,13 +198,13 @@ void TTDMemoryQueryWidget::setupUI()
 	inputLayout->addRow("", buttonLayout);
 	
 	// Set the input widget as the content of the expandable group
-	expandableGroup->setContentWidget(inputWidget);
+	ExpandableGroup* expandableGroup = new ExpandableGroup(inputLayout, "Query Parameters", this, true);
 	
-	mainLayout->addWidget(expandableGroup);
+	mainLayout->addWidget(expandableGroup, 0); // Give minimal space to expandable group
 	
 	// Results table
 	setupTable();
-	mainLayout->addWidget(m_resultsTable);
+	mainLayout->addWidget(m_resultsTable, 1); // Give most space to the table
 	
 	// Status label
 	m_statusLabel = new QLabel("Ready");
@@ -360,6 +276,10 @@ void TTDMemoryQueryWidget::setupTable()
 	// Connect double-click handler
 	connect(m_resultsTable, &QTableWidget::cellDoubleClicked, 
 			this, &TTDMemoryQueryWidget::onCellDoubleClicked);
+	
+	// Add Ctrl+C shortcut for copying current cell
+	QShortcut* copyShortcut = new QShortcut(QKeySequence::Copy, m_resultsTable);
+	connect(copyShortcut, &QShortcut::activated, this, &TTDMemoryQueryWidget::copySelectedCell);
 	
 	// Setup context menu
 	setupContextMenu();
@@ -466,7 +386,7 @@ void TTDMemoryQueryWidget::performQuery()
 			const auto& event = events[i];
 			
 			// Index
-			m_resultsTable->setItem(i, 0, new QTableWidgetItem(QString("0x%1").arg(i, 0, 16)));
+			m_resultsTable->setItem(i, 0, new NumericalTableWidgetItem(QString("0x%1").arg(i, 0, 16), i));
 			
 			// Event Type
 			m_resultsTable->setItem(i, 1, new QTableWidgetItem(QString::fromStdString(event.eventType)));
@@ -475,13 +395,15 @@ void TTDMemoryQueryWidget::performQuery()
 			QString timeStartStr = QString("%1:%2")
 				.arg(event.timeStart.sequence, 0, 16)
 				.arg(event.timeStart.step, 0, 16);
-			m_resultsTable->setItem(i, 2, new QTableWidgetItem(timeStartStr));
+			uint64_t timeStartSortValue = (event.timeStart.sequence << 32) | (event.timeStart.step & 0xFFFFFFFF);
+			m_resultsTable->setItem(i, 2, new NumericalTableWidgetItem(timeStartStr, timeStartSortValue));
 			
 			// Time End
 			QString timeEndStr = QString("%1:%2")
 				.arg(event.timeEnd.sequence, 0, 16)
 				.arg(event.timeEnd.step, 0, 16);
-			m_resultsTable->setItem(i, 3, new QTableWidgetItem(timeEndStr));
+			uint64_t timeEndSortValue = (event.timeEnd.sequence << 32) | (event.timeEnd.step & 0xFFFFFFFF);
+			m_resultsTable->setItem(i, 3, new NumericalTableWidgetItem(timeEndStr, timeEndSortValue));
 			
 			// Access Type
 			QString accessTypeStr;
@@ -492,24 +414,24 @@ void TTDMemoryQueryWidget::performQuery()
 			
 			// Address
 			QString addressStr = QString("0x%1").arg(event.address, 0, 16);
-			m_resultsTable->setItem(i, 5, new QTableWidgetItem(addressStr));
+			m_resultsTable->setItem(i, 5, new NumericalTableWidgetItem(addressStr, event.address));
 			
 			// Size
-			m_resultsTable->setItem(i, 6, new QTableWidgetItem(QString::number(event.size)));
+			m_resultsTable->setItem(i, 6, new NumericalTableWidgetItem(QString::number(event.size), event.size));
 			
 			// Value
 			QString valueStr = QString("0x%1").arg(event.value, 0, 16);
-			m_resultsTable->setItem(i, 7, new QTableWidgetItem(valueStr));
+			m_resultsTable->setItem(i, 7, new NumericalTableWidgetItem(valueStr, event.value));
 			
 			// Thread ID
-			m_resultsTable->setItem(i, 8, new QTableWidgetItem(QString::number(event.threadId)));
+			m_resultsTable->setItem(i, 8, new NumericalTableWidgetItem(QString::number(event.threadId), event.threadId));
 			
 			// Unique Thread ID
-			m_resultsTable->setItem(i, 9, new QTableWidgetItem(QString::number(event.uniqueThreadId)));
+			m_resultsTable->setItem(i, 9, new NumericalTableWidgetItem(QString::number(event.uniqueThreadId), event.uniqueThreadId));
 			
 			// IP (Instruction Address)
 			QString instrAddrStr = QString("0x%1").arg(event.instructionAddress, 0, 16);
-			m_resultsTable->setItem(i, 10, new QTableWidgetItem(instrAddrStr));
+			m_resultsTable->setItem(i, 10, new NumericalTableWidgetItem(instrAddrStr, event.instructionAddress));
 		}
 		
 		updateStatus(QString("Found %1 memory access events").arg(events.size()));

@@ -500,6 +500,23 @@ namespace BinaryNinjaDebuggerAPI {
 		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), accessType(TTDMemoryRead), address(0), size(0), memoryAddress(0), instructionAddress(0), value(0) {}
 	};
 
+	struct TTDCallEvent
+	{
+		std::string eventType;         // Event type (always "Call" for TTD.Calls objects)
+		uint32_t threadId;             // OS thread ID of thread that made the call
+		uint32_t uniqueThreadId;       // Unique ID for the thread across the trace
+		std::string function;          // Symbolic name of the function
+		uint64_t functionAddress;      // Function's address in memory
+		uint64_t returnAddress;        // Instruction to return to after the call
+		uint64_t returnValue;          // Return value of the function (if not void)
+		bool hasReturnValue;           // Whether the function has a return value
+		std::vector<std::string> parameters; // Array containing parameters passed to the function
+		TTDPosition timeStart;         // Position when call started
+		TTDPosition timeEnd;           // Position when call ended
+		
+		TTDCallEvent() : threadId(0), uniqueThreadId(0), functionAddress(0), returnAddress(0), returnValue(0), hasReturnValue(false) {}
+	};
+
 
 	typedef BNDebugAdapterConnectionStatus DebugAdapterConnectionStatus;
 	typedef BNDebugAdapterTargetStatus DebugAdapterTargetStatus;
@@ -665,6 +682,7 @@ namespace BinaryNinjaDebuggerAPI {
 
 		// TTD Memory Analysis Methods
 		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t address, uint64_t size, TTDMemoryAccessType accessType = TTDMemoryRead);
+		std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0);
 		TTDPosition GetCurrentTTDPosition();
 		bool SetTTDPosition(const TTDPosition& position);
 

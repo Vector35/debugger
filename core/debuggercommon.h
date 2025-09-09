@@ -134,4 +134,22 @@ namespace BinaryNinjaDebugger {
 		
 		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), address(0), size(0), memoryAddress(0), instructionAddress(0), value(0), accessType(TTDMemoryRead) {}
 	};
+
+	// TTD Call Event - complete set of fields from Microsoft documentation for TTD.Calls
+	struct TTDCallEvent
+	{
+		std::string eventType;         // Event type (always "Call" for TTD.Calls objects)
+		uint32_t threadId;             // OS thread ID of thread that made the call
+		uint32_t uniqueThreadId;       // Unique ID for the thread across the trace
+		std::string function;          // Symbolic name of the function
+		uint64_t functionAddress;      // Function's address in memory
+		uint64_t returnAddress;        // Instruction to return to after the call
+		uint64_t returnValue;          // Return value of the function (if not void)
+		bool hasReturnValue;           // Whether the function has a return value
+		std::vector<std::string> parameters; // Array containing parameters passed to the function
+		TTDPosition timeStart;         // Position when call started
+		TTDPosition timeEnd;           // Position when call ended
+		
+		TTDCallEvent() : threadId(0), uniqueThreadId(0), functionAddress(0), returnAddress(0), returnValue(0), hasReturnValue(false) {}
+	};
 };  // namespace BinaryNinjaDebugger

@@ -46,6 +46,7 @@ limitations under the License.
 
 #ifdef WIN32
 	#include "ttdrecord.h"
+	#include "ttdcallswidget.h"
 	#include "scriptingconsole.h"
 #endif
 
@@ -243,6 +244,43 @@ void GlobalDebuggerUI::QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_
 		if (auto* ttdWidget = qobject_cast<TTDMemorySidebarWidget*>(sidebarWidget))
 		{
 			ttdWidget->setParametersAndQueryInNewTab(startAddr, endAddr, accessTypeEnum);
+		}
+	});
+}
+
+
+void GlobalDebuggerUI::QueryTTDCalls(const UIActionContext& ctxt, const std::string& symbols, uint64_t startReturnAddr, uint64_t endReturnAddr)
+{
+	// Focus the TTD Calls sidebar widget
+	if (!ctxt.context)
+		return;
+
+	ViewFrame* frame = ctxt.context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	auto sidebar = frame->getSidebar();
+	if (!sidebar)
+		return;
+
+	auto controller = DebuggerController::GetController(ctxt.binaryView);
+	if (!controller)
+		return;
+
+	// Set pending query first
+	TTDCallsWidgetType::SetPendingQuery(frame, ctxt.binaryView, symbols, startReturnAddr, endReturnAddr);
+	
+	// Activate the sidebar widget
+	sidebar->activate("TTD Calls");
+	
+	// Try to find the widget that was just created/activated and apply the query immediately
+	// We'll give it a moment to be created if needed
+	QTimer::singleShot(100, [sidebar, ctxt, symbols, startReturnAddr, endReturnAddr]() {
+		// Try to find the active TTD Calls widget
+		auto* sidebarWidget = sidebar->widget("TTD Calls");
+		if (auto* ttdWidget = qobject_cast<TTDCallsSidebarWidget*>(sidebarWidget))
+		{
+			ttdWidget->setParametersAndQueryInNewTab(symbols, startReturnAddr, endReturnAddr);
 		}
 	});
 }
@@ -1055,6 +1093,60 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			connectedToTTD));
 	debuggerMenu->addAction("TTD Memory Access\\Read/Write/Execute", "TTD");
+
+	// TTD Calls menu actions
+	UIAction::registerAction("TTD Calls\\All Calls");
+	context->globalActions()->bindAction("TTD Calls\\All Calls", UIAction([=](const UIActionContext& ctxt) {
+			auto controller = DebuggerController::GetController(ctxt.binaryView);
+			if (!controller || !controller->IsConnected())
+				return;
+			
+			// Query all calls with wildcard
+			QueryTTDCalls(ctxt, "*!*");
+		},
+		connectedToTTD));
+	debuggerMenu->addAction("TTD Calls\\All Calls", "TTD");
+
+	UIAction::registerAction("TTD Calls\\Kernel32 Calls");
+	context->globalActions()->bindAction("TTD Calls\\Kernel32 Calls", UIAction([=](const UIActionContext& ctxt) {
+			auto controller = DebuggerController::GetController(ctxt.binaryView);
+			if (!controller || !controller->IsConnected())
+				return;
+			
+			// Query kernel32 calls
+			QueryTTDCalls(ctxt, "kernel32!*");
+		},
+		connectedToTTD));
+	debuggerMenu->addAction("TTD Calls\\Kernel32 Calls", "TTD");
+
+	UIAction::registerAction("TTD Calls\\Ntdll Calls");
+	context->globalActions()->bindAction("TTD Calls\\Ntdll Calls", UIAction([=](const UIActionContext& ctxt) {
+			auto controller = DebuggerController::GetController(ctxt.binaryView);
+			if (!controller || !controller->IsConnected())
+				return;
+			
+			// Query ntdll calls
+			QueryTTDCalls(ctxt, "ntdll!*");
+		},
+		connectedToTTD));
+	debuggerMenu->addAction("TTD Calls\\Ntdll Calls", "TTD");
+
+	// TTD Calls context menu action for functions
+	UIAction::registerAction("TTD Calls\\Query Function");
+	context->globalActions()->bindAction("TTD Calls\\Query Function", UIAction([=](const UIActionContext& ctxt) {
+			auto controller = DebuggerController::GetController(ctxt.binaryView);
+			if (!controller || !controller->IsConnected())
+				return;
+			
+			// Get function name from context
+			if (ctxt.function)
+			{
+				auto funcName = ctxt.function->GetSymbol()->GetFullName();
+				QueryTTDCalls(ctxt, funcName);
+			}
+		},
+		connectedToTTD));
+	debuggerMenu->addAction("TTD Calls\\Query Function", "TTD");
 #endif
 }
 
@@ -1536,6 +1628,7 @@ void GlobalDebuggerUI::InitializeUI()
 	Sidebar::addSidebarWidgetType(new ThreadFramesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new DebugInfoWidgetType());
 	Sidebar::addSidebarWidgetType(new TTDMemoryWidgetType());
+	Sidebar::addSidebarWidgetType(new TTDCallsWidgetType());
 }
 
 

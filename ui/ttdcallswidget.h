@@ -19,7 +19,7 @@ limitations under the License.
 #include <QWidget>
 #include <QTableWidget>
 #include <QLineEdit>
-#include <QCheckBox>
+#include <QTextEdit>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -37,6 +37,7 @@ limitations under the License.
 #include <QToolButton>
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
+#include <QFrame>
 #include <QShortcut>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
@@ -48,19 +49,8 @@ limitations under the License.
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 
-class ColumnVisibilityDialog : public QDialog
-{
-	Q_OBJECT
 
-public:
-	ColumnVisibilityDialog(QWidget* parent, const QStringList& columnNames, const QList<bool>& visibility);
-	QList<bool> getColumnVisibility() const;
-
-private:
-	QListWidget* m_columnList;
-};
-
-class TTDMemoryQueryWidget : public QWidget
+class TTDCallsQueryWidget : public QWidget
 {
 	Q_OBJECT
 
@@ -71,13 +61,13 @@ public:
 		EventTypeColumn,
 		TimeStartColumn,
 		TimeEndColumn,
-		AccessTypeColumn,
-		AddressColumn,
-		SizeColumn,
-		ValueColumn,
+		FunctionColumn,
+		FunctionAddressColumn,
+		ReturnAddressColumn,
+		ReturnValueColumn,
 		ThreadIdColumn,
 		UniqueThreadIdColumn,
-		IPColumn
+		ParametersColumn
 	};
 
 private:
@@ -85,19 +75,14 @@ private:
 	DbgRef<DebuggerController> m_controller;
 	
 	// Input controls
+	QLineEdit* m_symbolsEdit;
 	QLineEdit* m_startAddressEdit;
 	QLineEdit* m_endAddressEdit;
-	QCheckBox* m_readAccessCheck;
-	QCheckBox* m_writeAccessCheck;
-	QCheckBox* m_executeAccessCheck;
 	QPushButton* m_queryButton;
 	QPushButton* m_clearButton;
 	
 	// Results table
 	QTableWidget* m_resultsTable;
-	
-	// Status label
-	QLabel* m_statusLabel;
 	
 	// Column visibility
 	QStringList m_columnNames;
@@ -105,9 +90,7 @@ private:
 	
 	void setupUI();
 	void setupTable();
-	void updateStatus(const QString& message);
 	uint64_t parseAddress(const QString& text);
-	TTDMemoryAccessType getSelectedAccessTypes();
 	void setupContextMenu();
 	void updateColumnVisibility();
 	
@@ -117,11 +100,11 @@ private:
 	int getVisualColumnFromLogical(LogicalColumn logicalColumn) const;
 
 public:
-	TTDMemoryQueryWidget(QWidget* parent, BinaryViewRef data);
-	virtual ~TTDMemoryQueryWidget();
+	TTDCallsQueryWidget(QWidget* parent, BinaryViewRef data);
+	virtual ~TTDCallsQueryWidget();
 	
 	// Method to set parameters and execute query from context menu
-	void setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
+	void setParametersAndQuery(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
 	
 	// Method to check if this tab is unused (no results and default parameters)
 	bool isUnused() const;
@@ -138,7 +121,7 @@ private Q_SLOTS:
 	void copyEntireTable();
 };
 
-class TTDMemoryWidget : public QWidget
+class TTDCallsWidget : public QWidget
 {
 	Q_OBJECT
 
@@ -151,13 +134,13 @@ private:
 	void setupUI();
 
 public:
-	TTDMemoryWidget(QWidget* parent, BinaryViewRef data);
-	virtual ~TTDMemoryWidget();
+	TTDCallsWidget(QWidget* parent, BinaryViewRef data);
+	virtual ~TTDCallsWidget();
 	
 	// Method to get current query widget or create new tab
-	TTDMemoryQueryWidget* getCurrentOrNewQueryWidget();
-	void setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
-	void setParametersAndQueryInNewTab(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
+	TTDCallsQueryWidget* getCurrentOrNewQueryWidget();
+	void setParametersAndQuery(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
+	void setParametersAndQueryInNewTab(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
 
 private Q_SLOTS:
 	void createNewTab();
@@ -165,37 +148,37 @@ private Q_SLOTS:
 };
 
 
-class TTDMemorySidebarWidget : public SidebarWidget
+class TTDCallsSidebarWidget : public SidebarWidget
 {
 	Q_OBJECT
 
 private:
-	TTDMemoryWidget* m_memoryWidget;
+	TTDCallsWidget* m_callsWidget;
 	BinaryViewRef m_data;
 	DbgRef<DebuggerController> m_controller;
 
 public:
-	TTDMemorySidebarWidget(BinaryViewRef data);
-	~TTDMemorySidebarWidget();
+	TTDCallsSidebarWidget(BinaryViewRef data);
+	~TTDCallsSidebarWidget();
 	
-	// Method to access the TTD Memory widget for context menu actions
-	void setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
-	void setParametersAndQueryInNewTab(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
+	// Method to access the TTD Calls widget for context menu actions
+	void setParametersAndQuery(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
+	void setParametersAndQueryInNewTab(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
 };
 
 
-class TTDMemoryWidgetType : public SidebarWidgetType
+class TTDCallsWidgetType : public SidebarWidgetType
 {
 private:
 	struct PendingQuery {
+		std::string symbols;
 		uint64_t startAddr;
 		uint64_t endAddr;
-		TTDMemoryAccessType accessType;
 	};
 	static std::map<std::pair<ViewFrame*, BinaryViewRef>, PendingQuery> s_pendingQueries;
 
 public:
-	TTDMemoryWidgetType();
+	TTDCallsWidgetType();
 	SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override;
 	SidebarWidgetLocation defaultLocation() const override { return SidebarWidgetLocation::RightBottom; }
 	SidebarContextSensitivity contextSensitivity() const override { return PerViewTypeSidebarContext; }
@@ -203,5 +186,5 @@ public:
 	SidebarContentClassifier* contentClassifier(ViewFrame*, BinaryViewRef) override;
 	
 	// Static method to set pending query parameters
-	static void SetPendingQuery(ViewFrame* frame, BinaryViewRef data, uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
+	static void SetPendingQuery(ViewFrame* frame, BinaryViewRef data, const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
 };

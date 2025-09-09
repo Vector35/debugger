@@ -21,6 +21,7 @@ limitations under the License.
 #include "debuggercontroller.h"
 #include "debuggercommon.h"
 #include "../api/ffi.h"
+#include <map>
 
 using namespace BinaryNinjaDebugger;
 
@@ -1107,16 +1108,119 @@ bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPos
 	return controller->object->SetTTDPosition(pos);
 }
 
-void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events)
+void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count)
 {
-	if (events)
+	if (events && count > 0)
 	{
-		// Free eventType strings before deleting the array
-		// Note: We can't know the count here, so this implementation assumes
-		// the caller manages proper cleanup or we need to change the API
+		// Free strings for each event
+		for (size_t i = 0; i < count; ++i)
+		{
+			if (events[i].eventType)
+			{
+				BNFreeString(events[i].eventType);
+			}
+		}
 		delete[] events;
 	}
 }
+
+
+BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* controller,
+	const char* symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, size_t* count)
+{
+	if (!count)
+		return nullptr;
+		
+	*count = 0;
+	
+	if (!symbols)
+		return nullptr;
+	
+	std::string symbolsStr(symbols);
+	if (symbolsStr.empty())
+		return nullptr;
+	
+	auto events = controller->object->GetTTDCallsForSymbols(symbolsStr, startReturnAddress, endReturnAddress);
+	if (events.empty())
+		return nullptr;
+	
+	*count = events.size();
+	auto result = new BNDebuggerTTDCallEvent[events.size()];
+	
+	for (size_t i = 0; i < events.size(); ++i)
+	{
+		// Copy string fields
+		result[i].eventType = BNAllocString(events[i].eventType.c_str());
+		result[i].function = BNAllocString(events[i].function.c_str());
+		
+		// Copy primitive fields
+		result[i].threadId = events[i].threadId;
+		result[i].uniqueThreadId = events[i].uniqueThreadId;
+		result[i].functionAddress = events[i].functionAddress;
+		result[i].returnAddress = events[i].returnAddress;
+		result[i].returnValue = events[i].returnValue;
+		result[i].hasReturnValue = events[i].hasReturnValue;
+		
+		// Copy parameters array
+		result[i].parameterCount = events[i].parameters.size();
+		if (result[i].parameterCount > 0)
+		{
+			result[i].parameters = new char*[result[i].parameterCount];
+			for (size_t j = 0; j < result[i].parameterCount; ++j)
+			{
+				result[i].parameters[j] = BNAllocString(events[i].parameters[j].c_str());
+			}
+		}
+		else
+		{
+			result[i].parameters = nullptr;
+		}
+		
+		// Copy TTD positions
+		result[i].timeStart.sequence = events[i].timeStart.sequence;
+		result[i].timeStart.step = events[i].timeStart.step;
+		result[i].timeEnd.sequence = events[i].timeEnd.sequence;
+		result[i].timeEnd.step = events[i].timeEnd.step;
+	}
+	
+	return result;
+}
+
+
+void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count)
+{
+	if (!events || count == 0)
+		return;
+		
+	// Free all strings for each event
+	for (size_t i = 0; i < count; ++i)
+	{
+		if (events[i].eventType)
+		{
+			BNFreeString(events[i].eventType);
+		}
+		if (events[i].function)
+		{
+			BNFreeString(events[i].function);
+		}
+		
+		// Free parameter strings
+		if (events[i].parameters && events[i].parameterCount > 0)
+		{
+			for (size_t j = 0; j < events[i].parameterCount; ++j)
+			{
+				if (events[i].parameters[j])
+				{
+					BNFreeString(events[i].parameters[j]);
+				}
+			}
+			delete[] events[i].parameters;
+		}
+	}
+	
+	delete[] events;
+}
+
 
 
 void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event)

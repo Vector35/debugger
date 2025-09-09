@@ -2826,9 +2826,23 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uin
 	{
 		events = m_adapter->GetMemoryAccessForAddress(startAddress, endAddress, accessType);
 	}
-	
+
 	return events;
 }
+
+std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
+{
+	std::vector<TTDCallEvent> events;
+
+	if (!IsTTD())
+	{
+		LogError("Current adapter does not support TTD");
+		return events;
+	}
+
+	return m_adapter->GetTTDCallsForSymbols(symbols, startReturnAddress, endReturnAddress);
+}
+
 
 TTDPosition DebuggerController::GetCurrentTTDPosition()
 {
@@ -2860,7 +2874,7 @@ bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 	{
 		return m_adapter->SetTTDPosition(position);
 	}
-	
+
 	return false;
 }
 

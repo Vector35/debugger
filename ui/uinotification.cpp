@@ -193,5 +193,7 @@ void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, 
 	menu.addAction("Debugger", "TTD Memory Access\\Read/Write", "TTD");
 	menu.addAction("Debugger", "TTD Memory Access\\Execute", "TTD");
 	menu.addAction("Debugger", "TTD Memory Access\\Read/Write/Execute", "TTD");
+	// TTD Calls context menu item
+	menu.addAction("Debugger", "TTD Calls\\Query Function", "TTD");
 #endif
 }
