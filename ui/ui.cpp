@@ -41,6 +41,7 @@ limitations under the License.
 #include "progresstask.h"
 #include "debuggerinfowidget.h"
 #include "freeversion.h"
+#include "ttdcallswidget.h"
 
 #ifdef WIN32
 	#include "ttdrecord.h"
@@ -888,6 +889,23 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			}));
 	debuggerMenu->addAction("Record TTD Trace", "TTD");
 
+	UIAction::registerAction("TTD Calls Analysis");
+	context->globalActions()->bindAction("TTD Calls Analysis",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.context)
+					return;
+
+				auto sidebar = ctxt.context->sidebar();
+				if (!sidebar)
+					return;
+
+				// Activate the TTD Calls sidebar widget
+				sidebar->activate("TTD Calls");
+			},
+			connectedAndStoppedWithTTD));
+	debuggerMenu->addAction("TTD Calls Analysis", "TTD");
+
 	UIAction::registerAction("Install WinDbg/TTD");
 	context->globalActions()->bindAction("Install WinDbg/TTD",
 		UIAction(
@@ -1373,6 +1391,7 @@ void GlobalDebuggerUI::InitializeUI()
 	Sidebar::addSidebarWidgetType(new DebugModulesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new ThreadFramesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new DebugInfoWidgetType());
+	Sidebar::addSidebarWidgetType(new TTDCallsWidgetType());
 }
 
 
