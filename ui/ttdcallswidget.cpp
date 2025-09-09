@@ -258,7 +258,10 @@ void TTDCallsQueryWidget::performQuery()
 		// Time End
 		QString timeEndStr;
 		uint64_t timeEndSortValue;
-		if (event.timeEnd.sequence == UINT64_MAX && event.timeEnd.step == UINT64_MAX)
+		// Check for max position values - both 0xffffffffffffffff and 0xfffffffffffffffe are considered max position
+		// 0xffffffffffffffff is the traditional max value, 0xfffffffffffffffe is also used in some TTD scenarios
+		if ((event.timeEnd.sequence == UINT64_MAX && event.timeEnd.step == UINT64_MAX) ||
+		    (event.timeEnd.sequence == 0xfffffffffffffffeULL && event.timeEnd.step == 0xfffffffffffffffeULL))
 		{
 			timeEndStr = "Max Position";
 			timeEndSortValue = UINT64_MAX; // Sort max position at the end
@@ -330,25 +333,84 @@ void TTDCallsQueryWidget::clearResults()
 
 void TTDCallsQueryWidget::onCellDoubleClicked(int row, int column)
 {
-	// Handle double-click events - for example, navigate to addresses
+	// Handle double-click events - navigate to addresses or time travel
+	if (row < 0 || row >= m_resultsTable->rowCount())
+		return;
+	
 	LogicalColumn logicalCol = getLogicalColumnFromVisual(column);
 	
-	if (logicalCol == FunctionAddressColumn || logicalCol == ReturnAddressColumn)
+	if (logicalCol == TimeStartColumn || logicalCol == TimeEndColumn)
 	{
+		// Handle time travel for both time start and time end columns
+		QTableWidgetItem* timeItem = m_resultsTable->item(row, column);
+		if (timeItem && m_controller)
+		{
+			QString timeStr = timeItem->text();
+			
+			// Skip if this is "Max Position"
+			if (timeStr == "Max Position")
+				return;
+			
+			QStringList parts = timeStr.split(':');
+			if (parts.size() == 2)
+			{
+				bool ok1, ok2;
+				uint64_t sequence = parts[0].toULongLong(&ok1, 16);
+				uint64_t step = parts[1].toULongLong(&ok2, 16);
+				
+				if (ok1 && ok2)
+				{
+					TTDPosition pos(sequence, step);
+					if (m_controller->SetTTDPosition(pos))
+					{
+						// After time traveling, navigate to the function address
+						int functionAddrVisualColumn = getVisualColumnFromLogical(FunctionAddressColumn);
+						if (functionAddrVisualColumn >= 0)
+						{
+							QTableWidgetItem* funcAddrItem = m_resultsTable->item(row, functionAddrVisualColumn);
+							if (funcAddrItem && m_data)
+							{
+								QString funcAddrStr = funcAddrItem->text();
+								if (funcAddrStr.startsWith("0x", Qt::CaseInsensitive))
+								{
+									bool ok;
+									uint64_t funcAddress = funcAddrStr.mid(2).toULongLong(&ok, 16);
+									if (ok)
+									{
+										ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+										if (frame)
+										{
+											frame->navigate(m_data, funcAddress);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	else if (logicalCol == FunctionAddressColumn || logicalCol == ReturnAddressColumn)
+	{
+		// Navigate to address in Binary Ninja
 		QTableWidgetItem* item = m_resultsTable->item(row, column);
 		if (item)
 		{
 			QString addressText = item->text();
-			bool ok;
-			uint64_t address = addressText.toULongLong(&ok, 16);
-			
-			if (ok && address != 0)
+			if (addressText.startsWith("0x", Qt::CaseInsensitive))
 			{
-				// Navigate to address in Binary Ninja
-				ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
-				if (frame)
+				bool ok;
+				uint64_t address = addressText.mid(2).toULongLong(&ok, 16);
+				
+				if (ok && address != 0)
 				{
-					frame->navigate(m_data, address);
+					// Navigate to address in Binary Ninja
+					ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+					if (frame)
+					{
+						frame->navigate(m_data, address);
+					}
 				}
 			}
 		}
