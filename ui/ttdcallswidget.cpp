@@ -321,6 +321,9 @@ void TTDCallsQueryWidget::performQuery()
 	// Re-enable sorting if it was enabled
 	m_resultsTable->setSortingEnabled(sortingEnabled);
 	
+	// Set default sort order: sort by index column (0) in ascending order
+	m_resultsTable->sortByColumn(0, Qt::AscendingOrder);
+	
 	// Force table update
 	m_resultsTable->update();
 	m_resultsTable->repaint();
