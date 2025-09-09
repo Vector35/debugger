@@ -109,7 +109,7 @@ void TTDCallsQueryWidget::setupUI()
 	inputLayout->addRow(buttonLayout);
 	
 	// Set the content widget to the expandable group
-	auto expandableGroup = new ExpandableGroup("Query Parameters", contentWidget);
+	auto expandableGroup = new ExpandableGroup(inputLayout, "Query Parameters", this, true);
 	layout->addWidget(expandableGroup, 0); // Give minimal space to expandable group
 	
 	// Results table

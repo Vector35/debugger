@@ -198,7 +198,7 @@ void TTDMemoryQueryWidget::setupUI()
 	inputLayout->addRow("", buttonLayout);
 	
 	// Set the input widget as the content of the expandable group
-	ExpandableGroup* expandableGroup = new ExpandableGroup("Query Parameters", inputWidget);
+	ExpandableGroup* expandableGroup = new ExpandableGroup(inputLayout, "Query Parameters", this, true);
 	
 	mainLayout->addWidget(expandableGroup, 0); // Give minimal space to expandable group
 	
