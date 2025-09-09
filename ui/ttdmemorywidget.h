@@ -120,6 +120,9 @@ public:
 	
 	// Method to set parameters and execute query from context menu
 	void setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
+	
+	// Method to check if this tab is unused (no results and default parameters)
+	bool isUnused() const;
 
 private Q_SLOTS:
 	void performQuery();

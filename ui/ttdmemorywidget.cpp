@@ -743,6 +743,12 @@ void TTDMemoryQueryWidget::setParametersAndQuery(uint64_t startAddr, uint64_t en
 	performQuery();
 }
 
+bool TTDMemoryQueryWidget::isUnused() const
+{
+	// Consider a tab unused if it has no results
+	return m_resultsTable->rowCount() == 0;
+}
+
 // TTDMemoryWidget implementation (tab container)
 TTDMemoryWidget::TTDMemoryWidget(QWidget* parent, BinaryViewRef data)
 	: QWidget(parent), m_data(data)
@@ -824,12 +830,22 @@ void TTDMemoryWidget::setParametersAndQuery(uint64_t startAddr, uint64_t endAddr
 
 void TTDMemoryWidget::setParametersAndQueryInNewTab(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType)
 {
-	// Always create a new tab for context menu actions
-	createNewTab();
-	TTDMemoryQueryWidget* queryWidget = qobject_cast<TTDMemoryQueryWidget*>(m_tabWidget->currentWidget());
-	if (queryWidget)
+	// Check if the current tab is unused - if so, reuse it instead of creating a new tab
+	TTDMemoryQueryWidget* currentWidget = qobject_cast<TTDMemoryQueryWidget*>(m_tabWidget->currentWidget());
+	if (currentWidget && currentWidget->isUnused())
 	{
-		queryWidget->setParametersAndQuery(startAddr, endAddr, accessType);
+		// Reuse the current unused tab
+		currentWidget->setParametersAndQuery(startAddr, endAddr, accessType);
+	}
+	else
+	{
+		// Create a new tab since the current one is already in use
+		createNewTab();
+		TTDMemoryQueryWidget* queryWidget = qobject_cast<TTDMemoryQueryWidget*>(m_tabWidget->currentWidget());
+		if (queryWidget)
+		{
+			queryWidget->setParametersAndQuery(startAddr, endAddr, accessType);
+		}
 	}
 }
 
