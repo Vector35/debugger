@@ -247,13 +247,8 @@ class DebugRegisters:
             hint_str = f" ({reg.hint})" if reg.hint else ""
             reg_entries.append(f"{name}={reg.value:#x}{hint_str}")
         
-        # Limit the number of registers shown to avoid overly long output
-        if len(reg_entries) > 8:
-            shown_regs = reg_entries[:8]
-            remaining = len(reg_entries) - 8
-            reg_list = ", ".join(shown_regs) + f", ... (+{remaining} more)"
-        else:
-            reg_list = ", ".join(reg_entries)
+        # Show all registers
+        reg_list = ", ".join(reg_entries)
         
         return f"<DebugRegisters: {reg_list}>"
 
