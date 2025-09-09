@@ -186,4 +186,12 @@ void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, 
 	menu.addAction("Debugger", "Run To Here", "Control");
 	menu.addAction("Debugger", "Create Stack View", "Misc");
 	menu.addAction("Debugger", "Override IP", "Misc");
+#ifdef WIN32
+	// TTD Memory Access context menu items
+	menu.addAction("Debugger", "TTD Memory Access\\Read", "TTD");
+	menu.addAction("Debugger", "TTD Memory Access\\Write", "TTD");
+	menu.addAction("Debugger", "TTD Memory Access\\Read/Write", "TTD");
+	menu.addAction("Debugger", "TTD Memory Access\\Execute", "TTD");
+	menu.addAction("Debugger", "TTD Memory Access\\Read/Write/Execute", "TTD");
+#endif
 }

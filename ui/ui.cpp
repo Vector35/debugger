@@ -42,6 +42,7 @@ limitations under the License.
 #include "debuggerinfowidget.h"
 #include "ttdmemorywidget.h"
 #include "freeversion.h"
+#include <QTimer>
 
 #ifdef WIN32
 	#include "ttdrecord.h"
@@ -216,9 +217,7 @@ void GlobalDebuggerUI::QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_
 	if (!sidebar)
 		return;
 
-	sidebar->activate("TTD Memory");
-
-	// Get the current view frame and find the TTD Memory widget
+	// Get the current view frame
 	ViewFrame* frame = ctxt.context->getCurrentViewFrame();
 	if (!frame)
 		return;
@@ -227,18 +226,25 @@ void GlobalDebuggerUI::QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_
 	if (!controller)
 		return;
 
-	// Get the TTDMemoryWidgetType and find the widget instance
-	// For now, we'll use a simple approach: iterate through created widgets
-	// Note: This is a simplified implementation - in production code, 
-	// we might need a more robust widget discovery mechanism
-	
 	// Convert BNDebuggerTTDMemoryAccessType to TTDMemoryAccessType
 	TTDMemoryAccessType accessTypeEnum = static_cast<TTDMemoryAccessType>(accessType);
 	
-	// Try to find the TTD Memory sidebar widget
-	// Since we just activated it, we can try to access it through global widget tracking
-	// For this implementation, we'll use a callback approach through the widget type
+	// Set pending query first
 	TTDMemoryWidgetType::SetPendingQuery(frame, ctxt.binaryView, startAddr, endAddr, accessTypeEnum);
+	
+	// Activate the sidebar widget
+	sidebar->activate("TTD Memory");
+	
+	// Try to find the widget that was just created/activated and apply the query immediately
+	// We'll give it a moment to be created if needed
+	QTimer::singleShot(100, [frame, ctxt, startAddr, endAddr, accessTypeEnum]() {
+		// Try to find the active TTD Memory widget
+		auto* sidebarWidget = frame->getSidebarWidget("TTD Memory");
+		if (auto* ttdWidget = qobject_cast<TTDMemorySidebarWidget*>(sidebarWidget))
+		{
+			ttdWidget->setParametersAndQuery(startAddr, endAddr, accessTypeEnum);
+		}
+	});
 }
 
 

@@ -457,31 +457,19 @@ bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
 		return false;
 	}
 	
-	// Use data model API to navigate to position
-	std::string expression = fmt::format("@$curprocess.TTD.SetPosition(\"{:X}:{:X}\")", position.sequence, position.step);
-	std::string output = EvaluateDataModelExpression(expression);
-	
-	if (!output.empty())
-	{
-		// Check if the operation succeeded
-		bool success = output.find("error") == std::string::npos && output.find("Error") == std::string::npos;
-		if (success)
-		{
-			LogInfo("Successfully navigated to TTD position {:X}:{:X}", position.sequence, position.step);
-			return true;
-		}
-	}
-	
-	// Fallback to command interface if data model doesn't work
-	LogWarn("Data model navigation failed, falling back to command interface");
+	// Use InvokeBackendCommand with !tt command to navigate to position
 	std::string command = fmt::format("!tt {:X}:{:X}", position.sequence, position.step);
-	std::string output_fallback = InvokeBackendCommand(command);
+	std::string output = InvokeBackendCommand(command);
 	
 	// Check if the command succeeded (basic check)
-	bool success = output_fallback.find("error") == std::string::npos && output_fallback.find("failed") == std::string::npos;
+	bool success = output.find("error") == std::string::npos && output.find("failed") == std::string::npos;
 	if (success)
 	{
-		LogInfo("Successfully navigated to TTD position {:X}:{:X} (fallback)", position.sequence, position.step);
+		LogInfo("Successfully navigated to TTD position {:X}:{:X}", position.sequence, position.step);
+	}
+	else
+	{
+		LogError("Failed to navigate to TTD position {:X}:{:X}", position.sequence, position.step);
 	}
 	return success;
 }
