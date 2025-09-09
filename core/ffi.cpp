@@ -1227,7 +1227,7 @@ void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count)
 	
 	delete[] events;
 }
-}
+
 
 
 void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event)
