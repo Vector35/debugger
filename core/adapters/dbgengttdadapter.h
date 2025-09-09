@@ -40,6 +40,18 @@ namespace BinaryNinjaDebugger {
     	
 		bool Quit() override;
 
+		// TTD Call Analysis Methods - Override base class methods
+		std::vector<TTDCallEvent> GetTTDCalls(const std::vector<std::string>& symbols) override;
+		std::vector<TTDCallEvent> GetTTDCallsWithAddressFilter(const std::vector<std::string>& symbols, uint64_t minReturnAddress, uint64_t maxReturnAddress) override;
+		TTDPosition GetCurrentTTDPosition() override;
+		bool SetTTDPosition(const TTDPosition& position) override;
+
+	private:
+		// Helper methods for parsing TTD output
+		std::vector<TTDCallEvent> ParseTTDCallsOutput(const std::string& output);
+		TTDPosition ParseTTDPosition(const std::string& output);
+		void ParseTTDPositionFromString(const std::string& posStr, TTDPosition& position);
+
     	void GenerateDefaultAdapterSettings(BinaryView* data);
     	Ref<Settings> GetAdapterSettings() override;
     };

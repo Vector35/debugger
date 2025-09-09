@@ -176,3 +176,35 @@ Ref<Settings> DebugAdapter::GetAdapterSettings()
 {
 	return nullptr;
 }
+
+
+std::vector<TTDCallEvent> DebugAdapter::GetTTDCalls(const std::vector<std::string>& symbols)
+{
+	// Default implementation returns empty vector
+	// TTD-capable adapters should override this method
+	return {};
+}
+
+
+std::vector<TTDCallEvent> DebugAdapter::GetTTDCallsWithAddressFilter(const std::vector<std::string>& symbols, uint64_t minReturnAddress, uint64_t maxReturnAddress)
+{
+	// Default implementation returns empty vector
+	// TTD-capable adapters should override this method
+	return {};
+}
+
+
+TTDPosition DebugAdapter::GetCurrentTTDPosition()
+{
+	// Default implementation returns empty position
+	// TTD-capable adapters should override this method
+	return TTDPosition();
+}
+
+
+bool DebugAdapter::SetTTDPosition(const TTDPosition& position)
+{
+	// Default implementation returns false
+	// TTD-capable adapters should override this method
+	return false;
+}

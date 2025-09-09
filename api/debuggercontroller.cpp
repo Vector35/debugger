@@ -938,6 +938,115 @@ bool DebuggerController::IsTTD()
 }
 
 
+std::vector<TTDCallEvent> DebuggerController::GetTTDCalls(const std::vector<std::string>& symbols)
+{
+	std::vector<TTDCallEvent> events;
+	
+	// Convert to C-style array
+	std::vector<const char*> symbolArray;
+	for (const auto& symbol : symbols) {
+		symbolArray.push_back(symbol.c_str());
+	}
+	
+	size_t eventCount = 0;
+	BNTTDCallEvent* bnEvents = BNDebuggerGetTTDCalls(m_object, symbolArray.data(), symbolArray.size(), &eventCount);
+	
+	if (bnEvents) {
+		events.reserve(eventCount);
+		for (size_t i = 0; i < eventCount; i++) {
+			TTDCallEvent event;
+			event.eventType = bnEvents[i].eventType ? bnEvents[i].eventType : "";
+			event.threadId = bnEvents[i].threadId;
+			event.uniqueThreadId = bnEvents[i].uniqueThreadId;
+			event.function = bnEvents[i].function ? bnEvents[i].function : "";
+			event.functionAddress = bnEvents[i].functionAddress;
+			event.returnAddress = bnEvents[i].returnAddress;
+			event.returnValue = bnEvents[i].returnValue;
+			event.hasReturnValue = bnEvents[i].hasReturnValue;
+			event.timeStart.sequence = bnEvents[i].timeStart.sequence;
+			event.timeStart.step = bnEvents[i].timeStart.step;
+			event.timeEnd.sequence = bnEvents[i].timeEnd.sequence;
+			event.timeEnd.step = bnEvents[i].timeEnd.step;
+			
+			// Copy parameters
+			if (bnEvents[i].parameters && bnEvents[i].parameterCount > 0) {
+				event.parameters.assign(bnEvents[i].parameters, bnEvents[i].parameters + bnEvents[i].parameterCount);
+			}
+			
+			events.push_back(event);
+		}
+		
+		BNDebuggerFreeTTDCallEvents(bnEvents, eventCount);
+	}
+	
+	return events;
+}
+
+
+std::vector<TTDCallEvent> DebuggerController::GetTTDCallsWithAddressFilter(const std::vector<std::string>& symbols, uint64_t minReturnAddress, uint64_t maxReturnAddress)
+{
+	std::vector<TTDCallEvent> events;
+	
+	// Convert to C-style array
+	std::vector<const char*> symbolArray;
+	for (const auto& symbol : symbols) {
+		symbolArray.push_back(symbol.c_str());
+	}
+	
+	size_t eventCount = 0;
+	BNTTDCallEvent* bnEvents = BNDebuggerGetTTDCallsWithAddressFilter(m_object, symbolArray.data(), symbolArray.size(), minReturnAddress, maxReturnAddress, &eventCount);
+	
+	if (bnEvents) {
+		events.reserve(eventCount);
+		for (size_t i = 0; i < eventCount; i++) {
+			TTDCallEvent event;
+			event.eventType = bnEvents[i].eventType ? bnEvents[i].eventType : "";
+			event.threadId = bnEvents[i].threadId;
+			event.uniqueThreadId = bnEvents[i].uniqueThreadId;
+			event.function = bnEvents[i].function ? bnEvents[i].function : "";
+			event.functionAddress = bnEvents[i].functionAddress;
+			event.returnAddress = bnEvents[i].returnAddress;
+			event.returnValue = bnEvents[i].returnValue;
+			event.hasReturnValue = bnEvents[i].hasReturnValue;
+			event.timeStart.sequence = bnEvents[i].timeStart.sequence;
+			event.timeStart.step = bnEvents[i].timeStart.step;
+			event.timeEnd.sequence = bnEvents[i].timeEnd.sequence;
+			event.timeEnd.step = bnEvents[i].timeEnd.step;
+			
+			// Copy parameters
+			if (bnEvents[i].parameters && bnEvents[i].parameterCount > 0) {
+				event.parameters.assign(bnEvents[i].parameters, bnEvents[i].parameters + bnEvents[i].parameterCount);
+			}
+			
+			events.push_back(event);
+		}
+		
+		BNDebuggerFreeTTDCallEvents(bnEvents, eventCount);
+	}
+	
+	return events;
+}
+
+
+TTDPosition DebuggerController::GetCurrentTTDPosition()
+{
+	BNTTDPosition bnPos = BNDebuggerGetCurrentTTDPosition(m_object);
+	TTDPosition pos;
+	pos.sequence = bnPos.sequence;
+	pos.step = bnPos.step;
+	return pos;
+}
+
+
+bool DebuggerController::SetTTDPosition(const TTDPosition& position)
+{
+	BNTTDPosition bnPos;
+	bnPos.sequence = position.sequence;
+	bnPos.step = position.step;
+	return BNDebuggerSetTTDPosition(m_object, bnPos);
+}
+
+
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent &event)
 {
 	BNDebuggerEvent* evt = new BNDebuggerEvent;

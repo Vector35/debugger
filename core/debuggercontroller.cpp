@@ -2812,6 +2812,46 @@ bool DebuggerController::IsTTD()
 }
 
 
+std::vector<TTDCallEvent> DebuggerController::GetTTDCalls(const std::vector<std::string>& symbols)
+{
+	if (!m_adapter)
+		return {};
+	if (!m_adapter->SupportFeature(DebugAdapterSupportTTD))
+		return {};
+	return m_adapter->GetTTDCalls(symbols);
+}
+
+
+std::vector<TTDCallEvent> DebuggerController::GetTTDCallsWithAddressFilter(const std::vector<std::string>& symbols, uint64_t minReturnAddress, uint64_t maxReturnAddress)
+{
+	if (!m_adapter)
+		return {};
+	if (!m_adapter->SupportFeature(DebugAdapterSupportTTD))
+		return {};
+	return m_adapter->GetTTDCallsWithAddressFilter(symbols, minReturnAddress, maxReturnAddress);
+}
+
+
+TTDPosition DebuggerController::GetCurrentTTDPosition()
+{
+	if (!m_adapter)
+		return TTDPosition();
+	if (!m_adapter->SupportFeature(DebugAdapterSupportTTD))
+		return TTDPosition();
+	return m_adapter->GetCurrentTTDPosition();
+}
+
+
+bool DebuggerController::SetTTDPosition(const TTDPosition& position)
+{
+	if (!m_adapter)
+		return false;
+	if (!m_adapter->SupportFeature(DebugAdapterSupportTTD))
+		return false;
+	return m_adapter->SetTTDPosition(position);
+}
+
+
 void DebuggerController::OnRebased(BinaryView* oldView, BinaryView* newView)
 {
 	m_data = newView;

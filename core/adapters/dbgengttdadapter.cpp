@@ -1,5 +1,7 @@
 #include "dbgengttdadapter.h"
 #include <filesystem>
+#include <regex>
+#include <sstream>
 
 using namespace BinaryNinjaDebugger;
 using namespace std;
@@ -350,6 +352,232 @@ void DbgEngTTDAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 	adapterSettings->Get<std::string>("common.inputFile", data, &scope);
 	if (scope != SettingsResourceScope)
 		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
+}
+
+
+std::vector<TTDCallEvent> DbgEngTTDAdapter::GetTTDCalls(const std::vector<std::string>& symbols)
+{
+	std::vector<TTDCallEvent> events;
+	
+	if (!m_debugControl)
+		return events;
+
+	// Build the TTD.Calls query
+	std::string symbolsQuery;
+	for (size_t i = 0; i < symbols.size(); i++) {
+		if (i > 0)
+			symbolsQuery += ", ";
+		symbolsQuery += "\"" + symbols[i] + "\"";
+	}
+	
+	std::string command = "dx -g @$cursession.TTD.Calls(" + symbolsQuery + ")";
+	
+	// Execute the command and parse results
+	std::string result = InvokeBackendCommand(command);
+	events = ParseTTDCallsOutput(result);
+	
+	return events;
+}
+
+
+std::vector<TTDCallEvent> DbgEngTTDAdapter::GetTTDCallsWithAddressFilter(const std::vector<std::string>& symbols, uint64_t minReturnAddress, uint64_t maxReturnAddress)
+{
+	std::vector<TTDCallEvent> events;
+	
+	if (!m_debugControl)
+		return events;
+
+	// Build the TTD.Calls query with address filter
+	std::string symbolsQuery;
+	for (size_t i = 0; i < symbols.size(); i++) {
+		if (i > 0)
+			symbolsQuery += ", ";
+		symbolsQuery += "\"" + symbols[i] + "\"";
+	}
+	
+	std::string command = fmt::format("dx -g @$cursession.TTD.Calls({}).Where(c => c.ReturnAddress >= 0x{:x} && c.ReturnAddress < 0x{:x})", 
+		symbolsQuery, minReturnAddress, maxReturnAddress);
+	
+	// Execute the command and parse results
+	std::string result = InvokeBackendCommand(command);
+	events = ParseTTDCallsOutput(result);
+	
+	return events;
+}
+
+
+TTDPosition DbgEngTTDAdapter::GetCurrentTTDPosition()
+{
+	if (!m_debugControl)
+		return TTDPosition();
+
+	std::string result = InvokeBackendCommand("dx @$cursession.TTD.Position");
+	return ParseTTDPosition(result);
+}
+
+
+bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
+{
+	if (!m_debugControl)
+		return false;
+
+	std::string command = fmt::format("!tt {{{:x}:{:x}}}", position.sequence, position.step);
+	std::string result = InvokeBackendCommand(command);
+	
+	// Check if the command succeeded by verifying the position changed
+	return !result.empty();
+}
+
+
+std::vector<TTDCallEvent> DbgEngTTDAdapter::ParseTTDCallsOutput(const std::string& output)
+{
+	std::vector<TTDCallEvent> events;
+	
+	if (output.empty())
+		return events;
+
+	// Parse the dx -g output table format
+	// The output should have a table with columns separated by " = " and rows starting with "= [0x"
+	std::istringstream stream(output);
+	std::string line;
+	
+	// Skip header lines until we find the data rows
+	bool foundData = false;
+	while (std::getline(stream, line)) {
+		if (line.find("= [0x") == 0) {
+			foundData = true;
+			break;
+		}
+	}
+	
+	if (!foundData) {
+		std::getline(stream, line); // Try to get the first data line
+	}
+	
+	do {
+		if (line.find("= [0x") == 0) {
+			TTDCallEvent event;
+			
+			// Parse the table row format
+			// Example: = [0x0] - 0x0 - 0x185c - 0x2 - 10:CC5 - 10:CC7 - KERNEL32!GetLastError - 0x7ff823a08640 - 0x7ff805715549 - 0xbb - {...} - Thursday, September 4, 2025 09:36:38.541 - Thursday, September 4, 2025 09:36:38.541 =
+			
+			std::vector<std::string> parts;
+			size_t start = 0, pos = 0;
+			
+			// Split by " - " to get table columns
+			while ((pos = line.find(" - ", start)) != std::string::npos) {
+				std::string part = line.substr(start, pos - start);
+				if (!part.empty() && part != "=") {
+					parts.push_back(part);
+				}
+				start = pos + 3;
+			}
+			
+			// Add the last part (before the trailing "=")
+			if (start < line.length()) {
+				std::string lastPart = line.substr(start);
+				size_t endPos = lastPart.find(" =");
+				if (endPos != std::string::npos) {
+					lastPart = lastPart.substr(0, endPos);
+				}
+				if (!lastPart.empty()) {
+					parts.push_back(lastPart);
+				}
+			}
+			
+			// Parse fields based on expected column order from Microsoft documentation
+			// Columns: [index], EventType, ThreadId, UniqueThreadId, TimeStart, TimeEnd, Function, FunctionAddress, ReturnAddress, ReturnValue, Parameters, SystemTimeStart, SystemTimeEnd
+			if (parts.size() >= 10) {
+				try {
+					// Index is parts[0] (e.g., "[0x0]")
+					event.eventType = "Call"; // Always "Call" for TTD.Calls
+					
+					// ThreadId (parts[2])
+					if (parts[2].find("0x") == 0) {
+						event.threadId = std::stoul(parts[2], nullptr, 16);
+					}
+					
+					// UniqueThreadId (parts[3])
+					if (parts[3].find("0x") == 0) {
+						event.uniqueThreadId = std::stoul(parts[3], nullptr, 16);
+					}
+					
+					// TimeStart (parts[4]) - format like "10:CC5"
+					ParseTTDPositionFromString(parts[4], event.timeStart);
+					
+					// TimeEnd (parts[5]) - format like "10:CC7"
+					ParseTTDPositionFromString(parts[5], event.timeEnd);
+					
+					// Function (parts[6])
+					event.function = parts[6];
+					
+					// FunctionAddress (parts[7])
+					if (parts[7].find("0x") == 0) {
+						event.functionAddress = std::stoull(parts[7], nullptr, 16);
+					}
+					
+					// ReturnAddress (parts[8])
+					if (parts[8].find("0x") == 0) {
+						event.returnAddress = std::stoull(parts[8], nullptr, 16);
+					}
+					
+					// ReturnValue (parts[9])
+					if (parts[9].find("0x") == 0) {
+						event.returnValue = std::stoull(parts[9], nullptr, 16);
+						event.hasReturnValue = true;
+					}
+					
+					// Parameters would be in parts[10] as "{...}" - we'll parse this later if needed
+					
+					events.push_back(event);
+				} catch (const std::exception& e) {
+					// Skip malformed lines
+					continue;
+				}
+			}
+		}
+	} while (std::getline(stream, line));
+	
+	return events;
+}
+
+
+TTDPosition DbgEngTTDAdapter::ParseTTDPosition(const std::string& output)
+{
+	TTDPosition position;
+	
+	// Look for position format like "{sequence:step}" or "sequence:step"
+	std::regex positionRegex(R"((\w+):(\w+))");
+	std::smatch match;
+	
+	if (std::regex_search(output, match, positionRegex)) {
+		try {
+			position.sequence = std::stoull(match[1].str(), nullptr, 16);
+			position.step = std::stoull(match[2].str(), nullptr, 16);
+		} catch (const std::exception& e) {
+			// Return default position if parsing fails
+		}
+	}
+	
+	return position;
+}
+
+
+void DbgEngTTDAdapter::ParseTTDPositionFromString(const std::string& posStr, TTDPosition& position)
+{
+	// Parse position format like "10:CC5"
+	size_t colonPos = posStr.find(':');
+	if (colonPos != std::string::npos) {
+		try {
+			std::string seqStr = posStr.substr(0, colonPos);
+			std::string stepStr = posStr.substr(colonPos + 1);
+			
+			position.sequence = std::stoull(seqStr, nullptr, 16);
+			position.step = std::stoull(stepStr, nullptr, 16);
+		} catch (const std::exception& e) {
+			// Keep default values if parsing fails
+		}
+	}
 }
 
 

@@ -309,6 +309,12 @@ namespace BinaryNinjaDebugger {
 
 		virtual bool SupportFeature(DebugAdapterCapacity feature) = 0;
 
+		// TTD Call Analysis Methods - These are virtual methods that TTD adapters can override
+		virtual std::vector<TTDCallEvent> GetTTDCalls(const std::vector<std::string>& symbols);
+		virtual std::vector<TTDCallEvent> GetTTDCallsWithAddressFilter(const std::vector<std::string>& symbols, uint64_t minReturnAddress, uint64_t maxReturnAddress);
+		virtual TTDPosition GetCurrentTTDPosition();
+		virtual bool SetTTDPosition(const TTDPosition& position);
+
 		// This is implemented by the (base) DebugAdapter class.
 		// Sub-classes should use it to post debugger events directly (only when needed).
 		void PostDebuggerEvent(const DebuggerEvent& event);

@@ -393,6 +393,52 @@ namespace BinaryNinjaDebuggerAPI {
 	typedef BNDebuggerEventType DebuggerEventType;
 	typedef BNDebugStopReason DebugStopReason;
 
+	// TTD Position - represents a position in the TTD trace
+	struct TTDPosition
+	{
+		uint64_t sequence;  // Sequence number in trace
+		uint64_t step;      // Step within sequence
+		
+		TTDPosition() : sequence(0), step(0) {}
+		TTDPosition(uint64_t seq, uint64_t st) : sequence(seq), step(st) {}
+		
+		bool operator==(const TTDPosition& other) const
+		{
+			return sequence == other.sequence && step == other.step;
+		}
+		
+		bool operator<(const TTDPosition& other) const
+		{
+			if (sequence < other.sequence)
+				return true;
+			if (sequence > other.sequence)
+				return false;
+			return step < other.step;
+		}
+	};
+
+	// TTD Call Event - represents a function call in the TTD trace
+	struct TTDCallEvent
+	{
+		std::string eventType;         // Event type (always "Call" for TTD Calls)
+		uint32_t threadId;             // OS thread ID of thread that made the call
+		uint32_t uniqueThreadId;       // Unique ID for thread across the trace
+		std::string function;          // Symbolic name of the function
+		uint64_t functionAddress;      // Function's address in memory
+		uint64_t returnAddress;        // Instruction to return to after the call
+		uint64_t returnValue;          // Return value of the function (if not void)
+		bool hasReturnValue;           // Whether the function has a return value
+		std::vector<uint64_t> parameters; // Array of parameters passed to the function
+		TTDPosition timeStart;         // Position at the start of the call
+		TTDPosition timeEnd;           // Position at the end of the call
+		
+		TTDCallEvent() : threadId(0), uniqueThreadId(0), functionAddress(0), returnAddress(0), 
+		                 returnValue(0), hasReturnValue(false) 
+		{
+			eventType = "Call";
+		}
+	};
+
 	struct TargetStoppedEventData
 	{
 		DebugStopReason reason;
@@ -613,6 +659,12 @@ namespace BinaryNinjaDebuggerAPI {
 		bool IsFirstAttach();
 
 		bool IsTTD();
+
+		// TTD Call Analysis Methods
+		std::vector<TTDCallEvent> GetTTDCalls(const std::vector<std::string>& symbols);
+		std::vector<TTDCallEvent> GetTTDCallsWithAddressFilter(const std::vector<std::string>& symbols, uint64_t minReturnAddress, uint64_t maxReturnAddress);
+		TTDPosition GetCurrentTTDPosition();
+		bool SetTTDPosition(const TTDPosition& position);
 
 		void PostDebuggerEvent(const DebuggerEvent& event);
 

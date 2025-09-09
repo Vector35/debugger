@@ -142,6 +142,30 @@ extern "C"
 	} BNModuleNameAndOffset;
 
 
+	typedef struct BNTTDPosition
+	{
+		uint64_t sequence;
+		uint64_t step;
+	} BNTTDPosition;
+
+
+	typedef struct BNTTDCallEvent
+	{
+		char* eventType;
+		uint32_t threadId;
+		uint32_t uniqueThreadId;
+		char* function;
+		uint64_t functionAddress;
+		uint64_t returnAddress;
+		uint64_t returnValue;
+		bool hasReturnValue;
+		uint64_t* parameters;
+		size_t parameterCount;
+		BNTTDPosition timeStart;
+		BNTTDPosition timeEnd;
+	} BNTTDCallEvent;
+
+
 	typedef enum BNDebugStopReason
 	{
 		UnknownReason = 0,
@@ -499,6 +523,13 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerIsFirstAttach(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API bool BNDebuggerIsTTD(BNDebuggerController* controller);
+
+	// TTD Call Analysis APIs
+	DEBUGGER_FFI_API BNTTDCallEvent* BNDebuggerGetTTDCalls(BNDebuggerController* controller, const char** symbols, size_t symbolCount, size_t* eventCount);
+	DEBUGGER_FFI_API BNTTDCallEvent* BNDebuggerGetTTDCallsWithAddressFilter(BNDebuggerController* controller, const char** symbols, size_t symbolCount, uint64_t minReturnAddress, uint64_t maxReturnAddress, size_t* eventCount);
+	DEBUGGER_FFI_API BNTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNTTDPosition position);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDCallEvents(BNTTDCallEvent* events, size_t count);
 
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 

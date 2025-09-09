@@ -1056,6 +1056,129 @@ bool BNDebuggerIsTTD(BNDebuggerController* controller)
 }
 
 
+BNTTDCallEvent* BNDebuggerGetTTDCalls(BNDebuggerController* controller, const char** symbols, size_t symbolCount, size_t* eventCount)
+{
+	std::vector<std::string> symbolList;
+	for (size_t i = 0; i < symbolCount; i++) {
+		symbolList.push_back(symbols[i]);
+	}
+	
+	auto events = controller->object->GetTTDCalls(symbolList);
+	*eventCount = events.size();
+	
+	if (events.empty())
+		return nullptr;
+		
+	BNTTDCallEvent* result = new BNTTDCallEvent[events.size()];
+	for (size_t i = 0; i < events.size(); i++) {
+		result[i].eventType = BNAllocString(events[i].eventType.c_str());
+		result[i].threadId = events[i].threadId;
+		result[i].uniqueThreadId = events[i].uniqueThreadId;
+		result[i].function = BNAllocString(events[i].function.c_str());
+		result[i].functionAddress = events[i].functionAddress;
+		result[i].returnAddress = events[i].returnAddress;
+		result[i].returnValue = events[i].returnValue;
+		result[i].hasReturnValue = events[i].hasReturnValue;
+		result[i].timeStart.sequence = events[i].timeStart.sequence;
+		result[i].timeStart.step = events[i].timeStart.step;
+		result[i].timeEnd.sequence = events[i].timeEnd.sequence;
+		result[i].timeEnd.step = events[i].timeEnd.step;
+		
+		// Copy parameters
+		result[i].parameterCount = events[i].parameters.size();
+		if (result[i].parameterCount > 0) {
+			result[i].parameters = new uint64_t[result[i].parameterCount];
+			for (size_t j = 0; j < result[i].parameterCount; j++) {
+				result[i].parameters[j] = events[i].parameters[j];
+			}
+		} else {
+			result[i].parameters = nullptr;
+		}
+	}
+	
+	return result;
+}
+
+
+BNTTDCallEvent* BNDebuggerGetTTDCallsWithAddressFilter(BNDebuggerController* controller, const char** symbols, size_t symbolCount, uint64_t minReturnAddress, uint64_t maxReturnAddress, size_t* eventCount)
+{
+	std::vector<std::string> symbolList;
+	for (size_t i = 0; i < symbolCount; i++) {
+		symbolList.push_back(symbols[i]);
+	}
+	
+	auto events = controller->object->GetTTDCallsWithAddressFilter(symbolList, minReturnAddress, maxReturnAddress);
+	*eventCount = events.size();
+	
+	if (events.empty())
+		return nullptr;
+		
+	BNTTDCallEvent* result = new BNTTDCallEvent[events.size()];
+	for (size_t i = 0; i < events.size(); i++) {
+		result[i].eventType = BNAllocString(events[i].eventType.c_str());
+		result[i].threadId = events[i].threadId;
+		result[i].uniqueThreadId = events[i].uniqueThreadId;
+		result[i].function = BNAllocString(events[i].function.c_str());
+		result[i].functionAddress = events[i].functionAddress;
+		result[i].returnAddress = events[i].returnAddress;
+		result[i].returnValue = events[i].returnValue;
+		result[i].hasReturnValue = events[i].hasReturnValue;
+		result[i].timeStart.sequence = events[i].timeStart.sequence;
+		result[i].timeStart.step = events[i].timeStart.step;
+		result[i].timeEnd.sequence = events[i].timeEnd.sequence;
+		result[i].timeEnd.step = events[i].timeEnd.step;
+		
+		// Copy parameters
+		result[i].parameterCount = events[i].parameters.size();
+		if (result[i].parameterCount > 0) {
+			result[i].parameters = new uint64_t[result[i].parameterCount];
+			for (size_t j = 0; j < result[i].parameterCount; j++) {
+				result[i].parameters[j] = events[i].parameters[j];
+			}
+		} else {
+			result[i].parameters = nullptr;
+		}
+	}
+	
+	return result;
+}
+
+
+BNTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller)
+{
+	TTDPosition pos = controller->object->GetCurrentTTDPosition();
+	BNTTDPosition result;
+	result.sequence = pos.sequence;
+	result.step = pos.step;
+	return result;
+}
+
+
+bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNTTDPosition position)
+{
+	TTDPosition pos;
+	pos.sequence = position.sequence;
+	pos.step = position.step;
+	return controller->object->SetTTDPosition(pos);
+}
+
+
+void BNDebuggerFreeTTDCallEvents(BNTTDCallEvent* events, size_t count)
+{
+	if (!events)
+		return;
+		
+	for (size_t i = 0; i < count; i++) {
+		BNFreeString(events[i].eventType);
+		BNFreeString(events[i].function);
+		if (events[i].parameters) {
+			delete[] events[i].parameters;
+		}
+	}
+	delete[] events;
+}
+
+
 void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event)
 {
 	DebuggerEvent evt;
