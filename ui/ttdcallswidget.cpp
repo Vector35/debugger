@@ -242,7 +242,7 @@ void TTDCallsQueryWidget::performQuery()
 		
 		// Index
 		m_resultsTable->setItem(row, static_cast<int>(IndexColumn), 
-			new QTableWidgetItem(QString::number(i)));
+			new NumericalTableWidgetItem(QString::number(i), i));
 		
 		// Event Type
 		m_resultsTable->setItem(row, static_cast<int>(EventTypeColumn), 
@@ -250,17 +250,26 @@ void TTDCallsQueryWidget::performQuery()
 		
 		// Time Start
 		QString timeStartStr = QString("%1:%2").arg(event.timeStart.sequence, 0, 16).arg(event.timeStart.step, 0, 16);
+		// For time sorting, use the sequence as primary sort key and step as secondary
+		uint64_t timeStartSortValue = (event.timeStart.sequence << 32) | (event.timeStart.step & 0xFFFFFFFF);
 		m_resultsTable->setItem(row, static_cast<int>(TimeStartColumn), 
-			new QTableWidgetItem(timeStartStr));
+			new NumericalTableWidgetItem(timeStartStr, timeStartSortValue));
 		
 		// Time End
 		QString timeEndStr;
+		uint64_t timeEndSortValue;
 		if (event.timeEnd.sequence == UINT64_MAX && event.timeEnd.step == UINT64_MAX)
+		{
 			timeEndStr = "Max Position";
+			timeEndSortValue = UINT64_MAX; // Sort max position at the end
+		}
 		else
+		{
 			timeEndStr = QString("%1:%2").arg(event.timeEnd.sequence, 0, 16).arg(event.timeEnd.step, 0, 16);
+			timeEndSortValue = (event.timeEnd.sequence << 32) | (event.timeEnd.step & 0xFFFFFFFF);
+		}
 		m_resultsTable->setItem(row, static_cast<int>(TimeEndColumn), 
-			new QTableWidgetItem(timeEndStr));
+			new NumericalTableWidgetItem(timeEndStr, timeEndSortValue));
 		
 		// Function
 		m_resultsTable->setItem(row, static_cast<int>(FunctionColumn), 
@@ -268,25 +277,26 @@ void TTDCallsQueryWidget::performQuery()
 		
 		// Function Address
 		m_resultsTable->setItem(row, static_cast<int>(FunctionAddressColumn), 
-			new QTableWidgetItem(QString("0x%1").arg(event.functionAddress, 0, 16)));
+			new NumericalTableWidgetItem(QString("0x%1").arg(event.functionAddress, 0, 16), event.functionAddress));
 		
 		// Return Address
 		m_resultsTable->setItem(row, static_cast<int>(ReturnAddressColumn), 
-			new QTableWidgetItem(QString("0x%1").arg(event.returnAddress, 0, 16)));
+			new NumericalTableWidgetItem(QString("0x%1").arg(event.returnAddress, 0, 16), event.returnAddress));
 		
 		// Return Value
 		QString returnValueStr = event.hasReturnValue ? 
 			QString("0x%1").arg(event.returnValue, 0, 16) : QString("N/A");
+		uint64_t returnValueSortValue = event.hasReturnValue ? event.returnValue : 0;
 		m_resultsTable->setItem(row, static_cast<int>(ReturnValueColumn), 
-			new QTableWidgetItem(returnValueStr));
+			new NumericalTableWidgetItem(returnValueStr, returnValueSortValue));
 		
 		// Thread ID
 		m_resultsTable->setItem(row, static_cast<int>(ThreadIdColumn), 
-			new QTableWidgetItem(QString("0x%1").arg(event.threadId, 0, 16)));
+			new NumericalTableWidgetItem(QString("0x%1").arg(event.threadId, 0, 16), event.threadId));
 		
 		// Unique Thread ID
 		m_resultsTable->setItem(row, static_cast<int>(UniqueThreadIdColumn), 
-			new QTableWidgetItem(QString("0x%1").arg(event.uniqueThreadId, 0, 16)));
+			new NumericalTableWidgetItem(QString("0x%1").arg(event.uniqueThreadId, 0, 16), event.uniqueThreadId));
 		
 		// Parameters
 		QString parametersStr;

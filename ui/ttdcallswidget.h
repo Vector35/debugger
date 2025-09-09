@@ -47,6 +47,26 @@ limitations under the License.
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 
+// Custom table widget item that supports numerical sorting
+class NumericalTableWidgetItem : public QTableWidgetItem
+{
+public:
+	NumericalTableWidgetItem(const QString& text, uint64_t numericValue)
+		: QTableWidgetItem(text), m_numericValue(numericValue)
+	{
+		setData(Qt::UserRole, static_cast<qulonglong>(numericValue));
+	}
+
+	bool operator<(const QTableWidgetItem& other) const override
+	{
+		// Use the numeric value stored in UserRole for sorting
+		return data(Qt::UserRole).toULongLong() < other.data(Qt::UserRole).toULongLong();
+	}
+
+private:
+	uint64_t m_numericValue;
+};
+
 class TTDCallsQueryWidget : public QWidget
 {
 	Q_OBJECT

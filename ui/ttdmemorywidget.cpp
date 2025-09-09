@@ -379,7 +379,7 @@ void TTDMemoryQueryWidget::performQuery()
 			const auto& event = events[i];
 			
 			// Index
-			m_resultsTable->setItem(i, 0, new QTableWidgetItem(QString("0x%1").arg(i, 0, 16)));
+			m_resultsTable->setItem(i, 0, new NumericalTableWidgetItem(QString("0x%1").arg(i, 0, 16), i));
 			
 			// Event Type
 			m_resultsTable->setItem(i, 1, new QTableWidgetItem(QString::fromStdString(event.eventType)));
@@ -388,13 +388,15 @@ void TTDMemoryQueryWidget::performQuery()
 			QString timeStartStr = QString("%1:%2")
 				.arg(event.timeStart.sequence, 0, 16)
 				.arg(event.timeStart.step, 0, 16);
-			m_resultsTable->setItem(i, 2, new QTableWidgetItem(timeStartStr));
+			uint64_t timeStartSortValue = (event.timeStart.sequence << 32) | (event.timeStart.step & 0xFFFFFFFF);
+			m_resultsTable->setItem(i, 2, new NumericalTableWidgetItem(timeStartStr, timeStartSortValue));
 			
 			// Time End
 			QString timeEndStr = QString("%1:%2")
 				.arg(event.timeEnd.sequence, 0, 16)
 				.arg(event.timeEnd.step, 0, 16);
-			m_resultsTable->setItem(i, 3, new QTableWidgetItem(timeEndStr));
+			uint64_t timeEndSortValue = (event.timeEnd.sequence << 32) | (event.timeEnd.step & 0xFFFFFFFF);
+			m_resultsTable->setItem(i, 3, new NumericalTableWidgetItem(timeEndStr, timeEndSortValue));
 			
 			// Access Type
 			QString accessTypeStr;
@@ -405,24 +407,24 @@ void TTDMemoryQueryWidget::performQuery()
 			
 			// Address
 			QString addressStr = QString("0x%1").arg(event.address, 0, 16);
-			m_resultsTable->setItem(i, 5, new QTableWidgetItem(addressStr));
+			m_resultsTable->setItem(i, 5, new NumericalTableWidgetItem(addressStr, event.address));
 			
 			// Size
-			m_resultsTable->setItem(i, 6, new QTableWidgetItem(QString::number(event.size)));
+			m_resultsTable->setItem(i, 6, new NumericalTableWidgetItem(QString::number(event.size), event.size));
 			
 			// Value
 			QString valueStr = QString("0x%1").arg(event.value, 0, 16);
-			m_resultsTable->setItem(i, 7, new QTableWidgetItem(valueStr));
+			m_resultsTable->setItem(i, 7, new NumericalTableWidgetItem(valueStr, event.value));
 			
 			// Thread ID
-			m_resultsTable->setItem(i, 8, new QTableWidgetItem(QString::number(event.threadId)));
+			m_resultsTable->setItem(i, 8, new NumericalTableWidgetItem(QString::number(event.threadId), event.threadId));
 			
 			// Unique Thread ID
-			m_resultsTable->setItem(i, 9, new QTableWidgetItem(QString::number(event.uniqueThreadId)));
+			m_resultsTable->setItem(i, 9, new NumericalTableWidgetItem(QString::number(event.uniqueThreadId), event.uniqueThreadId));
 			
 			// IP (Instruction Address)
 			QString instrAddrStr = QString("0x%1").arg(event.instructionAddress, 0, 16);
-			m_resultsTable->setItem(i, 10, new QTableWidgetItem(instrAddrStr));
+			m_resultsTable->setItem(i, 10, new NumericalTableWidgetItem(instrAddrStr, event.instructionAddress));
 		}
 		
 		updateStatus(QString("Found %1 memory access events").arg(events.size()));
