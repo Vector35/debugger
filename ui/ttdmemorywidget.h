@@ -83,6 +83,22 @@ class TTDMemoryQueryWidget : public QWidget
 {
 	Q_OBJECT
 
+public:
+	// Enum for logical column identification
+	enum LogicalColumn {
+		IndexColumn = 0,
+		EventTypeColumn,
+		TimeStartColumn,
+		TimeEndColumn,
+		AccessTypeColumn,
+		AddressColumn,
+		SizeColumn,
+		ValueColumn,
+		ThreadIdColumn,
+		UniqueThreadIdColumn,
+		IPColumn
+	};
+
 private:
 	BinaryViewRef m_data;
 	DbgRef<DebuggerController> m_controller;
@@ -113,6 +129,11 @@ private:
 	TTDMemoryAccessType getSelectedAccessTypes();
 	void setupContextMenu();
 	void updateColumnVisibility();
+	
+	// Helper method to map visual column index to logical column
+	LogicalColumn getLogicalColumnFromVisual(int visualColumn) const;
+	// Helper method to get visual column index from logical column
+	int getVisualColumnFromLogical(LogicalColumn logicalColumn) const;
 
 public:
 	TTDMemoryQueryWidget(QWidget* parent, BinaryViewRef data);

@@ -377,6 +377,43 @@ void TTDMemoryQueryWidget::updateColumnVisibility()
 	}
 }
 
+TTDMemoryQueryWidget::LogicalColumn TTDMemoryQueryWidget::getLogicalColumnFromVisual(int visualColumn) const
+{
+	if (visualColumn < 0 || visualColumn >= m_resultsTable->columnCount())
+		return static_cast<LogicalColumn>(-1); // Invalid
+	
+	int currentVisualIndex = 0;
+	for (int logicalIndex = 0; logicalIndex < m_columnVisibility.size(); ++logicalIndex)
+	{
+		if (m_columnVisibility[logicalIndex]) // Column is visible
+		{
+			if (currentVisualIndex == visualColumn)
+				return static_cast<LogicalColumn>(logicalIndex);
+			currentVisualIndex++;
+		}
+	}
+	
+	return static_cast<LogicalColumn>(-1); // Not found
+}
+
+int TTDMemoryQueryWidget::getVisualColumnFromLogical(LogicalColumn logicalColumn) const
+{
+	if (logicalColumn < 0 || logicalColumn >= m_columnVisibility.size())
+		return -1; // Invalid
+	
+	if (!m_columnVisibility[logicalColumn])
+		return -1; // Column is hidden
+	
+	int visualIndex = 0;
+	for (int i = 0; i < logicalColumn; ++i)
+	{
+		if (m_columnVisibility[i]) // Column is visible
+			visualIndex++;
+	}
+	
+	return visualIndex;
+}
+
 void TTDMemoryQueryWidget::performQuery()
 {
 	if (!m_controller || !m_controller->IsTTD())
@@ -496,11 +533,15 @@ void TTDMemoryQueryWidget::onCellDoubleClicked(int row, int column)
 	// Handle double-click events - navigate to address or position
 	if (row < 0 || row >= m_resultsTable->rowCount())
 		return;
-		
-	if (column == 2) // Time Start column
+	
+	// Get the logical column type from the visual column index
+	LogicalColumn logicalColumn = getLogicalColumnFromVisual(column);
+	
+	if (logicalColumn == TimeStartColumn)
 	{
 		// Parse position and navigate to it
-		QTableWidgetItem* posItem = m_resultsTable->item(row, 2);
+		int timeStartVisualColumn = getVisualColumnFromLogical(TimeStartColumn);
+		QTableWidgetItem* posItem = m_resultsTable->item(row, timeStartVisualColumn);
 		if (posItem && m_controller)
 		{
 			QString posStr = posItem->text();
@@ -517,20 +558,24 @@ void TTDMemoryQueryWidget::onCellDoubleClicked(int row, int column)
 					if (m_controller->SetTTDPosition(pos))
 					{
 						// After time traveling, also navigate to the instruction pointer
-						QTableWidgetItem* ipItem = m_resultsTable->item(row, 10); // IP column
-						if (ipItem && m_data)
+						int ipVisualColumn = getVisualColumnFromLogical(IPColumn);
+						if (ipVisualColumn >= 0)
 						{
-							QString ipStr = ipItem->text();
-							if (ipStr.startsWith("0x", Qt::CaseInsensitive))
+							QTableWidgetItem* ipItem = m_resultsTable->item(row, ipVisualColumn);
+							if (ipItem && m_data)
 							{
-								bool ok;
-								uint64_t ipAddress = ipStr.mid(2).toULongLong(&ok, 16);
-								if (ok)
+								QString ipStr = ipItem->text();
+								if (ipStr.startsWith("0x", Qt::CaseInsensitive))
 								{
-									ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
-									if (frame)
+									bool ok;
+									uint64_t ipAddress = ipStr.mid(2).toULongLong(&ok, 16);
+									if (ok)
 									{
-										frame->navigate(m_data, ipAddress);
+										ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+										if (frame)
+										{
+											frame->navigate(m_data, ipAddress);
+										}
 									}
 								}
 							}
@@ -545,7 +590,7 @@ void TTDMemoryQueryWidget::onCellDoubleClicked(int row, int column)
 			}
 		}
 	}
-	else if (column == 5 || column == 10) // Address or IP columns
+	else if (logicalColumn == AddressColumn || logicalColumn == IPColumn)
 	{
 		// Navigate to address in disassembly view
 		QTableWidgetItem* addrItem = m_resultsTable->item(row, column);
