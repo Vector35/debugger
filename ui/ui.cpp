@@ -1096,7 +1096,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 	// TTD Calls menu actions
 	UIAction::registerAction("TTD Calls\\All Calls");
-	UIAction::setActionHandler("TTD Calls\\All Calls", UIAction([=](const UIActionContext& ctxt) {
+	context->globalActions()->bindAction("TTD Calls\\All Calls", UIAction([=](const UIActionContext& ctxt) {
 			auto controller = DebuggerController::GetController(ctxt.binaryView);
 			if (!controller || !controller->IsConnected())
 				return;
@@ -1109,7 +1109,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("TTD Calls\\All Calls", "TTD");
 
 	UIAction::registerAction("TTD Calls\\Kernel32 Calls");
-	UIAction::setActionHandler("TTD Calls\\Kernel32 Calls", UIAction([=](const UIActionContext& ctxt) {
+	context->globalActions()->bindAction("TTD Calls\\Kernel32 Calls", UIAction([=](const UIActionContext& ctxt) {
 			auto controller = DebuggerController::GetController(ctxt.binaryView);
 			if (!controller || !controller->IsConnected())
 				return;
@@ -1122,7 +1122,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("TTD Calls\\Kernel32 Calls", "TTD");
 
 	UIAction::registerAction("TTD Calls\\Ntdll Calls");
-	UIAction::setActionHandler("TTD Calls\\Ntdll Calls", UIAction([=](const UIActionContext& ctxt) {
+	context->globalActions()->bindAction("TTD Calls\\Ntdll Calls", UIAction([=](const UIActionContext& ctxt) {
 			auto controller = DebuggerController::GetController(ctxt.binaryView);
 			if (!controller || !controller->IsConnected())
 				return;

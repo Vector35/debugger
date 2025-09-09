@@ -335,7 +335,11 @@ void TTDCallsQueryWidget::onCellDoubleClicked(int row, int column)
 			if (ok && address != 0)
 			{
 				// Navigate to address in Binary Ninja
-				m_data->Navigate(m_data->GetDefaultPlatform(), address);
+				ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+				if (frame)
+				{
+					frame->navigate(m_data, address);
+				}
 			}
 		}
 	}
@@ -595,7 +599,7 @@ void TTDCallsWidget::setParametersAndQueryInNewTab(const std::vector<std::string
 
 // TTDCallsSidebarWidget implementation
 
-TTDCallsSidebarWidget::TTDCallsSidebarWidget(BinaryViewRef data) : m_data(data)
+TTDCallsSidebarWidget::TTDCallsSidebarWidget(BinaryViewRef data) : SidebarWidget("TTD Calls"), m_data(data)
 {
 	m_controller = DebuggerController::GetController(data);
 	

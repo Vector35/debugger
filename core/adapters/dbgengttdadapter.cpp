@@ -901,13 +901,7 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 std::vector<TTDCallEvent> DbgEngTTDAdapter::GetCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
 {
 	std::vector<TTDCallEvent> events;
-	
-	if (!IsConnected())
-	{
-		LogError("Not connected to target");
-		return events;
-	}
-	
+
 	if (symbols.empty())
 	{
 		LogError("No symbols provided for TTD calls query");
@@ -1030,7 +1024,7 @@ bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, std::v
 		ComPtr<IModelObject> callObject;
 		ComPtr<IKeyStore> callMetadataKeyStore;
 		
-		while (SUCCEEDED(iterator->GetNext(&callObject, nullptr, &callMetadataKeyStore)))
+		while (SUCCEEDED(iterator->GetNext(&callObject, 0, nullptr, &callMetadataKeyStore)))
 		{
 			if (!callObject)
 				break;
@@ -1145,7 +1139,7 @@ bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, std::v
 						ComPtr<IModelObject> paramObj;
 						ComPtr<IKeyStore> paramMetadataKeyStore;
 						
-						while (SUCCEEDED(paramsIterator->GetNext(&paramObj, nullptr, &paramMetadataKeyStore)))
+						while (SUCCEEDED(paramsIterator->GetNext(&paramObj, 0, nullptr, &paramMetadataKeyStore)))
 						{
 							if (!paramObj)
 								break;
