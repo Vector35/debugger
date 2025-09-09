@@ -556,6 +556,10 @@ extern "C"
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count);
 
+	// TTD Code Coverage Analysis Functions
+	DEBUGGER_FFI_API bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t address);
+	DEBUGGER_FFI_API bool BNDebuggerRunCodeCoverageAnalysis(BNDebuggerController* controller);
+
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 
 	DEBUGGER_FFI_API bool BNDebuggerRemoveMemoryRegion(BNDebuggerController* controller);

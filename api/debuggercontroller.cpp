@@ -1039,6 +1039,18 @@ std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::s
 }
 
 
+bool DebuggerController::IsInstructionExecuted(uint64_t address)
+{
+	return BNDebuggerIsInstructionExecuted(m_object, address);
+}
+
+
+bool DebuggerController::RunCodeCoverageAnalysis()
+{
+	return BNDebuggerRunCodeCoverageAnalysis(m_object);
+}
+
+
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent &event)
 {
 	BNDebuggerEvent* evt = new BNDebuggerEvent;

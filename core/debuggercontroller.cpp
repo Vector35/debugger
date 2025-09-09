@@ -2879,6 +2879,69 @@ bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 }
 
 
+bool DebuggerController::IsInstructionExecuted(uint64_t address)
+{
+	if (!IsTTD())
+	{
+		return false;
+	}
+	
+	if (!m_codeCoverageAnalysisRun)
+	{
+		return false;
+	}
+	
+	return m_executedInstructions.find(address) != m_executedInstructions.end();
+}
+
+
+bool DebuggerController::RunCodeCoverageAnalysis()
+{
+	if (!IsTTD())
+	{
+		LogError("Current adapter does not support TTD");
+		return false;
+	}
+	
+	// Clear previous analysis results
+	m_executedInstructions.clear();
+	m_codeCoverageAnalysisRun = false;
+	
+	// Get the binary view and analyze all function addresses
+	auto bv = GetData();
+	if (!bv)
+	{
+		LogError("No binary view available for analysis");
+		return false;
+	}
+	
+	LogInfo("Starting TTD code coverage analysis...");
+	
+	// Iterate through all functions and their instruction addresses
+	for (auto func : bv->GetAnalysisFunctionList())
+	{
+		uint64_t funcStart = func->GetStart();
+		uint64_t funcEnd = func->GetHighestAddress();
+		
+		// Query TTD for execute access at each instruction address
+		auto events = GetTTDMemoryAccessForAddress(funcStart, funcEnd, TTDMemoryExecute);
+		
+		for (const auto& event : events)
+		{
+			if (event.accessType == TTDMemoryExecute)
+			{
+				m_executedInstructions.insert(event.instructionAddress);
+			}
+		}
+	}
+	
+	m_codeCoverageAnalysisRun = true;
+	LogInfo("TTD code coverage analysis completed. Found {} executed instructions.", m_executedInstructions.size());
+	
+	return true;
+}
+
+
 void DebuggerController::OnRebased(BinaryView* oldView, BinaryView* newView)
 {
 	m_data = newView;

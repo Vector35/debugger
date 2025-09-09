@@ -685,6 +685,10 @@ namespace BinaryNinjaDebuggerAPI {
 		std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0);
 		TTDPosition GetCurrentTTDPosition();
 		bool SetTTDPosition(const TTDPosition& position);
+		
+		// TTD Code Coverage Analysis Methods
+		bool IsInstructionExecuted(uint64_t address);
+		bool RunCodeCoverageAnalysis();
 
 		void PostDebuggerEvent(const DebuggerEvent& event);
 
