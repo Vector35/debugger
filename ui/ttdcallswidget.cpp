@@ -1,0 +1,652 @@
+/*
+Copyright 2020-2025 Vector 35 Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include "ttdcallswidget.h"
+#include <QGroupBox>
+#include <QScrollArea>
+#include <QSplitter>
+#include <QMessageBox>
+#include <QApplication>
+#include <QPropertyAnimation>
+#include <QEasingCurve>
+
+TTDCallsQueryWidget::TTDCallsQueryWidget(QWidget* parent, BinaryViewRef data)
+	: QWidget(parent), m_data(data)
+{
+	m_controller = DebuggerController::GetController(data);
+	
+	// Initialize column names and default visibility
+	m_columnNames = {
+		"Index", "Event Type", "Time Start", "Time End", "Function",
+		"Function Address", "Return Address", "Return Value", "Thread ID",
+		"Unique Thread ID", "Parameters"
+	};
+	
+	// Default visibility - show most important columns by default
+	m_columnVisibility = {
+		true,  // Index
+		false, // Event Type (always "Call", less useful to show)
+		true,  // Time Start
+		true,  // Time End  
+		true,  // Function
+		true,  // Function Address
+		true,  // Return Address
+		true,  // Return Value
+		false, // Thread ID
+		false, // Unique Thread ID
+		true   // Parameters
+	};
+	
+	setupUI();
+	setupTable();
+	setupContextMenu();
+	updateColumnVisibility();
+}
+
+TTDCallsQueryWidget::~TTDCallsQueryWidget()
+{
+}
+
+void TTDCallsQueryWidget::setupUI()
+{
+	auto layout = new QVBoxLayout(this);
+	layout->setContentsMargins(0, 0, 0, 0);
+	
+	// Create input controls group
+	auto inputGroup = new QGroupBox("TTD.Calls Query Parameters");
+	auto inputLayout = new QFormLayout(inputGroup);
+	
+	// Symbols input (multi-line text edit for multiple symbols)
+	m_symbolsEdit = new QTextEdit();
+	m_symbolsEdit->setMaximumHeight(80);
+	m_symbolsEdit->setPlaceholderText("Enter symbols to query, e.g.:\nkernel32!*\nntdll!NtCreateFile\nmodule!symbol1, module!symbol2");
+	inputLayout->addRow("Symbols:", m_symbolsEdit);
+	
+	// Address range filter (optional)
+	auto addressLayout = new QHBoxLayout();
+	m_startAddressEdit = new QLineEdit();
+	m_startAddressEdit->setPlaceholderText("Start address (hex, optional)");
+	m_endAddressEdit = new QLineEdit();
+	m_endAddressEdit->setPlaceholderText("End address (hex, optional)");
+	addressLayout->addWidget(new QLabel("Return Address Range:"));
+	addressLayout->addWidget(m_startAddressEdit);
+	addressLayout->addWidget(new QLabel("to"));
+	addressLayout->addWidget(m_endAddressEdit);
+	addressLayout->addStretch();
+	inputLayout->addRow(addressLayout);
+	
+	// Button layout
+	auto buttonLayout = new QHBoxLayout();
+	m_queryButton = new QPushButton("Query TTD.Calls");
+	m_clearButton = new QPushButton("Clear Results");
+	buttonLayout->addWidget(m_queryButton);
+	buttonLayout->addWidget(m_clearButton);
+	buttonLayout->addStretch();
+	inputLayout->addRow(buttonLayout);
+	
+	// Status label
+	m_statusLabel = new QLabel("Ready to query TTD.Calls");
+	inputLayout->addRow(m_statusLabel);
+	
+	layout->addWidget(inputGroup);
+	
+	// Results table
+	m_resultsTable = new QTableWidget(0, static_cast<int>(m_columnNames.size()));
+	m_resultsTable->setHorizontalHeaderLabels(m_columnNames);
+	m_resultsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+	m_resultsTable->setAlternatingRowColors(true);
+	m_resultsTable->setSortingEnabled(true);
+	
+	layout->addWidget(m_resultsTable);
+	
+	// Connect signals
+	connect(m_queryButton, &QPushButton::clicked, this, &TTDCallsQueryWidget::performQuery);
+	connect(m_clearButton, &QPushButton::clicked, this, &TTDCallsQueryWidget::clearResults);
+	connect(m_resultsTable, &QTableWidget::cellDoubleClicked, this, &TTDCallsQueryWidget::onCellDoubleClicked);
+}
+
+void TTDCallsQueryWidget::setupTable()
+{
+	// Set column widths
+	QHeaderView* header = m_resultsTable->horizontalHeader();
+	header->setStretchLastSection(true);
+	
+	// Set reasonable default column widths
+	m_resultsTable->setColumnWidth(static_cast<int>(IndexColumn), 60);
+	m_resultsTable->setColumnWidth(static_cast<int>(EventTypeColumn), 80);
+	m_resultsTable->setColumnWidth(static_cast<int>(TimeStartColumn), 100);
+	m_resultsTable->setColumnWidth(static_cast<int>(TimeEndColumn), 100);
+	m_resultsTable->setColumnWidth(static_cast<int>(FunctionColumn), 200);
+	m_resultsTable->setColumnWidth(static_cast<int>(FunctionAddressColumn), 120);
+	m_resultsTable->setColumnWidth(static_cast<int>(ReturnAddressColumn), 120);
+	m_resultsTable->setColumnWidth(static_cast<int>(ReturnValueColumn), 120);
+	m_resultsTable->setColumnWidth(static_cast<int>(ThreadIdColumn), 80);
+	m_resultsTable->setColumnWidth(static_cast<int>(UniqueThreadIdColumn), 100);
+	// Parameters column will stretch
+}
+
+void TTDCallsQueryWidget::setupContextMenu()
+{
+	m_resultsTable->setContextMenuPolicy(Qt::CustomContextMenu);
+	connect(m_resultsTable, &QTableWidget::customContextMenuRequested, this, &TTDCallsQueryWidget::showContextMenu);
+}
+
+void TTDCallsQueryWidget::updateStatus(const QString& message)
+{
+	m_statusLabel->setText(message);
+}
+
+uint64_t TTDCallsQueryWidget::parseAddress(const QString& text)
+{
+	if (text.isEmpty())
+		return 0;
+		
+	QString cleanText = text.trimmed();
+	if (cleanText.startsWith("0x") || cleanText.startsWith("0X"))
+		cleanText = cleanText.mid(2);
+		
+	bool ok;
+	uint64_t address = cleanText.toULongLong(&ok, 16);
+	return ok ? address : 0;
+}
+
+std::vector<std::string> TTDCallsQueryWidget::parseSymbols(const QString& text)
+{
+	std::vector<std::string> symbols;
+	
+	if (text.isEmpty())
+		return symbols;
+	
+	// Split by lines and commas
+	QStringList lines = text.split('\n', Qt::SkipEmptyParts);
+	for (const QString& line : lines)
+	{
+		QStringList parts = line.split(',', Qt::SkipEmptyParts);
+		for (const QString& part : parts)
+		{
+			QString symbol = part.trimmed();
+			if (!symbol.isEmpty())
+				symbols.push_back(symbol.toStdString());
+		}
+	}
+	
+	return symbols;
+}
+
+void TTDCallsQueryWidget::performQuery()
+{
+	if (!m_controller)
+	{
+		updateStatus("Error: No debugger controller available");
+		return;
+	}
+	
+	if (!m_controller->IsConnected())
+	{
+		updateStatus("Error: Not connected to target");
+		return;
+	}
+	
+	// Parse symbols
+	std::vector<std::string> symbols = parseSymbols(m_symbolsEdit->toPlainText());
+	if (symbols.empty())
+	{
+		updateStatus("Error: No symbols specified");
+		return;
+	}
+	
+	// Parse address range
+	uint64_t startAddr = parseAddress(m_startAddressEdit->text());
+	uint64_t endAddr = parseAddress(m_endAddressEdit->text());
+	
+	updateStatus("Querying TTD.Calls...");
+	
+	// Execute query
+	auto events = m_controller->GetTTDCallsForSymbols(symbols, startAddr, endAddr);
+	
+	// Clear previous results
+	m_resultsTable->setRowCount(0);
+	
+	if (events.empty())
+	{
+		updateStatus("Query completed - no results found");
+		return;
+	}
+	
+	// Populate table
+	m_resultsTable->setRowCount(static_cast<int>(events.size()));
+	
+	for (size_t i = 0; i < events.size(); ++i)
+	{
+		const auto& event = events[i];
+		int row = static_cast<int>(i);
+		
+		// Index
+		m_resultsTable->setItem(row, static_cast<int>(IndexColumn), 
+			new QTableWidgetItem(QString::number(i)));
+		
+		// Event Type
+		m_resultsTable->setItem(row, static_cast<int>(EventTypeColumn), 
+			new QTableWidgetItem(QString::fromStdString(event.eventType)));
+		
+		// Time Start
+		QString timeStartStr = QString("%1:%2").arg(event.timeStart.sequence, 0, 16).arg(event.timeStart.step, 0, 16);
+		m_resultsTable->setItem(row, static_cast<int>(TimeStartColumn), 
+			new QTableWidgetItem(timeStartStr));
+		
+		// Time End
+		QString timeEndStr;
+		if (event.timeEnd.sequence == UINT64_MAX && event.timeEnd.step == UINT64_MAX)
+			timeEndStr = "Max Position";
+		else
+			timeEndStr = QString("%1:%2").arg(event.timeEnd.sequence, 0, 16).arg(event.timeEnd.step, 0, 16);
+		m_resultsTable->setItem(row, static_cast<int>(TimeEndColumn), 
+			new QTableWidgetItem(timeEndStr));
+		
+		// Function
+		m_resultsTable->setItem(row, static_cast<int>(FunctionColumn), 
+			new QTableWidgetItem(QString::fromStdString(event.function)));
+		
+		// Function Address
+		m_resultsTable->setItem(row, static_cast<int>(FunctionAddressColumn), 
+			new QTableWidgetItem(QString("0x%1").arg(event.functionAddress, 0, 16)));
+		
+		// Return Address
+		m_resultsTable->setItem(row, static_cast<int>(ReturnAddressColumn), 
+			new QTableWidgetItem(QString("0x%1").arg(event.returnAddress, 0, 16)));
+		
+		// Return Value
+		QString returnValueStr = event.hasReturnValue ? 
+			QString("0x%1").arg(event.returnValue, 0, 16) : QString("N/A");
+		m_resultsTable->setItem(row, static_cast<int>(ReturnValueColumn), 
+			new QTableWidgetItem(returnValueStr));
+		
+		// Thread ID
+		m_resultsTable->setItem(row, static_cast<int>(ThreadIdColumn), 
+			new QTableWidgetItem(QString("0x%1").arg(event.threadId, 0, 16)));
+		
+		// Unique Thread ID
+		m_resultsTable->setItem(row, static_cast<int>(UniqueThreadIdColumn), 
+			new QTableWidgetItem(QString("0x%1").arg(event.uniqueThreadId, 0, 16)));
+		
+		// Parameters
+		QString parametersStr;
+		if (!event.parameters.empty())
+		{
+			QStringList paramList;
+			for (const auto& param : event.parameters)
+				paramList.append(QString::fromStdString(param));
+			parametersStr = "{" + paramList.join(", ") + "}";
+		}
+		else
+		{
+			parametersStr = "{}";
+		}
+		m_resultsTable->setItem(row, static_cast<int>(ParametersColumn), 
+			new QTableWidgetItem(parametersStr));
+	}
+	
+	updateStatus(QString("Query completed - %1 call events found").arg(events.size()));
+}
+
+void TTDCallsQueryWidget::clearResults()
+{
+	m_resultsTable->setRowCount(0);
+	updateStatus("Results cleared");
+}
+
+void TTDCallsQueryWidget::onCellDoubleClicked(int row, int column)
+{
+	// Handle double-click events - for example, navigate to addresses
+	LogicalColumn logicalCol = getLogicalColumnFromVisual(column);
+	
+	if (logicalCol == FunctionAddressColumn || logicalCol == ReturnAddressColumn)
+	{
+		QTableWidgetItem* item = m_resultsTable->item(row, column);
+		if (item)
+		{
+			QString addressText = item->text();
+			bool ok;
+			uint64_t address = addressText.toULongLong(&ok, 16);
+			
+			if (ok && address != 0)
+			{
+				// Navigate to address in Binary Ninja
+				m_data->Navigate(m_data->GetDefaultPlatform(), address);
+			}
+		}
+	}
+}
+
+TTDCallsQueryWidget::LogicalColumn TTDCallsQueryWidget::getLogicalColumnFromVisual(int visualColumn) const
+{
+	int logicalIndex = 0;
+	for (int i = 0; i < m_columnVisibility.size(); ++i)
+	{
+		if (m_columnVisibility[i])
+		{
+			if (logicalIndex == visualColumn)
+				return static_cast<LogicalColumn>(i);
+			logicalIndex++;
+		}
+	}
+	return IndexColumn; // fallback
+}
+
+int TTDCallsQueryWidget::getVisualColumnFromLogical(LogicalColumn logicalColumn) const
+{
+	int visualIndex = 0;
+	for (int i = 0; i <= static_cast<int>(logicalColumn); ++i)
+	{
+		if (m_columnVisibility[i])
+		{
+			if (i == static_cast<int>(logicalColumn))
+				return visualIndex;
+			visualIndex++;
+		}
+	}
+	return -1; // not visible
+}
+
+void TTDCallsQueryWidget::updateColumnVisibility()
+{
+	// Apply column visibility settings
+	for (int i = 0; i < m_columnNames.size(); ++i)
+	{
+		m_resultsTable->setColumnHidden(i, !m_columnVisibility[i]);
+	}
+}
+
+void TTDCallsQueryWidget::showColumnVisibilityDialog()
+{
+	// This would be implemented similar to TTDMemoryWidget's column visibility dialog
+	// For now, just a placeholder
+	QMessageBox::information(this, "Column Visibility", "Column visibility dialog not yet implemented");
+}
+
+void TTDCallsQueryWidget::resetColumnsToDefault()
+{
+	// Reset to default visibility
+	m_columnVisibility = {
+		true,  // Index
+		false, // Event Type
+		true,  // Time Start
+		true,  // Time End  
+		true,  // Function
+		true,  // Function Address
+		true,  // Return Address
+		true,  // Return Value
+		false, // Thread ID
+		false, // Unique Thread ID
+		true   // Parameters
+	};
+	updateColumnVisibility();
+}
+
+void TTDCallsQueryWidget::showContextMenu(const QPoint& position)
+{
+	QMenu contextMenu(this);
+	
+	contextMenu.addAction("Copy Cell", this, &TTDCallsQueryWidget::copySelectedCell);
+	contextMenu.addAction("Copy Row", this, &TTDCallsQueryWidget::copySelectedRow);
+	contextMenu.addAction("Copy All", this, &TTDCallsQueryWidget::copyEntireTable);
+	contextMenu.addSeparator();
+	contextMenu.addAction("Column Visibility...", this, &TTDCallsQueryWidget::showColumnVisibilityDialog);
+	contextMenu.addAction("Reset Columns", this, &TTDCallsQueryWidget::resetColumnsToDefault);
+	
+	contextMenu.exec(m_resultsTable->mapToGlobal(position));
+}
+
+void TTDCallsQueryWidget::copySelectedCell()
+{
+	QTableWidgetItem* item = m_resultsTable->currentItem();
+	if (item)
+	{
+		QApplication::clipboard()->setText(item->text());
+	}
+}
+
+void TTDCallsQueryWidget::copySelectedRow()
+{
+	int row = m_resultsTable->currentRow();
+	if (row >= 0)
+	{
+		QStringList rowData;
+		for (int col = 0; col < m_resultsTable->columnCount(); ++col)
+		{
+			if (!m_resultsTable->isColumnHidden(col))
+			{
+				QTableWidgetItem* item = m_resultsTable->item(row, col);
+				rowData.append(item ? item->text() : "");
+			}
+		}
+		QApplication::clipboard()->setText(rowData.join("\t"));
+	}
+}
+
+void TTDCallsQueryWidget::copyEntireTable()
+{
+	QStringList tableData;
+	
+	// Header
+	QStringList headerData;
+	for (int col = 0; col < m_resultsTable->columnCount(); ++col)
+	{
+		if (!m_resultsTable->isColumnHidden(col))
+		{
+			headerData.append(m_columnNames[col]);
+		}
+	}
+	tableData.append(headerData.join("\t"));
+	
+	// Data rows
+	for (int row = 0; row < m_resultsTable->rowCount(); ++row)
+	{
+		QStringList rowData;
+		for (int col = 0; col < m_resultsTable->columnCount(); ++col)
+		{
+			if (!m_resultsTable->isColumnHidden(col))
+			{
+				QTableWidgetItem* item = m_resultsTable->item(row, col);
+				rowData.append(item ? item->text() : "");
+			}
+		}
+		tableData.append(rowData.join("\t"));
+	}
+	
+	QApplication::clipboard()->setText(tableData.join("\n"));
+}
+
+void TTDCallsQueryWidget::setParametersAndQuery(const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
+{
+	// Set symbol parameters
+	QStringList symbolList;
+	for (const auto& symbol : symbols)
+		symbolList.append(QString::fromStdString(symbol));
+	m_symbolsEdit->setPlainText(symbolList.join("\n"));
+	
+	// Set address range
+	if (startAddr != 0)
+		m_startAddressEdit->setText(QString("0x%1").arg(startAddr, 0, 16));
+	if (endAddr != 0)
+		m_endAddressEdit->setText(QString("0x%1").arg(endAddr, 0, 16));
+	
+	// Execute query
+	performQuery();
+}
+
+bool TTDCallsQueryWidget::isUnused() const
+{
+	return m_resultsTable->rowCount() == 0 && 
+		   m_symbolsEdit->toPlainText().isEmpty() &&
+		   m_startAddressEdit->text().isEmpty() &&
+		   m_endAddressEdit->text().isEmpty();
+}
+
+// TTDCallsWidget implementation
+
+TTDCallsWidget::TTDCallsWidget(QWidget* parent, BinaryViewRef data)
+	: QWidget(parent), m_data(data)
+{
+	m_controller = DebuggerController::GetController(data);
+	setupUI();
+}
+
+TTDCallsWidget::~TTDCallsWidget()
+{
+}
+
+void TTDCallsWidget::setupUI()
+{
+	auto layout = new QVBoxLayout(this);
+	layout->setContentsMargins(0, 0, 0, 0);
+	
+	// Tab widget with new tab button
+	auto topLayout = new QHBoxLayout();
+	topLayout->setContentsMargins(0, 0, 0, 0);
+	
+	m_tabWidget = new QTabWidget();
+	m_tabWidget->setTabsClosable(true);
+	
+	m_newTabButton = new QToolButton();
+	m_newTabButton->setText("+");
+	m_newTabButton->setToolTip("New TTD.Calls Query Tab");
+	
+	topLayout->addWidget(m_tabWidget);
+	topLayout->addWidget(m_newTabButton);
+	
+	layout->addLayout(topLayout);
+	
+	// Create initial tab
+	createNewTab();
+	
+	// Connect signals
+	connect(m_newTabButton, &QToolButton::clicked, this, &TTDCallsWidget::createNewTab);
+	connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &TTDCallsWidget::closeTab);
+}
+
+void TTDCallsWidget::createNewTab()
+{
+	auto queryWidget = new TTDCallsQueryWidget(this, m_data);
+	int index = m_tabWidget->addTab(queryWidget, QString("Query %1").arg(m_tabWidget->count() + 1));
+	m_tabWidget->setCurrentIndex(index);
+}
+
+void TTDCallsWidget::closeTab(int index)
+{
+	if (m_tabWidget->count() > 1)
+	{
+		QWidget* widget = m_tabWidget->widget(index);
+		m_tabWidget->removeTab(index);
+		delete widget;
+	}
+}
+
+TTDCallsQueryWidget* TTDCallsWidget::getCurrentOrNewQueryWidget()
+{
+	auto currentWidget = qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
+	
+	if (!currentWidget || !currentWidget->isUnused())
+	{
+		createNewTab();
+		currentWidget = qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
+	}
+	
+	return currentWidget;
+}
+
+void TTDCallsWidget::setParametersAndQuery(const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
+{
+	auto queryWidget = getCurrentOrNewQueryWidget();
+	if (queryWidget)
+		queryWidget->setParametersAndQuery(symbols, startAddr, endAddr);
+}
+
+void TTDCallsWidget::setParametersAndQueryInNewTab(const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
+{
+	createNewTab();
+	auto queryWidget = qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
+	if (queryWidget)
+		queryWidget->setParametersAndQuery(symbols, startAddr, endAddr);
+}
+
+// TTDCallsSidebarWidget implementation
+
+TTDCallsSidebarWidget::TTDCallsSidebarWidget(BinaryViewRef data) : m_data(data)
+{
+	m_controller = DebuggerController::GetController(data);
+	
+	auto layout = new QVBoxLayout(this);
+	layout->setContentsMargins(0, 0, 0, 0);
+	
+	m_callsWidget = new TTDCallsWidget(this, data);
+	layout->addWidget(m_callsWidget);
+}
+
+TTDCallsSidebarWidget::~TTDCallsSidebarWidget()
+{
+}
+
+void TTDCallsSidebarWidget::setParametersAndQuery(const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
+{
+	if (m_callsWidget)
+		m_callsWidget->setParametersAndQuery(symbols, startAddr, endAddr);
+}
+
+void TTDCallsSidebarWidget::setParametersAndQueryInNewTab(const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
+{
+	if (m_callsWidget)
+		m_callsWidget->setParametersAndQueryInNewTab(symbols, startAddr, endAddr);
+}
+
+// TTDCallsWidgetType implementation
+
+std::map<std::pair<ViewFrame*, BinaryViewRef>, TTDCallsWidgetType::PendingQuery> TTDCallsWidgetType::s_pendingQueries;
+
+TTDCallsWidgetType::TTDCallsWidgetType() : SidebarWidgetType("TTD Calls", "TTD Calls")
+{
+}
+
+SidebarWidget* TTDCallsWidgetType::createWidget(ViewFrame* frame, BinaryViewRef data)
+{
+	auto widget = new TTDCallsSidebarWidget(data);
+	
+	// Check for pending query
+	auto key = std::make_pair(frame, data);
+	auto it = s_pendingQueries.find(key);
+	if (it != s_pendingQueries.end())
+	{
+		widget->setParametersAndQuery(it->second.symbols, it->second.startAddr, it->second.endAddr);
+		s_pendingQueries.erase(it);
+	}
+	
+	return widget;
+}
+
+SidebarContentClassifier* TTDCallsWidgetType::contentClassifier(ViewFrame*, BinaryViewRef)
+{
+	return nullptr; // No content classification needed
+}
+
+void TTDCallsWidgetType::SetPendingQuery(ViewFrame* frame, BinaryViewRef data, const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
+{
+	auto key = std::make_pair(frame, data);
+	PendingQuery query;
+	query.symbols = symbols;
+	query.startAddr = startAddr;
+	query.endAddr = endAddr;
+	s_pendingQueries[key] = query;
+}

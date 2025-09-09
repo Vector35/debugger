@@ -323,6 +323,22 @@ extern "C"
 		BNDebuggerTTDMemoryAccessType accessType;
 	} BNDebuggerTTDMemoryEvent;
 
+	typedef struct BNDebuggerTTDCallEvent
+	{
+		char* eventType;              // Event type (always "Call" for TTD.Calls objects)
+		uint32_t threadId;            // OS thread ID of thread that made the call
+		uint32_t uniqueThreadId;      // Unique ID for the thread across the trace
+		char* function;               // Symbolic name of the function
+		uint64_t functionAddress;     // Function's address in memory
+		uint64_t returnAddress;       // Instruction to return to after the call
+		uint64_t returnValue;         // Return value of the function (if not void)
+		bool hasReturnValue;          // Whether the function has a return value
+		char** parameters;            // Array containing parameters passed to the function
+		size_t parameterCount;        // Number of parameters
+		BNDebuggerTTDPosition timeStart; // Position when call started
+		BNDebuggerTTDPosition timeEnd;   // Position when call ended
+	} BNDebuggerTTDCallEvent;
+
 
 	// This should really be a union, but gcc complains...
 	typedef struct BNDebuggerEventData
@@ -533,9 +549,12 @@ extern "C"
 	// TTD Memory Analysis Functions
 	DEBUGGER_FFI_API BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* controller,
 		uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, size_t* count);
+	DEBUGGER_FFI_API BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* controller,
+		const char** symbols, size_t symbolCount, uint64_t startReturnAddress, uint64_t endReturnAddress, size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPosition position);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events);
 
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 

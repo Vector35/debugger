@@ -1119,6 +1119,87 @@ void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events)
 }
 
 
+BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* controller,
+	const char** symbols, size_t symbolCount, uint64_t startReturnAddress, uint64_t endReturnAddress, size_t* count)
+{
+	if (!count)
+		return nullptr;
+		
+	*count = 0;
+	
+	if (!symbols || symbolCount == 0)
+		return nullptr;
+	
+	// Convert C-style string array to std::vector<std::string>
+	std::vector<std::string> symbolVector;
+	for (size_t i = 0; i < symbolCount; ++i)
+	{
+		if (symbols[i])
+			symbolVector.push_back(std::string(symbols[i]));
+	}
+	
+	if (symbolVector.empty())
+		return nullptr;
+	
+	auto events = controller->object->GetTTDCallsForSymbols(symbolVector, startReturnAddress, endReturnAddress);
+	if (events.empty())
+		return nullptr;
+	
+	*count = events.size();
+	auto result = new BNDebuggerTTDCallEvent[events.size()];
+	
+	for (size_t i = 0; i < events.size(); ++i)
+	{
+		// Copy string fields
+		result[i].eventType = BNAllocString(events[i].eventType.c_str());
+		result[i].function = BNAllocString(events[i].function.c_str());
+		
+		// Copy primitive fields
+		result[i].threadId = events[i].threadId;
+		result[i].uniqueThreadId = events[i].uniqueThreadId;
+		result[i].functionAddress = events[i].functionAddress;
+		result[i].returnAddress = events[i].returnAddress;
+		result[i].returnValue = events[i].returnValue;
+		result[i].hasReturnValue = events[i].hasReturnValue;
+		
+		// Copy parameters array
+		result[i].parameterCount = events[i].parameters.size();
+		if (result[i].parameterCount > 0)
+		{
+			result[i].parameters = new char*[result[i].parameterCount];
+			for (size_t j = 0; j < result[i].parameterCount; ++j)
+			{
+				result[i].parameters[j] = BNAllocString(events[i].parameters[j].c_str());
+			}
+		}
+		else
+		{
+			result[i].parameters = nullptr;
+		}
+		
+		// Copy TTD positions
+		result[i].timeStart.sequence = events[i].timeStart.sequence;
+		result[i].timeStart.step = events[i].timeStart.step;
+		result[i].timeEnd.sequence = events[i].timeEnd.sequence;
+		result[i].timeEnd.step = events[i].timeEnd.step;
+	}
+	
+	return result;
+}
+
+
+void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events)
+{
+	// Note: This implementation has the same limitation as TTD memory events -
+	// we need to know the count to properly free strings, but the API doesn't provide it.
+	// In practice, the caller should manage this or we need to modify the API.
+	if (events)
+	{
+		delete[] events;
+	}
+}
+
+
 void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event)
 {
 	DebuggerEvent evt;

@@ -14,6 +14,8 @@ if (NOT WIN32)
     list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/ttdrecord.cpp)
     list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/ttdmemorywidget.h)
     list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/ttdmemorywidget.cpp)
+    list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/ttdcallswidget.h)
+    list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/ttdcallswidget.cpp)
 endif ()
 
 if(DEMO)
