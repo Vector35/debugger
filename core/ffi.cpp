@@ -21,8 +21,14 @@ limitations under the License.
 #include "debuggercontroller.h"
 #include "debuggercommon.h"
 #include "../api/ffi.h"
+#include <map>
+#include <mutex>
 
 using namespace BinaryNinjaDebugger;
+
+// Global map to track TTD call event allocations and their counts
+static std::map<BNDebuggerTTDCallEvent*, size_t> g_ttdCallEventCounts;
+static std::mutex g_ttdCallEventMutex;
 
 
 char* BNDebuggerAllocString(const char* contents)
@@ -1148,6 +1154,12 @@ BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* co
 	*count = events.size();
 	auto result = new BNDebuggerTTDCallEvent[events.size()];
 	
+	// Store the count for proper cleanup later
+	{
+		std::lock_guard<std::mutex> lock(g_ttdCallEventMutex);
+		g_ttdCallEventCounts[result] = events.size();
+	}
+	
 	for (size_t i = 0; i < events.size(); ++i)
 	{
 		// Copy string fields
@@ -1190,13 +1202,52 @@ BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* co
 
 void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events)
 {
-	// Note: This implementation has the same limitation as TTD memory events -
-	// we need to know the count to properly free strings, but the API doesn't provide it.
-	// In practice, the caller should manage this or we need to modify the API.
-	if (events)
+	if (!events)
+		return;
+		
+	size_t eventCount = 0;
+	
+	// Retrieve the count from our tracking map
 	{
-		delete[] events;
+		std::lock_guard<std::mutex> lock(g_ttdCallEventMutex);
+		auto it = g_ttdCallEventCounts.find(events);
+		if (it != g_ttdCallEventCounts.end())
+		{
+			eventCount = it->second;
+			g_ttdCallEventCounts.erase(it);
+		}
 	}
+	
+	// If we found the count, properly free all strings
+	if (eventCount > 0)
+	{
+		for (size_t i = 0; i < eventCount; ++i)
+		{
+			if (events[i].eventType)
+			{
+				BNFreeString(events[i].eventType);
+			}
+			if (events[i].function)
+			{
+				BNFreeString(events[i].function);
+			}
+			
+			// Free parameter strings
+			if (events[i].parameters && events[i].parameterCount > 0)
+			{
+				for (size_t j = 0; j < events[i].parameterCount; ++j)
+				{
+					if (events[i].parameters[j])
+					{
+						BNFreeString(events[i].parameters[j]);
+					}
+				}
+				delete[] events[i].parameters;
+			}
+		}
+	}
+	
+	delete[] events;
 }
 
 
