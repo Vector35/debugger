@@ -351,6 +351,74 @@ class DebuggerAPI(unittest.TestCase):
 
         dbg.quit_and_wait()
 
+    @unittest.skipIf(platform.system() != 'Linux', 'Remote debugging test only runs on Linux with lldb-server')
+    def test_remote_debug_localhost(self):
+        """Test remote debugging infrastructure by starting lldb-server on localhost"""
+        import socket
+        import time
+        
+        # This test verifies the remote debugging infrastructure works by:
+        # 1. Starting an lldb-server on localhost
+        # 2. Verifying it can accept connections
+        # 3. Testing basic GDB remote protocol communication
+        
+        # Find an available port
+        def find_free_port():
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('', 0))
+                s.listen(1)
+                port = s.getsockname()[1]
+            return port
+        
+        port = find_free_port()
+        host = '127.0.0.1'
+        
+        # Start lldb-server process in gdbserver mode
+        fpath = name_to_fpath('helloworld', self.arch)
+        server_cmd = ['lldb-server', 'gdbserver', f'{host}:{port}', fpath]
+        
+        server_process = None
+        try:
+            # Start the lldb-server
+            server_process = subprocess.Popen(server_cmd, 
+                                            stdout=subprocess.PIPE, 
+                                            stderr=subprocess.PIPE)
+            
+            # Give the server time to start
+            time.sleep(2)
+            
+            # Check if server is still running
+            if server_process.poll() is not None:
+                stdout, stderr = server_process.communicate()
+                self.fail(f"lldb-server failed to start: stdout={stdout.decode()}, stderr={stderr.decode()}")
+            
+            # Test basic connection to the server
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(10)
+                s.connect((host, port))
+                
+                # Send a basic GDB packet to test communication
+                # '+' acknowledges packets, '$qSupported#37' is a basic query
+                s.sendall(b'+$qSupported#37')
+                
+                # Read response
+                response = s.recv(1024)
+                self.assertIsNotNone(response)
+                self.assertGreater(len(response), 0)
+                
+                # Success - we established a remote debugging connection!
+                print("Remote debugging test successful: Connected to lldb-server on localhost")
+            
+        finally:
+            # Clean up server process
+            if server_process and server_process.poll() is None:
+                server_process.terminate()
+                try:
+                    server_process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    server_process.kill()
+                    server_process.wait()
+
 
 @unittest.skipIf(platform.machine() not in ['arm64', 'aarch64'], "Only run arm64 tests on arm Mac or Linux")
 class DebuggerArm64Test(DebuggerAPI):
