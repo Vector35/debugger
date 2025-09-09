@@ -388,6 +388,11 @@ void BNDebuggerFreeModules(BNDebugModule* modules, size_t count)
 
 BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t* size)
 {
+	if (!controller->object)
+	{
+		*size = 0;
+		return nullptr;
+	}
 	std::vector<DebugRegister> registers = controller->object->GetAllRegisters();
 
 	*size = registers.size();
@@ -427,6 +432,11 @@ bool BNDebuggerSetRegisterValue(BNDebuggerController* controller, const char* na
 
 void BNDebuggerGetRegisterValue(BNDebuggerController* controller, const char* name, uint8_t* buffer)
 {
+	if (!controller->object)
+	{
+		memset(buffer, 0, 64);
+		return;
+	}
 	auto value = controller->object->GetRegisterValue(std::string(name));
 	uint8_t temp[64] = {};
 	intx::le::store(temp, value);
@@ -753,19 +763,34 @@ char** BNGetAvailableDebugAdapterTypes(BNBinaryView* data, size_t* count)
 
 char* BNDebuggerGetRemoteHost(BNDebuggerController* controller)
 {
-	return BNDebuggerAllocString(controller->object->GetState()->GetRemoteHost().c_str());
+	if (!controller->object)
+		return nullptr;
+	auto state = controller->object->GetState();
+	if (!state)
+		return nullptr;
+	return BNDebuggerAllocString(state->GetRemoteHost().c_str());
 }
 
 
 uint32_t BNDebuggerGetRemotePort(BNDebuggerController* controller)
 {
-	return controller->object->GetState()->GetRemotePort();
+	if (!controller->object)
+		return 0;
+	auto state = controller->object->GetState();
+	if (!state)
+		return 0;
+	return state->GetRemotePort();
 }
 
 
 int32_t BNDebuggerGetPIDAttach(BNDebuggerController* controller)
 {
-	return controller->object->GetState()->GetPIDAttach();
+	if (!controller->object)
+		return 0;
+	auto state = controller->object->GetState();
+	if (!state)
+		return 0;
+	return state->GetPIDAttach();
 }
 
 
@@ -801,13 +826,23 @@ char* BNDebuggerGetCommandLineArguments(BNDebuggerController* controller)
 
 void BNDebuggerSetRemoteHost(BNDebuggerController* controller, const char* host)
 {
-	controller->object->GetState()->SetRemoteHost(host);
+	if (!controller->object)
+		return;
+	auto state = controller->object->GetState();
+	if (!state)
+		return;
+	state->SetRemoteHost(host);
 }
 
 
 void BNDebuggerSetRemotePort(BNDebuggerController* controller, uint32_t port)
 {
-	controller->object->GetState()->SetRemotePort(port);
+	if (!controller->object)
+		return;
+	auto state = controller->object->GetState();
+	if (!state)
+		return;
+	state->SetRemotePort(port);
 }
 
 
