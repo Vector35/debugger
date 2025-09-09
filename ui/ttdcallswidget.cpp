@@ -110,7 +110,7 @@ void TTDCallsQueryWidget::setupUI()
 	
 	// Set the content widget to the expandable group
 	auto expandableGroup = new ExpandableGroup("Query Parameters", contentWidget);
-	layout->addWidget(expandableGroup);
+	layout->addWidget(expandableGroup, 0); // Give minimal space to expandable group
 	
 	// Results table
 	m_resultsTable = new QTableWidget(0, static_cast<int>(m_columnNames.size()));
@@ -120,7 +120,7 @@ void TTDCallsQueryWidget::setupUI()
 	m_resultsTable->setSortingEnabled(true);
 	m_resultsTable->setEditTriggers(QAbstractItemView::NoEditTriggers); // Make cells non-editable
 
-	layout->addWidget(m_resultsTable);
+	layout->addWidget(m_resultsTable, 1); // Give most space to the table
 	
 	// Connect signals
 	connect(m_queryButton, &QPushButton::clicked, this, &TTDCallsQueryWidget::performQuery);
@@ -516,21 +516,20 @@ void TTDCallsWidget::setupUI()
 	auto layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
 	
-	// Tab widget with new tab button
-	auto topLayout = new QHBoxLayout();
-	topLayout->setContentsMargins(0, 0, 0, 0);
-	
+	// Tab widget setup
 	m_tabWidget = new QTabWidget();
 	m_tabWidget->setTabsClosable(true);
 	
+	// Create "+" button as corner widget (matches TTD Memory widget)
 	m_newTabButton = new QToolButton();
 	m_newTabButton->setText("+");
-	m_newTabButton->setToolTip("New TTD.Calls Query Tab");
+	m_newTabButton->setAutoRaise(true);
+	m_newTabButton->setToolTip("New TTD Calls Query Tab");
 	
-	topLayout->addWidget(m_tabWidget);
-	topLayout->addWidget(m_newTabButton);
+	// Set the button as corner widget
+	m_tabWidget->setCornerWidget(m_newTabButton, Qt::TopRightCorner);
 	
-	layout->addLayout(topLayout);
+	layout->addWidget(m_tabWidget);
 	
 	// Create initial tab
 	createNewTab();

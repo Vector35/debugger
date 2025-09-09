@@ -968,7 +968,7 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uin
 			event.value = events[i].value;
 			result.push_back(event);
 		}
-		BNDebuggerFreeTTDMemoryEvents(events);
+		BNDebuggerFreeTTDMemoryEvents(events, count);
 	}
 	
 	return result;
@@ -1041,7 +1041,7 @@ std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::v
 			
 			result.push_back(event);
 		}
-		BNDebuggerFreeTTDCallEvents(events);
+		BNDebuggerFreeTTDCallEvents(events, count);
 	}
 	
 	return result;

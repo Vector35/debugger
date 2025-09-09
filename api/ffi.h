@@ -553,8 +553,8 @@ extern "C"
 		const char** symbols, size_t symbolCount, uint64_t startReturnAddress, uint64_t endReturnAddress, size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPosition position);
-	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events);
-	DEBUGGER_FFI_API void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count);
 
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 

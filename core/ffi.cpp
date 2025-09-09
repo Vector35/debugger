@@ -22,13 +22,8 @@ limitations under the License.
 #include "debuggercommon.h"
 #include "../api/ffi.h"
 #include <map>
-#include <mutex>
 
 using namespace BinaryNinjaDebugger;
-
-// Global map to track TTD call event allocations and their counts
-static std::map<BNDebuggerTTDCallEvent*, size_t> g_ttdCallEventCounts;
-static std::mutex g_ttdCallEventMutex;
 
 
 char* BNDebuggerAllocString(const char* contents)
@@ -1113,13 +1108,18 @@ bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPos
 	return controller->object->SetTTDPosition(pos);
 }
 
-void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events)
+void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count)
 {
-	if (events)
+	if (events && count > 0)
 	{
-		// Free eventType strings before deleting the array
-		// Note: We can't know the count here, so this implementation assumes
-		// the caller manages proper cleanup or we need to change the API
+		// Free strings for each event
+		for (size_t i = 0; i < count; ++i)
+		{
+			if (events[i].eventType)
+			{
+				BNFreeString(events[i].eventType);
+			}
+		}
 		delete[] events;
 	}
 }
@@ -1153,12 +1153,6 @@ BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* co
 	
 	*count = events.size();
 	auto result = new BNDebuggerTTDCallEvent[events.size()];
-	
-	// Store the count for proper cleanup later
-	{
-		std::lock_guard<std::mutex> lock(g_ttdCallEventMutex);
-		g_ttdCallEventCounts[result] = events.size();
-	}
 	
 	for (size_t i = 0; i < events.size(); ++i)
 	{
@@ -1200,54 +1194,39 @@ BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* co
 }
 
 
-void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events)
+void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count)
 {
-	if (!events)
+	if (!events || count == 0)
 		return;
 		
-	size_t eventCount = 0;
-	
-	// Retrieve the count from our tracking map
+	// Free all strings for each event
+	for (size_t i = 0; i < count; ++i)
 	{
-		std::lock_guard<std::mutex> lock(g_ttdCallEventMutex);
-		auto it = g_ttdCallEventCounts.find(events);
-		if (it != g_ttdCallEventCounts.end())
+		if (events[i].eventType)
 		{
-			eventCount = it->second;
-			g_ttdCallEventCounts.erase(it);
+			BNFreeString(events[i].eventType);
 		}
-	}
-	
-	// If we found the count, properly free all strings
-	if (eventCount > 0)
-	{
-		for (size_t i = 0; i < eventCount; ++i)
+		if (events[i].function)
 		{
-			if (events[i].eventType)
+			BNFreeString(events[i].function);
+		}
+		
+		// Free parameter strings
+		if (events[i].parameters && events[i].parameterCount > 0)
+		{
+			for (size_t j = 0; j < events[i].parameterCount; ++j)
 			{
-				BNFreeString(events[i].eventType);
-			}
-			if (events[i].function)
-			{
-				BNFreeString(events[i].function);
-			}
-			
-			// Free parameter strings
-			if (events[i].parameters && events[i].parameterCount > 0)
-			{
-				for (size_t j = 0; j < events[i].parameterCount; ++j)
+				if (events[i].parameters[j])
 				{
-					if (events[i].parameters[j])
-					{
-						BNFreeString(events[i].parameters[j]);
-					}
+					BNFreeString(events[i].parameters[j]);
 				}
-				delete[] events[i].parameters;
 			}
+			delete[] events[i].parameters;
 		}
 	}
 	
 	delete[] events;
+}
 }
 
 

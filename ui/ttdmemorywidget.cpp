@@ -200,11 +200,11 @@ void TTDMemoryQueryWidget::setupUI()
 	// Set the input widget as the content of the expandable group
 	ExpandableGroup* expandableGroup = new ExpandableGroup("Query Parameters", inputWidget);
 	
-	mainLayout->addWidget(expandableGroup);
+	mainLayout->addWidget(expandableGroup, 0); // Give minimal space to expandable group
 	
 	// Results table
 	setupTable();
-	mainLayout->addWidget(m_resultsTable);
+	mainLayout->addWidget(m_resultsTable, 1); // Give most space to the table
 	
 	// Status label
 	m_statusLabel = new QLabel("Ready");
