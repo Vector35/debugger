@@ -65,6 +65,8 @@ BNDebuggerController* BNGetDebuggerController(BNBinaryView* data)
 
 void BNDebuggerDestroyController(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return;
 	controller->object->Destroy();
 }
 
@@ -105,6 +107,8 @@ bool BNDebuggerControllerExistsFromFile(BNFileMetadata* file)
 
 BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return nullptr;
 	BinaryViewRef result = controller->object->GetData();
 	if (result)
 		return BNNewViewReference(result->GetObject());
@@ -114,6 +118,8 @@ BNBinaryView* BNDebuggerGetData(BNDebuggerController* controller)
 
 void BNDebuggerSetData(BNDebuggerController* controller, BNBinaryView* data)
 {
+	if (!controller->object)
+		return;
 	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
 	controller->object->SetData(view);
 }
@@ -121,6 +127,8 @@ void BNDebuggerSetData(BNDebuggerController* controller, BNBinaryView* data)
 
 BNArchitecture* BNDebuggerGetRemoteArchitecture(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return nullptr;
 	ArchitectureRef result = controller->object->GetRemoteArchitecture();
 	if (result)
 		return result->GetObject();
@@ -130,19 +138,31 @@ BNArchitecture* BNDebuggerGetRemoteArchitecture(BNDebuggerController* controller
 
 bool BNDebuggerIsConnected(BNDebuggerController* controller)
 {
-	return controller->object->GetState()->IsConnected();
+	if (!controller->object)
+		return false;
+	auto state = controller->object->GetState();
+	if (!state)
+		return false;
+	return state->IsConnected();
 }
 
 
 bool BNDebuggerIsConnectedToDebugServer(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return false;
 	return controller->object->IsConnectedToDebugServer();
 }
 
 
 bool BNDebuggerIsRunning(BNDebuggerController* controller)
 {
-	return controller->object->GetState()->IsRunning();
+	if (!controller->object)
+		return false;
+	auto state = controller->object->GetState();
+	if (!state)
+		return false;
+	return state->IsRunning();
 }
 
 
@@ -160,12 +180,19 @@ void BNDebuggerFreeController(BNDebuggerController* view)
 
 uint64_t BNDebuggerGetStackPointer(BNDebuggerController* controller)
 {
-	return controller->object->GetState()->StackPointer();
+	if (!controller->object)
+		return 0;
+	auto state = controller->object->GetState();
+	if (!state)
+		return 0;
+	return state->StackPointer();
 }
 
 
 BNDataBuffer* BNDebuggerReadMemory(BNDebuggerController* controller, uint64_t address, size_t size)
 {
+	if (!controller->object)
+		return nullptr;
 	DataBuffer* data = new DataBuffer(controller->object->ReadMemory(address, size));
 	return data->GetBufferObject();
 }
@@ -173,6 +200,8 @@ BNDataBuffer* BNDebuggerReadMemory(BNDebuggerController* controller, uint64_t ad
 
 bool BNDebuggerWriteMemory(BNDebuggerController* controller, uint64_t address, BNDataBuffer* buffer)
 {
+	if (!controller->object)
+		return false;
 	// Hacky way of getting a BinaryNinj::DataBuffer out of a BNDataBuffer, without causing a segfault
 	DataBuffer buf;
 	BNAppendDataBuffer(buf.GetBufferObject(), buffer);
@@ -182,6 +211,11 @@ bool BNDebuggerWriteMemory(BNDebuggerController* controller, uint64_t address, B
 
 BNDebugProcess* BNDebuggerGetProcessList(BNDebuggerController* controller, size_t* size)
 {
+	if (!controller->object)
+	{
+		*size = 0;
+		return nullptr;
+	}
 	std::vector<DebugProcess> processes = controller->object->GetProcessList();
 
 	*size = processes.size();
@@ -380,18 +414,24 @@ void BNDebuggerGetRegisterValue(BNDebuggerController* controller, const char* na
 // target control
 bool BNDebuggerLaunch(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return false;
 	return controller->object->Launch();
 }
 
 
 BNDebugStopReason BNDebuggerLaunchAndWait(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return InternalError;
 	return controller->object->LaunchAndWait();
 }
 
 
 bool BNDebuggerExecute(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return false;
 	return controller->object->Execute();
 }
 
@@ -399,18 +439,24 @@ bool BNDebuggerExecute(BNDebuggerController* controller)
 // TODO: Maybe this should return bool?
 void BNDebuggerRestart(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return;
 	controller->object->Restart();
 }
 
 
 void BNDebuggerQuit(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return;
 	controller->object->Quit();
 }
 
 
 void BNDebuggerQuitAndWait(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return;
 	controller->object->QuitAndWait();
 }
 
@@ -441,12 +487,16 @@ bool BNDebuggerDisconnectDebugServer(BNDebuggerController* controller)
 
 void BNDebuggerDetach(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return;
 	controller->object->Detach();
 }
 
 
 void BNDebuggerPause(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return;
 	controller->object->Pause();
 }
 
@@ -591,6 +641,8 @@ BNDebugStopReason BNDebuggerRunToAndWait(
 
 DebugStopReason BNDebuggerPauseAndWait(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return InternalError;
 	return controller->object->PauseAndWait();
 }
 
@@ -1164,6 +1216,8 @@ bool BNDebuggerGetVariableValue(BNDebuggerController* controller, BNVariable* va
 
 BNSettings* BNDebuggerGetAdapterSettings(BNDebuggerController* controller)
 {
+	if (!controller->object)
+		return nullptr;
 	auto settings = controller->object->GetAdapterSettings();
 	if (!settings)
 		return nullptr;
@@ -1173,5 +1227,7 @@ BNSettings* BNDebuggerGetAdapterSettings(BNDebuggerController* controller)
 
 bool BNDebuggerFunctionExistsInOldView(BNDebuggerController* controller, uint64_t address)
 {
+	if (!controller->object)
+		return false;
 	return controller->object->FunctionExistsInOldView(address);
 }
