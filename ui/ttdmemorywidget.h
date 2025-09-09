@@ -41,31 +41,10 @@ limitations under the License.
 #include "binaryninjaapi.h"
 #include "debuggerapi.h"
 #include "viewframe.h"
+#include "expandablegroup.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
-
-class ExpandableGroupBox : public QWidget
-{
-	Q_OBJECT
-
-public:
-	ExpandableGroupBox(const QString& title, QWidget* parent = nullptr);
-	void setContentWidget(QWidget* widget);
-	void setExpanded(bool expanded);
-	bool isExpanded() const { return m_expanded; }
-
-private Q_SLOTS:
-	void toggleExpanded();
-
-private:
-	QToolButton* m_toggleButton;
-	QWidget* m_contentWidget;
-	QPropertyAnimation* m_contentAnimation;
-	bool m_expanded;
-	
-	void setupAnimation();
-};
 
 class ColumnVisibilityDialog : public QDialog
 {
