@@ -1133,6 +1133,25 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		},
 		connectedToTTD));
 	debuggerMenu->addAction("TTD Calls\\Ntdll Calls", "TTD");
+
+	// TTD Calls context menu action for functions
+	UIAction::registerAction("TTD Calls\\Query Function");
+	context->globalActions()->bindAction("TTD Calls\\Query Function", UIAction([=](const UIActionContext& ctxt) {
+			auto controller = DebuggerController::GetController(ctxt.binaryView);
+			if (!controller || !controller->IsConnected())
+				return;
+			
+			// Get function name from context
+			if (ctxt.function)
+			{
+				std::vector<std::string> symbols;
+				auto funcName = ctxt.function->GetSymbol()->GetFullName();
+				symbols.push_back(funcName);
+				QueryTTDCalls(ctxt, symbols);
+			}
+		},
+		connectedToTTD));
+	debuggerMenu->addAction("TTD Calls\\Query Function", "TTD");
 #endif
 }
 

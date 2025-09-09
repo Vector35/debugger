@@ -33,6 +33,87 @@ limitations under the License.
 
 #include "moc_ttdcallswidget.cpp"
 
+// ExpandableGroupBox implementation
+ExpandableGroupBox::ExpandableGroupBox(const QString& title, QWidget* parent)
+	: QWidget(parent), m_contentWidget(nullptr), m_expanded(true)
+{
+	QVBoxLayout* layout = new QVBoxLayout(this);
+	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setSpacing(0);
+	
+	// Create header with toggle button
+	QHBoxLayout* headerLayout = new QHBoxLayout();
+	headerLayout->setContentsMargins(5, 5, 5, 5);
+	
+	m_toggleButton = new QToolButton();
+	m_toggleButton->setArrowType(Qt::DownArrow);
+	m_toggleButton->setCheckable(true);
+	m_toggleButton->setChecked(true);
+	m_toggleButton->setText(title);
+	m_toggleButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+	m_toggleButton->setStyleSheet("QToolButton { border: none; font-weight: bold; text-align: left; }");
+	
+	connect(m_toggleButton, &QToolButton::clicked, this, &ExpandableGroupBox::toggleExpanded);
+	
+	headerLayout->addWidget(m_toggleButton);
+	headerLayout->addStretch();
+	
+	layout->addLayout(headerLayout);
+	
+	// Add a line separator
+	QFrame* line = new QFrame();
+	line->setFrameShape(QFrame::HLine);
+	line->setFrameShadow(QFrame::Sunken);
+	layout->addWidget(line);
+	
+	setLayout(layout);
+}
+
+void ExpandableGroupBox::setContentWidget(QWidget* widget)
+{
+	if (m_contentWidget)
+	{
+		layout()->removeWidget(m_contentWidget);
+		m_contentWidget->deleteLater();
+	}
+	
+	m_contentWidget = widget;
+	if (m_contentWidget)
+	{
+		layout()->addWidget(m_contentWidget);
+		setupAnimation();
+	}
+}
+
+void ExpandableGroupBox::setExpanded(bool expanded)
+{
+	if (m_expanded == expanded)
+		return;
+		
+	m_expanded = expanded;
+	m_toggleButton->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+	m_toggleButton->setChecked(expanded);
+	
+	if (m_contentWidget)
+	{
+		m_contentWidget->setVisible(expanded);
+	}
+}
+
+void ExpandableGroupBox::toggleExpanded()
+{
+	setExpanded(!m_expanded);
+}
+
+void ExpandableGroupBox::setupAnimation()
+{
+	if (!m_contentWidget)
+		return;
+		
+	m_contentAnimation = new QPropertyAnimation(m_contentWidget, "maximumHeight");
+	m_contentAnimation->setDuration(200);
+}
+
 TTDCallsQueryWidget::TTDCallsQueryWidget(QWidget* parent, BinaryViewRef data)
 	: QWidget(parent), m_data(data)
 {
@@ -75,9 +156,12 @@ void TTDCallsQueryWidget::setupUI()
 	auto layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
 	
-	// Create input controls group
-	auto inputGroup = new QGroupBox("TTD.Calls Query Parameters");
-	auto inputLayout = new QFormLayout(inputGroup);
+	// Create expandable input controls group
+	auto expandableGroup = new ExpandableGroupBox("Query Parameters");
+	
+	// Create content widget for the expandable group
+	auto contentWidget = new QWidget();
+	auto inputLayout = new QFormLayout(contentWidget);
 	
 	// Symbols input (multi-line text edit for multiple symbols)
 	m_symbolsEdit = new QTextEdit();
@@ -100,18 +184,16 @@ void TTDCallsQueryWidget::setupUI()
 	
 	// Button layout
 	auto buttonLayout = new QHBoxLayout();
-	m_queryButton = new QPushButton("Query TTD.Calls");
+	m_queryButton = new QPushButton("Query TTD Calls");
 	m_clearButton = new QPushButton("Clear Results");
 	buttonLayout->addWidget(m_queryButton);
 	buttonLayout->addWidget(m_clearButton);
 	buttonLayout->addStretch();
 	inputLayout->addRow(buttonLayout);
 	
-	// Status label
-	m_statusLabel = new QLabel("Ready to query TTD.Calls");
-	inputLayout->addRow(m_statusLabel);
-	
-	layout->addWidget(inputGroup);
+	// Set the content widget to the expandable group
+	expandableGroup->setContentWidget(contentWidget);
+	layout->addWidget(expandableGroup);
 	
 	// Results table
 	m_resultsTable = new QTableWidget(0, static_cast<int>(m_columnNames.size()));
@@ -119,7 +201,8 @@ void TTDCallsQueryWidget::setupUI()
 	m_resultsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
 	m_resultsTable->setAlternatingRowColors(true);
 	m_resultsTable->setSortingEnabled(true);
-	
+	m_resultsTable->setEditTriggers(QAbstractItemView::NoEditTriggers); // Make cells non-editable
+
 	layout->addWidget(m_resultsTable);
 	
 	// Connect signals
@@ -154,10 +237,7 @@ void TTDCallsQueryWidget::setupContextMenu()
 	connect(m_resultsTable, &QTableWidget::customContextMenuRequested, this, &TTDCallsQueryWidget::showContextMenu);
 }
 
-void TTDCallsQueryWidget::updateStatus(const QString& message)
-{
-	m_statusLabel->setText(message);
-}
+
 
 uint64_t TTDCallsQueryWidget::parseAddress(const QString& text)
 {
@@ -200,13 +280,11 @@ void TTDCallsQueryWidget::performQuery()
 {
 	if (!m_controller)
 	{
-		updateStatus("Error: No debugger controller available");
 		return;
 	}
 	
 	if (!m_controller->IsConnected())
 	{
-		updateStatus("Error: Not connected to target");
 		return;
 	}
 	
@@ -214,15 +292,12 @@ void TTDCallsQueryWidget::performQuery()
 	std::vector<std::string> symbols = parseSymbols(m_symbolsEdit->toPlainText());
 	if (symbols.empty())
 	{
-		updateStatus("Error: No symbols specified");
 		return;
 	}
 	
 	// Parse address range
 	uint64_t startAddr = parseAddress(m_startAddressEdit->text());
 	uint64_t endAddr = parseAddress(m_endAddressEdit->text());
-	
-	updateStatus("Querying TTD.Calls...");
 	
 	// Execute query
 	auto events = m_controller->GetTTDCallsForSymbols(symbols, startAddr, endAddr);
@@ -232,7 +307,6 @@ void TTDCallsQueryWidget::performQuery()
 	
 	if (events.empty())
 	{
-		updateStatus("Query completed - no results found");
 		return;
 	}
 	
@@ -308,14 +382,11 @@ void TTDCallsQueryWidget::performQuery()
 		m_resultsTable->setItem(row, static_cast<int>(ParametersColumn), 
 			new QTableWidgetItem(parametersStr));
 	}
-	
-	updateStatus(QString("Query completed - %1 call events found").arg(events.size()));
 }
 
 void TTDCallsQueryWidget::clearResults()
 {
 	m_resultsTable->setRowCount(0);
-	updateStatus("Results cleared");
 }
 
 void TTDCallsQueryWidget::onCellDoubleClicked(int row, int column)

@@ -37,6 +37,7 @@ limitations under the License.
 #include <QToolButton>
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
+#include <QFrame>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "debuggerapi.h"
@@ -44,6 +45,28 @@ limitations under the License.
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
+
+class ExpandableGroupBox : public QWidget
+{
+	Q_OBJECT
+
+public:
+	ExpandableGroupBox(const QString& title, QWidget* parent = nullptr);
+	void setContentWidget(QWidget* widget);
+	void setExpanded(bool expanded);
+	bool isExpanded() const { return m_expanded; }
+
+private Q_SLOTS:
+	void toggleExpanded();
+
+private:
+	QToolButton* m_toggleButton;
+	QWidget* m_contentWidget;
+	QPropertyAnimation* m_contentAnimation;
+	bool m_expanded;
+	
+	void setupAnimation();
+};
 
 class TTDCallsQueryWidget : public QWidget
 {
@@ -79,16 +102,12 @@ private:
 	// Results table
 	QTableWidget* m_resultsTable;
 	
-	// Status label
-	QLabel* m_statusLabel;
-	
 	// Column visibility
 	QStringList m_columnNames;
 	QList<bool> m_columnVisibility;
 	
 	void setupUI();
 	void setupTable();
-	void updateStatus(const QString& message);
 	uint64_t parseAddress(const QString& text);
 	std::vector<std::string> parseSymbols(const QString& text);
 	void setupContextMenu();
