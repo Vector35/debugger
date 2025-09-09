@@ -227,6 +227,10 @@ void TTDCallsQueryWidget::performQuery()
 		return;
 	}
 	
+	// Disable sorting while populating to avoid issues
+	bool sortingEnabled = m_resultsTable->isSortingEnabled();
+	m_resultsTable->setSortingEnabled(false);
+	
 	// Populate table
 	m_resultsTable->setRowCount(static_cast<int>(events.size()));
 	
@@ -299,6 +303,13 @@ void TTDCallsQueryWidget::performQuery()
 		m_resultsTable->setItem(row, static_cast<int>(ParametersColumn), 
 			new QTableWidgetItem(parametersStr));
 	}
+	
+	// Re-enable sorting if it was enabled
+	m_resultsTable->setSortingEnabled(sortingEnabled);
+	
+	// Force table update
+	m_resultsTable->update();
+	m_resultsTable->repaint();
 }
 
 void TTDCallsQueryWidget::clearResults()
@@ -492,10 +503,8 @@ void TTDCallsQueryWidget::setParametersAndQuery(const std::vector<std::string>& 
 
 bool TTDCallsQueryWidget::isUnused() const
 {
-	return m_resultsTable->rowCount() == 0 && 
-		   m_symbolsEdit->toPlainText().isEmpty() &&
-		   m_startAddressEdit->text().isEmpty() &&
-		   m_endAddressEdit->text().isEmpty();
+	// Consider a tab unused if it has no results
+	return m_resultsTable->rowCount() == 0;
 }
 
 // TTDCallsWidget implementation
@@ -558,15 +567,14 @@ void TTDCallsWidget::closeTab(int index)
 
 TTDCallsQueryWidget* TTDCallsWidget::getCurrentOrNewQueryWidget()
 {
-	auto currentWidget = qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
+	// Get current tab widget
+	TTDCallsQueryWidget* currentWidget = qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
+	if (currentWidget)
+		return currentWidget;
 	
-	if (!currentWidget || !currentWidget->isUnused())
-	{
-		createNewTab();
-		currentWidget = qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
-	}
-	
-	return currentWidget;
+	// If no current widget or cast failed, create a new tab
+	createNewTab();
+	return qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
 }
 
 void TTDCallsWidget::setParametersAndQuery(const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
@@ -578,10 +586,23 @@ void TTDCallsWidget::setParametersAndQuery(const std::vector<std::string>& symbo
 
 void TTDCallsWidget::setParametersAndQueryInNewTab(const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
 {
-	createNewTab();
-	auto queryWidget = qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
-	if (queryWidget)
-		queryWidget->setParametersAndQuery(symbols, startAddr, endAddr);
+	// Check if the current tab is unused - if so, reuse it instead of creating a new tab
+	TTDCallsQueryWidget* currentWidget = qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
+	if (currentWidget && currentWidget->isUnused())
+	{
+		// Reuse the current unused tab
+		currentWidget->setParametersAndQuery(symbols, startAddr, endAddr);
+	}
+	else
+	{
+		// Create a new tab since the current one is already in use
+		createNewTab();
+		TTDCallsQueryWidget* queryWidget = qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
+		if (queryWidget)
+		{
+			queryWidget->setParametersAndQuery(symbols, startAddr, endAddr);
+		}
+	}
 }
 
 // TTDCallsSidebarWidget implementation
