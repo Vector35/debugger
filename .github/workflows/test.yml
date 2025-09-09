@@ -27,56 +27,56 @@ jobs:
       run: |
         cd test
         python3 -c "
-import os
-import sys
-import time
-import platform
-import subprocess
-import socket
+        import os
+        import sys
+        import time
+        import platform
+        import subprocess
+        import socket
 
-def find_free_port():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
-        s.listen(1)
-        port = s.getsockname()[1]
-    return port
+        def find_free_port():
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('', 0))
+                s.listen(1)
+                port = s.getsockname()[1]
+            return port
 
-port = find_free_port()
-host = '127.0.0.1'
+        port = find_free_port()
+        host = '127.0.0.1'
 
-# Use helloworld binary for testing
-fpath = 'binaries/Linux-x86_64/helloworld'
-if not os.path.exists(fpath):
-    print(f'Test binary not found: {fpath}')
-    sys.exit(1)
-
-server_cmd = ['lldb-server', 'gdbserver', f'{host}:{port}', fpath]
-
-try:
-    print(f'Starting lldb-server on {host}:{port} with {fpath}')
-    server_process = subprocess.Popen(server_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    time.sleep(2)
-    
-    if server_process.poll() is not None:
-        stdout, stderr = server_process.communicate()
-        print(f'lldb-server failed: stdout={stdout.decode()}, stderr={stderr.decode()}')
-        sys.exit(1)
-    
-    # Test connection
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(10)
-        s.connect((host, port))
-        s.sendall(b'+\\$qSupported#37')
-        response = s.recv(1024)
-        
-        if response:
-            print('✓ Remote debugging test successful: Connected to lldb-server on localhost')
-        else:
-            print('✗ No response from lldb-server')
+        # Use helloworld binary for testing
+        fpath = 'binaries/Linux-x86_64/helloworld'
+        if not os.path.exists(fpath):
+            print(f'Test binary not found: {fpath}')
             sys.exit(1)
+
+        server_cmd = ['lldb-server', 'gdbserver', f'{host}:{port}', fpath]
+
+        try:
+            print(f'Starting lldb-server on {host}:{port} with {fpath}')
+            server_process = subprocess.Popen(server_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            time.sleep(2)
             
-finally:
-    if server_process and server_process.poll() is None:
-        server_process.terminate()
-        server_process.wait(timeout=5)
-"
+            if server_process.poll() is not None:
+                stdout, stderr = server_process.communicate()
+                print(f'lldb-server failed: stdout={stdout.decode()}, stderr={stderr.decode()}')
+                sys.exit(1)
+            
+            # Test connection
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(10)
+                s.connect((host, port))
+                s.sendall(b'+\\$qSupported#37')
+                response = s.recv(1024)
+                
+                if response:
+                    print('✓ Remote debugging test successful: Connected to lldb-server on localhost')
+                else:
+                    print('✗ No response from lldb-server')
+                    sys.exit(1)
+                    
+        finally:
+            if server_process and server_process.poll() is None:
+                server_process.terminate()
+                server_process.wait(timeout=5)
+        "
