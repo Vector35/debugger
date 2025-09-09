@@ -352,6 +352,52 @@ class DebuggerAPI(unittest.TestCase):
         dbg.quit_and_wait()
 
 
+    def test_ttd_calls_api(self):
+        """Test TTD Calls API availability"""
+        print(f"[TEST] {time.time()} test_ttd_calls_api")
+        
+        # For this test, we just verify the API exists and can be called
+        # Real TTD testing would require a TTD trace file
+        fpath = name_to_fpath('helloworld')
+        self.assertTrue(os.path.exists(fpath), f'Binary not found: {fpath}')
+        
+        bv = load(fpath)
+        self.assertIsNotNone(bv)
+        
+        dbg = DebuggerController(bv)
+        self.assertIsNotNone(dbg)
+        
+        # Test that the TTD calls API methods exist and can be called
+        # These should return empty results when not connected to TTD
+        try:
+            symbols = ["kernel32!*"]
+            calls = dbg.get_ttd_calls(symbols)
+            self.assertIsInstance(calls, list)
+            print(f"[TEST] TTD calls API returned {len(calls)} results (expected 0 when not in TTD mode)")
+            
+            # Test filtered calls
+            filtered_calls = dbg.get_ttd_calls_with_address_filter(symbols, 0x1000, 0x2000)
+            self.assertIsInstance(filtered_calls, list)
+            print(f"[TEST] TTD filtered calls API returned {len(filtered_calls)} results")
+            
+            # Test position APIs
+            pos = dbg.get_current_ttd_position()
+            self.assertIsNotNone(pos)
+            print(f"[TEST] TTD position API returned position: {pos.sequence}:{pos.step}")
+            
+            # Test setting position (should fail gracefully when not in TTD mode)
+            result = dbg.set_ttd_position(pos)
+            self.assertIsInstance(result, bool)
+            print(f"[TEST] TTD set position API returned: {result}")
+            
+        except Exception as e:
+            # If methods don't exist, the implementation is incomplete
+            self.fail(f"TTD Calls API methods are not available: {e}")
+        
+        dbg.destroy()
+        print(f"[TEST] {time.time()} test_ttd_calls_api OK")
+
+
 @unittest.skipIf(platform.machine() not in ['arm64', 'aarch64'], "Only run arm64 tests on arm Mac or Linux")
 class DebuggerArm64Test(DebuggerAPI):
     def setUp(self) -> None:
