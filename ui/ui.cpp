@@ -237,9 +237,9 @@ void GlobalDebuggerUI::QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_
 	
 	// Try to find the widget that was just created/activated and apply the query immediately
 	// We'll give it a moment to be created if needed
-	QTimer::singleShot(100, [frame, ctxt, startAddr, endAddr, accessTypeEnum]() {
+	QTimer::singleShot(100, [sidebar, ctxt, startAddr, endAddr, accessTypeEnum]() {
 		// Try to find the active TTD Memory widget
-		auto* sidebarWidget = frame->getSidebarWidget("TTD Memory");
+		auto* sidebarWidget = sidebar->widget("TTD Memory");
 		if (auto* ttdWidget = qobject_cast<TTDMemorySidebarWidget*>(sidebarWidget))
 		{
 			ttdWidget->setParametersAndQuery(startAddr, endAddr, accessTypeEnum);
