@@ -23,5 +23,6 @@
         <file alias="step-over">icons/step-over.png</file>
         <file alias="stop">icons/stop.png</file>
         <file alias="ttd-memory">icons/ttd-memory.png</file>
+        <file alias="ttd-calls">icons/ttd-calls.png</file>
     </qresource>
 </RCC>

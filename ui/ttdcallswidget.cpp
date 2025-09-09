@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "ttdcallswidget.h"
+#include "ui.h"
 #include <QGroupBox>
 #include <QScrollArea>
 #include <QSplitter>
@@ -22,6 +23,15 @@ limitations under the License.
 #include <QApplication>
 #include <QPropertyAnimation>
 #include <QEasingCurve>
+#include <QGridLayout>
+#include <QHeaderView>
+#include <QMenu>
+#include <QClipboard>
+#include <QFrame>
+#include <QTimer>
+#include <map>
+
+#include "moc_ttdcallswidget.cpp"
 
 TTDCallsQueryWidget::TTDCallsQueryWidget(QWidget* parent, BinaryViewRef data)
 	: QWidget(parent), m_data(data)
@@ -616,7 +626,7 @@ void TTDCallsSidebarWidget::setParametersAndQueryInNewTab(const std::vector<std:
 
 std::map<std::pair<ViewFrame*, BinaryViewRef>, TTDCallsWidgetType::PendingQuery> TTDCallsWidgetType::s_pendingQueries;
 
-TTDCallsWidgetType::TTDCallsWidgetType() : SidebarWidgetType("TTD Calls", "TTD Calls")
+TTDCallsWidgetType::TTDCallsWidgetType() : SidebarWidgetType(QImage(":/debugger/ttd-calls"), "TTD Calls")
 {
 }
 
