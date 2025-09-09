@@ -118,6 +118,7 @@ void TTDCallsQueryWidget::setupUI()
 	m_resultsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
 	m_resultsTable->setAlternatingRowColors(true);
 	m_resultsTable->setSortingEnabled(true);
+	m_resultsTable->verticalHeader()->setVisible(false);
 	m_resultsTable->setEditTriggers(QAbstractItemView::NoEditTriggers); // Make cells non-editable
 
 	layout->addWidget(m_resultsTable, 1); // Give most space to the table
