@@ -41,12 +41,12 @@ limitations under the License.
 #include "progresstask.h"
 #include "debuggerinfowidget.h"
 #include "ttdmemorywidget.h"
+#include "ttdcallswidget.h"
 #include "freeversion.h"
 #include <QTimer>
 
 #ifdef WIN32
 	#include "ttdrecord.h"
-	#include "ttdcallswidget.h"
 	#include "scriptingconsole.h"
 #endif
 

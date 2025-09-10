@@ -322,10 +322,8 @@ void TTDCallsQueryWidget::onCellDoubleClicked(int row, int column)
 	// Handle double-click events - navigate to addresses or time travel
 	if (row < 0 || row >= m_resultsTable->rowCount())
 		return;
-	
-	LogicalColumn logicalCol = getLogicalColumnFromVisual(column);
-	
-	if (logicalCol == TimeStartColumn || logicalCol == TimeEndColumn)
+
+	if (column == TimeStartColumn || column == TimeEndColumn)
 	{
 		// Handle time travel for both time start and time end columns
 		QTableWidgetItem* timeItem = m_resultsTable->item(row, column);
@@ -349,25 +347,20 @@ void TTDCallsQueryWidget::onCellDoubleClicked(int row, int column)
 					TTDPosition pos(sequence, step);
 					if (m_controller->SetTTDPosition(pos))
 					{
-						// After time traveling, navigate to the function address
-						int functionAddrVisualColumn = getVisualColumnFromLogical(FunctionAddressColumn);
-						if (functionAddrVisualColumn >= 0)
+						QTableWidgetItem* funcAddrItem = m_resultsTable->item(row, FunctionAddressColumn);
+						if (funcAddrItem && m_data)
 						{
-							QTableWidgetItem* funcAddrItem = m_resultsTable->item(row, functionAddrVisualColumn);
-							if (funcAddrItem && m_data)
+							QString funcAddrStr = funcAddrItem->text();
+							if (funcAddrStr.startsWith("0x", Qt::CaseInsensitive))
 							{
-								QString funcAddrStr = funcAddrItem->text();
-								if (funcAddrStr.startsWith("0x", Qt::CaseInsensitive))
+								bool ok;
+								uint64_t funcAddress = funcAddrStr.mid(2).toULongLong(&ok, 16);
+								if (ok)
 								{
-									bool ok;
-									uint64_t funcAddress = funcAddrStr.mid(2).toULongLong(&ok, 16);
-									if (ok)
+									ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+									if (frame)
 									{
-										ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
-										if (frame)
-										{
-											frame->navigate(m_data, funcAddress);
-										}
+										frame->navigate(m_data, funcAddress);
 									}
 								}
 							}
@@ -377,7 +370,7 @@ void TTDCallsQueryWidget::onCellDoubleClicked(int row, int column)
 			}
 		}
 	}
-	else if (logicalCol == FunctionAddressColumn || logicalCol == ReturnAddressColumn)
+	else if (column == FunctionAddressColumn || column == ReturnAddressColumn)
 	{
 		// Navigate to address in Binary Ninja
 		QTableWidgetItem* item = m_resultsTable->item(row, column);
@@ -401,36 +394,6 @@ void TTDCallsQueryWidget::onCellDoubleClicked(int row, int column)
 			}
 		}
 	}
-}
-
-TTDCallsQueryWidget::LogicalColumn TTDCallsQueryWidget::getLogicalColumnFromVisual(int visualColumn) const
-{
-	int logicalIndex = 0;
-	for (int i = 0; i < m_columnVisibility.size(); ++i)
-	{
-		if (m_columnVisibility[i])
-		{
-			if (logicalIndex == visualColumn)
-				return static_cast<LogicalColumn>(i);
-			logicalIndex++;
-		}
-	}
-	return IndexColumn; // fallback
-}
-
-int TTDCallsQueryWidget::getVisualColumnFromLogical(LogicalColumn logicalColumn) const
-{
-	int visualIndex = 0;
-	for (int i = 0; i <= static_cast<int>(logicalColumn); ++i)
-	{
-		if (m_columnVisibility[i])
-		{
-			if (i == static_cast<int>(logicalColumn))
-				return visualIndex;
-			visualIndex++;
-		}
-	}
-	return -1; // not visible
 }
 
 void TTDCallsQueryWidget::updateColumnVisibility()

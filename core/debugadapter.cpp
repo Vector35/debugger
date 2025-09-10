@@ -179,7 +179,7 @@ Ref<Settings> DebugAdapter::GetAdapterSettings()
 
 
 // TTD (Time Travel Debugging) default implementations
-std::vector<TTDMemoryEvent> DebugAdapter::GetMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
+std::vector<TTDMemoryEvent> DebugAdapter::GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
 {
 	// Default implementation returns empty results for adapters that don't support TTD
 	return {};

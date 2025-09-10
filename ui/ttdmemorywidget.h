@@ -111,11 +111,6 @@ private:
 	void setupContextMenu();
 	void updateColumnVisibility();
 	
-	// Helper method to map visual column index to logical column
-	LogicalColumn getLogicalColumnFromVisual(int visualColumn) const;
-	// Helper method to get visual column index from logical column
-	int getVisualColumnFromLogical(LogicalColumn logicalColumn) const;
-
 public:
 	TTDMemoryQueryWidget(QWidget* parent, BinaryViewRef data);
 	virtual ~TTDMemoryQueryWidget();

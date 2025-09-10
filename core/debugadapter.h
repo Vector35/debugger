@@ -309,11 +309,6 @@ namespace BinaryNinjaDebugger {
 
 		virtual bool SupportFeature(DebugAdapterCapacity feature) = 0;
 
-		// TTD (Time Travel Debugging) methods - provide default implementations that return empty results
-		virtual std::vector<TTDMemoryEvent> GetMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead);
-		virtual TTDPosition GetCurrentTTDPosition();
-		virtual bool SetTTDPosition(const TTDPosition& position);
-
 		// This is implemented by the (base) DebugAdapter class.
 		// Sub-classes should use it to post debugger events directly (only when needed).
 		void PostDebuggerEvent(const DebuggerEvent& event);

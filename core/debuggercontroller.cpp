@@ -2824,7 +2824,7 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uin
 	
 	if (m_adapter)
 	{
-		events = m_adapter->GetMemoryAccessForAddress(startAddress, endAddress, accessType);
+		events = m_adapter->GetTTDMemoryAccessForAddress(startAddress, endAddress, accessType);
 	}
 
 	return events;
