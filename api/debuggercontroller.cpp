@@ -1069,6 +1069,49 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
 }
 
 
+std::vector<TTDSelfModifyingCodeEvent> DebuggerController::RunSelfModifyingCodeAnalysis()
+{
+	std::vector<TTDSelfModifyingCodeEvent> results;
+	
+	size_t count = 0;
+	BNDebuggerTTDSelfModifyingCodeEvent* events = BNDebuggerRunSelfModifyingCodeAnalysis(m_object, &count);
+	
+	if (events && count > 0)
+	{
+		results.reserve(count);
+		
+		for (size_t i = 0; i < count; ++i)
+		{
+			const auto& event = events[i];
+			TTDSelfModifyingCodeEvent smcEvent;
+			
+			smcEvent.address = event.address;
+			smcEvent.firstExecuteTime.sequence = event.firstExecuteTime.sequence;
+			smcEvent.firstExecuteTime.step = event.firstExecuteTime.step;
+			smcEvent.firstWriteTime.sequence = event.firstWriteTime.sequence;
+			smcEvent.firstWriteTime.step = event.firstWriteTime.step;
+			smcEvent.lastExecuteTime.sequence = event.lastExecuteTime.sequence;
+			smcEvent.lastExecuteTime.step = event.lastExecuteTime.step;
+			smcEvent.lastWriteTime.sequence = event.lastWriteTime.sequence;
+			smcEvent.lastWriteTime.step = event.lastWriteTime.step;
+			smcEvent.executeCount = event.executeCount;
+			smcEvent.writeCount = event.writeCount;
+			smcEvent.lastWrittenValue = event.lastWrittenValue;
+			smcEvent.instructionSize = event.instructionSize;
+			
+			if (event.function)
+				smcEvent.function = event.function;
+			
+			results.push_back(smcEvent);
+		}
+		
+		BNDebuggerFreeTTDSelfModifyingCodeEvents(events, count);
+	}
+	
+	return results;
+}
+
+
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent &event)
 {
 	BNDebuggerEvent* evt = new BNDebuggerEvent;

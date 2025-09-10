@@ -1133,6 +1133,57 @@ bool BNDebuggerLoadCodeCoverageFromFile(BNDebuggerController* controller, const 
 	return controller->object->LoadCodeCoverageFromFile(filePath);
 }
 
+BNDebuggerTTDSelfModifyingCodeEvent* BNDebuggerRunSelfModifyingCodeAnalysis(BNDebuggerController* controller, size_t* count)
+{
+	*count = 0;
+	
+	auto results = controller->object->RunSelfModifyingCodeAnalysis();
+	if (results.empty())
+		return nullptr;
+
+	auto* events = new BNDebuggerTTDSelfModifyingCodeEvent[results.size()];
+	*count = results.size();
+
+	for (size_t i = 0; i < results.size(); ++i)
+	{
+		const auto& result = results[i];
+		auto& event = events[i];
+		
+		event.address = result.address;
+		event.firstExecuteTime.sequence = result.firstExecuteTime.sequence;
+		event.firstExecuteTime.step = result.firstExecuteTime.step;
+		event.firstWriteTime.sequence = result.firstWriteTime.sequence;
+		event.firstWriteTime.step = result.firstWriteTime.step;
+		event.lastExecuteTime.sequence = result.lastExecuteTime.sequence;
+		event.lastExecuteTime.step = result.lastExecuteTime.step;
+		event.lastWriteTime.sequence = result.lastWriteTime.sequence;
+		event.lastWriteTime.step = result.lastWriteTime.step;
+		event.executeCount = result.executeCount;
+		event.writeCount = result.writeCount;
+		event.lastWrittenValue = result.lastWrittenValue;
+		event.instructionSize = result.instructionSize;
+		event.function = BNAllocString(result.function.c_str());
+	}
+
+	return events;
+}
+
+void BNDebuggerFreeTTDSelfModifyingCodeEvents(BNDebuggerTTDSelfModifyingCodeEvent* events, size_t count)
+{
+	if (events && count > 0)
+	{
+		// Free strings for each event
+		for (size_t i = 0; i < count; ++i)
+		{
+			if (events[i].function)
+			{
+				BNFreeString(events[i].function);
+			}
+		}
+		delete[] events;
+	}
+}
+
 void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count)
 {
 	if (events && count > 0)

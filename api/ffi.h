@@ -339,6 +339,20 @@ extern "C"
 		BNDebuggerTTDPosition timeEnd;   // Position when call ended
 	} BNDebuggerTTDCallEvent;
 
+	typedef struct BNDebuggerTTDSelfModifyingCodeEvent
+	{
+		uint64_t address;              // Address that was both executed and written to
+		BNDebuggerTTDPosition firstExecuteTime;  // First time this address was executed
+		BNDebuggerTTDPosition firstWriteTime;    // First time this address was written to
+		BNDebuggerTTDPosition lastExecuteTime;   // Last time this address was executed
+		BNDebuggerTTDPosition lastWriteTime;     // Last time this address was written to
+		uint32_t executeCount;         // Number of times this address was executed
+		uint32_t writeCount;           // Number of times this address was written to
+		uint64_t lastWrittenValue;     // Last value written to this address
+		uint64_t instructionSize;      // Size of the instruction at this address
+		char* function;                // Function name containing this address (if available)
+	} BNDebuggerTTDSelfModifyingCodeEvent;
+
 
 	// This should really be a union, but gcc complains...
 	typedef struct BNDebuggerEventData
@@ -562,6 +576,10 @@ extern "C"
 	DEBUGGER_FFI_API size_t BNDebuggerGetExecutedInstructionCount(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerSaveCodeCoverageToFile(BNDebuggerController* controller, const char* filePath);
 	DEBUGGER_FFI_API bool BNDebuggerLoadCodeCoverageFromFile(BNDebuggerController* controller, const char* filePath);
+
+	// TTD Self-Modifying Code Analysis Functions
+	DEBUGGER_FFI_API BNDebuggerTTDSelfModifyingCodeEvent* BNDebuggerRunSelfModifyingCodeAnalysis(BNDebuggerController* controller, size_t* count);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDSelfModifyingCodeEvents(BNDebuggerTTDSelfModifyingCodeEvent* events, size_t count);
 
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 

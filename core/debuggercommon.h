@@ -152,4 +152,21 @@ namespace BinaryNinjaDebugger {
 		
 		TTDCallEvent() : threadId(0), uniqueThreadId(0), functionAddress(0), returnAddress(0), returnValue(0), hasReturnValue(false) {}
 	};
+
+	// TTD Self-Modifying Code Event - combination of execute and write events for the same address
+	struct TTDSelfModifyingCodeEvent
+	{
+		uint64_t address;              // Address that was both executed and written to
+		TTDPosition firstExecuteTime;  // First time this address was executed
+		TTDPosition firstWriteTime;    // First time this address was written to
+		TTDPosition lastExecuteTime;   // Last time this address was executed
+		TTDPosition lastWriteTime;     // Last time this address was written to
+		uint32_t executeCount;         // Number of times this address was executed
+		uint32_t writeCount;           // Number of times this address was written to
+		uint64_t lastWrittenValue;     // Last value written to this address
+		uint64_t instructionSize;      // Size of the instruction at this address
+		std::string function;          // Function name containing this address (if available)
+		
+		TTDSelfModifyingCodeEvent() : address(0), executeCount(0), writeCount(0), lastWrittenValue(0), instructionSize(0) {}
+	};
 };  // namespace BinaryNinjaDebugger

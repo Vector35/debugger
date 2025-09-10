@@ -79,6 +79,24 @@ void TTDAnalysisWorker::run()
 		}
 		break;
 
+	case TTDAnalysisType::SelfModifyingCode:
+		emit analysisProgress(30, "Running self-modifying code analysis...");
+		{
+			auto results = m_controller->RunSelfModifyingCodeAnalysis();
+			success = true; // The analysis method doesn't return failure, it returns empty results
+			resultCount = results.size();
+			if (resultCount > 0)
+			{
+				message = QString("Self-modifying code analysis completed successfully. Found %1 locations where code was both executed and modified.")
+					.arg(resultCount);
+			}
+			else
+			{
+				message = "Self-modifying code analysis completed. No self-modifying code detected.";
+			}
+		}
+		break;
+
 	default:
 		message = "Unknown analysis type";
 		break;
@@ -130,7 +148,7 @@ void TTDAnalysisDialog::setupUI()
 
 	m_analysisTypeCombo = new QComboBox();
 	m_analysisTypeCombo->addItem("Code Coverage", static_cast<int>(TTDAnalysisType::CodeCoverage));
-	// Future analysis types can be added here
+	m_analysisTypeCombo->addItem("Self-Modifying Code", static_cast<int>(TTDAnalysisType::SelfModifyingCode));
 	selectionLayout->addWidget(m_analysisTypeCombo);
 
 	connect(m_analysisTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -163,6 +181,20 @@ void TTDAnalysisDialog::setupUI()
 
 	mainLayout->addWidget(contentSplitter);
 
+	// Results table (hidden by default, shown when analysis completes)
+	QGroupBox* resultsGroup = new QGroupBox("Analysis Results");
+	QVBoxLayout* resultsLayout = new QVBoxLayout(resultsGroup);
+
+	m_resultsTable = new QTableWidget();
+	m_resultsTable->setAlternatingRowColors(true);
+	m_resultsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+	m_resultsTable->setContextMenuPolicy(Qt::CustomContextMenu);
+	resultsLayout->addWidget(m_resultsTable);
+
+	// Hide results table initially
+	resultsGroup->setVisible(false);
+	mainLayout->addWidget(resultsGroup);
+
 	// Status and progress
 	QGroupBox* statusGroup = new QGroupBox("Status");
 	QVBoxLayout* statusLayout = new QVBoxLayout(statusGroup);
@@ -177,7 +209,7 @@ void TTDAnalysisDialog::setupUI()
 	mainLayout->addWidget(statusGroup);
 
 	// Range settings
-	QGroupBox* rangeGroup = new QGroupBox("Analysis Range (Required)");
+	QGroupBox* rangeGroup = new QGroupBox("Analysis Range (Code Coverage Only)");
 	QVBoxLayout* rangeLayout = new QVBoxLayout(rangeGroup);
 
 	m_useRangeCheckBox = new QCheckBox("Specify address range for analysis");
@@ -291,6 +323,23 @@ void TTDAnalysisDialog::populateAnalysisList()
 
 	m_analysisResults.append(codeCoverage);
 
+	// Add Self-Modifying Code analysis
+	TTDAnalysisResult selfModifyingCode;
+	selfModifyingCode.type = TTDAnalysisType::SelfModifyingCode;
+	selfModifyingCode.name = "Self-Modifying Code";
+	selfModifyingCode.description = QString("Detects locations where code was both executed and modified during the TTD trace.\n\n"
+									"This analysis finds the intersection of executed instruction addresses and "
+									"memory write locations to identify self-modifying code patterns.\n\n"
+									"Results include execution and write timing information, counts, and "
+									"function context when available.\n\n"
+									"This analysis scans the entire binary and does not require an address range.\n\n"
+									"Status: ") + (m_controller && m_controller->IsTTD() ? "Available" : "TTD not available");
+	selfModifyingCode.status = TTDAnalysisStatus::NotRun;
+	selfModifyingCode.cachePath = getDefaultCachePath(TTDAnalysisType::SelfModifyingCode);
+	selfModifyingCode.resultCount = 0;
+
+	m_analysisResults.append(selfModifyingCode);
+
 	// Update list widget
 	m_analysisListWidget->clear();
 	for (const auto& result : m_analysisResults)
@@ -342,6 +391,25 @@ void TTDAnalysisDialog::onAnalysisSelectionChanged()
 		if (comboIndex >= 0)
 		{
 			m_analysisTypeCombo->setCurrentIndex(comboIndex);
+		}
+
+		// Enable/disable range controls based on analysis type
+		bool rangeRequired = (result.type == TTDAnalysisType::CodeCoverage);
+		m_useRangeCheckBox->setEnabled(rangeRequired);
+		
+		if (!rangeRequired)
+		{
+			// For analyses that don't use ranges, disable range controls
+			m_useRangeCheckBox->setChecked(false);
+			m_startAddressEdit->setEnabled(false);
+			m_endAddressEdit->setEnabled(false);
+		}
+		else
+		{
+			// For analyses that require ranges, ensure checkbox is checked
+			m_useRangeCheckBox->setChecked(true);
+			m_startAddressEdit->setEnabled(true);
+			m_endAddressEdit->setEnabled(true);
 		}
 	}
 
@@ -466,6 +534,20 @@ void TTDAnalysisDialog::onAnalysisCompleted(bool success, const QString& message
 
 	updateButtonStates();
 	populateAnalysisList();
+
+	// Show results table for self-modifying code analysis
+	if (success && currentRow >= 0 && currentRow < m_analysisResults.size())
+	{
+		if (m_analysisResults[currentRow].type == TTDAnalysisType::SelfModifyingCode)
+		{
+			showSelfModifyingCodeResults();
+		}
+		else
+		{
+			// Hide results table for other analysis types
+			m_resultsTable->parentWidget()->setVisible(false);
+		}
+	}
 
 	if (!success)
 	{
@@ -611,6 +693,9 @@ QString TTDAnalysisDialog::getDefaultCachePath(TTDAnalysisType type)
 	case TTDAnalysisType::CodeCoverage:
 		fileName = "code_coverage.json";
 		break;
+	case TTDAnalysisType::SelfModifyingCode:
+		fileName = "self_modifying_code.json";
+		break;
 	default:
 		fileName = "unknown_analysis.json";
 		break;
@@ -694,6 +779,107 @@ bool TTDAnalysisDialog::loadAnalysisResults(TTDAnalysisResult& result)
 	}
 
 	return true;
+}
+
+void TTDAnalysisDialog::showSelfModifyingCodeResults()
+{
+	if (!m_controller)
+		return;
+
+	// Get the self-modifying code analysis results
+	auto smcEvents = m_controller->RunSelfModifyingCodeAnalysis();
+	
+	if (smcEvents.empty())
+	{
+		// Hide results table if no results
+		m_resultsTable->parentWidget()->setVisible(false);
+		return;
+	}
+
+	// Set up table columns
+	QStringList headers;
+	headers << "Address" << "Function" << "Execute Count" << "Write Count" 
+			<< "First Execute Time" << "First Write Time" << "Last Written Value" << "Instruction Size";
+	
+	m_resultsTable->setColumnCount(headers.size());
+	m_resultsTable->setHorizontalHeaderLabels(headers);
+	m_resultsTable->setRowCount(smcEvents.size());
+
+	// Populate table with results
+	for (size_t i = 0; i < smcEvents.size(); ++i)
+	{
+		const auto& event = smcEvents[i];
+		
+		// Address
+		QTableWidgetItem* addressItem = new QTableWidgetItem(QString("0x%1").arg(event.address, 0, 16));
+		addressItem->setData(Qt::UserRole, QVariant::fromValue(event.address));
+		m_resultsTable->setItem(i, 0, addressItem);
+		
+		// Function
+		m_resultsTable->setItem(i, 1, new QTableWidgetItem(QString::fromStdString(event.function)));
+		
+		// Execute Count
+		m_resultsTable->setItem(i, 2, new QTableWidgetItem(QString::number(event.executeCount)));
+		
+		// Write Count
+		m_resultsTable->setItem(i, 3, new QTableWidgetItem(QString::number(event.writeCount)));
+		
+		// First Execute Time
+		QString firstExecTime = QString("%1:%2").arg(event.firstExecuteTime.sequence).arg(event.firstExecuteTime.step);
+		m_resultsTable->setItem(i, 4, new QTableWidgetItem(firstExecTime));
+		
+		// First Write Time
+		QString firstWriteTime = QString("%1:%2").arg(event.firstWriteTime.sequence).arg(event.firstWriteTime.step);
+		m_resultsTable->setItem(i, 5, new QTableWidgetItem(firstWriteTime));
+		
+		// Last Written Value
+		m_resultsTable->setItem(i, 6, new QTableWidgetItem(QString("0x%1").arg(event.lastWrittenValue, 0, 16)));
+		
+		// Instruction Size
+		m_resultsTable->setItem(i, 7, new QTableWidgetItem(QString::number(event.instructionSize)));
+	}
+
+	// Resize columns to content
+	m_resultsTable->resizeColumnsToContents();
+	
+	// Show the results table
+	m_resultsTable->parentWidget()->setVisible(true);
+	
+	// Add context menu for table
+	connect(m_resultsTable, &QTableWidget::customContextMenuRequested, 
+			[this](const QPoint& pos) {
+				QTableWidgetItem* item = m_resultsTable->itemAt(pos);
+				if (!item)
+					return;
+					
+				QMenu menu;
+				
+				QAction* copyAddressAction = menu.addAction("Copy Address");
+				QAction* goToAddressAction = menu.addAction("Go to Address");
+				
+				QAction* selectedAction = menu.exec(m_resultsTable->mapToGlobal(pos));
+				
+				if (selectedAction == copyAddressAction)
+				{
+					int row = item->row();
+					QTableWidgetItem* addressItem = m_resultsTable->item(row, 0);
+					if (addressItem)
+					{
+						QApplication::clipboard()->setText(addressItem->text());
+					}
+				}
+				else if (selectedAction == goToAddressAction)
+				{
+					int row = item->row();
+					QTableWidgetItem* addressItem = m_resultsTable->item(row, 0);
+					if (addressItem && m_data)
+					{
+						uint64_t address = addressItem->data(Qt::UserRole).toULongLong();
+						// Navigate to address in the binary view
+						m_data->Navigate(m_data->GetDefaultPlatform(), address);
+					}
+				}
+			});
 }
 
 #include "ttdanalysisdialog.moc"

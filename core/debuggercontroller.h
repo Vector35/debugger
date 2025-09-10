@@ -205,6 +205,10 @@ namespace BinaryNinjaDebugger {
 		std::unordered_set<uint64_t> m_executedInstructions;
 		bool m_codeCoverageAnalysisRun = false;
 
+		// TTD Self-Modifying Code Analysis
+		std::vector<TTDSelfModifyingCodeEvent> m_selfModifyingCodeEvents;
+		bool m_selfModifyingCodeAnalysisRun = false;
+
 	public:
 		DebuggerController(BinaryViewRef data);
 		static DbgRef<DebuggerController> GetController(BinaryViewRef data);
@@ -370,6 +374,9 @@ namespace BinaryNinjaDebugger {
 		size_t GetExecutedInstructionCount() const;
 		bool SaveCodeCoverageToFile(const std::string& filePath) const;
 		bool LoadCodeCoverageFromFile(const std::string& filePath);
+
+		// TTD Self-Modifying Code Analysis Methods
+		std::vector<TTDSelfModifyingCodeEvent> RunSelfModifyingCodeAnalysis();
 
 		void OnRebased(BinaryView* oldView, BinaryView* newView);
 

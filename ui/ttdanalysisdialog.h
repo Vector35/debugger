@@ -41,8 +41,8 @@ using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 
 enum class TTDAnalysisType {
-	CodeCoverage
-	// Future analysis types can be added here
+	CodeCoverage,
+	SelfModifyingCode
 };
 
 enum class TTDAnalysisStatus {
@@ -113,6 +113,7 @@ private:
 	QString getDefaultCachePath(TTDAnalysisType type);
 	bool saveAnalysisResults(const TTDAnalysisResult& result);
 	bool loadAnalysisResults(TTDAnalysisResult& result);
+	void showSelfModifyingCodeResults();
 
 	BinaryViewRef m_data;
 	DbgRef<DebuggerController> m_controller;
@@ -135,6 +136,9 @@ private:
 	QCheckBox* m_useRangeCheckBox;
 	QLineEdit* m_startAddressEdit;
 	QLineEdit* m_endAddressEdit;
+
+	// Results display
+	QTableWidget* m_resultsTable;
 
 	// Analysis data
 	QList<TTDAnalysisResult> m_analysisResults;

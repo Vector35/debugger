@@ -3044,6 +3044,172 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
 }
 
 
+std::vector<TTDSelfModifyingCodeEvent> DebuggerController::RunSelfModifyingCodeAnalysis()
+{
+	std::vector<TTDSelfModifyingCodeEvent> results;
+	
+	if (!IsTTD())
+	{
+		LogError("Current adapter does not support TTD");
+		return results;
+	}
+
+	// Clear previous analysis results
+	m_selfModifyingCodeEvents.clear();
+	m_selfModifyingCodeAnalysisRun = false;
+	
+	LogInfo("Starting TTD self-modifying code analysis...");
+	
+	// Get the memory map to determine the full address range
+	uint64_t minAddress = 0;
+	uint64_t maxAddress = UINT64_MAX;
+	
+	// Try to get a reasonable range from the binary view segments
+	if (m_data)
+	{
+		auto segments = m_data->GetSegments();
+		if (!segments.empty())
+		{
+			minAddress = segments[0]->GetStart();
+			maxAddress = segments[0]->GetEnd();
+			
+			for (auto& segment : segments)
+			{
+				minAddress = std::min(minAddress, segment->GetStart());
+				maxAddress = std::max(maxAddress, segment->GetEnd());
+			}
+		}
+	}
+	
+	LogInfo("Analyzing memory range 0x" PRIX64 " - 0x" PRIX64 " for self-modifying code...", minAddress, maxAddress);
+	
+	// Step 1: Get all executed instructions
+	LogInfo("Querying TTD for all executed instructions...");
+	auto executeEvents = GetTTDMemoryAccessForAddress(minAddress, maxAddress, TTDMemoryExecute);
+	
+	// Step 2: Get all memory writes
+	LogInfo("Querying TTD for all memory writes...");
+	auto writeEvents = GetTTDMemoryAccessForAddress(minAddress, maxAddress, TTDMemoryWrite);
+	
+	// Step 3: Build maps for faster lookup
+	std::map<uint64_t, std::vector<TTDMemoryEvent>> executeMap;
+	std::map<uint64_t, std::vector<TTDMemoryEvent>> writeMap;
+	
+	for (const auto& event : executeEvents)
+	{
+		if (event.accessType == TTDMemoryExecute)
+		{
+			executeMap[event.instructionAddress].push_back(event);
+		}
+	}
+	
+	for (const auto& event : writeEvents)
+	{
+		if (event.accessType == TTDMemoryWrite)
+		{
+			writeMap[event.address].push_back(event);
+		}
+	}
+	
+	LogInfo("Found %zu unique executed addresses and %zu unique written addresses", 
+		executeMap.size(), writeMap.size());
+	
+	// Step 4: Find intersection - addresses that were both executed and written to
+	for (const auto& executePair : executeMap)
+	{
+		uint64_t address = executePair.first;
+		const auto& execEvents = executePair.second;
+		
+		auto writeIt = writeMap.find(address);
+		if (writeIt != writeMap.end())
+		{
+			const auto& writeEvnts = writeIt->second;
+			
+			// This address was both executed and written to - it's self-modifying code
+			TTDSelfModifyingCodeEvent smcEvent;
+			smcEvent.address = address;
+			smcEvent.executeCount = execEvents.size();
+			smcEvent.writeCount = writeEvnts.size();
+			
+			// Find first and last execute times
+			smcEvent.firstExecuteTime = execEvents.front().timeStart;
+			smcEvent.lastExecuteTime = execEvents.back().timeStart;
+			for (const auto& event : execEvents)
+			{
+				if (event.timeStart.sequence < smcEvent.firstExecuteTime.sequence ||
+					(event.timeStart.sequence == smcEvent.firstExecuteTime.sequence && 
+					 event.timeStart.step < smcEvent.firstExecuteTime.step))
+				{
+					smcEvent.firstExecuteTime = event.timeStart;
+				}
+				if (event.timeStart.sequence > smcEvent.lastExecuteTime.sequence ||
+					(event.timeStart.sequence == smcEvent.lastExecuteTime.sequence && 
+					 event.timeStart.step > smcEvent.lastExecuteTime.step))
+				{
+					smcEvent.lastExecuteTime = event.timeStart;
+				}
+			}
+			
+			// Find first and last write times
+			smcEvent.firstWriteTime = writeEvnts.front().timeStart;
+			smcEvent.lastWriteTime = writeEvnts.back().timeStart;
+			smcEvent.lastWrittenValue = writeEvnts.back().value;
+			for (const auto& event : writeEvnts)
+			{
+				if (event.timeStart.sequence < smcEvent.firstWriteTime.sequence ||
+					(event.timeStart.sequence == smcEvent.firstWriteTime.sequence && 
+					 event.timeStart.step < smcEvent.firstWriteTime.step))
+				{
+					smcEvent.firstWriteTime = event.timeStart;
+				}
+				if (event.timeStart.sequence > smcEvent.lastWriteTime.sequence ||
+					(event.timeStart.sequence == smcEvent.lastWriteTime.sequence && 
+					 event.timeStart.step > smcEvent.lastWriteTime.step))
+				{
+					smcEvent.lastWriteTime = event.timeStart;
+					smcEvent.lastWrittenValue = event.value;
+				}
+			}
+			
+			// Try to get function name and instruction size if we have a binary view
+			if (m_data)
+			{
+				auto func = m_data->GetAnalysisFunction(m_data->GetDefaultPlatform(), address);
+				if (func)
+				{
+					smcEvent.function = func->GetSymbol()->GetFullName();
+				}
+				
+				// Try to get instruction size
+				auto instrBytes = m_data->ReadBuffer(address, 16); // Read up to 16 bytes
+				if (instrBytes.GetLength() > 0)
+				{
+					// For now, just assume a reasonable default size
+					// A proper implementation would disassemble to get actual size
+					smcEvent.instructionSize = std::min(instrBytes.GetLength(), (size_t)16);
+				}
+			}
+			
+			results.push_back(smcEvent);
+		}
+	}
+	
+	// Step 5: Sort results by first execution time (earliest first)
+	std::sort(results.begin(), results.end(), [](const TTDSelfModifyingCodeEvent& a, const TTDSelfModifyingCodeEvent& b) {
+		if (a.firstExecuteTime.sequence != b.firstExecuteTime.sequence)
+			return a.firstExecuteTime.sequence < b.firstExecuteTime.sequence;
+		return a.firstExecuteTime.step < b.firstExecuteTime.step;
+	});
+	
+	m_selfModifyingCodeEvents = results;
+	m_selfModifyingCodeAnalysisRun = true;
+	
+	LogInfo("TTD self-modifying code analysis completed. Found %zu self-modifying code locations.", results.size());
+	
+	return results;
+}
+
+
 void DebuggerController::OnRebased(BinaryView* oldView, BinaryView* newView)
 {
 	m_data = newView;

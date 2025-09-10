@@ -693,6 +693,9 @@ namespace BinaryNinjaDebuggerAPI {
 		bool SaveCodeCoverageToFile(const std::string& filePath) const;
 		bool LoadCodeCoverageFromFile(const std::string& filePath);
 
+		// TTD Self-Modifying Code Analysis Methods
+		std::vector<TTDSelfModifyingCodeEvent> RunSelfModifyingCodeAnalysis();
+
 		void PostDebuggerEvent(const DebuggerEvent& event);
 
 		bool RemoveDebuggerMemoryRegion();
