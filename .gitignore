@@ -64,3 +64,7 @@ test/__pycache__
 /test/Pipfile
 
 .DS_Store
+
+# TTD files
+*.run
+*.idx
