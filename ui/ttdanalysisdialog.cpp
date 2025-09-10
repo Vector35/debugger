@@ -23,7 +23,12 @@ limitations under the License.
 #include <QApplication>
 
 TTDAnalysisWorker::TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, QObject* parent)
-	: QThread(parent), m_controller(controller), m_analysisType(type)
+	: QThread(parent), m_controller(controller), m_analysisType(type), m_useRange(false), m_startAddress(0), m_endAddress(0)
+{
+}
+
+TTDAnalysisWorker::TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, uint64_t startAddress, uint64_t endAddress, QObject* parent)
+	: QThread(parent), m_controller(controller), m_analysisType(type), m_useRange(true), m_startAddress(startAddress), m_endAddress(endAddress)
 {
 }
 
@@ -51,15 +56,34 @@ void TTDAnalysisWorker::run()
 	{
 	case TTDAnalysisType::CodeCoverage:
 		emit analysisProgress(30, "Running code coverage analysis...");
-		success = m_controller->RunCodeCoverageAnalysis();
-		if (success)
+		if (m_useRange)
 		{
-			resultCount = m_controller->GetExecutedInstructionCount();
-			message = QString("Code coverage analysis completed successfully. Found %1 executed instructions.").arg(resultCount);
+			success = m_controller->RunCodeCoverageAnalysis(m_startAddress, m_endAddress);
+			if (success)
+			{
+				resultCount = m_controller->GetExecutedInstructionCount();
+				message = QString("Range-based code coverage analysis completed successfully. Found %1 executed instructions in range 0x%2 - 0x%3.")
+					.arg(resultCount)
+					.arg(m_startAddress, 0, 16)
+					.arg(m_endAddress, 0, 16);
+			}
+			else
+			{
+				message = "Range-based code coverage analysis failed";
+			}
 		}
 		else
 		{
-			message = "Code coverage analysis failed";
+			success = m_controller->RunCodeCoverageAnalysis();
+			if (success)
+			{
+				resultCount = m_controller->GetExecutedInstructionCount();
+				message = QString("Code coverage analysis completed successfully. Found %1 executed instructions.").arg(resultCount);
+			}
+			else
+			{
+				message = "Code coverage analysis failed";
+			}
 		}
 		break;
 	
@@ -160,6 +184,37 @@ void TTDAnalysisDialog::setupUI()
 	
 	mainLayout->addWidget(statusGroup);
 	
+	// Range settings
+	QGroupBox* rangeGroup = new QGroupBox("Analysis Range (Optional)");
+	QVBoxLayout* rangeLayout = new QVBoxLayout(rangeGroup);
+	
+	m_useRangeCheckBox = new QCheckBox("Use address range for enhanced performance");
+	m_useRangeCheckBox->setChecked(false);
+	rangeLayout->addWidget(m_useRangeCheckBox);
+	
+	QHBoxLayout* rangeControlsLayout = new QHBoxLayout();
+	rangeControlsLayout->addWidget(new QLabel("Start Address:"));
+	m_startAddressEdit = new QLineEdit();
+	m_startAddressEdit->setPlaceholderText("0x401000");
+	m_startAddressEdit->setEnabled(false);
+	rangeControlsLayout->addWidget(m_startAddressEdit);
+	
+	rangeControlsLayout->addWidget(new QLabel("End Address:"));
+	m_endAddressEdit = new QLineEdit();
+	m_endAddressEdit->setPlaceholderText("0x402000");
+	m_endAddressEdit->setEnabled(false);
+	rangeControlsLayout->addWidget(m_endAddressEdit);
+	
+	rangeLayout->addLayout(rangeControlsLayout);
+	
+	// Connect range checkbox to enable/disable range controls
+	connect(m_useRangeCheckBox, &QCheckBox::toggled, [this](bool checked) {
+		m_startAddressEdit->setEnabled(checked);
+		m_endAddressEdit->setEnabled(checked);
+	});
+	
+	mainLayout->addWidget(rangeGroup);
+	
 	// Cache settings
 	QGroupBox* cacheGroup = new QGroupBox("Cache Settings");
 	QVBoxLayout* cacheLayout = new QVBoxLayout(cacheGroup);
@@ -225,6 +280,8 @@ void TTDAnalysisDialog::populateAnalysisList()
 	codeCoverage.description = "Analyzes which instructions were executed during the TTD trace.\n\n"
 							  "This analysis extracts all executed instruction addresses from the TTD trace "
 							  "and highlights them in the disassembly view with a green background.\n\n"
+							  "For enhanced performance on large binaries, you can specify an address range "
+							  "to analyze only a specific portion of the executable.\n\n"
 							  "Status: " + (m_controller && m_controller->IsTTD() ? "Available" : "TTD not available");
 	codeCoverage.status = TTDAnalysisStatus::NotRun;
 	codeCoverage.cachePath = getDefaultCachePath(TTDAnalysisType::CodeCoverage);
@@ -318,8 +375,43 @@ void TTDAnalysisDialog::onRunAnalysis()
 	
 	TTDAnalysisType analysisType = m_analysisResults[currentRow].type;
 	
-	// Start analysis in worker thread
-	m_currentWorker = new TTDAnalysisWorker(m_controller, analysisType, this);
+	// Check if range-based analysis is requested
+	if (m_useRangeCheckBox->isChecked())
+	{
+		// Validate range inputs
+		bool startOk, endOk;
+		QString startText = m_startAddressEdit->text().trimmed();
+		QString endText = m_endAddressEdit->text().trimmed();
+		
+		if (startText.isEmpty() || endText.isEmpty())
+		{
+			QMessageBox::warning(this, "Invalid Range", "Please enter both start and end addresses for range analysis");
+			return;
+		}
+		
+		uint64_t startAddress = startText.toULongLong(&startOk, 0); // Auto-detect base (0x for hex)
+		uint64_t endAddress = endText.toULongLong(&endOk, 0);
+		
+		if (!startOk || !endOk)
+		{
+			QMessageBox::warning(this, "Invalid Range", "Invalid address format. Use decimal or hexadecimal (0x...) notation");
+			return;
+		}
+		
+		if (startAddress >= endAddress)
+		{
+			QMessageBox::warning(this, "Invalid Range", "Start address must be less than end address");
+			return;
+		}
+		
+		// Start range-based analysis in worker thread
+		m_currentWorker = new TTDAnalysisWorker(m_controller, analysisType, startAddress, endAddress, this);
+	}
+	else
+	{
+		// Start full analysis in worker thread
+		m_currentWorker = new TTDAnalysisWorker(m_controller, analysisType, this);
+	}
 	connect(m_currentWorker, &TTDAnalysisWorker::analysisProgress,
 			this, &TTDAnalysisDialog::onAnalysisProgress);
 	connect(m_currentWorker, &TTDAnalysisWorker::analysisCompleted,

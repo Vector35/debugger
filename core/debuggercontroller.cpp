@@ -2965,6 +2965,96 @@ bool DebuggerController::RunCodeCoverageAnalysis()
 }
 
 
+bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress)
+{
+	if (!IsTTD())
+	{
+		LogError("Current adapter does not support TTD");
+		return false;
+	}
+	
+	if (startAddress >= endAddress)
+	{
+		LogError("Invalid address range: start address must be less than end address");
+		return false;
+	}
+	
+	// Clear previous analysis results
+	m_executedInstructions.clear();
+	m_codeCoverageAnalysisRun = false;
+	
+	// Get the binary view and analyze function addresses within the specified range
+	auto bv = GetData();
+	if (!bv)
+	{
+		LogError("No binary view available for analysis");
+		return false;
+	}
+	
+	LogInfo("Starting TTD code coverage analysis for range 0x{:x} - 0x{:x}...", startAddress, endAddress);
+	
+	// Get instruction addresses from functions that overlap with the specified range
+	std::set<uint64_t> rangeInstructionAddresses;
+	for (auto func : bv->GetAnalysisFunctionList())
+	{
+		uint64_t funcStart = func->GetStart();
+		uint64_t funcEnd = func->GetHighestAddress();
+		
+		// Check if function overlaps with the specified range
+		if (funcEnd >= startAddress && funcStart <= endAddress)
+		{
+			for (auto block : func->GetBasicBlocks())
+			{
+				uint64_t addr = block->GetStart();
+				uint64_t end = block->GetEnd();
+				while (addr < end)
+				{
+					// Only include addresses within the specified range
+					if (addr >= startAddress && addr <= endAddress)
+					{
+						rangeInstructionAddresses.insert(addr);
+					}
+					size_t instrLen = func->GetArchitecture()->GetInstructionLength(bv, addr);
+					if (instrLen == 0)
+						instrLen = 1; // Fallback to avoid infinite loop
+					addr += instrLen;
+				}
+			}
+		}
+	}
+	
+	if (rangeInstructionAddresses.empty())
+	{
+		LogInfo("No instruction addresses found in the specified range");
+		m_codeCoverageAnalysisRun = true;
+		return true;
+	}
+	
+	LogInfo("Analyzing {} instruction addresses in range for execution traces...", rangeInstructionAddresses.size());
+	
+	// Query TTD for execute access covering only the specified range
+	auto events = GetTTDMemoryAccessForAddress(startAddress, endAddress - startAddress, TTDMemoryExecute);
+	
+	for (const auto& event : events)
+	{
+		if (event.accessType == TTDMemoryExecute)
+		{
+			// Only count instruction addresses that are within our range and that we care about
+			if (rangeInstructionAddresses.find(event.instructionAddress) != rangeInstructionAddresses.end())
+			{
+				m_executedInstructions.insert(event.instructionAddress);
+			}
+		}
+	}
+	
+	m_codeCoverageAnalysisRun = true;
+	LogInfo("TTD code coverage analysis completed for range. Found {} executed instructions out of {} total in range.", 
+			m_executedInstructions.size(), rangeInstructionAddresses.size());
+	
+	return true;
+}
+
+
 size_t DebuggerController::GetExecutedInstructionCount() const
 {
 	return m_executedInstructions.size();

@@ -69,6 +69,7 @@ class TTDAnalysisWorker : public QThread
 
 public:
 	TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, QObject* parent = nullptr);
+	TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, uint64_t startAddress, uint64_t endAddress, QObject* parent = nullptr);
 	
 protected:
 	void run() override;
@@ -80,6 +81,9 @@ signals:
 private:
 	DbgRef<DebuggerController> m_controller;
 	TTDAnalysisType m_analysisType;
+	bool m_useRange;
+	uint64_t m_startAddress;
+	uint64_t m_endAddress;
 };
 
 class TTDAnalysisDialog : public QDialog
@@ -125,6 +129,11 @@ private:
 	QCheckBox* m_autoCacheCheckBox;
 	QLineEdit* m_cachePathEdit;
 	QPushButton* m_browseCacheButton;
+	
+	// Range controls
+	QCheckBox* m_useRangeCheckBox;
+	QLineEdit* m_startAddressEdit;
+	QLineEdit* m_endAddressEdit;
 	
 	// Analysis data
 	QList<TTDAnalysisResult> m_analysisResults;

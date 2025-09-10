@@ -1051,6 +1051,12 @@ bool DebuggerController::RunCodeCoverageAnalysis()
 }
 
 
+bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress)
+{
+	return BNDebuggerRunCodeCoverageAnalysisRange(m_object, startAddress, endAddress);
+}
+
+
 size_t DebuggerController::GetExecutedInstructionCount() const
 {
 	return BNDebuggerGetExecutedInstructionCount(m_object);
