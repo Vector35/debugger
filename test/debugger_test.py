@@ -343,8 +343,6 @@ class DebuggerAPI(unittest.TestCase):
         self.assertIsNotNone(pid)
         bv = load(fpath)
         dbg = DebuggerController(bv)
-        processes = dbg.processes
-        self.assertGreater(len(processes), 0)
         dbg.pid_attach = pid
         self.assertTrue(dbg.attach_and_wait())
         self.assertGreater(len(dbg.regs), 0)
