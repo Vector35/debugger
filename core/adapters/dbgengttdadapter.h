@@ -47,9 +47,9 @@ namespace BinaryNinjaDebugger {
 		bool Quit() override;
 
 		// TTD Memory Analysis Methods
-		std::vector<TTDMemoryEvent> GetMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead);
-		TTDPosition GetCurrentTTDPosition();
-		bool SetTTDPosition(const TTDPosition& position);
+		std::vector<TTDMemoryEvent> GetMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead) override;
+		TTDPosition GetCurrentTTDPosition() override;
+		bool SetTTDPosition(const TTDPosition& position) override;
 
     	void GenerateDefaultAdapterSettings(BinaryView* data);
     	Ref<Settings> GetAdapterSettings() override;
