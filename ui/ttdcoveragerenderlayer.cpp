@@ -50,7 +50,7 @@ void TTDCoverageRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Dis
 		{
 			// Highlight executed instructions with a green color
 			line.highlight.style = StandardHighlightColor;
-			line.highlight.color = GreenHighlightColor;
+			line.highlight.color = RedHighlightColor;
 			line.highlight.mixColor = NoHighlightColor;
 			line.highlight.mix = 0;
 			line.highlight.r = 0;

@@ -187,13 +187,14 @@ void TTDAnalysisDialog::setupUI()
 	QHBoxLayout* rangeControlsLayout = new QHBoxLayout();
 	rangeControlsLayout->addWidget(new QLabel("Start Address:"));
 	m_startAddressEdit = new QLineEdit();
-	m_startAddressEdit->setPlaceholderText("0x401000");
+	m_startAddressEdit->setText(QString("0x") + QString::number(m_data->GetImageBase(), 16));
 	m_startAddressEdit->setEnabled(true);
 	rangeControlsLayout->addWidget(m_startAddressEdit);
 
 	rangeControlsLayout->addWidget(new QLabel("End Address:"));
 	m_endAddressEdit = new QLineEdit();
-	m_endAddressEdit->setPlaceholderText("0x402000");
+	// TODO: hack for demo, should read the modules info from the debugger
+	m_endAddressEdit->setText(QString("0x") + QString::number(m_data->GetImageBase() + 0x7000, 16));
 	m_endAddressEdit->setEnabled(true);
 	rangeControlsLayout->addWidget(m_endAddressEdit);
 
