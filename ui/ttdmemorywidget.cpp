@@ -274,6 +274,10 @@ void TTDMemoryQueryWidget::setupTable()
 	connect(m_resultsTable, &QTableWidget::cellDoubleClicked, 
 			this, &TTDMemoryQueryWidget::onCellDoubleClicked);
 	
+	// Add Ctrl+C shortcut for copying current cell
+	QShortcut* copyShortcut = new QShortcut(QKeySequence::Copy, m_resultsTable);
+	connect(copyShortcut, &QShortcut::activated, this, &TTDMemoryQueryWidget::copySelectedCell);
+	
 	// Setup context menu
 	setupContextMenu();
 }

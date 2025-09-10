@@ -85,12 +85,14 @@ void TTDCallsQueryWidget::setupUI()
 	m_symbolsEdit->setPlaceholderText("Enter symbols separated by commas, e.g.: kernel32!*, ntdll!NtCreateFile, module!symbol");
 	inputLayout->addRow("Symbols:", m_symbolsEdit);
 	
-	// Address range filter (optional)
+	// Address range filter (optional) - temporarily disabled due to crashes
 	auto addressLayout = new QHBoxLayout();
 	m_startAddressEdit = new QLineEdit();
 	m_startAddressEdit->setPlaceholderText("Start address (hex, optional)");
+	m_startAddressEdit->setEnabled(false); // Temporarily disabled due to crashes
 	m_endAddressEdit = new QLineEdit();
 	m_endAddressEdit->setPlaceholderText("End address (hex, optional)");
+	m_endAddressEdit->setEnabled(false); // Temporarily disabled due to crashes
 	addressLayout->addWidget(new QLabel("Return Address Range:"));
 	addressLayout->addWidget(m_startAddressEdit);
 	addressLayout->addWidget(new QLabel("to"));
@@ -127,6 +129,10 @@ void TTDCallsQueryWidget::setupUI()
 	connect(m_queryButton, &QPushButton::clicked, this, &TTDCallsQueryWidget::performQuery);
 	connect(m_clearButton, &QPushButton::clicked, this, &TTDCallsQueryWidget::clearResults);
 	connect(m_resultsTable, &QTableWidget::cellDoubleClicked, this, &TTDCallsQueryWidget::onCellDoubleClicked);
+	
+	// Add Ctrl+C shortcut for copying current cell
+	QShortcut* copyShortcut = new QShortcut(QKeySequence::Copy, m_resultsTable);
+	connect(copyShortcut, &QShortcut::activated, this, &TTDCallsQueryWidget::copySelectedCell);
 }
 
 void TTDCallsQueryWidget::setupTable()
