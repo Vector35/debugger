@@ -269,12 +269,12 @@ void TTDAnalysisDialog::populateAnalysisList()
 	TTDAnalysisResult codeCoverage;
 	codeCoverage.type = TTDAnalysisType::CodeCoverage;
 	codeCoverage.name = "Code Coverage";
-	codeCoverage.description = "Analyzes which instructions were executed during the TTD trace.\n\n"
+	codeCoverage.description = QString("Analyzes which instructions were executed during the TTD trace.\n\n"
 							  "This analysis extracts all executed instruction addresses from the TTD trace "
 							  "and highlights them in the disassembly view with a green background.\n\n"
 							  "For enhanced performance on large binaries, you can specify an address range "
 							  "to analyze only a specific portion of the executable.\n\n"
-							  "Status: " + (m_controller && m_controller->IsTTD() ? "Available" : "TTD not available");
+							  "Status: ") + (m_controller && m_controller->IsTTD() ? "Available" : "TTD not available");
 	codeCoverage.status = TTDAnalysisStatus::NotRun;
 	codeCoverage.cachePath = getDefaultCachePath(TTDAnalysisType::CodeCoverage);
 	codeCoverage.resultCount = 0;
@@ -301,7 +301,7 @@ void TTDAnalysisDialog::populateAnalysisList()
 		switch (result.status)
 		{
 		case TTDAnalysisStatus::NotRun:
-			item->setIcon(style()->standardIcon(QStyle::SP_DialogInformation));
+			item->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
 			break;
 		case TTDAnalysisStatus::Running:
 			item->setIcon(style()->standardIcon(QStyle::SP_BrowserReload));

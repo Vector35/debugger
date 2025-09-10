@@ -35,6 +35,7 @@ limitations under the License.
 #include <QMutex>
 #include "binaryninjaapi.h"
 #include "debuggerapi.h"
+#include <uitypes.h>
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;

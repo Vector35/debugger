@@ -2958,7 +2958,7 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) con
 		std::ofstream file(filePath, std::ios::binary);
 		if (!file.is_open())
 		{
-			LogError("Failed to open file for writing: {}", filePath);
+			LogError("Failed to open file for writing: {}", filePath.c_str());
 			return false;
 		}
 		
@@ -2978,7 +2978,7 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) con
 		}
 		
 		file.close();
-		LogInfo("Saved {} executed instruction addresses to {}", count, filePath);
+		LogInfo("Saved {} executed instruction addresses to {}", count, filePath.c_str());
 		return true;
 	}
 	catch (const std::exception& e)
@@ -2996,7 +2996,7 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
 		std::ifstream file(filePath, std::ios::binary);
 		if (!file.is_open())
 		{
-			LogError("Failed to open file for reading: {}", filePath);
+			LogError("Failed to open file for reading: {}", filePath.c_str());
 			return false;
 		}
 		
@@ -3033,7 +3033,7 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
 		file.close();
 		m_codeCoverageAnalysisRun = true;
 		
-		LogInfo("Loaded {} executed instruction addresses from {}", count, filePath);
+		LogInfo("Loaded {} executed instruction addresses from {}", count, filePath.c_str());
 		return true;
 	}
 	catch (const std::exception& e)

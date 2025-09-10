@@ -1118,6 +1118,21 @@ bool BNDebuggerRunCodeCoverageAnalysisRange(BNDebuggerController* controller, ui
 	return controller->object->RunCodeCoverageAnalysis(startAddress, endAddress);
 }
 
+size_t BNDebuggerGetExecutedInstructionCount(BNDebuggerController* controller)
+{
+	return controller->object->GetExecutedInstructionCount();
+}
+
+bool BNDebuggerSaveCodeCoverageToFile(BNDebuggerController* controller, const char* filePath)
+{
+	return controller->object->SaveCodeCoverageToFile(filePath);
+}
+
+bool BNDebuggerLoadCodeCoverageFromFile(BNDebuggerController* controller, const char* filePath)
+{
+	return controller->object->LoadCodeCoverageFromFile(filePath);
+}
+
 void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count)
 {
 	if (events && count > 0)
