@@ -20,7 +20,6 @@ limitations under the License.
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
 #include "debuggerfileaccessor.h"
-#include "adapters/dbgengttdadapter.h"
 
 using namespace BinaryNinjaDebugger;
 
@@ -2823,14 +2822,9 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uin
 		return events;
 	}
 	
-	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
-	if (ttdAdapter)
+	if (m_adapter)
 	{
-		events = ttdAdapter->GetMemoryAccessForAddress(startAddress, endAddress, accessType);
-	}
-	else
-	{
-		LogError("Failed to cast adapter to TTD adapter");
+		events = m_adapter->GetMemoryAccessForAddress(startAddress, endAddress, accessType);
 	}
 	
 	return events;
@@ -2846,14 +2840,9 @@ TTDPosition DebuggerController::GetCurrentTTDPosition()
 		return position;
 	}
 	
-	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
-	if (ttdAdapter)
+	if (m_adapter)
 	{
-		position = ttdAdapter->GetCurrentTTDPosition();
-	}
-	else
-	{
-		LogError("Failed to cast adapter to TTD adapter");
+		position = m_adapter->GetCurrentTTDPosition();
 	}
 	
 	return position;
@@ -2867,16 +2856,12 @@ bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 		return false;
 	}
 	
-	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
-	if (ttdAdapter)
+	if (m_adapter)
 	{
-		return ttdAdapter->SetTTDPosition(position);
+		return m_adapter->SetTTDPosition(position);
 	}
-	else
-	{
-		LogError("Failed to cast adapter to TTD adapter");
-		return false;
-	}
+	
+	return false;
 }
 
 
