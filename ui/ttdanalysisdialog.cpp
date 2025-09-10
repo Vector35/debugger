@@ -74,16 +74,8 @@ void TTDAnalysisWorker::run()
 		}
 		else
 		{
-			success = m_controller->RunCodeCoverageAnalysis();
-			if (success)
-			{
-				resultCount = m_controller->GetExecutedInstructionCount();
-				message = QString("Code coverage analysis completed successfully. Found %1 executed instructions.").arg(resultCount);
-			}
-			else
-			{
-				message = "Code coverage analysis failed";
-			}
+			emit analysisCompleted(false, "Code coverage analysis requires an address range", 0);
+			return;
 		}
 		break;
 	
@@ -185,24 +177,24 @@ void TTDAnalysisDialog::setupUI()
 	mainLayout->addWidget(statusGroup);
 	
 	// Range settings
-	QGroupBox* rangeGroup = new QGroupBox("Analysis Range (Optional)");
+	QGroupBox* rangeGroup = new QGroupBox("Analysis Range (Required)");
 	QVBoxLayout* rangeLayout = new QVBoxLayout(rangeGroup);
 	
-	m_useRangeCheckBox = new QCheckBox("Use address range for enhanced performance");
-	m_useRangeCheckBox->setChecked(false);
+	m_useRangeCheckBox = new QCheckBox("Specify address range for analysis");
+	m_useRangeCheckBox->setChecked(true);
 	rangeLayout->addWidget(m_useRangeCheckBox);
 	
 	QHBoxLayout* rangeControlsLayout = new QHBoxLayout();
 	rangeControlsLayout->addWidget(new QLabel("Start Address:"));
 	m_startAddressEdit = new QLineEdit();
 	m_startAddressEdit->setPlaceholderText("0x401000");
-	m_startAddressEdit->setEnabled(false);
+	m_startAddressEdit->setEnabled(true);
 	rangeControlsLayout->addWidget(m_startAddressEdit);
 	
 	rangeControlsLayout->addWidget(new QLabel("End Address:"));
 	m_endAddressEdit = new QLineEdit();
 	m_endAddressEdit->setPlaceholderText("0x402000");
-	m_endAddressEdit->setEnabled(false);
+	m_endAddressEdit->setEnabled(true);
 	rangeControlsLayout->addWidget(m_endAddressEdit);
 	
 	rangeLayout->addLayout(rangeControlsLayout);
@@ -375,6 +367,13 @@ void TTDAnalysisDialog::onRunAnalysis()
 	
 	TTDAnalysisType analysisType = m_analysisResults[currentRow].type;
 	
+	// For code coverage analysis, require range specification
+	if (analysisType == TTDAnalysisType::CodeCoverage && !m_useRangeCheckBox->isChecked())
+	{
+		QMessageBox::warning(this, "Range Required", "Code coverage analysis requires an address range to be specified");
+		return;
+	}
+	
 	// Check if range-based analysis is requested
 	if (m_useRangeCheckBox->isChecked())
 	{
@@ -409,7 +408,8 @@ void TTDAnalysisDialog::onRunAnalysis()
 	}
 	else
 	{
-		// Start full analysis in worker thread
+		// For non-code coverage analyses, we could support full analysis
+		// But since we've simplified the API, this path should not be reached for code coverage
 		m_currentWorker = new TTDAnalysisWorker(m_controller, analysisType, this);
 	}
 	connect(m_currentWorker, &TTDAnalysisWorker::analysisProgress,

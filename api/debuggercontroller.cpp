@@ -1045,12 +1045,6 @@ bool DebuggerController::IsInstructionExecuted(uint64_t address)
 }
 
 
-bool DebuggerController::RunCodeCoverageAnalysis()
-{
-	return BNDebuggerRunCodeCoverageAnalysis(m_object);
-}
-
-
 bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress)
 {
 	return BNDebuggerRunCodeCoverageAnalysisRange(m_object, startAddress, endAddress);

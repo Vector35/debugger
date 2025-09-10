@@ -1113,11 +1113,6 @@ bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t 
 	return controller->object->IsInstructionExecuted(address);
 }
 
-bool BNDebuggerRunCodeCoverageAnalysis(BNDebuggerController* controller)
-{
-	return controller->object->RunCodeCoverageAnalysis();
-}
-
 bool BNDebuggerRunCodeCoverageAnalysisRange(BNDebuggerController* controller, uint64_t startAddress, uint64_t endAddress)
 {
 	return controller->object->RunCodeCoverageAnalysis(startAddress, endAddress);
