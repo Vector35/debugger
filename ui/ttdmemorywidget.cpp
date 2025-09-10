@@ -311,15 +311,18 @@ void TTDMemoryQueryWidget::setupUI()
 		if (!m_controller)
 		{
 			updateStatus("No debugger controller available");
+			m_queryButton->setToolTip("Query Memory Events - No debugger controller available");
 		}
 		else if (!m_controller->IsTTD())
 		{
 			updateStatus("TTD (Time Travel Debugging) not available with current target");
+			m_queryButton->setToolTip("Query Memory Events - TTD (Time Travel Debugging) not available with current adapter");
 		}
 	}
 	else
 	{
 		updateStatus("Ready - TTD memory analysis available");
+		m_queryButton->setToolTip("Execute TTD memory analysis query");
 	}
 }
 
