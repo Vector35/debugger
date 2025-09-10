@@ -1126,28 +1126,21 @@ void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t coun
 
 
 BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* controller,
-	const char** symbols, size_t symbolCount, uint64_t startReturnAddress, uint64_t endReturnAddress, size_t* count)
+	const char* symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, size_t* count)
 {
 	if (!count)
 		return nullptr;
 		
 	*count = 0;
 	
-	if (!symbols || symbolCount == 0)
+	if (!symbols)
 		return nullptr;
 	
-	// Convert C-style string array to std::vector<std::string>
-	std::vector<std::string> symbolVector;
-	for (size_t i = 0; i < symbolCount; ++i)
-	{
-		if (symbols[i])
-			symbolVector.push_back(std::string(symbols[i]));
-	}
-	
-	if (symbolVector.empty())
+	std::string symbolsStr(symbols);
+	if (symbolsStr.empty())
 		return nullptr;
 	
-	auto events = controller->object->GetTTDCallsForSymbols(symbolVector, startReturnAddress, endReturnAddress);
+	auto events = controller->object->GetTTDCallsForSymbols(symbolsStr, startReturnAddress, endReturnAddress);
 	if (events.empty())
 		return nullptr;
 	

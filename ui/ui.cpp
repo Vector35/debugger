@@ -249,7 +249,7 @@ void GlobalDebuggerUI::QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_
 }
 
 
-void GlobalDebuggerUI::QueryTTDCalls(const UIActionContext& ctxt, const std::vector<std::string>& symbols, uint64_t startReturnAddr, uint64_t endReturnAddr)
+void GlobalDebuggerUI::QueryTTDCalls(const UIActionContext& ctxt, const std::string& symbols, uint64_t startReturnAddr, uint64_t endReturnAddr)
 {
 	// Focus the TTD Calls sidebar widget
 	if (!ctxt.context)
@@ -1102,8 +1102,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				return;
 			
 			// Query all calls with wildcard
-			std::vector<std::string> symbols = {"*!*"};
-			QueryTTDCalls(ctxt, symbols);
+			QueryTTDCalls(ctxt, "*!*");
 		},
 		connectedToTTD));
 	debuggerMenu->addAction("TTD Calls\\All Calls", "TTD");
@@ -1115,8 +1114,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				return;
 			
 			// Query kernel32 calls
-			std::vector<std::string> symbols = {"kernel32!*"};
-			QueryTTDCalls(ctxt, symbols);
+			QueryTTDCalls(ctxt, "kernel32!*");
 		},
 		connectedToTTD));
 	debuggerMenu->addAction("TTD Calls\\Kernel32 Calls", "TTD");
@@ -1128,8 +1126,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				return;
 			
 			// Query ntdll calls
-			std::vector<std::string> symbols = {"ntdll!*"};
-			QueryTTDCalls(ctxt, symbols);
+			QueryTTDCalls(ctxt, "ntdll!*");
 		},
 		connectedToTTD));
 	debuggerMenu->addAction("TTD Calls\\Ntdll Calls", "TTD");
@@ -1144,10 +1141,8 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			// Get function name from context
 			if (ctxt.function)
 			{
-				std::vector<std::string> symbols;
 				auto funcName = ctxt.function->GetSymbol()->GetFullName();
-				symbols.push_back(funcName);
-				QueryTTDCalls(ctxt, symbols);
+				QueryTTDCalls(ctxt, funcName);
 			}
 		},
 		connectedToTTD));

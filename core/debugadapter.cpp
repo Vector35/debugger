@@ -176,3 +176,31 @@ Ref<Settings> DebugAdapter::GetAdapterSettings()
 {
 	return nullptr;
 }
+
+
+std::vector<TTDMemoryEvent> DebugAdapter::GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
+{
+	// Default implementation returns empty results
+	return {};
+}
+
+
+std::vector<TTDCallEvent> DebugAdapter::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
+{
+	// Default implementation returns empty results
+	return {};
+}
+
+
+TTDPosition DebugAdapter::GetCurrentTTDPosition()
+{
+	// Default implementation returns empty position
+	return {};
+}
+
+
+bool DebugAdapter::SetTTDPosition(const TTDPosition& position)
+{
+	// Default implementation returns false
+	return false;
+}

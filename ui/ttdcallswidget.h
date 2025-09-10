@@ -92,7 +92,7 @@ private:
 	DbgRef<DebuggerController> m_controller;
 	
 	// Input controls
-	QTextEdit* m_symbolsEdit;
+	QLineEdit* m_symbolsEdit;
 	QLineEdit* m_startAddressEdit;
 	QLineEdit* m_endAddressEdit;
 	QPushButton* m_queryButton;
@@ -108,7 +108,6 @@ private:
 	void setupUI();
 	void setupTable();
 	uint64_t parseAddress(const QString& text);
-	std::vector<std::string> parseSymbols(const QString& text);
 	void setupContextMenu();
 	void updateColumnVisibility();
 	
@@ -122,7 +121,7 @@ public:
 	virtual ~TTDCallsQueryWidget();
 	
 	// Method to set parameters and execute query from context menu
-	void setParametersAndQuery(const std::vector<std::string>& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
+	void setParametersAndQuery(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
 	
 	// Method to check if this tab is unused (no results and default parameters)
 	bool isUnused() const;
@@ -157,8 +156,8 @@ public:
 	
 	// Method to get current query widget or create new tab
 	TTDCallsQueryWidget* getCurrentOrNewQueryWidget();
-	void setParametersAndQuery(const std::vector<std::string>& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
-	void setParametersAndQueryInNewTab(const std::vector<std::string>& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
+	void setParametersAndQuery(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
+	void setParametersAndQueryInNewTab(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
 
 private Q_SLOTS:
 	void createNewTab();
@@ -180,8 +179,8 @@ public:
 	~TTDCallsSidebarWidget();
 	
 	// Method to access the TTD Calls widget for context menu actions
-	void setParametersAndQuery(const std::vector<std::string>& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
-	void setParametersAndQueryInNewTab(const std::vector<std::string>& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
+	void setParametersAndQuery(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
+	void setParametersAndQueryInNewTab(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
 };
 
 
@@ -189,7 +188,7 @@ class TTDCallsWidgetType : public SidebarWidgetType
 {
 private:
 	struct PendingQuery {
-		std::vector<std::string> symbols;
+		std::string symbols;
 		uint64_t startAddr;
 		uint64_t endAddr;
 	};
@@ -204,5 +203,5 @@ public:
 	SidebarContentClassifier* contentClassifier(ViewFrame*, BinaryViewRef) override;
 	
 	// Static method to set pending query parameters
-	static void SetPendingQuery(ViewFrame* frame, BinaryViewRef data, const std::vector<std::string>& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
+	static void SetPendingQuery(ViewFrame* frame, BinaryViewRef data, const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
 };

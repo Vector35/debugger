@@ -80,10 +80,9 @@ void TTDCallsQueryWidget::setupUI()
 	auto contentWidget = new QWidget();
 	auto inputLayout = new QFormLayout(contentWidget);
 	
-	// Symbols input (multi-line text edit for multiple symbols)
-	m_symbolsEdit = new QTextEdit();
-	m_symbolsEdit->setMaximumHeight(80);
-	m_symbolsEdit->setPlaceholderText("Enter symbols to query, e.g.:\nkernel32!*\nntdll!NtCreateFile\nmodule!symbol1, module!symbol2");
+	// Symbols input (single line for comma-separated symbols)
+	m_symbolsEdit = new QLineEdit();
+	m_symbolsEdit->setPlaceholderText("Enter symbols separated by commas, e.g.: kernel32!*, ntdll!NtCreateFile, module!symbol");
 	inputLayout->addRow("Symbols:", m_symbolsEdit);
 	
 	// Address range filter (optional)
@@ -102,6 +101,7 @@ void TTDCallsQueryWidget::setupUI()
 	// Button layout
 	auto buttonLayout = new QHBoxLayout();
 	m_queryButton = new QPushButton("Query TTD Calls");
+	m_queryButton->setToolTip("Execute TTD calls query with the specified symbols and address range");
 	m_clearButton = new QPushButton("Clear Results");
 	buttonLayout->addWidget(m_queryButton);
 	buttonLayout->addWidget(m_clearButton);
@@ -171,29 +171,6 @@ uint64_t TTDCallsQueryWidget::parseAddress(const QString& text)
 	return ok ? address : 0;
 }
 
-std::vector<std::string> TTDCallsQueryWidget::parseSymbols(const QString& text)
-{
-	std::vector<std::string> symbols;
-	
-	if (text.isEmpty())
-		return symbols;
-	
-	// Split by lines and commas
-	QStringList lines = text.split('\n', Qt::SkipEmptyParts);
-	for (const QString& line : lines)
-	{
-		QStringList parts = line.split(',', Qt::SkipEmptyParts);
-		for (const QString& part : parts)
-		{
-			QString symbol = part.trimmed();
-			if (!symbol.isEmpty())
-				symbols.push_back(symbol.toStdString());
-		}
-	}
-	
-	return symbols;
-}
-
 void TTDCallsQueryWidget::performQuery()
 {
 	if (!m_controller)
@@ -206,9 +183,9 @@ void TTDCallsQueryWidget::performQuery()
 		return;
 	}
 	
-	// Parse symbols
-	std::vector<std::string> symbols = parseSymbols(m_symbolsEdit->toPlainText());
-	if (symbols.empty())
+	// Get symbols string  
+	QString symbolsText = m_symbolsEdit->text().trimmed();
+	if (symbolsText.isEmpty())
 	{
 		return;
 	}
@@ -218,7 +195,7 @@ void TTDCallsQueryWidget::performQuery()
 	uint64_t endAddr = parseAddress(m_endAddressEdit->text());
 	
 	// Execute query
-	auto events = m_controller->GetTTDCallsForSymbols(symbols, startAddr, endAddr);
+	auto events = m_controller->GetTTDCallsForSymbols(symbolsText.toStdString(), startAddr, endAddr);
 	
 	// Clear previous results
 	m_resultsTable->setRowCount(0);
@@ -559,13 +536,10 @@ void TTDCallsQueryWidget::copyEntireTable()
 	QApplication::clipboard()->setText(tableData.join("\n"));
 }
 
-void TTDCallsQueryWidget::setParametersAndQuery(const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
+void TTDCallsQueryWidget::setParametersAndQuery(const std::string& symbols, uint64_t startAddr, uint64_t endAddr)
 {
 	// Set symbol parameters
-	QStringList symbolList;
-	for (const auto& symbol : symbols)
-		symbolList.append(QString::fromStdString(symbol));
-	m_symbolsEdit->setPlainText(symbolList.join("\n"));
+	m_symbolsEdit->setText(QString::fromStdString(symbols));
 	
 	// Set address range
 	if (startAddr != 0)
@@ -653,14 +627,14 @@ TTDCallsQueryWidget* TTDCallsWidget::getCurrentOrNewQueryWidget()
 	return qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
 }
 
-void TTDCallsWidget::setParametersAndQuery(const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
+void TTDCallsWidget::setParametersAndQuery(const std::string& symbols, uint64_t startAddr, uint64_t endAddr)
 {
 	auto queryWidget = getCurrentOrNewQueryWidget();
 	if (queryWidget)
 		queryWidget->setParametersAndQuery(symbols, startAddr, endAddr);
 }
 
-void TTDCallsWidget::setParametersAndQueryInNewTab(const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
+void TTDCallsWidget::setParametersAndQueryInNewTab(const std::string& symbols, uint64_t startAddr, uint64_t endAddr)
 {
 	// Check if the current tab is unused - if so, reuse it instead of creating a new tab
 	TTDCallsQueryWidget* currentWidget = qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
@@ -698,13 +672,13 @@ TTDCallsSidebarWidget::~TTDCallsSidebarWidget()
 {
 }
 
-void TTDCallsSidebarWidget::setParametersAndQuery(const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
+void TTDCallsSidebarWidget::setParametersAndQuery(const std::string& symbols, uint64_t startAddr, uint64_t endAddr)
 {
 	if (m_callsWidget)
 		m_callsWidget->setParametersAndQuery(symbols, startAddr, endAddr);
 }
 
-void TTDCallsSidebarWidget::setParametersAndQueryInNewTab(const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
+void TTDCallsSidebarWidget::setParametersAndQueryInNewTab(const std::string& symbols, uint64_t startAddr, uint64_t endAddr)
 {
 	if (m_callsWidget)
 		m_callsWidget->setParametersAndQueryInNewTab(symbols, startAddr, endAddr);
@@ -739,7 +713,7 @@ SidebarContentClassifier* TTDCallsWidgetType::contentClassifier(ViewFrame*, Bina
 	return nullptr; // No content classification needed
 }
 
-void TTDCallsWidgetType::SetPendingQuery(ViewFrame* frame, BinaryViewRef data, const std::vector<std::string>& symbols, uint64_t startAddr, uint64_t endAddr)
+void TTDCallsWidgetType::SetPendingQuery(ViewFrame* frame, BinaryViewRef data, const std::string& symbols, uint64_t startAddr, uint64_t endAddr)
 {
 	auto key = std::make_pair(frame, data);
 	PendingQuery query;

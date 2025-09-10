@@ -20,7 +20,6 @@ limitations under the License.
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
 #include "debuggerfileaccessor.h"
-#include "adapters/dbgengttdadapter.h"
 
 using namespace BinaryNinjaDebugger;
 
@@ -2823,20 +2822,10 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uin
 		return events;
 	}
 	
-	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
-	if (ttdAdapter)
-	{
-		events = ttdAdapter->GetMemoryAccessForAddress(startAddress, endAddress, accessType);
-	}
-	else
-	{
-		LogError("Failed to cast adapter to TTD adapter");
-	}
-	
-	return events;
+	return m_adapter->GetTTDMemoryAccessForAddress(startAddress, endAddress, accessType);
 }
 
-std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
+std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
 {
 	std::vector<TTDCallEvent> events;
 	
@@ -2846,17 +2835,7 @@ std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::v
 		return events;
 	}
 	
-	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
-	if (ttdAdapter)
-	{
-		events = ttdAdapter->GetCallsForSymbols(symbols, startReturnAddress, endReturnAddress);
-	}
-	else
-	{
-		LogError("Failed to cast adapter to TTD adapter");
-	}
-	
-	return events;
+	return m_adapter->GetTTDCallsForSymbols(symbols, startReturnAddress, endReturnAddress);
 }
 
 TTDPosition DebuggerController::GetCurrentTTDPosition()
@@ -2869,17 +2848,7 @@ TTDPosition DebuggerController::GetCurrentTTDPosition()
 		return position;
 	}
 	
-	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
-	if (ttdAdapter)
-	{
-		position = ttdAdapter->GetCurrentTTDPosition();
-	}
-	else
-	{
-		LogError("Failed to cast adapter to TTD adapter");
-	}
-	
-	return position;
+	return m_adapter->GetCurrentTTDPosition();
 }
 
 bool DebuggerController::SetTTDPosition(const TTDPosition& position)
@@ -2890,16 +2859,7 @@ bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 		return false;
 	}
 	
-	auto ttdAdapter = dynamic_cast<DbgEngTTDAdapter*>(m_adapter);
-	if (ttdAdapter)
-	{
-		return ttdAdapter->SetTTDPosition(position);
-	}
-	else
-	{
-		LogError("Failed to cast adapter to TTD adapter");
-		return false;
-	}
+	return m_adapter->SetTTDPosition(position);
 }
 
 

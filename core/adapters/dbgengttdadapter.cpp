@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <algorithm>
 #include <cctype>
+#include <sstream>
 
 using namespace BinaryNinjaDebugger;
 using namespace std;
@@ -356,7 +357,7 @@ Ref<Settings> DbgEngTTDAdapterType::RegisterAdapterSettings()
 }
 
 
-std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
+std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
 {
 	std::vector<TTDMemoryEvent> events;
 	
@@ -898,7 +899,7 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 }
 
 
-std::vector<TTDCallEvent> DbgEngTTDAdapter::GetCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
+std::vector<TTDCallEvent> DbgEngTTDAdapter::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
 {
 	std::vector<TTDCallEvent> events;
 
@@ -908,7 +909,28 @@ std::vector<TTDCallEvent> DbgEngTTDAdapter::GetCallsForSymbols(const std::vector
 		return events;
 	}
 	
-	if (!QueryCallsForSymbols(symbols, startReturnAddress, endReturnAddress, events))
+	// Parse comma-separated symbols
+	std::vector<std::string> symbolList;
+	std::stringstream ss(symbols);
+	std::string symbol;
+	
+	while (std::getline(ss, symbol, ','))
+	{
+		// Trim whitespace
+		symbol.erase(0, symbol.find_first_not_of(" \t\n\r\f\v"));
+		symbol.erase(symbol.find_last_not_of(" \t\n\r\f\v") + 1);
+		
+		if (!symbol.empty())
+			symbolList.push_back(symbol);
+	}
+	
+	if (symbolList.empty())
+	{
+		LogError("No valid symbols found after parsing input string");
+		return events;
+	}
+	
+	if (!QueryCallsForSymbols(symbolList, startReturnAddress, endReturnAddress, events))
 	{
 		LogError("Failed to query TTD calls for symbols");
 		return events;

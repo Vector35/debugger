@@ -986,22 +986,13 @@ bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 	return BNDebuggerSetTTDPosition(m_object, pos);
 }
 
-std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
+std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
 {
 	std::vector<TTDCallEvent> result;
 	
-	// Convert std::vector<std::string> to const char** for FFI
-	std::vector<const char*> symbolCStrings;
-	symbolCStrings.reserve(symbols.size());
-	for (const auto& symbol : symbols)
-	{
-		symbolCStrings.push_back(symbol.c_str());
-	}
-	
 	size_t count = 0;
 	BNDebuggerTTDCallEvent* events = BNDebuggerGetTTDCallsForSymbols(m_object, 
-		symbolCStrings.data(), symbolCStrings.size(), 
-		startReturnAddress, endReturnAddress, &count);
+		symbols.c_str(), startReturnAddress, endReturnAddress, &count);
 	
 	if (events && count > 0)
 	{

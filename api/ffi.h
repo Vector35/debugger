@@ -550,7 +550,7 @@ extern "C"
 	DEBUGGER_FFI_API BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* controller,
 		uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* controller,
-		const char** symbols, size_t symbolCount, uint64_t startReturnAddress, uint64_t endReturnAddress, size_t* count);
+		const char* symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPosition position);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count);
