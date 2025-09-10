@@ -71,7 +71,7 @@ class TTDAnalysisWorker : public QThread
 public:
 	TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, QObject* parent = nullptr);
 	TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, uint64_t startAddress, uint64_t endAddress, QObject* parent = nullptr);
-	
+
 protected:
 	void run() override;
 
@@ -113,10 +113,10 @@ private:
 	QString getDefaultCachePath(TTDAnalysisType type);
 	bool saveAnalysisResults(const TTDAnalysisResult& result);
 	bool loadAnalysisResults(TTDAnalysisResult& result);
-	
+
 	BinaryViewRef m_data;
 	DbgRef<DebuggerController> m_controller;
-	
+
 	// UI components
 	QComboBox* m_analysisTypeCombo;
 	QListWidget* m_analysisListWidget;
@@ -130,12 +130,12 @@ private:
 	QCheckBox* m_autoCacheCheckBox;
 	QLineEdit* m_cachePathEdit;
 	QPushButton* m_browseCacheButton;
-	
+
 	// Range controls
 	QCheckBox* m_useRangeCheckBox;
 	QLineEdit* m_startAddressEdit;
 	QLineEdit* m_endAddressEdit;
-	
+
 	// Analysis data
 	QList<TTDAnalysisResult> m_analysisResults;
 	TTDAnalysisWorker* m_currentWorker;

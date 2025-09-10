@@ -200,7 +200,7 @@ namespace BinaryNinjaDebugger {
 
 		uint64_t m_oldViewBase, m_newViewBase;
 		std::vector<BNAddressRange> m_ranges;
-		
+
 		// TTD Code Coverage Analysis
 		std::unordered_set<uint64_t> m_executedInstructions;
 		bool m_codeCoverageAnalysisRun = false;
@@ -363,7 +363,7 @@ namespace BinaryNinjaDebugger {
 		std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0);
 		TTDPosition GetCurrentTTDPosition();
 		bool SetTTDPosition(const TTDPosition& position);
-		
+
 		// TTD Code Coverage Analysis Methods
 		bool IsInstructionExecuted(uint64_t address);
 		bool RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress);

@@ -78,7 +78,7 @@ void TTDAnalysisWorker::run()
 			return;
 		}
 		break;
-	
+
 	default:
 		message = "Unknown analysis type";
 		break;
@@ -92,20 +92,20 @@ TTDAnalysisDialog::TTDAnalysisDialog(BinaryViewRef data, QWidget* parent)
 	: QDialog(parent), m_data(data), m_currentWorker(nullptr)
 {
 	m_controller = DebuggerController::GetController(data);
-	
+
 	setWindowTitle("TTD Analysis");
 	setMinimumSize(800, 600);
 	setAttribute(Qt::WA_DeleteOnClose);
-	
+
 	setupUI();
 	populateAnalysisList();
-	
+
 	// Set up status refresh timer
 	m_statusTimer = new QTimer(this);
 	m_statusTimer->setInterval(1000); // Refresh every second
 	connect(m_statusTimer, &QTimer::timeout, this, &TTDAnalysisDialog::onRefreshStatus);
 	m_statusTimer->start();
-	
+
 	updateAnalysisStatus();
 	updateButtonStates();
 }
@@ -123,104 +123,104 @@ TTDAnalysisDialog::~TTDAnalysisDialog()
 void TTDAnalysisDialog::setupUI()
 {
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
-	
+
 	// Analysis type selection
 	QGroupBox* selectionGroup = new QGroupBox("Analysis Type");
 	QVBoxLayout* selectionLayout = new QVBoxLayout(selectionGroup);
-	
+
 	m_analysisTypeCombo = new QComboBox();
 	m_analysisTypeCombo->addItem("Code Coverage", static_cast<int>(TTDAnalysisType::CodeCoverage));
 	// Future analysis types can be added here
 	selectionLayout->addWidget(m_analysisTypeCombo);
-	
+
 	connect(m_analysisTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
 			this, &TTDAnalysisDialog::onAnalysisSelectionChanged);
-	
+
 	mainLayout->addWidget(selectionGroup);
-	
+
 	// Analysis list and details
 	QSplitter* contentSplitter = new QSplitter(Qt::Horizontal);
-	
+
 	// Analysis list
 	QGroupBox* listGroup = new QGroupBox("Available Analyses");
 	QVBoxLayout* listLayout = new QVBoxLayout(listGroup);
-	
+
 	m_analysisListWidget = new QListWidget();
 	listLayout->addWidget(m_analysisListWidget);
-	
+
 	contentSplitter->addWidget(listGroup);
-	
+
 	// Analysis details
 	QGroupBox* detailsGroup = new QGroupBox("Analysis Details");
 	QVBoxLayout* detailsLayout = new QVBoxLayout(detailsGroup);
-	
+
 	m_analysisDetailsText = new QTextEdit();
 	m_analysisDetailsText->setReadOnly(true);
 	detailsLayout->addWidget(m_analysisDetailsText);
-	
+
 	contentSplitter->addWidget(detailsGroup);
 	contentSplitter->setSizes({300, 500});
-	
+
 	mainLayout->addWidget(contentSplitter);
-	
+
 	// Status and progress
 	QGroupBox* statusGroup = new QGroupBox("Status");
 	QVBoxLayout* statusLayout = new QVBoxLayout(statusGroup);
-	
+
 	m_statusLabel = new QLabel("Ready");
 	statusLayout->addWidget(m_statusLabel);
-	
+
 	m_progressBar = new QProgressBar();
 	m_progressBar->setVisible(false);
 	statusLayout->addWidget(m_progressBar);
-	
+
 	mainLayout->addWidget(statusGroup);
-	
+
 	// Range settings
 	QGroupBox* rangeGroup = new QGroupBox("Analysis Range (Required)");
 	QVBoxLayout* rangeLayout = new QVBoxLayout(rangeGroup);
-	
+
 	m_useRangeCheckBox = new QCheckBox("Specify address range for analysis");
 	m_useRangeCheckBox->setChecked(true);
 	rangeLayout->addWidget(m_useRangeCheckBox);
-	
+
 	QHBoxLayout* rangeControlsLayout = new QHBoxLayout();
 	rangeControlsLayout->addWidget(new QLabel("Start Address:"));
 	m_startAddressEdit = new QLineEdit();
 	m_startAddressEdit->setPlaceholderText("0x401000");
 	m_startAddressEdit->setEnabled(true);
 	rangeControlsLayout->addWidget(m_startAddressEdit);
-	
+
 	rangeControlsLayout->addWidget(new QLabel("End Address:"));
 	m_endAddressEdit = new QLineEdit();
 	m_endAddressEdit->setPlaceholderText("0x402000");
 	m_endAddressEdit->setEnabled(true);
 	rangeControlsLayout->addWidget(m_endAddressEdit);
-	
+
 	rangeLayout->addLayout(rangeControlsLayout);
-	
+
 	// Connect range checkbox to enable/disable range controls
 	connect(m_useRangeCheckBox, &QCheckBox::toggled, [this](bool checked) {
 		m_startAddressEdit->setEnabled(checked);
 		m_endAddressEdit->setEnabled(checked);
 	});
-	
+
 	mainLayout->addWidget(rangeGroup);
-	
+
 	// Cache settings
 	QGroupBox* cacheGroup = new QGroupBox("Cache Settings");
 	QVBoxLayout* cacheLayout = new QVBoxLayout(cacheGroup);
-	
+
 	m_autoCacheCheckBox = new QCheckBox("Automatically cache results");
 	m_autoCacheCheckBox->setChecked(true);
 	cacheLayout->addWidget(m_autoCacheCheckBox);
-	
+
 	QHBoxLayout* cachePathLayout = new QHBoxLayout();
 	cachePathLayout->addWidget(new QLabel("Cache Directory:"));
 	m_cachePathEdit = new QLineEdit();
 	m_cachePathEdit->setText(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/ttd_analysis");
 	cachePathLayout->addWidget(m_cachePathEdit);
-	
+
 	m_browseCacheButton = new QPushButton("Browse...");
 	connect(m_browseCacheButton, &QPushButton::clicked, [this]() {
 		QString dir = QFileDialog::getExistingDirectory(this, "Select Cache Directory", m_cachePathEdit->text());
@@ -228,43 +228,43 @@ void TTDAnalysisDialog::setupUI()
 			m_cachePathEdit->setText(dir);
 	});
 	cachePathLayout->addWidget(m_browseCacheButton);
-	
+
 	cacheLayout->addLayout(cachePathLayout);
 	mainLayout->addWidget(cacheGroup);
-	
+
 	// Buttons
 	QHBoxLayout* buttonLayout = new QHBoxLayout();
 	buttonLayout->addStretch();
-	
+
 	m_runButton = new QPushButton("Run Analysis");
 	connect(m_runButton, &QPushButton::clicked, this, &TTDAnalysisDialog::onRunAnalysis);
 	buttonLayout->addWidget(m_runButton);
-	
+
 	m_saveButton = new QPushButton("Save Results");
 	connect(m_saveButton, &QPushButton::clicked, this, &TTDAnalysisDialog::onSaveResults);
 	buttonLayout->addWidget(m_saveButton);
-	
+
 	m_loadButton = new QPushButton("Load Results");
 	connect(m_loadButton, &QPushButton::clicked, this, &TTDAnalysisDialog::onLoadResults);
 	buttonLayout->addWidget(m_loadButton);
-	
+
 	m_clearCacheButton = new QPushButton("Clear Cache");
 	connect(m_clearCacheButton, &QPushButton::clicked, this, &TTDAnalysisDialog::onClearCache);
 	buttonLayout->addWidget(m_clearCacheButton);
-	
+
 	QPushButton* closeButton = new QPushButton("Close");
 	connect(closeButton, &QPushButton::clicked, this, &QDialog::accept);
 	buttonLayout->addWidget(closeButton);
-	
+
 	mainLayout->addLayout(buttonLayout);
 }
 
 void TTDAnalysisDialog::populateAnalysisList()
 {
 	QMutexLocker locker(&m_resultsMutex);
-	
+
 	m_analysisResults.clear();
-	
+
 	// Add Code Coverage analysis
 	TTDAnalysisResult codeCoverage;
 	codeCoverage.type = TTDAnalysisType::CodeCoverage;
@@ -278,7 +278,7 @@ void TTDAnalysisDialog::populateAnalysisList()
 	codeCoverage.status = TTDAnalysisStatus::NotRun;
 	codeCoverage.cachePath = getDefaultCachePath(TTDAnalysisType::CodeCoverage);
 	codeCoverage.resultCount = 0;
-	
+
 	// Check if cache file exists
 	QFileInfo cacheFile(codeCoverage.cachePath);
 	QFileInfo dataFile(codeCoverage.cachePath + ".data");
@@ -287,16 +287,16 @@ void TTDAnalysisDialog::populateAnalysisList()
 		codeCoverage.description += "\n\nCached results available from: " + cacheFile.lastModified().toString();
 		codeCoverage.status = TTDAnalysisStatus::LoadedFromCache;
 	}
-	
+
 	m_analysisResults.append(codeCoverage);
-	
+
 	// Update list widget
 	m_analysisListWidget->clear();
 	for (const auto& result : m_analysisResults)
 	{
 		QListWidgetItem* item = new QListWidgetItem(result.name);
 		item->setData(Qt::UserRole, static_cast<int>(result.type));
-		
+
 		// Set icon based on status
 		switch (result.status)
 		{
@@ -316,10 +316,10 @@ void TTDAnalysisDialog::populateAnalysisList()
 			item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
 			break;
 		}
-		
+
 		m_analysisListWidget->addItem(item);
 	}
-	
+
 	// Select first item by default
 	if (m_analysisListWidget->count() > 0)
 	{
@@ -335,7 +335,7 @@ void TTDAnalysisDialog::onAnalysisSelectionChanged()
 	{
 		const TTDAnalysisResult& result = m_analysisResults[currentRow];
 		m_analysisDetailsText->setText(result.description);
-		
+
 		// Update combo box
 		int comboIndex = m_analysisTypeCombo->findData(static_cast<int>(result.type));
 		if (comboIndex >= 0)
@@ -343,7 +343,7 @@ void TTDAnalysisDialog::onAnalysisSelectionChanged()
 			m_analysisTypeCombo->setCurrentIndex(comboIndex);
 		}
 	}
-	
+
 	updateButtonStates();
 }
 
@@ -354,26 +354,26 @@ void TTDAnalysisDialog::onRunAnalysis()
 		QMessageBox::warning(this, "Error", "No debugger controller available");
 		return;
 	}
-	
+
 	if (!m_controller->IsTTD())
 	{
 		QMessageBox::warning(this, "Error", "Current adapter does not support TTD");
 		return;
 	}
-	
+
 	int currentRow = m_analysisListWidget->currentRow();
 	if (currentRow < 0 || currentRow >= m_analysisResults.size())
 		return;
-	
+
 	TTDAnalysisType analysisType = m_analysisResults[currentRow].type;
-	
+
 	// For code coverage analysis, require range specification
 	if (analysisType == TTDAnalysisType::CodeCoverage && !m_useRangeCheckBox->isChecked())
 	{
 		QMessageBox::warning(this, "Range Required", "Code coverage analysis requires an address range to be specified");
 		return;
 	}
-	
+
 	// Check if range-based analysis is requested
 	if (m_useRangeCheckBox->isChecked())
 	{
@@ -381,28 +381,28 @@ void TTDAnalysisDialog::onRunAnalysis()
 		bool startOk, endOk;
 		QString startText = m_startAddressEdit->text().trimmed();
 		QString endText = m_endAddressEdit->text().trimmed();
-		
+
 		if (startText.isEmpty() || endText.isEmpty())
 		{
 			QMessageBox::warning(this, "Invalid Range", "Please enter both start and end addresses for range analysis");
 			return;
 		}
-		
+
 		uint64_t startAddress = startText.toULongLong(&startOk, 0); // Auto-detect base (0x for hex)
 		uint64_t endAddress = endText.toULongLong(&endOk, 0);
-		
+
 		if (!startOk || !endOk)
 		{
 			QMessageBox::warning(this, "Invalid Range", "Invalid address format. Use decimal or hexadecimal (0x...) notation");
 			return;
 		}
-		
+
 		if (startAddress >= endAddress)
 		{
 			QMessageBox::warning(this, "Invalid Range", "Start address must be less than end address");
 			return;
 		}
-		
+
 		// Start range-based analysis in worker thread
 		m_currentWorker = new TTDAnalysisWorker(m_controller, analysisType, startAddress, endAddress, this);
 	}
@@ -416,16 +416,16 @@ void TTDAnalysisDialog::onRunAnalysis()
 			this, &TTDAnalysisDialog::onAnalysisProgress);
 	connect(m_currentWorker, &TTDAnalysisWorker::analysisCompleted,
 			this, &TTDAnalysisDialog::onAnalysisCompleted);
-	
+
 	// Update UI for running state
 	m_analysisResults[currentRow].status = TTDAnalysisStatus::Running;
 	m_progressBar->setVisible(true);
 	m_progressBar->setValue(0);
 	m_statusLabel->setText("Running analysis...");
-	
+
 	updateButtonStates();
 	populateAnalysisList();
-	
+
 	m_currentWorker->start();
 }
 
@@ -441,31 +441,31 @@ void TTDAnalysisDialog::onAnalysisCompleted(bool success, const QString& message
 	if (currentRow >= 0 && currentRow < m_analysisResults.size())
 	{
 		QMutexLocker locker(&m_resultsMutex);
-		
+
 		m_analysisResults[currentRow].status = success ? TTDAnalysisStatus::Completed : TTDAnalysisStatus::Failed;
 		m_analysisResults[currentRow].resultCount = resultCount;
 		m_analysisResults[currentRow].lastRun = QDateTime::currentDateTime();
 		m_analysisResults[currentRow].errorMessage = success ? QString() : message;
-		
+
 		// Auto-save if enabled
 		if (success && m_autoCacheCheckBox->isChecked())
 		{
 			saveAnalysisResults(m_analysisResults[currentRow]);
 		}
 	}
-	
+
 	m_progressBar->setVisible(false);
 	m_statusLabel->setText(message);
-	
+
 	if (m_currentWorker)
 	{
 		m_currentWorker->deleteLater();
 		m_currentWorker = nullptr;
 	}
-	
+
 	updateButtonStates();
 	populateAnalysisList();
-	
+
 	if (!success)
 	{
 		QMessageBox::warning(this, "Analysis Failed", message);
@@ -477,14 +477,14 @@ void TTDAnalysisDialog::onSaveResults()
 	int currentRow = m_analysisListWidget->currentRow();
 	if (currentRow < 0 || currentRow >= m_analysisResults.size())
 		return;
-	
+
 	const TTDAnalysisResult& result = m_analysisResults[currentRow];
 	if (result.status != TTDAnalysisStatus::Completed)
 	{
 		QMessageBox::information(this, "Save Results", "No completed analysis results to save");
 		return;
 	}
-	
+
 	if (saveAnalysisResults(result))
 	{
 		QMessageBox::information(this, "Save Results", "Analysis results saved successfully");
@@ -500,15 +500,15 @@ void TTDAnalysisDialog::onLoadResults()
 	int currentRow = m_analysisListWidget->currentRow();
 	if (currentRow < 0 || currentRow >= m_analysisResults.size())
 		return;
-	
+
 	QMutexLocker locker(&m_resultsMutex);
-	
+
 	TTDAnalysisResult& result = m_analysisResults[currentRow];
 	if (loadAnalysisResults(result))
 	{
 		result.status = TTDAnalysisStatus::LoadedFromCache;
 		locker.unlock();
-		
+
 		populateAnalysisList();
 		QMessageBox::information(this, "Load Results", "Analysis results loaded successfully");
 	}
@@ -522,14 +522,14 @@ void TTDAnalysisDialog::onClearCache()
 {
 	QString cacheDir = m_cachePathEdit->text();
 	QDir dir(cacheDir);
-	
+
 	if (!dir.exists())
 	{
 		QMessageBox::information(this, "Clear Cache", "Cache directory does not exist");
 		return;
 	}
-	
-	if (QMessageBox::question(this, "Clear Cache", 
+
+	if (QMessageBox::question(this, "Clear Cache",
 							 "Are you sure you want to clear all cached analysis results?",
 							 QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes)
 	{
@@ -537,15 +537,15 @@ void TTDAnalysisDialog::onClearCache()
 		QStringList filters;
 		filters << "*.json" << "*.cache";
 		QFileInfoList files = dir.entryInfoList(filters, QDir::Files);
-		
+
 		int deletedCount = 0;
 		for (const QFileInfo& fileInfo : files)
 		{
 			if (QFile::remove(fileInfo.absoluteFilePath()))
 				deletedCount++;
 		}
-		
-		QMessageBox::information(this, "Clear Cache", 
+
+		QMessageBox::information(this, "Clear Cache",
 								QString("Cleared %1 cache files").arg(deletedCount));
 	}
 }
@@ -559,17 +559,17 @@ void TTDAnalysisDialog::updateAnalysisStatus()
 {
 	if (!m_controller)
 		return;
-	
+
 	// Check if TTD is available
 	bool ttdAvailable = m_controller->IsTTD();
-	
+
 	QString statusText = ttdAvailable ? "TTD Available" : "TTD Not Available";
 	if (ttdAvailable)
 	{
 		// Add more detailed status information
 		statusText += " - Ready for analysis";
 	}
-	
+
 	// Update status only if not currently running an analysis
 	if (!m_currentWorker)
 	{
@@ -581,19 +581,19 @@ void TTDAnalysisDialog::updateButtonStates()
 {
 	bool ttdAvailable = m_controller && m_controller->IsTTD();
 	bool analysisRunning = (m_currentWorker != nullptr);
-	
+
 	int currentRow = m_analysisListWidget->currentRow();
 	bool hasSelection = (currentRow >= 0 && currentRow < m_analysisResults.size());
-	
+
 	m_runButton->setEnabled(ttdAvailable && !analysisRunning && hasSelection);
-	
+
 	bool hasCompletedResults = false;
 	if (hasSelection)
 	{
 		const TTDAnalysisResult& result = m_analysisResults[currentRow];
 		hasCompletedResults = (result.status == TTDAnalysisStatus::Completed);
 	}
-	
+
 	m_saveButton->setEnabled(hasCompletedResults && !analysisRunning);
 	m_loadButton->setEnabled(hasSelection && !analysisRunning);
 	m_clearCacheButton->setEnabled(!analysisRunning);
@@ -601,9 +601,9 @@ void TTDAnalysisDialog::updateButtonStates()
 
 QString TTDAnalysisDialog::getDefaultCachePath(TTDAnalysisType type)
 {
-	QString baseDir = m_cachePathEdit ? m_cachePathEdit->text() : 
+	QString baseDir = m_cachePathEdit ? m_cachePathEdit->text() :
 					 QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/ttd_analysis";
-	
+
 	QString fileName;
 	switch (type)
 	{
@@ -614,7 +614,7 @@ QString TTDAnalysisDialog::getDefaultCachePath(TTDAnalysisType type)
 		fileName = "unknown_analysis.json";
 		break;
 	}
-	
+
 	return QDir(baseDir).absoluteFilePath(fileName);
 }
 
@@ -623,14 +623,14 @@ bool TTDAnalysisDialog::saveAnalysisResults(const TTDAnalysisResult& result)
 	QString cachePath = result.cachePath;
 	if (cachePath.isEmpty())
 		return false;
-	
+
 	// Ensure cache directory exists
 	QDir cacheDir = QFileInfo(cachePath).dir();
 	if (!cacheDir.exists())
 	{
 		cacheDir.mkpath(".");
 	}
-	
+
 	// Save metadata as JSON
 	QJsonObject json;
 	json["type"] = static_cast<int>(result.type);
@@ -639,23 +639,23 @@ bool TTDAnalysisDialog::saveAnalysisResults(const TTDAnalysisResult& result)
 	json["resultCount"] = static_cast<qint64>(result.resultCount);
 	json["lastRun"] = result.lastRun.toString(Qt::ISODate);
 	json["status"] = static_cast<int>(result.status);
-	
+
 	QJsonDocument doc(json);
-	
+
 	QFile file(cachePath);
 	if (!file.open(QIODevice::WriteOnly))
 		return false;
-	
+
 	file.write(doc.toJson());
 	file.close();
-	
+
 	// Save actual analysis data using controller
 	if (result.type == TTDAnalysisType::CodeCoverage && m_controller)
 	{
 		QString dataPath = cachePath + ".data";
 		return m_controller->SaveCodeCoverageToFile(dataPath.toStdString());
 	}
-	
+
 	return true;
 }
 
@@ -664,23 +664,23 @@ bool TTDAnalysisDialog::loadAnalysisResults(TTDAnalysisResult& result)
 	QString cachePath = result.cachePath;
 	if (cachePath.isEmpty())
 		return false;
-	
+
 	QFile file(cachePath);
 	if (!file.open(QIODevice::ReadOnly))
 		return false;
-	
+
 	QJsonParseError error;
 	QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &error);
 	if (error.error != QJsonParseError::NoError)
 		return false;
-	
+
 	QJsonObject json = doc.object();
-	
+
 	result.resultCount = json["resultCount"].toVariant().toULongLong();
 	result.lastRun = QDateTime::fromString(json["lastRun"].toString(), Qt::ISODate);
-	
+
 	file.close();
-	
+
 	// Load actual analysis data using controller
 	if (result.type == TTDAnalysisType::CodeCoverage && m_controller)
 	{
@@ -691,7 +691,7 @@ bool TTDAnalysisDialog::loadAnalysisResults(TTDAnalysisResult& result)
 			return m_controller->LoadCodeCoverageFromFile(dataPath.toStdString());
 		}
 	}
-	
+
 	return true;
 }
 

@@ -45,7 +45,7 @@ void TTDCoverageRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Dis
 
 		// Check if this instruction was executed during the TTD trace
 		bool isExecuted = controller->IsInstructionExecuted(line.addr);
-		
+
 		if (isExecuted)
 		{
 			// Highlight executed instructions with a green color
@@ -76,14 +76,14 @@ void TTDCoverageRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std:
 	for (auto& linearLine : lines)
 	{
 		DisassemblyTextLine& line = linearLine.contents;
-		
+
 		// Do not highlight empty lines or comments
 		if (line.tokens.empty() || (line.tokens[0].type == CommentToken))
 			continue;
 
 		// Check if this instruction was executed during the TTD trace
 		bool isExecuted = controller->IsInstructionExecuted(line.addr);
-		
+
 		if (isExecuted)
 		{
 			// Highlight executed instructions with a green color

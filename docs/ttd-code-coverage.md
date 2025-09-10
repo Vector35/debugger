@@ -22,7 +22,7 @@ The TTD Code Coverage feature analyzes Time Travel Debugging (TTD) traces to det
 
 ### 3. Analysis Dialog
 - **Location**: Debugger menu → "TTD Analysis..."
-- **Features**: 
+- **Features**:
   - Progress tracking with threaded execution
   - Result metrics (number of executed instructions)
   - Cache management (save/load results)
@@ -58,7 +58,7 @@ The TTD Code Coverage feature analyzes Time Travel Debugging (TTD) traces to det
    - Optionally save results to cache
 
 4. **Cache Management**
-   - **Auto-save**: Enable "Automatically cache results" 
+   - **Auto-save**: Enable "Automatically cache results"
    - **Manual save**: Click "Save Results" after analysis
    - **Load cache**: Click "Load Results" to restore previous analysis
    - **Clear cache**: Remove all cached analysis files
@@ -95,12 +95,12 @@ if (!controller || !controller->IsTTD()) {
 if (controller->RunCodeCoverageAnalysis()) {
     size_t executedCount = controller->GetExecutedInstructionCount();
     LogInfo("Found {} executed instructions", executedCount);
-    
+
     // Check specific instruction
     if (controller->IsInstructionExecuted(0x401000)) {
         LogInfo("Instruction at 0x401000 was executed");
     }
-    
+
     // Save results
     controller->SaveCodeCoverageToFile("/path/to/cache.data");
 }
@@ -191,7 +191,7 @@ The analysis framework is designed to be extensible:
 This feature maintains the existing debugger architecture with minimal changes:
 
 - **5 new API methods** added to DebuggerController
-- **Backward compatible** with existing functionality  
+- **Backward compatible** with existing functionality
 - **Thread-safe** analysis with progress reporting
 - **Extensible design** for future analysis types
 - **Robust error handling** and validation

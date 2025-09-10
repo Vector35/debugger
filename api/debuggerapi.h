@@ -464,15 +464,15 @@ namespace BinaryNinjaDebuggerAPI {
 	{
 		uint64_t sequence;
 		uint64_t step;
-		
+
 		TTDPosition() : sequence(0), step(0) {}
 		TTDPosition(uint64_t seq, uint64_t st) : sequence(seq), step(st) {}
-		
+
 		bool operator==(const TTDPosition& other) const
 		{
 			return sequence == other.sequence && step == other.step;
 		}
-		
+
 		bool operator<(const TTDPosition& other) const
 		{
 			if (sequence < other.sequence)
@@ -496,7 +496,7 @@ namespace BinaryNinjaDebuggerAPI {
 		uint64_t memoryAddress;        // Memory address (may be same as address)
 		uint64_t instructionAddress;   // IP - Address of instruction that caused the access
 		uint64_t value;                // Value that was read/written/executed
-		
+
 		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), accessType(TTDMemoryRead), address(0), size(0), memoryAddress(0), instructionAddress(0), value(0) {}
 	};
 
@@ -513,7 +513,7 @@ namespace BinaryNinjaDebuggerAPI {
 		std::vector<std::string> parameters; // Array containing parameters passed to the function
 		TTDPosition timeStart;         // Position when call started
 		TTDPosition timeEnd;           // Position when call ended
-		
+
 		TTDCallEvent() : threadId(0), uniqueThreadId(0), functionAddress(0), returnAddress(0), returnValue(0), hasReturnValue(false) {}
 	};
 
@@ -685,7 +685,7 @@ namespace BinaryNinjaDebuggerAPI {
 		std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0);
 		TTDPosition GetCurrentTTDPosition();
 		bool SetTTDPosition(const TTDPosition& position);
-		
+
 		// TTD Code Coverage Analysis Methods
 		bool IsInstructionExecuted(uint64_t address);
 		bool RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress);
