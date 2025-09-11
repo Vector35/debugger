@@ -108,6 +108,11 @@ std::unordered_map<std::string, std::uint64_t> RspConnector::PacketToUnorderedMa
 		if (key_value.size() == 2)
 		{
 			value = RspConnector::DecodeRLE(RspData(key_value[1])).AsString();
+			// This is hack for registers wider than 8 bytes. We could parse it here like how we handle wide registers
+			// in ReadAllRegisters(), but since we do not really use the returned information anywhere, it is fine to
+			// just truncate the string
+			if (value.length() > 16)
+				value = value.substr(0, 16);
 
 			if (key == "thread") {
 				if (value[0] == 'p' && value.find('.') != std::string::npos) {
