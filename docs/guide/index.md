@@ -549,22 +549,6 @@ widget. We can manage them using backend commands directly.
 - `breakpoint enable n`: enable the nth breakpoint
 
 
-### Viewing Registers Wider than 8 Bytes
-
-Right now the debugger uses an `uint64_t` to represent a register value, and value wider than that is truncated. Until
-we have a proper fix for it, one can run a backend command to view the register value directly.
-
-#### WinDbg/DbgEng
-
-- `r`: show all registers and their values
-- `r <register-name>`: read the value of a specific register
-
-#### LLDB
-
-- `reg read -a`: show all registers and their values
-- `reg read <register-name>`: read the value of a specific register
-
-
 ### Handle Fork
 
 When a `fork` or `vfork` happens, LLDB follows the parent process by default. To change the behavior, one can set
@@ -603,6 +587,20 @@ workaround, we can check the symbols at or near a specific address.
 - `image lookup --address <address>`
 
 
+### Debugging target with Administrative/sudo privileges
+
+#### WinDbg/DbgEng
+
+- enable the "Run as Administrator" setting in the Debug Adapter Settings. This will launch the debug server (dbgsrv.exe) with administrator privileges, allowing it to debug processes that require elevated permissions. This setting applies to both launching new processes and attaching to existing ones.
+- You can also run Binary Ninja with Administrator privilege (not recommended).
+
+#### LLDB
+
+- Launch the process with the necessary privilege and connect to it using Binary Ninja debugger. See [Remote Debugging Guide](remote-debugging.md) for more details.
+- Or run the debug server with sudo and then use Binary Ninja debugger to connect to it. Then launch a process from there.  See [Remote Debugging Guide](remote-debugging.md) for more details.
+- You must be an admin or in the \_developer group on macOS to debug.
+
+
 ## Settings
 
 Binary Ninja debugger provides a wide range of settings to tweak its behavior. There are two categories of settings, the
@@ -617,16 +615,6 @@ The second category affects the debug adapter, e.g., the executable path of the 
 ## Known Issues and Workarounds
 
 There are some known issues and limitations with the current debugger. Here is a list including potential workarounds.
-
-### Administrative Access
-
-Cannot debug binaries that require Administrator (Windows) or root (Linux/macOS). There are several ways to get around it:
-
-- On Windows with the DbgEng adapter, enable the "Run as Administrator" setting in the Debug Adapter Settings. This will launch the debug server (dbgsrv.exe) with administrator privileges, allowing it to debug processes that require elevated permissions. This setting applies to both launching new processes and attaching to existing ones.
-- On Windows, run Binary Ninja with Administrator privilege (not recommended).
-- Launch the process with necessary privilege, and connect to it using Binary Ninja debugger. See [Remote Debugging Guide](remote-debugging.md) for more details.
-    - Must be an admin or in the \_developer group on macOS to debug.
-- This is tracked by https://github.com/Vector35/debugger/issues/563
 
 ### macOS
 
