@@ -14,6 +14,7 @@ This is the current comparability matrix of the debugger. The columns stand for 
 | macOS user                           | Yes (Local/Remote)                                      | Yes (Remote)                                            | Yes (Remote)                                            |      |
 | Linux user                           | Yes (Remote)                                            | Yes (Local/Remote)                                      | Yes (Remote)                                            |      |
 | Windows user                         | [#70](https://github.com/Vector35/debugger/issues/70)   | [#70](https://github.com/Vector35/debugger/issues/70)   | Yes (Local/Remote)                                      |      |
+| Windows PE (via wine)                | No                                                      | Yes (Local)                                             | No                                                      | [1]  |
 | GDB Server                           | Yes                                                     | Yes                                                     | Yes                                                     |      |
 | GDB RSP (QEMU/VMWare/Qiling/Android) | Yes                                                     | Yes                                                     | Yes                                                     |      |
 | GDB Machine Interface                | [#170](https://github.com/Vector35/debugger/issues/170) | [#170](https://github.com/Vector35/debugger/issues/170) | [#170](https://github.com/Vector35/debugger/issues/170) |      |
@@ -24,6 +25,9 @@ This is the current comparability matrix of the debugger. The columns stand for 
 | Linux TTD (rr)                       | Yes (Remote)                                            | Yes (Local/Remote)                                      | Yes (Remote)                                            |      |
 | Windows Dump File                    | No                                                      | No                                                      | Yes (Local)                                             |      |
 | Corellium                            | Yes (Remote)                                            | Yes (Remote)                                            | Yes (Remote)                                            |      |
+
+**Notes:**
+[1] Requires wine and winedbg. See [Wine Debugging Guide](wine-debugging.md) for setup instructions.
 
 The progress is also tracked in issue [#122](https://github.com/Vector35/debugger/issues/122).
 
@@ -436,6 +440,10 @@ See [Windows Kernel Debugging Guide](windows-kd.md)
 ### Corellium Remote Debugging
 
 See [Corellium Remote Debugging Guide](corellium-remote-debugging.md)
+
+### Wine Debugging (Windows PE on Linux)
+
+See [Wine Debugging Guide](wine-debugging.md)
 
 
 ### Loading Windows Dump Files
