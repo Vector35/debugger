@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "threadframes.h"
+#include <algorithm>
 
 FrameItem::~FrameItem()
 {
@@ -181,6 +182,20 @@ void ThreadFrameModel::updateRows(DebuggerController* controller)
 	parents << rootItem;
 
 	std::vector<DebugThread> threads = controller->GetThreads();
+	
+	// Sort threads so that the active thread appears first
+	uint32_t activeThreadId = controller->GetActiveThread().m_tid;
+	std::sort(threads.begin(), threads.end(), [activeThreadId](const DebugThread& a, const DebugThread& b) {
+		// Active thread comes first, then sort by thread ID for consistent ordering
+		bool aIsActive = (a.m_tid == activeThreadId);
+		bool bIsActive = (b.m_tid == activeThreadId);
+		
+		if (aIsActive && !bIsActive) return true;
+		if (!aIsActive && bIsActive) return false;
+		
+		return a.m_tid < b.m_tid;
+	});
+	
 	for (const DebugThread& thread : threads)
 	{
 		parents.last()->appendChild(new FrameItem(thread, parents.last()));
