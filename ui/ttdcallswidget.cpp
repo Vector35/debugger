@@ -177,9 +177,7 @@ void TTDCallsQueryWidget::setupUIActions()
 	
 	m_menu->addAction("Copy All", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy All", UIAction([&]() { copyEntireTable(); }, [&]() { return m_resultsTable->rowCount() > 0; }));
-	
-	m_menu->addSeparator();
-	
+
 	m_menu->addAction("Column Visibility...", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Column Visibility...", UIAction([&]() { showColumnVisibilityDialog(); }));
 	

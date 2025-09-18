@@ -308,9 +308,7 @@ void TTDMemoryQueryWidget::setupUIActions()
 	
 	m_menu->addAction("Copy Table", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy Table", UIAction([&]() { copyEntireTable(); }, [&]() { return m_resultsTable->rowCount() > 0; }));
-	
-	m_menu->addSeparator();
-	
+
 	m_menu->addAction("Columns...", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Columns...", UIAction([&]() { showColumnVisibilityDialog(); }));
 	
