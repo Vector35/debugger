@@ -37,13 +37,15 @@ limitations under the License.
 #include <QToolButton>
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
-#include <QShortcut>
+#include <QContextMenuEvent>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "debuggerapi.h"
 #include "viewframe.h"
 #include "expandablegroup.h"
 #include "debuggeruicommon.h"
+#include "menus.h"
+#include "uitypes.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -103,13 +105,22 @@ private:
 	QStringList m_columnNames;
 	QList<bool> m_columnVisibility;
 	
+	// UIAction support
+	UIActionHandler m_actionHandler;
+	ContextMenuManager* m_contextMenuManager;
+	Menu* m_menu;
+	
 	void setupUI();
 	void setupTable();
 	void updateStatus(const QString& message);
 	uint64_t parseAddress(const QString& text);
 	TTDMemoryAccessType getSelectedAccessTypes();
 	void setupContextMenu();
+	void setupUIActions();
 	void updateColumnVisibility();
+	bool canCopy();
+	
+	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 	
 public:
 	TTDMemoryQueryWidget(QWidget* parent, BinaryViewRef data);
@@ -128,6 +139,7 @@ private Q_SLOTS:
 	void showColumnVisibilityDialog();
 	void resetColumnsToDefault();
 	void showContextMenu(const QPoint& position);
+	void copy();
 	void copySelectedCell();
 	void copySelectedRow();
 	void copyEntireTable();
