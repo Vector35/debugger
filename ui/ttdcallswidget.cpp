@@ -63,6 +63,7 @@ TTDCallsQueryWidget::TTDCallsQueryWidget(QWidget* parent, BinaryViewRef data)
 	setupUI();
 	setupTable();
 	setupContextMenu();
+	setupUIActions();
 	updateColumnVisibility();
 }
 
@@ -155,6 +156,35 @@ void TTDCallsQueryWidget::setupContextMenu()
 {
 	m_resultsTable->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(m_resultsTable, &QTableWidget::customContextMenuRequested, this, &TTDCallsQueryWidget::showContextMenu);
+}
+
+void TTDCallsQueryWidget::setupUIActions()
+{
+	m_actionHandler.setupActionHandler(this);
+	m_contextMenuManager = new ContextMenuManager(this);
+	m_menu = new Menu();
+
+	// Add Copy action with Ctrl+C support
+	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return canCopy(); }));
+	
+	// Add other context menu actions
+	m_menu->addAction("Copy Cell", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy Cell", UIAction([&]() { copySelectedCell(); }, [&]() { return canCopy(); }));
+	
+	m_menu->addAction("Copy Row", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy Row", UIAction([&]() { copySelectedRow(); }, [&]() { return canCopy(); }));
+	
+	m_menu->addAction("Copy All", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy All", UIAction([&]() { copyEntireTable(); }, [&]() { return m_resultsTable->rowCount() > 0; }));
+	
+	m_menu->addSeparator();
+	
+	m_menu->addAction("Column Visibility...", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Column Visibility...", UIAction([&]() { showColumnVisibilityDialog(); }));
+	
+	m_menu->addAction("Reset Columns", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Reset Columns", UIAction([&]() { resetColumnsToDefault(); }));
 }
 
 
@@ -427,18 +457,24 @@ void TTDCallsQueryWidget::resetColumnsToDefault()
 	updateColumnVisibility();
 }
 
+void TTDCallsQueryWidget::contextMenuEvent(QContextMenuEvent* event)
+{
+	showContextMenu(event->pos());
+}
+
 void TTDCallsQueryWidget::showContextMenu(const QPoint& position)
 {
-	QMenu contextMenu(this);
-	
-	contextMenu.addAction("Copy Cell", this, &TTDCallsQueryWidget::copySelectedCell);
-	contextMenu.addAction("Copy Row", this, &TTDCallsQueryWidget::copySelectedRow);
-	contextMenu.addAction("Copy All", this, &TTDCallsQueryWidget::copyEntireTable);
-	contextMenu.addSeparator();
-	contextMenu.addAction("Column Visibility...", this, &TTDCallsQueryWidget::showColumnVisibilityDialog);
-	contextMenu.addAction("Reset Columns", this, &TTDCallsQueryWidget::resetColumnsToDefault);
-	
-	contextMenu.exec(m_resultsTable->mapToGlobal(position));
+	m_contextMenuManager->show(m_menu, &m_actionHandler);
+}
+
+bool TTDCallsQueryWidget::canCopy()
+{
+	return m_resultsTable->currentItem() != nullptr;
+}
+
+void TTDCallsQueryWidget::copy()
+{
+	copySelectedCell();
 }
 
 void TTDCallsQueryWidget::copySelectedCell()
