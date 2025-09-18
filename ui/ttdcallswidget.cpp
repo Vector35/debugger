@@ -168,10 +168,6 @@ void TTDCallsQueryWidget::setupUIActions()
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return canCopy(); }));
 	
-	// Add other context menu actions
-	m_menu->addAction("Copy Cell", "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction("Copy Cell", UIAction([&]() { copySelectedCell(); }, [&]() { return canCopy(); }));
-	
 	m_menu->addAction("Copy Row", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy Row", UIAction([&]() { copySelectedRow(); }, [&]() { return canCopy(); }));
 	
