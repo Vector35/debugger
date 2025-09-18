@@ -1096,18 +1096,6 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("TTD Memory Access\\Read/Write/Execute", "TTD");
 
 	// TTD Calls menu actions
-	UIAction::registerAction("TTD Calls\\All Calls");
-	context->globalActions()->bindAction("TTD Calls\\All Calls", UIAction([=](const UIActionContext& ctxt) {
-			auto controller = DebuggerController::GetController(ctxt.binaryView);
-			if (!controller || !controller->IsConnected())
-				return;
-
-			// Query all calls with wildcard
-			QueryTTDCalls(ctxt, "*!*");
-		},
-		connectedToTTD));
-	debuggerMenu->addAction("TTD Calls\\All Calls", "TTD");
-
 	UIAction::registerAction("TTD Calls\\Kernel32 Calls");
 	context->globalActions()->bindAction("TTD Calls\\Kernel32 Calls", UIAction([=](const UIActionContext& ctxt) {
 			auto controller = DebuggerController::GetController(ctxt.binaryView);
@@ -1119,35 +1107,6 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		},
 		connectedToTTD));
 	debuggerMenu->addAction("TTD Calls\\Kernel32 Calls", "TTD");
-
-	UIAction::registerAction("TTD Calls\\Ntdll Calls");
-	context->globalActions()->bindAction("TTD Calls\\Ntdll Calls", UIAction([=](const UIActionContext& ctxt) {
-			auto controller = DebuggerController::GetController(ctxt.binaryView);
-			if (!controller || !controller->IsConnected())
-				return;
-
-			// Query ntdll calls
-			QueryTTDCalls(ctxt, "ntdll!*");
-		},
-		connectedToTTD));
-	debuggerMenu->addAction("TTD Calls\\Ntdll Calls", "TTD");
-
-	// TTD Calls context menu action for functions
-	UIAction::registerAction("TTD Calls\\Query Function");
-	context->globalActions()->bindAction("TTD Calls\\Query Function", UIAction([=](const UIActionContext& ctxt) {
-			auto controller = DebuggerController::GetController(ctxt.binaryView);
-			if (!controller || !controller->IsConnected())
-				return;
-
-			// Get function name from context
-			if (ctxt.function)
-			{
-				auto funcName = ctxt.function->GetSymbol()->GetFullName();
-				QueryTTDCalls(ctxt, funcName);
-			}
-		},
-		connectedToTTD));
-	debuggerMenu->addAction("TTD Calls\\Query Function", "TTD");
 
 	UIAction::registerAction("TTD Analysis...");
 	context->globalActions()->bindAction("TTD Analysis...",
