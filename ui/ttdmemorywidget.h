@@ -37,7 +37,6 @@ limitations under the License.
 #include <QToolButton>
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
-#include <QShortcut>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "debuggerapi.h"

@@ -129,10 +129,6 @@ void TTDCallsQueryWidget::setupUI()
 	connect(m_queryButton, &QPushButton::clicked, this, &TTDCallsQueryWidget::performQuery);
 	connect(m_clearButton, &QPushButton::clicked, this, &TTDCallsQueryWidget::clearResults);
 	connect(m_resultsTable, &QTableWidget::cellDoubleClicked, this, &TTDCallsQueryWidget::onCellDoubleClicked);
-	
-	// Add Ctrl+C shortcut for copying current cell
-	QShortcut* copyShortcut = new QShortcut(QKeySequence::Copy, m_resultsTable);
-	connect(copyShortcut, &QShortcut::activated, this, &TTDCallsQueryWidget::copySelectedCell);
 }
 
 void TTDCallsQueryWidget::setupTable()
