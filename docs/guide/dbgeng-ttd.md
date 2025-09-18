@@ -65,6 +65,8 @@ all types of recording supported by WinDbg (e.g., attach to a running process an
     - Working Directory: the working directory to launch the executable in
     - Command Line Arguments: the command line arguments to pass to the executable
     - Trace Output Directory: the directory to write the trace. By default, it is equal to the working directory, but can be changed if necessary
+    - Start application With Recording Off: if checked, starts the application with tracing disabled initially (useful for manual tracing control)
+    - Trace Child Processes: if checked, includes child processes spawned by the main process in the trace recording
 - Click "Record". A UAC dialog will pop up to because the TTD recording requires Administrator privilege
 - Accept the elevation. The program will be launched and recorded. Once it exits, find the trace file in the trace output directory
 

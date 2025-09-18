@@ -43,6 +43,7 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	m_workingDirectoryEntry = new QLineEdit(this);
 	m_outputDirectory = new QLineEdit(this);
 	m_launchWithoutTracing = new QCheckBox(this);
+	m_traceChildProcesses = new QCheckBox(this);
 
 	auto* pathSelector = new QPushButton("...", this);
 	pathSelector->setMaximumWidth(30);
@@ -94,6 +95,8 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	contentLayout->addLayout(outputLayout);
 	contentLayout->addWidget(new QLabel("Start application With Recording Off"));
 	contentLayout->addWidget(m_launchWithoutTracing);
+	contentLayout->addWidget(new QLabel("Trace Child Processes"));
+	contentLayout->addWidget(m_traceChildProcesses);
 
 	QHBoxLayout* buttonLayout = new QHBoxLayout;
 	buttonLayout->setContentsMargins(0, 0, 0, 0);
@@ -122,6 +125,7 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 		m_outputDirectory->setText(QString::fromStdString(m_controller->GetWorkingDirectory()));
 	}
 	m_launchWithoutTracing->setChecked(false);
+	m_traceChildProcesses->setChecked(false);
 
 	setFixedSize(QDialog::sizeHint());
 
@@ -197,9 +201,10 @@ void TTDRecordDialog::DoTTDTrace()
 	LogDebug("TTD Recorder in path %s", ttdPath.c_str());
 
 	auto ttdRecorder = fmt::format("\"{}\\TTD.exe\"", ttdPath);
-	auto ttdCommandLine = fmt::format("-accepteula -out \"{}\" {} -launch \"{}\" {}",
+	auto ttdCommandLine = fmt::format("-accepteula -out \"{}\" {} {} -launch \"{}\" {}",
 		m_outputDirectory->text().toStdString(),
 		m_launchWithoutTracing->isChecked() ? "-tracingOff -recordMode Manual" : "",
+		m_traceChildProcesses->isChecked() ? "-children" : "",
 		m_pathEntry->text().toStdString(),
 		m_argumentsEntry->text().toStdString());
 	LogWarn("TTD tracer cmd: %s %s", ttdRecorder.c_str(), ttdCommandLine.c_str());
