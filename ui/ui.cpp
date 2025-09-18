@@ -684,7 +684,6 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				m_context->refreshCurrentViewContents();
 			},
 			connectedAndStoppedWithTTD));
-	debuggerMenu->addAction("Run Back To Here", "Control");
 
 	UIAction::registerAction("Detach");
 	context->globalActions()->bindAction("Detach",
