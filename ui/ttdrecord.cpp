@@ -83,6 +83,16 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	outputLayout->addWidget(m_outputDirectory);
 	outputLayout->addWidget(outputDirSelector);
 
+	auto launchWithoutTracingLayout = new QHBoxLayout;
+	launchWithoutTracingLayout->addWidget(m_launchWithoutTracing);
+	launchWithoutTracingLayout->addWidget(new QLabel("Start application With Recording Off"));
+	launchWithoutTracingLayout->addStretch();
+
+	auto traceChildProcessesLayout = new QHBoxLayout;
+	traceChildProcessesLayout->addWidget(m_traceChildProcesses);
+	traceChildProcessesLayout->addWidget(new QLabel("Trace Child Processes"));
+	traceChildProcessesLayout->addStretch();
+
 	QVBoxLayout* contentLayout = new QVBoxLayout;
 	contentLayout->setSpacing(10);
 	contentLayout->addWidget(new QLabel("Executable Path"));
@@ -93,10 +103,8 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	contentLayout->addWidget(m_argumentsEntry);
 	contentLayout->addWidget(new QLabel("Trace Output Directory"));
 	contentLayout->addLayout(outputLayout);
-	contentLayout->addWidget(new QLabel("Start application With Recording Off"));
-	contentLayout->addWidget(m_launchWithoutTracing);
-	contentLayout->addWidget(new QLabel("Trace Child Processes"));
-	contentLayout->addWidget(m_traceChildProcesses);
+	contentLayout->addLayout(launchWithoutTracingLayout);
+	contentLayout->addLayout(traceChildProcessesLayout);
 
 	QHBoxLayout* buttonLayout = new QHBoxLayout;
 	buttonLayout->setContentsMargins(0, 0, 0, 0);
