@@ -41,6 +41,7 @@ private:
 	QLineEdit* m_argumentsEntry;
 	QLineEdit* m_outputDirectory;
 	QCheckBox* m_launchWithoutTracing;
+	QCheckBox* m_traceChildProcesses;
 
 public:
 	TTDRecordDialog(QWidget* parent, BinaryView* data);
