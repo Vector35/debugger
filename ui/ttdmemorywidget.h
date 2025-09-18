@@ -204,7 +204,7 @@ private:
 public:
 	TTDMemoryWidgetType();
 	SidebarWidget* createWidget(ViewFrame* frame, BinaryViewRef data) override;
-	SidebarWidgetLocation defaultLocation() const override { return SidebarWidgetLocation::RightBottom; }
+	SidebarWidgetLocation defaultLocation() const override { return SidebarWidgetLocation::RightContent; }
 	SidebarContextSensitivity contextSensitivity() const override { return PerViewTypeSidebarContext; }
 	SidebarIconVisibility defaultIconVisibility() const override { return HideSidebarIconIfNoContent; }
 	SidebarContentClassifier* contentClassifier(ViewFrame*, BinaryViewRef) override;
