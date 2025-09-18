@@ -670,6 +670,21 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			connectedAndStopped));
 	debuggerMenu->addAction("Run To Here", "Control");
 
+	UIAction::registerAction("Run Back To Here", QKeySequence(Qt::ShiftModifier | Qt::Key_F4));
+	context->globalActions()->bindAction("Run Back To Here",
+		UIAction(
+			[this](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				controller->RunToReverse(ctxt.address);
+				m_context->refreshCurrentViewContents();
+			},
+			connectedAndStoppedWithTTD));
+
 	UIAction::registerAction("Detach");
 	context->globalActions()->bindAction("Detach",
 		UIAction(

@@ -596,6 +596,8 @@ namespace BinaryNinjaDebuggerAPI {
 
 		bool RunTo(uint64_t remoteAddresses);
 		bool RunTo(const std::vector<uint64_t>& remoteAddresses);
+		bool RunToReverse(uint64_t remoteAddresses);
+		bool RunToReverse(const std::vector<uint64_t>& remoteAddresses);
 		void Pause();
 
 		DebugStopReason GoAndWait();
@@ -608,6 +610,8 @@ namespace BinaryNinjaDebuggerAPI {
 		DebugStopReason StepReturnReverseAndWait();
 		DebugStopReason RunToAndWait(uint64_t remoteAddresses);
 		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
+		DebugStopReason RunToReverseAndWait(uint64_t remoteAddresses);
+		DebugStopReason RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses);
 		DebugStopReason PauseAndWait();
 		DebugStopReason RestartAndWait();
 

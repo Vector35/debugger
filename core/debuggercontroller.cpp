@@ -1108,6 +1108,33 @@ DebugStopReason DebuggerController::RunToAndWaitInternal(const std::vector<uint6
 }
 
 
+DebugStopReason DebuggerController::RunToReverseAndWaitInternal(const std::vector<uint64_t>& remoteAddresses)
+{
+	m_userRequestedBreak = false;
+
+	for (uint64_t remoteAddress : remoteAddresses)
+	{
+		if (!m_state->GetBreakpoints()->ContainsAbsolute(remoteAddress))
+		{
+			m_adapter->AddBreakpoint(remoteAddress);
+		}
+	}
+
+	auto reason = GoReverseAndWaitInternal();
+
+	for (uint64_t remoteAddress : remoteAddresses)
+	{
+		if (!m_state->GetBreakpoints()->ContainsAbsolute(remoteAddress))
+		{
+			m_adapter->RemoveBreakpoint(remoteAddress);
+		}
+	}
+
+	NotifyStopped(reason);
+	return reason;
+}
+
+
 bool DebuggerController::RunTo(const std::vector<uint64_t>& remoteAddresses)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
@@ -1115,6 +1142,18 @@ bool DebuggerController::RunTo(const std::vector<uint64_t>& remoteAddresses)
 		return false;
 
 	std::thread([&, remoteAddresses]() { RunToAndWait(remoteAddresses); }).detach();
+
+	return true;
+}
+
+
+bool DebuggerController::RunToReverse(const std::vector<uint64_t>& remoteAddresses)
+{
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanResumeTarget())
+		return false;
+
+	std::thread([&, remoteAddresses]() { RunToReverseAndWait(remoteAddresses); }).detach();
 
 	return true;
 }
@@ -1130,6 +1169,24 @@ DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& re
 		return InternalError;
 
 	auto reason = RunToAndWaitInternal(remoteAddresses);
+	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+		NotifyStopped(reason);
+
+	m_targetControlMutex.unlock();
+	return reason;
+}
+
+
+DebugStopReason DebuggerController::RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses)
+{
+	// This is an API function of the debugger. We only do these checks at the API level.
+	if (!CanResumeTarget())
+		return InvalidStatusOrOperation;
+
+	if (!m_targetControlMutex.try_lock())
+		return InternalError;
+
+	auto reason = RunToReverseAndWaitInternal(remoteAddresses);
 	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 

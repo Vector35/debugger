@@ -467,6 +467,18 @@ bool DebuggerController::RunTo(const std::vector<uint64_t>& remoteAddresses)
 }
 
 
+bool DebuggerController::RunToReverse(uint64_t remoteAddresses)
+{
+	return RunToReverse(std::vector<uint64_t> {remoteAddresses});
+}
+
+
+bool DebuggerController::RunToReverse(const std::vector<uint64_t>& remoteAddresses)
+{
+	return BNDebuggerRunToReverse(m_object, remoteAddresses.data(), remoteAddresses.size());
+}
+
+
 DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il)
 {
 	return BNDebuggerStepIntoAndWait(m_object, il);
@@ -511,6 +523,18 @@ DebugStopReason DebuggerController::RunToAndWait(uint64_t remoteAddresses)
 DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& remoteAddresses)
 {
 	return BNDebuggerRunToAndWait(m_object, remoteAddresses.data(), remoteAddresses.size());
+}
+
+
+DebugStopReason DebuggerController::RunToReverseAndWait(uint64_t remoteAddresses)
+{
+	return RunToReverseAndWait(std::vector<uint64_t> {remoteAddresses});
+}
+
+
+DebugStopReason DebuggerController::RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses)
+{
+	return BNDebuggerRunToReverseAndWait(m_object, remoteAddresses.data(), remoteAddresses.size());
 }
 
 

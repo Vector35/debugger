@@ -1047,6 +1047,31 @@ class DebuggerController:
 
         return dbgcore.BNDebuggerRunTo(self.handle, addr_list, len(address))
 
+    def run_to_reverse(self, address) -> bool:
+        """
+        Resume the target in reverse, and wait for it to break at the given address(es).
+
+        The address parameter can be either an integer, or a list of integers.
+
+        Internally, the debugger places breakpoints on these addresses, resumes the target in reverse, and waits for the target
+        to break. Then the debugger removes the added breakpoints.
+
+        The call is asynchronous and returns before the target stops.
+
+        :return: whether the operation is successfully requested
+        """
+        if isinstance(address, int):
+            address = [address]
+
+        if not isinstance(address, list):
+            raise NotImplementedError
+
+        addr_list = (ctypes.c_uint64 * len(address))()
+        for i in range(len(address)):
+            addr_list[i] = address[i]
+
+        return dbgcore.BNDebuggerRunToReverse(self.handle, addr_list, len(address))
+
     def go_and_wait(self) -> DebugStopReason:
         """
         Resume the target.
@@ -1199,6 +1224,31 @@ class DebuggerController:
             addr_list[i] = address[i]
 
         return DebugStopReason(dbgcore.BNDebuggerRunToAndWait(self.handle, addr_list, len(address)))
+
+    def run_to_reverse_and_wait(self, address) -> DebugStopReason:
+        """
+        Resume the target in reverse, and wait for it to break at the given address(es).
+
+        The address parameter can be either an integer, or a list of integers.
+
+        Internally, the debugger places breakpoints on these addresses, resumes the target in reverse, and waits for the target
+        to break. Then the debugger removes the added breakpoints.
+
+        The call is blocking and only returns when the target stops.
+
+        :return: the reason for the stop
+        """
+        if isinstance(address, int):
+            address = [address]
+
+        if not isinstance(address, list):
+            raise NotImplementedError
+
+        addr_list = (ctypes.c_uint64 * len(address))()
+        for i in range(len(address)):
+            addr_list[i] = address[i]
+
+        return DebugStopReason(dbgcore.BNDebuggerRunToReverseAndWait(self.handle, addr_list, len(address)))
 
     def pause_and_wait(self) -> None:
         """

@@ -530,6 +530,18 @@ bool BNDebuggerRunTo(BNDebuggerController* controller, const uint64_t* remoteAdd
 }
 
 
+bool BNDebuggerRunToReverse(BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count)
+{
+	std::vector<uint64_t> addresses;
+	addresses.reserve(count);
+	for (size_t i = 0; i < count; i++)
+	{
+		addresses.push_back(remoteAddresses[i]);
+	}
+	return controller->object->RunToReverse(addresses);
+}
+
+
 BNDebugStopReason BNDebuggerGoAndWait(BNDebuggerController* controller)
 {
 	return controller->object->GoAndWait();
@@ -587,6 +599,19 @@ BNDebugStopReason BNDebuggerRunToAndWait(
 		addresses.push_back(remoteAddresses[i]);
 	}
 	return controller->object->RunToAndWait(addresses);
+}
+
+
+BNDebugStopReason BNDebuggerRunToReverseAndWait(
+	BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count)
+{
+	std::vector<uint64_t> addresses;
+	addresses.reserve(count);
+	for (size_t i = 0; i < count; i++)
+	{
+		addresses.push_back(remoteAddresses[i]);
+	}
+	return controller->object->RunToReverseAndWait(addresses);
 }
 
 
