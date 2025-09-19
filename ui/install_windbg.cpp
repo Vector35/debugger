@@ -476,7 +476,7 @@ namespace BinaryNinjaDebugger
 			if (progressCallback)
 				progressCallback("Downloading WinDbg/TTD package...", 30);
 				
-			std::string msixPath = GetTempFilePath(".msixbundle");
+			std::string msixPath = GetTempFilePath(".msixbundle.zip");  // Use .zip extension for COM Shell compatibility
 			if (!DownloadFile(msixUrl, msixPath))
 			{
 				LogError("Failed to download MSIX bundle");
@@ -494,6 +494,17 @@ namespace BinaryNinjaDebugger
 				LogError("Failed to extract inner MSIX file");
 				return false;
 			}
+			
+			// Rename the extracted MSIX file to have .zip extension for COM Shell compatibility
+			std::string innerZipPath = GetTempFilePath(".zip");
+			std::error_code ec;
+			fs::rename(innerMsixPath, innerZipPath, ec);
+			if (ec)
+			{
+				LogError("Failed to rename inner MSIX file to .zip: %s", ec.message().c_str());
+				return false;
+			}
+			LogInfo("Renamed %s to %s for COM Shell compatibility", innerMsixPath.c_str(), innerZipPath.c_str());
 
 			// Step 5: Extract WinDbg contents to installation directory
 			if (progressCallback)
@@ -502,7 +513,7 @@ namespace BinaryNinjaDebugger
 			std::string userDir = GetUserDirectory();
 			std::string installTarget = (fs::path(userDir) / "windbg").string();
 			
-			if (!ExtractZip(innerMsixPath, installTarget))
+			if (!ExtractZip(innerZipPath, installTarget))
 			{
 				LogError("Failed to extract WinDbg contents");
 				return false;
@@ -541,6 +552,7 @@ namespace BinaryNinjaDebugger
 			{
 				fs::remove(appInstallerPath);
 				fs::remove(msixPath);
+				fs::remove(innerZipPath);
 				fs::remove_all(tempExtractDir);
 			}
 			catch (...) 
