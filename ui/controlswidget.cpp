@@ -188,6 +188,16 @@ void DebugControlsWidget::performLaunch()
 		if (QMessageBox::question(this, "Launch Target", prompt) != QMessageBox::Yes)
 			return;
 	}
+	else if (!isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
+	{
+		auto remoteHost = QString::fromStdString(m_controller->GetRemoteHost());
+		auto remotePort = m_controller->GetRemotePort();
+		auto prompt = QString("You are about to launch \n\n%1\n\non remote host %2:%3. "
+			"Are you sure to continue?").arg(QString::fromStdString(m_controller->GetExecutablePath()))
+			.arg(remoteHost).arg(remotePort);
+		if (QMessageBox::question(this, "Launch Target", prompt) != QMessageBox::Yes)
+			return;
+	}
 
 	auto data = m_controller->GetData();
 	if (!data->GetDefaultPlatform())

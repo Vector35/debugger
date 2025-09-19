@@ -485,6 +485,16 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					if (QMessageBox::question(context->mainWindow(), "Launch Target", prompt) != QMessageBox::Yes)
 						return;
 				}
+				else if (!isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
+				{
+					auto remoteHost = QString::fromStdString(controller->GetRemoteHost());
+					auto remotePort = controller->GetRemotePort();
+					auto prompt = QString("You are about to launch \n\n%1\n\non remote host %2:%3. "
+						"Are you sure to continue?").arg(QString::fromStdString(controller->GetExecutablePath()))
+						.arg(remoteHost).arg(remotePort);
+					if (QMessageBox::question(context->mainWindow(), "Launch Target", prompt) != QMessageBox::Yes)
+						return;
+				}
 
 				if (!ensureBinaryViewHasPlatform(controller->GetData(), context->mainWindow()))
 					return;
