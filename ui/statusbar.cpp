@@ -23,7 +23,7 @@ limitations under the License.
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 
-constexpr int STATUS_STRING_MAX_LEN = 50;
+constexpr int STATUS_STRING_MAX_LEN = 100;
 
 DebuggerStatusBarWidget::DebuggerStatusBarWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data) :
 	QWidget(parent), m_parent(parent), m_view(frame)
@@ -105,7 +105,34 @@ void DebuggerStatusBarWidget::updateStatusText(const DebuggerEvent& event)
 	{
 		DebugStopReason reason = event.data.targetStoppedData.reason;
 		const std::string reasonString = DebuggerController::GetDebugStopReasonString(reason);
-		setStatusText(QString::fromStdString(fmt::format("Stopped ({})", reasonString)));
+		
+		std::string statusMessage = fmt::format("Stopped ({})", reasonString);
+		
+		// Add address and module information if debugger is available
+		if (m_debugger) {
+			// Get current instruction pointer
+			uint64_t currentIP = m_debugger->GetCurrentIP();
+			
+			// Get module information for the current address
+			auto moduleInfo = m_debugger->AbsoluteAddressToRelative(currentIP);
+			std::string moduleString;
+			
+			if (!moduleInfo.module.empty()) {
+				// Extract just the filename from the full path
+				std::string moduleName = moduleInfo.module;
+				size_t lastSlash = moduleName.find_last_of("/\\");
+				if (lastSlash != std::string::npos) {
+					moduleName = moduleName.substr(lastSlash + 1);
+				}
+				moduleString = fmt::format(" at 0x{:x} ({} + 0x{:x})", currentIP, moduleName, moduleInfo.offset);
+			} else {
+				moduleString = fmt::format(" at 0x{:x} (?? + 0x{:x})", currentIP, currentIP);
+			}
+			
+			statusMessage += moduleString;
+		}
+		
+		setStatusText(QString::fromStdString(statusMessage));
 		break;
 	}
 	case TargetExitedEventType:
