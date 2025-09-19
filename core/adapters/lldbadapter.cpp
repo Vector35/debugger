@@ -298,10 +298,11 @@ Ref<Settings> LldbAdapterType::RegisterAdapterSettings()
     })");
 	settings->RegisterSetting("common.initialLLDBCommand",
 	R"({
-        "title": "Initial LLDB Command",
-        "type": "string",
-        "default": "",
-        "description": "Specifies an LLDB command to execute immediately after launching/attaching/connecting to the target",
+        "title": "Initial LLDB Commands",
+        "type": "array",
+        "sorted": false,
+        "default": [],
+        "description": "Specifies LLDB commands to execute immediately after launching/attaching/connecting to the target",
         "readOnly": false
     })");
 
@@ -392,7 +393,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	scope = SettingsResourceScope;
 	auto followForkMode = adapterSettings->Get<std::string>("common.followForkMode", data, &scope);
 	scope = SettingsResourceScope;
-	auto initialLLDBCommand = adapterSettings->Get<std::string>("common.initialLLDBCommand", data, &scope);
+	auto initialLLDBCommand = adapterSettings->Get<vector<string>>("common.initialLLDBCommand", data, &scope);
 
 	CreateTarget(inputFile);
 
@@ -431,7 +432,14 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 		InvokeBackendCommand(fmt::format("settings set target.process.follow-fork-mode \"{}\"", followForkMode));
 
 	if (!initialLLDBCommand.empty())
-		InvokeBackendCommand(initialLLDBCommand);
+	{
+		for (const auto& command : initialLLDBCommand)
+		{
+			if (command.empty())
+				continue;
+			InvokeBackendCommand(command);
+		}
+	}
 
 	std::string launchCommand = "process launch";
 	if (Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint") ||
@@ -511,7 +519,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	scope = SettingsResourceScope;
 	auto followForkMode = adapterSettings->Get<std::string>("common.followForkMode", data, &scope);
 	scope = SettingsResourceScope;
-	auto initialLLDBCommand = adapterSettings->Get<std::string>("common.initialLLDBCommand", data, &scope);
+	auto initialLLDBCommand = adapterSettings->Get<vector<string>>("common.initialLLDBCommand", data, &scope);
 
 	CreateTarget(inputFile);
 
@@ -533,7 +541,14 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 		InvokeBackendCommand(fmt::format("settings set target.process.follow-fork-mode \"{}\"", followForkMode));
 
 	if (!initialLLDBCommand.empty())
-		InvokeBackendCommand(initialLLDBCommand);
+	{
+		for (const auto& command : initialLLDBCommand)
+		{
+			if (command.empty())
+				continue;
+			InvokeBackendCommand(command);
+		}
+	}
 
 	SBAttachInfo info(attachPID);
 	m_process = m_target.Attach(info, err);
@@ -614,7 +629,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	scope = SettingsResourceScope;
 	auto followForkMode = adapterSettings->Get<std::string>("common.followForkMode", data, &scope);
 	scope = SettingsResourceScope;
-	auto initialLLDBCommand = adapterSettings->Get<std::string>("common.initialLLDBCommand", data, &scope);
+	auto initialLLDBCommand = adapterSettings->Get<vector<string>>("common.initialLLDBCommand", data, &scope);
 
 	CreateTarget(inputFile);
 
@@ -636,7 +651,14 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 		InvokeBackendCommand(fmt::format("settings set target.process.follow-fork-mode \"{}\"", followForkMode));
 
 	if (!initialLLDBCommand.empty())
-		InvokeBackendCommand(initialLLDBCommand);
+	{
+		for (const auto& command : initialLLDBCommand)
+		{
+			if (command.empty())
+				continue;
+			InvokeBackendCommand(command);
+		}
+	}
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
