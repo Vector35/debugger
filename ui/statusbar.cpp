@@ -108,28 +108,35 @@ void DebuggerStatusBarWidget::updateStatusText(const DebuggerEvent& event)
 		
 		std::string statusMessage = fmt::format("Stopped ({})", reasonString);
 		
-		// Add address and module information if debugger is available
+		// Add address and symbol information if debugger is available
 		if (m_debugger) {
 			// Get current instruction pointer
 			uint64_t currentIP = m_debugger->GetCurrentIP();
 			
-			// Get module information for the current address
-			auto moduleInfo = m_debugger->AbsoluteAddressToRelative(currentIP);
-			std::string moduleString;
+			// Try to get function/symbol information first (preferred approach)
+			std::string addressInfo = m_debugger->GetAddressInformation(currentIP);
+			std::string locationString;
 			
-			if (!moduleInfo.module.empty()) {
-				// Extract just the filename from the full path
-				std::string moduleName = moduleInfo.module;
-				size_t lastSlash = moduleName.find_last_of("/\\");
-				if (lastSlash != std::string::npos) {
-					moduleName = moduleName.substr(lastSlash + 1);
-				}
-				moduleString = fmt::format(" at 0x{:x} ({} + 0x{:x})", currentIP, moduleName, moduleInfo.offset);
+			if (!addressInfo.empty()) {
+				// Use function + offset or symbol information when available
+				locationString = fmt::format(" at 0x{:x} ({})", currentIP, addressInfo);
 			} else {
-				moduleString = fmt::format(" at 0x{:x} (?? + 0x{:x})", currentIP, currentIP);
+				// Fall back to module + offset when function/symbol info is not available
+				auto moduleInfo = m_debugger->AbsoluteAddressToRelative(currentIP);
+				if (!moduleInfo.module.empty()) {
+					// Extract just the filename from the full path
+					std::string moduleName = moduleInfo.module;
+					size_t lastSlash = moduleName.find_last_of("/\\");
+					if (lastSlash != std::string::npos) {
+						moduleName = moduleName.substr(lastSlash + 1);
+					}
+					locationString = fmt::format(" at 0x{:x} ({} + 0x{:x})", currentIP, moduleName, moduleInfo.offset);
+				} else {
+					locationString = fmt::format(" at 0x{:x} (?? + 0x{:x})", currentIP, currentIP);
+				}
 			}
 			
-			statusMessage += moduleString;
+			statusMessage += locationString;
 		}
 		
 		setStatusText(QString::fromStdString(statusMessage));
