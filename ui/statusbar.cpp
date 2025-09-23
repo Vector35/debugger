@@ -113,15 +113,45 @@ void DebuggerStatusBarWidget::updateStatusText(const DebuggerEvent& event)
 			// Get current instruction pointer
 			uint64_t currentIP = m_debugger->GetCurrentIP();
 			
-			// Try to get function/symbol information first (preferred approach)
-			std::string addressInfo = m_debugger->GetAddressInformation(currentIP);
+			// Get the current thread's stack frames to retrieve function information 
+			// (same approach as stack trace widget)
+			auto activeThread = m_debugger->GetActiveThread();
+			auto frames = m_debugger->GetFramesOfThread(activeThread.m_tid);
 			std::string locationString;
 			
-			if (!addressInfo.empty()) {
-				// Use function + offset or symbol information when available
-				locationString = fmt::format(" at 0x{:x} ({})", currentIP, addressInfo);
+			if (!frames.empty()) {
+				// Use the first frame (current execution context) for function information
+				const auto& currentFrame = frames[0];
+				
+				// Format function + offset the same way as stack trace widget
+				auto trimmedFunctionName = currentFrame.m_functionName;
+				auto prefix = currentFrame.m_module + '!';
+				if (trimmedFunctionName.compare(0, prefix.size(), prefix) == 0)
+					trimmedFunctionName.erase(0, prefix.size());
+				
+				// Calculate offset from function start
+				uint64_t offset = currentFrame.m_pc - currentFrame.m_functionStart;
+				if (offset != 0 && !trimmedFunctionName.empty()) {
+					locationString = fmt::format(" at 0x{:x} ({} + 0x{:x})", currentIP, trimmedFunctionName, offset);
+				} else if (offset == 0 && !trimmedFunctionName.empty()) {
+					locationString = fmt::format(" at 0x{:x} ({})", currentIP, trimmedFunctionName);
+				} else {
+					// Fall back to module + offset when function info is not available
+					auto moduleInfo = m_debugger->AbsoluteAddressToRelative(currentIP);
+					if (!moduleInfo.module.empty()) {
+						// Extract just the filename from the full path
+						std::string moduleName = moduleInfo.module;
+						size_t lastSlash = moduleName.find_last_of("/\\");
+						if (lastSlash != std::string::npos) {
+							moduleName = moduleName.substr(lastSlash + 1);
+						}
+						locationString = fmt::format(" at 0x{:x} ({} + 0x{:x})", currentIP, moduleName, moduleInfo.offset);
+					} else {
+						locationString = fmt::format(" at 0x{:x} (?? + 0x{:x})", currentIP, currentIP);
+					}
+				}
 			} else {
-				// Fall back to module + offset when function/symbol info is not available
+				// Fall back to module + offset when no frames are available
 				auto moduleInfo = m_debugger->AbsoluteAddressToRelative(currentIP);
 				if (!moduleInfo.module.empty()) {
 					// Extract just the filename from the full path
