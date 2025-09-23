@@ -476,6 +476,12 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				{
 					isLocalLaunch = false;
 				}
+				
+				// Also consider debug server connections as remote
+				if (controller->IsConnectedToDebugServer())
+				{
+					isLocalLaunch = false;
+				}
 
 				if (isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
 				{

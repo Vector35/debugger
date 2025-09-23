@@ -180,6 +180,12 @@ void DebugControlsWidget::performLaunch()
 	{
 		isLocalLaunch = false;
 	}
+	
+	// Also consider debug server connections as remote
+	if (m_controller->IsConnectedToDebugServer())
+	{
+		isLocalLaunch = false;
+	}
 
 	if (isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
 	{
