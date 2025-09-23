@@ -3015,7 +3015,7 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) con
 		std::ofstream file(filePath, std::ios::binary);
 		if (!file.is_open())
 		{
-			LogError("Failed to open file for writing: {}", filePath.c_str());
+			LogError("%s", fmt::format("Failed to open file for writing: {}", filePath.c_str()).c_str());
 			return false;
 		}
 
@@ -3040,7 +3040,7 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) con
 	}
 	catch (const std::exception& e)
 	{
-		LogError("Error saving code coverage: {}", e.what());
+		LogError("%s", fmt::format("Error saving code coverage: {}", e.what()).c_str());
 		return false;
 	}
 }
@@ -3053,7 +3053,7 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
 		std::ifstream file(filePath, std::ios::binary);
 		if (!file.is_open())
 		{
-			LogError("Failed to open file for reading: {}", filePath.c_str());
+			LogError("%s", fmt::format("Failed to open file for reading: {}", filePath.c_str()).c_str());
 			return false;
 		}
 
@@ -3071,7 +3071,7 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
 		file.read(reinterpret_cast<char*>(&version), sizeof(version));
 		if (version != 1)
 		{
-			LogError("Unsupported file version: {}", version);
+			LogError("%s", fmt::format("Unsupported file version: {}", version).c_str());
 			return false;
 		}
 
@@ -3090,12 +3090,12 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
 		file.close();
 		m_codeCoverageAnalysisRun = true;
 
-		LogInfo("Loaded {} executed instruction addresses from {}", count, filePath.c_str());
+		LogInfo("%s", fmt::format("Loaded {} executed instruction addresses from {}", count, filePath.c_str()).c_str());
 		return true;
 	}
 	catch (const std::exception& e)
 	{
-		LogError("Error loading code coverage: {}", e.what());
+		LogError("%s", fmt::format("Error loading code coverage: {}", e.what()).c_str());
 		return false;
 	}
 }
