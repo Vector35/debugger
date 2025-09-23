@@ -2971,7 +2971,7 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 	m_executedInstructions.clear();
 	m_codeCoverageAnalysisRun = false;
 	
-	LogInfo("Starting TTD code coverage analysis for range 0x" PRIX64 " - 0x" PRIX64 "...", startAddress, endAddress);
+	LogInfo("Starting TTD code coverage analysis for range 0x%" PRIX64 " - 0x%" PRIX64 "...", startAddress, endAddress);
 	
 	// Query TTD for execute access covering the specified range
 	auto events = GetTTDMemoryAccessForAddress(startAddress, endAddress, TTDMemoryExecute);
@@ -2989,7 +2989,7 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 	}
 
 	m_codeCoverageAnalysisRun = true;
-	LogInfo("TTD code coverage analysis completed for range. Found %d executed instructions.",
+	LogInfo("TTD code coverage analysis completed for range. Found 0x%" PRIx64 "executed instructions.",
 			m_executedInstructions.size());
 
 	return true;
@@ -3035,7 +3035,8 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) con
 		}
 
 		file.close();
-		LogInfo("Saved %d executed instruction addresses to %s", count, filePath.c_str());
+		LogError("%s", fmt::format("Saved {} executed instruction addresses to {}", count, filePath.c_str()).c_str());
+
 		return true;
 	}
 	catch (const std::exception& e)
