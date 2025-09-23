@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "controlswidget.h"
 #include "adaptersettings.h"
+#include "timestampnavigationdialog.h"
 #include <QPixmap>
 #include <QInputDialog>
 #include <QMessageBox>
@@ -134,6 +135,11 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 		performStepReturnReverse();
 	});
 	m_actionStepReturnBack->setToolTip(getToolTip("Step Return Backwards"));
+
+	m_actionTimestampNavigation = addAction(getColoredIcon(":/debugger/step-into", cyan), "Navigate to Timestamp", [this]() {
+		performTimestampNavigation();
+	});
+	m_actionTimestampNavigation->setToolTip(getToolTip("Navigate to TTD Timestamp..."));
 	updateButtons();
 }
 
@@ -507,6 +513,8 @@ void DebugControlsWidget::setReverseSteppingEnabled(bool enabled)
 	m_actionStepOverBack->setVisible(enabled);
 	m_actionStepReturnBack->setEnabled(enabled);
 	m_actionStepReturnBack->setVisible(enabled);
+	m_actionTimestampNavigation->setEnabled(enabled);
+	m_actionTimestampNavigation->setVisible(enabled);
 }
 
 
@@ -565,4 +573,17 @@ void DebugControlsWidget::updateButtons()
 		m_actionResume->setVisible(true);
 		m_actionGoBack->setVisible(m_controller->IsTTD());
 	}
+}
+
+
+void DebugControlsWidget::performTimestampNavigation()
+{
+	if (!m_controller->IsTTD())
+	{
+		QMessageBox::warning(this, "Error", "Time travel debugging is not active.");
+		return;
+	}
+
+	auto* dialog = new TimestampNavigationDialog(this, m_controller);
+	dialog->show();
 }

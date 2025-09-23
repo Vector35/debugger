@@ -45,6 +45,7 @@ limitations under the License.
 #include "ttdmemorywidget.h"
 #include "ttdcallswidget.h"
 #include "ttdanalysisdialog.h"
+#include "timestampnavigationdialog.h"
 #include "freeversion.h"
 #include <QTimer>
 
@@ -1138,6 +1139,25 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		},
 		connectedToTTD));
 	debuggerMenu->addAction("TTD Calls\\Kernel32 Calls", "TTD");
+
+	UIAction::registerAction("Navigate to TTD Timestamp...", QKeySequence(Qt::ShiftModifier | Qt::Key_G));
+	context->globalActions()->bindAction("Navigate to TTD Timestamp...",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsTTD())
+					return;
+
+				auto dialog = new TimestampNavigationDialog(ctxt.context->mainWindow(), controller);
+				dialog->show();
+				dialog->raise();
+				dialog->activateWindow();
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("Navigate to TTD Timestamp...", "TTD");
 
 	UIAction::registerAction("TTD Analysis...");
 	context->globalActions()->bindAction("TTD Analysis...",

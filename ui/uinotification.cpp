@@ -189,6 +189,7 @@ void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, 
 	menu.addAction("Debugger", "Override IP", "Misc");
 #ifdef WIN32
 	// TTD Memory Access context menu items
+	menu.addAction("Debugger", "Navigate to TTD Timestamp...", "TTD");
 	menu.addAction("Debugger", "TTD Memory Access\\Read", "TTD");
 	menu.addAction("Debugger", "TTD Memory Access\\Write", "TTD");
 	menu.addAction("Debugger", "TTD Memory Access\\Read/Write", "TTD");
