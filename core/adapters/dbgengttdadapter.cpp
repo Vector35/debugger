@@ -352,6 +352,26 @@ Ref<Settings> DbgEngTTDAdapterType::RegisterAdapterSettings()
 			"readOnly" : false,
 			"uiSelectionAction" : "file"
 			})");
+	settings->RegisterSetting("ttd.maxMemoryQueryResults",
+		R"({
+			"title" : "Max Memory Query Results",
+			"type" : "number",
+			"default" : 100000,
+			"minValue" : 0,
+			"maxValue" : 18446744073709551615,
+			"description" : "Maximum number of results to return from TTD Memory queries. Set to 0 for no limit.",
+			"readOnly" : false
+			})");
+	settings->RegisterSetting("ttd.maxCallsQueryResults",
+		R"({
+			"title" : "Max Calls Query Results",
+			"type" : "number",
+			"default" : 100000,
+			"minValue" : 0,
+			"maxValue" : 18446744073709551615,
+			"description" : "Maximum number of results to return from TTD Calls queries. Set to 0 for no limit.",
+			"readOnly" : false
+			})");
 
 	return settings;
 }
@@ -678,10 +698,25 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 		ComPtr<IModelObject> memoryObject;
 		ComPtr<IKeyStore> metadataKeyStore;
 		
+		// Get the max results setting
+		auto adapterSettings = GetAdapterSettings();
+		BNSettingsScope scope = SettingsResourceScope;
+		auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxMemoryQueryResults", GetData(), &scope);
+		
+		uint64_t resultCounter = 0;
+		bool wasLimited = false;
+		
 		while (SUCCEEDED(iterator->GetNext(&memoryObject, 0, nullptr, &metadataKeyStore)))
 		{
 			if (!memoryObject)
 				break;
+			
+			// Check if we've reached the limit (0 means no limit)
+			if (maxResults > 0 && resultCounter >= maxResults)
+			{
+				wasLimited = true;
+				break;
+			}
 				
 			TTDMemoryEvent event;
 			
@@ -892,13 +927,21 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 			}
 			
 			events.push_back(event);
+			resultCounter++;
 			
 			// Reset objects for next iteration
 			memoryObject.Reset();
 			metadataKeyStore.Reset();
 		}
 		
-		LogInfo("Successfully parsed %zu TTD memory events from data model", events.size());
+		if (wasLimited)
+		{
+			LogWarnF("Successfully parsed {} TTD memory events from data model (limited by max results setting of {})", events.size(), maxResults);
+		}
+		else
+		{
+			LogInfo("Successfully parsed %zu TTD memory events from data model", events.size());
+		}
 		return true;
 	}
 	catch (const std::exception& e)
@@ -1056,10 +1099,25 @@ bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, std::v
 		ComPtr<IModelObject> callObject;
 		ComPtr<IKeyStore> callMetadataKeyStore;
 		
+		// Get the max results setting
+		auto adapterSettings = GetAdapterSettings();
+		BNSettingsScope scope = SettingsResourceScope;
+		auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
+		
+		uint64_t resultCounter = 0;
+		bool wasLimited = false;
+		
 		while (SUCCEEDED(iterator->GetNext(&callObject, 0, nullptr, &callMetadataKeyStore)))
 		{
 			if (!callObject)
 				break;
+			
+			// Check if we've reached the limit (0 means no limit)
+			if (maxResults > 0 && resultCounter >= maxResults)
+			{
+				wasLimited = true;
+				break;
+			}
 				
 			TTDCallEvent event;
 			
@@ -1256,13 +1314,21 @@ bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, std::v
 			}
 			
 			events.push_back(event);
+			resultCounter++;
 			
 			// Reset objects for next iteration
 			callObject.Reset();
 			callMetadataKeyStore.Reset();
 		}
 		
-		LogInfo("Successfully parsed %zu TTD call events from data model", events.size());
+		if (wasLimited)
+		{
+			LogWarnF("Successfully parsed {} TTD call events from data model (limited by max results setting of {})", events.size(), maxResults);
+		}
+		else
+		{
+			LogInfo("Successfully parsed %zu TTD call events from data model", events.size());
+		}
 		return true;
 	}
 	catch (const std::exception& e)
