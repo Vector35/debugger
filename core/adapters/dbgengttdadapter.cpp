@@ -466,11 +466,11 @@ bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
 	bool success = output.find("error") == std::string::npos && output.find("failed") == std::string::npos;
 	if (success)
 	{
-		LogInfo("Successfully navigated to TTD position {:X}:{:X}", position.sequence, position.step);
+		LogInfo("%s", fmt::format("Successfully navigated to TTD position {:X}:{:X}", position.sequence, position.step).c_str());
 	}
 	else
 	{
-		LogError("Failed to navigate to TTD position {:X}:{:X}", position.sequence, position.step);
+		LogError("%s", fmt::format("Failed to navigate to TTD position {:X}:{:X}", position.sequence, position.step).c_str());
 	}
 	return success;
 }
