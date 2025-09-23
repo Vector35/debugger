@@ -23,7 +23,7 @@ limitations under the License.
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 
-constexpr int STATUS_STRING_MAX_LEN = 50;
+constexpr int STATUS_STRING_MAX_LEN = 100;
 
 DebuggerStatusBarWidget::DebuggerStatusBarWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data) :
 	QWidget(parent), m_parent(parent), m_view(frame)
@@ -105,7 +105,71 @@ void DebuggerStatusBarWidget::updateStatusText(const DebuggerEvent& event)
 	{
 		DebugStopReason reason = event.data.targetStoppedData.reason;
 		const std::string reasonString = DebuggerController::GetDebugStopReasonString(reason);
-		setStatusText(QString::fromStdString(fmt::format("Stopped ({})", reasonString)));
+		
+		std::string statusMessage = fmt::format("Stopped ({})", reasonString);
+		
+		// Add address and symbol information if debugger is available
+		if (m_debugger) {
+			// Get current instruction pointer
+			uint64_t currentIP = m_debugger->IP();
+			
+			// Get the current thread's stack frames to retrieve function information 
+			// (same approach as stack trace widget)
+			auto activeThread = m_debugger->GetActiveThread();
+			auto frames = m_debugger->GetFramesOfThread(activeThread.m_tid);
+			std::string locationString;
+			
+			if (!frames.empty()) {
+				// Use the first frame (current execution context) for function information
+				const auto& currentFrame = frames[0];
+				
+				// Format function + offset the same way as stack trace widget
+				auto trimmedFunctionName = currentFrame.m_functionName;
+				auto prefix = currentFrame.m_module + '!';
+				if (trimmedFunctionName.compare(0, prefix.size(), prefix) == 0)
+					trimmedFunctionName.erase(0, prefix.size());
+				
+				// Calculate offset from function start
+				uint64_t offset = currentFrame.m_pc - currentFrame.m_functionStart;
+				if (offset != 0 && !trimmedFunctionName.empty()) {
+					locationString = fmt::format(" at 0x{:x} ({} + 0x{:x})", currentIP, trimmedFunctionName, offset);
+				} else if (offset == 0 && !trimmedFunctionName.empty()) {
+					locationString = fmt::format(" at 0x{:x} ({})", currentIP, trimmedFunctionName);
+				} else {
+					// Fall back to module + offset when function info is not available
+					auto moduleInfo = m_debugger->AbsoluteAddressToRelative(currentIP);
+					if (!moduleInfo.module.empty()) {
+						// Extract just the filename from the full path
+						std::string moduleName = moduleInfo.module;
+						size_t lastSlash = moduleName.find_last_of("/\\");
+						if (lastSlash != std::string::npos) {
+							moduleName = moduleName.substr(lastSlash + 1);
+						}
+						locationString = fmt::format(" at 0x{:x} ({} + 0x{:x})", currentIP, moduleName, moduleInfo.offset);
+					} else {
+						locationString = fmt::format(" at 0x{:x} (?? + 0x{:x})", currentIP, currentIP);
+					}
+				}
+			} else {
+				// Fall back to module + offset when no frames are available
+				auto moduleInfo = m_debugger->AbsoluteAddressToRelative(currentIP);
+				if (!moduleInfo.module.empty()) {
+					// Extract just the filename from the full path
+					std::string moduleName = moduleInfo.module;
+					size_t lastSlash = moduleName.find_last_of("/\\");
+					if (lastSlash != std::string::npos) {
+						moduleName = moduleName.substr(lastSlash + 1);
+					}
+					locationString = fmt::format(" at 0x{:x} ({} + 0x{:x})", currentIP, moduleName, moduleInfo.offset);
+				} else {
+					locationString = fmt::format(" at 0x{:x} (?? + 0x{:x})", currentIP, currentIP);
+				}
+			}
+			
+			statusMessage += locationString;
+		}
+		
+		setStatusText(QString::fromStdString(statusMessage));
 		break;
 	}
 	case TargetExitedEventType:
