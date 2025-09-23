@@ -181,11 +181,7 @@ void DebugControlsWidget::performLaunch()
 		isLocalLaunch = false;
 	}
 	
-	// Also consider debug server connections as remote
-	if (m_controller->IsConnectedToDebugServer())
-	{
-		isLocalLaunch = false;
-	}
+	bool connectedToDebugServer = m_controller->IsConnectedToDebugServer();
 
 	if (isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
 	{
@@ -194,7 +190,8 @@ void DebugControlsWidget::performLaunch()
 		if (QMessageBox::question(this, "Launch Target", prompt) != QMessageBox::Yes)
 			return;
 	}
-	else if (!isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
+	else if (!isLocalLaunch && connectedToDebugServer &&firstLaunch &&
+		Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
 	{
 		auto remoteHost = QString::fromStdString(m_controller->GetRemoteHost());
 		auto remotePort = m_controller->GetRemotePort();
