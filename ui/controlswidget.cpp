@@ -180,11 +180,27 @@ void DebugControlsWidget::performLaunch()
 	{
 		isLocalLaunch = false;
 	}
+	
+	// Also consider debug server connections as remote
+	if (m_controller->IsConnectedToDebugServer())
+	{
+		isLocalLaunch = false;
+	}
 
 	if (isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
 	{
 		auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
 			"This may harm your machine. Are you sure to continue?").arg(QString::fromStdString(m_controller->GetExecutablePath()));
+		if (QMessageBox::question(this, "Launch Target", prompt) != QMessageBox::Yes)
+			return;
+	}
+	else if (!isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
+	{
+		auto remoteHost = QString::fromStdString(m_controller->GetRemoteHost());
+		auto remotePort = m_controller->GetRemotePort();
+		auto prompt = QString("You are about to launch \n\n%1\n\non remote host %2:%3. "
+			"Are you sure to continue?").arg(QString::fromStdString(m_controller->GetExecutablePath()))
+			.arg(remoteHost).arg(remotePort);
 		if (QMessageBox::question(this, "Launch Target", prompt) != QMessageBox::Yes)
 			return;
 	}

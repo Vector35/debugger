@@ -476,12 +476,28 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				{
 					isLocalLaunch = false;
 				}
+				
+				// Also consider debug server connections as remote
+				if (controller->IsConnectedToDebugServer())
+				{
+					isLocalLaunch = false;
+				}
 
 				if (isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
 				{
 					auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
 						"This may harm your machine. Are you sure to continue?").
 					  	arg(QString::fromStdString(controller->GetExecutablePath()));
+					if (QMessageBox::question(context->mainWindow(), "Launch Target", prompt) != QMessageBox::Yes)
+						return;
+				}
+				else if (!isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
+				{
+					auto remoteHost = QString::fromStdString(controller->GetRemoteHost());
+					auto remotePort = controller->GetRemotePort();
+					auto prompt = QString("You are about to launch \n\n%1\n\non remote host %2:%3. "
+						"Are you sure to continue?").arg(QString::fromStdString(controller->GetExecutablePath()))
+						.arg(remoteHost).arg(remotePort);
 					if (QMessageBox::question(context->mainWindow(), "Launch Target", prompt) != QMessageBox::Yes)
 						return;
 				}
