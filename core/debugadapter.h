@@ -272,6 +272,10 @@ namespace BinaryNinjaDebugger {
 
 		virtual std::vector<DebugBreakpoint> GetBreakpointList() const = 0;
 
+		// Hardware breakpoint and watchpoint support
+		virtual bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+		virtual bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+
 		virtual std::unordered_map<std::string, DebugRegister> ReadAllRegisters() = 0;
 
 		virtual DebugRegister ReadRegister(const std::string& reg) = 0;

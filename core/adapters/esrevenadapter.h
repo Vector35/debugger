@@ -158,7 +158,11 @@ namespace BinaryNinjaDebugger
 		bool ResumeThread(std::uint32_t tid) override;
 		DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0) override;
 
-		// Temporary internal methods
+		// Hardware breakpoint and watchpoint support
+		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
+		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
+
+		// Legacy methods - kept for backward compatibility
 		bool AddHardwareWriteBreakpoint(uint64_t address);
 		bool RemoveHardwareWriteBreakpoint(uint64_t address);
 

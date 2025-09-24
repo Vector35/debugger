@@ -1120,20 +1120,80 @@ bool GdbAdapter::StepOverReverse()
 	return status != InternalError;
 }
 
-bool GdbAdapter::AddHardwareWriteBreakpoint(uint64_t address)
+bool GdbAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	if (m_isTargetRunning || !m_rspConnector)
 		return false;
 
-	return this->m_rspConnector->TransmitAndReceive(RspData("Z2,{:x},{}", address, 1)).AsString() != "OK";
+	std::string command;
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+			// Z1 = hardware execution breakpoint  
+			command = fmt::format("Z1,{:x},{}", address, size);
+			break;
+		case HardwareReadBreakpoint:
+			// Z3 = hardware read watchpoint
+			command = fmt::format("Z3,{:x},{}", address, size);
+			break;
+		case HardwareWriteBreakpoint:
+			// Z2 = hardware write watchpoint
+			command = fmt::format("Z2,{:x},{}", address, size);
+			break;
+		case HardwareAccessBreakpoint:
+			// Z4 = hardware access watchpoint (read/write)
+			command = fmt::format("Z4,{:x},{}", address, size);
+			break;
+		default:
+			return false;
+	}
+
+	return m_rspConnector->TransmitAndReceive(RspData(command)).AsString() == "OK";
+}
+
+
+bool GdbAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (m_isTargetRunning || !m_rspConnector)
+		return false;
+
+	std::string command;
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+			// z1 = remove hardware execution breakpoint  
+			command = fmt::format("z1,{:x},{}", address, size);
+			break;
+		case HardwareReadBreakpoint:
+			// z3 = remove hardware read watchpoint
+			command = fmt::format("z3,{:x},{}", address, size);
+			break;
+		case HardwareWriteBreakpoint:
+			// z2 = remove hardware write watchpoint
+			command = fmt::format("z2,{:x},{}", address, size);
+			break;
+		case HardwareAccessBreakpoint:
+			// z4 = remove hardware access watchpoint (read/write)
+			command = fmt::format("z4,{:x},{}", address, size);
+			break;
+		default:
+			return false;
+	}
+
+	return m_rspConnector->TransmitAndReceive(RspData(command)).AsString() == "OK";
+}
+
+
+bool GdbAdapter::AddHardwareWriteBreakpoint(uint64_t address)
+{
+	// Delegate to new standardized method
+	return AddHardwareBreakpoint(address, HardwareWriteBreakpoint, 1);
 }
 
 bool GdbAdapter::RemoveHardwareWriteBreakpoint(uint64_t address)
 {
-	if (m_isTargetRunning || !m_rspConnector)
-		return false;
-
-	return this->m_rspConnector->TransmitAndReceive(RspData("Z2,{:x},{}", address, 1)).AsString() != "OK";
+	// Delegate to new standardized method
+	return RemoveHardwareBreakpoint(address, HardwareWriteBreakpoint, 1);
 }
 
 bool GdbAdapter::StepReturnReverse()

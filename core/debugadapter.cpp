@@ -253,3 +253,17 @@ bool DebugAdapter::SetTTDPosition(const TTDPosition& position)
 	// Default implementation returns false for adapters that don't support TTD
 	return false;
 }
+
+
+bool DebugAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	// Default implementation returns false for adapters that don't support hardware breakpoints
+	return false;
+}
+
+
+bool DebugAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	// Default implementation returns false for adapters that don't support hardware breakpoints
+	return false;
+}
