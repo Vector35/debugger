@@ -110,6 +110,9 @@ private:
 	ContextMenuManager* m_contextMenuManager;
 	Menu* m_menu;
 	
+	// Event callback for controller state changes
+	size_t m_eventCallbackIndex;
+	
 	void setupUI();
 	void setupTable();
 	void updateStatus(const QString& message);
@@ -118,6 +121,7 @@ private:
 	void setupContextMenu();
 	void setupUIActions();
 	void updateColumnVisibility();
+	void updateButtonState();
 	bool canCopy();
 	
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
@@ -132,6 +136,9 @@ public:
 	// Method to check if this tab is unused (no results and default parameters)
 	bool isUnused() const;
 
+signals:
+	void debuggerEvent(const BinaryNinjaDebuggerAPI::DebuggerEvent& event);
+
 private Q_SLOTS:
 	void performQuery();
 	void clearResults();
@@ -143,6 +150,7 @@ private Q_SLOTS:
 	void copySelectedCell();
 	void copySelectedRow();
 	void copyEntireTable();
+	void onDebuggerEvent(const BinaryNinjaDebuggerAPI::DebuggerEvent& event);
 };
 
 class TTDMemoryWidget : public QWidget

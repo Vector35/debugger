@@ -97,7 +97,7 @@ QList<bool> ColumnVisibilityDialog::getColumnVisibility() const
 
 // TTDMemoryQueryWidget implementation
 TTDMemoryQueryWidget::TTDMemoryQueryWidget(QWidget* parent, BinaryViewRef data)
-	: QWidget(parent), m_data(data)
+	: QWidget(parent), m_data(data), m_eventCallbackIndex(0)
 {
 	m_controller = DebuggerController::GetController(m_data);
 	
@@ -120,10 +120,22 @@ TTDMemoryQueryWidget::TTDMemoryQueryWidget(QWidget* parent, BinaryViewRef data)
 	
 	setupUI();
 	setupUIActions();
+	
+	// Register for debugger events to update button state dynamically
+	if (m_controller)
+	{
+		connect(this, &TTDMemoryQueryWidget::debuggerEvent, this, &TTDMemoryQueryWidget::onDebuggerEvent);
+		m_eventCallbackIndex = m_controller->RegisterEventCallback(
+			[this](const BinaryNinjaDebuggerAPI::DebuggerEvent& event) { emit debuggerEvent(event); }, 
+			"TTD Memory Query Widget");
+	}
 }
 
 TTDMemoryQueryWidget::~TTDMemoryQueryWidget()
 {
+	// Remove event callback
+	if (m_controller && m_eventCallbackIndex)
+		m_controller->RemoveEventCallback(m_eventCallbackIndex);
 }
 
 void TTDMemoryQueryWidget::setupUI()
@@ -214,33 +226,8 @@ void TTDMemoryQueryWidget::setupUI()
 	
 	setLayout(mainLayout);
 	
-	// Update UI state based on controller
-	bool canQuery = false;
-	if (m_controller)
-	{
-		canQuery = m_controller->IsTTD();
-	}
-	
-	m_queryButton->setEnabled(canQuery);
-	
-	if (!canQuery)
-	{
-		if (!m_controller)
-		{
-			updateStatus("No debugger controller available");
-			m_queryButton->setToolTip("Query Memory Events - No debugger controller available");
-		}
-		else if (!m_controller->IsTTD())
-		{
-			updateStatus("TTD (Time Travel Debugging) not available with current target");
-			m_queryButton->setToolTip("Query Memory Events - TTD (Time Travel Debugging) not available with current adapter");
-		}
-	}
-	else
-	{
-		updateStatus("Ready - TTD memory analysis available");
-		m_queryButton->setToolTip("Execute TTD memory analysis query");
-	}
+	// Initialize button state dynamically
+	updateButtonState();
 }
 
 void TTDMemoryQueryWidget::setupTable()
@@ -317,6 +304,54 @@ void TTDMemoryQueryWidget::updateColumnVisibility()
 	for (int i = 0; i < m_columnVisibility.size(); ++i)
 	{
 		m_resultsTable->setColumnHidden(i, !m_columnVisibility[i]);
+	}
+}
+
+void TTDMemoryQueryWidget::updateButtonState()
+{
+	// Update UI state based on controller
+	bool canQuery = false;
+	if (m_controller)
+	{
+		canQuery = m_controller->IsTTD();
+	}
+	
+	m_queryButton->setEnabled(canQuery);
+	
+	if (!canQuery)
+	{
+		if (!m_controller)
+		{
+			updateStatus("No debugger controller available");
+			m_queryButton->setToolTip("Query Memory Events - No debugger controller available");
+		}
+		else if (!m_controller->IsTTD())
+		{
+			updateStatus("TTD (Time Travel Debugging) not available with current target");
+			m_queryButton->setToolTip("Query Memory Events - TTD (Time Travel Debugging) not available with current adapter");
+		}
+	}
+	else
+	{
+		updateStatus("Ready - TTD memory analysis available");
+		m_queryButton->setToolTip("Execute TTD memory analysis query");
+	}
+}
+
+void TTDMemoryQueryWidget::onDebuggerEvent(const BinaryNinjaDebuggerAPI::DebuggerEvent& event)
+{
+	// Update button state on events that might change TTD availability
+	switch (event.type)
+	{
+	case LaunchEventType:
+	case AttachEventType:
+	case ConnectEventType:
+	case TargetStoppedEventType:
+	case DetachedEventType:
+		updateButtonState();
+		break;
+	default:
+		break;
 	}
 }
 
