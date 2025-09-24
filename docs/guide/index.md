@@ -504,9 +504,44 @@ dbg.execute_backend_command('image list')
 
 ### Hardware Breakpoints/Watchpoints
 
-Hardware breakpoints and watchpoints are very useful and we plan to add better support for it soon. It is tracked by
-this [issue](https://github.com/Vector35/debugger/issues/53). For now, we can run a backend command directly to set
-hardware breakpoints/watchpoints.
+Hardware breakpoints and watchpoints are now supported through both the debugger API and direct backend commands.
+
+#### Using the Debugger API
+
+Hardware breakpoints can be set using the following methods in Python:
+
+```python
+from debugger import DebuggerController, DebugBreakpointType
+
+# Get the controller for your binary view
+controller = DebuggerController(bv)
+
+# Set hardware execution breakpoint
+controller.add_hardware_breakpoint(0x12345678, DebugBreakpointType.HardwareExecuteBreakpoint)
+
+# Set hardware read watchpoint (1 byte)
+controller.add_hardware_breakpoint(0x12345678, DebugBreakpointType.HardwareReadBreakpoint, 1)
+
+# Set hardware write watchpoint (4 bytes)
+controller.add_hardware_breakpoint(0x12345678, DebugBreakpointType.HardwareWriteBreakpoint, 4)
+
+# Set hardware access (read/write) watchpoint (8 bytes)
+controller.add_hardware_breakpoint(0x12345678, DebugBreakpointType.HardwareAccessBreakpoint, 8)
+
+# Remove hardware breakpoint
+controller.remove_hardware_breakpoint(0x12345678, DebugBreakpointType.HardwareExecuteBreakpoint)
+```
+
+The supported breakpoint types are:
+- `SoftwareBreakpoint`: Regular software breakpoint (default)
+- `HardwareExecuteBreakpoint`: Hardware execution breakpoint
+- `HardwareReadBreakpoint`: Hardware read watchpoint
+- `HardwareWriteBreakpoint`: Hardware write watchpoint
+- `HardwareAccessBreakpoint`: Hardware read/write watchpoint
+
+#### Using Backend Commands
+
+For cases where you need more control or the API is not available, you can use backend commands directly.
 
 #### WinDbg/DbgEng
 
