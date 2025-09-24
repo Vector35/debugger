@@ -90,10 +90,10 @@ void TTDCallsQueryWidget::setupUI()
 	auto addressLayout = new QHBoxLayout();
 	m_startAddressEdit = new QLineEdit();
 	m_startAddressEdit->setPlaceholderText("Start address (hex, optional)");
-	m_startAddressEdit->setEnabled(false); // Temporarily disabled due to crashes
+	m_startAddressEdit->setEnabled(true);
 	m_endAddressEdit = new QLineEdit();
 	m_endAddressEdit->setPlaceholderText("End address (hex, optional)");
-	m_endAddressEdit->setEnabled(false); // Temporarily disabled due to crashes
+	m_endAddressEdit->setEnabled(true);
 	addressLayout->addWidget(new QLabel("Return Address Range:"));
 	addressLayout->addWidget(m_startAddressEdit);
 	addressLayout->addWidget(new QLabel("to"));

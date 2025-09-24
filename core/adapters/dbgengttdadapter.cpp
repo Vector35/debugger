@@ -1052,14 +1052,25 @@ bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, std::v
 	try
 	{
 		LogInfo("Parsing TTD call objects from expression: %s", expression.c_str());
-		
+
+		// Convert expression to wide string
+		std::wstring wExpression(expression.begin(), expression.end());
+
+		// Create context for evaluation
+		ComPtr<IDebugHostContext> hostContext;
+		if (FAILED(m_debugHost->GetCurrentContext(hostContext.GetAddressOf())))
+		{
+			LogError("Failed to get current debug host context");
+			return "";
+		}
+
 		// Execute the expression to get call objects
 		ComPtr<IModelObject> resultObject;
 		ComPtr<IKeyStore> metadataKeyStore;
 		
 		HRESULT hr = m_hostEvaluator->EvaluateExtendedExpression(
-			nullptr,  // context
-			_bstr_t(expression.c_str()).GetBSTR(),
+			hostContext.Get(),
+			wExpression.c_str(),
 			nullptr,  // bindingContext
 			&resultObject,
 			&metadataKeyStore
