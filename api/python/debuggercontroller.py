@@ -23,10 +23,37 @@ from .debugger_enums import *
 from typing import Callable, List, Union
 
 
-# TTD (Time Travel Debugging) Memory Access Types
-TTDMemoryRead = 1
-TTDMemoryWrite = 2
-TTDMemoryExecute = 4
+# TTD (Time Travel Debugging) Memory Access Type parsing
+def parse_ttd_access_type(access_spec):
+    """
+    Parse TTD memory access type from string specification.
+    
+    Args:
+        access_spec: String containing access type specification.
+                     Can be combinations of 'r' (read), 'w' (write), 'e' (execute)
+                     e.g., "r", "rw", "rwe", "we", etc.
+                     
+    Returns:
+        DebuggerTTDMemoryAccessType enum value
+    """
+    if isinstance(access_spec, str):
+        access_value = 0
+        access_spec = access_spec.lower()
+        
+        if 'r' in access_spec:
+            access_value |= DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead
+        if 'w' in access_spec:
+            access_value |= DebuggerTTDMemoryAccessType.DebuggerTTDMemoryWrite
+        if 'e' in access_spec:
+            access_value |= DebuggerTTDMemoryAccessType.DebuggerTTDMemoryExecute
+            
+        if access_value == 0:
+            raise ValueError(f"Invalid access type specification: '{access_spec}'. Use combinations of 'r', 'w', 'e'")
+            
+        return access_value
+    else:
+        # Assume it's already a DebuggerTTDMemoryAccessType enum value
+        return access_spec
 
 
 class DebugProcess:
@@ -1917,7 +1944,7 @@ class DebuggerController:
             binaryninja.log_error(f"Invalid timestamp format: {e}")
             return False
 
-    def get_ttd_memory_access_for_address(self, address: int, size: int, access_type: int = TTDMemoryRead) -> List[TTDMemoryEvent]:
+    def get_ttd_memory_access_for_address(self, address: int, size: int, access_type = DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead) -> List[TTDMemoryEvent]:
         """
         Get TTD memory access events for a specific address range.
 
@@ -1926,13 +1953,18 @@ class DebuggerController:
 
         :param address: starting memory address to query
         :param size: size of memory region to query
-        :param access_type: type of memory access to query (TTDMemoryRead=1, TTDMemoryWrite=2, TTDMemoryExecute=4)
-                           Can be combined with bitwise OR, e.g., TTDMemoryRead | TTDMemoryWrite
+        :param access_type: type of memory access to query - can be:
+                           - DebuggerTTDMemoryAccessType enum values
+                           - String specification like "r", "w", "e", "rw", "rwe", etc.
+                           - Integer values (for backward compatibility)
         :return: list of TTDMemoryEvent objects
         :raises: May raise an exception if TTD is not available
         """
+        # Parse access type if it's a string
+        parsed_access_type = parse_ttd_access_type(access_type)
+        
         count = ctypes.c_ulonglong()
-        events = dbgcore.BNDebuggerGetTTDMemoryAccessForAddress(self.handle, address, size, access_type, count)
+        events = dbgcore.BNDebuggerGetTTDMemoryAccessForAddress(self.handle, address, size, parsed_access_type, count)
 
         if not events:
             return []

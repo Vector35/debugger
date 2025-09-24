@@ -57,7 +57,7 @@ class TTDMemoryEvent:
         memory_address (int): Actual memory address (may differ from address field)
         instruction_address (int): Address of the instruction that performed the access
         value (int): Value that was read/written/executed
-        access_type (int): Type of access (TTDMemoryRead/Write/Execute)
+        access_type (int): Type of access (DebuggerTTDMemoryAccessType enum)
     """
 ```
 
@@ -85,17 +85,50 @@ class TTDCallEvent:
     """
 ```
 
-## Constants
+## Constants and Access Types
+
+### DebuggerTTDMemoryAccessType Enum
+
+TTD memory access types are provided through the auto-generated `DebuggerTTDMemoryAccessType` enum:
 
 ```python
-# TTD Memory Access Types
-TTDMemoryRead = 1      # Memory read operations
-TTDMemoryWrite = 2     # Memory write operations  
-TTDMemoryExecute = 4   # Memory execute operations
+# TTD Memory Access Types (auto-generated enum)
+DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead       # Memory read operations
+DebuggerTTDMemoryAccessType.DebuggerTTDMemoryWrite      # Memory write operations  
+DebuggerTTDMemoryAccessType.DebuggerTTDMemoryExecute    # Memory execute operations
 
 # Can be combined with bitwise OR:
-# TTDMemoryRead | TTDMemoryWrite  # Both reads and writes
-# TTDMemoryRead | TTDMemoryWrite | TTDMemoryExecute  # All access types
+DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead | DebuggerTTDMemoryAccessType.DebuggerTTDMemoryWrite
+```
+
+### String-based Access Type Parsing
+
+For convenience, you can also specify access types using string notation:
+
+```python
+# String specifications (case-insensitive)
+"r"     # Read only
+"w"     # Write only  
+"e"     # Execute only
+"rw"    # Read and write
+"rwe"   # Read, write, and execute
+"we"    # Write and execute
+# etc.
+```
+
+### Access Type Parsing Function
+
+```python
+def parse_ttd_access_type(access_spec):
+    """
+    Parse TTD memory access type from string specification.
+    
+    Args:
+        access_spec: String containing access type specification or enum value
+                     
+    Returns:
+        DebuggerTTDMemoryAccessType enum value
+    """
 ```
 
 ## DebuggerController Methods
@@ -115,7 +148,7 @@ def get_ttd_memory_access_for_address(
     self, 
     address: int, 
     size: int, 
-    access_type: int = TTDMemoryRead
+    access_type = DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead
 ) -> List[TTDMemoryEvent]:
     """
     Get TTD memory access events for a specific address range.
@@ -123,7 +156,10 @@ def get_ttd_memory_access_for_address(
     Args:
         address: Starting memory address to query
         size: Size of memory region to query  
-        access_type: Type of memory access to query (can be combined with |)
+        access_type: Type of memory access to query - can be:
+                    - DebuggerTTDMemoryAccessType enum values
+                    - String specification like "r", "w", "e", "rw", "rwe", etc.
+                    - Integer values (for backward compatibility)
         
     Returns:
         List of TTDMemoryEvent objects
@@ -188,20 +224,27 @@ if not dbg.is_ttd:
 ### Memory Access Analysis
 
 ```python
-from debuggercontroller import TTDMemoryRead, TTDMemoryWrite, TTDMemoryExecute
+# Using enum values
+memory_events = dbg.get_ttd_memory_access_for_address(
+    0x401000, 4, DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead
+)
 
-# Get memory read events for a specific address
-address = 0x401000
-size = 4
-memory_events = dbg.get_ttd_memory_access_for_address(address, size, TTDMemoryRead)
+# Using string specification (more convenient)
+memory_events = dbg.get_ttd_memory_access_for_address(0x401000, 4, "r")
 
-print(f"Found {len(memory_events)} memory read events at {address:#x}")
+print(f"Found {len(memory_events)} memory read events at {0x401000:#x}")
 for event in memory_events:
     print(f"  Thread {event.thread_id}: read {event.value:#x} at {event.time_start}")
 
-# Get all memory access types
+# Get all memory access types - using string specification
+all_events = dbg.get_ttd_memory_access_for_address(0x401000, 4, "rwe")
+
+# Or using enum values with bitwise OR
 all_events = dbg.get_ttd_memory_access_for_address(
-    address, size, TTDMemoryRead | TTDMemoryWrite | TTDMemoryExecute
+    0x401000, 4, 
+    DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead | 
+    DebuggerTTDMemoryAccessType.DebuggerTTDMemoryWrite | 
+    DebuggerTTDMemoryAccessType.DebuggerTTDMemoryExecute
 )
 ```
 
@@ -257,11 +300,9 @@ def analyze_function_memory_usage(dbg, function_name, address_range):
     for call in calls:
         print(f"\\nCall at {call.time_start}:")
         
-        # Get memory events during this call
+        # Get memory events during this call (using string specification)
         start_addr, size = address_range
-        memory_events = dbg.get_ttd_memory_access_for_address(
-            start_addr, size, TTDMemoryRead | TTDMemoryWrite
-        )
+        memory_events = dbg.get_ttd_memory_access_for_address(start_addr, size, "rw")
         
         # Filter events that occurred during this call
         call_memory_events = [
@@ -271,7 +312,7 @@ def analyze_function_memory_usage(dbg, function_name, address_range):
         
         print(f"  Memory accesses during call: {len(call_memory_events)}")
         for event in call_memory_events[:5]:  # Show first 5
-            access_type = "read" if event.access_type == TTDMemoryRead else "write"
+            access_type = "read" if event.access_type == DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead else "write"
             print(f"    {access_type} @ {event.address:#x}: {event.value:#x}")
 
 # Usage
