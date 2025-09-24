@@ -363,6 +363,17 @@ namespace BinaryNinjaDebuggerAPI {
 	};
 
 
+	// Breakpoint types - used to specify the type of breakpoint to set
+	enum DebugBreakpointType
+	{
+		SoftwareBreakpoint = 0,        // Default software breakpoint
+		HardwareExecuteBreakpoint = 1, // Hardware execution breakpoint
+		HardwareReadBreakpoint = 2,    // Hardware read watchpoint
+		HardwareWriteBreakpoint = 3,   // Hardware write watchpoint 
+		HardwareAccessBreakpoint = 4   // Hardware read/write watchpoint
+	};
+
+
 	struct ModuleNameAndOffset
 	{
 		std::string module;
@@ -725,6 +736,10 @@ namespace BinaryNinjaDebuggerAPI {
 		void DisableBreakpoint(const ModuleNameAndOffset& breakpoint);
 		bool ContainsBreakpoint(uint64_t address);
 		bool ContainsBreakpoint(const ModuleNameAndOffset& breakpoint);
+
+		// Hardware breakpoint and watchpoint support
+		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
 
 		uint64_t IP();
 		uint64_t GetLastIP();
