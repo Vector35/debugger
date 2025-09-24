@@ -379,73 +379,83 @@ TTDPosition DbgEngTTDAdapter::GetCurrentTTDPosition()
 		return position;
 	}
 	
-	// Use data model API to get current TTD position
-	std::string output = EvaluateDataModelExpression("@$cursession.TTD.Position");
+	// Always use the !position command to retrieve the current timestamp
+	std::string output = InvokeBackendCommand("!position");
 	
-	if (!output.empty() && output != "complex_result")
+	if (!output.empty())
 	{
-		// Parse the position output (format like "1A0:12F")
-		size_t colonPos = output.find(':');
-		if (colonPos != std::string::npos)
+		// Parse the position output (format like "Time Travel Position: 602C:0")
+		size_t prefixPos = output.find("Time Travel Position:");
+		if (prefixPos != std::string::npos)
 		{
-			try 
+			// Find the position data after the prefix
+			size_t dataStart = prefixPos + strlen("Time Travel Position:");
+			std::string positionData = output.substr(dataStart);
+			
+			// Find the colon in the position data
+			size_t colonPos = positionData.find(':');
+			if (colonPos != std::string::npos)
 			{
-				std::string seqStr = output.substr(0, colonPos);
-				std::string stepStr = output.substr(colonPos + 1);
-				
-				// Remove any non-hex characters
-				seqStr.erase(std::remove_if(seqStr.begin(), seqStr.end(), 
-					[](char c) { return !std::isxdigit(c); }), seqStr.end());
-				stepStr.erase(std::remove_if(stepStr.begin(), stepStr.end(), 
-					[](char c) { return !std::isxdigit(c); }), stepStr.end());
-				
-				if (!seqStr.empty() && !stepStr.empty())
+				try 
 				{
-					position.sequence = std::stoull(seqStr, nullptr, 16);
-					position.step = std::stoull(stepStr, nullptr, 16);
+					std::string seqStr = positionData.substr(0, colonPos);
+					std::string stepStr = positionData.substr(colonPos + 1);
+					
+					// Remove any non-hex characters
+					seqStr.erase(std::remove_if(seqStr.begin(), seqStr.end(), 
+						[](char c) { return !std::isxdigit(c); }), seqStr.end());
+					stepStr.erase(std::remove_if(stepStr.begin(), stepStr.end(), 
+						[](char c) { return !std::isxdigit(c); }), stepStr.end());
+					
+					if (!seqStr.empty() && !stepStr.empty())
+					{
+						position.sequence = std::stoull(seqStr, nullptr, 16);
+						position.step = std::stoull(stepStr, nullptr, 16);
+					}
+				}
+				catch (const std::exception& e)
+				{
+					LogError("Failed to parse TTD position: %s", e.what());
 				}
 			}
-			catch (const std::exception& e)
+		}
+		else
+		{
+			// Fallback: try to find a simple "XXXX:Y" pattern in the output
+			size_t colonPos = output.find(':');
+			if (colonPos != std::string::npos)
 			{
-				LogError("Failed to parse TTD position: %s", e.what());
+				try 
+				{
+					// Look backwards from colon to find start of hex sequence
+					size_t seqStart = colonPos;
+					while (seqStart > 0 && std::isxdigit(output[seqStart - 1]))
+						seqStart--;
+					
+					// Look forwards from colon to find end of hex step
+					size_t stepEnd = colonPos + 1;
+					while (stepEnd < output.length() && std::isxdigit(output[stepEnd]))
+						stepEnd++;
+					
+					if (seqStart < colonPos && stepEnd > colonPos + 1)
+					{
+						std::string seqStr = output.substr(seqStart, colonPos - seqStart);
+						std::string stepStr = output.substr(colonPos + 1, stepEnd - colonPos - 1);
+						
+						if (!seqStr.empty() && !stepStr.empty())
+						{
+							position.sequence = std::stoull(seqStr, nullptr, 16);
+							position.step = std::stoull(stepStr, nullptr, 16);
+						}
+					}
+				}
+				catch (const std::exception& e)
+				{
+					LogError("Failed to parse TTD position from fallback parsing: %s", e.what());
+				}
 			}
 		}
 	}
-	else
-	{
-		// Fallback to command interface if data model doesn't work
-		LogWarn("Data model evaluation failed, falling back to command interface");
-		std::string output = InvokeBackendCommand("!position");
-		
-		// Parse the position output (format like "1A0:12F")
-		size_t colonPos = output.find(':');
-		if (colonPos != std::string::npos)
-		{
-			try 
-			{
-				std::string seqStr = output.substr(0, colonPos);
-				std::string stepStr = output.substr(colonPos + 1);
-				
-				// Remove any non-hex characters
-				seqStr.erase(std::remove_if(seqStr.begin(), seqStr.end(), 
-					[](char c) { return !std::isxdigit(c); }), seqStr.end());
-				stepStr.erase(std::remove_if(stepStr.begin(), stepStr.end(), 
-					[](char c) { return !std::isxdigit(c); }), stepStr.end());
-				
-				if (!seqStr.empty() && !stepStr.empty())
-				{
-					position.sequence = std::stoull(seqStr, nullptr, 16);
-					position.step = std::stoull(stepStr, nullptr, 16);
-				}
-			}
-			catch (const std::exception& e)
-			{
-				LogError("Failed to parse TTD position: %s", e.what());
-			}
-		}
-	}
-	
-	return position;
 	
 	return position;
 }

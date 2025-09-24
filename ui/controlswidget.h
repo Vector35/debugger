@@ -53,6 +53,7 @@ private:
 
 	QAction* m_actionSettings;
 	QAction* m_actionToggleBreakpoint;
+	QAction* m_actionTimestampNavigation;
 
 	bool canExec();
 	bool canConnect();
@@ -90,4 +91,5 @@ public Q_SLOTS:
 
 	void performSettings();
 	void toggleBreakpoint();
+	void performTimestampNavigation();
 };

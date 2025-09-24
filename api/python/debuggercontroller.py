@@ -494,6 +494,62 @@ class DebuggerEventWrapper:
             binaryninja.log_error(traceback.format_exc())
 
 
+class TTDPosition:
+    """
+    TTDPosition represents a position in a time travel debugging trace.
+    
+    It has the following fields:
+    
+    * ``sequence``: the sequence number (as hex string or int)
+    * ``step``: the step number within the sequence (as hex string or int)
+    """
+    
+    def __init__(self, sequence, step):
+        if isinstance(sequence, str):
+            self.sequence = int(sequence, 16)
+        else:
+            self.sequence = int(sequence)
+            
+        if isinstance(step, str):
+            self.step = int(step, 16)
+        else:
+            self.step = int(step)
+    
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.sequence == other.sequence and self.step == other.step
+    
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+    
+    def __hash__(self):
+        return hash((self.sequence, self.step))
+    
+    def __repr__(self):
+        return f"<TTDPosition: {self.sequence:x}:{self.step:x}>"
+    
+    def __str__(self):
+        return f"{self.sequence:x}:{self.step:x}"
+    
+    @classmethod
+    def from_string(cls, timestamp_str):
+        """
+        Create a TTDPosition from a string in format "sequence:step"
+        Both sequence and step can be in hex or decimal format.
+        """
+        if ':' not in timestamp_str:
+            raise ValueError("Timestamp must be in format 'sequence:step'")
+        
+        parts = timestamp_str.strip().split(':')
+        if len(parts) != 2:
+            raise ValueError("Timestamp must be in format 'sequence:step'")
+        
+        return cls(parts[0], parts[1])
+
+
 class DebuggerController:
     """
     The ``DebuggerController`` object is the core of the debugger. Most debugger operations can be performed on it.
@@ -1635,6 +1691,87 @@ class DebuggerController:
     @property
     def is_ttd(self):
         return dbgcore.BNDebuggerIsTTD(self.handle)
+
+    @property
+    def current_ttd_position(self):
+        """
+        Get the current position in the TTD trace.
+        
+        Returns:
+            TTDPosition: Current position, or None if not in TTD mode
+        """
+        if not self.is_ttd:
+            return None
+        
+        pos = dbgcore.BNDebuggerGetCurrentTTDPosition(self.handle)
+        return TTDPosition(pos.sequence, pos.step)
+
+    @current_ttd_position.setter
+    def current_ttd_position(self, position):
+        """
+        Navigate to a specific position in the TTD trace.
+        
+        Args:
+            position: TTDPosition object or string in format "sequence:step"
+        """
+        if not self.is_ttd:
+            raise RuntimeError("TTD is not active")
+        
+        if isinstance(position, str):
+            position = TTDPosition.from_string(position)
+        elif not isinstance(position, TTDPosition):
+            raise TypeError("Position must be TTDPosition object or string")
+        
+        # Create the C structure
+        pos = dbgcore.BNDebuggerTTDPosition()
+        pos.sequence = position.sequence
+        pos.step = position.step
+        
+        success = dbgcore.BNDebuggerSetTTDPosition(self.handle, pos)
+        if not success:
+            raise RuntimeError("Failed to navigate to the specified TTD position")
+
+    def set_ttd_position(self, position):
+        """
+        Navigate to a specific position in the TTD trace.
+        
+        Args:
+            position: TTDPosition object or string in format "sequence:step"
+            
+        Returns:
+            bool: True if navigation succeeded, False otherwise
+        """
+        if not self.is_ttd:
+            return False
+        
+        if isinstance(position, str):
+            position = TTDPosition.from_string(position)
+        elif not isinstance(position, TTDPosition):
+            raise TypeError("Position must be TTDPosition object or string")
+        
+        # Create the C structure
+        pos = dbgcore.BNDebuggerTTDPosition()
+        pos.sequence = position.sequence
+        pos.step = position.step
+        
+        return dbgcore.BNDebuggerSetTTDPosition(self.handle, pos)
+
+    def navigate_to_timestamp(self, timestamp_str):
+        """
+        Convenience method to navigate to a timestamp string.
+        
+        Args:
+            timestamp_str: String in format "sequence:step" (hex or decimal)
+            
+        Returns:
+            bool: True if navigation succeeded, False otherwise
+        """
+        try:
+            position = TTDPosition.from_string(timestamp_str)
+            return self.set_ttd_position(position)
+        except ValueError as e:
+            binaryninja.log_error(f"Invalid timestamp format: {e}")
+            return False
 
     def __del__(self):
         if dbgcore is not None:
