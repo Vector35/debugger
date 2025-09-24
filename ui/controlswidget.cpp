@@ -136,7 +136,7 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	});
 	m_actionStepReturnBack->setToolTip(getToolTip("Step Return Backwards"));
 
-	m_actionTimestampNavigation = addAction(getColoredIcon(":/debugger/step-into", cyan), "Navigate to Timestamp", [this]() {
+	m_actionTimestampNavigation = addAction(getColoredIcon(":/debugger/ttd-timestamp", cyan), "Navigate to Timestamp", [this]() {
 		performTimestampNavigation();
 	});
 	m_actionTimestampNavigation->setToolTip(getToolTip("Navigate to TTD Timestamp..."));
