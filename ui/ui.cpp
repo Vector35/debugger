@@ -1050,7 +1050,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				
 				uint64_t startAddr, endAddr;
 				GetAddressRange(ctxt, startAddr, endAddr);
-				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, BNDebuggerTTDMemoryRead);
+				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, DebuggerTTDMemoryRead);
 			},
 			connectedToTTD));
 	debuggerMenu->addAction("TTD Memory Access\\Read", "TTD");
@@ -1068,7 +1068,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				
 				uint64_t startAddr, endAddr;
 				GetAddressRange(ctxt, startAddr, endAddr);
-				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, BNDebuggerTTDMemoryWrite);
+				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, DebuggerTTDMemoryWrite);
 			},
 			connectedToTTD));
 	debuggerMenu->addAction("TTD Memory Access\\Write", "TTD");
@@ -1086,7 +1086,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				
 				uint64_t startAddr, endAddr;
 				GetAddressRange(ctxt, startAddr, endAddr);
-				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, static_cast<BNDebuggerTTDMemoryAccessType>(BNDebuggerTTDMemoryRead | BNDebuggerTTDMemoryWrite));
+				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, static_cast<BNDebuggerTTDMemoryAccessType>(DebuggerTTDMemoryRead | DebuggerTTDMemoryWrite));
 			},
 			connectedToTTD));
 	debuggerMenu->addAction("TTD Memory Access\\Read/Write", "TTD");
@@ -1104,7 +1104,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				
 				uint64_t startAddr, endAddr;
 				GetAddressRange(ctxt, startAddr, endAddr);
-				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, BNDebuggerTTDMemoryExecute);
+				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, DebuggerTTDMemoryExecute);
 			},
 			connectedToTTD));
 	debuggerMenu->addAction("TTD Memory Access\\Execute", "TTD");
@@ -1122,7 +1122,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				
 				uint64_t startAddr, endAddr;
 				GetAddressRange(ctxt, startAddr, endAddr);
-				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, static_cast<BNDebuggerTTDMemoryAccessType>(BNDebuggerTTDMemoryRead | BNDebuggerTTDMemoryWrite | BNDebuggerTTDMemoryExecute));
+				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, static_cast<BNDebuggerTTDMemoryAccessType>(DebuggerTTDMemoryRead | DebuggerTTDMemoryWrite | DebuggerTTDMemoryExecute));
 			},
 			connectedToTTD));
 	debuggerMenu->addAction("TTD Memory Access\\Read/Write/Execute", "TTD");

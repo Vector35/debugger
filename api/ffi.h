@@ -297,9 +297,9 @@ extern "C"
 	// TTD (Time Travel Debugging) structures
 	typedef enum BNDebuggerTTDMemoryAccessType
 	{
-		BNDebuggerTTDMemoryRead = 1,
-		BNDebuggerTTDMemoryWrite = 2,
-		BNDebuggerTTDMemoryExecute = 4
+		DebuggerTTDMemoryRead = 1,
+		DebuggerTTDMemoryWrite = 2,
+		DebuggerTTDMemoryExecute = 4
 	} BNDebuggerTTDMemoryAccessType;
 
 	typedef struct BNDebuggerTTDPosition
