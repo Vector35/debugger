@@ -411,6 +411,15 @@ DebugBreakpoint EsrevenAdapter::AddBreakpoint(const std::uintptr_t address, unsi
                    DebugBreakpoint(address)) != this->m_debugBreakpoints.end())
         return {};
 
+	// Handle hardware breakpoint types
+	if (breakpoint_type != SoftwareBreakpoint)
+	{
+		if (AddHardwareBreakpoint(address, (DebugBreakpointType)breakpoint_type))
+			return DebugBreakpoint(address, 0, true); // Use 0 as ID for hardware breakpoints for now
+		else
+			return DebugBreakpoint{};
+	}
+
     /* TODO: replace %d with the actual breakpoint size as it differs per architecture */
     size_t kind = 1;
     if (m_remoteArch == "aarch64")
