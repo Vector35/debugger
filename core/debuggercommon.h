@@ -152,4 +152,14 @@ namespace BinaryNinjaDebugger {
 		
 		TTDCallEvent() : threadId(0), uniqueThreadId(0), functionAddress(0), returnAddress(0), returnValue(0), hasReturnValue(false) {}
 	};
+
+	// Breakpoint types - used to specify the type of breakpoint to set
+	enum DebugBreakpointType
+	{
+		SoftwareBreakpoint = 0,        // Default software breakpoint
+		HardwareExecuteBreakpoint = 1, // Hardware execution breakpoint
+		HardwareReadBreakpoint = 2,    // Hardware read watchpoint
+		HardwareWriteBreakpoint = 3,   // Hardware write watchpoint 
+		HardwareAccessBreakpoint = 4   // Hardware read/write watchpoint
+	};
 };  // namespace BinaryNinjaDebugger

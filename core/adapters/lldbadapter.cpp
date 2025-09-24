@@ -908,6 +908,16 @@ std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
 
 DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
+	// Check if this is a hardware breakpoint type
+	if (breakpoint_type == HardwareExecuteBreakpoint)
+	{
+		if (AddHardwareBreakpoint(address, HardwareExecuteBreakpoint))
+			return DebugBreakpoint(address, 0, true); // Use 0 as ID for hardware breakpoints for now
+		else
+			return DebugBreakpoint {};
+	}
+	
+	// Default software breakpoint
 	SBBreakpoint bp = m_target.BreakpointCreateByAddress(address);
 	if (!bp.IsValid())
 		return DebugBreakpoint {};
@@ -981,6 +991,96 @@ bool LldbAdapter::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
 std::vector<DebugBreakpoint> LldbAdapter::GetBreakpointList() const
 {
 	return std::vector<DebugBreakpoint>();
+}
+
+
+bool LldbAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!m_targetActive)
+		return false;
+
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+		{
+			// Use LLDB command to set hardware execution breakpoint
+			std::string command = fmt::format("breakpoint set --address 0x{:x} -H", address);
+			auto result = InvokeBackendCommand(command);
+			return result.find("Breakpoint") != std::string::npos;
+		}
+		case HardwareReadBreakpoint:
+		{
+			// Use LLDB watchpoint command for read
+			std::string command = fmt::format("watchpoint set expression -w read -s {} -- 0x{:x}", size, address);
+			auto result = InvokeBackendCommand(command);
+			return result.find("Watchpoint") != std::string::npos;
+		}
+		case HardwareWriteBreakpoint:
+		{
+			// Use LLDB watchpoint command for write
+			std::string command = fmt::format("watchpoint set expression -w write -s {} -- 0x{:x}", size, address);
+			auto result = InvokeBackendCommand(command);
+			return result.find("Watchpoint") != std::string::npos;
+		}
+		case HardwareAccessBreakpoint:
+		{
+			// Use LLDB watchpoint command for read/write
+			std::string command = fmt::format("watchpoint set expression -w read_write -s {} -- 0x{:x}", size, address);
+			auto result = InvokeBackendCommand(command);
+			return result.find("Watchpoint") != std::string::npos;
+		}
+		default:
+			return false;
+	}
+}
+
+
+bool LldbAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!m_targetActive)
+		return false;
+
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+		{
+			// Find and delete hardware breakpoint at address
+			for (size_t i = 0; i < m_target.GetNumBreakpoints(); i++)
+			{
+				auto bp = m_target.GetBreakpointAtIndex(i);
+				if (bp.IsHardware())
+				{
+					for (size_t j = 0; j < bp.GetNumLocations(); j++)
+					{
+						auto location = bp.GetLocationAtIndex(j);
+						auto bpAddress = location.GetAddress().GetLoadAddress(m_target);
+						if (address == bpAddress)
+						{
+							return m_target.BreakpointDelete(bp.GetID());
+						}
+					}
+				}
+			}
+			return false;
+		}
+		case HardwareReadBreakpoint:
+		case HardwareWriteBreakpoint:
+		case HardwareAccessBreakpoint:
+		{
+			// Find and delete watchpoint at address
+			for (size_t i = 0; i < m_target.GetNumWatchpoints(); i++)
+			{
+				auto wp = m_target.GetWatchpointAtIndex(i);
+				if (wp.GetWatchAddress() == address)
+				{
+					return m_target.DeleteWatchpoint(wp.GetID());
+				}
+			}
+			return false;
+		}
+		default:
+			return false;
+	}
 }
 
 
