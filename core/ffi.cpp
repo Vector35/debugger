@@ -897,6 +897,34 @@ bool BNDebuggerContainsRelativeBreakpoint(BNDebuggerController* controller, cons
 }
 
 
+bool BNDebuggerAddHardwareBreakpoint(BNDebuggerController* controller, uint64_t address, BNDebugBreakpointType type, size_t size)
+{
+	DebuggerState* state = controller->object->GetState();
+	if (!state)
+		return false;
+
+	DebugAdapter* adapter = state->GetAdapter();
+	if (!adapter)
+		return false;
+
+	return adapter->AddHardwareBreakpoint(address, (DebugBreakpointType)type, size);
+}
+
+
+bool BNDebuggerRemoveHardwareBreakpoint(BNDebuggerController* controller, uint64_t address, BNDebugBreakpointType type, size_t size)
+{
+	DebuggerState* state = controller->object->GetState();
+	if (!state)
+		return false;
+
+	DebugAdapter* adapter = state->GetAdapter();
+	if (!adapter)
+		return false;
+
+	return adapter->RemoveHardwareBreakpoint(address, (DebugBreakpointType)type, size);
+}
+
+
 uint64_t BNDebuggerRelativeAddressToAbsolute(BNDebuggerController* controller, const char* module, uint64_t offset)
 {
 	DebuggerState* state = controller->object->GetState();

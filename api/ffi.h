@@ -218,6 +218,16 @@ extern "C"
 	} BNDebugAdapterTargetStatus;
 
 
+	typedef enum BNDebugBreakpointType
+	{
+		BNSoftwareBreakpoint = 0,        // Default software breakpoint
+		BNHardwareExecuteBreakpoint = 1, // Hardware execution breakpoint
+		BNHardwareReadBreakpoint = 2,    // Hardware read watchpoint
+		BNHardwareWriteBreakpoint = 3,   // Hardware write watchpoint 
+		BNHardwareAccessBreakpoint = 4   // Hardware read/write watchpoint
+	} BNDebugBreakpointType;
+
+
 	typedef enum BNDebuggerEventType
 	{
 		LaunchEventType,
@@ -521,6 +531,12 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerContainsAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t address);
 	DEBUGGER_FFI_API bool BNDebuggerContainsRelativeBreakpoint(
 		BNDebuggerController* controller, const char* module, uint64_t offset);
+
+	// Hardware breakpoint and watchpoint support
+	DEBUGGER_FFI_API bool BNDebuggerAddHardwareBreakpoint(BNDebuggerController* controller, uint64_t address, 
+		BNDebugBreakpointType type, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerRemoveHardwareBreakpoint(BNDebuggerController* controller, uint64_t address, 
+		BNDebugBreakpointType type, size_t size);
 
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetIP(BNDebuggerController* controller);
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetLastIP(BNDebuggerController* controller);
