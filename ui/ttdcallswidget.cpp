@@ -201,11 +201,22 @@ void TTDCallsQueryWidget::performQuery()
 {
 	if (!m_controller)
 	{
+		QMessageBox::warning(this, "Controller Not Available", 
+			"No debugger controller is available.");
 		return;
 	}
 	
 	if (!m_controller->IsConnected())
 	{
+		QMessageBox::warning(this, "Not Connected", 
+			"Not connected to a debugging target.");
+		return;
+	}
+	
+	if (!m_controller->IsTTD())
+	{
+		QMessageBox::warning(this, "TTD Not Available", 
+			"Time Travel Debugging is not available with the current target.");
 		return;
 	}
 	
@@ -213,6 +224,8 @@ void TTDCallsQueryWidget::performQuery()
 	QString symbolsText = m_symbolsEdit->text().trimmed();
 	if (symbolsText.isEmpty())
 	{
+		QMessageBox::warning(this, "No Symbols Specified", 
+			"Please enter one or more symbol names to search for.");
 		return;
 	}
 	

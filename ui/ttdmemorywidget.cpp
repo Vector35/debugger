@@ -214,33 +214,10 @@ void TTDMemoryQueryWidget::setupUI()
 	
 	setLayout(mainLayout);
 	
-	// Update UI state based on controller
-	bool canQuery = false;
-	if (m_controller)
-	{
-		canQuery = m_controller->IsTTD();
-	}
-	
-	m_queryButton->setEnabled(canQuery);
-	
-	if (!canQuery)
-	{
-		if (!m_controller)
-		{
-			updateStatus("No debugger controller available");
-			m_queryButton->setToolTip("Query Memory Events - No debugger controller available");
-		}
-		else if (!m_controller->IsTTD())
-		{
-			updateStatus("TTD (Time Travel Debugging) not available with current target");
-			m_queryButton->setToolTip("Query Memory Events - TTD (Time Travel Debugging) not available with current adapter");
-		}
-	}
-	else
-	{
-		updateStatus("Ready - TTD memory analysis available");
-		m_queryButton->setToolTip("Execute TTD memory analysis query");
-	}
+	// Button is always enabled - errors are shown in performQuery() if needed
+	m_queryButton->setEnabled(true);
+	m_queryButton->setToolTip("Execute TTD memory analysis query");
+	updateStatus("Ready");
 }
 
 void TTDMemoryQueryWidget::setupTable()
