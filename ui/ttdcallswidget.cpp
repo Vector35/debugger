@@ -559,6 +559,35 @@ void TTDCallsQueryWidget::setParametersAndQuery(const std::string& symbols, uint
 	performQuery();
 }
 
+void TTDCallsQueryWidget::setParameters(const std::string& symbols, uint64_t startAddr, uint64_t endAddr)
+{
+	// Set symbol parameters
+	m_symbolsEdit->setText(QString::fromStdString(symbols));
+	
+	// Set address range
+	if (startAddr != 0)
+		m_startAddressEdit->setText(QString("0x%1").arg(startAddr, 0, 16));
+	if (endAddr != 0)
+		m_endAddressEdit->setText(QString("0x%1").arg(endAddr, 0, 16));
+	
+	// Don't execute query
+}
+
+void TTDCallsQueryWidget::setParameters(const QString& symbols, const QString& startAddr, const QString& endAddr)
+{
+	// Set symbol parameters as string
+	if (!symbols.isEmpty())
+		m_symbolsEdit->setText(symbols);
+	
+	// Set address range as strings
+	if (!startAddr.isEmpty())
+		m_startAddressEdit->setText(startAddr);
+	if (!endAddr.isEmpty())
+		m_endAddressEdit->setText(endAddr);
+	
+	// Don't execute query
+}
+
 bool TTDCallsQueryWidget::isUnused() const
 {
 	// Consider a tab unused if it has no results
@@ -608,9 +637,27 @@ void TTDCallsWidget::setupUI()
 
 void TTDCallsWidget::createNewTab()
 {
+	// Get parameters from current tab if exists
+	TTDCallsQueryWidget* currentWidget = qobject_cast<TTDCallsQueryWidget*>(m_tabWidget->currentWidget());
+	QString symbols, startAddr, endAddr;
+	
+	if (currentWidget)
+	{
+		symbols = currentWidget->getSymbols();
+		startAddr = currentWidget->getStartAddress();
+		endAddr = currentWidget->getEndAddress();
+	}
+	
+	// Create new tab
 	auto queryWidget = new TTDCallsQueryWidget(this, m_data);
 	int index = m_tabWidget->addTab(queryWidget, QString("Query %1").arg(m_tabWidget->count() + 1));
 	m_tabWidget->setCurrentIndex(index);
+	
+	// Set parameters from previous tab if any existed
+	if (currentWidget && (!symbols.isEmpty() || !startAddr.isEmpty() || !endAddr.isEmpty()))
+	{
+		queryWidget->setParameters(symbols, startAddr, endAddr);
+	}
 }
 
 void TTDCallsWidget::closeTab(int index)

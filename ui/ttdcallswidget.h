@@ -112,8 +112,17 @@ public:
 	// Method to set parameters and execute query from context menu
 	void setParametersAndQuery(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
 	
+	// Method to set parameters without executing query (for duplicating tabs)
+	void setParameters(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
+	void setParameters(const QString& symbols, const QString& startAddr, const QString& endAddr);
+	
 	// Method to check if this tab is unused (no results and default parameters)
 	bool isUnused() const;
+	
+	// Methods to get current query parameters for duplication
+	QString getSymbols() const { return m_symbolsEdit->text(); }
+	QString getStartAddress() const { return m_startAddressEdit->text(); }
+	QString getEndAddress() const { return m_endAddressEdit->text(); }
 
 private Q_SLOTS:
 	void performQuery();
