@@ -358,6 +358,17 @@ namespace BinaryNinjaDebuggerAPI {
 	};
 
 
+	// Breakpoint types - used to specify the type of breakpoint to set
+	enum DebugBreakpointType
+	{
+		SoftwareBreakpoint = 0,        // Default software breakpoint
+		HardwareExecuteBreakpoint = 1, // Hardware execution breakpoint
+		HardwareReadBreakpoint = 2,    // Hardware read watchpoint
+		HardwareWriteBreakpoint = 3,   // Hardware write watchpoint
+		HardwareAccessBreakpoint = 4   // Hardware read/write watchpoint
+	};
+
+
 	struct DebugBreakpoint
 	{
 		std::string module;
@@ -365,6 +376,8 @@ namespace BinaryNinjaDebuggerAPI {
 		uint64_t address;
 		bool enabled;
 		std::string condition;
+		DebugBreakpointType type = SoftwareBreakpoint;
+		size_t size = 1;  // Size in bytes for hardware breakpoints/watchpoints (1, 2, 4, 8)
 	};
 
 
@@ -734,6 +747,18 @@ namespace BinaryNinjaDebuggerAPI {
 		bool SetBreakpointCondition(const ModuleNameAndOffset& address, const std::string& condition);
 		std::string GetBreakpointCondition(uint64_t address);
 		std::string GetBreakpointCondition(const ModuleNameAndOffset& address);
+
+		// Hardware breakpoint and watchpoint support - absolute address
+		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+		bool EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+		bool DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+
+		// Hardware breakpoint and watchpoint support - module+offset (ASLR-safe)
+		bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1);
+		bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1);
+		bool EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1);
+		bool DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1);
 
 		uint64_t IP();
 		uint64_t GetLastIP();

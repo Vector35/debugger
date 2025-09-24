@@ -253,3 +253,5 @@ bool DebugAdapter::SetTTDPosition(const TTDPosition& position)
 	// Default implementation returns false for adapters that don't support TTD
 	return false;
 }
+
+

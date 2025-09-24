@@ -371,20 +371,24 @@ class DebugBreakpoint:
     * ``address``: the absolute address of the breakpoint
     * ``enabled``: whether the breakpoint is enabled (read-only)
     * ``condition``: the condition expression for the breakpoint (empty if no condition)
+    * ``type``: the type of breakpoint (Software, HardwareExecute, HardwareRead, HardwareWrite, HardwareAccess)
+    * ``size``: the size in bytes for hardware breakpoints/watchpoints (1, 2, 4, or 8)
 
     """
-    def __init__(self, module, offset, address, enabled, condition=""):
+    def __init__(self, module, offset, address, enabled, condition="", bp_type=DebugBreakpointType.BNSoftwareBreakpoint, size=1):
         self.module = module
         self.offset = offset
         self.address = address
         self.enabled = enabled
         self.condition = condition
+        self.type = bp_type
+        self.size = size
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return NotImplemented
         return self.module == other.module and self.offset == other.offset and self.address == other.address \
-               and self.enabled == other.enabled
+               and self.enabled == other.enabled and self.type == other.type and self.size == other.size
 
     def __ne__(self, other):
         if not isinstance(other, self.__class__):
@@ -392,7 +396,7 @@ class DebugBreakpoint:
         return not (self == other)
 
     def __hash__(self):
-        return hash((self.module, self.offset, self.address, self.enabled))
+        return hash((self.module, self.offset, self.address, self.enabled, self.type, self.size))
 
     def __setattr__(self, name, value):
         try:
@@ -403,7 +407,22 @@ class DebugBreakpoint:
     def __repr__(self):
         status = "enabled" if self.enabled else "disabled"
         cond_str = f", condition='{self.condition}'" if self.condition else ""
-        return f"<DebugBreakpoint: {self.module}:{self.offset:#x}, {self.address:#x}, {status}{cond_str}>"
+
+        # Get type string (S, HE, HR, HW, HA)
+        if self.type == DebugBreakpointType.BNSoftwareBreakpoint:
+            type_str = "S"
+        elif self.type == DebugBreakpointType.BNHardwareExecuteBreakpoint:
+            type_str = "HE"
+        elif self.type == DebugBreakpointType.BNHardwareReadBreakpoint:
+            type_str = "HR"
+        elif self.type == DebugBreakpointType.BNHardwareWriteBreakpoint:
+            type_str = "HW"
+        elif self.type == DebugBreakpointType.BNHardwareAccessBreakpoint:
+            type_str = "HA"
+        else:
+            type_str = "?"
+
+        return f"<DebugBreakpoint: {self.module}:{self.offset:#x}, {self.address:#x}, type={type_str}, {status}{cond_str}>"
 
 
 class ModuleNameAndOffset:
@@ -2059,7 +2078,8 @@ class DebuggerController:
         result = []
         for i in range(0, count.value):
             condition = breakpoints[i].condition if breakpoints[i].condition else ""
-            bp = DebugBreakpoint(breakpoints[i].module, breakpoints[i].offset, breakpoints[i].address, breakpoints[i].enabled, condition)
+            bp = DebugBreakpoint(breakpoints[i].module, breakpoints[i].offset, breakpoints[i].address,
+                                 breakpoints[i].enabled, condition, breakpoints[i].type, breakpoints[i].size)
             result.append(bp)
 
         dbgcore.BNDebuggerFreeBreakpoints(breakpoints, count.value)

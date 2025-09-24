@@ -175,7 +175,7 @@ namespace BinaryNinjaDebugger {
 		uint64_t size;                 // Size of the module in bytes
 		uint32_t checksum;             // Checksum of the module
 		uint32_t timestamp;            // Timestamp of the module
-		
+
 		TTDModule() : address(0), size(0), checksum(0), timestamp(0) {}
 	};
 
@@ -188,7 +188,7 @@ namespace BinaryNinjaDebugger {
 		TTDPosition lifetimeEnd;       // Lifetime end position
 		TTDPosition activeTimeStart;   // Active time start position
 		TTDPosition activeTimeEnd;     // Active time end position
-		
+
 		TTDThread() : uniqueId(0), id(0) {}
 	};
 
@@ -208,7 +208,7 @@ namespace BinaryNinjaDebugger {
 		uint32_t flags;                // Exception flags
 		uint64_t recordAddress;        // Where in memory the exception record is found
 		TTDPosition position;          // Position where exception occurred
-		
+
 		TTDException() : type(TTDExceptionSoftware), programCounter(0), code(0), flags(0), recordAddress(0) {}
 	};
 
@@ -217,13 +217,23 @@ namespace BinaryNinjaDebugger {
 	{
 		TTDEventType type;             // Type of event
 		TTDPosition position;          // Position where event occurred
-		
+
 		// Optional child objects - existence depends on event type
 		std::optional<TTDModule> module;      // For ModuleLoaded/ModuleUnloaded events
 		std::optional<TTDThread> thread;      // For ThreadCreated/ThreadTerminated events
 		std::optional<TTDException> exception; // For Exception events
-		
+
 		TTDEvent() : type(TTDEventThreadCreated) {}
 		TTDEvent(TTDEventType eventType) : type(eventType) {}
+	};
+
+	// Breakpoint types - used to specify the type of breakpoint to set
+	enum DebugBreakpointType
+	{
+		SoftwareBreakpoint = 0,        // Default software breakpoint
+		HardwareExecuteBreakpoint = 1, // Hardware execution breakpoint
+		HardwareReadBreakpoint = 2,    // Hardware read watchpoint
+		HardwareWriteBreakpoint = 3,   // Hardware write watchpoint
+		HardwareAccessBreakpoint = 4   // Hardware read/write watchpoint
 	};
 };  // namespace BinaryNinjaDebugger

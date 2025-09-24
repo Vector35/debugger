@@ -17,6 +17,7 @@ limitations under the License.
 #include "ui.h"
 #include "binaryninjaapi.h"
 #include "breakpointswidget.h"
+#include "hardwarebreakpointdialog.h"
 #include "moduleswidget.h"
 #include "renderlayer.h"
 #include "uinotification.h"
@@ -975,6 +976,24 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			}));
 	debuggerMenu->addAction("Edit Condition...", "Breakpoint");
 
+	// Register "Add Hardware Breakpoint" action
+	UIAction::registerAction("Add Hardware Breakpoint...", QKeySequence(Qt::Key_F3));
+	context->globalActions()->bindAction("Add Hardware Breakpoint...",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				// Show the hardware breakpoint dialog with the current address as suggestion
+				HardwareBreakpointDialog dialog(context->mainWindow(), controller, ctxt.address);
+				dialog.exec();
+			},
+			requireBinaryView));
+	debuggerMenu->addAction("Add Hardware Breakpoint...", "Breakpoint");
+
 	UIAction::registerAction("Connect to Debug Server");
 	context->globalActions()->bindAction("Connect to Debug Server",
 		UIAction(
@@ -1455,14 +1474,9 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller) :
 	// Since the Controller is constructed earlier than the UI, any breakpoints added before the construction of the UI,
 	// e.g. the entry point breakpoint, will be missing the visual indicator.
 	// Here, we forcibly add them.
-	for (auto bp : m_controller->GetBreakpoints())
-	{
-		DebuggerEvent event;
-		event.type = RelativeBreakpointAddedEvent;
-		event.data.relativeAddress.module = bp.module;
-		event.data.relativeAddress.offset = bp.offset;
-		updateUI(event);
-	}
+	DebuggerEvent event;
+	event.type = BreakpointChangedEvent;
+	updateUI(event);
 
 	m_uiCallbacks = new DebuggerUICallbacks;
 	m_uiCallbacks->rebaseBinaryViewImpl = [&](uint64_t address)
@@ -1800,16 +1814,7 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		break;
 	}
 
-	case RelativeBreakpointAddedEvent:
-	case AbsoluteBreakpointAddedEvent:
-	case RelativeBreakpointRemovedEvent:
-	case AbsoluteBreakpointRemovedEvent:
-	case RelativeBreakpointEnabledEvent:
-	case AbsoluteBreakpointEnabledEvent:
-	case RelativeBreakpointDisabledEvent:
-	case AbsoluteBreakpointDisabledEvent:
-	case AbsoluteBreakpointConditionChangedEvent:
-	case RelativeBreakpointConditionChangedEvent:
+	case BreakpointChangedEvent:
 	{
 		m_context->refreshCurrentViewContents();
 		break;

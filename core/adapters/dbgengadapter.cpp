@@ -669,6 +669,27 @@ void DbgEngAdapter::EngineLoop()
 			{
 				if (m_lastExecutionStatus != DEBUG_STATUS_BREAK)
 				{
+					// Apply deferred hardware breakpoints on first stop
+					// See ApplyBreakpoints() for detailed explanation of why this is necessary
+					if (m_needsHardwareBreakpointReapplication)
+					{
+						for (const auto& hwbp : m_deferredHardwareBreakpoints)
+						{
+							// Apply the hardware breakpoint now that process is running and stopped
+							// Check addressing mode and call appropriate variant
+							if (hwbp.isRelative)
+							{
+								AddHardwareBreakpoint(hwbp.location, hwbp.type, hwbp.size);
+							}
+							else
+							{
+								AddHardwareBreakpoint(hwbp.address, hwbp.type, hwbp.size);
+							}
+						}
+						m_deferredHardwareBreakpoints.clear();
+						m_needsHardwareBreakpointReapplication = false;
+					}
+
 					if (outputStateOnStop)
 					{
 						// m_debugRegisters->OutputRegisters(DEBUG_OUTCTL_THIS_CLIENT, DEBUG_REGISTERS_DEFAULT);
@@ -1148,6 +1169,15 @@ bool DbgEngAdapter::ResumeThread(std::uint32_t tid)
 
 DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags)
 {
+	// Handle hardware breakpoint types
+	if (breakpoint_flags != SoftwareBreakpoint)
+	{
+		if (AddHardwareBreakpoint(address, (DebugBreakpointType)breakpoint_flags))
+			return DebugBreakpoint(address, 0, true, (DebugBreakpointType)breakpoint_flags);
+		else
+			return DebugBreakpoint{};
+	}
+
 	IDebugBreakpoint2* debug_breakpoint {};
 
 	/* attempt to read at breakpoint location to confirm its valid */
@@ -1173,7 +1203,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
 	if (debug_breakpoint->SetFlags(DEBUG_BREAKPOINT_ENABLED | breakpoint_flags) != S_OK)
 		return {};
 
-	const auto new_breakpoint = DebugBreakpoint(address, id, true);
+	const auto new_breakpoint = DebugBreakpoint(address, id, true, SoftwareBreakpoint);
 	this->m_debug_breakpoints.push_back(new_breakpoint);
 
 	return new_breakpoint;
@@ -1289,13 +1319,260 @@ std::vector<DebugBreakpoint> DbgEngAdapter::GetBreakpointList() const
 	return {};
 }
 
+
+bool DbgEngAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!m_dbgengInitialized)
+	{
+		// Cache the hardware breakpoint to be applied when debugger becomes initialized
+		PendingHardwareBreakpoint pending(address, type, size);
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
+
+	std::string command;
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+			// ba e<size> <address>: hardware execution breakpoint
+			command = fmt::format("ba e{} 0x{:x}", size, address);
+			break;
+		case HardwareReadBreakpoint:
+			// ba r<size> <address>: hardware read breakpoint  
+			command = fmt::format("ba r{} 0x{:x}", size, address);
+			break;
+		case HardwareWriteBreakpoint:
+			// ba w<size> <address>: hardware write breakpoint
+			command = fmt::format("ba w{} 0x{:x}", size, address);
+			break;
+		case HardwareAccessBreakpoint:
+			// ba a<size> <address>: hardware access (read/write) breakpoint
+			command = fmt::format("ba a{} 0x{:x}", size, address);
+			break;
+		default:
+			return false;
+	}
+
+	// Execute the command and check if it succeeded
+	auto result = InvokeBackendCommand(command);
+	// DbgEng typically returns an empty string or specific success message for successful ba commands
+	// If the command fails, it usually contains an error message
+	return result.find("error") == std::string::npos && result.find("Error") == std::string::npos;
+}
+
+
+bool DbgEngAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!m_dbgengInitialized)
+	{
+		// Remove from pending list if debugger is not initialized
+		PendingHardwareBreakpoint pending(address, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+		return false;
+	}
+
+	// Also check deferred list (hardware breakpoints waiting for first stop)
+	PendingHardwareBreakpoint pending(address, type, size);
+	auto deferredIt = std::find(m_deferredHardwareBreakpoints.begin(), m_deferredHardwareBreakpoints.end(), pending);
+	if (deferredIt != m_deferredHardwareBreakpoints.end())
+	{
+		m_deferredHardwareBreakpoints.erase(deferredIt);
+		if (m_deferredHardwareBreakpoints.empty())
+			m_needsHardwareBreakpointReapplication = false;
+		return true;
+	}
+
+	// List all breakpoints to find the ID of the hardware breakpoint at this address
+	auto result = InvokeBackendCommand("bl");
+	
+	// Parse the breakpoint list to find the ID
+	// DbgEng breakpoint list format is typically:
+	// 0 e <address> <info>
+	// 1 r <address> <info> etc.
+	std::stringstream ss(result);
+	std::string line;
+	
+	while (std::getline(ss, line))
+	{
+		// Look for lines containing our address
+		if (line.find(fmt::format("{:x}", address)) != std::string::npos)
+		{
+			// Extract breakpoint ID (first number in the line)
+			std::istringstream iss(line);
+			std::string id_str;
+			if (iss >> id_str)
+			{
+				try
+				{
+					int bp_id = std::stoi(id_str);
+					// Remove the breakpoint using bc (breakpoint clear) command
+					auto clear_result = InvokeBackendCommand(fmt::format("bc {}", bp_id));
+					return clear_result.find("error") == std::string::npos && 
+						   clear_result.find("Error") == std::string::npos;
+				}
+				catch (...)
+				{
+					// Continue searching if this line doesn't contain a valid ID
+					continue;
+				}
+			}
+		}
+	}
+	
+	return false;
+}
+
+
+bool DbgEngAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	if (m_dbgengInitialized)
+	{
+		// DbgEng is initialized - use module+offset syntax directly
+		BNSettingsScope scope = SettingsResourceScope;
+		auto data = GetData();
+		auto adapterSettings = GetAdapterSettings();
+		auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+
+		auto moduleToUse = location.module;
+		if (DebugModule::IsSameBaseModule(moduleToUse, inputFile))
+		{
+			if (m_usePDBFileName && (!m_pdbFileName.empty()))
+				moduleToUse = m_pdbFileName;
+		}
+
+		// DbgEng does not take a full path. It can take "hello.exe", or simply "hello"
+		auto fileName = std::filesystem::path(moduleToUse).stem();
+
+		std::string command;
+		switch (type)
+		{
+			case HardwareExecuteBreakpoint:
+				// ba e<size> @!"module"+offset: hardware execution breakpoint with module+offset
+				command = fmt::format("ba e{} @!\"{}\"+0x{:x}", size, EscapeModuleName(fileName.wstring()), location.offset);
+				break;
+			case HardwareReadBreakpoint:
+				// ba r<size> @!"module"+offset: hardware read breakpoint with module+offset
+				command = fmt::format("ba r{} @!\"{}\"+0x{:x}", size, EscapeModuleName(fileName.wstring()), location.offset);
+				break;
+			case HardwareWriteBreakpoint:
+				// ba w<size> @!"module"+offset: hardware write breakpoint with module+offset
+				command = fmt::format("ba w{} @!\"{}\"+0x{:x}", size, EscapeModuleName(fileName.wstring()), location.offset);
+				break;
+			case HardwareAccessBreakpoint:
+				// ba a<size> @!"module"+offset: hardware access breakpoint with module+offset
+				command = fmt::format("ba a{} @!\"{}\"+0x{:x}", size, EscapeModuleName(fileName.wstring()), location.offset);
+				break;
+			default:
+				return false;
+		}
+
+		LogDebug("Hardware breakpoint command: %s", command.c_str());
+		auto result = InvokeBackendCommand(command);
+		return result.find("error") == std::string::npos && result.find("Error") == std::string::npos;
+	}
+	else
+	{
+		// DbgEng not initialized - cache as pending with module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		// Also populate the address field for UI display purposes
+		pending.address = location.offset + m_originalImageBase;
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
+}
+
+
+bool DbgEngAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	// For removal, we need to resolve to absolute address to find the breakpoint ID
+	// DbgEng doesn't provide a direct way to remove by module+offset
+	if (m_dbgengInitialized)
+	{
+		// First check deferred list (hardware breakpoints waiting for first stop)
+		// This needs to be checked before resolving to address because deferred entries
+		// use isRelative=true and won't be found by address-based lookup
+		PendingHardwareBreakpoint pending(location, type, size);
+		auto deferredIt = std::find(m_deferredHardwareBreakpoints.begin(), m_deferredHardwareBreakpoints.end(), pending);
+		if (deferredIt != m_deferredHardwareBreakpoints.end())
+		{
+			m_deferredHardwareBreakpoints.erase(deferredIt);
+			if (m_deferredHardwareBreakpoints.empty())
+				m_needsHardwareBreakpointReapplication = false;
+			return true;
+		}
+
+		// Get module base and resolve to absolute address
+		auto modules = GetModuleList();
+		uint64_t base = 0;
+		for (const auto& module : modules)
+		{
+			if (DebugModule::IsSameBaseModule(module.m_name, location.module))
+			{
+				base = module.m_address;
+				break;
+			}
+		}
+
+		if (base != 0)
+		{
+			uint64_t address = base + location.offset;
+			return RemoveHardwareBreakpoint(address, type, size);
+		}
+		return false;
+	}
+	else
+	{
+		// Not initialized - remove from pending list using module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+		return false;
+	}
+}
+
 void DbgEngAdapter::ApplyBreakpoints()
 {
+	// Apply pending software breakpoints
 	for (const auto bp : m_pendingBreakpoints)
 	{
 		AddBreakpoint(bp);
 	}
 	m_pendingBreakpoints.clear();
+
+	// DEFER hardware breakpoints instead of applying now
+	//
+	// Hardware breakpoints use CPU debug registers (DR0-DR3) which are part of the thread context.
+	// At the system entry point (ntdll!LdrInitializeThunk), the process is in early initialization
+	// and the debug registers may not be properly accessible or may get overwritten during loader
+	// initialization. Hardware breakpoints work reliably once the process is fully initialized
+	// (at the program entry point or later).
+	//
+	// Move hardware breakpoints to deferred list instead of applying now
+	m_deferredHardwareBreakpoints = std::move(m_pendingHardwareBreakpoints);
+	m_pendingHardwareBreakpoints.clear();
+
+	// Set flag to apply deferred hardware breakpoints on first stop in EngineLoop
+	if (!m_deferredHardwareBreakpoints.empty())
+	{
+		m_needsHardwareBreakpointReapplication = true;
+	}
 }
 
 DebugRegister DbgEngAdapter::ReadRegister(const std::string& reg)

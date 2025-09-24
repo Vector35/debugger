@@ -126,6 +126,16 @@ extern "C"
 	} BNDebugRegister;
 
 
+	typedef enum BNDebugBreakpointType
+	{
+		BNSoftwareBreakpoint = 0,        // Default software breakpoint
+		BNHardwareExecuteBreakpoint = 1, // Hardware execution breakpoint
+		BNHardwareReadBreakpoint = 2,    // Hardware read watchpoint
+		BNHardwareWriteBreakpoint = 3,   // Hardware write watchpoint
+		BNHardwareAccessBreakpoint = 4   // Hardware read/write watchpoint
+	} BNDebugBreakpointType;
+
+
 	typedef struct BNDebugBreakpoint
 	{
 		// TODO: we should add an absolute address to this, along with a boolean telling whether it is valid
@@ -134,6 +144,8 @@ extern "C"
 		uint64_t address;
 		bool enabled;
 		char* condition;  // NULL if no condition
+		BNDebugBreakpointType type;
+		size_t size;  // Size in bytes for hardware breakpoints/watchpoints (1, 2, 4, 8)
 	} BNDebugBreakpoint;
 
 
@@ -250,16 +262,8 @@ extern "C"
 		TargetExitedEventType,
 		DetachedEventType,
 
-		AbsoluteBreakpointAddedEvent,
-		RelativeBreakpointAddedEvent,
-		AbsoluteBreakpointRemovedEvent,
-		RelativeBreakpointRemovedEvent,
-		AbsoluteBreakpointEnabledEvent,
-		RelativeBreakpointEnabledEvent,
-		AbsoluteBreakpointDisabledEvent,
-		RelativeBreakpointDisabledEvent,
-		AbsoluteBreakpointConditionChangedEvent,
-		RelativeBreakpointConditionChangedEvent,
+		// Unified breakpoint change event - use this for all breakpoint changes (add/remove/enable/disable)
+		BreakpointChangedEvent,
 
 		ActiveThreadChangedEvent,
 
@@ -609,6 +613,26 @@ extern "C"
 		BNDebuggerController* controller, uint64_t address);
 	DEBUGGER_FFI_API char* BNDebuggerGetBreakpointConditionRelative(
 		BNDebuggerController* controller, const char* module, uint64_t offset);
+
+	// Hardware breakpoint and watchpoint support
+	DEBUGGER_FFI_API bool BNDebuggerAddHardwareBreakpoint(BNDebuggerController* controller, uint64_t address,
+		BNDebugBreakpointType type, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerRemoveHardwareBreakpoint(BNDebuggerController* controller, uint64_t address,
+		BNDebugBreakpointType type, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerEnableHardwareBreakpoint(BNDebuggerController* controller, uint64_t address,
+		BNDebugBreakpointType type, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerDisableHardwareBreakpoint(BNDebuggerController* controller, uint64_t address,
+		BNDebugBreakpointType type, size_t size);
+
+	// Hardware breakpoint methods - module+offset (ASLR-safe)
+	DEBUGGER_FFI_API bool BNDebuggerAddRelativeHardwareBreakpoint(BNDebuggerController* controller, const char* module,
+		uint64_t offset, BNDebugBreakpointType type, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerRemoveRelativeHardwareBreakpoint(BNDebuggerController* controller, const char* module,
+		uint64_t offset, BNDebugBreakpointType type, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerEnableRelativeHardwareBreakpoint(BNDebuggerController* controller, const char* module,
+		uint64_t offset, BNDebugBreakpointType type, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerDisableRelativeHardwareBreakpoint(BNDebuggerController* controller, const char* module,
+		uint64_t offset, BNDebugBreakpointType type, size_t size);
 
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetIP(BNDebuggerController* controller);
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetLastIP(BNDebuggerController* controller);

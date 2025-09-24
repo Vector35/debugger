@@ -40,13 +40,19 @@ private:
 	ModuleNameAndOffset m_location;
 	uint64_t m_address;
 	std::string m_condition;
+	DebugBreakpointType m_type;
+	size_t m_size;  // Size in bytes for hardware breakpoints/watchpoints
 
 public:
-	BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t remoteAddress, const std::string& condition = "");
+	BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t remoteAddress,
+		const std::string& condition = "", DebugBreakpointType type = SoftwareBreakpoint, size_t size = 1);
 	bool enabled() const { return m_enabled; }
 	ModuleNameAndOffset location() const { return m_location; }
 	uint64_t address() const { return m_address; }
 	std::string condition() const { return m_condition; }
+	DebugBreakpointType type() const { return m_type; }
+	size_t size() const { return m_size; }
+	std::string typeString() const;
 	bool operator==(const BreakpointItem& other) const;
 	bool operator!=(const BreakpointItem& other) const;
 	bool operator<(const BreakpointItem& other) const;
@@ -71,6 +77,7 @@ public:
 		LocationColumn,
 		AddressColumn,
 		ConditionColumn,
+		TypeColumn,
 	};
 
 	DebugBreakpointsListModel(QWidget* parent, ViewFrame* view);
@@ -151,6 +158,8 @@ private slots:
 	void remove();
 	void onDoubleClicked();
 	void add();
+	void addSoftwareBreakpoint();
+	void addHardwareBreakpoint();
 	void toggleSelected();
 	void enableAll();
 	void disableAll();

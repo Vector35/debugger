@@ -19,12 +19,17 @@ limitations under the License.
 #include <QFileInfo>
 #include <QClipboard>
 #include <QGuiApplication>
+#include <QApplication>
 #include <QKeyEvent>
 #include <QStringList>
 #include <algorithm>
 #include <QMouseEvent>
 #include <QInputDialog>
+#include <QMenu>
+#include <QMessageBox>
+#include <QStyleOptionButton>
 #include "breakpointswidget.h"
+#include "hardwarebreakpointdialog.h"
 #include "ui.h"
 #include "menus.h"
 #include "fmt/format.h"
@@ -33,9 +38,31 @@ using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
-BreakpointItem::BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t address, const std::string& condition) :
-	m_enabled(enabled), m_location(location), m_address(address), m_condition(condition)
+BreakpointItem::BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t address,
+	const std::string& condition, DebugBreakpointType type, size_t size) :
+	m_enabled(enabled), m_location(location), m_address(address), m_condition(condition), m_type(type),
+	m_size(size)
 {}
+
+
+std::string BreakpointItem::typeString() const
+{
+	switch (m_type)
+	{
+		case SoftwareBreakpoint:
+			return "S";
+		case HardwareExecuteBreakpoint:
+			return "HE";
+		case HardwareReadBreakpoint:
+			return "HR";
+		case HardwareWriteBreakpoint:
+			return "HW";
+		case HardwareAccessBreakpoint:
+			return "HA";
+		default:
+			return "Unknown";
+	}
+}
 
 
 bool BreakpointItem::operator==(const BreakpointItem& other) const
@@ -109,6 +136,10 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
 	{
 	case DebugBreakpointsListModel::EnabledColumn:
 	{
+		if (role == Qt::ToolTipRole)
+		{
+			return item->enabled() ? "Breakpoint is enabled" : "Breakpoint is disabled";
+		}
 		QString text = item->enabled() ? "☑" : "☐";
 		return QVariant(text);
 	}
@@ -135,6 +166,33 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
 	case DebugBreakpointsListModel::AddressColumn:
 	{
 		QString text = QString::fromStdString(fmt::format("0x{:x}", item->address()));
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
+
+		return QVariant(text);
+	}
+	case DebugBreakpointsListModel::TypeColumn:
+	{
+		if (role == Qt::ToolTipRole)
+		{
+			switch (item->type())
+			{
+			case SoftwareBreakpoint:
+				return "Software breakpoint";
+			case HardwareExecuteBreakpoint:
+				return "Hardware execution breakpoint";
+			case HardwareReadBreakpoint:
+				return "Hardware read breakpoint (watchpoint)";
+			case HardwareWriteBreakpoint:
+				return "Hardware write breakpoint (watchpoint)";
+			case HardwareAccessBreakpoint:
+				return "Hardware access breakpoint (read/write watchpoint)";
+			default:
+				return "Unknown breakpoint type";
+			}
+		}
+
+		QString text = QString::fromStdString(item->typeString());
 		if (role == Qt::SizeHintRole)
 			return QVariant((qulonglong)text.size());
 
@@ -168,13 +226,15 @@ QVariant DebugBreakpointsListModel::headerData(int column, Qt::Orientation orien
 	switch (column)
 	{
 	case DebugBreakpointsListModel::EnabledColumn:
-		return "";
+		return "E";
 	case DebugBreakpointsListModel::LocationColumn:
 		return "Location";
 	case DebugBreakpointsListModel::AddressColumn:
 		return "Remote Address";
 	case DebugBreakpointsListModel::ConditionColumn:
 		return "Condition";
+	case DebugBreakpointsListModel::TypeColumn:
+		return "Type";
 	}
 	return QVariant();
 }
@@ -215,8 +275,30 @@ void DebugBreakpointsItemDelegate::paint(
 	switch (idx.column())
 	{
 	case DebugBreakpointsListModel::EnabledColumn:
+	{
+		// Draw a proper Qt checkbox instead of using Unicode characters
+		QStyleOptionButton checkboxOption;
+		checkboxOption.state = QStyle::State_Enabled;
+		if (data.toString() == "☑")
+			checkboxOption.state |= QStyle::State_On;
+		else
+			checkboxOption.state |= QStyle::State_Off;
+
+		// Center the checkbox in the cell
+		int checkboxSize = qMin(textRect.width(), textRect.height()) - 4;
+		checkboxOption.rect = QRect(
+			textRect.left() + (textRect.width() - checkboxSize) / 2,
+			textRect.top() + (textRect.height() - checkboxSize) / 2,
+			checkboxSize,
+			checkboxSize
+		);
+
+		QApplication::style()->drawControl(QStyle::CE_CheckBox, &checkboxOption, painter);
+		break;
+	}
 	case DebugBreakpointsListModel::LocationColumn:
 	case DebugBreakpointsListModel::AddressColumn:
+	case DebugBreakpointsListModel::TypeColumn:
 	{
 		painter->setFont(m_font);
 		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
@@ -289,7 +371,10 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 
 	resizeColumnsToContents();
 	resizeRowsToContents();
-	horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+
+	// Make the enabled column minimal width, and stretch the location column instead
+	horizontalHeader()->setSectionResizeMode(DebugBreakpointsListModel::EnabledColumn, QHeaderView::ResizeToContents);
+	horizontalHeader()->setSectionResizeMode(DebugBreakpointsListModel::LocationColumn, QHeaderView::Stretch);
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
@@ -317,7 +402,12 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 	UIAction::registerAction(addBreakpointActionName);
 	m_menu->addAction(addBreakpointActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
-		addBreakpointActionName, UIAction([&]() { add(); }));
+		addBreakpointActionName, UIAction([&]() { addSoftwareBreakpoint(); }));
+
+	QString addHardwareBreakpointActionName = QString::fromStdString("Add Hardware Breakpoint...");
+	m_menu->addAction(addHardwareBreakpointActionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		addHardwareBreakpointActionName, UIAction([&]() { addHardwareBreakpoint(); }));
 
 	QString toggleEnabledActionName = QString::fromStdString("Toggle Enabled");
 	UIAction::registerAction(toggleEnabledActionName, QKeySequence("Ctrl+Shift+B"));
@@ -398,11 +488,34 @@ void DebugBreakpointsWidget::mousePressEvent(QMouseEvent* event)
 	if (index.isValid() && index.column() == DebugBreakpointsListModel::EnabledColumn)
 	{
 		// Toggle breakpoint enabled state when clicking on enabled column
+		// TODO: refactor to use breakpoint index instead of address/location for these operations
 		BreakpointItem bp = m_model->getRow(index.row());
-		if (bp.enabled())
-			m_controller->DisableBreakpoint(bp.location());
+		if (bp.type() == SoftwareBreakpoint)
+		{
+			// Software breakpoint - use location-based methods
+			if (bp.enabled())
+				m_controller->DisableBreakpoint(bp.location());
+			else
+				m_controller->EnableBreakpoint(bp.location());
+		}
 		else
-			m_controller->EnableBreakpoint(bp.location());
+		{
+			// Hardware breakpoint - use location for relative breakpoints, address for absolute
+			if (bp.enabled())
+			{
+				if (!bp.location().module.empty())
+					m_controller->DisableHardwareBreakpoint(bp.location(), bp.type(), bp.size());
+				else
+					m_controller->DisableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			}
+			else
+			{
+				if (!bp.location().module.empty())
+					m_controller->EnableHardwareBreakpoint(bp.location(), bp.type(), bp.size());
+				else
+					m_controller->EnableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			}
+		}
 		return; // Don't call parent to avoid selection change
 	}
 
@@ -468,6 +581,41 @@ void DebugBreakpointsWidget::jump()
 
 void DebugBreakpointsWidget::add()
 {
+	// Keep this for backward compatibility - show menu
+	UIContext* ctxt = UIContext::contextForWidget(this);
+	if (!ctxt)
+		return;
+
+	ViewFrame* frame = ctxt->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	auto view = frame->getCurrentBinaryView();
+	if (!view)
+		return;
+
+	// Show options for software or hardware breakpoint
+	QMenu menu(this);
+	QAction* softwareAction = menu.addAction("Software Breakpoint");
+	QAction* hardwareAction = menu.addAction("Hardware Breakpoint...");
+
+	QAction* chosen = menu.exec(QCursor::pos());
+	if (!chosen)
+		return;
+
+	if (chosen == softwareAction)
+	{
+		addSoftwareBreakpoint();
+	}
+	else if (chosen == hardwareAction)
+	{
+		addHardwareBreakpoint();
+	}
+}
+
+
+void DebugBreakpointsWidget::addSoftwareBreakpoint()
+{
 	UIContext* ctxt = UIContext::contextForWidget(this);
 	if (!ctxt)
 		return;
@@ -504,48 +652,131 @@ void DebugBreakpointsWidget::add()
 }
 
 
+void DebugBreakpointsWidget::addHardwareBreakpoint()
+{
+	UIContext* ctxt = UIContext::contextForWidget(this);
+	if (!ctxt)
+		return;
+
+	ViewFrame* frame = ctxt->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	auto view = frame->getCurrentBinaryView();
+	if (!view)
+		return;
+
+	// Hardware breakpoint dialog
+	uint64_t suggestedAddress = frame->getCurrentOffset();
+	HardwareBreakpointDialog dialog(this, m_controller, suggestedAddress);
+	dialog.exec();
+}
+
+
 void DebugBreakpointsWidget::toggleSelected()
 {
+	// TODO: refactor to use breakpoint index instead of address/location for these operations
 	QModelIndexList sel = selectionModel()->selectedRows();
 	for (const QModelIndex& index : sel)
 	{
 		BreakpointItem bp = m_model->getRow(index.row());
-		if (bp.enabled())
-			m_controller->DisableBreakpoint(bp.location());
+		if (bp.type() == SoftwareBreakpoint)
+		{
+			// Software breakpoint - use location-based methods
+			if (bp.enabled())
+				m_controller->DisableBreakpoint(bp.location());
+			else
+				m_controller->EnableBreakpoint(bp.location());
+		}
 		else
-			m_controller->EnableBreakpoint(bp.location());
+		{
+			// Hardware breakpoint - use location for relative breakpoints, address for absolute
+			if (bp.enabled())
+			{
+				if (!bp.location().module.empty())
+					m_controller->DisableHardwareBreakpoint(bp.location(), bp.type(), bp.size());
+				else
+					m_controller->DisableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			}
+			else
+			{
+				if (!bp.location().module.empty())
+					m_controller->EnableHardwareBreakpoint(bp.location(), bp.type(), bp.size());
+				else
+					m_controller->EnableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			}
+		}
 	}
 }
 
 
 void DebugBreakpointsWidget::enableAll()
 {
+	// TODO: refactor to use breakpoint index instead of address/location for these operations
 	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
 	for (const DebugBreakpoint& bp : breakpoints)
 	{
-		ModuleNameAndOffset info;
-		info.module = bp.module;
-		info.offset = bp.offset;
-		m_controller->EnableBreakpoint(info);
+		if (bp.type == SoftwareBreakpoint)
+		{
+			ModuleNameAndOffset info;
+			info.module = bp.module;
+			info.offset = bp.offset;
+			m_controller->EnableBreakpoint(info);
+		}
+		else
+		{
+			// Hardware breakpoint - use location for relative breakpoints, address for absolute
+			if (!bp.module.empty())
+			{
+				ModuleNameAndOffset info;
+				info.module = bp.module;
+				info.offset = bp.offset;
+				m_controller->EnableHardwareBreakpoint(info, bp.type, bp.size);
+			}
+			else
+			{
+				m_controller->EnableHardwareBreakpoint(bp.address, bp.type, bp.size);
+			}
+		}
 	}
 }
 
 
 void DebugBreakpointsWidget::disableAll()
 {
+	// TODO: refactor to use breakpoint index instead of address/location for these operations
 	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
 	for (const DebugBreakpoint& bp : breakpoints)
 	{
-		ModuleNameAndOffset info;
-		info.module = bp.module;
-		info.offset = bp.offset;
-		m_controller->DisableBreakpoint(info);
+		if (bp.type == SoftwareBreakpoint)
+		{
+			ModuleNameAndOffset info;
+			info.module = bp.module;
+			info.offset = bp.offset;
+			m_controller->DisableBreakpoint(info);
+		}
+		else
+		{
+			// Hardware breakpoint - use location for relative breakpoints, address for absolute
+			if (!bp.module.empty())
+			{
+				ModuleNameAndOffset info;
+				info.module = bp.module;
+				info.offset = bp.offset;
+				m_controller->DisableHardwareBreakpoint(info, bp.type, bp.size);
+			}
+			else
+			{
+				m_controller->DisableHardwareBreakpoint(bp.address, bp.type, bp.size);
+			}
+		}
 	}
 }
 
 
 void DebugBreakpointsWidget::soloSelected()
 {
+	// TODO: refactor to use breakpoint index instead of address/location for these operations
 	QModelIndexList sel = selectionModel()->selectedRows();
 	if (sel.empty())
 		return;
@@ -557,14 +788,43 @@ void DebugBreakpointsWidget::soloSelected()
 	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
 	for (const DebugBreakpoint& bp : breakpoints)
 	{
-		ModuleNameAndOffset info;
-		info.module = bp.module;
-		info.offset = bp.offset;
-		m_controller->DisableBreakpoint(info);
+		if (bp.type == SoftwareBreakpoint)
+		{
+			ModuleNameAndOffset info;
+			info.module = bp.module;
+			info.offset = bp.offset;
+			m_controller->DisableBreakpoint(info);
+		}
+		else
+		{
+			// Hardware breakpoint - use location for relative breakpoints, address for absolute
+			if (!bp.module.empty())
+			{
+				ModuleNameAndOffset info;
+				info.module = bp.module;
+				info.offset = bp.offset;
+				m_controller->DisableHardwareBreakpoint(info, bp.type, bp.size);
+			}
+			else
+			{
+				m_controller->DisableHardwareBreakpoint(bp.address, bp.type, bp.size);
+			}
+		}
 	}
 
 	// Enable the selected breakpoint
-	m_controller->EnableBreakpoint(selectedBp.location());
+	if (selectedBp.type() == SoftwareBreakpoint)
+	{
+		m_controller->EnableBreakpoint(selectedBp.location());
+	}
+	else
+	{
+		// Hardware breakpoint - use location for relative breakpoints, address for absolute
+		if (!selectedBp.location().module.empty())
+			m_controller->EnableHardwareBreakpoint(selectedBp.location(), selectedBp.type(), selectedBp.size());
+		else
+			m_controller->EnableHardwareBreakpoint(selectedBp.address(), selectedBp.type(), selectedBp.size());
+	}
 }
 
 
@@ -589,19 +849,35 @@ void DebugBreakpointsWidget::editCondition()
 
 void DebugBreakpointsWidget::remove()
 {
+	// TODO: refactor to use breakpoint index instead of address/location for these operations
 	QModelIndexList sel = selectionModel()->selectedRows();
-	std::vector<ModuleNameAndOffset> breakpointsToRemove;
+	std::vector<BreakpointItem> breakpointsToRemove;
 
 	for (const QModelIndex& index : sel)
 	{
 		// We cannot delete the breakpoint inside this loop because deleting a breakpoint will cause this widget to
 		// remove the breakpoint from the list, which will invalidate the index of the remaining breakpoints.
 		BreakpointItem bp = m_model->getRow(index.row());
-		breakpointsToRemove.push_back(bp.location());
+		breakpointsToRemove.push_back(bp);
 	}
 
 	for (const auto& bp : breakpointsToRemove)
-		m_controller->DeleteBreakpoint(bp);
+	{
+		// Use appropriate deletion method based on breakpoint type
+		if (bp.type() == SoftwareBreakpoint)
+		{
+			// Software breakpoints use module+offset deletion
+			m_controller->DeleteBreakpoint(bp.location());
+		}
+		else
+		{
+			// Hardware breakpoint - use location for relative breakpoints, address for absolute
+			if (!bp.location().module.empty())
+				m_controller->RemoveHardwareBreakpoint(bp.location(), bp.type(), bp.size());
+			else
+				m_controller->RemoveHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+		}
+	}
 }
 
 
@@ -615,7 +891,7 @@ void DebugBreakpointsWidget::updateContent()
 		ModuleNameAndOffset info;
 		info.module = bp.module;
 		info.offset = bp.offset;
-		bps.emplace_back(bp.enabled, info, bp.address, bp.condition);
+		bps.emplace_back(bp.enabled, info, bp.address, bp.condition, bp.type, bp.size);
 	}
 
 	m_model->updateRows(bps);

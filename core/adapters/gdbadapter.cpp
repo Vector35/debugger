@@ -410,6 +410,15 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned
                    DebugBreakpoint(address)) != this->m_debugBreakpoints.end())
         return {};
 
+	// Handle hardware breakpoint types
+	if (breakpoint_type != SoftwareBreakpoint)
+	{
+		if (AddHardwareBreakpoint(address, (DebugBreakpointType)breakpoint_type))
+			return DebugBreakpoint(address, 0, true, (DebugBreakpointType)breakpoint_type);
+		else
+			return DebugBreakpoint{};
+	}
+
     /* TODO: replace %d with the actual breakpoint size as it differs per architecture */
     size_t kind = 1;
     if (m_remoteArch == "aarch64")
@@ -420,7 +429,7 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned
     if (this->m_rspConnector->TransmitAndReceive(RspData("Z0,{:x},{}", address, kind)).AsString() != "OK" )
         return DebugBreakpoint{};
 
-    const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true);
+    const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true, SoftwareBreakpoint);
     this->m_debugBreakpoints.push_back(new_breakpoint);
 
     return new_breakpoint;
@@ -1120,20 +1129,148 @@ bool GdbAdapter::StepOverReverse()
 	return status != InternalError;
 }
 
-bool GdbAdapter::AddHardwareWriteBreakpoint(uint64_t address)
+bool GdbAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	if (m_isTargetRunning || !m_rspConnector)
-		return false;
+	{
+		// Cache the hardware breakpoint to be applied when target stops or connector becomes available
+		PendingHardwareBreakpoint pending(address, type, size);
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
 
-	return this->m_rspConnector->TransmitAndReceive(RspData("Z2,{:x},{}", address, 1)).AsString() != "OK";
+	std::string command;
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+			// Z1 = hardware execution breakpoint  
+			command = fmt::format("Z1,{:x},{}", address, size);
+			break;
+		case HardwareReadBreakpoint:
+			// Z3 = hardware read watchpoint
+			command = fmt::format("Z3,{:x},{}", address, size);
+			break;
+		case HardwareWriteBreakpoint:
+			// Z2 = hardware write watchpoint
+			command = fmt::format("Z2,{:x},{}", address, size);
+			break;
+		case HardwareAccessBreakpoint:
+			// Z4 = hardware access watchpoint (read/write)
+			command = fmt::format("Z4,{:x},{}", address, size);
+			break;
+		default:
+			return false;
+	}
+
+	return m_rspConnector->TransmitAndReceive(RspData(command)).AsString() == "OK";
+}
+
+
+bool GdbAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (m_isTargetRunning || !m_rspConnector)
+	{
+		// Remove from pending list if target is running or connector not available
+		PendingHardwareBreakpoint pending(address, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+		return false;
+	}
+
+	std::string command;
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+			// z1 = remove hardware execution breakpoint  
+			command = fmt::format("z1,{:x},{}", address, size);
+			break;
+		case HardwareReadBreakpoint:
+			// z3 = remove hardware read watchpoint
+			command = fmt::format("z3,{:x},{}", address, size);
+			break;
+		case HardwareWriteBreakpoint:
+			// z2 = remove hardware write watchpoint
+			command = fmt::format("z2,{:x},{}", address, size);
+			break;
+		case HardwareAccessBreakpoint:
+			// z4 = remove hardware access watchpoint (read/write)
+			command = fmt::format("z4,{:x},{}", address, size);
+			break;
+		default:
+			return false;
+	}
+
+	return m_rspConnector->TransmitAndReceive(RspData(command)).AsString() == "OK";
+}
+
+
+bool GdbAdapter::AddHardwareWriteBreakpoint(uint64_t address)
+{
+	// Delegate to new standardized method
+	return AddHardwareBreakpoint(address, HardwareWriteBreakpoint, 1);
 }
 
 bool GdbAdapter::RemoveHardwareWriteBreakpoint(uint64_t address)
 {
-	if (m_isTargetRunning || !m_rspConnector)
-		return false;
+	// Delegate to new standardized method
+	return RemoveHardwareBreakpoint(address, HardwareWriteBreakpoint, 1);
+}
 
-	return this->m_rspConnector->TransmitAndReceive(RspData("Z2,{:x},{}", address, 1)).AsString() != "OK";
+
+bool GdbAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	uint64_t base{};
+	if (GetModuleBase(location.module, base))
+	{
+		// Module is loaded - resolve to absolute address and delegate
+		uint64_t address = base + location.offset;
+		return AddHardwareBreakpoint(address, type, size);
+	}
+	else
+	{
+		// Module not loaded yet - add to pending list with module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		// Also populate the address field for UI display purposes
+		pending.address = location.offset + m_originalImageBase;
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
+}
+
+
+bool GdbAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	uint64_t base{};
+	if (GetModuleBase(location.module, base))
+	{
+		// Module is loaded - resolve to absolute address and delegate
+		uint64_t address = base + location.offset;
+		return RemoveHardwareBreakpoint(address, type, size);
+	}
+	else
+	{
+		// Module not loaded yet - remove from pending list using module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+		return false;
+	}
 }
 
 bool GdbAdapter::StepReturnReverse()
@@ -1413,6 +1550,7 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, un
 
 void GdbAdapter::CheckApplyPendingBreakpoints()
 {
+	// Apply pending software breakpoints
 	for (auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end(); )
 	{
 		uint64_t base{};
@@ -1427,6 +1565,19 @@ void GdbAdapter::CheckApplyPendingBreakpoints()
 			}
 		}
 		it++;
+	}
+
+	// Apply pending hardware breakpoints
+	for (auto it = m_pendingHardwareBreakpoints.begin(); it != m_pendingHardwareBreakpoints.end(); )
+	{
+		if (AddHardwareBreakpoint(it->address, it->type, it->size))
+		{
+			it = m_pendingHardwareBreakpoints.erase(it);
+		}
+		else
+		{
+			it++;
+		}
 	}
 }
 
