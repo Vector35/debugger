@@ -346,8 +346,11 @@ void TTDMemoryQueryWidget::onDebuggerEvent(const BinaryNinjaDebuggerAPI::Debugge
 	case LaunchEventType:
 	case AttachEventType:
 	case ConnectEventType:
+	case RestartEventType:
 	case TargetStoppedEventType:
 	case DetachedEventType:
+	case AdapterStoppedEventType:
+	case AdapterTargetExitedEventType:
 		updateButtonState();
 		break;
 	default:
