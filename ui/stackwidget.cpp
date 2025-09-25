@@ -400,6 +400,12 @@ DebugStackWidget::DebugStackWidget(const QString& name, ViewFrame* view, BinaryV
 	m_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
 	m_table->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
+	// Set column resize modes for better display of the improved hints
+	m_table->horizontalHeader()->setSectionResizeMode(DebugStackListModel::OffsetColumn, QHeaderView::ResizeToContents);
+	m_table->horizontalHeader()->setSectionResizeMode(DebugStackListModel::AddressColumn, QHeaderView::ResizeToContents);
+	m_table->horizontalHeader()->setSectionResizeMode(DebugStackListModel::ValueColumn, QHeaderView::ResizeToContents);
+	m_table->horizontalHeader()->setSectionResizeMode(DebugStackListModel::HintColumn, QHeaderView::Stretch);
+
 	m_table->resizeColumnsToContents();
 	m_table->resizeRowsToContents();
 
@@ -416,8 +422,7 @@ DebugStackWidget::DebugStackWidget(const QString& name, ViewFrame* view, BinaryV
 void DebugStackWidget::notifyStackChanged(std::vector<DebugStackItem> stackItems)
 {
 	m_model->updateRows(stackItems);
-	// TODO: we could also set the columns' ResizeMode to ResizeToContents
-	m_table->resizeColumnsToContents();
+	// Column resize modes are now properly configured in constructor
 }
 
 
@@ -479,32 +484,9 @@ void DebugStackWidget::updateContent()
 		std::string hint {};
 		if (m_controller)
 		{
-			const DataBuffer memory = m_controller->ReadMemory(value, 128);
-			std::string reg_string;
-			if (memory.GetLength() > 0)
-				reg_string = std::string((const char*)memory.GetData(), memory.GetLength());
-			else
-				reg_string = "x";
-			const auto can_print = std::all_of(reg_string.begin(), reg_string.end(), [](unsigned char c) {
-				return c == '\n' || std::isprint(c);
-			});
-
-			if (!reg_string.empty() && reg_string.size() > 3 && can_print)
-			{
-				hint = fmt::format("\"{}\"", reg_string);
-			}
-			else
-			{
-				DataBuffer buffer = m_controller->ReadMemory(value, addressSize);
-				if (buffer.GetLength() > 0)
-				{
-					hint = fmt::format("{:x}", *reinterpret_cast<std::uintptr_t*>(buffer.GetData()));
-				}
-				else
-				{
-					hint = "";
-				}
-			}
+			// Use the existing GetAddressInformation API for better hint generation
+			// This provides comprehensive symbol resolution, function names, strings, etc.
+			hint = m_controller->GetAddressInformation(value);
 		}
 
 		stackItems.emplace_back(offset, address, value, hint);
