@@ -658,6 +658,36 @@ void TTDMemoryQueryWidget::setParametersAndQuery(uint64_t startAddr, uint64_t en
 	performQuery();
 }
 
+void TTDMemoryQueryWidget::setParameters(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType)
+{
+	// Set address fields
+	m_startAddressEdit->setText(QString("0x%1").arg(startAddr, 0, 16));
+	m_endAddressEdit->setText(QString("0x%1").arg(endAddr, 0, 16));
+	
+	// Set access type checkboxes
+	m_readAccessCheck->setChecked(accessType & TTDMemoryRead);
+	m_writeAccessCheck->setChecked(accessType & TTDMemoryWrite);
+	m_executeAccessCheck->setChecked(accessType & TTDMemoryExecute);
+	
+	// Don't trigger the query
+}
+
+void TTDMemoryQueryWidget::setParameters(const QString& startAddr, const QString& endAddr, TTDMemoryAccessType accessType)
+{
+	// Set address fields as strings
+	if (!startAddr.isEmpty())
+		m_startAddressEdit->setText(startAddr);
+	if (!endAddr.isEmpty())
+		m_endAddressEdit->setText(endAddr);
+	
+	// Set access type checkboxes
+	m_readAccessCheck->setChecked(accessType & TTDMemoryRead);
+	m_writeAccessCheck->setChecked(accessType & TTDMemoryWrite);
+	m_executeAccessCheck->setChecked(accessType & TTDMemoryExecute);
+	
+	// Don't trigger the query
+}
+
 bool TTDMemoryQueryWidget::isUnused() const
 {
 	// Consider a tab unused if it has no results
@@ -707,9 +737,28 @@ void TTDMemoryWidget::setupUI()
 
 void TTDMemoryWidget::createNewTab()
 {
+	// Get parameters from current tab if exists
+	TTDMemoryQueryWidget* currentWidget = qobject_cast<TTDMemoryQueryWidget*>(m_tabWidget->currentWidget());
+	QString startAddr, endAddr;
+	TTDMemoryAccessType accessType = static_cast<TTDMemoryAccessType>(0);
+	
+	if (currentWidget)
+	{
+		startAddr = currentWidget->getStartAddress();
+		endAddr = currentWidget->getEndAddress();
+		accessType = currentWidget->getCurrentAccessType();
+	}
+	
+	// Create new tab
 	TTDMemoryQueryWidget* queryWidget = new TTDMemoryQueryWidget(this, m_data);
 	int tabIndex = m_tabWidget->addTab(queryWidget, QString("Query %1").arg(m_tabWidget->count() + 1));
 	m_tabWidget->setCurrentIndex(tabIndex);
+	
+	// Set parameters from previous tab if any existed
+	if (currentWidget && (!startAddr.isEmpty() || !endAddr.isEmpty() || accessType != 0))
+	{
+		queryWidget->setParameters(startAddr, endAddr, accessType);
+	}
 }
 
 void TTDMemoryWidget::closeTab(int index)

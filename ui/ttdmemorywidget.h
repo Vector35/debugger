@@ -129,8 +129,17 @@ public:
 	// Method to set parameters and execute query from context menu
 	void setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
 	
+	// Method to set parameters without executing query (for duplicating tabs)
+	void setParameters(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
+	void setParameters(const QString& startAddr, const QString& endAddr, TTDMemoryAccessType accessType);
+	
 	// Method to check if this tab is unused (no results and default parameters)
 	bool isUnused() const;
+	
+	// Methods to get current query parameters for duplication
+	QString getStartAddress() const { return m_startAddressEdit->text(); }
+	QString getEndAddress() const { return m_endAddressEdit->text(); }
+	TTDMemoryAccessType getCurrentAccessType() const { return const_cast<TTDMemoryQueryWidget*>(this)->getSelectedAccessTypes(); }
 
 private Q_SLOTS:
 	void performQuery();
