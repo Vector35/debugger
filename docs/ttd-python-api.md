@@ -188,6 +188,36 @@ class TTDExceptionType:
     Hardware = 1  # Hardware exceptions
 ```
 
+### TTDHeapEvent
+
+Represents a heap operation event in a TTD trace.
+
+```python
+class TTDHeapEvent:
+    """
+    TTDHeapEvent represents a heap operation event in a TTD trace.
+    
+    Attributes:
+        event_type (str): Type of the event (always "Heap" for TTD.Heap objects)
+        action (str): Heap action that occurred (Alloc, ReAlloc, Free, Create, Protect, Lock, Unlock, Destroy)
+        thread_id (int): OS thread ID that performed the heap operation
+        unique_thread_id (int): Unique thread ID across the trace
+        heap (int): Handle for the Win32 heap
+        address (int): Address of the allocated object (if applicable)
+        previous_address (int): Address before reallocation (for ReAlloc operations)
+        size (int): Size of allocated object (if applicable)
+        base_address (int): Base address of allocated object (if applicable)
+        flags (int): Heap API flags (meaning depends on the specific API)
+        result (int): Result of heap API call (non-zero means success)
+        reserve_size (int): Amount of memory to reserve (for Create operations)
+        commit_size (int): Initial committed size (for Create operations)
+        make_read_only (int): Non-zero indicates request to make heap read-only
+        parameters (List[str]): List of raw parameters from the heap call
+        time_start (TTDPosition): TTD position when heap operation started
+        time_end (TTDPosition): TTD position when heap operation ended
+    """
+```
+
 ## Constants and Access Types
 
 ### DebuggerTTDMemoryAccessType Enum
@@ -311,6 +341,22 @@ def get_ttd_events(self, event_type: int) -> List[TTDEvent]:
     """
 ```
 
+### get_ttd_heap_objects()
+
+```python
+def get_ttd_heap_objects(self) -> List[TTDHeapEvent]:
+    """
+    Get TTD heap operation events.
+    
+    This method queries all heap operations that occurred during the TTD trace.
+    It provides information about heap allocations, deallocations, reallocations,
+    and other heap management operations.
+    
+    Returns:
+        List of TTDHeapEvent objects representing heap operations
+    """
+```
+
 ### get_current_ttd_position()
 
 ```python
@@ -385,6 +431,58 @@ for call in call_events:
     print(f"    Parameters: {call.parameters}")
     if call.has_return_value:
         print(f"    Return value: {call.return_value:#x}")
+```
+
+### Heap Analysis
+
+```python
+# Analyze heap operations during the trace
+heap_events = dbg.get_ttd_heap_objects()
+
+print(f"Found {len(heap_events)} heap operations")
+
+# Group by action type
+actions = {}
+for event in heap_events:
+    if event.action not in actions:
+        actions[event.action] = []
+    actions[event.action].append(event)
+
+# Display summary
+for action, events in actions.items():
+    print(f"{action}: {len(events)} operations")
+
+# Find large allocations
+large_allocs = [e for e in heap_events 
+                if e.action == "Alloc" and e.size > 1024*1024]  # > 1MB
+
+print(f"Found {len(large_allocs)} large allocations (>1MB)")
+for alloc in large_allocs:
+    print(f"  {alloc.size} bytes at {alloc.address:#x} (heap {alloc.heap:#x})")
+    print(f"    Time: {alloc.time_start}")
+
+# Analyze heap usage patterns
+heap_stats = {}
+for event in heap_events:
+    heap_handle = event.heap
+    if heap_handle not in heap_stats:
+        heap_stats[heap_handle] = {'allocs': 0, 'frees': 0, 'total_allocated': 0}
+    
+    if event.action == "Alloc":
+        heap_stats[heap_handle]['allocs'] += 1
+        heap_stats[heap_handle]['total_allocated'] += event.size
+    elif event.action == "Free":
+        heap_stats[heap_handle]['frees'] += 1
+
+print("\nHeap usage statistics:")
+for heap_handle, stats in heap_stats.items():
+    print(f"Heap {heap_handle:#x}:")
+    print(f"  Allocations: {stats['allocs']}")
+    print(f"  Frees: {stats['frees']}")
+    print(f"  Total allocated: {stats['total_allocated']} bytes")
+    leaked = stats['allocs'] - stats['frees']
+    if leaked > 0:
+        print(f"  Potential leaks: {leaked} allocations")
 ```
 
 ### TTD Navigation
