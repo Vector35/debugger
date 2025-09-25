@@ -25,6 +25,7 @@ limitations under the License.
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
 #include "binaryninjaapi.h"
+#include "fmt/format.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -551,6 +552,107 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForHLILConditions(HighL
 }
 
 
+std::vector<DebuggerInfoEntry> DebuggerInfoTable::getStackInfo(const ViewLocation& location)
+{
+	std::vector<DebuggerInfoEntry> result;
+	
+	if (!m_debugger->IsConnected())
+		return result;
+	
+	auto func = location.getFunction();
+	if (!func)
+		return result;
+		
+	auto arch = func->GetArchitecture();
+	if (!arch)
+		return result;
+	
+	uint64_t stackPointer = m_debugger->StackPointer();
+	size_t addressSize = arch->GetAddressSize();
+	
+	// Add separator entry
+	std::vector<InstructionTextToken> separatorTokens;
+	separatorTokens.emplace_back(TextToken, "--- Stack Contents ---");
+	result.emplace_back(separatorTokens, 0, "", BN_INVALID_EXPR, BN_INVALID_EXPR, 0);
+	
+	// Get stack register name for display
+	auto stackReg = arch->GetStackPointerRegister();
+	auto stackRegName = arch->GetRegisterName(stackReg);
+	
+	// Read stack contents - show values at rsp, rsp+0x8, rsp+0x10, etc.
+	BinaryReader reader(m_data);
+	for (int i = 0; i < 8; i++)  // Show 8 stack entries
+	{
+		ptrdiff_t offset = i * addressSize;
+		uint64_t address = stackPointer + offset;
+		
+		try 
+		{
+			reader.Seek(address);
+			uint64_t value = 0;
+			
+			switch (addressSize)
+			{
+			case 1:
+				value = reader.Read8();
+				break;
+			case 2:
+				value = reader.Read16();
+				break;
+			case 4:
+				value = reader.Read32();
+				break;
+			case 8:
+				value = reader.Read64();
+				break;
+			default:
+				continue;
+			}
+			
+			// Create tokens for stack entry display
+			std::vector<InstructionTextToken> tokens;
+			tokens.emplace_back(RegisterToken, stackRegName);
+			if (offset != 0)
+			{
+				tokens.emplace_back(TextToken, " + ");
+				tokens.emplace_back(IntegerToken, fmt::format("0x{:x}", offset), offset);
+			}
+			
+			// Get hint information using the existing API
+			std::string hint = m_debugger->GetAddressInformation(value);
+			
+			// Check if this looks like a return address by checking if it's in a function
+			// and the previous instruction is a call
+			if (hint.empty() && value != 0)
+			{
+				auto targetFunc = m_data->GetAnalysisFunction(m_data->GetDefaultPlatform(), value);
+				if (targetFunc)
+				{
+					// Check if the previous address contains a call instruction
+					auto prevAddr = value - 1;  // Rough approximation
+					auto callingFunc = m_data->GetAnalysisFunction(m_data->GetDefaultPlatform(), prevAddr);
+					if (callingFunc)
+					{
+						hint = fmt::format("Return address to {}", targetFunc->GetSymbol() ? 
+							targetFunc->GetSymbol()->GetShortName() : 
+							fmt::format("func_{:x}", targetFunc->GetStart()));
+					}
+				}
+			}
+			
+			result.emplace_back(tokens, value, hint, BN_INVALID_EXPR, BN_INVALID_EXPR, address);
+		}
+		catch (const std::exception&)
+		{
+			// Skip this entry if we can't read it
+			continue;
+		}
+	}
+	
+	return result;
+}
+
+
 vector<DebuggerInfoEntry> DebuggerInfoTable::getILInfoEntries(const ViewLocation &location)
 {
 	vector<DebuggerInfoEntry> result;
@@ -626,6 +728,10 @@ vector<DebuggerInfoEntry> DebuggerInfoTable::getILInfoEntries(const ViewLocation
 	default:
 		break;
 	}
+
+	// Add stack information
+	auto stackEntries = getStackInfo(location);
+	result.insert(result.end(), stackEntries.begin(), stackEntries.end());
 
 	return result;
 }

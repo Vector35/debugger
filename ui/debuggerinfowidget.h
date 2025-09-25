@@ -126,6 +126,8 @@ Q_OBJECT;
 	std::vector<DebuggerInfoEntry> getInfoForHLILCalls(HighLevelILFunctionRef hlil, const HighLevelILInstruction& instr);
 	std::vector<DebuggerInfoEntry> getInfoForHLILConditions(HighLevelILFunctionRef hlil, const HighLevelILInstruction& instr);
 
+	std::vector<DebuggerInfoEntry> getStackInfo(const ViewLocation& location);
+
 	void updateColumnWidths();
 
 private slots:
