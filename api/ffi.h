@@ -395,12 +395,34 @@ extern "C"
 	{
 		BNDebuggerTTDEventType type;       // Type of event
 		BNDebuggerTTDPosition position;    // Position where event occurred
-		
+
 		// Optional child objects - existence depends on event type
 		BNDebuggerTTDModule* module;       // For ModuleLoaded/ModuleUnloaded events (NULL if not present)
 		BNDebuggerTTDThread* thread;       // For ThreadCreated/ThreadTerminated events (NULL if not present)
 		BNDebuggerTTDException* exception; // For Exception events (NULL if not present)
 	} BNDebuggerTTDEvent;
+
+	typedef struct BNDebuggerTTDHeapEvent
+	{
+		char* eventType;              // Event type (always "Heap" for TTD.Heap objects)
+		char* action;                 // Heap action: Alloc, ReAlloc, Free, Create, Protect, Lock, Unlock, Destroy
+		uint32_t threadId;            // OS thread ID of thread that made the heap call
+		uint32_t uniqueThreadId;      // Unique ID for the thread across the trace
+		uint64_t heap;                // Handle for the Win32 heap
+		uint64_t address;             // Address of the allocated object (if applicable)
+		uint64_t previousAddress;     // Address before reallocation (for ReAlloc)
+		uint64_t size;                // Size of allocated object (if applicable)
+		uint64_t baseAddress;         // Base address of allocated object (if applicable)
+		uint64_t flags;               // Heap API flags (meaning depends on API)
+		uint64_t result;              // Result of heap API call (non-zero = success)
+		uint64_t reserveSize;         // Amount of memory to reserve (for Create)
+		uint64_t commitSize;          // Initial committed size (for Create)
+		uint64_t makeReadOnly;        // Non-zero = make heap read-only (for Protect)
+		char** parameters;            // Array containing raw parameters from the heap call
+		size_t parameterCount;        // Number of parameters
+		BNDebuggerTTDPosition timeStart; // Position when heap operation started
+		BNDebuggerTTDPosition timeEnd;   // Position when heap operation ended
+	} BNDebuggerTTDHeapEvent;
 
 
 	// This should really be a union, but gcc complains...
@@ -623,11 +645,13 @@ extern "C"
 	DEBUGGER_FFI_API BNDebuggerTTDEvent* BNDebuggerGetTTDEvents(BNDebuggerController* controller,
 		BNDebuggerTTDEventType eventType, size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDEvent* BNDebuggerGetAllTTDEvents(BNDebuggerController* controller, size_t* count);
+	DEBUGGER_FFI_API BNDebuggerTTDHeapEvent* BNDebuggerGetTTDHeapObjects(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPosition position);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDEvents(BNDebuggerTTDEvent* events, size_t count);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDHeapEvents(BNDebuggerTTDHeapEvent* events, size_t count);
 
 	// TTD Code Coverage Analysis Functions
 	DEBUGGER_FFI_API bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t address);

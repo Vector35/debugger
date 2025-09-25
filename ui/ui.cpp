@@ -45,6 +45,7 @@ limitations under the License.
 #include "ttdmemorywidget.h"
 #include "ttdcallswidget.h"
 #include "ttdeventswidget.h"
+#include "ttdheapwidget.h"
 #include "ttdanalysisdialog.h"
 #include "timestampnavigationdialog.h"
 #include "freeversion.h"
@@ -1688,6 +1689,7 @@ void GlobalDebuggerUI::InitializeUI()
 	Sidebar::addSidebarWidgetType(new TTDMemoryWidgetType());
 	Sidebar::addSidebarWidgetType(new TTDCallsWidgetType());
 	Sidebar::addSidebarWidgetType(new TTDEventsWidgetType());
+	Sidebar::addSidebarWidgetType(new TTDHeapWidgetType());
 }
 
 
