@@ -70,3 +70,5 @@ api/python/__pycache__
 *.run
 *.idx
 *.bndb
+
+__pycache__/

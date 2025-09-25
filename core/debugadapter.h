@@ -334,6 +334,7 @@ namespace BinaryNinjaDebugger {
 		virtual std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0);
 		virtual std::vector<TTDEvent> GetTTDEvents(TTDEventType eventType);
 		virtual std::vector<TTDEvent> GetAllTTDEvents();
+		virtual std::vector<TTDHeapEvent> GetTTDHeapObjects();
 		virtual TTDPosition GetCurrentTTDPosition();
 		virtual bool SetTTDPosition(const TTDPosition& position);
 

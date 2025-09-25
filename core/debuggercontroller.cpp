@@ -2938,6 +2938,20 @@ std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
 }
 
 
+std::vector<TTDHeapEvent> DebuggerController::GetTTDHeapObjects()
+{
+	std::vector<TTDHeapEvent> events;
+
+	if (!IsTTD())
+	{
+		LogError("Current adapter does not support TTD");
+		return events;
+	}
+
+	return m_adapter->GetTTDHeapObjects();
+}
+
+
 TTDPosition DebuggerController::GetCurrentTTDPosition()
 {
 	TTDPosition position;
