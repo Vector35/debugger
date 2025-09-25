@@ -193,6 +193,20 @@ std::vector<TTDCallEvent> DebugAdapter::GetTTDCallsForSymbols(const std::string&
 }
 
 
+std::vector<TTDEvent> DebugAdapter::GetTTDEvents(TTDEventType eventType)
+{
+	// Default implementation returns empty results for adapters that don't support TTD
+	return {};
+}
+
+
+std::vector<TTDEvent> DebugAdapter::GetAllTTDEvents()
+{
+	// Default implementation returns empty results for adapters that don't support TTD
+	return {};
+}
+
+
 TTDPosition DebugAdapter::GetCurrentTTDPosition()
 {
 	// Default implementation returns an empty position for adapters that don't support TTD

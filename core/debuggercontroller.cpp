@@ -2902,6 +2902,34 @@ std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::s
 }
 
 
+std::vector<TTDEvent> DebuggerController::GetTTDEvents(TTDEventType eventType)
+{
+	std::vector<TTDEvent> events;
+
+	if (!IsTTD())
+	{
+		LogError("Current adapter does not support TTD");
+		return events;
+	}
+
+	return m_adapter->GetTTDEvents(eventType);
+}
+
+
+std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
+{
+	std::vector<TTDEvent> events;
+
+	if (!IsTTD())
+	{
+		LogError("Current adapter does not support TTD");
+		return events;
+	}
+
+	return m_adapter->GetAllTTDEvents();
+}
+
+
 TTDPosition DebuggerController::GetCurrentTTDPosition()
 {
 	TTDPosition position;

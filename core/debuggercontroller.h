@@ -364,6 +364,8 @@ namespace BinaryNinjaDebugger {
 		// TTD Memory Analysis Methods
 		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead);
 		std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0);
+		std::vector<TTDEvent> GetTTDEvents(TTDEventType eventType);
+		std::vector<TTDEvent> GetAllTTDEvents();
 		TTDPosition GetCurrentTTDPosition();
 		bool SetTTDPosition(const TTDPosition& position);
 

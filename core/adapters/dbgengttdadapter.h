@@ -54,6 +54,10 @@ namespace BinaryNinjaDebugger {
     	// TTD Calls Analysis Methods
     	std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0) override;
 
+    	// TTD Events Analysis Methods
+    	std::vector<TTDEvent> GetTTDEvents(TTDEventType eventType) override;
+    	std::vector<TTDEvent> GetAllTTDEvents() override;
+
     	void GenerateDefaultAdapterSettings(BinaryView* data);
     	Ref<Settings> GetAdapterSettings() override;
 
@@ -64,6 +68,21 @@ namespace BinaryNinjaDebugger {
 		// Helper methods for TTD calls analysis
 		bool QueryCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, std::vector<TTDCallEvent>& events);
 		bool ParseTTDCallObjects(const std::string& expression, std::vector<TTDCallEvent>& events);
+
+		// Helper methods for TTD events analysis
+		bool QueryAllTTDEvents();
+		bool ParseTTDEventObjects(const std::string& expression, std::vector<TTDEvent>& events);
+		void ParseThreadDetails(IModelObject* eventObject, TTDEvent& event);
+		void ParseModuleDetails(IModelObject* eventObject, TTDEvent& event);
+		void ParseExceptionDetails(IModelObject* eventObject, TTDEvent& event);
+		void ParseTTDPosition(IModelObject* positionObj, TTDPosition& position);
+		
+		// TTD Events cache
+		std::vector<TTDEvent> m_cachedEvents;
+		bool m_eventsCached;
+		
+		// Method to clear TTD events cache
+		void ClearTTDEventsCache();
 
 		// Data model helper methods
 		std::string EvaluateDataModelExpression(const std::string& expression);

@@ -1063,6 +1063,145 @@ std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::s
 }
 
 
+std::vector<TTDEvent> DebuggerController::GetTTDEvents(TTDEventType eventType)
+{
+	std::vector<TTDEvent> result;
+	
+	size_t count = 0;
+	BNDebuggerTTDEvent* events = BNDebuggerGetTTDEvents(m_object, 
+		static_cast<BNDebuggerTTDEventType>(eventType), &count);
+	
+	if (events && count > 0)
+	{
+		result.reserve(count);
+		for (size_t i = 0; i < count; i++)
+		{
+			TTDEvent event;
+			event.type = static_cast<TTDEventType>(events[i].type);
+			event.position.sequence = events[i].position.sequence;
+			event.position.step = events[i].position.step;
+			
+			// Copy optional module details
+			if (events[i].module)
+			{
+				TTDModule module;
+				module.name = events[i].module->name ? std::string(events[i].module->name) : "";
+				module.address = events[i].module->address;
+				module.size = events[i].module->size;
+				module.checksum = events[i].module->checksum;
+				module.timestamp = events[i].module->timestamp;
+				event.module = module;
+			}
+			
+			// Copy optional thread details
+			if (events[i].thread)
+			{
+				TTDThread thread;
+				thread.uniqueId = events[i].thread->uniqueId;
+				thread.id = events[i].thread->id;
+				thread.lifetimeStart.sequence = events[i].thread->lifetimeStart.sequence;
+				thread.lifetimeStart.step = events[i].thread->lifetimeStart.step;
+				thread.lifetimeEnd.sequence = events[i].thread->lifetimeEnd.sequence;
+				thread.lifetimeEnd.step = events[i].thread->lifetimeEnd.step;
+				thread.activeTimeStart.sequence = events[i].thread->activeTimeStart.sequence;
+				thread.activeTimeStart.step = events[i].thread->activeTimeStart.step;
+				thread.activeTimeEnd.sequence = events[i].thread->activeTimeEnd.sequence;
+				thread.activeTimeEnd.step = events[i].thread->activeTimeEnd.step;
+				event.thread = thread;
+			}
+			
+			// Copy optional exception details
+			if (events[i].exception)
+			{
+				TTDException exception;
+				exception.type = static_cast<TTDExceptionType>(events[i].exception->type);
+				exception.programCounter = events[i].exception->programCounter;
+				exception.code = events[i].exception->code;
+				exception.flags = events[i].exception->flags;
+				exception.recordAddress = events[i].exception->recordAddress;
+				exception.position.sequence = events[i].exception->position.sequence;
+				exception.position.step = events[i].exception->position.step;
+				event.exception = exception;
+			}
+			
+			result.push_back(event);
+		}
+		BNDebuggerFreeTTDEvents(events, count);
+	}
+	
+	return result;
+}
+
+
+std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
+{
+	std::vector<TTDEvent> result;
+	
+	size_t count = 0;
+	BNDebuggerTTDEvent* events = BNDebuggerGetAllTTDEvents(m_object, &count);
+	
+	if (events && count > 0)
+	{
+		result.reserve(count);
+		for (size_t i = 0; i < count; i++)
+		{
+			TTDEvent event;
+			event.type = static_cast<TTDEventType>(events[i].type);
+			event.position.sequence = events[i].position.sequence;
+			event.position.step = events[i].position.step;
+			
+			// Copy optional module details
+			if (events[i].module)
+			{
+				TTDModule module;
+				module.name = events[i].module->name ? std::string(events[i].module->name) : "";
+				module.address = events[i].module->address;
+				module.size = events[i].module->size;
+				module.checksum = events[i].module->checksum;
+				module.timestamp = events[i].module->timestamp;
+				event.module = module;
+			}
+			
+			// Copy optional thread details
+			if (events[i].thread)
+			{
+				TTDThread thread;
+				thread.uniqueId = events[i].thread->uniqueId;
+				thread.id = events[i].thread->id;
+				thread.lifetimeStart.sequence = events[i].thread->lifetimeStart.sequence;
+				thread.lifetimeStart.step = events[i].thread->lifetimeStart.step;
+				thread.lifetimeEnd.sequence = events[i].thread->lifetimeEnd.sequence;
+				thread.lifetimeEnd.step = events[i].thread->lifetimeEnd.step;
+				thread.activeTimeStart.sequence = events[i].thread->activeTimeStart.sequence;
+				thread.activeTimeStart.step = events[i].thread->activeTimeStart.step;
+				thread.activeTimeEnd.sequence = events[i].thread->activeTimeEnd.sequence;
+				thread.activeTimeEnd.step = events[i].thread->activeTimeEnd.step;
+				event.thread = thread;
+			}
+			
+			// Copy optional exception details
+			if (events[i].exception)
+			{
+				TTDException exception;
+				exception.type = static_cast<TTDExceptionType>(events[i].exception->type);
+				exception.programCounter = events[i].exception->programCounter;
+				exception.code = events[i].exception->code;
+				exception.flags = events[i].exception->flags;
+				exception.recordAddress = events[i].exception->recordAddress;
+				exception.position.sequence = events[i].exception->position.sequence;
+				exception.position.step = events[i].exception->position.step;
+				event.exception = exception;
+			}
+			
+			result.push_back(event);
+		}
+		BNDebuggerFreeTTDEvents(events, count);
+	}
+	
+	return result;
+}
+
+
 bool DebuggerController::IsInstructionExecuted(uint64_t address)
 {
 	return BNDebuggerIsInstructionExecuted(m_object, address);
