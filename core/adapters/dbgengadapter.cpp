@@ -996,6 +996,15 @@ bool DbgEngAdapter::ResumeThread(std::uint32_t tid)
 
 DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags)
 {
+	// Handle hardware breakpoint types
+	if (breakpoint_flags != SoftwareBreakpoint)
+	{
+		if (AddHardwareBreakpoint(address, (DebugBreakpointType)breakpoint_flags))
+			return DebugBreakpoint(address, 0, true, (DebugBreakpointType)breakpoint_flags);
+		else
+			return DebugBreakpoint{};
+	}
+
 	IDebugBreakpoint2* debug_breakpoint {};
 
 	/* attempt to read at breakpoint location to confirm its valid */
@@ -1021,7 +1030,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
 	if (debug_breakpoint->SetFlags(DEBUG_BREAKPOINT_ENABLED | breakpoint_flags) != S_OK)
 		return {};
 
-	const auto new_breakpoint = DebugBreakpoint(address, id, true);
+	const auto new_breakpoint = DebugBreakpoint(address, id, true, SoftwareBreakpoint);
 	this->m_debug_breakpoints.push_back(new_breakpoint);
 
 	return new_breakpoint;
@@ -1123,6 +1132,88 @@ std::vector<DebugBreakpoint> DbgEngAdapter::GetBreakpointList() const
 	// TODO: this list is maintained properly and can become outdated. Also, it is not used by the controller
 	//    return this->m_debug_breakpoints;
 	return {};
+}
+
+
+bool DbgEngAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!m_dbgengInitialized)
+		return false;
+
+	std::string command;
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+			// ba e<size> <address>: hardware execution breakpoint
+			command = fmt::format("ba e{} 0x{:x}", size, address);
+			break;
+		case HardwareReadBreakpoint:
+			// ba r<size> <address>: hardware read breakpoint  
+			command = fmt::format("ba r{} 0x{:x}", size, address);
+			break;
+		case HardwareWriteBreakpoint:
+			// ba w<size> <address>: hardware write breakpoint
+			command = fmt::format("ba w{} 0x{:x}", size, address);
+			break;
+		case HardwareAccessBreakpoint:
+			// ba a<size> <address>: hardware access (read/write) breakpoint
+			command = fmt::format("ba a{} 0x{:x}", size, address);
+			break;
+		default:
+			return false;
+	}
+
+	// Execute the command and check if it succeeded
+	auto result = InvokeBackendCommand(command);
+	// DbgEng typically returns an empty string or specific success message for successful ba commands
+	// If the command fails, it usually contains an error message
+	return result.find("error") == std::string::npos && result.find("Error") == std::string::npos;
+}
+
+
+bool DbgEngAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!m_dbgengInitialized)
+		return false;
+
+	// List all breakpoints to find the ID of the hardware breakpoint at this address
+	auto result = InvokeBackendCommand("bl");
+	
+	// Parse the breakpoint list to find the ID
+	// DbgEng breakpoint list format is typically:
+	// 0 e <address> <info>
+	// 1 r <address> <info> etc.
+	std::stringstream ss(result);
+	std::string line;
+	
+	while (std::getline(ss, line))
+	{
+		// Look for lines containing our address
+		if (line.find(fmt::format("{:x}", address)) != std::string::npos)
+		{
+			// Extract breakpoint ID (first number in the line)
+			std::istringstream iss(line);
+			std::string id_str;
+			if (iss >> id_str)
+			{
+				try
+				{
+					int bp_id = std::stoi(id_str);
+					// Remove the breakpoint using bc (breakpoint clear) command
+					auto clear_result = InvokeBackendCommand(fmt::format("bc {}", bp_id));
+					return clear_result.find("error") == std::string::npos && 
+						   clear_result.find("Error") == std::string::npos;
+				}
+				catch (...)
+				{
+					// Continue searching if this line doesn't contain a valid ID
+					continue;
+				}
+			}
+		}
+	}
+	
+	return false;
 }
 
 void DbgEngAdapter::ApplyBreakpoints()

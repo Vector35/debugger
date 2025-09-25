@@ -118,12 +118,14 @@ namespace BinaryNinjaDebugger {
 		std::uintptr_t m_address {};
 		unsigned long m_id {};
 		bool m_is_active {};
+		DebugBreakpointType m_type = SoftwareBreakpoint;
 
-		DebugBreakpoint(std::uintptr_t address, unsigned long id, bool active) :
-			m_address(address), m_id(id), m_is_active(active)
+		DebugBreakpoint(std::uintptr_t address, unsigned long id, bool active, DebugBreakpointType type = SoftwareBreakpoint) :
+			m_address(address), m_id(id), m_is_active(active), m_type(type)
 		{}
 
-		DebugBreakpoint(std::uintptr_t address) : m_address(address) {}
+		DebugBreakpoint(std::uintptr_t address, DebugBreakpointType type = SoftwareBreakpoint) : 
+			m_address(address), m_type(type) {}
 
 		DebugBreakpoint() {}
 

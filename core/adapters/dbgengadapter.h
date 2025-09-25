@@ -200,6 +200,10 @@ namespace BinaryNinjaDebugger {
 
 		std::vector<DebugBreakpoint> GetBreakpointList() const override;
 
+		// Hardware breakpoint and watchpoint support
+		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
+		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
+
 		std::string GetRegisterNameByIndex(std::uint32_t index) const;
 		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
 		DebugRegister ReadRegister(const std::string& reg) override;

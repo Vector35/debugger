@@ -415,7 +415,7 @@ DebugBreakpoint EsrevenAdapter::AddBreakpoint(const std::uintptr_t address, unsi
 	if (breakpoint_type != SoftwareBreakpoint)
 	{
 		if (AddHardwareBreakpoint(address, (DebugBreakpointType)breakpoint_type))
-			return DebugBreakpoint(address, 0, true); // Use 0 as ID for hardware breakpoints for now
+			return DebugBreakpoint(address, 0, true, (DebugBreakpointType)breakpoint_type);
 		else
 			return DebugBreakpoint{};
 	}
@@ -430,7 +430,7 @@ DebugBreakpoint EsrevenAdapter::AddBreakpoint(const std::uintptr_t address, unsi
     if (this->m_rspConnector->TransmitAndReceive(RspData("Z0,{:x},{}", address, kind)).AsString() != "OK" )
         return DebugBreakpoint{};
 
-    const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true);
+    const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true, SoftwareBreakpoint);
     this->m_debugBreakpoints.push_back(new_breakpoint);
 
     return new_breakpoint;
