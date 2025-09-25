@@ -360,6 +360,7 @@ namespace BinaryNinjaDebuggerAPI {
 		uint64_t offset;
 		uint64_t address;
 		bool enabled;
+		DebugBreakpointType type = SoftwareBreakpoint;
 	};
 
 

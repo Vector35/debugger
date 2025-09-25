@@ -23,7 +23,10 @@ limitations under the License.
 #include <QStringList>
 #include <algorithm>
 #include <QMouseEvent>
+#include <QMenu>
+#include <QMessageBox>
 #include "breakpointswidget.h"
+#include "hardwarebreakpointdialog.h"
 #include "ui.h"
 #include "menus.h"
 #include "fmt/format.h"
@@ -32,9 +35,29 @@ using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
-BreakpointItem::BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t address) :
-	m_enabled(enabled), m_location(location), m_address(address)
+BreakpointItem::BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t address, DebugBreakpointType type) :
+	m_enabled(enabled), m_location(location), m_address(address), m_type(type)
 {}
+
+
+std::string BreakpointItem::typeString() const
+{
+	switch (m_type)
+	{
+		case SoftwareBreakpoint:
+			return "Software";
+		case HardwareExecuteBreakpoint:
+			return "Hardware Exec";
+		case HardwareReadBreakpoint:
+			return "Hardware Read";
+		case HardwareWriteBreakpoint:
+			return "Hardware Write";
+		case HardwareAccessBreakpoint:
+			return "Hardware Access";
+		default:
+			return "Unknown";
+	}
+}
 
 
 bool BreakpointItem::operator==(const BreakpointItem& other) const
@@ -138,6 +161,14 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
 
 		return QVariant(text);
 	}
+	case DebugBreakpointsListModel::TypeColumn:
+	{
+		QString text = QString::fromStdString(item->typeString());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
+
+		return QVariant(text);
+	}
 	}
 	return QVariant();
 }
@@ -159,6 +190,8 @@ QVariant DebugBreakpointsListModel::headerData(int column, Qt::Orientation orien
 		return "Location";
 	case DebugBreakpointsListModel::AddressColumn:
 		return "Remote Address";
+	case DebugBreakpointsListModel::TypeColumn:
+		return "Type";
 	}
 	return QVariant();
 }
@@ -201,6 +234,7 @@ void DebugBreakpointsItemDelegate::paint(
 	case DebugBreakpointsListModel::EnabledColumn:
 	case DebugBreakpointsListModel::LocationColumn:
 	case DebugBreakpointsListModel::AddressColumn:
+	case DebugBreakpointsListModel::TypeColumn:
 	{
 		painter->setFont(m_font);
 		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
@@ -438,26 +472,46 @@ void DebugBreakpointsWidget::add()
 	if (!view)
 		return;
 
-	uint64_t address = 0;
-	if (!ViewFrame::getAddressFromInput(frame, view, address,
-			frame->getCurrentOffset(), "Add Breakpoint", "The address of the breakpoint:", true))
+	// Show options for software or hardware breakpoint
+	QMenu menu(this);
+	QAction* softwareAction = menu.addAction("Software Breakpoint");
+	QAction* hardwareAction = menu.addAction("Hardware Breakpoint...");
+	
+	QAction* chosen = menu.exec(QCursor::pos());
+	if (!chosen)
 		return;
 
-	bool isAbsoluteAddress = false;
-	auto controller = DebuggerController::GetController(view);
-	if (controller->IsConnected())
-		isAbsoluteAddress = true;
+	if (chosen == softwareAction)
+	{
+		// Original software breakpoint logic
+		uint64_t address = 0;
+		if (!ViewFrame::getAddressFromInput(frame, view, address,
+				frame->getCurrentOffset(), "Add Breakpoint", "The address of the breakpoint:", true))
+			return;
 
-	if (isAbsoluteAddress)
-	{
-		m_controller->AddBreakpoint(address);
+		bool isAbsoluteAddress = false;
+		auto controller = DebuggerController::GetController(view);
+		if (controller->IsConnected())
+			isAbsoluteAddress = true;
+
+		if (isAbsoluteAddress)
+		{
+			m_controller->AddBreakpoint(address);
+		}
+		else
+		{
+			std::string filename = m_controller->GetInputFile();
+			uint64_t offset = address - m_controller->GetViewFileSegmentsStart();
+			ModuleNameAndOffset info = {filename, offset};
+			m_controller->AddBreakpoint(info);
+		}
 	}
-	else
+	else if (chosen == hardwareAction)
 	{
-		std::string filename = m_controller->GetInputFile();
-		uint64_t offset = address - m_controller->GetViewFileSegmentsStart();
-		ModuleNameAndOffset info = {filename, offset};
-		m_controller->AddBreakpoint(info);
+		// Hardware breakpoint dialog
+		uint64_t suggestedAddress = frame->getCurrentOffset();
+		HardwareBreakpointDialog dialog(this, m_controller, suggestedAddress);
+		dialog.exec();
 	}
 }
 
@@ -554,7 +608,7 @@ void DebugBreakpointsWidget::updateContent()
 		ModuleNameAndOffset info;
 		info.module = bp.module;
 		info.offset = bp.offset;
-		bps.emplace_back(bp.enabled, info, bp.address);
+		bps.emplace_back(bp.enabled, info, bp.address, bp.type);
 	}
 
 	m_model->updateRows(bps);

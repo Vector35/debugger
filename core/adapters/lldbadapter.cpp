@@ -921,7 +921,7 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigne
 	if (breakpoint_type == HardwareExecuteBreakpoint)
 	{
 		if (AddHardwareBreakpoint(address, HardwareExecuteBreakpoint))
-			return DebugBreakpoint(address, 0, true); // Use 0 as ID for hardware breakpoints for now
+			return DebugBreakpoint(address, 0, true, HardwareExecuteBreakpoint);
 		else
 			return DebugBreakpoint {};
 	}
@@ -931,7 +931,7 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigne
 	if (!bp.IsValid())
 		return DebugBreakpoint {};
 
-	return DebugBreakpoint(address, bp.GetID(), bp.IsEnabled());
+	return DebugBreakpoint(address, bp.GetID(), bp.IsEnabled(), SoftwareBreakpoint);
 }
 
 
