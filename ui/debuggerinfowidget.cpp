@@ -570,25 +570,20 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getStackInfo(const ViewLocatio
 	uint64_t stackPointer = m_debugger->StackPointer();
 	size_t addressSize = arch->GetAddressSize();
 	
-	// Add separator entry
-	std::vector<InstructionTextToken> separatorTokens;
-	separatorTokens.emplace_back(TextToken, "--- Stack Contents ---");
-	result.emplace_back(separatorTokens, 0, "", BN_INVALID_EXPR, BN_INVALID_EXPR, 0);
-	
 	// Get stack register name for display
 	auto stackReg = arch->GetStackPointerRegister();
 	auto stackRegName = arch->GetRegisterName(stackReg);
 	
 	// Read stack contents - show values at rsp, rsp+0x8, rsp+0x10, etc.
 	BinaryReader reader(m_data);
-	for (int i = 0; i < 8; i++)  // Show 8 stack entries
+	for (int i = 0; i < 16; i++)  // Show 16 stack entries (increased from 8)
 	{
 		ptrdiff_t offset = i * addressSize;
-		uint64_t address = stackPointer + offset;
+		uint64_t stackAddress = stackPointer + offset;
 		
 		try 
 		{
-			reader.Seek(address);
+			reader.Seek(stackAddress);
 			uint64_t value = 0;
 			
 			switch (addressSize)
@@ -640,7 +635,8 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getStackInfo(const ViewLocatio
 				}
 			}
 			
-			result.emplace_back(tokens, value, hint, BN_INVALID_EXPR, BN_INVALID_EXPR, address);
+			// Create stack entry with storage address and stack flag
+			result.emplace_back(tokens, value, hint, BN_INVALID_EXPR, BN_INVALID_EXPR, stackAddress, stackAddress, true);
 		}
 		catch (const std::exception&)
 		{
@@ -803,6 +799,14 @@ void DebuggerInfoEntryItemDelegate::paint(QPainter *painter, const QStyleOptionV
 		painter->setPen(getThemeColor(StringColor));
 		painter->drawText(textRect, QString::fromStdString(entry->hints));
 		break;
+	case StorageColumn:
+		if (entry->isStackEntry)
+		{
+			painter->setPen(getThemeColor(AddressColor));
+			painter->drawText(textRect, QString::asprintf("0x%llx", entry->storageAddress));
+		}
+		// Draw nothing for non-stack entries (empty column)
+		break;
 	default:
 		break;
 	}
@@ -866,7 +870,7 @@ int DebuggerInfoEntryItemModel::rowCount(const QModelIndex &parent) const
 
 int DebuggerInfoEntryItemModel::columnCount(const QModelIndex &parent) const
 {
-	return 3;
+	return 4;  // Added StorageColumn
 }
 
 
@@ -887,6 +891,7 @@ QVariant DebuggerInfoEntryItemModel::data(const QModelIndex &index, int role) co
 		case ExprColumn:
 		case ValueColumn:
 		case HintColumn:
+		case StorageColumn:
 			result.setValue(item);
 			break;
 		default:
@@ -915,6 +920,19 @@ QVariant DebuggerInfoEntryItemModel::data(const QModelIndex &index, int role) co
 		case HintColumn:
 			result.setValue(item->hints.size());
 			break;
+		case StorageColumn:
+		{
+			if (item->isStackEntry)
+			{
+				auto str = QString::asprintf("0x%llx", item->storageAddress);
+				result.setValue(str.size());
+			}
+			else
+			{
+				result.setValue(0);  // Empty for non-stack entries
+			}
+			break;
+		}
 		default:
 			break;
 		}
@@ -948,6 +966,8 @@ QVariant DebuggerInfoEntryItemModel::headerData(int column, Qt::Orientation orie
 		return "Value";
 	case HintColumn:
 		return "Hint";
+	case StorageColumn:
+		return "Storage";
 	}
 	return QVariant();
 }
@@ -999,6 +1019,7 @@ void DebuggerInfoTable::updateColumnWidths()
 	resizeColumnToContents(ExprColumn);
 	resizeColumnToContents(ValueColumn);
 	resizeColumnToContents(HintColumn);
+	resizeColumnToContents(StorageColumn);
 }
 
 

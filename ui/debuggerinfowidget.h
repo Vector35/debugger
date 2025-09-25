@@ -41,6 +41,7 @@ enum ColumnHeaders
 	ExprColumn,
 	ValueColumn,
 	HintColumn,
+	StorageColumn,
 };
 
 
@@ -52,9 +53,12 @@ struct DebuggerInfoEntry
 	size_t instrIndex;
 	size_t operandIndex;
 	uint64_t address;
+	uint64_t storageAddress;  // For stack entries, this will be the actual stack address
+	bool isStackEntry;        // Flag to identify stack entries
 
 	DebuggerInfoEntry(const std::vector<InstructionTextToken>& t, intx::uint512 v, const std::string& h, size_t i, size_t o,
-					  uint64_t a): tokens(t), value(v), hints(h), instrIndex(i), operandIndex(o), address(a)
+					  uint64_t a, uint64_t sa = 0, bool stack = false): 
+		tokens(t), value(v), hints(h), instrIndex(i), operandIndex(o), address(a), storageAddress(sa), isStackEntry(stack)
 	{}
 };
 
