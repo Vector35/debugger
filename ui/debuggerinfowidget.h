@@ -39,9 +39,9 @@ using namespace std;
 enum ColumnHeaders
 {
 	ExprColumn,
+	StorageColumn,  // Moved to second position
 	ValueColumn,
 	HintColumn,
-	StorageColumn,
 };
 
 
@@ -116,6 +116,8 @@ Q_OBJECT;
 
 	BinaryViewRef m_data;
 	DebuggerControllerRef m_debugger;
+	int m_stackEntryCount;  // Number of stack entries to display
+	ViewLocation m_currentLocation;  // Store current location for context menu updates
 
 	std::vector<DebuggerInfoEntry> getILInfoEntries(const ViewLocation& location);
 	std::vector<DebuggerInfoEntry> getInfoForLLIL(LowLevelILFunctionRef llil, const LowLevelILInstruction& instr);
@@ -134,8 +136,13 @@ Q_OBJECT;
 
 	void updateColumnWidths();
 
+protected:
+	virtual void contextMenuEvent(QContextMenuEvent* event) override;
+
 private slots:
-	void onDoubleClicked();
+	void onDoubleClicked(const QModelIndex& index);
+	void increaseStackEntries();
+	void decreaseStackEntries();
 
 public:
 	DebuggerInfoTable(BinaryViewRef data);
