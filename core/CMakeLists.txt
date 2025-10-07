@@ -26,6 +26,10 @@ file(GLOB ADAPTER_SOURCES CONFIGURE_DEPENDS
 		adapters/lldbadapter.h
 		adapters/gdbadapter.cpp
 		adapters/gdbadapter.h
+		adapters/gdbmiconnector.cpp
+		adapters/gdbmiconnector.h
+		adapters/gdbmiadapter.cpp
+		adapters/gdbmiadapter.h
 		adapters/rspconnector.cpp
 		adapters/rspconnector.h
 		adapters/corelliumadapter.cpp
@@ -220,4 +224,10 @@ if(APPLE)
 		COMMAND chmod +x ${PROJECT_SOURCE_DIR}/../test/binaries/Darwin-x86_64-signed/*
 		COMMAND codesign --deep --options runtime --entitlements ${PROJECT_SOURCE_DIR}/../test/entitlements.plist -s - ${PROJECT_SOURCE_DIR}/../test/binaries/Darwin-x86_64-signed/*
 		)
+endif()
+
+# Add core unit tests if requested
+option(BUILD_CORE_TESTS "Build core unit tests" OFF)
+if(BUILD_CORE_TESTS)
+    add_subdirectory(tests)
 endif()
