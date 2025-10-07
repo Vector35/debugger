@@ -16,6 +16,7 @@ limitations under the License.
 
 #include <inttypes.h>
 #include "adapters/gdbadapter.h"
+#include "adapters/gdbmiadapter.h"
 #include "adapters/lldbadapter.h"
 #include "adapters/corelliumadapter.h"
 #include "adapters/lldbcoredumpadapter.h"
@@ -49,6 +50,7 @@ void InitDebugAdapterTypes()
 
 	InitCorelliumAdapterType();
 	InitGdbAdapterType();
+	InitGdbMiAdapterType();
 	InitLldbAdapterType();
 	InitEsrevenAdapterType();
 	InitLldbCoreDumpAdapterType();
