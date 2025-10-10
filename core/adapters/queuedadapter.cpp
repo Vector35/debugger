@@ -568,6 +568,22 @@ uint64_t QueuedAdapter::GetStackPointer()
 }
 
 
+std::uint32_t QueuedAdapter::GetActivePID()
+{
+    std::unique_lock<std::mutex> lock(m_queueMutex);
+
+    std::uint32_t ret;
+    Semaphore sem;
+    m_queue.push([&]{
+        ret = m_adapter->GetActivePID();
+        sem.Release();
+    });
+    lock.unlock();
+    sem.Wait();
+    return ret;
+}
+
+
 bool QueuedAdapter::SupportFeature(DebugAdapterCapacity feature)
 {
     return m_adapter->SupportFeature(feature);

@@ -259,6 +259,7 @@ bool EsrevenAdapter::Connect(const std::string& server, std::uint32_t port)
     const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("?"));
     auto map = RspConnector::PacketToUnorderedMap(reply);
 	this->m_lastActiveThreadId = map["thread"];
+	this->m_processPid = map["thread"];
     m_isTargetRunning = false;
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
@@ -1198,6 +1199,13 @@ uint64_t EsrevenAdapter::GetStackPointer()
 	uint64_t value = (uint64_t)this->ReadRegister(ipRegisterName).m_value;
 	return value;
 }
+
+
+std::uint32_t EsrevenAdapter::GetActivePID()
+{
+	return m_processPid;
+}
+
 
 DebugStopReason EsrevenAdapter::StopReason()
 {

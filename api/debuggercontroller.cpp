@@ -164,6 +164,12 @@ std::vector<DebugProcess> DebuggerController::GetProcessList()
 }
 
 
+std::uint32_t DebuggerController::GetActivePID()
+{
+	return BNDebuggerGetActivePID(m_object);
+}
+
+
 std::vector<DebugThread> DebuggerController::GetThreads()
 {
 	size_t count;

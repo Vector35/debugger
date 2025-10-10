@@ -339,6 +339,7 @@ namespace BinaryNinjaDebugger {
 		DebuggerFileAccessor* GetMemoryAccessor() const { return m_accessor; }
 
 		uint32_t GetExitCode();
+		uint32_t GetActivePID();
 
 		void WriteStdIn(const std::string message);
 

@@ -1795,6 +1795,17 @@ class DebuggerController:
         dbgcore.BNDebuggerSetPIDAttach(self.handle, pid)
 
     @property
+    def active_pid(self) -> int:
+        """
+        The PID of the process currently being debugged. (read-only)
+
+        This returns the PID of the currently attached or running process.
+
+        :return: the PID of the active process, or 0 if no process is active or the PID is unavailable
+        """
+        return dbgcore.BNDebuggerGetActivePID(self.handle)
+
+    @property
     def executable_path(self) -> str:
         """
         The path of the executable. (read/write)

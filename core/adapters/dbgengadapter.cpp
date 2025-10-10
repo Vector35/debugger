@@ -1506,6 +1506,20 @@ uint64_t DbgEngAdapter::GetStackPointer()
 	return stackPointer;
 }
 
+
+std::uint32_t DbgEngAdapter::GetActivePID()
+{
+	if (!m_debugSystemObjects)
+		return 0;
+
+	ULONG pid {};
+	if (m_debugSystemObjects->GetCurrentProcessSystemId(&pid) != S_OK)
+		return 0;
+
+	return pid;
+}
+
+
 unsigned long DbgEngEventCallbacks::AddRef()
 {
 	return 1;

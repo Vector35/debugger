@@ -238,6 +238,8 @@ namespace BinaryNinjaDebugger {
 
 		virtual std::vector<DebugProcess> GetProcessList() = 0;
 
+		virtual std::uint32_t GetActivePID() = 0;
+
 		virtual std::vector<DebugThread> GetThreadList() = 0;
 
 		virtual DebugThread GetActiveThread() const = 0;

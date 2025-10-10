@@ -68,6 +68,8 @@ namespace BinaryNinjaDebugger {
 
 		std::vector<DebugProcess> GetProcessList() override;
 
+		std::uint32_t GetActivePID() override;
+
 		std::vector<DebugThread> GetThreadList() override;
 
 		DebugThread GetActiveThread() const override;

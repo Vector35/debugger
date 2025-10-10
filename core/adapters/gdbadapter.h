@@ -61,6 +61,7 @@ namespace BinaryNinjaDebugger
 		std::optional<std::vector<DebugModule>> m_moduleCache{};
 
 		std::uint32_t m_lastActiveThreadId{};
+		std::uint32_t m_processPid{};
 		uint8_t m_exitCode{};
 
 		std::string GetGDBServerPath();
@@ -145,6 +146,7 @@ namespace BinaryNinjaDebugger
 		std::string RunMonitorCommand(const std::string& command);
 		uint64_t GetInstructionOffset() override;
 		uint64_t GetStackPointer() override;
+		std::uint32_t GetActivePID() override;
 
 		DebugStopReason ResponseHandler(bool notifyStopped = true);
 

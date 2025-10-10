@@ -628,6 +628,8 @@ namespace BinaryNinjaDebuggerAPI {
 
 		std::vector<DebugProcess> GetProcessList();
 
+		std::uint32_t GetActivePID();
+
 		std::vector<DebugThread> GetThreads();
 		DebugThread GetActiveThread();
 		void SetActiveThread(const DebugThread& thread);

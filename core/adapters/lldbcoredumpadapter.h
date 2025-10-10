@@ -117,6 +117,7 @@ namespace BinaryNinjaDebugger {
 		uint64_t GetInstructionOffset() override;
 
 		uint64_t GetStackPointer() override;
+		std::uint32_t GetActivePID() override;
 
 		bool SupportFeature(DebugAdapterCapacity feature) override;
 

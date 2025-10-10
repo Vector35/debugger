@@ -48,6 +48,7 @@ namespace BinaryNinjaDebugger
 		std::vector<DebugBreakpoint> m_debugBreakpoints{};
 
 		std::uint32_t m_lastActiveThreadId{};
+		std::uint32_t m_processPid{};
 		uint8_t m_exitCode{};
 
 		std::string GetGDBServerPath();
@@ -120,6 +121,7 @@ namespace BinaryNinjaDebugger
 		std::string InvokeBackendCommand(const std::string& command) override;
 		std::string RunMonitorCommand(const std::string& command);
 		uint64_t GetInstructionOffset() override;
+		std::uint32_t GetActivePID() override;
 
 		DebugStopReason ResponseHandler();
 
