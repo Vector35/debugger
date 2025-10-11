@@ -117,7 +117,7 @@ void GdbMiAdapter::UpdateAllRegisters() {
 		return;
 	}
 
-	for (int i; i<gdbmiregisters["register-values"].size(); i++)
+	for (int i = 0; i < gdbmiregisters["register-values"].size(); i++)
 	{
 		auto gdbmi_reg = gdbmiregisters["register-values"][i];
 		auto reg_idx = std::stoul(gdbmi_reg["number"].GetString(), 0, 10);
@@ -422,6 +422,7 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
 		// Check for register-names in different possible locations
 		if (value.Exists("register-names"))
 		{
+			m_registerNames.clear();
 			for (const auto& regVal : value["register-names"].GetList())
 			{
 				m_registerNames.push_back(regVal.GetString());
