@@ -606,7 +606,7 @@ DebugBreakpoint GdbMiAdapter::AddBreakpoint(std::uintptr_t address, unsigned lon
         return DebugBreakpoint{address, 0, true};
     }
 
-    LogWarn("Failed to set BP at %lu", address);
+    LogWarn("Failed to set BP at 0x%lux", address);
     return {};
 }
 
