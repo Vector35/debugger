@@ -45,8 +45,8 @@ public:
     GdbMiAdapter(BinaryView* data);
     ~GdbMiAdapter() override;
 
-	uint64_t m_instructionOffset;
-	uint64_t m_stackPointer;
+	uint64_t m_instructionOffset = 0;
+	uint64_t m_stackPointer = 0;
     // --- Overridden Virtual Functions ---
     // All functions that override a virtual function in DebugAdapter should have `override`.
 
