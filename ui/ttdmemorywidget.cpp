@@ -128,7 +128,7 @@ TTDMemoryQueryWidget::~TTDMemoryQueryWidget()
 
 void TTDMemoryQueryWidget::setupUI()
 {
-	// Set size policy to allow widget to expand/contract in sidebar
+	// Set size policy to allow widget to adapt to sidebar space and prevent scroll bar clipping
 	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 	
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -227,7 +227,7 @@ void TTDMemoryQueryWidget::setupTable()
 	m_resultsTable->setColumnCount(m_columnNames.size());
 	m_resultsTable->setHorizontalHeaderLabels(m_columnNames);
 	
-	// Set size policy to allow table to expand and contract properly in sidebar
+	// Set size policy to ensure table scrollbar works correctly within sidebar constraints
 	m_resultsTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 	
 	// Configure table appearance
@@ -713,7 +713,7 @@ TTDMemoryWidget::~TTDMemoryWidget()
 void TTDMemoryWidget::setupUI()
 {
 	setWindowTitle("TTD Memory Analysis");
-	// Set size policy to allow widget to expand/contract in sidebar
+	// Set size policy to allow widget to adapt to sidebar space and prevent scroll bar clipping
 	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 	
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
