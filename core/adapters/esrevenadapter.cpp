@@ -479,7 +479,7 @@ static intx::uint512 parseLittleEndianHexToUint512(const std::string& hex) {
 	for (size_t i = 0; i < limit; ++i)
 	{
 		std::string byteStr = hex.substr(i * 2, 2);
-		buffer[i] = static_cast<uint8_t>(std::stoul(byteStr, nullptr, 16));
+		buffer[i] = static_cast<uint8_t>(strtoul(byteStr.c_str(), nullptr, 16));
 	}
 
 	return intx::le::load<intx::uint512>(buffer);

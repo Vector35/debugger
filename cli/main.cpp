@@ -512,7 +512,7 @@ int main(int argc, const char* argv[])
 		}
 		else if (auto loc = input.find("ts "); loc != std::string::npos)
 		{
-			auto thread_id = std::stoul(input.substr(loc + 3), nullptr, 10);
+			auto thread_id = strtoul(input.substr(loc + 3).c_str(), nullptr, 10);
 			debugger->SetActiveThread(thread_id);
 		}
 		else if (input == "disasm")
@@ -521,7 +521,7 @@ int main(int argc, const char* argv[])
 		}
 		else if (auto loc = input.find("disasm "); loc != std::string::npos)
 		{
-			auto count = std::stoul(input.substr(loc + 7), nullptr, 10);
+			auto count = strtoul(input.substr(loc + 7).c_str(), nullptr, 10);
 			if (count == 0)
 				count = 10;
 			DisasmDisplay(debugger, count);
