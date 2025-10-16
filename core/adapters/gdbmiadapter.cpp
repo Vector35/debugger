@@ -211,6 +211,10 @@ void GdbMiAdapter::AsyncRecordHandler(const MiRecord& record)
 
         m_eventCV.notify_all();
     }
+	else if (record.command == "error")
+	{
+		LogError("GDBMI: %s", record.payload.c_str());
+	}
 	else if (record.type == '~' || record.type == '@' || record.type == '&' || record.type == '=')
 	{ // Console stream output
 		std::string message;
@@ -264,26 +268,33 @@ void GdbMiAdapter::ScheduleStateRefresh()
     }).detach();
 }
 
-DebugStopReason GdbMiAdapter::GetStopReason(const MiRecord& record) {
-    auto value = MiValue::Parse(record.payload);
-    if (value.Exists("reason")) {
-        const std::string& reason = value["reason"].GetString();
-        if (reason == "breakpoint-hit") return Breakpoint;
-        if (reason == "end-stepping-range") return SingleStep;
-        if (reason == "exited-normally" || reason == "exited") return ProcessExited;
-        if (reason == "signal-received") return SignalInt;
-    }
-    return UnknownReason;
+DebugStopReason GdbMiAdapter::GetStopReason(const MiRecord& record)
+{
+	auto value = MiValue::Parse(record.payload);
+	if (value.Exists("reason"))
+	{
+		const std::string& reason = value["reason"].GetString();
+		if (reason == "breakpoint-hit")
+			return Breakpoint;
+		if (reason == "end-stepping-range")
+			return SingleStep;
+		if (reason == "exited-normally" || reason == "exited")
+			return ProcessExited;
+		if (reason == "signal-received")
+			return SignalInt;
+	}
+	return UnknownReason;
 }
 
-std::string GdbMiAdapter::RunMonitorCommand(const std::string& command) {
-    if (!m_mi) return "";
+bool GdbMiAdapter::RunMonitorCommand(const std::string& command) const
+{
+    if (!m_mi) return false;
     // Monitor commands don't use MI syntax, they use the console interpreter
     auto result = m_mi->SendCommand("-interpreter-exec console \"monitor " + command + "\"");
     // The result is usually printed to the console stream ('~' records), which is hard to
     // capture synchronously. For now, we assume it worked if we get a 'done' back.
     // A better implementation would buffer console output between commands.
-    return (result.command == "done") ? "success" : "error";
+    return (result.command == "done");
 }
 
 bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
@@ -459,6 +470,7 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
 bool GdbMiAdapter::Execute(const std::string&, const LaunchConfigurations&) { LogWarn("GdbMiAdapter::Execute not implemented"); return false; }
 bool GdbMiAdapter::ExecuteWithArgs(const std::string&, const std::string&, const std::string&, const LaunchConfigurations&)
 {
+	InvalidateCache();
 	auto settings = GetAdapterSettings();
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
@@ -473,6 +485,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string&, const std::string&, const
 	return Connect(server, port);
 }
 bool GdbMiAdapter::Attach(uint32_t) {
+	InvalidateCache();
 	auto settings = GetAdapterSettings();
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
@@ -493,26 +506,32 @@ bool GdbMiAdapter::ResumeThread(uint32_t) { LogWarn("GdbMiAdapter::ResumeThread 
 
 void GdbMiAdapter::Stop()
 {
-	if (m_mi && m_mi->IsRunning())
+	try
 	{
-		LogDebug("GDB MI connector stopping...");
-		m_mi->SetAsyncCallback(nullptr);
-		m_mi->Stop();
-		m_mi.reset();
-		LogDebug("GDB MI connector stopped.");
+		if (m_mi && m_mi->IsRunning())
+		{
+			LogDebug("GDB MI connector stopping...");
+			m_mi->SetAsyncCallback(nullptr);
+			m_mi->Stop();
+			m_mi.reset();
+			LogDebug("GDB MI connector stopped.");
+		}
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception during GDB MI adapter stop: %s", e.what());
+	}
+	catch (...)
+	{
+		LogError("Unknown exception during GDB MI adapter stop");
 	}
 
 	// Clear all cached data
-	{
-		std::unique_lock lock(m_cacheMutex);
-		m_cachedThreads.clear();
-		m_cachedRegisters.clear();
-		m_cachedFrames.clear();
-	}
+	InvalidateCache();
 
 	// Reset target state
     m_targetRunningAtomic.store(false, std::memory_order_release);
-
+    m_connected = false;
 }
 
 bool GdbMiAdapter::Quit()
@@ -520,6 +539,7 @@ bool GdbMiAdapter::Quit()
     Detach();
 	Stop();
 	m_connected = false;
+	m_targetRunningAtomic.store(false);
 
     LogInfo("GDB MI adapter quit completed successfully");
     return true;
@@ -575,7 +595,7 @@ std::vector<DebugFrame> GdbMiAdapter::GetFramesOfThread(uint32_t tid) {
 uint32_t GdbMiAdapter::GetActiveThreadId() const { return m_currentTid; }
 
 DebugThread GdbMiAdapter::GetActiveThread() const {
-    GdbMiAdapter* self = const_cast<GdbMiAdapter*>(this);
+	auto self = const_cast<GdbMiAdapter*>(this);
     uint64_t pc = self->GetInstructionOffset();
     return DebugThread(m_currentTid, pc);
 }
@@ -600,7 +620,7 @@ DebugBreakpoint GdbMiAdapter::AddBreakpoint(std::uintptr_t address, unsigned lon
     if (result.command == "done") {
         DebuggerEvent evt;
 		evt.type = BackendMessageEventType;
-		evt.data.messageData.message = result.command;
+		evt.data.messageData.message = result.payload;
 		PostDebuggerEvent(evt);
 
         return DebugBreakpoint{address, 0, true};
@@ -628,8 +648,18 @@ DebugBreakpoint GdbMiAdapter::AddBreakpoint(const ModuleNameAndOffset& address, 
 
 bool GdbMiAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint) {
     if (!m_mi) return false;
-    m_mi->SendCommand(fmt::format("-break-delete *0x{:x}", breakpoint.m_address));
-    return true;
+    auto result = m_mi->SendCommand(fmt::format("-break-delete *0x{:x}", breakpoint.m_address));
+
+	if (result.command == "done") {
+		DebuggerEvent evt;
+		evt.type = BackendMessageEventType;
+		evt.data.messageData.message = result.payload;
+		PostDebuggerEvent(evt);
+
+		return true;
+	}
+
+	return false;
 }
 
 std::vector<DebugBreakpoint> GdbMiAdapter::GetBreakpointList() const { LogWarn("GdbMiAdapter::GetBreakpointList not implemented"); return {}; }
@@ -643,15 +673,21 @@ bool GdbMiAdapter::WriteRegister(const std::string& reg, intx::uint512 value) {
 
 DataBuffer GdbMiAdapter::ReadMemory(std::uintptr_t address, size_t size) {
     if (!m_mi) return {};
-
+	LogDebug("GdbMiAdapter::ReadMemory 0x%lX-0x%lX", address, address+size);
 	// embedded specifics: we can use 'info mem' to get list of memory regions available for reading.
 	// it's safe to assume 0x08000000 - 0x60000000 is good enough for most arm-cortex targets
-	if (address > 0x60000000) return {};
-	if (address < 0x08000000) return {};
+	DataBuffer zero(size);
+	if (address > 0x60000000) return zero;
+	if (address < 0x08000000) return zero;
 
     std::string cmd = fmt::format("-data-read-memory-bytes 0x{:x} {}", address, size);
     auto result = m_mi->SendCommand(cmd);
-    if (result.command != "done") return {};
+    if (result.command != "done")
+    {
+    	LogWarn("Failed to read memory at 0x%lX", address);
+
+	    return zero;
+    }
 
     auto value = MiValue::Parse(result.payload);
     std::string hex_contents = value["memory"][0]["contents"].GetString();
@@ -684,8 +720,8 @@ std::vector<DebugModule> GdbMiAdapter::GetModuleList()
 		return {};
 
 	std::string name = data->GetFile()->GetOriginalFilename();
-    modules.push_back(DebugModule("SRAM", "SRAM", 0x20000000, 0x00040000, true));
-	modules.push_back(DebugModule(name, name, 0x08000000, 0x00100000, true));
+    modules.emplace_back("SRAM", "SRAM", 0x20000000, 0x00040000, true);
+	modules.emplace_back(name, name, 0x08000000, 0x00100000, true);
 	return modules;
 }
 

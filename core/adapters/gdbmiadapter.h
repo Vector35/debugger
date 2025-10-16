@@ -37,7 +37,7 @@ private:
     BinaryNinjaDebugger::DebugStopReason GetStopReason(const MiRecord& record);
 	static intx::uint512 ParseGdbValue(const std::string& valueStr);
 
-    std::string RunMonitorCommand(const std::string& command);
+	bool RunMonitorCommand(const std::string& command) const;
 	void ApplyBreakpoints();
 	std::vector<BinaryNinjaDebugger::ModuleNameAndOffset> m_pendingBreakpoints {};
 

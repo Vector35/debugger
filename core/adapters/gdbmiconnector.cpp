@@ -7,6 +7,7 @@
 #else
 #include <spawn.h>
 #include <sys/wait.h>
+#include <cstring> // for strerror
 // For Linux/macOS, we need the environment variables
 extern char** environ;
 #endif
@@ -195,50 +196,22 @@ void GdbMiConnector::Stop()
 		return;
 
 	LogInfo("GDB MI connector: Starting graceful shutdown...");
-
-	// Send a quit command to GDB and wait for a response
-	SendCommand("-gdb-exit", 100);
-
+	SendCommand("-gdb-exit", 200);
+	// Set running flag to false first to signal reader thread to exit
 	m_running = false;
 
-	// Give GDB a moment to shut down
-	std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	// Close file handles to wake up reader thread blocked on I/O
+	CloseFileHandles();
 
-	// Wait for the reader thread to finish, which should happen naturally now
+	// Wait for the reader thread to finish with a timeout
 	if (m_readerThread.joinable())
 	{
 		LogInfo("GDB MI connector: Waiting for reader thread to finish...");
 		m_readerThread.join();
-		LogInfo("GDB MI connector: Reader thread finished");
 	}
 
-#ifdef WIN32
-	CloseHandle(m_gdb_stdin_write);
-	CloseHandle(m_gdb_stdout_read);
-	CloseHandle(m_pi.hProcess);
-	CloseHandle(m_pi.hThread);
-#else
-	close(m_gdb_stdin_write);
-	close(m_gdb_stdout_read);
-	if (m_pid > 0)
-	{
-		int status;
-		// Check if the process is still around, but don't hang waiting for it
-		if (waitpid(m_pid, &status, WNOHANG) == 0)
-		{
-			// If it's still there, it's likely a zombie, so we can kill it.
-			// But a graceful shutdown should prevent this.
-			LogWarn("GDB process (PID: %d) did not exit gracefully, forcing termination.", m_pid);
-			kill(m_pid, SIGKILL);
-			waitpid(m_pid, &status, 0);
-		}
-		else
-		{
-			LogInfo("GDB process (PID: %d) exited gracefully.", m_pid);
-		}
-	}
-#endif
-
+	// Try to terminate GDB process if still running
+	TerminateGdbProcess();
 	LogInfo("GDB MI connector: Shutdown completed");
 }
 
@@ -345,182 +318,258 @@ MiRecord GdbMiConnector::SendCommand(const std::string& command, int timeout_ms)
     long token = m_nextToken++;
     std::string fullCommand = std::to_string(token) + command + "\n";
     
-    
-    #ifdef WIN32
-    DWORD bytesWritten;
-    if (!WriteFile(m_gdb_stdin_write, fullCommand.c_str(), fullCommand.length(), &bytesWritten, NULL))
-    return {};
-    #else
-    if (write(m_gdb_stdin_write, fullCommand.c_str(), fullCommand.length()) < 0)
-    return {};
-    #endif
+    try {
+#ifdef WIN32
+        DWORD bytesWritten;
+        if (!WriteFile(m_gdb_stdin_write, fullCommand.c_str(), static_cast<DWORD>(fullCommand.length()), &bytesWritten, NULL)) {
+            DWORD error = GetLastError();
+            LogError("Failed to write to GDB stdin, error: %lu", error);
+            m_running = false;
+            return {};
+        }
+#else
+        ssize_t bytesWritten = write(m_gdb_stdin_write, fullCommand.c_str(), fullCommand.length());
+        if (bytesWritten < 0) {
+            int error = errno;
+            LogError("Failed to write to GDB stdin, error: %d (%s)", error, strerror(error));
+            
+            // Handle specific pipe errors
+            if (error == EPIPE || error == ECONNRESET) {
+                LogError("GDB process pipe broken - process likely terminated");
+                m_running = false;
+            } else if (error == EBADF) {
+                LogError("Invalid file descriptor for GDB stdin");
+                m_running = false;
+            }
+            return {};
+        } else if (static_cast<size_t>(bytesWritten) != fullCommand.length()) {
+            LogWarn("Partial write to GDB stdin: %zd of %zu bytes", bytesWritten, fullCommand.length());
+        }
+#endif
+    } catch (const std::exception& e) {
+        LogError("Exception while writing to GDB: %s", e.what());
+        m_running = false;
+        return {};
+    } catch (...) {
+        LogError("Unknown exception while writing to GDB");
+        m_running = false;
+        return {};
+    }
     
     std::unique_lock lock(m_mutex);
     LogDebug("GDB->: %s", fullCommand.c_str());
-    if (m_cv.wait_for(lock, std::chrono::milliseconds(timeout_ms), [&] { return m_responses.count(token); }))
+    
+    // Wait for response with timeout
+    if (m_cv.wait_for(lock, std::chrono::milliseconds(timeout_ms), [&] { return m_responses.count(token) || !m_running; }))
     {
         MiRecord record = m_responses[token];
         m_responses.erase(token);
         return record;
+    } else {
+        LogWarn("Timeout waiting for GDB response to command: %s", command.c_str());
+        return {};
     }
-
-
-
-    return {};
 }
 
 void GdbMiConnector::ReaderThread()
 {
     std::string currentLine;
-    char buffer[4096];
+    char buffer[8192] = {0};
 
+    try {
 #ifndef WIN32
-    // Make the read fd non-blocking so we can drain per select wakeup
-    int flags = fcntl(m_gdb_stdout_read, F_GETFL, 0);
-    fcntl(m_gdb_stdout_read, F_SETFL, flags | O_NONBLOCK);
+        // Make the read fd non-blocking so we can drain per select wakeup
+        int flags = fcntl(m_gdb_stdout_read, F_GETFL, 0);
+        fcntl(m_gdb_stdout_read, F_SETFL, flags | O_NONBLOCK);
 
-    while (m_running)
-    {
-        fd_set rfds;
-        FD_ZERO(&rfds);
-        FD_SET(m_gdb_stdout_read, &rfds);
-
-        struct timeval tv = {0};
-        tv.tv_sec = 1;
-        tv.tv_usec = 0;
-
-        int retval = select(m_gdb_stdout_read + 1, &rfds, nullptr, nullptr, &tv);
-        if (retval == -1)
+        while (m_running)
         {
-            LogWarn("Lost connection to GDB");
-            m_running = false;
-            continue;
-        }
-        if (retval == 0)
-        {
-            continue;
-        }
+            fd_set rfds;
+            FD_ZERO(&rfds);
+            FD_SET(m_gdb_stdout_read, &rfds);
 
-        for (;;)
-        {
-            ssize_t n = read(m_gdb_stdout_read, buffer, sizeof(buffer));
-            buffer[n] = 0;
-            if (n > 0)
+            struct timeval tv = {0};
+            tv.tv_sec = 0;
+            tv.tv_usec = 200000; // 200ms
+
+            int retval = select(m_gdb_stdout_read + 1, &rfds, nullptr, nullptr, &tv);
+            if (retval == -1)
             {
-                // Frame by CR or LF; strip CRs
-                for (ssize_t i = 0; i < n; ++i)
-                {
-                    char c = buffer[i];
-
-                    if (c == '\r' || c == '\n')
-                    {
-                        if (!currentLine.empty())
-                        {
-                            // Trim any leftover CRs or spaces from ends
-                            size_t start = 0;
-                            while (start < currentLine.size() &&
-                                   (currentLine[start] == '\r' || currentLine[start] == ' ' || currentLine[start] == '\t'))
-                                ++start;
-                            size_t end = currentLine.size();
-                            while (end > start &&
-                                   (currentLine[end - 1] == '\r' || currentLine[end - 1] == ' ' || currentLine[end - 1] == '\t'))
-                                --end;
-
-                            std::string line = currentLine.substr(start, end - start);
-
-                            if (!line.empty())
-                            {
-                                MiRecord record = ParseLine(line);
-                                if (record.token.has_value() && record.type == '^')
-                                {
-                                    std::unique_lock<std::mutex> lock(m_mutex);
-                                    // LogDebug("Notify about response %ld", *record.token);
-                                    m_responses[*record.token] = record;
-                                    m_cv.notify_all();
-                                }
-                                else if (m_asyncCallback && record.type != '^')
-                                {
-                                    // Do not block the reader; just forward
-                                    m_asyncCallback(record);
-                                }
-                            }
-                        }
-                        currentLine.clear();
-                    }
-                    else
-                    {
-                        if (c != '\0') // ignore NULs just in case
-                            currentLine += c;
-                    }
+                int selectError = errno;
+                if (selectError != EINTR) { // Ignore interrupted system calls
+                    LogError("Select error from GDB: %d (%s)", selectError, strerror(selectError));
+                    m_running = false;
+                    break;
                 }
-                continue; // try reading more (drain)
+                continue;
+            }
+            if (retval == 0)
+            {
+                continue; // Timeout, check if we should continue
             }
 
-            if (n == -1 && errno == EAGAIN)
-                break; // no more data for now
-
-            if (n == 0)
+            while (m_running)
             {
-                // EOF
+                ssize_t n = read(m_gdb_stdout_read, buffer, sizeof(buffer)-1);
+                if (n > 0)
+                {
+                    buffer[n] = 0;
+                    // Frame by CR or LF; strip CRs
+                    for (ssize_t i = 0; i < n; ++i)
+                    {
+                        char c = buffer[i];
+
+                        if (c == '\r' || c == '\n')
+                        {
+                            if (!currentLine.empty())
+                            {
+                                // Trim any leftover CRs or spaces from ends
+                                size_t start = 0;
+                                while (start < currentLine.size() &&
+                                       (currentLine[start] == '\r' || currentLine[start] == ' ' || currentLine[start] == '\t'))
+                                    ++start;
+                                size_t end = currentLine.size();
+                                while (end > start &&
+                                       (currentLine[end - 1] == '\r' || currentLine[end - 1] == ' ' || currentLine[end - 1] == '\t'))
+                                    --end;
+
+                                std::string line = currentLine.substr(start, end - start);
+
+                                if (!line.empty())
+                                {
+                                    MiRecord record = ParseLine(line);
+                                    if (record.token.has_value() && record.type == '^')
+                                    {
+                                        std::unique_lock<std::mutex> lock(m_mutex);
+                                        // LogDebug("Notify about response %ld", *record.token);
+                                        m_responses[*record.token] = record;
+                                        m_cv.notify_all();
+                                    }
+                                    else if (m_asyncCallback && record.type != '^')
+                                    {
+                                        // Do not block the reader; just forward
+                                        m_asyncCallback(record);
+                                    }
+                                }
+                            }
+                            currentLine.clear();
+                        }
+                        else
+                        {
+                            if (c != '\0') // ignore NULs just in case
+                                currentLine += c;
+                        }
+                    }
+                    continue; // try reading more (drain)
+                }
+
+                if (n == -1 && errno == EAGAIN)
+                    break; // no more data for now
+
+                if (n == 0)
+                {
+                    // EOF - GDB process has terminated
+                    LogInfo("GDB process EOF - connection closed");
+                    m_running = false;
+                    break;
+                }
+
+                // n == -1 and not EAGAIN
+                int readError = errno;
+                LogError("Read error from GDB: %d (%s)", readError, strerror(readError));
+                
+                // Handle specific pipe errors
+                if (readError == EPIPE || readError == ECONNRESET) {
+                    LogError("GDB process pipe broken - process terminated");
+                } else if (readError == EBADF) {
+                    LogError("Invalid file descriptor for GDB stdout");
+                }
+                
+                m_running = false;
+                break;
+            }
+        }
+#else
+        DWORD bytesRead;
+        while (m_running)
+        {
+            if (!ReadFile(m_gdb_stdout_read, buffer, sizeof(buffer), &bytesRead, NULL))
+            {
+                DWORD error = GetLastError();
+                if (error == ERROR_BROKEN_PIPE)
+                {
+                    LogInfo("GDB process pipe broken - connection closed");
+                }
+                else
+                {
+                    LogError("ReadFile error from GDB: %lu", error);
+                }
                 m_running = false;
                 break;
             }
 
-            // n == -1 and not EAGAIN
-            LogError("read error from GDB: %d", errno);
-            m_running = false;
-            break;
-        }
-    }
-#else
-    DWORD bytesRead;
-    while (m_running && ReadFile(m_gdb_stdout_read, buffer, sizeof(buffer), &bytesRead, NULL) && bytesRead > 0)
-    {
-        // Similar CR/LF framing on Windows
-        for (DWORD i = 0; i < bytesRead; ++i)
-        {
-            char c = buffer[i];
-            if (c == '\r' || c == '\n')
+            if (bytesRead == 0)
             {
-                if (!currentLine.empty())
-                {
-                    // Trim CR/space
-                    size_t start = 0;
-                    while (start < currentLine.size() &&
-                           (currentLine[start] == '\r' || currentLine[start] == ' ' || currentLine[start] == '\t'))
-                        ++start;
-                    size_t end = currentLine.size();
-                    while (end > start &&
-                           (currentLine[end - 1] == '\r' || currentLine[end - 1] == ' ' || currentLine[end - 1] == '\t'))
-                        --end;
-                    std::string line = currentLine.substr(start, end - start);
+                // EOF
+                LogInfo("GDB process EOF - connection closed");
+                m_running = false;
+                break;
+            }
 
-                    if (!line.empty())
+            // Similar CR/LF framing on Windows
+            for (DWORD i = 0; i < bytesRead; ++i)
+            {
+                char c = buffer[i];
+                if (c == '\r' || c == '\n')
+                {
+                    if (!currentLine.empty())
                     {
-                        MiRecord record = ParseLine(line);
-                        if (record.token.has_value() && record.type == '^')
+                        // Trim CR/space
+                        size_t start = 0;
+                        while (start < currentLine.size() &&
+                               (currentLine[start] == '\r' || currentLine[start] == ' ' || currentLine[start] == '\t'))
+                            ++start;
+                        size_t end = currentLine.size();
+                        while (end > start &&
+                               (currentLine[end - 1] == '\r' || currentLine[end - 1] == ' ' || currentLine[end - 1] == '\t'))
+                            --end;
+                        std::string line = currentLine.substr(start, end - start);
+
+                        if (!line.empty())
                         {
-                            std::unique_lock<std::mutex> lock(m_mutex);
-                            LogDebug("Notify about response %ld", *record.token);
-                            m_responses[*record.token] = record;
-                            m_cv.notify_all();
-                        }
-                        else if (m_asyncCallback)
-                        {
-                            m_asyncCallback(record);
+                            MiRecord record = ParseLine(line);
+                            if (record.token.has_value() && record.type == '^')
+                            {
+                                std::unique_lock<std::mutex> lock(m_mutex);
+                                LogDebug("Notify about response %ld", *record.token);
+                                m_responses[*record.token] = record;
+                                m_cv.notify_all();
+                            }
+                            else if (m_asyncCallback)
+                            {
+                                m_asyncCallback(record);
+                            }
                         }
                     }
+                    currentLine.clear();
                 }
-                currentLine.clear();
-            }
-            else
-            {
-                if (c != '\0')
-                    currentLine += c;
+                else
+                {
+                    if (c != '\0')
+                        currentLine += c;
+                }
             }
         }
-    }
 #endif
+    } catch (const std::exception& e) {
+        LogError("Exception in GDB reader thread: %s", e.what());
+        m_running = false;
+    } catch (...) {
+        LogError("Unknown exception in GDB reader thread");
+        m_running = false;
+    }
+
+    LogInfo("GDB reader thread exiting");
 }
 
 MiRecord GdbMiConnector::ParseLine(const std::string &line) {
@@ -572,4 +621,104 @@ MiRecord GdbMiConnector::ParseLine(const std::string &line) {
   }
 
   return record;
+}
+
+// Helper method to terminate GDB process gracefully
+bool GdbMiConnector::TerminateGdbProcess()
+{
+#ifdef WIN32
+    if (m_pi.hProcess)
+    {
+        // Try graceful termination first
+        if (TerminateProcess(m_pi.hProcess, 0))
+        {
+            LogInfo("GDB process terminated gracefully");
+            return true;
+        }
+        else
+        {
+            DWORD error = GetLastError();
+            LogError("Failed to terminate GDB process, error: %lu", error);
+            return false;
+        }
+    }
+#else
+    if (m_pid > 0)
+    {
+        int status;
+        
+        // Check if process is still running
+        if (waitpid(m_pid, &status, WNOHANG) == 0)
+        {
+            // Process is still running, try graceful shutdown first
+            LogInfo("Attempting graceful shutdown of GDB process (PID: %d)", m_pid);
+            kill(m_pid, SIGTERM);
+            
+            // Wait up to 2 seconds for graceful shutdown
+            auto start = std::chrono::steady_clock::now();
+            while (std::chrono::steady_clock::now() - start < std::chrono::seconds(2))
+            {
+                if (waitpid(m_pid, &status, WNOHANG) != 0)
+                {
+                    LogInfo("GDB process (PID: %d) exited gracefully", m_pid);
+                    return true;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            
+            // If still running, force termination
+            if (waitpid(m_pid, &status, WNOHANG) == 0)
+            {
+                LogWarn("GDB process (PID: %d) did not exit gracefully, forcing termination", m_pid);
+                kill(m_pid, SIGKILL);
+                waitpid(m_pid, &status, 0);
+                LogInfo("GDB process (PID: %d) terminated with SIGKILL", m_pid);
+            }
+        }
+        else
+        {
+            LogInfo("GDB process (PID: %d) already exited", m_pid);
+        }
+        return true;
+    }
+#endif
+    return true;
+}
+
+// Helper method to close all file handles
+void GdbMiConnector::CloseFileHandles()
+{
+#ifdef WIN32
+    if (m_gdb_stdin_write && m_gdb_stdin_write != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(m_gdb_stdin_write);
+        m_gdb_stdin_write = NULL;
+    }
+    if (m_gdb_stdout_read && m_gdb_stdout_read != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(m_gdb_stdout_read);
+        m_gdb_stdout_read = NULL;
+    }
+    if (m_pi.hProcess)
+    {
+        CloseHandle(m_pi.hProcess);
+        m_pi.hProcess = NULL;
+    }
+    if (m_pi.hThread)
+    {
+        CloseHandle(m_pi.hThread);
+        m_pi.hThread = NULL;
+    }
+#else
+    if (m_gdb_stdin_write >= 0)
+    {
+        close(m_gdb_stdin_write);
+        m_gdb_stdin_write = -1;
+    }
+    if (m_gdb_stdout_read >= 0)
+    {
+        close(m_gdb_stdout_read);
+        m_gdb_stdout_read = -1;
+    }
+#endif
 }
