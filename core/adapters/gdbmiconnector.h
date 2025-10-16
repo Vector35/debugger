@@ -76,6 +76,10 @@ class GdbMiConnector
 
     void ReaderThread();
     MiRecord ParseLine(const std::string& line);
+    
+    // Helper methods for robust process management
+    bool TerminateGdbProcess();
+    void CloseFileHandles();
 
 public:
     GdbMiConnector(const std::string& gdbPath, const std::string& targetExecutable);
