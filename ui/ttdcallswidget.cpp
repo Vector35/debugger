@@ -67,8 +67,10 @@ TTDCallsQueryWidget::~TTDCallsQueryWidget() {}
 
 void TTDCallsQueryWidget::setupUI()
 {
+	// Set size policy to allow widget to adapt to sidebar space and prevent scroll bar clipping
+	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
 	auto layout = new QVBoxLayout(this);
-	layout->setContentsMargins(0, 0, 0, 0);
 
 	// Create expandable input controls group
 	// Create expandable group with content widget
