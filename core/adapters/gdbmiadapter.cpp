@@ -242,7 +242,7 @@ void GdbMiAdapter::AsyncRecordHandler(const MiRecord& record)
         }
 
         DebuggerEvent event;
-        event.type = StdoutMessageEventType;
+        event.type = BackendMessageEventType;
         event.data.messageData.message = message;
         PostDebuggerEvent(event);
     }
@@ -648,21 +648,67 @@ DebugBreakpoint GdbMiAdapter::AddBreakpoint(const ModuleNameAndOffset& address, 
 
 bool GdbMiAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint) {
     if (!m_mi) return false;
-    auto result = m_mi->SendCommand(fmt::format("-break-delete *0x{:x}", breakpoint.m_address));
 
-	if (result.command == "done") {
-		DebuggerEvent evt;
-		evt.type = BackendMessageEventType;
-		evt.data.messageData.message = result.payload;
-		PostDebuggerEvent(evt);
+	auto breakpoints = GetBreakpointList();
+	uint64_t id_to_remove = 0;
+	int removed = 0;
+	for (const auto& bp: breakpoints)
+	{
+		if (bp.m_address == breakpoint.m_address)
+		{
+			id_to_remove = bp.m_id;
+			auto result = m_mi->SendCommand(fmt::format("-break-delete {}", id_to_remove));
 
-		return true;
+			if (result.command == "done") {
+				DebuggerEvent evt;
+				evt.type = BackendMessageEventType;
+				evt.data.messageData.message = result.payload;
+				PostDebuggerEvent(evt);
+
+				removed++;
+			}
+		}
+	}
+
+	if (removed == 0)
+	{
+		LogWarn("Failed to remove breakpoint at 0x%lX", breakpoint.m_address);
+		return false;
 	}
 
 	return false;
 }
 
-std::vector<DebugBreakpoint> GdbMiAdapter::GetBreakpointList() const { LogWarn("GdbMiAdapter::GetBreakpointList not implemented"); return {}; }
+std::vector<DebugBreakpoint> GdbMiAdapter::GetBreakpointList() const {
+	if (!m_mi)
+		return {};
+
+	auto result = m_mi->SendCommand("-break-list");
+	if (result.command != "done")
+	{
+		LogWarn("Failed to get breakpoint list");
+		return {};
+	}
+
+	std::vector<DebugBreakpoint> breakpoints;
+	auto table = MiValue::Parse(result.payload);
+	if (table.Exists("BreakpointTable"))
+	{
+		auto bp_table = table["BreakpointTable"];
+		if (bp_table.Exists("body"))
+		{
+			for (const auto& item: bp_table["body"].GetList())
+			{
+				auto bp = item["bkpt"];
+				uint64_t addr = std::stoull(bp["addr"].GetString(), 0, 16);
+				uint64_t id = std::stoull(bp["number"].GetString(), 0, 10);
+				LogDebug("Parsed breakpoint %llu at 0x%llx", id, addr);
+				breakpoints.emplace_back(addr, id, true);
+			}
+		}
+	}
+	return breakpoints;
+}
 
 bool GdbMiAdapter::WriteRegister(const std::string& reg, intx::uint512 value) {
     if (!m_mi) return false;
@@ -747,7 +793,7 @@ bool GdbMiAdapter::StepInto() {
 bool GdbMiAdapter::StepOver() {
     if (!m_mi || m_targetRunningAtomic) return false;
 
-	return (m_mi->SendCommand("-exec-next-instruction").command != "running");
+	return (m_mi->SendCommand("-exec-next-instruction").command == "running");
 }
 
 bool GdbMiAdapter::StepReturn() {
@@ -769,7 +815,7 @@ uint64_t GdbMiAdapter::GetStackPointer() {
 std::string GdbMiAdapter::InvokeBackendCommand(const std::string& command) {
     if (!m_mi) return "error, transport not ready";
     auto result = m_mi->SendCommand("-interpreter-exec console \"" + command + "\"");
-    return (result.command == "done") ? result.payload : "Error sending command.";
+    return (result.command == "done") ? result.payload : result.command;
 }
 
 uint64_t GdbMiAdapter::ExitCode() { return 0; }
