@@ -21,6 +21,7 @@ limitations under the License.
 #include <QModelIndex>
 #include <QTableView>
 #include <QStyledItemDelegate>
+#include <QKeyEvent>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "viewframe.h"
@@ -127,11 +128,13 @@ class DebugBreakpointsWidget : public QTableView
 	Menu* m_menu;
 
 	bool selectionNotEmpty();
+	void copySelection();
 
 	//void shouldBeVisible()
 	//virtual void notifyFontChanged() override;
 
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
+	virtual void keyPressEvent(QKeyEvent* event) override;
 
 public:
 	DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu);
