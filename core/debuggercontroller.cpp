@@ -2874,7 +2874,7 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uin
 {
 	std::vector<TTDMemoryEvent> events;
 
-	if (!IsTTD())
+	if (!m_state->IsConnected() || !IsTTD())
 	{
 		LogError("Current adapter does not support TTD");
 		return events;
@@ -2892,9 +2892,9 @@ std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::s
 {
 	std::vector<TTDCallEvent> events;
 
-	if (!IsTTD())
+	if (!m_state->IsConnected() || !IsTTD())
 	{
-		LogError("Current adapter does not support TTD");
+		LogWarn("Current adapter does not support TTD");
 		return events;
 	}
 
@@ -2906,9 +2906,9 @@ std::vector<TTDEvent> DebuggerController::GetTTDEvents(TTDEventType eventType)
 {
 	std::vector<TTDEvent> events;
 
-	if (!IsTTD())
+	if (!m_state->IsConnected() || !IsTTD())
 	{
-		LogError("Current adapter does not support TTD");
+		LogWarn("Current adapter does not support TTD");
 		return events;
 	}
 
@@ -2920,9 +2920,9 @@ std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
 {
 	std::vector<TTDEvent> events;
 
-	if (!IsTTD())
+	if (!m_state->IsConnected() || !IsTTD())
 	{
-		LogError("Current adapter does not support TTD");
+		LogWarn("Current adapter does not support TTD");
 		return events;
 	}
 
@@ -2934,9 +2934,9 @@ TTDPosition DebuggerController::GetCurrentTTDPosition()
 {
 	TTDPosition position;
 
-	if (!IsTTD())
+	if (!m_state->IsConnected() || !IsTTD())
 	{
-		LogError("Current adapter does not support TTD");
+		LogWarn("Current adapter does not support TTD");
 		return position;
 	}
 
@@ -2950,9 +2950,9 @@ TTDPosition DebuggerController::GetCurrentTTDPosition()
 
 bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 {
-	if (!IsTTD())
+	if (!m_state->IsConnected() || !IsTTD())
 	{
-		LogError("Current adapter does not support TTD");
+		LogWarn("Current adapter does not support TTD");
 		return false;
 	}
 
@@ -2967,7 +2967,7 @@ bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 
 bool DebuggerController::IsInstructionExecuted(uint64_t address)
 {
-	if (!IsTTD())
+	if (!m_state->IsConnected() || !IsTTD())
 	{
 		return false;
 	}
@@ -2983,9 +2983,9 @@ bool DebuggerController::IsInstructionExecuted(uint64_t address)
 
 bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress)
 {
-	if (!IsTTD())
+	if (!m_state->IsConnected() || !IsTTD())
 	{
-		LogError("Current adapter does not support TTD");
+		LogWarn("Current adapter does not support TTD");
 		return false;
 	}
 

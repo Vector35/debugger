@@ -368,6 +368,18 @@ void TTDEventsQueryWidget::performQuery()
 		return;
 	}
 
+	if (!m_controller->IsConnected())
+	{
+		updateStatus("No active debugging session.");
+		return;
+	}
+
+	if (!m_controller->IsTTD())
+	{
+		updateStatus("No a TTD debugging session.");
+		return;
+	}
+
 	updateStatus("Querying all TTD events...");
 	
 	// Only disable button if it exists (AllEvents widgets have buttons, specialized don't)
