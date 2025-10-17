@@ -80,6 +80,9 @@ void TimestampNavigationDialog::initializePositions()
 	
 	// Fill the timestamp edit field with current position
 	m_timestampEdit->setText(positionText.toUpper());
+	
+	// Select all text so user can immediately paste a new timestamp or copy the current one
+	m_timestampEdit->selectAll();
 }
 
 void TimestampNavigationDialog::validateInput()
