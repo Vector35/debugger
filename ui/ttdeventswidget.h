@@ -160,6 +160,7 @@ private Q_SLOTS:
 	void copySelectedRow();
 	void copyEntireTable();
 	void onFilterChanged();
+	void refreshEvents();  // Clear and re-query events from backend
 };
 
 class TTDEventsWidget : public QWidget

@@ -132,7 +132,7 @@ TTDEventsQueryWidget::~TTDEventsQueryWidget()
 void TTDEventsQueryWidget::setupUI()
 {
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
-	mainLayout->setContentsMargins(0, 0, 0, 0);
+	mainLayout->setContentsMargins(0, 0, 0, 0);  // Add padding like TTD memory/calls widget
 
 	// Only show input controls for AllEvents widget type
 	if (m_widgetType == AllEvents)
@@ -299,6 +299,17 @@ void TTDEventsQueryWidget::setupTable()
 	
 	// Apply initial column visibility
 	updateColumnVisibility();
+	
+	// Set column widths for better readability
+	m_resultsTable->setColumnWidth(0, 60);   // Index
+	m_resultsTable->setColumnWidth(1, 150);  // Position
+	m_resultsTable->setColumnWidth(2, 150);  // Event Type
+	m_resultsTable->setColumnWidth(3, 200);  // Name or Thread ID
+	m_resultsTable->setColumnWidth(4, 150);  // Address or Thread UniqueID
+	m_resultsTable->setColumnWidth(5, 120);  // Size or Lifetime
+	m_resultsTable->setColumnWidth(6, 120);  // Checksum or Timestamp or other columns
+	m_resultsTable->setColumnWidth(7, 120);  // Timestamp or other columns
+	m_resultsTable->setColumnWidth(8, 200);  // Path (last column for modules)
 }
 
 void TTDEventsQueryWidget::updateColumnVisibility()
@@ -330,7 +341,7 @@ void TTDEventsQueryWidget::setupUIActions()
 	m_actionHandler.setActionDisplayName("CopyRow", "Copy Row");
 	
 	m_actionHandler.bindAction("CopyTable", UIAction([=]() { copyEntireTable(); }));
-	m_actionHandler.setActionDisplayName("CopyTable", "Copy Entire Table");
+	m_actionHandler.setActionDisplayName("CopyTable", "Copy Table");  // Unified name
 	
 	// Column visibility actions
 	m_actionHandler.bindAction("ColumnVisibility", UIAction([=]() { showColumnVisibilityDialog(); }));
@@ -338,6 +349,10 @@ void TTDEventsQueryWidget::setupUIActions()
 	
 	m_actionHandler.bindAction("ResetColumns", UIAction([=]() { resetColumnsToDefault(); }));
 	m_actionHandler.setActionDisplayName("ResetColumns", "Reset Columns to Default");
+	
+	// Refresh action to clear and re-query from backend
+	m_actionHandler.bindAction("Refresh", UIAction([=]() { refreshEvents(); }));
+	m_actionHandler.setActionDisplayName("Refresh", "Refresh");
 }
 
 void TTDEventsQueryWidget::setupContextMenu()
@@ -345,15 +360,18 @@ void TTDEventsQueryWidget::setupContextMenu()
 	m_contextMenuManager = new ContextMenuManager(this);
 	m_menu = new Menu();
 
-	// Copy menu
+	// Copy menu - unified with TTD memory/calls widget naming
 	m_menu->addAction("Copy", "Copy");
-	m_menu->addAction("CopyCell", "CopyCell");
-	m_menu->addAction("CopyRow", "CopyRow");
-	m_menu->addAction("CopyTable", "CopyTable");
+	m_menu->addAction("CopyCell", "Copy Cell");
+	m_menu->addAction("CopyRow", "Copy Row");
+	m_menu->addAction("CopyTable", "Copy Table");  // Unified name
 
 	// Column menu
-	m_menu->addAction("ColumnVisibility", "ColumnVisibility");
-	m_menu->addAction("ResetColumns", "ResetColumns");
+	m_menu->addAction("ColumnVisibility", "Column Visibility");
+	m_menu->addAction("ResetColumns", "Reset Columns");
+	
+	// Refresh action to re-query from backend
+	m_menu->addAction("Refresh", "Refresh");
 
 	// Set up context menu manager
 	// m_contextMenuManager->setMenu(m_menu);
@@ -713,34 +731,66 @@ void TTDEventsQueryWidget::clearResults()
 	updateStatus("Results cleared.");
 }
 
+void TTDEventsQueryWidget::refreshEvents()
+{
+	// Clear current contents and re-query from backend
+	clearResults();
+	performQuery();
+}
+
 void TTDEventsQueryWidget::onCellDoubleClicked(int row, int column)
 {
-	// On double-click, navigate to the event position if it's a position column
-	if (column == PositionColumn && m_controller)
+	if (!m_controller)
+		return;
+	
+	QTableWidgetItem* item = m_resultsTable->item(row, column);
+	if (!item)
+		return;
+	
+	QString cellText = item->text();
+	
+	// Check if this is a position column - navigate to TTD position
+	QString columnName = m_resultsTable->horizontalHeaderItem(column) ? 
+	                      m_resultsTable->horizontalHeaderItem(column)->text() : "";
+	
+	if (columnName.contains("Position", Qt::CaseInsensitive) || column == PositionColumn)
 	{
-		QTableWidgetItem* item = m_resultsTable->item(row, column);
-		if (item)
+		QStringList parts = cellText.split(':');
+		if (parts.size() == 2)
 		{
-			QString positionText = item->text();
-			QStringList parts = positionText.split(':');
-			if (parts.size() == 2)
+			bool ok1, ok2;
+			uint64_t sequence = parts[0].toULongLong(&ok1, 16);
+			uint64_t step = parts[1].toULongLong(&ok2, 16);
+			
+			if (ok1 && ok2)
 			{
-				bool ok1, ok2;
-				uint64_t sequence = parts[0].toULongLong(&ok1, 16);
-				uint64_t step = parts[1].toULongLong(&ok2, 16);
-				
-				if (ok1 && ok2)
+				TTDPosition position(sequence, step);
+				if (m_controller->SetTTDPosition(position))
 				{
-					TTDPosition position(sequence, step);
-					if (m_controller->SetTTDPosition(position))
-					{
-						updateStatus(QString("Navigated to position %1:%2").arg(sequence, 0, 16).arg(step, 0, 16));
-					}
-					else
-					{
-						updateStatus("Failed to navigate to position");
-					}
+					updateStatus(QString("Navigated to position %1:%2").arg(sequence, 0, 16).arg(step, 0, 16));
 				}
+				else
+				{
+					updateStatus("Failed to navigate to position");
+				}
+			}
+		}
+	}
+	// Check if this is an address column - jump to address
+	else if (columnName.contains("Address", Qt::CaseInsensitive) || 
+	         columnName.contains("PC", Qt::CaseInsensitive) ||
+	         column == ModuleAddressColumn || 
+	         column == ExceptionPCColumn)
+	{
+		if (cellText.startsWith("0x"))
+		{
+			bool ok;
+			uint64_t address = cellText.mid(2).toULongLong(&ok, 16);
+			if (ok)
+			{
+				// Jump to address in disassembly view
+				UIContext::activeContext()->navigateToAddress(m_data, address);
+				updateStatus(QString("Jumped to address 0x%1").arg(address, 0, 16));
 			}
 		}
 	}
@@ -910,8 +960,8 @@ TTDEventsWidget::TTDEventsWidget(QWidget* parent, BinaryViewRef data)
 	m_controller = DebuggerController::GetController(data);
 	setupUI();
 	
-	// Only automatically load events if the debugger is running
-	if (m_controller && m_controller->IsTTD())
+	// Only automatically load events if the debugger is connected and running TTD
+	if (m_controller && m_controller->IsConnected() && m_controller->IsTTD())
 	{
 		loadAllEvents();
 		m_isPopulated = true;
@@ -966,8 +1016,8 @@ void TTDEventsWidget::loadAllEvents()
 
 void TTDEventsWidget::refreshAllTabs()
 {
-	// Only refresh if data is available and we haven't already populated
-	if (m_controller && m_controller->IsTTD() && !m_isPopulated)
+	// Only refresh if debugger is connected and data is available and we haven't already populated
+	if (m_controller && m_controller->IsConnected() && m_controller->IsTTD() && !m_isPopulated)
 	{
 		loadAllEvents();
 		m_isPopulated = true;
@@ -1070,7 +1120,7 @@ void TTDEventsSidebarWidget::onDebuggerEvent(const DebuggerEvent& event)
 	{
 		case TargetStoppedEventType:
 			// When target stops, refresh all tabs if not already populated
-			if (m_eventsWidget && event.data.targetStoppedData.reason == InitialBreakpoint)
+			if (m_eventsWidget)
 				m_eventsWidget->refreshAllTabs();
 			break;
 		case TargetExitedEventType:
