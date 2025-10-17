@@ -171,14 +171,14 @@ void TTDCallsQueryWidget::setupUIActions()
 	m_menu->addAction("Copy Row", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy Row", UIAction([&]() { copySelectedRow(); }, [&]() { return canCopy(); }));
 	
-	m_menu->addAction("Copy All", "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction("Copy All", UIAction([&]() { copyEntireTable(); }, [&]() { return m_resultsTable->rowCount() > 0; }));
+	m_menu->addAction("Copy Table", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy Table", UIAction([&]() { copyEntireTable(); }, [&]() { return m_resultsTable->rowCount() > 0; }));
 
 	m_menu->addAction("Column Visibility...", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Column Visibility...", UIAction([&]() { showColumnVisibilityDialog(); }));
 	
-	m_menu->addAction("Reset Columns", "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction("Reset Columns", UIAction([&]() { resetColumnsToDefault(); }));
+	m_menu->addAction("Reset Columns to Default", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Reset Columns to Default", UIAction([&]() { resetColumnsToDefault(); }));
 }
 
 
