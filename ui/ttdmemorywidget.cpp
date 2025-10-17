@@ -209,7 +209,7 @@ void TTDMemoryQueryWidget::setupUI()
 	
 	// Status label
 	m_statusLabel = new QLabel("Ready");
-	m_statusLabel->setStyleSheet("QLabel { color: #666; font-size: 12px; }");
+	m_statusLabel->setStyleSheet("QLabel { font-size: 12px; }");
 	mainLayout->addWidget(m_statusLabel);
 	
 	setLayout(mainLayout);
