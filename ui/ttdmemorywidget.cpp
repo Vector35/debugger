@@ -273,23 +273,18 @@ void TTDMemoryQueryWidget::setupUIActions()
 	m_menu = new Menu();
 
 	// Add Copy action with Ctrl+C support
-	UIAction::registerAction("Copy");
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return canCopy(); }));
 	
-	UIAction::registerAction("Copy Row");
 	m_menu->addAction("Copy Row", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy Row", UIAction([&]() { copySelectedRow(); }, [&]() { return canCopy(); }));
 	
-	UIAction::registerAction("Copy Table");
 	m_menu->addAction("Copy Table", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy Table", UIAction([&]() { copyEntireTable(); }, [&]() { return m_resultsTable->rowCount() > 0; }));
 
-	UIAction::registerAction("Columns...");
-	m_menu->addAction("Columns...", "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction("Columns...", UIAction([&]() { showColumnVisibilityDialog(); }));
+	m_menu->addAction("Column Visibility...", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Column Visibility...", UIAction([&]() { showColumnVisibilityDialog(); }));
 	
-	UIAction::registerAction("Reset Columns to Default");
 	m_menu->addAction("Reset Columns to Default", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Reset Columns to Default", UIAction([&]() { resetColumnsToDefault(); }));
 }

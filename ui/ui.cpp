@@ -1177,6 +1177,12 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			connectedToTTD));
 	debuggerMenu->addAction("TTD Analysis...", "TTD");
+
+	// Register actions for TTD widget context menus
+	UIAction::registerAction("Copy Row");
+	UIAction::registerAction("Copy Table");
+	UIAction::registerAction("Column Visibility...");
+	UIAction::registerAction("Reset Columns to Default");
 #endif
 }
 
