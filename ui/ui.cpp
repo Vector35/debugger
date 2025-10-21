@@ -811,38 +811,25 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			requireBinaryView));
 	debuggerMenu->addAction("Toggle Breakpoint", "Breakpoint");
 
-	// Helper function to check if there's an enabled breakpoint at the current address
-	auto hasEnabledBreakpoint = [](BinaryView* view, uint64_t addr) -> bool {
+	// Helper function to check if there's a breakpoint at the current address and return its enabled state
+	auto getBreakpointEnabledState = [](BinaryView* view, uint64_t addr) -> std::pair<bool, bool> {
 		auto controller = DebuggerController::GetController(view);
 		if (!controller)
-			return false;
+			return {false, false}; // {hasBreakpoint, isEnabled}
 		
 		std::vector<DebugBreakpoint> breakpoints = controller->GetBreakpoints();
 		for (const auto& bp : breakpoints)
 		{
 			if (bp.address == addr)
-				return bp.enabled;
+				return {true, bp.enabled};
 		}
-		return false;
+		return {false, false};
 	};
 
-	// Helper function to check if there's a disabled breakpoint at the current address
-	auto hasDisabledBreakpoint = [](BinaryView* view, uint64_t addr) -> bool {
-		auto controller = DebuggerController::GetController(view);
-		if (!controller)
-			return false;
-		
-		std::vector<DebugBreakpoint> breakpoints = controller->GetBreakpoints();
-		for (const auto& bp : breakpoints)
-		{
-			if (bp.address == addr)
-				return !bp.enabled;
-		}
-		return false;
-	};
-
-	// Register "Enable Breakpoint" action (shown when breakpoint is disabled)
+	// Register dynamic "Enable/Disable Breakpoint" action
 	UIAction::registerAction("Enable Breakpoint");
+	UIAction::registerAction("Disable Breakpoint");
+	
 	context->globalActions()->bindAction("Enable Breakpoint",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
@@ -852,26 +839,32 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
+				auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
 				bool isAbsoluteAddress = controller->IsConnected();
+				
 				if (isAbsoluteAddress)
 				{
-					controller->EnableBreakpoint(ctxt.address);
+					if (isEnabled)
+						controller->DisableBreakpoint(ctxt.address);
+					else
+						controller->EnableBreakpoint(ctxt.address);
 				}
 				else
 				{
 					std::string filename = controller->GetInputFile();
 					uint64_t offset = ctxt.address - controller->GetViewFileSegmentsStart();
 					ModuleNameAndOffset info = {filename, offset};
-					controller->EnableBreakpoint(info);
+					if (isEnabled)
+						controller->DisableBreakpoint(info);
+					else
+						controller->EnableBreakpoint(info);
 				}
 			},
 			[=](const UIActionContext& ctxt) {
-				return ctxt.binaryView && hasDisabledBreakpoint(ctxt.binaryView, ctxt.address);
+				auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
+				return ctxt.binaryView && hasBreakpoint && !isEnabled;
 			}));
-	debuggerMenu->addAction("Enable Breakpoint", "Breakpoint");
-
-	// Register "Disable Breakpoint" action (shown when breakpoint is enabled)
-	UIAction::registerAction("Disable Breakpoint");
+	
 	context->globalActions()->bindAction("Disable Breakpoint",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
@@ -881,23 +874,81 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
+				auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
 				bool isAbsoluteAddress = controller->IsConnected();
+				
 				if (isAbsoluteAddress)
 				{
-					controller->DisableBreakpoint(ctxt.address);
+					if (isEnabled)
+						controller->DisableBreakpoint(ctxt.address);
+					else
+						controller->EnableBreakpoint(ctxt.address);
 				}
 				else
 				{
 					std::string filename = controller->GetInputFile();
 					uint64_t offset = ctxt.address - controller->GetViewFileSegmentsStart();
 					ModuleNameAndOffset info = {filename, offset};
-					controller->DisableBreakpoint(info);
+					if (isEnabled)
+						controller->DisableBreakpoint(info);
+					else
+						controller->EnableBreakpoint(info);
 				}
 			},
 			[=](const UIActionContext& ctxt) {
-				return ctxt.binaryView && hasEnabledBreakpoint(ctxt.binaryView, ctxt.address);
+				auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
+				return ctxt.binaryView && hasBreakpoint && isEnabled;
 			}));
+	
+	debuggerMenu->addAction("Enable Breakpoint", "Breakpoint");
 	debuggerMenu->addAction("Disable Breakpoint", "Breakpoint");
+
+	// Register "Solo Breakpoint" action
+	UIAction::registerAction("Solo Breakpoint");
+	context->globalActions()->bindAction("Solo Breakpoint",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				// Get the current address breakpoint location
+				bool isAbsoluteAddress = controller->IsConnected();
+				ModuleNameAndOffset currentInfo;
+				if (!isAbsoluteAddress)
+				{
+					std::string filename = controller->GetInputFile();
+					uint64_t offset = ctxt.address - controller->GetViewFileSegmentsStart();
+					currentInfo = {filename, offset};
+				}
+
+				// Disable all breakpoints
+				std::vector<DebugBreakpoint> breakpoints = controller->GetBreakpoints();
+				for (const auto& bp : breakpoints)
+				{
+					ModuleNameAndOffset info;
+					info.module = bp.module;
+					info.offset = bp.offset;
+					controller->DisableBreakpoint(info);
+				}
+
+				// Enable the current breakpoint
+				if (isAbsoluteAddress)
+				{
+					controller->EnableBreakpoint(ctxt.address);
+				}
+				else
+				{
+					controller->EnableBreakpoint(currentInfo);
+				}
+			},
+			[=](const UIActionContext& ctxt) {
+				auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
+				return ctxt.binaryView && hasBreakpoint;
+			}));
+	debuggerMenu->addAction("Solo Breakpoint", "Breakpoint");
 
 	UIAction::registerAction("Connect to Debug Server");
 	context->globalActions()->bindAction("Connect to Debug Server",
