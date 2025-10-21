@@ -99,14 +99,14 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 			{
 				if (line.tokens[i].type == TagToken)
 				{
-					line.tokens[i].text = "🛑︎➞";
+					line.tokens[i].text = "⭘➞";
 					appliedTag = true;
 					break;
 				}
 			}
 			if (!appliedTag)
 			{
-				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑︎➞");
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "⭘➞");
 				line.tokens.insert(line.tokens.begin(), indicator);
 			}
 
@@ -181,14 +181,14 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 			{
 				if (line.tokens[i].type == TagToken)
 				{
-					line.tokens[i].text = "…🛑︎";
+					line.tokens[i].text = "…⭘";
 					appliedTag = true;
 					break;
 				}
 			}
 			if (!appliedTag)
 			{
-				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑︎");
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "⭘");
 				line.tokens.insert(line.tokens.begin(), indicator);
 			}
 			// No line highlighting for disabled breakpoints
@@ -265,14 +265,14 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 			{
 				if (line.tokens[i].type == TagToken)
 				{
-					line.tokens[i].text = "🛑︎➞";
+					line.tokens[i].text = "⭘➞";
 					appliedTag = true;
 					break;
 				}
 			}
 			if (!appliedTag)
 			{
-				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑︎➞");
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "⭘➞");
 				line.tokens.insert(line.tokens.begin(), indicator);
 			}
 
@@ -347,14 +347,14 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 			{
 				if (line.tokens[i].type == TagToken)
 				{
-					line.tokens[i].text = "…🛑︎";
+					line.tokens[i].text = "…⭘";
 					appliedTag = true;
 					break;
 				}
 			}
 			if (!appliedTag)
 			{
-				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑︎");
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "⭘");
 				line.tokens.insert(line.tokens.begin(), indicator);
 			}
 			// No line highlighting for disabled breakpoints

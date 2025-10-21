@@ -828,7 +828,6 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 	// Register dynamic "Enable/Disable Breakpoint" action
 	UIAction::registerAction("Enable Breakpoint");
-	UIAction::registerAction("Disable Breakpoint");
 	
 	context->globalActions()->bindAction("Enable Breakpoint",
 		UIAction(
@@ -862,46 +861,22 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			[=](const UIActionContext& ctxt) {
 				auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
-				return ctxt.binaryView && hasBreakpoint && !isEnabled;
+				return ctxt.binaryView && hasBreakpoint;
 			}));
 	
-	context->globalActions()->bindAction("Disable Breakpoint",
-		UIAction(
-			[=](const UIActionContext& ctxt) {
-				if (!ctxt.binaryView)
-					return;
-				auto controller = DebuggerController::GetController(ctxt.binaryView);
-				if (!controller)
-					return;
-
-				auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
-				bool isAbsoluteAddress = controller->IsConnected();
-				
-				if (isAbsoluteAddress)
-				{
-					if (isEnabled)
-						controller->DisableBreakpoint(ctxt.address);
-					else
-						controller->EnableBreakpoint(ctxt.address);
-				}
-				else
-				{
-					std::string filename = controller->GetInputFile();
-					uint64_t offset = ctxt.address - controller->GetViewFileSegmentsStart();
-					ModuleNameAndOffset info = {filename, offset};
-					if (isEnabled)
-						controller->DisableBreakpoint(info);
-					else
-						controller->EnableBreakpoint(info);
-				}
-			},
-			[=](const UIActionContext& ctxt) {
-				auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
-				return ctxt.binaryView && hasBreakpoint && isEnabled;
-			}));
+	// Dynamically change the action name based on the current breakpoint state
+	UIAction::setActionDisplayName("Enable Breakpoint", [=](const UIActionContext& ctxt) -> QString {
+		if (!ctxt.binaryView)
+			return "Enable Breakpoint";
+		
+		auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
+		if (hasBreakpoint && isEnabled)
+			return "Disable Breakpoint";
+		
+		return "Enable Breakpoint";
+	});
 	
 	debuggerMenu->addAction("Enable Breakpoint", "Breakpoint");
-	debuggerMenu->addAction("Disable Breakpoint", "Breakpoint");
 
 	// Register "Solo Breakpoint" action
 	UIAction::registerAction("Solo Breakpoint");
