@@ -292,11 +292,11 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 	m_actionHandler.bindAction(
 		addBreakpointActionName, UIAction([&]() { add(); }));
 
-	QString toggleBreakpointActionName = QString::fromStdString("Toggle Breakpoint");
-	UIAction::registerAction(toggleBreakpointActionName, QKeySequence("Ctrl+Shift+B"));
-	m_menu->addAction(toggleBreakpointActionName, "Options", MENU_ORDER_NORMAL);
+	QString toggleEnabledActionName = QString::fromStdString("Toggle Enabled");
+	UIAction::registerAction(toggleEnabledActionName, QKeySequence("Ctrl+Shift+B"));
+	m_menu->addAction(toggleEnabledActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
-		toggleBreakpointActionName, UIAction([&]() { toggleSelected(); }, [&]() { return selectionNotEmpty(); }));
+		toggleEnabledActionName, UIAction([&]() { toggleSelected(); }, [&]() { return selectionNotEmpty(); }));
 
 	QString enableAllActionName = QString::fromStdString("Enable All Breakpoints");
 	UIAction::registerAction(enableAllActionName);
