@@ -17,6 +17,7 @@ limitations under the License.
 #include "renderlayer.h"
 #include "ttdcoveragerenderlayer.h"
 #include "debuggerapi.h"
+#include <map>
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -37,6 +38,14 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 	uint64_t ipAddr = controller->IP();
 	bool paused = controller->GetTargetStatus() == DebugAdapterPausedStatus;
 
+	// Get all breakpoints with their enabled state
+	std::vector<DebugBreakpoint> breakpoints = controller->GetBreakpoints();
+	std::map<uint64_t, bool> breakpointEnabledMap;
+	for (const auto& bp : breakpoints)
+	{
+		breakpointEnabledMap[bp.address] = bp.enabled;
+	}
+
 	for (auto& line : lines)
 	{
 		// Do not draw the tags on an empty line, e.g., those separating the basic blocks in the linear view
@@ -44,7 +53,12 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 			continue;
 
 		bool hasPC = (line.addr == ipAddr) && paused;
-		bool hasBreakpoint = controller->ContainsBreakpoint(line.addr);
+		// Only render enabled breakpoints
+		bool hasBreakpoint = false;
+		if (breakpointEnabledMap.count(line.addr) > 0)
+		{
+			hasBreakpoint = breakpointEnabledMap[line.addr];
+		}
 
 		if (hasPC && hasBreakpoint)
 		{
@@ -141,11 +155,24 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 	uint64_t ipAddr = controller->IP();
 	bool paused = controller->GetTargetStatus() == DebugAdapterPausedStatus;
 
+	// Get all breakpoints with their enabled state
+	std::vector<DebugBreakpoint> breakpoints = controller->GetBreakpoints();
+	std::map<uint64_t, bool> breakpointEnabledMap;
+	for (const auto& bp : breakpoints)
+	{
+		breakpointEnabledMap[bp.address] = bp.enabled;
+	}
+
 	for (auto& linearLine : lines)
 	{
 		DisassemblyTextLine& line = linearLine.contents;
 		bool hasPC = (line.addr == ipAddr) && paused;
-		bool hasBreakpoint = controller->ContainsBreakpoint(line.addr);
+		// Only render enabled breakpoints
+		bool hasBreakpoint = false;
+		if (breakpointEnabledMap.count(line.addr) > 0)
+		{
+			hasBreakpoint = breakpointEnabledMap[line.addr];
+		}
 
 		if (hasPC && hasBreakpoint)
 		{

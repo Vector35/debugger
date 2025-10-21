@@ -149,9 +149,10 @@ private slots:
 	void remove();
 	void onDoubleClicked();
 	void add();
-	void enableSelected();
-	void disableSelected();
 	void toggleSelected();
+	void enableAll();
+	void disableAll();
+	void soloSelected();
 
 public slots:
 	void updateContent();

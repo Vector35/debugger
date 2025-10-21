@@ -811,6 +811,94 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			requireBinaryView));
 	debuggerMenu->addAction("Toggle Breakpoint", "Breakpoint");
 
+	// Helper function to check if there's an enabled breakpoint at the current address
+	auto hasEnabledBreakpoint = [](BinaryView* view, uint64_t addr) -> bool {
+		auto controller = DebuggerController::GetController(view);
+		if (!controller)
+			return false;
+		
+		std::vector<DebugBreakpoint> breakpoints = controller->GetBreakpoints();
+		for (const auto& bp : breakpoints)
+		{
+			if (bp.address == addr)
+				return bp.enabled;
+		}
+		return false;
+	};
+
+	// Helper function to check if there's a disabled breakpoint at the current address
+	auto hasDisabledBreakpoint = [](BinaryView* view, uint64_t addr) -> bool {
+		auto controller = DebuggerController::GetController(view);
+		if (!controller)
+			return false;
+		
+		std::vector<DebugBreakpoint> breakpoints = controller->GetBreakpoints();
+		for (const auto& bp : breakpoints)
+		{
+			if (bp.address == addr)
+				return !bp.enabled;
+		}
+		return false;
+	};
+
+	// Register "Enable Breakpoint" action (shown when breakpoint is disabled)
+	UIAction::registerAction("Enable Breakpoint");
+	context->globalActions()->bindAction("Enable Breakpoint",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				bool isAbsoluteAddress = controller->IsConnected();
+				if (isAbsoluteAddress)
+				{
+					controller->EnableBreakpoint(ctxt.address);
+				}
+				else
+				{
+					std::string filename = controller->GetInputFile();
+					uint64_t offset = ctxt.address - controller->GetViewFileSegmentsStart();
+					ModuleNameAndOffset info = {filename, offset};
+					controller->EnableBreakpoint(info);
+				}
+			},
+			[=](const UIActionContext& ctxt) {
+				return ctxt.binaryView && hasDisabledBreakpoint(ctxt.binaryView, ctxt.address);
+			}));
+	debuggerMenu->addAction("Enable Breakpoint", "Breakpoint");
+
+	// Register "Disable Breakpoint" action (shown when breakpoint is enabled)
+	UIAction::registerAction("Disable Breakpoint");
+	context->globalActions()->bindAction("Disable Breakpoint",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				bool isAbsoluteAddress = controller->IsConnected();
+				if (isAbsoluteAddress)
+				{
+					controller->DisableBreakpoint(ctxt.address);
+				}
+				else
+				{
+					std::string filename = controller->GetInputFile();
+					uint64_t offset = ctxt.address - controller->GetViewFileSegmentsStart();
+					ModuleNameAndOffset info = {filename, offset};
+					controller->DisableBreakpoint(info);
+				}
+			},
+			[=](const UIActionContext& ctxt) {
+				return ctxt.binaryView && hasEnabledBreakpoint(ctxt.binaryView, ctxt.address);
+			}));
+	debuggerMenu->addAction("Disable Breakpoint", "Breakpoint");
+
 	UIAction::registerAction("Connect to Debug Server");
 	context->globalActions()->bindAction("Connect to Debug Server",
 		UIAction(

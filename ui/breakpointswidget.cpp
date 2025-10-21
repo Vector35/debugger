@@ -292,23 +292,29 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 	m_actionHandler.bindAction(
 		addBreakpointActionName, UIAction([&]() { add(); }));
 
-	QString enableBreakpointActionName = QString::fromStdString("Enable Breakpoint");
-	UIAction::registerAction(enableBreakpointActionName);
-	m_menu->addAction(enableBreakpointActionName, "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction(
-		enableBreakpointActionName, UIAction([&]() { enableSelected(); }, [&]() { return selectionNotEmpty(); }));
-
-	QString disableBreakpointActionName = QString::fromStdString("Disable Breakpoint");
-	UIAction::registerAction(disableBreakpointActionName);
-	m_menu->addAction(disableBreakpointActionName, "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction(
-		disableBreakpointActionName, UIAction([&]() { disableSelected(); }, [&]() { return selectionNotEmpty(); }));
-
-	QString toggleBreakpointActionName = QString::fromStdString("Toggle Breakpoint Enable/Disable");
+	QString toggleBreakpointActionName = QString::fromStdString("Toggle Breakpoint");
 	UIAction::registerAction(toggleBreakpointActionName, QKeySequence("Ctrl+Shift+B"));
 	m_menu->addAction(toggleBreakpointActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		toggleBreakpointActionName, UIAction([&]() { toggleSelected(); }, [&]() { return selectionNotEmpty(); }));
+
+	QString enableAllActionName = QString::fromStdString("Enable All Breakpoints");
+	UIAction::registerAction(enableAllActionName);
+	m_menu->addAction(enableAllActionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		enableAllActionName, UIAction([&]() { enableAll(); }));
+
+	QString disableAllActionName = QString::fromStdString("Disable All Breakpoints");
+	UIAction::registerAction(disableAllActionName);
+	m_menu->addAction(disableAllActionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		disableAllActionName, UIAction([&]() { disableAll(); }));
+
+	QString soloBreakpointActionName = QString::fromStdString("Solo Breakpoint");
+	UIAction::registerAction(soloBreakpointActionName);
+	m_menu->addAction(soloBreakpointActionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		soloBreakpointActionName, UIAction([&]() { soloSelected(); }, [&]() { return selectionNotEmpty(); }));
 
 	connect(this, &QTableView::doubleClicked, this, &DebugBreakpointsWidget::onDoubleClicked);
 
@@ -456,28 +462,6 @@ void DebugBreakpointsWidget::add()
 }
 
 
-void DebugBreakpointsWidget::enableSelected()
-{
-	QModelIndexList sel = selectionModel()->selectedRows();
-	for (const QModelIndex& index : sel)
-	{
-		BreakpointItem bp = m_model->getRow(index.row());
-		m_controller->EnableBreakpoint(bp.location());
-	}
-}
-
-
-void DebugBreakpointsWidget::disableSelected()
-{
-	QModelIndexList sel = selectionModel()->selectedRows();
-	for (const QModelIndex& index : sel)
-	{
-		BreakpointItem bp = m_model->getRow(index.row());
-		m_controller->DisableBreakpoint(bp.location());
-	}
-}
-
-
 void DebugBreakpointsWidget::toggleSelected()
 {
 	QModelIndexList sel = selectionModel()->selectedRows();
@@ -489,6 +473,56 @@ void DebugBreakpointsWidget::toggleSelected()
 		else
 			m_controller->EnableBreakpoint(bp.location());
 	}
+}
+
+
+void DebugBreakpointsWidget::enableAll()
+{
+	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
+	for (const DebugBreakpoint& bp : breakpoints)
+	{
+		ModuleNameAndOffset info;
+		info.module = bp.module;
+		info.offset = bp.offset;
+		m_controller->EnableBreakpoint(info);
+	}
+}
+
+
+void DebugBreakpointsWidget::disableAll()
+{
+	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
+	for (const DebugBreakpoint& bp : breakpoints)
+	{
+		ModuleNameAndOffset info;
+		info.module = bp.module;
+		info.offset = bp.offset;
+		m_controller->DisableBreakpoint(info);
+	}
+}
+
+
+void DebugBreakpointsWidget::soloSelected()
+{
+	QModelIndexList sel = selectionModel()->selectedRows();
+	if (sel.empty())
+		return;
+
+	// Get the selected breakpoint location
+	BreakpointItem selectedBp = m_model->getRow(sel[0].row());
+	
+	// Disable all breakpoints first
+	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
+	for (const DebugBreakpoint& bp : breakpoints)
+	{
+		ModuleNameAndOffset info;
+		info.module = bp.module;
+		info.offset = bp.offset;
+		m_controller->DisableBreakpoint(info);
+	}
+	
+	// Enable the selected breakpoint
+	m_controller->EnableBreakpoint(selectedBp.location());
 }
 
 

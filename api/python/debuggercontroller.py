@@ -260,7 +260,7 @@ class DebugBreakpoint:
     * ``module``: the name of the module for which the breakpoint is in
     * ``offset``: the offset of the breakpoint to the start of the module
     * ``address``: the absolute address of the breakpoint
-    * ``enabled``: not used
+    * ``enabled``: whether the breakpoint is enabled (read-only)
 
     """
     def __init__(self, module, offset, address, enabled):
@@ -281,7 +281,7 @@ class DebugBreakpoint:
         return not (self == other)
 
     def __hash__(self):
-        return hash((self.module, self.offset, self.address. self.enabled))
+        return hash((self.module, self.offset, self.address, self.enabled))
 
     def __setattr__(self, name, value):
         try:
@@ -290,7 +290,8 @@ class DebugBreakpoint:
             raise AttributeError(f"attribute '{name}' is read only")
 
     def __repr__(self):
-        return f"<DebugBreakpoint: {self.module}:{self.offset:#x}, {self.address:#x}>"
+        status = "enabled" if self.enabled else "disabled"
+        return f"<DebugBreakpoint: {self.module}:{self.offset:#x}, {self.address:#x}, {status}>"
 
 
 class ModuleNameAndOffset:
@@ -1955,6 +1956,38 @@ class DebuggerController:
             return dbgcore.BNDebuggerContainsAbsoluteBreakpoint(self.handle, address)
         elif isinstance(address, ModuleNameAndOffset):
             return dbgcore.BNDebuggerContainsRelativeBreakpoint(self.handle, address.module, address.offset)
+        else:
+            raise NotImplementedError
+
+    def enable_breakpoint(self, address):
+        """
+        Enable a breakpoint
+
+        The input can be either an absolute address, or a ModuleNameAndOffset, which specifies a relative address to the
+        start of a module. The latter is useful for ASLR.
+
+        :param address: the address of breakpoint to enable
+        """
+        if isinstance(address, int):
+            dbgcore.BNDebuggerEnableAbsoluteBreakpoint(self.handle, address)
+        elif isinstance(address, ModuleNameAndOffset):
+            dbgcore.BNDebuggerEnableRelativeBreakpoint(self.handle, address.module, address.offset)
+        else:
+            raise NotImplementedError
+
+    def disable_breakpoint(self, address):
+        """
+        Disable a breakpoint
+
+        The input can be either an absolute address, or a ModuleNameAndOffset, which specifies a relative address to the
+        start of a module. The latter is useful for ASLR.
+
+        :param address: the address of breakpoint to disable
+        """
+        if isinstance(address, int):
+            dbgcore.BNDebuggerDisableAbsoluteBreakpoint(self.handle, address)
+        elif isinstance(address, ModuleNameAndOffset):
+            dbgcore.BNDebuggerDisableRelativeBreakpoint(self.handle, address.module, address.offset)
         else:
             raise NotImplementedError
 
