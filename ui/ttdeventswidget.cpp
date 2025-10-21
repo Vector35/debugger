@@ -202,6 +202,7 @@ void TTDEventsQueryWidget::setupUI()
 
 	// Status label
 	m_statusLabel = new QLabel("Ready to query TTD events.");
+	m_statusLabel->setContentsMargins(5, 5, 5, 5);  // Add padding around status text
 	mainLayout->addWidget(m_statusLabel);
 
 	// Connect double-click on table
