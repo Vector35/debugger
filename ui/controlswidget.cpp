@@ -59,6 +59,12 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 		m_controller->SetAdapterType(m_adapterSelector->itemText(0).toStdString());
 		m_adapterSelector->setCurrentIndex(0);
 	}
+	else
+	{
+		// No adapters available
+		m_adapterSelector->addItem("(No available debug adapter)");
+		m_adapterSelector->setEnabled(false);
+	}
 	
 	connect(m_adapterSelector, &QComboBox::currentTextChanged, this, &DebugControlsWidget::selectAdapter);
 	
