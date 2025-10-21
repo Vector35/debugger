@@ -83,7 +83,7 @@ namespace BinaryNinjaDebugger {
 	private:
 		DebuggerState* m_state;
 		std::vector<ModuleNameAndOffset> m_breakpoints;
-		std::unordered_map<ModuleNameAndOffset, bool> m_enabledState;
+		std::map<ModuleNameAndOffset, bool> m_enabledState;
 
 	public:
 		DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial = {});
