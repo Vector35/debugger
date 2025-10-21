@@ -16,6 +16,7 @@ limitations under the License.
 
 #pragma once
 
+#include <unordered_map>
 #include "binaryninjaapi.h"
 #include "ui/uitypes.h"
 #include "debugadaptertype.h"
@@ -82,6 +83,7 @@ namespace BinaryNinjaDebugger {
 	private:
 		DebuggerState* m_state;
 		std::vector<ModuleNameAndOffset> m_breakpoints;
+		std::map<ModuleNameAndOffset, bool> m_enabledState;
 
 	public:
 		DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial = {});
@@ -89,8 +91,14 @@ namespace BinaryNinjaDebugger {
 		bool AddOffset(const ModuleNameAndOffset& address);
 		bool RemoveAbsolute(uint64_t remoteAddress);
 		bool RemoveOffset(const ModuleNameAndOffset& address);
+		bool EnableAbsolute(uint64_t remoteAddress);
+		bool EnableOffset(const ModuleNameAndOffset& address);
+		bool DisableAbsolute(uint64_t remoteAddress);
+		bool DisableOffset(const ModuleNameAndOffset& address);
 		bool ContainsAbsolute(uint64_t address);
 		bool ContainsOffset(const ModuleNameAndOffset& address);
+		bool IsEnabledAbsolute(uint64_t address);
+		bool IsEnabledOffset(const ModuleNameAndOffset& address);
 		void Apply();
 		void SerializeMetadata();
 		void UnserializedMetadata();
@@ -237,6 +245,10 @@ namespace BinaryNinjaDebugger {
 		void AddBreakpoint(const ModuleNameAndOffset& address);
 		void DeleteBreakpoint(uint64_t address);
 		void DeleteBreakpoint(const ModuleNameAndOffset& address);
+		void EnableBreakpoint(uint64_t address);
+		void EnableBreakpoint(const ModuleNameAndOffset& address);
+		void DisableBreakpoint(uint64_t address);
+		void DisableBreakpoint(const ModuleNameAndOffset& address);
 
 		uint64_t IP();
 		uint64_t StackPointer();

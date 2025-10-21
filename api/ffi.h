@@ -252,6 +252,10 @@ extern "C"
 		RelativeBreakpointAddedEvent,
 		AbsoluteBreakpointRemovedEvent,
 		RelativeBreakpointRemovedEvent,
+		AbsoluteBreakpointEnabledEvent,
+		RelativeBreakpointEnabledEvent,
+		AbsoluteBreakpointDisabledEvent,
+		RelativeBreakpointDisabledEvent,
 
 		ActiveThreadChangedEvent,
 
@@ -582,6 +586,12 @@ extern "C"
 		BNDebuggerController* controller, const char* module, uint64_t offset);
 	DEBUGGER_FFI_API void BNDebuggerAddAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t address);
 	DEBUGGER_FFI_API void BNDebuggerAddRelativeBreakpoint(
+		BNDebuggerController* controller, const char* module, uint64_t offset);
+	DEBUGGER_FFI_API void BNDebuggerEnableAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t address);
+	DEBUGGER_FFI_API void BNDebuggerEnableRelativeBreakpoint(
+		BNDebuggerController* controller, const char* module, uint64_t offset);
+	DEBUGGER_FFI_API void BNDebuggerDisableAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t address);
+	DEBUGGER_FFI_API void BNDebuggerDisableRelativeBreakpoint(
 		BNDebuggerController* controller, const char* module, uint64_t offset);
 	DEBUGGER_FFI_API bool BNDebuggerContainsAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t address);
 	DEBUGGER_FFI_API bool BNDebuggerContainsRelativeBreakpoint(

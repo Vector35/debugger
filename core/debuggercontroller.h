@@ -227,6 +227,10 @@ namespace BinaryNinjaDebugger {
 		void AddBreakpoint(const ModuleNameAndOffset& address);
 		void DeleteBreakpoint(uint64_t address);
 		void DeleteBreakpoint(const ModuleNameAndOffset& address);
+		void EnableBreakpoint(uint64_t address);
+		void EnableBreakpoint(const ModuleNameAndOffset& address);
+		void DisableBreakpoint(uint64_t address);
+		void DisableBreakpoint(const ModuleNameAndOffset& address);
 		DebugBreakpoint GetAllBreakpoints();
 
 		// registers

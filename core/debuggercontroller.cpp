@@ -100,6 +100,46 @@ void DebuggerController::DeleteBreakpoint(const ModuleNameAndOffset& address)
 }
 
 
+void DebuggerController::EnableBreakpoint(uint64_t address)
+{
+	m_state->EnableBreakpoint(address);
+	DebuggerEvent event;
+	event.type = AbsoluteBreakpointEnabledEvent;
+	event.data.absoluteAddress = address;
+	PostDebuggerEvent(event);
+}
+
+
+void DebuggerController::EnableBreakpoint(const ModuleNameAndOffset& address)
+{
+	m_state->EnableBreakpoint(address);
+	DebuggerEvent event;
+	event.type = RelativeBreakpointEnabledEvent;
+	event.data.relativeAddress = address;
+	PostDebuggerEvent(event);
+}
+
+
+void DebuggerController::DisableBreakpoint(uint64_t address)
+{
+	m_state->DisableBreakpoint(address);
+	DebuggerEvent event;
+	event.type = AbsoluteBreakpointDisabledEvent;
+	event.data.absoluteAddress = address;
+	PostDebuggerEvent(event);
+}
+
+
+void DebuggerController::DisableBreakpoint(const ModuleNameAndOffset& address)
+{
+	m_state->DisableBreakpoint(address);
+	DebuggerEvent event;
+	event.type = RelativeBreakpointDisabledEvent;
+	event.data.relativeAddress = address;
+	PostDebuggerEvent(event);
+}
+
+
 bool DebuggerController::SetIP(uint64_t address)
 {
 	std::string ipRegisterName;

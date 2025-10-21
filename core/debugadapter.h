@@ -264,6 +264,14 @@ namespace BinaryNinjaDebugger {
 
 		virtual bool RemoveBreakpoint(const ModuleNameAndOffset& address) { return false; }
 
+		virtual bool EnableBreakpoint(const std::uintptr_t address) { return false; }
+
+		virtual bool EnableBreakpoint(const ModuleNameAndOffset& address) { return false; }
+
+		virtual bool DisableBreakpoint(const std::uintptr_t address) { return false; }
+
+		virtual bool DisableBreakpoint(const ModuleNameAndOffset& address) { return false; }
+
 		virtual std::vector<DebugBreakpoint> GetBreakpointList() const = 0;
 
 		virtual std::unordered_map<std::string, DebugRegister> ReadAllRegisters() = 0;

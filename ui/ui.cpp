@@ -811,6 +811,120 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			requireBinaryView));
 	debuggerMenu->addAction("Toggle Breakpoint", "Breakpoint");
 
+	// Helper function to check if there's a breakpoint at the current address and return its enabled state
+	auto getBreakpointEnabledState = [](BinaryView* view, uint64_t addr) -> std::pair<bool, bool> {
+		auto controller = DebuggerController::GetController(view);
+		if (!controller)
+			return {false, false}; // {hasBreakpoint, isEnabled}
+		
+		std::vector<DebugBreakpoint> breakpoints = controller->GetBreakpoints();
+		for (const auto& bp : breakpoints)
+		{
+			if (bp.address == addr)
+				return {true, bp.enabled};
+		}
+		return {false, false};
+	};
+
+	// Register dynamic "Enable/Disable Breakpoint" action
+	UIAction::registerAction("Enable Breakpoint");
+	
+	context->globalActions()->bindAction("Enable Breakpoint",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
+				bool isAbsoluteAddress = controller->IsConnected();
+				
+				if (isAbsoluteAddress)
+				{
+					if (isEnabled)
+						controller->DisableBreakpoint(ctxt.address);
+					else
+						controller->EnableBreakpoint(ctxt.address);
+				}
+				else
+				{
+					std::string filename = controller->GetInputFile();
+					uint64_t offset = ctxt.address - controller->GetViewFileSegmentsStart();
+					ModuleNameAndOffset info = {filename, offset};
+					if (isEnabled)
+						controller->DisableBreakpoint(info);
+					else
+						controller->EnableBreakpoint(info);
+				}
+			},
+			[=](const UIActionContext& ctxt) {
+				auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
+				return ctxt.binaryView && hasBreakpoint;
+			}));
+	
+	// Dynamically change the action name based on the current breakpoint state
+	UIAction::setActionDisplayName("Enable Breakpoint", [=](const UIActionContext& ctxt) -> QString {
+		if (!ctxt.binaryView)
+			return "Enable Breakpoint";
+		
+		auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
+		if (hasBreakpoint && isEnabled)
+			return "Disable Breakpoint";
+		
+		return "Enable Breakpoint";
+	});
+	
+	debuggerMenu->addAction("Enable Breakpoint", "Breakpoint");
+
+	// Register "Solo Breakpoint" action
+	UIAction::registerAction("Solo Breakpoint");
+	context->globalActions()->bindAction("Solo Breakpoint",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				// Get the current address breakpoint location
+				bool isAbsoluteAddress = controller->IsConnected();
+				ModuleNameAndOffset currentInfo;
+				if (!isAbsoluteAddress)
+				{
+					std::string filename = controller->GetInputFile();
+					uint64_t offset = ctxt.address - controller->GetViewFileSegmentsStart();
+					currentInfo = {filename, offset};
+				}
+
+				// Disable all breakpoints
+				std::vector<DebugBreakpoint> breakpoints = controller->GetBreakpoints();
+				for (const auto& bp : breakpoints)
+				{
+					ModuleNameAndOffset info;
+					info.module = bp.module;
+					info.offset = bp.offset;
+					controller->DisableBreakpoint(info);
+				}
+
+				// Enable the current breakpoint
+				if (isAbsoluteAddress)
+				{
+					controller->EnableBreakpoint(ctxt.address);
+				}
+				else
+				{
+					controller->EnableBreakpoint(currentInfo);
+				}
+			},
+			[=](const UIActionContext& ctxt) {
+				auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
+				return ctxt.binaryView && hasBreakpoint;
+			}));
+	debuggerMenu->addAction("Solo Breakpoint", "Breakpoint");
+
 	UIAction::registerAction("Connect to Debug Server");
 	context->globalActions()->bindAction("Connect to Debug Server",
 		UIAction(
@@ -1595,70 +1709,14 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 	}
 
 	case RelativeBreakpointAddedEvent:
-	{
-		uint64_t address = m_controller->RelativeAddressToAbsolute(event.data.relativeAddress);
-
-		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		if (m_controller->GetData())
-			dataAndAddress.emplace_back(m_controller->GetData(), address);
-
-		if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetInputFile()))
-		{
-			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + event.data.relativeAddress.offset);
-		}
-
-		m_context->refreshCurrentViewContents();
-		break;
-	}
 	case AbsoluteBreakpointAddedEvent:
-	{
-		uint64_t address = event.data.absoluteAddress;
-
-		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		BinaryViewRef data = m_controller->GetData();
-		if (data)
-			dataAndAddress.emplace_back(data, address);
-
-		ModuleNameAndOffset relative = m_controller->AbsoluteAddressToRelative(address);
-		if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetInputFile()))
-		{
-			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + relative.offset);
-		}
-
-		m_context->refreshCurrentViewContents();
-		break;
-	}
 	case RelativeBreakpointRemovedEvent:
-	{
-		uint64_t address = m_controller->RelativeAddressToAbsolute(event.data.relativeAddress);
-
-		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		if (m_controller->GetData())
-			dataAndAddress.emplace_back(m_controller->GetData(), address);
-
-		if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetInputFile()))
-		{
-			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + event.data.relativeAddress.offset);
-		}
-
-		m_context->refreshCurrentViewContents();
-		break;
-	}
 	case AbsoluteBreakpointRemovedEvent:
+	case RelativeBreakpointEnabledEvent:
+	case AbsoluteBreakpointEnabledEvent:
+	case RelativeBreakpointDisabledEvent:
+	case AbsoluteBreakpointDisabledEvent:
 	{
-		uint64_t address = event.data.absoluteAddress;
-
-		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		BinaryViewRef data = m_controller->GetData();
-		if (data)
-			dataAndAddress.emplace_back(data, address);
-
-		ModuleNameAndOffset relative = m_controller->AbsoluteAddressToRelative(address);
-		if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetInputFile()))
-		{
-			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + relative.offset);
-		}
-
 		m_context->refreshCurrentViewContents();
 		break;
 	}
