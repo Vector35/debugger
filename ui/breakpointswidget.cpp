@@ -17,6 +17,11 @@ limitations under the License.
 #include <QPainter>
 #include <QHeaderView>
 #include <QFileInfo>
+#include <QClipboard>
+#include <QGuiApplication>
+#include <QKeyEvent>
+#include <QStringList>
+#include <algorithm>
 #include "breakpointswidget.h"
 #include "ui.h"
 #include "menus.h"
@@ -229,12 +234,16 @@ QSize DebugBreakpointsItemDelegate::sizeHint(const QStyleOptionViewItem& option,
 DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu):
 	QTableView(view), m_view(view)
 {
+	setFocusPolicy(Qt::StrongFocus);
+
 	m_controller = DebuggerController::GetController(data);
 	if (!m_controller)
 		return;
 
 	m_model = new DebugBreakpointsListModel(this, view);
 	setModel(m_model);
+	if (viewport())
+		viewport()->setFocusPolicy(Qt::StrongFocus);
 	setSelectionBehavior(QAbstractItemView::SelectItems);
 	setSelectionMode(QAbstractItemView::ExtendedSelection);
 
@@ -272,6 +281,10 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 	m_actionHandler.bindAction(
 		jumpToBreakpointActionName, UIAction([&]() { jump(); }, [&]() { return selectionNotEmpty(); }));
 
+	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		"Copy", UIAction([&]() { copySelection(); }, [&]() { return selectionNotEmpty(); }), HighActionPriority);
+
 	QString addBreakpointActionName = QString::fromStdString("Add Breakpoint...");
 	UIAction::registerAction(addBreakpointActionName);
 	m_menu->addAction(addBreakpointActionName, "Options", MENU_ORDER_NORMAL);
@@ -305,10 +318,51 @@ void DebugBreakpointsWidget::contextMenuEvent(QContextMenuEvent* event)
 }
 
 
+void DebugBreakpointsWidget::keyPressEvent(QKeyEvent* event)
+{
+	if (event && event->matches(QKeySequence::Copy))
+	{
+		copySelection();
+		event->accept();
+		return;
+	}
+
+	QTableView::keyPressEvent(event);
+}
+
+
 bool DebugBreakpointsWidget::selectionNotEmpty()
 {
 	QModelIndexList sel = selectionModel()->selectedIndexes();
 	return (!sel.empty()) && sel[0].isValid();
+}
+
+
+void DebugBreakpointsWidget::copySelection()
+{
+	if (!model() || !selectionModel())
+		return;
+
+	QModelIndexList rows = selectionModel()->selectedRows();
+	if (rows.empty())
+		return;
+
+	std::sort(rows.begin(), rows.end(), [](const QModelIndex& a, const QModelIndex& b) { return a.row() < b.row(); });
+
+	QStringList lines;
+	for (const QModelIndex& rowIndex : rows)
+	{
+		QStringList cells;
+		for (int column = 0; column < model()->columnCount(); column++)
+		{
+			QModelIndex idx = model()->index(rowIndex.row(), column);
+			cells << model()->data(idx, Qt::DisplayRole).toString();
+		}
+		lines << cells.join("\t");
+	}
+
+	if (QClipboard* clipboard = QGuiApplication::clipboard())
+		clipboard->setText(lines.join("\n"));
 }
 
 

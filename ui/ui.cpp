@@ -1021,6 +1021,13 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			connectedAndStopped));
 	debuggerMenu->addAction("Force Update Memory Cache", "Misc");
 
+	// Register actions for TTD widget context menus
+	UIAction::registerAction("Copy Row");
+	UIAction::registerAction("Copy Table");
+	UIAction::registerAction("Column Visibility...");
+	UIAction::registerAction("Reset Columns to Default");
+  UIAction::registerAction("Refresh");
+
 #ifdef WIN32
 	UIAction::registerAction("Record TTD Trace");
 	context->globalActions()->bindAction("Record TTD Trace",
@@ -1179,12 +1186,6 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			connectedToTTD));
 	debuggerMenu->addAction("TTD Analysis...", "TTD");
 
-	// Register actions for TTD widget context menus
-	UIAction::registerAction("Copy Row");
-	UIAction::registerAction("Copy Table");
-	UIAction::registerAction("Column Visibility...");
-	UIAction::registerAction("Reset Columns to Default");
-	UIAction::registerAction("Refresh");
 #endif
 }
 
