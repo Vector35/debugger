@@ -472,7 +472,7 @@ void DebugStackWidget::copy()
 			continue;
 
 		DebugStackItem item = m_model->getRow(row);
-		
+
 		// Format: Offset Address Value Hint
 		QString offsetStr;
 		ptrdiff_t offset = item.offset();
@@ -480,12 +480,9 @@ void DebugStackWidget::copy()
 			offsetStr = QString::asprintf("-0x%" PRIx64, (uint64_t)-offset);
 		else
 			offsetStr = QString::asprintf("0x%" PRIx64, (uint64_t)offset);
-		
-		text += QString::asprintf("%s 0x%" PRIx64 " 0x%" PRIx64 " %s",
-			offsetStr.toStdString().c_str(),
-			item.address(),
-			item.value(),
-			item.hint().c_str());
+
+		text += QString::asprintf("%s 0x%" PRIx64 " 0x%" PRIx64 " %s", offsetStr.toStdString().c_str(), item.address(),
+			item.value(), item.hint().c_str());
 	}
 
 	auto* clipboard = QGuiApplication::clipboard();
@@ -500,14 +497,14 @@ void DebugStackWidget::copyAll()
 {
 	QString text;
 	int rowCount = m_model->rowCount();
-	
+
 	for (int row = 0; row < rowCount; row++)
 	{
 		if (row > 0)
 			text += "\n";
 
 		DebugStackItem item = m_model->getRow(row);
-		
+
 		// Format: Offset Address Value Hint
 		QString offsetStr;
 		ptrdiff_t offset = item.offset();
@@ -515,12 +512,9 @@ void DebugStackWidget::copyAll()
 			offsetStr = QString::asprintf("-0x%" PRIx64, (uint64_t)-offset);
 		else
 			offsetStr = QString::asprintf("0x%" PRIx64, (uint64_t)offset);
-		
-		text += QString::asprintf("%s 0x%" PRIx64 " 0x%" PRIx64 " %s",
-			offsetStr.toStdString().c_str(),
-			item.address(),
-			item.value(),
-			item.hint().c_str());
+
+		text += QString::asprintf("%s 0x%" PRIx64 " 0x%" PRIx64 " %s", offsetStr.toStdString().c_str(), item.address(),
+			item.value(), item.hint().c_str());
 	}
 
 	auto* clipboard = QGuiApplication::clipboard();
@@ -531,10 +525,10 @@ void DebugStackWidget::copyAll()
 }
 
 
-//void DebugStackWidget::notifyFontChanged()
+// void DebugStackWidget::notifyFontChanged()
 //{
-//    m_delegate->updateFonts();
-//}
+//     m_delegate->updateFonts();
+// }
 
 
 void DebugStackWidget::updateContent()

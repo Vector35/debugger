@@ -149,9 +149,9 @@ class DebugStackWidget : public QWidget
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 	bool selectionNotEmpty();
 
-	//void shouldBeVisible()
+	// void shouldBeVisible()
 
-	//virtual void notifyFontChanged() override;
+	// virtual void notifyFontChanged() override;
 
 
 public:
