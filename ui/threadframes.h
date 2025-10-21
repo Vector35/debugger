@@ -197,6 +197,8 @@ private slots:
 	void resumeThread();
 	void makeItSoloThread();
 	void copy();
+	void copyCurrentFrame();
+	void copyAllFrames();
 };
 
 class ThreadFramesContainer : public SidebarWidget

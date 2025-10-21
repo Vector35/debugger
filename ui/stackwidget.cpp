@@ -17,9 +17,6 @@ limitations under the License.
 #include <QPainter>
 #include <QHeaderView>
 #include <QLineEdit>
-#include <QGuiApplication>
-#include <QMimeData>
-#include <QClipboard>
 #include "stackwidget.h"
 #include "fmt/format.h"
 
@@ -412,18 +409,6 @@ DebugStackWidget::DebugStackWidget(const QString& name, ViewFrame* view, BinaryV
 	layout->addWidget(m_table);
 	setLayout(layout);
 
-	m_actionHandler.setupActionHandler(this);
-	m_contextMenuManager = new ContextMenuManager(this);
-	m_menu = new Menu();
-
-	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return selectionNotEmpty(); }));
-
-	QString actionName = QString::fromStdString("Copy All Stack Entries");
-	UIAction::registerAction(actionName);
-	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction(actionName, UIAction([this]() { copyAll(); }));
-
 	updateContent();
 }
 
@@ -436,99 +421,10 @@ void DebugStackWidget::notifyStackChanged(std::vector<DebugStackItem> stackItems
 }
 
 
-void DebugStackWidget::contextMenuEvent(QContextMenuEvent* event)
-{
-	showContextMenu();
-}
-
-
-void DebugStackWidget::showContextMenu()
-{
-	m_contextMenuManager->show(m_menu, &m_actionHandler);
-}
-
-
-bool DebugStackWidget::selectionNotEmpty()
-{
-	QModelIndexList sel = m_table->selectionModel()->selectedRows();
-	return !sel.empty();
-}
-
-
-void DebugStackWidget::copy()
-{
-	QModelIndexList sel = m_table->selectionModel()->selectedRows();
-	if (sel.empty())
-		return;
-
-	QString text;
-	for (int i = 0; i < sel.size(); i++)
-	{
-		if (i > 0)
-			text += "\n";
-
-		int row = sel[i].row();
-		if (row < 0 || row >= m_model->rowCount())
-			continue;
-
-		DebugStackItem item = m_model->getRow(row);
-
-		// Format: Offset Address Value Hint
-		QString offsetStr;
-		ptrdiff_t offset = item.offset();
-		if (offset < 0)
-			offsetStr = QString::asprintf("-0x%" PRIx64, (uint64_t)-offset);
-		else
-			offsetStr = QString::asprintf("0x%" PRIx64, (uint64_t)offset);
-
-		text += QString::asprintf("%s 0x%" PRIx64 " 0x%" PRIx64 " %s", offsetStr.toStdString().c_str(), item.address(),
-			item.value(), item.hint().c_str());
-	}
-
-	auto* clipboard = QGuiApplication::clipboard();
-	clipboard->clear();
-	auto* mime = new QMimeData();
-	mime->setText(text);
-	clipboard->setMimeData(mime);
-}
-
-
-void DebugStackWidget::copyAll()
-{
-	QString text;
-	int rowCount = m_model->rowCount();
-
-	for (int row = 0; row < rowCount; row++)
-	{
-		if (row > 0)
-			text += "\n";
-
-		DebugStackItem item = m_model->getRow(row);
-
-		// Format: Offset Address Value Hint
-		QString offsetStr;
-		ptrdiff_t offset = item.offset();
-		if (offset < 0)
-			offsetStr = QString::asprintf("-0x%" PRIx64, (uint64_t)-offset);
-		else
-			offsetStr = QString::asprintf("0x%" PRIx64, (uint64_t)offset);
-
-		text += QString::asprintf("%s 0x%" PRIx64 " 0x%" PRIx64 " %s", offsetStr.toStdString().c_str(), item.address(),
-			item.value(), item.hint().c_str());
-	}
-
-	auto* clipboard = QGuiApplication::clipboard();
-	clipboard->clear();
-	auto* mime = new QMimeData();
-	mime->setText(text);
-	clipboard->setMimeData(mime);
-}
-
-
-// void DebugStackWidget::notifyFontChanged()
+//void DebugStackWidget::notifyFontChanged()
 //{
-//     m_delegate->updateFonts();
-// }
+//    m_delegate->updateFonts();
+//}
 
 
 void DebugStackWidget::updateContent()

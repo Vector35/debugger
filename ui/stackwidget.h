@@ -21,16 +21,12 @@ limitations under the License.
 #include <QModelIndex>
 #include <QTableView>
 #include <QStyledItemDelegate>
-#include <QGuiApplication>
-#include <QMimeData>
-#include <QClipboard>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "theme.h"
 #include "debuggerapi.h"
-#include "menus.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 
@@ -142,27 +138,15 @@ class DebugStackWidget : public QWidget
 	DebugStackListModel* m_model;
 	DebugStackItemDelegate* m_delegate;
 
-	UIActionHandler m_actionHandler;
-	ContextMenuManager* m_contextMenuManager;
-	Menu* m_menu;
+	//void shouldBeVisible()
 
-	virtual void contextMenuEvent(QContextMenuEvent* event) override;
-	bool selectionNotEmpty();
-
-	// void shouldBeVisible()
-
-	// virtual void notifyFontChanged() override;
+	//virtual void notifyFontChanged() override;
 
 
 public:
 	DebugStackWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
 	void notifyStackChanged(std::vector<DebugStackItem> stackItems);
 
-private slots:
-	void copy();
-	void copyAll();
-
 public slots:
 	void updateContent();
-	void showContextMenu();
 };
