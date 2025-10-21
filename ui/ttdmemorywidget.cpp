@@ -193,6 +193,10 @@ void TTDMemoryQueryWidget::setupUI()
 	m_clearButton->setToolTip("Clear the results table");
 	connect(m_clearButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::clearResults);
 	
+	// Connect Enter key in input fields to trigger query
+	connect(m_startAddressEdit, &QLineEdit::returnPressed, this, &TTDMemoryQueryWidget::performQuery);
+	connect(m_endAddressEdit, &QLineEdit::returnPressed, this, &TTDMemoryQueryWidget::performQuery);
+	
 	buttonLayout->addWidget(m_queryButton);
 	buttonLayout->addWidget(m_clearButton);
 	buttonLayout->addStretch();
