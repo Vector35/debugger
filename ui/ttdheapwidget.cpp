@@ -42,7 +42,7 @@ private:
 
 // TTDHeapQueryWidget implementation
 TTDHeapQueryWidget::TTDHeapQueryWidget(QWidget* parent, BinaryViewRef data)
-	: QWidget(parent), m_data(data)
+	: QWidget(parent), m_data(data), m_hasPopulatedData(false)
 {
 	m_controller = DebuggerController::GetController(m_data);
 	if (!m_controller)
@@ -65,10 +65,22 @@ TTDHeapQueryWidget::TTDHeapQueryWidget(QWidget* parent, BinaryViewRef data)
 	
 	setupUI();
 	setupUIActions();
+	
+	// Register for debugger events
+	connect(this, &TTDHeapQueryWidget::debuggerEvent, this, &TTDHeapQueryWidget::onDebuggerEvent);
+	
+	m_debuggerEventCallback = m_controller->RegisterEventCallback(
+		[&](const DebuggerEvent& event) {
+			emit debuggerEvent(event);
+		},
+		"TTD Heap Widget");
 }
 
 TTDHeapQueryWidget::~TTDHeapQueryWidget()
 {
+	if (m_controller)
+		m_controller->RemoveEventCallback(m_debuggerEventCallback);
+	
 	if (m_contextMenuManager)
 		delete m_contextMenuManager;
 }
@@ -118,25 +130,6 @@ void TTDHeapQueryWidget::setupTable()
 	m_resultsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
 	m_resultsTable->setSortingEnabled(true);
 	m_resultsTable->setContextMenuPolicy(Qt::CustomContextMenu);
-	
-	// Set column widths
-	m_resultsTable->setColumnWidth(IndexColumn, 80);
-	m_resultsTable->setColumnWidth(EventTypeColumn, 100);
-	m_resultsTable->setColumnWidth(ActionColumn, 100);
-	m_resultsTable->setColumnWidth(TimeStartColumn, 120);
-	m_resultsTable->setColumnWidth(TimeEndColumn, 120);
-	m_resultsTable->setColumnWidth(HeapColumn, 120);
-	m_resultsTable->setColumnWidth(AddressColumn, 120);
-	m_resultsTable->setColumnWidth(PreviousAddressColumn, 120);
-	m_resultsTable->setColumnWidth(SizeColumn, 100);
-	m_resultsTable->setColumnWidth(BaseAddressColumn, 120);
-	m_resultsTable->setColumnWidth(FlagsColumn, 100);
-	m_resultsTable->setColumnWidth(ResultColumn, 100);
-	m_resultsTable->setColumnWidth(ReserveSizeColumn, 100);
-	m_resultsTable->setColumnWidth(CommitSizeColumn, 100);
-	m_resultsTable->setColumnWidth(MakeReadOnlyColumn, 100);
-	m_resultsTable->setColumnWidth(ThreadIdColumn, 100);
-	m_resultsTable->setColumnWidth(UniqueThreadIdColumn, 120);
 
 	updateColumnVisibility();
 	
@@ -263,6 +256,12 @@ void TTDHeapQueryWidget::performQuery()
 			m_resultsTable->setItem(i, ParametersColumn, new QTableWidgetItem(paramStrings.join(", ")));
 		}
 		
+		// Resize columns to fit contents after populating data
+		m_resultsTable->resizeColumnsToContents();
+		
+		// Mark that we have populated data
+		m_hasPopulatedData = true;
+		
 		updateStatus(QString("Found %1 heap objects").arg(events.size()));
 	}
 	catch (const std::exception& e)
@@ -277,6 +276,7 @@ void TTDHeapQueryWidget::performQuery()
 void TTDHeapQueryWidget::clearResults()
 {
 	m_resultsTable->setRowCount(0);
+	m_hasPopulatedData = false;
 	updateStatus("Results cleared");
 }
 
@@ -497,6 +497,22 @@ void TTDHeapQueryWidget::copyEntireTable()
 	}
 	
 	QApplication::clipboard()->setText(tableData.join("\n"));
+}
+
+void TTDHeapQueryWidget::onDebuggerEvent(const DebuggerEvent& event)
+{
+	switch (event.type)
+	{
+		case TargetStoppedEventType:
+			// When the target stops, populate data if not already populated
+			if (!m_hasPopulatedData && m_controller && m_controller->IsTTD())
+			{
+				performQuery();
+			}
+			break;
+		default:
+			break;
+	}
 }
 
 // TTDHeapWidget implementation (tab container)

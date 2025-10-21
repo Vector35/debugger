@@ -98,6 +98,10 @@ private:
 	ContextMenuManager* m_contextMenuManager;
 	Menu* m_menu;
 	
+	// Event callback
+	size_t m_debuggerEventCallback;
+	bool m_hasPopulatedData;
+	
 	void setupUI();
 	void setupTable();
 	void updateStatus(const QString& message);
@@ -118,6 +122,9 @@ public:
 	// Method to check if this tab is unused (no results and default parameters)
 	bool isUnused() const;
 
+Q_SIGNALS:
+	void debuggerEvent(const DebuggerEvent& event);
+
 private Q_SLOTS:
 	void clearResults();
 	void onCellDoubleClicked(int row, int column);
@@ -128,6 +135,7 @@ private Q_SLOTS:
 	void copySelectedCell();
 	void copySelectedRow();
 	void copyEntireTable();
+	void onDebuggerEvent(const DebuggerEvent& event);
 };
 
 class TTDHeapWidget : public QWidget
