@@ -17,6 +17,7 @@ limitations under the License.
 #include "controlswidget.h"
 #include "adaptersettings.h"
 #include "timestampnavigationdialog.h"
+#include "flowlayout.h"
 #include <QPixmap>
 #include <QInputDialog>
 #include <QMessageBox>
@@ -34,7 +35,7 @@ using namespace BinaryNinja;
 
 
 DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data) :
-	QToolBar(parent), m_name(name)
+	QWidget(parent), m_name(name)
 {
 	m_controller = DebuggerController::GetController(data);
 	if (!m_controller)
@@ -45,101 +46,101 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	auto red = getThemeColor(RedStandardHighlightColor);
 	auto white = getThemeColor(WhiteStandardHighlightColor);
 
-	m_actionRun = addAction(getColoredIcon(":/debugger/start", red), "Launch", [this]() {
-		performLaunch();
-	});
-	m_actionRun->setToolTip(getToolTip("Launch"));
+	FlowLayout* layout = new FlowLayout(this, 2, 2, 2);
+	setLayout(layout);
 
-	m_actionPause = addAction(getColoredIcon(":/debugger/pause", white), "Pause", [this]() {
-		performPause();
-	});
-	m_actionPause->setToolTip(getToolTip("Pause"));
+	auto createButton = [&](const QString& iconPath, const QColor& color, const QString& text, const QString& tooltip, auto callback) {
+		QToolButton* button = new QToolButton(this);
+		button->setIcon(getColoredIcon(iconPath, color));
+		button->setToolTip(tooltip);
+		button->setIconSize(QSize(20, 20));
+		button->setAutoRaise(true);
+		connect(button, &QToolButton::clicked, this, callback);
+		layout->addWidget(button);
+		return button;
+	};
 
-	m_actionResume = addAction(getColoredIcon(":/debugger/resume", green), "Resume", [this]() {
-		performResume();
-	});
-	m_actionResume->setToolTip(getToolTip("Resume"));
+	auto createAction = [&](QToolButton* button) {
+		QAction* action = new QAction(this);
+		action->setIcon(button->icon());
+		action->setToolTip(button->toolTip());
+		connect(action, &QAction::triggered, button, &QToolButton::click);
+		button->setDefaultAction(action);
+		return action;
+	};
 
-	// m_actionRun->setVisible(true);
-	m_actionPause->setVisible(false);
-	m_actionResume->setVisible(false);
+	auto createSeparator = [&]() {
+		QFrame* line = new QFrame(this);
+		line->setFrameShape(QFrame::VLine);
+		line->setFrameShadow(QFrame::Sunken);
+		line->setFixedWidth(2);
+		line->setFixedHeight(24);
+		layout->addWidget(line);
+	};
 
-	m_actionAttachPid = addAction(getColoredIcon(":/debugger/connect", white), "Attach To Process...", [this]() {
-		performAttachPID(); 
-	});
-	m_actionAttachPid->setToolTip(getToolTip("Attach To Process..."));
+	m_buttonRun = createButton(":/debugger/start", red, "Launch", getToolTip("Launch"), &DebugControlsWidget::performLaunch);
+	m_actionRun = createAction(m_buttonRun);
 
-	m_actionDetach = addAction(getColoredIcon(":/debugger/disconnect", red), "Detach", [this]() {
-		performDetach();
-	});
-	m_actionDetach->setVisible(false);
-	m_actionDetach->setToolTip(getToolTip("Detach"));
+	m_buttonPause = createButton(":/debugger/pause", white, "Pause", getToolTip("Pause"), &DebugControlsWidget::performPause);
+	m_actionPause = createAction(m_buttonPause);
+	m_buttonPause->setVisible(false);
 
-	m_actionRestart = addAction(getColoredIcon(":/debugger/restart", red), "Restart", [this]() {
-		performRestart();
-	});
-	m_actionRestart->setToolTip(getToolTip("Restart"));
+	m_buttonResume = createButton(":/debugger/resume", green, "Resume", getToolTip("Resume"), &DebugControlsWidget::performResume);
+	m_actionResume = createAction(m_buttonResume);
+	m_buttonResume->setVisible(false);
 
-	m_actionQuit = addAction(getColoredIcon(":/debugger/cancel", red), "Kill", [this]() {
-		performQuit();
-	});
-	m_actionQuit->setToolTip(getToolTip("Kill"));
-	addSeparator();
+	m_buttonAttachPid = createButton(":/debugger/connect", white, "Attach To Process...", getToolTip("Attach To Process..."), &DebugControlsWidget::performAttachPID);
+	m_actionAttachPid = createAction(m_buttonAttachPid);
 
-	m_actionStepInto = addAction(getColoredIcon(":/debugger/step-into", cyan), "Step Into", [this]() {
-		performStepInto();
-	});
-	m_actionStepInto->setToolTip(getToolTip("Step Into"));
+	m_buttonDetach = createButton(":/debugger/disconnect", red, "Detach", getToolTip("Detach"), &DebugControlsWidget::performDetach);
+	m_actionDetach = createAction(m_buttonDetach);
+	m_buttonDetach->setVisible(false);
 
-	m_actionStepOver = addAction(getColoredIcon(":/debugger/step-over", cyan), "Step Over", [this]() {
-		performStepOver();
-	});
-	m_actionStepOver->setToolTip(getToolTip("Step Over"));
+	m_buttonRestart = createButton(":/debugger/restart", red, "Restart", getToolTip("Restart"), &DebugControlsWidget::performRestart);
+	m_actionRestart = createAction(m_buttonRestart);
 
-	m_actionStepReturn = addAction(getColoredIcon(":/debugger/step-out", cyan), "Step Return", [this]() {
-		performStepReturn();
-	});
-	m_actionStepReturn->setToolTip(getToolTip("Step Return"));
-	addSeparator();
+	m_buttonQuit = createButton(":/debugger/cancel", red, "Kill", getToolTip("Kill"), &DebugControlsWidget::performQuit);
+	m_actionQuit = createAction(m_buttonQuit);
 
-	m_actionSettings = addAction(getColoredIcon(":/debugger/settings", cyan), "Settings", [this]() {
-		performSettings();
-	});
-	m_actionSettings->setToolTip(getToolTip("Debug Adapter Settings"));
-	addSeparator();
+	createSeparator();
 
-	m_actionToggleBreakpoint = addAction(getColoredIcon(":/debugger/breakpoint", red), "Breakpoint", [this]() {
-		toggleBreakpoint();
-	});
-	m_actionToggleBreakpoint->setToolTip(getToolTip("Toggle Breakpoint"));
+	m_buttonStepInto = createButton(":/debugger/step-into", cyan, "Step Into", getToolTip("Step Into"), &DebugControlsWidget::performStepInto);
+	m_actionStepInto = createAction(m_buttonStepInto);
+
+	m_buttonStepOver = createButton(":/debugger/step-over", cyan, "Step Over", getToolTip("Step Over"), &DebugControlsWidget::performStepOver);
+	m_actionStepOver = createAction(m_buttonStepOver);
+
+	m_buttonStepReturn = createButton(":/debugger/step-out", cyan, "Step Return", getToolTip("Step Return"), &DebugControlsWidget::performStepReturn);
+	m_actionStepReturn = createAction(m_buttonStepReturn);
+
+	createSeparator();
+
+	m_buttonSettings = createButton(":/debugger/settings", cyan, "Settings", getToolTip("Debug Adapter Settings"), &DebugControlsWidget::performSettings);
+	m_actionSettings = createAction(m_buttonSettings);
+
+	createSeparator();
+
+	m_buttonToggleBreakpoint = createButton(":/debugger/breakpoint", red, "Breakpoint", getToolTip("Toggle Breakpoint"), &DebugControlsWidget::toggleBreakpoint);
+	m_actionToggleBreakpoint = createAction(m_buttonToggleBreakpoint);
 
 	if(m_controller->IsTTD())
-		addSeparator(); //TODO: IsTTD only updates when the adapter is connected. This leaves the separator in place when the adapter is disconnected.
+		createSeparator();
 	
-	m_actionGoBack = addAction(getColoredIcon(":/debugger/resume-reverse", red), "Go Backwards", [this]() {
-		performGoReverse();
-	});
-	m_actionGoBack->setToolTip(getToolTip("Go Backwards"));
+	m_buttonGoBack = createButton(":/debugger/resume-reverse", red, "Go Backwards", getToolTip("Go Backwards"), &DebugControlsWidget::performGoReverse);
+	m_actionGoBack = createAction(m_buttonGoBack);
 	
-	m_actionStepIntoBack = addAction(getColoredIcon(":/debugger/step-into-reverse", red), "Step Into Backwards", [this]() {
-		performStepIntoReverse();
-	});
-	m_actionStepIntoBack->setToolTip(getToolTip("Step Into Backwards"));
+	m_buttonStepIntoBack = createButton(":/debugger/step-into-reverse", red, "Step Into Backwards", getToolTip("Step Into Backwards"), &DebugControlsWidget::performStepIntoReverse);
+	m_actionStepIntoBack = createAction(m_buttonStepIntoBack);
 
-	m_actionStepOverBack = addAction(getColoredIcon(":/debugger/step-back", red), "Step Over Backwards", [this]() {
-		performStepOverReverse();
-	});
-	m_actionStepOverBack->setToolTip(getToolTip("Step Over Backwards"));
+	m_buttonStepOverBack = createButton(":/debugger/step-back", red, "Step Over Backwards", getToolTip("Step Over Backwards"), &DebugControlsWidget::performStepOverReverse);
+	m_actionStepOverBack = createAction(m_buttonStepOverBack);
 
-	m_actionStepReturnBack = addAction(getColoredIcon(":/debugger/step-out-reverse", red), "Step Return Backwards", [this]() {
-		performStepReturnReverse();
-	});
-	m_actionStepReturnBack->setToolTip(getToolTip("Step Return Backwards"));
+	m_buttonStepReturnBack = createButton(":/debugger/step-out-reverse", red, "Step Return Backwards", getToolTip("Step Return Backwards"), &DebugControlsWidget::performStepReturnReverse);
+	m_actionStepReturnBack = createAction(m_buttonStepReturnBack);
 
-	m_actionTimestampNavigation = addAction(getColoredIcon(":/debugger/ttd-timestamp", cyan), "Navigate to Timestamp", [this]() {
-		performTimestampNavigation();
-	});
-	m_actionTimestampNavigation->setToolTip(getToolTip("Navigate to TTD Timestamp..."));
+	m_buttonTimestampNavigation = createButton(":/debugger/ttd-timestamp", cyan, "Navigate to Timestamp", getToolTip("Navigate to TTD Timestamp..."), &DebugControlsWidget::performTimestampNavigation);
+	m_actionTimestampNavigation = createAction(m_buttonTimestampNavigation);
+
 	updateButtons();
 }
 
@@ -484,7 +485,7 @@ void DebugControlsWidget::setStartingEnabled(bool enabled)
 	m_actionRun->setEnabled(enabled && canExec());
 	// TODO: we need to support specifying whether the adapter supports attaching to a pid
 	m_actionAttachPid->setEnabled(enabled && canExec());
-	m_actionAttachPid->setVisible(enabled);
+	m_buttonAttachPid->setVisible(enabled);
 }
 
 
@@ -493,7 +494,7 @@ void DebugControlsWidget::setStoppingEnabled(bool enabled)
 	m_actionRestart->setEnabled(enabled);
 	m_actionQuit->setEnabled(enabled);
 	m_actionDetach->setEnabled(enabled);
-	m_actionDetach->setVisible(enabled);
+	m_buttonDetach->setVisible(enabled);
 }
 
 
@@ -508,20 +509,18 @@ void DebugControlsWidget::setSteppingEnabled(bool enabled)
 void DebugControlsWidget::setReverseSteppingEnabled(bool enabled)
 {
 	m_actionStepIntoBack->setEnabled(enabled);
-	m_actionStepIntoBack->setVisible(enabled);
+	m_buttonStepIntoBack->setVisible(enabled);
 	m_actionStepOverBack->setEnabled(enabled);
-	m_actionStepOverBack->setVisible(enabled);
+	m_buttonStepOverBack->setVisible(enabled);
 	m_actionStepReturnBack->setEnabled(enabled);
-	m_actionStepReturnBack->setVisible(enabled);
+	m_buttonStepReturnBack->setVisible(enabled);
 	m_actionTimestampNavigation->setEnabled(enabled);
-	m_actionTimestampNavigation->setVisible(enabled);
+	m_buttonTimestampNavigation->setVisible(enabled);
 }
 
 
 void DebugControlsWidget::updateButtons()
 {
-	this->setIconSize(QSize(20, 20));
-
 	DebugAdapterConnectionStatus connection = m_controller->GetConnectionStatus();
 	DebugAdapterTargetStatus status = m_controller->GetTargetStatus();
 
@@ -535,10 +534,10 @@ void DebugControlsWidget::updateButtons()
 		m_actionResume->setEnabled(false);
 		m_actionGoBack->setEnabled(false);
 
-		m_actionRun->setVisible(true);
-		m_actionPause->setVisible(false);
-		m_actionResume->setVisible(false);
-		m_actionGoBack->setVisible(false);
+		m_buttonRun->setVisible(true);
+		m_buttonPause->setVisible(false);
+		m_buttonResume->setVisible(false);
+		m_buttonGoBack->setVisible(false);
 	}
 	else if (status == DebugAdapterRunningStatus)
 	{
@@ -546,17 +545,17 @@ void DebugControlsWidget::updateButtons()
 		setStoppingEnabled(true);
 		setSteppingEnabled(false);
 		setReverseSteppingEnabled(false);
-		m_actionStepIntoBack->setVisible(m_controller->IsTTD());
-		m_actionStepOverBack->setVisible(m_controller->IsTTD());
+		m_buttonStepIntoBack->setVisible(m_controller->IsTTD());
+		m_buttonStepOverBack->setVisible(m_controller->IsTTD());
 		
 		m_actionPause->setEnabled(true);
 		m_actionResume->setEnabled(false);
 		m_actionGoBack->setEnabled(false);
 
-		m_actionRun->setVisible(false);
-		m_actionPause->setVisible(true);
-		m_actionResume->setVisible(false);
-		m_actionGoBack->setVisible(false);
+		m_buttonRun->setVisible(false);
+		m_buttonPause->setVisible(true);
+		m_buttonResume->setVisible(false);
+		m_buttonGoBack->setVisible(false);
 	}
 	else  // status == DebugAdapterPausedStatus
 	{
@@ -568,10 +567,10 @@ void DebugControlsWidget::updateButtons()
 		m_actionResume->setEnabled(true);
 		m_actionGoBack->setEnabled(m_controller->IsTTD());
 
-		m_actionRun->setVisible(false);
-		m_actionPause->setVisible(false);
-		m_actionResume->setVisible(true);
-		m_actionGoBack->setVisible(m_controller->IsTTD());
+		m_buttonRun->setVisible(false);
+		m_buttonPause->setVisible(false);
+		m_buttonResume->setVisible(true);
+		m_buttonGoBack->setVisible(m_controller->IsTTD());
 	}
 }
 

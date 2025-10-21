@@ -16,7 +16,7 @@ limitations under the License.
 
 #pragma once
 
-#include <QToolBar>
+#include <QWidget>
 #include <QMenu>
 #include <QToolButton>
 #include <QIcon>
@@ -28,13 +28,31 @@ limitations under the License.
 using namespace BinaryNinjaDebuggerAPI;
 
 
-class DebugControlsWidget : public QToolBar
+class DebugControlsWidget : public QWidget
 {
 	Q_OBJECT
 
 private:
 	std::string m_name;
 	DbgRef<DebuggerController> m_controller;
+
+	QToolButton* m_buttonRun;
+	QToolButton* m_buttonAttachPid;
+	QToolButton* m_buttonRestart;
+	QToolButton* m_buttonQuit;
+	QToolButton* m_buttonDetach;
+	QToolButton* m_buttonPause;
+	QToolButton* m_buttonResume;
+	QToolButton* m_buttonGoBack;
+	QToolButton* m_buttonStepInto;
+	QToolButton* m_buttonStepIntoBack;
+	QToolButton* m_buttonStepOver;
+	QToolButton* m_buttonStepOverBack;
+	QToolButton* m_buttonStepReturn;
+	QToolButton* m_buttonStepReturnBack;
+	QToolButton* m_buttonSettings;
+	QToolButton* m_buttonToggleBreakpoint;
+	QToolButton* m_buttonTimestampNavigation;
 
 	QAction* m_actionRun;
 	QAction* m_actionAttachPid;
