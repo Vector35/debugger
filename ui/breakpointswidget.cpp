@@ -154,7 +154,7 @@ QVariant DebugBreakpointsListModel::headerData(int column, Qt::Orientation orien
 	switch (column)
 	{
 	case DebugBreakpointsListModel::EnabledColumn:
-		return "Enabled";
+		return "";
 	case DebugBreakpointsListModel::LocationColumn:
 		return "Location";
 	case DebugBreakpointsListModel::AddressColumn:
@@ -524,4 +524,8 @@ void DebugBreakpointsWidget::updateContent()
 	}
 
 	m_model->updateRows(bps);
+
+	resizeColumnToContents(DebugBreakpointsListModel::EnabledColumn);
+	resizeColumnToContents(DebugBreakpointsListModel::LocationColumn);
+	resizeColumnToContents(DebugBreakpointsListModel::AddressColumn);
 }
