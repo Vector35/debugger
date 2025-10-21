@@ -199,6 +199,10 @@ void TTDMemoryQueryWidget::setupUI()
 	
 	inputLayout->addRow("", buttonLayout);
 	
+	// Connect Enter key press in line edits to perform query
+	connect(m_startAddressEdit, &QLineEdit::returnPressed, this, &TTDMemoryQueryWidget::performQuery);
+	connect(m_endAddressEdit, &QLineEdit::returnPressed, this, &TTDMemoryQueryWidget::performQuery);
+	
 	// Set the input widget as the content of the expandable group
 	ExpandableGroup* expandableGroup = new ExpandableGroup(inputLayout, "Query Parameters", this, true);
 	
