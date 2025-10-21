@@ -2109,7 +2109,6 @@ uint32_t DebuggerController::GetExitCode()
 
 uint32_t DebuggerController::GetActivePID()
 {
-	std::lock_guard<std::mutex> lock(m_adapterMutex);
 	if (!m_adapter)
 		return 0;
 	return m_adapter->GetActivePID();
