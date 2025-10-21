@@ -612,6 +612,17 @@ void ThreadFramesWidget::copyAllFrames()
 		if (!threadItem)
 			continue;
 
+		// Skip if thread has no frames
+		if (threadItem->childCount() == 0)
+			continue;
+
+		// Add separator between threads
+		if (!text.isEmpty())
+			text += "\n";
+
+		// Add thread header
+		text += QString::asprintf("Thread %d (0x%x):\n", i, threadItem->tid());
+
 		// Iterate through all frames in this thread
 		for (int j = 0; j < threadItem->childCount(); j++)
 		{
@@ -619,13 +630,13 @@ void ThreadFramesWidget::copyAllFrames()
 			if (!frameItem || !frameItem->isFrame())
 				continue;
 
-			if (!text.isEmpty())
-				text += "\n";
-
 			// Format: FrameIndex Module Function PC SP FP
 			text += QString::asprintf("%lu %s %s 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64, frameItem->frameIndex(),
 				frameItem->module().c_str(), frameItem->function().c_str(), frameItem->framePc(), frameItem->sp(),
 				frameItem->fp());
+
+			// Add newline after each frame
+			text += "\n";
 		}
 	}
 
