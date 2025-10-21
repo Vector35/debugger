@@ -1120,7 +1120,7 @@ void TTDEventsSidebarWidget::onDebuggerEvent(const DebuggerEvent& event)
 
 // TTDEventsWidgetType implementation
 TTDEventsWidgetType::TTDEventsWidgetType()
-	: SidebarWidgetType(QImage(":/debugger/ttd"), "TTD Events")
+	: SidebarWidgetType(QImage(":/debugger/ttd-events"), "TTD Events")
 {
 }
 
