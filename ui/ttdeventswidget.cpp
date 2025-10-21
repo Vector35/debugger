@@ -789,8 +789,17 @@ void TTDEventsQueryWidget::onCellDoubleClicked(int row, int column)
 			if (ok)
 			{
 				// Jump to address in disassembly view
-				UIContext::activeContext()->navigateToAddress(m_data, address);
-				updateStatus(QString("Jumped to address 0x%1").arg(address, 0, 16));
+				// Navigate to the address in the disassembly view
+				ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+				if (frame)
+				{
+					frame->navigate(m_data, address);
+					updateStatus(QString("Navigated to address %1").arg(cellText));
+				}
+				else
+				{
+					updateStatus(QString("Address: %1 (no view frame available)").arg(cellText));
+				}
 			}
 		}
 	}
