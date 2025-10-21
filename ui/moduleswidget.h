@@ -152,6 +152,7 @@ class DebugModulesWidget : public QTableView, public FilterTarget
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
 	bool canCopy();
+	bool canCopyAll();
 
 	virtual void setFilter(const std::string& filter) override;
 	virtual void scrollToFirstItem() override;
@@ -176,6 +177,7 @@ private slots:
 	void jumpToStart();
 	void jumpToEnd();
 	void copy();
+	void copyAll();
 	void onDoubleClicked();
 
 public slots:
