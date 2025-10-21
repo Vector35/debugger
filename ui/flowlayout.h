@@ -20,6 +20,9 @@ limitations under the License.
 #include <QRect>
 #include <QStyle>
 
+// FlowLayout arranges widgets in a left-to-right flow, wrapping to the next row
+// when there is insufficient horizontal space. This is similar to how text wraps
+// in a word processor or how items flow in CSS flexbox with flex-wrap enabled.
 class FlowLayout : public QLayout
 {
 public:

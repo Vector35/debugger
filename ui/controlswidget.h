@@ -27,7 +27,9 @@ limitations under the License.
 
 using namespace BinaryNinjaDebuggerAPI;
 
-
+// Debug controls widget that displays debugger control buttons in a flow layout.
+// Buttons automatically wrap to the next row when the widget is narrow, ensuring
+// all controls remain accessible in narrow sidebars.
 class DebugControlsWidget : public QWidget
 {
 	Q_OBJECT
