@@ -339,6 +339,69 @@ extern "C"
 		BNDebuggerTTDPosition timeEnd;   // Position when call ended
 	} BNDebuggerTTDCallEvent;
 
+	// TTD Event Types - bitfield flags for filtering events
+	typedef enum BNDebuggerTTDEventType
+	{
+		BNDebuggerTTDEventNone = 0,
+		BNDebuggerTTDEventThreadCreated = 1,
+		BNDebuggerTTDEventThreadTerminated = 2,
+		BNDebuggerTTDEventModuleLoaded = 4,
+		BNDebuggerTTDEventModuleUnloaded = 8,
+		BNDebuggerTTDEventException = 16,
+		BNDebuggerTTDEventAll = BNDebuggerTTDEventThreadCreated | BNDebuggerTTDEventThreadTerminated | BNDebuggerTTDEventModuleLoaded | BNDebuggerTTDEventModuleUnloaded | BNDebuggerTTDEventException
+	} BNDebuggerTTDEventType;
+
+	// TTD Module
+	typedef struct BNDebuggerTTDModule
+	{
+		char* name;                   // Name and path of the module
+		uint64_t address;             // Address where the module was loaded
+		uint64_t size;                // Size of the module in bytes
+		uint32_t checksum;            // Checksum of the module
+		uint32_t timestamp;           // Timestamp of the module
+	} BNDebuggerTTDModule;
+
+	// TTD Thread
+	typedef struct BNDebuggerTTDThread
+	{
+		uint32_t uniqueId;            // Unique ID for the thread across the trace
+		uint32_t id;                  // TID of the thread
+		BNDebuggerTTDPosition lifetimeStart;     // Lifetime start position
+		BNDebuggerTTDPosition lifetimeEnd;       // Lifetime end position
+		BNDebuggerTTDPosition activeTimeStart;   // Active time start position
+		BNDebuggerTTDPosition activeTimeEnd;     // Active time end position
+	} BNDebuggerTTDThread;
+
+	// TTD Exception Types
+	typedef enum BNDebuggerTTDExceptionType
+	{
+		BNDebuggerTTDExceptionSoftware,
+		BNDebuggerTTDExceptionHardware
+	} BNDebuggerTTDExceptionType;
+
+	// TTD Exception
+	typedef struct BNDebuggerTTDException
+	{
+		BNDebuggerTTDExceptionType type;   // Type of exception (Software/Hardware)
+		uint64_t programCounter;           // Instruction where exception was thrown
+		uint32_t code;                     // Exception code
+		uint32_t flags;                    // Exception flags
+		uint64_t recordAddress;            // Where in memory the exception record is found
+		BNDebuggerTTDPosition position;    // Position where exception occurred
+	} BNDebuggerTTDException;
+
+	// TTD Event
+	typedef struct BNDebuggerTTDEvent
+	{
+		BNDebuggerTTDEventType type;       // Type of event
+		BNDebuggerTTDPosition position;    // Position where event occurred
+		
+		// Optional child objects - existence depends on event type
+		BNDebuggerTTDModule* module;       // For ModuleLoaded/ModuleUnloaded events (NULL if not present)
+		BNDebuggerTTDThread* thread;       // For ThreadCreated/ThreadTerminated events (NULL if not present)
+		BNDebuggerTTDException* exception; // For Exception events (NULL if not present)
+	} BNDebuggerTTDEvent;
+
 
 	// This should really be a union, but gcc complains...
 	typedef struct BNDebuggerEventData
@@ -555,10 +618,14 @@ extern "C"
 		uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* controller,
 		const char* symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, size_t* count);
+	DEBUGGER_FFI_API BNDebuggerTTDEvent* BNDebuggerGetTTDEvents(BNDebuggerController* controller,
+		BNDebuggerTTDEventType eventType, size_t* count);
+	DEBUGGER_FFI_API BNDebuggerTTDEvent* BNDebuggerGetAllTTDEvents(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPosition position);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDEvents(BNDebuggerTTDEvent* events, size_t count);
 
 	// TTD Code Coverage Analysis Functions
 	DEBUGGER_FFI_API bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t address);

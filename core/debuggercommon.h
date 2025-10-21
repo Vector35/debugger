@@ -16,6 +16,7 @@ limitations under the License.
 
 #pragma once
 #include <string.h>
+#include <optional>
 #ifndef WIN32
 	#include "libgen.h"
 #endif
@@ -151,5 +152,77 @@ namespace BinaryNinjaDebugger {
 		TTDPosition timeEnd;           // Position when call ended
 		
 		TTDCallEvent() : threadId(0), uniqueThreadId(0), functionAddress(0), returnAddress(0), returnValue(0), hasReturnValue(false) {}
+	};
+
+	// TTD Event Types - bitfield flags for filtering events
+	enum TTDEventType
+	{
+		TTDEventNone = 0,
+		TTDEventThreadCreated = 1,
+		TTDEventThreadTerminated = 2,
+		TTDEventModuleLoaded = 4,
+		TTDEventModuleUnloaded = 8,
+		TTDEventException = 16,
+		TTDEventAll = TTDEventThreadCreated | TTDEventThreadTerminated | TTDEventModuleLoaded | TTDEventModuleUnloaded | TTDEventException
+	};
+
+	// TTD Module - information about modules that were loaded/unloaded during trace
+	struct TTDModule
+	{
+		std::string name;              // Name and path of the module
+		uint64_t address;              // Address where the module was loaded
+		uint64_t size;                 // Size of the module in bytes
+		uint32_t checksum;             // Checksum of the module
+		uint32_t timestamp;            // Timestamp of the module
+		
+		TTDModule() : address(0), size(0), checksum(0), timestamp(0) {}
+	};
+
+	// TTD Thread - information about threads and their lifetime during trace
+	struct TTDThread
+	{
+		uint32_t uniqueId;             // Unique ID for the thread across the trace
+		uint32_t id;                   // TID of the thread
+		TTDPosition lifetimeStart;     // Lifetime start position
+		TTDPosition lifetimeEnd;       // Lifetime end position
+		TTDPosition activeTimeStart;   // Active time start position
+		TTDPosition activeTimeEnd;     // Active time end position
+		
+		TTDThread() : uniqueId(0), id(0) {}
+	};
+
+	// TTD Exception Types
+	enum TTDExceptionType
+	{
+		TTDExceptionSoftware,
+		TTDExceptionHardware
+	};
+
+	// TTD Exception - information about exceptions that occurred during trace
+	struct TTDException
+	{
+		TTDExceptionType type;         // Type of exception (Software/Hardware)
+		uint64_t programCounter;       // Instruction where exception was thrown
+		uint32_t code;                 // Exception code
+		uint32_t flags;                // Exception flags
+		uint64_t recordAddress;        // Where in memory the exception record is found
+		TTDPosition position;          // Position where exception occurred
+		
+		TTDException() : type(TTDExceptionSoftware), programCounter(0), code(0), flags(0), recordAddress(0) {}
+	};
+
+	// TTD Event - represents important events that happened during trace
+	struct TTDEvent
+	{
+		TTDEventType type;             // Type of event
+		TTDPosition position;          // Position where event occurred
+		
+		// Optional child objects - existence depends on event type
+		std::optional<TTDModule> module;      // For ModuleLoaded/ModuleUnloaded events
+		std::optional<TTDThread> thread;      // For ThreadCreated/ThreadTerminated events
+		std::optional<TTDException> exception; // For Exception events
+		
+		TTDEvent() : type(TTDEventThreadCreated) {}
+		TTDEvent(TTDEventType eventType) : type(eventType) {}
 	};
 };  // namespace BinaryNinjaDebugger

@@ -721,6 +721,231 @@ class TTDCallEvent:
         return f"<TTDCallEvent: {self.function} @ {self.function_address:#x}, thread {self.thread_id}>"
 
 
+class TTDEventType:
+    """
+    TTD Event Type enumeration for different types of events in TTD traces.
+    These are bitfield flags that can be combined.
+    """
+    NONE = 0
+    ThreadCreated = 1
+    ThreadTerminated = 2
+    ModuleLoaded = 4
+    ModuleUnloaded = 8
+    Exception = 16
+    ALL = ThreadCreated | ThreadTerminated | ModuleLoaded | ModuleUnloaded | Exception
+
+
+class TTDModule:
+    """
+    TTDModule represents information about modules that were loaded/unloaded during a TTD trace.
+    
+    Attributes:
+        name (str): name and path of the module
+        address (int): address where the module was loaded
+        size (int): size of the module in bytes
+        checksum (int): checksum of the module
+        timestamp (int): timestamp of the module
+    """
+
+    def __init__(self, name: str, address: int, size: int, checksum: int, timestamp: int):
+        self.name = name
+        self.address = address
+        self.size = size
+        self.checksum = checksum
+        self.timestamp = timestamp
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (self.name == other.name and
+                self.address == other.address and
+                self.size == other.size and
+                self.checksum == other.checksum and
+                self.timestamp == other.timestamp)
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.name, self.address, self.size, self.checksum, self.timestamp))
+
+    def __setattr__(self, name, value):
+        try:
+            object.__setattr__(self, name, value)
+        except AttributeError:
+            raise AttributeError(f"attribute '{name}' is read only")
+
+    def __repr__(self):
+        return f"<TTDModule: {self.name} @ {self.address:#x}, size {self.size}>"
+
+
+class TTDThread:
+    """
+    TTDThread represents information about threads and their lifetime during a TTD trace.
+    
+    Attributes:
+        unique_id (int): unique ID for the thread across the trace
+        id (int): TID of the thread
+        lifetime_start (TTDPosition): lifetime start position
+        lifetime_end (TTDPosition): lifetime end position
+        active_time_start (TTDPosition): active time start position
+        active_time_end (TTDPosition): active time end position
+    """
+
+    def __init__(self, unique_id: int, id: int, lifetime_start: TTDPosition, lifetime_end: TTDPosition,
+                 active_time_start: TTDPosition, active_time_end: TTDPosition):
+        self.unique_id = unique_id
+        self.id = id
+        self.lifetime_start = lifetime_start
+        self.lifetime_end = lifetime_end
+        self.active_time_start = active_time_start
+        self.active_time_end = active_time_end
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (self.unique_id == other.unique_id and
+                self.id == other.id and
+                self.lifetime_start == other.lifetime_start and
+                self.lifetime_end == other.lifetime_end and
+                self.active_time_start == other.active_time_start and
+                self.active_time_end == other.active_time_end)
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.unique_id, self.id, self.lifetime_start, self.lifetime_end,
+                     self.active_time_start, self.active_time_end))
+
+    def __setattr__(self, name, value):
+        try:
+            object.__setattr__(self, name, value)
+        except AttributeError:
+            raise AttributeError(f"attribute '{name}' is read only")
+
+    def __repr__(self):
+        return f"<TTDThread: TID {self.id}, UniqueID {self.unique_id}>"
+
+
+class TTDExceptionType:
+    """
+    TTD Exception Type enumeration for different types of exceptions.
+    """
+    Software = 0
+    Hardware = 1
+
+
+class TTDException:
+    """
+    TTDException represents information about exceptions that occurred during a TTD trace.
+    
+    Attributes:
+        type (int): type of exception (TTDExceptionType.Software or TTDExceptionType.Hardware)
+        program_counter (int): instruction where exception was thrown
+        code (int): exception code
+        flags (int): exception flags
+        record_address (int): where in memory the exception record is found
+        position (TTDPosition): position where exception occurred
+    """
+
+    def __init__(self, type: int, program_counter: int, code: int, flags: int, 
+                 record_address: int, position: TTDPosition):
+        self.type = type
+        self.program_counter = program_counter
+        self.code = code
+        self.flags = flags
+        self.record_address = record_address
+        self.position = position
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (self.type == other.type and
+                self.program_counter == other.program_counter and
+                self.code == other.code and
+                self.flags == other.flags and
+                self.record_address == other.record_address and
+                self.position == other.position)
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.type, self.program_counter, self.code, self.flags,
+                     self.record_address, self.position))
+
+    def __setattr__(self, name, value):
+        try:
+            object.__setattr__(self, name, value)
+        except AttributeError:
+            raise AttributeError(f"attribute '{name}' is read only")
+
+    def __repr__(self):
+        type_str = "Hardware" if self.type == TTDExceptionType.Hardware else "Software"
+        return f"<TTDException: {type_str} @ {self.program_counter:#x}, code {self.code:#x}>"
+
+
+class TTDEvent:
+    """
+    TTDEvent represents important events that happened during a TTD trace.
+    
+    Attributes:
+        type (int): type of event (TTDEventType enum value)
+        position (TTDPosition): position where event occurred
+        module (TTDModule or None): module information for ModuleLoaded/ModuleUnloaded events
+        thread (TTDThread or None): thread information for ThreadCreated/ThreadTerminated events
+        exception (TTDException or None): exception information for Exception events
+    """
+
+    def __init__(self, type: int, position: TTDPosition, module = None, thread = None, exception = None):
+        self.type = type
+        self.position = position
+        self.module = module
+        self.thread = thread
+        self.exception = exception
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (self.type == other.type and
+                self.position == other.position and
+                self.module == other.module and
+                self.thread == other.thread and
+                self.exception == other.exception)
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.type, self.position, self.module, self.thread, self.exception))
+
+    def __setattr__(self, name, value):
+        try:
+            object.__setattr__(self, name, value)
+        except AttributeError:
+            raise AttributeError(f"attribute '{name}' is read only")
+
+    def __repr__(self):
+        type_names = {
+            TTDEventType.ThreadCreated: "ThreadCreated",
+            TTDEventType.ThreadTerminated: "ThreadTerminated", 
+            TTDEventType.ModuleLoaded: "ModuleLoaded",
+            TTDEventType.ModuleUnloaded: "ModuleUnloaded",
+            TTDEventType.Exception: "Exception"
+        }
+        type_str = type_names.get(self.type, f"Unknown({self.type})")
+        return f"<TTDEvent: {type_str} @ {self.position}>"
+
+
 class DebuggerController:
     """
     The ``DebuggerController`` object is the core of the debugger. Most debugger operations can be performed on it.
@@ -2040,6 +2265,165 @@ class DebuggerController:
             result.append(call_event)
 
         dbgcore.BNDebuggerFreeTTDCallEvents(events, count.value)
+        return result
+
+    def get_ttd_events(self, event_type: int) -> List[TTDEvent]:
+        """
+        Get TTD events for specific event types using bitfield filtering.
+
+        This method is only available when debugging with TTD (Time Travel Debugging).
+        Use the is_ttd property to check if TTD is available before calling this method.
+
+        :param event_type: type of events to query (TTDEventType bitfield flags that can be combined with |)
+        :return: list of TTDEvent objects
+        :rtype: List[TTDEvent]
+        """
+        if self.handle is None:
+            return []
+
+        count = ctypes.c_size_t()
+        events = dbgcore.BNDebuggerGetTTDEvents(self.handle, event_type, ctypes.byref(count))
+
+        result = []
+        if not events or count.value == 0:
+            return result
+
+        for i in range(count.value):
+            event = events[i]
+            
+            position = TTDPosition(event.position.sequence, event.position.step)
+            
+            # Convert optional module details
+            module = None
+            if event.module:
+                module = TTDModule(
+                    name=event.module.contents.name if event.module.contents.name else "",
+                    address=event.module.contents.address,
+                    size=event.module.contents.size,
+                    checksum=event.module.contents.checksum,
+                    timestamp=event.module.contents.timestamp
+                )
+            
+            # Convert optional thread details
+            thread = None
+            if event.thread:
+                lifetime_start = TTDPosition(event.thread.contents.lifetimeStart.sequence, event.thread.contents.lifetimeStart.step)
+                lifetime_end = TTDPosition(event.thread.contents.lifetimeEnd.sequence, event.thread.contents.lifetimeEnd.step)
+                active_time_start = TTDPosition(event.thread.contents.activeTimeStart.sequence, event.thread.contents.activeTimeStart.step)
+                active_time_end = TTDPosition(event.thread.contents.activeTimeEnd.sequence, event.thread.contents.activeTimeEnd.step)
+                
+                thread = TTDThread(
+                    unique_id=event.thread.contents.uniqueId,
+                    id=event.thread.contents.id,
+                    lifetime_start=lifetime_start,
+                    lifetime_end=lifetime_end,
+                    active_time_start=active_time_start,
+                    active_time_end=active_time_end
+                )
+            
+            # Convert optional exception details
+            exception = None
+            if event.exception:
+                exception_position = TTDPosition(event.exception.contents.position.sequence, event.exception.contents.position.step)
+                
+                exception = TTDException(
+                    type=event.exception.contents.type,
+                    program_counter=event.exception.contents.programCounter,
+                    code=event.exception.contents.code,
+                    flags=event.exception.contents.flags,
+                    record_address=event.exception.contents.recordAddress,
+                    position=exception_position
+                )
+
+            ttd_event = TTDEvent(
+                type=event.type,
+                position=position,
+                module=module,
+                thread=thread,
+                exception=exception
+            )
+            result.append(ttd_event)
+
+        dbgcore.BNDebuggerFreeTTDEvents(events, count.value)
+        return result
+
+    def get_all_ttd_events(self) -> List[TTDEvent]:
+        """
+        Get all TTD events from the trace.
+
+        This method is only available when debugging with TTD (Time Travel Debugging).
+        Use the is_ttd property to check if TTD is available before calling this method.
+
+        :return: list of all TTDEvent objects in the trace
+        :rtype: List[TTDEvent]
+        """
+        if self.handle is None:
+            return []
+
+        count = ctypes.c_size_t()
+        events = dbgcore.BNDebuggerGetAllTTDEvents(self.handle, ctypes.byref(count))
+
+        result = []
+        if not events or count.value == 0:
+            return result
+
+        for i in range(count.value):
+            event = events[i]
+            
+            position = TTDPosition(event.position.sequence, event.position.step)
+            
+            # Convert optional module details
+            module = None
+            if event.module:
+                module = TTDModule(
+                    name=event.module.contents.name if event.module.contents.name else "",
+                    address=event.module.contents.address,
+                    size=event.module.contents.size,
+                    checksum=event.module.contents.checksum,
+                    timestamp=event.module.contents.timestamp
+                )
+            
+            # Convert optional thread details
+            thread = None
+            if event.thread:
+                lifetime_start = TTDPosition(event.thread.contents.lifetimeStart.sequence, event.thread.contents.lifetimeStart.step)
+                lifetime_end = TTDPosition(event.thread.contents.lifetimeEnd.sequence, event.thread.contents.lifetimeEnd.step)
+                active_time_start = TTDPosition(event.thread.contents.activeTimeStart.sequence, event.thread.contents.activeTimeStart.step)
+                active_time_end = TTDPosition(event.thread.contents.activeTimeEnd.sequence, event.thread.contents.activeTimeEnd.step)
+                
+                thread = TTDThread(
+                    unique_id=event.thread.contents.uniqueId,
+                    id=event.thread.contents.id,
+                    lifetime_start=lifetime_start,
+                    lifetime_end=lifetime_end,
+                    active_time_start=active_time_start,
+                    active_time_end=active_time_end
+                )
+            
+            # Convert optional exception details
+            exception = None
+            if event.exception:
+                exception_position = TTDPosition(event.exception.contents.position.sequence, event.exception.contents.position.step)
+                
+                exception = TTDException(
+                    type=event.exception.contents.type,
+                    program_counter=event.exception.contents.programCounter,
+                    code=event.exception.contents.code,
+                    flags=event.exception.contents.flags,
+                    record_address=event.exception.contents.recordAddress,
+                    position=exception_position
+                )
+
+            ttd_event = TTDEvent(
+                type=event.type,
+                position=position,
+                module=module,
+                thread=thread,
+                exception=exception
+            )
+            result.append(ttd_event)
+
+        dbgcore.BNDebuggerFreeTTDEvents(events, count.value)
         return result
 
     def __del__(self):

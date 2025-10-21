@@ -1272,6 +1272,196 @@ void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count)
 }
 
 
+BNDebuggerTTDEvent* BNDebuggerGetTTDEvents(BNDebuggerController* controller,
+	BNDebuggerTTDEventType eventType, size_t* count)
+{
+	if (!count)
+		return nullptr;
+
+	*count = 0;
+
+	auto events = controller->object->GetTTDEvents(static_cast<TTDEventType>(eventType));
+	if (events.empty())
+		return nullptr;
+
+	*count = events.size();
+	auto result = new BNDebuggerTTDEvent[events.size()];
+
+	for (size_t i = 0; i < events.size(); ++i)
+	{
+		// Copy event type and position
+		result[i].type = static_cast<BNDebuggerTTDEventType>(events[i].type);
+		result[i].position.sequence = events[i].position.sequence;
+		result[i].position.step = events[i].position.step;
+
+		// Copy optional module details
+		if (events[i].module.has_value())
+		{
+			result[i].module = new BNDebuggerTTDModule();
+			result[i].module->name = BNAllocString(events[i].module->name.c_str());
+			result[i].module->address = events[i].module->address;
+			result[i].module->size = events[i].module->size;
+			result[i].module->checksum = events[i].module->checksum;
+			result[i].module->timestamp = events[i].module->timestamp;
+		}
+		else
+		{
+			result[i].module = nullptr;
+		}
+
+		// Copy optional thread details
+		if (events[i].thread.has_value())
+		{
+			result[i].thread = new BNDebuggerTTDThread();
+			result[i].thread->uniqueId = events[i].thread->uniqueId;
+			result[i].thread->id = events[i].thread->id;
+			result[i].thread->lifetimeStart.sequence = events[i].thread->lifetimeStart.sequence;
+			result[i].thread->lifetimeStart.step = events[i].thread->lifetimeStart.step;
+			result[i].thread->lifetimeEnd.sequence = events[i].thread->lifetimeEnd.sequence;
+			result[i].thread->lifetimeEnd.step = events[i].thread->lifetimeEnd.step;
+			result[i].thread->activeTimeStart.sequence = events[i].thread->activeTimeStart.sequence;
+			result[i].thread->activeTimeStart.step = events[i].thread->activeTimeStart.step;
+			result[i].thread->activeTimeEnd.sequence = events[i].thread->activeTimeEnd.sequence;
+			result[i].thread->activeTimeEnd.step = events[i].thread->activeTimeEnd.step;
+		}
+		else
+		{
+			result[i].thread = nullptr;
+		}
+
+		// Copy optional exception details
+		if (events[i].exception.has_value())
+		{
+			result[i].exception = new BNDebuggerTTDException();
+			result[i].exception->type = static_cast<BNDebuggerTTDExceptionType>(events[i].exception->type);
+			result[i].exception->programCounter = events[i].exception->programCounter;
+			result[i].exception->code = events[i].exception->code;
+			result[i].exception->flags = events[i].exception->flags;
+			result[i].exception->recordAddress = events[i].exception->recordAddress;
+			result[i].exception->position.sequence = events[i].exception->position.sequence;
+			result[i].exception->position.step = events[i].exception->position.step;
+		}
+		else
+		{
+			result[i].exception = nullptr;
+		}
+	}
+
+	return result;
+}
+
+
+BNDebuggerTTDEvent* BNDebuggerGetAllTTDEvents(BNDebuggerController* controller, size_t* count)
+{
+	if (!count)
+		return nullptr;
+
+	*count = 0;
+
+	auto events = controller->object->GetAllTTDEvents();
+	if (events.empty())
+		return nullptr;
+
+	*count = events.size();
+	auto result = new BNDebuggerTTDEvent[events.size()];
+
+	for (size_t i = 0; i < events.size(); ++i)
+	{
+		// Copy event type and position
+		result[i].type = static_cast<BNDebuggerTTDEventType>(events[i].type);
+		result[i].position.sequence = events[i].position.sequence;
+		result[i].position.step = events[i].position.step;
+
+		// Copy optional module details
+		if (events[i].module.has_value())
+		{
+			result[i].module = new BNDebuggerTTDModule();
+			result[i].module->name = BNAllocString(events[i].module->name.c_str());
+			result[i].module->address = events[i].module->address;
+			result[i].module->size = events[i].module->size;
+			result[i].module->checksum = events[i].module->checksum;
+			result[i].module->timestamp = events[i].module->timestamp;
+		}
+		else
+		{
+			result[i].module = nullptr;
+		}
+
+		// Copy optional thread details
+		if (events[i].thread.has_value())
+		{
+			result[i].thread = new BNDebuggerTTDThread();
+			result[i].thread->uniqueId = events[i].thread->uniqueId;
+			result[i].thread->id = events[i].thread->id;
+			result[i].thread->lifetimeStart.sequence = events[i].thread->lifetimeStart.sequence;
+			result[i].thread->lifetimeStart.step = events[i].thread->lifetimeStart.step;
+			result[i].thread->lifetimeEnd.sequence = events[i].thread->lifetimeEnd.sequence;
+			result[i].thread->lifetimeEnd.step = events[i].thread->lifetimeEnd.step;
+			result[i].thread->activeTimeStart.sequence = events[i].thread->activeTimeStart.sequence;
+			result[i].thread->activeTimeStart.step = events[i].thread->activeTimeStart.step;
+			result[i].thread->activeTimeEnd.sequence = events[i].thread->activeTimeEnd.sequence;
+			result[i].thread->activeTimeEnd.step = events[i].thread->activeTimeEnd.step;
+		}
+		else
+		{
+			result[i].thread = nullptr;
+		}
+
+		// Copy optional exception details
+		if (events[i].exception.has_value())
+		{
+			result[i].exception = new BNDebuggerTTDException();
+			result[i].exception->type = static_cast<BNDebuggerTTDExceptionType>(events[i].exception->type);
+			result[i].exception->programCounter = events[i].exception->programCounter;
+			result[i].exception->code = events[i].exception->code;
+			result[i].exception->flags = events[i].exception->flags;
+			result[i].exception->recordAddress = events[i].exception->recordAddress;
+			result[i].exception->position.sequence = events[i].exception->position.sequence;
+			result[i].exception->position.step = events[i].exception->position.step;
+		}
+		else
+		{
+			result[i].exception = nullptr;
+		}
+	}
+
+	return result;
+}
+
+
+void BNDebuggerFreeTTDEvents(BNDebuggerTTDEvent* events, size_t count)
+{
+	if (!events || count == 0)
+		return;
+
+	// Free all allocated objects for each event
+	for (size_t i = 0; i < count; ++i)
+	{
+		// Free module if present
+		if (events[i].module)
+		{
+			if (events[i].module->name)
+				BNFreeString(events[i].module->name);
+			delete events[i].module;
+		}
+
+		// Free thread if present
+		if (events[i].thread)
+		{
+			delete events[i].thread;
+		}
+
+		// Free exception if present
+		if (events[i].exception)
+		{
+			delete events[i].exception;
+		}
+	}
+
+	delete[] events;
+}
+
+
 
 void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event)
 {

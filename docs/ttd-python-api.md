@@ -85,6 +85,109 @@ class TTDCallEvent:
     """
 ```
 
+### TTDEvent
+
+Represents important events that happened during a TTD trace.
+
+```python
+class TTDEvent:
+    """
+    TTDEvent represents important events that happened during a TTD trace.
+    
+    Attributes:
+        type (int): Type of event (TTDEventType enum value)
+        position (TTDPosition): Position where event occurred
+        module (TTDModule or None): Module information for ModuleLoaded/ModuleUnloaded events
+        thread (TTDThread or None): Thread information for ThreadCreated/ThreadTerminated events
+        exception (TTDException or None): Exception information for Exception events
+    """
+```
+
+### TTDModule
+
+Represents information about modules that were loaded/unloaded during a TTD trace.
+
+```python
+class TTDModule:
+    """
+    TTDModule represents information about modules that were loaded/unloaded during a TTD trace.
+    
+    Attributes:
+        name (str): Name and path of the module
+        address (int): Address where the module was loaded
+        size (int): Size of the module in bytes
+        checksum (int): Checksum of the module
+        timestamp (int): Timestamp of the module
+    """
+```
+
+### TTDThread
+
+Represents information about threads and their lifetime during a TTD trace.
+
+```python
+class TTDThread:
+    """
+    TTDThread represents information about threads and their lifetime during a TTD trace.
+    
+    Attributes:
+        unique_id (int): Unique ID for the thread across the trace
+        id (int): TID of the thread
+        lifetime_start (TTDPosition): Lifetime start position
+        lifetime_end (TTDPosition): Lifetime end position
+        active_time_start (TTDPosition): Active time start position
+        active_time_end (TTDPosition): Active time end position
+    """
+```
+
+### TTDException
+
+Represents information about exceptions that occurred during a TTD trace.
+
+```python
+class TTDException:
+    """
+    TTDException represents information about exceptions that occurred during a TTD trace.
+    
+    Attributes:
+        type (int): Type of exception (TTDExceptionType.Software or TTDExceptionType.Hardware)
+        program_counter (int): Instruction where exception was thrown
+        code (int): Exception code
+        flags (int): Exception flags
+        record_address (int): Where in memory the exception record is found
+        position (TTDPosition): Position where exception occurred
+    """
+```
+
+### TTDEventType
+
+TTD Event Type enumeration for different types of events in TTD traces.
+
+```python
+class TTDEventType:
+    """
+    TTD Event Type enumeration for different types of events in TTD traces.
+    """
+    ThreadCreated = 0      # Thread creation events
+    ThreadTerminated = 1   # Thread termination events
+    ModuleLoaded = 2       # Module load events
+    ModuleUnloaded = 3     # Module unload events
+    Exception = 4          # Exception events
+```
+
+### TTDExceptionType
+
+TTD Exception Type enumeration for different types of exceptions.
+
+```python
+class TTDExceptionType:
+    """
+    TTD Exception Type enumeration for different types of exceptions.
+    """
+    Software = 0  # Software exceptions
+    Hardware = 1  # Hardware exceptions
+```
+
 ## Constants and Access Types
 
 ### DebuggerTTDMemoryAccessType Enum
@@ -188,6 +291,26 @@ def get_ttd_calls_for_symbols(
     """
 ```
 
+### get_ttd_events()
+
+```python
+def get_ttd_events(self, event_type: int) -> List[TTDEvent]:
+    """
+    Get TTD events for a specific event type.
+    
+    Args:
+        event_type: Type of event to query (TTDEventType enum value)
+                   - TTDEventType.ThreadCreated: Thread creation events
+                   - TTDEventType.ThreadTerminated: Thread termination events  
+                   - TTDEventType.ModuleLoaded: Module load events
+                   - TTDEventType.ModuleUnloaded: Module unload events
+                   - TTDEventType.Exception: Exception events
+                   
+    Returns:
+        List of TTDEvent objects containing event details
+    """
+```
+
 ### get_current_ttd_position()
 
 ```python
@@ -281,6 +404,41 @@ if memory_events:
 
 # Return to saved position
 dbg.set_ttd_position(current_pos)
+```
+
+### TTD Events Analysis
+
+```python
+# Query different types of events
+thread_events = dbg.get_ttd_events(TTDEventType.ThreadCreated)
+print(f"Found {len(thread_events)} thread creation events")
+
+for event in thread_events:
+    print(f"Thread created at {event.position}")
+    if event.thread:
+        print(f"  TID: {event.thread.id}, Unique ID: {event.thread.unique_id}")
+        print(f"  Lifetime: {event.thread.lifetime_start} to {event.thread.lifetime_end}")
+
+# Query module load events
+module_events = dbg.get_ttd_events(TTDEventType.ModuleLoaded)
+print(f"\\nFound {len(module_events)} module load events")
+
+for event in module_events:
+    if event.module:
+        print(f"Module loaded: {event.module.name} @ {event.module.address:#x}")
+        print(f"  Size: {event.module.size} bytes")
+        print(f"  Position: {event.position}")
+
+# Query exception events
+exception_events = dbg.get_ttd_events(TTDEventType.Exception)
+print(f"\\nFound {len(exception_events)} exception events")
+
+for event in exception_events:
+    if event.exception:
+        exc_type = "Hardware" if event.exception.type == TTDExceptionType.Hardware else "Software"
+        print(f"{exc_type} exception at {event.exception.program_counter:#x}")
+        print(f"  Code: {event.exception.code:#x}, Flags: {event.exception.flags:#x}")
+        print(f"  Position: {event.position}")
 ```
 
 ### Advanced Analysis Example
