@@ -209,6 +209,12 @@ void BNDebuggerFreeProcessList(BNDebugProcess* processes, size_t count)
 }
 
 
+uint32_t BNDebuggerGetActivePID(BNDebuggerController* controller)
+{
+	return controller->object->GetActivePID();
+}
+
+
 BNDebugThread* BNDebuggerGetThreads(BNDebuggerController* controller, size_t* size)
 {
 	std::vector<DebugThread> threads = controller->object->GetAllThreads();

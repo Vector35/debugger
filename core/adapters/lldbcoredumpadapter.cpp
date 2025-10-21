@@ -1236,3 +1236,12 @@ void LldbCoreDumpAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 	if (scope != SettingsResourceScope)
 		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
 }
+
+
+std::uint32_t LldbCoreDumpAdapter::GetActivePID()
+{
+	if (!m_process.IsValid())
+		return 0;
+
+	return m_process.GetProcessID();
+}

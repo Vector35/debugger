@@ -752,6 +752,15 @@ std::vector<DebugProcess> LldbAdapter::GetProcessList()
 }
 
 
+std::uint32_t LldbAdapter::GetActivePID()
+{
+	if (!m_process.IsValid())
+		return 0;
+
+	return m_process.GetProcessID();
+}
+
+
 std::vector<DebugThread> LldbAdapter::GetThreadList()
 {
 	size_t threadCount = m_process.GetNumThreads();

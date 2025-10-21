@@ -227,6 +227,7 @@ bool CorelliumAdapter::Connect(const std::string& server, std::uint32_t port)
     const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("?"));
     auto map = RspConnector::PacketToUnorderedMap(reply);
 	this->m_lastActiveThreadId = map["thread"];
+	this->m_processPid = map["thread"];
     m_isTargetRunning = false;
 
 	Ref<Settings> settings = Settings::Instance();
@@ -1027,6 +1028,12 @@ void CorelliumAdapter::HandleAsyncPacket(const RspData& data)
 std::vector<DebugProcess> CorelliumAdapter::GetProcessList()
 {
 	return {};
+}
+
+
+std::uint32_t CorelliumAdapter::GetActivePID()
+{
+	return m_processPid;
 }
 
 

@@ -2107,6 +2107,14 @@ uint32_t DebuggerController::GetExitCode()
 }
 
 
+uint32_t DebuggerController::GetActivePID()
+{
+	if (!m_adapter)
+		return 0;
+	return m_adapter->GetActivePID();
+}
+
+
 void DebuggerController::WriteStdIn(const std::string message)
 {
 	if (m_adapter && m_state->IsRunning())
