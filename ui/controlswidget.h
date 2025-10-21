@@ -21,6 +21,7 @@ limitations under the License.
 #include <QToolButton>
 #include <QIcon>
 #include <QLineEdit>
+#include <QComboBox>
 #include "binaryninjaapi.h"
 #include "uicontext.h"
 #include "debuggerapi.h"
@@ -35,6 +36,8 @@ class DebugControlsWidget : public QToolBar
 private:
 	std::string m_name;
 	DbgRef<DebuggerController> m_controller;
+
+	QComboBox* m_adapterSelector;
 
 	QAction* m_actionRun;
 	QAction* m_actionAttachPid;
@@ -92,4 +95,5 @@ public Q_SLOTS:
 	void performSettings();
 	void toggleBreakpoint();
 	void performTimestampNavigation();
+	void selectAdapter(const QString& adapter);
 };

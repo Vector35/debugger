@@ -40,6 +40,31 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	if (!m_controller)
 		return;
 
+	// Add adapter selector dropdown at the top
+	m_adapterSelector = new QComboBox(this);
+	m_adapterSelector->setMinimumWidth(150);
+	for (const std::string& adapter : DebugAdapterType::GetAvailableAdapters(m_controller->GetData()))
+	{
+		m_adapterSelector->addItem(QString::fromStdString(adapter));
+	}
+	
+	// Set current adapter
+	if (!m_controller->GetAdapterType().empty())
+	{
+		m_adapterSelector->setCurrentText(QString::fromStdString(m_controller->GetAdapterType()));
+	}
+	else if (m_adapterSelector->count() > 0)
+	{
+		// Set first available adapter if none is set
+		m_controller->SetAdapterType(m_adapterSelector->itemText(0).toStdString());
+		m_adapterSelector->setCurrentIndex(0);
+	}
+	
+	connect(m_adapterSelector, &QComboBox::currentTextChanged, this, &DebugControlsWidget::selectAdapter);
+	
+	addWidget(m_adapterSelector);
+	addSeparator();
+
 	auto cyan = getThemeColor(CyanStandardHighlightColor);
 	auto green = getThemeColor(GreenStandardHighlightColor);
 	auto red = getThemeColor(RedStandardHighlightColor);
@@ -586,4 +611,22 @@ void DebugControlsWidget::performTimestampNavigation()
 
 	auto* dialog = new TimestampNavigationDialog(this, m_controller);
 	dialog->show();
+}
+
+
+void DebugControlsWidget::selectAdapter(const QString& adapter)
+{
+	if (adapter.isEmpty())
+		return;
+
+	auto adapterType = DebugAdapterType::GetByName(adapter.toStdString());
+	if (!adapterType)
+		return;
+
+	m_controller->SetAdapterType(adapter.toStdString());
+	Ref<Metadata> data = new Metadata(adapter.toStdString());
+	m_controller->GetData()->StoreMetadata("debugger.adapter_type", data);
+
+	// Update button states after adapter change
+	updateButtons();
 }
