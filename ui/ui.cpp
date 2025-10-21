@@ -1184,6 +1184,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Copy Table");
 	UIAction::registerAction("Column Visibility...");
 	UIAction::registerAction("Reset Columns to Default");
+	UIAction::registerAction("Refresh");
 #endif
 }
 

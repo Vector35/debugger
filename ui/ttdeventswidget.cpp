@@ -299,17 +299,6 @@ void TTDEventsQueryWidget::setupTable()
 	
 	// Apply initial column visibility
 	updateColumnVisibility();
-	
-	// Set column widths for better readability
-	m_resultsTable->setColumnWidth(0, 60);   // Index
-	m_resultsTable->setColumnWidth(1, 150);  // Position
-	m_resultsTable->setColumnWidth(2, 150);  // Event Type
-	m_resultsTable->setColumnWidth(3, 200);  // Name or Thread ID
-	m_resultsTable->setColumnWidth(4, 150);  // Address or Thread UniqueID
-	m_resultsTable->setColumnWidth(5, 120);  // Size or Lifetime
-	m_resultsTable->setColumnWidth(6, 120);  // Checksum or Timestamp or other columns
-	m_resultsTable->setColumnWidth(7, 120);  // Timestamp or other columns
-	m_resultsTable->setColumnWidth(8, 200);  // Path (last column for modules)
 }
 
 void TTDEventsQueryWidget::updateColumnVisibility()
@@ -330,52 +319,36 @@ void TTDEventsQueryWidget::updateStatus(const QString& message)
 
 void TTDEventsQueryWidget::setupUIActions()
 {
-	// Setup copy actions
-	m_actionHandler.bindAction("Copy", UIAction([=]() { copy(); }));
-	m_actionHandler.setActionDisplayName("Copy", "Copy");
-	
-	m_actionHandler.bindAction("CopyCell", UIAction([=]() { copySelectedCell(); }));
-	m_actionHandler.setActionDisplayName("CopyCell", "Copy Cell");
-	
-	m_actionHandler.bindAction("CopyRow", UIAction([=]() { copySelectedRow(); }));
-	m_actionHandler.setActionDisplayName("CopyRow", "Copy Row");
-	
-	m_actionHandler.bindAction("CopyTable", UIAction([=]() { copyEntireTable(); }));
-	m_actionHandler.setActionDisplayName("CopyTable", "Copy Table");  // Unified name
-	
-	// Column visibility actions
-	m_actionHandler.bindAction("ColumnVisibility", UIAction([=]() { showColumnVisibilityDialog(); }));
-	m_actionHandler.setActionDisplayName("ColumnVisibility", "Column Visibility...");
-	
-	m_actionHandler.bindAction("ResetColumns", UIAction([=]() { resetColumnsToDefault(); }));
-	m_actionHandler.setActionDisplayName("ResetColumns", "Reset Columns to Default");
-	
+	m_actionHandler.setupActionHandler(this);
+	m_contextMenuManager = new ContextMenuManager(this);
+	m_menu = new Menu();
+
+	// Add Copy action with Ctrl+C support
+	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return canCopy(); }));
+
+	m_menu->addAction("Copy Row", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy Row", UIAction([&]() { copySelectedRow(); }, [&]() { return canCopy(); }));
+
+	m_menu->addAction("Copy Table", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy Table", UIAction([&]() { copyEntireTable(); }, [&]() { return m_resultsTable->rowCount() > 0; }));
+
+	m_menu->addAction("Column Visibility...", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Column Visibility...", UIAction([&]() { showColumnVisibilityDialog(); }));
+
+	m_menu->addAction("Reset Columns to Default", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Reset Columns to Default", UIAction([&]() { resetColumnsToDefault(); }));
+
 	// Refresh action to clear and re-query from backend
-	m_actionHandler.bindAction("Refresh", UIAction([=]() { refreshEvents(); }));
-	m_actionHandler.setActionDisplayName("Refresh", "Refresh");
+	m_menu->addAction("Refresh", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Refresh", UIAction([&]() { refreshEvents(); }));
 }
 
 void TTDEventsQueryWidget::setupContextMenu()
 {
-	m_contextMenuManager = new ContextMenuManager(this);
-	m_menu = new Menu();
-
-	// Copy menu - unified with TTD memory/calls widget naming
-	m_menu->addAction("Copy", "Copy");
-	m_menu->addAction("CopyCell", "Copy Cell");
-	m_menu->addAction("CopyRow", "Copy Row");
-	m_menu->addAction("CopyTable", "Copy Table");  // Unified name
-
-	// Column menu
-	m_menu->addAction("ColumnVisibility", "Column Visibility");
-	m_menu->addAction("ResetColumns", "Reset Columns");
-	
-	// Refresh action to re-query from backend
-	m_menu->addAction("Refresh", "Refresh");
-
-	// Set up context menu manager
-	// m_contextMenuManager->setMenu(m_menu);
-	// m_contextMenuManager->setActionHandler(&m_actionHandler);
+	m_resultsTable->setContextMenuPolicy(Qt::CustomContextMenu);
+	connect(m_resultsTable, &QTableWidget::customContextMenuRequested,
+			this, &TTDEventsQueryWidget::showContextMenu);
 }
 
 void TTDEventsQueryWidget::performQuery()
@@ -553,7 +526,8 @@ void TTDEventsQueryWidget::filterAndDisplayEvents()
 			m_resultsTable->setItem(i, ExceptionPCColumn, new QTableWidgetItem(""));
 		}
 	}
-	
+
+	m_resultsTable->resizeColumnsToContents();
 	updateStatus(QString("Displaying %1 of %2 events.").arg(filteredEvents.size()).arg(m_allEvents.size()));
 }
 
@@ -710,7 +684,8 @@ void TTDEventsQueryWidget::filterAndDisplaySpecializedEvents()
 				break;
 		}
 	}
-	
+
+	m_resultsTable->resizeColumnsToContents();
 	updateStatus(QString("Displaying %1 events.").arg(filteredEvents.size()));
 }
 

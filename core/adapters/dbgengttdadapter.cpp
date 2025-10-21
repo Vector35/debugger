@@ -1404,7 +1404,7 @@ std::vector<TTDEvent> DbgEngTTDAdapter::GetAllTTDEvents()
 		}
 	}
 	
-	LogInfo("Successfully retrieved %zu total TTD events from cache", m_cachedEvents.size());
+	LogDebug("Successfully retrieved %zu total TTD events from cache", m_cachedEvents.size());
 	return m_cachedEvents;
 }
 

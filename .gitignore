@@ -69,3 +69,4 @@ api/python/__pycache__
 # TTD files
 *.run
 *.idx
+*.bndb
