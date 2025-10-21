@@ -1709,70 +1709,14 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 	}
 
 	case RelativeBreakpointAddedEvent:
-	{
-		uint64_t address = m_controller->RelativeAddressToAbsolute(event.data.relativeAddress);
-
-		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		if (m_controller->GetData())
-			dataAndAddress.emplace_back(m_controller->GetData(), address);
-
-		if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetInputFile()))
-		{
-			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + event.data.relativeAddress.offset);
-		}
-
-		m_context->refreshCurrentViewContents();
-		break;
-	}
 	case AbsoluteBreakpointAddedEvent:
-	{
-		uint64_t address = event.data.absoluteAddress;
-
-		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		BinaryViewRef data = m_controller->GetData();
-		if (data)
-			dataAndAddress.emplace_back(data, address);
-
-		ModuleNameAndOffset relative = m_controller->AbsoluteAddressToRelative(address);
-		if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetInputFile()))
-		{
-			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + relative.offset);
-		}
-
-		m_context->refreshCurrentViewContents();
-		break;
-	}
 	case RelativeBreakpointRemovedEvent:
-	{
-		uint64_t address = m_controller->RelativeAddressToAbsolute(event.data.relativeAddress);
-
-		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		if (m_controller->GetData())
-			dataAndAddress.emplace_back(m_controller->GetData(), address);
-
-		if (DebugModule::IsSameBaseModule(event.data.relativeAddress.module, m_controller->GetInputFile()))
-		{
-			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + event.data.relativeAddress.offset);
-		}
-
-		m_context->refreshCurrentViewContents();
-		break;
-	}
 	case AbsoluteBreakpointRemovedEvent:
+	case RelativeBreakpointEnabledEvent:
+	case AbsoluteBreakpointEnabledEvent:
+	case RelativeBreakpointDisabledEvent:
+	case AbsoluteBreakpointDisabledEvent:
 	{
-		uint64_t address = event.data.absoluteAddress;
-
-		std::vector<std::pair<BinaryViewRef, uint64_t>> dataAndAddress;
-		BinaryViewRef data = m_controller->GetData();
-		if (data)
-			dataAndAddress.emplace_back(data, address);
-
-		ModuleNameAndOffset relative = m_controller->AbsoluteAddressToRelative(address);
-		if (DebugModule::IsSameBaseModule(relative.module, m_controller->GetInputFile()))
-		{
-			dataAndAddress.emplace_back(m_controller->GetData(), m_controller->GetViewFileSegmentsStart() + relative.offset);
-		}
-
 		m_context->refreshCurrentViewContents();
 		break;
 	}
