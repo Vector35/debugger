@@ -2318,7 +2318,7 @@ class DebuggerController:
         This method is only available when debugging with TTD (Time Travel Debugging).
         Use the is_ttd property to check if TTD is available before calling this method.
 
-        :param event_type: type of events to query (TTDEventType bitfield flags that can be combined with |)
+        :param event_type: type of events to query (TTDEventType bitfield flags that can be combined with ``|``)
         :return: list of TTDEvent objects
         :rtype: List[TTDEvent]
         """
