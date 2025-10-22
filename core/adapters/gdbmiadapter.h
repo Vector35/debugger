@@ -21,6 +21,11 @@ private:
     std::mutex m_gdbCommandMutex;
     std::condition_variable m_eventCV;
     
+    // --- Console output buffering for commands that need it ---
+    std::mutex m_consoleBufferMutex;
+    std::string m_consoleBuffer;
+    bool m_collectConsoleOutput = false;
+    
     // --- Cached Target State ---
     std::mutex m_cacheMutex; // To protect access to cached data
     std::vector<BinaryNinjaDebugger::DebugThread> m_cachedThreads;

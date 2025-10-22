@@ -273,6 +273,15 @@ void GdbMiAdapter::AsyncRecordHandler(const MiRecord& record)
             }
         }
 
+        // If we're collecting console output, buffer it
+        {
+            std::lock_guard<std::mutex> lock(m_consoleBufferMutex);
+            if (m_collectConsoleOutput && record.type == '~')
+            {
+                m_consoleBuffer += message;
+            }
+        }
+
         DebuggerEvent event;
         event.type = BackendMessageEventType;
         event.data.messageData.message = message;
@@ -804,11 +813,35 @@ std::vector<DebugModule> GdbMiAdapter::GetModuleList()
 	if (!m_mi)
 		return {};
 
+	// Enable console output buffering
+	{
+		std::lock_guard<std::mutex> lock(m_consoleBufferMutex);
+		m_consoleBuffer.clear();
+		m_collectConsoleOutput = true;
+	}
+
 	// Use -interpreter-exec to run the console command "info proc mappings"
-	auto result = m_mi->SendCommand("-interpreter-exec console \"info proc mappings\"");
+	// Use a longer timeout since this command can generate a lot of output
+	auto result = m_mi->SendCommand("-interpreter-exec console \"info proc mappings\"", 5000);
+	
+	// Disable console output buffering and get the collected output
+	std::string output;
+	{
+		std::lock_guard<std::mutex> lock(m_consoleBufferMutex);
+		m_collectConsoleOutput = false;
+		output = m_consoleBuffer;
+		m_consoleBuffer.clear();
+	}
+	
 	if (result.command != "done")
 	{
 		LogWarn("Failed to get process mappings: %s", result.fullLine.c_str());
+		return {};
+	}
+
+	if (output.empty())
+	{
+		LogWarn("No console output received from info proc mappings");
 		return {};
 	}
 
@@ -816,23 +849,6 @@ std::vector<DebugModule> GdbMiAdapter::GetModuleList()
 	std::map<std::string, int> moduleNameCount; // Track module name occurrences for duplicates
 	std::map<std::string, std::vector<std::pair<uint64_t, uint64_t>>> moduleRanges; // path -> list of (start, end)
 	std::vector<std::string> moduleOrder; // Track the order in which modules are first seen
-
-	// Parse the console output from async records
-	// The output will be in console stream records ('~')
-	// We need to accumulate the console output and parse it
-	// For now, we'll try to parse from the result payload if available
-	
-	// Since the output is sent as console stream, we need a different approach.
-	// Let's send the command and wait for console output.
-	// Actually, the console output should be in the async records.
-	// For simplicity, let's use InvokeBackendCommand which also uses -interpreter-exec
-	std::string output = InvokeBackendCommand("info proc mappings");
-	
-	if (output.empty() || output == "error, transport not ready")
-	{
-		LogWarn("Failed to get process mappings output");
-		return {};
-	}
 
 	// Parse the output line by line
 	// Expected format (from the issue):
