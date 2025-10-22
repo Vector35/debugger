@@ -308,6 +308,16 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
     auto symbolFile = settings->Get<std::string>("gdb.symbolFile", data, &scope);
     scope = SettingsResourceScope;
     auto inputFile = settings->Get<std::string>("common.inputFile", data, &scope);
+	scope = SettingsResourceScope;
+	auto ipAddress = settings->Get<std::string>("connect.ipAddress", data, &scope);
+	scope = SettingsResourceScope;
+	auto serverPort = static_cast<uint32_t>(settings->Get<uint64_t>("connect.port", data, &scope));
+	if (ipAddress.empty() || serverPort == 0)
+	{
+		LogError("Missing connection settings for restart.");
+		return false;
+	}
+
     m_connected = false;
 
     if (gdbPath.empty()) return false;
@@ -328,7 +338,7 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
     m_mi->SendCommand("-interpreter-exec console \"add-symbol-file "+symbolFile+"\"");
 
     m_mi->SendCommand("-file-exec-file " + inputFile);
-    std::string connectCmd = "-target-select extended-remote " + server + ":" + std::to_string(port);
+    std::string connectCmd = "-target-select extended-remote " + ipAddress + ":" + std::to_string(serverPort);
 	
     auto result = m_mi->SendCommand(connectCmd, 1000);
     m_connected = (result.command == "connected");
