@@ -22,6 +22,7 @@ limitations under the License.
 #include <QTableView>
 #include <QStyledItemDelegate>
 #include <QTabWidget>
+#include <QComboBox>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "viewframe.h"
@@ -45,6 +46,7 @@ class DebuggerWidget : public SidebarWidget
 	ViewFrame* m_view;
 	DbgRef<DebuggerController> m_controller;
 
+	QComboBox* m_adapterSelector;
 	QSplitter* m_splitter;
 	QTabWidget* m_tabs;
 
@@ -60,6 +62,7 @@ class DebuggerWidget : public SidebarWidget
 
 private slots:
 	void uiEventHandler(const DebuggerEvent& event);
+	void selectAdapter(const QString& adapter);
 
 public:
 	DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewRef data);
