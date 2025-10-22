@@ -18,6 +18,8 @@ limitations under the License.
 #include <QHeaderView>
 #include <QLineEdit>
 #include <QStatusBar>
+#include <QLabel>
+#include <QHBoxLayout>
 #include "debuggerwidget.h"
 #include "ui.h"
 
@@ -35,6 +37,48 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 	layout->setContentsMargins(0, 0, 0, 0);
 	layout->setSpacing(0);
 	layout->setAlignment(Qt::AlignTop);
+
+	// Create adapter selector widget
+	QWidget* adapterWidget = new QWidget(this);
+	QHBoxLayout* adapterLayout = new QHBoxLayout(adapterWidget);
+	adapterLayout->setContentsMargins(4, 4, 4, 4);
+	adapterLayout->setSpacing(4);
+	
+	QLabel* adapterLabel = new QLabel("Adapter:", adapterWidget);
+	m_adapterSelector = new QComboBox(adapterWidget);
+	m_adapterSelector->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+	
+	// Populate adapter selector
+	for (const std::string& adapter : DebugAdapterType::GetAvailableAdapters(m_controller->GetData()))
+	{
+		m_adapterSelector->addItem(QString::fromStdString(adapter));
+	}
+	
+	// Set current adapter
+	if (!m_controller->GetAdapterType().empty())
+	{
+		m_adapterSelector->setCurrentText(QString::fromStdString(m_controller->GetAdapterType()));
+	}
+	else if (m_adapterSelector->count() > 0)
+	{
+		// Set first available adapter if none is set
+		m_controller->SetAdapterType(m_adapterSelector->itemText(0).toStdString());
+		m_adapterSelector->setCurrentIndex(0);
+	}
+	else
+	{
+		// No adapters available
+		m_adapterSelector->addItem("(No available debug adapter)");
+		m_adapterSelector->setEnabled(false);
+	}
+	
+	connect(m_adapterSelector, &QComboBox::currentTextChanged, this, &DebuggerWidget::selectAdapter);
+	
+	adapterLayout->addWidget(adapterLabel);
+	adapterLayout->addWidget(m_adapterSelector);
+	adapterWidget->setLayout(adapterLayout);
+	
+	layout->addWidget(adapterWidget);
 
 	m_splitter = new QSplitter(Qt::Vertical, this);
 	m_splitter->setChildrenCollapsible(true);
@@ -79,6 +123,14 @@ void DebuggerWidget::updateContent()
 void DebuggerWidget::uiEventHandler(const DebuggerEvent& event)
 {
 	m_controlsWidget->updateButtons();
+	
+	// Enable adapter selector only when not connected
+	DebugAdapterConnectionStatus connection = m_controller->GetConnectionStatus();
+	if (m_adapterSelector->count() > 0 && m_adapterSelector->currentText() != "(No available debug adapter)")
+	{
+		m_adapterSelector->setEnabled(connection == DebugAdapterNotConnectedStatus);
+	}
+	
 	switch (event.type)
 	{
 	case TargetStoppedEventType:
@@ -101,4 +153,22 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent& event)
 	default:
 		break;
 	}
+}
+
+
+void DebuggerWidget::selectAdapter(const QString& adapter)
+{
+	if (adapter.isEmpty())
+		return;
+
+	auto adapterType = DebugAdapterType::GetByName(adapter.toStdString());
+	if (!adapterType)
+		return;
+
+	m_controller->SetAdapterType(adapter.toStdString());
+	Ref<Metadata> data = new Metadata(adapter.toStdString());
+	m_controller->GetData()->StoreMetadata("debugger.adapter_type", data);
+
+	// Update button states after adapter change
+	m_controlsWidget->updateButtons();
 }
