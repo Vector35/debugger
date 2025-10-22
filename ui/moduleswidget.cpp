@@ -332,6 +332,7 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : QT
 		}
 	});
 
+	UIAction::registerAction("Copy All");
 	m_menu->addAction("Copy All", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy All", UIAction([&]() { copyAll(); }, [&]() { return canCopyAll(); }));
 
