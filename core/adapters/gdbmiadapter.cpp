@@ -737,11 +737,8 @@ bool GdbMiAdapter::WriteRegister(const std::string& reg, intx::uint512 value) {
 DataBuffer GdbMiAdapter::ReadMemory(std::uintptr_t address, size_t size) {
     if (!m_mi) return {};
 	LogDebug("GdbMiAdapter::ReadMemory 0x%lX-0x%lX", address, address+size);
-	// embedded specifics: we can use 'info mem' to get list of memory regions available for reading.
-	// it's safe to assume 0x08000000 - 0x60000000 is good enough for most arm-cortex targets
+	// TODO: we can use 'info mem' to get list of memory regions available for reading.
 	DataBuffer zero(size);
-	if (address > 0x60000000) return zero;
-	if (address < 0x08000000) return zero;
 
     std::string cmd = fmt::format("-data-read-memory-bytes 0x{:x} {}", address, size);
     auto result = m_mi->SendCommand(cmd);
@@ -778,13 +775,6 @@ std::vector<DebugModule> GdbMiAdapter::GetModuleList()
 		return {};
 
 	std::vector<DebugModule> modules;
-	Ref<BinaryView> data = GetData();
-	if (!data)
-		return {};
-
-	std::string name = data->GetFile()->GetOriginalFilename();
-    modules.emplace_back("SRAM", "SRAM", 0x20000000, 0x00040000, true);
-	modules.emplace_back(name, name, 0x08000000, 0x00100000, true);
 	return modules;
 }
 
