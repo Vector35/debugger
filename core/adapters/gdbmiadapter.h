@@ -96,6 +96,7 @@ public:
     uint64_t GetStackPointer() override;
     bool SupportFeature(BinaryNinjaDebugger::DebugAdapterCapacity feature) override;
 
+	void GenerateDefaultAdapterSettings(BinaryView* data);
     Ref<Settings> GetAdapterSettings() override;
 };
 

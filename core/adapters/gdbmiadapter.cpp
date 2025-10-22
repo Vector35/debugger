@@ -9,6 +9,8 @@ using namespace BinaryNinjaDebugger;
 GdbMiAdapter::GdbMiAdapter(BinaryView* data) : DebugAdapter(data) {
     m_lastStopReason = UnknownReason;
     m_targetRunningAtomic.store(false, std::memory_order_release);
+
+	GenerateDefaultAdapterSettings(data);
 }
 
 GdbMiAdapter::~GdbMiAdapter() {
@@ -851,6 +853,16 @@ Ref<Settings> GdbMiAdapterType::GetAdapterSettings()
 Ref<Settings> GdbMiAdapter::GetAdapterSettings()
 {
     return GdbMiAdapterType::GetAdapterSettings();
+}
+
+void GdbMiAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
+{
+	auto adapterSettings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	if (scope != SettingsResourceScope)
+		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
+
 }
 
 Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
