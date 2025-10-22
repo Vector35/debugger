@@ -880,8 +880,8 @@ Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
     Ref<Settings> settings = Settings::Instance("GdbMiAdapterSettings");
     settings->SetResourceId("gdb_mi_adapter_settings");
     settings->RegisterSetting("gdb.path", R"({
-        "title": "GDB Executable Path",
-        "type": "string", "default": "gdb-multiarch",
+        "title": "Full GDB Executable Path",
+        "type": "string", "default": "/usr/bin/gdb-multiarch",
         "description": "Path to the GDB executable e.g., gdb-multiarch, arm-none-eabi-gdb.",
         "uiSelectionAction": "file"
     })");
