@@ -813,9 +813,13 @@ std::vector<DebugModule> GdbMiAdapter::GetModuleList()
 	if (!m_mi)
 		return {};
 
+	// Acquire the command mutex to prevent other threads from sending commands
+	// while we're waiting for the response to "info proc mappings"
+	std::unique_lock lock(m_gdbCommandMutex);
+
 	// Enable console output buffering
 	{
-		std::lock_guard<std::mutex> lock(m_consoleBufferMutex);
+		std::lock_guard<std::mutex> bufferLock(m_consoleBufferMutex);
 		m_consoleBuffer.clear();
 		m_collectConsoleOutput = true;
 	}
@@ -827,7 +831,7 @@ std::vector<DebugModule> GdbMiAdapter::GetModuleList()
 	// Disable console output buffering and get the collected output
 	std::string output;
 	{
-		std::lock_guard<std::mutex> lock(m_consoleBufferMutex);
+		std::lock_guard<std::mutex> bufferLock(m_consoleBufferMutex);
 		m_collectConsoleOutput = false;
 		output = m_consoleBuffer;
 		m_consoleBuffer.clear();
