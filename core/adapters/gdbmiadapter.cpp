@@ -1,5 +1,7 @@
 #include "gdbmiadapter.h"
 #include <regex>
+#include <sstream>
+#include <map>
 #include "../debuggercontroller.h" // Assuming this path is correct for your project structure
 #include "../../cli/log.h" // For Log::print
 
@@ -774,7 +776,161 @@ std::vector<DebugModule> GdbMiAdapter::GetModuleList()
 	if (!m_mi)
 		return {};
 
+	// Use -interpreter-exec to run the console command "info proc mappings"
+	auto result = m_mi->SendCommand("-interpreter-exec console \"info proc mappings\"");
+	if (result.command != "done")
+	{
+		LogWarn("Failed to get process mappings: %s", result.fullLine.c_str());
+		return {};
+	}
+
 	std::vector<DebugModule> modules;
+	std::map<std::string, int> moduleNameCount; // Track module name occurrences for duplicates
+	std::map<std::string, std::vector<std::pair<uint64_t, uint64_t>>> moduleRanges; // path -> list of (start, end)
+	std::vector<std::string> moduleOrder; // Track the order in which modules are first seen
+
+	// Parse the console output from async records
+	// The output will be in console stream records ('~')
+	// We need to accumulate the console output and parse it
+	// For now, we'll try to parse from the result payload if available
+	
+	// Since the output is sent as console stream, we need a different approach.
+	// Let's send the command and wait for console output.
+	// Actually, the console output should be in the async records.
+	// For simplicity, let's use InvokeBackendCommand which also uses -interpreter-exec
+	std::string output = InvokeBackendCommand("info proc mappings");
+	
+	if (output.empty() || output == "error, transport not ready")
+	{
+		LogWarn("Failed to get process mappings output");
+		return {};
+	}
+
+	// Parse the output line by line
+	// Expected format (from the issue):
+	// process 25443
+	// Mapped address spaces:
+	//
+	//           Start Addr           End Addr       Size     Offset  Perms  objfile
+	//       0x555555554000     0x555555555000     0x1000        0x0  r--p   /path/to/file
+	
+	std::istringstream stream(output);
+	std::string line;
+	bool headerFound = false;
+	
+	while (std::getline(stream, line))
+	{
+		// Skip until we find the header line
+		if (!headerFound)
+		{
+			if (line.find("Start Addr") != std::string::npos && 
+			    line.find("End Addr") != std::string::npos)
+			{
+				headerFound = true;
+			}
+			continue;
+		}
+		
+		// Parse data lines
+		// Format: Start_Addr End_Addr Size Offset Perms objfile
+		std::istringstream lineStream(line);
+		std::string startStr, endStr, sizeStr, offsetStr, perms, objfile;
+		
+		lineStream >> startStr >> endStr >> sizeStr >> offsetStr >> perms;
+		
+		// Rest of the line is the objfile (path)
+		std::getline(lineStream, objfile);
+		
+		// Trim leading whitespace from objfile
+		size_t firstNonSpace = objfile.find_first_not_of(" \t");
+		if (firstNonSpace != std::string::npos)
+		{
+			objfile = objfile.substr(firstNonSpace);
+		}
+		
+		// Skip lines without valid addresses or without objfile
+		if (startStr.empty() || endStr.empty() || objfile.empty())
+			continue;
+		
+		// Skip special mappings like [stack], [heap], [vvar], [vdso], etc.
+		if (objfile[0] == '[')
+			continue;
+		
+		try
+		{
+			uint64_t start = std::stoull(startStr, nullptr, 16);
+			uint64_t end = std::stoull(endStr, nullptr, 16);
+			
+			// Track the order of first occurrence
+			if (moduleRanges.find(objfile) == moduleRanges.end())
+			{
+				moduleOrder.push_back(objfile);
+			}
+			
+			// Accumulate ranges for each object file
+			moduleRanges[objfile].emplace_back(start, end);
+		}
+		catch (const std::exception& e)
+		{
+			LogDebug("Failed to parse address range: %s", e.what());
+			continue;
+		}
+	}
+	
+	// Now create DebugModule entries in the order they were first encountered
+	// For each unique object file, we need to determine its overall address range
+	for (const auto& path : moduleOrder)
+	{
+		const auto& ranges = moduleRanges[path];
+		if (ranges.empty())
+			continue;
+		
+		// Find the minimum start and maximum end
+		uint64_t minStart = ranges[0].first;
+		uint64_t maxEnd = ranges[0].second;
+		
+		for (const auto& [start, end] : ranges)
+		{
+			minStart = std::min(minStart, start);
+			maxEnd = std::max(maxEnd, end);
+		}
+		
+		// Extract the base name from the path for m_short_name
+		std::string shortName = path;
+		size_t lastSlash = path.find_last_of("/\\");
+		if (lastSlash != std::string::npos)
+		{
+			shortName = path.substr(lastSlash + 1);
+		}
+		
+		// Handle duplicate names by appending -1, -2, etc.
+		// The first occurrence gets the original name, subsequent ones get -1, -2, etc.
+		std::string finalName = path;
+		if (moduleNameCount.find(path) != moduleNameCount.end())
+		{
+			// This is a duplicate (shouldn't happen with current logic, but keep for safety)
+			int count = ++moduleNameCount[path];
+			finalName = path + "-" + std::to_string(count);
+		}
+		else
+		{
+			// First occurrence
+			moduleNameCount[path] = 0;
+		}
+		
+		DebugModule module;
+		module.m_name = finalName;
+		module.m_short_name = shortName;
+		module.m_address = minStart;
+		module.m_size = maxEnd - minStart;
+		module.m_loaded = true;
+		
+		modules.push_back(module);
+	}
+	
+	return modules;
+}
+	
 	return modules;
 }
 
