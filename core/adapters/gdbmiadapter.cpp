@@ -841,11 +841,20 @@ std::vector<DebugModule> GdbMiAdapter::GetModuleList()
 		// Rest of the line is the objfile (path)
 		std::getline(lineStream, objfile);
 		
-		// Trim leading whitespace from objfile
+		// Trim leading and trailing whitespace from objfile
 		size_t firstNonSpace = objfile.find_first_not_of(" \t");
-		if (firstNonSpace != std::string::npos)
+		if (firstNonSpace == std::string::npos)
 		{
-			objfile = objfile.substr(firstNonSpace);
+			// Line is all whitespace, skip it
+			continue;
+		}
+		objfile = objfile.substr(firstNonSpace);
+		
+		// Trim trailing whitespace
+		size_t lastNonSpace = objfile.find_last_not_of(" \t");
+		if (lastNonSpace != std::string::npos)
+		{
+			objfile = objfile.substr(0, lastNonSpace + 1);
 		}
 		
 		// Skip lines without valid addresses or without objfile
