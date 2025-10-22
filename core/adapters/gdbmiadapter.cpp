@@ -338,7 +338,8 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
     m_mi->SendCommand("-interpreter-exec console \"add-symbol-file "+symbolFile+"\"");
 
     m_mi->SendCommand("-file-exec-file " + inputFile);
-    std::string connectCmd = "-target-select extended-remote " + ipAddress + ":" + std::to_string(serverPort);
+	// TODO: we should offer an option on whether or not to connect in extended mode
+    std::string connectCmd = "-target-select remote " + ipAddress + ":" + std::to_string(serverPort);
 	
     auto result = m_mi->SendCommand(connectCmd, 1000);
     m_connected = (result.command == "connected");
@@ -548,13 +549,16 @@ void GdbMiAdapter::Stop()
 
 bool GdbMiAdapter::Quit()
 {
-    Detach();
-	Stop();
+	if (m_mi && m_connected) InvokeBackendCommand("kill");
 	m_connected = false;
 	m_targetRunningAtomic.store(false);
 
-    LogInfo("GDB MI adapter quit completed successfully");
-    return true;
+	DebuggerEvent dbgevt;
+	dbgevt.type = TargetExitedEventType;
+	PostDebuggerEvent(dbgevt);
+
+	Stop();
+	return true;
 }
 
 bool GdbMiAdapter::Detach() {
@@ -566,6 +570,7 @@ bool GdbMiAdapter::Detach() {
 	dbgevt.type = DetachedEventType;
 	PostDebuggerEvent(dbgevt);
 
+	Stop();
     return true;
 }
 
