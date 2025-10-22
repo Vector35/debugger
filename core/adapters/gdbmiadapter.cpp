@@ -939,9 +939,6 @@ std::vector<DebugModule> GdbMiAdapter::GetModuleList()
 	
 	return modules;
 }
-	
-	return modules;
-}
 
 bool GdbMiAdapter::Go()
 {
