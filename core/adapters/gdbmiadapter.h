@@ -15,6 +15,7 @@ private:
     std::vector<std::string> m_registerNames; // In GDB's order
     BinaryNinjaDebugger::DebugStopReason m_lastStopReason;
     std::atomic<bool> m_targetRunningAtomic{false};
+    uint64_t m_exitCode = 0;
 
     std::mutex m_eventMutex;
     std::mutex m_gdbCommandMutex;

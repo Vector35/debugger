@@ -197,10 +197,38 @@ void GdbMiAdapter::AsyncRecordHandler(const MiRecord& record)
 		// Update target state BEFORE posting events
         m_targetRunningAtomic.store(false, std::memory_order_release);
         
-		 // Kick a background refresh so we don’t block the reader
-        ScheduleStateRefresh();
-
-        m_eventCV.notify_all();
+        // Check if the process has exited
+        if (m_lastStopReason == ProcessExited)
+        {
+            // Parse exit code if available
+            if (value.Exists("exit-code"))
+            {
+                try {
+                    m_exitCode = std::stoull(value["exit-code"].GetString(), nullptr, 0);
+                } catch(...) { 
+                    LogWarn("Failed to parse exit code");
+                    m_exitCode = 0;
+                }
+            }
+            else
+            {
+                m_exitCode = 0;
+            }
+            
+            // Post target exited event
+            DebuggerEvent dbgevt;
+            dbgevt.type = TargetExitedEventType;
+            dbgevt.data.exitData.exitCode = m_exitCode;
+            PostDebuggerEvent(dbgevt);
+            
+            m_eventCV.notify_all();
+        }
+        else
+        {
+            // Normal stop - kick a background refresh so we don't block the reader
+            ScheduleStateRefresh();
+            m_eventCV.notify_all();
+        }
 	}
     else if (record.command == "running")
     {
@@ -987,7 +1015,7 @@ std::string GdbMiAdapter::InvokeBackendCommand(const std::string& command) {
     return (result.command == "done") ? result.payload : result.command;
 }
 
-uint64_t GdbMiAdapter::ExitCode() { return 0; }
+uint64_t GdbMiAdapter::ExitCode() { return m_exitCode; }
 
 DebugStopReason GdbMiAdapter::StopReason() { return m_lastStopReason; }
 
