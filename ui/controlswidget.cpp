@@ -40,9 +40,9 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	if (!m_controller)
 		return;
 
-	// Add adapter selector dropdown at the top
+	// Add adapter selector dropdown at the top on its own row
 	m_adapterSelector = new QComboBox(this);
-	m_adapterSelector->setMinimumWidth(150);
+	m_adapterSelector->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 	for (const std::string& adapter : DebugAdapterType::GetAvailableAdapters(m_controller->GetData()))
 	{
 		m_adapterSelector->addItem(QString::fromStdString(adapter));
@@ -69,7 +69,9 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	connect(m_adapterSelector, &QComboBox::currentTextChanged, this, &DebugControlsWidget::selectAdapter);
 	
 	addWidget(m_adapterSelector);
+	// Force a line break so control buttons appear on the next line
 	addSeparator();
+	addBreak(m_adapterSelector);
 
 	auto cyan = getThemeColor(CyanStandardHighlightColor);
 	auto green = getThemeColor(GreenStandardHighlightColor);
@@ -555,6 +557,12 @@ void DebugControlsWidget::updateButtons()
 
 	DebugAdapterConnectionStatus connection = m_controller->GetConnectionStatus();
 	DebugAdapterTargetStatus status = m_controller->GetTargetStatus();
+
+	// Enable adapter selector only when not connected
+	if (m_adapterSelector->count() > 0 && m_adapterSelector->currentText() != "(No available debug adapter)")
+	{
+		m_adapterSelector->setEnabled(connection == DebugAdapterNotConnectedStatus);
+	}
 
 	if (connection == DebugAdapterNotConnectedStatus)
 	{
