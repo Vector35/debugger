@@ -38,16 +38,7 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 	layout->setSpacing(0);
 	layout->setAlignment(Qt::AlignTop);
 
-	// Create adapter selector widget
-	QWidget* adapterWidget = new QWidget(this);
-	QHBoxLayout* adapterLayout = new QHBoxLayout(adapterWidget);
-	adapterLayout->setContentsMargins(4, 4, 4, 4);
-	adapterLayout->setSpacing(4);
-	
-	QLabel* adapterLabel = new QLabel("Adapter:", adapterWidget);
-	m_adapterSelector = new QComboBox(adapterWidget);
-	m_adapterSelector->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-	
+	m_adapterSelector = new QComboBox();
 	// Populate adapter selector
 	for (const std::string& adapter : DebugAdapterType::GetAvailableAdapters(m_controller->GetData()))
 	{
@@ -74,11 +65,7 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 	
 	connect(m_adapterSelector, &QComboBox::currentTextChanged, this, &DebuggerWidget::selectAdapter);
 	
-	adapterLayout->addWidget(adapterLabel);
-	adapterLayout->addWidget(m_adapterSelector);
-	adapterWidget->setLayout(adapterLayout);
-	
-	layout->addWidget(adapterWidget);
+	layout->addWidget(m_adapterSelector);
 
 	m_splitter = new QSplitter(Qt::Vertical, this);
 	m_splitter->setChildrenCollapsible(true);
