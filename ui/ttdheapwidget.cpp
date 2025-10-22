@@ -19,26 +19,10 @@ limitations under the License.
 #include <QApplication>
 #include <QMessageBox>
 #include <QCheckBox>
+#include "debuggeruicommon.h"
+#include "ui.h"
 
 using namespace BinaryNinjaDebuggerAPI;
-
-// Helper class for numerical sorting
-class NumericalTableWidgetItem : public QTableWidgetItem
-{
-public:
-	NumericalTableWidgetItem(const QString &text, uint64_t numValue) : QTableWidgetItem(text), m_numValue(numValue) {}
-	
-	bool operator<(const QTableWidgetItem &other) const override
-	{
-		const NumericalTableWidgetItem* numOther = dynamic_cast<const NumericalTableWidgetItem*>(&other);
-		if (numOther)
-			return m_numValue < numOther->m_numValue;
-		return QTableWidgetItem::operator<(other);
-	}
-
-private:
-	uint64_t m_numValue;
-};
 
 // TTDHeapQueryWidget implementation
 TTDHeapQueryWidget::TTDHeapQueryWidget(QWidget* parent, BinaryViewRef data)
@@ -421,10 +405,10 @@ void TTDHeapQueryWidget::setupContextMenu()
 	m_contextMenuManager = new ContextMenuManager(this);
 	m_menu = new Menu();
 	
-	m_menu->addAction(new MenuAction("Column Visibility...", [=]() { showColumnVisibilityDialog(); }));
-	m_menu->addAction(new MenuAction("Reset Columns to Default", [=]() { resetColumnsToDefault(); }));
-	
-	m_contextMenuManager->setMenus(QList<Menu*>{m_menu});
+	// m_menu->addAction(new MenuAction("Column Visibility...", [=]() { showColumnVisibilityDialog(); }));
+	// m_menu->addAction(new MenuAction("Reset Columns to Default", [=]() { resetColumnsToDefault(); }));
+	//
+	// m_contextMenuManager->setMenus(QList<Menu*>{m_menu});
 }
 
 void TTDHeapQueryWidget::setupUIActions()

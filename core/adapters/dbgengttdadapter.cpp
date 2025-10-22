@@ -1953,7 +1953,7 @@ bool DbgEngTTDAdapter::ParseTTDHeapObjects(const std::string& expression, std::v
 		// Evaluate the data model expression
 		ComPtr<IModelObject> resultObject;
 		ComPtr<IKeyStore> resultMetadata;
-		if (FAILED(m_hostEvaluator->EvaluateExpression(
+		if (FAILED(m_hostEvaluator->EvaluateExtendedExpression(
 			hostContext.Get(),
 			wExpression.c_str(),
 			nullptr,
@@ -1987,7 +1987,7 @@ bool DbgEngTTDAdapter::ParseTTDHeapObjects(const std::string& expression, std::v
 			ComPtr<IModelObject> current;
 			ComPtr<IKeyStore> currentMetadata;
 
-			HRESULT hr = iterator->GetNext(&current, &currentMetadata, nullptr);
+			HRESULT hr = iterator->GetNext(&current, 0, nullptr, &currentMetadata);
 			if (hr == E_BOUNDS)
 			{
 				// End of iteration
@@ -2325,7 +2325,9 @@ bool DbgEngTTDAdapter::ParseTTDHeapObjects(const std::string& expression, std::v
 						while (true)
 						{
 							ComPtr<IModelObject> paramObj;
-							HRESULT paramHr = paramIterator->GetNext(&paramObj, nullptr, nullptr);
+							ComPtr<IKeyStore> paramMetadataKeyStore;
+
+							HRESULT paramHr = paramIterator->GetNext(&paramObj, 0, nullptr, &paramMetadataKeyStore);
 							if (paramHr == E_BOUNDS)
 							{
 								break;
