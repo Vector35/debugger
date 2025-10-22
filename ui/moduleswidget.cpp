@@ -332,14 +332,15 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : QT
 		}
 	});
 
+	UIAction::registerAction("Copy All");
+	m_menu->addAction("Copy All", "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Copy All", UIAction([&]() { copyAll(); }, [&]() { return canCopyAll(); }));
+
 	connect(this, &QTableView::doubleClicked, this, &DebugModulesWidget::onDoubleClicked);
 	connect(this, &DebugModulesWidget::debuggerEvent, this, &DebugModulesWidget::onDebuggerEvent);
 
 	m_debuggerEventCallback = m_controller->RegisterEventCallback(
-		[&](const DebuggerEvent& event) {
-			emit debuggerEvent(event);
-		},
-		"Modules Widget");
+		[&](const DebuggerEvent& event) { emit debuggerEvent(event); }, "Modules Widget");
 
 	updateContent();
 }
@@ -373,14 +374,14 @@ void DebugModulesWidget::onDebuggerEvent(const DebuggerEvent& event)
 {
 	switch (event.type)
 	{
-		case TargetStoppedEventType:
-		case TargetExitedEventType:
-			// These updates ensure the widgets become empty after the target stops
-		case DetachedEventType:
-			updateContent();
-			break;
-		default:
-			break;
+	case TargetStoppedEventType:
+	case TargetExitedEventType:
+		// These updates ensure the widgets become empty after the target stops
+	case DetachedEventType:
+		updateContent();
+		break;
+	default:
+		break;
 	}
 }
 
@@ -466,6 +467,12 @@ bool DebugModulesWidget::canCopy()
 }
 
 
+bool DebugModulesWidget::canCopyAll()
+{
+	return m_model->rowCount() > 0;
+}
+
+
 void DebugModulesWidget::copy()
 {
 	QModelIndexList sel = selectionModel()->selectedIndexes();
@@ -499,6 +506,36 @@ void DebugModulesWidget::copy()
 	default:
 		break;
 	}
+
+	auto* clipboard = QGuiApplication::clipboard();
+	clipboard->clear();
+	auto* mime = new QMimeData();
+	mime->setText(text);
+	clipboard->setMimeData(mime);
+}
+
+
+void DebugModulesWidget::copyAll()
+{
+	int rowCount = m_model->rowCount();
+	if (rowCount == 0)
+		return;
+
+	QStringList lines;
+
+	// Add header
+	lines.append("Start\tEnd\tSize\tName\tPath");
+
+	// Add all module rows
+	for (int row = 0; row < rowCount; row++)
+	{
+		auto module = m_model->getRow(row);
+		QString line = QString::asprintf("0x%" PRIx64 "\t0x%" PRIx64 "\t0x%" PRIx64 "\t%s\t%s", module.address(),
+			module.endAddress(), (uint64_t)module.size(), module.name().c_str(), module.path().c_str());
+		lines.append(line);
+	}
+
+	QString text = lines.join("\n");
 
 	auto* clipboard = QGuiApplication::clipboard();
 	clipboard->clear();
