@@ -58,7 +58,8 @@ int FrameItem::row() const
 }
 
 
-ThreadFrameModel::ThreadFrameModel(QObject* parent, DebuggerControllerRef controller) : QAbstractItemModel(parent), m_controller(controller)
+ThreadFrameModel::ThreadFrameModel(QObject* parent, DebuggerControllerRef controller) :
+	QAbstractItemModel(parent), m_controller(controller)
 {
 	rootItem = new FrameItem();
 }
@@ -109,7 +110,8 @@ QVariant ThreadFrameModel::data(const QModelIndex& index, int role) const
 
 		auto isActiveThread = m_controller->GetActiveThread().m_tid == item->tid();
 
-		QString text = QString::asprintf("%s0x%x @ 0x%" PRIx64, isActiveThread ? "(*) " : "", item->tid(), item->threadPc());
+		QString text =
+			QString::asprintf("%s0x%x @ 0x%" PRIx64, isActiveThread ? "(*) " : "", item->tid(), item->threadPc());
 		if (role == Qt::SizeHintRole)
 			return QVariant((qulonglong)text.size());
 
@@ -182,20 +184,22 @@ void ThreadFrameModel::updateRows(DebuggerController* controller)
 	parents << rootItem;
 
 	std::vector<DebugThread> threads = controller->GetThreads();
-	
+
 	// Sort threads so that the active thread appears first
 	uint32_t activeThreadId = controller->GetActiveThread().m_tid;
 	std::sort(threads.begin(), threads.end(), [activeThreadId](const DebugThread& a, const DebugThread& b) {
 		// Active thread comes first, then sort by thread ID for consistent ordering
 		bool aIsActive = (a.m_tid == activeThreadId);
 		bool bIsActive = (b.m_tid == activeThreadId);
-		
-		if (aIsActive && !bIsActive) return true;
-		if (!aIsActive && bIsActive) return false;
-		
+
+		if (aIsActive && !bIsActive)
+			return true;
+		if (!aIsActive && bIsActive)
+			return false;
+
 		return a.m_tid < b.m_tid;
 	});
-	
+
 	for (const DebugThread& thread : threads)
 	{
 		parents.last()->appendChild(new FrameItem(thread, parents.last()));
@@ -550,6 +554,103 @@ void ThreadFramesWidget::copy()
 }
 
 
+void ThreadFramesWidget::copyCurrentFrame()
+{
+	QModelIndexList sel = selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	QString text;
+	QSet<int> processedRows;
+
+	for (const QModelIndex& index : sel)
+	{
+		if (!index.isValid())
+			continue;
+
+		int row = index.row();
+		if (processedRows.contains(row))
+			continue;
+
+		processedRows.insert(row);
+
+		FrameItem* item = static_cast<FrameItem*>(index.internalPointer());
+		if (!item || !item->isFrame())
+			continue;
+
+		if (!text.isEmpty())
+			text += "\n";
+
+		// Format: FrameIndex Module Function PC SP FP
+		text += QString::asprintf("%lu %s %s 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64, item->frameIndex(),
+			item->module().c_str(), item->function().c_str(), item->framePc(), item->sp(), item->fp());
+	}
+
+	if (text.isEmpty())
+		return;
+
+	auto* clipboard = QGuiApplication::clipboard();
+	clipboard->clear();
+	auto* mime = new QMimeData();
+	mime->setText(text);
+	clipboard->setMimeData(mime);
+}
+
+
+void ThreadFramesWidget::copyAllFrames()
+{
+	QString text;
+
+	// Iterate through all top-level items (threads)
+	for (int i = 0; i < m_model->rowCount(); i++)
+	{
+		QModelIndex threadIndex = m_model->index(i, 0);
+		if (!threadIndex.isValid())
+			continue;
+
+		FrameItem* threadItem = static_cast<FrameItem*>(threadIndex.internalPointer());
+		if (!threadItem)
+			continue;
+
+		// Skip if thread has no frames
+		if (threadItem->childCount() == 0)
+			continue;
+
+		// Add separator between threads
+		if (!text.isEmpty())
+			text += "\n";
+
+		// Add thread header
+		text += QString::asprintf("Thread %d (0x%x):\n", i, threadItem->tid());
+
+		// Iterate through all frames in this thread
+		for (int j = 0; j < threadItem->childCount(); j++)
+		{
+			FrameItem* frameItem = threadItem->child(j);
+			if (!frameItem || !frameItem->isFrame())
+				continue;
+
+			// Format: FrameIndex Module Function PC SP FP
+			text += QString::asprintf("%lu %s %s 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64, frameItem->frameIndex(),
+				frameItem->module().c_str(), frameItem->function().c_str(), frameItem->framePc(), frameItem->sp(),
+				frameItem->fp());
+
+			// Add newline after each frame
+			text += "\n";
+		}
+	}
+
+	if (text.isEmpty())
+		return;
+
+	auto* clipboard = QGuiApplication::clipboard();
+	clipboard->clear();
+	auto* mime = new QMimeData();
+	mime->setText(text);
+	clipboard->setMimeData(mime);
+}
+
+
 ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data) :
 	QTreeView(parent), m_view(frame)
 {
@@ -585,7 +686,8 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	actionName = QString::fromStdString("Resume Thread");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([this]() { resumeThread(); }, [this]() { return canSuspendOrResume(); }));
+	m_actionHandler.bindAction(
+		actionName, UIAction([this]() { resumeThread(); }, [this]() { return canSuspendOrResume(); }));
 
 	actionName = QString::fromStdString("Make It Solo Thread");
 	UIAction::registerAction(actionName);
@@ -623,16 +725,24 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 		}
 	});
 
+	actionName = QString::fromStdString("Copy Current Stack Trace");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		actionName, UIAction([this]() { copyCurrentFrame(); }, [this]() { return selectionNotEmpty(); }));
+
+	actionName = QString::fromStdString("Copy All Stack Traces");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(actionName, UIAction([this]() { copyAllFrames(); }));
+
 	// TODO: set as active thread action?
 
 	connect(this, &QTreeView::doubleClicked, this, &ThreadFramesWidget::onDoubleClicked);
 	connect(this, &ThreadFramesWidget::debuggerEvent, this, &ThreadFramesWidget::onDebuggerEvent);
 
 	m_debuggerEventCallback = m_debugger->RegisterEventCallback(
-		[&](const DebuggerEvent& event) {
-			emit debuggerEvent(event);
-		},
-		"Thread Frame");
+		[&](const DebuggerEvent& event) { emit debuggerEvent(event); }, "Thread Frame");
 
 	updateContent();
 }
@@ -721,7 +831,7 @@ void ThreadFramesWidget::onDoubleClicked()
 	{
 		uint32_t tid = frameItem->tid();
 		uint32_t currentTid = m_debugger->GetActiveThread().m_tid;
-		
+
 		if (tid != currentTid && !m_debugger->IsRunning())
 			m_debugger->SetActiveThread(tid);
 
