@@ -130,6 +130,8 @@ void TTDHeapQueryWidget::setupTable()
 	m_resultsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
 	m_resultsTable->setSortingEnabled(true);
 	m_resultsTable->setContextMenuPolicy(Qt::CustomContextMenu);
+	m_resultsTable->verticalHeader()->setVisible(false);  // Hide built-in index column
+	m_resultsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);  // Make cells non-editable
 
 	updateColumnVisibility();
 	
@@ -285,7 +287,7 @@ void TTDHeapQueryWidget::onCellDoubleClicked(int row, int column)
 	if (!m_controller)
 		return;
 
-	// Navigate to TimeStart for the selected heap event
+	// Handle time travel with address navigation for TimeStart
 	if (column == TimeStartColumn)
 	{
 		auto* item = m_resultsTable->item(row, TimeStartColumn);
@@ -307,6 +309,26 @@ void TTDHeapQueryWidget::onCellDoubleClicked(int row, int column)
 			if (m_controller->SetTTDPosition(position))
 			{
 				updateStatus(QString("Navigated to position %1:%2").arg(sequence, 0, 16).arg(step, 0, 16));
+				
+				// After time traveling, navigate to the heap address if available
+				auto* addressItem = m_resultsTable->item(row, AddressColumn);
+				if (addressItem && m_data)
+				{
+					QString addressStr = addressItem->text();
+					if (addressStr.startsWith("0x", Qt::CaseInsensitive))
+					{
+						bool ok;
+						uint64_t address = addressStr.mid(2).toULongLong(&ok, 16);
+						if (ok && address != 0)
+						{
+							ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+							if (frame)
+							{
+								frame->navigate(m_data, address);
+							}
+						}
+					}
+				}
 			}
 			else
 			{
@@ -314,7 +336,7 @@ void TTDHeapQueryWidget::onCellDoubleClicked(int row, int column)
 			}
 		}
 	}
-	// Navigate to TimeEnd for the selected heap event
+	// Handle time travel with address navigation for TimeEnd
 	else if (column == TimeEndColumn)
 	{
 		auto* item = m_resultsTable->item(row, TimeEndColumn);
@@ -336,10 +358,54 @@ void TTDHeapQueryWidget::onCellDoubleClicked(int row, int column)
 			if (m_controller->SetTTDPosition(position))
 			{
 				updateStatus(QString("Navigated to position %1:%2").arg(sequence, 0, 16).arg(step, 0, 16));
+				
+				// After time traveling, navigate to the heap address if available
+				auto* addressItem = m_resultsTable->item(row, AddressColumn);
+				if (addressItem && m_data)
+				{
+					QString addressStr = addressItem->text();
+					if (addressStr.startsWith("0x", Qt::CaseInsensitive))
+					{
+						bool ok;
+						uint64_t address = addressStr.mid(2).toULongLong(&ok, 16);
+						if (ok && address != 0)
+						{
+							ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+							if (frame)
+							{
+								frame->navigate(m_data, address);
+							}
+						}
+					}
+				}
 			}
 			else
 			{
 				updateStatus("Failed to navigate to position");
+			}
+		}
+	}
+	// Navigate to address when Address, PreviousAddress, or BaseAddress columns are double-clicked
+	else if (column == AddressColumn || column == PreviousAddressColumn || column == BaseAddressColumn)
+	{
+		auto* item = m_resultsTable->item(row, column);
+		if (!item)
+			return;
+
+		QString addressText = item->text();
+		if (addressText.startsWith("0x", Qt::CaseInsensitive))
+		{
+			bool ok;
+			uint64_t address = addressText.mid(2).toULongLong(&ok, 16);
+
+			if (ok && address != 0)
+			{
+				// Navigate to address in Binary Ninja
+				ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+				if (frame)
+				{
+					frame->navigate(m_data, address);
+				}
 			}
 		}
 	}
