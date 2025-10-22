@@ -132,6 +132,11 @@ void TTDCallsQueryWidget::setupUI()
 	connect(m_queryButton, &QPushButton::clicked, this, &TTDCallsQueryWidget::performQuery);
 	connect(m_clearButton, &QPushButton::clicked, this, &TTDCallsQueryWidget::clearResults);
 	connect(m_resultsTable, &QTableWidget::cellDoubleClicked, this, &TTDCallsQueryWidget::onCellDoubleClicked);
+	
+	// Connect Enter key press in line edits to perform query
+	connect(m_symbolsEdit, &QLineEdit::returnPressed, this, &TTDCallsQueryWidget::performQuery);
+	connect(m_startAddressEdit, &QLineEdit::returnPressed, this, &TTDCallsQueryWidget::performQuery);
+	connect(m_endAddressEdit, &QLineEdit::returnPressed, this, &TTDCallsQueryWidget::performQuery);
 }
 
 void TTDCallsQueryWidget::setupTable()
