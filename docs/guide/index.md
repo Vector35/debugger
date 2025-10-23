@@ -287,7 +287,7 @@ On the line where the program counter is at, there are two visual indicators:
 
 The goal of the Binary Ninja debugger is to provide a unified way of debugging programs on different platforms (e.g., Windows, Linux, macOS, etc). However, this is not an easy task, because each platform has its own way of supporting debugging and it varies considerably.
 
-To deal with this, we abstract the core functionalities of a debugger into a class `DebugAdapter`. Each debug adapter is a subclass of the `DebugAdapter` with the platform-dependent implementation of each method.
+To deal with this, we abstract the core functionalities of a debugger into a class [`DebugAdapterType`](https://api.binary.ninja/binaryninja.debugger.debugadaptertype-module.html#binaryninja.debugger.debugadaptertype.DebugAdapterType). Each debug adapter is a subclass of the `DebugAdapterType` with the platform-dependent implementation of each method.
 
 The debugger then **drives** the various adapters, creating a unified debugging experience, both in GUI and API.
 
@@ -311,7 +311,7 @@ Each debug adapter supports one or more operations to initialize the debugging:
 
 Each adapter may provide a list of configuration options. They can be configured via the debug adapter settings dialog.
 
-New debug adapters can be created by subclassing `DebugAdapter` to support other targets.
+New debug adapters can be created by subclassing `DebugAdapterType` to support other targets.
 
 
 ### The Debugger Memory Region
@@ -322,7 +322,7 @@ that are not present in the original binary view are represented using the new M
 
 These regions get added automatically when the target is launched, and gets removed after debugging. Analysis is no longer lost after debugging.
 
-During debugging, the binary view reads and writes its memory from the connected `DebugAdapter` backend.
+During debugging, the binary view reads and writes its memory from the connected `DebugAdapterType` backend.
 Writing to it will also cause the target's memory to change.
 
 The binary view can be accessed by the ``data`` property of the controller.
@@ -332,7 +332,7 @@ The binary view can be accessed by the ``data`` property of the controller.
 The debugger exposes its functionality in both the Python and C++ APIs. The Python documentation can be accessed online, for [stable](https://api.binary.ninja/binaryninja.debugger.debuggercontroller-module.html)
 and [dev](https://dev-api.binary.ninja/binaryninja.debugger.debuggercontroller-module.html) version.
 
-The API is centered around the [`DebuggerController`](https://dev-api.binary.ninja/binaryninja.debugger.debuggercontroller-module.html#binaryninja.debugger.debuggercontroller.DebuggerController) class, which provides all functionalities of the debugger. There is no need to directly access the `DebugAdapter` classes.
+The API is centered around the [`DebuggerController`](https://dev-api.binary.ninja/binaryninja.debugger.debuggercontroller-module.html#binaryninja.debugger.debuggercontroller.DebuggerController) class, which provides all functionalities of the debugger. There is no need to directly access the `DebugAdapterType` classes.
 
 When the debugger is used within the UI, the `dbg` magic variable is injected into the Python interpreter. It always represents the debugger for the currently active Binary View. You can think of it as being created by
 
