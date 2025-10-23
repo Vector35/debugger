@@ -695,5 +695,3 @@ bool TTDAnalysisDialog::loadAnalysisResults(TTDAnalysisResult& result)
 
 	return true;
 }
-
-#include "ttdanalysisdialog.moc"

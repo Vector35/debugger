@@ -439,6 +439,8 @@ void TTDEventsQueryWidget::filterAndDisplayEvents()
 			case TTDEventException:
 				shouldInclude = m_exceptionCheck ? m_exceptionCheck->isChecked() : false;
 				break;
+			default:
+				break;
 		}
 		
 		if (shouldInclude)
@@ -1135,5 +1137,3 @@ SidebarContentClassifier* TTDEventsWidgetType::contentClassifier(ViewFrame*, Bin
 {
 	return new ActiveDebugSessionSidebarContentClassifier(data);
 }
-
-#include "ttdeventswidget.moc"
