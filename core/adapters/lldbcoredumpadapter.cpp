@@ -78,8 +78,13 @@ DebugAdapter* LldbCoreDumpAdapterType::Create(BinaryNinja::BinaryView* data)
 	// As a note, the reason for us to apply delay load on liblldb.dll is that if we load it early, it will also load
 	// the system's default dbgeng dlls, which does not work for our dbgeng adapter.
 	std::string lldbDir;
-	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
+	char* envValue = nullptr;
+	size_t envSize = 0;
+	if (_dupenv_s(&envValue, &envSize, "BN_STANDALONE_DEBUGGER") == 0 && envValue != nullptr)
+	{
 		lldbDir = GetUserPluginDirectory();
+		free(envValue);
+	}
 	else
 		lldbDir = GetBundledPluginDirectory();
 
