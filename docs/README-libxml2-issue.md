@@ -2,7 +2,7 @@
 
 ## Issue Summary
 
-**Issue #735**: Debugger cannot load properly on Arch Linux due to libxml2
+**Issue #735**: Debugger cannot load properly on Arch Linux due to libxml2.
 
 The Binary Ninja debugger fails to load on Arch Linux because LLDB is dynamically linked against `libxml2.so.2`, which has been replaced by `libxml2.so.16` in recent Arch Linux releases.
 
@@ -82,7 +82,7 @@ When implementing the fix, verify:
 ## Additional Context
 
 ### Related Issues
-- #147: Missing libncurses and libpanel on Archlinux (similar packaging issue)
+- #147: Missing libncurses and libpanel on Arch Linux (similar packaging issue)
 - #238: Feature request: Publish LLDB development builds (resolved)
 
 ### Similar Solutions
