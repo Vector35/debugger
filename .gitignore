@@ -69,4 +69,4 @@ api/python/__pycache__
 # TTD files
 *.run
 *.idx
-*.bndb
+*.bndb_codeql_detected_source_root
