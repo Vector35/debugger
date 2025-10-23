@@ -323,7 +323,7 @@ std::vector<DebugThread> LldbCoreDumpAdapter::GetThreadList()
 			if (frame.IsValid())
 				pc = frame.GetPC();
 		}
-		result.emplace_back(tid, pc);
+		result.emplace_back(static_cast<uint32_t>(tid), pc);
 	}
 	return result;
 }
