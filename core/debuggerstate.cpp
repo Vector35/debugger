@@ -1380,7 +1380,7 @@ uint32_t DebuggerState::GetRemotePort()
 	if (!settings->Contains("connect.port"))
 		return 0;
 
-	return settings->Get<uint64_t>("connect.port", data, &scope);
+	return static_cast<uint32_t>(settings->Get<uint64_t>("connect.port", data, &scope));
 }
 
 
@@ -1410,5 +1410,5 @@ int32_t DebuggerState::GetPIDAttach()
 	if (!settings->Contains("attach.pid"))
 		return 0;
 
-	return settings->Get<uint64_t>("attach.pid", data, &scope);
+	return static_cast<int32_t>(settings->Get<uint64_t>("attach.pid", data, &scope));
 }
