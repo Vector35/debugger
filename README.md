@@ -35,6 +35,10 @@ The progress is also tracked in issue [#122](https://github.com/Vector35/debugge
 
 The debugger is already shipped with Binary Ninja in stable and development branch. If you wish to contribute code, see [build](build.md) instructions.
 
+### Known Issues
+
+- **Arch Linux**: If you encounter `libxml2.so.2: cannot open shared object file`, see [workaround documentation](docs/arch-linux-libxml2-workaround.md). This is being addressed in [#735](https://github.com/Vector35/debugger/issues/735).
+
 ## License
 
 The Binary Ninja Debugger is open-source with [Apache License 2.0](https://raw.githubusercontent.com/Vector35/debugger/dev/LICENSE)

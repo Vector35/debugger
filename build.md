@@ -52,3 +52,4 @@ The build artifacts will be in the folder `out`. You should find two files `libd
 
 - On Windows, building the debugger in Debug mode may cause obscure bugs since the debug ABI of MSVC can be different from that of the release build.
 It is recommended to build with `RelWithDebInfo` on Windows.
+- On Arch Linux: If you encounter issues with libxml2.so.2 not being found, see [docs/arch-linux-libxml2-workaround.md](docs/arch-linux-libxml2-workaround.md) for workarounds. This is due to Arch moving from libxml2.so.2 to libxml2.so.16.
