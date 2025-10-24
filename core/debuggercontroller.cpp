@@ -1377,7 +1377,7 @@ bool DebuggerController::ResumeThread(std::uint32_t tid)
 
 std::vector<DebugFrame> DebuggerController::GetFramesOfThread(uint64_t tid)
 {
-	return m_state->GetThreads()->GetFramesOfThread(tid);
+	return m_state->GetThreads()->GetFramesOfThread((uint32_t)tid);
 }
 
 
@@ -1786,7 +1786,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		break;
 	}
 	case TargetExitedEventType:
-		m_exitCode = event.data.exitData.exitCode;
+		m_exitCode = (uint32_t)event.data.exitData.exitCode;
 	case DetachedEventType:
 	case LaunchFailureEventType:
 	{
@@ -3989,7 +3989,7 @@ bool DebuggerController::GetVariableValue(const Variable& var, uint64_t address,
 		if (LLIL_REG_IS_TEMP(reg))
 			return false;
 
-		auto name = GetData()->GetDefaultArchitecture()->GetRegisterName(reg);
+		auto name = GetData()->GetDefaultArchitecture()->GetRegisterName((uint32_t)reg);
 		// TODO: what if the name reported by the adapter is different from that in the architecture?
 		// GetRegisterValue should return if the value can be retrieved
 

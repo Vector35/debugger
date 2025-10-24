@@ -115,7 +115,7 @@ bool GdbAdapter::LoadRegisterInfo()
 				if (reg_attribute.name() == "regnum"s)
 					register_info.m_regNum = reg_attribute.as_uint();
 				else
-					register_info.m_regNum = lastRegIndex + 1;
+					register_info.m_regNum = (uint32_t)lastRegIndex + 1;
 			}
 
 			if (register_name.empty())
@@ -172,12 +172,12 @@ bool GdbAdapter::LoadRegisterInfo()
         id_width[value.m_regNum] = value.m_bitSize;
     }
 
-    std::size_t max_id{};
+    uint32_t max_id{};
     for ( auto [key, value] : this->m_registerInfo )
         max_id += value.m_regNum;
 
-    std::size_t offset{};
-    for ( std::size_t index{}; index < max_id; index++ ) {
+    uint32_t offset{};
+    for ( uint32_t index{}; index < max_id; index++ ) {
         if ( !id_width[index] )
             break;
 
@@ -211,7 +211,7 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
         sockaddr_in address{};
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = inet_addr(ipAddress.c_str());
-        address.sin_port = htons(serverPort);
+        address.sin_port = htons((u_short)serverPort);
 
         if (this->m_socket->Connect(address)) {
             connected = true;
@@ -258,8 +258,8 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
 
     const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("?"));
     auto map = RspConnector::PacketToUnorderedMap(reply);
-	this->m_lastActiveThreadId = map["thread"];
-	this->m_processPid = map["thread"];
+	this->m_lastActiveThreadId = (uint32_t)map["thread"];
+	this->m_processPid = (uint32_t)map["thread"];
     m_isTargetRunning = false;
 
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
@@ -822,7 +822,7 @@ DebugStopReason GdbAdapter::ResponseHandler(bool notifyStopped)
 			auto map = RspConnector::PacketToUnorderedMap(reply);
 			const auto tid = map["thread"];
 			m_isTargetRunning = false;
-            m_lastActiveThreadId = tid;
+            m_lastActiveThreadId = (uint32_t)tid;
 
 			CheckApplyPendingBreakpoints();
 
@@ -868,7 +868,7 @@ DebugStopReason GdbAdapter::ResponseHandler(bool notifyStopped)
 
 			// Target exited
 			std::string exitCodeString = reply.AsString().substr(1);
-			uint8_t exitCode = strtoul(exitCodeString.c_str(), nullptr, 16);
+			uint8_t exitCode = (uint8_t)strtoul(exitCodeString.c_str(), nullptr, 16);
 			m_isTargetRunning = false;
             m_exitCode = exitCode;
 
@@ -1092,7 +1092,7 @@ bool GdbAdapter::StepOverReverse()
 	// TODO: support the case where we cannot determined the remote arch
 	ArchitectureRef remoteArch = GetController()->GetState()->GetRemoteArchitecture();
 	if (!remoteArch)
-		return InternalError;
+		return false;
 
 	size_t size = remoteArch->GetMaxInstructionLength();
 	DataBuffer buffer = ReadMemory(remoteIP, size);
@@ -1103,7 +1103,7 @@ bool GdbAdapter::StepOverReverse()
 	remoteArch->GetInstructionLowLevelIL((const uint8_t*)buffer.GetData(), remoteIP, bytesRead, *ilFunc);
 
 	if (ilFunc->GetInstructionCount() == 0)
-		return InternalError;
+		return false;
 
 	const auto& instr = (*ilFunc)[0];
 	if (instr.operation != LLIL_RET)

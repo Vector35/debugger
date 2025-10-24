@@ -63,8 +63,9 @@ std::string DebugModule::GetPathBaseName(const std::string& path)
 #ifdef WIN32
 	// TODO: someone please write it on Windows!
 	char baseName[MAX_PATH];
-	_splitpath(path.c_str(), NULL, NULL, baseName, NULL);
-	return std::string(baseName);
+	char ext[MAX_PATH];
+	_splitpath_s(path.c_str(), NULL, 0, NULL, 0, baseName, MAX_PATH, ext, MAX_PATH);
+	return std::string(baseName) + std::string(ext);
 #else
 	return basename(strdup(path.c_str()));
 #endif

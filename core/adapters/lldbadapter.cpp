@@ -757,7 +757,7 @@ std::uint32_t LldbAdapter::GetActivePID()
 	if (!m_process.IsValid())
 		return 0;
 
-	return m_process.GetProcessID();
+	return (uint32_t)m_process.GetProcessID();
 }
 
 
@@ -780,7 +780,7 @@ std::vector<DebugThread> LldbAdapter::GetThreadList()
 			if (frame.IsValid())
 				pc = frame.GetPC();
 		}
-		result.emplace_back(tid, pc);
+		result.emplace_back((uint32_t)tid, pc);
 	}
 	return result;
 }
@@ -803,7 +803,7 @@ DebugThread LldbAdapter::GetActiveThread() const
 			pc = frame.GetPC();
 	}
 
-	return DebugThread(tid, pc);
+	return DebugThread((uint32_t)tid, pc);
 }
 
 
@@ -815,7 +815,7 @@ uint32_t LldbAdapter::GetActiveThreadId() const
 
 	auto tid = thread.GetThreadID();
 	// TODO: we should probably change the return value to uint64_t
-	return tid;
+	return (uint32_t)tid;
 }
 
 
@@ -876,8 +876,8 @@ std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
 			continue;
 		if (tid == thread.GetThreadID())
 		{
-			size_t frameCount = thread.GetNumFrames();
-			for (size_t j = 0; j < frameCount; j++)
+			uint32_t frameCount = thread.GetNumFrames();
+			for (uint32_t j = 0; j < frameCount; j++)
 			{
 				SBFrame frame = thread.GetFrameAtIndex(j);
 				if (!frame.IsValid())
@@ -956,12 +956,12 @@ bool LldbAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 	// Only the address is valid. We cannot use the .m_id info.
 	bool ok = false;
 	uint64_t address = breakpoint.m_address;
-	for (size_t i = 0; i < m_target.GetNumBreakpoints(); i++)
+	for (uint32_t i = 0; i < m_target.GetNumBreakpoints(); i++)
 	{
 		auto bp = m_target.GetBreakpointAtIndex(i);
 		for (size_t j = 0; j < bp.GetNumLocations(); j++)
 		{
-			auto location = bp.GetLocationAtIndex(j);
+			auto location = bp.GetLocationAtIndex((uint32_t)j);
 			auto bpAddress = location.GetAddress().GetLoadAddress(m_target);
 			if (address == bpAddress)
 			{
@@ -1042,15 +1042,15 @@ std::unordered_map<std::string, DebugRegister> LldbAdapter::ReadAllRegisters()
 
 	size_t regIndex = 0;
 	SBValueList regGroups = frame.GetRegisters();
-	size_t numGroups = regGroups.GetSize();
-	for (size_t i = 0; i < numGroups; i++)
+	uint32_t numGroups = regGroups.GetSize();
+	for (uint32_t i = 0; i < numGroups; i++)
 	{
 		SBValue regGroupInfo = regGroups.GetValueAtIndex(i);
 		if (!regGroupInfo.IsValid())
 			continue;
 
-		size_t numRegs = regGroupInfo.GetNumChildren();
-		for (size_t j = 0; j < numRegs; j++)
+		uint32_t numRegs = regGroupInfo.GetNumChildren();
+		for (uint32_t j = 0; j < numRegs; j++)
 		{
 			SBValue reg = regGroupInfo.GetChildAtIndex(j);
 			// TODO: register width and internal index
@@ -1088,12 +1088,12 @@ DebugRegister LldbAdapter::ReadRegister(const std::string& name)
 		return result;
 
 	SBValueList regGroups = frame.GetRegisters();
-	size_t numGroups = regGroups.GetSize();
-	for (size_t i = 0; i < numGroups; i++)
+	uint32_t numGroups = regGroups.GetSize();
+	for (uint32_t i = 0; i < numGroups; i++)
 	{
 		SBValue regGroupInfo = regGroups.GetValueAtIndex(i);
-		size_t numRegs = regGroupInfo.GetNumChildren();
-		for (size_t j = 0; j < numRegs; j++)
+		uint32_t numRegs = regGroupInfo.GetNumChildren();
+		for (uint32_t j = 0; j < numRegs; j++)
 		{
 			SBValue reg = regGroupInfo.GetChildAtIndex(j);
 			if (name == reg.GetName())
@@ -1222,8 +1222,8 @@ static uint64_t GetModuleHighestAddress(SBModule& module, SBTarget& target)
 std::vector<DebugModule> LldbAdapter::GetModuleList()
 {
 	std::vector<DebugModule> result;
-	size_t numModules = m_target.GetNumModules();
-	for (size_t i = 0; i < numModules; i++)
+	uint32_t numModules = m_target.GetNumModules();
+	for (uint32_t i = 0; i < numModules; i++)
 	{
 		SBModule module = m_target.GetModuleAtIndex(i);
 		if (!module.IsValid())
@@ -1272,7 +1272,7 @@ static DebugStopReason GetWindowsStopReasonFromExceptionDescription(const std::s
 		if (pos = exceptionCodeStr.find(' '); pos != std::string::npos)
 		{
 			exceptionCodeStr = exceptionCodeStr.substr(0, pos);
-			exceptionCode = strtoull(exceptionCodeStr.c_str(), nullptr, 16);
+			exceptionCode = (uint32_t)strtoull(exceptionCodeStr.c_str(), nullptr, 16);
 		}
 	}
 
@@ -1874,7 +1874,7 @@ void LldbAdapter::EventListener()
 				{
 					if (bpEventType == lldb::eBreakpointEventTypeAdded)
 					{
-						auto location = bp.GetLocationAtIndex(i);
+						auto location = bp.GetLocationAtIndex((uint32_t)i);
 						auto address = location.GetAddress();
 						auto module = address.GetModule();
 						if (module.IsValid())
@@ -1901,7 +1901,7 @@ void LldbAdapter::EventListener()
 					}
 					else if (bpEventType == lldb::eBreakpointEventTypeRemoved)
 					{
-						auto location = bp.GetLocationAtIndex(i);
+						auto location = bp.GetLocationAtIndex((uint32_t)i);
 						auto address = location.GetAddress();
 						auto module = address.GetModule();
 						if (module.IsValid())
@@ -2045,7 +2045,7 @@ void LldbAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 	}
 
 	std::vector<std::string> platforms;
-	for (size_t i = 0; i < m_debugger.GetNumAvailablePlatforms(); i++)
+	for (uint32_t i = 0; i < m_debugger.GetNumAvailablePlatforms(); i++)
 	{
 		auto platform = m_debugger.GetAvailablePlatformInfoAtIndex(i);
 		auto nameData = platform.GetValueForKey("name");

@@ -450,9 +450,9 @@ void TTDEventsQueryWidget::filterAndDisplayEvents()
 	}
 	
 	// Populate table with filtered results
-	m_resultsTable->setRowCount(filteredEvents.size());
+	m_resultsTable->setRowCount((int)filteredEvents.size());
 	
-	for (size_t i = 0; i < filteredEvents.size(); ++i)
+	for (int i = 0; i < (int)filteredEvents.size(); ++i)
 	{
 		const TTDEvent& event = filteredEvents[i];
 		
@@ -573,9 +573,9 @@ void TTDEventsQueryWidget::filterAndDisplaySpecializedEvents()
 	}
 	
 	// Populate table with filtered results using specialized columns
-	m_resultsTable->setRowCount(filteredEvents.size());
+	m_resultsTable->setRowCount((int)filteredEvents.size());
 	
-	for (size_t i = 0; i < filteredEvents.size(); ++i)
+	for (int i = 0; i < (int)filteredEvents.size(); ++i)
 	{
 		const TTDEvent& event = filteredEvents[i];
 		int col = 0;

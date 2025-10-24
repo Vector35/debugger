@@ -754,7 +754,7 @@ QModelIndex DebuggerInfoEntryItemModel::parent(const QModelIndex &child) const
 
 int DebuggerInfoEntryItemModel::rowCount(const QModelIndex &parent) const
 {
-	return m_infoEntries.size();
+	return (int)m_infoEntries.size();
 }
 
 

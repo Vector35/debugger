@@ -347,9 +347,9 @@ void TTDMemoryQueryWidget::performQuery()
 		auto events = m_controller->GetTTDMemoryAccessForAddress(startAddress, endAddress, accessType);
 		
 		// Populate the results table
-		m_resultsTable->setRowCount(events.size());
+		m_resultsTable->setRowCount((int)events.size());
 		
-		for (size_t i = 0; i < events.size(); ++i)
+		for (int i = 0; i < (int)events.size(); ++i)
 		{
 			const auto& event = events[i];
 			
