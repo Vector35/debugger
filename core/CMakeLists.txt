@@ -187,6 +187,81 @@ elseif (UNIX)
 			${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/lib
 		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
 	)
+	
+	# Handle libxml2 compatibility issues across different Linux distributions
+	# On Arch Linux, libxml2.so.2 has been replaced with libxml2.so.16
+	# We detect the system libxml2 and create a compatibility symlink in lldb/lib
+	find_library(SYSTEM_LIBXML2
+		NAMES xml2
+		PATHS /usr/lib /usr/lib/x86_64-linux-gnu /usr/lib64
+		NO_DEFAULT_PATH
+	)
+	
+	if(SYSTEM_LIBXML2)
+		get_filename_component(SYSTEM_LIBXML2_REAL ${SYSTEM_LIBXML2} REALPATH)
+		get_filename_component(SYSTEM_LIBXML2_NAME ${SYSTEM_LIBXML2_REAL} NAME)
+		message(STATUS "Found system libxml2: ${SYSTEM_LIBXML2_REAL}")
+		
+		# Copy the system libxml2 to our lldb/lib directory
+		file(
+			COPY ${SYSTEM_LIBXML2_REAL}
+			DESTINATION ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/lib
+			FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+		)
+		
+		# Create a libxml2.so.2 symlink pointing to the actual library
+		# This ensures compatibility even if LLDB was built expecting libxml2.so.2
+		execute_process(
+			COMMAND ${CMAKE_COMMAND} -E create_symlink
+				${SYSTEM_LIBXML2_NAME}
+				${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/lib/libxml2.so.2
+		)
+		message(STATUS "Created compatibility symlink: libxml2.so.2 -> ${SYSTEM_LIBXML2_NAME}")
+	else()
+		message(WARNING "Could not find system libxml2, LLDB may fail to load on some systems")
+	endif()
+	
+	# Handle libedit/editline similarly
+	find_library(SYSTEM_LIBEDIT
+		NAMES edit
+		PATHS /usr/lib /usr/lib/x86_64-linux-gnu /usr/lib64
+		NO_DEFAULT_PATH
+	)
+	
+	if(SYSTEM_LIBEDIT)
+		get_filename_component(SYSTEM_LIBEDIT_REAL ${SYSTEM_LIBEDIT} REALPATH)
+		get_filename_component(SYSTEM_LIBEDIT_NAME ${SYSTEM_LIBEDIT_REAL} NAME)
+		message(STATUS "Found system libedit: ${SYSTEM_LIBEDIT_REAL}")
+		
+		file(
+			COPY ${SYSTEM_LIBEDIT_REAL}
+			DESTINATION ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/lib
+			FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+		)
+		
+		# Create compatibility symlinks
+		execute_process(
+			COMMAND ${CMAKE_COMMAND} -E create_symlink
+				${SYSTEM_LIBEDIT_NAME}
+				${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/lib/libedit.so.0
+		)
+	endif()
+	
+	# Also copy any pre-bundled dependencies from LLDB_PATH if they exist
+	if(EXISTS ${LLDB_PATH}/lib/libxml2.so.2)
+		file(
+			COPY ${LLDB_PATH}/lib/libxml2.so.2
+			DESTINATION ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/lib
+			FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+		)
+	endif()
+	if(EXISTS ${LLDB_PATH}/lib/libedit.so.0)
+		file(
+			COPY ${LLDB_PATH}/lib/libedit.so.0
+			DESTINATION ${LIBRARY_OUTPUT_DIRECTORY_PATH}/lldb/lib
+			FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+		)
+	endif()
 else()
 	find_library(lib_lldb NAMES liblldb PATHS ${LLDB_PATH}/lib REQUIRED NO_DEFAULT_PATH)
 	target_link_libraries(debuggercore ${lib_lldb})
