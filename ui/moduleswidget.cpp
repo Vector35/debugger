@@ -599,10 +599,10 @@ void DebugModulesWidget::scrollToFirstItem() {}
 void DebugModulesWidget::scrollToCurrentItem() {}
 
 
-void DebugModulesWidget::selectFirstItem() {}
+void DebugModulesWidget::ensureSelection() {}
 
 
-void DebugModulesWidget::activateFirstItem() {}
+void DebugModulesWidget::activateSelection() {}
 
 
 DebugModulesWithFilter::DebugModulesWithFilter(ViewFrame* view, BinaryViewRef data) : m_view(view)

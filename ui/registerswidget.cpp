@@ -843,10 +843,10 @@ void DebugRegistersWidget::scrollToFirstItem() {}
 void DebugRegistersWidget::scrollToCurrentItem() {}
 
 
-void DebugRegistersWidget::selectFirstItem() {}
+void DebugRegistersWidget::ensureSelection() {}
 
 
-void DebugRegistersWidget::activateFirstItem() {}
+void DebugRegistersWidget::activateSelection() {}
 
 
 DebugRegistersContainer::DebugRegistersContainer(ViewFrame* view, BinaryViewRef data, Menu* menu) : m_view(view)

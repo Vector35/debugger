@@ -333,10 +333,10 @@ void ProcessListWidget::scrollToFirstItem() {}
 void ProcessListWidget::scrollToCurrentItem() {}
 
 
-void ProcessListWidget::selectFirstItem() {}
+void ProcessListWidget::ensureSelection() {}
 
 
-void ProcessListWidget::activateFirstItem() {}
+void ProcessListWidget::activateSelection() {}
 
 
 AttachProcessDialog::AttachProcessDialog(QWidget* parent, DbgRef<DebuggerController> controller) : QDialog(parent)
