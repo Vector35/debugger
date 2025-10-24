@@ -776,9 +776,9 @@ SidebarWidget* TTDCallsWidgetType::createWidget(ViewFrame* frame, BinaryViewRef 
 	return widget;
 }
 
-SidebarContentClassifier* TTDCallsWidgetType::contentClassifier(ViewFrame*, BinaryViewRef)
+SidebarContentClassifier* TTDCallsWidgetType::contentClassifier(ViewFrame*, BinaryViewRef data)
 {
-	return nullptr;  // No content classification needed
+	return new ActiveDebugSessionSidebarContentClassifier(data);
 }
 
 void TTDCallsWidgetType::SetPendingQuery(
