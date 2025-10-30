@@ -812,6 +812,9 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 	// Helper function to check if there's a breakpoint at the current address and return its enabled state
 	auto getBreakpointEnabledState = [](BinaryView* view, uint64_t addr) -> std::pair<bool, bool> {
+		if (!DebuggerController::ControllerExists(view))
+			return {false, false};
+
 		auto controller = DebuggerController::GetController(view);
 		if (!controller)
 			return {false, false}; // {hasBreakpoint, isEnabled}

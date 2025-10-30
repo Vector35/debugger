@@ -69,6 +69,9 @@ DebuggerController::~DebuggerController()
 
 bool DebuggerController::ControllerExists(Ref<BinaryNinja::BinaryView> data)
 {
+	if (!data)
+		return false;
+
 	return BNDebuggerControllerExists(data->GetObject());
 }
 
