@@ -109,7 +109,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLILCalls(LowLevelIL
 			{
 				tokens.emplace_back(TextToken, " + ");
 				char buf[64] = {0};
-				snprintf(buf, sizeof(buf), "%#llx", offset);
+				snprintf(buf, sizeof(buf), "%#" PRIx64, offset);
 				tokens.emplace_back(IntegerToken, buf, offset);
 			}
 			result.emplace_back(tokens, value, hints, instr.instructionIndex, BN_INVALID_EXPR, instr.address);
@@ -328,7 +328,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForMLILCalls(MediumLeve
 			{
 				tokens.emplace_back(TextToken, " + ");
 				char buf[64] = {0};
-				snprintf(buf, sizeof(buf), "%#llx", offset);
+				snprintf(buf, sizeof(buf), "%#" PRIx64, offset);
 				tokens.emplace_back(IntegerToken, buf, offset);
 			}
 			result.emplace_back(tokens, value, hints, instr.instructionIndex, BN_INVALID_EXPR, instr.address);
@@ -501,7 +501,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForHLILCalls(HighLevelI
 			{
 				tokens.emplace_back(TextToken, " + ");
 				char buf[64] = {0};
-				snprintf(buf, sizeof(buf), "%#llx", offset);
+				snprintf(buf, sizeof(buf), "%#" PRIx64, offset);
 				tokens.emplace_back(IntegerToken, buf, offset);
 			}
 			result.emplace_back(tokens, value, hints, instr.instructionIndex, BN_INVALID_EXPR, instr.address);
