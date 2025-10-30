@@ -19,7 +19,6 @@ limitations under the License.
 #include "breakpointswidget.h"
 #include "moduleswidget.h"
 #include "renderlayer.h"
-#include "stackwidget.h"
 #include "uinotification.h"
 #include "platformdialog.h"
 #include "QPainter"
