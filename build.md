@@ -8,7 +8,7 @@
   - A more robust approach is to find the file `api_REVISION.txt` in `BN_INSTALLATION_FOLDER/Resources`
 
 ```bash
-git clone https://github.com/Vector35/binaryninja-api.git
+git clone --recurse-submodules https://github.com/Vector35/binaryninja-api.git
 cd binaryninja-api
 git checkout dev
 # or git checkout commit_hash
