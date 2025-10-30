@@ -318,7 +318,7 @@ std::vector<DebugThread> LldbCoreDumpAdapter::GetThreadList()
 			if (frame.IsValid())
 				pc = frame.GetPC();
 		}
-		result.emplace_back(tid, pc);
+		result.emplace_back((uint32_t)tid, pc);
 	}
 	return result;
 }
@@ -341,7 +341,7 @@ DebugThread LldbCoreDumpAdapter::GetActiveThread() const
 			pc = frame.GetPC();
 	}
 
-	return DebugThread(tid, pc);
+	return DebugThread((uint32_t)tid, pc);
 }
 
 
@@ -353,7 +353,7 @@ uint32_t LldbCoreDumpAdapter::GetActiveThreadId() const
 
 	auto tid = thread.GetThreadID();
 	// TODO: we should probably change the return value to uint64_t
-	return tid;
+	return (uint32_t)tid;
 }
 
 
@@ -382,18 +382,18 @@ bool LldbCoreDumpAdapter::ResumeThread(std::uint32_t tid)
 
 std::vector<DebugFrame> LldbCoreDumpAdapter::GetFramesOfThread(uint32_t tid)
 {
-	size_t threadCount = m_process.GetNumThreads();
+	uint32_t threadCount = m_process.GetNumThreads();
 	std::vector<DebugFrame> result;
 	result.reserve(threadCount);
-	for (size_t i = 0; i < threadCount; i++)
+	for (uint32_t i = 0; i < threadCount; i++)
 	{
 		SBThread thread = m_process.GetThreadAtIndex(i);
 		if (!thread.IsValid())
 			continue;
 		if (tid == thread.GetThreadID())
 		{
-			size_t frameCount = thread.GetNumFrames();
-			for (size_t j = 0; j < frameCount; j++)
+			uint32_t frameCount = thread.GetNumFrames();
+			for (uint32_t j = 0; j < frameCount; j++)
 			{
 				SBFrame frame = thread.GetFrameAtIndex(j);
 				if (!frame.IsValid())
@@ -480,15 +480,15 @@ std::unordered_map<std::string, DebugRegister> LldbCoreDumpAdapter::ReadAllRegis
 
 	size_t regIndex = 0;
 	SBValueList regGroups = frame.GetRegisters();
-	size_t numGroups = regGroups.GetSize();
-	for (size_t i = 0; i < numGroups; i++)
+	uint32_t numGroups = regGroups.GetSize();
+	for (uint32_t i = 0; i < numGroups; i++)
 	{
 		SBValue regGroupInfo = regGroups.GetValueAtIndex(i);
 		if (!regGroupInfo.IsValid())
 			continue;
 
-		size_t numRegs = regGroupInfo.GetNumChildren();
-		for (size_t j = 0; j < numRegs; j++)
+		uint32_t numRegs = regGroupInfo.GetNumChildren();
+		for (uint32_t j = 0; j < numRegs; j++)
 		{
 			SBValue reg = regGroupInfo.GetChildAtIndex(j);
 			// TODO: register width and internal index
@@ -526,12 +526,12 @@ DebugRegister LldbCoreDumpAdapter::ReadRegister(const std::string& name)
 		return result;
 
 	SBValueList regGroups = frame.GetRegisters();
-	size_t numGroups = regGroups.GetSize();
-	for (size_t i = 0; i < numGroups; i++)
+	uint32_t numGroups = regGroups.GetSize();
+	for (uint32_t i = 0; i < numGroups; i++)
 	{
 		SBValue regGroupInfo = regGroups.GetValueAtIndex(i);
-		size_t numRegs = regGroupInfo.GetNumChildren();
-		for (size_t j = 0; j < numRegs; j++)
+		uint32_t numRegs = regGroupInfo.GetNumChildren();
+		for (uint32_t j = 0; j < numRegs; j++)
 		{
 			SBValue reg = regGroupInfo.GetChildAtIndex(j);
 			if (name == reg.GetName())
@@ -594,8 +594,8 @@ static uint64_t GetModuleHighestAddress(SBModule& module, SBTarget& target)
 std::vector<DebugModule> LldbCoreDumpAdapter::GetModuleList()
 {
 	std::vector<DebugModule> result;
-	size_t numModules = m_target.GetNumModules();
-	for (size_t i = 0; i < numModules; i++)
+	uint32_t numModules = m_target.GetNumModules();
+	for (uint32_t i = 0; i < numModules; i++)
 	{
 		SBModule module = m_target.GetModuleAtIndex(i);
 		if (!module.IsValid())
@@ -644,7 +644,7 @@ static DebugStopReason GetWindowsStopReasonFromExceptionDescription(const std::s
 		if (pos = exceptionCodeStr.find(' '); pos != std::string::npos)
 		{
 			exceptionCodeStr = exceptionCodeStr.substr(0, pos);
-			exceptionCode = strtoull(exceptionCodeStr.c_str(), nullptr, 16);
+			exceptionCode = (uint32_t)strtoull(exceptionCodeStr.c_str(), nullptr, 16);
 		}
 	}
 
@@ -1106,7 +1106,7 @@ void LldbCoreDumpAdapter::EventListener()
 				{
 					if (bpEventType == lldb::eBreakpointEventTypeAdded)
 					{
-						auto location = bp.GetLocationAtIndex(i);
+						auto location = bp.GetLocationAtIndex((uint32_t)i);
 						auto address = location.GetAddress();
 						auto module = address.GetModule();
 						if (module.IsValid())
@@ -1133,7 +1133,7 @@ void LldbCoreDumpAdapter::EventListener()
 					}
 					else if (bpEventType == lldb::eBreakpointEventTypeRemoved)
 					{
-						auto location = bp.GetLocationAtIndex(i);
+						auto location = bp.GetLocationAtIndex((uint32_t)i);
 						auto address = location.GetAddress();
 						auto module = address.GetModule();
 						if (module.IsValid())
@@ -1243,5 +1243,5 @@ std::uint32_t LldbCoreDumpAdapter::GetActivePID()
 	if (!m_process.IsValid())
 		return 0;
 
-	return m_process.GetProcessID();
+	return (uint32_t)m_process.GetProcessID();
 }

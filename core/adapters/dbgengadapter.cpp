@@ -198,7 +198,7 @@ std::string DbgEngAdapter::GenerateRandomPipeName()
 {
 	const std::string chars = "abcdefghijklmnopqrstuvwxyz1234567890";
 	constexpr size_t length = 16;
-	srand(time(NULL));
+	srand((unsigned int)time(NULL));
 
 	std::string result;
 	result.resize(length);
@@ -760,7 +760,7 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 		return false;
 	}
 
-	if (const auto result = this->m_debugClient->AttachProcess(m_server, attachPID, 0); result != S_OK)
+	if (const auto result = this->m_debugClient->AttachProcess(m_server, (ULONG)attachPID, 0); result != S_OK)
 	{
 		this->Reset();
 		DebuggerEvent event;
@@ -894,7 +894,7 @@ std::vector<DebugProcess> DbgEngAdapter::GetProcessList()
 	}
 
 	std::vector<DebugProcess> debug_processes {};
-	for (int i = 0; i < Count; i++)
+	for (uint32_t i = 0; i < Count; i++)
 	{
 		char processName[MAX_PATH];
 		ZeroMemory(processName, MAX_PATH);
@@ -1079,7 +1079,7 @@ bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 	if (m_debugControl->GetNumberBreakpoints(&numBreakpoints) != S_OK)
 		return false;
 
-	for (size_t i = 0; i < numBreakpoints; i++)
+	for (ULONG i = 0; i < numBreakpoints; i++)
 	{
 		IDebugBreakpoint2* bp {};
 		if (m_debugControl->GetBreakpointByIndex2(i, &bp) != S_OK)
@@ -1244,7 +1244,7 @@ std::vector<std::string> DbgEngAdapter::GetRegisterList() const
 		return {};
 
 	std::vector<std::string> register_list {};
-	for (std::size_t reg_index {}; reg_index < register_count; reg_index++)
+	for (uint32_t reg_index {}; reg_index < register_count; reg_index++)
 		register_list.push_back(this->GetRegisterNameByIndex(reg_index));
 
 	return register_list;
@@ -1277,7 +1277,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 	if (this->m_debugSymbols->GetModuleParameters(total_modules, nullptr, 0, module_parameters.get()) != S_OK)
 		return {};
 
-	for (std::size_t module_index {}; module_index < total_modules; module_index++)
+	for (uint32_t module_index {}; module_index < total_modules; module_index++)
 	{
 		const auto& parameters = module_parameters[module_index];
 
@@ -1733,7 +1733,7 @@ DataBuffer DbgEngAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 
 	unsigned long bytesRead {};
 	const auto success =
-		this->m_debugDataSpaces->ReadVirtual(address, source.get(), size, &bytesRead) == S_OK && bytesRead == size;
+		this->m_debugDataSpaces->ReadVirtual(address, source.get(), (ULONG)size, &bytesRead) == S_OK && bytesRead == size;
 	if (!success)
 		return {};
 
@@ -1743,7 +1743,7 @@ DataBuffer DbgEngAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
 	unsigned long bytes_written {};
-	return this->m_debugDataSpaces->WriteVirtual(address, const_cast<void*>(buffer.GetData()), buffer.GetLength(), &bytes_written) == S_OK
+	return this->m_debugDataSpaces->WriteVirtual(address, const_cast<void*>(buffer.GetData()), (ULONG)buffer.GetLength(), &bytes_written) == S_OK
 		&& bytes_written == buffer.GetLength();
 }
 

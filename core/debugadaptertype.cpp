@@ -16,7 +16,6 @@ limitations under the License.
 
 #include "debugadaptertype.h"
 #include "./adapters/gdbadapter.h"
-#include "./adapters/lldbrspadapter.h"
 
 #ifdef WIN32
 	#include "./adapters/dbgengadapter.h"

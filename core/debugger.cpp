@@ -16,7 +16,6 @@ limitations under the License.
 
 #include <inttypes.h>
 #include "adapters/gdbadapter.h"
-#include "adapters/lldbrspadapter.h"
 #include "adapters/lldbadapter.h"
 #include "adapters/corelliumadapter.h"
 #include "adapters/lldbcoredumpadapter.h"

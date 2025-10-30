@@ -29,7 +29,6 @@ limitations under the License.
 #include "fontsettings.h"
 #include "theme.h"
 #include "expandablegroup.h"
-#include "stackwidget.h"
 #include "breakpointswidget.h"
 #include "registerswidget.h"
 #include "moduleswidget.h"

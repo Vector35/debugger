@@ -272,14 +272,14 @@ RspData RspConnector::ReceiveRspData()
             // packets have already arrived, the latter one will be silently discarded
             // TODO: there is an edge case that '#' arrives in the first buffer and the two hex digits arrive in the
             // next one. I believe this is rare enough that we can deal with it later
-            this->m_socket->Recv(tmp_buffer, tmpBufferVec.size() + 3);
+            this->m_socket->Recv(tmp_buffer, (int32_t)tmpBufferVec.size() + 3);
             std::copy(tmpBufferVec.begin(), tmpBufferVec.end(), std::back_inserter(buffer));
             break;
         }
         else
         {
             // Consume the buffer
-            this->m_socket->Recv(tmp_buffer, tmpBufferVec.size());
+            this->m_socket->Recv(tmp_buffer, (int32_t)tmpBufferVec.size());
             std::copy(tmpBufferVec.begin(), tmpBufferVec.begin() + n, std::back_inserter(buffer));
         }
     }

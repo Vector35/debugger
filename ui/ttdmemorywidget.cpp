@@ -150,8 +150,8 @@ void TTDMemoryQueryWidget::setupUI()
 	{
 		uint64_t startAddr = m_data->GetStart();
 		uint64_t endAddr = m_data->GetEnd();
-		m_startAddressEdit->setText(QString::asprintf("0x%llx", startAddr));
-		m_endAddressEdit->setText(QString::asprintf("0x%llx", endAddr));
+		m_startAddressEdit->setText(QString::asprintf("0x%" PRIx64, startAddr));
+		m_endAddressEdit->setText(QString::asprintf("0x%" PRIx64, endAddr));
 	}
 	else
 	{
@@ -347,9 +347,9 @@ void TTDMemoryQueryWidget::performQuery()
 		auto events = m_controller->GetTTDMemoryAccessForAddress(startAddress, endAddress, accessType);
 		
 		// Populate the results table
-		m_resultsTable->setRowCount(events.size());
+		m_resultsTable->setRowCount((int)events.size());
 		
-		for (size_t i = 0; i < events.size(); ++i)
+		for (int i = 0; i < (int)events.size(); ++i)
 		{
 			const auto& event = events[i];
 			
@@ -902,5 +902,3 @@ void TTDMemoryWidgetType::SetPendingQuery(ViewFrame* frame, BinaryViewRef data, 
 	// Try to find if the widget is already active and apply the query immediately
 	// This is a best-effort approach - the widget might apply the query when it becomes active
 }
-
-#include "ttdmemorywidget.moc"

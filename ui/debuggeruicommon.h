@@ -36,5 +36,5 @@ public:
     }
 
 private:
-    uint64_t m_numericValue;
+    [[maybe_unused]] uint64_t m_numericValue;
 };
