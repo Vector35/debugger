@@ -109,7 +109,7 @@ def extract_zip(bundle, target):
         return True
     else:
         # Don't use zipfile on unix systems, it doesn't do permissions properly
-        return subprocess.call(["unzip", "-DD", bundle, "-d", target]) == 0
+        return subprocess.call(["unzip", "-qq", "-DD", bundle, "-d", target]) == 0
 
 
 if not os.path.exists(bn_dev_path):
