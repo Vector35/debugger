@@ -195,7 +195,6 @@ with zipfile.ZipFile(artifact_path / f'debugger-{sys.platform}.zip', 'w', zipfil
 print("\nRunning unit tests")
 env = os.environ.copy()
 env["BN_DISABLE_USER_SETTINGS"] = "true"
-env["BN_DISABLE_REPOSITORY_PLUGINS"] = "true"
 env["BN_USER_DIRECTORY"] = str(build_output_path)
 env["BN_STANDALONE_DEBUGGER"] = "true"
 env["BN_DISABLE_CORE_DEBUGGER"] = "true"
