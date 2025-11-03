@@ -1832,9 +1832,11 @@ extern "C"
 
 // In Demo, plugins are explicitly loaded. So there is no need to specify dependencies
 #ifndef DEMO_EDITION
-	BINARYNINJAPLUGIN void CorePluginDependencies()
+	BINARYNINJAPLUGIN void UIPluginDependencies()
 	{
 		SetCurrentPluginLoadOrder(LatePluginLoadOrder);
+		// Make sure we load after the debugger core first
+		AddRequiredPluginDependency("debuggercore");
 	}
 #endif
 
@@ -1844,6 +1846,7 @@ extern "C"
 	BINARYNINJAPLUGIN bool UIPluginInit()
 #endif
 	{
+		LogDebug("Native debugger UI loaded!");
 		GlobalDebuggerUI::InitializeUI();
 		NotificationListener::init();
 		DataRendererContainer::RegisterTypeSpecificDataRenderer(new CodeDataRenderer);
