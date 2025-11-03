@@ -59,6 +59,7 @@ core/adapters/LLDB.framework
 /test/binaries/Darwin-x86_64-signed/
 test/__pycache__
 api/python/__pycache__
+**/__pycache__
 
 /build
 /artifacts
