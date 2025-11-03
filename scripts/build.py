@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -142,14 +143,18 @@ else:
     api_revision_path = bn_dev_path / 'api_REVISION.txt'
 
 if api_revision_path.exists():
-    with open(api_revision_path, 'r') as f:
+    with open(api_revision_path, 'r', encoding='utf-8') as f:
         first_line = f.readline().strip()
         # Extract the commit hash from the URL (format: https://github.com/Vector35/binaryninja-api/tree/<commit_hash>)
         if '/tree/' in first_line:
             api_commit = first_line.split('/tree/')[-1]
-            print(f"Checking out API commit: {api_commit}")
-            if subprocess.call(["git", "checkout", api_commit], cwd=api_path) != 0:
-                print(f"Warning: Failed to checkout API commit {api_commit}")
+            # Validate that the commit hash contains only valid git commit characters (hex digits)
+            if re.match(r'^[0-9a-fA-F]+$', api_commit):
+                print(f"Checking out API commit: {api_commit}")
+                if subprocess.call(["git", "checkout", api_commit], cwd=api_path) != 0:
+                    print(f"Warning: Failed to checkout API commit {api_commit}")
+            else:
+                print(f"Warning: Invalid commit hash format in api_REVISION.txt: {api_commit}")
         else:
             print(f"Warning: Could not parse API commit from api_REVISION.txt: {first_line}")
 else:
