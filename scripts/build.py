@@ -135,6 +135,26 @@ if subprocess.call(["git", "clone", "https://github.com/Vector35/binaryninja-api
     print("Failed to clone BN API git repository")
     sys.exit(1)
 
+# Checkout the API to the correct commit specified in api_REVISION.txt
+if platform.system() == 'Darwin':
+    api_revision_path = bn_dev_path / 'Binary Ninja.app' / 'Contents' / 'Resources' / 'api_REVISION.txt'
+else:
+    api_revision_path = bn_dev_path / 'api_REVISION.txt'
+
+if api_revision_path.exists():
+    with open(api_revision_path, 'r') as f:
+        first_line = f.readline().strip()
+        # Extract the commit hash from the URL (format: https://github.com/Vector35/binaryninja-api/tree/<commit_hash>)
+        if '/tree/' in first_line:
+            api_commit = first_line.split('/tree/')[-1]
+            print(f"Checking out API commit: {api_commit}")
+            if subprocess.call(["git", "checkout", api_commit], cwd=api_path) != 0:
+                print(f"Warning: Failed to checkout API commit {api_commit}")
+        else:
+            print(f"Warning: Could not parse API commit from api_REVISION.txt: {first_line}")
+else:
+    print(f"Warning: api_REVISION.txt not found at {api_revision_path}, using default branch")
+
 if subprocess.call(["git", "submodule", "update", "--init", "--recursive"], cwd=api_path) != 0:
     print("Failed to init submodules for BN API")
     sys.exit(1)
