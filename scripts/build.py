@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -138,6 +139,44 @@ if subprocess.call(["git", "clone", "https://github.com/Vector35/binaryninja-api
 if subprocess.call(["git", "submodule", "update", "--init", "--recursive"], cwd=api_path) != 0:
     print("Failed to init submodules for BN API")
     sys.exit(1)
+
+# Checkout the API to the correct commit specified in api_REVISION.txt
+if platform.system() == 'Darwin':
+    api_revision_path = bn_dev_path / 'Binary Ninja.app' / 'Contents' / 'Resources' / 'api_REVISION.txt'
+elif platform.system() == 'Linux':
+    api_revision_path = bn_dev_path / 'binaryninja' / 'api_REVISION.txt'
+else:
+    api_revision_path = bn_dev_path / 'BinaryNinja' / 'api_REVISION.txt'
+
+if api_revision_path.exists():
+    try:
+        with open(api_revision_path, 'r', encoding='utf-8') as f:
+            first_line = f.readline().strip()
+            # Extract the commit hash from the URL (format: https://github.com/Vector35/binaryninja-api/tree/<commit_hash>)
+            if '/tree/' in first_line:
+                api_commit = first_line.split('/tree/')[-1]
+                # Remove any trailing path components (e.g., /path or ?query)
+                api_commit = api_commit.split('/')[0].split('?')[0]
+                # Validate that the commit hash contains only valid git commit characters (hex digits)
+                # Git short hashes are typically 7+ chars, full SHA-1 is 40 chars, SHA-256 is 64 chars
+                if re.match(r'^[0-9a-fA-F]{7,64}$', api_commit):
+                    print(f"Checking out API commit: {api_commit}")
+                    if subprocess.call(["git", "checkout", api_commit], cwd=api_path) != 0:
+                        print(f"Warning: Failed to checkout API commit {api_commit}")
+                        sys.exit(1)
+                else:
+                    print(f"Warning: Invalid commit hash format in api_REVISION.txt: {api_commit}")
+                    sys.exit(1)
+            else:
+                print(f"Warning: Could not parse API commit from api_REVISION.txt: {first_line}")
+                sys.exit(1)
+    except (IOError, UnicodeDecodeError) as e:
+        print(f"Warning: Failed to read api_REVISION.txt: {e}")
+        sys.exit(1)
+else:
+    print(f"Warning: api_REVISION.txt not found at {api_revision_path}, using default branch")
+    sys.exit(1)
+
 
 print("\nConfiguring debugger...")
 if not build_path.exists():
