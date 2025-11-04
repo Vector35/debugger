@@ -1099,11 +1099,11 @@ std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::s
 std::vector<TTDEvent> DebuggerController::GetTTDEvents(TTDEventType eventType)
 {
 	std::vector<TTDEvent> result;
-	
+
 	size_t count = 0;
-	BNDebuggerTTDEvent* events = BNDebuggerGetTTDEvents(m_object, 
+	BNDebuggerTTDEvent* events = BNDebuggerGetTTDEvents(m_object,
 		static_cast<BNDebuggerTTDEventType>(eventType), &count);
-	
+
 	if (events && count > 0)
 	{
 		result.reserve(count);
@@ -1113,7 +1113,7 @@ std::vector<TTDEvent> DebuggerController::GetTTDEvents(TTDEventType eventType)
 			event.type = static_cast<TTDEventType>(events[i].type);
 			event.position.sequence = events[i].position.sequence;
 			event.position.step = events[i].position.step;
-			
+
 			// Copy optional module details
 			if (events[i].module)
 			{
@@ -1125,7 +1125,7 @@ std::vector<TTDEvent> DebuggerController::GetTTDEvents(TTDEventType eventType)
 				module.timestamp = events[i].module->timestamp;
 				event.module = module;
 			}
-			
+
 			// Copy optional thread details
 			if (events[i].thread)
 			{
@@ -1142,7 +1142,7 @@ std::vector<TTDEvent> DebuggerController::GetTTDEvents(TTDEventType eventType)
 				thread.activeTimeEnd.step = events[i].thread->activeTimeEnd.step;
 				event.thread = thread;
 			}
-			
+
 			// Copy optional exception details
 			if (events[i].exception)
 			{
@@ -1156,12 +1156,12 @@ std::vector<TTDEvent> DebuggerController::GetTTDEvents(TTDEventType eventType)
 				exception.position.step = events[i].exception->position.step;
 				event.exception = exception;
 			}
-			
+
 			result.push_back(event);
 		}
 		BNDebuggerFreeTTDEvents(events, count);
 	}
-	
+
 	return result;
 }
 
@@ -1169,10 +1169,10 @@ std::vector<TTDEvent> DebuggerController::GetTTDEvents(TTDEventType eventType)
 std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
 {
 	std::vector<TTDEvent> result;
-	
+
 	size_t count = 0;
 	BNDebuggerTTDEvent* events = BNDebuggerGetAllTTDEvents(m_object, &count);
-	
+
 	if (events && count > 0)
 	{
 		result.reserve(count);
@@ -1182,7 +1182,7 @@ std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
 			event.type = static_cast<TTDEventType>(events[i].type);
 			event.position.sequence = events[i].position.sequence;
 			event.position.step = events[i].position.step;
-			
+
 			// Copy optional module details
 			if (events[i].module)
 			{
@@ -1194,7 +1194,7 @@ std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
 				module.timestamp = events[i].module->timestamp;
 				event.module = module;
 			}
-			
+
 			// Copy optional thread details
 			if (events[i].thread)
 			{
@@ -1211,7 +1211,7 @@ std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
 				thread.activeTimeEnd.step = events[i].thread->activeTimeEnd.step;
 				event.thread = thread;
 			}
-			
+
 			// Copy optional exception details
 			if (events[i].exception)
 			{
@@ -1225,12 +1225,70 @@ std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
 				exception.position.step = events[i].exception->position.step;
 				event.exception = exception;
 			}
-			
+
 			result.push_back(event);
 		}
 		BNDebuggerFreeTTDEvents(events, count);
 	}
-	
+
+	return result;
+}
+
+
+std::vector<TTDHeapEvent> DebuggerController::GetTTDHeapObjects()
+{
+	std::vector<TTDHeapEvent> result;
+
+	size_t count = 0;
+	BNDebuggerTTDHeapEvent* events = BNDebuggerGetTTDHeapObjects(m_object, &count);
+
+	if (events && count > 0)
+	{
+		result.reserve(count);
+		for (size_t i = 0; i < count; i++)
+		{
+			TTDHeapEvent event;
+			event.eventType = events[i].eventType ? std::string(events[i].eventType) : "";
+			event.action = events[i].action ? std::string(events[i].action) : "";
+			event.threadId = events[i].threadId;
+			event.uniqueThreadId = events[i].uniqueThreadId;
+			event.heap = events[i].heap;
+			event.address = events[i].address;
+			event.previousAddress = events[i].previousAddress;
+			event.size = events[i].size;
+			event.baseAddress = events[i].baseAddress;
+			event.flags = events[i].flags;
+			event.result = events[i].result;
+			event.reserveSize = events[i].reserveSize;
+			event.commitSize = events[i].commitSize;
+			event.makeReadOnly = events[i].makeReadOnly;
+			event.timeStart.sequence = events[i].timeStart.sequence;
+			event.timeStart.step = events[i].timeStart.step;
+			event.timeEnd.sequence = events[i].timeEnd.sequence;
+			event.timeEnd.step = events[i].timeEnd.step;
+
+			// Convert parameters array
+			if (events[i].parameters && events[i].parameterCount > 0)
+			{
+				event.parameters.reserve(events[i].parameterCount);
+				for (size_t j = 0; j < events[i].parameterCount; j++)
+				{
+					if (events[i].parameters[j])
+					{
+						event.parameters.push_back(std::string(events[i].parameters[j]));
+					}
+					else
+					{
+						event.parameters.push_back("");
+					}
+				}
+			}
+
+			result.push_back(event);
+		}
+		BNDebuggerFreeTTDHeapEvents(events, count);
+	}
+
 	return result;
 }
 

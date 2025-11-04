@@ -24,6 +24,7 @@
         <file alias="stop">icons/stop.png</file>
         <file alias="ttd-memory">icons/ttd-memory.png</file>
         <file alias="ttd-calls">icons/ttd-calls.png</file>
+        <file alias="ttd-heap">icons/ttd-heap.png</file>
         <file alias="ttd-timestamp">icons/ttd-timestamp.png</file>
         <file alias="ttd-events">icons/ttd-events.png</file>
     </qresource>

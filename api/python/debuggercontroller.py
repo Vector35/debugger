@@ -739,7 +739,7 @@ class TTDEventType:
 class TTDModule:
     """
     TTDModule represents information about modules that were loaded/unloaded during a TTD trace.
-    
+
     Attributes:
         name (str): name and path of the module
         address (int): address where the module was loaded
@@ -785,7 +785,7 @@ class TTDModule:
 class TTDThread:
     """
     TTDThread represents information about threads and their lifetime during a TTD trace.
-    
+
     Attributes:
         unique_id (int): unique ID for the thread across the trace
         id (int): TID of the thread
@@ -844,7 +844,7 @@ class TTDExceptionType:
 class TTDException:
     """
     TTDException represents information about exceptions that occurred during a TTD trace.
-    
+
     Attributes:
         type (int): type of exception (TTDExceptionType.Software or TTDExceptionType.Hardware)
         program_counter (int): instruction where exception was thrown
@@ -854,7 +854,7 @@ class TTDException:
         position (TTDPosition): position where exception occurred
     """
 
-    def __init__(self, type: int, program_counter: int, code: int, flags: int, 
+    def __init__(self, type: int, program_counter: int, code: int, flags: int,
                  record_address: int, position: TTDPosition):
         self.type = type
         self.program_counter = program_counter
@@ -896,7 +896,7 @@ class TTDException:
 class TTDEvent:
     """
     TTDEvent represents important events that happened during a TTD trace.
-    
+
     Attributes:
         type (int): type of event (TTDEventType enum value)
         position (TTDPosition): position where event occurred
@@ -938,13 +938,100 @@ class TTDEvent:
     def __repr__(self):
         type_names = {
             TTDEventType.ThreadCreated: "ThreadCreated",
-            TTDEventType.ThreadTerminated: "ThreadTerminated", 
+            TTDEventType.ThreadTerminated: "ThreadTerminated",
             TTDEventType.ModuleLoaded: "ModuleLoaded",
             TTDEventType.ModuleUnloaded: "ModuleUnloaded",
             TTDEventType.Exception: "Exception"
         }
         type_str = type_names.get(self.type, f"Unknown({self.type})")
         return f"<TTDEvent: {type_str} @ {self.position}>"
+
+
+class TTDHeapEvent:
+    """
+    TTDHeapEvent represents a heap operation event in a TTD trace. It has the following fields:
+
+    * ``event_type``: type of the event (always "Heap" for TTD.Heap objects)
+    * ``action``: heap action that occurred (Alloc, ReAlloc, Free, Create, Protect, Lock, Unlock, Destroy)
+    * ``thread_id``: OS thread ID that performed the heap operation
+    * ``unique_thread_id``: unique thread ID across the trace
+    * ``heap``: handle for the Win32 heap
+    * ``address``: address of the allocated object (if applicable)
+    * ``previous_address``: address before reallocation (for ReAlloc operations)
+    * ``size``: size of allocated object (if applicable)
+    * ``base_address``: base address of allocated object (if applicable)
+    * ``flags``: heap API flags (meaning depends on the specific API)
+    * ``result``: result of heap API call (non-zero means success)
+    * ``reserve_size``: amount of memory to reserve (for Create operations)
+    * ``commit_size``: initial committed size (for Create operations)
+    * ``make_read_only``: non-zero indicates request to make heap read-only
+    * ``parameters``: list of raw parameters from the heap call
+    * ``time_start``: TTD position when heap operation started
+    * ``time_end``: TTD position when heap operation ended
+    """
+
+    def __init__(self, event_type: str, action: str, thread_id: int, unique_thread_id: int,
+                 heap: int, address: int, previous_address: int, size: int, base_address: int,
+                 flags: int, result: int, reserve_size: int, commit_size: int, make_read_only: int,
+                 parameters: List[str], time_start: TTDPosition, time_end: TTDPosition):
+        self.event_type = event_type
+        self.action = action
+        self.thread_id = thread_id
+        self.unique_thread_id = unique_thread_id
+        self.heap = heap
+        self.address = address
+        self.previous_address = previous_address
+        self.size = size
+        self.base_address = base_address
+        self.flags = flags
+        self.result = result
+        self.reserve_size = reserve_size
+        self.commit_size = commit_size
+        self.make_read_only = make_read_only
+        self.parameters = parameters
+        self.time_start = time_start
+        self.time_end = time_end
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (self.event_type == other.event_type and
+                self.action == other.action and
+                self.thread_id == other.thread_id and
+                self.unique_thread_id == other.unique_thread_id and
+                self.heap == other.heap and
+                self.address == other.address and
+                self.previous_address == other.previous_address and
+                self.size == other.size and
+                self.base_address == other.base_address and
+                self.flags == other.flags and
+                self.result == other.result and
+                self.reserve_size == other.reserve_size and
+                self.commit_size == other.commit_size and
+                self.make_read_only == other.make_read_only and
+                self.parameters == other.parameters and
+                self.time_start == other.time_start and
+                self.time_end == other.time_end)
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.event_type, self.action, self.thread_id, self.unique_thread_id,
+                     self.heap, self.address, self.previous_address, self.size, self.base_address,
+                     self.flags, self.result, self.reserve_size, self.commit_size, self.make_read_only,
+                     tuple(self.parameters), self.time_start, self.time_end))
+
+    def __setattr__(self, name, value):
+        try:
+            object.__setattr__(self, name, value)
+        except AttributeError:
+            raise AttributeError(f"attribute '{name}' is read only")
+
+    def __repr__(self):
+        return f"<TTDHeapEvent: {self.action} @ heap {self.heap:#x}, thread {self.thread_id}>"
 
 
 class DebuggerController:
@@ -2334,9 +2421,9 @@ class DebuggerController:
 
         for i in range(count.value):
             event = events[i]
-            
+
             position = TTDPosition(event.position.sequence, event.position.step)
-            
+
             # Convert optional module details
             module = None
             if event.module:
@@ -2347,7 +2434,7 @@ class DebuggerController:
                     checksum=event.module.contents.checksum,
                     timestamp=event.module.contents.timestamp
                 )
-            
+
             # Convert optional thread details
             thread = None
             if event.thread:
@@ -2355,7 +2442,7 @@ class DebuggerController:
                 lifetime_end = TTDPosition(event.thread.contents.lifetimeEnd.sequence, event.thread.contents.lifetimeEnd.step)
                 active_time_start = TTDPosition(event.thread.contents.activeTimeStart.sequence, event.thread.contents.activeTimeStart.step)
                 active_time_end = TTDPosition(event.thread.contents.activeTimeEnd.sequence, event.thread.contents.activeTimeEnd.step)
-                
+
                 thread = TTDThread(
                     unique_id=event.thread.contents.uniqueId,
                     id=event.thread.contents.id,
@@ -2364,12 +2451,12 @@ class DebuggerController:
                     active_time_start=active_time_start,
                     active_time_end=active_time_end
                 )
-            
+
             # Convert optional exception details
             exception = None
             if event.exception:
                 exception_position = TTDPosition(event.exception.contents.position.sequence, event.exception.contents.position.step)
-                
+
                 exception = TTDException(
                     type=event.exception.contents.type,
                     program_counter=event.exception.contents.programCounter,
@@ -2413,9 +2500,9 @@ class DebuggerController:
 
         for i in range(count.value):
             event = events[i]
-            
+
             position = TTDPosition(event.position.sequence, event.position.step)
-            
+
             # Convert optional module details
             module = None
             if event.module:
@@ -2426,7 +2513,7 @@ class DebuggerController:
                     checksum=event.module.contents.checksum,
                     timestamp=event.module.contents.timestamp
                 )
-            
+
             # Convert optional thread details
             thread = None
             if event.thread:
@@ -2434,7 +2521,7 @@ class DebuggerController:
                 lifetime_end = TTDPosition(event.thread.contents.lifetimeEnd.sequence, event.thread.contents.lifetimeEnd.step)
                 active_time_start = TTDPosition(event.thread.contents.activeTimeStart.sequence, event.thread.contents.activeTimeStart.step)
                 active_time_end = TTDPosition(event.thread.contents.activeTimeEnd.sequence, event.thread.contents.activeTimeEnd.step)
-                
+
                 thread = TTDThread(
                     unique_id=event.thread.contents.uniqueId,
                     id=event.thread.contents.id,
@@ -2443,12 +2530,12 @@ class DebuggerController:
                     active_time_start=active_time_start,
                     active_time_end=active_time_end
                 )
-            
+
             # Convert optional exception details
             exception = None
             if event.exception:
                 exception_position = TTDPosition(event.exception.contents.position.sequence, event.exception.contents.position.step)
-                
+
                 exception = TTDException(
                     type=event.exception.contents.type,
                     program_counter=event.exception.contents.programCounter,
@@ -2468,6 +2555,58 @@ class DebuggerController:
             result.append(ttd_event)
 
         dbgcore.BNDebuggerFreeTTDEvents(events, count.value)
+        return result
+
+    def get_ttd_heap_objects(self) -> List[TTDHeapEvent]:
+        """
+        Get TTD heap operation events.
+
+        This method is only available when debugging with TTD (Time Travel Debugging).
+        Use the is_ttd property to check if TTD is available before calling this method.
+
+        :return: list of TTDHeapEvent objects representing heap operations
+        :raises: May raise an exception if TTD is not available
+        """
+        count = ctypes.c_ulonglong()
+        events = dbgcore.BNDebuggerGetTTDHeapObjects(self.handle, count)
+
+        if not events:
+            return []
+
+        result = []
+        for i in range(count.value):
+            event = events[i]
+            time_start = TTDPosition(event.timeStart.sequence, event.timeStart.step)
+            time_end = TTDPosition(event.timeEnd.sequence, event.timeEnd.step)
+
+            # Convert parameters array to Python list
+            parameters = []
+            if event.parameters and event.parameterCount > 0:
+                for j in range(event.parameterCount):
+                    parameters.append(event.parameters[j])
+
+            heap_event = TTDHeapEvent(
+                event_type=event.eventType if event.eventType else "",
+                action=event.action if event.action else "",
+                thread_id=event.threadId,
+                unique_thread_id=event.uniqueThreadId,
+                heap=event.heap,
+                address=event.address,
+                previous_address=event.previousAddress,
+                size=event.size,
+                base_address=event.baseAddress,
+                flags=event.flags,
+                result=event.result,
+                reserve_size=event.reserveSize,
+                commit_size=event.commitSize,
+                make_read_only=event.makeReadOnly,
+                parameters=parameters,
+                time_start=time_start,
+                time_end=time_end
+            )
+            result.append(heap_event)
+
+        dbgcore.BNDebuggerFreeTTDHeapEvents(events, count.value)
         return result
 
     def __del__(self):

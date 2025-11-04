@@ -518,6 +518,31 @@ namespace BinaryNinjaDebuggerAPI {
 		TTDCallEvent() : threadId(0), uniqueThreadId(0), functionAddress(0), returnAddress(0), returnValue(0), hasReturnValue(false) {}
 	};
 
+	struct TTDHeapEvent
+	{
+		std::string eventType;         // Event type (always "Heap" for TTD.Heap objects)
+		std::string action;            // Heap action: Alloc, ReAlloc, Free, Create, Protect, Lock, Unlock, Destroy
+		uint32_t threadId;             // OS thread ID of thread that made the heap call
+		uint32_t uniqueThreadId;       // Unique ID for the thread across the trace
+		uint64_t heap;                 // Handle for the Win32 heap
+		uint64_t address;              // Address of the allocated object (if applicable)
+		uint64_t previousAddress;      // Address before reallocation (for ReAlloc)
+		uint64_t size;                 // Size of allocated object (if applicable)
+		uint64_t baseAddress;          // Base address of allocated object (if applicable)
+		uint64_t flags;                // Heap API flags (meaning depends on API)
+		uint64_t result;               // Result of heap API call (non-zero = success)
+		uint64_t reserveSize;          // Amount of memory to reserve (for Create)
+		uint64_t commitSize;           // Initial committed size (for Create)
+		uint64_t makeReadOnly;         // Non-zero = make heap read-only (for Protect)
+		std::vector<std::string> parameters; // Raw parameters from the heap call
+		TTDPosition timeStart;         // Position when heap operation started
+		TTDPosition timeEnd;           // Position when heap operation ended
+
+		TTDHeapEvent() : threadId(0), uniqueThreadId(0), heap(0), address(0), previousAddress(0),
+		                 size(0), baseAddress(0), flags(0), result(0), reserveSize(0),
+		                 commitSize(0), makeReadOnly(0) {}
+	};
+
 	// TTD Event Types - bitfield flags for filtering events
 	enum TTDEventType
 	{
@@ -768,6 +793,7 @@ namespace BinaryNinjaDebuggerAPI {
 		std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0);
 		std::vector<TTDEvent> GetTTDEvents(TTDEventType eventType);
 		std::vector<TTDEvent> GetAllTTDEvents();
+		std::vector<TTDHeapEvent> GetTTDHeapObjects();
 		TTDPosition GetCurrentTTDPosition();
 		bool SetTTDPosition(const TTDPosition& position);
 

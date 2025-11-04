@@ -208,6 +208,13 @@ std::vector<TTDEvent> DebugAdapter::GetAllTTDEvents()
 }
 
 
+std::vector<TTDHeapEvent> DebugAdapter::GetTTDHeapObjects()
+{
+	// Default implementation returns empty results for adapters that don't support TTD
+	return {};
+}
+
+
 TTDPosition DebugAdapter::GetCurrentTTDPosition()
 {
 	// Default implementation returns an empty position for adapters that don't support TTD

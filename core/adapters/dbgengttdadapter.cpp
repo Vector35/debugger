@@ -174,7 +174,7 @@ bool DbgEngTTDAdapter::Start()
 void DbgEngTTDAdapter::Reset()
 {
 	m_aboutToBeKilled = false;
-	
+
 	// Clear TTD events cache when resetting
 	ClearTTDEventsCache();
 
@@ -1367,7 +1367,7 @@ bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, std::v
 std::vector<TTDEvent> DbgEngTTDAdapter::GetTTDEvents(TTDEventType eventType)
 {
 	std::vector<TTDEvent> events;
-	
+
 	// Cache all events if not already cached
 	if (!m_eventsCached)
 	{
@@ -1377,7 +1377,7 @@ std::vector<TTDEvent> DbgEngTTDAdapter::GetTTDEvents(TTDEventType eventType)
 			return events;
 		}
 	}
-	
+
 	// Filter cached events by type using bitfield operations
 	for (const auto& event : m_cachedEvents)
 	{
@@ -1386,7 +1386,7 @@ std::vector<TTDEvent> DbgEngTTDAdapter::GetTTDEvents(TTDEventType eventType)
 			events.push_back(event);
 		}
 	}
-	
+
 	LogInfo("Successfully retrieved %zu TTD events of type %d from cache", events.size(), eventType);
 	return events;
 }
@@ -1403,7 +1403,7 @@ std::vector<TTDEvent> DbgEngTTDAdapter::GetAllTTDEvents()
 			return {};
 		}
 	}
-	
+
 	LogDebug("Successfully retrieved %zu total TTD events from cache", m_cachedEvents.size());
 	return m_cachedEvents;
 }
@@ -1416,14 +1416,14 @@ bool DbgEngTTDAdapter::QueryAllTTDEvents()
 		LogError("Data model interfaces not initialized for TTD events query");
 		return false;
 	}
-	
+
 	try
 	{
 		// Build the TTD.Events query expression to get all events (using curprocess instead of cursession)
 		std::string expression = "@$curprocess.TTD.Events";
-		
+
 		LogInfo("Executing TTD events query: %s", expression.c_str());
-		
+
 		m_cachedEvents.clear();
 		if (ParseTTDEventObjects(expression, m_cachedEvents))
 		{
@@ -1460,7 +1460,7 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::
 		// Execute the expression to get event objects
 		ComPtr<IModelObject> resultObject;
 		ComPtr<IKeyStore> metadataKeyStore;
-		
+
 		HRESULT hr = m_hostEvaluator->EvaluateExtendedExpression(
 			hostContext.Get(),
 			wExpression.c_str(),
@@ -1468,19 +1468,19 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::
 			&resultObject,
 			&metadataKeyStore
 		);
-		
+
 		if (FAILED(hr))
 		{
 			LogError("Failed to evaluate TTD events expression: 0x%x", hr);
 			return false;
 		}
-		
+
 		if (!resultObject)
 		{
 			LogError("Null result object from TTD events expression");
 			return false;
 		}
-		
+
 		// Check if the result is iterable
 		ComPtr<IIterableConcept> iterableConcept;
 		hr = resultObject->GetConcept(__uuidof(IIterableConcept), &iterableConcept, nullptr);
@@ -1489,7 +1489,7 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::
 			LogError("TTD events result is not iterable: 0x%x", hr);
 			return false;
 		}
-		
+
 		// Get iterator
 		ComPtr<IModelIterator> iterator;
 		hr = iterableConcept->GetIterator(resultObject.Get(), &iterator);
@@ -1498,18 +1498,18 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::
 			LogError("Failed to get iterator for TTD events: 0x%x", hr);
 			return false;
 		}
-		
+
 		// Get maximum results setting
 		auto adapterSettings = GetAdapterSettings();
 		BNSettingsScope scope = SettingsResourceScope;
 		auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
 		size_t resultCounter = 0;
 		bool wasLimited = false;
-		
+
 		// Iterate through events
 		ComPtr<IModelObject> eventObject;
 		ComPtr<IKeyStore> eventMetadataKeyStore;
-		
+
 		while (SUCCEEDED(iterator->GetNext(&eventObject, 0, nullptr, &eventMetadataKeyStore)) && eventObject)
 		{
 			if (resultCounter >= maxResults)
@@ -1517,10 +1517,10 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::
 				wasLimited = true;
 				break;
 			}
-			
+
 			// Parse event type from the event object first
 			TTDEventType eventType = TTDEventThreadCreated; // default
-			
+
 			ComPtr<IModelObject> typeObj;
 			if (SUCCEEDED(eventObject->GetKeyValue(L"Type", &typeObj, nullptr)))
 			{
@@ -1530,7 +1530,7 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::
 				{
 					_bstr_t bstr(vtType.bstrVal);
 					std::string typeStr = std::string(bstr);
-					
+
 					if (typeStr == "ThreadCreated")
 						eventType = TTDEventThreadCreated;
 					else if (typeStr == "ThreadTerminated")
@@ -1544,9 +1544,9 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::
 				}
 				VariantClear(&vtType);
 			}
-			
+
 			TTDEvent event(eventType);
-			
+
 			// Parse Position
 			ComPtr<IModelObject> positionObj;
 			if (SUCCEEDED(eventObject->GetKeyValue(L"Position", &positionObj, nullptr)))
@@ -1563,7 +1563,7 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::
 					}
 					VariantClear(&vtSequence);
 				}
-				
+
 				// Parse Steps
 				ComPtr<IModelObject> stepsObj;
 				if (SUCCEEDED(positionObj->GetKeyValue(L"Steps", &stepsObj, nullptr)))
@@ -1577,7 +1577,7 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::
 					VariantClear(&vtSteps);
 				}
 			}
-			
+
 			// Parse event-specific details based on type
 			switch (eventType)
 			{
@@ -1593,15 +1593,15 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::
 					ParseExceptionDetails(eventObject.Get(), event);
 					break;
 			}
-			
+
 			events.push_back(event);
 			resultCounter++;
-			
+
 			// Reset objects for next iteration
 			eventObject.Reset();
 			eventMetadataKeyStore.Reset();
 		}
-		
+
 		if (wasLimited)
 		{
 			LogWarnF("Successfully parsed {} TTD events from data model (limited by max results setting of {})", events.size(), maxResults);
@@ -1626,7 +1626,7 @@ void DbgEngTTDAdapter::ParseThreadDetails(IModelObject* eventObject, TTDEvent& e
 	if (SUCCEEDED(eventObject->GetKeyValue(L"Thread", &threadObj, nullptr)))
 	{
 		TTDThread thread;
-		
+
 		// Parse UniqueId
 		ComPtr<IModelObject> uniqueIdObj;
 		if (SUCCEEDED(threadObj->GetKeyValue(L"UniqueId", &uniqueIdObj, nullptr)))
@@ -1639,7 +1639,7 @@ void DbgEngTTDAdapter::ParseThreadDetails(IModelObject* eventObject, TTDEvent& e
 			}
 			VariantClear(&vtUniqueId);
 		}
-		
+
 		// Parse Id (TID)
 		ComPtr<IModelObject> idObj;
 		if (SUCCEEDED(threadObj->GetKeyValue(L"Id", &idObj, nullptr)))
@@ -1652,7 +1652,7 @@ void DbgEngTTDAdapter::ParseThreadDetails(IModelObject* eventObject, TTDEvent& e
 			}
 			VariantClear(&vtId);
 		}
-		
+
 		// Parse LifeTime
 		ComPtr<IModelObject> lifetimeObj;
 		if (SUCCEEDED(threadObj->GetKeyValue(L"LifeTime", &lifetimeObj, nullptr)))
@@ -1663,7 +1663,7 @@ void DbgEngTTDAdapter::ParseThreadDetails(IModelObject* eventObject, TTDEvent& e
 			{
 				ParseTTDPosition(minPosObj.Get(), thread.lifetimeStart);
 			}
-			
+
 			// Parse LifeTime.MaxPosition
 			ComPtr<IModelObject> maxPosObj;
 			if (SUCCEEDED(lifetimeObj->GetKeyValue(L"MaxPosition", &maxPosObj, nullptr)))
@@ -1671,8 +1671,8 @@ void DbgEngTTDAdapter::ParseThreadDetails(IModelObject* eventObject, TTDEvent& e
 				ParseTTDPosition(maxPosObj.Get(), thread.lifetimeEnd);
 			}
 		}
-		
-		// Parse ActiveTime 
+
+		// Parse ActiveTime
 		ComPtr<IModelObject> activeTimeObj;
 		if (SUCCEEDED(threadObj->GetKeyValue(L"ActiveTime", &activeTimeObj, nullptr)))
 		{
@@ -1682,7 +1682,7 @@ void DbgEngTTDAdapter::ParseThreadDetails(IModelObject* eventObject, TTDEvent& e
 			{
 				ParseTTDPosition(minActiveObj.Get(), thread.activeTimeStart);
 			}
-			
+
 			// Parse ActiveTime.MaxPosition
 			ComPtr<IModelObject> maxActiveObj;
 			if (SUCCEEDED(activeTimeObj->GetKeyValue(L"MaxPosition", &maxActiveObj, nullptr)))
@@ -1690,7 +1690,7 @@ void DbgEngTTDAdapter::ParseThreadDetails(IModelObject* eventObject, TTDEvent& e
 				ParseTTDPosition(maxActiveObj.Get(), thread.activeTimeEnd);
 			}
 		}
-		
+
 		event.thread = thread;
 	}
 }
@@ -1702,7 +1702,7 @@ void DbgEngTTDAdapter::ParseModuleDetails(IModelObject* eventObject, TTDEvent& e
 	if (SUCCEEDED(eventObject->GetKeyValue(L"Module", &moduleObj, nullptr)))
 	{
 		TTDModule module;
-		
+
 		// Parse Name
 		ComPtr<IModelObject> nameObj;
 		if (SUCCEEDED(moduleObj->GetKeyValue(L"Name", &nameObj, nullptr)))
@@ -1716,7 +1716,7 @@ void DbgEngTTDAdapter::ParseModuleDetails(IModelObject* eventObject, TTDEvent& e
 			}
 			VariantClear(&vtName);
 		}
-		
+
 		// Parse Address
 		ComPtr<IModelObject> addressObj;
 		if (SUCCEEDED(moduleObj->GetKeyValue(L"Address", &addressObj, nullptr)))
@@ -1729,7 +1729,7 @@ void DbgEngTTDAdapter::ParseModuleDetails(IModelObject* eventObject, TTDEvent& e
 			}
 			VariantClear(&vtAddress);
 		}
-		
+
 		// Parse Size
 		ComPtr<IModelObject> sizeObj;
 		if (SUCCEEDED(moduleObj->GetKeyValue(L"Size", &sizeObj, nullptr)))
@@ -1742,7 +1742,7 @@ void DbgEngTTDAdapter::ParseModuleDetails(IModelObject* eventObject, TTDEvent& e
 			}
 			VariantClear(&vtSize);
 		}
-		
+
 		// Parse Checksum
 		ComPtr<IModelObject> checksumObj;
 		if (SUCCEEDED(moduleObj->GetKeyValue(L"Checksum", &checksumObj, nullptr)))
@@ -1755,7 +1755,7 @@ void DbgEngTTDAdapter::ParseModuleDetails(IModelObject* eventObject, TTDEvent& e
 			}
 			VariantClear(&vtChecksum);
 		}
-		
+
 		// Parse Timestamp
 		ComPtr<IModelObject> timestampObj;
 		if (SUCCEEDED(moduleObj->GetKeyValue(L"Timestamp", &timestampObj, nullptr)))
@@ -1768,7 +1768,7 @@ void DbgEngTTDAdapter::ParseModuleDetails(IModelObject* eventObject, TTDEvent& e
 			}
 			VariantClear(&vtTimestamp);
 		}
-		
+
 		event.module = module;
 	}
 }
@@ -1780,7 +1780,7 @@ void DbgEngTTDAdapter::ParseExceptionDetails(IModelObject* eventObject, TTDEvent
 	if (SUCCEEDED(eventObject->GetKeyValue(L"Exception", &exceptionObj, nullptr)))
 	{
 		TTDException exception;
-		
+
 		// Parse Type
 		ComPtr<IModelObject> typeObj;
 		if (SUCCEEDED(exceptionObj->GetKeyValue(L"Type", &typeObj, nullptr)))
@@ -1795,7 +1795,7 @@ void DbgEngTTDAdapter::ParseExceptionDetails(IModelObject* eventObject, TTDEvent
 			}
 			VariantClear(&vtType);
 		}
-		
+
 		// Parse ProgramCounter
 		ComPtr<IModelObject> pcObj;
 		if (SUCCEEDED(exceptionObj->GetKeyValue(L"ProgramCounter", &pcObj, nullptr)))
@@ -1808,7 +1808,7 @@ void DbgEngTTDAdapter::ParseExceptionDetails(IModelObject* eventObject, TTDEvent
 			}
 			VariantClear(&vtPC);
 		}
-		
+
 		// Parse Code
 		ComPtr<IModelObject> codeObj;
 		if (SUCCEEDED(exceptionObj->GetKeyValue(L"Code", &codeObj, nullptr)))
@@ -1821,7 +1821,7 @@ void DbgEngTTDAdapter::ParseExceptionDetails(IModelObject* eventObject, TTDEvent
 			}
 			VariantClear(&vtCode);
 		}
-		
+
 		// Parse Flags
 		ComPtr<IModelObject> flagsObj;
 		if (SUCCEEDED(exceptionObj->GetKeyValue(L"Flags", &flagsObj, nullptr)))
@@ -1834,7 +1834,7 @@ void DbgEngTTDAdapter::ParseExceptionDetails(IModelObject* eventObject, TTDEvent
 			}
 			VariantClear(&vtFlags);
 		}
-		
+
 		// Parse RecordAddress
 		ComPtr<IModelObject> recordAddrObj;
 		if (SUCCEEDED(exceptionObj->GetKeyValue(L"RecordAddress", &recordAddrObj, nullptr)))
@@ -1847,14 +1847,14 @@ void DbgEngTTDAdapter::ParseExceptionDetails(IModelObject* eventObject, TTDEvent
 			}
 			VariantClear(&vtRecordAddr);
 		}
-		
+
 		// Parse Position
 		ComPtr<IModelObject> positionObj;
 		if (SUCCEEDED(exceptionObj->GetKeyValue(L"Position", &positionObj, nullptr)))
 		{
 			ParseTTDPosition(positionObj.Get(), exception.position);
 		}
-		
+
 		event.exception = exception;
 	}
 }
@@ -1864,7 +1864,7 @@ void DbgEngTTDAdapter::ParseTTDPosition(IModelObject* positionObj, TTDPosition& 
 {
 	if (!positionObj)
 		return;
-		
+
 	// Parse Sequence
 	ComPtr<IModelObject> sequenceObj;
 	if (SUCCEEDED(positionObj->GetKeyValue(L"Sequence", &sequenceObj, nullptr)))
@@ -1877,7 +1877,7 @@ void DbgEngTTDAdapter::ParseTTDPosition(IModelObject* positionObj, TTDPosition& 
 		}
 		VariantClear(&vtSequence);
 	}
-	
+
 	// Parse Steps
 	ComPtr<IModelObject> stepsObj;
 	if (SUCCEEDED(positionObj->GetKeyValue(L"Steps", &stepsObj, nullptr)))
@@ -1897,6 +1897,494 @@ void DbgEngTTDAdapter::ClearTTDEventsCache()
 {
 	m_cachedEvents.clear();
 	m_eventsCached = false;
+}
+
+
+std::vector<TTDHeapEvent> DbgEngTTDAdapter::GetTTDHeapObjects()
+{
+	std::vector<TTDHeapEvent> events;
+
+	if (!QueryTTDHeapObjects(events))
+	{
+		LogError("Failed to query TTD heap objects");
+	}
+
+	return events;
+}
+
+
+bool DbgEngTTDAdapter::QueryTTDHeapObjects(std::vector<TTDHeapEvent>& events)
+{
+	try
+	{
+		LogInfo("Querying TTD heap objects using @$cursession.TTD.Data.Heap()");
+
+		// Use the data model to query heap objects
+		std::string expression = "@$cursession.TTD.Data.Heap()";
+
+		// Execute the query and parse results
+		return ParseTTDHeapObjects(expression, events);
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in QueryTTDHeapObjects: %s", e.what());
+		return false;
+	}
+}
+
+
+bool DbgEngTTDAdapter::ParseTTDHeapObjects(const std::string& expression, std::vector<TTDHeapEvent>& events)
+{
+	try
+	{
+		LogInfo("Parsing TTD heap objects from expression: %s", expression.c_str());
+
+		// Convert expression to wide string
+		std::wstring wExpression(expression.begin(), expression.end());
+
+		// Create context for evaluation
+		ComPtr<IDebugHostContext> hostContext;
+		if (FAILED(m_debugHost->GetCurrentContext(&hostContext)))
+		{
+			LogError("Failed to get debug host context");
+			return false;
+		}
+
+		// Evaluate the data model expression
+		ComPtr<IModelObject> resultObject;
+		ComPtr<IKeyStore> resultMetadata;
+		if (FAILED(m_hostEvaluator->EvaluateExtendedExpression(
+			hostContext.Get(),
+			wExpression.c_str(),
+			nullptr,
+			&resultObject,
+			&resultMetadata)))
+		{
+			LogError("Failed to evaluate TTD heap expression: %s", expression.c_str());
+			return false;
+		}
+
+		// Check if result is iterable
+		ComPtr<IIterableConcept> iterableConcept;
+		if (FAILED(resultObject->GetConcept(__uuidof(IIterableConcept),
+			reinterpret_cast<IUnknown**>(iterableConcept.GetAddressOf()), nullptr)))
+		{
+			LogError("TTD heap result is not iterable");
+			return false;
+		}
+
+		// Get iterator
+		ComPtr<IModelIterator> iterator;
+		if (FAILED(iterableConcept->GetIterator(resultObject.Get(), &iterator)))
+		{
+			LogError("Failed to get iterator for TTD heap objects");
+			return false;
+		}
+
+		// Iterate through heap objects
+		while (true)
+		{
+			ComPtr<IModelObject> current;
+			ComPtr<IKeyStore> currentMetadata;
+
+			HRESULT hr = iterator->GetNext(&current, 0, nullptr, &currentMetadata);
+			if (hr == E_BOUNDS)
+			{
+				// End of iteration
+				break;
+			}
+			if (FAILED(hr))
+			{
+				LogError("Failed to get next heap object from iterator");
+				break;
+			}
+
+			// Parse individual heap object
+			TTDHeapEvent heapEvent;
+			heapEvent.eventType = "Heap";
+
+			// Parse Action field
+			ComPtr<IModelObject> actionObj;
+			if (SUCCEEDED(current->GetKeyValue(L"Action", &actionObj, nullptr)))
+			{
+				VARIANT actionVar;
+				VariantInit(&actionVar);
+				if (SUCCEEDED(actionObj->GetIntrinsicValue(&actionVar)))
+				{
+					if (actionVar.vt == VT_BSTR && actionVar.bstrVal)
+					{
+						std::wstring wAction(actionVar.bstrVal);
+						heapEvent.action = std::string(wAction.begin(), wAction.end());
+					}
+					VariantClear(&actionVar);
+				}
+			}
+
+			// Parse Heap field
+			ComPtr<IModelObject> heapObj;
+			if (SUCCEEDED(current->GetKeyValue(L"Heap", &heapObj, nullptr)))
+			{
+				VARIANT heapVar;
+				VariantInit(&heapVar);
+				if (SUCCEEDED(heapObj->GetIntrinsicValue(&heapVar)))
+				{
+					if (heapVar.vt == VT_UI8)
+					{
+						heapEvent.heap = heapVar.ullVal;
+					}
+					else if (heapVar.vt == VT_UI4)
+					{
+						heapEvent.heap = heapVar.ulVal;
+					}
+					VariantClear(&heapVar);
+				}
+			}
+
+			// Parse Address field (conditional)
+			ComPtr<IModelObject> addressObj;
+			if (SUCCEEDED(current->GetKeyValue(L"Address", &addressObj, nullptr)))
+			{
+				VARIANT addressVar;
+				VariantInit(&addressVar);
+				if (SUCCEEDED(addressObj->GetIntrinsicValue(&addressVar)))
+				{
+					if (addressVar.vt == VT_UI8)
+					{
+						heapEvent.address = addressVar.ullVal;
+					}
+					else if (addressVar.vt == VT_UI4)
+					{
+						heapEvent.address = addressVar.ulVal;
+					}
+					VariantClear(&addressVar);
+				}
+			}
+
+			// Parse PreviousAddress field (conditional)
+			ComPtr<IModelObject> prevAddressObj;
+			if (SUCCEEDED(current->GetKeyValue(L"PreviousAddress", &prevAddressObj, nullptr)))
+			{
+				VARIANT prevAddressVar;
+				VariantInit(&prevAddressVar);
+				if (SUCCEEDED(prevAddressObj->GetIntrinsicValue(&prevAddressVar)))
+				{
+					if (prevAddressVar.vt == VT_UI8)
+					{
+						heapEvent.previousAddress = prevAddressVar.ullVal;
+					}
+					else if (prevAddressVar.vt == VT_UI4)
+					{
+						heapEvent.previousAddress = prevAddressVar.ulVal;
+					}
+					VariantClear(&prevAddressVar);
+				}
+			}
+
+			// Parse Size field (conditional)
+			ComPtr<IModelObject> sizeObj;
+			if (SUCCEEDED(current->GetKeyValue(L"Size", &sizeObj, nullptr)))
+			{
+				VARIANT sizeVar;
+				VariantInit(&sizeVar);
+				if (SUCCEEDED(sizeObj->GetIntrinsicValue(&sizeVar)))
+				{
+					if (sizeVar.vt == VT_UI8)
+					{
+						heapEvent.size = sizeVar.ullVal;
+					}
+					else if (sizeVar.vt == VT_UI4)
+					{
+						heapEvent.size = sizeVar.ulVal;
+					}
+					VariantClear(&sizeVar);
+				}
+			}
+
+			// Parse BaseAddress field (conditional)
+			ComPtr<IModelObject> baseAddressObj;
+			if (SUCCEEDED(current->GetKeyValue(L"BaseAddress", &baseAddressObj, nullptr)))
+			{
+				VARIANT baseAddressVar;
+				VariantInit(&baseAddressVar);
+				if (SUCCEEDED(baseAddressObj->GetIntrinsicValue(&baseAddressVar)))
+				{
+					if (baseAddressVar.vt == VT_UI8)
+					{
+						heapEvent.baseAddress = baseAddressVar.ullVal;
+					}
+					else if (baseAddressVar.vt == VT_UI4)
+					{
+						heapEvent.baseAddress = baseAddressVar.ulVal;
+					}
+					VariantClear(&baseAddressVar);
+				}
+			}
+
+			// Parse Flags field (conditional)
+			ComPtr<IModelObject> flagsObj;
+			if (SUCCEEDED(current->GetKeyValue(L"Flags", &flagsObj, nullptr)))
+			{
+				VARIANT flagsVar;
+				VariantInit(&flagsVar);
+				if (SUCCEEDED(flagsObj->GetIntrinsicValue(&flagsVar)))
+				{
+					if (flagsVar.vt == VT_UI8)
+					{
+						heapEvent.flags = flagsVar.ullVal;
+					}
+					else if (flagsVar.vt == VT_UI4)
+					{
+						heapEvent.flags = flagsVar.ulVal;
+					}
+					VariantClear(&flagsVar);
+				}
+			}
+
+			// Parse Result field (conditional)
+			ComPtr<IModelObject> resultObj;
+			if (SUCCEEDED(current->GetKeyValue(L"Result", &resultObj, nullptr)))
+			{
+				VARIANT resultVar;
+				VariantInit(&resultVar);
+				if (SUCCEEDED(resultObj->GetIntrinsicValue(&resultVar)))
+				{
+					if (resultVar.vt == VT_UI8)
+					{
+						heapEvent.result = resultVar.ullVal;
+					}
+					else if (resultVar.vt == VT_UI4)
+					{
+						heapEvent.result = resultVar.ulVal;
+					}
+					VariantClear(&resultVar);
+				}
+			}
+
+			// Parse ReserveSize field (conditional)
+			ComPtr<IModelObject> reserveSizeObj;
+			if (SUCCEEDED(current->GetKeyValue(L"ReserveSize", &reserveSizeObj, nullptr)))
+			{
+				VARIANT reserveSizeVar;
+				VariantInit(&reserveSizeVar);
+				if (SUCCEEDED(reserveSizeObj->GetIntrinsicValue(&reserveSizeVar)))
+				{
+					if (reserveSizeVar.vt == VT_UI8)
+					{
+						heapEvent.reserveSize = reserveSizeVar.ullVal;
+					}
+					else if (reserveSizeVar.vt == VT_UI4)
+					{
+						heapEvent.reserveSize = reserveSizeVar.ulVal;
+					}
+					VariantClear(&reserveSizeVar);
+				}
+			}
+
+			// Parse CommitSize field (conditional)
+			ComPtr<IModelObject> commitSizeObj;
+			if (SUCCEEDED(current->GetKeyValue(L"CommitSize", &commitSizeObj, nullptr)))
+			{
+				VARIANT commitSizeVar;
+				VariantInit(&commitSizeVar);
+				if (SUCCEEDED(commitSizeObj->GetIntrinsicValue(&commitSizeVar)))
+				{
+					if (commitSizeVar.vt == VT_UI8)
+					{
+						heapEvent.commitSize = commitSizeVar.ullVal;
+					}
+					else if (commitSizeVar.vt == VT_UI4)
+					{
+						heapEvent.commitSize = commitSizeVar.ulVal;
+					}
+					VariantClear(&commitSizeVar);
+				}
+			}
+
+			// Parse MakeReadOnly field (conditional)
+			ComPtr<IModelObject> makeReadOnlyObj;
+			if (SUCCEEDED(current->GetKeyValue(L"MakeReadOnly", &makeReadOnlyObj, nullptr)))
+			{
+				VARIANT makeReadOnlyVar;
+				VariantInit(&makeReadOnlyVar);
+				if (SUCCEEDED(makeReadOnlyObj->GetIntrinsicValue(&makeReadOnlyVar)))
+				{
+					if (makeReadOnlyVar.vt == VT_UI8)
+					{
+						heapEvent.makeReadOnly = makeReadOnlyVar.ullVal;
+					}
+					else if (makeReadOnlyVar.vt == VT_UI4)
+					{
+						heapEvent.makeReadOnly = makeReadOnlyVar.ulVal;
+					}
+					VariantClear(&makeReadOnlyVar);
+				}
+			}
+
+			// Parse TimeStart field
+			ComPtr<IModelObject> timeStartObj;
+			if (SUCCEEDED(current->GetKeyValue(L"TimeStart", &timeStartObj, nullptr)))
+			{
+				// Parse sequence
+				ComPtr<IModelObject> sequenceObj;
+				if (SUCCEEDED(timeStartObj->GetKeyValue(L"Sequence", &sequenceObj, nullptr)))
+				{
+					VARIANT sequenceVar;
+					VariantInit(&sequenceVar);
+					if (SUCCEEDED(sequenceObj->GetIntrinsicValue(&sequenceVar)))
+					{
+						if (sequenceVar.vt == VT_UI8)
+						{
+							heapEvent.timeStart.sequence = sequenceVar.ullVal;
+						}
+						else if (sequenceVar.vt == VT_UI4)
+						{
+							heapEvent.timeStart.sequence = sequenceVar.ulVal;
+						}
+						VariantClear(&sequenceVar);
+					}
+				}
+
+				// Parse step
+				ComPtr<IModelObject> stepObj;
+				if (SUCCEEDED(timeStartObj->GetKeyValue(L"Steps", &stepObj, nullptr)))
+				{
+					VARIANT stepVar;
+					VariantInit(&stepVar);
+					if (SUCCEEDED(stepObj->GetIntrinsicValue(&stepVar)))
+					{
+						if (stepVar.vt == VT_UI8)
+						{
+							heapEvent.timeStart.step = stepVar.ullVal;
+						}
+						else if (stepVar.vt == VT_UI4)
+						{
+							heapEvent.timeStart.step = stepVar.ulVal;
+						}
+						VariantClear(&stepVar);
+					}
+				}
+			}
+
+			// Parse TimeEnd field
+			ComPtr<IModelObject> timeEndObj;
+			if (SUCCEEDED(current->GetKeyValue(L"TimeEnd", &timeEndObj, nullptr)))
+			{
+				// Parse sequence
+				ComPtr<IModelObject> sequenceObj;
+				if (SUCCEEDED(timeEndObj->GetKeyValue(L"Sequence", &sequenceObj, nullptr)))
+				{
+					VARIANT sequenceVar;
+					VariantInit(&sequenceVar);
+					if (SUCCEEDED(sequenceObj->GetIntrinsicValue(&sequenceVar)))
+					{
+						if (sequenceVar.vt == VT_UI8)
+						{
+							heapEvent.timeEnd.sequence = sequenceVar.ullVal;
+						}
+						else if (sequenceVar.vt == VT_UI4)
+						{
+							heapEvent.timeEnd.sequence = sequenceVar.ulVal;
+						}
+						VariantClear(&sequenceVar);
+					}
+				}
+
+				// Parse step
+				ComPtr<IModelObject> stepObj;
+				if (SUCCEEDED(timeEndObj->GetKeyValue(L"Steps", &stepObj, nullptr)))
+				{
+					VARIANT stepVar;
+					VariantInit(&stepVar);
+					if (SUCCEEDED(stepObj->GetIntrinsicValue(&stepVar)))
+					{
+						if (stepVar.vt == VT_UI8)
+						{
+							heapEvent.timeEnd.step = stepVar.ullVal;
+						}
+						else if (stepVar.vt == VT_UI4)
+						{
+							heapEvent.timeEnd.step = stepVar.ulVal;
+						}
+						VariantClear(&stepVar);
+					}
+				}
+			}
+
+			// Parse Parameters field (raw parameters as strings)
+			ComPtr<IModelObject> parametersObj;
+			if (SUCCEEDED(current->GetKeyValue(L"@\"Parameters\"", &parametersObj, nullptr)))
+			{
+				// Check if parameters is iterable
+				ComPtr<IIterableConcept> paramIterableConcept;
+				if (SUCCEEDED(parametersObj->GetConcept(__uuidof(IIterableConcept),
+					reinterpret_cast<IUnknown**>(paramIterableConcept.GetAddressOf()), nullptr)))
+				{
+					ComPtr<IModelIterator> paramIterator;
+					if (SUCCEEDED(paramIterableConcept->GetIterator(parametersObj.Get(), &paramIterator)))
+					{
+						while (true)
+						{
+							ComPtr<IModelObject> paramObj;
+							ComPtr<IKeyStore> paramMetadataKeyStore;
+
+							HRESULT paramHr = paramIterator->GetNext(&paramObj, 0, nullptr, &paramMetadataKeyStore);
+							if (paramHr == E_BOUNDS)
+							{
+								break;
+							}
+							if (FAILED(paramHr))
+							{
+								break;
+							}
+
+							VARIANT paramVar;
+							VariantInit(&paramVar);
+							if (SUCCEEDED(paramObj->GetIntrinsicValue(&paramVar)))
+							{
+								std::string paramStr;
+								if (paramVar.vt == VT_UI8)
+								{
+									paramStr = fmt::format("0x{:x}", paramVar.ullVal);
+								}
+								else if (paramVar.vt == VT_UI4)
+								{
+									paramStr = fmt::format("0x{:x}", paramVar.ulVal);
+								}
+								else if (paramVar.vt == VT_BSTR && paramVar.bstrVal)
+								{
+									std::wstring wParam(paramVar.bstrVal);
+									paramStr = std::string(wParam.begin(), wParam.end());
+								}
+
+								if (!paramStr.empty())
+								{
+									heapEvent.parameters.push_back(paramStr);
+								}
+								VariantClear(&paramVar);
+							}
+						}
+					}
+				}
+			}
+
+			events.push_back(heapEvent);
+		}
+
+		if (events.empty())
+		{
+			LogWarn("No TTD heap events found");
+		}
+		else
+		{
+			LogInfo("Successfully parsed %zu TTD heap events from data model", events.size());
+		}
+		return true;
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in ParseTTDHeapObjects: %s", e.what());
+		return false;
+	}
 }
 
 
