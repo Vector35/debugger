@@ -80,7 +80,7 @@ namespace BinaryNinjaDebugger {
 		DebuggerState* m_state;
 		FileMetadataRef m_file;
 		BinaryViewRef m_data;
-		DebuggerFileAccessor* m_accessor;
+		DebuggerFileAccessor* m_accessor {};
 		// This is the start address of the first file segments in the m_data. Unlike the return value of GetStart(),
 		// this does not change even if we add the debugger memory region. In the future, this should be provided by
 		// the binary view -- we will no longer need to track it ourselves
