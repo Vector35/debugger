@@ -113,6 +113,10 @@ https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-
 - The [!tt navigation](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-extension-tt) command navigates to a `position` in the trace
     - E.g., `!tt 1A0:12F`
     - While using the debugger, when the target stops, the current position will be printed in the debugger console
+- There is a "Navigate To TTD TimeStamp..." button in the debugger controls. When clicked, a dialog pops up showing the current TTD timestamp (position), and allows you to enter a new timestamp to navigate to. This provides a convenient way to jump to specific positions in the trace without using console commands.
+
+<img src="../../img/debugger/ttd_navigate_timestamp.png" width="400px">
+
 - The [!tt breakpoint](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-extension-tt#tt-break-commands) command supports breaking the target when a memory is read/written/executed, a register value is changed, or a module has been loaded, both in forward and backward direction. This is very powerful and worth checking out!
 
 
@@ -124,7 +128,7 @@ Binary Ninja's TTD integration includes powerful analysis widgets that leverage 
 
 The TTD Calls widget allows you to query and analyze function call events from your TTD trace. This is equivalent to WinDbg's `dx @$cursession.TTD.Calls()` functionality but integrated directly into Binary Ninja.
 
-**Screenshot placeholder: TTD Calls widget with query parameters and results**
+<img src="../../img/debugger/ttd_calls_widget.png" width="600px">
 
 > **⚠️ Performance Warning**
 >
@@ -182,8 +186,6 @@ The results table displays the following information for each call found:
   - Configure column visibility
   - Reset columns to default
 
-**Screenshot placeholder: TTD Calls context menu**
-
 **Multi-Tab Support:**
 
 The TTD Calls widget supports multiple query tabs, allowing you to compare different call queries:
@@ -223,7 +225,7 @@ Symbols: *!malloc
 
 The TTD Memory widget allows you to query memory access events from your TTD trace. This is equivalent to WinDbg's `dx @$cursession.TTD.Memory()` functionality.
 
-**Screenshot placeholder: TTD Memory widget with query parameters and results**
+<img src="../../img/debugger/ttd_memory_widget.png" width="600px">
 
 #### Accessing TTD Memory
 
@@ -278,7 +280,7 @@ The results table displays the following information for each memory access even
   - Configure column visibility
   - Reset columns to default
 
-**Screenshot placeholder: TTD Memory context menu**
+<img src="../../img/debugger/ttd_memory_context_menu.png" width="400px">
 
 **Multi-Tab Support:**
 
@@ -338,15 +340,15 @@ The TTD Events widget organizes events into specialized tabs for easier analysis
 
 - **Modules**: Focused view showing only module load/unload events with relevant columns
 
-**Screenshot placeholder: TTD Events widget - Modules tab**
+<img src="../../img/debugger/ttd_events_modules.png" width="600px">
 
 - **Threads**: Focused view showing only thread creation/termination events with relevant columns
 
-**Screenshot placeholder: TTD Events widget - Threads tab**
+<img src="../../img/debugger/ttd_events_threads.png" width="600px">
 
 - **Exceptions**: Focused view showing only exception events with relevant columns
 
-**Screenshot placeholder: TTD Events widget - Exceptions tab**
+<img src="../../img/debugger/ttd_events_exceptions.png" width="600px">
 
 **Event Information:**
 
@@ -399,7 +401,7 @@ The results table shows event-specific information:
 
 The TTD Analysis dialog provides advanced analysis capabilities for TTD traces, including code coverage analysis. This feature helps you understand which parts of the code were executed during the trace.
 
-**Screenshot placeholder: TTD Analysis dialog with code coverage**
+<img src="../../img/debugger/ttd_analysis_dialog.png" width="600px">
 
 #### Accessing TTD Analysis
 
@@ -419,7 +421,7 @@ Code coverage analysis identifies all instructions that were executed during the
 5. Monitor the progress bar as the analysis executes
 6. When complete, executed instructions are highlighted in green in the disassembly view
 
-**Screenshot placeholder: Code coverage visualization in disassembly view**
+<img src="../../img/debugger/ttd_code_coverage.png" width="600px">
 
 **Analysis Results:**
 
