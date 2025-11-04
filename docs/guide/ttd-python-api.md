@@ -280,12 +280,14 @@ def get_ttd_calls_for_symbols(
 ) -> List[TTDCallEvent]:
     """
     Get TTD call events for specific symbols/functions.
-    
+
     Args:
-        symbols: Symbol or function name to query (e.g., "MessageBoxA")
+        symbols: Symbol or function name to query. Must include module name.
+                 Examples: "user32!MessageBoxA", "kernel32!*", "*!malloc"
+                 Multiple symbols can be comma-separated: "ntdll!NtCreateFile, kernel32!CreateFileA"
         start_return_address: Optional start return address filter (0 = no filter)
         end_return_address: Optional end return address filter (0 = no filter)
-        
+
     Returns:
         List of TTDCallEvent objects
     """
@@ -374,8 +376,8 @@ all_events = dbg.get_ttd_memory_access_for_address(
 ### Function Call Analysis
 
 ```python
-# Get all calls to a specific function
-call_events = dbg.get_ttd_calls_for_symbols("MessageBoxA")
+# Get all calls to a specific function (module name required)
+call_events = dbg.get_ttd_calls_for_symbols("user32!MessageBoxA")
 
 print(f"Found {len(call_events)} calls to MessageBoxA")
 for call in call_events:
@@ -444,16 +446,21 @@ for event in exception_events:
 ### Advanced Analysis Example
 
 ```python
-def analyze_function_memory_usage(dbg, function_name, address_range):
-    """Analyze memory usage during specific function calls."""
-    
+def analyze_function_memory_usage(dbg, function_symbol, address_range):
+    """Analyze memory usage during specific function calls.
+
+    Args:
+        function_symbol: Symbol with module name, e.g., "kernel32!CreateFileA"
+        address_range: Tuple of (start_address, size)
+    """
+
     if not dbg.is_ttd:
         print("TTD not available")
         return
-    
-    # Get function calls
-    calls = dbg.get_ttd_calls_for_symbols(function_name)
-    print(f"Analyzing {len(calls)} calls to {function_name}")
+
+    # Get function calls (module name required)
+    calls = dbg.get_ttd_calls_for_symbols(function_symbol)
+    print(f"Analyzing {len(calls)} calls to {function_symbol}")
     
     for call in calls:
         print(f"\\nCall at {call.time_start}:")
@@ -474,7 +481,7 @@ def analyze_function_memory_usage(dbg, function_name, address_range):
             print(f"    {access_type} @ {event.address:#x}: {event.value:#x}")
 
 # Usage
-analyze_function_memory_usage(dbg, "CreateFileA", (0x401000, 0x100))
+analyze_function_memory_usage(dbg, "kernel32!CreateFileA", (0x401000, 0x100))
 ```
 
 ## Error Handling
@@ -504,8 +511,151 @@ except Exception as e:
 - Use return address filters for call queries when analyzing specific code regions
 - Cache TTD results when possible to avoid repeated queries
 
+## Code Coverage Analysis API
+
+### is_instruction_executed()
+
+```python
+def is_instruction_executed(self, address: int) -> bool:
+    """
+    Check if a specific instruction was executed during the TTD trace.
+
+    Note: Requires code coverage analysis to have been run first.
+
+    Args:
+        address: Instruction address to check
+
+    Returns:
+        True if the instruction was executed, False otherwise
+    """
+```
+
+### run_code_coverage_analysis()
+
+```python
+def run_code_coverage_analysis(self) -> bool:
+    """
+    Run code coverage analysis on the entire TTD trace.
+
+    This analyzes the trace to determine which instructions were executed
+    and stores the results for visualization and querying.
+
+    Returns:
+        True if analysis completed successfully, False otherwise
+    """
+```
+
+### get_executed_instruction_count()
+
+```python
+def get_executed_instruction_count(self) -> int:
+    """
+    Get the number of unique instructions that were executed.
+
+    Note: Requires code coverage analysis to have been run first.
+
+    Returns:
+        Number of executed instructions
+    """
+```
+
+### save_code_coverage_to_file()
+
+```python
+def save_code_coverage_to_file(self, file_path: str) -> bool:
+    """
+    Save code coverage analysis results to a file.
+
+    Args:
+        file_path: Path where coverage data should be saved
+
+    Returns:
+        True if save was successful, False otherwise
+    """
+```
+
+### load_code_coverage_from_file()
+
+```python
+def load_code_coverage_from_file(self, file_path: str) -> bool:
+    """
+    Load code coverage analysis results from a file.
+
+    Args:
+        file_path: Path to coverage data file
+
+    Returns:
+        True if load was successful, False otherwise
+    """
+```
+
+## Code Coverage Example
+
+```python
+# Run code coverage analysis
+if dbg.is_ttd:
+    print("Running code coverage analysis...")
+    if dbg.run_code_coverage_analysis():
+        count = dbg.get_executed_instruction_count()
+        print(f"Analysis complete: {count} instructions executed")
+
+        # Check specific instructions
+        if dbg.is_instruction_executed(0x401000):
+            print("Instruction at 0x401000 was executed")
+
+        # Save results for later
+        dbg.save_code_coverage_to_file("/path/to/coverage.data")
+    else:
+        print("Analysis failed")
+
+# Later, load cached results
+if dbg.load_code_coverage_from_file("/path/to/coverage.data"):
+    print(f"Loaded {dbg.get_executed_instruction_count()} executed instructions")
+```
+
+## Best Practices
+
+### Query Optimization
+
+- Use specific address ranges when possible to limit result sets
+- Filter by access type to get only relevant memory events
+- Cache TTD query results if you'll need them multiple times
+- Use return address filters for call queries when analyzing specific code regions
+
+### Position Management
+
+```python
+# Save current position before analysis
+saved_pos = dbg.get_current_ttd_position()
+
+# Do analysis work...
+for event in memory_events:
+    dbg.set_ttd_position(event.time_start)
+    # Analyze state at this position
+
+# Restore original position
+dbg.set_ttd_position(saved_pos)
+```
+
+### Error Handling
+
+Always check if TTD is available and handle potential errors:
+
+```python
+try:
+    if not dbg.is_ttd:
+        print("TTD not available")
+        return
+
+    events = dbg.get_ttd_memory_access_for_address(address, size, "rw")
+    # Process events...
+
+except Exception as e:
+    print(f"TTD operation failed: {e}")
+```
+
 ## See Also
 
-- [TTD Memory Analysis Documentation](../docs/draft/ttd-memory-analysis.md)
-- Binary Ninja Debugger Documentation
-- WinDbg TTD Documentation
+- [TTD User Guide](dbgeng-ttd.md) - Complete guide to using TTD in Binary Ninja
+- [Awesome TTD Resources](https://github.com/xusheng6/awesome-ttd) - Curated list of TTD tools, scripts, and resources
+- [Microsoft WinDbg TTD Documentation](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-overview) - Official Microsoft TTD documentation
