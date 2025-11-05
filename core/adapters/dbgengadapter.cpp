@@ -505,6 +505,15 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 
 	m_aboutToBeKilled = false;
 
+	// If DbgEng was initialized (e.g., by GetProcessList()) but we're not actively debugging,
+	// we need to reset it so it can be re-initialized on THIS thread with proper callbacks.
+	// DbgEng's event callbacks are thread-specific, and WaitForEvent() will hang if called
+	// from a different thread than the one that set up the callbacks.
+	if (m_dbgengInitialized)
+	{
+		Reset();
+	}
+
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
 	auto adapterSettings = GetAdapterSettings();
@@ -741,6 +750,15 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 	}
 
 	m_aboutToBeKilled = false;
+
+	// If DbgEng was initialized (e.g., by GetProcessList()) but we're not actively debugging,
+	// we need to reset it so it can be re-initialized on THIS thread with proper callbacks.
+	// DbgEng's event callbacks are thread-specific, and WaitForEvent() will hang if called
+	// from a different thread than the one that set up the callbacks.
+	if (m_dbgengInitialized)
+	{
+		Reset();
+	}
 
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();

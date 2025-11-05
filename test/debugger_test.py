@@ -344,6 +344,7 @@ class DebuggerAPI(unittest.TestCase):
         bv = load(fpath)
         dbg = DebuggerController(bv)
         dbg.pid_attach = pid
+        self.assertGreater(len(dbg.processes), 0)
         self.assertTrue(dbg.attach_and_wait())
         self.assertGreater(len(dbg.regs), 0)
 
