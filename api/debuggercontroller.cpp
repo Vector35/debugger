@@ -995,14 +995,14 @@ bool DebuggerController::IsTTD()
 }
 
 
-std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uint64_t address, uint64_t endAddress, TTDMemoryAccessType accessType)
 {
 	std::vector<TTDMemoryEvent> result;
-	
+
 	BNDebuggerTTDMemoryAccessType type = static_cast<BNDebuggerTTDMemoryAccessType>(accessType);
-	
+
 	size_t count = 0;
-	BNDebuggerTTDMemoryEvent* events = BNDebuggerGetTTDMemoryAccessForAddress(m_object, address, size, type, &count);
+	BNDebuggerTTDMemoryEvent* events = BNDebuggerGetTTDMemoryAccessForAddress(m_object, address, endAddress, type, &count);
 	
 	if (events && count > 0)
 	{

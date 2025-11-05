@@ -627,7 +627,7 @@ extern "C"
 
 	// TTD Memory Analysis Functions
 	DEBUGGER_FFI_API BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* controller,
-		uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, size_t* count);
+		uint64_t address, uint64_t endAddress, BNDebuggerTTDMemoryAccessType accessType, size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* controller,
 		const char* symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDEvent* BNDebuggerGetTTDEvents(BNDebuggerController* controller,

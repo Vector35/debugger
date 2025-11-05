@@ -248,22 +248,22 @@ def is_ttd(self) -> bool:
 
 ```python
 def get_ttd_memory_access_for_address(
-    self, 
-    address: int, 
-    size: int, 
+    self,
+    address: int,
+    end_address: int,
     access_type = DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead
 ) -> List[TTDMemoryEvent]:
     """
     Get TTD memory access events for a specific address range.
-    
+
     Args:
         address: Starting memory address to query
-        size: Size of memory region to query  
+        end_address: Ending memory address to query
         access_type: Type of memory access to query - can be:
                     - DebuggerTTDMemoryAccessType enum values
                     - String specification like "r", "w", "e", "rw", "rwe", etc.
                     - Integer values (for backward compatibility)
-        
+
     Returns:
         List of TTDMemoryEvent objects
     """
@@ -351,24 +351,24 @@ if not dbg.is_ttd:
 ```python
 # Using enum values
 memory_events = dbg.get_ttd_memory_access_for_address(
-    0x401000, 4, DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead
+    0x401000, 0x401004, DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead
 )
 
 # Using string specification (more convenient)
-memory_events = dbg.get_ttd_memory_access_for_address(0x401000, 4, "r")
+memory_events = dbg.get_ttd_memory_access_for_address(0x401000, 0x401004, "r")
 
 print(f"Found {len(memory_events)} memory read events at {0x401000:#x}")
 for event in memory_events:
     print(f"  Thread {event.thread_id}: read {event.value:#x} at {event.time_start}")
 
 # Get all memory access types - using string specification
-all_events = dbg.get_ttd_memory_access_for_address(0x401000, 4, "rwe")
+all_events = dbg.get_ttd_memory_access_for_address(0x401000, 0x401004, "rwe")
 
 # Or using enum values with bitwise OR
 all_events = dbg.get_ttd_memory_access_for_address(
-    0x401000, 4, 
-    DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead | 
-    DebuggerTTDMemoryAccessType.DebuggerTTDMemoryWrite | 
+    0x401000, 0x401004,
+    DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead |
+    DebuggerTTDMemoryAccessType.DebuggerTTDMemoryWrite |
     DebuggerTTDMemoryAccessType.DebuggerTTDMemoryExecute
 )
 ```
@@ -451,7 +451,7 @@ def analyze_function_memory_usage(dbg, function_symbol, address_range):
 
     Args:
         function_symbol: Symbol with module name, e.g., "kernel32!CreateFileA"
-        address_range: Tuple of (start_address, size)
+        address_range: Tuple of (start_address, end_address)
     """
 
     if not dbg.is_ttd:
@@ -461,13 +461,13 @@ def analyze_function_memory_usage(dbg, function_symbol, address_range):
     # Get function calls (module name required)
     calls = dbg.get_ttd_calls_for_symbols(function_symbol)
     print(f"Analyzing {len(calls)} calls to {function_symbol}")
-    
+
     for call in calls:
         print(f"\\nCall at {call.time_start}:")
-        
+
         # Get memory events during this call (using string specification)
-        start_addr, size = address_range
-        memory_events = dbg.get_ttd_memory_access_for_address(start_addr, size, "rw")
+        start_addr, end_addr = address_range
+        memory_events = dbg.get_ttd_memory_access_for_address(start_addr, end_addr, "rw")
         
         # Filter events that occurred during this call
         call_memory_events = [
@@ -496,7 +496,7 @@ Always wrap TTD calls in try-catch blocks for production code:
 ```python
 try:
     if dbg.is_ttd:
-        events = dbg.get_ttd_memory_access_for_address(address, size)
+        events = dbg.get_ttd_memory_access_for_address(address, end_address)
         # Process events...
     else:
         print("TTD not available")
@@ -647,7 +647,7 @@ try:
         print("TTD not available")
         return
 
-    events = dbg.get_ttd_memory_access_for_address(address, size, "rw")
+    events = dbg.get_ttd_memory_access_for_address(address, end_address, "rw")
     # Process events...
 
 except Exception as e:

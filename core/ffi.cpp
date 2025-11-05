@@ -1113,15 +1113,15 @@ bool BNDebuggerIsTTD(BNDebuggerController* controller)
 
 
 BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* controller,
-	uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, size_t* count)
+	uint64_t address, uint64_t endAddress, BNDebuggerTTDMemoryAccessType accessType, size_t* count)
 {
 	if (!count)
 		return nullptr;
-		
+
 	*count = 0;
-	
+
 	TTDMemoryAccessType type = static_cast<TTDMemoryAccessType>(accessType);
-	auto events = controller->object->GetTTDMemoryAccessForAddress(address, size, type);
+	auto events = controller->object->GetTTDMemoryAccessForAddress(address, endAddress, type);
 	if (events.empty())
 		return nullptr;
 		

@@ -4,7 +4,7 @@ Time travel debugging (TTD) allows you to record an execution trace of a program
 It can speed up the process of reverse engineering/vulnerability research, and deal with certain tasks that are not easy to handle in regular forward debugging.
 
 Several tools implement TTD. On Windows, Binary Ninja debugger integrates with the WinDbg/DbgEng TTD so that you can replay and analyze a trace recorded by WinDbg.
-The combination of TTD and your familiar reverse engineer tool would hopefully supercharge the ability to time travel and make your workflow even more effective.
+The combination of TTD and your familiar reverse engineering tool would hopefully supercharge the ability to time travel and make your workflow even more effective.
 
 Below is a guide to set it up.
 
@@ -19,10 +19,10 @@ The WinDbg installation only needs to be done once.
 ### Install WinDbg Automatically
 
 - Open Binary Ninja
-- Click Menu -> "Debugger" -> "Install WinDbg/TTD"
+- Click `Debugger` -> `Install WinDbg/TTD` from the menu
 - Wait for the installation to finish
     - Behind the scenes, this runs a C++ installer that downloads and configures WinDbg
-    - The WinDbg will be installed to `%APPDATA%\Binary Ninja\windbg`
+    - WinDbg will be installed to `%APPDATA%\Binary Ninja\windbg`
 - Restart Binary Ninja
 
 
@@ -33,14 +33,13 @@ The WinDbg installation only needs to be done once.
     - The download URL should look like https://windbg.download.prss.microsoft.com/dbazure/prod/1-2402-24001-0/windbg.msixbundle
 - Download the MSIX bundle using the URL found in the above step (this can take a while to finish)
 - The downloaded MSIX bundle is a Zip archive. Extract it with a tool like 7Zip
-- Find the `windbg_win-x64.msix` in it. Again it is a Zip archive, extract it
+- Find the `windbg_win-x64.msix` file in it. This is also a Zip archive, extract it
 - Find the path of the DbgEng DLLs you have extracted
     - It should be inside the `amd64` folder of where you extracted the `windbg_win-x64.msix`
     - For example, it can be `C:\Users\XXXXX\Downloads\windbg\windbg_win-x64\amd64`
     - There should be an x64 version of `dbgeng.dll` in it
-- In Binary Ninja, open the Settings view via the menu `Edit`->`Settings`, or use the shortcut (Ctrl+,)
-- Search for `debugger.x64dbgEngPath`, and set it to the folder that the DbgEng DLL is in in the last step
-(do NOT include the DLL itself in the path!)
+- In Binary Ninja, open the Settings view via the menu `Edit` -> `Settings`, or use the shortcut (Ctrl+,)
+- Search for `debugger.x64dbgEngPath`, and set it to the folder that the DbgEng DLL is in from the previous step (do NOT include the DLL itself in the path!)
 - Restart Binary Ninja
 
 
@@ -48,13 +47,13 @@ The WinDbg installation only needs to be done once.
 
 Once we have installed and configured WinDbg, we can start recording a TTD trace. There are two ways to do it, we can either
 do it from within Binary Ninja, or do it from WinDbg. Doing it from Binary Ninja is more convenient, though it does not support
-all types of recording supported by WinDbg (e.g., attach to a running process and start recroding).
+all types of recording supported by WinDbg (e.g., attach to a running process and start recording).
 
 ### Record a TTD Trace in Binary Ninja
 
-- Make sure you have WinDbg property installed and configured
+- Make sure you have WinDbg properly installed and configured
 - Open the file you wish to trace in Binary Ninja (optional)
-- Click Menu -> "Debugger" -> "Record TTD Trace"
+- Click `Debugger` -> `Record TTD Trace` from the menu
 
 <img src="../../img/debugger/ttd_record.png" width="600px">
 
@@ -63,9 +62,9 @@ all types of recording supported by WinDbg (e.g., attach to a running process an
     - Working Directory: the working directory to launch the executable in
     - Command Line Arguments: the command line arguments to pass to the executable
     - Trace Output Directory: the directory to write the trace. By default, it is equal to the working directory, but can be changed if necessary
-    - Start application With Recording Off: if checked, starts the application with tracing disabled initially (useful for manual tracing control)
+    - Start Application With Recording Off: if checked, starts the application with tracing disabled initially (useful for manual tracing control)
     - Trace Child Processes: if checked, includes child processes spawned by the main process in the trace recording
-- Click "Record". A UAC dialog will pop up to because the TTD recording requires Administrator privilege
+- Click "Record". A UAC dialog will pop up because the TTD recording requires Administrator privilege
 - Accept the elevation. The program will be launched and recorded. Once it exits, find the trace file in the trace output directory
 
 
@@ -99,25 +98,25 @@ https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-
 ## Debug the TTD Trace
 
 - Click `Launch` to launch the target
-- Most of the debugger functionalities should work in the very same way as a forward debugging
+- Most of the debugger functionalities should work in the very same way as forward debugging
 - The control buttons in the debugger sidebar widget shows four new buttons for reverse debugging on the right side:
-    - <img src="../../img/debugger/ttd_buttons.png" width="600px">
+    - <img src="../../img/debugger/ttd_buttons.png" width="300px">
     - These new buttons are in red color and flipped
     - You can hover over the button to see what they do and the keybindings for them
-- You can also control the target using commands in the debugger console. use one of these [commands](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-navigation-commands):
+- You can also control the target using commands in the debugger console. Use one of these [commands](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-navigation-commands):
     - g-: go back
     - p-: step over back
     - t-: step into back
     - g-u: step out back
 - The [!position](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-extension-positions) command prints the `position` of all active threads
-- The [!tt navigation](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-extension-tt) command navigates to a `position` in the trace
+- The [!tt navigation](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-extension-tt) command navigates to a specific `position` in the trace
     - E.g., `!tt 1A0:12F`
     - While using the debugger, when the target stops, the current position will be printed in the debugger console
-- There is a "Navigate To TTD TimeStamp..." button in the debugger controls. When clicked, a dialog pops up showing the current TTD timestamp (position), and allows you to enter a new timestamp to navigate to. This provides a convenient way to jump to specific positions in the trace without using console commands.
+- There is a "Navigate To TTD Timestamp..." button in the debugger controls. When clicked, a dialog pops up showing the current TTD timestamp (position) and allows you to enter a new timestamp to navigate to. This provides a convenient way to jump to specific positions in the trace without using console commands.
 
 <img src="../../img/debugger/ttd_navigate_timestamp.png" width="400px">
 
-- The [!tt breakpoint](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-extension-tt#tt-break-commands) command supports breaking the target when a memory is read/written/executed, a register value is changed, or a module has been loaded, both in forward and backward direction. This is very powerful and worth checking out!
+- The [!tt breakpoint](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-extension-tt#tt-break-commands) command supports breaking the target when memory is read/written/executed, a register value is changed, or a module has been loaded, both in forward and backward directions. This is very powerful and worth checking out!
 
 
 ## TTD Analysis Features
@@ -137,8 +136,8 @@ The TTD Calls widget allows you to query and analyze function call events from y
 #### Accessing TTD Calls
 
 1. Open the TTD Calls sidebar:
-   - Click `View` -> `Sidebar Widgets` -> `TTD Calls`
-   - Or right-click in a sidebar and select `TTD Calls`
+    - Click the TTD Calls button in the sidebar (hover over the icons to see its name)
+    - Or right-click on a function in the disassembly and select "Query TTD Calls for this function" to trigger a query and open the sidebar
 
 2. The widget appears in the right sidebar (by default) when you have an active TTD debugging session
 
@@ -146,16 +145,16 @@ The TTD Calls widget allows you to query and analyze function call events from y
 
 **Query Parameters:**
 
-- **Symbols**: Enter function names or patterns to search for. Must include module name. You can use:
-  - Specific module and function: `user32!MessageBoxA`
-  - Module wildcards: `kernel32!*` (all functions in kernel32)
-  - Function wildcards: `*!MessageBoxA` (MessageBoxA in any module)
-  - Multiple symbols separated by commas: `ntdll!NtCreateFile, kernel32!CreateFileA`
+- **Symbols**: Enter function names or patterns to search for. Must include module name or use wildcards. You can use:
+    - Specific module and function: `user32!MessageBoxA`
+    - Module wildcards: `kernel32!*` (all functions in kernel32)
+    - Function wildcards: `*!MessageBoxA` (MessageBoxA in any module. Not recommended for performance reasons, better find the module the function is in first)
+    - Multiple symbols separated by commas: `ntdll!NtCreateFile, kernel32!CreateFileA`
 
 - **Return Address Range** (optional): Filter calls based on where they will return to
-  - Start Address: Beginning of return address range (hex format)
-  - End Address: End of return address range (hex format)
-  - Useful for finding calls made from specific code regions
+    - Start Address: Beginning of return address range (hex format)
+    - End Address: End of return address range (hex format)
+    - Useful for finding calls made from specific code regions
 
 **Query Results:**
 
@@ -180,11 +179,11 @@ The results table displays the following information for each call found:
 - **Double-click Time Start/End**: Time-travels to that position in the trace and navigates to the function address
 - **Double-click Function/Return Address**: Navigates to that address in the disassembly view
 - **Right-click menu**:
-  - Copy selected cell
-  - Copy entire row (tab-separated)
-  - Copy entire table (with headers)
-  - Configure column visibility
-  - Reset columns to default
+    - Copy selected cell
+    - Copy entire row (tab-separated)
+    - Copy entire table (with headers)
+    - Configure column visibility
+    - Reset columns to default
 
 **Multi-Tab Support:**
 
@@ -229,27 +228,31 @@ The TTD Memory widget allows you to query memory access events from your TTD tra
 
 #### Accessing TTD Memory
 
-1. Open the TTD Memory sidebar:
-   - Click `View` -> `Sidebar Widgets` -> `TTD Memory`
-   - Or right-click in a sidebar and select `TTD Memory`
+There are several ways to open the TTD Memory sidebar:
 
-2. The widget appears in the right sidebar (by default) when you have an active TTD debugging session
+1. Click the TTD Memory button in the sidebar (hover over the icons to see its name), type in the address and check the memory access type, and click the `Query Memory Events` button
+2. Select a range of code or data, right-click, then select `Debugger` -> `TTD Memory Access`, and choose the specific memory access type you are interested in (Read, Write, Execute, or combinations). This will open the TTD Memory widget with the selected address range and perform the query. This is the most convenient way to use it.
+
+
+<img src="../../img/debugger/ttd_memory_context_menu.png" width="400px">
+
+The widget appears in the right sidebar (by default) when you have an active TTD debugging session.
 
 #### Using the TTD Memory Widget
 
 **Query Parameters:**
 
 - **Start Address**: Beginning address of the memory range to query (hexadecimal)
-  - Auto-populated with the binary's start address by default
+    - Auto-populated with the binary's start address by default
 
 - **End Address**: Ending address of the memory range to query (hexadecimal)
-  - Auto-populated with the binary's end address by default
+    - Auto-populated with the binary's end address by default
 
 - **Access Types**: Select which types of memory access to include:
-  - **Read**: Memory read operations
-  - **Write**: Memory write operations
-  - **Execute**: Memory execute operations (instruction fetches)
-  - You can select multiple access types simultaneously
+    - **Read**: Memory read operations
+    - **Write**: Memory write operations
+    - **Execute**: Memory execute operations (instruction fetches)
+    - You can select multiple access types simultaneously
 
 **Query Results:**
 
@@ -274,13 +277,11 @@ The results table displays the following information for each memory access even
 - **Double-click Time Start/End**: Time-travels to that position in the trace and navigates to the instruction that caused the access
 - **Double-click Address/IP**: Navigates to that address in the disassembly view
 - **Right-click menu**:
-  - Copy selected cell
-  - Copy entire row (tab-separated)
-  - Copy entire table (with headers)
-  - Configure column visibility
-  - Reset columns to default
-
-<img src="../../img/debugger/ttd_memory_context_menu.png" width="400px">
+    - Copy selected cell
+    - Copy entire row (tab-separated)
+    - Copy entire table (with headers)
+    - Configure column visibility
+    - Reset columns to default
 
 **Multi-Tab Support:**
 
@@ -320,8 +321,7 @@ The TTD Events widget displays important events that occurred during the TTD tra
 #### Accessing TTD Events
 
 1. Open the TTD Events sidebar:
-   - Click `View` -> `Sidebar Widgets` -> `TTD Events`
-   - Or right-click in a sidebar and select `TTD Events`
+    - Click the TTD Events button in the sidebar (hover over the icons to see its name)
 
 2. The widget appears in the right sidebar when you have an active TTD debugging session
 
@@ -332,11 +332,11 @@ The TTD Events widget organizes events into specialized tabs for easier analysis
 **Tabs:**
 
 - **All Events**: Shows all events with checkboxes to filter by type:
-  - Thread Created
-  - Thread Terminated
-  - Module Loaded
-  - Module Unloaded
-  - Exceptions
+    - Thread Created
+    - Thread Terminated
+    - Module Loaded
+    - Module Unloaded
+    - Exceptions
 
 - **Modules**: Focused view showing only module load/unload events with relevant columns
 
@@ -416,16 +416,15 @@ Code coverage analysis identifies all instructions that were executed during the
 
 1. Open the TTD Analysis dialog
 2. Select "Code Coverage" from the analysis list
-3. (Optional) Enable "Use Address Range" to analyze a specific memory region
+3. (Optional) Check "Specify address range for analysis" to analyze a specific memory region
 4. Click "Run Analysis"
-5. Monitor the progress bar as the analysis executes
-6. When complete, executed instructions are highlighted in green in the disassembly view
+5. When complete, executed instructions are highlighted in red in the disassembly view
 
 <img src="../../img/debugger/ttd_code_coverage.png" width="600px">
 
 **Analysis Results:**
 
-- **Executed Instructions**: Highlighted with green background in the disassembly
+- **Executed Instructions**: Highlighted with red background in the disassembly
 - **Result Count**: Number of unique instructions executed is shown in the dialog
 - **Coverage Overlay**: Visual indication of which code paths were taken
 
@@ -439,13 +438,14 @@ Code coverage analysis results can be cached for faster loading:
 - **Clear Cache**: Remove all cached analysis files
 
 Cache files are stored as:
+
 - Metadata: `.json` file containing analysis information
 - Data: `.data` file containing executed instruction addresses
 
 **Performance Considerations:**
 
-- Code coverage analysis can take several minutes on large traces
-- The analysis queries all execute operations across the entire trace
+- Code coverage analysis can take minutes or even longer on large traces
+- The analysis queries all execute instructions across the entire trace
 - Results are cached to avoid re-running expensive queries
 - Use address ranges to limit analysis to specific modules or functions
 
@@ -455,16 +455,6 @@ Cache files are stored as:
 - **Finding Dead Code**: Identify code that was never executed during the trace
 - **Coverage Analysis**: Measure test coverage or fuzzing effectiveness
 - **Hot Path Identification**: Focus on frequently executed code sections
-
-
-### Context Menu Integration
-
-TTD widgets can be triggered from context menus in Binary Ninja for quick analysis:
-
-- **Right-click on a function**: "Query TTD Calls for this function" opens the TTD Calls widget with that function pre-populated
-- **Right-click on an address**: "Query TTD Memory for this address" opens the TTD Memory widget with that address range pre-populated
-
-This integration makes it easy to quickly analyze specific functions or memory regions without manually entering addresses.
 
 
 ### Tips and Best Practices
@@ -486,7 +476,6 @@ To minimize query time:
 1. **Understanding Program Flow**: Use TTD Calls to identify all invocations of important functions
 2. **Data Flow Analysis**: Use TTD Memory to track when specific variables or buffers are accessed
 3. **Root Cause Analysis**: Double-click on events to time-travel to the exact moment of interest
-4. **Cross-Reference Analysis**: Use multiple tabs to compare different queries side-by-side
 
 **Column Visibility:**
 
@@ -519,9 +508,9 @@ if dbg.is_ttd:
     calls = dbg.get_ttd_calls_for_symbols("user32!MessageBoxA")
     print(f"Found {len(calls)} calls to MessageBoxA")
 
-    # Query memory writes to an address
-    events = dbg.get_ttd_memory_access_for_address(0x401000, 4, "w")
-    print(f"Found {len(events)} writes to 0x401000")
+    # Query memory writes to an address range
+    events = dbg.get_ttd_memory_access_for_address(0x401000, 0x401004, "w")
+    print(f"Found {len(events)} writes to 0x401000-0x401004")
 ```
 
 

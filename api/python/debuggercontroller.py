@@ -2213,7 +2213,7 @@ class DebuggerController:
             binaryninja.log_error(f"Invalid timestamp format: {e}")
             return False
 
-    def get_ttd_memory_access_for_address(self, address: int, size: int, access_type = DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead) -> List[TTDMemoryEvent]:
+    def get_ttd_memory_access_for_address(self, address: int, end_address: int, access_type = DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead) -> List[TTDMemoryEvent]:
         """
         Get TTD memory access events for a specific address range.
 
@@ -2221,7 +2221,7 @@ class DebuggerController:
         Use the is_ttd property to check if TTD is available before calling this method.
 
         :param address: starting memory address to query
-        :param size: size of memory region to query
+        :param end_address: ending memory address to query
         :param access_type: type of memory access to query - can be:
                            - DebuggerTTDMemoryAccessType enum values
                            - String specification like "r", "w", "e", "rw", "rwe", etc.
@@ -2231,9 +2231,9 @@ class DebuggerController:
         """
         # Parse access type if it's a string
         parsed_access_type = parse_ttd_access_type(access_type)
-        
+
         count = ctypes.c_ulonglong()
-        events = dbgcore.BNDebuggerGetTTDMemoryAccessForAddress(self.handle, address, size, parsed_access_type, count)
+        events = dbgcore.BNDebuggerGetTTDMemoryAccessForAddress(self.handle, address, end_address, parsed_access_type, count)
 
         if not events:
             return []
