@@ -137,9 +137,9 @@ The TTD Calls widget allows you to query and analyze function call events from y
 
 1. Open the TTD Calls sidebar:
     - Click the TTD Calls button in the sidebar (hover over the icons to see its name)
-    - Or right-click on a function in the disassembly and select "Query TTD Calls for this function" to trigger a query and open the sidebar
+    - **Note**: The TTD sidebar icons are hidden when you are not actively debugging. They will appear in the sidebar when you start a TTD debugging session.
 
-2. The widget appears in the right sidebar (by default) when you have an active TTD debugging session
+2. The widget appears in the right sidebar by default
 
 #### Using the TTD Calls Widget
 
@@ -231,12 +231,13 @@ The TTD Memory widget allows you to query memory access events from your TTD tra
 There are several ways to open the TTD Memory sidebar:
 
 1. Click the TTD Memory button in the sidebar (hover over the icons to see its name), type in the address and check the memory access type, and click the `Query Memory Events` button
+    - **Note**: The TTD sidebar icons are hidden when you are not actively debugging. They will appear in the sidebar when you start a TTD debugging session.
 2. Select a range of code or data, right-click, then select `Debugger` -> `TTD Memory Access`, and choose the specific memory access type you are interested in (Read, Write, Execute, or combinations). This will open the TTD Memory widget with the selected address range and perform the query. This is the most convenient way to use it.
 
 
 <img src="../../img/debugger/ttd_memory_context_menu.png" width="400px">
 
-The widget appears in the right sidebar (by default) when you have an active TTD debugging session.
+The widget appears in the right sidebar by default.
 
 #### Using the TTD Memory Widget
 
@@ -322,8 +323,9 @@ The TTD Events widget displays important events that occurred during the TTD tra
 
 1. Open the TTD Events sidebar:
     - Click the TTD Events button in the sidebar (hover over the icons to see its name)
+    - **Note**: The TTD sidebar icons are hidden when you are not actively debugging. They will appear in the sidebar when you start a TTD debugging session.
 
-2. The widget appears in the right sidebar when you have an active TTD debugging session
+2. The widget appears in the right sidebar by default
 
 #### Using the TTD Events Widget
 
