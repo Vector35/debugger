@@ -1048,7 +1048,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
 static std::string EscapeModuleName(const std::string& name)
 {
 	std::string result = name;
-	const std::string charsToEscape = " -'~`.";
+	const std::string charsToEscape = " -'~`.#";
 	auto shouldReplace = [&](char c) -> bool {
 		return charsToEscape.find(c) != std::string::npos;
 	};
