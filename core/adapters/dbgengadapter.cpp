@@ -1045,14 +1045,26 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
 	return new_breakpoint;
 }
 
-static std::string EscapeModuleName(const std::string& name)
+static std::string EscapeModuleName(const std::wstring& name)
 {
-	std::string result = name;
-	const std::string charsToEscape = " -'~`.#";
-	auto shouldReplace = [&](char c) -> bool {
-		return charsToEscape.find(c) != std::string::npos;
-	};
-	std::replace_if(result.begin(), result.end(), shouldReplace, '_');
+	std::string result;
+	result.reserve(name.length());
+
+	for (wchar_t wc : name)
+	{
+		// Safe ASCII character?
+		if ((wc >= L'a' && wc <= L'z') || (wc >= L'A' && wc <= L'Z') ||
+		    (wc >= L'0' && wc <= L'9') || (wc == L'_'))
+		{
+			result += static_cast<char>(wc);
+		}
+		else
+		{
+			// Everything else (including non-ASCII) becomes underscore
+			result += '_';
+		}
+	}
+
 	return result;
 }
 
@@ -1077,7 +1089,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address,
 		// DbgEng does not take a full path. It can take "hello.exe", or simply "hello". E.g., "bp helloworld+0x1338"
 		auto fileName = std::filesystem::path(moduleToUse).stem();
 		std::string breakpointCommand =
-			fmt::format("bp @!\"{}\"+0x{:x}", EscapeModuleName(fileName.string()), address.offset);
+			fmt::format("bp @!\"{}\"+0x{:x}", EscapeModuleName(fileName.wstring()), address.offset);
         LogDebug("Breakpoint command: %s", breakpointCommand.c_str());
 		auto ret = InvokeBackendCommand(breakpointCommand);
 	}
