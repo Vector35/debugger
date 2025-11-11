@@ -156,7 +156,7 @@ namespace BinaryNinjaDebugger
 							}
 							else
 							{
-								LogError("Shell CopyHere failed: 0x%08x", hr);
+								LogError("Shell CopyHere failed: 0x%08x. If you see 'file in use' errors, please close Binary Ninja and try again.", hr);
 							}
 
 							pItems->Release();
@@ -278,7 +278,8 @@ namespace BinaryNinjaDebugger
 									if (SUCCEEDED(hr) && bstrName)
 									{
 										_bstr_t itemName(bstrName, false); // Don't copy, take ownership
-										
+										LogInfo("Found item in ZIP archive: %s", (const char*)itemName);
+
 										if (_stricmp(itemName, fileName.c_str()) == 0)
 										{
 											// Found the file, extract it
@@ -308,7 +309,7 @@ namespace BinaryNinjaDebugger
 
 							if (outputPath.empty())
 							{
-								LogError("File %s not found in ZIP archive", fileName.c_str());
+								LogError("File %s not found in ZIP archive. This may indicate that Microsoft has changed the WinDbg package structure. Please report this issue to the Binary Ninja team.", fileName.c_str());
 							}
 
 							pItems->Release();

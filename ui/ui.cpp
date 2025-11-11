@@ -1309,6 +1309,28 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 #ifdef WIN32
 void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 {
+	// Check if WinDbg is already installed
+	std::string userDir = BinaryNinja::GetUserDirectory();
+	std::filesystem::path installTarget = std::filesystem::path(userDir) / "windbg";
+	LogDebug("installTarget: %s", installTarget.string().c_str());
+
+	if (std::filesystem::exists(installTarget) && BinaryNinjaDebugger::CheckInstallOk(installTarget.string()))
+	{
+		QMessageBox::StandardButton reply = QMessageBox::information(
+			ctxt.context->mainWindow(),
+			"WinDbg Already Installed",
+			"WinDbg/TTD is already installed. Do you want to reinstall/update it?\n\n"
+			"IMPORTANT: Reinstallation will fail if Binary Ninja is currently running because the DbgEng DLLs are in use.\n\n"
+			"To reinstall/update:\n"
+			"1. Close Binary Ninja completely\n"
+			"2. Manually delete the folder: " + QString::fromStdString(installTarget.string()) + "\n"
+			"3. Restart Binary Ninja\n"
+			"4. Run this installation again\n\n",
+			QMessageBox::Ok
+		);
+		return;
+	}
+
 	// Create and show progress dialog with actual progress range
 	QProgressDialog* progress = new QProgressDialog("Initializing installation...", nullptr, 0, 100, ctxt.context->mainWindow());
 	progress->setWindowModality(Qt::WindowModal);
