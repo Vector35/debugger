@@ -156,7 +156,7 @@ namespace BinaryNinjaDebugger
 							}
 							else
 							{
-								LogError("Shell CopyHere failed: 0x%08x", hr);
+								LogError("Shell CopyHere failed: 0x%08x. If you see 'file in use' errors, please close Binary Ninja and try again.", hr);
 							}
 
 							pItems->Release();
@@ -278,8 +278,22 @@ namespace BinaryNinjaDebugger
 									if (SUCCEEDED(hr) && bstrName)
 									{
 										_bstr_t itemName(bstrName, false); // Don't copy, take ownership
-										
-										if (_stricmp(itemName, fileName.c_str()) == 0)
+										LogInfo("Found item in ZIP archive: %s", (const char*)itemName);
+
+										// Extract base name without extension for comparison
+										// This handles the case where Windows "Hide extensions for known file types" is enabled
+										std::string fileNameWithoutExt = fileName;
+										size_t lastDot = fileNameWithoutExt.find_last_of('.');
+										if (lastDot != std::string::npos)
+										{
+											fileNameWithoutExt = fileNameWithoutExt.substr(0, lastDot);
+										}
+
+										// Match either the full filename or the filename without extension
+										bool matches = (_stricmp(itemName, fileName.c_str()) == 0) ||
+										               (_stricmp(itemName, fileNameWithoutExt.c_str()) == 0);
+
+										if (matches)
 										{
 											// Found the file, extract it
 											VARIANT vOptions;
@@ -308,7 +322,7 @@ namespace BinaryNinjaDebugger
 
 							if (outputPath.empty())
 							{
-								LogError("File %s not found in ZIP archive", fileName.c_str());
+								LogError("File %s not found in ZIP archive. This may indicate that Microsoft has changed the WinDbg package structure. Please report this issue to the Binary Ninja team.", fileName.c_str());
 							}
 
 							pItems->Release();
