@@ -13,7 +13,7 @@ if (NOT BN_INTERNAL_BUILD)
 	if(WIN32)
 		set(MSVC_VERSION msvc2022_64 CACHE STRING "Version of MSVC Qt is built with" )
 	endif()
-	set(QT_VERSION 6.8.2 CACHE STRING "Version of Qt to use")
+	set(QT_VERSION 6.10.1 CACHE STRING "Version of Qt to use")
 
 	if(DEFINED ENV{QT_INSTALL_DIR})
 		set(QT_INSTALL_DIR $ENV{QT_INSTALL_DIR}/${QT_VERSION})
