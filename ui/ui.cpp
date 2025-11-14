@@ -350,7 +350,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		return controller->IsConnected() && (!controller->IsRunning()) && controller->IsTTD();
 	};
 
-	auto connectedToTTD = [=](const UIActionContext& ctxt) {
+	[[maybe_unused]] auto connectedToTTD = [=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
 			return false;
 		if (!DebuggerController::ControllerExists(ctxt.binaryView))

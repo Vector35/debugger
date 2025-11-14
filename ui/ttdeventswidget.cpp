@@ -793,7 +793,6 @@ void TTDEventsQueryWidget::contextMenuEvent(QContextMenuEvent* event)
 
 void TTDEventsQueryWidget::showContextMenu(const QPoint& position)
 {
-	QPoint globalPos = m_resultsTable->mapToGlobal(position);
 	if (m_contextMenuManager)
 	{
 		m_contextMenuManager->show(m_menu, &m_actionHandler);
