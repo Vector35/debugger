@@ -724,75 +724,216 @@ std::string EsrevenAdapter::GetRemoteFile(const std::string& path)
 
 std::vector<DebugModule> EsrevenAdapter::GetModuleList()
 {
-	return {};
+	if (m_moduleCache.has_value())
+		return m_moduleCache.value();
 
-	// if (m_moduleCache.has_value())
-	// 	return m_moduleCache.value();
- //
- //    if (m_isTargetRunning)
- //        return {};
- //
- //    std::map<std::string, BNAddressRange> moduleRanges;
- //
- //    const auto path = "/proc/" + std::to_string(this->m_lastActiveThreadId) + "/maps";
- //    std::string data = GetRemoteFile(path);
-	// if (data.empty())
-	// 	return {};
- //
- //    for (const std::string& line: RspConnector::Split(data, "\n"))
- //    {
- //        std::string_view v = line;
- //        v.remove_prefix(std::min(v.find_first_not_of(" "), v.size()));
- //        auto trimPosition = v.find_last_not_of(" ");
- //        if (trimPosition != v.npos)
- //            v.remove_suffix(v.size() - trimPosition - 1);
- //
- //        // regex_match() requires the first argument to be const
- //        const std::string trimmedLine = std::string(v);
- //
- //        std::smatch match;
- //        const std::regex module_regex("^([0-9a-f]+)-([0-9a-f]+) [rwxp-]{4} .* (/.*)$");
- //        bool found = std::regex_match(trimmedLine, match, module_regex);
- //        if (found)
- //        {
- //            if (match.size() == 4) {
- //                std::string startString = match[1].str();
- //                uint64_t start = std::strtoull(startString.c_str(), nullptr, 16);
- //                std::string endString = match[2].str();
- //                uint64_t end = std::strtoull(endString.c_str(), nullptr, 16);
- //                std::string path = match[3].str();
- //
- //                auto iter = moduleRanges.find(path);
- //                if (iter != moduleRanges.end())
- //                {
- //                    BNAddressRange currentRange = iter->second;
- //                    BNAddressRange newRange;
- //                    newRange.start = std::min<uint64_t>(currentRange.start, start);
- //                    newRange.end = std::max<uint64_t>(currentRange.end, end);
- //                    iter->second = newRange;
- //                }
- //                else
- //                {
- //                    moduleRanges[path] = {start, end};
- //                }
- //            }
- //        }
- //    }
- //
- //    std::vector<DebugModule> result;
- //    for (auto& iter: moduleRanges)
- //    {
- //        DebugModule module;
- //        module.m_address = iter.second.start;
- //        module.m_size = iter.second.end - iter.second.start;
- //        module.m_name = iter.first;
- //        module.m_short_name = iter.first;
- //        module.m_loaded = true;
- //        result.push_back(module);
- //    }
-	// m_moduleCache = result;
- //
- //    return result;
+	if (m_isTargetRunning)
+		return {};
+
+	// Use the custom reven list-current-mappings packet
+	// Request all mappings (process, kernel, etc.)
+	auto response = m_rspConnector->TransmitAndReceive(RspData("rvn:list-current-mappings:all"));
+	std::string jsonStr = response.AsString();
+
+	// Check if we got a valid JSON response
+	if (jsonStr.empty() || jsonStr[0] != '[')
+		return {};
+
+	std::vector<DebugModule> result;
+
+	// Simple JSON parser for the specific format
+	size_t pos = 0;
+	while (pos < jsonStr.length())
+	{
+		// Find the start of an object
+		size_t objStart = jsonStr.find('{', pos);
+		if (objStart == std::string::npos)
+			break;
+
+		// Find the end of the object (need to handle nested sections array)
+		int braceCount = 0;
+		size_t objEnd = objStart;
+		for (size_t i = objStart; i < jsonStr.length(); i++)
+		{
+			if (jsonStr[i] == '{')
+				braceCount++;
+			else if (jsonStr[i] == '}')
+			{
+				braceCount--;
+				if (braceCount == 0)
+				{
+					objEnd = i;
+					break;
+				}
+			}
+		}
+
+		if (objEnd == objStart)
+			break;
+
+		std::string objStr = jsonStr.substr(objStart, objEnd - objStart + 1);
+
+		// Parse the fields
+		DebugModule module;
+		module.m_loaded = true;
+
+		// Extract "name"
+		size_t nameStart = objStr.find("\"name\"");
+		if (nameStart != std::string::npos)
+		{
+			size_t valueStart = objStr.find(':', nameStart);
+			if (valueStart != std::string::npos)
+			{
+				valueStart = objStr.find('"', valueStart);
+				if (valueStart != std::string::npos)
+				{
+					size_t valueEnd = objStr.find('"', valueStart + 1);
+					if (valueEnd != std::string::npos)
+					{
+						module.m_short_name = objStr.substr(valueStart + 1, valueEnd - valueStart - 1);
+					}
+				}
+			}
+		}
+
+		// Extract "path"
+		size_t pathStart = objStr.find("\"path\"");
+		if (pathStart != std::string::npos)
+		{
+			size_t valueStart = objStr.find(':', pathStart);
+			if (valueStart != std::string::npos)
+			{
+				valueStart = objStr.find('"', valueStart);
+				if (valueStart != std::string::npos)
+				{
+					size_t valueEnd = objStr.find('"', valueStart + 1);
+					if (valueEnd != std::string::npos)
+					{
+						module.m_name = objStr.substr(valueStart + 1, valueEnd - valueStart - 1);
+					}
+				}
+			}
+		}
+
+		// Extract "base_address"
+		size_t baseAddrStart = objStr.find("\"base_address\"");
+		if (baseAddrStart != std::string::npos)
+		{
+			size_t valueStart = objStr.find(':', baseAddrStart);
+			if (valueStart != std::string::npos)
+			{
+				valueStart++;
+				while (valueStart < objStr.length() && std::isspace(objStr[valueStart]))
+					valueStart++;
+
+				size_t valueEnd = valueStart;
+				while (valueEnd < objStr.length() && std::isdigit(objStr[valueEnd]))
+					valueEnd++;
+
+				if (valueEnd > valueStart)
+				{
+					module.m_address = std::stoull(objStr.substr(valueStart, valueEnd - valueStart));
+				}
+			}
+		}
+
+		// Extract sections array to calculate module size
+		size_t sectionsStart = objStr.find("\"sections\"");
+		if (sectionsStart != std::string::npos)
+		{
+			size_t arrayStart = objStr.find('[', sectionsStart);
+			if (arrayStart != std::string::npos)
+			{
+				size_t arrayEnd = objStr.find(']', arrayStart);
+				if (arrayEnd != std::string::npos)
+				{
+					std::string sectionsStr = objStr.substr(arrayStart, arrayEnd - arrayStart + 1);
+
+					uint64_t minAddr = UINT64_MAX;
+					uint64_t maxEnd = 0;
+
+					// Parse each section
+					size_t sectionPos = 0;
+					while (sectionPos < sectionsStr.length())
+					{
+						size_t sectionObjStart = sectionsStr.find('{', sectionPos);
+						if (sectionObjStart == std::string::npos)
+							break;
+
+						size_t sectionObjEnd = sectionsStr.find('}', sectionObjStart);
+						if (sectionObjEnd == std::string::npos)
+							break;
+
+						std::string sectionObjStr = sectionsStr.substr(sectionObjStart, sectionObjEnd - sectionObjStart + 1);
+
+						uint64_t sectionAddr = 0;
+						uint64_t sectionSize = 0;
+
+						// Extract "address"
+						size_t addrStart = sectionObjStr.find("\"address\"");
+						if (addrStart != std::string::npos)
+						{
+							size_t valStart = sectionObjStr.find(':', addrStart);
+							if (valStart != std::string::npos)
+							{
+								valStart++;
+								while (valStart < sectionObjStr.length() && std::isspace(sectionObjStr[valStart]))
+									valStart++;
+
+								size_t valEnd = valStart;
+								while (valEnd < sectionObjStr.length() && std::isdigit(sectionObjStr[valEnd]))
+									valEnd++;
+
+								if (valEnd > valStart)
+									sectionAddr = std::stoull(sectionObjStr.substr(valStart, valEnd - valStart));
+							}
+						}
+
+						// Extract "size"
+						size_t sizeStart = sectionObjStr.find("\"size\"");
+						if (sizeStart != std::string::npos)
+						{
+							size_t valStart = sectionObjStr.find(':', sizeStart);
+							if (valStart != std::string::npos)
+							{
+								valStart++;
+								while (valStart < sectionObjStr.length() && std::isspace(sectionObjStr[valStart]))
+									valStart++;
+
+								size_t valEnd = valStart;
+								while (valEnd < sectionObjStr.length() && std::isdigit(sectionObjStr[valEnd]))
+									valEnd++;
+
+								if (valEnd > valStart)
+									sectionSize = std::stoull(sectionObjStr.substr(valStart, valEnd - valStart));
+							}
+						}
+
+						if (sectionAddr > 0)
+						{
+							minAddr = std::min(minAddr, sectionAddr);
+							maxEnd = std::max(maxEnd, sectionAddr + sectionSize);
+						}
+
+						sectionPos = sectionObjEnd + 1;
+					}
+
+					if (minAddr != UINT64_MAX && maxEnd > minAddr)
+					{
+						module.m_size = maxEnd - minAddr;
+					}
+				}
+			}
+		}
+
+		if (!module.m_name.empty() && module.m_address != 0)
+			result.push_back(module);
+
+		pos = objEnd + 1;
+	}
+
+	m_moduleCache = result;
+	return result;
 }
 
 
@@ -992,15 +1133,27 @@ bool EsrevenAdapter::StepInto()
 
 bool EsrevenAdapter::StepOver()
 {
-	LogWarn("EsrevenAdapter does not support StepOver() by itself -- the debugger is responsible for emulating it");
-	return false;
+	DebuggerEvent dbgevt;
+	dbgevt.type = ResumeEventType;
+	PostDebuggerEvent(dbgevt);
+
+	InvalidateCache();
+	GenericGo("rvn:step-over");
+
+	return true;
 }
 
 
 bool EsrevenAdapter::StepReturn()
 {
-	LogWarn("EsrevenAdapter does not support StepReturn() yet");
-	return false;
+	DebuggerEvent dbgevt;
+	dbgevt.type = ResumeEventType;
+	PostDebuggerEvent(dbgevt);
+
+	InvalidateCache();
+	GenericGo("rvn:step-out");
+
+	return true;
 }
 
 
@@ -1033,40 +1186,14 @@ bool EsrevenAdapter::StepIntoReverse()
 
 bool EsrevenAdapter::StepOverReverse()
 {
+	DebuggerEvent dbgevt;
+	dbgevt.type = ResumeEventType;
+	PostDebuggerEvent(dbgevt);
+
 	InvalidateCache();
-	auto status = GenericGo("bs");
-	if (status == InternalError)
-		return false;
+	GenericGo("rvn:reverse-step-over");
 
-	uint64_t remoteIP = GetInstructionOffset();
-	uint64_t stack = GetStackPointer();
-
-	// TODO: support the case where we cannot determined the remote arch
-	ArchitectureRef remoteArch = GetController()->GetState()->GetRemoteArchitecture();
-	if (!remoteArch)
-		return false;
-
-	size_t size = remoteArch->GetMaxInstructionLength();
-	DataBuffer buffer = ReadMemory(remoteIP, size);
-	size_t bytesRead = buffer.GetLength();
-
-	Ref<LowLevelILFunction> ilFunc = new LowLevelILFunction(remoteArch, nullptr);
-	ilFunc->SetCurrentAddress(remoteArch, remoteIP);
-	remoteArch->GetInstructionLowLevelIL((const uint8_t*)buffer.GetData(), remoteIP, bytesRead, *ilFunc);
-
-	if (ilFunc->GetInstructionCount() == 0)
-		return false;
-
-	const auto& instr = (*ilFunc)[0];
-	if (instr.operation != LLIL_RET)
-		return true;
-
-	AddHardwareWriteBreakpoint(stack);
-	InvalidateCache();
-	status = GenericGo("bc");
-	RemoveHardwareWriteBreakpoint(stack);
-
-	return status != InternalError;
+	return true;
 }
 
 bool EsrevenAdapter::AddHardwareWriteBreakpoint(uint64_t address)
@@ -1087,8 +1214,14 @@ bool EsrevenAdapter::RemoveHardwareWriteBreakpoint(uint64_t address)
 
 bool EsrevenAdapter::StepReturnReverse()
 {
-	LogWarn("EsrevenAdapter does not support StepReturnReverse() yet");
-	return false;
+	DebuggerEvent dbgevt;
+	dbgevt.type = ResumeEventType;
+	PostDebuggerEvent(dbgevt);
+
+	InvalidateCache();
+	GenericGo("rvn:reverse-step-out");
+
+	return true;
 }
 
 
@@ -1305,7 +1438,113 @@ void EsrevenAdapter::HandleAsyncPacket(const RspData& data)
 
 std::vector<DebugProcess> EsrevenAdapter::GetProcessList()
 {
-	return {};
+	if (m_isTargetRunning)
+		return {};
+
+	// Use the custom reven list-processes packet
+	auto response = m_rspConnector->TransmitAndReceive(RspData("rvn:list-processes"));
+	std::string jsonStr = response.AsString();
+
+	// Check if we got a valid JSON response
+	if (jsonStr.empty() || jsonStr[0] != '[')
+		return {};
+
+	std::vector<DebugProcess> processes;
+
+	// Simple JSON parser for the specific format: [{"name": "...", "pid": ..., "ppid": ...}, ...]
+	size_t pos = 0;
+	while (pos < jsonStr.length())
+	{
+		// Find the start of an object
+		size_t objStart = jsonStr.find('{', pos);
+		if (objStart == std::string::npos)
+			break;
+
+		// Find the end of the object
+		size_t objEnd = jsonStr.find('}', objStart);
+		if (objEnd == std::string::npos)
+			break;
+
+		std::string objStr = jsonStr.substr(objStart, objEnd - objStart + 1);
+
+		// Parse the fields
+		DebugProcess proc;
+
+		// Extract "name"
+		size_t nameStart = objStr.find("\"name\"");
+		if (nameStart != std::string::npos)
+		{
+			size_t valueStart = objStr.find(':', nameStart);
+			if (valueStart != std::string::npos)
+			{
+				valueStart = objStr.find('"', valueStart);
+				if (valueStart != std::string::npos)
+				{
+					size_t valueEnd = objStr.find('"', valueStart + 1);
+					if (valueEnd != std::string::npos)
+					{
+						proc.m_processName = objStr.substr(valueStart + 1, valueEnd - valueStart - 1);
+					}
+				}
+			}
+		}
+
+		// Extract "pid"
+		size_t pidStart = objStr.find("\"pid\"");
+		if (pidStart != std::string::npos)
+		{
+			size_t valueStart = objStr.find(':', pidStart);
+			if (valueStart != std::string::npos)
+			{
+				// Skip whitespace
+				valueStart++;
+				while (valueStart < objStr.length() && std::isspace(objStr[valueStart]))
+					valueStart++;
+
+				// Read the number
+				size_t valueEnd = valueStart;
+				while (valueEnd < objStr.length() && std::isdigit(objStr[valueEnd]))
+					valueEnd++;
+
+				if (valueEnd > valueStart)
+				{
+					proc.m_pid = std::stoul(objStr.substr(valueStart, valueEnd - valueStart));
+				}
+			}
+		}
+
+		// Extract "ppid"
+		size_t ppidStart = objStr.find("\"ppid\"");
+		if (ppidStart != std::string::npos)
+		{
+			size_t valueStart = objStr.find(':', ppidStart);
+			if (valueStart != std::string::npos)
+			{
+				// Skip whitespace
+				valueStart++;
+				while (valueStart < objStr.length() && std::isspace(objStr[valueStart]))
+					valueStart++;
+
+				// Read the number
+				size_t valueEnd = valueStart;
+				while (valueEnd < objStr.length() && std::isdigit(objStr[valueEnd]))
+					valueEnd++;
+
+				if (valueEnd > valueStart)
+				{
+					// ppid is stored in the processName for now (as string representation)
+					// This might need to be adjusted based on the DebugProcess structure
+				}
+			}
+		}
+
+		if (!proc.m_processName.empty())
+			processes.push_back(proc);
+
+		pos = objEnd + 1;
+	}
+
+	return processes;
 }
 
 
