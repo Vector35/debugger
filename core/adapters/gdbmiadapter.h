@@ -97,6 +97,8 @@ public:
     bool StepOver() override;
 	bool StepReturn() override;
 
+	std::uint32_t GetActivePID() override { return 0; }
+
     std::string InvokeBackendCommand(const std::string& command) override;
     uint64_t GetInstructionOffset() override;
     uint64_t GetStackPointer() override;
