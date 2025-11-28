@@ -1201,7 +1201,7 @@ bool EsrevenAdapter::AddHardwareWriteBreakpoint(uint64_t address)
 	if (m_isTargetRunning || !m_rspConnector)
 		return false;
 
-	return this->m_rspConnector->TransmitAndReceive(RspData("Z2,{:x},{}", address, 1)).AsString() != "OK";
+	return this->m_rspConnector->TransmitAndReceive(RspData("Z2,{:x},{}", address, 1)).AsString() == "OK";
 }
 
 bool EsrevenAdapter::RemoveHardwareWriteBreakpoint(uint64_t address)
@@ -1209,7 +1209,7 @@ bool EsrevenAdapter::RemoveHardwareWriteBreakpoint(uint64_t address)
 	if (m_isTargetRunning || !m_rspConnector)
 		return false;
 
-	return this->m_rspConnector->TransmitAndReceive(RspData("Z2,{:x},{}", address, 1)).AsString() != "OK";
+	return this->m_rspConnector->TransmitAndReceive(RspData("z2,{:x},{}", address, 1)).AsString() == "OK";
 }
 
 bool EsrevenAdapter::StepReturnReverse()
@@ -1233,7 +1233,123 @@ std::string EsrevenAdapter::InvokeBackendCommand(const std::string& command)
 	if (command.substr(0, 4) == "mon ")
 		return RunMonitorCommand(command.substr(4));
 	else if (command.substr(0, 8) == "monitor ")
-		return RunMonitorCommand(command.substr(4));
+		return RunMonitorCommand(command.substr(8));
+
+	// Hardware breakpoint help
+	if (command == "hwhelp" || command == "hhelp")
+	{
+		return "Hardware breakpoint commands:\n"
+			"  hb <addr>   - Set hardware execute breakpoint\n"
+			"  hw <addr>   - Set hardware write watchpoint\n"
+			"  hr <addr>   - Set hardware read watchpoint\n"
+			"  ha <addr>   - Set hardware access watchpoint\n"
+			"  dhb <addr>  - Delete hardware execute breakpoint\n"
+			"  dhw <addr>  - Delete hardware write watchpoint\n"
+			"  dhr <addr>  - Delete hardware read watchpoint\n"
+			"  dha <addr>  - Delete hardware access watchpoint\n"
+			"\n"
+			"Address can be in hex (0x...) or decimal format.\n"
+			"Note: These are temporary workarounds for hardware breakpoint support.";
+	}
+
+	// Hardware breakpoint commands
+	// Format: hb <addr>, hw <addr>, hr <addr>, ha <addr>
+	// Delete: dhb <addr>, dhw <addr>, dhr <addr>, dha <addr>
+
+	std::string addrStr;
+	bool isDelete = false;
+	int bpType = -1;  // 1=execute, 2=write, 3=read, 4=access
+
+	if (command.substr(0, 4) == "dhb ")
+	{
+		isDelete = true;
+		bpType = 1;
+		addrStr = command.substr(4);
+	}
+	else if (command.substr(0, 4) == "dhw ")
+	{
+		isDelete = true;
+		bpType = 2;
+		addrStr = command.substr(4);
+	}
+	else if (command.substr(0, 4) == "dhr ")
+	{
+		isDelete = true;
+		bpType = 3;
+		addrStr = command.substr(4);
+	}
+	else if (command.substr(0, 4) == "dha ")
+	{
+		isDelete = true;
+		bpType = 4;
+		addrStr = command.substr(4);
+	}
+	else if (command.substr(0, 3) == "hb ")
+	{
+		bpType = 1;
+		addrStr = command.substr(3);
+	}
+	else if (command.substr(0, 3) == "hw ")
+	{
+		bpType = 2;
+		addrStr = command.substr(3);
+	}
+	else if (command.substr(0, 3) == "hr ")
+	{
+		bpType = 3;
+		addrStr = command.substr(3);
+	}
+	else if (command.substr(0, 3) == "ha ")
+	{
+		bpType = 4;
+		addrStr = command.substr(3);
+	}
+
+	if (bpType != -1)
+	{
+		// Parse address
+		uint64_t address;
+		try
+		{
+			// Support both hex (0x...) and decimal
+			if (addrStr.substr(0, 2) == "0x" || addrStr.substr(0, 2) == "0X")
+				address = std::stoull(addrStr, nullptr, 16);
+			else
+				address = std::stoull(addrStr, nullptr, 0);
+		}
+		catch (...)
+		{
+			return "Error: Invalid address format. Use hex (0x...) or decimal.";
+		}
+
+		// Determine kind (size) based on architecture
+		size_t kind = 1;
+		if (m_remoteArch == "aarch64")
+			kind = 4;
+		// TODO: Add other architectures as needed
+
+		// Send the appropriate Z/z packet
+		char zChar = isDelete ? 'z' : 'Z';
+		auto reply = m_rspConnector->TransmitAndReceive(RspData("{}{},{:x},{}",
+			zChar, bpType, address, kind));
+
+		if (reply.AsString() == "OK")
+		{
+			const char* typeNames[] = {"", "hardware execute breakpoint",
+				"hardware write watchpoint", "hardware read watchpoint",
+				"hardware access watchpoint"};
+			return fmt::format("{} {} at 0x{:x}",
+				isDelete ? "Removed" : "Set",
+				typeNames[bpType],
+				address);
+		}
+		else
+		{
+			return fmt::format("Error: Failed to {} hardware breakpoint (response: {})",
+				isDelete ? "remove" : "set",
+				reply.AsString());
+		}
+	}
 
 	auto reply = this->m_rspConnector->TransmitAndReceive(RspData(command));
 	return reply.AsString();
