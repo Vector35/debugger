@@ -1380,7 +1380,7 @@ bool GdbAdapter::GetModuleBase(const std::string &moduleName, uint64_t &base)
 	auto modules = GetModuleList();
 	for (const auto& module: modules)
 	{
-		if (DebugModule::IsSameBaseModule(moduleName, module.m_name))
+		if (module.IsSameBaseModule(moduleName))
 		{
 			base = module.m_address;
 			return true;

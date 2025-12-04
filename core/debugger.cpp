@@ -168,6 +168,15 @@ static void RegisterSettings()
 			"default" : true,
 			"description" : "When enabled, this holds the analysis for the binary view during debugging to increase performance."
 			})");
+
+	settings->RegisterSetting("debugger.caseInsensitiveModuleName",
+		R"({
+			"title" : "Case Insensitive Module Name Matching",
+			"type" : "boolean",
+			"default" : true,
+			"description" : "When enabled, module name comparisons are case-insensitive. This is useful when debug adapters report module names with different casing than the actual binary file names.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
 }
 
 extern "C"

@@ -28,6 +28,19 @@ limitations under the License.
 using namespace BinaryNinjaDebugger;
 
 
+DebugModule::DebugModule() : m_name(""), m_short_name(""), m_address(0), m_size(0), m_loaded(false)
+{
+	m_caseInsensitive = Settings::Instance()->Get<bool>("debugger.caseInsensitiveModuleName");
+}
+
+
+DebugModule::DebugModule(std::string name, std::string short_name, std::uintptr_t address, std::size_t size, bool loaded) :
+	m_name(std::move(name)), m_short_name(std::move(short_name)), m_address(address), m_size(size), m_loaded(loaded)
+{
+	m_caseInsensitive = Settings::Instance()->Get<bool>("debugger.caseInsensitiveModuleName");
+}
+
+
 DebugAdapter::DebugAdapter(BinaryView* data)
 {
 	INIT_DEBUGGER_API_OBJECT();
@@ -72,24 +85,44 @@ std::string DebugModule::GetPathBaseName(const std::string& path)
 }
 
 
+static bool StringsEqual(const std::string& str1, const std::string& str2, bool caseInsensitive)
+{
+	if (!caseInsensitive)
+		return str1 == str2;
+
+	if (str1.size() != str2.size())
+		return false;
+
+	return std::equal(str1.begin(), str1.end(), str2.begin(),
+		[](char c1, char c2) { return std::tolower(c1) == std::tolower(c2); });
+}
+
+
 bool DebugModule::IsSameBaseModule(const DebugModule& other) const
 {
-	return ((m_name == other.m_name) || (m_short_name == other.m_short_name)
-		|| (GetPathBaseName(m_name) == GetPathBaseName(other.m_name))
-		|| (GetPathBaseName(m_short_name) == GetPathBaseName(other.m_short_name)));
+	return (StringsEqual(m_name, other.m_name, m_caseInsensitive)
+		|| StringsEqual(m_short_name, other.m_short_name, m_caseInsensitive)
+		|| StringsEqual(GetPathBaseName(m_name), GetPathBaseName(other.m_name), m_caseInsensitive)
+		|| StringsEqual(GetPathBaseName(m_short_name), GetPathBaseName(other.m_short_name), m_caseInsensitive));
 }
 
 
 bool DebugModule::IsSameBaseModule(const std::string& name) const
 {
-	return ((m_name == name) || (m_short_name == name) || (GetPathBaseName(m_name) == GetPathBaseName(name))
-		|| (GetPathBaseName(m_short_name) == GetPathBaseName(name)));
+	return (StringsEqual(m_name, name, m_caseInsensitive)
+		|| StringsEqual(m_short_name, name, m_caseInsensitive)
+		|| StringsEqual(GetPathBaseName(m_name), GetPathBaseName(name), m_caseInsensitive)
+		|| StringsEqual(GetPathBaseName(m_short_name), GetPathBaseName(name), m_caseInsensitive));
 }
 
 
 bool DebugModule::IsSameBaseModule(const std::string& module1, const std::string& module2)
 {
-	return ((module1 == module2) || (GetPathBaseName(module1) == GetPathBaseName(module2)));
+	// Cache the setting value on first call. Note: This will not update if the setting changes during runtime,
+	// but settings rarely change during a debugging session, and this avoids expensive Settings::Instance() calls.
+	static bool caseInsensitive = Settings::Instance()->Get<bool>("debugger.caseInsensitiveModuleName");
+	return (StringsEqual(module1, module2, caseInsensitive)
+		|| StringsEqual(GetPathBaseName(module1), GetPathBaseName(module2), caseInsensitive));
 }
 
 

@@ -152,13 +152,11 @@ namespace BinaryNinjaDebugger {
 		std::uintptr_t m_address {};
 		std::size_t m_size {};
 		bool m_loaded {};
+		bool m_caseInsensitive {};
 
-		DebugModule() : m_name(""), m_short_name(""), m_address(0), m_size(0) {}
+		DebugModule();
 
-		DebugModule(std::string name, std::string short_name, std::uintptr_t address, std::size_t size, bool loaded) :
-			m_name(std::move(name)), m_short_name(std::move(short_name)), m_address(address), m_size(size),
-			m_loaded(loaded)
-		{}
+		DebugModule(std::string name, std::string short_name, std::uintptr_t address, std::size_t size, bool loaded);
 
 		// These are useful for remote debugging. Paths can be different on the host and guest systems, e.g.,
 		// /usr/bin/ls, and C:\Users\user\Desktop\ls. So we must compare the base file name, rather than the full path.
