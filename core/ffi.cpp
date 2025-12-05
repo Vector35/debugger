@@ -915,43 +915,19 @@ bool BNDebuggerContainsAbsoluteBreakpoint(BNDebuggerController* controller, uint
 
 bool BNDebuggerContainsRelativeBreakpoint(BNDebuggerController* controller, const char* module, uint64_t offset)
 {
-	DebuggerState* state = controller->object->GetState();
-	if (!state)
-		return false;
-
-	DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
-	if (!breakpoints)
-		return false;
-
-	return breakpoints->ContainsOffset(ModuleNameAndOffset(module, offset));
+	return controller->object->ContainsBreakpoint(ModuleNameAndOffset(module, offset));
 }
 
 
 bool BNDebuggerAddHardwareBreakpoint(BNDebuggerController* controller, uint64_t address, BNDebugBreakpointType type, size_t size)
 {
-	DebuggerState* state = controller->object->GetState();
-	if (!state)
-		return false;
-
-	DebugAdapter* adapter = state->GetAdapter();
-	if (!adapter)
-		return false;
-
-	return adapter->AddHardwareBreakpoint(address, (DebugBreakpointType)type, size);
+	return controller->object->AddHardwareBreakpoint(address, (DebugBreakpointType)type, size);
 }
 
 
 bool BNDebuggerRemoveHardwareBreakpoint(BNDebuggerController* controller, uint64_t address, BNDebugBreakpointType type, size_t size)
 {
-	DebuggerState* state = controller->object->GetState();
-	if (!state)
-		return false;
-
-	DebugAdapter* adapter = state->GetAdapter();
-	if (!adapter)
-		return false;
-
-	return adapter->RemoveHardwareBreakpoint(address, (DebugBreakpointType)type, size);
+	return controller->object->RemoveHardwareBreakpoint(address, (DebugBreakpointType)type, size);
 }
 
 

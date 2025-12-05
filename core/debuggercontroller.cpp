@@ -140,6 +140,48 @@ void DebuggerController::DisableBreakpoint(const ModuleNameAndOffset& address)
 }
 
 
+bool DebuggerController::ContainsBreakpoint(const ModuleNameAndOffset& address)
+{
+	return m_state->GetBreakpoints()->ContainsOffset(address);
+}
+
+
+bool DebuggerController::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return false;
+
+	bool result = adapter->AddHardwareBreakpoint(address, type, size);
+	if (result)
+	{
+		DebuggerEvent event;
+		event.type = AbsoluteBreakpointAddedEvent;
+		event.data.absoluteAddress = address;
+		PostDebuggerEvent(event);
+	}
+	return result;
+}
+
+
+bool DebuggerController::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return false;
+
+	bool result = adapter->RemoveHardwareBreakpoint(address, type, size);
+	if (result)
+	{
+		DebuggerEvent event;
+		event.type = AbsoluteBreakpointRemovedEvent;
+		event.data.absoluteAddress = address;
+		PostDebuggerEvent(event);
+	}
+	return result;
+}
+
+
 bool DebuggerController::SetIP(uint64_t address)
 {
 	std::string ipRegisterName;
