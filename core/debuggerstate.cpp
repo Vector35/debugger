@@ -709,6 +709,59 @@ bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
 }
 
 
+bool DebuggerBreakpoints::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!m_state->GetAdapter())
+		return false;
+
+	bool result = false;
+	// Add the hardware breakpoint to the adapter if connected
+	if (m_state->IsConnected())
+	{
+		result = m_state->GetAdapter()->AddHardwareBreakpoint(address, type, size);
+		if (!result)
+			return false;
+	}
+
+	// Check if this hardware breakpoint already exists
+	HardwareBreakpointInfo info(address, type, size);
+	if (!ContainsHardwareBreakpoint(address, type, size))
+	{
+		m_hardwareBreakpoints.push_back(info);
+	}
+
+	return result;
+}
+
+
+bool DebuggerBreakpoints::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	HardwareBreakpointInfo info(address, type, size);
+
+	// Remove from our list
+	auto iter = std::find(m_hardwareBreakpoints.begin(), m_hardwareBreakpoints.end(), info);
+	if (iter != m_hardwareBreakpoints.end())
+	{
+		m_hardwareBreakpoints.erase(iter);
+	}
+
+	// Remove from the adapter if connected
+	if (m_state->GetAdapter() && m_state->IsConnected())
+	{
+		return m_state->GetAdapter()->RemoveHardwareBreakpoint(address, type, size);
+	}
+
+	return true;
+}
+
+
+bool DebuggerBreakpoints::ContainsHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	HardwareBreakpointInfo info(address, type, size);
+	return std::find(m_hardwareBreakpoints.begin(), m_hardwareBreakpoints.end(), info) != m_hardwareBreakpoints.end();
+}
+
+
 void DebuggerBreakpoints::SerializeMetadata()
 {
 	// TODO: who should free these Metadata objects?
@@ -1075,6 +1128,18 @@ void DebuggerState::DisableBreakpoint(uint64_t address)
 void DebuggerState::DisableBreakpoint(const ModuleNameAndOffset& address)
 {
 	m_breakpoints->DisableOffset(address);
+}
+
+
+bool DebuggerState::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	return m_breakpoints->AddHardwareBreakpoint(address, type, size);
+}
+
+
+bool DebuggerState::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	return m_breakpoints->RemoveHardwareBreakpoint(address, type, size);
 }
 
 

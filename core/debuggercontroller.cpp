@@ -148,11 +148,7 @@ bool DebuggerController::ContainsBreakpoint(const ModuleNameAndOffset& address)
 
 bool DebuggerController::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
-	DebugAdapter* adapter = m_state->GetAdapter();
-	if (!adapter)
-		return false;
-
-	bool result = adapter->AddHardwareBreakpoint(address, type, size);
+	bool result = m_state->AddHardwareBreakpoint(address, type, size);
 	if (result)
 	{
 		DebuggerEvent event;
@@ -166,11 +162,7 @@ bool DebuggerController::AddHardwareBreakpoint(uint64_t address, DebugBreakpoint
 
 bool DebuggerController::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
-	DebugAdapter* adapter = m_state->GetAdapter();
-	if (!adapter)
-		return false;
-
-	bool result = adapter->RemoveHardwareBreakpoint(address, type, size);
+	bool result = m_state->RemoveHardwareBreakpoint(address, type, size);
 	if (result)
 	{
 		DebuggerEvent event;

@@ -78,12 +78,36 @@ namespace BinaryNinjaDebugger {
 	};
 
 
+	// Structure to track hardware breakpoints with their type and size
+	struct HardwareBreakpointInfo
+	{
+		uint64_t address;
+		DebugBreakpointType type;
+		size_t size;
+
+		HardwareBreakpointInfo(uint64_t addr, DebugBreakpointType t, size_t s)
+			: address(addr), type(t), size(s) {}
+
+		bool operator==(const HardwareBreakpointInfo& other) const
+		{
+			return address == other.address && type == other.type && size == other.size;
+		}
+
+		bool operator<(const HardwareBreakpointInfo& other) const
+		{
+			if (address != other.address) return address < other.address;
+			if (type != other.type) return type < other.type;
+			return size < other.size;
+		}
+	};
+
 	class DebuggerBreakpoints
 	{
 	private:
 		DebuggerState* m_state;
 		std::vector<ModuleNameAndOffset> m_breakpoints;
 		std::map<ModuleNameAndOffset, bool> m_enabledState;
+		std::vector<HardwareBreakpointInfo> m_hardwareBreakpoints;
 
 	public:
 		DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial = {});
@@ -103,6 +127,12 @@ namespace BinaryNinjaDebugger {
 		void SerializeMetadata();
 		void UnserializedMetadata();
 		std::vector<ModuleNameAndOffset> GetBreakpointList() const { return m_breakpoints; }
+
+		// Hardware breakpoint methods
+		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+		bool ContainsHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+		std::vector<HardwareBreakpointInfo> GetHardwareBreakpointList() const { return m_hardwareBreakpoints; }
 	};
 
 
@@ -249,6 +279,10 @@ namespace BinaryNinjaDebugger {
 		void EnableBreakpoint(const ModuleNameAndOffset& address);
 		void DisableBreakpoint(uint64_t address);
 		void DisableBreakpoint(const ModuleNameAndOffset& address);
+
+		// Hardware breakpoints
+		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 
 		uint64_t IP();
 		uint64_t StackPointer();
