@@ -802,7 +802,7 @@ void BNDebuggerSetCommandLineArguments(BNDebuggerController* controller, const c
 BNDebugBreakpoint* BNDebuggerGetBreakpoints(BNDebuggerController* controller, size_t* count)
 {
 	DebuggerState* state = controller->object->GetState();
-	std::vector<ModuleNameAndOffset> breakpoints = state->GetBreakpoints()->GetBreakpointList();
+	std::vector<BreakpointInfo> breakpoints = state->GetBreakpoints()->GetBreakpointList();
 	*count = breakpoints.size();
 
 	//std::vector<DebugBreakpoint> remoteList;
@@ -812,12 +812,14 @@ BNDebugBreakpoint* BNDebuggerGetBreakpoints(BNDebuggerController* controller, si
 	BNDebugBreakpoint* result = new BNDebugBreakpoint[breakpoints.size()];
 	for (size_t i = 0; i < breakpoints.size(); i++)
 	{
-		uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(breakpoints[i]);
-		bool enabled = state->GetBreakpoints()->IsEnabledOffset(breakpoints[i]);
-		result[i].module = BNDebuggerAllocString(breakpoints[i].module.c_str());
-		result[i].offset = breakpoints[i].offset;
+		uint64_t remoteAddress = breakpoints[i].IsSoftware() ?
+			state->GetModules()->RelativeAddressToAbsolute(breakpoints[i].location) :
+			breakpoints[i].address;
+		result[i].module = BNDebuggerAllocString(breakpoints[i].location.module.c_str());
+		result[i].offset = breakpoints[i].location.offset;
 		result[i].address = remoteAddress;
-		result[i].enabled = enabled;
+		result[i].enabled = breakpoints[i].enabled;
+		result[i].type = (BNDebugBreakpointType)breakpoints[i].type;
 	}
 	return result;
 }

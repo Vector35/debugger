@@ -78,26 +78,45 @@ namespace BinaryNinjaDebugger {
 	};
 
 
-	// Structure to track hardware breakpoints with their type and size
-	struct HardwareBreakpointInfo
+	// Unified structure to track both software and hardware breakpoints
+	struct BreakpointInfo
 	{
-		uint64_t address;
-		DebugBreakpointType type;
-		size_t size;
+		ModuleNameAndOffset location;  // Module + offset for software breakpoints
+		uint64_t address;              // Absolute address (for hardware or resolved software)
+		DebugBreakpointType type;      // Breakpoint type (Software, HardwareExecute, etc.)
+		size_t size;                   // Size for hardware watchpoints
+		bool enabled;                  // Enabled state
 
-		HardwareBreakpointInfo(uint64_t addr, DebugBreakpointType t, size_t s)
-			: address(addr), type(t), size(s) {}
+		// Create a software breakpoint
+		BreakpointInfo(const ModuleNameAndOffset& loc)
+			: location(loc), address(0), type(SoftwareBreakpoint), size(1), enabled(true) {}
 
-		bool operator==(const HardwareBreakpointInfo& other) const
+		// Create a hardware breakpoint
+		BreakpointInfo(uint64_t addr, DebugBreakpointType bpType, size_t bpSize)
+			: location(), address(addr), type(bpType), size(bpSize), enabled(true) {}
+
+		bool IsSoftware() const { return type == SoftwareBreakpoint; }
+		bool IsHardware() const { return type != SoftwareBreakpoint; }
+
+		bool operator==(const BreakpointInfo& other) const
 		{
-			return address == other.address && type == other.type && size == other.size;
+			if (type != other.type) return false;
+			if (IsSoftware())
+				return location == other.location;
+			else
+				return address == other.address && size == other.size;
 		}
 
-		bool operator<(const HardwareBreakpointInfo& other) const
+		bool operator<(const BreakpointInfo& other) const
 		{
-			if (address != other.address) return address < other.address;
 			if (type != other.type) return type < other.type;
-			return size < other.size;
+			if (IsSoftware())
+				return location < other.location;
+			else
+			{
+				if (address != other.address) return address < other.address;
+				return size < other.size;
+			}
 		}
 	};
 
@@ -105,9 +124,7 @@ namespace BinaryNinjaDebugger {
 	{
 	private:
 		DebuggerState* m_state;
-		std::vector<ModuleNameAndOffset> m_breakpoints;
-		std::map<ModuleNameAndOffset, bool> m_enabledState;
-		std::vector<HardwareBreakpointInfo> m_hardwareBreakpoints;
+		std::vector<BreakpointInfo> m_breakpoints;
 
 	public:
 		DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial = {});
@@ -126,13 +143,17 @@ namespace BinaryNinjaDebugger {
 		void Apply();
 		void SerializeMetadata();
 		void UnserializedMetadata();
-		std::vector<ModuleNameAndOffset> GetBreakpointList() const { return m_breakpoints; }
+
+		// Get all breakpoints (both software and hardware)
+		std::vector<BreakpointInfo> GetBreakpointList() const { return m_breakpoints; }
+
+		// Get only software breakpoints (for backward compatibility)
+		std::vector<ModuleNameAndOffset> GetSoftwareBreakpointList() const;
 
 		// Hardware breakpoint methods
 		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool ContainsHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
-		std::vector<HardwareBreakpointInfo> GetHardwareBreakpointList() const { return m_hardwareBreakpoints; }
 	};
 
 

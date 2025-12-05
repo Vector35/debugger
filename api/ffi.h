@@ -125,6 +125,16 @@ extern "C"
 	} BNDebugRegister;
 
 
+	typedef enum BNDebugBreakpointType
+	{
+		BNSoftwareBreakpoint = 0,        // Default software breakpoint
+		BNHardwareExecuteBreakpoint = 1, // Hardware execution breakpoint
+		BNHardwareReadBreakpoint = 2,    // Hardware read watchpoint
+		BNHardwareWriteBreakpoint = 3,   // Hardware write watchpoint
+		BNHardwareAccessBreakpoint = 4   // Hardware read/write watchpoint
+	} BNDebugBreakpointType;
+
+
 	typedef struct BNDebugBreakpoint
 	{
 		// TODO: we should add an absolute address to this, along with a boolean telling whether it is valid
@@ -132,6 +142,7 @@ extern "C"
 		uint64_t offset;
 		uint64_t address;
 		bool enabled;
+		BNDebugBreakpointType type;
 	} BNDebugBreakpoint;
 
 
@@ -216,16 +227,6 @@ extern "C"
 		DebugAdapterRunningStatus,
 		DebugAdapterPausedStatus,
 	} BNDebugAdapterTargetStatus;
-
-
-	typedef enum BNDebugBreakpointType
-	{
-		BNSoftwareBreakpoint = 0,        // Default software breakpoint
-		BNHardwareExecuteBreakpoint = 1, // Hardware execution breakpoint
-		BNHardwareReadBreakpoint = 2,    // Hardware read watchpoint
-		BNHardwareWriteBreakpoint = 3,   // Hardware write watchpoint 
-		BNHardwareAccessBreakpoint = 4   // Hardware read/write watchpoint
-	} BNDebugBreakpointType;
 
 
 	typedef enum BNDebuggerEventType
