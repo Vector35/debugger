@@ -43,14 +43,14 @@ HardwareBreakpointDialog::HardwareBreakpointDialog(QWidget* parent, DbgRef<Debug
 	formLayout->addRow("Type:", m_typeCombo);
 
 	// Size selection (for watchpoints)
-	m_sizeSpin = new QSpinBox();
-	m_sizeSpin->setMinimum(1);
-	m_sizeSpin->setMaximum(8);
-	m_sizeSpin->setValue(1);
-	m_sizeSpin->setSuffix(" byte(s)");
-	// Only allow powers of 2
-	m_sizeSpin->setSpecialValueText("1 byte");
-	formLayout->addRow("Size:", m_sizeSpin);
+	m_sizeCombo = new QComboBox();
+	m_sizeCombo->setEditable(true);
+	m_sizeCombo->addItem("1", 1);
+	m_sizeCombo->addItem("2", 2);
+	m_sizeCombo->addItem("4", 4);
+	m_sizeCombo->addItem("8", 8);
+	m_sizeCombo->setCurrentIndex(0);
+	formLayout->addRow("Size:", m_sizeCombo);
 
 	// Help label
 	m_helpLabel = new QLabel();
@@ -96,7 +96,10 @@ DebugBreakpointType HardwareBreakpointDialog::getType() const
 
 size_t HardwareBreakpointDialog::getSize() const
 {
-	return static_cast<size_t>(m_sizeSpin->value());
+	bool ok;
+	QString text = m_sizeCombo->currentText();
+	size_t size = text.toULongLong(&ok);
+	return ok ? size : 1;
 }
 
 void HardwareBreakpointDialog::addBreakpoint()
@@ -154,33 +157,33 @@ void HardwareBreakpointDialog::validateInput()
 void HardwareBreakpointDialog::typeChanged()
 {
 	DebugBreakpointType type = getType();
-	
+
 	// Enable/disable size control based on type
 	bool needSize = (type != HardwareExecuteBreakpoint);
-	m_sizeSpin->setEnabled(needSize);
-	
+	m_sizeCombo->setEnabled(needSize);
+
 	// Update help text
 	QString helpText;
 	switch (type)
 	{
 		case HardwareExecuteBreakpoint:
 			helpText = "Hardware execution breakpoint will trigger when the CPU executes code at the specified address.";
-			m_sizeSpin->setValue(1); // Execution breakpoints are always 1 byte
+			m_sizeCombo->setCurrentIndex(0); // Execution breakpoints are always 1 byte
 			break;
 		case HardwareReadBreakpoint:
-			helpText = "Hardware read watchpoint will trigger when the CPU reads from the specified memory range.";
+			helpText = "Hardware read watchpoint will trigger when the CPU reads from the specified memory range. Size must be a power of 2 (1, 2, 4, or 8 bytes).";
 			break;
 		case HardwareWriteBreakpoint:
-			helpText = "Hardware write watchpoint will trigger when the CPU writes to the specified memory range.";
+			helpText = "Hardware write watchpoint will trigger when the CPU writes to the specified memory range. Size must be a power of 2 (1, 2, 4, or 8 bytes).";
 			break;
 		case HardwareAccessBreakpoint:
-			helpText = "Hardware access watchpoint will trigger when the CPU reads from or writes to the specified memory range.";
+			helpText = "Hardware access watchpoint will trigger when the CPU reads from or writes to the specified memory range. Size must be a power of 2 (1, 2, 4, or 8 bytes).";
 			break;
 		default:
 			helpText = "";
 			break;
 	}
-	
+
 	m_helpLabel->setText(helpText);
 	m_helpLabel->setStyleSheet("QLabel { color: gray; font-size: 10px; }");
 }

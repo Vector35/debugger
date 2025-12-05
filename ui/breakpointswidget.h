@@ -87,7 +87,7 @@ public:
 	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override
 	{
 		(void)parent;
-		return 3;
+		return 4;
 	}
 	BreakpointItem getRow(int row) const;
 	virtual QVariant data(const QModelIndex& i, int role) const override;
@@ -153,6 +153,8 @@ private slots:
 	void remove();
 	void onDoubleClicked();
 	void add();
+	void addSoftwareBreakpoint();
+	void addHardwareBreakpoint();
 	void toggleSelected();
 	void enableAll();
 	void disableAll();

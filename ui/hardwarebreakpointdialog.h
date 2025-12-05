@@ -38,7 +38,7 @@ private:
 	DbgRef<DebuggerController> m_controller;
 	QLineEdit* m_addressEdit;
 	QComboBox* m_typeCombo;
-	QSpinBox* m_sizeSpin;
+	QComboBox* m_sizeCombo;
 	QLabel* m_helpLabel;
 	QDialogButtonBox* m_buttonBox;
 

@@ -324,7 +324,13 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 	UIAction::registerAction(addBreakpointActionName);
 	m_menu->addAction(addBreakpointActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
-		addBreakpointActionName, UIAction([&]() { add(); }));
+		addBreakpointActionName, UIAction([&]() { addSoftwareBreakpoint(); }));
+
+	QString addHardwareBreakpointActionName = QString::fromStdString("Add Hardware Breakpoint...");
+	UIAction::registerAction(addHardwareBreakpointActionName);
+	m_menu->addAction(addHardwareBreakpointActionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		addHardwareBreakpointActionName, UIAction([&]() { addHardwareBreakpoint(); }));
 
 	QString toggleEnabledActionName = QString::fromStdString("Toggle Enabled");
 	UIAction::registerAction(toggleEnabledActionName, QKeySequence("Ctrl+Shift+B"));
@@ -460,6 +466,7 @@ void DebugBreakpointsWidget::jump()
 
 void DebugBreakpointsWidget::add()
 {
+	// Keep this for backward compatibility - show menu
 	UIContext* ctxt = UIContext::contextForWidget(this);
 	if (!ctxt)
 		return;
@@ -476,43 +483,78 @@ void DebugBreakpointsWidget::add()
 	QMenu menu(this);
 	QAction* softwareAction = menu.addAction("Software Breakpoint");
 	QAction* hardwareAction = menu.addAction("Hardware Breakpoint...");
-	
+
 	QAction* chosen = menu.exec(QCursor::pos());
 	if (!chosen)
 		return;
 
 	if (chosen == softwareAction)
 	{
-		// Original software breakpoint logic
-		uint64_t address = 0;
-		if (!ViewFrame::getAddressFromInput(frame, view, address,
-				frame->getCurrentOffset(), "Add Breakpoint", "The address of the breakpoint:", true))
-			return;
-
-		bool isAbsoluteAddress = false;
-		auto controller = DebuggerController::GetController(view);
-		if (controller->IsConnected())
-			isAbsoluteAddress = true;
-
-		if (isAbsoluteAddress)
-		{
-			m_controller->AddBreakpoint(address);
-		}
-		else
-		{
-			std::string filename = m_controller->GetInputFile();
-			uint64_t offset = address - m_controller->GetViewFileSegmentsStart();
-			ModuleNameAndOffset info = {filename, offset};
-			m_controller->AddBreakpoint(info);
-		}
+		addSoftwareBreakpoint();
 	}
 	else if (chosen == hardwareAction)
 	{
-		// Hardware breakpoint dialog
-		uint64_t suggestedAddress = frame->getCurrentOffset();
-		HardwareBreakpointDialog dialog(this, m_controller, suggestedAddress);
-		dialog.exec();
+		addHardwareBreakpoint();
 	}
+}
+
+
+void DebugBreakpointsWidget::addSoftwareBreakpoint()
+{
+	UIContext* ctxt = UIContext::contextForWidget(this);
+	if (!ctxt)
+		return;
+
+	ViewFrame* frame = ctxt->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	auto view = frame->getCurrentBinaryView();
+	if (!view)
+		return;
+
+	uint64_t address = 0;
+	if (!ViewFrame::getAddressFromInput(frame, view, address,
+			frame->getCurrentOffset(), "Add Breakpoint", "The address of the breakpoint:", true))
+		return;
+
+	bool isAbsoluteAddress = false;
+	auto controller = DebuggerController::GetController(view);
+	if (controller->IsConnected())
+		isAbsoluteAddress = true;
+
+	if (isAbsoluteAddress)
+	{
+		m_controller->AddBreakpoint(address);
+	}
+	else
+	{
+		std::string filename = m_controller->GetInputFile();
+		uint64_t offset = address - m_controller->GetViewFileSegmentsStart();
+		ModuleNameAndOffset info = {filename, offset};
+		m_controller->AddBreakpoint(info);
+	}
+}
+
+
+void DebugBreakpointsWidget::addHardwareBreakpoint()
+{
+	UIContext* ctxt = UIContext::contextForWidget(this);
+	if (!ctxt)
+		return;
+
+	ViewFrame* frame = ctxt->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	auto view = frame->getCurrentBinaryView();
+	if (!view)
+		return;
+
+	// Hardware breakpoint dialog
+	uint64_t suggestedAddress = frame->getCurrentOffset();
+	HardwareBreakpointDialog dialog(this, m_controller, suggestedAddress);
+	dialog.exec();
 }
 
 
