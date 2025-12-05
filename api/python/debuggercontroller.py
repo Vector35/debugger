@@ -2486,3 +2486,15 @@ class DebuggerController:
 
     def __hash__(self):
         return hash(ctypes.addressof(self.handle.contents))
+
+
+def _get_debugger(instance: binaryninja.PythonScriptingInstance):
+    if instance.interpreter.active_view is None:
+        return None
+    return DebuggerController(instance.interpreter.active_view)
+
+
+binaryninja.PythonScriptingProvider.register_magic_variable(
+    "dbg",
+    _get_debugger
+)
