@@ -758,7 +758,7 @@ bool GdbMiAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint) {
 
 	if (removed == 0)
 	{
-		LogWarn("Failed to remove breakpoint at 0x%" PRIX64, breakpoint.m_address);
+		LogWarn("Failed to remove breakpoint at 0x%" PRIX64, (uint64_t)breakpoint.m_address);
 		return false;
 	}
 
