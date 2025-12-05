@@ -238,19 +238,19 @@ class DebugRegisters:
     def __repr__(self) -> str:
         if not self.regs:
             return "<DebugRegisters: empty>"
-        
-        # Show registers in a more readable format
+
+        # Show registers in a more readable format - one per line
         reg_entries = []
         # Sort registers by name for consistent output
         for name in sorted(self.regs.keys()):
             reg = self.regs[name]
             hint_str = f" ({reg.hint})" if reg.hint else ""
-            reg_entries.append(f"{name}={reg.value:#x}{hint_str}")
-        
-        # Show all registers
-        reg_list = ", ".join(reg_entries)
-        
-        return f"<DebugRegisters: {reg_list}>"
+            reg_entries.append(f"  {name}={reg.value:#x}{hint_str}")
+
+        # Show all registers, one per line
+        reg_list = "\n".join(reg_entries)
+
+        return f"<DebugRegisters:\n{reg_list}\n>"
 
     def __getitem__(self, name):
         if name not in self.regs:
@@ -265,6 +265,68 @@ class DebugRegisters:
 
     def __len__(self):
         return len(self.regs)
+
+
+class DebugThreads:
+    """
+    DebugThreads represents all threads of the target.
+    """
+    def __init__(self, threads: List[DebugThread]):
+        self.threads = threads
+
+    def __repr__(self) -> str:
+        if not self.threads:
+            return "<DebugThreads: empty>"
+
+        # Show threads in a more readable format - one per line
+        thread_entries = []
+        for thread in self.threads:
+            thread_entries.append(f"  {thread}")
+
+        # Show all threads, one per line
+        thread_list = "\n".join(thread_entries)
+
+        return f"<DebugThreads:\n{thread_list}\n>"
+
+    def __getitem__(self, index):
+        return self.threads[index]
+
+    def __len__(self):
+        return len(self.threads)
+
+    def __iter__(self):
+        return iter(self.threads)
+
+
+class DebugModules:
+    """
+    DebugModules represents all modules of the target.
+    """
+    def __init__(self, modules: List[DebugModule]):
+        self.modules = modules
+
+    def __repr__(self) -> str:
+        if not self.modules:
+            return "<DebugModules: empty>"
+
+        # Show modules in a more readable format - one per line
+        module_entries = []
+        for module in self.modules:
+            module_entries.append(f"  {module}")
+
+        # Show all modules, one per line
+        module_list = "\n".join(module_entries)
+
+        return f"<DebugModules:\n{module_list}\n>"
+
+    def __getitem__(self, index):
+        return self.modules[index]
+
+    def __len__(self):
+        return len(self.modules)
+
+    def __iter__(self):
+        return iter(self.modules)
 
 
 class DebugBreakpoint:
@@ -1196,7 +1258,7 @@ class DebuggerController:
         return result
 
     @property
-    def threads(self) -> List[DebugThread]:
+    def threads(self) -> DebugThreads:
         """
         The threads of the target.
         """
@@ -1208,7 +1270,7 @@ class DebuggerController:
             result.append(bp)
 
         dbgcore.BNDebuggerFreeThreads(threads, count.value)
-        return result
+        return DebugThreads(result)
 
     @property
     def active_thread(self) -> DebugThread:
@@ -1242,11 +1304,11 @@ class DebuggerController:
         return dbgcore.BNDebuggerResumeThread(self.handle, tid)
 
     @property
-    def modules(self) -> List[DebugModule]:
+    def modules(self) -> DebugModules:
         """
         The modules of the target
 
-        :return: a list of ``DebugModule``
+        :return: a ``DebugModules`` wrapper containing all modules
         """
         count = ctypes.c_ulonglong()
         modules = dbgcore.BNDebuggerGetModules(self.handle, count)
@@ -1256,7 +1318,7 @@ class DebuggerController:
             result.append(bp)
 
         dbgcore.BNDebuggerFreeModules(modules, count.value)
-        return result
+        return DebugModules(result)
 
     @property
     def regs(self) -> DebugRegisters:
@@ -2545,25 +2607,17 @@ class DebuggerController:
             # Basic connection and status info
             connected = "connected" if self.connected else "disconnected"
             running = "running" if self.running else "stopped"
-            
+
             # Debug adapter name
             adapter_name = self.adapter_type
-            
-            # Determine if local or remote debugging
-            remote_host = self.remote_host
-            remote_port = self.remote_port
-            
-            if remote_host and remote_port > 0:
-                # Remote debugging
-                debugging_type = f"remote {remote_host}:{remote_port}"
-            else:
-                # Local debugging
-                debugging_type = "local"
-            
+
             # Executable path
             exec_path = self.executable_path or "unknown"
-            
-            return f"<DebuggerController: {connected}, {running}, {debugging_type}, adapter={adapter_name}, {exec_path}>"
+
+            # Build the representation
+            parts = [connected, running, f"adapter={adapter_name}", exec_path]
+
+            return f"<DebuggerController: {', '.join(parts)}>"
         except:
             # Fallback to basic representation if we can't get state info
             return f"<DebuggerController: {hex(id(self))}>"
