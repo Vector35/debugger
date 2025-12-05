@@ -354,6 +354,17 @@ namespace BinaryNinjaDebuggerAPI {
 	};
 
 
+	// Breakpoint types - used to specify the type of breakpoint to set
+	enum DebugBreakpointType
+	{
+		SoftwareBreakpoint = 0,        // Default software breakpoint
+		HardwareExecuteBreakpoint = 1, // Hardware execution breakpoint
+		HardwareReadBreakpoint = 2,    // Hardware read watchpoint
+		HardwareWriteBreakpoint = 3,   // Hardware write watchpoint
+		HardwareAccessBreakpoint = 4   // Hardware read/write watchpoint
+	};
+
+
 	struct DebugBreakpoint
 	{
 		std::string module;
@@ -361,17 +372,6 @@ namespace BinaryNinjaDebuggerAPI {
 		uint64_t address;
 		bool enabled;
 		DebugBreakpointType type = SoftwareBreakpoint;
-	};
-
-
-	// Breakpoint types - used to specify the type of breakpoint to set
-	enum DebugBreakpointType
-	{
-		SoftwareBreakpoint = 0,        // Default software breakpoint
-		HardwareExecuteBreakpoint = 1, // Hardware execution breakpoint
-		HardwareReadBreakpoint = 2,    // Hardware read watchpoint
-		HardwareWriteBreakpoint = 3,   // Hardware write watchpoint 
-		HardwareAccessBreakpoint = 4   // Hardware read/write watchpoint
 	};
 
 
