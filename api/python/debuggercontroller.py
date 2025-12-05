@@ -329,6 +329,37 @@ class DebugModules:
         return iter(self.modules)
 
 
+class DebugBreakpoints:
+    """
+    DebugBreakpoints represents all breakpoints of the target.
+    """
+    def __init__(self, breakpoints: List['DebugBreakpoint']):
+        self.breakpoints = breakpoints
+
+    def __repr__(self) -> str:
+        if not self.breakpoints:
+            return "<DebugBreakpoints: empty>"
+
+        # Show breakpoints in a more readable format - one per line
+        bp_entries = []
+        for bp in self.breakpoints:
+            bp_entries.append(f"  {bp}")
+
+        # Show all breakpoints, one per line
+        bp_list = "\n".join(bp_entries)
+
+        return f"<DebugBreakpoints:\n{bp_list}\n>"
+
+    def __getitem__(self, index):
+        return self.breakpoints[index]
+
+    def __len__(self):
+        return len(self.breakpoints)
+
+    def __iter__(self):
+        return iter(self.breakpoints)
+
+
 class DebugBreakpoint:
     """
     DebugBreakpoint represents a breakpoint in the target. It has the following fields:
@@ -2012,9 +2043,11 @@ class DebuggerController:
         dbgcore.BNDebuggerSetCommandLineArguments(self.handle, arguments)
 
     @property
-    def breakpoints(self) -> List[DebugBreakpoint]:
+    def breakpoints(self) -> DebugBreakpoints:
         """
         The list of breakpoints
+
+        :return: a ``DebugBreakpoints`` wrapper containing all breakpoints
         """
         count = ctypes.c_ulonglong()
         breakpoints = dbgcore.BNDebuggerGetBreakpoints(self.handle, count)
@@ -2024,7 +2057,7 @@ class DebuggerController:
             result.append(bp)
 
         dbgcore.BNDebuggerFreeBreakpoints(breakpoints, count.value)
-        return result
+        return DebugBreakpoints(result)
 
     def delete_breakpoint(self, address):
         """
