@@ -727,6 +727,9 @@ std::vector<DebugModule> GdbAdapter::GetModuleList()
     if (m_isTargetRunning)
         return {};
 
+	if (!m_rspConnector)
+		return {};
+
     std::map<std::string, BNAddressRange> moduleRanges;
 
     const auto path = "/proc/" + std::to_string(this->m_lastActiveThreadId) + "/maps";

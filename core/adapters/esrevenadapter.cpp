@@ -730,6 +730,9 @@ std::vector<DebugModule> EsrevenAdapter::GetModuleList()
 	if (m_isTargetRunning)
 		return {};
 
+	if (!m_rspConnector)
+		return {};
+
 	// Use the custom reven list-current-mappings packet
 	// Request all mappings (process, kernel, etc.)
 	auto response = m_rspConnector->TransmitAndReceive(RspData("rvn:list-current-mappings:all"));
