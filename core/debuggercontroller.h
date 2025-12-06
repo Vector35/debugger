@@ -130,6 +130,7 @@ namespace BinaryNinjaDebugger {
 		void EventHandler(const DebuggerEvent& event);
 		void UpdateStackVariables();
 		void AddRegisterValuesToExpressionParser();
+		void AddModuleValuesToExpressionParser();
 		bool CreateDebuggerBinaryView();
 
 		DebugStopReason StepIntoIL(BNFunctionGraphType il);

@@ -1823,6 +1823,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		DetectLoadedModule();
 		UpdateStackVariables();
 		AddRegisterValuesToExpressionParser();
+		AddModuleValuesToExpressionParser();
 		break;
 	}
 	case ActiveThreadChangedEvent:
@@ -2375,6 +2376,25 @@ void DebuggerController::AddRegisterValuesToExpressionParser()
 	{
 		names.push_back(std::string(reg.m_name));
 		values.emplace_back(reg.m_value);
+	}
+
+	GetData()->AddExpressionParserMagicValues(names, values);
+}
+
+
+void DebuggerController::AddModuleValuesToExpressionParser()
+{
+	auto modules = GetAllModules();
+	std::vector<std::string> names;
+	std::vector<uint64_t> values;
+
+	for (const auto& module : modules)
+	{
+		if (!module.m_short_name.empty())
+		{
+			names.push_back(module.m_short_name);
+			values.push_back(module.m_address);
+		}
 	}
 
 	GetData()->AddExpressionParserMagicValues(names, values);
