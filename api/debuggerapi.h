@@ -638,6 +638,7 @@ namespace BinaryNinjaDebuggerAPI {
 		bool ResumeThread(std::uint32_t tid);
 
 		std::vector<DebugModule> GetModules();
+		bool ParseModuleRelativeAddress(const std::string& input, uint64_t& result);
 		std::vector<DebugRegister> GetRegisters();
 		intx::uint512 GetRegisterValue(const std::string& name);
 		bool SetRegisterValue(const std::string& name, const intx::uint512& value);

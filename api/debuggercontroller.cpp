@@ -274,6 +274,50 @@ std::vector<DebugModule> DebuggerController::GetModules()
 }
 
 
+bool DebuggerController::ParseModuleRelativeAddress(const std::string& input, uint64_t& result)
+{
+	const size_t plusPos = input.rfind('+');
+	if (plusPos == std::string::npos || plusPos == 0)
+		return false;
+
+	const size_t moduleEnd = input.find_last_not_of(" \t", plusPos - 1);
+
+	if (moduleEnd == std::string::npos)
+		return false;
+
+	const std::string moduleName = input.substr(0, moduleEnd + 1);
+
+	const size_t offsetStart = input.find_first_not_of(" \t", plusPos + 1);
+	if (offsetStart == std::string::npos)
+		return false;
+	std::string offsetStr = input.substr(offsetStart);
+
+	if (offsetStr.size() >= 2 && offsetStr[0] == '0' && (offsetStr[1] == 'x' || offsetStr[1] == 'X'))
+		offsetStr = offsetStr.substr(2);
+
+	uint64_t offset;
+	try
+	{
+		offset = std::stoull(offsetStr, nullptr, 16);
+	}
+	catch (...)
+	{
+		return false;
+	}
+
+	for (const auto& module : GetModules())
+	{
+		if (DebugModule::IsSameBaseModule(module.m_name, moduleName))
+		{
+			result = module.m_address + offset;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
 std::vector<DebugRegister> DebuggerController::GetRegisters()
 {
 	size_t count;

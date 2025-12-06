@@ -21,6 +21,8 @@ limitations under the License.
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QStringList>
+#include <QInputDialog>
+#include <QMessageBox>
 #include <algorithm>
 #include <QMouseEvent>
 #include "breakpointswidget.h"
@@ -438,15 +440,34 @@ void DebugBreakpointsWidget::add()
 	if (!view)
 		return;
 
-	uint64_t address = 0;
-	if (!ViewFrame::getAddressFromInput(frame, view, address,
-			frame->getCurrentOffset(), "Add Breakpoint", "The address of the breakpoint:", true))
+	auto controller = DebuggerController::GetController(view);
+
+	bool ok;
+	const QString input = QInputDialog::getText(this, "Add Breakpoint",
+		"Address (e.g., 0x1234 or module.exe + 0x1234):", QLineEdit::Normal, "", &ok);
+	if (!ok || input.trimmed().isEmpty())
 		return;
 
-	bool isAbsoluteAddress = false;
-	auto controller = DebuggerController::GetController(view);
+	uint64_t address = 0;
+	bool parsed = false;
+
 	if (controller->IsConnected())
-		isAbsoluteAddress = true;
+	{
+		parsed = controller->ParseModuleRelativeAddress(input.trimmed().toStdString(), address);
+	}
+
+	if (!parsed)
+	{
+		std::string errorString;
+		if (!ViewFrame::getAddressFromString(frame, view, address,
+				frame->getCurrentOffset(), input, errorString))
+		{
+			QMessageBox::warning(this, "Invalid Address", QString::fromStdString(errorString));
+			return;
+		}
+	}
+
+	const bool isAbsoluteAddress = controller->IsConnected();
 
 	if (isAbsoluteAddress)
 	{
