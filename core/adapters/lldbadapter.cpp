@@ -326,7 +326,7 @@ void BinaryNinjaDebugger::InitLldbAdapterType()
 
 void LldbAdapter::ApplyBreakpoints()
 {
-	// Apply pending software breakpoints
+	// Apply pending software breakpoints immediately - these work fine before process starts
 	for (const auto& bp : m_pendingBreakpoints)
 	{
 		AddBreakpoint(bp);
@@ -335,13 +335,36 @@ void LldbAdapter::ApplyBreakpoints()
 	// it always gets a clean list of breakpoints from the controller.
 	m_pendingBreakpoints.clear();
 
-	// Apply pending hardware breakpoints
-	for (const auto& hwbp : m_pendingHardwareBreakpoints)
-	{
-		AddHardwareBreakpoint(hwbp.address, hwbp.type, hwbp.size);
-	}
-	// Clear the pending hardware breakpoint list
+	// DEFER hardware breakpoints instead of applying now
+	//
+	// WHY: LLDB has a known issue where hardware breakpoints set before the process starts often fail to work.
+	// Hardware breakpoints require the process to be running and stopped at least once so that LLDB can
+	// properly register them with the CPU's hardware debug registers.
+	//
+	// WHEN THIS WORKS:
+	// - Launch scenarios: Process will hit entry point or first instruction, we apply HW BP then
+	// - Attach scenarios: Process is already running, we apply on first break
+	// - Connect scenarios: Remote process is running, we apply on first break
+	//
+	// WHEN THIS DOESN'T WORK:
+	// - If the code you want to break on executes BEFORE the first stop (very rare, usually just entry point)
+	// - If LLDB is fixed in future versions and this workaround becomes unnecessary overhead
+	// - Non-stop mode debugging (not currently supported anyway)
+	//
+	// ALTERNATIVE APPROACHES CONSIDERED:
+	// - Applying immediately: Doesn't work due to LLDB bug
+	// - Remove and re-add on first stop: Works but wasteful
+	// - Platform-specific APIs: Same underlying issue
+	//
+	// Move hardware breakpoints to deferred list instead of applying now
+	m_deferredHardwareBreakpoints = std::move(m_pendingHardwareBreakpoints);
 	m_pendingHardwareBreakpoints.clear();
+
+	// Set flag to apply deferred hardware breakpoints on first stop
+	if (!m_deferredHardwareBreakpoints.empty())
+	{
+		m_needsHardwareBreakpointReapplication = true;
+	}
 }
 
 
@@ -1926,6 +1949,20 @@ void LldbAdapter::EventListener()
 				case lldb::eStateStopped:
 				{
 					FixActiveThread();
+
+					// Apply deferred hardware breakpoints on first stop
+					// See ApplyBreakpoints() for detailed explanation of why this is necessary
+					if (m_needsHardwareBreakpointReapplication)
+					{
+						for (const auto& hwbp : m_deferredHardwareBreakpoints)
+						{
+							// Apply the hardware breakpoint now that process is running and stopped
+							AddHardwareBreakpoint(hwbp.address, hwbp.type, hwbp.size);
+						}
+						m_deferredHardwareBreakpoints.clear();
+						m_needsHardwareBreakpointReapplication = false;
+					}
+
 					DebuggerEvent dbgevt;
 					dbgevt.type = AdapterStoppedEventType;
 					// LLDB sometimes fails to update the process status when it is already sending eStateStopped event.

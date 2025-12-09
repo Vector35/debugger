@@ -738,26 +738,34 @@ bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
 
 bool DebuggerBreakpoints::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
-	if (!m_state->GetAdapter())
-		return false;
+	// TODO: ARCHITECTURAL ISSUE - This dual-path breakpoint system is problematic:
+	// - Software breakpoints have AddBreakpoint(ModuleNameAndOffset) that works before adapter creation
+	// - Hardware breakpoints only have AddHardwareBreakpoint(uint64_t) which requires absolute address
+	// This creates API asymmetry and prevents adding hardware breakpoints before target launch.
+	//
+	// Future refactoring options:
+	// 1. Add AddHardwareBreakpoint(ModuleNameAndOffset, type, size) overload for symmetry
+	// 2. Create unified BreakpointLocation struct that can represent both relative and absolute addressing
+	// 3. Merge AddBreakpoint and AddHardwareBreakpoint into single API with type parameter
+	//
+	// For now: Always add to m_breakpoints first (like software breakpoints do), then try to apply to adapter
 
-	bool result = false;
-	// Add the hardware breakpoint to the adapter if connected
-	if (m_state->IsConnected())
-	{
-		result = m_state->GetAdapter()->AddHardwareBreakpoint(address, type, size);
-		if (!result)
-			return false;
-	}
-
-	// Check if this hardware breakpoint already exists
+	// Always add to m_breakpoints first - this allows hardware breakpoints to be added before adapter creation
 	if (!ContainsHardwareBreakpoint(address, type, size))
 	{
 		BreakpointInfo bp(address, type, size);
 		m_breakpoints.push_back(bp);
+		SerializeMetadata();
 	}
 
-	return result;
+	// Then try to apply to adapter if it exists and is connected
+	if (m_state->GetAdapter() && m_state->IsConnected())
+	{
+		return m_state->GetAdapter()->AddHardwareBreakpoint(address, type, size);
+	}
+
+	// Success - breakpoint cached in m_breakpoints, will be applied when adapter becomes active
+	return true;
 }
 
 
