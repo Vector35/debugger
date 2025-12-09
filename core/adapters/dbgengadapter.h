@@ -145,6 +145,7 @@ namespace BinaryNinjaDebugger {
 		unsigned long m_exitCode {};
 
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints {};
+		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
 
 		ULONG64 m_server {};
 		bool m_connectedToDebugServer = false;

@@ -1168,7 +1168,16 @@ std::vector<DebugBreakpoint> DbgEngAdapter::GetBreakpointList() const
 bool DbgEngAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	if (!m_dbgengInitialized)
-		return false;
+	{
+		// Cache the hardware breakpoint to be applied when debugger becomes initialized
+		PendingHardwareBreakpoint pending(address, type, size);
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
 
 	std::string command;
 	switch (type)
@@ -1204,7 +1213,17 @@ bool DbgEngAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType 
 bool DbgEngAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	if (!m_dbgengInitialized)
+	{
+		// Remove from pending list if debugger is not initialized
+		PendingHardwareBreakpoint pending(address, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
 		return false;
+	}
 
 	// List all breakpoints to find the ID of the hardware breakpoint at this address
 	auto result = InvokeBackendCommand("bl");
@@ -1248,11 +1267,19 @@ bool DbgEngAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointTy
 
 void DbgEngAdapter::ApplyBreakpoints()
 {
+	// Apply pending software breakpoints
 	for (const auto bp : m_pendingBreakpoints)
 	{
 		AddBreakpoint(bp);
 	}
 	m_pendingBreakpoints.clear();
+
+	// Apply pending hardware breakpoints
+	for (const auto& hwbp : m_pendingHardwareBreakpoints)
+	{
+		AddHardwareBreakpoint(hwbp.address, hwbp.type, hwbp.size);
+	}
+	m_pendingHardwareBreakpoints.clear();
 }
 
 DebugRegister DbgEngAdapter::ReadRegister(const std::string& reg)

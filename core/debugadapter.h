@@ -134,6 +134,22 @@ namespace BinaryNinjaDebugger {
 		bool operator!() const { return !this->m_address && !this->m_id && !this->m_is_active; }
 	};
 
+	// Pending hardware breakpoint info (to be applied when target becomes active)
+	struct PendingHardwareBreakpoint
+	{
+		uint64_t address;
+		DebugBreakpointType type;
+		size_t size;
+
+		PendingHardwareBreakpoint(uint64_t addr, DebugBreakpointType bpType, size_t bpSize)
+			: address(addr), type(bpType), size(bpSize) {}
+
+		bool operator==(const PendingHardwareBreakpoint& other) const
+		{
+			return address == other.address && type == other.type && size == other.size;
+		}
+	};
+
 	struct DebugRegister
 	{
 		std::string m_name {};

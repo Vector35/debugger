@@ -35,6 +35,7 @@ namespace BinaryNinjaDebugger {
 
 		bool m_targetActive;
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints {};
+		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
 
 		// Since when SBProcess::Kill() and SBProcess::ReadMemory() are called at the same time, LLDB will hang,
 		// we must use this mutex to prevent the quit operation and read memory operation to happen at the same time.

@@ -1132,7 +1132,16 @@ bool GdbAdapter::StepOverReverse()
 bool GdbAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	if (m_isTargetRunning || !m_rspConnector)
-		return false;
+	{
+		// Cache the hardware breakpoint to be applied when target stops or connector becomes available
+		PendingHardwareBreakpoint pending(address, type, size);
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
 
 	std::string command;
 	switch (type)
@@ -1164,7 +1173,17 @@ bool GdbAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType typ
 bool GdbAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	if (m_isTargetRunning || !m_rspConnector)
+	{
+		// Remove from pending list if target is running or connector not available
+		PendingHardwareBreakpoint pending(address, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
 		return false;
+	}
 
 	std::string command;
 	switch (type)
@@ -1482,6 +1501,7 @@ DebugBreakpoint GdbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, un
 
 void GdbAdapter::CheckApplyPendingBreakpoints()
 {
+	// Apply pending software breakpoints
 	for (auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end(); )
 	{
 		uint64_t base{};
@@ -1496,6 +1516,19 @@ void GdbAdapter::CheckApplyPendingBreakpoints()
 			}
 		}
 		it++;
+	}
+
+	// Apply pending hardware breakpoints
+	for (auto it = m_pendingHardwareBreakpoints.begin(); it != m_pendingHardwareBreakpoints.end(); )
+	{
+		if (AddHardwareBreakpoint(it->address, it->type, it->size))
+		{
+			it = m_pendingHardwareBreakpoints.erase(it);
+		}
+		else
+		{
+			it++;
+		}
 	}
 }
 

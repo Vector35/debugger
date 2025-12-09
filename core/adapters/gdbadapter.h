@@ -57,6 +57,7 @@ namespace BinaryNinjaDebugger
 		std::vector<DebugBreakpoint> m_debugBreakpoints{};
 
 		std::vector<PendingBreakpoint> m_pendingBreakpoints {};
+		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
 
 		std::optional<std::vector<DebugModule>> m_moduleCache{};
 

@@ -326,6 +326,7 @@ void BinaryNinjaDebugger::InitLldbAdapterType()
 
 void LldbAdapter::ApplyBreakpoints()
 {
+	// Apply pending software breakpoints
 	for (const auto& bp : m_pendingBreakpoints)
 	{
 		AddBreakpoint(bp);
@@ -333,6 +334,14 @@ void LldbAdapter::ApplyBreakpoints()
 	// Clear the pending breakpoint list so that when the adapter launch/attach/connect to the target for the next time,
 	// it always gets a clean list of breakpoints from the controller.
 	m_pendingBreakpoints.clear();
+
+	// Apply pending hardware breakpoints
+	for (const auto& hwbp : m_pendingHardwareBreakpoints)
+	{
+		AddHardwareBreakpoint(hwbp.address, hwbp.type, hwbp.size);
+	}
+	// Clear the pending hardware breakpoint list
+	m_pendingHardwareBreakpoints.clear();
 }
 
 
@@ -1006,7 +1015,16 @@ std::vector<DebugBreakpoint> LldbAdapter::GetBreakpointList() const
 bool LldbAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	if (!m_targetActive)
-		return false;
+	{
+		// Cache the hardware breakpoint to be applied when target becomes active
+		PendingHardwareBreakpoint pending(address, type, size);
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
 
 	switch (type)
 	{
@@ -1047,7 +1065,17 @@ bool LldbAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType ty
 bool LldbAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	if (!m_targetActive)
+	{
+		// Remove from pending list if target is not active
+		PendingHardwareBreakpoint pending(address, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
 		return false;
+	}
 
 	switch (type)
 	{
