@@ -731,6 +731,7 @@ std::vector<DebugBreakpoint> DebuggerController::GetBreakpoints()
 		bp.offset = breakpoints[i].offset;
 		bp.address = breakpoints[i].address;
 		bp.enabled = breakpoints[i].enabled;
+		bp.type = (DebugBreakpointType)breakpoints[i].type;
 		result[i] = bp;
 	}
 

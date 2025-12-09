@@ -45,15 +45,15 @@ std::string BreakpointItem::typeString() const
 	switch (m_type)
 	{
 		case SoftwareBreakpoint:
-			return "Software";
+			return "S";
 		case HardwareExecuteBreakpoint:
-			return "Hardware Exec";
+			return "HE";
 		case HardwareReadBreakpoint:
-			return "Hardware Read";
+			return "HR";
 		case HardwareWriteBreakpoint:
-			return "Hardware Write";
+			return "HW";
 		case HardwareAccessBreakpoint:
-			return "Hardware Access";
+			return "HA";
 		default:
 			return "Unknown";
 	}
