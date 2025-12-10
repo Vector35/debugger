@@ -116,6 +116,8 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLILCalls(LowLevelIL
 			break;
 		}
 		case FlagVariableSourceType:
+		case CompositeReturnValueSourceType:
+		case CompositeParameterSourceType:
 			break;
 		}
 	}
@@ -335,6 +337,8 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForMLILCalls(MediumLeve
 			break;
 		}
 		case FlagVariableSourceType:
+		case CompositeReturnValueSourceType:
+		case CompositeParameterSourceType:
 			break;
 		}
 	}
@@ -508,6 +512,8 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForHLILCalls(HighLevelI
 			break;
 		}
 		case FlagVariableSourceType:
+		case CompositeReturnValueSourceType:
+		case CompositeParameterSourceType:
 			break;
 		}
 	}
