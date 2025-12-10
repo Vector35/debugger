@@ -35,8 +35,8 @@ using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
-BreakpointItem::BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t address, DebugBreakpointType type) :
-	m_enabled(enabled), m_location(location), m_address(address), m_type(type)
+BreakpointItem::BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t address, DebugBreakpointType type, size_t size) :
+	m_enabled(enabled), m_location(location), m_address(address), m_type(type), m_size(size)
 {}
 
 
@@ -625,18 +625,30 @@ void DebugBreakpointsWidget::soloSelected()
 void DebugBreakpointsWidget::remove()
 {
 	QModelIndexList sel = selectionModel()->selectedRows();
-	std::vector<ModuleNameAndOffset> breakpointsToRemove;
+	std::vector<BreakpointItem> breakpointsToRemove;
 
 	for (const QModelIndex& index : sel)
 	{
 		// We cannot delete the breakpoint inside this loop because deleting a breakpoint will cause this widget to
 		// remove the breakpoint from the list, which will invalidate the index of the remaining breakpoints.
 		BreakpointItem bp = m_model->getRow(index.row());
-		breakpointsToRemove.push_back(bp.location());
+		breakpointsToRemove.push_back(bp);
 	}
 
 	for (const auto& bp : breakpointsToRemove)
-		m_controller->DeleteBreakpoint(bp);
+	{
+		// Use appropriate deletion method based on breakpoint type
+		if (bp.type() == SoftwareBreakpoint)
+		{
+			// Software breakpoints use module+offset deletion
+			m_controller->DeleteBreakpoint(bp.location());
+		}
+		else
+		{
+			// Hardware breakpoints use address+type+size deletion
+			m_controller->RemoveHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+		}
+	}
 }
 
 
@@ -650,7 +662,7 @@ void DebugBreakpointsWidget::updateContent()
 		ModuleNameAndOffset info;
 		info.module = bp.module;
 		info.offset = bp.offset;
-		bps.emplace_back(bp.enabled, info, bp.address, bp.type);
+		bps.emplace_back(bp.enabled, info, bp.address, bp.type, bp.size);
 	}
 
 	m_model->updateRows(bps);

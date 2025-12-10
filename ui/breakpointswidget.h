@@ -40,13 +40,15 @@ private:
 	ModuleNameAndOffset m_location;
 	uint64_t m_address;
 	DebugBreakpointType m_type;
+	size_t m_size;  // Size in bytes for hardware breakpoints/watchpoints
 
 public:
-	BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t remoteAddress, DebugBreakpointType type = SoftwareBreakpoint);
+	BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t remoteAddress, DebugBreakpointType type = SoftwareBreakpoint, size_t size = 1);
 	bool enabled() const { return m_enabled; }
 	ModuleNameAndOffset location() const { return m_location; }
 	uint64_t address() const { return m_address; }
 	DebugBreakpointType type() const { return m_type; }
+	size_t size() const { return m_size; }
 	std::string typeString() const;
 	bool operator==(const BreakpointItem& other) const;
 	bool operator!=(const BreakpointItem& other) const;

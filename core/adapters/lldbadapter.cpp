@@ -1091,12 +1091,28 @@ bool LldbAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType
 	{
 		// Remove from pending list if target is not active
 		PendingHardwareBreakpoint pending(address, type, size);
+
+		// Check pending list first
 		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
 		if (it != m_pendingHardwareBreakpoints.end())
 		{
 			m_pendingHardwareBreakpoints.erase(it);
 			return true;
 		}
+
+		// Also check deferred list (hardware breakpoints waiting for first stop due to LLDB bug workaround)
+		auto deferredIt = std::find(m_deferredHardwareBreakpoints.begin(), m_deferredHardwareBreakpoints.end(), pending);
+		if (deferredIt != m_deferredHardwareBreakpoints.end())
+		{
+			m_deferredHardwareBreakpoints.erase(deferredIt);
+			// Clear the reapplication flag if no more deferred breakpoints
+			if (m_deferredHardwareBreakpoints.empty())
+			{
+				m_needsHardwareBreakpointReapplication = false;
+			}
+			return true;
+		}
+
 		return false;
 	}
 

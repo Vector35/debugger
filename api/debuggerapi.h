@@ -372,6 +372,7 @@ namespace BinaryNinjaDebuggerAPI {
 		uint64_t address;
 		bool enabled;
 		DebugBreakpointType type = SoftwareBreakpoint;
+		size_t size = 1;  // Size in bytes for hardware breakpoints/watchpoints (1, 2, 4, 8)
 	};
 
 

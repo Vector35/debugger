@@ -143,6 +143,7 @@ extern "C"
 		uint64_t address;
 		bool enabled;
 		BNDebugBreakpointType type;
+		size_t size;  // Size in bytes for hardware breakpoints/watchpoints (1, 2, 4, 8)
 	} BNDebugBreakpoint;
 
 

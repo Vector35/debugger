@@ -540,7 +540,31 @@ int main(int argc, const char* argv[])
 			size_t i = 0;
 			for (const auto& breakpoint : debugger->GetBreakpoints())
 			{
-				Log::print("    breakpoint[{}] @ 0x{:X} is {}{}\n", i, breakpoint.address,
+				// Convert breakpoint type to short string representation
+				std::string typeStr;
+				switch (breakpoint.type)
+				{
+					case BinaryNinjaDebuggerAPI::SoftwareBreakpoint:
+						typeStr = "S";
+						break;
+					case BinaryNinjaDebuggerAPI::HardwareExecuteBreakpoint:
+						typeStr = "HE";
+						break;
+					case BinaryNinjaDebuggerAPI::HardwareReadBreakpoint:
+						typeStr = "HR";
+						break;
+					case BinaryNinjaDebuggerAPI::HardwareWriteBreakpoint:
+						typeStr = "HW";
+						break;
+					case BinaryNinjaDebuggerAPI::HardwareAccessBreakpoint:
+						typeStr = "HA";
+						break;
+					default:
+						typeStr = "?";
+						break;
+				}
+
+				Log::print("    breakpoint[{}] @ 0x{:X} type={} is {}{}\n", i, breakpoint.address, typeStr,
 					breakpoint.enabled ? Log::Style(0, 255, 0) : Log::Style(255, 0, 0),
 					breakpoint.enabled ? "active" : "inactive");
 				i++;
