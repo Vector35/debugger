@@ -235,10 +235,17 @@ namespace BinaryNinjaDebugger {
 		DebugBreakpoint GetAllBreakpoints();
 
 		// hardware breakpoints
+		// Hardware breakpoint methods - absolute address
 		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+
+		// Hardware breakpoint methods - module+offset (ASLR-safe)
+		bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
+		bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
+		bool EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
+		bool DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
 
 		// registers
 		intx::uint512 GetRegisterValue(const std::string& name);

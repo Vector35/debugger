@@ -1291,6 +1291,55 @@ bool EsrevenAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointT
 }
 
 
+bool EsrevenAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	uint64_t base{};
+	if (GetModuleBase(location.module, base))
+	{
+		// Module is loaded - resolve to absolute address and delegate
+		uint64_t address = base + location.offset;
+		return AddHardwareBreakpoint(address, type, size);
+	}
+	else
+	{
+		// Module not loaded yet - add to pending list with module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		// Also populate the address field for UI display purposes
+		pending.address = location.offset + m_originalImageBase;
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
+}
+
+
+bool EsrevenAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	uint64_t base{};
+	if (GetModuleBase(location.module, base))
+	{
+		// Module is loaded - resolve to absolute address and delegate
+		uint64_t address = base + location.offset;
+		return RemoveHardwareBreakpoint(address, type, size);
+	}
+	else
+	{
+		// Module not loaded yet - remove from pending list using module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+		return false;
+	}
+}
+
+
 bool EsrevenAdapter::AddHardwareWriteBreakpoint(uint64_t address)
 {
 	// Delegate to new standardized method

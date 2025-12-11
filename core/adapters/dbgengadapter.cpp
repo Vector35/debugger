@@ -1265,6 +1265,109 @@ bool DbgEngAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointTy
 	return false;
 }
 
+
+bool DbgEngAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	if (m_dbgengInitialized)
+	{
+		// DbgEng is initialized - use module+offset syntax directly
+		BNSettingsScope scope = SettingsResourceScope;
+		auto data = GetData();
+		auto adapterSettings = GetAdapterSettings();
+		auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+
+		auto moduleToUse = location.module;
+		if (DebugModule::IsSameBaseModule(moduleToUse, inputFile))
+		{
+			if (m_usePDBFileName && (!m_pdbFileName.empty()))
+				moduleToUse = m_pdbFileName;
+		}
+
+		// DbgEng does not take a full path. It can take "hello.exe", or simply "hello"
+		auto fileName = std::filesystem::path(moduleToUse).stem();
+
+		std::string command;
+		switch (type)
+		{
+			case HardwareExecuteBreakpoint:
+				// ba e<size> @!"module"+offset: hardware execution breakpoint with module+offset
+				command = fmt::format("ba e{} @!\"{}\"+0x{:x}", size, EscapeModuleName(fileName.wstring()), location.offset);
+				break;
+			case HardwareReadBreakpoint:
+				// ba r<size> @!"module"+offset: hardware read breakpoint with module+offset
+				command = fmt::format("ba r{} @!\"{}\"+0x{:x}", size, EscapeModuleName(fileName.wstring()), location.offset);
+				break;
+			case HardwareWriteBreakpoint:
+				// ba w<size> @!"module"+offset: hardware write breakpoint with module+offset
+				command = fmt::format("ba w{} @!\"{}\"+0x{:x}", size, EscapeModuleName(fileName.wstring()), location.offset);
+				break;
+			case HardwareAccessBreakpoint:
+				// ba a<size> @!"module"+offset: hardware access breakpoint with module+offset
+				command = fmt::format("ba a{} @!\"{}\"+0x{:x}", size, EscapeModuleName(fileName.wstring()), location.offset);
+				break;
+			default:
+				return false;
+		}
+
+		LogDebug("Hardware breakpoint command: %s", command.c_str());
+		auto result = InvokeBackendCommand(command);
+		return result.find("error") == std::string::npos && result.find("Error") == std::string::npos;
+	}
+	else
+	{
+		// DbgEng not initialized - cache as pending with module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		// Also populate the address field for UI display purposes
+		pending.address = location.offset + m_originalImageBase;
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
+}
+
+
+bool DbgEngAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	// For removal, we need to resolve to absolute address to find the breakpoint ID
+	// DbgEng doesn't provide a direct way to remove by module+offset
+	if (m_dbgengInitialized)
+	{
+		// Get module base and resolve to absolute address
+		auto modules = GetModuleList();
+		uint64_t base = 0;
+		for (const auto& module : modules)
+		{
+			if (DebugModule::IsSameBaseModule(module.m_name, location.module))
+			{
+				base = module.m_address;
+				break;
+			}
+		}
+
+		if (base != 0)
+		{
+			uint64_t address = base + location.offset;
+			return RemoveHardwareBreakpoint(address, type, size);
+		}
+		return false;
+	}
+	else
+	{
+		// Not initialized - remove from pending list using module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+		return false;
+	}
+}
+
 void DbgEngAdapter::ApplyBreakpoints()
 {
 	// Apply pending software breakpoints

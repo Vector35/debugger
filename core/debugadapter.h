@@ -137,16 +137,35 @@ namespace BinaryNinjaDebugger {
 	// Pending hardware breakpoint info (to be applied when target becomes active)
 	struct PendingHardwareBreakpoint
 	{
-		uint64_t address;
+		ModuleNameAndOffset location;  // Module + offset (for relative addressing)
+		uint64_t address;              // Absolute address (for absolute addressing or resolved relative)
 		DebugBreakpointType type;
 		size_t size;
+		bool isRelative;               // True if using module+offset, false if using absolute address
 
+		// Constructor for absolute address
 		PendingHardwareBreakpoint(uint64_t addr, DebugBreakpointType bpType, size_t bpSize)
-			: address(addr), type(bpType), size(bpSize) {}
+			: location(), address(addr), type(bpType), size(bpSize), isRelative(false) {}
+
+		// Constructor for module+offset
+		PendingHardwareBreakpoint(const ModuleNameAndOffset& loc, DebugBreakpointType bpType, size_t bpSize)
+			: location(loc), address(0), type(bpType), size(bpSize), isRelative(true) {}
 
 		bool operator==(const PendingHardwareBreakpoint& other) const
 		{
-			return address == other.address && type == other.type && size == other.size;
+			if (isRelative != other.isRelative)
+				return false;
+
+			if (isRelative)
+			{
+				// Compare by module+offset
+				return location == other.location && type == other.type && size == other.size;
+			}
+			else
+			{
+				// Compare by absolute address
+				return address == other.address && type == other.type && size == other.size;
+			}
 		}
 	};
 
@@ -291,8 +310,16 @@ namespace BinaryNinjaDebugger {
 		virtual std::vector<DebugBreakpoint> GetBreakpointList() const = 0;
 
 		// Hardware breakpoint and watchpoint support
-		virtual bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
-		virtual bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+		// Note: Adapters that don't support hardware breakpoints should return false from both methods
+
+		// Hardware breakpoints - absolute address
+		virtual bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) = 0;
+		virtual bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) = 0;
+
+		// Hardware breakpoints - module+offset (ASLR-safe)
+		// Each adapter must implement this to handle module resolution in its own way
+		virtual bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) = 0;
+		virtual bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) = 0;
 
 		virtual std::unordered_map<std::string, DebugRegister> ReadAllRegisters() = 0;
 

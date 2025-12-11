@@ -140,14 +140,32 @@ void HardwareBreakpointDialog::addBreakpoint()
 
 	if (m_controller)
 	{
-		bool success = m_controller->AddHardwareBreakpoint(address, type, size);
+		bool success = false;
+
+		// Determine if we should use absolute or relative addressing
+		bool isAbsoluteAddress = m_controller->IsConnected();
+
+		if (isAbsoluteAddress)
+		{
+			// Use absolute address (target is connected, ASLR already applied)
+			success = m_controller->AddHardwareBreakpoint(address, type, size);
+		}
+		else
+		{
+			// Use module+offset for ASLR safety (target not connected yet)
+			std::string filename = m_controller->GetInputFile();
+			uint64_t offset = address - m_controller->GetViewFileSegmentsStart();
+			ModuleNameAndOffset info = {filename, offset};
+			success = m_controller->AddHardwareBreakpoint(info, type, size);
+		}
+
 		if (success)
 		{
 			accept();
 		}
 		else
 		{
-			QMessageBox::warning(this, "Failed to Add Breakpoint", 
+			QMessageBox::warning(this, "Failed to Add Breakpoint",
 				"Failed to add hardware breakpoint. The target may not support hardware breakpoints or all hardware breakpoint slots may be in use.");
 		}
 	}

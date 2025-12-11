@@ -956,6 +956,34 @@ bool CorelliumAdapter::SupportFeature(DebugAdapterCapacity feature)
 }
 
 
+bool CorelliumAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	// Hardware breakpoints are not yet implemented for Corellium adapter
+	return false;
+}
+
+
+bool CorelliumAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	// Hardware breakpoints are not yet implemented for Corellium adapter
+	return false;
+}
+
+
+bool CorelliumAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	// Hardware breakpoints are not yet implemented for Corellium adapter
+	return false;
+}
+
+
+bool CorelliumAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	// Hardware breakpoints are not yet implemented for Corellium adapter
+	return false;
+}
+
+
 void CorelliumAdapter::InvalidateCache()
 {
 	m_regCache.reset();

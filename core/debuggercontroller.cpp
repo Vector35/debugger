@@ -202,6 +202,64 @@ bool DebuggerController::DisableHardwareBreakpoint(uint64_t address, DebugBreakp
 }
 
 
+// Hardware breakpoint methods - module+offset (ASLR-safe)
+
+bool DebuggerController::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	bool result = m_state->AddHardwareBreakpoint(location, type, size);
+	if (result)
+	{
+		DebuggerEvent event;
+		event.type = RelativeBreakpointAddedEvent;
+		event.data.relativeAddress = location;
+		PostDebuggerEvent(event);
+	}
+	return result;
+}
+
+
+bool DebuggerController::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	bool result = m_state->RemoveHardwareBreakpoint(location, type, size);
+	if (result)
+	{
+		DebuggerEvent event;
+		event.type = RelativeBreakpointRemovedEvent;
+		event.data.relativeAddress = location;
+		PostDebuggerEvent(event);
+	}
+	return result;
+}
+
+
+bool DebuggerController::EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	bool result = m_state->EnableHardwareBreakpoint(location, type, size);
+	if (result)
+	{
+		DebuggerEvent event;
+		event.type = RelativeBreakpointEnabledEvent;
+		event.data.relativeAddress = location;
+		PostDebuggerEvent(event);
+	}
+	return result;
+}
+
+
+bool DebuggerController::DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	bool result = m_state->DisableHardwareBreakpoint(location, type, size);
+	if (result)
+	{
+		DebuggerEvent event;
+		event.type = RelativeBreakpointDisabledEvent;
+		event.data.relativeAddress = location;
+		PostDebuggerEvent(event);
+	}
+	return result;
+}
+
+
 bool DebuggerController::SetIP(uint64_t address)
 {
 	std::string ipRegisterName;

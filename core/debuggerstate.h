@@ -81,19 +81,24 @@ namespace BinaryNinjaDebugger {
 	// Unified structure to track both software and hardware breakpoints
 	struct BreakpointInfo
 	{
-		ModuleNameAndOffset location;  // Module + offset for software breakpoints
-		uint64_t address;              // Absolute address (for hardware or resolved software)
+		ModuleNameAndOffset location;  // Module + offset (for relative addressing)
+		uint64_t address;              // Absolute address (for absolute addressing or resolved relative)
 		DebugBreakpointType type;      // Breakpoint type (Software, HardwareExecute, etc.)
 		size_t size;                   // Size for hardware watchpoints
 		bool enabled;                  // Enabled state
+		bool isRelative;               // True if using module+offset, false if using absolute address
 
-		// Create a software breakpoint
+		// Create a software breakpoint (always relative)
 		BreakpointInfo(const ModuleNameAndOffset& loc)
-			: location(loc), address(0), type(SoftwareBreakpoint), size(1), enabled(true) {}
+			: location(loc), address(0), type(SoftwareBreakpoint), size(1), enabled(true), isRelative(true) {}
 
-		// Create a hardware breakpoint
+		// Create a hardware breakpoint with absolute address
 		BreakpointInfo(uint64_t addr, DebugBreakpointType bpType, size_t bpSize)
-			: location(), address(addr), type(bpType), size(bpSize), enabled(true) {}
+			: location(), address(addr), type(bpType), size(bpSize), enabled(true), isRelative(false) {}
+
+		// Create a hardware breakpoint with module+offset (ASLR-safe)
+		BreakpointInfo(const ModuleNameAndOffset& loc, DebugBreakpointType bpType, size_t bpSize)
+			: location(loc), address(0), type(bpType), size(bpSize), enabled(true), isRelative(true) {}
 
 		bool IsSoftware() const { return type == SoftwareBreakpoint; }
 		bool IsHardware() const { return type != SoftwareBreakpoint; }
@@ -101,22 +106,29 @@ namespace BinaryNinjaDebugger {
 		bool operator==(const BreakpointInfo& other) const
 		{
 			if (type != other.type) return false;
-			if (IsSoftware())
+			if (size != other.size) return false;
+			if (isRelative != other.isRelative) return false;
+
+			// For relative addressing, compare module+offset
+			if (isRelative)
 				return location == other.location;
+			// For absolute addressing, compare address
 			else
-				return address == other.address && size == other.size;
+				return address == other.address;
 		}
 
 		bool operator<(const BreakpointInfo& other) const
 		{
 			if (type != other.type) return type < other.type;
-			if (IsSoftware())
+			if (size != other.size) return size < other.size;
+			if (isRelative != other.isRelative) return isRelative < other.isRelative;
+
+			// For relative addressing, compare module+offset
+			if (isRelative)
 				return location < other.location;
+			// For absolute addressing, compare address
 			else
-			{
-				if (address != other.address) return address < other.address;
-				return size < other.size;
-			}
+				return address < other.address;
 		}
 	};
 
@@ -151,11 +163,19 @@ namespace BinaryNinjaDebugger {
 		std::vector<ModuleNameAndOffset> GetSoftwareBreakpointList() const;
 
 		// Hardware breakpoint methods
+		// Hardware breakpoint methods - absolute address
 		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool ContainsHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+
+		// Hardware breakpoint methods - module+offset (ASLR-safe)
+		bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
+		bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
+		bool EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
+		bool DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
+		bool ContainsHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
 	};
 
 
@@ -303,11 +323,17 @@ namespace BinaryNinjaDebugger {
 		void DisableBreakpoint(uint64_t address);
 		void DisableBreakpoint(const ModuleNameAndOffset& address);
 
-		// Hardware breakpoints
+		// Hardware breakpoint methods - absolute address
 		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+
+		// Hardware breakpoint methods - module+offset (ASLR-safe)
+		bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
+		bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
+		bool EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
+		bool DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
 
 		uint64_t IP();
 		uint64_t StackPointer();

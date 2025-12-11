@@ -135,6 +135,12 @@ namespace BinaryNinjaDebugger {
 
 		bool DisconnectDebugServer() override;
 
+		// Hardware breakpoint support - not supported for core dumps
+		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
+		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
+		bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) override;
+		bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) override;
+
 		void GenerateDefaultAdapterSettings(BinaryView* data);
 		Ref<Settings> GetAdapterSettings() override;
 	};

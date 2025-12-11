@@ -1213,6 +1213,34 @@ bool LldbCoreDumpAdapter::DisconnectDebugServer()
 }
 
 
+bool LldbCoreDumpAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	// Hardware breakpoints are not supported for core dumps
+	return false;
+}
+
+
+bool LldbCoreDumpAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	// Hardware breakpoints are not supported for core dumps
+	return false;
+}
+
+
+bool LldbCoreDumpAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	// Hardware breakpoints are not supported for core dumps
+	return false;
+}
+
+
+bool LldbCoreDumpAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	// Hardware breakpoints are not supported for core dumps
+	return false;
+}
+
+
 Ref<Settings> LldbCoreDumpAdapter::GetAdapterSettings()
 {
 	return LldbCoreDumpAdapterType::GetAdapterSettings();

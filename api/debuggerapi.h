@@ -739,11 +739,17 @@ namespace BinaryNinjaDebuggerAPI {
 		bool ContainsBreakpoint(uint64_t address);
 		bool ContainsBreakpoint(const ModuleNameAndOffset& breakpoint);
 
-		// Hardware breakpoint and watchpoint support
+		// Hardware breakpoint and watchpoint support - absolute address
 		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
 		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
 		bool EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
 		bool DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+
+		// Hardware breakpoint and watchpoint support - module+offset (ASLR-safe)
+		bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1);
+		bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1);
+		bool EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1);
+		bool DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1);
 
 		uint64_t IP();
 		uint64_t GetLastIP();

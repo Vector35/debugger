@@ -619,6 +619,16 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerDisableHardwareBreakpoint(BNDebuggerController* controller, uint64_t address,
 		BNDebugBreakpointType type, size_t size);
 
+	// Hardware breakpoint methods - module+offset (ASLR-safe)
+	DEBUGGER_FFI_API bool BNDebuggerAddRelativeHardwareBreakpoint(BNDebuggerController* controller, const char* module,
+		uint64_t offset, BNDebugBreakpointType type, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerRemoveRelativeHardwareBreakpoint(BNDebuggerController* controller, const char* module,
+		uint64_t offset, BNDebugBreakpointType type, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerEnableRelativeHardwareBreakpoint(BNDebuggerController* controller, const char* module,
+		uint64_t offset, BNDebugBreakpointType type, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerDisableRelativeHardwareBreakpoint(BNDebuggerController* controller, const char* module,
+		uint64_t offset, BNDebugBreakpointType type, size_t size);
+
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetIP(BNDebuggerController* controller);
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetLastIP(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerSetIP(BNDebuggerController* controller, uint64_t address);

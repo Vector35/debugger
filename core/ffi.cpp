@@ -812,9 +812,17 @@ BNDebugBreakpoint* BNDebuggerGetBreakpoints(BNDebuggerController* controller, si
 	BNDebugBreakpoint* result = new BNDebugBreakpoint[breakpoints.size()];
 	for (size_t i = 0; i < breakpoints.size(); i++)
 	{
-		uint64_t remoteAddress = breakpoints[i].IsSoftware() ?
-			state->GetModules()->RelativeAddressToAbsolute(breakpoints[i].location) :
-			breakpoints[i].address;
+		uint64_t remoteAddress;
+		if (breakpoints[i].isRelative)
+		{
+			// For relative addressing (both software and hardware), convert module+offset to absolute address
+			remoteAddress = state->GetModules()->RelativeAddressToAbsolute(breakpoints[i].location);
+		}
+		else
+		{
+			// For absolute addressing, use the stored address directly
+			remoteAddress = breakpoints[i].address;
+		}
 		result[i].module = BNDebuggerAllocString(breakpoints[i].location.module.c_str());
 		result[i].offset = breakpoints[i].location.offset;
 		result[i].address = remoteAddress;
@@ -943,6 +951,32 @@ bool BNDebuggerEnableHardwareBreakpoint(BNDebuggerController* controller, uint64
 bool BNDebuggerDisableHardwareBreakpoint(BNDebuggerController* controller, uint64_t address, BNDebugBreakpointType type, size_t size)
 {
 	return controller->object->DisableHardwareBreakpoint(address, (DebugBreakpointType)type, size);
+}
+
+
+// Hardware breakpoint methods - module+offset (ASLR-safe)
+
+bool BNDebuggerAddRelativeHardwareBreakpoint(BNDebuggerController* controller, const char* module, uint64_t offset, BNDebugBreakpointType type, size_t size)
+{
+	return controller->object->AddHardwareBreakpoint(ModuleNameAndOffset(module, offset), (DebugBreakpointType)type, size);
+}
+
+
+bool BNDebuggerRemoveRelativeHardwareBreakpoint(BNDebuggerController* controller, const char* module, uint64_t offset, BNDebugBreakpointType type, size_t size)
+{
+	return controller->object->RemoveHardwareBreakpoint(ModuleNameAndOffset(module, offset), (DebugBreakpointType)type, size);
+}
+
+
+bool BNDebuggerEnableRelativeHardwareBreakpoint(BNDebuggerController* controller, const char* module, uint64_t offset, BNDebugBreakpointType type, size_t size)
+{
+	return controller->object->EnableHardwareBreakpoint(ModuleNameAndOffset(module, offset), (DebugBreakpointType)type, size);
+}
+
+
+bool BNDebuggerDisableRelativeHardwareBreakpoint(BNDebuggerController* controller, const char* module, uint64_t offset, BNDebugBreakpointType type, size_t size)
+{
+	return controller->object->DisableHardwareBreakpoint(ModuleNameAndOffset(module, offset), (DebugBreakpointType)type, size);
 }
 
 

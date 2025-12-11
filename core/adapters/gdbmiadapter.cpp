@@ -1083,6 +1083,30 @@ bool GdbMiAdapter::SupportFeature(DebugAdapterCapacity feature) {
     }
 }
 
+bool GdbMiAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	// Hardware breakpoints are not yet implemented for GDB MI adapter
+	return false;
+}
+
+bool GdbMiAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	// Hardware breakpoints are not yet implemented for GDB MI adapter
+	return false;
+}
+
+bool GdbMiAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	// Hardware breakpoints are not yet implemented for GDB MI adapter
+	return false;
+}
+
+bool GdbMiAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	// Hardware breakpoints are not yet implemented for GDB MI adapter
+	return false;
+}
+
 // --- Adapter Type Registration ---
 GdbMiAdapterType::GdbMiAdapterType() : DebugAdapterType("GDB MI") {}
 

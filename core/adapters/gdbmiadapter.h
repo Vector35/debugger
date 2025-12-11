@@ -104,6 +104,12 @@ public:
     uint64_t GetStackPointer() override;
     bool SupportFeature(BinaryNinjaDebugger::DebugAdapterCapacity feature) override;
 
+	// Hardware breakpoint support - not implemented
+	bool AddHardwareBreakpoint(uint64_t address, BinaryNinjaDebugger::DebugBreakpointType type, size_t size = 1) override;
+	bool RemoveHardwareBreakpoint(uint64_t address, BinaryNinjaDebugger::DebugBreakpointType type, size_t size = 1) override;
+	bool AddHardwareBreakpoint(const BinaryNinjaDebugger::ModuleNameAndOffset& location, BinaryNinjaDebugger::DebugBreakpointType type, size_t size = 1) override;
+	bool RemoveHardwareBreakpoint(const BinaryNinjaDebugger::ModuleNameAndOffset& location, BinaryNinjaDebugger::DebugBreakpointType type, size_t size = 1) override;
+
 	void GenerateDefaultAdapterSettings(BinaryView* data);
     Ref<Settings> GetAdapterSettings() override;
 };

@@ -825,6 +825,32 @@ bool DebuggerController::DisableHardwareBreakpoint(uint64_t address, DebugBreakp
 }
 
 
+// Hardware breakpoint methods - module+offset (ASLR-safe)
+
+bool DebuggerController::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerAddRelativeHardwareBreakpoint(m_object, location.module.c_str(), location.offset, (BNDebugBreakpointType)type, size);
+}
+
+
+bool DebuggerController::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerRemoveRelativeHardwareBreakpoint(m_object, location.module.c_str(), location.offset, (BNDebugBreakpointType)type, size);
+}
+
+
+bool DebuggerController::EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerEnableRelativeHardwareBreakpoint(m_object, location.module.c_str(), location.offset, (BNDebugBreakpointType)type, size);
+}
+
+
+bool DebuggerController::DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerDisableRelativeHardwareBreakpoint(m_object, location.module.c_str(), location.offset, (BNDebugBreakpointType)type, size);
+}
+
+
 uint64_t DebuggerController::RelativeAddressToAbsolute(const ModuleNameAndOffset& address)
 {
 	return BNDebuggerRelativeAddressToAbsolute(m_object, address.module.c_str(), address.offset);
