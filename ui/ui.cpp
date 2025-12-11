@@ -929,7 +929,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("Solo Breakpoint", "Breakpoint");
 
 	// Register "Add Hardware Breakpoint" action
-	UIAction::registerAction("Add Hardware Breakpoint...");
+	UIAction::registerAction("Add Hardware Breakpoint...", QKeySequence(Qt::Key_F3));
 	context->globalActions()->bindAction("Add Hardware Breakpoint...",
 		UIAction(
 			[=](const UIActionContext& ctxt) {

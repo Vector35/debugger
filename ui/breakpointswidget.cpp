@@ -327,7 +327,6 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 		addBreakpointActionName, UIAction([&]() { addSoftwareBreakpoint(); }));
 
 	QString addHardwareBreakpointActionName = QString::fromStdString("Add Hardware Breakpoint...");
-	UIAction::registerAction(addHardwareBreakpointActionName);
 	m_menu->addAction(addHardwareBreakpointActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		addHardwareBreakpointActionName, UIAction([&]() { addHardwareBreakpoint(); }));
