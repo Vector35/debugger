@@ -40,6 +40,23 @@ HardwareBreakpointDialog::HardwareBreakpointDialog(QWidget* parent, DbgRef<Debug
 	m_typeCombo->addItem("Hardware Read", static_cast<int>(HardwareReadBreakpoint));
 	m_typeCombo->addItem("Hardware Write", static_cast<int>(HardwareWriteBreakpoint));
 	m_typeCombo->addItem("Hardware Access (Read/Write)", static_cast<int>(HardwareAccessBreakpoint));
+
+	// Set default type based on whether there's a function at the address
+	if (suggestedAddress != 0 && controller)
+	{
+		auto binaryView = controller->GetData();
+		if (binaryView)
+		{
+			auto functions = binaryView->GetAnalysisFunctionsContainingAddress(suggestedAddress);
+			if (functions.empty())
+			{
+				// No function at address - default to Hardware Read
+				m_typeCombo->setCurrentIndex(1);
+			}
+			// else: function exists - default to Hardware Execute (already index 0)
+		}
+	}
+
 	formLayout->addRow("Type:", m_typeCombo);
 
 	// Size selection (for watchpoints)
