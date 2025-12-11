@@ -237,6 +237,8 @@ namespace BinaryNinjaDebugger {
 		// hardware breakpoints
 		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+		bool EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+		bool DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 
 		// registers
 		intx::uint512 GetRegisterValue(const std::string& name);

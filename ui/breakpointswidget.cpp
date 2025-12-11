@@ -403,10 +403,22 @@ void DebugBreakpointsWidget::mousePressEvent(QMouseEvent* event)
 	{
 		// Toggle breakpoint enabled state when clicking on enabled column
 		BreakpointItem bp = m_model->getRow(index.row());
-		if (bp.enabled())
-			m_controller->DisableBreakpoint(bp.location());
+		if (bp.type() == SoftwareBreakpoint)
+		{
+			// Software breakpoint - use location-based methods
+			if (bp.enabled())
+				m_controller->DisableBreakpoint(bp.location());
+			else
+				m_controller->EnableBreakpoint(bp.location());
+		}
 		else
-			m_controller->EnableBreakpoint(bp.location());
+		{
+			// Hardware breakpoint - use address+type+size-based methods
+			if (bp.enabled())
+				m_controller->DisableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			else
+				m_controller->EnableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+		}
 		return; // Don't call parent to avoid selection change
 	}
 
@@ -564,10 +576,22 @@ void DebugBreakpointsWidget::toggleSelected()
 	for (const QModelIndex& index : sel)
 	{
 		BreakpointItem bp = m_model->getRow(index.row());
-		if (bp.enabled())
-			m_controller->DisableBreakpoint(bp.location());
+		if (bp.type() == SoftwareBreakpoint)
+		{
+			// Software breakpoint - use location-based methods
+			if (bp.enabled())
+				m_controller->DisableBreakpoint(bp.location());
+			else
+				m_controller->EnableBreakpoint(bp.location());
+		}
 		else
-			m_controller->EnableBreakpoint(bp.location());
+		{
+			// Hardware breakpoint - use address+type+size-based methods
+			if (bp.enabled())
+				m_controller->DisableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			else
+				m_controller->EnableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+		}
 	}
 }
 
@@ -577,10 +601,17 @@ void DebugBreakpointsWidget::enableAll()
 	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
 	for (const DebugBreakpoint& bp : breakpoints)
 	{
-		ModuleNameAndOffset info;
-		info.module = bp.module;
-		info.offset = bp.offset;
-		m_controller->EnableBreakpoint(info);
+		if (bp.type == SoftwareBreakpoint)
+		{
+			ModuleNameAndOffset info;
+			info.module = bp.module;
+			info.offset = bp.offset;
+			m_controller->EnableBreakpoint(info);
+		}
+		else
+		{
+			m_controller->EnableHardwareBreakpoint(bp.address, bp.type, bp.size);
+		}
 	}
 }
 
@@ -590,10 +621,17 @@ void DebugBreakpointsWidget::disableAll()
 	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
 	for (const DebugBreakpoint& bp : breakpoints)
 	{
-		ModuleNameAndOffset info;
-		info.module = bp.module;
-		info.offset = bp.offset;
-		m_controller->DisableBreakpoint(info);
+		if (bp.type == SoftwareBreakpoint)
+		{
+			ModuleNameAndOffset info;
+			info.module = bp.module;
+			info.offset = bp.offset;
+			m_controller->DisableBreakpoint(info);
+		}
+		else
+		{
+			m_controller->DisableHardwareBreakpoint(bp.address, bp.type, bp.size);
+		}
 	}
 }
 
@@ -606,19 +644,33 @@ void DebugBreakpointsWidget::soloSelected()
 
 	// Get the selected breakpoint location
 	BreakpointItem selectedBp = m_model->getRow(sel[0].row());
-	
+
 	// Disable all breakpoints first
 	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
 	for (const DebugBreakpoint& bp : breakpoints)
 	{
-		ModuleNameAndOffset info;
-		info.module = bp.module;
-		info.offset = bp.offset;
-		m_controller->DisableBreakpoint(info);
+		if (bp.type == SoftwareBreakpoint)
+		{
+			ModuleNameAndOffset info;
+			info.module = bp.module;
+			info.offset = bp.offset;
+			m_controller->DisableBreakpoint(info);
+		}
+		else
+		{
+			m_controller->DisableHardwareBreakpoint(bp.address, bp.type, bp.size);
+		}
 	}
-	
+
 	// Enable the selected breakpoint
-	m_controller->EnableBreakpoint(selectedBp.location());
+	if (selectedBp.type() == SoftwareBreakpoint)
+	{
+		m_controller->EnableBreakpoint(selectedBp.location());
+	}
+	else
+	{
+		m_controller->EnableHardwareBreakpoint(selectedBp.address(), selectedBp.type(), selectedBp.size());
+	}
 }
 
 

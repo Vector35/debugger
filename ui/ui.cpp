@@ -17,6 +17,7 @@ limitations under the License.
 #include "ui.h"
 #include "binaryninjaapi.h"
 #include "breakpointswidget.h"
+#include "hardwarebreakpointdialog.h"
 #include "moduleswidget.h"
 #include "renderlayer.h"
 #include "uinotification.h"
@@ -926,6 +927,24 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				return ctxt.binaryView && hasBreakpoint;
 			}));
 	debuggerMenu->addAction("Solo Breakpoint", "Breakpoint");
+
+	// Register "Add Hardware Breakpoint" action
+	UIAction::registerAction("Add Hardware Breakpoint...");
+	context->globalActions()->bindAction("Add Hardware Breakpoint...",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				// Show the hardware breakpoint dialog with the current address as suggestion
+				HardwareBreakpointDialog dialog(context->mainWindow(), controller, ctxt.address);
+				dialog.exec();
+			},
+			requireBinaryView));
+	debuggerMenu->addAction("Add Hardware Breakpoint...", "Breakpoint");
 
 	UIAction::registerAction("Connect to Debug Server");
 	context->globalActions()->bindAction("Connect to Debug Server",

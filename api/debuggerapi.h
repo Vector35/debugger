@@ -742,6 +742,8 @@ namespace BinaryNinjaDebuggerAPI {
 		// Hardware breakpoint and watchpoint support
 		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
 		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+		bool EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+		bool DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
 
 		uint64_t IP();
 		uint64_t GetLastIP();

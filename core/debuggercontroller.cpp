@@ -174,6 +174,34 @@ bool DebuggerController::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpo
 }
 
 
+bool DebuggerController::EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	bool result = m_state->EnableHardwareBreakpoint(address, type, size);
+	if (result)
+	{
+		DebuggerEvent event;
+		event.type = AbsoluteBreakpointEnabledEvent;
+		event.data.absoluteAddress = address;
+		PostDebuggerEvent(event);
+	}
+	return result;
+}
+
+
+bool DebuggerController::DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	bool result = m_state->DisableHardwareBreakpoint(address, type, size);
+	if (result)
+	{
+		DebuggerEvent event;
+		event.type = AbsoluteBreakpointDisabledEvent;
+		event.data.absoluteAddress = address;
+		PostDebuggerEvent(event);
+	}
+	return result;
+}
+
+
 bool DebuggerController::SetIP(uint64_t address)
 {
 	std::string ipRegisterName;

@@ -934,6 +934,18 @@ bool BNDebuggerRemoveHardwareBreakpoint(BNDebuggerController* controller, uint64
 }
 
 
+bool BNDebuggerEnableHardwareBreakpoint(BNDebuggerController* controller, uint64_t address, BNDebugBreakpointType type, size_t size)
+{
+	return controller->object->EnableHardwareBreakpoint(address, (DebugBreakpointType)type, size);
+}
+
+
+bool BNDebuggerDisableHardwareBreakpoint(BNDebuggerController* controller, uint64_t address, BNDebugBreakpointType type, size_t size)
+{
+	return controller->object->DisableHardwareBreakpoint(address, (DebugBreakpointType)type, size);
+}
+
+
 uint64_t BNDebuggerRelativeAddressToAbsolute(BNDebuggerController* controller, const char* module, uint64_t offset)
 {
 	DebuggerState* state = controller->object->GetState();

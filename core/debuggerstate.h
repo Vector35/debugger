@@ -153,6 +153,8 @@ namespace BinaryNinjaDebugger {
 		// Hardware breakpoint methods
 		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+		bool EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+		bool DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool ContainsHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 	};
 
@@ -304,6 +306,8 @@ namespace BinaryNinjaDebugger {
 		// Hardware breakpoints
 		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+		bool EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
+		bool DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 
 		uint64_t IP();
 		uint64_t StackPointer();

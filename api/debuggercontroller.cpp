@@ -813,6 +813,18 @@ bool DebuggerController::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpo
 }
 
 
+bool DebuggerController::EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerEnableHardwareBreakpoint(m_object, address, (BNDebugBreakpointType)type, size);
+}
+
+
+bool DebuggerController::DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerDisableHardwareBreakpoint(m_object, address, (BNDebugBreakpointType)type, size);
+}
+
+
 uint64_t DebuggerController::RelativeAddressToAbsolute(const ModuleNameAndOffset& address)
 {
 	return BNDebuggerRelativeAddressToAbsolute(m_object, address.module.c_str(), address.offset);

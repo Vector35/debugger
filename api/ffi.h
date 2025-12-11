@@ -610,9 +610,13 @@ extern "C"
 		BNDebuggerController* controller, const char* module, uint64_t offset);
 
 	// Hardware breakpoint and watchpoint support
-	DEBUGGER_FFI_API bool BNDebuggerAddHardwareBreakpoint(BNDebuggerController* controller, uint64_t address, 
+	DEBUGGER_FFI_API bool BNDebuggerAddHardwareBreakpoint(BNDebuggerController* controller, uint64_t address,
 		BNDebugBreakpointType type, size_t size);
-	DEBUGGER_FFI_API bool BNDebuggerRemoveHardwareBreakpoint(BNDebuggerController* controller, uint64_t address, 
+	DEBUGGER_FFI_API bool BNDebuggerRemoveHardwareBreakpoint(BNDebuggerController* controller, uint64_t address,
+		BNDebugBreakpointType type, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerEnableHardwareBreakpoint(BNDebuggerController* controller, uint64_t address,
+		BNDebugBreakpointType type, size_t size);
+	DEBUGGER_FFI_API bool BNDebuggerDisableHardwareBreakpoint(BNDebuggerController* controller, uint64_t address,
 		BNDebugBreakpointType type, size_t size);
 
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetIP(BNDebuggerController* controller);
