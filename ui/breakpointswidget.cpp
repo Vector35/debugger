@@ -19,12 +19,14 @@ limitations under the License.
 #include <QFileInfo>
 #include <QClipboard>
 #include <QGuiApplication>
+#include <QApplication>
 #include <QKeyEvent>
 #include <QStringList>
 #include <algorithm>
 #include <QMouseEvent>
 #include <QMenu>
 #include <QMessageBox>
+#include <QStyleOptionButton>
 #include "breakpointswidget.h"
 #include "hardwarebreakpointdialog.h"
 #include "ui.h"
@@ -123,13 +125,17 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
 	if (!item)
 		return QVariant();
 
-	if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole))
+	if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole) && (role != Qt::ToolTipRole))
 		return QVariant();
 
 	switch (index.column())
 	{
 	case DebugBreakpointsListModel::EnabledColumn:
 	{
+		if (role == Qt::ToolTipRole)
+		{
+			return item->enabled() ? "Breakpoint is enabled" : "Breakpoint is disabled";
+		}
 		QString text = item->enabled() ? "☑" : "☐";
 		return QVariant(text);
 	}
@@ -163,6 +169,25 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
 	}
 	case DebugBreakpointsListModel::TypeColumn:
 	{
+		if (role == Qt::ToolTipRole)
+		{
+			switch (item->type())
+			{
+			case SoftwareBreakpoint:
+				return "Software breakpoint";
+			case HardwareExecuteBreakpoint:
+				return "Hardware execution breakpoint";
+			case HardwareReadBreakpoint:
+				return "Hardware read breakpoint (watchpoint)";
+			case HardwareWriteBreakpoint:
+				return "Hardware write breakpoint (watchpoint)";
+			case HardwareAccessBreakpoint:
+				return "Hardware access breakpoint (read/write watchpoint)";
+			default:
+				return "Unknown breakpoint type";
+			}
+		}
+
 		QString text = QString::fromStdString(item->typeString());
 		if (role == Qt::SizeHintRole)
 			return QVariant((qulonglong)text.size());
@@ -185,7 +210,7 @@ QVariant DebugBreakpointsListModel::headerData(int column, Qt::Orientation orien
 	switch (column)
 	{
 	case DebugBreakpointsListModel::EnabledColumn:
-		return "";
+		return "E";
 	case DebugBreakpointsListModel::LocationColumn:
 		return "Location";
 	case DebugBreakpointsListModel::AddressColumn:
@@ -232,6 +257,27 @@ void DebugBreakpointsItemDelegate::paint(
 	switch (idx.column())
 	{
 	case DebugBreakpointsListModel::EnabledColumn:
+	{
+		// Draw a proper Qt checkbox instead of using Unicode characters
+		QStyleOptionButton checkboxOption;
+		checkboxOption.state = QStyle::State_Enabled;
+		if (data.toString() == "☑")
+			checkboxOption.state |= QStyle::State_On;
+		else
+			checkboxOption.state |= QStyle::State_Off;
+
+		// Center the checkbox in the cell
+		int checkboxSize = qMin(textRect.width(), textRect.height()) - 4;
+		checkboxOption.rect = QRect(
+			textRect.left() + (textRect.width() - checkboxSize) / 2,
+			textRect.top() + (textRect.height() - checkboxSize) / 2,
+			checkboxSize,
+			checkboxSize
+		);
+
+		QApplication::style()->drawControl(QStyle::CE_CheckBox, &checkboxOption, painter);
+		break;
+	}
 	case DebugBreakpointsListModel::LocationColumn:
 	case DebugBreakpointsListModel::AddressColumn:
 	case DebugBreakpointsListModel::TypeColumn:
@@ -296,7 +342,10 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 
 	resizeColumnsToContents();
 	resizeRowsToContents();
-	horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+
+	// Make the enabled column minimal width, and stretch the location column instead
+	horizontalHeader()->setSectionResizeMode(DebugBreakpointsListModel::EnabledColumn, QHeaderView::ResizeToContents);
+	horizontalHeader()->setSectionResizeMode(DebugBreakpointsListModel::LocationColumn, QHeaderView::Stretch);
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
