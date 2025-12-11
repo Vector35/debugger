@@ -46,6 +46,7 @@ winedbg --gdb --port 31337 --no-start /path/to/your/program.exe
 ```
 
 **Parameters:**
+
 - `--gdb`: Enable GDB server mode
 - `--port 31337`: Listen on port 31337 (you can use any available port)
 - `--no-start`: Don't automatically start the program (wait for debugger connection)
@@ -84,4 +85,3 @@ It is generally less stable than a true Windows debugging, please try to debug a
 
 - [Remote Debugging Guide](remote-debugging.md) - For other remote debugging scenarios
 - [Wine Documentation](https://www.winehq.org/documentation) - Official Wine documentation
-

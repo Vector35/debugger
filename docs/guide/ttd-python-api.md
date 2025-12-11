@@ -14,6 +14,7 @@ The TTD Python API provides access to Time Travel Debugging capabilities, allowi
 ## Prerequisites
 
 The TTD functionality is only available when:
+
 1. Using a TTD-capable debugger adapter (e.g., DbgEngTTD)
 2. Debugging a TTD trace file (not live debugging)
 3. The debugger session supports TTD operations
@@ -487,6 +488,7 @@ analyze_function_memory_usage(dbg, "kernel32!CreateFileA", (0x401000, 0x100))
 ## Error Handling
 
 TTD methods may raise exceptions if:
+
 - TTD is not available in the current session
 - Invalid parameters are provided  
 - The underlying TTD system encounters an error

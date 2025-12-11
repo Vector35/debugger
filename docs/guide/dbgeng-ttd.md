@@ -25,7 +25,6 @@ The WinDbg installation only needs to be done once.
     - WinDbg will be installed to `%APPDATA%\Binary Ninja\windbg`
 - Restart Binary Ninja
 
-
 ### Install WinDbg Manually
 
 - Download https://aka.ms/windbg/download
@@ -41,7 +40,6 @@ The WinDbg installation only needs to be done once.
 - In Binary Ninja, open the Settings view via the menu `Edit` -> `Settings`, or use the shortcut (Ctrl+,)
 - Search for `debugger.x64dbgEngPath`, and set it to the folder that the DbgEng DLL is in from the previous step (do NOT include the DLL itself in the path!)
 - Restart Binary Ninja
-
 
 ## Record a TTD Trace
 
@@ -67,7 +65,6 @@ all types of recording supported by WinDbg (e.g., attach to a running process an
 - Click "Record". A UAC dialog will pop up because the TTD recording requires Administrator privilege
 - Accept the elevation. The program will be launched and recorded. Once it exits, find the trace file in the trace output directory
 
-
 ### Record a TTD Trace in WinDbg
 
 - Find `DbgX.Shell.exe` in the WinDbg installation, run it
@@ -82,7 +79,6 @@ all types of recording supported by WinDbg (e.g., attach to a running process an
 - For other types of recording or the available options, please check out the official guide at
 https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-debugging-record
 
-
 ## Load the TTD Trace in Binary Ninja Debugger
 
 - Open the .exe or .dll file in Binary Ninja
@@ -93,7 +89,6 @@ https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-
 - Click `Accept`
 
 <img src="../../img/debugger/dbgeng_ttd.png" width="600px">
-
 
 ## Debug the TTD Trace
 
@@ -117,7 +112,6 @@ https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-
 <img src="../../img/debugger/ttd_navigate_timestamp.png" width="400px">
 
 - The [!tt breakpoint](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-extension-tt#tt-break-commands) command supports breaking the target when memory is read/written/executed, a register value is changed, or a module has been loaded, both in forward and backward directions. This is very powerful and worth checking out!
-
 
 ## TTD Analysis Features
 
@@ -188,6 +182,7 @@ The results table displays the following information for each call found:
 **Multi-Tab Support:**
 
 The TTD Calls widget supports multiple query tabs, allowing you to compare different call queries:
+
 - Click the `+` button in the top-right to create a new tab
 - Each tab maintains its own query parameters and results
 - Close tabs using the `×` button (at least one tab must remain open)
@@ -219,7 +214,6 @@ Return Address Range: 0x400000 to 0x500000
 Symbols: *!malloc
 ```
 
-
 ### TTD Memory Widget
 
 The TTD Memory widget allows you to query memory access events from your TTD trace. This is equivalent to WinDbg's `dx @$cursession.TTD.Memory()` functionality.
@@ -233,7 +227,6 @@ There are several ways to open the TTD Memory sidebar:
 1. Click the TTD Memory button in the sidebar (hover over the icons to see its name), type in the address and check the memory access type, and click the `Query Memory Events` button
     - **Note**: The TTD sidebar icons are hidden when you are not actively debugging. They will appear in the sidebar when you start a TTD debugging session.
 2. Select a range of code or data, right-click, then select `Debugger` -> `TTD Memory Access`, and choose the specific memory access type you are interested in (Read, Write, Execute, or combinations). This will open the TTD Memory widget with the selected address range and perform the query. This is the most convenient way to use it.
-
 
 <img src="../../img/debugger/ttd_memory_context_menu.png" width="400px">
 
@@ -287,6 +280,7 @@ The results table displays the following information for each memory access even
 **Multi-Tab Support:**
 
 Like TTD Calls, the TTD Memory widget supports multiple query tabs:
+
 - Click the `+` button to create a new tab
 - Each tab maintains independent query parameters and results
 - Close tabs using the `×` button (at least one tab must remain open)
@@ -313,7 +307,6 @@ Start Address: 0x00401234
 End Address: 0x00401456
 Access Types: Execute only
 ```
-
 
 ### TTD Events Widget
 
@@ -387,6 +380,7 @@ The results table shows event-specific information:
 #### Example Workflows
 
 **Finding when a specific DLL was loaded:**
+
 1. Open the TTD Events widget
 2. Switch to the "Modules" tab
 3. Sort by Module Name column
@@ -394,10 +388,10 @@ The results table shows event-specific information:
 5. Double-click the Position to time-travel to when it was loaded
 
 **Analyzing crashes:**
+
 1. Switch to the "Exceptions" tab
 2. Look for exception events near the end of the trace
 3. Double-click the Exception PC to see where the crash occurred
-
 
 ### TTD Analysis Dialog
 
@@ -458,7 +452,6 @@ Cache files are stored as:
 - **Coverage Analysis**: Measure test coverage or fuzzing effectiveness
 - **Hot Path Identification**: Focus on frequently executed code sections
 
-
 ### Tips and Best Practices
 
 **Performance Considerations:**
@@ -466,6 +459,7 @@ Cache files are stored as:
 > **⚠️ Important**: All TTD queries (Calls, Memory, Events) execute synchronously and **block the Binary Ninja UI** until they complete. There is currently **no way to interrupt** a running query due to a WinDbg backend limitation. Long-running queries on large traces can cause the UI to appear frozen for several minutes.
 
 To minimize query time:
+
 - Start with specific, narrow queries rather than broad searches
 - For TTD Calls: Use specific module!function combinations instead of wildcards like `*!*`
 - For TTD Memory: Limit address ranges to the specific regions you need
@@ -482,10 +476,10 @@ To minimize query time:
 **Column Visibility:**
 
 Both widgets allow customization of which columns to display:
+
 - Right-click in the table and select "Column Visibility..."
 - Hide less relevant columns to focus on important data
 - Use "Reset Columns to Default" to restore the default view
-
 
 ## Python API for TTD
 
@@ -514,7 +508,6 @@ if dbg.is_ttd:
     events = dbg.get_ttd_memory_access_for_address(0x401000, 0x401004, "w")
     print(f"Found {len(events)} writes to 0x401000-0x401004")
 ```
-
 
 ## Additional Resources
 
