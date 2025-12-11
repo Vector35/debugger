@@ -178,6 +178,7 @@ void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, 
 	menu.addAction("Debugger", "Toggle Breakpoint", "Breakpoint");
 	menu.addAction("Debugger", "Enable Breakpoint", "Breakpoint");
 	menu.addAction("Debugger", "Solo Breakpoint", "Breakpoint");
+	menu.addAction("Debugger", "Add Hardware Breakpoint...", "Breakpoint");
 	menu.addAction("Debugger", "Launch", "Control");
 	menu.addAction("Debugger", "Pause", "Control");
 	menu.addAction("Debugger", "Restart", "Control");
