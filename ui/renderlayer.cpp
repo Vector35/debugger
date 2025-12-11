@@ -38,12 +38,14 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 	uint64_t ipAddr = controller->IP();
 	bool paused = controller->GetTargetStatus() == DebugAdapterPausedStatus;
 
-	// Get all breakpoints with their enabled state
+	// Get all breakpoints with their enabled state and type
 	std::vector<DebugBreakpoint> breakpoints = controller->GetBreakpoints();
 	std::map<uint64_t, bool> breakpointEnabledMap;
+	std::map<uint64_t, DebugBreakpointType> breakpointTypeMap;
 	for (const auto& bp : breakpoints)
 	{
 		breakpointEnabledMap[bp.address] = bp.enabled;
+		breakpointTypeMap[bp.address] = bp.type;
 	}
 
 	for (auto& line : lines)
@@ -55,9 +57,17 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 		bool hasPC = (line.addr == ipAddr) && paused;
 		bool hasEnabledBreakpoint = false;
 		bool hasDisabledBreakpoint = false;
-		
+		bool isHardwareBreakpoint = false;
+
 		if (breakpointEnabledMap.count(line.addr) > 0)
 		{
+			// Check if it's a hardware breakpoint
+			if (breakpointTypeMap.count(line.addr) > 0)
+			{
+				DebugBreakpointType type = breakpointTypeMap[line.addr];
+				isHardwareBreakpoint = (type != SoftwareBreakpoint);
+			}
+
 			if (breakpointEnabledMap[line.addr])
 				hasEnabledBreakpoint = true;
 			else
@@ -66,19 +76,21 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 
 		if (hasPC && hasEnabledBreakpoint)
 		{
+			// Use different icons for software vs hardware breakpoints
+			std::string icon = isHardwareBreakpoint ? "🔶➞" : "🛑➞";
 			bool appliedTag = false;
 			for (size_t i = 0; i < line.tokens.size(); i++)
 			{
 				if (line.tokens[i].type == TagToken)
 				{
-					line.tokens[i].text = "🛑➞";
+					line.tokens[i].text = icon;
 					appliedTag = true;
 					break;
 				}
 			}
 			if (!appliedTag)
 			{
-				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑➞");
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, icon);
 				line.tokens.insert(line.tokens.begin(), indicator);
 			}
 
@@ -93,20 +105,21 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 		}
 		else if (hasPC && hasDisabledBreakpoint)
 		{
-			// PC at a disabled breakpoint - show both indicators, no breakpoint highlighting
+			// PC at a disabled breakpoint - show both indicators using different icons for software vs hardware
+			std::string icon = isHardwareBreakpoint ? "◇➞" : "⭕➞";
 			bool appliedTag = false;
 			for (size_t i = 0; i < line.tokens.size(); i++)
 			{
 				if (line.tokens[i].type == TagToken)
 				{
-					line.tokens[i].text = "⭘➞";
+					line.tokens[i].text = icon;
 					appliedTag = true;
 					break;
 				}
 			}
 			if (!appliedTag)
 			{
-				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "⭘➞");
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, icon);
 				line.tokens.insert(line.tokens.begin(), indicator);
 			}
 
@@ -148,19 +161,22 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 		}
 		else if (hasEnabledBreakpoint)
 		{
+			// Use different icons for software vs hardware breakpoints
+			std::string icon = isHardwareBreakpoint ? "🔶" : "🛑";
+			std::string iconWithEllipsis = isHardwareBreakpoint ? "…🔶" : "…🛑";
 			bool appliedTag = false;
 			for (size_t i = 0; i < line.tokens.size(); i++)
 			{
 				if (line.tokens[i].type == TagToken)
 				{
-					line.tokens[i].text = "…🛑";
+					line.tokens[i].text = iconWithEllipsis;
 					appliedTag = true;
 					break;
 				}
 			}
 			if (!appliedTag)
 			{
-				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑");
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, icon);
 				line.tokens.insert(line.tokens.begin(), indicator);
 			}
 
@@ -175,20 +191,22 @@ void DebuggerRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Disass
 		}
 		else if (hasDisabledBreakpoint)
 		{
-			// Disabled breakpoint - show tag but no line highlighting
+			// Disabled breakpoint - use different icons for software vs hardware, no line highlighting
+			std::string icon = isHardwareBreakpoint ? "◇" : "⭕";
+			std::string iconWithEllipsis = isHardwareBreakpoint ? "…◇" : "…⭕";
 			bool appliedTag = false;
 			for (size_t i = 0; i < line.tokens.size(); i++)
 			{
 				if (line.tokens[i].type == TagToken)
 				{
-					line.tokens[i].text = "…⭘";
+					line.tokens[i].text = iconWithEllipsis;
 					appliedTag = true;
 					break;
 				}
 			}
 			if (!appliedTag)
 			{
-				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "⭘");
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, icon);
 				line.tokens.insert(line.tokens.begin(), indicator);
 			}
 			// No line highlighting for disabled breakpoints
@@ -207,12 +225,14 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 	uint64_t ipAddr = controller->IP();
 	bool paused = controller->GetTargetStatus() == DebugAdapterPausedStatus;
 
-	// Get all breakpoints with their enabled state
+	// Get all breakpoints with their enabled state and type
 	std::vector<DebugBreakpoint> breakpoints = controller->GetBreakpoints();
 	std::map<uint64_t, bool> breakpointEnabledMap;
+	std::map<uint64_t, DebugBreakpointType> breakpointTypeMap;
 	for (const auto& bp : breakpoints)
 	{
 		breakpointEnabledMap[bp.address] = bp.enabled;
+		breakpointTypeMap[bp.address] = bp.type;
 	}
 
 	for (auto& linearLine : lines)
@@ -221,9 +241,17 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 		bool hasPC = (line.addr == ipAddr) && paused;
 		bool hasEnabledBreakpoint = false;
 		bool hasDisabledBreakpoint = false;
-		
+		bool isHardwareBreakpoint = false;
+
 		if (breakpointEnabledMap.count(line.addr) > 0)
 		{
+			// Check if it's a hardware breakpoint
+			if (breakpointTypeMap.count(line.addr) > 0)
+			{
+				DebugBreakpointType type = breakpointTypeMap[line.addr];
+				isHardwareBreakpoint = (type != SoftwareBreakpoint);
+			}
+
 			if (breakpointEnabledMap[line.addr])
 				hasEnabledBreakpoint = true;
 			else
@@ -232,19 +260,21 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 
 		if (hasPC && hasEnabledBreakpoint)
 		{
+			// Use different icons for software vs hardware breakpoints
+			std::string icon = isHardwareBreakpoint ? "🔶➞" : "🛑➞";
 			bool appliedTag = false;
 			for (size_t i = 0; i < line.tokens.size(); i++)
 			{
 				if (line.tokens[i].type == TagToken)
 				{
-					line.tokens[i].text = "🛑➞";
+					line.tokens[i].text = icon;
 					appliedTag = true;
 					break;
 				}
 			}
 			if (!appliedTag)
 			{
-				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑➞");
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, icon);
 				line.tokens.insert(line.tokens.begin(), indicator);
 			}
 
@@ -259,20 +289,21 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 		}
 		else if (hasPC && hasDisabledBreakpoint)
 		{
-			// PC at a disabled breakpoint - show both indicators, no breakpoint highlighting
+			// PC at a disabled breakpoint - show both indicators using different icons for software vs hardware
+			std::string icon = isHardwareBreakpoint ? "◇➞" : "⭕➞";
 			bool appliedTag = false;
 			for (size_t i = 0; i < line.tokens.size(); i++)
 			{
 				if (line.tokens[i].type == TagToken)
 				{
-					line.tokens[i].text = "⭘➞";
+					line.tokens[i].text = icon;
 					appliedTag = true;
 					break;
 				}
 			}
 			if (!appliedTag)
 			{
-				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "⭘➞");
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, icon);
 				line.tokens.insert(line.tokens.begin(), indicator);
 			}
 
@@ -314,19 +345,22 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 		}
 		else if (hasEnabledBreakpoint)
 		{
+			// Use different icons for software vs hardware breakpoints
+			std::string icon = isHardwareBreakpoint ? "🔶" : "🛑";
+			std::string iconWithEllipsis = isHardwareBreakpoint ? "…🔶" : "…🛑";
 			bool appliedTag = false;
 			for (size_t i = 0; i < line.tokens.size(); i++)
 			{
 				if (line.tokens[i].type == TagToken)
 				{
-					line.tokens[i].text = "…🛑";
+					line.tokens[i].text = iconWithEllipsis;
 					appliedTag = true;
 					break;
 				}
 			}
 			if (!appliedTag)
 			{
-				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "🛑");
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, icon);
 				line.tokens.insert(line.tokens.begin(), indicator);
 			}
 
@@ -341,20 +375,22 @@ void DebuggerRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std::ve
 		}
 		else if (hasDisabledBreakpoint)
 		{
-			// Disabled breakpoint - show tag but no line highlighting
+			// Disabled breakpoint - use different icons for software vs hardware, no line highlighting
+			std::string icon = isHardwareBreakpoint ? "◇" : "⭕";
+			std::string iconWithEllipsis = isHardwareBreakpoint ? "…◇" : "…⭕";
 			bool appliedTag = false;
 			for (size_t i = 0; i < line.tokens.size(); i++)
 			{
 				if (line.tokens[i].type == TagToken)
 				{
-					line.tokens[i].text = "…⭘";
+					line.tokens[i].text = iconWithEllipsis;
 					appliedTag = true;
 					break;
 				}
 			}
 			if (!appliedTag)
 			{
-				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, "⭘");
+				InstructionTextToken indicator(BNInstructionTextTokenType::TagToken, icon);
 				line.tokens.insert(line.tokens.begin(), indicator);
 			}
 			// No line highlighting for disabled breakpoints
