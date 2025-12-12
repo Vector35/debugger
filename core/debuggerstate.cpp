@@ -753,7 +753,10 @@ bool DebuggerBreakpoints::AddHardwareBreakpoint(uint64_t address, DebugBreakpoin
 	// Always add to m_breakpoints first - this allows hardware breakpoints to be added before adapter creation
 	if (!ContainsHardwareBreakpoint(address, type, size))
 	{
-		BreakpointInfo bp(address, type, size);
+		// Convert absolute address to module+offset for ASLR-safe storage (like AddAbsolute does for software breakpoints)
+		ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
+		BreakpointInfo bp(info, type, size);
+		bp.address = address;
 		m_breakpoints.push_back(bp);
 		SerializeMetadata();
 	}
@@ -771,13 +774,29 @@ bool DebuggerBreakpoints::AddHardwareBreakpoint(uint64_t address, DebugBreakpoin
 
 bool DebuggerBreakpoints::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
-	BreakpointInfo toFind(address, type, size);
-
-	// Remove from our list
-	auto iter = std::find(m_breakpoints.begin(), m_breakpoints.end(), toFind);
-	if (iter != m_breakpoints.end())
+	// Find and remove from our list - need to handle both relative and absolute breakpoints
+	for (auto iter = m_breakpoints.begin(); iter != m_breakpoints.end(); ++iter)
 	{
-		m_breakpoints.erase(iter);
+		if (iter->IsHardware() && iter->type == type && iter->size == size)
+		{
+			bool matches = false;
+			if (iter->isRelative)
+			{
+				// Convert module+offset to absolute address and compare
+				uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(iter->location);
+				matches = (absolute == address);
+			}
+			else
+			{
+				matches = (iter->address == address);
+			}
+
+			if (matches)
+			{
+				m_breakpoints.erase(iter);
+				break;
+			}
+		}
 	}
 
 	// Remove from the adapter if connected
@@ -792,8 +811,26 @@ bool DebuggerBreakpoints::RemoveHardwareBreakpoint(uint64_t address, DebugBreakp
 
 bool DebuggerBreakpoints::ContainsHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
-	BreakpointInfo toFind(address, type, size);
-	return std::find(m_breakpoints.begin(), m_breakpoints.end(), toFind) != m_breakpoints.end();
+	// Similar to ContainsAbsolute, we need to handle both relative and absolute hardware breakpoints
+	// For relative hardware breakpoints, convert to absolute and compare
+	for (const BreakpointInfo& breakpoint : m_breakpoints)
+	{
+		if (breakpoint.IsHardware() && breakpoint.type == type && breakpoint.size == size)
+		{
+			if (breakpoint.isRelative)
+			{
+				// Convert module+offset to absolute address and compare
+				uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(breakpoint.location);
+				if (absolute == address)
+					return true;
+			}
+			else if (breakpoint.address == address)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 
@@ -802,12 +839,28 @@ bool DebuggerBreakpoints::EnableHardwareBreakpoint(uint64_t address, DebugBreakp
 	if (!ContainsHardwareBreakpoint(address, type, size))
 		return false;
 
-	// Find and enable the hardware breakpoint
-	BreakpointInfo toFind(address, type, size);
-	auto iter = std::find(m_breakpoints.begin(), m_breakpoints.end(), toFind);
-	if (iter != m_breakpoints.end())
+	// Find and enable the hardware breakpoint - need to handle both relative and absolute breakpoints
+	for (auto& bp : m_breakpoints)
 	{
-		iter->enabled = true;
+		if (bp.IsHardware() && bp.type == type && bp.size == size)
+		{
+			bool matches = false;
+			if (bp.isRelative)
+			{
+				uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(bp.location);
+				matches = (absolute == address);
+			}
+			else
+			{
+				matches = (bp.address == address);
+			}
+
+			if (matches)
+			{
+				bp.enabled = true;
+				break;
+			}
+		}
 	}
 	SerializeMetadata();
 
@@ -825,12 +878,28 @@ bool DebuggerBreakpoints::DisableHardwareBreakpoint(uint64_t address, DebugBreak
 	if (!ContainsHardwareBreakpoint(address, type, size))
 		return false;
 
-	// Find and disable the hardware breakpoint
-	BreakpointInfo toFind(address, type, size);
-	auto iter = std::find(m_breakpoints.begin(), m_breakpoints.end(), toFind);
-	if (iter != m_breakpoints.end())
+	// Find and disable the hardware breakpoint - need to handle both relative and absolute breakpoints
+	for (auto& bp : m_breakpoints)
 	{
-		iter->enabled = false;
+		if (bp.IsHardware() && bp.type == type && bp.size == size)
+		{
+			bool matches = false;
+			if (bp.isRelative)
+			{
+				uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(bp.location);
+				matches = (absolute == address);
+			}
+			else
+			{
+				matches = (bp.address == address);
+			}
+
+			if (matches)
+			{
+				bp.enabled = false;
+				break;
+			}
+		}
 	}
 	SerializeMetadata();
 
