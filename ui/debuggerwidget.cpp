@@ -127,14 +127,7 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent& event)
 	case RegisterChangedEvent:
 		updateContent();
 		break;
-	case RelativeBreakpointAddedEvent:
-	case AbsoluteBreakpointAddedEvent:
-	case RelativeBreakpointRemovedEvent:
-	case AbsoluteBreakpointRemovedEvent:
-	case AbsoluteBreakpointEnabledEvent:
-	case RelativeBreakpointEnabledEvent:
-	case AbsoluteBreakpointDisabledEvent:
-	case RelativeBreakpointDisabledEvent:
+	case BreakpointChangedEvent:
 		m_breakpointsWidget->updateContent();
 		break;
 	default:

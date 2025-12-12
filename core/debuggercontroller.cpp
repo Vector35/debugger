@@ -64,8 +64,7 @@ void DebuggerController::AddBreakpoint(uint64_t address)
 {
 	m_state->AddBreakpoint(address);
 	DebuggerEvent event;
-	event.type = AbsoluteBreakpointAddedEvent;
-	event.data.absoluteAddress = address;
+	event.type = BreakpointChangedEvent;
 	PostDebuggerEvent(event);
 }
 
@@ -74,8 +73,7 @@ void DebuggerController::AddBreakpoint(const ModuleNameAndOffset& address)
 {
 	m_state->AddBreakpoint(address);
 	DebuggerEvent event;
-	event.type = RelativeBreakpointAddedEvent;
-	event.data.relativeAddress = address;
+	event.type = BreakpointChangedEvent;
 	PostDebuggerEvent(event);
 }
 
@@ -84,8 +82,7 @@ void DebuggerController::DeleteBreakpoint(uint64_t address)
 {
 	m_state->DeleteBreakpoint(address);
 	DebuggerEvent event;
-	event.type = AbsoluteBreakpointRemovedEvent;
-	event.data.absoluteAddress = address;
+	event.type = BreakpointChangedEvent;
 	PostDebuggerEvent(event);
 }
 
@@ -94,8 +91,7 @@ void DebuggerController::DeleteBreakpoint(const ModuleNameAndOffset& address)
 {
 	m_state->DeleteBreakpoint(address);
 	DebuggerEvent event;
-	event.type = RelativeBreakpointRemovedEvent;
-	event.data.relativeAddress = address;
+	event.type = BreakpointChangedEvent;
 	PostDebuggerEvent(event);
 }
 
@@ -104,8 +100,7 @@ void DebuggerController::EnableBreakpoint(uint64_t address)
 {
 	m_state->EnableBreakpoint(address);
 	DebuggerEvent event;
-	event.type = AbsoluteBreakpointEnabledEvent;
-	event.data.absoluteAddress = address;
+	event.type = BreakpointChangedEvent;
 	PostDebuggerEvent(event);
 }
 
@@ -114,8 +109,7 @@ void DebuggerController::EnableBreakpoint(const ModuleNameAndOffset& address)
 {
 	m_state->EnableBreakpoint(address);
 	DebuggerEvent event;
-	event.type = RelativeBreakpointEnabledEvent;
-	event.data.relativeAddress = address;
+	event.type = BreakpointChangedEvent;
 	PostDebuggerEvent(event);
 }
 
@@ -124,8 +118,7 @@ void DebuggerController::DisableBreakpoint(uint64_t address)
 {
 	m_state->DisableBreakpoint(address);
 	DebuggerEvent event;
-	event.type = AbsoluteBreakpointDisabledEvent;
-	event.data.absoluteAddress = address;
+	event.type = BreakpointChangedEvent;
 	PostDebuggerEvent(event);
 }
 
@@ -134,8 +127,7 @@ void DebuggerController::DisableBreakpoint(const ModuleNameAndOffset& address)
 {
 	m_state->DisableBreakpoint(address);
 	DebuggerEvent event;
-	event.type = RelativeBreakpointDisabledEvent;
-	event.data.relativeAddress = address;
+	event.type = BreakpointChangedEvent;
 	PostDebuggerEvent(event);
 }
 
@@ -149,13 +141,9 @@ bool DebuggerController::ContainsBreakpoint(const ModuleNameAndOffset& address)
 bool DebuggerController::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	bool result = m_state->AddHardwareBreakpoint(address, type, size);
-	if (result)
-	{
-		DebuggerEvent event;
-		event.type = AbsoluteBreakpointAddedEvent;
-		event.data.absoluteAddress = address;
-		PostDebuggerEvent(event);
-	}
+	DebuggerEvent event;
+	event.type = BreakpointChangedEvent;
+	PostDebuggerEvent(event);
 	return result;
 }
 
@@ -163,13 +151,9 @@ bool DebuggerController::AddHardwareBreakpoint(uint64_t address, DebugBreakpoint
 bool DebuggerController::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	bool result = m_state->RemoveHardwareBreakpoint(address, type, size);
-	if (result)
-	{
-		DebuggerEvent event;
-		event.type = AbsoluteBreakpointRemovedEvent;
-		event.data.absoluteAddress = address;
-		PostDebuggerEvent(event);
-	}
+	DebuggerEvent event;
+	event.type = BreakpointChangedEvent;
+	PostDebuggerEvent(event);
 	return result;
 }
 
@@ -177,13 +161,9 @@ bool DebuggerController::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpo
 bool DebuggerController::EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	bool result = m_state->EnableHardwareBreakpoint(address, type, size);
-	if (result)
-	{
-		DebuggerEvent event;
-		event.type = AbsoluteBreakpointEnabledEvent;
-		event.data.absoluteAddress = address;
-		PostDebuggerEvent(event);
-	}
+	DebuggerEvent event;
+	event.type = BreakpointChangedEvent;
+	PostDebuggerEvent(event);
 	return result;
 }
 
@@ -191,13 +171,9 @@ bool DebuggerController::EnableHardwareBreakpoint(uint64_t address, DebugBreakpo
 bool DebuggerController::DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	bool result = m_state->DisableHardwareBreakpoint(address, type, size);
-	if (result)
-	{
-		DebuggerEvent event;
-		event.type = AbsoluteBreakpointDisabledEvent;
-		event.data.absoluteAddress = address;
-		PostDebuggerEvent(event);
-	}
+	DebuggerEvent event;
+	event.type = BreakpointChangedEvent;
+	PostDebuggerEvent(event);
 	return result;
 }
 
@@ -207,13 +183,9 @@ bool DebuggerController::DisableHardwareBreakpoint(uint64_t address, DebugBreakp
 bool DebuggerController::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
 	bool result = m_state->AddHardwareBreakpoint(location, type, size);
-	if (result)
-	{
-		DebuggerEvent event;
-		event.type = RelativeBreakpointAddedEvent;
-		event.data.relativeAddress = location;
-		PostDebuggerEvent(event);
-	}
+	DebuggerEvent event;
+	event.type = BreakpointChangedEvent;
+	PostDebuggerEvent(event);
 	return result;
 }
 
@@ -221,13 +193,9 @@ bool DebuggerController::AddHardwareBreakpoint(const ModuleNameAndOffset& locati
 bool DebuggerController::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
 	bool result = m_state->RemoveHardwareBreakpoint(location, type, size);
-	if (result)
-	{
-		DebuggerEvent event;
-		event.type = RelativeBreakpointRemovedEvent;
-		event.data.relativeAddress = location;
-		PostDebuggerEvent(event);
-	}
+	DebuggerEvent event;
+	event.type = BreakpointChangedEvent;
+	PostDebuggerEvent(event);
 	return result;
 }
 
@@ -235,13 +203,9 @@ bool DebuggerController::RemoveHardwareBreakpoint(const ModuleNameAndOffset& loc
 bool DebuggerController::EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
 	bool result = m_state->EnableHardwareBreakpoint(location, type, size);
-	if (result)
-	{
-		DebuggerEvent event;
-		event.type = RelativeBreakpointEnabledEvent;
-		event.data.relativeAddress = location;
-		PostDebuggerEvent(event);
-	}
+	DebuggerEvent event;
+	event.type = BreakpointChangedEvent;
+	PostDebuggerEvent(event);
 	return result;
 }
 
@@ -249,13 +213,9 @@ bool DebuggerController::EnableHardwareBreakpoint(const ModuleNameAndOffset& loc
 bool DebuggerController::DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
 	bool result = m_state->DisableHardwareBreakpoint(location, type, size);
-	if (result)
-	{
-		DebuggerEvent event;
-		event.type = RelativeBreakpointDisabledEvent;
-		event.data.relativeAddress = location;
-		PostDebuggerEvent(event);
-	}
+	DebuggerEvent event;
+	event.type = BreakpointChangedEvent;
+	PostDebuggerEvent(event);
 	return result;
 }
 

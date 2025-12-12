@@ -1112,22 +1112,14 @@ void LldbCoreDumpAdapter::EventListener()
 						if (module.IsValid())
 						{
 							SBAddress headerAddress = module.GetObjectFileHeaderAddress();
-							uint64_t moduleBase = headerAddress.GetLoadAddress(m_target);
-							uint64_t bpAddress = location.GetAddress().GetLoadAddress(m_target);
-							auto fileSpec = module.GetFileSpec();
-							char path[1024];
-							size_t bytes = fileSpec.GetPath(path, sizeof(path));
 							DebuggerEvent evt;
-							evt.type = RelativeBreakpointAddedEvent;
-							evt.data.relativeAddress.module = std::string(path, bytes);
-							evt.data.relativeAddress.offset = bpAddress - moduleBase;
+							evt.type = BreakpointChangedEvent;
 							PostDebuggerEvent(evt);
 						}
 						else
 						{
 							DebuggerEvent evt;
-							evt.type = AbsoluteBreakpointAddedEvent;
-							evt.data.absoluteAddress = location.GetAddress().GetLoadAddress(m_target);
+							evt.type = BreakpointChangedEvent;
 							PostDebuggerEvent(evt);
 						}
 					}
@@ -1138,23 +1130,14 @@ void LldbCoreDumpAdapter::EventListener()
 						auto module = address.GetModule();
 						if (module.IsValid())
 						{
-							SBAddress headerAddress = module.GetObjectFileHeaderAddress();
-							uint64_t moduleBase = headerAddress.GetLoadAddress(m_target);
-							uint64_t bpAddress = location.GetAddress().GetLoadAddress(m_target);
-							auto fileSpec = module.GetFileSpec();
-							char path[1024];
-							size_t bytes = fileSpec.GetPath(path, sizeof(path));
 							DebuggerEvent evt;
-							evt.type = RelativeBreakpointRemovedEvent;
-							evt.data.relativeAddress.module = std::string(path, bytes);
-							evt.data.relativeAddress.offset = bpAddress - moduleBase;
+							evt.type = BreakpointChangedEvent;
 							PostDebuggerEvent(evt);
 						}
 						else
 						{
 							DebuggerEvent evt;
-							evt.type = AbsoluteBreakpointRemovedEvent;
-							evt.data.absoluteAddress = location.GetAddress().GetLoadAddress(m_target);
+							evt.type = BreakpointChangedEvent;
 							PostDebuggerEvent(evt);
 						}
 					}

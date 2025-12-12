@@ -260,14 +260,8 @@ extern "C"
 		TargetExitedEventType,
 		DetachedEventType,
 
-		AbsoluteBreakpointAddedEvent,
-		RelativeBreakpointAddedEvent,
-		AbsoluteBreakpointRemovedEvent,
-		RelativeBreakpointRemovedEvent,
-		AbsoluteBreakpointEnabledEvent,
-		RelativeBreakpointEnabledEvent,
-		AbsoluteBreakpointDisabledEvent,
-		RelativeBreakpointDisabledEvent,
+		// Unified breakpoint change event - use this for all breakpoint changes (add/remove/enable/disable)
+		BreakpointChangedEvent,
 
 		ActiveThreadChangedEvent,
 
