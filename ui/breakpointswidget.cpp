@@ -450,6 +450,7 @@ void DebugBreakpointsWidget::mousePressEvent(QMouseEvent* event)
 	if (index.isValid() && index.column() == DebugBreakpointsListModel::EnabledColumn)
 	{
 		// Toggle breakpoint enabled state when clicking on enabled column
+		// TODO: refactor to use breakpoint index instead of address/location for these operations
 		BreakpointItem bp = m_model->getRow(index.row());
 		if (bp.type() == SoftwareBreakpoint)
 		{
@@ -461,11 +462,21 @@ void DebugBreakpointsWidget::mousePressEvent(QMouseEvent* event)
 		}
 		else
 		{
-			// Hardware breakpoint - use address+type+size-based methods
+			// Hardware breakpoint - use location for relative breakpoints, address for absolute
 			if (bp.enabled())
-				m_controller->DisableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			{
+				if (!bp.location().module.empty())
+					m_controller->DisableHardwareBreakpoint(bp.location(), bp.type(), bp.size());
+				else
+					m_controller->DisableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			}
 			else
-				m_controller->EnableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			{
+				if (!bp.location().module.empty())
+					m_controller->EnableHardwareBreakpoint(bp.location(), bp.type(), bp.size());
+				else
+					m_controller->EnableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			}
 		}
 		return; // Don't call parent to avoid selection change
 	}
@@ -620,6 +631,7 @@ void DebugBreakpointsWidget::addHardwareBreakpoint()
 
 void DebugBreakpointsWidget::toggleSelected()
 {
+	// TODO: refactor to use breakpoint index instead of address/location for these operations
 	QModelIndexList sel = selectionModel()->selectedRows();
 	for (const QModelIndex& index : sel)
 	{
@@ -634,11 +646,21 @@ void DebugBreakpointsWidget::toggleSelected()
 		}
 		else
 		{
-			// Hardware breakpoint - use address+type+size-based methods
+			// Hardware breakpoint - use location for relative breakpoints, address for absolute
 			if (bp.enabled())
-				m_controller->DisableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			{
+				if (!bp.location().module.empty())
+					m_controller->DisableHardwareBreakpoint(bp.location(), bp.type(), bp.size());
+				else
+					m_controller->DisableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			}
 			else
-				m_controller->EnableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			{
+				if (!bp.location().module.empty())
+					m_controller->EnableHardwareBreakpoint(bp.location(), bp.type(), bp.size());
+				else
+					m_controller->EnableHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			}
 		}
 	}
 }
@@ -646,6 +668,7 @@ void DebugBreakpointsWidget::toggleSelected()
 
 void DebugBreakpointsWidget::enableAll()
 {
+	// TODO: refactor to use breakpoint index instead of address/location for these operations
 	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
 	for (const DebugBreakpoint& bp : breakpoints)
 	{
@@ -658,7 +681,18 @@ void DebugBreakpointsWidget::enableAll()
 		}
 		else
 		{
-			m_controller->EnableHardwareBreakpoint(bp.address, bp.type, bp.size);
+			// Hardware breakpoint - use location for relative breakpoints, address for absolute
+			if (!bp.module.empty())
+			{
+				ModuleNameAndOffset info;
+				info.module = bp.module;
+				info.offset = bp.offset;
+				m_controller->EnableHardwareBreakpoint(info, bp.type, bp.size);
+			}
+			else
+			{
+				m_controller->EnableHardwareBreakpoint(bp.address, bp.type, bp.size);
+			}
 		}
 	}
 }
@@ -666,6 +700,7 @@ void DebugBreakpointsWidget::enableAll()
 
 void DebugBreakpointsWidget::disableAll()
 {
+	// TODO: refactor to use breakpoint index instead of address/location for these operations
 	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
 	for (const DebugBreakpoint& bp : breakpoints)
 	{
@@ -678,7 +713,18 @@ void DebugBreakpointsWidget::disableAll()
 		}
 		else
 		{
-			m_controller->DisableHardwareBreakpoint(bp.address, bp.type, bp.size);
+			// Hardware breakpoint - use location for relative breakpoints, address for absolute
+			if (!bp.module.empty())
+			{
+				ModuleNameAndOffset info;
+				info.module = bp.module;
+				info.offset = bp.offset;
+				m_controller->DisableHardwareBreakpoint(info, bp.type, bp.size);
+			}
+			else
+			{
+				m_controller->DisableHardwareBreakpoint(bp.address, bp.type, bp.size);
+			}
 		}
 	}
 }
@@ -686,6 +732,7 @@ void DebugBreakpointsWidget::disableAll()
 
 void DebugBreakpointsWidget::soloSelected()
 {
+	// TODO: refactor to use breakpoint index instead of address/location for these operations
 	QModelIndexList sel = selectionModel()->selectedRows();
 	if (sel.empty())
 		return;
@@ -706,7 +753,18 @@ void DebugBreakpointsWidget::soloSelected()
 		}
 		else
 		{
-			m_controller->DisableHardwareBreakpoint(bp.address, bp.type, bp.size);
+			// Hardware breakpoint - use location for relative breakpoints, address for absolute
+			if (!bp.module.empty())
+			{
+				ModuleNameAndOffset info;
+				info.module = bp.module;
+				info.offset = bp.offset;
+				m_controller->DisableHardwareBreakpoint(info, bp.type, bp.size);
+			}
+			else
+			{
+				m_controller->DisableHardwareBreakpoint(bp.address, bp.type, bp.size);
+			}
 		}
 	}
 
@@ -717,13 +775,18 @@ void DebugBreakpointsWidget::soloSelected()
 	}
 	else
 	{
-		m_controller->EnableHardwareBreakpoint(selectedBp.address(), selectedBp.type(), selectedBp.size());
+		// Hardware breakpoint - use location for relative breakpoints, address for absolute
+		if (!selectedBp.location().module.empty())
+			m_controller->EnableHardwareBreakpoint(selectedBp.location(), selectedBp.type(), selectedBp.size());
+		else
+			m_controller->EnableHardwareBreakpoint(selectedBp.address(), selectedBp.type(), selectedBp.size());
 	}
 }
 
 
 void DebugBreakpointsWidget::remove()
 {
+	// TODO: refactor to use breakpoint index instead of address/location for these operations
 	QModelIndexList sel = selectionModel()->selectedRows();
 	std::vector<BreakpointItem> breakpointsToRemove;
 
@@ -745,8 +808,11 @@ void DebugBreakpointsWidget::remove()
 		}
 		else
 		{
-			// Hardware breakpoints use address+type+size deletion
-			m_controller->RemoveHardwareBreakpoint(bp.address(), bp.type(), bp.size());
+			// Hardware breakpoint - use location for relative breakpoints, address for absolute
+			if (!bp.location().module.empty())
+				m_controller->RemoveHardwareBreakpoint(bp.location(), bp.type(), bp.size());
+			else
+				m_controller->RemoveHardwareBreakpoint(bp.address(), bp.type(), bp.size());
 		}
 	}
 }
