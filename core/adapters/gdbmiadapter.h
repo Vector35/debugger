@@ -47,7 +47,10 @@ private:
 
 	bool RunMonitorCommand(const std::string& command) const;
 	void ApplyBreakpoints();
+	void ApplyPendingHardwareBreakpoints();
+	bool GetModuleBase(const std::string& moduleName, uint64_t& base);
 	std::vector<BinaryNinjaDebugger::ModuleNameAndOffset> m_pendingBreakpoints {};
+	std::vector<BinaryNinjaDebugger::PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
 
 public:
     GdbMiAdapter(BinaryView* data);
