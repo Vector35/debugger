@@ -521,29 +521,29 @@ bool CorelliumAdapter::WriteRegister(const std::string& reg, intx::uint512 value
     if (m_isTargetRunning)
         return false;
 
-	if (!this->m_registerInfo.contains(reg))
-		return false;
+    if (!this->m_registerInfo.contains(reg))
+        return false;
 
-	const auto newRegString = uint512ToLittleEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8);
-	const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("P{:02X}={}",
-									   this->m_registerInfo[reg].m_regNum, newRegString));
-	if (reply.m_data[0])
+    const auto newRegString = uint512ToLittleEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8);
+    const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("P{:02X}={}",
+                this->m_registerInfo[reg].m_regNum, newRegString));
+    if (reply.m_data[0])
         return true;
 
     char query{'g'};
     const auto generic_query = this->m_rspConnector->TransmitAndReceive(RspData(&query, sizeof(query)));
     const auto register_offset = this->m_registerInfo[reg].m_offset;
 
-	// TODO: check if this works for aarch64
+    // TODO: check if this works for aarch64
     const auto first_half = generic_query.AsString().substr(0, 2 * (register_offset / 8));
     const auto second_half = generic_query.AsString().substr(2 * ((register_offset + this->m_registerInfo[reg].m_bitSize) / 8) );
-	const auto payload = "G" + first_half + newRegString + second_half;
+    const auto payload = "G" + first_half + newRegString + second_half;
 
     if ( this->m_rspConnector->TransmitAndReceive(RspData(payload)).AsString() != "OK" )
         return false;
 
-	// TODO: we do not need to invalidate all register caches, we could probably just update the necessary ones here
-	InvalidateCache();
+    // TODO: we do not need to invalidate all register caches, we could probably just update the necessary ones here
+    InvalidateCache();
     return true;
 }
 
@@ -890,30 +890,30 @@ static std::string HexToAscii(const std::string& hex)
 
 std::string CorelliumAdapter::RunMonitorCommand(const std::string& command)
 {
-	std::string commandToSend = "qRcmd,";
-	for (const auto& c: command)
-	{
-		commandToSend += ("0123456789abcdef"[(c >> 4) & 0x0F]);
-		commandToSend += ("0123456789abcdef"[c & 0x0F]);
-	}
+    std::string commandToSend = "qRcmd,";
+    for (const auto& c: command)
+    {
+        commandToSend += ("0123456789abcdef"[(c >> 4) & 0x0F]);
+        commandToSend += ("0123456789abcdef"[c & 0x0F]);
+    }
 
-	m_rspConnector->SendPayload(RspData(commandToSend));
-	m_rspConnector->ExpectAck();
+    m_rspConnector->SendPayload(RspData(commandToSend));
+    m_rspConnector->ExpectAck();
 
-	std::string result;
-	while (true)
-	{
-		auto replyChunk = this->m_rspConnector->ReceiveRspData();
-		if (replyChunk.AsString() == "OK" || replyChunk.AsString().empty())
-			break;
+    std::string result;
+    while (true)
+    {
+        auto replyChunk = this->m_rspConnector->ReceiveRspData();
+        if (replyChunk.AsString() == "OK" || replyChunk.AsString().empty())
+            break;
 
-		if (replyChunk.m_data[0] != 'O')
-			break;
+        if (replyChunk.m_data[0] != 'O')
+            break;
 
         result += HexToAscii(replyChunk.AsString().erase(0, 1));
-	}
+    }
 
-	return result;
+    return result;
 }
 
 
@@ -930,7 +930,7 @@ uint64_t CorelliumAdapter::GetInstructionOffset()
     else
         ipRegisterName = "pc";
 
-	uint64_t value = (uint64_t)this->ReadRegister(ipRegisterName).m_value;
+    uint64_t value = (uint64_t)this->ReadRegister(ipRegisterName).m_value;
     return value;
 }
 
