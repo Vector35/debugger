@@ -368,19 +368,21 @@ class DebugBreakpoint:
     * ``offset``: the offset of the breakpoint to the start of the module
     * ``address``: the absolute address of the breakpoint
     * ``enabled``: whether the breakpoint is enabled (read-only)
+    * ``condition``: the condition expression for the breakpoint (empty if no condition)
 
     """
-    def __init__(self, module, offset, address, enabled):
+    def __init__(self, module, offset, address, enabled, condition=""):
         self.module = module
         self.offset = offset
         self.address = address
         self.enabled = enabled
+        self.condition = condition
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return NotImplemented
         return self.module == other.module and self.offset == other.offset and self.address == other.address \
-               and self.enabled == other.enabled
+               and self.enabled == other.enabled and self.condition == other.condition
 
     def __ne__(self, other):
         if not isinstance(other, self.__class__):
@@ -2053,7 +2055,8 @@ class DebuggerController:
         breakpoints = dbgcore.BNDebuggerGetBreakpoints(self.handle, count)
         result = []
         for i in range(0, count.value):
-            bp = DebugBreakpoint(breakpoints[i].module, breakpoints[i].offset, breakpoints[i].address, breakpoints[i].enabled)
+            condition = breakpoints[i].condition if breakpoints[i].condition else ""
+            bp = DebugBreakpoint(breakpoints[i].module, breakpoints[i].offset, breakpoints[i].address, breakpoints[i].enabled, condition)
             result.append(bp)
 
         dbgcore.BNDebuggerFreeBreakpoints(breakpoints, count.value)
@@ -2138,6 +2141,49 @@ class DebuggerController:
             dbgcore.BNDebuggerDisableRelativeBreakpoint(self.handle, address.module, address.offset)
         else:
             raise NotImplementedError
+
+    def set_breakpoint_condition(self, address, condition: str) -> bool:
+        """
+        Set a condition for a breakpoint
+
+        The condition is an expression that will be evaluated using Binary Ninja's expression parser
+        when the breakpoint is hit. If the condition evaluates to non-zero (true), the debugger stops.
+        If it evaluates to zero (false), the debugger silently continues execution.
+
+        Example conditions:
+        - ``"$rax == 0x1234"`` - break when RAX equals 0x1234
+        - ``"$rsp + 0x20"`` - break when the expression is non-zero
+
+        Pass an empty string to clear the condition.
+
+        :param address: the address of the breakpoint (int or ModuleNameAndOffset)
+        :param condition: the condition expression, or empty string to clear
+        :return: True if successful, False otherwise
+        """
+        if isinstance(address, int):
+            return dbgcore.BNDebuggerSetBreakpointConditionAbsolute(self.handle, address, condition.encode('utf-8') if condition else None)
+        elif isinstance(address, ModuleNameAndOffset):
+            return dbgcore.BNDebuggerSetBreakpointConditionRelative(self.handle, address.module.encode('utf-8'), address.offset, condition.encode('utf-8') if condition else None)
+        else:
+            raise NotImplementedError
+
+    def get_breakpoint_condition(self, address) -> str:
+        """
+        Get the condition for a breakpoint
+
+        :param address: the address of the breakpoint (int or ModuleNameAndOffset)
+        :return: the condition expression, or empty string if no condition
+        """
+        if isinstance(address, int):
+            result = dbgcore.BNDebuggerGetBreakpointConditionAbsolute(self.handle, address)
+        elif isinstance(address, ModuleNameAndOffset):
+            result = dbgcore.BNDebuggerGetBreakpointConditionRelative(self.handle, address.module.encode('utf-8'), address.offset)
+        else:
+            raise NotImplementedError
+
+        condition = result.decode('utf-8') if result else ""
+        dbgcore.BNDebuggerFreeString(result)
+        return condition
 
     @property
     def ip(self) -> int:

@@ -814,10 +814,12 @@ BNDebugBreakpoint* BNDebuggerGetBreakpoints(BNDebuggerController* controller, si
 	{
 		uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(breakpoints[i]);
 		bool enabled = state->GetBreakpoints()->IsEnabledOffset(breakpoints[i]);
+		std::string condition = state->GetBreakpoints()->GetConditionOffset(breakpoints[i]);
 		result[i].module = BNDebuggerAllocString(breakpoints[i].module.c_str());
 		result[i].offset = breakpoints[i].offset;
 		result[i].address = remoteAddress;
 		result[i].enabled = enabled;
+		result[i].condition = condition.empty() ? nullptr : BNDebuggerAllocString(condition.c_str());
 	}
 	return result;
 }
@@ -828,6 +830,8 @@ void BNDebuggerFreeBreakpoints(BNDebugBreakpoint* breakpoints, size_t count)
 	for (size_t i = 0; i < count; i++)
 	{
 		BNDebuggerFreeString(breakpoints[i].module);
+		if (breakpoints[i].condition)
+			BNDebuggerFreeString(breakpoints[i].condition);
 	}
 	delete[] breakpoints;
 }
@@ -927,9 +931,67 @@ bool BNDebuggerContainsRelativeBreakpoint(BNDebuggerController* controller, cons
 }
 
 
+bool BNDebuggerSetBreakpointConditionAbsolute(BNDebuggerController* controller, uint64_t address, const char* condition)
+{
+	const DebuggerState* state = controller->object->GetState();
+	if (!state)
+		return false;
+
+	DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
+	if (!breakpoints)
+		return false;
+
+	return breakpoints->SetConditionAbsolute(address, condition ? condition : "");
+}
+
+
+bool BNDebuggerSetBreakpointConditionRelative(BNDebuggerController* controller, const char* module, uint64_t offset, const char* condition)
+{
+	const DebuggerState* state = controller->object->GetState();
+	if (!state)
+		return false;
+
+	DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
+	if (!breakpoints)
+		return false;
+
+	return breakpoints->SetConditionOffset(ModuleNameAndOffset(module, offset), condition ? condition : "");
+}
+
+
+char* BNDebuggerGetBreakpointConditionAbsolute(BNDebuggerController* controller, uint64_t address)
+{
+	const DebuggerState* state = controller->object->GetState();
+	if (!state)
+		return BNDebuggerAllocString("");
+
+	DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
+	if (!breakpoints)
+		return BNDebuggerAllocString("");
+
+	const std::string condition = breakpoints->GetConditionAbsolute(address);
+	return BNDebuggerAllocString(condition.c_str());
+}
+
+
+char* BNDebuggerGetBreakpointConditionRelative(BNDebuggerController* controller, const char* module, uint64_t offset)
+{
+	const DebuggerState* state = controller->object->GetState();
+	if (!state)
+		return BNDebuggerAllocString("");
+
+	DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
+	if (!breakpoints)
+		return BNDebuggerAllocString("");
+
+	const std::string condition = breakpoints->GetConditionOffset(ModuleNameAndOffset(module, offset));
+	return BNDebuggerAllocString(condition.c_str());
+}
+
+
 uint64_t BNDebuggerRelativeAddressToAbsolute(BNDebuggerController* controller, const char* module, uint64_t offset)
 {
-	DebuggerState* state = controller->object->GetState();
+	const DebuggerState* state = controller->object->GetState();
 	if (!state)
 		return 0;
 

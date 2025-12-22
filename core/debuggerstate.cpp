@@ -577,6 +577,7 @@ bool DebuggerBreakpoints::RemoveAbsolute(uint64_t remoteAddress)
 			m_breakpoints.erase(iter);
 		}
 		m_enabledState.erase(info); // Remove enabled state
+		m_conditions.erase(info);   // Remove condition
 		SerializeMetadata();
 		m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
 		return true;
@@ -593,6 +594,7 @@ bool DebuggerBreakpoints::RemoveOffset(const ModuleNameAndOffset& address)
 			m_breakpoints.erase(iter);
 
 		m_enabledState.erase(address); // Remove enabled state
+		m_conditions.erase(address);   // Remove condition
 		SerializeMetadata();
 
 		if (m_state->GetAdapter() && m_state->IsConnected())
@@ -709,6 +711,74 @@ bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
 }
 
 
+bool DebuggerBreakpoints::SetConditionAbsolute(const uint64_t remoteAddress, const std::string& condition)
+{
+	const ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
+	return SetConditionOffset(info, condition);
+}
+
+
+bool DebuggerBreakpoints::SetConditionOffset(const ModuleNameAndOffset& address, const std::string& condition)
+{
+	if (!ContainsOffset(address))
+		return false;
+
+	if (condition.empty())
+	{
+		m_conditions.erase(address);
+	}
+	else
+	{
+		m_conditions[address] = condition;
+	}
+	SerializeMetadata();
+	return true;
+}
+
+
+std::string DebuggerBreakpoints::GetConditionAbsolute(const uint64_t address)
+{
+	const ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
+	return GetConditionOffset(info);
+}
+
+
+std::string DebuggerBreakpoints::GetConditionOffset(const ModuleNameAndOffset& address)
+{
+	if (const auto iter = m_conditions.find(address); iter != m_conditions.end())
+		return iter->second;
+	return "";
+}
+
+
+bool DebuggerBreakpoints::HasConditionAbsolute(const uint64_t address)
+{
+	const ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
+	return HasConditionOffset(info);
+}
+
+
+bool DebuggerBreakpoints::HasConditionOffset(const ModuleNameAndOffset& address)
+{
+	const auto iter = m_conditions.find(address);
+	return (iter != m_conditions.end()) && !iter->second.empty();
+}
+
+
+void DebuggerBreakpoints::ClearConditionAbsolute(const uint64_t address)
+{
+	const ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
+	ClearConditionOffset(info);
+}
+
+
+void DebuggerBreakpoints::ClearConditionOffset(const ModuleNameAndOffset& address)
+{
+	m_conditions.erase(address);
+	SerializeMetadata();
+}
+
+
 void DebuggerBreakpoints::SerializeMetadata()
 {
 	// TODO: who should free these Metadata objects?
@@ -718,6 +788,17 @@ void DebuggerBreakpoints::SerializeMetadata()
 		std::map<std::string, Ref<Metadata>> info;
 		info["module"] = new Metadata(bp.module);
 		info["offset"] = new Metadata(bp.offset);
+
+		auto enabledIter = m_enabledState.find(bp);
+		const bool enabled = (enabledIter != m_enabledState.end()) ? enabledIter->second : true;
+		info["enabled"] = new Metadata(enabled);
+
+		if (auto conditionIter = m_conditions.find(bp);
+			conditionIter != m_conditions.end() && !conditionIter->second.empty())
+		{
+			info["condition"] = new Metadata(conditionIter->second);
+		}
+
 		breakpoints.push_back(new Metadata(info));
 	}
 	m_state->GetController()->GetData()->StoreMetadata("debugger.breakpoints", new Metadata(breakpoints));
@@ -751,6 +832,19 @@ void DebuggerBreakpoints::UnserializedMetadata()
 
 		address.offset = info["offset"]->GetUnsignedInteger();
 		newBreakpoints.push_back(address);
+
+		if (info["enabled"] && info["enabled"]->IsBoolean())
+		{
+			m_enabledState[address] = info["enabled"]->GetBoolean();
+		}
+
+		if (info["condition"] && info["condition"]->IsString())
+		{
+			if (std::string condition = info["condition"]->GetString(); !condition.empty())
+			{
+				m_conditions[address] = condition;
+			}
+		}
 	}
 
 	m_breakpoints = newBreakpoints;

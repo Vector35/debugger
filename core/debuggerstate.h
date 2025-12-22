@@ -84,6 +84,7 @@ namespace BinaryNinjaDebugger {
 		DebuggerState* m_state;
 		std::vector<ModuleNameAndOffset> m_breakpoints;
 		std::map<ModuleNameAndOffset, bool> m_enabledState;
+		std::map<ModuleNameAndOffset, std::string> m_conditions;
 
 	public:
 		DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial = {});
@@ -103,6 +104,15 @@ namespace BinaryNinjaDebugger {
 		void SerializeMetadata();
 		void UnserializedMetadata();
 		std::vector<ModuleNameAndOffset> GetBreakpointList() const { return m_breakpoints; }
+
+		bool SetConditionAbsolute(uint64_t remoteAddress, const std::string& condition);
+		bool SetConditionOffset(const ModuleNameAndOffset& address, const std::string& condition);
+		std::string GetConditionAbsolute(uint64_t address);
+		std::string GetConditionOffset(const ModuleNameAndOffset& address);
+		bool HasConditionAbsolute(uint64_t address);
+		bool HasConditionOffset(const ModuleNameAndOffset& address);
+		void ClearConditionAbsolute(uint64_t address);
+		void ClearConditionOffset(const ModuleNameAndOffset& address);
 	};
 
 
