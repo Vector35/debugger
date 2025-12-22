@@ -111,30 +111,30 @@ void GdbMiAdapter::UpdateAllRegisters() {
         LogError("Failed to get register values: %s", result.fullLine.c_str());
         return;
     }
-    
+
     std::unordered_map<std::string, DebugRegister> regs;
 
-	auto gdbmiregisters = MiValue::Parse(result.payload);
-	if (!gdbmiregisters.IsDict() || !gdbmiregisters["register-values"].IsList())
-	{
-		LogError("No register-values in response. Payload: %s", result.payload.c_str());
-		return;
-	}
+    auto gdbmiregisters = MiValue::Parse(result.payload);
+    if (!gdbmiregisters.IsDict() || !gdbmiregisters["register-values"].IsList())
+    {
+        LogError("No register-values in response. Payload: %s", result.payload.c_str());
+        return;
+    }
 
-	for (int i = 0; i < gdbmiregisters["register-values"].size(); i++)
-	{
-		auto gdbmi_reg = gdbmiregisters["register-values"][i];
-		auto reg_idx = std::stoul(gdbmi_reg["number"].GetString(), 0, 10);
-		auto reg_value = ParseGdbValue(gdbmi_reg["value"].GetString());
-		if (reg_idx < m_registerNames.size())
-		{
-			std::string name = m_registerNames[reg_idx];
-			if (!name.empty())
-			{
-				regs[name] = DebugRegister(name, reg_value, 0, reg_idx);
-			}
-		}
-	}
+    for (size_t i = 0; i < gdbmiregisters["register-values"].size(); i++)
+    {
+        auto gdbmi_reg = gdbmiregisters["register-values"][i];
+        auto reg_idx = std::stoul(gdbmi_reg["number"].GetString(), 0, 10);
+        auto reg_value = ParseGdbValue(gdbmi_reg["value"].GetString());
+        if (reg_idx < m_registerNames.size())
+        {
+            std::string name = m_registerNames[reg_idx];
+            if (!name.empty())
+            {
+                regs[name] = DebugRegister(name, reg_value, 0, reg_idx);
+            }
+        }
+    }
 
     std::unique_lock cacheLock(m_cacheMutex);
     m_cachedRegisters = regs;
@@ -153,7 +153,7 @@ void GdbMiAdapter::UpdateStackFrames(uint32_t tid) {
 
     std::vector<DebugFrame> frames;
 	auto gdbmi_frames = MiValue::Parse(result.payload);
-	for (int i = 0; i < gdbmi_frames["stack"].size(); ++i)
+	for (size_t i = 0; i < gdbmi_frames["stack"].size(); ++i)
 	{
 		auto parsed_frame = gdbmi_frames["stack"][i];
 		auto debug_frame = DebugFrame(i,

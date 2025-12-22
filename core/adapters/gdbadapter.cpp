@@ -557,10 +557,10 @@ bool GdbAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
     if (m_isTargetRunning || !m_rspConnector)
         return false;
 
-	if (!this->m_registerInfo.contains(reg))
-		return false;
+    if (!this->m_registerInfo.contains(reg))
+        return false;
 
-	const auto newRegString = uint512ToLittleEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8);
+    const auto newRegString = uint512ToLittleEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8);
     const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("P{:02X}={}",
                                        this->m_registerInfo[reg].m_regNum, newRegString));
     if (reply.m_data[0])
@@ -570,7 +570,7 @@ bool GdbAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
     const auto generic_query = this->m_rspConnector->TransmitAndReceive(RspData(&query, sizeof(query)));
     const auto register_offset = this->m_registerInfo[reg].m_offset;
 
-	// TODO: check if this works for aarch64
+    // TODO: check if this works for aarch64
     const auto first_half = generic_query.AsString().substr(0, 2 * (register_offset / 8));
     const auto second_half = generic_query.AsString().substr(2 * ((register_offset + this->m_registerInfo[reg].m_bitSize) / 8) );
     const auto payload = "G" + first_half + newRegString + second_half;
@@ -578,8 +578,8 @@ bool GdbAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
     if ( this->m_rspConnector->TransmitAndReceive(RspData(payload)).AsString() != "OK" )
         return false;
 
-	// TODO: we do not need to invalidate all register caches, we could probably just update the necessary ones here
-	InvalidateCache();
+    // TODO: we do not need to invalidate all register caches, we could probably just update the necessary ones here
+    InvalidateCache();
     return true;
 }
 
@@ -1230,7 +1230,7 @@ uint64_t GdbAdapter::GetInstructionOffset()
     else
         ipRegisterName = "pc";
 
-	uint64_t value = (uint64_t)this->ReadRegister(ipRegisterName).m_value;
+    uint64_t value = (uint64_t)this->ReadRegister(ipRegisterName).m_value;
     return value;
 }
 
