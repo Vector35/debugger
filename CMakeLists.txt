@@ -30,6 +30,8 @@ if (NOT BN_INTERNAL_BUILD)
 	message("CMAKE_PREFIX_PATH is: ${CMAKE_PREFIX_PATH}")
 endif()
 
+find_package(Python3 3.10 COMPONENTS Interpreter REQUIRED)
+
 add_subdirectory(core)
 add_subdirectory(api)
 
@@ -62,7 +64,7 @@ endif()
 
 # Documentation validation target
 add_custom_target(docs-validate
-	COMMAND python ${CMAKE_SOURCE_DIR}/scripts/check_markdown_list.py ${CMAKE_SOURCE_DIR}/docs/
+	COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/check_markdown_list.py ${CMAKE_SOURCE_DIR}/docs/
 	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 	COMMENT "Validating documentation formatting..."
 )
