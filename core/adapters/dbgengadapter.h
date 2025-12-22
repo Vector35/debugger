@@ -146,6 +146,8 @@ namespace BinaryNinjaDebugger {
 
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints {};
 		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
+		std::vector<PendingHardwareBreakpoint> m_deferredHardwareBreakpoints {};
+		bool m_needsHardwareBreakpointReapplication = false;
 
 		ULONG64 m_server {};
 		bool m_connectedToDebugServer = false;

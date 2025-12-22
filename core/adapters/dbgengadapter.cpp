@@ -667,6 +667,27 @@ void DbgEngAdapter::EngineLoop()
 			{
 				if (m_lastExecutionStatus != DEBUG_STATUS_BREAK)
 				{
+					// Apply deferred hardware breakpoints on first stop
+					// See ApplyBreakpoints() for detailed explanation of why this is necessary
+					if (m_needsHardwareBreakpointReapplication)
+					{
+						for (const auto& hwbp : m_deferredHardwareBreakpoints)
+						{
+							// Apply the hardware breakpoint now that process is running and stopped
+							// Check addressing mode and call appropriate variant
+							if (hwbp.isRelative)
+							{
+								AddHardwareBreakpoint(hwbp.location, hwbp.type, hwbp.size);
+							}
+							else
+							{
+								AddHardwareBreakpoint(hwbp.address, hwbp.type, hwbp.size);
+							}
+						}
+						m_deferredHardwareBreakpoints.clear();
+						m_needsHardwareBreakpointReapplication = false;
+					}
+
 					if (outputStateOnStop)
 					{
 						// m_debugRegisters->OutputRegisters(DEBUG_OUTCTL_THIS_CLIENT, DEBUG_REGISTERS_DEFAULT);
@@ -1225,6 +1246,17 @@ bool DbgEngAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointTy
 		return false;
 	}
 
+	// Also check deferred list (hardware breakpoints waiting for first stop)
+	PendingHardwareBreakpoint pending(address, type, size);
+	auto deferredIt = std::find(m_deferredHardwareBreakpoints.begin(), m_deferredHardwareBreakpoints.end(), pending);
+	if (deferredIt != m_deferredHardwareBreakpoints.end())
+	{
+		m_deferredHardwareBreakpoints.erase(deferredIt);
+		if (m_deferredHardwareBreakpoints.empty())
+			m_needsHardwareBreakpointReapplication = false;
+		return true;
+	}
+
 	// List all breakpoints to find the ID of the hardware breakpoint at this address
 	auto result = InvokeBackendCommand("bl");
 	
@@ -1335,6 +1367,19 @@ bool DbgEngAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location
 	// DbgEng doesn't provide a direct way to remove by module+offset
 	if (m_dbgengInitialized)
 	{
+		// First check deferred list (hardware breakpoints waiting for first stop)
+		// This needs to be checked before resolving to address because deferred entries
+		// use isRelative=true and won't be found by address-based lookup
+		PendingHardwareBreakpoint pending(location, type, size);
+		auto deferredIt = std::find(m_deferredHardwareBreakpoints.begin(), m_deferredHardwareBreakpoints.end(), pending);
+		if (deferredIt != m_deferredHardwareBreakpoints.end())
+		{
+			m_deferredHardwareBreakpoints.erase(deferredIt);
+			if (m_deferredHardwareBreakpoints.empty())
+				m_needsHardwareBreakpointReapplication = false;
+			return true;
+		}
+
 		// Get module base and resolve to absolute address
 		auto modules = GetModuleList();
 		uint64_t base = 0;
@@ -1377,12 +1422,23 @@ void DbgEngAdapter::ApplyBreakpoints()
 	}
 	m_pendingBreakpoints.clear();
 
-	// Apply pending hardware breakpoints
-	for (const auto& hwbp : m_pendingHardwareBreakpoints)
-	{
-		AddHardwareBreakpoint(hwbp.address, hwbp.type, hwbp.size);
-	}
+	// DEFER hardware breakpoints instead of applying now
+	//
+	// Hardware breakpoints use CPU debug registers (DR0-DR3) which are part of the thread context.
+	// At the system entry point (ntdll!LdrInitializeThunk), the process is in early initialization
+	// and the debug registers may not be properly accessible or may get overwritten during loader
+	// initialization. Hardware breakpoints work reliably once the process is fully initialized
+	// (at the program entry point or later).
+	//
+	// Move hardware breakpoints to deferred list instead of applying now
+	m_deferredHardwareBreakpoints = std::move(m_pendingHardwareBreakpoints);
 	m_pendingHardwareBreakpoints.clear();
+
+	// Set flag to apply deferred hardware breakpoints on first stop in EngineLoop
+	if (!m_deferredHardwareBreakpoints.empty())
+	{
+		m_needsHardwareBreakpointReapplication = true;
+	}
 }
 
 DebugRegister DbgEngAdapter::ReadRegister(const std::string& reg)
