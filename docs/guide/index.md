@@ -418,6 +418,8 @@ For example, `$rax` evaluates to the value of the `rax` register.
 We can use `$eip`/`$rip`/`pc` to navigate to the current program counter, or `$esp`/`$rsp`/`sp` to navigate to the current stack pointer.
 Thanks to the power of the expression parse, these register values can be combined with other arithmetic operations.
 This is especially helpful to quickly navigate to the stack variables since they typically have an address like `$rsp+0x20` or `$rbp-0x8`, which the expression parser can calculate properly:
+- Use module names in the expression parser. Similar to the way we can use a register value in the expression parser, we
+can also use module names in it. For example, `$helloworld` will be resolved to the base address of the `helloworld` module.
 
 ![](../../img/debugger/expressionparser.png)
 
