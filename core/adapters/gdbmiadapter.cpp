@@ -301,7 +301,9 @@ void GdbMiAdapter::ScheduleStateRefresh()
             UpdateThreadList();
             UpdateAllRegisters();
             UpdateStackFrames(m_currentTid);
-            // Apply any pending hardware breakpoints that were added while target was running
+            // Apply any pending breakpoints that were added while target was running
+            // or couldn't be resolved earlier (modules not loaded yet)
+            ApplyBreakpoints();
             ApplyPendingHardwareBreakpoints();
         }
 
@@ -722,17 +724,27 @@ DebugBreakpoint GdbMiAdapter::AddBreakpoint(std::uintptr_t address, unsigned lon
 DebugBreakpoint GdbMiAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type) {
 	if (!m_mi)
 	{
+		// Not connected yet - add to pending list
 		if (std::ranges::find(m_pendingBreakpoints, address) == m_pendingBreakpoints.end())
 			m_pendingBreakpoints.push_back(address);
+		return {};
 	}
-    else
-    {
-        uint64_t addr = address.offset + m_originalImageBase;
-        
-        AddBreakpoint(addr, breakpoint_type);
-    }
 
-	return {};
+	// Try to resolve the module base address
+	uint64_t base{};
+	if (GetModuleBase(address.module, base))
+	{
+		// Module is loaded - resolve to absolute address
+		uint64_t addr = base + address.offset;
+		return AddBreakpoint(addr, breakpoint_type);
+	}
+	else
+	{
+		// Module not loaded yet - add to pending list for deferred application
+		if (std::ranges::find(m_pendingBreakpoints, address) == m_pendingBreakpoints.end())
+			m_pendingBreakpoints.push_back(address);
+		return {};
+	}
 }
 
 bool GdbMiAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint) {
@@ -1349,11 +1361,15 @@ Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
 
 void GdbMiAdapter::ApplyBreakpoints()
 {
-	for (const auto& bp : m_pendingBreakpoints)
+	// Make a copy and clear the original list - AddBreakpoint will re-add
+	// any breakpoints that can't be resolved yet
+	std::vector<ModuleNameAndOffset> pendingCopy = m_pendingBreakpoints;
+	m_pendingBreakpoints.clear();
+
+	for (const auto& bp : pendingCopy)
 	{
 		AddBreakpoint(bp, 0);
 	}
-	m_pendingBreakpoints.clear();
 }
 
 
