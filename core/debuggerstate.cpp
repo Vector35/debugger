@@ -18,6 +18,7 @@ limitations under the License.
 #include <thread>
 #include <utility>
 #include <filesystem>
+#include <optional>
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
@@ -25,6 +26,8 @@ limitations under the License.
 #include "debuggerstate.h"
 #include "debugadapter.h"
 #include "debuggercontroller.h"
+
+#include <ranges>
 
 using namespace BinaryNinja;
 using namespace std;
@@ -736,6 +739,42 @@ bool DebuggerBreakpoints::SetConditionOffset(const ModuleNameAndOffset& address,
 }
 
 
+std::optional<ModuleNameAndOffset> DebuggerBreakpoints::FindConditionKey(const ModuleNameAndOffset& address)
+{
+	if (m_conditions.contains(address))
+		return address;
+
+	// absolute address comparison (handles module name differences)
+	// assumes conditions are stored with valid, resolvable module names
+	const uint64_t targetAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
+	for (const auto& key : m_conditions | views::keys)
+	{
+		if (const uint64_t conditionAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(key);
+			conditionAbsolute == targetAbsolute)
+			return key;
+	}
+
+	// if the address has empty module name, it might be a file virtual address?
+	// try converting to an offset by subtracting the original file base.
+	if (address.module.empty())
+	{
+		if (const uint64_t originalBase = m_state->GetController()->GetOriginalFileBase();
+			address.offset >= originalBase)
+		{
+			const uint64_t fileOffset = address.offset - originalBase;
+			const std::string& mainFile = m_state->GetController()->GetData()->GetFile()->GetOriginalFilename();
+			for (const auto& key : m_conditions | views::keys)
+			{
+				if (key.offset == fileOffset && DebugModule::IsSameBaseModule(mainFile, key.module))
+					return key;
+			}
+		}
+	}
+
+	return std::nullopt;
+}
+
+
 std::string DebuggerBreakpoints::GetConditionAbsolute(const uint64_t address)
 {
 	const ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
@@ -745,17 +784,8 @@ std::string DebuggerBreakpoints::GetConditionAbsolute(const uint64_t address)
 
 std::string DebuggerBreakpoints::GetConditionOffset(const ModuleNameAndOffset& address)
 {
-	if (const auto iter = m_conditions.find(address); iter != m_conditions.end())
-		return iter->second;
-
-	// fall back to absolute address comparison (handles module name differences)
-	const uint64_t targetAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
-	for (const auto& [key, val] : m_conditions)
-	{
-		if (const uint64_t conditionAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(key);
-			conditionAbsolute == targetAbsolute)
-			return val;
-	}
+	if (const auto key = FindConditionKey(address))
+		return m_conditions[*key];
 	return "";
 }
 
@@ -769,17 +799,8 @@ bool DebuggerBreakpoints::HasConditionAbsolute(const uint64_t address)
 
 bool DebuggerBreakpoints::HasConditionOffset(const ModuleNameAndOffset& address)
 {
-	if (const auto iter = m_conditions.find(address); iter != m_conditions.end())
-		return !iter->second.empty();
-
-	// fall back to absolute address comparison (handles module name differences)
-	const uint64_t targetAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
-	for (const auto& [key, val] : m_conditions)
-	{
-		if (const uint64_t conditionAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(key);
-			conditionAbsolute == targetAbsolute && !val.empty())
-			return true;
-	}
+	if (const auto key = FindConditionKey(address))
+		return !m_conditions[*key].empty();
 	return false;
 }
 
@@ -793,8 +814,11 @@ void DebuggerBreakpoints::ClearConditionAbsolute(const uint64_t address)
 
 void DebuggerBreakpoints::ClearConditionOffset(const ModuleNameAndOffset& address)
 {
-	m_conditions.erase(address);
-	SerializeMetadata();
+	if (const auto key = FindConditionKey(address))
+	{
+		m_conditions.erase(*key);
+		SerializeMetadata();
+	}
 }
 
 
