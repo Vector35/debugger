@@ -747,6 +747,15 @@ std::string DebuggerBreakpoints::GetConditionOffset(const ModuleNameAndOffset& a
 {
 	if (const auto iter = m_conditions.find(address); iter != m_conditions.end())
 		return iter->second;
+
+	// fall back to absolute address comparison (handles module name differences)
+	const uint64_t targetAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
+	for (const auto& [key, val] : m_conditions)
+	{
+		if (const uint64_t conditionAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(key);
+			conditionAbsolute == targetAbsolute)
+			return val;
+	}
 	return "";
 }
 
@@ -760,8 +769,18 @@ bool DebuggerBreakpoints::HasConditionAbsolute(const uint64_t address)
 
 bool DebuggerBreakpoints::HasConditionOffset(const ModuleNameAndOffset& address)
 {
-	const auto iter = m_conditions.find(address);
-	return (iter != m_conditions.end()) && !iter->second.empty();
+	if (const auto iter = m_conditions.find(address); iter != m_conditions.end())
+		return !iter->second.empty();
+
+	// fall back to absolute address comparison (handles module name differences)
+	const uint64_t targetAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
+	for (const auto& [key, val] : m_conditions)
+	{
+		if (const uint64_t conditionAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(key);
+			conditionAbsolute == targetAbsolute && !val.empty())
+			return true;
+	}
+	return false;
 }
 
 

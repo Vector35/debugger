@@ -2004,7 +2004,9 @@ void DebuggerController::DebuggerMainThread()
 				{
 					m_lastAdapterStopEventConsumed = true;
 					current->done.set_value();
-					Go();
+					// using m_adapter->Go() directly instead of Go() to avoid mutex deadlock
+					// since we're already inside ExecuteAdapterAndWait's event processing
+					m_adapter->Go();
 					continue;
 				}
 			}

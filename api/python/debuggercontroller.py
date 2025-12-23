@@ -2181,9 +2181,7 @@ class DebuggerController:
         else:
             raise NotImplementedError
 
-        condition = result.decode('utf-8') if result else ""
-        dbgcore.BNDebuggerFreeString(result)
-        return condition
+        return result if result else ""
 
     @property
     def ip(self) -> int:
