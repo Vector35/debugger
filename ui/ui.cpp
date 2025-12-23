@@ -1788,6 +1788,8 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 	case AbsoluteBreakpointEnabledEvent:
 	case RelativeBreakpointDisabledEvent:
 	case AbsoluteBreakpointDisabledEvent:
+	case AbsoluteBreakpointConditionChangedEvent:
+	case RelativeBreakpointConditionChangedEvent:
 	{
 		m_context->refreshCurrentViewContents();
 		break;

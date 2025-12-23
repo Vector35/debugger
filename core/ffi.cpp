@@ -933,29 +933,13 @@ bool BNDebuggerContainsRelativeBreakpoint(BNDebuggerController* controller, cons
 
 bool BNDebuggerSetBreakpointConditionAbsolute(BNDebuggerController* controller, uint64_t address, const char* condition)
 {
-	const DebuggerState* state = controller->object->GetState();
-	if (!state)
-		return false;
-
-	DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
-	if (!breakpoints)
-		return false;
-
-	return breakpoints->SetConditionAbsolute(address, condition ? condition : "");
+	return controller->object->SetBreakpointCondition(address, condition ? condition : "");
 }
 
 
 bool BNDebuggerSetBreakpointConditionRelative(BNDebuggerController* controller, const char* module, uint64_t offset, const char* condition)
 {
-	const DebuggerState* state = controller->object->GetState();
-	if (!state)
-		return false;
-
-	DebuggerBreakpoints* breakpoints = state->GetBreakpoints();
-	if (!breakpoints)
-		return false;
-
-	return breakpoints->SetConditionOffset(ModuleNameAndOffset(module, offset), condition ? condition : "");
+	return controller->object->SetBreakpointCondition(ModuleNameAndOffset(module, offset), condition ? condition : "");
 }
 
 

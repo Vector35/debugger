@@ -113,6 +113,10 @@ namespace BinaryNinjaDebugger {
 		bool HasConditionOffset(const ModuleNameAndOffset& address);
 
 	private:
+		// Helper to find the actual key in m_breakpoints matching the given address,
+		// handling module name differences via absolute address comparison
+		std::optional<ModuleNameAndOffset> FindBreakpointKey(const ModuleNameAndOffset& address);
+
 		// Helper to find the actual key in m_conditions matching the given address,
 		// handling module name differences and file address fallback
 		std::optional<ModuleNameAndOffset> FindConditionKey(const ModuleNameAndOffset& address);

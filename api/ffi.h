@@ -257,6 +257,8 @@ extern "C"
 		RelativeBreakpointEnabledEvent,
 		AbsoluteBreakpointDisabledEvent,
 		RelativeBreakpointDisabledEvent,
+		AbsoluteBreakpointConditionChangedEvent,
+		RelativeBreakpointConditionChangedEvent,
 
 		ActiveThreadChangedEvent,
 

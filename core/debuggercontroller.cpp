@@ -143,13 +143,29 @@ void DebuggerController::DisableBreakpoint(const ModuleNameAndOffset& address)
 
 bool DebuggerController::SetBreakpointCondition(uint64_t address, const std::string& condition)
 {
-	return m_state->GetBreakpoints()->SetConditionAbsolute(address, condition);
+	bool result = m_state->GetBreakpoints()->SetConditionAbsolute(address, condition);
+	if (result)
+	{
+		DebuggerEvent event;
+		event.type = AbsoluteBreakpointConditionChangedEvent;
+		event.data.absoluteAddress = address;
+		PostDebuggerEvent(event);
+	}
+	return result;
 }
 
 
 bool DebuggerController::SetBreakpointCondition(const ModuleNameAndOffset& address, const std::string& condition)
 {
-	return m_state->GetBreakpoints()->SetConditionOffset(address, condition);
+	bool result = m_state->GetBreakpoints()->SetConditionOffset(address, condition);
+	if (result)
+	{
+		DebuggerEvent event;
+		event.type = RelativeBreakpointConditionChangedEvent;
+		event.data.relativeAddress = address;
+		PostDebuggerEvent(event);
+	}
+	return result;
 }
 
 

@@ -144,7 +144,6 @@ public:
 	DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef data, Menu* menu);
 	~DebugBreakpointsWidget();
 
-	void uiEventHandler(const DebuggerEvent& event);
 	void updateFonts();
 
 private slots:
