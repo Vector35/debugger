@@ -2453,11 +2453,10 @@ void DebuggerController::AddModuleValuesToExpressionParser()
 
 bool DebuggerController::EvaluateBreakpointCondition(uint64_t address)
 {
-	DebuggerBreakpoints* breakpoints = m_state->GetBreakpoints();
-	if (!breakpoints->HasConditionAbsolute(address))
+	const std::string condition = m_state->GetBreakpoints()->GetConditionAbsolute(address);
+	if (condition.empty())
 		return true;  // no condition means always break
 
-	const std::string condition = breakpoints->GetConditionAbsolute(address);
 	uint64_t result = 0;
 	std::string errorString;
 

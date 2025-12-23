@@ -721,17 +721,34 @@ bool DebuggerBreakpoints::SetConditionAbsolute(const uint64_t remoteAddress, con
 
 bool DebuggerBreakpoints::SetConditionOffset(const ModuleNameAndOffset& address, const std::string& condition)
 {
-	if (!ContainsOffset(address))
-		return false;
+	std::optional<ModuleNameAndOffset> actualKey;
 
-	if (condition.empty())
+	if (m_state->GetAdapter())
 	{
-		m_conditions.erase(address);
+		const uint64_t targetAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
+		for (const ModuleNameAndOffset& bp : m_breakpoints)
+		{
+			if (m_state->GetModules()->RelativeAddressToAbsolute(bp) == targetAbsolute)
+			{
+				actualKey = bp;
+				break;
+			}
+		}
 	}
 	else
 	{
-		m_conditions[address] = condition;
+		if (const auto it = std::ranges::find(m_breakpoints, address); it != m_breakpoints.end())
+			actualKey = *it;
 	}
+
+	if (!actualKey)
+		return false;
+
+	if (condition.empty())
+		m_conditions.erase(*actualKey);
+	else
+		m_conditions[*actualKey] = condition;
+
 	SerializeMetadata();
 	return true;
 }
@@ -797,9 +814,7 @@ bool DebuggerBreakpoints::HasConditionAbsolute(const uint64_t address)
 
 bool DebuggerBreakpoints::HasConditionOffset(const ModuleNameAndOffset& address)
 {
-	if (const auto key = FindConditionKey(address))
-		return !m_conditions[*key].empty();
-	return false;
+	return FindConditionKey(address).has_value();
 }
 
 
