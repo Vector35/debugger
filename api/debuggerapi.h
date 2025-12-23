@@ -726,6 +726,10 @@ namespace BinaryNinjaDebuggerAPI {
 		void DisableBreakpoint(const ModuleNameAndOffset& breakpoint);
 		bool ContainsBreakpoint(uint64_t address);
 		bool ContainsBreakpoint(const ModuleNameAndOffset& breakpoint);
+		bool SetBreakpointCondition(uint64_t address, const std::string& condition);
+		bool SetBreakpointCondition(const ModuleNameAndOffset& address, const std::string& condition);
+		std::string GetBreakpointCondition(uint64_t address);
+		std::string GetBreakpointCondition(const ModuleNameAndOffset& address);
 
 		uint64_t IP();
 		uint64_t GetLastIP();

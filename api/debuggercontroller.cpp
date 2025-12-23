@@ -799,6 +799,36 @@ bool DebuggerController::ContainsBreakpoint(const ModuleNameAndOffset& breakpoin
 }
 
 
+bool DebuggerController::SetBreakpointCondition(uint64_t address, const std::string& condition)
+{
+	return BNDebuggerSetBreakpointConditionAbsolute(m_object, address, condition.c_str());
+}
+
+
+bool DebuggerController::SetBreakpointCondition(const ModuleNameAndOffset& address, const std::string& condition)
+{
+	return BNDebuggerSetBreakpointConditionRelative(m_object, address.module.c_str(), address.offset, condition.c_str());
+}
+
+
+std::string DebuggerController::GetBreakpointCondition(uint64_t address)
+{
+	char* condition = BNDebuggerGetBreakpointConditionAbsolute(m_object, address);
+	std::string result = condition ? condition : "";
+	BNDebuggerFreeString(condition);
+	return result;
+}
+
+
+std::string DebuggerController::GetBreakpointCondition(const ModuleNameAndOffset& address)
+{
+	char* condition = BNDebuggerGetBreakpointConditionRelative(m_object, address.module.c_str(), address.offset);
+	std::string result = condition ? condition : "";
+	BNDebuggerFreeString(condition);
+	return result;
+}
+
+
 uint64_t DebuggerController::RelativeAddressToAbsolute(const ModuleNameAndOffset& address)
 {
 	return BNDebuggerRelativeAddressToAbsolute(m_object, address.module.c_str(), address.offset);
