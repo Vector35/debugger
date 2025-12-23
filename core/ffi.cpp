@@ -991,7 +991,7 @@ char* BNDebuggerGetBreakpointConditionRelative(BNDebuggerController* controller,
 
 uint64_t BNDebuggerRelativeAddressToAbsolute(BNDebuggerController* controller, const char* module, uint64_t offset)
 {
-	const DebuggerState* state = controller->object->GetState();
+	DebuggerState* state = controller->object->GetState();
 	if (!state)
 		return 0;
 

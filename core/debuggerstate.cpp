@@ -27,8 +27,6 @@ limitations under the License.
 #include "debugadapter.h"
 #include "debuggercontroller.h"
 
-#include <ranges>
-
 using namespace BinaryNinja;
 using namespace std;
 using namespace BinaryNinjaDebugger;
@@ -747,7 +745,7 @@ std::optional<ModuleNameAndOffset> DebuggerBreakpoints::FindConditionKey(const M
 	// absolute address comparison (handles module name differences)
 	// assumes conditions are stored with valid, resolvable module names
 	const uint64_t targetAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
-	for (const auto& key : m_conditions | views::keys)
+	for (const auto& [key, _] : m_conditions)
 	{
 		if (const uint64_t conditionAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(key);
 			conditionAbsolute == targetAbsolute)
@@ -763,7 +761,7 @@ std::optional<ModuleNameAndOffset> DebuggerBreakpoints::FindConditionKey(const M
 		{
 			const uint64_t fileOffset = address.offset - originalBase;
 			const std::string& mainFile = m_state->GetController()->GetData()->GetFile()->GetOriginalFilename();
-			for (const auto& key : m_conditions | views::keys)
+			for (const auto& [key, _] : m_conditions)
 			{
 				if (key.offset == fileOffset && DebugModule::IsSameBaseModule(mainFile, key.module))
 					return key;
@@ -802,23 +800,6 @@ bool DebuggerBreakpoints::HasConditionOffset(const ModuleNameAndOffset& address)
 	if (const auto key = FindConditionKey(address))
 		return !m_conditions[*key].empty();
 	return false;
-}
-
-
-void DebuggerBreakpoints::ClearConditionAbsolute(const uint64_t address)
-{
-	const ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
-	ClearConditionOffset(info);
-}
-
-
-void DebuggerBreakpoints::ClearConditionOffset(const ModuleNameAndOffset& address)
-{
-	if (const auto key = FindConditionKey(address))
-	{
-		m_conditions.erase(*key);
-		SerializeMetadata();
-	}
 }
 
 

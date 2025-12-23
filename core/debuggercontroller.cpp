@@ -2458,9 +2458,6 @@ bool DebuggerController::EvaluateBreakpointCondition(uint64_t address)
 		return true;  // no condition means always break
 
 	const std::string condition = breakpoints->GetConditionAbsolute(address);
-	if (condition.empty())
-		return true;
-
 	uint64_t result = 0;
 	std::string errorString;
 

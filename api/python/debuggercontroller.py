@@ -382,7 +382,7 @@ class DebugBreakpoint:
         if not isinstance(other, self.__class__):
             return NotImplemented
         return self.module == other.module and self.offset == other.offset and self.address == other.address \
-               and self.enabled == other.enabled and self.condition == other.condition
+               and self.enabled == other.enabled
 
     def __ne__(self, other):
         if not isinstance(other, self.__class__):
@@ -2161,9 +2161,9 @@ class DebuggerController:
         :return: True if successful, False otherwise
         """
         if isinstance(address, int):
-            return dbgcore.BNDebuggerSetBreakpointConditionAbsolute(self.handle, address, condition.encode('utf-8') if condition else None)
+            return dbgcore.BNDebuggerSetBreakpointConditionAbsolute(self.handle, address, condition)
         elif isinstance(address, ModuleNameAndOffset):
-            return dbgcore.BNDebuggerSetBreakpointConditionRelative(self.handle, address.module.encode('utf-8'), address.offset, condition.encode('utf-8') if condition else None)
+            return dbgcore.BNDebuggerSetBreakpointConditionRelative(self.handle, address.module, address.offset, condition)
         else:
             raise NotImplementedError
 
@@ -2177,7 +2177,7 @@ class DebuggerController:
         if isinstance(address, int):
             result = dbgcore.BNDebuggerGetBreakpointConditionAbsolute(self.handle, address)
         elif isinstance(address, ModuleNameAndOffset):
-            result = dbgcore.BNDebuggerGetBreakpointConditionRelative(self.handle, address.module.encode('utf-8'), address.offset)
+            result = dbgcore.BNDebuggerGetBreakpointConditionRelative(self.handle, address.module, address.offset)
         else:
             raise NotImplementedError
 

@@ -111,8 +111,6 @@ namespace BinaryNinjaDebugger {
 		std::string GetConditionOffset(const ModuleNameAndOffset& address);
 		bool HasConditionAbsolute(uint64_t address);
 		bool HasConditionOffset(const ModuleNameAndOffset& address);
-		void ClearConditionAbsolute(uint64_t address);
-		void ClearConditionOffset(const ModuleNameAndOffset& address);
 
 	private:
 		// Helper to find the actual key in m_conditions matching the given address,

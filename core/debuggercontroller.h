@@ -85,7 +85,7 @@ namespace BinaryNinjaDebugger {
 		// this does not change even if we add the debugger memory region. In the future, this should be provided by
 		// the binary view -- we will no longer need to track it ourselves
 		uint64_t m_viewStart;
-		// Original file base address before any rebasing - used for file address lookups
+		// Preserves original file base before rebasing - never updated, used for file VA to offset conversion
 		uint64_t m_originalFileBase;
 
 		//	inline static std::vector<DbgRef<DebuggerController>> g_debuggerControllers;
