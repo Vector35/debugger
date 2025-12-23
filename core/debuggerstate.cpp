@@ -753,67 +753,47 @@ std::optional<ModuleNameAndOffset> DebuggerBreakpoints::FindBreakpointKey(const 
 }
 
 
-std::optional<ModuleNameAndOffset> DebuggerBreakpoints::FindConditionKey(const ModuleNameAndOffset& address)
-{
-	if (m_conditions.contains(address))
-		return address;
-
-	// absolute address comparison (handles module name differences)
-	// assumes conditions are stored with valid, resolvable module names
-	const uint64_t targetAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
-	for (const auto& [key, _] : m_conditions)
-	{
-		if (const uint64_t conditionAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(key);
-			conditionAbsolute == targetAbsolute)
-			return key;
-	}
-
-	// if the address has empty module name, it might be a file virtual address?
-	// try converting to an offset by subtracting the original file base.
-	if (address.module.empty())
-	{
-		if (const uint64_t originalBase = m_state->GetController()->GetOriginalFileBase();
-			address.offset >= originalBase)
-		{
-			const uint64_t fileOffset = address.offset - originalBase;
-			const std::string& mainFile = m_state->GetController()->GetData()->GetFile()->GetOriginalFilename();
-			for (const auto& [key, _] : m_conditions)
-			{
-				if (key.offset == fileOffset && DebugModule::IsSameBaseModule(mainFile, key.module))
-					return key;
-			}
-		}
-	}
-
-	return std::nullopt;
-}
-
-
 std::string DebuggerBreakpoints::GetConditionAbsolute(const uint64_t address)
 {
-	const ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
-	return GetConditionOffset(info);
+	for (const auto& [key, condition] : m_conditions)
+	{
+		if (m_state->GetModules()->RelativeAddressToAbsolute(key) == address)
+			return condition;
+	}
+	return "";
 }
 
 
 std::string DebuggerBreakpoints::GetConditionOffset(const ModuleNameAndOffset& address)
 {
-	if (const auto key = FindConditionKey(address))
-		return m_conditions[*key];
+	auto actualKey = FindBreakpointKey(address);
+	if (!actualKey)
+		return "";
+
+	if (const auto it = m_conditions.find(*actualKey); it != m_conditions.end())
+		return it->second;
 	return "";
 }
 
 
 bool DebuggerBreakpoints::HasConditionAbsolute(const uint64_t address)
 {
-	const ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
-	return HasConditionOffset(info);
+	for (const auto& [key, _] : m_conditions)
+	{
+		if (m_state->GetModules()->RelativeAddressToAbsolute(key) == address)
+			return true;
+	}
+	return false;
 }
 
 
 bool DebuggerBreakpoints::HasConditionOffset(const ModuleNameAndOffset& address)
 {
-	return FindConditionKey(address).has_value();
+	auto actualKey = FindBreakpointKey(address);
+	if (!actualKey)
+		return false;
+
+	return m_conditions.contains(*actualKey);
 }
 
 

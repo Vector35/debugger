@@ -577,10 +577,7 @@ void DebugBreakpointsWidget::editCondition()
 		QLineEdit::Normal, QString::fromStdString(currentCondition), &ok);
 
 	if (ok)
-	{
 		m_controller->SetBreakpointCondition(bp.location(), newCondition.trimmed().toStdString());
-		updateContent();
-	}
 }
 
 

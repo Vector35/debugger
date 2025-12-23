@@ -32,7 +32,6 @@ DebuggerController::DebuggerController(BinaryViewRef data): BinaryDataNotificati
 	m_data = data;
 	m_data->RegisterNotification(this);
 	m_viewStart = m_data->GetStart();
-	m_originalFileBase = m_data->GetStart();
 
 	m_state = new DebuggerState(data, this);
 	m_adapter = nullptr;

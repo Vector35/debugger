@@ -85,8 +85,6 @@ namespace BinaryNinjaDebugger {
 		// this does not change even if we add the debugger memory region. In the future, this should be provided by
 		// the binary view -- we will no longer need to track it ourselves
 		uint64_t m_viewStart;
-		// Preserves original file base before rebasing - never updated, used for file VA to offset conversion
-		uint64_t m_originalFileBase;
 
 		//	inline static std::vector<DbgRef<DebuggerController>> g_debuggerControllers;
 		static DbgRef<DebuggerController>* g_debuggerControllers;
@@ -395,7 +393,6 @@ namespace BinaryNinjaDebugger {
 		bool ReAddDebuggerMemoryRegion();
 
 		uint64_t GetViewFileSegmentsStart() { return m_viewStart; }
-		uint64_t GetOriginalFileBase() { return m_originalFileBase; }
 
 		bool ComputeExprValueAPI(const LowLevelILInstruction& instr, intx::uint512& value);
 		bool ComputeExprValue(const LowLevelILInstruction& instr, intx::uint512& value);
