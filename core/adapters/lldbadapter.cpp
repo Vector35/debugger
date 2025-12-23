@@ -305,6 +305,14 @@ Ref<Settings> LldbAdapterType::RegisterAdapterSettings()
         "description": "Specifies LLDB commands to execute immediately after launching/attaching/connecting to the target",
         "readOnly": false
     })");
+	settings->RegisterSetting("debugServer.disableAutoInstall",
+	R"({
+        "title": "Disable Auto Install",
+        "type": "boolean",
+        "default": true,
+        "description": "Disable automatic binary upload during remote debugging. This prevents LLDB from deleting and re-uploading the binary when debugging on localhost or when the binary already exists on the remote system.",
+        "readOnly": false
+    })");
 
 	return settings;
 }
@@ -1979,12 +1987,23 @@ bool LldbAdapter::ConnectToDebugServer(const std::string& server, std::uint32_t 
 	auto serverPort = adapterSettings->Get<uint64_t>("debugServer.port", data, &scope);
 	scope = SettingsResourceScope;
 	auto platformStr = adapterSettings->Get<std::string>("debugServer.platform", data, &scope);
+	scope = SettingsResourceScope;
+	auto disableAutoInstall = adapterSettings->Get<bool>("debugServer.disableAutoInstall", data, &scope);
 
 	m_debugger.SetCurrentPlatform(platformStr.c_str());
 	auto platform = m_debugger.GetSelectedPlatform();
 	auto connectionString = fmt::format("connect://{}:{}", ipAddress, serverPort);
 	SBPlatformConnectOptions options(connectionString.c_str());
 	auto error = platform.ConnectRemote(options);
+
+	if (error.Success() && disableAutoInstall)
+	{
+		// Disable automatic binary installation during remote debugging
+		// This prevents LLDB from deleting and re-uploading binaries, which can cause issues
+		// when debugging on localhost or when the binary already exists on the remote system
+		InvokeBackendCommand("settings set target.auto-install-main-executable false");
+	}
+
 	return error.Success();
 }
 
