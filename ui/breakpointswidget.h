@@ -39,12 +39,14 @@ private:
 	bool m_enabled;
 	ModuleNameAndOffset m_location;
 	uint64_t m_address;
+	std::string m_condition;
 
 public:
-	BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t remoteAddress);
+	BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t remoteAddress, const std::string& condition = "");
 	bool enabled() const { return m_enabled; }
 	ModuleNameAndOffset location() const { return m_location; }
 	uint64_t address() const { return m_address; }
+	std::string condition() const { return m_condition; }
 	bool operator==(const BreakpointItem& other) const;
 	bool operator!=(const BreakpointItem& other) const;
 	bool operator<(const BreakpointItem& other) const;
@@ -68,6 +70,7 @@ public:
 		EnabledColumn,
 		LocationColumn,
 		AddressColumn,
+		ConditionColumn,
 	};
 
 	DebugBreakpointsListModel(QWidget* parent, ViewFrame* view);
@@ -83,7 +86,7 @@ public:
 	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override
 	{
 		(void)parent;
-		return 3;
+		return 4;
 	}
 	BreakpointItem getRow(int row) const;
 	virtual QVariant data(const QModelIndex& i, int role) const override;
@@ -153,6 +156,7 @@ private slots:
 	void enableAll();
 	void disableAll();
 	void soloSelected();
+	void editCondition();
 
 public slots:
 	void updateContent();
