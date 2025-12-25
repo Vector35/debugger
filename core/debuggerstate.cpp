@@ -18,7 +18,6 @@ limitations under the License.
 #include <thread>
 #include <utility>
 #include <filesystem>
-#include <optional>
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
@@ -514,8 +513,40 @@ std::vector<DebugModule> DebuggerModules::GetAllModules()
 
 
 DebuggerBreakpoints::DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial) :
-	m_state(state), m_breakpoints(std::move(initial))
-{}
+	m_state(state)
+{
+	for (const auto& addr : initial)
+		m_breakpoints.push_back({addr, true, ""});
+}
+
+
+BreakpointEntry* DebuggerBreakpoints::FindBreakpoint(const ModuleNameAndOffset& address)
+{
+	if (m_state->GetAdapter())
+	{
+		const uint64_t targetAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
+		for (auto& bp : m_breakpoints)
+		{
+			if (m_state->GetModules()->RelativeAddressToAbsolute(bp.address) == targetAbsolute)
+				return &bp;
+		}
+	}
+	else
+	{
+		for (auto& bp : m_breakpoints)
+		{
+			if (bp.address == address)
+				return &bp;
+		}
+	}
+	return nullptr;
+}
+
+
+const BreakpointEntry* DebuggerBreakpoints::FindBreakpoint(const ModuleNameAndOffset& address) const
+{
+	return const_cast<DebuggerBreakpoints*>(this)->FindBreakpoint(address);
+}
 
 
 bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
@@ -524,7 +555,6 @@ bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
 		return false;
 
 	bool result = false;
-	// Always add the breakpoint as long as the adapter is connected, even if it may be already present
 	if (m_state->IsConnected())
 	{
 		m_state->GetAdapter()->AddBreakpoint(remoteAddress);
@@ -534,8 +564,7 @@ bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
 	if (!ContainsAbsolute(remoteAddress))
 	{
 		ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
-		m_breakpoints.push_back(info);
-		m_enabledState[info] = true; // Enable by default
+		m_breakpoints.push_back({info, true, ""});
 		SerializeMetadata();
 	}
 
@@ -547,17 +576,12 @@ bool DebuggerBreakpoints::AddOffset(const ModuleNameAndOffset& address)
 {
 	if (!ContainsOffset(address))
 	{
-		m_breakpoints.push_back(address);
-		m_enabledState[address] = true; // Enable by default
+		m_breakpoints.push_back({address, true, ""});
 		SerializeMetadata();
 
-		// If the adapter is already created, we ask it to add the breakpoint.
-		// Otherwise, all breakpoints will be added to the adapter when the adapter is created.
 		if (m_state->GetAdapter() && m_state->IsConnected())
-		{
 			m_state->GetAdapter()->AddBreakpoint(address);
-			return true;
-		}
+
 		return true;
 	}
 	return false;
@@ -570,15 +594,14 @@ bool DebuggerBreakpoints::RemoveAbsolute(uint64_t remoteAddress)
 		return false;
 
 	ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
-	auto actualKey = FindBreakpointKey(info);
-	if (!actualKey)
+	BreakpointEntry* bp = FindBreakpoint(info);
+	if (!bp)
 		return false;
 
-	if (auto iter = std::ranges::find(m_breakpoints, *actualKey); iter != m_breakpoints.end())
-		m_breakpoints.erase(iter);
-
-	m_enabledState.erase(*actualKey);
-	m_conditions.erase(*actualKey);
+	auto it = std::find_if(m_breakpoints.begin(), m_breakpoints.end(),
+		[bp](const BreakpointEntry& b) { return &b == bp; });
+	if (it != m_breakpoints.end())
+		m_breakpoints.erase(it);
 	SerializeMetadata();
 	m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
 	return true;
@@ -587,20 +610,20 @@ bool DebuggerBreakpoints::RemoveAbsolute(uint64_t remoteAddress)
 
 bool DebuggerBreakpoints::RemoveOffset(const ModuleNameAndOffset& address)
 {
-	auto actualKey = FindBreakpointKey(address);
-	if (!actualKey)
+	BreakpointEntry* bp = FindBreakpoint(address);
+	if (!bp)
 		return false;
 
-	if (const auto iter = std::ranges::find(m_breakpoints, *actualKey); iter != m_breakpoints.end())
-		m_breakpoints.erase(iter);
-
-	m_enabledState.erase(*actualKey);
-	m_conditions.erase(*actualKey);
+	ModuleNameAndOffset actualAddr = bp->address;
+	auto it = std::find_if(m_breakpoints.begin(), m_breakpoints.end(),
+		[bp](const BreakpointEntry& b) { return &b == bp; });
+	if (it != m_breakpoints.end())
+		m_breakpoints.erase(it);
 	SerializeMetadata();
 
 	if (m_state->GetAdapter() && m_state->IsConnected())
 	{
-		uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(*actualKey);
+		uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(actualAddr);
 		m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
 	}
 	return true;
@@ -616,16 +639,16 @@ bool DebuggerBreakpoints::EnableAbsolute(uint64_t remoteAddress)
 
 bool DebuggerBreakpoints::EnableOffset(const ModuleNameAndOffset& address)
 {
-	auto actualKey = FindBreakpointKey(address);
-	if (!actualKey)
+	BreakpointEntry* bp = FindBreakpoint(address);
+	if (!bp)
 		return false;
 
-	m_enabledState[*actualKey] = true;
+	bp->enabled = true;
 	SerializeMetadata();
 
 	if (m_state->GetAdapter() && m_state->IsConnected())
 	{
-		uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(*actualKey);
+		uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(bp->address);
 		m_state->GetAdapter()->AddBreakpoint(remoteAddress);
 	}
 	return true;
@@ -641,16 +664,16 @@ bool DebuggerBreakpoints::DisableAbsolute(uint64_t remoteAddress)
 
 bool DebuggerBreakpoints::DisableOffset(const ModuleNameAndOffset& address)
 {
-	auto actualKey = FindBreakpointKey(address);
-	if (!actualKey)
+	BreakpointEntry* bp = FindBreakpoint(address);
+	if (!bp)
 		return false;
 
-	m_enabledState[*actualKey] = false;
+	bp->enabled = false;
 	SerializeMetadata();
 
 	if (m_state->GetAdapter() && m_state->IsConnected())
 	{
-		uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(*actualKey);
+		uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(bp->address);
 		m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
 	}
 	return true;
@@ -666,28 +689,17 @@ bool DebuggerBreakpoints::IsEnabledAbsolute(uint64_t address)
 
 bool DebuggerBreakpoints::IsEnabledOffset(const ModuleNameAndOffset& address)
 {
-	auto actualKey = FindBreakpointKey(address);
-	if (!actualKey)
+	const BreakpointEntry* bp = FindBreakpoint(address);
+	if (!bp)
 		return true;  // Default to enabled if breakpoint not found
 
-	auto iter = m_enabledState.find(*actualKey);
-	if (iter != m_enabledState.end())
-		return iter->second;
-
-	return true;  // Default to enabled if not explicitly set
+	return bp->enabled;
 }
 
 
 bool DebuggerBreakpoints::ContainsOffset(const ModuleNameAndOffset& address)
 {
-	// If there is no backend, then only check if the breakpoint is in the list
-	// This is useful when we deal with the breakpoint before the target is launched
-	if (!m_state->GetAdapter())
-		return std::find(m_breakpoints.begin(), m_breakpoints.end(), address) != m_breakpoints.end();
-
-	// When the backend is live, convert the relative address to absolute address and check its existence
-	uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
-	return ContainsAbsolute(absolute);
+	return FindBreakpoint(address) != nullptr;
 }
 
 
@@ -696,14 +708,9 @@ bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
 	if (!m_state->GetAdapter())
 		return false;
 
-	// We need to convert every ModuleAndOffset to absolute address and compare with the input address
-	// Because every ModuleAndOffset can be converted to an absolute address, but there is no guarantee that it works
-	// backward
-	// Well, that is because lldb does not report the size of the loaded libraries, so it is currently screwed up
-	for (const ModuleNameAndOffset& breakpoint : m_breakpoints)
+	for (const auto& bp : m_breakpoints)
 	{
-		uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(breakpoint);
-		if (absolute == address)
+		if (m_state->GetModules()->RelativeAddressToAbsolute(bp.address) == address)
 			return true;
 	}
 	return false;
@@ -719,46 +726,22 @@ bool DebuggerBreakpoints::SetConditionAbsolute(const uint64_t remoteAddress, con
 
 bool DebuggerBreakpoints::SetConditionOffset(const ModuleNameAndOffset& address, const std::string& condition)
 {
-	auto actualKey = FindBreakpointKey(address);
-	if (!actualKey)
+	BreakpointEntry* bp = FindBreakpoint(address);
+	if (!bp)
 		return false;
 
-	if (condition.empty())
-		m_conditions.erase(*actualKey);
-	else
-		m_conditions[*actualKey] = condition;
-
+	bp->condition = condition;
 	SerializeMetadata();
 	return true;
 }
 
 
-std::optional<ModuleNameAndOffset> DebuggerBreakpoints::FindBreakpointKey(const ModuleNameAndOffset& address)
-{
-	if (m_state->GetAdapter())
-	{
-		const uint64_t targetAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
-		for (const ModuleNameAndOffset& bp : m_breakpoints)
-		{
-			if (m_state->GetModules()->RelativeAddressToAbsolute(bp) == targetAbsolute)
-				return bp;
-		}
-	}
-	else
-	{
-		if (const auto it = std::ranges::find(m_breakpoints, address); it != m_breakpoints.end())
-			return *it;
-	}
-	return std::nullopt;
-}
-
-
 std::string DebuggerBreakpoints::GetConditionAbsolute(const uint64_t address)
 {
-	for (const auto& [key, condition] : m_conditions)
+	for (const auto& bp : m_breakpoints)
 	{
-		if (m_state->GetModules()->RelativeAddressToAbsolute(key) == address)
-			return condition;
+		if (m_state->GetModules()->RelativeAddressToAbsolute(bp.address) == address)
+			return bp.condition;
 	}
 	return "";
 }
@@ -766,22 +749,17 @@ std::string DebuggerBreakpoints::GetConditionAbsolute(const uint64_t address)
 
 std::string DebuggerBreakpoints::GetConditionOffset(const ModuleNameAndOffset& address)
 {
-	auto actualKey = FindBreakpointKey(address);
-	if (!actualKey)
-		return "";
-
-	if (const auto it = m_conditions.find(*actualKey); it != m_conditions.end())
-		return it->second;
-	return "";
+	const BreakpointEntry* bp = FindBreakpoint(address);
+	return bp ? bp->condition : "";
 }
 
 
 bool DebuggerBreakpoints::HasConditionAbsolute(const uint64_t address)
 {
-	for (const auto& [key, _] : m_conditions)
+	for (const auto& bp : m_breakpoints)
 	{
-		if (m_state->GetModules()->RelativeAddressToAbsolute(key) == address)
-			return true;
+		if (m_state->GetModules()->RelativeAddressToAbsolute(bp.address) == address)
+			return !bp.condition.empty();
 	}
 	return false;
 }
@@ -789,33 +767,23 @@ bool DebuggerBreakpoints::HasConditionAbsolute(const uint64_t address)
 
 bool DebuggerBreakpoints::HasConditionOffset(const ModuleNameAndOffset& address)
 {
-	auto actualKey = FindBreakpointKey(address);
-	if (!actualKey)
-		return false;
-
-	return m_conditions.contains(*actualKey);
+	const BreakpointEntry* bp = FindBreakpoint(address);
+	return bp && !bp->condition.empty();
 }
 
 
 void DebuggerBreakpoints::SerializeMetadata()
 {
-	// TODO: who should free these Metadata objects?
 	std::vector<Ref<Metadata>> breakpoints;
-	for (const ModuleNameAndOffset& bp : m_breakpoints)
+	for (const auto& bp : m_breakpoints)
 	{
 		std::map<std::string, Ref<Metadata>> info;
-		info["module"] = new Metadata(bp.module);
-		info["offset"] = new Metadata(bp.offset);
+		info["module"] = new Metadata(bp.address.module);
+		info["offset"] = new Metadata(bp.address.offset);
+		info["enabled"] = new Metadata(bp.enabled);
 
-		auto enabledIter = m_enabledState.find(bp);
-		const bool enabled = (enabledIter != m_enabledState.end()) ? enabledIter->second : true;
-		info["enabled"] = new Metadata(enabled);
-
-		if (auto conditionIter = m_conditions.find(bp);
-			conditionIter != m_conditions.end() && !conditionIter->second.empty())
-		{
-			info["condition"] = new Metadata(conditionIter->second);
-		}
+		if (!bp.condition.empty())
+			info["condition"] = new Metadata(bp.condition);
 
 		breakpoints.push_back(new Metadata(info));
 	}
@@ -826,46 +794,31 @@ void DebuggerBreakpoints::SerializeMetadata()
 void DebuggerBreakpoints::UnserializedMetadata()
 {
 	Ref<Metadata> metadata = m_state->GetController()->GetData()->QueryMetadata("debugger.breakpoints");
-	if (!metadata || (!metadata->IsArray()))
+	if (!metadata || !metadata->IsArray())
 		return;
 
-	vector<Ref<Metadata>> array = metadata->GetArray();
-	std::vector<ModuleNameAndOffset> newBreakpoints;
+	m_breakpoints.clear();
 
-	for (auto& element : array)
+	for (auto& element : metadata->GetArray())
 	{
-		if (!element || (!element->IsKeyValueStore()))
+		if (!element || !element->IsKeyValueStore())
 			continue;
 
 		std::map<std::string, Ref<Metadata>> info = element->GetKeyValueStore();
-		ModuleNameAndOffset address;
 
 		if (!(info["module"] && info["module"]->IsString()))
 			continue;
-
-		address.module = info["module"]->GetString();
-
 		if (!(info["offset"] && info["offset"]->IsUnsignedInteger()))
 			continue;
 
-		address.offset = info["offset"]->GetUnsignedInteger();
-		newBreakpoints.push_back(address);
+		BreakpointEntry bp;
+		bp.address.module = info["module"]->GetString();
+		bp.address.offset = info["offset"]->GetUnsignedInteger();
+		bp.enabled = (info["enabled"] && info["enabled"]->IsBoolean()) ? info["enabled"]->GetBoolean() : true;
+		bp.condition = (info["condition"] && info["condition"]->IsString()) ? info["condition"]->GetString() : "";
 
-		if (info["enabled"] && info["enabled"]->IsBoolean())
-		{
-			m_enabledState[address] = info["enabled"]->GetBoolean();
-		}
-
-		if (info["condition"] && info["condition"]->IsString())
-		{
-			if (std::string condition = info["condition"]->GetString(); !condition.empty())
-			{
-				m_conditions[address] = condition;
-			}
-		}
+		m_breakpoints.push_back(bp);
 	}
-
-	m_breakpoints = newBreakpoints;
 }
 
 
@@ -874,8 +827,11 @@ void DebuggerBreakpoints::Apply()
 	if (!m_state->GetAdapter())
 		return;
 
-	for (const ModuleNameAndOffset& address : m_breakpoints)
-		m_state->GetAdapter()->AddBreakpoint(address);
+	for (const auto& bp : m_breakpoints)
+	{
+		if (bp.enabled)
+			m_state->GetAdapter()->AddBreakpoint(bp.address);
+	}
 }
 
 

@@ -797,29 +797,21 @@ void BNDebuggerSetCommandLineArguments(BNDebuggerController* controller, const c
 }
 
 
-// TODO: the structures to hold information about the breakpoints are different in the API and the core, so we need to
-// convert it here. Better unify them later.
 BNDebugBreakpoint* BNDebuggerGetBreakpoints(BNDebuggerController* controller, size_t* count)
 {
 	DebuggerState* state = controller->object->GetState();
-	std::vector<ModuleNameAndOffset> breakpoints = state->GetBreakpoints()->GetBreakpointList();
+	const auto& breakpoints = state->GetBreakpoints()->GetBreakpointList();
 	*count = breakpoints.size();
-
-	//std::vector<DebugBreakpoint> remoteList;
-	//if (state->IsConnected() && state->GetAdapter())
-	//	remoteList = state->GetAdapter()->GetBreakpointList();
 
 	BNDebugBreakpoint* result = new BNDebugBreakpoint[breakpoints.size()];
 	for (size_t i = 0; i < breakpoints.size(); i++)
 	{
-		uint64_t remoteAddress = state->GetModules()->RelativeAddressToAbsolute(breakpoints[i]);
-		bool enabled = state->GetBreakpoints()->IsEnabledOffset(breakpoints[i]);
-		std::string condition = state->GetBreakpoints()->GetConditionOffset(breakpoints[i]);
-		result[i].module = BNDebuggerAllocString(breakpoints[i].module.c_str());
-		result[i].offset = breakpoints[i].offset;
-		result[i].address = remoteAddress;
-		result[i].enabled = enabled;
-		result[i].condition = condition.empty() ? nullptr : BNDebuggerAllocString(condition.c_str());
+		const auto& bp = breakpoints[i];
+		result[i].module = BNDebuggerAllocString(bp.address.module.c_str());
+		result[i].offset = bp.address.offset;
+		result[i].address = state->GetModules()->RelativeAddressToAbsolute(bp.address);
+		result[i].enabled = bp.enabled;
+		result[i].condition = bp.condition.empty() ? nullptr : BNDebuggerAllocString(bp.condition.c_str());
 	}
 	return result;
 }
