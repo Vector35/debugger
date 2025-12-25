@@ -119,8 +119,8 @@ namespace BinaryNinjaDebugger {
 
 	private:
 		// Find breakpoint by address, handling module name differences via absolute address comparison
-		BreakpointEntry* FindBreakpoint(const ModuleNameAndOffset& address);
-		const BreakpointEntry* FindBreakpoint(const ModuleNameAndOffset& address) const;
+		std::vector<BreakpointEntry>::iterator FindBreakpoint(const ModuleNameAndOffset& address);
+		std::vector<BreakpointEntry>::const_iterator FindBreakpoint(const ModuleNameAndOffset& address) const;
 	};
 
 
