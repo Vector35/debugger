@@ -40,8 +40,10 @@ BreakpointItem::BreakpointItem(bool enabled, const ModuleNameAndOffset location,
 
 bool BreakpointItem::operator==(const BreakpointItem& other) const
 {
-	// Condition is not part of identity - same location = same breakpoint
-	return (m_enabled == other.enabled()) && (m_location == other.location()) && (m_address == other.address());
+	// While we shouldn't technically have breakpoints at the same address with different
+	// enabled status and/or condition, we compare all fields for completeness.
+	return (m_enabled == other.enabled()) && (m_location == other.location())
+		&& (m_address == other.address()) && (m_condition == other.condition());
 }
 
 
@@ -53,15 +55,13 @@ bool BreakpointItem::operator!=(const BreakpointItem& other) const
 
 bool BreakpointItem::operator<(const BreakpointItem& other) const
 {
-	if (m_enabled < other.enabled())
-		return true;
-	else if (m_enabled > other.enabled())
-		return false;
-	else if (m_location < other.location())
-		return true;
-	else if (m_location > other.location())
-		return false;
-	return m_address < other.address();
+	if (m_enabled != other.enabled())
+		return m_enabled < other.enabled();
+	if (m_location != other.location())
+		return m_location < other.location();
+	if (m_address != other.address())
+		return m_address < other.address();
+	return m_condition < other.condition();
 }
 
 
