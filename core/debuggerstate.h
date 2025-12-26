@@ -78,12 +78,18 @@ namespace BinaryNinjaDebugger {
 	};
 
 
+	struct BreakpointEntry
+	{
+		ModuleNameAndOffset address;
+		bool enabled = true;
+		std::string condition;
+	};
+
 	class DebuggerBreakpoints
 	{
 	private:
 		DebuggerState* m_state;
-		std::vector<ModuleNameAndOffset> m_breakpoints;
-		std::map<ModuleNameAndOffset, bool> m_enabledState;
+		std::vector<BreakpointEntry> m_breakpoints;
 
 	public:
 		DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial = {});
@@ -102,7 +108,19 @@ namespace BinaryNinjaDebugger {
 		void Apply();
 		void SerializeMetadata();
 		void UnserializedMetadata();
-		std::vector<ModuleNameAndOffset> GetBreakpointList() const { return m_breakpoints; }
+		std::vector<BreakpointEntry> GetBreakpointList() const { return m_breakpoints; }
+
+		bool SetConditionAbsolute(uint64_t remoteAddress, const std::string& condition);
+		bool SetConditionOffset(const ModuleNameAndOffset& address, const std::string& condition);
+		std::string GetConditionAbsolute(uint64_t address);
+		std::string GetConditionOffset(const ModuleNameAndOffset& address);
+		bool HasConditionAbsolute(uint64_t address);
+		bool HasConditionOffset(const ModuleNameAndOffset& address);
+
+	private:
+		// Find breakpoint by address, handling module name differences via absolute address comparison
+		std::vector<BreakpointEntry>::iterator FindBreakpoint(const ModuleNameAndOffset& address);
+		std::vector<BreakpointEntry>::const_iterator FindBreakpoint(const ModuleNameAndOffset& address) const;
 	};
 
 

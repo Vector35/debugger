@@ -140,6 +140,46 @@ void DebuggerController::DisableBreakpoint(const ModuleNameAndOffset& address)
 }
 
 
+bool DebuggerController::SetBreakpointCondition(uint64_t address, const std::string& condition)
+{
+	bool result = m_state->GetBreakpoints()->SetConditionAbsolute(address, condition);
+	if (result)
+	{
+		DebuggerEvent event;
+		event.type = AbsoluteBreakpointConditionChangedEvent;
+		event.data.absoluteAddress = address;
+		PostDebuggerEvent(event);
+	}
+	return result;
+}
+
+
+bool DebuggerController::SetBreakpointCondition(const ModuleNameAndOffset& address, const std::string& condition)
+{
+	bool result = m_state->GetBreakpoints()->SetConditionOffset(address, condition);
+	if (result)
+	{
+		DebuggerEvent event;
+		event.type = RelativeBreakpointConditionChangedEvent;
+		event.data.relativeAddress = address;
+		PostDebuggerEvent(event);
+	}
+	return result;
+}
+
+
+std::string DebuggerController::GetBreakpointCondition(uint64_t address)
+{
+	return m_state->GetBreakpoints()->GetConditionAbsolute(address);
+}
+
+
+std::string DebuggerController::GetBreakpointCondition(const ModuleNameAndOffset& address)
+{
+	return m_state->GetBreakpoints()->GetConditionOffset(address);
+}
+
+
 bool DebuggerController::SetIP(uint64_t address)
 {
 	std::string ipRegisterName;
@@ -1963,6 +2003,31 @@ void DebuggerController::DebuggerMainThread()
 		if (event.type == AdapterStoppedEventType)
 			m_lastAdapterStopEventConsumed = false;
 
+		if (event.type == AdapterStoppedEventType &&
+			event.data.targetStoppedData.reason == Breakpoint)
+		{
+			// update the caches so registers are available for condition evaluation
+			m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
+			m_state->SetExecutionStatus(DebugAdapterPausedStatus);
+			m_state->MarkDirty();
+			m_state->UpdateCaches();
+			AddRegisterValuesToExpressionParser();
+			AddModuleValuesToExpressionParser();
+
+			if (uint64_t ip = m_state->IP(); m_state->GetBreakpoints()->ContainsAbsolute(ip))
+			{
+				if (!EvaluateBreakpointCondition(ip))
+				{
+					m_lastAdapterStopEventConsumed = true;
+					current->done.set_value();
+					// using m_adapter->Go() directly instead of Go() to avoid mutex deadlock
+					// since we're already inside ExecuteAdapterAndWait's event processing
+					m_adapter->Go();
+					continue;
+				}
+			}
+		}
+
 		DebuggerEvent eventToSend = event;
 		if ((eventToSend.type == TargetStoppedEventType) && !m_initialBreakpointSeen)
 		{
@@ -2398,6 +2463,27 @@ void DebuggerController::AddModuleValuesToExpressionParser()
 	}
 
 	GetData()->AddExpressionParserMagicValues(names, values);
+}
+
+
+bool DebuggerController::EvaluateBreakpointCondition(uint64_t address)
+{
+	const std::string condition = m_state->GetBreakpoints()->GetConditionAbsolute(address);
+	if (condition.empty())
+		return true;  // no condition means always break
+
+	uint64_t result = 0;
+	std::string errorString;
+
+	if (const bool parseSuccess = BinaryView::ParseExpression(GetData(), condition, result, address, errorString);
+		!parseSuccess)
+	{
+		LogWarn("Failed to parse breakpoint condition '%s' at 0x%" PRIx64 ": %s",
+			condition.c_str(), address, errorString.c_str());
+		return true;  // parse failure means break (don't silently continue)
+	}
+
+	return result != 0;  // non-zero means condition is true
 }
 
 

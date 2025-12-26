@@ -731,6 +731,7 @@ std::vector<DebugBreakpoint> DebuggerController::GetBreakpoints()
 		bp.offset = breakpoints[i].offset;
 		bp.address = breakpoints[i].address;
 		bp.enabled = breakpoints[i].enabled;
+		bp.condition = breakpoints[i].condition ? breakpoints[i].condition : "";
 		result[i] = bp;
 	}
 
@@ -796,6 +797,36 @@ bool DebuggerController::ContainsBreakpoint(uint64_t address)
 bool DebuggerController::ContainsBreakpoint(const ModuleNameAndOffset& breakpoint)
 {
 	return BNDebuggerContainsRelativeBreakpoint(m_object, breakpoint.module.c_str(), breakpoint.offset);
+}
+
+
+bool DebuggerController::SetBreakpointCondition(uint64_t address, const std::string& condition)
+{
+	return BNDebuggerSetBreakpointConditionAbsolute(m_object, address, condition.c_str());
+}
+
+
+bool DebuggerController::SetBreakpointCondition(const ModuleNameAndOffset& address, const std::string& condition)
+{
+	return BNDebuggerSetBreakpointConditionRelative(m_object, address.module.c_str(), address.offset, condition.c_str());
+}
+
+
+std::string DebuggerController::GetBreakpointCondition(uint64_t address)
+{
+	char* condition = BNDebuggerGetBreakpointConditionAbsolute(m_object, address);
+	std::string result = condition ? condition : "";
+	BNDebuggerFreeString(condition);
+	return result;
+}
+
+
+std::string DebuggerController::GetBreakpointCondition(const ModuleNameAndOffset& address)
+{
+	char* condition = BNDebuggerGetBreakpointConditionRelative(m_object, address.module.c_str(), address.offset);
+	std::string result = condition ? condition : "";
+	BNDebuggerFreeString(condition);
+	return result;
 }
 
 
