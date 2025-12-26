@@ -132,6 +132,7 @@ extern "C"
 		uint64_t offset;
 		uint64_t address;
 		bool enabled;
+		char* condition;  // NULL if no condition
 	} BNDebugBreakpoint;
 
 
@@ -256,6 +257,8 @@ extern "C"
 		RelativeBreakpointEnabledEvent,
 		AbsoluteBreakpointDisabledEvent,
 		RelativeBreakpointDisabledEvent,
+		AbsoluteBreakpointConditionChangedEvent,
+		RelativeBreakpointConditionChangedEvent,
 
 		ActiveThreadChangedEvent,
 
@@ -595,6 +598,15 @@ extern "C"
 		BNDebuggerController* controller, const char* module, uint64_t offset);
 	DEBUGGER_FFI_API bool BNDebuggerContainsAbsoluteBreakpoint(BNDebuggerController* controller, uint64_t address);
 	DEBUGGER_FFI_API bool BNDebuggerContainsRelativeBreakpoint(
+		BNDebuggerController* controller, const char* module, uint64_t offset);
+
+	DEBUGGER_FFI_API bool BNDebuggerSetBreakpointConditionAbsolute(
+		BNDebuggerController* controller, uint64_t address, const char* condition);
+	DEBUGGER_FFI_API bool BNDebuggerSetBreakpointConditionRelative(
+		BNDebuggerController* controller, const char* module, uint64_t offset, const char* condition);
+	DEBUGGER_FFI_API char* BNDebuggerGetBreakpointConditionAbsolute(
+		BNDebuggerController* controller, uint64_t address);
+	DEBUGGER_FFI_API char* BNDebuggerGetBreakpointConditionRelative(
 		BNDebuggerController* controller, const char* module, uint64_t offset);
 
 	DEBUGGER_FFI_API uint64_t BNDebuggerGetIP(BNDebuggerController* controller);

@@ -118,6 +118,36 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 	}
 }
 
+static void BreakpointEditConditionCallback(BinaryView* view, uint64_t addr, UIContext* context)
+{
+	auto controller = DebuggerController::GetController(view);
+	if (!controller)
+		return;
+
+	const bool isAbsoluteAddress = controller->IsConnected();
+	const ModuleNameAndOffset relativeAddr = {
+		controller->GetInputFile(),
+		addr - controller->GetViewFileSegmentsStart()
+	};
+
+	const std::string currentCondition = isAbsoluteAddress
+		? controller->GetBreakpointCondition(addr)
+		: controller->GetBreakpointCondition(relativeAddr);
+
+	bool ok;
+	QString newCondition = QInputDialog::getText(
+		context->mainWindow(), "Edit Condition", "Condition (e.g., $rax == 0x1234):",
+		QLineEdit::Normal, QString::fromStdString(currentCondition), &ok);
+
+	if (ok)
+	{
+		if (isAbsoluteAddress)
+			controller->SetBreakpointCondition(addr, newCondition.trimmed().toStdString());
+		else
+			controller->SetBreakpointCondition(relativeAddr, newCondition.trimmed().toStdString());
+	}
+}
+
 static void JumpToIPCallback(BinaryView* view, UIContext* context)
 {
 	auto controller = DebuggerController::GetController(view);
@@ -926,6 +956,24 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				return ctxt.binaryView && hasBreakpoint;
 			}));
 	debuggerMenu->addAction("Solo Breakpoint", "Breakpoint");
+
+	UIAction::registerAction("Edit Condition...");
+	context->globalActions()->bindAction("Edit Condition...",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView || !ctxt.context)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				BreakpointEditConditionCallback(ctxt.binaryView, ctxt.address, ctxt.context);
+			},
+			[=](const UIActionContext& ctxt) {
+				auto [hasBreakpoint, isEnabled] = getBreakpointEnabledState(ctxt.binaryView, ctxt.address);
+				return ctxt.binaryView && hasBreakpoint;
+			}));
+	debuggerMenu->addAction("Edit Condition...", "Breakpoint");
 
 	UIAction::registerAction("Connect to Debug Server");
 	context->globalActions()->bindAction("Connect to Debug Server",
@@ -1740,6 +1788,8 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 	case AbsoluteBreakpointEnabledEvent:
 	case RelativeBreakpointDisabledEvent:
 	case AbsoluteBreakpointDisabledEvent:
+	case AbsoluteBreakpointConditionChangedEvent:
+	case RelativeBreakpointConditionChangedEvent:
 	{
 		m_context->refreshCurrentViewContents();
 		break;

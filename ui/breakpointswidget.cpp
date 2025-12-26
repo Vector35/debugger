@@ -23,6 +23,7 @@ limitations under the License.
 #include <QStringList>
 #include <algorithm>
 #include <QMouseEvent>
+#include <QInputDialog>
 #include "breakpointswidget.h"
 #include "ui.h"
 #include "menus.h"
@@ -32,14 +33,17 @@ using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
-BreakpointItem::BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t address) :
-	m_enabled(enabled), m_location(location), m_address(address)
+BreakpointItem::BreakpointItem(bool enabled, const ModuleNameAndOffset location, uint64_t address, const std::string& condition) :
+	m_enabled(enabled), m_location(location), m_address(address), m_condition(condition)
 {}
 
 
 bool BreakpointItem::operator==(const BreakpointItem& other) const
 {
-	return (m_enabled == other.enabled()) && (m_location == other.location()) && (m_address == other.address());
+	// While we shouldn't technically have breakpoints at the same address with different
+	// enabled status and/or condition, we compare all fields for completeness.
+	return (m_enabled == other.enabled()) && (m_location == other.location())
+		&& (m_address == other.address()) && (m_condition == other.condition());
 }
 
 
@@ -51,15 +55,13 @@ bool BreakpointItem::operator!=(const BreakpointItem& other) const
 
 bool BreakpointItem::operator<(const BreakpointItem& other) const
 {
-	if (m_enabled < other.enabled())
-		return true;
-	else if (m_enabled > other.enabled())
-		return false;
-	else if (m_location < other.location())
-		return true;
-	else if (m_location > other.location())
-		return false;
-	return m_address < other.address();
+	if (m_enabled != other.enabled())
+		return m_enabled < other.enabled();
+	if (m_location != other.location())
+		return m_location < other.location();
+	if (m_address != other.address())
+		return m_address < other.address();
+	return m_condition < other.condition();
 }
 
 
@@ -100,7 +102,7 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
 	if (!item)
 		return QVariant();
 
-	if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole))
+	if ((role != Qt::DisplayRole) && (role != Qt::SizeHintRole) && (role != Qt::ToolTipRole))
 		return QVariant();
 
 	switch (index.column())
@@ -138,6 +140,18 @@ QVariant DebugBreakpointsListModel::data(const QModelIndex& index, int role) con
 
 		return QVariant(text);
 	}
+	case DebugBreakpointsListModel::ConditionColumn:
+	{
+		QString condition = QString::fromStdString(item->condition());
+
+		if (role == Qt::ToolTipRole && !condition.isEmpty())
+			return QVariant(condition);
+
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)condition.size());
+
+		return QVariant(condition);
+	}
 	}
 	return QVariant();
 }
@@ -159,6 +173,8 @@ QVariant DebugBreakpointsListModel::headerData(int column, Qt::Orientation orien
 		return "Location";
 	case DebugBreakpointsListModel::AddressColumn:
 		return "Remote Address";
+	case DebugBreakpointsListModel::ConditionColumn:
+		return "Condition";
 	}
 	return QVariant();
 }
@@ -205,6 +221,17 @@ void DebugBreakpointsItemDelegate::paint(
 		painter->setFont(m_font);
 		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
 		painter->drawText(textRect, data.toString());
+		break;
+	}
+	case DebugBreakpointsListModel::ConditionColumn:
+	{
+		painter->setFont(m_font);
+		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
+
+		QString text = data.toString();
+		QFontMetrics metrics(m_font);
+		QString elidedText = metrics.elidedText(text, Qt::ElideRight, textRect.width());
+		painter->drawText(textRect, elidedText);
 		break;
 	}
 	default:
@@ -297,6 +324,15 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 	m_menu->addAction(toggleEnabledActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		toggleEnabledActionName, UIAction([&]() { toggleSelected(); }, [&]() { return selectionNotEmpty(); }));
+
+	QString editConditionActionName = QString::fromStdString("Edit Condition...");
+	UIAction::registerAction(editConditionActionName);
+	m_menu->addAction(editConditionActionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		editConditionActionName, UIAction([&]() { editCondition(); }, [&]() {
+			QModelIndexList sel = selectionModel()->selectedRows();
+			return sel.size() == 1;
+		}));
 
 	QString enableAllActionName = QString::fromStdString("Enable All Breakpoints");
 	UIAction::registerAction(enableAllActionName);
@@ -510,7 +546,7 @@ void DebugBreakpointsWidget::soloSelected()
 
 	// Get the selected breakpoint location
 	BreakpointItem selectedBp = m_model->getRow(sel[0].row());
-	
+
 	// Disable all breakpoints first
 	std::vector<DebugBreakpoint> breakpoints = m_controller->GetBreakpoints();
 	for (const DebugBreakpoint& bp : breakpoints)
@@ -520,9 +556,28 @@ void DebugBreakpointsWidget::soloSelected()
 		info.offset = bp.offset;
 		m_controller->DisableBreakpoint(info);
 	}
-	
+
 	// Enable the selected breakpoint
 	m_controller->EnableBreakpoint(selectedBp.location());
+}
+
+
+void DebugBreakpointsWidget::editCondition()
+{
+	QModelIndexList sel = selectionModel()->selectedRows();
+	if (sel.size() != 1)
+		return;
+
+	BreakpointItem bp = m_model->getRow(sel[0].row());
+	std::string currentCondition = m_controller->GetBreakpointCondition(bp.location());
+
+	bool ok;
+	QString newCondition = QInputDialog::getText(
+		this, "Edit Condition", "Condition (e.g., $rax == 0x1234):",
+		QLineEdit::Normal, QString::fromStdString(currentCondition), &ok);
+
+	if (ok)
+		m_controller->SetBreakpointCondition(bp.location(), newCondition.trimmed().toStdString());
 }
 
 
@@ -554,7 +609,7 @@ void DebugBreakpointsWidget::updateContent()
 		ModuleNameAndOffset info;
 		info.module = bp.module;
 		info.offset = bp.offset;
-		bps.emplace_back(bp.enabled, info, bp.address);
+		bps.emplace_back(bp.enabled, info, bp.address, bp.condition);
 	}
 
 	m_model->updateRows(bps);
@@ -562,4 +617,5 @@ void DebugBreakpointsWidget::updateContent()
 	resizeColumnToContents(DebugBreakpointsListModel::EnabledColumn);
 	resizeColumnToContents(DebugBreakpointsListModel::LocationColumn);
 	resizeColumnToContents(DebugBreakpointsListModel::AddressColumn);
+	resizeColumnToContents(DebugBreakpointsListModel::ConditionColumn);
 }

@@ -131,6 +131,7 @@ namespace BinaryNinjaDebugger {
 		void UpdateStackVariables();
 		void AddRegisterValuesToExpressionParser();
 		void AddModuleValuesToExpressionParser();
+		bool EvaluateBreakpointCondition(uint64_t address);
 		bool CreateDebuggerBinaryView();
 
 		DebugStopReason StepIntoIL(BNFunctionGraphType il);
@@ -233,6 +234,10 @@ namespace BinaryNinjaDebugger {
 		void DisableBreakpoint(uint64_t address);
 		void DisableBreakpoint(const ModuleNameAndOffset& address);
 		DebugBreakpoint GetAllBreakpoints();
+		bool SetBreakpointCondition(uint64_t address, const std::string& condition);
+		bool SetBreakpointCondition(const ModuleNameAndOffset& address, const std::string& condition);
+		std::string GetBreakpointCondition(uint64_t address);
+		std::string GetBreakpointCondition(const ModuleNameAndOffset& address);
 
 		// registers
 		intx::uint512 GetRegisterValue(const std::string& name);

@@ -192,6 +192,38 @@ class DebuggerAPI(unittest.TestCase):
         self.assertEqual(dbg.ip, entry)
         dbg.quit_and_wait()
 
+    def test_breakpoint_condition(self):
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv = load(fpath)
+        dbg = DebuggerController(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+
+        entry = dbg.data.entry_point
+        dbg.add_breakpoint(entry)
+
+        arch_name = bv.arch.name
+        if arch_name == 'x86':
+            reg1, reg2 = '$eax', '$ebx'
+        elif arch_name == 'x86_64':
+            reg1, reg2 = '$rax', '$rbx'
+        else:
+            reg1, reg2 = '$x0', '$x1'
+
+        cond1 = f"{reg1} == 0x1234"
+        self.assertTrue(dbg.set_breakpoint_condition(entry, cond1))
+        self.assertEqual(dbg.get_breakpoint_condition(entry), cond1)
+
+        cond2 = f"{reg2} != 0"
+        self.assertTrue(dbg.set_breakpoint_condition(entry, cond2))
+        self.assertEqual(dbg.get_breakpoint_condition(entry), cond2)
+
+        self.assertTrue(dbg.set_breakpoint_condition(entry, ""))
+        self.assertEqual(dbg.get_breakpoint_condition(entry), "")
+
+        self.assertFalse(dbg.set_breakpoint_condition(0x12345678, f"{reg1} == 0"))
+        self.assertEqual(dbg.get_breakpoint_condition(0x12345678), "")
+        dbg.quit_and_wait()
+
     def test_register_read_write(self):
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
