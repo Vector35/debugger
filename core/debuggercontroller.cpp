@@ -2014,7 +2014,15 @@ void DebuggerController::DebuggerMainThread()
 			AddRegisterValuesToExpressionParser();
 			AddModuleValuesToExpressionParser();
 
-			if (uint64_t ip = m_state->IP(); m_state->GetBreakpoints()->ContainsAbsolute(ip))
+			bool isStepOperation = (m_lastOperation == DebugAdapterStepInto)
+				|| (m_lastOperation == DebugAdapterStepOver)
+				|| (m_lastOperation == DebugAdapterStepReturn)
+				|| (m_lastOperation == DebugAdapterStepIntoReverse)
+				|| (m_lastOperation == DebugAdapterStepOverReverse)
+				|| (m_lastOperation == DebugAdapterStepReturnReverse);
+
+			if (uint64_t ip = m_state->IP();
+				!isStepOperation && m_state->GetBreakpoints()->ContainsAbsolute(ip))
 			{
 				if (!EvaluateBreakpointCondition(ip))
 				{
@@ -2653,6 +2661,8 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 			m_lastAdapterStopEventConsumed = true;
 		},
 		"WaitForAdapterStop");
+
+	m_lastOperation = operation;
 
 	bool resumeOK = false;
 	bool operationRequested = false;
