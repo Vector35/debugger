@@ -2014,6 +2014,8 @@ void DebuggerController::DebuggerMainThread()
 			AddRegisterValuesToExpressionParser();
 			AddModuleValuesToExpressionParser();
 
+			// skip conditional breakpoint evaluation for step operations - when the user explicitly
+			// steps onto a breakpoint, they expect to stop there regardless of the condition.
 			bool isStepOperation = (m_lastOperation == DebugAdapterStepInto)
 				|| (m_lastOperation == DebugAdapterStepOver)
 				|| (m_lastOperation == DebugAdapterStepReturn)
