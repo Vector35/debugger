@@ -199,7 +199,9 @@ private slots:
 	void setToZero();
 	void jump();
 	void jumpInNewPane();
+	void jumpEachInNewPane();
 	void copy();
+	void copyRows();
 	void paste();
 	void editValue();
 	void onDoubleClicked();

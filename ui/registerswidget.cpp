@@ -312,7 +312,15 @@ bool DebugRegistersListModel::setData(const QModelIndex& index, const QVariant& 
 	}
 	else
 	{
-		newValue = intx::from_string<intx::uint512>(valueStr.toStdString());
+		// intx::from_string throws on invalid input (e.g., non-numeric strings)
+		try
+		{
+			newValue = intx::from_string<intx::uint512>(valueStr.toStdString());
+		}
+		catch (...)
+		{
+			return false;
+		}
 	}
 
 	if (newValue == currentValue)
@@ -426,8 +434,8 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	m_delegate = new DebugRegistersItemDelegate(this);
 	setItemDelegate(m_delegate);
 
-	setSelectionBehavior(QAbstractItemView::SelectItems);
-	setSelectionMode(QAbstractItemView::SingleSelection);
+	setSelectionBehavior(QAbstractItemView::SelectRows);
+	setSelectionMode(QAbstractItemView::ExtendedSelection);
 
 	verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 	verticalHeader()->setVisible(false);
@@ -449,31 +457,49 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	QString actionName = QString::fromStdString("Set to Zero");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction(actionName, UIAction([this]() { setToZero(); }, [&]() { return selectionNotEmpty(); }));
+	m_actionHandler.bindAction(actionName, UIAction([this]() { setToZero(); }, [this]() { return selectionNotEmpty(); }));
 
 	actionName = QString::fromStdString("Edit Value");
 	UIAction::registerAction(actionName, QKeySequence(Qt::Key_E));
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction(actionName, UIAction([this]() { editValue(); }, [&]() { return selectionNotEmpty(); }));
+	m_actionHandler.bindAction(actionName, UIAction([this]() { editValue(); }, [this]() {
+		return selectionModel()->selectedRows().size() == 1;
+	}));
 
 	actionName = QString::fromStdString("Jump to Address");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([this]() { jump(); }, [&]() { return selectionNotEmpty(); }));
+	m_actionHandler.bindAction(actionName, UIAction([this]() { jump(); }, [this]() {
+		return selectionModel()->selectedRows().size() == 1;
+	}));
 
 	actionName = QString::fromStdString("Jump to Address in New Pane");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
-	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpInNewPane(); }, [&]() { return selectionNotEmpty(); }));
+	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpInNewPane(); }, [this]() {
+		return selectionModel()->selectedRows().size() == 1;
+	}));
+
+	actionName = QString::fromStdString("Open Each in New Pane");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpEachInNewPane(); }, [this]() {
+		return selectionModel()->selectedRows().size() > 1;
+	}));
 
 	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return selectionNotEmpty(); }));
-	m_actionHandler.setActionDisplayName("Copy", [&]() {
-		QModelIndexList sel = selectionModel()->selectedIndexes();
-		if (sel.empty())
+	m_actionHandler.bindAction("Copy", UIAction([this]() {
+		if (selectionModel()->selectedRows().size() > 1)
+			copyRows();
+		else
+			copy();
+	}, [this]() { return selectionNotEmpty(); }));
+	m_actionHandler.setActionDisplayName("Copy", [this]() {
+		auto current = currentIndex();
+		if (!current.isValid())
 			return "Copy";
 
-		switch (sel[0].column())
+		switch (current.column())
 		{
 		case DebugRegistersListModel::NameColumn:
 			return "Copy Name";
@@ -486,8 +512,22 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 		}
 	});
 
+	actionName = QString::fromStdString("Copy Row");
+	UIAction::registerAction(actionName, QKeySequence(Qt::ControlModifier | Qt::ShiftModifier | Qt::Key_C));
+	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(actionName, UIAction([this]() { copyRows(); }, [this]() { return selectionNotEmpty(); }));
+	m_actionHandler.setActionDisplayName(actionName, [this]() {
+		QModelIndexList sel = selectionModel()->selectedRows();
+		return sel.size() > 1 ? "Copy Rows" : "Copy Row";
+	});
+
 	m_menu->addAction("Paste", "Options", MENU_ORDER_NORMAL);
-	m_actionHandler.bindAction("Paste", UIAction([&]() { paste(); }, [&]() { return canPaste(); }));
+	m_actionHandler.bindAction("Paste", UIAction([this]() { paste(); }, [this]() { return canPaste(); }));
+
+	actionName = QString::fromStdString("Select All");
+	UIAction::registerAction(actionName, QKeySequence(Qt::ControlModifier | Qt::Key_A));
+	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(actionName, UIAction([this]() { selectAll(); }));
 
 	actionName = QString::fromStdString("Hide Unused Registers");
 	UIAction::registerAction(actionName);
@@ -549,16 +589,19 @@ void DebugRegistersWidget::updateFonts()
 
 void DebugRegistersWidget::setToZero()
 {
-	QModelIndexList sel = selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedRows();
 	if (sel.empty())
 		return;
 
-	auto sourceIndex = m_filter->mapToSource(sel[0]);
-	if (!sourceIndex.isValid())
-		return;
+	for (const auto& idx : sel)
+	{
+		auto sourceIndex = m_filter->mapToSource(idx);
+		if (!sourceIndex.isValid())
+			continue;
 
-	auto reg = m_model->getRow(sourceIndex.row());
-	m_controller->SetRegisterValue(reg.name(), 0);
+		auto reg = m_model->getRow(sourceIndex.row());
+		m_controller->SetRegisterValue(reg.name(), 0);
+	}
 }
 
 
@@ -590,57 +633,97 @@ void DebugRegistersWidget::jump()
 
 void DebugRegistersWidget::jumpInNewPane()
 {
-	QModelIndexList sel = selectionModel()->selectedIndexes();
-	if (sel.empty())
+	QModelIndexList sel = selectionModel()->selectedRows();
+	if (sel.size() != 1)
 		return;
 
 	jumpInNewPaneInternal(sel[0]);
 }
 
 
-void DebugRegistersWidget::copy()
+void DebugRegistersWidget::jumpEachInNewPane()
 {
-	QModelIndexList sel = selectionModel()->selectedIndexes();
-	if (sel.empty())
+	QModelIndexList sel = selectionModel()->selectedRows();
+	if (sel.size() <= 1)
 		return;
 
-	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	for (const auto& idx : sel)
+		jumpInNewPaneInternal(idx);
+}
+
+
+void DebugRegistersWidget::copy()
+{
+	QModelIndexList selected = selectionModel()->selectedRows();
+	if (selected.size() != 1)
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(selected[0]);
 	if (!sourceIndex.isValid())
 		return;
 
 	auto reg = m_model->getRow(sourceIndex.row());
 	QString text;
 
-	switch (sel[0].column())
+	// use current column if it's on the selected row, otherwise default to value
+	auto current = currentIndex();
+	int column = DebugRegistersListModel::ValueColumn;
+	if (current.isValid() && current.row() == selected[0].row())
+		column = current.column();
+
+	switch (column)
 	{
 	case DebugRegistersListModel::NameColumn:
 		text = QString::fromStdString(reg.name());
 		break;
-	case DebugRegistersListModel::ValueColumn:
-		text = QString("0x") + QString::fromStdString(intx::hex(reg.value()));
-		break;
 	case DebugRegistersListModel::HintColumn:
 		text = QString::fromStdString(reg.hint());
 		break;
+	case DebugRegistersListModel::ValueColumn:
 	default:
+		text = QString("0x") + QString::fromStdString(intx::hex(reg.value()));
 		break;
 	}
 
-	auto* clipboard = QGuiApplication::clipboard();
-	clipboard->clear();
 	auto* mime = new QMimeData();
 	mime->setText(text);
-	clipboard->setMimeData(mime);
+	QGuiApplication::clipboard()->setMimeData(mime);
+}
+
+
+void DebugRegistersWidget::copyRows()
+{
+	QModelIndexList selected = selectionModel()->selectedRows();
+	if (selected.empty())
+		return;
+
+	QStringList lines;
+	for (const auto& idx : selected)
+	{
+		auto sourceIndex = m_filter->mapToSource(idx);
+		if (!sourceIndex.isValid())
+			continue;
+
+		auto reg = m_model->getRow(sourceIndex.row());
+		QString line = QString::fromStdString(reg.name()) + ": 0x" + QString::fromStdString(intx::hex(reg.value()));
+		if (!reg.hint().empty())
+			line += " (" + QString::fromStdString(reg.hint()) + ")";
+		lines += line;
+	}
+
+	if (lines.empty())
+		return;
+
+	auto* mime = new QMimeData();
+	mime->setText(lines.join("\n"));
+	QGuiApplication::clipboard()->setMimeData(mime);
 }
 
 
 void DebugRegistersWidget::paste()
 {
-	QModelIndexList sel = selectionModel()->selectedIndexes();
+	QModelIndexList sel = selectionModel()->selectedRows();
 	if (sel.empty())
-		return;
-
-	if (sel[0].column() != DebugRegistersListModel::ValueColumn)
 		return;
 
 	auto sourceIndex = m_filter->mapToSource(sel[0]);
@@ -650,7 +733,12 @@ void DebugRegistersWidget::paste()
 	auto reg = m_model->getRow(sourceIndex.row());
 
 	QClipboard* clipboard = QGuiApplication::clipboard();
-	auto text = clipboard->text();
+	auto text = clipboard->text().trimmed();
+	if (text.isEmpty())
+	{
+		LogWarn("Paste failed: clipboard is empty");
+		return;
+	}
 
 	auto currentValue = reg.value();
 	intx::uint512 newValue;
@@ -661,16 +749,31 @@ void DebugRegistersWidget::paste()
 		std::string errorString;
 		if (!BinaryView::ParseExpression(
 				m_controller->GetData(), text.toStdString(), newValueUInt64, (uint64_t)currentValue, errorString))
+		{
+			LogWarn("Paste failed: unable to parse '%s' as a valid expression", text.toStdString().c_str());
 			return;
+		}
 		newValue = newValueUInt64;
 	}
 	else
 	{
-		newValue = intx::from_string<intx::uint512>(text.toStdString());
+		// intx::from_string throws on invalid input (e.g., non-numeric strings)
+		try
+		{
+			newValue = intx::from_string<intx::uint512>(text.toStdString());
+		}
+		catch (...)
+		{
+			LogWarn("Paste failed: unable to parse '%s' as a valid integer", text.toStdString().c_str());
+			return;
+		}
 	}
 
 	if (!m_controller->SetRegisterValue(reg.name(), newValue))
+	{
+		LogWarn("Paste failed: unable to set register '%s'", reg.name().c_str());
 		return;
+	}
 }
 
 
@@ -683,11 +786,8 @@ bool DebugRegistersWidget::selectionNotEmpty()
 
 bool DebugRegistersWidget::canPaste()
 {
-	QModelIndexList sel = selectionModel()->selectedIndexes();
-	if (sel.empty())
-		return false;
-
-	return sel[0].column() == DebugRegistersListModel::ValueColumn;
+	QModelIndexList sel = selectionModel()->selectedRows();
+	return sel.size() == 1;
 }
 
 
