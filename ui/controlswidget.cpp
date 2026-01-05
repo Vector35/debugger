@@ -28,6 +28,9 @@ limitations under the License.
 #include <thread>
 #include "progresstask.h"
 #include "attachprocess.h"
+#include <filesystem>
+#include <fstream>
+#include <QFileDialog>
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
@@ -168,8 +171,86 @@ QString DebugControlsWidget::getToolTip(const QString& name)
 }
 
 
+static bool extractBinaryToFile(BinaryViewRef data, const std::string& outputPath)
+{
+	BinaryViewRef rawView = data->GetParentView();
+	if (!rawView)
+		rawView = data;
+
+	uint64_t length = rawView->GetLength();
+	DataBuffer buffer = rawView->ReadBuffer(0, length);
+	if (buffer.GetLength() != length)
+		return false;
+
+	std::ofstream file(outputPath, std::ios::binary);
+	if (!file)
+		return false;
+
+	file.write(reinterpret_cast<const char*>(buffer.GetData()), buffer.GetLength());
+	return file.good();
+}
+
+
+bool DebugControlsWidget::handleContainerFile()
+{
+	namespace fs = std::filesystem;
+
+	auto data = m_controller->GetData();
+	auto file = data->GetFile();
+
+	std::string execPath = m_controller->GetExecutablePath();
+	if (!execPath.empty() && fs::exists(execPath))
+		return true;
+
+	std::string currentPath = file->GetFilename();
+	std::string originalPath = file->GetOriginalFilename();
+
+	bool isBndb = currentPath.ends_with(".bndb") && currentPath != originalPath;
+	bool isVirtualPath = currentPath.find("::") != std::string::npos;
+	bool isVirtualFile = !fs::path(originalPath).is_absolute();
+
+	if (!isBndb && !isVirtualPath && !isVirtualFile)
+		return true;
+
+	if (fs::exists(originalPath))
+		return true;
+
+	auto prompt = QString(
+		"The debugger requires the executable file on disk to launch.\n\n"
+		"Original file: %1\n\n"
+		"This file does not exist. Would you like to extract it?")
+		.arg(QString::fromStdString(originalPath));
+
+	if (QMessageBox::question(this, "File Not Found", prompt) != QMessageBox::Yes)
+		return false;
+
+	fs::path defaultPath = fs::current_path() / fs::path(originalPath).filename();
+	if (isBndb)
+		defaultPath = fs::path(currentPath).parent_path() / fs::path(originalPath).filename();
+
+	QString extractPath = QFileDialog::getSaveFileName(
+		this, "Extract Binary", QString::fromStdString(defaultPath.string()), "All Files (*)");
+
+	if (extractPath.isEmpty())
+		return false;
+
+	if (!extractBinaryToFile(data, extractPath.toStdString()))
+	{
+		QMessageBox::critical(this, "Extraction Failed",
+			"Failed to extract the binary. See logs for details.");
+		return false;
+	}
+
+	m_controller->SetExecutablePath(extractPath.toStdString());
+	return true;
+}
+
+
 void DebugControlsWidget::performLaunch()
 {
+	if (!handleContainerFile())
+		return;
+
 	bool firstLaunch = m_controller->IsFirstLaunch();
 	if (firstLaunch)
 	{

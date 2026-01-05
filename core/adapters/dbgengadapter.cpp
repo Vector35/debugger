@@ -590,8 +590,8 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 		this->Reset();
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("CreateProcess2 failed: 0x{:x}", result);
-		event.data.errorData.shortError = fmt::format("CreateProcess2 failed: 0x{:x}", result);
+		event.data.errorData.error = fmt::format("CreateProcess2 failed: 0x{:08x}", (uint32_t)result);
+		event.data.errorData.shortError = fmt::format("CreateProcess2 failed: 0x{:08x}", (uint32_t)result);
 		PostDebuggerEvent(event);
 		return false;
 	}
