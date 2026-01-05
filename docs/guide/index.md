@@ -89,9 +89,29 @@ An experimental feature is added to shorten the list: registers with a value of 
 
 ![](../../img/debugger/breakpointwidget.png)
 
-The breakpoint widget lists breakpoints in the target. There are two columns in it, the left one shows the address in the format of `module + offset`, and the right column shows the absolute address.
+The breakpoint widget lists breakpoints in the target. There are three columns: the left one shows the address in the format of `module + offset`, the middle column shows the absolute address, and the right column shows the condition (if any).
 
-The context menu of the widget offers to delete a breakpoint or to jump to the address of a breakpoint.
+The context menu of the widget offers several options:
+- **Jump to Breakpoint**: Navigate to the breakpoint address
+- **Remove Breakpoint**: Delete the selected breakpoint
+- **Edit Condition**: Set or modify a conditional expression for the breakpoint
+
+##### Conditional Breakpoints
+
+![](../../img/debugger/conditional_breakpoint.png)
+
+Conditional breakpoints allow you to specify an expression that is evaluated each time the breakpoint is hit. The debugger only stops if the condition evaluates to a non-zero value (true). If the condition evaluates to zero (false), execution continues silently.
+
+Conditions are evaluated using Binary Ninja's expression parser, which supports:
+- Register values (e.g., `rax`, `rsp`, `eip`)
+- Arithmetic operations (e.g., `rsp + 0x20`)
+- Comparisons (e.g., `rax == 0x1234`)
+- Memory dereferences (e.g., `[rsp]`, `[rax + 0x10]`)
+
+Example conditions:
+- `rax == 0x1234` - break when RAX equals 0x1234
+- `rsp + 0x20` - break when the expression is non-zero
+- `[rsp] == 0` - break when the value at the stack pointer is zero
 
 
 ### Debugger Menu
@@ -250,6 +270,8 @@ Among these actions, target control actions, e.g., `Run`/`Step Into` have the sa
 
 `Toggle Breakpoint` adds a breakpoint at the current location if there is no breakpoint; otherwise, the existing breakpoint is removed.
 
+`Edit Breakpoint Condition...` allows you to set or modify a condition for the breakpoint at the current location. See [Conditional Breakpoints](#conditional-breakpoints) for more details.
+
 `Run To Here` lets the target execute until the current line is hit.
 
 [//]: # (`Make Code` is an experimental feature that displays the selected region as code. If the region is indeed code, the user can use `P` to create a function there. Note that we recommend in _most_ situations that `p` be used, or if some code is incorrectly associated with another function, the fix is resolving the reason for that mistake. For example, adding a `No Return` property to a function.
@@ -393,6 +415,60 @@ There are several ways to launch the target:
 - Run `dbg.add_breakpoint(address)` or `dbg.delete_breakpoint(address)` in the Python console.
 
 
+### Set Conditional Breakpoints
+
+Conditional breakpoints pause execution only when a specified condition is true. This is useful for debugging loops or functions that are called many times, but you only want to stop under certain circumstances.
+
+#### Using the UI
+
+![](../../img/debugger/set_conditional_breakpoint.png)
+
+1. First, add a regular breakpoint at the desired location
+2. Right-click the breakpoint in the Breakpoint Widget
+3. Select `Edit Condition...` from the context menu
+4. Enter the condition expression in the dialog
+5. Click OK to save the condition
+
+The condition will be displayed in the Condition column of the Breakpoint Widget.
+
+To remove a condition, edit it and clear the text field.
+
+#### Using the Context Menu
+
+![](../../img/debugger/conditional_breakpoint_context_menu.png)
+
+You can also set a conditional breakpoint directly from the disassembly view:
+1. Right-click on a line that has a breakpoint
+2. Select `Edit Breakpoint Condition...`
+3. Enter the condition expression
+
+#### Using the API
+
+```python
+# Set a condition on a breakpoint at an absolute address
+dbg.set_breakpoint_condition(0x401000, "rax == 0x1234")
+
+# Set a condition using module-relative address (useful with ASLR)
+from binaryninja.debugger import ModuleNameAndOffset
+dbg.set_breakpoint_condition(ModuleNameAndOffset("myprogram", 0x1000), "rdi != 0")
+
+# Get the current condition for a breakpoint
+condition = dbg.get_breakpoint_condition(0x401000)
+
+# Clear a condition by passing an empty string
+dbg.set_breakpoint_condition(0x401000, "")
+```
+
+#### Condition Expression Syntax
+
+Conditions use Binary Ninja's expression parser. You can use:
+- Register names directly: `rax`, `rbx`, `rsp`, `eip`, etc.
+- Arithmetic: `rsp + 0x20`, `rax * 2`
+- Comparisons: `rax == 0x1234`, `rbx != 0`, `rcx < 100`
+- Memory reads: `[rsp]`, `[rax + 0x10]`
+- Hexadecimal values: `0x1234`, `0xdeadbeef`
+
+
 ### Modify Register Values
 
 - Right-click a value item in the Register widget, type in the new value, and hit enter
@@ -413,13 +489,13 @@ Note the 0th (first) frame in the stack frame widget usually contains the progra
 - Clicking an address in the debugger console navigates to the address
 - Use the `Jump to IP` action to instantly jump back to the current IP
 - Use the `Create Stack View` action to split the view and navigate to the stack pointer in the new pane
-- Use register values in the expression parser. We can use `$reg` to refer to the value of a register in the expression parser. 
-For example, `$rax` evaluates to the value of the `rax` register. 
-We can use `$eip`/`$rip`/`pc` to navigate to the current program counter, or `$esp`/`$rsp`/`sp` to navigate to the current stack pointer.
+- Use register values in the expression parser. We can use `reg` to refer to the value of a register in the expression parser. 
+For example, `rax` evaluates to the value of the `rax` register. 
+We can use `eip`/`rip`/`pc` to navigate to the current program counter, or `esp`/`rsp`/`sp` to navigate to the current stack pointer.
 Thanks to the power of the expression parse, these register values can be combined with other arithmetic operations.
-This is especially helpful to quickly navigate to the stack variables since they typically have an address like `$rsp+0x20` or `$rbp-0x8`, which the expression parser can calculate properly:
+This is especially helpful to quickly navigate to the stack variables since they typically have an address like `rsp+0x20` or `rbp-0x8`, which the expression parser can calculate properly:
 - Use module names in the expression parser. Similar to the way we can use a register value in the expression parser, we
-can also use module names in it. For example, `$helloworld` will be resolved to the base address of the `helloworld` module.
+can also use module names in it. For example, `helloworld` will be resolved to the base address of the `helloworld` module.
 
 ![](../../img/debugger/expressionparser.png)
 

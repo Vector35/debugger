@@ -2151,8 +2151,8 @@ class DebuggerController:
         If it evaluates to zero (false), the debugger silently continues execution.
 
         Example conditions:
-        - ``"$rax == 0x1234"`` - break when RAX equals 0x1234
-        - ``"$rsp + 0x20"`` - break when the expression is non-zero
+        - ``"rax == 0x1234"`` - break when RAX equals 0x1234
+        - ``"rsp + 0x20"`` - break when the expression is non-zero
 
         Pass an empty string to clear the condition.
 

@@ -573,7 +573,7 @@ void DebugBreakpointsWidget::editCondition()
 
 	bool ok;
 	QString newCondition = QInputDialog::getText(
-		this, "Edit Condition", "Condition (e.g., $rax == 0x1234):",
+		this, "Edit Condition", "Condition (e.g., rax == 0x1234):",
 		QLineEdit::Normal, QString::fromStdString(currentCondition), &ok);
 
 	if (ok)

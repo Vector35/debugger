@@ -136,7 +136,7 @@ static void BreakpointEditConditionCallback(BinaryView* view, uint64_t addr, UIC
 
 	bool ok;
 	QString newCondition = QInputDialog::getText(
-		context->mainWindow(), "Edit Condition", "Condition (e.g., $rax == 0x1234):",
+		context->mainWindow(), "Edit Condition", "Condition (e.g., rax == 0x1234):",
 		QLineEdit::Normal, QString::fromStdString(currentCondition), &ok);
 
 	if (ok)
