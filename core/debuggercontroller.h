@@ -114,6 +114,7 @@ namespace BinaryNinjaDebugger {
 		uint32_t m_exitCode = 0;
 
 		bool m_userRequestedBreak = false;
+		DebugAdapterOperation m_lastOperation = DebugAdapterGo;
 
 		bool m_lastAdapterStopEventConsumed = true;
 
