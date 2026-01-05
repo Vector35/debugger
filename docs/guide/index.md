@@ -92,6 +92,7 @@ An experimental feature is added to shorten the list: registers with a value of 
 The breakpoint widget lists breakpoints in the target. There are three columns: the left one shows the address in the format of `module + offset`, the middle column shows the absolute address, and the right column shows the condition (if any).
 
 The context menu of the widget offers several options:
+
 - **Jump to Breakpoint**: Navigate to the breakpoint address
 - **Remove Breakpoint**: Delete the selected breakpoint
 - **Edit Condition**: Set or modify a conditional expression for the breakpoint
@@ -103,12 +104,14 @@ The context menu of the widget offers several options:
 Conditional breakpoints allow you to specify an expression that is evaluated each time the breakpoint is hit. The debugger only stops if the condition evaluates to a non-zero value (true). If the condition evaluates to zero (false), execution continues silently.
 
 Conditions are evaluated using Binary Ninja's expression parser, which supports:
+
 - Register values (e.g., `rax`, `rsp`, `eip`)
 - Arithmetic operations (e.g., `rsp + 0x20`)
 - Comparisons (e.g., `rax == 0x1234`)
 - Memory dereferences (e.g., `[rsp]`, `[rax + 0x10]`)
 
 Example conditions:
+
 - `rax == 0x1234` - break when RAX equals 0x1234
 - `rsp + 0x20` - break when the expression is non-zero
 - `[rsp] == 0` - break when the value at the stack pointer is zero
@@ -438,6 +441,7 @@ To remove a condition, edit it and clear the text field.
 ![](../../img/debugger/conditional_breakpoint_context_menu.png)
 
 You can also set a conditional breakpoint directly from the disassembly view:
+
 1. Right-click on a line that has a breakpoint
 2. Select `Edit Breakpoint Condition...`
 3. Enter the condition expression
@@ -462,6 +466,7 @@ dbg.set_breakpoint_condition(0x401000, "")
 #### Condition Expression Syntax
 
 Conditions use Binary Ninja's expression parser. You can use:
+
 - Register names directly: `rax`, `rbx`, `rsp`, `eip`, etc.
 - Arithmetic: `rsp + 0x20`, `rax * 2`
 - Comparisons: `rax == 0x1234`, `rbx != 0`, `rcx < 100`
