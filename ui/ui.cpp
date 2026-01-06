@@ -1542,7 +1542,13 @@ void GlobalDebuggerUI::CloseGlobalAreaWidgets(UIContext* context)
 void DebuggerUI::navigateDebugger(uint64_t address)
 {
 	ViewFrame* frame = m_context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
 	View* view = m_context->getCurrentView();
+	if (!view)
+		return;
+
 	FunctionRef function = view->getCurrentFunction();
 	if (function)
 	{
@@ -1663,8 +1669,13 @@ void DebuggerUI::navigateToMappedAddress()
 void DebuggerUI::checkRebaseBinaryView(uint64_t remoteBase)
 {
 	Ref<BinaryView> data = m_controller->GetData();
+	if (!data)
+		return;
+
 	FileMetadataRef fileMetadata = data->GetFile();
 	ViewFrame* frame = m_context->getCurrentViewFrame();
+	if (!frame)
+		return;
 
 	// Halt analysis when replacing a BinaryView in the UI. If the view is replaced and the tab or
 	// application closes, then the old view may continue analysis without the updated UI having a
