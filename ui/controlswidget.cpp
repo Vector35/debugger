@@ -422,7 +422,14 @@ void DebugControlsWidget::performSettings()
 void DebugControlsWidget::toggleBreakpoint()
 {
 	UIContext* context = UIContext::contextForWidget(this);
-	auto addr = context->getCurrentView()->getCurrentOffset();
+	if (!context)
+		return;
+
+	View* view = context->getCurrentView();
+	if (!view)
+		return;
+
+	auto addr = view->getCurrentOffset();
 	bool isAbsoluteAddress = false;
 	if (m_controller->IsConnected())
 		isAbsoluteAddress = true;

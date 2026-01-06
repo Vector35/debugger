@@ -454,7 +454,13 @@ void DebugBreakpointsWidget::jump()
 
 	BreakpointItem bp = m_model->getRow(sel[0].row());
 	UIContext* context = UIContext::contextForWidget(this);
+	if (!context)
+		return;
+
 	ViewFrame* frame = context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
 	if (m_controller->GetData())
 		frame->navigate(m_controller->GetData(), bp.address(), true, true);
 }
