@@ -23,7 +23,8 @@ using namespace std;
 
 constexpr int SortFilterRole = Qt::UserRole + 1;
 
-ProcessItem::ProcessItem(uint32_t pid, std::string processName) : m_pid(pid), m_processName(processName) {}
+ProcessItem::ProcessItem(uint32_t pid, std::string processName, std::string commandLine) :
+	m_pid(pid), m_processName(processName), m_commandLine(commandLine) {}
 
 
 bool ProcessItem::operator==(const ProcessItem& other) const
@@ -104,6 +105,14 @@ QVariant ProcessListModel::data(const QModelIndex& index, int role) const
 
 		return QVariant(text);
 	}
+	case ProcessListModel::CommandLineColumn:
+	{
+		QString text = QString::fromStdString(item->commandLine());
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)text.size());
+
+		return QVariant(text);
+	}
 	}
 	return QVariant();
 }
@@ -123,6 +132,8 @@ QVariant ProcessListModel::headerData(int column, Qt::Orientation orientation, i
 		return "PID";
 	case ProcessListModel::ProcessNameColumn:
 		return "Name";
+	case ProcessListModel::CommandLineColumn:
+		return "Command Line";
 	}
 	return QVariant();
 }
@@ -134,10 +145,18 @@ void ProcessListModel::updateRows(std::vector<DebugProcess> processList)
 
 	std::vector<ProcessItem> newProcessList;
 	for (const DebugProcess& process : processList)
-		newProcessList.emplace_back(process.m_pid, process.m_processName);
+		newProcessList.emplace_back(process.m_pid, process.m_processName, process.m_commandLine);
 
 	m_items = newProcessList;
 
+	endResetModel();
+}
+
+
+void ProcessListModel::updateRows(std::vector<ProcessItem> processList)
+{
+	beginResetModel();
+	m_items = std::move(processList);
 	endResetModel();
 }
 
@@ -170,6 +189,10 @@ void ProcessItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& o
 		painter->drawText(textRect, data.toString());
 		break;
 	case ProcessListModel::ProcessNameColumn:
+		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
+		painter->drawText(textRect, data.toString());
+		break;
+	case ProcessListModel::CommandLineColumn:
 		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
 		painter->drawText(textRect, data.toString());
 		break;
@@ -218,6 +241,13 @@ void ProcessListModel::sort(int col, Qt::SortOrder order)
 				return a.processName() < b.processName();
 			else
 				return a.processName() > b.processName();
+		}
+		else if (col == ProcessListModel::CommandLineColumn)
+		{
+			if (order == Qt::AscendingOrder)
+				return a.commandLine() < b.commandLine();
+			else
+				return a.commandLine() > b.commandLine();
 		}
 		return false;
 	});
@@ -309,12 +339,29 @@ void ProcessListWidget::updateColumnWidths()
 {
 	resizeColumnToContents(ProcessListModel::PidColumn);
 	resizeColumnToContents(ProcessListModel::ProcessNameColumn);
+	resizeColumnToContents(ProcessListModel::CommandLineColumn);
 }
 
 
 void ProcessListWidget::updateContent()
 {
-	std::vector<DebugProcess> processList = m_controller->GetProcessList();
+	std::vector<DebugProcess> processList;
+	if (m_controller)
+		processList = m_controller->GetProcessList();
+	m_model->updateRows(processList);
+	updateColumnWidths();
+}
+
+
+void ProcessListWidget::updateContent(const std::vector<DebugProcess>& processList)
+{
+	m_model->updateRows(processList);
+	updateColumnWidths();
+}
+
+
+void ProcessListWidget::updateContent(const std::vector<ProcessItem>& processList)
+{
 	m_model->updateRows(processList);
 	updateColumnWidths();
 }

@@ -62,12 +62,14 @@ class DebugProcess:
 
     * ``pid``: the ID of the process
     * ``name``: the name of the process
+    * ``command_line``: the command line of the process
 
     """
 
-    def __init__(self, pid, name):
+    def __init__(self, pid, name, command_line=""):
         self.pid = pid
         self.name = name
+        self.command_line = command_line
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -1284,7 +1286,7 @@ class DebuggerController:
         process_list = dbgcore.BNDebuggerGetProcessList(self.handle, count)
         result = []
         for i in range(0, count.value):
-            process = DebugProcess(process_list[i].m_pid, process_list[i].m_processName)
+            process = DebugProcess(process_list[i].m_pid, process_list[i].m_processName, process_list[i].m_commandLine)
             result.append(process)
 
         dbgcore.BNDebuggerFreeProcessList(process_list, count.value)

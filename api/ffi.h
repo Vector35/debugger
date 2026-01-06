@@ -84,6 +84,7 @@ extern "C"
 	{
 		uint32_t m_pid;
 		char* m_processName;
+		char* m_commandLine;
 	} BNDebugProcess;
 
 	typedef struct BNDebugThread

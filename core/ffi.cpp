@@ -192,6 +192,7 @@ BNDebugProcess* BNDebuggerGetProcessList(BNDebuggerController* controller, size_
 	{
 		results[i].m_pid = processes[i].m_pid;
 		results[i].m_processName = BNDebuggerAllocString(processes[i].m_processName.c_str());
+		results[i].m_commandLine = BNDebuggerAllocString(processes[i].m_commandLine.c_str());
 	}
 
 	return results;
@@ -203,6 +204,7 @@ void BNDebuggerFreeProcessList(BNDebugProcess* processes, size_t count)
 	for (size_t i = 0; i < count; i++)
 	{
 		BNDebuggerFreeString(processes[i].m_processName);
+		BNDebuggerFreeString(processes[i].m_commandLine);
 	}
 
 	delete[] processes;

@@ -1202,6 +1202,15 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			}));
 	debuggerMenu->addAction("Record TTD Trace", "TTD");
 
+	UIAction::registerAction("Attach and Record TTD Trace");
+	context->globalActions()->bindAction("Attach and Record TTD Trace",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				auto* dialog = new TTDAttachDialog(context->mainWindow(), ctxt.binaryView);
+				dialog->show();
+			}));
+	debuggerMenu->addAction("Attach and Record TTD Trace", "TTD");
+
 	UIAction::registerAction("Install WinDbg/TTD");
 	context->globalActions()->bindAction("Install WinDbg/TTD",
 		UIAction(

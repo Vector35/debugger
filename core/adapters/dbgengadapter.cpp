@@ -27,6 +27,8 @@ limitations under the License.
 #include <filesystem>
 #ifdef _WIN32
 #include <shellapi.h>
+#include <TlHelp32.h>
+#include <winternl.h>
 #endif
 #include "dbgengadapter.h"
 #include "../../cli/log.h"
@@ -887,10 +889,142 @@ bool DbgEngAdapter::Quit()
 	return true;
 }
 
+// Function pointer type for NtQueryInformationProcess
+typedef NTSTATUS (NTAPI *NtQueryInformationProcessFn)(
+	HANDLE ProcessHandle,
+	PROCESSINFOCLASS ProcessInformationClass,
+	PVOID ProcessInformation,
+	ULONG ProcessInformationLength,
+	PULONG ReturnLength
+);
+
+
+static std::string GetProcessCommandLine(DWORD pid)
+{
+	std::string result;
+
+	// Can't get command line for system processes
+	if (pid == 0 || pid == 4)
+		return result;
+
+	HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+	if (!hProcess)
+		return result;
+
+	// Get NtQueryInformationProcess from ntdll
+	static NtQueryInformationProcessFn NtQueryInformationProcess = nullptr;
+	if (!NtQueryInformationProcess)
+	{
+		HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+		if (ntdll)
+			NtQueryInformationProcess = (NtQueryInformationProcessFn)GetProcAddress(ntdll, "NtQueryInformationProcess");
+	}
+
+	if (!NtQueryInformationProcess)
+	{
+		CloseHandle(hProcess);
+		return result;
+	}
+
+	// Get the PEB address
+	PROCESS_BASIC_INFORMATION pbi;
+	ULONG returnLength;
+	NTSTATUS status = NtQueryInformationProcess(hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), &returnLength);
+	if (status != 0)
+	{
+		CloseHandle(hProcess);
+		return result;
+	}
+
+	// Read the PEB to get the process parameters address
+	// Use the standard PEB structure from winternl.h
+	PEB peb;
+	SIZE_T bytesRead;
+	if (!ReadProcessMemory(hProcess, pbi.PebBaseAddress, &peb, sizeof(peb), &bytesRead))
+	{
+		CloseHandle(hProcess);
+		return result;
+	}
+
+	// Read the RTL_USER_PROCESS_PARAMETERS
+	// Use the standard RTL_USER_PROCESS_PARAMETERS structure from winternl.h
+	RTL_USER_PROCESS_PARAMETERS params;
+	if (!ReadProcessMemory(hProcess, peb.ProcessParameters, &params, sizeof(params), &bytesRead))
+	{
+		CloseHandle(hProcess);
+		return result;
+	}
+
+	// Read the command line string
+	if (params.CommandLine.Length > 0 && params.CommandLine.Buffer)
+	{
+		std::wstring cmdLine(params.CommandLine.Length / sizeof(WCHAR), L'\0');
+		if (ReadProcessMemory(hProcess, params.CommandLine.Buffer, &cmdLine[0], params.CommandLine.Length, &bytesRead))
+		{
+			// Convert wide string to UTF-8
+			int size = WideCharToMultiByte(CP_UTF8, 0, cmdLine.c_str(), -1, nullptr, 0, nullptr, nullptr);
+			if (size > 0)
+			{
+				result.resize(size - 1);
+				WideCharToMultiByte(CP_UTF8, 0, cmdLine.c_str(), -1, &result[0], size, nullptr, nullptr);
+			}
+		}
+	}
+
+	CloseHandle(hProcess);
+	return result;
+}
+
+
 std::vector<DebugProcess> DbgEngAdapter::GetProcessList()
 {
+	// For local debugging (not connected to remote debug server), use Windows APIs directly to get command lines
+	if (!m_connectedToDebugServer)
+	{
+		std::vector<DebugProcess> result;
+		HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+		if (snapshot == INVALID_HANDLE_VALUE)
+			return result;
+
+		PROCESSENTRY32W entry;
+		entry.dwSize = sizeof(entry);
+
+		if (Process32FirstW(snapshot, &entry))
+		{
+			do
+			{
+				DWORD pid = entry.th32ProcessID;
+				std::string processName;
+
+				// Convert wide string to narrow string for process name
+				int size = WideCharToMultiByte(CP_UTF8, 0, entry.szExeFile, -1, nullptr, 0, nullptr, nullptr);
+				if (size > 0)
+				{
+					processName.resize(size - 1);
+					WideCharToMultiByte(CP_UTF8, 0, entry.szExeFile, -1, &processName[0], size, nullptr, nullptr);
+				}
+
+				// Get command line for the process
+				std::string commandLine;
+				try
+				{
+					commandLine = GetProcessCommandLine(pid);
+				}
+				catch (...)
+				{
+					// Ignore errors getting command line
+				}
+
+				result.emplace_back(pid, processName, commandLine);
+			} while (Process32NextW(snapshot, &entry));
+		}
+
+		CloseHandle(snapshot);
+		return result;
+	}
+
+	// For remote debugging, use DbgEng APIs (no command line available)
 	// we need to start dbgserver in order to get process list
-	
 	if (!m_dbgengInitialized)
 	{
 		if (!Start())
@@ -918,18 +1052,18 @@ std::vector<DebugProcess> DbgEngAdapter::GetProcessList()
 		ZeroMemory(processName, MAX_PATH);
 
 		if (m_debugClient->GetRunningProcessDescription(
-			m_server, 
-			procIds[i], 
-			DEBUG_PROC_DESC_DEFAULT, 
+			m_server,
+			procIds[i],
+			DEBUG_PROC_DESC_DEFAULT,
 			processName,
-			sizeof(processName), 
-			NULL, 
-			NULL, 
-			0, 
+			sizeof(processName),
+			NULL,
+			NULL,
+			0,
 			NULL) != S_OK)
 		{
 			strcpy_s(processName, MAX_PATH, "<could not get process name>");
-		}	
+		}
 
 		debug_processes.emplace_back(procIds[i], processName);
 	}

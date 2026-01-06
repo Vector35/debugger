@@ -159,6 +159,7 @@ std::vector<DebugProcess> DebuggerController::GetProcessList()
 		DebugProcess process;
 		process.m_pid = processes[i].m_pid;
 		process.m_processName = processes[i].m_processName;
+		process.m_commandLine = processes[i].m_commandLine;
 		result.push_back(process);
 	}
 	BNDebuggerFreeProcessList(processes, count);
