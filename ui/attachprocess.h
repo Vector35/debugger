@@ -34,11 +34,13 @@ class ProcessItem
 private:
 	uint32_t m_pid;
 	std::string m_processName;
+	std::string m_commandLine;
 
 public:
-	ProcessItem(uint32_t pid, std::string processName);
+	ProcessItem(uint32_t pid, std::string processName, std::string commandLine = "");
 	uint32_t pid() const { return m_pid; }
 	std::string processName() const { return m_processName; }
+	std::string commandLine() const { return m_commandLine; }
 	bool operator==(const ProcessItem& other) const;
 	bool operator!=(const ProcessItem& other) const;
 	bool operator<(const ProcessItem& other) const;
@@ -59,6 +61,7 @@ public:
 	{
 		PidColumn,
 		ProcessNameColumn,
+		CommandLineColumn,
 	};
 
 	ProcessListModel(QWidget* parent);
@@ -74,14 +77,15 @@ public:
 	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override
 	{
 		(void)parent;
-		return 2;
+		return 3;
 	}
 	ProcessItem getRow(int row) const;
 	virtual QVariant data(const QModelIndex& i, int role) const override;
 	virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
 	virtual void sort(int col, Qt::SortOrder order) override;
-	
+
 	void updateRows(std::vector<DebugProcess> processList);
+	void updateRows(std::vector<ProcessItem> processList);
 };
 
 
@@ -138,6 +142,9 @@ class ProcessListWidget : public QTableView, public FilterTarget
 public:
 	ProcessListWidget(QWidget* parent, DbgRef<DebuggerController> controller);
 	~ProcessListWidget();
+
+	void updateContent(const std::vector<DebugProcess>& processList);
+	void updateContent(const std::vector<ProcessItem>& processList);
 
 	uint32_t GetSelectedPid()
 	{

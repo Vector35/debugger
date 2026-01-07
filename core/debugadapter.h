@@ -79,12 +79,16 @@ namespace BinaryNinjaDebugger {
 	{
 		std::uint32_t m_pid {};
 		std::string m_processName {};
+		std::string m_commandLine {};
 
 		DebugProcess() {}
 
 		DebugProcess(std::uint32_t pid) : m_pid(pid) {}
 
 		DebugProcess(std::uint32_t pid, std::string name) : m_pid(pid), m_processName(name) {}
+
+		DebugProcess(std::uint32_t pid, std::string name, std::string commandLine) :
+			m_pid(pid), m_processName(name), m_commandLine(commandLine) {}
 
 		bool operator==(const DebugProcess& rhs) const
 		{

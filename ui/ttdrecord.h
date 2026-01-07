@@ -27,6 +27,7 @@ limitations under the License.
 #include "viewframe.h"
 #include "fontsettings.h"
 #include "debuggerapi.h"
+#include "attachprocess.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 
@@ -46,7 +47,28 @@ private:
 public:
 	TTDRecordDialog(QWidget* parent, BinaryView* data);
 	void DoTTDTrace();
-	std::string GetTTDRecorderPath();
+	static std::string GetTTDRecorderPath();
+
+private Q_SLOTS:
+	void apply();
+};
+
+
+class TTDAttachDialog : public QDialog
+{
+	Q_OBJECT
+
+private:
+	DbgRef<DebuggerController> m_controller = nullptr;
+	ProcessListWidget* m_processListWidget;
+	FilteredView* m_filter;
+	FilterEdit* m_separateEdit;
+	QLineEdit* m_outputDirectory;
+	QCheckBox* m_traceChildProcesses;
+
+public:
+	TTDAttachDialog(QWidget* parent, BinaryView* data);
+	void DoTTDAttach(uint32_t pid);
 
 private Q_SLOTS:
 	void apply();
