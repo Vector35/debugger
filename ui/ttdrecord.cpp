@@ -370,7 +370,7 @@ TTDAttachDialog::TTDAttachDialog(QWidget* parent, BinaryView* data) :
 
 	setWindowTitle("TTD Attach to Process");
 	setAttribute(Qt::WA_DeleteOnClose);
-	setMinimumSize(UIContext::getScaledWindowSize(500, 600));
+	setMinimumSize(UIContext::getScaledWindowSize(800, 600));
 	setSizeGripEnabled(true);
 	setModal(true);
 
