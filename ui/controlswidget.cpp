@@ -212,6 +212,10 @@ bool DebugControlsWidget::handleContainerFile()
 	if (!isBndb && !isVirtualPath && !isVirtualFile)
 		return true;
 
+	// If the user is debugging without opening a file, we do not want to show the dialog
+	if (originalPath.empty())
+		return true;
+
 	if (fs::exists(originalPath))
 		return true;
 
