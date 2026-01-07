@@ -84,10 +84,14 @@ namespace BinaryNinjaDebugger {
 		bool enabled = true;
 		std::string condition;
 
-		uint64_t address;              // Absolute address (for absolute addressing or resolved relative)
-		DebugBreakpointType type;      // Breakpoint type (Software, HardwareExecute, etc.)
-		size_t size;                   // Size for hardware watchpoints
-		bool isRelative;               // True if using module+offset, false if using absolute address
+		uint64_t address = 0;          // Absolute address (for absolute addressing or resolved relative)
+		DebugBreakpointType type = SoftwareBreakpoint;  // Breakpoint type (Software, HardwareExecute, etc.)
+		size_t size = 1;               // Size for hardware watchpoints
+		bool isRelative = true;        // True if using module+offset, false if using absolute address
+
+		// Helper methods
+		bool IsSoftware() const { return type == SoftwareBreakpoint; }
+		bool IsHardware() const { return type != SoftwareBreakpoint; }
 	};
 
 	class DebuggerBreakpoints
@@ -122,16 +126,7 @@ namespace BinaryNinjaDebugger {
 		bool HasConditionAbsolute(uint64_t address);
 		bool HasConditionOffset(const ModuleNameAndOffset& address);
 
-	private:
-		// Find breakpoint by address, handling module name differences via absolute address comparison
-		std::vector<BreakpointEntry>::iterator FindBreakpoint(const ModuleNameAndOffset& address);
-		std::vector<BreakpointEntry>::const_iterator FindBreakpoint(const ModuleNameAndOffset& address) const;
-
-		// Get only software breakpoints (for backward compatibility)
-		std::vector<ModuleNameAndOffset> GetSoftwareBreakpointList() const;
-
 		// Hardware breakpoint methods
-		// Hardware breakpoint methods - absolute address
 		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
 		bool EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size);
@@ -144,6 +139,11 @@ namespace BinaryNinjaDebugger {
 		bool EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
 		bool DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
 		bool ContainsHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size);
+
+	private:
+		// Find breakpoint by address, handling module name differences via absolute address comparison
+		std::vector<BreakpointEntry>::iterator FindBreakpoint(const ModuleNameAndOffset& address);
+		std::vector<BreakpointEntry>::const_iterator FindBreakpoint(const ModuleNameAndOffset& address) const;
 	};
 
 

@@ -226,7 +226,7 @@ bool DebuggerController::SetBreakpointCondition(uint64_t address, const std::str
 	if (result)
 	{
 		DebuggerEvent event;
-		event.type = AbsoluteBreakpointConditionChangedEvent;
+		event.type = BreakpointChangedEvent;
 		event.data.absoluteAddress = address;
 		PostDebuggerEvent(event);
 	}
@@ -240,7 +240,7 @@ bool DebuggerController::SetBreakpointCondition(const ModuleNameAndOffset& addre
 	if (result)
 	{
 		DebuggerEvent event;
-		event.type = RelativeBreakpointConditionChangedEvent;
+		event.type = BreakpointChangedEvent;
 		event.data.relativeAddress = address;
 		PostDebuggerEvent(event);
 	}

@@ -826,6 +826,8 @@ BNDebugBreakpoint* BNDebuggerGetBreakpoints(BNDebuggerController* controller, si
 		result[i].address = remoteAddress;
 		result[i].enabled = bp.enabled;
 		result[i].condition = BNDebuggerAllocString(bp.condition.c_str());
+		result[i].type = (BNDebugBreakpointType)breakpoints[i].type;
+		result[i].size = breakpoints[i].size;
 	}
 	return result;
 }
