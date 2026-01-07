@@ -212,6 +212,9 @@ bool DebugControlsWidget::handleContainerFile()
 	if (!isBndb && !isVirtualPath && !isVirtualFile)
 		return true;
 
+	if (fs::exists(originalPath))
+		return true;
+
 	auto prompt = QString(
 		"The debugger requires the executable file on disk to launch.\n\n"
 		"Original file: %1\n\n"
@@ -221,29 +224,9 @@ bool DebugControlsWidget::handleContainerFile()
 	if (QMessageBox::question(this, "File Not Found", prompt) != QMessageBox::Yes)
 		return false;
 
-	fs::path defaultPath;
+	fs::path defaultPath = fs::current_path() / fs::path(originalPath).filename();
 	if (isBndb)
-	{
 		defaultPath = fs::path(currentPath).parent_path() / fs::path(originalPath).filename();
-	}
-	else if (isVirtualPath)
-	{
-		size_t schemeEnd = currentPath.find("://");
-		size_t pathEnd = currentPath.find("::");
-		if (schemeEnd != std::string::npos && pathEnd != std::string::npos && pathEnd > schemeEnd + 3)
-		{
-			std::string containerPath = currentPath.substr(schemeEnd + 3, pathEnd - schemeEnd - 3);
-			defaultPath = fs::path(containerPath).parent_path() / fs::path(originalPath).filename();
-		}
-		else
-		{
-			defaultPath = fs::current_path() / fs::path(originalPath).filename();
-		}
-	}
-	else
-	{
-		defaultPath = fs::current_path() / fs::path(originalPath).filename();
-	}
 
 	QString extractPath = QFileDialog::getSaveFileName(
 		this, "Extract Binary", QString::fromStdString(defaultPath.string()), "All Files (*)");
