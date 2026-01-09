@@ -813,7 +813,7 @@ BNDebugBreakpoint* BNDebuggerGetBreakpoints(BNDebuggerController* controller, si
 		result[i].offset = bp.address.offset;
 		result[i].address = state->GetModules()->RelativeAddressToAbsolute(bp.address);
 		result[i].enabled = bp.enabled;
-		result[i].condition = bp.condition.empty() ? nullptr : BNDebuggerAllocString(bp.condition.c_str());
+		result[i].condition = BNDebuggerAllocString(bp.condition.c_str());
 	}
 	return result;
 }
