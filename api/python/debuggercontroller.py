@@ -388,7 +388,8 @@ class DebugBreakpoint:
         if not isinstance(other, self.__class__):
             return NotImplemented
         return self.module == other.module and self.offset == other.offset and self.address == other.address \
-               and self.enabled == other.enabled and self.type == other.type and self.size == other.size
+               and self.enabled == other.enabled and self.type == other.type and self.size == other.size \
+               and self.condition == other.condition
 
     def __ne__(self, other):
         if not isinstance(other, self.__class__):
@@ -396,7 +397,7 @@ class DebugBreakpoint:
         return not (self == other)
 
     def __hash__(self):
-        return hash((self.module, self.offset, self.address, self.enabled, self.type, self.size))
+        return hash((self.module, self.offset, self.address, self.enabled, self.type, self.size, self.condition))
 
     def __setattr__(self, name, value):
         try:

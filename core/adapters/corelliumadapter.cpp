@@ -958,28 +958,111 @@ bool CorelliumAdapter::SupportFeature(DebugAdapterCapacity feature)
 
 bool CorelliumAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
-	// Hardware breakpoints are not yet implemented for Corellium adapter
-	return false;
+	if (m_isTargetRunning || !m_rspConnector)
+		return false;
+
+	std::string command;
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+			// Z1 = hardware execution breakpoint
+			command = fmt::format("Z1,{:x},{}", address, size);
+			break;
+		case HardwareReadBreakpoint:
+			// Z3 = hardware read watchpoint
+			command = fmt::format("Z3,{:x},{}", address, size);
+			break;
+		case HardwareWriteBreakpoint:
+			// Z2 = hardware write watchpoint
+			command = fmt::format("Z2,{:x},{}", address, size);
+			break;
+		case HardwareAccessBreakpoint:
+			// Z4 = hardware access watchpoint (read/write)
+			command = fmt::format("Z4,{:x},{}", address, size);
+			break;
+		default:
+			return false;
+	}
+
+	return m_rspConnector->TransmitAndReceive(RspData(command)).AsString() == "OK";
 }
 
 
 bool CorelliumAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
-	// Hardware breakpoints are not yet implemented for Corellium adapter
-	return false;
+	if (m_isTargetRunning || !m_rspConnector)
+		return false;
+
+	std::string command;
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+			// z1 = remove hardware execution breakpoint
+			command = fmt::format("z1,{:x},{}", address, size);
+			break;
+		case HardwareReadBreakpoint:
+			// z3 = remove hardware read watchpoint
+			command = fmt::format("z3,{:x},{}", address, size);
+			break;
+		case HardwareWriteBreakpoint:
+			// z2 = remove hardware write watchpoint
+			command = fmt::format("z2,{:x},{}", address, size);
+			break;
+		case HardwareAccessBreakpoint:
+			// z4 = remove hardware access watchpoint (read/write)
+			command = fmt::format("z4,{:x},{}", address, size);
+			break;
+		default:
+			return false;
+	}
+
+	return m_rspConnector->TransmitAndReceive(RspData(command)).AsString() == "OK";
 }
 
 
 bool CorelliumAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
-	// Hardware breakpoints are not yet implemented for Corellium adapter
+	uint64_t base{};
+	if (GetModuleBase(location.module, base))
+	{
+		uint64_t address = base + location.offset;
+		return AddHardwareBreakpoint(address, type, size);
+	}
 	return false;
 }
 
 
 bool CorelliumAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
-	// Hardware breakpoints are not yet implemented for Corellium adapter
+	uint64_t base{};
+	if (GetModuleBase(location.module, base))
+	{
+		uint64_t address = base + location.offset;
+		return RemoveHardwareBreakpoint(address, type, size);
+	}
+	return false;
+}
+
+
+bool CorelliumAdapter::GetModuleBase(const std::string& moduleName, uint64_t& base)
+{
+	if (moduleName.empty())
+	{
+		base = 0;
+		return true;
+	}
+
+	auto modules = GetModuleList();
+	for (const auto& module : modules)
+	{
+		if (module.IsSameBaseModule(moduleName))
+		{
+			base = module.m_address;
+			return true;
+		}
+	}
+
+	base = 0;
 	return false;
 }
 

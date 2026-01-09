@@ -1169,15 +1169,6 @@ bool DbgEngAdapter::ResumeThread(std::uint32_t tid)
 
 DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags)
 {
-	// Handle hardware breakpoint types
-	if (breakpoint_flags != SoftwareBreakpoint)
-	{
-		if (AddHardwareBreakpoint(address, (DebugBreakpointType)breakpoint_flags))
-			return DebugBreakpoint(address, 0, true, (DebugBreakpointType)breakpoint_flags);
-		else
-			return DebugBreakpoint{};
-	}
-
 	IDebugBreakpoint2* debug_breakpoint {};
 
 	/* attempt to read at breakpoint location to confirm its valid */
@@ -1200,7 +1191,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
 	if (debug_breakpoint->SetOffset(address) != S_OK)
 		return {};
 
-	if (debug_breakpoint->SetFlags(DEBUG_BREAKPOINT_ENABLED | breakpoint_flags) != S_OK)
+	if (debug_breakpoint->SetFlags(DEBUG_BREAKPOINT_ENABLED) != S_OK)
 		return {};
 
 	const auto new_breakpoint = DebugBreakpoint(address, id, true, SoftwareBreakpoint);
