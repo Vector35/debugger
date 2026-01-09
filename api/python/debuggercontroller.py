@@ -402,7 +402,8 @@ class DebugBreakpoint:
 
     def __repr__(self):
         status = "enabled" if self.enabled else "disabled"
-        return f"<DebugBreakpoint: {self.module}:{self.offset:#x}, {self.address:#x}, {status}>"
+        cond_str = f", condition='{self.condition}'" if self.condition else ""
+        return f"<DebugBreakpoint: {self.module}:{self.offset:#x}, {self.address:#x}, {status}{cond_str}>"
 
 
 class ModuleNameAndOffset:

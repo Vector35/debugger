@@ -224,6 +224,51 @@ class DebuggerAPI(unittest.TestCase):
         self.assertEqual(dbg.get_breakpoint_condition(0x12345678), "")
         dbg.quit_and_wait()
 
+    def test_breakpoints_list_and_repr(self):
+        """Test that dbg.breakpoints returns correctly and repr includes condition"""
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv = load(fpath)
+        dbg = DebuggerController(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+
+        entry = dbg.data.entry_point
+        second_addr = entry + 4
+
+        # Add breakpoint without condition
+        dbg.add_breakpoint(entry)
+        # Add breakpoint with condition
+        dbg.add_breakpoint(second_addr)
+        arch_name = bv.arch.name
+        if arch_name == 'x86':
+            reg = 'eax'
+        elif arch_name == 'x86_64':
+            reg = 'rax'
+        else:
+            reg = 'x0'
+        condition = f"{reg} == 0x1234"
+        self.assertTrue(dbg.set_breakpoint_condition(second_addr, condition))
+
+        # Access dbg.breakpoints - this should not raise an error
+        # (regression test for issue #953 where None condition caused AttributeError)
+        breakpoints = dbg.breakpoints
+        self.assertGreaterEqual(len(breakpoints), 2)
+
+        # Test repr contains condition when set
+        bp_repr = repr(breakpoints)
+        self.assertIn(condition, bp_repr)
+
+        # Test individual breakpoint repr
+        for bp in breakpoints:
+            bp_str = repr(bp)
+            if bp.address == second_addr:
+                self.assertIn("condition=", bp_str)
+                self.assertIn(condition, bp_str)
+            elif bp.address == entry:
+                # Breakpoint without condition should not have condition in repr
+                self.assertNotIn("condition=", bp_str)
+
+        dbg.quit_and_wait()
+
     def test_register_read_write(self):
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
