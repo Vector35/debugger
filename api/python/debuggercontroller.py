@@ -2118,6 +2118,46 @@ class DebuggerController:
         else:
             raise NotImplementedError
 
+    def add_hardware_breakpoint(self, address, bp_type: DebugBreakpointType, size: int = 1) -> bool:
+        """
+        Add a hardware breakpoint
+
+        The input can be either an absolute address, or a ModuleNameAndOffset, which specifies a relative address to the
+        start of a module. The latter is useful for ASLR.
+
+        :param address: the address of breakpoint to add
+        :param bp_type: the type of hardware breakpoint (DebugBreakpointType.BNHardwareExecuteBreakpoint,
+                        BNHardwareReadBreakpoint, BNHardwareWriteBreakpoint, or BNHardwareAccessBreakpoint)
+        :param size: the size in bytes for the watchpoint (1, 2, 4, or 8)
+        :return: True if successful, False otherwise
+        """
+        if isinstance(address, int):
+            return dbgcore.BNDebuggerAddHardwareBreakpoint(self.handle, address, bp_type, size)
+        elif isinstance(address, ModuleNameAndOffset):
+            return dbgcore.BNDebuggerAddRelativeHardwareBreakpoint(self.handle, address.module, address.offset, bp_type, size)
+        else:
+            raise NotImplementedError
+
+    def delete_hardware_breakpoint(self, address, bp_type: DebugBreakpointType, size: int = 1) -> bool:
+        """
+        Delete a hardware breakpoint
+
+        The input can be either an absolute address, or a ModuleNameAndOffset, which specifies a relative address to the
+        start of a module. The latter is useful for ASLR.
+
+        :param address: the address of breakpoint to delete
+        :param bp_type: the type of hardware breakpoint (DebugBreakpointType.BNHardwareExecuteBreakpoint,
+                        BNHardwareReadBreakpoint, BNHardwareWriteBreakpoint, or BNHardwareAccessBreakpoint)
+        :param size: the size in bytes for the watchpoint (1, 2, 4, or 8)
+        :return: True if successful, False otherwise
+        """
+        if isinstance(address, int):
+            return dbgcore.BNDebuggerRemoveHardwareBreakpoint(self.handle, address, bp_type, size)
+        elif isinstance(address, ModuleNameAndOffset):
+            return dbgcore.BNDebuggerRemoveRelativeHardwareBreakpoint(self.handle, address.module, address.offset, bp_type, size)
+        else:
+            raise NotImplementedError
+
     def has_breakpoint(self, address) -> bool:
         """
         Checks whether a breakpoint exists at the specified address

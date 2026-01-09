@@ -12,9 +12,9 @@ import unittest
 
 from binaryninja import load
 try:
-    from debugger import DebuggerController, DebugStopReason
+    from debugger import DebuggerController, DebugStopReason, DebugBreakpointType
 except:
-    from binaryninja.debugger import DebuggerController, DebugStopReason
+    from binaryninja.debugger import DebuggerController, DebugStopReason, DebugBreakpointType
 
 # 'helloworld' -> '{BN_SOURCE_ROOT}\public\debugger\test\binaries\Windows-x64\helloworld.exe' (windows)
 # 'helloworld' -> '{BN_SOURCE_ROOT}/public/debugger/test/binaries/Darwin/arm64/helloworld' (linux, macOS)
@@ -266,6 +266,28 @@ class DebuggerAPI(unittest.TestCase):
             elif bp.address == entry:
                 # Breakpoint without condition should not have condition in repr
                 self.assertNotIn("condition=", bp_str)
+
+        dbg.quit_and_wait()
+
+    def test_hardware_breakpoint(self):
+        """Test hardware breakpoint add and delete"""
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv = load(fpath)
+        dbg = DebuggerController(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+
+        entry = dbg.data.entry_point
+
+        # Test adding hardware execution breakpoint
+        self.assertTrue(dbg.add_hardware_breakpoint(entry, DebugBreakpointType.BNHardwareExecuteBreakpoint))
+
+        # Test adding hardware write watchpoint at a different address
+        watch_addr = entry + 0x100
+        self.assertTrue(dbg.add_hardware_breakpoint(watch_addr, DebugBreakpointType.BNHardwareWriteBreakpoint, size=4))
+
+        # Test deleting hardware breakpoints
+        self.assertTrue(dbg.delete_hardware_breakpoint(entry, DebugBreakpointType.BNHardwareExecuteBreakpoint))
+        self.assertTrue(dbg.delete_hardware_breakpoint(watch_addr, DebugBreakpointType.BNHardwareWriteBreakpoint, size=4))
 
         dbg.quit_and_wait()
 
