@@ -1278,6 +1278,14 @@ bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 		// Once the ID info is also valid, we can call GetBreakpointById2() to get the breakpoint by ID.
 		if (address == breakpoint.m_address)
 		{
+			// Verify this is a software breakpoint (DEBUG_BREAKPOINT_CODE) before removing
+			ULONG breakType {}, procType {};
+			if (bp->GetType(&breakType, &procType) != S_OK)
+				continue;
+
+			if (breakType != DEBUG_BREAKPOINT_CODE)
+				continue;
+
 			m_debugControl->RemoveBreakpoint2(bp);
 			done = true;
 			break;
@@ -1382,44 +1390,39 @@ bool DbgEngAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointTy
 		return true;
 	}
 
-	// List all breakpoints to find the ID of the hardware breakpoint at this address
-	auto result = InvokeBackendCommand("bl");
-	
-	// Parse the breakpoint list to find the ID
-	// DbgEng breakpoint list format is typically:
-	// 0 e <address> <info>
-	// 1 r <address> <info> etc.
-	std::stringstream ss(result);
-	std::string line;
-	
-	while (std::getline(ss, line))
+	// Iterate through all breakpoints to find the hardware breakpoint at this address
+	bool done = false;
+	ULONG numBreakpoints {};
+	if (m_debugControl->GetNumberBreakpoints(&numBreakpoints) != S_OK)
+		return false;
+
+	for (ULONG i = 0; i < numBreakpoints; i++)
 	{
-		// Look for lines containing our address
-		if (line.find(fmt::format("{:x}", address)) != std::string::npos)
+		IDebugBreakpoint2* bp {};
+		if (m_debugControl->GetBreakpointByIndex2(i, &bp) != S_OK)
+			continue;
+
+		ULONG64 bpAddress {};
+		if (bp->GetOffset(&bpAddress) != S_OK)
+			continue;
+
+		if (bpAddress == address)
 		{
-			// Extract breakpoint ID (first number in the line)
-			std::istringstream iss(line);
-			std::string id_str;
-			if (iss >> id_str)
-			{
-				try
-				{
-					int bp_id = std::stoi(id_str);
-					// Remove the breakpoint using bc (breakpoint clear) command
-					auto clear_result = InvokeBackendCommand(fmt::format("bc {}", bp_id));
-					return clear_result.find("error") == std::string::npos && 
-						   clear_result.find("Error") == std::string::npos;
-				}
-				catch (...)
-				{
-					// Continue searching if this line doesn't contain a valid ID
-					continue;
-				}
-			}
+			// Verify this is a hardware breakpoint (DEBUG_BREAKPOINT_DATA) before removing
+			ULONG breakType {}, procType {};
+			if (bp->GetType(&breakType, &procType) != S_OK)
+				continue;
+
+			if (breakType != DEBUG_BREAKPOINT_DATA)
+				continue;
+
+			m_debugControl->RemoveBreakpoint2(bp);
+			done = true;
+			break;
 		}
 	}
-	
-	return false;
+
+	return done;
 }
 
 
