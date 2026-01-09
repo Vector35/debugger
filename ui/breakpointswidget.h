@@ -93,7 +93,7 @@ public:
 	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override
 	{
 		(void)parent;
-		return 4;
+		return 5;
 	}
 	BreakpointItem getRow(int row) const;
 	virtual QVariant data(const QModelIndex& i, int role) const override;
