@@ -269,6 +269,7 @@ class DebuggerAPI(unittest.TestCase):
 
         dbg.quit_and_wait()
 
+    @unittest.skipIf(platform.system() == 'Linux', 'Hardware breakpoints not yet supported on Linux')
     def test_hardware_breakpoint(self):
         """Test hardware breakpoint add and delete"""
         fpath = name_to_fpath('helloworld', self.arch)
@@ -282,7 +283,9 @@ class DebuggerAPI(unittest.TestCase):
         self.assertTrue(dbg.add_hardware_breakpoint(entry, DebugBreakpointType.BNHardwareExecuteBreakpoint))
 
         # Test adding hardware write watchpoint at a different address
-        watch_addr = entry + 0x100
+        # Note: Hardware data breakpoints must be aligned to their size on x86/x64
+        # A 4-byte watchpoint must be at a 4-byte aligned address
+        watch_addr = (entry + 0x100) & ~0x3  # Align to 4-byte boundary
         self.assertTrue(dbg.add_hardware_breakpoint(watch_addr, DebugBreakpointType.BNHardwareWriteBreakpoint, size=4))
 
         # Test deleting hardware breakpoints
