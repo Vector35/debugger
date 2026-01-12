@@ -230,6 +230,9 @@ bool CorelliumAdapter::Connect(const std::string& server, std::uint32_t port)
 	this->m_processPid = (uint32_t)map["thread"];
     m_isTargetRunning = false;
 
+	// Apply any pending breakpoints that were added before connecting
+	CheckApplyPendingBreakpoints();
+
 	Ref<Settings> settings = Settings::Instance();
 	if (settings->Get<bool>("debugger.corellium.prefetch_reg_bytes"))
 	{
@@ -1067,6 +1070,52 @@ bool CorelliumAdapter::GetModuleBase(const std::string& moduleName, uint64_t& ba
 }
 
 
+void CorelliumAdapter::CheckApplyPendingBreakpoints()
+{
+	// Apply pending software breakpoints
+	for (auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end(); )
+	{
+		uint64_t base{};
+		if (GetModuleBase(it->address.module, base))
+		{
+			uint64_t addr = base + it->address.offset;
+			// TODO: more robust check of whether the operation succeeds
+			if (AddBreakpoint(addr, it->type).m_address != 0)
+			{
+				it = m_pendingBreakpoints.erase(it);
+				continue;
+			}
+		}
+		it++;
+	}
+
+	// Apply pending hardware breakpoints
+	for (auto it = m_pendingHardwareBreakpoints.begin(); it != m_pendingHardwareBreakpoints.end(); )
+	{
+		bool success = false;
+		if (it->isRelative)
+		{
+			// Module+offset based hardware breakpoint
+			success = AddHardwareBreakpoint(it->location, it->type, it->size);
+		}
+		else
+		{
+			// Absolute address hardware breakpoint
+			success = AddHardwareBreakpoint(it->address, it->type, it->size);
+		}
+
+		if (success)
+		{
+			it = m_pendingHardwareBreakpoints.erase(it);
+		}
+		else
+		{
+			it++;
+		}
+	}
+}
+
+
 void CorelliumAdapter::InvalidateCache()
 {
 	m_regCache.reset();
@@ -1162,7 +1211,17 @@ bool CorelliumAdapter::ResumeThread(std::uint32_t tid)
 
 DebugBreakpoint CorelliumAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
 {
-	return {};
+	uint64_t base{};
+	if (GetModuleBase(address.module, base))
+	{
+		auto addr = base + address.offset;
+		return AddBreakpoint(addr, breakpoint_type);
+	}
+	else
+	{
+		m_pendingBreakpoints.emplace_back(address, breakpoint_type);
+		return {};
+	}
 }
 
 

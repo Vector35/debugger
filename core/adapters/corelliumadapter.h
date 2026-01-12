@@ -34,6 +34,14 @@ namespace BinaryNinjaDebugger
 			std::uint32_t m_offset{};
 		};
 
+		struct PendingBreakpoint
+		{
+			ModuleNameAndOffset address;
+			unsigned long type;
+
+			PendingBreakpoint(ModuleNameAndOffset address, unsigned long type) : address(address), type(type) {}
+		};
+
 		DebugStopReason m_lastStopReason{};
 
 		using register_pair = std::pair<std::string, RegisterInfo>;
@@ -46,6 +54,9 @@ namespace BinaryNinjaDebugger
 
 		std::uint32_t m_internalBreakpointId{};
 		std::vector<DebugBreakpoint> m_debugBreakpoints{};
+
+		std::vector<PendingBreakpoint> m_pendingBreakpoints {};
+		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
 
 		std::uint32_t m_lastActiveThreadId{};
 		std::uint32_t m_processPid{};
@@ -68,6 +79,9 @@ namespace BinaryNinjaDebugger
 		void InvalidateCache();
 
 		virtual DebugStopReason SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& map);
+
+		void CheckApplyPendingBreakpoints();
+		void ClearCachedBreakpoints() { m_debugBreakpoints.clear(); }
 
 		bool m_prefetchRegBytes = false;
 		bool m_prefetchStackBytes = false;

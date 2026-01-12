@@ -262,6 +262,9 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
 	this->m_processPid = (uint32_t)map["thread"];
     m_isTargetRunning = false;
 
+	// Apply any pending breakpoints that were added before connecting
+	CheckApplyPendingBreakpoints();
+
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
 
@@ -1561,7 +1564,19 @@ void GdbAdapter::CheckApplyPendingBreakpoints()
 	// Apply pending hardware breakpoints
 	for (auto it = m_pendingHardwareBreakpoints.begin(); it != m_pendingHardwareBreakpoints.end(); )
 	{
-		if (AddHardwareBreakpoint(it->address, it->type, it->size))
+		bool success = false;
+		if (it->isRelative)
+		{
+			// Module+offset based hardware breakpoint
+			success = AddHardwareBreakpoint(it->location, it->type, it->size);
+		}
+		else
+		{
+			// Absolute address hardware breakpoint
+			success = AddHardwareBreakpoint(it->address, it->type, it->size);
+		}
+
+		if (success)
 		{
 			it = m_pendingHardwareBreakpoints.erase(it);
 		}
