@@ -975,6 +975,23 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigne
 }
 
 
+uint64_t LldbAdapter::ResolveModuleAddress(const ModuleNameAndOffset& location)
+{
+	// Try to find the module in the loaded module list
+	auto modules = GetModuleList();
+	for (const auto& module : modules)
+	{
+		if (module.IsSameBaseModule(location.module))
+		{
+			return module.m_address + location.offset;
+		}
+	}
+
+	// Fallback to using the original image base (for the main module or when module not found)
+	return location.offset + m_originalImageBase;
+}
+
+
 DebugBreakpoint LldbAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
 {
 	if (!m_targetActive)
@@ -1185,8 +1202,8 @@ bool LldbAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, Deb
 	}
 	else
 	{
-		// Target is active - use LLDB's module-aware syntax
-		uint64_t addr = location.offset + m_originalImageBase;
+		// Target is active - resolve module+offset to absolute address
+		uint64_t addr = ResolveModuleAddress(location);
 		std::string command;
 
 		switch (type)
@@ -1204,7 +1221,7 @@ bool LldbAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, Deb
 			{
 				// For watchpoints, we need to resolve to absolute address first
 				// LLDB watchpoints don't have direct module+offset syntax
-				// So we delegate to the absolute address version which will resolve at runtime
+				// So we delegate to the absolute address version
 				return AddHardwareBreakpoint(addr, type, size);
 			}
 			default:
@@ -1244,8 +1261,8 @@ bool LldbAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, 
 	}
 	else
 	{
-		// Target is active - resolve to absolute address and remove
-		uint64_t address = location.offset + m_originalImageBase;
+		// Target is active - resolve module+offset to absolute address and remove
+		uint64_t address = ResolveModuleAddress(location);
 		return RemoveHardwareBreakpoint(address, type, size);
 	}
 }
