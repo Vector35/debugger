@@ -122,18 +122,55 @@ namespace BinaryNinjaDebugger {
 		std::uintptr_t m_address {};
 		unsigned long m_id {};
 		bool m_is_active {};
+		DebugBreakpointType m_type = SoftwareBreakpoint;
 
-		DebugBreakpoint(std::uintptr_t address, unsigned long id, bool active) :
-			m_address(address), m_id(id), m_is_active(active)
+		DebugBreakpoint(std::uintptr_t address, unsigned long id, bool active, DebugBreakpointType type = SoftwareBreakpoint) :
+			m_address(address), m_id(id), m_is_active(active), m_type(type)
 		{}
 
-		DebugBreakpoint(std::uintptr_t address) : m_address(address) {}
+		DebugBreakpoint(std::uintptr_t address, DebugBreakpointType type = SoftwareBreakpoint) : 
+			m_address(address), m_type(type) {}
 
 		DebugBreakpoint() {}
 
 		bool operator==(const DebugBreakpoint& rhs) const { return this->m_address == rhs.m_address; }
 
 		bool operator!() const { return !this->m_address && !this->m_id && !this->m_is_active; }
+	};
+
+	// Pending hardware breakpoint info (to be applied when target becomes active)
+	struct PendingHardwareBreakpoint
+	{
+		ModuleNameAndOffset location;  // Module + offset (for relative addressing)
+		uint64_t address;              // Absolute address (for absolute addressing or resolved relative)
+		DebugBreakpointType type;
+		size_t size;
+		bool isRelative;               // True if using module+offset, false if using absolute address
+
+		// Constructor for absolute address
+		PendingHardwareBreakpoint(uint64_t addr, DebugBreakpointType bpType, size_t bpSize)
+			: location(), address(addr), type(bpType), size(bpSize), isRelative(false) {}
+
+		// Constructor for module+offset
+		PendingHardwareBreakpoint(const ModuleNameAndOffset& loc, DebugBreakpointType bpType, size_t bpSize)
+			: location(loc), address(0), type(bpType), size(bpSize), isRelative(true) {}
+
+		bool operator==(const PendingHardwareBreakpoint& other) const
+		{
+			if (isRelative != other.isRelative)
+				return false;
+
+			if (isRelative)
+			{
+				// Compare by module+offset
+				return location == other.location && type == other.type && size == other.size;
+			}
+			else
+			{
+				// Compare by absolute address
+				return address == other.address && type == other.type && size == other.size;
+			}
+		}
 	};
 
 	struct DebugRegister
@@ -275,6 +312,18 @@ namespace BinaryNinjaDebugger {
 		virtual bool DisableBreakpoint(const ModuleNameAndOffset& address) { return false; }
 
 		virtual std::vector<DebugBreakpoint> GetBreakpointList() const = 0;
+
+		// Hardware breakpoint and watchpoint support
+		// Note: Adapters that don't support hardware breakpoints should return false from both methods
+
+		// Hardware breakpoints - absolute address
+		virtual bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) = 0;
+		virtual bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) = 0;
+
+		// Hardware breakpoints - module+offset (ASLR-safe)
+		// Each adapter must implement this to handle module resolution in its own way
+		virtual bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) = 0;
+		virtual bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) = 0;
 
 		virtual std::unordered_map<std::string, DebugRegister> ReadAllRegisters() = 0;
 

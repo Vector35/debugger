@@ -733,6 +733,8 @@ std::vector<DebugBreakpoint> DebuggerController::GetBreakpoints()
 		bp.address = breakpoints[i].address;
 		bp.enabled = breakpoints[i].enabled;
 		bp.condition = breakpoints[i].condition ? breakpoints[i].condition : "";
+		bp.type = (DebugBreakpointType)breakpoints[i].type;
+		bp.size = breakpoints[i].size;
 		result[i] = bp;
 	}
 
@@ -828,6 +830,56 @@ std::string DebuggerController::GetBreakpointCondition(const ModuleNameAndOffset
 	std::string result = condition ? condition : "";
 	BNDebuggerFreeString(condition);
 	return result;
+}
+
+
+bool DebuggerController::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerAddHardwareBreakpoint(m_object, address, (BNDebugBreakpointType)type, size);
+}
+
+
+bool DebuggerController::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerRemoveHardwareBreakpoint(m_object, address, (BNDebugBreakpointType)type, size);
+}
+
+
+bool DebuggerController::EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerEnableHardwareBreakpoint(m_object, address, (BNDebugBreakpointType)type, size);
+}
+
+
+bool DebuggerController::DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerDisableHardwareBreakpoint(m_object, address, (BNDebugBreakpointType)type, size);
+}
+
+
+// Hardware breakpoint methods - module+offset (ASLR-safe)
+
+bool DebuggerController::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerAddRelativeHardwareBreakpoint(m_object, location.module.c_str(), location.offset, (BNDebugBreakpointType)type, size);
+}
+
+
+bool DebuggerController::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerRemoveRelativeHardwareBreakpoint(m_object, location.module.c_str(), location.offset, (BNDebugBreakpointType)type, size);
+}
+
+
+bool DebuggerController::EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerEnableRelativeHardwareBreakpoint(m_object, location.module.c_str(), location.offset, (BNDebugBreakpointType)type, size);
+}
+
+
+bool DebuggerController::DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return BNDebuggerDisableRelativeHardwareBreakpoint(m_object, location.module.c_str(), location.offset, (BNDebugBreakpointType)type, size);
 }
 
 

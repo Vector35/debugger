@@ -145,6 +145,9 @@ namespace BinaryNinjaDebugger {
 		unsigned long m_exitCode {};
 
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints {};
+		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
+		std::vector<PendingHardwareBreakpoint> m_deferredHardwareBreakpoints {};
+		bool m_needsHardwareBreakpointReapplication = false;
 
 		ULONG64 m_server {};
 		bool m_connectedToDebugServer = false;
@@ -199,6 +202,12 @@ namespace BinaryNinjaDebugger {
 		bool RemoveBreakpoint(const ModuleNameAndOffset& breakpoint) override;
 
 		std::vector<DebugBreakpoint> GetBreakpointList() const override;
+
+		// Hardware breakpoint and watchpoint support
+		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
+		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
+		bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) override;
+		bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) override;
 
 		std::string GetRegisterNameByIndex(std::uint32_t index) const;
 		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;

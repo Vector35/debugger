@@ -334,6 +334,7 @@ void BinaryNinjaDebugger::InitLldbAdapterType()
 
 void LldbAdapter::ApplyBreakpoints()
 {
+	// Apply pending software breakpoints immediately - these work fine before process starts
 	for (const auto& bp : m_pendingBreakpoints)
 	{
 		AddBreakpoint(bp);
@@ -341,6 +342,37 @@ void LldbAdapter::ApplyBreakpoints()
 	// Clear the pending breakpoint list so that when the adapter launch/attach/connect to the target for the next time,
 	// it always gets a clean list of breakpoints from the controller.
 	m_pendingBreakpoints.clear();
+
+	// DEFER hardware breakpoints instead of applying now
+	//
+	// WHY: LLDB has a known issue where hardware breakpoints set before the process starts often fail to work.
+	// Hardware breakpoints require the process to be running and stopped at least once so that LLDB can
+	// properly register them with the CPU's hardware debug registers.
+	//
+	// WHEN THIS WORKS:
+	// - Launch scenarios: Process will hit entry point or first instruction, we apply HW BP then
+	// - Attach scenarios: Process is already running, we apply on first break
+	// - Connect scenarios: Remote process is running, we apply on first break
+	//
+	// WHEN THIS DOESN'T WORK:
+	// - If the code you want to break on executes BEFORE the first stop (very rare, usually just entry point)
+	// - If LLDB is fixed in future versions and this workaround becomes unnecessary overhead
+	// - Non-stop mode debugging (not currently supported anyway)
+	//
+	// ALTERNATIVE APPROACHES CONSIDERED:
+	// - Applying immediately: Doesn't work due to LLDB bug
+	// - Remove and re-add on first stop: Works but wasteful
+	// - Platform-specific APIs: Same underlying issue
+	//
+	// Move hardware breakpoints to deferred list instead of applying now
+	m_deferredHardwareBreakpoints = std::move(m_pendingHardwareBreakpoints);
+	m_pendingHardwareBreakpoints.clear();
+
+	// Set flag to apply deferred hardware breakpoints on first stop
+	if (!m_deferredHardwareBreakpoints.empty())
+	{
+		m_needsHardwareBreakpointReapplication = true;
+	}
 }
 
 
@@ -925,11 +957,39 @@ std::vector<DebugFrame> LldbAdapter::GetFramesOfThread(uint32_t tid)
 
 DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
+	// Check if this is a hardware breakpoint type
+	if (breakpoint_type == HardwareExecuteBreakpoint)
+	{
+		if (AddHardwareBreakpoint(address, HardwareExecuteBreakpoint))
+			return DebugBreakpoint(address, 0, true, HardwareExecuteBreakpoint);
+		else
+			return DebugBreakpoint {};
+	}
+	
+	// Default software breakpoint
 	SBBreakpoint bp = m_target.BreakpointCreateByAddress(address);
 	if (!bp.IsValid())
 		return DebugBreakpoint {};
 
-	return DebugBreakpoint(address, bp.GetID(), bp.IsEnabled());
+	return DebugBreakpoint(address, bp.GetID(), bp.IsEnabled(), SoftwareBreakpoint);
+}
+
+
+bool LldbAdapter::ResolveModuleAddress(const ModuleNameAndOffset& location, uint64_t& address)
+{
+	// Try to find the module in the loaded module list
+	auto modules = GetModuleList();
+	for (const auto& module : modules)
+	{
+		if (module.IsSameBaseModule(location.module))
+		{
+			address = module.m_address + location.offset;
+			return true;
+		}
+	}
+
+	// Module not found - caller should fall back to module+offset handling
+	return false;
 }
 
 
@@ -998,6 +1058,262 @@ bool LldbAdapter::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
 std::vector<DebugBreakpoint> LldbAdapter::GetBreakpointList() const
 {
 	return std::vector<DebugBreakpoint>();
+}
+
+
+bool LldbAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!m_targetActive)
+	{
+		// Cache the hardware breakpoint to be applied when target becomes active
+		PendingHardwareBreakpoint pending(address, type, size);
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
+
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+		{
+			// Hardware execution breakpoints are not implemented in LLDB on x86/x64 Linux
+			// The underlying NativeRegisterContextDBReg_x86 only implements watchpoints, not breakpoints
+			// See: https://github.com/llvm/llvm-project/issues/XXXXX (to be filed)
+			std::string arch = GetTargetArchitecture();
+			if (arch == "x86_64" || arch == "i386")
+			{
+				LogWarn("Hardware execution breakpoints are not supported on x86/x64 with LLDB");
+				return false;
+			}
+
+			// Use LLDB command to set hardware execution breakpoint
+			std::string command = fmt::format("breakpoint set --address 0x{:x} -H", address);
+			auto result = InvokeBackendCommand(command);
+			return result.find("Breakpoint") != std::string::npos;
+		}
+		case HardwareReadBreakpoint:
+		{
+			// Use LLDB watchpoint command for read
+			std::string command = fmt::format("watchpoint set expression -w read -s {} -- 0x{:x}", size, address);
+			auto result = InvokeBackendCommand(command);
+			return result.find("Watchpoint") != std::string::npos;
+		}
+		case HardwareWriteBreakpoint:
+		{
+			// Use LLDB watchpoint command for write
+			std::string command = fmt::format("watchpoint set expression -w write -s {} -- 0x{:x}", size, address);
+			auto result = InvokeBackendCommand(command);
+			return result.find("Watchpoint") != std::string::npos;
+		}
+		case HardwareAccessBreakpoint:
+		{
+			// Use LLDB watchpoint command for read/write
+			std::string command = fmt::format("watchpoint set expression -w read_write -s {} -- 0x{:x}", size, address);
+			auto result = InvokeBackendCommand(command);
+			return result.find("Watchpoint") != std::string::npos;
+		}
+		default:
+			return false;
+	}
+}
+
+
+bool LldbAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!m_targetActive)
+	{
+		// Remove from pending list if target is not active
+		PendingHardwareBreakpoint pending(address, type, size);
+
+		// Check pending list first
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+
+		// Also check deferred list (hardware breakpoints waiting for first stop due to LLDB bug workaround)
+		auto deferredIt = std::find(m_deferredHardwareBreakpoints.begin(), m_deferredHardwareBreakpoints.end(), pending);
+		if (deferredIt != m_deferredHardwareBreakpoints.end())
+		{
+			m_deferredHardwareBreakpoints.erase(deferredIt);
+			// Clear the reapplication flag if no more deferred breakpoints
+			if (m_deferredHardwareBreakpoints.empty())
+			{
+				m_needsHardwareBreakpointReapplication = false;
+			}
+			return true;
+		}
+
+		return false;
+	}
+
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+		{
+			// Find and delete hardware breakpoint at address
+			for (size_t i = 0; i < m_target.GetNumBreakpoints(); i++)
+			{
+				auto bp = m_target.GetBreakpointAtIndex(i);
+				if (bp.IsHardware())
+				{
+					for (size_t j = 0; j < bp.GetNumLocations(); j++)
+					{
+						auto location = bp.GetLocationAtIndex(j);
+						auto bpAddress = location.GetAddress().GetLoadAddress(m_target);
+						if (address == bpAddress)
+						{
+							return m_target.BreakpointDelete(bp.GetID());
+						}
+					}
+				}
+			}
+			return false;
+		}
+		case HardwareReadBreakpoint:
+		case HardwareWriteBreakpoint:
+		case HardwareAccessBreakpoint:
+		{
+			// Find and delete watchpoint at address
+			for (size_t i = 0; i < m_target.GetNumWatchpoints(); i++)
+			{
+				auto wp = m_target.GetWatchpointAtIndex(i);
+				if (wp.GetWatchAddress() == address)
+				{
+					return m_target.DeleteWatchpoint(wp.GetID());
+				}
+			}
+			return false;
+		}
+		default:
+			return false;
+	}
+}
+
+
+bool LldbAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	if (!m_targetActive)
+	{
+		// Target not active - add to pending list with module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		// Also populate the address field for UI display purposes
+		pending.address = location.offset + m_originalImageBase;
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
+	else
+	{
+		// Target is active - try to resolve module+offset to absolute address
+		uint64_t addr;
+		bool resolved = ResolveModuleAddress(location, addr);
+
+		switch (type)
+		{
+			case HardwareExecuteBreakpoint:
+			{
+				// Hardware execution breakpoints are not implemented in LLDB on x86/x64 Linux
+				// The underlying NativeRegisterContextDBReg_x86 only implements watchpoints, not breakpoints
+				// See: https://github.com/llvm/llvm-project/issues/XXXXX (to be filed)
+				std::string arch = GetTargetArchitecture();
+				if (arch == "x86_64" || arch == "i386")
+				{
+					LogWarn("Hardware execution breakpoints are not supported on x86/x64 with LLDB");
+					return false;
+				}
+
+				std::string command;
+				if (resolved)
+				{
+					// Module was resolved - use absolute address
+					command = fmt::format("breakpoint set --address 0x{:x} -H", addr);
+				}
+				else
+				{
+					// Module not resolved - use module+offset syntax
+					// Calculate address relative to original image base for LLDB
+					addr = location.offset + m_originalImageBase;
+					command = fmt::format("breakpoint set --shlib \"{}\" --address 0x{:x} -H", location.module, addr);
+				}
+				auto result = InvokeBackendCommand(command);
+				return result.find("Breakpoint") != std::string::npos;
+			}
+			case HardwareReadBreakpoint:
+			case HardwareWriteBreakpoint:
+			case HardwareAccessBreakpoint:
+			{
+				// For watchpoints, we need an absolute address
+				// LLDB watchpoints don't have direct module+offset syntax
+				if (!resolved)
+				{
+					// If module not resolved, we can't set the watchpoint yet
+					// Add to pending list
+					PendingHardwareBreakpoint pending(location, type, size);
+					pending.address = location.offset + m_originalImageBase;
+					if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+						== m_pendingHardwareBreakpoints.end())
+					{
+						m_pendingHardwareBreakpoints.push_back(pending);
+					}
+					return true;
+				}
+				return AddHardwareBreakpoint(addr, type, size);
+			}
+			default:
+				return false;
+		}
+	}
+}
+
+
+bool LldbAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	if (!m_targetActive)
+	{
+		// Target not active - remove from pending list using module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+
+		// Also check deferred list
+		auto deferredIt = std::find(m_deferredHardwareBreakpoints.begin(), m_deferredHardwareBreakpoints.end(), pending);
+		if (deferredIt != m_deferredHardwareBreakpoints.end())
+		{
+			m_deferredHardwareBreakpoints.erase(deferredIt);
+			if (m_deferredHardwareBreakpoints.empty())
+			{
+				m_needsHardwareBreakpointReapplication = false;
+			}
+			return true;
+		}
+
+		return false;
+	}
+	else
+	{
+		// Target is active - try to resolve module+offset to absolute address and remove
+		uint64_t address;
+		if (ResolveModuleAddress(location, address))
+		{
+			return RemoveHardwareBreakpoint(address, type, size);
+		}
+		// Module not resolved - cannot remove (it may be in pending list)
+		return false;
+	}
 }
 
 
@@ -1806,6 +2122,28 @@ void LldbAdapter::EventListener()
 				case lldb::eStateStopped:
 				{
 					FixActiveThread();
+
+					// Apply deferred hardware breakpoints on first stop
+					// See ApplyBreakpoints() for detailed explanation of why this is necessary
+					if (m_needsHardwareBreakpointReapplication)
+					{
+						for (const auto& hwbp : m_deferredHardwareBreakpoints)
+						{
+							// Apply the hardware breakpoint now that process is running and stopped
+							// Check addressing mode and call appropriate variant
+							if (hwbp.isRelative)
+							{
+								AddHardwareBreakpoint(hwbp.location, hwbp.type, hwbp.size);
+							}
+							else
+							{
+								AddHardwareBreakpoint(hwbp.address, hwbp.type, hwbp.size);
+							}
+						}
+						m_deferredHardwareBreakpoints.clear();
+						m_needsHardwareBreakpointReapplication = false;
+					}
+
 					DebuggerEvent dbgevt;
 					dbgevt.type = AdapterStoppedEventType;
 					// LLDB sometimes fails to update the process status when it is already sending eStateStopped event.
@@ -1888,22 +2226,14 @@ void LldbAdapter::EventListener()
 						if (module.IsValid())
 						{
 							SBAddress headerAddress = module.GetObjectFileHeaderAddress();
-							uint64_t moduleBase = headerAddress.GetLoadAddress(m_target);
-							uint64_t bpAddress = location.GetAddress().GetLoadAddress(m_target);
-							auto fileSpec = module.GetFileSpec();
-							char path[1024];
-							size_t bytes = fileSpec.GetPath(path, sizeof(path));
 							DebuggerEvent evt;
-							evt.type = RelativeBreakpointAddedEvent;
-							evt.data.relativeAddress.module = std::string(path, bytes);
-							evt.data.relativeAddress.offset = bpAddress - moduleBase;
+							evt.type = BreakpointChangedEvent;
 							PostDebuggerEvent(evt);
 						}
 						else
 						{
 							DebuggerEvent evt;
-							evt.type = AbsoluteBreakpointAddedEvent;
-							evt.data.absoluteAddress = location.GetAddress().GetLoadAddress(m_target);
+							evt.type = BreakpointChangedEvent;
 							PostDebuggerEvent(evt);
 						}
 					}
@@ -1914,23 +2244,14 @@ void LldbAdapter::EventListener()
 						auto module = address.GetModule();
 						if (module.IsValid())
 						{
-							SBAddress headerAddress = module.GetObjectFileHeaderAddress();
-							uint64_t moduleBase = headerAddress.GetLoadAddress(m_target);
-							uint64_t bpAddress = location.GetAddress().GetLoadAddress(m_target);
-							auto fileSpec = module.GetFileSpec();
-							char path[1024];
-							size_t bytes = fileSpec.GetPath(path, sizeof(path));
 							DebuggerEvent evt;
-							evt.type = RelativeBreakpointRemovedEvent;
-							evt.data.relativeAddress.module = std::string(path, bytes);
-							evt.data.relativeAddress.offset = bpAddress - moduleBase;
+							evt.type = BreakpointChangedEvent;
 							PostDebuggerEvent(evt);
 						}
 						else
 						{
 							DebuggerEvent evt;
-							evt.type = AbsoluteBreakpointRemovedEvent;
-							evt.data.absoluteAddress = location.GetAddress().GetLoadAddress(m_target);
+							evt.type = BreakpointChangedEvent;
 							PostDebuggerEvent(evt);
 						}
 					}

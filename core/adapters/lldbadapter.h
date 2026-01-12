@@ -35,6 +35,12 @@ namespace BinaryNinjaDebugger {
 
 		bool m_targetActive;
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints {};
+		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
+
+		// LLDB BUG WORKAROUND: Hardware breakpoints set before process starts often fail to work
+		// We defer their application until the first stop event after launch/attach
+		std::vector<PendingHardwareBreakpoint> m_deferredHardwareBreakpoints {};
+		bool m_needsHardwareBreakpointReapplication = false;
 
 		// Since when SBProcess::Kill() and SBProcess::ReadMemory() are called at the same time, LLDB will hang,
 		// we must use this mutex to prevent the quit operation and read memory operation to happen at the same time.
@@ -48,6 +54,11 @@ namespace BinaryNinjaDebugger {
 		bool CreateTarget(const std::string& file);
 
 		bool m_userRequestedQuit = false;
+
+		// Helper to resolve module+offset to absolute address
+		// Returns true if the module was found in the loaded module list and address was resolved
+		// Returns false if the module was not found (caller should fall back to module+offset handling)
+		bool ResolveModuleAddress(const ModuleNameAndOffset& location, uint64_t& address);
 
 	public:
 		LldbAdapter(BinaryView* data);
@@ -95,6 +106,12 @@ namespace BinaryNinjaDebugger {
 		virtual bool RemoveBreakpoint(const ModuleNameAndOffset& address) override;
 
 		std::vector<DebugBreakpoint> GetBreakpointList() const override;
+
+		// Hardware breakpoint and watchpoint support
+		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
+		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
+		bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) override;
+		bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) override;
 
 		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
 

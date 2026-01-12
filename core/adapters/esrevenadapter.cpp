@@ -262,6 +262,9 @@ bool EsrevenAdapter::Connect(const std::string& server, std::uint32_t port)
 	this->m_processPid = (uint32_t)map["thread"];
     m_isTargetRunning = false;
 
+	// Apply any pending breakpoints that were added before connecting
+	CheckApplyPendingBreakpoints();
+
 	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
 
@@ -422,7 +425,7 @@ DebugBreakpoint EsrevenAdapter::AddBreakpoint(const std::uintptr_t address, unsi
     if (this->m_rspConnector->TransmitAndReceive(RspData("Z0,{:x},{}", address, kind)).AsString() != "OK" )
         return DebugBreakpoint{};
 
-    const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true);
+    const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true, SoftwareBreakpoint);
     this->m_debugBreakpoints.push_back(new_breakpoint);
 
     return new_breakpoint;
@@ -1199,20 +1202,148 @@ bool EsrevenAdapter::StepOverReverse()
 	return true;
 }
 
-bool EsrevenAdapter::AddHardwareWriteBreakpoint(uint64_t address)
+bool EsrevenAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	if (m_isTargetRunning || !m_rspConnector)
-		return false;
+	{
+		// Cache the hardware breakpoint to be applied when target stops or connector becomes available
+		PendingHardwareBreakpoint pending(address, type, size);
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
 
-	return this->m_rspConnector->TransmitAndReceive(RspData("Z2,{:x},{}", address, 1)).AsString() == "OK";
+	std::string command;
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+			// Z1 = hardware execution breakpoint
+			command = fmt::format("Z1,{:x},{}", address, size);
+			break;
+		case HardwareReadBreakpoint:
+			// Z3 = hardware read watchpoint
+			command = fmt::format("Z3,{:x},{}", address, size);
+			break;
+		case HardwareWriteBreakpoint:
+			// Z2 = hardware write watchpoint
+			command = fmt::format("Z2,{:x},{}", address, size);
+			break;
+		case HardwareAccessBreakpoint:
+			// Z4 = hardware access watchpoint (read/write)
+			command = fmt::format("Z4,{:x},{}", address, size);
+			break;
+		default:
+			return false;
+	}
+
+	return m_rspConnector->TransmitAndReceive(RspData(command)).AsString() == "OK";
+}
+
+
+bool EsrevenAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (m_isTargetRunning || !m_rspConnector)
+	{
+		// Remove from pending list if target is running or connector not available
+		PendingHardwareBreakpoint pending(address, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+		return false;
+	}
+
+	std::string command;
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+			// z1 = remove hardware execution breakpoint
+			command = fmt::format("z1,{:x},{}", address, size);
+			break;
+		case HardwareReadBreakpoint:
+			// z3 = remove hardware read watchpoint
+			command = fmt::format("z3,{:x},{}", address, size);
+			break;
+		case HardwareWriteBreakpoint:
+			// z2 = remove hardware write watchpoint
+			command = fmt::format("z2,{:x},{}", address, size);
+			break;
+		case HardwareAccessBreakpoint:
+			// z4 = remove hardware access watchpoint (read/write)
+			command = fmt::format("z4,{:x},{}", address, size);
+			break;
+		default:
+			return false;
+	}
+
+	return m_rspConnector->TransmitAndReceive(RspData(command)).AsString() == "OK";
+}
+
+
+bool EsrevenAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	uint64_t base{};
+	if (GetModuleBase(location.module, base))
+	{
+		// Module is loaded - resolve to absolute address and delegate
+		uint64_t address = base + location.offset;
+		return AddHardwareBreakpoint(address, type, size);
+	}
+	else
+	{
+		// Module not loaded yet - add to pending list with module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		// Also populate the address field for UI display purposes
+		pending.address = location.offset + m_originalImageBase;
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
+}
+
+
+bool EsrevenAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	uint64_t base{};
+	if (GetModuleBase(location.module, base))
+	{
+		// Module is loaded - resolve to absolute address and delegate
+		uint64_t address = base + location.offset;
+		return RemoveHardwareBreakpoint(address, type, size);
+	}
+	else
+	{
+		// Module not loaded yet - remove from pending list using module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+		return false;
+	}
+}
+
+
+bool EsrevenAdapter::AddHardwareWriteBreakpoint(uint64_t address)
+{
+	// Delegate to new standardized method
+	return AddHardwareBreakpoint(address, HardwareWriteBreakpoint, 1);
 }
 
 bool EsrevenAdapter::RemoveHardwareWriteBreakpoint(uint64_t address)
 {
-	if (m_isTargetRunning || !m_rspConnector)
-		return false;
-
-	return this->m_rspConnector->TransmitAndReceive(RspData("z2,{:x},{}", address, 1)).AsString() == "OK";
+	// Delegate to new standardized method
+	return RemoveHardwareBreakpoint(address, HardwareWriteBreakpoint, 1);
 }
 
 bool EsrevenAdapter::StepReturnReverse()
@@ -1720,6 +1851,7 @@ DebugBreakpoint EsrevenAdapter::AddBreakpoint(const ModuleNameAndOffset& address
 
 void EsrevenAdapter::CheckApplyPendingBreakpoints()
 {
+	// Apply pending software breakpoints
 	for (auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end(); )
 	{
 		uint64_t base{};
@@ -1734,6 +1866,31 @@ void EsrevenAdapter::CheckApplyPendingBreakpoints()
 			}
 		}
 		it++;
+	}
+
+	// Apply pending hardware breakpoints
+	for (auto it = m_pendingHardwareBreakpoints.begin(); it != m_pendingHardwareBreakpoints.end(); )
+	{
+		bool success = false;
+		if (it->isRelative)
+		{
+			// Module+offset based hardware breakpoint
+			success = AddHardwareBreakpoint(it->location, it->type, it->size);
+		}
+		else
+		{
+			// Absolute address hardware breakpoint
+			success = AddHardwareBreakpoint(it->address, it->type, it->size);
+		}
+
+		if (success)
+		{
+			it = m_pendingHardwareBreakpoints.erase(it);
+		}
+		else
+		{
+			it++;
+		}
 	}
 }
 

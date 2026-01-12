@@ -527,7 +527,7 @@ std::vector<BreakpointEntry>::iterator DebuggerBreakpoints::FindBreakpoint(const
 		const uint64_t targetAbsolute = m_state->GetModules()->RelativeAddressToAbsolute(address);
 		for (auto it = m_breakpoints.begin(); it != m_breakpoints.end(); ++it)
 		{
-			if (m_state->GetModules()->RelativeAddressToAbsolute(it->address) == targetAbsolute)
+			if (m_state->GetModules()->RelativeAddressToAbsolute(it->location) == targetAbsolute)
 				return it;
 		}
 	}
@@ -535,7 +535,7 @@ std::vector<BreakpointEntry>::iterator DebuggerBreakpoints::FindBreakpoint(const
 	{
 		for (auto it = m_breakpoints.begin(); it != m_breakpoints.end(); ++it)
 		{
-			if (it->address == address)
+			if (it->location == address)
 				return it;
 		}
 	}
@@ -611,7 +611,7 @@ bool DebuggerBreakpoints::RemoveOffset(const ModuleNameAndOffset& address)
 	if (it == m_breakpoints.end())
 		return false;
 
-	ModuleNameAndOffset actualAddr = it->address;
+	ModuleNameAndOffset actualAddr = it->location;
 	m_breakpoints.erase(it);
 	SerializeMetadata();
 
@@ -642,7 +642,7 @@ bool DebuggerBreakpoints::EnableOffset(const ModuleNameAndOffset& address)
 
 	if (m_state->GetAdapter() && m_state->IsConnected())
 	{
-		uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(it->address);
+		uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(it->location);
 		m_state->GetAdapter()->AddBreakpoint(remoteAddress);
 	}
 	return true;
@@ -667,7 +667,7 @@ bool DebuggerBreakpoints::DisableOffset(const ModuleNameAndOffset& address)
 
 	if (m_state->GetAdapter() && m_state->IsConnected())
 	{
-		uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(it->address);
+		uint64_t remoteAddress = m_state->GetModules()->RelativeAddressToAbsolute(it->location);
 		m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
 	}
 	return true;
@@ -704,7 +704,7 @@ bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
 
 	for (const auto& bp : m_breakpoints)
 	{
-		if (m_state->GetModules()->RelativeAddressToAbsolute(bp.address) == address)
+		if (m_state->GetModules()->RelativeAddressToAbsolute(bp.location) == address)
 			return true;
 	}
 	return false;
@@ -734,7 +734,7 @@ std::string DebuggerBreakpoints::GetConditionAbsolute(const uint64_t address)
 {
 	for (const auto& bp : m_breakpoints)
 	{
-		if (m_state->GetModules()->RelativeAddressToAbsolute(bp.address) == address)
+		if (m_state->GetModules()->RelativeAddressToAbsolute(bp.location) == address)
 			return bp.condition;
 	}
 	return "";
@@ -752,7 +752,7 @@ bool DebuggerBreakpoints::HasConditionAbsolute(const uint64_t address)
 {
 	for (const auto& bp : m_breakpoints)
 	{
-		if (m_state->GetModules()->RelativeAddressToAbsolute(bp.address) == address)
+		if (m_state->GetModules()->RelativeAddressToAbsolute(bp.location) == address)
 			return !bp.condition.empty();
 	}
 	return false;
@@ -766,14 +766,305 @@ bool DebuggerBreakpoints::HasConditionOffset(const ModuleNameAndOffset& address)
 }
 
 
+bool DebuggerBreakpoints::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	// TODO: ARCHITECTURAL ISSUE - This dual-path breakpoint system is problematic:
+	// - Software breakpoints have AddBreakpoint(ModuleNameAndOffset) that works before adapter creation
+	// - Hardware breakpoints only have AddHardwareBreakpoint(uint64_t) which requires absolute address
+	// This creates API asymmetry and prevents adding hardware breakpoints before target launch.
+	//
+	// Future refactoring options:
+	// 1. Add AddHardwareBreakpoint(ModuleNameAndOffset, type, size) overload for symmetry
+	// 2. Create unified BreakpointLocation struct that can represent both relative and absolute addressing
+	// 3. Merge AddBreakpoint and AddHardwareBreakpoint into single API with type parameter
+
+	if (ContainsHardwareBreakpoint(address, type, size))
+		return true;  // Already exists
+
+	// If adapter is connected, try to add there first - only add to internal storage if successful
+	if (m_state->GetAdapter() && m_state->IsConnected())
+	{
+		bool adapterResult = m_state->GetAdapter()->AddHardwareBreakpoint(address, type, size);
+		if (!adapterResult)
+			return false;  // Adapter failed, don't add to internal storage
+	}
+
+	// Add to internal storage (either adapter succeeded, or no adapter connected yet)
+	// Convert absolute address to module+offset for ASLR-safe storage (like AddAbsolute does for software breakpoints)
+	ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
+	BreakpointEntry bp;
+	bp.location = info;
+	bp.enabled = true;
+	bp.type = type;
+	bp.size = size;
+	bp.address = address;
+	bp.isRelative = true;
+	m_breakpoints.push_back(bp);
+	SerializeMetadata();
+
+	return true;
+}
+
+
+bool DebuggerBreakpoints::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	// Find and remove from our list - need to handle both relative and absolute breakpoints
+	for (auto iter = m_breakpoints.begin(); iter != m_breakpoints.end(); ++iter)
+	{
+		if (iter->IsHardware() && iter->type == type && iter->size == size)
+		{
+			bool matches = false;
+			if (iter->isRelative)
+			{
+				// Convert module+offset to absolute address and compare
+				uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(iter->location);
+				matches = (absolute == address);
+			}
+			else
+			{
+				matches = (iter->address == address);
+			}
+
+			if (matches)
+			{
+				m_breakpoints.erase(iter);
+				SerializeMetadata();
+				break;
+			}
+		}
+	}
+
+	// Remove from the adapter if connected
+	if (m_state->GetAdapter() && m_state->IsConnected())
+	{
+		return m_state->GetAdapter()->RemoveHardwareBreakpoint(address, type, size);
+	}
+
+	return true;
+}
+
+
+bool DebuggerBreakpoints::ContainsHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	// Similar to ContainsAbsolute, we need to handle both relative and absolute hardware breakpoints
+	// For relative hardware breakpoints, convert to absolute and compare
+	for (const BreakpointEntry& breakpoint : m_breakpoints)
+	{
+		if (breakpoint.IsHardware() && breakpoint.type == type && breakpoint.size == size)
+		{
+			if (breakpoint.isRelative)
+			{
+				// Convert module+offset to absolute address and compare
+				uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(breakpoint.location);
+				if (absolute == address)
+					return true;
+			}
+			else if (breakpoint.address == address)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+
+bool DebuggerBreakpoints::EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!ContainsHardwareBreakpoint(address, type, size))
+		return false;
+
+	// Find and enable the hardware breakpoint - need to handle both relative and absolute breakpoints
+	for (auto& bp : m_breakpoints)
+	{
+		if (bp.IsHardware() && bp.type == type && bp.size == size)
+		{
+			bool matches = false;
+			if (bp.isRelative)
+			{
+				uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(bp.location);
+				matches = (absolute == address);
+			}
+			else
+			{
+				matches = (bp.address == address);
+			}
+
+			if (matches)
+			{
+				bp.enabled = true;
+				break;
+			}
+		}
+	}
+	SerializeMetadata();
+
+	// If connected, make sure the breakpoint is active in the target
+	if (m_state->GetAdapter() && m_state->IsConnected())
+	{
+		return m_state->GetAdapter()->AddHardwareBreakpoint(address, type, size);
+	}
+	return true;
+}
+
+
+bool DebuggerBreakpoints::DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!ContainsHardwareBreakpoint(address, type, size))
+		return false;
+
+	// Find and disable the hardware breakpoint - need to handle both relative and absolute breakpoints
+	for (auto& bp : m_breakpoints)
+	{
+		if (bp.IsHardware() && bp.type == type && bp.size == size)
+		{
+			bool matches = false;
+			if (bp.isRelative)
+			{
+				uint64_t absolute = m_state->GetModules()->RelativeAddressToAbsolute(bp.location);
+				matches = (absolute == address);
+			}
+			else
+			{
+				matches = (bp.address == address);
+			}
+
+			if (matches)
+			{
+				bp.enabled = false;
+				break;
+			}
+		}
+	}
+	SerializeMetadata();
+
+	// If connected, remove the breakpoint from the target but keep it in our list
+	if (m_state->GetAdapter() && m_state->IsConnected())
+	{
+		return m_state->GetAdapter()->RemoveHardwareBreakpoint(address, type, size);
+	}
+	return true;
+}
+
+
+// ========== Hardware Breakpoint Module+Offset Methods (ASLR-safe) ==========
+
+bool DebuggerBreakpoints::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	if (ContainsHardwareBreakpoint(location, type, size))
+		return true;  // Already exists
+
+	// If adapter is connected, try to add there first - only add to internal storage if successful
+	if (m_state->GetAdapter() && m_state->IsConnected())
+	{
+		bool adapterResult = m_state->GetAdapter()->AddHardwareBreakpoint(location, type, size);
+		if (!adapterResult)
+			return false;  // Adapter failed, don't add to internal storage
+	}
+
+	// Add to internal storage (either adapter succeeded, or no adapter connected yet)
+	BreakpointEntry bp;
+	bp.location = location;
+	bp.enabled = true;
+	bp.type = type;
+	bp.size = size;
+	bp.isRelative = true;
+	m_breakpoints.push_back(bp);
+	SerializeMetadata();
+
+	return true;
+}
+
+
+bool DebuggerBreakpoints::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	// Remove from our list
+	auto iter = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [&](const BreakpointEntry& bp) {
+		return bp.IsHardware() && bp.location == location && bp.type == type && bp.size == size;
+	});
+	if (iter != m_breakpoints.end())
+	{
+		m_breakpoints.erase(iter);
+		SerializeMetadata();
+	}
+
+	// Remove from the adapter if connected
+	if (m_state->GetAdapter() && m_state->IsConnected())
+	{
+		// Call adapter with module+offset directly - adapter will handle resolution
+		return m_state->GetAdapter()->RemoveHardwareBreakpoint(location, type, size);
+	}
+
+	return true;
+}
+
+
+bool DebuggerBreakpoints::ContainsHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [&](const BreakpointEntry& bp) {
+		return bp.IsHardware() && bp.location == location && bp.type == type && bp.size == size;
+	}) != m_breakpoints.end();
+}
+
+
+bool DebuggerBreakpoints::EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	if (!ContainsHardwareBreakpoint(location, type, size))
+		return false;
+
+	// Find and enable the hardware breakpoint
+	auto iter = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [&](const BreakpointEntry& bp) {
+		return bp.IsHardware() && bp.location == location && bp.type == type && bp.size == size;
+	});
+	if (iter != m_breakpoints.end())
+	{
+		iter->enabled = true;
+	}
+	SerializeMetadata();
+
+	// If connected, make sure the breakpoint is active in the target
+	if (m_state->GetAdapter() && m_state->IsConnected())
+	{
+		// Call adapter with module+offset directly - adapter will handle resolution
+		return m_state->GetAdapter()->AddHardwareBreakpoint(location, type, size);
+	}
+	return true;
+}
+
+
+bool DebuggerBreakpoints::DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	if (!ContainsHardwareBreakpoint(location, type, size))
+		return false;
+
+	// Find and disable the hardware breakpoint
+	auto iter = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [&](const BreakpointEntry& bp) {
+		return bp.IsHardware() && bp.location == location && bp.type == type && bp.size == size;
+	});
+	if (iter != m_breakpoints.end())
+	{
+		iter->enabled = false;
+	}
+	SerializeMetadata();
+
+	// If connected, remove the breakpoint from the target but keep it in our list
+	if (m_state->GetAdapter() && m_state->IsConnected())
+	{
+		// Call adapter with module+offset directly - adapter will handle resolution
+		return m_state->GetAdapter()->RemoveHardwareBreakpoint(location, type, size);
+	}
+	return true;
+}
+
+
 void DebuggerBreakpoints::SerializeMetadata()
 {
 	std::vector<Ref<Metadata>> breakpoints;
 	for (const auto& bp : m_breakpoints)
 	{
 		std::map<std::string, Ref<Metadata>> info;
-		info["module"] = new Metadata(bp.address.module);
-		info["offset"] = new Metadata(bp.address.offset);
+		info["module"] = new Metadata(bp.location.module);
+		info["offset"] = new Metadata(bp.location.offset);
 		info["enabled"] = new Metadata(bp.enabled);
 
 		if (!bp.condition.empty())
@@ -806,8 +1097,8 @@ void DebuggerBreakpoints::UnserializedMetadata()
 			continue;
 
 		BreakpointEntry bp;
-		bp.address.module = info["module"]->GetString();
-		bp.address.offset = info["offset"]->GetUnsignedInteger();
+		bp.location.module = info["module"]->GetString();
+		bp.location.offset = info["offset"]->GetUnsignedInteger();
 		bp.enabled = (info["enabled"] && info["enabled"]->IsBoolean()) ? info["enabled"]->GetBoolean() : true;
 		bp.condition = (info["condition"] && info["condition"]->IsString()) ? info["condition"]->GetString() : "";
 
@@ -823,8 +1114,29 @@ void DebuggerBreakpoints::Apply()
 
 	for (const auto& bp : m_breakpoints)
 	{
-		if (bp.enabled)
-			m_state->GetAdapter()->AddBreakpoint(bp.address);
+		// Only apply enabled breakpoints
+		if (!bp.enabled)
+			continue;
+
+		if (bp.IsSoftware())
+		{
+			// Software breakpoints always use module+offset
+			m_state->GetAdapter()->AddBreakpoint(bp.location);
+		}
+		else
+		{
+			// Hardware breakpoints can use either module+offset or absolute address
+			if (bp.isRelative)
+			{
+				// Use module+offset - adapter will handle resolution
+				m_state->GetAdapter()->AddHardwareBreakpoint(bp.location, bp.type, bp.size);
+			}
+			else
+			{
+				// Use absolute address
+				m_state->GetAdapter()->AddHardwareBreakpoint(bp.address, bp.type, bp.size);
+			}
+		}
 	}
 }
 
@@ -1137,6 +1449,56 @@ void DebuggerState::DisableBreakpoint(uint64_t address)
 void DebuggerState::DisableBreakpoint(const ModuleNameAndOffset& address)
 {
 	m_breakpoints->DisableOffset(address);
+}
+
+
+bool DebuggerState::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	return m_breakpoints->AddHardwareBreakpoint(address, type, size);
+}
+
+
+bool DebuggerState::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	return m_breakpoints->RemoveHardwareBreakpoint(address, type, size);
+}
+
+
+bool DebuggerState::EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	return m_breakpoints->EnableHardwareBreakpoint(address, type, size);
+}
+
+
+bool DebuggerState::DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	return m_breakpoints->DisableHardwareBreakpoint(address, type, size);
+}
+
+
+// Hardware breakpoint methods - module+offset (ASLR-safe)
+
+bool DebuggerState::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return m_breakpoints->AddHardwareBreakpoint(location, type, size);
+}
+
+
+bool DebuggerState::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return m_breakpoints->RemoveHardwareBreakpoint(location, type, size);
+}
+
+
+bool DebuggerState::EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return m_breakpoints->EnableHardwareBreakpoint(location, type, size);
+}
+
+
+bool DebuggerState::DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	return m_breakpoints->DisableHardwareBreakpoint(location, type, size);
 }
 
 

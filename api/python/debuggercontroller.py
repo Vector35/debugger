@@ -15,6 +15,7 @@
 
 import ctypes
 import traceback
+from dataclasses import dataclass
 
 import binaryninja
 # import debugger
@@ -362,6 +363,7 @@ class DebugBreakpoints:
         return iter(self.breakpoints)
 
 
+@dataclass(frozen=True)
 class DebugBreakpoint:
     """
     DebugBreakpoint represents a breakpoint in the target. It has the following fields:
@@ -371,39 +373,37 @@ class DebugBreakpoint:
     * ``address``: the absolute address of the breakpoint
     * ``enabled``: whether the breakpoint is enabled (read-only)
     * ``condition``: the condition expression for the breakpoint (empty if no condition)
+    * ``type``: the type of breakpoint (Software, HardwareExecute, HardwareRead, HardwareWrite, HardwareAccess)
+    * ``size``: the size in bytes for hardware breakpoints/watchpoints (1, 2, 4, or 8)
 
     """
-    def __init__(self, module, offset, address, enabled, condition=""):
-        self.module = module
-        self.offset = offset
-        self.address = address
-        self.enabled = enabled
-        self.condition = condition
-
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        return self.module == other.module and self.offset == other.offset and self.address == other.address \
-               and self.enabled == other.enabled
-
-    def __ne__(self, other):
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        return not (self == other)
-
-    def __hash__(self):
-        return hash((self.module, self.offset, self.address, self.enabled))
-
-    def __setattr__(self, name, value):
-        try:
-            object.__setattr__(self, name, value)
-        except AttributeError:
-            raise AttributeError(f"attribute '{name}' is read only")
+    module: str
+    offset: int
+    address: int
+    enabled: bool
+    condition: str = ""
+    type: DebugBreakpointType = DebugBreakpointType.BNSoftwareBreakpoint
+    size: int = 1
 
     def __repr__(self):
         status = "enabled" if self.enabled else "disabled"
         cond_str = f", condition='{self.condition}'" if self.condition else ""
-        return f"<DebugBreakpoint: {self.module}:{self.offset:#x}, {self.address:#x}, {status}{cond_str}>"
+
+        # Get type string (S, HE, HR, HW, HA)
+        if self.type == DebugBreakpointType.BNSoftwareBreakpoint:
+            type_str = "S"
+        elif self.type == DebugBreakpointType.BNHardwareExecuteBreakpoint:
+            type_str = "HE"
+        elif self.type == DebugBreakpointType.BNHardwareReadBreakpoint:
+            type_str = "HR"
+        elif self.type == DebugBreakpointType.BNHardwareWriteBreakpoint:
+            type_str = "HW"
+        elif self.type == DebugBreakpointType.BNHardwareAccessBreakpoint:
+            type_str = "HA"
+        else:
+            type_str = "?"
+
+        return f"<DebugBreakpoint: {self.module}:{self.offset:#x}, {self.address:#x}, type={type_str}, {status}{cond_str}>"
 
 
 class ModuleNameAndOffset:
@@ -2059,7 +2059,8 @@ class DebuggerController:
         result = []
         for i in range(0, count.value):
             condition = breakpoints[i].condition if breakpoints[i].condition else ""
-            bp = DebugBreakpoint(breakpoints[i].module, breakpoints[i].offset, breakpoints[i].address, breakpoints[i].enabled, condition)
+            bp = DebugBreakpoint(breakpoints[i].module, breakpoints[i].offset, breakpoints[i].address,
+                                 breakpoints[i].enabled, condition, breakpoints[i].type, breakpoints[i].size)
             result.append(bp)
 
         dbgcore.BNDebuggerFreeBreakpoints(breakpoints, count.value)
@@ -2094,6 +2095,46 @@ class DebuggerController:
             dbgcore.BNDebuggerAddAbsoluteBreakpoint(self.handle, address)
         elif isinstance(address, ModuleNameAndOffset):
             dbgcore.BNDebuggerAddRelativeBreakpoint(self.handle, address.module, address.offset)
+        else:
+            raise NotImplementedError
+
+    def add_hardware_breakpoint(self, address, bp_type: DebugBreakpointType, size: int = 1) -> bool:
+        """
+        Add a hardware breakpoint
+
+        The input can be either an absolute address, or a ModuleNameAndOffset, which specifies a relative address to the
+        start of a module. The latter is useful for ASLR.
+
+        :param address: the address of breakpoint to add
+        :param bp_type: the type of hardware breakpoint (DebugBreakpointType.BNHardwareExecuteBreakpoint,
+                        BNHardwareReadBreakpoint, BNHardwareWriteBreakpoint, or BNHardwareAccessBreakpoint)
+        :param size: the size in bytes for the watchpoint (1, 2, 4, or 8)
+        :return: True if successful, False otherwise
+        """
+        if isinstance(address, int):
+            return dbgcore.BNDebuggerAddHardwareBreakpoint(self.handle, address, bp_type, size)
+        elif isinstance(address, ModuleNameAndOffset):
+            return dbgcore.BNDebuggerAddRelativeHardwareBreakpoint(self.handle, address.module, address.offset, bp_type, size)
+        else:
+            raise NotImplementedError
+
+    def delete_hardware_breakpoint(self, address, bp_type: DebugBreakpointType, size: int = 1) -> bool:
+        """
+        Delete a hardware breakpoint
+
+        The input can be either an absolute address, or a ModuleNameAndOffset, which specifies a relative address to the
+        start of a module. The latter is useful for ASLR.
+
+        :param address: the address of breakpoint to delete
+        :param bp_type: the type of hardware breakpoint (DebugBreakpointType.BNHardwareExecuteBreakpoint,
+                        BNHardwareReadBreakpoint, BNHardwareWriteBreakpoint, or BNHardwareAccessBreakpoint)
+        :param size: the size in bytes for the watchpoint (1, 2, 4, or 8)
+        :return: True if successful, False otherwise
+        """
+        if isinstance(address, int):
+            return dbgcore.BNDebuggerRemoveHardwareBreakpoint(self.handle, address, bp_type, size)
+        elif isinstance(address, ModuleNameAndOffset):
+            return dbgcore.BNDebuggerRemoveRelativeHardwareBreakpoint(self.handle, address.module, address.offset, bp_type, size)
         else:
             raise NotImplementedError
 

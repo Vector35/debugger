@@ -301,6 +301,10 @@ void GdbMiAdapter::ScheduleStateRefresh()
             UpdateThreadList();
             UpdateAllRegisters();
             UpdateStackFrames(m_currentTid);
+            // Apply any pending breakpoints that were added while target was running
+            // or couldn't be resolved earlier (modules not loaded yet)
+            ApplyBreakpoints();
+            ApplyPendingHardwareBreakpoints();
         }
 
         DebuggerEvent ev;
@@ -544,6 +548,7 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
 
 	LogInfo("Applying breakpoints...");
 	ApplyBreakpoints();
+	ApplyPendingHardwareBreakpoints();
 
     return true;
 }
@@ -719,17 +724,27 @@ DebugBreakpoint GdbMiAdapter::AddBreakpoint(std::uintptr_t address, unsigned lon
 DebugBreakpoint GdbMiAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type) {
 	if (!m_mi)
 	{
+		// Not connected yet - add to pending list
 		if (std::ranges::find(m_pendingBreakpoints, address) == m_pendingBreakpoints.end())
 			m_pendingBreakpoints.push_back(address);
+		return {};
 	}
-    else
-    {
-        uint64_t addr = address.offset + m_originalImageBase;
-        
-        AddBreakpoint(addr, breakpoint_type);
-    }
 
-	return {};
+	// Try to resolve the module base address
+	uint64_t base{};
+	if (GetModuleBase(address.module, base))
+	{
+		// Module is loaded - resolve to absolute address
+		uint64_t addr = base + address.offset;
+		return AddBreakpoint(addr, breakpoint_type);
+	}
+	else
+	{
+		// Module not loaded yet - add to pending list for deferred application
+		if (std::ranges::find(m_pendingBreakpoints, address) == m_pendingBreakpoints.end())
+			m_pendingBreakpoints.push_back(address);
+		return {};
+	}
 }
 
 bool GdbMiAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint) {
@@ -1083,6 +1098,198 @@ bool GdbMiAdapter::SupportFeature(DebugAdapterCapacity feature) {
     }
 }
 
+bool GdbMiAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (m_targetRunningAtomic || !m_mi)
+	{
+		// Cache the hardware breakpoint to be applied when target stops or connector becomes available
+		PendingHardwareBreakpoint pending(address, type, size);
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
+
+	std::string command;
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+			// Hardware execution breakpoint: -break-insert -h *0xADDRESS
+			command = fmt::format("-break-insert -h *0x{:x}", address);
+			break;
+		case HardwareReadBreakpoint:
+			// Hardware read watchpoint: -break-watch -r *((char[SIZE]*)0xADDRESS)
+			command = fmt::format("-break-watch -r *((char[{}]*)0x{:x})", size, address);
+			break;
+		case HardwareWriteBreakpoint:
+			// Hardware write watchpoint: -break-watch *((char[SIZE]*)0xADDRESS)
+			command = fmt::format("-break-watch *((char[{}]*)0x{:x})", size, address);
+			break;
+		case HardwareAccessBreakpoint:
+			// Hardware access watchpoint: -break-watch -a *((char[SIZE]*)0xADDRESS)
+			command = fmt::format("-break-watch -a *((char[{}]*)0x{:x})", size, address);
+			break;
+		default:
+			return false;
+	}
+
+	LogDebug("GdbMiAdapter: %s", command.c_str());
+	auto result = m_mi->SendCommand(command);
+	if (result.command == "done")
+	{
+		DebuggerEvent evt;
+		evt.type = BackendMessageEventType;
+		evt.data.messageData.message = result.payload;
+		PostDebuggerEvent(evt);
+		return true;
+	}
+
+	LogWarn("Failed to set hardware breakpoint at 0x%" PRIx64 ": %s", address, result.fullLine.c_str());
+	return false;
+}
+
+bool GdbMiAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (m_targetRunningAtomic || !m_mi)
+	{
+		// Remove from pending list if target is running or connector not available
+		PendingHardwareBreakpoint pending(address, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+		return false;
+	}
+
+	// Get breakpoint list and find matching hardware breakpoint by address
+	auto breakpoints = GetBreakpointList();
+	int removed = 0;
+	for (const auto& bp : breakpoints)
+	{
+		if (bp.m_address == address)
+		{
+			auto result = m_mi->SendCommand(fmt::format("-break-delete {}", bp.m_id));
+			if (result.command == "done")
+			{
+				DebuggerEvent evt;
+				evt.type = BackendMessageEventType;
+				evt.data.messageData.message = result.payload;
+				PostDebuggerEvent(evt);
+				removed++;
+			}
+		}
+	}
+
+	if (removed == 0)
+	{
+		LogWarn("Failed to remove hardware breakpoint at 0x%" PRIx64, address);
+		return false;
+	}
+	return true;
+}
+
+bool GdbMiAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	uint64_t base{};
+	if (GetModuleBase(location.module, base))
+	{
+		// Module is loaded - resolve to absolute address and delegate
+		uint64_t address = base + location.offset;
+		return AddHardwareBreakpoint(address, type, size);
+	}
+	else
+	{
+		// Module not loaded yet - add to pending list with module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		// Also populate the address field for UI display purposes
+		pending.address = location.offset + m_originalImageBase;
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
+}
+
+bool GdbMiAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	uint64_t base{};
+	if (GetModuleBase(location.module, base))
+	{
+		// Module is loaded - resolve to absolute address and delegate
+		uint64_t address = base + location.offset;
+		return RemoveHardwareBreakpoint(address, type, size);
+	}
+	else
+	{
+		// Module not loaded yet - remove from pending list using module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+		return false;
+	}
+}
+
+bool GdbMiAdapter::GetModuleBase(const std::string& moduleName, uint64_t& base)
+{
+	if (moduleName.empty())
+	{
+		base = 0;
+		return true;
+	}
+
+	auto modules = GetModuleList();
+	for (const auto& module : modules)
+	{
+		if (module.IsSameBaseModule(moduleName))
+		{
+			base = module.m_address;
+			return true;
+		}
+	}
+
+	base = 0;
+	return false;
+}
+
+void GdbMiAdapter::ApplyPendingHardwareBreakpoints()
+{
+	// Apply pending hardware breakpoints that were added before the target stopped
+	// Only remove from the list if the breakpoint was successfully added
+	for (auto it = m_pendingHardwareBreakpoints.begin(); it != m_pendingHardwareBreakpoints.end(); )
+	{
+		bool success = false;
+		if (it->isRelative)
+		{
+			// Module+offset based hardware breakpoint
+			success = AddHardwareBreakpoint(it->location, it->type, it->size);
+		}
+		else
+		{
+			// Absolute address hardware breakpoint
+			success = AddHardwareBreakpoint(it->address, it->type, it->size);
+		}
+
+		if (success)
+		{
+			it = m_pendingHardwareBreakpoints.erase(it);
+		}
+		else
+		{
+			it++;
+		}
+	}
+}
+
 // --- Adapter Type Registration ---
 GdbMiAdapterType::GdbMiAdapterType() : DebugAdapterType("GDB MI") {}
 
@@ -1162,11 +1369,23 @@ Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
 
 void GdbMiAdapter::ApplyBreakpoints()
 {
-	for (const auto& bp : m_pendingBreakpoints)
+	// Apply pending breakpoints
+	// Only remove from the list if the breakpoint was successfully added
+	for (auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end(); )
 	{
-		AddBreakpoint(bp, 0);
+		uint64_t base{};
+		if (GetModuleBase(it->module, base))
+		{
+			uint64_t addr = base + it->offset;
+			// Only remove if breakpoint was successfully set
+			if (AddBreakpoint(addr, 0).m_address != 0)
+			{
+				it = m_pendingBreakpoints.erase(it);
+				continue;
+			}
+		}
+		it++;
 	}
-	m_pendingBreakpoints.clear();
 }
 
 
