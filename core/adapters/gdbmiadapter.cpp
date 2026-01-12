@@ -1264,20 +1264,28 @@ bool GdbMiAdapter::GetModuleBase(const std::string& moduleName, uint64_t& base)
 void GdbMiAdapter::ApplyPendingHardwareBreakpoints()
 {
 	// Apply pending hardware breakpoints that were added before the target stopped
-	std::vector<PendingHardwareBreakpoint> pendingCopy = m_pendingHardwareBreakpoints;
-	m_pendingHardwareBreakpoints.clear();
-
-	for (const auto& pending : pendingCopy)
+	// Only remove from the list if the breakpoint was successfully added
+	for (auto it = m_pendingHardwareBreakpoints.begin(); it != m_pendingHardwareBreakpoints.end(); )
 	{
-		if (pending.isRelative)
+		bool success = false;
+		if (it->isRelative)
 		{
 			// Module+offset based hardware breakpoint
-			AddHardwareBreakpoint(pending.location, pending.type, pending.size);
+			success = AddHardwareBreakpoint(it->location, it->type, it->size);
 		}
 		else
 		{
 			// Absolute address hardware breakpoint
-			AddHardwareBreakpoint(pending.address, pending.type, pending.size);
+			success = AddHardwareBreakpoint(it->address, it->type, it->size);
+		}
+
+		if (success)
+		{
+			it = m_pendingHardwareBreakpoints.erase(it);
+		}
+		else
+		{
+			it++;
 		}
 	}
 }
@@ -1361,14 +1369,22 @@ Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
 
 void GdbMiAdapter::ApplyBreakpoints()
 {
-	// Make a copy and clear the original list - AddBreakpoint will re-add
-	// any breakpoints that can't be resolved yet
-	std::vector<ModuleNameAndOffset> pendingCopy = m_pendingBreakpoints;
-	m_pendingBreakpoints.clear();
-
-	for (const auto& bp : pendingCopy)
+	// Apply pending breakpoints
+	// Only remove from the list if the breakpoint was successfully added
+	for (auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end(); )
 	{
-		AddBreakpoint(bp, 0);
+		uint64_t base{};
+		if (GetModuleBase(it->module, base))
+		{
+			uint64_t addr = base + it->offset;
+			// Only remove if breakpoint was successfully set
+			if (AddBreakpoint(addr, 0).m_address != 0)
+			{
+				it = m_pendingBreakpoints.erase(it);
+				continue;
+			}
+		}
+		it++;
 	}
 }
 
