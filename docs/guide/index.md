@@ -624,6 +624,7 @@ controller.remove_hardware_breakpoint(0x12345678, DebugBreakpointType.HardwareEx
 ```
 
 The supported breakpoint types are:
+
 - `SoftwareBreakpoint`: Regular software breakpoint (default)
 - `HardwareExecuteBreakpoint`: Hardware execution breakpoint
 - `HardwareReadBreakpoint`: Hardware read watchpoint
