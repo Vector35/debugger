@@ -15,6 +15,7 @@
 
 import ctypes
 import traceback
+from dataclasses import dataclass
 
 import binaryninja
 # import debugger
@@ -362,6 +363,7 @@ class DebugBreakpoints:
         return iter(self.breakpoints)
 
 
+@dataclass(frozen=True)
 class DebugBreakpoint:
     """
     DebugBreakpoint represents a breakpoint in the target. It has the following fields:
@@ -375,35 +377,13 @@ class DebugBreakpoint:
     * ``size``: the size in bytes for hardware breakpoints/watchpoints (1, 2, 4, or 8)
 
     """
-    def __init__(self, module, offset, address, enabled, condition="", bp_type=DebugBreakpointType.BNSoftwareBreakpoint, size=1):
-        self.module = module
-        self.offset = offset
-        self.address = address
-        self.enabled = enabled
-        self.condition = condition
-        self.type = bp_type
-        self.size = size
-
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        return self.module == other.module and self.offset == other.offset and self.address == other.address \
-               and self.enabled == other.enabled and self.type == other.type and self.size == other.size \
-               and self.condition == other.condition
-
-    def __ne__(self, other):
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        return not (self == other)
-
-    def __hash__(self):
-        return hash((self.module, self.offset, self.address, self.enabled, self.type, self.size, self.condition))
-
-    def __setattr__(self, name, value):
-        try:
-            object.__setattr__(self, name, value)
-        except AttributeError:
-            raise AttributeError(f"attribute '{name}' is read only")
+    module: str
+    offset: int
+    address: int
+    enabled: bool
+    condition: str = ""
+    type: DebugBreakpointType = DebugBreakpointType.BNSoftwareBreakpoint
+    size: int = 1
 
     def __repr__(self):
         status = "enabled" if self.enabled else "disabled"
