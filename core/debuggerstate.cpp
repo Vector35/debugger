@@ -1114,6 +1114,10 @@ void DebuggerBreakpoints::Apply()
 
 	for (const auto& bp : m_breakpoints)
 	{
+		// Only apply enabled breakpoints
+		if (!bp.enabled)
+			continue;
+
 		if (bp.IsSoftware())
 		{
 			// Software breakpoints always use module+offset
@@ -1121,10 +1125,6 @@ void DebuggerBreakpoints::Apply()
 		}
 		else
 		{
-			// Hardware breakpoints - only add if enabled
-			if (!bp.enabled)
-				continue;
-
 			// Hardware breakpoints can use either module+offset or absolute address
 			if (bp.isRelative)
 			{
