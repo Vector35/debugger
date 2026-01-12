@@ -56,8 +56,9 @@ namespace BinaryNinjaDebugger {
 		bool m_userRequestedQuit = false;
 
 		// Helper to resolve module+offset to absolute address
-		// Looks up the module in the loaded module list, falls back to m_originalImageBase if not found
-		uint64_t ResolveModuleAddress(const ModuleNameAndOffset& location);
+		// Returns true if the module was found in the loaded module list and address was resolved
+		// Returns false if the module was not found (caller should fall back to module+offset handling)
+		bool ResolveModuleAddress(const ModuleNameAndOffset& location, uint64_t& address);
 
 	public:
 		LldbAdapter(BinaryView* data);

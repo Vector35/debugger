@@ -975,7 +975,7 @@ DebugBreakpoint LldbAdapter::AddBreakpoint(const std::uintptr_t address, unsigne
 }
 
 
-uint64_t LldbAdapter::ResolveModuleAddress(const ModuleNameAndOffset& location)
+bool LldbAdapter::ResolveModuleAddress(const ModuleNameAndOffset& location, uint64_t& address)
 {
 	// Try to find the module in the loaded module list
 	auto modules = GetModuleList();
@@ -983,12 +983,13 @@ uint64_t LldbAdapter::ResolveModuleAddress(const ModuleNameAndOffset& location)
 	{
 		if (module.IsSameBaseModule(location.module))
 		{
-			return module.m_address + location.offset;
+			address = module.m_address + location.offset;
+			return true;
 		}
 	}
 
-	// Fallback to using the original image base (for the main module or when module not found)
-	return location.offset + m_originalImageBase;
+	// Module not found - caller should fall back to module+offset handling
+	return false;
 }
 
 
@@ -1078,6 +1079,16 @@ bool LldbAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType ty
 	{
 		case HardwareExecuteBreakpoint:
 		{
+			// Hardware execution breakpoints are not implemented in LLDB on x86/x64 Linux
+			// The underlying NativeRegisterContextDBReg_x86 only implements watchpoints, not breakpoints
+			// See: https://github.com/llvm/llvm-project/issues/XXXXX (to be filed)
+			std::string arch = GetTargetArchitecture();
+			if (arch == "x86_64" || arch == "i386")
+			{
+				LogWarn("Hardware execution breakpoints are not supported on x86/x64 with LLDB");
+				return false;
+			}
+
 			// Use LLDB command to set hardware execution breakpoint
 			std::string command = fmt::format("breakpoint set --address 0x{:x} -H", address);
 			auto result = InvokeBackendCommand(command);
@@ -1202,16 +1213,37 @@ bool LldbAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, Deb
 	}
 	else
 	{
-		// Target is active - resolve module+offset to absolute address
-		uint64_t addr = ResolveModuleAddress(location);
-		std::string command;
+		// Target is active - try to resolve module+offset to absolute address
+		uint64_t addr;
+		bool resolved = ResolveModuleAddress(location, addr);
 
 		switch (type)
 		{
 			case HardwareExecuteBreakpoint:
 			{
-				// Use breakpoint set with module and address, plus -H for hardware
-				command = fmt::format("breakpoint set --shlib \"{}\" --address 0x{:x} -H", location.module, addr);
+				// Hardware execution breakpoints are not implemented in LLDB on x86/x64 Linux
+				// The underlying NativeRegisterContextDBReg_x86 only implements watchpoints, not breakpoints
+				// See: https://github.com/llvm/llvm-project/issues/XXXXX (to be filed)
+				std::string arch = GetTargetArchitecture();
+				if (arch == "x86_64" || arch == "i386")
+				{
+					LogWarn("Hardware execution breakpoints are not supported on x86/x64 with LLDB");
+					return false;
+				}
+
+				std::string command;
+				if (resolved)
+				{
+					// Module was resolved - use absolute address
+					command = fmt::format("breakpoint set --address 0x{:x} -H", addr);
+				}
+				else
+				{
+					// Module not resolved - use module+offset syntax
+					// Calculate address relative to original image base for LLDB
+					addr = location.offset + m_originalImageBase;
+					command = fmt::format("breakpoint set --shlib \"{}\" --address 0x{:x} -H", location.module, addr);
+				}
 				auto result = InvokeBackendCommand(command);
 				return result.find("Breakpoint") != std::string::npos;
 			}
@@ -1219,9 +1251,21 @@ bool LldbAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, Deb
 			case HardwareWriteBreakpoint:
 			case HardwareAccessBreakpoint:
 			{
-				// For watchpoints, we need to resolve to absolute address first
+				// For watchpoints, we need an absolute address
 				// LLDB watchpoints don't have direct module+offset syntax
-				// So we delegate to the absolute address version
+				if (!resolved)
+				{
+					// If module not resolved, we can't set the watchpoint yet
+					// Add to pending list
+					PendingHardwareBreakpoint pending(location, type, size);
+					pending.address = location.offset + m_originalImageBase;
+					if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+						== m_pendingHardwareBreakpoints.end())
+					{
+						m_pendingHardwareBreakpoints.push_back(pending);
+					}
+					return true;
+				}
 				return AddHardwareBreakpoint(addr, type, size);
 			}
 			default:
@@ -1261,9 +1305,14 @@ bool LldbAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, 
 	}
 	else
 	{
-		// Target is active - resolve module+offset to absolute address and remove
-		uint64_t address = ResolveModuleAddress(location);
-		return RemoveHardwareBreakpoint(address, type, size);
+		// Target is active - try to resolve module+offset to absolute address and remove
+		uint64_t address;
+		if (ResolveModuleAddress(location, address))
+		{
+			return RemoveHardwareBreakpoint(address, type, size);
+		}
+		// Module not resolved - cannot remove (it may be in pending list)
+		return false;
 	}
 }
 
