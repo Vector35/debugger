@@ -41,10 +41,16 @@ endif()
 
 add_subdirectory(core)
 add_subdirectory(api)
+
 if(NOT HEADLESS)
 	add_subdirectory(ui)
 endif()
 
 if (NOT DEMO)
 	add_subdirectory(cli)
+endif()
+
+# WinDbg installer CLI (standalone, spawned by debuggercore API)
+if(WIN32)
+	add_subdirectory(installer)
 endif()

@@ -12,9 +12,10 @@ list(FILTER SOURCES EXCLUDE REGEX qrc_.*)
 if (NOT WIN32)
     list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/ttdrecord.h)
     list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/ttdrecord.cpp)
-else()
-    list(APPEND SOURCES ${PROJECT_SOURCE_DIR}/../vendor/pugixml/pugixml.cpp)
-    list(APPEND SOURCES ${PROJECT_SOURCE_DIR}/../vendor/pugixml/pugixml.hpp)
+    list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/windbgupdatedialog.h)
+    list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/windbgupdatedialog.cpp)
+    list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/install_windbg.h)
+    list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/install_windbg.cpp)
 endif ()
 
 if(DEMO)
@@ -46,5 +47,6 @@ set_target_properties(debuggerui PROPERTIES
 target_link_libraries(debuggerui debuggerapi binaryninjaui Qt6::Core Qt6::Gui Qt6::Widgets)
 
 if(WIN32)
-    target_link_libraries(debuggerui urlmon.lib shell32.lib ole32.lib)
+    # shell32 and ole32 for UI functionality
+    target_link_libraries(debuggerui shell32.lib ole32.lib)
 endif()

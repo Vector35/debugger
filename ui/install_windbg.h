@@ -19,24 +19,38 @@ limitations under the License.
 #ifdef WIN32
 
 #include <string>
-#include <functional>
 
 namespace BinaryNinjaDebugger
 {
-	/// Progress callback function type for installation progress updates
-	/// @param step Current step description (e.g., "Downloading...", "Extracting...")
-	/// @param progress Progress percentage (0-100), or -1 for indeterminate
-	using InstallProgressCallback = std::function<void(const std::string& step, int progress)>;
+	/// Result of WinDbg installation
+	struct InstallResult
+	{
+		bool success;
+		std::string errorMessage;  // Empty if success, otherwise describes the error
 
-	/// Install WinDbg/TTD by downloading and extracting the MSIX package
-	/// @param progressCallback Optional callback for progress updates
-	/// @return true if installation was successful, false otherwise
-	bool InstallWinDbg(InstallProgressCallback progressCallback = nullptr);
+		InstallResult() : success(false) {}
+		InstallResult(bool s, const std::string& err = "") : success(s), errorMessage(err) {}
+	};
+
+	/// Install WinDbg/TTD by launching the installer CLI
+	/// @param installPath Custom install path (empty = default)
+	/// @param isUpdate If true, CLI will wait for Binary Ninja to exit first
+	/// @return InstallResult with success status and error message if failed
+	InstallResult InstallWinDbg(const std::string& installPath = "", bool isUpdate = false);
 
 	/// Check if WinDbg/TTD installation is valid at the given path
 	/// @param path Path to check for required WinDbg/TTD files
 	/// @return true if all required files are present, false otherwise
 	bool CheckInstallOk(const std::string& path);
+
+	/// Get the version of installed WinDbg
+	/// @param installPath Path to check (empty = default)
+	/// @return Version string (e.g., "1.2404.24002.0"), or empty if not installed
+	std::string GetInstalledVersion(const std::string& installPath = "");
+
+	/// Get the latest available WinDbg version from Microsoft
+	/// @return Version string, or empty on error
+	std::string GetLatestVersion();
 }
 
 #endif // WIN32
