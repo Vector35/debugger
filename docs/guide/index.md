@@ -490,6 +490,7 @@ controller.remove_hardware_breakpoint(0x401000, DebugBreakpointType.HardwareExec
 ```
 
 The available breakpoint types are:
+
 - `DebugBreakpointType.HardwareExecuteBreakpoint` - Execution breakpoint
 - `DebugBreakpointType.HardwareReadBreakpoint` - Read watchpoint
 - `DebugBreakpointType.HardwareWriteBreakpoint` - Write watchpoint
