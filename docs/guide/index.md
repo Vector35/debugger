@@ -89,13 +89,30 @@ An experimental feature is added to shorten the list: registers with a value of 
 
 ![](../../img/debugger/breakpointwidget.png)
 
-The breakpoint widget lists breakpoints in the target. There are three columns: the left one shows the address in the format of `module + offset`, the middle column shows the absolute address, and the right column shows the condition (if any).
+The breakpoint widget lists breakpoints in the target. The columns are:
+
+- **E (Enabled)**: Checkbox indicating whether the breakpoint is enabled. Click to toggle.
+- **Location**: The address in the format of `module + offset`
+- **Remote Address**: The absolute address in memory
+- **Type**: The breakpoint type:
+  - `S` - Software breakpoint
+  - `HE` - Hardware execution breakpoint
+  - `HR` - Hardware read watchpoint
+  - `HW` - Hardware write watchpoint
+  - `HA` - Hardware access (read/write) watchpoint
+- **Condition**: The conditional expression (if any)
 
 The context menu of the widget offers several options:
 
 - **Jump to Breakpoint**: Navigate to the breakpoint address
 - **Remove Breakpoint**: Delete the selected breakpoint
-- **Edit Condition**: Set or modify a conditional expression for the breakpoint
+- **Add Breakpoint...**: Add a new software breakpoint at a specified address
+- **Add Hardware Breakpoint...**: Open the hardware breakpoint dialog to add a hardware breakpoint or watchpoint
+- **Toggle Enabled**: Enable or disable the selected breakpoint(s)
+- **Edit Condition...**: Set or modify a conditional expression for the breakpoint
+- **Enable All Breakpoints**: Enable all breakpoints
+- **Disable All Breakpoints**: Disable all breakpoints
+- **Solo Breakpoint**: Disable all breakpoints except the selected one
 
 ##### Conditional Breakpoints
 
@@ -182,9 +199,9 @@ On macOS and Linux, the default setting redirects the stdin/stdout here. However
 ![](../../img/debugger/debuggerconsole.png)
 
 The debugger console allows the user to execute backend commands and get the result. Feel free to use it if you are
-more comfortable with issuing LLDB/WinDbg commands rather than clicking the buttons. It can also be helpful when
-certain features do not yet have a first-class UI (e.g., hardware breakpoints), but can be done via a backend command.
-For some useful ones, see the [docs](#running-debug-adapter-backend-commands) below.
+more comfortable with issuing LLDB/WinDbg commands rather than clicking the buttons. It can also be helpful for
+advanced debugging scenarios or when you need features specific to the backend.
+For some useful commands, see the [docs](#running-debug-adapter-backend-commands) below.
 
 On Linux and macOS, the backend is based on LLDB and the console accepts LLDB commands.
 
@@ -418,6 +435,67 @@ There are several ways to launch the target:
 - Run `dbg.add_breakpoint(address)` or `dbg.delete_breakpoint(address)` in the Python console.
 
 
+### Add/Remove Hardware Breakpoints
+
+Hardware breakpoints use CPU debug registers to monitor code execution or memory access without modifying the target's code. They are useful when:
+
+- Debugging read-only memory or code that checksums itself
+- Watching for memory reads/writes at specific addresses (watchpoints)
+- The target detects software breakpoints
+
+**Note:** Hardware breakpoints are a limited resource. Most CPUs support only 4 hardware breakpoints/watchpoints simultaneously.
+
+#### Using the UI
+
+![](../../img/debugger/hardware_breakpoint_dialog.png)
+
+1. Press `F3` or select `Debugger` -> `Add Hardware Breakpoint...` from the menu
+2. Alternatively, right-click in the Breakpoint Widget and select `Add Hardware Breakpoint...`
+3. In the dialog, configure:
+   - **Address**: The memory address for the breakpoint (hexadecimal)
+   - **Type**: The type of hardware breakpoint:
+     - `Hardware Execute` - Break when code at the address is executed
+     - `Hardware Read` - Break when the address is read (watchpoint)
+     - `Hardware Write` - Break when the address is written (watchpoint)
+     - `Hardware Access` - Break on both read and write (watchpoint)
+   - **Size**: For watchpoints, the size of the memory region to monitor (1, 2, 4, or 8 bytes)
+4. Click OK to add the breakpoint
+
+The dialog automatically suggests `Hardware Execute` for code addresses and `Hardware Read` for data addresses.
+
+Hardware breakpoints appear in the Breakpoint Widget with their type indicated in the Type column (`HE`, `HR`, `HW`, or `HA`).
+
+#### Using the API
+
+```python
+from binaryninja.debugger import DebuggerController, DebugBreakpointType
+
+# Get the debugger controller
+controller = DebuggerController(bv)
+
+# Add hardware execution breakpoint
+controller.add_hardware_breakpoint(0x401000, DebugBreakpointType.HardwareExecuteBreakpoint)
+
+# Add hardware read watchpoint (4 bytes)
+controller.add_hardware_breakpoint(0x601000, DebugBreakpointType.HardwareReadBreakpoint, 4)
+
+# Add hardware write watchpoint (8 bytes)
+controller.add_hardware_breakpoint(0x601000, DebugBreakpointType.HardwareWriteBreakpoint, 8)
+
+# Add hardware access watchpoint (read/write, 4 bytes)
+controller.add_hardware_breakpoint(0x601000, DebugBreakpointType.HardwareAccessBreakpoint, 4)
+
+# Remove hardware breakpoint
+controller.remove_hardware_breakpoint(0x401000, DebugBreakpointType.HardwareExecuteBreakpoint)
+```
+
+The available breakpoint types are:
+- `DebugBreakpointType.HardwareExecuteBreakpoint` - Execution breakpoint
+- `DebugBreakpointType.HardwareReadBreakpoint` - Read watchpoint
+- `DebugBreakpointType.HardwareWriteBreakpoint` - Write watchpoint
+- `DebugBreakpointType.HardwareAccessBreakpoint` - Read/write watchpoint
+
+
 ### Set Conditional Breakpoints
 
 Conditional breakpoints pause execution only when a specified condition is true. This is useful for debugging loops or functions that are called many times, but you only want to stop under certain circumstances.
@@ -595,45 +673,13 @@ dbg.execute_backend_command('image list')
 
 ### Hardware Breakpoints/Watchpoints
 
-Hardware breakpoints and watchpoints are now supported through both the debugger API and direct backend commands.
+Hardware breakpoints and watchpoints are supported through the debugger UI, API, and direct backend commands.
 
-#### Using the Debugger API
-
-Hardware breakpoints can be set using the following methods in Python:
-
-```python
-from debugger import DebuggerController, DebugBreakpointType
-
-# Get the controller for your binary view
-controller = DebuggerController(bv)
-
-# Set hardware execution breakpoint
-controller.add_hardware_breakpoint(0x12345678, DebugBreakpointType.HardwareExecuteBreakpoint)
-
-# Set hardware read watchpoint (1 byte)
-controller.add_hardware_breakpoint(0x12345678, DebugBreakpointType.HardwareReadBreakpoint, 1)
-
-# Set hardware write watchpoint (4 bytes)
-controller.add_hardware_breakpoint(0x12345678, DebugBreakpointType.HardwareWriteBreakpoint, 4)
-
-# Set hardware access (read/write) watchpoint (8 bytes)
-controller.add_hardware_breakpoint(0x12345678, DebugBreakpointType.HardwareAccessBreakpoint, 8)
-
-# Remove hardware breakpoint
-controller.remove_hardware_breakpoint(0x12345678, DebugBreakpointType.HardwareExecuteBreakpoint)
-```
-
-The supported breakpoint types are:
-
-- `SoftwareBreakpoint`: Regular software breakpoint (default)
-- `HardwareExecuteBreakpoint`: Hardware execution breakpoint
-- `HardwareReadBreakpoint`: Hardware read watchpoint
-- `HardwareWriteBreakpoint`: Hardware write watchpoint
-- `HardwareAccessBreakpoint`: Hardware read/write watchpoint
+For most use cases, the UI provides the easiest way to add hardware breakpoints - see the [Add/Remove Hardware Breakpoints](#addremove-hardware-breakpoints) section above.
 
 #### Using Backend Commands
 
-For cases where you need more control or the API is not available, you can use backend commands directly.
+For advanced use cases or when you need more control, you can use backend commands directly in the Debugger Console.
 
 #### WinDbg/DbgEng
 

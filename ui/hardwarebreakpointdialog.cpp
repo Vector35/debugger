@@ -23,7 +23,7 @@ HardwareBreakpointDialog::HardwareBreakpointDialog(QWidget* parent, DbgRef<Debug
 {
 	setWindowTitle("Add Hardware Breakpoint");
 	setModal(true);
-	resize(400, 200);
+	resize(350, 150);
 
 	// Create form layout
 	QFormLayout* formLayout = new QFormLayout();
@@ -68,12 +68,6 @@ HardwareBreakpointDialog::HardwareBreakpointDialog(QWidget* parent, DbgRef<Debug
 	m_sizeCombo->addItem("8", 8);
 	m_sizeCombo->setCurrentIndex(0);
 	formLayout->addRow("Size:", m_sizeCombo);
-
-	// Help label
-	m_helpLabel = new QLabel();
-	m_helpLabel->setWordWrap(true);
-	m_helpLabel->setStyleSheet("QLabel { color: gray; font-size: 10px; }");
-	formLayout->addRow(m_helpLabel);
 
 	// Button box
 	m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
@@ -175,18 +169,9 @@ void HardwareBreakpointDialog::validateInput()
 {
 	uint64_t address = getAddress();
 	bool valid = (address != 0);
-	
+
 	m_buttonBox->button(QDialogButtonBox::Ok)->setEnabled(valid);
-	
-	if (!valid && !m_addressEdit->text().isEmpty())
-	{
-		m_helpLabel->setText("Please enter a valid hexadecimal address (e.g., 0x401000)");
-		m_helpLabel->setStyleSheet("QLabel { color: red; font-size: 10px; }");
-	}
-	else
-	{
-		typeChanged(); // Update help text
-	}
+	typeChanged();
 }
 
 void HardwareBreakpointDialog::typeChanged()
@@ -197,28 +182,7 @@ void HardwareBreakpointDialog::typeChanged()
 	bool needSize = (type != HardwareExecuteBreakpoint);
 	m_sizeCombo->setEnabled(needSize);
 
-	// Update help text
-	QString helpText;
-	switch (type)
-	{
-		case HardwareExecuteBreakpoint:
-			helpText = "Hardware execution breakpoint will trigger when the CPU executes code at the specified address.";
-			m_sizeCombo->setCurrentIndex(0); // Execution breakpoints are always 1 byte
-			break;
-		case HardwareReadBreakpoint:
-			helpText = "Hardware read watchpoint will trigger when the CPU reads from the specified memory range. Size must be a power of 2 (1, 2, 4, or 8 bytes).";
-			break;
-		case HardwareWriteBreakpoint:
-			helpText = "Hardware write watchpoint will trigger when the CPU writes to the specified memory range. Size must be a power of 2 (1, 2, 4, or 8 bytes).";
-			break;
-		case HardwareAccessBreakpoint:
-			helpText = "Hardware access watchpoint will trigger when the CPU reads from or writes to the specified memory range. Size must be a power of 2 (1, 2, 4, or 8 bytes).";
-			break;
-		default:
-			helpText = "";
-			break;
-	}
-
-	m_helpLabel->setText(helpText);
-	m_helpLabel->setStyleSheet("QLabel { color: gray; font-size: 10px; }");
+	// Execution breakpoints are always 1 byte
+	if (type == HardwareExecuteBreakpoint)
+		m_sizeCombo->setCurrentIndex(0);
 }

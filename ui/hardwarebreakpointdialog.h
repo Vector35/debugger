@@ -20,7 +20,6 @@ limitations under the License.
 #include <QLineEdit>
 #include <QComboBox>
 #include <QSpinBox>
-#include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -39,7 +38,6 @@ private:
 	QLineEdit* m_addressEdit;
 	QComboBox* m_typeCombo;
 	QComboBox* m_sizeCombo;
-	QLabel* m_helpLabel;
 	QDialogButtonBox* m_buttonBox;
 
 	uint64_t m_suggestedAddress;
