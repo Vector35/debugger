@@ -2158,9 +2158,8 @@ extern "C"
 #ifndef DEMO_EDITION
 	BINARYNINJAPLUGIN void UIPluginDependencies()
 	{
-		SetCurrentPluginLoadOrder(LatePluginLoadOrder);
-		// Make sure we load after the debugger core first
 		AddRequiredPluginDependency("debuggercore");
+		SetCurrentPluginLoadOrder(ScriptPluginLoadPhase);
 	}
 #endif
 
