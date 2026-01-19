@@ -3323,7 +3323,7 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) con
 		}
 
 		file.close();
-		LogError("%s", fmt::format("Saved {} executed instruction addresses to {}", count, filePath.c_str()).c_str());
+		LogInfo("%s", fmt::format("Saved {} executed instruction addresses to {}", count, filePath.c_str()).c_str());
 
 		return true;
 	}
