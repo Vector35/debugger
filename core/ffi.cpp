@@ -1690,3 +1690,114 @@ bool BNDebuggerFunctionExistsInOldView(BNDebuggerController* controller, uint64_
 {
 	return controller->object->FunctionExistsInOldView(address);
 }
+
+
+// WinDbg Installer FFI implementations (Windows only)
+#ifdef WIN32
+#include "windbginstaller.h"
+
+BNDebuggerInstallResult BNDebuggerInstallWinDbg(const char* installPath, bool isUpdate)
+{
+	std::string path = installPath ? installPath : "";
+	BinaryNinjaDebugger::InstallResult result = InstallWinDbg(path, isUpdate);
+
+	BNDebuggerInstallResult ffiResult;
+	ffiResult.success = result.success;
+	if (!result.errorMessage.empty())
+	{
+		ffiResult.errorMessage = BNAllocString(result.errorMessage.c_str());
+	}
+	else
+	{
+		ffiResult.errorMessage = nullptr;
+	}
+	return ffiResult;
+}
+
+void BNDebuggerFreeInstallResult(BNDebuggerInstallResult* result)
+{
+	if (result && result->errorMessage)
+	{
+		BNFreeString(result->errorMessage);
+		result->errorMessage = nullptr;
+	}
+}
+
+
+bool BNDebuggerIsWinDbgInstalled(const char* installPath)
+{
+	std::string path = installPath ? installPath : "";
+	return IsWinDbgInstalled(path);
+}
+
+
+char* BNDebuggerGetWinDbgInstallerPath(void)
+{
+	std::string path = GetInstallerPath();
+	return BNAllocString(path.c_str());
+}
+
+
+char* BNDebuggerGetWinDbgInstalledVersion(const char* installPath)
+{
+	std::string path = installPath ? installPath : "";
+	std::string version = GetInstalledVersion(path);
+	return BNAllocString(version.c_str());
+}
+
+
+char* BNDebuggerGetWinDbgLatestVersion(void)
+{
+	std::string version = GetLatestVersion();
+	return BNAllocString(version.c_str());
+}
+
+#else // !WIN32
+
+// Stub implementations for non-Windows platforms
+BNDebuggerInstallResult BNDebuggerInstallWinDbg(const char* installPath, bool isUpdate)
+{
+	(void)installPath;
+	(void)isUpdate;
+	BNDebuggerInstallResult result;
+	result.success = false;
+	result.errorMessage = BNAllocString("WinDbg installation is only supported on Windows");
+	return result;
+}
+
+void BNDebuggerFreeInstallResult(BNDebuggerInstallResult* result)
+{
+	if (result && result->errorMessage)
+	{
+		BNFreeString(result->errorMessage);
+		result->errorMessage = nullptr;
+	}
+}
+
+
+bool BNDebuggerIsWinDbgInstalled(const char* installPath)
+{
+	(void)installPath;
+	return false;
+}
+
+
+char* BNDebuggerGetWinDbgInstallerPath(void)
+{
+	return BNAllocString("");
+}
+
+
+char* BNDebuggerGetWinDbgInstalledVersion(const char* installPath)
+{
+	(void)installPath;
+	return BNAllocString("");
+}
+
+
+char* BNDebuggerGetWinDbgLatestVersion(void)
+{
+	return BNAllocString("");
+}
+
+#endif // WIN32

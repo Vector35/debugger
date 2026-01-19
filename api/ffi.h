@@ -727,6 +727,20 @@ extern "C"
 
 	DEBUGGER_FFI_API bool BNDebuggerFunctionExistsInOldView(BNDebuggerController* controller, uint64_t address);
 
+	// WinDbg Installer (Windows only)
+	typedef struct BNDebuggerInstallResult
+	{
+		bool success;
+		char* errorMessage;  // NULL if success, otherwise error description (caller must free)
+	} BNDebuggerInstallResult;
+
+	DEBUGGER_FFI_API BNDebuggerInstallResult BNDebuggerInstallWinDbg(const char* installPath, bool isUpdate);
+	DEBUGGER_FFI_API void BNDebuggerFreeInstallResult(BNDebuggerInstallResult* result);
+	DEBUGGER_FFI_API bool BNDebuggerIsWinDbgInstalled(const char* installPath);
+	DEBUGGER_FFI_API char* BNDebuggerGetWinDbgInstallerPath(void);
+	DEBUGGER_FFI_API char* BNDebuggerGetWinDbgInstalledVersion(const char* installPath);
+	DEBUGGER_FFI_API char* BNDebuggerGetWinDbgLatestVersion(void);
+
 #ifdef __cplusplus
 }
 #endif

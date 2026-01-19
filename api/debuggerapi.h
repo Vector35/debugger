@@ -20,6 +20,7 @@ limitations under the License.
 #include "ffi.h"
 #include "../vendor/intx/intx.hpp"
 #include <optional>
+#include <functional>
 
 using namespace BinaryNinja;
 
@@ -842,4 +843,22 @@ namespace BinaryNinjaDebuggerAPI {
 		bool CanConnect(Ref<BinaryView> data);
 		static std::vector<std::string> GetAvailableAdapters(Ref<BinaryView> data);
 	};
+
+
+	// WinDbg Installer API (Windows only, stubs on other platforms)
+	struct InstallResult
+	{
+		bool success;
+		std::string errorMessage;  // Empty if success, otherwise describes the error
+
+		InstallResult() : success(false) {}
+		InstallResult(bool s, const std::string& err = "") : success(s), errorMessage(err) {}
+	};
+
+	InstallResult InstallWinDbg(const std::string& installPath = "", bool isUpdate = false);
+	bool IsWinDbgInstalled(const std::string& installPath = "");
+	std::string GetWinDbgInstallerPath();
+	std::string GetWinDbgInstalledVersion(const std::string& installPath = "");
+	std::string GetWinDbgLatestVersion();
+
 };  // namespace BinaryNinjaDebuggerAPI
