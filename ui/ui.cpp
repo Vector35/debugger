@@ -26,6 +26,7 @@ limitations under the License.
 #include <QStatusBar>
 #include <QCoreApplication>
 #include <QApplication>
+#include <QProcess>
 #include <QProgressDialog>
 #include <QTimer>
 #include <QThread>
@@ -55,7 +56,6 @@ limitations under the License.
 #ifdef WIN32
 	#include "ttdrecord.h"
 	#include "scriptingconsole.h"
-	#include "install_windbg.h"
 	#include "windbgupdatedialog.h"
 #endif
 
@@ -1395,10 +1395,10 @@ void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 	LogDebug("installTarget: %s", installPath.c_str());
 
 	// Check if WinDbg is already installed
-	if (std::filesystem::exists(installTarget) && BinaryNinjaDebugger::CheckInstallOk(installPath))
+	if (std::filesystem::exists(installTarget) && IsWinDbgInstalled(installPath))
 	{
 		// Get installed version
-		std::string installedVersion = BinaryNinjaDebugger::GetInstalledVersion(installPath);
+		std::string installedVersion = GetWinDbgInstalledVersion(installPath);
 		if (installedVersion.empty()) {
 			installedVersion = "(unknown)";
 		}
@@ -1435,25 +1435,25 @@ void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 			: QThread(parent), m_installPath(path) {}
 
 		void run() override {
-			m_result = BinaryNinjaDebugger::InstallWinDbg(m_installPath);
+			m_result = InstallWinDbg(m_installPath);
 		}
 
-		const BinaryNinjaDebugger::InstallResult& result() const { return m_result; }
+		const InstallResult& result() const { return m_result; }
 		const std::string& installPath() const { return m_installPath; }
 
 	private:
 		std::string m_installPath;
-		BinaryNinjaDebugger::InstallResult m_result;
+		InstallResult m_result;
 	};
 
 	InstallWorker* worker = new InstallWorker(installPath, mainWindow);
 
 	// When installation completes, show result dialog and configure settings
 	QObject::connect(worker, &QThread::finished, mainWindow, [worker, installPath, mainWindow]() {
-		const BinaryNinjaDebugger::InstallResult& result = worker->result();
+		const InstallResult& result = worker->result();
 		worker->deleteLater();
 
-		if (result.success && BinaryNinjaDebugger::CheckInstallOk(installPath)) {
+		if (result.success && IsWinDbgInstalled(installPath)) {
 			// Configure debugger settings
 			std::string dbgEngPath = installPath + "\\amd64";
 			BinaryNinja::Settings::Instance()->Set("debugger.x64dbgEngPath", dbgEngPath);
@@ -1471,6 +1471,10 @@ void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 			msgBox.button(QMessageBox::No)->setText("Restart Later");
 
 			if (msgBox.exec() == QMessageBox::Yes) {
+				// Restart Binary Ninja by spawning a new instance before quitting
+				QStringList args = QCoreApplication::arguments();
+				QString program = args.takeFirst();
+				QProcess::startDetached(program, args);
 				QApplication::quit();
 			}
 		} else {

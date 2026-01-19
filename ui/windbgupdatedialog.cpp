@@ -17,12 +17,14 @@ limitations under the License.
 #ifdef WIN32
 
 #include "windbgupdatedialog.h"
-#include "install_windbg.h"
+#include "debuggerapi.h"
 #include "progresstask.h"
 #include <QApplication>
 #include <QGroupBox>
 #include <QMessageBox>
 #include <thread>
+
+using namespace BinaryNinjaDebuggerAPI;
 
 WinDbgUpdateDialog::WinDbgUpdateDialog(QWidget* parent, const std::string& installPath, const std::string& installedVersion)
 	: QDialog(parent), m_installPath(installPath), m_installedVersion(installedVersion)
@@ -100,7 +102,7 @@ void WinDbgUpdateDialog::fetchLatestVersion()
 {
 	/* Fetch in background thread */
 	std::thread([this]() {
-		std::string version = BinaryNinjaDebugger::GetLatestVersion();
+		std::string version = GetWinDbgLatestVersion();
 		emit latestVersionReceived(QString::fromStdString(version));
 	}).detach();
 }
@@ -178,7 +180,7 @@ void WinDbgUpdateDialog::onUpdateClicked()
 
 	/* Start installer in background - it will wait for Binary Ninja to exit */
 	std::thread([installPath]() {
-		(void)BinaryNinjaDebugger::InstallWinDbg(installPath, true /* isUpdate */);
+		(void)InstallWinDbg(installPath, true /* isUpdate */);
 	}).detach();
 
 	/* Accept dialog and signal to close Binary Ninja */

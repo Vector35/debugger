@@ -14,9 +14,11 @@ if (NOT WIN32)
     list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/ttdrecord.cpp)
     list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/windbgupdatedialog.h)
     list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/windbgupdatedialog.cpp)
-    list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/install_windbg.h)
-    list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/install_windbg.cpp)
 endif ()
+
+# install_windbg wrapper is no longer needed - UI uses debuggerapi directly
+list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/install_windbg.h)
+list(REMOVE_ITEM SOURCES ${PROJECT_SOURCE_DIR}/install_windbg.cpp)
 
 if(DEMO)
     add_library(debuggerui STATIC ${SOURCES})
