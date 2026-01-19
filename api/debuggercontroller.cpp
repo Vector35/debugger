@@ -1325,9 +1325,14 @@ bool DebuggerController::IsInstructionExecuted(uint64_t address)
 }
 
 
-bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress)
+bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress, TTDPosition startTime, TTDPosition endTime)
 {
-	return BNDebuggerRunCodeCoverageAnalysisRange(m_object, startAddress, endAddress);
+	BNDebuggerTTDPosition startPos, endPos;
+    startPos.sequence = startTime.sequence;
+    startPos.step = startTime.step;
+    endPos.sequence = endTime.sequence;
+    endPos.step = endTime.step;
+    return BNDebuggerRunCodeCoverageAnalysisRange(m_object, startAddress, endAddress, startPos, endPos);
 }
 
 

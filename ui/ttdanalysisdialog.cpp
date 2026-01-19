@@ -27,8 +27,8 @@ TTDAnalysisWorker::TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDA
 {
 }
 
-TTDAnalysisWorker::TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, uint64_t startAddress, uint64_t endAddress, QObject* parent)
-	: QThread(parent), m_controller(controller), m_analysisType(type), m_useRange(true), m_startAddress(startAddress), m_endAddress(endAddress)
+TTDAnalysisWorker::TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, uint64_t startAddress, uint64_t endAddress, TTDPosition startTime, TTDPosition endTime, QObject* parent)
+	: QThread(parent), m_controller(controller), m_analysisType(type), m_useRange(true), m_startAddress(startAddress), m_endAddress(endAddress), m_startTime(startTime), m_endTime(endTime)
 {
 }
 
@@ -58,14 +58,16 @@ void TTDAnalysisWorker::run()
 		emit analysisProgress(30, "Running code coverage analysis...");
 		if (m_useRange)
 		{
-			success = m_controller->RunCodeCoverageAnalysis(m_startAddress, m_endAddress);
+			success = m_controller->RunCodeCoverageAnalysis(m_startAddress, m_endAddress, m_startTime, m_endTime);
 			if (success)
 			{
 				resultCount = m_controller->GetExecutedInstructionCount();
-				message = QString("Range-based code coverage analysis completed successfully. Found %1 executed instructions in range 0x%2 - 0x%3.")
+				message = QString("Range-based code coverage analysis completed successfully. Found %1 executed instructions in address range 0x%2 - 0x%3 and time range (%4,%5) - (%6,%7).")
 					.arg(resultCount)
 					.arg(m_startAddress, 0, 16)
-					.arg(m_endAddress, 0, 16);
+					.arg(m_endAddress, 0, 16)
+					.arg(m_startTime.sequence).arg(m_startTime.step)
+					.arg(m_endTime.sequence).arg(m_endTime.step);
 			}
 			else
 			{
@@ -197,8 +199,25 @@ void TTDAnalysisDialog::setupUI()
 	m_endAddressEdit->setText(QString("0x") + QString::number(m_data->GetImageBase() + 0x7000, 16));
 	m_endAddressEdit->setEnabled(true);
 	rangeControlsLayout->addWidget(m_endAddressEdit);
-
 	rangeLayout->addLayout(rangeControlsLayout);
+
+	// Time settings
+	QGroupBox* timeGroup = new QGroupBox("Time Range (Optional)");
+	QVBoxLayout* timeLayout = new QVBoxLayout(timeGroup);
+
+	QHBoxLayout* timeControlsLayout = new QHBoxLayout();
+	timeControlsLayout->addWidget(new QLabel("Start Time:"));
+	m_startTimeEdit = new QLineEdit();
+	//set text to starting position
+	m_startTimeEdit->setEnabled(true);
+	timeControlsLayout->addWidget(m_startTimeEdit);
+
+	timeControlsLayout->addWidget(new QLabel("End Time:"));
+	m_endTimeEdit = new QLineEdit();
+	//set text to ending position
+	m_endTimeEdit->setEnabled(true);
+	timeControlsLayout->addWidget(m_endTimeEdit);
+	timeLayout->addLayout(timeControlsLayout);
 
 	// Connect range checkbox to enable/disable range controls
 	connect(m_useRangeCheckBox, &QCheckBox::toggled, [this](bool checked) {
@@ -207,6 +226,7 @@ void TTDAnalysisDialog::setupUI()
 	});
 
 	mainLayout->addWidget(rangeGroup);
+	mainLayout->addWidget(timeGroup);
 
 	// Cache settings
 	QGroupBox* cacheGroup = new QGroupBox("Cache Settings");
@@ -379,14 +399,61 @@ void TTDAnalysisDialog::onRunAnalysis()
 	if (m_useRangeCheckBox->isChecked())
 	{
 		// Validate range inputs
-		bool startOk, endOk;
+		bool startOk, endOk, startTimeOk, endTimeOk;
 		QString startText = m_startAddressEdit->text().trimmed();
 		QString endText = m_endAddressEdit->text().trimmed();
+		QString startTimeText = m_startTimeEdit->text().trimmed();
+		QString endTimeText = m_endTimeEdit->text().trimmed();
+		TTDPosition startTime, endTime;
 
 		if (startText.isEmpty() || endText.isEmpty())
 		{
 			QMessageBox::warning(this, "Invalid Range", "Please enter both start and end addresses for range analysis");
 			return;
+		}
+
+		if (startTimeText.isEmpty())
+		{
+			startTime = TTDPosition(0, 0);
+		}else{
+			QStringList startTimeParts = startTimeText.split(u':');
+			if (startTimeParts.size() != 2)
+			{
+				QMessageBox::warning(this, "Invalid Time", "Start time must be in the format 'sequence:step'");
+				return;
+			}
+			bool seqOk, stepOk;
+			uint64_t sequence = startTimeParts[0].toULongLong(&seqOk, 16);
+			uint64_t step = startTimeParts[1].toULongLong(&stepOk, 16);
+			if (!seqOk || !stepOk)
+			{
+				QMessageBox::warning(this, "Invalid Time", "Start time contains invalid numbers");
+				return;
+			}
+			startTime = TTDPosition(sequence, step);
+		}
+
+		if (endTimeText.isEmpty())
+		{
+			endTime = TTDPosition(std::numeric_limits<uint64_t>::max(),std::numeric_limits<uint64_t>::max());
+		}
+		else
+		{
+			QStringList endTimeParts = endTimeText.split(u':');
+			if (endTimeParts.size() != 2)
+			{
+				QMessageBox::warning(this, "Invalid Time", "End time must be in the format 'sequence:step'");
+				return;
+			}
+			bool seqOk, stepOk;
+			uint64_t sequence = endTimeParts[0].toULongLong(&seqOk, 16);
+			uint64_t step = endTimeParts[1].toULongLong(&stepOk, 16);
+			if (!seqOk || !stepOk)
+			{
+				QMessageBox::warning(this, "Invalid Time", "End time contains invalid numbers");
+				return;
+			}
+			endTime = TTDPosition(sequence, step);
 		}
 
 		uint64_t startAddress = startText.toULongLong(&startOk, 0); // Auto-detect base (0x for hex)
@@ -405,7 +472,7 @@ void TTDAnalysisDialog::onRunAnalysis()
 		}
 
 		// Start range-based analysis in worker thread
-		m_currentWorker = new TTDAnalysisWorker(m_controller, analysisType, startAddress, endAddress, this);
+		m_currentWorker = new TTDAnalysisWorker(m_controller, analysisType, startAddress, endAddress, startTime, endTime, this);
 	}
 	else
 	{

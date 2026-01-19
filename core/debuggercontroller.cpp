@@ -3227,7 +3227,7 @@ bool DebuggerController::IsInstructionExecuted(uint64_t address)
 }
 
 
-bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress)
+bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress, TTDPosition startTime, TTDPosition endTime)
 {
 	if (!m_state->IsConnected() || !IsTTD())
 	{
@@ -3245,7 +3245,18 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 	m_executedInstructions.clear();
 	m_codeCoverageAnalysisRun = false;
 	
-	LogInfo("Starting TTD code coverage analysis for range 0x%" PRIX64 " - 0x%" PRIX64 "...", startAddress, endAddress);
+	LogInfo("Starting TTD code coverage analysis.");
+	LogInfo("\tAddress range: 0x%" PRIX64 " - 0x%" PRIX64, startAddress, endAddress);
+	//log time range
+	bool endTimeIsMax = endTime.sequence== std::numeric_limits<uint64_t>::max() && endTime.step == std::numeric_limits<uint64_t>::max();
+	if(endTimeIsMax)
+	{
+		LogInfo("\tTime range:  %" PRIX64 ":%" PRIX64 " - end of trace", startTime.sequence, startTime.step);
+	}
+	else{
+		LogInfo("\tTime range:  %" PRIX64 ":%" PRIX64 " - %" PRIX64 ":%" PRIX64, startTime.sequence, startTime.step,
+			endTime.sequence, endTime.step);
+	}
 	
 	// Query TTD for execute access covering the specified range
 	auto events = GetTTDMemoryAccessForAddress(startAddress, endAddress, TTDMemoryExecute);
@@ -3257,13 +3268,16 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 			// Add all executed instruction addresses within the range
 			if (event.instructionAddress >= startAddress && event.instructionAddress <= endAddress)
 			{
-				m_executedInstructions.insert(event.instructionAddress);
+				if ((event.timeStart.step >= startTime.step || event.timeStart.sequence >= startTime.sequence) && (event.timeStart.sequence <= endTime.sequence || event.timeStart.step <= endTime.step))
+				{	
+					m_executedInstructions.insert(event.instructionAddress);
+				}
 			}
 		}
 	}
 
 	m_codeCoverageAnalysisRun = true;
-	LogInfo("TTD code coverage analysis completed for range. Found 0x%" PRIu64 "executed instructions.",
+	LogInfo("TTD code coverage analysis completed for ranges. Found %" PRIu64 " executed instructions.",
 			(uint64_t)m_executedInstructions.size());
 
 	return true;
