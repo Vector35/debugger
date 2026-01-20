@@ -27,6 +27,7 @@ limitations under the License.
 	#include "adapters/windowskerneladapter.h"
 	#include "adapters/localwindowskerneladapter.h"
 	#include "adapters/windowsdumpfile.h"
+	#include "adapters/windowsnativeadapter.h"
 #endif
 
 using namespace BinaryNinja;
@@ -46,6 +47,7 @@ void InitDebugAdapterTypes()
 	InitWindowsKernelAdapterType();
 	InitLocalWindowsKernelAdapterType();
 	InitWindowsDumpFileAdapterType();
+	InitWindowsNativeAdapterType();
 #endif
 
 	InitCorelliumAdapterType();
