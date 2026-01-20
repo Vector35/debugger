@@ -121,6 +121,7 @@ namespace BinaryNinjaDebugger {
 		// Internal methods
 		void DebugLoop();
 		bool StartDebugging();  // Called from debug thread to create/attach process
+		void Reset();  // Reset state for a new debug session
 		bool HandleDebugEvent(const DEBUG_EVENT& event);
 		bool HandleException(const EXCEPTION_DEBUG_INFO& info);
 		bool HandleCreateProcess(const CREATE_PROCESS_DEBUG_INFO& info);

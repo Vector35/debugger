@@ -17,9 +17,12 @@ limitations under the License.
 #include "windowsnativeadapter.h"
 #include <psapi.h>
 #include <tlhelp32.h>
+#include <dbghelp.h>
 #include <algorithm>
 #include <memory>
 #include <filesystem>
+
+#pragma comment(lib, "dbghelp.lib")
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebugger;
@@ -62,6 +65,9 @@ bool WindowsNativeAdapter::Execute(const std::string& path, const LaunchConfigur
 bool WindowsNativeAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
 	const std::string& workingDir, const LaunchConfigurations& configs)
 {
+	// Reset any previous state
+	Reset();
+
 	// Read settings instead of using passed-in arguments
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
@@ -112,6 +118,9 @@ bool WindowsNativeAdapter::ExecuteWithArgs(const std::string& path, const std::s
 
 bool WindowsNativeAdapter::Attach(std::uint32_t pid)
 {
+	// Reset any previous state
+	Reset();
+
 	// Read PID from settings
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
@@ -256,6 +265,74 @@ bool WindowsNativeAdapter::Quit()
 	PostDebuggerEvent(event);
 
 	return true;
+}
+
+
+void WindowsNativeAdapter::Reset()
+{
+	// Wait for any existing debug thread to finish
+	if (m_debugThread.joinable())
+		m_debugThread.join();
+
+	// Close all thread handles
+	for (auto& [tid, handle] : m_threads)
+	{
+		if (handle)
+			CloseHandle(handle);
+	}
+	m_threads.clear();
+
+	// Close process handle
+	if (m_processHandle)
+	{
+		CloseHandle(m_processHandle);
+		m_processHandle = nullptr;
+	}
+
+	// Reset state variables
+	m_threadHandle = nullptr;
+	m_processId = 0;
+	m_threadId = 0;
+	m_activeThreadId = 0;
+	m_hasLastDebugEvent = false;
+	m_activelyDebugging = false;
+	m_targetRunning = false;
+	m_shouldStop = false;
+	m_stopReason = UnknownReason;
+	m_exitCode = 0;
+
+	// Clear modules
+	{
+		std::lock_guard<std::mutex> lock(m_modulesMutex);
+		m_modules.clear();
+	}
+
+	// Clear breakpoints (but keep them for re-apply on restart)
+	{
+		std::lock_guard<std::mutex> lock(m_breakpointsMutex);
+		for (auto& bp : m_breakpoints)
+			bp.isActive = false;
+	}
+
+	// Clear hardware breakpoints state
+	{
+		std::lock_guard<std::mutex> lock(m_hwBreakpointsMutex);
+		for (auto& hwbp : m_hardwareBreakpoints)
+		{
+			hwbp.isActive = false;
+			hwbp.drIndex = -1;
+		}
+	}
+
+	// Reset step tracking
+	m_singleStepping = false;
+	m_stepOverBreakpointAddress = 0;
+	m_hasStepOverBreakpoint = false;
+	m_stepOverBreakpointContinue = false;
+
+	// Reset launch state
+	m_launchResult = false;
+	m_launchError.clear();
 }
 
 
@@ -1778,24 +1855,86 @@ std::vector<DebugFrame> WindowsNativeAdapter::GetFramesOfThread(uint32_t tid)
 	if (it == m_threads.end() || !it->second)
 		return frames;
 
+	HANDLE threadHandle = it->second;
+
 	CONTEXT ctx {};
 	ctx.ContextFlags = CONTEXT_FULL;
-	if (!GetThreadContext(it->second, &ctx))
+	if (!GetThreadContext(threadHandle, &ctx))
 		return frames;
 
-	// For a simple implementation, just return the current frame
-	DebugFrame frame;
-	frame.m_index = 0;
+	// Initialize symbol handler (needed for StackWalk64)
+	SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+	SymInitialize(m_processHandle, nullptr, TRUE);
+
+	STACKFRAME64 stackFrame {};
+	DWORD machineType;
+
 #ifdef _WIN64
-	frame.m_pc = ctx.Rip;
-	frame.m_sp = ctx.Rsp;
-	frame.m_fp = ctx.Rbp;
+	machineType = IMAGE_FILE_MACHINE_AMD64;
+	stackFrame.AddrPC.Offset = ctx.Rip;
+	stackFrame.AddrPC.Mode = AddrModeFlat;
+	stackFrame.AddrFrame.Offset = ctx.Rbp;
+	stackFrame.AddrFrame.Mode = AddrModeFlat;
+	stackFrame.AddrStack.Offset = ctx.Rsp;
+	stackFrame.AddrStack.Mode = AddrModeFlat;
 #else
-	frame.m_pc = ctx.Eip;
-	frame.m_sp = ctx.Esp;
-	frame.m_fp = ctx.Ebp;
+	machineType = IMAGE_FILE_MACHINE_I386;
+	stackFrame.AddrPC.Offset = ctx.Eip;
+	stackFrame.AddrPC.Mode = AddrModeFlat;
+	stackFrame.AddrFrame.Offset = ctx.Ebp;
+	stackFrame.AddrFrame.Mode = AddrModeFlat;
+	stackFrame.AddrStack.Offset = ctx.Esp;
+	stackFrame.AddrStack.Mode = AddrModeFlat;
 #endif
-	frames.push_back(frame);
+
+	int frameIndex = 0;
+	const int maxFrames = 256;
+
+	while (frameIndex < maxFrames)
+	{
+		if (!StackWalk64(
+			machineType,
+			m_processHandle,
+			threadHandle,
+			&stackFrame,
+			&ctx,
+			nullptr,
+			SymFunctionTableAccess64,
+			SymGetModuleBase64,
+			nullptr))
+		{
+			break;
+		}
+
+		// Check for invalid frame
+		if (stackFrame.AddrPC.Offset == 0)
+			break;
+
+		DebugFrame frame;
+		frame.m_index = frameIndex;
+		frame.m_pc = stackFrame.AddrPC.Offset;
+		frame.m_sp = stackFrame.AddrStack.Offset;
+		frame.m_fp = stackFrame.AddrFrame.Offset;
+
+		// Find which module this address belongs to
+		{
+			std::lock_guard<std::mutex> lock(m_modulesMutex);
+			for (const auto& mod : m_modules)
+			{
+				if (frame.m_pc >= mod.m_address && frame.m_pc < mod.m_address + mod.m_size)
+				{
+					frame.m_module = mod.m_short_name;
+					break;
+				}
+			}
+		}
+
+		frames.push_back(frame);
+
+		frameIndex++;
+	}
+
+	SymCleanup(m_processHandle);
 
 	return frames;
 }
