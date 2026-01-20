@@ -528,6 +528,13 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 				}
 			}
 			m_hasStepOverBreakpoint = false;
+
+			// If this was from Go(), continue execution; if from StepInto(), stop
+			if (m_stepOverBreakpointContinue)
+			{
+				return false;  // Don't stop, continue execution
+			}
+			// Fall through to normal single step handling (will stop)
 		}
 
 		// Check hardware breakpoints
@@ -923,18 +930,24 @@ DebugBreakpoint WindowsNativeAdapter::AddBreakpoint(const std::uintptr_t address
 	bp.address = address;
 	bp.id = id;
 	bp.isActive = false;
+	bp.originalByte = 0;
+
+	// Add to vector first so ApplyBreakpoint can update it
+	m_breakpoints.push_back(bp);
 
 	// Try to apply the breakpoint if we're attached
 	if (m_processHandle)
 	{
-		if (ApplyBreakpoint(address, id))
-		{
-			bp.isActive = true;
-		}
+		ApplyBreakpoint(address, id);
 	}
 
-	m_breakpoints.push_back(bp);
-	return DebugBreakpoint(address, id, bp.isActive);
+	// Return the updated state
+	for (const auto& b : m_breakpoints)
+	{
+		if (b.address == address)
+			return DebugBreakpoint(address, b.id, b.isActive);
+	}
+	return DebugBreakpoint(address, id, false);
 }
 
 
@@ -1075,11 +1088,13 @@ void WindowsNativeAdapter::ApplyPendingBreakpoints()
 			bp.address = address;
 			bp.id = m_nextBreakpointId++;
 			bp.isActive = false;
+			bp.originalByte = 0;
 
-			if (ApplyBreakpoint(address, bp.id))
-				bp.isActive = true;
-
+			// Add to vector first so ApplyBreakpoint can update it
 			m_breakpoints.push_back(bp);
+
+			ApplyBreakpoint(address, bp.id);
+
 			it = m_pendingBreakpoints.erase(it);
 		}
 		else
@@ -1504,6 +1519,19 @@ DataBuffer WindowsNativeAdapter::ReadMemory(std::uintptr_t address, std::size_t 
 		return DataBuffer();
 	}
 
+	// Shadow breakpoint bytes - replace 0xCC with original bytes so disassembly is correct
+	{
+		std::lock_guard<std::mutex> lock(m_breakpointsMutex);
+		for (const auto& bp : m_breakpoints)
+		{
+			if (bp.isActive && bp.address >= address && bp.address < address + bytesRead)
+			{
+				size_t offset = bp.address - address;
+				source[offset] = bp.originalByte;
+			}
+		}
+	}
+
 	return DataBuffer(source.get(), bytesRead);
 }
 
@@ -1585,6 +1613,7 @@ bool WindowsNativeAdapter::Go()
 				// Need to single step past the breakpoint first
 				m_stepOverBreakpointAddress = ip;
 				m_hasStepOverBreakpoint = true;
+				m_stepOverBreakpointContinue = true;  // Continue after re-applying breakpoint
 
 				// Set single step flag
 				auto it = m_threads.find(m_activeThreadId);
@@ -1617,6 +1646,23 @@ bool WindowsNativeAdapter::StepInto()
 	auto it = m_threads.find(m_activeThreadId);
 	if (it == m_threads.end() || !it->second)
 		return false;
+
+	// Check if we're at a breakpoint and need to re-apply it after stepping
+	{
+		std::lock_guard<std::mutex> lock(m_breakpointsMutex);
+		uint64_t ip = GetInstructionOffset();
+		for (const auto& bp : m_breakpoints)
+		{
+			if (bp.address == ip && bp.isActive)
+			{
+				// Need to re-apply breakpoint after stepping
+				m_stepOverBreakpointAddress = ip;
+				m_hasStepOverBreakpoint = true;
+				m_stepOverBreakpointContinue = false;  // Stop after re-applying breakpoint
+				break;
+			}
+		}
+	}
 
 	CONTEXT ctx {};
 	ctx.ContextFlags = CONTEXT_CONTROL;

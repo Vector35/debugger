@@ -102,6 +102,7 @@ namespace BinaryNinjaDebugger {
 		bool m_singleStepping = false;
 		uint64_t m_stepOverBreakpointAddress = 0;
 		bool m_hasStepOverBreakpoint = false;
+		bool m_stepOverBreakpointContinue = false;  // If true, continue after re-applying breakpoint
 
 		// Architecture info
 		bool m_is64Bit = false;
