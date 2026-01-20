@@ -106,8 +106,20 @@ namespace BinaryNinjaDebugger {
 		// Architecture info
 		bool m_is64Bit = false;
 
+		// Launch/attach parameters (for passing to debug thread)
+		std::string m_launchExecutable;
+		std::string m_launchWorkingDir;
+		std::string m_launchCommandLine;
+		DWORD m_attachPID = 0;
+		bool m_isAttaching = false;
+		std::atomic<bool> m_launchResult {false};
+		std::string m_launchError;
+		std::condition_variable m_launchCondition;
+		std::mutex m_launchMutex;
+
 		// Internal methods
 		void DebugLoop();
+		bool StartDebugging();  // Called from debug thread to create/attach process
 		bool HandleDebugEvent(const DEBUG_EVENT& event);
 		bool HandleException(const EXCEPTION_DEBUG_INFO& info);
 		bool HandleCreateProcess(const CREATE_PROCESS_DEBUG_INFO& info);

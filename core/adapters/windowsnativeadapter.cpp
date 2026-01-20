@@ -71,54 +71,40 @@ bool WindowsNativeAdapter::ExecuteWithArgs(const std::string& path, const std::s
 	auto workingDirectory = adapterSettings->Get<std::string>("launch.workingDirectory", data, &scope);
 	scope = SettingsResourceScope;
 	auto commandLineArgs = adapterSettings->Get<std::string>("launch.commandLineArguments", data, &scope);
-	scope = SettingsResourceScope;
-	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
 
-	STARTUPINFOA si {};
-	PROCESS_INFORMATION pi {};
-	si.cb = sizeof(si);
-
-	std::string commandLine = executablePath;
+	// Store parameters for the debug thread
+	m_launchExecutable = executablePath;
+	m_launchWorkingDir = workingDirectory;
+	m_launchCommandLine = executablePath;
 	if (!commandLineArgs.empty())
-		commandLine += " " + commandLineArgs;
+		m_launchCommandLine += " " + commandLineArgs;
+	m_isAttaching = false;
+	m_launchResult = false;
+	m_launchError.clear();
 
-	DWORD creationFlags = DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS | CREATE_NEW_CONSOLE;
+	// Start the debug loop thread - it will create the process
+	m_debugThread = std::thread(&WindowsNativeAdapter::DebugLoop, this);
 
-	if (!CreateProcessA(
-		nullptr,
-		const_cast<char*>(commandLine.c_str()),
-		nullptr,
-		nullptr,
-		FALSE,
-		creationFlags,
-		nullptr,
-		workingDirectory.empty() ? nullptr : workingDirectory.c_str(),
-		&si,
-		&pi))
+	// Wait for the debug thread to signal success or failure
 	{
-		LogError("Failed to create process: %d", GetLastError());
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("Failed to create process: {}", GetLastError());
-		event.data.errorData.shortError = fmt::format("CreateProcess failed");
-		PostDebuggerEvent(event);
-		return false;
+		std::unique_lock<std::mutex> lock(m_launchMutex);
+		m_launchCondition.wait(lock, [this] { return m_launchResult.load() || !m_launchError.empty(); });
 	}
 
-	m_processHandle = pi.hProcess;
-	m_threadHandle = pi.hThread;
-	m_processId = pi.dwProcessId;
-	m_threadId = pi.dwThreadId;
-	m_activeThreadId = pi.dwThreadId;
+	if (!m_launchError.empty())
+	{
+		LogError("Failed to create process: %s", m_launchError.c_str());
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = m_launchError;
+		event.data.errorData.shortError = "CreateProcess failed";
+		PostDebuggerEvent(event);
 
-	// Add the initial thread to our tracking
-	m_threads[pi.dwThreadId] = pi.hThread;
-
-	m_activelyDebugging = true;
-	m_targetRunning = true;
-
-	// Start the debug loop in a separate thread
-	m_debugThread = std::thread(&WindowsNativeAdapter::DebugLoop, this);
+		// Wait for debug thread to finish
+		if (m_debugThread.joinable())
+			m_debugThread.join();
+		return false;
+	}
 
 	return true;
 }
@@ -132,38 +118,35 @@ bool WindowsNativeAdapter::Attach(std::uint32_t pid)
 	auto adapterSettings = GetAdapterSettings();
 	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
 
-	DWORD targetPID = static_cast<DWORD>(attachPID);
+	// Store parameters for the debug thread
+	m_attachPID = static_cast<DWORD>(attachPID);
+	m_isAttaching = true;
+	m_launchResult = false;
+	m_launchError.clear();
 
-	if (!DebugActiveProcess(targetPID))
-	{
-		LogError("Failed to attach to process %d: %d", targetPID, GetLastError());
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("Failed to attach to process {}: {}", targetPID, GetLastError());
-		event.data.errorData.shortError = fmt::format("Attach failed");
-		PostDebuggerEvent(event);
-		return false;
-	}
-
-	m_processId = targetPID;
-	m_processHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, targetPID);
-	if (!m_processHandle)
-	{
-		LogError("Failed to open process %d: %d", targetPID, GetLastError());
-		DebugActiveProcessStop(targetPID);
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("Failed to open process {}: {}", targetPID, GetLastError());
-		event.data.errorData.shortError = fmt::format("OpenProcess failed");
-		PostDebuggerEvent(event);
-		return false;
-	}
-
-	m_activelyDebugging = true;
-	m_targetRunning = true;
-
-	// Start the debug loop
+	// Start the debug loop thread - it will attach to the process
 	m_debugThread = std::thread(&WindowsNativeAdapter::DebugLoop, this);
+
+	// Wait for the debug thread to signal success or failure
+	{
+		std::unique_lock<std::mutex> lock(m_launchMutex);
+		m_launchCondition.wait(lock, [this] { return m_launchResult.load() || !m_launchError.empty(); });
+	}
+
+	if (!m_launchError.empty())
+	{
+		LogError("Failed to attach to process: %s", m_launchError.c_str());
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = m_launchError;
+		event.data.errorData.shortError = "Attach failed";
+		PostDebuggerEvent(event);
+
+		// Wait for debug thread to finish
+		if (m_debugThread.joinable())
+			m_debugThread.join();
+		return false;
+	}
 
 	return true;
 }
@@ -183,6 +166,9 @@ bool WindowsNativeAdapter::Detach()
 		return true;
 
 	m_shouldStop = true;
+
+	// Wake up the debug thread if it's waiting
+	m_debugCondition.notify_one();
 
 	// Remove all breakpoints before detaching
 	{
@@ -237,6 +223,9 @@ bool WindowsNativeAdapter::Quit()
 
 	m_shouldStop = true;
 
+	// Wake up the debug thread if it's waiting
+	m_debugCondition.notify_one();
+
 	// Terminate the process
 	if (m_processHandle)
 		TerminateProcess(m_processHandle, 0);
@@ -270,8 +259,101 @@ bool WindowsNativeAdapter::Quit()
 }
 
 
+bool WindowsNativeAdapter::StartDebugging()
+{
+	LogWarn("WindowsNativeAdapter::StartDebugging - isAttaching=%d", m_isAttaching);
+
+	if (m_isAttaching)
+	{
+		// Attach to existing process
+		if (!DebugActiveProcess(m_attachPID))
+		{
+			m_launchError = fmt::format("Failed to attach to process {}: {}", m_attachPID, GetLastError());
+			LogError("%s", m_launchError.c_str());
+			return false;
+		}
+
+		m_processId = m_attachPID;
+		m_processHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, m_attachPID);
+		if (!m_processHandle)
+		{
+			m_launchError = fmt::format("Failed to open process {}: {}", m_attachPID, GetLastError());
+			LogError("%s", m_launchError.c_str());
+			DebugActiveProcessStop(m_attachPID);
+			return false;
+		}
+	}
+	else
+	{
+		// Launch new process
+		STARTUPINFOA si {};
+		PROCESS_INFORMATION pi {};
+		si.cb = sizeof(si);
+
+		DWORD creationFlags = DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS | CREATE_NEW_CONSOLE;
+
+		LogWarn("CreateProcessA: %s, workingDir=%s",
+			m_launchCommandLine.c_str(), m_launchWorkingDir.c_str());
+
+		if (!CreateProcessA(
+			nullptr,
+			const_cast<char*>(m_launchCommandLine.c_str()),
+			nullptr,
+			nullptr,
+			FALSE,
+			creationFlags,
+			nullptr,
+			m_launchWorkingDir.empty() ? nullptr : m_launchWorkingDir.c_str(),
+			&si,
+			&pi))
+		{
+			m_launchError = fmt::format("Failed to create process: {}", GetLastError());
+			LogError("%s", m_launchError.c_str());
+			return false;
+		}
+
+		m_processHandle = pi.hProcess;
+		m_threadHandle = pi.hThread;
+		m_processId = pi.dwProcessId;
+		m_threadId = pi.dwThreadId;
+		m_activeThreadId = pi.dwThreadId;
+
+		// Add the initial thread to our tracking
+		m_threads[pi.dwThreadId] = pi.hThread;
+
+		LogWarn("Process created: PID=%d, TID=%d", m_processId, m_threadId);
+	}
+
+	m_activelyDebugging = true;
+	m_targetRunning = true;
+
+	return true;
+}
+
+
 void WindowsNativeAdapter::DebugLoop()
 {
+	LogWarn("WindowsNativeAdapter::DebugLoop started");
+
+	// Create/attach to process on this thread (required by Windows debug API)
+	if (!StartDebugging())
+	{
+		// Signal failure to the calling thread
+		{
+			std::lock_guard<std::mutex> lock(m_launchMutex);
+			// m_launchError is already set by StartDebugging
+		}
+		m_launchCondition.notify_one();
+		return;
+	}
+
+	// Signal success to the calling thread
+	{
+		std::lock_guard<std::mutex> lock(m_launchMutex);
+		m_launchResult = true;
+	}
+	m_launchCondition.notify_one();
+
 	DEBUG_EVENT debugEvent;
 
 	while (m_activelyDebugging && !m_shouldStop)
@@ -280,8 +362,12 @@ void WindowsNativeAdapter::DebugLoop()
 		{
 			if (GetLastError() == ERROR_SEM_TIMEOUT)
 				continue;
+			LogWarn("WaitForDebugEvent failed with error: %d", GetLastError());
 			break;
 		}
+
+		LogWarn("Received debug event: code=%d, pid=%d, tid=%d",
+			debugEvent.dwDebugEventCode, debugEvent.dwProcessId, debugEvent.dwThreadId);
 
 		m_lastDebugEvent = debugEvent;
 		m_hasLastDebugEvent = true;
@@ -289,12 +375,14 @@ void WindowsNativeAdapter::DebugLoop()
 		DWORD continueStatus = DBG_CONTINUE;
 
 		bool shouldBreak = HandleDebugEvent(debugEvent);
+		LogWarn("HandleDebugEvent returned shouldBreak=%d", shouldBreak);
 
 		if (shouldBreak)
 		{
 			m_targetRunning = false;
 
 			// Notify the controller that we've stopped
+			LogWarn("Posting AdapterStoppedEventType with reason=%d, thread=%d", m_stopReason, m_activeThreadId);
 			DebuggerEvent event;
 			event.type = AdapterStoppedEventType;
 			event.data.targetStoppedData.reason = m_stopReason;
@@ -304,8 +392,10 @@ void WindowsNativeAdapter::DebugLoop()
 			PostDebuggerEvent(event);
 
 			// Wait for Go() or other commands
+			LogWarn("Waiting for Go() or stop signal...");
 			std::unique_lock<std::mutex> lock(m_debugMutex);
 			m_debugCondition.wait(lock, [this] { return m_targetRunning || m_shouldStop; });
+			LogWarn("Wait completed: m_targetRunning=%d, m_shouldStop=%d", m_targetRunning.load(), m_shouldStop.load());
 
 			if (m_shouldStop)
 			{
@@ -373,11 +463,17 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 {
 	m_activeThreadId = m_lastDebugEvent.dwThreadId;
 
+	LogWarn("HandleException: code=0x%08X, address=0x%llX, firstChance=%d",
+		info.ExceptionRecord.ExceptionCode,
+		(uint64_t)info.ExceptionRecord.ExceptionAddress,
+		info.dwFirstChance);
+
 	switch (info.ExceptionRecord.ExceptionCode)
 	{
 	case EXCEPTION_BREAKPOINT:
 	{
 		uint64_t address = (uint64_t)info.ExceptionRecord.ExceptionAddress;
+		LogWarn("EXCEPTION_BREAKPOINT at 0x%llX", address);
 
 		// Check if this is one of our breakpoints
 		{
@@ -491,6 +587,9 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 
 bool WindowsNativeAdapter::HandleCreateProcess(const CREATE_PROCESS_DEBUG_INFO& info)
 {
+	LogWarn("HandleCreateProcess: baseOfImage=0x%llX, startAddress=0x%llX",
+		(uint64_t)info.lpBaseOfImage, (uint64_t)info.lpStartAddress);
+
 	// Store the initial thread handle
 	m_threads[m_lastDebugEvent.dwThreadId] = info.hThread;
 	m_activeThreadId = m_lastDebugEvent.dwThreadId;
@@ -577,6 +676,7 @@ bool WindowsNativeAdapter::HandleExitThread(const EXIT_THREAD_DEBUG_INFO& info, 
 bool WindowsNativeAdapter::HandleLoadDll(const LOAD_DLL_DEBUG_INFO& info)
 {
 	std::string moduleName = GetModuleNameFromHandle(info.hFile, info.lpBaseOfDll);
+	LogWarn("HandleLoadDll: %s at 0x%llX", moduleName.c_str(), (uint64_t)info.lpBaseOfDll);
 
 	{
 		std::lock_guard<std::mutex> lock(m_modulesMutex);
