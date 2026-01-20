@@ -330,6 +330,11 @@ void WindowsNativeAdapter::Reset()
 	m_hasStepOverBreakpoint = false;
 	m_stepOverBreakpointContinue = false;
 
+	// Reset temp breakpoint
+	m_hasTempBreakpoint = false;
+	m_tempBreakpointAddress = 0;
+	m_tempBreakpointOriginalByte = 0;
+
 	// Reset launch state
 	m_launchResult = false;
 	m_launchError.clear();
@@ -551,6 +556,33 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 	{
 		uint64_t address = (uint64_t)info.ExceptionRecord.ExceptionAddress;
 		LogWarn("EXCEPTION_BREAKPOINT at 0x%llX", address);
+
+		// Check if this is a temporary breakpoint (from StepOver/StepReturn)
+		if (m_hasTempBreakpoint && address == m_tempBreakpointAddress)
+		{
+			// Remove the temporary breakpoint
+			RemoveTempBreakpoint();
+
+			// Set IP back to the breakpoint address so the instruction executes
+			HANDLE threadHandle = m_threads[m_activeThreadId];
+			if (threadHandle)
+			{
+				CONTEXT ctx {};
+				ctx.ContextFlags = CONTEXT_CONTROL;
+				if (GetThreadContext(threadHandle, &ctx))
+				{
+#ifdef _WIN64
+					ctx.Rip = address;
+#else
+					ctx.Eip = static_cast<DWORD>(address);
+#endif
+					SetThreadContext(threadHandle, &ctx);
+				}
+			}
+
+			m_stopReason = SingleStep;  // Report as step completion
+			return true;
+		}
 
 		// Check if this is one of our breakpoints
 		{
@@ -1216,6 +1248,184 @@ uint64_t WindowsNativeAdapter::ResolveModuleOffset(const ModuleNameAndOffset& lo
 }
 
 
+bool WindowsNativeAdapter::SetTempBreakpoint(uint64_t address)
+{
+	if (m_hasTempBreakpoint)
+		RemoveTempBreakpoint();
+
+	// Read original byte
+	SIZE_T bytesRead;
+	if (!ReadProcessMemory(m_processHandle, (LPCVOID)address, &m_tempBreakpointOriginalByte, 1, &bytesRead) || bytesRead != 1)
+		return false;
+
+	// Write INT3
+	DWORD oldProtect;
+	if (!VirtualProtectEx(m_processHandle, (LPVOID)address, 1, PAGE_EXECUTE_READWRITE, &oldProtect))
+		return false;
+
+	SIZE_T bytesWritten;
+	uint8_t int3 = INT3_OPCODE;
+	bool success = WriteProcessMemory(m_processHandle, (LPVOID)address, &int3, 1, &bytesWritten) && bytesWritten == 1;
+
+	VirtualProtectEx(m_processHandle, (LPVOID)address, 1, oldProtect, &oldProtect);
+
+	if (success)
+	{
+		m_tempBreakpointAddress = address;
+		m_hasTempBreakpoint = true;
+	}
+
+	return success;
+}
+
+
+bool WindowsNativeAdapter::RemoveTempBreakpoint()
+{
+	if (!m_hasTempBreakpoint)
+		return true;
+
+	// Restore original byte
+	DWORD oldProtect;
+	if (!VirtualProtectEx(m_processHandle, (LPVOID)m_tempBreakpointAddress, 1, PAGE_EXECUTE_READWRITE, &oldProtect))
+		return false;
+
+	SIZE_T bytesWritten;
+	bool success = WriteProcessMemory(m_processHandle, (LPVOID)m_tempBreakpointAddress,
+		&m_tempBreakpointOriginalByte, 1, &bytesWritten) && bytesWritten == 1;
+
+	VirtualProtectEx(m_processHandle, (LPVOID)m_tempBreakpointAddress, 1, oldProtect, &oldProtect);
+
+	m_hasTempBreakpoint = false;
+	m_tempBreakpointAddress = 0;
+
+	return success;
+}
+
+
+bool WindowsNativeAdapter::IsCallInstruction(uint64_t address, size_t& instrLength)
+{
+	uint8_t bytes[16];
+	SIZE_T bytesRead;
+
+	if (!ReadProcessMemory(m_processHandle, (LPCVOID)address, bytes, sizeof(bytes), &bytesRead) || bytesRead < 2)
+		return false;
+
+	// Check for various call instruction encodings
+	// E8 xx xx xx xx - near relative call (5 bytes)
+	if (bytes[0] == 0xE8)
+	{
+		instrLength = 5;
+		return true;
+	}
+
+	// 9A xx xx xx xx xx xx - far absolute call (7 bytes, rare in 64-bit)
+	if (bytes[0] == 0x9A)
+	{
+		instrLength = 7;
+		return true;
+	}
+
+	// FF /2 - call r/m (variable length)
+	if (bytes[0] == 0xFF)
+	{
+		uint8_t modrm = bytes[1];
+		uint8_t reg = (modrm >> 3) & 7;
+		if (reg == 2)  // /2 = CALL
+		{
+			uint8_t mod = modrm >> 6;
+			uint8_t rm = modrm & 7;
+
+			instrLength = 2;  // opcode + modrm
+
+			if (mod == 3)
+			{
+				// Register direct - just 2 bytes
+				return true;
+			}
+
+			// Handle SIB byte
+			if (rm == 4 && mod != 3)
+				instrLength++;
+
+			// Handle displacement
+			if (mod == 1)
+				instrLength += 1;  // disp8
+			else if (mod == 2 || (mod == 0 && rm == 5))
+				instrLength += 4;  // disp32
+
+			return true;
+		}
+	}
+
+	// REX prefix + FF /2 (64-bit)
+	if ((bytes[0] >= 0x40 && bytes[0] <= 0x4F) && bytes[1] == 0xFF)
+	{
+		uint8_t modrm = bytes[2];
+		uint8_t reg = (modrm >> 3) & 7;
+		if (reg == 2)  // /2 = CALL
+		{
+			uint8_t mod = modrm >> 6;
+			uint8_t rm = modrm & 7;
+
+			instrLength = 3;  // rex + opcode + modrm
+
+			if (mod == 3)
+				return true;
+
+			// Handle SIB byte
+			if (rm == 4 && mod != 3)
+				instrLength++;
+
+			// Handle displacement
+			if (mod == 1)
+				instrLength += 1;
+			else if (mod == 2 || (mod == 0 && rm == 5))
+				instrLength += 4;
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+uint64_t WindowsNativeAdapter::GetReturnAddress()
+{
+	auto it = m_threads.find(m_activeThreadId);
+	if (it == m_threads.end() || !it->second)
+		return 0;
+
+	CONTEXT ctx {};
+	ctx.ContextFlags = CONTEXT_CONTROL;
+	if (!GetThreadContext(it->second, &ctx))
+		return 0;
+
+	uint64_t sp;
+#ifdef _WIN64
+	sp = ctx.Rsp;
+#else
+	sp = ctx.Esp;
+#endif
+
+	// Read return address from stack
+	uint64_t returnAddr = 0;
+	SIZE_T bytesRead;
+
+#ifdef _WIN64
+	if (!ReadProcessMemory(m_processHandle, (LPCVOID)sp, &returnAddr, 8, &bytesRead) || bytesRead != 8)
+		return 0;
+#else
+	uint32_t addr32;
+	if (!ReadProcessMemory(m_processHandle, (LPCVOID)sp, &addr32, 4, &bytesRead) || bytesRead != 4)
+		return 0;
+	returnAddr = addr32;
+#endif
+
+	return returnAddr;
+}
+
+
 std::vector<DebugBreakpoint> WindowsNativeAdapter::GetBreakpointList() const
 {
 	std::vector<DebugBreakpoint> result;
@@ -1609,6 +1819,13 @@ DataBuffer WindowsNativeAdapter::ReadMemory(std::uintptr_t address, std::size_t 
 		}
 	}
 
+	// Also shadow temporary breakpoint
+	if (m_hasTempBreakpoint && m_tempBreakpointAddress >= address && m_tempBreakpointAddress < address + bytesRead)
+	{
+		size_t offset = m_tempBreakpointAddress - address;
+		source[offset] = m_tempBreakpointOriginalByte;
+	}
+
 	return DataBuffer(source.get(), bytesRead);
 }
 
@@ -1761,17 +1978,43 @@ bool WindowsNativeAdapter::StepInto()
 
 bool WindowsNativeAdapter::StepOver()
 {
-	// For now, just do step into
-	// A proper implementation would disassemble the current instruction
-	// and set a breakpoint after it if it's a call
+	if (!m_activelyDebugging)
+		return false;
+
+	uint64_t ip = GetInstructionOffset();
+	size_t instrLength = 0;
+
+	// Check if current instruction is a call
+	if (IsCallInstruction(ip, instrLength))
+	{
+		// Set temporary breakpoint after the call instruction
+		uint64_t nextAddr = ip + instrLength;
+		if (!SetTempBreakpoint(nextAddr))
+			return false;
+
+		// Resume execution - will stop at the temp breakpoint
+		return Go();
+	}
+
+	// Not a call, just do a single step
 	return StepInto();
 }
 
 
 bool WindowsNativeAdapter::StepReturn()
 {
-	// This would require setting a breakpoint at the return address
-	// For simplicity, just continue execution
+	if (!m_activelyDebugging)
+		return false;
+
+	uint64_t returnAddr = GetReturnAddress();
+	if (returnAddr == 0)
+		return false;
+
+	// Set temporary breakpoint at return address
+	if (!SetTempBreakpoint(returnAddr))
+		return false;
+
+	// Resume execution - will stop when function returns
 	return Go();
 }
 

@@ -104,6 +104,11 @@ namespace BinaryNinjaDebugger {
 		bool m_hasStepOverBreakpoint = false;
 		bool m_stepOverBreakpointContinue = false;  // If true, continue after re-applying breakpoint
 
+		// Temporary breakpoint for step over/return (removed after hit)
+		uint64_t m_tempBreakpointAddress = 0;
+		uint8_t m_tempBreakpointOriginalByte = 0;
+		bool m_hasTempBreakpoint = false;
+
 		// Architecture info
 		bool m_is64Bit = false;
 
@@ -142,6 +147,14 @@ namespace BinaryNinjaDebugger {
 		bool ClearHardwareBreakpointInContext(CONTEXT& ctx, int drIndex);
 
 		uint64_t ResolveModuleOffset(const ModuleNameAndOffset& location);
+
+		// Temporary breakpoint helpers for step over/return
+		bool SetTempBreakpoint(uint64_t address);
+		bool RemoveTempBreakpoint();
+
+		// Instruction helpers
+		bool IsCallInstruction(uint64_t address, size_t& instrLength);
+		uint64_t GetReturnAddress();
 
 	public:
 		WindowsNativeAdapter(BinaryView* data);
