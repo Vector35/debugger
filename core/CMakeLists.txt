@@ -68,8 +68,8 @@ endif()
 target_link_libraries(debuggercore binaryninjaapi)
 
 if(WIN32)
-    target_link_libraries(debuggercore Msi.lib delayimp.lib wsock32 ws2_32)
-	target_link_options(debuggercore PRIVATE /DELAYLOAD:liblldb.dll)
+    target_link_libraries(debuggercore Msi.lib delayimp.lib wsock32 ws2_32 dbghelp.lib)
+	target_link_options(debuggercore PRIVATE /DELAYLOAD:liblldb.dll /DELAYLOAD:dbghelp.dll)
 endif()
 
 set_target_properties(debuggercore PROPERTIES

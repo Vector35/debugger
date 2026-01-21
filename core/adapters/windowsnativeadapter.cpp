@@ -18,11 +18,69 @@ limitations under the License.
 #include <psapi.h>
 #include <tlhelp32.h>
 #include <dbghelp.h>
+#include <delayimp.h>
 #include <algorithm>
 #include <memory>
 #include <filesystem>
 
-#pragma comment(lib, "dbghelp.lib")
+// dbghelp.dll is delay-loaded. We use a notification hook to try loading it from the
+// configured DbgEng path first, falling back to the system version if that fails.
+// This avoids conflicts with the DbgEng adapter which needs specific versions of these DLLs.
+
+static std::string GetDbgHelpPathFromSettings()
+{
+	// Try to get the path from settings - same logic as DbgEngAdapter::GetDbgEngPath
+	auto settings = BinaryNinja::Settings::Instance();
+	std::string path = settings->Get<std::string>("debugger.x64dbgEngPath");
+
+	if (!path.empty())
+	{
+		auto dbgHelpPath = std::filesystem::path(path) / "dbghelp.dll";
+		if (std::filesystem::exists(dbgHelpPath))
+			return dbgHelpPath.string();
+	}
+
+	// Check the bundled dbgeng folder
+	std::string pluginRoot;
+	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
+		pluginRoot = BinaryNinja::GetUserPluginDirectory();
+	else
+		pluginRoot = BinaryNinja::GetBundledPluginDirectory();
+
+	auto bundledPath = std::filesystem::path(pluginRoot) / "dbgeng" / "amd64" / "dbghelp.dll";
+	if (std::filesystem::exists(bundledPath))
+		return bundledPath.string();
+
+	return "";
+}
+
+static FARPROC WINAPI DelayLoadNotifyHook(unsigned dliNotify, PDelayLoadInfo pdli)
+{
+	if (dliNotify == dliNotePreLoadLibrary)
+	{
+		// Check if this is dbghelp.dll being loaded
+		if (pdli->szDll && _stricmp(pdli->szDll, "dbghelp.dll") == 0)
+		{
+			// Try to load from our preferred path first
+			std::string customPath = GetDbgHelpPathFromSettings();
+			if (!customPath.empty())
+			{
+				HMODULE hModule = LoadLibraryA(customPath.c_str());
+				if (hModule)
+				{
+					BinaryNinja::LogDebug("Delay-loaded dbghelp.dll from: %s", customPath.c_str());
+					return reinterpret_cast<FARPROC>(hModule);
+				}
+				BinaryNinja::LogDebug("Failed to load dbghelp.dll from %s, falling back to system", customPath.c_str());
+			}
+			// Return NULL to let the system load it from the default search path
+		}
+	}
+	return NULL;
+}
+
+// Register our delay load hook
+const PfnDliHook __pfnDliNotifyHook2 = DelayLoadNotifyHook;
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebugger;
