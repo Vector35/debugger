@@ -1085,10 +1085,17 @@ DebugBreakpoint WindowsNativeAdapter::AddBreakpoint(const std::uintptr_t address
 	std::lock_guard<std::mutex> lock(m_breakpointsMutex);
 
 	// Check if breakpoint already exists
-	for (const auto& bp : m_breakpoints)
+	for (auto& bp : m_breakpoints)
 	{
 		if (bp.address == address)
+		{
+			// If the breakpoint exists but isn't active yet, try to apply it now
+			if (!bp.isActive && m_processHandle)
+			{
+				ApplyBreakpoint(address, bp.id);
+			}
 			return DebugBreakpoint(address, bp.id, bp.isActive);
+		}
 	}
 
 	unsigned long id = m_nextBreakpointId++;
@@ -1139,11 +1146,43 @@ DebugBreakpoint WindowsNativeAdapter::AddBreakpoint(const ModuleNameAndOffset& a
 
 bool WindowsNativeAdapter::ApplyBreakpoint(uint64_t address, unsigned long id)
 {
-	// Read the original byte
-	uint8_t originalByte;
-	SIZE_T bytesRead;
-	if (!ReadProcessMemory(m_processHandle, (LPCVOID)address, &originalByte, 1, &bytesRead) || bytesRead != 1)
+	// Find the breakpoint record first
+	InternalBreakpoint* targetBp = nullptr;
+	for (auto& bp : m_breakpoints)
+	{
+		if (bp.address == address)
+		{
+			targetBp = &bp;
+			break;
+		}
+	}
+
+	if (!targetBp)
 		return false;
+
+	// Read the current byte from memory - this is the actual original byte we need to save
+	uint8_t currentByte;
+	SIZE_T bytesRead;
+	if (!ReadProcessMemory(m_processHandle, (LPCVOID)address, &currentByte, 1, &bytesRead) || bytesRead != 1)
+		return false;
+
+	// If the byte is already INT3, the breakpoint is already applied
+	if (currentByte == INT3_OPCODE)
+	{
+		// If we already have a saved original byte, we're good - just ensure isActive is set
+		if (targetBp->originalByte != 0)
+		{
+			targetBp->isActive = true;
+			return true;
+		}
+		// Otherwise we have a problem - INT3 is there but we don't know the original byte
+		// This shouldn't happen in normal operation
+		LogWarn("ApplyBreakpoint: INT3 already at 0x%llX but no original byte saved", address);
+		return false;
+	}
+
+	// Save the original byte read from memory (the actual byte, not from binary view)
+	targetBp->originalByte = currentByte;
 
 	// Write INT3
 	DWORD oldProtect;
@@ -1158,16 +1197,7 @@ bool WindowsNativeAdapter::ApplyBreakpoint(uint64_t address, unsigned long id)
 
 	if (success)
 	{
-		// Update the breakpoint record
-		for (auto& bp : m_breakpoints)
-		{
-			if (bp.address == address)
-			{
-				bp.originalByte = originalByte;
-				bp.isActive = true;
-				break;
-			}
-		}
+		targetBp->isActive = true;
 	}
 
 	return success;
