@@ -391,6 +391,11 @@ void WindowsNativeAdapter::Reset()
 	m_hasStepOverBreakpoint = false;
 	m_stepOverBreakpointContinue = false;
 
+	// Reset hardware breakpoint step-over tracking
+	m_stepOverHwBreakpointIndex = -1;
+	m_hasStepOverHwBreakpoint = false;
+	m_stepOverHwBreakpointContinue = false;
+
 	// Reset temp breakpoint
 	m_hasTempBreakpoint = false;
 	m_tempBreakpointAddress = 0;
@@ -718,7 +723,7 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 
 	case EXCEPTION_SINGLE_STEP:
 	{
-		// If we were stepping over a breakpoint, re-apply it
+		// If we were stepping over a software breakpoint, re-apply it
 		if (m_hasStepOverBreakpoint)
 		{
 			std::lock_guard<std::mutex> lock(m_breakpointsMutex);
@@ -735,12 +740,41 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 			// If this was from Go(), continue execution; if from StepInto(), stop
 			if (m_stepOverBreakpointContinue)
 			{
+				m_stepOverBreakpointContinue = false;
 				return false;  // Don't stop, continue execution
 			}
 			// Fall through to normal single step handling (will stop)
 		}
 
-		// Check hardware breakpoints
+		// If we were stepping over a hardware breakpoint, re-enable it
+		if (m_hasStepOverHwBreakpoint)
+		{
+			HANDLE threadHandle = m_threads[m_activeThreadId];
+			if (threadHandle && m_stepOverHwBreakpointIndex >= 0)
+			{
+				CONTEXT ctx {};
+				ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+				if (GetThreadContext(threadHandle, &ctx))
+				{
+					// Re-enable the hardware breakpoint in DR7
+					ctx.Dr7 |= (1ULL << (m_stepOverHwBreakpointIndex * 2));  // Local enable
+					SetThreadContext(threadHandle, &ctx);
+				}
+			}
+			m_hasStepOverHwBreakpoint = false;
+
+			// If this was from Go(), continue execution
+			if (m_stepOverHwBreakpointContinue)
+			{
+				m_stepOverHwBreakpointContinue = false;
+				m_stepOverHwBreakpointIndex = -1;
+				return false;  // Don't stop, continue execution
+			}
+			m_stepOverHwBreakpointIndex = -1;
+			// Fall through to normal single step handling (will stop)
+		}
+
+		// Check if a hardware breakpoint was hit
 		HANDLE threadHandle = m_threads[m_activeThreadId];
 		if (threadHandle)
 		{
@@ -750,10 +784,25 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 			{
 				if (ctx.Dr6 & 0xF)  // Hardware breakpoint hit
 				{
-					m_stopReason = Breakpoint;
+					// Determine which DR register caused the hit
+					int hitIndex = -1;
+					for (int i = 0; i < 4; i++)
+					{
+						if (ctx.Dr6 & (1 << i))
+						{
+							hitIndex = i;
+							break;
+						}
+					}
+
 					// Clear Dr6
 					ctx.Dr6 = 0;
 					SetThreadContext(threadHandle, &ctx);
+
+					// Store info for step-over when Go() is called
+					m_stepOverHwBreakpointIndex = hitIndex;
+
+					m_stopReason = Breakpoint;
 					return true;
 				}
 			}
@@ -1346,22 +1395,70 @@ void WindowsNativeAdapter::ApplyPendingBreakpoints()
 		}
 	}
 
-	// Also try pending hardware breakpoints
-	std::lock_guard<std::mutex> hwLock(m_hwBreakpointsMutex);
-	auto hwIt = m_pendingHardwareBreakpoints.begin();
-	while (hwIt != m_pendingHardwareBreakpoints.end())
+	// Re-apply existing hardware breakpoints that are inactive (e.g., from a previous debug session)
 	{
-		if (hwIt->isRelative)
+		std::lock_guard<std::mutex> hwLock(m_hwBreakpointsMutex);
+		for (auto& hwbp : m_hardwareBreakpoints)
 		{
-			uint64_t address = ResolveModuleOffset(hwIt->location);
-			if (address != 0)
+			if (!hwbp.isActive)
 			{
-				AddHardwareBreakpoint(address, hwIt->type, hwIt->size);
-				hwIt = m_pendingHardwareBreakpoints.erase(hwIt);
-				continue;
+				// Find a free debug register
+				int drIndex = FindFreeDebugRegister();
+				if (drIndex < 0)
+				{
+					LogError("No free debug registers available for hardware breakpoint re-apply");
+					continue;
+				}
+
+				hwbp.drIndex = drIndex;
+				hwbp.isActive = true;
+
+				// Apply to all threads
+				for (auto& [tid, handle] : m_threads)
+				{
+					if (handle)
+					{
+						CONTEXT ctx {};
+						ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+						if (GetThreadContext(handle, &ctx))
+						{
+							if (SetHardwareBreakpointInContext(ctx, drIndex, hwbp.address, hwbp.type, hwbp.size))
+							{
+								SetThreadContext(handle, &ctx);
+							}
+						}
+					}
+				}
 			}
 		}
-		++hwIt;
+	}
+
+	// Also try pending hardware breakpoints - collect them first, then apply outside the lock
+	std::vector<PendingHardwareBreakpoint> toApply;
+	{
+		std::lock_guard<std::mutex> hwLock(m_hwBreakpointsMutex);
+		auto hwIt = m_pendingHardwareBreakpoints.begin();
+		while (hwIt != m_pendingHardwareBreakpoints.end())
+		{
+			if (hwIt->isRelative)
+			{
+				uint64_t address = ResolveModuleOffset(hwIt->location);
+				if (address != 0)
+				{
+					PendingHardwareBreakpoint resolved(address, hwIt->type, hwIt->size);
+					toApply.push_back(resolved);
+					hwIt = m_pendingHardwareBreakpoints.erase(hwIt);
+					continue;
+				}
+			}
+			++hwIt;
+		}
+	}
+
+	// Apply the resolved pending hardware breakpoints outside the lock
+	for (const auto& pending : toApply)
+	{
+		AddHardwareBreakpoint(pending.address, pending.type, pending.size);
 	}
 }
 
@@ -1580,10 +1677,43 @@ bool WindowsNativeAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpoi
 	std::lock_guard<std::mutex> lock(m_hwBreakpointsMutex);
 
 	// Check if we already have this breakpoint
-	for (const auto& bp : m_hardwareBreakpoints)
+	for (auto& bp : m_hardwareBreakpoints)
 	{
 		if (bp.address == address && bp.type == type && bp.size == size)
+		{
+			// If already active, nothing to do
+			if (bp.isActive)
+				return true;
+
+			// Re-apply the inactive breakpoint
+			int drIndex = FindFreeDebugRegister();
+			if (drIndex < 0)
+			{
+				LogError("No free debug registers available");
+				return false;
+			}
+
+			bp.drIndex = drIndex;
+			bp.isActive = true;
+
+			// Apply to all threads
+			for (auto& [tid, handle] : m_threads)
+			{
+				if (handle)
+				{
+					CONTEXT ctx {};
+					ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+					if (GetThreadContext(handle, &ctx))
+					{
+						if (SetHardwareBreakpointInContext(ctx, drIndex, address, type, size))
+						{
+							SetThreadContext(handle, &ctx);
+						}
+					}
+				}
+			}
 			return true;
+		}
 	}
 
 	// Find a free debug register
@@ -2030,7 +2160,27 @@ bool WindowsNativeAdapter::Go()
 	if (!m_activelyDebugging)
 		return false;
 
-	// If we're at a breakpoint, we need to step over it first
+	// If we're at a hardware breakpoint, we need to step over it first
+	if (m_stepOverHwBreakpointIndex >= 0)
+	{
+		auto it = m_threads.find(m_activeThreadId);
+		if (it != m_threads.end() && it->second)
+		{
+			CONTEXT ctx {};
+			ctx.ContextFlags = CONTEXT_CONTROL | CONTEXT_DEBUG_REGISTERS;
+			if (GetThreadContext(it->second, &ctx))
+			{
+				// Temporarily disable the hardware breakpoint in DR7
+				ctx.Dr7 &= ~(1ULL << (m_stepOverHwBreakpointIndex * 2));  // Clear local enable
+				ctx.EFlags |= 0x100;  // Set trap flag for single step
+				SetThreadContext(it->second, &ctx);
+			}
+		}
+		m_hasStepOverHwBreakpoint = true;
+		m_stepOverHwBreakpointContinue = true;
+	}
+
+	// If we're at a software breakpoint, we need to step over it first
 	{
 		std::lock_guard<std::mutex> lock(m_breakpointsMutex);
 		uint64_t ip = GetInstructionOffset();
@@ -2075,7 +2225,22 @@ bool WindowsNativeAdapter::StepInto()
 	if (it == m_threads.end() || !it->second)
 		return false;
 
-	// Check if we're at a breakpoint and need to re-apply it after stepping
+	// If we're at a hardware breakpoint, we need to temporarily disable it
+	if (m_stepOverHwBreakpointIndex >= 0)
+	{
+		CONTEXT ctx {};
+		ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+		if (GetThreadContext(it->second, &ctx))
+		{
+			// Temporarily disable the hardware breakpoint in DR7
+			ctx.Dr7 &= ~(1ULL << (m_stepOverHwBreakpointIndex * 2));  // Clear local enable
+			SetThreadContext(it->second, &ctx);
+		}
+		m_hasStepOverHwBreakpoint = true;
+		m_stepOverHwBreakpointContinue = false;  // Stop after re-applying
+	}
+
+	// Check if we're at a software breakpoint and need to re-apply it after stepping
 	{
 		std::lock_guard<std::mutex> lock(m_breakpointsMutex);
 		uint64_t ip = GetInstructionOffset();

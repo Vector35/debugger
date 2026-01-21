@@ -104,6 +104,11 @@ namespace BinaryNinjaDebugger {
 		bool m_hasStepOverBreakpoint = false;
 		bool m_stepOverBreakpointContinue = false;  // If true, continue after re-applying breakpoint
 
+		// Hardware breakpoint step-over tracking
+		int m_stepOverHwBreakpointIndex = -1;  // DR index of hardware breakpoint being stepped over
+		bool m_hasStepOverHwBreakpoint = false;
+		bool m_stepOverHwBreakpointContinue = false;
+
 		// Temporary breakpoint for step over/return (removed after hit)
 		uint64_t m_tempBreakpointAddress = 0;
 		uint8_t m_tempBreakpointOriginalByte = 0;
