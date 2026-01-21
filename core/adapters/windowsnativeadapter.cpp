@@ -403,6 +403,7 @@ void WindowsNativeAdapter::Reset()
 
 	// Reset initial breakpoint tracking
 	m_initialBreakpointSeen = false;
+	m_wow64InitialBreakpointSeen = false;
 
 	// Reset WOW64 flag (will be re-detected on next process start)
 	m_isTargetWow64 = false;
@@ -747,8 +748,27 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 			{
 				return false;  // Don't stop, continue running
 			}
+
+			m_stopReason = InitialBreakpoint;
+			return true;
 		}
 
+		// WOW64 processes have a second system breakpoint (LdrpDoDebuggerBreak in 32-bit ntdll)
+		if (m_isTargetWow64 && !m_wow64InitialBreakpointSeen)
+		{
+			m_wow64InitialBreakpointSeen = true;
+
+			auto settings = Settings::Instance();
+			if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
+			{
+				return false;  // Don't stop, continue running
+			}
+
+			m_stopReason = InitialBreakpoint;
+			return true;
+		}
+
+		// Unknown breakpoint - stop and report
 		m_stopReason = Breakpoint;
 		return true;
 	}

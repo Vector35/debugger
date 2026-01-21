@@ -120,6 +120,7 @@ namespace BinaryNinjaDebugger {
 
 		// Initial breakpoint tracking
 		bool m_initialBreakpointSeen = false;
+		bool m_wow64InitialBreakpointSeen = false;  // WOW64 processes have a second system breakpoint
 
 		// Launch/attach parameters (for passing to debug thread)
 		std::string m_launchExecutable;
