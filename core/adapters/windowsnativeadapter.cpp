@@ -369,7 +369,10 @@ void WindowsNativeAdapter::Reset()
 	{
 		std::lock_guard<std::mutex> lock(m_breakpointsMutex);
 		for (auto& bp : m_breakpoints)
+		{
 			bp.isActive = false;
+			bp.originalByte = 0;  // Clear stale original byte from previous session
+		}
 	}
 
 	// Clear hardware breakpoints state
@@ -1307,6 +1310,16 @@ void WindowsNativeAdapter::ApplyPendingBreakpoints()
 {
 	std::lock_guard<std::mutex> lock(m_breakpointsMutex);
 
+	// Re-apply existing breakpoints that are inactive (e.g., from a previous debug session)
+	for (auto& bp : m_breakpoints)
+	{
+		if (!bp.isActive)
+		{
+			ApplyBreakpoint(bp.address, bp.id);
+		}
+	}
+
+	// Apply pending breakpoints (ModuleNameAndOffset style that need resolution)
 	auto it = m_pendingBreakpoints.begin();
 	while (it != m_pendingBreakpoints.end())
 	{
