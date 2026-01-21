@@ -2630,7 +2630,24 @@ bool WindowsNativeAdapter::StepReturn()
 	if (!m_activelyDebugging)
 		return false;
 
-	uint64_t returnAddr = GetReturnAddress();
+	// Use stack unwinding to get the return address reliably
+	// Frame 0 is the current frame, frame 1 is the caller
+	auto frames = GetFramesOfThread(m_activeThreadId);
+	if (frames.size() < 2)
+	{
+		// Fallback to simple stack read if unwinding fails
+		uint64_t returnAddr = GetReturnAddress();
+		if (returnAddr == 0)
+			return false;
+
+		if (!SetTempBreakpoint(returnAddr))
+			return false;
+
+		return Go();
+	}
+
+	// The return address is the PC of the caller's frame
+	uint64_t returnAddr = frames[1].m_pc;
 	if (returnAddr == 0)
 		return false;
 
