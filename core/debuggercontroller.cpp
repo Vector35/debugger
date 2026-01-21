@@ -3277,8 +3277,8 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 	}
 	
 	// Query TTD for execute access covering the specified range
-	auto events = GetTTDMemoryAccessForAddress(startAddress, endAddress, TTDMemoryExecute);
-	
+	auto events = GetTTDMemoryAccessForPositionRange(startAddress, endAddress, TTDMemoryExecute, startTime, endTime);
+
 	for (const auto& event : events)
 	{
 		if (event.accessType == TTDMemoryExecute)
@@ -3286,10 +3286,8 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 			// Add all executed instruction addresses within the range
 			if (event.instructionAddress >= startAddress && event.instructionAddress <= endAddress)
 			{
-				if ((event.timeStart.step >= startTime.step || event.timeStart.sequence >= startTime.sequence) && (event.timeStart.sequence <= endTime.sequence || event.timeStart.step <= endTime.step))
-				{	
-					m_executedInstructions.insert(event.instructionAddress);
-				}
+				// Check if the event is within the specified time range
+				m_executedInstructions.insert(event.instructionAddress);
 			}
 		}
 	}
