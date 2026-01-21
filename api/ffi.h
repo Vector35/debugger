@@ -643,6 +643,8 @@ extern "C"
 	DEBUGGER_FFI_API BNModuleNameAndOffset BNDebuggerAbsoluteAddressToRelative(
 		BNDebuggerController* controller, uint64_t address);
 
+	DEBUGGER_FFI_API bool BNDebuggerRebaseToRemoteBase(BNDebuggerController* controller);
+
 	DEBUGGER_FFI_API uint32_t BNDebuggerGetExitCode(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API void BNDebuggerWriteStdin(BNDebuggerController* controller, const char* data, size_t len);

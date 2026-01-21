@@ -177,6 +177,15 @@ static void RegisterSettings()
 			"description" : "When enabled, module name comparisons are case-insensitive. This is useful when debug adapters report module names with different casing than the actual binary file names.",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
+
+	settings->RegisterSetting("debugger.autoRebase",
+		R"({
+			"title" : "Auto-Rebase on Module Load",
+			"type" : "boolean",
+			"default" : true,
+			"description" : "When enabled, automatically rebase the input binary view to match the remote base address when the module is loaded. Disable this to keep the original base address and use the 'Rebase to Remote Base' action in the Debugger menu to manually trigger rebasing.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
 }
 
 extern "C"

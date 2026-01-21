@@ -1356,6 +1356,19 @@ class DebuggerController:
         dbgcore.BNDebuggerFreeModules(modules, count.value)
         return DebugModules(result)
 
+    def rebase_to_remote_base(self) -> bool:
+        """
+        Rebase the input binary view to match the remote base address.
+
+        This is useful when auto-rebase is disabled (via the ``debugger.autoRebase`` setting)
+        and you want to manually trigger a rebase after the target has been launched.
+
+        Note: In UI mode, this returns True immediately and the rebase completes asynchronously.
+
+        :return: True if the rebase was initiated successfully, False otherwise
+        """
+        return dbgcore.BNDebuggerRebaseToRemoteBase(self.handle)
+
     @property
     def regs(self) -> DebugRegisters:
         """

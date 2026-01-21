@@ -129,6 +129,7 @@ namespace BinaryNinjaDebugger {
 		bool m_shouldAnnotateStackVariable = false;
 
 		void EventHandler(const DebuggerEvent& event);
+		bool RebaseToAddress(uint64_t newBase);
 		void UpdateStackVariables();
 		void AddRegisterValuesToExpressionParser();
 		void AddModuleValuesToExpressionParser();
@@ -204,6 +205,7 @@ namespace BinaryNinjaDebugger {
 
 		uint64_t m_oldViewBase, m_newViewBase;
 		std::vector<BNAddressRange> m_ranges;
+		BinaryNinja::Ref<BinaryNinja::AnalysisCompletionEvent> m_rebaseCompletionEvent;
 
 		// TTD Code Coverage Analysis
 		std::unordered_set<uint64_t> m_executedInstructions;
@@ -277,6 +279,10 @@ namespace BinaryNinjaDebugger {
 		DebugModule GetModuleForAddress(uint64_t remoteAddress);
 		ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t absoluteAddress);
 		uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress);
+
+		// rebasing
+		// Note: Returns true immediately in UI mode (rebase completes asynchronously via UI callback)
+		bool RebaseToRemoteBase();
 
 		// arch
 		ArchitectureRef GetRemoteArchitecture();

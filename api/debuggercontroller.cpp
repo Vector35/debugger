@@ -900,6 +900,12 @@ ModuleNameAndOffset DebuggerController::AbsoluteAddressToRelative(uint64_t addre
 }
 
 
+bool DebuggerController::RebaseToRemoteBase()
+{
+	return BNDebuggerRebaseToRemoteBase(m_object);
+}
+
+
 uint64_t DebuggerController::IP()
 {
 	return BNDebuggerGetIP(m_object);

@@ -1040,6 +1040,12 @@ BNModuleNameAndOffset BNDebuggerAbsoluteAddressToRelative(BNDebuggerController* 
 }
 
 
+bool BNDebuggerRebaseToRemoteBase(BNDebuggerController* controller)
+{
+	return controller->object->RebaseToRemoteBase();
+}
+
+
 bool BNDebuggerIsSameBaseModule(const char* module1, const char* module2)
 {
 	return DebugModule::IsSameBaseModule(module1, module2);

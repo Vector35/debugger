@@ -485,6 +485,27 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	Menu::setMainMenuOrder("Debugger", MENU_ORDER_LATE);
 	debuggerMenu->addAction("Debug Adapter Settings...", "Settings", MENU_ORDER_FIRST);
 
+	UIAction::registerAction("Rebase to Remote Base");
+	context->globalActions()->bindAction("Rebase to Remote Base",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				const auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+				if (!controller->RebaseToRemoteBase())
+					LogWarn("Failed to rebase to remote base");
+			},
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return false;
+				const auto controller = DebuggerController::GetController(ctxt.binaryView);
+				return controller && controller->IsConnected();
+			}));
+
+	debuggerMenu->addAction("Rebase to Remote Base", "Rebase");
+
 	UIAction::registerAction("Launch", QKeySequence(Qt::Key_F6));
 	context->globalActions()->bindAction("Launch",
 		UIAction(
@@ -1776,7 +1797,7 @@ void DebuggerUI::checkRebaseBinaryView(uint64_t remoteBase)
 
 		if (!result)
 		{
-			LogWarn("failed to rebase the input view");
+			LogWarn("Failed to rebase to remote base 0x%" PRIx64, remoteBase);
 			return;
 		}
 
