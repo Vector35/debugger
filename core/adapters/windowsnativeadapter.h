@@ -116,6 +116,7 @@ namespace BinaryNinjaDebugger {
 
 		// Architecture info
 		bool m_is64Bit = false;
+		bool m_isTargetWow64 = false;  // True if debugging a 32-bit process on 64-bit Windows
 
 		// Initial breakpoint tracking
 		bool m_initialBreakpointSeen = false;
@@ -152,7 +153,9 @@ namespace BinaryNinjaDebugger {
 		bool ApplyHardwareBreakpointsToThread(HANDLE threadHandle);
 		int FindFreeDebugRegister();
 		bool SetHardwareBreakpointInContext(CONTEXT& ctx, int drIndex, uint64_t address, DebugBreakpointType type, size_t size);
+		bool SetHardwareBreakpointInContext(WOW64_CONTEXT& ctx, int drIndex, uint64_t address, DebugBreakpointType type, size_t size);
 		bool ClearHardwareBreakpointInContext(CONTEXT& ctx, int drIndex);
+		bool ClearHardwareBreakpointInContext(WOW64_CONTEXT& ctx, int drIndex);
 
 		uint64_t ResolveModuleOffset(const ModuleNameAndOffset& location);
 

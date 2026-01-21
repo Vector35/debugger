@@ -404,6 +404,9 @@ void WindowsNativeAdapter::Reset()
 	// Reset initial breakpoint tracking
 	m_initialBreakpointSeen = false;
 
+	// Reset WOW64 flag (will be re-detected on next process start)
+	m_isTargetWow64 = false;
+
 	// Reset launch state
 	m_launchResult = false;
 	m_launchError.clear();
@@ -473,6 +476,14 @@ bool WindowsNativeAdapter::StartDebugging()
 		m_threads[pi.dwThreadId] = pi.hThread;
 
 		LogWarn("Process created: PID=%d, TID=%d", m_processId, m_threadId);
+	}
+
+	// Detect if the target is a WOW64 (32-bit) process
+	BOOL isWow64 = FALSE;
+	if (IsWow64Process(m_processHandle, &isWow64))
+	{
+		m_isTargetWow64 = (isWow64 != FALSE);
+		LogWarn("Target process WOW64 status: %s", m_isTargetWow64 ? "32-bit (WOW64)" : "64-bit");
 	}
 
 	m_activelyDebugging = true;
@@ -558,8 +569,11 @@ void WindowsNativeAdapter::DebugLoop()
 		// Handle exception continue status
 		if (debugEvent.dwDebugEventCode == EXCEPTION_DEBUG_EVENT)
 		{
-			if (debugEvent.u.Exception.ExceptionRecord.ExceptionCode == EXCEPTION_BREAKPOINT ||
-				debugEvent.u.Exception.ExceptionRecord.ExceptionCode == EXCEPTION_SINGLE_STEP)
+			DWORD exCode = debugEvent.u.Exception.ExceptionRecord.ExceptionCode;
+			if (exCode == EXCEPTION_BREAKPOINT ||
+				exCode == EXCEPTION_SINGLE_STEP ||
+				exCode == 0x4000001F ||  // STATUS_WX86_BREAKPOINT
+				exCode == 0x4000001E)    // STATUS_WX86_SINGLE_STEP
 			{
 				continueStatus = DBG_CONTINUE;
 			}
@@ -622,9 +636,9 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 	switch (info.ExceptionRecord.ExceptionCode)
 	{
 	case EXCEPTION_BREAKPOINT:
+	case 0x4000001F:  // STATUS_WX86_BREAKPOINT - WOW64 breakpoint exception
 	{
 		uint64_t address = (uint64_t)info.ExceptionRecord.ExceptionAddress;
-		LogWarn("EXCEPTION_BREAKPOINT at 0x%llX", address);
 
 		// Check if this is a temporary breakpoint (from StepOver/StepReturn)
 		if (m_hasTempBreakpoint && address == m_tempBreakpointAddress)
@@ -636,16 +650,25 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 			HANDLE threadHandle = m_threads[m_activeThreadId];
 			if (threadHandle)
 			{
-				CONTEXT ctx {};
-				ctx.ContextFlags = CONTEXT_CONTROL;
-				if (GetThreadContext(threadHandle, &ctx))
+				if (m_isTargetWow64)
 				{
-#ifdef _WIN64
-					ctx.Rip = address;
-#else
-					ctx.Eip = static_cast<DWORD>(address);
-#endif
-					SetThreadContext(threadHandle, &ctx);
+					WOW64_CONTEXT ctx {};
+					ctx.ContextFlags = WOW64_CONTEXT_CONTROL;
+					if (Wow64GetThreadContext(threadHandle, &ctx))
+					{
+						ctx.Eip = static_cast<DWORD>(address);
+						Wow64SetThreadContext(threadHandle, &ctx);
+					}
+				}
+				else
+				{
+					CONTEXT ctx {};
+					ctx.ContextFlags = CONTEXT_CONTROL;
+					if (GetThreadContext(threadHandle, &ctx))
+					{
+						ctx.Rip = address;
+						SetThreadContext(threadHandle, &ctx);
+					}
 				}
 			}
 
@@ -663,20 +686,29 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 					// Restore the original byte
 					WriteMemory(address, DataBuffer(&bp.originalByte, 1));
 
-					// Decrement IP to point back to the breakpoint address
+					// Set IP back to the breakpoint address
 					HANDLE threadHandle = m_threads[m_activeThreadId];
 					if (threadHandle)
 					{
-						CONTEXT ctx {};
-						ctx.ContextFlags = CONTEXT_CONTROL;
-						if (GetThreadContext(threadHandle, &ctx))
+						if (m_isTargetWow64)
 						{
-#ifdef _WIN64
-							ctx.Rip = address;
-#else
-							ctx.Eip = static_cast<DWORD>(address);
-#endif
-							SetThreadContext(threadHandle, &ctx);
+							WOW64_CONTEXT ctx {};
+							ctx.ContextFlags = WOW64_CONTEXT_CONTROL;
+							if (Wow64GetThreadContext(threadHandle, &ctx))
+							{
+								ctx.Eip = static_cast<DWORD>(address);
+								Wow64SetThreadContext(threadHandle, &ctx);
+							}
+						}
+						else
+						{
+							CONTEXT ctx {};
+							ctx.ContextFlags = CONTEXT_CONTROL;
+							if (GetThreadContext(threadHandle, &ctx))
+							{
+								ctx.Rip = address;
+								SetThreadContext(threadHandle, &ctx);
+							}
 						}
 					}
 
@@ -722,6 +754,7 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 	}
 
 	case EXCEPTION_SINGLE_STEP:
+	case 0x4000001E:  // STATUS_WX86_SINGLE_STEP - WOW64 single step exception
 	{
 		// If we were stepping over a software breakpoint, re-apply it
 		if (m_hasStepOverBreakpoint)
@@ -752,13 +785,25 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 			HANDLE threadHandle = m_threads[m_activeThreadId];
 			if (threadHandle && m_stepOverHwBreakpointIndex >= 0)
 			{
-				CONTEXT ctx {};
-				ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-				if (GetThreadContext(threadHandle, &ctx))
+				if (m_isTargetWow64)
 				{
-					// Re-enable the hardware breakpoint in DR7
-					ctx.Dr7 |= (1ULL << (m_stepOverHwBreakpointIndex * 2));  // Local enable
-					SetThreadContext(threadHandle, &ctx);
+					WOW64_CONTEXT ctx {};
+					ctx.ContextFlags = WOW64_CONTEXT_DEBUG_REGISTERS;
+					if (Wow64GetThreadContext(threadHandle, &ctx))
+					{
+						ctx.Dr7 |= (1UL << (m_stepOverHwBreakpointIndex * 2));
+						Wow64SetThreadContext(threadHandle, &ctx);
+					}
+				}
+				else
+				{
+					CONTEXT ctx {};
+					ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+					if (GetThreadContext(threadHandle, &ctx))
+					{
+						ctx.Dr7 |= (1ULL << (m_stepOverHwBreakpointIndex * 2));
+						SetThreadContext(threadHandle, &ctx);
+					}
 				}
 			}
 			m_hasStepOverHwBreakpoint = false;
@@ -778,33 +823,59 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 		HANDLE threadHandle = m_threads[m_activeThreadId];
 		if (threadHandle)
 		{
-			CONTEXT ctx {};
-			ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-			if (GetThreadContext(threadHandle, &ctx))
+			int hitIndex = -1;
+			bool hwBpHit = false;
+
+			if (m_isTargetWow64)
 			{
-				if (ctx.Dr6 & 0xF)  // Hardware breakpoint hit
+				WOW64_CONTEXT ctx {};
+				ctx.ContextFlags = WOW64_CONTEXT_DEBUG_REGISTERS;
+				if (Wow64GetThreadContext(threadHandle, &ctx))
 				{
-					// Determine which DR register caused the hit
-					int hitIndex = -1;
-					for (int i = 0; i < 4; i++)
+					if (ctx.Dr6 & 0xF)
 					{
-						if (ctx.Dr6 & (1 << i))
+						hwBpHit = true;
+						for (int i = 0; i < 4; i++)
 						{
-							hitIndex = i;
-							break;
+							if (ctx.Dr6 & (1 << i))
+							{
+								hitIndex = i;
+								break;
+							}
 						}
+						ctx.Dr6 = 0;
+						Wow64SetThreadContext(threadHandle, &ctx);
 					}
-
-					// Clear Dr6
-					ctx.Dr6 = 0;
-					SetThreadContext(threadHandle, &ctx);
-
-					// Store info for step-over when Go() is called
-					m_stepOverHwBreakpointIndex = hitIndex;
-
-					m_stopReason = Breakpoint;
-					return true;
 				}
+			}
+			else
+			{
+				CONTEXT ctx {};
+				ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+				if (GetThreadContext(threadHandle, &ctx))
+				{
+					if (ctx.Dr6 & 0xF)
+					{
+						hwBpHit = true;
+						for (int i = 0; i < 4; i++)
+						{
+							if (ctx.Dr6 & (1 << i))
+							{
+								hitIndex = i;
+								break;
+							}
+						}
+						ctx.Dr6 = 0;
+						SetThreadContext(threadHandle, &ctx);
+					}
+				}
+			}
+
+			if (hwBpHit)
+			{
+				m_stepOverHwBreakpointIndex = hitIndex;
+				m_stopReason = Breakpoint;
+				return true;
 			}
 		}
 
@@ -1081,15 +1152,19 @@ std::vector<DebugThread> WindowsNativeAdapter::GetThreadList()
 		// Get thread instruction pointer
 		if (handle)
 		{
-			CONTEXT ctx {};
-			ctx.ContextFlags = CONTEXT_CONTROL;
-			if (GetThreadContext(handle, &ctx))
+			if (m_isTargetWow64)
 			{
-#ifdef _WIN64
-				thread.m_rip = ctx.Rip;
-#else
-				thread.m_rip = ctx.Eip;
-#endif
+				WOW64_CONTEXT ctx {};
+				ctx.ContextFlags = WOW64_CONTEXT_CONTROL;
+				if (Wow64GetThreadContext(handle, &ctx))
+					thread.m_rip = ctx.Eip;
+			}
+			else
+			{
+				CONTEXT ctx {};
+				ctx.ContextFlags = CONTEXT_CONTROL;
+				if (GetThreadContext(handle, &ctx))
+					thread.m_rip = ctx.Rip;
 			}
 		}
 		threads.push_back(thread);
@@ -1107,15 +1182,19 @@ DebugThread WindowsNativeAdapter::GetActiveThread() const
 	auto it = m_threads.find(m_activeThreadId);
 	if (it != m_threads.end() && it->second)
 	{
-		CONTEXT ctx {};
-		ctx.ContextFlags = CONTEXT_CONTROL;
-		if (GetThreadContext(it->second, &ctx))
+		if (m_isTargetWow64)
 		{
-#ifdef _WIN64
-			thread.m_rip = ctx.Rip;
-#else
-			thread.m_rip = ctx.Eip;
-#endif
+			WOW64_CONTEXT ctx {};
+			ctx.ContextFlags = WOW64_CONTEXT_CONTROL;
+			if (Wow64GetThreadContext(it->second, &ctx))
+				thread.m_rip = ctx.Eip;
+		}
+		else
+		{
+			CONTEXT ctx {};
+			ctx.ContextFlags = CONTEXT_CONTROL;
+			if (GetThreadContext(it->second, &ctx))
+				thread.m_rip = ctx.Rip;
 		}
 	}
 
@@ -1418,13 +1497,28 @@ void WindowsNativeAdapter::ApplyPendingBreakpoints()
 				{
 					if (handle)
 					{
-						CONTEXT ctx {};
-						ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-						if (GetThreadContext(handle, &ctx))
+						if (m_isTargetWow64)
 						{
-							if (SetHardwareBreakpointInContext(ctx, drIndex, hwbp.address, hwbp.type, hwbp.size))
+							WOW64_CONTEXT ctx {};
+							ctx.ContextFlags = WOW64_CONTEXT_DEBUG_REGISTERS;
+							if (Wow64GetThreadContext(handle, &ctx))
 							{
-								SetThreadContext(handle, &ctx);
+								if (SetHardwareBreakpointInContext(ctx, drIndex, hwbp.address, hwbp.type, hwbp.size))
+								{
+									Wow64SetThreadContext(handle, &ctx);
+								}
+							}
+						}
+						else
+						{
+							CONTEXT ctx {};
+							ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+							if (GetThreadContext(handle, &ctx))
+							{
+								if (SetHardwareBreakpointInContext(ctx, drIndex, hwbp.address, hwbp.type, hwbp.size))
+								{
+									SetThreadContext(handle, &ctx);
+								}
 							}
 						}
 					}
@@ -1627,31 +1721,40 @@ uint64_t WindowsNativeAdapter::GetReturnAddress()
 	if (it == m_threads.end() || !it->second)
 		return 0;
 
-	CONTEXT ctx {};
-	ctx.ContextFlags = CONTEXT_CONTROL;
-	if (!GetThreadContext(it->second, &ctx))
-		return 0;
-
 	uint64_t sp;
-#ifdef _WIN64
-	sp = ctx.Rsp;
-#else
-	sp = ctx.Esp;
-#endif
-
-	// Read return address from stack
-	uint64_t returnAddr = 0;
 	SIZE_T bytesRead;
+	uint64_t returnAddr = 0;
 
-#ifdef _WIN64
-	if (!ReadProcessMemory(m_processHandle, (LPCVOID)sp, &returnAddr, 8, &bytesRead) || bytesRead != 8)
-		return 0;
-#else
-	uint32_t addr32;
-	if (!ReadProcessMemory(m_processHandle, (LPCVOID)sp, &addr32, 4, &bytesRead) || bytesRead != 4)
-		return 0;
-	returnAddr = addr32;
-#endif
+	if (m_isTargetWow64)
+	{
+		// 32-bit process
+		WOW64_CONTEXT ctx {};
+		ctx.ContextFlags = WOW64_CONTEXT_CONTROL;
+		if (!Wow64GetThreadContext(it->second, &ctx))
+			return 0;
+
+		sp = ctx.Esp;
+
+		// Read 32-bit return address from stack
+		uint32_t addr32;
+		if (!ReadProcessMemory(m_processHandle, (LPCVOID)sp, &addr32, 4, &bytesRead) || bytesRead != 4)
+			return 0;
+		returnAddr = addr32;
+	}
+	else
+	{
+		// 64-bit process
+		CONTEXT ctx {};
+		ctx.ContextFlags = CONTEXT_CONTROL;
+		if (!GetThreadContext(it->second, &ctx))
+			return 0;
+
+		sp = ctx.Rsp;
+
+		// Read 64-bit return address from stack
+		if (!ReadProcessMemory(m_processHandle, (LPCVOID)sp, &returnAddr, 8, &bytesRead) || bytesRead != 8)
+			return 0;
+	}
 
 	return returnAddr;
 }
@@ -1701,13 +1804,28 @@ bool WindowsNativeAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpoi
 			{
 				if (handle)
 				{
-					CONTEXT ctx {};
-					ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-					if (GetThreadContext(handle, &ctx))
+					if (m_isTargetWow64)
 					{
-						if (SetHardwareBreakpointInContext(ctx, drIndex, address, type, size))
+						WOW64_CONTEXT ctx {};
+						ctx.ContextFlags = WOW64_CONTEXT_DEBUG_REGISTERS;
+						if (Wow64GetThreadContext(handle, &ctx))
 						{
-							SetThreadContext(handle, &ctx);
+							if (SetHardwareBreakpointInContext(ctx, drIndex, address, type, size))
+							{
+								Wow64SetThreadContext(handle, &ctx);
+							}
+						}
+					}
+					else
+					{
+						CONTEXT ctx {};
+						ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+						if (GetThreadContext(handle, &ctx))
+						{
+							if (SetHardwareBreakpointInContext(ctx, drIndex, address, type, size))
+							{
+								SetThreadContext(handle, &ctx);
+							}
 						}
 					}
 				}
@@ -1732,13 +1850,28 @@ bool WindowsNativeAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpoi
 	{
 		if (handle)
 		{
-			CONTEXT ctx {};
-			ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-			if (GetThreadContext(handle, &ctx))
+			if (m_isTargetWow64)
 			{
-				if (SetHardwareBreakpointInContext(ctx, drIndex, address, type, size))
+				WOW64_CONTEXT ctx {};
+				ctx.ContextFlags = WOW64_CONTEXT_DEBUG_REGISTERS;
+				if (Wow64GetThreadContext(handle, &ctx))
 				{
-					SetThreadContext(handle, &ctx);
+					if (SetHardwareBreakpointInContext(ctx, drIndex, address, type, size))
+					{
+						Wow64SetThreadContext(handle, &ctx);
+					}
+				}
+			}
+			else
+			{
+				CONTEXT ctx {};
+				ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+				if (GetThreadContext(handle, &ctx))
+				{
+					if (SetHardwareBreakpointInContext(ctx, drIndex, address, type, size))
+					{
+						SetThreadContext(handle, &ctx);
+					}
 				}
 			}
 		}
@@ -1764,13 +1897,28 @@ bool WindowsNativeAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreak
 			{
 				if (handle)
 				{
-					CONTEXT ctx {};
-					ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-					if (GetThreadContext(handle, &ctx))
+					if (m_isTargetWow64)
 					{
-						if (ClearHardwareBreakpointInContext(ctx, drIndex))
+						WOW64_CONTEXT ctx {};
+						ctx.ContextFlags = WOW64_CONTEXT_DEBUG_REGISTERS;
+						if (Wow64GetThreadContext(handle, &ctx))
 						{
-							SetThreadContext(handle, &ctx);
+							if (ClearHardwareBreakpointInContext(ctx, drIndex))
+							{
+								Wow64SetThreadContext(handle, &ctx);
+							}
+						}
+					}
+					else
+					{
+						CONTEXT ctx {};
+						ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+						if (GetThreadContext(handle, &ctx))
+						{
+							if (ClearHardwareBreakpointInContext(ctx, drIndex))
+							{
+								SetThreadContext(handle, &ctx);
+							}
 						}
 					}
 				}
@@ -1914,25 +2062,114 @@ bool WindowsNativeAdapter::ClearHardwareBreakpointInContext(CONTEXT& ctx, int dr
 }
 
 
+// WOW64 overload for SetHardwareBreakpointInContext
+bool WindowsNativeAdapter::SetHardwareBreakpointInContext(WOW64_CONTEXT& ctx, int drIndex, uint64_t address, DebugBreakpointType type, size_t size)
+{
+	// Set the address in the debug register (32-bit for WOW64)
+	DWORD addr32 = static_cast<DWORD>(address);
+	switch (drIndex)
+	{
+	case 0: ctx.Dr0 = addr32; break;
+	case 1: ctx.Dr1 = addr32; break;
+	case 2: ctx.Dr2 = addr32; break;
+	case 3: ctx.Dr3 = addr32; break;
+	default: return false;
+	}
+
+	// Calculate condition bits (RW field)
+	DWORD condition;
+	switch (type)
+	{
+	case HardwareExecuteBreakpoint: condition = 0; break;
+	case HardwareWriteBreakpoint: condition = 1; break;
+	case HardwareReadBreakpoint: condition = 3; break;
+	case HardwareAccessBreakpoint: condition = 3; break;
+	default: return false;
+	}
+
+	// Calculate size bits (LEN field)
+	// 00 = 1 byte, 01 = 2 bytes, 11 = 4 bytes (no 8-byte for 32-bit)
+	DWORD len;
+	switch (size)
+	{
+	case 1: len = 0; break;
+	case 2: len = 1; break;
+	case 4: len = 3; break;
+	default: len = 0; break;  // Default to 1 byte
+	}
+
+	// Update DR7
+	int shift = drIndex * 4 + 16;
+	ctx.Dr7 &= ~(0xFUL << shift);
+	ctx.Dr7 |= (condition << shift);
+	ctx.Dr7 |= (len << (shift + 2));
+	ctx.Dr7 |= (1UL << (drIndex * 2));  // Enable local breakpoint
+
+	return true;
+}
+
+
+// WOW64 overload for ClearHardwareBreakpointInContext
+bool WindowsNativeAdapter::ClearHardwareBreakpointInContext(WOW64_CONTEXT& ctx, int drIndex)
+{
+	// Clear the address
+	switch (drIndex)
+	{
+	case 0: ctx.Dr0 = 0; break;
+	case 1: ctx.Dr1 = 0; break;
+	case 2: ctx.Dr2 = 0; break;
+	case 3: ctx.Dr3 = 0; break;
+	default: return false;
+	}
+
+	// Clear the control bits
+	int shift = drIndex * 4 + 16;
+	ctx.Dr7 &= ~(0xFUL << shift);
+	ctx.Dr7 &= ~(3UL << (drIndex * 2));
+
+	return true;
+}
+
+
 bool WindowsNativeAdapter::ApplyHardwareBreakpointsToThread(HANDLE threadHandle)
 {
 	if (m_hardwareBreakpoints.empty())
 		return true;
 
-	CONTEXT ctx {};
-	ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-	if (!GetThreadContext(threadHandle, &ctx))
-		return false;
-
-	for (const auto& bp : m_hardwareBreakpoints)
+	if (m_isTargetWow64)
 	{
-		if (bp.isActive)
-		{
-			SetHardwareBreakpointInContext(ctx, bp.drIndex, bp.address, bp.type, bp.size);
-		}
-	}
+		WOW64_CONTEXT ctx {};
+		ctx.ContextFlags = WOW64_CONTEXT_DEBUG_REGISTERS;
+		if (!Wow64GetThreadContext(threadHandle, &ctx))
+			return false;
 
-	return SetThreadContext(threadHandle, &ctx) != 0;
+		for (const auto& bp : m_hardwareBreakpoints)
+		{
+			if (bp.isActive)
+			{
+				SetHardwareBreakpointInContext(ctx, bp.drIndex, bp.address, bp.type, bp.size);
+			}
+		}
+
+		return Wow64SetThreadContext(threadHandle, &ctx) != 0;
+	}
+	else
+	{
+		CONTEXT ctx {};
+		ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+		if (!GetThreadContext(threadHandle, &ctx))
+			return false;
+
+		for (const auto& bp : m_hardwareBreakpoints)
+		{
+			if (bp.isActive)
+			{
+				SetHardwareBreakpointInContext(ctx, bp.drIndex, bp.address, bp.type, bp.size);
+			}
+		}
+
+		return SetThreadContext(threadHandle, &ctx) != 0;
+	}
 }
 
 
@@ -1944,54 +2181,64 @@ std::unordered_map<std::string, DebugRegister> WindowsNativeAdapter::ReadAllRegi
 	if (it == m_threads.end() || !it->second)
 		return registers;
 
-	CONTEXT ctx {};
-	ctx.ContextFlags = CONTEXT_ALL;
-	if (!GetThreadContext(it->second, &ctx))
-		return registers;
+	if (m_isTargetWow64)
+	{
+		// 32-bit process on 64-bit Windows - use Wow64 API
+		WOW64_CONTEXT ctx {};
+		ctx.ContextFlags = WOW64_CONTEXT_ALL;
+		if (!Wow64GetThreadContext(it->second, &ctx))
+			return registers;
 
-#ifdef _WIN64
-	registers["rax"] = DebugRegister("rax", ctx.Rax, 8, 0);
-	registers["rbx"] = DebugRegister("rbx", ctx.Rbx, 8, 1);
-	registers["rcx"] = DebugRegister("rcx", ctx.Rcx, 8, 2);
-	registers["rdx"] = DebugRegister("rdx", ctx.Rdx, 8, 3);
-	registers["rsi"] = DebugRegister("rsi", ctx.Rsi, 8, 4);
-	registers["rdi"] = DebugRegister("rdi", ctx.Rdi, 8, 5);
-	registers["rbp"] = DebugRegister("rbp", ctx.Rbp, 8, 6);
-	registers["rsp"] = DebugRegister("rsp", ctx.Rsp, 8, 7);
-	registers["r8"] = DebugRegister("r8", ctx.R8, 8, 8);
-	registers["r9"] = DebugRegister("r9", ctx.R9, 8, 9);
-	registers["r10"] = DebugRegister("r10", ctx.R10, 8, 10);
-	registers["r11"] = DebugRegister("r11", ctx.R11, 8, 11);
-	registers["r12"] = DebugRegister("r12", ctx.R12, 8, 12);
-	registers["r13"] = DebugRegister("r13", ctx.R13, 8, 13);
-	registers["r14"] = DebugRegister("r14", ctx.R14, 8, 14);
-	registers["r15"] = DebugRegister("r15", ctx.R15, 8, 15);
-	registers["rip"] = DebugRegister("rip", ctx.Rip, 8, 16);
-	registers["rflags"] = DebugRegister("rflags", ctx.EFlags, 4, 17);
-	registers["cs"] = DebugRegister("cs", ctx.SegCs, 2, 18);
-	registers["ds"] = DebugRegister("ds", ctx.SegDs, 2, 19);
-	registers["es"] = DebugRegister("es", ctx.SegEs, 2, 20);
-	registers["fs"] = DebugRegister("fs", ctx.SegFs, 2, 21);
-	registers["gs"] = DebugRegister("gs", ctx.SegGs, 2, 22);
-	registers["ss"] = DebugRegister("ss", ctx.SegSs, 2, 23);
-#else
-	registers["eax"] = DebugRegister("eax", ctx.Eax, 4, 0);
-	registers["ebx"] = DebugRegister("ebx", ctx.Ebx, 4, 1);
-	registers["ecx"] = DebugRegister("ecx", ctx.Ecx, 4, 2);
-	registers["edx"] = DebugRegister("edx", ctx.Edx, 4, 3);
-	registers["esi"] = DebugRegister("esi", ctx.Esi, 4, 4);
-	registers["edi"] = DebugRegister("edi", ctx.Edi, 4, 5);
-	registers["ebp"] = DebugRegister("ebp", ctx.Ebp, 4, 6);
-	registers["esp"] = DebugRegister("esp", ctx.Esp, 4, 7);
-	registers["eip"] = DebugRegister("eip", ctx.Eip, 4, 8);
-	registers["eflags"] = DebugRegister("eflags", ctx.EFlags, 4, 9);
-	registers["cs"] = DebugRegister("cs", ctx.SegCs, 2, 10);
-	registers["ds"] = DebugRegister("ds", ctx.SegDs, 2, 11);
-	registers["es"] = DebugRegister("es", ctx.SegEs, 2, 12);
-	registers["fs"] = DebugRegister("fs", ctx.SegFs, 2, 13);
-	registers["gs"] = DebugRegister("gs", ctx.SegGs, 2, 14);
-	registers["ss"] = DebugRegister("ss", ctx.SegSs, 2, 15);
-#endif
+		registers["eax"] = DebugRegister("eax", ctx.Eax, 4, 0);
+		registers["ebx"] = DebugRegister("ebx", ctx.Ebx, 4, 1);
+		registers["ecx"] = DebugRegister("ecx", ctx.Ecx, 4, 2);
+		registers["edx"] = DebugRegister("edx", ctx.Edx, 4, 3);
+		registers["esi"] = DebugRegister("esi", ctx.Esi, 4, 4);
+		registers["edi"] = DebugRegister("edi", ctx.Edi, 4, 5);
+		registers["ebp"] = DebugRegister("ebp", ctx.Ebp, 4, 6);
+		registers["esp"] = DebugRegister("esp", ctx.Esp, 4, 7);
+		registers["eip"] = DebugRegister("eip", ctx.Eip, 4, 8);
+		registers["eflags"] = DebugRegister("eflags", ctx.EFlags, 4, 9);
+		registers["cs"] = DebugRegister("cs", ctx.SegCs, 2, 10);
+		registers["ds"] = DebugRegister("ds", ctx.SegDs, 2, 11);
+		registers["es"] = DebugRegister("es", ctx.SegEs, 2, 12);
+		registers["fs"] = DebugRegister("fs", ctx.SegFs, 2, 13);
+		registers["gs"] = DebugRegister("gs", ctx.SegGs, 2, 14);
+		registers["ss"] = DebugRegister("ss", ctx.SegSs, 2, 15);
+	}
+	else
+	{
+		// 64-bit process
+		CONTEXT ctx {};
+		ctx.ContextFlags = CONTEXT_ALL;
+		if (!GetThreadContext(it->second, &ctx))
+			return registers;
+
+		registers["rax"] = DebugRegister("rax", ctx.Rax, 8, 0);
+		registers["rbx"] = DebugRegister("rbx", ctx.Rbx, 8, 1);
+		registers["rcx"] = DebugRegister("rcx", ctx.Rcx, 8, 2);
+		registers["rdx"] = DebugRegister("rdx", ctx.Rdx, 8, 3);
+		registers["rsi"] = DebugRegister("rsi", ctx.Rsi, 8, 4);
+		registers["rdi"] = DebugRegister("rdi", ctx.Rdi, 8, 5);
+		registers["rbp"] = DebugRegister("rbp", ctx.Rbp, 8, 6);
+		registers["rsp"] = DebugRegister("rsp", ctx.Rsp, 8, 7);
+		registers["r8"] = DebugRegister("r8", ctx.R8, 8, 8);
+		registers["r9"] = DebugRegister("r9", ctx.R9, 8, 9);
+		registers["r10"] = DebugRegister("r10", ctx.R10, 8, 10);
+		registers["r11"] = DebugRegister("r11", ctx.R11, 8, 11);
+		registers["r12"] = DebugRegister("r12", ctx.R12, 8, 12);
+		registers["r13"] = DebugRegister("r13", ctx.R13, 8, 13);
+		registers["r14"] = DebugRegister("r14", ctx.R14, 8, 14);
+		registers["r15"] = DebugRegister("r15", ctx.R15, 8, 15);
+		registers["rip"] = DebugRegister("rip", ctx.Rip, 8, 16);
+		registers["rflags"] = DebugRegister("rflags", ctx.EFlags, 4, 17);
+		registers["cs"] = DebugRegister("cs", ctx.SegCs, 2, 18);
+		registers["ds"] = DebugRegister("ds", ctx.SegDs, 2, 19);
+		registers["es"] = DebugRegister("es", ctx.SegEs, 2, 20);
+		registers["fs"] = DebugRegister("fs", ctx.SegFs, 2, 21);
+		registers["gs"] = DebugRegister("gs", ctx.SegGs, 2, 22);
+		registers["ss"] = DebugRegister("ss", ctx.SegSs, 2, 23);
+	}
 
 	return registers;
 }
@@ -2014,49 +2261,61 @@ bool WindowsNativeAdapter::WriteRegister(const std::string& reg, intx::uint512 v
 	if (it == m_threads.end() || !it->second)
 		return false;
 
-	CONTEXT ctx {};
-	ctx.ContextFlags = CONTEXT_ALL;
-	if (!GetThreadContext(it->second, &ctx))
-		return false;
-
 	uint64_t val64 = static_cast<uint64_t>(value);
 
-#ifdef _WIN64
-	if (reg == "rax") ctx.Rax = val64;
-	else if (reg == "rbx") ctx.Rbx = val64;
-	else if (reg == "rcx") ctx.Rcx = val64;
-	else if (reg == "rdx") ctx.Rdx = val64;
-	else if (reg == "rsi") ctx.Rsi = val64;
-	else if (reg == "rdi") ctx.Rdi = val64;
-	else if (reg == "rbp") ctx.Rbp = val64;
-	else if (reg == "rsp") ctx.Rsp = val64;
-	else if (reg == "r8") ctx.R8 = val64;
-	else if (reg == "r9") ctx.R9 = val64;
-	else if (reg == "r10") ctx.R10 = val64;
-	else if (reg == "r11") ctx.R11 = val64;
-	else if (reg == "r12") ctx.R12 = val64;
-	else if (reg == "r13") ctx.R13 = val64;
-	else if (reg == "r14") ctx.R14 = val64;
-	else if (reg == "r15") ctx.R15 = val64;
-	else if (reg == "rip") ctx.Rip = val64;
-	else if (reg == "rflags") ctx.EFlags = static_cast<DWORD>(val64);
-	else return false;
-#else
-	DWORD val32 = static_cast<DWORD>(val64);
-	if (reg == "eax") ctx.Eax = val32;
-	else if (reg == "ebx") ctx.Ebx = val32;
-	else if (reg == "ecx") ctx.Ecx = val32;
-	else if (reg == "edx") ctx.Edx = val32;
-	else if (reg == "esi") ctx.Esi = val32;
-	else if (reg == "edi") ctx.Edi = val32;
-	else if (reg == "ebp") ctx.Ebp = val32;
-	else if (reg == "esp") ctx.Esp = val32;
-	else if (reg == "eip") ctx.Eip = val32;
-	else if (reg == "eflags") ctx.EFlags = val32;
-	else return false;
-#endif
+	if (m_isTargetWow64)
+	{
+		// 32-bit process on 64-bit Windows - use WOW64_CONTEXT
+		WOW64_CONTEXT ctx {};
+		ctx.ContextFlags = WOW64_CONTEXT_ALL;
+		if (!Wow64GetThreadContext(it->second, &ctx))
+			return false;
 
-	return SetThreadContext(it->second, &ctx) != 0;
+		DWORD val32 = static_cast<DWORD>(val64);
+		if (reg == "eax") ctx.Eax = val32;
+		else if (reg == "ebx") ctx.Ebx = val32;
+		else if (reg == "ecx") ctx.Ecx = val32;
+		else if (reg == "edx") ctx.Edx = val32;
+		else if (reg == "esi") ctx.Esi = val32;
+		else if (reg == "edi") ctx.Edi = val32;
+		else if (reg == "ebp") ctx.Ebp = val32;
+		else if (reg == "esp") ctx.Esp = val32;
+		else if (reg == "eip") ctx.Eip = val32;
+		else if (reg == "eflags") ctx.EFlags = val32;
+		else return false;
+
+		return Wow64SetThreadContext(it->second, &ctx) != 0;
+	}
+	else
+	{
+		// Native 64-bit process
+		CONTEXT ctx {};
+		ctx.ContextFlags = CONTEXT_ALL;
+		if (!GetThreadContext(it->second, &ctx))
+			return false;
+
+		if (reg == "rax") ctx.Rax = val64;
+		else if (reg == "rbx") ctx.Rbx = val64;
+		else if (reg == "rcx") ctx.Rcx = val64;
+		else if (reg == "rdx") ctx.Rdx = val64;
+		else if (reg == "rsi") ctx.Rsi = val64;
+		else if (reg == "rdi") ctx.Rdi = val64;
+		else if (reg == "rbp") ctx.Rbp = val64;
+		else if (reg == "rsp") ctx.Rsp = val64;
+		else if (reg == "r8") ctx.R8 = val64;
+		else if (reg == "r9") ctx.R9 = val64;
+		else if (reg == "r10") ctx.R10 = val64;
+		else if (reg == "r11") ctx.R11 = val64;
+		else if (reg == "r12") ctx.R12 = val64;
+		else if (reg == "r13") ctx.R13 = val64;
+		else if (reg == "r14") ctx.R14 = val64;
+		else if (reg == "r15") ctx.R15 = val64;
+		else if (reg == "rip") ctx.Rip = val64;
+		else if (reg == "rflags") ctx.EFlags = static_cast<DWORD>(val64);
+		else return false;
+
+		return SetThreadContext(it->second, &ctx) != 0;
+	}
 }
 
 
@@ -2121,16 +2380,10 @@ std::vector<DebugModule> WindowsNativeAdapter::GetModuleList()
 
 std::string WindowsNativeAdapter::GetTargetArchitecture()
 {
-	// Check if this is a WoW64 process
-	BOOL isWow64 = FALSE;
-	if (IsWow64Process(m_processHandle, &isWow64) && isWow64)
+	// Use cached WOW64 detection result
+	if (m_isTargetWow64)
 		return "x86";
-
-#ifdef _WIN64
 	return "x86_64";
-#else
-	return "x86";
-#endif
 }
 
 
@@ -2166,14 +2419,27 @@ bool WindowsNativeAdapter::Go()
 		auto it = m_threads.find(m_activeThreadId);
 		if (it != m_threads.end() && it->second)
 		{
-			CONTEXT ctx {};
-			ctx.ContextFlags = CONTEXT_CONTROL | CONTEXT_DEBUG_REGISTERS;
-			if (GetThreadContext(it->second, &ctx))
+			if (m_isTargetWow64)
 			{
-				// Temporarily disable the hardware breakpoint in DR7
-				ctx.Dr7 &= ~(1ULL << (m_stepOverHwBreakpointIndex * 2));  // Clear local enable
-				ctx.EFlags |= 0x100;  // Set trap flag for single step
-				SetThreadContext(it->second, &ctx);
+				WOW64_CONTEXT ctx {};
+				ctx.ContextFlags = WOW64_CONTEXT_CONTROL | WOW64_CONTEXT_DEBUG_REGISTERS;
+				if (Wow64GetThreadContext(it->second, &ctx))
+				{
+					ctx.Dr7 &= ~(1UL << (m_stepOverHwBreakpointIndex * 2));
+					ctx.EFlags |= 0x100;
+					Wow64SetThreadContext(it->second, &ctx);
+				}
+			}
+			else
+			{
+				CONTEXT ctx {};
+				ctx.ContextFlags = CONTEXT_CONTROL | CONTEXT_DEBUG_REGISTERS;
+				if (GetThreadContext(it->second, &ctx))
+				{
+					ctx.Dr7 &= ~(1ULL << (m_stepOverHwBreakpointIndex * 2));
+					ctx.EFlags |= 0x100;
+					SetThreadContext(it->second, &ctx);
+				}
 			}
 		}
 		m_hasStepOverHwBreakpoint = true;
@@ -2197,12 +2463,25 @@ bool WindowsNativeAdapter::Go()
 				auto it = m_threads.find(m_activeThreadId);
 				if (it != m_threads.end() && it->second)
 				{
-					CONTEXT ctx {};
-					ctx.ContextFlags = CONTEXT_CONTROL;
-					if (GetThreadContext(it->second, &ctx))
+					if (m_isTargetWow64)
 					{
-						ctx.EFlags |= 0x100;  // Set trap flag
-						SetThreadContext(it->second, &ctx);
+						WOW64_CONTEXT ctx {};
+						ctx.ContextFlags = WOW64_CONTEXT_CONTROL;
+						if (Wow64GetThreadContext(it->second, &ctx))
+						{
+							ctx.EFlags |= 0x100;
+							Wow64SetThreadContext(it->second, &ctx);
+						}
+					}
+					else
+					{
+						CONTEXT ctx {};
+						ctx.ContextFlags = CONTEXT_CONTROL;
+						if (GetThreadContext(it->second, &ctx))
+						{
+							ctx.EFlags |= 0x100;
+							SetThreadContext(it->second, &ctx);
+						}
 					}
 				}
 				break;
@@ -2228,13 +2507,25 @@ bool WindowsNativeAdapter::StepInto()
 	// If we're at a hardware breakpoint, we need to temporarily disable it
 	if (m_stepOverHwBreakpointIndex >= 0)
 	{
-		CONTEXT ctx {};
-		ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
-		if (GetThreadContext(it->second, &ctx))
+		if (m_isTargetWow64)
 		{
-			// Temporarily disable the hardware breakpoint in DR7
-			ctx.Dr7 &= ~(1ULL << (m_stepOverHwBreakpointIndex * 2));  // Clear local enable
-			SetThreadContext(it->second, &ctx);
+			WOW64_CONTEXT ctx {};
+			ctx.ContextFlags = WOW64_CONTEXT_DEBUG_REGISTERS;
+			if (Wow64GetThreadContext(it->second, &ctx))
+			{
+				ctx.Dr7 &= ~(1UL << (m_stepOverHwBreakpointIndex * 2));
+				Wow64SetThreadContext(it->second, &ctx);
+			}
+		}
+		else
+		{
+			CONTEXT ctx {};
+			ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+			if (GetThreadContext(it->second, &ctx))
+			{
+				ctx.Dr7 &= ~(1ULL << (m_stepOverHwBreakpointIndex * 2));
+				SetThreadContext(it->second, &ctx);
+			}
 		}
 		m_hasStepOverHwBreakpoint = true;
 		m_stepOverHwBreakpointContinue = false;  // Stop after re-applying
@@ -2257,15 +2548,29 @@ bool WindowsNativeAdapter::StepInto()
 		}
 	}
 
-	CONTEXT ctx {};
-	ctx.ContextFlags = CONTEXT_CONTROL;
-	if (!GetThreadContext(it->second, &ctx))
-		return false;
-
 	// Set the trap flag for single stepping
-	ctx.EFlags |= 0x100;
-	if (!SetThreadContext(it->second, &ctx))
-		return false;
+	if (m_isTargetWow64)
+	{
+		WOW64_CONTEXT ctx {};
+		ctx.ContextFlags = WOW64_CONTEXT_CONTROL;
+		if (!Wow64GetThreadContext(it->second, &ctx))
+			return false;
+
+		ctx.EFlags |= 0x100;
+		if (!Wow64SetThreadContext(it->second, &ctx))
+			return false;
+	}
+	else
+	{
+		CONTEXT ctx {};
+		ctx.ContextFlags = CONTEXT_CONTROL;
+		if (!GetThreadContext(it->second, &ctx))
+			return false;
+
+		ctx.EFlags |= 0x100;
+		if (!SetThreadContext(it->second, &ctx))
+			return false;
+	}
 
 	m_singleStepping = true;
 	m_targetRunning = true;
@@ -2330,16 +2635,22 @@ uint64_t WindowsNativeAdapter::GetInstructionOffset()
 	if (it == m_threads.end() || !it->second)
 		return 0;
 
-	CONTEXT ctx {};
-	ctx.ContextFlags = CONTEXT_CONTROL;
-	if (!GetThreadContext(it->second, &ctx))
-		return 0;
-
-#ifdef _WIN64
-	return ctx.Rip;
-#else
-	return ctx.Eip;
-#endif
+	if (m_isTargetWow64)
+	{
+		WOW64_CONTEXT ctx {};
+		ctx.ContextFlags = WOW64_CONTEXT_CONTROL;
+		if (!Wow64GetThreadContext(it->second, &ctx))
+			return 0;
+		return ctx.Eip;
+	}
+	else
+	{
+		CONTEXT ctx {};
+		ctx.ContextFlags = CONTEXT_CONTROL;
+		if (!GetThreadContext(it->second, &ctx))
+			return 0;
+		return ctx.Rip;
+	}
 }
 
 
@@ -2349,16 +2660,22 @@ uint64_t WindowsNativeAdapter::GetStackPointer()
 	if (it == m_threads.end() || !it->second)
 		return 0;
 
-	CONTEXT ctx {};
-	ctx.ContextFlags = CONTEXT_CONTROL;
-	if (!GetThreadContext(it->second, &ctx))
-		return 0;
-
-#ifdef _WIN64
-	return ctx.Rsp;
-#else
-	return ctx.Esp;
-#endif
+	if (m_isTargetWow64)
+	{
+		WOW64_CONTEXT ctx {};
+		ctx.ContextFlags = WOW64_CONTEXT_CONTROL;
+		if (!Wow64GetThreadContext(it->second, &ctx))
+			return 0;
+		return ctx.Esp;
+	}
+	else
+	{
+		CONTEXT ctx {};
+		ctx.ContextFlags = CONTEXT_CONTROL;
+		if (!GetThreadContext(it->second, &ctx))
+			return 0;
+		return ctx.Rsp;
+	}
 }
 
 
@@ -2399,11 +2716,6 @@ std::vector<DebugFrame> WindowsNativeAdapter::GetFramesOfThread(uint32_t tid)
 
 	HANDLE threadHandle = it->second;
 
-	CONTEXT ctx {};
-	ctx.ContextFlags = CONTEXT_FULL;
-	if (!GetThreadContext(threadHandle, &ctx))
-		return frames;
-
 	// Initialize symbol handler (needed for StackWalk64)
 	SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
 	SymInitialize(m_processHandle, nullptr, TRUE);
@@ -2411,23 +2723,43 @@ std::vector<DebugFrame> WindowsNativeAdapter::GetFramesOfThread(uint32_t tid)
 	STACKFRAME64 stackFrame {};
 	DWORD machineType;
 
-#ifdef _WIN64
-	machineType = IMAGE_FILE_MACHINE_AMD64;
-	stackFrame.AddrPC.Offset = ctx.Rip;
-	stackFrame.AddrPC.Mode = AddrModeFlat;
-	stackFrame.AddrFrame.Offset = ctx.Rbp;
-	stackFrame.AddrFrame.Mode = AddrModeFlat;
-	stackFrame.AddrStack.Offset = ctx.Rsp;
-	stackFrame.AddrStack.Mode = AddrModeFlat;
-#else
-	machineType = IMAGE_FILE_MACHINE_I386;
-	stackFrame.AddrPC.Offset = ctx.Eip;
-	stackFrame.AddrPC.Mode = AddrModeFlat;
-	stackFrame.AddrFrame.Offset = ctx.Ebp;
-	stackFrame.AddrFrame.Mode = AddrModeFlat;
-	stackFrame.AddrStack.Offset = ctx.Esp;
-	stackFrame.AddrStack.Mode = AddrModeFlat;
-#endif
+	// Storage for both context types - StackWalk64 takes PVOID
+	CONTEXT ctx64 {};
+	WOW64_CONTEXT ctx32 {};
+	PVOID contextPtr;
+
+	if (m_isTargetWow64)
+	{
+		// 32-bit process on 64-bit Windows
+		ctx32.ContextFlags = WOW64_CONTEXT_FULL;
+		if (!Wow64GetThreadContext(threadHandle, &ctx32))
+			return frames;
+
+		machineType = IMAGE_FILE_MACHINE_I386;
+		stackFrame.AddrPC.Offset = ctx32.Eip;
+		stackFrame.AddrPC.Mode = AddrModeFlat;
+		stackFrame.AddrFrame.Offset = ctx32.Ebp;
+		stackFrame.AddrFrame.Mode = AddrModeFlat;
+		stackFrame.AddrStack.Offset = ctx32.Esp;
+		stackFrame.AddrStack.Mode = AddrModeFlat;
+		contextPtr = &ctx32;
+	}
+	else
+	{
+		// Native 64-bit process
+		ctx64.ContextFlags = CONTEXT_FULL;
+		if (!GetThreadContext(threadHandle, &ctx64))
+			return frames;
+
+		machineType = IMAGE_FILE_MACHINE_AMD64;
+		stackFrame.AddrPC.Offset = ctx64.Rip;
+		stackFrame.AddrPC.Mode = AddrModeFlat;
+		stackFrame.AddrFrame.Offset = ctx64.Rbp;
+		stackFrame.AddrFrame.Mode = AddrModeFlat;
+		stackFrame.AddrStack.Offset = ctx64.Rsp;
+		stackFrame.AddrStack.Mode = AddrModeFlat;
+		contextPtr = &ctx64;
+	}
 
 	int frameIndex = 0;
 	const int maxFrames = 256;
@@ -2439,7 +2771,7 @@ std::vector<DebugFrame> WindowsNativeAdapter::GetFramesOfThread(uint32_t tid)
 			m_processHandle,
 			threadHandle,
 			&stackFrame,
-			&ctx,
+			contextPtr,
 			nullptr,
 			SymFunctionTableAccess64,
 			SymGetModuleBase64,
