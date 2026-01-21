@@ -159,8 +159,30 @@ void TTDMemoryQueryWidget::setupUI()
 		m_endAddressEdit->setPlaceholderText("0xFFFFFFFF");
 	}
 	
-	inputLayout->addRow("Start Address:", m_startAddressEdit);
-	inputLayout->addRow("End Address:", m_endAddressEdit);
+	// Put both address fields on the same line
+	QHBoxLayout* addressLayout = new QHBoxLayout();
+	addressLayout->addWidget(new QLabel("Start:"));
+	addressLayout->addWidget(m_startAddressEdit);
+	addressLayout->addWidget(new QLabel("End:"));
+	addressLayout->addWidget(m_endAddressEdit);
+	
+	inputLayout->addRow("Address Range:", addressLayout);
+
+	m_startTimeEdit = new QLineEdit();
+	m_startTimeEdit->setToolTip("Start time in format 'sequence:step' (hexadecimal), leave blank for start of recording");
+	m_startTimeEdit->setPlaceholderText("e.g. 0:0");
+
+	m_endTimeEdit = new QLineEdit();
+	m_endTimeEdit->setToolTip("End time in format 'sequence:step' (hexadecimal), leave blank for end of recording");
+	m_endTimeEdit->setPlaceholderText("e.g. 23f:a7");
+
+	QHBoxLayout* timeLayout = new QHBoxLayout();
+	timeLayout->addWidget(new QLabel("Start Time:"));
+	timeLayout->addWidget(m_startTimeEdit);
+	timeLayout->addWidget(new QLabel("End Time:"));
+	timeLayout->addWidget(m_endTimeEdit);
+
+	inputLayout->addRow("Time Range (Optional):", timeLayout);
 	
 	// Memory access type checkboxes
 	QHBoxLayout* accessLayout = new QHBoxLayout();
@@ -317,7 +339,43 @@ void TTDMemoryQueryWidget::performQuery()
 	// Parse input parameters
 	uint64_t startAddress = parseAddress(m_startAddressEdit->text());
 	uint64_t endAddress = parseAddress(m_endAddressEdit->text());
-	
+	TTDPosition startTime ;
+	TTDPosition endTime ;
+	if (m_startTimeEdit->text().isEmpty())
+	{
+		startTime = TTDPosition(0, 0);
+	}
+	else
+	{
+		try
+		{
+			startTime = parseTimePosition(m_startTimeEdit->text());
+		}
+		catch (const std::invalid_argument&)
+		{
+			QMessageBox::warning(this, "Invalid Start Time",
+				"Start time must be in the format 'sequence:step' with valid hexadecimal numbers.");
+			return;
+		}
+	}
+
+	if (m_endTimeEdit->text().isEmpty())
+	{
+		endTime = TTDPosition(std::numeric_limits<uint64_t>::max(), std::numeric_limits<uint64_t>::max());
+	}
+	else
+	{
+		try{
+			endTime = parseTimePosition(m_endTimeEdit->text());
+		}
+		catch (const std::invalid_argument&)
+		{
+			QMessageBox::warning(this, "Invalid End Time", 
+				"End time must be in the format 'sequence:step' with valid hexadecimal numbers.");
+			return;
+		}
+	}
+
 	if (endAddress <= startAddress)
 	{
 		QMessageBox::warning(this, "Invalid Address Range", 
@@ -332,6 +390,13 @@ void TTDMemoryQueryWidget::performQuery()
 			"Please select at least one memory access type (Read, Write, or Execute).");
 		return;
 	}
+
+	if (endTime < startTime)
+	{
+		QMessageBox::warning(this, "Invalid Time Range", 
+			"End time must be greater than or equal to start time.");
+		return;
+	}
 	
 	// Clear previous results
 	clearResults();
@@ -344,7 +409,7 @@ void TTDMemoryQueryWidget::performQuery()
 	try
 	{
 		// Execute the TTD memory query
-		auto events = m_controller->GetTTDMemoryAccessForAddress(startAddress, endAddress, accessType);
+		auto events = m_controller->GetTTDMemoryAccessForPositionRange(startAddress, endAddress, accessType, startTime, endTime);
 		
 		// Populate the results table
 		m_resultsTable->setRowCount((int)events.size());
@@ -635,6 +700,26 @@ uint64_t TTDMemoryQueryWidget::parseAddress(const QString& text)
 	bool ok;
 	uint64_t address = cleanText.toULongLong(&ok, 16);
 	return ok ? address : 0;
+}
+
+TTDPosition TTDMemoryQueryWidget::parseTimePosition(const QString& text)
+{
+	QString cleanText = text.trimmed();
+	if (cleanText.isEmpty())
+		return TTDPosition(0, 0); // Default to start
+	
+	QStringList parts = cleanText.split(':');
+	if (parts.size() != 2)
+		throw std::invalid_argument("Invalid time position format");
+	
+	bool ok1, ok2;
+	uint64_t sequence = parts[0].toULongLong(&ok1, 16);
+	uint64_t step = parts[1].toULongLong(&ok2, 16);
+	
+	if (ok1 && ok2)
+		return TTDPosition(sequence, step);
+	else
+		throw std::invalid_argument("Invalid time position format");
 }
 
 TTDMemoryAccessType TTDMemoryQueryWidget::getSelectedAccessTypes()

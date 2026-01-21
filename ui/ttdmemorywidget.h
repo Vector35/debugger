@@ -89,6 +89,8 @@ private:
 	// Input controls
 	QLineEdit* m_startAddressEdit;
 	QLineEdit* m_endAddressEdit;
+	QLineEdit* m_startTimeEdit;
+	QLineEdit* m_endTimeEdit;
 	QCheckBox* m_readAccessCheck;
 	QCheckBox* m_writeAccessCheck;
 	QCheckBox* m_executeAccessCheck;
@@ -114,6 +116,7 @@ private:
 	void setupTable();
 	void updateStatus(const QString& message);
 	uint64_t parseAddress(const QString& text);
+	TTDPosition parseTimePosition(const QString& text);
 	TTDMemoryAccessType getSelectedAccessTypes();
 	void setupContextMenu();
 	void setupUIActions();
