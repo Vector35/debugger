@@ -403,6 +403,18 @@ std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetTTDMemoryAccessForAddress(uint6
 	return events;
 }
 
+std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime)
+{
+	std::vector<TTDMemoryEvent> events;
+	
+	if (!QueryMemoryAccessByAddressAndPositionRange(startAddress, endAddress, accessType, startTime, endTime, events))
+	{
+		LogError("Failed to query TTD memory access events for address range 0x%llx-0x%llx", startAddress, endAddress);
+	}
+	
+	return events;
+}
+
 TTDPosition DbgEngTTDAdapter::GetCurrentTTDPosition()
 {
 	TTDPosition position;
@@ -543,6 +555,50 @@ bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_
 		
 		// Create the actual TTD memory query expression
 		std::string expression = fmt::format("@$cursession.TTD.Memory(0x{:x},0x{:x},\"{}\")", startAddress, endAddress, accessTypeStr);
+		
+		LogInfo("Executing TTD memory query: %s", expression.c_str());
+		
+		// Execute the query and parse results
+		if (!ParseTTDMemoryObjects(expression, accessType, events))
+		{
+			LogError("Failed to parse TTD memory objects from query");
+			return false;
+		}
+		
+		LogInfo("Successfully retrieved %zu TTD memory events", events.size());
+		return true;
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in QueryMemoryAccessByAddress: %s", e.what());
+		return false;
+	}
+}
+
+bool DbgEngTTDAdapter::QueryMemoryAccessByAddressAndPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime, std::vector<TTDMemoryEvent>& events)
+{
+	if (!m_debugControl)
+	{
+		LogError("Debug control interface not available");
+		return false;
+	}
+	
+	try
+	{
+		// Build the access type string for TTD memory queries - combine flags as needed
+		std::string accessTypeStr;
+		if (accessType & TTDMemoryRead) accessTypeStr += "r";
+		if (accessType & TTDMemoryWrite) accessTypeStr += "w";
+		if (accessType & TTDMemoryExecute) accessTypeStr += "e";
+		
+		if (accessTypeStr.empty())
+		{
+			LogError("Invalid access type specified");
+			return false;
+		}
+		
+		// Create the actual TTD memory query expression
+		std::string expression = fmt::format("@$cursession.TTD.MemoryForPositionRange(0x{:x},0x{:x},\"{}\",\"{:x}:{:x}\",\"{:x}:{:x}\")", startAddress, endAddress, accessTypeStr, startTime.sequence,startTime.step, endTime.sequence, endTime.step);
 		
 		LogInfo("Executing TTD memory query: %s", expression.c_str());
 		

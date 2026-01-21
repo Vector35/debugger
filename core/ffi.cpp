@@ -1226,6 +1226,44 @@ BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerContr
 	return result;
 }
 
+BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForPositionRange(BNDebuggerController* controller,
+	uint64_t address, uint64_t endAddress, BNDebuggerTTDMemoryAccessType accessType, BNDebuggerTTDPosition startTime, BNDebuggerTTDPosition endTime, size_t* count)
+{
+	if (!count)
+		return nullptr;
+
+	*count = 0;
+
+	TTDMemoryAccessType type = static_cast<TTDMemoryAccessType>(accessType);
+	TTDPosition startPos(startTime.sequence, startTime.step);
+	TTDPosition endPos(endTime.sequence, endTime.step);
+	auto events = controller->object->GetTTDMemoryAccessForPositionRange(address, endAddress, type, startPos, endPos);
+	if (events.empty())
+		return nullptr;
+		
+	*count = events.size();
+	auto result = new BNDebuggerTTDMemoryEvent[events.size()];
+	
+	for (size_t i = 0; i < events.size(); i++)
+	{
+		result[i].eventType = BNAllocString(events[i].eventType.c_str());
+		result[i].threadId = events[i].threadId;
+		result[i].uniqueThreadId = events[i].uniqueThreadId;
+		result[i].timeStart.sequence = events[i].timeStart.sequence;
+		result[i].timeStart.step = events[i].timeStart.step;
+		result[i].timeEnd.sequence = events[i].timeEnd.sequence;
+		result[i].timeEnd.step = events[i].timeEnd.step;
+		result[i].address = events[i].address;
+		result[i].size = events[i].size;
+		result[i].memoryAddress = events[i].memoryAddress;
+		result[i].instructionAddress = events[i].instructionAddress;
+		result[i].value = events[i].value;
+		result[i].accessType = static_cast<BNDebuggerTTDMemoryAccessType>(events[i].accessType);
+	}
+	
+	return result;
+}
+
 BNDebuggerTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller)
 {
 	auto position = controller->object->GetCurrentTTDPosition();

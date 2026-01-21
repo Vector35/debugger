@@ -219,6 +219,12 @@ std::vector<TTDMemoryEvent> DebugAdapter::GetTTDMemoryAccessForAddress(uint64_t 
 	return {};
 }
 
+std::vector<TTDMemoryEvent> DebugAdapter::GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime)
+{
+	// Default implementation returns empty results for adapters that don't support TTD
+	return {};
+}
+
 
 std::vector<TTDCallEvent> DebugAdapter::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
 {
