@@ -393,6 +393,9 @@ void WindowsNativeAdapter::Reset()
 	m_tempBreakpointAddress = 0;
 	m_tempBreakpointOriginalByte = 0;
 
+	// Reset initial breakpoint tracking
+	m_initialBreakpointSeen = false;
+
 	// Reset launch state
 	m_launchResult = false;
 	m_launchError.clear();
@@ -676,6 +679,36 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 		}
 
 		// Initial breakpoint (system breakpoint)
+		if (!m_initialBreakpointSeen)
+		{
+			m_initialBreakpointSeen = true;
+
+			auto settings = Settings::Instance();
+
+			// If stopAtEntryPoint is enabled and we have an entry function, add a breakpoint there
+			if (settings->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
+			{
+				// Get the main module name for the breakpoint
+				std::string moduleName;
+				{
+					std::lock_guard<std::mutex> lock(m_modulesMutex);
+					if (!m_modules.empty())
+						moduleName = m_modules[0].m_name;  // First module is the main executable
+				}
+
+				if (!moduleName.empty())
+				{
+					AddBreakpoint(ModuleNameAndOffset(moduleName, m_entryPoint - m_start));
+				}
+			}
+
+			// If stopAtSystemEntryPoint is false, continue execution
+			if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
+			{
+				return false;  // Don't stop, continue running
+			}
+		}
+
 		m_stopReason = Breakpoint;
 		return true;
 	}

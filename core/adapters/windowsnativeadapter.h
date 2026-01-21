@@ -112,6 +112,9 @@ namespace BinaryNinjaDebugger {
 		// Architecture info
 		bool m_is64Bit = false;
 
+		// Initial breakpoint tracking
+		bool m_initialBreakpointSeen = false;
+
 		// Launch/attach parameters (for passing to debug thread)
 		std::string m_launchExecutable;
 		std::string m_launchWorkingDir;
