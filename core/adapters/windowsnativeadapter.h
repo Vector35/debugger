@@ -118,6 +118,9 @@ namespace BinaryNinjaDebugger {
 		bool m_is64Bit = false;
 		bool m_isTargetWow64 = false;  // True if debugging a 32-bit process on 64-bit Windows
 
+		// Settings
+		bool m_verboseLogging = false;  // Enable verbose debug logging
+
 		// Initial breakpoint tracking
 		bool m_initialBreakpointSeen = false;
 		bool m_wow64InitialBreakpointSeen = false;  // WOW64 processes have a second system breakpoint
@@ -159,6 +162,14 @@ namespace BinaryNinjaDebugger {
 		bool ClearHardwareBreakpointInContext(WOW64_CONTEXT& ctx, int drIndex);
 
 		uint64_t ResolveModuleOffset(const ModuleNameAndOffset& location);
+
+		// Verbose logging helper
+		template<typename... Args>
+		void LogVerbose(const char* fmt, Args&&... args)
+		{
+			if (m_verboseLogging)
+				LogWarn(fmt, std::forward<Args>(args)...);
+		}
 
 		// Temporary breakpoint helpers for step over/return
 		bool SetTempBreakpoint(uint64_t address);

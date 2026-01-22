@@ -99,6 +99,11 @@ WindowsNativeAdapter::WindowsNativeAdapter(BinaryView* data) : DebugAdapter(data
 	}
 
 	GenerateDefaultAdapterSettings(data);
+
+	// Read verbose logging setting
+	auto adapterSettings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	m_verboseLogging = adapterSettings->Get<bool>("common.verboseLogging", data, &scope);
 }
 
 
@@ -412,7 +417,7 @@ void WindowsNativeAdapter::Reset()
 
 bool WindowsNativeAdapter::StartDebugging()
 {
-	LogWarn("WindowsNativeAdapter::StartDebugging - isAttaching=%d", m_isAttaching);
+	LogVerbose("WindowsNativeAdapter::StartDebugging - isAttaching=%d", m_isAttaching);
 
 	if (m_isAttaching)
 	{
@@ -443,7 +448,7 @@ bool WindowsNativeAdapter::StartDebugging()
 
 		DWORD creationFlags = DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS | CREATE_NEW_CONSOLE;
 
-		LogWarn("CreateProcessA: %s, workingDir=%s",
+		LogVerbose("CreateProcessA: %s, workingDir=%s",
 			m_launchCommandLine.c_str(), m_launchWorkingDir.c_str());
 
 		if (!CreateProcessA(
@@ -472,7 +477,7 @@ bool WindowsNativeAdapter::StartDebugging()
 		// Add the initial thread to our tracking
 		m_threads[pi.dwThreadId] = pi.hThread;
 
-		LogWarn("Process created: PID=%d, TID=%d", m_processId, m_threadId);
+		LogVerbose("Process created: PID=%d, TID=%d", m_processId, m_threadId);
 	}
 
 	// Detect if the target is a WOW64 (32-bit) process
@@ -480,7 +485,7 @@ bool WindowsNativeAdapter::StartDebugging()
 	if (IsWow64Process(m_processHandle, &isWow64))
 	{
 		m_isTargetWow64 = (isWow64 != FALSE);
-		LogWarn("Target process WOW64 status: %s", m_isTargetWow64 ? "32-bit (WOW64)" : "64-bit");
+		LogVerbose("Target process WOW64 status: %s", m_isTargetWow64 ? "32-bit (WOW64)" : "64-bit");
 	}
 
 	m_activelyDebugging = true;
@@ -492,7 +497,7 @@ bool WindowsNativeAdapter::StartDebugging()
 
 void WindowsNativeAdapter::DebugLoop()
 {
-	LogWarn("WindowsNativeAdapter::DebugLoop started");
+	LogVerbose("WindowsNativeAdapter::DebugLoop started");
 
 	// Create/attach to process on this thread (required by Windows debug API)
 	if (!StartDebugging())
@@ -525,7 +530,7 @@ void WindowsNativeAdapter::DebugLoop()
 			break;
 		}
 
-		LogWarn("Received debug event: code=%d, pid=%d, tid=%d",
+		LogVerbose("Received debug event: code=%d, pid=%d, tid=%d",
 			debugEvent.dwDebugEventCode, debugEvent.dwProcessId, debugEvent.dwThreadId);
 
 		m_lastDebugEvent = debugEvent;
@@ -534,14 +539,14 @@ void WindowsNativeAdapter::DebugLoop()
 		DWORD continueStatus = DBG_CONTINUE;
 
 		bool shouldBreak = HandleDebugEvent(debugEvent);
-		LogWarn("HandleDebugEvent returned shouldBreak=%d", shouldBreak);
+		LogVerbose("HandleDebugEvent returned shouldBreak=%d", shouldBreak);
 
 		if (shouldBreak)
 		{
 			m_targetRunning = false;
 
 			// Notify the controller that we've stopped
-			LogWarn("Posting AdapterStoppedEventType with reason=%d, thread=%d", m_stopReason, m_activeThreadId);
+			LogVerbose("Posting AdapterStoppedEventType with reason=%d, thread=%d", m_stopReason, m_activeThreadId);
 			DebuggerEvent event;
 			event.type = AdapterStoppedEventType;
 			event.data.targetStoppedData.reason = m_stopReason;
@@ -551,10 +556,10 @@ void WindowsNativeAdapter::DebugLoop()
 			PostDebuggerEvent(event);
 
 			// Wait for Go() or other commands
-			LogWarn("Waiting for Go() or stop signal...");
+			LogVerbose("Waiting for Go() or stop signal...");
 			std::unique_lock<std::mutex> lock(m_debugMutex);
 			m_debugCondition.wait(lock, [this] { return m_targetRunning || m_shouldStop; });
-			LogWarn("Wait completed: m_targetRunning=%d, m_shouldStop=%d", m_targetRunning.load(), m_shouldStop.load());
+			LogVerbose("Wait completed: m_targetRunning=%d, m_shouldStop=%d", m_targetRunning.load(), m_shouldStop.load());
 
 			if (m_shouldStop)
 			{
@@ -625,7 +630,7 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 {
 	m_activeThreadId = m_lastDebugEvent.dwThreadId;
 
-	LogWarn("HandleException: code=0x%08X, address=0x%llX, firstChance=%d",
+	LogVerbose("HandleException: code=0x%08X, address=0x%llX, firstChance=%d",
 		info.ExceptionRecord.ExceptionCode,
 		(uint64_t)info.ExceptionRecord.ExceptionAddress,
 		info.dwFirstChance);
@@ -962,7 +967,7 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 
 bool WindowsNativeAdapter::HandleCreateProcess(const CREATE_PROCESS_DEBUG_INFO& info)
 {
-	LogWarn("HandleCreateProcess: baseOfImage=0x%llX, startAddress=0x%llX",
+	LogVerbose("HandleCreateProcess: baseOfImage=0x%llX, startAddress=0x%llX",
 		(uint64_t)info.lpBaseOfImage, (uint64_t)info.lpStartAddress);
 
 	// Store the initial thread handle
@@ -1051,7 +1056,7 @@ bool WindowsNativeAdapter::HandleExitThread(const EXIT_THREAD_DEBUG_INFO& info, 
 bool WindowsNativeAdapter::HandleLoadDll(const LOAD_DLL_DEBUG_INFO& info)
 {
 	std::string moduleName = GetModuleNameFromHandle(info.hFile, info.lpBaseOfDll);
-	LogWarn("HandleLoadDll: %s at 0x%llX", moduleName.c_str(), (uint64_t)info.lpBaseOfDll);
+	LogVerbose("HandleLoadDll: %s at 0x%llX", moduleName.c_str(), (uint64_t)info.lpBaseOfDll);
 
 	{
 		std::lock_guard<std::mutex> lock(m_modulesMutex);
@@ -1104,7 +1109,7 @@ bool WindowsNativeAdapter::HandleOutputDebugString(const OUTPUT_DEBUG_STRING_INF
 		info.nDebugStringLength, &bytesRead))
 	{
 		std::string message(buffer.data(), bytesRead);
-		LogDebug("Debug output: %s", message.c_str());
+		LogVerbose("Debug output: %s", message.c_str());
 	}
 	return false;
 }
@@ -1420,7 +1425,7 @@ DebugBreakpoint WindowsNativeAdapter::AddBreakpoint(const std::uintptr_t address
 		}
 		else
 		{
-			LogDebug("Successfully applied breakpoint at 0x%llX", address);
+			LogVerbose("Successfully applied breakpoint at 0x%llX", address);
 		}
 	}
 
@@ -3095,6 +3100,15 @@ Ref<Settings> WindowsNativeAdapterType::RegisterAdapterSettings()
 			"description" : "Path of the input file for the debugger to find the base address",
 			"readOnly" : false,
 			"uiSelectionAction" : "file"
+			})");
+
+	settings->RegisterSetting("common.verboseLogging",
+		R"({
+			"title" : "Verbose Logging",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "Enable verbose debug logging output for the Windows Native adapter",
+			"readOnly" : false
 			})");
 
 	settings->RegisterSetting("launch.executablePath",
