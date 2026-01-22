@@ -920,9 +920,7 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 		return true;
 	}
 
-	case EXCEPTION_ACCESS_VIOLATION:
-	case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
-	case EXCEPTION_DATATYPE_MISALIGNMENT:
+	// Calculation exceptions (divide by zero, overflow, etc.)
 	case EXCEPTION_FLT_DENORMAL_OPERAND:
 	case EXCEPTION_FLT_DIVIDE_BY_ZERO:
 	case EXCEPTION_FLT_INEXACT_RESULT:
@@ -930,13 +928,24 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 	case EXCEPTION_FLT_OVERFLOW:
 	case EXCEPTION_FLT_STACK_CHECK:
 	case EXCEPTION_FLT_UNDERFLOW:
-	case EXCEPTION_ILLEGAL_INSTRUCTION:
-	case EXCEPTION_IN_PAGE_ERROR:
 	case EXCEPTION_INT_DIVIDE_BY_ZERO:
 	case EXCEPTION_INT_OVERFLOW:
+		m_stopReason = Calculation;
+		return true;
+
+	// Illegal instruction
+	case EXCEPTION_ILLEGAL_INSTRUCTION:
+	case EXCEPTION_PRIV_INSTRUCTION:
+		m_stopReason = IllegalInstruction;
+		return true;
+
+	// Memory access violations and other fatal exceptions
+	case EXCEPTION_ACCESS_VIOLATION:
+	case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+	case EXCEPTION_DATATYPE_MISALIGNMENT:
+	case EXCEPTION_IN_PAGE_ERROR:
 	case EXCEPTION_INVALID_DISPOSITION:
 	case EXCEPTION_NONCONTINUABLE_EXCEPTION:
-	case EXCEPTION_PRIV_INSTRUCTION:
 	case EXCEPTION_STACK_OVERFLOW:
 		m_stopReason = AccessViolation;
 		return true;
