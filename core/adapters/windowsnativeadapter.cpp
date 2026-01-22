@@ -179,14 +179,9 @@ bool WindowsNativeAdapter::Attach(std::uint32_t pid)
 	// Reset any previous state
 	Reset();
 
-	// Read PID from settings
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
-
-	// Store parameters for the debug thread
-	m_attachPID = static_cast<DWORD>(attachPID);
+	// Use the PID parameter directly (don't read from settings)
+	// The settings-based approach doesn't work because the adapter may not exist yet when the PID is set
+	m_attachPID = static_cast<DWORD>(pid);
 	m_isAttaching = true;
 	m_launchResult = false;
 	m_launchError.clear();
@@ -743,8 +738,9 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 				}
 			}
 
-			// If stopAtSystemEntryPoint is false, continue execution
-			if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
+			// When attaching to a running process, always stop at the attach breakpoint
+			// When launching a new process, respect the stopAtSystemEntryPoint setting
+			if (!m_isAttaching && !settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
 			{
 				return false;  // Don't stop, continue running
 			}
@@ -759,7 +755,8 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 			m_wow64InitialBreakpointSeen = true;
 
 			auto settings = Settings::Instance();
-			if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
+			// When attaching, always stop at the attach breakpoint (even for WOW64 second breakpoint)
+			if (!m_isAttaching && !settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
 			{
 				return false;  // Don't stop, continue running
 			}
@@ -1296,7 +1293,14 @@ DebugBreakpoint WindowsNativeAdapter::AddBreakpoint(const std::uintptr_t address
 	// Try to apply the breakpoint if we're attached
 	if (m_processHandle)
 	{
-		ApplyBreakpoint(address, id);
+		if (!ApplyBreakpoint(address, id))
+		{
+			LogWarn("Failed to apply breakpoint at 0x%llX", address);
+		}
+		else
+		{
+			LogDebug("Successfully applied breakpoint at 0x%llX", address);
+		}
 	}
 
 	// Return the updated state
@@ -1348,7 +1352,10 @@ bool WindowsNativeAdapter::ApplyBreakpoint(uint64_t address, unsigned long id)
 	uint8_t currentByte;
 	SIZE_T bytesRead;
 	if (!ReadProcessMemory(m_processHandle, (LPCVOID)address, &currentByte, 1, &bytesRead) || bytesRead != 1)
+	{
+		LogWarn("ApplyBreakpoint: Failed to read memory at 0x%llX, error=%d", address, GetLastError());
 		return false;
+	}
 
 	// If the byte is already INT3, the breakpoint is already applied
 	if (currentByte == INT3_OPCODE)
@@ -1371,11 +1378,19 @@ bool WindowsNativeAdapter::ApplyBreakpoint(uint64_t address, unsigned long id)
 	// Write INT3
 	DWORD oldProtect;
 	if (!VirtualProtectEx(m_processHandle, (LPVOID)address, 1, PAGE_EXECUTE_READWRITE, &oldProtect))
+	{
+		LogWarn("ApplyBreakpoint: Failed to change protection at 0x%llX, error=%d", address, GetLastError());
 		return false;
+	}
 
 	SIZE_T bytesWritten;
 	uint8_t int3 = INT3_OPCODE;
 	bool success = WriteProcessMemory(m_processHandle, (LPVOID)address, &int3, 1, &bytesWritten) && bytesWritten == 1;
+
+	if (!success)
+	{
+		LogWarn("ApplyBreakpoint: Failed to write INT3 at 0x%llX, error=%d", address, GetLastError());
+	}
 
 	VirtualProtectEx(m_processHandle, (LPVOID)address, 1, oldProtect, &oldProtect);
 
@@ -2511,6 +2526,12 @@ bool WindowsNativeAdapter::Go()
 
 	m_targetRunning = true;
 	m_debugCondition.notify_one();
+
+	// Notify that the target has resumed
+	DebuggerEvent event;
+	event.type = ResumeEventType;
+	PostDebuggerEvent(event);
+
 	return true;
 }
 
@@ -2595,6 +2616,11 @@ bool WindowsNativeAdapter::StepInto()
 	m_singleStepping = true;
 	m_targetRunning = true;
 	m_debugCondition.notify_one();
+
+	// Notify that the target has resumed
+	DebuggerEvent event;
+	event.type = StepIntoEventType;
+	PostDebuggerEvent(event);
 
 	return true;
 }
