@@ -59,13 +59,21 @@ class DebuggerAPI(unittest.TestCase):
     @unittest.skip("do not run the base test class")
     def setUp(self) -> None:
         self.arch = ''
+        self.adapter_type = None  # None means use default adapter
+
+    def create_debugger(self, bv):
+        """Helper to create debugger with the correct adapter type"""
+        dbg = DebuggerController(bv)
+        if self.adapter_type:
+            dbg.adapter_type = self.adapter_type
+        return dbg
 
     def test_repeated_use(self):
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
 
         def run_once():
-            dbg = DebuggerController(bv)
+            dbg = self.create_debugger(bv)
             dbg.cmd_line = 'foobar'
             self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
@@ -100,7 +108,7 @@ class DebuggerAPI(unittest.TestCase):
                     ('123', [123])]
 
         for arg, expected in testvals:
-            dbg = DebuggerController(bv)
+            dbg = self.create_debugger(bv)
             dbg.cmd_line = arg
 
             self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
@@ -118,7 +126,7 @@ class DebuggerAPI(unittest.TestCase):
     def test_exception_segfault(self):
         fpath = name_to_fpath('do_exception', self.arch)
         bv = load(fpath)
-        dbg = DebuggerController(bv)
+        dbg = self.create_debugger(bv)
 
         dbg.cmd_line = 'segfault'
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
@@ -153,7 +161,7 @@ class DebuggerAPI(unittest.TestCase):
     def test_exception_divzero(self):
         fpath = name_to_fpath('do_exception', self.arch)
         bv = load(fpath)
-        dbg = DebuggerController(bv)
+        dbg = self.create_debugger(bv)
         if not self.arch == 'arm64':
             dbg.cmd_line = 'divzero'
             self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
@@ -164,7 +172,7 @@ class DebuggerAPI(unittest.TestCase):
     def test_step_into(self):
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
-        dbg = DebuggerController(bv)
+        dbg = self.create_debugger(bv)
         dbg.cmd_line = 'foobar'
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         reason = sleep_and_step_into(dbg)
@@ -177,7 +185,7 @@ class DebuggerAPI(unittest.TestCase):
     def test_breakpoint(self):
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
-        dbg = DebuggerController(bv)
+        dbg = self.create_debugger(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         # TODO: right now we are not returning whether the operation succeeds, so we cannot use assertTrue/assertFalse
         # breakpoint set/clear should fail at 0
@@ -195,7 +203,7 @@ class DebuggerAPI(unittest.TestCase):
     def test_breakpoint_condition(self):
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
-        dbg = DebuggerController(bv)
+        dbg = self.create_debugger(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
         entry = dbg.data.entry_point
@@ -228,7 +236,7 @@ class DebuggerAPI(unittest.TestCase):
         """Test that dbg.breakpoints returns correctly and repr includes condition"""
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
-        dbg = DebuggerController(bv)
+        dbg = self.create_debugger(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
         entry = dbg.data.entry_point
@@ -274,7 +282,7 @@ class DebuggerAPI(unittest.TestCase):
         """Test hardware breakpoint add and delete"""
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
-        dbg = DebuggerController(bv)
+        dbg = self.create_debugger(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
         entry = dbg.data.entry_point
@@ -297,7 +305,7 @@ class DebuggerAPI(unittest.TestCase):
     def test_register_read_write(self):
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
-        dbg = DebuggerController(bv)
+        dbg = self.create_debugger(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
         arch_name = bv.arch.name
@@ -329,7 +337,7 @@ class DebuggerAPI(unittest.TestCase):
     def test_memory_read_write(self):
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
-        dbg = DebuggerController(bv)
+        dbg = self.create_debugger(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
         # Due to https://github.com/Vector35/debugger/issues/124, we have to skip the bytes at the entry point
@@ -350,7 +358,7 @@ class DebuggerAPI(unittest.TestCase):
     def test_thread(self):
         fpath = name_to_fpath('helloworld_thread', self.arch)
         bv = load(fpath)
-        dbg = DebuggerController(bv)
+        dbg = self.create_debugger(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
         dbg.go()
@@ -375,7 +383,7 @@ class DebuggerAPI(unittest.TestCase):
     def test_restart(self):
         fpath = name_to_fpath('helloworld_thread', self.arch)
         bv = load(fpath)
-        dbg = DebuggerController(bv)
+        dbg = self.create_debugger(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
         time.sleep(0.1)
@@ -399,7 +407,7 @@ class DebuggerAPI(unittest.TestCase):
         if self.arch == 'x86_64':
             fpath = name_to_fpath('asmtest', 'x86_64')
             bv = load(fpath)
-            dbg = DebuggerController(bv)
+            dbg = self.create_debugger(bv)
             self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
             # Align the stack so the binary does not crash
             dbg.set_reg_value('rsp', dbg.get_reg_value('rsp') & 0xfffffffffffffff0)
@@ -444,7 +452,7 @@ class DebuggerAPI(unittest.TestCase):
 
         self.assertIsNotNone(pid)
         bv = load(fpath)
-        dbg = DebuggerController(bv)
+        dbg = self.create_debugger(bv)
         dbg.pid_attach = pid
         self.assertGreater(len(dbg.processes), 0)
         self.assertTrue(dbg.attach_and_wait())
@@ -457,18 +465,50 @@ class DebuggerAPI(unittest.TestCase):
 class DebuggerArm64Test(DebuggerAPI):
     def setUp(self) -> None:
         self.arch = 'arm64'
+        # Use LLDB on macOS/Linux, DbgEng on Windows
+        if platform.system() in ['Darwin', 'Linux']:
+            self.adapter_type = 'LLDB'
+        else:
+            self.adapter_type = 'DBGENG'
 
 
 @unittest.skipIf(platform.system() == 'Linux' and platform.machine() in ['arm64', 'aarch64'], 'x86 tests not supported on arm64 macOS or Linux')
 class Debuggerx64Test(DebuggerAPI):
     def setUp(self) -> None:
         self.arch = 'x86_64'
+        # Use LLDB on macOS/Linux, DbgEng on Windows
+        if platform.system() in ['Darwin', 'Linux']:
+            self.adapter_type = 'LLDB'
+        else:
+            self.adapter_type = 'DBGENG'
 
 
 @unittest.skipIf(platform.machine() in ['arm64', 'aarch64'], 'x86 tests not supported on macOS or arm64 Linux')
 class Debuggerx86Test(DebuggerAPI):
     def setUp(self) -> None:
         self.arch = 'x86'
+        # Use LLDB on macOS/Linux, DbgEng on Windows
+        if platform.system() in ['Darwin', 'Linux']:
+            self.adapter_type = 'LLDB'
+        else:
+            self.adapter_type = 'DBGENG'
+
+
+# Windows Native Adapter Tests - only run on Windows
+@unittest.skipUnless(platform.system() == 'Windows', 'Windows Native adapter only works on Windows')
+@unittest.skipIf(platform.system() == 'Linux' and platform.machine() in ['arm64', 'aarch64'], 'x86 tests not supported on arm64 Linux')
+class WindowsNativex64Test(DebuggerAPI):
+    def setUp(self) -> None:
+        self.arch = 'x86_64'
+        self.adapter_type = 'WINDOWS_NATIVE'
+
+
+@unittest.skipUnless(platform.system() == 'Windows', 'Windows Native adapter only works on Windows')
+@unittest.skipIf(platform.machine() in ['arm64', 'aarch64'], 'x86 tests not supported on arm64')
+class WindowsNativex86Test(DebuggerAPI):
+    def setUp(self) -> None:
+        self.arch = 'x86'
+        self.adapter_type = 'WINDOWS_NATIVE'
 
 
 def filter_test_suite(suite, keyword):
