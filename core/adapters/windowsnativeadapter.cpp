@@ -669,6 +669,15 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 				}
 			}
 
+			// Resume all other threads that were suspended for the step operation
+			for (const auto& [tid, handle] : m_threads)
+			{
+				if (tid != m_activeThreadId && handle)
+				{
+					::ResumeThread(handle);
+				}
+			}
+
 			m_stopReason = SingleStep;  // Report as step completion
 			return true;
 		}
@@ -903,6 +912,15 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 				m_stepOverHwBreakpointIndex = hitIndex;
 				m_stopReason = Breakpoint;
 				return true;
+			}
+		}
+
+		// Resume all other threads that were suspended during stepping
+		for (const auto& [tid, handle] : m_threads)
+		{
+			if (tid != m_activeThreadId && handle)
+			{
+				::ResumeThread(handle);
 			}
 		}
 
@@ -2638,6 +2656,19 @@ bool WindowsNativeAdapter::Go()
 		}
 	}
 
+	// If we have a temp breakpoint, this is part of a step operation (StepOver/StepReturn)
+	// Suspend all other threads to prevent them from hitting breakpoints (GDB-style scheduler-locking)
+	if (m_hasTempBreakpoint)
+	{
+		for (const auto& [tid, handle] : m_threads)
+		{
+			if (tid != m_activeThreadId && handle)
+			{
+				::SuspendThread(handle);
+			}
+		}
+	}
+
 	m_targetRunning = true;
 	m_debugCondition.notify_one();
 
@@ -2728,6 +2759,17 @@ bool WindowsNativeAdapter::StepInto()
 	}
 
 	m_singleStepping = true;
+
+	// Suspend all other threads when stepping to prevent them from hitting breakpoints
+	// This implements GDB-style "scheduler-locking step" behavior
+	for (const auto& [tid, handle] : m_threads)
+	{
+		if (tid != m_activeThreadId && handle)
+		{
+			::SuspendThread(handle);
+		}
+	}
+
 	m_targetRunning = true;
 	m_debugCondition.notify_one();
 
