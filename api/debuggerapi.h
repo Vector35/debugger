@@ -520,6 +520,23 @@ namespace BinaryNinjaDebuggerAPI {
 		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), accessType(TTDMemoryRead), address(0), size(0), memoryAddress(0), instructionAddress(0), value(0) {}
 	};
 
+	struct TTDPositionRangeIndexedMemoryEvent{
+		TTDPosition position;				// Position of the memory event
+		uint32_t threadId;					// Thread ID that performed the access
+		uint32_t uniqueThreadId;			// Unique thread ID that performed the access
+		uint64_t address;					// Memory address accessed
+		uint64_t instructionAddress;		// Instruction pointer at time of access
+		uint64_t size;  					// Size of memory access
+		TTDMemoryAccessType accessType;		// Type of memory access (parsed from object)
+		uint64_t value;     				// Value that was read/written/executed
+		uint8_t data[8];					// The next 8 bytes of data at the memory address
+
+		TTDPositionRangeIndexedMemoryEvent() : threadId(0), uniqueThreadId(0), address(0), size(0), accessType(TTDMemoryRead), value(0)
+		{
+			memset(data, 0, sizeof(data));
+		}
+	};
+
 	struct TTDCallEvent
 	{
 		std::string eventType;         // Event type (always "Call" for TTD.Calls objects)
@@ -800,7 +817,7 @@ namespace BinaryNinjaDebuggerAPI {
 
 		// TTD Memory Analysis Methods
 		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t address, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead);
-		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime);
+		std::vector<TTDPositionRangeIndexedMemoryEvent> GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime);
 		std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0);
 		std::vector<TTDEvent> GetTTDEvents(TTDEventType eventType);
 		std::vector<TTDEvent> GetAllTTDEvents();

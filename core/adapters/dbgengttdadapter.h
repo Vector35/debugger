@@ -48,7 +48,7 @@ namespace BinaryNinjaDebugger {
 
 		// TTD Memory Analysis Methods
 		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead) override;
-		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime) override;
+		std::vector<TTDPositionRangeIndexedMemoryEvent> GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime) override;
 
 		// TTD Position Methods
 		TTDPosition GetCurrentTTDPosition() override;
@@ -67,7 +67,7 @@ namespace BinaryNinjaDebugger {
 	private:
 		// Helper methods for TTD memory analysis
 		bool QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
-		bool QueryMemoryAccessByAddressAndPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime, std::vector<TTDMemoryEvent>& events);
+		bool QueryMemoryAccessByAddressAndPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime, std::vector<TTDPositionRangeIndexedMemoryEvent>& events);
 		
 		// Helper methods for TTD calls analysis
 		bool QueryCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, std::vector<TTDCallEvent>& events);
@@ -91,6 +91,7 @@ namespace BinaryNinjaDebugger {
 		// Data model helper methods
 		std::string EvaluateDataModelExpression(const std::string& expression);
 		bool ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
+		bool ParseTTDPositionRangeIndexedMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDPositionRangeIndexedMemoryEvent>& events);
 
 		// Data model interfaces for TTD
 		IHostDataModelAccess* m_dataModelManager;

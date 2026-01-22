@@ -1226,7 +1226,7 @@ BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerContr
 	return result;
 }
 
-BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForPositionRange(BNDebuggerController* controller,
+BNDebuggerTTDPositionRangeIndexedMemoryEvent* BNDebuggerGetTTDMemoryAccessForPositionRange(BNDebuggerController* controller,
 	uint64_t address, uint64_t endAddress, BNDebuggerTTDMemoryAccessType accessType, BNDebuggerTTDPosition startTime, BNDebuggerTTDPosition endTime, size_t* count)
 {
 	if (!count)
@@ -1242,23 +1242,23 @@ BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForPositionRange(BNDebugge
 		return nullptr;
 		
 	*count = events.size();
-	auto result = new BNDebuggerTTDMemoryEvent[events.size()];
+	auto result = new BNDebuggerTTDPositionRangeIndexedMemoryEvent[events.size()];
 	
 	for (size_t i = 0; i < events.size(); i++)
 	{
-		result[i].eventType = BNAllocString(events[i].eventType.c_str());
 		result[i].threadId = events[i].threadId;
 		result[i].uniqueThreadId = events[i].uniqueThreadId;
-		result[i].timeStart.sequence = events[i].timeStart.sequence;
-		result[i].timeStart.step = events[i].timeStart.step;
-		result[i].timeEnd.sequence = events[i].timeEnd.sequence;
-		result[i].timeEnd.step = events[i].timeEnd.step;
+		result[i].position.sequence = events[i].position.sequence;
+		result[i].position.step = events[i].position.step;
 		result[i].address = events[i].address;
 		result[i].size = events[i].size;
-		result[i].memoryAddress = events[i].memoryAddress;
 		result[i].instructionAddress = events[i].instructionAddress;
 		result[i].value = events[i].value;
 		result[i].accessType = static_cast<BNDebuggerTTDMemoryAccessType>(events[i].accessType);
+		for (size_t j = 0; j < 8; j++)
+		{
+			result[i].data[j]=events[i].data[j];
+		}
 	}
 	
 	return result;
@@ -1318,6 +1318,14 @@ void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t coun
 				BNFreeString(events[i].eventType);
 			}
 		}
+		delete[] events;
+	}
+}
+
+void BNDebuggerFreeTTDPositionRangeIndexedMemoryEvents(BNDebuggerTTDPositionRangeIndexedMemoryEvent* events, size_t count)
+{
+	if (events && count > 0)
+	{
 		delete[] events;
 	}
 }

@@ -1078,39 +1078,39 @@ bool DebuggerController::IsTTD()
 	return BNDebuggerIsTTD(m_object);
 }
 
-std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForPositionRange(uint64_t address, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime)
+std::vector<TTDPositionRangeIndexedMemoryEvent> DebuggerController::GetTTDMemoryAccessForPositionRange(uint64_t address, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime)
 {
-	std::vector<TTDMemoryEvent> result;
+	std::vector<TTDPositionRangeIndexedMemoryEvent> result;
 
 	BNDebuggerTTDMemoryAccessType type = static_cast<BNDebuggerTTDMemoryAccessType>(accessType);
 	BNDebuggerTTDPosition bnStartTime = {startTime.sequence, startTime.step};
 	BNDebuggerTTDPosition bnEndTime = {endTime.sequence, endTime.step};
 
 	size_t count = 0;
-	BNDebuggerTTDMemoryEvent* events = BNDebuggerGetTTDMemoryAccessForPositionRange(m_object, address, endAddress, type, bnStartTime, bnEndTime, &count);
+	BNDebuggerTTDPositionRangeIndexedMemoryEvent* events = BNDebuggerGetTTDMemoryAccessForPositionRange(m_object, address, endAddress, type, bnStartTime, bnEndTime, &count);
 	
 	if (events && count > 0)
 	{
 		result.reserve(count);
 		for (size_t i = 0; i < count; i++)
 		{
-			TTDMemoryEvent event;
-			event.eventType = events[i].eventType ? std::string(events[i].eventType) : "";
+			TTDPositionRangeIndexedMemoryEvent event;
 			event.threadId = events[i].threadId;
 			event.uniqueThreadId = events[i].uniqueThreadId;
-			event.timeStart.sequence = events[i].timeStart.sequence;
-			event.timeStart.step = events[i].timeStart.step;
-			event.timeEnd.sequence = events[i].timeEnd.sequence;
-			event.timeEnd.step = events[i].timeEnd.step;
+			event.position.sequence = events[i].position.sequence;
+			event.position.step = events[i].position.step;
 			event.accessType = static_cast<TTDMemoryAccessType>(events[i].accessType);
 			event.address = events[i].address;
 			event.size = events[i].size;
-			event.memoryAddress = events[i].memoryAddress;
 			event.instructionAddress = events[i].instructionAddress;
 			event.value = events[i].value;
+			for (size_t j = 0; j < 8; j++)
+			{
+				event.data[j] = events[i].data[j];
+			}
 			result.push_back(event);
 		}
-		BNDebuggerFreeTTDMemoryEvents(events, count);
+		BNDebuggerFreeTTDPositionRangeIndexedMemoryEvents(events, count);
 	}
 	
 	return result;

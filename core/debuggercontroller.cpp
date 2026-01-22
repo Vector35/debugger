@@ -3134,9 +3134,9 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uin
 	return events;
 }
 
-std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime)
+std::vector<TTDPositionRangeIndexedMemoryEvent> DebuggerController::GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime)
 {
-	std::vector<TTDMemoryEvent> events;
+	std::vector<TTDPositionRangeIndexedMemoryEvent> events;
 
 	if (!m_state->IsConnected() || !IsTTD())
 	{
@@ -3287,7 +3287,7 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 			if (event.instructionAddress >= startAddress && event.instructionAddress <= endAddress)
 			{
 				// Check if the event is within the specified time range
-				m_executedInstructions.insert(event.instructionAddress);
+				m_executedInstructions.insert(event.address);
 			}
 		}
 	}

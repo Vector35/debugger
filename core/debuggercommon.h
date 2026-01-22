@@ -137,6 +137,23 @@ namespace BinaryNinjaDebugger {
 		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), address(0), size(0), memoryAddress(0), instructionAddress(0), value(0), accessType(TTDMemoryRead) {}
 	};
 
+	struct TTDPositionRangeIndexedMemoryEvent{
+		TTDPosition position;				// Position of the memory event
+		uint32_t threadId;					// Thread ID that performed the access
+		uint32_t uniqueThreadId;			// Unique thread ID that performed the access
+		uint64_t address;					// Memory address accessed
+		uint64_t instructionAddress;		// Instruction pointer at time of access
+		uint64_t size;  					// Size of memory access
+		TTDMemoryAccessType accessType;		// Type of memory access (parsed from object)
+		uint64_t value;     				// Value that was read/written/executed
+		uint8_t data[8];					// The next 8 bytes of data at the memory address
+
+		TTDPositionRangeIndexedMemoryEvent() : threadId(0), uniqueThreadId(0), address(0), size(0), accessType(TTDMemoryRead), value(0)
+		{
+			memset(data, 0, sizeof(data));
+		}
+	};
+
 	// TTD Call Event - complete set of fields from Microsoft documentation for TTD.Calls
 	struct TTDCallEvent
 	{
