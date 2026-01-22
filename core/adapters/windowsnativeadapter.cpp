@@ -787,6 +787,15 @@ bool WindowsNativeAdapter::HandleException(const EXCEPTION_DEBUG_INFO& info)
 			}
 			m_hasStepOverBreakpoint = false;
 
+			// Resume all other threads that we suspended
+			for (const auto& [tid, handle] : m_threads)
+			{
+				if (tid != m_activeThreadId && handle)
+				{
+					::ResumeThread(handle);
+				}
+			}
+
 			// If this was from Go(), continue execution; if from StepInto(), stop
 			if (m_stepOverBreakpointContinue)
 			{
@@ -2493,6 +2502,17 @@ bool WindowsNativeAdapter::Go()
 				m_stepOverBreakpointAddress = ip;
 				m_hasStepOverBreakpoint = true;
 				m_stepOverBreakpointContinue = true;  // Continue after re-applying breakpoint
+
+				// CRITICAL: Suspend all other threads while stepping over the breakpoint
+				// This prevents race conditions where another thread could execute the
+				// breakpoint location while we have the INT3 removed
+				for (const auto& [tid, handle] : m_threads)
+				{
+					if (tid != m_activeThreadId && handle)
+					{
+						::SuspendThread(handle);
+					}
+				}
 
 				// Set single step flag
 				auto it = m_threads.find(m_activeThreadId);
