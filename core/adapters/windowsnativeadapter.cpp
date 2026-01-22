@@ -19,6 +19,7 @@ limitations under the License.
 #include <tlhelp32.h>
 #include <dbghelp.h>
 #include <delayimp.h>
+#include <winternl.h>
 #include <algorithm>
 #include <memory>
 #include <filesystem>
@@ -1139,6 +1140,98 @@ std::string WindowsNativeAdapter::GetModuleNameFromHandle(HANDLE fileHandle, LPV
 }
 
 
+// winternl.h provides forward declarations but not full definitions
+// Define a local structure for command line info to avoid conflicts
+struct CommandLineInfo {
+	USHORT Length;
+	USHORT MaximumLength;
+	PWSTR Buffer;
+};
+
+// Helper function to get command line of a process
+static std::string GetProcessCommandLine(DWORD pid, const std::string& exeName)
+{
+	// Can't get command line for system processes, fallback to executable name
+	if (pid == 0 || pid == 4)
+		return exeName;
+
+	// Try with PROCESS_QUERY_LIMITED_INFORMATION first (less intrusive, works on more processes)
+	HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+	if (!hProcess)
+	{
+		// Fallback to executable name if we can't open the process
+		return exeName;
+	}
+
+	// Get NtQueryInformationProcess from ntdll
+	// Use the declaration from winternl.h
+	typedef NTSTATUS (NTAPI *NtQueryInformationProcessFn)(
+		HANDLE ProcessHandle,
+		PROCESSINFOCLASS ProcessInformationClass,
+		PVOID ProcessInformation,
+		ULONG ProcessInformationLength,
+		PULONG ReturnLength
+	);
+
+	static NtQueryInformationProcessFn NtQueryInformationProcess = nullptr;
+	if (!NtQueryInformationProcess)
+	{
+		HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+		if (ntdll)
+			NtQueryInformationProcess = (NtQueryInformationProcessFn)GetProcAddress(ntdll, "NtQueryInformationProcess");
+	}
+
+	if (!NtQueryInformationProcess)
+	{
+		CloseHandle(hProcess);
+		return exeName;
+	}
+
+	// ProcessCommandLineInformation = 60 (available since Windows 8.1)
+	// Cast to PROCESSINFOCLASS from winternl.h
+	const PROCESSINFOCLASS ProcessCommandLineInformation = static_cast<PROCESSINFOCLASS>(60);
+
+	// First call to get required buffer size
+	ULONG returnLength = 0;
+	NTSTATUS status = NtQueryInformationProcess(hProcess, ProcessCommandLineInformation, nullptr, 0, &returnLength);
+
+	if (returnLength == 0)
+	{
+		CloseHandle(hProcess);
+		return exeName;
+	}
+
+	// Allocate buffer and query again
+	std::vector<BYTE> buffer(returnLength);
+	status = NtQueryInformationProcess(hProcess, ProcessCommandLineInformation, buffer.data(), returnLength, &returnLength);
+
+	if (status != 0)
+	{
+		CloseHandle(hProcess);
+		return exeName;
+	}
+
+	// The buffer contains a UNICODE_STRING-like structure (same layout as CommandLineInfo)
+	CommandLineInfo* cmdLine = reinterpret_cast<CommandLineInfo*>(buffer.data());
+	if (cmdLine->Length > 0 && cmdLine->Buffer)
+	{
+		// Convert wide string to UTF-8
+		// WideCharToMultiByte signature: (CodePage, Flags, WideStr, WideCount, MultiStr, MultiCount, DefaultChar, UsedDefaultChar)
+		int size = WideCharToMultiByte(CP_UTF8, 0, cmdLine->Buffer, cmdLine->Length / sizeof(WCHAR), nullptr, 0, nullptr, nullptr);
+		if (size > 0)
+		{
+			std::string result(size, '\0');
+			WideCharToMultiByte(CP_UTF8, 0, cmdLine->Buffer, cmdLine->Length / sizeof(WCHAR), &result[0], size, nullptr, nullptr);
+			CloseHandle(hProcess);
+			return result;
+		}
+	}
+
+	CloseHandle(hProcess);
+	return exeName;
+}
+
+
 std::vector<DebugProcess> WindowsNativeAdapter::GetProcessList()
 {
 	std::vector<DebugProcess> processes;
@@ -1157,6 +1250,7 @@ std::vector<DebugProcess> WindowsNativeAdapter::GetProcessList()
 			DebugProcess proc;
 			proc.m_pid = pe32.th32ProcessID;
 			proc.m_processName = pe32.szExeFile;
+			proc.m_commandLine = GetProcessCommandLine(pe32.th32ProcessID, pe32.szExeFile);
 			processes.push_back(proc);
 		} while (Process32Next(snapshot, &pe32));
 	}
