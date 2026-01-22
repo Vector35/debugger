@@ -2610,6 +2610,9 @@ bool WindowsNativeAdapter::Go()
 		{
 			if (bp.address == ip && bp.isActive)
 			{
+				// Remove the INT3 so we can execute the actual instruction
+				RemoveBreakpointInternal(ip);
+
 				// Need to single step past the breakpoint first
 				m_stepOverBreakpointAddress = ip;
 				m_hasStepOverBreakpoint = true;
@@ -2725,6 +2728,9 @@ bool WindowsNativeAdapter::StepInto()
 		{
 			if (bp.address == ip && bp.isActive)
 			{
+				// Remove the INT3 so we can execute the actual instruction
+				RemoveBreakpointInternal(ip);
+
 				// Need to re-apply breakpoint after stepping
 				m_stepOverBreakpointAddress = ip;
 				m_hasStepOverBreakpoint = true;
