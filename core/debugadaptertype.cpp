@@ -71,7 +71,8 @@ std::vector<std::string> DebugAdapterType::GetAvailableAdapters(BinaryNinja::Bin
 std::string DebugAdapterType::GetBestAdapterForCurrentSystem(BinaryNinja::BinaryView* data)
 {
 #ifdef WIN32
-	return "DBGENG";
+	auto settings = BinaryNinja::Settings::Instance();
+	return settings->Get<std::string>("debugger.defaultWindowsAdapter");
 #else
 	return "LLDB";
 #endif
