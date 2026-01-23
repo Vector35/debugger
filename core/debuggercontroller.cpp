@@ -4527,12 +4527,16 @@ bool DebuggerController::RebaseToAddress(uint64_t newBase)
 	if (!m_file->Rebase(data, newBase, [&](size_t, size_t) { return true; }))
 	{
 		LogWarn("Failed to rebase to remote base 0x%" PRIx64, newBase);
+		ReAddDebuggerMemoryRegion();
 		return false;
 	}
 
 	const auto rebasedView = m_file->GetViewOfType(viewType);
 	if (!rebasedView)
+	{
+		ReAddDebuggerMemoryRegion();
 		return false;
+	}
 
 	if (shouldHoldAnalysis)
 	{
