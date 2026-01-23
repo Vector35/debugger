@@ -116,6 +116,16 @@ static void RegisterSettings()
 			"description" : "Attempt to unload the already loaded DLL if they are from a wrong path. You may turn this on if the DbgEng DLLs, e.g., dbghelp.dll, is loaded from a wrong path, but it happens early than the debugger initialization",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
+	settings->RegisterSetting("debugger.defaultWindowsAdapter",
+		R"({
+			"title" : "Default Windows Debug Adapter",
+			"type" : "string",
+			"default" : "WINDOWS_NATIVE",
+			"description" : "The default debug adapter to use on Windows for PE executables",
+			"enum" : ["WINDOWS_NATIVE", "DBGENG"],
+			"enumDescriptions" : ["Windows Native - lightweight native Windows debug API adapter", "DbgEng - Windows Debugger Engine (WinDbg) based adapter"],
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
 #endif
 
 	settings->RegisterSetting("debugger.stackVariableAnnotations",
