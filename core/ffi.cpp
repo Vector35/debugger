@@ -1046,6 +1046,18 @@ bool BNDebuggerRebaseToRemoteBase(BNDebuggerController* controller)
 }
 
 
+bool BNDebuggerRebaseToAddress(BNDebuggerController* controller, uint64_t address)
+{
+	return controller->object->RebaseToAddress(address);
+}
+
+
+bool BNDebuggerGetRemoteBase(BNDebuggerController* controller, uint64_t* address)
+{
+	return controller->object->GetRemoteBase(*address);
+}
+
+
 bool BNDebuggerIsSameBaseModule(const char* module1, const char* module2)
 {
 	return DebugModule::IsSameBaseModule(module1, module2);

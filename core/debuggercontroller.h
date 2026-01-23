@@ -129,7 +129,6 @@ namespace BinaryNinjaDebugger {
 		bool m_shouldAnnotateStackVariable = false;
 
 		void EventHandler(const DebuggerEvent& event);
-		bool RebaseToAddress(uint64_t newBase);
 		void UpdateStackVariables();
 		void AddRegisterValuesToExpressionParser();
 		void AddModuleValuesToExpressionParser();
@@ -283,6 +282,8 @@ namespace BinaryNinjaDebugger {
 		// rebasing
 		// Note: Returns true immediately in UI mode (rebase completes asynchronously via UI callback)
 		bool RebaseToRemoteBase();
+		bool RebaseToAddress(uint64_t address);
+		bool GetRemoteBase(uint64_t& address);
 
 		// arch
 		ArchitectureRef GetRemoteArchitecture();

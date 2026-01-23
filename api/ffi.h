@@ -644,6 +644,8 @@ extern "C"
 		BNDebuggerController* controller, uint64_t address);
 
 	DEBUGGER_FFI_API bool BNDebuggerRebaseToRemoteBase(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerRebaseToAddress(BNDebuggerController* controller, uint64_t address);
+	DEBUGGER_FFI_API bool BNDebuggerGetRemoteBase(BNDebuggerController* controller, uint64_t* address);
 
 	DEBUGGER_FFI_API uint32_t BNDebuggerGetExitCode(BNDebuggerController* controller);
 

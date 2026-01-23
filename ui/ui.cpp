@@ -485,8 +485,8 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	Menu::setMainMenuOrder("Debugger", MENU_ORDER_LATE);
 	debuggerMenu->addAction("Debug Adapter Settings...", "Settings", MENU_ORDER_FIRST);
 
-	UIAction::registerAction("Rebase to Remote Base");
-	context->globalActions()->bindAction("Rebase to Remote Base",
+	UIAction::registerAction("Rebase to Remote Base...");
+	context->globalActions()->bindAction("Rebase to Remote Base...",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
@@ -494,8 +494,36 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				const auto controller = DebuggerController::GetController(ctxt.binaryView);
 				if (!controller || !controller->IsConnected())
 					return;
-				if (!controller->RebaseToRemoteBase())
-					LogWarn("Failed to rebase to remote base");
+
+				uint64_t detectedBase = 0;
+				controller->GetRemoteBase(detectedBase);
+				const QString defaultValue = detectedBase ? QString("0x%1").arg(detectedBase, 0, 16) : QString();
+
+				bool ok;
+				const QString input = QInputDialog::getText(
+					nullptr,
+					"Rebase to Remote Base",
+					"Enter the new base address:",
+					QLineEdit::Normal,
+					defaultValue,
+					&ok);
+
+				if (!ok || input.isEmpty())
+					return;
+
+				QString cleanInput = input.trimmed();
+				if (cleanInput.startsWith("0x") || cleanInput.startsWith("0X"))
+					cleanInput = cleanInput.mid(2);
+
+				const uint64_t address = cleanInput.toULongLong(&ok, 16);
+				if (!ok)
+				{
+					LogWarn("Invalid address format: %s", input.toStdString().c_str());
+					return;
+				}
+
+				if (!controller->RebaseToAddress(address))
+					LogWarn("Failed to rebase to address 0x%" PRIx64, address);
 			},
 			[=](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
@@ -504,7 +532,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				return controller && controller->IsConnected();
 			}));
 
-	debuggerMenu->addAction("Rebase to Remote Base", "Rebase");
+	debuggerMenu->addAction("Rebase to Remote Base...", "Rebase");
 
 	UIAction::registerAction("Launch", QKeySequence(Qt::Key_F6));
 	context->globalActions()->bindAction("Launch",

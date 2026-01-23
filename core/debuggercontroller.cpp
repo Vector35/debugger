@@ -4466,14 +4466,20 @@ bool DebuggerController::FunctionExistsInOldView(uint64_t address)
 
 bool DebuggerController::RebaseToRemoteBase()
 {
-	if (!m_state->IsConnected())
-		return false;
-
 	uint64_t remoteBase;
-	if (!m_state->GetRemoteBase(remoteBase))
+	if (!GetRemoteBase(remoteBase))
 		return false;
 
 	return RebaseToAddress(remoteBase);
+}
+
+
+bool DebuggerController::GetRemoteBase(uint64_t& address)
+{
+	if (!m_state->IsConnected())
+		return false;
+
+	return m_state->GetRemoteBase(address);
 }
 
 

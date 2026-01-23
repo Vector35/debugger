@@ -771,6 +771,8 @@ namespace BinaryNinjaDebuggerAPI {
 
 		// rebasing
 		bool RebaseToRemoteBase();
+		bool RebaseToAddress(uint64_t address);
+		bool GetRemoteBase(uint64_t& address);
 
 		size_t RegisterEventCallback(
 			std::function<void(const DebuggerEvent& event)> callback, const std::string& name = "");

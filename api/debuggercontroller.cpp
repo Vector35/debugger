@@ -906,6 +906,18 @@ bool DebuggerController::RebaseToRemoteBase()
 }
 
 
+bool DebuggerController::RebaseToAddress(uint64_t address)
+{
+	return BNDebuggerRebaseToAddress(m_object, address);
+}
+
+
+bool DebuggerController::GetRemoteBase(uint64_t& address)
+{
+	return BNDebuggerGetRemoteBase(m_object, &address);
+}
+
+
 uint64_t DebuggerController::IP()
 {
 	return BNDebuggerGetIP(m_object);
