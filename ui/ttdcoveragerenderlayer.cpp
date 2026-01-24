@@ -56,7 +56,7 @@ void TTDCoverageRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Dis
 			line.highlight.r = 0;
 			line.highlight.g = 0;
 			line.highlight.b = 0;
-			line.highlight.alpha = 170; // Light highlight
+			line.highlight.alpha = 255;
 		}
 	}
 }
@@ -94,7 +94,7 @@ void TTDCoverageRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std:
 			line.highlight.r = 0;
 			line.highlight.g = 0;
 			line.highlight.b = 0;
-			line.highlight.alpha = 170; // Light highlight
+			line.highlight.alpha = 255;
 		}
 	}
 }
