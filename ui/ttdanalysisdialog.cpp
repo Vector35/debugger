@@ -402,6 +402,8 @@ void TTDAnalysisDialog::onRunAnalysis()
 		bool startOk, endOk, startTimeOk, endTimeOk;
 		QString startText = m_startAddressEdit->text().trimmed();
 		QString endText = m_endAddressEdit->text().trimmed();
+		endText=endText.replace("`", "").replace("0x", "");  // remove extra address formatting
+		startText=startText.replace("`", "").replace("0x", "");  // windbg format looks like: 000000dd`7e7fed80
 		QString startTimeText = m_startTimeEdit->text().trimmed();
 		QString endTimeText = m_endTimeEdit->text().trimmed();
 		TTDPosition startTime, endTime;
@@ -456,8 +458,8 @@ void TTDAnalysisDialog::onRunAnalysis()
 			endTime = TTDPosition(sequence, step);
 		}
 
-		uint64_t startAddress = startText.toULongLong(&startOk, 0); // Auto-detect base (0x for hex)
-		uint64_t endAddress = endText.toULongLong(&endOk, 0);
+		uint64_t startAddress = startText.toULongLong(&startOk, 16); 
+		uint64_t endAddress = endText.toULongLong(&endOk, 16);
 
 		if (!startOk || !endOk)
 		{
