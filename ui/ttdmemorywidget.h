@@ -70,9 +70,7 @@ public:
 	// Enum for logical column identification
 	enum LogicalColumn {
 		IndexColumn = 0,
-		EventTypeColumn,
-		TimeStartColumn,
-		TimeEndColumn,
+		PositionColumn,
 		AccessTypeColumn,
 		AddressColumn,
 		SizeColumn,

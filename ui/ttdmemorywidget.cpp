@@ -476,7 +476,7 @@ void TTDMemoryQueryWidget::onCellDoubleClicked(int row, int column)
 	if (row < 0 || row >= m_resultsTable->rowCount())
 		return;
 
-	if (column == TimeStartColumn || column == TimeEndColumn)
+	if (column == PositionColumn)
 	{
 		// Parse position and navigate to it
 		QTableWidgetItem* posItem = m_resultsTable->item(row, column);
