@@ -1021,53 +1021,6 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 	}
 }
 
-// Implementation of TTD position range indexed memory objects parsing
-// This sadly appears to be an undocumented return type structure from Microsoft
-// By calling TTD.Memory you would get a TTD Memory Object, documented here: https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-memory-objects
-// However, TTD.MemoryForPositionRange appears to return a different structure that is not documented
-// The key differences appear to be the following:
-// - Instead of `timeStart` and `timeEnd` being fields, they are replaced with `position` field that contains a TTD position
-// - Another distinction is that `execute` queries 'value` field can differ between calls to TTD.Memory and TTD.MemoryForPositionRange, see the example below to understand
-/*
->>> dx -r1 @$cursession.TTD.Memory(0x7ff74e769e70, 0x7ff74e769e80, "e").First()
-@$cursession.TTD.Memory(0x7ff74e769e70, 0x7ff74e769e80, "e").First()
-    EventType        : 0x1
-    ThreadId         : 0x9bd8
-    UniqueThreadId   : 0x1e
-    TimeStart        : 2B65:21B
-    TimeEnd          : 2B65:21B
-    AccessType       : Execute
-    IP               : 0x7ff74e769e70
-    Address          : 0x7ff74e769e70
-    Size             : 0x2
-    Value            : 0x5540
-    SystemTimeStart  : Saturday, January 17, 2026 05:58:34.140
-    SystemTimeEnd    : Saturday, January 17, 2026 05:58:34.140
-
->>> dx -r1 @$cursession.TTD.MemoryForPositionRange(0x7ff74e769e70, 0x7ff74e769e80, "e" , "0:0","adf1:745").First()
-@$cursession.TTD.MemoryForPositionRange(0x7ff74e769e70, 0x7ff74e769e80, "e" , "0:0","adf1:745").First()
-    Position         : 2B65:21B
-    ThreadId         : 0x9bd8
-    UniqueThreadId   : 0x1e
-    Address          : 0x7ff74e769e70
-    IP               : 0x7ff74e769e70
-    Size             : 0x2
-    AccessType       : Execute
-    Value            : 0x4154415756535540
-    Data             
-
->>> dx @$cursession.TTD.MemoryForPositionRange(0x7ff74e769e70, 0x7ff74e769e80, "e", "0:0", "adf1:745").First().Data
-@$cursession.TTD.MemoryForPositionRange(0x7ff74e769e70, 0x7ff74e769e80, "e", "0:0", "adf1:745").First().Data
-    [0x0]            : 0x40
-    [0x1]            : 0x55
-    [0x2]            : 0x53
-    [0x3]            : 0x56
-    [0x4]            : 0x57
-    [0x5]            : 0x41
-    [0x6]            : 0x54
-    [0x7]            : 0x41
-*/
-// The data field here contains raw instruction bytes read from memory.
 // `MemoryForPositionRange` does not truncate the value field to match the actual size of the memory access, but contains all the parts to piece it together.
 bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDPositionRangeIndexedMemoryEvent>& events)
 {
