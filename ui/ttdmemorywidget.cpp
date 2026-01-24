@@ -676,8 +676,14 @@ uint64_t TTDMemoryQueryWidget::parseAddress(const QString& text)
 		return 0;
 		
 	// Remove 0x prefix if present
-	if (cleanText.startsWith("0x", Qt::CaseInsensitive))
+	if (cleanText.startsWith("0x", Qt::CaseInsensitive)){
 		cleanText = cleanText.mid(2);
+	}
+	// Remove ' character if present (default address display format in windbg console)
+	else if (cleanText.contains("`")){
+		cleanText = cleanText.replace("`", "");
+	}
+
 		
 	bool ok;
 	uint64_t address = cleanText.toULongLong(&ok, 16);
