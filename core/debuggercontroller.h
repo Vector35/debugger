@@ -208,6 +208,7 @@ namespace BinaryNinjaDebugger {
 
 		// TTD Code Coverage Analysis
 		std::unordered_set<uint64_t> m_executedInstructions;
+		std::unordered_map<uint64_t, size_t> m_executedInstructionCounts;
 		bool m_codeCoverageAnalysisRun = false;
 
 	public:
@@ -406,6 +407,7 @@ namespace BinaryNinjaDebugger {
 		// TTD Code Coverage Analysis Methods
 		bool IsInstructionExecuted(uint64_t address);
 		bool RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress, TTDPosition startTime, TTDPosition endTime);
+		size_t GetInstructionExecutionCount(uint64_t address);
 		size_t GetExecutedInstructionCount() const;
 		bool SaveCodeCoverageToFile(const std::string& filePath) const;
 		bool LoadCodeCoverageFromFile(const std::string& filePath);

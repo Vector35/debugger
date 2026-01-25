@@ -45,6 +45,7 @@ void TTDCoverageRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Dis
 
 		// Check if this instruction was executed during the TTD trace
 		bool isExecuted = controller->IsInstructionExecuted(line.addr);
+		uint64_t executionCount = controller->GetInstructionExecutionCount(line.addr);
 
 		if (isExecuted)
 		{
@@ -57,6 +58,9 @@ void TTDCoverageRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Dis
 			line.highlight.g = 0;
 			line.highlight.b = 0;
 			line.highlight.alpha = 255;
+
+			InstructionTextToken execCountToken = InstructionTextToken(AnnotationToken, " [" + std::to_string(executionCount) + "]", line.addr);
+			line.tokens.push_back(execCountToken);
 		}
 	}
 }
@@ -83,6 +87,7 @@ void TTDCoverageRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std:
 
 		// Check if this instruction was executed during the TTD trace
 		bool isExecuted = controller->IsInstructionExecuted(line.addr);
+		uint64_t executionCount = controller->GetInstructionExecutionCount(line.addr);
 
 		if (isExecuted)
 		{
@@ -95,6 +100,14 @@ void TTDCoverageRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std:
 			line.highlight.g = 0;
 			line.highlight.b = 0;
 			line.highlight.alpha = 255;
+
+			//only add execution count if the line is not only indentation
+			if(std::prev(line.tokens.end())->type != IndentationToken)
+			{
+				InstructionTextToken execCountToken = InstructionTextToken(
+					AnnotationToken, " [" + std::to_string(executionCount) + "]", line.addr);
+				line.tokens.push_back(execCountToken);
+			}
 		}
 	}
 }

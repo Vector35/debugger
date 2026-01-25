@@ -1379,6 +1379,10 @@ bool DebuggerController::IsInstructionExecuted(uint64_t address)
 	return BNDebuggerIsInstructionExecuted(m_object, address);
 }
 
+size_t DebuggerController::GetInstructionExecutionCount(uint64_t address)
+{
+	return BNDebuggerGetInstructionExecutionCount(m_object, address);
+}
 
 bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress, TTDPosition startTime, TTDPosition endTime)
 {
