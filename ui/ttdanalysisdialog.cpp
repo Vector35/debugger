@@ -399,7 +399,7 @@ void TTDAnalysisDialog::onRunAnalysis()
 	if (m_useRangeCheckBox->isChecked())
 	{
 		// Validate range inputs
-		bool startOk, endOk, startTimeOk, endTimeOk;
+		bool startOk, endOk;
 		QString startText = m_startAddressEdit->text().trimmed();
 		QString endText = m_endAddressEdit->text().trimmed();
 		endText=endText.replace("`", "").replace("0x", "");  // remove extra address formatting
