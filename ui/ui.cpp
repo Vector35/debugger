@@ -511,14 +511,14 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!ok || input.isEmpty())
 					return;
 
-				QString cleanInput = input.trimmed();
-				if (cleanInput.startsWith("0x") || cleanInput.startsWith("0X"))
-					cleanInput = cleanInput.mid(2);
-
-				const uint64_t address = cleanInput.toULongLong(&ok, 16);
-				if (!ok)
+				// TODO: Switch to ViewFrame::getAddressFromInput once
+				// https://github.com/Vector35/binaryninja-api/issues/7915 is fixed
+				uint64_t address = 0;
+				std::string errorString;
+				if (!BinaryView::ParseExpression(
+						controller->GetData(), input.trimmed().toStdString(), address, 0, errorString))
 				{
-					LogWarn("Invalid address format: %s", input.toStdString().c_str());
+					LogWarn("Invalid address expression: %s", errorString.c_str());
 					return;
 				}
 
