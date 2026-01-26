@@ -207,8 +207,7 @@ namespace BinaryNinjaDebugger {
 		BinaryNinja::Ref<BinaryNinja::AnalysisCompletionEvent> m_rebaseCompletionEvent;
 
 		// TTD Code Coverage Analysis
-		std::unordered_set<uint64_t> m_executedInstructions;
-		std::unordered_map<uint64_t, size_t> m_executedInstructionCounts;
+		std::unordered_map<uint64_t, uint32_t> m_executedInstructionCounts;
 		bool m_codeCoverageAnalysisRun = false;
 
 	public:

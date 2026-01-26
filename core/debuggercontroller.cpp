@@ -3198,7 +3198,7 @@ bool DebuggerController::IsInstructionExecuted(uint64_t address)
 		return false;
 	}
 
-	return m_executedInstructions.find(address) != m_executedInstructions.end();
+	return m_executedInstructionCounts.find(address) != m_executedInstructionCounts.end();
 }
 
 size_t DebuggerController::GetInstructionExecutionCount(uint64_t address)
@@ -3237,7 +3237,6 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 	}
 
 	// Clear previous analysis results
-	m_executedInstructions.clear();
 	m_executedInstructionCounts.clear();
 	m_codeCoverageAnalysisRun = false;
 	
@@ -3264,7 +3263,6 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 			// Add all executed instruction addresses within the range
 			if (event.instructionAddress >= startAddress && event.instructionAddress <= endAddress)
 			{
-				m_executedInstructions.insert(event.instructionAddress);
 				m_executedInstructionCounts[event.instructionAddress]++;
 			}
 		}
@@ -3272,7 +3270,7 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 
 	m_codeCoverageAnalysisRun = true;
 	LogInfo("TTD code coverage analysis completed for ranges. Found %" PRIu64 " executed instructions.",
-			(uint64_t)m_executedInstructions.size());
+			(uint64_t)m_executedInstructionCounts.size());
 
 	return true;
 }
@@ -3280,7 +3278,7 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 
 size_t DebuggerController::GetExecutedInstructionCount() const
 {
-	return m_executedInstructions.size();
+	return m_executedInstructionCounts.size();
 }
 
 
@@ -3361,29 +3359,29 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
 
 		file.read(reinterpret_cast<char*>(&count), sizeof(count));
 
-		// Clear existing data 
-		m_executedInstructions.clear();
+		// Clear existing data
 		m_executedInstructionCounts.clear();
 
 		// Read executed instruction addresses according to version
 		if (version == 1)
 		{
+			// Version 1 files don't have execution counts, so assume count = 1 for backward compatibility
 			for (size_t i = 0; i < count; i++)
 			{
 				uint64_t addr;
 				file.read(reinterpret_cast<char*>(&addr), sizeof(addr));
-				m_executedInstructions.insert(addr);
+				m_executedInstructionCounts[addr] = 1;
 			}
-		}else if (version > 1)
+		}
+		else if (version > 1)
 		{
 			for (size_t i = 0; i < count; i++)
 			{
 				uint64_t addr;
-				size_t execCount;
+				uint32_t execCount;
 				file.read(reinterpret_cast<char*>(&addr), sizeof(addr));
 				file.read(reinterpret_cast<char*>(&execCount), sizeof(execCount));
 				m_executedInstructionCounts[addr] = execCount;
-				m_executedInstructions.insert(addr);
 			}
 		}
 

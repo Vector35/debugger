@@ -43,11 +43,10 @@ void TTDCoverageRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Dis
 		if (line.tokens.empty() || (line.tokens[0].type == CommentToken))
 			continue;
 
-		// Check if this instruction was executed during the TTD trace
-		bool isExecuted = controller->IsInstructionExecuted(line.addr);
+		// Check if this instruction was executed during the TTD trace (single lookup optimization)
 		uint64_t executionCount = controller->GetInstructionExecutionCount(line.addr);
 
-		if (isExecuted)
+		if (executionCount > 0)
 		{
 			// Highlight executed instructions with a red color
 			line.highlight.style = StandardHighlightColor;
@@ -85,11 +84,10 @@ void TTDCoverageRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std:
 		if (line.tokens.empty() || (line.tokens[0].type == CommentToken))
 			continue;
 
-		// Check if this instruction was executed during the TTD trace
-		bool isExecuted = controller->IsInstructionExecuted(line.addr);
+		// Check if this instruction was executed during the TTD trace (single lookup optimization)
 		uint64_t executionCount = controller->GetInstructionExecutionCount(line.addr);
 
-		if (isExecuted)
+		if (executionCount > 0)
 		{
 			// Highlight executed instructions with a red color
 			line.highlight.style = StandardHighlightColor;
@@ -101,8 +99,8 @@ void TTDCoverageRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std:
 			line.highlight.b = 0;
 			line.highlight.alpha = 255;
 
-			//only add execution count if the line is not only indentation
-			if(std::prev(line.tokens.end())->type != IndentationToken)
+			//only add execution count if the line has tokens and is not only indentation
+			if (!line.tokens.empty() && std::prev(line.tokens.end())->type != IndentationToken)
 			{
 				InstructionTextToken execCountToken = InstructionTextToken(
 					AnnotationToken, " [" + std::to_string(executionCount) + "]", line.addr);
