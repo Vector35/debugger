@@ -179,7 +179,7 @@ class DebugRegistersWidget : public QTableView, public FilterTarget
 	bool selectionNotEmpty();
 	bool canPaste();
 
-	virtual void setFilter(const std::string& filter) override;
+	virtual void setFilter(const std::string& filter, FilterOptions options) override;
 	virtual void scrollToFirstItem() override;
 	virtual void scrollToCurrentItem() override;
 	virtual void ensureSelection() override;

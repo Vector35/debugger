@@ -26,6 +26,7 @@ limitations under the License.
 #include <QHeaderView>
 #include <QStyledItemDelegate>
 #include "debuggerapi.h"
+#include "filter.h"
 #include "ui.h"
 
 
@@ -133,7 +134,7 @@ class ProcessListWidget : public QTableView, public FilterTarget
 
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
-	virtual void setFilter(const std::string& filter) override;
+	virtual void setFilter(const std::string& filter, FilterOptions options) override;
 	virtual void scrollToFirstItem() override;
 	virtual void scrollToCurrentItem() override;
 	virtual void ensureSelection() override;

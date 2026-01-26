@@ -930,9 +930,14 @@ void DebugRegistersWidget::editValue()
 }
 
 
-void DebugRegistersWidget::setFilter(const string& filter)
+void DebugRegistersWidget::setFilter(const string& filter, FilterOptions options)
 {
-	m_filter->setFilterRegularExpression(QString::fromStdString(filter));
+	if (options.testFlag(UseRegexOption))
+		m_filter->setFilterRegularExpression(QString::fromStdString(filter));
+	else
+		m_filter->setFilterFixedString(QString::fromStdString(filter));
+	m_filter->setFilterCaseSensitivity(
+		options.testFlag(CaseSensitiveOption) ? Qt::CaseSensitive : Qt::CaseInsensitive);
 	updateColumnWidths();
 }
 
@@ -953,6 +958,7 @@ DebugRegistersContainer::DebugRegistersContainer(ViewFrame* view, BinaryViewRef 
 {
 	m_register = new DebugRegistersWidget(view, data, menu);
 	m_separateEdit = new FilterEdit(m_register);
+	m_separateEdit->showRegexToggle(true);
 	m_filter = new FilteredView(this, m_register, m_register, m_separateEdit);
 	m_filter->setFilterPlaceholderText("Search registers");
 

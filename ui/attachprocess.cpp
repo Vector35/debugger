@@ -313,7 +313,7 @@ ProcessListWidget::ProcessListWidget(QWidget* parent, DbgRef<DebuggerController>
 	setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
 	setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 	setAutoScroll(false);
-	
+
 	resizeColumnsToContents();
 	resizeRowsToContents();
 
@@ -367,9 +367,14 @@ void ProcessListWidget::updateContent(const std::vector<ProcessItem>& processLis
 }
 
 
-void ProcessListWidget::setFilter(const string& filter)
+void ProcessListWidget::setFilter(const string& filter, FilterOptions options)
 {
-	m_filter->setFilterFixedString(QString::fromStdString(filter));
+	if (options.testFlag(UseRegexOption))
+		m_filter->setFilterRegularExpression(QString::fromStdString(filter));
+	else
+		m_filter->setFilterFixedString(QString::fromStdString(filter));
+	m_filter->setFilterCaseSensitivity(
+		options.testFlag(CaseSensitiveOption) ? Qt::CaseSensitive : Qt::CaseInsensitive);
 	updateColumnWidths();
 }
 
@@ -395,6 +400,7 @@ AttachProcessDialog::AttachProcessDialog(QWidget* parent, DbgRef<DebuggerControl
 
 	m_processListWidget = new ProcessListWidget(this, controller);
 	m_separateEdit = new FilterEdit(m_processListWidget);
+	m_separateEdit->showRegexToggle(true);
 	m_filter = new FilteredView(this, m_processListWidget, m_processListWidget, m_separateEdit);
 	m_filter->setFilterPlaceholderText("Search process");
 

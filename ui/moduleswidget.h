@@ -27,6 +27,7 @@ limitations under the License.
 #include "fontsettings.h"
 #include "theme.h"
 #include "globalarea.h"
+#include "filter.h"
 #include "debuggerapi.h"
 
 using namespace BinaryNinjaDebuggerAPI;
@@ -154,7 +155,7 @@ class DebugModulesWidget : public QTableView, public FilterTarget
 	bool canCopy();
 	bool canCopyAll();
 
-	virtual void setFilter(const std::string& filter) override;
+	virtual void setFilter(const std::string& filter, FilterOptions options) override;
 	virtual void scrollToFirstItem() override;
 	virtual void scrollToCurrentItem() override;
 	virtual void ensureSelection() override;
