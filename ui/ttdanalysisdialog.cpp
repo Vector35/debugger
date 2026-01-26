@@ -22,6 +22,8 @@ limitations under the License.
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QApplication>
+#include "uicontext.h"
+#include "linearview.h"
 
 TTDAnalysisWorker::TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, QObject* parent)
 	: QThread(parent), m_controller(controller), m_analysisType(type), m_useRange(false), m_startAddress(0), m_endAddress(0)
@@ -91,8 +93,8 @@ void TTDAnalysisWorker::run()
 	emit analysisCompleted(success, message, resultCount);
 }
 
-TTDAnalysisDialog::TTDAnalysisDialog(BinaryViewRef data, QWidget* parent)
-	: QDialog(parent), m_data(data), m_currentWorker(nullptr)
+TTDAnalysisDialog::TTDAnalysisDialog(UIContext* context, BinaryViewRef data, QWidget* parent)
+	: QDialog(parent), m_context(context), m_data(data), m_currentWorker(nullptr)
 {
 	m_controller = DebuggerController::GetController(data);
 
@@ -550,6 +552,11 @@ void TTDAnalysisDialog::onAnalysisCompleted(bool success, const QString& message
 	{
 		QMessageBox::warning(this, "Analysis Failed", message);
 	}
+	else
+	{
+		// Refresh the view to make coverage visible immediately
+		refreshViewAndEnableRenderLayer();
+	}
 }
 
 void TTDAnalysisDialog::onSaveResults()
@@ -591,6 +598,9 @@ void TTDAnalysisDialog::onLoadResults()
 
 		populateAnalysisList();
 		QMessageBox::information(this, "Load Results", "Analysis results loaded successfully");
+
+		// Refresh the view to show the loaded coverage
+		refreshViewAndEnableRenderLayer();
 	}
 	else
 	{
@@ -773,4 +783,23 @@ bool TTDAnalysisDialog::loadAnalysisResults(TTDAnalysisResult& result)
 	}
 
 	return true;
+}
+
+void TTDAnalysisDialog::refreshViewAndEnableRenderLayer()
+{
+	// Use the stored UI context to refresh the view
+	if (!m_context)
+		return;
+
+	// Refresh the current view contents to show the coverage immediately
+	// This will trigger the render layers to update and display the coverage
+	m_context->refreshCurrentViewContents();
+
+	// Check if the TTD Coverage render layer is registered
+	Ref<RenderLayer> ttdLayer = RenderLayer::GetByName("TTD Coverage");
+	if (!ttdLayer)
+	{
+		// This shouldn't happen, but log an error if the layer isn't registered
+		LogError("TTD Coverage render layer is not registered");
+	}
 }

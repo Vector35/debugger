@@ -34,6 +34,8 @@ limitations under the License.
 #include <QThread>
 #include <QMutex>
 #include "binaryninjaapi.h"
+#include "uicontext.h"
+#include "viewframe.h"
 #include "debuggerapi.h"
 #include <uitypes.h>
 
@@ -94,7 +96,7 @@ class TTDAnalysisDialog : public QDialog
 	Q_OBJECT
 
 public:
-	TTDAnalysisDialog(BinaryViewRef data, QWidget* parent = nullptr);
+	TTDAnalysisDialog(UIContext* context, BinaryViewRef data, QWidget* parent = nullptr);
 	~TTDAnalysisDialog();
 
 private slots:
@@ -115,7 +117,9 @@ private:
 	QString getDefaultCachePath(TTDAnalysisType type);
 	bool saveAnalysisResults(const TTDAnalysisResult& result);
 	bool loadAnalysisResults(TTDAnalysisResult& result);
+	void refreshViewAndEnableRenderLayer();
 
+	UIContext* m_context;
 	BinaryViewRef m_data;
 	DbgRef<DebuggerController> m_controller;
 
