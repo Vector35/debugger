@@ -1392,60 +1392,17 @@ void DebuggerController::DetectLoadedModule()
 
 	m_inputFileLoaded = true;
 	auto oldBase = GetViewFileSegmentsStart();
+
 	if (remoteBase == oldBase)
 		return;
 
-	m_ranges.clear();
-	m_oldViewBase = oldBase;
-	m_newViewBase = remoteBase;
-	auto data = GetData();
-	for (const auto& func: data->GetAnalysisFunctionList())
-	{
-		for (const auto& range: func->GetAddressRanges())
-			m_ranges.emplace_back(range);
-	}
+	bool autoRebase = Settings::Instance()->Get<bool>("debugger.autoRebase");
 
-	if (BinaryNinja::IsUIEnabled())
-	{
-		// When the UI is enabled, let the debugger UI do the work. It can show a progress bar if the operation takes
-		// a while.
-		if (m_uiCallbacks)
-			m_uiCallbacks->NotifyRebaseBinaryView(remoteBase);
-	}
-	else
-	{
-		// Halt analysis before rebasing. Otherwise, the old view may continue analysis which leads to various issues
-		data->AbortAnalysis();
-		data->UpdateAnalysisAndWait();
+	if (!autoRebase)
+		return;
 
-		RemoveDebuggerMemoryRegion();
-
-		auto shouldHoldAnalysis = Settings::Instance()->Get<bool>("debugger.holdAnalysis");
-		if (shouldHoldAnalysis)
-			data->SetAnalysisHold(false);
-
-		// remote base is different from the local base, first need a rebase
-		auto viewType = data->GetTypeName();
-		if (!m_file->Rebase(data, remoteBase, [&](size_t cur, size_t total) { return true; }))
-		{
-			LogWarn("rebase failed");
-		}
-		auto rebasedView = m_file->GetViewOfType(viewType);
-		if (!rebasedView)
-			return;
-
-		if (shouldHoldAnalysis)
-		{
-			static auto completionEvent = rebasedView->AddAnalysisCompletionEvent([=](){
-				rebasedView->SetAnalysisHold(true);
-			});
-			rebasedView->UpdateAnalysis();
-		}
-
-		ReAddDebuggerMemoryRegion();
-	}
-
-	GetData()->UpdateAnalysis();
+	if (!RebaseToAddress(remoteBase))
+		LogWarn("Failed to rebase to remote base 0x%" PRIx64, remoteBase);
 }
 
 
@@ -3406,7 +3363,6 @@ bool DebuggerController::ReAddDebuggerMemoryRegion()
 }
 
 
-
 // TODO: these 3 functions should be moved to the BinaryNinjaAPI namespace for wider audiences
 static intx::uint512 MaskToSize(intx::uint512 value, size_t size)
 {
@@ -4505,4 +4461,94 @@ bool DebuggerController::FunctionExistsInOldView(uint64_t address)
 			return true;
 	}
 	return false;
+}
+
+
+bool DebuggerController::RebaseToRemoteBase()
+{
+	uint64_t remoteBase;
+	if (!GetRemoteBase(remoteBase))
+		return false;
+
+	return RebaseToAddress(remoteBase);
+}
+
+
+bool DebuggerController::GetRemoteBase(uint64_t& address)
+{
+	if (!m_state->IsConnected())
+		return false;
+
+	return m_state->GetRemoteBase(address);
+}
+
+
+bool DebuggerController::RebaseToAddress(uint64_t newBase)
+{
+	const auto data = GetData();
+	if (!data)
+		return false;
+
+	const uint64_t oldBase = GetViewFileSegmentsStart();
+
+	if (newBase == oldBase)
+		return true;
+
+	// Check UI callbacks early before modifying state
+	if (BinaryNinja::IsUIEnabled() && !m_uiCallbacks)
+		return false;
+
+	m_oldViewBase = oldBase;
+	m_newViewBase = newBase;
+
+	m_ranges.clear();
+	for (const auto& func: data->GetAnalysisFunctionList())
+	{
+		for (const auto& range: func->GetAddressRanges())
+			m_ranges.emplace_back(range);
+	}
+
+	if (BinaryNinja::IsUIEnabled())
+	{
+		m_uiCallbacks->NotifyRebaseBinaryView(newBase);
+		return true;  // Rebase completes asynchronously via UI callback
+	}
+
+	data->AbortAnalysis();
+	data->UpdateAnalysisAndWait();
+
+	RemoveDebuggerMemoryRegion();
+
+	const auto shouldHoldAnalysis = Settings::Instance()->Get<bool>("debugger.holdAnalysis");
+	if (shouldHoldAnalysis)
+		data->SetAnalysisHold(false);
+
+	const auto viewType = data->GetTypeName();
+	if (!m_file->Rebase(data, newBase, [&](size_t, size_t) { return true; }))
+	{
+		LogWarn("Failed to rebase to remote base 0x%" PRIx64, newBase);
+		ReAddDebuggerMemoryRegion();
+		return false;
+	}
+
+	const auto rebasedView = m_file->GetViewOfType(viewType);
+	if (!rebasedView)
+	{
+		ReAddDebuggerMemoryRegion();
+		return false;
+	}
+
+	if (shouldHoldAnalysis)
+	{
+		// Store in member variable to keep alive until callback fires
+		m_rebaseCompletionEvent = rebasedView->AddAnalysisCompletionEvent([=]() {
+			rebasedView->SetAnalysisHold(true);
+		});
+		rebasedView->UpdateAnalysis();
+	}
+
+	ReAddDebuggerMemoryRegion();
+	GetData()->UpdateAnalysis();
+
+	return true;
 }

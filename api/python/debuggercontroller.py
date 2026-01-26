@@ -21,7 +21,7 @@ import binaryninja
 # import debugger
 from . import _debuggercore as dbgcore
 from .debugger_enums import *
-from typing import Callable, List, Union
+from typing import Callable, List, Optional, Union
 
 
 # TTD (Time Travel Debugging) Memory Access Type parsing
@@ -1355,6 +1355,47 @@ class DebuggerController:
 
         dbgcore.BNDebuggerFreeModules(modules, count.value)
         return DebugModules(result)
+
+    def rebase_to_remote_base(self) -> bool:
+        """
+        Rebase the input binary view to match the remote base address.
+
+        This is useful when auto-rebase is disabled (via the ``debugger.autoRebase`` setting)
+        and you want to manually trigger a rebase after the target has been launched.
+
+        Note: In UI mode, this returns True immediately and the rebase completes asynchronously.
+
+        :return: True if the rebase was initiated successfully, False otherwise
+        """
+        return dbgcore.BNDebuggerRebaseToRemoteBase(self.handle)
+
+    def rebase_to_address(self, address: int) -> bool:
+        """
+        Rebase the input binary view to the specified base address.
+
+        This allows manual rebasing to a user-specified address, which is useful when the
+        auto-detected remote base is incorrect.
+
+        Note: In UI mode, this returns True immediately and the rebase completes asynchronously.
+
+        :param address: The new base address for the binary view
+        :return: True if the rebase was initiated successfully, False otherwise
+        """
+        return dbgcore.BNDebuggerRebaseToAddress(self.handle, address)
+
+    def get_remote_base(self) -> Optional[int]:
+        """
+        Get the detected remote base address of the target module.
+
+        This returns the base address that the debugger detected for the input binary
+        in the remote process. Returns None if not connected or detection failed.
+
+        :return: The remote base address, or None if unavailable
+        """
+        address = ctypes.c_uint64()
+        if not dbgcore.BNDebuggerGetRemoteBase(self.handle, ctypes.byref(address)):
+            return None
+        return address.value
 
     @property
     def regs(self) -> DebugRegisters:

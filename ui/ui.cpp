@@ -485,6 +485,55 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	Menu::setMainMenuOrder("Debugger", MENU_ORDER_LATE);
 	debuggerMenu->addAction("Debug Adapter Settings...", "Settings", MENU_ORDER_FIRST);
 
+	UIAction::registerAction("Rebase to Remote Base...");
+	context->globalActions()->bindAction("Rebase to Remote Base...",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				const auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+
+				uint64_t detectedBase = 0;
+				controller->GetRemoteBase(detectedBase);
+				const QString defaultValue = detectedBase ? QString("0x%1").arg(detectedBase, 0, 16) : QString();
+
+				bool ok;
+				const QString input = QInputDialog::getText(
+					nullptr,
+					"Rebase to Remote Base",
+					"Enter the new base address:",
+					QLineEdit::Normal,
+					defaultValue,
+					&ok);
+
+				if (!ok || input.isEmpty())
+					return;
+
+				// TODO: Switch to ViewFrame::getAddressFromInput once
+				// https://github.com/Vector35/binaryninja-api/issues/7915 is fixed
+				uint64_t address = 0;
+				std::string errorString;
+				if (!BinaryView::ParseExpression(
+						controller->GetData(), input.trimmed().toStdString(), address, 0, errorString))
+				{
+					LogWarn("Invalid address expression: %s", errorString.c_str());
+					return;
+				}
+
+				if (!controller->RebaseToAddress(address))
+					LogWarn("Failed to rebase to address 0x%" PRIx64, address);
+			},
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return false;
+				const auto controller = DebuggerController::GetController(ctxt.binaryView);
+				return controller && controller->IsConnected();
+			}));
+
+	debuggerMenu->addAction("Rebase to Remote Base...", "Rebase");
+
 	UIAction::registerAction("Launch", QKeySequence(Qt::Key_F6));
 	context->globalActions()->bindAction("Launch",
 		UIAction(
@@ -1776,7 +1825,7 @@ void DebuggerUI::checkRebaseBinaryView(uint64_t remoteBase)
 
 		if (!result)
 		{
-			LogWarn("failed to rebase the input view");
+			LogWarn("Failed to rebase to remote base 0x%" PRIx64, remoteBase);
 			return;
 		}
 
