@@ -37,6 +37,10 @@ void TTDCoverageRenderLayer::ApplyToBlock(Ref<BasicBlock> block, std::vector<Dis
 	if (!controller->IsTTD())
 		return;
 
+	// Quick check: if no coverage data has been loaded, return immediately
+	if (controller->GetExecutedInstructionCount() == 0)
+		return;
+
 	for (auto& line : lines)
 	{
 		// Do not highlight empty lines or comments
@@ -74,6 +78,10 @@ void TTDCoverageRenderLayer::ApplyToHighLevelILBody(Ref<Function> function, std:
 
 	// Only apply TTD coverage highlighting if this is a TTD session
 	if (!controller->IsTTD())
+		return;
+
+	// Quick check: if no coverage data has been loaded, return immediately
+	if (controller->GetExecutedInstructionCount() == 0)
 		return;
 
 	for (auto& linearLine : lines)

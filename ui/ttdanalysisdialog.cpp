@@ -792,14 +792,7 @@ void TTDAnalysisDialog::refreshViewAndEnableRenderLayer()
 		return;
 
 	// Refresh the current view contents to show the coverage immediately
-	// This will trigger the render layers to update and display the coverage
+	// The TTD Coverage render layer is always enabled and will automatically
+	// display coverage highlights when coverage data is available
 	m_context->refreshCurrentViewContents();
-
-	// Check if the TTD Coverage render layer is registered
-	Ref<RenderLayer> ttdLayer = RenderLayer::GetByName("TTD Coverage");
-	if (!ttdLayer)
-	{
-		// This shouldn't happen, but log an error if the layer isn't registered
-		LogError("TTD Coverage render layer is not registered");
-	}
 }
