@@ -21,7 +21,7 @@ import binaryninja
 # import debugger
 from . import _debuggercore as dbgcore
 from .debugger_enums import *
-from typing import Callable, List, Union
+from typing import Callable, List, Optional, Union
 
 
 # TTD (Time Travel Debugging) Memory Access Type parsing
