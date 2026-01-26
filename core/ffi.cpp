@@ -1302,6 +1302,11 @@ bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t 
 	return controller->object->IsInstructionExecuted(address);
 }
 
+size_t BNDebuggerGetInstructionExecutionCount(BNDebuggerController* controller, uint64_t address)
+{
+	return controller->object->GetInstructionExecutionCount(address);
+}
+
 bool BNDebuggerRunCodeCoverageAnalysisRange(BNDebuggerController* controller, uint64_t startAddress, uint64_t endAddress, BNDebuggerTTDPosition startTime, BNDebuggerTTDPosition endTime)
 {
 	TTDPosition startPos(startTime.sequence, startTime.step);

@@ -2927,6 +2927,17 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerIsInstructionExecuted(self.handle, address)
 
+    def get_instruction_execution_count(self, address: int) -> int:
+        """
+        Get the execution count for a specific instruction address.
+
+        This method requires that run_code_coverage_analysis() has been called first.
+
+        :param address: address of the instruction to check
+        :return: number of times the instruction was executed (0 if not executed or analysis not run)
+        """
+        return dbgcore.BNDebuggerGetInstructionExecutionCount(self.handle, address)
+
     def get_executed_instruction_count(self) -> int:
         """
         Get the count of executed instructions from the last code coverage analysis.

@@ -3198,7 +3198,27 @@ bool DebuggerController::IsInstructionExecuted(uint64_t address)
 		return false;
 	}
 
-	return m_executedInstructions.find(address) != m_executedInstructions.end();
+	return m_executedInstructionCounts.find(address) != m_executedInstructionCounts.end();
+}
+
+size_t DebuggerController::GetInstructionExecutionCount(uint64_t address)
+{
+	if (!m_state->IsConnected() || !IsTTD())
+	{
+		return 0;
+	}
+
+	if (!m_codeCoverageAnalysisRun)
+	{
+		return 0;
+	}
+
+	auto iter = m_executedInstructionCounts.find(address);
+	if (iter != m_executedInstructionCounts.end())
+	{
+		return iter->second;
+	}
+	return 0;
 }
 
 
@@ -3217,7 +3237,7 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 	}
 
 	// Clear previous analysis results
-	m_executedInstructions.clear();
+	m_executedInstructionCounts.clear();
 	m_codeCoverageAnalysisRun = false;
 	
 	LogInfo("Starting TTD code coverage analysis.");
@@ -3243,15 +3263,14 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 			// Add all executed instruction addresses within the range
 			if (event.instructionAddress >= startAddress && event.instructionAddress <= endAddress)
 			{
-				// Check if the event is within the specified time range
-				m_executedInstructions.insert(event.address);
+				m_executedInstructionCounts[event.instructionAddress]++;
 			}
 		}
 	}
 
 	m_codeCoverageAnalysisRun = true;
 	LogInfo("TTD code coverage analysis completed for ranges. Found %" PRIu64 " executed instructions.",
-			(uint64_t)m_executedInstructions.size());
+			(uint64_t)m_executedInstructionCounts.size());
 
 	return true;
 }
@@ -3259,7 +3278,7 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 
 size_t DebuggerController::GetExecutedInstructionCount() const
 {
-	return m_executedInstructions.size();
+	return m_executedInstructionCounts.size();
 }
 
 
@@ -3282,17 +3301,18 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) con
 
 		// Write header
 		uint32_t magic = 0x54544443; // "TTDC" - TTD Coverage
-		uint32_t version = 1;
-		size_t count = m_executedInstructions.size();
+		uint32_t version = 2;
+		size_t count = m_executedInstructionCounts.size();
 
 		file.write(reinterpret_cast<const char*>(&magic), sizeof(magic));
 		file.write(reinterpret_cast<const char*>(&version), sizeof(version));
 		file.write(reinterpret_cast<const char*>(&count), sizeof(count));
 
-		// Write addresses
-		for (uint64_t addr : m_executedInstructions)
+		// Write addresses and execution counts in pairs
+		for (const auto& [addr, execCount] : m_executedInstructionCounts)
 		{
 			file.write(reinterpret_cast<const char*>(&addr), sizeof(addr));
+			file.write(reinterpret_cast<const char*>(&execCount), sizeof(execCount));
 		}
 
 		file.close();
@@ -3331,7 +3351,7 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
 		}
 
 		file.read(reinterpret_cast<char*>(&version), sizeof(version));
-		if (version != 1)
+		if (version != 1 && version != 2)
 		{
 			LogError("%s", fmt::format("Unsupported file version: {}", version).c_str());
 			return false;
@@ -3339,14 +3359,30 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
 
 		file.read(reinterpret_cast<char*>(&count), sizeof(count));
 
-		// Clear existing data and read addresses
-		m_executedInstructions.clear();
+		// Clear existing data
+		m_executedInstructionCounts.clear();
 
-		for (size_t i = 0; i < count; i++)
+		// Read executed instruction addresses according to version
+		if (version == 1)
 		{
-			uint64_t addr;
-			file.read(reinterpret_cast<char*>(&addr), sizeof(addr));
-			m_executedInstructions.insert(addr);
+			// Version 1 files don't have execution counts, so assume count = 1 for backward compatibility
+			for (size_t i = 0; i < count; i++)
+			{
+				uint64_t addr;
+				file.read(reinterpret_cast<char*>(&addr), sizeof(addr));
+				m_executedInstructionCounts[addr] = 1;
+			}
+		}
+		else if (version > 1)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				uint64_t addr;
+				uint32_t execCount;
+				file.read(reinterpret_cast<char*>(&addr), sizeof(addr));
+				file.read(reinterpret_cast<char*>(&execCount), sizeof(execCount));
+				m_executedInstructionCounts[addr] = execCount;
+			}
 		}
 
 		file.close();
