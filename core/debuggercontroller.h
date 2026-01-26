@@ -396,6 +396,7 @@ namespace BinaryNinjaDebugger {
 
 		// TTD Memory Analysis Methods
 		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead);
+		std::vector<TTDPositionRangeIndexedMemoryEvent> GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime);
 		std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0);
 		std::vector<TTDEvent> GetTTDEvents(TTDEventType eventType);
 		std::vector<TTDEvent> GetAllTTDEvents();
@@ -404,7 +405,7 @@ namespace BinaryNinjaDebugger {
 
 		// TTD Code Coverage Analysis Methods
 		bool IsInstructionExecuted(uint64_t address);
-		bool RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress);
+		bool RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress, TTDPosition startTime, TTDPosition endTime);
 		size_t GetExecutedInstructionCount() const;
 		bool SaveCodeCoverageToFile(const std::string& filePath) const;
 		bool LoadCodeCoverageFromFile(const std::string& filePath);

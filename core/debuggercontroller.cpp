@@ -3091,6 +3091,24 @@ std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uin
 	return events;
 }
 
+std::vector<TTDPositionRangeIndexedMemoryEvent> DebuggerController::GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime)
+{
+	std::vector<TTDPositionRangeIndexedMemoryEvent> events;
+
+	if (!m_state->IsConnected() || !IsTTD())
+	{
+		LogError("Current adapter does not support TTD");
+		return events;
+	}
+
+	if (m_adapter)
+	{
+		events = m_adapter->GetTTDMemoryAccessForPositionRange(startAddress, endAddress, accessType, startTime, endTime);
+	}
+
+	return events;
+}
+
 std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
 {
 	std::vector<TTDCallEvent> events;
@@ -3184,7 +3202,7 @@ bool DebuggerController::IsInstructionExecuted(uint64_t address)
 }
 
 
-bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress)
+bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress, TTDPosition startTime, TTDPosition endTime)
 {
 	if (!m_state->IsConnected() || !IsTTD())
 	{
@@ -3202,11 +3220,22 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 	m_executedInstructions.clear();
 	m_codeCoverageAnalysisRun = false;
 	
-	LogInfo("Starting TTD code coverage analysis for range 0x%" PRIX64 " - 0x%" PRIX64 "...", startAddress, endAddress);
+	LogInfo("Starting TTD code coverage analysis.");
+	LogInfo("\tAddress range: 0x%" PRIX64 " - 0x%" PRIX64, startAddress, endAddress);
+	//log time range
+	bool endTimeIsMax = endTime.sequence== std::numeric_limits<uint64_t>::max() && endTime.step == std::numeric_limits<uint64_t>::max();
+	if(endTimeIsMax)
+	{
+		LogInfo("\tTime range:  %" PRIX64 ":%" PRIX64 " - end of trace", startTime.sequence, startTime.step);
+	}
+	else{
+		LogInfo("\tTime range:  %" PRIX64 ":%" PRIX64 " - %" PRIX64 ":%" PRIX64, startTime.sequence, startTime.step,
+			endTime.sequence, endTime.step);
+	}
 	
 	// Query TTD for execute access covering the specified range
-	auto events = GetTTDMemoryAccessForAddress(startAddress, endAddress, TTDMemoryExecute);
-	
+	auto events = GetTTDMemoryAccessForPositionRange(startAddress, endAddress, TTDMemoryExecute, startTime, endTime);
+
 	for (const auto& event : events)
 	{
 		if (event.accessType == TTDMemoryExecute)
@@ -3214,13 +3243,14 @@ bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t
 			// Add all executed instruction addresses within the range
 			if (event.instructionAddress >= startAddress && event.instructionAddress <= endAddress)
 			{
-				m_executedInstructions.insert(event.instructionAddress);
+				// Check if the event is within the specified time range
+				m_executedInstructions.insert(event.address);
 			}
 		}
 	}
 
 	m_codeCoverageAnalysisRun = true;
-	LogInfo("TTD code coverage analysis completed for range. Found 0x%" PRIu64 "executed instructions.",
+	LogInfo("TTD code coverage analysis completed for ranges. Found %" PRIu64 " executed instructions.",
 			(uint64_t)m_executedInstructions.size());
 
 	return true;
@@ -3266,7 +3296,7 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) con
 		}
 
 		file.close();
-		LogError("%s", fmt::format("Saved {} executed instruction addresses to {}", count, filePath.c_str()).c_str());
+		LogInfo("%s", fmt::format("Saved {} executed instruction addresses to {}", count, filePath.c_str()).c_str());
 
 		return true;
 	}

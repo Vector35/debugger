@@ -403,6 +403,18 @@ std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetTTDMemoryAccessForAddress(uint6
 	return events;
 }
 
+std::vector<TTDPositionRangeIndexedMemoryEvent> DbgEngTTDAdapter::GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime)
+{
+	std::vector<TTDPositionRangeIndexedMemoryEvent> events;
+	
+	if (!QueryMemoryAccessByAddressAndPositionRange(startAddress, endAddress, accessType, startTime, endTime, events))
+	{
+		LogError("Failed to query TTD memory access events for address range 0x%llx-0x%llx", startAddress, endAddress);
+	}
+	
+	return events;
+}
+
 TTDPosition DbgEngTTDAdapter::GetCurrentTTDPosition()
 {
 	TTDPosition position;
@@ -559,6 +571,50 @@ bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_
 	catch (const std::exception& e)
 	{
 		LogError("Exception in QueryMemoryAccessByAddress: %s", e.what());
+		return false;
+	}
+}
+
+bool DbgEngTTDAdapter::QueryMemoryAccessByAddressAndPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime, std::vector<TTDPositionRangeIndexedMemoryEvent>& events)
+{
+	if (!m_debugControl)
+	{
+		LogError("Debug control interface not available");
+		return false;
+	}
+	
+	try
+	{
+		// Build the access type string for TTD memory queries - combine flags as needed
+		std::string accessTypeStr;
+		if (accessType & TTDMemoryRead) accessTypeStr += "r";
+		if (accessType & TTDMemoryWrite) accessTypeStr += "w";
+		if (accessType & TTDMemoryExecute) accessTypeStr += "e";
+		
+		if (accessTypeStr.empty())
+		{
+			LogError("Invalid access type specified");
+			return false;
+		}
+		
+		// Create the actual TTD memory query expression
+		std::string expression = fmt::format("@$cursession.TTD.MemoryForPositionRange(0x{:x},0x{:x},\"{}\",\"{:x}:{:x}\",\"{:x}:{:x}\")", startAddress, endAddress, accessTypeStr, startTime.sequence,startTime.step, endTime.sequence, endTime.step);
+		
+		LogInfo("Executing TTD memory query: %s", expression.c_str());
+		
+		// Execute the query and parse results
+		if (!ParseTTDPositionRangeIndexedMemoryObjects(expression, accessType, events))
+		{
+			LogError("Failed to parse TTD memory objects from query");
+			return false;
+		}
+		
+		LogInfo("Successfully retrieved %zu TTD memory events", events.size());
+		return true;
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in QueryMemoryAccessByAddressAndPositionRange: %s", e.what());
 		return false;
 	}
 }
@@ -961,6 +1017,256 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 	catch (const std::exception& e)
 	{
 		LogError("Exception in ParseTTDMemoryObjects: %s", e.what());
+		return false;
+	}
+}
+
+// `MemoryForPositionRange` does not truncate the value field to match the actual size of the memory access, but contains all the parts to piece it together.
+bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDPositionRangeIndexedMemoryEvent>& events)
+{
+	if (!m_hostEvaluator)
+	{
+		LogError("Data model evaluator not available");
+		return false;
+	}
+
+	try
+	{
+		// Convert expression to wide string
+		std::wstring wExpression(expression.begin(), expression.end());
+		
+		// Create context for evaluation
+		ComPtr<IDebugHostContext> hostContext;
+		if (FAILED(m_debugHost->GetCurrentContext(hostContext.GetAddressOf())))
+		{
+			LogError("Failed to get current debug host context");
+			return false;
+		}
+
+		// Evaluate the TTD memory collection expression
+		ComPtr<IModelObject> result;
+		ComPtr<IKeyStore> metadata;
+		HRESULT hr = m_hostEvaluator->EvaluateExtendedExpression(
+			hostContext.Get(),
+			wExpression.c_str(),
+			nullptr, // No binding context
+			result.GetAddressOf(),
+			metadata.GetAddressOf()
+		);
+
+		if (FAILED(hr))
+		{
+			LogError("Failed to evaluate TTD memory expression '%s': 0x%08x", expression.c_str(), hr);
+			return false;
+		}
+
+		// Check if result is iterable (collection)
+		ComPtr<IIterableConcept> iterableConcept;
+		if (FAILED(result->GetConcept(__uuidof(IIterableConcept), &iterableConcept, nullptr)))
+		{
+			LogError("TTD memory result is not iterable");
+			return false;
+		}
+
+		// Get iterator
+		ComPtr<IModelIterator> iterator;
+		if (FAILED(iterableConcept->GetIterator(result.Get(), &iterator)))
+		{
+			LogError("Failed to get iterator for TTD memory objects");
+			return false;
+		}
+
+		// Iterate through memory objects
+		ComPtr<IModelObject> memoryObject;
+		ComPtr<IKeyStore> metadataKeyStore;
+		
+		// Get the max results setting
+		auto adapterSettings = GetAdapterSettings();
+		BNSettingsScope scope = SettingsResourceScope;
+		auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxMemoryQueryResults", GetData(), &scope);
+		
+		uint64_t resultCounter = 0;
+		bool wasLimited = false;
+		
+		while (SUCCEEDED(iterator->GetNext(&memoryObject, 0, nullptr, &metadataKeyStore)))
+		{
+			if (!memoryObject)
+				break;
+			
+			// Check if we've reached the limit (0 means no limit)
+			if (maxResults > 0 && resultCounter >= maxResults)
+			{
+				wasLimited = true;
+				break;
+			}
+				
+			TTDPositionRangeIndexedMemoryEvent event;
+			
+			// Extract all fields from the memory object based on Microsoft documentation
+			
+			// Get ThreadId
+			ComPtr<IModelObject> threadIdObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"ThreadId", &threadIdObj, nullptr)))
+			{
+				VARIANT vtThreadId;
+				VariantInit(&vtThreadId);
+				if (SUCCEEDED(threadIdObj->GetIntrinsicValueAs(VT_UI4, &vtThreadId)))
+				{
+					event.threadId = vtThreadId.ulVal;
+				}
+				VariantClear(&vtThreadId);
+			}
+			
+			// Get UniqueThreadId
+			ComPtr<IModelObject> uniqueThreadIdObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"UniqueThreadId", &uniqueThreadIdObj, nullptr)))
+			{
+				VARIANT vtUniqueThreadId;
+				VariantInit(&vtUniqueThreadId);
+				if (SUCCEEDED(uniqueThreadIdObj->GetIntrinsicValueAs(VT_UI4, &vtUniqueThreadId)))
+				{
+					event.uniqueThreadId = vtUniqueThreadId.ulVal;
+				}
+				VariantClear(&vtUniqueThreadId);
+			}
+			
+			// Get TimeStart for position
+			ComPtr<IModelObject> positionObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"Position", &positionObj, nullptr)))
+			{
+				// TimeStart is typically a TTD position object with Sequence and Steps
+				ComPtr<IModelObject> sequenceObj, stepsObj;
+				if (SUCCEEDED(positionObj->GetKeyValue(L"Sequence", &sequenceObj, nullptr)))
+				{
+					VARIANT vtSequence;
+					VariantInit(&vtSequence);
+					if (SUCCEEDED(sequenceObj->GetIntrinsicValueAs(VT_UI8, &vtSequence)))
+					{
+						event.position.sequence = vtSequence.ullVal;
+					}
+					VariantClear(&vtSequence);
+				}
+				
+				if (SUCCEEDED(positionObj->GetKeyValue(L"Steps", &stepsObj, nullptr)))
+				{
+					VARIANT vtSteps;
+					VariantInit(&vtSteps);
+					if (SUCCEEDED(stepsObj->GetIntrinsicValueAs(VT_UI8, &vtSteps)))
+					{
+						event.position.step = vtSteps.ullVal;
+					}
+					VariantClear(&vtSteps);
+				}
+			}
+			
+			// Get Address
+			ComPtr<IModelObject> addressObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"Address", &addressObj, nullptr)))
+			{
+				VARIANT vtAddress;
+				VariantInit(&vtAddress);
+				if (SUCCEEDED(addressObj->GetIntrinsicValueAs(VT_UI8, &vtAddress)))
+				{
+					event.address = vtAddress.ullVal;
+				}
+				VariantClear(&vtAddress);
+			}
+
+			// Get Size
+			ComPtr<IModelObject> sizeObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"Size", &sizeObj, nullptr)))
+			{
+				VARIANT vtSize;
+				VariantInit(&vtSize);
+				if (SUCCEEDED(sizeObj->GetIntrinsicValueAs(VT_UI8, &vtSize)))
+				{
+					event.size = vtSize.ullVal;
+				}
+				VariantClear(&vtSize);
+			}
+			
+			// Get IP (Instruction Pointer)
+			ComPtr<IModelObject> ipObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"IP", &ipObj, nullptr)))
+			{
+				VARIANT vtIP;
+				VariantInit(&vtIP);
+				if (SUCCEEDED(ipObj->GetIntrinsicValueAs(VT_UI8, &vtIP)))
+				{
+					event.instructionAddress = vtIP.ullVal;
+				}
+				VariantClear(&vtIP);
+			}
+			
+			// Get Value (the value that was read/written/executed)
+			ComPtr<IModelObject> valueObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"Value", &valueObj, nullptr)))
+			{
+				VARIANT vtValue;
+				VariantInit(&vtValue);
+				if (SUCCEEDED(valueObj->GetIntrinsicValueAs(VT_UI8, &vtValue)))
+				{
+					event.value = vtValue.ullVal;
+				}
+				VariantClear(&vtValue);
+			}
+			
+			// Get AccessType from the object itself
+			ComPtr<IModelObject> accessTypeObj;
+			if (SUCCEEDED(memoryObject->GetKeyValue(L"AccessType", &accessTypeObj, nullptr)))
+			{
+				VARIANT vtAccessType;
+				VariantInit(&vtAccessType);
+				if (SUCCEEDED(accessTypeObj->GetIntrinsicValueAs(VT_BSTR, &vtAccessType)))
+				{
+					_bstr_t bstr(vtAccessType.bstrVal);
+					std::string accessTypeStr = std::string(bstr);
+					
+					// Parse access type string to bitfield
+					TTDMemoryAccessType parsedAccessType = static_cast<TTDMemoryAccessType>(0);
+					if (accessTypeStr.find("Read") != std::string::npos)
+						parsedAccessType = static_cast<TTDMemoryAccessType>(parsedAccessType | TTDMemoryRead);
+					if (accessTypeStr.find("Write") != std::string::npos)
+						parsedAccessType = static_cast<TTDMemoryAccessType>(parsedAccessType | TTDMemoryWrite);
+					if (accessTypeStr.find("Execute") != std::string::npos)
+						parsedAccessType = static_cast<TTDMemoryAccessType>(parsedAccessType | TTDMemoryExecute);
+					
+					event.accessType = parsedAccessType;
+				}
+				else
+				{
+					// Fallback to query parameter if parsing fails
+					event.accessType = accessType;
+				}
+				VariantClear(&vtAccessType);
+			}
+			else
+			{
+				// Fallback to query parameter if field is not available
+				event.accessType = accessType;
+			}
+			
+			events.push_back(event);
+			resultCounter++;
+			
+			// Reset objects for next iteration
+			memoryObject.Reset();
+			metadataKeyStore.Reset();
+		}
+		
+		if (wasLimited)
+		{
+			LogWarnF("Successfully parsed {} TTD memory events from data model (limited by max results setting of {})", events.size(), maxResults);
+		}
+		else
+		{
+			LogInfo("Successfully parsed %zu TTD memory events from data model", events.size());
+		}
+		return true;
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in ParseTTDPositionRangeIndexedMemoryObjects: %s", e.what());
 		return false;
 	}
 }

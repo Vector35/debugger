@@ -1096,6 +1096,43 @@ bool DebuggerController::IsTTD()
 	return BNDebuggerIsTTD(m_object);
 }
 
+std::vector<TTDPositionRangeIndexedMemoryEvent> DebuggerController::GetTTDMemoryAccessForPositionRange(uint64_t address, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime)
+{
+	std::vector<TTDPositionRangeIndexedMemoryEvent> result;
+
+	BNDebuggerTTDMemoryAccessType type = static_cast<BNDebuggerTTDMemoryAccessType>(accessType);
+	BNDebuggerTTDPosition bnStartTime = {startTime.sequence, startTime.step};
+	BNDebuggerTTDPosition bnEndTime = {endTime.sequence, endTime.step};
+
+	size_t count = 0;
+	BNDebuggerTTDPositionRangeIndexedMemoryEvent* events = BNDebuggerGetTTDMemoryAccessForPositionRange(m_object, address, endAddress, type, bnStartTime, bnEndTime, &count);
+	
+	if (events && count > 0)
+	{
+		result.reserve(count);
+		for (size_t i = 0; i < count; i++)
+		{
+			TTDPositionRangeIndexedMemoryEvent event;
+			event.threadId = events[i].threadId;
+			event.uniqueThreadId = events[i].uniqueThreadId;
+			event.position.sequence = events[i].position.sequence;
+			event.position.step = events[i].position.step;
+			event.accessType = static_cast<TTDMemoryAccessType>(events[i].accessType);
+			event.address = events[i].address;
+			event.size = events[i].size;
+			event.instructionAddress = events[i].instructionAddress;
+			event.value = events[i].value;
+			for (size_t j = 0; j < 8; j++)
+			{
+				event.data[j] = events[i].data[j];
+			}
+			result.push_back(event);
+		}
+		BNDebuggerFreeTTDPositionRangeIndexedMemoryEvents(events, count);
+	}
+	
+	return result;
+}
 
 std::vector<TTDMemoryEvent> DebuggerController::GetTTDMemoryAccessForAddress(uint64_t address, uint64_t endAddress, TTDMemoryAccessType accessType)
 {
@@ -1343,9 +1380,14 @@ bool DebuggerController::IsInstructionExecuted(uint64_t address)
 }
 
 
-bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress)
+bool DebuggerController::RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress, TTDPosition startTime, TTDPosition endTime)
 {
-	return BNDebuggerRunCodeCoverageAnalysisRange(m_object, startAddress, endAddress);
+	BNDebuggerTTDPosition startPos, endPos;
+    startPos.sequence = startTime.sequence;
+    startPos.step = startTime.step;
+    endPos.sequence = endTime.sequence;
+    endPos.step = endTime.step;
+    return BNDebuggerRunCodeCoverageAnalysisRange(m_object, startAddress, endAddress, startPos, endPos);
 }
 
 

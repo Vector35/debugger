@@ -335,6 +335,19 @@ extern "C"
 		BNDebuggerTTDMemoryAccessType accessType;
 	} BNDebuggerTTDMemoryEvent;
 
+	typedef struct BNDebuggerTTDPositionRangeIndexedMemoryEvent
+	{
+		BNDebuggerTTDPosition position;
+		uint32_t threadId;
+		uint32_t uniqueThreadId;
+		uint64_t address;
+		uint64_t instructionAddress;
+		uint64_t size;
+		BNDebuggerTTDMemoryAccessType accessType;
+		uint64_t value;
+		uint8_t data[8];
+	} BNDebuggerTTDPositionRangeIndexedMemoryEvent;
+
 	typedef struct BNDebuggerTTDCallEvent
 	{
 		char* eventType;              // Event type (always "Call" for TTD.Calls objects)
@@ -669,6 +682,9 @@ extern "C"
 	// TTD Memory Analysis Functions
 	DEBUGGER_FFI_API BNDebuggerTTDMemoryEvent* BNDebuggerGetTTDMemoryAccessForAddress(BNDebuggerController* controller,
 		uint64_t address, uint64_t endAddress, BNDebuggerTTDMemoryAccessType accessType, size_t* count);
+	DEBUGGER_FFI_API BNDebuggerTTDPositionRangeIndexedMemoryEvent* BNDebuggerGetTTDMemoryAccessForPositionRange(BNDebuggerController* controller,
+		uint64_t address, uint64_t endAddress, BNDebuggerTTDMemoryAccessType accessType ,BNDebuggerTTDPosition startPosition, BNDebuggerTTDPosition endPosition,
+		size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDCallEvent* BNDebuggerGetTTDCallsForSymbols(BNDebuggerController* controller,
 		const char* symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDEvent* BNDebuggerGetTTDEvents(BNDebuggerController* controller,
@@ -677,12 +693,13 @@ extern "C"
 	DEBUGGER_FFI_API BNDebuggerTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPosition position);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDPositionRangeIndexedMemoryEvents(BNDebuggerTTDPositionRangeIndexedMemoryEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDEvents(BNDebuggerTTDEvent* events, size_t count);
 
 	// TTD Code Coverage Analysis Functions
 	DEBUGGER_FFI_API bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t address);
-	DEBUGGER_FFI_API bool BNDebuggerRunCodeCoverageAnalysisRange(BNDebuggerController* controller, uint64_t startAddress, uint64_t endAddress);
+	DEBUGGER_FFI_API bool BNDebuggerRunCodeCoverageAnalysisRange(BNDebuggerController* controller, uint64_t startAddress, uint64_t endAddress, BNDebuggerTTDPosition startTime, BNDebuggerTTDPosition endTime);
 	DEBUGGER_FFI_API size_t BNDebuggerGetExecutedInstructionCount(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerSaveCodeCoverageToFile(BNDebuggerController* controller, const char* filePath);
 	DEBUGGER_FFI_API bool BNDebuggerLoadCodeCoverageFromFile(BNDebuggerController* controller, const char* filePath);

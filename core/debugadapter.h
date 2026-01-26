@@ -390,6 +390,7 @@ namespace BinaryNinjaDebugger {
 
 		// TTD (Time Travel Debugging) methods - default implementations return empty results
 		virtual std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead);
+		virtual std::vector<TTDPositionRangeIndexedMemoryEvent> GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime);
 		virtual std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0);
 		virtual std::vector<TTDEvent> GetTTDEvents(TTDEventType eventType);
 		virtual std::vector<TTDEvent> GetAllTTDEvents();

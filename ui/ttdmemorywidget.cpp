@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "ttdmemorywidget.h"
+#include "debuggeruicommon.h"
 #include "ui.h"
 #include <QGridLayout>
 #include <QGroupBox>
@@ -63,9 +64,7 @@ ColumnVisibilityDialog::ColumnVisibilityDialog(QWidget* parent, const QStringLis
 		// Reset to default visibility (hide Event Type, Time End, Unique Thread ID)
 		QList<bool> defaultVisibility;
 		defaultVisibility << true  // Index
-		              << false // Event Type (hidden by default)
-		              << true  // Time Start
-		              << false // Time End (hidden by default)
+		              << true  // Position
 		              << true  // Access Type
 		              << true  // Address
 		              << true  // Size
@@ -102,14 +101,12 @@ TTDMemoryQueryWidget::TTDMemoryQueryWidget(QWidget* parent, BinaryViewRef data)
 	m_controller = DebuggerController::GetController(m_data);
 	
 	// Initialize column names and visibility
-	m_columnNames << "Index" << "Event Type" << "Time Start" << "Time End" << "Access Type" 
+	m_columnNames << "Index" << "Position" << "Access Type" 
 	              << "Address" << "Size" << "Value" << "Thread ID" << "Unique Thread ID" << "IP";
 	
 	// Set default visibility (hide Event Type, Time End, Unique Thread ID)
 	m_columnVisibility << true  // Index
-	                   << false // Event Type (hidden by default)
-	                   << true  // Time Start
-	                   << false // Time End (hidden by default)
+	                   << true  // Position
 	                   << true  // Access Type
 	                   << true  // Address
 	                   << true  // Size
@@ -159,8 +156,30 @@ void TTDMemoryQueryWidget::setupUI()
 		m_endAddressEdit->setPlaceholderText("0xFFFFFFFF");
 	}
 	
-	inputLayout->addRow("Start Address:", m_startAddressEdit);
-	inputLayout->addRow("End Address:", m_endAddressEdit);
+	// Put both address fields on the same line
+	QHBoxLayout* addressLayout = new QHBoxLayout();
+	addressLayout->addWidget(new QLabel("Start:"));
+	addressLayout->addWidget(m_startAddressEdit);
+	addressLayout->addWidget(new QLabel("End:"));
+	addressLayout->addWidget(m_endAddressEdit);
+	
+	inputLayout->addRow("Address Range:", addressLayout);
+
+	m_startTimeEdit = new QLineEdit();
+	m_startTimeEdit->setToolTip("Start time in format 'sequence:step' (hexadecimal), leave blank for start of recording");
+	m_startTimeEdit->setPlaceholderText("e.g. 0:0");
+
+	m_endTimeEdit = new QLineEdit();
+	m_endTimeEdit->setToolTip("End time in format 'sequence:step' (hexadecimal), leave blank for end of recording");
+	m_endTimeEdit->setPlaceholderText("e.g. 23f:a7");
+
+	QHBoxLayout* timeLayout = new QHBoxLayout();
+	timeLayout->addWidget(new QLabel("Start Time:"));
+	timeLayout->addWidget(m_startTimeEdit);
+	timeLayout->addWidget(new QLabel("End Time:"));
+	timeLayout->addWidget(m_endTimeEdit);
+
+	inputLayout->addRow("Time Range (Optional):", timeLayout);
 	
 	// Memory access type checkboxes
 	QHBoxLayout* accessLayout = new QHBoxLayout();
@@ -245,15 +264,13 @@ void TTDMemoryQueryWidget::setupTable()
 	QHeaderView* header = m_resultsTable->horizontalHeader();
 	header->setStretchLastSection(true);
 	m_resultsTable->setColumnWidth(0, 80);  // Index
-	m_resultsTable->setColumnWidth(1, 100); // Event Type
-	m_resultsTable->setColumnWidth(2, 120); // Time Start
-	m_resultsTable->setColumnWidth(3, 120); // Time End
-	m_resultsTable->setColumnWidth(4, 100); // Access Type
-	m_resultsTable->setColumnWidth(5, 120); // Address
-	m_resultsTable->setColumnWidth(6, 80);  // Size
-	m_resultsTable->setColumnWidth(7, 120); // Value
-	m_resultsTable->setColumnWidth(8, 80);  // Thread ID
-	m_resultsTable->setColumnWidth(9, 100); // Unique Thread ID
+	m_resultsTable->setColumnWidth(1, 100); // Position
+	m_resultsTable->setColumnWidth(2, 100); // Access Type
+	m_resultsTable->setColumnWidth(3, 120); // Address
+	m_resultsTable->setColumnWidth(4, 80);  // Size
+	m_resultsTable->setColumnWidth(5, 120); // Value
+	m_resultsTable->setColumnWidth(6, 80);  // Thread ID
+	m_resultsTable->setColumnWidth(7, 100); // Unique Thread ID
 	// IP column will stretch
 	
 	// Apply initial column visibility
@@ -317,7 +334,43 @@ void TTDMemoryQueryWidget::performQuery()
 	// Parse input parameters
 	uint64_t startAddress = parseAddress(m_startAddressEdit->text());
 	uint64_t endAddress = parseAddress(m_endAddressEdit->text());
-	
+	TTDPosition startTime ;
+	TTDPosition endTime ;
+	if (m_startTimeEdit->text().isEmpty())
+	{
+		startTime = TTDPosition(0, 0);
+	}
+	else
+	{
+		try
+		{
+			startTime = parseTimePosition(m_startTimeEdit->text());
+		}
+		catch (const std::invalid_argument&)
+		{
+			QMessageBox::warning(this, "Invalid Start Time",
+				"Start time must be in the format 'sequence:step' with valid hexadecimal numbers.");
+			return;
+		}
+	}
+
+	if (m_endTimeEdit->text().isEmpty())
+	{
+		endTime = TTDPosition(std::numeric_limits<uint64_t>::max(), std::numeric_limits<uint64_t>::max());
+	}
+	else
+	{
+		try{
+			endTime = parseTimePosition(m_endTimeEdit->text());
+		}
+		catch (const std::invalid_argument&)
+		{
+			QMessageBox::warning(this, "Invalid End Time", 
+				"End time must be in the format 'sequence:step' with valid hexadecimal numbers.");
+			return;
+		}
+	}
+
 	if (endAddress <= startAddress)
 	{
 		QMessageBox::warning(this, "Invalid Address Range", 
@@ -332,6 +385,13 @@ void TTDMemoryQueryWidget::performQuery()
 			"Please select at least one memory access type (Read, Write, or Execute).");
 		return;
 	}
+
+	if (endTime < startTime)
+	{
+		QMessageBox::warning(this, "Invalid Time Range", 
+			"End time must be greater than or equal to start time.");
+		return;
+	}
 	
 	// Clear previous results
 	clearResults();
@@ -344,7 +404,7 @@ void TTDMemoryQueryWidget::performQuery()
 	try
 	{
 		// Execute the TTD memory query
-		auto events = m_controller->GetTTDMemoryAccessForAddress(startAddress, endAddress, accessType);
+		auto events = m_controller->GetTTDMemoryAccessForPositionRange(startAddress, endAddress, accessType, startTime, endTime);
 		
 		// Populate the results table
 		m_resultsTable->setRowCount((int)events.size());
@@ -356,50 +416,40 @@ void TTDMemoryQueryWidget::performQuery()
 			// Index
 			m_resultsTable->setItem(i, 0, new NumericalTableWidgetItem(QString("0x%1").arg(i, 0, 16), i));
 			
-			// Event Type
-			m_resultsTable->setItem(i, 1, new QTableWidgetItem(QString::fromStdString(event.eventType)));
-			
-			// Time Start
-			QString timeStartStr = QString("%1:%2")
-				.arg(event.timeStart.sequence, 0, 16)
-				.arg(event.timeStart.step, 0, 16);
-			uint64_t timeStartSortValue = (event.timeStart.sequence << 32) | (event.timeStart.step & 0xFFFFFFFF);
-			m_resultsTable->setItem(i, 2, new NumericalTableWidgetItem(timeStartStr, timeStartSortValue));
-			
-			// Time End
-			QString timeEndStr = QString("%1:%2")
-				.arg(event.timeEnd.sequence, 0, 16)
-				.arg(event.timeEnd.step, 0, 16);
-			uint64_t timeEndSortValue = (event.timeEnd.sequence << 32) | (event.timeEnd.step & 0xFFFFFFFF);
-			m_resultsTable->setItem(i, 3, new NumericalTableWidgetItem(timeEndStr, timeEndSortValue));
+			// Position
+			QString PositionStr = QString("%1:%2")
+				.arg(event.position.sequence, 0, 16)
+				.arg(event.position.step, 0, 16);
+			uint64_t positionSortValue = (event.position.sequence << 32) | (event.position.step & 0xFFFFFFFF);
+			m_resultsTable->setItem(i, 1, new NumericalTableWidgetItem(PositionStr, positionSortValue));
 			
 			// Access Type
 			QString accessTypeStr;
 			if (event.accessType & TTDMemoryRead) accessTypeStr += "R";
 			if (event.accessType & TTDMemoryWrite) accessTypeStr += "W";
 			if (event.accessType & TTDMemoryExecute) accessTypeStr += "E";
-			m_resultsTable->setItem(i, 4, new QTableWidgetItem(accessTypeStr));
+			m_resultsTable->setItem(i, 2, new QTableWidgetItem(accessTypeStr));
 			
 			// Address
 			QString addressStr = QString("0x%1").arg(event.address, 0, 16);
-			m_resultsTable->setItem(i, 5, new NumericalTableWidgetItem(addressStr, event.address));
+			m_resultsTable->setItem(i, 3, new NumericalTableWidgetItem(addressStr, event.address));
 			
 			// Size
-			m_resultsTable->setItem(i, 6, new NumericalTableWidgetItem(QString::number(event.size), event.size));
+			m_resultsTable->setItem(i, 4, new NumericalTableWidgetItem(QString::number(event.size), event.size));
 			
-			// Value
-			QString valueStr = QString("0x%1").arg(event.value, 0, 16);
-			m_resultsTable->setItem(i, 7, new NumericalTableWidgetItem(valueStr, event.value));
+			// Value truncated to the number of bytes specified by size
+			QString valueStr = QString("0x%1").arg(event.value & ((1ULL << (event.size * 8)) - 1), 0, 16);
+			m_resultsTable->setItem(i, 5, new NumericalTableWidgetItem(valueStr, event.value));
 			
 			// Thread ID
-			m_resultsTable->setItem(i, 8, new NumericalTableWidgetItem(QString::number(event.threadId), event.threadId));
+			m_resultsTable->setItem(i, 6, new NumericalTableWidgetItem(QString::number(event.threadId), event.threadId));
 			
 			// Unique Thread ID
-			m_resultsTable->setItem(i, 9, new NumericalTableWidgetItem(QString::number(event.uniqueThreadId), event.uniqueThreadId));
+			m_resultsTable->setItem(i, 7, new NumericalTableWidgetItem(QString::number(event.uniqueThreadId), event.uniqueThreadId));
 			
 			// IP (Instruction Address)
 			QString instrAddrStr = QString("0x%1").arg(event.instructionAddress, 0, 16);
-			m_resultsTable->setItem(i, 10, new NumericalTableWidgetItem(instrAddrStr, event.instructionAddress));
+			m_resultsTable->setItem(i, 8, new NumericalTableWidgetItem(instrAddrStr, event.instructionAddress));
 		}
 		
 		updateStatus(QString("Found %1 memory access events").arg(events.size()));
@@ -427,7 +477,7 @@ void TTDMemoryQueryWidget::onCellDoubleClicked(int row, int column)
 	if (row < 0 || row >= m_resultsTable->rowCount())
 		return;
 
-	if (column == TimeStartColumn || column == TimeEndColumn)
+	if (column == PositionColumn)
 	{
 		// Parse position and navigate to it
 		QTableWidgetItem* posItem = m_resultsTable->item(row, column);
@@ -603,9 +653,7 @@ void TTDMemoryQueryWidget::resetColumnsToDefault()
 	// Reset to default visibility (hide Event Type, Time End, Unique Thread ID)
 	m_columnVisibility.clear();
 	m_columnVisibility << true  // Index
-	                   << false // Event Type (hidden by default)
-	                   << true  // Time Start
-	                   << false // Time End (hidden by default)
+	                   << true  // Position 
 	                   << true  // Access Type
 	                   << true  // Address
 	                   << true  // Size
@@ -624,17 +672,29 @@ void TTDMemoryQueryWidget::updateStatus(const QString& message)
 
 uint64_t TTDMemoryQueryWidget::parseAddress(const QString& text)
 {
+	uint64_t address = 0;
+	ParseAddress(text, m_data, address);
+	return address;
+}
+
+TTDPosition TTDMemoryQueryWidget::parseTimePosition(const QString& text)
+{
 	QString cleanText = text.trimmed();
 	if (cleanText.isEmpty())
-		return 0;
-		
-	// Remove 0x prefix if present
-	if (cleanText.startsWith("0x", Qt::CaseInsensitive))
-		cleanText = cleanText.mid(2);
-		
-	bool ok;
-	uint64_t address = cleanText.toULongLong(&ok, 16);
-	return ok ? address : 0;
+		return TTDPosition(0, 0); // Default to start
+	
+	QStringList parts = cleanText.split(':');
+	if (parts.size() != 2)
+		throw std::invalid_argument("Invalid time position format");
+	
+	bool ok1, ok2;
+	uint64_t sequence = parts[0].toULongLong(&ok1, 16);
+	uint64_t step = parts[1].toULongLong(&ok2, 16);
+	
+	if (ok1 && ok2)
+		return TTDPosition(sequence, step);
+	else
+		throw std::invalid_argument("Invalid time position format");
 }
 
 TTDMemoryAccessType TTDMemoryQueryWidget::getSelectedAccessTypes()

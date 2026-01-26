@@ -70,7 +70,7 @@ class TTDAnalysisWorker : public QThread
 
 public:
 	TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, QObject* parent = nullptr);
-	TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, uint64_t startAddress, uint64_t endAddress, QObject* parent = nullptr);
+	TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, uint64_t startAddress, uint64_t endAddress, TTDPosition startTime, TTDPosition endTime, QObject* parent = nullptr);
 
 protected:
 	void run() override;
@@ -85,6 +85,8 @@ private:
 	bool m_useRange;
 	uint64_t m_startAddress;
 	uint64_t m_endAddress;
+	TTDPosition m_startTime;
+	TTDPosition m_endTime;
 };
 
 class TTDAnalysisDialog : public QDialog
@@ -135,6 +137,10 @@ private:
 	QCheckBox* m_useRangeCheckBox;
 	QLineEdit* m_startAddressEdit;
 	QLineEdit* m_endAddressEdit;
+
+	// Time controls
+	QLineEdit* m_startTimeEdit;
+	QLineEdit* m_endTimeEdit;
 
 	// Analysis data
 	QList<TTDAnalysisResult> m_analysisResults;

@@ -18,6 +18,9 @@ limitations under the License.
 
 #include <QWidget>
 #include <QTableWidget>
+#include <QString>
+#include <string>
+#include "binaryninjaapi.h"
 
 // Custom table widget item that supports numerical sorting
 class NumericalTableWidgetItem : public QTableWidgetItem
@@ -38,3 +41,13 @@ public:
 private:
     [[maybe_unused]] uint64_t m_numericValue;
 };
+
+// Parse an address from a QString, supporting multiple formats:
+// - WinDbg format with backticks (e.g., "000000dd`7e7fed80")
+// - Hexadecimal with 0x prefix (e.g., "0x1000")
+// - Plain hexadecimal (e.g., "1000")
+// - Binary Ninja expressions (e.g., "main+0x10", "ImageBase+0x1000")
+//
+// Returns true if parsing succeeded and sets 'result' to the parsed address.
+// Returns false if parsing failed.
+bool ParseAddress(const QString& text, BinaryNinja::Ref<BinaryNinja::BinaryView> data, uint64_t& result, std::string* errorMessage = nullptr);
