@@ -804,6 +804,68 @@ class TTDMemoryEvent:
         return f"<TTDMemoryEvent: {self.event_type} @ {self.address:#x}, thread {self.thread_id}>"
 
 
+class TTDPositionRangeIndexedMemoryEvent:
+    """
+    TTDPositionRangeIndexedMemoryEvent represents a memory access event in a TTD trace with position information.
+    This is used for memory queries filtered by both address range and time range.
+
+    * ``position``: TTD position when the memory access occurred
+    * ``thread_id``: OS thread ID that performed the memory access
+    * ``unique_thread_id``: unique thread ID across the trace
+    * ``address``: memory address that was accessed
+    * ``instruction_address``: address of the instruction that performed the access
+    * ``size``: size of the memory access in bytes
+    * ``access_type``: type of access (read/write/execute)
+    * ``value``: value that was read/written/executed (truncated to size)
+    * ``data``: the next 8 bytes of data at the memory address (as a bytes object)
+    """
+
+    def __init__(self, position: TTDPosition, thread_id: int, unique_thread_id: int,
+                 address: int, instruction_address: int, size: int,
+                 access_type: int, value: int, data: bytes):
+        self.position = position
+        self.thread_id = thread_id
+        self.unique_thread_id = unique_thread_id
+        self.address = address
+        self.instruction_address = instruction_address
+        self.size = size
+        self.access_type = access_type
+        self.value = value
+        self.data = data
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (self.position == other.position and
+                self.thread_id == other.thread_id and
+                self.unique_thread_id == other.unique_thread_id and
+                self.address == other.address and
+                self.instruction_address == other.instruction_address and
+                self.size == other.size and
+                self.access_type == other.access_type and
+                self.value == other.value and
+                self.data == other.data)
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.position, self.thread_id, self.unique_thread_id,
+                     self.address, self.instruction_address, self.size,
+                     self.access_type, self.value, self.data))
+
+    def __setattr__(self, name, value):
+        try:
+            object.__setattr__(self, name, value)
+        except AttributeError:
+            raise AttributeError(f"attribute '{name}' is read only")
+
+    def __repr__(self):
+        return f"<TTDPositionRangeIndexedMemoryEvent: @ {self.address:#x}, pos {self.position}, thread {self.thread_id}>"
+
+
 class TTDCallEvent:
     """
     TTDCallEvent represents a function call event in a TTD trace. It has the following fields:
@@ -2499,6 +2561,75 @@ class DebuggerController:
         dbgcore.BNDebuggerFreeTTDMemoryEvents(events, count.value)
         return result
 
+    def get_ttd_memory_access_for_position_range(self, start_address: int, end_address: int, access_type,
+                                                  start_time: TTDPosition = None, end_time: TTDPosition = None) -> List[TTDPositionRangeIndexedMemoryEvent]:
+        """
+        Get TTD memory access events for a specific address range and time range.
+
+        This method is only available when debugging with TTD (Time Travel Debugging).
+        Use the is_ttd property to check if TTD is available before calling this method.
+
+        :param start_address: starting memory address to query
+        :param end_address: ending memory address to query
+        :param access_type: type of memory access to query - can be:
+                           - DebuggerTTDMemoryAccessType enum values
+                           - String specification like "r", "w", "e", "rw", "rwe", etc.
+                           - Integer values (for backward compatibility)
+        :param start_time: starting TTD position (default: start of trace)
+        :param end_time: ending TTD position (default: end of trace)
+        :return: list of TTDPositionRangeIndexedMemoryEvent objects
+        :raises: May raise an exception if TTD is not available
+        """
+        # Parse access type if it's a string
+        parsed_access_type = parse_ttd_access_type(access_type)
+
+        # Set default time range if not provided
+        if start_time is None:
+            start_time = TTDPosition(0, 0)
+        if end_time is None:
+            end_time = TTDPosition(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF)
+
+        # Create ctypes structures for positions
+        bn_start_pos = dbgcore.BNDebuggerTTDPosition()
+        bn_start_pos.sequence = start_time.sequence
+        bn_start_pos.step = start_time.step
+
+        bn_end_pos = dbgcore.BNDebuggerTTDPosition()
+        bn_end_pos.sequence = end_time.sequence
+        bn_end_pos.step = end_time.step
+
+        count = ctypes.c_ulonglong()
+        events = dbgcore.BNDebuggerGetTTDMemoryAccessForPositionRange(
+            self.handle, start_address, end_address, parsed_access_type,
+            bn_start_pos, bn_end_pos, count)
+
+        if not events:
+            return []
+
+        result = []
+        for i in range(count.value):
+            event = events[i]
+            position = TTDPosition(event.position.sequence, event.position.step)
+
+            # Convert data array to bytes
+            data = bytes(event.data[j] for j in range(8))
+
+            memory_event = TTDPositionRangeIndexedMemoryEvent(
+                position=position,
+                thread_id=event.threadId,
+                unique_thread_id=event.uniqueThreadId,
+                address=event.address,
+                instruction_address=event.instructionAddress,
+                size=event.size,
+                access_type=event.accessType,
+                value=event.value,
+                data=data
+            )
+            result.append(memory_event)
+
+        dbgcore.BNDebuggerFreeTTDPositionRangeIndexedMemoryEvents(events, count.value)
+        return result
+
     def get_ttd_calls_for_symbols(self, symbols: str, start_return_address: int = 0, end_return_address: int = 0) -> List[TTDCallEvent]:
         """
         Get TTD call events for specific symbols/functions.
@@ -2706,6 +2837,84 @@ class DebuggerController:
 
         dbgcore.BNDebuggerFreeTTDEvents(events, count.value)
         return result
+
+    def run_code_coverage_analysis(self, start_address: int, end_address: int,
+                                     start_time: TTDPosition = None, end_time: TTDPosition = None) -> bool:
+        """
+        Run code coverage analysis on a specific address range and time range.
+
+        This method is only available when debugging with TTD (Time Travel Debugging).
+        Use the is_ttd property to check if TTD is available before calling this method.
+
+        The code coverage analysis identifies which instructions within the specified address range
+        were executed during the specified time range. Results can be queried using the
+        is_instruction_executed() method.
+
+        :param start_address: starting address of the range to analyze
+        :param end_address: ending address of the range to analyze
+        :param start_time: starting TTD position (default: start of trace)
+        :param end_time: ending TTD position (default: end of trace)
+        :return: True if analysis succeeded, False otherwise
+        :raises: May raise an exception if TTD is not available
+        """
+        # Set default time range if not provided
+        if start_time is None:
+            start_time = TTDPosition(0, 0)
+        if end_time is None:
+            end_time = TTDPosition(0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF)
+
+        # Create ctypes structures for positions
+        bn_start_pos = dbgcore.BNDebuggerTTDPosition()
+        bn_start_pos.sequence = start_time.sequence
+        bn_start_pos.step = start_time.step
+
+        bn_end_pos = dbgcore.BNDebuggerTTDPosition()
+        bn_end_pos.sequence = end_time.sequence
+        bn_end_pos.step = end_time.step
+
+        return dbgcore.BNDebuggerRunCodeCoverageAnalysisRange(
+            self.handle, start_address, end_address, bn_start_pos, bn_end_pos)
+
+    def is_instruction_executed(self, address: int) -> bool:
+        """
+        Check if an instruction at a specific address was executed during code coverage analysis.
+
+        This method requires that run_code_coverage_analysis() has been called first.
+
+        :param address: address of the instruction to check
+        :return: True if the instruction was executed, False otherwise
+        """
+        return dbgcore.BNDebuggerIsInstructionExecuted(self.handle, address)
+
+    def get_executed_instruction_count(self) -> int:
+        """
+        Get the count of executed instructions from the last code coverage analysis.
+
+        This method requires that run_code_coverage_analysis() has been called first.
+
+        :return: number of unique executed instructions
+        """
+        return dbgcore.BNDebuggerGetExecutedInstructionCount(self.handle)
+
+    def save_code_coverage_to_file(self, file_path: str) -> bool:
+        """
+        Save code coverage results to a file.
+
+        This method requires that run_code_coverage_analysis() has been called first.
+
+        :param file_path: path to the file where results should be saved
+        :return: True if save succeeded, False otherwise
+        """
+        return dbgcore.BNDebuggerSaveCodeCoverageToFile(self.handle, file_path.encode('utf-8'))
+
+    def load_code_coverage_from_file(self, file_path: str) -> bool:
+        """
+        Load code coverage results from a file.
+
+        :param file_path: path to the file containing code coverage results
+        :return: True if load succeeded, False otherwise
+        """
+        return dbgcore.BNDebuggerLoadCodeCoverageFromFile(self.handle, file_path.encode('utf-8'))
 
     def __del__(self):
         if dbgcore is not None:

@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "ttdanalysisdialog.h"
+#include "debuggeruicommon.h"
 #include <QMessageBox>
 #include <QStandardPaths>
 #include <QDir>
@@ -399,11 +400,8 @@ void TTDAnalysisDialog::onRunAnalysis()
 	if (m_useRangeCheckBox->isChecked())
 	{
 		// Validate range inputs
-		bool startOk, endOk;
 		QString startText = m_startAddressEdit->text().trimmed();
 		QString endText = m_endAddressEdit->text().trimmed();
-		endText=endText.replace("`", "").replace("0x", "");  // remove extra address formatting
-		startText=startText.replace("`", "").replace("0x", "");  // windbg format looks like: 000000dd`7e7fed80
 		QString startTimeText = m_startTimeEdit->text().trimmed();
 		QString endTimeText = m_endTimeEdit->text().trimmed();
 		TTDPosition startTime, endTime;
@@ -414,10 +412,31 @@ void TTDAnalysisDialog::onRunAnalysis()
 			return;
 		}
 
+		// Parse addresses using the common address parser
+		uint64_t startAddress = 0;
+		std::string startError;
+		if (!ParseAddress(startText, m_data, startAddress, &startError))
+		{
+			QMessageBox::warning(this, "Invalid Address",
+				QString("Failed to parse start address '%1': %2").arg(startText).arg(QString::fromStdString(startError)));
+			return;
+		}
+
+		uint64_t endAddress = 0;
+		std::string endError;
+		if (!ParseAddress(endText, m_data, endAddress, &endError))
+		{
+			QMessageBox::warning(this, "Invalid Address",
+				QString("Failed to parse end address '%1': %2").arg(endText).arg(QString::fromStdString(endError)));
+			return;
+		}
+
 		if (startTimeText.isEmpty())
 		{
 			startTime = TTDPosition(0, 0);
-		}else{
+		}
+		else
+		{
 			QStringList startTimeParts = startTimeText.split(u':');
 			if (startTimeParts.size() != 2)
 			{
@@ -456,15 +475,6 @@ void TTDAnalysisDialog::onRunAnalysis()
 				return;
 			}
 			endTime = TTDPosition(sequence, step);
-		}
-
-		uint64_t startAddress = startText.toULongLong(&startOk, 16); 
-		uint64_t endAddress = endText.toULongLong(&endOk, 16);
-
-		if (!startOk || !endOk)
-		{
-			QMessageBox::warning(this, "Invalid Range", "Invalid address format. Use decimal or hexadecimal (0x...) notation");
-			return;
 		}
 
 		if (startAddress >= endAddress)

@@ -148,7 +148,7 @@ namespace BinaryNinjaDebugger {
 		uint64_t value;     				// Value that was read/written/executed
 		uint8_t data[8];					// The next 8 bytes of data at the memory address
 
-		TTDPositionRangeIndexedMemoryEvent() : threadId(0), uniqueThreadId(0), address(0), size(0), accessType(TTDMemoryRead), value(0)
+		TTDPositionRangeIndexedMemoryEvent() : threadId(0), uniqueThreadId(0), address(0), size(0), instructionAddress(0), accessType(TTDMemoryRead), value(0)
 		{
 			memset(data, 0, sizeof(data));
 		}

@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "ttdmemorywidget.h"
+#include "debuggeruicommon.h"
 #include "ui.h"
 #include <QGridLayout>
 #include <QGroupBox>
@@ -671,23 +672,9 @@ void TTDMemoryQueryWidget::updateStatus(const QString& message)
 
 uint64_t TTDMemoryQueryWidget::parseAddress(const QString& text)
 {
-	QString cleanText = text.trimmed();
-	if (cleanText.isEmpty())
-		return 0;
-		
-	// Remove 0x prefix if present
-	if (cleanText.startsWith("0x", Qt::CaseInsensitive)){
-		cleanText = cleanText.mid(2);
-	}
-	// Remove ' character if present (default address display format in windbg console)
-	else if (cleanText.contains("`")){
-		cleanText = cleanText.replace("`", "");
-	}
-
-		
-	bool ok;
-	uint64_t address = cleanText.toULongLong(&ok, 16);
-	return ok ? address : 0;
+	uint64_t address = 0;
+	ParseAddress(text, m_data, address);
+	return address;
 }
 
 TTDPosition TTDMemoryQueryWidget::parseTimePosition(const QString& text)
