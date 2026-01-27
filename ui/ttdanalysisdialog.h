@@ -117,7 +117,7 @@ private:
 	QString getDefaultCachePath(TTDAnalysisType type);
 	bool saveAnalysisResults(const TTDAnalysisResult& result);
 	bool loadAnalysisResults(TTDAnalysisResult& result);
-	void refreshViewAndEnableRenderLayer();
+	void refreshView();
 
 	UIContext* m_context;
 	BinaryViewRef m_data;

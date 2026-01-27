@@ -555,7 +555,7 @@ void TTDAnalysisDialog::onAnalysisCompleted(bool success, const QString& message
 	else
 	{
 		// Refresh the view to make coverage visible immediately
-		refreshViewAndEnableRenderLayer();
+		refreshView();
 	}
 }
 
@@ -600,7 +600,7 @@ void TTDAnalysisDialog::onLoadResults()
 		QMessageBox::information(this, "Load Results", "Analysis results loaded successfully");
 
 		// Refresh the view to show the loaded coverage
-		refreshViewAndEnableRenderLayer();
+		refreshView();
 	}
 	else
 	{
@@ -785,7 +785,7 @@ bool TTDAnalysisDialog::loadAnalysisResults(TTDAnalysisResult& result)
 	return true;
 }
 
-void TTDAnalysisDialog::refreshViewAndEnableRenderLayer()
+void TTDAnalysisDialog::refreshView()
 {
 	// Use the stored UI context to refresh the view
 	if (!m_context)

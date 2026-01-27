@@ -405,5 +405,5 @@ void RegisterRenderLayers()
 	static TTDCoverageRenderLayer* g_ttdCoverageRenderLayer = new TTDCoverageRenderLayer();
 
 	RenderLayer::Register(g_debuggerRenderLayer, BNRenderLayerDefaultEnableState::AlwaysEnabledRenderLayerDefaultEnableState);
-	RenderLayer::Register(g_ttdCoverageRenderLayer, BNRenderLayerDefaultEnableState::AlwaysEnabledRenderLayerDefaultEnableState);
+	RenderLayer::Register(g_ttdCoverageRenderLayer, BNRenderLayerDefaultEnableState::EnabledByDefaultRenderLayerDefaultEnableState);
 }
