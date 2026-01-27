@@ -486,15 +486,15 @@ Code coverage analysis can be limited to a specific time range within the trace:
 - **Result Count**: Number of unique instructions executed is shown in the dialog
 - **Coverage Overlay**: Visual indication of which code paths were taken
 
-**Enabling the TTD Coverage Render Layer:**
+**TTD Coverage Render Layer:**
 
-To see code coverage highlighting in the disassembly view, you need to enable the TTD Coverage render layer:
+The TTD Coverage render layer is enabled by default. Once code coverage analysis completes, executed instructions will automatically be highlighted in red with their execution counts displayed in the disassembly view.
 
-1. After running code coverage analysis, right-click in the disassembly view
+If the highlighting is not visible, you can manually enable the render layer:
+
+1. Right-click in the disassembly view
 2. Select `Render Layers` from the context menu
 3. Check `TTD Coverage` to enable the render layer
-
-Once enabled, executed instructions will be highlighted in red with their execution counts displayed. The render layer automatically activates when code coverage data is available and you are in a TTD debugging session.
 
 **Caching:**
 
