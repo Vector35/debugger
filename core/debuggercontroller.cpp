@@ -3399,6 +3399,244 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
 }
 
 
+std::string DebuggerController::ReadStringAtPosition(uint64_t address, const TTDPosition& position, bool unicode, size_t maxLength)
+{
+	if (!IsTTD())
+		return "";
+
+	// Save current position
+	TTDPosition savedPosition = GetCurrentTTDPosition();
+
+	// Navigate to the target position
+	if (!SetTTDPosition(position))
+	{
+		LogWarn("Failed to navigate to TTD position for string read");
+		return "";
+	}
+
+	std::string result;
+
+	// Read the string from memory
+	size_t bytesToRead = unicode ? maxLength * 2 : maxLength;
+	DataBuffer buffer = ReadMemory(address, bytesToRead);
+
+	if (buffer.GetLength() > 0)
+	{
+		const uint8_t* data = static_cast<const uint8_t*>(buffer.GetData());
+		size_t len = buffer.GetLength();
+
+		if (unicode)
+		{
+			// Read as wide string (UTF-16LE)
+			std::wstring wstr;
+			for (size_t i = 0; i + 1 < len; i += 2)
+			{
+				wchar_t ch = data[i] | (data[i + 1] << 8);
+				if (ch == 0)
+					break;
+				wstr += ch;
+			}
+			// Convert to UTF-8
+			for (wchar_t wc : wstr)
+			{
+				if (wc < 0x80)
+					result += static_cast<char>(wc);
+				else if (wc < 0x800)
+				{
+					result += static_cast<char>(0xC0 | (wc >> 6));
+					result += static_cast<char>(0x80 | (wc & 0x3F));
+				}
+				else
+				{
+					result += static_cast<char>(0xE0 | (wc >> 12));
+					result += static_cast<char>(0x80 | ((wc >> 6) & 0x3F));
+					result += static_cast<char>(0x80 | (wc & 0x3F));
+				}
+			}
+		}
+		else
+		{
+			// Read as ANSI string
+			for (size_t i = 0; i < len; i++)
+			{
+				if (data[i] == 0)
+					break;
+				result += static_cast<char>(data[i]);
+			}
+		}
+	}
+
+	// Restore original position
+	SetTTDPosition(savedPosition);
+
+	return result;
+}
+
+
+TTDBehaviorAnalysisResult DebuggerController::AnalyzeTTDBehavior(const TTDBehaviorAnalysisSet& analysisSet)
+{
+	TTDBehaviorAnalysisResult result;
+	result.category = analysisSet.category;
+	result.setName = analysisSet.name;
+	result.success = false;
+
+	if (!IsTTD())
+	{
+		result.errorMessage = "TTD is not active";
+		return result;
+	}
+
+	// Build the symbol list for the query
+	std::string symbols;
+	for (const auto& api : analysisSet.apis)
+	{
+		if (!symbols.empty())
+			symbols += ", ";
+		symbols += api.symbol;
+	}
+
+	if (symbols.empty())
+	{
+		result.errorMessage = "No APIs defined in analysis set";
+		return result;
+	}
+
+	LogInfo("%s", fmt::format("Running TTD behavior analysis for: {}", analysisSet.name).c_str());
+
+	// Query all matching calls
+	std::vector<TTDCallEvent> calls = GetTTDCallsForSymbols(symbols);
+
+	LogInfo("%s", fmt::format("Found {} calls to analyze", calls.size()).c_str());
+
+	// Create a map of symbol -> api definition for quick lookup
+	std::map<std::string, const TTDApiDefinition*> apiMap;
+	for (const auto& api : analysisSet.apis)
+	{
+		apiMap[api.symbol] = &api;
+	}
+
+	// Process each call
+	for (const auto& call : calls)
+	{
+		// Find matching API definition
+		auto it = apiMap.find(call.function);
+		if (it == apiMap.end())
+			continue;
+
+		const TTDApiDefinition* apiDef = it->second;
+
+		TTDBehaviorEvent event;
+		event.apiSymbol = call.function;
+		event.action = apiDef->action;
+		event.timeStart = call.timeStart;
+		event.timeEnd = call.timeEnd;
+		event.threadId = call.threadId;
+		event.returnAddress = call.returnAddress;
+
+		// Extract values according to the definition
+		for (const auto& valueDef : apiDef->values)
+		{
+			std::string extractedValue;
+
+			switch (valueDef.source)
+			{
+			case TTDValueSource::Parameter:
+				if (valueDef.parameterIndex >= 0 && static_cast<size_t>(valueDef.parameterIndex) < call.parameters.size())
+				{
+					extractedValue = call.parameters[valueDef.parameterIndex];
+				}
+				break;
+
+			case TTDValueSource::ReturnValue:
+				if (call.hasReturnValue)
+				{
+					extractedValue = fmt::format("0x{:x}", call.returnValue);
+				}
+				break;
+
+			case TTDValueSource::Dereference:
+				// Need to time-travel and read memory
+				if (valueDef.parameterIndex >= 0 && static_cast<size_t>(valueDef.parameterIndex) < call.parameters.size())
+				{
+					// Parse the pointer value from the parameter
+					uint64_t ptrValue = 0;
+					try
+					{
+						std::string paramStr = call.parameters[valueDef.parameterIndex];
+						// Remove "0x" prefix if present
+						if (paramStr.length() > 2 && paramStr.substr(0, 2) == "0x")
+							paramStr = paramStr.substr(2);
+						ptrValue = std::stoull(paramStr, nullptr, 16);
+					}
+					catch (...)
+					{
+						extractedValue = "<invalid pointer>";
+						break;
+					}
+
+					// Determine which position to use
+					TTDPosition pos = (valueDef.collectTime == TTDCollectTime::AtStart) ? call.timeStart : call.timeEnd;
+
+					// Read the value based on type
+					if (valueDef.type == TTDValueType::StringA)
+					{
+						extractedValue = ReadStringAtPosition(ptrValue, pos, false, valueDef.maxStringLength);
+						if (extractedValue.empty())
+							extractedValue = fmt::format("<string @ 0x{:x}>", ptrValue);
+					}
+					else if (valueDef.type == TTDValueType::StringW)
+					{
+						extractedValue = ReadStringAtPosition(ptrValue, pos, true, valueDef.maxStringLength);
+						if (extractedValue.empty())
+							extractedValue = fmt::format("<wstring @ 0x{:x}>", ptrValue);
+					}
+					else
+					{
+						// Read as raw value (not implemented yet for other types)
+						extractedValue = fmt::format("0x{:x}", ptrValue);
+					}
+				}
+				break;
+			}
+
+			// Format the value based on type for display
+			if (!extractedValue.empty() && valueDef.source != TTDValueSource::Dereference)
+			{
+				switch (valueDef.type)
+				{
+				case TTDValueType::Boolean:
+					{
+						uint64_t val = 0;
+						try
+						{
+							std::string valStr = extractedValue;
+							if (valStr.length() > 2 && valStr.substr(0, 2) == "0x")
+								valStr = valStr.substr(2);
+							val = std::stoull(valStr, nullptr, 16);
+						}
+						catch (...) {}
+						extractedValue = val ? "TRUE" : "FALSE";
+					}
+					break;
+				default:
+					// Keep as-is (already formatted as hex from call parameters)
+					break;
+				}
+			}
+
+			event.values[valueDef.name] = extractedValue;
+		}
+
+		result.events.push_back(event);
+	}
+
+	result.success = true;
+	LogInfo("%s", fmt::format("TTD behavior analysis complete: {} events extracted", result.events.size()).c_str());
+
+	return result;
+}
+
+
 void DebuggerController::OnRebased(BinaryView* oldView, BinaryView* newView)
 {
 	m_data = newView;

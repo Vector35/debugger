@@ -18,6 +18,7 @@ limitations under the License.
 #include "binaryninjaapi.h"
 #include "debuggerstate.h"
 #include "debuggerevent.h"
+#include "ttdbehavior.h"
 #include <queue>
 #include <list>
 #include <future>
@@ -410,6 +411,10 @@ namespace BinaryNinjaDebugger {
 		size_t GetExecutedInstructionCount() const;
 		bool SaveCodeCoverageToFile(const std::string& filePath) const;
 		bool LoadCodeCoverageFromFile(const std::string& filePath);
+
+		// TTD Behavior Analysis Methods
+		TTDBehaviorAnalysisResult AnalyzeTTDBehavior(const TTDBehaviorAnalysisSet& analysisSet);
+		std::string ReadStringAtPosition(uint64_t address, const TTDPosition& position, bool unicode, size_t maxLength = 260);
 
 		void OnRebased(BinaryView* oldView, BinaryView* newView);
 

@@ -49,6 +49,7 @@ limitations under the License.
 #include "ttdcallswidget.h"
 #include "ttdeventswidget.h"
 #include "ttdanalysisdialog.h"
+#include "ttdbehaviorwidget.h"
 #include "timestampnavigationdialog.h"
 #include "freeversion.h"
 #include <QTimer>
@@ -1928,6 +1929,7 @@ void GlobalDebuggerUI::InitializeUI()
 	Sidebar::addSidebarWidgetType(new TTDMemoryWidgetType());
 	Sidebar::addSidebarWidgetType(new TTDCallsWidgetType());
 	Sidebar::addSidebarWidgetType(new TTDEventsWidgetType());
+	Sidebar::addSidebarWidgetType(new TTDBehaviorWidgetType());
 }
 
 
