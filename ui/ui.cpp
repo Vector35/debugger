@@ -1422,7 +1422,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller || !controller->IsTTD())
 					return;
 
-				auto dialog = new TTDAnalysisDialog(ctxt.binaryView, nullptr);
+				auto dialog = new TTDAnalysisDialog(ctxt.context, ctxt.binaryView, nullptr);
 				dialog->show();
 				dialog->raise();
 				dialog->activateWindow();
