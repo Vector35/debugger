@@ -561,6 +561,27 @@ def get_executed_instruction_count(self) -> int:
     """
 ```
 
+### get_instruction_execution_count()
+
+```python
+def get_instruction_execution_count(self, address: int) -> int:
+    """
+    Get the execution count for a specific instruction address.
+
+    This returns how many times a specific instruction was executed during
+    the TTD trace, which is useful for identifying hot paths and frequently
+    executed code.
+
+    Note: Requires code coverage analysis to have been run first.
+
+    Args:
+        address: Instruction address to check
+
+    Returns:
+        Number of times the instruction was executed (0 if not executed or analysis not run)
+    """
+```
+
 ### save_code_coverage_to_file()
 
 ```python
@@ -604,6 +625,17 @@ if dbg.is_ttd:
         # Check specific instructions
         if dbg.is_instruction_executed(0x401000):
             print("Instruction at 0x401000 was executed")
+
+        # Get execution count for hot path analysis
+        exec_count = dbg.get_instruction_execution_count(0x401000)
+        if exec_count > 0:
+            print(f"Instruction at 0x401000 was executed {exec_count} times")
+
+        # Find hot spots by checking execution counts
+        for addr in range(0x401000, 0x401100, 4):
+            count = dbg.get_instruction_execution_count(addr)
+            if count > 100:
+                print(f"Hot instruction at {addr:#x}: executed {count} times")
 
         # Save results for later
         dbg.save_code_coverage_to_file("/path/to/coverage.data")

@@ -20,10 +20,15 @@ The WinDbg installation only needs to be done once.
 
 - Open Binary Ninja
 - Click `Debugger` -> `Install WinDbg/TTD` from the menu
-- Wait for the installation to finish
-    - Behind the scenes, this runs a C++ installer that downloads and configures WinDbg
+- A dialog will appear showing the installation progress:
+    - The installer automatically downloads the latest WinDbg from Microsoft
+    - It extracts the necessary files (DbgEng DLLs and TTD components)
     - WinDbg will be installed to `%APPDATA%\Binary Ninja\windbg`
+    - Progress and status are displayed in real-time
+- Wait for the installation to complete
 - Restart Binary Ninja
+
+The automatic installer handles all the complexity of downloading and extracting the WinDbg MSIX bundle. If an update is available, you can run the installer again to update to the latest version.
 
 ### Install WinDbg Manually
 
@@ -43,9 +48,11 @@ The WinDbg installation only needs to be done once.
 
 ## Record a TTD Trace
 
-Once we have installed and configured WinDbg, we can start recording a TTD trace. There are two ways to do it, we can either
-do it from within Binary Ninja, or do it from WinDbg. Doing it from Binary Ninja is more convenient, though it does not support
-all types of recording supported by WinDbg (e.g., attach to a running process and start recording).
+Once we have installed and configured WinDbg, we can start recording a TTD trace. There are multiple ways to do it:
+
+1. **Launch and record**: Start a new process and record it from within Binary Ninja
+2. **Attach and record**: Attach to a running process and record it from within Binary Ninja
+3. **Record in WinDbg**: Use WinDbg directly for more advanced recording options
 
 ### Record a TTD Trace in Binary Ninja
 
@@ -64,6 +71,30 @@ all types of recording supported by WinDbg (e.g., attach to a running process an
     - Trace Child Processes: if checked, includes child processes spawned by the main process in the trace recording
 - Click "Record". A UAC dialog will pop up because the TTD recording requires Administrator privilege
 - Accept the elevation. The program will be launched and recorded. Once it exits, find the trace file in the trace output directory
+
+### Attach and Record TTD Trace
+
+You can attach TTD to a running process to record its execution. This is useful when:
+
+- The process is already running and you want to capture its behavior
+- The process has complex startup requirements that are difficult to replicate via launch
+- You want to record only a specific portion of the process's execution
+
+To attach and record:
+
+- Make sure you have WinDbg properly installed and configured
+- Click `Debugger` -> `TTD` -> `Attach and Record TTD Trace` from the menu
+- In the "TTD Attach" dialog:
+    - A list of running processes is displayed with their PID, name, and command line
+    - Use the filter box to search for a specific process by name or PID
+    - Select the process you want to attach to
+    - Trace Output Directory: the directory to write the trace (defaults to your Documents folder)
+    - Trace Child Processes: if checked, includes child processes spawned by the target in the recording
+- Click "Attach". A UAC dialog will pop up because TTD recording requires Administrator privilege
+- Accept the elevation. TTD will attach to the process and begin recording
+- Interact with the application as needed to capture the behavior you want to analyze
+- When done, terminate the process or use the TTD controls to stop recording
+- Find the trace file in the trace output directory
 
 ### Record a TTD Trace in WinDbg
 
@@ -418,11 +449,33 @@ Code coverage analysis identifies all instructions that were executed during the
 
 <img src="../../img/debugger/ttd_code_coverage.png" width="600px">
 
+**Time Range Filter:**
+
+Code coverage analysis can be limited to a specific time range within the trace:
+
+- Check "Specify time range for analysis" in the dialog
+- Enter the start and end TTD positions (format: sequence:step, e.g., `1A0:0` to `2B5:1F`)
+- This allows you to analyze coverage for specific portions of the trace, such as:
+    - A specific function execution
+    - A particular user interaction
+    - The time between two breakpoints
+
 **Analysis Results:**
 
 - **Executed Instructions**: Highlighted with red background in the disassembly
+- **Execution Count**: Each executed instruction shows the number of times it was executed in brackets, e.g., `[42]`
 - **Result Count**: Number of unique instructions executed is shown in the dialog
 - **Coverage Overlay**: Visual indication of which code paths were taken
+
+**Enabling the TTD Coverage Render Layer:**
+
+To see code coverage highlighting in the disassembly view, you need to enable the TTD Coverage render layer:
+
+1. After running code coverage analysis, right-click in the disassembly view
+2. Select `Render Layers` from the context menu
+3. Check `TTD Coverage` to enable the render layer
+
+Once enabled, executed instructions will be highlighted in red with their execution counts displayed. The render layer automatically activates when code coverage data is available and you are in a TTD debugging session.
 
 **Caching:**
 
