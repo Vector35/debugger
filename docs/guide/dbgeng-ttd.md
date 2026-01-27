@@ -286,11 +286,15 @@ The widget appears in the right sidebar by default.
 
 **Query Parameters:**
 
-- **Start Address**: Beginning address of the memory range to query (hexadecimal)
-    - Auto-populated with the binary's start address by default
+- **Address Range**: The memory range to query
+    - **Start Address**: Beginning address of the memory range (hexadecimal)
+    - **End Address**: Ending address of the memory range (hexadecimal)
+    - Auto-populated with the binary's address range by default
 
-- **End Address**: Ending address of the memory range to query (hexadecimal)
-    - Auto-populated with the binary's end address by default
+- **Time Range (Optional)**: Filter results to a specific time window in the trace
+    - **Start Time**: Beginning TTD position (format: `sequence:step` in hexadecimal, e.g., `0:0`)
+    - **End Time**: Ending TTD position (format: `sequence:step` in hexadecimal, e.g., `23f:a7`)
+    - Leave blank to query the entire trace
 
 - **Access Types**: Select which types of memory access to include:
     - **Read**: Memory read operations
@@ -305,20 +309,18 @@ The results table displays the following information for each memory access even
 | Column | Description |
 |--------|-------------|
 | Index | Sequential index of the result |
-| Event Type | Always "Memory" for TTD.Memory events |
-| Time Start | TTD position when the access began |
-| Time End | TTD position when the access completed |
+| Position | TTD position when the access occurred (format: sequence:step) |
 | Access Type | Type of access: R (Read), W (Write), E (Execute) |
 | Address | Memory address that was accessed |
 | Size | Number of bytes accessed |
-| Value | Data value that was read/written/executed |
+| Value | Data value that was read/written/executed (truncated to the access size) |
 | Thread ID | OS thread ID that performed the access |
 | Unique Thread ID | Unique thread identifier in the trace |
 | IP | Instruction pointer (address of instruction that caused the access) |
 
 **Interacting with Results:**
 
-- **Double-click Time Start/End**: Time-travels to that position in the trace and navigates to the instruction that caused the access
+- **Double-click Position**: Time-travels to that position in the trace and navigates to the instruction that caused the access
 - **Double-click Address/IP**: Navigates to that address in the disassembly view
 - **Right-click menu**:
     - Copy selected cell
