@@ -28,7 +28,23 @@ The WinDbg installation only needs to be done once.
 - Wait for the installation to complete
 - Restart Binary Ninja
 
-The automatic installer handles all the complexity of downloading and extracting the WinDbg MSIX bundle. If an update is available, you can run the installer again to update to the latest version.
+<img src="../../img/debugger/ttd_install_windbg.png" width="600px">
+
+The automatic installer handles all the complexity of downloading and extracting the WinDbg MSIX bundle.
+
+### Update WinDbg/TTD
+
+If you already have WinDbg/TTD installed and want to check for updates:
+
+- Click `Debugger` -> `Install WinDbg/TTD` from the menu
+- A dialog will appear showing:
+    - The currently installed version
+    - The latest available version from Microsoft
+- If a newer version is available, click "Update" to download and install it
+- If you are already on the latest version, the dialog will indicate that no update is needed
+- Restart Binary Ninja after updating
+
+<img src="../../img/debugger/ttd_update_windbg.png" width="600px">
 
 ### Install WinDbg Manually
 
@@ -84,6 +100,9 @@ To attach and record:
 
 - Make sure you have WinDbg properly installed and configured
 - Click `Debugger` -> `TTD` -> `Attach and Record TTD Trace` from the menu
+
+<img src="../../img/debugger/ttd_attach.png" width="600px">
+
 - In the "TTD Attach" dialog:
     - A list of running processes is displayed with their PID, name, and command line
     - Use the filter box to search for a specific process by name or PID
