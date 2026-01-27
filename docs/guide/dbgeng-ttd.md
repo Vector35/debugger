@@ -20,10 +20,31 @@ The WinDbg installation only needs to be done once.
 
 - Open Binary Ninja
 - Click `Debugger` -> `Install WinDbg/TTD` from the menu
-- Wait for the installation to finish
-    - Behind the scenes, this runs a C++ installer that downloads and configures WinDbg
+- A dialog will appear showing the installation progress:
+    - The installer automatically downloads the latest WinDbg from Microsoft
+    - It extracts the necessary files (DbgEng DLLs and TTD components)
     - WinDbg will be installed to `%APPDATA%\Binary Ninja\windbg`
+    - Progress and status are displayed in real-time
+- Wait for the installation to complete
 - Restart Binary Ninja
+
+<img src="../../img/debugger/ttd_install_windbg.png" width="600px">
+
+The automatic installer handles all the complexity of downloading and extracting the WinDbg MSIX bundle.
+
+### Update WinDbg/TTD
+
+If you already have WinDbg/TTD installed and want to check for updates:
+
+- Click `Debugger` -> `Install WinDbg/TTD` from the menu
+- A dialog will appear showing:
+    - The currently installed version
+    - The latest available version from Microsoft
+- If a newer version is available, click "Update" to download and install it
+- If you are already on the latest version, the dialog will indicate that no update is needed
+- Restart Binary Ninja after updating
+
+<img src="../../img/debugger/ttd_update_windbg.png" width="600px">
 
 ### Install WinDbg Manually
 
@@ -43,9 +64,11 @@ The WinDbg installation only needs to be done once.
 
 ## Record a TTD Trace
 
-Once we have installed and configured WinDbg, we can start recording a TTD trace. There are two ways to do it, we can either
-do it from within Binary Ninja, or do it from WinDbg. Doing it from Binary Ninja is more convenient, though it does not support
-all types of recording supported by WinDbg (e.g., attach to a running process and start recording).
+Once we have installed and configured WinDbg, we can start recording a TTD trace. There are multiple ways to do it:
+
+1. **Launch and record**: Start a new process and record it from within Binary Ninja
+2. **Attach and record**: Attach to a running process and record it from within Binary Ninja
+3. **Record in WinDbg**: Use WinDbg directly for more advanced recording options
 
 ### Record a TTD Trace in Binary Ninja
 
@@ -64,6 +87,33 @@ all types of recording supported by WinDbg (e.g., attach to a running process an
     - Trace Child Processes: if checked, includes child processes spawned by the main process in the trace recording
 - Click "Record". A UAC dialog will pop up because the TTD recording requires Administrator privilege
 - Accept the elevation. The program will be launched and recorded. Once it exits, find the trace file in the trace output directory
+
+### Attach and Record TTD Trace
+
+You can attach TTD to a running process to record its execution. This is useful when:
+
+- The process is already running and you want to capture its behavior
+- The process has complex startup requirements that are difficult to replicate via launch
+- You want to record only a specific portion of the process's execution
+
+To attach and record:
+
+- Make sure you have WinDbg properly installed and configured
+- Click `Debugger` -> `TTD` -> `Attach and Record TTD Trace` from the menu
+
+<img src="../../img/debugger/ttd_attach.png" width="600px">
+
+- In the "TTD Attach" dialog:
+    - A list of running processes is displayed with their PID, name, and command line
+    - Use the filter box to search for a specific process by name or PID
+    - Select the process you want to attach to
+    - Trace Output Directory: the directory to write the trace (defaults to your Documents folder)
+    - Trace Child Processes: if checked, includes child processes spawned by the target in the recording
+- Click "Attach". A UAC dialog will pop up because TTD recording requires Administrator privilege
+- Accept the elevation. TTD will attach to the process and begin recording
+- Interact with the application as needed to capture the behavior you want to analyze
+- When done, terminate the process or use the TTD controls to stop recording
+- Find the trace file in the trace output directory
 
 ### Record a TTD Trace in WinDbg
 
@@ -236,11 +286,15 @@ The widget appears in the right sidebar by default.
 
 **Query Parameters:**
 
-- **Start Address**: Beginning address of the memory range to query (hexadecimal)
-    - Auto-populated with the binary's start address by default
+- **Address Range**: The memory range to query
+    - **Start Address**: Beginning address of the memory range (hexadecimal)
+    - **End Address**: Ending address of the memory range (hexadecimal)
+    - Auto-populated with the binary's address range by default
 
-- **End Address**: Ending address of the memory range to query (hexadecimal)
-    - Auto-populated with the binary's end address by default
+- **Time Range (Optional)**: Filter results to a specific time window in the trace
+    - **Start Time**: Beginning TTD position (format: `sequence:step` in hexadecimal, e.g., `0:0`)
+    - **End Time**: Ending TTD position (format: `sequence:step` in hexadecimal, e.g., `23f:a7`)
+    - Leave blank to query the entire trace
 
 - **Access Types**: Select which types of memory access to include:
     - **Read**: Memory read operations
@@ -255,20 +309,18 @@ The results table displays the following information for each memory access even
 | Column | Description |
 |--------|-------------|
 | Index | Sequential index of the result |
-| Event Type | Always "Memory" for TTD.Memory events |
-| Time Start | TTD position when the access began |
-| Time End | TTD position when the access completed |
+| Position | TTD position when the access occurred (format: sequence:step) |
 | Access Type | Type of access: R (Read), W (Write), E (Execute) |
 | Address | Memory address that was accessed |
 | Size | Number of bytes accessed |
-| Value | Data value that was read/written/executed |
+| Value | Data value that was read/written/executed (truncated to the access size) |
 | Thread ID | OS thread ID that performed the access |
 | Unique Thread ID | Unique thread identifier in the trace |
 | IP | Instruction pointer (address of instruction that caused the access) |
 
 **Interacting with Results:**
 
-- **Double-click Time Start/End**: Time-travels to that position in the trace and navigates to the instruction that caused the access
+- **Double-click Position**: Time-travels to that position in the trace and navigates to the instruction that caused the access
 - **Double-click Address/IP**: Navigates to that address in the disassembly view
 - **Right-click menu**:
     - Copy selected cell
@@ -418,11 +470,33 @@ Code coverage analysis identifies all instructions that were executed during the
 
 <img src="../../img/debugger/ttd_code_coverage.png" width="600px">
 
+**Time Range Filter:**
+
+Code coverage analysis can be limited to a specific time range within the trace:
+
+- Check "Specify time range for analysis" in the dialog
+- Enter the start and end TTD positions (format: sequence:step, e.g., `1A0:0` to `2B5:1F`)
+- This allows you to analyze coverage for specific portions of the trace, such as:
+    - A specific function execution
+    - A particular user interaction
+    - The time between two breakpoints
+
 **Analysis Results:**
 
 - **Executed Instructions**: Highlighted with red background in the disassembly
+- **Execution Count**: Each executed instruction shows the number of times it was executed in brackets, e.g., `[42]`
 - **Result Count**: Number of unique instructions executed is shown in the dialog
 - **Coverage Overlay**: Visual indication of which code paths were taken
+
+**TTD Coverage Render Layer:**
+
+The TTD Coverage render layer is enabled by default. Once code coverage analysis completes, executed instructions will automatically be highlighted in red with their execution counts displayed in the disassembly view.
+
+If the highlighting is not visible, you can manually enable the render layer:
+
+1. Right-click in the disassembly view
+2. Select `Render Layers` from the context menu
+3. Check `TTD Coverage` to enable the render layer
 
 **Caching:**
 

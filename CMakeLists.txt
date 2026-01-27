@@ -54,3 +54,10 @@ endif()
 if(WIN32)
 	add_subdirectory(installer)
 endif()
+
+# Documentation validation target
+add_custom_target(docs-validate
+	COMMAND python ${CMAKE_SOURCE_DIR}/scripts/check_markdown_list.py ${CMAKE_SOURCE_DIR}/docs/
+	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+	COMMENT "Validating documentation formatting..."
+)
