@@ -1199,6 +1199,7 @@ bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::stri
 			}
 			
 			// Get Value (the value that was read/written/executed)
+			// Note: TTD only provides 8 bytes in the Value field, even for larger accesses
 			ComPtr<IModelObject> valueObj;
 			if (SUCCEEDED(memoryObject->GetKeyValue(L"Value", &valueObj, nullptr)))
 			{
@@ -1210,7 +1211,7 @@ bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::stri
 				}
 				VariantClear(&vtValue);
 			}
-			
+
 			// Get AccessType from the object itself
 			ComPtr<IModelObject> accessTypeObj;
 			if (SUCCEEDED(memoryObject->GetKeyValue(L"AccessType", &accessTypeObj, nullptr)))
@@ -1221,7 +1222,7 @@ bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::stri
 				{
 					_bstr_t bstr(vtAccessType.bstrVal);
 					std::string accessTypeStr = std::string(bstr);
-					
+
 					// Parse access type string to bitfield
 					TTDMemoryAccessType parsedAccessType = static_cast<TTDMemoryAccessType>(0);
 					if (accessTypeStr.find("Read") != std::string::npos)
@@ -1230,7 +1231,7 @@ bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::stri
 						parsedAccessType = static_cast<TTDMemoryAccessType>(parsedAccessType | TTDMemoryWrite);
 					if (accessTypeStr.find("Execute") != std::string::npos)
 						parsedAccessType = static_cast<TTDMemoryAccessType>(parsedAccessType | TTDMemoryExecute);
-					
+
 					event.accessType = parsedAccessType;
 				}
 				else
@@ -1245,15 +1246,15 @@ bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::stri
 				// Fallback to query parameter if field is not available
 				event.accessType = accessType;
 			}
-			
+
 			events.push_back(event);
 			resultCounter++;
-			
+
 			// Reset objects for next iteration
 			memoryObject.Reset();
 			metadataKeyStore.Reset();
 		}
-		
+
 		if (wasLimited)
 		{
 			LogWarnF("Successfully parsed {} TTD memory events from data model (limited by max results setting of {})", events.size(), maxResults);
