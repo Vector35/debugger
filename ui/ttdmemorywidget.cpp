@@ -436,9 +436,20 @@ void TTDMemoryQueryWidget::performQuery()
 			
 			// Size
 			m_resultsTable->setItem(i, 4, new NumericalTableWidgetItem(QString::number(event.size), event.size));
-			
-			// Value truncated to the number of bytes specified by size
-			QString valueStr = QString("0x%1").arg(event.value & ((1ULL << (event.size * 8)) - 1), 0, 16);
+
+			// Value - TTD always returns 8 bytes, so mask to the actual access size
+			// Note: For sizes > 8 bytes, TTD only provides the lower 8 bytes in the Value field
+			QString valueStr;
+			if (event.size < 8)
+			{
+				uint64_t mask = (1ULL << (event.size * 8)) - 1;
+				valueStr = QString("0x%1").arg(event.value & mask, 0, 16);
+			}
+			else
+			{
+				// For sizes >= 8, display the full 8-byte value
+				valueStr = QString("0x%1").arg(event.value, 0, 16);
+			}
 			m_resultsTable->setItem(i, 5, new NumericalTableWidgetItem(valueStr, event.value));
 			
 			// Thread ID
