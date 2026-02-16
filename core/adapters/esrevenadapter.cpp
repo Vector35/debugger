@@ -342,31 +342,301 @@ bool EsrevenAdapter::Quit()
 
 std::vector<DebugThread> EsrevenAdapter::GetThreadList()
 {
-	return {};
+	// Return cached data if available
+	if (m_threadCache.has_value())
+	{
+		std::vector<DebugThread> threads;
+		for (const auto& cached : m_threadCache.value())
+		{
+			threads.emplace_back(cached.tid, cached.rip);
+		}
+		return threads;
+	}
 
-	// if (m_isTargetRunning || !m_rspConnector)
- //        return {};
- //
- //    std::vector<DebugThread> threads{};
- //
- //    auto reply = this->m_rspConnector->TransmitAndReceive(RspData("qfThreadInfo"));
- //    while(reply.m_data[0] != 'l') {
- //        if (reply.m_data[0] != 'm') {
-	//         LogWarn("RSP thread list error");
- //        	return threads;
- //        }
- //
- //        const auto shortened_string =
- //                reply.AsString().substr(1);
- //        const auto tids = RspConnector::Split(shortened_string, ",");
- //        for ( const auto& tid : tids )
- //            threads.emplace_back(std::stoi(tid, nullptr, 16));
- //
- //        reply = this->m_rspConnector->TransmitAndReceive(RspData("qsThreadInfo"));
- //    }
- //
- //    return threads;
+	if (m_isTargetRunning || !m_rspConnector)
+		return {};
+
+	// Use the custom rvn:list-threads packet
+	auto response = m_rspConnector->TransmitAndReceive(RspData("rvn:list-threads"));
+	std::string jsonStr = response.AsString();
+
+	// Check if we got a valid JSON response
+	if (jsonStr.empty() || jsonStr[0] != '[')
+		return {};
+
+	std::vector<ThreadFrameCache> cache;
+	std::vector<DebugThread> threads;
+
+	// Parse JSON array of threads
+	size_t pos = 0;
+	while (pos < jsonStr.length())
+	{
+		// Find the start of a thread object
+		size_t threadStart = jsonStr.find('{', pos);
+		if (threadStart == std::string::npos)
+			break;
+
+		// Find the end of the thread object (handles nested frames array)
+		int braceCount = 0;
+		size_t threadEnd = threadStart;
+		for (size_t i = threadStart; i < jsonStr.length(); i++)
+		{
+			if (jsonStr[i] == '{')
+				braceCount++;
+			else if (jsonStr[i] == '}')
+			{
+				braceCount--;
+				if (braceCount == 0)
+				{
+					threadEnd = i;
+					break;
+				}
+			}
+		}
+
+		if (threadEnd == threadStart)
+			break;
+
+		std::string threadObj = jsonStr.substr(threadStart, threadEnd - threadStart + 1);
+
+		// Parse thread fields
+		ThreadFrameCache threadData;
+		threadData.tid = 0;
+		threadData.rip = 0;
+
+		// Extract "tid"
+		size_t tidPos = threadObj.find("\"tid\"");
+		if (tidPos != std::string::npos)
+		{
+			size_t colonPos = threadObj.find(':', tidPos);
+			if (colonPos != std::string::npos)
+			{
+				colonPos++;
+				while (colonPos < threadObj.length() && std::isspace(threadObj[colonPos]))
+					colonPos++;
+
+				size_t numEnd = colonPos;
+				while (numEnd < threadObj.length() && std::isdigit(threadObj[numEnd]))
+					numEnd++;
+
+				if (numEnd > colonPos)
+				{
+					std::string tidStr = threadObj.substr(colonPos, numEnd - colonPos);
+					threadData.tid = std::stoull(tidStr);
+				}
+			}
+		}
+
+		// Extract "rip"
+		size_t ripPos = threadObj.find("\"rip\"");
+		if (ripPos != std::string::npos)
+		{
+			size_t colonPos = threadObj.find(':', ripPos);
+			if (colonPos != std::string::npos)
+			{
+				colonPos++;
+				while (colonPos < threadObj.length() && std::isspace(threadObj[colonPos]))
+					colonPos++;
+
+				size_t numEnd = colonPos;
+				while (numEnd < threadObj.length() && std::isdigit(threadObj[numEnd]))
+					numEnd++;
+
+				if (numEnd > colonPos)
+				{
+					std::string ripStr = threadObj.substr(colonPos, numEnd - colonPos);
+					threadData.rip = std::stoull(ripStr);
+				}
+			}
+		}
+
+		// Extract "frames" array
+		size_t framesPos = threadObj.find("\"frames\"");
+		if (framesPos != std::string::npos)
+		{
+			size_t arrayStart = threadObj.find('[', framesPos);
+			if (arrayStart != std::string::npos)
+			{
+				// Find the matching closing bracket
+				int bracketCount = 0;
+				size_t arrayEnd = arrayStart;
+				for (size_t i = arrayStart; i < threadObj.length(); i++)
+				{
+					if (threadObj[i] == '[')
+						bracketCount++;
+					else if (threadObj[i] == ']')
+					{
+						bracketCount--;
+						if (bracketCount == 0)
+						{
+							arrayEnd = i;
+							break;
+						}
+					}
+				}
+
+				if (arrayEnd > arrayStart)
+				{
+					std::string framesArray = threadObj.substr(arrayStart + 1, arrayEnd - arrayStart - 1);
+
+					// Parse individual frame objects
+					size_t framePos = 0;
+					while (framePos < framesArray.length())
+					{
+						size_t frameStart = framesArray.find('{', framePos);
+						if (frameStart == std::string::npos)
+							break;
+
+						int frameBraceCount = 0;
+						size_t frameEnd = frameStart;
+						for (size_t i = frameStart; i < framesArray.length(); i++)
+						{
+							if (framesArray[i] == '{')
+								frameBraceCount++;
+							else if (framesArray[i] == '}')
+							{
+								frameBraceCount--;
+								if (frameBraceCount == 0)
+								{
+									frameEnd = i;
+									break;
+								}
+							}
+						}
+
+						if (frameEnd == frameStart)
+							break;
+
+						std::string frameObj = framesArray.substr(frameStart, frameEnd - frameStart + 1);
+
+						// Parse frame fields
+						DebugFrame frame;
+						frame.m_index = 0;
+						frame.m_pc = 0;
+						frame.m_sp = 0;
+						frame.m_fp = 0;
+						frame.m_functionName = "";
+						frame.m_functionStart = 0;
+						frame.m_module = "<unknown>";
+
+						// Helper lambda to extract integer value
+						auto extractInt = [](const std::string& obj, const std::string& key) -> uint64_t {
+							size_t keyPos = obj.find("\"" + key + "\"");
+							if (keyPos != std::string::npos)
+							{
+								size_t colonPos = obj.find(':', keyPos);
+								if (colonPos != std::string::npos)
+								{
+									colonPos++;
+									while (colonPos < obj.length() && std::isspace(obj[colonPos]))
+										colonPos++;
+
+									// Check for null
+									if (obj.substr(colonPos, 4) == "null")
+										return 0;
+
+									size_t numEnd = colonPos;
+									while (numEnd < obj.length() && std::isdigit(obj[numEnd]))
+										numEnd++;
+
+									if (numEnd > colonPos)
+									{
+										std::string numStr = obj.substr(colonPos, numEnd - colonPos);
+										return std::stoull(numStr);
+									}
+								}
+							}
+							return 0;
+						};
+
+						// Helper lambda to extract string value
+						auto extractString = [](const std::string& obj, const std::string& key) -> std::string {
+							size_t keyPos = obj.find("\"" + key + "\"");
+							if (keyPos != std::string::npos)
+							{
+								size_t colonPos = obj.find(':', keyPos);
+								if (colonPos != std::string::npos)
+								{
+									size_t quoteStart = obj.find('"', colonPos);
+									if (quoteStart != std::string::npos)
+									{
+										size_t quoteEnd = obj.find('"', quoteStart + 1);
+										if (quoteEnd != std::string::npos)
+										{
+											return obj.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+										}
+									}
+									else
+									{
+										// Check for null
+										colonPos++;
+										while (colonPos < obj.length() && std::isspace(obj[colonPos]))
+											colonPos++;
+										if (obj.substr(colonPos, 4) == "null")
+											return "";
+									}
+								}
+							}
+							return "";
+						};
+
+						frame.m_index = extractInt(frameObj, "index");
+						frame.m_pc = extractInt(frameObj, "pc");
+						frame.m_sp = extractInt(frameObj, "sp");
+						frame.m_fp = extractInt(frameObj, "fp");
+						frame.m_functionStart = extractInt(frameObj, "function_start");
+
+						std::string funcName = extractString(frameObj, "function_name");
+						if (!funcName.empty())
+							frame.m_functionName = funcName;
+
+						std::string moduleName = extractString(frameObj, "module");
+						if (!moduleName.empty())
+							frame.m_module = moduleName;
+
+						threadData.frames.push_back(frame);
+						framePos = frameEnd + 1;
+					}
+				}
+			}
+		}
+
+		cache.push_back(threadData);
+		threads.emplace_back(threadData.tid, threadData.rip);
+		pos = threadEnd + 1;
+	}
+
+	// Cache the results
+	m_threadCache = cache;
+
+	return threads;
 }
+
+
+std::vector<DebugFrame> EsrevenAdapter::GetFramesOfThread(std::uint32_t tid)
+{
+	// If cache is empty, call GetThreadList() to populate it
+	if (!m_threadCache.has_value())
+	{
+		GetThreadList();
+	}
+
+	// Search for the thread in the cache
+	if (m_threadCache.has_value())
+	{
+		for (const auto& threadData : m_threadCache.value())
+		{
+			if (threadData.tid == tid)
+			{
+				return threadData.frames;
+			}
+		}
+	}
+
+	// Thread not found, return empty vector
+	return {};
+}
+
 
 DebugThread EsrevenAdapter::GetActiveThread() const
 {
@@ -1620,6 +1890,7 @@ void EsrevenAdapter::InvalidateCache()
 {
 	m_regCache.reset();
 	m_moduleCache.reset();
+	m_threadCache.reset();
 }
 
 
