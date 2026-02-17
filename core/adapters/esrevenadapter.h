@@ -126,6 +126,10 @@ namespace BinaryNinjaDebugger
 		std::string GetRemoteFile(const std::string& path);
 		std::vector<DebugModule> GetModuleList() override;
 
+		// TTD Memory Access support
+		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead) override;
+		std::vector<TTDPositionRangeIndexedMemoryEvent> GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime) override;
+
 		std::string GetTargetArchitecture() override;
 
 		DebugStopReason StopReason() override;
