@@ -160,7 +160,9 @@ bool GdbAdapter::LoadRegisterInfo()
 	if (architecture.find(':') != std::string::npos)
 	{
 		architecture.erase(0, architecture.find(':') + 1);
-		architecture.replace(architecture.find('-'), 1, "_");
+		auto hyphenPos = architecture.find('-');
+		if (hyphenPos != std::string::npos)
+			architecture.replace(hyphenPos, 1, "_");
 	}
 	m_remoteArch = architecture;
 
