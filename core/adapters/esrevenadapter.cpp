@@ -1990,6 +1990,125 @@ Ref<Settings> EsrevenAdapterType::RegisterAdapterSettings()
 }
 
 
+std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
+{
+	if (m_isTargetRunning)
+		return {};
+
+	if (!m_rspConnector)
+		return {};
+
+	// Build the packet: rvn:get-calls-by-symbol:<symbol>[:<start_ret>:<end_ret>]
+	std::string packet;
+	if (startReturnAddress != 0 || endReturnAddress != 0)
+		packet = fmt::format("rvn:get-calls-by-symbol:{}:{:x}:{:x}", symbols, startReturnAddress, endReturnAddress);
+	else
+		packet = fmt::format("rvn:get-calls-by-symbol:{}", symbols);
+
+	auto response = m_rspConnector->TransmitAndReceive(RspData(packet));
+	std::string jsonStr = response.AsString();
+
+	if (jsonStr.empty() || jsonStr[0] != '[')
+		return {};
+
+	std::vector<TTDCallEvent> result;
+
+	// Helper lambda to extract uint64_t value from a JSON object string
+	auto extractUInt64 = [](const std::string& json, const std::string& key) -> uint64_t {
+		size_t keyPos = json.find("\"" + key + "\"");
+		if (keyPos == std::string::npos)
+			return 0;
+
+		size_t colonPos = json.find(':', keyPos);
+		if (colonPos == std::string::npos)
+			return 0;
+
+		size_t valueStart = colonPos + 1;
+		while (valueStart < json.length() && std::isspace(json[valueStart]))
+			valueStart++;
+
+		if (json.substr(valueStart, 4) == "null")
+			return 0;
+
+		size_t valueEnd = valueStart;
+		while (valueEnd < json.length() && std::isdigit(json[valueEnd]))
+			valueEnd++;
+
+		if (valueEnd > valueStart)
+			return std::stoull(json.substr(valueStart, valueEnd - valueStart));
+
+		return 0;
+	};
+
+	// Helper lambda to extract string value from a JSON object string
+	auto extractString = [](const std::string& json, const std::string& key) -> std::string {
+		size_t keyPos = json.find("\"" + key + "\"");
+		if (keyPos == std::string::npos)
+			return "";
+
+		size_t colonPos = json.find(':', keyPos);
+		if (colonPos == std::string::npos)
+			return "";
+
+		size_t valueStart = json.find('"', colonPos);
+		if (valueStart == std::string::npos)
+			return "";
+
+		size_t valueEnd = json.find('"', valueStart + 1);
+		if (valueEnd == std::string::npos)
+			return "";
+
+		return json.substr(valueStart + 1, valueEnd - valueStart - 1);
+	};
+
+	size_t pos = 0;
+	while (pos < jsonStr.length())
+	{
+		size_t objStart = jsonStr.find('{', pos);
+		if (objStart == std::string::npos)
+			break;
+
+		// Track nested braces to find the matching closing brace
+		size_t depth = 1;
+		size_t objEnd = objStart + 1;
+		while (objEnd < jsonStr.length() && depth > 0)
+		{
+			if (jsonStr[objEnd] == '{')
+				depth++;
+			else if (jsonStr[objEnd] == '}')
+				depth--;
+			objEnd++;
+		}
+		if (depth != 0)
+			break;
+		objEnd--; // point at the closing '}'
+
+		std::string objStr = jsonStr.substr(objStart, objEnd - objStart + 1);
+
+		TTDCallEvent event;
+		event.eventType = "Call";
+
+		uint64_t transitionId = extractUInt64(objStr, "transition_id");
+		event.function        = extractString(objStr, "function_name");
+		event.functionAddress = extractUInt64(objStr, "function_address");
+		event.returnAddress   = extractUInt64(objStr, "return_address");
+
+		uint64_t threadId     = extractUInt64(objStr, "thread_id");
+		event.threadId        = static_cast<uint32_t>(threadId);
+		event.uniqueThreadId  = static_cast<uint32_t>(threadId);
+
+		event.timeStart = TTDPosition(transitionId, 0);
+		event.timeEnd   = event.timeStart;
+
+		result.push_back(event);
+
+		pos = objEnd + 1;
+	}
+
+	return result;
+}
+
+
 Ref<Settings> EsrevenAdapterType::GetAdapterSettings()
 {
 	static Ref<Settings> settings = RegisterAdapterSettings();

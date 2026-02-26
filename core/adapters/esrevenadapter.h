@@ -126,6 +126,9 @@ namespace BinaryNinjaDebugger
 		std::string GetRemoteFile(const std::string& path);
 		std::vector<DebugModule> GetModuleList() override;
 
+		// TTD Calls support
+		std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0) override;
+
 		std::string GetTargetArchitecture() override;
 
 		DebugStopReason StopReason() override;
