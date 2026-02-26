@@ -1609,7 +1609,12 @@ bool EsrevenAdapter::SupportFeature(DebugAdapterCapacity feature)
     case DebugAdapterSupportThreads:
         return true;
     case DebugAdapterSupportTTD:
-    	return m_canReverseContinue && m_canReverseStep;
+    {
+        bool ttdSupported = m_canReverseContinue && m_canReverseStep;
+        LogInfo("SupportFeature(DebugAdapterSupportTTD): m_canReverseContinue=%d, m_canReverseStep=%d, returning %d",
+            m_canReverseContinue, m_canReverseStep, ttdSupported);
+        return ttdSupported;
+    }
     default:
         return false;
     }
@@ -1984,9 +1989,264 @@ Ref<Settings> EsrevenAdapterType::RegisterAdapterSettings()
 			"readOnly" : false
 			})");
 
+	settings->RegisterSetting("ttd.queryTimeout",
+			R"JSON({
+			"title" : "TTD Query Timeout",
+			"type" : "number",
+			"default" : 60000,
+			"minValue" : 5000,
+			"maxValue" : 600000,
+			"description" : "Timeout in milliseconds for TTD query operations (calls, memory, events). Increase for large wildcard queries. Default: 60000ms (60s)",
+			"readOnly" : false
+			})JSON");
+
+	settings->RegisterSetting("ttd.maxCallsQueryResults",
+			R"JSON({
+			"title" : "Max Calls Query Results",
+			"type" : "number",
+			"default" : 10000,
+			"minValue" : 0,
+			"maxValue" : 18446744073709551615,
+			"description" : "Maximum number of results to return from TTD Calls queries. Set to 0 for no limit.",
+			"readOnly" : false
+			})JSON");
+
 	return settings;
 }
 
+
+TTDPosition EsrevenAdapter::GetCurrentTTDPosition()
+{
+	if (!m_rspConnector)
+		return TTDPosition();
+
+	auto reply = m_rspConnector->TransmitAndReceive(
+		RspData("rvn:get-current-transition"), "ack_then_reply", nullptr,
+		std::chrono::milliseconds(5000));
+
+	std::string json = reply.AsString();
+
+	if (json.empty() || json[0] == 'E')
+		return TTDPosition();
+
+	// Server returns JSON null when no transition is available
+	if (json == "null" || json.empty())
+		return TTDPosition();
+
+	// Manual JSON extraction — no external library, same pattern as GetTTDCallsForSymbols
+	std::string objectStr = json;
+	auto extractUInt64 = [&objectStr](const std::string& fieldName) -> uint64_t {
+		std::string searchStr = "\"" + fieldName + "\":";
+		size_t pos = objectStr.find(searchStr);
+		if (pos == std::string::npos)
+			return 0;
+		pos += searchStr.length();
+		while (pos < objectStr.length() && std::isspace(objectStr[pos]))
+			pos++;
+		if (objectStr.substr(pos, 4) == "null")
+			return 0;
+		size_t end = pos;
+		while (end < objectStr.length() && (std::isdigit(objectStr[end]) || objectStr[end] == '-'))
+			end++;
+		if (end > pos)
+		{
+			try { return std::stoull(objectStr.substr(pos, end - pos)); } catch (...) {}
+		}
+		return 0;
+	};
+
+	uint64_t transitionId = extractUInt64("transition_id");
+	// TTDPosition: sequence = transition_id, step = 0 (REVEN has no sub-step granularity)
+	return TTDPosition(transitionId, 0);
+}
+
+
+bool EsrevenAdapter::SetTTDPosition(const TTDPosition& position)
+{
+	if (!m_rspConnector)
+		return false;
+
+	DebuggerEvent dbgevt;
+	dbgevt.type = ResumeEventType;
+	PostDebuggerEvent(dbgevt);
+
+	InvalidateCache();
+
+	auto stopReason = GenericGo(fmt::format("rvn:set-current-transition:{}", position.sequence));
+	return stopReason != InternalError;
+}
+
+
+std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
+{
+	std::vector<TTDCallEvent> events;
+
+	if (symbols.empty())
+	{
+		LogError("No symbols provided for TTD calls query");
+		return events;
+	}
+
+	// Get settings
+	auto adapterSettings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	auto timeoutMs = adapterSettings->Get<uint64_t>("ttd.queryTimeout", GetData(), &scope);
+	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
+	auto timeout = std::chrono::milliseconds(timeoutMs);
+
+	LogInfo("GetTTDCallsForSymbols: symbols='%s', timeout=%lldms, maxResults=%llu",
+		symbols.c_str(), timeoutMs, maxResults);
+
+	try
+	{
+		// Detect wildcard patterns to add max_symbols limit
+		bool isWildcard = (symbols.find('*') != std::string::npos) ||
+						 (symbols.find('?') != std::string::npos);
+
+		// Send rvn:get-calls-by-symbol packet with optional return address range and max_symbols
+		// Format: rvn:get-calls-by-symbol:<symbol>[:<start_ret_addr>:<end_ret_addr>[:<max_symbols>]]
+		std::string packet;
+		if (startReturnAddress != 0 || endReturnAddress != 0)
+		{
+			// Include return address range for server-side filtering
+			packet = fmt::format("rvn:get-calls-by-symbol:{}:{:x}:{:x}{}",
+				symbols,
+				startReturnAddress != 0 ? startReturnAddress : 0,
+				endReturnAddress != 0 ? endReturnAddress : 0xFFFFFFFFFFFFFFFF,
+				isWildcard ? ":50" : "");  // Limit wildcards to 50 symbols
+		}
+		else
+		{
+			// No filtering - query all calls
+			packet = fmt::format("rvn:get-calls-by-symbol:{}{}",
+				symbols,
+				isWildcard ? ":::50" : "");  // Format: symbol:::max_symbols
+		}
+
+		// Send with custom timeout
+		auto reply = m_rspConnector->TransmitAndReceive(
+			RspData(packet),
+			"ack_then_reply",
+			nullptr,
+			timeout  // Use configured timeout
+		);
+
+		// Check for error response
+		if (reply.m_data[0] == 'E')
+		{
+			LogError("Failed to get calls for symbol: %s", symbols.c_str());
+			return events;
+		}
+
+		std::string jsonData = reply.AsString();
+		if (jsonData.empty() || jsonData == "[]")
+		{
+			return events;
+		}
+
+		// Manual JSON parsing (no external library dependency)
+		// Expected format: [{"transition_id":...,"function_name":"...","function_address":...,"call_instruction_address":...,"return_address":...,"thread_id":...}, ...]
+
+		size_t pos = 0;
+		while ((pos = jsonData.find('{', pos)) != std::string::npos)
+		{
+			size_t endPos = jsonData.find('}', pos);
+			if (endPos == std::string::npos)
+				break;
+
+			std::string objectStr = jsonData.substr(pos, endPos - pos + 1);
+
+			// Helper lambda to extract uint64 field
+			auto extractUInt64 = [&objectStr](const std::string& fieldName) -> uint64_t {
+				std::string searchStr = "\"" + fieldName + "\":";
+				size_t fieldPos = objectStr.find(searchStr);
+				if (fieldPos == std::string::npos)
+					return 0;
+
+				fieldPos += searchStr.length();
+				// Skip whitespace
+				while (fieldPos < objectStr.length() && std::isspace(objectStr[fieldPos]))
+					fieldPos++;
+
+				// Check for null
+				if (objectStr.substr(fieldPos, 4) == "null")
+					return 0;
+
+				// Extract number
+				size_t endNum = fieldPos;
+				while (endNum < objectStr.length() && (std::isdigit(objectStr[endNum]) || objectStr[endNum] == '-'))
+					endNum++;
+
+				if (endNum > fieldPos)
+				{
+					try {
+						return std::stoull(objectStr.substr(fieldPos, endNum - fieldPos));
+					} catch (...) {
+						return 0;
+					}
+				}
+				return 0;
+			};
+
+			// Helper lambda to extract string field
+			auto extractString = [&objectStr](const std::string& fieldName) -> std::string {
+				std::string searchStr = "\"" + fieldName + "\":\"";
+				size_t fieldPos = objectStr.find(searchStr);
+				if (fieldPos == std::string::npos)
+					return "";
+
+				fieldPos += searchStr.length();
+				size_t endQuote = objectStr.find('\"', fieldPos);
+				if (endQuote == std::string::npos)
+					return "";
+
+				return objectStr.substr(fieldPos, endQuote - fieldPos);
+			};
+
+			// Extract fields
+			uint64_t transition_id = extractUInt64("transition_id");
+			std::string function_name = extractString("function_name");
+			uint64_t function_address = extractUInt64("function_address");
+			uint64_t call_instruction_address = extractUInt64("call_instruction_address");
+			uint64_t return_address = extractUInt64("return_address");
+			uint64_t thread_id = extractUInt64("thread_id");
+
+			// Note: Return address filtering is done server-side for performance
+
+			// Create TTDCallEvent
+			TTDCallEvent event;
+			event.eventType = "Call";
+			event.threadId = static_cast<uint32_t>(thread_id);
+			event.uniqueThreadId = static_cast<uint32_t>(thread_id);
+			event.function = function_name;
+			event.functionAddress = function_address;
+			event.returnAddress = return_address;
+			event.returnValue = 0;
+			event.hasReturnValue = false;
+			event.timeStart = TTDPosition(transition_id, 0);
+			event.timeEnd = TTDPosition(transition_id, 0);  // Same as timeStart for call events
+
+			events.push_back(event);
+
+			pos = endPos + 1;
+		}
+
+		LogInfo("Retrieved %zu call events for symbol: %s", events.size(), symbols.c_str());
+
+		// Apply client-side result limiting (Option 2 pattern)
+		if (maxResults > 0 && events.size() > maxResults)
+		{
+			LogWarn("Query returned %zu results, limiting to %llu", events.size(), maxResults);
+			events.resize(maxResults);
+		}
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception while getting calls for symbol %s: %s", symbols.c_str(), e.what());
+	}
+
+	return events;
+}
 
 Ref<Settings> EsrevenAdapterType::GetAdapterSettings()
 {

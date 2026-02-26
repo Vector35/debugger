@@ -227,14 +227,12 @@ void RspConnector::SendPayload(const RspData& data)
     this->SendRaw(RspData(packet));
 }
 
-RspData RspConnector::ReceiveRspData()
+RspData RspConnector::ReceiveRspData(std::chrono::milliseconds timeoutDuration)
 {
     std::unique_lock lock(m_socketLock);
 
     std::vector<char> buffer{};
     auto startTime = std::chrono::steady_clock::now();
-    // TODO: We might wish to make this timeout configurable, but for now waiting 10 seconds I think is good enough
-    const std::chrono::milliseconds timeoutDuration(10000);
 
     while (true)
     {
@@ -250,7 +248,7 @@ RspData RspConnector::ReceiveRspData()
             auto elapsedTime = std::chrono::steady_clock::now() - startTime;
             if (elapsedTime > timeoutDuration)
             {
-                LogWarn("ReceiveRspData timeout: failed to receive data within the timeout period");
+                LogWarn("ReceiveRspData timeout: failed to receive data within %lldms", timeoutDuration.count());
                 return {}; // Return an empty RspData object
             }
 
@@ -303,7 +301,8 @@ RspData RspConnector::ReceiveRspData()
 }
 
 RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string& expect,
-										 std::function<void(const RspData& data)> asyncPacketHandler)
+										 std::function<void(const RspData& data)> asyncPacketHandler,
+										 std::chrono::milliseconds timeout)
 {
 	std::unique_lock lock(m_socketLock);
 
@@ -315,7 +314,7 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
         reply = RspData("");
     else if ( expect == "ack_then_reply" ) {
         this->ExpectAck();
-        reply = this->ReceiveRspData();
+        reply = this->ReceiveRspData(timeout);
     }
     else if ( expect == "mixed_output_ack_then_reply" ) {
         bool ack_received = false;
