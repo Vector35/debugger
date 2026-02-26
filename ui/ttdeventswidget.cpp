@@ -30,6 +30,11 @@ limitations under the License.
 #include <QFileInfo>
 #include <map>
 
+static uint64_t PositionSortValue(const TTDPosition& position)
+{
+	return (position.sequence << 32) | (position.step & 0xFFFFFFFF);
+}
+
 // TTDEventsColumnVisibilityDialog implementation
 TTDEventsColumnVisibilityDialog::TTDEventsColumnVisibilityDialog(QWidget* parent, const QStringList& columnNames, const QList<bool>& visibility)
 	: QDialog(parent)
@@ -457,7 +462,7 @@ void TTDEventsQueryWidget::filterAndDisplayEvents()
 		const TTDEvent& event = filteredEvents[i];
 		
 		// Index
-		m_resultsTable->setItem(i, IndexColumn, new QTableWidgetItem(QString::number(i + 1)));
+		m_resultsTable->setItem(i, IndexColumn, new NumericalTableWidgetItem(QString::number(i + 1), i + 1));
 		
 		// Event Type
 		QString eventTypeStr;
@@ -486,32 +491,32 @@ void TTDEventsQueryWidget::filterAndDisplayEvents()
 		
 		// Position
 		QString positionStr = QString("%1:%2").arg(event.position.sequence, 0, 16).arg(event.position.step, 0, 16);
-		m_resultsTable->setItem(i, PositionColumn, new QTableWidgetItem(positionStr));
+		m_resultsTable->setItem(i, PositionColumn, new NumericalTableWidgetItem(positionStr, PositionSortValue(event.position)));
 		
 		// Thread details (if available)
 		if (event.thread.has_value())
 		{
-			m_resultsTable->setItem(i, ThreadIdColumn, new QTableWidgetItem(QString::number(event.thread->id)));
-			m_resultsTable->setItem(i, ThreadUniqueIdColumn, new QTableWidgetItem(QString::number(event.thread->uniqueId)));
+			m_resultsTable->setItem(i, ThreadIdColumn, new NumericalTableWidgetItem(QString::number(event.thread->id), event.thread->id));
+			m_resultsTable->setItem(i, ThreadUniqueIdColumn, new NumericalTableWidgetItem(QString::number(event.thread->uniqueId), event.thread->uniqueId));
 		}
 		else
 		{
-			m_resultsTable->setItem(i, ThreadIdColumn, new QTableWidgetItem(""));
-			m_resultsTable->setItem(i, ThreadUniqueIdColumn, new QTableWidgetItem(""));
+			m_resultsTable->setItem(i, ThreadIdColumn, new NumericalTableWidgetItem("", 0));
+			m_resultsTable->setItem(i, ThreadUniqueIdColumn, new NumericalTableWidgetItem("", 0));
 		}
 		
 		// Module details (if available)
 		if (event.module.has_value())
 		{
 			m_resultsTable->setItem(i, ModuleNameColumn, new QTableWidgetItem(QString::fromStdString(event.module->name)));
-			m_resultsTable->setItem(i, ModuleAddressColumn, new QTableWidgetItem(QString("0x%1").arg(event.module->address, 0, 16)));
-			m_resultsTable->setItem(i, ModuleSizeColumn, new QTableWidgetItem(QString::number(event.module->size)));
+			m_resultsTable->setItem(i, ModuleAddressColumn, new NumericalTableWidgetItem(QString("0x%1").arg(event.module->address, 0, 16), event.module->address));
+			m_resultsTable->setItem(i, ModuleSizeColumn, new NumericalTableWidgetItem(QString::number(event.module->size), event.module->size));
 		}
 		else
 		{
 			m_resultsTable->setItem(i, ModuleNameColumn, new QTableWidgetItem(""));
-			m_resultsTable->setItem(i, ModuleAddressColumn, new QTableWidgetItem(""));
-			m_resultsTable->setItem(i, ModuleSizeColumn, new QTableWidgetItem(""));
+			m_resultsTable->setItem(i, ModuleAddressColumn, new NumericalTableWidgetItem("", 0));
+			m_resultsTable->setItem(i, ModuleSizeColumn, new NumericalTableWidgetItem("", 0));
 		}
 		
 		// Exception details (if available)
@@ -519,14 +524,14 @@ void TTDEventsQueryWidget::filterAndDisplayEvents()
 		{
 			QString exceptionTypeStr = (event.exception->type == TTDExceptionHardware) ? "Hardware" : "Software";
 			m_resultsTable->setItem(i, ExceptionTypeColumn, new QTableWidgetItem(exceptionTypeStr));
-			m_resultsTable->setItem(i, ExceptionCodeColumn, new QTableWidgetItem(QString("0x%1").arg(event.exception->code, 0, 16)));
-			m_resultsTable->setItem(i, ExceptionPCColumn, new QTableWidgetItem(QString("0x%1").arg(event.exception->programCounter, 0, 16)));
+			m_resultsTable->setItem(i, ExceptionCodeColumn, new NumericalTableWidgetItem(QString("0x%1").arg(event.exception->code, 0, 16), event.exception->code));
+			m_resultsTable->setItem(i, ExceptionPCColumn, new NumericalTableWidgetItem(QString("0x%1").arg(event.exception->programCounter, 0, 16), event.exception->programCounter));
 		}
 		else
 		{
 			m_resultsTable->setItem(i, ExceptionTypeColumn, new QTableWidgetItem(""));
-			m_resultsTable->setItem(i, ExceptionCodeColumn, new QTableWidgetItem(""));
-			m_resultsTable->setItem(i, ExceptionPCColumn, new QTableWidgetItem(""));
+			m_resultsTable->setItem(i, ExceptionCodeColumn, new NumericalTableWidgetItem("", 0));
+			m_resultsTable->setItem(i, ExceptionPCColumn, new NumericalTableWidgetItem("", 0));
 		}
 	}
 
@@ -581,7 +586,7 @@ void TTDEventsQueryWidget::filterAndDisplaySpecializedEvents()
 		int col = 0;
 		
 		// Index (always first column)
-		m_resultsTable->setItem(i, col++, new QTableWidgetItem(QString::number(i + 1)));
+		m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(QString::number(i + 1), i + 1));
 		
 		switch (m_widgetType)
 		{
@@ -589,7 +594,7 @@ void TTDEventsQueryWidget::filterAndDisplaySpecializedEvents()
 				// Position, Event Type, Name (base name), Module Address, Module Size, Module Checksum, Module Timestamp, Path (full path)
 				{
 					QString positionStr = QString("%1:%2").arg(event.position.sequence, 0, 16).arg(event.position.step, 0, 16);
-					m_resultsTable->setItem(i, col++, new QTableWidgetItem(positionStr));
+					m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(positionStr, PositionSortValue(event.position)));
 					
 					QString eventTypeStr = (event.type == TTDEventModuleLoaded) ? "Loaded" : "Unloaded";
 					m_resultsTable->setItem(i, col++, new QTableWidgetItem(eventTypeStr));
@@ -603,17 +608,21 @@ void TTDEventsQueryWidget::filterAndDisplaySpecializedEvents()
 							baseName = fullPath;  // fallback to full path if no filename
 						
 						m_resultsTable->setItem(i, col++, new QTableWidgetItem(baseName));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(QString("0x%1").arg(event.module->address, 0, 16)));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(QString::number(event.module->size)));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(QString("0x%1").arg(event.module->checksum, 0, 16)));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(QString("0x%1").arg(event.module->timestamp, 0, 16)));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(QString("0x%1").arg(event.module->address, 0, 16), event.module->address));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(QString::number(event.module->size), event.module->size));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(QString("0x%1").arg(event.module->checksum, 0, 16), event.module->checksum));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(QString("0x%1").arg(event.module->timestamp, 0, 16), event.module->timestamp));
 						m_resultsTable->setItem(i, col++, new QTableWidgetItem(fullPath));  // Full path in last column
 					}
 					else
 					{
 						// Fill empty cells for all module columns
-						for (int j = 0; j < 6; j++)
-							m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
+						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
+						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
 					}
 				}
 				break;
@@ -622,36 +631,36 @@ void TTDEventsQueryWidget::filterAndDisplaySpecializedEvents()
 				// Position, Event Type, Thread ID, Thread UniqueID, Lifetime Start, Lifetime End, Active Start, Active End
 				{
 					QString positionStr = QString("%1:%2").arg(event.position.sequence, 0, 16).arg(event.position.step, 0, 16);
-					m_resultsTable->setItem(i, col++, new QTableWidgetItem(positionStr));
+					m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(positionStr, PositionSortValue(event.position)));
 					
 					QString eventTypeStr = (event.type == TTDEventThreadCreated) ? "Created" : "Terminated";
 					m_resultsTable->setItem(i, col++, new QTableWidgetItem(eventTypeStr));
 					
 					if (event.thread.has_value())
 					{
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(QString::number(event.thread->id)));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(QString::number(event.thread->uniqueId)));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(QString::number(event.thread->id), event.thread->id));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(QString::number(event.thread->uniqueId), event.thread->uniqueId));
 						
 						// Lifetime range
 						QString lifetimeStart = QString("%1:%2").arg(event.thread->lifetimeStart.sequence, 0, 16).arg(event.thread->lifetimeStart.step, 0, 16);
 						QString lifetimeEnd = QString("%1:%2").arg(event.thread->lifetimeEnd.sequence, 0, 16).arg(event.thread->lifetimeEnd.step, 0, 16);
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(lifetimeStart));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(lifetimeEnd));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(lifetimeStart, PositionSortValue(event.thread->lifetimeStart)));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(lifetimeEnd, PositionSortValue(event.thread->lifetimeEnd)));
 						
 						// Active time range
 						QString activeStart = QString("%1:%2").arg(event.thread->activeTimeStart.sequence, 0, 16).arg(event.thread->activeTimeStart.step, 0, 16);
 						QString activeEnd = QString("%1:%2").arg(event.thread->activeTimeEnd.sequence, 0, 16).arg(event.thread->activeTimeEnd.step, 0, 16);
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(activeStart));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(activeEnd));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(activeStart, PositionSortValue(event.thread->activeTimeStart)));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(activeEnd, PositionSortValue(event.thread->activeTimeEnd)));
 					}
 					else
 					{
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
 					}
 				}
 				break;
@@ -660,24 +669,24 @@ void TTDEventsQueryWidget::filterAndDisplaySpecializedEvents()
 				// Position, Exception Type, Program Counter, Exception Code, Exception Flags, Record Address
 				{
 					QString positionStr = QString("%1:%2").arg(event.position.sequence, 0, 16).arg(event.position.step, 0, 16);
-					m_resultsTable->setItem(i, col++, new QTableWidgetItem(positionStr));
+					m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(positionStr, PositionSortValue(event.position)));
 					
 					if (event.exception.has_value())
 					{
 						QString exceptionTypeStr = (event.exception->type == TTDExceptionHardware) ? "Hardware" : "Software";
 						m_resultsTable->setItem(i, col++, new QTableWidgetItem(exceptionTypeStr));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(QString("0x%1").arg(event.exception->programCounter, 0, 16)));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(QString("0x%1").arg(event.exception->code, 0, 16)));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(QString("0x%1").arg(event.exception->flags, 0, 16)));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(QString("0x%1").arg(event.exception->recordAddress, 0, 16)));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(QString("0x%1").arg(event.exception->programCounter, 0, 16), event.exception->programCounter));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(QString("0x%1").arg(event.exception->code, 0, 16), event.exception->code));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(QString("0x%1").arg(event.exception->flags, 0, 16), event.exception->flags));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem(QString("0x%1").arg(event.exception->recordAddress, 0, 16), event.exception->recordAddress));
 					}
 					else
 					{
 						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
-						m_resultsTable->setItem(i, col++, new QTableWidgetItem(""));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
+						m_resultsTable->setItem(i, col++, new NumericalTableWidgetItem("", 0));
 					}
 				}
 				break;
