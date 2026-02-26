@@ -93,6 +93,7 @@ bool CorelliumAdapter::LoadRegisterInfo()
 
     std::string architecture{};
     std::string os_abi{};
+    std::string endian{};
 	size_t lastRegIndex = -1;
     for (auto node = doc.first_child().child("architecture"); node; node = node.next_sibling())
     {
@@ -100,10 +101,11 @@ bool CorelliumAdapter::LoadRegisterInfo()
 
         if ( node.name() == "architecture"s )
             architecture = node.child_value();
-        if ( node.name() == "osabi"s )
+        else if ( node.name() == "osabi"s )
             os_abi = node.child_value();
-
-        if ( node.name() == "feature"s )
+        else if ( node.name() == "endian"s )
+            endian = node.child_value();
+        else if ( node.name() == "feature"s )
         {
             for (auto reg_child = node.child("reg"); reg_child; reg_child = reg_child.next_sibling())
             {
@@ -134,6 +136,9 @@ bool CorelliumAdapter::LoadRegisterInfo()
 	if (architecture.empty())
 		throw std::runtime_error("failed to find architecture");
 
+	// Store the original architecture for endianness detection before stripping the prefix
+	std::string fullArchitecture = architecture;
+
 	if (architecture.find(':') != std::string::npos)
 	{
 		architecture.erase(0, architecture.find(':') + 1);
@@ -142,6 +147,12 @@ bool CorelliumAdapter::LoadRegisterInfo()
 			architecture.replace(hyphenPos, 1, "_");
 	}
 	m_remoteArch = architecture;
+
+	// Determine endianness: prefer explicit <endian> element, fall back to architecture-based detection
+	if (!endian.empty())
+		m_isBigEndian = (endian == "big");
+	else
+		m_isBigEndian = IsBigEndianArchitecture(fullArchitecture);
 
     std::unordered_map<std::uint32_t, std::string> id_name{};
     std::unordered_map<std::uint32_t, std::uint32_t> id_width{};
@@ -438,6 +449,22 @@ bool CorelliumAdapter::BreakpointExists(uint64_t address) const
                    DebugBreakpoint(address)) != this->m_debugBreakpoints.end();
 }
 
+static bool IsBigEndianArchitecture(const std::string& arch) {
+	// PowerPC architectures (powerpc, ppc, common from "powerpc:common")
+	if (arch.find("powerpc") != std::string::npos || arch.find("ppc") != std::string::npos || arch == "common")
+		return true;
+	// SPARC
+	if (arch.find("sparc") != std::string::npos)
+		return true;
+	// Motorola 68k
+	if (arch.find("m68k") != std::string::npos || arch.find("68k") != std::string::npos)
+		return true;
+	// IBM S/390
+	if (arch.find("s390") != std::string::npos)
+		return true;
+	return false;
+}
+
 static intx::uint512 parseLittleEndianHexToUint512(const std::string& hex) {
 	if (hex.size() % 2 != 0)
 		return {};
@@ -454,6 +481,24 @@ static intx::uint512 parseLittleEndianHexToUint512(const std::string& hex) {
 	}
 
 	return intx::le::load<intx::uint512>(buffer);
+}
+
+static intx::uint512 parseBigEndianHexToUint512(const std::string& hex) {
+	if (hex.size() % 2 != 0)
+		return {};
+
+	uint8_t buffer[64] = {};  // Zero-initialized
+
+	size_t byteCount = hex.size() / 2;
+	size_t limit = std::min(byteCount, size_t(64));
+
+	for (size_t i = 0; i < limit; ++i)
+	{
+		std::string byteStr = hex.substr(i * 2, 2);
+		buffer[i] = static_cast<uint8_t>(strtoul(byteStr.c_str(), nullptr, 16));
+	}
+
+	return intx::be::load<intx::uint512>(buffer);
 }
 
 std::unordered_map<std::string, DebugRegister> CorelliumAdapter::ReadAllRegisters()
@@ -485,7 +530,8 @@ std::unordered_map<std::string, DebugRegister> CorelliumAdapter::ReadAllRegister
         const auto number_of_chars = 2 * ( register_info.m_bitSize / 8 );
         const auto value_string = register_info_reply_string.substr(0, number_of_chars);
     	if (!value_string.empty()) {
-    		intx::uint512 value = parseLittleEndianHexToUint512(value_string);
+    		intx::uint512 value = m_isBigEndian ? parseBigEndianHexToUint512(value_string)
+    		                                    : parseLittleEndianHexToUint512(value_string);
     		all_regs[register_name] = DebugRegister(register_name, value, register_info.m_bitSize, register_info.m_regNum);
     	}
         register_info_reply_string.erase(0, number_of_chars);
@@ -521,6 +567,23 @@ static std::string uint512ToLittleEndianHex(const intx::uint512& value, size_t w
 	return result;
 }
 
+static std::string uint512ToBigEndianHex(const intx::uint512& value, size_t width) {
+	// Truncate to 64 bytes (512 bits max)
+	if (width > 64)
+		width = 64;
+
+	uint8_t buffer[64] = {};
+	intx::be::store(buffer, value);  // Store as big-endian
+
+	// For big-endian, we need to output starting from the correct offset to get 'width' bytes
+	size_t offset = 64 - width;
+	std::string result;
+	for (size_t i = 0; i < width; ++i)
+		result += fmt::format("{:02X}", buffer[offset + i]);
+
+	return result;
+}
+
 bool CorelliumAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
 {
     if (m_isTargetRunning)
@@ -529,7 +592,8 @@ bool CorelliumAdapter::WriteRegister(const std::string& reg, intx::uint512 value
     if (!this->m_registerInfo.contains(reg))
         return false;
 
-    const auto newRegString = uint512ToLittleEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8);
+    const auto newRegString = m_isBigEndian ? uint512ToBigEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8)
+                                            : uint512ToLittleEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8);
     const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("P{:02X}={}",
                 this->m_registerInfo[reg].m_regNum, newRegString));
     if (reply.m_data[0])

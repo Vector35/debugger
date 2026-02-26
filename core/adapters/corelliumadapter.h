@@ -76,6 +76,10 @@ namespace BinaryNinjaDebugger
 		// support the case -- so we do not really lose a lot anyways.
 		std::string m_remoteArch;
 
+		// Whether the target uses big-endian byte order. Determined from target XML <endian> element
+		// or inferred from architecture name.
+		bool m_isBigEndian = false;
+
 		void InvalidateCache();
 
 		virtual DebugStopReason SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& map);
