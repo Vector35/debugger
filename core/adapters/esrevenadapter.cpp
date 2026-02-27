@@ -1986,126 +1986,228 @@ Ref<Settings> EsrevenAdapterType::RegisterAdapterSettings()
 			"readOnly" : false
 			})");
 
+	settings->RegisterSetting("ttd.queryTimeout",
+			R"JSON({
+			"title" : "TTD Query Timeout",
+			"type" : "number",
+			"default" : 60000,
+			"minValue" : 5000,
+			"maxValue" : 600000,
+			"description" : "Timeout in milliseconds for TTD query operations (calls, memory, events). Increase for large wildcard queries. Default: 60000ms (60s)",
+			"readOnly" : false
+			})JSON");
+
+	settings->RegisterSetting("ttd.maxCallsQueryResults",
+			R"JSON({
+			"title" : "Max Calls Query Results",
+			"type" : "number",
+			"default" : 10000,
+			"minValue" : 0,
+			"maxValue" : 18446744073709551615,
+			"description" : "Maximum number of results to return from TTD Calls queries. Set to 0 for no limit.",
+			"readOnly" : false
+			})JSON");
+
+	settings->RegisterSetting("ttd.maxSymbolsLimit",
+			R"JSON({
+			"title" : "Max Symbols Wildcard Limit",
+			"type" : "number",
+			"default" : 50,
+			"minValue" : 0,
+			"maxValue" : 10000,
+			"description" : "Maximum number of symbols to search when using wildcard patterns (e.g. 'kernel32!C*'). Set to 0 for no limit (searches all matching symbols). Increase for broader wildcard queries at the cost of performance.",
+			"readOnly" : false
+			})JSON");
+
 	return settings;
 }
 
 
 std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
 {
-	if (m_isTargetRunning)
-		return {};
+	std::vector<TTDCallEvent> events;
 
-	if (!m_rspConnector)
-		return {};
-
-	// Build the packet: rvn:get-calls-by-symbol:<symbol>[:<start_ret>:<end_ret>]
-	std::string packet;
-	if (startReturnAddress != 0 || endReturnAddress != 0)
-		packet = fmt::format("rvn:get-calls-by-symbol:{}:{:x}:{:x}", symbols, startReturnAddress, endReturnAddress);
-	else
-		packet = fmt::format("rvn:get-calls-by-symbol:{}", symbols);
-
-	auto response = m_rspConnector->TransmitAndReceive(RspData(packet));
-	std::string jsonStr = response.AsString();
-
-	if (jsonStr.empty() || jsonStr[0] != '[')
-		return {};
-
-	std::vector<TTDCallEvent> result;
-
-	// Helper lambda to extract uint64_t value from a JSON object string
-	auto extractUInt64 = [](const std::string& json, const std::string& key) -> uint64_t {
-		size_t keyPos = json.find("\"" + key + "\"");
-		if (keyPos == std::string::npos)
-			return 0;
-
-		size_t colonPos = json.find(':', keyPos);
-		if (colonPos == std::string::npos)
-			return 0;
-
-		size_t valueStart = colonPos + 1;
-		while (valueStart < json.length() && std::isspace(json[valueStart]))
-			valueStart++;
-
-		if (json.substr(valueStart, 4) == "null")
-			return 0;
-
-		size_t valueEnd = valueStart;
-		while (valueEnd < json.length() && std::isdigit(json[valueEnd]))
-			valueEnd++;
-
-		if (valueEnd > valueStart)
-			return std::stoull(json.substr(valueStart, valueEnd - valueStart));
-
-		return 0;
-	};
-
-	// Helper lambda to extract string value from a JSON object string
-	auto extractString = [](const std::string& json, const std::string& key) -> std::string {
-		size_t keyPos = json.find("\"" + key + "\"");
-		if (keyPos == std::string::npos)
-			return "";
-
-		size_t colonPos = json.find(':', keyPos);
-		if (colonPos == std::string::npos)
-			return "";
-
-		size_t valueStart = json.find('"', colonPos);
-		if (valueStart == std::string::npos)
-			return "";
-
-		size_t valueEnd = json.find('"', valueStart + 1);
-		if (valueEnd == std::string::npos)
-			return "";
-
-		return json.substr(valueStart + 1, valueEnd - valueStart - 1);
-	};
-
-	size_t pos = 0;
-	while (pos < jsonStr.length())
+	if (symbols.empty())
 	{
-		size_t objStart = jsonStr.find('{', pos);
-		if (objStart == std::string::npos)
-			break;
-
-		// Track nested braces to find the matching closing brace
-		size_t depth = 1;
-		size_t objEnd = objStart + 1;
-		while (objEnd < jsonStr.length() && depth > 0)
-		{
-			if (jsonStr[objEnd] == '{')
-				depth++;
-			else if (jsonStr[objEnd] == '}')
-				depth--;
-			objEnd++;
-		}
-		if (depth != 0)
-			break;
-		objEnd--; // point at the closing '}'
-
-		std::string objStr = jsonStr.substr(objStart, objEnd - objStart + 1);
-
-		TTDCallEvent event;
-		event.eventType = "Call";
-
-		uint64_t transitionId = extractUInt64(objStr, "transition_id");
-		event.function        = extractString(objStr, "function_name");
-		event.functionAddress = extractUInt64(objStr, "function_address");
-		event.returnAddress   = extractUInt64(objStr, "return_address");
-
-		uint64_t threadId     = extractUInt64(objStr, "thread_id");
-		event.threadId        = static_cast<uint32_t>(threadId);
-		event.uniqueThreadId  = static_cast<uint32_t>(threadId);
-
-		event.timeStart = TTDPosition(transitionId, 0);
-		event.timeEnd   = event.timeStart;
-
-		result.push_back(event);
-
-		pos = objEnd + 1;
+		LogError("No symbols provided for TTD calls query");
+		return events;
 	}
 
-	return result;
+	// Get settings
+	auto adapterSettings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	auto timeoutMs = adapterSettings->Get<uint64_t>("ttd.queryTimeout", GetData(), &scope);
+	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
+	auto maxSymbols = adapterSettings->Get<uint64_t>("ttd.maxSymbolsLimit", GetData(), &scope);
+	auto timeout = std::chrono::milliseconds(timeoutMs);
+
+	LogInfo("GetTTDCallsForSymbols: symbols='%s', timeout=%lldms, maxResults=%llu, maxSymbols=%llu",
+		symbols.c_str(), timeoutMs, maxResults, maxSymbols);
+
+	try
+	{
+		// Detect wildcard patterns to add max_symbols limit
+		bool isWildcard = (symbols.find('*') != std::string::npos) ||
+						 (symbols.find('?') != std::string::npos);
+
+		// Send rvn:get-calls-by-symbol packet with optional return address range and max_symbols
+		// Format: rvn:get-calls-by-symbol:<symbol>[:<start_ret_addr>:<end_ret_addr>[:<max_symbols>]]
+		std::string packet;
+		if (startReturnAddress != 0 || endReturnAddress != 0)
+		{
+			// Include return address range for server-side filtering
+			// maxSymbols == 0 means no limit: omit the suffix entirely
+			packet = fmt::format("rvn:get-calls-by-symbol:{}:{:x}:{:x}{}",
+				symbols,
+				startReturnAddress != 0 ? startReturnAddress : 0,
+				endReturnAddress != 0 ? endReturnAddress : 0xFFFFFFFFFFFFFFFF,
+				(isWildcard && maxSymbols > 0) ? fmt::format(":{}", maxSymbols) : "");
+		}
+		else
+		{
+			// No filtering - query all calls
+			// maxSymbols == 0 means no limit: omit :::N so the server searches all symbols
+			packet = fmt::format("rvn:get-calls-by-symbol:{}{}",
+				symbols,
+				(isWildcard && maxSymbols > 0) ? fmt::format(":::{}", maxSymbols) : "");
+		}
+
+		// Send with custom timeout
+		auto reply = m_rspConnector->TransmitAndReceive(
+			RspData(packet),
+			"ack_then_reply",
+			nullptr,
+			timeout  // Use configured timeout
+		);
+
+		// Check for error response
+		if (reply.m_data[0] == 'E')
+		{
+			LogError("Failed to get calls for symbol: %s", symbols.c_str());
+			return events;
+		}
+
+		std::string jsonData = reply.AsString();
+		if (jsonData.empty() || jsonData == "[]")
+		{
+			return events;
+		}
+
+		// Manual JSON parsing (no external library dependency)
+		// Expected format: [{"transition_id":...,"function_name":"...","function_address":...,"call_instruction_address":...,"return_address":...,"thread_id":...}, ...]
+
+		size_t pos = 0;
+		while ((pos = jsonData.find('{', pos)) != std::string::npos)
+		{
+			size_t endPos = jsonData.find('}', pos);
+			if (endPos == std::string::npos)
+				break;
+
+			std::string objectStr = jsonData.substr(pos, endPos - pos + 1);
+
+			// Helper lambda to extract uint64 field
+			auto extractUInt64 = [&objectStr](const std::string& fieldName) -> uint64_t {
+				std::string searchStr = "\"" + fieldName + "\":";
+				size_t fieldPos = objectStr.find(searchStr);
+				if (fieldPos == std::string::npos)
+					return 0;
+
+				fieldPos += searchStr.length();
+				// Skip whitespace
+				while (fieldPos < objectStr.length() && std::isspace(objectStr[fieldPos]))
+					fieldPos++;
+
+				// Check for null
+				if (objectStr.substr(fieldPos, 4) == "null")
+					return 0;
+
+				// Extract number
+				size_t endNum = fieldPos;
+				while (endNum < objectStr.length() && (std::isdigit(objectStr[endNum]) || objectStr[endNum] == '-'))
+					endNum++;
+
+				if (endNum > fieldPos)
+				{
+					try {
+						return std::stoull(objectStr.substr(fieldPos, endNum - fieldPos));
+					} catch (...) {
+						return 0;
+					}
+				}
+				return 0;
+			};
+
+			// Helper lambda to extract string field
+			auto extractString = [&objectStr](const std::string& fieldName) -> std::string {
+				std::string searchStr = "\"" + fieldName + "\"";
+				size_t fieldPos = objectStr.find(searchStr);
+				if (fieldPos == std::string::npos)
+					return "";
+
+				fieldPos += searchStr.length();
+				size_t colonPos = objectStr.find(':', fieldPos);
+				if (colonPos == std::string::npos)
+					return "";
+
+				// Skip whitespace after colon (handles both `":"` and `": "`)
+				size_t quotePos = colonPos + 1;
+				while (quotePos < objectStr.length() && std::isspace(objectStr[quotePos]))
+					quotePos++;
+
+				if (quotePos >= objectStr.length() || objectStr[quotePos] != '"')
+					return "";
+
+				quotePos++; // skip opening quote
+				size_t endQuote = objectStr.find('\"', quotePos);
+				if (endQuote == std::string::npos)
+					return "";
+
+				return objectStr.substr(quotePos, endQuote - quotePos);
+			};
+
+			// Extract fields
+			uint64_t transition_id = extractUInt64("transition_id");
+			std::string function_name = extractString("function_name");
+			uint64_t function_address = extractUInt64("function_address");
+			uint64_t call_instruction_address = extractUInt64("call_instruction_address");
+			uint64_t return_address = extractUInt64("return_address");
+			uint64_t thread_id = extractUInt64("thread_id");
+
+			// Note: Return address filtering is done server-side for performance
+
+			// Create TTDCallEvent
+			TTDCallEvent event;
+			event.eventType = "Call";
+			event.threadId = static_cast<uint32_t>(thread_id);
+			event.uniqueThreadId = static_cast<uint32_t>(thread_id);
+			event.function = function_name;
+			event.functionAddress = function_address;
+			event.returnAddress = return_address;
+			event.returnValue = 0;
+			event.hasReturnValue = false;
+			event.timeStart = TTDPosition(transition_id, 0);
+			event.timeEnd = TTDPosition(transition_id, 0);  // Same as timeStart for call events
+
+			events.push_back(event);
+
+			pos = endPos + 1;
+		}
+
+		LogInfo("Retrieved %zu call events for symbol: %s", events.size(), symbols.c_str());
+
+		// Apply client-side result limiting (Option 2 pattern)
+		if (maxResults > 0 && events.size() > maxResults)
+		{
+			LogWarn("Query returned %zu results, limiting to %llu", events.size(), maxResults);
+			events.resize(maxResults);
+		}
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception while getting calls for symbol %s: %s", symbols.c_str(), e.what());
+	}
+
+	return events;
 }
 
 
