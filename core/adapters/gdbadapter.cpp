@@ -51,6 +51,8 @@ using namespace BinaryNinja;
 using namespace std;
 using namespace BinaryNinjaDebugger;
 
+static bool IsBigEndianArchitecture(const std::string& arch);
+
 GdbAdapter::GdbAdapter(BinaryView* data, bool redirectGDBServer): DebugAdapter(data)
 {
     m_isTargetRunning = false;
@@ -526,14 +528,15 @@ static intx::uint512 parseBigEndianHexToUint512(const std::string& hex) {
 	size_t byteCount = hex.size() / 2;
 	size_t limit = std::min(byteCount, size_t(64));
 
-	// Parse bytes from hex string (MSB first in the string)
+	// For big-endian: the hex string has MSB first. intx::be::load expects MSB at buffer[0]
+	// for a full 512-bit value, so we must right-justify the bytes in the buffer.
+	size_t offset = 64 - limit;
 	for (size_t i = 0; i < limit; ++i)
 	{
 		std::string byteStr = hex.substr(i * 2, 2);
-		buffer[i] = static_cast<uint8_t>(strtoul(byteStr.c_str(), nullptr, 16));
+		buffer[offset + i] = static_cast<uint8_t>(strtoul(byteStr.c_str(), nullptr, 16));
 	}
 
-	// For big-endian: the hex string has MSB first, so we need to load it as big-endian
 	return intx::be::load<intx::uint512>(buffer);
 }
 
