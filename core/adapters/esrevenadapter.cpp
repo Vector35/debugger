@@ -160,7 +160,10 @@ bool EsrevenAdapter::LoadRegisterInfo()
     }
 
 	if (architecture.empty())
-		throw std::runtime_error("failed to find architecture");
+	{
+		LogWarn("failed to find architecture");
+		return false;
+	}
 
 	// Store the original architecture for endianness detection before stripping the prefix
 	std::string fullArchitecture = architecture;
@@ -409,13 +412,22 @@ bool EsrevenAdapter::SetActiveThreadId(std::uint32_t tid)
         return false;
 
     if ( this->m_rspConnector->TransmitAndReceive(RspData(string("T{:x}"), tid)).AsString() != "OK" )
-        throw std::runtime_error("thread does not exist!");
+    {
+        LogWarn("thread does not exist");
+        return false;
+    }
 
     if ( this->m_rspConnector->TransmitAndReceive(RspData(string("Hc{:x}"), tid)).AsString() != "OK")
-        throw std::runtime_error("failed to set thread");
+    {
+        LogWarn("failed to set thread");
+        return false;
+    }
 
     if ( this->m_rspConnector->TransmitAndReceive(RspData(string("Hg{:x}"), tid)).AsString() != "OK")
-        throw std::runtime_error("failed to set thread");
+    {
+        LogWarn("failed to set thread");
+        return false;
+    }
 
     this->m_lastActiveThreadId = tid;
 
@@ -551,7 +563,10 @@ std::unordered_map<std::string, DebugRegister> EsrevenAdapter::ReadAllRegisters(
 		return m_regCache.value();
 
     if ( this->m_registerInfo.empty() )
-        throw std::runtime_error("register info empty");
+    {
+        LogWarn("register info empty");
+        return {};
+    }
 
 	// Sort the registers according to their index, as the g reply packet will provide values in the same order
     std::vector<register_pair> register_info_vec{};
@@ -567,7 +582,10 @@ std::unordered_map<std::string, DebugRegister> EsrevenAdapter::ReadAllRegisters(
     const auto register_info_reply = this->m_rspConnector->TransmitAndReceive(RspData(&request, sizeof(request)));
     auto register_info_reply_string = register_info_reply.AsString();
     if ( register_info_reply_string.empty() )
-        throw std::runtime_error("register request reply empty");
+    {
+        LogWarn("register request reply empty");
+        return {};
+    }
 
     std::unordered_map<std::string, DebugRegister> all_regs{};
     for ( const auto& [register_name, register_info] : register_info_vec ) {
@@ -591,7 +609,10 @@ DebugRegister EsrevenAdapter::ReadRegister(const std::string& reg)
         return DebugRegister{};
 
     if ( this->m_registerInfo.find(reg) == this->m_registerInfo.end() )
-        throw std::runtime_error(fmt::format("register {} does not exist in target", reg));
+    {
+        LogWarn("register %s does not exist in target", reg.c_str());
+        return DebugRegister{};
+    }
 
     return this->ReadAllRegisters()[reg];
 }
@@ -692,7 +713,7 @@ DataBuffer EsrevenAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
                 return input - 'A' + 10;
             if(input >= 'a' && input <= 'f')
                 return input - 'a' + 10;
-            throw std::invalid_argument("Invalid input string");
+            return 0;
         };
 
         while(*src && src[1]) {
@@ -1143,7 +1164,7 @@ DebugStopReason EsrevenAdapter::ResponseHandler(bool notifyStopped)
 						return input - 'A' + 10;
 					if(input >= 'a' && input <= 'f')
 						return input - 'a' + 10;
-					throw std::invalid_argument("Invalid input string");
+					return 0;
 				};
 
 				while(*src && src[1]) {
@@ -1743,7 +1764,7 @@ void EsrevenAdapter::HandleAsyncPacket(const RspData& data)
 				return input - 'A' + 10;
 			if(input >= 'a' && input <= 'f')
 				return input - 'a' + 10;
-			throw std::invalid_argument("Invalid input string");
+			return 0;
 		};
 
 		while(*src && src[1]) {

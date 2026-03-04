@@ -136,7 +136,10 @@ bool CorelliumAdapter::LoadRegisterInfo()
     }
 
 	if (architecture.empty())
-		throw std::runtime_error("failed to find architecture");
+	{
+		LogWarn("failed to find architecture");
+		return false;
+	}
 
 	// Store the original architecture for endianness detection before stripping the prefix
 	std::string fullArchitecture = architecture;
@@ -336,8 +339,10 @@ std::vector<DebugThread> CorelliumAdapter::GetThreadList()
 
     auto reply = this->m_rspConnector->TransmitAndReceive(RspData("qfThreadInfo"));
     while(reply.m_data[0] != 'l') {
-        if (reply.m_data[0] != 'm')
-            throw std::runtime_error("thread list failed?");
+        if (reply.m_data[0] != 'm') {
+            LogWarn("thread list failed");
+            return threads;
+        }
 
         const auto shortened_string =
                 reply.AsString().substr(1);
@@ -376,13 +381,22 @@ bool CorelliumAdapter::SetActiveThreadId(std::uint32_t tid)
         return false;
 
     if ( this->m_rspConnector->TransmitAndReceive(RspData(string("T{:x}"), tid)).AsString() != "OK" )
-        throw std::runtime_error("thread does not exist!");
+    {
+        LogWarn("thread does not exist");
+        return false;
+    }
 
     if ( this->m_rspConnector->TransmitAndReceive(RspData(string("Hc{:x}"), tid)).AsString() != "OK")
-        throw std::runtime_error("failed to set thread");
+    {
+        LogWarn("failed to set thread");
+        return false;
+    }
 
     if ( this->m_rspConnector->TransmitAndReceive(RspData(string("Hg{:x}"), tid)).AsString() != "OK")
-        throw std::runtime_error("failed to set thread");
+    {
+        LogWarn("failed to set thread");
+        return false;
+    }
 
     this->m_lastActiveThreadId = tid;
 
@@ -430,7 +444,10 @@ bool CorelliumAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
         kind = 4;
 
     if (this->m_rspConnector->TransmitAndReceive(RspData("z0,{:x},{}", breakpoint.m_address, kind)).AsString() != "OK" )
-        throw std::runtime_error("rsp reply failure on remove breakpoint");
+    {
+        LogWarn("rsp reply failure on remove breakpoint");
+        return false;
+    }
 
     if (auto location = std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(), breakpoint);
             location != this->m_debugBreakpoints.end())
@@ -512,7 +529,10 @@ std::unordered_map<std::string, DebugRegister> CorelliumAdapter::ReadAllRegister
 		return m_regCache.value();
 
     if ( this->m_registerInfo.empty() )
-        throw std::runtime_error("register info empty");
+    {
+        LogWarn("register info empty");
+        return {};
+    }
 
 	// Sort the registers according to their index, as the g reply packet will provide values in the same order
     std::vector<register_pair> register_info_vec{};
@@ -528,7 +548,10 @@ std::unordered_map<std::string, DebugRegister> CorelliumAdapter::ReadAllRegister
     const auto register_info_reply = this->m_rspConnector->TransmitAndReceive(RspData(&request, sizeof(request)));
     auto register_info_reply_string = register_info_reply.AsString();
     if ( register_info_reply_string.empty() )
-        throw std::runtime_error("register request reply empty");
+    {
+        LogWarn("register request reply empty");
+        return {};
+    }
 
     std::unordered_map<std::string, DebugRegister> all_regs{};
     for ( const auto& [register_name, register_info] : register_info_vec ) {
@@ -552,7 +575,10 @@ DebugRegister CorelliumAdapter::ReadRegister(const std::string& reg)
         return DebugRegister{};
 
     if ( this->m_registerInfo.find(reg) == this->m_registerInfo.end() )
-        throw std::runtime_error(fmt::format("register {} does not exist in target", reg));
+    {
+        LogWarn("register %s does not exist in target", reg.c_str());
+        return DebugRegister{};
+    }
 
     return this->ReadAllRegisters()[reg];
 }
@@ -651,7 +677,7 @@ DataBuffer CorelliumAdapter::ReadMemory(std::uintptr_t address, std::size_t size
                 return input - 'A' + 10;
             if(input >= 'a' && input <= 'f')
                 return input - 'a' + 10;
-            throw std::invalid_argument("Invalid input string");
+            return 0;
         };
 
         while(*src && src[1]) {
@@ -697,7 +723,10 @@ std::string CorelliumAdapter::GetRemoteFile(const std::string& path)
     int32_t error;
     int32_t ret = this->m_rspConnector->HostFileIO(RspData("vFile:setfs:0"), output, error);
     if (ret < 0)
-        throw runtime_error("Could not set remote filesystem");
+    {
+        LogWarn("Could not set remote filesystem");
+        return "";
+    }
 
     std::string path_hex_string{};
     for ( const auto& ch : path )
@@ -706,7 +735,10 @@ std::string CorelliumAdapter::GetRemoteFile(const std::string& path)
     ret = this->m_rspConnector->HostFileIO(
                     RspData("vFile:open:{},{:X},{:X}", path_hex_string.c_str(), 0, 0), output, error);
     if (ret < 0)
-        throw runtime_error("Unable to open file with host I/O");
+    {
+        LogWarn("Unable to open file with host I/O");
+        return "";
+    }
 
     int32_t fd = ret;
 
@@ -719,13 +751,19 @@ std::string CorelliumAdapter::GetRemoteFile(const std::string& path)
         ret = this->m_rspConnector->HostFileIO(
                     RspData("vFile:pread:{:X},{:X},{:X}", fd, blockSize, offset), output, error);
         if (ret < 0)
-            throw runtime_error(fmt::format("host i/o pread() failed, result=%d, errno=%d", ret, error));
+        {
+            LogWarn("host i/o pread() failed, result=%d, errno=%d", ret, error);
+            return data;
+        }
         if (ret == 0)
             // EOF
             break;
         if (ret != (int32_t)output.AsString().length())
-            throw runtime_error(fmt::format("host i/o pread() returned {:X} but decoded binary attachment is size {:X}",
-                    ret, output.AsString().length()));
+        {
+            LogWarn("host i/o pread() returned %X but decoded binary attachment is size %zX",
+                    ret, output.AsString().length());
+            return data;
+        }
         
         data += output.AsString();
         offset += output.AsString().length();
@@ -733,7 +771,7 @@ std::string CorelliumAdapter::GetRemoteFile(const std::string& path)
 
     ret = this->m_rspConnector->HostFileIO(RspData(fmt::format("vFile:close:{:X}", fd)), output, error);
     if (ret)
-        throw runtime_error(fmt::format("host i/o close() failed, result={}, errno={}", ret, error));
+        LogWarn("host i/o close() failed, result=%d, errno=%d", ret, error);
 
     return data;
 }
@@ -852,7 +890,7 @@ DebugStopReason CorelliumAdapter::ResponseHandler()
 						return input - 'A' + 10;
 					if(input >= 'a' && input <= 'f')
 						return input - 'a' + 10;
-					throw std::invalid_argument("Invalid input string");
+					return 0;
 				};
 
 				while(*src && src[1]) {
@@ -1240,7 +1278,7 @@ void CorelliumAdapter::HandleAsyncPacket(const RspData& data)
 				return input - 'A' + 10;
 			if(input >= 'a' && input <= 'f')
 				return input - 'a' + 10;
-			throw std::invalid_argument("Invalid input string");
+			return 0;
 		};
 
 		while(*src && src[1]) {
