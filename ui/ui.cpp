@@ -288,6 +288,62 @@ void GlobalDebuggerUI::QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_
 }
 
 
+void GlobalDebuggerUI::GoToNextTTDMemoryAccess(const UIActionContext& ctxt, uint64_t startAddr, uint64_t endAddr, BNDebuggerTTDMemoryAccessType accessType)
+{
+	auto controller = DebuggerController::GetController(ctxt.binaryView);
+	if (!controller)
+		return;
+
+	uint64_t size = endAddr - startAddr;
+	if (size == 0)
+		size = 1;
+
+	auto [success, event] = controller->GetTTDNextMemoryAccess(startAddr, size, static_cast<TTDMemoryAccessType>(accessType));
+	if (!success)
+	{
+		LogWarn("No next memory access found for address 0x%llx", startAddr);
+		return;
+	}
+
+	if (event.timeStart.sequence == 0 && event.timeStart.step == 0)
+	{
+		QMessageBox::information(nullptr, "TTD Next Memory Access",
+			QString("No next memory access found for address 0x%1").arg(startAddr, 0, 16));
+		return;
+	}
+
+	controller->SetTTDPosition(event.timeStart);
+}
+
+
+void GlobalDebuggerUI::GoToPrevTTDMemoryAccess(const UIActionContext& ctxt, uint64_t startAddr, uint64_t endAddr, BNDebuggerTTDMemoryAccessType accessType)
+{
+	auto controller = DebuggerController::GetController(ctxt.binaryView);
+	if (!controller)
+		return;
+
+	uint64_t size = endAddr - startAddr;
+	if (size == 0)
+		size = 1;
+
+	auto [success, event] = controller->GetTTDPrevMemoryAccess(startAddr, size, static_cast<TTDMemoryAccessType>(accessType));
+	if (!success)
+	{
+		LogWarn("No previous memory access found for address 0x%llx", startAddr);
+		return;
+	}
+
+	if (event.timeStart.sequence == 0 && event.timeStart.step == 0)
+	{
+		QMessageBox::information(nullptr, "TTD Prev Memory Access",
+			QString("No previous memory access found for address 0x%1").arg(startAddr, 0, 16));
+		return;
+	}
+
+	controller->SetTTDPosition(event.timeStart);
+}
+
+
 void GlobalDebuggerUI::QueryTTDCalls(const UIActionContext& ctxt, const std::string& symbols, uint64_t startReturnAddr, uint64_t endReturnAddr)
 {
 	// Focus the TTD Calls sidebar widget
@@ -1378,6 +1434,167 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			connectedToTTD));
 	debuggerMenu->addAction("TTD Memory Access\\Read/Write/Execute", "TTD");
+
+	// TTD Next/Prev Memory Access context menu items
+	UIAction::registerAction("TTD Next Memory Access\\Read");
+	context->globalActions()->bindAction("TTD Next Memory Access\\Read",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+				uint64_t startAddr, endAddr;
+				GetAddressRange(ctxt, startAddr, endAddr);
+				GoToNextTTDMemoryAccess(ctxt, startAddr, endAddr, DebuggerTTDMemoryRead);
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("TTD Next Memory Access\\Read", "TTD");
+
+	UIAction::registerAction("TTD Next Memory Access\\Write");
+	context->globalActions()->bindAction("TTD Next Memory Access\\Write",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+				uint64_t startAddr, endAddr;
+				GetAddressRange(ctxt, startAddr, endAddr);
+				GoToNextTTDMemoryAccess(ctxt, startAddr, endAddr, DebuggerTTDMemoryWrite);
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("TTD Next Memory Access\\Write", "TTD");
+
+	UIAction::registerAction("TTD Next Memory Access\\Read/Write");
+	context->globalActions()->bindAction("TTD Next Memory Access\\Read/Write",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+				uint64_t startAddr, endAddr;
+				GetAddressRange(ctxt, startAddr, endAddr);
+				GoToNextTTDMemoryAccess(ctxt, startAddr, endAddr, static_cast<BNDebuggerTTDMemoryAccessType>(DebuggerTTDMemoryRead | DebuggerTTDMemoryWrite));
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("TTD Next Memory Access\\Read/Write", "TTD");
+
+	UIAction::registerAction("TTD Next Memory Access\\Execute");
+	context->globalActions()->bindAction("TTD Next Memory Access\\Execute",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+				uint64_t startAddr, endAddr;
+				GetAddressRange(ctxt, startAddr, endAddr);
+				GoToNextTTDMemoryAccess(ctxt, startAddr, endAddr, DebuggerTTDMemoryExecute);
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("TTD Next Memory Access\\Execute", "TTD");
+
+	UIAction::registerAction("TTD Next Memory Access\\Read/Write/Execute");
+	context->globalActions()->bindAction("TTD Next Memory Access\\Read/Write/Execute",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+				uint64_t startAddr, endAddr;
+				GetAddressRange(ctxt, startAddr, endAddr);
+				GoToNextTTDMemoryAccess(ctxt, startAddr, endAddr, static_cast<BNDebuggerTTDMemoryAccessType>(DebuggerTTDMemoryRead | DebuggerTTDMemoryWrite | DebuggerTTDMemoryExecute));
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("TTD Next Memory Access\\Read/Write/Execute", "TTD");
+
+	UIAction::registerAction("TTD Prev Memory Access\\Read");
+	context->globalActions()->bindAction("TTD Prev Memory Access\\Read",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+				uint64_t startAddr, endAddr;
+				GetAddressRange(ctxt, startAddr, endAddr);
+				GoToPrevTTDMemoryAccess(ctxt, startAddr, endAddr, DebuggerTTDMemoryRead);
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("TTD Prev Memory Access\\Read", "TTD");
+
+	UIAction::registerAction("TTD Prev Memory Access\\Write");
+	context->globalActions()->bindAction("TTD Prev Memory Access\\Write",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+				uint64_t startAddr, endAddr;
+				GetAddressRange(ctxt, startAddr, endAddr);
+				GoToPrevTTDMemoryAccess(ctxt, startAddr, endAddr, DebuggerTTDMemoryWrite);
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("TTD Prev Memory Access\\Write", "TTD");
+
+	UIAction::registerAction("TTD Prev Memory Access\\Read/Write");
+	context->globalActions()->bindAction("TTD Prev Memory Access\\Read/Write",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+				uint64_t startAddr, endAddr;
+				GetAddressRange(ctxt, startAddr, endAddr);
+				GoToPrevTTDMemoryAccess(ctxt, startAddr, endAddr, static_cast<BNDebuggerTTDMemoryAccessType>(DebuggerTTDMemoryRead | DebuggerTTDMemoryWrite));
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("TTD Prev Memory Access\\Read/Write", "TTD");
+
+	UIAction::registerAction("TTD Prev Memory Access\\Execute");
+	context->globalActions()->bindAction("TTD Prev Memory Access\\Execute",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+				uint64_t startAddr, endAddr;
+				GetAddressRange(ctxt, startAddr, endAddr);
+				GoToPrevTTDMemoryAccess(ctxt, startAddr, endAddr, DebuggerTTDMemoryExecute);
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("TTD Prev Memory Access\\Execute", "TTD");
+
+	UIAction::registerAction("TTD Prev Memory Access\\Read/Write/Execute");
+	context->globalActions()->bindAction("TTD Prev Memory Access\\Read/Write/Execute",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+				uint64_t startAddr, endAddr;
+				GetAddressRange(ctxt, startAddr, endAddr);
+				GoToPrevTTDMemoryAccess(ctxt, startAddr, endAddr, static_cast<BNDebuggerTTDMemoryAccessType>(DebuggerTTDMemoryRead | DebuggerTTDMemoryWrite | DebuggerTTDMemoryExecute));
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("TTD Prev Memory Access\\Read/Write/Execute", "TTD");
 
 	// TTD Calls menu actions
 	UIAction::registerAction("TTD Calls\\Kernel32 Calls");

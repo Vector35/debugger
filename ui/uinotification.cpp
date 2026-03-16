@@ -200,6 +200,17 @@ void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, 
 	menu.addAction("Debugger", "TTD Memory Access\\Read/Write", "TTD");
 	menu.addAction("Debugger", "TTD Memory Access\\Execute", "TTD");
 	menu.addAction("Debugger", "TTD Memory Access\\Read/Write/Execute", "TTD");
+	// TTD Next/Prev Memory Access context menu items
+	menu.addAction("Debugger", "TTD Next Memory Access\\Read", "TTD");
+	menu.addAction("Debugger", "TTD Next Memory Access\\Write", "TTD");
+	menu.addAction("Debugger", "TTD Next Memory Access\\Read/Write", "TTD");
+	menu.addAction("Debugger", "TTD Next Memory Access\\Execute", "TTD");
+	menu.addAction("Debugger", "TTD Next Memory Access\\Read/Write/Execute", "TTD");
+	menu.addAction("Debugger", "TTD Prev Memory Access\\Read", "TTD");
+	menu.addAction("Debugger", "TTD Prev Memory Access\\Write", "TTD");
+	menu.addAction("Debugger", "TTD Prev Memory Access\\Read/Write", "TTD");
+	menu.addAction("Debugger", "TTD Prev Memory Access\\Execute", "TTD");
+	menu.addAction("Debugger", "TTD Prev Memory Access\\Read/Write/Execute", "TTD");
 	// TTD Calls context menu item
 	menu.addAction("Debugger", "TTD Calls\\Kernel32 Calls", "TTD");
 #endif

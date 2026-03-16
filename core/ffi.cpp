@@ -1297,6 +1297,48 @@ bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPos
 	return controller->object->SetTTDPosition(pos);
 }
 
+bool BNDebuggerGetTTDNextMemoryAccess(BNDebuggerController* controller,
+	uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, BNDebuggerTTDMemoryEvent* result)
+{
+	auto [success, event] = controller->object->GetTTDNextMemoryAccess(address, size, static_cast<TTDMemoryAccessType>(accessType));
+	if (!success || !result)
+		return false;
+
+	result->eventType = BNDebuggerAllocString(event.eventType.c_str());
+	result->threadId = event.threadId;
+	result->uniqueThreadId = event.uniqueThreadId;
+	result->timeStart = {event.timeStart.sequence, event.timeStart.step};
+	result->timeEnd = {event.timeEnd.sequence, event.timeEnd.step};
+	result->address = event.address;
+	result->size = event.size;
+	result->memoryAddress = event.memoryAddress;
+	result->instructionAddress = event.instructionAddress;
+	result->value = event.value;
+	result->accessType = static_cast<BNDebuggerTTDMemoryAccessType>(event.accessType);
+	return true;
+}
+
+bool BNDebuggerGetTTDPrevMemoryAccess(BNDebuggerController* controller,
+	uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, BNDebuggerTTDMemoryEvent* result)
+{
+	auto [success, event] = controller->object->GetTTDPrevMemoryAccess(address, size, static_cast<TTDMemoryAccessType>(accessType));
+	if (!success || !result)
+		return false;
+
+	result->eventType = BNDebuggerAllocString(event.eventType.c_str());
+	result->threadId = event.threadId;
+	result->uniqueThreadId = event.uniqueThreadId;
+	result->timeStart = {event.timeStart.sequence, event.timeStart.step};
+	result->timeEnd = {event.timeEnd.sequence, event.timeEnd.step};
+	result->address = event.address;
+	result->size = event.size;
+	result->memoryAddress = event.memoryAddress;
+	result->instructionAddress = event.instructionAddress;
+	result->value = event.value;
+	result->accessType = static_cast<BNDebuggerTTDMemoryAccessType>(event.accessType);
+	return true;
+}
+
 bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t address)
 {
 	return controller->object->IsInstructionExecuted(address);

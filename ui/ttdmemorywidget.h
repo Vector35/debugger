@@ -94,6 +94,8 @@ private:
 	QCheckBox* m_executeAccessCheck;
 	QPushButton* m_queryButton;
 	QPushButton* m_clearButton;
+	QPushButton* m_nextAccessButton;
+	QPushButton* m_prevAccessButton;
 	
 	// Results table
 	QTableWidget* m_resultsTable;
@@ -119,6 +121,7 @@ private:
 	void setupContextMenu();
 	void setupUIActions();
 	void updateColumnVisibility();
+	void selectRowByPosition(const TTDPosition& position);
 	bool canCopy();
 	
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
@@ -153,6 +156,8 @@ private Q_SLOTS:
 	void copySelectedCell();
 	void copySelectedRow();
 	void copyEntireTable();
+	void findNextMemoryAccess();
+	void findPrevMemoryAccess();
 };
 
 class TTDMemoryWidget : public QWidget
