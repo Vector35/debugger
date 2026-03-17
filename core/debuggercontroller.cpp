@@ -3220,6 +3220,156 @@ std::pair<bool, TTDMemoryEvent> DebuggerController::GetTTDPrevMemoryAccess(uint6
 }
 
 
+static const char* TTD_BOOKMARKS_METADATA_KEY = "debugger.ttd_bookmarks";
+
+std::vector<TTDBookmark> DebuggerController::GetTTDBookmarks()
+{
+	std::vector<TTDBookmark> result;
+	auto data = GetData();
+	if (!data)
+		return result;
+
+	Ref<Metadata> metadata = data->QueryMetadata(TTD_BOOKMARKS_METADATA_KEY);
+	if (!metadata || !metadata->IsArray())
+		return result;
+
+	for (auto& element : metadata->GetArray())
+	{
+		if (!element || !element->IsKeyValueStore())
+			continue;
+
+		auto info = element->GetKeyValueStore();
+		TTDBookmark bookmark;
+
+		if (info.count("sequence") && info["sequence"]->IsUnsignedInteger())
+			bookmark.position.sequence = info["sequence"]->GetUnsignedInteger();
+		else
+			continue;
+
+		if (info.count("step") && info["step"]->IsUnsignedInteger())
+			bookmark.position.step = info["step"]->GetUnsignedInteger();
+		else
+			continue;
+
+		if (info.count("view_address") && info["view_address"]->IsUnsignedInteger())
+			bookmark.viewAddress = info["view_address"]->GetUnsignedInteger();
+
+		if (info.count("note") && info["note"]->IsString())
+			bookmark.note = info["note"]->GetString();
+
+		result.push_back(bookmark);
+	}
+	return result;
+}
+
+static void SaveBookmarks(BinaryViewRef data, const std::vector<TTDBookmark>& bookmarks)
+{
+	std::vector<Ref<Metadata>> arr;
+	for (const auto& bm : bookmarks)
+	{
+		std::map<std::string, Ref<Metadata>> info;
+		info["sequence"] = new Metadata(bm.position.sequence);
+		info["step"] = new Metadata(bm.position.step);
+		info["view_address"] = new Metadata(bm.viewAddress);
+		info["note"] = new Metadata(bm.note);
+		arr.push_back(new Metadata(info));
+	}
+	data->StoreMetadata(TTD_BOOKMARKS_METADATA_KEY, new Metadata(arr));
+}
+
+bool DebuggerController::AddTTDBookmark(const TTDPosition& position, const std::string& note, uint64_t viewAddress)
+{
+	auto data = GetData();
+	if (!data)
+		return false;
+
+	auto bookmarks = GetTTDBookmarks();
+
+	// Deduplicate by position
+	for (auto& bm : bookmarks)
+	{
+		if (bm.position == position)
+		{
+			bm.note = note;
+			bm.viewAddress = viewAddress;
+			SaveBookmarks(data, bookmarks);
+
+			DebuggerEvent event;
+			event.type = TTDBookmarkChangedEvent;
+			PostDebuggerEvent(event);
+			return true;
+		}
+	}
+
+	bookmarks.emplace_back(position, note, viewAddress);
+	SaveBookmarks(data, bookmarks);
+
+	DebuggerEvent event;
+	event.type = TTDBookmarkChangedEvent;
+	PostDebuggerEvent(event);
+	return true;
+}
+
+bool DebuggerController::RemoveTTDBookmark(const TTDPosition& position)
+{
+	auto data = GetData();
+	if (!data)
+		return false;
+
+	auto bookmarks = GetTTDBookmarks();
+	auto it = std::remove_if(bookmarks.begin(), bookmarks.end(),
+		[&](const TTDBookmark& bm) { return bm.position == position; });
+
+	if (it == bookmarks.end())
+		return false;
+
+	bookmarks.erase(it, bookmarks.end());
+	SaveBookmarks(data, bookmarks);
+
+	DebuggerEvent event;
+	event.type = TTDBookmarkChangedEvent;
+	PostDebuggerEvent(event);
+	return true;
+}
+
+bool DebuggerController::UpdateTTDBookmark(const TTDPosition& position, const std::string& note, uint64_t viewAddress)
+{
+	auto data = GetData();
+	if (!data)
+		return false;
+
+	auto bookmarks = GetTTDBookmarks();
+	for (auto& bm : bookmarks)
+	{
+		if (bm.position == position)
+		{
+			bm.note = note;
+			bm.viewAddress = viewAddress;
+			SaveBookmarks(data, bookmarks);
+
+			DebuggerEvent event;
+			event.type = TTDBookmarkChangedEvent;
+			PostDebuggerEvent(event);
+			return true;
+		}
+	}
+	return false;
+}
+
+void DebuggerController::ClearTTDBookmarks()
+{
+	auto data = GetData();
+	if (!data)
+		return;
+
+	data->StoreMetadata(TTD_BOOKMARKS_METADATA_KEY, new Metadata(std::vector<Ref<Metadata>>()));
+
+	DebuggerEvent event;
+	event.type = TTDBookmarkChangedEvent;
+	PostDebuggerEvent(event);
+}
+
+
 bool DebuggerController::IsInstructionExecuted(uint64_t address)
 {
 	if (!m_state->IsConnected() || !IsTTD())

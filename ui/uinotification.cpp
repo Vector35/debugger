@@ -195,6 +195,7 @@ void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, 
 #ifdef WIN32
 	// TTD Memory Access context menu items
 	menu.addAction("Debugger", "Navigate to TTD Timestamp...", "TTD");
+	menu.addAction("Debugger", "Add TTD Bookmark...", "TTD");
 	menu.addAction("Debugger", "TTD Memory Access\\Read", "TTD");
 	menu.addAction("Debugger", "TTD Memory Access\\Write", "TTD");
 	menu.addAction("Debugger", "TTD Memory Access\\Read/Write", "TTD");

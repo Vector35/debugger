@@ -48,6 +48,7 @@ limitations under the License.
 #include "ttdmemorywidget.h"
 #include "ttdcallswidget.h"
 #include "ttdeventswidget.h"
+#include "ttdbookmarkwidget.h"
 #include "ttdanalysisdialog.h"
 #include "timestampnavigationdialog.h"
 #include "freeversion.h"
@@ -1273,6 +1274,10 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Column Visibility...");
 	UIAction::registerAction("Reset Columns to Default");
   UIAction::registerAction("Refresh");
+	UIAction::registerAction("Add TTD Bookmark...");
+	UIAction::registerAction("Bookmark Current Position");
+	UIAction::registerAction("Edit Bookmark...");
+	UIAction::registerAction("Remove Bookmark");
 
 #ifdef WIN32
 	UIAction::registerAction("Record TTD Trace");
@@ -1440,6 +1445,59 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			connectedToTTD));
 	debuggerMenu->addAction("Navigate to TTD Timestamp...", "TTD");
+
+	context->globalActions()->bindAction("Add TTD Bookmark...",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsTTD())
+					return;
+
+				TTDPosition currentPos = controller->GetCurrentTTDPosition();
+				QString posStr = QString("%1:%2").arg(currentPos.sequence, 0, 16).arg(currentPos.step, 0, 16);
+
+				// Get current view address
+				uint64_t viewAddress = 0;
+				ViewFrame* frame = ctxt.context->getCurrentViewFrame();
+				if (frame)
+					viewAddress = frame->getCurrentOffset();
+				QString viewAddrStr = viewAddress != 0 ? QString("0x%1").arg(viewAddress, 0, 16) : "";
+
+				QWidget* parent = ctxt.context->mainWindow();
+				TTDBookmarkEditDialog dialog(parent, posStr, "", viewAddrStr);
+				if (dialog.exec() == QDialog::Accepted)
+				{
+					QString editedPosStr = dialog.getPosition();
+					QStringList parts = editedPosStr.split(':');
+					if (parts.size() == 2)
+					{
+						bool ok1, ok2;
+						uint64_t seq = parts[0].toULongLong(&ok1, 16);
+						uint64_t stp = parts[1].toULongLong(&ok2, 16);
+						if (ok1 && ok2)
+						{
+							uint64_t addr = 0;
+							QString addrStr = dialog.getViewAddress();
+							if (!addrStr.isEmpty())
+							{
+								QString clean = addrStr.trimmed();
+								if (clean.startsWith("0x") || clean.startsWith("0X"))
+									clean = clean.mid(2);
+								bool aOk;
+								addr = clean.toULongLong(&aOk, 16);
+								if (!aOk)
+									addr = 0;
+							}
+							controller->AddTTDBookmark(TTDPosition(seq, stp), dialog.getNote().toStdString(), addr);
+						}
+					}
+				}
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("Add TTD Bookmark...", "TTD");
 
 	UIAction::registerAction("TTD Analysis...");
 	context->globalActions()->bindAction("TTD Analysis...",
@@ -1958,6 +2016,7 @@ void GlobalDebuggerUI::InitializeUI()
 	Sidebar::addSidebarWidgetType(new TTDMemoryWidgetType());
 	Sidebar::addSidebarWidgetType(new TTDCallsWidgetType());
 	Sidebar::addSidebarWidgetType(new TTDEventsWidgetType());
+	Sidebar::addSidebarWidgetType(new TTDBookmarkWidgetType());
 }
 
 

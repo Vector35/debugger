@@ -1339,6 +1339,60 @@ bool BNDebuggerGetTTDPrevMemoryAccess(BNDebuggerController* controller,
 	return true;
 }
 
+BNDebuggerTTDBookmark* BNDebuggerGetTTDBookmarks(BNDebuggerController* controller, size_t* count)
+{
+	auto bookmarks = controller->object->GetTTDBookmarks();
+	*count = bookmarks.size();
+	if (bookmarks.empty())
+		return nullptr;
+
+	auto* result = new BNDebuggerTTDBookmark[bookmarks.size()];
+	for (size_t i = 0; i < bookmarks.size(); ++i)
+	{
+		result[i].position.sequence = bookmarks[i].position.sequence;
+		result[i].position.step = bookmarks[i].position.step;
+		result[i].viewAddress = bookmarks[i].viewAddress;
+		result[i].note = BNDebuggerAllocString(bookmarks[i].note.c_str());
+	}
+	return result;
+}
+
+bool BNDebuggerAddTTDBookmark(BNDebuggerController* controller, BNDebuggerTTDPosition position, const char* note, uint64_t viewAddress)
+{
+	TTDPosition pos(position.sequence, position.step);
+	return controller->object->AddTTDBookmark(pos, note ? note : "", viewAddress);
+}
+
+bool BNDebuggerRemoveTTDBookmark(BNDebuggerController* controller, BNDebuggerTTDPosition position)
+{
+	TTDPosition pos(position.sequence, position.step);
+	return controller->object->RemoveTTDBookmark(pos);
+}
+
+bool BNDebuggerUpdateTTDBookmark(BNDebuggerController* controller, BNDebuggerTTDPosition position, const char* note, uint64_t viewAddress)
+{
+	TTDPosition pos(position.sequence, position.step);
+	return controller->object->UpdateTTDBookmark(pos, note ? note : "", viewAddress);
+}
+
+void BNDebuggerClearTTDBookmarks(BNDebuggerController* controller)
+{
+	controller->object->ClearTTDBookmarks();
+}
+
+void BNDebuggerFreeTTDBookmarks(BNDebuggerTTDBookmark* bookmarks, size_t count)
+{
+	if (!bookmarks)
+		return;
+
+	for (size_t i = 0; i < count; ++i)
+	{
+		BNDebuggerFreeString(bookmarks[i].note);
+	}
+	delete[] bookmarks;
+}
+
+
 bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t address)
 {
 	return controller->object->IsInstructionExecuted(address);

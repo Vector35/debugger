@@ -405,6 +405,13 @@ namespace BinaryNinjaDebugger {
 		std::pair<bool, TTDMemoryEvent> GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 		std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 
+		// TTD Bookmark Methods
+		std::vector<TTDBookmark> GetTTDBookmarks();
+		bool AddTTDBookmark(const TTDPosition& position, const std::string& note = "", uint64_t viewAddress = 0);
+		bool RemoveTTDBookmark(const TTDPosition& position);
+		bool UpdateTTDBookmark(const TTDPosition& position, const std::string& note, uint64_t viewAddress);
+		void ClearTTDBookmarks();
+
 		// TTD Code Coverage Analysis Methods
 		bool IsInstructionExecuted(uint64_t address);
 		bool RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress, TTDPosition startTime, TTDPosition endTime);

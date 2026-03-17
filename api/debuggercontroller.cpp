@@ -1430,6 +1430,51 @@ std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
 }
 
 
+std::vector<TTDBookmark> DebuggerController::GetTTDBookmarks()
+{
+	std::vector<TTDBookmark> result;
+	size_t count = 0;
+	BNDebuggerTTDBookmark* bookmarks = BNDebuggerGetTTDBookmarks(m_object, &count);
+	if (!bookmarks)
+		return result;
+
+	for (size_t i = 0; i < count; ++i)
+	{
+		TTDBookmark bm;
+		bm.position = TTDPosition(bookmarks[i].position.sequence, bookmarks[i].position.step);
+		bm.viewAddress = bookmarks[i].viewAddress;
+		bm.note = bookmarks[i].note ? std::string(bookmarks[i].note) : "";
+		result.push_back(bm);
+	}
+
+	BNDebuggerFreeTTDBookmarks(bookmarks, count);
+	return result;
+}
+
+bool DebuggerController::AddTTDBookmark(const TTDPosition& position, const std::string& note, uint64_t viewAddress)
+{
+	BNDebuggerTTDPosition pos = {position.sequence, position.step};
+	return BNDebuggerAddTTDBookmark(m_object, pos, note.c_str(), viewAddress);
+}
+
+bool DebuggerController::RemoveTTDBookmark(const TTDPosition& position)
+{
+	BNDebuggerTTDPosition pos = {position.sequence, position.step};
+	return BNDebuggerRemoveTTDBookmark(m_object, pos);
+}
+
+bool DebuggerController::UpdateTTDBookmark(const TTDPosition& position, const std::string& note, uint64_t viewAddress)
+{
+	BNDebuggerTTDPosition pos = {position.sequence, position.step};
+	return BNDebuggerUpdateTTDBookmark(m_object, pos, note.c_str(), viewAddress);
+}
+
+void DebuggerController::ClearTTDBookmarks()
+{
+	BNDebuggerClearTTDBookmarks(m_object);
+}
+
+
 bool DebuggerController::IsInstructionExecuted(uint64_t address)
 {
 	return BNDebuggerIsInstructionExecuted(m_object, address);
