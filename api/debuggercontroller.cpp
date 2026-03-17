@@ -1182,6 +1182,37 @@ bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 	return BNDebuggerSetTTDPosition(m_object, pos);
 }
 
+
+bool DebuggerController::TTDNavigateBack()
+{
+	return BNDebuggerTTDNavigateBack(m_object);
+}
+
+
+bool DebuggerController::TTDNavigateForward()
+{
+	return BNDebuggerTTDNavigateForward(m_object);
+}
+
+
+bool DebuggerController::CanTTDNavigateBack()
+{
+	return BNDebuggerCanTTDNavigateBack(m_object);
+}
+
+
+bool DebuggerController::CanTTDNavigateForward()
+{
+	return BNDebuggerCanTTDNavigateForward(m_object);
+}
+
+
+void DebuggerController::ClearTTDPositionHistory()
+{
+	BNDebuggerClearTTDPositionHistory(m_object);
+}
+
+
 std::pair<bool, TTDMemoryEvent> DebuggerController::GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
 {
 	BNDebuggerTTDMemoryEvent bnEvent = {};

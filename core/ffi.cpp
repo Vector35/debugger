@@ -1393,6 +1393,32 @@ void BNDebuggerFreeTTDBookmarks(BNDebuggerTTDBookmark* bookmarks, size_t count)
 }
 
 
+bool BNDebuggerTTDNavigateBack(BNDebuggerController* controller)
+{
+	return controller->object->TTDNavigateBack();
+}
+
+bool BNDebuggerTTDNavigateForward(BNDebuggerController* controller)
+{
+	return controller->object->TTDNavigateForward();
+}
+
+bool BNDebuggerCanTTDNavigateBack(BNDebuggerController* controller)
+{
+	return controller->object->CanTTDNavigateBack();
+}
+
+bool BNDebuggerCanTTDNavigateForward(BNDebuggerController* controller)
+{
+	return controller->object->CanTTDNavigateForward();
+}
+
+void BNDebuggerClearTTDPositionHistory(BNDebuggerController* controller)
+{
+	controller->object->ClearTTDPositionHistory();
+}
+
+
 bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t address)
 {
 	return controller->object->IsInstructionExecuted(address);

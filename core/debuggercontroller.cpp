@@ -1872,6 +1872,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		m_state->MarkDirty();
 		m_inputFileLoaded = false;
 		m_initialBreakpointSeen = false;
+		ClearTTDPositionHistory();
 		RemoveDebuggerMemoryRegion();
 		if (m_oldAnalysisState != HoldState)
 		{
@@ -1901,6 +1902,7 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 		UpdateStackVariables();
 		AddRegisterValuesToExpressionParser();
 		AddModuleValuesToExpressionParser();
+		RecordTTDPosition();
 		break;
 	}
 	case ActiveThreadChangedEvent:
@@ -3148,6 +3150,79 @@ std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
 	}
 
 	return m_adapter->GetAllTTDEvents();
+}
+
+
+void DebuggerController::RecordTTDPosition()
+{
+	if (!m_adapterSupportsTTD || !m_adapter || m_suppressTTDPositionRecording)
+		return;
+
+	TTDPosition position = m_adapter->GetCurrentTTDPosition();
+	if (position.sequence == 0 && position.step == 0)
+		return;
+
+	// If we're not at the end of the history (i.e., the user navigated back and then did something new),
+	// truncate the forward history
+	if (m_ttdPositionHistoryIndex >= 0
+		&& m_ttdPositionHistoryIndex < static_cast<int>(m_ttdPositionHistory.size()) - 1)
+	{
+		m_ttdPositionHistory.resize(m_ttdPositionHistoryIndex + 1);
+	}
+
+	// Don't record duplicates
+	if (!m_ttdPositionHistory.empty() && m_ttdPositionHistory.back() == position)
+		return;
+
+	m_ttdPositionHistory.push_back(position);
+	m_ttdPositionHistoryIndex = static_cast<int>(m_ttdPositionHistory.size()) - 1;
+}
+
+
+bool DebuggerController::TTDNavigateBack()
+{
+	if (!CanTTDNavigateBack())
+		return false;
+
+	m_ttdPositionHistoryIndex--;
+	m_suppressTTDPositionRecording = true;
+	bool result = SetTTDPosition(m_ttdPositionHistory[m_ttdPositionHistoryIndex]);
+	m_suppressTTDPositionRecording = false;
+	return result;
+}
+
+
+bool DebuggerController::TTDNavigateForward()
+{
+	if (!CanTTDNavigateForward())
+		return false;
+
+	m_ttdPositionHistoryIndex++;
+	m_suppressTTDPositionRecording = true;
+	bool result = SetTTDPosition(m_ttdPositionHistory[m_ttdPositionHistoryIndex]);
+	m_suppressTTDPositionRecording = false;
+	return result;
+}
+
+
+bool DebuggerController::CanTTDNavigateBack() const
+{
+	return m_adapterSupportsTTD && m_ttdPositionHistoryIndex > 0;
+}
+
+
+bool DebuggerController::CanTTDNavigateForward() const
+{
+	return m_adapterSupportsTTD
+		&& m_ttdPositionHistoryIndex >= 0
+		&& m_ttdPositionHistoryIndex < static_cast<int>(m_ttdPositionHistory.size()) - 1;
+}
+
+
+void DebuggerController::ClearTTDPositionHistory()
+{
+	m_ttdPositionHistory.clear();
+	m_ttdPositionHistoryIndex = -1;
 }
 
 

@@ -843,6 +843,13 @@ namespace BinaryNinjaDebuggerAPI {
 		std::pair<bool, TTDMemoryEvent> GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 		std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 
+		// TTD Position History Navigation
+		bool TTDNavigateBack();
+		bool TTDNavigateForward();
+		bool CanTTDNavigateBack();
+		bool CanTTDNavigateForward();
+		void ClearTTDPositionHistory();
+
 		// TTD Bookmark Methods
 		std::vector<TTDBookmark> GetTTDBookmarks();
 		bool AddTTDBookmark(const TTDPosition& position, const std::string& note = "", uint64_t viewAddress = 0);

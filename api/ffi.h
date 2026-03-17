@@ -718,6 +718,13 @@ extern "C"
 	DEBUGGER_FFI_API void BNDebuggerClearTTDBookmarks(BNDebuggerController* controller);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDBookmarks(BNDebuggerTTDBookmark* bookmarks, size_t count);
 
+	// TTD Position History Navigation
+	DEBUGGER_FFI_API bool BNDebuggerTTDNavigateBack(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerTTDNavigateForward(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerCanTTDNavigateBack(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerCanTTDNavigateForward(BNDebuggerController* controller);
+	DEBUGGER_FFI_API void BNDebuggerClearTTDPositionHistory(BNDebuggerController* controller);
+
 	// TTD Code Coverage Analysis Functions
 	DEBUGGER_FFI_API bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t address);
 	DEBUGGER_FFI_API bool BNDebuggerRunCodeCoverageAnalysisRange(BNDebuggerController* controller, uint64_t startAddress, uint64_t endAddress, BNDebuggerTTDPosition startTime, BNDebuggerTTDPosition endTime);
