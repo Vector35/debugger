@@ -144,12 +144,12 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	});
 	m_actionTimestampNavigation->setToolTip(getToolTip("Navigate to TTD Timestamp..."));
 
-	m_actionTTDNavigateBack = addAction(getColoredIcon(":/debugger/resume-reverse", cyan), "TTD Navigate Back", [this]() {
+	m_actionTTDNavigateBack = addAction(getColoredIcon(":/debugger/ttd-back", cyan), "TTD Navigate Back", [this]() {
 		performTTDNavigateBack();
 	});
 	m_actionTTDNavigateBack->setToolTip(getToolTip("TTD Navigate Back"));
 
-	m_actionTTDNavigateForward = addAction(getColoredIcon(":/debugger/resume", cyan), "TTD Navigate Forward", [this]() {
+	m_actionTTDNavigateForward = addAction(getColoredIcon(":/debugger/ttd-forward", cyan), "TTD Navigate Forward", [this]() {
 		performTTDNavigateForward();
 	});
 	m_actionTTDNavigateForward->setToolTip(getToolTip("TTD Navigate Forward"));

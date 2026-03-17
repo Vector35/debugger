@@ -26,5 +26,7 @@
         <file alias="ttd-calls">icons/ttd-calls.png</file>
         <file alias="ttd-timestamp">icons/ttd-timestamp.png</file>
         <file alias="ttd-events">icons/ttd-events.png</file>
+        <file alias="ttd-back">icons/ttd-back.png</file>
+        <file alias="ttd-forward">icons/ttd-forward.png</file>
     </qresource>
 </RCC>
