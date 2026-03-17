@@ -1182,6 +1182,62 @@ bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 	return BNDebuggerSetTTDPosition(m_object, pos);
 }
 
+std::pair<bool, TTDMemoryEvent> DebuggerController::GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+{
+	BNDebuggerTTDMemoryEvent bnEvent = {};
+	BNDebuggerTTDMemoryAccessType type = static_cast<BNDebuggerTTDMemoryAccessType>(accessType);
+
+	bool success = BNDebuggerGetTTDNextMemoryAccess(m_object, address, size, type, &bnEvent);
+	if (!success)
+		return {false, TTDMemoryEvent()};
+
+	TTDMemoryEvent event;
+	event.eventType = bnEvent.eventType ? std::string(bnEvent.eventType) : "";
+	event.threadId = bnEvent.threadId;
+	event.uniqueThreadId = bnEvent.uniqueThreadId;
+	event.timeStart = TTDPosition(bnEvent.timeStart.sequence, bnEvent.timeStart.step);
+	event.timeEnd = TTDPosition(bnEvent.timeEnd.sequence, bnEvent.timeEnd.step);
+	event.address = bnEvent.address;
+	event.size = bnEvent.size;
+	event.memoryAddress = bnEvent.memoryAddress;
+	event.instructionAddress = bnEvent.instructionAddress;
+	event.value = bnEvent.value;
+	event.accessType = static_cast<TTDMemoryAccessType>(bnEvent.accessType);
+
+	if (bnEvent.eventType)
+		BNDebuggerFreeString(bnEvent.eventType);
+
+	return {true, event};
+}
+
+std::pair<bool, TTDMemoryEvent> DebuggerController::GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+{
+	BNDebuggerTTDMemoryEvent bnEvent = {};
+	BNDebuggerTTDMemoryAccessType type = static_cast<BNDebuggerTTDMemoryAccessType>(accessType);
+
+	bool success = BNDebuggerGetTTDPrevMemoryAccess(m_object, address, size, type, &bnEvent);
+	if (!success)
+		return {false, TTDMemoryEvent()};
+
+	TTDMemoryEvent event;
+	event.eventType = bnEvent.eventType ? std::string(bnEvent.eventType) : "";
+	event.threadId = bnEvent.threadId;
+	event.uniqueThreadId = bnEvent.uniqueThreadId;
+	event.timeStart = TTDPosition(bnEvent.timeStart.sequence, bnEvent.timeStart.step);
+	event.timeEnd = TTDPosition(bnEvent.timeEnd.sequence, bnEvent.timeEnd.step);
+	event.address = bnEvent.address;
+	event.size = bnEvent.size;
+	event.memoryAddress = bnEvent.memoryAddress;
+	event.instructionAddress = bnEvent.instructionAddress;
+	event.value = bnEvent.value;
+	event.accessType = static_cast<TTDMemoryAccessType>(bnEvent.accessType);
+
+	if (bnEvent.eventType)
+		BNDebuggerFreeString(bnEvent.eventType);
+
+	return {true, event};
+}
+
 std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
 {
 	std::vector<TTDCallEvent> result;

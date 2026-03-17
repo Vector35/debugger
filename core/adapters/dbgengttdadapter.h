@@ -54,6 +54,10 @@ namespace BinaryNinjaDebugger {
 		TTDPosition GetCurrentTTDPosition() override;
 		bool SetTTDPosition(const TTDPosition& position) override;
 
+		// TTD Next/Prev Memory Access Methods
+		std::pair<bool, TTDMemoryEvent> GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType) override;
+		std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType) override;
+
     	// TTD Calls Analysis Methods
     	std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0) override;
 
@@ -92,6 +96,7 @@ namespace BinaryNinjaDebugger {
 		std::string EvaluateDataModelExpression(const std::string& expression);
 		bool ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
 		bool ParseTTDPositionRangeIndexedMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDPositionRangeIndexedMemoryEvent>& events);
+		std::pair<bool, TTDMemoryEvent> ParseSingleTTDMemoryObject(const std::string& expression, TTDMemoryAccessType accessType);
 
 		// Data model interfaces for TTD
 		IHostDataModelAccess* m_dataModelManager;

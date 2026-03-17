@@ -3186,6 +3186,40 @@ bool DebuggerController::SetTTDPosition(const TTDPosition& position)
 }
 
 
+std::pair<bool, TTDMemoryEvent> DebuggerController::GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+{
+	if (!m_state->IsConnected() || !IsTTD())
+	{
+		LogWarn("Current adapter does not support TTD");
+		return {false, TTDMemoryEvent()};
+	}
+
+	if (m_adapter)
+	{
+		return m_adapter->GetTTDNextMemoryAccess(address, size, accessType);
+	}
+
+	return {false, TTDMemoryEvent()};
+}
+
+
+std::pair<bool, TTDMemoryEvent> DebuggerController::GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+{
+	if (!m_state->IsConnected() || !IsTTD())
+	{
+		LogWarn("Current adapter does not support TTD");
+		return {false, TTDMemoryEvent()};
+	}
+
+	if (m_adapter)
+	{
+		return m_adapter->GetTTDPrevMemoryAccess(address, size, accessType);
+	}
+
+	return {false, TTDMemoryEvent()};
+}
+
+
 bool DebuggerController::IsInstructionExecuted(uint64_t address)
 {
 	if (!m_state->IsConnected() || !IsTTD())

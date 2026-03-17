@@ -2553,6 +2553,74 @@ class DebuggerController:
             binaryninja.log_error(f"Invalid timestamp format: {e}")
             return False
 
+    def get_ttd_next_memory_access(self, address: int, size: int, access_type = DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead):
+        """
+        Get the next memory access to a specific address from the current TTD position.
+
+        This is more efficient than pulling all accesses and searching, as it uses
+        the TTD NextMemoryAccess API directly.
+
+        :param address: memory address to monitor
+        :param size: size of the memory region in bytes
+        :param access_type: type of memory access to query (read/write/execute)
+        :return: TTDMemoryEvent if found, None if no subsequent access exists
+        """
+        parsed_access_type = parse_ttd_access_type(access_type)
+        result = dbgcore.BNDebuggerTTDMemoryEvent()
+        success = dbgcore.BNDebuggerGetTTDNextMemoryAccess(self.handle, address, size, parsed_access_type, result)
+        if not success:
+            return None
+
+        time_start = TTDPosition(result.timeStart.sequence, result.timeStart.step)
+        time_end = TTDPosition(result.timeEnd.sequence, result.timeEnd.step)
+        return TTDMemoryEvent(
+            event_type=result.eventType if result.eventType else "",
+            thread_id=result.threadId,
+            unique_thread_id=result.uniqueThreadId,
+            time_start=time_start,
+            time_end=time_end,
+            address=result.address,
+            size=result.size,
+            memory_address=result.memoryAddress,
+            instruction_address=result.instructionAddress,
+            value=result.value,
+            access_type=result.accessType
+        )
+
+    def get_ttd_prev_memory_access(self, address: int, size: int, access_type = DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead):
+        """
+        Get the previous memory access to a specific address from the current TTD position.
+
+        This is more efficient than pulling all accesses and searching, as it uses
+        the TTD PrevMemoryAccess API directly.
+
+        :param address: memory address to monitor
+        :param size: size of the memory region in bytes
+        :param access_type: type of memory access to query (read/write/execute)
+        :return: TTDMemoryEvent if found, None if no prior access exists
+        """
+        parsed_access_type = parse_ttd_access_type(access_type)
+        result = dbgcore.BNDebuggerTTDMemoryEvent()
+        success = dbgcore.BNDebuggerGetTTDPrevMemoryAccess(self.handle, address, size, parsed_access_type, result)
+        if not success:
+            return None
+
+        time_start = TTDPosition(result.timeStart.sequence, result.timeStart.step)
+        time_end = TTDPosition(result.timeEnd.sequence, result.timeEnd.step)
+        return TTDMemoryEvent(
+            event_type=result.eventType if result.eventType else "",
+            thread_id=result.threadId,
+            unique_thread_id=result.uniqueThreadId,
+            time_start=time_start,
+            time_end=time_end,
+            address=result.address,
+            size=result.size,
+            memory_address=result.memoryAddress,
+            instruction_address=result.instructionAddress,
+            value=result.value,
+            access_type=result.accessType
+        )
+
     def get_ttd_memory_access_for_address(self, address: int, end_address: int, access_type = DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead) -> List[TTDMemoryEvent]:
         """
         Get TTD memory access events for a specific address range.

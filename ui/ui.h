@@ -59,6 +59,7 @@ public:
 	void SetupMenu(UIContext* context);
 	void GetAddressRange(const UIActionContext& ctxt, uint64_t& startAddr, uint64_t& endAddr);
 	void QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_t startAddr, uint64_t endAddr, BNDebuggerTTDMemoryAccessType accessType);
+	void ShowTTDMemoryAccessNextPrevDialog(const UIActionContext& ctxt, uint64_t startAddr, uint64_t endAddr);
 	void QueryTTDCalls(const UIActionContext& ctxt, const std::string& symbols, uint64_t startReturnAddr = 0, uint64_t endReturnAddr = 0);
 
 	void SetDisplayingGlobalAreaWidgets(bool display);

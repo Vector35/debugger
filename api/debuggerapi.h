@@ -828,6 +828,8 @@ namespace BinaryNinjaDebuggerAPI {
 		std::vector<TTDEvent> GetAllTTDEvents();
 		TTDPosition GetCurrentTTDPosition();
 		bool SetTTDPosition(const TTDPosition& position);
+		std::pair<bool, TTDMemoryEvent> GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
+		std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 
 		// TTD Code Coverage Analysis Methods
 		bool IsInstructionExecuted(uint64_t address);

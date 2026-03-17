@@ -94,6 +94,8 @@ private:
 	QCheckBox* m_executeAccessCheck;
 	QPushButton* m_queryButton;
 	QPushButton* m_clearButton;
+	QPushButton* m_nextAccessButton;
+	QPushButton* m_prevAccessButton;
 	
 	// Results table
 	QTableWidget* m_resultsTable;
@@ -119,6 +121,7 @@ private:
 	void setupContextMenu();
 	void setupUIActions();
 	void updateColumnVisibility();
+	void selectRowByPosition(const TTDPosition& position);
 	bool canCopy();
 	
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
@@ -153,6 +156,8 @@ private Q_SLOTS:
 	void copySelectedCell();
 	void copySelectedRow();
 	void copyEntireTable();
+	void findNextMemoryAccess();
+	void findPrevMemoryAccess();
 };
 
 class TTDMemoryWidget : public QWidget
@@ -198,6 +203,33 @@ public:
 	// Method to access the TTD Memory widget for context menu actions
 	void setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
 	void setParametersAndQueryInNewTab(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
+};
+
+
+class TTDMemoryAccessNextPrevDialog : public QDialog
+{
+	Q_OBJECT
+
+public:
+	TTDMemoryAccessNextPrevDialog(QWidget* parent, BinaryViewRef data, uint64_t startAddr, uint64_t endAddr);
+
+private:
+	BinaryViewRef m_data;
+	DbgRef<DebuggerController> m_controller;
+
+	QLineEdit* m_startAddressEdit;
+	QLineEdit* m_endAddressEdit;
+	QCheckBox* m_readAccessCheck;
+	QCheckBox* m_writeAccessCheck;
+	QCheckBox* m_executeAccessCheck;
+	QLabel* m_statusLabel;
+
+	uint64_t parseAddress(const QString& text);
+	TTDMemoryAccessType getSelectedAccessTypes();
+
+private Q_SLOTS:
+	void findNext();
+	void findPrev();
 };
 
 

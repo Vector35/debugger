@@ -261,3 +261,17 @@ bool DebugAdapter::SetTTDPosition(const TTDPosition& position)
 }
 
 
+std::pair<bool, TTDMemoryEvent> DebugAdapter::GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+{
+	// Default implementation returns failure for adapters that don't support TTD
+	return {false, TTDMemoryEvent()};
+}
+
+
+std::pair<bool, TTDMemoryEvent> DebugAdapter::GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+{
+	// Default implementation returns failure for adapters that don't support TTD
+	return {false, TTDMemoryEvent()};
+}
+
+

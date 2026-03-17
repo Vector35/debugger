@@ -207,15 +207,27 @@ void TTDMemoryQueryWidget::setupUI()
 	m_queryButton = new QPushButton("Query Memory Events");
 	m_queryButton->setToolTip("Execute TTD memory analysis query");
 	connect(m_queryButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::performQuery);
-	
+
 	m_clearButton = new QPushButton("Clear Results");
 	m_clearButton->setToolTip("Clear the results table");
 	connect(m_clearButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::clearResults);
-	
+
+	m_prevAccessButton = new QPushButton("Prev");
+	m_prevAccessButton->setToolTip("Find the previous memory access to the start address from the current TTD position and time travel to it");
+	m_prevAccessButton->setEnabled(false);
+	connect(m_prevAccessButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::findPrevMemoryAccess);
+
+	m_nextAccessButton = new QPushButton("Next");
+	m_nextAccessButton->setToolTip("Find the next memory access to the start address from the current TTD position and time travel to it");
+	m_nextAccessButton->setEnabled(false);
+	connect(m_nextAccessButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::findNextMemoryAccess);
+
 	buttonLayout->addWidget(m_queryButton);
 	buttonLayout->addWidget(m_clearButton);
+	buttonLayout->addWidget(m_prevAccessButton);
+	buttonLayout->addWidget(m_nextAccessButton);
 	buttonLayout->addStretch();
-	
+
 	inputLayout->addRow("", buttonLayout);
 	
 	// Connect Enter key press in line edits to perform query
@@ -464,6 +476,11 @@ void TTDMemoryQueryWidget::performQuery()
 		}
 		
 		updateStatus(QString("Found %1 memory access events").arg(events.size()));
+
+		// Enable prev/next buttons if there are results
+		bool hasResults = events.size() > 0;
+		m_prevAccessButton->setEnabled(hasResults);
+		m_nextAccessButton->setEnabled(hasResults);
 	}
 	catch (const std::exception& e)
 	{
@@ -479,6 +496,8 @@ void TTDMemoryQueryWidget::performQuery()
 void TTDMemoryQueryWidget::clearResults()
 {
 	m_resultsTable->setRowCount(0);
+	m_prevAccessButton->setEnabled(false);
+	m_nextAccessButton->setEnabled(false);
 	updateStatus("Results cleared");
 }
 
@@ -657,6 +676,132 @@ void TTDMemoryQueryWidget::copyEntireTable()
 	
 	QClipboard* clipboard = QApplication::clipboard();
 	clipboard->setText(tableData.join("\n"));
+}
+
+void TTDMemoryQueryWidget::selectRowByPosition(const TTDPosition& position)
+{
+	uint64_t targetSortValue = (position.sequence << 32) | (position.step & 0xFFFFFFFF);
+
+	for (int row = 0; row < m_resultsTable->rowCount(); ++row)
+	{
+		QTableWidgetItem* posItem = m_resultsTable->item(row, PositionColumn);
+		if (!posItem)
+			continue;
+
+		if (posItem->data(Qt::UserRole).toULongLong() == targetSortValue)
+		{
+			m_resultsTable->selectRow(row);
+			m_resultsTable->scrollToItem(posItem);
+			return;
+		}
+	}
+
+	// No matching row found - just clear selection
+	m_resultsTable->clearSelection();
+}
+
+void TTDMemoryQueryWidget::findNextMemoryAccess()
+{
+	if (!m_controller || !m_controller->IsTTD())
+	{
+		QMessageBox::warning(this, "TTD Not Available",
+			"Time Travel Debugging is not available with the current target.");
+		return;
+	}
+
+	uint64_t startAddress = parseAddress(m_startAddressEdit->text());
+	uint64_t endAddress = parseAddress(m_endAddressEdit->text());
+	TTDMemoryAccessType accessType = getSelectedAccessTypes();
+	if (accessType == 0)
+	{
+		QMessageBox::warning(this, "No Access Type Selected",
+			"Please select at least one memory access type (Read, Write, or Execute).");
+		return;
+	}
+
+	uint64_t size = (endAddress > startAddress) ? (endAddress - startAddress) : 1;
+
+	updateStatus("Finding next memory access...");
+	QApplication::processEvents();
+
+	auto [success, event] = m_controller->GetTTDNextMemoryAccess(startAddress, size, accessType);
+	if (!success)
+	{
+		updateStatus("No next memory access found");
+		return;
+	}
+
+	if (event.timeStart.sequence == 0 && event.timeStart.step == 0)
+	{
+		QMessageBox::information(this, "TTD Next Memory Access",
+			QString("No next memory access found for address 0x%1").arg(startAddress, 0, 16));
+		updateStatus("No next memory access found");
+		return;
+	}
+
+	selectRowByPosition(event.timeStart);
+
+	if (m_controller->SetTTDPosition(event.timeStart))
+	{
+		QString posStr = QString("%1:%2").arg(event.timeStart.sequence, 0, 16).arg(event.timeStart.step, 0, 16);
+		updateStatus(QString("Time traveled to next memory access at position %1").arg(posStr));
+	}
+	else
+	{
+		updateStatus("Found next memory access but failed to time travel to it");
+	}
+}
+
+void TTDMemoryQueryWidget::findPrevMemoryAccess()
+{
+	if (!m_controller || !m_controller->IsTTD())
+	{
+		QMessageBox::warning(this, "TTD Not Available",
+			"Time Travel Debugging is not available with the current target.");
+		return;
+	}
+
+	uint64_t startAddress = parseAddress(m_startAddressEdit->text());
+	uint64_t endAddress = parseAddress(m_endAddressEdit->text());
+	TTDMemoryAccessType accessType = getSelectedAccessTypes();
+	if (accessType == 0)
+	{
+		QMessageBox::warning(this, "No Access Type Selected",
+			"Please select at least one memory access type (Read, Write, or Execute).");
+		return;
+	}
+
+	uint64_t size = (endAddress > startAddress) ? (endAddress - startAddress) : 1;
+
+	updateStatus("Finding previous memory access...");
+	QApplication::processEvents();
+
+	auto [success, event] = m_controller->GetTTDPrevMemoryAccess(startAddress, size, accessType);
+	if (!success)
+	{
+		updateStatus("No previous memory access found");
+		return;
+	}
+
+	if (event.timeStart.sequence == 0 && event.timeStart.step == 0)
+	{
+		QMessageBox::information(this, "TTD Prev Memory Access",
+			QString("No previous memory access found for address 0x%1").arg(startAddress, 0, 16));
+		updateStatus("No previous memory access found");
+		return;
+	}
+
+	selectRowByPosition(event.timeStart);
+
+	if (m_controller->SetTTDPosition(event.timeStart))
+	{
+		QString posStr = QString("%1:%2").arg(event.timeStart.sequence, 0, 16).arg(event.timeStart.step, 0, 16);
+		updateStatus(QString("Time traveled to previous memory access at position %1").arg(posStr));
+	}
+	else
+	{
+		updateStatus("Found previous memory access but failed to time travel to it");
+	}
 }
 
 void TTDMemoryQueryWidget::resetColumnsToDefault()
@@ -927,6 +1072,175 @@ void TTDMemorySidebarWidget::setParametersAndQueryInNewTab(uint64_t startAddr, u
 	if (m_memoryWidget)
 	{
 		m_memoryWidget->setParametersAndQueryInNewTab(startAddr, endAddr, accessType);
+	}
+}
+
+
+// TTDMemoryAccessNextPrevDialog implementation
+TTDMemoryAccessNextPrevDialog::TTDMemoryAccessNextPrevDialog(QWidget* parent, BinaryViewRef data, uint64_t startAddr, uint64_t endAddr)
+	: QDialog(parent), m_data(data)
+{
+	m_controller = DebuggerController::GetController(m_data);
+
+	setWindowTitle("TTD Memory Access (Next/Prev)");
+	setModal(true);
+
+	QVBoxLayout* mainLayout = new QVBoxLayout(this);
+
+	// Address inputs
+	QFormLayout* inputLayout = new QFormLayout();
+
+	QHBoxLayout* addressLayout = new QHBoxLayout();
+	m_startAddressEdit = new QLineEdit();
+	m_startAddressEdit->setText(QString("0x%1").arg(startAddr, 0, 16));
+	m_startAddressEdit->setToolTip("Start address in hexadecimal format");
+	m_endAddressEdit = new QLineEdit();
+	m_endAddressEdit->setText(QString("0x%1").arg(endAddr, 0, 16));
+	m_endAddressEdit->setToolTip("End address in hexadecimal format");
+	addressLayout->addWidget(new QLabel("Start:"));
+	addressLayout->addWidget(m_startAddressEdit);
+	addressLayout->addWidget(new QLabel("End:"));
+	addressLayout->addWidget(m_endAddressEdit);
+	inputLayout->addRow("Address Range:", addressLayout);
+
+	// Access type checkboxes — default to X if address is in a function, otherwise RW
+	bool hasFunction = m_data && !m_data->GetAnalysisFunctionsContainingAddress(startAddr).empty();
+
+	QHBoxLayout* accessLayout = new QHBoxLayout();
+	m_readAccessCheck = new QCheckBox("Read");
+	m_readAccessCheck->setChecked(!hasFunction);
+	m_writeAccessCheck = new QCheckBox("Write");
+	m_writeAccessCheck->setChecked(!hasFunction);
+	m_executeAccessCheck = new QCheckBox("Execute");
+	m_executeAccessCheck->setChecked(hasFunction);
+	accessLayout->addWidget(m_readAccessCheck);
+	accessLayout->addWidget(m_writeAccessCheck);
+	accessLayout->addWidget(m_executeAccessCheck);
+	accessLayout->addStretch();
+	inputLayout->addRow("Access Types:", accessLayout);
+
+	mainLayout->addLayout(inputLayout);
+
+	// Status label
+	m_statusLabel = new QLabel("Select access types and click \xe2\x97\x80 Prev or Next \xe2\x96\xb6.");
+	mainLayout->addWidget(m_statusLabel);
+
+	// Buttons: Prev, Next, Close
+	QHBoxLayout* buttonLayout = new QHBoxLayout();
+	QPushButton* prevButton = new QPushButton("\xe2\x97\x80 Prev");
+	prevButton->setToolTip("Find the previous memory access and time travel to it");
+	connect(prevButton, &QPushButton::clicked, this, &TTDMemoryAccessNextPrevDialog::findPrev);
+
+	QPushButton* nextButton = new QPushButton("Next \xe2\x96\xb6");
+	nextButton->setToolTip("Find the next memory access and time travel to it");
+	connect(nextButton, &QPushButton::clicked, this, &TTDMemoryAccessNextPrevDialog::findNext);
+
+	QPushButton* closeButton = new QPushButton("Close");
+	connect(closeButton, &QPushButton::clicked, this, &QDialog::close);
+
+	buttonLayout->addStretch();
+	buttonLayout->addWidget(prevButton);
+	buttonLayout->addWidget(nextButton);
+	buttonLayout->addWidget(closeButton);
+	mainLayout->addLayout(buttonLayout);
+}
+
+uint64_t TTDMemoryAccessNextPrevDialog::parseAddress(const QString& text)
+{
+	uint64_t address = 0;
+	ParseAddress(text, m_data, address);
+	return address;
+}
+
+TTDMemoryAccessType TTDMemoryAccessNextPrevDialog::getSelectedAccessTypes()
+{
+	TTDMemoryAccessType accessType = static_cast<TTDMemoryAccessType>(0);
+	if (m_readAccessCheck->isChecked())
+		accessType = static_cast<TTDMemoryAccessType>(accessType | TTDMemoryRead);
+	if (m_writeAccessCheck->isChecked())
+		accessType = static_cast<TTDMemoryAccessType>(accessType | TTDMemoryWrite);
+	if (m_executeAccessCheck->isChecked())
+		accessType = static_cast<TTDMemoryAccessType>(accessType | TTDMemoryExecute);
+	return accessType;
+}
+
+void TTDMemoryAccessNextPrevDialog::findNext()
+{
+	if (!m_controller || !m_controller->IsTTD())
+	{
+		m_statusLabel->setText("TTD is not available.");
+		return;
+	}
+
+	TTDMemoryAccessType accessType = getSelectedAccessTypes();
+	if (accessType == 0)
+	{
+		m_statusLabel->setText("Please select at least one access type.");
+		return;
+	}
+
+	uint64_t startAddress = parseAddress(m_startAddressEdit->text());
+	uint64_t endAddress = parseAddress(m_endAddressEdit->text());
+	uint64_t size = (endAddress > startAddress) ? (endAddress - startAddress) : 1;
+
+	m_statusLabel->setText("Finding next memory access...");
+	QApplication::processEvents();
+
+	auto [success, event] = m_controller->GetTTDNextMemoryAccess(startAddress, size, accessType);
+	if (!success || (event.timeStart.sequence == 0 && event.timeStart.step == 0))
+	{
+		m_statusLabel->setText(QString("No next memory access found for address 0x%1.").arg(startAddress, 0, 16));
+		return;
+	}
+
+	if (m_controller->SetTTDPosition(event.timeStart))
+	{
+		QString posStr = QString("%1:%2").arg(event.timeStart.sequence, 0, 16).arg(event.timeStart.step, 0, 16);
+		m_statusLabel->setText(QString("Time traveled to position %1.").arg(posStr));
+	}
+	else
+	{
+		m_statusLabel->setText("Found next access but failed to time travel.");
+	}
+}
+
+void TTDMemoryAccessNextPrevDialog::findPrev()
+{
+	if (!m_controller || !m_controller->IsTTD())
+	{
+		m_statusLabel->setText("TTD is not available.");
+		return;
+	}
+
+	TTDMemoryAccessType accessType = getSelectedAccessTypes();
+	if (accessType == 0)
+	{
+		m_statusLabel->setText("Please select at least one access type.");
+		return;
+	}
+
+	uint64_t startAddress = parseAddress(m_startAddressEdit->text());
+	uint64_t endAddress = parseAddress(m_endAddressEdit->text());
+	uint64_t size = (endAddress > startAddress) ? (endAddress - startAddress) : 1;
+
+	m_statusLabel->setText("Finding previous memory access...");
+	QApplication::processEvents();
+
+	auto [success, event] = m_controller->GetTTDPrevMemoryAccess(startAddress, size, accessType);
+	if (!success || (event.timeStart.sequence == 0 && event.timeStart.step == 0))
+	{
+		m_statusLabel->setText(QString("No previous memory access found for address 0x%1.").arg(startAddress, 0, 16));
+		return;
+	}
+
+	if (m_controller->SetTTDPosition(event.timeStart))
+	{
+		QString posStr = QString("%1:%2").arg(event.timeStart.sequence, 0, 16).arg(event.timeStart.step, 0, 16);
+		m_statusLabel->setText(QString("Time traveled to position %1.").arg(posStr));
+	}
+	else
+	{
+		m_statusLabel->setText("Found previous access but failed to time travel.");
 	}
 }
 

@@ -692,6 +692,10 @@ extern "C"
 	DEBUGGER_FFI_API BNDebuggerTTDEvent* BNDebuggerGetAllTTDEvents(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API BNDebuggerTTDPosition BNDebuggerGetCurrentTTDPosition(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerSetTTDPosition(BNDebuggerController* controller, BNDebuggerTTDPosition position);
+	DEBUGGER_FFI_API bool BNDebuggerGetTTDNextMemoryAccess(BNDebuggerController* controller,
+		uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, BNDebuggerTTDMemoryEvent* result);
+	DEBUGGER_FFI_API bool BNDebuggerGetTTDPrevMemoryAccess(BNDebuggerController* controller,
+		uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, BNDebuggerTTDMemoryEvent* result);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDPositionRangeIndexedMemoryEvents(BNDebuggerTTDPositionRangeIndexedMemoryEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count);

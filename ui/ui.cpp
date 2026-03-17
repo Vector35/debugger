@@ -268,13 +268,13 @@ void GlobalDebuggerUI::QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_
 
 	// Convert BNDebuggerTTDMemoryAccessType to TTDMemoryAccessType
 	TTDMemoryAccessType accessTypeEnum = static_cast<TTDMemoryAccessType>(accessType);
-	
+
 	// Set pending query first
 	TTDMemoryWidgetType::SetPendingQuery(frame, ctxt.binaryView, startAddr, endAddr, accessTypeEnum);
-	
+
 	// Activate the sidebar widget
 	sidebar->activate("TTD Memory");
-	
+
 	// Try to find the widget that was just created/activated and apply the query immediately
 	// We'll give it a moment to be created if needed
 	QTimer::singleShot(100, [sidebar, ctxt, startAddr, endAddr, accessTypeEnum]() {
@@ -285,6 +285,17 @@ void GlobalDebuggerUI::QueryTTDMemoryAccess(const UIActionContext& ctxt, uint64_
 			ttdWidget->setParametersAndQueryInNewTab(startAddr, endAddr, accessTypeEnum);
 		}
 	});
+}
+
+
+void GlobalDebuggerUI::ShowTTDMemoryAccessNextPrevDialog(const UIActionContext& ctxt, uint64_t startAddr, uint64_t endAddr)
+{
+	QWidget* parent = nullptr;
+	if (ctxt.context)
+		parent = ctxt.context->mainWindow();
+
+	TTDMemoryAccessNextPrevDialog dialog(parent, ctxt.binaryView, startAddr, endAddr);
+	dialog.exec();
 }
 
 
@@ -1288,7 +1299,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			[=](const UIActionContext& ctxt) { installTTD(ctxt); }));
 	debuggerMenu->addAction("Install WinDbg/TTD", "TTD");
 
-	// TTD Memory Access context menu items
+	// TTD Memory Access context menu items (Query All — opens sidebar with results)
 	UIAction::registerAction("TTD Memory Access\\Read");
 	context->globalActions()->bindAction("TTD Memory Access\\Read",
 		UIAction(
@@ -1299,7 +1310,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
 				if (!controller || !controller->IsConnected())
 					return;
-				
+
 				uint64_t startAddr, endAddr;
 				GetAddressRange(ctxt, startAddr, endAddr);
 				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, DebuggerTTDMemoryRead);
@@ -1317,7 +1328,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
 				if (!controller || !controller->IsConnected())
 					return;
-				
+
 				uint64_t startAddr, endAddr;
 				GetAddressRange(ctxt, startAddr, endAddr);
 				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, DebuggerTTDMemoryWrite);
@@ -1335,7 +1346,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
 				if (!controller || !controller->IsConnected())
 					return;
-				
+
 				uint64_t startAddr, endAddr;
 				GetAddressRange(ctxt, startAddr, endAddr);
 				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, static_cast<BNDebuggerTTDMemoryAccessType>(DebuggerTTDMemoryRead | DebuggerTTDMemoryWrite));
@@ -1353,7 +1364,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
 				if (!controller || !controller->IsConnected())
 					return;
-				
+
 				uint64_t startAddr, endAddr;
 				GetAddressRange(ctxt, startAddr, endAddr);
 				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, DebuggerTTDMemoryExecute);
@@ -1371,13 +1382,32 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
 				if (!controller || !controller->IsConnected())
 					return;
-				
+
 				uint64_t startAddr, endAddr;
 				GetAddressRange(ctxt, startAddr, endAddr);
 				QueryTTDMemoryAccess(ctxt, startAddr, endAddr, static_cast<BNDebuggerTTDMemoryAccessType>(DebuggerTTDMemoryRead | DebuggerTTDMemoryWrite | DebuggerTTDMemoryExecute));
 			},
 			connectedToTTD));
 	debuggerMenu->addAction("TTD Memory Access\\Read/Write/Execute", "TTD");
+
+	// TTD Memory Access (Next/Prev) — opens a dialog for stepping through accesses
+	UIAction::registerAction("TTD Memory Access (Next/Prev)");
+	context->globalActions()->bindAction("TTD Memory Access (Next/Prev)",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsConnected())
+					return;
+
+				uint64_t startAddr, endAddr;
+				GetAddressRange(ctxt, startAddr, endAddr);
+				ShowTTDMemoryAccessNextPrevDialog(ctxt, startAddr, endAddr);
+			},
+			connectedToTTD));
+	debuggerMenu->addAction("TTD Memory Access (Next/Prev)", "TTD");
 
 	// TTD Calls menu actions
 	UIAction::registerAction("TTD Calls\\Kernel32 Calls");

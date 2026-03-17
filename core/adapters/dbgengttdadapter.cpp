@@ -531,6 +531,75 @@ bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
 	return success;
 }
 
+
+std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+{
+	if (!m_debugControl)
+	{
+		LogError("Debug control interface not available");
+		return {false, TTDMemoryEvent()};
+	}
+
+	try
+	{
+		std::string accessTypeStr;
+		if (accessType & TTDMemoryRead) accessTypeStr += "r";
+		if (accessType & TTDMemoryWrite) accessTypeStr += "w";
+		if (accessType & TTDMemoryExecute) accessTypeStr += "e";
+
+		if (accessTypeStr.empty())
+		{
+			LogError("Invalid access type specified");
+			return {false, TTDMemoryEvent()};
+		}
+
+		std::string expression = fmt::format("@$curprocess.TTD.NextMemoryAccess(\"{}\",0x{:x},0x{:x})", accessTypeStr, address, size);
+		LogInfo("Executing TTD NextMemoryAccess query: %s", expression.c_str());
+
+		return ParseSingleTTDMemoryObject(expression, accessType);
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in GetTTDNextMemoryAccess: %s", e.what());
+		return {false, TTDMemoryEvent()};
+	}
+}
+
+
+std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+{
+	if (!m_debugControl)
+	{
+		LogError("Debug control interface not available");
+		return {false, TTDMemoryEvent()};
+	}
+
+	try
+	{
+		std::string accessTypeStr;
+		if (accessType & TTDMemoryRead) accessTypeStr += "r";
+		if (accessType & TTDMemoryWrite) accessTypeStr += "w";
+		if (accessType & TTDMemoryExecute) accessTypeStr += "e";
+
+		if (accessTypeStr.empty())
+		{
+			LogError("Invalid access type specified");
+			return {false, TTDMemoryEvent()};
+		}
+
+		std::string expression = fmt::format("@$curprocess.TTD.PrevMemoryAccess(\"{}\",0x{:x},0x{:x})", accessTypeStr, address, size);
+		LogInfo("Executing TTD PrevMemoryAccess query: %s", expression.c_str());
+
+		return ParseSingleTTDMemoryObject(expression, accessType);
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in GetTTDPrevMemoryAccess: %s", e.what());
+		return {false, TTDMemoryEvent()};
+	}
+}
+
+
 bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
 {
 	if (!m_debugControl)
@@ -1268,6 +1337,146 @@ bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::stri
 	{
 		LogError("Exception in ParseTTDPositionRangeIndexedMemoryObjects: %s", e.what());
 		return false;
+	}
+}
+
+
+std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::ParseSingleTTDMemoryObject(const std::string& expression, TTDMemoryAccessType accessType)
+{
+	TTDMemoryEvent event;
+
+	if (!m_hostEvaluator)
+	{
+		LogError("Data model evaluator not available");
+		return {false, event};
+	}
+
+	try
+	{
+		std::wstring wExpression(expression.begin(), expression.end());
+
+		ComPtr<IDebugHostContext> hostContext;
+		if (FAILED(m_debugHost->GetCurrentContext(hostContext.GetAddressOf())))
+		{
+			LogError("Failed to get current debug host context");
+			return {false, event};
+		}
+
+		ComPtr<IModelObject> result;
+		ComPtr<IKeyStore> metadata;
+		HRESULT hr = m_hostEvaluator->EvaluateExtendedExpression(
+			hostContext.Get(),
+			wExpression.c_str(),
+			nullptr,
+			result.GetAddressOf(),
+			metadata.GetAddressOf()
+		);
+
+		if (FAILED(hr))
+		{
+			LogError("Failed to evaluate expression '%s': 0x%08x", expression.c_str(), hr);
+			return {false, event};
+		}
+
+		if (!result)
+		{
+			LogError("Null result from expression '%s'", expression.c_str());
+			return {false, event};
+		}
+
+		// The result is a single memory access object (not a collection).
+		// Parse Position
+		ComPtr<IModelObject> positionObj;
+		if (SUCCEEDED(result->GetKeyValue(L"Position", &positionObj, nullptr)))
+		{
+			ParseTTDPosition(positionObj.Get(), event.timeStart);
+		}
+
+		// Parse OriginalPosition into timeEnd (represents the position from which the query was made)
+		ComPtr<IModelObject> origPositionObj;
+		if (SUCCEEDED(result->GetKeyValue(L"OriginalPosition", &origPositionObj, nullptr)))
+		{
+			ParseTTDPosition(origPositionObj.Get(), event.timeEnd);
+		}
+
+		// Get UniqueThreadId
+		ComPtr<IModelObject> uniqueThreadIdObj;
+		if (SUCCEEDED(result->GetKeyValue(L"UniqueThreadId", &uniqueThreadIdObj, nullptr)))
+		{
+			VARIANT vtUniqueThreadId;
+			VariantInit(&vtUniqueThreadId);
+			if (SUCCEEDED(uniqueThreadIdObj->GetIntrinsicValueAs(VT_UI4, &vtUniqueThreadId)))
+			{
+				event.uniqueThreadId = vtUniqueThreadId.ulVal;
+			}
+			VariantClear(&vtUniqueThreadId);
+		}
+
+		// Get Address
+		ComPtr<IModelObject> addressObj;
+		if (SUCCEEDED(result->GetKeyValue(L"Address", &addressObj, nullptr)))
+		{
+			VARIANT vtAddress;
+			VariantInit(&vtAddress);
+			if (SUCCEEDED(addressObj->GetIntrinsicValueAs(VT_UI8, &vtAddress)))
+			{
+				event.address = vtAddress.ullVal;
+			}
+			VariantClear(&vtAddress);
+		}
+
+		// Get Size
+		ComPtr<IModelObject> sizeObj;
+		if (SUCCEEDED(result->GetKeyValue(L"Size", &sizeObj, nullptr)))
+		{
+			VARIANT vtSize;
+			VariantInit(&vtSize);
+			if (SUCCEEDED(sizeObj->GetIntrinsicValueAs(VT_UI8, &vtSize)))
+			{
+				event.size = vtSize.ullVal;
+			}
+			VariantClear(&vtSize);
+		}
+
+		// Get AccessType
+		ComPtr<IModelObject> accessTypeObj;
+		if (SUCCEEDED(result->GetKeyValue(L"AccessType", &accessTypeObj, nullptr)))
+		{
+			VARIANT vtAccessType;
+			VariantInit(&vtAccessType);
+			if (SUCCEEDED(accessTypeObj->GetIntrinsicValueAs(VT_BSTR, &vtAccessType)))
+			{
+				_bstr_t bstr(vtAccessType.bstrVal);
+				std::string accessTypeStr = std::string(bstr);
+
+				TTDMemoryAccessType parsedAccessType = static_cast<TTDMemoryAccessType>(0);
+				if (accessTypeStr.find("Read") != std::string::npos)
+					parsedAccessType = static_cast<TTDMemoryAccessType>(parsedAccessType | TTDMemoryRead);
+				if (accessTypeStr.find("Write") != std::string::npos)
+					parsedAccessType = static_cast<TTDMemoryAccessType>(parsedAccessType | TTDMemoryWrite);
+				if (accessTypeStr.find("Execute") != std::string::npos)
+					parsedAccessType = static_cast<TTDMemoryAccessType>(parsedAccessType | TTDMemoryExecute);
+
+				event.accessType = parsedAccessType;
+			}
+			else
+			{
+				event.accessType = accessType;
+			}
+			VariantClear(&vtAccessType);
+		}
+		else
+		{
+			event.accessType = accessType;
+		}
+
+		LogInfo("Successfully parsed single TTD memory access at position %llx:%llx", event.timeStart.sequence, event.timeStart.step);
+		return {true, event};
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in ParseSingleTTDMemoryObject: %s", e.what());
+		return {false, event};
 	}
 }
 
