@@ -206,6 +206,33 @@ public:
 };
 
 
+class TTDMemoryAccessNextPrevDialog : public QDialog
+{
+	Q_OBJECT
+
+public:
+	TTDMemoryAccessNextPrevDialog(QWidget* parent, BinaryViewRef data, uint64_t startAddr, uint64_t endAddr);
+
+private:
+	BinaryViewRef m_data;
+	DbgRef<DebuggerController> m_controller;
+
+	QLineEdit* m_startAddressEdit;
+	QLineEdit* m_endAddressEdit;
+	QCheckBox* m_readAccessCheck;
+	QCheckBox* m_writeAccessCheck;
+	QCheckBox* m_executeAccessCheck;
+	QLabel* m_statusLabel;
+
+	uint64_t parseAddress(const QString& text);
+	TTDMemoryAccessType getSelectedAccessTypes();
+
+private Q_SLOTS:
+	void findNext();
+	void findPrev();
+};
+
+
 class TTDMemoryWidgetType : public SidebarWidgetType
 {
 private:
