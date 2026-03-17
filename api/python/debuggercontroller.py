@@ -735,6 +735,38 @@ class TTDPosition:
         return cls(parts[0], parts[1])
 
 
+class TTDBookmark:
+    """
+    TTDBookmark represents a saved position in a TTD trace with an optional note and view address.
+
+    * ``position``: the TTD position (TTDPosition object)
+    * ``view_address``: the address the user was viewing when the bookmark was created
+    * ``note``: an optional note describing the bookmark
+    """
+
+    def __init__(self, position: TTDPosition, note: str = "", view_address: int = 0):
+        self.position = position
+        self.note = note
+        self.view_address = view_address
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.position == other.position
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+
+    def __hash__(self):
+        return hash(self.position)
+
+    def __repr__(self):
+        note_str = f" ({self.note})" if self.note else ""
+        return f"<TTDBookmark: {self.position}{note_str}>"
+
+
 class TTDMemoryEvent:
     """
     TTDMemoryEvent represents a memory access event in a TTD trace. It has the following fields:
@@ -2552,6 +2584,103 @@ class DebuggerController:
         except ValueError as e:
             binaryninja.log_error(f"Invalid timestamp format: {e}")
             return False
+
+    @property
+    def ttd_bookmarks(self):
+        """
+        Get all TTD bookmarks.
+
+        :return: list of TTDBookmark objects
+        :rtype: list[TTDBookmark]
+        """
+        count = ctypes.c_size_t()
+        bookmarks = dbgcore.BNDebuggerGetTTDBookmarks(self.handle, ctypes.byref(count))
+
+        result = []
+        if not bookmarks or count.value == 0:
+            return result
+
+        for i in range(count.value):
+            bm = bookmarks[i]
+            position = TTDPosition(bm.position.sequence, bm.position.step)
+            note = bm.note.decode('utf-8') if bm.note else ""
+            result.append(TTDBookmark(position, note, bm.viewAddress))
+
+        dbgcore.BNDebuggerFreeTTDBookmarks(bookmarks, count.value)
+        return result
+
+    def add_ttd_bookmark(self, position, note="", view_address=0):
+        """
+        Add a TTD bookmark. If a bookmark with the same position already exists, it is updated.
+
+        :param position: TTDPosition object or string in format "sequence:step"
+        :param note: optional note for the bookmark
+        :param view_address: optional view address to navigate to when the bookmark is activated
+        :return: True if the bookmark was added/updated successfully
+        :rtype: bool
+        """
+        if isinstance(position, str):
+            position = TTDPosition.from_string(position)
+        elif not isinstance(position, TTDPosition):
+            raise TypeError("Position must be TTDPosition object or string")
+
+        pos = dbgcore.BNDebuggerTTDPosition()
+        pos.sequence = position.sequence
+        pos.step = position.step
+
+        if isinstance(note, str):
+            note = note.encode('utf-8')
+
+        return dbgcore.BNDebuggerAddTTDBookmark(self.handle, pos, note, view_address)
+
+    def remove_ttd_bookmark(self, position):
+        """
+        Remove a TTD bookmark by position.
+
+        :param position: TTDPosition object or string in format "sequence:step"
+        :return: True if the bookmark was found and removed
+        :rtype: bool
+        """
+        if isinstance(position, str):
+            position = TTDPosition.from_string(position)
+        elif not isinstance(position, TTDPosition):
+            raise TypeError("Position must be TTDPosition object or string")
+
+        pos = dbgcore.BNDebuggerTTDPosition()
+        pos.sequence = position.sequence
+        pos.step = position.step
+
+        return dbgcore.BNDebuggerRemoveTTDBookmark(self.handle, pos)
+
+    def update_ttd_bookmark(self, position, note="", view_address=0):
+        """
+        Update an existing TTD bookmark's note and view address.
+
+        :param position: TTDPosition object or string in format "sequence:step"
+        :param note: new note for the bookmark
+        :param view_address: new view address for the bookmark
+        :return: True if the bookmark was found and updated
+        :rtype: bool
+        """
+        if isinstance(position, str):
+            position = TTDPosition.from_string(position)
+        elif not isinstance(position, TTDPosition):
+            raise TypeError("Position must be TTDPosition object or string")
+
+        pos = dbgcore.BNDebuggerTTDPosition()
+        pos.sequence = position.sequence
+        pos.step = position.step
+
+        if isinstance(note, str):
+            note = note.encode('utf-8')
+
+        return dbgcore.BNDebuggerUpdateTTDBookmark(self.handle, pos, note, view_address)
+
+    def clear_ttd_bookmarks(self):
+        """
+        Remove all TTD bookmarks.
+        """
+        dbgcore.BNDebuggerClearTTDBookmarks(self.handle)
 
     def get_ttd_next_memory_access(self, address: int, size: int, access_type = DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead):
         """

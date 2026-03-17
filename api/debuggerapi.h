@@ -627,6 +627,18 @@ namespace BinaryNinjaDebuggerAPI {
 	};
 
 
+	struct TTDBookmark
+	{
+		TTDPosition position;
+		uint64_t viewAddress;
+		std::string note;
+
+		TTDBookmark() : viewAddress(0) {}
+		TTDBookmark(const TTDPosition& pos, const std::string& n = "", uint64_t addr = 0)
+			: position(pos), viewAddress(addr), note(n) {}
+	};
+
+
 	typedef BNDebugAdapterConnectionStatus DebugAdapterConnectionStatus;
 	typedef BNDebugAdapterTargetStatus DebugAdapterTargetStatus;
 
@@ -830,6 +842,13 @@ namespace BinaryNinjaDebuggerAPI {
 		bool SetTTDPosition(const TTDPosition& position);
 		std::pair<bool, TTDMemoryEvent> GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 		std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
+
+		// TTD Bookmark Methods
+		std::vector<TTDBookmark> GetTTDBookmarks();
+		bool AddTTDBookmark(const TTDPosition& position, const std::string& note = "", uint64_t viewAddress = 0);
+		bool RemoveTTDBookmark(const TTDPosition& position);
+		bool UpdateTTDBookmark(const TTDPosition& position, const std::string& note, uint64_t viewAddress);
+		void ClearTTDBookmarks();
 
 		// TTD Code Coverage Analysis Methods
 		bool IsInstructionExecuted(uint64_t address);

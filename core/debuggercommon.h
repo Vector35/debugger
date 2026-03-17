@@ -119,6 +119,18 @@ namespace BinaryNinjaDebugger {
 		}
 	};
 
+	// TTD Bookmark - a saved position in the trace with optional metadata
+	struct TTDBookmark
+	{
+		TTDPosition position;
+		uint64_t viewAddress;
+		std::string note;
+
+		TTDBookmark() : viewAddress(0) {}
+		TTDBookmark(const TTDPosition& pos, const std::string& n = "", uint64_t addr = 0)
+			: position(pos), viewAddress(addr), note(n) {}
+	};
+
 	// TTD Memory Access Event - complete set of fields from Microsoft documentation
 	struct TTDMemoryEvent
 	{

@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "ttdeventswidget.h"
+#include "ttdbookmarkwidget.h"
 #include "ui.h"
 #include <QGridLayout>
 #include <QGroupBox>
@@ -348,6 +349,59 @@ void TTDEventsQueryWidget::setupUIActions()
 	// Refresh action to clear and re-query from backend
 	m_menu->addAction("Refresh", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Refresh", UIAction([&]() { refreshEvents(); }));
+
+	m_menu->addAction("Add TTD Bookmark...", "Bookmark", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Add TTD Bookmark...", UIAction([&]() {
+		int row = m_resultsTable->currentRow();
+		if (row < 0)
+			return;
+		// Find the Position column
+		int posCol = -1;
+		for (int c = 0; c < m_resultsTable->columnCount(); ++c)
+		{
+			auto* header = m_resultsTable->horizontalHeaderItem(c);
+			if (header && header->text().contains("Position", Qt::CaseInsensitive))
+			{
+				posCol = c;
+				break;
+			}
+		}
+		if (posCol < 0)
+			return;
+		QTableWidgetItem* posItem = m_resultsTable->item(row, posCol);
+		if (!posItem)
+			return;
+		QString posStr = posItem->text();
+
+		TTDBookmarkEditDialog dialog(this, posStr, "", "");
+		if (dialog.exec() == QDialog::Accepted)
+		{
+			QString editedPosStr = dialog.getPosition();
+			QStringList parts = editedPosStr.split(':');
+			if (parts.size() == 2)
+			{
+				bool ok1, ok2;
+				uint64_t seq = parts[0].toULongLong(&ok1, 16);
+				uint64_t stp = parts[1].toULongLong(&ok2, 16);
+				if (ok1 && ok2)
+				{
+					uint64_t addr = 0;
+					QString addrStr = dialog.getViewAddress();
+					if (!addrStr.isEmpty())
+					{
+						QString clean = addrStr.trimmed();
+						if (clean.startsWith("0x") || clean.startsWith("0X"))
+							clean = clean.mid(2);
+						bool aOk;
+						addr = clean.toULongLong(&aOk, 16);
+						if (!aOk)
+							addr = 0;
+					}
+					m_controller->AddTTDBookmark(TTDPosition(seq, stp), dialog.getNote().toStdString(), addr);
+				}
+			}
+		}
+	}, [&]() { return m_resultsTable && m_resultsTable->currentRow() >= 0; }));
 }
 
 void TTDEventsQueryWidget::setupContextMenu()

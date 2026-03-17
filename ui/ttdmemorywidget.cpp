@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "ttdmemorywidget.h"
+#include "ttdbookmarkwidget.h"
 #include "debuggeruicommon.h"
 #include "ui.h"
 #include <QGridLayout>
@@ -324,6 +325,58 @@ void TTDMemoryQueryWidget::setupUIActions()
 	
 	m_menu->addAction("Reset Columns to Default", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Reset Columns to Default", UIAction([&]() { resetColumnsToDefault(); }));
+
+	m_menu->addAction("Add TTD Bookmark...", "Bookmark", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction("Add TTD Bookmark...", UIAction([&]() {
+		int row = m_resultsTable->currentRow();
+		if (row < 0)
+			return;
+		QTableWidgetItem* posItem = m_resultsTable->item(row, PositionColumn);
+		if (!posItem)
+			return;
+		QString posStr = posItem->text();
+
+		// Get the IP address as view address
+		uint64_t viewAddress = 0;
+		QTableWidgetItem* ipItem = m_resultsTable->item(row, IPColumn);
+		if (ipItem && ipItem->text().startsWith("0x"))
+		{
+			bool ok;
+			viewAddress = ipItem->text().mid(2).toULongLong(&ok, 16);
+			if (!ok)
+				viewAddress = 0;
+		}
+
+		TTDBookmarkEditDialog dialog(this,
+			posStr, "", viewAddress != 0 ? QString("0x%1").arg(viewAddress, 0, 16) : "");
+		if (dialog.exec() == QDialog::Accepted)
+		{
+			QString editedPosStr = dialog.getPosition();
+			QStringList parts = editedPosStr.split(':');
+			if (parts.size() == 2)
+			{
+				bool ok1, ok2;
+				uint64_t seq = parts[0].toULongLong(&ok1, 16);
+				uint64_t stp = parts[1].toULongLong(&ok2, 16);
+				if (ok1 && ok2)
+				{
+					uint64_t addr = 0;
+					QString addrStr = dialog.getViewAddress();
+					if (!addrStr.isEmpty())
+					{
+						QString clean = addrStr.trimmed();
+						if (clean.startsWith("0x") || clean.startsWith("0X"))
+							clean = clean.mid(2);
+						bool aOk;
+						addr = clean.toULongLong(&aOk, 16);
+						if (!aOk)
+							addr = 0;
+					}
+					m_controller->AddTTDBookmark(TTDPosition(seq, stp), dialog.getNote().toStdString(), addr);
+				}
+			}
+		}
+	}, [&]() { return m_resultsTable->currentRow() >= 0; }));
 }
 
 void TTDMemoryQueryWidget::updateColumnVisibility()

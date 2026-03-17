@@ -274,6 +274,8 @@ extern "C"
 		ThreadStateChangedEvent,
 
 		ForceMemoryCacheUpdateEvent,
+
+		TTDBookmarkChangedEvent,
 	} BNDebuggerEventType;
 
 
@@ -700,6 +702,21 @@ extern "C"
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDPositionRangeIndexedMemoryEvents(BNDebuggerTTDPositionRangeIndexedMemoryEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDEvents(BNDebuggerTTDEvent* events, size_t count);
+
+	// TTD Bookmark structures and functions
+	typedef struct BNDebuggerTTDBookmark
+	{
+		BNDebuggerTTDPosition position;
+		uint64_t viewAddress;
+		char* note;
+	} BNDebuggerTTDBookmark;
+
+	DEBUGGER_FFI_API BNDebuggerTTDBookmark* BNDebuggerGetTTDBookmarks(BNDebuggerController* controller, size_t* count);
+	DEBUGGER_FFI_API bool BNDebuggerAddTTDBookmark(BNDebuggerController* controller, BNDebuggerTTDPosition position, const char* note, uint64_t viewAddress);
+	DEBUGGER_FFI_API bool BNDebuggerRemoveTTDBookmark(BNDebuggerController* controller, BNDebuggerTTDPosition position);
+	DEBUGGER_FFI_API bool BNDebuggerUpdateTTDBookmark(BNDebuggerController* controller, BNDebuggerTTDPosition position, const char* note, uint64_t viewAddress);
+	DEBUGGER_FFI_API void BNDebuggerClearTTDBookmarks(BNDebuggerController* controller);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDBookmarks(BNDebuggerTTDBookmark* bookmarks, size_t count);
 
 	// TTD Code Coverage Analysis Functions
 	DEBUGGER_FFI_API bool BNDebuggerIsInstructionExecuted(BNDebuggerController* controller, uint64_t address);

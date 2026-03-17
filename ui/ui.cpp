@@ -48,6 +48,7 @@ limitations under the License.
 #include "ttdmemorywidget.h"
 #include "ttdcallswidget.h"
 #include "ttdeventswidget.h"
+#include "ttdbookmarkwidget.h"
 #include "ttdanalysisdialog.h"
 #include "timestampnavigationdialog.h"
 #include "freeversion.h"
@@ -1273,6 +1274,10 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Column Visibility...");
 	UIAction::registerAction("Reset Columns to Default");
   UIAction::registerAction("Refresh");
+	UIAction::registerAction("Add TTD Bookmark...");
+	UIAction::registerAction("Bookmark Current Position");
+	UIAction::registerAction("Edit Bookmark...");
+	UIAction::registerAction("Remove Bookmark");
 
 #ifdef WIN32
 	UIAction::registerAction("Record TTD Trace");
@@ -1958,6 +1963,7 @@ void GlobalDebuggerUI::InitializeUI()
 	Sidebar::addSidebarWidgetType(new TTDMemoryWidgetType());
 	Sidebar::addSidebarWidgetType(new TTDCallsWidgetType());
 	Sidebar::addSidebarWidgetType(new TTDEventsWidgetType());
+	Sidebar::addSidebarWidgetType(new TTDBookmarkWidgetType());
 }
 
 
