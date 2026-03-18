@@ -192,9 +192,10 @@ namespace BinaryNinjaDebugger
 		void SendRaw(const RspData& data);
 		void SendPayload(const RspData& data);
 
-		RspData ReceiveRspData();
+		RspData ReceiveRspData(std::chrono::milliseconds timeout = std::chrono::milliseconds(10000));
 		RspData TransmitAndReceive(const RspData& data, const std::string& expect = "ack_then_reply",
-								   std::function<void(const RspData& data)> asyncPacketHandler = nullptr);
+								   std::function<void(const RspData& data)> asyncPacketHandler = nullptr,
+								   std::chrono::milliseconds timeout = std::chrono::milliseconds(10000));
 		int32_t HostFileIO(const RspData& data, RspData& output, int32_t& error);
 
 		std::string GetXml(const std::string& name);
