@@ -2680,6 +2680,17 @@ Ref<Settings> EsrevenAdapterType::RegisterAdapterSettings()
 			"readOnly" : false
 			})JSON");
 
+	settings->RegisterSetting("ttd.maxSymbolsLimit",
+			R"JSON({
+			"title" : "Max Symbols Wildcard Limit",
+			"type" : "number",
+			"default" : 50,
+			"minValue" : 0,
+			"maxValue" : 10000,
+			"description" : "Maximum number of symbols to search when using wildcard patterns (e.g. 'kernel32!C*'). Set to 0 for no limit (searches all matching symbols). Increase for broader wildcard queries at the cost of performance.",
+			"readOnly" : false
+			})JSON");
+
 	return settings;
 }
 
@@ -2761,10 +2772,11 @@ std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::strin
 	BNSettingsScope scope = SettingsResourceScope;
 	auto timeoutMs = adapterSettings->Get<uint64_t>("ttd.queryTimeout", GetData(), &scope);
 	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
+	auto maxSymbols = adapterSettings->Get<uint64_t>("ttd.maxSymbolsLimit", GetData(), &scope);
 	auto timeout = std::chrono::milliseconds(timeoutMs);
 
-	LogInfo("GetTTDCallsForSymbols: symbols='%s', timeout=%lldms, maxResults=%llu",
-		symbols.c_str(), timeoutMs, maxResults);
+	LogInfo("GetTTDCallsForSymbols: symbols='%s', timeout=%lldms, maxResults=%llu, maxSymbols=%llu",
+		symbols.c_str(), timeoutMs, maxResults, maxSymbols);
 
 	try
 	{
@@ -2778,18 +2790,20 @@ std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::strin
 		if (startReturnAddress != 0 || endReturnAddress != 0)
 		{
 			// Include return address range for server-side filtering
+			// maxSymbols == 0 means no limit: omit the suffix entirely
 			packet = fmt::format("rvn:get-calls-by-symbol:{}:{:x}:{:x}{}",
 				symbols,
 				startReturnAddress != 0 ? startReturnAddress : 0,
 				endReturnAddress != 0 ? endReturnAddress : 0xFFFFFFFFFFFFFFFF,
-				isWildcard ? ":50" : "");  // Limit wildcards to 50 symbols
+				(isWildcard && maxSymbols > 0) ? fmt::format(":{}", maxSymbols) : "");
 		}
 		else
 		{
 			// No filtering - query all calls
+			// maxSymbols == 0 means no limit: omit :::N so the server searches all symbols
 			packet = fmt::format("rvn:get-calls-by-symbol:{}{}",
 				symbols,
-				isWildcard ? ":::50" : "");  // Format: symbol:::max_symbols
+				(isWildcard && maxSymbols > 0) ? fmt::format(":::{}", maxSymbols) : "");
 		}
 
 		// Send with custom timeout
@@ -2859,17 +2873,30 @@ std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::strin
 
 			// Helper lambda to extract string field
 			auto extractString = [&objectStr](const std::string& fieldName) -> std::string {
-				std::string searchStr = "\"" + fieldName + "\":\"";
+				std::string searchStr = "\"" + fieldName + "\"";
 				size_t fieldPos = objectStr.find(searchStr);
 				if (fieldPos == std::string::npos)
 					return "";
 
 				fieldPos += searchStr.length();
-				size_t endQuote = objectStr.find('\"', fieldPos);
+				size_t colonPos = objectStr.find(':', fieldPos);
+				if (colonPos == std::string::npos)
+					return "";
+
+				// Skip whitespace after colon (handles both `":"` and `": "`)
+				size_t quotePos = colonPos + 1;
+				while (quotePos < objectStr.length() && std::isspace(objectStr[quotePos]))
+					quotePos++;
+
+				if (quotePos >= objectStr.length() || objectStr[quotePos] != '"')
+					return "";
+
+				quotePos++; // skip opening quote
+				size_t endQuote = objectStr.find('\"', quotePos);
 				if (endQuote == std::string::npos)
 					return "";
 
-				return objectStr.substr(fieldPos, endQuote - fieldPos);
+				return objectStr.substr(quotePos, endQuote - quotePos);
 			};
 
 			// Extract fields
