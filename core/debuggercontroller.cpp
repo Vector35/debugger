@@ -1729,61 +1729,59 @@ void DebuggerController::LaunchOrConnect()
 }
 
 
-// Can't use a vector here as initialization order is not guaranteed.
-DbgRef<DebuggerController>* DebuggerController::g_debuggerControllers = nullptr;
-size_t DebuggerController::g_controllerCount = 0;
+// Use a function-local static to avoid two problems:
+// 1. Static initialization order fiasco -- if any other translation unit's static initializer
+//    calls GetController before this TU is initialized, a global would not yet be constructed.
+// 2. Static destruction order -- during process exit, a namespace-scope std::mutex can be
+//    destroyed before cleanup code (e.g., Python GC calling Destroy() via FFI) tries to lock it,
+//    causing "mutex lock failed: Invalid argument". Bundling the mutex and vector in the same
+//    function-local static ensures they share the same lifetime.
+DebuggerController::ControllerState& DebuggerController::GetControllerState()
+{
+	// Intentionally heap-allocated and never freed. A function-local static would still be
+	// destroyed during static cleanup, but Python's GC can call Destroy() -> DeleteController()
+	// even later than that, hitting a destroyed mutex. Leaking the allocation ensures the mutex
+	// and vector remain valid for the entire process lifetime. The OS reclaims the memory at exit.
+	static ControllerState* state = new ControllerState();
+	return *state;
+}
 
 
 DbgRef<DebuggerController> DebuggerController::GetController(BinaryViewRef data)
 {
-	for (size_t i = 0; i < g_controllerCount; i++)
+	auto& state = GetControllerState();
+	std::lock_guard<std::mutex> lock(state.mutex);
+	for (auto& c : state.controllers)
 	{
-		DebuggerController* controller = g_debuggerControllers[i];
-		if (!controller)
-			continue;
-		if (controller->m_file == data->GetFile())
-			return controller;
+		if (c && c->m_file == data->GetFile())
+			return c;
 	}
 
 	auto controller = new DebuggerController(data);
-	g_debuggerControllers = (DbgRef<DebuggerController>*)realloc(g_debuggerControllers,
-							sizeof(DbgRef<DebuggerController>) * (g_controllerCount + 1));
-
-	// We must call the DbgRef ctor on the newly allocated space explicitly. If we do a
-	// g_debuggerControllers[g_controllerCount] = controller;
-	// The `=` operator on the next line will cause a call to `DbgRef<T>& operator=(T* obj)` on an uninitialized DbgRef
-	// object, leading to a crash when `DbgRef::m_obj` is de-referenced.
-	// In fact, this is how std::vector does things inside `push_back`.
-	new (&g_debuggerControllers[g_controllerCount]) DbgRef<DebuggerController>(controller);
-	g_controllerCount++;
+	state.controllers.emplace_back(controller);
 	return controller;
 }
 
 
 void DebuggerController::DeleteController(BinaryViewRef data)
 {
-	for (size_t i = 0; i < g_controllerCount; i++)
+	auto& state = GetControllerState();
+	std::lock_guard<std::mutex> lock(state.mutex);
+	for (auto& c : state.controllers)
 	{
-		DbgRef<DebuggerController> controller = g_debuggerControllers[i];
-		if (!controller)
-			continue;
-
-		if (controller->GetFile() == data->GetFile())
-		{
-			g_debuggerControllers[i] = nullptr;
-		}
+		if (c && c->GetFile() == data->GetFile())
+			c = nullptr;
 	}
 }
 
 
 bool DebuggerController::ControllerExists(BinaryViewRef data)
 {
-	for (size_t i = 0; i < g_controllerCount; i++)
+	auto& state = GetControllerState();
+	std::lock_guard<std::mutex> lock(state.mutex);
+	for (auto& c : state.controllers)
 	{
-		DbgRef<DebuggerController> controller = g_debuggerControllers[i];
-		if (!controller)
-			continue;
-		if (controller->GetFile() == data->GetFile())
+		if (c && c->GetFile() == data->GetFile())
 			return true;
 	}
 
@@ -1793,13 +1791,12 @@ bool DebuggerController::ControllerExists(BinaryViewRef data)
 
 DbgRef<DebuggerController> DebuggerController::GetController(FileMetadataRef file)
 {
-	for (size_t i = 0; i < g_controllerCount; i++)
+	auto& state = GetControllerState();
+	std::lock_guard<std::mutex> lock(state.mutex);
+	for (auto& c : state.controllers)
 	{
-		DebuggerController* controller = g_debuggerControllers[i];
-		if (!controller)
-			continue;
-		if (controller->GetFile() == file)
-			return controller;
+		if (c && c->GetFile() == file)
+			return c;
 	}
 
 	// You cannot create a controller from a file -- you must use a binary view for it
@@ -1809,12 +1806,11 @@ DbgRef<DebuggerController> DebuggerController::GetController(FileMetadataRef fil
 
 bool DebuggerController::ControllerExists(FileMetadataRef file)
 {
-	for (size_t i = 0; i < g_controllerCount; i++)
+	auto& state = GetControllerState();
+	std::lock_guard<std::mutex> lock(state.mutex);
+	for (auto& c : state.controllers)
 	{
-		DbgRef<DebuggerController> controller = g_debuggerControllers[i];
-		if (!controller)
-			continue;
-		if (controller->GetFile() == file)
+		if (c && c->GetFile() == file)
 			return true;
 	}
 
@@ -1824,16 +1820,12 @@ bool DebuggerController::ControllerExists(FileMetadataRef file)
 
 void DebuggerController::DeleteController(FileMetadataRef file)
 {
-	for (size_t i = 0; i < g_controllerCount; i++)
+	auto& state = GetControllerState();
+	std::lock_guard<std::mutex> lock(state.mutex);
+	for (auto& c : state.controllers)
 	{
-		DbgRef<DebuggerController> controller = g_debuggerControllers[i];
-		if (!controller)
-			continue;
-
-		if (controller->GetFile() == file)
-		{
-			g_debuggerControllers[i] = nullptr;
-		}
+		if (c && c->GetFile() == file)
+			c = nullptr;
 	}
 }
 
