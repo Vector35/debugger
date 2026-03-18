@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <inttypes.h>
 #include <numeric>
 #include <stdexcept>
 #include <algorithm>
@@ -248,7 +249,7 @@ RspData RspConnector::ReceiveRspData(std::chrono::milliseconds timeoutDuration)
             auto elapsedTime = std::chrono::steady_clock::now() - startTime;
             if (elapsedTime > timeoutDuration)
             {
-                LogWarn("ReceiveRspData timeout: failed to receive data within %lldms", timeoutDuration.count());
+                LogWarn("ReceiveRspData timeout: failed to receive data within %" PRId64 "ms", (int64_t)timeoutDuration.count());
                 return {}; // Return an empty RspData object
             }
 

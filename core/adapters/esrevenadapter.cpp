@@ -2775,7 +2775,7 @@ std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::strin
 	auto maxSymbols = adapterSettings->Get<uint64_t>("ttd.maxSymbolsLimit", GetData(), &scope);
 	auto timeout = std::chrono::milliseconds(timeoutMs);
 
-	LogInfo("GetTTDCallsForSymbols: symbols='%s', timeout=%lldms, maxResults=%llu, maxSymbols=%llu",
+	LogInfo("GetTTDCallsForSymbols: symbols='%s', timeout=%" PRIu64 "ms, maxResults=%" PRIu64 ", maxSymbols=%" PRIu64,
 		symbols.c_str(), timeoutMs, maxResults, maxSymbols);
 
 	try
@@ -2932,7 +2932,7 @@ std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::strin
 		// Apply client-side result limiting (Option 2 pattern)
 		if (maxResults > 0 && events.size() > maxResults)
 		{
-			LogWarn("Query returned %zu results, limiting to %llu", events.size(), maxResults);
+			LogWarn("Query returned %zu results, limiting to %" PRIu64, events.size(), maxResults);
 			events.resize(maxResults);
 		}
 	}
