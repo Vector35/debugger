@@ -61,6 +61,15 @@ namespace BinaryNinjaDebugger
 
 		std::optional<std::vector<DebugModule>> m_moduleCache{};
 
+		// Cache for thread list with frames (from rvn:list-threads)
+		struct ThreadFrameCache
+		{
+			std::uint32_t tid;
+			std::uintptr_t rip;
+			std::vector<DebugFrame> frames;
+		};
+		std::optional<std::vector<ThreadFrameCache>> m_threadCache{};
+
 		std::uint32_t m_lastActiveThreadId{};
 		std::uint32_t m_processPid{};
 		uint8_t m_exitCode{};
@@ -113,6 +122,7 @@ namespace BinaryNinjaDebugger
 		std::uint32_t GetActiveThreadId() const override;
 		bool SetActiveThread(const DebugThread& thread) override;
 		bool SetActiveThreadId(std::uint32_t tid) override;
+		std::vector<DebugFrame> GetFramesOfThread(std::uint32_t tid) override;
 
 		DebugBreakpoint AddBreakpoint(std::uintptr_t address, unsigned long breakpoint_type = 0) override;
 
