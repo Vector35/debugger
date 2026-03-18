@@ -1307,6 +1307,310 @@ std::vector<DebugModule> EsrevenAdapter::GetModuleList()
 }
 
 
+std::vector<TTDMemoryEvent> EsrevenAdapter::GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
+{
+	if (m_isTargetRunning)
+		return {};
+
+	if (!m_rspConnector)
+		return {};
+
+	// Convert TTDMemoryAccessType flags to comma-separated string
+	std::vector<std::string> types;
+	if (accessType & TTDMemoryRead)
+		types.push_back("read");
+	if (accessType & TTDMemoryWrite)
+		types.push_back("write");
+	if (accessType & TTDMemoryExecute)
+		types.push_back("execute");
+
+	if (types.empty())
+		return {};
+
+	std::string typesStr;
+	for (size_t i = 0; i < types.size(); i++)
+	{
+		if (i > 0)
+			typesStr += ",";
+		typesStr += types[i];
+	}
+
+	// Send the custom REVEN packet: rvn:get-memory-accesses:<start>:<end>:<types>
+	auto response = m_rspConnector->TransmitAndReceive(
+		RspData("rvn:get-memory-accesses:{:x}:{:x}:{}", startAddress, endAddress, typesStr));
+	std::string jsonStr = response.AsString();
+
+	// Check if we got a valid JSON array response
+	if (jsonStr.empty() || jsonStr[0] != '[')
+		return {};
+
+	std::vector<TTDMemoryEvent> result;
+
+	// Simple JSON parser for array of memory access objects
+	size_t pos = 0;
+	while (pos < jsonStr.length())
+	{
+		// Find the start of an object
+		size_t objStart = jsonStr.find('{', pos);
+		if (objStart == std::string::npos)
+			break;
+
+		// Find the end of the object
+		size_t objEnd = jsonStr.find('}', objStart);
+		if (objEnd == std::string::npos)
+			break;
+
+		std::string objStr = jsonStr.substr(objStart, objEnd - objStart + 1);
+
+		TTDMemoryEvent event;
+		event.eventType = "MemoryAccess";
+
+		// Helper lambda to extract uint64_t value from JSON
+		auto extractUInt64 = [](const std::string& json, const std::string& key) -> uint64_t {
+			size_t keyPos = json.find("\"" + key + "\"");
+			if (keyPos == std::string::npos)
+				return 0;
+
+			size_t colonPos = json.find(':', keyPos);
+			if (colonPos == std::string::npos)
+				return 0;
+
+			// Skip whitespace after colon
+			size_t valueStart = colonPos + 1;
+			while (valueStart < json.length() && std::isspace(json[valueStart]))
+				valueStart++;
+
+			// Check if value is null
+			if (json.substr(valueStart, 4) == "null")
+				return 0;
+
+			// Find end of number (comma, closing brace, or whitespace)
+			size_t valueEnd = valueStart;
+			while (valueEnd < json.length() &&
+				   std::isdigit(json[valueEnd]))
+				valueEnd++;
+
+			if (valueEnd > valueStart)
+			{
+				std::string valueStr = json.substr(valueStart, valueEnd - valueStart);
+				return std::stoull(valueStr);
+			}
+			return 0;
+		};
+
+		// Helper lambda to extract string value from JSON
+		auto extractString = [](const std::string& json, const std::string& key) -> std::string {
+			size_t keyPos = json.find("\"" + key + "\"");
+			if (keyPos == std::string::npos)
+				return "";
+
+			size_t colonPos = json.find(':', keyPos);
+			if (colonPos == std::string::npos)
+				return "";
+
+			size_t valueStart = json.find('"', colonPos);
+			if (valueStart == std::string::npos)
+				return "";
+
+			size_t valueEnd = json.find('"', valueStart + 1);
+			if (valueEnd == std::string::npos)
+				return "";
+
+			return json.substr(valueStart + 1, valueEnd - valueStart - 1);
+		};
+
+		// Extract fields from JSON
+		uint64_t transitionId = extractUInt64(objStr, "transition_id");
+		event.address = extractUInt64(objStr, "address");
+		event.memoryAddress = event.address;  // Same as address
+		event.size = extractUInt64(objStr, "size");
+		event.instructionAddress = extractUInt64(objStr, "instruction_address");
+		event.value = extractUInt64(objStr, "value");
+
+		// Extract thread_id (may be null)
+		event.threadId = static_cast<uint32_t>(extractUInt64(objStr, "thread_id"));
+		event.uniqueThreadId = event.threadId;
+
+		// Convert transition_id to TTDPosition (use as sequence, step=0)
+		event.timeStart = TTDPosition(transitionId, 0);
+		event.timeEnd = event.timeStart;
+
+		// Extract and convert access_type string to enum
+		std::string accessTypeStr = extractString(objStr, "access_type");
+		if (accessTypeStr == "read")
+			event.accessType = TTDMemoryRead;
+		else if (accessTypeStr == "write")
+			event.accessType = TTDMemoryWrite;
+		else if (accessTypeStr == "execute")
+			event.accessType = TTDMemoryExecute;
+		else
+			event.accessType = TTDMemoryRead;  // Default
+
+		result.push_back(event);
+
+		pos = objEnd + 1;
+	}
+
+	return result;
+}
+
+
+std::vector<TTDPositionRangeIndexedMemoryEvent> EsrevenAdapter::GetTTDMemoryAccessForPositionRange(
+	uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType,
+	const TTDPosition startTime, const TTDPosition endTime)
+{
+	if (m_isTargetRunning)
+		return {};
+
+	if (!m_rspConnector)
+		return {};
+
+	// Convert TTDMemoryAccessType flags to comma-separated string
+	std::vector<std::string> types;
+	if (accessType & TTDMemoryRead)
+		types.push_back("read");
+	if (accessType & TTDMemoryWrite)
+		types.push_back("write");
+	if (accessType & TTDMemoryExecute)
+		types.push_back("execute");
+
+	if (types.empty())
+		return {};
+
+	std::string typesStr;
+	for (size_t i = 0; i < types.size(); i++)
+	{
+		if (i > 0)
+			typesStr += ",";
+		typesStr += types[i];
+	}
+
+	// TTDPosition.sequence maps to REVEN transition_id (step is always 0 in REVEN)
+	uint64_t startTransition = startTime.sequence;
+	uint64_t endTransition = endTime.sequence;
+
+	// Send the custom REVEN packet with time range: rvn:get-memory-accesses:<start>:<end>:<types>:<start_trans>:<end_trans>
+	auto response = m_rspConnector->TransmitAndReceive(
+		RspData("rvn:get-memory-accesses:{:x}:{:x}:{}:{}:{}",
+			startAddress, endAddress, typesStr, startTransition, endTransition));
+	std::string jsonStr = response.AsString();
+
+	// Check if we got a valid JSON array response
+	if (jsonStr.empty() || jsonStr[0] != '[')
+		return {};
+
+	std::vector<TTDPositionRangeIndexedMemoryEvent> result;
+
+	// Simple JSON parser for array of memory access objects
+	size_t pos = 0;
+	while (pos < jsonStr.length())
+	{
+		// Find the start of an object
+		size_t objStart = jsonStr.find('{', pos);
+		if (objStart == std::string::npos)
+			break;
+
+		// Find the end of the object
+		size_t objEnd = jsonStr.find('}', objStart);
+		if (objEnd == std::string::npos)
+			break;
+
+		std::string objStr = jsonStr.substr(objStart, objEnd - objStart + 1);
+
+		TTDPositionRangeIndexedMemoryEvent event;
+
+		// Helper lambda to extract uint64_t value from JSON
+		auto extractUInt64 = [](const std::string& json, const std::string& key) -> uint64_t {
+			size_t keyPos = json.find("\"" + key + "\"");
+			if (keyPos == std::string::npos)
+				return 0;
+
+			size_t colonPos = json.find(':', keyPos);
+			if (colonPos == std::string::npos)
+				return 0;
+
+			// Skip whitespace after colon
+			size_t valueStart = colonPos + 1;
+			while (valueStart < json.length() && std::isspace(json[valueStart]))
+				valueStart++;
+
+			// Check if value is null
+			if (json.substr(valueStart, 4) == "null")
+				return 0;
+
+			// Find end of number
+			size_t valueEnd = valueStart;
+			while (valueEnd < json.length() && std::isdigit(json[valueEnd]))
+				valueEnd++;
+
+			if (valueEnd > valueStart)
+			{
+				std::string valueStr = json.substr(valueStart, valueEnd - valueStart);
+				return std::stoull(valueStr);
+			}
+			return 0;
+		};
+
+		// Helper lambda to extract string value from JSON
+		auto extractString = [](const std::string& json, const std::string& key) -> std::string {
+			size_t keyPos = json.find("\"" + key + "\"");
+			if (keyPos == std::string::npos)
+				return "";
+
+			size_t colonPos = json.find(':', keyPos);
+			if (colonPos == std::string::npos)
+				return "";
+
+			size_t valueStart = json.find('"', colonPos);
+			if (valueStart == std::string::npos)
+				return "";
+
+			size_t valueEnd = json.find('"', valueStart + 1);
+			if (valueEnd == std::string::npos)
+				return "";
+
+			return json.substr(valueStart + 1, valueEnd - valueStart - 1);
+		};
+
+		// Extract fields from JSON
+		uint64_t transitionId = extractUInt64(objStr, "transition_id");
+		event.address = extractUInt64(objStr, "address");
+		event.size = extractUInt64(objStr, "size");
+		event.instructionAddress = extractUInt64(objStr, "instruction_address");
+		event.value = extractUInt64(objStr, "value");
+
+		// Extract thread_id (may be null)
+		event.threadId = static_cast<uint32_t>(extractUInt64(objStr, "thread_id"));
+		event.uniqueThreadId = event.threadId;
+
+		// Convert transition_id to TTDPosition (use as sequence, step=0)
+		event.position = TTDPosition(transitionId, 0);
+
+		// Extract and convert access_type string to enum
+		std::string accessTypeStr = extractString(objStr, "access_type");
+		if (accessTypeStr == "read")
+			event.accessType = TTDMemoryRead;
+		else if (accessTypeStr == "write")
+			event.accessType = TTDMemoryWrite;
+		else if (accessTypeStr == "execute")
+			event.accessType = TTDMemoryExecute;
+		else
+			event.accessType = TTDMemoryRead;  // Default
+
+		// Initialize data array (first 8 bytes at memory address)
+		// REVEN doesn't provide this currently, so zero it out
+		for (int i = 0; i < 8; i++)
+			event.data[i] = 0;
+
+		result.push_back(event);
+
+		pos = objEnd + 1;
+	}
+
+	return result;
+}
+
+
 std::string EsrevenAdapter::GetTargetArchitecture()
 {
 	return m_remoteArch;
