@@ -788,7 +788,16 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 	auto adapterSettings = GetAdapterSettings();
 	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
 
-	this->Start();
+	if (!this->Start())
+	{
+		this->Reset();
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = fmt::format("Failed to initialize DbgEng");
+		event.data.errorData.shortError = fmt::format("Failed to initialize DbgEng");
+		PostDebuggerEvent(event);
+		return false;
+	}
 
 	if (const auto result = this->m_debugControl->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK); result != S_OK)
 	{
@@ -1049,7 +1058,10 @@ std::vector<DebugProcess> DbgEngAdapter::GetProcessList()
 	if (!m_dbgengInitialized)
 	{
 		if (!Start())
+		{
+			LogWarn("Failed to initialize DbgEn");
 			return {};
+		}
 	}
 
 	ULONG Count = 0;
