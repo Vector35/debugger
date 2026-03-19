@@ -190,16 +190,20 @@ void GdbMiAdapter::UpdateAllRegisters() {
 
     for (size_t i = 0; i < gdbmiregisters["register-values"].size(); i++)
     {
-        auto gdbmi_reg = gdbmiregisters["register-values"][i];
-        auto reg_idx = std::stoul(gdbmi_reg["number"].GetString(), 0, 10);
-        auto reg_value = ParseGdbValue(gdbmi_reg["value"].GetString());
-        if (reg_idx < m_registerNames.size())
-        {
-            std::string name = m_registerNames[reg_idx];
-            if (!name.empty())
+        try {
+            auto gdbmi_reg = gdbmiregisters["register-values"][i];
+            auto reg_idx = std::stoul(gdbmi_reg["number"].GetString(), 0, 10);
+            auto reg_value = ParseGdbValue(gdbmi_reg["value"].GetString());
+            if (reg_idx < m_registerNames.size())
             {
-                regs[name] = DebugRegister(name, reg_value, 0, reg_idx);
+                std::string name = m_registerNames[reg_idx];
+                if (!name.empty())
+                {
+                    regs[name] = DebugRegister(name, reg_value, 0, reg_idx);
+                }
             }
+        } catch (...) {
+            LogWarn("Failed to parse register value at index %zu", i);
         }
     }
 
@@ -222,15 +226,19 @@ void GdbMiAdapter::UpdateStackFrames(uint32_t tid) {
 	auto gdbmi_frames = MiValue::Parse(result.payload);
 	for (size_t i = 0; i < gdbmi_frames["stack"].size(); ++i)
 	{
-		auto parsed_frame = gdbmi_frames["stack"][i];
-		auto debug_frame = DebugFrame(i,
-			std::stoull(parsed_frame["frame"]["addr"].GetString(), 0, 16),
-			0,
-			0,
-			parsed_frame["frame"]["func"].GetString(),
-			0,
-			"n/a");
-		frames.push_back(debug_frame);
+		try {
+			auto parsed_frame = gdbmi_frames["stack"][i];
+			auto debug_frame = DebugFrame(i,
+				std::stoull(parsed_frame["frame"]["addr"].GetString(), 0, 16),
+				0,
+				0,
+				parsed_frame["frame"]["func"].GetString(),
+				0,
+				"n/a");
+			frames.push_back(debug_frame);
+		} catch (...) {
+			LogWarn("Failed to parse stack frame %zu", i);
+		}
 	}
 
     std::unique_lock cacheLock(m_cacheMutex);
@@ -894,10 +902,18 @@ std::vector<DebugBreakpoint> GdbMiAdapter::GetBreakpointList() const {
 			for (const auto& item: bp_table["body"].GetList())
 			{
 				auto bp = item["bkpt"];
-				uint64_t addr = std::stoull(bp["addr"].GetString(), 0, 16);
-				uint64_t id = std::stoull(bp["number"].GetString(), 0, 10);
-				LogDebug("Parsed breakpoint %" PRIu64 " at 0x%" PRIx64, id, addr);
-				breakpoints.emplace_back(addr, id, true);
+				// addr may be "<MULTIPLE>" or "<PENDING>" for multi-location/pending breakpoints
+				std::string addrStr = bp["addr"].GetString();
+				if (addrStr.empty() || addrStr[0] == '<')
+					continue;
+				try {
+					uint64_t addr = std::stoull(addrStr, 0, 16);
+					uint64_t id = std::stoull(bp["number"].GetString(), 0, 10);
+					LogDebug("Parsed breakpoint %" PRIu64 " at 0x%" PRIx64, id, addr);
+					breakpoints.emplace_back(addr, id, true);
+				} catch (...) {
+					LogWarn("Failed to parse breakpoint entry");
+				}
 			}
 		}
 	}
