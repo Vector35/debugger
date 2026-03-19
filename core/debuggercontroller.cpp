@@ -501,10 +501,6 @@ bool DebuggerController::CreateDebugAdapter()
 	// Binary View object
 	m_adapter->SetController(this);
 
-	m_adapterSupportsStepOver = m_adapter->SupportFeature(DebugAdapterSupportStepOver);
-	m_adapterSupportsStepOverReverse = m_adapter->SupportFeature(DebugAdapterSupportStepOverReverse);
-	m_adapterSupportsTTD = m_adapter->SupportFeature(DebugAdapterSupportTTD);
-
 	ApplyBreakpoints();
 
 	// Forward the DebuggerEvent from the adapters to the controller
@@ -1688,7 +1684,7 @@ DebugStopReason DebuggerController::StepOverAndWaitInternal()
 {
 	m_userRequestedBreak = false;
 
-	if (m_adapterSupportsStepOver)
+	if (m_adapter && m_adapter->SupportFeature(DebugAdapterSupportStepOver))
 	{
 		return ExecuteAdapterAndWait(DebugAdapterStepOver);
 	}
@@ -1703,7 +1699,7 @@ DebugStopReason DebuggerController::StepOverReverseAndWaitInternal()
 {
 	m_userRequestedBreak = false;
 
-	if (m_adapterSupportsStepOverReverse)
+	if (m_adapter && m_adapter->SupportFeature(DebugAdapterSupportStepOverReverse))
 	{
 		return ExecuteAdapterAndWait(DebugAdapterStepOverReverse);
 	}
@@ -3147,7 +3143,7 @@ std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
 
 void DebuggerController::RecordTTDPosition()
 {
-	if (!m_adapterSupportsTTD || !m_adapter || m_suppressTTDPositionRecording)
+	if (!m_adapter || !m_adapter->SupportFeature(DebugAdapterSupportTTD) || m_suppressTTDPositionRecording)
 		return;
 
 	TTDPosition position = m_adapter->GetCurrentTTDPosition();
@@ -3199,13 +3195,13 @@ bool DebuggerController::TTDNavigateForward()
 
 bool DebuggerController::CanTTDNavigateBack() const
 {
-	return m_adapterSupportsTTD && m_ttdPositionHistoryIndex > 0;
+	return m_adapter && m_adapter->SupportFeature(DebugAdapterSupportTTD) && m_ttdPositionHistoryIndex > 0;
 }
 
 
 bool DebuggerController::CanTTDNavigateForward() const
 {
-	return m_adapterSupportsTTD
+	return m_adapter && m_adapter->SupportFeature(DebugAdapterSupportTTD)
 		&& m_ttdPositionHistoryIndex >= 0
 		&& m_ttdPositionHistoryIndex < static_cast<int>(m_ttdPositionHistory.size()) - 1;
 }

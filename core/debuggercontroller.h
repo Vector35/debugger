@@ -189,12 +189,6 @@ namespace BinaryNinjaDebugger {
 
 		void DetectLoadedModule();
 
-		bool m_adapterSupportsStepOver = false;
-		bool m_adapterSupportsStepOverReverse = false;
-		// bool m_adapterSupportsModules = false;
-		// bool m_adapterSupportsThreads = false;
-		bool m_adapterSupportsTTD = false;
-
 		std::mutex m_eventsMutex;
 		std::condition_variable m_cv;
 		std::queue<std::shared_ptr<PendingEvent>> m_eventQueue;

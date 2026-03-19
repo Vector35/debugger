@@ -14,6 +14,10 @@ private:
     bool m_connected = false;
     std::string m_remoteArch;
     std::vector<std::string> m_registerNames; // In GDB's order
+
+    // TTD / reverse debugging capability flags (set during Connect)
+    bool m_canReverseContinue = false;
+    bool m_canReverseStep = false;
     BinaryNinjaDebugger::DebugStopReason m_lastStopReason;
     std::atomic<bool> m_targetRunningAtomic{false};
     uint64_t m_exitCode = 0;
@@ -99,6 +103,11 @@ public:
     bool StepInto() override;
     bool StepOver() override;
 	bool StepReturn() override;
+
+    bool GoReverse() override;
+    bool StepIntoReverse() override;
+    bool StepOverReverse() override;
+    bool StepReturnReverse() override;
 
 	std::uint32_t GetActivePID() override { return 0; }
 

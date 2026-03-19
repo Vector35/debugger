@@ -542,6 +542,27 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
 		}
 	}
 
+	// Detect reverse debugging / TTD support by probing the remote server's qSupported capabilities.
+	// Servers like udbserver and rr advertise ReverseContinue+ and ReverseStep+ in qSupported.
+	m_canReverseContinue = false;
+	m_canReverseStep = false;
+	{
+		std::string qSupportedResponse = InvokeBackendCommand(
+			"maintenance packet qSupported:ReverseContinue+;ReverseStep+");
+		if (!qSupportedResponse.empty())
+		{
+			if (qSupportedResponse.find("ReverseContinue+") != std::string::npos)
+				m_canReverseContinue = true;
+			if (qSupportedResponse.find("ReverseStep+") != std::string::npos)
+				m_canReverseStep = true;
+		}
+
+		if (m_canReverseContinue && m_canReverseStep)
+			LogInfo("Reverse debugging support detected (TTD enabled)");
+		else
+			LogInfo("No reverse debugging support detected");
+	}
+
 	// AFTER we are connected and stopped, populate the cache for the first time.
 	LogInfo("Populating initial state cache...");
 	ScheduleStateRefresh();
@@ -1031,6 +1052,30 @@ bool GdbMiAdapter::StepReturn() {
 	return (m_mi->SendCommand("-exec-finish").command == "running");
 }
 
+bool GdbMiAdapter::GoReverse() {
+	if (!m_mi || m_targetRunningAtomic || !m_canReverseContinue) return false;
+
+	return (m_mi->SendCommand("-exec-continue --reverse").command == "running");
+}
+
+bool GdbMiAdapter::StepIntoReverse() {
+	if (!m_mi || m_targetRunningAtomic || !m_canReverseStep) return false;
+
+	return (m_mi->SendCommand("-exec-step-instruction --reverse").command == "running");
+}
+
+bool GdbMiAdapter::StepOverReverse() {
+	if (!m_mi || m_targetRunningAtomic || !m_canReverseStep) return false;
+
+	return (m_mi->SendCommand("-exec-next-instruction --reverse").command == "running");
+}
+
+bool GdbMiAdapter::StepReturnReverse() {
+	if (!m_mi || m_targetRunningAtomic || !m_canReverseStep) return false;
+
+	return (m_mi->SendCommand("-exec-finish --reverse").command == "running");
+}
+
 uint64_t GdbMiAdapter::GetInstructionOffset() {
 	std::string ipRegisterName;
 	if ((m_remoteArch == "x86") || (m_remoteArch == "i386"))
@@ -1091,9 +1136,10 @@ std::string GdbMiAdapter::GetTargetArchitecture() { return m_remoteArch; }
 bool GdbMiAdapter::SupportFeature(DebugAdapterCapacity feature) {
     switch (feature) {
         case DebugAdapterSupportStepOver: return true;
+        case DebugAdapterSupportStepOverReverse: return m_canReverseContinue && m_canReverseStep;
         case DebugAdapterSupportModules: return true;
         case DebugAdapterSupportThreads: return true;
-        case DebugAdapterSupportTTD: return false;
+        case DebugAdapterSupportTTD: return m_canReverseContinue && m_canReverseStep;
         default: return false;
     }
 }
