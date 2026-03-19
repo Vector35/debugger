@@ -530,6 +530,34 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
 		}
 	}
 
+	// Detect reverse debugging / TTD support by querying GDB's knowledge of the
+	// remote server's capabilities from the initial qSupported handshake.
+	//
+	// IMPORTANT: We must NOT send a raw qSupported packet via "maintenance packet" because
+	// this re-negotiates the GDB remote protocol mid-session, causing gdbserver to reset its
+	// internal register description state. After re-negotiation, gdbserver may lose knowledge
+	// of registers (e.g. AVX ymm0h), and subsequent register reads will crash it.
+	//
+	// Instead, we query GDB's cached knowledge of the 'bc' (reverse-continue) and 'bs'
+	// (reverse-step) packet support, which was negotiated during -target-select.
+	m_canReverseContinue = false;
+	m_canReverseStep = false;
+	{
+		std::string bcStatus = InvokeBackendCommand("show remote reverse-continue-packet");
+		std::string bsStatus = InvokeBackendCommand("show remote reverse-step-packet");
+
+		// Output: 'Support for the 'bc' packet ... is "auto", currently enabled.'
+		if (!bcStatus.empty() && bcStatus.find("currently enabled") != std::string::npos)
+			m_canReverseContinue = true;
+		if (!bsStatus.empty() && bsStatus.find("currently enabled") != std::string::npos)
+			m_canReverseStep = true;
+
+		if (m_canReverseContinue && m_canReverseStep)
+			LogInfo("Reverse debugging support detected (TTD enabled)");
+		else
+			LogInfo("No reverse debugging support detected");
+	}
+
 	// Fetch register list - needed for Method 3 if architecture still not detected,
 	// and also needed later for populating m_registerNames
 	auto regListResult = m_mi->SendCommand("-data-list-register-names");
@@ -588,9 +616,7 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
 		{
 			m_registerNames.clear();
 			for (const auto& regVal : value["register-names"].GetList())
-			{
 				m_registerNames.push_back(regVal.GetString());
-			}
 			LogInfo("Found %zu registers in register-names list", m_registerNames.size());
 		}
 		else
@@ -607,27 +633,6 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
 			LogInfo("Using ARM register fallback");
 			m_registerNames = { "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10", "r11", "r12", "sp", "lr", "pc", "xpsr" };
 		}
-	}
-
-	// Detect reverse debugging / TTD support by probing the remote server's qSupported capabilities.
-	// Servers like udbserver and rr advertise ReverseContinue+ and ReverseStep+ in qSupported.
-	m_canReverseContinue = false;
-	m_canReverseStep = false;
-	{
-		std::string qSupportedResponse = InvokeBackendCommand(
-			"maintenance packet qSupported:ReverseContinue+;ReverseStep+");
-		if (!qSupportedResponse.empty())
-		{
-			if (qSupportedResponse.find("ReverseContinue+") != std::string::npos)
-				m_canReverseContinue = true;
-			if (qSupportedResponse.find("ReverseStep+") != std::string::npos)
-				m_canReverseStep = true;
-		}
-
-		if (m_canReverseContinue && m_canReverseStep)
-			LogInfo("Reverse debugging support detected (TTD enabled)");
-		else
-			LogInfo("No reverse debugging support detected");
 	}
 
 	// AFTER we are connected and stopped, populate the cache for the first time.
