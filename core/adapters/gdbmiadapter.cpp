@@ -21,6 +21,73 @@ GdbMiAdapter::~GdbMiAdapter() {
 intx::uint512 GdbMiAdapter::ParseGdbValue(const std::string& valueStr)
 {
     if (valueStr.empty()) return 0;
+
+    // Handle <unavailable> and other angle-bracket GDB markers
+    if (valueStr.front() == '<')
+        return 0;
+
+    // Handle composite struct values from vector/SIMD registers
+    // e.g. XMM: "{... uint128 = 0x...}"
+    // e.g. YMM: "{... v2_int128 = {0xHIGH, 0xLOW}}"
+    if (valueStr.front() == '{')
+    {
+        // Try v2_int128 first (YMM 256-bit registers)
+        auto v2pos = valueStr.find("v2_int128 = {");
+        if (v2pos != std::string::npos)
+        {
+            auto braceStart = valueStr.find('{', v2pos);
+            auto braceEnd = valueStr.find('}', braceStart);
+            if (braceStart != std::string::npos && braceEnd != std::string::npos)
+            {
+                std::string inner = valueStr.substr(braceStart + 1, braceEnd - braceStart - 1);
+                // Extract two hex values: "0xHIGH, 0xLOW"
+                auto commaPos = inner.find(',');
+                if (commaPos != std::string::npos)
+                {
+                    // Trim whitespace around each value
+                    std::string highStr = inner.substr(0, commaPos);
+                    std::string lowStr = inner.substr(commaPos + 1);
+                    // Trim leading/trailing spaces
+                    auto trimWs = [](std::string& s) {
+                        while (!s.empty() && s.front() == ' ') s.erase(s.begin());
+                        while (!s.empty() && s.back() == ' ') s.pop_back();
+                    };
+                    trimWs(highStr);
+                    trimWs(lowStr);
+                    try {
+                        auto high = intx::from_string<intx::uint256>(highStr);
+                        auto low = intx::from_string<intx::uint256>(lowStr);
+                        intx::uint512 result = intx::uint512(high) << 128 | intx::uint512(low);
+                        return result;
+                    } catch (...) {}
+                }
+            }
+        }
+
+        // Try uint128 (XMM 128-bit registers)
+        auto u128pos = valueStr.find("uint128 = ");
+        if (u128pos != std::string::npos)
+        {
+            auto hexStart = valueStr.find("0x", u128pos);
+            if (hexStart != std::string::npos)
+            {
+                // Find the end of the hex string (next non-hex char)
+                auto hexEnd = hexStart + 2;
+                while (hexEnd < valueStr.size() &&
+                       std::isxdigit(static_cast<unsigned char>(valueStr[hexEnd])))
+                    hexEnd++;
+                std::string hexStr = valueStr.substr(hexStart, hexEnd - hexStart);
+                try {
+                    return intx::from_string<intx::uint512>(hexStr);
+                } catch (...) {}
+            }
+        }
+
+        // Composite value we couldn't extract from - return 0 silently
+        LogDebug("Skipping unparseable composite register value");
+        return 0;
+    }
+
     try {
         return intx::from_string<intx::uint512>(valueStr);
     } catch(...) {
