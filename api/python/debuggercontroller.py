@@ -2682,6 +2682,50 @@ class DebuggerController:
         """
         dbgcore.BNDebuggerClearTTDBookmarks(self.handle)
 
+    def ttd_navigate_back(self):
+        """
+        Navigate to the previous TTD timestamp in the position history.
+
+        Returns:
+            bool: True if navigation succeeded, False if there is no previous position
+        """
+        return dbgcore.BNDebuggerTTDNavigateBack(self.handle)
+
+    def ttd_navigate_forward(self):
+        """
+        Navigate to the next TTD timestamp in the position history.
+
+        Returns:
+            bool: True if navigation succeeded, False if there is no next position
+        """
+        return dbgcore.BNDebuggerTTDNavigateForward(self.handle)
+
+    @property
+    def can_ttd_navigate_back(self):
+        """
+        Check if there is a previous TTD position to navigate to.
+
+        Returns:
+            bool: True if back navigation is possible
+        """
+        return dbgcore.BNDebuggerCanTTDNavigateBack(self.handle)
+
+    @property
+    def can_ttd_navigate_forward(self):
+        """
+        Check if there is a next TTD position to navigate to.
+
+        Returns:
+            bool: True if forward navigation is possible
+        """
+        return dbgcore.BNDebuggerCanTTDNavigateForward(self.handle)
+
+    def clear_ttd_position_history(self):
+        """
+        Clear the TTD position navigation history.
+        """
+        dbgcore.BNDebuggerClearTTDPositionHistory(self.handle)
+
     def get_ttd_next_memory_access(self, address: int, size: int, access_type = DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead):
         """
         Get the next memory access to a specific address from the current TTD position.

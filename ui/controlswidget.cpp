@@ -143,6 +143,17 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 		performTimestampNavigation();
 	});
 	m_actionTimestampNavigation->setToolTip(getToolTip("Navigate to TTD Timestamp..."));
+
+	m_actionTTDNavigateBack = addAction(getColoredIcon(":/debugger/resume-reverse", cyan), "TTD Navigate Back", [this]() {
+		performTTDNavigateBack();
+	});
+	m_actionTTDNavigateBack->setToolTip(getToolTip("TTD Navigate Back"));
+
+	m_actionTTDNavigateForward = addAction(getColoredIcon(":/debugger/resume", cyan), "TTD Navigate Forward", [this]() {
+		performTTDNavigateForward();
+	});
+	m_actionTTDNavigateForward->setToolTip(getToolTip("TTD Navigate Forward"));
+
 	updateButtons();
 }
 
@@ -617,6 +628,8 @@ void DebugControlsWidget::updateButtons()
 	DebugAdapterConnectionStatus connection = m_controller->GetConnectionStatus();
 	DebugAdapterTargetStatus status = m_controller->GetTargetStatus();
 
+	bool isTTD = m_controller->IsTTD();
+
 	if (connection == DebugAdapterNotConnectedStatus)
 	{
 		setStartingEnabled(true);
@@ -631,6 +644,9 @@ void DebugControlsWidget::updateButtons()
 		m_actionPause->setVisible(false);
 		m_actionResume->setVisible(false);
 		m_actionGoBack->setVisible(false);
+
+		m_actionTTDNavigateBack->setVisible(false);
+		m_actionTTDNavigateForward->setVisible(false);
 	}
 	else if (status == DebugAdapterRunningStatus)
 	{
@@ -638,9 +654,9 @@ void DebugControlsWidget::updateButtons()
 		setStoppingEnabled(true);
 		setSteppingEnabled(false);
 		setReverseSteppingEnabled(false);
-		m_actionStepIntoBack->setVisible(m_controller->IsTTD());
-		m_actionStepOverBack->setVisible(m_controller->IsTTD());
-		
+		m_actionStepIntoBack->setVisible(isTTD);
+		m_actionStepOverBack->setVisible(isTTD);
+
 		m_actionPause->setEnabled(true);
 		m_actionResume->setEnabled(false);
 		m_actionGoBack->setEnabled(false);
@@ -649,21 +665,31 @@ void DebugControlsWidget::updateButtons()
 		m_actionPause->setVisible(true);
 		m_actionResume->setVisible(false);
 		m_actionGoBack->setVisible(false);
+
+		m_actionTTDNavigateBack->setVisible(isTTD);
+		m_actionTTDNavigateBack->setEnabled(false);
+		m_actionTTDNavigateForward->setVisible(isTTD);
+		m_actionTTDNavigateForward->setEnabled(false);
 	}
 	else  // status == DebugAdapterPausedStatus
 	{
 		setStartingEnabled(false);
 		setStoppingEnabled(true);
 		setSteppingEnabled(true);
-		setReverseSteppingEnabled(m_controller->IsTTD());
+		setReverseSteppingEnabled(isTTD);
 		m_actionPause->setEnabled(false);
 		m_actionResume->setEnabled(true);
-		m_actionGoBack->setEnabled(m_controller->IsTTD());
+		m_actionGoBack->setEnabled(isTTD);
 
 		m_actionRun->setVisible(false);
 		m_actionPause->setVisible(false);
 		m_actionResume->setVisible(true);
-		m_actionGoBack->setVisible(m_controller->IsTTD());
+		m_actionGoBack->setVisible(isTTD);
+
+		m_actionTTDNavigateBack->setVisible(isTTD);
+		m_actionTTDNavigateBack->setEnabled(m_controller->CanTTDNavigateBack());
+		m_actionTTDNavigateForward->setVisible(isTTD);
+		m_actionTTDNavigateForward->setEnabled(m_controller->CanTTDNavigateForward());
 	}
 }
 
@@ -678,4 +704,22 @@ void DebugControlsWidget::performTimestampNavigation()
 
 	auto* dialog = new TimestampNavigationDialog(this, m_controller);
 	dialog->show();
+}
+
+
+void DebugControlsWidget::performTTDNavigateBack()
+{
+	if (!m_controller->CanTTDNavigateBack())
+		return;
+
+	m_controller->TTDNavigateBack();
+}
+
+
+void DebugControlsWidget::performTTDNavigateForward()
+{
+	if (!m_controller->CanTTDNavigateForward())
+		return;
+
+	m_controller->TTDNavigateForward();
 }

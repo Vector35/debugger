@@ -213,6 +213,12 @@ namespace BinaryNinjaDebugger {
 		std::unordered_map<uint64_t, uint32_t> m_executedInstructionCounts;
 		bool m_codeCoverageAnalysisRun = false;
 
+		// TTD Position History for back/forward navigation
+		std::vector<TTDPosition> m_ttdPositionHistory;
+		int m_ttdPositionHistoryIndex = -1;
+		bool m_suppressTTDPositionRecording = false;
+		void RecordTTDPosition();
+
 	public:
 		DebuggerController(BinaryViewRef data);
 		static DbgRef<DebuggerController> GetController(BinaryViewRef data);
@@ -407,6 +413,13 @@ namespace BinaryNinjaDebugger {
 		bool SetTTDPosition(const TTDPosition& position);
 		std::pair<bool, TTDMemoryEvent> GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 		std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
+
+		// TTD Position History Navigation
+		bool TTDNavigateBack();
+		bool TTDNavigateForward();
+		bool CanTTDNavigateBack() const;
+		bool CanTTDNavigateForward() const;
+		void ClearTTDPositionHistory();
 
 		// TTD Bookmark Methods
 		std::vector<TTDBookmark> GetTTDBookmarks();

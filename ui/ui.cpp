@@ -1518,6 +1518,56 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			connectedToTTD));
 	debuggerMenu->addAction("TTD Analysis...", "TTD");
 
+	UIAction::registerAction("TTD Navigate Back", QKeySequence(Qt::ShiftModifier | Qt::Key_Escape));
+	context->globalActions()->bindAction("TTD Navigate Back",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsTTD())
+					return;
+
+				controller->TTDNavigateBack();
+			},
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return false;
+
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return false;
+
+				return controller->CanTTDNavigateBack();
+			}));
+	debuggerMenu->addAction("TTD Navigate Back", "TTD");
+
+	UIAction::registerAction("TTD Navigate Forward", QKeySequence(Qt::ShiftModifier | Qt::ControlModifier | Qt::Key_Escape));
+	context->globalActions()->bindAction("TTD Navigate Forward",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller || !controller->IsTTD())
+					return;
+
+				controller->TTDNavigateForward();
+			},
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return false;
+
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return false;
+
+				return controller->CanTTDNavigateForward();
+			}));
+	debuggerMenu->addAction("TTD Navigate Forward", "TTD");
+
 #endif
 }
 
