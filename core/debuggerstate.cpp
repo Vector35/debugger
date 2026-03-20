@@ -330,12 +330,13 @@ bool DebuggerThreads::SuspendThread(std::uint32_t tid)
 	if (!adapter)
 		return false;
 
-	auto threads = GetAllThreads();
-	auto thread = std::find_if(threads.begin(), threads.end(), [&](DebugThread const& t) {
+	std::unique_lock lock(m_threadsMutex);
+
+	auto thread = std::find_if(m_threads.begin(), m_threads.end(), [&](DebugThread const& t) {
 		return t.m_tid == tid;
 	});
 
-	if (thread == threads.end())
+	if (thread == m_threads.end())
 		return false;
 
 
@@ -360,12 +361,13 @@ bool DebuggerThreads::ResumeThread(std::uint32_t tid)
 	if (!adapter)
 		return false;
 
-	auto threads = GetAllThreads();
-	auto thread = std::find_if(threads.begin(), threads.end(), [&](DebugThread const& t) {
+	std::unique_lock lock(m_threadsMutex);
+
+	auto thread = std::find_if(m_threads.begin(), m_threads.end(), [&](DebugThread const& t) {
 		return t.m_tid == tid;
 	});
 
-	if (thread == threads.end())
+	if (thread == m_threads.end())
 		return false;
 
 	if (!thread->m_isFrozen)

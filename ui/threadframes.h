@@ -99,7 +99,7 @@ private:
 	uint64_t m_fp {};
 
 	QList<FrameItem*> m_childItems;
-	FrameItem* m_parentItem;
+	FrameItem* m_parentItem {nullptr};
 };
 
 Q_DECLARE_METATYPE(FrameItem);

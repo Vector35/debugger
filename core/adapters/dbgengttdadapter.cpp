@@ -116,7 +116,7 @@ bool DbgEngTTDAdapter::Start()
 
 	auto handle = GetModuleHandleA("dbgeng.dll");
 	if (handle == nullptr)
-		false;
+		return false;
 
 	//    HRESULT DebugCreate(
 	//    [in]  REFIID InterfaceId,
