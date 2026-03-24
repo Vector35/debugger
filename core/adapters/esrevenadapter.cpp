@@ -2279,8 +2279,6 @@ bool EsrevenAdapter::SupportFeature(DebugAdapterCapacity feature)
     case DebugAdapterSupportTTD:
     {
         bool ttdSupported = m_canReverseContinue && m_canReverseStep;
-        LogInfo("SupportFeature(DebugAdapterSupportTTD): m_canReverseContinue=%d, m_canReverseStep=%d, returning %d",
-            m_canReverseContinue, m_canReverseStep, ttdSupported);
         return ttdSupported;
     }
     default:

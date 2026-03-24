@@ -396,7 +396,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		return controller->IsConnected() && (!controller->IsRunning()) && controller->IsTTD();
 	};
 
-	[[maybe_unused]] auto connectedToTTD = [=](const UIActionContext& ctxt) {
+	auto connectedToTTD = [=](const UIActionContext& ctxt) {
 		if (!ctxt.binaryView)
 			return false;
 		if (!DebuggerController::ControllerExists(ctxt.binaryView))
@@ -1303,12 +1303,13 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 		UIAction(
 			[=](const UIActionContext& ctxt) { installTTD(ctxt); }));
 	debuggerMenu->addAction("Install WinDbg/TTD", "TTD");
+#endif
 
 	// TTD Memory Access context menu items (Query All — opens sidebar with results)
 	UIAction::registerAction("TTD Memory Access\\Read");
 	context->globalActions()->bindAction("TTD Memory Access\\Read",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[=, this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 
@@ -1326,7 +1327,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("TTD Memory Access\\Write");
 	context->globalActions()->bindAction("TTD Memory Access\\Write",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[=, this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 
@@ -1344,7 +1345,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("TTD Memory Access\\Read/Write");
 	context->globalActions()->bindAction("TTD Memory Access\\Read/Write",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[=, this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 
@@ -1362,7 +1363,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("TTD Memory Access\\Execute");
 	context->globalActions()->bindAction("TTD Memory Access\\Execute",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[=, this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 
@@ -1380,7 +1381,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("TTD Memory Access\\Read/Write/Execute");
 	context->globalActions()->bindAction("TTD Memory Access\\Read/Write/Execute",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[=, this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 
@@ -1399,7 +1400,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("TTD Memory Access (Next/Prev)");
 	context->globalActions()->bindAction("TTD Memory Access (Next/Prev)",
 		UIAction(
-			[=](const UIActionContext& ctxt) {
+			[=, this](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
 					return;
 
@@ -1416,7 +1417,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 	// TTD Calls menu actions
 	UIAction::registerAction("TTD Calls\\Kernel32 Calls");
-	context->globalActions()->bindAction("TTD Calls\\Kernel32 Calls", UIAction([=](const UIActionContext& ctxt) {
+	context->globalActions()->bindAction("TTD Calls\\Kernel32 Calls", UIAction([=, this](const UIActionContext& ctxt) {
 			auto controller = DebuggerController::GetController(ctxt.binaryView);
 			if (!controller || !controller->IsConnected())
 				return;
@@ -1567,8 +1568,6 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				return controller->CanTTDNavigateForward();
 			}));
 	debuggerMenu->addAction("TTD Navigate Forward", "TTD");
-
-#endif
 }
 
 

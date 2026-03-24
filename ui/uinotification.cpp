@@ -192,7 +192,6 @@ void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, 
 	menu.addAction("Debugger", "Create Stack View", "Misc");
 	menu.addAction("Debugger", "Override IP", "Misc");
 	menu.addAction("Debugger", "Rebase to Remote Base...", "Misc");
-#ifdef WIN32
 	// TTD Memory Access context menu items
 	menu.addAction("Debugger", "Navigate to TTD Timestamp...", "TTD");
 	menu.addAction("Debugger", "Add TTD Bookmark...", "TTD");
@@ -205,5 +204,4 @@ void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, 
 	menu.addAction("Debugger", "TTD Memory Access (Next/Prev)", "TTD");
 	// TTD Calls context menu item
 	menu.addAction("Debugger", "TTD Calls\\Kernel32 Calls", "TTD");
-#endif
 }
