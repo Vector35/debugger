@@ -1376,7 +1376,7 @@ std::string GdbAdapter::InvokeBackendCommand(const std::string& command)
 	if (command.substr(0, 4) == "mon ")
 		return RunMonitorCommand(command.substr(4));
 	else if (command.substr(0, 8) == "monitor ")
-		return RunMonitorCommand(command.substr(4));
+		return RunMonitorCommand(command.substr(8));
 
 	auto reply = this->m_rspConnector->TransmitAndReceive(RspData(command));
 	return reply.AsString();

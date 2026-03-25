@@ -83,7 +83,7 @@ class DebugProcess:
         return not (self == other)
 
     def __hash__(self):
-        return hash((self.pid, self.pid))
+        return hash((self.pid, self.name))
 
     def __setattr__(self, name, value):
         try:
@@ -1586,7 +1586,7 @@ class DebuggerController:
         """
         Detach the target, and let it execute on its own.
         """
-        dbgcore.BNDebuggerQuit(self.handle)
+        dbgcore.BNDebuggerDetach(self.handle)
 
     def pause(self) -> None:
         """
@@ -2072,12 +2072,12 @@ class DebuggerController:
 
         ``pid_attach`` is only useful for connecting to a running process using PID.
 
-        :getter: returns the remote port
-        :setter: sets the remote port
+        :getter: returns the PID to attach to
+        :setter: sets the PID to attach to
         """
         return dbgcore.BNDebuggerGetPIDAttach(self.handle)
 
-    @remote_port.setter
+    @pid_attach.setter
     def pid_attach(self, pid: int) -> None:
         dbgcore.BNDebuggerSetPIDAttach(self.handle, pid)
 
@@ -2494,7 +2494,9 @@ class DebuggerController:
         return dbgcore.BNDebuggerSetAdapterProperty(self.handle, name, handle)
 
     def get_addr_info(self, addr: int):
-        return dbgcore.BNDebuggerGetAddressInformation(self.handle, addr)
+        buffer = addr.to_bytes(64, byteorder='little', signed=False)
+        c_buffer = (ctypes.c_ubyte * 64)(*buffer)
+        return dbgcore.BNDebuggerGetAddressInformation(self.handle, c_buffer)
 
     @property
     def is_first_launch(self):

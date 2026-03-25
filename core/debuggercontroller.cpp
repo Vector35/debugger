@@ -1259,7 +1259,6 @@ DebugStopReason DebuggerController::RunToAndWaitInternal(const std::vector<uint6
 		}
 	}
 
-	NotifyStopped(reason);
 	return reason;
 }
 
@@ -1286,7 +1285,6 @@ DebugStopReason DebuggerController::RunToReverseAndWaitInternal(const std::vecto
 		}
 	}
 
-	NotifyStopped(reason);
 	return reason;
 }
 
@@ -1530,7 +1528,11 @@ void DebuggerController::DetachAndWait()
 		locked = true;
 
 	if (!m_state->IsConnected())
+	{
+		if (locked)
+			m_targetControlMutex.unlock();
 		return;
+	}
 
 	// TODO: return whether the operation is successful
 	ExecuteAdapterAndWait(DebugAdapterDetach);
@@ -1559,7 +1561,11 @@ void DebuggerController::QuitAndWait()
 		locked = true;
 
 	if (!m_state->IsConnected())
+	{
+		if (locked)
+			m_targetControlMutex.unlock();
 		return;
+	}
 
 	if (m_state->IsRunning())
 	{
