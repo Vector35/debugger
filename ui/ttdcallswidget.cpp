@@ -126,7 +126,7 @@ void TTDCallsQueryWidget::setupUI()
 
 	// Status label
 	m_statusLabel = new QLabel("Ready");
-	m_statusLabel->setStyleSheet("QLabel { font-size: 12px; }");
+	m_statusLabel->setContentsMargins(5, 5, 5, 5);
 	layout->addWidget(m_statusLabel);
 
 	// Connect signals
@@ -419,6 +419,8 @@ void TTDCallsQueryWidget::performQuery()
 
 	// Re-enable query button
 	m_queryButton->setEnabled(true);
+	m_resultsTable->resizeColumnsToContents();
+
 	updateStatus(QString("Found %1 call events").arg(events.size()));
 }
 

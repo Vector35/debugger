@@ -246,7 +246,7 @@ void TTDMemoryQueryWidget::setupUI()
 	
 	// Status label
 	m_statusLabel = new QLabel("Ready");
-	m_statusLabel->setStyleSheet("QLabel { font-size: 12px; }");
+	m_statusLabel->setContentsMargins(5, 5, 5, 5);
 	mainLayout->addWidget(m_statusLabel);
 	
 	setLayout(mainLayout);
@@ -528,6 +528,8 @@ void TTDMemoryQueryWidget::performQuery()
 			m_resultsTable->setItem(i, 8, new NumericalTableWidgetItem(instrAddrStr, event.instructionAddress));
 		}
 		
+		m_resultsTable->resizeColumnsToContents();
+
 		updateStatus(QString("Found %1 memory access events").arg(events.size()));
 
 		// Enable prev/next buttons if there are results
