@@ -2901,7 +2901,6 @@ std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::strin
 			uint64_t transition_id = extractUInt64("transition_id");
 			std::string function_name = extractString("function_name");
 			uint64_t function_address = extractUInt64("function_address");
-			uint64_t call_instruction_address = extractUInt64("call_instruction_address");
 			uint64_t return_address = extractUInt64("return_address");
 			uint64_t thread_id = extractUInt64("thread_id");
 

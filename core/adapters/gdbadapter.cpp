@@ -821,8 +821,8 @@ std::vector<DebugModule> GdbAdapter::GetModuleList()
 	if (m_moduleCache.has_value())
 		return m_moduleCache.value();
 
-    if (m_isTargetRunning)
-        return {};
+	if (m_isTargetRunning)
+		return {};
 
 	if (!m_rspConnector)
 		return {};
