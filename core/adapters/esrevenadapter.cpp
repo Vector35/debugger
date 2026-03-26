@@ -79,8 +79,57 @@ bool EsrevenAdapter::ExecuteWithArgs(const std::string &path, const std::string 
 
 bool EsrevenAdapter::Attach(std::uint32_t pid)
 {
-	LogWarn("EsrevenAdapter does not support Attach()");
-	return false;
+	if (!m_rspConnector)
+	{
+		LogWarn("EsrevenAdapter::Attach called without an active connection. "
+				"Please connect to the debug server first.");
+		return false;
+	}
+
+	// Send rvn:select-process to activate process filtering at runtime
+	auto response = m_rspConnector->TransmitAndReceive(
+		RspData(fmt::format("rvn:select-process:{}", pid)));
+	std::string responseStr = response.AsString();
+
+	if (responseStr != "OK")
+	{
+		LogWarn("Failed to select process %u: %s", pid, responseStr.c_str());
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.shortError = "Process selection failed";
+		event.data.errorData.error =
+			fmt::format("Failed to select process with PID {}: {}", pid, responseStr);
+		PostDebuggerEvent(event);
+		return false;
+	}
+
+	m_processPid = pid;
+	InvalidateCache();
+	ClearCachedBreakpoints();
+
+	// Query the initial stop reason after selecting the process
+	const auto reply = m_rspConnector->TransmitAndReceive(RspData("?"));
+	auto map = RspConnector::PacketToUnorderedMap(reply);
+	m_lastActiveThreadId = (uint32_t)map["thread"];
+	m_isTargetRunning = false;
+
+	// Apply any pending breakpoints
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+
+	CheckApplyPendingBreakpoints();
+
+	if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
+		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
+
+	DebuggerEvent dbgevt;
+	dbgevt.type = AdapterStoppedEventType;
+	dbgevt.data.targetStoppedData.reason = InitialBreakpoint;
+	PostDebuggerEvent(dbgevt);
+
+	return true;
 }
 
 bool EsrevenAdapter::LoadRegisterInfo()
@@ -297,8 +346,90 @@ bool EsrevenAdapter::Connect(const std::string& server, std::uint32_t port)
 
 bool EsrevenAdapter::ConnectToDebugServer(const std::string &server, std::uint32_t port)
 {
-	LogWarn("DbgAdapter does not support connecting to a debug server, please use connect to remote process instead");
-	return false;
+	m_canReverseContinue = false;
+	m_canReverseStep = false;
+
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	scope = SettingsResourceScope;
+	auto ipAddress = adapterSettings->Get<std::string>("debugServer.ipAddress", data, &scope);
+	scope = SettingsResourceScope;
+	auto serverPort = adapterSettings->Get<uint64_t>("debugServer.port", data, &scope);
+
+	bool connected = false;
+	for (std::uint8_t index{}; index < 30; index++)
+	{
+		this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
+
+		sockaddr_in address{};
+		address.sin_family = (u_short)AF_INET;
+		address.sin_addr.s_addr = inet_addr(ipAddress.c_str());
+		address.sin_port = htons((u_short)serverPort);
+
+		if (this->m_socket->Connect(address))
+		{
+			connected = true;
+			break;
+		}
+
+		m_socket->Close();
+		std::this_thread::sleep_for(std::chrono::milliseconds(500));
+	}
+
+	if (!connected)
+	{
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.shortError = "Connection failed";
+		event.data.errorData.error =
+			fmt::format("Failed to connect to debug server at {}:{}", ipAddress, serverPort);
+		PostDebuggerEvent(event);
+		return false;
+	}
+
+	this->m_rspConnector = new RspConnector(this->m_socket);
+	this->m_rspConnector->TransmitAndReceive(RspData("Hg0"));
+	this->m_rspConnector->NegotiateCapabilities(
+		{ "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
+			"vContSupported+", "QThreadEvents+", "no-resumed+", "xmlRegisters=i386" });
+
+	auto capacities = m_rspConnector->GetServerCapabilities();
+	if (std::find(capacities.begin(), capacities.end(), "ReverseContinue") != capacities.end())
+		m_canReverseContinue = true;
+	if (std::find(capacities.begin(), capacities.end(), "ReverseStep") != capacities.end())
+		m_canReverseStep = true;
+
+	if (!this->LoadRegisterInfo())
+	{
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		event.data.errorData.shortError = "Invalid Register Info";
+		event.data.errorData.error = fmt::format("Failed to read register info from the server");
+		PostDebuggerEvent(event);
+		return false;
+	}
+
+	m_isTargetRunning = false;
+	return true;
+}
+
+
+bool EsrevenAdapter::DisconnectDebugServer()
+{
+	if (!m_rspConnector)
+		return true;
+
+	this->m_rspConnector->SendPayload(RspData("D"));
+	this->m_socket->Kill();
+	m_isTargetRunning = false;
+	InvalidateCache();
+	ClearCachedBreakpoints();
+
+	delete m_rspConnector;
+	m_rspConnector = nullptr;
+
+	return true;
 }
 
 bool EsrevenAdapter::Detach()
@@ -2596,7 +2727,9 @@ bool EsrevenAdapterType::CanConnect(BinaryNinja::BinaryView *data)
 
 bool EsrevenAdapterType::CanExecute(BinaryNinja::BinaryView *data)
 {
-    return false;
+    // Return true so that the "Attach to Process..." button is enabled in the UI,
+    // allowing the two-step workflow: Connect to Debug Server → Attach to Process.
+    return true;
 }
 
 void BinaryNinjaDebugger::InitEsrevenAdapterType()
@@ -2653,6 +2786,34 @@ Ref<Settings> EsrevenAdapterType::RegisterAdapterSettings()
 			"minValue" : 0,
 			"maxValue" : 65535,
 			"description" : "Port of the debug stub to connect to",
+			"readOnly" : false
+			})");
+
+	settings->RegisterSetting("attach.pid",
+			R"({
+			"title" : "PID to attach to",
+			"type" : "number",
+			"default" : 0,
+			"description" : "PID of the process to attach to",
+			"readOnly" : false
+			})");
+
+	settings->RegisterSetting("debugServer.ipAddress",
+			R"({
+			"title" : "Debug Server IP Address",
+			"type" : "string",
+			"default" : "127.0.0.1",
+			"description" : "IP address of the REVEN GDB stub to connect to",
+			"readOnly" : false
+			})");
+	settings->RegisterSetting("debugServer.port",
+			R"({
+			"title" : "Debug Server Port",
+			"type" : "number",
+			"default" : 31337,
+			"minValue" : 0,
+			"maxValue" : 65535,
+			"description" : "Port of the REVEN GDB stub to connect to",
 			"readOnly" : false
 			})");
 
