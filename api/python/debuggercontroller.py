@@ -1192,6 +1192,35 @@ class TTDEvent:
         return f"<TTDEvent: {type_str} @ {self.position}>"
 
 
+class TTDStringEntry:
+    """
+    TTDStringEntry represents a string found in a TTD trace.
+
+    Attributes:
+        id (int): unique identifier for the string
+        data (str): the string content
+        address (int): linear address where the string begins
+        size (int): size in bytes
+        first_access (TTDPosition): position of the first access in the trace
+        last_access (TTDPosition): position of the last access in the trace
+        encoding (str): string encoding ("utf8" or "utf16")
+    """
+
+    def __init__(self, id: int, data: str, address: int, size: int,
+                 first_access: 'TTDPosition', last_access: 'TTDPosition', encoding: str):
+        self.id = id
+        self.data = data
+        self.address = address
+        self.size = size
+        self.first_access = first_access
+        self.last_access = last_access
+        self.encoding = encoding
+
+    def __repr__(self):
+        preview = self.data[:40] + "..." if len(self.data) > 40 else self.data
+        return f"<TTDStringEntry: \"{preview}\" @ {self.address:#x}, {self.encoding}>"
+
+
 class DebuggerController:
     """
     The ``DebuggerController`` object is the core of the debugger. Most debugger operations can be performed on it.
@@ -3120,6 +3149,47 @@ class DebuggerController:
             result.append(ttd_event)
 
         dbgcore.BNDebuggerFreeTTDEvents(events, count.value)
+        return result
+
+    def get_ttd_strings(self, pattern: str = "", max_results: int = 0) -> List[TTDStringEntry]:
+        """
+        Get strings found in the TTD trace, optionally filtered by a pattern.
+
+        This method is only available when debugging with TTD (Time Travel Debugging).
+        Use the is_ttd property to check if TTD is available before calling this method.
+
+        :param pattern: substring pattern to search for (empty string for all strings)
+        :param max_results: maximum number of results to return
+        :return: list of TTDStringEntry objects
+        :rtype: List[TTDStringEntry]
+        """
+        if self.handle is None:
+            return []
+
+        count = ctypes.c_ulonglong()
+        entries = dbgcore.BNDebuggerGetTTDStrings(self.handle, pattern, max_results, ctypes.byref(count))
+
+        result = []
+        if not entries or count.value == 0:
+            return result
+
+        for i in range(count.value):
+            entry = entries[i]
+            first_access = TTDPosition(entry.firstAccess.sequence, entry.firstAccess.step)
+            last_access = TTDPosition(entry.lastAccess.sequence, entry.lastAccess.step)
+
+            string_entry = TTDStringEntry(
+                id=entry.id,
+                data=entry.data,
+                address=entry.address,
+                size=entry.size,
+                first_access=first_access,
+                last_access=last_access,
+                encoding=entry.encoding
+            )
+            result.append(string_entry)
+
+        dbgcore.BNDebuggerFreeTTDStrings(entries, count.value)
         return result
 
     def run_code_coverage_analysis(self, start_address: int, end_address: int,

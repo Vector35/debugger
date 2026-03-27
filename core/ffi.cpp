@@ -1763,6 +1763,55 @@ void BNDebuggerFreeTTDEvents(BNDebuggerTTDEvent* events, size_t count)
 }
 
 
+BNDebuggerTTDStringEntry* BNDebuggerGetTTDStrings(
+	BNDebuggerController* controller, const char* pattern, uint64_t maxResults, size_t* count)
+{
+	if (!count)
+		return nullptr;
+
+	*count = 0;
+
+	std::string patternStr = pattern ? pattern : "";
+	auto entries = controller->object->GetTTDStrings(patternStr, maxResults);
+	if (entries.empty())
+		return nullptr;
+
+	*count = entries.size();
+	auto result = new BNDebuggerTTDStringEntry[entries.size()];
+
+	for (size_t i = 0; i < entries.size(); ++i)
+	{
+		result[i].id = entries[i].id;
+		result[i].data = BNAllocString(entries[i].data.c_str());
+		result[i].address = entries[i].address;
+		result[i].size = entries[i].size;
+		result[i].firstAccess.sequence = entries[i].firstAccess.sequence;
+		result[i].firstAccess.step = entries[i].firstAccess.step;
+		result[i].lastAccess.sequence = entries[i].lastAccess.sequence;
+		result[i].lastAccess.step = entries[i].lastAccess.step;
+		result[i].encoding = BNAllocString(entries[i].encoding.c_str());
+	}
+
+	return result;
+}
+
+
+void BNDebuggerFreeTTDStrings(BNDebuggerTTDStringEntry* entries, size_t count)
+{
+	if (!entries || count == 0)
+		return;
+
+	for (size_t i = 0; i < count; ++i)
+	{
+		if (entries[i].data)
+			BNFreeString(entries[i].data);
+		if (entries[i].encoding)
+			BNFreeString(entries[i].encoding);
+	}
+
+	delete[] entries;
+}
+
 
 void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event)
 {

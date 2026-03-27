@@ -3102,6 +3102,140 @@ std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::strin
 	return events;
 }
 
+std::vector<TTDStringEntry> EsrevenAdapter::GetTTDStrings(const std::string& pattern, uint64_t maxResults)
+{
+	if (m_isTargetRunning)
+		return {};
+
+	if (!m_rspConnector)
+		return {};
+
+	// Build the RSP packet: rvn:get-strings[:<pattern>][:<max_results>]
+	// maxResults=0 means no limit
+	std::string packet = "rvn:get-strings";
+	if (!pattern.empty() || maxResults != 0)
+	{
+		packet += ":" + pattern;
+		if (maxResults != 0)
+			packet += ":" + std::to_string(maxResults);
+	}
+
+	auto response = m_rspConnector->TransmitAndReceive(RspData(packet));
+	std::string jsonStr = response.AsString();
+
+	if (jsonStr.empty() || jsonStr[0] != '[')
+		return {};
+
+	std::vector<TTDStringEntry> result;
+
+	// Helper lambda to extract uint64_t value from JSON object
+	auto extractUInt64 = [](const std::string& json, const std::string& key) -> uint64_t {
+		size_t keyPos = json.find("\"" + key + "\"");
+		if (keyPos == std::string::npos)
+			return 0;
+
+		size_t colonPos = json.find(':', keyPos);
+		if (colonPos == std::string::npos)
+			return 0;
+
+		size_t valueStart = colonPos + 1;
+		while (valueStart < json.length() && std::isspace(json[valueStart]))
+			valueStart++;
+
+		if (json.substr(valueStart, 4) == "null")
+			return 0;
+
+		size_t valueEnd = valueStart;
+		while (valueEnd < json.length() && std::isdigit(json[valueEnd]))
+			valueEnd++;
+
+		if (valueEnd > valueStart)
+			return std::stoull(json.substr(valueStart, valueEnd - valueStart));
+		return 0;
+	};
+
+	// Helper lambda to extract string value from JSON object
+	auto extractString = [](const std::string& json, const std::string& key) -> std::string {
+		size_t keyPos = json.find("\"" + key + "\"");
+		if (keyPos == std::string::npos)
+			return "";
+
+		size_t colonPos = json.find(':', keyPos);
+		if (colonPos == std::string::npos)
+			return "";
+
+		size_t valueStart = json.find('"', colonPos);
+		if (valueStart == std::string::npos)
+			return "";
+
+		// Handle escaped characters in strings
+		std::string value;
+		size_t i = valueStart + 1;
+		while (i < json.length())
+		{
+			if (json[i] == '\\' && i + 1 < json.length())
+			{
+				switch (json[i + 1])
+				{
+				case '"': value += '"'; break;
+				case '\\': value += '\\'; break;
+				case 'n': value += '\n'; break;
+				case 't': value += '\t'; break;
+				case 'r': value += '\r'; break;
+				default: value += json[i + 1]; break;
+				}
+				i += 2;
+			}
+			else if (json[i] == '"')
+			{
+				break;
+			}
+			else
+			{
+				value += json[i];
+				i++;
+			}
+		}
+
+		return value;
+	};
+
+	size_t pos = 0;
+	while (pos < jsonStr.length())
+	{
+		size_t objStart = jsonStr.find('{', pos);
+		if (objStart == std::string::npos)
+			break;
+
+		// Find matching closing brace (handle nested braces)
+		size_t objEnd = jsonStr.find('}', objStart);
+		if (objEnd == std::string::npos)
+			break;
+
+		std::string objStr = jsonStr.substr(objStart, objEnd - objStart + 1);
+
+		TTDStringEntry entry;
+		entry.id = extractUInt64(objStr, "id");
+		entry.data = extractString(objStr, "data");
+		entry.address = extractUInt64(objStr, "address");
+		entry.size = extractUInt64(objStr, "size");
+
+		uint64_t firstAccess = extractUInt64(objStr, "first_access");
+		uint64_t lastAccess = extractUInt64(objStr, "last_access");
+		entry.firstAccess = TTDPosition(firstAccess, 0);
+		entry.lastAccess = TTDPosition(lastAccess, 0);
+
+		entry.encoding = extractString(objStr, "encoding");
+
+		result.push_back(entry);
+
+		pos = objEnd + 1;
+	}
+
+	return result;
+}
+
+
 Ref<Settings> EsrevenAdapterType::GetAdapterSettings()
 {
 	static Ref<Settings> settings = RegisterAdapterSettings();

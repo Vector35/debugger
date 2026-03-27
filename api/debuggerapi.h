@@ -638,6 +638,19 @@ namespace BinaryNinjaDebuggerAPI {
 			: position(pos), viewAddress(addr), note(n) {}
 	};
 
+	struct TTDStringEntry
+	{
+		uint64_t id;
+		std::string data;
+		uint64_t address;
+		uint64_t size;
+		TTDPosition firstAccess;
+		TTDPosition lastAccess;
+		std::string encoding;
+
+		TTDStringEntry() : id(0), address(0), size(0) {}
+	};
+
 
 	typedef BNDebugAdapterConnectionStatus DebugAdapterConnectionStatus;
 	typedef BNDebugAdapterTargetStatus DebugAdapterTargetStatus;
@@ -842,6 +855,7 @@ namespace BinaryNinjaDebuggerAPI {
 		bool SetTTDPosition(const TTDPosition& position);
 		std::pair<bool, TTDMemoryEvent> GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 		std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
+		std::vector<TTDStringEntry> GetTTDStrings(const std::string& pattern = "", uint64_t maxResults = 0);
 
 		// TTD Position History Navigation
 		bool TTDNavigateBack();
