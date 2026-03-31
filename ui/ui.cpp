@@ -1990,8 +1990,6 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		auto* globalUI = GlobalDebuggerUI::GetForContext(m_context);
 		if (globalUI)
 			globalUI->SetDisplayingGlobalAreaWidgets(true);
-
-		openDebuggerSideBar();
 	}
 
 	switch (event.type)
