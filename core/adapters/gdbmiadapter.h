@@ -12,6 +12,7 @@ private:
     uint64_t m_lastStopTid = 1;
     uint64_t m_currentTid = 1;
     bool m_connected = false;
+    bool m_isLocalSession = false;  // true when launched locally via Execute, false for remote Connect
     std::string m_remoteArch;
     std::vector<std::string> m_registerNames; // In GDB's order
 
@@ -50,6 +51,7 @@ private:
 	static intx::uint512 ParseGdbValue(const std::string& valueStr);
 
 	bool RunMonitorCommand(const std::string& command) const;
+	bool StartGdbAndDetectArch(const std::string& gdbPath, const std::string& inputFile, const std::string& symbolFile);
 	void ApplyBreakpoints();
 	void ApplyPendingHardwareBreakpoints();
 	bool GetModuleBase(const std::string& moduleName, uint64_t& base);
@@ -135,7 +137,7 @@ class GdbMiAdapterType : public BinaryNinjaDebugger::DebugAdapterType
 		BinaryNinjaDebugger::DebugAdapter* Create(BinaryView* data) override;
         bool IsValidForData(BinaryView* data) override { return true; }
         bool CanConnect(BinaryView* data) override { return true; }
-        bool CanExecute(BinaryView* data) override { return false; }
+        bool CanExecute(BinaryView* data) override;
         static Ref<Settings> GetAdapterSettings();
 
     private:
