@@ -1828,7 +1828,6 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 			frame->navigate(m_controller->GetData(), address, true, true);
 	}
 
-	openDebuggerSideBar(frame);
 	m_context->refreshCurrentViewContents();
 }
 
@@ -1991,6 +1990,8 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 		auto* globalUI = GlobalDebuggerUI::GetForContext(m_context);
 		if (globalUI)
 			globalUI->SetDisplayingGlobalAreaWidgets(true);
+
+		openDebuggerSideBar();
 	}
 
 	switch (event.type)
