@@ -2131,13 +2131,45 @@ void LldbAdapter::EventListener()
 						{
 							// Apply the hardware breakpoint now that process is running and stopped
 							// Check addressing mode and call appropriate variant
+							bool success;
 							if (hwbp.isRelative)
 							{
-								AddHardwareBreakpoint(hwbp.location, hwbp.type, hwbp.size);
+								success = AddHardwareBreakpoint(hwbp.location, hwbp.type, hwbp.size);
 							}
 							else
 							{
-								AddHardwareBreakpoint(hwbp.address, hwbp.type, hwbp.size);
+								success = AddHardwareBreakpoint(hwbp.address, hwbp.type, hwbp.size);
+							}
+
+							if (!success)
+							{
+								uint64_t addr = hwbp.isRelative ?
+									(hwbp.location.offset + m_originalImageBase) : hwbp.address;
+
+								if (hwbp.type == HardwareExecuteBreakpoint)
+								{
+									std::string arch = GetTargetArchitecture();
+									if (arch == "x86_64" || arch == "i386")
+									{
+										LogError("Failed to add hardware execution breakpoint at 0x%" PRIx64
+											". Hardware execution breakpoints are not supported with the LLDB adapter"
+											" on x86/x64 Linux. Consider using a software breakpoint instead."
+											" See https://github.com/Vector35/debugger/issues/957 for details.",
+											addr);
+									}
+									else
+									{
+										LogError("Failed to add hardware execution breakpoint at 0x%" PRIx64
+											". The target may not support hardware breakpoints or all"
+											" hardware breakpoint slots may be in use.", addr);
+									}
+								}
+								else
+								{
+									LogError("Failed to add hardware breakpoint at 0x%" PRIx64
+										". The target may not support hardware breakpoints or all"
+										" hardware breakpoint slots may be in use.", addr);
+								}
 							}
 						}
 						m_deferredHardwareBreakpoints.clear();
