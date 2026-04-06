@@ -1875,8 +1875,13 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 
 		if (m_accessor)
 		{
-			delete m_accessor;
+			// Defer deletion to a worker thread. The accessor holds a DbgRef<DebuggerController>,
+			// and if it is the last reference, deleting it here (on the event thread) would trigger
+			// ~DebuggerController which calls m_debuggerEventThread.join() -- deadlocking because
+			// we ARE the event thread.
+			auto* accessor = m_accessor;
 			m_accessor = nullptr;
+			BinaryNinja::WorkerEnqueue([accessor]() { delete accessor; });
 		}
 		m_lastIP = m_currentIP;
 		m_currentIP = 0;
