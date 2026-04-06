@@ -1709,6 +1709,9 @@ DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller) :
 
 DebuggerUI::~DebuggerUI()
 {
+	// Unregister UI callbacks from the controller before deleting them, so the controller
+	// does not invoke a dangling callback if events arrive after the UI is destroyed.
+	m_controller->SetDebuggerUICallbacks(nullptr);
 	if (m_uiCallbacks)
 	{
 		delete m_uiCallbacks;
