@@ -1875,13 +1875,18 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 
 		if (m_accessor)
 		{
-			// Defer deletion to a worker thread. The accessor holds a DbgRef<DebuggerController>,
+			// Defer deletion to a detached thread. The accessor holds a DbgRef<DebuggerController>,
 			// and if it is the last reference, deleting it here (on the event thread) would trigger
-			// ~DebuggerController which calls m_debuggerEventThread.join() -- deadlocking because
-			// we ARE the event thread.
+			// ~DebuggerController which calls m_debuggerEventThread.join() -- deadlocking/crashing
+			// because we ARE the event thread.
+			//
+			// This can happen when Destroy() races with event processing: EventHandler sets
+			// ConnectionStatus to NotConnected (line above), and another thread observes this,
+			// calls Destroy() which removes the global array ref, making the accessor's DbgRef
+			// the last reference to the controller.
 			auto* accessor = m_accessor;
 			m_accessor = nullptr;
-			BinaryNinja::WorkerEnqueue([accessor]() { delete accessor; });
+			std::thread([accessor]() { delete accessor; }).detach();
 		}
 		m_lastIP = m_currentIP;
 		m_currentIP = 0;
