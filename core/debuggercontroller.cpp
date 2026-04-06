@@ -1986,6 +1986,12 @@ bool DebuggerController::RemoveEventCallbackInternal(size_t index)
 
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 {
+	// During conditional breakpoint auto-resume, suppress the ResumeEventType that adapters
+	// post inside Go(). The target is already considered running by the UI, and posting this
+	// event from the dispatcher thread would trigger a re-entrant warning.
+	if (m_suppressResumeEvent && event.type == ResumeEventType)
+		return;
+
 	auto pending = std::make_shared<PendingEvent>();
 	pending->event = event;
 	std::future<void> future = pending->done.get_future();
@@ -2059,13 +2065,18 @@ void DebuggerController::DebuggerMainThread()
 			if (uint64_t ip = m_state->IP();
 				!isStepOperation && m_state->GetBreakpoints()->ContainsAbsolute(ip))
 			{
-				if (!EvaluateBreakpointCondition(ip))
+				if (!EvaluateBreakpointCondition(ip) && !m_userRequestedBreak)
 				{
 					m_lastAdapterStopEventConsumed = true;
 					current->done.set_value();
-					// using m_adapter->Go() directly instead of Go() to avoid mutex deadlock
-					// since we're already inside ExecuteAdapterAndWait's event processing
+					// Using m_adapter->Go() directly instead of Go() to avoid mutex deadlock
+					// since we're already inside ExecuteAdapterAndWait's event processing.
+					// Suppress the ResumeEventType that some adapters post synchronously inside
+					// Go() — the UI already considers the target running, and posting from the
+					// dispatcher thread would be unexpected.
+					m_suppressResumeEvent = true;
 					m_adapter->Go();
+					m_suppressResumeEvent = false;
 					continue;
 				}
 			}
