@@ -2077,6 +2077,7 @@ void DebuggerController::DebuggerMainThread()
 					m_suppressResumeEvent = true;
 					m_adapter->Go();
 					m_suppressResumeEvent = false;
+					m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 					continue;
 				}
 			}
