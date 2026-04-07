@@ -546,22 +546,15 @@ void WindowsNativeAdapter::DebugLoop()
 
 			if (m_shouldStop)
 			{
-				// Remove all breakpoints before detaching
-				{
-					std::lock_guard<std::mutex> lock(m_breakpointsMutex);
-					for (auto& bp : m_breakpoints)
-					{
-						if (bp.isActive)
-							RemoveBreakpointInternal(bp.address);
-					}
-					m_breakpoints.clear();
-				}
-
+				RemoveAllBreakpoints();
 				ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
 
 				// DebugActiveProcessStop must be called from the same thread that started debugging
 				if (!DebugActiveProcessStop(m_processId))
-					LogWarn("DebugActiveProcessStop failed (error %d)", GetLastError());
+				{
+					LogWarn("DebugActiveProcessStop failed (error %d) -- killing target", GetLastError());
+					TerminateProcess(m_processHandle, 1);
+				}
 
 				break;
 			}
@@ -591,18 +584,13 @@ void WindowsNativeAdapter::DebugLoop()
 	// breakpoint), we still need to detach. The stopped-at-breakpoint case is handled inside the loop.
 	if (m_shouldStop && m_activelyDebugging)
 	{
-		{
-			std::lock_guard<std::mutex> lock(m_breakpointsMutex);
-			for (auto& bp : m_breakpoints)
-			{
-				if (bp.isActive)
-					RemoveBreakpointInternal(bp.address);
-			}
-			m_breakpoints.clear();
-		}
+		RemoveAllBreakpoints();
 
 		if (!DebugActiveProcessStop(m_processId))
-			LogWarn("DebugActiveProcessStop failed (error %d)", GetLastError());
+		{
+			LogWarn("DebugActiveProcessStop failed (error %d) -- killing target", GetLastError());
+			TerminateProcess(m_processHandle, 1);
+		}
 	}
 
 	m_activelyDebugging = false;
@@ -1583,6 +1571,58 @@ bool WindowsNativeAdapter::RemoveBreakpoint(const ModuleNameAndOffset& breakpoin
 	}
 
 	return RemoveBreakpoint(DebugBreakpoint(address));
+}
+
+
+void WindowsNativeAdapter::RemoveAllBreakpoints()
+{
+	// Remove software breakpoints
+	{
+		std::lock_guard<std::mutex> lock(m_breakpointsMutex);
+		for (auto& bp : m_breakpoints)
+		{
+			if (bp.isActive)
+				RemoveBreakpointInternal(bp.address);
+		}
+		m_breakpoints.clear();
+	}
+
+	// Remove hardware breakpoints from all threads
+	{
+		std::lock_guard<std::mutex> lock(m_hwBreakpointsMutex);
+		for (const auto& hwbp : m_hardwareBreakpoints)
+		{
+			if (hwbp.isActive)
+			{
+				for (auto& [tid, handle] : m_threads)
+				{
+					if (!handle)
+						continue;
+					if (m_isTargetWow64)
+					{
+						WOW64_CONTEXT ctx {};
+						ctx.ContextFlags = WOW64_CONTEXT_DEBUG_REGISTERS;
+						if (Wow64GetThreadContext(handle, &ctx))
+						{
+							if (ClearHardwareBreakpointInContext(ctx, hwbp.drIndex))
+								Wow64SetThreadContext(handle, &ctx);
+						}
+					}
+					else
+					{
+						CONTEXT ctx {};
+						ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+						if (GetThreadContext(handle, &ctx))
+						{
+							if (ClearHardwareBreakpointInContext(ctx, hwbp.drIndex))
+								SetThreadContext(handle, &ctx);
+						}
+					}
+				}
+			}
+		}
+		m_hardwareBreakpoints.clear();
+	}
 }
 
 
