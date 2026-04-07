@@ -1828,7 +1828,6 @@ void DebuggerUI::navigateDebugger(uint64_t address)
 			frame->navigate(m_controller->GetData(), address, true, true);
 	}
 
-	openDebuggerSideBar(frame);
 	m_context->refreshCurrentViewContents();
 }
 
