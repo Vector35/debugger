@@ -4767,7 +4767,10 @@ Ref<Settings> DebuggerController::GetAdapterSettings()
 
 void DebuggerController::SetDebuggerUICallbacks(BNDebuggerUICallbacks* cb, void* ctxt)
 {
-	m_uiCallbacks = std::make_unique<DebuggerUICallbacks>(cb, ctxt);
+	if (cb)
+		m_uiCallbacks = std::make_unique<DebuggerUICallbacks>(cb, ctxt);
+	else
+		m_uiCallbacks.reset();
 }
 
 
