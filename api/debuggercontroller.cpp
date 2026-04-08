@@ -1001,7 +1001,10 @@ void DebuggerController::RemoveEventCallback(size_t index)
 
 void DebuggerController::SetDebuggerUICallbacks(DebuggerUICallbacks* cb)
 {
-	BNDebuggerSetDebuggerUICallbacks(m_object, cb->GetCallbacks(), cb);
+	if (cb)
+		BNDebuggerSetDebuggerUICallbacks(m_object, cb->GetCallbacks(), cb);
+	else
+		BNDebuggerSetDebuggerUICallbacks(m_object, nullptr, nullptr);
 }
 
 
