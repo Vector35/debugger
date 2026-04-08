@@ -154,6 +154,7 @@ namespace BinaryNinjaDebugger {
 		bool ApplyBreakpoint(uint64_t address, unsigned long id);
 		bool RemoveBreakpointInternal(uint64_t address);
 		void ApplyPendingBreakpoints();
+		void RemoveAllBreakpoints();
 		bool ApplyHardwareBreakpointsToThread(HANDLE threadHandle);
 		int FindFreeDebugRegister();
 		bool SetHardwareBreakpointInContext(CONTEXT& ctx, int drIndex, uint64_t address, DebugBreakpointType type, size_t size);
