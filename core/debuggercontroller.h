@@ -121,6 +121,10 @@ namespace BinaryNinjaDebugger {
 
 		bool m_lastAdapterStopEventConsumed = true;
 
+		// When true, ResumeEventType events are suppressed in PostDebuggerEvent.
+		// Used during conditional breakpoint auto-resume to avoid posting events from the dispatcher thread.
+		bool m_suppressResumeEvent = false;
+
 		bool m_inputFileLoaded = false;
 		bool m_initialBreakpointSeen = false;
 
