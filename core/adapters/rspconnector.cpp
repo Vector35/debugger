@@ -16,7 +16,6 @@ limitations under the License.
 
 #include <inttypes.h>
 #include <numeric>
-#include <stdexcept>
 #include <algorithm>
 #include <chrono>
 #include <thread>
@@ -164,10 +163,16 @@ char RspConnector::ExpectAck()
     this->m_socket->Recv(&buffer, sizeof(buffer));
 
     if ( buffer == char{} )
-        throw std::runtime_error("Disconnected while waiting for ack");
+    {
+        LogError("Disconnected while waiting for ack");
+        return {};
+    }
 
     if ( buffer != '+' )
-        throw std::runtime_error("incorrect response, expected +");
+    {
+        LogError("incorrect response, expected +, got %c", buffer);
+        return {};
+    }
 
     return buffer;
 }
@@ -324,11 +329,17 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
             this->m_socket->Recv(&peek, sizeof(peek), MSG_PEEK);
 
             if (!peek)
-                throw std::runtime_error("backend gone?");
+            {
+                LogError("backend gone?");
+                return {};
+            }
 
             if (peek == '+') {
                 if (ack_received)
-                    throw std::runtime_error("two acks came when only one was expected");
+                {
+                    LogError("two acks came when only one was expected");
+                    return {};
+                }
 
                 char buf{};
                 ack_received = true;
@@ -339,7 +350,8 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
             if (peek != '$') {
                 char buf[16];
                 this->m_socket->Recv(buf, sizeof(buf));
-                throw std::runtime_error("packet start is wrong");
+                LogError("packet start is wrong");
+                return {};
             }
 
             reply = this->ReceiveRspData();
@@ -353,7 +365,10 @@ RspData RspConnector::TransmitAndReceive(const RspData& data, const std::string&
         }
 
         if (!ack_received && this->m_acksEnabled)
-            throw std::runtime_error("expected ack, but received none");
+        {
+            LogError("expected ack, but received none");
+            return {};
+        }
     }
 
     if ( std::find(reply.begin(), reply.end(), '*') != reply.end() )
@@ -418,7 +433,10 @@ std::string RspConnector::GetXml(const std::string& name)
                 "qXfer:features:read:{}:{:X},{:X}", name, readLength, RspData::BUFFER_MAX ));
 
         if (chunk.m_data.GetLength() == 0)
-            throw std::runtime_error("Failed to empty xml data");
+        {
+            LogError("Failed to read xml data for '%s': received empty response", name.c_str());
+            return {};
+        }
 
         switch (chunk.m_data[0])
         {
@@ -434,7 +452,9 @@ std::string RspConnector::GetXml(const std::string& name)
             break;
         }
         default:
-            throw std::runtime_error("Failed to retrieve xml data");
+            LogError("Failed to retrieve xml data for '%s': unexpected response type '%c'",
+                name.c_str(), (char)chunk.m_data[0]);
+            return {};
         }
 
         if (lastPacket)
