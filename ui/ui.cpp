@@ -537,12 +537,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller->RebaseToAddress(address))
 					LogWarn("Failed to rebase to address 0x%" PRIx64, address);
 			},
-			[=](const UIActionContext& ctxt) {
-				if (!ctxt.binaryView)
-					return false;
-				const auto controller = DebuggerController::GetController(ctxt.binaryView);
-				return controller && controller->IsConnected();
-			}));
+			connected));
 
 	debuggerMenu->addAction("Rebase to Remote Base...", "Rebase");
 
