@@ -606,5 +606,5 @@ SidebarWidget* TTDBookmarkWidgetType::createWidget(ViewFrame* frame, BinaryViewR
 
 SidebarContentClassifier* TTDBookmarkWidgetType::contentClassifier(ViewFrame*, BinaryViewRef data)
 {
-	return new ActiveDebugSessionSidebarContentClassifier(data);
+	return new ActiveDebugSessionSidebarContentClassifier(data, true);
 }

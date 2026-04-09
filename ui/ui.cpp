@@ -2181,12 +2181,13 @@ extern "C"
 }
 
 
-ActiveDebugSessionSidebarContentClassifier::ActiveDebugSessionSidebarContentClassifier(BinaryViewRef data)
+ActiveDebugSessionSidebarContentClassifier::ActiveDebugSessionSidebarContentClassifier(BinaryViewRef data, bool requireTTD) :
+	m_requireTTD(requireTTD)
 {
 	m_debugger = DebuggerController::GetController(data);
 	if (m_debugger)
 	{
-		if (m_debugger->IsConnected())
+		if (m_debugger->IsConnected() && (!m_requireTTD || m_debugger->IsTTD()))
 			m_contentClassification = SidebarHasRelevantContent;
 
 		m_eventIndex = m_debugger->RegisterEventCallback(
@@ -2197,7 +2198,8 @@ ActiveDebugSessionSidebarContentClassifier::ActiveDebugSessionSidebarContentClas
 				case ResumeEventType:
 				case StepIntoEventType:
 				case TargetStoppedEventType:
-					m_contentClassification = SidebarHasRelevantContent;
+					if (!m_requireTTD || (m_debugger && m_debugger->IsTTD()))
+						m_contentClassification = SidebarHasRelevantContent;
 					Q_EMIT contentClassificationChanged();
 					break;
 				case DetachedEventType:

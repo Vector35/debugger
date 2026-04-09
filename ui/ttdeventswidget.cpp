@@ -1197,5 +1197,5 @@ SidebarWidget* TTDEventsWidgetType::createWidget(ViewFrame* frame, BinaryViewRef
 
 SidebarContentClassifier* TTDEventsWidgetType::contentClassifier(ViewFrame*, BinaryViewRef data)
 {
-	return new ActiveDebugSessionSidebarContentClassifier(data);
+	return new ActiveDebugSessionSidebarContentClassifier(data, true);
 }
