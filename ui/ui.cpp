@@ -1531,6 +1531,9 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!ctxt.binaryView)
 					return false;
 
+				if (!DebuggerController::ControllerExists(ctxt.binaryView))
+					return false;
+
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
 				if (!controller)
 					return false;
@@ -1554,6 +1557,9 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			[=](const UIActionContext& ctxt) {
 				if (!ctxt.binaryView)
+					return false;
+
+				if (!DebuggerController::ControllerExists(ctxt.binaryView))
 					return false;
 
 				auto controller = DebuggerController::GetController(ctxt.binaryView);
