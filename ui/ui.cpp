@@ -857,9 +857,13 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 				auto dialog = new AttachProcessDialog(context->mainWindow(), controller);
 				if (dialog->exec() != QDialog::Accepted)
+				{
+					dialog->deleteLater();
 					return;
+				}
 
 				uint32_t pid = dialog->GetSelectedPid();
+				dialog->deleteLater();
 				if (pid == 0)
 					return;
 
