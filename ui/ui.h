@@ -108,9 +108,10 @@ class ActiveDebugSessionSidebarContentClassifier : public SidebarContentClassifi
 	size_t m_eventIndex;
 	SidebarContentClassification m_contentClassification = SidebarHasNoContent;
 	DebuggerControllerRef m_debugger;
+	bool m_requireTTD;
 
 public:
-	ActiveDebugSessionSidebarContentClassifier(BinaryViewRef data);
+	ActiveDebugSessionSidebarContentClassifier(BinaryViewRef data, bool requireTTD = false);
 	~ActiveDebugSessionSidebarContentClassifier() override;
 	SidebarContentClassification contentClassification() override { return m_contentClassification; }
 };
