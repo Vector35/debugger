@@ -1286,6 +1286,54 @@ bool DebuggerController::IsFirstAttach()
 }
 
 
+bool DebuggerController::ShouldShowAdapterSettingsNextLaunch()
+{
+	return BNDebuggerShouldShowAdapterSettingsNextLaunch(m_object);
+}
+
+
+bool DebuggerController::ShouldShowAdapterSettingsNextAttach()
+{
+	return BNDebuggerShouldShowAdapterSettingsNextAttach(m_object);
+}
+
+
+bool DebuggerController::ShouldShowAdapterSettingsNextConnect()
+{
+	return BNDebuggerShouldShowAdapterSettingsNextConnect(m_object);
+}
+
+
+bool DebuggerController::ShouldShowAdapterSettingsNextConnectToDebugServer()
+{
+	return BNDebuggerShouldShowAdapterSettingsNextConnectToDebugServer(m_object);
+}
+
+
+void DebuggerController::SetShowAdapterSettingsNextLaunch(bool value)
+{
+	BNDebuggerSetShowAdapterSettingsNextLaunch(m_object, value);
+}
+
+
+void DebuggerController::SetShowAdapterSettingsNextAttach(bool value)
+{
+	BNDebuggerSetShowAdapterSettingsNextAttach(m_object, value);
+}
+
+
+void DebuggerController::SetShowAdapterSettingsNextConnect(bool value)
+{
+	BNDebuggerSetShowAdapterSettingsNextConnect(m_object, value);
+}
+
+
+void DebuggerController::SetShowAdapterSettingsNextConnectToDebugServer(bool value)
+{
+	BNDebuggerSetShowAdapterSettingsNextConnectToDebugServer(m_object, value);
+}
+
+
 bool DebuggerController::IsTTD()
 {
 	return BNDebuggerIsTTD(m_object);

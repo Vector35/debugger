@@ -890,6 +890,16 @@ namespace BinaryNinjaDebuggerAPI {
 		bool IsFirstConnectToDebugServer();
 		bool IsFirstAttach();
 
+		bool ShouldShowAdapterSettingsNextLaunch();
+		bool ShouldShowAdapterSettingsNextAttach();
+		bool ShouldShowAdapterSettingsNextConnect();
+		bool ShouldShowAdapterSettingsNextConnectToDebugServer();
+
+		void SetShowAdapterSettingsNextLaunch(bool value);
+		void SetShowAdapterSettingsNextAttach(bool value);
+		void SetShowAdapterSettingsNextConnect(bool value);
+		void SetShowAdapterSettingsNextConnectToDebugServer(bool value);
+
 		bool IsTTD();
 
 		// TTD Memory Analysis Methods

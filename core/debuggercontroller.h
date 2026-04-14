@@ -175,6 +175,11 @@ namespace BinaryNinjaDebugger {
 		bool m_firstConnectToDebugServer = true;
 		bool m_firstAttach = true;
 
+		bool m_showAdapterSettingsNextLaunch = true;
+		bool m_showAdapterSettingsNextAttach = true;
+		bool m_showAdapterSettingsNextConnect = true;
+		bool m_showAdapterSettingsNextConnectToDebugServer = true;
+
 		bool m_shouldAnnotateStackVariable = false;
 
 		// Apply the controller's own state mutations for each event type. Called inline
@@ -644,6 +649,17 @@ namespace BinaryNinjaDebugger {
 		bool IsFirstConnect();
 		bool IsFirstConnectToDebugServer();
 		bool IsFirstAttach();
+
+		bool ShouldShowAdapterSettingsNextLaunch();
+		bool ShouldShowAdapterSettingsNextAttach();
+		bool ShouldShowAdapterSettingsNextConnect();
+		bool ShouldShowAdapterSettingsNextConnectToDebugServer();
+
+		void SetShowAdapterSettingsNextLaunch(bool value);
+		void SetShowAdapterSettingsNextAttach(bool value);
+		void SetShowAdapterSettingsNextConnect(bool value);
+		void SetShowAdapterSettingsNextConnectToDebugServer(bool value);
+
 		bool IsTTD();
 
 		// TTD Memory Analysis Methods
