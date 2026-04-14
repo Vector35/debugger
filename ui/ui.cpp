@@ -855,11 +855,11 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 						return;
 				}
 
-				auto dialog = new AttachProcessDialog(context->mainWindow(), controller);
-				if (dialog->exec() != QDialog::Accepted)
+				AttachProcessDialog dialog(context->mainWindow(), controller);
+				if (dialog.exec() != QDialog::Accepted)
 					return;
 
-				uint32_t pid = dialog->GetSelectedPid();
+				uint32_t pid = dialog.GetSelectedPid();
 				if (pid == 0)
 					return;
 
