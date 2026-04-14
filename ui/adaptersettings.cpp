@@ -24,7 +24,7 @@ using namespace BinaryNinja;
 using namespace std;
 
 AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller, const std::string& highlightGroup) :
-	QDialog(), m_controller(controller)
+	QDialog(), m_controller(controller), m_highlightGroup(highlightGroup)
 {
 	setWindowTitle("Debug Adapter Settings");
 	setAttribute(Qt::WA_DeleteOnClose);
@@ -78,12 +78,16 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 		QHBoxLayout* buttonLayout = new QHBoxLayout;
 		buttonLayout->setContentsMargins(0, 0, 0, 0);
 
+		m_useSameSettingsCheckbox = new QCheckBox("Use same settings next time");
+		m_useSameSettingsCheckbox->setChecked(true);
+
 		QPushButton* cancelButton = new QPushButton("Cancel");
 		connect(cancelButton, &QPushButton::clicked, [&]() { reject(); });
 		QPushButton* acceptButton = new QPushButton("Accept");
 		connect(acceptButton, &QPushButton::clicked, [&]() { apply(); });
 		acceptButton->setDefault(true);
 
+		buttonLayout->addWidget(m_useSameSettingsCheckbox);
 		buttonLayout->addStretch(1);
 		buttonLayout->addWidget(cancelButton);
 		buttonLayout->addSpacing(10);
@@ -139,5 +143,17 @@ QWidget* AdapterSettingsDialog::getWidgetForAdapter(const QString& adapter)
 
 void AdapterSettingsDialog::apply()
 {
+	if (m_useSameSettingsCheckbox)
+	{
+		bool showAgain = !m_useSameSettingsCheckbox->isChecked();
+		if (m_highlightGroup == "launch")
+			m_controller->SetShowAdapterSettingsNextLaunch(showAgain);
+		else if (m_highlightGroup == "attach")
+			m_controller->SetShowAdapterSettingsNextAttach(showAgain);
+		else if (m_highlightGroup == "connect")
+			m_controller->SetShowAdapterSettingsNextConnect(showAgain);
+		else if (m_highlightGroup == "debug_server")
+			m_controller->SetShowAdapterSettingsNextConnectToDebugServer(showAgain);
+	}
 	accept();
 }
