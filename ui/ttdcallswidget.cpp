@@ -839,7 +839,7 @@ SidebarWidget* TTDCallsWidgetType::createWidget(ViewFrame* frame, BinaryViewRef 
 
 SidebarContentClassifier* TTDCallsWidgetType::contentClassifier(ViewFrame*, BinaryViewRef data)
 {
-	return new ActiveDebugSessionSidebarContentClassifier(data);
+	return new ActiveDebugSessionSidebarContentClassifier(data, true);
 }
 
 void TTDCallsWidgetType::SetPendingQuery(

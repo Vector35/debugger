@@ -1327,7 +1327,7 @@ SidebarWidget* TTDMemoryWidgetType::createWidget(ViewFrame* frame, BinaryViewRef
 
 SidebarContentClassifier* TTDMemoryWidgetType::contentClassifier(ViewFrame*, BinaryViewRef data)
 {
-	return new ActiveDebugSessionSidebarContentClassifier(data);
+	return new ActiveDebugSessionSidebarContentClassifier(data, true);
 }
 
 void TTDMemoryWidgetType::SetPendingQuery(ViewFrame* frame, BinaryViewRef data, uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType)
