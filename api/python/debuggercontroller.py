@@ -655,7 +655,7 @@ class DebuggerEventWrapper:
         try:
             dbgcore.BNDebuggerRemoveEventCallback(controller.handle, index)
             del cls._debugger_events[index]
-        except:
+        except Exception:
             binaryninja.log_error(f'invalid debugger event callback index {index}')
 
     @staticmethod
@@ -675,7 +675,7 @@ class DebuggerEventWrapper:
                                            message_data)
             event = DebuggerEvent(event.type, event_data)
             callback(event)
-        except:
+        except Exception:
             binaryninja.log_error(traceback.format_exc())
 
 
@@ -3244,7 +3244,7 @@ class DebuggerController:
             parts = [connected, running, f"adapter={adapter_name}", exec_path]
 
             return f"<DebuggerController: {', '.join(parts)}>"
-        except:
+        except Exception:
             # Fallback to basic representation if we can't get state info
             return f"<DebuggerController: {hex(id(self))}>"
 
