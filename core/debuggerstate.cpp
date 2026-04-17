@@ -18,6 +18,7 @@ limitations under the License.
 #include <thread>
 #include <utility>
 #include <filesystem>
+#include "base/assertions.h"
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
@@ -1260,6 +1261,7 @@ DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
 	{
 		// The cache is old and the target is stopped, try to update the cache value
 		DataBuffer buffer = m_state->GetAdapter()->ReadMemory(block, 0x100);
+		BN_RELEASE_ASSERT(buffer.GetLength() <= 0x100);
 		if (buffer.GetLength() > 0)
 		{
 			// Successfully updated
@@ -1328,6 +1330,7 @@ DataBuffer DebuggerMemory::ReadMemory(uint64_t offset, size_t len)
 		}
 		result.Append(cached);
 	}
+	BN_RELEASE_ASSERT(result.GetLength() <= len);
 	return result;
 }
 
