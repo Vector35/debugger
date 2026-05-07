@@ -296,19 +296,18 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : QT
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
-	m_menu = new Menu();
 
 	QString actionName = QString::fromStdString("Jump To Start");
 	UIAction::registerAction(actionName);
-	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpToStart(); }));
 
 	actionName = QString::fromStdString("Jump To End");
 	UIAction::registerAction(actionName);
-	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpToEnd(); }));
 
-	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return canCopy(); }));
 	m_actionHandler.setActionDisplayName("Copy", [&]() {
 		QModelIndexList sel = selectionModel()->selectedIndexes();
@@ -333,7 +332,7 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : QT
 	});
 
 	UIAction::registerAction("Copy All");
-	m_menu->addAction("Copy All", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Copy All", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy All", UIAction([&]() { copyAll(); }, [&]() { return canCopyAll(); }));
 
 	connect(this, &QTableView::doubleClicked, this, &DebugModulesWidget::onDoubleClicked);
@@ -404,7 +403,7 @@ void DebugModulesWidget::contextMenuEvent(QContextMenuEvent* event)
 
 void DebugModulesWidget::showContextMenu()
 {
-	m_contextMenuManager->show(m_menu, &m_actionHandler);
+	m_contextMenuManager->show(&m_menu, &m_actionHandler);
 }
 
 

@@ -25,6 +25,7 @@ limitations under the License.
 #include "util.h"
 #include "clickablelabel.h"
 #include "registerswidget.h"
+#include "base/assertions.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -450,9 +451,8 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
+	BN_RELEASE_ASSERT(menu != nullptr);
 	m_menu = menu;
-	if (m_menu == nullptr)
-		m_menu = new Menu();
 
 	QString actionName = QString::fromStdString("Set to Zero");
 	UIAction::registerAction(actionName);

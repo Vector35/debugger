@@ -130,7 +130,7 @@ class ProcessListWidget : public QTableView, public FilterTarget
 
 	UIActionHandler m_actionHandler;
 	ContextMenuManager* m_contextMenuManager;
-	Menu* m_menu;
+	Menu m_menu;
 
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 

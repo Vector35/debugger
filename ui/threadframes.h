@@ -169,7 +169,7 @@ class ThreadFramesWidget : public QTreeView
 
 	UIActionHandler m_actionHandler;
 	ContextMenuManager* m_contextMenuManager;
-	Menu* m_menu;
+	Menu m_menu;
 
 	size_t m_debuggerEventCallback;
 

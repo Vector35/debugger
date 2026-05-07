@@ -910,7 +910,7 @@ namespace BinaryNinjaDebuggerAPI {
 	{
 	public:
 		DebugAdapterType(BNDebugAdapterType* adapterType);
-		static DebugAdapterType* GetByName(const std::string& name);
+		static DbgRef<DebugAdapterType> GetByName(const std::string& name);
 		bool CanExecute(Ref<BinaryView> data);
 		bool CanConnect(Ref<BinaryView> data);
 		static std::vector<std::string> GetAvailableAdapters(Ref<BinaryView> data);
