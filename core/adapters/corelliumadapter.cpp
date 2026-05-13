@@ -789,6 +789,9 @@ std::string CorelliumAdapter::GetTargetArchitecture()
 
 bool CorelliumAdapter::BreakInto()
 {
+	if (!m_isTargetRunning || !m_rspConnector)
+		return false;
+
     char var = '\x03';
     this->m_rspConnector->SendRaw(RspData(&var, sizeof(var)));
     m_isTargetRunning = false;
