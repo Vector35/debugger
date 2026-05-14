@@ -725,7 +725,7 @@ DataBuffer GdbAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 
 bool GdbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
-    if (m_isTargetRunning)
+    if (m_isTargetRunning || !m_rspConnector)
         return false;
 
     size_t size = buffer.GetLength();
