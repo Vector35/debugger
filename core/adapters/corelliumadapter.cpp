@@ -86,7 +86,11 @@ bool CorelliumAdapter::LoadRegisterInfo()
     if (m_isTargetRunning)
         return false;
 
-    const auto xml = this->m_rspConnector->GetXml("target.xml");
+    auto connector = m_rspConnector.load();
+    if (!connector)
+        return false;
+
+    const auto xml = connector->GetXml("target.xml");
 
     pugi::xml_document doc{};
     const auto parse_result = doc.load_string(xml.c_str());
@@ -226,9 +230,10 @@ bool CorelliumAdapter::Connect(const std::string& server, std::uint32_t port)
 		return false;
 	}
 
-    this->m_rspConnector = new RspConnector(this->m_socket);
-    this->m_rspConnector->TransmitAndReceive(RspData("Hg0"));
-    this->m_rspConnector->NegotiateCapabilities(
+    auto connector = std::make_shared<RspConnector>(this->m_socket);
+    m_rspConnector.store(connector);
+    connector->TransmitAndReceive(RspData("Hg0"));
+    connector->NegotiateCapabilities(
             { "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
                          "vContSupported+", "QThreadEvents+", "no-resumed+", "xmlRegisters=i386" } );
     if ( !this->LoadRegisterInfo() )
@@ -242,7 +247,7 @@ bool CorelliumAdapter::Connect(const std::string& server, std::uint32_t port)
     	return false;
     }
 
-    const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("?"));
+    const auto reply = connector->TransmitAndReceive(RspData("?"));
     auto map = RspConnector::PacketToUnorderedMap(reply);
 	this->m_lastActiveThreadId = (uint32_t)map["thread"];
 	this->m_processPid = (uint32_t)map["thread"];
@@ -282,16 +287,14 @@ bool CorelliumAdapter::Connect(const std::string& server, std::uint32_t port)
 
 bool CorelliumAdapter::Detach()
 {
-    this->m_rspConnector->SendPayload(RspData("D"));
+    auto connector = m_rspConnector.load();
+    if (connector)
+        connector->SendPayload(RspData("D"));
     this->m_socket->Kill();
     m_isTargetRunning = false;
 	InvalidateCache();
 
-	if (m_rspConnector)
-	{
-		delete m_rspConnector;
-		m_rspConnector = nullptr;
-	}
+	m_rspConnector.store(nullptr);
 
 	DebuggerEvent dbgevt;
 	dbgevt.type = TargetExitedEventType;
@@ -306,16 +309,14 @@ bool CorelliumAdapter::Quit()
 	// Modern gdbserver uses vkill to kill the taget:
 	// $vKill;7c3d#6e
 	// $OK#9a
-    this->m_rspConnector->SendPayload(RspData("k"));
+    auto connector = m_rspConnector.load();
+    if (connector)
+        connector->SendPayload(RspData("k"));
     this->m_socket->Kill();
     m_isTargetRunning = false;
 	InvalidateCache();
 
-	if (m_rspConnector)
-	{
-		delete m_rspConnector;
-		m_rspConnector = nullptr;
-	}
+	m_rspConnector.store(nullptr);
 
 	// TODO: we should only treat the target as exited when either 1) the remote side closes the socket, or, 2) the
 	// remote side returns OK to the vkill request.
@@ -335,9 +336,13 @@ std::vector<DebugThread> CorelliumAdapter::GetThreadList()
     if (m_isTargetRunning)
         return {};
 
+    auto connector = m_rspConnector.load();
+    if (!connector)
+        return {};
+
     std::vector<DebugThread> threads{};
 
-    auto reply = this->m_rspConnector->TransmitAndReceive(RspData("qfThreadInfo"));
+    auto reply = connector->TransmitAndReceive(RspData("qfThreadInfo"));
     while(reply.m_data[0] != 'l') {
         if (reply.m_data[0] != 'm') {
             LogWarn("thread list failed");
@@ -350,7 +355,7 @@ std::vector<DebugThread> CorelliumAdapter::GetThreadList()
         for ( const auto& tid : tids )
             threads.emplace_back(std::stoi(tid, nullptr, 16));
 
-        reply = this->m_rspConnector->TransmitAndReceive(RspData("qsThreadInfo"));
+        reply = connector->TransmitAndReceive(RspData("qsThreadInfo"));
     }
 
     return threads;
@@ -380,19 +385,23 @@ bool CorelliumAdapter::SetActiveThreadId(std::uint32_t tid)
     if (m_isTargetRunning)
         return false;
 
-    if ( this->m_rspConnector->TransmitAndReceive(RspData(string("T{:x}"), tid)).AsString() != "OK" )
+    auto connector = m_rspConnector.load();
+    if (!connector)
+        return false;
+
+    if ( connector->TransmitAndReceive(RspData(string("T{:x}"), tid)).AsString() != "OK" )
     {
         LogWarn("thread does not exist");
         return false;
     }
 
-    if ( this->m_rspConnector->TransmitAndReceive(RspData(string("Hc{:x}"), tid)).AsString() != "OK")
+    if ( connector->TransmitAndReceive(RspData(string("Hc{:x}"), tid)).AsString() != "OK")
     {
         LogWarn("failed to set thread");
         return false;
     }
 
-    if ( this->m_rspConnector->TransmitAndReceive(RspData(string("Hg{:x}"), tid)).AsString() != "OK")
+    if ( connector->TransmitAndReceive(RspData(string("Hg{:x}"), tid)).AsString() != "OK")
     {
         LogWarn("failed to set thread");
         return false;
@@ -408,6 +417,10 @@ DebugBreakpoint CorelliumAdapter::AddBreakpoint(const std::uintptr_t address, un
     if (m_isTargetRunning)
         return {};
 
+    auto connector = m_rspConnector.load();
+    if (!connector)
+        return {};
+
     if ( std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(),
                    DebugBreakpoint(address)) != this->m_debugBreakpoints.end())
         return {};
@@ -419,7 +432,7 @@ DebugBreakpoint CorelliumAdapter::AddBreakpoint(const std::uintptr_t address, un
 //  TODO: other archs have other values for kind, e.g., thumb2 needs a value of 2 or 3 here.
 //  https://sourceware.org/gdb/current/onlinedocs/gdb/ARM-Breakpoint-Kinds.html
 
-    if (this->m_rspConnector->TransmitAndReceive(RspData("Z0,{:x},{}", address, kind)).AsString() != "OK" )
+    if (connector->TransmitAndReceive(RspData("Z0,{:x},{}", address, kind)).AsString() != "OK" )
         return DebugBreakpoint{};
 
     const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true);
@@ -433,6 +446,10 @@ bool CorelliumAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
     if (m_isTargetRunning)
         return false;
 
+    auto connector = m_rspConnector.load();
+    if (!connector)
+        return false;
+
     if (auto location = std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(), breakpoint);
             location == this->m_debugBreakpoints.end()) {
         return false;
@@ -443,7 +460,7 @@ bool CorelliumAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
     if (m_remoteArch == "aarch64")
         kind = 4;
 
-    if (this->m_rspConnector->TransmitAndReceive(RspData("z0,{:x},{}", breakpoint.m_address, kind)).AsString() != "OK" )
+    if (connector->TransmitAndReceive(RspData("z0,{:x},{}", breakpoint.m_address, kind)).AsString() != "OK" )
     {
         LogWarn("rsp reply failure on remove breakpoint");
         return false;
@@ -534,6 +551,10 @@ std::unordered_map<std::string, DebugRegister> CorelliumAdapter::ReadAllRegister
         return {};
     }
 
+    auto connector = m_rspConnector.load();
+    if (!connector)
+        return {};
+
 	// Sort the registers according to their index, as the g reply packet will provide values in the same order
     std::vector<register_pair> register_info_vec{};
     for ( const auto& [register_name, register_info] : this->m_registerInfo )
@@ -545,7 +566,7 @@ std::unordered_map<std::string, DebugRegister> CorelliumAdapter::ReadAllRegister
               });
 
     char request{'g'};
-    const auto register_info_reply = this->m_rspConnector->TransmitAndReceive(RspData(&request, sizeof(request)));
+    const auto register_info_reply = connector->TransmitAndReceive(RspData(&request, sizeof(request)));
     auto register_info_reply_string = register_info_reply.AsString();
     if ( register_info_reply_string.empty() )
     {
@@ -623,15 +644,19 @@ bool CorelliumAdapter::WriteRegister(const std::string& reg, intx::uint512 value
     if (!this->m_registerInfo.contains(reg))
         return false;
 
+    auto connector = m_rspConnector.load();
+    if (!connector)
+        return false;
+
     const auto newRegString = m_isBigEndian ? uint512ToBigEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8)
                                             : uint512ToLittleEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8);
-    const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("P{:02X}={}",
+    const auto reply = connector->TransmitAndReceive(RspData("P{:02X}={}",
                 this->m_registerInfo[reg].m_regNum, newRegString));
     if (reply.m_data[0])
         return true;
 
     char query{'g'};
-    const auto generic_query = this->m_rspConnector->TransmitAndReceive(RspData(&query, sizeof(query)));
+    const auto generic_query = connector->TransmitAndReceive(RspData(&query, sizeof(query)));
     const auto register_offset = this->m_registerInfo[reg].m_offset;
 
     // TODO: check if this works for aarch64
@@ -639,7 +664,7 @@ bool CorelliumAdapter::WriteRegister(const std::string& reg, intx::uint512 value
     const auto second_half = generic_query.AsString().substr(2 * ((register_offset + this->m_registerInfo[reg].m_bitSize) / 8) );
     const auto payload = "G" + first_half + newRegString + second_half;
 
-    if ( this->m_rspConnector->TransmitAndReceive(RspData(payload)).AsString() != "OK" )
+    if ( connector->TransmitAndReceive(RspData(payload)).AsString() != "OK" )
         return false;
 
     // TODO: we do not need to invalidate all register caches, we could probably just update the necessary ones here
@@ -653,7 +678,11 @@ DataBuffer CorelliumAdapter::ReadMemory(std::uintptr_t address, std::size_t size
     if (m_isTargetRunning)
         return DataBuffer{};
 
-    auto reply = this->m_rspConnector->TransmitAndReceive(RspData("m{:x},{:x}", address, size));
+    auto connector = m_rspConnector.load();
+    if (!connector)
+        return DataBuffer{};
+
+    auto reply = connector->TransmitAndReceive(RspData("m{:x},{:x}", address, size));
     if (reply.m_data[0] == 'E')
         return DataBuffer{};
 
@@ -695,6 +724,10 @@ bool CorelliumAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buf
     if (m_isTargetRunning)
         return false;
 
+    auto connector = m_rspConnector.load();
+    if (!connector)
+        return false;
+
     size_t size = buffer.GetLength();
 	DataBuffer dest(2 * size);
 
@@ -706,7 +739,7 @@ bool CorelliumAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buf
 		dest[2 * index + 1] = hex[1];
 	}
 
-    auto reply = this->m_rspConnector->TransmitAndReceive(RspData("M{:x},{:x}:{}", address, size, dest.ToEscapedString()));
+    auto reply = connector->TransmitAndReceive(RspData("M{:x},{:x}:{}", address, size, dest.ToEscapedString()));
     if (reply.AsString() != "OK")
         return false;
 
@@ -719,9 +752,13 @@ std::string CorelliumAdapter::GetRemoteFile(const std::string& path)
     if (m_isTargetRunning)
         return "";
 
+    auto connector = m_rspConnector.load();
+    if (!connector)
+        return "";
+
     RspData output;
     int32_t error;
-    int32_t ret = this->m_rspConnector->HostFileIO(RspData("vFile:setfs:0"), output, error);
+    int32_t ret = connector->HostFileIO(RspData("vFile:setfs:0"), output, error);
     if (ret < 0)
     {
         LogWarn("Could not set remote filesystem");
@@ -732,7 +769,7 @@ std::string CorelliumAdapter::GetRemoteFile(const std::string& path)
     for ( const auto& ch : path )
         path_hex_string += fmt::format("{:02X}", ch);
 
-    ret = this->m_rspConnector->HostFileIO(
+    ret = connector->HostFileIO(
                     RspData("vFile:open:{},{:X},{:X}", path_hex_string.c_str(), 0, 0), output, error);
     if (ret < 0)
     {
@@ -748,7 +785,7 @@ std::string CorelliumAdapter::GetRemoteFile(const std::string& path)
 
     while(true)
     {
-        ret = this->m_rspConnector->HostFileIO(
+        ret = connector->HostFileIO(
                     RspData("vFile:pread:{:X},{:X},{:X}", fd, blockSize, offset), output, error);
         if (ret < 0)
         {
@@ -764,12 +801,12 @@ std::string CorelliumAdapter::GetRemoteFile(const std::string& path)
                     ret, output.AsString().length());
             return data;
         }
-        
+
         data += output.AsString();
         offset += output.AsString().length();
     }
 
-    ret = this->m_rspConnector->HostFileIO(RspData(fmt::format("vFile:close:{:X}", fd)), output, error);
+    ret = connector->HostFileIO(RspData(fmt::format("vFile:close:{:X}", fd)), output, error);
     if (ret)
         LogWarn("host i/o close() failed, result=%d, errno=%d", ret, error);
 
@@ -789,11 +826,12 @@ std::string CorelliumAdapter::GetTargetArchitecture()
 
 bool CorelliumAdapter::BreakInto()
 {
-	if (!m_isTargetRunning || !m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!m_isTargetRunning || !connector)
 		return false;
 
     char var = '\x03';
-    this->m_rspConnector->SendRaw(RspData(&var, sizeof(var)));
+    connector->SendRaw(RspData(&var, sizeof(var)));
     m_isTargetRunning = false;
     return true;
 }
@@ -801,9 +839,13 @@ bool CorelliumAdapter::BreakInto()
 
 DebugStopReason CorelliumAdapter::ResponseHandler()
 {
+	auto connector = m_rspConnector.load();
+	if (!connector)
+		return DebugStopReason::UnknownReason;
+
 	while (true)
 	{
-		const RspData reply = m_rspConnector->ReceiveRspData();
+		const RspData reply = connector->ReceiveRspData();
 		if (reply[0] == 'T')
 		{
 			// Target stopped
@@ -858,11 +900,7 @@ DebugStopReason CorelliumAdapter::ResponseHandler()
 			this->m_socket->Kill();
 			m_isTargetRunning = false;
 
-			if (m_rspConnector)
-			{
-				delete m_rspConnector;
-				m_rspConnector = nullptr;
-			}
+			m_rspConnector.store(nullptr);
 
             return DebugStopReason::ProcessExited;
 			break;
@@ -918,10 +956,14 @@ DebugStopReason CorelliumAdapter::ResponseHandler()
 // this should return the information about the target stop
 DebugStopReason CorelliumAdapter::GenericGo(const std::string& goCommand)
 {
+	auto connector = m_rspConnector.load();
+	if (!connector)
+		return DebugStopReason::UnknownReason;
+
 	m_isTargetRunning = true;
 	// TODO: these two calls should be combined
-	m_rspConnector->SendPayload(RspData(goCommand));
-	m_rspConnector->ExpectAck();
+	connector->SendPayload(RspData(goCommand));
+	connector->ExpectAck();
 
 	return ResponseHandler();
 }
@@ -971,7 +1013,11 @@ std::string CorelliumAdapter::InvokeBackendCommand(const std::string& command)
 	else if (command.substr(0, 8) == "monitor ")
 		return RunMonitorCommand(command.substr(4));
 
-	auto reply = this->m_rspConnector->TransmitAndReceive(RspData(command));
+	auto connector = m_rspConnector.load();
+	if (!connector)
+		return "";
+
+	auto reply = connector->TransmitAndReceive(RspData(command));
 	return reply.AsString();
 }
 
@@ -1005,6 +1051,10 @@ static std::string HexToAscii(const std::string& hex)
 
 std::string CorelliumAdapter::RunMonitorCommand(const std::string& command)
 {
+    auto connector = m_rspConnector.load();
+    if (!connector)
+        return "";
+
     std::string commandToSend = "qRcmd,";
     for (const auto& c: command)
     {
@@ -1012,13 +1062,13 @@ std::string CorelliumAdapter::RunMonitorCommand(const std::string& command)
         commandToSend += ("0123456789abcdef"[c & 0x0F]);
     }
 
-    m_rspConnector->SendPayload(RspData(commandToSend));
-    m_rspConnector->ExpectAck();
+    connector->SendPayload(RspData(commandToSend));
+    connector->ExpectAck();
 
     std::string result;
     while (true)
     {
-        auto replyChunk = this->m_rspConnector->ReceiveRspData();
+        auto replyChunk = connector->ReceiveRspData();
         if (replyChunk.AsString() == "OK" || replyChunk.AsString().empty())
             break;
 
@@ -1073,7 +1123,8 @@ bool CorelliumAdapter::SupportFeature(DebugAdapterCapacity feature)
 
 bool CorelliumAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
-	if (m_isTargetRunning || !m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (m_isTargetRunning || !connector)
 		return false;
 
 	std::string command;
@@ -1099,13 +1150,14 @@ bool CorelliumAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointTy
 			return false;
 	}
 
-	return m_rspConnector->TransmitAndReceive(RspData(command)).AsString() == "OK";
+	return connector->TransmitAndReceive(RspData(command)).AsString() == "OK";
 }
 
 
 bool CorelliumAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
-	if (m_isTargetRunning || !m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (m_isTargetRunning || !connector)
 		return false;
 
 	std::string command;
@@ -1131,7 +1183,7 @@ bool CorelliumAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpoin
 			return false;
 	}
 
-	return m_rspConnector->TransmitAndReceive(RspData(command)).AsString() == "OK";
+	return connector->TransmitAndReceive(RspData(command)).AsString() == "OK";
 }
 
 
