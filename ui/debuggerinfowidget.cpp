@@ -99,7 +99,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLILCalls(LowLevelIL
 				reader.Seek(realOffset);
 				value = reader.ReadPointer();
 			}
-			catch (...)
+			catch (const ReadException&)
 			{
 				// realOffset is outside the binary view; skip this entry
 				break;
@@ -327,7 +327,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForMLILCalls(MediumLeve
 				reader.Seek(realOffset);
 				value = reader.ReadPointer();
 			}
-			catch (...)
+			catch (const ReadException&)
 			{
 				// realOffset is outside the binary view; skip this entry
 				break;
@@ -509,7 +509,7 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForHLILCalls(HighLevelI
 				reader.Seek(realOffset);
 				value = reader.ReadPointer();
 			}
-			catch (...)
+			catch (const ReadException&)
 			{
 				// realOffset is outside the binary view; skip this entry
 				break;
