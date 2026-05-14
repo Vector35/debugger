@@ -2176,6 +2176,9 @@ bool DbgEngAdapter::SupportFeature(DebugAdapterCapacity feature)
 
 DataBuffer DbgEngAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 {
+	if (!m_debugDataSpaces)
+		return {};
+
 	const auto source = std::make_unique<std::uint8_t[]>(size);
 
 	unsigned long bytesRead {};
@@ -2189,6 +2192,9 @@ DataBuffer DbgEngAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 
 bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
+	if (!m_debugDataSpaces)
+		return false;
+
 	unsigned long bytes_written {};
 	return this->m_debugDataSpaces->WriteVirtual(address, const_cast<void*>(buffer.GetData()), (ULONG)buffer.GetLength(), &bytes_written) == S_OK
 		&& bytes_written == buffer.GetLength();
