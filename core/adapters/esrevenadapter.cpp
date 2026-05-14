@@ -2491,7 +2491,7 @@ void EsrevenAdapter::HandleAsyncPacket(const RspData& data)
 
 std::vector<DebugProcess> EsrevenAdapter::GetProcessList()
 {
-	if (m_isTargetRunning)
+	if (m_isTargetRunning || !m_rspConnector)
 		return {};
 
 	// Use the custom reven list-processes packet
