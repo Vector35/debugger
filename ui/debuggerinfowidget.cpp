@@ -92,9 +92,18 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForLLILCalls(LowLevelIL
 			offset -= arch->GetAddressSize();
 			auto realOffset = offset + m_debugger->StackPointer();
 
-			BinaryReader reader(m_data);
-			reader.Seek(realOffset);
-			auto value = reader.ReadPointer();
+			uint64_t value = 0;
+			try
+			{
+				BinaryReader reader(m_data);
+				reader.Seek(realOffset);
+				value = reader.ReadPointer();
+			}
+			catch (...)
+			{
+				// realOffset is outside the binary view; skip this entry
+				break;
+			}
 			auto hints = m_debugger->GetAddressInformation(value);
 
 			auto paramName = func->GetVariableName(param);
@@ -311,9 +320,18 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForMLILCalls(MediumLeve
 			offset -= arch->GetAddressSize();
 			auto realOffset = offset + m_debugger->StackPointer();
 
-			BinaryReader reader(m_data);
-			reader.Seek(realOffset);
-			auto value = reader.ReadPointer();
+			uint64_t value = 0;
+			try
+			{
+				BinaryReader reader(m_data);
+				reader.Seek(realOffset);
+				value = reader.ReadPointer();
+			}
+			catch (...)
+			{
+				// realOffset is outside the binary view; skip this entry
+				break;
+			}
 			auto hints = m_debugger->GetAddressInformation(value);
 
 			auto paramName = func->GetVariableName(param);
@@ -484,9 +502,18 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForHLILCalls(HighLevelI
 			offset -= arch->GetAddressSize();
 			auto realOffset = offset + m_debugger->StackPointer();
 
-			BinaryReader reader(m_data);
-			reader.Seek(realOffset);
-			auto value = reader.ReadPointer();
+			uint64_t value = 0;
+			try
+			{
+				BinaryReader reader(m_data);
+				reader.Seek(realOffset);
+				value = reader.ReadPointer();
+			}
+			catch (...)
+			{
+				// realOffset is outside the binary view; skip this entry
+				break;
+			}
 			auto hints = m_debugger->GetAddressInformation(value);
 
 			auto paramName = func->GetVariableName(param);
