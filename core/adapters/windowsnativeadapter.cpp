@@ -111,6 +111,12 @@ WindowsNativeAdapter::~WindowsNativeAdapter()
 {
 	if (m_activelyDebugging)
 		Quit();
+
+	// If the target exited on its own, HandleExitProcess cleared m_activelyDebugging and the
+	// debug loop returned, but nobody joined the thread. Destroying a joinable std::thread
+	// calls std::terminate, so join here to cover that path.
+	if (m_debugThread.joinable())
+		m_debugThread.join();
 }
 
 
