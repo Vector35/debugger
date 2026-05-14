@@ -1129,7 +1129,7 @@ DataBuffer EsrevenAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 
 bool EsrevenAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
-    if (m_isTargetRunning)
+    if (m_isTargetRunning || !m_rspConnector)
         return false;
 
     size_t size = buffer.GetLength();
@@ -2925,6 +2925,9 @@ std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::strin
 		LogError("No symbols provided for TTD calls query");
 		return events;
 	}
+
+	if (!m_rspConnector)
+		return events;
 
 	// Get settings
 	auto adapterSettings = GetAdapterSettings();
