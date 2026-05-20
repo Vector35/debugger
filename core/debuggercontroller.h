@@ -168,6 +168,27 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason RunToAndWaitInternal(const std::vector<uint64_t> &remoteAddresses);
 		DebugStopReason RunToReverseAndWaitInternal(const std::vector<uint64_t> &remoteAddresses);
 
+		// Worker-thread bodies. Each runs on m_workerThread (via Submit) and performs the
+		// existing lock-Internal-notify wrapper. The public `XxxAndWait(timeout)` methods
+		// below submit one of these and wait on the resulting future.
+		DebugStopReason LaunchAndWaitOnWorker();
+		DebugStopReason AttachAndWaitOnWorker();
+		DebugStopReason ConnectAndWaitOnWorker();
+		DebugStopReason GoAndWaitOnWorker();
+		DebugStopReason GoReverseAndWaitOnWorker();
+		DebugStopReason StepIntoAndWaitOnWorker(BNFunctionGraphType il);
+		DebugStopReason StepIntoReverseAndWaitOnWorker(BNFunctionGraphType il);
+		DebugStopReason StepOverAndWaitOnWorker(BNFunctionGraphType il);
+		DebugStopReason StepOverReverseAndWaitOnWorker(BNFunctionGraphType il);
+		DebugStopReason StepReturnAndWaitOnWorker();
+		DebugStopReason StepReturnReverseAndWaitOnWorker();
+		DebugStopReason RunToAndWaitOnWorker(const std::vector<uint64_t>& remoteAddresses);
+		DebugStopReason RunToReverseAndWaitOnWorker(const std::vector<uint64_t>& remoteAddresses);
+		DebugStopReason RestartAndWaitOnWorker();
+		void DetachAndWaitOnWorker();
+		void QuitAndWaitOnWorker();
+		DebugStopReason PauseAndWaitOnWorker();
+
 		// Whether we can start debugging, e.g., launch/attach/connec to a target
 		bool CanStartDebgging();
 		// Whether we can resume the execution of the target, including stepping.
@@ -200,6 +221,64 @@ namespace BinaryNinjaDebugger {
 		std::atomic_bool m_shouldExit;
 		std::thread m_debuggerEventThread;
 		void DebuggerMainThread();
+
+		// Worker queue: serializes all controller operations on a single thread.
+		// Replaces the per-op `std::thread(...).detach()` pattern. Tasks submitted from any
+		// thread run in order on m_workerThread; lifetime is owned and joined in the destructor.
+		// If Submit is called from the worker thread itself, the task runs inline to avoid
+		// deadlock when an operation needs to invoke another (e.g. Restart calls Quit + Launch).
+		std::thread m_workerThread;
+		std::thread::id m_workerThreadId;
+		std::mutex m_workQueueMutex;
+		std::condition_variable m_workQueueCv;
+		std::queue<std::function<void()>> m_workQueue;
+		std::atomic_bool m_workerShouldExit;
+		void WorkerThreadMain();
+
+		template<typename F>
+		auto Submit(F&& f) -> std::future<std::invoke_result_t<F>>
+		{
+			using R = std::invoke_result_t<F>;
+			auto task = std::make_shared<std::packaged_task<R()>>(std::forward<F>(f));
+			auto future = task->get_future();
+
+			if (std::this_thread::get_id() == m_workerThreadId)
+			{
+				// Re-entrant call from the worker thread itself. Run inline so an outer
+				// operation can invoke an inner one without deadlocking on the queue.
+				(*task)();
+				return future;
+			}
+
+			{
+				std::lock_guard<std::mutex> lock(m_workQueueMutex);
+				if (m_workerShouldExit)
+					return future;  // future is left unset; caller's get() will throw broken_promise
+				m_workQueue.push([task]() { (*task)(); });
+			}
+			m_workQueueCv.notify_one();
+			return future;
+		}
+
+		// Submit a worker task and block the caller until the task completes (or the timeout
+		// elapses, in which case the engine is signaled to break and we still wait for the
+		// in-flight op to settle before returning). A timeout of milliseconds::max() means
+		// "wait forever" and bypasses wait_for entirely (avoids overflow inside the stdlib).
+		template<typename F>
+		auto SubmitAndWait(F&& f, std::chrono::milliseconds timeout)
+			-> std::invoke_result_t<F>
+		{
+			auto fut = Submit(std::forward<F>(f));
+			if (timeout != std::chrono::milliseconds::max())
+			{
+				if (fut.wait_for(timeout) != std::future_status::ready)
+				{
+					if (m_adapter)
+						m_adapter->BreakInto();
+				}
+			}
+			return fut.get();
+		}
 
 		std::unique_ptr<DebuggerUICallbacks> m_uiCallbacks;
 
@@ -351,23 +430,44 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason ExecuteAdapterAndWait(const DebugAdapterOperation operation);
 
 		// Synchronous APIs
-		DebugStopReason LaunchAndWait();
-		DebugStopReason GoAndWait();
-		DebugStopReason GoReverseAndWait();
-		DebugStopReason AttachAndWait();
-		DebugStopReason RestartAndWait();
-		DebugStopReason ConnectAndWait();
-		DebugStopReason StepIntoAndWait(BNFunctionGraphType il = NormalFunctionGraph);
-		DebugStopReason StepIntoReverseAndWait(BNFunctionGraphType il = NormalFunctionGraph);
-		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph);
-		DebugStopReason StepOverReverseAndWait(BNFunctionGraphType il);
-		DebugStopReason StepReturnAndWait();
-		DebugStopReason StepReturnReverseAndWait();
-		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
-		DebugStopReason RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses);
-		DebugStopReason PauseAndWait();
-		void DetachAndWait();
-		void QuitAndWait();
+		// Synchronous APIs. They submit the operation to the worker thread and block the
+		// caller until it completes (or the optional timeout elapses, in which case the
+		// engine is signaled to break and the call returns once the in-flight op settles).
+		// Default timeout is "wait forever" so existing callers do not need to change.
+		DebugStopReason LaunchAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason GoAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason GoReverseAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason AttachAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason RestartAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason ConnectAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason StepIntoAndWait(BNFunctionGraphType il = NormalFunctionGraph,
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason StepIntoReverseAndWait(BNFunctionGraphType il = NormalFunctionGraph,
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph,
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason StepOverReverseAndWait(BNFunctionGraphType il,
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason StepReturnAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason StepReturnReverseAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses,
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses,
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason PauseAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		void DetachAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		void QuitAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
 		// getters
 		DebugAdapter* GetAdapter() { return m_adapter; }

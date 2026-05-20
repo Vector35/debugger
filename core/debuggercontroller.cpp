@@ -39,11 +39,22 @@ DebuggerController::DebuggerController(BinaryViewRef data): BinaryDataNotificati
 	RegisterEventCallback([this](const DebuggerEvent& event) { EventHandler(event); }, "Debugger Core");
 
 	m_debuggerEventThread = std::thread([&]{ DebuggerMainThread(); });
+
+	m_workerShouldExit = false;
+	m_workerThread = std::thread([this] { WorkerThreadMain(); });
 }
 
 
 DebuggerController::~DebuggerController()
 {
+	{
+		std::lock_guard<std::mutex> lock(m_workQueueMutex);
+		m_workerShouldExit = true;
+	}
+	m_workQueueCv.notify_all();
+	if (m_workerThread.joinable())
+		m_workerThread.join();
+
 	m_shouldExit = true;
 	m_cv.notify_all();
 	if (m_debuggerEventThread.joinable())
@@ -56,6 +67,27 @@ DebuggerController::~DebuggerController()
 	{
 		delete m_state;
 		m_state = nullptr;
+	}
+}
+
+
+void DebuggerController::WorkerThreadMain()
+{
+	m_workerThreadId = std::this_thread::get_id();
+	while (true)
+	{
+		std::function<void()> task;
+		{
+			std::unique_lock<std::mutex> lock(m_workQueueMutex);
+			m_workQueueCv.wait(lock, [this] {
+				return m_workerShouldExit || !m_workQueue.empty();
+			});
+			if (m_workerShouldExit && m_workQueue.empty())
+				break;
+			task = std::move(m_workQueue.front());
+			m_workQueue.pop();
+		}
+		task();
 	}
 }
 
@@ -290,8 +322,7 @@ bool DebuggerController::Launch()
 	if (!CanStartDebgging())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->LaunchAndWait(); }).detach();
+	Submit([this] { LaunchAndWaitOnWorker(); });
 	return true;
 }
 
@@ -330,7 +361,7 @@ DebugStopReason DebuggerController::LaunchAndWaitInternal()
 }
 
 
-DebugStopReason DebuggerController::LaunchAndWait()
+DebugStopReason DebuggerController::LaunchAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanStartDebgging())
@@ -348,14 +379,19 @@ DebugStopReason DebuggerController::LaunchAndWait()
 }
 
 
+DebugStopReason DebuggerController::LaunchAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return LaunchAndWaitOnWorker(); }, timeout);
+}
+
+
 bool DebuggerController::Attach()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanStartDebgging())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->AttachAndWait(); }).detach();
+	Submit([this] { AttachAndWaitOnWorker(); });
 	return true;
 }
 
@@ -382,7 +418,7 @@ DebugStopReason DebuggerController::AttachAndWaitInternal()
 }
 
 
-DebugStopReason DebuggerController::AttachAndWait()
+DebugStopReason DebuggerController::AttachAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanStartDebgging())
@@ -400,14 +436,19 @@ DebugStopReason DebuggerController::AttachAndWait()
 }
 
 
+DebugStopReason DebuggerController::AttachAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return AttachAndWaitOnWorker(); }, timeout);
+}
+
+
 bool DebuggerController::Connect()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanStartDebgging())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->ConnectAndWait(); }).detach();
+	Submit([this] { ConnectAndWaitOnWorker(); });
 	return true;
 }
 
@@ -434,7 +475,7 @@ DebugStopReason DebuggerController::ConnectAndWaitInternal()
 }
 
 
-DebugStopReason DebuggerController::ConnectAndWait()
+DebugStopReason DebuggerController::ConnectAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanStartDebgging())
@@ -449,6 +490,12 @@ DebugStopReason DebuggerController::ConnectAndWait()
 
 	m_targetControlMutex.unlock();
 	return reason;
+}
+
+
+DebugStopReason DebuggerController::ConnectAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return ConnectAndWaitOnWorker(); }, timeout);
 }
 
 
@@ -546,8 +593,7 @@ bool DebuggerController::Go()
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->GoAndWait(); }).detach();
+	Submit([this] { GoAndWaitOnWorker(); });
 
 	return true;
 }
@@ -558,14 +604,13 @@ bool DebuggerController::GoReverse()
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->GoReverseAndWait(); }).detach();
+	Submit([this] { GoReverseAndWaitOnWorker(); });
 
 	return true;
 }
 
 
-DebugStopReason DebuggerController::GoAndWait()
+DebugStopReason DebuggerController::GoAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
@@ -582,7 +627,14 @@ DebugStopReason DebuggerController::GoAndWait()
 	return reason;
 }
 
-DebugStopReason DebuggerController::GoReverseAndWait()
+
+DebugStopReason DebuggerController::GoAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return GoAndWaitOnWorker(); }, timeout);
+}
+
+
+DebugStopReason DebuggerController::GoReverseAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
@@ -597,6 +649,12 @@ DebugStopReason DebuggerController::GoReverseAndWait()
 
 	m_targetControlMutex.unlock();
 	return reason;
+}
+
+
+DebugStopReason DebuggerController::GoReverseAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return GoReverseAndWaitOnWorker(); }, timeout);
 }
 
 
@@ -822,8 +880,7 @@ bool DebuggerController::StepInto(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self, il]() { self->StepIntoAndWait(il); }).detach();
+	Submit([this, il] { StepIntoAndWaitOnWorker(il); });
 
 	return true;
 }
@@ -833,13 +890,12 @@ bool DebuggerController::StepIntoReverse(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self, il]() { self->StepIntoReverseAndWait(il); }).detach();
+	Submit([this, il] { StepIntoReverseAndWaitOnWorker(il); });
 
 	return true;
 }
 
-DebugStopReason DebuggerController::StepIntoReverseAndWait(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepIntoReverseAndWaitOnWorker(BNFunctionGraphType il)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
@@ -856,7 +912,13 @@ DebugStopReason DebuggerController::StepIntoReverseAndWait(BNFunctionGraphType i
 	return reason;
 }
 
-DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepIntoReverseAndWait(BNFunctionGraphType il,
+	std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this, il] { return StepIntoReverseAndWaitOnWorker(il); }, timeout);
+}
+
+DebugStopReason DebuggerController::StepIntoAndWaitOnWorker(BNFunctionGraphType il)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
@@ -871,6 +933,12 @@ DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il)
 
 	m_targetControlMutex.unlock();
 	return reason;
+}
+
+DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il,
+	std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this, il] { return StepIntoAndWaitOnWorker(il); }, timeout);
 }
 
 DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
@@ -1085,8 +1153,7 @@ bool DebuggerController::StepOver(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self, il]() { self->StepOverAndWait(il); }).detach();
+	Submit([this, il] { StepOverAndWaitOnWorker(il); });
 
 	return true;
 }
@@ -1097,14 +1164,13 @@ bool DebuggerController::StepOverReverse(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self, il]() { self->StepOverReverseAndWait(il); }).detach();
+	Submit([this, il] { StepOverReverseAndWaitOnWorker(il); });
 
 	return true;
 }
 
 
-DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepOverAndWaitOnWorker(BNFunctionGraphType il)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
@@ -1122,7 +1188,14 @@ DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il)
 }
 
 
-DebugStopReason DebuggerController::StepOverReverseAndWait(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il,
+	std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this, il] { return StepOverAndWaitOnWorker(il); }, timeout);
+}
+
+
+DebugStopReason DebuggerController::StepOverReverseAndWaitOnWorker(BNFunctionGraphType il)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
@@ -1137,6 +1210,13 @@ DebugStopReason DebuggerController::StepOverReverseAndWait(BNFunctionGraphType i
 
 	m_targetControlMutex.unlock();
 	return reason;
+}
+
+
+DebugStopReason DebuggerController::StepOverReverseAndWait(BNFunctionGraphType il,
+	std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this, il] { return StepOverReverseAndWaitOnWorker(il); }, timeout);
 }
 
 
@@ -1193,8 +1273,7 @@ bool DebuggerController::StepReturn()
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->StepReturnAndWait(); }).detach();
+	Submit([this] { StepReturnAndWaitOnWorker(); });
 
 	return true;
 }
@@ -1205,14 +1284,13 @@ bool DebuggerController::StepReturnReverse()
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->StepReturnReverseAndWait(); }).detach();
+	Submit([this] { StepReturnReverseAndWaitOnWorker(); });
 
 	return true;
 }
 
 
-DebugStopReason DebuggerController::StepReturnAndWait()
+DebugStopReason DebuggerController::StepReturnAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
@@ -1230,7 +1308,13 @@ DebugStopReason DebuggerController::StepReturnAndWait()
 }
 
 
-DebugStopReason DebuggerController::StepReturnReverseAndWait()
+DebugStopReason DebuggerController::StepReturnAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return StepReturnAndWaitOnWorker(); }, timeout);
+}
+
+
+DebugStopReason DebuggerController::StepReturnReverseAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
@@ -1245,6 +1329,12 @@ DebugStopReason DebuggerController::StepReturnReverseAndWait()
 
 	m_targetControlMutex.unlock();
 	return reason;
+}
+
+
+DebugStopReason DebuggerController::StepReturnReverseAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return StepReturnReverseAndWaitOnWorker(); }, timeout);
 }
 
 
@@ -1306,8 +1396,7 @@ bool DebuggerController::RunTo(const std::vector<uint64_t>& remoteAddresses)
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self, remoteAddresses]() { self->RunToAndWait(remoteAddresses); }).detach();
+	Submit([this, remoteAddresses] { RunToAndWaitOnWorker(remoteAddresses); });
 
 	return true;
 }
@@ -1319,14 +1408,13 @@ bool DebuggerController::RunToReverse(const std::vector<uint64_t>& remoteAddress
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self, remoteAddresses]() { self->RunToReverseAndWait(remoteAddresses); }).detach();
+	Submit([this, remoteAddresses] { RunToReverseAndWaitOnWorker(remoteAddresses); });
 
 	return true;
 }
 
 
-DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& remoteAddresses)
+DebugStopReason DebuggerController::RunToAndWaitOnWorker(const std::vector<uint64_t>& remoteAddresses)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
@@ -1344,7 +1432,15 @@ DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& re
 }
 
 
-DebugStopReason DebuggerController::RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses)
+DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& remoteAddresses,
+	std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait(
+		[this, remoteAddresses] { return RunToAndWaitOnWorker(remoteAddresses); }, timeout);
+}
+
+
+DebugStopReason DebuggerController::RunToReverseAndWaitOnWorker(const std::vector<uint64_t>& remoteAddresses)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
@@ -1359,6 +1455,14 @@ DebugStopReason DebuggerController::RunToReverseAndWait(const std::vector<uint64
 
 	m_targetControlMutex.unlock();
 	return reason;
+}
+
+
+DebugStopReason DebuggerController::RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses,
+	std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait(
+		[this, remoteAddresses] { return RunToReverseAndWaitOnWorker(remoteAddresses); }, timeout);
 }
 
 
@@ -1470,19 +1574,26 @@ bool DebuggerController::Restart()
 	if (!m_state->IsConnected())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->RestartAndWait(); }).detach();
+	Submit([this] { RestartAndWaitOnWorker(); });
 	return true;
 }
 
 
-DebugStopReason DebuggerController::RestartAndWait()
+DebugStopReason DebuggerController::RestartAndWaitOnWorker()
 {
 	if (!m_state->IsConnected())
 		return InvalidStatusOrOperation;
 
-	QuitAndWait();
-	return LaunchAndWait();
+	// Bypass the public sync wrappers; we are already on the worker and want to
+	// run these inline without re-entering Submit.
+	QuitAndWaitOnWorker();
+	return LaunchAndWaitOnWorker();
+}
+
+
+DebugStopReason DebuggerController::RestartAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return RestartAndWaitOnWorker(); }, timeout);
 }
 
 
@@ -1531,12 +1642,11 @@ void DebuggerController::Detach()
 	if (!m_state->IsConnected())
 		return;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->DetachAndWait(); }).detach();
+	Submit([this] { DetachAndWaitOnWorker(); });
 }
 
 
-void DebuggerController::DetachAndWait()
+void DebuggerController::DetachAndWaitOnWorker()
 {
 	bool locked = false;
 	if (m_targetControlMutex.try_lock())
@@ -1560,17 +1670,22 @@ void DebuggerController::DetachAndWait()
 }
 
 
+void DebuggerController::DetachAndWait(std::chrono::milliseconds timeout)
+{
+	SubmitAndWait([this] { DetachAndWaitOnWorker(); }, timeout);
+}
+
+
 void DebuggerController::Quit()
 {
 	if (!m_state->IsConnected())
 		return;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->QuitAndWait(); }).detach();
+	Submit([this] { QuitAndWaitOnWorker(); });
 }
 
 
-void DebuggerController::QuitAndWait()
+void DebuggerController::QuitAndWaitOnWorker()
 {
 	bool locked = false;
 	if (m_targetControlMutex.try_lock())
@@ -1585,7 +1700,11 @@ void DebuggerController::QuitAndWait()
 
 	if (m_state->IsRunning())
 	{
-		// We must pause the target if it is currently running, at least for DbgEngAdapter
+		// We must pause the target if it is currently running, at least for DbgEngAdapter.
+		// In the queue model the worker is the only thread running adapter operations,
+		// so reaching this branch implies a re-entrant call (e.g. Restart). PauseAndWait
+		// dispatches BreakInto out-of-band; the running op (if any) will settle and we
+		// proceed to issue the Quit below.
 		PauseAndWait();
 	}
 
@@ -1600,13 +1719,25 @@ void DebuggerController::QuitAndWait()
 }
 
 
+void DebuggerController::QuitAndWait(std::chrono::milliseconds timeout)
+{
+	SubmitAndWait([this] { QuitAndWaitOnWorker(); }, timeout);
+}
+
+
 bool DebuggerController::Pause()
 {
 	if (!m_state->IsConnected())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->PauseAndWait(); }).detach();
+	// Out-of-band: signal the engine to break on the caller's thread. The worker
+	// is presumed to be blocked inside ExecuteAdapterAndWait for whatever op is
+	// in flight (Go/Step/RunTo/etc.); when the engine receives the break it will
+	// report a stop, the worker's op will return, and its OnWorker wrapper will
+	// call NotifyStopped. We do not queue any work for the worker here.
+	m_userRequestedBreak = true;
+	if (m_adapter)
+		m_adapter->BreakInto();
 
 	return true;
 }
@@ -1619,15 +1750,30 @@ DebugStopReason DebuggerController::PauseAndWaitInternal()
 }
 
 
-DebugStopReason DebuggerController::PauseAndWait()
+DebugStopReason DebuggerController::PauseAndWait(std::chrono::milliseconds timeout)
 {
 	if (!m_state->IsConnected())
 		return InvalidStatusOrOperation;
 
-	auto reason = PauseAndWaitInternal();
-	if ((reason != ProcessExited) && (reason != InternalError))
-		NotifyStopped(reason);
-	return reason;
+	m_userRequestedBreak = true;
+	if (m_adapter)
+		m_adapter->BreakInto();
+
+	// Wait for the currently-running worker task (if any) to finish processing
+	// the break. Submitting a no-op gives us a future that resolves once the
+	// worker drains past whatever was in flight at the time of the break.
+	auto fut = Submit([] {});
+	if (timeout == std::chrono::milliseconds::max())
+	{
+		fut.wait();
+	}
+	else if (fut.wait_for(timeout) != std::future_status::ready)
+	{
+		// BreakInto has already been signaled; there's nothing else to do.
+		return InternalError;
+	}
+
+	return DebugStopReason::UserRequestedBreak;
 }
 
 
