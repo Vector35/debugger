@@ -239,7 +239,15 @@ bool WindowsNativeAdapter::Detach()
 	if (!m_activelyDebugging)
 		return true;
 
-	m_shouldStop = true;
+	// Set the stop flag under m_debugMutex so the DebugLoop's condition_variable wait
+	// (whose predicate reads m_shouldStop) can't miss the wakeup if it is between evaluating
+	// the predicate and parking. Modifying the flag without the lock races with that window
+	// and can lose the notify, hanging the join() below forever even though m_shouldStop is
+	// atomic.
+	{
+		std::lock_guard<std::mutex> lock(m_debugMutex);
+		m_shouldStop = true;
+	}
 
 	// Wake up the debug thread if it's waiting
 	m_debugCondition.notify_one();
@@ -247,13 +255,17 @@ bool WindowsNativeAdapter::Detach()
 	if (m_debugThread.joinable())
 		m_debugThread.join();
 
-	// Close all thread handles
-	for (auto& [tid, handle] : m_threads)
-	{
-		if (handle && handle != m_threadHandle)
-			CloseHandle(handle);
-	}
+	// Thread handles in m_threads come from debug events (CREATE_PROCESS/CREATE_THREAD);
+	// Windows closes those automatically when debugging ends, so we must not close them
+	// here (see HandleExitThread). Doing so raises STATUS_INVALID_HANDLE under a debugger.
 	m_threads.clear();
+
+	// The initial thread handle from CreateProcess is owned by us.
+	if (m_threadHandle)
+	{
+		CloseHandle(m_threadHandle);
+		m_threadHandle = nullptr;
+	}
 
 	if (m_processHandle)
 	{
@@ -278,7 +290,15 @@ bool WindowsNativeAdapter::Quit()
 	if (!m_activelyDebugging)
 		return true;
 
-	m_shouldStop = true;
+	// Set the stop flag under m_debugMutex so the DebugLoop's condition_variable wait
+	// (whose predicate reads m_shouldStop) can't miss the wakeup if it is between evaluating
+	// the predicate and parking. Modifying the flag without the lock races with that window
+	// and can lose the notify, hanging the join() below forever even though m_shouldStop is
+	// atomic.
+	{
+		std::lock_guard<std::mutex> lock(m_debugMutex);
+		m_shouldStop = true;
+	}
 
 	// Wake up the debug thread if it's waiting
 	m_debugCondition.notify_one();
@@ -290,13 +310,17 @@ bool WindowsNativeAdapter::Quit()
 	if (m_debugThread.joinable())
 		m_debugThread.join();
 
-	// Close all thread handles
-	for (auto& [tid, handle] : m_threads)
-	{
-		if (handle)
-			CloseHandle(handle);
-	}
+	// Thread handles in m_threads come from debug events (CREATE_PROCESS/CREATE_THREAD);
+	// Windows closes those automatically when debugging ends, so we must not close them
+	// here (see HandleExitThread). Doing so raises STATUS_INVALID_HANDLE under a debugger.
 	m_threads.clear();
+
+	// The initial thread handle from CreateProcess is owned by us.
+	if (m_threadHandle)
+	{
+		CloseHandle(m_threadHandle);
+		m_threadHandle = nullptr;
+	}
 
 	if (m_processHandle)
 	{
@@ -322,13 +346,17 @@ void WindowsNativeAdapter::Reset()
 	if (m_debugThread.joinable())
 		m_debugThread.join();
 
-	// Close all thread handles
-	for (auto& [tid, handle] : m_threads)
-	{
-		if (handle)
-			CloseHandle(handle);
-	}
+	// Thread handles in m_threads come from debug events (CREATE_PROCESS/CREATE_THREAD);
+	// Windows closes those automatically when debugging ends, so we must not close them
+	// here (see HandleExitThread). Doing so raises STATUS_INVALID_HANDLE under a debugger.
 	m_threads.clear();
+
+	// The initial thread handle from CreateProcess is owned by us.
+	if (m_threadHandle)
+	{
+		CloseHandle(m_threadHandle);
+		m_threadHandle = nullptr;
+	}
 
 	// Close process handle
 	if (m_processHandle)
@@ -2732,7 +2760,12 @@ bool WindowsNativeAdapter::Go()
 	// During this continue, all threads should run normally. If another thread hits a breakpoint,
 	// that's expected behavior (the debugger stops). Only StepInto() uses scheduler-locking.
 
-	m_targetRunning = true;
+	// Publish the resume under m_debugMutex so the parked DebugLoop predicate observes it and
+	// the notify can't be lost (see Quit for the race detail).
+	{
+		std::lock_guard<std::mutex> lock(m_debugMutex);
+		m_targetRunning = true;
+	}
 	m_debugCondition.notify_one();
 
 	// Notify that the target has resumed
@@ -2836,7 +2869,12 @@ bool WindowsNativeAdapter::StepInto()
 		}
 	}
 
-	m_targetRunning = true;
+	// Publish the resume under m_debugMutex so the parked DebugLoop predicate observes it and
+	// the notify can't be lost (see Quit for the race detail).
+	{
+		std::lock_guard<std::mutex> lock(m_debugMutex);
+		m_targetRunning = true;
+	}
 	m_debugCondition.notify_one();
 
 	// Notify that the target has resumed

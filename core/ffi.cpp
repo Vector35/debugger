@@ -21,9 +21,15 @@ limitations under the License.
 #include "debuggercontroller.h"
 #include "debuggercommon.h"
 #include "../api/ffi.h"
+#include <chrono>
 #include <map>
 
 using namespace BinaryNinjaDebugger;
+
+static std::chrono::milliseconds TimeoutMs(uint64_t timeoutMs)
+{
+	return std::chrono::milliseconds(timeoutMs);
+}
 
 
 char* BNDebuggerAllocString(const char* contents)
@@ -399,6 +405,12 @@ BNDebugStopReason BNDebuggerLaunchAndWait(BNDebuggerController* controller)
 }
 
 
+BNDebugStopReason BNDebuggerLaunchAndWaitWithTimeout(BNDebuggerController* controller, uint64_t timeoutMs)
+{
+	return controller->object->LaunchAndWait(TimeoutMs(timeoutMs));
+}
+
+
 bool BNDebuggerExecute(BNDebuggerController* controller)
 {
 	return controller->object->Execute();
@@ -424,6 +436,12 @@ void BNDebuggerQuitAndWait(BNDebuggerController* controller)
 }
 
 
+void BNDebuggerQuitAndWaitWithTimeout(BNDebuggerController* controller, uint64_t timeoutMs)
+{
+	controller->object->QuitAndWait(TimeoutMs(timeoutMs));
+}
+
+
 bool BNDebuggerConnect(BNDebuggerController* controller)
 {
 	return controller->object->Connect();
@@ -433,6 +451,12 @@ bool BNDebuggerConnect(BNDebuggerController* controller)
 BNDebugStopReason BNDebuggerConnectAndWait(BNDebuggerController* controller)
 {
 	return controller->object->ConnectAndWait();
+}
+
+
+BNDebugStopReason BNDebuggerConnectAndWaitWithTimeout(BNDebuggerController* controller, uint64_t timeoutMs)
+{
+	return controller->object->ConnectAndWait(TimeoutMs(timeoutMs));
 }
 
 
@@ -451,6 +475,18 @@ bool BNDebuggerDisconnectDebugServer(BNDebuggerController* controller)
 void BNDebuggerDetach(BNDebuggerController* controller)
 {
 	controller->object->Detach();
+}
+
+
+void BNDebuggerDetachAndWait(BNDebuggerController* controller)
+{
+	controller->object->DetachAndWait();
+}
+
+
+void BNDebuggerDetachAndWaitWithTimeout(BNDebuggerController* controller, uint64_t timeoutMs)
+{
+	controller->object->DetachAndWait(TimeoutMs(timeoutMs));
 }
 
 
@@ -476,6 +512,12 @@ bool BNDebuggerAttach(BNDebuggerController* controller)
 BNDebugStopReason BNDebuggerAttachAndWait(BNDebuggerController* controller)
 {
 	return controller->object->AttachAndWait();
+}
+
+
+BNDebugStopReason BNDebuggerAttachAndWaitWithTimeout(BNDebuggerController* controller, uint64_t timeoutMs)
+{
+	return controller->object->AttachAndWait(TimeoutMs(timeoutMs));
 }
 
 
@@ -556,9 +598,21 @@ BNDebugStopReason BNDebuggerGoAndWait(BNDebuggerController* controller)
 }
 
 
+BNDebugStopReason BNDebuggerGoAndWaitWithTimeout(BNDebuggerController* controller, uint64_t timeoutMs)
+{
+	return controller->object->GoAndWait(TimeoutMs(timeoutMs));
+}
+
+
 BNDebugStopReason BNDebuggerGoReverseAndWait(BNDebuggerController* controller)
 {
 	return controller->object->GoReverseAndWait();
+}
+
+
+BNDebugStopReason BNDebuggerGoReverseAndWaitWithTimeout(BNDebuggerController* controller, uint64_t timeoutMs)
+{
+	return controller->object->GoReverseAndWait(TimeoutMs(timeoutMs));
 }
 
 
@@ -568,9 +622,23 @@ BNDebugStopReason BNDebuggerStepIntoAndWait(BNDebuggerController* controller, BN
 }
 
 
+BNDebugStopReason BNDebuggerStepIntoAndWaitWithTimeout(
+	BNDebuggerController* controller, BNFunctionGraphType il, uint64_t timeoutMs)
+{
+	return controller->object->StepIntoAndWait(il, TimeoutMs(timeoutMs));
+}
+
+
 BNDebugStopReason BNDebuggerStepIntoReverseAndWait(BNDebuggerController* controller, BNFunctionGraphType il)
 {
 	return controller->object->StepIntoReverseAndWait(il);
+}
+
+
+BNDebugStopReason BNDebuggerStepIntoReverseAndWaitWithTimeout(
+	BNDebuggerController* controller, BNFunctionGraphType il, uint64_t timeoutMs)
+{
+	return controller->object->StepIntoReverseAndWait(il, TimeoutMs(timeoutMs));
 }
 
 
@@ -579,9 +647,23 @@ BNDebugStopReason BNDebuggerStepOverAndWait(BNDebuggerController* controller, BN
 	return controller->object->StepOverAndWait(il);
 }
 
+
+BNDebugStopReason BNDebuggerStepOverAndWaitWithTimeout(
+	BNDebuggerController* controller, BNFunctionGraphType il, uint64_t timeoutMs)
+{
+	return controller->object->StepOverAndWait(il, TimeoutMs(timeoutMs));
+}
+
 BNDebugStopReason BNDebuggerStepOverReverseAndWait(BNDebuggerController* controller, BNFunctionGraphType il)
 {
 	return controller->object->StepOverReverseAndWait(il);
+}
+
+
+BNDebugStopReason BNDebuggerStepOverReverseAndWaitWithTimeout(
+	BNDebuggerController* controller, BNFunctionGraphType il, uint64_t timeoutMs)
+{
+	return controller->object->StepOverReverseAndWait(il, TimeoutMs(timeoutMs));
 }
 
 
@@ -591,9 +673,21 @@ BNDebugStopReason BNDebuggerStepReturnAndWait(BNDebuggerController* controller)
 }
 
 
+BNDebugStopReason BNDebuggerStepReturnAndWaitWithTimeout(BNDebuggerController* controller, uint64_t timeoutMs)
+{
+	return controller->object->StepReturnAndWait(TimeoutMs(timeoutMs));
+}
+
+
 BNDebugStopReason BNDebuggerStepReturnReverseAndWait(BNDebuggerController* controller)
 {
 	return controller->object->StepReturnReverseAndWait();
+}
+
+
+BNDebugStopReason BNDebuggerStepReturnReverseAndWaitWithTimeout(BNDebuggerController* controller, uint64_t timeoutMs)
+{
+	return controller->object->StepReturnReverseAndWait(TimeoutMs(timeoutMs));
 }
 
 
@@ -610,6 +704,19 @@ BNDebugStopReason BNDebuggerRunToAndWait(
 }
 
 
+BNDebugStopReason BNDebuggerRunToAndWaitWithTimeout(
+	BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count, uint64_t timeoutMs)
+{
+	std::vector<uint64_t> addresses;
+	addresses.reserve(count);
+	for (size_t i = 0; i < count; i++)
+	{
+		addresses.push_back(remoteAddresses[i]);
+	}
+	return controller->object->RunToAndWait(addresses, TimeoutMs(timeoutMs));
+}
+
+
 BNDebugStopReason BNDebuggerRunToReverseAndWait(
 	BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count)
 {
@@ -623,15 +730,40 @@ BNDebugStopReason BNDebuggerRunToReverseAndWait(
 }
 
 
+BNDebugStopReason BNDebuggerRunToReverseAndWaitWithTimeout(
+	BNDebuggerController* controller, const uint64_t* remoteAddresses, size_t count, uint64_t timeoutMs)
+{
+	std::vector<uint64_t> addresses;
+	addresses.reserve(count);
+	for (size_t i = 0; i < count; i++)
+	{
+		addresses.push_back(remoteAddresses[i]);
+	}
+	return controller->object->RunToReverseAndWait(addresses, TimeoutMs(timeoutMs));
+}
+
+
 DebugStopReason BNDebuggerPauseAndWait(BNDebuggerController* controller)
 {
 	return controller->object->PauseAndWait();
 }
 
 
+DebugStopReason BNDebuggerPauseAndWaitWithTimeout(BNDebuggerController* controller, uint64_t timeoutMs)
+{
+	return controller->object->PauseAndWait(TimeoutMs(timeoutMs));
+}
+
+
 DebugStopReason BNDebuggerRestartAndWait(BNDebuggerController* controller)
 {
 	return controller->object->RestartAndWait();
+}
+
+
+DebugStopReason BNDebuggerRestartAndWaitWithTimeout(BNDebuggerController* controller, uint64_t timeoutMs)
+{
+	return controller->object->RestartAndWait(TimeoutMs(timeoutMs));
 }
 
 

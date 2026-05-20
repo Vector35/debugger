@@ -17,12 +17,17 @@ limitations under the License.
 #include "debuggercontroller.h"
 #include <thread>
 #include <fstream>
+#include "base/assertions.h"
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
 #include "debuggerfileaccessor.h"
 
 using namespace BinaryNinjaDebugger;
+
+namespace BinaryNinjaDebugger {
+	thread_local DebuggerController* t_controllerOnWorker = nullptr;
+}
 
 DebuggerController::DebuggerController(BinaryViewRef data): BinaryDataNotification(Rebased)
 {
@@ -36,14 +41,45 @@ DebuggerController::DebuggerController(BinaryViewRef data): BinaryDataNotificati
 	m_state = new DebuggerState(data, this);
 	m_adapter = nullptr;
 	m_shouldAnnotateStackVariable = Settings::Instance()->Get<bool>("debugger.stackVariableAnnotations");
-	RegisterEventCallback([this](const DebuggerEvent& event) { EventHandler(event); }, "Debugger Core");
 
 	m_debuggerEventThread = std::thread([&]{ DebuggerMainThread(); });
+
+	m_workerShouldExit = false;
+	m_workerThread = std::thread([this] { WorkerThreadMain(); });
+
+	m_interruptThread = std::thread([this] { InterruptThreadMain(); });
 }
 
 
 DebuggerController::~DebuggerController()
 {
+	// The worker can be blocked on either condition variable -- m_workQueueCv (idle in
+	// the outer loop) or m_adapterStopCv (inside WaitForAdapterStop during an op). Each
+	// CV's wait predicate reads m_workerShouldExit, so the flag must be modified while
+	// holding the matching mutex to publish the change correctly to that waiter. We hold
+	// BOTH mutexes when setting the flag (scoped_lock is deadlock-safe) and then notify
+	// both CVs. Otherwise a waiter on the CV whose mutex we didn't hold can miss the
+	// wakeup and never observe the flag, hanging this destructor on join.
+	{
+		std::scoped_lock shutdownLock(m_workQueueMutex, m_adapterStopMutex);
+		m_workerShouldExit = true;
+	}
+	m_workQueueCv.notify_all();
+	m_adapterStopCv.notify_all();
+	if (m_workerThread.joinable())
+		m_workerThread.join();
+
+	// Stop the interrupt thread before the adapter/state are torn down below: it touches
+	// m_adapter and m_state->AdapterAccessMutex() in BreakInto, both of which outlive this
+	// join but not the delete m_state further down.
+	{
+		std::lock_guard<std::mutex> interruptLock(m_interruptMutex);
+		m_interruptShouldExit = true;
+	}
+	m_interruptCv.notify_all();
+	if (m_interruptThread.joinable())
+		m_interruptThread.join();
+
 	m_shouldExit = true;
 	m_cv.notify_all();
 	if (m_debuggerEventThread.joinable())
@@ -57,6 +93,28 @@ DebuggerController::~DebuggerController()
 		delete m_state;
 		m_state = nullptr;
 	}
+}
+
+
+void DebuggerController::WorkerThreadMain()
+{
+	t_controllerOnWorker = this;
+	while (true)
+	{
+		std::function<void()> task;
+		{
+			std::unique_lock<std::mutex> lock(m_workQueueMutex);
+			m_workQueueCv.wait(lock, [this] {
+				return m_workerShouldExit || !m_workQueue.empty();
+			});
+			if (m_workerShouldExit && m_workQueue.empty())
+				break;
+			task = std::move(m_workQueue.front());
+			m_workQueue.pop();
+		}
+		task();
+	}
+	t_controllerOnWorker = nullptr;
 }
 
 
@@ -290,15 +348,13 @@ bool DebuggerController::Launch()
 	if (!CanStartDebgging())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->LaunchAndWait(); }).detach();
+	Submit([this] { LaunchAndWaitOnWorker(); });
 	return true;
 }
 
 
 DebugStopReason DebuggerController::LaunchAndWaitInternal()
 {
-	m_userRequestedBreak = false;
 
 	if (Settings::Instance()->Get<bool>("debugger.safeMode"))
 	{
@@ -330,21 +386,23 @@ DebugStopReason DebuggerController::LaunchAndWaitInternal()
 }
 
 
-DebugStopReason DebuggerController::LaunchAndWait()
+DebugStopReason DebuggerController::LaunchAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanStartDebgging())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = LaunchAndWaitInternal();
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
+}
+
+
+DebugStopReason DebuggerController::LaunchAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return LaunchAndWaitOnWorker(); }, timeout);
 }
 
 
@@ -354,8 +412,7 @@ bool DebuggerController::Attach()
 	if (!CanStartDebgging())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->AttachAndWait(); }).detach();
+	Submit([this] { AttachAndWaitOnWorker(); });
 	return true;
 }
 
@@ -363,7 +420,6 @@ bool DebuggerController::Attach()
 DebugStopReason DebuggerController::AttachAndWaitInternal()
 {
 	m_firstAttach = false;
-	m_userRequestedBreak = false;
 
 	DebuggerEvent event;
 	event.type = LaunchEventType;
@@ -382,21 +438,23 @@ DebugStopReason DebuggerController::AttachAndWaitInternal()
 }
 
 
-DebugStopReason DebuggerController::AttachAndWait()
+DebugStopReason DebuggerController::AttachAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanStartDebgging())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = AttachAndWaitInternal();
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
+}
+
+
+DebugStopReason DebuggerController::AttachAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return AttachAndWaitOnWorker(); }, timeout);
 }
 
 
@@ -406,8 +464,7 @@ bool DebuggerController::Connect()
 	if (!CanStartDebgging())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->ConnectAndWait(); }).detach();
+	Submit([this] { ConnectAndWaitOnWorker(); });
 	return true;
 }
 
@@ -415,7 +472,6 @@ bool DebuggerController::Connect()
 DebugStopReason DebuggerController::ConnectAndWaitInternal()
 {
 	m_firstConnect = false;
-	m_userRequestedBreak = false;
 
 	DebuggerEvent event;
 	event.type = LaunchEventType;
@@ -434,28 +490,28 @@ DebugStopReason DebuggerController::ConnectAndWaitInternal()
 }
 
 
-DebugStopReason DebuggerController::ConnectAndWait()
+DebugStopReason DebuggerController::ConnectAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanStartDebgging())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = ConnectAndWaitInternal();
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
+}
+
+
+DebugStopReason DebuggerController::ConnectAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return ConnectAndWaitOnWorker(); }, timeout);
 }
 
 
 bool DebuggerController::Execute()
 {
-	std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
-
 	std::string filePath = m_state->GetExecutablePath();
 	bool requestTerminal = m_state->GetRequestTerminalEmulator();
 	LaunchConfigurations configs = {requestTerminal, m_state->GetInputFile(), m_state->IsConnectedToDebugServer()};
@@ -546,8 +602,7 @@ bool DebuggerController::Go()
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->GoAndWait(); }).detach();
+	Submit([this] { GoAndWaitOnWorker(); });
 
 	return true;
 }
@@ -558,45 +613,49 @@ bool DebuggerController::GoReverse()
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->GoReverseAndWait(); }).detach();
+	Submit([this] { GoReverseAndWaitOnWorker(); });
 
 	return true;
 }
 
 
-DebugStopReason DebuggerController::GoAndWait()
+DebugStopReason DebuggerController::GoAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = GoAndWaitInternal();
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
 }
 
-DebugStopReason DebuggerController::GoReverseAndWait()
+
+DebugStopReason DebuggerController::GoAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return GoAndWaitOnWorker(); }, timeout);
+}
+
+
+DebugStopReason DebuggerController::GoReverseAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = GoReverseAndWaitInternal();
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
+}
+
+
+DebugStopReason DebuggerController::GoReverseAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return GoReverseAndWaitOnWorker(); }, timeout);
 }
 
 
@@ -812,7 +871,6 @@ DebugStopReason DebuggerController::StepIntoReverseIL(BNFunctionGraphType il)
 
 DebugStopReason DebuggerController::StepIntoReverseAndWaitInternal()
 {
-	m_userRequestedBreak = false;
 	// TODO: check if StepInto() succeeds
 	return ExecuteAdapterAndWait(DebugAdapterStepIntoReverse);
 }
@@ -822,8 +880,7 @@ bool DebuggerController::StepInto(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self, il]() { self->StepIntoAndWait(il); }).detach();
+	Submit([this, il] { StepIntoAndWaitOnWorker(il); });
 
 	return true;
 }
@@ -833,44 +890,47 @@ bool DebuggerController::StepIntoReverse(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self, il]() { self->StepIntoReverseAndWait(il); }).detach();
+	Submit([this, il] { StepIntoReverseAndWaitOnWorker(il); });
 
 	return true;
 }
 
-DebugStopReason DebuggerController::StepIntoReverseAndWait(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepIntoReverseAndWaitOnWorker(BNFunctionGraphType il)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = StepIntoReverseIL(il);
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
 }
 
-DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepIntoReverseAndWait(BNFunctionGraphType il,
+	std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this, il] { return StepIntoReverseAndWaitOnWorker(il); }, timeout);
+}
+
+DebugStopReason DebuggerController::StepIntoAndWaitOnWorker(BNFunctionGraphType il)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = StepIntoIL(il);
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
+}
+
+DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il,
+	std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this, il] { return StepIntoAndWaitOnWorker(il); }, timeout);
 }
 
 DebugStopReason DebuggerController::StepOverIL(BNFunctionGraphType il)
@@ -1085,8 +1145,7 @@ bool DebuggerController::StepOver(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self, il]() { self->StepOverAndWait(il); }).detach();
+	Submit([this, il] { StepOverAndWaitOnWorker(il); });
 
 	return true;
 }
@@ -1097,46 +1156,51 @@ bool DebuggerController::StepOverReverse(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self, il]() { self->StepOverReverseAndWait(il); }).detach();
+	Submit([this, il] { StepOverReverseAndWaitOnWorker(il); });
 
 	return true;
 }
 
 
-DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepOverAndWaitOnWorker(BNFunctionGraphType il)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = StepOverIL(il);
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
 }
 
 
-DebugStopReason DebuggerController::StepOverReverseAndWait(BNFunctionGraphType il)
+DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il,
+	std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this, il] { return StepOverAndWaitOnWorker(il); }, timeout);
+}
+
+
+DebugStopReason DebuggerController::StepOverReverseAndWaitOnWorker(BNFunctionGraphType il)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = StepOverReverseIL(il);
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
+}
+
+
+DebugStopReason DebuggerController::StepOverReverseAndWait(BNFunctionGraphType il,
+	std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this, il] { return StepOverReverseAndWaitOnWorker(il); }, timeout);
 }
 
 
@@ -1163,7 +1227,6 @@ DebugStopReason DebuggerController::EmulateStepReturnAndWait()
 
 DebugStopReason DebuggerController::StepReturnAndWaitInternal()
 {
-	m_userRequestedBreak = false;
 
 	if (true /* StepReturnAvailable() */)
 	{
@@ -1179,7 +1242,6 @@ DebugStopReason DebuggerController::StepReturnAndWaitInternal()
 
 DebugStopReason DebuggerController::StepReturnReverseAndWaitInternal()
 {
-	m_userRequestedBreak = false;
 
 	if (true /* StepReturnReverseAvailable() */)
 	{
@@ -1193,8 +1255,7 @@ bool DebuggerController::StepReturn()
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->StepReturnAndWait(); }).detach();
+	Submit([this] { StepReturnAndWaitOnWorker(); });
 
 	return true;
 }
@@ -1205,52 +1266,54 @@ bool DebuggerController::StepReturnReverse()
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->StepReturnReverseAndWait(); }).detach();
+	Submit([this] { StepReturnReverseAndWaitOnWorker(); });
 
 	return true;
 }
 
 
-DebugStopReason DebuggerController::StepReturnAndWait()
+DebugStopReason DebuggerController::StepReturnAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = StepReturnAndWaitInternal();
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
 }
 
 
-DebugStopReason DebuggerController::StepReturnReverseAndWait()
+DebugStopReason DebuggerController::StepReturnAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return StepReturnAndWaitOnWorker(); }, timeout);
+}
+
+
+DebugStopReason DebuggerController::StepReturnReverseAndWaitOnWorker()
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = StepReturnReverseAndWaitInternal();
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
+}
+
+
+DebugStopReason DebuggerController::StepReturnReverseAndWait(std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait([this] { return StepReturnReverseAndWaitOnWorker(); }, timeout);
 }
 
 
 DebugStopReason DebuggerController::RunToAndWaitInternal(const std::vector<uint64_t>& remoteAddresses)
 {
-	m_userRequestedBreak = false;
 
 	for (uint64_t remoteAddress : remoteAddresses)
 	{
@@ -1276,7 +1339,6 @@ DebugStopReason DebuggerController::RunToAndWaitInternal(const std::vector<uint6
 
 DebugStopReason DebuggerController::RunToReverseAndWaitInternal(const std::vector<uint64_t>& remoteAddresses)
 {
-	m_userRequestedBreak = false;
 
 	for (uint64_t remoteAddress : remoteAddresses)
 	{
@@ -1306,8 +1368,7 @@ bool DebuggerController::RunTo(const std::vector<uint64_t>& remoteAddresses)
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self, remoteAddresses]() { self->RunToAndWait(remoteAddresses); }).detach();
+	Submit([this, remoteAddresses] { RunToAndWaitOnWorker(remoteAddresses); });
 
 	return true;
 }
@@ -1319,46 +1380,53 @@ bool DebuggerController::RunToReverse(const std::vector<uint64_t>& remoteAddress
 	if (!CanResumeTarget())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self, remoteAddresses]() { self->RunToReverseAndWait(remoteAddresses); }).detach();
+	Submit([this, remoteAddresses] { RunToReverseAndWaitOnWorker(remoteAddresses); });
 
 	return true;
 }
 
 
-DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& remoteAddresses)
+DebugStopReason DebuggerController::RunToAndWaitOnWorker(const std::vector<uint64_t>& remoteAddresses)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = RunToAndWaitInternal(remoteAddresses);
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
 }
 
 
-DebugStopReason DebuggerController::RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses)
+DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& remoteAddresses,
+	std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait(
+		[this, remoteAddresses] { return RunToAndWaitOnWorker(remoteAddresses); }, timeout);
+}
+
+
+DebugStopReason DebuggerController::RunToReverseAndWaitOnWorker(const std::vector<uint64_t>& remoteAddresses)
 {
 	// This is an API function of the debugger. We only do these checks at the API level.
 	if (!CanResumeTarget())
 		return InvalidStatusOrOperation;
 
-	if (!m_targetControlMutex.try_lock())
-		return InternalError;
-
 	auto reason = RunToReverseAndWaitInternal(remoteAddresses);
-	if (!m_userRequestedBreak && (reason != ProcessExited) && (reason != InternalError))
+	if ((reason != ProcessExited) && (reason != InternalError))
 		NotifyStopped(reason);
 
-	m_targetControlMutex.unlock();
 	return reason;
+}
+
+
+DebugStopReason DebuggerController::RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses,
+	std::chrono::milliseconds timeout)
+{
+	return SubmitAndWait(
+		[this, remoteAddresses] { return RunToReverseAndWaitOnWorker(remoteAddresses); }, timeout);
 }
 
 
@@ -1470,19 +1538,40 @@ bool DebuggerController::Restart()
 	if (!m_state->IsConnected())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->RestartAndWait(); }).detach();
+	// Interrupt any in-flight resume op so the queued Restart can actually run.
+	// Without this, if the target is running the worker is blocked in WaitForAdapterStop
+	// and Restart would sit in the queue indefinitely.
+	RequestInterrupt();
+	Submit([this] { RestartAndWaitOnWorker(); });
 	return true;
 }
 
 
-DebugStopReason DebuggerController::RestartAndWait()
+DebugStopReason DebuggerController::RestartAndWaitOnWorker()
 {
 	if (!m_state->IsConnected())
 		return InvalidStatusOrOperation;
 
-	QuitAndWait();
-	return LaunchAndWait();
+	// Bypass the public sync wrappers; we are already on the worker and want to
+	// run these inline without re-entering Submit.
+	QuitAndWaitOnWorker();
+	return LaunchAndWaitOnWorker();
+}
+
+
+DebugStopReason DebuggerController::RestartAndWait(std::chrono::milliseconds timeout)
+{
+	if (!m_state->IsConnected())
+		return InvalidStatusOrOperation;
+
+	if (std::this_thread::get_id() == m_dispatcherThreadId)
+	{
+		LogError("Synchronous debugger API called from debugger callback thread; use async APIs from callbacks");
+		return InternalError;
+	}
+
+	RequestInterrupt();
+	return SubmitAndWait([this] { return RestartAndWaitOnWorker(); }, timeout);
 }
 
 
@@ -1531,32 +1620,38 @@ void DebuggerController::Detach()
 	if (!m_state->IsConnected())
 		return;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->DetachAndWait(); }).detach();
+	// Interrupt any in-flight resume op (see Restart for rationale).
+	RequestInterrupt();
+	Submit([this] { DetachAndWaitOnWorker(); });
 }
 
 
-void DebuggerController::DetachAndWait()
+void DebuggerController::DetachAndWaitOnWorker()
 {
-	bool locked = false;
-	if (m_targetControlMutex.try_lock())
-		locked = true;
-
 	if (!m_state->IsConnected())
-	{
-		if (locked)
-			m_targetControlMutex.unlock();
 		return;
-	}
 
 	// TODO: return whether the operation is successful
 	ExecuteAdapterAndWait(DebugAdapterDetach);
 
 	// There is no need to notify a detached event at this point, since the detach event is already processed
 	// by all the callback
+}
 
-	if (locked)
-		m_targetControlMutex.unlock();
+
+void DebuggerController::DetachAndWait(std::chrono::milliseconds timeout)
+{
+	if (!m_state->IsConnected())
+		return;
+
+	if (std::this_thread::get_id() == m_dispatcherThreadId)
+	{
+		LogError("Synchronous debugger API called from debugger callback thread; use async APIs from callbacks");
+		return;
+	}
+
+	RequestInterrupt();
+	SubmitAndWait([this] { DetachAndWaitOnWorker(); }, timeout);
 }
 
 
@@ -1565,28 +1660,26 @@ void DebuggerController::Quit()
 	if (!m_state->IsConnected())
 		return;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->QuitAndWait(); }).detach();
+	// Interrupt any in-flight resume op (see Restart for rationale).
+	RequestInterrupt();
+	Submit([this] { QuitAndWaitOnWorker(); });
 }
 
 
-void DebuggerController::QuitAndWait()
+void DebuggerController::QuitAndWaitOnWorker()
 {
-	bool locked = false;
-	if (m_targetControlMutex.try_lock())
-		locked = true;
-
 	if (!m_state->IsConnected())
-	{
-		if (locked)
-			m_targetControlMutex.unlock();
 		return;
-	}
 
 	if (m_state->IsRunning())
 	{
-		// We must pause the target if it is currently running, at least for DbgEngAdapter
-		PauseAndWait();
+		// We must pause the target if it is currently running, at least for DbgEngAdapter.
+		// Call PauseAndWaitInternal (not the public PauseAndWait) so we go through
+		// ExecuteAdapterAndWait(Pause) and actually wait for the engine to stop via the
+		// adapter-stop channel. The public PauseAndWait would re-enter Submit inline here
+		// (we are on the worker) and return without waiting, leaving the engine still
+		// running when we issue Quit below.
+		PauseAndWaitInternal();
 	}
 
 	// TODO: return whether the operation is successful
@@ -1594,9 +1687,22 @@ void DebuggerController::QuitAndWait()
 
 	// There is no need to notify a TargetExitedEvent at this point, since the exit event is already processed
 	// by all the callback
+}
 
-	if (locked)
-		m_targetControlMutex.unlock();
+
+void DebuggerController::QuitAndWait(std::chrono::milliseconds timeout)
+{
+	if (!m_state->IsConnected())
+		return;
+
+	if (std::this_thread::get_id() == m_dispatcherThreadId)
+	{
+		LogError("Synchronous debugger API called from debugger callback thread; use async APIs from callbacks");
+		return;
+	}
+
+	RequestInterrupt();
+	SubmitAndWait([this] { QuitAndWaitOnWorker(); }, timeout);
 }
 
 
@@ -1605,48 +1711,66 @@ bool DebuggerController::Pause()
 	if (!m_state->IsConnected())
 		return false;
 
-	DbgRef<DebuggerController> self = this;
-	std::thread([self]() { self->PauseAndWait(); }).detach();
-
+	// Out-of-band: ask the interrupt thread to break the engine (returns immediately).
+	// The worker is presumed to be blocked inside ExecuteAdapterAndWait for whatever op
+	// is in flight (Go/Step/RunTo/etc.); when the engine receives the break it will
+	// report a stop, the worker's op will return, and its OnWorker wrapper will
+	// call NotifyStopped. We do not queue any work for the worker here.
+	RequestInterrupt();
 	return true;
 }
 
 
 DebugStopReason DebuggerController::PauseAndWaitInternal()
 {
-	m_userRequestedBreak = true;
 	return ExecuteAdapterAndWait(DebugAdapterPause);
 }
 
 
-DebugStopReason DebuggerController::PauseAndWait()
+DebugStopReason DebuggerController::PauseAndWait(std::chrono::milliseconds timeout)
 {
 	if (!m_state->IsConnected())
 		return InvalidStatusOrOperation;
 
-	auto reason = PauseAndWaitInternal();
-	if ((reason != ProcessExited) && (reason != InternalError))
-		NotifyStopped(reason);
-	return reason;
+	if (std::this_thread::get_id() == m_dispatcherThreadId)
+	{
+		LogError("Synchronous debugger API called from debugger callback thread; use async APIs from callbacks");
+		return InternalError;
+	}
+
+	RequestInterrupt();
+
+	// Wait for the currently-running worker task (if any) to finish processing
+	// the break. Submitting a no-op gives us a future that resolves once the
+	// worker drains past whatever was in flight at the time of the break.
+	auto fut = Submit([] {});
+	if (timeout == std::chrono::milliseconds::max())
+	{
+		fut.wait();
+	}
+	else if (fut.wait_for(timeout) != std::future_status::ready)
+	{
+		// BreakInto has already been signaled; there's nothing else to do.
+		return TimedOut;
+	}
+
+	return DebugStopReason::UserRequestedBreak;
 }
 
 
 DebugStopReason DebuggerController::GoAndWaitInternal()
 {
-	m_userRequestedBreak = false;
 	return ExecuteAdapterAndWait(DebugAdapterGo);
 }
 
 DebugStopReason DebuggerController::GoReverseAndWaitInternal()
 {
-	m_userRequestedBreak = false;
 	return ExecuteAdapterAndWait(DebugAdapterGoReverse);
 }
 
 
 DebugStopReason DebuggerController::StepIntoAndWaitInternal()
 {
-	m_userRequestedBreak = false;
 	// TODO: check if StepInto() succeeds
 	return ExecuteAdapterAndWait(DebugAdapterStepInto);
 }
@@ -1662,7 +1786,11 @@ DebugStopReason DebuggerController::EmulateStepOverAndWait()
 		return InternalError;
 
 	size_t size = remoteArch->GetMaxInstructionLength();
-	DataBuffer buffer = m_adapter->ReadMemory(remoteIP, size);
+	DataBuffer buffer;
+	{
+		std::lock_guard<std::recursive_mutex> adapterLock(m_state->AdapterAccessMutex());
+		buffer = m_adapter->ReadMemory(remoteIP, size);
+	}
 	size_t bytesRead = buffer.GetLength();
 
 	Ref<LowLevelILFunction> ilFunc = new LowLevelILFunction(remoteArch, nullptr);
@@ -1705,7 +1833,6 @@ DebugStopReason DebuggerController::EmulateStepOverReverseAndWait()
 
 DebugStopReason DebuggerController::StepOverAndWaitInternal()
 {
-	m_userRequestedBreak = false;
 
 	if (m_adapter && m_adapter->SupportFeature(DebugAdapterSupportStepOver))
 	{
@@ -1720,7 +1847,6 @@ DebugStopReason DebuggerController::StepOverAndWaitInternal()
 
 DebugStopReason DebuggerController::StepOverReverseAndWaitInternal()
 {
-	m_userRequestedBreak = false;
 
 	if (m_adapter && m_adapter->SupportFeature(DebugAdapterSupportStepOverReverse))
 	{
@@ -1859,8 +1985,26 @@ void DebuggerController::Destroy()
 }
 
 
-// This is the central hub of event dispatch. All events first arrive here and then get dispatched based on the content
-void DebuggerController::EventHandler(const DebuggerEvent& event)
+// The controller's own state mutations for each event type. Called inline from
+// PostDebuggerEvent (on whichever thread posted the event) BEFORE the event is
+// enqueued for the dispatcher. Previously this body lived in EventHandler running
+// on the dispatcher thread; that created a race where the worker could observe
+// stale m_state after WaitForAdapterStop returned but before the dispatcher had
+// gotten around to running EventHandler. Now the controller's state is updated
+// happen-before the broadcast, and the dispatcher only fans out to external
+// (UI, plugin, scripting) consumers.
+//
+// Thread-safety: this body touches m_state's connection/execution status, plus
+// m_lastIP / m_currentIP / m_exitCode on the controller -- all plain (non-atomic,
+// unlocked) fields read from other threads (UI render layer, file accessor) without
+// synchronization. Those are pre-existing data races reported in #1091; this PR
+// does not address them, and adding synchronization there is tracked separately.
+// Moving the mutations off the dispatcher and onto the event-posting thread (this
+// function vs the old EventHandler) does not change the race set -- it just changes
+// which thread is the writer -- but it does fix the unrelated *control-flow* race
+// where the worker resumed before the dispatcher had updated state, which is what
+// this commit is for.
+void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 {
 	switch (event.type)
 	{
@@ -1875,38 +2019,36 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	}
 	case TargetExitedEventType:
 		m_exitCode = (uint32_t)event.data.exitData.exitCode;
+		[[fallthrough]];
 	case DetachedEventType:
 	case LaunchFailureEventType:
 	{
+		// Light, lock-free state only -- safe to run even while the adapter lock is held (it is,
+		// when this runs synchronously inside a locked ExecuteAdapterAndWait op such as Quit).
 		m_state->SetConnectionStatus(DebugAdapterNotConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterInvalidStatus);
-		m_state->MarkDirty();
 		m_inputFileLoaded = false;
 		m_initialBreakpointSeen = false;
 		ClearTTDPositionHistory();
-		RemoveDebuggerMemoryRegion();
-		if (m_oldAnalysisState != HoldState)
-		{
-			m_data->SetAnalysisHold(false);
-		}
 
-		if (m_accessor)
-		{
-			// Defer deletion to a detached thread. The accessor holds a DbgRef<DebuggerController>,
-			// and if it is the last reference, deleting it here (on the event thread) would trigger
-			// ~DebuggerController which calls m_debuggerEventThread.join() -- deadlocking/crashing
-			// because we ARE the event thread.
-			//
-			// This can happen when Destroy() races with event processing: EventHandler sets
-			// ConnectionStatus to NotConnected (line above), and another thread observes this,
-			// calls Destroy() which removes the global array ref, making the accessor's DbgRef
-			// the last reference to the controller.
-			auto* accessor = m_accessor;
-			m_accessor = nullptr;
-			std::thread([accessor]() { delete accessor; }).detach();
-		}
 		m_lastIP = m_currentIP;
 		m_currentIP = 0;
+
+		// The remaining cleanup (MarkDirty / RemoveDebuggerMemoryRegion / accessor disposal /
+		// analysis hold) calls into BN core, which takes the file lock. Running it here would mean
+		// holding the adapter lock across a BN-core call whenever this fires inside a locked op
+		// (Quit/Detach) -- the AB-BA deadlock with the analysis read path. For target-gone/detach
+		// it is instead run by ExecuteAdapterAndWait / the worker AFTER the adapter lock is
+		// released (see FinalizeTargetGoneCleanup). LaunchFailure does not flow through that path
+		// (and has no live memory region to remove), so finalize it inline.
+		//
+		// Note: the accessor MUST be disposed in FinalizeTargetGoneCleanup, AFTER
+		// RemoveDebuggerMemoryRegion -- the BinaryView's MemoryMap holds a raw pointer to it from
+		// AddRemoteMemoryRegion, and any in-flight or about-to-fire BinaryView::Read (e.g. a
+		// LinearView refresh triggered by the very same TargetExited event reaching the UI) would
+		// otherwise hit a freed accessor.
+		if (event.type == LaunchFailureEventType)
+			FinalizeTargetGoneCleanup();
 		break;
 	}
 	case TargetStoppedEventType:
@@ -1949,6 +2091,37 @@ void DebuggerController::EventHandler(const DebuggerEvent& event)
 	default:
 		break;
 	}
+}
+
+
+// Idempotent. Calls into BN core (memory map / analysis), which takes the file lock, so it MUST be
+// invoked with no adapter lock held. Safe to call more than once: MarkDirty re-marks an
+// already-cleared cache, RemoveMemoryRegion no-ops when the region is already gone, accessor
+// disposal is guarded by the nullptr check, and SetAnalysisHold(false) is idempotent -- so the
+// redundant case (e.g. both WindowsNativeAdapter::Quit and the debug loop posted TargetExited) is
+// harmless.
+void DebuggerController::FinalizeTargetGoneCleanup()
+{
+	m_state->MarkDirty();
+	// Remove the region from the BinaryView's MemoryMap BEFORE disposing of m_accessor: the
+	// MemoryMap holds a raw pointer to it (see AddRemoteMemoryRegion in DebuggerController::Start),
+	// so freeing the accessor first would leave the map with a dangling pointer that any concurrent
+	// BinaryView::Read (e.g. a linear-view refresh triggered by TargetExited) would dereference.
+	RemoveDebuggerMemoryRegion();
+	if (m_accessor)
+	{
+		// Defer deletion to a detached thread. The accessor holds a DbgRef<DebuggerController>;
+		// if it's the last reference, deleting it here would trigger ~DebuggerController which
+		// calls m_workerThread.join() and m_debuggerEventThread.join(). FinalizeTargetGoneCleanup
+		// itself runs on the worker (via ExecuteAdapterAndWait or the Submit fallback in
+		// PostDebuggerEvent), so a synchronous delete on the last ref would self-join and deadlock.
+		// A detached thread sidesteps that regardless of who called us.
+		auto* accessor = m_accessor;
+		m_accessor = nullptr;
+		std::thread([accessor]() { delete accessor; }).detach();
+	}
+	if (m_oldAnalysisState != HoldState)
+		m_data->SetAnalysisHold(false);
 }
 
 
@@ -2013,11 +2186,62 @@ bool DebuggerController::RemoveEventCallbackInternal(size_t index)
 
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 {
-	// During conditional breakpoint auto-resume, suppress the ResumeEventType that adapters
-	// post inside Go(). The target is already considered running by the UI, and posting this
-	// event from the dispatcher thread would trigger a re-entrant warning.
-	if (m_suppressResumeEvent && event.type == ResumeEventType)
+	// Adapter stops are an internal signal to the worker, not a user-facing event.
+	// Route them to the adapter-stop channel and skip the public dispatcher queue.
+	if (event.type == AdapterStoppedEventType)
+	{
+		DebugStopReason reason = event.data.targetStoppedData.reason;
+		bool inWait;
+		{
+			std::lock_guard lk(m_adapterStopMutex);
+			inWait = m_inAdapterWait;
+			if (inWait)
+				m_adapterStopPending = reason;
+		}
+		if (inWait)
+		{
+			m_adapterStopCv.notify_all();
+		}
+		else
+		{
+			// No controller op is in flight — the adapter stopped on its own (e.g.
+			// the user typed `si` directly into the LLDB REPL). Queue a handler on
+			// the worker to update caches and synthesize a TargetStoppedEvent.
+			Submit([this, reason] { HandleSpontaneousAdapterStop(reason); });
+		}
 		return;
+	}
+
+	// Apply the controller's own state mutations synchronously, before this event
+	// reaches anyone else. Previously this happened in EventHandler running on the
+	// dispatcher thread, which created a race: the worker could observe stale
+	// m_state after WaitForAdapterStop returned but before EventHandler had run.
+	// Doing the mutations here means the broadcast is purely informational to
+	// external consumers; the controller's own state is already consistent.
+	ApplyOwnStateForEvent(event);
+
+	// Target-exit / detach also unblock any in-flight WaitForAdapterStop -- the
+	// engine isn't going to issue a separate AdapterStoppedEvent. We do this AFTER
+	// ApplyOwnStateForEvent so the worker wakes to a fully-updated m_state.
+	if (event.type == TargetExitedEventType || event.type == DetachedEventType)
+	{
+		bool inWait;
+		{
+			std::lock_guard lk(m_adapterStopMutex);
+			inWait = m_inAdapterWait;
+			if (inWait)
+				m_adapterStopPending = ProcessExited;
+		}
+		if (inWait)
+			m_adapterStopCv.notify_all();
+		else
+			// No controller op is in flight (e.g. the target exited on its own, or an adapter that
+			// reports exits asynchronously). No ExecuteAdapterAndWait will run the deferred cleanup,
+			// so queue it on the worker, where no adapter lock is held. Idempotent, so it is fine
+			// even if a later op also triggers it.
+			Submit([this] { FinalizeTargetGoneCleanup(); });
+		// Fall through: still goes through the public dispatcher queue.
+	}
 
 	auto pending = std::make_shared<PendingEvent>();
 	pending->event = event;
@@ -2039,6 +2263,113 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 	{
 		// Block until the event is handled (unless this is the dispatcher thread)
 		future.get();
+	}
+}
+
+
+DebugStopReason DebuggerController::WaitForAdapterStop()
+{
+	std::unique_lock lk(m_adapterStopMutex);
+	m_adapterStopCv.wait(lk, [this] {
+		return m_adapterStopPending.has_value() || m_workerShouldExit;
+	});
+	if (m_workerShouldExit && !m_adapterStopPending.has_value())
+		return InternalError;
+	DebugStopReason reason = *m_adapterStopPending;
+	m_adapterStopPending = std::nullopt;
+	return reason;
+}
+
+
+bool DebuggerController::ShouldSilentResumeAfterStop()
+{
+	// Only breakpoint stops are candidates for silent resume on a false condition.
+	// Step operations always surface, even if they land on a breakpoint.
+	bool isStepOperation = (m_lastOperation == DebugAdapterStepInto)
+		|| (m_lastOperation == DebugAdapterStepOver)
+		|| (m_lastOperation == DebugAdapterStepReturn)
+		|| (m_lastOperation == DebugAdapterStepIntoReverse)
+		|| (m_lastOperation == DebugAdapterStepOverReverse)
+		|| (m_lastOperation == DebugAdapterStepReturnReverse);
+	if (isStepOperation)
+		return false;
+
+	m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
+	m_state->SetExecutionStatus(DebugAdapterPausedStatus);
+	m_state->MarkDirty();
+	m_state->UpdateCaches();
+	AddRegisterValuesToExpressionParser();
+	AddModuleValuesToExpressionParser();
+
+	uint64_t ip = m_state->IP();
+	if (!m_state->GetBreakpoints()->ContainsAbsolute(ip))
+		return false;
+	if (EvaluateBreakpointCondition(ip))
+		return false;
+
+	return true;
+}
+
+
+void DebuggerController::HandleSpontaneousAdapterStop(DebugStopReason reason)
+{
+	// The adapter reported a stop with no controller op in flight. This is the
+	// case the dispatcher previously synthesized a TargetStoppedEvent for at
+	// `debuggercontroller.cpp:2279` in the pre-refactor code.
+	m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
+	m_state->SetExecutionStatus(DebugAdapterPausedStatus);
+	m_state->MarkDirty();
+	m_state->UpdateCaches();
+	AddRegisterValuesToExpressionParser();
+	AddModuleValuesToExpressionParser();
+	NotifyStopped(reason);
+}
+
+
+void DebuggerController::RequestInterrupt()
+{
+	// Purely out-of-band, and fully asynchronous: hand the break off to the interrupt
+	// thread and return immediately. The caller (Pause/Restart/Quit/Detach, possibly on
+	// the UI thread) never blocks on the adapter call. The in-flight worker op (blocked
+	// in WaitForAdapterStop) wakes up via the adapter-stop channel once the engine breaks;
+	// its OnWorker wrapper then calls NotifyStopped. We do not call NotifyStopped here and
+	// we do not queue any work for the worker.
+	//
+	// Multiple requests collapse to one flag: BreakInto is only meaningful per in-flight
+	// op, and the worker cannot advance to the next queued op until this break unsticks it,
+	// so a coalesced break can never land on a later operation's target.
+	{
+		std::lock_guard<std::mutex> lock(m_interruptMutex);
+		m_interruptRequested = true;
+	}
+	m_interruptCv.notify_one();
+}
+
+
+void DebuggerController::InterruptThreadMain()
+{
+	while (true)
+	{
+		{
+			std::unique_lock<std::mutex> lock(m_interruptMutex);
+			m_interruptCv.wait(lock, [this] { return m_interruptShouldExit || m_interruptRequested; });
+			if (m_interruptShouldExit && !m_interruptRequested)
+				break;
+			m_interruptRequested = false;
+		}
+
+		// Snapshot the adapter pointer once so the null check and the call see the same
+		// value. The pointed-to object outlives this thread: the adapter is destroyed in
+		// ~DebuggerState, which runs in ~DebuggerController only after this thread has been
+		// joined. The adapter-access lock serializes BreakInto against in-flight resume
+		// requests and UI memory reads; it is safe to acquire even while the target is
+		// running because the worker holds the lock only around the resume request, not
+		// across the run-wait.
+		if (DebugAdapter* adapter = m_adapter)
+		{
+			std::lock_guard<std::recursive_mutex> adapterLock(m_state->AdapterAccessMutex());
+			adapter->BreakInto();
+		}
 	}
 }
 
@@ -2066,49 +2397,11 @@ void DebuggerController::DebuggerMainThread()
 		callbackLock.unlock();
 
 		auto event = current->event;
-		if (event.type == AdapterStoppedEventType)
-			m_lastAdapterStopEventConsumed = false;
 
-		if (event.type == AdapterStoppedEventType &&
-			event.data.targetStoppedData.reason == Breakpoint)
-		{
-			// update the caches so registers are available for condition evaluation
-			m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
-			m_state->SetExecutionStatus(DebugAdapterPausedStatus);
-			m_state->MarkDirty();
-			m_state->UpdateCaches();
-			AddRegisterValuesToExpressionParser();
-			AddModuleValuesToExpressionParser();
-
-			// skip conditional breakpoint evaluation for step operations - when the user explicitly
-			// steps onto a breakpoint, they expect to stop there regardless of the condition.
-			bool isStepOperation = (m_lastOperation == DebugAdapterStepInto)
-				|| (m_lastOperation == DebugAdapterStepOver)
-				|| (m_lastOperation == DebugAdapterStepReturn)
-				|| (m_lastOperation == DebugAdapterStepIntoReverse)
-				|| (m_lastOperation == DebugAdapterStepOverReverse)
-				|| (m_lastOperation == DebugAdapterStepReturnReverse);
-
-			if (uint64_t ip = m_state->IP();
-				!isStepOperation && m_state->GetBreakpoints()->ContainsAbsolute(ip))
-			{
-				if (!EvaluateBreakpointCondition(ip) && !m_userRequestedBreak)
-				{
-					m_lastAdapterStopEventConsumed = true;
-					current->done.set_value();
-					// Using m_adapter->Go() directly instead of Go() to avoid mutex deadlock
-					// since we're already inside ExecuteAdapterAndWait's event processing.
-					// Suppress the ResumeEventType that some adapters post synchronously inside
-					// Go() — the UI already considers the target running, and posting from the
-					// dispatcher thread would be unexpected.
-					m_suppressResumeEvent = true;
-					m_adapter->Go();
-					m_suppressResumeEvent = false;
-					m_state->SetExecutionStatus(DebugAdapterRunningStatus);
-					continue;
-				}
-			}
-		}
+		// AdapterStoppedEventType no longer reaches the dispatcher: PostDebuggerEvent
+		// intercepts it and routes the reason to the worker's adapter-stop channel.
+		// Conditional-breakpoint silent-resume and spontaneous-stop synthesis now live
+		// in ExecuteAdapterAndWait / HandleSpontaneousAdapterStop on the worker.
 
 		DebuggerEvent eventToSend = event;
 		if ((eventToSend.type == TargetStoppedEventType) && !m_initialBreakpointSeen)
@@ -2125,29 +2418,6 @@ void DebuggerController::DebuggerMainThread()
 
 			callbackLock2.unlock();
 			cb.function(eventToSend);
-		}
-
-		// If the current event is an AdapterStoppedEvent, and it is not consumed by any callback, then the adapter
-		// stop is not caused by the debugger core. This can happen when the user run a "ni" command directly.
-		// Notify a target stop reason in this case.
-		if (event.type == AdapterStoppedEventType && !m_lastAdapterStopEventConsumed)
-		{
-			DebuggerEvent stopEvent = event;
-			stopEvent.type = TargetStoppedEventType;
-			if (!m_initialBreakpointSeen)
-			{
-				m_initialBreakpointSeen = true;
-				stopEvent.data.targetStoppedData.reason = InitialBreakpoint;
-			}
-			for (const DebuggerEventCallback& cb : eventCallbacks)
-			{
-				std::unique_lock callbackLock2(m_callbackMutex);
-				if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
-					continue;
-
-				callbackLock2.unlock();
-				cb.function(stopEvent);
-			}
 		}
 
 		CleanUpDisabledEvent();
@@ -2675,6 +2945,8 @@ std::string DebuggerController::GetStopReasonString(DebugStopReason reason)
 		return "UserRequestedBreak";
 	case OperationNotSupported:
 		return "OperationNotSupported";
+	case TimedOut:
+		return "TimedOut";
 	default:
 		return "";
 	}
@@ -2692,54 +2964,33 @@ DebugStopReason DebuggerController::StopReason() const
 
 DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOperation operation)
 {
-	// Due to the nature of the wait, this mutex should NOT be allowed to be locked recursively.
-	// If this is a pause operation, do not try to lock the mutex -- it is mostly likely held by another thread
-	if ((operation != DebugAdapterPause) && (operation != DebugAdapterQuit) && (operation != DebugAdapterDetach))
-	{
-		if (!m_adapterMutex.try_lock())
-		{
-			LogWarn("Cannot obtain mutex1 for debug adapter, operation: %d", operation);
-			return InternalError;
-		}
-	}
-	else
-	{
-		if (!m_adapterMutex2.try_lock())
-		{
-			LogWarn("Cannot obtain mutex2 for debug adapter, operation: %d", operation);
-			return InternalError;
-		}
-	}
+	// Invariant: ExecuteAdapterAndWait only ever runs on m_workerThread. The worker queue
+	// serializes all adapter operations, so the previous m_adapterMutex / m_adapterMutex2
+	// pair (which guarded against concurrent adapter access from multiple spawned threads)
+	// is no longer needed. The new Pause path bypasses this method entirely and calls
+	// m_adapter->BreakInto() out-of-band; everything else funnels through here on the worker.
+	BN_RELEASE_ASSERT(t_controllerOnWorker == this);
 
-	Semaphore sem;
-	DebugStopReason reason = UnknownReason;
-	size_t callback = RegisterEventCallback(
-		[&](const DebuggerEvent& event) {
-			switch (event.type)
-			{
-			case AdapterStoppedEventType:
-				reason = event.data.targetStoppedData.reason;
-				sem.Release();
-				break;
-			// It is a little awkward to add two cases for these events, but we must take them into account,
-			// since after we resume the target, the target can either or exit.
-			case TargetExitedEventType:
-			case DetachedEventType:
-				// There is no DebugStopReason for "detach", so we use ProcessExited for now
-				reason = ProcessExited;
-				sem.Release();
-				break;
-			default:
-				break;
-			}
-			m_lastAdapterStopEventConsumed = true;
-		},
-		"WaitForAdapterStop");
+	// Claim the adapter-stop channel for the duration of this call. Any AdapterStoppedEvent
+	// posted by the adapter from now until we clear m_inAdapterWait is delivered to
+	// WaitForAdapterStop below, not treated as spontaneous. We hold this across the
+	// entire silent-resume loop so that an adapter stop between iterations (after we
+	// kick off m_adapter->Go() for a false breakpoint condition) is still consumed
+	// by us, not synthesized as a spontaneous stop.
+	{
+		std::lock_guard lk(m_adapterStopMutex);
+		m_inAdapterWait = true;
+		m_adapterStopPending = std::nullopt;
+	}
 
 	m_lastOperation = operation;
 
 	bool resumeOK = false;
 	bool operationRequested = false;
+	// Hold the adapter-access lock only around the resume REQUEST (these calls return
+	// promptly; the actual wait for the stop happens below, lock-free, so Pause/BreakInto
+	// can acquire the same lock while the target runs).
+	std::unique_lock<std::recursive_mutex> adapterLock(m_state->AdapterAccessMutex());
 	switch (operation)
 	{
 	case DebugAdapterGo:
@@ -2787,6 +3038,8 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 	default:
 		break;
 	}
+	// Resume request issued; drop the lock so the run-wait below is lock-free.
+	adapterLock.unlock();
 
 	bool ok = false;
 	if ((operation == DebugAdapterGo) || (operation == DebugAdapterStepInto) || (operation == DebugAdapterStepOver)
@@ -2806,16 +3059,53 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 		ok = true;
 	}
 
-	if (ok)
-		sem.Wait();
-	else
+	DebugStopReason reason = UnknownReason;
+	if (!ok)
+	{
 		reason = InternalError;
-
-	RemoveEventCallback(callback);
-	if ((operation != DebugAdapterPause) && (operation != DebugAdapterQuit) && (operation != DebugAdapterDetach))
-		m_adapterMutex.unlock();
+	}
 	else
-		m_adapterMutex2.unlock();
+	{
+		// Loop: wait for the adapter to stop. If the stop is a breakpoint whose
+		// condition evaluates to false (and the user didn't explicitly step or
+		// request a break), silently resume and wait again. Otherwise return.
+		while (true)
+		{
+			reason = WaitForAdapterStop();
+			if (reason == ProcessExited || reason == InternalError)
+				break;
+			if (reason == Breakpoint && ShouldSilentResumeAfterStop())
+			{
+				m_state->SetExecutionStatus(DebugAdapterRunningStatus);
+				bool resumed;
+				{
+					std::lock_guard<std::recursive_mutex> resumeLock(m_state->AdapterAccessMutex());
+					resumed = m_adapter && m_adapter->Go();
+				}
+				if (!resumed)
+				{
+					reason = InternalError;
+					break;
+				}
+				continue;
+			}
+			break;
+		}
+	}
+
+	{
+		std::lock_guard lk(m_adapterStopMutex);
+		m_inAdapterWait = false;
+		m_adapterStopPending = std::nullopt;
+	}
+
+	// The target is gone (process exit or detach -- both surface as ProcessExited). Run the
+	// BN-core cleanup that ApplyOwnStateForEvent deliberately deferred. The adapter lock was
+	// dropped above (before the run-wait), so we are NOT holding it across these file-lock-taking
+	// calls -- this is what avoids the AB-BA deadlock with the analysis read path. Running it here,
+	// on the worker before we return, keeps the caller's post-wait view fully finalized.
+	if (reason == ProcessExited)
+		FinalizeTargetGoneCleanup();
 
 	return reason;
 }

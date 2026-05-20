@@ -45,12 +45,10 @@ def is_wow64(fpath):
 
 
 def sleep_and_go(dbg):
-    time.sleep(0.1)
     return dbg.go_and_wait()
 
 
 def sleep_and_step_into(dbg):
-    time.sleep(0.1)
     return dbg.step_into_and_wait()
 
 
@@ -379,6 +377,17 @@ class DebuggerAPI(unittest.TestCase):
         self.assertGreater(len(threads), 1)
         dbg.quit_and_wait()
 
+    def test_go_and_wait_timeout(self):
+        fpath = name_to_fpath('helloworld_thread', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        try:
+            self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+            reason = dbg.go_and_wait(5000)
+            self.assertEqual(reason, DebugStopReason.TimedOut)
+        finally:
+            dbg.quit_and_wait()
+
     @unittest.skipIf(platform.system() == 'Windows', 'Skip restart test on Windows for now')
     def test_restart(self):
         fpath = name_to_fpath('helloworld_thread', self.arch)
@@ -386,17 +395,14 @@ class DebuggerAPI(unittest.TestCase):
         dbg = self.create_debugger(bv)
         self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
-        time.sleep(0.1)
         dbg.go()
         time.sleep(1)
         dbg.pause_and_wait()
         self.assertGreater(len(dbg.threads), 1)
 
-        time.sleep(0.1)
         ret = dbg.restart_and_wait()
         self.assertNotIn(ret, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
-        time.sleep(0.1)
         dbg.go()
         time.sleep(1)
         ret = dbg.restart_and_wait()

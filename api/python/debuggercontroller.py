@@ -1528,10 +1528,14 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerLaunch(self.handle)
 
-    def launch_and_wait(self) -> DebugStopReason:
+    def launch_and_wait(self, timeout: Optional[int] = None) -> DebugStopReason:
         """
         Launch the target and wait for all debugger events to be processed
+
+        :param timeout: optional timeout in milliseconds
         """
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerLaunchAndWaitWithTimeout(self.handle, timeout))
         return DebugStopReason(dbgcore.BNDebuggerLaunchAndWait(self.handle))
 
     def restart(self) -> None:
@@ -1546,10 +1550,15 @@ class DebuggerController:
         """
         dbgcore.BNDebuggerQuit(self.handle)
 
-    def quit_and_wait(self) -> None:
+    def quit_and_wait(self, timeout: Optional[int] = None) -> None:
         """
         Terminate the target, and wait for all callback to be called
+
+        :param timeout: optional timeout in milliseconds
         """
+        if timeout is not None:
+            dbgcore.BNDebuggerQuitAndWaitWithTimeout(self.handle, timeout)
+            return
         dbgcore.BNDebuggerQuitAndWait(self.handle)
 
     def connect(self) -> bool:
@@ -1560,12 +1569,16 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerConnect(self.handle)
 
-    def connect_and_wait(self) -> DebugStopReason:
+    def connect_and_wait(self, timeout: Optional[int] = None) -> DebugStopReason:
         """
         Connect to a remote target (process) and wait for all debugger events to be processed
 
         The host and port of the remote target must first be specified by setting `remote_host` and `remote_port`
+
+        :param timeout: optional timeout in milliseconds
         """
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerConnectAndWaitWithTimeout(self.handle, timeout))
         return DebugStopReason(dbgcore.BNDebuggerConnectAndWait(self.handle))
 
     def connect_to_debug_server(self) -> bool:
@@ -1588,6 +1601,17 @@ class DebuggerController:
         """
         dbgcore.BNDebuggerDetach(self.handle)
 
+    def detach_and_wait(self, timeout: Optional[int] = None) -> None:
+        """
+        Detach the target, and wait for all callback to be called.
+
+        :param timeout: optional timeout in milliseconds
+        """
+        if timeout is not None:
+            dbgcore.BNDebuggerDetachAndWaitWithTimeout(self.handle, timeout)
+            return
+        dbgcore.BNDebuggerDetachAndWait(self.handle)
+
     def pause(self) -> None:
         """
         Pause a running target
@@ -1608,12 +1632,16 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerAttach(self.handle)
 
-    def attach_and_wait(self) -> DebugStopReason:
+    def attach_and_wait(self, timeout: Optional[int] = None) -> DebugStopReason:
         """
         Attach to a running process and wait until all debugger events are processed
 
         The PID of the target process must be set via DebuggerState.pid_attach
+
+        :param timeout: optional timeout in milliseconds
         """
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerAttachAndWaitWithTimeout(self.handle, timeout))
         return DebugStopReason(dbgcore.BNDebuggerAttachAndWait(self.handle))
 
     def go(self) -> bool:
@@ -1811,28 +1839,36 @@ class DebuggerController:
 
         return dbgcore.BNDebuggerRunToReverse(self.handle, addr_list, len(address))
 
-    def go_and_wait(self) -> DebugStopReason:
+    def go_and_wait(self, timeout: Optional[int] = None) -> DebugStopReason:
         """
         Resume the target.
 
         The call is blocking and only returns when the target stops.
 
+        :param timeout: optional timeout in milliseconds
         :return: the reason for the stop
         """
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerGoAndWaitWithTimeout(self.handle, timeout))
         return DebugStopReason(dbgcore.BNDebuggerGoAndWait(self.handle))
 
-    def go_reverse_and_wait(self) -> DebugStopReason:
+    def go_reverse_and_wait(self, timeout: Optional[int] = None) -> DebugStopReason:
         """
         Resume the target in reverse.
 
         The call is blocking and only returns when the target stops.
 
+        :param timeout: optional timeout in milliseconds
         :return: the reason for the stop
         """
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerGoReverseAndWaitWithTimeout(self.handle, timeout))
         return DebugStopReason(dbgcore.BNDebuggerGoReverseAndWait(self.handle))
 
-    def step_into_and_wait(self, il: binaryninja.FunctionGraphType =
-                binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
+    def step_into_and_wait(
+        self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph,
+        timeout: Optional[int] = None
+    ) -> DebugStopReason:
         """
         Perform a step into on the target in reverse.
 
@@ -1849,13 +1885,17 @@ class DebuggerController:
         The call is blocking and only returns when the target stops.
 
         :param il: optional IL level to perform the operation at
+        :param timeout: optional timeout in milliseconds
         :return: the reason for the stop
         """
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerStepIntoAndWaitWithTimeout(self.handle, il, timeout))
         return DebugStopReason(dbgcore.BNDebuggerStepIntoAndWait(self.handle, il))
 
-
-    def step_into_reverse_and_wait(self, il: binaryninja.FunctionGraphType =
-    binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
+    def step_into_reverse_and_wait(
+        self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph,
+        timeout: Optional[int] = None
+    ) -> DebugStopReason:
         """
         Perform a reverse step into on the target.
 
@@ -1871,12 +1911,17 @@ class DebuggerController:
         The call is blocking and only returns when the target stops.
 
         :param il: optional IL level to perform the operation at
+        :param timeout: optional timeout in milliseconds
         :return: the reason for the stop
         """
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerStepIntoReverseAndWaitWithTimeout(self.handle, il, timeout))
         return DebugStopReason(dbgcore.BNDebuggerStepIntoReverseAndWait(self.handle, il))
 
-    def step_over_and_wait(self, il: binaryninja.FunctionGraphType =
-                binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
+    def step_over_and_wait(
+        self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph,
+        timeout: Optional[int] = None
+    ) -> DebugStopReason:
         """
         Perform a step over on the target.
 
@@ -1893,12 +1938,17 @@ class DebuggerController:
         The call is blocking and only returns when the target stops.
 
         :param il: optional IL level to perform the operation at
+        :param timeout: optional timeout in milliseconds
         :return: the reason for the stop
         """
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerStepOverAndWaitWithTimeout(self.handle, il, timeout))
         return DebugStopReason(dbgcore.BNDebuggerStepOverAndWait(self.handle, il))
 
-    def step_over_reverse_and_wait(self, il: binaryninja.FunctionGraphType =
-    binaryninja.FunctionGraphType.NormalFunctionGraph) -> DebugStopReason:
+    def step_over_reverse_and_wait(
+        self, il: binaryninja.FunctionGraphType = binaryninja.FunctionGraphType.NormalFunctionGraph,
+        timeout: Optional[int] = None
+    ) -> DebugStopReason:
         """
         Perform a step over on the target in reverse.
 
@@ -1915,11 +1965,14 @@ class DebuggerController:
         The call is blocking and only returns when the target stops.
 
         :param il: optional IL level to perform the operation at
+        :param timeout: optional timeout in milliseconds
         :return: the reason for the stop
         """
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerStepOverReverseAndWaitWithTimeout(self.handle, il, timeout))
         return DebugStopReason(dbgcore.BNDebuggerStepOverReverseAndWait(self.handle, il))
 
-    def step_return_and_wait(self) -> DebugStopReason:
+    def step_return_and_wait(self, timeout: Optional[int] = None) -> DebugStopReason:
         """
         Perform a step return on the target.
 
@@ -1935,11 +1988,27 @@ class DebuggerController:
 
         The call is blocking and only returns when the target stops.
 
+        :param timeout: optional timeout in milliseconds
         :return: the reason for the stop
         """
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerStepReturnAndWaitWithTimeout(self.handle, timeout))
         return DebugStopReason(dbgcore.BNDebuggerStepReturnAndWait(self.handle))
 
-    def run_to_and_wait(self, address) -> DebugStopReason:
+    def step_return_reverse_and_wait(self, timeout: Optional[int] = None) -> DebugStopReason:
+        """
+        Perform a step return on the target in reverse.
+
+        The call is blocking and only returns when the target stops.
+
+        :param timeout: optional timeout in milliseconds
+        :return: the reason for the stop
+        """
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerStepReturnReverseAndWaitWithTimeout(self.handle, timeout))
+        return DebugStopReason(dbgcore.BNDebuggerStepReturnReverseAndWait(self.handle))
+
+    def run_to_and_wait(self, address, timeout: Optional[int] = None) -> DebugStopReason:
         """
         Resume the target, and wait for it to break at the given address(es).
 
@@ -1950,6 +2019,7 @@ class DebuggerController:
 
         The call is blocking and only returns when the target stops.
 
+        :param timeout: optional timeout in milliseconds
         :return: the reason for the stop
         """
         if isinstance(address, int):
@@ -1962,9 +2032,12 @@ class DebuggerController:
         for i in range(len(address)):
             addr_list[i] = address[i]
 
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerRunToAndWaitWithTimeout(
+                self.handle, addr_list, len(address), timeout))
         return DebugStopReason(dbgcore.BNDebuggerRunToAndWait(self.handle, addr_list, len(address)))
 
-    def run_to_reverse_and_wait(self, address) -> DebugStopReason:
+    def run_to_reverse_and_wait(self, address, timeout: Optional[int] = None) -> DebugStopReason:
         """
         Resume the target in reverse, and wait for it to break at the given address(es).
 
@@ -1975,6 +2048,7 @@ class DebuggerController:
 
         The call is blocking and only returns when the target stops.
 
+        :param timeout: optional timeout in milliseconds
         :return: the reason for the stop
         """
         if isinstance(address, int):
@@ -1987,23 +2061,36 @@ class DebuggerController:
         for i in range(len(address)):
             addr_list[i] = address[i]
 
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerRunToReverseAndWaitWithTimeout(
+                self.handle, addr_list, len(address), timeout))
         return DebugStopReason(dbgcore.BNDebuggerRunToReverseAndWait(self.handle, addr_list, len(address)))
 
-    def pause_and_wait(self) -> None:
+    def pause_and_wait(self, timeout: Optional[int] = None) -> DebugStopReason:
         """
         Pause a running target.
 
         The call is blocking and only returns when the target stops.
-        """
-        dbgcore.BNDebuggerPauseAndWait(self.handle)
 
-    def restart_and_wait(self) -> None:
+        :param timeout: optional timeout in milliseconds
+        :return: the reason for the stop
+        """
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerPauseAndWaitWithTimeout(self.handle, timeout))
+        return DebugStopReason(dbgcore.BNDebuggerPauseAndWait(self.handle))
+
+    def restart_and_wait(self, timeout: Optional[int] = None) -> DebugStopReason:
         """
         Restart a running target.
 
         The call is blocking and only returns when the target stops again after the restart.
+
+        :param timeout: optional timeout in milliseconds
+        :return: the reason for the stop
         """
-        dbgcore.BNDebuggerRestartAndWait(self.handle)
+        if timeout is not None:
+            return DebugStopReason(dbgcore.BNDebuggerRestartAndWaitWithTimeout(self.handle, timeout))
+        return DebugStopReason(dbgcore.BNDebuggerRestartAndWait(self.handle))
 
     @property
     def adapter_type(self) -> str:
