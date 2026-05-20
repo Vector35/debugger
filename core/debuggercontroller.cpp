@@ -290,7 +290,8 @@ bool DebuggerController::Launch()
 	if (!CanStartDebgging())
 		return false;
 
-	std::thread([&]() { LaunchAndWait(); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self]() { self->LaunchAndWait(); }).detach();
 	return true;
 }
 
@@ -353,7 +354,8 @@ bool DebuggerController::Attach()
 	if (!CanStartDebgging())
 		return false;
 
-	std::thread([&]() { AttachAndWait(); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self]() { self->AttachAndWait(); }).detach();
 	return true;
 }
 
@@ -404,7 +406,8 @@ bool DebuggerController::Connect()
 	if (!CanStartDebgging())
 		return false;
 
-	std::thread([&]() { ConnectAndWait(); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self]() { self->ConnectAndWait(); }).detach();
 	return true;
 }
 
@@ -543,7 +546,8 @@ bool DebuggerController::Go()
 	if (!CanResumeTarget())
 		return false;
 
-	std::thread([&]() { GoAndWait(); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self]() { self->GoAndWait(); }).detach();
 
 	return true;
 }
@@ -554,7 +558,8 @@ bool DebuggerController::GoReverse()
 	if (!CanResumeTarget())
 		return false;
 
-	std::thread([&]() { GoReverseAndWait(); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self]() { self->GoReverseAndWait(); }).detach();
 
 	return true;
 }
@@ -817,7 +822,8 @@ bool DebuggerController::StepInto(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 		return false;
 
-	std::thread([&, il]() { StepIntoAndWait(il); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self, il]() { self->StepIntoAndWait(il); }).detach();
 
 	return true;
 }
@@ -827,7 +833,8 @@ bool DebuggerController::StepIntoReverse(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 		return false;
 
-	std::thread([&, il]() { StepIntoReverseAndWait(il); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self, il]() { self->StepIntoReverseAndWait(il); }).detach();
 
 	return true;
 }
@@ -1078,7 +1085,8 @@ bool DebuggerController::StepOver(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 		return false;
 
-	std::thread([&, il]() { StepOverAndWait(il); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self, il]() { self->StepOverAndWait(il); }).detach();
 
 	return true;
 }
@@ -1089,7 +1097,8 @@ bool DebuggerController::StepOverReverse(BNFunctionGraphType il)
 	if (!CanResumeTarget())
 		return false;
 
-	std::thread([&, il]() { StepOverReverseAndWait(il); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self, il]() { self->StepOverReverseAndWait(il); }).detach();
 
 	return true;
 }
@@ -1184,7 +1193,8 @@ bool DebuggerController::StepReturn()
 	if (!CanResumeTarget())
 		return false;
 
-	std::thread([&]() { StepReturnAndWait(); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self]() { self->StepReturnAndWait(); }).detach();
 
 	return true;
 }
@@ -1195,7 +1205,8 @@ bool DebuggerController::StepReturnReverse()
 	if (!CanResumeTarget())
 		return false;
 
-	std::thread([&]() { StepReturnReverseAndWait(); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self]() { self->StepReturnReverseAndWait(); }).detach();
 
 	return true;
 }
@@ -1295,7 +1306,8 @@ bool DebuggerController::RunTo(const std::vector<uint64_t>& remoteAddresses)
 	if (!CanResumeTarget())
 		return false;
 
-	std::thread([&, remoteAddresses]() { RunToAndWait(remoteAddresses); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self, remoteAddresses]() { self->RunToAndWait(remoteAddresses); }).detach();
 
 	return true;
 }
@@ -1307,7 +1319,8 @@ bool DebuggerController::RunToReverse(const std::vector<uint64_t>& remoteAddress
 	if (!CanResumeTarget())
 		return false;
 
-	std::thread([&, remoteAddresses]() { RunToReverseAndWait(remoteAddresses); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self, remoteAddresses]() { self->RunToReverseAndWait(remoteAddresses); }).detach();
 
 	return true;
 }
@@ -1457,7 +1470,8 @@ bool DebuggerController::Restart()
 	if (!m_state->IsConnected())
 		return false;
 
-	std::thread([&]() { RestartAndWait(); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self]() { self->RestartAndWait(); }).detach();
 	return true;
 }
 
@@ -1517,7 +1531,8 @@ void DebuggerController::Detach()
 	if (!m_state->IsConnected())
 		return;
 
-	std::thread([&]() { DetachAndWait(); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self]() { self->DetachAndWait(); }).detach();
 }
 
 
@@ -1550,7 +1565,8 @@ void DebuggerController::Quit()
 	if (!m_state->IsConnected())
 		return;
 
-	std::thread([&]() { QuitAndWait(); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self]() { self->QuitAndWait(); }).detach();
 }
 
 
@@ -1589,7 +1605,8 @@ bool DebuggerController::Pause()
 	if (!m_state->IsConnected())
 		return false;
 
-	std::thread([&]() { PauseAndWait(); }).detach();
+	DbgRef<DebuggerController> self = this;
+	std::thread([self]() { self->PauseAndWait(); }).detach();
 
 	return true;
 }
