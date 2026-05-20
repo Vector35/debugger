@@ -22,6 +22,7 @@ limitations under the License.
 #include <list>
 #include <future>
 #include <functional>
+#include <optional>
 #include <unordered_set>
 #include "ffi_global.h"
 #include "refcountobject.h"
@@ -119,11 +120,21 @@ namespace BinaryNinjaDebugger {
 		bool m_userRequestedBreak = false;
 		DebugAdapterOperation m_lastOperation = DebugAdapterGo;
 
-		bool m_lastAdapterStopEventConsumed = true;
-
-		// When true, ResumeEventType events are suppressed in PostDebuggerEvent.
-		// Used during conditional breakpoint auto-resume to avoid posting events from the dispatcher thread.
-		bool m_suppressResumeEvent = false;
+		// Adapter-stop channel: internal signal from the adapter thread to the worker.
+		// AdapterStoppedEventType posted via PostDebuggerEvent is intercepted and routed
+		// here rather than dispatched through the public event queue. WaitForAdapterStop
+		// blocks on m_adapterStopCv until either an adapter stop arrives or shutdown is
+		// requested. m_inAdapterWait is true for the entire duration of an in-flight
+		// ExecuteAdapterAndWait call (including the silent-resume loop between iterations
+		// for conditional breakpoints) so that any stop during that window is consumed
+		// by WaitForAdapterStop and not treated as spontaneous.
+		std::mutex m_adapterStopMutex;
+		std::condition_variable m_adapterStopCv;
+		std::optional<DebugStopReason> m_adapterStopPending;
+		bool m_inAdapterWait = false;
+		DebugStopReason WaitForAdapterStop();
+		void HandleSpontaneousAdapterStop(DebugStopReason reason);
+		bool ShouldSilentResumeAfterStop();
 
 		bool m_inputFileLoaded = false;
 		bool m_initialBreakpointSeen = false;

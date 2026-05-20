@@ -52,6 +52,8 @@ DebuggerController::~DebuggerController()
 		m_workerShouldExit = true;
 	}
 	m_workQueueCv.notify_all();
+	// Wake any in-flight WaitForAdapterStop so the worker can observe shutdown.
+	m_adapterStopCv.notify_all();
 	if (m_workerThread.joinable())
 		m_workerThread.join();
 
@@ -2159,11 +2161,47 @@ bool DebuggerController::RemoveEventCallbackInternal(size_t index)
 
 void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 {
-	// During conditional breakpoint auto-resume, suppress the ResumeEventType that adapters
-	// post inside Go(). The target is already considered running by the UI, and posting this
-	// event from the dispatcher thread would trigger a re-entrant warning.
-	if (m_suppressResumeEvent && event.type == ResumeEventType)
+	// Adapter stops are an internal signal to the worker, not a user-facing event.
+	// Route them to the adapter-stop channel and skip the public dispatcher queue.
+	if (event.type == AdapterStoppedEventType)
+	{
+		DebugStopReason reason = event.data.targetStoppedData.reason;
+		bool inWait;
+		{
+			std::lock_guard lk(m_adapterStopMutex);
+			inWait = m_inAdapterWait;
+			if (inWait)
+				m_adapterStopPending = reason;
+		}
+		if (inWait)
+		{
+			m_adapterStopCv.notify_all();
+		}
+		else
+		{
+			// No controller op is in flight — the adapter stopped on its own (e.g.
+			// the user typed `si` directly into the LLDB REPL). Queue a handler on
+			// the worker to update caches and synthesize a TargetStoppedEvent.
+			Submit([this, reason] { HandleSpontaneousAdapterStop(reason); });
+		}
 		return;
+	}
+
+	// Target-exit / detach are user-facing events that ALSO need to unblock any
+	// in-flight WaitForAdapterStop (the engine isn't going to issue a separate stop).
+	if (event.type == TargetExitedEventType || event.type == DetachedEventType)
+	{
+		bool inWait;
+		{
+			std::lock_guard lk(m_adapterStopMutex);
+			inWait = m_inAdapterWait;
+			if (inWait)
+				m_adapterStopPending = ProcessExited;
+		}
+		if (inWait)
+			m_adapterStopCv.notify_all();
+		// Fall through: still goes through the public dispatcher queue.
+	}
 
 	auto pending = std::make_shared<PendingEvent>();
 	pending->event = event;
@@ -2186,6 +2224,67 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 		// Block until the event is handled (unless this is the dispatcher thread)
 		future.get();
 	}
+}
+
+
+DebugStopReason DebuggerController::WaitForAdapterStop()
+{
+	std::unique_lock lk(m_adapterStopMutex);
+	m_adapterStopCv.wait(lk, [this] {
+		return m_adapterStopPending.has_value() || m_workerShouldExit;
+	});
+	if (m_workerShouldExit && !m_adapterStopPending.has_value())
+		return InternalError;
+	DebugStopReason reason = *m_adapterStopPending;
+	m_adapterStopPending = std::nullopt;
+	return reason;
+}
+
+
+bool DebuggerController::ShouldSilentResumeAfterStop()
+{
+	// Only breakpoint stops are candidates for silent resume on a false condition.
+	// Step operations always surface, even if they land on a breakpoint.
+	bool isStepOperation = (m_lastOperation == DebugAdapterStepInto)
+		|| (m_lastOperation == DebugAdapterStepOver)
+		|| (m_lastOperation == DebugAdapterStepReturn)
+		|| (m_lastOperation == DebugAdapterStepIntoReverse)
+		|| (m_lastOperation == DebugAdapterStepOverReverse)
+		|| (m_lastOperation == DebugAdapterStepReturnReverse);
+	if (isStepOperation)
+		return false;
+
+	m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
+	m_state->SetExecutionStatus(DebugAdapterPausedStatus);
+	m_state->MarkDirty();
+	m_state->UpdateCaches();
+	AddRegisterValuesToExpressionParser();
+	AddModuleValuesToExpressionParser();
+
+	uint64_t ip = m_state->IP();
+	if (!m_state->GetBreakpoints()->ContainsAbsolute(ip))
+		return false;
+	if (m_userRequestedBreak)
+		return false;
+	if (EvaluateBreakpointCondition(ip))
+		return false;
+
+	return true;
+}
+
+
+void DebuggerController::HandleSpontaneousAdapterStop(DebugStopReason reason)
+{
+	// The adapter reported a stop with no controller op in flight. This is the
+	// case the dispatcher previously synthesized a TargetStoppedEvent for at
+	// `debuggercontroller.cpp:2279` in the pre-refactor code.
+	m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
+	m_state->SetExecutionStatus(DebugAdapterPausedStatus);
+	m_state->MarkDirty();
+	m_state->UpdateCaches();
+	AddRegisterValuesToExpressionParser();
+	AddModuleValuesToExpressionParser();
+	NotifyStopped(reason);
 }
 
 
@@ -2212,49 +2311,11 @@ void DebuggerController::DebuggerMainThread()
 		callbackLock.unlock();
 
 		auto event = current->event;
-		if (event.type == AdapterStoppedEventType)
-			m_lastAdapterStopEventConsumed = false;
 
-		if (event.type == AdapterStoppedEventType &&
-			event.data.targetStoppedData.reason == Breakpoint)
-		{
-			// update the caches so registers are available for condition evaluation
-			m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
-			m_state->SetExecutionStatus(DebugAdapterPausedStatus);
-			m_state->MarkDirty();
-			m_state->UpdateCaches();
-			AddRegisterValuesToExpressionParser();
-			AddModuleValuesToExpressionParser();
-
-			// skip conditional breakpoint evaluation for step operations - when the user explicitly
-			// steps onto a breakpoint, they expect to stop there regardless of the condition.
-			bool isStepOperation = (m_lastOperation == DebugAdapterStepInto)
-				|| (m_lastOperation == DebugAdapterStepOver)
-				|| (m_lastOperation == DebugAdapterStepReturn)
-				|| (m_lastOperation == DebugAdapterStepIntoReverse)
-				|| (m_lastOperation == DebugAdapterStepOverReverse)
-				|| (m_lastOperation == DebugAdapterStepReturnReverse);
-
-			if (uint64_t ip = m_state->IP();
-				!isStepOperation && m_state->GetBreakpoints()->ContainsAbsolute(ip))
-			{
-				if (!EvaluateBreakpointCondition(ip) && !m_userRequestedBreak)
-				{
-					m_lastAdapterStopEventConsumed = true;
-					current->done.set_value();
-					// Using m_adapter->Go() directly instead of Go() to avoid mutex deadlock
-					// since we're already inside ExecuteAdapterAndWait's event processing.
-					// Suppress the ResumeEventType that some adapters post synchronously inside
-					// Go() — the UI already considers the target running, and posting from the
-					// dispatcher thread would be unexpected.
-					m_suppressResumeEvent = true;
-					m_adapter->Go();
-					m_suppressResumeEvent = false;
-					m_state->SetExecutionStatus(DebugAdapterRunningStatus);
-					continue;
-				}
-			}
-		}
+		// AdapterStoppedEventType no longer reaches the dispatcher: PostDebuggerEvent
+		// intercepts it and routes the reason to the worker's adapter-stop channel.
+		// Conditional-breakpoint silent-resume and spontaneous-stop synthesis now live
+		// in ExecuteAdapterAndWait / HandleSpontaneousAdapterStop on the worker.
 
 		DebuggerEvent eventToSend = event;
 		if ((eventToSend.type == TargetStoppedEventType) && !m_initialBreakpointSeen)
@@ -2271,29 +2332,6 @@ void DebuggerController::DebuggerMainThread()
 
 			callbackLock2.unlock();
 			cb.function(eventToSend);
-		}
-
-		// If the current event is an AdapterStoppedEvent, and it is not consumed by any callback, then the adapter
-		// stop is not caused by the debugger core. This can happen when the user run a "ni" command directly.
-		// Notify a target stop reason in this case.
-		if (event.type == AdapterStoppedEventType && !m_lastAdapterStopEventConsumed)
-		{
-			DebuggerEvent stopEvent = event;
-			stopEvent.type = TargetStoppedEventType;
-			if (!m_initialBreakpointSeen)
-			{
-				m_initialBreakpointSeen = true;
-				stopEvent.data.targetStoppedData.reason = InitialBreakpoint;
-			}
-			for (const DebuggerEventCallback& cb : eventCallbacks)
-			{
-				std::unique_lock callbackLock2(m_callbackMutex);
-				if (m_disabledCallbacks.find(cb.index) != m_disabledCallbacks.end())
-					continue;
-
-				callbackLock2.unlock();
-				cb.function(stopEvent);
-			}
 		}
 
 		CleanUpDisabledEvent();
@@ -2857,30 +2895,17 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 		}
 	}
 
-	Semaphore sem;
-	DebugStopReason reason = UnknownReason;
-	size_t callback = RegisterEventCallback(
-		[&](const DebuggerEvent& event) {
-			switch (event.type)
-			{
-			case AdapterStoppedEventType:
-				reason = event.data.targetStoppedData.reason;
-				sem.Release();
-				break;
-			// It is a little awkward to add two cases for these events, but we must take them into account,
-			// since after we resume the target, the target can either or exit.
-			case TargetExitedEventType:
-			case DetachedEventType:
-				// There is no DebugStopReason for "detach", so we use ProcessExited for now
-				reason = ProcessExited;
-				sem.Release();
-				break;
-			default:
-				break;
-			}
-			m_lastAdapterStopEventConsumed = true;
-		},
-		"WaitForAdapterStop");
+	// Claim the adapter-stop channel for the duration of this call. Any AdapterStoppedEvent
+	// posted by the adapter from now until we clear m_inAdapterWait is delivered to
+	// WaitForAdapterStop below, not treated as spontaneous. We hold this across the
+	// entire silent-resume loop so that an adapter stop between iterations (after we
+	// kick off m_adapter->Go() for a false breakpoint condition) is still consumed
+	// by us, not synthesized as a spontaneous stop.
+	{
+		std::lock_guard lk(m_adapterStopMutex);
+		m_inAdapterWait = true;
+		m_adapterStopPending = std::nullopt;
+	}
 
 	m_lastOperation = operation;
 
@@ -2952,12 +2977,41 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 		ok = true;
 	}
 
-	if (ok)
-		sem.Wait();
-	else
+	DebugStopReason reason = UnknownReason;
+	if (!ok)
+	{
 		reason = InternalError;
+	}
+	else
+	{
+		// Loop: wait for the adapter to stop. If the stop is a breakpoint whose
+		// condition evaluates to false (and the user didn't explicitly step or
+		// request a break), silently resume and wait again. Otherwise return.
+		while (true)
+		{
+			reason = WaitForAdapterStop();
+			if (reason == ProcessExited || reason == InternalError)
+				break;
+			if (reason == Breakpoint && ShouldSilentResumeAfterStop())
+			{
+				m_state->SetExecutionStatus(DebugAdapterRunningStatus);
+				if (!m_adapter || !m_adapter->Go())
+				{
+					reason = InternalError;
+					break;
+				}
+				continue;
+			}
+			break;
+		}
+	}
 
-	RemoveEventCallback(callback);
+	{
+		std::lock_guard lk(m_adapterStopMutex);
+		m_inAdapterWait = false;
+		m_adapterStopPending = std::nullopt;
+	}
+
 	if ((operation != DebugAdapterPause) && (operation != DebugAdapterQuit) && (operation != DebugAdapterDetach))
 		m_adapterMutex.unlock();
 	else
