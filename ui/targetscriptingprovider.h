@@ -33,7 +33,7 @@ public:
 	~TargetScriptingInstance();
 
 	virtual BNScriptingProviderExecuteResult ExecuteScriptInput(const std::string& input);
-	virtual BNScriptingProviderExecuteResult ExecuteScriptInputFromFilename(const std::string& filename);
+	virtual BNScriptingProviderExecuteResult ExecuteScriptInputFromFilename(const std::filesystem::path& filename);
 
 	virtual void SetCurrentBinaryView(BinaryView* view);
 };
@@ -45,7 +45,7 @@ public:
 	TargetScriptingProvider();
 
 	virtual Ref<ScriptingInstance> CreateNewInstance();
-	virtual bool LoadModule(const std::string& repository, const std::string& module, bool force);
+	virtual bool LoadModule(const std::filesystem::path& repository, const std::filesystem::path& module, bool force);
 	virtual bool InstallModules(const std::string& modules);
 };
 

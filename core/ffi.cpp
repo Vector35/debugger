@@ -21,6 +21,7 @@ limitations under the License.
 #include "debuggercontroller.h"
 #include "debuggercommon.h"
 #include "../api/ffi.h"
+#include "pathhelpers.h"
 #include <map>
 
 using namespace BinaryNinjaDebugger;
@@ -721,21 +722,21 @@ int32_t BNDebuggerGetPIDAttach(BNDebuggerController* controller)
 }
 
 
-char* BNDebuggerGetInputFile(BNDebuggerController* controller)
+BNPath* BNDebuggerGetInputFile(BNDebuggerController* controller)
 {
-	return BNDebuggerAllocString(controller->object->GetState()->GetInputFile().c_str());
+	return BinaryNinja::Path::PathToCore(controller->object->GetState()->GetInputFile());
 }
 
 
-char* BNDebuggerGetExecutablePath(BNDebuggerController* controller)
+BNPath* BNDebuggerGetExecutablePath(BNDebuggerController* controller)
 {
-	return BNDebuggerAllocString(controller->object->GetState()->GetExecutablePath().c_str());
+	return BinaryNinja::Path::PathToCore(controller->object->GetState()->GetExecutablePath());
 }
 
 
-char* BNDebuggerGetWorkingDirectory(BNDebuggerController* controller)
+BNPath* BNDebuggerGetWorkingDirectory(BNDebuggerController* controller)
 {
-	return BNDebuggerAllocString(controller->object->GetState()->GetWorkingDirectory().c_str());
+	return BinaryNinja::Path::PathToCore(controller->object->GetState()->GetWorkingDirectory());
 }
 
 
@@ -769,21 +770,21 @@ void BNDebuggerSetPIDAttach(BNDebuggerController* controller, int32_t pid)
 }
 
 
-void BNDebuggerSetInputFile(BNDebuggerController* controller, const char* path)
+void BNDebuggerSetInputFile(BNDebuggerController* controller, BNPath* path)
 {
-	controller->object->GetState()->SetInputFile(path);
+	controller->object->GetState()->SetInputFile(BinaryNinja::Path::PathFromCoreBorrowed(path));
 }
 
 
-void BNDebuggerSetExecutablePath(BNDebuggerController* controller, const char* path)
+void BNDebuggerSetExecutablePath(BNDebuggerController* controller, BNPath* path)
 {
-	controller->object->GetState()->SetExecutablePath(path);
+	controller->object->GetState()->SetExecutablePath(BinaryNinja::Path::PathFromCoreBorrowed(path));
 }
 
 
-void BNDebuggerSetWorkingDirectory(BNDebuggerController* controller, const char* path)
+void BNDebuggerSetWorkingDirectory(BNDebuggerController* controller, BNPath* path)
 {
-	controller->object->GetState()->SetWorkingDirectory(path);
+	controller->object->GetState()->SetWorkingDirectory(BinaryNinja::Path::PathFromCoreBorrowed(path));
 }
 
 
@@ -1441,14 +1442,14 @@ size_t BNDebuggerGetExecutedInstructionCount(BNDebuggerController* controller)
 	return controller->object->GetExecutedInstructionCount();
 }
 
-bool BNDebuggerSaveCodeCoverageToFile(BNDebuggerController* controller, const char* filePath)
+bool BNDebuggerSaveCodeCoverageToFile(BNDebuggerController* controller, BNPath* filePath)
 {
-	return controller->object->SaveCodeCoverageToFile(filePath);
+	return controller->object->SaveCodeCoverageToFile(BinaryNinja::Path::PathFromCoreBorrowed(filePath));
 }
 
-bool BNDebuggerLoadCodeCoverageFromFile(BNDebuggerController* controller, const char* filePath)
+bool BNDebuggerLoadCodeCoverageFromFile(BNDebuggerController* controller, BNPath* filePath)
 {
-	return controller->object->LoadCodeCoverageFromFile(filePath);
+	return controller->object->LoadCodeCoverageFromFile(BinaryNinja::Path::PathFromCoreBorrowed(filePath));
 }
 
 void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count)
@@ -1889,9 +1890,9 @@ bool BNDebuggerFunctionExistsInOldView(BNDebuggerController* controller, uint64_
 #ifdef WIN32
 #include "windbginstaller.h"
 
-BNDebuggerInstallResult BNDebuggerInstallWinDbg(const char* installPath, bool isUpdate)
+BNDebuggerInstallResult BNDebuggerInstallWinDbg(BNPath* installPath, bool isUpdate)
 {
-	std::string path = installPath ? installPath : "";
+	auto path = BinaryNinja::Path::PathFromCoreBorrowed(installPath);
 	BinaryNinjaDebugger::InstallResult result = InstallWinDbg(path, isUpdate);
 
 	BNDebuggerInstallResult ffiResult;
@@ -1917,23 +1918,22 @@ void BNDebuggerFreeInstallResult(BNDebuggerInstallResult* result)
 }
 
 
-bool BNDebuggerIsWinDbgInstalled(const char* installPath)
+bool BNDebuggerIsWinDbgInstalled(BNPath* installPath)
 {
-	std::string path = installPath ? installPath : "";
+	auto path = BinaryNinja::Path::PathFromCoreBorrowed(installPath);
 	return IsWinDbgInstalled(path);
 }
 
 
-char* BNDebuggerGetWinDbgInstallerPath(void)
+BNPath* BNDebuggerGetWinDbgInstallerPath(void)
 {
-	std::string path = GetInstallerPath();
-	return BNAllocString(path.c_str());
+	return BinaryNinja::Path::PathToCore(GetInstallerPath());
 }
 
 
-char* BNDebuggerGetWinDbgInstalledVersion(const char* installPath)
+char* BNDebuggerGetWinDbgInstalledVersion(BNPath* installPath)
 {
-	std::string path = installPath ? installPath : "";
+	auto path = BinaryNinja::Path::PathFromCoreBorrowed(installPath);
 	std::string version = GetInstalledVersion(path);
 	return BNAllocString(version.c_str());
 }
@@ -1948,7 +1948,7 @@ char* BNDebuggerGetWinDbgLatestVersion(void)
 #else // !WIN32
 
 // Stub implementations for non-Windows platforms
-BNDebuggerInstallResult BNDebuggerInstallWinDbg(const char* installPath, bool isUpdate)
+BNDebuggerInstallResult BNDebuggerInstallWinDbg(BNPath* installPath, bool isUpdate)
 {
 	(void)installPath;
 	(void)isUpdate;
@@ -1968,20 +1968,20 @@ void BNDebuggerFreeInstallResult(BNDebuggerInstallResult* result)
 }
 
 
-bool BNDebuggerIsWinDbgInstalled(const char* installPath)
+bool BNDebuggerIsWinDbgInstalled(BNPath* installPath)
 {
 	(void)installPath;
 	return false;
 }
 
 
-char* BNDebuggerGetWinDbgInstallerPath(void)
+BNPath* BNDebuggerGetWinDbgInstallerPath(void)
 {
-	return BNAllocString("");
+	return BinaryNinja::Path::PathToCore({});
 }
 
 
-char* BNDebuggerGetWinDbgInstalledVersion(const char* installPath)
+char* BNDebuggerGetWinDbgInstalledVersion(BNPath* installPath)
 {
 	(void)installPath;
 	return BNAllocString("");

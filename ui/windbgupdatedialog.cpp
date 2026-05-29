@@ -26,7 +26,7 @@ limitations under the License.
 
 using namespace BinaryNinjaDebuggerAPI;
 
-WinDbgUpdateDialog::WinDbgUpdateDialog(QWidget* parent, const std::string& installPath, const std::string& installedVersion)
+WinDbgUpdateDialog::WinDbgUpdateDialog(QWidget* parent, const std::filesystem::path& installPath, const std::string& installedVersion)
 	: QDialog(parent), m_installPath(installPath), m_installedVersion(installedVersion)
 {
 	setWindowTitle("WinDbg/TTD Update");
@@ -176,7 +176,7 @@ void WinDbgUpdateDialog::onUpdateClicked()
 	}
 
 	/* Launch installer with --wait-for-binja flag (CLI will wait for binja to exit) */
-	std::string installPath = m_installPath;
+	std::filesystem::path installPath = m_installPath;
 
 	/* Start installer in background - it will wait for Binary Ninja to exit */
 	std::thread([installPath]() {

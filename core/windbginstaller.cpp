@@ -18,88 +18,83 @@ limitations under the License.
 
 #include "windbginstaller.h"
 #include <binaryninjaapi.h>
+#include <pathhelpers.h>
 #include <windows.h>
 #include <shlobj.h>
 #include <filesystem>
 #include <fstream>
+#include <system_error>
 
 using namespace BinaryNinja;
 namespace fs = std::filesystem;
 
 namespace BinaryNinjaDebugger {
 
-std::string GetInstallerPath() {
-    std::string pluginRoot;
-    if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
-        pluginRoot = GetUserPluginDirectory();
-    else
-        pluginRoot = GetBundledPluginDirectory();
-
-    if (!pluginRoot.empty()) {
-        fs::path path = fs::path(pluginRoot) / "windbg-installer.exe";
-        if (fs::exists(path)) {
-            return fs::canonical(path).string();
-        }
-    }
-
-    return "";
+static fs::path DefaultInstallPath()
+{
+    wchar_t appData[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, 0, appData)))
+        return fs::path(appData) / L"Binary Ninja" / L"windbg";
+    return {};
 }
 
-bool IsWinDbgInstalled(const std::string& installPath) {
-    std::string path = installPath;
-    if (path.empty()) {
-        /* Use default path */
-        char appData[MAX_PATH];
-        if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_APPDATA, nullptr, 0, appData))) {
-            path = std::string(appData) + "\\Binary Ninja\\windbg";
+std::filesystem::path GetInstallerPath() {
+    fs::path pluginRoot = getenv("BN_STANDALONE_DEBUGGER") != nullptr ? GetUserPluginDirectory() : GetBundledPluginDirectory();
+
+    if (!pluginRoot.empty()) {
+        fs::path path = pluginRoot / "windbg-installer.exe";
+        if (fs::exists(path)) {
+            std::error_code ec;
+            auto canonicalPath = fs::canonical(path, ec);
+            return ec ? path : canonicalPath;
         }
     }
+
+    return {};
+}
+
+bool IsWinDbgInstalled(const std::filesystem::path& installPath) {
+    fs::path path = installPath.empty() ? DefaultInstallPath() : installPath;
 
     if (path.empty()) {
         return false;
     }
 
     /* Check for required DLLs */
-    return fs::exists(path + "\\amd64\\dbgeng.dll") &&
-           fs::exists(path + "\\amd64\\dbghelp.dll");
+    return fs::exists(path / "amd64" / "dbgeng.dll") &&
+           fs::exists(path / "amd64" / "dbghelp.dll");
 }
 
-InstallResult InstallWinDbg(const std::string& installPath, bool isUpdate) {
-    std::string installerPath = GetInstallerPath();
+InstallResult InstallWinDbg(const std::filesystem::path& installPath, bool isUpdate) {
+    fs::path installerPath = GetInstallerPath();
     if (installerPath.empty()) {
         LogError("Could not find windbg-installer.exe");
         return InstallResult(false, "Could not find windbg-installer.exe");
     }
 
     /* Determine install path for result file */
-    std::string targetPath = installPath;
-    if (targetPath.empty()) {
-        char appData[MAX_PATH];
-        if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_APPDATA, nullptr, 0, appData))) {
-            targetPath = std::string(appData) + "\\Binary Ninja\\windbg";
-        }
-    }
+    fs::path targetPath = installPath.empty() ? DefaultInstallPath() : installPath;
 
     /* Build command line */
-    std::string cmdLine = "\"" + installerPath + "\" install";
+    std::wstring cmdLine = L"\"" + installerPath.native() + L"\" install";
     if (isUpdate) {
-        cmdLine += " --update";
+        cmdLine += L" --update";
     }
     if (!installPath.empty()) {
-        cmdLine += " --path \"" + installPath + "\"";
+        cmdLine += L" --path \"" + installPath.native() + L"\"";
     }
 
-    LogInfo("Running: %s", cmdLine.c_str());
+    LogInfo("Running WinDbg installer: %s", BinaryNinja::Path::PathToUtf8String(installerPath).c_str());
 
     /* Create process with visible console window */
-    STARTUPINFOA si = {};
+    STARTUPINFOW si = {};
     si.cb = sizeof(si);
 
     PROCESS_INFORMATION pi = {};
 
-    if (!CreateProcessA(
+    if (!CreateProcessW(
             nullptr,
-            const_cast<char*>(cmdLine.c_str()),
+            cmdLine.data(),
             nullptr,
             nullptr,
             FALSE,
@@ -130,7 +125,7 @@ InstallResult InstallWinDbg(const std::string& installPath, bool isUpdate) {
         /* Read error message from result file written by installer CLI */
         std::string errorMessage = "Installation failed";
 
-        std::string resultPath = targetPath + "\\install_result.json";
+        fs::path resultPath = targetPath / "install_result.json";
         std::ifstream resultFile(resultPath);
         if (resultFile.is_open()) {
             std::string line;
@@ -162,14 +157,14 @@ InstallResult InstallWinDbg(const std::string& installPath, bool isUpdate) {
 
 /* Helper function to run installer CLI and capture JSON output */
 static std::string RunInstallerCommand(const std::string& command, const std::string& extraArgs = "") {
-    std::string installerPath = GetInstallerPath();
+    fs::path installerPath = GetInstallerPath();
     if (installerPath.empty()) {
         return "";
     }
 
-    std::string cmdLine = "\"" + installerPath + "\" " + command + " --json";
+    std::wstring cmdLine = L"\"" + installerPath.native() + L"\" " + std::wstring(command.begin(), command.end()) + L" --json";
     if (!extraArgs.empty()) {
-        cmdLine += " " + extraArgs;
+        cmdLine += L" " + std::wstring(extraArgs.begin(), extraArgs.end());
     }
 
     /* Create pipes for stdout */
@@ -185,7 +180,7 @@ static std::string RunInstallerCommand(const std::string& command, const std::st
     /* Ensure read handle is not inherited */
     SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0);
 
-    STARTUPINFOA si = {};
+    STARTUPINFOW si = {};
     si.cb = sizeof(si);
     si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
     si.hStdOutput = hWritePipe;
@@ -194,9 +189,9 @@ static std::string RunInstallerCommand(const std::string& command, const std::st
 
     PROCESS_INFORMATION pi = {};
 
-    if (!CreateProcessA(
+    if (!CreateProcessW(
             nullptr,
-            const_cast<char*>(cmdLine.c_str()),
+            cmdLine.data(),
             nullptr,
             nullptr,
             TRUE,  /* Inherit handles */
@@ -246,23 +241,16 @@ static std::string ExtractJsonValue(const std::string& json, const std::string& 
     return json.substr(pos, endPos - pos);
 }
 
-std::string GetInstalledVersion(const std::string& installPath) {
+std::string GetInstalledVersion(const std::filesystem::path& installPath) {
     /* Read version directly from marker file (fast, no CLI call needed) */
-    std::string path = installPath;
-    if (path.empty()) {
-        /* Use default path */
-        char appData[MAX_PATH];
-        if (SUCCEEDED(SHGetFolderPathA(nullptr, CSIDL_APPDATA, nullptr, 0, appData))) {
-            path = std::string(appData) + "\\Binary Ninja\\windbg";
-        }
-    }
+    fs::path path = installPath.empty() ? DefaultInstallPath() : installPath;
 
     if (path.empty()) {
         return "";
     }
 
     /* Read from version marker file */
-    std::string versionFilePath = path + "\\installed_version.txt";
+    fs::path versionFilePath = path / "installed_version.txt";
     std::ifstream versionFile(versionFilePath);
     if (versionFile.is_open()) {
         std::string version;

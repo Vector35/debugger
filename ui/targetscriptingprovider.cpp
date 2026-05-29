@@ -30,7 +30,7 @@ Ref<ScriptingInstance> TargetScriptingProvider::CreateNewInstance()
 }
 
 
-bool TargetScriptingProvider::LoadModule(const std::string& repository, const std::string& module, bool force)
+bool TargetScriptingProvider::LoadModule(const std::filesystem::path& repository, const std::filesystem::path& module, bool force)
 {
 	return false;
 }
@@ -116,7 +116,7 @@ BNScriptingProviderExecuteResult TargetScriptingInstance::ExecuteScriptInput(con
 }
 
 
-BNScriptingProviderExecuteResult TargetScriptingInstance::ExecuteScriptInputFromFilename(const std::string& filename)
+BNScriptingProviderExecuteResult TargetScriptingInstance::ExecuteScriptInputFromFilename(const std::filesystem::path& filename)
 {
 	return SuccessfulScriptExecution;
 }

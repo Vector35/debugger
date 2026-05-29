@@ -30,7 +30,7 @@ Ref<ScriptingInstance> DebugAdapterScriptingProvider::CreateNewInstance()
 }
 
 
-bool DebugAdapterScriptingProvider::LoadModule(const std::string& repository, const std::string& module, bool force)
+bool DebugAdapterScriptingProvider::LoadModule(const std::filesystem::path& repository, const std::filesystem::path& module, bool force)
 {
 	return false;
 }
@@ -129,7 +129,7 @@ BNScriptingProviderExecuteResult DebugAdapterScriptingInstance::ExecuteScriptInp
 
 
 BNScriptingProviderExecuteResult DebugAdapterScriptingInstance::ExecuteScriptInputFromFilename(
-	const std::string& filename)
+	const std::filesystem::path& filename)
 {
 	return SuccessfulScriptExecution;
 }

@@ -21,6 +21,7 @@ limitations under the License.
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
 #include "debuggerfileaccessor.h"
+#include "pathhelpers.h"
 
 using namespace BinaryNinjaDebugger;
 
@@ -456,9 +457,10 @@ bool DebuggerController::Execute()
 {
 	std::unique_lock<std::recursive_mutex> lock(m_targetControlMutex);
 
-	std::string filePath = m_state->GetExecutablePath();
+	std::string filePath = BinaryNinja::Path::PathToUtf8String(m_state->GetExecutablePath());
 	bool requestTerminal = m_state->GetRequestTerminalEmulator();
-	LaunchConfigurations configs = {requestTerminal, m_state->GetInputFile(), m_state->IsConnectedToDebugServer()};
+	LaunchConfigurations configs = {
+		requestTerminal, BinaryNinja::Path::PathToUtf8String(m_state->GetInputFile()), m_state->IsConnectedToDebugServer()};
 
 #ifdef WIN32
 	/* temporary solution (not great, sorry!), we probably won't have to do this once we introduce std::filesystem::path */
@@ -466,7 +468,8 @@ bool DebuggerController::Execute()
 #endif
 
 	return m_adapter->ExecuteWithArgs(
-		filePath, m_state->GetCommandLineArguments(), m_state->GetWorkingDirectory(), configs);
+		filePath, m_state->GetCommandLineArguments(),
+		BinaryNinja::Path::PathToUtf8String(m_state->GetWorkingDirectory()), configs);
 }
 
 
@@ -3574,7 +3577,7 @@ size_t DebuggerController::GetExecutedInstructionCount() const
 }
 
 
-bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) const
+bool DebuggerController::SaveCodeCoverageToFile(const std::filesystem::path& filePath) const
 {
 	if (!m_codeCoverageAnalysisRun)
 	{
@@ -3587,7 +3590,8 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) con
 		std::ofstream file(filePath, std::ios::binary);
 		if (!file.is_open())
 		{
-			LogError("%s", fmt::format("Failed to open file for writing: {}", filePath.c_str()).c_str());
+			LogError("%s",
+				fmt::format("Failed to open file for writing: {}", BinaryNinja::Path::PathToUtf8String(filePath)).c_str());
 			return false;
 		}
 
@@ -3608,7 +3612,10 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) con
 		}
 
 		file.close();
-		LogInfo("%s", fmt::format("Saved {} executed instruction addresses to {}", count, filePath.c_str()).c_str());
+		LogInfo("%s",
+			fmt::format(
+				"Saved {} executed instruction addresses to {}", count, BinaryNinja::Path::PathToUtf8String(filePath))
+				.c_str());
 
 		return true;
 	}
@@ -3620,14 +3627,15 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) con
 }
 
 
-bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
+bool DebuggerController::LoadCodeCoverageFromFile(const std::filesystem::path& filePath)
 {
 	try
 	{
 		std::ifstream file(filePath, std::ios::binary);
 		if (!file.is_open())
 		{
-			LogError("%s", fmt::format("Failed to open file for reading: {}", filePath.c_str()).c_str());
+			LogError("%s",
+				fmt::format("Failed to open file for reading: {}", BinaryNinja::Path::PathToUtf8String(filePath)).c_str());
 			return false;
 		}
 
@@ -3680,7 +3688,10 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
 		file.close();
 		m_codeCoverageAnalysisRun = true;
 
-		LogInfo("%s", fmt::format("Loaded {} executed instruction addresses from {}", count, filePath.c_str()).c_str());
+		LogInfo("%s",
+			fmt::format(
+				"Loaded {} executed instruction addresses from {}", count, BinaryNinja::Path::PathToUtf8String(filePath))
+				.c_str());
 		return true;
 	}
 	catch (const std::exception& e)

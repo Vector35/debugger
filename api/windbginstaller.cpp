@@ -15,13 +15,15 @@ limitations under the License.
 */
 
 #include "debuggerapi.h"
+#include "pathhelpers.h"
 
 using namespace BinaryNinjaDebuggerAPI;
 
 
-InstallResult BinaryNinjaDebuggerAPI::InstallWinDbg(const std::string& installPath, bool isUpdate)
+InstallResult BinaryNinjaDebuggerAPI::InstallWinDbg(const std::filesystem::path& installPath, bool isUpdate)
 {
-	BNDebuggerInstallResult ffiResult = BNDebuggerInstallWinDbg(installPath.empty() ? nullptr : installPath.c_str(), isUpdate);
+	Path::ScopedCorePath corePath(installPath);
+	BNDebuggerInstallResult ffiResult = BNDebuggerInstallWinDbg(installPath.empty() ? nullptr : corePath.get(), isUpdate);
 
 	InstallResult result;
 	result.success = ffiResult.success;
@@ -35,24 +37,26 @@ InstallResult BinaryNinjaDebuggerAPI::InstallWinDbg(const std::string& installPa
 }
 
 
-bool BinaryNinjaDebuggerAPI::IsWinDbgInstalled(const std::string& installPath)
+bool BinaryNinjaDebuggerAPI::IsWinDbgInstalled(const std::filesystem::path& installPath)
 {
-	return BNDebuggerIsWinDbgInstalled(installPath.empty() ? nullptr : installPath.c_str());
+	Path::ScopedCorePath corePath(installPath);
+	return BNDebuggerIsWinDbgInstalled(installPath.empty() ? nullptr : corePath.get());
 }
 
 
-std::string BinaryNinjaDebuggerAPI::GetWinDbgInstallerPath()
+std::filesystem::path BinaryNinjaDebuggerAPI::GetWinDbgInstallerPath()
 {
-	char* path = BNDebuggerGetWinDbgInstallerPath();
-	std::string result = path ? path : "";
-	BNDebuggerFreeString(path);
-	return result;
+	BNPath* path = BNDebuggerGetWinDbgInstallerPath();
+	if (!path)
+		return {};
+	return Path::PathFromCore(path);
 }
 
 
-std::string BinaryNinjaDebuggerAPI::GetWinDbgInstalledVersion(const std::string& installPath)
+std::string BinaryNinjaDebuggerAPI::GetWinDbgInstalledVersion(const std::filesystem::path& installPath)
 {
-	char* version = BNDebuggerGetWinDbgInstalledVersion(installPath.empty() ? nullptr : installPath.c_str());
+	Path::ScopedCorePath corePath(installPath);
+	char* version = BNDebuggerGetWinDbgInstalledVersion(installPath.empty() ? nullptr : corePath.get());
 	std::string result = version ? version : "";
 	BNDebuggerFreeString(version);
 	return result;

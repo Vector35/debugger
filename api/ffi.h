@@ -52,6 +52,7 @@ extern "C"
 	typedef struct BNFileMetadata BNFileMetadata;
 	typedef struct BNArchitecture BNArchitecture;
 	typedef struct BNDataBuffer BNDataBuffer;
+	typedef struct BNPath BNPath;
 	typedef struct BNMetadata BNMetadata;
 	typedef struct BNLowLevelILFunction BNLowLevelILFunction;
 	typedef struct BNMediumLevelILFunction BNMediumLevelILFunction;
@@ -586,18 +587,18 @@ extern "C"
 	DEBUGGER_FFI_API char* BNDebuggerGetRemoteHost(BNDebuggerController* controller);
 	DEBUGGER_FFI_API uint32_t BNDebuggerGetRemotePort(BNDebuggerController* controller);
 	DEBUGGER_FFI_API int32_t BNDebuggerGetPIDAttach(BNDebuggerController* controller);
-	DEBUGGER_FFI_API char* BNDebuggerGetInputFile(BNDebuggerController* controller);
-	DEBUGGER_FFI_API char* BNDebuggerGetExecutablePath(BNDebuggerController* controller);
-	DEBUGGER_FFI_API char* BNDebuggerGetWorkingDirectory(BNDebuggerController* controller);
+	DEBUGGER_FFI_API BNPath* BNDebuggerGetInputFile(BNDebuggerController* controller);
+	DEBUGGER_FFI_API BNPath* BNDebuggerGetExecutablePath(BNDebuggerController* controller);
+	DEBUGGER_FFI_API BNPath* BNDebuggerGetWorkingDirectory(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerGetRequestTerminalEmulator(BNDebuggerController* controller);
 	DEBUGGER_FFI_API char* BNDebuggerGetCommandLineArguments(BNDebuggerController* controller);
 
 	DEBUGGER_FFI_API void BNDebuggerSetRemoteHost(BNDebuggerController* controller, const char* host);
 	DEBUGGER_FFI_API void BNDebuggerSetRemotePort(BNDebuggerController* controller, uint32_t port);
 	DEBUGGER_FFI_API void BNDebuggerSetPIDAttach(BNDebuggerController* controller, int32_t pid);
-	DEBUGGER_FFI_API void BNDebuggerSetInputFile(BNDebuggerController* controller, const char* path);
-	DEBUGGER_FFI_API void BNDebuggerSetExecutablePath(BNDebuggerController* controller, const char* path);
-	DEBUGGER_FFI_API void BNDebuggerSetWorkingDirectory(BNDebuggerController* controller, const char* path);
+	DEBUGGER_FFI_API void BNDebuggerSetInputFile(BNDebuggerController* controller, BNPath* path);
+	DEBUGGER_FFI_API void BNDebuggerSetExecutablePath(BNDebuggerController* controller, BNPath* path);
+	DEBUGGER_FFI_API void BNDebuggerSetWorkingDirectory(BNDebuggerController* controller, BNPath* path);
 	DEBUGGER_FFI_API void BNDebuggerSetRequestTerminalEmulator(BNDebuggerController* controller, bool requestEmulator);
 	DEBUGGER_FFI_API void BNDebuggerSetCommandLineArguments(BNDebuggerController* controller, const char* args);
 
@@ -730,8 +731,8 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerRunCodeCoverageAnalysisRange(BNDebuggerController* controller, uint64_t startAddress, uint64_t endAddress, BNDebuggerTTDPosition startTime, BNDebuggerTTDPosition endTime);
 	DEBUGGER_FFI_API size_t BNDebuggerGetInstructionExecutionCount(BNDebuggerController* controller, uint64_t address);
 	DEBUGGER_FFI_API size_t BNDebuggerGetExecutedInstructionCount(BNDebuggerController* controller);
-	DEBUGGER_FFI_API bool BNDebuggerSaveCodeCoverageToFile(BNDebuggerController* controller, const char* filePath);
-	DEBUGGER_FFI_API bool BNDebuggerLoadCodeCoverageFromFile(BNDebuggerController* controller, const char* filePath);
+	DEBUGGER_FFI_API bool BNDebuggerSaveCodeCoverageToFile(BNDebuggerController* controller, BNPath* filePath);
+	DEBUGGER_FFI_API bool BNDebuggerLoadCodeCoverageFromFile(BNDebuggerController* controller, BNPath* filePath);
 
 	DEBUGGER_FFI_API void BNDebuggerPostDebuggerEvent(BNDebuggerController* controller, BNDebuggerEvent* event);
 
@@ -784,11 +785,11 @@ extern "C"
 		char* errorMessage;  // NULL if success, otherwise error description (caller must free)
 	} BNDebuggerInstallResult;
 
-	DEBUGGER_FFI_API BNDebuggerInstallResult BNDebuggerInstallWinDbg(const char* installPath, bool isUpdate);
+	DEBUGGER_FFI_API BNDebuggerInstallResult BNDebuggerInstallWinDbg(BNPath* installPath, bool isUpdate);
 	DEBUGGER_FFI_API void BNDebuggerFreeInstallResult(BNDebuggerInstallResult* result);
-	DEBUGGER_FFI_API bool BNDebuggerIsWinDbgInstalled(const char* installPath);
-	DEBUGGER_FFI_API char* BNDebuggerGetWinDbgInstallerPath(void);
-	DEBUGGER_FFI_API char* BNDebuggerGetWinDbgInstalledVersion(const char* installPath);
+	DEBUGGER_FFI_API bool BNDebuggerIsWinDbgInstalled(BNPath* installPath);
+	DEBUGGER_FFI_API BNPath* BNDebuggerGetWinDbgInstallerPath(void);
+	DEBUGGER_FFI_API char* BNDebuggerGetWinDbgInstalledVersion(BNPath* installPath);
 	DEBUGGER_FFI_API char* BNDebuggerGetWinDbgLatestVersion(void);
 
 #ifdef __cplusplus

@@ -22,7 +22,17 @@ limitations under the License.
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QApplication>
+#include <filesystem>
 #include "uicontext.h"
+
+static std::filesystem::path PathFromQString(const QString& path)
+{
+#ifdef WIN32
+	return std::filesystem::path(path.toStdWString());
+#else
+	return std::filesystem::path(path.toStdString());
+#endif
+}
 #include "linearview.h"
 
 TTDAnalysisWorker::TTDAnalysisWorker(DbgRef<DebuggerController> controller, TTDAnalysisType type, QObject* parent)
@@ -743,7 +753,7 @@ bool TTDAnalysisDialog::saveAnalysisResults(const TTDAnalysisResult& result)
 	if (result.type == TTDAnalysisType::CodeCoverage && m_controller)
 	{
 		QString dataPath = cachePath + ".data";
-		return m_controller->SaveCodeCoverageToFile(dataPath.toStdString());
+		return m_controller->SaveCodeCoverageToFile(PathFromQString(dataPath));
 	}
 
 	return true;
@@ -778,7 +788,7 @@ bool TTDAnalysisDialog::loadAnalysisResults(TTDAnalysisResult& result)
 		QFileInfo dataFile(dataPath);
 		if (dataFile.exists())
 		{
-			return m_controller->LoadCodeCoverageFromFile(dataPath.toStdString());
+			return m_controller->LoadCodeCoverageFromFile(PathFromQString(dataPath));
 		}
 	}
 

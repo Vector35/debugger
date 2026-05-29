@@ -22,6 +22,7 @@ limitations under the License.
 #include <list>
 #include <future>
 #include <functional>
+#include <filesystem>
 #include <unordered_set>
 #include "ffi_global.h"
 #include "refcountobject.h"
@@ -431,8 +432,8 @@ namespace BinaryNinjaDebugger {
 		bool RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress, TTDPosition startTime, TTDPosition endTime);
 		size_t GetInstructionExecutionCount(uint64_t address);
 		size_t GetExecutedInstructionCount() const;
-		bool SaveCodeCoverageToFile(const std::string& filePath) const;
-		bool LoadCodeCoverageFromFile(const std::string& filePath);
+		bool SaveCodeCoverageToFile(const std::filesystem::path& filePath) const;
+		bool LoadCodeCoverageFromFile(const std::filesystem::path& filePath);
 
 		void OnRebased(BinaryView* oldView, BinaryView* newView);
 

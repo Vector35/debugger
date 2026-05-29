@@ -18,6 +18,7 @@ limitations under the License.
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
+#include "pathhelpers.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
@@ -615,39 +616,33 @@ int32_t DebuggerController::GetPIDAttach()
 }
 
 
-std::string DebuggerController::GetInputFile()
+std::filesystem::path DebuggerController::GetInputFile()
 {
-	char* path = BNDebuggerGetInputFile(m_object);
+	BNPath* path = BNDebuggerGetInputFile(m_object);
 	if (!path)
-		return "";
+		return {};
 
-	std::string result = path;
-	BNDebuggerFreeString(path);
-	return result;
+	return Path::PathFromCore(path);
 }
 
 
-std::string DebuggerController::GetExecutablePath()
+std::filesystem::path DebuggerController::GetExecutablePath()
 {
-	char* path = BNDebuggerGetExecutablePath(m_object);
+	BNPath* path = BNDebuggerGetExecutablePath(m_object);
 	if (!path)
-		return "";
+		return {};
 
-	std::string result = path;
-	BNDebuggerFreeString(path);
-	return result;
+	return Path::PathFromCore(path);
 }
 
 
-std::string DebuggerController::GetWorkingDirectory()
+std::filesystem::path DebuggerController::GetWorkingDirectory()
 {
-	char* path = BNDebuggerGetWorkingDirectory(m_object);
+	BNPath* path = BNDebuggerGetWorkingDirectory(m_object);
 	if (!path)
-		return "";
+		return {};
 
-	std::string result = path;
-	BNDebuggerFreeString(path);
-	return result;
+	return Path::PathFromCore(path);
 }
 
 
@@ -669,21 +664,24 @@ std::string DebuggerController::GetCommandLineArguments()
 }
 
 
-void DebuggerController::SetInputFile(const std::string& path)
+void DebuggerController::SetInputFile(const std::filesystem::path& path)
 {
-	BNDebuggerSetInputFile(m_object, path.c_str());
+	Path::ScopedCorePath corePath(path);
+	BNDebuggerSetInputFile(m_object, corePath);
 }
 
 
-void DebuggerController::SetExecutablePath(const std::string& path)
+void DebuggerController::SetExecutablePath(const std::filesystem::path& path)
 {
-	BNDebuggerSetExecutablePath(m_object, path.c_str());
+	Path::ScopedCorePath corePath(path);
+	BNDebuggerSetExecutablePath(m_object, corePath);
 }
 
 
-void DebuggerController::SetWorkingDirectory(const std::string& path)
+void DebuggerController::SetWorkingDirectory(const std::filesystem::path& path)
 {
-	BNDebuggerSetWorkingDirectory(m_object, path.c_str());
+	Path::ScopedCorePath corePath(path);
+	BNDebuggerSetWorkingDirectory(m_object, corePath);
 }
 
 
@@ -1536,15 +1534,17 @@ size_t DebuggerController::GetExecutedInstructionCount() const
 }
 
 
-bool DebuggerController::SaveCodeCoverageToFile(const std::string& filePath) const
+bool DebuggerController::SaveCodeCoverageToFile(const std::filesystem::path& filePath) const
 {
-	return BNDebuggerSaveCodeCoverageToFile(m_object, filePath.c_str());
+	Path::ScopedCorePath corePath(filePath);
+	return BNDebuggerSaveCodeCoverageToFile(m_object, corePath);
 }
 
 
-bool DebuggerController::LoadCodeCoverageFromFile(const std::string& filePath)
+bool DebuggerController::LoadCodeCoverageFromFile(const std::filesystem::path& filePath)
 {
-	return BNDebuggerLoadCodeCoverageFromFile(m_object, filePath.c_str());
+	Path::ScopedCorePath corePath(filePath);
+	return BNDebuggerLoadCodeCoverageFromFile(m_object, corePath);
 }
 
 

@@ -19,6 +19,7 @@ limitations under the License.
 #include "binaryninjaapi.h"
 #include "ffi.h"
 #include "../vendor/intx/intx.hpp"
+#include <filesystem>
 #include <optional>
 #include <functional>
 
@@ -746,16 +747,16 @@ namespace BinaryNinjaDebuggerAPI {
 
 		std::string GetRemoteHost();
 		uint32_t GetRemotePort();
-		std::string GetInputFile();
-		std::string GetExecutablePath();
-		std::string GetWorkingDirectory();
+		std::filesystem::path GetInputFile();
+		std::filesystem::path GetExecutablePath();
+		std::filesystem::path GetWorkingDirectory();
 		bool GetRequestTerminalEmulator();
 		std::string GetCommandLineArguments();
 		int32_t GetPIDAttach();
 
-		void SetInputFile(const std::string& path);
-		void SetExecutablePath(const std::string& path);
-		void SetWorkingDirectory(const std::string& directory);
+		void SetInputFile(const std::filesystem::path& path);
+		void SetExecutablePath(const std::filesystem::path& path);
+		void SetWorkingDirectory(const std::filesystem::path& directory);
 		void SetCommandLineArguments(const std::string& arguments);
 		void SetRemoteHost(const std::string& host);
 		void SetRemotePort(uint32_t port);
@@ -862,8 +863,8 @@ namespace BinaryNinjaDebuggerAPI {
 		bool RunCodeCoverageAnalysis(uint64_t startAddress, uint64_t endAddress, TTDPosition startTime, TTDPosition endTime);
 		size_t GetInstructionExecutionCount(uint64_t address);
 		size_t GetExecutedInstructionCount() const;
-		bool SaveCodeCoverageToFile(const std::string& filePath) const;
-		bool LoadCodeCoverageFromFile(const std::string& filePath);
+		bool SaveCodeCoverageToFile(const std::filesystem::path& filePath) const;
+		bool LoadCodeCoverageFromFile(const std::filesystem::path& filePath);
 
 		void PostDebuggerEvent(const DebuggerEvent& event);
 
@@ -907,10 +908,10 @@ namespace BinaryNinjaDebuggerAPI {
 		InstallResult(bool s, const std::string& err = "") : success(s), errorMessage(err) {}
 	};
 
-	InstallResult InstallWinDbg(const std::string& installPath = "", bool isUpdate = false);
-	bool IsWinDbgInstalled(const std::string& installPath = "");
-	std::string GetWinDbgInstallerPath();
-	std::string GetWinDbgInstalledVersion(const std::string& installPath = "");
+	InstallResult InstallWinDbg(const std::filesystem::path& installPath = {}, bool isUpdate = false);
+	bool IsWinDbgInstalled(const std::filesystem::path& installPath = {});
+	std::filesystem::path GetWinDbgInstallerPath();
+	std::string GetWinDbgInstalledVersion(const std::filesystem::path& installPath = {});
 	std::string GetWinDbgLatestVersion();
 
 };  // namespace BinaryNinjaDebuggerAPI

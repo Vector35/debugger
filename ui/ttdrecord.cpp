@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "ttdrecord.h"
 #include "uicontext.h"
+#include "pathhelpers.h"
 #include "qfiledialog.h"
 #include "fmt/format.h"
 #include <QMessageBox>
@@ -251,10 +252,10 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 
 	if (m_controller)
 	{
-		m_pathEntry->setText(QString::fromStdString(m_controller->GetExecutablePath()));
+		m_pathEntry->setText(QString::fromStdString(Path::PathToUtf8String(m_controller->GetExecutablePath())));
 		m_argumentsEntry->setText(QString::fromStdString(m_controller->GetCommandLineArguments()));
-		m_workingDirectoryEntry->setText(QString::fromStdString(m_controller->GetWorkingDirectory()));
-		m_outputDirectory->setText(QString::fromStdString(m_controller->GetWorkingDirectory()));
+		m_workingDirectoryEntry->setText(QString::fromStdString(Path::PathToUtf8String(m_controller->GetWorkingDirectory())));
+		m_outputDirectory->setText(QString::fromStdString(Path::PathToUtf8String(m_controller->GetWorkingDirectory())));
 	}
 	m_launchWithoutTracing->setChecked(false);
 	m_traceChildProcesses->setChecked(false);
@@ -444,7 +445,7 @@ TTDAttachDialog::TTDAttachDialog(QWidget* parent, BinaryView* data) :
 
 	// Set default output directory
 	if (m_controller)
-		m_outputDirectory->setText(QString::fromStdString(m_controller->GetWorkingDirectory()));
+		m_outputDirectory->setText(QString::fromStdString(Path::PathToUtf8String(m_controller->GetWorkingDirectory())));
 	m_traceChildProcesses->setChecked(false);
 
 	// Always use direct Windows enumeration to get command lines

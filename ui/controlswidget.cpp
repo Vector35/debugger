@@ -25,6 +25,7 @@ limitations under the License.
 #include "theme.h"
 #include "platformdialog.h"
 #include "ui.h"
+#include "pathhelpers.h"
 #include <thread>
 #include "progresstask.h"
 #include "attachprocess.h"
@@ -209,7 +210,7 @@ bool DebugControlsWidget::handleContainerFile()
 	auto data = m_controller->GetData();
 	auto file = data->GetFile();
 
-	std::string execPath = m_controller->GetExecutablePath();
+	auto execPath = m_controller->GetExecutablePath();
 	if (!execPath.empty() && fs::exists(execPath))
 		return true;
 
@@ -256,7 +257,11 @@ bool DebugControlsWidget::handleContainerFile()
 		return false;
 	}
 
-	m_controller->SetExecutablePath(extractPath.toStdString());
+#ifdef WIN32
+	m_controller->SetExecutablePath(std::filesystem::path(extractPath.toStdWString()));
+#else
+	m_controller->SetExecutablePath(std::filesystem::path(extractPath.toStdString()));
+#endif
 	return true;
 }
 
@@ -289,7 +294,8 @@ void DebugControlsWidget::performLaunch()
 	if (isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
 	{
 		auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
-			"This may harm your machine. Are you sure to continue?").arg(QString::fromStdString(m_controller->GetExecutablePath()));
+			"This may harm your machine. Are you sure to continue?").arg(
+			QString::fromStdString(Path::PathToUtf8String(m_controller->GetExecutablePath())));
 		if (QMessageBox::question(this, "Launch Target", prompt) != QMessageBox::Yes)
 			return;
 	}
@@ -299,7 +305,7 @@ void DebugControlsWidget::performLaunch()
 		auto remoteHost = QString::fromStdString(m_controller->GetRemoteHost());
 		auto remotePort = m_controller->GetRemotePort();
 		auto prompt = QString("You are about to launch \n\n%1\n\non remote host %2:%3. "
-			"Are you sure to continue?").arg(QString::fromStdString(m_controller->GetExecutablePath()))
+			"Are you sure to continue?").arg(QString::fromStdString(Path::PathToUtf8String(m_controller->GetExecutablePath())))
 			.arg(remoteHost).arg(remotePort);
 		if (QMessageBox::question(this, "Launch Target", prompt) != QMessageBox::Yes)
 			return;
@@ -544,7 +550,7 @@ void DebugControlsWidget::toggleBreakpoint()
 	}
 	else
 	{
-		std::string filename = m_controller->GetInputFile();
+		std::string filename = Path::PathToUtf8String(m_controller->GetInputFile());
 		uint64_t offset = addr - m_controller->GetViewFileSegmentsStart();
 		ModuleNameAndOffset info = {filename, offset};
 		if (m_controller->ContainsBreakpoint(info))

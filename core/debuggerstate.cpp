@@ -26,6 +26,7 @@ limitations under the License.
 #include "debuggerstate.h"
 #include "debugadapter.h"
 #include "debuggercontroller.h"
+#include "pathhelpers.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -1565,7 +1566,7 @@ void DebuggerState::UpdateCaches()
 
 bool DebuggerState::GetRemoteBase(uint64_t& address)
 {
-	return m_modules->GetModuleBase(GetInputFile(), address);
+	return m_modules->GetModuleBase(Path::PathToUtf8String(GetInputFile()), address);
 }
 
 
@@ -1588,7 +1589,7 @@ void DebuggerState::SetAdapterType(const std::string& adapter)
 }
 
 
-void DebuggerState::SetExecutablePath(const std::string& path)
+void DebuggerState::SetExecutablePath(const std::filesystem::path& path)
 {
 	if (!EnsureDebugAdapterExists())
 		return;
@@ -1599,11 +1600,11 @@ void DebuggerState::SetExecutablePath(const std::string& path)
 	if (!settings->Contains("launch.executablePath"))
 		return;
 
-	settings->Set("launch.executablePath", path, data, scope);
+	settings->Set("launch.executablePath", Path::PathToUtf8String(path), data, scope);
 }
 
 
-void DebuggerState::SetInputFile(const std::string& path)
+void DebuggerState::SetInputFile(const std::filesystem::path& path)
 {
 	if (!EnsureDebugAdapterExists())
 		return;
@@ -1614,11 +1615,11 @@ void DebuggerState::SetInputFile(const std::string& path)
 	if (!settings->Contains("common.inputFile"))
 		return;
 
-	settings->Set("common.inputFile", path, data, scope);
+	settings->Set("common.inputFile", Path::PathToUtf8String(path), data, scope);
 }
 
 
-void DebuggerState::SetWorkingDirectory(const std::string& directory)
+void DebuggerState::SetWorkingDirectory(const std::filesystem::path& directory)
 {
 	if (!EnsureDebugAdapterExists())
 		return;
@@ -1629,7 +1630,7 @@ void DebuggerState::SetWorkingDirectory(const std::string& directory)
 	if (!settings->Contains("launch.workingDirectory"))
 		return;
 
-	settings->Set("launch.workingDirectory", directory, data, scope);
+	settings->Set("launch.workingDirectory", Path::PathToUtf8String(directory), data, scope);
 }
 
 
@@ -1723,48 +1724,48 @@ bool DebuggerState::EnsureDebugAdapterExists()
 }
 
 
-std::string DebuggerState::GetExecutablePath()
+std::filesystem::path DebuggerState::GetExecutablePath()
 {
 	if (!EnsureDebugAdapterExists())
-		return "";
+		return {};
 
 	auto settings = m_adapter->GetAdapterSettings();
 	auto data = m_controller->GetData();
 	auto scope = SettingsResourceScope;
 	if (!settings->Contains("launch.executablePath"))
-		return "";
+		return {};
 
-	return settings->Get<std::string>("launch.executablePath", data, &scope);
+	return Path::Utf8ToPath(settings->Get<std::string>("launch.executablePath", data, &scope));
 }
 
 
-std::string DebuggerState::GetInputFile()
+std::filesystem::path DebuggerState::GetInputFile()
 {
 	if (!EnsureDebugAdapterExists())
-		return "";
+		return {};
 
 	auto settings = m_adapter->GetAdapterSettings();
 	auto data = m_controller->GetData();
 	auto scope = SettingsResourceScope;
 	if (!settings->Contains("common.inputFile"))
-		return "";
+		return {};
 
-	return settings->Get<std::string>("common.inputFile", data, &scope);
+	return Path::Utf8ToPath(settings->Get<std::string>("common.inputFile", data, &scope));
 }
 
 
-std::string DebuggerState::GetWorkingDirectory()
+std::filesystem::path DebuggerState::GetWorkingDirectory()
 {
 	if (!EnsureDebugAdapterExists())
-		return "";
+		return {};
 
 	auto settings = m_adapter->GetAdapterSettings();
 	auto data = m_controller->GetData();
 	auto scope = SettingsResourceScope;
 	if (!settings->Contains("launch.workingDirectory"))
-		return "";
+		return {};
 
-	return settings->Get<std::string>("launch.workingDirectory", data, &scope);
+	return Path::Utf8ToPath(settings->Get<std::string>("launch.workingDirectory", data, &scope));
 }
 
 

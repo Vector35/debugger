@@ -18,6 +18,7 @@ limitations under the License.
 
 #ifdef WIN32
 
+#include <filesystem>
 #include <string>
 
 namespace BinaryNinjaDebugger {
@@ -42,7 +43,7 @@ struct InstallResult {
  *                 (use when WinDbg DLLs may be loaded)
  * @return InstallResult with success status and error message if failed
  */
-InstallResult InstallWinDbg(const std::string& installPath = "", bool isUpdate = false);
+InstallResult InstallWinDbg(const std::filesystem::path& installPath = {}, bool isUpdate = false);
 
 /*
  * Check if WinDbg is installed at the given path
@@ -50,14 +51,14 @@ InstallResult InstallWinDbg(const std::string& installPath = "", bool isUpdate =
  * @param installPath Path to check (empty = default)
  * @return true if WinDbg is installed
  */
-bool IsWinDbgInstalled(const std::string& installPath = "");
+bool IsWinDbgInstalled(const std::filesystem::path& installPath = {});
 
 /*
  * Get the path to the installer CLI executable
  *
  * @return Path to windbg-installer.exe, or empty if not found
  */
-std::string GetInstallerPath();
+std::filesystem::path GetInstallerPath();
 
 /*
  * Get the version of installed WinDbg
@@ -65,7 +66,7 @@ std::string GetInstallerPath();
  * @param installPath Path to check (empty = default)
  * @return Version string (e.g., "1.2404.24002.0"), or empty if not installed
  */
-std::string GetInstalledVersion(const std::string& installPath = "");
+std::string GetInstalledVersion(const std::filesystem::path& installPath = {});
 
 /*
  * Get the latest available WinDbg version from Microsoft

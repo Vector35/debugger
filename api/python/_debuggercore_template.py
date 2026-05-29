@@ -8,6 +8,8 @@ import platform
 core = None
 core_platform = platform.system()
 
+from binaryninja._binaryninjacore import BNPath, BNPathHandle, core_path, path_to_native_path
+
 if os.environ.get('BN_STANDALONE_DEBUGGER'):
     # By the time the debugger is loaded, binaryninja has not fully initialized.
     # So we cannot call binaryninja.user_plugin_path()
@@ -58,4 +60,3 @@ def pyNativeStr(arg):
 
 def free_string(value:ctypes.c_char_p) -> None:
     BNDebuggerFreeString(ctypes.cast(value, ctypes.POINTER(ctypes.c_byte)))
-

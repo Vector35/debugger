@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "hardwarebreakpointdialog.h"
+#include "pathhelpers.h"
 #include <QMessageBox>
 #include <QGridLayout>
 
@@ -147,7 +148,7 @@ void HardwareBreakpointDialog::addBreakpoint()
 		else
 		{
 			// Use module+offset for ASLR safety (target not connected yet)
-			std::string filename = m_controller->GetInputFile();
+			std::string filename = BinaryNinja::Path::PathToUtf8String(m_controller->GetInputFile());
 			uint64_t offset = address - m_controller->GetViewFileSegmentsStart();
 			ModuleNameAndOffset info = {filename, offset};
 			success = m_controller->AddHardwareBreakpoint(info, type, size);

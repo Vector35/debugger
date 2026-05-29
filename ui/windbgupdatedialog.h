@@ -23,6 +23,7 @@ limitations under the License.
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <filesystem>
 #include <string>
 
 class WinDbgUpdateDialog : public QDialog
@@ -30,7 +31,7 @@ class WinDbgUpdateDialog : public QDialog
 	Q_OBJECT
 
 private:
-	std::string m_installPath;
+	std::filesystem::path m_installPath;
 	std::string m_installedVersion;
 	std::string m_latestVersion;
 
@@ -44,7 +45,7 @@ private:
 	void updateUI();
 
 public:
-	WinDbgUpdateDialog(QWidget* parent, const std::string& installPath, const std::string& installedVersion);
+	WinDbgUpdateDialog(QWidget* parent, const std::filesystem::path& installPath, const std::string& installedVersion);
 
 public Q_SLOTS:
 	void onLatestVersionReceived(const QString& version);

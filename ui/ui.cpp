@@ -22,6 +22,7 @@ limitations under the License.
 #include "renderlayer.h"
 #include "uinotification.h"
 #include "platformdialog.h"
+#include "pathhelpers.h"
 #include "QPainter"
 #include <QStatusBar>
 #include <QCoreApplication>
@@ -109,7 +110,7 @@ static void BreakpointToggleCallback(BinaryView* view, uint64_t addr)
 	}
 	else
 	{
-		std::string filename = controller->GetInputFile();
+			std::string filename = Path::PathToUtf8String(controller->GetInputFile());
 		uint64_t offset = addr - controller->GetViewFileSegmentsStart();
 		ModuleNameAndOffset info = {filename, offset};
 		if (controller->ContainsBreakpoint(info))
@@ -131,7 +132,7 @@ static void BreakpointEditConditionCallback(BinaryView* view, uint64_t addr, UIC
 
 	const bool isAbsoluteAddress = controller->IsConnected();
 	const ModuleNameAndOffset relativeAddr = {
-		controller->GetInputFile(),
+		Path::PathToUtf8String(controller->GetInputFile()),
 		addr - controller->GetViewFileSegmentsStart()
 	};
 
@@ -572,9 +573,9 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 
 				if (isLocalLaunch && firstLaunch && Settings::Instance()->Get<bool>("debugger.confirmFirstLaunch"))
 				{
-					auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
-						"This may harm your machine. Are you sure to continue?").
-					  	arg(QString::fromStdString(controller->GetExecutablePath()));
+						auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
+							"This may harm your machine. Are you sure to continue?").
+							arg(QString::fromStdString(Path::PathToUtf8String(controller->GetExecutablePath())));
 					if (QMessageBox::question(context->mainWindow(), "Launch Target", prompt) != QMessageBox::Yes)
 						return;
 				}
@@ -583,8 +584,8 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				{
 					auto remoteHost = QString::fromStdString(controller->GetRemoteHost());
 					auto remotePort = controller->GetRemotePort();
-					auto prompt = QString("You are about to launch \n\n%1\n\non remote host %2:%3. "
-						"Are you sure to continue?").arg(QString::fromStdString(controller->GetExecutablePath()))
+						auto prompt = QString("You are about to launch \n\n%1\n\non remote host %2:%3. "
+							"Are you sure to continue?").arg(QString::fromStdString(Path::PathToUtf8String(controller->GetExecutablePath())))
 						.arg(remoteHost).arg(remotePort);
 					if (QMessageBox::question(context->mainWindow(), "Launch Target", prompt) != QMessageBox::Yes)
 						return;
@@ -942,7 +943,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				}
 				else
 				{
-					std::string filename = controller->GetInputFile();
+						std::string filename = Path::PathToUtf8String(controller->GetInputFile());
 					uint64_t offset = ctxt.address - controller->GetViewFileSegmentsStart();
 					ModuleNameAndOffset info = {filename, offset};
 					if (isEnabled)
@@ -986,7 +987,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				ModuleNameAndOffset currentInfo;
 				if (!isAbsoluteAddress)
 				{
-					std::string filename = controller->GetInputFile();
+						std::string filename = Path::PathToUtf8String(controller->GetInputFile());
 					uint64_t offset = ctxt.address - controller->GetViewFileSegmentsStart();
 					currentInfo = {filename, offset};
 				}
@@ -1576,22 +1577,21 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 {
 	// Determine install path
-	std::string userDir = BinaryNinja::GetUserDirectory();
-	std::filesystem::path installTarget = std::filesystem::path(userDir) / "windbg";
-	std::string installPath = installTarget.string();
-	LogDebug("installTarget: %s", installPath.c_str());
+	std::filesystem::path installTarget = BinaryNinja::GetUserDirectory() / "windbg";
+	std::string installPathText = Path::PathToUtf8String(installTarget);
+	LogDebug("installTarget: %s", installPathText.c_str());
 
 	// Check if WinDbg is already installed
-	if (std::filesystem::exists(installTarget) && IsWinDbgInstalled(installPath))
+	if (std::filesystem::exists(installTarget) && IsWinDbgInstalled(installTarget))
 	{
 		// Get installed version
-		std::string installedVersion = GetWinDbgInstalledVersion(installPath);
+		std::string installedVersion = GetWinDbgInstalledVersion(installTarget);
 		if (installedVersion.empty()) {
 			installedVersion = "(unknown)";
 		}
 
 		// Show update dialog
-		WinDbgUpdateDialog dialog(ctxt.context->mainWindow(), installPath, installedVersion);
+		WinDbgUpdateDialog dialog(ctxt.context->mainWindow(), installTarget, installedVersion);
 		dialog.exec();
 		return;
 	}
@@ -1618,7 +1618,7 @@ void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 	// Create and start background installation task
 	class InstallWorker : public QThread {
 	public:
-		InstallWorker(const std::string& path, QObject* parent = nullptr)
+		InstallWorker(const std::filesystem::path& path, QObject* parent = nullptr)
 			: QThread(parent), m_installPath(path) {}
 
 		void run() override {
@@ -1626,23 +1626,23 @@ void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 		}
 
 		const InstallResult& result() const { return m_result; }
-		const std::string& installPath() const { return m_installPath; }
+		const std::filesystem::path& installPath() const { return m_installPath; }
 
 	private:
-		std::string m_installPath;
+		std::filesystem::path m_installPath;
 		InstallResult m_result;
 	};
 
-	InstallWorker* worker = new InstallWorker(installPath, mainWindow);
+	InstallWorker* worker = new InstallWorker(installTarget, mainWindow);
 
 	// When installation completes, show result dialog and configure settings
-	QObject::connect(worker, &QThread::finished, mainWindow, [worker, installPath, mainWindow]() {
+	QObject::connect(worker, &QThread::finished, mainWindow, [worker, installTarget, mainWindow]() {
 		const InstallResult& result = worker->result();
 		worker->deleteLater();
 
-		if (result.success && IsWinDbgInstalled(installPath)) {
+		if (result.success && IsWinDbgInstalled(installTarget)) {
 			// Configure debugger settings
-			std::string dbgEngPath = installPath + "\\amd64";
+			std::string dbgEngPath = Path::PathToUtf8String(installTarget / "amd64");
 			BinaryNinja::Settings::Instance()->Set("debugger.x64dbgEngPath", dbgEngPath);
 			LogInfo("Configured debugger.x64dbgEngPath: %s", dbgEngPath.c_str());
 

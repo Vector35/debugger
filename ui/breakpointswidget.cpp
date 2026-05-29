@@ -32,6 +32,7 @@ limitations under the License.
 #include "hardwarebreakpointdialog.h"
 #include "ui.h"
 #include "menus.h"
+#include "pathhelpers.h"
 #include "fmt/format.h"
 
 using namespace BinaryNinjaDebuggerAPI;
@@ -644,7 +645,7 @@ void DebugBreakpointsWidget::addSoftwareBreakpoint()
 	}
 	else
 	{
-		std::string filename = m_controller->GetInputFile();
+		std::string filename = Path::PathToUtf8String(m_controller->GetInputFile());
 		uint64_t offset = address - m_controller->GetViewFileSegmentsStart();
 		ModuleNameAndOffset info = {filename, offset};
 		m_controller->AddBreakpoint(info);

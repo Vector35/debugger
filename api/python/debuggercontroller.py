@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import ctypes
+import os
 import traceback
 from dataclasses import dataclass
 
@@ -2093,7 +2094,7 @@ class DebuggerController:
         return dbgcore.BNDebuggerGetActivePID(self.handle)
 
     @property
-    def executable_path(self) -> str:
+    def executable_path(self):
         """
         The path of the executable. (read/write)
 
@@ -2106,11 +2107,11 @@ class DebuggerController:
         return dbgcore.BNDebuggerGetExecutablePath(self.handle)
 
     @executable_path.setter
-    def executable_path(self, path: Union[str, bytes]) -> None:
+    def executable_path(self, path: Union[str, bytes, os.PathLike]) -> None:
         dbgcore.BNDebuggerSetExecutablePath(self.handle, path)
 
     @property
-    def input_file(self) -> str:
+    def input_file(self):
         """
         The input file used to create the database
 
@@ -2123,11 +2124,11 @@ class DebuggerController:
         return dbgcore.BNDebuggerGetInputFile(self.handle)
 
     @input_file.setter
-    def input_file(self, path: Union[str, bytes]) -> None:
+    def input_file(self, path: Union[str, bytes, os.PathLike]) -> None:
         dbgcore.BNDebuggerSetInputFile(self.handle, path)
 
     @property
-    def working_directory(self) -> str:
+    def working_directory(self):
         """
         The path of the target. (read/write)
 
@@ -2141,7 +2142,7 @@ class DebuggerController:
         return dbgcore.BNDebuggerGetWorkingDirectory(self.handle)
 
     @working_directory.setter
-    def working_directory(self, path: Union[str, bytes]) -> None:
+    def working_directory(self, path: Union[str, bytes, os.PathLike]) -> None:
         dbgcore.BNDebuggerSetWorkingDirectory(self.handle, path)
 
     @property
@@ -3191,7 +3192,7 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerGetExecutedInstructionCount(self.handle)
 
-    def save_code_coverage_to_file(self, file_path: str) -> bool:
+    def save_code_coverage_to_file(self, file_path: Union[str, bytes, os.PathLike]) -> bool:
         """
         Save code coverage results to a file.
 
@@ -3200,16 +3201,16 @@ class DebuggerController:
         :param file_path: path to the file where results should be saved
         :return: True if save succeeded, False otherwise
         """
-        return dbgcore.BNDebuggerSaveCodeCoverageToFile(self.handle, file_path.encode('utf-8'))
+        return dbgcore.BNDebuggerSaveCodeCoverageToFile(self.handle, file_path)
 
-    def load_code_coverage_from_file(self, file_path: str) -> bool:
+    def load_code_coverage_from_file(self, file_path: Union[str, bytes, os.PathLike]) -> bool:
         """
         Load code coverage results from a file.
 
         :param file_path: path to the file containing code coverage results
         :return: True if load succeeded, False otherwise
         """
-        return dbgcore.BNDebuggerLoadCodeCoverageFromFile(self.handle, file_path.encode('utf-8'))
+        return dbgcore.BNDebuggerLoadCodeCoverageFromFile(self.handle, file_path)
 
     def __del__(self):
         if dbgcore is not None:

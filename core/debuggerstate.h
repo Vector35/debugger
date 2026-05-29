@@ -16,6 +16,7 @@ limitations under the License.
 
 #pragma once
 
+#include <filesystem>
 #include <unordered_map>
 #include "binaryninjaapi.h"
 #include "ui/uitypes.h"
@@ -260,9 +261,9 @@ namespace BinaryNinjaDebugger {
 		Ref<Architecture> GetRemoteArchitecture() const;
 
 		std::string GetAdapterType() const { return m_adapterType; }
-		std::string GetExecutablePath();
-		std::string GetInputFile();
-		std::string GetWorkingDirectory();
+		std::filesystem::path GetExecutablePath();
+		std::filesystem::path GetInputFile();
+		std::filesystem::path GetWorkingDirectory();
 		std::string GetCommandLineArguments();
 		std::string GetRemoteHost();
 		uint32_t GetRemotePort();
@@ -270,9 +271,9 @@ namespace BinaryNinjaDebugger {
 		int32_t GetPIDAttach();
 
 		void SetAdapterType(const std::string& adapter);
-		void SetExecutablePath(const std::string& path);
-		void SetInputFile(const std::string& path);
-		void SetWorkingDirectory(const std::string& directory);
+		void SetExecutablePath(const std::filesystem::path& path);
+		void SetInputFile(const std::filesystem::path& path);
+		void SetWorkingDirectory(const std::filesystem::path& directory);
 		void SetCommandLineArguments(const std::string& arguments);
 		void SetRemoteHost(const std::string& host);
 		void SetRemotePort(uint32_t port);
