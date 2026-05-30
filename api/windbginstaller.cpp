@@ -22,7 +22,7 @@ using namespace BinaryNinjaDebuggerAPI;
 
 InstallResult BinaryNinjaDebuggerAPI::InstallWinDbg(const std::filesystem::path& installPath, bool isUpdate)
 {
-	Path::ScopedCorePath corePath(installPath);
+	Path::APIObject corePath(installPath);
 	BNDebuggerInstallResult ffiResult = BNDebuggerInstallWinDbg(installPath.empty() ? nullptr : corePath.get(), isUpdate);
 
 	InstallResult result;
@@ -39,7 +39,7 @@ InstallResult BinaryNinjaDebuggerAPI::InstallWinDbg(const std::filesystem::path&
 
 bool BinaryNinjaDebuggerAPI::IsWinDbgInstalled(const std::filesystem::path& installPath)
 {
-	Path::ScopedCorePath corePath(installPath);
+	Path::APIObject corePath(installPath);
 	return BNDebuggerIsWinDbgInstalled(installPath.empty() ? nullptr : corePath.get());
 }
 
@@ -55,7 +55,7 @@ std::filesystem::path BinaryNinjaDebuggerAPI::GetWinDbgInstallerPath()
 
 std::string BinaryNinjaDebuggerAPI::GetWinDbgInstalledVersion(const std::filesystem::path& installPath)
 {
-	Path::ScopedCorePath corePath(installPath);
+	Path::APIObject corePath(installPath);
 	char* version = BNDebuggerGetWinDbgInstalledVersion(installPath.empty() ? nullptr : corePath.get());
 	std::string result = version ? version : "";
 	BNDebuggerFreeString(version);

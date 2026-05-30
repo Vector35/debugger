@@ -37,6 +37,7 @@ limitations under the License.
 #include "codedatarenderer.h"
 #include "adaptersettings.h"
 #include <thread>
+#include <system_error>
 #include <QInputDialog>
 #include <filesystem>
 #include <QMessageBox>
@@ -575,7 +576,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				{
 						auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
 							"This may harm your machine. Are you sure to continue?").
-							arg(QString::fromStdString(Path::PathToUtf8String(controller->GetExecutablePath())));
+							arg(QString::fromStdString(Path::PrintablePath(controller->GetExecutablePath())));
 					if (QMessageBox::question(context->mainWindow(), "Launch Target", prompt) != QMessageBox::Yes)
 						return;
 				}
@@ -585,7 +586,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					auto remoteHost = QString::fromStdString(controller->GetRemoteHost());
 					auto remotePort = controller->GetRemotePort();
 						auto prompt = QString("You are about to launch \n\n%1\n\non remote host %2:%3. "
-							"Are you sure to continue?").arg(QString::fromStdString(Path::PathToUtf8String(controller->GetExecutablePath())))
+							"Are you sure to continue?").arg(QString::fromStdString(Path::PrintablePath(controller->GetExecutablePath())))
 						.arg(remoteHost).arg(remotePort);
 					if (QMessageBox::question(context->mainWindow(), "Launch Target", prompt) != QMessageBox::Yes)
 						return;
@@ -1578,11 +1579,11 @@ void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 {
 	// Determine install path
 	std::filesystem::path installTarget = BinaryNinja::GetUserDirectory() / "windbg";
-	std::string installPathText = Path::PathToUtf8String(installTarget);
-	LogDebug("installTarget: %s", installPathText.c_str());
+	LogDebugF("installTarget: {}", installTarget);
 
 	// Check if WinDbg is already installed
-	if (std::filesystem::exists(installTarget) && IsWinDbgInstalled(installTarget))
+	std::error_code ec;
+	if (std::filesystem::exists(installTarget, ec) && IsWinDbgInstalled(installTarget))
 	{
 		// Get installed version
 		std::string installedVersion = GetWinDbgInstalledVersion(installTarget);
@@ -1644,7 +1645,7 @@ void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 			// Configure debugger settings
 			std::string dbgEngPath = Path::PathToUtf8String(installTarget / "amd64");
 			BinaryNinja::Settings::Instance()->Set("debugger.x64dbgEngPath", dbgEngPath);
-			LogInfo("Configured debugger.x64dbgEngPath: %s", dbgEngPath.c_str());
+			LogInfoF("Configured debugger.x64dbgEngPath: {}", installTarget / "amd64");
 
 			// Offer to restart Binary Ninja
 			QMessageBox msgBox(mainWindow);

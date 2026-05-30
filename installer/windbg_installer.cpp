@@ -18,6 +18,7 @@
 #include <fstream>
 #include <vector>
 #include <sstream>
+#include <system_error>
 
 #pragma comment(lib, "version.lib")
 
@@ -128,7 +129,7 @@ void PrintSettingsInfo(const std::string& dbgEngPath, LogCallback logCallback) {
 void CleanupTempFiles(const std::vector<std::string>& files, LogCallback logCallback) {
     for (const auto& file : files) {
         std::error_code ec;
-        if (fs::is_directory(file)) {
+        if (fs::is_directory(file, ec)) {
             fs::remove_all(file, ec);
         } else {
             fs::remove(file, ec);
@@ -152,7 +153,8 @@ std::string GetDefaultInstallPath() {
 bool CheckInstallation(const std::string& path) {
     for (const auto& file : kRequiredFiles) {
         fs::path fullPath = fs::path(path) / file;
-        if (!fs::exists(fullPath)) {
+        std::error_code ec;
+        if (!fs::exists(fullPath, ec)) {
             return false;
         }
     }
@@ -352,7 +354,8 @@ VersionInfo GetInstalledVersion(const std::string& installPath) {
 
     /* Check if installation exists */
     std::string dllPath = path + "\\amd64\\dbgeng.dll";
-    if (!fs::exists(dllPath)) {
+    std::error_code ec;
+    if (!fs::exists(dllPath, ec)) {
         return info;  /* isInstalled = false, version = "" */
     }
 
@@ -395,7 +398,8 @@ VersionInfo GetLatestVersion(LogCallback logCallback) {
 
     if (!result) {
         Log(logCallback, LOG_ERROR, "Failed to parse appinstaller XML: " + std::string(result.description()));
-        fs::remove(tempPath);
+        std::error_code ec;
+        fs::remove(tempPath, ec);
         return info;
     }
 
@@ -419,7 +423,8 @@ VersionInfo GetLatestVersion(LogCallback logCallback) {
     }
 
     /* Cleanup */
-    fs::remove(tempPath);
+    std::error_code ec;
+    fs::remove(tempPath, ec);
 
     return info;
 }

@@ -25,6 +25,7 @@ limitations under the License.
 #include <highlevelilinstruction.h>
 #include <memory>
 #include <filesystem>
+#include <system_error>
 #ifdef _WIN32
 #include <shellapi.h>
 #include <TlHelp32.h>
@@ -49,22 +50,23 @@ static bool IsValidDbgEngPaths(const std::string& path)
 		return false;
 
 	auto enginePath = filesystem::path(path);
-	if (!filesystem::exists(enginePath))
+	std::error_code ec;
+	if (!filesystem::exists(enginePath, ec))
 		return false;
 
-	if (!filesystem::exists(enginePath / "dbgeng.dll"))
+	if (!filesystem::exists(enginePath / "dbgeng.dll", ec))
 		return false;
 
-	if (!filesystem::exists(enginePath / "dbghelp.dll"))
+	if (!filesystem::exists(enginePath / "dbghelp.dll", ec))
 		return false;
 
-	if (!filesystem::exists(enginePath / "dbgmodel.dll"))
+	if (!filesystem::exists(enginePath / "dbgmodel.dll", ec))
 		return false;
 
-	if (!filesystem::exists(enginePath / "dbgcore.dll"))
+	if (!filesystem::exists(enginePath / "dbgcore.dll", ec))
 		return false;
 
-	if (!filesystem::exists(enginePath / "dbgsrv.exe"))
+	if (!filesystem::exists(enginePath / "dbgsrv.exe", ec))
 		return false;
 
 	return true;

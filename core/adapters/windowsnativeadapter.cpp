@@ -23,6 +23,7 @@ limitations under the License.
 #include <algorithm>
 #include <memory>
 #include <filesystem>
+#include <system_error>
 
 // dbghelp.dll is delay-loaded. We use a notification hook to try loading it from the
 // configured DbgEng path first, falling back to the system version if that fails.
@@ -37,7 +38,8 @@ static std::string GetDbgHelpPathFromSettings()
 	if (!path.empty())
 	{
 		auto dbgHelpPath = std::filesystem::path(path) / "dbghelp.dll";
-		if (std::filesystem::exists(dbgHelpPath))
+		std::error_code ec;
+		if (std::filesystem::exists(dbgHelpPath, ec))
 			return dbgHelpPath.string();
 	}
 
@@ -49,7 +51,8 @@ static std::string GetDbgHelpPathFromSettings()
 		pluginRoot = BinaryNinja::GetBundledPluginDirectory();
 
 	auto bundledPath = std::filesystem::path(pluginRoot) / "dbgeng" / "amd64" / "dbghelp.dll";
-	if (std::filesystem::exists(bundledPath))
+	std::error_code ec;
+	if (std::filesystem::exists(bundledPath, ec))
 		return bundledPath.string();
 
 	return "";

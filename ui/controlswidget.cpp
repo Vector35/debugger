@@ -31,6 +31,7 @@ limitations under the License.
 #include "attachprocess.h"
 #include <filesystem>
 #include <fstream>
+#include <system_error>
 #include <QFileDialog>
 
 using namespace BinaryNinjaDebuggerAPI;
@@ -211,7 +212,8 @@ bool DebugControlsWidget::handleContainerFile()
 	auto file = data->GetFile();
 
 	auto execPath = m_controller->GetExecutablePath();
-	if (!execPath.empty() && fs::exists(execPath))
+	std::error_code ec;
+	if (!execPath.empty() && fs::exists(execPath, ec))
 		return true;
 
 	std::string currentPath = file->GetFilename();
@@ -228,7 +230,7 @@ bool DebugControlsWidget::handleContainerFile()
 	if (originalPath.empty())
 		return true;
 
-	if (fs::exists(originalPath))
+	if (fs::exists(originalPath, ec))
 		return true;
 
 	auto prompt = QString(
@@ -240,7 +242,9 @@ bool DebugControlsWidget::handleContainerFile()
 	if (QMessageBox::question(this, "File Not Found", prompt) != QMessageBox::Yes)
 		return false;
 
-	fs::path defaultPath = fs::current_path() / fs::path(originalPath).filename();
+	fs::path defaultPath = fs::current_path(ec) / fs::path(originalPath).filename();
+	if (ec)
+		defaultPath = fs::path(originalPath).filename();
 	if (isBndb)
 		defaultPath = fs::path(currentPath).parent_path() / fs::path(originalPath).filename();
 
@@ -295,7 +299,7 @@ void DebugControlsWidget::performLaunch()
 	{
 		auto prompt = QString("You are about to launch \n\n%1\n\non your machine. "
 			"This may harm your machine. Are you sure to continue?").arg(
-			QString::fromStdString(Path::PathToUtf8String(m_controller->GetExecutablePath())));
+			QString::fromStdString(Path::PrintablePath(m_controller->GetExecutablePath())));
 		if (QMessageBox::question(this, "Launch Target", prompt) != QMessageBox::Yes)
 			return;
 	}
@@ -305,7 +309,7 @@ void DebugControlsWidget::performLaunch()
 		auto remoteHost = QString::fromStdString(m_controller->GetRemoteHost());
 		auto remotePort = m_controller->GetRemotePort();
 		auto prompt = QString("You are about to launch \n\n%1\n\non remote host %2:%3. "
-			"Are you sure to continue?").arg(QString::fromStdString(Path::PathToUtf8String(m_controller->GetExecutablePath())))
+			"Are you sure to continue?").arg(QString::fromStdString(Path::PrintablePath(m_controller->GetExecutablePath())))
 			.arg(remoteHost).arg(remotePort);
 		if (QMessageBox::question(this, "Launch Target", prompt) != QMessageBox::Yes)
 			return;

@@ -666,21 +666,21 @@ std::string DebuggerController::GetCommandLineArguments()
 
 void DebuggerController::SetInputFile(const std::filesystem::path& path)
 {
-	Path::ScopedCorePath corePath(path);
+	Path::APIObject corePath(path);
 	BNDebuggerSetInputFile(m_object, corePath);
 }
 
 
 void DebuggerController::SetExecutablePath(const std::filesystem::path& path)
 {
-	Path::ScopedCorePath corePath(path);
+	Path::APIObject corePath(path);
 	BNDebuggerSetExecutablePath(m_object, corePath);
 }
 
 
 void DebuggerController::SetWorkingDirectory(const std::filesystem::path& path)
 {
-	Path::ScopedCorePath corePath(path);
+	Path::APIObject corePath(path);
 	BNDebuggerSetWorkingDirectory(m_object, corePath);
 }
 
@@ -1536,14 +1536,14 @@ size_t DebuggerController::GetExecutedInstructionCount() const
 
 bool DebuggerController::SaveCodeCoverageToFile(const std::filesystem::path& filePath) const
 {
-	Path::ScopedCorePath corePath(filePath);
+	Path::APIObject corePath(filePath);
 	return BNDebuggerSaveCodeCoverageToFile(m_object, corePath);
 }
 
 
 bool DebuggerController::LoadCodeCoverageFromFile(const std::filesystem::path& filePath)
 {
-	Path::ScopedCorePath corePath(filePath);
+	Path::APIObject corePath(filePath);
 	return BNDebuggerLoadCodeCoverageFromFile(m_object, corePath);
 }
 

@@ -10,6 +10,7 @@
 #include "zip_extractor.h"
 #include "../vendor/minizip-ng/mz_zip.h"
 #include <filesystem>
+#include <system_error>
 
 namespace fs = std::filesystem;
 
@@ -135,7 +136,7 @@ std::string ExtractFileFromZipArchive(
     }
 
     /* Verify the file exists */
-    if (!fs::exists(outputPath)) {
+    if (!fs::exists(outputPath, ec)) {
         Log(logCallback, LOG_ERROR, "Extracted file does not exist: " + outputPath.string());
         return "";
     }

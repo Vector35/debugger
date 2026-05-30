@@ -3590,8 +3590,7 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::filesystem::path& fil
 		std::ofstream file(filePath, std::ios::binary);
 		if (!file.is_open())
 		{
-			LogError("%s",
-				fmt::format("Failed to open file for writing: {}", BinaryNinja::Path::PathToUtf8String(filePath)).c_str());
+			LogErrorF("Failed to open file for writing: {}", filePath);
 			return false;
 		}
 
@@ -3612,10 +3611,7 @@ bool DebuggerController::SaveCodeCoverageToFile(const std::filesystem::path& fil
 		}
 
 		file.close();
-		LogInfo("%s",
-			fmt::format(
-				"Saved {} executed instruction addresses to {}", count, BinaryNinja::Path::PathToUtf8String(filePath))
-				.c_str());
+		LogInfoF("Saved {} executed instruction addresses to {}", count, filePath);
 
 		return true;
 	}
@@ -3634,8 +3630,7 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::filesystem::path& f
 		std::ifstream file(filePath, std::ios::binary);
 		if (!file.is_open())
 		{
-			LogError("%s",
-				fmt::format("Failed to open file for reading: {}", BinaryNinja::Path::PathToUtf8String(filePath)).c_str());
+			LogErrorF("Failed to open file for reading: {}", filePath);
 			return false;
 		}
 
@@ -3688,10 +3683,7 @@ bool DebuggerController::LoadCodeCoverageFromFile(const std::filesystem::path& f
 		file.close();
 		m_codeCoverageAnalysisRun = true;
 
-		LogInfo("%s",
-			fmt::format(
-				"Loaded {} executed instruction addresses from {}", count, BinaryNinja::Path::PathToUtf8String(filePath))
-				.c_str());
+		LogInfoF("Loaded {} executed instruction addresses from {}", count, filePath);
 		return true;
 	}
 	catch (const std::exception& e)

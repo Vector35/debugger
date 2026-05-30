@@ -22,6 +22,7 @@ limitations under the License.
 #include <QMessageBox>
 #include <TlHelp32.h>
 #include <winternl.h>
+#include <system_error>
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
@@ -252,10 +253,10 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 
 	if (m_controller)
 	{
-		m_pathEntry->setText(QString::fromStdString(Path::PathToUtf8String(m_controller->GetExecutablePath())));
+		m_pathEntry->setText(QString::fromStdString(Path::PrintablePath(m_controller->GetExecutablePath())));
 		m_argumentsEntry->setText(QString::fromStdString(m_controller->GetCommandLineArguments()));
-		m_workingDirectoryEntry->setText(QString::fromStdString(Path::PathToUtf8String(m_controller->GetWorkingDirectory())));
-		m_outputDirectory->setText(QString::fromStdString(Path::PathToUtf8String(m_controller->GetWorkingDirectory())));
+		m_workingDirectoryEntry->setText(QString::fromStdString(Path::PrintablePath(m_controller->GetWorkingDirectory())));
+		m_outputDirectory->setText(QString::fromStdString(Path::PrintablePath(m_controller->GetWorkingDirectory())));
 	}
 	m_launchWithoutTracing->setChecked(false);
 	m_traceChildProcesses->setChecked(false);
@@ -280,13 +281,14 @@ static bool IsValidDbgEngTTDPaths(const std::string& path)
 		return false;
 
 	auto enginePath = filesystem::path(path);
-	if (!filesystem::exists(enginePath))
+	std::error_code ec;
+	if (!filesystem::exists(enginePath, ec))
 		return false;
 
-	if (!filesystem::exists(enginePath / "TTD.exe"))
+	if (!filesystem::exists(enginePath / "TTD.exe", ec))
 		return false;
 
-	if (!filesystem::exists(enginePath / "TTDRecord.dll"))
+	if (!filesystem::exists(enginePath / "TTDRecord.dll", ec))
 		return false;
 
 	return true;
@@ -445,7 +447,7 @@ TTDAttachDialog::TTDAttachDialog(QWidget* parent, BinaryView* data) :
 
 	// Set default output directory
 	if (m_controller)
-		m_outputDirectory->setText(QString::fromStdString(Path::PathToUtf8String(m_controller->GetWorkingDirectory())));
+		m_outputDirectory->setText(QString::fromStdString(Path::PrintablePath(m_controller->GetWorkingDirectory())));
 	m_traceChildProcesses->setChecked(false);
 
 	// Always use direct Windows enumeration to get command lines
