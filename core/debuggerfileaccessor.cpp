@@ -16,7 +16,6 @@ limitations under the License.
 
 #include "debuggerfileaccessor.h"
 
-#include "base/assertions.h"
 #include "debuggercontroller.h"
 
 using namespace BinaryNinja;
@@ -56,7 +55,6 @@ uint64_t DebuggerFileAccessor::GetLength() const
 size_t DebuggerFileAccessor::Read(void *dest, uint64_t offset, size_t len)
 {
 	DataBuffer buffer = m_controller->ReadMemory(offset, len);
-	BN_RELEASE_ASSERT(buffer.GetLength() <= len);
 	memcpy(dest, buffer.GetData(), buffer.GetLength());
 
 	return buffer.GetLength();
