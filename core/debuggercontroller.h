@@ -16,12 +16,15 @@ limitations under the License.
 
 #pragma once
 #include "binaryninjaapi.h"
+#include "base/assertions.h"
 #include "debuggerstate.h"
 #include "debuggerevent.h"
 #include <queue>
 #include <list>
 #include <future>
 #include <functional>
+#include <optional>
+#include <type_traits>
 #include <unordered_set>
 #include "ffi_global.h"
 #include "refcountobject.h"
@@ -30,6 +33,13 @@ limitations under the License.
 DECLARE_DEBUGGER_API_OBJECT(BNDebuggerController, DebuggerController);
 
 namespace BinaryNinjaDebugger {
+	class DebuggerController;
+
+	// Set to the controller pointer when running on that controller's worker thread,
+	// nullptr otherwise. Used by DebuggerController::Submit to detect re-entrant calls
+	// without needing to synchronize a thread::id field across threads.
+	extern thread_local DebuggerController* t_controllerOnWorker;
+
 	struct DebuggerEventCallback
 	{
 		std::function<void(const DebuggerEvent& event)> function;
@@ -76,6 +86,17 @@ namespace BinaryNinjaDebugger {
 		};
 
 	private:
+		// m_adapter is the active debug adapter for this controller. Written exclusively
+		// from the worker thread (in CreateDebugAdapter); read both from the worker
+		// (the bulk of references inside ExecuteAdapterAndWait and adapter ops) and
+		// from arbitrary caller threads (RequestInterrupt's out-of-band BreakInto).
+		//
+		// The pointed-to adapter object's lifetime is guaranteed externally: it is
+		// destroyed only inside ~DebuggerState, which runs inside ~DebuggerController
+		// after both worker threads have joined. Cross-thread callers hold a DbgRef
+		// on the controller during their call, so the adapter cannot be destroyed
+		// out from under them. See the "Refcount the DebugAdapter" follow-up issue
+		// for the structural fix that would make this guarantee enforced by the type.
 		DebugAdapter* m_adapter;
 		DebuggerState* m_state;
 		FileMetadataRef m_file;
@@ -98,17 +119,6 @@ namespace BinaryNinjaDebugger {
 		std::mutex m_callbackMutex;
 		std::set<size_t> m_disabledCallbacks;
 
-		// m_adapterMutex is a low-level mutex that protects the adapter access. It cannot be locked recursively.
-		// m_targetControlMutex is a high-level mutex that prevents two threads from controlling the debugger at the
-		// same time
-		std::mutex m_adapterMutex;
-		std::recursive_mutex m_targetControlMutex;
-
-		// m_adapterMutex2 is similar to m_adapterMutex, but it is used to protect only the Pause/Quit/Detach operation
-		// These operations cannot be protected by m_adapterMutex, since if the user resume the target and it remains
-		// running, we need the ability to pause or kill the target
-		std::mutex m_adapterMutex2;
-
 		uint64_t m_lastIP = 0;
 		uint64_t m_currentIP = 0;
 
@@ -116,14 +126,29 @@ namespace BinaryNinjaDebugger {
 		// status before returning the value
 		uint32_t m_exitCode = 0;
 
-		bool m_userRequestedBreak = false;
 		DebugAdapterOperation m_lastOperation = DebugAdapterGo;
 
-		bool m_lastAdapterStopEventConsumed = true;
+		// Adapter-stop channel: internal signal from the adapter thread to the worker.
+		// AdapterStoppedEventType posted via PostDebuggerEvent is intercepted and routed
+		// here rather than dispatched through the public event queue. WaitForAdapterStop
+		// blocks on m_adapterStopCv until either an adapter stop arrives or shutdown is
+		// requested. m_inAdapterWait is true for the entire duration of an in-flight
+		// ExecuteAdapterAndWait call (including the silent-resume loop between iterations
+		// for conditional breakpoints) so that any stop during that window is consumed
+		// by WaitForAdapterStop and not treated as spontaneous.
+		std::mutex m_adapterStopMutex;
+		std::condition_variable m_adapterStopCv;
+		std::optional<DebugStopReason> m_adapterStopPending;
+		bool m_inAdapterWait = false;
+		DebugStopReason WaitForAdapterStop();
+		void HandleSpontaneousAdapterStop(DebugStopReason reason);
+		bool ShouldSilentResumeAfterStop();
 
-		// When true, ResumeEventType events are suppressed in PostDebuggerEvent.
-		// Used during conditional breakpoint auto-resume to avoid posting events from the dispatcher thread.
-		bool m_suppressResumeEvent = false;
+		// Out-of-band: ask the interrupt thread to break the engine. Returns immediately
+		// (does not block the caller on the adapter call). Called from Pause/Restart/Quit/
+		// Detach before queueing the actual operation, so the worker's in-flight resume op
+		// (if any) gets interrupted and the queued task can proceed.
+		void RequestInterrupt();
 
 		bool m_inputFileLoaded = false;
 		bool m_initialBreakpointSeen = false;
@@ -135,7 +160,17 @@ namespace BinaryNinjaDebugger {
 
 		bool m_shouldAnnotateStackVariable = false;
 
-		void EventHandler(const DebuggerEvent& event);
+		// Apply the controller's own state mutations for each event type. Called inline
+		// from PostDebuggerEvent before the event is enqueued for the dispatcher, so
+		// m_state is consistent before any external consumer (or the worker waking from
+		// WaitForAdapterStop) observes the change.
+		void ApplyOwnStateForEvent(const DebuggerEvent& event);
+		// Idempotent "target is gone" cleanup (memory cache + the "debugger" BinaryView region +
+		// analysis hold). These call into BN core, which takes the file lock, so this MUST run with
+		// no adapter lock held -- see ExecuteAdapterAndWait, which invokes it after releasing the
+		// lock. Deliberately NOT done inline in ApplyOwnStateForEvent, which can run while the
+		// adapter lock is held (that is the AB-BA deadlock with the analysis read path).
+		void FinalizeTargetGoneCleanup();
 		void UpdateStackVariables();
 		void AddRegisterValuesToExpressionParser();
 		void AddModuleValuesToExpressionParser();
@@ -167,6 +202,30 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason StepReturnReverseAndWaitInternal();
 		DebugStopReason RunToAndWaitInternal(const std::vector<uint64_t> &remoteAddresses);
 		DebugStopReason RunToReverseAndWaitInternal(const std::vector<uint64_t> &remoteAddresses);
+
+		// Worker-thread bodies. Each runs on m_workerThread (via Submit) and performs the
+		// existing lock-Internal-notify wrapper. The public `XxxAndWait(timeout)` methods
+		// below submit one of these and wait on the resulting future.
+		DebugStopReason LaunchAndWaitOnWorker();
+		DebugStopReason AttachAndWaitOnWorker();
+		DebugStopReason ConnectAndWaitOnWorker();
+		DebugStopReason GoAndWaitOnWorker();
+		DebugStopReason GoReverseAndWaitOnWorker();
+		DebugStopReason StepIntoAndWaitOnWorker(BNFunctionGraphType il);
+		DebugStopReason StepIntoReverseAndWaitOnWorker(BNFunctionGraphType il);
+		DebugStopReason StepOverAndWaitOnWorker(BNFunctionGraphType il);
+		DebugStopReason StepOverReverseAndWaitOnWorker(BNFunctionGraphType il);
+		DebugStopReason StepReturnAndWaitOnWorker();
+		DebugStopReason StepReturnReverseAndWaitOnWorker();
+		DebugStopReason RunToAndWaitOnWorker(const std::vector<uint64_t>& remoteAddresses);
+		DebugStopReason RunToReverseAndWaitOnWorker(const std::vector<uint64_t>& remoteAddresses);
+		DebugStopReason RestartAndWaitOnWorker();
+		void DetachAndWaitOnWorker();
+		void QuitAndWaitOnWorker();
+		// Pause has no *OnWorker variant: it's out-of-band by design. See Pause() /
+		// PauseAndWait() -- they call RequestInterrupt (which hands the break to the
+		// interrupt thread) rather than queueing work, because the worker is blocked
+		// inside an in-flight resume op when Pause is needed.
 
 		// Whether we can start debugging, e.g., launch/attach/connec to a target
 		bool CanStartDebgging();
@@ -200,6 +259,104 @@ namespace BinaryNinjaDebugger {
 		std::atomic_bool m_shouldExit;
 		std::thread m_debuggerEventThread;
 		void DebuggerMainThread();
+
+		// Worker queue: serializes all controller operations on a single thread.
+		// Replaces the per-op `std::thread(...).detach()` pattern. Tasks submitted from any
+		// thread run in order on m_workerThread; lifetime is owned and joined in the destructor.
+		// If Submit is called from the worker thread itself, the task runs inline to avoid
+		// deadlock when an operation needs to invoke another (e.g. Restart calls Quit + Launch).
+		std::thread m_workerThread;
+		std::mutex m_workQueueMutex;
+		std::condition_variable m_workQueueCv;
+		std::queue<std::function<void()>> m_workQueue;
+		std::atomic_bool m_workerShouldExit;
+		void WorkerThreadMain();
+
+		// Interrupt thread: a single owned thread whose only job is to issue out-of-band
+		// BreakInto() calls. RequestInterrupt() (called from Pause/Restart/Quit/Detach on
+		// arbitrary caller threads) just sets m_interruptRequested and notifies, then
+		// returns -- so callers never block on a synchronous adapter call.
+		//
+		// The BreakInto must run off the worker thread (the worker is blocked inside
+		// WaitForAdapterStop on the very op being interrupted) and we don't want it on the
+		// caller's thread either (the UI thread must not block on an adapter call). This
+		// thread is the third option: owned and joined like m_workerThread, so it can never
+		// outlive the controller or touch a destroyed adapter.
+		std::thread m_interruptThread;
+		std::mutex m_interruptMutex;
+		std::condition_variable m_interruptCv;
+		bool m_interruptRequested = false;
+		bool m_interruptShouldExit = false;
+		void InterruptThreadMain();
+
+		// Submit work onto the controller's worker thread. Strictly for external callers
+		// (UI / FFI / plugins / adapter event threads). Worker code chains compound
+		// operations as direct calls to the *OnWorker / *Internal helpers -- it does NOT
+		// re-enter the queue. The assert below catches accidental misuse, which the queue
+		// model would silently mishandle (deferred execution in unexpected order, or in
+		// SubmitAndWait's case a self-deadlock).
+		template<typename F>
+		auto Submit(F&& f) -> std::future<std::invoke_result_t<F>>
+		{
+			BN_RELEASE_ASSERT(t_controllerOnWorker != this);
+			using R = std::invoke_result_t<F>;
+			auto task = std::make_shared<std::packaged_task<R()>>(std::forward<F>(f));
+			auto future = task->get_future();
+
+			{
+				std::lock_guard<std::mutex> lock(m_workQueueMutex);
+				if (m_workerShouldExit)
+					return future;  // future is left unset; caller's get() will throw broken_promise
+				m_workQueue.push([task]() { (*task)(); });
+			}
+			m_workQueueCv.notify_one();
+			return future;
+		}
+
+		// Submit a worker task and block the caller until the task completes. A timeout of
+		// milliseconds::max() means "wait forever" and bypasses wait_for entirely (avoids
+		// overflow inside the stdlib). When the timeout elapses, return a timeout result
+		// without interrupting the target; the queued worker task keeps running and will
+		// eventually publish its normal events.
+		//
+		// This is the synchronous public-API path: it must NOT be called from the worker
+		// thread itself or from debugger callbacks. Worker-side code that needs to chain
+		// operations should call the matching *OnWorker / *Internal helper directly (e.g.
+		// RestartAndWaitOnWorker calls QuitAndWaitOnWorker / LaunchAndWaitOnWorker,
+		// QuitAndWaitOnWorker uses PauseAndWaitInternal). Callback code should use async
+		// APIs such as Go() / StepInto() so it does not wait on the worker while the worker
+		// is waiting for event dispatch to complete.
+		template<typename F>
+		auto SubmitAndWait(F&& f, std::chrono::milliseconds timeout)
+			-> std::invoke_result_t<F>
+		{
+			BN_RELEASE_ASSERT(t_controllerOnWorker != this);
+			using R = std::invoke_result_t<F>;
+			if (std::this_thread::get_id() == m_dispatcherThreadId)
+			{
+				LogError("Synchronous debugger API called from debugger callback thread; use async APIs from callbacks");
+				if constexpr (std::is_void_v<R>)
+					return;
+				else if constexpr (std::is_same_v<R, DebugStopReason>)
+					return InternalError;
+				else
+					return R {};
+			}
+			auto fut = Submit(std::forward<F>(f));
+			if (timeout != std::chrono::milliseconds::max())
+			{
+				if (fut.wait_for(timeout) != std::future_status::ready)
+				{
+					if constexpr (std::is_void_v<R>)
+						return;
+					else if constexpr (std::is_same_v<R, DebugStopReason>)
+						return TimedOut;
+					else
+						return R {};
+				}
+			}
+			return fut.get();
+		}
 
 		std::unique_ptr<DebuggerUICallbacks> m_uiCallbacks;
 
@@ -351,23 +508,44 @@ namespace BinaryNinjaDebugger {
 		DebugStopReason ExecuteAdapterAndWait(const DebugAdapterOperation operation);
 
 		// Synchronous APIs
-		DebugStopReason LaunchAndWait();
-		DebugStopReason GoAndWait();
-		DebugStopReason GoReverseAndWait();
-		DebugStopReason AttachAndWait();
-		DebugStopReason RestartAndWait();
-		DebugStopReason ConnectAndWait();
-		DebugStopReason StepIntoAndWait(BNFunctionGraphType il = NormalFunctionGraph);
-		DebugStopReason StepIntoReverseAndWait(BNFunctionGraphType il = NormalFunctionGraph);
-		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph);
-		DebugStopReason StepOverReverseAndWait(BNFunctionGraphType il);
-		DebugStopReason StepReturnAndWait();
-		DebugStopReason StepReturnReverseAndWait();
-		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
-		DebugStopReason RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses);
-		DebugStopReason PauseAndWait();
-		void DetachAndWait();
-		void QuitAndWait();
+		// Synchronous APIs. They submit the operation to the worker thread and block the
+		// caller until it completes (or the optional timeout elapses, in which case the
+		// engine is signaled to break and the call returns once the in-flight op settles).
+		// Default timeout is "wait forever" so existing callers do not need to change.
+		DebugStopReason LaunchAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason GoAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason GoReverseAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason AttachAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason RestartAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason ConnectAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason StepIntoAndWait(BNFunctionGraphType il = NormalFunctionGraph,
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason StepIntoReverseAndWait(BNFunctionGraphType il = NormalFunctionGraph,
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph,
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason StepOverReverseAndWait(BNFunctionGraphType il,
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason StepReturnAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason StepReturnReverseAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses,
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses,
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		DebugStopReason PauseAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		void DetachAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
+		void QuitAndWait(
+			std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
 		// getters
 		DebugAdapter* GetAdapter() { return m_adapter; }

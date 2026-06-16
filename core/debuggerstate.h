@@ -242,6 +242,13 @@ namespace BinaryNinjaDebugger {
 
 		bool m_connectedToDebugServer = false;
 
+		// Serializes every live call into the adapter, regardless of which thread makes it
+		// (worker control ops, worker cache refresh, UI memory/register reads, UI writes).
+		// Held ONLY around an individual adapter call -- never across the run-wait -- so
+		// Pause/BreakInto can still acquire it while the target is running. Recursive to
+		// tolerate any synchronous re-entrant adapter call during a callback.
+		std::recursive_mutex m_adapterAccessMutex;
+
 		std::string GetBestAdapter(BinaryViewRef data);
 
 	public:
@@ -249,6 +256,7 @@ namespace BinaryNinjaDebugger {
 		~DebuggerState();
 
 		DebugAdapter* GetAdapter() const { return m_adapter; }
+		std::recursive_mutex& AdapterAccessMutex() { return m_adapterAccessMutex; }
 		DebuggerController* GetController() const { return m_controller; }
 
 		DebuggerModules* GetModules() const { return m_modules; }

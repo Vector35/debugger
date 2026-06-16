@@ -693,20 +693,26 @@ namespace BinaryNinjaDebuggerAPI {
 		// target control
 		bool Launch();
 		BNDebugStopReason LaunchAndWait();
+		BNDebugStopReason LaunchAndWait(uint64_t timeoutMs);
 		bool Execute();
 		void Restart();
 		void Quit();
 		void QuitAndWait();
+		void QuitAndWait(uint64_t timeoutMs);
 		bool Connect();
 		DebugStopReason ConnectAndWait();
+		DebugStopReason ConnectAndWait(uint64_t timeoutMs);
 		bool ConnectToDebugServer();
 		bool DisconnectDebugServer();
 		void Detach();
+		void DetachAndWait();
+		void DetachAndWait(uint64_t timeoutMs);
 		// Convenience function, either launch the target process or connect to a remote, depending on the selected
 		// adapter
 		void LaunchOrConnect();
 		bool Attach();
 		DebugStopReason AttachAndWait();
+		DebugStopReason AttachAndWait(uint64_t timeoutMs);
 
 		bool Go();
 		bool GoReverse();
@@ -724,19 +730,33 @@ namespace BinaryNinjaDebuggerAPI {
 		void Pause();
 
 		DebugStopReason GoAndWait();
+		DebugStopReason GoAndWait(uint64_t timeoutMs);
 		DebugStopReason GoReverseAndWait();
+		DebugStopReason GoReverseAndWait(uint64_t timeoutMs);
 		DebugStopReason StepIntoAndWait(BNFunctionGraphType il = NormalFunctionGraph);
+		DebugStopReason StepIntoAndWait(BNFunctionGraphType il, uint64_t timeoutMs);
 		DebugStopReason StepIntoReverseAndWait(BNFunctionGraphType il = NormalFunctionGraph);
+		DebugStopReason StepIntoReverseAndWait(BNFunctionGraphType il, uint64_t timeoutMs);
 		DebugStopReason StepOverAndWait(BNFunctionGraphType il = NormalFunctionGraph);
+		DebugStopReason StepOverAndWait(BNFunctionGraphType il, uint64_t timeoutMs);
 		DebugStopReason StepOverReverseAndWait(BNFunctionGraphType il);
+		DebugStopReason StepOverReverseAndWait(BNFunctionGraphType il, uint64_t timeoutMs);
 		DebugStopReason StepReturnAndWait();
+		DebugStopReason StepReturnAndWait(uint64_t timeoutMs);
 		DebugStopReason StepReturnReverseAndWait();
+		DebugStopReason StepReturnReverseAndWait(uint64_t timeoutMs);
 		DebugStopReason RunToAndWait(uint64_t remoteAddresses);
+		DebugStopReason RunToAndWait(uint64_t remoteAddresses, uint64_t timeoutMs);
 		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses);
+		DebugStopReason RunToAndWait(const std::vector<uint64_t>& remoteAddresses, uint64_t timeoutMs);
 		DebugStopReason RunToReverseAndWait(uint64_t remoteAddresses);
+		DebugStopReason RunToReverseAndWait(uint64_t remoteAddresses, uint64_t timeoutMs);
 		DebugStopReason RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses);
+		DebugStopReason RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses, uint64_t timeoutMs);
 		DebugStopReason PauseAndWait();
+		DebugStopReason PauseAndWait(uint64_t timeoutMs);
 		DebugStopReason RestartAndWait();
+		DebugStopReason RestartAndWait(uint64_t timeoutMs);
 
 		std::string GetAdapterType();
 		void SetAdapterType(const std::string& adapter);

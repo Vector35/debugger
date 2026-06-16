@@ -55,7 +55,10 @@ void DebuggerRegisters::Update()
 		return;
 
 	std::unique_lock lock(m_registersMutex);
-	m_registerCache = adapter->ReadAllRegisters();
+	{
+		std::lock_guard adapterLock(m_state->AdapterAccessMutex());
+		m_registerCache = adapter->ReadAllRegisters();
+	}
 	m_dirty = false;
 }
 
@@ -84,7 +87,11 @@ bool DebuggerRegisters::SetRegisterValue(const std::string& name, intx::uint512 
 	if (iter == cachedRegs.end())
 		return false;
 
-	bool ok = adapter->WriteRegister(name, value);
+	bool ok;
+	{
+		std::lock_guard adapterLock(m_state->AdapterAccessMutex());
+		ok = adapter->WriteRegister(name, value);
+	}
 	if (!ok)
 		return false;
 
@@ -233,12 +240,27 @@ void DebuggerThreads::Update()
 		return;
 
 	std::unique_lock lock(m_threadsMutex);
-	m_frames.clear();
 
-	std::vector<DebugThread> newThreads = adapter->GetThreadList();
+	// Read raw thread/frame data from the adapter under the adapter-access lock, then
+	// RELEASE it before symbolizing. SymbolizeFrames calls into BN core
+	// (GetAnalysisFunctionsContainingAddress), which takes BN's analysis lock -- and BN
+	// core, under that lock, calls back into the debugger's ReadMemory (which wants the
+	// adapter lock) from its file-accessor read callback. Holding the adapter lock across
+	// SymbolizeFrames inverts that order and deadlocks. Never hold the adapter lock across
+	// a call into BN core.
+	std::vector<DebugThread> newThreads;
+	std::map<uint32_t, std::vector<DebugFrame>> newFrames;
+	{
+		std::lock_guard adapterLock(m_state->AdapterAccessMutex());
+		newThreads = adapter->GetThreadList();
+		for (auto& thread : newThreads)
+			newFrames[thread.m_tid] = adapter->GetFramesOfThread(thread.m_tid);
+	}
+
+	m_frames.clear();
 	for (auto thread = newThreads.begin(); thread != newThreads.end(); thread++)
 	{
-		auto frames = adapter->GetFramesOfThread(thread->m_tid);
+		auto& frames = newFrames[thread->m_tid];
 		SymbolizeFrames(frames);
 		m_frames[thread->m_tid] = frames;
 
@@ -407,7 +429,10 @@ void DebuggerModules::Update()
 		return;
 
 	std::unique_lock lock(m_modulesMutex);
-	m_modules = adapter->GetModuleList();
+	{
+		std::lock_guard adapterLock(m_state->AdapterAccessMutex());
+		m_modules = adapter->GetModuleList();
+	}
 	m_dirty = false;
 }
 
@@ -1260,7 +1285,11 @@ DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
 	if (!m_state->IsRunning())
 	{
 		// The cache is old and the target is stopped, try to update the cache value
-		DataBuffer buffer = m_state->GetAdapter()->ReadMemory(block, 0x100);
+		DataBuffer buffer;
+		{
+			std::lock_guard adapterLock(m_state->AdapterAccessMutex());
+			buffer = m_state->GetAdapter()->ReadMemory(block, 0x100);
+		}
 		BN_RELEASE_ASSERT(buffer.GetLength() <= 0x100);
 		if (buffer.GetLength() > 0)
 		{
@@ -1343,8 +1372,11 @@ bool DebuggerMemory::WriteMemory(std::uintptr_t address, const DataBuffer& buffe
 	if (!adapter)
 		return false;
 
-	if (!adapter->WriteMemory(address, buffer))
-		return false;
+	{
+		std::lock_guard adapterLock(m_state->AdapterAccessMutex());
+		if (!adapter->WriteMemory(address, buffer))
+			return false;
+	}
 
 	//	TODO: Assume any memory change invalidates memory cache (suboptimal, may not be necessary)
 	MarkDirty();

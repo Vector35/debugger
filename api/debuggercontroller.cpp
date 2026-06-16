@@ -331,9 +331,21 @@ DebugStopReason DebuggerController::GoAndWait()
 }
 
 
+DebugStopReason DebuggerController::GoAndWait(uint64_t timeoutMs)
+{
+	return BNDebuggerGoAndWaitWithTimeout(m_object, timeoutMs);
+}
+
+
 DebugStopReason DebuggerController::GoReverseAndWait()
 {
 	return BNDebuggerGoReverseAndWait(m_object);
+}
+
+
+DebugStopReason DebuggerController::GoReverseAndWait(uint64_t timeoutMs)
+{
+	return BNDebuggerGoReverseAndWaitWithTimeout(m_object, timeoutMs);
 }
 
 
@@ -346,6 +358,12 @@ bool DebuggerController::Launch()
 DebugStopReason DebuggerController::LaunchAndWait()
 {
 	return BNDebuggerLaunchAndWait(m_object);
+}
+
+
+DebugStopReason DebuggerController::LaunchAndWait(uint64_t timeoutMs)
+{
+	return BNDebuggerLaunchAndWaitWithTimeout(m_object, timeoutMs);
 }
 
 
@@ -373,6 +391,12 @@ void DebuggerController::QuitAndWait()
 }
 
 
+void DebuggerController::QuitAndWait(uint64_t timeoutMs)
+{
+	BNDebuggerQuitAndWaitWithTimeout(m_object, timeoutMs);
+}
+
+
 bool DebuggerController::Connect()
 {
 	return BNDebuggerConnect(m_object);
@@ -382,6 +406,12 @@ bool DebuggerController::Connect()
 DebugStopReason DebuggerController::ConnectAndWait()
 {
 	return BNDebuggerConnectAndWait(m_object);
+}
+
+
+DebugStopReason DebuggerController::ConnectAndWait(uint64_t timeoutMs)
+{
+	return BNDebuggerConnectAndWaitWithTimeout(m_object, timeoutMs);
 }
 
 
@@ -400,6 +430,18 @@ bool DebuggerController::DisconnectDebugServer()
 void DebuggerController::Detach()
 {
 	BNDebuggerDetach(m_object);
+}
+
+
+void DebuggerController::DetachAndWait()
+{
+	BNDebuggerDetachAndWait(m_object);
+}
+
+
+void DebuggerController::DetachAndWait(uint64_t timeoutMs)
+{
+	BNDebuggerDetachAndWaitWithTimeout(m_object, timeoutMs);
 }
 
 
@@ -425,6 +467,12 @@ bool DebuggerController::Attach()
 DebugStopReason DebuggerController::AttachAndWait()
 {
 	return BNDebuggerAttachAndWait(m_object);
+}
+
+
+DebugStopReason DebuggerController::AttachAndWait(uint64_t timeoutMs)
+{
+	return BNDebuggerAttachAndWaitWithTimeout(m_object, timeoutMs);
 }
 
 
@@ -495,9 +543,21 @@ DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il)
 }
 
 
+DebugStopReason DebuggerController::StepIntoAndWait(BNFunctionGraphType il, uint64_t timeoutMs)
+{
+	return BNDebuggerStepIntoAndWaitWithTimeout(m_object, il, timeoutMs);
+}
+
+
 DebugStopReason DebuggerController::StepIntoReverseAndWait(BNFunctionGraphType il)
 {
 	return BNDebuggerStepIntoReverseAndWait(m_object, il);
+}
+
+
+DebugStopReason DebuggerController::StepIntoReverseAndWait(BNFunctionGraphType il, uint64_t timeoutMs)
+{
+	return BNDebuggerStepIntoReverseAndWaitWithTimeout(m_object, il, timeoutMs);
 }
 
 
@@ -507,9 +567,21 @@ DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il)
 }
 
 
+DebugStopReason DebuggerController::StepOverAndWait(BNFunctionGraphType il, uint64_t timeoutMs)
+{
+	return BNDebuggerStepOverAndWaitWithTimeout(m_object, il, timeoutMs);
+}
+
+
 DebugStopReason DebuggerController::StepOverReverseAndWait(BNFunctionGraphType il)
 {
 	return BNDebuggerStepOverReverseAndWait(m_object, il);
+}
+
+
+DebugStopReason DebuggerController::StepOverReverseAndWait(BNFunctionGraphType il, uint64_t timeoutMs)
+{
+	return BNDebuggerStepOverReverseAndWaitWithTimeout(m_object, il, timeoutMs);
 }
 
 
@@ -518,9 +590,21 @@ DebugStopReason DebuggerController::StepReturnAndWait()
 	return BNDebuggerStepReturnAndWait(m_object);
 }
 
+
+DebugStopReason DebuggerController::StepReturnAndWait(uint64_t timeoutMs)
+{
+	return BNDebuggerStepReturnAndWaitWithTimeout(m_object, timeoutMs);
+}
+
 DebugStopReason DebuggerController::StepReturnReverseAndWait()
 {
 	return BNDebuggerStepReturnReverseAndWait(m_object);
+}
+
+
+DebugStopReason DebuggerController::StepReturnReverseAndWait(uint64_t timeoutMs)
+{
+	return BNDebuggerStepReturnReverseAndWaitWithTimeout(m_object, timeoutMs);
 }
 
 
@@ -530,9 +614,21 @@ DebugStopReason DebuggerController::RunToAndWait(uint64_t remoteAddresses)
 }
 
 
+DebugStopReason DebuggerController::RunToAndWait(uint64_t remoteAddresses, uint64_t timeoutMs)
+{
+	return RunToAndWait(std::vector<uint64_t> {remoteAddresses}, timeoutMs);
+}
+
+
 DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& remoteAddresses)
 {
 	return BNDebuggerRunToAndWait(m_object, remoteAddresses.data(), remoteAddresses.size());
+}
+
+
+DebugStopReason DebuggerController::RunToAndWait(const std::vector<uint64_t>& remoteAddresses, uint64_t timeoutMs)
+{
+	return BNDebuggerRunToAndWaitWithTimeout(m_object, remoteAddresses.data(), remoteAddresses.size(), timeoutMs);
 }
 
 
@@ -542,9 +638,23 @@ DebugStopReason DebuggerController::RunToReverseAndWait(uint64_t remoteAddresses
 }
 
 
+DebugStopReason DebuggerController::RunToReverseAndWait(uint64_t remoteAddresses, uint64_t timeoutMs)
+{
+	return RunToReverseAndWait(std::vector<uint64_t> {remoteAddresses}, timeoutMs);
+}
+
+
 DebugStopReason DebuggerController::RunToReverseAndWait(const std::vector<uint64_t>& remoteAddresses)
 {
 	return BNDebuggerRunToReverseAndWait(m_object, remoteAddresses.data(), remoteAddresses.size());
+}
+
+
+DebugStopReason DebuggerController::RunToReverseAndWait(
+	const std::vector<uint64_t>& remoteAddresses, uint64_t timeoutMs)
+{
+	return BNDebuggerRunToReverseAndWaitWithTimeout(
+		m_object, remoteAddresses.data(), remoteAddresses.size(), timeoutMs);
 }
 
 
@@ -554,9 +664,21 @@ DebugStopReason DebuggerController::PauseAndWait()
 }
 
 
+DebugStopReason DebuggerController::PauseAndWait(uint64_t timeoutMs)
+{
+	return BNDebuggerPauseAndWaitWithTimeout(m_object, timeoutMs);
+}
+
+
 DebugStopReason DebuggerController::RestartAndWait()
 {
 	return BNDebuggerRestartAndWait(m_object);
+}
+
+
+DebugStopReason DebuggerController::RestartAndWait(uint64_t timeoutMs)
+{
+	return BNDebuggerRestartAndWaitWithTimeout(m_object, timeoutMs);
 }
 
 
