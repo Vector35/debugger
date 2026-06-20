@@ -13,6 +13,19 @@ from pathlib import Path
 
 from target_llvm_version import llvm_version, msvc_build, vs_version
 
+qt_version = "6.10.1"
+
+
+def normalized_platform():
+    machine = platform.machine().lower()
+    if platform.system() == "Darwin":
+        return "macosx"
+    if platform.system() == "Linux":
+        return "linux-arm" if machine in ("aarch64", "arm64") else "linux"
+    if platform.system() == "Windows":
+        return "win64"
+    return sys.platform
+
 
 def remove_dir(path: os.PathLike):
     if sys.platform == 'win32':
@@ -117,10 +130,33 @@ if not os.path.exists(bn_dev_path):
     os.makedirs(bn_dev_path)
 
 try:
-    qt_artifact_path = next(external_artifacts_path.glob('qt*.zip'))
+    qt_artifact_name = f'qt_{normalized_platform()}_{qt_version}.zip'
+    qt_artifact_candidates = [
+        external_artifacts_path / qt_artifact_name,
+        external_artifacts_path / 'artifacts' / qt_artifact_name,
+    ]
+    qt_artifact_path = next(path for path in qt_artifact_candidates if path.exists())
     extract_zip(qt_artifact_path, external_artifacts_path)
 except StopIteration:
     pass
+
+qt_root = external_artifacts_path / 'Qt' / qt_version
+qt_cmake_path = qt_root / 'lib' / 'cmake'
+qt_config_path = qt_cmake_path / 'Qt6' / 'Qt6Config.cmake'
+if qt_config_path.exists():
+    os.environ['QT_INSTALL_DIR'] = str(qt_root.parent)
+    os.environ['PATH'] = f'{qt_root / "bin"}{os.pathsep}{os.environ.get("PATH", "")}'
+else:
+    qt_install_parent = Path(os.environ.get('QT_INSTALL_DIR', Path.home() / 'Qt'))
+    qt_root = qt_install_parent / qt_version
+    qt_cmake_path = qt_root / 'lib' / 'cmake'
+    qt_config_path = qt_cmake_path / 'Qt6' / 'Qt6Config.cmake'
+    if not qt_config_path.exists():
+        print(f'Failed to find Qt {qt_version} in the new artifact layout.')
+        print(f'Expected artifact: {qt_artifact_name}')
+        print(f'Checked Qt config: {qt_config_path}')
+        sys.exit(1)
+    os.environ['PATH'] = f'{qt_root / "bin"}{os.pathsep}{os.environ.get("PATH", "")}'
 
 try:
     lldb_artifact_path = next(external_artifacts_path.glob('LLDB*.zip'))
@@ -186,6 +222,7 @@ cmake_params = []
 cmake_params.append(('CMAKE_BUILD_TYPE', 'Release'))
 cmake_params.append(('BN_API_PATH', api_path))
 cmake_params.append(('BN_INSTALL_DIR', bn_core_path))
+cmake_params.append(('CMAKE_PREFIX_PATH', qt_cmake_path))
 
 if sys.platform == 'darwin':
     if sysroot is not None:
@@ -213,12 +250,13 @@ if subprocess.call([make_cmd], cwd=build_path) != 0:
 print("\nCreating archive...")
 with zipfile.ZipFile(artifact_path / f'debugger-{sys.platform}.zip', 'w', zipfile.ZIP_DEFLATED) as z:
     for root, dirs, files in os.walk(build_output_path):
-        relpath = root.replace(str(build_output_path), "")
-        relpath = relpath.strip('\/')
+        root_path = Path(root)
+        relpath = root_path.resolve().relative_to(build_output_path.resolve())
         for file in files:
-            print(f"Adding {relpath}/{file}...")
-            file_path = os.path.join(root, file)
-            arc_name = os.path.join(relpath, file)
+            file_path = root_path / file
+            arc_path = Path(file) if relpath == Path('.') else relpath / file
+            arc_name = arc_path.as_posix()
+            print(f"Adding {arc_name}...")
             info = zipfile.ZipInfo(arc_name)
             info.compress_type = zipfile.ZIP_DEFLATED
 
@@ -227,7 +265,7 @@ with zipfile.ZipFile(artifact_path / f'debugger-{sys.platform}.zip', 'w', zipfil
             else:
                 info.external_attr = 0o644 << 16 # -rwxr--r--
 
-            with open(file_path, 'rb') as f:
+            with file_path.open('rb') as f:
                 z.writestr(info, f.read())
 
 
