@@ -2078,6 +2078,9 @@ DebuggerUI* DebuggerUI::CreateForViewFrame(ViewFrame* frame)
 		return nullptr;
 
 	UIContext* context = UIContext::contextForWidget(frame);
+	if (!context)
+		return nullptr;
+
 	BinaryViewRef data = frame->getCurrentBinaryView();
 	if (!data)
 		return nullptr;
