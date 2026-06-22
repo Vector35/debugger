@@ -1420,7 +1420,9 @@ DebugRegister LldbAdapter::ReadRegister(const std::string& name)
 		for (uint32_t j = 0; j < numRegs; j++)
 		{
 			SBValue reg = regGroupInfo.GetChildAtIndex(j);
-			if (name == reg.GetName())
+			// SBValue::GetName() can return NULL; comparing a std::string against a nullptr is undefined behavior
+			const char* regName = reg.GetName();
+			if (regName != nullptr && name == regName)
 				// TODO: register width and internal index
 				return DebugRegister(name, SBValueToUint512(reg), 0, 0);
 		}
@@ -1558,7 +1560,9 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
 		char path[1024];
 		size_t len = fileSpec.GetPath(path, 1024);
 		m.m_name = std::string(path, len);
-		m.m_short_name = fileSpec.GetFilename();
+		// SBFileSpec::GetFilename() can return NULL; constructing a std::string from a nullptr is undefined behavior
+		if (const char* shortName = fileSpec.GetFilename())
+			m.m_short_name = shortName;
 		SBAddress headerAddress = module.GetObjectFileHeaderAddress();
 		m.m_address = headerAddress.GetLoadAddress(m_target);
 		m.m_size = GetModuleHighestAddress(module, m_target) - m.m_address;
@@ -1573,7 +1577,11 @@ std::string LldbAdapter::GetTargetArchitecture()
 {
 	SBPlatform platform = m_target.GetPlatform();
 	//	"arm64-apple-macosx" ==> "arm64"
-	std::string triple(platform.GetTriple());
+	const char* tripleStr = platform.GetTriple();
+	if (tripleStr == nullptr)
+		return "";
+
+	std::string triple(tripleStr);
 	auto position = triple.find('-');
 	if (position == std::string::npos)
 		return "";
@@ -2397,5 +2405,7 @@ void LldbAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 	adapterSettings->UpdateProperty("debugServer.platform", "enum", platforms);
 
 	auto platform = m_debugger.GetSelectedPlatform();
-	adapterSettings->UpdateProperty("debugServer.platform", "default", platform.GetName());
+	// SBPlatform::GetName() can return NULL; constructing a std::string from a nullptr is undefined behavior
+	const char* platformName = platform.GetName();
+	adapterSettings->UpdateProperty("debugServer.platform", "default", platformName ? platformName : "");
 }
