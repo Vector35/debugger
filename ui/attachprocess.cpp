@@ -281,7 +281,7 @@ bool ProcessListFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIn
 
 void ProcessListWidget::contextMenuEvent(QContextMenuEvent* event)
 {
-	m_contextMenuManager->show(m_menu, &m_actionHandler);
+	m_contextMenuManager->show(&m_menu, &m_actionHandler);
 }
 
 
@@ -319,11 +319,10 @@ ProcessListWidget::ProcessListWidget(QWidget* parent, DbgRef<DebuggerController>
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
-	m_menu = new Menu();
 
 	QString actionName = QString::fromStdString("Refresh");
 	UIAction::registerAction(actionName);
-	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { updateContent(); }));
 
 	// TODO: context menu copy

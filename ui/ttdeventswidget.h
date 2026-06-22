@@ -119,7 +119,7 @@ private:
 	// UIAction support
 	UIActionHandler m_actionHandler;
 	ContextMenuManager* m_contextMenuManager;
-	Menu* m_menu;
+	Menu m_menu;
 	
 	// All events cache
 	std::vector<TTDEvent> m_allEvents;

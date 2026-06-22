@@ -147,29 +147,28 @@ void TTDBookmarkWidget::setupUIActions()
 {
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
-	m_menu = new Menu();
 
-	m_menu->addAction("Add TTD Bookmark...", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Add TTD Bookmark...", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Add TTD Bookmark...", UIAction([&]() { addBookmarkFromDialog(); }));
 
-	m_menu->addAction("Bookmark Current Position", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Bookmark Current Position", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Bookmark Current Position", UIAction([&]() { addBookmarkFromCurrentPosition(); }));
 
-	m_menu->addAction("Edit Bookmark...", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Edit Bookmark...", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Edit Bookmark...", UIAction([&]() { editSelectedBookmark(); },
 		[&]() { return m_resultsTable->selectionModel()->hasSelection(); }));
 
-	m_menu->addAction("Remove Bookmark", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Remove Bookmark", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Remove Bookmark", UIAction([&]() { removeSelectedBookmark(); },
 		[&]() { return m_resultsTable->selectionModel()->hasSelection(); }));
 
-	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return canCopy(); }));
 
-	m_menu->addAction("Copy Row", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Copy Row", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy Row", UIAction([&]() { copySelectedRow(); }, [&]() { return canCopy(); }));
 
-	m_menu->addAction("Copy Table", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Copy Table", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy Table", UIAction([&]() { copyEntireTable(); },
 		[&]() { return m_resultsTable->rowCount() > 0; }));
 }
@@ -324,13 +323,13 @@ void TTDBookmarkWidget::navigateToPendingViewAddress()
 void TTDBookmarkWidget::contextMenuEvent(QContextMenuEvent* event)
 {
 	if (m_contextMenuManager)
-		m_contextMenuManager->show(m_menu, &m_actionHandler);
+		m_contextMenuManager->show(&m_menu, &m_actionHandler);
 }
 
 void TTDBookmarkWidget::showContextMenu(const QPoint& position)
 {
 	if (m_contextMenuManager)
-		m_contextMenuManager->show(m_menu, &m_actionHandler);
+		m_contextMenuManager->show(&m_menu, &m_actionHandler);
 }
 
 void TTDBookmarkWidget::addBookmarkFromDialog()

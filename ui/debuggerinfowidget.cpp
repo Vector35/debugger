@@ -682,7 +682,7 @@ void DebugInfoSidebarWidget::notifyFontChanged()
 }
 
 
-DebuggerInfoEntryItemDelegate::DebuggerInfoEntryItemDelegate(QWidget* parent): m_render(parent)
+DebuggerInfoEntryItemDelegate::DebuggerInfoEntryItemDelegate(QWidget* parent): QStyledItemDelegate(parent), m_render(parent)
 {
 	updateFonts();
 }

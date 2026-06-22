@@ -85,7 +85,7 @@ private:
 
 	UIActionHandler m_actionHandler;
 	ContextMenuManager* m_contextMenuManager;
-	Menu* m_menu;
+	Menu m_menu;
 
 	std::vector<TTDBookmark> m_bookmarks;
 	uint64_t m_pendingViewAddress = 0;

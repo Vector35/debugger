@@ -97,7 +97,7 @@ private:
 	// UIAction support
 	UIActionHandler m_actionHandler;
 	ContextMenuManager* m_contextMenuManager;
-	Menu* m_menu;
+	Menu m_menu;
 
 	void setupUI();
 	void setupTable();

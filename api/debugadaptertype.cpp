@@ -21,7 +21,7 @@ using namespace BinaryNinjaDebuggerAPI;
 using namespace std;
 
 
-DebugAdapterType* DebugAdapterType::GetByName(const std::string& name)
+DbgRef<DebugAdapterType> DebugAdapterType::GetByName(const std::string& name)
 {
 	BNDebugAdapterType* adapter = BNGetDebugAdapterTypeByName(name.c_str());
 	if (!adapter)

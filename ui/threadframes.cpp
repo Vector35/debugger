@@ -400,7 +400,7 @@ QSize ThreadFramesItemDelegate::sizeHint(const QStyleOptionViewItem& option, con
 
 void ThreadFramesWidget::contextMenuEvent(QContextMenuEvent* event)
 {
-	m_contextMenuManager->show(m_menu, &m_actionHandler);
+	m_contextMenuManager->show(&m_menu, &m_actionHandler);
 }
 
 void ThreadFramesWidget::makeItSoloThread()
@@ -675,27 +675,26 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
-	m_menu = new Menu();
 
 	QString actionName = QString::fromStdString("Suspend Thread");
 	UIAction::registerAction(actionName);
-	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(
 		actionName, UIAction([this]() { suspendThread(); }, [this]() { return canSuspendOrResume(); }));
 
 	actionName = QString::fromStdString("Resume Thread");
 	UIAction::registerAction(actionName);
-	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(
 		actionName, UIAction([this]() { resumeThread(); }, [this]() { return canSuspendOrResume(); }));
 
 	actionName = QString::fromStdString("Make It Solo Thread");
 	UIAction::registerAction(actionName);
-	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(
 		actionName, UIAction([this]() { makeItSoloThread(); }, [this]() { return canSuspendOrResume(); }));
 
-	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return selectionNotEmpty(); }));
 	m_actionHandler.setActionDisplayName("Copy", [&]() {
 		QModelIndexList sel = selectionModel()->selectedIndexes();
@@ -727,13 +726,13 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 
 	actionName = QString::fromStdString("Copy Current Stack Trace");
 	UIAction::registerAction(actionName);
-	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		actionName, UIAction([this]() { copyCurrentFrame(); }, [this]() { return selectionNotEmpty(); }));
 
 	actionName = QString::fromStdString("Copy All Stack Traces");
 	UIAction::registerAction(actionName);
-	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { copyAllFrames(); }));
 
 	// TODO: set as active thread action?

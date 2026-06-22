@@ -29,6 +29,7 @@ limitations under the License.
 #include <QMessageBox>
 #include <QStyleOptionButton>
 #include "breakpointswidget.h"
+#include "base/assertions.h"
 #include "hardwarebreakpointdialog.h"
 #include "ui.h"
 #include "menus.h"
@@ -378,9 +379,8 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
+	BN_RELEASE_ASSERT(menu != nullptr);
 	m_menu = menu;
-	if (m_menu == nullptr)
-		m_menu = new Menu();
 
 	QString removeBreakpointActionName = QString::fromStdString("Remove Breakpoint");
 	UIAction::registerAction(removeBreakpointActionName, QKeySequence::Delete);

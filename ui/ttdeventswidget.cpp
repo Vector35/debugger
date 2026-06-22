@@ -328,29 +328,28 @@ void TTDEventsQueryWidget::setupUIActions()
 {
 	m_actionHandler.setupActionHandler(this);
 	m_contextMenuManager = new ContextMenuManager(this);
-	m_menu = new Menu();
 
 	// Add Copy action with Ctrl+C support
-	m_menu->addAction("Copy", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Copy", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy", UIAction([&]() { copy(); }, [&]() { return canCopy(); }));
 
-	m_menu->addAction("Copy Row", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Copy Row", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy Row", UIAction([&]() { copySelectedRow(); }, [&]() { return canCopy(); }));
 
-	m_menu->addAction("Copy Table", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Copy Table", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy Table", UIAction([&]() { copyEntireTable(); }, [&]() { return m_resultsTable->rowCount() > 0; }));
 
-	m_menu->addAction("Column Visibility...", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Column Visibility...", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Column Visibility...", UIAction([&]() { showColumnVisibilityDialog(); }));
 
-	m_menu->addAction("Reset Columns to Default", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Reset Columns to Default", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Reset Columns to Default", UIAction([&]() { resetColumnsToDefault(); }));
 
 	// Refresh action to clear and re-query from backend
-	m_menu->addAction("Refresh", "Options", MENU_ORDER_NORMAL);
+	m_menu.addAction("Refresh", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Refresh", UIAction([&]() { refreshEvents(); }));
 
-	m_menu->addAction("Add TTD Bookmark...", "Bookmark", MENU_ORDER_NORMAL);
+	m_menu.addAction("Add TTD Bookmark...", "Bookmark", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Add TTD Bookmark...", UIAction([&]() {
 		int row = m_resultsTable->currentRow();
 		if (row < 0)
@@ -850,7 +849,7 @@ void TTDEventsQueryWidget::contextMenuEvent(QContextMenuEvent* event)
 {
 	if (m_contextMenuManager)
 	{
-		m_contextMenuManager->show(m_menu, &m_actionHandler);
+		m_contextMenuManager->show(&m_menu, &m_actionHandler);
 	}
 }
 
@@ -858,7 +857,7 @@ void TTDEventsQueryWidget::showContextMenu(const QPoint& position)
 {
 	if (m_contextMenuManager)
 	{
-		m_contextMenuManager->show(m_menu, &m_actionHandler);
+		m_contextMenuManager->show(&m_menu, &m_actionHandler);
 	}
 }
 
