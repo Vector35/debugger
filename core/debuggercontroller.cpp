@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "debuggercontroller.h"
+#include <algorithm>
 #include <thread>
 #include <fstream>
 #include "base/assertions.h"
@@ -1912,11 +1913,10 @@ void DebuggerController::DeleteController(BinaryViewRef data)
 {
 	auto& state = GetControllerState();
 	std::lock_guard<std::mutex> lock(state.mutex);
-	for (auto& c : state.controllers)
-	{
-		if (c && c->GetFile() == data->GetFile())
-			c = nullptr;
-	}
+	state.controllers.erase(
+		std::remove_if(state.controllers.begin(), state.controllers.end(),
+			[&](const DbgRef<DebuggerController>& c) { return c && c->GetFile() == data->GetFile(); }),
+		state.controllers.end());
 }
 
 
@@ -1967,11 +1967,10 @@ void DebuggerController::DeleteController(FileMetadataRef file)
 {
 	auto& state = GetControllerState();
 	std::lock_guard<std::mutex> lock(state.mutex);
-	for (auto& c : state.controllers)
-	{
-		if (c && c->GetFile() == file)
-			c = nullptr;
-	}
+	state.controllers.erase(
+		std::remove_if(state.controllers.begin(), state.controllers.end(),
+			[&](const DbgRef<DebuggerController>& c) { return c && c->GetFile() == file; }),
+		state.controllers.end());
 }
 
 
