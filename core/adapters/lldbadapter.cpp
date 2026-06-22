@@ -1573,7 +1573,11 @@ std::string LldbAdapter::GetTargetArchitecture()
 {
 	SBPlatform platform = m_target.GetPlatform();
 	//	"arm64-apple-macosx" ==> "arm64"
-	std::string triple(platform.GetTriple());
+	const char* tripleStr = platform.GetTriple();
+	if (tripleStr == nullptr)
+		return "";
+
+	std::string triple(tripleStr);
 	auto position = triple.find('-');
 	if (position == std::string::npos)
 		return "";
