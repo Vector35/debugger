@@ -1,0 +1,276 @@
+// Pipeline for the standalone debugger dev build & test.
+//
+// This replaces the freestyle "debugger-dev" multi-configuration job. Unlike the main
+// binaryninja pipeline, the debugger repo has no llvm-build / qt-build submodules, so the
+// `copyExternalArtifactsEx` shared library (which reads those submodule dirs) does not
+// apply here. We reproduce its commit-matching with a text file instead (see below).
+//
+// Three prebuilt deps are dropped into ./artifacts-extern where scripts/build.py finds them:
+//   * Qt              (qt_<os>_*.zip,   from Qt/qt-main-pipeline)    -- commit-matched
+//   * LLDB            (lldb_<os>_*.zip, from LLVM/llvm-main-pipeline) -- commit-matched
+//   * binaryninja dev (binaryninja_<os>_*.zip)                       -- lastSuccessful (latest dev)
+//
+// Qt and LLDB are commit-matched: scripts/target_llvm_version.py pins the llvm-build /
+// qt-build recipe revisions, and findMatchingBuild() locates the upstream pipeline build
+// whose GIT_COMMIT matches (same approach the binaryninja repo gets from its llvm-build /
+// qt-build submodules, but driven by a text file since the debugger carries no submodules).
+//
+// Job names and artifact filters below are taken from the binaryninja repo: Qt/libclang
+// filters from Jenkinsfile-dev's copyExternalArtifactsEx call, the lldb_<os>_<ver>.zip name
+// from llvm-build/build.py, and the BN-dev path from a binaryninja-dev-pipeline artifact URL
+// (artifacts/<os>/binaryninja_<os>_<ver>-dev_commercial.zip).
+
+import jenkins.model.Jenkins
+
+def jobFormatted = "`<${BUILD_URL}|${JOB_NAME} #${BUILD_NUMBER}>`"
+slackResponse = null
+
+
+void updateCommitStatus() {
+    step([
+        $class: "GitHubCommitStatusSetter",
+        reposSource: [$class: "ManuallyEnteredRepositorySource", url: "https://github.com/Vector35/debugger"],
+        commitShaSource: [$class: "ManuallyEnteredShaSource", sha: "${env.GIT_COMMIT}"],
+        contextSource: [$class: "ManuallyEnteredCommitContextSource", context: "ci/build"],
+        errorHandlers: [[$class: "ShallowAnyErrorHandler"]],
+        statusResultSource: [$class: "DefaultStatusResultSource"],
+        statusBackrefSource: [$class: "BuildRefBackrefSource"]
+    ]);
+}
+
+
+void doCheckout() {
+    def maxRetries = 4
+    def retryDelays = [5, 30, 240] // Delays in seconds: 5s, 30s, 4m
+    def attempt = 0
+
+    while (attempt < maxRetries) {
+        try {
+            checkout scmGit(
+                branches: [[name: "${env.GIT_COMMIT}"]],
+                extensions: [
+                    [$class: 'MessageExclusion', excludedMessage: '(?s).*skip-ci.*'],
+                    cleanBeforeCheckout(),
+                    cloneOption(noTags: true, reference: '', shallow: false),
+                    submodule(depth: 1, parentCredentials: true, recursiveSubmodules: true, reference: '', shallow: true)
+                ],
+                userRemoteConfigs: [[
+                    credentialsId: '99e3b07a-7d66-49e6-8f18-9902340537f5',
+                    url: 'git@github.com:Vector35/debugger.git',
+                    name: 'origin',
+                    refspec: '+refs/heads/dev:refs/remotes/origin/dev'
+                ]]
+            )
+            return // Success
+        } catch (Exception e) {
+            attempt++
+            if (attempt >= maxRetries) {
+                echo "Checkout failed after ${maxRetries} attempts"
+                throw e
+            }
+            def retryDelay = retryDelays[attempt - 1]
+            echo "Checkout failed (attempt ${attempt}/${maxRetries}): ${e.message}"
+            echo "Retrying in ${retryDelay} seconds..."
+            sleep(retryDelay)
+        }
+    }
+}
+
+
+// Read a `name = "value"` assignment out of scripts/target_llvm_version.py.
+// Not @NonCPS: readFile is a pipeline step.
+String readTarget(String name) {
+    def text = readFile('scripts/target_llvm_version.py')
+    def matcher = (text =~ /(?m)^\s*${name}\s*=\s*["']([0-9a-fA-F]+)["']/)
+    return matcher ? matcher[0][1] : null
+}
+
+// Find the newest build number of a matrix upstream job whose GIT_COMMIT and os match the
+// pinned recipe revision. Mirrors the legacy scripts/jenkins_llvm_artifacts.groovy lookup.
+// Touches Jenkins internals, so it must live in a trusted library OR have these signatures
+// script-approved (Manage Jenkins > In-process Script Approval) the first time it runs.
+@NonCPS
+String findMatchingBuild(String folder, String job, String os, String commit) {
+    if (!commit) return null
+    def project = Jenkins.instance.getItem(folder)?.getItem(job)
+    if (project == null) return null
+    for (config in project.getActiveConfigurations()) {
+        for (build in config.getBuilds()) {
+            def vars = build.getEnvVars()
+            if (vars['GIT_COMMIT'] == commit && vars['os'] == os) {
+                return build.getNumber().toString()
+            }
+        }
+    }
+    return null
+}
+
+// Pull the three prebuilt dependencies into ./artifacts-extern for scripts/build.py.
+void copyExternalArtifacts(String os) {
+    // Qt -- commit-matched to qt_build_commit. New artifact layout: qt_<os>_<version>.zip
+    // published under artifacts/ in qt-main-pipeline. build.py accepts it under either
+    // artifacts-extern/ or artifacts-extern/artifacts/, so we leave the path intact.
+    def qtBuild = findMatchingBuild('Qt', 'qt-main-pipeline', os, readTarget('qt_build_commit'))
+    echo "Qt build for ${os} @ qt_build_commit -> ${qtBuild ?: 'no match, falling back to lastSuccessful'}"
+    copyArtifacts(
+        projectName: 'Qt/qt-main-pipeline',
+        selector: qtBuild ? specific(qtBuild) : lastSuccessful(),
+        filter: "artifacts/qt_${os}_*.zip",
+        fingerprintArtifacts: true,
+        target: 'artifacts-extern'
+    )
+
+    // LLDB -- commit-matched to llvm_build_commit; produced from the same LLVM build as
+    // libclang (llvm-build/build.py names it lldb_<os>_<version>.zip).
+    def llvmBuild = findMatchingBuild('LLVM', 'llvm-main-pipeline', os, readTarget('llvm_build_commit'))
+    echo "LLDB build for ${os} @ llvm_build_commit -> ${llvmBuild ?: 'no match, falling back to lastSuccessful'}"
+    copyArtifacts(
+        projectName: 'LLVM/llvm-main-pipeline',
+        selector: llvmBuild ? specific(llvmBuild) : lastSuccessful(),
+        filter: "artifacts/lldb_${os}_*.zip",
+        flatten: true,
+        fingerprintArtifacts: true,
+        target: 'artifacts-extern'
+    )
+
+    // Binary Ninja dev build -- the debugger builds against the latest dev, so this stays on
+    // lastSuccessful (not commit-matched). binja publishes one zip per edition under
+    // artifacts/<os>/, e.g. binaryninja_macosx_5.4.9891-dev_commercial.zip; the _commercial
+    // suffix selects exactly the commercial edition. build.py globs `binaryninja_*.zip` and
+    // takes the first hit, so this filter must resolve to a single zip -- it does.
+    copyArtifacts(
+        projectName: 'binaryninja-dev-pipeline',
+        selector: lastSuccessful(),
+        filter: "artifacts/${os}/binaryninja_${os}_*_commercial.zip",
+        flatten: true,
+        fingerprintArtifacts: true,
+        target: 'artifacts-extern'
+    )
+}
+
+
+void buildDebugger(String os) {
+    echo "Build debugger for ${os}"
+    if (isUnix()) {
+        sh script: "scripts/build_${os}"
+    } else {
+        bat script: "scripts\\build_${os}"
+    }
+}
+
+
+pipeline {
+    agent {
+        label 'master'
+    }
+    parameters {
+        choice(name: 'OS_FILTER', choices: ['all', 'linux', 'linux-arm', 'macosx', 'win64'], description: 'Build for specific os')
+    }
+    options {
+        copyArtifactPermission("*")
+        buildDiscarder logRotator(artifactDaysToKeepStr: '120', artifactNumToKeepStr: '150', daysToKeepStr: '', numToKeepStr: '')
+        skipStagesAfterUnstable()
+        timeout(time: 120, unit: 'MINUTES')
+    }
+    environment {
+        PYTHONUNBUFFERED = '1'
+    }
+    stages {
+        stage('') {
+            when {
+                anyOf {
+                    changelog '^((?!skip-ci).)*$'
+                    expression { currentBuild.previousCompletedBuild == null }
+                    triggeredBy cause: "UserIdCause"
+                }
+            }
+            stages {
+                stage('Start') {
+                    steps {
+                        script {
+                            slackResponse = slackSend(message: "${jobFormatted} started")
+                        }
+                        slackSend channel: slackResponse.threadId, message: "Build started"
+                        updateCommitStatus()
+                    }
+                }
+                stage('BuildMatrix') {
+                    matrix {
+                        agent {
+                            label "${os}"
+                        }
+                        when {
+                            anyOf {
+                                expression { params.OS_FILTER == 'all' }
+                                expression { params.OS_FILTER == env.os }
+                            }
+                        }
+                        axes {
+                            axis {
+                                name 'os'
+                                values 'linux', 'linux-arm', 'macosx', 'win64'
+                            }
+                        }
+                        options {
+                            skipDefaultCheckout true
+                        }
+                        stages {
+                            stage("Start") {
+                                steps {
+                                    echo "Running on ${NODE_NAME}"
+                                }
+                            }
+                            stage("Checkout") {
+                                steps {
+                                    cleanWs()
+                                    doCheckout()
+                                }
+                            }
+                            stage("Copy External Artifacts") {
+                                steps {
+                                    lock("artifact-cache-${env.NODE_NAME}") {
+                                        copyExternalArtifacts(os)
+                                    }
+                                }
+                            }
+                            stage("Build") {
+                                steps {
+                                    buildDebugger(os)
+                                }
+                            }
+                        }
+                        post {
+                            always {
+                                archiveArtifacts artifacts: 'artifacts/**/*', fingerprint: true, allowEmptyArchive: true
+                                junit testResults: 'test/results.xml', allowEmptyResults: true
+                            }
+                            failure {
+                                slackSend channel: slackResponse.threadId, color: 'danger', message: "debugger-${os} Build Failed"
+                            }
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    updateCommitStatus()
+                }
+                success {
+                    slackSend channel: slackResponse.threadId, message: "Build succeeded", color: "good"
+                    slackSend channel: slackResponse.channelId, timestamp: slackResponse.ts, message: ":white_check_mark: ${jobFormatted} succeeded", color: "good"
+                }
+                unstable {
+                    slackSend channel: slackResponse.threadId, message: "Build unstable", color: "warning"
+                    slackSend channel: slackResponse.channelId, timestamp: slackResponse.ts, message: ":binja-shake: ${jobFormatted} unstable", color: "warning"
+                }
+                failure {
+                    slackSend channel: slackResponse.threadId, message: "Build failed", color: "danger"
+                    slackSend channel: slackResponse.channelId, timestamp: slackResponse.ts, message: ":x: ${jobFormatted} failed", color: "danger"
+                }
+                aborted {
+                    slackSend channel: slackResponse.threadId, message: "Build aborted"
+                }
+            }
+        }
+    }
+}

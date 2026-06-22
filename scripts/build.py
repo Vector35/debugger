@@ -159,7 +159,11 @@ else:
     os.environ['PATH'] = f'{qt_root / "bin"}{os.pathsep}{os.environ.get("PATH", "")}'
 
 try:
-    lldb_artifact_path = next(external_artifacts_path.glob('LLDB*.zip'))
+    # The LLVM build publishes lldb_<platform>_<version>.zip (lowercase); glob
+    # case-insensitively so this also matches on case-sensitive filesystems (Linux).
+    lldb_artifact_path = next(
+        p for p in external_artifacts_path.glob('*.zip') if p.name.lower().startswith('lldb')
+    )
     extract_zip(lldb_artifact_path, external_artifacts_path)
 except StopIteration:
     pass
