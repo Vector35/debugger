@@ -159,11 +159,14 @@ else:
     os.environ['PATH'] = f'{qt_root / "bin"}{os.pathsep}{os.environ.get("PATH", "")}'
 
 try:
-    # The LLVM build publishes lldb_<platform>_<version>.zip (lowercase); glob
-    # case-insensitively so this also matches on case-sensitive filesystems (Linux).
-    lldb_artifact_path = next(
-        p for p in external_artifacts_path.glob('*.zip') if p.name.lower().startswith('lldb')
-    )
+    # The LLVM build publishes lldb_<platform>_<version>.zip (lowercase). copyExternalArtifactsEx
+    # preserves the upstream artifacts/ prefix, so check both locations like Qt above.
+    lldb_artifact_name = f'lldb_{normalized_platform()}_{llvm_version}.zip'
+    lldb_artifact_candidates = [
+        external_artifacts_path / lldb_artifact_name,
+        external_artifacts_path / 'artifacts' / lldb_artifact_name,
+    ]
+    lldb_artifact_path = next(path for path in lldb_artifact_candidates if path.exists())
     extract_zip(lldb_artifact_path, external_artifacts_path)
 except StopIteration:
     pass

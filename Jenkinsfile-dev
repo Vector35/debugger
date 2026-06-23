@@ -1,26 +1,21 @@
 // Pipeline for the standalone debugger dev build & test.
 //
-// This replaces the freestyle "debugger-dev" multi-configuration job. Unlike the main
-// binaryninja pipeline, the debugger repo has no llvm-build / qt-build submodules, so the
-// `copyExternalArtifactsEx` shared library (which reads those submodule dirs) does not
-// apply here. We reproduce its commit-matching with a text file instead (see below).
+// This replaces the freestyle "debugger-dev" multi-configuration job.
 //
 // Three prebuilt deps are dropped into ./artifacts-extern where scripts/build.py finds them:
-//   * Qt              (qt_<os>_*.zip,   from Qt/qt-main-pipeline)    -- commit-matched
+//   * Qt              (qt_<os>_*.zip,   from Qt/qt-main-pipeline)     -- commit-matched
 //   * LLDB            (lldb_<os>_*.zip, from LLVM/llvm-main-pipeline) -- commit-matched
 //   * binaryninja dev (binaryninja_<os>_*.zip)                       -- lastSuccessful (latest dev)
 //
-// Qt and LLDB are commit-matched: scripts/target_llvm_version.py pins the llvm-build /
-// qt-build recipe revisions, and findMatchingBuild() locates the upstream pipeline build
-// whose GIT_COMMIT matches (same approach the binaryninja repo gets from its llvm-build /
-// qt-build submodules, but driven by a text file since the debugger carries no submodules).
+// Qt and LLDB are commit-matched by reusing the copyExternalArtifactsEx shared library, the
+// same one the binaryninja pipeline uses. binja feeds it commits from its llvm-build /
+// qt-build submodules; the debugger has no such submodules, so it passes the commits
+// explicitly (the qtCommit / llvmCommit params) read from scripts/target_llvm_version.py.
 //
-// Job names and artifact filters below are taken from the binaryninja repo: Qt/libclang
-// filters from Jenkinsfile-dev's copyExternalArtifactsEx call, the lldb_<os>_<ver>.zip name
-// from llvm-build/build.py, and the BN-dev path from a binaryninja-dev-pipeline artifact URL
+// Artifact filters come from the binaryninja repo: Qt/libclang filters from binja's
+// Jenkinsfile-dev copyExternalArtifactsEx call, the lldb_<os>_<ver>.zip name from
+// llvm-build/build.py, and the BN-dev path from a binaryninja-dev-pipeline artifact URL
 // (artifacts/<os>/binaryninja_<os>_<ver>-dev_commercial.zip).
-
-import jenkins.model.Jenkins
 
 def jobFormatted = "`<${BUILD_URL}|${JOB_NAME} #${BUILD_NUMBER}>`"
 slackResponse = null
@@ -78,59 +73,26 @@ void doCheckout() {
 
 
 // Read a `name = "value"` assignment out of scripts/target_llvm_version.py.
-// Not @NonCPS: readFile is a pipeline step.
 String readTarget(String name) {
     def text = readFile('scripts/target_llvm_version.py')
     def matcher = (text =~ /(?m)^\s*${name}\s*=\s*["']([0-9a-fA-F]+)["']/)
     return matcher ? matcher[0][1] : null
 }
 
-// Find the newest build number of a matrix upstream job whose GIT_COMMIT and os match the
-// pinned recipe revision. Mirrors the legacy scripts/jenkins_llvm_artifacts.groovy lookup.
-// Touches Jenkins internals, so it must live in a trusted library OR have these signatures
-// script-approved (Manage Jenkins > In-process Script Approval) the first time it runs.
-@NonCPS
-String findMatchingBuild(String folder, String job, String os, String commit) {
-    if (!commit) return null
-    def project = Jenkins.instance.getItem(folder)?.getItem(job)
-    if (project == null) return null
-    for (config in project.getActiveConfigurations()) {
-        for (build in config.getBuilds()) {
-            def vars = build.getEnvVars()
-            if (vars['GIT_COMMIT'] == commit && vars['os'] == os) {
-                return build.getNumber().toString()
-            }
-        }
-    }
-    return null
-}
-
 // Pull the three prebuilt dependencies into ./artifacts-extern for scripts/build.py.
 void copyExternalArtifacts(String os) {
-    // Qt -- commit-matched to qt_build_commit. New artifact layout: qt_<os>_<version>.zip
-    // published under artifacts/ in qt-main-pipeline. build.py accepts it under either
-    // artifacts-extern/ or artifacts-extern/artifacts/, so we leave the path intact.
-    def qtBuild = findMatchingBuild('Qt', 'qt-main-pipeline', os, readTarget('qt_build_commit'))
-    echo "Qt build for ${os} @ qt_build_commit -> ${qtBuild ?: 'no match, falling back to lastSuccessful'}"
-    copyArtifacts(
-        projectName: 'Qt/qt-main-pipeline',
-        selector: qtBuild ? specific(qtBuild) : lastSuccessful(),
-        filter: "artifacts/qt_${os}_*.zip",
-        fingerprintArtifacts: true,
-        target: 'artifacts-extern'
-    )
-
-    // LLDB -- commit-matched to llvm_build_commit; produced from the same LLVM build as
-    // libclang (llvm-build/build.py names it lldb_<os>_<version>.zip).
-    def llvmBuild = findMatchingBuild('LLVM', 'llvm-main-pipeline', os, readTarget('llvm_build_commit'))
-    echo "LLDB build for ${os} @ llvm_build_commit -> ${llvmBuild ?: 'no match, falling back to lastSuccessful'}"
-    copyArtifacts(
-        projectName: 'LLVM/llvm-main-pipeline',
-        selector: llvmBuild ? specific(llvmBuild) : lastSuccessful(),
-        filter: "artifacts/lldb_${os}_*.zip",
-        flatten: true,
-        fingerprintArtifacts: true,
-        target: 'artifacts-extern'
+    // Qt + LLDB -- commit-matched via the shared library. The debugger has no llvm-build /
+    // qt-build submodules, so we pass the pinned commits explicitly (read from the text file)
+    // rather than letting copyExternalArtifactsEx derive them from submodule gitlinks.
+    // The library copies into artifacts-extern/<relativePath> (e.g. artifacts-extern/artifacts/
+    // qt_<os>_*.zip); build.py looks in both artifacts-extern/ and artifacts-extern/artifacts/.
+    copyExternalArtifactsEx(
+        qtJobName: "Qt/qt-main-pipeline",
+        qtArtifactFilter: "artifacts/qt_${os}_*.zip",
+        qtCommit: readTarget('qt_build_commit'),
+        llvmJobName: "LLVM/llvm-main-pipeline",
+        llvmArtifactFilter: "artifacts/lldb_${os}_*.zip",
+        llvmCommit: readTarget('llvm_build_commit'),
     )
 
     // Binary Ninja dev build -- the debugger builds against the latest dev, so this stays on
