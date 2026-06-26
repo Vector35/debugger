@@ -435,7 +435,13 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	scope = SettingsResourceScope;
 	auto initialLLDBCommand = adapterSettings->Get<vector<string>>("common.initialLLDBCommand", data, &scope);
 
-	CreateTarget(inputFile);
+	// The target must be created with the executable that will actually be launched, which may differ from the
+	// analyzed input file. For example, when analyzing a shared library but setting the executable path to the main
+	// executable that loads it, using the input file here would make LLDB try to launch the shared library directly.
+	// Since a shared library cannot be exec'd, dyld falls back to launching /bin/sh.
+	// See https://github.com/Vector35/debugger/issues/1104
+	auto targetFile = executablePath.empty() ? inputFile : executablePath;
+	CreateTarget(targetFile);
 
 	if (!m_target.IsValid())
 	{
