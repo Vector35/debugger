@@ -41,6 +41,20 @@ if (NOT DEMO)
 	add_subdirectory(cli)
 endif()
 
+# Build the debugger unit-test binaries alongside the debugger (on by default, for both local and CI
+# builds), so adding a new test no longer requires a separate build. The binaries are staged into
+# test/binaries/<OS>-<arch>; on macOS the debuggercore POST_BUILD step signs that directory into the
+# -signed directory the tests load from, so make debuggercore depend on the staged binaries. On a
+# universal macOS build the test binaries are still emitted thin, one per architecture. Binaries
+# needing extra tooling (e.g. the nasm assembly samples) remain pre-built by the debugger-test-binaries CI.
+option(BUILD_DEBUGGER_TEST_BINARIES "Build the debugger unit-test binaries alongside the debugger" ON)
+if (BUILD_DEBUGGER_TEST_BINARIES)
+	add_subdirectory(test)
+	if (APPLE AND TARGET debuggercore)
+		add_dependencies(debuggercore debugger_test_binaries)
+	endif()
+endif()
+
 # WinDbg installer CLI (standalone, spawned by debuggercore API)
 if(WIN32)
 	add_subdirectory(installer)

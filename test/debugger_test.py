@@ -10,7 +10,7 @@ import threading
 import subprocess
 import unittest
 
-from binaryninja import load
+from binaryninja import load, Settings
 try:
     from debugger import DebuggerController, DebugStopReason, DebugBreakpointType
 except:
@@ -35,6 +35,16 @@ def name_to_fpath(testbin, arch=None, os_str=None):
     base_path = os.path.dirname(os.path.realpath(__file__))
     path = os.path.realpath(os.path.join(base_path, 'binaries', f'{os_str}-{arch}{signed}', testbin))
     return path
+
+
+def shared_lib_filename():
+    os_str = platform.system()
+    if os_str == 'Darwin':
+        return 'shared_lib.dylib'
+    elif os_str == 'Windows':
+        return 'shared_lib.dll'
+    else:
+        return 'shared_lib.so'
 
 
 def is_wow64(fpath):
@@ -90,6 +100,43 @@ class DebuggerAPI(unittest.TestCase):
         n = 10
         for i in range(n):
             run_once()
+
+    def test_debug_shared_library(self):
+        # Analyze a shared library, but point the executable path at the program that loads it.
+        # The debugger must launch the loader, not try to exec the library directly (which on macOS
+        # made dyld fall back to launching /bin/sh, failing under SIP).
+        # See https://github.com/Vector35/debugger/issues/540 and
+        # https://github.com/Vector35/debugger/issues/1104
+        lib_path = name_to_fpath(shared_lib_filename(), self.arch)
+        exec_path = name_to_fpath('load_shared_lib', self.arch)
+        if not (os.path.exists(lib_path) and os.path.exists(exec_path)):
+            self.skipTest('shared library test binaries not built (configure with -DBUILD_DEBUGGER_TEST_BINARIES=ON)')
+        bv = load(lib_path)
+        dbg = self.create_debugger(bv)
+        dbg.executable_path = exec_path
+
+        # The program entry-point breakpoint comes from the analyzed library, which the loader never
+        # hits, so stop at the system entry point instead to inspect the launched process.
+        settings = Settings()
+        previous = settings.get_bool('debugger.stopAtSystemEntryPoint')
+        settings.set_bool('debugger.stopAtSystemEntryPoint', True)
+        try:
+            # The bug either failed to launch (InternalError, SIP enabled) or launched /bin/sh.
+            self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+            module_names = [(m.name or '') for m in dbg.modules]
+            # The loader executable must be the launched program, not the library or /bin/sh.
+            self.assertTrue(any(os.path.realpath(exec_path) == os.path.realpath(name) for name in module_names),
+                            f"loader executable not among launched modules: {module_names}")
+            self.assertFalse(any('/bin/sh' in name for name in module_names),
+                             f"debugger incorrectly launched /bin/sh: {module_names}")
+            # Running to completion exercises loading the dependent library and calling into it; the
+            # loader returns 0 only if the shared library was actually loaded and invoked.
+            self.assertEqual(sleep_and_go(dbg), DebugStopReason.ProcessExited)
+            self.assertEqual(dbg.exit_code, 0)
+        finally:
+            settings.set_bool('debugger.stopAtSystemEntryPoint', previous)
+            if dbg.connected:
+                dbg.quit_and_wait()
 
     def test_return_code(self):
         # return code tests

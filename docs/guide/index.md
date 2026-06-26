@@ -165,14 +165,21 @@ Within this dialog, you can select which the debug adapter to use, as well as co
 
 The `Executable Path` specifies the path of the executable to run, and `Input File` specifies the input file used to create the database. 
 These two should be the same if you wish to debug the code in an executable. 
-However, if you wish to debug a shared library or DLL, they should be different -- the `Input File` will be the library or DLL you opened in Binary Ninja, while `Executable Path` will be the executable that loads the library or DLL.  
 
-For example, if you wish to debug a `sample.dll` on Windows, then you should open the `sample.dll` in Binary Ninja, and configure the adapter as follows: 
+##### Debugging a shared library, DLL, or dylib
+
+If you wish to debug a shared library (`.so`), DLL (`.dll`), or dynamic library (`.dylib`), the `Executable Path` and `Input File` should be different. A shared library cannot be executed directly -- it must be loaded by a host executable. So you open the library in Binary Ninja (it becomes the `Input File`), and set the `Executable Path` to the executable that loads it. The debugger launches that executable, and once the library is loaded into the process, you can set breakpoints in it and debug it as usual.
+
+Do not set the `Executable Path` to the library itself. A shared library cannot be launched as a program, so doing so fails to start the target (on macOS this previously resulted in `/bin/sh` being launched instead).
+
+For example, to debug a `sample.dll` on Windows, open `sample.dll` in Binary Ninja and configure the adapter as follows: 
 
 ```
 Input File: path of sample.dll
 Executable Path: C:\Windows\System32\rundll32.exe (or the .exe that loads the DLL)
 ```
+
+On Linux and macOS the idea is the same: open the `.so` or `.dylib` in Binary Ninja, and set the `Executable Path` to the program that loads it -- the application that links against it, or a program that `dlopen`s it.
 
 Every adapter provides a different list of settings. For more details, please refer to the `Settings` section.
 
