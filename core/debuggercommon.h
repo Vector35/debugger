@@ -15,11 +15,12 @@ limitations under the License.
 */
 
 #pragma once
+#include <cstdint>
+#include <filesystem>
 #include <string.h>
 #include <optional>
-#ifndef WIN32
-	#include "libgen.h"
-#endif
+#include <string>
+#include <vector>
 
 namespace BinaryNinjaDebugger {
 	struct ModuleNameAndOffset
@@ -63,7 +64,8 @@ namespace BinaryNinjaDebugger {
 			_splitpath_s(path.c_str(), NULL, 0, NULL, 0, baseName, MAX_PATH, ext, MAX_PATH);
 			return std::string(baseName) + std::string(ext);
 #else
-			return basename(strdup(path.c_str()));
+			std::filesystem::path fs_path(path);
+			return fs_path.stem();
 #endif
 		}
 
