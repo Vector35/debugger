@@ -168,6 +168,15 @@ try:
     ]
     lldb_artifact_path = next(path for path in lldb_artifact_candidates if path.exists())
     extract_zip(lldb_artifact_path, external_artifacts_path)
+
+    # The lldb archive uses a `libclang/<version>/` prefix (see llvm-build/build.py's
+    # llvm_archive_root), so it extracts to artifacts-extern/libclang/<version>/. Point CMake
+    # at it via LLDB_PATH (core/CMakeLists.txt checks $ENV{LLDB_PATH} first); otherwise CMake
+    # falls back to ~/libclang, which no longer ships the lldb libraries now that libclang and
+    # lldb are published as separate artifacts.
+    lldb_root = external_artifacts_path / 'libclang' / llvm_version
+    if lldb_root.exists():
+        os.environ['LLDB_PATH'] = str(lldb_root)
 except StopIteration:
     pass
 
