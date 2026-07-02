@@ -96,6 +96,18 @@ set_target_properties(debuggercore PROPERTIES
 
 target_compile_definitions(debuggercore PRIVATE DEBUGGER_LIBRARY)
 
+# LLVM_VERSION drives the versioned lldb library names below (e.g. liblldb.so.${LLVM_VERSION}),
+# so it must be defined on every path -- including when LLDB_PATH is supplied directly via the
+# environment (as the CI build does after extracting the lldb artifact). Keep it out of the
+# LLDB_PATH-resolution branches.
+set(LLVM_VERSION 19.1.7 CACHE STRING "Version of LLVM to use")
+if(ASAN)
+	# Require asan clang to prevent spurious use-after-poison reports
+	set(LLVM_VERSION_DIR "${LLVM_VERSION}-asan")
+else()
+	set(LLVM_VERSION_DIR "${LLVM_VERSION}")
+endif()
+
 if(DEFINED ENV{LLDB_PATH})
 	set(LLDB_PATH $ENV{LLDB_PATH})
 endif()
@@ -104,13 +116,6 @@ if(NOT LLDB_PATH)
 	if(DEFINED LLVM_PATH)
 		set(LLDB_PATH ${LLVM_PATH})
 	else()
-		set(LLVM_VERSION 19.1.7 CACHE STRING "Version of LLVM to use")
-		if(ASAN)
-			# Require asan clang to prevent spurious use-after-poison reports
-			set(LLVM_VERSION_DIR "${LLVM_VERSION}-asan")
-		else()
-			set(LLVM_VERSION_DIR "${LLVM_VERSION}")
-		endif()
 		if(DEFINED ENV{LLVM_INSTALL_DIR})
 			set(LLDB_PATH $ENV{LLVM_INSTALL_DIR}/${LLVM_VERSION_DIR})
 		elseif(WIN32)
