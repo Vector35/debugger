@@ -507,32 +507,10 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller || !controller->IsConnected())
 					return;
 
-				uint64_t detectedBase = 0;
-				controller->GetRemoteBase(detectedBase);
-				const QString defaultValue = detectedBase ? QString("0x%1").arg(detectedBase, 0, 16) : QString();
-
-				bool ok;
-				const QString input = QInputDialog::getText(
-					nullptr,
-					"Rebase to Remote Base",
-					"Enter the new base address:",
-					QLineEdit::Normal,
-					defaultValue,
-					&ok);
-
-				if (!ok || input.isEmpty())
-					return;
-
-				// TODO: Switch to ViewFrame::getAddressFromInput once
-				// https://github.com/Vector35/binaryninja-api/issues/7915 is fixed
 				uint64_t address = 0;
-				std::string errorString;
-				if (!BinaryView::ParseExpression(
-						controller->GetData(), input.trimmed().toStdString(), address, 0, errorString))
-				{
-					LogWarn("Invalid address expression: %s", errorString.c_str());
+				if (!ViewFrame::getAddressFromInput(nullptr, controller->GetData(), address, 0,
+						{ .title = "Rebase to Remote Base", .message = "Enter the new base address:" }))
 					return;
-				}
 
 				if (!controller->RebaseToAddress(address))
 					LogWarn("Failed to rebase to address 0x%" PRIx64, address);

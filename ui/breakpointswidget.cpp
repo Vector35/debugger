@@ -629,8 +629,8 @@ void DebugBreakpointsWidget::addSoftwareBreakpoint()
 		return;
 
 	uint64_t address = 0;
-	if (!ViewFrame::getAddressFromInput(frame, view, address,
-			frame->getCurrentOffset(), "Add Breakpoint", "The address of the breakpoint:", true))
+	if (!ViewFrame::getAddressFromInput(frame, view, address, frame->getCurrentOffset(),
+			{ .title = "Add Breakpoint", .message = "The address of the breakpoint:", .defaultToCurrent = true }))
 		return;
 
 	bool isAbsoluteAddress = false;
