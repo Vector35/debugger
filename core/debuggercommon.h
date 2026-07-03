@@ -65,7 +65,7 @@ namespace BinaryNinjaDebugger {
 			return std::string(baseName) + std::string(ext);
 #else
 			std::filesystem::path fs_path(path);
-			return fs_path.stem();
+			return fs_path.filename().string();
 #endif
 		}
 
