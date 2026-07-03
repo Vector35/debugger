@@ -16,12 +16,10 @@ limitations under the License.
 
 #include <binaryninjacore.h>
 #include <binaryninjaapi.h>
+#include <filesystem>
 #include <lowlevelilinstruction.h>
 #include <mediumlevelilinstruction.h>
 #include <highlevelilinstruction.h>
-#ifndef WIN32
-	#include "libgen.h"
-#endif
 #include "debugadapter.h"
 #include "debuggercontroller.h"
 
@@ -80,7 +78,8 @@ std::string DebugModule::GetPathBaseName(const std::string& path)
 	_splitpath_s(path.c_str(), NULL, 0, NULL, 0, baseName, MAX_PATH, ext, MAX_PATH);
 	return std::string(baseName) + std::string(ext);
 #else
-	return basename(strdup(path.c_str()));
+	std::filesystem::path fs_path(path);
+	return fs_path.filename().string();
 #endif
 }
 
