@@ -264,7 +264,7 @@ if subprocess.call([make_cmd], cwd=build_path) != 0:
 
 
 print("\nCreating archive...")
-with zipfile.ZipFile(artifact_path / f'debugger-{sys.platform}.zip', 'w', zipfile.ZIP_DEFLATED) as z:
+with zipfile.ZipFile(artifact_path / f'debugger-{normalized_platform()}.zip', 'w', zipfile.ZIP_DEFLATED) as z:
     for root, dirs, files in os.walk(build_output_path):
         root_path = Path(root)
         relpath = root_path.resolve().relative_to(build_output_path.resolve())
