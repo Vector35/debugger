@@ -1,340 +1,98 @@
 cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 
-# This project builds the test binaries for the debugger unit test. It does not run the test.
+# Builds debugger unit-test binaries alongside the debugger so that adding a new test does not
+# require a separate build. Enabled by default from the top-level build (BUILD_DEBUGGER_TEST_BINARIES)
+# and thus built by both local and CI debugger builds. It only builds binaries the host toolchain can
+# produce; binaries needing extra tooling (e.g. the nasm assembly samples) remain pre-built by CI.
+#
+# The binaries are staged into this source tree under binaries/<OS>-<arch>, alongside the committed
+# test binaries. On macOS the debuggercore POST_BUILD step (see ../core/CMakeLists.txt) codesigns
+# that directory into binaries/<OS>-<arch>-signed, which is where the tests load from; the top-level
+# build makes debuggercore depend on these targets so they are staged before that signing runs. These
+# staged binaries are not committed (see ../.gitignore).
 project(debugger-test-binaries C CXX)
 
-if (ARCH STREQUAL "x86_64")
-	add_definitions(-DARCH_IS_X64)
-elseif(ARCH STREQUAL "x86")
-	add_definitions(-DARCH_IS_X86)
-elseif(ARCH STREQUAL "arm64")
-	add_definitions(-DARCH_IS_AARCH64)
-elseif(ARCH STREQUAL "armv7")
-	add_definitions(-DARCH_IS_ARMV7)
+# An ARCH may be passed explicitly (e.g. -DARCH=arm64); otherwise default to the host architecture.
+if (NOT ARCH)
+	if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
+		set(ARCH arm64)
+	elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
+		set(ARCH x86_64)
+	elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "i386|i686|x86")
+		set(ARCH x86)
+	else()
+		message(FATAL_ERROR "Could not determine ARCH from CMAKE_SYSTEM_PROCESSOR='${CMAKE_SYSTEM_PROCESSOR}'; pass -DARCH=...")
+	endif()
+	message(STATUS "ARCH not specified, defaulting to host architecture: ${ARCH}")
 endif()
 
-if (APPLE)
-	set(CMAKE_OSX_ARCHITECTURES ${ARCH})
-elseif (UNIX)
-	if (ARCH STREQUAL "x86")
-		set(CMAKE_C_FLAGS -m32)
-		set(CMAKE_CXX_FLAGS -m32)
-	endif()
+# Which architectures to build. On macOS, honor a universal parent build (CMAKE_OSX_ARCHITECTURES,
+# e.g. "arm64;x86_64" in CI) by producing a separate thin binary per architecture instead of one
+# universal binary; otherwise build the single ARCH.
+if (APPLE AND CMAKE_OSX_ARCHITECTURES)
+	set(TEST_BINARY_ARCHES ${CMAKE_OSX_ARCHITECTURES})
 else()
-#	TODO: Windows
+	set(TEST_BINARY_ARCHES ${ARCH})
 endif()
 
-add_executable(helloworld src/helloworld.c)
-set_target_properties(helloworld PROPERTIES
-		POSITION_INDEPENDENT_CODE OFF
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
+set(TEST_BINARY_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/binaries)
 
-add_executable(exitcode src/exitcode.c)
-set_target_properties(exitcode PROPERTIES
-		POSITION_INDEPENDENT_CODE OFF
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
+# Aggregate target the top-level build can depend on to ensure these are staged before signing.
+add_custom_target(debugger_test_binaries)
 
-add_executable(helloworld_thread src/helloworld_thread.c)
-set_target_properties(helloworld_thread PROPERTIES
-		POSITION_INDEPENDENT_CODE OFF
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-if(UNIX AND NOT APPLE)
-	target_link_libraries(helloworld_thread pthread)
-endif()
+# A shared library and an executable that loads it, built thin for a single architecture. The
+# debugger tests analyze the shared library but set the executable path to the loader, exercising the
+# fix for https://github.com/Vector35/debugger/issues/1104 (see issue #540 for the broader scenario).
+# The library is emitted without the "lib" prefix so the tests can refer to it as shared_lib.{dylib,so,dll}.
+function(add_test_binaries arch)
+	set(archdir ${CMAKE_CURRENT_BINARY_DIR}/${arch})
+	set(dest ${TEST_BINARY_ROOT}/${CMAKE_SYSTEM_NAME}-${arch})
 
-add_executable(helloworld_loop src/helloworld_loop.c)
-set_target_properties(helloworld_loop PROPERTIES
-		POSITION_INDEPENDENT_CODE OFF
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-
-add_executable(helloworld_func src/helloworld_func.c)
-set_target_properties(helloworld_func PROPERTIES
-		POSITION_INDEPENDENT_CODE OFF
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-
-add_executable(helloworld_recursion src/helloworld_recursion.c)
-set_target_properties(helloworld_recursion PROPERTIES
-		POSITION_INDEPENDENT_CODE OFF
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-
-add_executable(helloworld_pie src/helloworld.c)
-set_target_properties(helloworld_pie PROPERTIES
-		POSITION_INDEPENDENT_CODE ON
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-
-add_executable(helloworld_thread_pie src/helloworld_thread.c)
-set_target_properties(helloworld_thread_pie PROPERTIES
-		POSITION_INDEPENDENT_CODE ON
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-if(UNIX AND NOT APPLE)
-	target_link_libraries(helloworld_thread_pie pthread)
-endif()
-
-add_executable(helloworld_loop_pie src/helloworld_loop.c)
-set_target_properties(helloworld_loop_pie PROPERTIES
-		POSITION_INDEPENDENT_CODE ON
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-
-add_executable(helloworld_func_pie src/helloworld_func.c)
-set_target_properties(helloworld_func_pie PROPERTIES
-		POSITION_INDEPENDENT_CODE ON
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-
-add_executable(helloworld_recursion_pie src/helloworld_recursion.c)
-set_target_properties(helloworld_recursion_pie PROPERTIES
-		POSITION_INDEPENDENT_CODE ON
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-
-if(APPLE)
-	add_executable(helloworld_objc src/helloworld_objc.m)
-	set_target_properties(helloworld_objc PROPERTIES
-			POSITION_INDEPENDENT_CODE OFF
-			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-			)
-	target_link_libraries(helloworld_objc
-			"-framework AppKit"
-			"-framework Carbon"
-			"-framework Foundation")
-endif()
-
-add_executable(helloworld_virtual src/helloworld_virtual.cpp)
-set_target_properties(helloworld_virtual PROPERTIES
-		POSITION_INDEPENDENT_CODE OFF
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-
-add_executable(many_stdlib_calls src/many_stdlib_calls.c)
-set_target_properties(many_stdlib_calls PROPERTIES
-		POSITION_INDEPENDENT_CODE OFF
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-
-add_executable(read_input src/read_input.c)
-set_target_properties(read_input PROPERTIES
-		POSITION_INDEPENDENT_CODE ON
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-
-if (ARCH STREQUAL "x86_64" OR ARCH STREQUAL "x86")
-	# ASM files
-	enable_language(ASM_NASM)
-	# This flag is used to generate different assembly instruction on different OS
-	if(APPLE)
-		set(CMAKE_ASM_NASM_FLAGS "-DOS_IS_MACOS")
-	elseif(WIN32)
-		set(CMAKE_ASM_NASM_FLAGS "-DOS_IS_WINDOWS")
-	else()
-		set(CMAKE_ASM_NASM_FLAGS "-DOS_IS_LINUX")
-	endif(APPLE)
-
-	if (APPLE)
-		set(CMAKE_NASM_LINK_EXECUTABLE "ld <LINK_FLAGS> -macosx_version_min 10.7.0 -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
-	elseif (WIN32)
-		set(CMAKE_NASM_LINK_EXECUTABLE "link <OBJECTS> <LINK_FLAGS> /ENTRY:WinMain /SUBSYSTEM:CONSOLE /LARGEADDRESSAWARE:NO /DYNAMICBASE:NO /OUT:<TARGET> <LINK_LIBRARIES>")
-	else()
-		set(CMAKE_NASM_LINK_EXECUTABLE "ld <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
-	endif()
-endif()
-
-if (ARCH STREQUAL "x86_64")
-	add_executable(asmtest src/asmtest_x64.asm)
-	if (APPLE)
-		target_link_libraries(asmtest System)
-	elseif (WIN32)
-		target_link_libraries(asmtest kernel32)
-	endif (APPLE)
-	set_target_properties(asmtest PROPERTIES
-			POSITION_INDEPENDENT_CODE OFF
-			LINKER_LANGUAGE NASM
-			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-			)
-
-	add_executable(hello src/hello_x64.asm)
-	if (APPLE)
-		target_link_libraries(hello System)
-	elseif (WIN32)
-		target_link_libraries(hello kernel32)
-	endif (APPLE)
-	set_target_properties(hello PROPERTIES
-			POSITION_INDEPENDENT_CODE OFF
-			LINKER_LANGUAGE NASM
-			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-			)
-
-	if (NOT WIN32)
-		add_executable(analysis_propagation src/analysis_propagation_x64.asm)
-		if (APPLE)
-			target_link_libraries(analysis_propagation System)
-		elseif (WIN32)
-			target_link_libraries(analysis_propagation kernel32)
-		endif (APPLE)
-		set_target_properties(analysis_propagation PROPERTIES
-				POSITION_INDEPENDENT_CODE OFF
-				LINKER_LANGUAGE NASM
-				RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-				)
-		if(APPLE)
-			add_custom_command(TARGET analysis_propagation POST_BUILD
-					COMMAND strip "$<TARGET_FILE:analysis_propagation>"
-					COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:analysis_propagation>")
-		else()
-			add_custom_command(TARGET analysis_propagation POST_BUILD
-					COMMAND strip "$<TARGET_FILE:analysis_propagation>")
-		endif()
-	endif()
-
-	add_executable(missing_switch_case src/missing_switch_case_x64.asm)
-	if (APPLE)
-		target_link_libraries(missing_switch_case System)
-	elseif (WIN32)
-		target_link_libraries(missing_switch_case kernel32)
-	endif (APPLE)
-	set_target_properties(missing_switch_case PROPERTIES
-			POSITION_INDEPENDENT_CODE OFF
-			LINKER_LANGUAGE NASM
-			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-			)
-	if(APPLE)
-		add_custom_command(TARGET missing_switch_case POST_BUILD
-				COMMAND strip "$<TARGET_FILE:missing_switch_case>"
-				COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:missing_switch_case>")
-	else()
-		add_custom_command(TARGET missing_switch_case POST_BUILD
-				COMMAND strip "$<TARGET_FILE:missing_switch_case>")
-	endif()
-
-	add_executable(undiscovered_func src/undiscovered_func_x64.asm)
-	if (APPLE)
-		target_link_libraries(undiscovered_func System)
-	elseif (WIN32)
-		target_link_libraries(undiscovered_func kernel32)
-	endif (APPLE)
-	set_target_properties(undiscovered_func PROPERTIES
-			POSITION_INDEPENDENT_CODE OFF
-			LINKER_LANGUAGE NASM
-			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-			)
-	if(APPLE)
-		add_custom_command(TARGET undiscovered_func POST_BUILD
-				COMMAND strip "$<TARGET_FILE:undiscovered_func>"
-				COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:undiscovered_func>")
-	else()
-		add_custom_command(TARGET undiscovered_func POST_BUILD
-				COMMAND strip "$<TARGET_FILE:undiscovered_func>")
-	endif()
-
-	if (NOT WIN32)
-		add_executable(undiscovered_func2 src/undiscovered_func2_x64.asm)
-		if (APPLE)
-			target_link_libraries(undiscovered_func2 System)
-		elseif (WIN32)
-			target_link_libraries(undiscovered_func2 kernel32)
-		endif (APPLE)
-		set_target_properties(undiscovered_func2 PROPERTIES
-				POSITION_INDEPENDENT_CODE OFF
-				LINKER_LANGUAGE NASM
-				RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-				)
-		if (APPLE)
-			add_custom_command(TARGET undiscovered_func2 POST_BUILD
-					COMMAND strip "$<TARGET_FILE:undiscovered_func2>"
-					COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:undiscovered_func2>")
-		else()
-			add_custom_command(TARGET undiscovered_func2 POST_BUILD
-					COMMAND strip "$<TARGET_FILE:undiscovered_func2>")
-		endif()
-	endif()
-
-	add_executable(indirect_calls src/indirect_calls_x64.asm)
-	if (APPLE)
-		target_link_libraries(indirect_calls System)
-	elseif (WIN32)
-		target_link_libraries(indirect_calls kernel32)
-	endif (APPLE)
-	set_target_properties(indirect_calls PROPERTIES
-			POSITION_INDEPENDENT_CODE OFF
-			LINKER_LANGUAGE NASM
-			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-			)
-	if (APPLE)
-		add_custom_command(TARGET indirect_calls POST_BUILD
-				COMMAND strip "$<TARGET_FILE:indirect_calls>"
-				COMMAND python3 src/rm_func_starts.py "$<TARGET_FILE:indirect_calls>")
-	else()
-		add_custom_command(TARGET indirect_calls POST_BUILD
-				COMMAND strip "$<TARGET_FILE:indirect_calls>")
-	endif()
-endif()
-
-
-if (ARCH STREQUAL "x86")
-	add_executable(asmtest src/asmtest_x86.asm)
-	set_target_properties(asmtest PROPERTIES
-			POSITION_INDEPENDENT_CODE OFF
-			LINKER_LANGUAGE NASM
-			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-			)
-	if (WIN32)
-		target_link_libraries(asmtest kernel32)
-	endif()
-endif()
-
-
-add_executable(do_exception src/do_exception.c)
-set_target_properties(do_exception PROPERTIES
-		POSITION_INDEPENDENT_CODE OFF
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-
-if (NOT WIN32)
-	add_executable(nopspeed src/nopspeed.c)
-	set_target_properties(nopspeed PROPERTIES
+	add_library(shared_lib_${arch} SHARED src/shared_lib.c)
+	set_target_properties(shared_lib_${arch} PROPERTIES
+			OUTPUT_NAME shared_lib
+			PREFIX ""
 			POSITION_INDEPENDENT_CODE ON
-			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
+			LIBRARY_OUTPUT_DIRECTORY ${archdir}
+			RUNTIME_OUTPUT_DIRECTORY ${archdir}
 			)
-	target_compile_options(nopspeed PUBLIC -O3)
-endif()
 
-add_executable(cat src/cat.c)
-set_target_properties(cat PROPERTIES
-		POSITION_INDEPENDENT_CODE ON
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-if (NOT WIN32)
-	target_compile_options(cat PUBLIC -O3)
-endif()
+	add_executable(load_shared_lib_${arch} src/load_shared_lib.c)
+	target_link_libraries(load_shared_lib_${arch} shared_lib_${arch})
+	set_target_properties(load_shared_lib_${arch} PROPERTIES
+			OUTPUT_NAME load_shared_lib
+			POSITION_INDEPENDENT_CODE ON
+			RUNTIME_OUTPUT_DIRECTORY ${archdir}
+			)
 
-add_executable(commandline_test src/commandline_test.c)
-set_target_properties(commandline_test PROPERTIES
-		POSITION_INDEPENDENT_CODE ON
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-if (NOT WIN32)
-	target_compile_options(commandline_test PUBLIC -O3)
-endif()
+	if (APPLE)
+		# Build this pair thin for ${arch} even inside a universal parent build.
+		set_target_properties(shared_lib_${arch} load_shared_lib_${arch} PROPERTIES OSX_ARCHITECTURES ${arch})
+		# Record the install name relative to the loader so the executable finds the library when both
+		# sit in the same binaries directory, regardless of where that directory ends up.
+		set_target_properties(shared_lib_${arch} PROPERTIES
+				INSTALL_NAME_DIR "@loader_path"
+				BUILD_WITH_INSTALL_NAME_DIR ON
+				)
+	elseif (UNIX)
+		# Resolve the library next to the executable at runtime.
+		set_target_properties(load_shared_lib_${arch} PROPERTIES
+				BUILD_RPATH "$ORIGIN"
+				INSTALL_RPATH "$ORIGIN"
+				)
+	endif()
 
-file(GLOB MD5_SOURCES CONFIGURE_DEPENDS
-		src/md5/*.c
-		src/md5/*.h
-		)
-add_executable(md5 ${MD5_SOURCES})
-set_target_properties(md5 PROPERTIES
-		POSITION_INDEPENDENT_CODE ON
-		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/binaries/${CMAKE_SYSTEM_NAME}-${ARCH}
-		)
-if (NOT WIN32)
-	target_compile_options(md5 PUBLIC -g -DMD=5)
-else()
-	target_compile_options(md5 PUBLIC -DMD=5)
-endif()
+	# Stage both into the (unsigned) binaries/<OS>-<arch> directory the tests / signing step read from.
+	foreach (tgt shared_lib_${arch} load_shared_lib_${arch})
+		add_custom_command(TARGET ${tgt} POST_BUILD
+				COMMAND ${CMAKE_COMMAND} -E make_directory ${dest}
+				COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${dest}/
+				COMMENT "Staging ${tgt} -> ${dest}"
+				VERBATIM)
+		add_dependencies(debugger_test_binaries ${tgt})
+	endforeach()
+endfunction()
+
+foreach (arch ${TEST_BINARY_ARCHES})
+	add_test_binaries(${arch})
+endforeach()

@@ -57,6 +57,12 @@ test/testbins/CTestTestfile.cmake
 core/adapters/LLDB.framework
 /test/binaries/Darwin-arm64-signed/
 /test/binaries/Darwin-x86_64-signed/
+
+# Test binaries built alongside the debugger (BUILD_DEBUGGER_TEST_BINARIES); not committed.
+# shared_lib.{so,dylib} are already ignored above; these cover the remaining staged artifacts.
+/test/binaries/*/load_shared_lib
+/test/binaries/*/load_shared_lib.exe
+/test/binaries/*/shared_lib.dll
 test/__pycache__
 api/python/__pycache__
 */__pycache__
