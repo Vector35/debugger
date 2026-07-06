@@ -2616,10 +2616,13 @@ size_t DebuggerController::UndefineTrackedSymbols(const std::vector<Ref<Symbol>>
 	{
 		if (!symbol)
 			continue;
-		data->UndefineAutoSymbol(symbol);
-		// Removing the data variable is keyed on the address; calling it more than once for an address
-		// shared by several folded symbols is harmless (the second call is a no-op).
+		// Undo in the inverse order of LoadSymbolsForModule (which defines the symbol, then the data
+		// variable). Removing the data variable first avoids leaving it briefly symbol-less, which on
+		// some platforms makes the core auto-create an anonymous "data_..." symbol that would then leak.
+		// Undefining a data variable is keyed on the address; calling it more than once for an address
+		// shared by several folded symbols is harmless (the later calls are no-ops).
 		data->UndefineDataVariable(symbol->GetAddress());
+		data->UndefineAutoSymbol(symbol);
 	}
 	data->SetFunctionAnalysisUpdateDisabled(false);
 	data->ForgetUndoActions(id);
