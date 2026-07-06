@@ -19,6 +19,7 @@ limitations under the License.
 #include "breakpointswidget.h"
 #include "hardwarebreakpointdialog.h"
 #include "moduleswidget.h"
+#include "memorymapwidget.h"
 #include "renderlayer.h"
 #include "uinotification.h"
 #include "platformdialog.h"
@@ -2041,6 +2042,7 @@ void GlobalDebuggerUI::InitializeUI()
 {
 	Sidebar::addSidebarWidgetType(new DebuggerWidgetType(QImage(":/debugger/debugger"), "Debugger"));
 	Sidebar::addSidebarWidgetType(new DebugModulesSidebarWidgetType());
+	Sidebar::addSidebarWidgetType(new DebugMemoryMapSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new ThreadFramesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new DebugInfoWidgetType());
 	Sidebar::addSidebarWidgetType(new TTDMemoryWidgetType());
