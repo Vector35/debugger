@@ -28,8 +28,8 @@ using namespace std;
 
 constexpr int SortFilterRole = Qt::UserRole + 1;
 
-ModuleItem::ModuleItem(uint64_t address, size_t size, std::string name, std::string path) :
-	m_address(address), m_size(size), m_name(name), m_path(path)
+ModuleItem::ModuleItem(uint64_t address, size_t size, std::string name, std::string path, bool symbolsLoaded) :
+	m_address(address), m_size(size), m_name(name), m_path(path), m_symbolsLoaded(symbolsLoaded)
 {}
 
 
@@ -138,6 +138,14 @@ QVariant DebugModulesListModel::data(const QModelIndex& index, int role) const
 
 		return QVariant(text);
 	}
+	case DebugModulesListModel::SymbolsColumn:
+	{
+		QString text = item->symbolsLoaded() ? "Loaded" : "";
+		if (role == Qt::SizeHintRole)
+			return QVariant((qulonglong)QString("Loaded").size());
+
+		return QVariant(text);
+	}
 	case DebugModulesListModel::PathColumn:
 	{
 		QString text = QString::fromStdString(item->path());
@@ -169,6 +177,8 @@ QVariant DebugModulesListModel::headerData(int column, Qt::Orientation orientati
 		return "Size";
 	case DebugModulesListModel::NameColumn:
 		return "Name";
+	case DebugModulesListModel::SymbolsColumn:
+		return "Symbols";
 	case DebugModulesListModel::PathColumn:
 		return "Path";
 	}
@@ -176,13 +186,25 @@ QVariant DebugModulesListModel::headerData(int column, Qt::Orientation orientati
 }
 
 
-void DebugModulesListModel::updateRows(std::vector<DebugModule> newModules)
+void DebugModulesListModel::updateRows(
+	std::vector<DebugModule> newModules, const std::vector<std::string>& modulesWithSymbols)
 {
 	beginResetModel();
 	std::vector<ModuleItem> newRows;
 	for (const DebugModule& module : newModules)
 	{
-		newRows.emplace_back(module.m_address, module.m_size, module.m_short_name, module.m_name);
+		bool symbolsLoaded = false;
+		for (const std::string& name : modulesWithSymbols)
+		{
+			// Note: DebugModule::IsSameBaseModule is declared in the API but not linked here, so compare
+			// via the exported FFI helper, which matches the base file name case-insensitively.
+			if (BNDebuggerIsSameBaseModule(module.m_name.c_str(), name.c_str()))
+			{
+				symbolsLoaded = true;
+				break;
+			}
+		}
+		newRows.emplace_back(module.m_address, module.m_size, module.m_short_name, module.m_name, symbolsLoaded);
 	}
 
 	std::sort(newRows.begin(), newRows.end(), [=](const ModuleItem& a, const ModuleItem& b) {
@@ -234,6 +256,7 @@ void DebugModulesItemDelegate::paint(
 		painter->drawText(textRect, data.toString());
 		break;
 	case DebugModulesListModel::NameColumn:
+	case DebugModulesListModel::SymbolsColumn:
 	case DebugModulesListModel::PathColumn:
 	{
 		painter->setPen(option.palette.color(QPalette::WindowText).rgba());
@@ -335,6 +358,28 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : QT
 	m_menu.addAction("Copy All", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy All", UIAction([&]() { copyAll(); }, [&]() { return canCopyAll(); }));
 
+	UIAction::registerAction("Load Symbols");
+	m_menu.addAction("Load Symbols", "Symbols", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		"Load Symbols", UIAction([&]() { loadSymbols(); }, [&]() { return canLoadSymbols(); }));
+	m_actionHandler.setActionDisplayName(
+		"Load Symbols", [&]() { return selectedModuleSymbolsLoaded() ? "Reload Symbols" : "Load Symbols"; });
+
+	UIAction::registerAction("Remove Symbols");
+	m_menu.addAction("Remove Symbols", "Symbols", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		"Remove Symbols", UIAction([&]() { removeSymbols(); }, [&]() { return canLoadSymbols(); }));
+
+	UIAction::registerAction("Load Symbols (All Modules)");
+	m_menu.addAction("Load Symbols (All Modules)", "Symbols", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		"Load Symbols (All Modules)", UIAction([&]() { loadAllSymbols(); }, [&]() { return canLoadAllSymbols(); }));
+
+	UIAction::registerAction("Remove All Symbols");
+	m_menu.addAction("Remove All Symbols", "Symbols", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		"Remove All Symbols", UIAction([&]() { removeAllSymbols(); }, [&]() { return canLoadAllSymbols(); }));
+
 	connect(this, &QTableView::doubleClicked, this, &DebugModulesWidget::onDoubleClicked);
 	connect(this, &DebugModulesWidget::debuggerEvent, this, &DebugModulesWidget::onDebuggerEvent);
 
@@ -358,13 +403,14 @@ void DebugModulesWidget::updateColumnWidths()
 	resizeColumnToContents(DebugModulesListModel::EndAddressColumn);
 	resizeColumnToContents(DebugModulesListModel::SizeColumn);
 	resizeColumnToContents(DebugModulesListModel::NameColumn);
+	resizeColumnToContents(DebugModulesListModel::SymbolsColumn);
 	resizeColumnToContents(DebugModulesListModel::PathColumn);
 }
 
 
 void DebugModulesWidget::notifyModulesChanged(std::vector<DebugModule> modules)
 {
-	m_model->updateRows(modules);
+	m_model->updateRows(modules, m_controller->GetModulesWithLoadedSymbols());
 	updateColumnWidths();
 }
 
@@ -469,6 +515,82 @@ bool DebugModulesWidget::canCopy()
 bool DebugModulesWidget::canCopyAll()
 {
 	return m_model->rowCount() > 0;
+}
+
+
+bool DebugModulesWidget::canLoadSymbols()
+{
+	if (!m_controller->IsConnected())
+		return false;
+
+	QModelIndexList sel = selectionModel()->selectedIndexes();
+	return !sel.empty();
+}
+
+
+bool DebugModulesWidget::canLoadAllSymbols()
+{
+	return m_controller->IsConnected();
+}
+
+
+bool DebugModulesWidget::selectedModuleSymbolsLoaded()
+{
+	QModelIndexList sel = selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return false;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return false;
+
+	return m_model->getRow(sourceIndex.row()).symbolsLoaded();
+}
+
+
+void DebugModulesWidget::loadSymbols()
+{
+	QModelIndexList sel = selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto module = m_model->getRow(sourceIndex.row());
+	m_controller->LoadSymbolsForModule(module.path());
+	updateContent();
+}
+
+
+void DebugModulesWidget::removeSymbols()
+{
+	QModelIndexList sel = selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto module = m_model->getRow(sourceIndex.row());
+	m_controller->RemoveSymbolsForModule(module.path());
+	updateContent();
+}
+
+
+void DebugModulesWidget::loadAllSymbols()
+{
+	m_controller->LoadSymbolsForAllModules();
+	updateContent();
+}
+
+
+void DebugModulesWidget::removeAllSymbols()
+{
+	m_controller->RemoveAllLoadedSymbols();
+	updateContent();
 }
 
 

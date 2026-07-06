@@ -241,6 +241,18 @@ namespace BinaryNinjaDebugger {
 		void ProcessOneVariable(uint64_t address, Confidence<Ref<Type>> type, const std::string& name);
 		void DefineVariablesRecursive(uint64_t address, Confidence<Ref<Type>> type);
 
+		// Tracks the symbols the debugger has added to the BinaryView from the debugger backend, keyed by
+		// the module's base file name. The value is the exact auto symbols that were defined, so they can
+		// later be removed -- either per module on user request or in bulk when the target is gone. We keep
+		// the Symbol objects (rather than just their addresses) because the linker can fold several distinct
+		// symbols onto the same address (e.g. identical .cold stubs), and GetSymbolByAddress only returns
+		// one of them. See LoadSymbolsForModule / RemoveSymbolsForModule.
+		std::map<std::string, std::vector<Ref<Symbol>>> m_loadedModuleSymbols;
+		std::recursive_mutex m_loadedModuleSymbolsMutex;
+		// Undefine the given auto symbols and their data variables. Returns the number of symbols processed.
+		// m_loadedModuleSymbolsMutex must be held.
+		size_t UndefineTrackedSymbols(const std::vector<Ref<Symbol>>& symbols);
+
 		void ApplyBreakpoints();
 
 		std::string m_lastAdapterName;
@@ -445,6 +457,26 @@ namespace BinaryNinjaDebugger {
 
 		// memory map
 		std::vector<DebugMemoryRegion> GetMemoryMap();
+
+		// symbols (read from the debugger backend on demand)
+		// Read the symbols that the debugger backend knows about for the given module and add them to the
+		// BinaryView as auto symbols (along with a data variable at each address so they are rendered).
+		// By default no backend symbols are loaded; the user requests this explicitly per module. The
+		// added symbols are tracked internally so they can be removed later. Returns the number of
+		// symbols added, or 0 if the adapter does not support reading symbols or the module is unknown.
+		// Loading the same module again is idempotent: any symbols previously loaded for it are removed
+		// first, so no duplicates are created.
+		size_t LoadSymbolsForModule(const DebugModule& module);
+		size_t LoadSymbolsForModule(const std::string& module);
+		// Load the backend symbols for every currently-loaded module. Returns the total number added.
+		size_t LoadSymbolsForAllModules();
+		// Remove the backend symbols previously added for the given module. Returns the number removed.
+		size_t RemoveSymbolsForModule(const DebugModule& module);
+		size_t RemoveSymbolsForModule(const std::string& module);
+		// Remove every backend symbol the debugger has added. Returns the number removed.
+		size_t RemoveAllLoadedSymbols();
+		// The base names of the modules for which backend symbols have been loaded.
+		std::vector<std::string> GetModulesWithLoadedSymbols();
 
 		// rebasing
 		// Note: Returns true immediately in UI mode (rebase completes asynchronously via UI callback)

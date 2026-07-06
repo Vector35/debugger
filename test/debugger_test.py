@@ -138,6 +138,70 @@ class DebuggerAPI(unittest.TestCase):
             if dbg.connected:
                 dbg.quit_and_wait()
 
+    def test_load_module_symbols(self):
+        # Load symbols from the debugger backend on demand, then remove them, checking that the number
+        # of symbols in the BinaryView increases when they are loaded and returns to the original value
+        # when they are removed (i.e. nothing is left behind). See
+        # https://github.com/Vector35/debugger/issues/210
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        try:
+            self.assertGreater(len(dbg.modules), 0)
+            # No backend symbols are loaded by default.
+            self.assertEqual(len(dbg.modules_with_loaded_symbols), 0)
+
+            def symbol_count():
+                return len(dbg.data.get_symbols())
+
+            before = symbol_count()
+
+            # We do not know up front which module the backend has symbols for, so try each one until a
+            # module actually contributes symbols. Skip the main executable so the symbols are added into
+            # otherwise-unannotated address space, making the add/remove counts unambiguous.
+            main_path = os.path.realpath(fpath)
+            loaded_module = None
+            added = 0
+            for m in dbg.modules:
+                name = m.name or m.short_name
+                if not name:
+                    continue
+                if os.path.realpath(name) == main_path:
+                    continue
+                count = dbg.load_symbols_for_module(name)
+                if count > 0:
+                    loaded_module = name
+                    added = count
+                    break
+
+            if loaded_module is None:
+                self.skipTest('no non-main module reported backend symbols for this adapter')
+
+            self.assertGreater(added, 0)
+            self.assertEqual(len(dbg.modules_with_loaded_symbols), 1)
+
+            # Loading symbols increases the number of symbols in the BinaryView.
+            after_load = symbol_count()
+            self.assertGreater(after_load, before)
+
+            # Loading the same module again is idempotent: no duplicate symbols are created, so both the
+            # return value and the total symbol count are unchanged.
+            reload_count = dbg.load_symbols_for_module(loaded_module)
+            self.assertEqual(reload_count, added)
+            self.assertEqual(len(dbg.modules_with_loaded_symbols), 1)
+            self.assertEqual(symbol_count(), after_load)
+
+            # Removing the symbols decreases the count back to the original value, with nothing left over.
+            removed = dbg.remove_symbols_for_module(loaded_module)
+            self.assertEqual(removed, added)
+            self.assertLess(symbol_count(), after_load)
+            self.assertEqual(symbol_count(), before)
+            self.assertEqual(len(dbg.modules_with_loaded_symbols), 0)
+        finally:
+            if dbg.connected:
+                dbg.quit_and_wait()
+
     def test_return_code(self):
         # return code tests
         fpath = name_to_fpath('exitcode', self.arch)

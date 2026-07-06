@@ -58,6 +58,9 @@ namespace BinaryNinjaDebugger {
 		DebugAdapterSupportModules,
 		DebugAdapterSupportThreads,
 		DebugAdapterSupportTTD,
+		// The adapter can read the symbols a debugger backend knows about for a module. See
+		// DebugAdapter::GetSymbolsForModule.
+		DebugAdapterSupportSymbols,
 	};
 
 
@@ -236,6 +239,33 @@ namespace BinaryNinjaDebugger {
 		{}
 	};
 
+	// A symbol the debugger backend (e.g. LLDB, dbgeng) knows about for a loaded module, but which the
+	// static BinaryView analysis is not aware of. These are read on demand (see
+	// DebugAdapter::GetSymbolsForModule and DebuggerController::LoadSymbolsForModule) and added to the
+	// debugger BinaryView as auto symbols so that the annotation process becomes aware of them.
+	struct DebugSymbol
+	{
+		// Short name, e.g. "CreateFileA"
+		std::string m_name {};
+		// Fully-qualified name, e.g. "kernel32!CreateFileA"
+		std::string m_fullName {};
+		// Raw (possibly mangled) name. May be empty if the backend does not provide one.
+		std::string m_rawName {};
+		// Absolute load address of the symbol in the target.
+		std::uintptr_t m_address {};
+		std::size_t m_size {};
+		// True if the symbol refers to code (a function), false if it refers to data.
+		bool m_isFunction {};
+
+		DebugSymbol() = default;
+
+		DebugSymbol(std::string name, std::string fullName, std::string rawName, std::uintptr_t address,
+			std::size_t size, bool isFunction) :
+			m_name(std::move(name)), m_fullName(std::move(fullName)), m_rawName(std::move(rawName)),
+			m_address(address), m_size(size), m_isFunction(isFunction)
+		{}
+	};
+
 	struct DebugFrame
 	{
 		size_t m_index = 0;
@@ -367,6 +397,12 @@ namespace BinaryNinjaDebugger {
 		// permissions. Adapters opt in by overriding this; the default is an empty map for backends
 		// that do not (yet) support it. See issue #96.
 		virtual std::vector<DebugMemoryRegion> GetMemoryMap() { return {}; }
+
+		// Read the symbols that the debugger backend knows about for the given module. These are the
+		// symbols (e.g. exports like CreateFileA) that the static BinaryView analysis is not aware of.
+		// The default implementation returns an empty list; adapters that support reading symbols from
+		// the backend should override this and report DebugAdapterSupportSymbols in SupportFeature.
+		virtual std::vector<DebugSymbol> GetSymbolsForModule(const DebugModule& module) { return {}; }
 
 		virtual std::string GetTargetArchitecture() = 0;
 

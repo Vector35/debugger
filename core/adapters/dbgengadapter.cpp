@@ -1819,6 +1819,53 @@ std::vector<DebugMemoryRegion> DbgEngAdapter::GetMemoryMap()
 }
 
 
+std::vector<DebugSymbol> DbgEngAdapter::GetSymbolsForModule(const DebugModule& module)
+{
+	std::vector<DebugSymbol> result;
+	if (!m_debugSymbols)
+		return result;
+
+	// Build the symbol-match pattern "<module>!*". dbgeng identifies modules in the bang syntax by their
+	// base name without extension.
+	std::string moduleName =
+		module.m_short_name.empty() ? DebugModule::GetPathBaseName(module.m_name) : module.m_short_name;
+	auto dot = moduleName.find_last_of('.');
+	if (dot != std::string::npos)
+		moduleName = moduleName.substr(0, dot);
+	if (moduleName.empty())
+		return result;
+
+	std::string pattern = moduleName + "!*";
+
+	uint64_t handle = 0;
+	if (m_debugSymbols->StartSymbolMatch(pattern.c_str(), &handle) != S_OK)
+		return result;
+
+	char nameBuffer[2048];
+	uint64_t offset = 0;
+	unsigned long matchSize = 0;
+	while (m_debugSymbols->GetNextSymbolMatch(handle, nameBuffer, sizeof(nameBuffer), &matchSize, &offset) == S_OK)
+	{
+		// GetNextSymbolMatch returns the fully-qualified "module!symbol" name.
+		std::string fullName = nameBuffer;
+		std::string shortName = fullName;
+		auto bang = fullName.find('!');
+		if (bang != std::string::npos)
+			shortName = fullName.substr(bang + 1);
+
+		if (shortName.empty() || (offset == 0))
+			continue;
+
+		// TODO: dbgeng's symbol match does not report whether a symbol is code or data; classify all as
+		// functions for now, which is correct for the common case of API exports.
+		result.emplace_back(shortName, fullName, fullName, offset, 0, true);
+	}
+
+	m_debugSymbols->EndSymbolMatch(handle);
+	return result;
+}
+
+
 bool DbgEngAdapter::BreakInto()
 {
 	if (ExecStatus() == DEBUG_STATUS_BREAK || ExecStatus() == DEBUG_STATUS_NO_DEBUGGEE)
@@ -2237,6 +2284,8 @@ bool DbgEngAdapter::SupportFeature(DebugAdapterCapacity feature)
 	case DebugAdapterSupportModules:
 		return true;
 	case DebugAdapterSupportThreads:
+		return true;
+	case DebugAdapterSupportSymbols:
 		return true;
 	default:
 		return false;

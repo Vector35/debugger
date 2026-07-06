@@ -300,6 +300,45 @@ std::vector<DebugMemoryRegion> DebuggerController::GetMemoryMap()
 }
 
 
+size_t DebuggerController::LoadSymbolsForModule(const std::string& module)
+{
+	return BNDebuggerLoadSymbolsForModule(m_object, module.c_str());
+}
+
+
+size_t DebuggerController::LoadSymbolsForAllModules()
+{
+	return BNDebuggerLoadSymbolsForAllModules(m_object);
+}
+
+
+size_t DebuggerController::RemoveSymbolsForModule(const std::string& module)
+{
+	return BNDebuggerRemoveSymbolsForModule(m_object, module.c_str());
+}
+
+
+size_t DebuggerController::RemoveAllLoadedSymbols()
+{
+	return BNDebuggerRemoveAllLoadedSymbols(m_object);
+}
+
+
+std::vector<std::string> DebuggerController::GetModulesWithLoadedSymbols()
+{
+	size_t count;
+	char** modules = BNDebuggerGetModulesWithLoadedSymbols(m_object, &count);
+
+	std::vector<std::string> result;
+	result.reserve(count);
+	for (size_t i = 0; i < count; i++)
+		result.emplace_back(modules[i]);
+
+	BNDebuggerFreeStringList(modules, count);
+	return result;
+}
+
+
 std::vector<DebugRegister> DebuggerController::GetRegisters()
 {
 	size_t count;

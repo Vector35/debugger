@@ -2101,6 +2101,9 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 // harmless.
 void DebuggerController::FinalizeTargetGoneCleanup()
 {
+	// The backend symbols we added are at absolute target addresses that are meaningless once the target
+	// is gone, so remove them. Idempotent: the map is cleared, so a second call is a no-op.
+	RemoveAllLoadedSymbols();
 	m_state->MarkDirty();
 	// Remove the region from the BinaryView's MemoryMap BEFORE disposing of m_accessor: the
 	// MemoryMap holds a raw pointer to it (see AddRemoteMemoryRegion in DebuggerController::Start),
@@ -2508,6 +2511,165 @@ std::vector<DebugMemoryRegion> DebuggerController::GetMemoryMap()
 {
 	return m_state->GetMemoryMap()->GetAllRegions();
 }
+
+
+size_t DebuggerController::LoadSymbolsForModule(const std::string& moduleName)
+{
+	DebugModule module = m_state->GetModules()->GetModuleByName(moduleName);
+	if (module.m_name.empty() && module.m_short_name.empty())
+	{
+		LogWarn("Cannot load symbols: no module named \"%s\" is loaded in the target", moduleName.c_str());
+		return 0;
+	}
+	return LoadSymbolsForModule(module);
+}
+
+
+size_t DebuggerController::LoadSymbolsForModule(const DebugModule& module)
+{
+	if (!m_adapter)
+		return 0;
+
+	if (!m_adapter->SupportFeature(DebugAdapterSupportSymbols))
+	{
+		LogWarn("The current debug adapter does not support reading symbols from the backend");
+		return 0;
+	}
+
+	auto data = GetData();
+	if (!data)
+		return 0;
+
+	std::vector<DebugSymbol> symbols;
+	{
+		std::lock_guard<std::recursive_mutex> adapterLock(m_state->AdapterAccessMutex());
+		symbols = m_adapter->GetSymbolsForModule(module);
+	}
+
+	if (symbols.empty())
+		return 0;
+
+	std::lock_guard<std::recursive_mutex> lock(m_loadedModuleSymbolsMutex);
+
+	// If symbols were already loaded for this module, remove them first so that re-loading the same
+	// module is idempotent and does not create duplicate symbols.
+	for (auto it = m_loadedModuleSymbols.begin(); it != m_loadedModuleSymbols.end(); ++it)
+	{
+		if (module.IsSameBaseModule(it->first))
+		{
+			UndefineTrackedSymbols(it->second);
+			m_loadedModuleSymbols.erase(it);
+			break;
+		}
+	}
+
+	std::string key = !module.m_name.empty() ? DebugModule::GetPathBaseName(module.m_name) : module.m_short_name;
+	std::vector<Ref<Symbol>>* symbolList = &m_loadedModuleSymbols[key];
+
+	auto voidType = Type::VoidType();
+
+	auto id = data->BeginUndoActions();
+	// Adding a large module's symbols one at a time generates a per-symbol analysis notification; disable
+	// the updates while we add them in bulk and re-enable afterwards (see the design notes on issue #210).
+	data->SetFunctionAnalysisUpdateDisabled(true);
+	for (const DebugSymbol& sym : symbols)
+	{
+		BNSymbolType symbolType = sym.m_isFunction ? FunctionSymbol : DataSymbol;
+		std::string rawName = sym.m_rawName.empty() ? sym.m_name : sym.m_rawName;
+		// Use DefineAutoSymbol (not DefineUserSymbol) so these never override the user's own symbols.
+		Ref<Symbol> symbol = new Symbol(symbolType, sym.m_name, sym.m_fullName, rawName, sym.m_address);
+		data->DefineAutoSymbol(symbol);
+		// A data variable is needed for BN to actually render the symbol in the views. Define it with a
+		// void type, mirroring the design notes on issue #210.
+		data->DefineDataVariable(sym.m_address, Confidence<Ref<Type>>(voidType));
+		// Track the exact symbol object so we can remove precisely it later, even when the linker folds
+		// several symbols onto one address (GetSymbolByAddress would only return one of them).
+		symbolList->push_back(symbol);
+	}
+	data->SetFunctionAnalysisUpdateDisabled(false);
+	data->ForgetUndoActions(id);
+
+	LogInfo("Loaded %zu symbols for module %s from the debugger backend", symbols.size(),
+		module.m_short_name.empty() ? module.m_name.c_str() : module.m_short_name.c_str());
+	return symbols.size();
+}
+
+
+size_t DebuggerController::LoadSymbolsForAllModules()
+{
+	size_t total = 0;
+	for (const DebugModule& module : GetAllModules())
+		total += LoadSymbolsForModule(module);
+	return total;
+}
+
+
+size_t DebuggerController::UndefineTrackedSymbols(const std::vector<Ref<Symbol>>& symbols)
+{
+	auto data = GetData();
+	if (!data)
+		return 0;
+
+	auto id = data->BeginUndoActions();
+	data->SetFunctionAnalysisUpdateDisabled(true);
+	for (const Ref<Symbol>& symbol : symbols)
+	{
+		if (!symbol)
+			continue;
+		data->UndefineAutoSymbol(symbol);
+		// Removing the data variable is keyed on the address; calling it more than once for an address
+		// shared by several folded symbols is harmless (the second call is a no-op).
+		data->UndefineDataVariable(symbol->GetAddress());
+	}
+	data->SetFunctionAnalysisUpdateDisabled(false);
+	data->ForgetUndoActions(id);
+	return symbols.size();
+}
+
+
+size_t DebuggerController::RemoveSymbolsForModule(const DebugModule& module)
+{
+	return RemoveSymbolsForModule(module.m_name.empty() ? module.m_short_name : module.m_name);
+}
+
+
+size_t DebuggerController::RemoveSymbolsForModule(const std::string& moduleName)
+{
+	std::lock_guard<std::recursive_mutex> lock(m_loadedModuleSymbolsMutex);
+	for (auto it = m_loadedModuleSymbols.begin(); it != m_loadedModuleSymbols.end(); ++it)
+	{
+		if (DebugModule::IsSameBaseModule(it->first, moduleName))
+		{
+			size_t count = UndefineTrackedSymbols(it->second);
+			m_loadedModuleSymbols.erase(it);
+			return count;
+		}
+	}
+	return 0;
+}
+
+
+size_t DebuggerController::RemoveAllLoadedSymbols()
+{
+	std::lock_guard<std::recursive_mutex> lock(m_loadedModuleSymbolsMutex);
+	size_t count = 0;
+	for (auto& [key, symbols] : m_loadedModuleSymbols)
+		count += UndefineTrackedSymbols(symbols);
+	m_loadedModuleSymbols.clear();
+	return count;
+}
+
+
+std::vector<std::string> DebuggerController::GetModulesWithLoadedSymbols()
+{
+	std::lock_guard<std::recursive_mutex> lock(m_loadedModuleSymbolsMutex);
+	std::vector<std::string> result;
+	result.reserve(m_loadedModuleSymbols.size());
+	for (const auto& [key, symbols] : m_loadedModuleSymbols)
+		result.push_back(key);
+	return result;
+}
+
 
 std::vector<DebugProcess> DebuggerController::GetProcessList()
 {

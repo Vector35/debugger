@@ -698,6 +698,19 @@ namespace BinaryNinjaDebuggerAPI {
 
 		std::vector<DebugModule> GetModules();
 		std::vector<DebugMemoryRegion> GetMemoryMap();
+
+		// Read the symbols the debugger backend knows about for the named module and add them to the
+		// BinaryView as auto symbols. Returns the number of symbols added.
+		size_t LoadSymbolsForModule(const std::string& module);
+		// Load the backend symbols for every currently-loaded module. Returns the total number added.
+		size_t LoadSymbolsForAllModules();
+		// Remove the backend symbols previously added for the named module. Returns the number removed.
+		size_t RemoveSymbolsForModule(const std::string& module);
+		// Remove every backend symbol the debugger has added. Returns the number removed.
+		size_t RemoveAllLoadedSymbols();
+		// The base names of the modules for which backend symbols have been loaded.
+		std::vector<std::string> GetModulesWithLoadedSymbols();
+
 		std::vector<DebugRegister> GetRegisters();
 		intx::uint512 GetRegisterValue(const std::string& name);
 		bool SetRegisterValue(const std::string& name, const intx::uint512& value);

@@ -3078,12 +3078,63 @@ bool WindowsNativeAdapter::SupportFeature(DebugAdapterCapacity feature)
 		return true;
 	case DebugAdapterSupportThreads:
 		return true;
+	case DebugAdapterSupportSymbols:
+		return true;
 	case DebugAdapterSupportStepOverReverse:
 	case DebugAdapterSupportTTD:
 		return false;
 	default:
 		return false;
 	}
+}
+
+
+namespace {
+	struct EnumSymbolsContext
+	{
+		std::vector<DebugSymbol>* result;
+		std::string moduleName;
+	};
+
+	static BOOL CALLBACK EnumSymbolsCallback(PSYMBOL_INFO pSymInfo, ULONG symbolSize, PVOID userContext)
+	{
+		auto* ctx = reinterpret_cast<EnumSymbolsContext*>(userContext);
+		if (!pSymInfo || (pSymInfo->NameLen == 0))
+			return TRUE;
+
+		std::string shortName(pSymInfo->Name, pSymInfo->NameLen);
+		std::string fullName = ctx->moduleName.empty() ? shortName : ctx->moduleName + "!" + shortName;
+		// TODO: SYMFLAG_FUNCTION is not set for every code symbol; this is a reasonable first
+		// approximation that classifies exported functions correctly.
+		bool isFunction = (pSymInfo->Flags & SYMFLAG_FUNCTION) != 0;
+		ctx->result->emplace_back(shortName, fullName, shortName, pSymInfo->Address, symbolSize, isFunction);
+		return TRUE;
+	}
+}
+
+
+std::vector<DebugSymbol> WindowsNativeAdapter::GetSymbolsForModule(const DebugModule& module)
+{
+	std::vector<DebugSymbol> result;
+	if (!m_processHandle)
+		return result;
+
+	SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+	SymInitialize(m_processHandle, nullptr, TRUE);
+
+	// Ensure the module's symbols are available at its known base address. SymLoadModuleEx returns 0 if
+	// the module is already loaded (GetLastError == ERROR_SUCCESS) or on failure; fall back to the known
+	// base address in either case.
+	DWORD64 base = SymLoadModuleEx(
+		m_processHandle, nullptr, module.m_name.c_str(), nullptr, module.m_address, (DWORD)module.m_size, nullptr, 0);
+	DWORD64 moduleBase = base ? base : module.m_address;
+
+	std::string moduleName =
+		module.m_short_name.empty() ? DebugModule::GetPathBaseName(module.m_name) : module.m_short_name;
+	EnumSymbolsContext ctx {&result, moduleName};
+	SymEnumSymbols(m_processHandle, moduleBase, "*", EnumSymbolsCallback, &ctx);
+
+	return result;
 }
 
 
