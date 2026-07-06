@@ -78,6 +78,27 @@ namespace BinaryNinjaDebugger {
 	};
 
 
+	class DebuggerMemoryMap
+	{
+	private:
+		DebuggerState* m_state;
+		std::vector<DebugMemoryRegion> m_regions;
+		bool m_dirty;
+		std::recursive_mutex m_regionsMutex;
+
+	public:
+		DebuggerMemoryMap(DebuggerState* state);
+		void MarkDirty();
+		void Update();
+		bool IsDirty() const { return m_dirty; }
+
+		std::vector<DebugMemoryRegion> GetAllRegions();
+		// Return the region that contains the given remote address, if any. `found` is set to false
+		// when no mapped region covers the address.
+		DebugMemoryRegion GetRegionForAddress(uint64_t remoteAddress, bool& found);
+	};
+
+
 	struct BreakpointEntry
 	{
 		ModuleNameAndOffset location;
@@ -230,6 +251,7 @@ namespace BinaryNinjaDebugger {
 
 		DebugAdapter* m_adapter;
 		DebuggerModules* m_modules;
+		DebuggerMemoryMap* m_memoryMap;
 		DebuggerRegisters* m_registers;
 		DebuggerThreads* m_threads;
 		DebuggerBreakpoints* m_breakpoints;
@@ -260,6 +282,7 @@ namespace BinaryNinjaDebugger {
 		DebuggerController* GetController() const { return m_controller; }
 
 		DebuggerModules* GetModules() const { return m_modules; }
+		DebuggerMemoryMap* GetMemoryMap() const { return m_memoryMap; }
 		DebuggerBreakpoints* GetBreakpoints() const { return m_breakpoints; }
 		DebuggerRegisters* GetRegisters() const { return m_registers; }
 		DebuggerThreads* GetThreads() const { return m_threads; }

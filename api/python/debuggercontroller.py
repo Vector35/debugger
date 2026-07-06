@@ -179,6 +179,62 @@ class DebugModule:
         return f"<DebugModule: {self.short_name}, {self.address:#x}-{self.address+self.size:#x}, size={self.size:#x}>"
 
 
+class DebugMemoryRegion:
+    """
+    DebugMemoryRegion represents a single mapped region of the target's virtual address space (a
+    memory-map entry). It has the following fields:
+
+    * ``start``: the start address of the region
+    * ``size``: the size of the region, in bytes
+    * ``name``: the backing of the region -- a file path for file-backed mappings, a well-known name \
+such as ``[stack]`` or ``[heap]`` where the backend provides one, or an empty string for anonymous \
+mappings
+    * ``read``: whether the region is readable
+    * ``write``: whether the region is writable
+    * ``execute``: whether the region is executable
+    * ``shared``: whether the mapping is shared between processes (as opposed to private/copy-on-write)
+
+    """
+    def __init__(self, start, size, name, read, write, execute, shared):
+        self.start = start
+        self.size = size
+        self.name = name
+        self.read = read
+        self.write = write
+        self.execute = execute
+        self.shared = shared
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self.start == other.start and self.size == other.size and self.name == other.name \
+            and self.read == other.read and self.write == other.write and self.execute == other.execute \
+            and self.shared == other.shared
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.start, self.size, self.name, self.read, self.write, self.execute, self.shared))
+
+    def __setattr__(self, name, value):
+        try:
+            object.__setattr__(self, name, value)
+        except AttributeError:
+            raise AttributeError(f"attribute '{name}' is read only")
+
+    @property
+    def permissions(self) -> str:
+        """A string like ``rwx`` (or ``r-x``) describing the region's permissions"""
+        return f"{'r' if self.read else '-'}{'w' if self.write else '-'}{'x' if self.execute else '-'}"
+
+    def __repr__(self):
+        return f"<DebugMemoryRegion: {self.start:#x}-{self.start+self.size:#x}, {self.permissions}" \
+            f"{'s' if self.shared else 'p'}{(', ' + self.name) if self.name else ''}>"
+
+
 class DebugRegister:
     """
     DebugRegister represents a register in the target. It has the following fields:
@@ -1449,6 +1505,29 @@ class DebuggerController:
 
         dbgcore.BNDebuggerFreeModules(modules, count.value)
         return DebugModules(result)
+
+    @property
+    def memory_map(self) -> List[DebugMemoryRegion]:
+        """
+        The memory map of the target: every mapped region of the virtual address space with its
+        permissions.
+
+        The map is refreshed when the target stops. Not every adapter reports a memory map yet; for
+        those, this returns an empty list. See issue #96.
+
+        :return: a list of ``DebugMemoryRegion``
+        """
+        count = ctypes.c_ulonglong()
+        regions = dbgcore.BNDebuggerGetMemoryMap(self.handle, count)
+        result = []
+        for i in range(0, count.value):
+            region = DebugMemoryRegion(regions[i].m_start, regions[i].m_size, regions[i].m_name,
+                                       regions[i].m_read, regions[i].m_write, regions[i].m_execute,
+                                       regions[i].m_shared)
+            result.append(region)
+
+        dbgcore.BNDebuggerFreeMemoryRegions(regions, count.value)
+        return result
 
     def rebase_to_remote_base(self) -> bool:
         """

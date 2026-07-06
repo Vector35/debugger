@@ -344,6 +344,38 @@ void BNDebuggerFreeModules(BNDebugModule* modules, size_t count)
 }
 
 
+BNDebugMemoryRegion* BNDebuggerGetMemoryMap(BNDebuggerController* controller, size_t* size)
+{
+	std::vector<DebugMemoryRegion> regions = controller->object->GetMemoryMap();
+
+	*size = regions.size();
+	BNDebugMemoryRegion* results = new BNDebugMemoryRegion[regions.size()];
+
+	for (size_t i = 0; i < regions.size(); i++)
+	{
+		results[i].m_name = BNDebuggerAllocString(regions[i].m_name.c_str());
+		results[i].m_start = regions[i].m_start;
+		results[i].m_size = regions[i].m_size;
+		results[i].m_read = regions[i].m_read;
+		results[i].m_write = regions[i].m_write;
+		results[i].m_execute = regions[i].m_execute;
+		results[i].m_shared = regions[i].m_shared;
+	}
+
+	return results;
+}
+
+
+void BNDebuggerFreeMemoryRegions(BNDebugMemoryRegion* regions, size_t count)
+{
+	for (size_t i = 0; i < count; i++)
+	{
+		BNDebuggerFreeString(regions[i].m_name);
+	}
+	delete[] regions;
+}
+
+
 BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t* size)
 {
 	std::vector<DebugRegister> registers = controller->object->GetAllRegisters();

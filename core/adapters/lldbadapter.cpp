@@ -1648,6 +1648,43 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
 }
 
 
+std::vector<DebugMemoryRegion> LldbAdapter::GetMemoryMap()
+{
+	std::vector<DebugMemoryRegion> result;
+	if (!m_process.IsValid())
+		return result;
+
+	SBMemoryRegionInfoList regions = m_process.GetMemoryRegions();
+	SBMemoryRegionInfo region;
+	for (uint32_t i = 0; i < regions.GetSize(); i++)
+	{
+		if (!regions.GetMemoryRegionAtIndex(i, region))
+			continue;
+		// The list also describes unmapped gaps between regions; skip those.
+		if (!region.IsMapped())
+			continue;
+
+		uint64_t start = region.GetRegionBase();
+		uint64_t end = region.GetRegionEnd();
+		if (end <= start)
+			continue;
+
+		DebugMemoryRegion m;
+		m.m_start = start;
+		m.m_size = end - start;
+		if (const char* name = region.GetName())
+			m.m_name = name;
+		m.m_read = region.IsReadable();
+		m.m_write = region.IsWritable();
+		m.m_execute = region.IsExecutable();
+		// LLDB's SBMemoryRegionInfo does not expose shared/private mapping information.
+		m.m_shared = false;
+		result.push_back(m);
+	}
+	return result;
+}
+
+
 std::string LldbAdapter::GetTargetArchitecture()
 {
 	SBPlatform platform = m_target.GetPlatform();

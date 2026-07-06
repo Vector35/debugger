@@ -443,6 +443,9 @@ namespace BinaryNinjaDebugger {
 		ModuleNameAndOffset AbsoluteAddressToRelative(uint64_t absoluteAddress);
 		uint64_t RelativeAddressToAbsolute(const ModuleNameAndOffset& relativeAddress);
 
+		// memory map
+		std::vector<DebugMemoryRegion> GetMemoryMap();
+
 		// rebasing
 		// Note: Returns true immediately in UI mode (rebase completes asynchronously via UI callback)
 		bool RebaseToRemoteBase();

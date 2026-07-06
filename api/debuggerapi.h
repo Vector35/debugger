@@ -349,6 +349,17 @@ namespace BinaryNinjaDebuggerAPI {
 		static std::string GetPathBaseName(const std::string& path);
 	};
 
+	struct DebugMemoryRegion
+	{
+		std::uintptr_t m_start {};
+		std::size_t m_size {};
+		std::string m_name {};
+		bool m_read {};
+		bool m_write {};
+		bool m_execute {};
+		bool m_shared {};
+	};
+
 
 	struct DebugRegister
 	{
@@ -686,6 +697,7 @@ namespace BinaryNinjaDebuggerAPI {
 		bool ResumeThread(std::uint32_t tid);
 
 		std::vector<DebugModule> GetModules();
+		std::vector<DebugMemoryRegion> GetMemoryMap();
 		std::vector<DebugRegister> GetRegisters();
 		intx::uint512 GetRegisterValue(const std::string& name);
 		bool SetRegisterValue(const std::string& name, const intx::uint512& value);
