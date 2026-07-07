@@ -330,6 +330,7 @@ bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionSt
 
 	QUERY_DEBUG_INTERFACE(IDebugControl7, &this->m_debugControl);
 	QUERY_DEBUG_INTERFACE(IDebugDataSpaces, &this->m_debugDataSpaces);
+	QUERY_DEBUG_INTERFACE(IDebugDataSpaces2, &this->m_debugDataSpaces2);
 	QUERY_DEBUG_INTERFACE(IDebugRegisters, &this->m_debugRegisters);
 	QUERY_DEBUG_INTERFACE(IDebugSymbols3, &this->m_debugSymbols);
 	QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
@@ -422,6 +423,7 @@ void DbgEngAdapter::Reset()
 	{
 		SAFE_RELEASE(this->m_debugControl);
 		SAFE_RELEASE(this->m_debugDataSpaces);
+		SAFE_RELEASE(this->m_debugDataSpaces2);
 		SAFE_RELEASE(this->m_debugRegisters);
 		SAFE_RELEASE(this->m_debugSymbols);
 		SAFE_RELEASE(this->m_debugSystemObjects);
@@ -1748,6 +1750,74 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 
 	return modules;
 }
+
+
+std::vector<DebugMemoryRegion> DbgEngAdapter::GetMemoryMap()
+{
+	if (!this->m_debugDataSpaces2)
+		return {};
+
+	std::vector<DebugMemoryRegion> result;
+
+	// Walk the whole virtual address space with QueryVirtual (the DbgEng wrapper over VirtualQueryEx),
+	// starting at 0 and advancing by each region's size. QueryVirtual fails once we walk past the end
+	// of the address space, which terminates the loop. Free/reserved regions are reported too (with a
+	// size that spans the gap), so skipping them still advances efficiently.
+	ULONG64 address = 0;
+	while (true)
+	{
+		MEMORY_BASIC_INFORMATION64 info = {};
+		if (this->m_debugDataSpaces2->QueryVirtual(address, &info) != S_OK)
+			break;
+
+		if (info.RegionSize == 0)
+			break;
+
+		// Only committed pages are actually mapped. Guard pages and no-access pages are committed but
+		// cannot be read, so we exclude them from the "readable" map.
+		const ULONG protect = info.Protect & 0xff;  // strip PAGE_GUARD / PAGE_NOCACHE / PAGE_WRITECOMBINE
+		if (info.State == MEM_COMMIT && !(info.Protect & PAGE_GUARD) && protect != PAGE_NOACCESS)
+		{
+			DebugMemoryRegion region;
+			region.m_start = info.BaseAddress;
+			region.m_size = info.RegionSize;
+			region.m_read = true;  // any committed, non-no-access, non-guard page is readable on x86/x64
+			region.m_write = (protect == PAGE_READWRITE) || (protect == PAGE_WRITECOPY)
+				|| (protect == PAGE_EXECUTE_READWRITE) || (protect == PAGE_EXECUTE_WRITECOPY);
+			region.m_execute = (protect == PAGE_EXECUTE) || (protect == PAGE_EXECUTE_READ)
+				|| (protect == PAGE_EXECUTE_READWRITE) || (protect == PAGE_EXECUTE_WRITECOPY);
+			// MEM_MAPPED sections (file/pagefile-backed) can be shared between processes; MEM_IMAGE is
+			// copy-on-write and MEM_PRIVATE is private.
+			region.m_shared = (info.Type == MEM_MAPPED);
+
+			// For image-backed regions, resolve the backing module's image path for the name column.
+			if (info.Type == MEM_IMAGE && this->m_debugSymbols)
+			{
+				ULONG moduleIndex = 0;
+				ULONG64 moduleBase = 0;
+				if (this->m_debugSymbols->GetModuleByOffset(info.BaseAddress, 0, &moduleIndex, &moduleBase) == S_OK)
+				{
+					char imageName[1024];
+					if (this->m_debugSymbols->GetModuleNames(moduleIndex, 0, imageName, 1024, nullptr, nullptr, 0,
+							nullptr, nullptr, 0, nullptr)
+						== S_OK)
+						region.m_name = imageName;
+				}
+			}
+
+			result.push_back(region);
+		}
+
+		// Advance past this region; stop if the address would wrap around at the top of the space.
+		ULONG64 next = info.BaseAddress + info.RegionSize;
+		if (next <= address)
+			break;
+		address = next;
+	}
+
+	return result;
+}
+
 
 bool DbgEngAdapter::BreakInto()
 {
