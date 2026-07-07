@@ -1109,6 +1109,89 @@ std::vector<DebugModule> GdbMiAdapter::GetModuleList()
 	return result;
 }
 
+
+std::vector<DebugMemoryRegion> GdbMiAdapter::GetMemoryMap()
+{
+	if (!m_mi || m_targetRunningAtomic)
+		return {};
+
+	std::unique_lock cmdLock(m_gdbCommandMutex);
+
+	// "info proc mappings" lists every mapped region. On GDB 8.0+ it includes a "Perms" column, e.g.:
+	//         Start Addr           End Addr       Size     Offset  Perms  objfile
+	//     0x555555554000     0x555555556000     0x2000        0x0  r--p   /usr/bin/cat
+	// Older GDB omits the Perms column; in that case we can only report readability.
+	std::string output = InvokeBackendCommand("info proc mappings");
+	if (output.empty() || output == "error, transport not ready")
+		return {};
+
+	auto isPermsToken = [](const std::string& s) {
+		return s.size() == 4 && (s[0] == 'r' || s[0] == '-') && (s[1] == 'w' || s[1] == '-')
+			&& (s[2] == 'x' || s[2] == '-') && (s[3] == 'p' || s[3] == 's' || s[3] == '-');
+	};
+
+	std::vector<DebugMemoryRegion> result;
+	std::istringstream stream(output);
+	std::string line;
+	while (std::getline(stream, line))
+	{
+		if (line.empty() || line.find("Start Addr") != std::string::npos
+			|| line.find("process") != std::string::npos
+			|| line.find("Mapped address spaces") != std::string::npos)
+			continue;
+
+		std::vector<std::string> columns;
+		std::istringstream lineStream(line);
+		std::string column;
+		while (lineStream >> column)
+			columns.push_back(column);
+
+		// Need at least start and end addresses.
+		if (columns.size() < 2 || columns[0].substr(0, 2) != "0x" || columns[1].substr(0, 2) != "0x")
+			continue;
+
+		uint64_t start = std::strtoull(columns[0].c_str(), nullptr, 16);
+		uint64_t end = std::strtoull(columns[1].c_str(), nullptr, 16);
+		if (end <= start)
+			continue;
+
+		// Find the permissions token (position varies across GDB versions), and treat the trailing
+		// column as the objfile/pseudo-name when it is neither the perms token nor a hex number.
+		std::string perms;
+		for (size_t i = 2; i < columns.size(); i++)
+		{
+			if (isPermsToken(columns[i]))
+				perms = columns[i];
+		}
+
+		std::string name;
+		const std::string& last = columns.back();
+		if (last != perms && last.substr(0, 2) != "0x")
+			name = last;
+
+		DebugMemoryRegion region;
+		region.m_start = start;
+		region.m_size = end - start;
+		region.m_name = name;
+		if (!perms.empty())
+		{
+			region.m_read = perms[0] == 'r';
+			region.m_write = perms[1] == 'w';
+			region.m_execute = perms[2] == 'x';
+			region.m_shared = perms[3] == 's';
+		}
+		else
+		{
+			// Older GDB does not report permissions here; the region is mapped, so assume readable.
+			region.m_read = true;
+		}
+		result.push_back(region);
+	}
+
+	return result;
+}
+
+
 bool GdbMiAdapter::Go()
 {
     if (!m_mi || m_targetRunningAtomic) return false;
