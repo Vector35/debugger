@@ -2663,7 +2663,13 @@ size_t DebuggerController::RemoveTrackedSymbolsLocked(BinaryViewRef data, const 
 		// some platforms makes the core auto-create an anonymous "data_..." symbol that would then leak.
 		// Undefining a data variable is keyed on the address; calling it more than once for an address
 		// shared by several folded symbols is harmless (the later calls are no-ops).
-		data->UndefineDataVariable(symbol->GetAddress());
+		//
+		// Pass blacklist = false: the default (true) blacklists the address so auto analysis will not
+		// recreate an auto data variable there. Since ApplyModuleSymbolsLocked adds these as *auto* data
+		// variables, blacklisting would make a later re-load's DefineDataVariable a no-op -- the symbol
+		// would then have no data variable and would not render in the linear view. We manage these
+		// variables ourselves, so removal must not blacklist them.
+		data->UndefineDataVariable(symbol->GetAddress(), false);
 		data->UndefineAutoSymbol(symbol);
 	}
 	return symbols.size();

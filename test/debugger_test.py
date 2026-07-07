@@ -155,7 +155,11 @@ class DebuggerAPI(unittest.TestCase):
             def symbol_count():
                 return len(dbg.data.get_symbols())
 
+            def data_var_count():
+                return len(dbg.data.get_data_variables())
+
             before = symbol_count()
+            data_vars_before = data_var_count()
 
             # We do not know up front which module the backend has symbols for, so try each one until a
             # module actually contributes symbols. Skip the main executable so the symbols are added into
@@ -183,23 +187,35 @@ class DebuggerAPI(unittest.TestCase):
             # The per-module count (surfaced in the Modules widget's Symbols column) matches what was added.
             self.assertEqual(dbg.loaded_symbol_count_for_module(loaded_module), added)
 
-            # Loading symbols increases the number of symbols in the BinaryView.
+            # Loading symbols increases the number of symbols in the BinaryView, and each gets a data
+            # variable so it renders in the views.
             after_load = symbol_count()
             self.assertGreater(after_load, before)
+            data_vars_after_load = data_var_count()
+            self.assertGreater(data_vars_after_load, data_vars_before)
 
             # Removing the symbols decreases the count back to the original value, with nothing left over.
             removed = dbg.remove_symbols_for_module(loaded_module)
             self.assertEqual(removed, added)
             self.assertLess(symbol_count(), after_load)
             self.assertEqual(symbol_count(), before)
+            self.assertEqual(data_var_count(), data_vars_before)
             self.assertEqual(len(dbg.modules_with_loaded_symbols), 0)
             self.assertEqual(dbg.loaded_symbol_count_for_module(loaded_module), 0)
+
+            # Regression: a load/remove/load cycle must recreate the data variables. Removal undefines them
+            # without blacklisting their addresses; if it blacklisted them, this re-load's auto data
+            # variables would be suppressed and the reloaded symbols would not render in the linear view.
+            self.assertGreater(dbg.load_symbols_for_module(loaded_module), 0)
+            # The blacklist bug leaves the data variable count stuck at the post-removal baseline; a correct
+            # re-load brings it back above baseline.
+            self.assertGreater(data_var_count(), data_vars_before)
+            self.assertEqual(dbg.loaded_symbol_count_for_module(loaded_module), added)
 
             # Loading the same module twice must not register it twice or accumulate duplicate tracking.
             # This is checked via the debugger's own tracking rather than the BinaryView's global symbol
             # count: some backends (e.g. DbgEng) resolve a module's symbols lazily and may enumerate them
             # slightly differently across calls, so the global count is not a stable idempotency oracle.
-            self.assertGreater(dbg.load_symbols_for_module(loaded_module), 0)
             self.assertGreater(dbg.load_symbols_for_module(loaded_module), 0)
             self.assertEqual(len(dbg.modules_with_loaded_symbols), 1)
             self.assertGreater(dbg.remove_symbols_for_module(loaded_module), 0)
