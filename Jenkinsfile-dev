@@ -79,6 +79,21 @@ String readTarget(String name) {
     return matcher ? matcher[0][1] : null
 }
 
+// copyArtifacts' lastSuccessful() can resolve to a build that Jenkins marked successful but
+// that published no artifacts (a known Jenkins issue), which makes the copy fail. Walk back
+// through successful builds and return a `specific()` selector for the most recent one that
+// actually has an artifact matching `filter`.
+def lastSuccessfulWithArtifacts(String projectName, String filter) {
+    def job = Jenkins.get().getItemByFullName(projectName)
+    for (def build = job.lastSuccessfulBuild; build != null; build = build.previousSuccessfulBuild) {
+        def artifacts = build.artifacts
+        if (artifacts != null && artifacts.any { org.apache.tools.ant.types.selectors.SelectorUtils.matchPath(filter, it.relativePath) }) {
+            return specific("${build.number}")
+        }
+    }
+    error "No successful build with artifacts matching '${filter}' found in ${projectName}"
+}
+
 // Pull the three prebuilt dependencies into ./artifacts-extern for scripts/build.py.
 void copyExternalArtifacts(String os) {
     // Qt + LLDB -- commit-matched via the shared library. The debugger has no llvm-build /
@@ -100,10 +115,13 @@ void copyExternalArtifacts(String os) {
     // artifacts/<os>/, e.g. binaryninja_macosx_5.4.9891-dev_commercial.zip; the _commercial
     // suffix selects exactly the commercial edition. build.py globs `binaryninja_*.zip` and
     // takes the first hit, so this filter must resolve to a single zip -- it does.
+    // lastSuccessfulWithArtifacts (not lastSuccessful) skips "successful" binja builds that
+    // published no artifacts, which would otherwise make this copy fail.
+    def binjaFilter = "artifacts/${os}/binaryninja_${os}_*_commercial.zip"
     copyArtifacts(
         projectName: 'binaryninja-dev-pipeline',
-        selector: lastSuccessful(),
-        filter: "artifacts/${os}/binaryninja_${os}_*_commercial.zip",
+        selector: lastSuccessfulWithArtifacts('binaryninja-dev-pipeline', binjaFilter),
+        filter: binjaFilter,
         flatten: true,
         fingerprintArtifacts: true,
         target: 'artifacts-extern'
