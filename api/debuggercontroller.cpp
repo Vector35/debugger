@@ -339,6 +339,12 @@ std::vector<std::string> DebuggerController::GetModulesWithLoadedSymbols()
 }
 
 
+size_t DebuggerController::GetLoadedSymbolCountForModule(const std::string& module)
+{
+	return BNDebuggerGetLoadedSymbolCountForModule(m_object, module.c_str());
+}
+
+
 std::vector<DebugRegister> DebuggerController::GetRegisters()
 {
 	size_t count;

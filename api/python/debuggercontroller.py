@@ -1588,6 +1588,15 @@ class DebuggerController:
         dbgcore.BNDebuggerFreeStringList(modules, count.value)
         return result
 
+    def loaded_symbol_count_for_module(self, module: str) -> int:
+        """
+        The number of backend symbols currently loaded for the given module.
+
+        :param module: the module to query; either its short name or full path
+        :return: the number of loaded symbols, or 0 if none have been loaded for the module
+        """
+        return dbgcore.BNDebuggerGetLoadedSymbolCountForModule(self.handle, module)
+
     def rebase_to_remote_base(self) -> bool:
         """
         Rebase the input binary view to match the remote base address.

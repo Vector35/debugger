@@ -180,6 +180,8 @@ class DebuggerAPI(unittest.TestCase):
 
             self.assertGreater(added, 0)
             self.assertEqual(len(dbg.modules_with_loaded_symbols), 1)
+            # The per-module count (surfaced in the Modules widget's Symbols column) matches what was added.
+            self.assertEqual(dbg.loaded_symbol_count_for_module(loaded_module), added)
 
             # Loading symbols increases the number of symbols in the BinaryView.
             after_load = symbol_count()
@@ -191,6 +193,7 @@ class DebuggerAPI(unittest.TestCase):
             self.assertLess(symbol_count(), after_load)
             self.assertEqual(symbol_count(), before)
             self.assertEqual(len(dbg.modules_with_loaded_symbols), 0)
+            self.assertEqual(dbg.loaded_symbol_count_for_module(loaded_module), 0)
 
             # Loading the same module twice must not register it twice or accumulate duplicate tracking.
             # This is checked via the debugger's own tracking rather than the BinaryView's global symbol

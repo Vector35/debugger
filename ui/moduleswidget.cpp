@@ -28,8 +28,8 @@ using namespace std;
 
 constexpr int SortFilterRole = Qt::UserRole + 1;
 
-ModuleItem::ModuleItem(uint64_t address, size_t size, std::string name, std::string path, bool symbolsLoaded) :
-	m_address(address), m_size(size), m_name(name), m_path(path), m_symbolsLoaded(symbolsLoaded)
+ModuleItem::ModuleItem(uint64_t address, size_t size, std::string name, std::string path, size_t symbolCount) :
+	m_address(address), m_size(size), m_name(name), m_path(path), m_symbolCount(symbolCount)
 {}
 
 
@@ -140,9 +140,14 @@ QVariant DebugModulesListModel::data(const QModelIndex& index, int role) const
 	}
 	case DebugModulesListModel::SymbolsColumn:
 	{
-		QString text = item->symbolsLoaded() ? "Loaded" : "";
+		// Show how many backend symbols are loaded for the module, e.g. "1024 symbols"; blank when none.
+		QString text;
+		if (item->symbolCount() > 0)
+			text = QString("%1 symbol%2")
+					   .arg((qulonglong)item->symbolCount())
+					   .arg(item->symbolCount() == 1 ? "" : "s");
 		if (role == Qt::SizeHintRole)
-			return QVariant((qulonglong)QString("Loaded").size());
+			return QVariant((qulonglong)text.size());
 
 		return QVariant(text);
 	}
@@ -187,24 +192,24 @@ QVariant DebugModulesListModel::headerData(int column, Qt::Orientation orientati
 
 
 void DebugModulesListModel::updateRows(
-	std::vector<DebugModule> newModules, const std::vector<std::string>& modulesWithSymbols)
+	std::vector<DebugModule> newModules, const std::map<std::string, uint64_t>& moduleSymbolCounts)
 {
 	beginResetModel();
 	std::vector<ModuleItem> newRows;
 	for (const DebugModule& module : newModules)
 	{
-		bool symbolsLoaded = false;
-		for (const std::string& name : modulesWithSymbols)
+		uint64_t symbolCount = 0;
+		for (const auto& [name, count] : moduleSymbolCounts)
 		{
 			// Note: DebugModule::IsSameBaseModule is declared in the API but not linked here, so compare
 			// via the exported FFI helper, which matches the base file name case-insensitively.
 			if (BNDebuggerIsSameBaseModule(module.m_name.c_str(), name.c_str()))
 			{
-				symbolsLoaded = true;
+				symbolCount = count;
 				break;
 			}
 		}
-		newRows.emplace_back(module.m_address, module.m_size, module.m_short_name, module.m_name, symbolsLoaded);
+		newRows.emplace_back(module.m_address, module.m_size, module.m_short_name, module.m_name, symbolCount);
 	}
 
 	std::sort(newRows.begin(), newRows.end(), [=](const ModuleItem& a, const ModuleItem& b) {
@@ -410,7 +415,11 @@ void DebugModulesWidget::updateColumnWidths()
 
 void DebugModulesWidget::notifyModulesChanged(std::vector<DebugModule> modules)
 {
-	m_model->updateRows(modules, m_controller->GetModulesWithLoadedSymbols());
+	std::map<std::string, uint64_t> moduleSymbolCounts;
+	for (const std::string& name : m_controller->GetModulesWithLoadedSymbols())
+		moduleSymbolCounts[name] = m_controller->GetLoadedSymbolCountForModule(name);
+
+	m_model->updateRows(modules, moduleSymbolCounts);
 	updateColumnWidths();
 }
 

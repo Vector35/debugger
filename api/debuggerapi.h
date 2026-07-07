@@ -710,6 +710,9 @@ namespace BinaryNinjaDebuggerAPI {
 		size_t RemoveAllLoadedSymbols();
 		// The base names of the modules for which backend symbols have been loaded.
 		std::vector<std::string> GetModulesWithLoadedSymbols();
+		// The number of backend symbols currently loaded for the named module (0 if none). The module may
+		// be given as either its base name or its full path.
+		size_t GetLoadedSymbolCountForModule(const std::string& module);
 
 		std::vector<DebugRegister> GetRegisters();
 		intx::uint512 GetRegisterValue(const std::string& name);

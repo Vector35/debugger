@@ -249,9 +249,18 @@ namespace BinaryNinjaDebugger {
 		// one of them. See LoadSymbolsForModule / RemoveSymbolsForModule.
 		std::map<std::string, std::vector<Ref<Symbol>>> m_loadedModuleSymbols;
 		std::recursive_mutex m_loadedModuleSymbolsMutex;
-		// Undefine the given auto symbols and their data variables. Returns the number of symbols processed.
-		// m_loadedModuleSymbolsMutex must be held.
+		// Undefine the given auto symbols and their data variables in a self-contained analysis-update /
+		// undo-action window. Returns the number of symbols processed. m_loadedModuleSymbolsMutex must be held.
 		size_t UndefineTrackedSymbols(const std::vector<Ref<Symbol>>& symbols);
+		// Define / undefine a module's symbols directly in the BinaryView. The caller must hold
+		// m_loadedModuleSymbolsMutex, have already disabled function-analysis updates, and manage the
+		// undo-action scope. Applying every module inside one such shared window -- rather than opening one
+		// per module -- lets a single analysis pass re-resolve every module's references (e.g. IAT pointers
+		// to freshly-named API functions); a per-module window would let each module's async re-analysis be
+		// superseded by the next module's disable, so only the last module loaded would resolve. See #210.
+		size_t ApplyModuleSymbolsLocked(
+			BinaryViewRef data, const DebugModule& module, const std::vector<DebugSymbol>& symbols);
+		size_t RemoveTrackedSymbolsLocked(BinaryViewRef data, const std::vector<Ref<Symbol>>& symbols);
 
 		void ApplyBreakpoints();
 
@@ -477,6 +486,9 @@ namespace BinaryNinjaDebugger {
 		size_t RemoveAllLoadedSymbols();
 		// The base names of the modules for which backend symbols have been loaded.
 		std::vector<std::string> GetModulesWithLoadedSymbols();
+		// The number of backend symbols currently loaded for the given module (0 if none). The module may be
+		// given as either its base name or its full path.
+		size_t GetLoadedSymbolCountForModule(const std::string& module);
 
 		// rebasing
 		// Note: Returns true immediately in UI mode (rebase completes asynchronously via UI callback)

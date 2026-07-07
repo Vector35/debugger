@@ -545,6 +545,10 @@ extern "C"
 	// The base names of the modules for which backend symbols have been loaded. Free with
 	// BNDebuggerFreeStringList.
 	DEBUGGER_FFI_API char** BNDebuggerGetModulesWithLoadedSymbols(BNDebuggerController* controller, size_t* count);
+	// The number of backend symbols currently loaded for the named module (0 if none). The module may be
+	// given as either its base name or its full path.
+	DEBUGGER_FFI_API size_t BNDebuggerGetLoadedSymbolCountForModule(
+		BNDebuggerController* controller, const char* module);
 
 	DEBUGGER_FFI_API BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeRegisters(BNDebugRegister* modules, size_t count);

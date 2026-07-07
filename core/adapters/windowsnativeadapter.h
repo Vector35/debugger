@@ -151,6 +151,9 @@ namespace BinaryNinjaDebugger {
 		bool HandleOutputDebugString(const OUTPUT_DEBUG_STRING_INFO& info);
 
 		std::string GetModuleNameFromHandle(HANDLE fileHandle, LPVOID baseAddress);
+		// The module's executable [start, end) address ranges, read from its mapped PE section headers.
+		// Used to classify backend symbols (see GetSymbolsForModule / EnumSymbolsCallback) as code or data.
+		std::vector<std::pair<uint64_t, uint64_t>> GetExecutableRanges(uint64_t moduleBase);
 		bool ApplyBreakpoint(uint64_t address, unsigned long id);
 		bool RemoveBreakpointInternal(uint64_t address);
 		void ApplyPendingBreakpoints();

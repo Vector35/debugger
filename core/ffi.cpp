@@ -414,6 +414,12 @@ char** BNDebuggerGetModulesWithLoadedSymbols(BNDebuggerController* controller, s
 }
 
 
+size_t BNDebuggerGetLoadedSymbolCountForModule(BNDebuggerController* controller, const char* module)
+{
+	return controller->object->GetLoadedSymbolCountForModule(std::string(module));
+}
+
+
 BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t* size)
 {
 	std::vector<DebugRegister> registers = controller->object->GetAllRegisters();
