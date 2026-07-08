@@ -160,6 +160,37 @@ class DebuggerAPI(unittest.TestCase):
 
             before = symbol_count()
             data_vars_before = data_var_count()
+            data_var_addrs_before = {v.address for v in dbg.data.data_vars.values()}
+
+            def data_var_diff_message():
+                # On failure, describe exactly which data variable addresses differ from the pre-load
+                # baseline, so a leak that only reproduces on CI can be diagnosed from the log. This is
+                # returned as the assertEqual message (not just printed) so pytest surfaces it in the
+                # failure report even when stdout capturing is on.
+                after_addrs = {v.address for v in dbg.data.data_vars.values()}
+                leaked = sorted(after_addrs - data_var_addrs_before)
+                missing = sorted(data_var_addrs_before - after_addrs)
+
+                def describe(addrs):
+                    lines = []
+                    for a in addrs:
+                        dv = dbg.data.data_vars.get(a)
+                        type_desc = repr(dv.type) if dv is not None else None
+                        syms = [(s.type.name, s.name) for s in dbg.data.get_symbols(a, 1)]
+                        lines.append(f"      {a:#x} type={type_desc} symbols={syms}")
+                    return lines
+
+                lines = [
+                    f"data var count {len(after_addrs)} != baseline {len(data_var_addrs_before)} "
+                    f"({len(leaked)} leaked, {len(missing)} missing)"
+                ]
+                if leaked:
+                    lines.append("    leaked (present after removal, absent at baseline):")
+                    lines += describe(leaked)
+                if missing:
+                    lines.append("    missing (present at baseline, absent after removal):")
+                    lines += describe(missing)
+                return "\n".join(lines)
 
             # We do not know up front which module the backend has symbols for, so try each one until a
             # module actually contributes symbols. Skip the main executable so the symbols are added into
@@ -199,7 +230,7 @@ class DebuggerAPI(unittest.TestCase):
             self.assertEqual(removed, added)
             self.assertLess(symbol_count(), after_load)
             self.assertEqual(symbol_count(), before)
-            self.assertEqual(data_var_count(), data_vars_before)
+            self.assertEqual(data_var_count(), data_vars_before, data_var_diff_message())
             self.assertEqual(len(dbg.modules_with_loaded_symbols), 0)
             self.assertEqual(dbg.loaded_symbol_count_for_module(loaded_module), 0)
 
