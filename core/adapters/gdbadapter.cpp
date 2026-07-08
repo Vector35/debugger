@@ -891,6 +891,63 @@ std::vector<DebugModule> GdbAdapter::GetModuleList()
 }
 
 
+std::vector<DebugMemoryRegion> GdbAdapter::GetMemoryMap()
+{
+    if (m_isTargetRunning)
+        return {};
+
+    if (!m_rspConnector)
+        return {};
+
+    const auto path = "/proc/" + std::to_string(this->m_lastActiveThreadId) + "/maps";
+    std::string data = GetRemoteFile(path);
+    if (data.empty())
+        return {};
+
+    // Each line of /proc/[pid]/maps describes one mapped region:
+    //   start-end perms offset dev inode pathname
+    // e.g. "7ffff7dc5000-7ffff7de7000 r-xp 00000000 08:01 1234  /usr/lib/libc.so"
+    // Unlike GetModuleList (which aggregates the regions of each file into one module) we keep every
+    // region and record its permissions. The pathname is optional and may be a pseudo-name such as
+    // "[stack]", "[heap]" or "[vdso]".
+    std::vector<DebugMemoryRegion> result;
+    const std::regex region_regex(
+        "^([0-9a-f]+)-([0-9a-f]+)\\s+([rwxsp-]{4})\\s+[0-9a-f]+\\s+\\S+\\s+[0-9]+\\s*(.*)$");
+    for (const std::string& line : RspConnector::Split(data, "\n"))
+    {
+        std::string_view v = line;
+        v.remove_prefix(std::min(v.find_first_not_of(" "), v.size()));
+        auto trimPosition = v.find_last_not_of(" \r");
+        if (trimPosition != v.npos)
+            v.remove_suffix(v.size() - trimPosition - 1);
+
+        const std::string trimmedLine = std::string(v);
+
+        std::smatch match;
+        if (!std::regex_match(trimmedLine, match, region_regex) || match.size() != 5)
+            continue;
+
+        uint64_t start = std::strtoull(match[1].str().c_str(), nullptr, 16);
+        uint64_t end = std::strtoull(match[2].str().c_str(), nullptr, 16);
+        if (end <= start)
+            continue;
+
+        const std::string perms = match[3].str();  // e.g. "r-xp"
+        DebugMemoryRegion region;
+        region.m_start = start;
+        region.m_size = end - start;
+        region.m_name = match[4].str();
+        region.m_read = perms[0] == 'r';
+        region.m_write = perms[1] == 'w';
+        region.m_execute = perms[2] == 'x';
+        region.m_shared = perms[3] == 's';
+        result.push_back(region);
+    }
+
+    return result;
+}
+
+
 std::string GdbAdapter::GetTargetArchitecture()
 {
 	return m_remoteArch;

@@ -540,6 +540,70 @@ std::vector<DebugModule> DebuggerModules::GetAllModules()
 }
 
 
+DebuggerMemoryMap::DebuggerMemoryMap(DebuggerState* state) : m_state(state)
+{
+	MarkDirty();
+}
+
+
+void DebuggerMemoryMap::MarkDirty()
+{
+	std::unique_lock lock(m_regionsMutex);
+	m_dirty = true;
+	m_regions.clear();
+}
+
+
+void DebuggerMemoryMap::Update()
+{
+	DebugAdapter* adapter = m_state->GetAdapter();
+	if (!adapter)
+		return;
+
+	if (!m_state->IsConnected())
+		return;
+
+	std::unique_lock lock(m_regionsMutex);
+	{
+		std::lock_guard adapterLock(m_state->AdapterAccessMutex());
+		m_regions = adapter->GetMemoryMap();
+	}
+	m_dirty = false;
+}
+
+
+std::vector<DebugMemoryRegion> DebuggerMemoryMap::GetAllRegions()
+{
+	std::unique_lock lock(m_regionsMutex);
+
+	if (IsDirty())
+		Update();
+
+	return m_regions;
+}
+
+
+DebugMemoryRegion DebuggerMemoryMap::GetRegionForAddress(uint64_t remoteAddress, bool& found)
+{
+	std::unique_lock lock(m_regionsMutex);
+
+	if (IsDirty())
+		Update();
+
+	for (const DebugMemoryRegion& region : m_regions)
+	{
+		if (remoteAddress >= region.m_start && remoteAddress < region.m_start + region.m_size)
+		{
+			found = true;
+			return region;
+		}
+	}
+
+	found = false;
+	return {};
+}
+
+
 DebuggerBreakpoints::DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial) :
 	m_state(state)
 {
@@ -1390,6 +1454,7 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 
 	m_adapter = nullptr;
 	m_modules = new DebuggerModules(this);
+	m_memoryMap = new DebuggerMemoryMap(this);
 	m_registers = new DebuggerRegisters(this);
 	m_threads = new DebuggerThreads(this);
 	m_breakpoints = new DebuggerBreakpoints(this);
@@ -1406,6 +1471,7 @@ DebuggerState::~DebuggerState()
 {
 	delete m_adapter;
 	delete m_modules;
+	delete m_memoryMap;
 	delete m_registers;
 	delete m_threads;
 	delete m_breakpoints;
@@ -1572,6 +1638,7 @@ void DebuggerState::MarkDirty()
 	m_registers->MarkDirty();
 	m_threads->MarkDirty();
 	m_modules->MarkDirty();
+	m_memoryMap->MarkDirty();
 	m_memory->MarkDirty();
 }
 

@@ -94,6 +94,7 @@ public:
     bool WriteMemory(std::uintptr_t address, const BinaryNinja::DataBuffer& buffer) override;
     
     std::vector<BinaryNinjaDebugger::DebugModule> GetModuleList() override;
+    std::vector<BinaryNinjaDebugger::DebugMemoryRegion> GetMemoryMap() override;
     std::string GetTargetArchitecture() override;
     BinaryNinjaDebugger::DebugStopReason StopReason() override;
     uint64_t ExitCode() override;

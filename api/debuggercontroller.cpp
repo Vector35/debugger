@@ -275,6 +275,31 @@ std::vector<DebugModule> DebuggerController::GetModules()
 }
 
 
+std::vector<DebugMemoryRegion> DebuggerController::GetMemoryMap()
+{
+	size_t count;
+	BNDebugMemoryRegion* regions = BNDebuggerGetMemoryMap(m_object, &count);
+
+	vector<DebugMemoryRegion> result;
+	result.reserve(count);
+	for (size_t i = 0; i < count; i++)
+	{
+		DebugMemoryRegion region;
+		region.m_start = regions[i].m_start;
+		region.m_size = regions[i].m_size;
+		region.m_name = regions[i].m_name;
+		region.m_read = regions[i].m_read;
+		region.m_write = regions[i].m_write;
+		region.m_execute = regions[i].m_execute;
+		region.m_shared = regions[i].m_shared;
+		result.push_back(region);
+	}
+	BNDebuggerFreeMemoryRegions(regions, count);
+
+	return result;
+}
+
+
 std::vector<DebugRegister> DebuggerController::GetRegisters()
 {
 	size_t count;

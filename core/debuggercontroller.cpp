@@ -2504,6 +2504,11 @@ std::vector<DebugModule> DebuggerController::GetAllModules()
 	return m_state->GetModules()->GetAllModules();
 }
 
+std::vector<DebugMemoryRegion> DebuggerController::GetMemoryMap()
+{
+	return m_state->GetMemoryMap()->GetAllRegions();
+}
+
 std::vector<DebugProcess> DebuggerController::GetProcessList()
 {
 	if (!m_adapter)

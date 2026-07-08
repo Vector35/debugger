@@ -128,6 +128,7 @@ namespace BinaryNinjaDebugger {
 		IDebugClient7* m_debugClient {nullptr};
 		IDebugControl7* m_debugControl {nullptr};
 		IDebugDataSpaces* m_debugDataSpaces {nullptr};
+		IDebugDataSpaces2* m_debugDataSpaces2 {nullptr};
 		IDebugRegisters* m_debugRegisters {nullptr};
 		IDebugSymbols3* m_debugSymbols {nullptr};
 		IDebugSystemObjects* m_debugSystemObjects {nullptr};
@@ -221,6 +222,8 @@ namespace BinaryNinjaDebugger {
 		// bool ReadMemory(std::uintptr_t address, void* out, std::size_t size) override;
 		// bool WriteMemory(std::uintptr_t address, const void* out, std::size_t size) override;
 		std::vector<DebugModule> GetModuleList() override;
+
+		std::vector<DebugMemoryRegion> GetMemoryMap() override;
 
 		std::string GetTargetArchitecture() override;
 

@@ -210,6 +210,32 @@ namespace BinaryNinjaDebugger {
 		static std::string GetPathBaseName(const std::string& path);
 	};
 
+	// A single mapped region of the target's virtual address space (a memory-map entry), e.g. the
+	// backing of one segment of a module, an anonymous mapping, the stack, or the heap. Unlike a
+	// DebugModule (one entry per loaded binary), a memory region is the OS page-protection view: a
+	// module typically spans several regions with different permissions, and many regions (stack,
+	// heap, anonymous mmap) belong to no module at all.
+	struct DebugMemoryRegion
+	{
+		std::uintptr_t m_start {};
+		std::size_t m_size {};
+		// The backing of the region: a file path for file-backed mappings, a well-known name such as
+		// "[stack]" or "[heap]" where the backend provides one, or empty for anonymous mappings.
+		std::string m_name {};
+		bool m_read {};
+		bool m_write {};
+		bool m_execute {};
+		// Whether the mapping is shared between processes (as opposed to a private/copy-on-write map).
+		bool m_shared {};
+
+		DebugMemoryRegion() = default;
+		DebugMemoryRegion(std::uintptr_t start, std::size_t size, std::string name, bool read, bool write,
+			bool execute, bool shared) :
+			m_start(start), m_size(size), m_name(std::move(name)), m_read(read), m_write(write),
+			m_execute(execute), m_shared(shared)
+		{}
+	};
+
 	struct DebugFrame
 	{
 		size_t m_index = 0;
@@ -336,6 +362,11 @@ namespace BinaryNinjaDebugger {
 		virtual bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) = 0;
 
 		virtual std::vector<DebugModule> GetModuleList() = 0;
+
+		// Return the target's memory map: every mapped region of the virtual address space with its
+		// permissions. Adapters opt in by overriding this; the default is an empty map for backends
+		// that do not (yet) support it. See issue #96.
+		virtual std::vector<DebugMemoryRegion> GetMemoryMap() { return {}; }
 
 		virtual std::string GetTargetArchitecture() = 0;
 

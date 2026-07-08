@@ -2630,6 +2630,64 @@ std::vector<DebugModule> WindowsNativeAdapter::GetModuleList()
 }
 
 
+std::vector<DebugMemoryRegion> WindowsNativeAdapter::GetMemoryMap()
+{
+	if (!m_processHandle)
+		return {};
+
+	std::vector<DebugMemoryRegion> result;
+
+	// Walk the whole virtual address space with VirtualQueryEx, starting at 0 and advancing by each
+	// region's size. The query fails once we walk past the end of the user address space, which
+	// terminates the loop. Free/reserved regions are reported too (with a size that spans the gap), so
+	// skipping them still advances efficiently.
+	uintptr_t address = 0;
+	MEMORY_BASIC_INFORMATION info = {};
+	while (VirtualQueryEx(m_processHandle, (LPCVOID)address, &info, sizeof(info)) == sizeof(info))
+	{
+		if (info.RegionSize == 0)
+			break;
+
+		// Only committed pages are actually mapped. Guard pages and no-access pages are committed but
+		// cannot be read, so we exclude them from the "readable" map.
+		const DWORD protect = info.Protect & 0xff;  // strip PAGE_GUARD / PAGE_NOCACHE / PAGE_WRITECOMBINE
+		if (info.State == MEM_COMMIT && !(info.Protect & PAGE_GUARD) && protect != PAGE_NOACCESS)
+		{
+			DebugMemoryRegion region;
+			region.m_start = (uint64_t)info.BaseAddress;
+			region.m_size = info.RegionSize;
+			region.m_read = true;  // any committed, non-no-access, non-guard page is readable on x86/x64
+			region.m_write = (protect == PAGE_READWRITE) || (protect == PAGE_WRITECOPY)
+				|| (protect == PAGE_EXECUTE_READWRITE) || (protect == PAGE_EXECUTE_WRITECOPY);
+			region.m_execute = (protect == PAGE_EXECUTE) || (protect == PAGE_EXECUTE_READ)
+				|| (protect == PAGE_EXECUTE_READWRITE) || (protect == PAGE_EXECUTE_WRITECOPY);
+			// MEM_MAPPED sections (file/pagefile-backed) can be shared between processes; MEM_IMAGE is
+			// copy-on-write and MEM_PRIVATE is private.
+			region.m_shared = (info.Type == MEM_MAPPED);
+
+			// Image- and file-backed regions have a backing file we can name. Leave the name empty
+			// (rather than the helper's "<unknown>" sentinel) for mappings with no resolvable file.
+			if (info.Type == MEM_IMAGE || info.Type == MEM_MAPPED)
+			{
+				std::string name = GetModuleNameFromHandle(nullptr, info.BaseAddress);
+				if (name != "<unknown>")
+					region.m_name = name;
+			}
+
+			result.push_back(region);
+		}
+
+		// Advance past this region; stop if the address would wrap around at the top of the space.
+		uintptr_t next = (uintptr_t)info.BaseAddress + info.RegionSize;
+		if (next <= address)
+			break;
+		address = next;
+	}
+
+	return result;
+}
+
+
 std::string WindowsNativeAdapter::GetTargetArchitecture()
 {
 	// Use cached WOW64 detection result

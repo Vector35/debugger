@@ -125,6 +125,8 @@ namespace BinaryNinjaDebugger {
 
 		std::vector<DebugModule> GetModuleList() override;
 
+		std::vector<DebugMemoryRegion> GetMemoryMap() override;
+
 		std::string GetTargetArchitecture() override;
 
 		DebugStopReason StopReason() override;

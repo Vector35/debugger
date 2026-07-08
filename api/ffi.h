@@ -115,6 +115,17 @@ extern "C"
 		bool m_loaded;
 	} BNDebugModule;
 
+	typedef struct BNDebugMemoryRegion
+	{
+		char* m_name;
+		uint64_t m_start;
+		size_t m_size;
+		bool m_read;
+		bool m_write;
+		bool m_execute;
+		bool m_shared;
+	} BNDebugMemoryRegion;
+
 
 	typedef struct BNDebugRegister
 	{
@@ -518,6 +529,9 @@ extern "C"
 
 	DEBUGGER_FFI_API BNDebugModule* BNDebuggerGetModules(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeModules(BNDebugModule* modules, size_t count);
+
+	DEBUGGER_FFI_API BNDebugMemoryRegion* BNDebuggerGetMemoryMap(BNDebuggerController* controller, size_t* count);
+	DEBUGGER_FFI_API void BNDebuggerFreeMemoryRegions(BNDebugMemoryRegion* regions, size_t count);
 
 	DEBUGGER_FFI_API BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeRegisters(BNDebugRegister* modules, size_t count);
