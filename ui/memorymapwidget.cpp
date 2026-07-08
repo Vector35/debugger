@@ -19,6 +19,10 @@ limitations under the License.
 #include <QGuiApplication>
 #include <QMimeData>
 #include <QClipboard>
+#include <QFileDialog>
+#include <QFile>
+#include <QMessageBox>
+#include <algorithm>
 #include "ui.h"
 #include "memorymapwidget.h"
 #include "clickablelabel.h"
@@ -338,6 +342,18 @@ DebugMemoryMapWidget::DebugMemoryMapWidget(ViewFrame* view, BinaryViewRef data) 
 	m_menu.addAction("Copy All", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Copy All", UIAction([&]() { copyAll(); }, [&]() { return canCopyAll(); }));
 
+	actionName = QString::fromStdString("Select In Binary View");
+	UIAction::registerAction(actionName);
+	m_menu.addAction(actionName, "Options", MENU_ORDER_NORMAL);
+	m_actionHandler.bindAction(
+		actionName, UIAction([this]() { selectInView(); }, [this]() { return canSelectRegion(); }));
+
+	actionName = QString::fromStdString("Save Region To Disk...");
+	UIAction::registerAction(actionName);
+	m_menu.addAction(actionName, "Options", MENU_ORDER_LAST);
+	m_actionHandler.bindAction(
+		actionName, UIAction([this]() { saveToDisk(); }, [this]() { return canSaveRegion(); }));
+
 	connect(this, &QTableView::doubleClicked, this, &DebugMemoryMapWidget::onDoubleClicked);
 	connect(this, &DebugMemoryMapWidget::debuggerEvent, this, &DebugMemoryMapWidget::onDebuggerEvent);
 
@@ -481,33 +497,54 @@ void DebugMemoryMapWidget::copy()
 	if (sel.empty())
 		return;
 
-	auto sourceIndex = m_filter->mapToSource(sel[0]);
-	if (!sourceIndex.isValid())
-		return;
+	// Sort into visual order (top-to-bottom, then left-to-right) so a multi-cell selection is
+	// copied the way it is laid out on screen.
+	std::sort(sel.begin(), sel.end(), [](const QModelIndex& a, const QModelIndex& b) {
+		if (a.row() != b.row())
+			return a.row() < b.row();
+		return a.column() < b.column();
+	});
 
-	auto region = m_model->getRow(sourceIndex.row());
-	QString text;
+	auto cellText = [this](const QModelIndex& proxyIndex) -> QString {
+		auto sourceIndex = m_filter->mapToSource(proxyIndex);
+		if (!sourceIndex.isValid())
+			return QString();
 
-	switch (sel[0].column())
+		auto region = m_model->getRow(sourceIndex.row());
+		switch (proxyIndex.column())
+		{
+		case DebugMemoryMapListModel::StartColumn:
+			return QString::asprintf("0x%" PRIx64, region.start());
+		case DebugMemoryMapListModel::EndColumn:
+			return QString::asprintf("0x%" PRIx64, region.endAddress());
+		case DebugMemoryMapListModel::SizeColumn:
+			return QString::asprintf("0x%" PRIx64, (uint64_t)region.size());
+		case DebugMemoryMapListModel::PermissionsColumn:
+			return QString::fromStdString(region.permissions());
+		case DebugMemoryMapListModel::NameColumn:
+			return QString::fromStdString(region.name());
+		default:
+			return QString();
+		}
+	};
+
+	// Group the selected cells by row: tab-separate columns within a row, newline between rows.
+	QStringList lines;
+	QStringList currentRow;
+	int lastRow = sel[0].row();
+	for (const auto& index : sel)
 	{
-	case DebugMemoryMapListModel::StartColumn:
-		text = QString::asprintf("0x%" PRIx64, region.start());
-		break;
-	case DebugMemoryMapListModel::EndColumn:
-		text = QString::asprintf("0x%" PRIx64, region.endAddress());
-		break;
-	case DebugMemoryMapListModel::SizeColumn:
-		text = QString::asprintf("0x%" PRIx64, (uint64_t)region.size());
-		break;
-	case DebugMemoryMapListModel::PermissionsColumn:
-		text = QString::fromStdString(region.permissions());
-		break;
-	case DebugMemoryMapListModel::NameColumn:
-		text = QString::fromStdString(region.name());
-		break;
-	default:
-		break;
+		if (index.row() != lastRow)
+		{
+			lines.append(currentRow.join('\t'));
+			currentRow.clear();
+			lastRow = index.row();
+		}
+		currentRow.append(cellText(index));
 	}
+	lines.append(currentRow.join('\t'));
+
+	QString text = lines.join('\n');
 
 	auto* clipboard = QGuiApplication::clipboard();
 	clipboard->clear();
@@ -544,6 +581,105 @@ void DebugMemoryMapWidget::copyAll()
 	auto* mime = new QMimeData();
 	mime->setText(text);
 	clipboard->setMimeData(mime);
+}
+
+
+bool DebugMemoryMapWidget::canSelectRegion()
+{
+	return m_controller->IsConnected() && !selectionModel()->selectedIndexes().empty();
+}
+
+
+bool DebugMemoryMapWidget::canSaveRegion()
+{
+	return m_controller->IsConnected() && !selectionModel()->selectedIndexes().empty();
+}
+
+
+void DebugMemoryMapWidget::selectInView()
+{
+	QModelIndexList sel = selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto region = m_model->getRow(sourceIndex.row());
+
+	UIContext* context = UIContext::contextForWidget(this);
+	if (!context)
+		return;
+
+	ViewFrame* frame = context->getCurrentViewFrame();
+	if (!frame)
+		return;
+
+	BinaryViewRef data = m_controller->GetData();
+	if (!data)
+		return;
+
+	// Navigate to the start of the region first, then select the whole range in the resulting view.
+	frame->navigate(data, region.start(), true, true);
+
+	View* view = frame->getCurrentViewInterface();
+	if (view)
+		view->setSelectionOffsets({region.start(), region.endAddress()});
+}
+
+
+void DebugMemoryMapWidget::saveToDisk()
+{
+	QModelIndexList sel = selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto region = m_model->getRow(sourceIndex.row());
+
+	if (!m_controller->IsConnected())
+		return;
+
+	DataBuffer buffer = m_controller->ReadMemory(region.start(), region.size());
+	if (buffer.GetLength() == 0)
+	{
+		QMessageBox::critical(this, "Save Failed",
+			QString::asprintf("Could not read any memory from the region at 0x%" PRIx64 ".", region.start()));
+		return;
+	}
+
+	QString defaultName = QString::asprintf("region_0x%" PRIx64 "-0x%" PRIx64 ".bin", region.start(), region.endAddress());
+	QString savePath = QFileDialog::getSaveFileName(this, "Save Memory Region", defaultName, "All Files (*)");
+	if (savePath.isEmpty())
+		return;
+
+	QFile file(savePath);
+	if (!file.open(QIODevice::WriteOnly))
+	{
+		QMessageBox::critical(this, "Save Failed", "Could not open the destination file for writing.");
+		return;
+	}
+
+	qint64 written = file.write((const char*)buffer.GetData(), buffer.GetLength());
+	file.close();
+
+	if (written != (qint64)buffer.GetLength())
+	{
+		QMessageBox::critical(this, "Save Failed", "Failed to write the full memory region to disk.");
+		return;
+	}
+
+	// The region may be only partially readable; if so we saved fewer bytes than the region's nominal size.
+	if (buffer.GetLength() < region.size())
+	{
+		QMessageBox::warning(this, "Partial Save",
+			QString::asprintf("Only 0x%" PRIx64 " of 0x%" PRIx64 " bytes were readable and saved.",
+				(uint64_t)buffer.GetLength(), (uint64_t)region.size()));
+	}
 }
 
 

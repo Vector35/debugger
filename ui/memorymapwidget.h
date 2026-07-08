@@ -154,6 +154,8 @@ class DebugMemoryMapWidget : public QTableView, public FilterTarget
 
 	bool canCopy();
 	bool canCopyAll();
+	bool canSaveRegion();
+	bool canSelectRegion();
 
 	virtual void setFilter(const std::string& filter, FilterOptions options) override;
 	virtual void scrollToFirstItem() override;
@@ -179,6 +181,8 @@ private slots:
 	void jumpToEnd();
 	void copy();
 	void copyAll();
+	void saveToDisk();
+	void selectInView();
 	void onDoubleClicked();
 
 public slots:
