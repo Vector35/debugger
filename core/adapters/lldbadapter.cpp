@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 #include <inttypes.h>
+#include <algorithm>
+#include <limits>
 #include <filesystem>
 #include "lldbadapter.h"
 #include "thread"
@@ -1534,20 +1536,63 @@ bool LldbAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 }
 
 
-static uint64_t GetModuleHighestAddress(SBModule& module, SBTarget& target)
+// The largest gap we tolerate between two mapped segments that still belong to the *same* module.
+// Every loader we support lays a module's own segments out within a few MB of one another, so a value
+// well above that but below the shared-cache scatter (see below) cleanly separates the two; 64 MB
+// leaves a wide margin on both sides (observed intra-module scatter on macOS is >= ~240 MB).
+static constexpr uint64_t ModuleSegmentGapLimit = 0x4000000;
+
+
+// Compute the size of a module as it is laid out in the target's address space, starting from the
+// load address of the object-file header. `nextModuleBase` is the load base of the next module in the
+// address space (or UINT64_MAX for the highest one).
+//
+// We cannot simply take the maximum end over every section. On macOS, dyld does not map system
+// libraries as independent images: it groups the segments of *different* modules by type into the
+// shared cache (all __TEXT together, all __DATA together, and a single combined __LINKEDIT shared by
+// the whole cache). A given module's own segments are therefore scattered across gigabytes, and many
+// modules point at the same ~600 MB __LINKEDIT. Taking the maximum section end would make almost
+// every module span most of the shared cache and report an absurd size (or -1 once it overflowed the
+// header base) -- issue #554.
+//
+// We keep the reported range to the part of the address space the module actually owns using two
+// signals: (1) a module owns [base, nextModuleBase), so sections that map into a foreign shared-cache
+// region above the next module are dropped; and (2) starting from the header we only extend the
+// module through segments that stay contiguous with it, stopping at the first large jump (this also
+// bounds the single highest module, which has no next base to clip against). On platforms without a
+// shared cache (e.g. Linux) and for the main executable on macOS, a module's segments are contiguous,
+// so this yields the true full extent; for shared-cache dylibs it yields the contiguous __TEXT range,
+// which is what `image list`/`vmmap` report as the module's range.
+static uint64_t GetModuleLoadedSize(SBModule& module, SBTarget& target, uint64_t base, uint64_t nextModuleBase)
 {
-	uint64_t largestAddress = 0;
+	if (base == LLDB_INVALID_ADDRESS)
+		return 0;
+
+	// Collect the load ranges of all mapped sections. Sections that are not mapped into the process
+	// (e.g. __PAGEZERO) report an invalid load address; sections at or above the next module belong to
+	// a foreign shared-cache region. Both are skipped.
+	std::vector<std::pair<uint64_t, uint64_t>> ranges;  // [start, end)
 	const size_t numSections = module.GetNumSections();
+	ranges.reserve(numSections);
 	for (size_t i = 0; i < numSections; i++)
 	{
 		SBSection section = module.GetSectionAtIndex(i);
 		uint64_t start = section.GetLoadAddress(target);
-		size_t size = section.GetByteSize();
-		uint64_t end = start + size;
-		if (end > largestAddress)
-			largestAddress = end;
+		if (start == LLDB_INVALID_ADDRESS || start >= nextModuleBase)
+			continue;
+		ranges.emplace_back(start, start + section.GetByteSize());
 	}
-	return largestAddress;
+	std::sort(ranges.begin(), ranges.end());
+
+	uint64_t end = base;
+	for (const auto& [start, sectionEnd] : ranges)
+	{
+		if (start > end + ModuleSegmentGapLimit)
+			break;
+		if (sectionEnd > end)
+			end = sectionEnd;
+	}
+	return end - base;
 }
 
 
@@ -1555,6 +1600,22 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
 {
 	std::vector<DebugModule> result;
 	uint32_t numModules = m_target.GetNumModules();
+
+	// First pass: collect the load base of every module so each module's extent can be clipped at the
+	// start of the next module in the address space (see GetModuleLoadedSize).
+	std::vector<uint64_t> bases;
+	bases.reserve(numModules);
+	for (uint32_t i = 0; i < numModules; i++)
+	{
+		SBModule module = m_target.GetModuleAtIndex(i);
+		if (!module.IsValid())
+			continue;
+		uint64_t base = module.GetObjectFileHeaderAddress().GetLoadAddress(m_target);
+		if (base != LLDB_INVALID_ADDRESS)
+			bases.push_back(base);
+	}
+	std::sort(bases.begin(), bases.end());
+
 	for (uint32_t i = 0; i < numModules; i++)
 	{
 		SBModule module = m_target.GetModuleAtIndex(i);
@@ -1571,7 +1632,15 @@ std::vector<DebugModule> LldbAdapter::GetModuleList()
 			m.m_short_name = shortName;
 		SBAddress headerAddress = module.GetObjectFileHeaderAddress();
 		m.m_address = headerAddress.GetLoadAddress(m_target);
-		m.m_size = GetModuleHighestAddress(module, m_target) - m.m_address;
+
+		uint64_t nextModuleBase = std::numeric_limits<uint64_t>::max();
+		if (m.m_address != LLDB_INVALID_ADDRESS)
+		{
+			auto it = std::upper_bound(bases.begin(), bases.end(), m.m_address);
+			if (it != bases.end())
+				nextModuleBase = *it;
+		}
+		m.m_size = GetModuleLoadedSize(module, m_target, m.m_address, nextModuleBase);
 		m.m_loaded = true;
 		result.push_back(m);
 	}
