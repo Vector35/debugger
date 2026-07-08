@@ -156,7 +156,7 @@ class DebuggerAPI(unittest.TestCase):
                 return len(dbg.data.get_symbols())
 
             def data_var_count():
-                return len(dbg.data.get_data_variables())
+                return len(dbg.data.data_vars)
 
             before = symbol_count()
             data_vars_before = data_var_count()
