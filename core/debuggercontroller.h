@@ -482,8 +482,11 @@ namespace BinaryNinjaDebugger {
 		// Remove the backend symbols previously added for the given module. Returns the number removed.
 		size_t RemoveSymbolsForModule(const DebugModule& module);
 		size_t RemoveSymbolsForModule(const std::string& module);
-		// Remove every backend symbol the debugger has added. Returns the number removed.
-		size_t RemoveAllLoadedSymbols();
+		// Remove every backend symbol the debugger has added. Returns the number removed. updateAnalysis
+		// controls whether an async analysis update is scheduled afterwards to refresh the views; the
+		// target-gone teardown path passes false because it is about to remove the debugger memory region
+		// and must not schedule a pass that could read from it mid-teardown.
+		size_t RemoveAllLoadedSymbols(bool updateAnalysis = true);
 		// The base names of the modules for which backend symbols have been loaded.
 		std::vector<std::string> GetModulesWithLoadedSymbols();
 		// The number of backend symbols currently loaded for the given module (0 if none). The module may be

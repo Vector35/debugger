@@ -2102,8 +2102,10 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 void DebuggerController::FinalizeTargetGoneCleanup()
 {
 	// The backend symbols we added are at absolute target addresses that are meaningless once the target
-	// is gone, so remove them. Idempotent: the map is cleared, so a second call is a no-op.
-	RemoveAllLoadedSymbols();
+	// is gone, so remove them. Idempotent: the map is cleared, so a second call is a no-op. Pass
+	// updateAnalysis = false: we are about to remove the debugger memory region below, so we must not
+	// schedule an async analysis pass that could read from it mid-teardown.
+	RemoveAllLoadedSymbols(false);
 	m_state->MarkDirty();
 	// Remove the region from the BinaryView's MemoryMap BEFORE disposing of m_accessor: the
 	// MemoryMap holds a raw pointer to it (see AddRemoteMemoryRegion in DebuggerController::Start),
@@ -2558,6 +2560,11 @@ size_t DebuggerController::LoadSymbolsForModule(const DebugModule& module)
 	size_t count = ApplyModuleSymbolsLocked(data, module, symbols);
 	data->SetFunctionAnalysisUpdateDisabled(false);
 	data->ForgetUndoActions(id);
+	// The data variables above were defined while function-analysis updates were disabled, so nothing has
+	// processed them into the view yet. Without this, the newly added symbols show up "bare" (no data
+	// variable) in the symbols/linear views until the user manually refreshes. Kick an async update so the
+	// pending data variables are materialized and the views are notified.
+	data->UpdateAnalysis();
 
 	LogInfo("Loaded %zu symbols for module %s from the debugger backend", count,
 		module.m_short_name.empty() ? module.m_name.c_str() : module.m_short_name.c_str());
@@ -2609,6 +2616,9 @@ size_t DebuggerController::LoadSymbolsForAllModules()
 		total += ApplyModuleSymbolsLocked(data, module, symbols);
 	data->SetFunctionAnalysisUpdateDisabled(false);
 	data->ForgetUndoActions(id);
+	// Materialize the data variables added under the disabled-update window and notify the views; see
+	// LoadSymbolsForModule for why this is needed (otherwise the symbols render "bare" until a refresh).
+	data->UpdateAnalysis();
 
 	LogInfo("Loaded %zu symbols across %zu modules from the debugger backend", total, moduleSymbols.size());
 	return total;
@@ -2687,6 +2697,9 @@ size_t DebuggerController::UndefineTrackedSymbols(const std::vector<Ref<Symbol>>
 	size_t count = RemoveTrackedSymbolsLocked(data, symbols);
 	data->SetFunctionAnalysisUpdateDisabled(false);
 	data->ForgetUndoActions(id);
+	// Flush the undefines to the views (mirrors the load path); otherwise the removed symbols/data
+	// variables linger in the views until a manual refresh.
+	data->UpdateAnalysis();
 	return count;
 }
 
@@ -2713,7 +2726,7 @@ size_t DebuggerController::RemoveSymbolsForModule(const std::string& moduleName)
 }
 
 
-size_t DebuggerController::RemoveAllLoadedSymbols()
+size_t DebuggerController::RemoveAllLoadedSymbols(bool updateAnalysis)
 {
 	std::lock_guard<std::recursive_mutex> lock(m_loadedModuleSymbolsMutex);
 
@@ -2734,6 +2747,12 @@ size_t DebuggerController::RemoveAllLoadedSymbols()
 		count += RemoveTrackedSymbolsLocked(data, symbols);
 	data->SetFunctionAnalysisUpdateDisabled(false);
 	data->ForgetUndoActions(id);
+	// Flush the undefines to the views so they update without a manual refresh. The teardown caller
+	// (FinalizeTargetGoneCleanup) passes updateAnalysis = false: it is about to remove the debugger memory
+	// region, and scheduling an async analysis pass here could trigger a linear-view read against memory
+	// that is being torn down (see the ordering note in FinalizeTargetGoneCleanup).
+	if (updateAnalysis)
+		data->UpdateAnalysis();
 
 	m_loadedModuleSymbols.clear();
 	return count;
