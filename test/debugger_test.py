@@ -223,7 +223,13 @@ class DebuggerAPI(unittest.TestCase):
             removed = dbg.remove_symbols_for_module(loaded_module)
             self.assertEqual(removed, added)
             self.assertLess(symbol_count(), after_load)
-            self.assertEqual(symbol_count(), before)
+            # Every symbol the feature added must be gone. As with data variables, check the feature's own
+            # addresses rather than the global symbol count: that count drifts with symbols created for
+            # unrelated reasons (analysis, stack-variable annotation) and with background analysis that is
+            # still settling when the baseline is captured, which is stable on some platforms but not others.
+            leaked_syms = {a for a in loaded_addrs if dbg.data.get_symbols(a, 1)}
+            self.assertEqual(leaked_syms, set(),
+                             "symbols the feature added were not removed:\n" + describe(leaked_syms))
             leaked = feature_dv_addrs & {v.address for v in dbg.data.data_vars.values()}
             self.assertEqual(leaked, set(),
                              "data variables the feature created were not removed:\n" + describe(leaked))
