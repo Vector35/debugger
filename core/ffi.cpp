@@ -376,6 +376,50 @@ void BNDebuggerFreeMemoryRegions(BNDebugMemoryRegion* regions, size_t count)
 }
 
 
+size_t BNDebuggerLoadSymbolsForModule(BNDebuggerController* controller, const char* module)
+{
+	return controller->object->LoadSymbolsForModule(std::string(module));
+}
+
+
+size_t BNDebuggerLoadSymbolsForAllModules(BNDebuggerController* controller)
+{
+	return controller->object->LoadSymbolsForAllModules();
+}
+
+
+size_t BNDebuggerRemoveSymbolsForModule(BNDebuggerController* controller, const char* module)
+{
+	return controller->object->RemoveSymbolsForModule(std::string(module));
+}
+
+
+size_t BNDebuggerRemoveAllLoadedSymbols(BNDebuggerController* controller)
+{
+	return controller->object->RemoveAllLoadedSymbols();
+}
+
+
+char** BNDebuggerGetModulesWithLoadedSymbols(BNDebuggerController* controller, size_t* count)
+{
+	std::vector<std::string> modules = controller->object->GetModulesWithLoadedSymbols();
+	*count = modules.size();
+
+	std::vector<const char*> cstrings;
+	cstrings.reserve(modules.size());
+	for (auto& str : modules)
+		cstrings.push_back(str.c_str());
+
+	return BNDebuggerAllocStringList(cstrings.data(), *count);
+}
+
+
+size_t BNDebuggerGetLoadedSymbolCountForModule(BNDebuggerController* controller, const char* module)
+{
+	return controller->object->GetLoadedSymbolCountForModule(std::string(module));
+}
+
+
 BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t* size)
 {
 	std::vector<DebugRegister> registers = controller->object->GetAllRegisters();

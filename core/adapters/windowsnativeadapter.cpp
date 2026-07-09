@@ -3078,12 +3078,158 @@ bool WindowsNativeAdapter::SupportFeature(DebugAdapterCapacity feature)
 		return true;
 	case DebugAdapterSupportThreads:
 		return true;
+	case DebugAdapterSupportSymbols:
+		return true;
 	case DebugAdapterSupportStepOverReverse:
 	case DebugAdapterSupportTTD:
 		return false;
 	default:
 		return false;
 	}
+}
+
+
+namespace {
+	struct EnumSymbolsContext
+	{
+		std::vector<DebugSymbol>* result;
+		std::string moduleName;
+		// Executable [start, end) address ranges of the module, used to classify symbols as code or data.
+		const std::vector<std::pair<uint64_t, uint64_t>>* execRanges;
+	};
+
+	static BOOL CALLBACK EnumSymbolsCallback(PSYMBOL_INFO pSymInfo, ULONG symbolSize, PVOID userContext)
+	{
+		auto* ctx = reinterpret_cast<EnumSymbolsContext*>(userContext);
+		if (!pSymInfo || (pSymInfo->NameLen == 0))
+			return TRUE;
+
+		std::string shortName(pSymInfo->Name, pSymInfo->NameLen);
+		std::string fullName = ctx->moduleName.empty() ? shortName : ctx->moduleName + "!" + shortName;
+		// dbghelp sets SYMFLAG_FUNCTION for symbols from full debug info, but for the export-table symbols
+		// we get for system DLLs (no PDB) it usually does not. Without this, every API export would be
+		// added as a data symbol -- rendering in a different color than the DbgEng backend, which reports
+		// them as functions. Fall back to the module's executable sections to recover the classification so
+		// the two adapters agree and code exports show as functions.
+		bool isFunction = (pSymInfo->Flags & SYMFLAG_FUNCTION) != 0;
+		if (!isFunction && ctx->execRanges)
+		{
+			for (const auto& [start, end] : *ctx->execRanges)
+			{
+				if (pSymInfo->Address >= start && pSymInfo->Address < end)
+				{
+					isFunction = true;
+					break;
+				}
+			}
+		}
+		ctx->result->emplace_back(shortName, fullName, shortName, pSymInfo->Address, symbolSize, isFunction);
+		return TRUE;
+	}
+}
+
+
+std::vector<std::pair<uint64_t, uint64_t>> WindowsNativeAdapter::GetExecutableRanges(uint64_t moduleBase)
+{
+	// NOTE: Once we read the target's memory map via VirtualQueryEx (planned), a region's executability is
+	// available directly from its protection (PAGE_EXECUTE_*), so this per-module PE-section parsing could be
+	// replaced by -- or cross-checked against -- that map. Better still, symbol code/data classification
+	// could move up into the controller and use the debugger BinaryView's segment executability, so every
+	// adapter (LLDB, DbgEng, native) agrees instead of each guessing on its own. All of these only answer
+	// "is this address executable memory", not "function entry vs. code-adjacent data" -- that needs a PDB.
+	std::vector<std::pair<uint64_t, uint64_t>> ranges;
+	if (!m_processHandle || moduleBase == 0)
+		return ranges;
+
+	IMAGE_DOS_HEADER dosHeader {};
+	if (!ReadProcessMemory(m_processHandle, (LPCVOID)moduleBase, &dosHeader, sizeof(dosHeader), nullptr)
+		|| dosHeader.e_magic != IMAGE_DOS_SIGNATURE)
+		return ranges;
+
+	// Read the NT headers. Reading the 64-bit layout for a 32-bit (WOW64) image over-reads a few bytes into
+	// the section table, which is harmless -- we only use the Signature and FileHeader, whose layout is
+	// identical for PE32 and PE32+, plus FileHeader.SizeOfOptionalHeader to locate the section table.
+	IMAGE_NT_HEADERS ntHeaders {};
+	uint64_t ntHeaderAddr = moduleBase + dosHeader.e_lfanew;
+	if (!ReadProcessMemory(m_processHandle, (LPCVOID)ntHeaderAddr, &ntHeaders, sizeof(ntHeaders), nullptr)
+		|| ntHeaders.Signature != IMAGE_NT_SIGNATURE)
+		return ranges;
+
+	uint64_t sectionTable =
+		ntHeaderAddr + FIELD_OFFSET(IMAGE_NT_HEADERS, OptionalHeader) + ntHeaders.FileHeader.SizeOfOptionalHeader;
+	for (WORD i = 0; i < ntHeaders.FileHeader.NumberOfSections; i++)
+	{
+		IMAGE_SECTION_HEADER section {};
+		if (!ReadProcessMemory(m_processHandle, (LPCVOID)(sectionTable + (uint64_t)i * sizeof(section)), &section,
+				sizeof(section), nullptr))
+			break;
+		if (section.Characteristics & IMAGE_SCN_MEM_EXECUTE)
+		{
+			uint64_t start = moduleBase + section.VirtualAddress;
+			DWORD size = section.Misc.VirtualSize ? section.Misc.VirtualSize : section.SizeOfRawData;
+			ranges.emplace_back(start, start + size);
+		}
+	}
+	return ranges;
+}
+
+
+std::vector<DebugSymbol> WindowsNativeAdapter::GetSymbolsForModule(const DebugModule& module)
+{
+	std::vector<DebugSymbol> result;
+	if (!m_processHandle)
+		return result;
+
+	std::string moduleName =
+		module.m_short_name.empty() ? DebugModule::GetPathBaseName(module.m_name) : module.m_short_name;
+
+	// Start from a clean symbol handler and, crucially, do NOT invade the process (fInvadeProcess = FALSE).
+	// The previous fInvadeProcess = TRUE relied on dbghelp enumerating the target's loader list to register
+	// modules; when that registration did not line up with the base we enumerate at, SymEnumSymbols found no
+	// module and returned zero symbols. Instead we load exactly the one module we need, from its on-disk
+	// image at the base it occupies in the target, and enumerate at the base dbghelp actually loaded it at.
+	// This is both faster and deterministic. SymCleanup on an uninitialized handle is a harmless no-op.
+	SymCleanup(m_processHandle);
+	SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+	if (!SymInitialize(m_processHandle, nullptr, FALSE))
+	{
+		LogWarn("SymInitialize failed for module %s: error %lu", moduleName.c_str(), GetLastError());
+		return result;
+	}
+
+	// SymLoadModuleEx returns the load base, or 0 both when the module is already loaded
+	// (GetLastError == ERROR_SUCCESS) and on genuine failure; distinguish the two by GetLastError.
+	SetLastError(ERROR_SUCCESS);
+	DWORD64 base = SymLoadModuleEx(m_processHandle, nullptr, module.m_name.c_str(), moduleName.c_str(),
+		module.m_address, (DWORD)module.m_size, nullptr, 0);
+	if (base == 0)
+	{
+		DWORD err = GetLastError();
+		if (err != ERROR_SUCCESS)
+		{
+			LogWarn("SymLoadModuleEx failed for module %s at 0x%llX (error %lu)", moduleName.c_str(),
+				(unsigned long long)module.m_address, err);
+			SymCleanup(m_processHandle);
+			return result;
+		}
+	}
+	DWORD64 moduleBase = base ? base : module.m_address;
+
+	// Read the module's executable section ranges from its mapped PE headers so the callback can classify
+	// export-table symbols (which dbghelp does not flag as SYMFLAG_FUNCTION) as functions rather than data,
+	// matching the DbgEng backend so both show up the same way in the symbols list.
+	std::vector<std::pair<uint64_t, uint64_t>> execRanges = GetExecutableRanges(moduleBase);
+
+	EnumSymbolsContext ctx {&result, moduleName, &execRanges};
+	if (!SymEnumSymbols(m_processHandle, moduleBase, "*", EnumSymbolsCallback, &ctx))
+	{
+		LogWarn("SymEnumSymbols found no symbols for module %s (base 0x%llX): error %lu. The debugger backend "
+				"may not have symbols available for this module.",
+			moduleName.c_str(), (unsigned long long)moduleBase, GetLastError());
+	}
+
+	SymCleanup(m_processHandle);
+	return result;
 }
 
 
@@ -3114,7 +3260,12 @@ std::vector<DebugFrame> WindowsNativeAdapter::GetFramesOfThread(uint32_t tid)
 		// 32-bit process on 64-bit Windows
 		ctx32.ContextFlags = WOW64_CONTEXT_FULL;
 		if (!Wow64GetThreadContext(threadHandle, &ctx32))
+		{
+			// Balance the SymInitialize above; leaving the handler initialized would make the next
+			// SymInitialize (here or in GetSymbolsForModule) a no-op and leak the session.
+			SymCleanup(m_processHandle);
 			return frames;
+		}
 
 		machineType = IMAGE_FILE_MACHINE_I386;
 		stackFrame.AddrPC.Offset = ctx32.Eip;
@@ -3130,7 +3281,11 @@ std::vector<DebugFrame> WindowsNativeAdapter::GetFramesOfThread(uint32_t tid)
 		// Native 64-bit process
 		ctx64.ContextFlags = CONTEXT_FULL;
 		if (!GetThreadContext(threadHandle, &ctx64))
+		{
+			// Balance the SymInitialize above (see the WOW64 branch).
+			SymCleanup(m_processHandle);
 			return frames;
+		}
 
 		machineType = IMAGE_FILE_MACHINE_AMD64;
 		stackFrame.AddrPC.Offset = ctx64.Rip;

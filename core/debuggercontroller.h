@@ -241,6 +241,27 @@ namespace BinaryNinjaDebugger {
 		void ProcessOneVariable(uint64_t address, Confidence<Ref<Type>> type, const std::string& name);
 		void DefineVariablesRecursive(uint64_t address, Confidence<Ref<Type>> type);
 
+		// Tracks the symbols the debugger has added to the BinaryView from the debugger backend, keyed by
+		// the module's base file name. The value is the exact auto symbols that were defined, so they can
+		// later be removed -- either per module on user request or in bulk when the target is gone. We keep
+		// the Symbol objects (rather than just their addresses) because the linker can fold several distinct
+		// symbols onto the same address (e.g. identical .cold stubs), and GetSymbolByAddress only returns
+		// one of them. See LoadSymbolsForModule / RemoveSymbolsForModule.
+		std::map<std::string, std::vector<Ref<Symbol>>> m_loadedModuleSymbols;
+		std::recursive_mutex m_loadedModuleSymbolsMutex;
+		// Undefine the given auto symbols and their data variables in a self-contained analysis-update /
+		// undo-action window. Returns the number of symbols processed. m_loadedModuleSymbolsMutex must be held.
+		size_t UndefineTrackedSymbols(const std::vector<Ref<Symbol>>& symbols);
+		// Define / undefine a module's symbols directly in the BinaryView. The caller must hold
+		// m_loadedModuleSymbolsMutex, have already disabled function-analysis updates, and manage the
+		// undo-action scope. Applying every module inside one such shared window -- rather than opening one
+		// per module -- lets a single analysis pass re-resolve every module's references (e.g. IAT pointers
+		// to freshly-named API functions); a per-module window would let each module's async re-analysis be
+		// superseded by the next module's disable, so only the last module loaded would resolve. See #210.
+		size_t ApplyModuleSymbolsLocked(
+			BinaryViewRef data, const DebugModule& module, const std::vector<DebugSymbol>& symbols);
+		size_t RemoveTrackedSymbolsLocked(BinaryViewRef data, const std::vector<Ref<Symbol>>& symbols);
+
 		void ApplyBreakpoints();
 
 		std::string m_lastAdapterName;
@@ -445,6 +466,32 @@ namespace BinaryNinjaDebugger {
 
 		// memory map
 		std::vector<DebugMemoryRegion> GetMemoryMap();
+
+		// symbols (read from the debugger backend on demand)
+		// Read the symbols that the debugger backend knows about for the given module and add them to the
+		// BinaryView as auto symbols (along with a data variable at each address so they are rendered).
+		// By default no backend symbols are loaded; the user requests this explicitly per module. The
+		// added symbols are tracked internally so they can be removed later. Returns the number of
+		// symbols added, or 0 if the adapter does not support reading symbols or the module is unknown.
+		// Loading the same module again is idempotent: any symbols previously loaded for it are removed
+		// first, so no duplicates are created.
+		size_t LoadSymbolsForModule(const DebugModule& module);
+		size_t LoadSymbolsForModule(const std::string& module);
+		// Load the backend symbols for every currently-loaded module. Returns the total number added.
+		size_t LoadSymbolsForAllModules();
+		// Remove the backend symbols previously added for the given module. Returns the number removed.
+		size_t RemoveSymbolsForModule(const DebugModule& module);
+		size_t RemoveSymbolsForModule(const std::string& module);
+		// Remove every backend symbol the debugger has added. Returns the number removed. updateAnalysis
+		// controls whether an async analysis update is scheduled afterwards to refresh the views; the
+		// target-gone teardown path passes false because it is about to remove the debugger memory region
+		// and must not schedule a pass that could read from it mid-teardown.
+		size_t RemoveAllLoadedSymbols(bool updateAnalysis = true);
+		// The base names of the modules for which backend symbols have been loaded.
+		std::vector<std::string> GetModulesWithLoadedSymbols();
+		// The number of backend symbols currently loaded for the given module (0 if none). The module may be
+		// given as either its base name or its full path.
+		size_t GetLoadedSymbolCountForModule(const std::string& module);
 
 		// rebasing
 		// Note: Returns true immediately in UI mode (rebase completes asynchronously via UI callback)

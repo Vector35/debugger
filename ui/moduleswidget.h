@@ -16,6 +16,7 @@ limitations under the License.
 
 #pragma once
 
+#include <map>
 #include <QAbstractItemModel>
 #include <QItemSelectionModel>
 #include <QModelIndex>
@@ -41,14 +42,18 @@ private:
 	size_t m_size;
 	std::string m_name;
 	std::string m_path;
+	size_t m_symbolCount;
 
 public:
-	ModuleItem(uint64_t address, size_t size, std::string name, std::string path);
+	ModuleItem(uint64_t address, size_t size, std::string name, std::string path, size_t symbolCount = 0);
 	uint64_t address() const { return m_address; }
 	uint64_t endAddress() const { return m_address + m_size; }
 	size_t size() const { return m_size; }
 	std::string name() const { return m_name; }
 	std::string path() const { return m_path; }
+	// Number of backend symbols loaded for this module (0 if none).
+	size_t symbolCount() const { return m_symbolCount; }
+	bool symbolsLoaded() const { return m_symbolCount > 0; }
 	bool operator==(const ModuleItem& other) const;
 	bool operator!=(const ModuleItem& other) const;
 	bool operator<(const ModuleItem& other) const;
@@ -73,6 +78,7 @@ public:
 		EndAddressColumn,
 		SizeColumn,
 		NameColumn,
+		SymbolsColumn,
 		PathColumn,
 	};
 
@@ -89,12 +95,13 @@ public:
 	virtual int columnCount(const QModelIndex& parent = QModelIndex()) const override
 	{
 		(void)parent;
-		return 5;
+		return 6;
 	}
 	ModuleItem getRow(int row) const;
 	virtual QVariant data(const QModelIndex& i, int role) const override;
 	virtual QVariant headerData(int column, Qt::Orientation orientation, int role) const override;
-	void updateRows(std::vector<DebugModule> newModules);
+	void updateRows(
+		std::vector<DebugModule> newModules, const std::map<std::string, uint64_t>& moduleSymbolCounts);
 };
 
 
@@ -154,6 +161,10 @@ class DebugModulesWidget : public QTableView, public FilterTarget
 
 	bool canCopy();
 	bool canCopyAll();
+	bool canLoadSymbols();
+	bool canLoadAllSymbols();
+	// Whether the currently-selected module already has backend symbols loaded.
+	bool selectedModuleSymbolsLoaded();
 
 	virtual void setFilter(const std::string& filter, FilterOptions options) override;
 	virtual void scrollToFirstItem() override;
@@ -179,6 +190,10 @@ private slots:
 	void jumpToEnd();
 	void copy();
 	void copyAll();
+	void loadSymbols();
+	void removeSymbols();
+	void loadAllSymbols();
+	void removeAllSymbols();
 	void onDoubleClicked();
 
 public slots:

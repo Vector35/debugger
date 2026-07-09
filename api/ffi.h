@@ -533,6 +533,23 @@ extern "C"
 	DEBUGGER_FFI_API BNDebugMemoryRegion* BNDebuggerGetMemoryMap(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeMemoryRegions(BNDebugMemoryRegion* regions, size_t count);
 
+	// Read the symbols the debugger backend knows about for the named module and add them to the
+	// BinaryView as auto symbols. Returns the number of symbols added.
+	DEBUGGER_FFI_API size_t BNDebuggerLoadSymbolsForModule(BNDebuggerController* controller, const char* module);
+	// Load the backend symbols for every currently-loaded module. Returns the total number added.
+	DEBUGGER_FFI_API size_t BNDebuggerLoadSymbolsForAllModules(BNDebuggerController* controller);
+	// Remove the backend symbols previously added for the named module. Returns the number removed.
+	DEBUGGER_FFI_API size_t BNDebuggerRemoveSymbolsForModule(BNDebuggerController* controller, const char* module);
+	// Remove every backend symbol the debugger has added. Returns the number removed.
+	DEBUGGER_FFI_API size_t BNDebuggerRemoveAllLoadedSymbols(BNDebuggerController* controller);
+	// The base names of the modules for which backend symbols have been loaded. Free with
+	// BNDebuggerFreeStringList.
+	DEBUGGER_FFI_API char** BNDebuggerGetModulesWithLoadedSymbols(BNDebuggerController* controller, size_t* count);
+	// The number of backend symbols currently loaded for the named module (0 if none). The module may be
+	// given as either its base name or its full path.
+	DEBUGGER_FFI_API size_t BNDebuggerGetLoadedSymbolCountForModule(
+		BNDebuggerController* controller, const char* module);
+
 	DEBUGGER_FFI_API BNDebugRegister* BNDebuggerGetRegisters(BNDebuggerController* controller, size_t* count);
 	DEBUGGER_FFI_API void BNDebuggerFreeRegisters(BNDebugRegister* modules, size_t count);
 	DEBUGGER_FFI_API bool BNDebuggerSetRegisterValue(

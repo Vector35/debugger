@@ -1529,6 +1529,74 @@ class DebuggerController:
         dbgcore.BNDebuggerFreeMemoryRegions(regions, count.value)
         return result
 
+    def load_symbols_for_module(self, module: str) -> int:
+        """
+        Read the symbols that the debugger backend knows about for the given module and add them to
+        the BinaryView as auto symbols.
+
+        By default the debugger loads no symbols from the backend. Call this to load, on demand, all
+        symbols of a module (e.g., the exports of ``kernel32.dll``) so that the annotation process
+        becomes aware of them, e.g., when a register points to a Windows API function. The added
+        symbols are tracked internally and can be removed later with ``remove_symbols_for_module`` or
+        ``remove_all_loaded_symbols``.
+
+        Loading the same module again is idempotent: any symbols previously loaded for it are removed
+        first, so no duplicate symbols are created.
+
+        :param module: the module to load symbols for; either its short name or full path
+        :return: the number of symbols added
+        """
+        return dbgcore.BNDebuggerLoadSymbolsForModule(self.handle, module)
+
+    def load_symbols_for_all_modules(self) -> int:
+        """
+        Load the backend symbols for every currently-loaded module.
+
+        :return: the total number of symbols added
+        """
+        return dbgcore.BNDebuggerLoadSymbolsForAllModules(self.handle)
+
+    def remove_symbols_for_module(self, module: str) -> int:
+        """
+        Remove the backend symbols previously added for the given module.
+
+        :param module: the module to remove symbols for; either its short name or full path
+        :return: the number of symbols removed
+        """
+        return dbgcore.BNDebuggerRemoveSymbolsForModule(self.handle, module)
+
+    def remove_all_loaded_symbols(self) -> int:
+        """
+        Remove every backend symbol the debugger has added.
+
+        :return: the number of symbols removed
+        """
+        return dbgcore.BNDebuggerRemoveAllLoadedSymbols(self.handle)
+
+    @property
+    def modules_with_loaded_symbols(self) -> List[str]:
+        """
+        The base names of the modules for which backend symbols have been loaded.
+
+        :return: a list of module base names
+        """
+        count = ctypes.c_ulonglong()
+        modules = dbgcore.BNDebuggerGetModulesWithLoadedSymbols(self.handle, count)
+        result = []
+        for i in range(count.value):
+            result.append(modules[i].decode('utf-8'))
+        dbgcore.BNDebuggerFreeStringList(modules, count.value)
+        return result
+
+    def loaded_symbol_count_for_module(self, module: str) -> int:
+        """
+        The number of backend symbols currently loaded for the given module.
+
+        :param module: the module to query; either its short name or full path
+        :return: the number of loaded symbols, or 0 if none have been loaded for the module
+        """
+        return dbgcore.BNDebuggerGetLoadedSymbolCountForModule(self.handle, module)
+
     def rebase_to_remote_base(self) -> bool:
         """
         Rebase the input binary view to match the remote base address.

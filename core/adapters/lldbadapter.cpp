@@ -1685,6 +1685,81 @@ std::vector<DebugMemoryRegion> LldbAdapter::GetMemoryMap()
 }
 
 
+std::vector<DebugSymbol> LldbAdapter::GetSymbolsForModule(const DebugModule& module)
+{
+	std::vector<DebugSymbol> result;
+
+	// Locate the SBModule that corresponds to the requested DebugModule. We match on the base file
+	// name so that host/guest path differences (see DebugModule::IsSameBaseModule) do not matter.
+	uint32_t numModules = m_target.GetNumModules();
+	for (uint32_t i = 0; i < numModules; i++)
+	{
+		SBModule sbModule = m_target.GetModuleAtIndex(i);
+		if (!sbModule.IsValid())
+			continue;
+
+		SBFileSpec fileSpec = sbModule.GetFileSpec();
+		char path[1024];
+		size_t len = fileSpec.GetPath(path, 1024);
+		std::string modulePath(path, len);
+		if (!module.IsSameBaseModule(modulePath))
+			continue;
+
+		size_t numSymbols = sbModule.GetNumSymbols();
+		result.reserve(numSymbols);
+		for (size_t j = 0; j < numSymbols; j++)
+		{
+			SBSymbol symbol = sbModule.GetSymbolAtIndex(j);
+			if (!symbol.IsValid())
+				continue;
+
+			SymbolType type = symbol.GetType();
+			bool isFunction;
+			switch (type)
+			{
+				case eSymbolTypeCode:
+				case eSymbolTypeResolver:
+					isFunction = true;
+					break;
+				case eSymbolTypeData:
+					isFunction = false;
+					break;
+				default:
+					// Skip everything else (e.g. compile units, line entries, trampolines), which do not
+					// correspond to a useful named address in the target.
+					continue;
+			}
+
+			SBAddress startAddress = symbol.GetStartAddress();
+			if (!startAddress.IsValid())
+				continue;
+
+			uint64_t address = startAddress.GetLoadAddress(m_target);
+			if ((address == 0) || (address == LLDB_INVALID_ADDRESS))
+				continue;
+
+			const char* name = symbol.GetName();
+			if ((name == nullptr) || (name[0] == '\0'))
+				continue;
+
+			std::string shortName = name;
+			std::string fullName = module.m_short_name.empty() ? shortName : module.m_short_name + "!" + shortName;
+			std::string rawName;
+			if (const char* mangled = symbol.GetMangledName())
+				rawName = mangled;
+			if (rawName.empty())
+				rawName = shortName;
+
+			result.emplace_back(shortName, fullName, rawName, address, symbol.GetSize(), isFunction);
+		}
+
+		break;
+	}
+
+	return result;
+}
+
+
 std::string LldbAdapter::GetTargetArchitecture()
 {
 	SBPlatform platform = m_target.GetPlatform();
@@ -2143,6 +2218,8 @@ bool LldbAdapter::SupportFeature(DebugAdapterCapacity feature)
 		case DebugAdapterSupportModules:
 			return true;
 		case DebugAdapterSupportThreads:
+			return true;
+		case DebugAdapterSupportSymbols:
 			return true;
 		case DebugAdapterSupportTTD:
 			return false;

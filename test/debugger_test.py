@@ -138,6 +138,128 @@ class DebuggerAPI(unittest.TestCase):
             if dbg.connected:
                 dbg.quit_and_wait()
 
+    def test_load_module_symbols(self):
+        # Load symbols from the debugger backend on demand, then remove them, checking that the number
+        # of symbols in the BinaryView increases when they are loaded and returns to the original value
+        # when they are removed (i.e. nothing is left behind). See
+        # https://github.com/Vector35/debugger/issues/210
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        try:
+            self.assertGreater(len(dbg.modules), 0)
+            # No backend symbols are loaded by default.
+            self.assertEqual(len(dbg.modules_with_loaded_symbols), 0)
+
+            def symbol_count():
+                return len(dbg.data.get_symbols())
+
+            before = symbol_count()
+            # Track the feature's *own* data variables by address. Loading symbols defines a data variable
+            # at each symbol address; pinning those down lets the removal check ignore data variables that
+            # appear for reasons unrelated to this feature -- e.g. the null-pointer data variable at 0x0 that
+            # stack-variable annotation creates, or reference-site variables that analysis materializes --
+            # which otherwise make the global data-variable count an unstable, environment-dependent oracle.
+            sym_addrs_before = {s.address for s in dbg.data.get_symbols()}
+            data_var_addrs_before = {v.address for v in dbg.data.data_vars.values()}
+
+            def describe(addrs):
+                # Render an address set for an assertion failure message: each address with its data
+                # variable type (if any) and the symbols defined there.
+                lines = []
+                for a in sorted(addrs):
+                    dv = dbg.data.data_vars.get(a)
+                    type_desc = repr(dv.type) if dv is not None else None
+                    syms = [(s.type.name, s.name) for s in dbg.data.get_symbols(a, 1)]
+                    lines.append(f"      {a:#x} type={type_desc} symbols={syms}")
+                return "\n".join(lines)
+
+            # We do not know up front which module the backend has symbols for, so try each one until a
+            # module actually contributes symbols. Skip the main executable so the symbols are added into
+            # otherwise-unannotated address space, making the add/remove counts unambiguous.
+            main_path = os.path.realpath(fpath)
+            loaded_module = None
+            added = 0
+            for m in dbg.modules:
+                name = m.name or m.short_name
+                if not name:
+                    continue
+                if os.path.realpath(name) == main_path:
+                    continue
+                count = dbg.load_symbols_for_module(name)
+                if count > 0:
+                    loaded_module = name
+                    added = count
+                    break
+
+            if loaded_module is None:
+                self.skipTest('no non-main module reported backend symbols for this adapter')
+
+            self.assertGreater(added, 0)
+            self.assertEqual(len(dbg.modules_with_loaded_symbols), 1)
+            # The per-module count (surfaced in the Modules widget's Symbols column) matches what was added.
+            self.assertEqual(dbg.loaded_symbol_count_for_module(loaded_module), added)
+
+            # The addresses where this load introduced symbols. The feature defines one data variable per
+            # symbol address; restrict to addresses that did not already have a data variable so the checks
+            # below concern only what the feature itself created.
+            loaded_addrs = {s.address for s in dbg.data.get_symbols()} - sym_addrs_before
+            feature_dv_addrs = loaded_addrs - data_var_addrs_before
+            self.assertGreater(len(feature_dv_addrs), 0)
+
+            # Loading symbols increases the number of symbols in the BinaryView, and each gets a data
+            # variable so it renders in the views.
+            after_load = symbol_count()
+            self.assertGreater(after_load, before)
+            current_dv_addrs = {v.address for v in dbg.data.data_vars.values()}
+            self.assertTrue(feature_dv_addrs.issubset(current_dv_addrs),
+                            "loaded symbols did not all get a data variable:\n"
+                            + describe(feature_dv_addrs - current_dv_addrs))
+
+            # Removing the symbols must undefine every data variable the feature created, leaving nothing
+            # behind. Data variables that exist for unrelated reasons (stack-variable annotation, analysis
+            # reference sites, ...) are ignored by construction.
+            removed = dbg.remove_symbols_for_module(loaded_module)
+            self.assertEqual(removed, added)
+            self.assertLess(symbol_count(), after_load)
+            # Every symbol the feature added must be gone. As with data variables, check the feature's own
+            # addresses rather than the global symbol count: that count drifts with symbols created for
+            # unrelated reasons (analysis, stack-variable annotation) and with background analysis that is
+            # still settling when the baseline is captured, which is stable on some platforms but not others.
+            leaked_syms = {a for a in loaded_addrs if dbg.data.get_symbols(a, 1)}
+            self.assertEqual(leaked_syms, set(),
+                             "symbols the feature added were not removed:\n" + describe(leaked_syms))
+            leaked = feature_dv_addrs & {v.address for v in dbg.data.data_vars.values()}
+            self.assertEqual(leaked, set(),
+                             "data variables the feature created were not removed:\n" + describe(leaked))
+            self.assertEqual(len(dbg.modules_with_loaded_symbols), 0)
+            self.assertEqual(dbg.loaded_symbol_count_for_module(loaded_module), 0)
+
+            # Regression: a load/remove/load cycle must recreate the data variables. Removal undefines them
+            # without blacklisting their addresses; if it blacklisted them, this re-load's auto data
+            # variables would be suppressed and the reloaded symbols would not render in the linear view.
+            self.assertGreater(dbg.load_symbols_for_module(loaded_module), 0)
+            # A correct re-load recreates a data variable at each of the feature's addresses; the blacklist
+            # bug would leave them undefined.
+            reloaded_dv_addrs = {v.address for v in dbg.data.data_vars.values()}
+            self.assertTrue(feature_dv_addrs.issubset(reloaded_dv_addrs),
+                            "re-load did not recreate the feature's data variables:\n"
+                            + describe(feature_dv_addrs - reloaded_dv_addrs))
+            self.assertEqual(dbg.loaded_symbol_count_for_module(loaded_module), added)
+
+            # Loading the same module twice must not register it twice or accumulate duplicate tracking.
+            # This is checked via the debugger's own tracking rather than the BinaryView's global symbol
+            # count: some backends (e.g. DbgEng) resolve a module's symbols lazily and may enumerate them
+            # slightly differently across calls, so the global count is not a stable idempotency oracle.
+            self.assertGreater(dbg.load_symbols_for_module(loaded_module), 0)
+            self.assertEqual(len(dbg.modules_with_loaded_symbols), 1)
+            self.assertGreater(dbg.remove_symbols_for_module(loaded_module), 0)
+            self.assertEqual(len(dbg.modules_with_loaded_symbols), 0)
+        finally:
+            if dbg.connected:
+                dbg.quit_and_wait()
+
     def test_return_code(self):
         # return code tests
         fpath = name_to_fpath('exitcode', self.arch)
