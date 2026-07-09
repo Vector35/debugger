@@ -247,11 +247,30 @@ The context menu offers to suspend and resume each thread individually. A conven
 ![](../../img/debugger/modulewidget.png)
 
 The module widget shows the start/end address, size, name, and path information of the target's modules.
+The `Symbols` column shows how many backend symbols have been loaded for each module (blank when none; see below).
 
 Double-clicking the addresses navigates to the address.
 
 Note: on macOS 13, the size of system dylib are calculated wrong. The bizarrely huge size is caused by dyld_shared_cache on macOS, which will be addressed in the future.
 The size of the main executable is still calculated correctly.
+
+##### Loading Symbols from the Debugger Backend
+
+The debugger backend (LLDB, DbgEng, Windows Native) often knows about symbols that Binary Ninja's static analysis does not — for example the exported functions of system libraries like `kernel32.dll` or `libsystem_c.dylib`. Loading them is useful when, for instance, a register points to a Windows API function that is not present in the analyzed binary. See [issue #210](https://github.com/Vector35/debugger/issues/210).
+
+By default, no backend symbols are loaded. You can load them on demand, per module, from the Module Widget's context menu:
+
+![](../../img/debugger/module_load_symbols.png)
+
+- `Load Symbols` reads all the symbols the backend knows about for the selected module and adds them to the debugger's Binary View. When the module already has symbols loaded, this action instead reads `Reload Symbols`.
+- `Remove Symbols` removes the backend symbols previously loaded for the selected module.
+- `Load Symbols (All Modules)` and `Remove All Symbols` do the same for every loaded module at once.
+
+The symbols are added as *auto* symbols, so they never override your own (user-defined) symbols. The debugger tracks exactly which symbols it added, so removing them is clean, and they are removed automatically when the target exits or you detach. Once loaded, they participate in analysis and annotation like any other symbol:
+
+![](../../img/debugger/loaded_module_symbols.png)
+
+The same operations are available from the [Python API](#reading-symbols-from-the-backend).
 
 
 #### Debugger Info Widget
@@ -752,10 +771,36 @@ details
 - `process save-core <file_path>`
 
 
+### Reading Symbols from the Backend
+
+The debugger can [read the symbols](https://github.com/Vector35/debugger/issues/210) that the backend knows about for a loaded module and add them to the Binary View on demand. For the UI, see [Loading Symbols from the Debugger Backend](#loading-symbols-from-the-debugger-backend). From the Python console:
+
+```python
+from binaryninja.debugger import DebuggerController
+
+controller = DebuggerController(bv)
+# ... launch or attach, and stop the target ...
+
+# Load all backend symbols for a module (identified by short name or full path).
+# Returns the number of symbols added. Loading the same module again is idempotent.
+count = controller.load_symbols_for_module("libsystem_c.dylib")
+
+# Load the symbols for every currently-loaded module.
+controller.load_symbols_for_all_modules()
+
+# The base names of the modules that currently have backend symbols loaded.
+print(controller.modules_with_loaded_symbols)
+
+# Remove the symbols again (per module, or all at once).
+controller.remove_symbols_for_module("libsystem_c.dylib")
+controller.remove_all_loaded_symbols()
+```
+
+The symbols are added as auto symbols and are tracked internally, so they can be removed cleanly and are cleared automatically when the target exits or you detach.
+
 ### Listing Symbol At/Near an Address
 
-Before we have the capacity to [read symbols](https://github.com/Vector35/debugger/issues/210) from the backend, as a
-workaround, we can check the symbols at or near a specific address.
+To check the symbol at or near a specific address without loading a module's symbols into the Binary View, you can run a backend command directly.
 
 #### WinDbg/DbgEng
 
