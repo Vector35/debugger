@@ -5556,6 +5556,15 @@ Ref<Settings> DebuggerController::GetAdapterSettings()
 }
 
 
+bool DebuggerController::DumpTargetState(const std::string& filePath)
+{
+	if (!m_adapter)
+		return false;
+
+	return m_adapter->DumpTargetState(filePath);
+}
+
+
 void DebuggerController::SetDebuggerUICallbacks(BNDebuggerUICallbacks* cb, void* ctxt)
 {
 	if (cb)

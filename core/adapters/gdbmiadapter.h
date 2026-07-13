@@ -3,7 +3,6 @@
 #include "gdbmiconnector.h"
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
-#include "../../vendor/intx/intx.hpp"
 
 class GdbMiAdapter : public BinaryNinjaDebugger::DebugAdapter
 {

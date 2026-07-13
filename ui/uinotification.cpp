@@ -192,6 +192,7 @@ void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, 
 	menu.addAction("Debugger", "Create Stack View", "Misc");
 	menu.addAction("Debugger", "Override IP", "Misc");
 	menu.addAction("Debugger", "Rebase to Remote Base...", "Misc");
+	menu.addAction("Debugger", "Dump Target State...", "Misc");
 	// TTD Memory Access context menu items
 	menu.addAction("Debugger", "Navigate to TTD Timestamp...", "TTD");
 	menu.addAction("Debugger", "Add TTD Bookmark...", "TTD");

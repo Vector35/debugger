@@ -740,6 +740,8 @@ namespace BinaryNinjaDebugger {
 		Ref<Settings> GetAdapterSettings();
 		bool CreateDebugAdapter();
 
+		bool DumpTargetState(const std::string& filePath);
+
 		void SetDebuggerUICallbacks(BNDebuggerUICallbacks* cb, void* ctxt);
 
 		bool FunctionExistsInOldView(uint64_t address);

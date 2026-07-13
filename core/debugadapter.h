@@ -30,7 +30,6 @@ limitations under the License.
 #include "ffi_global.h"
 #include "debuggercommon.h"
 #include "debuggerevent.h"
-#include "../vendor/intx/intx.hpp"
 
 DECLARE_DEBUGGER_API_OBJECT(BNDebugAdapter, DebugAdapter);
 
@@ -477,6 +476,9 @@ namespace BinaryNinjaDebugger {
 		virtual std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 		virtual std::optional<TTDRegisterWriteEvent> GetTTDNextRegisterWrite(const std::string& reg);
 		virtual std::optional<TTDRegisterWriteEvent> GetTTDPrevRegisterWrite(const std::string& reg);
+
+		// State dump — optional, adapters that support state serialization can override
+		virtual bool DumpTargetState(const std::string& filePath);
 
 	};
 };  // namespace BinaryNinjaDebugger

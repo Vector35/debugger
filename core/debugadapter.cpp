@@ -288,3 +288,9 @@ std::optional<TTDRegisterWriteEvent> DebugAdapter::GetTTDPrevRegisterWrite(const
 }
 
 
+bool DebugAdapter::DumpTargetState(const std::string& filePath)
+{
+	return false;
+}
+
+

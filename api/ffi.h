@@ -863,6 +863,8 @@ extern "C"
 
 	DEBUGGER_FFI_API BNSettings* BNDebuggerGetAdapterSettings(BNDebuggerController* controller);
 
+	DEBUGGER_FFI_API bool BNDebuggerDumpTargetState(BNDebuggerController* controller, const char* filePath);
+
 	DEBUGGER_FFI_API bool BNDebuggerFunctionExistsInOldView(BNDebuggerController* controller, uint64_t address);
 
 	// WinDbg Installer (Windows only)

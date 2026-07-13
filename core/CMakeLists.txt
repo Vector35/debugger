@@ -18,7 +18,6 @@ file(GLOB COMMON_SOURCES CONFIGURE_DEPENDS
     ../vendor/pugixml/*.cpp
     ../vendor/pugixml/*.hpp
     ../vendor/fmt/*.h
-	../vendor/intx/intx.hpp
     )
 
 file(GLOB ADAPTER_SOURCES CONFIGURE_DEPENDS
@@ -39,6 +38,16 @@ file(GLOB ADAPTER_SOURCES CONFIGURE_DEPENDS
 		adapters/lldbcoredumpadapter.cpp
 		adapters/lldbcoredumpadapter.h
 	)
+
+# The LLIL emulator debug adapter is only built when the emulator plugin is enabled
+# (EMULATOR, propagated from the top-level build). It links the emulatorapi target and
+# depends on the emulatorcore plugin at runtime.
+if(EMULATOR)
+	list(APPEND ADAPTER_SOURCES
+		adapters/emulatoradapter.cpp
+		adapters/emulatoradapter.h
+	)
+endif()
 
 if(WIN32)
 	set(SOURCES ${COMMON_SOURCES} ${ADAPTER_SOURCES}
@@ -66,6 +75,20 @@ else()
 endif()
 
 target_link_libraries(debuggercore binaryninjaapi)
+
+# The emulator adapter uses BinaryNinja::LLILEmulator from the bnil-emulator plugin.
+# Linking emulatorapi (built by add_subdirectory(api/plugins/emulator) in the top-level
+# build, before public/debugger) also propagates its api/ include directory. emulatorapi
+# in turn pulls in the emulatorcore plugin dylib, so debuggercore needs an rpath entry
+# for its own plugin directory to resolve @rpath/libemulatorcore at load time.
+if(EMULATOR)
+	target_link_libraries(debuggercore emulatorapi)
+	if(APPLE)
+		set_property(TARGET debuggercore APPEND PROPERTY INSTALL_RPATH "@loader_path")
+	elseif(UNIX)
+		set_property(TARGET debuggercore APPEND PROPERTY INSTALL_RPATH "$ORIGIN")
+	endif()
+endif()
 
 if(WIN32)
     target_link_libraries(debuggercore Msi.lib delayimp.lib wsock32 ws2_32 dbghelp.lib)

@@ -20,7 +20,6 @@ limitations under the License.
 #include <filesystem>
 #include "lldbadapter.h"
 #include "thread"
-#include "../../vendor/intx/intx.hpp"
 #include "../debuggercontroller.h"
 
 using namespace lldb;

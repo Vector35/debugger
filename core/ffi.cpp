@@ -2172,6 +2172,12 @@ BNSettings* BNDebuggerGetAdapterSettings(BNDebuggerController* controller)
 }
 
 
+bool BNDebuggerDumpTargetState(BNDebuggerController* controller, const char* filePath)
+{
+	return controller->object->DumpTargetState(filePath);
+}
+
+
 bool BNDebuggerFunctionExistsInOldView(BNDebuggerController* controller, uint64_t address)
 {
 	return controller->object->FunctionExistsInOldView(address);

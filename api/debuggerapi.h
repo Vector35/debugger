@@ -18,7 +18,6 @@ limitations under the License.
 
 #include "binaryninjaapi.h"
 #include "ffi.h"
-#include "../vendor/intx/intx.hpp"
 #include <optional>
 #include <functional>
 
@@ -951,6 +950,8 @@ namespace BinaryNinjaDebuggerAPI {
 		bool GetVariableValue(Variable& var, uint64_t address, size_t size, intx::uint512& value);
 
 		Ref<Settings> GetAdapterSettings();
+
+		bool DumpTargetState(const std::string& filePath);
 
 		bool FunctionExistsInOldView(uint64_t address);
 	};

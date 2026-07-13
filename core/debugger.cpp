@@ -21,6 +21,9 @@ limitations under the License.
 #include "adapters/corelliumadapter.h"
 #include "adapters/lldbcoredumpadapter.h"
 #include "adapters/esrevenadapter.h"
+#ifdef BUILD_EMULATOR
+	#include "adapters/emulatoradapter.h"
+#endif
 #ifdef WIN32
 	#include "adapters/dbgengadapter.h"
 	#include "adapters/dbgengttdadapter.h"
@@ -56,6 +59,9 @@ void InitDebugAdapterTypes()
 	InitLldbAdapterType();
 	InitEsrevenAdapterType();
 	InitLldbCoreDumpAdapterType();
+#ifdef BUILD_EMULATOR
+	InitEmulatorAdapterType();
+#endif
 }
 
 

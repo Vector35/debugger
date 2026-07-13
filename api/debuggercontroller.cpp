@@ -1923,6 +1923,12 @@ Ref<Settings> DebuggerController::GetAdapterSettings()
 }
 
 
+bool DebuggerController::DumpTargetState(const std::string& filePath)
+{
+	return BNDebuggerDumpTargetState(m_object, filePath.c_str());
+}
+
+
 bool DebuggerController::FunctionExistsInOldView(uint64_t address)
 {
 	return BNDebuggerFunctionExistsInOldView(m_object, address);

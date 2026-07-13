@@ -2781,6 +2781,15 @@ class DebuggerController:
         handle = ctypes.cast(_value.handle, ctypes.POINTER(dbgcore.BNMetadata))
         return dbgcore.BNDebuggerSetAdapterProperty(self.handle, name, handle)
 
+    def dump_target_state(self, file_path: Union[str, bytes]) -> bool:
+        """
+        Dump the target state to a file. Currently only supported by the BNIL Emulator adapter.
+
+        :param file_path: Path to the output file (JSON format)
+        :return: True on success
+        """
+        return dbgcore.BNDebuggerDumpTargetState(self.handle, str(file_path).encode('utf-8'))
+
     def get_addr_info(self, addr: int):
         buffer = addr.to_bytes(64, byteorder='little', signed=False)
         c_buffer = (ctypes.c_ubyte * 64)(*buffer)

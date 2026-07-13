@@ -38,6 +38,7 @@ limitations under the License.
 #include "adaptersettings.h"
 #include <thread>
 #include <QInputDialog>
+#include <QFileDialog>
 #include <filesystem>
 #include <QMessageBox>
 #include "debugadapterscriptingprovider.h"
@@ -529,6 +530,28 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	Menu* debuggerMenu = Menu::mainMenu("Debugger");
 	Menu::setMainMenuOrder("Debugger", MENU_ORDER_LATE);
 	debuggerMenu->addAction("Debug Adapter Settings...", "Settings", MENU_ORDER_FIRST);
+
+	UIAction::registerAction("Dump Target State...");
+	context->globalActions()->bindAction("Dump Target State...",
+		UIAction(
+			[=](const UIActionContext& ctxt) {
+				if (!ctxt.binaryView)
+					return;
+				auto controller = DebuggerController::GetController(ctxt.binaryView);
+				if (!controller)
+					return;
+
+				QString filePath = QFileDialog::getSaveFileName(
+					context->mainWindow(), "Save Target State", QString(), "JSON Files (*.json);;All Files (*)");
+				if (filePath.isEmpty())
+					return;
+
+				if (!controller->DumpTargetState(filePath.toStdString()))
+					QMessageBox::warning(context->mainWindow(), "Dump Target State",
+						"Failed to dump target state. This feature is only supported by the BNIL Emulator adapter.");
+			},
+			connectedAndStopped));
+	debuggerMenu->addAction("Dump Target State...", "Settings");
 
 	UIAction::registerAction("Rebase to Remote Base...");
 	context->globalActions()->bindAction("Rebase to Remote Base...",
