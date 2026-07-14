@@ -1446,13 +1446,108 @@ bool DebuggerController::CreateDebuggerBinaryView()
 
 	m_state->GetMemory()->PrefillValueCache();
 
+	// The primary accessor spans the whole address space and owns the stop-event view-refresh
+	// subscription. It backs the blanket "debugger" region in the fallback case, and stays alive for its
+	// refresh role even when we mirror a real memory map into bounded regions.
 	m_accessor = new DebuggerFileAccessor(data);
-	data->SetFunctionAnalysisUpdateDisabled(true);
-	data->GetMemoryMap()->AddRemoteMemoryRegion("debugger", 0, m_accessor);
-	data->SetFunctionAnalysisUpdateDisabled(false);
 
+	// Start with the blanket overlay so reads/navigation work immediately, before the first stop. The
+	// first stop's SyncMemoryRegions() refines this into bounded regions when the backend reports a
+	// memory map (which enables search); otherwise the blanket remains and search stays disabled.
+	m_appliedMemoryRegions.clear();
+	m_debuggerRegionNames.clear();
+	AddDebuggerMemoryRegions();
 
 	return true;
+}
+
+
+void DebuggerController::AddDebuggerMemoryRegions()
+{
+	BinaryViewRef data = GetData();
+	data->SetFunctionAnalysisUpdateDisabled(true);
+
+	if (m_appliedMemoryRegions.empty())
+	{
+		// No memory map available from the backend: fall back to one blanket region covering the entire
+		// address space so any address remains readable. It is named "debugger", which is the sentinel
+		// BinaryView::FindAll* checks to keep search disabled (search over a 2^64 blanket would hang).
+		data->GetMemoryMap()->AddRemoteMemoryRegion("debugger", 0, m_accessor);
+		m_debuggerRegionNames.push_back("debugger");
+	}
+	else
+	{
+		// Mirror the backend's memory map as one bounded remote region per entry. Because the ranges are
+		// bounded, GetBackedAddressRanges()/GetNextBackedAddress() (which drive Find) only cover mapped
+		// memory, so search scans real regions and skips the gaps instead of walking the whole space.
+		// TODO: adding N accessor-backed regions is O(N^2) (each AddRemoteMemoryRegion clones the whole
+		// memory map). A bulk remote-region API in the core would make this O(N); acceptable here because
+		// SyncMemoryRegions only rebuilds when the map actually changes.
+		for (size_t i = 0; i < m_appliedMemoryRegions.size(); i++)
+		{
+			const DebugMemoryRegion& region = m_appliedMemoryRegions[i];
+			if (region.m_size == 0)
+				continue;
+
+			uint32_t flags = 0;
+			if (region.m_read)
+				flags |= SegmentReadable;
+			if (region.m_write)
+				flags |= SegmentWritable;
+			if (region.m_execute)
+				flags |= SegmentExecutable;
+
+			std::string name = fmt::format("debugger:{}", i);
+			auto* accessor = new DebuggerFileAccessor(data, region.m_start, region.m_size);
+			if (data->GetMemoryMap()->AddRemoteMemoryRegion(name, region.m_start, accessor, flags))
+			{
+				m_regionAccessors.push_back(accessor);
+				m_debuggerRegionNames.push_back(name);
+			}
+			else
+			{
+				// The region was rejected (e.g. a duplicate/overlap the core would not accept); the
+				// accessor was not adopted, so free it here.
+				delete accessor;
+			}
+		}
+	}
+
+	data->SetFunctionAnalysisUpdateDisabled(false);
+}
+
+
+void DebuggerController::RemoveDebuggerMemoryRegions()
+{
+	BinaryViewRef data = GetData();
+	data->SetFunctionAnalysisUpdateDisabled(true);
+	for (const std::string& name : m_debuggerRegionNames)
+		data->GetMemoryMap()->RemoveMemoryRegion(name);
+	data->SetFunctionAnalysisUpdateDisabled(false);
+	m_debuggerRegionNames.clear();
+
+	// The regions are gone from the live map, but an in-flight BinaryView::Read may still hold a copy of
+	// the previous MemoryMap snapshot (which references these accessors' callbacks). Retire rather than
+	// free; m_retiredAccessors is drained at teardown.
+	m_retiredAccessors.insert(m_retiredAccessors.end(), m_regionAccessors.begin(), m_regionAccessors.end());
+	m_regionAccessors.clear();
+}
+
+
+void DebuggerController::SyncMemoryRegions()
+{
+	// GetMemoryMap() returns the backend's cached map, refreshed lazily (it was marked dirty by the stop
+	// that led here). Empty means the adapter does not support memory maps.
+	std::vector<DebugMemoryRegion> regions = GetMemoryMap();
+
+	// The user's requirement: do nothing when the map has not changed between stops. This keeps the
+	// common single-step case free of any memory-map churn.
+	if (regions == m_appliedMemoryRegions)
+		return;
+
+	RemoveDebuggerMemoryRegions();
+	m_appliedMemoryRegions = std::move(regions);
+	AddDebuggerMemoryRegions();
 }
 
 
@@ -2061,6 +2156,9 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 		m_ranges.clear();
 
 		DetectLoadedModule();
+		// Refresh the BinaryView memory regions from the backend's (now up-to-date) memory map. No-ops
+		// when the map has not changed, so single-stepping stays cheap.
+		SyncMemoryRegions();
 		UpdateStackVariables();
 		AddRegisterValuesToExpressionParser();
 		AddModuleValuesToExpressionParser();
@@ -2112,6 +2210,19 @@ void DebuggerController::FinalizeTargetGoneCleanup()
 	// so freeing the accessor first would leave the map with a dangling pointer that any concurrent
 	// BinaryView::Read (e.g. a linear-view refresh triggered by TargetExited) would dereference.
 	RemoveDebuggerMemoryRegion();
+	// After the regions are gone from the map, the per-entry accessors accumulated over the session (all
+	// now in m_retiredAccessors, since RemoveDebuggerMemoryRegions retires them) can be freed. Same
+	// detached-thread rationale as m_accessor below: they hold a DbgRef<DebuggerController>.
+	if (!m_retiredAccessors.empty())
+	{
+		auto retired = std::move(m_retiredAccessors);
+		m_retiredAccessors.clear();
+		std::thread([retired]() {
+			for (auto* accessor : retired)
+				delete accessor;
+		}).detach();
+	}
+	m_appliedMemoryRegions.clear();
 	if (m_accessor)
 	{
 		// Defer deletion to a detached thread. The accessor holds a DbgRef<DebuggerController>;
@@ -4272,19 +4383,18 @@ void DebuggerController::OnRebased(BinaryView* oldView, BinaryView* newView)
 
 bool DebuggerController::RemoveDebuggerMemoryRegion()
 {
-	GetData()->SetFunctionAnalysisUpdateDisabled(true);
-	auto ret = GetData()->GetMemoryMap()->RemoveMemoryRegion("debugger");
-	GetData()->SetFunctionAnalysisUpdateDisabled(false);
-	return ret;
+	// Tear down whatever mirror is currently registered (blanket or per-entry). Kept as a thin wrapper
+	// because the rebase path and FinalizeTargetGoneCleanup call it by this name.
+	RemoveDebuggerMemoryRegions();
+	return true;
 }
 
 
 bool DebuggerController::ReAddDebuggerMemoryRegion()
 {
-	GetData()->SetFunctionAnalysisUpdateDisabled(true);
-	auto ret = GetData()->GetMemoryMap()->AddRemoteMemoryRegion("debugger", 0, GetMemoryAccessor());
-	GetData()->SetFunctionAnalysisUpdateDisabled(false);
-	return ret;
+	// Rebuild from the last-applied memory map (the mirror survives a rebase; only the view changed).
+	AddDebuggerMemoryRegions();
+	return true;
 }
 
 

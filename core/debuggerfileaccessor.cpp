@@ -40,9 +40,20 @@ DebuggerFileAccessor::DebuggerFileAccessor(BinaryView* parent)
 }
 
 
+DebuggerFileAccessor::DebuggerFileAccessor(BinaryView* parent, uint64_t base, uint64_t length)
+{
+	(void)base;
+	m_length = length;
+	m_aggressiveAnalysisUpdate = Settings::Instance()->Get<bool>("debugger.aggressiveAnalysisUpdate");
+	m_controller = DebuggerController::GetController(parent);
+	// Per-region accessor: no view-refresh subscription (the primary accessor owns that).
+	m_eventCallback = DEBUGGER_NO_EVENT_CALLBACK;
+}
+
+
 DebuggerFileAccessor::~DebuggerFileAccessor()
 {
-	if (m_controller)
+	if (m_controller && m_eventCallback != DEBUGGER_NO_EVENT_CALLBACK)
 		m_controller->RemoveEventCallback(m_eventCallback);
 }
 

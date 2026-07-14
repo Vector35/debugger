@@ -237,6 +237,16 @@ namespace BinaryNinjaDebugger {
 			m_start(start), m_size(size), m_name(std::move(name)), m_read(read), m_write(write),
 			m_execute(execute), m_shared(shared)
 		{}
+
+		// Value equality, used to detect whether the target's memory map changed between stops so the
+		// debugger can avoid rebuilding the BinaryView memory regions when nothing has moved.
+		bool operator==(const DebugMemoryRegion& other) const
+		{
+			return m_start == other.m_start && m_size == other.m_size && m_name == other.m_name
+				&& m_read == other.m_read && m_write == other.m_write && m_execute == other.m_execute
+				&& m_shared == other.m_shared;
+		}
+		bool operator!=(const DebugMemoryRegion& other) const { return !(*this == other); }
 	};
 
 	// A symbol the debugger backend (e.g. LLDB, dbgeng) knows about for a loaded module, but which the
