@@ -96,7 +96,8 @@ void copyExternalArtifacts(String os) {
         qtJobName: "Qt/qt-main-pipeline",
         qtArtifactFilter: "artifacts/qt_${os}_*.zip",
         qtCommit: readTarget('qt_build_commit'),
-        llvmJobName: "LLVM/llvm-main-pipeline",
+        // TEMP(test_llvm_22): build Qt against LLVM 22 so the bundled libclang matches
+        llvmJobName: "LLVM/llvm-test-pipeline/test_llvm_22",
         llvmArtifactFilter: "artifacts/lldb_${os}_*.zip",
         llvmCommit: readTarget('llvm_build_commit'),
     )
