@@ -17,6 +17,7 @@ limitations under the License.
 #pragma once
 
 #include "binaryninjaapi.h"
+#include "vendor/intx/intx.hpp"  // intx::uint512, used for wide register values
 #include "ffi.h"
 #include <optional>
 #include <functional>
