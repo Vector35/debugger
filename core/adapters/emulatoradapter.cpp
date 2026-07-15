@@ -19,6 +19,7 @@ limitations under the License.
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebugger;
+using namespace BinaryNinjaEmulatorAPI;
 
 
 // ─── EmulatorAdapter ─────────────────────────────────────────────────────────

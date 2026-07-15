@@ -19,7 +19,7 @@ limitations under the License.
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
 #include "binaryninjaapi.h"
-#include "emulatorapi.h"  // BinaryNinja::LLILEmulator, from the bnil-emulator plugin
+#include "emulatorapi.h"  // BinaryNinjaEmulatorAPI::LLILEmulator, from the bnil-emulator plugin
 #include <mutex>
 #include <condition_variable>
 
@@ -27,7 +27,7 @@ namespace BinaryNinjaDebugger {
 
 	class EmulatorAdapter : public DebugAdapter
 	{
-		BinaryNinja::Ref<BinaryNinja::LLILEmulator> m_emulator;
+		BinaryNinja::Ref<BinaryNinjaEmulatorAPI::LLILEmulator> m_emulator;
 		BinaryNinja::Ref<BinaryNinja::BinaryView> m_view;
 		BinaryNinja::Ref<BinaryNinja::Architecture> m_arch;
 		bool m_running = false;
