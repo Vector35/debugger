@@ -25,6 +25,7 @@ limitations under the License.
 #include <unordered_map>
 #include <array>
 #include "binaryninjaapi.h"
+#include "emulator_intx.h"  // intx::uint512, used for register values
 #include <fmt/format.h>
 #include "../api/ffi.h"
 #include "ffi_global.h"
