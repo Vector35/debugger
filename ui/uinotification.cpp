@@ -208,3 +208,110 @@ void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, 
 	// TTD Calls context menu item
 	menu.addAction("Debugger", "TTD Calls\\Kernel32 Calls", "TTD");
 }
+
+
+bool NotificationListener::OnTokenDoubleClicked(UIContext* context, ViewFrame* frame, View* view,
+	const ViewLocation& location, const HighlightTokenState& token)
+{
+	// When a debug session is active and the user double-clicks a register or a
+	// variable, navigate to the address it refers to at the current stop location.
+	// If we cannot resolve it, return false so the default double-click behavior
+	// (navigation, rename dialog, etc.) still runs.
+	if (!view)
+		return false;
+
+	auto data = view->getData();
+	if (!data)
+		return false;
+
+	// Only act when a controller already exists for this view; don't spin one up
+	// just because a token was double-clicked.
+	if (!DebuggerController::ControllerExists(data))
+		return false;
+
+	auto controller = DebuggerController::GetController(data);
+	if (!controller || !controller->IsConnected() || controller->IsRunning())
+		return false;
+
+	uint64_t target = 0;
+	bool haveTarget = false;
+
+	if ((token.type == IntegerToken || token.type == PossibleAddressToken
+			|| token.type == CodeRelativeAddressToken)
+		&& token.addrValid)
+	{
+		// An address-literal token (a raw address/number in the operand) that resolves to an
+		// address. The default behavior navigates to it in the same view; while debugging we
+		// instead open it in another pane so the disassembly the user is looking at stays put.
+		// AddressDisplayToken is intentionally left out: those keep navigating in the current view.
+		// NOTE: opening address-valued literals in a new pane is arguably a better default
+		// and should probably become the standard behavior even outside of a debug session.
+		target = token.addr;
+		haveTarget = true;
+	}
+	else if (token.type == RegisterToken)
+	{
+		// A raw register token: navigate to the address currently held in the register.
+		target = (uint64_t)controller->GetRegisterValue(token.token.text);
+		haveTarget = true;
+	}
+	else if ((token.type == LocalVariableToken || token.type == StackVariableToken) && token.localVarValid)
+	{
+		const auto& var = token.localVar;
+		if (var.type == RegisterVariableSourceType)
+		{
+			// The variable lives in a register: navigate to the address it holds.
+			auto arch = data->GetDefaultArchitecture();
+			if (!arch)
+				return false;
+			auto regName = arch->GetRegisterName((uint32_t)var.storage);
+			// GetRegisterValue expects the adapter's name for the frame pointer on arm64.
+			if (regName == "x29")
+				regName = "fp";
+			target = (uint64_t)controller->GetRegisterValue(regName);
+			haveTarget = true;
+		}
+		else if (var.type == StackVariableSourceType)
+		{
+			// A stack variable: navigate to its live address in the current stack frame.
+			// var.storage is an offset relative to the stack pointer at function entry.
+			auto arch = data->GetDefaultArchitecture();
+			if (!arch)
+				return false;
+
+			// Preferred: recover the entry-time stack pointer using the analyzed stack-frame
+			// offset at the current instruction, so we stay correct mid-function once the
+			// prologue has adjusted the stack.
+			// Fallback: if there is no clean frame offset here (e.g. we are stopped at the
+			// function entry before the prologue has run, so the variable has not been created
+			// yet), assume the current stack pointer is the frame base. This is exact at entry
+			// and a best effort otherwise.
+			uint64_t stackAtFuncEntry = controller->StackPointer();
+
+			auto func = location.getFunction();
+			if (!func)
+			{
+				auto funcs = data->GetAnalysisFunctionsContainingAddress(location.getOffset());
+				if (!funcs.empty())
+					func = funcs[0];
+			}
+			if (func)
+			{
+				auto stackReg = arch->GetStackPointerRegister();
+				auto stackValue = func->GetRegisterValueAtInstruction(arch, controller->GetLastIP(), stackReg);
+				if (stackValue.state == StackFrameOffset)
+					stackAtFuncEntry = controller->StackPointer() - stackValue.value;
+			}
+
+			target = stackAtFuncEntry + var.storage;
+			haveTarget = true;
+		}
+	}
+
+	if (!haveTarget)
+		return false;
+
+	// Open the target in another pane so the disassembly the user is looking at stays put.
+	view->navigateOnOtherPane(target);
+	return true;
+}

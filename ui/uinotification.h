@@ -40,5 +40,7 @@ public:
 	virtual bool GetNameForPath(UIContext* context, const QString& path, QString& name) override;
 
 	virtual void OnContextMenuCreated(UIContext* context, View* view, Menu& menu) override;
+	virtual bool OnTokenDoubleClicked(UIContext* context, ViewFrame* frame, View* view,
+		const ViewLocation& location, const HighlightTokenState& token) override;
 	static void init();
 };
