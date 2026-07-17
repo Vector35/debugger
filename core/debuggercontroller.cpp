@@ -1446,6 +1446,10 @@ bool DebuggerController::CreateDebuggerBinaryView()
 
 	m_state->GetMemory()->PrefillValueCache();
 
+	// Sample the segment-application mode once for this debug session (SyncMemoryRegions consults it on
+	// every stop). Toggling the setting takes effect on the next launch/attach.
+	m_useMemoryMapSegments = Settings::Instance()->Get<bool>("debugger.useMemoryMapSegments");
+
 	// The primary accessor spans the whole address space and owns the stop-event view-refresh
 	// subscription. It backs the blanket "debugger" region in the fallback case, and stays alive for its
 	// refresh role even when we mirror a real memory map into bounded regions.
@@ -1536,9 +1540,16 @@ void DebuggerController::RemoveDebuggerMemoryRegions()
 
 void DebuggerController::SyncMemoryRegions()
 {
-	// GetMemoryMap() returns the backend's cached map, refreshed lazily (it was marked dirty by the stop
-	// that led here). Empty means the adapter does not support memory maps.
-	std::vector<DebugMemoryRegion> regions = GetMemoryMap();
+	// The cached setting selects the new bounded-segment behavior or the old blanket overlay. Leaving
+	// `regions` empty makes the logic below fall back to the single "debugger" overlay
+	// (AddDebuggerMemoryRegions treats an empty map that way).
+	std::vector<DebugMemoryRegion> regions;
+	if (m_useMemoryMapSegments)
+	{
+		// GetMemoryMap() returns the backend's cached map, refreshed lazily (it was marked dirty by the
+		// stop that led here). Empty means the adapter does not support memory maps.
+		regions = GetMemoryMap();
+	}
 
 	// The user's requirement: do nothing when the map has not changed between stops. This keeps the
 	// common single-step case free of any memory-map churn.
