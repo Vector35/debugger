@@ -13,7 +13,7 @@ from pathlib import Path
 
 from target_llvm_version import llvm_version, msvc_build, vs_version
 
-qt_version = "6.10.1"
+qt_version = "6.11.1"
 
 
 def normalized_platform():
