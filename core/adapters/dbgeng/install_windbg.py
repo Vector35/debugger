@@ -80,7 +80,11 @@ def install_windbg():
 
     print('Downloading MSIX bundle from: %s...' % msix_url)
     try:
-        msix_file, _ = urllib.request.urlretrieve(msix_url)
+        # Download to a path with a recognized .msixbundle extension so the AppX signature
+        # provider engages during verification (it does not for e.g. a generic .tmp file).
+        msix_fd, msix_file = tempfile.mkstemp(suffix='.msixbundle')
+        os.close(msix_fd)
+        urllib.request.urlretrieve(msix_url, msix_file)
     except Exception as e:
         print('Failed to download MSIX bundle from %s' % msix_url)
         print(e)

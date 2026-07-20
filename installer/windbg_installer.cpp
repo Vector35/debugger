@@ -215,7 +215,9 @@ InstallResult Install(const InstallConfig& config) {
         ReportProgress(progressCallback, "Downloading WinDbg/TTD package from:", 0);
         ReportProgress(progressCallback, msixUrl, 0);
 
-        std::string msixPath = GetTempFilePath(".msixbundle.zip");
+        /* Note: the extension must be a recognized MSIX/APPX extension (not .zip) so that
+         * WinVerifyTrust engages the AppX signature provider during Step 3.5 verification. */
+        std::string msixPath = GetTempFilePath(".msixbundle");
         tempFiles.push_back(msixPath);
 
         auto msixDownloadProgressCb = [&](const DownloadProgress& dp) {

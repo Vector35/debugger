@@ -174,8 +174,10 @@ bool VerifySignerIsMicrosoft(const std::wstring& path, std::string& signerName, 
         if (signerName == "Microsoft Corporation") {
             result = true;
         } else {
-            err = "the package is not signed by Microsoft (signer: \"" +
-                  (signerName.empty() ? std::string("<unknown>") : signerName) + "\")";
+            /* Avoid embedded double-quotes: the error travels through naive JSON
+             * serialization/parsing (main.cpp / core) that would truncate on a quote. */
+            err = "the package is not signed by Microsoft (signer: " +
+                  (signerName.empty() ? std::string("<unknown>") : signerName) + ")";
         }
     }
 

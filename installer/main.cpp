@@ -27,6 +27,7 @@
 #include <vector>
 #include <thread>
 #include <chrono>
+#include <filesystem>
 
 using namespace WinDbgInstaller;
 
@@ -352,8 +353,14 @@ int CmdInstall(const std::string& installPath, OutputMode mode, bool isUpdate) {
 
     InstallResult result = Install(config);
 
-    /* Write result to a file so UI can read it */
+    /* Write result to a file so UI can read it.
+     * The install directory may not exist yet if installation failed early (e.g. the
+     * signature check runs before any files are extracted), so create it first -
+     * otherwise the UI cannot read the specific error and falls back to a generic one. */
     {
+        std::error_code ec;
+        std::filesystem::create_directories(targetPath, ec);
+
         std::string resultPath = targetPath + "\\install_result.json";
         std::ofstream resultFile(resultPath);
         if (resultFile.is_open()) {
