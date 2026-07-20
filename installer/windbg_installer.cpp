@@ -304,7 +304,10 @@ InstallResult Install(const InstallConfig& config) {
             PrintSettingsInfo(x64dbgEngPath, logCallback);
         }
 
-        /* Cleanup */
+        /* Cleanup. This deletes the downloaded bundle (~1 GB) and the extracted inner
+         * MSIX (hundreds of MB), which can take several seconds, so give it its own
+         * progress message instead of leaving "Verifying installation..." on screen. */
+        ReportProgress(progressCallback, "Cleaning up temporary files...", 0);
         CleanupTempFiles(tempFiles, logCallback);
 
         ReportProgress(progressCallback, "Installation completed successfully!", 0);
