@@ -1547,6 +1547,55 @@ bool BNDebuggerGetTTDPrevMemoryAccess(BNDebuggerController* controller,
 	return true;
 }
 
+static void FillTTDRegisterWriteEvent(const TTDRegisterWriteEvent& event, BNDebuggerTTDRegisterWriteEvent* result)
+{
+	result->reg = BNDebuggerAllocString(event.reg.c_str());
+	result->position = {event.position.sequence, event.position.step};
+	result->originalPosition = {event.originalPosition.sequence, event.originalPosition.step};
+	result->value = event.value;
+	result->originalValue = event.originalValue;
+	result->uniqueThreadId = event.uniqueThreadId;
+}
+
+bool BNDebuggerGetTTDNextRegisterWrite(BNDebuggerController* controller,
+	const char* reg, BNDebuggerTTDRegisterWriteEvent* result)
+{
+	if (!reg || !result)
+		return false;
+
+	auto [success, event] = controller->object->GetTTDNextRegisterWrite(reg);
+	if (!success)
+		return false;
+
+	FillTTDRegisterWriteEvent(event, result);
+	return true;
+}
+
+bool BNDebuggerGetTTDPrevRegisterWrite(BNDebuggerController* controller,
+	const char* reg, BNDebuggerTTDRegisterWriteEvent* result)
+{
+	if (!reg || !result)
+		return false;
+
+	auto [success, event] = controller->object->GetTTDPrevRegisterWrite(reg);
+	if (!success)
+		return false;
+
+	FillTTDRegisterWriteEvent(event, result);
+	return true;
+}
+
+void BNDebuggerFreeTTDRegisterWriteEvent(BNDebuggerTTDRegisterWriteEvent* event)
+{
+	if (!event)
+		return;
+	if (event->reg)
+	{
+		BNDebuggerFreeString(event->reg);
+		event->reg = nullptr;
+	}
+}
+
 BNDebuggerTTDBookmark* BNDebuggerGetTTDBookmarks(BNDebuggerController* controller, size_t* count)
 {
 	auto bookmarks = controller->object->GetTTDBookmarks();

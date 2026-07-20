@@ -1464,6 +1464,48 @@ std::pair<bool, TTDMemoryEvent> DebuggerController::GetTTDPrevMemoryAccess(uint6
 	return {true, event};
 }
 
+std::pair<bool, TTDRegisterWriteEvent> DebuggerController::GetTTDNextRegisterWrite(const std::string& reg)
+{
+	BNDebuggerTTDRegisterWriteEvent bnEvent = {};
+
+	bool success = BNDebuggerGetTTDNextRegisterWrite(m_object, reg.c_str(), &bnEvent);
+	if (!success)
+		return {false, TTDRegisterWriteEvent()};
+
+	TTDRegisterWriteEvent event;
+	event.reg = bnEvent.reg ? std::string(bnEvent.reg) : reg;
+	event.position = TTDPosition(bnEvent.position.sequence, bnEvent.position.step);
+	event.originalPosition = TTDPosition(bnEvent.originalPosition.sequence, bnEvent.originalPosition.step);
+	event.value = bnEvent.value;
+	event.originalValue = bnEvent.originalValue;
+	event.uniqueThreadId = bnEvent.uniqueThreadId;
+
+	BNDebuggerFreeTTDRegisterWriteEvent(&bnEvent);
+
+	return {true, event};
+}
+
+std::pair<bool, TTDRegisterWriteEvent> DebuggerController::GetTTDPrevRegisterWrite(const std::string& reg)
+{
+	BNDebuggerTTDRegisterWriteEvent bnEvent = {};
+
+	bool success = BNDebuggerGetTTDPrevRegisterWrite(m_object, reg.c_str(), &bnEvent);
+	if (!success)
+		return {false, TTDRegisterWriteEvent()};
+
+	TTDRegisterWriteEvent event;
+	event.reg = bnEvent.reg ? std::string(bnEvent.reg) : reg;
+	event.position = TTDPosition(bnEvent.position.sequence, bnEvent.position.step);
+	event.originalPosition = TTDPosition(bnEvent.originalPosition.sequence, bnEvent.originalPosition.step);
+	event.value = bnEvent.value;
+	event.originalValue = bnEvent.originalValue;
+	event.uniqueThreadId = bnEvent.uniqueThreadId;
+
+	BNDebuggerFreeTTDRegisterWriteEvent(&bnEvent);
+
+	return {true, event};
+}
+
 std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
 {
 	std::vector<TTDCallEvent> result;

@@ -892,6 +892,60 @@ class TTDMemoryEvent:
         return f"<TTDMemoryEvent: {self.event_type} @ {self.address:#x}, thread {self.thread_id}>"
 
 
+class TTDRegisterWriteEvent:
+    """
+    TTDRegisterWriteEvent represents the result of a TTD PrevRegisterWrite/NextRegisterWrite
+    query, i.e. the point at which a register's value last changed. It has the following fields:
+
+    * ``reg``: name of the register that was queried (e.g. "rax")
+    * ``position``: TTD position at which the register value changed
+    * ``original_position``: TTD position from which the query was issued
+    * ``value``: value the register was changed to
+    * ``original_value``: value the register held before the change
+    * ``unique_thread_id``: unique thread ID that performed the write
+
+    .. note:: These queries detect when a register *changes* value, not every architectural \
+    write. Writing the same value a register already holds is not reported.
+    """
+
+    def __init__(self, reg: str, position: TTDPosition, original_position: TTDPosition,
+                 value: int, original_value: int, unique_thread_id: int):
+        self.reg = reg
+        self.position = position
+        self.original_position = original_position
+        self.value = value
+        self.original_value = original_value
+        self.unique_thread_id = unique_thread_id
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return (self.reg == other.reg and
+                self.position == other.position and
+                self.original_position == other.original_position and
+                self.value == other.value and
+                self.original_value == other.original_value and
+                self.unique_thread_id == other.unique_thread_id)
+
+    def __ne__(self, other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.reg, self.position, self.original_position,
+                     self.value, self.original_value, self.unique_thread_id))
+
+    def __setattr__(self, name, value):
+        try:
+            object.__setattr__(self, name, value)
+        except AttributeError:
+            raise AttributeError(f"attribute '{name}' is read only")
+
+    def __repr__(self):
+        return f"<TTDRegisterWriteEvent: {self.reg}={self.value:#x} @ {self.position}>"
+
+
 class TTDPositionRangeIndexedMemoryEvent:
     """
     TTDPositionRangeIndexedMemoryEvent represents a memory access event in a TTD trace with position information.
@@ -3029,6 +3083,66 @@ class DebuggerController:
             value=result.value,
             access_type=result.accessType
         )
+
+    def get_ttd_next_register_write(self, reg: str) -> Optional[TTDRegisterWriteEvent]:
+        """
+        Find the next position at which the given register's value changes, starting from the
+        current TTD position, and return information about that write.
+
+        This uses the TTD ``NextRegisterWrite`` API directly, so it does not move the current
+        position. Use ``set_ttd_position`` with the returned ``position`` to travel there.
+
+        .. note:: This detects when a register *changes* value, not every architectural write. \
+        Writing the same value a register already holds is not reported.
+
+        :param reg: name of the register to query (e.g. "rax")
+        :return: TTDRegisterWriteEvent if found, None if no subsequent write exists
+        """
+        result = dbgcore.BNDebuggerTTDRegisterWriteEvent()
+        success = dbgcore.BNDebuggerGetTTDNextRegisterWrite(self.handle, reg, result)
+        if not success:
+            return None
+
+        event = TTDRegisterWriteEvent(
+            reg=result.reg if result.reg else reg,
+            position=TTDPosition(result.position.sequence, result.position.step),
+            original_position=TTDPosition(result.originalPosition.sequence, result.originalPosition.step),
+            value=result.value,
+            original_value=result.originalValue,
+            unique_thread_id=result.uniqueThreadId
+        )
+        dbgcore.BNDebuggerFreeTTDRegisterWriteEvent(result)
+        return event
+
+    def get_ttd_prev_register_write(self, reg: str) -> Optional[TTDRegisterWriteEvent]:
+        """
+        Find the previous position at which the given register's value changed, going backward
+        from the current TTD position, and return information about that write.
+
+        This uses the TTD ``PrevRegisterWrite`` API directly, so it does not move the current
+        position. Use ``set_ttd_position`` with the returned ``position`` to travel there.
+
+        .. note:: This detects when a register *changes* value, not every architectural write. \
+        Writing the same value a register already holds is not reported.
+
+        :param reg: name of the register to query (e.g. "rax")
+        :return: TTDRegisterWriteEvent if found, None if no prior write exists
+        """
+        result = dbgcore.BNDebuggerTTDRegisterWriteEvent()
+        success = dbgcore.BNDebuggerGetTTDPrevRegisterWrite(self.handle, reg, result)
+        if not success:
+            return None
+
+        event = TTDRegisterWriteEvent(
+            reg=result.reg if result.reg else reg,
+            position=TTDPosition(result.position.sequence, result.position.step),
+            original_position=TTDPosition(result.originalPosition.sequence, result.originalPosition.step),
+            value=result.value,
+            original_value=result.originalValue,
+            unique_thread_id=result.uniqueThreadId
+        )
+        dbgcore.BNDebuggerFreeTTDRegisterWriteEvent(result)
+        return event
 
     def get_ttd_memory_access_for_address(self, address: int, end_address: int, access_type = DebuggerTTDMemoryAccessType.DebuggerTTDMemoryRead) -> List[TTDMemoryEvent]:
         """

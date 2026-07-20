@@ -190,6 +190,10 @@ class DebugRegistersWidget : public QTableView, public FilterTarget
 
 	void startHoverTimer(QMouseEvent* event);
 
+	bool selectedRegisterName(std::string& name);
+	bool ttdSingleRegisterSelected();
+	void goToRegisterWrite(bool forward);
+
 public:
 	DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, Menu* menu);
 	void notifyRegistersChanged(std::vector<DebugRegister> regs);
@@ -204,6 +208,8 @@ private slots:
 	void copyRows();
 	void paste();
 	void editValue();
+	void goToPrevRegisterWrite();
+	void goToNextRegisterWrite();
 	void onDoubleClicked();
 	void hoverTimerEvent();
 

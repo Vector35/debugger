@@ -301,6 +301,38 @@ void GlobalDebuggerUI::ShowTTDMemoryAccessNextPrevDialog(const UIActionContext& 
 }
 
 
+void GlobalDebuggerUI::GoToRegisterWrite(const UIActionContext& ctxt, bool forward)
+{
+	if (!ctxt.binaryView || !ctxt.token.valid || ctxt.token.type != RegisterToken)
+		return;
+
+	auto controller = DebuggerController::GetController(ctxt.binaryView);
+	if (!controller || !controller->IsConnected() || !controller->IsTTD())
+		return;
+
+	std::string reg = ctxt.token.token.text;
+	if (reg.empty())
+		return;
+
+	auto [success, event] =
+		forward ? controller->GetTTDNextRegisterWrite(reg) : controller->GetTTDPrevRegisterWrite(reg);
+
+	// A failed query (or a zero position) means there is no such write in the trace. Note that
+	// TTD reports register value *changes*, so a write of the same value is not detected.
+	if (!success || (event.position.sequence == 0 && event.position.step == 0))
+	{
+		LogWarn("No %s write found for register '%s'", forward ? "next" : "previous", reg.c_str());
+		return;
+	}
+
+	if (!controller->SetTTDPosition(event.position))
+	{
+		LogWarn("Found %s write for register '%s' but failed to time travel to it",
+			forward ? "next" : "previous", reg.c_str());
+	}
+}
+
+
 void GlobalDebuggerUI::QueryTTDCalls(const UIActionContext& ctxt, const std::string& symbols, uint64_t startReturnAddr, uint64_t endReturnAddr)
 {
 	// Focus the TTD Calls sidebar widget
@@ -1388,6 +1420,23 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			},
 			connectedToTTD));
 	debuggerMenu->addAction("TTD Memory Access (Next/Prev)", "TTD");
+
+	// TTD Register Write navigation — available when right-clicking a register token in a TTD session
+	auto registerTokenInTTD = [connectedToTTD](const UIActionContext& ctxt) {
+		if (!ctxt.token.valid || ctxt.token.type != RegisterToken)
+			return false;
+		return connectedToTTD(ctxt);
+	};
+
+	UIAction::registerAction("Go to Previous Register Write");
+	context->globalActions()->bindAction("Go to Previous Register Write",
+		UIAction([=, this](const UIActionContext& ctxt) { GoToRegisterWrite(ctxt, false); }, registerTokenInTTD));
+	debuggerMenu->addAction("Go to Previous Register Write", "TTD");
+
+	UIAction::registerAction("Go to Next Register Write");
+	context->globalActions()->bindAction("Go to Next Register Write",
+		UIAction([=, this](const UIActionContext& ctxt) { GoToRegisterWrite(ctxt, true); }, registerTokenInTTD));
+	debuggerMenu->addAction("Go to Next Register Write", "TTD");
 
 	// TTD Calls menu actions
 	UIAction::registerAction("TTD Calls\\Kernel32 Calls");
