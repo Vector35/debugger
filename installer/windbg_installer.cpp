@@ -285,33 +285,19 @@ InstallResult Install(const InstallConfig& config) {
             }
         }
 
-        /* Step 4: Extract inner MSIX file from bundle */
-        ReportProgress(progressCallback, "Extracting package contents...", 0);
-
-        std::string tempExtractDir = GetTempFilePath("_extract");
-        tempFiles.push_back(tempExtractDir);
-
-        auto extractInnerStart = std::chrono::steady_clock::now();
-        std::string innerMsixPath = ExtractFileFromZipArchive(msixPath, kInnerMsixName, tempExtractDir, logCallback);
-        if (innerMsixPath.empty()) {
-            std::string error = "Failed to extract inner MSIX file";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
-        }
-        Log(logCallback, LOG_INFO, "Timing - extract inner MSIX from bundle: " + MsStr(ElapsedMs(extractInnerStart)));
-
-        /* Step 5: Extract WinDbg contents to installation directory */
+        /* Step 4: Extract the inner package's contents straight to the install dir.
+         * The inner MSIX is read from memory (miniz), so no multi-hundred-MB temp file
+         * is written or later deleted - that delete was the slow, antivirus-scanned step. */
         ReportProgress(progressCallback, "Installing WinDbg/TTD files...", 0);
 
-        auto extractInstallStart = std::chrono::steady_clock::now();
-        if (!ExtractZipArchive(innerMsixPath, installTarget, nullptr, logCallback)) {
-            std::string error = "Failed to extract WinDbg contents";
+        auto extractStart = std::chrono::steady_clock::now();
+        if (!ExtractInnerPackageToDir(msixPath, kInnerMsixName, installTarget, nullptr, logCallback)) {
+            std::string error = "Failed to extract WinDbg contents from package";
             Log(logCallback, LOG_ERROR, error);
             CleanupTempFiles(tempFiles, logCallback);
             return InstallResult(false, error);
         }
-        Log(logCallback, LOG_INFO, "Timing - extract WinDbg files to install dir: " + MsStr(ElapsedMs(extractInstallStart)));
+        Log(logCallback, LOG_INFO, "Timing - extract WinDbg files (nested, no temp): " + MsStr(ElapsedMs(extractStart)));
 
         /* Step 6: Verify installation */
         ReportProgress(progressCallback, "Verifying installation...", 0);

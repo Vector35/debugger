@@ -1,5 +1,5 @@
 /*
- * ZIP Extractor using minizip-ng library
+ * MSIX package extraction (miniz-backed)
  *
  * Copyright 2020-2026 Vector 35 Inc.
  * Licensed under the Apache License, Version 2.0
@@ -28,34 +28,25 @@ using ExtractionProgressCallback = std::function<void(const ExtractionProgress& 
 using LogCallback = std::function<void(int level, const std::string& message)>;
 
 /*
- * Extract all files from a ZIP archive
+ * Extract the payload contents of the inner package (innerName, e.g.
+ * "windbg_win-x64.msix") contained in an MSIX bundle directly into destDir.
  *
- * @param zipPath Path to the ZIP file
- * @param extractPath Directory where to extract contents
+ * The inner package is read from memory - it is never written to a temporary
+ * file - so the payload files go straight to destDir with no large intermediate
+ * file to later delete. Backed by the vendored miniz library.
+ *
+ * @param bundlePath      Path to the .msixbundle
+ * @param innerName       Name of the inner package inside the bundle to extract
+ * @param destDir         Directory to extract payload files into
  * @param progressCallback Optional callback for progress updates
- * @param logCallback Optional callback for log messages
+ * @param logCallback     Optional callback for log messages
  * @return true if extraction was successful, false otherwise
  */
-bool ExtractZipArchive(
-    const std::string& zipPath,
-    const std::string& extractPath,
+bool ExtractInnerPackageToDir(
+    const std::string& bundlePath,
+    const std::string& innerName,
+    const std::string& destDir,
     ExtractionProgressCallback progressCallback = nullptr,
-    LogCallback logCallback = nullptr
-);
-
-/*
- * Extract a single file from a ZIP archive
- *
- * @param zipPath Path to the ZIP file
- * @param fileName Name of file to extract (case-insensitive)
- * @param extractDir Directory where to extract the file
- * @param logCallback Optional callback for log messages
- * @return Path to extracted file, or empty string if extraction failed
- */
-std::string ExtractFileFromZipArchive(
-    const std::string& zipPath,
-    const std::string& fileName,
-    const std::string& extractDir,
     LogCallback logCallback = nullptr
 );
 
