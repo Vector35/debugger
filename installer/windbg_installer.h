@@ -40,6 +40,8 @@ enum LogLevel {
 struct InstallConfig {
     std::string installPath;     /* Override default install path (empty = use default) */
     bool updateSettings;         /* Whether to update Binary Ninja settings (default: true) */
+    std::string localBundlePath; /* Use this already-downloaded .msixbundle instead of downloading
+                                    (for testing). The file is used in place and never deleted. */
     ProgressCallback onProgress; /* Progress callback */
     LogCallback onLog;           /* Logging callback */
 

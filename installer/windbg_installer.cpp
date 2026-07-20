@@ -18,6 +18,7 @@
 #include <fstream>
 #include <vector>
 #include <sstream>
+#include <chrono>
 
 #pragma comment(lib, "version.lib")
 
@@ -47,6 +48,15 @@ void Log(LogCallback logCallback, int level, const std::string& message) {
     if (logCallback) {
         logCallback(level, message);
     }
+}
+
+/* Milliseconds elapsed since a steady_clock time point (for timing instrumentation) */
+double ElapsedMs(std::chrono::steady_clock::time_point start) {
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+
+std::string MsStr(double ms) {
+    return std::to_string((long long)(ms + 0.5)) + " ms";
 }
 
 void ReportProgress(ProgressCallback progressCallback, const std::string& step, int percent,
@@ -124,19 +134,41 @@ void PrintSettingsInfo(const std::string& dbgEngPath, LogCallback logCallback) {
     Log(logCallback, LOG_INFO, "Binary Ninja will configure settings automatically when launched.");
 }
 
-/* Cleanup temporary files */
+/* Cleanup temporary files. Logs per-file size and elapsed time so we can see how much
+ * of the perceived "cleanup" delay is actually the file deletion vs. something else. */
 void CleanupTempFiles(const std::vector<std::string>& files, LogCallback logCallback) {
+    auto totalStart = std::chrono::steady_clock::now();
     for (const auto& file : files) {
+        std::error_code sizeEc;
+        bool isDir = fs::is_directory(file, sizeEc);
+        /* Best-effort size for logging */
+        uintmax_t bytes = 0;
+        if (isDir) {
+            for (std::error_code walkEc; const auto& e : fs::recursive_directory_iterator(file, walkEc)) {
+                if (e.is_regular_file(walkEc)) {
+                    bytes += e.file_size(walkEc);
+                }
+            }
+        } else {
+            bytes = fs::file_size(file, sizeEc);
+        }
+
+        auto start = std::chrono::steady_clock::now();
         std::error_code ec;
-        if (fs::is_directory(file)) {
+        if (isDir) {
             fs::remove_all(file, ec);
         } else {
             fs::remove(file, ec);
         }
+        double ms = ElapsedMs(start);
         if (!ec) {
-            Log(logCallback, LOG_DEBUG, "Cleaned up: " + file);
+            double mb = bytes / (1024.0 * 1024.0);
+            char buf[64];
+            sprintf_s(buf, sizeof(buf), "%.1f MB", mb);
+            Log(logCallback, LOG_INFO, "Deleted " + std::string(buf) + " in " + MsStr(ms) + ": " + file);
         }
     }
+    Log(logCallback, LOG_INFO, "Cleanup total: " + MsStr(ElapsedMs(totalStart)));
 }
 
 } // anonymous namespace
@@ -185,53 +217,72 @@ InstallResult Install(const InstallConfig& config) {
         }
         Log(logCallback, LOG_INFO, "Installation target: " + installTarget);
 
-        /* Step 1: Download appinstaller file (small, no progress needed) */
-        ReportProgress(progressCallback, "Downloading WinDbg package information from:", 0);
-        ReportProgress(progressCallback, std::string(kWinDbgDownloadUrl), 0);
+        /* appInstallerPath stays empty when a local bundle is supplied (no download). */
+        std::string appInstallerPath;
+        std::string msixPath;
 
-        std::string appInstallerPath = GetTempFilePath(".appinstaller");
-        tempFiles.push_back(appInstallerPath);
-
-        if (!DownloadFileWithProgress(kWinDbgDownloadUrl, appInstallerPath, nullptr, logCallback)) {
-            std::string error = "Failed to download appinstaller file";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
-        }
-
-        /* Step 2: Parse XML to get MSIX bundle URL */
-        ReportProgress(progressCallback, "Parsing package information...", 0);
-
-        std::string msixUrl = ParseAppInstallerXml(appInstallerPath, logCallback);
-        if (msixUrl.empty()) {
-            std::string error = "Failed to parse appinstaller XML";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
-        }
-
-        /* Step 3: Download MSIX bundle (this is the main download that shows progress) */
-        ReportProgress(progressCallback, "Downloading WinDbg/TTD package from:", 0);
-        ReportProgress(progressCallback, msixUrl, 0);
-
-        std::string msixPath = GetTempFilePath(".msixbundle.zip");
-        tempFiles.push_back(msixPath);
-
-        auto msixDownloadProgressCb = [&](const DownloadProgress& dp) {
-            /* Report download percentage (0-100%) directly - this is the only step that needs progress display */
-            int percent = 0;
-            if (dp.totalBytes > 0) {
-                percent = (int)(100 * dp.bytesDownloaded / dp.totalBytes);
+        if (!config.localBundlePath.empty()) {
+            /* Testing shortcut: use an already-downloaded bundle and skip all network steps.
+             * The file is used in place and is NOT added to tempFiles, so cleanup never
+             * deletes the caller's bundle (they can reuse it across test runs). */
+            if (!fs::exists(config.localBundlePath)) {
+                std::string error = "Local bundle not found: " + config.localBundlePath;
+                Log(logCallback, LOG_ERROR, error);
+                CleanupTempFiles(tempFiles, logCallback);
+                return InstallResult(false, error);
             }
-            ReportProgress(progressCallback, "Downloading...", percent,
-                          dp.bytesDownloaded, dp.totalBytes, dp.bytesPerSecond);
-        };
+            msixPath = config.localBundlePath;
+            ReportProgress(progressCallback, "Using local MSIX bundle (skipping download)...", 0);
+            Log(logCallback, LOG_INFO, "Using local MSIX bundle, skipping download: " + msixPath);
+        } else {
+            /* Step 1: Download appinstaller file (small, no progress needed) */
+            ReportProgress(progressCallback, "Downloading WinDbg package information from:", 0);
+            ReportProgress(progressCallback, std::string(kWinDbgDownloadUrl), 0);
 
-        if (!DownloadFileWithProgress(msixUrl, msixPath, msixDownloadProgressCb, logCallback)) {
-            std::string error = "Failed to download MSIX bundle";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
+            appInstallerPath = GetTempFilePath(".appinstaller");
+            tempFiles.push_back(appInstallerPath);
+
+            if (!DownloadFileWithProgress(kWinDbgDownloadUrl, appInstallerPath, nullptr, logCallback)) {
+                std::string error = "Failed to download appinstaller file";
+                Log(logCallback, LOG_ERROR, error);
+                CleanupTempFiles(tempFiles, logCallback);
+                return InstallResult(false, error);
+            }
+
+            /* Step 2: Parse XML to get MSIX bundle URL */
+            ReportProgress(progressCallback, "Parsing package information...", 0);
+
+            std::string msixUrl = ParseAppInstallerXml(appInstallerPath, logCallback);
+            if (msixUrl.empty()) {
+                std::string error = "Failed to parse appinstaller XML";
+                Log(logCallback, LOG_ERROR, error);
+                CleanupTempFiles(tempFiles, logCallback);
+                return InstallResult(false, error);
+            }
+
+            /* Step 3: Download MSIX bundle (this is the main download that shows progress) */
+            ReportProgress(progressCallback, "Downloading WinDbg/TTD package from:", 0);
+            ReportProgress(progressCallback, msixUrl, 0);
+
+            msixPath = GetTempFilePath(".msixbundle.zip");
+            tempFiles.push_back(msixPath);
+
+            auto msixDownloadProgressCb = [&](const DownloadProgress& dp) {
+                /* Report download percentage (0-100%) directly - this is the only step that needs progress display */
+                int percent = 0;
+                if (dp.totalBytes > 0) {
+                    percent = (int)(100 * dp.bytesDownloaded / dp.totalBytes);
+                }
+                ReportProgress(progressCallback, "Downloading...", percent,
+                              dp.bytesDownloaded, dp.totalBytes, dp.bytesPerSecond);
+            };
+
+            if (!DownloadFileWithProgress(msixUrl, msixPath, msixDownloadProgressCb, logCallback)) {
+                std::string error = "Failed to download MSIX bundle";
+                Log(logCallback, LOG_ERROR, error);
+                CleanupTempFiles(tempFiles, logCallback);
+                return InstallResult(false, error);
+            }
         }
 
         /* Step 4: Extract inner MSIX file from bundle */
@@ -240,6 +291,7 @@ InstallResult Install(const InstallConfig& config) {
         std::string tempExtractDir = GetTempFilePath("_extract");
         tempFiles.push_back(tempExtractDir);
 
+        auto extractInnerStart = std::chrono::steady_clock::now();
         std::string innerMsixPath = ExtractFileFromZipArchive(msixPath, kInnerMsixName, tempExtractDir, logCallback);
         if (innerMsixPath.empty()) {
             std::string error = "Failed to extract inner MSIX file";
@@ -247,16 +299,19 @@ InstallResult Install(const InstallConfig& config) {
             CleanupTempFiles(tempFiles, logCallback);
             return InstallResult(false, error);
         }
+        Log(logCallback, LOG_INFO, "Timing - extract inner MSIX from bundle: " + MsStr(ElapsedMs(extractInnerStart)));
 
         /* Step 5: Extract WinDbg contents to installation directory */
         ReportProgress(progressCallback, "Installing WinDbg/TTD files...", 0);
 
+        auto extractInstallStart = std::chrono::steady_clock::now();
         if (!ExtractZipArchive(innerMsixPath, installTarget, nullptr, logCallback)) {
             std::string error = "Failed to extract WinDbg contents";
             Log(logCallback, LOG_ERROR, error);
             CleanupTempFiles(tempFiles, logCallback);
             return InstallResult(false, error);
         }
+        Log(logCallback, LOG_INFO, "Timing - extract WinDbg files to install dir: " + MsStr(ElapsedMs(extractInstallStart)));
 
         /* Step 6: Verify installation */
         ReportProgress(progressCallback, "Verifying installation...", 0);
@@ -273,7 +328,7 @@ InstallResult Install(const InstallConfig& config) {
         /* Step 6b: Write version marker file */
         /* Re-parse appinstaller to get version (file is still on disk) */
         std::string installedVersion;
-        {
+        if (!appInstallerPath.empty()) {
             pugi::xml_document doc;
             if (doc.load_file(appInstallerPath.c_str())) {
                 pugi::xml_node appInstaller = doc.child("AppInstaller");
@@ -304,11 +359,14 @@ InstallResult Install(const InstallConfig& config) {
             PrintSettingsInfo(x64dbgEngPath, logCallback);
         }
 
-        /* Cleanup. This deletes the downloaded bundle (~1 GB) and the extracted inner
-         * MSIX (hundreds of MB), which can take several seconds, so give it its own
-         * progress message instead of leaving "Verifying installation..." on screen. */
+        /* Cleanup. This deletes the temporary files (the downloaded bundle and the
+         * extracted inner MSIX). Give it its own progress message instead of leaving
+         * "Verifying installation..." on screen; CleanupTempFiles logs per-file timing
+         * so we can confirm how much of the delay is really the deletion. */
         ReportProgress(progressCallback, "Cleaning up temporary files...", 0);
+        auto cleanupStart = std::chrono::steady_clock::now();
         CleanupTempFiles(tempFiles, logCallback);
+        Log(logCallback, LOG_INFO, "Timing - cleanup: " + MsStr(ElapsedMs(cleanupStart)));
 
         ReportProgress(progressCallback, "Installation completed successfully!", 0);
         Log(logCallback, LOG_INFO, "Please restart Binary Ninja to use WinDbg/TTD.");
