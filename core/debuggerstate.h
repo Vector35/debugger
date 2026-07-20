@@ -209,7 +209,11 @@ namespace BinaryNinjaDebugger {
 
 	struct MemoryBytesCache
 	{
+		// The readable bytes of this cached run. Empty for a known-unreadable (hole) marker.
 		DataBuffer value;
+		// Number of bytes this entry covers, starting at its key address. For a readable run this equals
+		// value.GetLength(); for a hole marker it is the size of the unreadable region (a single byte).
+		uint64_t length;
 		MemoryByteCacheStatus status;
 		MemoryByteCacheSource source;
 	};
@@ -227,7 +231,9 @@ namespace BinaryNinjaDebugger {
 		DebuggerMemory(DebuggerState* state);
 
 		void MarkDirty();
-		DataBuffer ReadBlock(uint64_t block);
+		// Reads the readable run starting exactly at `address` (up to 0x100 bytes), or an empty buffer if
+		// `address` itself is unreadable. The address is NOT rounded down to a cache-block boundary.
+		DataBuffer ReadRun(uint64_t address);
 		DataBuffer ReadMemory(uint64_t offset, size_t len);
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
 		void PrefillValueCache();
