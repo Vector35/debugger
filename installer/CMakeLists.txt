@@ -45,12 +45,14 @@ set(INSTALLER_LIB_SOURCES
     http_downloader.cpp
     zip_extractor.cpp
     windbg_installer.cpp
+    signature_verifier.cpp
 )
 
 set(INSTALLER_LIB_HEADERS
     http_downloader.h
     zip_extractor.h
     windbg_installer.h
+    signature_verifier.h
 )
 
 # Add pugixml source
@@ -71,6 +73,8 @@ target_link_libraries(windbg-installer-lib
     PRIVATE winhttp.lib
     PRIVATE ole32.lib
     PRIVATE shell32.lib
+    PRIVATE wintrust.lib
+    PRIVATE crypt32.lib
 )
 
 set_target_properties(windbg-installer-lib PROPERTIES

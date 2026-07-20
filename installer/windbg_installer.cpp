@@ -10,6 +10,7 @@
 #include "windbg_installer.h"
 #include "http_downloader.h"
 #include "zip_extractor.h"
+#include "signature_verifier.h"
 #include "../vendor/pugixml/pugixml.hpp"
 #include <windows.h>
 #include <shlobj.h>
@@ -229,6 +230,21 @@ InstallResult Install(const InstallConfig& config) {
 
         if (!DownloadFileWithProgress(msixUrl, msixPath, msixDownloadProgressCb, logCallback)) {
             std::string error = "Failed to download MSIX bundle";
+            Log(logCallback, LOG_ERROR, error);
+            CleanupTempFiles(tempFiles, logCallback);
+            return InstallResult(false, error);
+        }
+
+        /* Step 3.5: Verify the downloaded bundle is genuinely signed by Microsoft.
+         * This must happen before we extract or trust any of its contents so that a
+         * tampered or substituted package (supply-chain attack) is rejected. */
+        ReportProgress(progressCallback, "Verifying package signature...", 0);
+
+        SignatureResult sigResult = VerifyMicrosoftSignature(msixPath, logCallback);
+        if (!sigResult.valid) {
+            std::string error = sigResult.errorMessage.empty()
+                ? "MSIX bundle signature verification failed"
+                : sigResult.errorMessage;
             Log(logCallback, LOG_ERROR, error);
             CleanupTempFiles(tempFiles, logCallback);
             return InstallResult(false, error);

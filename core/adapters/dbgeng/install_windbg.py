@@ -2,9 +2,39 @@ import urllib.request
 import xml.dom.minidom
 import zipfile
 import tempfile
+import subprocess
 import binaryninja
 from binaryninja.settings import Settings
 import os
+
+
+def verify_microsoft_signature(path):
+    """Verify that `path` carries a valid Authenticode signature issued to Microsoft.
+
+    This guards against supply-chain attacks: even if the download endpoint is
+    compromised or the traffic is tampered with, a malicious package cannot be
+    substituted without a valid Microsoft code-signing certificate. Returns a
+    (ok, message) tuple.
+    """
+    ps_script = (
+        "$ErrorActionPreference='Stop';"
+        "$s = Get-AuthenticodeSignature -LiteralPath $args[0];"
+        "if ($s.Status -ne 'Valid') { Write-Output ('INVALID:' + $s.Status); exit 1 }"
+        "$subject = $s.SignerCertificate.Subject;"
+        "if ($subject -notmatch 'O=Microsoft Corporation') { Write-Output ('SIGNER:' + $subject); exit 1 }"
+        "Write-Output ('OK:' + $subject)"
+    )
+    try:
+        result = subprocess.run(
+            ['powershell', '-NoProfile', '-NonInteractive', '-Command', ps_script, path],
+            capture_output=True, text=True, timeout=120)
+    except Exception as e:
+        return False, 'Failed to run signature verification: %s' % e
+
+    output = (result.stdout or '').strip()
+    if result.returncode == 0 and output.startswith('OK:'):
+        return True, output[len('OK:'):]
+    return False, output or (result.stderr or '').strip() or 'unknown error'
 
 
 def check_install_ok(path):
@@ -56,6 +86,14 @@ def install_windbg():
         print(e)
         return
     print('Successfully downloaded MSIX bundle')
+
+    print('Verifying MSIX bundle signature...')
+    ok, message = verify_microsoft_signature(msix_file)
+    if not ok:
+        print('Signature verification failed for the downloaded MSIX bundle: %s' % message)
+        print('Aborting installation to avoid installing an untrusted package.')
+        return
+    print('Signature verified, signed by: %s' % message)
 
     zip_file = zipfile.ZipFile(msix_file)
     temp_dir = tempfile.mkdtemp()
