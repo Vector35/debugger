@@ -768,6 +768,22 @@ extern "C"
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDEvents(BNDebuggerTTDEvent* events, size_t count);
 
+	// TTD String Entry structures and functions
+	typedef struct BNDebuggerTTDStringEntry
+	{
+		uint64_t id;
+		char* data;
+		uint64_t address;
+		uint64_t size;
+		BNDebuggerTTDPosition firstAccess;
+		BNDebuggerTTDPosition lastAccess;
+		char* encoding;
+	} BNDebuggerTTDStringEntry;
+
+	DEBUGGER_FFI_API BNDebuggerTTDStringEntry* BNDebuggerGetTTDStrings(
+		BNDebuggerController* controller, const char* pattern, uint64_t maxResults, size_t* count);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDStrings(BNDebuggerTTDStringEntry* entries, size_t count);
+
 	// TTD Bookmark structures and functions
 	typedef struct BNDebuggerTTDBookmark
 	{

@@ -1656,6 +1656,38 @@ std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
 }
 
 
+std::vector<TTDStringEntry> DebuggerController::GetTTDStrings(const std::string& pattern, uint64_t maxResults)
+{
+	std::vector<TTDStringEntry> result;
+
+	size_t count = 0;
+	BNDebuggerTTDStringEntry* entries = BNDebuggerGetTTDStrings(m_object, pattern.c_str(), maxResults, &count);
+
+	if (entries && count > 0)
+	{
+		result.reserve(count);
+		for (size_t i = 0; i < count; i++)
+		{
+			TTDStringEntry entry;
+			entry.id = entries[i].id;
+			entry.data = entries[i].data ? std::string(entries[i].data) : "";
+			entry.address = entries[i].address;
+			entry.size = entries[i].size;
+			entry.firstAccess.sequence = entries[i].firstAccess.sequence;
+			entry.firstAccess.step = entries[i].firstAccess.step;
+			entry.lastAccess.sequence = entries[i].lastAccess.sequence;
+			entry.lastAccess.step = entries[i].lastAccess.step;
+			entry.encoding = entries[i].encoding ? std::string(entries[i].encoding) : "";
+
+			result.push_back(entry);
+		}
+		BNDebuggerFreeTTDStrings(entries, count);
+	}
+
+	return result;
+}
+
+
 std::vector<TTDBookmark> DebuggerController::GetTTDBookmarks()
 {
 	std::vector<TTDBookmark> result;

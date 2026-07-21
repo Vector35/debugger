@@ -3753,6 +3753,18 @@ std::vector<TTDEvent> DebuggerController::GetAllTTDEvents()
 }
 
 
+std::vector<TTDStringEntry> DebuggerController::GetTTDStrings(const std::string& pattern, uint64_t maxResults)
+{
+	if (!m_state->IsConnected() || !IsTTD())
+	{
+		LogWarn("Current adapter does not support TTD");
+		return {};
+	}
+
+	return m_adapter->GetTTDStrings(pattern, maxResults);
+}
+
+
 void DebuggerController::RecordTTDPosition()
 {
 	if (!m_adapter || !m_adapter->SupportFeature(DebugAdapterSupportTTD) || m_suppressTTDPositionRecording)

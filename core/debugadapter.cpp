@@ -274,3 +274,9 @@ std::pair<bool, TTDMemoryEvent> DebugAdapter::GetTTDPrevMemoryAccess(uint64_t ad
 }
 
 
+std::vector<TTDStringEntry> DebugAdapter::GetTTDStrings(const std::string& pattern, uint64_t maxResults)
+{
+	return {};
+}
+
+

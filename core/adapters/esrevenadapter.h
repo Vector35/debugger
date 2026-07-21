@@ -192,6 +192,7 @@ namespace BinaryNinjaDebugger
 		TTDPosition GetCurrentTTDPosition() override;
 		bool SetTTDPosition(const TTDPosition& position) override;
 		std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0) override;
+		std::vector<TTDStringEntry> GetTTDStrings(const std::string& pattern = "", uint64_t maxResults = 0) override;
 
 		void GenerateDefaultAdapterSettings(BinaryView* data);
 		Ref<Settings> GetAdapterSettings() override;

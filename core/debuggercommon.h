@@ -258,6 +258,20 @@ namespace BinaryNinjaDebugger {
 		TTDEvent(TTDEventType eventType) : type(eventType) {}
 	};
 
+	// TTD String Entry - represents a string found in the trace
+	struct TTDStringEntry
+	{
+		uint64_t id;
+		std::string data;        // The string content
+		uint64_t address;        // Linear address where string begins
+		uint64_t size;           // Size in bytes
+		TTDPosition firstAccess; // Position of first access in the trace
+		TTDPosition lastAccess;  // Position of last access in the trace
+		std::string encoding;    // "utf8" or "utf16"
+
+		TTDStringEntry() : id(0), address(0), size(0) {}
+	};
+
 	// Breakpoint types - used to specify the type of breakpoint to set
 	enum DebugBreakpointType
 	{
