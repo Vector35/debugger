@@ -102,6 +102,23 @@ namespace BinaryNinjaDebugger {
 		FileMetadataRef m_file;
 		BinaryViewRef m_data;
 		DebuggerFileAccessor* m_accessor {};
+		// When the backend reports a memory map, we mirror it into the BinaryView as one bounded remote
+		// region per entry (instead of the single blanket overlay). These track the live mirror so we can
+		// tear it down and diff it against the next stop's map.
+		std::vector<DebuggerFileAccessor*> m_regionAccessors;
+		// Accessors from a previous memory-map generation. The MemoryMap may still hold copies of their
+		// callbacks in an in-flight snapshot, so we retire rather than free them on change and only delete
+		// them at teardown. Map changes are rare (module load, new mmap), so this stays small.
+		std::vector<DebuggerFileAccessor*> m_retiredAccessors;
+		// Names of the memory regions we currently have registered on m_data ("debugger" for the blanket
+		// fallback, or "debugger:<i>" for the per-entry mirror).
+		std::vector<std::string> m_debuggerRegionNames;
+		// The memory map currently reflected in m_data, used to no-op when nothing changed between stops.
+		std::vector<DebugMemoryRegion> m_appliedMemoryRegions;
+		// Cached "debugger.useMemoryMapSegments" setting, sampled once when the debugger view is created
+		// (SyncMemoryRegions runs on every stop, so we do not want to hit Settings each time). When false,
+		// the debugger keeps the old blanket overlay instead of mirroring the backend memory map.
+		bool m_useMemoryMapSegments = true;
 		// This is the start address of the first file segments in the m_data. Unlike the return value of GetStart(),
 		// this does not change even if we add the debugger memory region. In the future, this should be provided by
 		// the binary view -- we will no longer need to track it ourselves
@@ -668,6 +685,17 @@ namespace BinaryNinjaDebugger {
 
 		bool RemoveDebuggerMemoryRegion();
 		bool ReAddDebuggerMemoryRegion();
+
+		// Re-sync the BinaryView memory regions with the backend's current memory map. Called on every
+		// stop; no-ops when the map is unchanged. When the backend reports a map, mirrors it as bounded
+		// regions so search only scans mapped memory; otherwise falls back to the blanket overlay (search
+		// stays disabled -- see the "debugger" region gate in BinaryView::FindAll*).
+		void SyncMemoryRegions();
+		// Register memory regions on m_data from m_appliedMemoryRegions. Assumes any prior regions were
+		// already removed. Empty map -> single blanket "debugger" region backed by m_accessor.
+		void AddDebuggerMemoryRegions();
+		// Remove every region we registered (blanket or per-entry) and retire the per-entry accessors.
+		void RemoveDebuggerMemoryRegions();
 
 		uint64_t GetViewFileSegmentsStart() { return m_viewStart; }
 
