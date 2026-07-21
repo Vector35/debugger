@@ -1,15 +1,17 @@
 # WinDbg/TTD Installer Implementation
 
-This directory contains the C++ implementation of the WinDbg/TTD automatic installer for Binary Ninja.
+This document describes the C++ implementation of the WinDbg/TTD automatic installer for Binary Ninja.
 
 ## Overview
 
-The installer was rewritten from Python to C++ to allow it to work with both paid and free versions of Binary Ninja. The original Python implementation (`install_windbg.py`) was restricted to only work with paid versions due to the `#ifdef DEMO_EDITION` check in the UI code.
+The installer was rewritten from Python to C++ to allow it to work with both paid and free versions of Binary Ninja. The original Python implementation was restricted to only work with paid versions due to the `#ifdef DEMO_EDITION` check in the UI code.
 
 ## Files
 
-- `install_windbg.h` - Header file with function declarations
-- `install_windbg.cpp` - Main implementation with Windows-specific code
+The C++ implementation lives in the `installer/` directory at the repository root:
+
+- `installer/windbg_installer.h` - Header file with function declarations
+- `installer/windbg_installer.cpp` - Main implementation with Windows-specific code
 
 ## Functionality
 
