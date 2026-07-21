@@ -1313,7 +1313,7 @@ void DebuggerMemory::MarkDirty()
 }
 
 
-DataBuffer DebuggerMemory::ReadRun(uint64_t address)
+DataBuffer DebuggerMemory::ReadAndCacheBlock(uint64_t address)
 {
 	if (!m_state->IsConnected())
 		return {};
@@ -1358,16 +1358,16 @@ DataBuffer DebuggerMemory::ReadRun(uint64_t address)
 	// Try to read the memory value from the backend
 	if (!m_state->IsRunning())
 	{
-		// The cache is old and the target is stopped, try to update the cache value. We read up to 0x100 bytes
-		// starting *exactly* at `address` and do NOT round it down to a block boundary, so an unreadable region
+		// The cache is old and the target is stopped, try to update the cache value. We read up to CacheBlockSize
+		// bytes starting *exactly* at `address` and do NOT round it down to a block boundary, so an unreadable region
 		// before `address` is never touched. The backend may return fewer bytes than requested when the readable
-		// region ends before 0x100 bytes; that is a success, not a failure. See Vector35/debugger#725.
+		// region ends before CacheBlockSize bytes; that is a success, not a failure. See Vector35/debugger#725.
 		DataBuffer buffer;
 		{
 			std::lock_guard adapterLock(m_state->AdapterAccessMutex());
-			buffer = m_state->GetAdapter()->ReadMemory(address, 0x100);
+			buffer = m_state->GetAdapter()->ReadMemory(address, CacheBlockSize);
 		}
-		BN_RELEASE_ASSERT(buffer.GetLength() <= 0x100);
+		BN_RELEASE_ASSERT(buffer.GetLength() <= CacheBlockSize);
 		if (buffer.GetLength() > 0)
 		{
 			// Successfully read one or more bytes starting at `address`
@@ -1390,7 +1390,7 @@ DataBuffer DebuggerMemory::ReadRun(uint64_t address)
 		{
 			auto offset = address - iter->first;
 			auto avail = iter->second.first - address;
-			auto buffer = iter->second.second.GetSlice(offset, std::min<uint64_t>(0x100, avail));
+			auto buffer = iter->second.second.GetSlice(offset, std::min<uint64_t>(CacheBlockSize, avail));
 			// When the bytes are readable, we return it, but also mark it as out-of-date so that they can be
 			// replaced as soon as the target stops
 			if (buffer.GetLength() > 0)
@@ -1422,7 +1422,7 @@ DataBuffer DebuggerMemory::ReadMemory(uint64_t offset, size_t len)
 	uint64_t end = offset + len;
 	while (pos < end)
 	{
-		DataBuffer run = ReadRun(pos);
+		DataBuffer run = ReadAndCacheBlock(pos);
 		if (run.GetLength() == 0)
 			// `pos` is unreadable, so the contiguous readable region ends here
 			break;
@@ -1435,7 +1435,7 @@ DataBuffer DebuggerMemory::ReadMemory(uint64_t offset, size_t len)
 			// The run more than covered the rest of the request; we are done
 			break;
 
-		// Otherwise the run may have been cut short by a hole at `pos`; the next ReadRun(pos) will report it and
+		// Otherwise the run may have been cut short by a hole at `pos`; the next ReadAndCacheBlock(pos) will report it and
 		// terminate the loop (also caching the hole marker for that byte).
 	}
 	BN_RELEASE_ASSERT(result.GetLength() <= len);
