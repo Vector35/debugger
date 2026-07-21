@@ -3895,6 +3895,40 @@ std::pair<bool, TTDMemoryEvent> DebuggerController::GetTTDPrevMemoryAccess(uint6
 }
 
 
+std::optional<TTDRegisterWriteEvent> DebuggerController::GetTTDNextRegisterWrite(const std::string& reg)
+{
+	if (!m_state->IsConnected() || !IsTTD())
+	{
+		LogWarn("Current adapter does not support TTD");
+		return std::nullopt;
+	}
+
+	if (m_adapter)
+	{
+		return m_adapter->GetTTDNextRegisterWrite(reg);
+	}
+
+	return std::nullopt;
+}
+
+
+std::optional<TTDRegisterWriteEvent> DebuggerController::GetTTDPrevRegisterWrite(const std::string& reg)
+{
+	if (!m_state->IsConnected() || !IsTTD())
+	{
+		LogWarn("Current adapter does not support TTD");
+		return std::nullopt;
+	}
+
+	if (m_adapter)
+	{
+		return m_adapter->GetTTDPrevRegisterWrite(reg);
+	}
+
+	return std::nullopt;
+}
+
+
 static const char* TTD_BOOKMARKS_METADATA_KEY = "debugger.ttd_bookmarks";
 
 std::vector<TTDBookmark> DebuggerController::GetTTDBookmarks()

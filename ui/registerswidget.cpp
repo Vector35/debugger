@@ -466,6 +466,19 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 		return selectionModel()->selectedRows().size() == 1;
 	}));
 
+	actionName = QString::fromStdString("Go to Previous Write");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "TTD", MENU_ORDER_FIRST);
+	m_menu->setGroupOrdering("TTD", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(actionName,
+		UIAction([this]() { goToPrevRegisterWrite(); }, [this]() { return ttdSingleRegisterSelected(); }));
+
+	actionName = QString::fromStdString("Go to Next Write");
+	UIAction::registerAction(actionName);
+	m_menu->addAction(actionName, "TTD", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(actionName,
+		UIAction([this]() { goToNextRegisterWrite(); }, [this]() { return ttdSingleRegisterSelected(); }));
+
 	actionName = QString::fromStdString("Jump to Address");
 	UIAction::registerAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
@@ -927,6 +940,70 @@ void DebugRegistersWidget::editValue()
 		return;
 
 	edit(cell);
+}
+
+
+bool DebugRegistersWidget::selectedRegisterName(std::string& name)
+{
+	QModelIndexList sel = selectionModel()->selectedRows();
+	if (sel.size() != 1)
+		return false;
+
+	auto sourceIndex = m_filter->mapToSource(sel[0]);
+	if (!sourceIndex.isValid())
+		return false;
+
+	name = m_model->getRow(sourceIndex.row()).name();
+	return !name.empty();
+}
+
+
+bool DebugRegistersWidget::ttdSingleRegisterSelected()
+{
+	if (!m_controller || !m_controller->IsConnected() || !m_controller->IsTTD())
+		return false;
+
+	return selectionModel()->selectedRows().size() == 1;
+}
+
+
+void DebugRegistersWidget::goToRegisterWrite(bool forward)
+{
+	if (!m_controller || !m_controller->IsTTD())
+		return;
+
+	std::string reg;
+	if (!selectedRegisterName(reg))
+		return;
+
+	auto event =
+		forward ? m_controller->GetTTDNextRegisterWrite(reg) : m_controller->GetTTDPrevRegisterWrite(reg);
+
+	// A failed query (or a zero position) means there is no such write in the trace. Note that
+	// TTD reports register value *changes*, so a write of the same value is not detected.
+	if (!event || (event->position.sequence == 0 && event->position.step == 0))
+	{
+		LogWarn("No %s write found for register '%s'", forward ? "next" : "previous", reg.c_str());
+		return;
+	}
+
+	if (!m_controller->SetTTDPosition(event->position))
+	{
+		LogWarn("Found %s write for register '%s' but failed to time travel to it",
+			forward ? "next" : "previous", reg.c_str());
+	}
+}
+
+
+void DebugRegistersWidget::goToPrevRegisterWrite()
+{
+	goToRegisterWrite(false);
+}
+
+
+void DebugRegistersWidget::goToNextRegisterWrite()
+{
+	goToRegisterWrite(true);
 }
 
 

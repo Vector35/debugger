@@ -202,6 +202,9 @@ void NotificationListener::OnContextMenuCreated(UIContext *context, View* view, 
 	menu.addAction("Debugger", "TTD Memory Access\\Read/Write/Execute", "TTD");
 	// TTD Memory Access (Next/Prev) — single dialog entry
 	menu.addAction("Debugger", "TTD Memory Access (Next/Prev)", "TTD");
+	// TTD Register Write navigation — only enabled when a register token is under the cursor
+	menu.addAction("Debugger", "Go to Previous Register Write", "TTD");
+	menu.addAction("Debugger", "Go to Next Register Write", "TTD");
 	// TTD Calls context menu item
 	menu.addAction("Debugger", "TTD Calls\\Kernel32 Calls", "TTD");
 }

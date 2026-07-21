@@ -360,6 +360,28 @@ End Address: 0x00401456
 Access Types: Execute only
 ```
 
+### Register Write Navigation
+
+Register write navigation answers the common question "where was this register last written?". It time-travels to the previous or next position at which a register's value changed, equivalent to WinDbg's `!tt br <reg>` command and the `dx @$curthread.TTD.PrevRegisterWrite("<reg>")` / `NextRegisterWrite("<reg>")` data-model methods.
+
+> **Note**: This detects when a register *changes* value, not every architectural write. Writing the same value a register already holds is not reported, so keep this in mind during data-flow analysis.
+
+**From the Registers widget:**
+
+- Right-click a register in the debugger `Registers` widget
+- Select `Go to Previous Write` or `Go to Next Write`
+- The debugger time-travels to the position where that register's value last changed (or next changes), updating the registers and disassembly views
+
+**From the disassembly (graph/linear) or hex view:**
+
+- Right-click directly on a register token (e.g. `rax`) in the code
+- Select `Debugger` -> `Go to Previous Register Write` or `Go to Next Register Write`
+- These entries are only enabled when the cursor is on a register token during a TTD session
+
+If no matching write exists in the trace (or the register was never written), a message is logged to the console and the current position is left unchanged.
+
+The same capability is available programmatically through the Python API via `get_ttd_prev_register_write()` and `get_ttd_next_register_write()` — see [TTD Python API](ttd-python-api.md).
+
 ### TTD Events Widget
 
 The TTD Events widget displays important events that occurred during the TTD trace, such as thread creation/termination, module loads/unloads, and exceptions. This is equivalent to WinDbg's `dx @$cursession.TTD.Events()` functionality.
@@ -581,6 +603,12 @@ if dbg.is_ttd:
     # Query memory writes to an address range
     events = dbg.get_ttd_memory_access_for_address(0x401000, 0x401004, "w")
     print(f"Found {len(events)} writes to 0x401000-0x401004")
+
+    # Find where rax was last written, then time-travel there
+    write = dbg.get_ttd_prev_register_write("rax")
+    if write is not None:
+        print(f"rax changed to {write.value:#x} at {write.position}")
+        dbg.set_ttd_position(write.position)
 ```
 
 ## Additional Resources

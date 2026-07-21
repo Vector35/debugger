@@ -62,6 +62,27 @@ class TTDMemoryEvent:
     """
 ```
 
+### TTDRegisterWriteEvent
+
+Represents the result of a register-write query (`PrevRegisterWrite`/`NextRegisterWrite`), i.e. the position at which a register's value last changed.
+
+```python
+class TTDRegisterWriteEvent:
+    """
+    TTDRegisterWriteEvent represents the point at which a register's value changed.
+
+    Attributes:
+        reg (str): Name of the register that was queried (e.g. "rax")
+        position (TTDPosition): TTD position at which the register value changed
+        original_position (TTDPosition): TTD position from which the query was issued
+        value (int): Value the register was changed to
+        original_value (int): Value the register held before the change
+        unique_thread_id (int): Unique thread ID that performed the write
+    """
+```
+
+> **Note:** These queries detect when a register *changes* value, not every architectural write. Writing the same value a register already holds is not reported.
+
 ### TTDCallEvent
 
 Represents a function call event in a TTD trace.
@@ -336,7 +357,51 @@ def set_ttd_position(self, position: TTDPosition) -> bool:
     """
 ```
 
+### get_ttd_prev_register_write()
+
+```python
+def get_ttd_prev_register_write(self, reg: str) -> Optional[TTDRegisterWriteEvent]:
+    """
+    Find the previous position at which the given register's value changed, going backward
+    from the current TTD position. Does not move the current position.
+
+    Args:
+        reg: Name of the register to query (e.g. "rax")
+
+    Returns:
+        TTDRegisterWriteEvent if found, None if no prior write exists
+    """
+```
+
+### get_ttd_next_register_write()
+
+```python
+def get_ttd_next_register_write(self, reg: str) -> Optional[TTDRegisterWriteEvent]:
+    """
+    Find the next position at which the given register's value changes, starting from the
+    current TTD position. Does not move the current position.
+
+    Args:
+        reg: Name of the register to query (e.g. "rax")
+
+    Returns:
+        TTDRegisterWriteEvent if found, None if no subsequent write exists
+    """
+```
+
 ## Usage Examples
+
+### Register Write Analysis
+
+```python
+# "Where was rax last written?" — find and travel to the previous write of rax
+event = dbg.get_ttd_prev_register_write("rax")
+if event is not None:
+    print(f"rax changed to {event.value:#x} at {event.position}")
+    dbg.set_ttd_position(event.position)
+else:
+    print("No previous write of rax found")
+```
 
 ### Basic TTD Check
 

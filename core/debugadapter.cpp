@@ -274,3 +274,17 @@ std::pair<bool, TTDMemoryEvent> DebugAdapter::GetTTDPrevMemoryAccess(uint64_t ad
 }
 
 
+std::optional<TTDRegisterWriteEvent> DebugAdapter::GetTTDNextRegisterWrite(const std::string& reg)
+{
+	// Default implementation returns failure for adapters that don't support TTD
+	return std::nullopt;
+}
+
+
+std::optional<TTDRegisterWriteEvent> DebugAdapter::GetTTDPrevRegisterWrite(const std::string& reg)
+{
+	// Default implementation returns failure for adapters that don't support TTD
+	return std::nullopt;
+}
+
+

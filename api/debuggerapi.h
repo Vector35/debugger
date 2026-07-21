@@ -531,6 +531,18 @@ namespace BinaryNinjaDebuggerAPI {
 		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), accessType(TTDMemoryRead), address(0), size(0), memoryAddress(0), instructionAddress(0), value(0) {}
 	};
 
+	struct TTDRegisterWriteEvent
+	{
+		std::string reg;               // Register name that was queried (e.g. "rax")
+		TTDPosition position;          // Position at which the register value changed
+		TTDPosition originalPosition;  // Position from which the query was issued
+		uint64_t value;                // Value the register was changed to
+		uint64_t originalValue;        // Value the register held before the change
+		uint32_t uniqueThreadId;       // Unique thread identifier that performed the write
+
+		TTDRegisterWriteEvent() : value(0), originalValue(0), uniqueThreadId(0) {}
+	};
+
 	struct TTDPositionRangeIndexedMemoryEvent{
 		TTDPosition position;				// Position of the memory event
 		uint32_t threadId;					// Thread ID that performed the access
@@ -890,6 +902,8 @@ namespace BinaryNinjaDebuggerAPI {
 		bool SetTTDPosition(const TTDPosition& position);
 		std::pair<bool, TTDMemoryEvent> GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 		std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
+		std::optional<TTDRegisterWriteEvent> GetTTDNextRegisterWrite(const std::string& reg);
+		std::optional<TTDRegisterWriteEvent> GetTTDPrevRegisterWrite(const std::string& reg);
 
 		// TTD Position History Navigation
 		bool TTDNavigateBack();

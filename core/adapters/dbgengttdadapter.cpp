@@ -600,6 +600,64 @@ std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDPrevMemoryAccess(uint64_
 }
 
 
+std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDNextRegisterWrite(const std::string& reg)
+{
+	if (!m_debugControl)
+	{
+		LogError("Debug control interface not available");
+		return std::nullopt;
+	}
+
+	if (reg.empty())
+	{
+		LogError("Invalid register name specified");
+		return std::nullopt;
+	}
+
+	try
+	{
+		std::string expression = fmt::format("@$curthread.TTD.NextRegisterWrite(\"{}\")", reg);
+		LogInfo("Executing TTD NextRegisterWrite query: %s", expression.c_str());
+
+		return ParseSingleTTDRegisterWriteObject(expression, reg);
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in GetTTDNextRegisterWrite: %s", e.what());
+		return std::nullopt;
+	}
+}
+
+
+std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDPrevRegisterWrite(const std::string& reg)
+{
+	if (!m_debugControl)
+	{
+		LogError("Debug control interface not available");
+		return std::nullopt;
+	}
+
+	if (reg.empty())
+	{
+		LogError("Invalid register name specified");
+		return std::nullopt;
+	}
+
+	try
+	{
+		std::string expression = fmt::format("@$curthread.TTD.PrevRegisterWrite(\"{}\")", reg);
+		LogInfo("Executing TTD PrevRegisterWrite query: %s", expression.c_str());
+
+		return ParseSingleTTDRegisterWriteObject(expression, reg);
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in GetTTDPrevRegisterWrite: %s", e.what());
+		return std::nullopt;
+	}
+}
+
+
 bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
 {
 	if (!m_debugControl)
@@ -1477,6 +1535,131 @@ std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::ParseSingleTTDMemoryObject(con
 	{
 		LogError("Exception in ParseSingleTTDMemoryObject: %s", e.what());
 		return {false, event};
+	}
+}
+
+
+std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::ParseSingleTTDRegisterWriteObject(const std::string& expression, const std::string& reg)
+{
+	TTDRegisterWriteEvent event;
+	event.reg = reg;
+
+	if (!m_hostEvaluator)
+	{
+		LogError("Data model evaluator not available");
+		return std::nullopt;
+	}
+
+	try
+	{
+		std::wstring wExpression(expression.begin(), expression.end());
+
+		ComPtr<IDebugHostContext> hostContext;
+		if (FAILED(m_debugHost->GetCurrentContext(hostContext.GetAddressOf())))
+		{
+			LogError("Failed to get current debug host context");
+			return std::nullopt;
+		}
+
+		ComPtr<IModelObject> result;
+		ComPtr<IKeyStore> metadata;
+		HRESULT hr = m_hostEvaluator->EvaluateExtendedExpression(
+			hostContext.Get(),
+			wExpression.c_str(),
+			nullptr,
+			result.GetAddressOf(),
+			metadata.GetAddressOf()
+		);
+
+		if (FAILED(hr))
+		{
+			// A failed evaluation typically means there is no previous/next write of this
+			// register within the trace, which is a normal "not found" outcome.
+			LogInfo("No register write found for expression '%s' (0x%08x)", expression.c_str(), hr);
+			return std::nullopt;
+		}
+
+		if (!result)
+		{
+			LogInfo("No register write found for expression '%s'", expression.c_str());
+			return std::nullopt;
+		}
+
+		// Parse Position (where the register value changed)
+		ComPtr<IModelObject> positionObj;
+		if (SUCCEEDED(result->GetKeyValue(L"Position", &positionObj, nullptr)))
+		{
+			ParseTTDPosition(positionObj.Get(), event.position);
+		}
+
+		// Parse OriginalPosition (the position from which the query was made)
+		ComPtr<IModelObject> origPositionObj;
+		if (SUCCEEDED(result->GetKeyValue(L"OriginalPosition", &origPositionObj, nullptr)))
+		{
+			ParseTTDPosition(origPositionObj.Get(), event.originalPosition);
+		}
+
+		// Get Register name (fall back to the queried name if unavailable)
+		ComPtr<IModelObject> regObj;
+		if (SUCCEEDED(result->GetKeyValue(L"Register", &regObj, nullptr)))
+		{
+			VARIANT vtReg;
+			VariantInit(&vtReg);
+			if (SUCCEEDED(regObj->GetIntrinsicValueAs(VT_BSTR, &vtReg)) && vtReg.bstrVal)
+			{
+				_bstr_t bstr(vtReg.bstrVal);
+				event.reg = std::string(bstr);
+			}
+			VariantClear(&vtReg);
+		}
+
+		// Get Value (value the register was changed to)
+		ComPtr<IModelObject> valueObj;
+		if (SUCCEEDED(result->GetKeyValue(L"Value", &valueObj, nullptr)))
+		{
+			VARIANT vtValue;
+			VariantInit(&vtValue);
+			if (SUCCEEDED(valueObj->GetIntrinsicValueAs(VT_UI8, &vtValue)))
+			{
+				event.value = vtValue.ullVal;
+			}
+			VariantClear(&vtValue);
+		}
+
+		// Get OriginalValue (value the register held before the change)
+		ComPtr<IModelObject> origValueObj;
+		if (SUCCEEDED(result->GetKeyValue(L"OriginalValue", &origValueObj, nullptr)))
+		{
+			VARIANT vtOrigValue;
+			VariantInit(&vtOrigValue);
+			if (SUCCEEDED(origValueObj->GetIntrinsicValueAs(VT_UI8, &vtOrigValue)))
+			{
+				event.originalValue = vtOrigValue.ullVal;
+			}
+			VariantClear(&vtOrigValue);
+		}
+
+		// Get UniqueThreadId
+		ComPtr<IModelObject> uniqueThreadIdObj;
+		if (SUCCEEDED(result->GetKeyValue(L"UniqueThreadId", &uniqueThreadIdObj, nullptr)))
+		{
+			VARIANT vtUniqueThreadId;
+			VariantInit(&vtUniqueThreadId);
+			if (SUCCEEDED(uniqueThreadIdObj->GetIntrinsicValueAs(VT_UI4, &vtUniqueThreadId)))
+			{
+				event.uniqueThreadId = vtUniqueThreadId.ulVal;
+			}
+			VariantClear(&vtUniqueThreadId);
+		}
+
+		LogInfo("Successfully parsed TTD register write for '%s' at position %llx:%llx",
+			event.reg.c_str(), event.position.sequence, event.position.step);
+		return event;
+	}
+	catch (const std::exception& e)
+	{
+		LogError("Exception in ParseSingleTTDRegisterWriteObject: %s", e.what());
+		return std::nullopt;
 	}
 }
 

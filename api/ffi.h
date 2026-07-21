@@ -349,6 +349,16 @@ extern "C"
 		BNDebuggerTTDMemoryAccessType accessType;
 	} BNDebuggerTTDMemoryEvent;
 
+	typedef struct BNDebuggerTTDRegisterWriteEvent
+	{
+		char* reg;                          // Register name that was queried/written
+		BNDebuggerTTDPosition position;         // Position at which the register value changed
+		BNDebuggerTTDPosition originalPosition; // Position from which the query was issued
+		uint64_t value;                     // Value the register was changed to
+		uint64_t originalValue;             // Value the register held before the change
+		uint32_t uniqueThreadId;            // Unique thread identifier that performed the write
+	} BNDebuggerTTDRegisterWriteEvent;
+
 	typedef struct BNDebuggerTTDPositionRangeIndexedMemoryEvent
 	{
 		BNDebuggerTTDPosition position;
@@ -763,6 +773,11 @@ extern "C"
 		uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, BNDebuggerTTDMemoryEvent* result);
 	DEBUGGER_FFI_API bool BNDebuggerGetTTDPrevMemoryAccess(BNDebuggerController* controller,
 		uint64_t address, uint64_t size, BNDebuggerTTDMemoryAccessType accessType, BNDebuggerTTDMemoryEvent* result);
+	DEBUGGER_FFI_API bool BNDebuggerGetTTDNextRegisterWrite(BNDebuggerController* controller,
+		const char* reg, BNDebuggerTTDRegisterWriteEvent* result);
+	DEBUGGER_FFI_API bool BNDebuggerGetTTDPrevRegisterWrite(BNDebuggerController* controller,
+		const char* reg, BNDebuggerTTDRegisterWriteEvent* result);
+	DEBUGGER_FFI_API void BNDebuggerFreeTTDRegisterWriteEvent(BNDebuggerTTDRegisterWriteEvent* event);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDMemoryEvents(BNDebuggerTTDMemoryEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDPositionRangeIndexedMemoryEvents(BNDebuggerTTDPositionRangeIndexedMemoryEvent* events, size_t count);
 	DEBUGGER_FFI_API void BNDebuggerFreeTTDCallEvents(BNDebuggerTTDCallEvent* events, size_t count);

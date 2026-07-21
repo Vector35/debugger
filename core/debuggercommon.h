@@ -151,6 +151,21 @@ namespace BinaryNinjaDebugger {
 		TTDMemoryEvent() : threadId(0), uniqueThreadId(0), address(0), size(0), memoryAddress(0), instructionAddress(0), value(0), accessType(TTDMemoryRead) {}
 	};
 
+	// TTD Register Write Event - result of TTD.PrevRegisterWrite / TTD.NextRegisterWrite.
+	// These queries locate the position at which a register's value last changed (they detect
+	// value *changes*, not every architectural write - writing the same value is not reported).
+	struct TTDRegisterWriteEvent
+	{
+		std::string reg;               // Register name that was queried (e.g. "rax")
+		TTDPosition position;          // Position at which the register value changed
+		TTDPosition originalPosition;  // Position from which the query was issued
+		uint64_t value;                // Value the register was changed to
+		uint64_t originalValue;        // Value the register held before the change
+		uint32_t uniqueThreadId;       // Unique thread identifier that performed the write
+
+		TTDRegisterWriteEvent() : value(0), originalValue(0), uniqueThreadId(0) {}
+	};
+
 	struct TTDPositionRangeIndexedMemoryEvent{
 		TTDPosition position;				// Position of the memory event
 		uint32_t threadId;					// Thread ID that performed the access
