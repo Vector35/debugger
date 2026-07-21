@@ -21,6 +21,7 @@ limitations under the License.
 #include "adapters/corelliumadapter.h"
 #include "adapters/lldbcoredumpadapter.h"
 #include "adapters/esrevenadapter.h"
+#include "adapters/x2winrpcadapter.h"
 #ifdef WIN32
 	#include "adapters/dbgengadapter.h"
 	#include "adapters/dbgengttdadapter.h"
@@ -56,6 +57,7 @@ void InitDebugAdapterTypes()
 	InitLldbAdapterType();
 	InitEsrevenAdapterType();
 	InitLldbCoreDumpAdapterType();
+	InitX2WinRpcAdapterType();
 }
 
 

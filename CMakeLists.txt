@@ -58,6 +58,7 @@ endif()
 # WinDbg installer CLI (standalone, spawned by debuggercore API)
 if(WIN32)
 	add_subdirectory(installer)
+	add_subdirectory(x2winstub)
 endif()
 
 # Documentation validation target
