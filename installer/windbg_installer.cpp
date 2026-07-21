@@ -185,74 +185,81 @@ InstallResult Install(const InstallConfig& config) {
         }
         Log(logCallback, LOG_INFO, "Installation target: " + installTarget);
 
-        /* Step 1: Download appinstaller file (small, no progress needed) */
-        ReportProgress(progressCallback, "Downloading WinDbg package information from:", 0);
-        ReportProgress(progressCallback, std::string(kWinDbgDownloadUrl), 0);
+        /* appInstallerPath stays empty when a local bundle is supplied (no download). */
+        std::string appInstallerPath;
+        std::string msixPath;
 
-        std::string appInstallerPath = GetTempFilePath(".appinstaller");
-        tempFiles.push_back(appInstallerPath);
-
-        if (!DownloadFileWithProgress(kWinDbgDownloadUrl, appInstallerPath, nullptr, logCallback)) {
-            std::string error = "Failed to download appinstaller file";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
-        }
-
-        /* Step 2: Parse XML to get MSIX bundle URL */
-        ReportProgress(progressCallback, "Parsing package information...", 0);
-
-        std::string msixUrl = ParseAppInstallerXml(appInstallerPath, logCallback);
-        if (msixUrl.empty()) {
-            std::string error = "Failed to parse appinstaller XML";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
-        }
-
-        /* Step 3: Download MSIX bundle (this is the main download that shows progress) */
-        ReportProgress(progressCallback, "Downloading WinDbg/TTD package from:", 0);
-        ReportProgress(progressCallback, msixUrl, 0);
-
-        std::string msixPath = GetTempFilePath(".msixbundle.zip");
-        tempFiles.push_back(msixPath);
-
-        auto msixDownloadProgressCb = [&](const DownloadProgress& dp) {
-            /* Report download percentage (0-100%) directly - this is the only step that needs progress display */
-            int percent = 0;
-            if (dp.totalBytes > 0) {
-                percent = (int)(100 * dp.bytesDownloaded / dp.totalBytes);
+        if (!config.localBundlePath.empty()) {
+            /* Testing shortcut: use an already-downloaded bundle and skip all network steps.
+             * The file is used in place and is NOT added to tempFiles, so cleanup never
+             * deletes the caller's bundle (they can reuse it across test runs). */
+            if (!fs::exists(config.localBundlePath)) {
+                std::string error = "Local bundle not found: " + config.localBundlePath;
+                Log(logCallback, LOG_ERROR, error);
+                CleanupTempFiles(tempFiles, logCallback);
+                return InstallResult(false, error);
             }
-            ReportProgress(progressCallback, "Downloading...", percent,
-                          dp.bytesDownloaded, dp.totalBytes, dp.bytesPerSecond);
-        };
+            msixPath = config.localBundlePath;
+            ReportProgress(progressCallback, "Using local MSIX bundle (skipping download)...", 0);
+            Log(logCallback, LOG_INFO, "Using local MSIX bundle, skipping download: " + msixPath);
+        } else {
+            /* Step 1: Download appinstaller file (small, no progress needed) */
+            ReportProgress(progressCallback, "Downloading WinDbg package information from:", 0);
+            ReportProgress(progressCallback, std::string(kWinDbgDownloadUrl), 0);
 
-        if (!DownloadFileWithProgress(msixUrl, msixPath, msixDownloadProgressCb, logCallback)) {
-            std::string error = "Failed to download MSIX bundle";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
+            appInstallerPath = GetTempFilePath(".appinstaller");
+            tempFiles.push_back(appInstallerPath);
+
+            if (!DownloadFileWithProgress(kWinDbgDownloadUrl, appInstallerPath, nullptr, logCallback)) {
+                std::string error = "Failed to download appinstaller file";
+                Log(logCallback, LOG_ERROR, error);
+                CleanupTempFiles(tempFiles, logCallback);
+                return InstallResult(false, error);
+            }
+
+            /* Step 2: Parse XML to get MSIX bundle URL */
+            ReportProgress(progressCallback, "Parsing package information...", 0);
+
+            std::string msixUrl = ParseAppInstallerXml(appInstallerPath, logCallback);
+            if (msixUrl.empty()) {
+                std::string error = "Failed to parse appinstaller XML";
+                Log(logCallback, LOG_ERROR, error);
+                CleanupTempFiles(tempFiles, logCallback);
+                return InstallResult(false, error);
+            }
+
+            /* Step 3: Download MSIX bundle (this is the main download that shows progress) */
+            ReportProgress(progressCallback, "Downloading WinDbg/TTD package from:", 0);
+            ReportProgress(progressCallback, msixUrl, 0);
+
+            msixPath = GetTempFilePath(".msixbundle.zip");
+            tempFiles.push_back(msixPath);
+
+            auto msixDownloadProgressCb = [&](const DownloadProgress& dp) {
+                /* Report download percentage (0-100%) directly - this is the only step that needs progress display */
+                int percent = 0;
+                if (dp.totalBytes > 0) {
+                    percent = (int)(100 * dp.bytesDownloaded / dp.totalBytes);
+                }
+                ReportProgress(progressCallback, "Downloading...", percent,
+                              dp.bytesDownloaded, dp.totalBytes, dp.bytesPerSecond);
+            };
+
+            if (!DownloadFileWithProgress(msixUrl, msixPath, msixDownloadProgressCb, logCallback)) {
+                std::string error = "Failed to download MSIX bundle";
+                Log(logCallback, LOG_ERROR, error);
+                CleanupTempFiles(tempFiles, logCallback);
+                return InstallResult(false, error);
+            }
         }
 
-        /* Step 4: Extract inner MSIX file from bundle */
-        ReportProgress(progressCallback, "Extracting package contents...", 0);
-
-        std::string tempExtractDir = GetTempFilePath("_extract");
-        tempFiles.push_back(tempExtractDir);
-
-        std::string innerMsixPath = ExtractFileFromZipArchive(msixPath, kInnerMsixName, tempExtractDir, logCallback);
-        if (innerMsixPath.empty()) {
-            std::string error = "Failed to extract inner MSIX file";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
-        }
-
-        /* Step 5: Extract WinDbg contents to installation directory */
+        /* Step 4: Extract the inner package's contents straight to the install dir.
+         * The inner MSIX is read from memory (miniz), so no multi-hundred-MB temp file
+         * is written or later deleted - that delete was the slow, antivirus-scanned step. */
         ReportProgress(progressCallback, "Installing WinDbg/TTD files...", 0);
 
-        if (!ExtractZipArchive(innerMsixPath, installTarget, nullptr, logCallback)) {
-            std::string error = "Failed to extract WinDbg contents";
+        if (!ExtractInnerPackageToDir(msixPath, kInnerMsixName, installTarget, nullptr, logCallback)) {
+            std::string error = "Failed to extract WinDbg contents from package";
             Log(logCallback, LOG_ERROR, error);
             CleanupTempFiles(tempFiles, logCallback);
             return InstallResult(false, error);
@@ -273,7 +280,7 @@ InstallResult Install(const InstallConfig& config) {
         /* Step 6b: Write version marker file */
         /* Re-parse appinstaller to get version (file is still on disk) */
         std::string installedVersion;
-        {
+        if (!appInstallerPath.empty()) {
             pugi::xml_document doc;
             if (doc.load_file(appInstallerPath.c_str())) {
                 pugi::xml_node appInstaller = doc.child("AppInstaller");
@@ -304,7 +311,9 @@ InstallResult Install(const InstallConfig& config) {
             PrintSettingsInfo(x64dbgEngPath, logCallback);
         }
 
-        /* Cleanup */
+        /* Cleanup. Give it its own progress message instead of leaving
+         * "Verifying installation..." on screen while the temp files are removed. */
+        ReportProgress(progressCallback, "Cleaning up temporary files...", 0);
         CleanupTempFiles(tempFiles, logCallback);
 
         ReportProgress(progressCallback, "Installation completed successfully!", 0);

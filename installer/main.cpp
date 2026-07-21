@@ -241,13 +241,16 @@ void PrintUsage(const char* programName) {
               << "  check-update  Check for updates (compares local vs latest online)\n"
               << "\n"
               << "Options:\n"
-              << "  --path <dir>  Specify installation directory\n"
-              << "                (default: %APPDATA%\\Binary Ninja\\windbg)\n"
-              << "  --update      Update mode: wait for Binary Ninja to exit first\n"
-              << "                (use this when WinDbg DLLs may be loaded)\n"
-              << "  --quiet       Suppress progress output (exit code only)\n"
-              << "  --json        Output in JSON format (for API integration)\n"
-              << "  --help        Show this help message\n"
+              << "  --path <dir>     Specify installation directory\n"
+              << "                   (default: %APPDATA%\\Binary Ninja\\windbg)\n"
+              << "  --bundle <file>  Install from an already-downloaded .msixbundle instead\n"
+              << "                   of downloading it (for testing; the file is kept)\n"
+              << "  --update         Update mode: wait for Binary Ninja to exit first\n"
+              << "                   (use this when WinDbg DLLs may be loaded)\n"
+              << "  --quiet          Suppress progress output (exit code only)\n"
+              << "  --json           Output in JSON format (for API integration)\n"
+              << "  --verbose, -v    Show info-level logs, including timing measurements\n"
+              << "  --help           Show this help message\n"
               << "\n"
               << "Examples:\n"
               << "  " << programName << " version\n"
@@ -274,7 +277,8 @@ void PrintBanner() {
 }
 
 /* Command: install */
-int CmdInstall(const std::string& installPath, OutputMode mode, bool isUpdate) {
+int CmdInstall(const std::string& installPath, OutputMode mode, bool isUpdate,
+               const std::string& bundlePath, bool verbose) {
     /* Determine and print install path */
     std::string targetPath = installPath.empty() ? GetDefaultInstallPath() : installPath;
 
@@ -301,6 +305,15 @@ int CmdInstall(const std::string& installPath, OutputMode mode, bool isUpdate) {
     InstallConfig config;
     config.installPath = targetPath;
     config.updateSettings = true;
+    config.localBundlePath = bundlePath;
+
+    if (!bundlePath.empty()) {
+        if (mode == OutputMode::Human) {
+            std::cout << "  Using local bundle (skipping download): " << bundlePath << "\n\n";
+        } else if (mode == OutputMode::Json) {
+            std::cout << "{\"type\":\"info\",\"localBundle\":\"" << bundlePath << "\"}" << std::endl;
+        }
+    }
 
     std::string lastStep;
 
@@ -326,9 +339,12 @@ int CmdInstall(const std::string& installPath, OutputMode mode, bool isUpdate) {
             }
         };
 
-        config.onLog = [](int level, const std::string& message) {
-            if (level >= LOG_WARN) {
-                ConsoleColor color = (level == LOG_ERROR) ? COLOR_RED : COLOR_YELLOW;
+        int logThreshold = verbose ? LOG_INFO : LOG_WARN;
+        config.onLog = [logThreshold](int level, const std::string& message) {
+            if (level >= logThreshold) {
+                ConsoleColor color = COLOR_DEFAULT;
+                if (level == LOG_ERROR) color = COLOR_RED;
+                else if (level == LOG_WARN) color = COLOR_YELLOW;
                 SetConsoleColor(color);
                 std::cout << "\n  " << message;
                 ResetConsoleColor();
@@ -498,8 +514,10 @@ int main(int argc, char* argv[]) {
     /* Parse command line arguments */
     std::string command;
     std::string installPath;
+    std::string bundlePath;
     OutputMode mode = OutputMode::Human;
     bool isUpdate = false;
+    bool verbose = false;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
@@ -512,12 +530,21 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Error: --path requires a directory argument\n";
                 return 1;
             }
+        } else if (strcmp(argv[i], "--bundle") == 0) {
+            if (i + 1 < argc) {
+                bundlePath = argv[++i];
+            } else {
+                std::cerr << "Error: --bundle requires a file path argument\n";
+                return 1;
+            }
         } else if (strcmp(argv[i], "--quiet") == 0 || strcmp(argv[i], "-q") == 0) {
             mode = OutputMode::Quiet;
         } else if (strcmp(argv[i], "--json") == 0) {
             mode = OutputMode::Json;
         } else if (strcmp(argv[i], "--update") == 0) {
             isUpdate = true;
+        } else if (strcmp(argv[i], "--verbose") == 0 || strcmp(argv[i], "-v") == 0) {
+            verbose = true;
         } else if (argv[i][0] != '-') {
             if (command.empty()) {
                 command = argv[i];
@@ -545,7 +572,7 @@ int main(int argc, char* argv[]) {
 
     /* Execute command */
     if (command == "install") {
-        return CmdInstall(installPath, mode, isUpdate);
+        return CmdInstall(installPath, mode, isUpdate, bundlePath, verbose);
     } else if (command == "version") {
         return CmdVersion(installPath, mode);
     } else if (command == "check-update") {
