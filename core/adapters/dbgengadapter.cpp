@@ -2301,12 +2301,14 @@ DataBuffer DbgEngAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 	const auto source = std::make_unique<std::uint8_t[]>(size);
 
 	unsigned long bytesRead {};
-	const auto success =
-		this->m_debugDataSpaces->ReadVirtual(address, source.get(), (ULONG)size, &bytesRead) == S_OK && bytesRead == size;
-	if (!success)
+	const auto result = this->m_debugDataSpaces->ReadVirtual(address, source.get(), (ULONG)size, &bytesRead);
+	// The number of bytes actually read can be fewer than requested, e.g., when the requested region straddles the end
+	// of a readable range (common during TTD). As long as we read at least one byte, return what we got, and let the
+	// caller (the memory cache) treat the partial read as a success. See Vector35/debugger#725.
+	if (result != S_OK || bytesRead == 0)
 		return {};
 
-	return {source.get(), size};
+	return {source.get(), bytesRead};
 }
 
 bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)

@@ -209,7 +209,11 @@ namespace BinaryNinjaDebugger {
 
 	struct MemoryBytesCache
 	{
+		// The readable bytes of this cached run. Empty for a known-unreadable (hole) marker.
 		DataBuffer value;
+		// Number of bytes this entry covers, starting at its key address. For a readable run this equals
+		// value.GetLength(); for a hole marker it is the size of the unreadable region (a single byte).
+		uint64_t length;
 		MemoryByteCacheStatus status;
 		MemoryByteCacheSource source;
 	};
@@ -217,6 +221,9 @@ namespace BinaryNinjaDebugger {
 
 	class DebuggerMemory
 	{
+		// The maximum number of bytes read from the backend and cached in a single block.
+		static constexpr uint64_t CacheBlockSize = 0x100;
+
 		DebuggerState* m_state;
 		std::map<uint64_t, MemoryBytesCache> m_valueCache;
 		std::map<uint64_t, std::pair<uint64_t, DataBuffer>> m_valueCachePrefilled;
@@ -227,7 +234,9 @@ namespace BinaryNinjaDebugger {
 		DebuggerMemory(DebuggerState* state);
 
 		void MarkDirty();
-		DataBuffer ReadBlock(uint64_t block);
+		// Reads the readable run starting exactly at `address` (up to CacheBlockSize bytes) and caches it, or returns
+		// an empty buffer if `address` itself is unreadable. The address is NOT rounded down to a cache-block boundary.
+		DataBuffer ReadAndCacheBlock(uint64_t address);
 		DataBuffer ReadMemory(uint64_t offset, size_t len);
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
 		void PrefillValueCache();

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <algorithm>
 #include <chrono>
 #include <thread>
 #include <utility>
@@ -1312,80 +1313,96 @@ void DebuggerMemory::MarkDirty()
 }
 
 
-DataBuffer DebuggerMemory::ReadBlock(uint64_t block)
+DataBuffer DebuggerMemory::ReadAndCacheBlock(uint64_t address)
 {
 	if (!m_state->IsConnected())
 		return {};
 
-	auto iter = m_valueCache.find(block);
-	if (iter != m_valueCache.end())
+	// Look up the cached run (readable bytes or a hole marker) that covers `address`. Entries are keyed by their
+	// start address and cover [key, key + length), so the covering entry is the greatest key <= address.
+	auto covering = m_valueCache.upper_bound(address);
+	if (covering != m_valueCache.begin())
 	{
-		switch (iter->second.status)
+		--covering;
+		auto& entry = covering->second;
+		if (address < covering->first + entry.length)
 		{
-		case FailedToReadStatus:
-			return {};
-		case OutOfDateStatus:
-		{
-			if (m_state->IsRunning())
+			uint64_t inner = address - covering->first;
+			switch (entry.status)
 			{
-				// The cache is old but the target is running, return old value
-				return iter->second.value;
+			case FailedToReadStatus:
+				// A known-unreadable byte; the caller's readable prefix ends here.
+				return {};
+			case OutOfDateStatus:
+				if (m_state->IsRunning())
+				{
+					// The cache is old but the target is running, return the old value
+					if (entry.value.GetLength() > inner)
+						return entry.value.GetSlice(inner, entry.value.GetLength() - inner);
+					return {};
+				}
+				// The target is stopped; break out and try to read the new value
+				break;
+			case UpToDateStatus:
+				// Cache is up-to-date, return the value from the requested address onward
+				if (entry.value.GetLength() > inner)
+					return entry.value.GetSlice(inner, entry.value.GetLength() - inner);
+				return {};
+			case DefaultStatus:
+				// There is no useful information about the status, break out and try to read it
+				break;
 			}
-			// Break out and try to read the new value
-			break;
-		}
-		case UpToDateStatus:
-		{
-			// Cache is up-to-date, return the value
-			return iter->second.value;
-		}
-		case DefaultStatus:
-			// There is no useful information about the status, break out and try to read it
-			break;
 		}
 	}
 
 	// Try to read the memory value from the backend
 	if (!m_state->IsRunning())
 	{
-		// The cache is old and the target is stopped, try to update the cache value
+		// The cache is old and the target is stopped, try to update the cache value. We read up to CacheBlockSize
+		// bytes starting *exactly* at `address` and do NOT round it down to a block boundary, so an unreadable region
+		// before `address` is never touched. The backend may return fewer bytes than requested when the readable
+		// region ends before CacheBlockSize bytes; that is a success, not a failure. See Vector35/debugger#725.
 		DataBuffer buffer;
 		{
 			std::lock_guard adapterLock(m_state->AdapterAccessMutex());
-			buffer = m_state->GetAdapter()->ReadMemory(block, 0x100);
+			buffer = m_state->GetAdapter()->ReadMemory(address, CacheBlockSize);
 		}
-		BN_RELEASE_ASSERT(buffer.GetLength() <= 0x100);
+		BN_RELEASE_ASSERT(buffer.GetLength() <= CacheBlockSize);
 		if (buffer.GetLength() > 0)
 		{
-			// Successfully updated
-			m_valueCache[block] = {buffer, UpToDateStatus, PausedTargetSource};
+			// Successfully read one or more bytes starting at `address`
+			m_valueCache[address] = {buffer, buffer.GetLength(), UpToDateStatus, PausedTargetSource};
 			return buffer;
 		}
+
+		// `address` itself is unreadable. Record the failure for this single byte only, so that a readable region
+		// immediately following the hole is not shadowed by an over-broad failure marker.
+		m_valueCache[address] = {{}, 1, FailedToReadStatus, NoSource};
+		return {};
 	}
-	else
+
+	// If the target is running, we try to read the bytes from the original binary view
+	auto iter = m_valueCachePrefilled.upper_bound(address);
+	if (iter != m_valueCachePrefilled.begin())
 	{
-		// If the target is running, we try to read the bytes from the original binary view
-		auto iter = m_valueCachePrefilled.upper_bound(block);
-		if (iter != m_valueCachePrefilled.begin())
+		--iter;
+		if ((address >= iter->first) && (address < iter->second.first))
 		{
-			--iter;
-			if ((block >= iter->first) && (block < iter->second.first))
+			auto offset = address - iter->first;
+			auto avail = iter->second.first - address;
+			auto buffer = iter->second.second.GetSlice(offset, std::min<uint64_t>(CacheBlockSize, avail));
+			// When the bytes are readable, we return it, but also mark it as out-of-date so that they can be
+			// replaced as soon as the target stops
+			if (buffer.GetLength() > 0)
 			{
-				auto offset = block - iter->first;
-				auto buffer = iter->second.second.GetSlice(offset, 0x100);
-				// When the bytes are readable, we return it, but also mark it as out-of-date so that they can be
-				// replaced as soon as the target stops
-				if (buffer.GetLength() > 0)
-				{
-					m_valueCache[block] = {buffer, OutOfDateStatus, BackingBinaryViewSource};
-					return buffer;
-				}
+				m_valueCache[address] = {buffer, buffer.GetLength(), OutOfDateStatus, BackingBinaryViewSource};
+				return buffer;
 			}
 		}
 	}
 
-	// Update failed
-	m_valueCache[block] = {{}, FailedToReadStatus, NoSource};
+	// Could not satisfy the read while the target is running; do not cache a failure, since the byte may become
+	// readable once the target stops.
 	return {};
 }
 
@@ -1396,32 +1413,30 @@ DataBuffer DebuggerMemory::ReadMemory(uint64_t offset, size_t len)
 
 	DataBuffer result;
 
-	// ProcessView implements read caching in a manner inspired by CPU cache:
-	// Reads are aligned on 256-byte boundaries and 256 bytes long
-
-	// Cache read start: round down addr to nearest 256 byte boundary
-	size_t cacheStart = offset & (~0xffLL);
-	// Cache read end: round up addr+length to nearest 256 byte boundary
-	size_t cacheEnd = (offset + len + 0xFF) & (~0xffLL);
-	// List of 256-byte block addresses to read into the cache to fully cover this region
-	for (uint64_t block = cacheStart; block < cacheEnd; block += 0x100)
+	// ProcessView implements read caching in a manner inspired by CPU cache: reads are cached in runs of up to
+	// 256 bytes. Unlike a CPU cache we do NOT align reads down to a 256-byte boundary, because the bytes before
+	// `offset` may be unreadable even when `offset` itself is readable (common during TTD, where readability is
+	// tracked at byte granularity rather than page granularity). We therefore anchor each backend read at the
+	// exact address we need and return the contiguous readable prefix starting at `offset`.
+	uint64_t pos = offset;
+	uint64_t end = offset + len;
+	while (pos < end)
 	{
-		auto cached = ReadBlock(block);
-		if (cached.GetLength() == 0)
-			return result;
+		DataBuffer run = ReadAndCacheBlock(pos);
+		if (run.GetLength() == 0)
+			// `pos` is unreadable, so the contiguous readable region ends here
+			break;
 
-		if (offset + len < block + cached.GetLength())
-		{
-			// Last block
-			cached = cached.GetSlice(0, offset + len - block);
-		}
-		// Note a block can be both the fist and the last block, so we should not put an else here
-		if (offset > block)
-		{
-			// First block
-			cached = cached.GetSlice(offset - block, cached.GetLength() - (offset - block));
-		}
-		result.Append(cached);
+		uint64_t take = std::min<uint64_t>(run.GetLength(), end - pos);
+		result.Append(run.GetSlice(0, take));
+		pos += take;
+
+		if (take < run.GetLength())
+			// The run more than covered the rest of the request; we are done
+			break;
+
+		// Otherwise the run may have been cut short by a hole at `pos`; the next ReadAndCacheBlock(pos) will report it and
+		// terminate the loop (also caching the hole marker for that byte).
 	}
 	BN_RELEASE_ASSERT(result.GetLength() <= len);
 	return result;
