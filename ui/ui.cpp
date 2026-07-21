@@ -314,18 +314,18 @@ void GlobalDebuggerUI::GoToRegisterWrite(const UIActionContext& ctxt, bool forwa
 	if (reg.empty())
 		return;
 
-	auto [success, event] =
+	auto event =
 		forward ? controller->GetTTDNextRegisterWrite(reg) : controller->GetTTDPrevRegisterWrite(reg);
 
 	// A failed query (or a zero position) means there is no such write in the trace. Note that
 	// TTD reports register value *changes*, so a write of the same value is not detected.
-	if (!success || (event.position.sequence == 0 && event.position.step == 0))
+	if (!event || (event->position.sequence == 0 && event->position.step == 0))
 	{
 		LogWarn("No %s write found for register '%s'", forward ? "next" : "previous", reg.c_str());
 		return;
 	}
 
-	if (!controller->SetTTDPosition(event.position))
+	if (!controller->SetTTDPosition(event->position))
 	{
 		LogWarn("Found %s write for register '%s' but failed to time travel to it",
 			forward ? "next" : "previous", reg.c_str());

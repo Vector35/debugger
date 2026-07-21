@@ -3895,12 +3895,12 @@ std::pair<bool, TTDMemoryEvent> DebuggerController::GetTTDPrevMemoryAccess(uint6
 }
 
 
-std::pair<bool, TTDRegisterWriteEvent> DebuggerController::GetTTDNextRegisterWrite(const std::string& reg)
+std::optional<TTDRegisterWriteEvent> DebuggerController::GetTTDNextRegisterWrite(const std::string& reg)
 {
 	if (!m_state->IsConnected() || !IsTTD())
 	{
 		LogWarn("Current adapter does not support TTD");
-		return {false, TTDRegisterWriteEvent()};
+		return std::nullopt;
 	}
 
 	if (m_adapter)
@@ -3908,16 +3908,16 @@ std::pair<bool, TTDRegisterWriteEvent> DebuggerController::GetTTDNextRegisterWri
 		return m_adapter->GetTTDNextRegisterWrite(reg);
 	}
 
-	return {false, TTDRegisterWriteEvent()};
+	return std::nullopt;
 }
 
 
-std::pair<bool, TTDRegisterWriteEvent> DebuggerController::GetTTDPrevRegisterWrite(const std::string& reg)
+std::optional<TTDRegisterWriteEvent> DebuggerController::GetTTDPrevRegisterWrite(const std::string& reg)
 {
 	if (!m_state->IsConnected() || !IsTTD())
 	{
 		LogWarn("Current adapter does not support TTD");
-		return {false, TTDRegisterWriteEvent()};
+		return std::nullopt;
 	}
 
 	if (m_adapter)
@@ -3925,7 +3925,7 @@ std::pair<bool, TTDRegisterWriteEvent> DebuggerController::GetTTDPrevRegisterWri
 		return m_adapter->GetTTDPrevRegisterWrite(reg);
 	}
 
-	return {false, TTDRegisterWriteEvent()};
+	return std::nullopt;
 }
 
 

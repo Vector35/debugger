@@ -600,18 +600,18 @@ std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDPrevMemoryAccess(uint64_
 }
 
 
-std::pair<bool, TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDNextRegisterWrite(const std::string& reg)
+std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDNextRegisterWrite(const std::string& reg)
 {
 	if (!m_debugControl)
 	{
 		LogError("Debug control interface not available");
-		return {false, TTDRegisterWriteEvent()};
+		return std::nullopt;
 	}
 
 	if (reg.empty())
 	{
 		LogError("Invalid register name specified");
-		return {false, TTDRegisterWriteEvent()};
+		return std::nullopt;
 	}
 
 	try
@@ -624,23 +624,23 @@ std::pair<bool, TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDNextRegisterWrite
 	catch (const std::exception& e)
 	{
 		LogError("Exception in GetTTDNextRegisterWrite: %s", e.what());
-		return {false, TTDRegisterWriteEvent()};
+		return std::nullopt;
 	}
 }
 
 
-std::pair<bool, TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDPrevRegisterWrite(const std::string& reg)
+std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDPrevRegisterWrite(const std::string& reg)
 {
 	if (!m_debugControl)
 	{
 		LogError("Debug control interface not available");
-		return {false, TTDRegisterWriteEvent()};
+		return std::nullopt;
 	}
 
 	if (reg.empty())
 	{
 		LogError("Invalid register name specified");
-		return {false, TTDRegisterWriteEvent()};
+		return std::nullopt;
 	}
 
 	try
@@ -653,7 +653,7 @@ std::pair<bool, TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDPrevRegisterWrite
 	catch (const std::exception& e)
 	{
 		LogError("Exception in GetTTDPrevRegisterWrite: %s", e.what());
-		return {false, TTDRegisterWriteEvent()};
+		return std::nullopt;
 	}
 }
 
@@ -1539,7 +1539,7 @@ std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::ParseSingleTTDMemoryObject(con
 }
 
 
-std::pair<bool, TTDRegisterWriteEvent> DbgEngTTDAdapter::ParseSingleTTDRegisterWriteObject(const std::string& expression, const std::string& reg)
+std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::ParseSingleTTDRegisterWriteObject(const std::string& expression, const std::string& reg)
 {
 	TTDRegisterWriteEvent event;
 	event.reg = reg;
@@ -1547,7 +1547,7 @@ std::pair<bool, TTDRegisterWriteEvent> DbgEngTTDAdapter::ParseSingleTTDRegisterW
 	if (!m_hostEvaluator)
 	{
 		LogError("Data model evaluator not available");
-		return {false, event};
+		return std::nullopt;
 	}
 
 	try
@@ -1558,7 +1558,7 @@ std::pair<bool, TTDRegisterWriteEvent> DbgEngTTDAdapter::ParseSingleTTDRegisterW
 		if (FAILED(m_debugHost->GetCurrentContext(hostContext.GetAddressOf())))
 		{
 			LogError("Failed to get current debug host context");
-			return {false, event};
+			return std::nullopt;
 		}
 
 		ComPtr<IModelObject> result;
@@ -1576,13 +1576,13 @@ std::pair<bool, TTDRegisterWriteEvent> DbgEngTTDAdapter::ParseSingleTTDRegisterW
 			// A failed evaluation typically means there is no previous/next write of this
 			// register within the trace, which is a normal "not found" outcome.
 			LogInfo("No register write found for expression '%s' (0x%08x)", expression.c_str(), hr);
-			return {false, event};
+			return std::nullopt;
 		}
 
 		if (!result)
 		{
 			LogInfo("No register write found for expression '%s'", expression.c_str());
-			return {false, event};
+			return std::nullopt;
 		}
 
 		// Parse Position (where the register value changed)
@@ -1654,12 +1654,12 @@ std::pair<bool, TTDRegisterWriteEvent> DbgEngTTDAdapter::ParseSingleTTDRegisterW
 
 		LogInfo("Successfully parsed TTD register write for '%s' at position %llx:%llx",
 			event.reg.c_str(), event.position.sequence, event.position.step);
-		return {true, event};
+		return event;
 	}
 	catch (const std::exception& e)
 	{
 		LogError("Exception in ParseSingleTTDRegisterWriteObject: %s", e.what());
-		return {false, event};
+		return std::nullopt;
 	}
 }
 

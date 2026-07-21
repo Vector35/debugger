@@ -465,8 +465,8 @@ namespace BinaryNinjaDebugger {
 		virtual bool SetTTDPosition(const TTDPosition& position);
 		virtual std::pair<bool, TTDMemoryEvent> GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 		virtual std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
-		virtual std::pair<bool, TTDRegisterWriteEvent> GetTTDNextRegisterWrite(const std::string& reg);
-		virtual std::pair<bool, TTDRegisterWriteEvent> GetTTDPrevRegisterWrite(const std::string& reg);
+		virtual std::optional<TTDRegisterWriteEvent> GetTTDNextRegisterWrite(const std::string& reg);
+		virtual std::optional<TTDRegisterWriteEvent> GetTTDPrevRegisterWrite(const std::string& reg);
 
 	};
 };  // namespace BinaryNinjaDebugger

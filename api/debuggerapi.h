@@ -902,8 +902,8 @@ namespace BinaryNinjaDebuggerAPI {
 		bool SetTTDPosition(const TTDPosition& position);
 		std::pair<bool, TTDMemoryEvent> GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 		std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
-		std::pair<bool, TTDRegisterWriteEvent> GetTTDNextRegisterWrite(const std::string& reg);
-		std::pair<bool, TTDRegisterWriteEvent> GetTTDPrevRegisterWrite(const std::string& reg);
+		std::optional<TTDRegisterWriteEvent> GetTTDNextRegisterWrite(const std::string& reg);
+		std::optional<TTDRegisterWriteEvent> GetTTDPrevRegisterWrite(const std::string& reg);
 
 		// TTD Position History Navigation
 		bool TTDNavigateBack();

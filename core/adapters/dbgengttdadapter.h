@@ -59,8 +59,8 @@ namespace BinaryNinjaDebugger {
 		std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType) override;
 
 		// TTD Next/Prev Register Write Methods
-		std::pair<bool, TTDRegisterWriteEvent> GetTTDNextRegisterWrite(const std::string& reg) override;
-		std::pair<bool, TTDRegisterWriteEvent> GetTTDPrevRegisterWrite(const std::string& reg) override;
+		std::optional<TTDRegisterWriteEvent> GetTTDNextRegisterWrite(const std::string& reg) override;
+		std::optional<TTDRegisterWriteEvent> GetTTDPrevRegisterWrite(const std::string& reg) override;
 
     	// TTD Calls Analysis Methods
     	std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0) override;
@@ -101,7 +101,7 @@ namespace BinaryNinjaDebugger {
 		bool ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
 		bool ParseTTDPositionRangeIndexedMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDPositionRangeIndexedMemoryEvent>& events);
 		std::pair<bool, TTDMemoryEvent> ParseSingleTTDMemoryObject(const std::string& expression, TTDMemoryAccessType accessType);
-		std::pair<bool, TTDRegisterWriteEvent> ParseSingleTTDRegisterWriteObject(const std::string& expression, const std::string& reg);
+		std::optional<TTDRegisterWriteEvent> ParseSingleTTDRegisterWriteObject(const std::string& expression, const std::string& reg);
 
 		// Data model interfaces for TTD
 		IHostDataModelAccess* m_dataModelManager;

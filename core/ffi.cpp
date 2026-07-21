@@ -1563,11 +1563,11 @@ bool BNDebuggerGetTTDNextRegisterWrite(BNDebuggerController* controller,
 	if (!reg || !result)
 		return false;
 
-	auto [success, event] = controller->object->GetTTDNextRegisterWrite(reg);
-	if (!success)
+	auto event = controller->object->GetTTDNextRegisterWrite(reg);
+	if (!event)
 		return false;
 
-	FillTTDRegisterWriteEvent(event, result);
+	FillTTDRegisterWriteEvent(*event, result);
 	return true;
 }
 
@@ -1577,11 +1577,11 @@ bool BNDebuggerGetTTDPrevRegisterWrite(BNDebuggerController* controller,
 	if (!reg || !result)
 		return false;
 
-	auto [success, event] = controller->object->GetTTDPrevRegisterWrite(reg);
-	if (!success)
+	auto event = controller->object->GetTTDPrevRegisterWrite(reg);
+	if (!event)
 		return false;
 
-	FillTTDRegisterWriteEvent(event, result);
+	FillTTDRegisterWriteEvent(*event, result);
 	return true;
 }
 

@@ -1464,13 +1464,13 @@ std::pair<bool, TTDMemoryEvent> DebuggerController::GetTTDPrevMemoryAccess(uint6
 	return {true, event};
 }
 
-std::pair<bool, TTDRegisterWriteEvent> DebuggerController::GetTTDNextRegisterWrite(const std::string& reg)
+std::optional<TTDRegisterWriteEvent> DebuggerController::GetTTDNextRegisterWrite(const std::string& reg)
 {
 	BNDebuggerTTDRegisterWriteEvent bnEvent = {};
 
 	bool success = BNDebuggerGetTTDNextRegisterWrite(m_object, reg.c_str(), &bnEvent);
 	if (!success)
-		return {false, TTDRegisterWriteEvent()};
+		return std::nullopt;
 
 	TTDRegisterWriteEvent event;
 	event.reg = bnEvent.reg ? std::string(bnEvent.reg) : reg;
@@ -1482,16 +1482,16 @@ std::pair<bool, TTDRegisterWriteEvent> DebuggerController::GetTTDNextRegisterWri
 
 	BNDebuggerFreeTTDRegisterWriteEvent(&bnEvent);
 
-	return {true, event};
+	return event;
 }
 
-std::pair<bool, TTDRegisterWriteEvent> DebuggerController::GetTTDPrevRegisterWrite(const std::string& reg)
+std::optional<TTDRegisterWriteEvent> DebuggerController::GetTTDPrevRegisterWrite(const std::string& reg)
 {
 	BNDebuggerTTDRegisterWriteEvent bnEvent = {};
 
 	bool success = BNDebuggerGetTTDPrevRegisterWrite(m_object, reg.c_str(), &bnEvent);
 	if (!success)
-		return {false, TTDRegisterWriteEvent()};
+		return std::nullopt;
 
 	TTDRegisterWriteEvent event;
 	event.reg = bnEvent.reg ? std::string(bnEvent.reg) : reg;
@@ -1503,7 +1503,7 @@ std::pair<bool, TTDRegisterWriteEvent> DebuggerController::GetTTDPrevRegisterWri
 
 	BNDebuggerFreeTTDRegisterWriteEvent(&bnEvent);
 
-	return {true, event};
+	return event;
 }
 
 std::vector<TTDCallEvent> DebuggerController::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
