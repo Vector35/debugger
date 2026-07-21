@@ -38,6 +38,8 @@ file(GLOB ADAPTER_SOURCES CONFIGURE_DEPENDS
 		adapters/esrevenadapter.h
 		adapters/lldbcoredumpadapter.cpp
 		adapters/lldbcoredumpadapter.h
+		adapters/x2winrpcadapter.cpp
+		adapters/x2winrpcadapter.h
 	)
 
 if(WIN32)
