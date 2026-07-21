@@ -8,4 +8,4 @@ vs_version = "2022"
 # build whose commit matches. Keep in sync with the binaryninja repo's llvm-build / qt-build
 # submodule revisions whenever those are bumped.
 llvm_build_commit = "c58025321255bc6ea9b69745985b025290bf6520"
-qt_build_commit = "68ec39b2d068e9b85966bc2c12053e22af1b411c"
+qt_build_commit = "10c1af13928d0a09128339708a24e82cd8864ba2"
