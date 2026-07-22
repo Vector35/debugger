@@ -37,6 +37,7 @@ namespace BinaryNinjaDebugger {
 	{
 	private:
 		Socket m_socket;
+		bool m_connected = false;
 		std::thread m_readerThread;
 
 		// request_id -> promise, fulfilled by ReaderLoop() when the matching RESPONSE arrives.
@@ -53,6 +54,9 @@ namespace BinaryNinjaDebugger {
 		bool ResolveModuleAddress(const ModuleNameAndOffset& location, uint64_t& address);
 
 		bool ConnectSocket(const std::string& ip, uint16_t port);
+		bool ConnectFromSettings();
+		void TeardownConnection();
+		bool GetReplyStatus(const Frame& reply);
 
 	public:
 		X2WinRpcAdapter(BinaryView* data);
