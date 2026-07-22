@@ -13,7 +13,11 @@ namespace {
         GetTargetArch = 3,
         Detach = 4,
         Quit = 5,
-        GetProcessList = 6
+        GetProcessList = 6,
+    };
+
+    enum class EventId: uint16_t{
+        TargetStopped = 1,
     };
 
     void AppendString(std::vector<uint8_t>& buf, const std::string& s){
@@ -27,7 +31,7 @@ namespace {
 
     uint32_t ParseU32(const std::vector<uint8_t>& buf, size_t& offset){
         uint32_t v = (uint32_t)buf[offset] | ((uint32_t)buf[offset+1] << 8 )
-                    | ((uint32_t)buf[offset+2] << 8) | ((uint32_t)buf[offset+3] << 24);
+                    | ((uint32_t)buf[offset+2] << 16) | ((uint32_t)buf[offset+3] << 24);
         offset += 4;
         return v;
     }
@@ -48,11 +52,7 @@ X2WinRpcAdapter::X2WinRpcAdapter(BinaryView* data): DebugAdapter(data){
 X2WinRpcAdapter::~X2WinRpcAdapter(){
     // Force the blocking Recv() inside ReaderLoop() to fail and return, so the loop can exit
     // and join() below won't hang forever waiting for a thread that never stops on its own.
-    m_socket.Kill();
-
-    if(m_readerThread.joinable()){
-        m_readerThread.join();
-    }
+    TeardownConnection();
 }
 
 Ref<Settings> X2WinRpcAdapter::GetAdapterSettings(){
@@ -60,6 +60,10 @@ Ref<Settings> X2WinRpcAdapter::GetAdapterSettings(){
 }
 
 bool X2WinRpcAdapter::ConnectSocket(const std::string& ip, uint16_t port){
+    if(m_connected){
+        return true;
+    }
+
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
@@ -69,13 +73,26 @@ bool X2WinRpcAdapter::ConnectSocket(const std::string& ip, uint16_t port){
     if(!m_socket.Connect(addr)) return false;
 
     m_readerThread = std::thread([this]() {ReaderLoop();});
+    m_connected = true;
 
     return true;
 }
 
+bool X2WinRpcAdapter::ConnectFromSettings(){
+    auto adapterSettings = GetAdapterSettings();
+    auto data = GetData();
+
+    BNSettingsScope scope = SettingsResourceScope;
+    auto ipAddress = adapterSettings->Get<std::string>("connect.ipAddress", data, &scope);
+    scope = SettingsResourceScope;
+    auto port = adapterSettings->Get<uint64_t>("connect.port", data, &scope);
+
+    return ConnectSocket(ipAddress, (uint16_t)port);
+}
+
 // Connects to the stub and asks it to attach to an already-running Windows process by pid.
 bool X2WinRpcAdapter::Attach(std::uint32_t pid){
-    if(!ConnectSocket("127.0.0.1", 31338))      // TODO reading from settings
+    if(!ConnectFromSettings())
         return false;
 
     // pid packed little-endian, 4 bytes.
@@ -85,7 +102,7 @@ bool X2WinRpcAdapter::Attach(std::uint32_t pid){
     };
 
     Frame reply = CallSync((uint16_t)MethodId::Attach, payload);
-    return !reply.data.empty() && reply.data[0] == 1;   // 1 byte, 1 = success; 0 = failed
+    return GetReplyStatus(reply);
 }
 
 bool X2WinRpcAdapter::Connect(const std::string& server, std::uint32_t port){
@@ -98,7 +115,7 @@ bool X2WinRpcAdapter::Execute(const std::string& path, const LaunchConfiguration
 
 bool X2WinRpcAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
   const std::string& workingDir, const LaunchConfigurations& configs){
-    if(!ConnectSocket("127.0.0.1", 31338)) // TODO read from settings
+    if(!ConnectFromSettings())
         return false;
 
     std::vector<uint8_t> payload;
@@ -107,7 +124,7 @@ bool X2WinRpcAdapter::ExecuteWithArgs(const std::string& path, const std::string
     AppendString(payload, workingDir);
 
     Frame reply = CallSync((uint16_t)MethodId::Launch, payload);
-    return !reply.data.empty() && reply.data[0] == 1;
+    return GetReplyStatus(reply);
 }
 
 // TCP is a byte stream, not a message stream: a single Recv() call may return fewer bytes than
@@ -203,9 +220,15 @@ void X2WinRpcAdapter::ReaderLoop(){
                 m_pendingRequests.erase(it);
             }
         }else if (type == FrameType::Event) {
-            // TODO get the specific event type based on methodOrEvent and make it as DebuggerEvent
-            // DebuggerEvent event = ...;
-            // PostDebuggerEvent(event);
+            if((EventId)methodOrEvent == EventId::TargetStopped){
+                uint8_t reasonCode = f.data.empty() ? 0 : f.data[0];
+                DebuggerEvent event;
+                event.type = AdapterStoppedEventType;
+                event.data.targetStoppedData.reason = (reasonCode == 1) ? DebugStopReason::Breakpoint
+                                                    : (reasonCode == 2) ? DebugStopReason::SingleStep
+                                                    : DebugStopReason::UnknownReason;
+                PostDebuggerEvent(event);
+            }
         }
     }
 }
@@ -217,19 +240,37 @@ std::string X2WinRpcAdapter::GetTargetArchitecture(){
     return std::string(reply.data.begin(), reply.data.end());
 }
 
-
 // --- Lifecycle ---
 bool X2WinRpcAdapter::Detach(){
     Frame reply = CallSync((uint16_t)MethodId::Detach, {});
-    return !reply.data.empty() && reply.data[0] == 1;
+
+    TeardownConnection();
+
+    DebuggerEvent event;
+    event.type = DetachedEventType;
+    PostDebuggerEvent(event);
+
+    return GetReplyStatus(reply);
 }
 
 bool X2WinRpcAdapter::Quit(){
     Frame reply = CallSync((uint16_t)MethodId::Quit, {});
-    return !reply.data.empty() && reply.data[0] == 1;
+    
+    TeardownConnection();
+
+    DebuggerEvent event;
+    event.type = TargetExitedEventType;
+    event.data.exitData.exitCode = 0;
+    PostDebuggerEvent(event);
+
+    return GetReplyStatus(reply);
 }
 
 std::vector<DebugProcess> X2WinRpcAdapter::GetProcessList(){
+    if(!ConnectFromSettings()){
+        return {};
+    }
+
     Frame reply = CallSync((uint16_t)MethodId::GetProcessList, {});
     
     std::vector<DebugProcess> result;
@@ -312,6 +353,17 @@ Ref<Settings> X2WinRpcAdapterType::RegisterAdapterSettings(){
     "readOnly" : false
     })");
 
+    settings->RegisterSetting("attach.pid", 
+    R"({
+    "title" : "PID to attach to",
+    "type" : "number",
+    "default" : 0,
+    "minValue" : 0,
+    "maxValue" : 4294967295,
+    "description" : "PID of the process to attach to",
+    "readOnly" : false
+    })");
+
     return settings;
 }
 
@@ -342,4 +394,18 @@ bool X2WinRpcAdapterType::CanConnect(BinaryNinja::BinaryView* data){
 void BinaryNinjaDebugger::InitX2WinRpcAdapterType(){
     static X2WinRpcAdapterType x2winType;
     DebugAdapterType::Register(&x2winType);
+}
+
+
+// --- Helper Functions ---
+void X2WinRpcAdapter::TeardownConnection(){
+    m_socket.Kill();
+    if(m_readerThread.joinable()){
+        m_readerThread.join();
+    }
+    m_connected = false;
+}
+
+bool X2WinRpcAdapter::GetReplyStatus(const Frame& reply){
+    return !reply.data.empty() && reply.data[0] == 1;
 }
