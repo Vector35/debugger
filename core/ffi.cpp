@@ -1410,51 +1410,39 @@ bool BNDebuggerIsFirstAttach(BNDebuggerController* controller)
 }
 
 
-bool BNDebuggerShouldShowAdapterSettingsNextLaunch(BNDebuggerController* controller)
+bool BNDebuggerShouldShowAdapterSettingsForLaunch(BNDebuggerController* controller)
 {
-	return controller->object->ShouldShowAdapterSettingsNextLaunch();
+	return controller->object->ShouldShowAdapterSettingsForLaunch();
 }
 
 
-bool BNDebuggerShouldShowAdapterSettingsNextAttach(BNDebuggerController* controller)
+bool BNDebuggerShouldShowAdapterSettingsForAttach(BNDebuggerController* controller)
 {
-	return controller->object->ShouldShowAdapterSettingsNextAttach();
+	return controller->object->ShouldShowAdapterSettingsForAttach();
 }
 
 
-bool BNDebuggerShouldShowAdapterSettingsNextConnect(BNDebuggerController* controller)
+bool BNDebuggerShouldShowAdapterSettingsForConnect(BNDebuggerController* controller)
 {
-	return controller->object->ShouldShowAdapterSettingsNextConnect();
+	return controller->object->ShouldShowAdapterSettingsForConnect();
 }
 
 
-bool BNDebuggerShouldShowAdapterSettingsNextConnectToDebugServer(BNDebuggerController* controller)
+bool BNDebuggerShouldShowAdapterSettingsForConnectToDebugServer(BNDebuggerController* controller)
 {
-	return controller->object->ShouldShowAdapterSettingsNextConnectToDebugServer();
+	return controller->object->ShouldShowAdapterSettingsForConnectToDebugServer();
 }
 
 
-void BNDebuggerSetShowAdapterSettingsNextLaunch(BNDebuggerController* controller, bool value)
+bool BNDebuggerShowAdapterSettingsNextTime(BNDebuggerController* controller)
 {
-	controller->object->SetShowAdapterSettingsNextLaunch(value);
+	return controller->object->ShowAdapterSettingsNextTime();
 }
 
 
-void BNDebuggerSetShowAdapterSettingsNextAttach(BNDebuggerController* controller, bool value)
+void BNDebuggerSetShowAdapterSettingsNextTime(BNDebuggerController* controller, bool value)
 {
-	controller->object->SetShowAdapterSettingsNextAttach(value);
-}
-
-
-void BNDebuggerSetShowAdapterSettingsNextConnect(BNDebuggerController* controller, bool value)
-{
-	controller->object->SetShowAdapterSettingsNextConnect(value);
-}
-
-
-void BNDebuggerSetShowAdapterSettingsNextConnectToDebugServer(BNDebuggerController* controller, bool value)
-{
-	controller->object->SetShowAdapterSettingsNextConnectToDebugServer(value);
+	controller->object->SetShowAdapterSettingsNextTime(value);
 }
 
 

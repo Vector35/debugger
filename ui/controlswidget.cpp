@@ -267,7 +267,7 @@ void DebugControlsWidget::performLaunch()
 		return;
 
 	bool firstLaunch = m_controller->IsFirstLaunch();
-	if (firstLaunch || m_controller->ShouldShowAdapterSettingsNextLaunch())
+	if (m_controller->ShouldShowAdapterSettingsForLaunch())
 	{
 		auto adapterSettings = new AdapterSettingsDialog(this, m_controller, "launch");
 		if (adapterSettings->exec() != QDialog::Accepted)

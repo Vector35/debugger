@@ -754,15 +754,13 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerIsFirstConnectToDebugServer(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerIsFirstAttach(BNDebuggerController* controller);
 
-	DEBUGGER_FFI_API bool BNDebuggerShouldShowAdapterSettingsNextLaunch(BNDebuggerController* controller);
-	DEBUGGER_FFI_API bool BNDebuggerShouldShowAdapterSettingsNextAttach(BNDebuggerController* controller);
-	DEBUGGER_FFI_API bool BNDebuggerShouldShowAdapterSettingsNextConnect(BNDebuggerController* controller);
-	DEBUGGER_FFI_API bool BNDebuggerShouldShowAdapterSettingsNextConnectToDebugServer(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerShouldShowAdapterSettingsForLaunch(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerShouldShowAdapterSettingsForAttach(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerShouldShowAdapterSettingsForConnect(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerShouldShowAdapterSettingsForConnectToDebugServer(BNDebuggerController* controller);
 
-	DEBUGGER_FFI_API void BNDebuggerSetShowAdapterSettingsNextLaunch(BNDebuggerController* controller, bool value);
-	DEBUGGER_FFI_API void BNDebuggerSetShowAdapterSettingsNextAttach(BNDebuggerController* controller, bool value);
-	DEBUGGER_FFI_API void BNDebuggerSetShowAdapterSettingsNextConnect(BNDebuggerController* controller, bool value);
-	DEBUGGER_FFI_API void BNDebuggerSetShowAdapterSettingsNextConnectToDebugServer(BNDebuggerController* controller, bool value);
+	DEBUGGER_FFI_API bool BNDebuggerShowAdapterSettingsNextTime(BNDebuggerController* controller);
+	DEBUGGER_FFI_API void BNDebuggerSetShowAdapterSettingsNextTime(BNDebuggerController* controller, bool value);
 
 	DEBUGGER_FFI_API bool BNDebuggerIsTTD(BNDebuggerController* controller);
 

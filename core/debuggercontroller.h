@@ -175,10 +175,19 @@ namespace BinaryNinjaDebugger {
 		bool m_firstConnectToDebugServer = true;
 		bool m_firstAttach = true;
 
-		bool m_showAdapterSettingsNextLaunch = true;
-		bool m_showAdapterSettingsNextAttach = true;
-		bool m_showAdapterSettingsNextConnect = true;
-		bool m_showAdapterSettingsNextConnectToDebugServer = true;
+		// Whether to show the adapter settings dialog before the next debug session is started. When the user starts a
+		// session whose kind differs from m_lastDebugStartOperation we always show the dialog regardless of this flag,
+		// so that switching between e.g. launch and attach never silently reuses stale settings.
+		enum LastDebugStartOperation
+		{
+			NoDebugStartOperation,
+			LaunchStartOperation,
+			AttachStartOperation,
+			ConnectStartOperation,
+			ConnectToDebugServerStartOperation,
+		};
+		bool m_showAdapterSettingsNextTime = true;
+		LastDebugStartOperation m_lastDebugStartOperation = NoDebugStartOperation;
 
 		bool m_shouldAnnotateStackVariable = false;
 
@@ -650,15 +659,13 @@ namespace BinaryNinjaDebugger {
 		bool IsFirstConnectToDebugServer();
 		bool IsFirstAttach();
 
-		bool ShouldShowAdapterSettingsNextLaunch();
-		bool ShouldShowAdapterSettingsNextAttach();
-		bool ShouldShowAdapterSettingsNextConnect();
-		bool ShouldShowAdapterSettingsNextConnectToDebugServer();
+		bool ShouldShowAdapterSettingsForLaunch();
+		bool ShouldShowAdapterSettingsForAttach();
+		bool ShouldShowAdapterSettingsForConnect();
+		bool ShouldShowAdapterSettingsForConnectToDebugServer();
 
-		void SetShowAdapterSettingsNextLaunch(bool value);
-		void SetShowAdapterSettingsNextAttach(bool value);
-		void SetShowAdapterSettingsNextConnect(bool value);
-		void SetShowAdapterSettingsNextConnectToDebugServer(bool value);
+		bool ShowAdapterSettingsNextTime();
+		void SetShowAdapterSettingsNextTime(bool value);
 
 		bool IsTTD();
 

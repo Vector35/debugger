@@ -890,15 +890,13 @@ namespace BinaryNinjaDebuggerAPI {
 		bool IsFirstConnectToDebugServer();
 		bool IsFirstAttach();
 
-		bool ShouldShowAdapterSettingsNextLaunch();
-		bool ShouldShowAdapterSettingsNextAttach();
-		bool ShouldShowAdapterSettingsNextConnect();
-		bool ShouldShowAdapterSettingsNextConnectToDebugServer();
+		bool ShouldShowAdapterSettingsForLaunch();
+		bool ShouldShowAdapterSettingsForAttach();
+		bool ShouldShowAdapterSettingsForConnect();
+		bool ShouldShowAdapterSettingsForConnectToDebugServer();
 
-		void SetShowAdapterSettingsNextLaunch(bool value);
-		void SetShowAdapterSettingsNextAttach(bool value);
-		void SetShowAdapterSettingsNextConnect(bool value);
-		void SetShowAdapterSettingsNextConnectToDebugServer(bool value);
+		bool ShowAdapterSettingsNextTime();
+		void SetShowAdapterSettingsNextTime(bool value);
 
 		bool IsTTD();
 

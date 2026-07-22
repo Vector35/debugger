@@ -24,7 +24,7 @@ using namespace BinaryNinja;
 using namespace std;
 
 AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller, const std::string& highlightGroup) :
-	QDialog(), m_controller(controller), m_highlightGroup(highlightGroup)
+	QDialog(), m_controller(controller)
 {
 	setWindowTitle("Debug Adapter Settings");
 	setAttribute(Qt::WA_DeleteOnClose);
@@ -67,6 +67,10 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 	m_stack->setCurrentWidget(widget);
 	layout->addWidget(m_stack);
 
+	// Reflect the stored preference: checked means "do not show the dialog next time"
+	m_useSameSettingsCheckbox = new QCheckBox("Use same settings next time");
+	m_useSameSettingsCheckbox->setChecked(!m_controller->ShowAdapterSettingsNextTime());
+
 	if (!highlightGroup.empty())
 	{
 		auto adapterSettings = qobject_cast<SettingsView*>(widget);
@@ -77,9 +81,6 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 
 		QHBoxLayout* buttonLayout = new QHBoxLayout;
 		buttonLayout->setContentsMargins(0, 0, 0, 0);
-
-		m_useSameSettingsCheckbox = new QCheckBox("Use same settings next time");
-		m_useSameSettingsCheckbox->setChecked(true);
 
 		QPushButton* cancelButton = new QPushButton("Cancel");
 		connect(cancelButton, &QPushButton::clicked, [&]() { reject(); });
@@ -95,6 +96,22 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 
 		layout->addSpacing(10);
 		layout->addLayout(buttonLayout);
+	}
+	else
+	{
+		// The generic settings dialog (opened from the menu) has no Accept/Cancel button and applies
+		// settings live, so update the preference immediately whenever the checkbox is toggled. This is
+		// the entry point for re-enabling the dialog after it has been suppressed for an operation.
+		connect(m_useSameSettingsCheckbox, &QCheckBox::toggled, this,
+			[this](bool checked) { m_controller->SetShowAdapterSettingsNextTime(!checked); });
+
+		QHBoxLayout* checkboxLayout = new QHBoxLayout;
+		checkboxLayout->setContentsMargins(0, 0, 0, 0);
+		checkboxLayout->addWidget(m_useSameSettingsCheckbox);
+		checkboxLayout->addStretch(1);
+
+		layout->addSpacing(10);
+		layout->addLayout(checkboxLayout);
 	}
 
 	setLayout(layout);
@@ -144,16 +161,6 @@ QWidget* AdapterSettingsDialog::getWidgetForAdapter(const QString& adapter)
 void AdapterSettingsDialog::apply()
 {
 	if (m_useSameSettingsCheckbox)
-	{
-		bool showAgain = !m_useSameSettingsCheckbox->isChecked();
-		if (m_highlightGroup == "launch")
-			m_controller->SetShowAdapterSettingsNextLaunch(showAgain);
-		else if (m_highlightGroup == "attach")
-			m_controller->SetShowAdapterSettingsNextAttach(showAgain);
-		else if (m_highlightGroup == "connect")
-			m_controller->SetShowAdapterSettingsNextConnect(showAgain);
-		else if (m_highlightGroup == "debug_server")
-			m_controller->SetShowAdapterSettingsNextConnectToDebugServer(showAgain);
-	}
+		m_controller->SetShowAdapterSettingsNextTime(!m_useSameSettingsCheckbox->isChecked());
 	accept();
 }

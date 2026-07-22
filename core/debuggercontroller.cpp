@@ -369,6 +369,7 @@ DebugStopReason DebuggerController::LaunchAndWaitInternal()
 	}
 
 	m_firstLaunch = false;
+	m_lastDebugStartOperation = LaunchStartOperation;
 
 	DebuggerEvent event;
 	event.type = LaunchEventType;
@@ -421,6 +422,7 @@ bool DebuggerController::Attach()
 DebugStopReason DebuggerController::AttachAndWaitInternal()
 {
 	m_firstAttach = false;
+	m_lastDebugStartOperation = AttachStartOperation;
 
 	DebuggerEvent event;
 	event.type = LaunchEventType;
@@ -473,6 +475,7 @@ bool DebuggerController::Connect()
 DebugStopReason DebuggerController::ConnectAndWaitInternal()
 {
 	m_firstConnect = false;
+	m_lastDebugStartOperation = ConnectStartOperation;
 
 	DebuggerEvent event;
 	event.type = LaunchEventType;
@@ -1685,6 +1688,7 @@ DebugStopReason DebuggerController::RestartAndWait(std::chrono::milliseconds tim
 bool DebuggerController::ConnectToDebugServer()
 {
 	m_firstConnectToDebugServer = false;
+	m_lastDebugStartOperation = ConnectToDebugServerStartOperation;
 	if (m_state->IsConnectedToDebugServer())
 		return true;
 
@@ -3789,51 +3793,39 @@ bool DebuggerController::IsFirstAttach()
 }
 
 
-bool DebuggerController::ShouldShowAdapterSettingsNextLaunch()
+bool DebuggerController::ShouldShowAdapterSettingsForLaunch()
 {
-	return m_showAdapterSettingsNextLaunch;
+	return m_lastDebugStartOperation != LaunchStartOperation || m_showAdapterSettingsNextTime;
 }
 
 
-bool DebuggerController::ShouldShowAdapterSettingsNextAttach()
+bool DebuggerController::ShouldShowAdapterSettingsForAttach()
 {
-	return m_showAdapterSettingsNextAttach;
+	return m_lastDebugStartOperation != AttachStartOperation || m_showAdapterSettingsNextTime;
 }
 
 
-bool DebuggerController::ShouldShowAdapterSettingsNextConnect()
+bool DebuggerController::ShouldShowAdapterSettingsForConnect()
 {
-	return m_showAdapterSettingsNextConnect;
+	return m_lastDebugStartOperation != ConnectStartOperation || m_showAdapterSettingsNextTime;
 }
 
 
-bool DebuggerController::ShouldShowAdapterSettingsNextConnectToDebugServer()
+bool DebuggerController::ShouldShowAdapterSettingsForConnectToDebugServer()
 {
-	return m_showAdapterSettingsNextConnectToDebugServer;
+	return m_lastDebugStartOperation != ConnectToDebugServerStartOperation || m_showAdapterSettingsNextTime;
 }
 
 
-void DebuggerController::SetShowAdapterSettingsNextLaunch(bool value)
+bool DebuggerController::ShowAdapterSettingsNextTime()
 {
-	m_showAdapterSettingsNextLaunch = value;
+	return m_showAdapterSettingsNextTime;
 }
 
 
-void DebuggerController::SetShowAdapterSettingsNextAttach(bool value)
+void DebuggerController::SetShowAdapterSettingsNextTime(bool value)
 {
-	m_showAdapterSettingsNextAttach = value;
-}
-
-
-void DebuggerController::SetShowAdapterSettingsNextConnect(bool value)
-{
-	m_showAdapterSettingsNextConnect = value;
-}
-
-
-void DebuggerController::SetShowAdapterSettingsNextConnectToDebugServer(bool value)
-{
-	m_showAdapterSettingsNextConnectToDebugServer = value;
+	m_showAdapterSettingsNextTime = value;
 }
 
 

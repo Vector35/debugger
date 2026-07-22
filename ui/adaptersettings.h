@@ -43,7 +43,6 @@ private:
 	QMap<QString, QWidget*> m_viewMap;
 	QLabel* m_noSettingsLabel;
 	QCheckBox* m_useSameSettingsCheckbox = nullptr;
-	std::string m_highlightGroup;
 
 	QWidget* getWidgetForAdapter(const QString& adapter);
 

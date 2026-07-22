@@ -1286,51 +1286,39 @@ bool DebuggerController::IsFirstAttach()
 }
 
 
-bool DebuggerController::ShouldShowAdapterSettingsNextLaunch()
+bool DebuggerController::ShouldShowAdapterSettingsForLaunch()
 {
-	return BNDebuggerShouldShowAdapterSettingsNextLaunch(m_object);
+	return BNDebuggerShouldShowAdapterSettingsForLaunch(m_object);
 }
 
 
-bool DebuggerController::ShouldShowAdapterSettingsNextAttach()
+bool DebuggerController::ShouldShowAdapterSettingsForAttach()
 {
-	return BNDebuggerShouldShowAdapterSettingsNextAttach(m_object);
+	return BNDebuggerShouldShowAdapterSettingsForAttach(m_object);
 }
 
 
-bool DebuggerController::ShouldShowAdapterSettingsNextConnect()
+bool DebuggerController::ShouldShowAdapterSettingsForConnect()
 {
-	return BNDebuggerShouldShowAdapterSettingsNextConnect(m_object);
+	return BNDebuggerShouldShowAdapterSettingsForConnect(m_object);
 }
 
 
-bool DebuggerController::ShouldShowAdapterSettingsNextConnectToDebugServer()
+bool DebuggerController::ShouldShowAdapterSettingsForConnectToDebugServer()
 {
-	return BNDebuggerShouldShowAdapterSettingsNextConnectToDebugServer(m_object);
+	return BNDebuggerShouldShowAdapterSettingsForConnectToDebugServer(m_object);
 }
 
 
-void DebuggerController::SetShowAdapterSettingsNextLaunch(bool value)
+bool DebuggerController::ShowAdapterSettingsNextTime()
 {
-	BNDebuggerSetShowAdapterSettingsNextLaunch(m_object, value);
+	return BNDebuggerShowAdapterSettingsNextTime(m_object);
 }
 
 
-void DebuggerController::SetShowAdapterSettingsNextAttach(bool value)
+void DebuggerController::SetShowAdapterSettingsNextTime(bool value)
 {
-	BNDebuggerSetShowAdapterSettingsNextAttach(m_object, value);
-}
-
-
-void DebuggerController::SetShowAdapterSettingsNextConnect(bool value)
-{
-	BNDebuggerSetShowAdapterSettingsNextConnect(m_object, value);
-}
-
-
-void DebuggerController::SetShowAdapterSettingsNextConnectToDebugServer(bool value)
-{
-	BNDebuggerSetShowAdapterSettingsNextConnectToDebugServer(m_object, value);
+	BNDebuggerSetShowAdapterSettingsNextTime(m_object, value);
 }
 
 

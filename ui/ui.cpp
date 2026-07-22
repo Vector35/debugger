@@ -563,7 +563,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 					return;
 
 				bool firstLaunch = controller->IsFirstLaunch();
-                if (firstLaunch || controller->ShouldShowAdapterSettingsNextLaunch())
+                if (controller->ShouldShowAdapterSettingsForLaunch())
                 {
                 	auto adapterSettings = new AdapterSettingsDialog(context->mainWindow(), controller, "launch");
                 	if (adapterSettings->exec() != QDialog::Accepted)
@@ -859,7 +859,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
-				if (controller->IsFirstAttach() || controller->ShouldShowAdapterSettingsNextAttach())
+				if (controller->ShouldShowAdapterSettingsForAttach())
 				{
 					auto adapterSettings = new AdapterSettingsDialog(context->mainWindow(), controller, "attach");
 					if (adapterSettings->exec() != QDialog::Accepted)
@@ -1074,7 +1074,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
-                if (controller->IsFirstConnectToDebugServer() || controller->ShouldShowAdapterSettingsNextConnectToDebugServer())
+                if (controller->ShouldShowAdapterSettingsForConnectToDebugServer())
                 {
                 	auto adapterSettings = new AdapterSettingsDialog(context->mainWindow(), controller, "debug_server");
                 	if (adapterSettings->exec() != QDialog::Accepted)
@@ -1129,7 +1129,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				if (!controller)
 					return;
 
-				if (controller->IsFirstConnect() || controller->ShouldShowAdapterSettingsNextConnect())
+				if (controller->ShouldShowAdapterSettingsForConnect())
 				{
 					auto adapterSettings = new AdapterSettingsDialog(context->mainWindow(), controller, "connect");
 					if (adapterSettings->exec() != QDialog::Accepted)
