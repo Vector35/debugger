@@ -1410,6 +1410,42 @@ bool BNDebuggerIsFirstAttach(BNDebuggerController* controller)
 }
 
 
+bool BNDebuggerShouldShowAdapterSettingsForLaunch(BNDebuggerController* controller)
+{
+	return controller->object->ShouldShowAdapterSettingsForLaunch();
+}
+
+
+bool BNDebuggerShouldShowAdapterSettingsForAttach(BNDebuggerController* controller)
+{
+	return controller->object->ShouldShowAdapterSettingsForAttach();
+}
+
+
+bool BNDebuggerShouldShowAdapterSettingsForConnect(BNDebuggerController* controller)
+{
+	return controller->object->ShouldShowAdapterSettingsForConnect();
+}
+
+
+bool BNDebuggerShouldShowAdapterSettingsForConnectToDebugServer(BNDebuggerController* controller)
+{
+	return controller->object->ShouldShowAdapterSettingsForConnectToDebugServer();
+}
+
+
+bool BNDebuggerShowAdapterSettingsNextTime(BNDebuggerController* controller)
+{
+	return controller->object->ShowAdapterSettingsNextTime();
+}
+
+
+void BNDebuggerSetShowAdapterSettingsNextTime(BNDebuggerController* controller, bool value)
+{
+	controller->object->SetShowAdapterSettingsNextTime(value);
+}
+
+
 bool BNDebuggerIsTTD(BNDebuggerController* controller)
 {
 	return controller->object->IsTTD();

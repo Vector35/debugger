@@ -369,6 +369,7 @@ DebugStopReason DebuggerController::LaunchAndWaitInternal()
 	}
 
 	m_firstLaunch = false;
+	m_lastDebugStartOperation = LaunchStartOperation;
 
 	DebuggerEvent event;
 	event.type = LaunchEventType;
@@ -421,6 +422,7 @@ bool DebuggerController::Attach()
 DebugStopReason DebuggerController::AttachAndWaitInternal()
 {
 	m_firstAttach = false;
+	m_lastDebugStartOperation = AttachStartOperation;
 
 	DebuggerEvent event;
 	event.type = LaunchEventType;
@@ -473,6 +475,7 @@ bool DebuggerController::Connect()
 DebugStopReason DebuggerController::ConnectAndWaitInternal()
 {
 	m_firstConnect = false;
+	m_lastDebugStartOperation = ConnectStartOperation;
 
 	DebuggerEvent event;
 	event.type = LaunchEventType;
@@ -1685,6 +1688,7 @@ DebugStopReason DebuggerController::RestartAndWait(std::chrono::milliseconds tim
 bool DebuggerController::ConnectToDebugServer()
 {
 	m_firstConnectToDebugServer = false;
+	m_lastDebugStartOperation = ConnectToDebugServerStartOperation;
 	if (m_state->IsConnectedToDebugServer())
 		return true;
 
@@ -3786,6 +3790,42 @@ bool DebuggerController::IsFirstConnectToDebugServer()
 bool DebuggerController::IsFirstAttach()
 {
 	return m_firstAttach;
+}
+
+
+bool DebuggerController::ShouldShowAdapterSettingsForLaunch()
+{
+	return m_lastDebugStartOperation != LaunchStartOperation || m_showAdapterSettingsNextTime;
+}
+
+
+bool DebuggerController::ShouldShowAdapterSettingsForAttach()
+{
+	return m_lastDebugStartOperation != AttachStartOperation || m_showAdapterSettingsNextTime;
+}
+
+
+bool DebuggerController::ShouldShowAdapterSettingsForConnect()
+{
+	return m_lastDebugStartOperation != ConnectStartOperation || m_showAdapterSettingsNextTime;
+}
+
+
+bool DebuggerController::ShouldShowAdapterSettingsForConnectToDebugServer()
+{
+	return m_lastDebugStartOperation != ConnectToDebugServerStartOperation || m_showAdapterSettingsNextTime;
+}
+
+
+bool DebuggerController::ShowAdapterSettingsNextTime()
+{
+	return m_showAdapterSettingsNextTime;
+}
+
+
+void DebuggerController::SetShowAdapterSettingsNextTime(bool value)
+{
+	m_showAdapterSettingsNextTime = value;
 }
 
 

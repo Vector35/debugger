@@ -754,6 +754,14 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerIsFirstConnectToDebugServer(BNDebuggerController* controller);
 	DEBUGGER_FFI_API bool BNDebuggerIsFirstAttach(BNDebuggerController* controller);
 
+	DEBUGGER_FFI_API bool BNDebuggerShouldShowAdapterSettingsForLaunch(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerShouldShowAdapterSettingsForAttach(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerShouldShowAdapterSettingsForConnect(BNDebuggerController* controller);
+	DEBUGGER_FFI_API bool BNDebuggerShouldShowAdapterSettingsForConnectToDebugServer(BNDebuggerController* controller);
+
+	DEBUGGER_FFI_API bool BNDebuggerShowAdapterSettingsNextTime(BNDebuggerController* controller);
+	DEBUGGER_FFI_API void BNDebuggerSetShowAdapterSettingsNextTime(BNDebuggerController* controller, bool value);
+
 	DEBUGGER_FFI_API bool BNDebuggerIsTTD(BNDebuggerController* controller);
 
 	// TTD Memory Analysis Functions

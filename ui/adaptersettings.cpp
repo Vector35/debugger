@@ -67,6 +67,10 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 	m_stack->setCurrentWidget(widget);
 	layout->addWidget(m_stack);
 
+	// Reflect the stored preference: checked means "do not show the dialog next time"
+	m_useSameSettingsCheckbox = new QCheckBox("Use same settings next time");
+	m_useSameSettingsCheckbox->setChecked(!m_controller->ShowAdapterSettingsNextTime());
+
 	if (!highlightGroup.empty())
 	{
 		auto adapterSettings = qobject_cast<SettingsView*>(widget);
@@ -84,6 +88,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 		connect(acceptButton, &QPushButton::clicked, [&]() { apply(); });
 		acceptButton->setDefault(true);
 
+		buttonLayout->addWidget(m_useSameSettingsCheckbox);
 		buttonLayout->addStretch(1);
 		buttonLayout->addWidget(cancelButton);
 		buttonLayout->addSpacing(10);
@@ -91,6 +96,22 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 
 		layout->addSpacing(10);
 		layout->addLayout(buttonLayout);
+	}
+	else
+	{
+		// The generic settings dialog (opened from the menu) has no Accept/Cancel button and applies
+		// settings live, so update the preference immediately whenever the checkbox is toggled. This is
+		// the entry point for re-enabling the dialog after it has been suppressed for an operation.
+		connect(m_useSameSettingsCheckbox, &QCheckBox::toggled, this,
+			[this](bool checked) { m_controller->SetShowAdapterSettingsNextTime(!checked); });
+
+		QHBoxLayout* checkboxLayout = new QHBoxLayout;
+		checkboxLayout->setContentsMargins(0, 0, 0, 0);
+		checkboxLayout->addWidget(m_useSameSettingsCheckbox);
+		checkboxLayout->addStretch(1);
+
+		layout->addSpacing(10);
+		layout->addLayout(checkboxLayout);
 	}
 
 	setLayout(layout);
@@ -139,5 +160,7 @@ QWidget* AdapterSettingsDialog::getWidgetForAdapter(const QString& adapter)
 
 void AdapterSettingsDialog::apply()
 {
+	if (m_useSameSettingsCheckbox)
+		m_controller->SetShowAdapterSettingsNextTime(!m_useSameSettingsCheckbox->isChecked());
 	accept();
 }

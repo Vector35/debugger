@@ -42,6 +42,7 @@ private:
 	QStackedWidget* m_stack;
 	QMap<QString, QWidget*> m_viewMap;
 	QLabel* m_noSettingsLabel;
+	QCheckBox* m_useSameSettingsCheckbox = nullptr;
 
 	QWidget* getWidgetForAdapter(const QString& adapter);
 
