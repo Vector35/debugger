@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package x2win;
+
+message Envelope {
+    uint64 request_id = 1;
+    oneof body {
+        // request BN core -> stub
+        LaunchRequest launch_request = 100;
+        AttachRequest attach_request = 101;
+        GetTargetArchRequest get_target_arch_request = 102;
+        DetachRequest detach_request = 103;
+        QuitRequest quit_request = 104;
+        GetProcessListRequest get_process_list_request = 105;
+    
+        // response stub -> BN core
+        LaunchResponse launch_response = 300;
+        AttachResponse attach_response = 301;
+        GetTargetArchResponse get_target_arch_response = 302;
+        DetachResponse detach_response = 303;
+        QuitResponse quit_response = 304;
+        GetProcessListResponse get_process_list_response = 305;
+
+        // event stub -> BN core
+        // no response required
+        TargetStoppedEvent target_stopped_event = 500;
+    }
+}
+
+message LaunchRequest{string path = 1; string args = 2; string working_dir = 3;}
+message LaunchResponse {bool success = 1;}
+
+message AttachRequest {uint32 pid = 1;}
+message AttachResponse {bool success = 1;}
+
+message GetTargetArchRequest {}
+message GetTargetArchResponse {string architecture = 1;}
+
+message DetachRequest {}
+message DetachResponse { bool success = 1;}
+
+message QuitRequest {}
+message QuitResponse { bool success = 1;}
+
+message GetProcessListRequest {}
+message GetProcessListResponse { repeated ProcessInfo processes = 1;}
+message ProcessInfo {uint32 pid = 1; string name = 2;}
+
+enum StopReason{
+    STOP_REASON_UNKNOWN = 0;
+    STOP_REASON_BREAKPOINT = 1;
+    STOP_REASON_SINGLE_STEP = 2;
+}
+
+message TargetStoppedEvent {StopReason reason = 1;}
