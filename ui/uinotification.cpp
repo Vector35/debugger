@@ -246,6 +246,26 @@ bool NotificationListener::OnTokenDoubleClicked(UIContext* context, ViewFrame* f
 		// AddressDisplayToken is intentionally left out: those keep navigating in the current view.
 		// NOTE: opening address-valued literals in a new pane is arguably a better default
 		// and should probably become the standard behavior even outside of a debug session.
+
+		// If the target lands inside the function the user is already looking at, they most
+		// likely want to jump to it in place rather than open a second pane. Fall through to
+		// the default double-click behavior (in-pane navigation) in that case.
+		auto func = location.getFunction();
+		if (!func)
+		{
+			auto funcs = data->GetAnalysisFunctionsContainingAddress(location.getOffset());
+			if (!funcs.empty())
+				func = funcs[0];
+		}
+		if (func)
+		{
+			for (const auto& range : func->GetAddressRanges())
+			{
+				if ((token.addr >= range.start) && (token.addr < range.end))
+					return false;
+			}
+		}
+
 		target = token.addr;
 		haveTarget = true;
 	}
