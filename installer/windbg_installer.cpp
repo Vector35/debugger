@@ -15,6 +15,7 @@
 #include <windows.h>
 #include <shlobj.h>
 #include <objbase.h>
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -28,8 +29,23 @@ namespace WinDbgInstaller {
 
 namespace {
 
-/* URL for WinDbg appinstaller file */
+/* URL for WinDbg appinstaller file (resolves to the latest release manifest) */
 const char* kWinDbgDownloadUrl = "https://aka.ms/windbg/download";
+
+/* Pinned WinDbg version.
+ *
+ * We deliberately install a known-good, pinned version instead of always pulling the
+ * absolute latest, because a freshly released WinDbg occasionally ships regressions that
+ * break the debugger's DbgEng/TTD adapter (see issues #1129 and #1130). When Microsoft
+ * releases a new version we can validate it and bump this constant.
+ *
+ * If the pinned version cannot be downloaded for any reason (e.g. Microsoft removed it
+ * from the CDN), Install() automatically falls back to downloading the latest version via
+ * the appinstaller manifest, so installation still succeeds. */
+const char* kPinnedVersion = "1.2603.20001.0";
+
+/* Base host that serves the versioned MSIX bundles. */
+const char* kMsixBundleHost = "https://windbg.download.prss.microsoft.com/dbazure/prod";
 
 /* Files required for valid installation */
 const std::vector<std::string> kRequiredFiles = {
@@ -140,6 +156,137 @@ void CleanupTempFiles(const std::vector<std::string>& files, LogCallback logCall
     }
 }
 
+/* Build the direct MSIX bundle download URL for a specific WinDbg version.
+ * Microsoft hosts each release at a predictable path where the dotted version string is
+ * rewritten with dashes, e.g. "1.2603.20001.0" ->
+ * "https://windbg.download.prss.microsoft.com/dbazure/prod/1-2603-20001-0/windbg.msixbundle". */
+std::string BuildMsixBundleUrl(const std::string& version) {
+    std::string pathVersion = version;
+    std::replace(pathVersion.begin(), pathVersion.end(), '.', '-');
+    return std::string(kMsixBundleHost) + "/" + pathVersion + "/windbg.msixbundle";
+}
+
+/* Read the version string from an appinstaller manifest (empty on failure). */
+std::string ParseAppInstallerVersion(const std::string& appInstallerPath) {
+    pugi::xml_document doc;
+    if (!doc.load_file(appInstallerPath.c_str())) {
+        return "";
+    }
+    pugi::xml_node appInstaller = doc.child("AppInstaller");
+    if (!appInstaller) {
+        return "";
+    }
+    pugi::xml_attribute versionAttr = appInstaller.attribute("Version");
+    return versionAttr ? std::string(versionAttr.value()) : "";
+}
+
+/* Download, verify, extract and install a WinDbg MSIX bundle from the given URL.
+ *
+ * This is the shared core used by both the pinned-version path and the latest-version
+ * fallback. On success it writes the version marker file using `version`. Any temporary
+ * artifacts created here are appended to `tempFiles` so the caller can clean them up. */
+InstallResult InstallFromMsixUrl(const std::string& msixUrl, const std::string& version,
+                                 const std::string& installTarget, const InstallConfig& config,
+                                 std::vector<std::string>& tempFiles) {
+    LogCallback logCallback = config.onLog;
+    ProgressCallback progressCallback = config.onProgress;
+
+    /* Download MSIX bundle (this is the main download that shows progress) */
+    ReportProgress(progressCallback, "Downloading WinDbg/TTD package from:", 0);
+    ReportProgress(progressCallback, msixUrl, 0);
+
+    /* Note: the extension must be a recognized MSIX/APPX extension (not .zip) so that
+     * WinVerifyTrust engages the AppX signature provider during signature verification. */
+    std::string msixPath = GetTempFilePath(".msixbundle");
+    tempFiles.push_back(msixPath);
+
+    auto msixDownloadProgressCb = [&](const DownloadProgress& dp) {
+        /* Report download percentage (0-100%) directly - this is the only step that needs progress display */
+        int percent = 0;
+        if (dp.totalBytes > 0) {
+            percent = (int)(100 * dp.bytesDownloaded / dp.totalBytes);
+        }
+        ReportProgress(progressCallback, "Downloading...", percent,
+                      dp.bytesDownloaded, dp.totalBytes, dp.bytesPerSecond);
+    };
+
+    if (!DownloadFileWithProgress(msixUrl, msixPath, msixDownloadProgressCb, logCallback)) {
+        return InstallResult(false, "Failed to download MSIX bundle");
+    }
+
+    /* Verify the downloaded bundle is genuinely signed by Microsoft.
+     * This must happen before we extract or trust any of its contents so that a
+     * tampered or substituted package (supply-chain attack) is rejected. */
+    ReportProgress(progressCallback, "Verifying package signature...", 0);
+
+    SignatureResult sigResult = VerifyMicrosoftSignature(msixPath, logCallback);
+    if (!sigResult.valid) {
+        return InstallResult(false, sigResult.errorMessage.empty()
+            ? "MSIX bundle signature verification failed"
+            : sigResult.errorMessage);
+    }
+
+    /* Extract inner MSIX file from bundle */
+    ReportProgress(progressCallback, "Extracting package contents...", 0);
+
+    std::string tempExtractDir = GetTempFilePath("_extract");
+    tempFiles.push_back(tempExtractDir);
+
+    std::string innerMsixPath = ExtractFileFromZipArchive(msixPath, kInnerMsixName, tempExtractDir, logCallback);
+    if (innerMsixPath.empty()) {
+        return InstallResult(false, "Failed to extract inner MSIX file");
+    }
+
+    /* Extract WinDbg contents to installation directory */
+    ReportProgress(progressCallback, "Installing WinDbg/TTD files...", 0);
+
+    if (!ExtractZipArchive(innerMsixPath, installTarget, nullptr, logCallback)) {
+        return InstallResult(false, "Failed to extract WinDbg contents");
+    }
+
+    /* Verify installation */
+    ReportProgress(progressCallback, "Verifying installation...", 0);
+
+    if (!CheckInstallation(installTarget)) {
+        return InstallResult(false, "Installation verification failed - required files missing");
+    }
+
+    Log(logCallback, LOG_INFO, "WinDbg/TTD installed to: " + installTarget);
+
+    /* Write version marker file so we can report the installed version later */
+    if (!version.empty()) {
+        std::string versionFilePath = installTarget + "\\installed_version.txt";
+        std::ofstream versionFile(versionFilePath);
+        if (versionFile.is_open()) {
+            versionFile << version;
+            versionFile.close();
+            Log(logCallback, LOG_INFO, "Wrote version marker: " + version);
+        } else {
+            Log(logCallback, LOG_WARN, "Could not write version marker file");
+        }
+    }
+
+    return InstallResult(true);
+}
+
+/* Common post-install steps shared by both install paths. */
+void FinishInstall(const std::string& installTarget, const InstallConfig& config,
+                   std::vector<std::string>& tempFiles) {
+    LogCallback logCallback = config.onLog;
+    ProgressCallback progressCallback = config.onProgress;
+
+    /* Print settings info (actual settings configuration is done by UI) */
+    if (config.updateSettings) {
+        std::string x64dbgEngPath = installTarget + "\\amd64";
+        PrintSettingsInfo(x64dbgEngPath, logCallback);
+    }
+
+    CleanupTempFiles(tempFiles, logCallback);
+
+    ReportProgress(progressCallback, "Installation completed successfully!", 0);
+    Log(logCallback, LOG_INFO, "Please restart Binary Ninja to use WinDbg/TTD.");
+}
+
 } // anonymous namespace
 
 std::string GetDefaultInstallPath() {
@@ -186,7 +333,31 @@ InstallResult Install(const InstallConfig& config) {
         }
         Log(logCallback, LOG_INFO, "Installation target: " + installTarget);
 
-        /* Step 1: Download appinstaller file (small, no progress needed) */
+        /* Attempt 1: install the pinned, known-good version directly by its versioned URL.
+         * We prefer a pinned version because the very latest WinDbg release occasionally
+         * ships regressions that break the debugger (issues #1129 and #1130). */
+        {
+            std::string pinnedUrl = BuildMsixBundleUrl(kPinnedVersion);
+            Log(logCallback, LOG_INFO, "Installing pinned WinDbg version " + std::string(kPinnedVersion));
+
+            InstallResult pinnedResult =
+                InstallFromMsixUrl(pinnedUrl, kPinnedVersion, installTarget, config, tempFiles);
+            if (pinnedResult.success) {
+                FinishInstall(installTarget, config, tempFiles);
+                return pinnedResult;
+            }
+
+            /* Pinned install failed (e.g. Microsoft removed this version from the CDN).
+             * Fall back to the latest version below so installation can still succeed. */
+            Log(logCallback, LOG_WARN, "Failed to install pinned WinDbg version "
+                + std::string(kPinnedVersion) + " (" + pinnedResult.errorMessage
+                + "); falling back to the latest version");
+            CleanupTempFiles(tempFiles, logCallback);
+            tempFiles.clear();
+        }
+
+        /* Attempt 2 (fallback): install the latest version the "old way" - download the
+         * appinstaller manifest, parse it for the current MSIX bundle URL and version. */
         ReportProgress(progressCallback, "Downloading WinDbg package information from:", 0);
         ReportProgress(progressCallback, std::string(kWinDbgDownloadUrl), 0);
 
@@ -200,7 +371,6 @@ InstallResult Install(const InstallConfig& config) {
             return InstallResult(false, error);
         }
 
-        /* Step 2: Parse XML to get MSIX bundle URL */
         ReportProgress(progressCallback, "Parsing package information...", 0);
 
         std::string msixUrl = ParseAppInstallerXml(appInstallerPath, logCallback);
@@ -211,124 +381,18 @@ InstallResult Install(const InstallConfig& config) {
             return InstallResult(false, error);
         }
 
-        /* Step 3: Download MSIX bundle (this is the main download that shows progress) */
-        ReportProgress(progressCallback, "Downloading WinDbg/TTD package from:", 0);
-        ReportProgress(progressCallback, msixUrl, 0);
+        std::string latestVersion = ParseAppInstallerVersion(appInstallerPath);
 
-        /* Note: the extension must be a recognized MSIX/APPX extension (not .zip) so that
-         * WinVerifyTrust engages the AppX signature provider during Step 3.5 verification. */
-        std::string msixPath = GetTempFilePath(".msixbundle");
-        tempFiles.push_back(msixPath);
-
-        auto msixDownloadProgressCb = [&](const DownloadProgress& dp) {
-            /* Report download percentage (0-100%) directly - this is the only step that needs progress display */
-            int percent = 0;
-            if (dp.totalBytes > 0) {
-                percent = (int)(100 * dp.bytesDownloaded / dp.totalBytes);
-            }
-            ReportProgress(progressCallback, "Downloading...", percent,
-                          dp.bytesDownloaded, dp.totalBytes, dp.bytesPerSecond);
-        };
-
-        if (!DownloadFileWithProgress(msixUrl, msixPath, msixDownloadProgressCb, logCallback)) {
-            std::string error = "Failed to download MSIX bundle";
-            Log(logCallback, LOG_ERROR, error);
+        InstallResult latestResult =
+            InstallFromMsixUrl(msixUrl, latestVersion, installTarget, config, tempFiles);
+        if (!latestResult.success) {
+            Log(logCallback, LOG_ERROR, latestResult.errorMessage);
             CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
+            return latestResult;
         }
 
-        /* Step 3.5: Verify the downloaded bundle is genuinely signed by Microsoft.
-         * This must happen before we extract or trust any of its contents so that a
-         * tampered or substituted package (supply-chain attack) is rejected. */
-        ReportProgress(progressCallback, "Verifying package signature...", 0);
-
-        SignatureResult sigResult = VerifyMicrosoftSignature(msixPath, logCallback);
-        if (!sigResult.valid) {
-            std::string error = sigResult.errorMessage.empty()
-                ? "MSIX bundle signature verification failed"
-                : sigResult.errorMessage;
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
-        }
-
-        /* Step 4: Extract inner MSIX file from bundle */
-        ReportProgress(progressCallback, "Extracting package contents...", 0);
-
-        std::string tempExtractDir = GetTempFilePath("_extract");
-        tempFiles.push_back(tempExtractDir);
-
-        std::string innerMsixPath = ExtractFileFromZipArchive(msixPath, kInnerMsixName, tempExtractDir, logCallback);
-        if (innerMsixPath.empty()) {
-            std::string error = "Failed to extract inner MSIX file";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
-        }
-
-        /* Step 5: Extract WinDbg contents to installation directory */
-        ReportProgress(progressCallback, "Installing WinDbg/TTD files...", 0);
-
-        if (!ExtractZipArchive(innerMsixPath, installTarget, nullptr, logCallback)) {
-            std::string error = "Failed to extract WinDbg contents";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
-        }
-
-        /* Step 6: Verify installation */
-        ReportProgress(progressCallback, "Verifying installation...", 0);
-
-        if (!CheckInstallation(installTarget)) {
-            std::string error = "Installation verification failed - required files missing";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
-        }
-
-        Log(logCallback, LOG_INFO, "WinDbg/TTD installed to: " + installTarget);
-
-        /* Step 6b: Write version marker file */
-        /* Re-parse appinstaller to get version (file is still on disk) */
-        std::string installedVersion;
-        {
-            pugi::xml_document doc;
-            if (doc.load_file(appInstallerPath.c_str())) {
-                pugi::xml_node appInstaller = doc.child("AppInstaller");
-                if (appInstaller) {
-                    pugi::xml_attribute versionAttr = appInstaller.attribute("Version");
-                    if (versionAttr) {
-                        installedVersion = versionAttr.value();
-                    }
-                }
-            }
-        }
-
-        if (!installedVersion.empty()) {
-            std::string versionFilePath = installTarget + "\\installed_version.txt";
-            std::ofstream versionFile(versionFilePath);
-            if (versionFile.is_open()) {
-                versionFile << installedVersion;
-                versionFile.close();
-                Log(logCallback, LOG_INFO, "Wrote version marker: " + installedVersion);
-            } else {
-                Log(logCallback, LOG_WARN, "Could not write version marker file");
-            }
-        }
-
-        /* Step 7: Print settings info (actual settings configuration is done by UI) */
-        if (config.updateSettings) {
-            std::string x64dbgEngPath = installTarget + "\\amd64";
-            PrintSettingsInfo(x64dbgEngPath, logCallback);
-        }
-
-        /* Cleanup */
-        CleanupTempFiles(tempFiles, logCallback);
-
-        ReportProgress(progressCallback, "Installation completed successfully!", 0);
-        Log(logCallback, LOG_INFO, "Please restart Binary Ninja to use WinDbg/TTD.");
-
-        return InstallResult(true);
+        FinishInstall(installTarget, config, tempFiles);
+        return latestResult;
     }
     catch (const std::exception& e) {
         std::string error = "Exception during installation: " + std::string(e.what());
@@ -397,48 +461,17 @@ VersionInfo GetInstalledVersion(const std::string& installPath) {
 }
 
 VersionInfo GetLatestVersion(LogCallback logCallback) {
+    /* Report the pinned version as the "latest" version we offer, rather than whatever
+     * Microsoft is currently shipping. Install() installs the pinned version, so this keeps
+     * version checks consistent: users are only prompted to update when their installed
+     * version is older than the pinned one, not every time Microsoft publishes a new build
+     * that we have not yet validated (see issues #1129 and #1130). */
+    (void)logCallback;
+
     VersionInfo info;
-
-    /* Download appinstaller file to temp location */
-    std::string tempPath = GetTempFilePath(".appinstaller");
-
-    if (!DownloadFileWithProgress(kWinDbgDownloadUrl, tempPath, nullptr, logCallback)) {
-        Log(logCallback, LOG_ERROR, "Failed to download appinstaller for version check");
-        return info;
-    }
-
-    /* Parse XML to get version */
-    pugi::xml_document doc;
-    pugi::xml_parse_result result = doc.load_file(tempPath.c_str());
-
-    if (!result) {
-        Log(logCallback, LOG_ERROR, "Failed to parse appinstaller XML: " + std::string(result.description()));
-        fs::remove(tempPath);
-        return info;
-    }
-
-    /* Get version from AppInstaller element */
-    pugi::xml_node appInstaller = doc.child("AppInstaller");
-    if (appInstaller) {
-        pugi::xml_attribute versionAttr = appInstaller.attribute("Version");
-        if (versionAttr) {
-            info.version = versionAttr.value();
-            info.displayName = "WinDbg " + info.version;
-        }
-
-        /* Get download URL from MainBundle */
-        pugi::xml_node mainBundle = appInstaller.child("MainBundle");
-        if (mainBundle) {
-            pugi::xml_attribute uriAttr = mainBundle.attribute("Uri");
-            if (uriAttr) {
-                info.downloadUrl = uriAttr.value();
-            }
-        }
-    }
-
-    /* Cleanup */
-    fs::remove(tempPath);
-
+    info.version = kPinnedVersion;
+    info.displayName = "WinDbg " + info.version;
+    info.downloadUrl = BuildMsixBundleUrl(kPinnedVersion);
     return info;
 }
 
