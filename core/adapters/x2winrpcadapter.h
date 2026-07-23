@@ -17,6 +17,7 @@ limitations under the License.
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
 #include "./socket.h"
+#include <x2win.pb.h>
 #include <thread>
 #include <mutex>
 #include <future>
@@ -24,14 +25,6 @@ limitations under the License.
 #include <unordered_map>
 
 namespace BinaryNinjaDebugger {
-
-	// Placeholder for a parsed RESPONSE payload. Replace with the generated protobuf
-	// Response type once protocol/x2win.proto is wired into the build.
-	struct Frame
-	{
-		std::vector<uint8_t> data;
-	};
-
 
 	class X2WinRpcAdapter : public DebugAdapter
 	{
@@ -43,7 +36,7 @@ namespace BinaryNinjaDebugger {
 		// request_id -> promise, fulfilled by ReaderLoop() when the matching RESPONSE arrives.
 		// EVENT frames (id == 0) never go through this table; they go straight to PostDebuggerEvent().
 		std::mutex m_pendingMutex;
-		std::unordered_map<uint64_t, std::promise<Frame>> m_pendingRequests;
+		std::unordered_map<uint64_t, std::promise<x2win::Envelope>> m_pendingRequests;
 		std::atomic<uint64_t> m_nextRequestId {1};
 
 		Ref<Settings> GetAdapterSettings() override;
@@ -56,7 +49,6 @@ namespace BinaryNinjaDebugger {
 		bool ConnectSocket(const std::string& ip, uint16_t port);
 		bool ConnectFromSettings();
 		void TeardownConnection();
-		bool GetReplyStatus(const Frame& reply);
 
 	public:
 		X2WinRpcAdapter(BinaryView* data);
@@ -127,7 +119,7 @@ namespace BinaryNinjaDebugger {
 
 		// --- Helper function ---
 		bool RecvExact(void* buffer, size_t size);
-		Frame CallSync(uint16_t methodId, const std::vector<uint8_t>& payload);
+		x2win::Envelope CallSync(x2win::Envelope request);
 
 	};
 

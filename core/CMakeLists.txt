@@ -214,6 +214,32 @@ else()
 			)
 endif()
 
+if(DEFINED ENV{PROTOBUF_PATH})
+	set(PROTOBUF_PATH $ENV{PROTOBUF_PATH})
+endif()
+
+if(NOT PROTOBUF_PATH)
+	if(WIN32)
+		set(PROTOBUF_PATH $ENV{HOMEDRIVE}$ENV{HOMEPATH}/local/protobuf-static)
+	else()
+		set(PROTOBUF_PATH $ENV{HOME}/local/protobuf-static)
+	endif()
+endif()
+message(STATUS "protobuf: using install at ${PROTOBUF_PATH}")
+
+list(APPEND CMAKE_PREFIX_PATH ${PROTOBUF_PATH})
+find_package(protobuf CONFIG REQUIRED)
+
+protobuf_generate(
+    TARGET debuggercore
+    LANGUAGE cpp
+    PROTOS ${CMAKE_SOURCE_DIR}/protocol/x2win.proto
+    IMPORT_DIRS ${CMAKE_SOURCE_DIR}/protocol
+)
+target_include_directories(debuggercore PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(debuggercore protobuf::libprotobuf)
+
+
 if (WIN32)
 	add_custom_command(TARGET debuggercore PRE_LINK
 		COMMAND ${CMAKE_COMMAND} -E echo "Copying DbgEng DLLs"

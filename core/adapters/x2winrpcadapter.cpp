@@ -2,48 +2,6 @@
 
 using namespace BinaryNinjaDebugger;
 
-namespace {
-    // Category of a wire frame: is this a call, a reply to a call, or an unsolicited notification.
-    enum class FrameType: uint8_t {Request = 0, Response = 1, Event = 2};
-
-    // Which RPC operation a Request/Response frame is about. Must match the stub's numbering exactly.
-    enum class MethodId:uint16_t {
-        Launch = 1,
-        Attach = 2,
-        GetTargetArch = 3,
-        Detach = 4,
-        Quit = 5,
-        GetProcessList = 6,
-    };
-
-    enum class EventId: uint16_t{
-        TargetStopped = 1,
-    };
-
-    void AppendString(std::vector<uint8_t>& buf, const std::string& s){
-        uint32_t len = (uint32_t)s.size();
-        buf.push_back(len & 0xff);
-        buf.push_back((len >> 8) & 0xff);
-        buf.push_back((len >> 16) & 0xff);
-        buf.push_back((len >> 24) & 0xff);
-        buf.insert(buf.end(), s.begin(), s.end());
-    }
-
-    uint32_t ParseU32(const std::vector<uint8_t>& buf, size_t& offset){
-        uint32_t v = (uint32_t)buf[offset] | ((uint32_t)buf[offset+1] << 8 )
-                    | ((uint32_t)buf[offset+2] << 16) | ((uint32_t)buf[offset+3] << 24);
-        offset += 4;
-        return v;
-    }
-
-    std::string ParseString(const std::vector<uint8_t>& buf, size_t& offset){
-        uint32_t len = ParseU32(buf, offset);
-        std::string s(buf.begin() + offset, buf.begin() + offset + len);
-        offset += len;
-        return s;
-    }
-}
-
 // Just forwards to the DebugAdapter base constructor; socket/thread state is set up later in
 // Attach()/Connect(), not here.
 X2WinRpcAdapter::X2WinRpcAdapter(BinaryView* data): DebugAdapter(data){
@@ -95,14 +53,10 @@ bool X2WinRpcAdapter::Attach(std::uint32_t pid){
     if(!ConnectFromSettings())
         return false;
 
-    // pid packed little-endian, 4 bytes.
-    std::vector<uint8_t> payload = {
-        (uint8_t)(pid & 0xff), (uint8_t)((pid >> 8) & 0xff),
-        (uint8_t)((pid >> 16) & 0xff), (uint8_t)((pid >> 24) & 0xff)
-    };
-
-    Frame reply = CallSync((uint16_t)MethodId::Attach, payload);
-    return GetReplyStatus(reply);
+    x2win::Envelope request;
+    request.mutable_attach_request()->set_pid(pid);
+    x2win::Envelope response = CallSync(std::move(request));
+    return response.attach_response().success();
 }
 
 bool X2WinRpcAdapter::Connect(const std::string& server, std::uint32_t port){
@@ -118,13 +72,13 @@ bool X2WinRpcAdapter::ExecuteWithArgs(const std::string& path, const std::string
     if(!ConnectFromSettings())
         return false;
 
-    std::vector<uint8_t> payload;
-    AppendString(payload, path);
-    AppendString(payload, args);
-    AppendString(payload, workingDir);
-
-    Frame reply = CallSync((uint16_t)MethodId::Launch, payload);
-    return GetReplyStatus(reply);
+    x2win::Envelope request;
+    auto* launch = request.mutable_launch_request();
+    launch->set_path(path);
+    launch->set_args(args);
+    launch->set_working_dir(workingDir);
+    x2win::Envelope response = CallSync(request);
+    return response.launch_response().success();
 }
 
 // TCP is a byte stream, not a message stream: a single Recv() call may return fewer bytes than
@@ -146,46 +100,29 @@ bool X2WinRpcAdapter::RecvExact(void* buffer, size_t size){
 // matching Response (matched by requestId) and fulfills the promise registered below.
 // Multiple concurrent callers each get their own request_id/promise, so a slow response to one
 // call never blocks another call's response from being delivered.
-Frame X2WinRpcAdapter::CallSync(uint16_t methodId, const std::vector<uint8_t>& payload){
+x2win::Envelope X2WinRpcAdapter::CallSync(x2win::Envelope request){
     uint64_t requestId = m_nextRequestId++;
-    std::promise<Frame> promise;
-    std::future<Frame> future = promise.get_future();
+    request.set_request_id(requestId);
+
+    std::promise<x2win::Envelope> promise;
+    std::future<x2win::Envelope> future = promise.get_future();
+
     {
-        // Scoped narrowly: only the map insert needs the lock, not the send that follows.
         std::lock_guard<std::mutex> lock(m_pendingMutex);
         m_pendingRequests[requestId] = std::move(promise);
     }
 
+    std::string body = request.SerializeAsString();
+
     std::vector<uint8_t> frame;
-    uint32_t bodyLen = 1 + 8 + 2 + (uint32_t)payload.size();
-
-    // Little-endian byte packers for the frame header fields.
-    auto appendU32 = [&](uint32_t v){
-        for(int i = 0; i< 4; i++){
-            frame.push_back((v >> (i*8)) & 0xff);
-        }
-    };
-    auto appendU64 = [&](uint64_t v){
-        for(int i = 0; i< 8; i++){
-            frame.push_back((v >> (i*8)) & 0xff);
-        }
-    };
-    auto appendU16 = [&](uint16_t v){
-        for(int i = 0; i< 2; i++){
-            frame.push_back((v>> (i*8)) & 0xff);
-        }
-    };
-
-    // Wire layout: [4B bodyLen][1B FrameType][8B requestId][2B methodId][payload...]
-    appendU32(bodyLen);
-    frame.push_back((uint8_t)FrameType::Request);
-    appendU64(requestId);
-    appendU16(methodId);
-    frame.insert(frame.end(), payload.begin(), payload.end());
+    uint32_t bodyLen = (uint32_t)body.size();
+    for(int i = 0; i < 4; i++){
+        frame.push_back((bodyLen >> (i*8)) & 0xff);
+    }
+    frame.insert(frame.end(), body.begin(), body.end());
 
     m_socket.Send((char*)frame.data(), (int32_t)frame.size());
 
-    // Blocks here until ReaderLoop() (a different thread) calls promise.set_value(...).
     return future.get();
 }
 
@@ -193,42 +130,36 @@ Frame X2WinRpcAdapter::CallSync(uint16_t methodId, const std::vector<uint8_t>& p
 // call -- it just pulls frames forever and dispatches them, so unsolicited Event frames can
 // arrive at any time, even while some other call is waiting inside CallSync() above.
 void X2WinRpcAdapter::ReaderLoop(){
-    while(true){
+    while (true) {
         uint8_t lenBuf[4];
         if(!RecvExact(lenBuf, 4)) break;
-        uint32_t bodyLen = (uint32_t)lenBuf[0] | ((uint32_t)lenBuf[1] << 8) | ((uint32_t)lenBuf[2] << 16) | ((uint32_t)lenBuf[3] <<24);
+        uint32_t bodyLen = (uint32_t)lenBuf[0] | ((uint32_t)lenBuf[1] << 8) | ((uint32_t)lenBuf[2] << 16) | ((uint32_t)lenBuf[3] << 24);
 
         std::vector<uint8_t> body(bodyLen);
         if(!RecvExact(body.data(), bodyLen)) break;
-        FrameType type = (FrameType)body[0];
-        uint64_t requestId = 0;
-        for(int i = 0; i < 8; i++){
-            requestId |= ((uint64_t)body[i+1]) << (i*8);
+
+        x2win::Envelope envelope;
+        if(!envelope.ParseFromArray(body.data(), (int)body.size())) continue;
+
+        if(envelope.body_case() == x2win::Envelope::kTargetStoppedEvent){
+            const auto& evt = envelope.target_stopped_event();
+            BNDebugStopReason reason = (evt.reason() == x2win::STOP_REASON_BREAKPOINT) ? DebugStopReason::Breakpoint
+                                        : (evt.reason() == x2win::STOP_REASON_SINGLE_STEP) ? DebugStopReason::SingleStep
+                                        : DebugStopReason::UnknownReason;
+            
+            DebuggerEvent event;
+            event.type = AdapterStoppedEventType;
+            event.data.targetStoppedData.reason = reason;
+            PostDebuggerEvent(event);
+            continue;
         }
-        uint16_t methodOrEvent = body[9] | body[10] << 8;
 
-        Frame f;
-        f.data.assign(body.begin() + 11, body.end());
-
-        if(type == FrameType::Response){
-            // Look up the promise this response belongs to and hand it the payload; this is
-            // what unblocks the corresponding future.get() call in CallSync().
-            std::lock_guard<std::mutex> lock(m_pendingMutex);
-            auto it = m_pendingRequests.find(requestId);
-            if(it != m_pendingRequests.end()){
-                it->second.set_value(f);
-                m_pendingRequests.erase(it);
-            }
-        }else if (type == FrameType::Event) {
-            if((EventId)methodOrEvent == EventId::TargetStopped){
-                uint8_t reasonCode = f.data.empty() ? 0 : f.data[0];
-                DebuggerEvent event;
-                event.type = AdapterStoppedEventType;
-                event.data.targetStoppedData.reason = (reasonCode == 1) ? DebugStopReason::Breakpoint
-                                                    : (reasonCode == 2) ? DebugStopReason::SingleStep
-                                                    : DebugStopReason::UnknownReason;
-                PostDebuggerEvent(event);
-            }
+        // Otherwise this is a reply to something CallSync() is blocked waiting on.
+        std::lock_guard<std::mutex> lock(m_pendingMutex);
+        auto it = m_pendingRequests.find(envelope.request_id());
+        if(it != m_pendingRequests.end()){
+            it->second.set_value(std::move(envelope));
+            m_pendingRequests.erase(it);
         }
     }
 }
@@ -236,13 +167,17 @@ void X2WinRpcAdapter::ReaderLoop(){
 // Simplest example of the repeating "send request, decode response" shape most methods follow:
 // the reply payload is just the architecture string's raw bytes.
 std::string X2WinRpcAdapter::GetTargetArchitecture(){
-    Frame reply = CallSync((uint16_t)MethodId::GetTargetArch, {});
-    return std::string(reply.data.begin(), reply.data.end());
+    x2win::Envelope request;
+    request.mutable_get_target_arch_request();
+    x2win::Envelope response = CallSync(std::move(request));
+    return response.get_target_arch_response().architecture();
 }
 
 // --- Lifecycle ---
 bool X2WinRpcAdapter::Detach(){
-    Frame reply = CallSync((uint16_t)MethodId::Detach, {});
+    x2win::Envelope request;
+    request.mutable_detach_request();
+    x2win::Envelope response = CallSync(std::move(request));
 
     TeardownConnection();
 
@@ -250,11 +185,13 @@ bool X2WinRpcAdapter::Detach(){
     event.type = DetachedEventType;
     PostDebuggerEvent(event);
 
-    return GetReplyStatus(reply);
+    return response.detach_response().success();
 }
 
 bool X2WinRpcAdapter::Quit(){
-    Frame reply = CallSync((uint16_t)MethodId::Quit, {});
+    x2win::Envelope request;
+    request.mutable_quit_request();
+    x2win::Envelope response = CallSync(std::move(request));
     
     TeardownConnection();
 
@@ -262,8 +199,8 @@ bool X2WinRpcAdapter::Quit(){
     event.type = TargetExitedEventType;
     event.data.exitData.exitCode = 0;
     PostDebuggerEvent(event);
-
-    return GetReplyStatus(reply);
+    
+    return response.quit_response().success();
 }
 
 std::vector<DebugProcess> X2WinRpcAdapter::GetProcessList(){
@@ -271,17 +208,13 @@ std::vector<DebugProcess> X2WinRpcAdapter::GetProcessList(){
         return {};
     }
 
-    Frame reply = CallSync((uint16_t)MethodId::GetProcessList, {});
+    x2win::Envelope request;
+    request.mutable_get_process_list_request();
+    x2win::Envelope response = CallSync(std::move(request));
     
     std::vector<DebugProcess> result;
-    if(reply.data.size() < 4) return result;
-
-    size_t offset = 0;
-    uint32_t count = ParseU32(reply.data, offset);
-    for(uint32_t i = 0; i < count; i++){
-        uint32_t pid = ParseU32(reply.data, offset);
-        std::string name = ParseString(reply.data, offset);
-        result.emplace_back(pid, name);
+    for(const auto& p : response.get_process_list_response().processes()){
+        result.emplace_back(p.pid(), p.name());
     }
 
     return result;
@@ -404,8 +337,4 @@ void X2WinRpcAdapter::TeardownConnection(){
         m_readerThread.join();
     }
     m_connected = false;
-}
-
-bool X2WinRpcAdapter::GetReplyStatus(const Frame& reply){
-    return !reply.data.empty() && reply.data[0] == 1;
 }
