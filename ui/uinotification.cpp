@@ -269,6 +269,15 @@ bool NotificationListener::OnTokenDoubleClicked(UIContext* context, ViewFrame* f
 		target = token.addr;
 		haveTarget = true;
 	}
+	else if (token.type == DataSymbolToken || token.type == StringToken)
+	{
+		// A data symbol (e.g. data_100003fa9) or an inline string. The default behavior
+		// navigates to it in the same view; while debugging we instead open it in another
+		// pane so the disassembly the user is looking at stays put. The referenced address is
+		// carried in the token's value (the address field is not populated for these tokens).
+		target = token.addrValid ? token.addr : token.token.value;
+		haveTarget = true;
+	}
 	else if (token.type == RegisterToken)
 	{
 		// A raw register token: navigate to the address currently held in the register.
