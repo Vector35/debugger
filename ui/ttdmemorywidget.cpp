@@ -347,7 +347,7 @@ void TTDMemoryQueryWidget::setupUIActions()
 		}
 
 		TTDBookmarkEditDialog dialog(this,
-			posStr, "", viewAddress != 0 ? QString("0x%1").arg(viewAddress, 0, 16) : "");
+			posStr, "", viewAddress != 0 ? QString("0x%1").arg(viewAddress, 0, 16) : "", m_controller);
 		if (dialog.exec() == QDialog::Accepted)
 		{
 			QString editedPosStr = dialog.getPosition();

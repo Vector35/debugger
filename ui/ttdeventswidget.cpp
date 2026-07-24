@@ -372,7 +372,7 @@ void TTDEventsQueryWidget::setupUIActions()
 			return;
 		QString posStr = posItem->text();
 
-		TTDBookmarkEditDialog dialog(this, posStr, "", "");
+		TTDBookmarkEditDialog dialog(this, posStr, "", "", m_controller);
 		if (dialog.exec() == QDialog::Accepted)
 		{
 			QString editedPosStr = dialog.getPosition();

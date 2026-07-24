@@ -1491,7 +1491,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 				QString viewAddrStr = viewAddress != 0 ? QString("0x%1").arg(viewAddress, 0, 16) : "";
 
 				QWidget* parent = ctxt.context->mainWindow();
-				TTDBookmarkEditDialog dialog(parent, posStr, "", viewAddrStr);
+				TTDBookmarkEditDialog dialog(parent, posStr, "", viewAddrStr, controller);
 				if (dialog.exec() == QDialog::Accepted)
 				{
 					QString editedPosStr = dialog.getPosition();
