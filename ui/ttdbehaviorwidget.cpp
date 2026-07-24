@@ -723,10 +723,34 @@ void TTDBehaviorWidget::onDoubleClicked(const QModelIndex& index)
 	if (!sequenceOk || !stepOk)
 		return;
 
-	if (m_controller->SetTTDPosition(TTDPosition(sequence, step)))
-		m_statusLabel->setText(QString("Navigated to %1").arg(call->position));
-	else
-		m_statusLabel->setText(QString("Failed to navigate to %1").arg(call->position));
+	if (!m_controller->SetTTDPosition(TTDPosition(sequence, step)))
+	{
+		m_statusLabel->setText(QString("Failed to travel to %1").arg(call->position));
+		return;
+	}
+
+	// SetTTDPosition drives the backend's !tt directly and posts no stop event, so
+	// nothing else moves the view. Read the instruction pointer back from the adapter --
+	// it is queried live, so it reflects the position we just landed on -- and navigate
+	// there ourselves.
+	uint64_t ip = m_controller->IP();
+	BinaryViewRef liveView = m_controller->GetData();
+	ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
+	if (frame && liveView)
+	{
+		// The position of a call is the callee's entry, which for a system DLL is
+		// usually somewhere analysis has not defined a function yet.
+		if (liveView->GetAnalysisFunctionsContainingAddress(ip).empty()
+			&& !m_controller->FunctionExistsInOldView(ip))
+		{
+			auto id = liveView->BeginUndoActions();
+			liveView->CreateUserFunction(liveView->GetDefaultPlatform(), ip);
+			liveView->ForgetUndoActions(id);
+		}
+		frame->navigate(liveView, ip, true, true);
+	}
+
+	m_statusLabel->setText(QString("Traveled to %1, IP 0x%2").arg(call->position).arg(ip, 0, 16));
 }
 
 
@@ -756,7 +780,7 @@ void TTDBehaviorWidget::onContextMenu(const QPoint& pos)
 	QAction* copyAction = menu.addAction("Copy");
 	QAction* navigateAction = nullptr;
 	if (m_controller && m_controller->IsTTD())
-		navigateAction = menu.addAction("Navigate to Position");
+		navigateAction = menu.addAction("Time Travel Here");
 
 	QAction* chosen = menu.exec(m_table->viewport()->mapToGlobal(pos));
 	if (!chosen)
