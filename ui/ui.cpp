@@ -50,6 +50,7 @@ limitations under the License.
 #include "ttdcallswidget.h"
 #include "ttdeventswidget.h"
 #include "ttdbookmarkwidget.h"
+#include "ttdbehaviorwidget.h"
 #include "ttdanalysisdialog.h"
 #include "timestampnavigationdialog.h"
 #include "freeversion.h"
@@ -2089,6 +2090,17 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 
 void GlobalDebuggerUI::InitializeUI()
 {
+	// The TTD Behavior sidebar shells out to an extractor that is built and deployed
+	// separately from the debugger, so its location has to be configurable.
+	Settings::Instance()->RegisterSetting("debugger.ttdBehaviorExtractorPath",
+		R"({
+			"title" : "TTD Behavior Extractor Path",
+			"type" : "string",
+			"default" : "",
+			"description" : "Path of the executable that extracts Windows API calls from a TTD trace, used by the TTD Behavior sidebar.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
+
 	Sidebar::addSidebarWidgetType(new DebuggerWidgetType(QImage(":/debugger/debugger"), "Debugger"));
 	Sidebar::addSidebarWidgetType(new DebugModulesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new DebugMemoryMapSidebarWidgetType());
@@ -2098,6 +2110,7 @@ void GlobalDebuggerUI::InitializeUI()
 	Sidebar::addSidebarWidgetType(new TTDCallsWidgetType());
 	Sidebar::addSidebarWidgetType(new TTDEventsWidgetType());
 	Sidebar::addSidebarWidgetType(new TTDBookmarkWidgetType());
+	Sidebar::addSidebarWidgetType(new TTDBehaviorWidgetType());
 }
 
 
