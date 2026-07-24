@@ -230,6 +230,7 @@ private:
 private Q_SLOTS:
 	void findNext();
 	void findPrev();
+	void saveAccessTypes();
 };
 
 

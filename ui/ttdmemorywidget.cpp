@@ -29,6 +29,7 @@ limitations under the License.
 #include <QToolButton>
 #include <QPropertyAnimation>
 #include <QFrame>
+#include <QSettings>
 #include <map>
 
 // ColumnVisibilityDialog implementation
@@ -1131,6 +1132,12 @@ void TTDMemorySidebarWidget::setParametersAndQueryInNewTab(uint64_t startAddr, u
 
 
 // TTDMemoryAccessNextPrevDialog implementation
+
+// The access types the user last checked, remembered so the dialog reopens with the same selection.
+// An unset/zero value means the user has not picked anything yet, in which case the selection is
+// guessed from the address.
+constexpr auto TTDMemoryAccessTypesKey = "ui/debugger/ttd/memoryAccessTypes";
+
 TTDMemoryAccessNextPrevDialog::TTDMemoryAccessNextPrevDialog(QWidget* parent, BinaryViewRef data, uint64_t startAddr, uint64_t endAddr)
 	: QDialog(parent), m_data(data)
 {
@@ -1157,16 +1164,31 @@ TTDMemoryAccessNextPrevDialog::TTDMemoryAccessNextPrevDialog(QWidget* parent, Bi
 	addressLayout->addWidget(m_endAddressEdit);
 	inputLayout->addRow("Address Range:", addressLayout);
 
-	// Access type checkboxes — default to X if address is in a function, otherwise RW
-	bool hasFunction = m_data && !m_data->GetAnalysisFunctionsContainingAddress(startAddr).empty();
+	// Access type checkboxes — restore the last selection the user made; if there is none,
+	// default to X if the address is in a function, otherwise RW
+	auto savedAccessType = QSettings().value(TTDMemoryAccessTypesKey, 0).toUInt();
+	auto defaultAccessType = static_cast<TTDMemoryAccessType>(
+		savedAccessType & (TTDMemoryRead | TTDMemoryWrite | TTDMemoryExecute));
+	if (defaultAccessType == 0)
+	{
+		bool hasFunction = m_data && !m_data->GetAnalysisFunctionsContainingAddress(startAddr).empty();
+		defaultAccessType = hasFunction ? TTDMemoryExecute
+			: static_cast<TTDMemoryAccessType>(TTDMemoryRead | TTDMemoryWrite);
+	}
 
 	QHBoxLayout* accessLayout = new QHBoxLayout();
 	m_readAccessCheck = new QCheckBox("Read");
-	m_readAccessCheck->setChecked(!hasFunction);
+	m_readAccessCheck->setChecked(defaultAccessType & TTDMemoryRead);
 	m_writeAccessCheck = new QCheckBox("Write");
-	m_writeAccessCheck->setChecked(!hasFunction);
+	m_writeAccessCheck->setChecked(defaultAccessType & TTDMemoryWrite);
 	m_executeAccessCheck = new QCheckBox("Execute");
-	m_executeAccessCheck->setChecked(hasFunction);
+	m_executeAccessCheck->setChecked(defaultAccessType & TTDMemoryExecute);
+
+	// Remember the selection as soon as it changes, so it survives closing the dialog
+	connect(m_readAccessCheck, &QCheckBox::toggled, this, &TTDMemoryAccessNextPrevDialog::saveAccessTypes);
+	connect(m_writeAccessCheck, &QCheckBox::toggled, this, &TTDMemoryAccessNextPrevDialog::saveAccessTypes);
+	connect(m_executeAccessCheck, &QCheckBox::toggled, this, &TTDMemoryAccessNextPrevDialog::saveAccessTypes);
+
 	accessLayout->addWidget(m_readAccessCheck);
 	accessLayout->addWidget(m_writeAccessCheck);
 	accessLayout->addWidget(m_executeAccessCheck);
@@ -1216,6 +1238,15 @@ TTDMemoryAccessType TTDMemoryAccessNextPrevDialog::getSelectedAccessTypes()
 	if (m_executeAccessCheck->isChecked())
 		accessType = static_cast<TTDMemoryAccessType>(accessType | TTDMemoryExecute);
 	return accessType;
+}
+
+void TTDMemoryAccessNextPrevDialog::saveAccessTypes()
+{
+	// Do not remember an empty selection, it would cause the next dialog to fall back to the
+	// address-based default rather than to what the user actually picked
+	TTDMemoryAccessType accessType = getSelectedAccessTypes();
+	if (accessType != 0)
+		QSettings().setValue(TTDMemoryAccessTypesKey, static_cast<uint32_t>(accessType));
 }
 
 void TTDMemoryAccessNextPrevDialog::findNext()
