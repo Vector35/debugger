@@ -167,6 +167,23 @@ https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/time-travel-
 
 Binary Ninja's TTD integration includes powerful analysis widgets that leverage WinDbg's TTD.Calls and TTD.Memory queries to help you understand program behavior during the recorded trace.
 
+### TTD Navigation Widget
+
+Stepping to the next or previous access of a register or a piece of memory is by far the most common TTD operation, so it is available directly underneath the control buttons in the debugger sidebar. The widget only appears during a TTD session and is hidden otherwise.
+
+- The `Target` field is what the navigation walks through. Unless pinned, it tracks the code view:
+    - Put the cursor on a register token (e.g. `rax`) and the target becomes that register, which takes priority over the address the cursor is on
+    - Select a range of bytes and the target becomes that address range
+    - Otherwise the target is the address the cursor is on
+- You can also type a target in yourself. Address ranges are written as `start..end` (`start - end` works too), and a single address covers one byte. Both ends accept the same expressions as the rest of Binary Ninja, so symbol names work.
+- `R`, `W` and `X` choose which kinds of memory access to stop on. They do not apply to a register target, since TTD reports register value changes without an access type, and are disabled in that case.
+- The arrow buttons time-travel to the closest matching access in that direction, and a status line appears underneath reporting where the trace landed.
+- The button carrying the TTD Memory sidebar's icon lists *every* access to the target instead of stepping to one, by handing the query to the [TTD Memory widget](#ttd-memory-widget) and opening it. This is the same as the `TTD Memory Access` context menu items, and is likewise memory-only.
+
+`Pin` freezes the target where it is. Time travelling moves the code view, so an unpinned target becomes whatever the trace landed on; pinning is what lets repeated navigation keep walking the same register or address range. Typing your own target pins it for you, since otherwise the next click in the code view would overwrite what you typed.
+
+This is the same functionality as the `TTD Memory Access (Next/Prev)` and `Go to Next/Previous Register Write` context menu items described below, so use whichever is more convenient.
+
 ### TTD Calls Widget
 
 The TTD Calls widget allows you to query and analyze function call events from your TTD trace. This is equivalent to WinDbg's `dx @$cursession.TTD.Calls()` functionality but integrated directly into Binary Ninja.
