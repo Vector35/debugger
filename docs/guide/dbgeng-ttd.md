@@ -16,6 +16,13 @@ If it does not work, for example if your machine cannot connect to the Internet,
 
 The WinDbg installation only needs to be done once.
 
+> **⚠️ A WinDbg you installed yourself is not used**
+>
+> Binary Ninja cannot use a WinDbg installed from the Microsoft Store or through the standalone installer, because
+> those are packaged in a form the debugger cannot load from. You must either let Binary Ninja download its own
+> copy (the first method below), or extract the package yourself and point `debugger.x64dbgEngPath` at it (the
+> second method). Without one of those, TTD will not work.
+
 ### Install WinDbg Automatically
 
 - Open Binary Ninja

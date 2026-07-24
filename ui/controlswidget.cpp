@@ -31,6 +31,9 @@ limitations under the License.
 #include <filesystem>
 #include <fstream>
 #include <QFileDialog>
+#ifdef WIN32
+	#include "ttdinstall.h"
+#endif
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
@@ -273,6 +276,14 @@ void DebugControlsWidget::performLaunch()
 		if (adapterSettings->exec() != QDialog::Accepted)
 			return;
 	}
+
+#ifdef WIN32
+	// Replaying a trace needs the DbgEng DLLs that come with the WinDbg/TTD package. Say so now, instead of
+	// failing with an opaque "Failed to initialize DbgEng" once the launch is under way.
+	if ((m_controller->GetAdapterType() == "DBGENG_TTD")
+		&& !TTDInstall::EnsureComponentAvailable(this, TTDInstall::ReplayEngine))
+		return;
+#endif
 
 	// TODO: we should have the adapter returns this property
 	bool isLocalLaunch = true;

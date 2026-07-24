@@ -57,8 +57,8 @@ limitations under the License.
 
 #ifdef WIN32
 	#include "ttdrecord.h"
+	#include "ttdinstall.h"
 	#include "scriptingconsole.h"
-	#include "windbgupdatedialog.h"
 #endif
 
 
@@ -569,6 +569,14 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
                 	if (adapterSettings->exec() != QDialog::Accepted)
                 		return;
                 }
+
+#ifdef WIN32
+				// Replaying a trace needs the DbgEng DLLs that come with the WinDbg/TTD package. Say so now,
+				// instead of failing with an opaque "Failed to initialize DbgEng" once the launch is under way.
+				if ((controller->GetAdapterType() == "DBGENG_TTD")
+					&& !TTDInstall::EnsureComponentAvailable(context->mainWindow(), TTDInstall::ReplayEngine))
+					return;
+#endif
 
 				// TODO: we should have the adapter returns this property
 				bool isLocalLaunch = true;
@@ -1290,6 +1298,11 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	context->globalActions()->bindAction("Record TTD Trace",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
+				// Tell the user up front if the TTD recorder was never downloaded, rather than after they have
+				// filled in the whole dialog
+				if (!TTDInstall::EnsureComponentAvailable(context->mainWindow(), TTDInstall::Recorder))
+					return;
+
 				auto* dialog = new TTDRecordDialog(context->mainWindow(), ctxt.binaryView);
 				dialog->show();
 			}));
@@ -1299,6 +1312,9 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	context->globalActions()->bindAction("Attach and Record TTD Trace",
 		UIAction(
 			[=](const UIActionContext& ctxt) {
+				if (!TTDInstall::EnsureComponentAvailable(context->mainWindow(), TTDInstall::Recorder))
+					return;
+
 				auto* dialog = new TTDAttachDialog(context->mainWindow(), ctxt.binaryView);
 				dialog->show();
 			}));
@@ -1307,7 +1323,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	UIAction::registerAction("Install WinDbg/TTD");
 	context->globalActions()->bindAction("Install WinDbg/TTD",
 		UIAction(
-			[=](const UIActionContext& ctxt) { installTTD(ctxt); }));
+			[=](const UIActionContext& ctxt) { TTDInstall::RunInstaller(context->mainWindow()); }));
 	debuggerMenu->addAction("Install WinDbg/TTD", "TTD");
 #endif
 
@@ -1598,115 +1614,6 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 			}));
 	debuggerMenu->addAction("TTD Navigate Forward", "TTD");
 }
-
-
-#ifdef WIN32
-void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
-{
-	// Determine install path
-	std::string userDir = BinaryNinja::GetUserDirectory();
-	std::filesystem::path installTarget = std::filesystem::path(userDir) / "windbg";
-	std::string installPath = installTarget.string();
-	LogDebug("installTarget: %s", installPath.c_str());
-
-	// Check if WinDbg is already installed
-	if (std::filesystem::exists(installTarget) && IsWinDbgInstalled(installPath))
-	{
-		// Get installed version
-		std::string installedVersion = GetWinDbgInstalledVersion(installPath);
-		if (installedVersion.empty()) {
-			installedVersion = "(unknown)";
-		}
-
-		// Show update dialog
-		WinDbgUpdateDialog dialog(ctxt.context->mainWindow(), installPath, installedVersion);
-		dialog.exec();
-		return;
-	}
-
-	// Not installed - proceed with fresh installation
-	QWidget* mainWindow = ctxt.context->mainWindow();
-
-	// Show confirmation dialog first
-	QMessageBox::StandardButton reply = QMessageBox::question(
-		mainWindow,
-		"Install WinDbg/TTD",
-		"The WinDbg/TTD installer will be launched in a separate window.\n\n"
-		"You can continue using Binary Ninja while the installation proceeds.\n"
-		"You will be notified when the installation completes.\n\n"
-		"Do you want to continue?",
-		QMessageBox::Yes | QMessageBox::No,
-		QMessageBox::Yes
-	);
-
-	if (reply != QMessageBox::Yes) {
-		return;
-	}
-
-	// Create and start background installation task
-	class InstallWorker : public QThread {
-	public:
-		InstallWorker(const std::string& path, QObject* parent = nullptr)
-			: QThread(parent), m_installPath(path) {}
-
-		void run() override {
-			m_result = InstallWinDbg(m_installPath);
-		}
-
-		const InstallResult& result() const { return m_result; }
-		const std::string& installPath() const { return m_installPath; }
-
-	private:
-		std::string m_installPath;
-		InstallResult m_result;
-	};
-
-	InstallWorker* worker = new InstallWorker(installPath, mainWindow);
-
-	// When installation completes, show result dialog and configure settings
-	QObject::connect(worker, &QThread::finished, mainWindow, [worker, installPath, mainWindow]() {
-		const InstallResult& result = worker->result();
-		worker->deleteLater();
-
-		if (result.success && IsWinDbgInstalled(installPath)) {
-			// Configure debugger settings
-			std::string dbgEngPath = installPath + "\\amd64";
-			BinaryNinja::Settings::Instance()->Set("debugger.x64dbgEngPath", dbgEngPath);
-			LogInfo("Configured debugger.x64dbgEngPath: %s", dbgEngPath.c_str());
-
-			// Offer to restart Binary Ninja
-			QMessageBox msgBox(mainWindow);
-			msgBox.setWindowTitle("Installation Successful");
-			msgBox.setText("WinDbg/TTD has been installed successfully!");
-			msgBox.setInformativeText("The debugger settings have been configured automatically.\n\n"
-				"Would you like to restart Binary Ninja now?");
-			msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-			msgBox.setDefaultButton(QMessageBox::No);
-			msgBox.button(QMessageBox::Yes)->setText("Restart Now");
-			msgBox.button(QMessageBox::No)->setText("Restart Later");
-
-			if (msgBox.exec() == QMessageBox::Yes) {
-				// Restart Binary Ninja by spawning a new instance before quitting
-				QStringList args = QCoreApplication::arguments();
-				QString program = args.takeFirst();
-				QProcess::startDetached(program, args);
-				QApplication::quit();
-			}
-		} else {
-			// Show error message with specific failure reason
-			QString errorMsg = "WinDbg/TTD installation failed.";
-			if (!result.errorMessage.empty()) {
-				errorMsg += "\n\nError: " + QString::fromStdString(result.errorMessage);
-			} else {
-				errorMsg += "\n\nPlease check the installer console window for error details.";
-			}
-			QMessageBox::critical(mainWindow, "Installation Failed", errorMsg);
-		}
-	});
-
-	worker->start();
-}
-#endif
 
 
 DebuggerUI::DebuggerUI(UIContext* context, DebuggerControllerRef controller) :

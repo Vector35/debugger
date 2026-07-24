@@ -33,10 +33,16 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
 
     if (!Start()) {
         this->Reset();
+        std::string error = "Failed to initialize DbgEng";
+        // By far the most common reason for this is that the WinDbg/TTD package was never downloaded, so say
+        // what to do about it rather than leaving the user with an opaque failure
+        if (GetModuleHandleA("dbgeng.dll") == nullptr)
+            error += ": the DbgEng DLLs are not loaded. " + DbgEngAdapter::GetDbgEngInstallHint();
+
         DebuggerEvent event;
         event.type = LaunchFailureEventType;
-        event.data.errorData.error = fmt::format("Failed to initialize DbgEng");
-        event.data.errorData.shortError = fmt::format("Failed to initialize DbgEng");
+        event.data.errorData.error = error;
+        event.data.errorData.shortError = "Failed to initialize DbgEng";
         PostDebuggerEvent(event);
         return false;
     }

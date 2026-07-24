@@ -40,7 +40,7 @@ The installer performs these steps:
 
 ## UI Integration
 
-The installer is called from `ui/ui.cpp` in the `GlobalDebuggerUI::installTTD()` function, which:
+The installer is called from `ui/ttdinstall.cpp` in the `TTDInstall::RunInstaller()` function, which:
 - Shows a progress dialog
 - Runs the installer asynchronously using QTimer
 - Displays success/failure messages
