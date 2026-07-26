@@ -169,21 +169,32 @@ private:
 	DbgRef<DebuggerController> m_controller;
 	QTabWidget* m_tabWidget;
 	QToolButton* m_newTabButton;
-	
+	QLineEdit* m_tabRenameEditor = nullptr;
+	int m_tabRenameIndex = -1;
+	QString m_tabRenameOriginalText;
+	QString m_tabRenameWidestText;
+
 	void setupUI();
+	void finishTabRename(bool commit);
+	void updateTabRenameGeometry();
+	void onTabRenameTextChanged(const QString& text);
 
 public:
 	TTDMemoryWidget(QWidget* parent, BinaryViewRef data);
 	virtual ~TTDMemoryWidget();
-	
+
 	// Method to get current query widget or create new tab
 	TTDMemoryQueryWidget* getCurrentOrNewQueryWidget();
 	void setParametersAndQuery(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
 	void setParametersAndQueryInNewTab(uint64_t startAddr, uint64_t endAddr, TTDMemoryAccessType accessType);
 
+protected:
+	bool eventFilter(QObject* watched, QEvent* event) override;
+
 private Q_SLOTS:
 	void createNewTab();
 	void closeTab(int index);
+	void renameTab(int index);
 };
 
 

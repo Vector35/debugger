@@ -29,6 +29,10 @@ limitations under the License.
 #include <QToolButton>
 #include <QPropertyAnimation>
 #include <QFrame>
+#include <QTabBar>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QStyleOptionTab>
 #include <map>
 
 // ColumnVisibilityDialog implementation
@@ -982,6 +986,8 @@ TTDMemoryWidget::TTDMemoryWidget(QWidget* parent, BinaryViewRef data)
 
 TTDMemoryWidget::~TTDMemoryWidget()
 {
+	// If a rename is in flight, drop the app-wide filter now rather than leave it pointing at a dead object
+	finishTabRename(false);
 }
 
 void TTDMemoryWidget::setupUI()
@@ -997,6 +1003,7 @@ void TTDMemoryWidget::setupUI()
 	m_tabWidget = new QTabWidget(this);
 	m_tabWidget->setTabsClosable(true);
 	connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &TTDMemoryWidget::closeTab);
+	connect(m_tabWidget, &QTabWidget::tabBarDoubleClicked, this, &TTDMemoryWidget::renameTab);
 	
 	// Create "+" button as corner widget
 	m_newTabButton = new QToolButton(m_tabWidget);
@@ -1042,12 +1049,147 @@ void TTDMemoryWidget::createNewTab()
 
 void TTDMemoryWidget::closeTab(int index)
 {
+	// Closing any tab can shift the indices of every tab after it, so just end the rename outright
+	finishTabRename(false);
+
 	if (m_tabWidget->count() > 1)
 	{
 		QWidget* widget = m_tabWidget->widget(index);
 		m_tabWidget->removeTab(index);
 		widget->deleteLater();
 	}
+}
+
+void TTDMemoryWidget::renameTab(int index)
+{
+	if (index < 0)
+		// double-click landed on the empty strip, not a tab
+		return;
+
+	// Cancel any in-progress rename before starting another one
+	finishTabRename(false);
+
+	QTabBar* tabBar = m_tabWidget->tabBar();
+
+	m_tabRenameOriginalText = tabBar->tabText(index);
+	m_tabRenameWidestText = m_tabRenameOriginalText;
+	m_tabRenameIndex = index;
+
+	QLineEdit* editor = new QLineEdit(m_tabRenameOriginalText, tabBar);
+	editor->setFrame(false);
+	editor->setContentsMargins(0, 0, 0, 0);
+	editor->setTextMargins(0, 0, 0, 0);
+
+	m_tabRenameEditor = editor;
+	updateTabRenameGeometry();
+
+	editor->show();
+	editor->setFocus();
+	editor->selectAll();
+
+	connect(editor, &QLineEdit::textChanged, this, &TTDMemoryWidget::onTabRenameTextChanged);
+	connect(editor, &QLineEdit::editingFinished, this, [this]() { finishTabRename(true); });
+
+	// App-wide filter: catches Escape/focus-out on the editor and clicks anywhere else
+	QApplication::instance()->installEventFilter(this);
+}
+
+void TTDMemoryWidget::onTabRenameTextChanged(const QString& text)
+{
+	if (m_tabRenameIndex < 0)
+		return;
+
+	QTabBar* tabBar = m_tabWidget->tabBar();
+
+	// Never shrink past the widest point reached this session; a big single-step collapse
+	// (e.g. selecting a long typed name and deleting it) is what caused a render glitch
+	QFontMetrics metrics(tabBar->font());
+	if (metrics.horizontalAdvance(text) > metrics.horizontalAdvance(m_tabRenameWidestText))
+		m_tabRenameWidestText = text;
+
+	bool shrinking = metrics.horizontalAdvance(text) < metrics.horizontalAdvance(m_tabRenameWidestText);
+	tabBar->setTabText(m_tabRenameIndex, shrinking ? m_tabRenameWidestText : text);
+	updateTabRenameGeometry();
+}
+
+void TTDMemoryWidget::updateTabRenameGeometry()
+{
+	if (!m_tabRenameEditor)
+		return;
+
+	QTabBar* tabBar = m_tabWidget->tabBar();
+	int index = m_tabRenameIndex;
+
+	// Text-only sub-rect; passing the close button's size keeps it from overlapping the button
+	QStyleOptionTab option;
+	option.initFrom(tabBar);
+	option.rect = tabBar->tabRect(index);
+	option.text = tabBar->tabText(index);
+	if (index == tabBar->currentIndex())
+		option.state |= QStyle::State_Selected;
+
+	if (QWidget* rightButton = tabBar->tabButton(index, QTabBar::RightSide))
+		option.rightButtonSize = rightButton->size();
+	if (QWidget* leftButton = tabBar->tabButton(index, QTabBar::LeftSide))
+		option.leftButtonSize = leftButton->size();
+
+	QRect textRect = tabBar->style()->subElementRect(QStyle::SE_TabBarTabText, &option, tabBar);
+
+	const int padding = 6;
+	textRect.adjust(-padding / 2, 0, padding / 2, 0);
+	textRect = textRect.intersected(option.rect.adjusted(1, 1, -1, -1));
+
+	m_tabRenameEditor->setGeometry(textRect);
+}
+
+void TTDMemoryWidget::finishTabRename(bool commit)
+{
+	if (!m_tabRenameEditor)
+		return;
+
+	QLineEdit* editor = m_tabRenameEditor;
+	int index = m_tabRenameIndex;
+	QString originalText = m_tabRenameOriginalText;
+	m_tabRenameEditor = nullptr;
+	m_tabRenameIndex = -1;
+
+	QString finalText = commit ? editor->text().trimmed() : originalText;
+	if (finalText.isEmpty())
+		finalText = originalText;
+
+	m_tabWidget->setTabText(index, finalText);
+	editor->deleteLater();
+
+	QApplication::instance()->removeEventFilter(this);
+}
+
+bool TTDMemoryWidget::eventFilter(QObject* watched, QEvent* event)
+{
+	if (watched == m_tabRenameEditor)
+	{
+		if (event->type() == QEvent::KeyPress)
+		{
+			QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+			if (keyEvent->key() == Qt::Key_Escape)
+			{
+				finishTabRename(false);
+				return true;
+			}
+		}
+		else if (event->type() == QEvent::FocusOut)
+		{
+			finishTabRename(true);
+		}
+	}
+	else if (m_tabRenameEditor && event->type() == QEvent::MouseButtonPress)
+	{
+		QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+		QRect editorRect(m_tabRenameEditor->mapToGlobal(QPoint(0, 0)), m_tabRenameEditor->size());
+		if (!editorRect.contains(mouseEvent->globalPosition().toPoint()))
+			finishTabRename(true);
+	}
+
+	return QWidget::eventFilter(watched, event);
 }
 
 TTDMemoryQueryWidget* TTDMemoryWidget::getCurrentOrNewQueryWidget()

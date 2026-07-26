@@ -151,8 +151,15 @@ private:
 	DbgRef<DebuggerController> m_controller;
 	QTabWidget* m_tabWidget;
 	QToolButton* m_newTabButton;
+	QLineEdit* m_tabRenameEditor = nullptr;
+	int m_tabRenameIndex = -1;
+	QString m_tabRenameOriginalText;
+	QString m_tabRenameWidestText;
 
 	void setupUI();
+	void finishTabRename(bool commit);
+	void updateTabRenameGeometry();
+	void onTabRenameTextChanged(const QString& text);
 
 public:
 	TTDCallsWidget(QWidget* parent, BinaryViewRef data);
@@ -163,9 +170,13 @@ public:
 	void setParametersAndQuery(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
 	void setParametersAndQueryInNewTab(const std::string& symbols, uint64_t startAddr = 0, uint64_t endAddr = 0);
 
+protected:
+	bool eventFilter(QObject* watched, QEvent* event) override;
+
 private Q_SLOTS:
 	void createNewTab();
 	void closeTab(int index);
+	void renameTab(int index);
 };
 
 
