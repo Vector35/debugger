@@ -2105,10 +2105,10 @@ void GlobalDebuggerUI::InitializeUI()
 		R"({
 			"title" : "TTD Behavior Buffer Capture Limit",
 			"type" : "number",
-			"default" : 256,
+			"default" : 65536,
 			"minValue" : 0,
-			"maxValue" : 1048576,
-			"description" : "Bytes to keep from any one buffer parameter when extracting API calls from a TTD trace. Buffers longer than this are captured as a prefix and marked as truncated. Raising it recovers more of each buffer at the cost of a larger report.",
+			"maxValue" : 16777216,
+			"description" : "Bytes to keep from any one buffer parameter when extracting API calls from a TTD trace. Buffers longer than this are captured as a prefix and marked as truncated. Buffer parameters are a small fraction of the calls in a typical trace, so this has far less effect on report size than it appears.",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 

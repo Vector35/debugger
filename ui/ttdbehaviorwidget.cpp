@@ -53,6 +53,11 @@ static const char* kExtractorSetting = "debugger.ttdBehaviorExtractorPath";
 static const int kMaxStringDisplay = 96;
 static const int kMaxBytesDisplay = 32;
 
+// The extractor captures up to 64 KiB per buffer, which is 4096 lines of hex dump --
+// more than the detail pane can usefully show or lay out quickly. Clip the rendering,
+// not the data: the full bytes stay in the report.
+static const int kMaxHexDumpBytes = 4096;
+
 
 namespace {
 	// QJsonValue stores anything that does not fit in a qint64 as a double, so pointer-sized
@@ -772,7 +777,14 @@ void TTDBehaviorWidget::showDetail(const TTDApiCall* call)
 			{
 				text += QString("    buffer  %1 bytes\n").arg(param.bytes.size());
 			}
-			text += hexDump(param.bytes);
+
+			QByteArray shown = param.bytes.left(kMaxHexDumpBytes);
+			text += hexDump(shown);
+			if (shown.size() < param.bytes.size())
+			{
+				text += QString("    ... %1 more captured bytes not shown\n")
+							.arg(param.bytes.size() - shown.size());
+			}
 		}
 		text += "\n";
 	}
