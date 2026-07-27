@@ -173,6 +173,7 @@ private:
 	int m_tabRenameIndex = -1;
 	QString m_tabRenameOriginalText;
 	QString m_tabRenameWidestText;
+	QRect m_tabRenameBaseRect;
 
 	void setupUI();
 	void finishTabRename(bool commit);

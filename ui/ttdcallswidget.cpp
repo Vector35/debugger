@@ -773,6 +773,20 @@ void TTDCallsWidget::renameTab(int index)
 	m_tabRenameWidestText = m_tabRenameOriginalText;
 	m_tabRenameIndex = index;
 
+	// Anchor left/top/height once - re-deriving them live let the editor drift left as the tab bar reflowed
+	QStyleOptionTab option;
+	option.initFrom(tabBar);
+	option.rect = tabBar->tabRect(index);
+	option.text = m_tabRenameOriginalText;
+	if (index == tabBar->currentIndex())
+		option.state |= QStyle::State_Selected;
+	if (QWidget* rightButton = tabBar->tabButton(index, QTabBar::RightSide))
+		option.rightButtonSize = rightButton->size();
+	if (QWidget* leftButton = tabBar->tabButton(index, QTabBar::LeftSide))
+		option.leftButtonSize = leftButton->size();
+
+	m_tabRenameBaseRect = tabBar->style()->subElementRect(QStyle::SE_TabBarTabText, &option, tabBar);
+
 	QLineEdit* editor = new QLineEdit(m_tabRenameOriginalText, tabBar);
 	editor->setFrame(false);
 	editor->setContentsMargins(0, 0, 0, 0);
@@ -799,8 +813,7 @@ void TTDCallsWidget::onTabRenameTextChanged(const QString& text)
 
 	QTabBar* tabBar = m_tabWidget->tabBar();
 
-	// Never shrink past the widest point reached this session; a big single-step collapse
-	// (e.g. selecting a long typed name and deleting it) is what caused a render glitch
+	// Floor at the widest text reached; collapsing straight to empty caused a render glitch
 	QFontMetrics metrics(tabBar->font());
 	if (metrics.horizontalAdvance(text) > metrics.horizontalAdvance(m_tabRenameWidestText))
 		m_tabRenameWidestText = text;
@@ -815,29 +828,18 @@ void TTDCallsWidget::updateTabRenameGeometry()
 	if (!m_tabRenameEditor)
 		return;
 
-	QTabBar* tabBar = m_tabWidget->tabBar();
-	int index = m_tabRenameIndex;
+	// Floored to match the real tab's width, or clearing the text would shrink the editor while the tab stays wide
+	QFontMetrics metrics(m_tabRenameEditor->font());
+	int textWidth = qMax(metrics.horizontalAdvance(m_tabRenameEditor->text()), metrics.horizontalAdvance(m_tabRenameWidestText));
+	int width = qMax(m_tabRenameBaseRect.width(), textWidth + 12);
+	int right = m_tabRenameBaseRect.left() + width;
 
-	// Text-only sub-rect; passing the close button's size keeps it from overlapping the button
-	QStyleOptionTab option;
-	option.initFrom(tabBar);
-	option.rect = tabBar->tabRect(index);
-	option.text = tabBar->tabText(index);
-	if (index == tabBar->currentIndex())
-		option.state |= QStyle::State_Selected;
+	// Clamp short of the close button's live position so the editor can never grow over it
+	if (QWidget* closeButton = m_tabWidget->tabBar()->tabButton(m_tabRenameIndex, QTabBar::RightSide))
+		right = qMin(right, closeButton->geometry().left() - 2);
 
-	if (QWidget* rightButton = tabBar->tabButton(index, QTabBar::RightSide))
-		option.rightButtonSize = rightButton->size();
-	if (QWidget* leftButton = tabBar->tabButton(index, QTabBar::LeftSide))
-		option.leftButtonSize = leftButton->size();
-
-	QRect textRect = tabBar->style()->subElementRect(QStyle::SE_TabBarTabText, &option, tabBar);
-
-	const int padding = 6;
-	textRect.adjust(-padding / 2, 0, padding / 2, 0);
-	textRect = textRect.intersected(option.rect.adjusted(1, 1, -1, -1));
-
-	m_tabRenameEditor->setGeometry(textRect);
+	QRect rect(m_tabRenameBaseRect.left(), m_tabRenameBaseRect.top(), qMax(0, right - m_tabRenameBaseRect.left()), m_tabRenameBaseRect.height());
+	m_tabRenameEditor->setGeometry(rect);
 }
 
 void TTDCallsWidget::finishTabRename(bool commit)
