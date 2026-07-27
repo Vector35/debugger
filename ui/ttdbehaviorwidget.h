@@ -17,8 +17,8 @@ limitations under the License.
 #pragma once
 
 #include <QAbstractTableModel>
-#include <QSortFilterProxyModel>
 #include <QTableView>
+#include <QTimer>
 #include <QLineEdit>
 #include <QLabel>
 #include <QPushButton>
@@ -69,7 +69,12 @@ struct TTDApiCall
 	std::vector<TTDApiCallParam> params;
 	bool decoded = false;  // true when a real signature was available for this call
 	QString paramSummary;  // precomputed single-line rendering for the table
-	QString searchText;    // lowercased haystack used by the filter
+
+	// Lowercased "module!api params" that the filter scans. Deliberately a byte
+	// string rather than a QString: a trace can hold millions of calls, so this
+	// halves the per-call footprint versus UTF-16, and searching 8-bit data is
+	// several times faster than a case-insensitive QString comparison.
+	std::string searchText;
 };
 
 
@@ -82,6 +87,7 @@ struct TTDBehaviorReport
 	QString sampleName;
 	uint64_t pid = 0;
 	std::vector<TTDApiCall> calls;
+	size_t decodedCount = 0;  // counted once at load, not per status update
 
 	bool load(const QString& path, QString& error);
 	void clear();
@@ -108,6 +114,18 @@ public:
 	TTDBehaviorCallModel(QObject* parent);
 
 	void setReport(std::shared_ptr<TTDBehaviorReport> report);
+
+	// Substring filter over the precomputed per-call haystack, applied by rebuilding
+	// the visible-row list in one linear pass.
+	//
+	// This is deliberately not a QSortFilterProxyModel. That class maintains a full
+	// bidirectional source/proxy row mapping, and any call to its rowCount() forces
+	// the whole mapping to be materialised -- which on a multi-million-call trace
+	// costs far more than scanning the haystacks, and made every keystroke look like
+	// a freeze.
+	void setFilter(const QString& text);
+
+	// Row of the table -> the call it shows, or nullptr when out of range.
 	const TTDApiCall* callAt(int row) const;
 
 	int rowCount(const QModelIndex& parent = QModelIndex()) const override;
@@ -116,25 +134,12 @@ public:
 	QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
 
 private:
+	void rebuildVisible();
+
 	std::shared_ptr<TTDBehaviorReport> m_report;
-};
-
-
-// Plain substring filter over the precomputed per-call haystack. A trace can hold
-// ~100k calls, so filtering has to avoid re-rendering rows through the model.
-class TTDBehaviorFilterModel : public QSortFilterProxyModel
-{
-	Q_OBJECT
-
-public:
-	TTDBehaviorFilterModel(QObject* parent);
-	void setFilterText(const QString& text);
-
-protected:
-	bool filterAcceptsRow(int row, const QModelIndex& parent) const override;
-
-private:
-	QString m_filter;
+	std::string m_filter;             // lowercased, empty means show everything
+	std::vector<uint32_t> m_visible;  // indices into m_report->calls; empty when unfiltered
+	bool m_filtered = false;          // whether m_visible is in use
 };
 
 
@@ -154,11 +159,16 @@ private:
 	QTextEdit* m_detail;
 
 	TTDBehaviorCallModel* m_model;
-	TTDBehaviorFilterModel* m_filterModel;
 	std::shared_ptr<TTDBehaviorReport> m_report;
 	QProcess* m_extractProcess = nullptr;
 
+	// Filtering waits for a pause in typing rather than running on every keystroke:
+	// on a large trace each pass is real work, and eight of them while typing
+	// "kernel32" is eight times the work for seven results nobody looks at.
+	QTimer* m_filterTimer;
+
 	void setupUI();
+	void applyFilter();
 	void updateStatus();
 	void showDetail(const TTDApiCall* call);
 	QString extractorPath(bool prompt);
@@ -172,7 +182,7 @@ public:
 private Q_SLOTS:
 	void onLoadClicked();
 	void onExtractClicked();
-	void onFilterChanged(const QString& text);
+	void onFilterTextEdited();
 	void onSelectionChanged();
 	void onDoubleClicked(const QModelIndex& index);
 	void onContextMenu(const QPoint& pos);

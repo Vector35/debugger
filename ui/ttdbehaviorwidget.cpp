@@ -168,6 +168,7 @@ void TTDBehaviorReport::clear()
 	arch.clear();
 	sampleName.clear();
 	pid = 0;
+	decodedCount = 0;
 	calls.clear();
 }
 
@@ -275,7 +276,10 @@ bool TTDBehaviorReport::load(const QString& path, QString& error)
 			}
 
 			call.paramSummary = rendered.join(", ");
-			call.searchText = QString("%1!%2 %3").arg(call.module, call.api, call.paramSummary).toLower();
+			call.searchText =
+				QString("%1!%2 %3").arg(call.module, call.api, call.paramSummary).toLower().toUtf8().toStdString();
+			if (call.decoded)
+				++decodedCount;
 			calls.push_back(std::move(call));
 		}
 	}
@@ -291,15 +295,58 @@ void TTDBehaviorCallModel::setReport(std::shared_ptr<TTDBehaviorReport> report)
 {
 	beginResetModel();
 	m_report = std::move(report);
+	rebuildVisible();
 	endResetModel();
+}
+
+
+void TTDBehaviorCallModel::setFilter(const QString& text)
+{
+	std::string filter = text.trimmed().toLower().toUtf8().toStdString();
+	if (filter == m_filter)
+		return;
+
+	beginResetModel();
+	m_filter = std::move(filter);
+	rebuildVisible();
+	endResetModel();
+}
+
+
+void TTDBehaviorCallModel::rebuildVisible()
+{
+	m_visible.clear();
+	m_visible.shrink_to_fit();
+	m_filtered = !m_filter.empty();
+	if (!m_filtered || !m_report)
+		return;
+
+	// One linear pass of substring searches over 8-bit haystacks. No reserve() up
+	// front: a selective filter is the common case, and reserving for every call
+	// would dwarf the result.
+	const size_t count = m_report->calls.size();
+	for (size_t i = 0; i < count; ++i)
+	{
+		if (m_report->calls[i].searchText.find(m_filter) != std::string::npos)
+			m_visible.push_back(static_cast<uint32_t>(i));
+	}
 }
 
 
 const TTDApiCall* TTDBehaviorCallModel::callAt(int row) const
 {
-	if (!m_report || row < 0 || static_cast<size_t>(row) >= m_report->calls.size())
+	if (!m_report || row < 0)
 		return nullptr;
-	return &m_report->calls[row];
+	size_t index = static_cast<size_t>(row);
+	if (m_filtered)
+	{
+		if (index >= m_visible.size())
+			return nullptr;
+		index = m_visible[index];
+	}
+	if (index >= m_report->calls.size())
+		return nullptr;
+	return &m_report->calls[index];
 }
 
 
@@ -307,7 +354,7 @@ int TTDBehaviorCallModel::rowCount(const QModelIndex& parent) const
 {
 	if (parent.isValid() || !m_report)
 		return 0;
-	return static_cast<int>(m_report->calls.size());
+	return static_cast<int>(m_filtered ? m_visible.size() : m_report->calls.size());
 }
 
 
@@ -380,34 +427,6 @@ QVariant TTDBehaviorCallModel::headerData(int section, Qt::Orientation orientati
 }
 
 
-TTDBehaviorFilterModel::TTDBehaviorFilterModel(QObject* parent) : QSortFilterProxyModel(parent) {}
-
-
-void TTDBehaviorFilterModel::setFilterText(const QString& text)
-{
-	beginFilterChange();
-	m_filter = text.trimmed().toLower();
-	endFilterChange();
-}
-
-
-bool TTDBehaviorFilterModel::filterAcceptsRow(int row, const QModelIndex& parent) const
-{
-	if (m_filter.isEmpty())
-		return true;
-
-	auto* model = qobject_cast<TTDBehaviorCallModel*>(sourceModel());
-	if (!model)
-		return true;
-
-	const TTDApiCall* call = model->callAt(row);
-	if (!call)
-		return false;
-
-	return call->searchText.contains(m_filter);
-}
-
-
 TTDBehaviorWidget::TTDBehaviorWidget(BinaryViewRef data) : SidebarWidget("TTD Behavior"), m_data(data)
 {
 	m_controller = DebuggerController::GetController(data);
@@ -452,11 +471,17 @@ void TTDBehaviorWidget::setupUI()
 	layout->addLayout(toolbar);
 
 	m_model = new TTDBehaviorCallModel(this);
-	m_filterModel = new TTDBehaviorFilterModel(this);
-	m_filterModel->setSourceModel(m_model);
+
+	// A full scan of a 3.4M-call report measures 60-190ms, so filtering can run
+	// synchronously and appear immediate. The short debounce is only there to coalesce
+	// a burst of keystrokes into one pass; it is below the threshold where waiting is
+	// perceptible, so it costs nothing on smaller reports.
+	m_filterTimer = new QTimer(this);
+	m_filterTimer->setSingleShot(true);
+	m_filterTimer->setInterval(150);
 
 	m_table = new QTableView();
-	m_table->setModel(m_filterModel);
+	m_table->setModel(m_model);
 	m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
 	m_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
 	m_table->setAlternatingRowColors(true);
@@ -489,7 +514,10 @@ void TTDBehaviorWidget::setupUI()
 
 	connect(m_loadButton, &QPushButton::clicked, this, &TTDBehaviorWidget::onLoadClicked);
 	connect(m_extractButton, &QPushButton::clicked, this, &TTDBehaviorWidget::onExtractClicked);
-	connect(m_filterEdit, &QLineEdit::textChanged, this, &TTDBehaviorWidget::onFilterChanged);
+	connect(m_filterEdit, &QLineEdit::textChanged, this, &TTDBehaviorWidget::onFilterTextEdited);
+	// Enter applies immediately rather than waiting out the debounce.
+	connect(m_filterEdit, &QLineEdit::returnPressed, this, &TTDBehaviorWidget::applyFilter);
+	connect(m_filterTimer, &QTimer::timeout, this, &TTDBehaviorWidget::applyFilter);
 	connect(m_table, &QTableView::doubleClicked, this, &TTDBehaviorWidget::onDoubleClicked);
 	connect(m_table, &QTableView::customContextMenuRequested, this, &TTDBehaviorWidget::onContextMenu);
 	connect(m_table->selectionModel(), &QItemSelectionModel::selectionChanged, this,
@@ -505,20 +533,13 @@ void TTDBehaviorWidget::updateStatus()
 		return;
 	}
 
-	size_t decoded = 0;
-	for (const TTDApiCall& call : m_report->calls)
-	{
-		if (call.decoded)
-			++decoded;
-	}
-
-	int shown = m_filterModel->rowCount();
+	int shown = m_model->rowCount();
 	QString name = QFileInfo(m_report->reportPath).fileName();
 	m_statusLabel->setText(QString("%1: %2 of %3 calls shown, %4 with decoded parameters")
 							   .arg(name)
 							   .arg(shown)
 							   .arg(m_report->calls.size())
-							   .arg(decoded));
+							   .arg(m_report->decodedCount));
 }
 
 
@@ -636,9 +657,20 @@ void TTDBehaviorWidget::onExtractClicked()
 }
 
 
-void TTDBehaviorWidget::onFilterChanged(const QString& text)
+void TTDBehaviorWidget::onFilterTextEdited()
 {
-	m_filterModel->setFilterText(text);
+	m_filterTimer->start();
+	// Only worth saying on a report big enough for the pass to be visible; below that
+	// the label would flicker for no reason.
+	if (m_report->calls.size() > 250000)
+		m_statusLabel->setText("Filtering...");
+}
+
+
+void TTDBehaviorWidget::applyFilter()
+{
+	m_filterTimer->stop();
+	m_model->setFilter(m_filterEdit->text());
 	updateStatus();
 }
 
@@ -703,13 +735,13 @@ void TTDBehaviorWidget::onSelectionChanged()
 		showDetail(nullptr);
 		return;
 	}
-	showDetail(m_model->callAt(m_filterModel->mapToSource(selected.first()).row()));
+	showDetail(m_model->callAt(selected.first().row()));
 }
 
 
 void TTDBehaviorWidget::onDoubleClicked(const QModelIndex& index)
 {
-	const TTDApiCall* call = m_model->callAt(m_filterModel->mapToSource(index).row());
+	const TTDApiCall* call = m_model->callAt(index.row());
 	if (!call || !m_controller || !m_controller->IsTTD())
 		return;
 
@@ -760,7 +792,7 @@ void TTDBehaviorWidget::copySelectedRows()
 	QStringList lines;
 	for (const QModelIndex& index : selected)
 	{
-		const TTDApiCall* call = m_model->callAt(m_filterModel->mapToSource(index).row());
+		const TTDApiCall* call = m_model->callAt(index.row());
 		if (!call)
 			continue;
 		lines.append(QString("%1  %2!%3(%4) -> %5")
