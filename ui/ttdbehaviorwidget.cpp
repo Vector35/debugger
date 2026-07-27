@@ -169,6 +169,40 @@ namespace {
 }  // namespace
 
 
+// Mirrors ttd/src/binreport.hpp in the extractor. Any change there needs one here.
+namespace binfmt {
+	constexpr char kMagic[8] = { 'T', 'T', 'D', 'B', 'E', 'H', 'V', '1' };
+	constexpr uint32_t kVersion = 1;
+	constexpr int kHeaderSize = 128;
+	constexpr int kCallRecordSize = 40;
+	constexpr uint16_t kDecodedFlag = 0x8000;
+
+	enum ParamBits : uint8_t
+	{
+		Out = 0x01,
+		AtReturn = 0x02,
+		HasDeref = 0x04,
+		HasStr = 0x08,
+		HasBytes = 0x10,
+		HasFlags = 0x20,
+	};
+
+	// The extractor writes ArgKind as a raw byte; these are the names the detail pane
+	// shows, indexed by that value. Order matches win32meta.hpp's ArgKind.
+	const char* const kKindNames[] = { "", "int", "bool", "handle", "enum", "float", "double", "str",
+		"wstr", "strbuf", "wstrbuf", "buf", "int*", "struct*", "fnptr", "guid", "ptr", "str*",
+		"wstr*" };
+
+	template <typename T>
+	T read(const uint8_t* p)
+	{
+		T v {};
+		std::memcpy(&v, p, sizeof(T));
+		return v;
+	}
+}  // namespace binfmt
+
+
 void TTDBehaviorReport::clear()
 {
 	reportPath.clear();
@@ -179,11 +213,252 @@ void TTDBehaviorReport::clear()
 	decodedCount = 0;
 	maxSeq = 0;
 	maxPositionChars = 0;
-	calls.clear();
+	m_calls.clear();
+	m_calls.shrink_to_fit();
+	m_map = nullptr;
+	m_mapSize = 0;
+	m_file.reset();
+	m_callCount = 0;
 }
 
 
 bool TTDBehaviorReport::load(const QString& path, QString& error)
+{
+	QFile probe(path);
+	if (!probe.open(QIODevice::ReadOnly))
+	{
+		error = QString("Cannot open %1: %2").arg(path, probe.errorString());
+		return false;
+	}
+	QByteArray magic = probe.read(sizeof(binfmt::kMagic));
+	probe.close();
+
+	if (magic.size() == static_cast<int>(sizeof(binfmt::kMagic))
+		&& std::memcmp(magic.constData(), binfmt::kMagic, sizeof(binfmt::kMagic)) == 0)
+	{
+		return loadBinary(path, error);
+	}
+	return loadJson(path, error);
+}
+
+
+bool TTDBehaviorReport::loadBinary(const QString& path, QString& error)
+{
+	clear();
+
+	auto file = std::make_unique<QFile>(path);
+	if (!file->open(QIODevice::ReadOnly))
+	{
+		error = QString("Cannot open %1: %2").arg(path, file->errorString());
+		return false;
+	}
+	qint64 size = file->size();
+	if (size < binfmt::kHeaderSize)
+	{
+		error = "Report is too small to contain a header";
+		return false;
+	}
+
+	// Mapped read-only, so the pages are shared and evictable rather than counting
+	// against us as heap.
+	const uint8_t* map = file->map(0, size);
+	if (map == nullptr)
+	{
+		error = QString("Cannot map %1: %2").arg(path, file->errorString());
+		return false;
+	}
+
+	uint32_t version = binfmt::read<uint32_t>(map + 8);
+	if (version != binfmt::kVersion)
+	{
+		error = QString("Report format version %1 is not supported (expected %2); re-extract it")
+					.arg(version)
+					.arg(binfmt::kVersion);
+		return false;
+	}
+
+	uint32_t archId = binfmt::read<uint32_t>(map + 12);
+	m_callCount = binfmt::read<uint64_t>(map + 16);
+	pid = binfmt::read<uint64_t>(map + 32);
+	m_callsOff = binfmt::read<uint64_t>(map + 40);
+	m_paramsOff = binfmt::read<uint64_t>(map + 48);
+	m_stringsOff = binfmt::read<uint64_t>(map + 56);
+	m_stringsSize = binfmt::read<uint64_t>(map + 64);
+	m_blobOff = binfmt::read<uint64_t>(map + 72);
+	m_blobSize = binfmt::read<uint64_t>(map + 80);
+	decodedCount = static_cast<size_t>(binfmt::read<uint64_t>(map + 88));
+	maxSeq = binfmt::read<uint64_t>(map + 96);
+	uint32_t tracePathStr = binfmt::read<uint32_t>(map + 104);
+	uint32_t sampleNameStr = binfmt::read<uint32_t>(map + 108);
+	maxPositionChars = static_cast<int>(binfmt::read<uint32_t>(map + 112));
+
+	// Refuse a file whose regions do not fit rather than trusting offsets from disk.
+	auto withinFile = [size](uint64_t off, uint64_t len) {
+		return off <= static_cast<uint64_t>(size) && len <= static_cast<uint64_t>(size) - off;
+	};
+	if (!withinFile(m_callsOff, m_callCount * binfmt::kCallRecordSize)
+		|| !withinFile(m_stringsOff, m_stringsSize) || !withinFile(m_blobOff, m_blobSize))
+	{
+		error = "Report header describes regions outside the file; it may be truncated";
+		return false;
+	}
+
+	m_file = std::move(file);
+	m_map = map;
+	m_mapSize = size;
+	reportPath = path;
+	arch = archId == 1 ? "x86" : "x64";
+	tracePath = mappedString(tracePathStr);
+	sampleName = mappedString(sampleNameStr);
+	return true;
+}
+
+
+size_t TTDBehaviorReport::callCount() const
+{
+	return m_map != nullptr ? static_cast<size_t>(m_callCount) : m_calls.size();
+}
+
+
+const uint8_t* TTDBehaviorReport::callRecord(size_t index) const
+{
+	return m_map + m_callsOff + index * binfmt::kCallRecordSize;
+}
+
+
+QString TTDBehaviorReport::mappedString(uint32_t offset) const
+{
+	if (m_map == nullptr || offset >= m_stringsSize)
+		return QString();
+	const char* start = reinterpret_cast<const char*>(m_map + m_stringsOff + offset);
+	// The table is NUL-terminated and bounded by the region, so this cannot run away.
+	size_t maxLen = static_cast<size_t>(m_stringsSize - offset);
+	size_t len = 0;
+	while (len < maxLen && start[len] != '\0')
+		++len;
+	return QString::fromUtf8(start, static_cast<int>(len));
+}
+
+
+bool TTDBehaviorReport::matches(size_t index, const std::string& needle) const
+{
+	if (m_map == nullptr)
+	{
+		if (index >= m_calls.size())
+			return false;
+		return m_calls[index].searchText.find(needle) != std::string::npos;
+	}
+	if (index >= m_callCount)
+		return false;
+
+	const uint8_t* rec = callRecord(index);
+	uint32_t searchOff = binfmt::read<uint32_t>(rec + 32);
+	uint16_t searchLen = binfmt::read<uint16_t>(rec + 38);
+	// searchOff is relative to the blob region, so it has to be bounded against the
+	// region's size rather than its position in the file.
+	if (static_cast<uint64_t>(searchOff) + searchLen > m_blobSize)
+		return false;
+
+	// std::string_view::find over the mapped bytes: no copy, no allocation.
+	std::string_view hay(reinterpret_cast<const char*>(m_map + m_blobOff + searchOff), searchLen);
+	return hay.find(needle) != std::string_view::npos;
+}
+
+
+void TTDBehaviorReport::fillCall(size_t index, TTDApiCall& out, bool withParams) const
+{
+	if (m_map == nullptr)
+	{
+		if (index < m_calls.size())
+			out = m_calls[index];
+		return;
+	}
+	if (index >= m_callCount)
+		return;
+
+	const uint8_t* rec = callRecord(index);
+	out.params.clear();
+	out.seq = index;  // recorded calls are numbered densely, so the row index is the seq
+	out.ret = binfmt::read<uint64_t>(rec + 0);
+	out.tid = binfmt::read<uint32_t>(rec + 8);
+	uint32_t posSequence = binfmt::read<uint32_t>(rec + 12);
+	uint32_t posSteps = binfmt::read<uint32_t>(rec + 16);
+	out.position = QString("%1:%2").arg(posSequence, 0, 16).arg(posSteps, 0, 16).toUpper();
+	out.module = mappedString(binfmt::read<uint32_t>(rec + 20));
+	out.api = mappedString(binfmt::read<uint32_t>(rec + 24));
+
+	uint32_t paramOff = binfmt::read<uint32_t>(rec + 28);
+	uint16_t rawCount = binfmt::read<uint16_t>(rec + 36);
+	out.decoded = (rawCount & binfmt::kDecodedFlag) != 0;
+	int paramCount = rawCount & ~binfmt::kDecodedFlag;
+
+	// The parameter region is variable-length, so a call's parameters are decoded in
+	// sequence from its offset. Only ever done for rows that are on screen or selected.
+	const uint8_t* p = m_map + m_paramsOff + paramOff;
+	const uint8_t* blob = m_map + m_blobOff;
+	QStringList rendered;
+	for (int i = 0; i < paramCount; ++i)
+	{
+		uint8_t kind = *p++;
+		uint8_t bits = *p++;
+		uint32_t nameStr = binfmt::read<uint32_t>(p);
+		p += 4;
+		uint32_t typeStr = binfmt::read<uint32_t>(p);
+		p += 4;
+
+		TTDApiCallParam param;
+		param.name = mappedString(nameStr);
+		param.type = mappedString(typeStr);
+		param.kind = kind < std::size(binfmt::kKindNames) ? binfmt::kKindNames[kind] : "";
+		param.value = binfmt::read<uint64_t>(p);
+		p += 8;
+		param.out = (bits & binfmt::Out) != 0;
+		param.atReturn = (bits & binfmt::AtReturn) != 0;
+
+		if (bits & binfmt::HasDeref)
+		{
+			param.hasDeref = true;
+			param.deref = binfmt::read<uint64_t>(p);
+			p += 8;
+		}
+		if (bits & binfmt::HasStr)
+		{
+			uint32_t off = binfmt::read<uint32_t>(p);
+			uint32_t len = binfmt::read<uint32_t>(p + 4);
+			p += 8;
+			param.str = QString::fromUtf8(reinterpret_cast<const char*>(blob + off), static_cast<int>(len));
+		}
+		if (bits & binfmt::HasBytes)
+		{
+			uint32_t off = binfmt::read<uint32_t>(p);
+			uint32_t len = binfmt::read<uint32_t>(p + 4);
+			uint64_t total = binfmt::read<uint64_t>(p + 8);
+			p += 16;
+			param.bytes = QByteArray(reinterpret_cast<const char*>(blob + off), static_cast<int>(len));
+			param.bytesTotal = total;
+		}
+		if (bits & binfmt::HasFlags)
+		{
+			uint32_t off = binfmt::read<uint32_t>(p);
+			uint32_t len = binfmt::read<uint32_t>(p + 4);
+			p += 8;
+			param.flags = QString::fromUtf8(reinterpret_cast<const char*>(blob + off),
+				static_cast<int>(len)).split('|', Qt::SkipEmptyParts);
+		}
+
+		if (out.decoded)
+			rendered.append(QString("%1=%2").arg(param.name, formatParamValue(param)));
+		else
+			rendered.append(formatParamValue(param));
+
+		if (withParams)
+			out.params.push_back(std::move(param));
+	}
+	out.paramSummary = rendered.join(", ");
+}
+
+
+bool TTDBehaviorReport::loadJson(const QString& path, QString& error)
 {
 	clear();
 
@@ -294,7 +569,7 @@ bool TTDBehaviorReport::load(const QString& path, QString& error)
 				++decodedCount;
 			maxSeq = std::max(maxSeq, call.seq);
 			maxPositionChars = std::max(maxPositionChars, static_cast<int>(call.position.size()));
-			calls.push_back(std::move(call));
+			m_calls.push_back(std::move(call));
 		}
 	}
 
@@ -329,6 +604,7 @@ void TTDBehaviorCallModel::setFilter(const QString& text)
 
 void TTDBehaviorCallModel::rebuildVisible()
 {
+	m_cachedIndex = static_cast<size_t>(-1);
 	m_visible.clear();
 	m_visible.shrink_to_fit();
 	m_filtered = !m_filter.empty();
@@ -338,16 +614,16 @@ void TTDBehaviorCallModel::rebuildVisible()
 	// One linear pass of substring searches over 8-bit haystacks. No reserve() up
 	// front: a selective filter is the common case, and reserving for every call
 	// would dwarf the result.
-	const size_t count = m_report->calls.size();
+	const size_t count = m_report->callCount();
 	for (size_t i = 0; i < count; ++i)
 	{
-		if (m_report->calls[i].searchText.find(m_filter) != std::string::npos)
+		if (m_report->matches(i, m_filter))
 			m_visible.push_back(static_cast<uint32_t>(i));
 	}
 }
 
 
-const TTDApiCall* TTDBehaviorCallModel::callAt(int row) const
+const TTDApiCall* TTDBehaviorCallModel::callAt(int row, bool withParams) const
 {
 	if (!m_report || row < 0)
 		return nullptr;
@@ -358,9 +634,20 @@ const TTDApiCall* TTDBehaviorCallModel::callAt(int row) const
 			return nullptr;
 		index = m_visible[index];
 	}
-	if (index >= m_report->calls.size())
+	if (index >= m_report->callCount())
 		return nullptr;
-	return &m_report->calls[index];
+
+	// With a mapped report there is no stored object to point at, so decode into a
+	// one-row cache. data() is called once per column, so without this a row would be
+	// decoded seven times per repaint.
+	if (m_cachedIndex != index || (withParams && !m_cachedHasParams))
+	{
+		m_cached = TTDApiCall();
+		m_report->fillCall(index, m_cached, withParams);
+		m_cachedIndex = index;
+		m_cachedHasParams = withParams;
+	}
+	return &m_cached;
 }
 
 
@@ -368,7 +655,7 @@ int TTDBehaviorCallModel::rowCount(const QModelIndex& parent) const
 {
 	if (parent.isValid() || !m_report)
 		return 0;
-	return static_cast<int>(m_filtered ? m_visible.size() : m_report->calls.size());
+	return static_cast<int>(m_filtered ? m_visible.size() : m_report->callCount());
 }
 
 
@@ -559,7 +846,7 @@ void TTDBehaviorWidget::setupUI()
 
 void TTDBehaviorWidget::updateStatus()
 {
-	if (m_report->calls.empty())
+	if (m_report->callCount() == 0)
 	{
 		m_statusLabel->setText("No report loaded");
 		return;
@@ -567,11 +854,19 @@ void TTDBehaviorWidget::updateStatus()
 
 	int shown = m_model->rowCount();
 	QString name = QFileInfo(m_report->reportPath).fileName();
-	m_statusLabel->setText(QString("%1: %2 of %3 calls shown, %4 with decoded parameters")
-							   .arg(name)
-							   .arg(shown)
-							   .arg(m_report->calls.size())
-							   .arg(m_report->decodedCount));
+	QString text = QString("%1: %2 of %3 calls shown, %4 with decoded parameters")
+					   .arg(name)
+					   .arg(shown)
+					   .arg(m_report->callCount())
+					   .arg(m_report->decodedCount);
+	// Where the time actually went, since that is the thing worth knowing about a format.
+	if (m_lastWriteSeconds > 0.0)
+		text += QString("  |  saved in %1s").arg(m_lastWriteSeconds, 0, 'f', 1);
+	if (m_lastLoadSeconds >= 0.0)
+		text += QString("%1loaded in %2s")
+					.arg(m_lastWriteSeconds > 0.0 ? ", " : "  |  ")
+					.arg(m_lastLoadSeconds, 0, 'f', 2);
+	m_statusLabel->setText(text);
 }
 
 
@@ -661,6 +956,12 @@ void TTDBehaviorWidget::consumeExtractorStderr()
 					setProgress(percent, QString("Sweeping trace: %1 calls").arg(parts[2]));
 			}
 		}
+		else if (line.startsWith("[timing] write"))
+		{
+			QStringList parts = line.split(' ', Qt::SkipEmptyParts);
+			if (parts.size() >= 3)
+				m_lastWriteSeconds = parts[2].toDouble();
+		}
 		else if (line == "[phase] write")
 		{
 			// The report can be hundreds of MB; serialising it takes comparable time to
@@ -682,14 +983,17 @@ void TTDBehaviorWidget::loadReport(const QString& path)
 	// back. QPointer guards the widget being destroyed while the worker runs.
 	QPointer<TTDBehaviorWidget> self(this);
 	std::thread([self, path]() {
+		QElapsedTimer timer;
+		timer.start();
 		auto report = std::make_shared<TTDBehaviorReport>();
 		QString error;
 		bool ok = report->load(path, error);
+		double loadSeconds = timer.elapsed() / 1000.0;
 
 		// Back to the UI thread to install it.
 		QMetaObject::invokeMethod(
 			QCoreApplication::instance(),
-			[self, report, error, ok]() {
+			[self, report, error, ok, loadSeconds]() {
 				if (!self)
 					return;
 				self->endOperation();
@@ -699,6 +1003,7 @@ void TTDBehaviorWidget::loadReport(const QString& path)
 					self->updateStatus();
 					return;
 				}
+				self->m_lastLoadSeconds = loadSeconds;
 				self->installReport(report);
 			},
 			Qt::QueuedConnection);
@@ -736,7 +1041,7 @@ void TTDBehaviorWidget::installReport(std::shared_ptr<TTDBehaviorReport> report)
 void TTDBehaviorWidget::onLoadClicked()
 {
 	QString path = QFileDialog::getOpenFileName(
-		this, "Load TTD API Call Report", QString(), "JSON reports (*.json);;All files (*)");
+		this, "Load TTD API Call Report", QString(), "TTD behavior reports (*.ttdb *.json);;All files (*)");
 	if (!path.isEmpty())
 		loadReport(path);
 }
@@ -800,7 +1105,7 @@ void TTDBehaviorWidget::onExtractClicked()
 	// from rather than somewhere the OS will eventually clean up.
 	QFileInfo traceInfo(trace);
 	QDir traceDir = traceInfo.absoluteDir();
-	QString output = traceDir.filePath(traceInfo.completeBaseName() + ".ttd.json");
+	QString output = traceDir.filePath(traceInfo.completeBaseName() + ".ttdb");
 
 	// A trace can sit somewhere unwritable -- a read-only share, or a mounted image.
 	// Ask rather than silently falling back to a temp file, which is the thing we are
@@ -808,7 +1113,7 @@ void TTDBehaviorWidget::onExtractClicked()
 	if (!QFileInfo(traceDir.absolutePath()).isWritable())
 	{
 		output = QFileDialog::getSaveFileName(this, "Save Extracted Report As", output,
-			"JSON reports (*.json);;All files (*)");
+			"TTD behavior reports (*.ttdb);;All files (*)");
 		if (output.isEmpty())
 			return;
 	}
@@ -865,7 +1170,7 @@ void TTDBehaviorWidget::onExtractClicked()
 
 	// --progress drives the bar below; --cancel-on-stdin lets Cancel stop the sweep and
 	// still keep everything recorded up to that point.
-	QStringList arguments {trace, "-o", output, "--progress", "--cancel-on-stdin"};
+	QStringList arguments {trace, "-b", output, "--progress", "--cancel-on-stdin"};
 	int64_t maxBuffer = Settings::Instance()->Get<int64_t>("debugger.ttdBehaviorMaxBuffer");
 	if (maxBuffer > 0)
 		arguments << "--max-buffer" << QString::number(maxBuffer);
@@ -895,7 +1200,7 @@ void TTDBehaviorWidget::onFilterTextEdited()
 	m_filterTimer->start();
 	// Only worth saying on a report big enough for the pass to be visible; below that
 	// the label would flicker for no reason.
-	if (m_report->calls.size() > 250000)
+	if (m_report->callCount() > 250000)
 		m_statusLabel->setText("Filtering...");
 }
 
@@ -986,7 +1291,7 @@ void TTDBehaviorWidget::onSelectionChanged()
 		showDetail(nullptr);
 		return;
 	}
-	showDetail(m_model->callAt(selected.first().row()));
+	showDetail(m_model->callAt(selected.first().row(), true));
 }
 
 

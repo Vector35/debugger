@@ -18,6 +18,8 @@ limitations under the License.
 
 #include <QAbstractTableModel>
 #include <QElapsedTimer>
+#include <QFile>
+#include <memory>
 #include <QProgressBar>
 #include <QTableView>
 #include <QTimer>
@@ -71,25 +73,34 @@ struct TTDApiCall
 	uint64_t ret = 0;
 	std::vector<TTDApiCallParam> params;
 	bool decoded = false;  // true when a real signature was available for this call
-	QString paramSummary;  // precomputed single-line rendering for the table
+	QString paramSummary;  // single-line rendering for the table
 
 	// Lowercased "module!api params" that the filter scans. Deliberately a byte
 	// string rather than a QString: a trace can hold millions of calls, so this
 	// halves the per-call footprint versus UTF-16, and searching 8-bit data is
 	// several times faster than a case-insensitive QString comparison.
+	//
+	// Only populated by the JSON backend. The binary one keeps the equivalent text in
+	// the mapped file and matches against it there, so nothing is built per call.
 	std::string searchText;
 };
 
 
-// The set of API calls extracted from one trace, as parsed from an extractor report.
-struct TTDBehaviorReport
+// The set of API calls extracted from one trace.
+//
+// Two backends. The binary one memory-maps the extractor's compact format and decodes
+// records straight out of the mapping when a row is asked for -- there is no per-call
+// object, so opening a 3.4M-call report costs a header validation instead of the ~17s
+// (and ~1.4GB) that parsing the JSON equivalent did. The JSON one is kept because
+// reports already on disk are in that format, and because it is what capa consumes.
+class TTDBehaviorReport
 {
+public:
 	QString reportPath;
 	QString tracePath;
 	QString arch;
 	QString sampleName;
 	uint64_t pid = 0;
-	std::vector<TTDApiCall> calls;
 	size_t decodedCount = 0;  // counted once at load, not per status update
 
 	// Widest content in the two narrow columns, so they can be sized to fit exactly.
@@ -99,8 +110,39 @@ struct TTDBehaviorReport
 	uint64_t maxSeq = 0;
 	int maxPositionChars = 0;
 
+	// Dispatches on the file's magic, so the caller does not care which format it has.
 	bool load(const QString& path, QString& error);
 	void clear();
+
+	size_t callCount() const;
+
+	// Decode one call. `withParams` is the expensive half, so the table omits it and only
+	// the detail pane asks for it.
+	void fillCall(size_t index, TTDApiCall& out, bool withParams) const;
+
+	// Does this call's searchable text contain `needle` (already lowercased)?
+	bool matches(size_t index, const std::string& needle) const;
+
+private:
+	bool loadJson(const QString& path, QString& error);
+	bool loadBinary(const QString& path, QString& error);
+	const uint8_t* callRecord(size_t index) const;
+	QString mappedString(uint32_t offset) const;
+
+	// JSON backend: everything materialised up front.
+	std::vector<TTDApiCall> m_calls;
+
+	// Binary backend: the mapping plus the header's region offsets.
+	std::unique_ptr<QFile> m_file;
+	const uint8_t* m_map = nullptr;
+	qint64 m_mapSize = 0;
+	uint64_t m_callCount = 0;
+	uint64_t m_callsOff = 0;
+	uint64_t m_paramsOff = 0;
+	uint64_t m_stringsOff = 0;
+	uint64_t m_stringsSize = 0;
+	uint64_t m_blobOff = 0;
+	uint64_t m_blobSize = 0;
 };
 
 
@@ -135,8 +177,10 @@ public:
 	// a freeze.
 	void setFilter(const QString& text);
 
-	// Row of the table -> the call it shows, or nullptr when out of range.
-	const TTDApiCall* callAt(int row) const;
+	// Row of the table -> the call it shows, or nullptr when out of range. Decoded into a
+	// single-row cache, so asking for the same row repeatedly (as data() does, once per
+	// column) costs one decode. `withParams` is only needed by the detail pane.
+	const TTDApiCall* callAt(int row, bool withParams = false) const;
 
 	int rowCount(const QModelIndex& parent = QModelIndex()) const override;
 	int columnCount(const QModelIndex& parent = QModelIndex()) const override;
@@ -148,8 +192,12 @@ private:
 
 	std::shared_ptr<TTDBehaviorReport> m_report;
 	std::string m_filter;             // lowercased, empty means show everything
-	std::vector<uint32_t> m_visible;  // indices into m_report->calls; empty when unfiltered
+	std::vector<uint32_t> m_visible;  // source indices; empty when unfiltered
 	bool m_filtered = false;          // whether m_visible is in use
+
+	mutable TTDApiCall m_cached;
+	mutable size_t m_cachedIndex = static_cast<size_t>(-1);
+	mutable bool m_cachedHasParams = false;
 };
 
 
@@ -175,6 +223,11 @@ private:
 	QPushButton* m_cancelButton;
 	QElapsedTimer m_operationTimer;
 	QByteArray m_stderrTail;  // partial line left over between readyRead signals
+
+	// Reported in the status line: serialising and loading a report are the two costs
+	// most worth seeing, since they dominated the wall clock before the binary format.
+	double m_lastWriteSeconds = 0.0;
+	double m_lastLoadSeconds = -1.0;
 
 	TTDBehaviorCallModel* m_model;
 	std::shared_ptr<TTDBehaviorReport> m_report;
