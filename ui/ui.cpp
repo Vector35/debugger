@@ -2101,6 +2101,17 @@ void GlobalDebuggerUI::InitializeUI()
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 
+	Settings::Instance()->RegisterSetting("debugger.ttdBehaviorMaxBuffer",
+		R"({
+			"title" : "TTD Behavior Buffer Capture Limit",
+			"type" : "number",
+			"default" : 256,
+			"minValue" : 0,
+			"maxValue" : 1048576,
+			"description" : "Bytes to keep from any one buffer parameter when extracting API calls from a TTD trace. Buffers longer than this are captured as a prefix and marked as truncated. Raising it recovers more of each buffer at the cost of a larger report.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
+
 	Sidebar::addSidebarWidgetType(new DebuggerWidgetType(QImage(":/debugger/debugger"), "Debugger"));
 	Sidebar::addSidebarWidgetType(new DebugModulesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new DebugMemoryMapSidebarWidgetType());

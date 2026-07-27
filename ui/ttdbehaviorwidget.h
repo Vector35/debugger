@@ -49,7 +49,8 @@ struct TTDApiCallParam
 	uint64_t value = 0;
 	QString str;           // resolved ANSI/UTF-16 string, if the parameter is one
 	QStringList flags;     // symbolic names for enum/flag parameters
-	QByteArray bytes;      // captured buffer contents
+	QByteArray bytes;      // captured buffer contents, possibly only a prefix
+	uint64_t bytesTotal = 0;  // the buffer's real length when `bytes` was capped, else 0
 	uint64_t deref = 0;    // pointed-to value for `int*`-like parameters
 	bool hasDeref = false;
 	bool out = false;      // [Out] parameter

@@ -37,7 +37,6 @@ limitations under the License.
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMessageBox>
-#include <QStandardPaths>
 #include <cmath>
 #include "fontsettings.h"
 #include "theme.h"
@@ -256,6 +255,8 @@ bool TTDBehaviorReport::load(const QString& path, QString& error)
 						param.flags.append(flag.toString());
 					if (paramObject.contains("bytes"))
 						param.bytes = QByteArray::fromHex(paramObject.value("bytes").toString().toLatin1());
+					// Present only when the extractor's --max-buffer cut the capture short.
+					param.bytesTotal = jsonToUInt64(paramObject.value("bytes_total"));
 
 					rendered.append(QString("%1=%2").arg(param.name, formatParamValue(param)));
 					call.params.push_back(std::move(param));
@@ -627,8 +628,45 @@ void TTDBehaviorWidget::onExtractClicked()
 	if (trace.isEmpty())
 		return;
 
-	QString output = QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
-						 .filePath(QFileInfo(trace).completeBaseName() + ".ttd.json");
+	// Next to the trace, not in a temp directory: extraction takes minutes on a large
+	// trace, the report is the useful artifact, and it belongs with the trace it came
+	// from rather than somewhere the OS will eventually clean up.
+	QFileInfo traceInfo(trace);
+	QDir traceDir = traceInfo.absoluteDir();
+	QString output = traceDir.filePath(traceInfo.completeBaseName() + ".ttd.json");
+
+	// A trace can sit somewhere unwritable -- a read-only share, or a mounted image.
+	// Ask rather than silently falling back to a temp file, which is the thing we are
+	// deliberately not doing.
+	if (!QFileInfo(traceDir.absolutePath()).isWritable())
+	{
+		output = QFileDialog::getSaveFileName(this, "Save Extracted Report As", output,
+			"JSON reports (*.json);;All files (*)");
+		if (output.isEmpty())
+			return;
+	}
+	else if (QFileInfo::exists(output))
+	{
+		// Re-extracting is deterministic, so the existing report is as good as a fresh
+		// one -- offer to just load it instead of spending the minutes again.
+		QMessageBox box(this);
+		box.setWindowTitle("TTD Behavior");
+		box.setText(QString("%1 already exists.").arg(QFileInfo(output).fileName()));
+		box.setInformativeText("Load the existing report, or extract again and replace it?");
+		QPushButton* loadButton = box.addButton("Load Existing", QMessageBox::AcceptRole);
+		QPushButton* replaceButton = box.addButton("Extract Again", QMessageBox::DestructiveRole);
+		box.addButton(QMessageBox::Cancel);
+		box.setDefaultButton(loadButton);
+		box.exec();
+
+		if (box.clickedButton() == loadButton)
+		{
+			loadReport(output);
+			return;
+		}
+		if (box.clickedButton() != replaceButton)
+			return;
+	}
 
 	m_extractProcess = new QProcess(this);
 	// The extractor loads its API metadata index and the TTD replay DLLs from its own
@@ -651,9 +689,14 @@ void TTDBehaviorWidget::onExtractClicked()
 			loadReport(output);
 		});
 
+	QStringList arguments {trace, "-o", output};
+	int64_t maxBuffer = Settings::Instance()->Get<int64_t>("debugger.ttdBehaviorMaxBuffer");
+	if (maxBuffer > 0)
+		arguments << "--max-buffer" << QString::number(maxBuffer);
+
 	m_extractButton->setEnabled(false);
 	m_statusLabel->setText(QString("Extracting from %1...").arg(QFileInfo(trace).fileName()));
-	m_extractProcess->start(extractor, {trace, "-o", output});
+	m_extractProcess->start(extractor, arguments);
 }
 
 
@@ -717,7 +760,18 @@ void TTDBehaviorWidget::showDetail(const TTDApiCall* call)
 			text += QString("    deref   %1 (%2)\n").arg(formatHex(param.deref)).arg(param.deref);
 		if (!param.bytes.isEmpty())
 		{
-			text += QString("    buffer  %1 bytes\n").arg(param.bytes.size());
+			// Say so when this is only the head of a larger buffer: reporting the
+			// captured size alone reads as the buffer's real size.
+			if (param.bytesTotal > static_cast<uint64_t>(param.bytes.size()))
+			{
+				text += QString("    buffer  first %1 of %2 bytes (raise the extractor's --max-buffer for more)\n")
+							.arg(param.bytes.size())
+							.arg(param.bytesTotal);
+			}
+			else
+			{
+				text += QString("    buffer  %1 bytes\n").arg(param.bytes.size());
+			}
 			text += hexDump(param.bytes);
 		}
 		text += "\n";
