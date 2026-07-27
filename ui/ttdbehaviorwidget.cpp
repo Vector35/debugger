@@ -36,8 +36,12 @@ limitations under the License.
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QCoreApplication>
 #include <QMessageBox>
+#include <QPointer>
+#include <algorithm>
 #include <cmath>
+#include <thread>
 #include "fontsettings.h"
 #include "theme.h"
 
@@ -173,6 +177,8 @@ void TTDBehaviorReport::clear()
 	sampleName.clear();
 	pid = 0;
 	decodedCount = 0;
+	maxSeq = 0;
+	maxPositionChars = 0;
 	calls.clear();
 }
 
@@ -286,6 +292,8 @@ bool TTDBehaviorReport::load(const QString& path, QString& error)
 				QString("%1!%2 %3").arg(call.module, call.api, call.paramSummary).toLower().toUtf8().toStdString();
 			if (call.decoded)
 				++decodedCount;
+			maxSeq = std::max(maxSeq, call.seq);
+			maxPositionChars = std::max(maxPositionChars, static_cast<int>(call.position.size()));
 			calls.push_back(std::move(call));
 		}
 	}
@@ -512,11 +520,29 @@ void TTDBehaviorWidget::setupUI()
 	splitter->setStretchFactor(1, 1);
 	layout->addWidget(splitter, 1);
 
+	// Progress row: hidden until something long-running starts.
+	m_progressRow = new QWidget();
+	auto* progressLayout = new QHBoxLayout(m_progressRow);
+	progressLayout->setContentsMargins(4, 0, 4, 0);
+	m_progressBar = new QProgressBar();
+	m_progressBar->setRange(0, 100);
+	m_progressBar->setTextVisible(false);
+	progressLayout->addWidget(m_progressBar, 1);
+	m_progressLabel = new QLabel();
+	progressLayout->addWidget(m_progressLabel);
+	m_cancelButton = new QPushButton("Cancel");
+	m_cancelButton->setToolTip("Stop the extraction and keep the calls recorded so far");
+	progressLayout->addWidget(m_cancelButton);
+	m_progressRow->setVisible(false);
+	layout->addWidget(m_progressRow);
+
 	m_statusLabel = new QLabel();
 	m_statusLabel->setContentsMargins(4, 0, 4, 4);
 	layout->addWidget(m_statusLabel);
 
 	setLayout(layout);
+
+	connect(m_cancelButton, &QPushButton::clicked, this, &TTDBehaviorWidget::onCancelClicked);
 
 	connect(m_loadButton, &QPushButton::clicked, this, &TTDBehaviorWidget::onLoadClicked);
 	connect(m_extractButton, &QPushButton::clicked, this, &TTDBehaviorWidget::onExtractClicked);
@@ -549,16 +575,139 @@ void TTDBehaviorWidget::updateStatus()
 }
 
 
-void TTDBehaviorWidget::loadReport(const QString& path)
-{
-	auto report = std::make_shared<TTDBehaviorReport>();
-	QString error;
-	if (!report->load(path, error))
+namespace {
+	// "1m 24s" / "12s" -- short enough to sit in a status row.
+	QString formatDuration(qint64 milliseconds)
 	{
-		QMessageBox::warning(this, "TTD Behavior", error);
-		return;
+		qint64 seconds = milliseconds / 1000;
+		if (seconds < 60)
+			return QString("%1s").arg(seconds);
+		return QString("%1m %2s").arg(seconds / 60).arg(seconds % 60);
+	}
+}  // namespace
+
+
+void TTDBehaviorWidget::beginOperation(const QString& what, bool cancellable)
+{
+	m_operationTimer.start();
+	m_progressBar->setRange(0, 100);
+	m_progressBar->setValue(0);
+	m_progressLabel->setText(what);
+	m_cancelButton->setVisible(cancellable);
+	m_cancelButton->setEnabled(cancellable);
+	m_progressRow->setVisible(true);
+	m_loadButton->setEnabled(false);
+	m_extractButton->setEnabled(false);
+}
+
+
+void TTDBehaviorWidget::endOperation()
+{
+	m_progressRow->setVisible(false);
+	m_loadButton->setEnabled(true);
+	m_extractButton->setEnabled(true);
+}
+
+
+void TTDBehaviorWidget::setProgress(double percent, const QString& detail)
+{
+	qint64 elapsed = m_operationTimer.elapsed();
+	QString text = detail;
+	text += QString("  %1 elapsed").arg(formatDuration(elapsed));
+
+	if (percent > 0.0)
+	{
+		m_progressBar->setRange(0, 100);
+		m_progressBar->setValue(static_cast<int>(percent));
+		// Linear extrapolation from the work done so far. Crude, but the sweep rate is
+		// steady enough for it to be useful, and anything cleverer would still be a
+		// guess.
+		if (percent >= 1.0 && percent < 100.0)
+		{
+			qint64 remaining = static_cast<qint64>(elapsed * (100.0 - percent) / percent);
+			text += QString(", ~%1 left").arg(formatDuration(remaining));
+		}
+	}
+	else
+	{
+		// No measurable progress to report: a busy indicator beats a bar stuck at zero.
+		m_progressBar->setRange(0, 0);
 	}
 
+	m_progressLabel->setText(text);
+}
+
+
+void TTDBehaviorWidget::consumeExtractorStderr()
+{
+	if (!m_extractProcess)
+		return;
+
+	m_stderrTail += m_extractProcess->readAllStandardError();
+	int newline = -1;
+	while ((newline = m_stderrTail.indexOf('\n')) >= 0)
+	{
+		QString line = QString::fromLocal8Bit(m_stderrTail.left(newline)).trimmed();
+		m_stderrTail.remove(0, newline + 1);
+
+		if (line.startsWith("[progress]"))
+		{
+			QStringList parts = line.split(' ', Qt::SkipEmptyParts);
+			if (parts.size() >= 3)
+			{
+				bool ok = false;
+				double percent = parts[1].toDouble(&ok);
+				if (ok)
+					setProgress(percent, QString("Sweeping trace: %1 calls").arg(parts[2]));
+			}
+		}
+		else if (line == "[phase] write")
+		{
+			// The report can be hundreds of MB; serialising it takes comparable time to
+			// the sweep, and there is no progress to be had from it.
+			setProgress(0.0, "Writing report");
+			m_cancelButton->setEnabled(false);
+		}
+	}
+}
+
+
+void TTDBehaviorWidget::loadReport(const QString& path)
+{
+	beginOperation(QString("Loading %1").arg(QFileInfo(path).fileName()), false);
+	setProgress(0.0, "Parsing report");
+
+	// Parsing a 650MB report takes tens of seconds; on the UI thread that is a freeze.
+	// The report is self-contained, so build it on a worker and hand the finished object
+	// back. QPointer guards the widget being destroyed while the worker runs.
+	QPointer<TTDBehaviorWidget> self(this);
+	std::thread([self, path]() {
+		auto report = std::make_shared<TTDBehaviorReport>();
+		QString error;
+		bool ok = report->load(path, error);
+
+		// Back to the UI thread to install it.
+		QMetaObject::invokeMethod(
+			QCoreApplication::instance(),
+			[self, report, error, ok]() {
+				if (!self)
+					return;
+				self->endOperation();
+				if (!ok)
+				{
+					QMessageBox::warning(self, "TTD Behavior", error);
+					self->updateStatus();
+					return;
+				}
+				self->installReport(report);
+			},
+			Qt::QueuedConnection);
+	}).detach();
+}
+
+
+void TTDBehaviorWidget::installReport(std::shared_ptr<TTDBehaviorReport> report)
+{
 	m_report = report;
 	m_model->setReport(m_report);
 	m_detail->clear();
@@ -567,6 +716,19 @@ void TTDBehaviorWidget::loadReport(const QString& path)
 	// column off screen; cap it and let the detail pane carry the full value.
 	if (m_table->columnWidth(TTDBehaviorCallModel::ParametersColumn) > 600)
 		m_table->setColumnWidth(TTDBehaviorCallModel::ParametersColumn, 600);
+
+	// resizeColumnsToContents() samples only the leading rows, which is fine for the
+	// columns whose content is uniform but clips these two: the last call's index has
+	// far more digits than the first thousand, and positions grow as the trace advances.
+	// Size them from the widest value actually present.
+	QFontMetrics metrics(m_table->font());
+	const int padding = 16;
+	int seqWidth = metrics.horizontalAdvance(QString::number(m_report->maxSeq)) + padding;
+	int positionWidth = metrics.horizontalAdvance(QString(m_report->maxPositionChars, 'M')) + padding;
+	if (seqWidth > m_table->columnWidth(TTDBehaviorCallModel::SeqColumn))
+		m_table->setColumnWidth(TTDBehaviorCallModel::SeqColumn, seqWidth);
+	if (positionWidth > m_table->columnWidth(TTDBehaviorCallModel::PositionColumn))
+		m_table->setColumnWidth(TTDBehaviorCallModel::PositionColumn, positionWidth);
 	updateStatus();
 }
 
@@ -677,12 +839,17 @@ void TTDBehaviorWidget::onExtractClicked()
 	// The extractor loads its API metadata index and the TTD replay DLLs from its own
 	// directory, so it has to run from there.
 	m_extractProcess->setWorkingDirectory(QFileInfo(extractor).absolutePath());
+	m_stderrTail.clear();
+
+	connect(m_extractProcess, &QProcess::readyReadStandardError, this,
+		&TTDBehaviorWidget::consumeExtractorStderr);
 	connect(m_extractProcess, &QProcess::finished, this,
 		[this, output](int exitCode, QProcess::ExitStatus status) {
-			m_extractButton->setEnabled(true);
+			consumeExtractorStderr();
 			QString stderrText = QString::fromLocal8Bit(m_extractProcess->readAllStandardError());
 			m_extractProcess->deleteLater();
 			m_extractProcess = nullptr;
+			endOperation();
 
 			if (status != QProcess::NormalExit || exitCode != 0)
 			{
@@ -691,17 +858,35 @@ void TTDBehaviorWidget::onExtractClicked()
 				updateStatus();
 				return;
 			}
+			// A cancelled sweep still writes what it collected, so this path is the same
+			// whether the run completed or was stopped early.
 			loadReport(output);
 		});
 
-	QStringList arguments {trace, "-o", output};
+	// --progress drives the bar below; --cancel-on-stdin lets Cancel stop the sweep and
+	// still keep everything recorded up to that point.
+	QStringList arguments {trace, "-o", output, "--progress", "--cancel-on-stdin"};
 	int64_t maxBuffer = Settings::Instance()->Get<int64_t>("debugger.ttdBehaviorMaxBuffer");
 	if (maxBuffer > 0)
 		arguments << "--max-buffer" << QString::number(maxBuffer);
 
-	m_extractButton->setEnabled(false);
+	beginOperation(QString("Extracting from %1").arg(QFileInfo(trace).fileName()), true);
+	setProgress(0.0, "Starting extractor");
 	m_statusLabel->setText(QString("Extracting from %1...").arg(QFileInfo(trace).fileName()));
 	m_extractProcess->start(extractor, arguments);
+}
+
+
+void TTDBehaviorWidget::onCancelClicked()
+{
+	if (!m_extractProcess || m_extractProcess->state() == QProcess::NotRunning)
+		return;
+
+	// The extractor watches stdin for this and interrupts the replay, then writes out
+	// everything it recorded. Killing the process instead would throw that away.
+	m_extractProcess->write("cancel\n");
+	m_cancelButton->setEnabled(false);
+	setProgress(0.0, "Finishing up the calls recorded so far");
 }
 
 

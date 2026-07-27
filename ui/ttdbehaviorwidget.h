@@ -17,6 +17,8 @@ limitations under the License.
 #pragma once
 
 #include <QAbstractTableModel>
+#include <QElapsedTimer>
+#include <QProgressBar>
 #include <QTableView>
 #include <QTimer>
 #include <QLineEdit>
@@ -90,6 +92,13 @@ struct TTDBehaviorReport
 	std::vector<TTDApiCall> calls;
 	size_t decodedCount = 0;  // counted once at load, not per status update
 
+	// Widest content in the two narrow columns, so they can be sized to fit exactly.
+	// QTableView::resizeColumnsToContents() only samples the first 1000 rows, which on a
+	// multi-million-call trace sizes "#" for three digits and Position for its shortest
+	// early values, then clips everything after.
+	uint64_t maxSeq = 0;
+	int maxPositionChars = 0;
+
 	bool load(const QString& path, QString& error);
 	void clear();
 };
@@ -159,6 +168,14 @@ private:
 	QTableView* m_table;
 	QTextEdit* m_detail;
 
+	// Shown only while an extraction or a report load is in flight.
+	QWidget* m_progressRow;
+	QProgressBar* m_progressBar;
+	QLabel* m_progressLabel;
+	QPushButton* m_cancelButton;
+	QElapsedTimer m_operationTimer;
+	QByteArray m_stderrTail;  // partial line left over between readyRead signals
+
 	TTDBehaviorCallModel* m_model;
 	std::shared_ptr<TTDBehaviorReport> m_report;
 	QProcess* m_extractProcess = nullptr;
@@ -174,15 +191,26 @@ private:
 	void showDetail(const TTDApiCall* call);
 	QString extractorPath(bool prompt);
 
+	void beginOperation(const QString& what, bool cancellable);
+	void endOperation();
+	void setProgress(double percent, const QString& detail);
+	void consumeExtractorStderr();
+
 public:
 	TTDBehaviorWidget(BinaryViewRef data);
 	~TTDBehaviorWidget();
 
+	// Parses `path` on a worker thread -- a multi-hundred-MB report takes long enough
+	// that doing it inline freezes the UI -- and installs it when finished.
 	void loadReport(const QString& path);
+
+	// Swap in a parsed report and refresh the view. Must run on the UI thread.
+	void installReport(std::shared_ptr<TTDBehaviorReport> report);
 
 private Q_SLOTS:
 	void onLoadClicked();
 	void onExtractClicked();
+	void onCancelClicked();
 	void onFilterTextEdited();
 	void onSelectionChanged();
 	void onDoubleClicked(const QModelIndex& index);
