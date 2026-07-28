@@ -71,6 +71,9 @@ struct TTDApiCall
 	QString module;
 	QString api;
 	uint64_t ret = 0;
+	// Where the call returns to: the instruction after the CALL, so it names the call
+	// site and therefore which module made the call.
+	uint64_t returnAddress = 0;
 	std::vector<TTDApiCallParam> params;
 	bool decoded = false;  // true when a real signature was available for this call
 	QString paramSummary;  // single-line rendering for the table
@@ -160,6 +163,7 @@ public:
 		ApiColumn,
 		ParametersColumn,
 		ReturnColumn,
+		ReturnAddressColumn,
 		ColumnCount
 	};
 

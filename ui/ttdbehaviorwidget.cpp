@@ -172,9 +172,9 @@ namespace {
 // Mirrors ttd/src/binreport.hpp in the extractor. Any change there needs one here.
 namespace binfmt {
 	constexpr char kMagic[8] = { 'T', 'T', 'D', 'B', 'E', 'H', 'V', '1' };
-	constexpr uint32_t kVersion = 1;
+	constexpr uint32_t kVersion = 2;  // 2 added returnAddress to the call record
 	constexpr int kHeaderSize = 128;
-	constexpr int kCallRecordSize = 40;
+	constexpr int kCallRecordSize = 48;
 	constexpr uint16_t kDecodedFlag = 0x8000;
 
 	enum ParamBits : uint8_t
@@ -384,6 +384,7 @@ void TTDBehaviorReport::fillCall(size_t index, TTDApiCall& out, bool withParams)
 	uint32_t posSequence = binfmt::read<uint32_t>(rec + 12);
 	uint32_t posSteps = binfmt::read<uint32_t>(rec + 16);
 	out.position = QString("%1:%2").arg(posSequence, 0, 16).arg(posSteps, 0, 16).toUpper();
+	out.returnAddress = binfmt::read<uint64_t>(rec + 40);
 	out.module = mappedString(binfmt::read<uint32_t>(rec + 20));
 	out.api = mappedString(binfmt::read<uint32_t>(rec + 24));
 
@@ -516,6 +517,7 @@ bool TTDBehaviorReport::loadJson(const QString& path, QString& error)
 			call.module = callObject.value("module").toString();
 			call.api = callObject.value("api").toString();
 			call.ret = jsonToUInt64(callObject.value("ret"));
+			call.returnAddress = jsonToUInt64(callObject.value("return_address"));
 
 			QStringList rendered;
 			if (callObject.contains("params"))
@@ -695,6 +697,8 @@ QVariant TTDBehaviorCallModel::data(const QModelIndex& index, int role) const
 		return call->paramSummary;
 	case ReturnColumn:
 		return formatHex(call->ret);
+	case ReturnAddressColumn:
+		return formatHex(call->returnAddress);
 	default:
 		return QVariant();
 	}
@@ -722,6 +726,8 @@ QVariant TTDBehaviorCallModel::headerData(int section, Qt::Orientation orientati
 		return "Parameters";
 	case ReturnColumn:
 		return "Return";
+	case ReturnAddressColumn:
+		return "Return Address";
 	default:
 		return QVariant();
 	}
@@ -1226,7 +1232,7 @@ void TTDBehaviorWidget::showDetail(const TTDApiCall* call)
 				.arg(call->module, call->api, call->position)
 				.arg(call->tid)
 				.arg(call->seq);
-	text += QString("returned %1\n\n").arg(formatHex(call->ret));
+	text += QString("returned %1, to %2\n\n").arg(formatHex(call->ret), formatHex(call->returnAddress));
 
 	if (!call->decoded)
 	{
