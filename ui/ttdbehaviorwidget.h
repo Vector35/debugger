@@ -19,6 +19,7 @@ limitations under the License.
 #include <QAbstractTableModel>
 #include <QElapsedTimer>
 #include <QFile>
+#include <functional>
 #include <memory>
 #include <QProgressBar>
 #include <QTableView>
@@ -89,6 +90,61 @@ struct TTDApiCall
 };
 
 
+// A parsed filter expression.
+//
+// Whitespace-separated terms, ANDed together. A bare word (or "quoted phrase") is a
+// substring match over everything searchable about a call; `field:value` narrows to one
+// field. That keeps what people already type working, while giving them a way to say
+// which WriteFile they meant.
+//
+//   module:kernel32 api:WriteFile        only kernel32's, not ntdll's
+//   api:Reg* ret:!0                      registry calls that failed
+//   retaddr:0x400000-0x500000            calls made from the sample itself
+//   password                             anything mentioning it, buffers included
+//
+// module/api resolve against the report's deduplicated string table once per query, so
+// evaluating them per row is an integer compare rather than a string search.
+class TTDBehaviorQuery
+{
+public:
+	// Comparison against one of the call's numeric fields.
+	struct Numeric
+	{
+		enum Op { Equal, NotEqual, Greater, GreaterEqual, Less, LessEqual, Range };
+		Op op = Equal;
+		uint64_t a = 0;
+		uint64_t b = 0;
+		bool test(uint64_t value) const;
+	};
+
+	enum class Field { Text, Module, Api, Tid, Ret, RetAddr };
+
+	struct Term
+	{
+		Field field = Field::Text;
+		std::string text;      // lowercased, for Text/Module/Api
+		bool prefix = false;   // the term ended in '*'
+		Numeric numeric;       // for Tid/Ret/RetAddr
+		std::vector<uint32_t> stringOffsets;  // resolved module/api matches
+		bool resolved = false;
+	};
+
+	// Never fails: anything that does not look like a field term is treated as text, so
+	// a half-typed query still does something sensible rather than erroring.
+	void parse(const QString& text);
+	bool isEmpty() const { return m_terms.empty(); }
+	bool hasFieldTerms() const;
+
+	// Bind module/api terms to the report's string table. Call once per report per query.
+	void resolve(const class TTDBehaviorReport& report);
+
+	const std::vector<Term>& terms() const { return m_terms; }
+
+private:
+	std::vector<Term> m_terms;
+};
+
+
 // The set of API calls extracted from one trace.
 //
 // Two backends. The binary one memory-maps the extractor's compact format and decodes
@@ -123,8 +179,13 @@ public:
 	// the detail pane asks for it.
 	void fillCall(size_t index, TTDApiCall& out, bool withParams) const;
 
-	// Does this call's searchable text contain `needle` (already lowercased)?
-	bool matches(size_t index, const std::string& needle) const;
+	// Does this call satisfy every term of `query`?
+	bool matches(size_t index, const TTDBehaviorQuery& query) const;
+
+	// Every distinct string in the table, for a query to resolve module/api terms
+	// against. Empty for the JSON backend, which compares per row instead.
+	void forEachString(const std::function<void(uint32_t, const char*, size_t)>& fn) const;
+	bool isMapped() const { return m_map != nullptr; }
 
 private:
 	bool loadJson(const QString& path, QString& error);
@@ -180,6 +241,7 @@ public:
 	// costs far more than scanning the haystacks, and made every keystroke look like
 	// a freeze.
 	void setFilter(const QString& text);
+	const TTDBehaviorQuery& query() const { return m_query; }
 
 	// Row of the table -> the call it shows, or nullptr when out of range. Decoded into a
 	// single-row cache, so asking for the same row repeatedly (as data() does, once per
@@ -195,7 +257,8 @@ private:
 	void rebuildVisible();
 
 	std::shared_ptr<TTDBehaviorReport> m_report;
-	std::string m_filter;             // lowercased, empty means show everything
+	QString m_filterText;             // as typed, so a repeat of the same text is a no-op
+	TTDBehaviorQuery m_query;
 	std::vector<uint32_t> m_visible;  // source indices; empty when unfiltered
 	bool m_filtered = false;          // whether m_visible is in use
 

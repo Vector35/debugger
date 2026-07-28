@@ -203,6 +203,252 @@ namespace binfmt {
 }  // namespace binfmt
 
 
+bool TTDBehaviorQuery::Numeric::test(uint64_t value) const
+{
+	switch (op)
+	{
+	case NotEqual:
+		return value != a;
+	case Greater:
+		return value > a;
+	case GreaterEqual:
+		return value >= a;
+	case Less:
+		return value < a;
+	case LessEqual:
+		return value <= a;
+	case Range:
+		return value >= a && value <= b;
+	case Equal:
+	default:
+		return value == a;
+	}
+}
+
+
+namespace {
+	// Accepts decimal or 0x-prefixed hex.
+	bool parseNumber(const QString& text, uint64_t& out)
+	{
+		QString trimmed = text.trimmed();
+		if (trimmed.isEmpty())
+			return false;
+		bool ok = false;
+		out = trimmed.startsWith("0x", Qt::CaseInsensitive) ? trimmed.mid(2).toULongLong(&ok, 16)
+															: trimmed.toULongLong(&ok, 10);
+		return ok;
+	}
+
+
+	// `!0`, `>0x1000`, `>=5`, `<10`, `<=10`, `0x400000-0x500000`, or a plain value.
+	bool parseNumeric(const QString& text, TTDBehaviorQuery::Numeric& out)
+	{
+		QString value = text;
+		if (value.startsWith("!"))
+		{
+			out.op = TTDBehaviorQuery::Numeric::NotEqual;
+			value = value.mid(1);
+		}
+		else if (value.startsWith(">="))
+		{
+			out.op = TTDBehaviorQuery::Numeric::GreaterEqual;
+			value = value.mid(2);
+		}
+		else if (value.startsWith("<="))
+		{
+			out.op = TTDBehaviorQuery::Numeric::LessEqual;
+			value = value.mid(2);
+		}
+		else if (value.startsWith(">"))
+		{
+			out.op = TTDBehaviorQuery::Numeric::Greater;
+			value = value.mid(1);
+		}
+		else if (value.startsWith("<"))
+		{
+			out.op = TTDBehaviorQuery::Numeric::Less;
+			value = value.mid(1);
+		}
+		else
+		{
+			// A '-' separating two numbers is a range. Checked after 0x so the hex digits
+			// of a lone value are not mistaken for one.
+			int dash = value.indexOf('-', value.startsWith("0x", Qt::CaseInsensitive) ? 2 : 1);
+			if (dash > 0)
+			{
+				if (!parseNumber(value.left(dash), out.a) || !parseNumber(value.mid(dash + 1), out.b))
+					return false;
+				out.op = TTDBehaviorQuery::Numeric::Range;
+				return true;
+			}
+		}
+		return parseNumber(value, out.a);
+	}
+
+
+	// Split on whitespace, honouring double quotes so a phrase can contain spaces.
+	QStringList splitTerms(const QString& text)
+	{
+		QStringList terms;
+		QString current;
+		bool inQuotes = false;
+		for (QChar c : text)
+		{
+			if (c == '"')
+				inQuotes = !inQuotes;
+			else if (c.isSpace() && !inQuotes)
+			{
+				if (!current.isEmpty())
+					terms.append(current);
+				current.clear();
+			}
+			else
+				current += c;
+		}
+		if (!current.isEmpty())
+			terms.append(current);
+		return terms;
+	}
+}  // namespace
+
+
+void TTDBehaviorQuery::parse(const QString& text)
+{
+	m_terms.clear();
+	for (const QString& raw : splitTerms(text.trimmed()))
+	{
+		Term term;
+		int colon = raw.indexOf(':');
+		QString field = colon > 0 ? raw.left(colon).toLower() : QString();
+		QString value = colon > 0 ? raw.mid(colon + 1) : raw;
+
+		// An unknown prefix is not an error: "c:\windows" should search for that text,
+		// not complain about a field called "c".
+		bool numericField = false;
+		if (field == "module" || field == "mod")
+			term.field = Field::Module;
+		else if (field == "api" || field == "func" || field == "function")
+			term.field = Field::Api;
+		else if (field == "tid" || field == "thread")
+		{
+			term.field = Field::Tid;
+			numericField = true;
+		}
+		else if (field == "ret" || field == "return")
+		{
+			term.field = Field::Ret;
+			numericField = true;
+		}
+		else if (field == "retaddr" || field == "caller" || field == "from")
+		{
+			term.field = Field::RetAddr;
+			numericField = true;
+		}
+		else
+		{
+			term.field = Field::Text;
+			value = raw;
+		}
+
+		if (numericField)
+		{
+			if (!parseNumeric(value, term.numeric))
+			{
+				// Unparseable number: fall back to treating the whole thing as text so
+				// the row set does not silently become everything.
+				term.field = Field::Text;
+				term.text = raw.toLower().toUtf8().toStdString();
+				m_terms.push_back(std::move(term));
+				continue;
+			}
+		}
+		else
+		{
+			if (value.endsWith('*'))
+			{
+				term.prefix = true;
+				value.chop(1);
+			}
+			if (value.isEmpty())
+				continue;
+			term.text = value.toLower().toUtf8().toStdString();
+		}
+		m_terms.push_back(std::move(term));
+	}
+}
+
+
+bool TTDBehaviorQuery::hasFieldTerms() const
+{
+	for (const Term& t : m_terms)
+	{
+		if (t.field != Field::Text)
+			return true;
+	}
+	return false;
+}
+
+
+void TTDBehaviorQuery::resolve(const TTDBehaviorReport& report)
+{
+	bool needsStrings = false;
+	for (Term& t : m_terms)
+	{
+		t.stringOffsets.clear();
+		t.resolved = false;
+		if (t.field == Field::Module || t.field == Field::Api)
+			needsStrings = true;
+	}
+	if (!needsStrings || !report.isMapped())
+		return;
+
+	// One pass over the string table -- a few thousand entries, not a few million rows --
+	// collecting the offsets each module/api term accepts. Matching a row afterwards is
+	// then an integer compare against that set.
+	report.forEachString([this](uint32_t offset, const char* text, size_t length) {
+		std::string lowered(text, length);
+		std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+			[](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+		for (Term& t : m_terms)
+		{
+			if (t.field != Field::Module && t.field != Field::Api)
+				continue;
+			bool hit = t.prefix ? lowered.rfind(t.text, 0) == 0 : lowered == t.text;
+			if (hit)
+				t.stringOffsets.push_back(offset);
+		}
+	});
+
+	for (Term& t : m_terms)
+	{
+		if (t.field == Field::Module || t.field == Field::Api)
+		{
+			std::sort(t.stringOffsets.begin(), t.stringOffsets.end());
+			t.resolved = true;
+		}
+	}
+}
+
+
+void TTDBehaviorReport::forEachString(
+	const std::function<void(uint32_t, const char*, size_t)>& fn) const
+{
+	if (m_map == nullptr)
+		return;
+	const char* base = reinterpret_cast<const char*>(m_map + m_stringsOff);
+	uint64_t offset = 0;
+	while (offset < m_stringsSize)
+	{
+		size_t length = 0;
+		while (offset + length < m_stringsSize && base[offset + length] != '\0')
+			++length;
+		if (length != 0)
+			fn(static_cast<uint32_t>(offset), base + offset, length);
+		offset += length + 1;
+	}
+}
+
+
 void TTDBehaviorReport::clear()
 {
 	reportPath.clear();
@@ -340,28 +586,96 @@ QString TTDBehaviorReport::mappedString(uint32_t offset) const
 }
 
 
-bool TTDBehaviorReport::matches(size_t index, const std::string& needle) const
+bool TTDBehaviorReport::matches(size_t index, const TTDBehaviorQuery& query) const
 {
+	if (query.isEmpty())
+		return true;
+
+	// JSON backend: no string table or fixed records to exploit, so fall back to the
+	// materialised objects. Correct, just not the fast path.
 	if (m_map == nullptr)
 	{
 		if (index >= m_calls.size())
 			return false;
-		return m_calls[index].searchText.find(needle) != std::string::npos;
+		const TTDApiCall& call = m_calls[index];
+		for (const TTDBehaviorQuery::Term& t : query.terms())
+		{
+			bool ok = true;
+			switch (t.field)
+			{
+			case TTDBehaviorQuery::Field::Text:
+				ok = call.searchText.find(t.text) != std::string::npos;
+				break;
+			case TTDBehaviorQuery::Field::Module:
+			case TTDBehaviorQuery::Field::Api:
+			{
+				std::string value =
+					(t.field == TTDBehaviorQuery::Field::Module ? call.module : call.api).toLower().toStdString();
+				ok = t.prefix ? value.rfind(t.text, 0) == 0 : value == t.text;
+				break;
+			}
+			case TTDBehaviorQuery::Field::Tid:
+				ok = t.numeric.test(call.tid);
+				break;
+			case TTDBehaviorQuery::Field::Ret:
+				ok = t.numeric.test(call.ret);
+				break;
+			case TTDBehaviorQuery::Field::RetAddr:
+				ok = t.numeric.test(call.returnAddress);
+				break;
+			}
+			if (!ok)
+				return false;
+		}
+		return true;
 	}
+
 	if (index >= m_callCount)
 		return false;
-
 	const uint8_t* rec = callRecord(index);
-	uint32_t searchOff = binfmt::read<uint32_t>(rec + 32);
-	uint16_t searchLen = binfmt::read<uint16_t>(rec + 38);
-	// searchOff is relative to the blob region, so it has to be bounded against the
-	// region's size rather than its position in the file.
-	if (static_cast<uint64_t>(searchOff) + searchLen > m_blobSize)
-		return false;
 
-	// std::string_view::find over the mapped bytes: no copy, no allocation.
-	std::string_view hay(reinterpret_cast<const char*>(m_map + m_blobOff + searchOff), searchLen);
-	return hay.find(needle) != std::string_view::npos;
+	for (const TTDBehaviorQuery::Term& t : query.terms())
+	{
+		bool ok = true;
+		switch (t.field)
+		{
+		case TTDBehaviorQuery::Field::Text:
+		{
+			uint32_t searchOff = binfmt::read<uint32_t>(rec + 32);
+			uint16_t searchLen = binfmt::read<uint16_t>(rec + 38);
+			// searchOff is relative to the blob region, so it has to be bounded against
+			// the region's size rather than its position in the file.
+			if (static_cast<uint64_t>(searchOff) + searchLen > m_blobSize)
+				return false;
+			std::string_view hay(
+				reinterpret_cast<const char*>(m_map + m_blobOff + searchOff), searchLen);
+			ok = hay.find(t.text) != std::string_view::npos;
+			break;
+		}
+		case TTDBehaviorQuery::Field::Module:
+		case TTDBehaviorQuery::Field::Api:
+		{
+			// Resolved to a set of string-table offsets up front, so this is a lookup in
+			// a handful of integers rather than a string comparison.
+			uint32_t offset =
+				binfmt::read<uint32_t>(rec + (t.field == TTDBehaviorQuery::Field::Module ? 20 : 24));
+			ok = std::binary_search(t.stringOffsets.begin(), t.stringOffsets.end(), offset);
+			break;
+		}
+		case TTDBehaviorQuery::Field::Tid:
+			ok = t.numeric.test(binfmt::read<uint32_t>(rec + 8));
+			break;
+		case TTDBehaviorQuery::Field::Ret:
+			ok = t.numeric.test(binfmt::read<uint64_t>(rec + 0));
+			break;
+		case TTDBehaviorQuery::Field::RetAddr:
+			ok = t.numeric.test(binfmt::read<uint64_t>(rec + 40));
+			break;
+		}
+		if (!ok)
+			return false;
+	}
+	return true;
 }
 
 
@@ -586,6 +900,8 @@ void TTDBehaviorCallModel::setReport(std::shared_ptr<TTDBehaviorReport> report)
 {
 	beginResetModel();
 	m_report = std::move(report);
+	if (m_report)
+		m_query.resolve(*m_report);
 	rebuildVisible();
 	endResetModel();
 }
@@ -593,12 +909,14 @@ void TTDBehaviorCallModel::setReport(std::shared_ptr<TTDBehaviorReport> report)
 
 void TTDBehaviorCallModel::setFilter(const QString& text)
 {
-	std::string filter = text.trimmed().toLower().toUtf8().toStdString();
-	if (filter == m_filter)
+	if (text.trimmed() == m_filterText)
 		return;
 
 	beginResetModel();
-	m_filter = std::move(filter);
+	m_filterText = text.trimmed();
+	m_query.parse(m_filterText);
+	if (m_report)
+		m_query.resolve(*m_report);
 	rebuildVisible();
 	endResetModel();
 }
@@ -609,7 +927,7 @@ void TTDBehaviorCallModel::rebuildVisible()
 	m_cachedIndex = static_cast<size_t>(-1);
 	m_visible.clear();
 	m_visible.shrink_to_fit();
-	m_filtered = !m_filter.empty();
+	m_filtered = !m_query.isEmpty();
 	if (!m_filtered || !m_report)
 		return;
 
@@ -619,7 +937,7 @@ void TTDBehaviorCallModel::rebuildVisible()
 	const size_t count = m_report->callCount();
 	for (size_t i = 0; i < count; ++i)
 	{
-		if (m_report->matches(i, m_filter))
+		if (m_report->matches(i, m_query))
 			m_visible.push_back(static_cast<uint32_t>(i));
 	}
 }
@@ -771,7 +1089,22 @@ void TTDBehaviorWidget::setupUI()
 	toolbar->addWidget(m_extractButton);
 
 	m_filterEdit = new QLineEdit();
-	m_filterEdit->setPlaceholderText("Filter by module, function, or parameter");
+	m_filterEdit->setPlaceholderText("Filter, e.g.  module:kernel32 api:WriteFile ret:!0");
+	// The syntax is the only part of this that is not self-evident, so spell it out
+	// where someone hovering the box will find it.
+	m_filterEdit->setToolTip(QStringList {
+		"Terms are combined with AND. A bare word matches anywhere, including buffer contents.",
+		"",
+		"  module:kernel32             exact module, so ntdll!WriteFile is excluded",
+		"  api:WriteFile               exact function name",
+		"  api:Reg*                    trailing * matches a prefix",
+		"  tid:4                       thread id",
+		"  ret:!0    ret:>0x1000       return value; also >= <= < and 10-20 ranges",
+		"  retaddr:0x400000-0x500000   call site, e.g. calls the sample made itself",
+		"  \"c:\\\\windows\"               quoted phrase",
+		"",
+		"Values may be decimal or 0x hex. An unrecognised prefix is treated as text.",
+	}.join('\n'));
 	m_filterEdit->setClearButtonEnabled(true);
 	toolbar->addWidget(m_filterEdit, 1);
 
