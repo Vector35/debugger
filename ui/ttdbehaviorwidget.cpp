@@ -1052,7 +1052,8 @@ QVariant TTDBehaviorCallModel::headerData(int section, Qt::Orientation orientati
 }
 
 
-TTDBehaviorWidget::TTDBehaviorWidget(BinaryViewRef data) : SidebarWidget("TTD Behavior"), m_data(data)
+TTDBehaviorQueryWidget::TTDBehaviorQueryWidget(QWidget* parent, BinaryViewRef data) :
+	QWidget(parent), m_data(data)
 {
 	m_controller = DebuggerController::GetController(data);
 	m_report = std::make_shared<TTDBehaviorReport>();
@@ -1061,32 +1062,11 @@ TTDBehaviorWidget::TTDBehaviorWidget(BinaryViewRef data) : SidebarWidget("TTD Be
 }
 
 
-TTDBehaviorWidget::~TTDBehaviorWidget()
-{
-	if (m_extractProcess && m_extractProcess->state() != QProcess::NotRunning)
-	{
-		m_extractProcess->kill();
-		m_extractProcess->waitForFinished(1000);
-	}
-}
-
-
-void TTDBehaviorWidget::setupUI()
+void TTDBehaviorQueryWidget::setupUI()
 {
 	auto* layout = new QVBoxLayout();
 	layout->setContentsMargins(0, 0, 0, 0);
 	layout->setSpacing(4);
-
-	auto* toolbar = new QHBoxLayout();
-	toolbar->setContentsMargins(4, 4, 4, 0);
-
-	m_loadButton = new QPushButton("Load Report...");
-	m_loadButton->setToolTip("Load a JSON report of API calls extracted from a TTD trace");
-	toolbar->addWidget(m_loadButton);
-
-	m_extractButton = new QPushButton("Extract...");
-	m_extractButton->setToolTip("Run the extractor over a TTD trace and load the result");
-	toolbar->addWidget(m_extractButton);
 
 	m_filterEdit = new QLineEdit();
 	m_filterEdit->setPlaceholderText("Filter, e.g.  module:kernel32 api:WriteFile ret:!0");
@@ -1101,14 +1081,13 @@ void TTDBehaviorWidget::setupUI()
 		"  tid:4                       thread id",
 		"  ret:!0    ret:>0x1000       return value; also >= <= < and 10-20 ranges",
 		"  retaddr:0x400000-0x500000   call site, e.g. calls the sample made itself",
-		"  \"c:\\\\windows\"               quoted phrase",
+		"  \"c:\\windows\"               quoted phrase",
 		"",
 		"Values may be decimal or 0x hex. An unrecognised prefix is treated as text.",
 	}.join('\n'));
 	m_filterEdit->setClearButtonEnabled(true);
-	toolbar->addWidget(m_filterEdit, 1);
-
-	layout->addLayout(toolbar);
+	m_filterEdit->setContentsMargins(4, 4, 4, 0);
+	layout->addWidget(m_filterEdit);
 
 	m_model = new TTDBehaviorCallModel(this);
 
@@ -1146,7 +1125,125 @@ void TTDBehaviorWidget::setupUI()
 	splitter->setStretchFactor(1, 1);
 	layout->addWidget(splitter, 1);
 
-	// Progress row: hidden until something long-running starts.
+	m_statusLabel = new QLabel();
+	m_statusLabel->setContentsMargins(4, 0, 4, 4);
+	layout->addWidget(m_statusLabel);
+
+	setLayout(layout);
+
+	connect(m_filterEdit, &QLineEdit::textChanged, this, &TTDBehaviorQueryWidget::onFilterTextEdited);
+	// Enter applies immediately rather than waiting out the debounce.
+	connect(m_filterEdit, &QLineEdit::returnPressed, this, &TTDBehaviorQueryWidget::applyFilter);
+	connect(m_filterTimer, &QTimer::timeout, this, &TTDBehaviorQueryWidget::applyFilter);
+	connect(m_table, &QTableView::doubleClicked, this, &TTDBehaviorQueryWidget::onDoubleClicked);
+	connect(m_table, &QTableView::customContextMenuRequested, this, &TTDBehaviorQueryWidget::onContextMenu);
+	connect(m_table->selectionModel(), &QItemSelectionModel::selectionChanged, this,
+		&TTDBehaviorQueryWidget::onSelectionChanged);
+}
+
+
+QString TTDBehaviorQueryWidget::filterText() const
+{
+	return m_filterEdit->text();
+}
+
+
+void TTDBehaviorQueryWidget::setFilterText(const QString& text)
+{
+	m_filterEdit->setText(text);
+	applyFilter();
+}
+
+
+void TTDBehaviorQueryWidget::setTimings(double writeSeconds, double loadSeconds)
+{
+	m_writeSeconds = writeSeconds;
+	m_loadSeconds = loadSeconds;
+	updateStatus();
+}
+
+
+void TTDBehaviorQueryWidget::setReport(std::shared_ptr<TTDBehaviorReport> report)
+{
+	m_report = std::move(report);
+	m_model->setReport(m_report);
+	m_detail->clear();
+	m_table->resizeColumnsToContents();
+	// The parameter rendering is long enough that fitting it would push every other
+	// column off screen; cap it and let the detail pane carry the full value.
+	if (m_table->columnWidth(TTDBehaviorCallModel::ParametersColumn) > 600)
+		m_table->setColumnWidth(TTDBehaviorCallModel::ParametersColumn, 600);
+
+	// resizeColumnsToContents() samples only the leading rows, which is fine for the
+	// columns whose content is uniform but clips these two: the last call's index has
+	// far more digits than the first thousand, and positions grow as the trace advances.
+	// Size them from the widest value actually present.
+	QFontMetrics metrics(m_table->font());
+	const int padding = 16;
+	int seqWidth = metrics.horizontalAdvance(QString::number(m_report->maxSeq)) + padding;
+	int positionWidth = metrics.horizontalAdvance(QString(m_report->maxPositionChars, 'M')) + padding;
+	if (seqWidth > m_table->columnWidth(TTDBehaviorCallModel::SeqColumn))
+		m_table->setColumnWidth(TTDBehaviorCallModel::SeqColumn, seqWidth);
+	if (positionWidth > m_table->columnWidth(TTDBehaviorCallModel::PositionColumn))
+		m_table->setColumnWidth(TTDBehaviorCallModel::PositionColumn, positionWidth);
+
+	updateStatus();
+}
+
+
+TTDBehaviorWidget::TTDBehaviorWidget(BinaryViewRef data) : SidebarWidget("TTD Behavior"), m_data(data)
+{
+	m_controller = DebuggerController::GetController(data);
+	m_report = std::make_shared<TTDBehaviorReport>();
+	setupUI();
+}
+
+
+TTDBehaviorWidget::~TTDBehaviorWidget()
+{
+	if (m_extractProcess && m_extractProcess->state() != QProcess::NotRunning)
+	{
+		m_extractProcess->kill();
+		m_extractProcess->waitForFinished(1000);
+	}
+}
+
+
+void TTDBehaviorWidget::setupUI()
+{
+	auto* layout = new QVBoxLayout();
+	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setSpacing(4);
+
+	// Loading and extracting act on the report as a whole, so they live above the tabs
+	// rather than being repeated in each one.
+	auto* toolbar = new QHBoxLayout();
+	toolbar->setContentsMargins(4, 4, 4, 0);
+
+	m_loadButton = new QPushButton("Load Report...");
+	m_loadButton->setToolTip("Load a report of API calls extracted from a TTD trace");
+	toolbar->addWidget(m_loadButton);
+
+	m_extractButton = new QPushButton("Extract...");
+	m_extractButton->setToolTip("Run the extractor over a TTD trace and load the result");
+	toolbar->addWidget(m_extractButton);
+	toolbar->addStretch(1);
+
+	layout->addLayout(toolbar);
+
+	m_tabWidget = new QTabWidget();
+	m_tabWidget->setTabsClosable(true);
+
+	m_newTabButton = new QToolButton();
+	m_newTabButton->setText("+");
+	m_newTabButton->setAutoRaise(true);
+	m_newTabButton->setToolTip("New query tab");
+	m_tabWidget->setCornerWidget(m_newTabButton, Qt::TopRightCorner);
+
+	layout->addWidget(m_tabWidget, 1);
+
+	// Progress row: hidden until something long-running starts. Shared, because a load
+	// or an extraction affects every tab.
 	m_progressRow = new QWidget();
 	auto* progressLayout = new QHBoxLayout(m_progressRow);
 	progressLayout->setContentsMargins(4, 0, 4, 0);
@@ -1162,28 +1259,71 @@ void TTDBehaviorWidget::setupUI()
 	m_progressRow->setVisible(false);
 	layout->addWidget(m_progressRow);
 
-	m_statusLabel = new QLabel();
-	m_statusLabel->setContentsMargins(4, 0, 4, 4);
-	layout->addWidget(m_statusLabel);
-
 	setLayout(layout);
-
-	connect(m_cancelButton, &QPushButton::clicked, this, &TTDBehaviorWidget::onCancelClicked);
 
 	connect(m_loadButton, &QPushButton::clicked, this, &TTDBehaviorWidget::onLoadClicked);
 	connect(m_extractButton, &QPushButton::clicked, this, &TTDBehaviorWidget::onExtractClicked);
-	connect(m_filterEdit, &QLineEdit::textChanged, this, &TTDBehaviorWidget::onFilterTextEdited);
-	// Enter applies immediately rather than waiting out the debounce.
-	connect(m_filterEdit, &QLineEdit::returnPressed, this, &TTDBehaviorWidget::applyFilter);
-	connect(m_filterTimer, &QTimer::timeout, this, &TTDBehaviorWidget::applyFilter);
-	connect(m_table, &QTableView::doubleClicked, this, &TTDBehaviorWidget::onDoubleClicked);
-	connect(m_table, &QTableView::customContextMenuRequested, this, &TTDBehaviorWidget::onContextMenu);
-	connect(m_table->selectionModel(), &QItemSelectionModel::selectionChanged, this,
-		&TTDBehaviorWidget::onSelectionChanged);
+	connect(m_cancelButton, &QPushButton::clicked, this, &TTDBehaviorWidget::onCancelClicked);
+	connect(m_newTabButton, &QToolButton::clicked, this, &TTDBehaviorWidget::createNewTab);
+	connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &TTDBehaviorWidget::closeTab);
+
+	createNewTab();
 }
 
 
-void TTDBehaviorWidget::updateStatus()
+TTDBehaviorQueryWidget* TTDBehaviorWidget::currentQuery() const
+{
+	return qobject_cast<TTDBehaviorQueryWidget*>(m_tabWidget->currentWidget());
+}
+
+
+void TTDBehaviorWidget::createNewTab()
+{
+	// Seed from the current tab, so refining a query is a matter of opening a tab and
+	// editing rather than retyping it.
+	QString seed;
+	if (TTDBehaviorQueryWidget* current = currentQuery())
+		seed = current->filterText();
+
+	auto* query = new TTDBehaviorQueryWidget(this, m_data);
+	int index = m_tabWidget->addTab(query, QString("Query %1").arg(m_tabWidget->count() + 1));
+
+	query->setReport(m_report);
+	query->setTimings(m_lastWriteSeconds, m_lastLoadSeconds);
+	if (!seed.isEmpty())
+		query->setFilterText(seed);
+
+	// Label the tab with what it is asking, which is far more use than "Query 3" once
+	// there are several.
+	connect(query, &TTDBehaviorQueryWidget::filterApplied, this, [this, query](const QString& text) {
+		int at = m_tabWidget->indexOf(query);
+		if (at < 0)
+			return;
+		QString label = text.trimmed();
+		if (label.isEmpty())
+			label = QString("Query %1").arg(at + 1);
+		else if (label.size() > 24)
+			label = label.left(24) + QString::fromUtf8("\xe2\x80\xa6");
+		m_tabWidget->setTabText(at, label);
+		m_tabWidget->setTabToolTip(at, text.trimmed());
+	});
+
+	m_tabWidget->setCurrentIndex(index);
+}
+
+
+void TTDBehaviorWidget::closeTab(int index)
+{
+	// Keep at least one, so the widget is never an empty frame.
+	if (m_tabWidget->count() <= 1)
+		return;
+	QWidget* widget = m_tabWidget->widget(index);
+	m_tabWidget->removeTab(index);
+	widget->deleteLater();
+}
+
+
+void TTDBehaviorQueryWidget::updateStatus()
 {
 	if (m_report->callCount() == 0)
 	{
@@ -1199,12 +1339,12 @@ void TTDBehaviorWidget::updateStatus()
 					   .arg(m_report->callCount())
 					   .arg(m_report->decodedCount);
 	// Where the time actually went, since that is the thing worth knowing about a format.
-	if (m_lastWriteSeconds > 0.0)
-		text += QString("  |  saved in %1s").arg(m_lastWriteSeconds, 0, 'f', 1);
-	if (m_lastLoadSeconds >= 0.0)
+	if (m_writeSeconds > 0.0)
+		text += QString("  |  saved in %1s").arg(m_writeSeconds, 0, 'f', 1);
+	if (m_loadSeconds >= 0.0)
 		text += QString("%1loaded in %2s")
-					.arg(m_lastWriteSeconds > 0.0 ? ", " : "  |  ")
-					.arg(m_lastLoadSeconds, 0, 'f', 2);
+					.arg(m_writeSeconds > 0.0 ? ", " : "  |  ")
+					.arg(m_loadSeconds, 0, 'f', 2);
 	m_statusLabel->setText(text);
 }
 
@@ -1339,7 +1479,6 @@ void TTDBehaviorWidget::loadReport(const QString& path)
 				if (!ok)
 				{
 					QMessageBox::warning(self, "TTD Behavior", error);
-					self->updateStatus();
 					return;
 				}
 				self->m_lastLoadSeconds = loadSeconds;
@@ -1352,28 +1491,17 @@ void TTDBehaviorWidget::loadReport(const QString& path)
 
 void TTDBehaviorWidget::installReport(std::shared_ptr<TTDBehaviorReport> report)
 {
-	m_report = report;
-	m_model->setReport(m_report);
-	m_detail->clear();
-	m_table->resizeColumnsToContents();
-	// The parameter rendering is long enough that fitting it would push every other
-	// column off screen; cap it and let the detail pane carry the full value.
-	if (m_table->columnWidth(TTDBehaviorCallModel::ParametersColumn) > 600)
-		m_table->setColumnWidth(TTDBehaviorCallModel::ParametersColumn, 600);
-
-	// resizeColumnsToContents() samples only the leading rows, which is fine for the
-	// columns whose content is uniform but clips these two: the last call's index has
-	// far more digits than the first thousand, and positions grow as the trace advances.
-	// Size them from the widest value actually present.
-	QFontMetrics metrics(m_table->font());
-	const int padding = 16;
-	int seqWidth = metrics.horizontalAdvance(QString::number(m_report->maxSeq)) + padding;
-	int positionWidth = metrics.horizontalAdvance(QString(m_report->maxPositionChars, 'M')) + padding;
-	if (seqWidth > m_table->columnWidth(TTDBehaviorCallModel::SeqColumn))
-		m_table->setColumnWidth(TTDBehaviorCallModel::SeqColumn, seqWidth);
-	if (positionWidth > m_table->columnWidth(TTDBehaviorCallModel::PositionColumn))
-		m_table->setColumnWidth(TTDBehaviorCallModel::PositionColumn, positionWidth);
-	updateStatus();
+	m_report = std::move(report);
+	// Every tab points at the same report -- that is the reason to have tabs at all --
+	// but each keeps its own query, so each re-resolves and re-filters against it.
+	for (int i = 0; i < m_tabWidget->count(); ++i)
+	{
+		if (auto* query = qobject_cast<TTDBehaviorQueryWidget*>(m_tabWidget->widget(i)))
+		{
+			query->setReport(m_report);
+			query->setTimings(m_lastWriteSeconds, m_lastLoadSeconds);
+		}
+	}
 }
 
 
@@ -1499,7 +1627,6 @@ void TTDBehaviorWidget::onExtractClicked()
 			{
 				QMessageBox::warning(this, "TTD Behavior",
 					QString("Extraction failed (exit %1):\n\n%2").arg(exitCode).arg(stderrText));
-				updateStatus();
 				return;
 			}
 			// A cancelled sweep still writes what it collected, so this path is the same
@@ -1516,7 +1643,6 @@ void TTDBehaviorWidget::onExtractClicked()
 
 	beginOperation(QString("Extracting from %1").arg(QFileInfo(trace).fileName()), true);
 	setProgress(0.0, "Starting extractor");
-	m_statusLabel->setText(QString("Extracting from %1...").arg(QFileInfo(trace).fileName()));
 	m_extractProcess->start(extractor, arguments);
 }
 
@@ -1534,7 +1660,7 @@ void TTDBehaviorWidget::onCancelClicked()
 }
 
 
-void TTDBehaviorWidget::onFilterTextEdited()
+void TTDBehaviorQueryWidget::onFilterTextEdited()
 {
 	m_filterTimer->start();
 	// Only worth saying on a report big enough for the pass to be visible; below that
@@ -1544,15 +1670,16 @@ void TTDBehaviorWidget::onFilterTextEdited()
 }
 
 
-void TTDBehaviorWidget::applyFilter()
+void TTDBehaviorQueryWidget::applyFilter()
 {
 	m_filterTimer->stop();
 	m_model->setFilter(m_filterEdit->text());
 	updateStatus();
+	emit filterApplied(m_filterEdit->text());
 }
 
 
-void TTDBehaviorWidget::showDetail(const TTDApiCall* call)
+void TTDBehaviorQueryWidget::showDetail(const TTDApiCall* call)
 {
 	if (!call)
 	{
@@ -1622,7 +1749,7 @@ void TTDBehaviorWidget::showDetail(const TTDApiCall* call)
 }
 
 
-void TTDBehaviorWidget::onSelectionChanged()
+void TTDBehaviorQueryWidget::onSelectionChanged()
 {
 	QModelIndexList selected = m_table->selectionModel()->selectedRows();
 	if (selected.isEmpty())
@@ -1634,7 +1761,7 @@ void TTDBehaviorWidget::onSelectionChanged()
 }
 
 
-void TTDBehaviorWidget::onDoubleClicked(const QModelIndex& index)
+void TTDBehaviorQueryWidget::onDoubleClicked(const QModelIndex& index)
 {
 	const TTDApiCall* call = m_model->callAt(index.row());
 	if (!call || !m_controller || !m_controller->IsTTD())
@@ -1681,7 +1808,7 @@ void TTDBehaviorWidget::onDoubleClicked(const QModelIndex& index)
 }
 
 
-void TTDBehaviorWidget::copySelectedRows()
+void TTDBehaviorQueryWidget::copySelectedRows()
 {
 	QModelIndexList selected = m_table->selectionModel()->selectedRows();
 	QStringList lines;
@@ -1698,7 +1825,7 @@ void TTDBehaviorWidget::copySelectedRows()
 }
 
 
-void TTDBehaviorWidget::onContextMenu(const QPoint& pos)
+void TTDBehaviorQueryWidget::onContextMenu(const QPoint& pos)
 {
 	if (m_table->selectionModel()->selectedRows().isEmpty())
 		return;

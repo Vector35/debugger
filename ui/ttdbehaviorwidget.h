@@ -22,7 +22,9 @@ limitations under the License.
 #include <functional>
 #include <memory>
 #include <QProgressBar>
+#include <QTabWidget>
 #include <QTableView>
+#include <QToolButton>
 #include <QTimer>
 #include <QLineEdit>
 #include <QLabel>
@@ -268,7 +270,11 @@ private:
 };
 
 
-class TTDBehaviorWidget : public SidebarWidget
+// One query over the loaded report: a filter, the rows it matches, and the detail pane
+// for whichever of them is selected. Tabs of these share a single report, since the
+// point of having several is to ask different questions of the same trace without
+// paying to load it again.
+class TTDBehaviorQueryWidget : public QWidget
 {
 	Q_OBJECT
 
@@ -277,11 +283,66 @@ private:
 	DbgRef<DebuggerController> m_controller;
 
 	QLineEdit* m_filterEdit;
-	QPushButton* m_loadButton;
-	QPushButton* m_extractButton;
 	QLabel* m_statusLabel;
 	QTableView* m_table;
 	QTextEdit* m_detail;
+
+	TTDBehaviorCallModel* m_model;
+	std::shared_ptr<TTDBehaviorReport> m_report;
+
+	// Set by the container, which is what knows them; shown in this tab's status line.
+	double m_writeSeconds = 0.0;
+	double m_loadSeconds = -1.0;
+
+	// Filtering waits for a pause in typing rather than running on every keystroke:
+	// on a large trace each pass is real work, and eight of them while typing
+	// "kernel32" is eight times the work for seven results nobody looks at.
+	QTimer* m_filterTimer;
+
+	void setupUI();
+	void showDetail(const TTDApiCall* call);
+
+public:
+	TTDBehaviorQueryWidget(QWidget* parent, BinaryViewRef data);
+
+	// Point this tab at a report. Cheap: the model only takes a reference to it.
+	void setReport(std::shared_ptr<TTDBehaviorReport> report);
+
+	QString filterText() const;
+	void setFilterText(const QString& text);
+
+	// Appended to the status line by the container, which is what knows them.
+	void setTimings(double writeSeconds, double loadSeconds);
+	void updateStatus();
+
+Q_SIGNALS:
+	// So the container can label the tab after whatever the tab is asking.
+	void filterApplied(const QString& text);
+
+private Q_SLOTS:
+	void applyFilter();
+	void onFilterTextEdited();
+	void onSelectionChanged();
+	void onDoubleClicked(const QModelIndex& index);
+	void onContextMenu(const QPoint& pos);
+	void copySelectedRows();
+};
+
+
+// Holds the report and the things that act on it as a whole -- loading, extracting,
+// progress -- above a tab bar of queries.
+class TTDBehaviorWidget : public SidebarWidget
+{
+	Q_OBJECT
+
+private:
+	BinaryViewRef m_data;
+	DbgRef<DebuggerController> m_controller;
+
+	QPushButton* m_loadButton;
+	QPushButton* m_extractButton;
+	QTabWidget* m_tabWidget;
+	QToolButton* m_newTabButton;
 
 	// Shown only while an extraction or a report load is in flight.
 	QWidget* m_progressRow;
@@ -291,30 +352,24 @@ private:
 	QElapsedTimer m_operationTimer;
 	QByteArray m_stderrTail;  // partial line left over between readyRead signals
 
-	// Reported in the status line: serialising and loading a report are the two costs
-	// most worth seeing, since they dominated the wall clock before the binary format.
+	// Reported in each tab's status line: serialising and loading a report are the two
+	// costs most worth seeing, since they dominated the wall clock before the binary
+	// format.
 	double m_lastWriteSeconds = 0.0;
 	double m_lastLoadSeconds = -1.0;
 
-	TTDBehaviorCallModel* m_model;
 	std::shared_ptr<TTDBehaviorReport> m_report;
 	QProcess* m_extractProcess = nullptr;
 
-	// Filtering waits for a pause in typing rather than running on every keystroke:
-	// on a large trace each pass is real work, and eight of them while typing
-	// "kernel32" is eight times the work for seven results nobody looks at.
-	QTimer* m_filterTimer;
-
 	void setupUI();
-	void applyFilter();
-	void updateStatus();
-	void showDetail(const TTDApiCall* call);
 	QString extractorPath(bool prompt);
 
 	void beginOperation(const QString& what, bool cancellable);
 	void endOperation();
 	void setProgress(double percent, const QString& detail);
 	void consumeExtractorStderr();
+
+	TTDBehaviorQueryWidget* currentQuery() const;
 
 public:
 	TTDBehaviorWidget(BinaryViewRef data);
@@ -324,18 +379,15 @@ public:
 	// that doing it inline freezes the UI -- and installs it when finished.
 	void loadReport(const QString& path);
 
-	// Swap in a parsed report and refresh the view. Must run on the UI thread.
+	// Swap in a parsed report and hand it to every tab. Must run on the UI thread.
 	void installReport(std::shared_ptr<TTDBehaviorReport> report);
 
 private Q_SLOTS:
 	void onLoadClicked();
 	void onExtractClicked();
 	void onCancelClicked();
-	void onFilterTextEdited();
-	void onSelectionChanged();
-	void onDoubleClicked(const QModelIndex& index);
-	void onContextMenu(const QPoint& pos);
-	void copySelectedRows();
+	void createNewTab();
+	void closeTab(int index);
 };
 
 
