@@ -46,170 +46,15 @@ using namespace BinaryNinja;
 using namespace BinaryNinjaDebuggerAPI;
 
 
-// One decoded parameter of an API call. Only `name`/`type`/`kind`/`value` are always
-// present; the rest depend on what the Win32 API metadata said about the parameter.
-struct TTDApiCallParam
-{
-	QString name;
-	QString type;
-	QString kind;
-	uint64_t value = 0;
-	QString str;           // resolved ANSI/UTF-16 string, if the parameter is one
-	QStringList flags;     // symbolic names for enum/flag parameters
-	QByteArray bytes;      // captured buffer contents, possibly only a prefix
-	uint64_t bytesTotal = 0;  // the buffer's real length when `bytes` was capped, else 0
-	uint64_t deref = 0;    // pointed-to value for `int*`-like parameters
-	bool hasDeref = false;
-	bool out = false;      // [Out] parameter
-	bool atReturn = false; // value was re-read at the call's return position
-};
-
-
-// A single Windows API call observed during the trace.
-struct TTDApiCall
-{
-	uint64_t seq = 0;
-	uint64_t tid = 0;
-	QString position;
-	QString module;
-	QString api;
-	uint64_t ret = 0;
-	// Where the call returns to: the instruction after the CALL, so it names the call
-	// site and therefore which module made the call.
-	uint64_t returnAddress = 0;
-	std::vector<TTDApiCallParam> params;
-	bool decoded = false;  // true when a real signature was available for this call
-	QString paramSummary;  // single-line rendering for the table
-
-	// Lowercased "module!api params" that the filter scans. Deliberately a byte
-	// string rather than a QString: a trace can hold millions of calls, so this
-	// halves the per-call footprint versus UTF-16, and searching 8-bit data is
-	// several times faster than a case-insensitive QString comparison.
-	//
-	// Only populated by the JSON backend. The binary one keeps the equivalent text in
-	// the mapped file and matches against it there, so nothing is built per call.
-	std::string searchText;
-};
-
-
-// A parsed filter expression.
+// The report reader and its query engine live in core (core/ttdbehavior.h), reachable
+// here through the debugger API. That is what lets the same queries run from Python;
+// this widget is now just a view over them.
 //
-// Whitespace-separated terms, ANDed together. A bare word (or "quoted phrase") is a
-// substring match over everything searchable about a call; `field:value` narrows to one
-// field. That keeps what people already type working, while giving them a way to say
-// which WriteFile they meant.
-//
-//   module:kernel32 api:WriteFile        only kernel32's, not ntdll's
-//   api:Reg* ret:!0                      registry calls that failed
-//   retaddr:0x400000-0x500000            calls made from the sample itself
-//   password                             anything mentioning it, buffers included
-//
-// module/api resolve against the report's deduplicated string table once per query, so
-// evaluating them per row is an integer compare rather than a string search.
-class TTDBehaviorQuery
-{
-public:
-	// Comparison against one of the call's numeric fields.
-	struct Numeric
-	{
-		enum Op { Equal, NotEqual, Greater, GreaterEqual, Less, LessEqual, Range };
-		Op op = Equal;
-		uint64_t a = 0;
-		uint64_t b = 0;
-		bool test(uint64_t value) const;
-	};
-
-	enum class Field { Text, Module, Api, Tid, Ret, RetAddr };
-
-	struct Term
-	{
-		Field field = Field::Text;
-		std::string text;      // lowercased, for Text/Module/Api
-		bool prefix = false;   // the term ended in '*'
-		Numeric numeric;       // for Tid/Ret/RetAddr
-		std::vector<uint32_t> stringOffsets;  // resolved module/api matches
-		bool resolved = false;
-	};
-
-	// Never fails: anything that does not look like a field term is treated as text, so
-	// a half-typed query still does something sensible rather than erroring.
-	void parse(const QString& text);
-	bool isEmpty() const { return m_terms.empty(); }
-	bool hasFieldTerms() const;
-
-	// Bind module/api terms to the report's string table. Call once per report per query.
-	void resolve(const class TTDBehaviorReport& report);
-
-	const std::vector<Term>& terms() const { return m_terms; }
-
-private:
-	std::vector<Term> m_terms;
-};
-
-
-// The set of API calls extracted from one trace.
-//
-// Two backends. The binary one memory-maps the extractor's compact format and decodes
-// records straight out of the mapping when a row is asked for -- there is no per-call
-// object, so opening a 3.4M-call report costs a header validation instead of the ~17s
-// (and ~1.4GB) that parsing the JSON equivalent did. The JSON one is kept because
-// reports already on disk are in that format, and because it is what capa consumes.
-class TTDBehaviorReport
-{
-public:
-	QString reportPath;
-	QString tracePath;
-	QString arch;
-	QString sampleName;
-	uint64_t pid = 0;
-	size_t decodedCount = 0;  // counted once at load, not per status update
-
-	// Widest content in the two narrow columns, so they can be sized to fit exactly.
-	// QTableView::resizeColumnsToContents() only samples the first 1000 rows, which on a
-	// multi-million-call trace sizes "#" for three digits and Position for its shortest
-	// early values, then clips everything after.
-	uint64_t maxSeq = 0;
-	int maxPositionChars = 0;
-
-	// Dispatches on the file's magic, so the caller does not care which format it has.
-	bool load(const QString& path, QString& error);
-	void clear();
-
-	size_t callCount() const;
-
-	// Decode one call. `withParams` is the expensive half, so the table omits it and only
-	// the detail pane asks for it.
-	void fillCall(size_t index, TTDApiCall& out, bool withParams) const;
-
-	// Does this call satisfy every term of `query`?
-	bool matches(size_t index, const TTDBehaviorQuery& query) const;
-
-	// Every distinct string in the table, for a query to resolve module/api terms
-	// against. Empty for the JSON backend, which compares per row instead.
-	void forEachString(const std::function<void(uint32_t, const char*, size_t)>& fn) const;
-	bool isMapped() const { return m_map != nullptr; }
-
-private:
-	bool loadJson(const QString& path, QString& error);
-	bool loadBinary(const QString& path, QString& error);
-	const uint8_t* callRecord(size_t index) const;
-	QString mappedString(uint32_t offset) const;
-
-	// JSON backend: everything materialised up front.
-	std::vector<TTDApiCall> m_calls;
-
-	// Binary backend: the mapping plus the header's region offsets.
-	std::unique_ptr<QFile> m_file;
-	const uint8_t* m_map = nullptr;
-	qint64 m_mapSize = 0;
-	uint64_t m_callCount = 0;
-	uint64_t m_callsOff = 0;
-	uint64_t m_paramsOff = 0;
-	uint64_t m_stringsOff = 0;
-	uint64_t m_stringsSize = 0;
-	uint64_t m_blobOff = 0;
-	uint64_t m_blobSize = 0;
-};
+// Rows are decoded from the mapped file on demand rather than held as objects, so the
+// model asks the report for a row when it needs to paint one.
+using TTDApiCall = BinaryNinjaDebuggerAPI::TTDApiCall;
+using TTDApiCallParam = BinaryNinjaDebuggerAPI::TTDApiCallParam;
+using TTDBehaviorReport = BinaryNinjaDebuggerAPI::TTDBehaviorReport;
 
 
 class TTDBehaviorCallModel : public QAbstractTableModel
@@ -234,16 +79,13 @@ public:
 
 	void setReport(std::shared_ptr<TTDBehaviorReport> report);
 
-	// Substring filter over the precomputed per-call haystack, applied by rebuilding
-	// the visible-row list in one linear pass.
+	// Runs `text` as a query against the report and keeps the rows it matched.
 	//
-	// This is deliberately not a QSortFilterProxyModel. That class maintains a full
-	// bidirectional source/proxy row mapping, and any call to its rowCount() forces
-	// the whole mapping to be materialised -- which on a multi-million-call trace
-	// costs far more than scanning the haystacks, and made every keystroke look like
-	// a freeze.
+	// Deliberately not a QSortFilterProxyModel: that class maintains a bidirectional
+	// source/proxy row mapping, and any call to its rowCount() materialises the whole
+	// thing, which on a multi-million-call report made every keystroke look like a
+	// freeze. The core returns the matching indices in one call instead.
 	void setFilter(const QString& text);
-	const TTDBehaviorQuery& query() const { return m_query; }
 
 	// Row of the table -> the call it shows, or nullptr when out of range. Decoded into a
 	// single-row cache, so asking for the same row repeatedly (as data() does, once per
@@ -260,8 +102,7 @@ private:
 
 	std::shared_ptr<TTDBehaviorReport> m_report;
 	QString m_filterText;             // as typed, so a repeat of the same text is a no-op
-	TTDBehaviorQuery m_query;
-	std::vector<uint32_t> m_visible;  // source indices; empty when unfiltered
+	std::vector<uint64_t> m_visible;  // source indices; empty when unfiltered
 	bool m_filtered = false;          // whether m_visible is in use
 
 	mutable TTDApiCall m_cached;
@@ -289,6 +130,7 @@ private:
 
 	TTDBehaviorCallModel* m_model;
 	std::shared_ptr<TTDBehaviorReport> m_report;
+	QString m_reportPath;  // the core report holds no display name of its own
 
 	// Set by the container, which is what knows them; shown in this tab's status line.
 	double m_writeSeconds = 0.0;
@@ -306,7 +148,7 @@ public:
 	TTDBehaviorQueryWidget(QWidget* parent, BinaryViewRef data);
 
 	// Point this tab at a report. Cheap: the model only takes a reference to it.
-	void setReport(std::shared_ptr<TTDBehaviorReport> report);
+	void setReport(std::shared_ptr<TTDBehaviorReport> report, const QString& path);
 
 	QString filterText() const;
 	void setFilterText(const QString& text);
@@ -359,6 +201,7 @@ private:
 	double m_lastLoadSeconds = -1.0;
 
 	std::shared_ptr<TTDBehaviorReport> m_report;
+	QString m_reportPath;
 	QProcess* m_extractProcess = nullptr;
 
 	void setupUI();
@@ -380,7 +223,7 @@ public:
 	void loadReport(const QString& path);
 
 	// Swap in a parsed report and hand it to every tab. Must run on the UI thread.
-	void installReport(std::shared_ptr<TTDBehaviorReport> report);
+	void installReport(std::shared_ptr<TTDBehaviorReport> report, const QString& path);
 
 private Q_SLOTS:
 	void onLoadClicked();

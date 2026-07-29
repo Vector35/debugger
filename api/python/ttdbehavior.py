@@ -37,6 +37,8 @@ from typing import Iterator, List, Optional, Sequence
 
 from . import _debuggercore as dbgcore
 
+__all__ = ["TTDBehaviorReport", "TTDApiCall", "TTDApiCallParam"]
+
 
 @dataclass
 class TTDApiCallParam:
