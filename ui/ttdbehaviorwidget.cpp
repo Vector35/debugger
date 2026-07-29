@@ -726,6 +726,11 @@ void TTDBehaviorWidget::consumeExtractorStderr()
 			if (parts.size() >= 3)
 				m_lastWriteSeconds = parts[2].toDouble();
 		}
+		else if (line == "[phase] strings")
+		{
+			setProgress(0.0, "Recovering strings the sweep could not read");
+			m_cancelButton->setEnabled(false);
+		}
 		else if (line == "[phase] write")
 		{
 			// The report can be hundreds of MB; serialising it takes comparable time to
@@ -927,6 +932,10 @@ void TTDBehaviorWidget::onExtractClicked()
 	int64_t maxBuffer = Settings::Instance()->Get<int64_t>("debugger.ttdBehaviorMaxBuffer");
 	if (maxBuffer > 0)
 		arguments << "--max-buffer" << QString::number(maxBuffer);
+	// Without this a quarter of string parameters come back empty, because the sweep
+	// reads memory through an interface the SDK restricts to a fast, incomplete lookup.
+	if (Settings::Instance()->Get<bool>("debugger.ttdBehaviorRecoverStrings"))
+		arguments << "--recover-strings";
 
 	beginOperation(QString("Extracting from %1").arg(QFileInfo(trace).fileName()), true);
 	setProgress(0.0, "Starting extractor");
