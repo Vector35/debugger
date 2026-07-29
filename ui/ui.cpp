@@ -2116,8 +2116,8 @@ void GlobalDebuggerUI::InitializeUI()
 		R"({
 			"title" : "TTD Behavior Recover Unread Strings",
 			"type" : "boolean",
-			"default" : true,
-			"description" : "After sweeping a trace, go back and recover string parameters the sweep could not read. The sweep reads memory through an interface the TTD SDK restricts to a fast, incomplete lookup, which loses roughly a quarter of string parameters; a second pass with a cursor recovers about three quarters of those. It is slow -- each seek replays from a keyframe, and on a large trace this can quadruple extraction time -- so turn it off when speed matters more than complete strings.",
+			"default" : false,
+			"description" : "After sweeping a trace, go back and recover string parameters the sweep could not read. String arguments are missing from some calls because the TTD SDK restricts memory reads made from a replay callback to a fast, incomplete lookup that may return nothing even when the data is in the trace; a second pass re-reads those addresses with a cursor, which can look properly, and recovers about three quarters of them. It is off by default because each seek replays from a keyframe: on a 3.4M-call trace this took extraction from 33s to 132s.",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 
