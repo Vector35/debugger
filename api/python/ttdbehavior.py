@@ -29,6 +29,10 @@ calls it holds.
 single crossing of the FFI; rows are then decoded only as you touch them. Iterating a
 whole multi-million-call report one call at a time from Python is possible but is the
 slow way round -- narrow with a query first.
+
+Calls come back with their parameters decoded. On a query matching millions of rows that
+is worth turning off with ``with_params=False``, which leaves ``param_summary`` but skips
+building the structured list.
 """
 
 import ctypes
@@ -179,7 +183,7 @@ class TTDBehaviorReport:
 		finally:
 			dbgcore.BNTTDBehaviorFreeQueryResult(result)
 
-	def query(self, query: str, with_params: bool = False) -> Iterator[TTDApiCall]:
+	def query(self, query: str, with_params: bool = True) -> Iterator[TTDApiCall]:
 		"""Calls matching ``query``, decoded lazily as you iterate.
 
 		Terms are ANDed; a bare word matches anywhere including buffer contents, and
@@ -193,8 +197,10 @@ class TTDBehaviorReport:
 		Numeric fields (``tid``, ``ret``, ``retaddr``) take ``!=``, ``>``, ``>=``,
 		``<``, ``<=`` and ``a-b`` ranges, decimal or ``0x`` hex.
 
-		Pass ``with_params`` to decode each call's full parameter list; leaving it off
-		is markedly cheaper when you only need the summary.
+		Each call arrives with its full parameter list. Pass ``with_params=False`` to skip
+		that when you only need ``param_summary`` -- it is about 4x cheaper per call and
+		holds far less memory, which starts to matter once a query matches millions of
+		rows rather than hundreds.
 		"""
 		for index in self.query_indices(query):
 			call = self.get_call(index, with_params)
