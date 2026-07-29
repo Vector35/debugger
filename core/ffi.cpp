@@ -20,6 +20,7 @@ limitations under the License.
 #include "highlevelilinstruction.h"
 #include "debuggercontroller.h"
 #include "debuggercommon.h"
+#include "ttdbehavior.h"
 #include "../api/ffi.h"
 #include <chrono>
 #include <map>
@@ -2287,3 +2288,190 @@ char* BNDebuggerGetWinDbgLatestVersion(void)
 }
 
 #endif // WIN32
+
+
+// --- TTD behavior reports ---------------------------------------------------------
+//
+// Plain open/close rather than the reference-counted handle the controller uses: a
+// report is not shared between subsystems, and each consumer maps its own view.
+
+static TTDBehaviorReport* AsReport(BNTTDBehaviorReport* handle)
+{
+	return reinterpret_cast<TTDBehaviorReport*>(handle);
+}
+
+
+BNTTDBehaviorReport* BNTTDBehaviorOpenReport(const char* path, char** errorMessage)
+{
+	auto* report = new TTDBehaviorReport();
+	std::string error;
+	if (!report->Open(path ? path : "", error))
+	{
+		delete report;
+		if (errorMessage)
+			*errorMessage = BNDebuggerAllocString(error.c_str());
+		return nullptr;
+	}
+	if (errorMessage)
+		*errorMessage = nullptr;
+	return reinterpret_cast<BNTTDBehaviorReport*>(report);
+}
+
+
+void BNTTDBehaviorCloseReport(BNTTDBehaviorReport* report)
+{
+	delete AsReport(report);
+}
+
+
+uint64_t BNTTDBehaviorGetCallCount(BNTTDBehaviorReport* report)
+{
+	return report ? AsReport(report)->GetCallCount() : 0;
+}
+
+
+uint64_t BNTTDBehaviorGetDecodedCount(BNTTDBehaviorReport* report)
+{
+	return report ? AsReport(report)->GetDecodedCount() : 0;
+}
+
+
+uint64_t BNTTDBehaviorGetProcessId(BNTTDBehaviorReport* report)
+{
+	return report ? AsReport(report)->GetProcessId() : 0;
+}
+
+
+uint64_t BNTTDBehaviorGetMaxSequence(BNTTDBehaviorReport* report)
+{
+	return report ? AsReport(report)->GetMaxSequence() : 0;
+}
+
+
+uint32_t BNTTDBehaviorGetMaxPositionChars(BNTTDBehaviorReport* report)
+{
+	return report ? AsReport(report)->GetMaxPositionChars() : 0;
+}
+
+
+char* BNTTDBehaviorGetTracePath(BNTTDBehaviorReport* report)
+{
+	return BNDebuggerAllocString(report ? AsReport(report)->GetTracePath().c_str() : "");
+}
+
+
+char* BNTTDBehaviorGetArchitecture(BNTTDBehaviorReport* report)
+{
+	return BNDebuggerAllocString(report ? AsReport(report)->GetArchitecture().c_str() : "");
+}
+
+
+uint64_t* BNTTDBehaviorRunQuery(BNTTDBehaviorReport* report, const char* query, size_t* count)
+{
+	*count = 0;
+	if (!report)
+		return nullptr;
+
+	std::vector<uint64_t> matches = AsReport(report)->RunQuery(query ? query : "");
+	*count = matches.size();
+	if (matches.empty())
+		return nullptr;
+
+	auto* result = new uint64_t[matches.size()];
+	std::memcpy(result, matches.data(), matches.size() * sizeof(uint64_t));
+	return result;
+}
+
+
+void BNTTDBehaviorFreeQueryResult(uint64_t* result)
+{
+	delete[] result;
+}
+
+
+bool BNTTDBehaviorGetCall(BNTTDBehaviorReport* report, uint64_t index, bool withParams, BNTTDApiCall* out)
+{
+	if (!report || !out)
+		return false;
+
+	TTDApiCall call;
+	if (!AsReport(report)->GetCall(index, call, withParams))
+		return false;
+
+	out->m_seq = call.seq;
+	out->m_tid = call.tid;
+	out->m_positionSequence = call.positionSequence;
+	out->m_positionSteps = call.positionSteps;
+	out->m_module = BNDebuggerAllocString(call.module.c_str());
+	out->m_api = BNDebuggerAllocString(call.api.c_str());
+	out->m_ret = call.ret;
+	out->m_returnAddress = call.returnAddress;
+	out->m_paramSummary = BNDebuggerAllocString(call.paramSummary.c_str());
+	out->m_decoded = call.decoded;
+	out->m_paramCount = call.params.size();
+	out->m_params = nullptr;
+
+	if (!call.params.empty())
+	{
+		out->m_params = new BNTTDApiCallParam[call.params.size()];
+		for (size_t i = 0; i < call.params.size(); ++i)
+		{
+			const TTDApiCallParam& src = call.params[i];
+			BNTTDApiCallParam& dst = out->m_params[i];
+			dst.m_name = BNDebuggerAllocString(src.name.c_str());
+			dst.m_type = BNDebuggerAllocString(src.type.c_str());
+			dst.m_kind = BNDebuggerAllocString(src.kind.c_str());
+			dst.m_value = src.value;
+			dst.m_str = BNDebuggerAllocString(src.str.c_str());
+			dst.m_flagCount = src.flags.size();
+			dst.m_flags = nullptr;
+			if (!src.flags.empty())
+			{
+				dst.m_flags = new char*[src.flags.size()];
+				for (size_t f = 0; f < src.flags.size(); ++f)
+					dst.m_flags[f] = BNDebuggerAllocString(src.flags[f].c_str());
+			}
+			dst.m_byteCount = src.bytes.size();
+			dst.m_bytes = nullptr;
+			if (!src.bytes.empty())
+			{
+				dst.m_bytes = new uint8_t[src.bytes.size()];
+				std::memcpy(dst.m_bytes, src.bytes.data(), src.bytes.size());
+			}
+			dst.m_bytesTotal = src.bytesTotal;
+			dst.m_deref = src.deref;
+			dst.m_hasDeref = src.hasDeref;
+			dst.m_out = src.out;
+			dst.m_atReturn = src.atReturn;
+		}
+	}
+	return true;
+}
+
+
+void BNTTDBehaviorFreeCall(BNTTDApiCall* call)
+{
+	if (!call)
+		return;
+	BNDebuggerFreeString(call->m_module);
+	BNDebuggerFreeString(call->m_api);
+	BNDebuggerFreeString(call->m_paramSummary);
+	for (size_t i = 0; i < call->m_paramCount; ++i)
+	{
+		BNTTDApiCallParam& p = call->m_params[i];
+		BNDebuggerFreeString(p.m_name);
+		BNDebuggerFreeString(p.m_type);
+		BNDebuggerFreeString(p.m_kind);
+		BNDebuggerFreeString(p.m_str);
+		for (size_t f = 0; f < p.m_flagCount; ++f)
+			BNDebuggerFreeString(p.m_flags[f]);
+		delete[] p.m_flags;
+		delete[] p.m_bytes;
+	}
+	delete[] call->m_params;
+	call->m_params = nullptr;
+	call->m_paramCount = 0;
+	call->m_module = nullptr;
+	call->m_api = nullptr;
+	call->m_paramSummary = nullptr;
+}

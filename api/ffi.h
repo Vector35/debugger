@@ -879,6 +879,73 @@ extern "C"
 	DEBUGGER_FFI_API char* BNDebuggerGetWinDbgInstalledVersion(const char* installPath);
 	DEBUGGER_FFI_API char* BNDebuggerGetWinDbgLatestVersion(void);
 
+	// TTD behavior reports: the Windows API calls extracted from a TTD trace.
+	//
+	// The boundary is drawn so that no loop over the call list crosses it.
+	// BNTTDBehaviorRunQuery evaluates a whole filter core-side and returns the matching
+	// row indices in one call, which measures within noise of filtering in-process;
+	// crossing per row instead costs 30-50%. Callers then fetch only the rows they show.
+	typedef struct BNTTDBehaviorReport BNTTDBehaviorReport;
+
+	typedef struct BNTTDApiCallParam
+	{
+		char* m_name;
+		char* m_type;
+		char* m_kind;
+		uint64_t m_value;
+		char* m_str;           // empty when the parameter is not a string
+		char** m_flags;        // symbolic names for enum/flag parameters
+		size_t m_flagCount;
+		uint8_t* m_bytes;      // captured buffer contents, possibly only a prefix
+		size_t m_byteCount;
+		uint64_t m_bytesTotal; // the buffer's real length when capped, else 0
+		uint64_t m_deref;
+		bool m_hasDeref;
+		bool m_out;
+		bool m_atReturn;       // re-read at the call's return position
+	} BNTTDApiCallParam;
+
+	typedef struct BNTTDApiCall
+	{
+		uint64_t m_seq;
+		uint64_t m_tid;
+		uint64_t m_positionSequence;
+		uint64_t m_positionSteps;
+		char* m_module;
+		char* m_api;
+		uint64_t m_ret;
+		uint64_t m_returnAddress;  // the instruction after the CALL, i.e. the call site
+		char* m_paramSummary;
+		bool m_decoded;
+		BNTTDApiCallParam* m_params;
+		size_t m_paramCount;
+	} BNTTDApiCall;
+
+	// Returns NULL on failure, with *errorMessage set to a string the caller frees with
+	// BNDebuggerFreeString.
+	DEBUGGER_FFI_API BNTTDBehaviorReport* BNTTDBehaviorOpenReport(const char* path, char** errorMessage);
+	DEBUGGER_FFI_API void BNTTDBehaviorCloseReport(BNTTDBehaviorReport* report);
+
+	DEBUGGER_FFI_API uint64_t BNTTDBehaviorGetCallCount(BNTTDBehaviorReport* report);
+	DEBUGGER_FFI_API uint64_t BNTTDBehaviorGetDecodedCount(BNTTDBehaviorReport* report);
+	DEBUGGER_FFI_API uint64_t BNTTDBehaviorGetProcessId(BNTTDBehaviorReport* report);
+	DEBUGGER_FFI_API uint64_t BNTTDBehaviorGetMaxSequence(BNTTDBehaviorReport* report);
+	DEBUGGER_FFI_API uint32_t BNTTDBehaviorGetMaxPositionChars(BNTTDBehaviorReport* report);
+	// Both must be freed with BNDebuggerFreeString.
+	DEBUGGER_FFI_API char* BNTTDBehaviorGetTracePath(BNTTDBehaviorReport* report);
+	DEBUGGER_FFI_API char* BNTTDBehaviorGetArchitecture(BNTTDBehaviorReport* report);
+
+	// Row indices of every call matching `query`. Free with BNTTDBehaviorFreeQueryResult.
+	DEBUGGER_FFI_API uint64_t* BNTTDBehaviorRunQuery(
+		BNTTDBehaviorReport* report, const char* query, size_t* count);
+	DEBUGGER_FFI_API void BNTTDBehaviorFreeQueryResult(uint64_t* result);
+
+	// Fills `out`, which the caller frees with BNTTDBehaviorFreeCall. Decoding the
+	// parameters is the expensive half, so a table can pass false and a detail view true.
+	DEBUGGER_FFI_API bool BNTTDBehaviorGetCall(
+		BNTTDBehaviorReport* report, uint64_t index, bool withParams, BNTTDApiCall* out);
+	DEBUGGER_FFI_API void BNTTDBehaviorFreeCall(BNTTDApiCall* call);
+
 #ifdef __cplusplus
 }
 #endif
