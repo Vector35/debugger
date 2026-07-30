@@ -19,9 +19,9 @@ limitations under the License.
 // captured buffers, and [Out] parameters re-read at the call's return position.
 //
 // The sweep itself is done out-of-process by an extractor built on the TTD replay SDK
-// (https://github.com/HullaBrian/ttd-capa), which writes a JSON report this widget
-// parses. Extraction takes seconds even on large traces, so it is not on the critical
-// path of a debug session.
+// (https://github.com/Vector35/ttd-capa), which writes a .ttdb report that the core
+// memory-maps. Extraction takes minutes on a large trace, so it runs in the background
+// rather than on the critical path of a debug session.
 
 #include "ttdbehaviorwidget.h"
 
@@ -496,6 +496,10 @@ void TTDBehaviorWidget::setupUI()
 	m_extractButton = new QPushButton("Extract...");
 	m_extractButton->setToolTip("Run the extractor over a TTD trace and load the result");
 	toolbar->addWidget(m_extractButton);
+#ifndef WIN32
+	// Extraction replays the trace through WinDbg TTD, which only works on Windows
+	m_extractButton->setVisible(false);
+#endif
 	toolbar->addStretch(1);
 
 	layout->addLayout(toolbar);
