@@ -40,6 +40,7 @@ limitations under the License.
 #include <QMessageBox>
 #include <QPointer>
 #include <algorithm>
+#include <cstdlib>
 #include <cmath>
 #include <thread>
 #include "fontsettings.h"
@@ -165,6 +166,34 @@ namespace {
 		if (param.hasDeref)
 			return QString("%1 -> %2").arg(formatHex(param.value), formatHex(param.deref));
 		return formatHex(param.value);
+	}
+
+
+	// Where TTDReplay.dll and TTDReplayCPU.dll live. They are Microsoft's, shipped with
+	// WinDbg rather than with us, so the extractor takes their location instead of
+	// requiring copies beside itself. This is the same folder ttdrecord.cpp uses to find
+	// the recorder. Returns empty when it cannot be found, in which case the extractor
+	// falls back to its own directory.
+	QString ttdReplayDirectory()
+	{
+		auto hasReplay = [](const QString& dir) {
+			return !dir.isEmpty() && QFileInfo::exists(QDir(dir).filePath("TTDReplay.dll"));
+		};
+
+		// A configured DbgEng path is authoritative: if it is set and wrong, fall through
+		// to the extractor's own search rather than silently using a different engine.
+		std::string configured = Settings::Instance()->Get<std::string>("debugger.x64dbgEngPath");
+		if (!configured.empty())
+		{
+			QString path = QDir(QString::fromStdString(configured)).filePath("TTD");
+			return hasReplay(path) ? path : QString();
+		}
+
+		std::string pluginRoot = getenv("BN_STANDALONE_DEBUGGER") != nullptr
+			? GetUserPluginDirectory()
+			: GetBundledPluginDirectory();
+		QString bundled = QDir(QString::fromStdString(pluginRoot)).filePath("dbgeng/amd64/TTD");
+		return hasReplay(bundled) ? bundled : QString();
 	}
 
 
@@ -934,8 +963,11 @@ void TTDBehaviorWidget::onExtractClicked()
 		arguments << "--max-buffer" << QString::number(maxBuffer);
 	// Without this a quarter of string parameters come back empty, because the sweep
 	// reads memory through an interface the SDK restricts to a fast, incomplete lookup.
-	if (Settings::Instance()->Get<bool>("debugger.ttdBehaviorRecoverStrings"))
-		arguments << "--recover-strings";
+	// Point the extractor at WinDbg's replay engine when we know where it is; otherwise
+	// let it fall back to looking beside itself.
+	QString ttdDlls = ttdReplayDirectory();
+	if (!ttdDlls.isEmpty())
+		arguments << "--ttd-dlls" << QDir::toNativeSeparators(ttdDlls);
 
 	beginOperation(QString("Extracting from %1").arg(QFileInfo(trace).fileName()), true);
 	setProgress(0.0, "Starting extractor");

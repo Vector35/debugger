@@ -2112,15 +2112,6 @@ void GlobalDebuggerUI::InitializeUI()
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 
-	Settings::Instance()->RegisterSetting("debugger.ttdBehaviorRecoverStrings",
-		R"({
-			"title" : "TTD Behavior Recover Unread Strings",
-			"type" : "boolean",
-			"default" : false,
-			"description" : "After sweeping a trace, go back and recover string parameters the sweep could not read. String arguments are missing from some calls because the TTD SDK restricts memory reads made from a replay callback to a fast, incomplete lookup that may return nothing even when the data is in the trace; a second pass re-reads those addresses with a cursor, which can look properly, and recovers about three quarters of them. It is off by default because each seek replays from a keyframe: on a 3.4M-call trace this took extraction from 33s to 132s.",
-			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
-			})");
-
 	Sidebar::addSidebarWidgetType(new DebuggerWidgetType(QImage(":/debugger/debugger"), "Debugger"));
 	Sidebar::addSidebarWidgetType(new DebugModulesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new DebugMemoryMapSidebarWidgetType());
