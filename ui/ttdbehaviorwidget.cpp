@@ -838,14 +838,39 @@ void TTDBehaviorWidget::onLoadClicked()
 QString TTDBehaviorWidget::extractorPath(bool prompt)
 {
 	auto settings = Settings::Instance();
-	QString path = QString::fromStdString(settings->Get<std::string>(kExtractorSetting));
-	if (!path.isEmpty() && QFileInfo(path).isExecutable())
-		return path;
+
+	// A configured path wins outright, so someone running their own build always gets it.
+	// If it is set but wrong, say so rather than quietly falling back to the bundled one
+	// and reporting results from a different binary than they think.
+	QString configured = QString::fromStdString(settings->Get<std::string>(kExtractorSetting));
+	if (!configured.isEmpty())
+	{
+		if (QFileInfo(configured).isExecutable())
+			return configured;
+		if (prompt)
+		{
+			QMessageBox::warning(this, "TTD Behavior",
+				QString("%1 is set to\n\n%2\n\nwhich is not an executable. Clear the setting to use "
+						"the extractor shipped with the debugger.")
+					.arg(kExtractorSetting, configured));
+		}
+		return QString();
+	}
+
+	// Otherwise the copy CMake stages beside debuggercore. See core/ttdbehavior/README.md.
+	std::string pluginRoot = getenv("BN_STANDALONE_DEBUGGER") != nullptr
+		? GetUserPluginDirectory()
+		: GetBundledPluginDirectory();
+	QString bundled =
+		QDir(QString::fromStdString(pluginRoot)).filePath("ttdbehavior/x64/ttdcapa-extract.exe");
+	if (QFileInfo(bundled).isExecutable())
+		return bundled;
 
 	if (!prompt)
 		return QString();
 
-	path = QFileDialog::getOpenFileName(this, "Locate the TTD API call extractor", QString(),
+	// Only reached if the install is incomplete, so let them point at one by hand.
+	QString path = QFileDialog::getOpenFileName(this, "Locate the TTD API call extractor", QString(),
 #ifdef WIN32
 		"Executables (*.exe);;All files (*)");
 #else

@@ -219,6 +219,15 @@ if (WIN32)
 			"${PROJECT_SOURCE_DIR}/adapters/dbgeng/"
 			${LIBRARY_OUTPUT_DIRECTORY_PATH}/dbgeng
 		)
+
+	# The TTD behavior sidebar shells out to this rather than linking it in; see
+	# ttdbehavior/README.md for why, and for what it was built from.
+	add_custom_command(TARGET debuggercore PRE_LINK
+		COMMAND ${CMAKE_COMMAND} -E echo "Copying TTD behavior extractor"
+		COMMAND ${CMAKE_COMMAND} -E copy_directory
+			"${PROJECT_SOURCE_DIR}/ttdbehavior/"
+			${LIBRARY_OUTPUT_DIRECTORY_PATH}/ttdbehavior
+		)
 endif()
 
 if(APPLE)

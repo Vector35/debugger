@@ -2097,7 +2097,7 @@ void GlobalDebuggerUI::InitializeUI()
 			"title" : "TTD Behavior Extractor Path",
 			"type" : "string",
 			"default" : "",
-			"description" : "Path of the executable that extracts Windows API calls from a TTD trace, used by the TTD Behavior sidebar.",
+			"description" : "Path of the executable that extracts Windows API calls from a TTD trace. Leave empty to use the one shipped with the debugger; set it to run a build of your own.",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 
