@@ -284,3 +284,8 @@ Validate the magic and version, check the regions fit in the file, and map it. T
   string table once to a set of offsets, then compare `moduleStr`/`apiStr` as integers --
   that is far cheaper than a string search, which is why scoped queries are faster than
   plain text ones.
+
+---
+
+Built by CI from [Vector35/ttd-capa](https://github.com/Vector35/ttd-capa)
+at `6cd27a2078a1ddd2149c710beef294502fcd1d72` (`ci-flat-artifact`) on 2026-07-30.

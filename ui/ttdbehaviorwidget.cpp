@@ -857,12 +857,12 @@ QString TTDBehaviorWidget::extractorPath(bool prompt)
 		return QString();
 	}
 
-	// Otherwise the copy CMake stages beside debuggercore. See core/ttdbehavior/README.md.
+	// Otherwise the copy CMake stages beside debuggercore. See core/ttd-extract/README.md.
 	std::string pluginRoot = getenv("BN_STANDALONE_DEBUGGER") != nullptr
 		? GetUserPluginDirectory()
 		: GetBundledPluginDirectory();
 	QString bundled =
-		QDir(QString::fromStdString(pluginRoot)).filePath("ttdbehavior/x64/ttdcapa-extract.exe");
+		QDir(QString::fromStdString(pluginRoot)).filePath("ttd-extract/ttdcapa-extract.exe");
 	if (QFileInfo(bundled).isExecutable())
 		return bundled;
 
