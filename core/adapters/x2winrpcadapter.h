@@ -32,6 +32,8 @@ namespace BinaryNinjaDebugger {
 		Socket m_socket;
 		bool m_connected = false;
 		std::thread m_readerThread;
+		std::atomic<DebugStopReason> m_lastStopReason {DebugStopReason::UnknownReason};
+		std::atomic<uint64_t> m_lastStopAddress {0};
 
 		// request_id -> promise, fulfilled by ReaderLoop() when the matching RESPONSE arrives.
 		// EVENT frames (id == 0) never go through this table; they go straight to PostDebuggerEvent().
@@ -60,6 +62,7 @@ namespace BinaryNinjaDebugger {
 			const LaunchConfigurations& configs) override;
 		bool Attach(std::uint32_t pid) override;
 		bool Connect(const std::string& server, std::uint32_t port) override;
+		bool ConnectToDebugServer(const std::string& server, std::uint32_t port) override;
 		bool Detach() override;
 		bool Quit() override;
 

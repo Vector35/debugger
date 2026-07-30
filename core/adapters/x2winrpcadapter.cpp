@@ -67,6 +67,15 @@ bool X2WinRpcAdapter::Execute(const std::string& path, const LaunchConfiguration
     return ExecuteWithArgs(path, "", "", configs);
 }
 
+bool X2WinRpcAdapter::ConnectToDebugServer(const std::string &server, std::uint32_t port){
+    if(!ConnectSocket(server, (uint16_t)port)) return false;
+
+    x2win::Envelope request;
+    request.mutable_connect_server_request();
+    x2win::Envelope response = CallSync(std::move(request));
+    return response.connect_server_response().success();
+}
+
 bool X2WinRpcAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
   const std::string& workingDir, const LaunchConfigurations& configs){
     if(!ConnectFromSettings())
@@ -145,8 +154,12 @@ void X2WinRpcAdapter::ReaderLoop(){
             const auto& evt = envelope.target_stopped_event();
             BNDebugStopReason reason = (evt.reason() == x2win::STOP_REASON_BREAKPOINT) ? DebugStopReason::Breakpoint
                                         : (evt.reason() == x2win::STOP_REASON_SINGLE_STEP) ? DebugStopReason::SingleStep
+                                        : (evt.reason() == x2win::STOP_REASON_INITIAL_BREAKPOINT) ? DebugStopReason::InitialBreakpoint
                                         : DebugStopReason::UnknownReason;
             
+            m_lastStopReason = reason;
+            m_lastStopAddress = evt.address();
+
             DebuggerEvent event;
             event.type = AdapterStoppedEventType;
             event.data.targetStoppedData.reason = reason;
@@ -229,8 +242,25 @@ bool X2WinRpcAdapter::SetActiveThreadId(std::uint32_t tid){ return false; }
 bool X2WinRpcAdapter::SuspendThread(std::uint32_t tid){ return false; }
 bool X2WinRpcAdapter::ResumeThread(std::uint32_t tid){ return false; }
 
-DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type){ return DebugBreakpoint(); }
-DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type){ return DebugBreakpoint(); }
+DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type){
+    x2win::Envelope request;
+    auto* req = request.mutable_set_breakpoint_request();
+    req->set_address(address);
+    req->set_type(x2win::BREAKPOINT_TYPE_SOFTWARE);
+    x2win::Envelope response = CallSync(std::move(request));
+
+    const auto& resp = response.set_breakpoint_response();
+    if(!resp.success()) return DebugBreakpoint();
+
+    return DebugBreakpoint(address, (unsigned long)resp.breakpoint_id(), true, SoftwareBreakpoint);
+
+}
+DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type){
+    uint64_t resolved = 0;
+    if(!ResolveModuleAddress(address, resolved)) return DebugBreakpoint();
+
+    return AddBreakpoint(resolved, breakpoint_type);
+}
 bool X2WinRpcAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint){ return false; }
 std::vector<DebugBreakpoint> X2WinRpcAdapter::GetBreakpointList() const { return {}; }
 
@@ -251,15 +281,20 @@ bool X2WinRpcAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buff
 std::vector<DebugModule> X2WinRpcAdapter::GetModuleList(){ return {}; }
 
 // --- Execution control ---
-DebugStopReason X2WinRpcAdapter::StopReason(){ return DebugStopReason::UnknownReason; }
+DebugStopReason X2WinRpcAdapter::StopReason(){ return m_lastStopReason.load(); }
 uint64_t X2WinRpcAdapter::ExitCode(){ return 0; }
 bool X2WinRpcAdapter::BreakInto(){ return false; }
-bool X2WinRpcAdapter::Go(){ return false; }
+bool X2WinRpcAdapter::Go(){
+    x2win::Envelope request;
+    request.mutable_go_request();
+    x2win::Envelope response = CallSync(std::move(request));
+    return response.go_response().success();
+}
 bool X2WinRpcAdapter::StepInto(){ return false; }
 bool X2WinRpcAdapter::StepOver(){ return false; }
 
 std::string X2WinRpcAdapter::InvokeBackendCommand(const std::string& command){ return ""; }
-uint64_t X2WinRpcAdapter::GetInstructionOffset(){ return 0; }
+uint64_t X2WinRpcAdapter::GetInstructionOffset(){ return m_lastStopAddress.load(); }
 bool X2WinRpcAdapter::SupportFeature(DebugAdapterCapacity feature){ return false; }
 
 Ref<Settings> X2WinRpcAdapterType::RegisterAdapterSettings(){
@@ -337,4 +372,14 @@ void X2WinRpcAdapter::TeardownConnection(){
         m_readerThread.join();
     }
     m_connected = false;
+}
+
+bool X2WinRpcAdapter::ResolveModuleAddress(const ModuleNameAndOffset &location, uint64_t &address){
+    for(const auto& module : GetModuleList()){
+        if(module.IsSameBaseModule(location.module)){
+            address = module.m_address + location.offset;
+            return true;
+        }
+    }
+    return false;
 }
