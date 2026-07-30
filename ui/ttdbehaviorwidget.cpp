@@ -53,11 +53,6 @@ using namespace BinaryNinjaDebuggerAPI;
 // GlobalDebuggerUI::InitializeUI().
 static const char* kExtractorSetting = "debugger.ttdBehaviorExtractorPath";
 
-// Values wider than a table cell can usefully show get elided here rather than in the
-// view, so the copied text matches what is on screen.
-static const int kMaxStringDisplay = 96;
-static const int kMaxBytesDisplay = 32;
-
 // The extractor captures up to 64 KiB per buffer, which is 4096 lines of hex dump --
 // more than the detail pane can usefully show or lay out quickly. Clip the rendering,
 // not the data: the full bytes stay in the report.
@@ -117,26 +112,6 @@ namespace {
 	}
 
 
-	QString elide(const QString& str, int limit)
-	{
-		if (str.size() <= limit)
-			return str;
-		return str.left(limit) + QString::fromUtf8("\xe2\x80\xa6");
-	}
-
-
-	QString bytesPreview(const QByteArray& bytes)
-	{
-		QByteArray head = bytes.left(kMaxBytesDisplay);
-		QString hex = QString::fromLatin1(head.toHex(' '));
-		if (bytes.size() > head.size())
-			hex += QString::fromUtf8(" \xe2\x80\xa6");
-		return hex;
-	}
-
-
-	// One parameter, rendered the way it reads best given what the decoder recovered:
-	// a resolved string beats symbolic flags, which beat a raw value.
 	QString formatPosition(const TTDApiCall& call)
 	{
 		return QString("%1:%2").arg(call.positionSequence, 0, 16).arg(call.positionSteps, 0, 16).toUpper();
@@ -146,26 +121,6 @@ namespace {
 	QByteArray toByteArray(const std::vector<uint8_t>& bytes)
 	{
 		return QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()));
-	}
-
-
-	QString formatParamValue(const TTDApiCallParam& param)
-	{
-		if (!param.str.empty())
-			return QString("\"%1\"").arg(
-				elide(escapeString(QString::fromStdString(param.str)), kMaxStringDisplay));
-		if (!param.flags.empty())
-		{
-			QStringList names;
-			for (const std::string& flag : param.flags)
-				names.append(QString::fromStdString(flag));
-			return names.join('|');
-		}
-		if (!param.bytes.empty())
-			return QString("%1 -> [%2]").arg(formatHex(param.value), bytesPreview(toByteArray(param.bytes)));
-		if (param.hasDeref)
-			return QString("%1 -> %2").arg(formatHex(param.value), formatHex(param.deref));
-		return formatHex(param.value);
 	}
 
 
