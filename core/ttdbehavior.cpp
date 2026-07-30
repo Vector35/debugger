@@ -81,6 +81,29 @@ namespace {
 		return buf;
 	}
 
+
+	// Bytes a table cell can show before it stops being a glance.
+	constexpr size_t kMaxPreviewBytes = 32;
+
+	std::string PreviewBytes(const std::vector<uint8_t>& bytes)
+	{
+		static const char* digits = "0123456789abcdef";
+		// Not std::min: windows.h defines a min macro and this file includes it.
+		size_t shown = bytes.size() < kMaxPreviewBytes ? bytes.size() : kMaxPreviewBytes;
+		std::string out;
+		out.reserve(shown * 3 + 4);
+		for (size_t i = 0; i < shown; ++i)
+		{
+			if (i != 0)
+				out.push_back(' ');
+			out.push_back(digits[bytes[i] >> 4]);
+			out.push_back(digits[bytes[i] & 0x0f]);
+		}
+		if (bytes.size() > shown)
+			out += " \xe2\x80\xa6";  // ellipsis
+		return out;
+	}
+
 	// Decimal, or hex when prefixed with 0x.
 	bool ParseNumber(const std::string& text, uint64_t& out)
 	{
@@ -661,6 +684,12 @@ bool TTDBehaviorReport::GetCall(uint64_t index, TTDApiCall& out, bool withParams
 					rendered += "|";
 				rendered += param.flags[f];
 			}
+		}
+		else if (!param.bytes.empty())
+		{
+			// Worth the width: the head of a buffer tells you at a glance what a
+			// WriteFile actually wrote, where the pointer alone tells you nothing.
+			rendered = FormatHex(param.value) + " -> [" + PreviewBytes(param.bytes) + "]";
 		}
 		else if (param.hasDeref)
 			rendered = FormatHex(param.value) + " -> " + FormatHex(param.deref);
