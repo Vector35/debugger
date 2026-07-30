@@ -6,6 +6,8 @@ every Windows API call the process made -- when it happened, which function was 
 what its arguments were, and what it returned -- into a report you can then query, sort
 through, and jump into.
 
+<img src="../../img/debugger/ttd_behavior_widget.png" width="800px">
+
 Arguments are decoded against Microsoft's Win32 API metadata, so they come back named and
 typed rather than as four guessed registers:
 
