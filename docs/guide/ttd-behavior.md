@@ -103,20 +103,48 @@ Each tab holds its own query. Use **+** to open another, which lets you keep one
 
 ## The Python API
 
-Reports can be opened and queried from Python on any platform. The API is read-only;
-extraction is not currently exposed, so producing a report is a UI operation (or a direct
-invocation of the extractor -- see [below](#running-the-extractor-directly)).
+Reports can be opened and queried from Python on any platform, and extracted from Python
+on Windows.
 
 ```python
-from debugger import TTDBehaviorReport
+from debugger.ttdbehavior import TTDBehaviorReport
 
 with TTDBehaviorReport(r"C:\traces\sample.ttdb") as report:
     print(f"{report.call_count} calls from pid {report.pid}, {report.architecture}")
 
     for call in report.query("api:CreateFileW"):
-        name = call.params[0].str if call.params else "?"
+        name = call.params[0].string if call.params else "?"
         print(f"{call.position}  {name} -> {call.ret:#x}")
 ```
+
+### Extracting
+
+`extract()` runs the same sweep the **Extract...** button does, with the same defaults --
+the configured or bundled extractor, WinDbg's replay DLLs, and
+`debugger.ttdBehaviorMaxBuffer`. It writes the report beside the trace and returns it
+open:
+
+```python
+from debugger.ttdbehavior import extract
+
+report = extract(r"C:\traces\sample.run")
+print(f"{report.call_count} calls -> {report.path}")
+```
+
+Pass `progress` to follow along. It is called a few times a second with the phase
+(`"sweep"` or `"write"`), a percentage, and the running call count; returning `False`
+cancels, which stops the replay and writes what has been recorded so far:
+
+```python
+def show(phase, percent, calls):
+    print(f"{phase} {percent}% ({calls} calls)")
+    return calls < 1_000_000        # stop once we have a million
+
+report = extract(r"C:\traces\sample.run", progress=show)
+```
+
+`output`, `extractor`, `ttd_dlls` and `max_buffer` override the corresponding defaults.
+Off Windows, `extract()` raises `RuntimeError` -- there is no replay engine to sweep with.
 
 `query()` filters entirely inside the core and returns matching rows, decoding each one
 only as you reach it. Iterating a multi-million-call report one call at a time is possible
@@ -136,13 +164,16 @@ Useful members:
 | --- | --- |
 | `report.call_count`, `report.decoded_count` | totals; `decoded_count` counts calls that had a real signature |
 | `report.pid`, `report.trace_path`, `report.architecture` | provenance |
+| `report.path` | the `.ttdb` file this was opened from |
 | `report.query_indices(q)` | just the row indices |
 | `report.get_call(i)` | one call by index; `report[i]` also works |
 | `call.module`, `call.api`, `call.tid`, `call.ret`, `call.return_address` | the call |
 | `call.position` | `sequence:step` as a string |
+| `call.decoded` | whether a real signature backed the parameters |
 | `call.params` | list of `TTDApiCallParam` |
-| `param.name`, `.type`, `.kind`, `.value`, `.str`, `.flags`, `.bytes` | one argument |
-| `param.truncated` | whether `bytes` is a prefix of a larger buffer |
+| `param.name`, `.type`, `.kind`, `.value` | one argument |
+| `param.string`, `.flags`, `.data` | its resolved string, symbolic flags, or captured buffer |
+| `param.truncated` | whether `data` is a prefix of a larger buffer |
 
 ## What the data can and cannot tell you
 

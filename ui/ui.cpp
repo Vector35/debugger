@@ -2090,28 +2090,6 @@ void DebuggerUI::updateUI(const DebuggerEvent& event)
 
 void GlobalDebuggerUI::InitializeUI()
 {
-	// The TTD Behavior sidebar shells out to an extractor that is built and deployed
-	// separately from the debugger, so its location has to be configurable.
-	Settings::Instance()->RegisterSetting("debugger.ttdBehaviorExtractorPath",
-		R"({
-			"title" : "TTD Behavior Extractor Path",
-			"type" : "string",
-			"default" : "",
-			"description" : "Path of the executable that extracts Windows API calls from a TTD trace. Leave empty to use the one shipped with the debugger; set it to run a build of your own.",
-			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
-			})");
-
-	Settings::Instance()->RegisterSetting("debugger.ttdBehaviorMaxBuffer",
-		R"({
-			"title" : "TTD Behavior Buffer Capture Limit",
-			"type" : "number",
-			"default" : 65536,
-			"minValue" : 0,
-			"maxValue" : 16777216,
-			"description" : "Bytes to keep from any one buffer parameter when extracting API calls from a TTD trace. Buffers longer than this are captured as a prefix and marked as truncated. Buffer parameters are a small fraction of the calls in a typical trace, so this has far less effect on report size than it appears.",
-			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
-			})");
-
 	Sidebar::addSidebarWidgetType(new DebuggerWidgetType(QImage(":/debugger/debugger"), "Debugger"));
 	Sidebar::addSidebarWidgetType(new DebugModulesSidebarWidgetType());
 	Sidebar::addSidebarWidgetType(new DebugMemoryMapSidebarWidgetType());
