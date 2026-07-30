@@ -220,8 +220,7 @@ if (WIN32)
 			${LIBRARY_OUTPUT_DIRECTORY_PATH}/dbgeng
 		)
 
-	# The TTD Behavior sidebar shells out to this rather than linking it in, so a fault
-	# replaying a hostile trace costs an extraction rather than the application. Built by
+	# The TTD Behavior sidebar shells out to this rather than linking it in. Built by
 	# CI from Vector35/ttd-capa; see ttd-extract/README.md, whose footer records the exact
 	# commit. The executable reads win32-index.bin from beside itself, so the folder is
 	# copied whole.
