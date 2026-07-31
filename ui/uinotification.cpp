@@ -348,5 +348,6 @@ bool NotificationListener::OnTokenDoubleClicked(UIContext* context, ViewFrame* f
 		return false;
 
 	// Open the target in another pane so the disassembly the user is looking at stays put.
-	return view->navigateOnOtherPane(target);
+	view->navigateOnOtherPane(target);
+	return true;
 }
