@@ -271,11 +271,18 @@ bool NotificationListener::OnTokenDoubleClicked(UIContext* context, ViewFrame* f
 	}
 	else if (token.type == DataSymbolToken || token.type == StringToken)
 	{
-		// A data symbol (e.g. data_100003fa9) or an inline string. The default behavior
+		// A data symbol (e.g. data_100003fa9) or a string reference. The default behavior
 		// navigates to it in the same view; while debugging we instead open it in another
-		// pane so the disassembly the user is looking at stays put. The referenced address is
-		// carried in the token's value (the address field is not populated for these tokens).
-		target = token.addrValid ? token.addr : token.token.value;
+		// pane so the disassembly the user is looking at stays put.
+
+		if ((token.type == StringToken) && (token.token.context != StringReferenceTokenContext)
+			&& (token.token.context != StringDataVariableTokenContext))
+			return false;
+
+		if (!token.addrValid)
+			return false;
+
+		target = token.addr;
 		haveTarget = true;
 	}
 	else if (token.type == RegisterToken)
@@ -341,6 +348,5 @@ bool NotificationListener::OnTokenDoubleClicked(UIContext* context, ViewFrame* f
 		return false;
 
 	// Open the target in another pane so the disassembly the user is looking at stays put.
-	view->navigateOnOtherPane(target);
-	return true;
+	return view->navigateOnOtherPane(target);
 }
