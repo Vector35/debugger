@@ -1,4 +1,4 @@
-llvm_version = "19.1.7"
+llvm_version = "22.1.8"
 msvc_build = "14.34"
 vs_version = "2022"
 
@@ -7,5 +7,5 @@ vs_version = "2022"
 # reads these hashes and passes them to copyExternalArtifactsEx, which copies the upstream
 # build whose commit matches. Keep in sync with the binaryninja repo's llvm-build / qt-build
 # submodule revisions whenever those are bumped.
-llvm_build_commit = "c58025321255bc6ea9b69745985b025290bf6520"
-qt_build_commit = "10c1af13928d0a09128339708a24e82cd8864ba2"
+llvm_build_commit = "00399aeba5ae06a456dd5e32a4f5066c347af5d7"
+qt_build_commit = "30ebbf347e40b0646f5878fef292c346573a28a1"
