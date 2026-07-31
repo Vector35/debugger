@@ -100,7 +100,7 @@ target_compile_definitions(debuggercore PRIVATE DEBUGGER_LIBRARY)
 # so it must be defined on every path -- including when LLDB_PATH is supplied directly via the
 # environment (as the CI build does after extracting the lldb artifact). Keep it out of the
 # LLDB_PATH-resolution branches.
-set(LLVM_VERSION 19.1.7 CACHE STRING "Version of LLVM to use")
+set(LLVM_VERSION 22.1.8 CACHE STRING "Version of LLVM to use")
 if(ASAN)
 	# Require asan clang to prevent spurious use-after-poison reports
 	set(LLVM_VERSION_DIR "${LLVM_VERSION}-asan")
