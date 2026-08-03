@@ -93,9 +93,12 @@ RspData RspConnector::DecodeRLE(const RspData& data)
 std::unordered_map<std::string, std::uint64_t> RspConnector::PacketToUnorderedMap(const RspData& data)
 {
     std::unordered_map<std::string, std::uint64_t> packet_map{};
-    packet_map["signal"] = std::stoull(data.AsString().substr(1, 2), nullptr, 16);
-
     const auto data_string = data.AsString();
+    if (data_string.length() < 3)
+        return packet_map;
+
+    packet_map["signal"] = ParseInt(data_string.substr(1, 2));
+
     const auto after_signal = data_string.substr(3);
 
     for ( const auto& entries : RspConnector::Split(after_signal, ";")) {
@@ -117,15 +120,16 @@ std::unordered_map<std::string, std::uint64_t> RspConnector::PacketToUnorderedMa
 			if (key == "thread") {
 				if (value[0] == 'p' && value.find('.') != std::string::npos) {
 					auto core_id_and_thread_id = RspConnector::Split(value.substr(1), ".");
-					packet_map["thread"] = std::stoull(core_id_and_thread_id[1], nullptr, 16);
+					if (core_id_and_thread_id.size() >= 2)
+						packet_map["thread"] = ParseInt(core_id_and_thread_id[1]);
 				} else {
-					packet_map["thread"] = std::stoull(value, nullptr, 16);
+					packet_map["thread"] = ParseInt(value);
 				}
 			} else if (std::regex_search(key, std::regex("^[0-9a-fA-F]+$"))) {
-				packet_map[fmt::format("r{}", std::stoi(key, nullptr, 16))] =
-						static_cast<std::int64_t>( RspConnector::SwapEndianness(std::stoull(value, nullptr, 16)));
+				packet_map[fmt::format("r{}", ParseInt<int>(key))] =
+						static_cast<std::int64_t>( RspConnector::SwapEndianness(ParseInt(value)));
 			} else {
-				packet_map[key] = std::stoull(value, nullptr, 16);
+				packet_map[key] = ParseInt(value);
 			}
 		}
 		else
@@ -204,8 +208,8 @@ void RspConnector::NegotiateCapabilities(const std::vector <std::string>& capabi
     {
         if ( reply_token.find("PacketSize=") != std::string::npos )
         {
-            if (auto packet_tokens = RspConnector::Split(reply_token, "="); !packet_tokens.empty())
-                this->m_maxPacketLength = std::stoi(packet_tokens[1], nullptr, 16);
+            if (auto packet_tokens = RspConnector::Split(reply_token, "="); packet_tokens.size() >= 2)
+                this->m_maxPacketLength = ParseInt<int>(packet_tokens[1], 16, this->m_maxPacketLength);
             continue;
         }
 
@@ -413,11 +417,13 @@ int32_t RspConnector::HostFileIO(const RspData& data, RspData& output, int32_t& 
     if (resultErrno.find(',') != std::string::npos) {
         const auto split = RspConnector::Split(resultErrno, ",");
         if ((split.size() >= 2) && (split[1] != ""))
-            error = std::stol(split[1].c_str(), nullptr, 16);
+            error = ParseInt<int32_t>(split[1]);
 
-        return std::stol(split[0].c_str(), nullptr, 16);
+        if (split.empty())
+            return -1;
+        return ParseInt<int32_t>(split[0], 16, -1);
     }
-    return std::stol(resultErrno.c_str(), nullptr, 16);
+    return ParseInt<int32_t>(resultErrno, 16, -1);
 }
 
 
