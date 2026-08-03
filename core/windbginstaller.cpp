@@ -36,9 +36,11 @@ std::string GetInstallerPath() {
         pluginRoot = GetBundledPluginDirectory();
 
     if (!pluginRoot.empty()) {
+        std::error_code ec;
         fs::path path = fs::path(pluginRoot) / "windbg-installer.exe";
-        if (fs::exists(path)) {
-            return fs::canonical(path).string();
+        if (fs::exists(path, ec)) {
+            fs::path canonicalPath = fs::canonical(path, ec);
+            return ec ? path.string() : canonicalPath.string();
         }
     }
 
@@ -60,8 +62,9 @@ bool IsWinDbgInstalled(const std::string& installPath) {
     }
 
     /* Check for required DLLs */
-    return fs::exists(path + "\\amd64\\dbgeng.dll") &&
-           fs::exists(path + "\\amd64\\dbghelp.dll");
+    std::error_code ec;
+    return fs::exists(path + "\\amd64\\dbgeng.dll", ec) &&
+           fs::exists(path + "\\amd64\\dbghelp.dll", ec);
 }
 
 InstallResult InstallWinDbg(const std::string& installPath, bool isUpdate) {
@@ -152,7 +155,8 @@ InstallResult InstallWinDbg(const std::string& installPath, bool isUpdate) {
             }
 
             /* Clean up result file */
-            fs::remove(resultPath);
+            std::error_code ec;
+            fs::remove(resultPath, ec);
         }
 
         LogError("Installation failed: %s", errorMessage.c_str());
