@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "ttdrecord.h"
+#include "ttdinstall.h"
 #include "uicontext.h"
 #include "qfiledialog.h"
 #include "fmt/format.h"
@@ -273,63 +274,16 @@ void TTDRecordDialog::apply()
 }
 
 
-static bool IsValidDbgEngTTDPaths(const std::string& path)
-{
-	if (path.empty())
-		return false;
-
-	auto enginePath = filesystem::path(path);
-	if (!filesystem::exists(enginePath))
-		return false;
-
-	if (!filesystem::exists(enginePath / "TTD.exe"))
-		return false;
-
-	if (!filesystem::exists(enginePath / "TTDRecord.dll"))
-		return false;
-
-	return true;
-}
-
-
-std::string TTDRecordDialog::GetTTDRecorderPath()
-{
-	std::string path = Settings::Instance()->Get<string>("debugger.x64dbgEngPath");
-	if (!path.empty())
-	{
-		// If the user has specified the path in the setting, then check it for validity. If it is valid, then use it;
-		// if it is invalid, fail the operation -- do not fallback to the default one
-        auto userTTDPath = filesystem::path(path) / "TTD";
-		if (IsValidDbgEngTTDPaths(userTTDPath.string()))
-			return userTTDPath.string();
-		else
-			return "";
-	}
-
-	std::string pluginRoot;
-	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
-		pluginRoot = GetUserPluginDirectory();
-	else
-		pluginRoot = GetBundledPluginDirectory();
-
-	// If the user does not specify a path (the default case), find the one from the plugins/dbgeng/arch
-	auto TTDRecorderRoot = filesystem::path(pluginRoot)  / "dbgeng" / "amd64" / "TTD";
-	if (IsValidDbgEngTTDPaths(TTDRecorderRoot.string()))
-		return TTDRecorderRoot.string();
-
-	return "";
-}
-
-
 void TTDRecordDialog::DoTTDTrace()
 {
-	auto ttdPath = GetTTDRecorderPath();
-	if (ttdPath.empty())
+	auto problem = TTDInstall::DescribeUnavailableComponent(TTDInstall::Recorder);
+	if (!problem.isEmpty())
 	{
-		QMessageBox::critical(this, "Recording Failed", "The debugger cannot find the path for the TTD recorder. "
-			"If you have set debugger.x64dbgEngPath, check if it valid");
+		QMessageBox::critical(this, "Recording Failed", problem);
 		return;
 	}
+
+	auto ttdPath = TTDInstall::GetComponentPath(TTDInstall::Recorder);
 	LogDebug("TTD Recorder in path %s", ttdPath.c_str());
 
 	auto ttdRecorder = fmt::format("\"{}\\TTD.exe\"", ttdPath);
@@ -470,13 +424,14 @@ void TTDAttachDialog::apply()
 
 void TTDAttachDialog::DoTTDAttach(uint32_t pid)
 {
-	auto ttdPath = TTDRecordDialog::GetTTDRecorderPath();
-	if (ttdPath.empty())
+	auto problem = TTDInstall::DescribeUnavailableComponent(TTDInstall::Recorder);
+	if (!problem.isEmpty())
 	{
-		QMessageBox::critical(this, "Recording Failed", "The debugger cannot find the path for the TTD recorder. "
-			"If you have set debugger.x64dbgEngPath, check if it is valid");
+		QMessageBox::critical(this, "Recording Failed", problem);
 		return;
 	}
+
+	auto ttdPath = TTDInstall::GetComponentPath(TTDInstall::Recorder);
 	LogDebug("TTD Recorder in path %s", ttdPath.c_str());
 
 	auto ttdRecorder = fmt::format("\"{}\\TTD.exe\"", ttdPath);

@@ -255,6 +255,10 @@ namespace BinaryNinjaDebugger {
 
 		static std::string GetDbgEngPath(const std::string& arch);
 
+		// Explains, for the user, where the DbgEng DLLs are supposed to come from. Meant to be appended to an
+		// error reported when they could not be found or loaded.
+		static std::string GetDbgEngInstallHint();
+
 		static bool LoadDngEngLibraries();
 
 		std::string GenerateRandomPipeName();

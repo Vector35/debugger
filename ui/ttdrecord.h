@@ -47,7 +47,6 @@ private:
 public:
 	TTDRecordDialog(QWidget* parent, BinaryView* data);
 	void DoTTDTrace();
-	static std::string GetTTDRecorderPath();
 
 private Q_SLOTS:
 	void apply();

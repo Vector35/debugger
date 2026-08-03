@@ -103,6 +103,19 @@ std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 }
 
 
+std::string DbgEngAdapter::GetDbgEngInstallHint()
+{
+	if (!Settings::Instance()->Get<string>("debugger.x64dbgEngPath").empty())
+		return "debugger.x64dbgEngPath is set, but it does not point at a folder that holds the DbgEng DLLs. It "
+			   "must be the amd64 folder of a WinDbg installation.";
+
+	return "The WinDbg/TTD package has not been downloaded. Use \"Debugger\" -> \"Install WinDbg/TTD\" to let "
+		   "Binary Ninja download it, then restart Binary Ninja. A WinDbg installed from the Microsoft Store or "
+		   "through the standalone installer cannot be used, since it is packaged in a form the debugger cannot "
+		   "load from.";
+}
+
+
 static bool LoadOneDLL(const string& path, const string& name, bool strictCheckPath = true, bool forceUnload = true)
 {
 	auto handle = GetModuleHandleA(name.c_str());
@@ -171,8 +184,7 @@ bool DbgEngAdapter::LoadDngEngLibraries()
 	auto enginePath = GetDbgEngPath("amd64");
 	if (enginePath.empty())
 	{
-		LogWarn("The debugger cannot find the path for the DbgEng DLLs. "
-			"If you have set debugger.x64dbgEngPath, check if it valid");
+		LogWarn("The debugger cannot find the path for the DbgEng DLLs. %s", GetDbgEngInstallHint().c_str());
 		return false;
 	}
 	LogDebug("DbgEng libraries in path %s", enginePath.c_str());
