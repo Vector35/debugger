@@ -34,10 +34,11 @@ static std::string GetDbgHelpPathFromSettings()
 	auto settings = BinaryNinja::Settings::Instance();
 	std::string path = settings->Get<std::string>("debugger.x64dbgEngPath");
 
+	std::error_code ec;
 	if (!path.empty())
 	{
 		auto dbgHelpPath = std::filesystem::path(path) / "dbghelp.dll";
-		if (std::filesystem::exists(dbgHelpPath))
+		if (std::filesystem::exists(dbgHelpPath, ec))
 			return dbgHelpPath.string();
 	}
 
@@ -49,7 +50,7 @@ static std::string GetDbgHelpPathFromSettings()
 		pluginRoot = BinaryNinja::GetBundledPluginDirectory();
 
 	auto bundledPath = std::filesystem::path(pluginRoot) / "dbgeng" / "amd64" / "dbghelp.dll";
-	if (std::filesystem::exists(bundledPath))
+	if (std::filesystem::exists(bundledPath, ec))
 		return bundledPath.string();
 
 	return "";

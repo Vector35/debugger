@@ -1610,7 +1610,8 @@ void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 	LogDebug("installTarget: %s", installPath.c_str());
 
 	// Check if WinDbg is already installed
-	if (std::filesystem::exists(installTarget) && IsWinDbgInstalled(installPath))
+	std::error_code ec;
+	if (std::filesystem::exists(installTarget, ec) && IsWinDbgInstalled(installPath))
 	{
 		// Get installed version
 		std::string installedVersion = GetWinDbgInstalledVersion(installPath);

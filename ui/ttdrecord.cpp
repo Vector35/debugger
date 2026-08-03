@@ -278,14 +278,15 @@ static bool IsValidDbgEngTTDPaths(const std::string& path)
 	if (path.empty())
 		return false;
 
+	std::error_code ec;
 	auto enginePath = filesystem::path(path);
-	if (!filesystem::exists(enginePath))
+	if (!filesystem::exists(enginePath, ec))
 		return false;
 
-	if (!filesystem::exists(enginePath / "TTD.exe"))
+	if (!filesystem::exists(enginePath / "TTD.exe", ec))
 		return false;
 
-	if (!filesystem::exists(enginePath / "TTDRecord.dll"))
+	if (!filesystem::exists(enginePath / "TTDRecord.dll", ec))
 		return false;
 
 	return true;
