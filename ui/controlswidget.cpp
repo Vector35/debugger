@@ -209,8 +209,11 @@ bool DebugControlsWidget::handleContainerFile()
 	auto data = m_controller->GetData();
 	auto file = data->GetFile();
 
+	// Use the non-throwing overloads of fs::exists, since the throwing ones can raise a
+	// filesystem_error (e.g. EACCES from posix_stat) for inaccessible paths
+	std::error_code ec;
 	std::string execPath = m_controller->GetExecutablePath();
-	if (!execPath.empty() && fs::exists(execPath))
+	if (!execPath.empty() && fs::exists(execPath, ec))
 		return true;
 
 	std::string currentPath = file->GetFilename();
@@ -227,7 +230,7 @@ bool DebugControlsWidget::handleContainerFile()
 	if (originalPath.empty())
 		return true;
 
-	if (fs::exists(originalPath))
+	if (fs::exists(originalPath, ec))
 		return true;
 
 	auto prompt = QString(
@@ -239,7 +242,7 @@ bool DebugControlsWidget::handleContainerFile()
 	if (QMessageBox::question(this, "File Not Found", prompt) != QMessageBox::Yes)
 		return false;
 
-	fs::path defaultPath = fs::current_path() / fs::path(originalPath).filename();
+	fs::path defaultPath = fs::current_path(ec) / fs::path(originalPath).filename();
 	if (isBndb)
 		defaultPath = fs::path(currentPath).parent_path() / fs::path(originalPath).filename();
 
