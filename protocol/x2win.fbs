@@ -1,0 +1,124 @@
+namespace x2win;
+
+enum BreakpointType : byte {
+    SOFTWARE = 0,
+    HARDWARE_EXECUTE = 1,
+    HARDWARE_READ = 2,
+    HARDWARE_WRITE = 3,
+    HARDWARE_ACCESS = 4,
+}
+
+enum StopReason : byte {
+    UNKNOWN = 0,
+    BREAKPOINT = 1,
+    SINGLE_STEP = 2,
+    // The very first breakpoint hit after Launch/Attach (the OS-injected loader breakpoint,
+    // not a user-set one). Binary Ninja's DebugStopReason distinguishes this from an ordinary
+    // BREAKPOINT (see DebugStopReason::InitialBreakpoint) -- report it exactly once per
+    // session, the first time any breakpoint exception is seen, regardless of address.
+    INITIAL_BREAKPOINT = 3,
+}
+
+table LaunchRequest { path: string; args: string; working_dir: string; }
+table LaunchResponse { success: bool; }
+
+table AttachRequest { pid: uint32; }
+table AttachResponse { success: bool; }
+
+table GetTargetArchRequest {}
+table GetTargetArchResponse { architecture: string; }
+
+table DetachRequest {}
+table DetachResponse { success: bool; }
+
+table QuitRequest {}
+table QuitResponse { success: bool; }
+
+table ProcessInfo { pid: uint32; name: string; }
+table GetProcessListRequest {}
+table GetProcessListResponse { processes: [ProcessInfo]; }
+
+table ConnectServerRequest {}
+table ConnectServerResponse { success: bool; }
+
+// Resumes a stopped target (equivalent of DebugAdapter::Go()). Like Launch/Attach, this only
+// confirms the stub accepted the request -- the next stop is reported separately and
+// asynchronously as a TargetStoppedEvent, never inline in this response.
+table GoRequest {}
+table GoResponse { success: bool; }
+
+table StepIntoRequest {}
+table StepIntoResponse { success: bool; }
+
+table StepOverRequest {}
+table StepOverResponse { success: bool; }
+
+table SetBreakpointRequest { address: uint64; type: BreakpointType; }
+table SetBreakpointResponse { success: bool; breakpoint_id: uint64; }
+
+table RemoveBreakpointRequest { address: uint64; }
+table RemoveBreakpointResponse { success: bool; }    
+
+table BreakIntoRequest {}
+table BreakIntoResponse { success: bool; }
+
+table TargetStoppedEvent { reason: StopReason; address: uint64; }
+
+// Reads raw bytes from the target's address space (equivalent of ReadProcessMemory). Unlike
+// Go/Launch/Attach, this is a plain synchronous request/response -- there is no separate async
+// event involved. A partial or failed read (e.g. address not mapped) is reported as
+// success=false with an empty `data`, not a short `data` buffer -- callers should not try to
+// use a truncated result.
+table ReadMemoryRequest { address: uint64; size: uint64; }
+table ReadMemoryResponse { success: bool; data: [ubyte]; }
+
+table ModuleEntry { name: string; base: uint64; size: uint64; }
+table GetModuleListRequest {}
+table GetModuleListResponse { modules: [ModuleEntry]; }
+
+union Body {
+    // request BN core -> stub
+    LaunchRequest,
+    AttachRequest,
+    GetTargetArchRequest,
+    DetachRequest,
+    QuitRequest,
+    GetProcessListRequest,
+    ConnectServerRequest,
+    GoRequest,
+    StepIntoRequest,
+    StepOverRequest,
+    BreakIntoRequest,
+    SetBreakpointRequest,
+    RemoveBreakpointRequest,
+    ReadMemoryRequest,
+    GetModuleListRequest,
+
+    // response stub -> BN core
+    LaunchResponse,
+    AttachResponse,
+    GetTargetArchResponse,
+    DetachResponse,
+    QuitResponse,
+    GetProcessListResponse,
+    ConnectServerResponse,
+    GoResponse,
+    StepIntoResponse,
+    StepOverResponse,
+    BreakIntoResponse,
+    SetBreakpointResponse,
+    RemoveBreakpointResponse,
+    ReadMemoryResponse,
+    GetModuleListResponse,
+
+    // event stub -> BN core, no response required
+    TargetStoppedEvent,
+
+}
+
+table Envelope {
+    request_id: uint64;
+    body: Body;
+}
+
+root_type Envelope;
