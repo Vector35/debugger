@@ -17,14 +17,38 @@ limitations under the License.
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
 #include "./socket.h"
-#include <x2win.pb.h>
+#include <x2win_generated.h>
 #include <thread>
 #include <mutex>
 #include <future>
+#include <functional>
 #include <atomic>
 #include <unordered_map>
 
 namespace BinaryNinjaDebugger {
+
+	// A parsed x2win::Envelope is just a read-only view into a byte buffer (unlike a Protobuf
+	// message, it owns no state of its own) -- something has to keep that buffer alive for as
+	// long as the view is used. This pairs the two: Get()/BodyAs() are only valid while this
+	// object (or a copy of its `bytes`) is alive. An empty `bytes` (default-constructed, or a
+	// send failure in CallSync()) is a valid "no response" state -- Get()/BodyAs() return
+	// nullptr rather than dereferencing a nonexistent buffer.
+	struct X2WinEnvelopeBuffer
+	{
+		std::vector<uint8_t> bytes;
+
+		const x2win::Envelope* Get() const
+		{
+			return bytes.empty() ? nullptr : x2win::GetEnvelope(bytes.data());
+		}
+
+		template <typename T>
+		const T* BodyAs() const
+		{
+			const x2win::Envelope* envelope = Get();
+			return envelope ? envelope->body_as<T>() : nullptr;
+		}
+	};
 
 	class X2WinRpcAdapter : public DebugAdapter
 	{
@@ -38,7 +62,9 @@ namespace BinaryNinjaDebugger {
 		// request_id -> promise, fulfilled by ReaderLoop() when the matching RESPONSE arrives.
 		// EVENT frames (id == 0) never go through this table; they go straight to PostDebuggerEvent().
 		std::mutex m_pendingMutex;
-		std::unordered_map<uint64_t, std::promise<x2win::Envelope>> m_pendingRequests;
+		std::mutex m_sendMutex;
+		std::unordered_map<uint64_t, std::promise<X2WinEnvelopeBuffer>> m_pendingRequests;
+		std::vector<DebugBreakpoint> m_breakpoints;
 		std::atomic<uint64_t> m_nextRequestId {1};
 
 		Ref<Settings> GetAdapterSettings() override;
@@ -51,6 +77,13 @@ namespace BinaryNinjaDebugger {
 		bool ConnectSocket(const std::string& ip, uint16_t port);
 		bool ConnectFromSettings();
 		void TeardownConnection();
+
+		// Populates common.inputFile (used by DetectLoadedModule()/GetRemoteBase() to match this
+		// adapter's GetModuleList() entries against the currently-open BinaryView, which is what
+		// drives auto-rebase on connect) from the BinaryView's own file path, same convention as
+		// every other adapter (see e.g. WindowsNativeAdapter::GenerateDefaultAdapterSettings) --
+		// only when the setting has never been explicitly set for this resource.
+		void GenerateDefaultAdapterSettings(BinaryView* data);
 
 	public:
 		X2WinRpcAdapter(BinaryView* data);
@@ -122,7 +155,17 @@ namespace BinaryNinjaDebugger {
 
 		// --- Helper function ---
 		bool RecvExact(void* buffer, size_t size);
-		x2win::Envelope CallSync(x2win::Envelope request);
+		bool SendExact(const void* buffer, size_t size);
+
+		// Unlike Protobuf, a FlatBuffers table can't be built standalone and handed over --
+		// nested objects (strings, the request's own body table) must be constructed bottom-up
+		// with the *same* FlatBufferBuilder that will go on to wrap them in the Envelope, which
+		// only CallSync() itself owns. So callers hand CallSync() a builder function for just
+		// their request body instead of a pre-built Envelope; CallSync() supplies the builder,
+		// wraps the result in an Envelope with the request_id it assigns, and does the
+		// send/wait/response bookkeeping exactly as before.
+		X2WinEnvelopeBuffer CallSync(x2win::Body bodyType,
+			const std::function<flatbuffers::Offset<void>(flatbuffers::FlatBufferBuilder&)>& buildBody);
 
 	};
 

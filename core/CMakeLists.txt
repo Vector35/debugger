@@ -214,30 +214,24 @@ else()
 			)
 endif()
 
-if(DEFINED ENV{PROTOBUF_PATH})
-	set(PROTOBUF_PATH $ENV{PROTOBUF_PATH})
-endif()
-
-if(NOT PROTOBUF_PATH)
-	if(WIN32)
-		set(PROTOBUF_PATH $ENV{HOMEDRIVE}$ENV{HOMEPATH}/local/protobuf-static)
-	else()
-		set(PROTOBUF_PATH $ENV{HOME}/local/protobuf-static)
-	endif()
-endif()
-message(STATUS "protobuf: using install at ${PROTOBUF_PATH}")
-
-list(APPEND CMAKE_PREFIX_PATH ${PROTOBUF_PATH})
-find_package(protobuf CONFIG REQUIRED)
-
-protobuf_generate(
-    TARGET debuggercore
-    LANGUAGE cpp
-    PROTOS ${CMAKE_SOURCE_DIR}/protocol/x2win.proto
-    IMPORT_DIRS ${CMAKE_SOURCE_DIR}/protocol
+# FlatBuffers for the x2win RPC protocol (protocol/x2win.fbs), generated once at the top-level
+# CMakeLists.txt and shared with x2winstub/CMakeLists.txt.
+#
+# Deliberately not target_link_libraries(debuggercore x2win_fbs): every other
+# target_link_libraries() call on debuggercore in this file uses the plain (no PUBLIC/PRIVATE)
+# signature, and CMake forbids mixing plain and keyword signatures for the same target anywhere
+# in the project -- so a PRIVATE-only x2win_fbs link isn't an option here. Plain/public would
+# instead propagate x2win_fbs's generated-header "source" to every downstream consumer of
+# debuggercore (ui, cli), which fails to configure because that generated file, from their
+# directory scope, isn't recognized as a build product (GENERATED doesn't propagate cross-directory
+# pre-CMake 3.20 semantics). Depending on the include dir + generation step directly sidesteps
+# target_link_libraries entirely, so it stays private to debuggercore without touching the
+# project's existing plain-signature convention.
+add_dependencies(debuggercore GENERATE_x2win_fbs)
+target_include_directories(debuggercore PRIVATE
+    ${CMAKE_BINARY_DIR}/x2win_fbs
+    ${CMAKE_SOURCE_DIR}/vendor/flatbuffers/include
 )
-target_include_directories(debuggercore PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(debuggercore protobuf::libprotobuf)
 
 
 if (WIN32)
