@@ -652,7 +652,25 @@ bool X2WinRpcAdapter::StepOver(){
 
 std::string X2WinRpcAdapter::InvokeBackendCommand(const std::string& command){ return ""; }
 uint64_t X2WinRpcAdapter::GetInstructionOffset(){ return m_lastStopAddress.load(); }
-bool X2WinRpcAdapter::SupportFeature(DebugAdapterCapacity feature){ return false; }
+bool X2WinRpcAdapter::SupportFeature(DebugAdapterCapacity feature){
+    switch(feature){
+        // StepOver/Go/BreakInto/GetModuleList are all wired over RPC to the stub -- report the
+        // capabilities that actually correspond to real, implemented functionality so
+        // DebuggerController uses them instead of silently falling back to its software
+        // emulation paths (see StepOverAndWaitInternal() in debuggercontroller.cpp).
+        case DebugAdapterSupportStepOver:
+            return true;
+        case DebugAdapterSupportModules:
+            return true;
+        // Not yet implemented on the stub side.
+        case DebugAdapterSupportStepReturn:
+        case DebugAdapterSupportStepOverReverse:
+        case DebugAdapterSupportThreads:
+        case DebugAdapterSupportTTD:
+        default:
+            return false;
+    }
+}
 
 Ref<Settings> X2WinRpcAdapterType::RegisterAdapterSettings(){
     Ref<Settings> settings = Settings::Instance("X2WinRpcAdapterSettings");
