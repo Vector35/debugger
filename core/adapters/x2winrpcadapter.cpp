@@ -80,11 +80,20 @@ bool X2WinRpcAdapter::Attach(std::uint32_t pid){
     bool success = resp && resp->success();
     if(!success)
         LogWarn("X2WinRpcAdapter::Attach: stub rejected attach to pid %u", (unsigned)pid);
+    else
+        m_lastConnectionWasTargetMode = false;
+
+    ApplyBreakPoints();
     return success;
 }
 
 bool X2WinRpcAdapter::Connect(const std::string& server, std::uint32_t port){
-    return ConnectSocket(server, (uint16_t) port);
+    if(!ConnectSocket(server, (uint16_t) port)){
+        return false;
+    }
+    m_lastConnectionWasTargetMode = true;
+    ApplyBreakPoints();
+    return true;
 }
 
 bool X2WinRpcAdapter::Execute(const std::string& path, const LaunchConfigurations& configs){
@@ -101,11 +110,19 @@ bool X2WinRpcAdapter::ConnectToDebugServer(const std::string &server, std::uint3
     bool success = resp && resp->success();
     if(!success)
         LogWarn("X2WinRpcAdapter::ConnectToDebugServer: stub rejected connect_server_request (stub not in server mode?)");
+    else
+        m_lastConnectionWasTargetMode = false;
+    
     return success;
 }
 
 bool X2WinRpcAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
   const std::string& workingDir, const LaunchConfigurations& configs){
+    if(m_lastConnectionWasTargetMode){
+        LogWarn("X2WinRpcAdapter::ExecuteWithArgs: refusing to launch -- last connection was "
+            "target mode, which only ever supports its original debuggee.\n");
+        return false;
+    }
     if(!ConnectFromSettings()){
         LogWarn("X2WinRpcAdapter::ExecuteWithArgs: failed to connect to stub");
         return false;
@@ -122,6 +139,8 @@ bool X2WinRpcAdapter::ExecuteWithArgs(const std::string& path, const std::string
     bool success = resp && resp->success();
     if(!success)
         LogWarn("X2WinRpcAdapter::ExecuteWithArgs: stub failed to launch \"%s\"", path.c_str());
+    
+    ApplyBreakPoints();
     return success;
 }
 
@@ -263,6 +282,11 @@ void X2WinRpcAdapter::ReaderLoop(){
             m_lastStopReason = reason;
             m_lastStopAddress = evt->address();
 
+            // Second chance for any breakpoint that couldn't resolve right after Attach/Launch/Connect
+            // (module list not populated yet at that point) -- by the time any stop event arrives, the
+            // module list is guaranteed complete.
+            ApplyBreakPoints();
+
             DebuggerEvent event;
             event.type = AdapterStoppedEventType;
             event.data.targetStoppedData.reason = reason;
@@ -337,14 +361,15 @@ bool X2WinRpcAdapter::Quit(){
 }
 
 std::vector<DebugProcess> X2WinRpcAdapter::GetProcessList(){
-    if(!ConnectFromSettings()){
-        LogWarn("X2WinRpcAdapter::GetProcessList: failed to connect to stub");
+    if(!m_connected){
+        LogWarn("X2WinRpcAdapter::GetProcessList: not connected -- connect to the debug server first");
         return {};
     }
 
     X2WinEnvelopeBuffer response = CallSync(x2win::Body_GetProcessListRequest, [](flatbuffers::FlatBufferBuilder& b){
         return x2win::CreateGetProcessListRequest(b).Union();
     });
+
     const auto* resp = response.BodyAs<x2win::GetProcessListResponse>();
 
     std::vector<DebugProcess> result;
@@ -384,8 +409,31 @@ DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const std::uintptr_t address, uns
     return bp;
 }
 DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type){
+    // DebuggerBreakpoints::Apply() replays every breakpoint BN core already knows about as soon as
+    // CreateDebugAdapter() creates/reuses this adapter -- which happens BEFORE Attach()/
+    // ExecuteWithArgs()/Connect() has actually opened the socket. Trying to resolve+send at that
+    // point just fails silently (not connected yet), and the breakpoint never makes it to a freshly
+    // (re)connected stub -- this is exactly what was happening after a host-initiated disconnect +
+    // stub restart. Stage it instead; ApplyBreakpoints() flushes the staged list for real once
+    // connected. This has to happen here, at the ModuleNameAndOffset level, not in the uintptr_t
+    // overload above -- module+offset is the only form that can still be resolved after a later
+    // reconnect, once ResolveModuleAddress()/GetModuleList() actually works again.
+    if(!m_connected){
+        if(std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end()){
+            m_pendingBreakpoints.push_back(address);
+        }
+        return DebugBreakpoint();
+    }
+    
     uint64_t resolved = 0;
     if(!ResolveModuleAddress(address, resolved)){
+        // Connected, but the module isn't loaded/resolvable yet (e.g. ApplyBreakpoints() ran right
+        // after Launch succeeded, before the stub's module list reflects the new process). Re-stage
+        // rather than dropping it -- the next ApplyBreakpoints() call (see ReaderLoop()'s handling of
+        // the initial-breakpoint stop event) gets another chance once modules are guaranteed populated.
+        if(std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end()){
+            m_pendingBreakpoints.push_back(address);
+        }
         LogWarn("X2WinRpcAdapter::AddBreakpoint: failed to resolve module \"%s\"+0x%llx",
             address.module.c_str(), (unsigned long long)address.offset);
         return DebugBreakpoint();
@@ -393,7 +441,25 @@ DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const ModuleNameAndOffset& addres
 
     return AddBreakpoint(resolved, breakpoint_type);
 }
+
+void X2WinRpcAdapter::ApplyBreakPoints(){
+    std::vector<ModuleNameAndOffset> pending;
+    pending.swap(m_pendingBreakpoints);
+
+    for(const auto& bp : pending){
+        AddBreakpoint(bp);
+    }
+}
+
 bool X2WinRpcAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint){
+    for(auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end(); ++it){
+        uint64_t resolved = 0;
+        if(ResolveModuleAddress(*it, resolved) && resolved == breakpoint.m_address){
+            m_pendingBreakpoints.erase(it);
+            return true;
+        }
+    }
+    
     X2WinEnvelopeBuffer response = CallSync(x2win::Body_RemoveBreakpointRequest, [&breakpoint](flatbuffers::FlatBufferBuilder& b){
         return x2win::CreateRemoveBreakpointRequest(b, breakpoint.m_address).Union();
     });
@@ -421,9 +487,54 @@ bool X2WinRpcAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location,
 bool X2WinRpcAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size){ return false; }
 
 
-std::unordered_map<std::string, DebugRegister> X2WinRpcAdapter::ReadAllRegisters(){ return {}; }
-DebugRegister X2WinRpcAdapter::ReadRegister(const std::string& reg){ return DebugRegister(); }
-bool X2WinRpcAdapter::WriteRegister(const std::string& reg, intx::uint512 value){ return false; }
+std::unordered_map<std::string, DebugRegister> X2WinRpcAdapter::ReadAllRegisters(){
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_ReadAllRegistersRequest, [](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateReadAllRegistersRequest(b).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::ReadAllRegistersResponse>();
+
+    std::unordered_map<std::string, DebugRegister> result;
+    if(resp && resp->registers()){
+        for(const auto* r: * resp->registers()){
+            std::string name = r->name() ? r->name()->str() : std::string();
+            result.emplace(name, DebugRegister(name, r->value(), r->width(), r->register_index()));
+        }
+    }
+    LogDebug("X2WinRpcAdapter::ReadAllRegisters: got %zu register(s)", result.size());
+    return result;
+}
+
+DebugRegister X2WinRpcAdapter::ReadRegister(const std::string& reg){
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_ReadRegisterRequest, [&reg](flatbuffers::FlatBufferBuilder& b){
+        auto nameOff = b.CreateString(reg);
+        return x2win::CreateReadRegisterRequest(b, nameOff).Union();
+    });
+    const auto* resp = response.BodyAs<x2win::ReadRegisterResponse>();
+    if(!resp || !resp->success()){
+        LogDebug("X2WinRpcAdapter::ReadRegister: stub doesn't reognize regiser \"%s\"", reg.c_str());
+        return DebugRegister();
+    }
+
+    return DebugRegister(reg, resp->value(), resp->width(), resp->register_index());
+}
+
+bool X2WinRpcAdapter::WriteRegister(const std::string& reg, intx::uint512 value){
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_WriteRegisterRequest, [&reg, value](flatbuffers::FlatBufferBuilder& b){
+        auto nameOff = b.CreateString(reg);
+        // Narrow the 512-bit value down to the 64 bits the wire format ( and every real X2win
+        // register) actually needs
+        uint64_t narrowed = (uint64_t)value;
+        return x2win::CreateWriteRegisterRequest(b, nameOff, narrowed).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::WriteRegisterResponse>();
+    bool success = resp && resp->success();
+    if(!success){
+        LogWarn("X2WinRpcAdapter::WriteRegister: sutb rejected write to \"%s\"", reg.c_str());
+    }
+    return success;
+}
 DataBuffer X2WinRpcAdapter::ReadMemory(std::uintptr_t address, std::size_t size){
     X2WinEnvelopeBuffer response = CallSync(x2win::Body_ReadMemoryRequest, [address, size](flatbuffers::FlatBufferBuilder& b){
         return x2win::CreateReadMemoryRequest(b, address, size).Union();
@@ -587,6 +698,34 @@ Ref<Settings> X2WinRpcAdapterType::RegisterAdapterSettings(){
     "readOnly" : false
     })");
 
+    settings->RegisterSetting("launch.executablePath",
+    R"({
+    "title" : "Executable Path",
+    "type" : "string",
+    "default" : "",
+    "description" : "Windows-side path of the executable for the stub to launch (e.g. C:\\\\path\\\\to\\\\target.exe) -- NOT the local path of the analyzed binary.",
+    "readOnly" : false
+    })");
+
+    settings->RegisterSetting("launch.workingDirectory",
+    R"({
+    "title" : "Working Directory",
+    "type" : "string",
+    "default" : "",
+    "description" : "Windows-side working directory to launch the target in.",
+    "readOnly" : false
+    })");
+
+    settings->RegisterSetting("launch.commandLineArguments",
+    R"({
+    "title" : "Command Line Arguments",
+    "type" : "string",
+    "default" : "",
+    "description" : "Command line arguments to pass to the target",
+    "readOnly" : false
+    })");
+
+
     return settings;
 }
 
@@ -629,6 +768,19 @@ void X2WinRpcAdapter::TeardownConnection(){
         m_readerThread.join();
     }
     m_connected = false;
+    // Every entry in m_breakpoints was set on the stub session this connection belonged to --
+    // once that connection is gone, none of them are trustworthy anymore: a reconnect might land
+    // on a brand-new stub session (server mode, or a restarted target-mode stub) that's never
+    // heard of them, or might land back on the SAME persisted session (target mode's reconnect
+    // support) where they're still genuinely set. Either way this cache can't tell which case it
+    // is, and the *authoritative* list lives in DebuggerBreakpoints (core/debuggerstate.cpp)
+    // anyway -- it re-sends every known breakpoint via ApplyBreakpoints() on the next successful
+    // connect regardless. Clearing this cache here avoids the alternative: a stale m_breakpoints
+    // entry surviving a reconnect, sitting alongside a *second*, newly (re-)applied entry for the
+    // same address once the resend happens -- RemoveBreakpoint() would then find one but not the
+    // other, or (if a pending-staged duplicate wins the race) skip the real stub-side removal
+    // entirely.
+    m_breakpoints.clear();
 }
 
 bool X2WinRpcAdapter::ResolveModuleAddress(const ModuleNameAndOffset &location, uint64_t &address){
