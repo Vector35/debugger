@@ -72,6 +72,21 @@ table TargetStoppedEvent { reason: StopReason; address: uint64; }
 table ReadMemoryRequest { address: uint64; size: uint64; }
 table ReadMemoryResponse { success: bool; data: [ubyte]; }
 
+// One register's value + BN's DebugRegister layout metadata (width in bytes, index for display
+// ordering). Value is uint64 -- X2Win only ever targets x86/x64 Windows, nothing there is wider.
+table RegisterEntry { name: string; value: uint64; width: uint32; register_index: uint32; }
+
+table ReadAllRegistersRequest {}
+table ReadAllRegistersResponse { registers: [RegisterEntry]; }
+
+table ReadRegisterRequest { name: string; }
+// A register name the stub doesn't recognize is reported as success:false, not a zeroed/garbage
+// value -- same "don't fabricate a plausible-looking failure" contract as ReadMemoryResponse.
+table ReadRegisterResponse { success: bool; value: uint64; width: uint32; register_index: uint32; }
+
+table WriteRegisterRequest { name: string; value: uint64; }
+table WriteRegisterResponse { success: bool; }
+
 table ModuleEntry { name: string; base: uint64; size: uint64; }
 table GetModuleListRequest {}
 table GetModuleListResponse { modules: [ModuleEntry]; }
@@ -92,6 +107,9 @@ union Body {
     SetBreakpointRequest,
     RemoveBreakpointRequest,
     ReadMemoryRequest,
+    ReadAllRegistersRequest,
+    ReadRegisterRequest,
+    WriteRegisterRequest,
     GetModuleListRequest,
 
     // response stub -> BN core
@@ -109,6 +127,9 @@ union Body {
     SetBreakpointResponse,
     RemoveBreakpointResponse,
     ReadMemoryResponse,
+    ReadAllRegistersResponse,
+    ReadRegisterResponse,
+    WriteRegisterResponse,
     GetModuleListResponse,
 
     // event stub -> BN core, no response required

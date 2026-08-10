@@ -59,12 +59,21 @@ namespace BinaryNinjaDebugger {
 		std::atomic<DebugStopReason> m_lastStopReason {DebugStopReason::UnknownReason};
 		std::atomic<uint64_t> m_lastStopAddress {0};
 
+		// True once Connect() (the one-shot "target mode" style entry point, UI: "Connect to Remote
+		// Process") has succeeded -- deliberately NOT reset in TeardownConnection(), because the
+		// whole point is to remember this *across* a disconnect. A target-mode stub only ever owns
+		// the one debuggee it was started with; ExecuteWithArgs() checks this to refuse a Launch
+		// (e.g. Restart's Quit-then-Launch sequence) before ever touching the network, instead of
+		// trying to reconnect to a stub that has, by design, already exited.
+		bool m_lastConnectionWasTargetMode = false;
+
 		// request_id -> promise, fulfilled by ReaderLoop() when the matching RESPONSE arrives.
 		// EVENT frames (id == 0) never go through this table; they go straight to PostDebuggerEvent().
 		std::mutex m_pendingMutex;
 		std::mutex m_sendMutex;
 		std::unordered_map<uint64_t, std::promise<X2WinEnvelopeBuffer>> m_pendingRequests;
 		std::vector<DebugBreakpoint> m_breakpoints;
+		std::vector<ModuleNameAndOffset> m_pendingBreakpoints;
 		std::atomic<uint64_t> m_nextRequestId {1};
 
 		Ref<Settings> GetAdapterSettings() override;
@@ -73,6 +82,11 @@ namespace BinaryNinjaDebugger {
 		// Same purpose as LldbAdapter::ResolveModuleAddress; every adapter needs its own copy
 		// since there is no shared base-class implementation for this.
 		bool ResolveModuleAddress(const ModuleNameAndOffset& location, uint64_t& address);
+
+		// Flushes every breakpoint staged by AddBreakpoint(ModuleNameAndOffset&) while not yet connected 
+		// Called once Attach()/ExecuteWithArgs()/Connect() acutally connects (never from ConnectToDebugServer()
+		// Because server mode has no debuggee yet, nothing to resolve against).
+		void ApplyBreakPoints();
 
 		bool ConnectSocket(const std::string& ip, uint16_t port);
 		bool ConnectFromSettings();
