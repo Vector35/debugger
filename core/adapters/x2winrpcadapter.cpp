@@ -552,7 +552,20 @@ DataBuffer X2WinRpcAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 
     return DataBuffer(resp->data()->data(), resp->data()->size());
 }
-bool X2WinRpcAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer){ return false; }
+bool X2WinRpcAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer){
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_WriteMemoryRequest, [address, &buffer](flatbuffers::FlatBufferBuilder& b){
+        auto dataOff = b.CreateVector(reinterpret_cast<const uint8_t*>(buffer.GetData()), buffer.GetLength());
+        return x2win::CreateWriteMemoryRequest(b, address, dataOff).Union();
+    });
+    
+    const auto* resp = response.BodyAs<x2win::WriteMemoryResponse>();
+    bool success = resp && resp->success();
+    if(!success){
+        LogWarn("X2WinRpcAdapter::WriteMemory: stub rejected write of %zu byte(s) at 0x%llx",
+            buffer.GetLength(), (unsigned long long)address);
+    }
+    return success;
+}
 
 // Extracts the filename portion of a path, recognizing both '/' and '\' as separators.
 // Needed because module names come over the wire in Windows path format (backslashes), but
