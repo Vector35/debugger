@@ -21,7 +21,7 @@ The WinDbg installation only needs to be done once.
 - Open Binary Ninja
 - Click `Debugger` -> `Install WinDbg/TTD` from the menu
 - A dialog will appear showing the installation progress:
-    - The installer automatically downloads the latest WinDbg from Microsoft
+    - The installer downloads a specific WinDbg version from Microsoft
     - It extracts the necessary files (DbgEng DLLs and TTD components)
     - WinDbg will be installed to `%APPDATA%\Binary Ninja\windbg`
     - Progress and status are displayed in real-time
@@ -32,17 +32,21 @@ The WinDbg installation only needs to be done once.
 
 The automatic installer handles all the complexity of downloading and extracting the WinDbg MSIX bundle.
 
-### Update WinDbg/TTD
+Note that the installer deliberately installs a pinned WinDbg version that has been validated against the debugger, rather than the newest release.
+New WinDbg releases occasionally ship regressions that break the DbgEng/TTD adapter, so the pinned version is bumped only after it has been tested.
 
-If you already have WinDbg/TTD installed and want to check for updates:
+### Reinstall WinDbg/TTD
+
+If you already have WinDbg/TTD installed:
 
 - Click `Debugger` -> `Install WinDbg/TTD` from the menu
 - A dialog will appear showing:
     - The currently installed version
-    - The latest available version from Microsoft
-- If a newer version is available, click "Update" to download and install it
-- If you are already on the latest version, the dialog will indicate that no update is needed
-- Restart Binary Ninja after updating
+    - The version this debugger supports
+- If the two match, you can click "Reinstall" to install it again, e.g. if the installation was damaged
+- If they differ, click "Install" to replace the installed version with the supported one.
+  Note this can be a downgrade: if you installed a newer WinDbg yourself, this replaces it with the validated version
+- Restart Binary Ninja afterwards
 
 <img src="../../img/debugger/ttd_update_windbg.png" width="600px">
 

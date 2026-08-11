@@ -6,7 +6,6 @@
  *
  * Usage:
  *   windbg-installer install [--path <dir>] [--quiet] [--json]
- *   windbg-installer check-update [--path <dir>] [--json]
  *   windbg-installer version [--path <dir>] [--json]
  *   windbg-installer --help
  *
@@ -17,6 +16,7 @@
 #ifdef _WIN32
 
 #include "windbg_installer.h"
+#include "windbg_version.h"
 #include <windows.h>
 #include <tlhelp32.h>
 #include <iostream>
@@ -222,14 +222,6 @@ void PrintJsonResult(bool success, const std::string& message, const std::string
     std::cout << "}" << std::endl;
 }
 
-/* Print JSON version info */
-void PrintJsonVersion(const std::string& installed, const std::string& latest, bool updateAvailable) {
-    std::cout << "{\"type\":\"version\",\"installed\":\"" << installed
-              << "\",\"latest\":\"" << latest
-              << "\",\"updateAvailable\":" << (updateAvailable ? "true" : "false")
-              << "}" << std::endl;
-}
-
 void PrintUsage(const char* programName) {
     std::cout << "WinDbg/TTD Installer for Binary Ninja Debugger\n"
               << "\n"
@@ -237,9 +229,8 @@ void PrintUsage(const char* programName) {
               << "  " << programName << " <command> [options]\n"
               << "\n"
               << "Commands:\n"
-              << "  install       Install or update WinDbg/TTD\n"
-              << "  version       Show installed version (local only, no network)\n"
-              << "  check-update  Check for updates (compares local vs latest online)\n"
+              << "  install       Install or reinstall WinDbg/TTD\n"
+              << "  version       Show the installed and supported versions\n"
               << "\n"
               << "Options:\n"
               << "  --path <dir>  Specify installation directory\n"
@@ -252,15 +243,13 @@ void PrintUsage(const char* programName) {
               << "\n"
               << "Examples:\n"
               << "  " << programName << " version\n"
-              << "  " << programName << " check-update\n"
               << "  " << programName << " install\n"
               << "  " << programName << " install --update\n"
               << "  " << programName << " install --path C:\\Tools\\WinDbg\n"
               << "\n"
               << "Exit codes:\n"
-              << "  0  Success / up to date\n"
+              << "  0  Success\n"
               << "  1  Not installed / error\n"
-              << "  2  Update available (for check-update)\n"
               << "\n";
 }
 
@@ -410,6 +399,7 @@ int CmdVersion(const std::string& installPath, OutputMode mode) {
     if (mode == OutputMode::Json) {
         std::cout << "{\"type\":\"version\",\"isInstalled\":" << (installed.isInstalled ? "true" : "false")
                   << ",\"installed\":\"" << installed.version
+                  << "\",\"supported\":\"" << kPinnedVersion
                   << "\",\"installPath\":\"" << path << "\"}" << std::endl;
     } else if (mode == OutputMode::Human) {
         std::cout << "\n";
@@ -425,78 +415,17 @@ int CmdVersion(const std::string& installPath, OutputMode mode) {
             std::cout << installed.version;
         }
         ResetConsoleColor();
-        std::cout << "\n\n";
+        std::cout << "\n";
+        std::cout << "  Supported:    " << kPinnedVersion << "\n";
+        if (installed.isInstalled && installed.version != kPinnedVersion) {
+            SetConsoleColor(COLOR_YELLOW);
+            std::cout << "\n  The installed version is not the supported one; run 'install' to replace it.\n";
+            ResetConsoleColor();
+        }
+        std::cout << "\n";
     }
 
     return installed.isInstalled ? 0 : 1;
-}
-
-/* Command: check-update */
-int CmdCheckUpdate(const std::string& installPath, OutputMode mode) {
-    std::string path = installPath.empty() ? GetDefaultInstallPath() : installPath;
-
-    /* Get installed version first (local, fast) */
-    VersionInfo installed = GetInstalledVersion(path);
-
-    if (mode == OutputMode::Human) {
-        std::cout << "Install path: " << path << "\n";
-        std::cout << "Installed:    ";
-        if (!installed.isInstalled) {
-            SetConsoleColor(COLOR_YELLOW);
-            std::cout << "(not installed)";
-            ResetConsoleColor();
-            std::cout << "\n";
-            return 1;  /* Exit early, no need to check latest */
-        } else if (installed.version.empty()) {
-            SetConsoleColor(COLOR_YELLOW);
-            std::cout << "(installed, version unknown)";
-            ResetConsoleColor();
-            std::cout << "\n";
-        } else {
-            std::cout << installed.version << "\n";
-        }
-
-        std::cout << "Latest:       ";
-        std::cout << std::flush;  /* Flush before network request */
-    }
-
-    /* Fetch latest version (network request, may take time) */
-    VersionInfo latest = GetLatestVersion(nullptr);
-    bool updateAvailable = !IsVersionUpToDate(installed, latest);
-
-    if (mode == OutputMode::Json) {
-        /* Include path and isInstalled in JSON output */
-        std::cout << "{\"type\":\"version\",\"isInstalled\":" << (installed.isInstalled ? "true" : "false")
-                  << ",\"installed\":\"" << installed.version
-                  << "\",\"latest\":\"" << latest.version
-                  << "\",\"updateAvailable\":" << (updateAvailable ? "true" : "false")
-                  << ",\"installPath\":\"" << path << "\"}" << std::endl;
-    } else if (mode == OutputMode::Human) {
-        if (latest.version.empty()) {
-            SetConsoleColor(COLOR_YELLOW);
-            std::cout << "(unable to check)";
-        } else {
-            std::cout << latest.version;
-        }
-        ResetConsoleColor();
-        std::cout << "\n";
-
-        if (installed.version.empty()) {
-            std::cout << "Recommend reinstalling with 'install --update' for version tracking.\n";
-        } else if (updateAvailable) {
-            SetConsoleColor(COLOR_GREEN);
-            std::cout << "Update available!\n";
-            ResetConsoleColor();
-        } else {
-            std::cout << "No update available.\n";
-        }
-    }
-
-    /* Exit code 2 means update available, 1 means not installed */
-    if (!installed.isInstalled) {
-        return 1;
-    }
-    return updateAvailable ? 2 : 0;
 }
 
 } // anonymous namespace
@@ -555,8 +484,6 @@ int main(int argc, char* argv[]) {
         return CmdInstall(installPath, mode, isUpdate);
     } else if (command == "version") {
         return CmdVersion(installPath, mode);
-    } else if (command == "check-update") {
-        return CmdCheckUpdate(installPath, mode);
     } else {
         std::cerr << "Error: Unknown command: " << command << "\n";
         PrintUsage(argv[0]);

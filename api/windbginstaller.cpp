@@ -57,12 +57,3 @@ std::string BinaryNinjaDebuggerAPI::GetWinDbgInstalledVersion(const std::string&
 	BNDebuggerFreeString(version);
 	return result;
 }
-
-
-std::string BinaryNinjaDebuggerAPI::GetWinDbgLatestVersion()
-{
-	char* version = BNDebuggerGetWinDbgLatestVersion();
-	std::string result = version ? version : "";
-	BNDebuggerFreeString(version);
-	return result;
-}

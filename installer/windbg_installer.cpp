@@ -8,6 +8,7 @@
 #ifdef _WIN32
 
 #include "windbg_installer.h"
+#include "windbg_version.h"
 #include "http_downloader.h"
 #include "zip_extractor.h"
 #include "signature_verifier.h"
@@ -19,7 +20,6 @@
 #include <filesystem>
 #include <fstream>
 #include <vector>
-#include <sstream>
 
 #pragma comment(lib, "version.lib")
 
@@ -32,17 +32,12 @@ namespace {
 /* URL for WinDbg appinstaller file (resolves to the latest release manifest) */
 const char* kWinDbgDownloadUrl = "https://aka.ms/windbg/download";
 
-/* Pinned WinDbg version.
- *
- * We deliberately install a known-good, pinned version instead of always pulling the
- * absolute latest, because a freshly released WinDbg occasionally ships regressions that
- * break the debugger's DbgEng/TTD adapter (see issues #1129 and #1130). When Microsoft
- * releases a new version we can validate it and bump this constant.
+/* The pinned version we install lives in windbg_version.h, so that the UI can report the
+ * same value without asking the installer.
  *
  * If the pinned version cannot be downloaded for any reason (e.g. Microsoft removed it
  * from the CDN), Install() automatically falls back to downloading the latest version via
  * the appinstaller manifest, so installation still succeeds. */
-const char* kPinnedVersion = "1.2603.20001.0";
 
 /* Base host that serves the versioned MSIX bundles. */
 const char* kMsixBundleHost = "https://windbg.download.prss.microsoft.com/dbazure/prod";
@@ -458,64 +453,6 @@ VersionInfo GetInstalledVersion(const std::string& installPath) {
     }
 
     return info;
-}
-
-VersionInfo GetLatestVersion(LogCallback logCallback) {
-    /* Report the pinned version as the "latest" version we offer, rather than whatever
-     * Microsoft is currently shipping. Install() installs the pinned version, so this keeps
-     * version checks consistent: users are only prompted to update when their installed
-     * version is older than the pinned one, not every time Microsoft publishes a new build
-     * that we have not yet validated (see issues #1129 and #1130). */
-    (void)logCallback;
-
-    VersionInfo info;
-    info.version = kPinnedVersion;
-    info.displayName = "WinDbg " + info.version;
-    info.downloadUrl = BuildMsixBundleUrl(kPinnedVersion);
-    return info;
-}
-
-int CompareVersions(const std::string& v1, const std::string& v2) {
-    /* Parse version strings like "1.2404.24002.0" */
-    auto parseVersion = [](const std::string& v) -> std::vector<int> {
-        std::vector<int> parts;
-        std::istringstream iss(v);
-        std::string part;
-        while (std::getline(iss, part, '.')) {
-            try {
-                parts.push_back(std::stoi(part));
-            } catch (...) {
-                parts.push_back(0);
-            }
-        }
-        return parts;
-    };
-
-    std::vector<int> parts1 = parseVersion(v1);
-    std::vector<int> parts2 = parseVersion(v2);
-
-    /* Pad with zeros to make them equal length */
-    size_t maxLen = (std::max)(parts1.size(), parts2.size());
-    parts1.resize(maxLen, 0);
-    parts2.resize(maxLen, 0);
-
-    /* Compare part by part */
-    for (size_t i = 0; i < maxLen; i++) {
-        if (parts1[i] < parts2[i]) return -1;
-        if (parts1[i] > parts2[i]) return 1;
-    }
-
-    return 0;
-}
-
-bool IsVersionUpToDate(const VersionInfo& installed, const VersionInfo& latest) {
-    /* If either version is invalid, assume up to date (can't determine) */
-    if (!installed.IsValid() || !latest.IsValid()) {
-        return true;
-    }
-
-    /* Installed >= Latest means up to date */
-    return CompareVersions(installed.version, latest.version) >= 0;
 }
 
 } // namespace WinDbgInstaller

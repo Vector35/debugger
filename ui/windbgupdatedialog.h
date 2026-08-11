@@ -25,6 +25,11 @@ limitations under the License.
 #include <QHBoxLayout>
 #include <string>
 
+/* Dialog shown when WinDbg/TTD is already installed.
+ *
+ * The debugger installs a pinned WinDbg version rather than the latest release, so there is
+ * nothing to check online: we compare what is on disk against that constant and offer to
+ * (re)install it. */
 class WinDbgUpdateDialog : public QDialog
 {
 	Q_OBJECT
@@ -32,27 +37,16 @@ class WinDbgUpdateDialog : public QDialog
 private:
 	std::string m_installPath;
 	std::string m_installedVersion;
-	std::string m_latestVersion;
 
-	QLabel* m_installedVersionLabel;
-	QLabel* m_latestVersionLabel;
-	QLabel* m_statusLabel;
 	QPushButton* m_updateButton;
 	QPushButton* m_cancelButton;
-
-	void fetchLatestVersion();
-	void updateUI();
 
 public:
 	WinDbgUpdateDialog(QWidget* parent, const std::string& installPath, const std::string& installedVersion);
 
 public Q_SLOTS:
-	void onLatestVersionReceived(const QString& version);
 	void onUpdateClicked();
 	void onCancelClicked();
-
-Q_SIGNALS:
-	void latestVersionReceived(const QString& version);
 };
 
 #endif // WIN32

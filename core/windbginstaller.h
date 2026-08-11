@@ -67,13 +67,6 @@ std::string GetInstallerPath();
  */
 std::string GetInstalledVersion(const std::string& installPath = "");
 
-/*
- * Get the latest available WinDbg version from Microsoft
- *
- * @return Version string, or empty on error
- */
-std::string GetLatestVersion();
-
 } // namespace BinaryNinjaDebugger
 
 #endif // WIN32

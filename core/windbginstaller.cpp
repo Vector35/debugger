@@ -160,92 +160,6 @@ InstallResult InstallWinDbg(const std::string& installPath, bool isUpdate) {
     }
 }
 
-/* Helper function to run installer CLI and capture JSON output */
-static std::string RunInstallerCommand(const std::string& command, const std::string& extraArgs = "") {
-    std::string installerPath = GetInstallerPath();
-    if (installerPath.empty()) {
-        return "";
-    }
-
-    std::string cmdLine = "\"" + installerPath + "\" " + command + " --json";
-    if (!extraArgs.empty()) {
-        cmdLine += " " + extraArgs;
-    }
-
-    /* Create pipes for stdout */
-    SECURITY_ATTRIBUTES sa = {};
-    sa.nLength = sizeof(sa);
-    sa.bInheritHandle = TRUE;
-
-    HANDLE hReadPipe, hWritePipe;
-    if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0)) {
-        return "";
-    }
-
-    /* Ensure read handle is not inherited */
-    SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0);
-
-    STARTUPINFOA si = {};
-    si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
-    si.hStdOutput = hWritePipe;
-    si.hStdError = hWritePipe;
-    si.wShowWindow = SW_HIDE;
-
-    PROCESS_INFORMATION pi = {};
-
-    if (!CreateProcessA(
-            nullptr,
-            const_cast<char*>(cmdLine.c_str()),
-            nullptr,
-            nullptr,
-            TRUE,  /* Inherit handles */
-            CREATE_NO_WINDOW,
-            nullptr,
-            nullptr,
-            &si,
-            &pi)) {
-        CloseHandle(hReadPipe);
-        CloseHandle(hWritePipe);
-        return "";
-    }
-
-    /* Close write end in parent */
-    CloseHandle(hWritePipe);
-
-    /* Read output */
-    std::string output;
-    char buffer[4096];
-    DWORD bytesRead;
-    while (ReadFile(hReadPipe, buffer, sizeof(buffer) - 1, &bytesRead, nullptr) && bytesRead > 0) {
-        buffer[bytesRead] = '\0';
-        output += buffer;
-    }
-
-    CloseHandle(hReadPipe);
-
-    WaitForSingleObject(pi.hProcess, INFINITE);
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
-
-    return output;
-}
-
-/* Simple JSON value extractor - finds "key":"value" pattern */
-static std::string ExtractJsonValue(const std::string& json, const std::string& key) {
-    std::string searchKey = "\"" + key + "\":\"";
-    size_t pos = json.find(searchKey);
-    if (pos == std::string::npos) {
-        return "";
-    }
-    pos += searchKey.length();
-    size_t endPos = json.find("\"", pos);
-    if (endPos == std::string::npos) {
-        return "";
-    }
-    return json.substr(pos, endPos - pos);
-}
-
 std::string GetInstalledVersion(const std::string& installPath) {
     /* Read version directly from marker file (fast, no CLI call needed) */
     std::string path = installPath;
@@ -276,11 +190,6 @@ std::string GetInstalledVersion(const std::string& installPath) {
     /* Version file not found - installation may be from older version or corrupted */
     /* Return empty string rather than calling CLI to keep UI responsive */
     return "";
-}
-
-std::string GetLatestVersion() {
-    std::string output = RunInstallerCommand("check-update");
-    return ExtractJsonValue(output, "latest");
 }
 
 } // namespace BinaryNinjaDebugger

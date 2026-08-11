@@ -86,49 +86,23 @@ std::string GetDefaultInstallPath();
 struct VersionInfo {
     std::string version;        /* Version string (e.g., "1.2404.24002.0"), empty if unknown */
     std::string displayName;    /* Display name (e.g., "WinDbg 1.2404.24002.0") */
-    std::string downloadUrl;    /* Download URL for this version */
     std::string installPath;    /* Path where this version is installed */
     bool isInstalled;           /* True if WinDbg is installed (even if version unknown) */
 
     VersionInfo() : isInstalled(false) {}
-
-    /* Returns true if version string is known */
-    bool IsValid() const { return !version.empty(); }
 };
 
 /*
  * Get version of installed WinDbg
  *
+ * There is deliberately no "latest version" query: we install the pinned version from
+ * windbg_version.h, so the only question worth asking is whether what is on disk matches
+ * that constant.
+ *
  * @param installPath Path to WinDbg installation (empty = use default)
  * @return Version info, or empty VersionInfo if not installed
  */
 VersionInfo GetInstalledVersion(const std::string& installPath = "");
-
-/*
- * Get latest available version from Microsoft
- *
- * @param logCallback Optional callback for log messages
- * @return Version info, or empty VersionInfo on error
- */
-VersionInfo GetLatestVersion(LogCallback logCallback = nullptr);
-
-/*
- * Check if installed version is up to date
- *
- * @param installed Installed version info
- * @param latest Latest version info
- * @return true if installed version >= latest version (or if comparison fails)
- */
-bool IsVersionUpToDate(const VersionInfo& installed, const VersionInfo& latest);
-
-/*
- * Compare two version strings
- *
- * @param v1 First version string
- * @param v2 Second version string
- * @return -1 if v1 < v2, 0 if v1 == v2, 1 if v1 > v2
- */
-int CompareVersions(const std::string& v1, const std::string& v2);
 
 /* ============================================================================
  * Legacy API for backward compatibility with existing UI code
