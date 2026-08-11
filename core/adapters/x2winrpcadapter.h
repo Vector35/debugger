@@ -58,6 +58,7 @@ namespace BinaryNinjaDebugger {
 		std::thread m_readerThread;
 		std::atomic<DebugStopReason> m_lastStopReason {DebugStopReason::UnknownReason};
 		std::atomic<uint64_t> m_lastStopAddress {0};
+		std::atomic<uint64_t> m_exitCode{0};
 
 		// True once Connect() (the one-shot "target mode" style entry point, UI: "Connect to Remote
 		// Process") has succeeded -- deliberately NOT reset in TeardownConnection(), because the
@@ -74,6 +75,7 @@ namespace BinaryNinjaDebugger {
 		std::unordered_map<uint64_t, std::promise<X2WinEnvelopeBuffer>> m_pendingRequests;
 		std::vector<DebugBreakpoint> m_breakpoints;
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints;
+		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints;
 		std::atomic<uint64_t> m_nextRequestId {1};
 
 		Ref<Settings> GetAdapterSettings() override;
