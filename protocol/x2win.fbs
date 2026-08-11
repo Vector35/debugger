@@ -72,6 +72,9 @@ table TargetStoppedEvent { reason: StopReason; address: uint64; }
 table ReadMemoryRequest { address: uint64; size: uint64; }
 table ReadMemoryResponse { success: bool; data: [ubyte]; }
 
+table WriteMemoryRequest { address: uint64; data: [ubyte]; }
+table WriteMemoryResponse { success: bool; }
+
 // One register's value + BN's DebugRegister layout metadata (width in bytes, index for display
 // ordering). Value is uint64 -- X2Win only ever targets x86/x64 Windows, nothing there is wider.
 table RegisterEntry { name: string; value: uint64; width: uint32; register_index: uint32; }
@@ -107,6 +110,7 @@ union Body {
     SetBreakpointRequest,
     RemoveBreakpointRequest,
     ReadMemoryRequest,
+    WriteMemoryRequest,
     ReadAllRegistersRequest,
     ReadRegisterRequest,
     WriteRegisterRequest,
@@ -127,6 +131,7 @@ union Body {
     SetBreakpointResponse,
     RemoveBreakpointResponse,
     ReadMemoryResponse,
+    WriteMemoryResponse,
     ReadAllRegistersResponse,
     ReadRegisterResponse,
     WriteRegisterResponse,
