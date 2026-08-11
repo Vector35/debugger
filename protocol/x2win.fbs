@@ -17,6 +17,7 @@ enum StopReason : byte {
     // BREAKPOINT (see DebugStopReason::InitialBreakpoint) -- report it exactly once per
     // session, the first time any breakpoint exception is seen, regardless of address.
     INITIAL_BREAKPOINT = 3,
+    EXITED = 4,
 }
 
 table LaunchRequest { path: string; args: string; working_dir: string; }
@@ -37,6 +38,29 @@ table QuitResponse { success: bool; }
 table ProcessInfo { pid: uint32; name: string; }
 table GetProcessListRequest {}
 table GetProcessListResponse { processes: [ProcessInfo]; }
+
+// One thread's tid + its current instruction pointer + whether it's suspended/frozen --
+// mirrors BN's DebugThread (core/debugadapter.h). rip is uint64 for the same reason
+// RegisterEntry.value is: X2Win only ever targets x86/x64 Windows.
+table ThreadEntry { tid: uint32; rip: uint64; is_frozen: bool; }
+
+table GetThreadListRequest {}
+table GetThreadListResponse { threads: [ThreadEntry]; }
+
+// Just the tid -- the adapter derives the active thread's rip from the last reported stop
+// address instead of asking the stub for it separately (BN only ever stops the whole process,
+// never a single thread, so GetInstructionOffset() is already the active thread's rip).
+table GetActiveThreadIdRequest {}
+table GetActiveThreadIdResponse { tid: uint32; }
+
+table SetActiveThreadIdRequest { tid: uint32; }
+table SetActiveThreadIdResponse { success: bool; }
+
+table SuspendThreadRequest { tid: uint32; }
+table SuspendThreadResponse { success: bool; }
+
+table ResumeThreadRequest { tid: uint32; }
+table ResumeThreadResponse { success: bool; }
 
 table ConnectServerRequest {}
 table ConnectServerResponse { success: bool; }
@@ -62,7 +86,16 @@ table RemoveBreakpointResponse { success: bool; }
 table BreakIntoRequest {}
 table BreakIntoResponse { success: bool; }
 
-table TargetStoppedEvent { reason: StopReason; address: uint64; }
+// Hardware breakpoint/watchpoint, keyed by (address, type, size) as a triple rather than an
+// id like SetBreakpointRequest -- mirrors WindowsDebugEngine/WindowsNativeAdapter's own
+// identity rule for these (a debug register slot, not an allocated id).
+table SetHardwareBreakpointRequest { address: uint64; type: BreakpointType; size: ubyte; }
+table SetHardwareBreakpointResponse { success: bool; }
+
+table RemoveHardwareBreakpointRequest { address: uint64; type: BreakpointType; size: ubyte; }
+table RemoveHardwareBreakpointResponse { success: bool; }
+
+table TargetStoppedEvent { reason: StopReason; address: uint64; exit_code: uint64; }
 
 // Reads raw bytes from the target's address space (equivalent of ReadProcessMemory). Unlike
 // Go/Launch/Attach, this is a plain synchronous request/response -- there is no separate async
@@ -102,6 +135,11 @@ union Body {
     DetachRequest,
     QuitRequest,
     GetProcessListRequest,
+    GetThreadListRequest,
+    GetActiveThreadIdRequest,
+    SetActiveThreadIdRequest,
+    SuspendThreadRequest,
+    ResumeThreadRequest,
     ConnectServerRequest,
     GoRequest,
     StepIntoRequest,
@@ -109,6 +147,8 @@ union Body {
     BreakIntoRequest,
     SetBreakpointRequest,
     RemoveBreakpointRequest,
+    SetHardwareBreakpointRequest,
+    RemoveHardwareBreakpointRequest,
     ReadMemoryRequest,
     WriteMemoryRequest,
     ReadAllRegistersRequest,
@@ -123,6 +163,11 @@ union Body {
     DetachResponse,
     QuitResponse,
     GetProcessListResponse,
+    GetThreadListResponse,
+    GetActiveThreadIdResponse,
+    SetActiveThreadIdResponse,
+    SuspendThreadResponse,
+    ResumeThreadResponse,
     ConnectServerResponse,
     GoResponse,
     StepIntoResponse,
@@ -130,6 +175,8 @@ union Body {
     BreakIntoResponse,
     SetBreakpointResponse,
     RemoveBreakpointResponse,
+    SetHardwareBreakpointResponse,
+    RemoveHardwareBreakpointResponse,
     ReadMemoryResponse,
     WriteMemoryResponse,
     ReadAllRegistersResponse,

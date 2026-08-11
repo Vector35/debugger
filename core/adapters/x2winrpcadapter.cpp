@@ -120,7 +120,7 @@ bool X2WinRpcAdapter::ExecuteWithArgs(const std::string& path, const std::string
   const std::string& workingDir, const LaunchConfigurations& configs){
     if(m_lastConnectionWasTargetMode){
         LogWarn("X2WinRpcAdapter::ExecuteWithArgs: refusing to launch -- last connection was "
-            "target mode, which only ever supports its original debuggee.\n");
+            "target mode, which only ever supports its original debuggee.");
         return false;
     }
     if(!ConnectFromSettings()){
@@ -271,6 +271,18 @@ void X2WinRpcAdapter::ReaderLoop(){
 
         if(envelope->body_type() == x2win::Body_TargetStoppedEvent){
             const auto* evt = envelope->body_as<x2win::TargetStoppedEvent>();
+            if(evt->reason() == x2win::StopReason_EXITED){
+                LogInfo("X2WinRpcAdapter::ReaderLoop: received TargetStoppedEvent reason=EXITED exit_code=%llu",
+                    (unsigned long long)evt->exit_code());
+                m_lastStopReason = DebugStopReason::ProcessExited;
+                m_exitCode = evt->exit_code();
+
+                DebuggerEvent event;
+                event.type = TargetExitedEventType;
+                event.data.exitData.exitCode = evt->exit_code();
+                PostDebuggerEvent(event);
+                continue;
+            }
             BNDebugStopReason reason = (evt->reason() == x2win::StopReason_BREAKPOINT) ? DebugStopReason::Breakpoint
                                         : (evt->reason() == x2win::StopReason_SINGLE_STEP) ? DebugStopReason::SingleStep
                                         : (evt->reason() == x2win::StopReason_INITIAL_BREAKPOINT) ? DebugStopReason::InitialBreakpoint
@@ -384,13 +396,94 @@ std::vector<DebugProcess> X2WinRpcAdapter::GetProcessList(){
 }
 
 std::uint32_t X2WinRpcAdapter::GetActivePID(){ return 0; }
-std::vector<DebugThread> X2WinRpcAdapter::GetThreadList(){ return {}; }
-DebugThread X2WinRpcAdapter::GetActiveThread() const { return DebugThread(); }
-std::uint32_t X2WinRpcAdapter::GetActiveThreadId() const { return 0; }
-bool X2WinRpcAdapter::SetActiveThread(const DebugThread& thread){ return false; }
-bool X2WinRpcAdapter::SetActiveThreadId(std::uint32_t tid){ return false; }
-bool X2WinRpcAdapter::SuspendThread(std::uint32_t tid){ return false; }
-bool X2WinRpcAdapter::ResumeThread(std::uint32_t tid){ return false; }
+std::vector<DebugThread> X2WinRpcAdapter::GetThreadList(){
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_GetThreadListRequest, [](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateGetThreadListRequest(b).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::GetThreadListResponse>();
+    std::vector<DebugThread> result;
+    if(resp && resp->threads()){
+        for(const auto* t : *resp->threads()){
+            // DebugThread has no ctor that takes is_frozen -- build with (tid, rip), then set
+            // the field directly (m_isFrozen is a plain public bool, same as every other member).
+            DebugThread thread((std::uint32_t)t->tid(), (std::uintptr_t)t->rip());
+            thread.m_isFrozen = t->is_frozen();
+            result.push_back(thread);
+        }
+    }
+    LogDebug("X2WinRpcAdapter::GetThreadList: got %zu thread(s)", result.size());
+    return result;
+}
+
+DebugThread X2WinRpcAdapter::GetActiveThread() const {
+    // CallSync() isn't const (it does real socket I/O) but this override has to be -- same
+    // const_cast workaround GdbMiAdapter::GetActiveThread() uses (core/adapters/gdbmiadapter.cpp).
+    auto* self = const_cast<X2WinRpcAdapter*>(this);
+    X2WinEnvelopeBuffer response = self->CallSync(x2win::Body_GetActiveThreadIdRequest, [](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateGetActiveThreadIdRequest(b).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::GetActiveThreadIdResponse>();
+    std::uint32_t tid = resp ? resp->tid() : 0;
+
+    // See the comment on GetActiveThreadIdResponse in x2win.fbs -- rip comes from the last
+    // reported stop, not a separate RPC round trip.
+    return DebugThread(tid, (std::uintptr_t)self->GetInstructionOffset());
+}
+
+std::uint32_t X2WinRpcAdapter::GetActiveThreadId() const {
+    auto* self = const_cast<X2WinRpcAdapter*>(this);
+    X2WinEnvelopeBuffer response = self->CallSync(x2win::Body_GetActiveThreadIdRequest, [](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateGetActiveThreadIdRequest(b).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::GetActiveThreadIdResponse>();
+    return resp ? resp->tid() : 0;
+}
+
+bool X2WinRpcAdapter::SetActiveThread(const DebugThread& thread){
+    return SetActiveThreadId(thread.m_tid);
+}
+
+bool X2WinRpcAdapter::SetActiveThreadId(std::uint32_t tid){
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_SetActiveThreadIdRequest, [tid](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateSetActiveThreadIdRequest(b, tid).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::SetActiveThreadIdResponse>();
+    bool success = resp && resp->success();
+    if(!success){
+        LogWarn("X2WinRpcAdapter::SetActiveThreadId: stub rejected switch to tid %u", (unsigned)tid);
+    }
+    return success;
+}
+
+bool X2WinRpcAdapter::SuspendThread(std::uint32_t tid){
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_SuspendThreadRequest, [tid](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateSuspendThreadRequest(b, tid).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::SuspendThreadResponse>();
+    bool success = resp && resp->success();
+    if(!success){
+        LogWarn("X2WinRpcAdapter::SuspendThread: stub rejected suspending tid %u", (unsigned)tid);
+    }
+    return success;
+}
+
+bool X2WinRpcAdapter::ResumeThread(std::uint32_t tid){
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_ResumeThreadRequest, [tid](flatbuffers::FlatBufferBuilder&b){
+        return x2win::CreateResumeThreadRequest(b, tid).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::ResumeThreadResponse>();
+    bool success = resp && resp->success();
+    if(!success){
+        LogWarn("X2WinRpcAdapter::ResumeThread: stub rejected resuming tid %u", (unsigned)tid);
+    }
+    return success;
+}
 
 DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type){
     X2WinEnvelopeBuffer response = CallSync(x2win::Body_SetBreakpointRequest, [address](flatbuffers::FlatBufferBuilder& b){
@@ -449,6 +542,17 @@ void X2WinRpcAdapter::ApplyBreakPoints(){
     for(const auto& bp : pending){
         AddBreakpoint(bp);
     }
+
+    std::vector<PendingHardwareBreakpoint> pendingHw;
+    pendingHw.swap(m_pendingHardwareBreakpoints);
+
+    for(const auto& hwbp : pendingHw){
+        if(hwbp.isRelative){
+            AddHardwareBreakpoint(hwbp.location, hwbp.type, hwbp.size);
+        } else {
+            AddHardwareBreakpoint(hwbp.address, hwbp.type, hwbp.size);
+        }
+    }
 }
 
 bool X2WinRpcAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint){
@@ -481,10 +585,98 @@ bool X2WinRpcAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint){
 }
 std::vector<DebugBreakpoint> X2WinRpcAdapter::GetBreakpointList() const { return m_breakpoints;}
 
-bool X2WinRpcAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size){ return false; }
-bool X2WinRpcAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size){ return false; }
-bool X2WinRpcAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size){ return false; }
-bool X2WinRpcAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size){ return false; }
+bool X2WinRpcAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size){
+    if(!m_connected){
+        // Not connected yet (Apply() firing before Attach()/ExecuteWithArgs()/Connect()) -- stage
+        // it, same reason AddBreakpoint(ModuleNameAndOffset) stages below.
+        PendingHardwareBreakpoint pending(address, type, size);
+        if(std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+            == m_pendingHardwareBreakpoints.end()){
+            m_pendingHardwareBreakpoints.push_back(pending);
+        }
+        return true;
+    }
+
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_SetHardwareBreakpointRequest,[address, type, size](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateSetHardwareBreakpointRequest(b, address, (x2win::BreakpointType)type, (uint8_t)size).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::SetHardwareBreakpointResponse>();
+    bool success = resp && resp->success();
+    if(!success){
+        LogWarn("X2WinRpcAdapter::AddHardwareBreakpoint: stub rejected hw breakpoint at 0x%llx",
+            (unsigned long long)address);
+    }
+    return success;
+}
+bool X2WinRpcAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size){
+    // Still-staged (never actually sent) -- just drop it locally, same shape as the pending-list
+    // check RemoveBreakpoint() does for software breakpoints.
+    PendingHardwareBreakpoint pending(address, type, size);
+    auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+    if(it != m_pendingHardwareBreakpoints.end()){
+        m_pendingHardwareBreakpoints.erase(it);
+        return true;
+    }
+
+    if(!m_connected){
+        return false;
+    }
+
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_RemoveHardwareBreakpointRequest,
+        [address, type, size](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateRemoveHardwareBreakpointRequest(b, address, (x2win::BreakpointType)type, (uint8_t)size).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::RemoveHardwareBreakpointResponse>();
+    bool success = resp && resp->success();
+    if(!success){
+        LogWarn("X2WinRpcAdapter::RemoveHardwareBreakpoint: stub rejected removal at 0x%llx",
+            (unsigned long long)address);
+    }
+    return success;
+}
+bool X2WinRpcAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size){
+    if(!m_connected){
+        PendingHardwareBreakpoint pending(location, type, size);
+        if(std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+            == m_pendingHardwareBreakpoints.end()){
+            m_pendingHardwareBreakpoints.push_back(pending);
+        }
+        return true;
+    }
+
+    uint64_t resolved = 0;
+    if(!ResolveModuleAddress(location, resolved)){
+        // Connected, but not resolvable yet (module not loaded) -- re-stage, same as
+        // AddBreakpoint(ModuleNameAndOffset)'s equivalent branch.
+        PendingHardwareBreakpoint pending(location, type, size);
+        if(std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+            == m_pendingHardwareBreakpoints.end()){
+            m_pendingHardwareBreakpoints.push_back(pending);
+        }
+        LogWarn("X2WinRpcAdapter::AddHardwareBreakpoint: failed to resolve module \"%s\"+0x%llx",
+            location.module.c_str(), (unsigned long long)location.offset);
+        return false;
+    }
+
+    return AddHardwareBreakpoint(resolved, type, size);
+}
+bool X2WinRpcAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size){
+    PendingHardwareBreakpoint pending(location, type, size);
+    auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+    if(it != m_pendingHardwareBreakpoints.end()){
+        m_pendingHardwareBreakpoints.erase(it);
+        return true;
+    }
+
+    uint64_t resolved = 0;
+    if(!ResolveModuleAddress(location, resolved)){
+        return false;
+    }
+
+    return RemoveHardwareBreakpoint(resolved, type, size);
+}
 
 
 std::unordered_map<std::string, DebugRegister> X2WinRpcAdapter::ReadAllRegisters(){
@@ -603,8 +795,18 @@ std::vector<DebugModule> X2WinRpcAdapter::GetModuleList(){
 
 // --- Execution control ---
 DebugStopReason X2WinRpcAdapter::StopReason(){ return m_lastStopReason.load(); }
-uint64_t X2WinRpcAdapter::ExitCode(){ return 0; }
+uint64_t X2WinRpcAdapter::ExitCode(){
+    return m_exitCode.load();
+}
 bool X2WinRpcAdapter::BreakInto(){
+    if(m_lastStopReason.load() == DebugStopReason::ProcessExited){
+        // Nothing to break into -- the process is already gone (ReaderLoop()'s StopReason_EXITED
+        // handling sets this). RequestInterrupt() (core/debuggercontroller.cpp) fires BreakInto()
+        // unconditionally before every Detach()/Quit(), regardless of whether the target is still
+        // running -- skip the round trip instead of logging a "stub reported failure" that isn't
+        // actually telling us anything new at that point.
+        return false;
+    }
     X2WinEnvelopeBuffer response = CallSync(x2win::Body_BreakIntoRequest, [](flatbuffers::FlatBufferBuilder& b){
         return x2win::CreateBreakIntoRequest(b).Union();
     });
@@ -675,10 +877,11 @@ bool X2WinRpcAdapter::SupportFeature(DebugAdapterCapacity feature){
             return true;
         case DebugAdapterSupportModules:
             return true;
+        case DebugAdapterSupportThreads:
+            return true;
         // Not yet implemented on the stub side.
         case DebugAdapterSupportStepReturn:
         case DebugAdapterSupportStepOverReverse:
-        case DebugAdapterSupportThreads:
         case DebugAdapterSupportTTD:
         default:
             return false;
