@@ -72,6 +72,21 @@ RspData RspConnector::DecodeRLE(const RspData& data)
             }
             else if (data.m_data[index] == '*')
             {
+                // An RLE run is "<char>*<count>": it repeats the character just emitted, so
+                // both the count byte and that preceding character have to exist. Neither was
+                // checked. A stub sending '*' as the final byte read one past the buffer, and
+                // one sending '*' before any literal character evaluated
+                // result[result.size() - 1] with an empty result, indexing SIZE_MAX.
+                if (index + 1 >= data.m_data.GetLength())
+                {
+                    LogError("Malformed RLE in remote protocol data: run marker with no repeat count");
+                    break;
+                }
+                if (result.empty())
+                {
+                    LogError("Malformed RLE in remote protocol data: run marker with no preceding character");
+                    break;
+                }
                 auto repeat = data.m_data[index + 1] - 29;
                 auto last_char = result[result.size() - 1];
                 for ( auto idx = 0; idx < repeat; idx++ )
