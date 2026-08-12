@@ -35,6 +35,13 @@ namespace x2win {
 		std::promise<void> m_firstStopPromise;
 		std::atomic<bool> m_firstStopSeen {false};
 
+		// Tracks the *current* stop state (independent of whether a client is connected right now) --
+		// unlike m_firstStopSeen (one-shot, fires once ever), this reflects "are we stopped right now",
+		// so a client reconnecting after a disconnect (target mode) can be told immediately instead of
+		// only ever getting this on the very first connection.
+		std::atomic<bool> m_isStopped {false};
+		std::atomic<StopReason> m_lastStopReason {StopReason_UNKNOWN};
+
 		void OnEngineEvent(const EngineEvent& event);
 
 	public:
@@ -56,6 +63,10 @@ namespace x2win {
 		// Attaches (or reattaches) the connection used for outgoing events. Target mode constructs
 		// the session before any client has connected -- see main.cpp.
 		void SetConnection(Connection* connection) { m_connection = connection; }
+
+		SessionMode Mode() const { return m_mode; }
+		bool IsStopped() const { return m_isStopped; }
+		StopReason LastStopReason() const { return m_lastStopReason; }
 
 		// Blocks until the engine's first TargetStopped event (target mode's initial breakpoint).
 		void WaitForFirstStop() { m_firstStopPromise.get_future().wait(); }
