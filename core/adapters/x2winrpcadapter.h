@@ -150,6 +150,7 @@ namespace BinaryNinjaDebugger {
 
 		// --- Modules / target info ---
 		std::vector<DebugModule> GetModuleList() override;
+		std::vector<DebugMemoryRegion> GetMemoryMap() override;
 		std::string GetTargetArchitecture() override;
 
 		// --- Execution control ---
@@ -166,6 +167,7 @@ namespace BinaryNinjaDebugger {
 		// --- Misc ---
 		std::string InvokeBackendCommand(const std::string& command) override;
 		uint64_t GetInstructionOffset() override;
+		uint64_t GetStackPointer() override;
 		bool SupportFeature(DebugAdapterCapacity feature) override;
 
 		// Dedicated socket-reader loop (runs on m_readerThread): pulls frames forever, routes
