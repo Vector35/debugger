@@ -143,6 +143,22 @@ table FrameEntry {
 table GetFramesOfThreadRequest { tid: uint32; }
 table GetFramesOfThreadResponse { frames: [FrameEntry]; }
 
+// One mapped region of the target's virtual address space -- mirrors BN's DebugMemoryRegion
+// (core/debugadapter.h). name is a file path for file-backed mappings, a well-known name like
+// "[stack]"/"[heap]" where the backend provides one, or empty for anonymous mappings.
+table MemoryRegionEntry {
+    start: uint64;
+    size: uint64;
+    name: string;
+    read: bool;
+    write: bool;
+    execute: bool;
+    shared: bool;
+}
+
+table GetMemoryMapRequest {}
+table GetMemoryMapResponse { regions: [MemoryRegionEntry]; }
+
 union Body {
     // request BN core -> stub
     LaunchRequest,
@@ -173,6 +189,7 @@ union Body {
     WriteRegisterRequest,
     GetModuleListRequest,
     GetFramesOfThreadRequest,
+    GetMemoryMapRequest,
 
     // response stub -> BN core
     LaunchResponse,
@@ -203,6 +220,7 @@ union Body {
     WriteRegisterResponse,
     GetModuleListResponse,
     GetFramesOfThreadResponse,
+    GetMemoryMapResponse,
 
     // event stub -> BN core, no response required
     TargetStoppedEvent,

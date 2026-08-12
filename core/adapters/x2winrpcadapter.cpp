@@ -812,6 +812,25 @@ std::vector<DebugModule> X2WinRpcAdapter::GetModuleList(){
     return result;
 }
 
+std::vector<DebugMemoryRegion>X2WinRpcAdapter::GetMemoryMap(){
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_GetMemoryMapRequest, [](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateGetMemoryMapRequest(b).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::GetMemoryMapResponse>();
+    std::vector<DebugMemoryRegion> result;
+    if(resp && resp->regions()){
+        for(const auto* r : *resp->regions()){
+            std::string name = r->name() ? r->name()->str() : std::string();
+            result.emplace_back((std::uintptr_t)r->start(), (std::size_t)r->size(), name,
+            r->read(), r->write(), r->execute(), r->shared());
+        }
+    }
+    
+    LogDebug("X2WinRpcAdapter::GetMemoryMap: got %zu region(s)", result.size());
+    return result;
+}
+
 // --- Execution control ---
 DebugStopReason X2WinRpcAdapter::StopReason(){ return m_lastStopReason.load(); }
 uint64_t X2WinRpcAdapter::ExitCode(){
@@ -903,6 +922,10 @@ bool X2WinRpcAdapter::StepReturn(){
 
 std::string X2WinRpcAdapter::InvokeBackendCommand(const std::string& command){ return ""; }
 uint64_t X2WinRpcAdapter::GetInstructionOffset(){ return m_lastStopAddress.load(); }
+uint64_t X2WinRpcAdapter::GetStackPointer(){
+    std::string spRegistername = (GetTargetArchitecture() == "x86") ? "esp" : "rsp";
+    return (uint64_t)ReadRegister(spRegistername).m_value;
+}
 bool X2WinRpcAdapter::SupportFeature(DebugAdapterCapacity feature){
     switch(feature){
         // StepOver/Go/BreakInto/GetModuleList are all wired over RPC to the stub -- report the
