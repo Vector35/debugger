@@ -116,6 +116,20 @@ bool X2WinRpcAdapter::ConnectToDebugServer(const std::string &server, std::uint3
     return success;
 }
 
+bool X2WinRpcAdapter::DisconnectDebugServer(){
+    if(!m_connected){
+        return true;
+    }
+
+    CallSync(x2win::Body_QuitRequest, [](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateQuitRequest(b).Union();
+    });
+
+    LogInfo("X2WinRpcAdapter::DisconnectDebugServer: closing connection to stub");
+    TeardownConnection();
+    return true;
+}
+
 bool X2WinRpcAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
   const std::string& workingDir, const LaunchConfigurations& configs){
     if(m_lastConnectionWasTargetMode){
@@ -343,7 +357,11 @@ bool X2WinRpcAdapter::Detach(){
     if(!success)
         LogWarn("X2WinRpcAdapter::Detach: stub reported failure");
 
-    TeardownConnection();
+    if(m_lastConnectionWasTargetMode){
+        TeardownConnection();
+    }else{
+        ResetSessionState();
+    }
 
     DebuggerEvent event;
     event.type = DetachedEventType;
@@ -362,7 +380,11 @@ bool X2WinRpcAdapter::Quit(){
     if(!success)
         LogWarn("X2WinRpcAdapter::Quit: stub reported failure");
 
-    TeardownConnection();
+    if(m_lastConnectionWasTargetMode){
+        TeardownConnection();
+    }else{
+        ResetSessionState();
+    }
 
     DebuggerEvent event;
     event.type = TargetExitedEventType;
@@ -1062,19 +1084,26 @@ void X2WinRpcAdapter::TeardownConnection(){
         m_readerThread.join();
     }
     m_connected = false;
-    // Every entry in m_breakpoints was set on the stub session this connection belonged to --
-    // once that connection is gone, none of them are trustworthy anymore: a reconnect might land
-    // on a brand-new stub session (server mode, or a restarted target-mode stub) that's never
-    // heard of them, or might land back on the SAME persisted session (target mode's reconnect
-    // support) where they're still genuinely set. Either way this cache can't tell which case it
-    // is, and the *authoritative* list lives in DebuggerBreakpoints (core/debuggerstate.cpp)
-    // anyway -- it re-sends every known breakpoint via ApplyBreakpoints() on the next successful
-    // connect regardless. Clearing this cache here avoids the alternative: a stale m_breakpoints
-    // entry surviving a reconnect, sitting alongside a *second*, newly (re-)applied entry for the
-    // same address once the resend happens -- RemoveBreakpoint() would then find one but not the
-    // other, or (if a pending-staged duplicate wins the race) skip the real stub-side removal
-    // entirely.
+    ResetSessionState();
+}
+
+void X2WinRpcAdapter::ResetSessionState(){
+    // Every entry here was set on (or is a leftover of) the debuggee this connection was just
+    // talking to -- once that debuggee is gone (Detach/Quit) or the connection itself dies, none
+    // of it is trustworthy for whatever comes next: a reconnect might land on a brand-new stub
+    // session that's never heard of these breakpoints, or a same-connection Attach()/Launch() might
+    // target a completely different process where these addresses/stop info mean nothing. The
+    // *authoritative* breakpoint list lives in DebuggerBreakpoints (core/debuggerstate.cpp) anyway --
+    // it re-sends every known breakpoint via ApplyBreakpoints() on the next successful connect
+    // regardless, so clearing these caches here just avoids stale/duplicate entries, never loses
+    // anything BN core still cares about.
     m_breakpoints.clear();
+    m_pendingBreakpoints.clear();
+    m_pendingHardwareBreakpoints.clear();
+
+    m_lastStopReason = DebugStopReason::UnknownReason;
+    m_lastStopAddress = 0;
+    m_exitCode = 0;
 }
 
 bool X2WinRpcAdapter::ResolveModuleAddress(const ModuleNameAndOffset &location, uint64_t &address){
