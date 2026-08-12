@@ -22,10 +22,10 @@ git checkout dev
 
 - Build the debugger
 
-  Protobuf and its Abseil dependency (needed for `X2WinRpcAdapter`) are vendored as git
-  submodules under `vendor/` and built as part of this project's own CMake configure/build --
-  no separate install step needed, just make sure submodules are cloned (`--recurse-submodules`
-  below, or `git submodule update --init --recursive` after the fact).
+  FlatBuffers (needed for `X2WinRpcAdapter`'s wire protocol) is vendored as a git submodule
+  under `vendor/` and built as part of this project's own CMake configure/build -- no separate
+  install step needed, just make sure submodules are cloned (`--recurse-submodules` below, or
+  `git submodule update --init --recursive` after the fact).
 
 ```bash
 # Get the source
