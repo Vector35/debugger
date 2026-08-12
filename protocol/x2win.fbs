@@ -77,6 +77,9 @@ table StepIntoResponse { success: bool; }
 table StepOverRequest {}
 table StepOverResponse { success: bool; }
 
+table StepReturnRequest {}
+table StepReturnResponse { success: bool; }
+
 table SetBreakpointRequest { address: uint64; type: BreakpointType; }
 table SetBreakpointResponse { success: bool; breakpoint_id: uint64; }
 
@@ -127,6 +130,19 @@ table ModuleEntry { name: string; base: uint64; size: uint64; }
 table GetModuleListRequest {}
 table GetModuleListResponse { modules: [ModuleEntry]; }
 
+table FrameEntry {
+    index: uint32;
+    pc: uint64;
+    sp: uint64;
+    fp: uint64;
+    function_name: string;
+    function_start: uint64;
+    module: string;
+}
+
+table GetFramesOfThreadRequest { tid: uint32; }
+table GetFramesOfThreadResponse { frames: [FrameEntry]; }
+
 union Body {
     // request BN core -> stub
     LaunchRequest,
@@ -144,6 +160,7 @@ union Body {
     GoRequest,
     StepIntoRequest,
     StepOverRequest,
+    StepReturnRequest,
     BreakIntoRequest,
     SetBreakpointRequest,
     RemoveBreakpointRequest,
@@ -155,6 +172,7 @@ union Body {
     ReadRegisterRequest,
     WriteRegisterRequest,
     GetModuleListRequest,
+    GetFramesOfThreadRequest,
 
     // response stub -> BN core
     LaunchResponse,
@@ -172,6 +190,7 @@ union Body {
     GoResponse,
     StepIntoResponse,
     StepOverResponse,
+    StepReturnResponse,
     BreakIntoResponse,
     SetBreakpointResponse,
     RemoveBreakpointResponse,
@@ -183,6 +202,7 @@ union Body {
     ReadRegisterResponse,
     WriteRegisterResponse,
     GetModuleListResponse,
+    GetFramesOfThreadResponse,
 
     // event stub -> BN core, no response required
     TargetStoppedEvent,
