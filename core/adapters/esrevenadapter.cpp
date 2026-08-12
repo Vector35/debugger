@@ -79,7 +79,8 @@ bool EsrevenAdapter::ExecuteWithArgs(const std::string &path, const std::string 
 
 bool EsrevenAdapter::Attach(std::uint32_t pid)
 {
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 	{
 		LogWarn("EsrevenAdapter::Attach called without an active connection. "
 				"Please connect to the debug server first.");
@@ -87,7 +88,7 @@ bool EsrevenAdapter::Attach(std::uint32_t pid)
 	}
 
 	// Send rvn:select-process to activate process filtering at runtime
-	auto response = m_rspConnector->TransmitAndReceive(
+	auto response = connector->TransmitAndReceive(
 		RspData(fmt::format("rvn:select-process:{}", pid)));
 	std::string responseStr = response.AsString();
 
@@ -108,7 +109,7 @@ bool EsrevenAdapter::Attach(std::uint32_t pid)
 	ClearCachedBreakpoints();
 
 	// Query the initial stop reason after selecting the process
-	const auto reply = m_rspConnector->TransmitAndReceive(RspData("?"));
+	const auto reply = connector->TransmitAndReceive(RspData("?"));
 	auto map = RspConnector::PacketToUnorderedMap(reply);
 	m_lastActiveThreadId = (uint32_t)map["thread"];
 	m_isTargetRunning = false;
@@ -134,10 +135,11 @@ bool EsrevenAdapter::Attach(std::uint32_t pid)
 
 bool EsrevenAdapter::LoadRegisterInfo()
 {
-    if (m_isTargetRunning || !m_rspConnector)
+    auto connector = m_rspConnector.load();
+    if (m_isTargetRunning || !connector)
         return false;
 
-    const auto xml = this->m_rspConnector->GetXml("target.xml");
+    const auto xml = connector->GetXml("target.xml");
 
     pugi::xml_document doc{};
     const auto parse_result = doc.load_string(xml.c_str());
@@ -193,7 +195,7 @@ bool EsrevenAdapter::LoadRegisterInfo()
     	else if (node.name() == "xi:include"s )
     	{
     		auto includePath = node.attribute("href").value();
-    		const auto includedXml = this->m_rspConnector->GetXml(includePath);
+    		const auto includedXml = connector->GetXml(includePath);
     		if (includedXml.empty())
     			continue;
 
@@ -301,13 +303,14 @@ bool EsrevenAdapter::Connect(const std::string& server, std::uint32_t port)
     	return false;
     }
 
-    this->m_rspConnector = new RspConnector(this->m_socket);
-    this->m_rspConnector->TransmitAndReceive(RspData("Hg0"));
-    this->m_rspConnector->NegotiateCapabilities(
+    auto connector = std::make_shared<RspConnector>(this->m_socket);
+    m_rspConnector.store(connector);
+    connector->TransmitAndReceive(RspData("Hg0"));
+    connector->NegotiateCapabilities(
             { "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
                          "vContSupported+", "QThreadEvents+", "no-resumed+", "xmlRegisters=i386" } );
 
-	auto capacities = m_rspConnector->GetServerCapabilities();
+	auto capacities = connector->GetServerCapabilities();
 	if (std::find(capacities.begin(), capacities.end(), "ReverseContinue") != capacities.end())
 		m_canReverseContinue = true;
 	if (std::find(capacities.begin(), capacities.end(), "ReverseStep") != capacities.end())
@@ -324,7 +327,7 @@ bool EsrevenAdapter::Connect(const std::string& server, std::uint32_t port)
 	    return false;
     }
 
-    const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("?"));
+    const auto reply = connector->TransmitAndReceive(RspData("?"));
     auto map = RspConnector::PacketToUnorderedMap(reply);
 	this->m_lastActiveThreadId = (uint32_t)map["thread"];
 	this->m_processPid = (uint32_t)map["thread"];
@@ -388,13 +391,14 @@ bool EsrevenAdapter::ConnectToDebugServer(const std::string &server, std::uint32
 		return false;
 	}
 
-	this->m_rspConnector = new RspConnector(this->m_socket);
-	this->m_rspConnector->TransmitAndReceive(RspData("Hg0"));
-	this->m_rspConnector->NegotiateCapabilities(
+	auto connector = std::make_shared<RspConnector>(this->m_socket);
+	m_rspConnector.store(connector);
+	connector->TransmitAndReceive(RspData("Hg0"));
+	connector->NegotiateCapabilities(
 		{ "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
 			"vContSupported+", "QThreadEvents+", "no-resumed+", "xmlRegisters=i386" });
 
-	auto capacities = m_rspConnector->GetServerCapabilities();
+	auto capacities = connector->GetServerCapabilities();
 	if (std::find(capacities.begin(), capacities.end(), "ReverseContinue") != capacities.end())
 		m_canReverseContinue = true;
 	if (std::find(capacities.begin(), capacities.end(), "ReverseStep") != capacities.end())
@@ -417,37 +421,34 @@ bool EsrevenAdapter::ConnectToDebugServer(const std::string &server, std::uint32
 
 bool EsrevenAdapter::DisconnectDebugServer()
 {
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return true;
 
-	this->m_rspConnector->SendPayload(RspData("D"));
+	connector->SendPayload(RspData("D"));
 	this->m_socket->Kill();
 	m_isTargetRunning = false;
 	InvalidateCache();
 	ClearCachedBreakpoints();
 
-	delete m_rspConnector;
-	m_rspConnector = nullptr;
+	m_rspConnector.store(nullptr);
 
 	return true;
 }
 
 bool EsrevenAdapter::Detach()
 {
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return false;
 
-    this->m_rspConnector->SendPayload(RspData("D"));
+    connector->SendPayload(RspData("D"));
     this->m_socket->Kill();
     m_isTargetRunning = false;
 	InvalidateCache();
 	ClearCachedBreakpoints();
 
-	if (m_rspConnector)
-	{
-		delete m_rspConnector;
-		m_rspConnector = nullptr;
-	}
+	m_rspConnector.store(nullptr);
 
 	DebuggerEvent dbgevt;
 	dbgevt.type = TargetExitedEventType;
@@ -459,23 +460,20 @@ bool EsrevenAdapter::Detach()
 
 bool EsrevenAdapter::Quit()
 {
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return false;
 
 	// Modern gdbserver uses vkill to kill the taget:
 	// $vKill;7c3d#6e
 	// $OK#9a
-    this->m_rspConnector->SendPayload(RspData("k"));
+    connector->SendPayload(RspData("k"));
     this->m_socket->Kill();
     m_isTargetRunning = false;
 	InvalidateCache();
 	ClearCachedBreakpoints();
 
-	if (m_rspConnector)
-	{
-		delete m_rspConnector;
-		m_rspConnector = nullptr;
-	}
+	m_rspConnector.store(nullptr);
 
 	// TODO: we should only treat the target as exited when either 1) the remote side closes the socket, or, 2) the
 	// remote side returns OK to the vkill request.
@@ -503,11 +501,12 @@ std::vector<DebugThread> EsrevenAdapter::GetThreadList()
 		return threads;
 	}
 
-	if (m_isTargetRunning || !m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (m_isTargetRunning || !connector)
 		return {};
 
 	// Use the custom rvn:list-threads packet
-	auto response = m_rspConnector->TransmitAndReceive(RspData("rvn:list-threads"));
+	auto response = connector->TransmitAndReceive(RspData("rvn:list-threads"));
 	std::string jsonStr = response.AsString();
 
 	// Check if we got a valid JSON response
@@ -809,22 +808,23 @@ bool EsrevenAdapter::SetActiveThread(const DebugThread& thread)
 
 bool EsrevenAdapter::SetActiveThreadId(std::uint32_t tid)
 {
-	if (m_isTargetRunning || !m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (m_isTargetRunning || !connector)
         return false;
 
-    if ( this->m_rspConnector->TransmitAndReceive(RspData(string("T{:x}"), tid)).AsString() != "OK" )
+    if ( connector->TransmitAndReceive(RspData(string("T{:x}"), tid)).AsString() != "OK" )
     {
         LogWarn("thread does not exist");
         return false;
     }
 
-    if ( this->m_rspConnector->TransmitAndReceive(RspData(string("Hc{:x}"), tid)).AsString() != "OK")
+    if ( connector->TransmitAndReceive(RspData(string("Hc{:x}"), tid)).AsString() != "OK")
     {
         LogWarn("failed to set thread");
         return false;
     }
 
-    if ( this->m_rspConnector->TransmitAndReceive(RspData(string("Hg{:x}"), tid)).AsString() != "OK")
+    if ( connector->TransmitAndReceive(RspData(string("Hg{:x}"), tid)).AsString() != "OK")
     {
         LogWarn("failed to set thread");
         return false;
@@ -837,7 +837,8 @@ bool EsrevenAdapter::SetActiveThreadId(std::uint32_t tid)
 
 DebugBreakpoint EsrevenAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 {
-	if (m_isTargetRunning || !m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (m_isTargetRunning || !connector)
         return {};
 
     if ( std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(),
@@ -851,7 +852,7 @@ DebugBreakpoint EsrevenAdapter::AddBreakpoint(const std::uintptr_t address, unsi
 //  TODO: other archs have other values for kind, e.g., thumb2 needs a value of 2 or 3 here.
 //  https://sourceware.org/gdb/current/onlinedocs/gdb/ARM-Breakpoint-Kinds.html
 
-    if (this->m_rspConnector->TransmitAndReceive(RspData("Z0,{:x},{}", address, kind)).AsString() != "OK" )
+    if (connector->TransmitAndReceive(RspData("Z0,{:x},{}", address, kind)).AsString() != "OK" )
         return DebugBreakpoint{};
 
     const auto new_breakpoint = DebugBreakpoint(address, this->m_internalBreakpointId++, true, SoftwareBreakpoint);
@@ -862,7 +863,8 @@ DebugBreakpoint EsrevenAdapter::AddBreakpoint(const std::uintptr_t address, unsi
 
 bool EsrevenAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 {
-	if (m_isTargetRunning || !m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (m_isTargetRunning || !connector)
         return false;
 
     if (auto location = std::find(this->m_debugBreakpoints.begin(), this->m_debugBreakpoints.end(), breakpoint);
@@ -875,7 +877,7 @@ bool EsrevenAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
     if (m_remoteArch == "aarch64")
         kind = 4;
 
-    if (this->m_rspConnector->TransmitAndReceive(RspData("z0,{:x},{}", breakpoint.m_address, kind)).AsString() != "OK" )
+    if (connector->TransmitAndReceive(RspData("z0,{:x},{}", breakpoint.m_address, kind)).AsString() != "OK" )
     {
     	LogDebug("rsp reply failure on remove breakpoint");
     	return false;
@@ -957,7 +959,8 @@ static intx::uint512 parseBigEndianHexToUint512(const std::string& hex) {
 
 std::unordered_map<std::string, DebugRegister> EsrevenAdapter::ReadAllRegisters()
 {
-	if (m_isTargetRunning || !m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (m_isTargetRunning || !connector)
 		return {};
 
 	if (m_regCache.has_value())
@@ -980,7 +983,7 @@ std::unordered_map<std::string, DebugRegister> EsrevenAdapter::ReadAllRegisters(
               });
 
     char request{'g'};
-    const auto register_info_reply = this->m_rspConnector->TransmitAndReceive(RspData(&request, sizeof(request)));
+    const auto register_info_reply = connector->TransmitAndReceive(RspData(&request, sizeof(request)));
     auto register_info_reply_string = register_info_reply.AsString();
     if ( register_info_reply_string.empty() )
     {
@@ -1053,7 +1056,8 @@ static std::string uint512ToBigEndianHex(const intx::uint512& value, size_t widt
 
 bool EsrevenAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
 {
-    if (m_isTargetRunning || !m_rspConnector)
+    auto connector = m_rspConnector.load();
+    if (m_isTargetRunning || !connector)
         return false;
 
     if (!this->m_registerInfo.contains(reg))
@@ -1061,14 +1065,14 @@ bool EsrevenAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
 
     const auto newRegString = m_isBigEndian ? uint512ToBigEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8)
                                            : uint512ToLittleEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8);
-    const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("P{:02X}={}",
+    const auto reply = connector->TransmitAndReceive(RspData("P{:02X}={}",
                                        this->m_registerInfo[reg].m_regNum, newRegString));
 
     if (reply.m_data[0])
         return true;
 
     char query{'g'};
-    const auto generic_query = this->m_rspConnector->TransmitAndReceive(RspData(&query, sizeof(query)));
+    const auto generic_query = connector->TransmitAndReceive(RspData(&query, sizeof(query)));
     const auto register_offset = this->m_registerInfo[reg].m_offset;
 
     // TODO: check if this works for aarch64
@@ -1076,7 +1080,7 @@ bool EsrevenAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
     const auto second_half = generic_query.AsString().substr(2 * ((register_offset + this->m_registerInfo[reg].m_bitSize) / 8) );
     const auto payload = "G" + first_half + newRegString + second_half;
 
-    if ( this->m_rspConnector->TransmitAndReceive(RspData(payload)).AsString() != "OK" )
+    if ( connector->TransmitAndReceive(RspData(payload)).AsString() != "OK" )
         return false;
 
     // TODO: we do not need to invalidate all register caches, we could probably just update the necessary ones here
@@ -1087,10 +1091,11 @@ bool EsrevenAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
 DataBuffer EsrevenAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 {
     // This means whether the target is running. If it is, then we cannot read memory at the moment
-	if (m_isTargetRunning || !m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (m_isTargetRunning || !connector)
         return DataBuffer{};
 
-    auto reply = this->m_rspConnector->TransmitAndReceive(RspData("m{:x},{:x}", address, size));
+    auto reply = connector->TransmitAndReceive(RspData("m{:x},{:x}", address, size));
     if (reply.m_data[0] == 'E')
         return DataBuffer{};
 
@@ -1129,7 +1134,11 @@ DataBuffer EsrevenAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 
 bool EsrevenAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 {
-    if (m_isTargetRunning || !m_rspConnector)
+    if (m_isTargetRunning)
+        return false;
+
+    auto connector = m_rspConnector.load();
+    if (!connector)
         return false;
 
     size_t size = buffer.GetLength();
@@ -1143,7 +1152,7 @@ bool EsrevenAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffe
 		dest[2 * index + 1] = hex[1];
 	}
 
-    auto reply = this->m_rspConnector->TransmitAndReceive(RspData("M{:x},{:x}:{}", address, size, dest.ToEscapedString()));
+    auto reply = connector->TransmitAndReceive(RspData("M{:x},{:x}:{}", address, size, dest.ToEscapedString()));
     if (reply.AsString() != "OK")
         return false;
 
@@ -1153,12 +1162,13 @@ bool EsrevenAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffe
 
 std::string EsrevenAdapter::GetRemoteFile(const std::string& path)
 {
-    if (m_isTargetRunning || !m_rspConnector)
+    auto connector = m_rspConnector.load();
+    if (m_isTargetRunning || !connector)
         return "";
 
     RspData output;
     int32_t error;
-    int32_t ret = this->m_rspConnector->HostFileIO(RspData("vFile:setfs:0"), output, error);
+    int32_t ret = connector->HostFileIO(RspData("vFile:setfs:0"), output, error);
     if (ret < 0)
     {
 	    LogDebug("Could not set remote filesystem");
@@ -1169,7 +1179,7 @@ std::string EsrevenAdapter::GetRemoteFile(const std::string& path)
     for ( const auto& ch : path )
         path_hex_string += fmt::format("{:02X}", ch);
 
-    ret = this->m_rspConnector->HostFileIO(
+    ret = connector->HostFileIO(
                     RspData("vFile:open:{},{:X},{:X}", path_hex_string.c_str(), 0, 0), output, error);
     if (ret < 0)
     {
@@ -1185,7 +1195,7 @@ std::string EsrevenAdapter::GetRemoteFile(const std::string& path)
 
     while(true)
     {
-        ret = this->m_rspConnector->HostFileIO(
+        ret = connector->HostFileIO(
                     RspData("vFile:pread:{:X},{:X},{:X}", fd, blockSize, offset), output, error);
         if (ret < 0)
         {
@@ -1209,7 +1219,7 @@ std::string EsrevenAdapter::GetRemoteFile(const std::string& path)
         offset += output.AsString().length();
     }
 
-    ret = this->m_rspConnector->HostFileIO(RspData(fmt::format("vFile:close:{:X}", fd)), output, error);
+    ret = connector->HostFileIO(RspData(fmt::format("vFile:close:{:X}", fd)), output, error);
     if (ret)
     {
     	auto msg = fmt::format("host i/o close() failed, result={}, errno={}", ret, error);
@@ -1228,12 +1238,13 @@ std::vector<DebugModule> EsrevenAdapter::GetModuleList()
 	if (m_isTargetRunning)
 		return {};
 
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return {};
 
 	// Use the custom reven list-current-mappings packet
 	// Request all mappings (process, kernel, etc.)
-	auto response = m_rspConnector->TransmitAndReceive(RspData("rvn:list-current-mappings:all"));
+	auto response = connector->TransmitAndReceive(RspData("rvn:list-current-mappings:all"));
 	std::string jsonStr = response.AsString();
 
 	// Check if we got a valid JSON response
@@ -1443,7 +1454,8 @@ std::vector<TTDMemoryEvent> EsrevenAdapter::GetTTDMemoryAccessForAddress(uint64_
 	if (m_isTargetRunning)
 		return {};
 
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return {};
 
 	// Convert TTDMemoryAccessType flags to comma-separated string
@@ -1467,7 +1479,7 @@ std::vector<TTDMemoryEvent> EsrevenAdapter::GetTTDMemoryAccessForAddress(uint64_
 	}
 
 	// Send the custom REVEN packet: rvn:get-memory-accesses:<start>:<end>:<types>
-	auto response = m_rspConnector->TransmitAndReceive(
+	auto response = connector->TransmitAndReceive(
 		RspData("rvn:get-memory-accesses:{:x}:{:x}:{}", startAddress, endAddress, typesStr));
 	std::string jsonStr = response.AsString();
 
@@ -1593,7 +1605,8 @@ std::vector<TTDPositionRangeIndexedMemoryEvent> EsrevenAdapter::GetTTDMemoryAcce
 	if (m_isTargetRunning)
 		return {};
 
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return {};
 
 	// Convert TTDMemoryAccessType flags to comma-separated string
@@ -1621,7 +1634,7 @@ std::vector<TTDPositionRangeIndexedMemoryEvent> EsrevenAdapter::GetTTDMemoryAcce
 	uint64_t endTransition = endTime.sequence;
 
 	// Send the custom REVEN packet with time range: rvn:get-memory-accesses:<start>:<end>:<types>:<start_trans>:<end_trans>
-	auto response = m_rspConnector->TransmitAndReceive(
+	auto response = connector->TransmitAndReceive(
 		RspData("rvn:get-memory-accesses:{:x}:{:x}:{}:{}:{}",
 			startAddress, endAddress, typesStr, startTransition, endTransition));
 	std::string jsonStr = response.AsString();
@@ -1749,11 +1762,12 @@ std::string EsrevenAdapter::GetTargetArchitecture()
 
 bool EsrevenAdapter::BreakInto()
 {
-	if (!m_isTargetRunning || !m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!m_isTargetRunning || !connector)
 		return false;
 
     char var = '\x03';
-    this->m_rspConnector->SendRaw(RspData(&var, sizeof(var)));
+    connector->SendRaw(RspData(&var, sizeof(var)));
     m_isTargetRunning = false;
     return true;
 }
@@ -1761,12 +1775,13 @@ bool EsrevenAdapter::BreakInto()
 
 DebugStopReason EsrevenAdapter::ResponseHandler(bool notifyStopped)
 {
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return InternalError;
 
 	while (true)
 	{
-		const RspData reply = m_rspConnector->ReceiveRspData();
+		const RspData reply = connector->ReceiveRspData();
 		if (reply[0] == 'T')
 		{
 			// Target stopped
@@ -1834,11 +1849,7 @@ DebugStopReason EsrevenAdapter::ResponseHandler(bool notifyStopped)
 			this->m_socket->Kill();
 			m_isTargetRunning = false;
 
-			if (m_rspConnector)
-			{
-				delete m_rspConnector;
-				m_rspConnector = nullptr;
-			}
+			m_rspConnector.store(nullptr);
 
             return DebugStopReason::ProcessExited;
 			break;
@@ -1897,13 +1908,14 @@ DebugStopReason EsrevenAdapter::ResponseHandler(bool notifyStopped)
 // this should return the information about the target stop
 DebugStopReason EsrevenAdapter::GenericGo(const std::string& goCommand, bool notifyStopped)
 {
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return InternalError;
 
 	m_isTargetRunning = true;
 	// TODO: these two calls should be combined
-	m_rspConnector->SendPayload(RspData(goCommand));
-	m_rspConnector->ExpectAck();
+	connector->SendPayload(RspData(goCommand));
+	connector->ExpectAck();
 
 	return ResponseHandler(notifyStopped);
 }
@@ -2003,7 +2015,8 @@ bool EsrevenAdapter::StepOverReverse()
 
 bool EsrevenAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
-	if (m_isTargetRunning || !m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (m_isTargetRunning || !connector)
 	{
 		// Cache the hardware breakpoint to be applied when target stops or connector becomes available
 		PendingHardwareBreakpoint pending(address, type, size);
@@ -2038,13 +2051,14 @@ bool EsrevenAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType
 			return false;
 	}
 
-	return m_rspConnector->TransmitAndReceive(RspData(command)).AsString() == "OK";
+	return connector->TransmitAndReceive(RspData(command)).AsString() == "OK";
 }
 
 
 bool EsrevenAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
-	if (m_isTargetRunning || !m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (m_isTargetRunning || !connector)
 	{
 		// Remove from pending list if target is running or connector not available
 		PendingHardwareBreakpoint pending(address, type, size);
@@ -2080,7 +2094,7 @@ bool EsrevenAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointT
 			return false;
 	}
 
-	return m_rspConnector->TransmitAndReceive(RspData(command)).AsString() == "OK";
+	return connector->TransmitAndReceive(RspData(command)).AsString() == "OK";
 }
 
 
@@ -2160,7 +2174,8 @@ bool EsrevenAdapter::StepReturnReverse()
 
 std::string EsrevenAdapter::InvokeBackendCommand(const std::string& command)
 {
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return {};
 
 	if (command.substr(0, 4) == "mon ")
@@ -2263,7 +2278,7 @@ std::string EsrevenAdapter::InvokeBackendCommand(const std::string& command)
 
 		// Send the appropriate Z/z packet
 		char zChar = isDelete ? 'z' : 'Z';
-		auto reply = m_rspConnector->TransmitAndReceive(RspData("{}{},{:x},{}",
+		auto reply = connector->TransmitAndReceive(RspData("{}{},{:x},{}",
 			zChar, bpType, address, kind));
 
 		if (reply.AsString() == "OK")
@@ -2284,7 +2299,7 @@ std::string EsrevenAdapter::InvokeBackendCommand(const std::string& command)
 		}
 	}
 
-	auto reply = this->m_rspConnector->TransmitAndReceive(RspData(command));
+	auto reply = connector->TransmitAndReceive(RspData(command));
 	return reply.AsString();
 }
 
@@ -2318,7 +2333,8 @@ static std::string HexToAscii(const std::string& hex)
 
 std::string EsrevenAdapter::RunMonitorCommand(const std::string& command)
 {
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return {};
 
 	std::string commandToSend = "qRcmd,";
@@ -2328,13 +2344,13 @@ std::string EsrevenAdapter::RunMonitorCommand(const std::string& command)
 		commandToSend += ("0123456789abcdef"[c & 0x0F]);
 	}
 
-	m_rspConnector->SendPayload(RspData(commandToSend));
-	m_rspConnector->ExpectAck();
+	connector->SendPayload(RspData(commandToSend));
+	connector->ExpectAck();
 
 	std::string result;
 	while (true)
 	{
-		auto replyChunk = this->m_rspConnector->ReceiveRspData();
+		auto replyChunk = connector->ReceiveRspData();
 		if (replyChunk.AsString() == "OK" || replyChunk.AsString().empty())
 			break;
 
@@ -2491,11 +2507,15 @@ void EsrevenAdapter::HandleAsyncPacket(const RspData& data)
 
 std::vector<DebugProcess> EsrevenAdapter::GetProcessList()
 {
-	if (m_isTargetRunning || !m_rspConnector)
+	if (m_isTargetRunning)
+		return {};
+
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return {};
 
 	// Use the custom reven list-processes packet
-	auto response = m_rspConnector->TransmitAndReceive(RspData("rvn:list-processes"));
+	auto response = connector->TransmitAndReceive(RspData("rvn:list-processes"));
 	std::string jsonStr = response.AsString();
 
 	// Check if we got a valid JSON response
@@ -2856,10 +2876,11 @@ Ref<Settings> EsrevenAdapterType::RegisterAdapterSettings()
 
 TTDPosition EsrevenAdapter::GetCurrentTTDPosition()
 {
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return TTDPosition();
 
-	auto reply = m_rspConnector->TransmitAndReceive(
+	auto reply = connector->TransmitAndReceive(
 		RspData("rvn:get-current-transition"), "ack_then_reply", nullptr,
 		std::chrono::milliseconds(5000));
 
@@ -2902,7 +2923,7 @@ TTDPosition EsrevenAdapter::GetCurrentTTDPosition()
 
 bool EsrevenAdapter::SetTTDPosition(const TTDPosition& position)
 {
-	if (!m_rspConnector)
+	if (!m_rspConnector.load())
 		return false;
 
 	DebuggerEvent dbgevt;
@@ -2926,7 +2947,8 @@ std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::strin
 		return events;
 	}
 
-	if (!m_rspConnector)
+	auto connector = m_rspConnector.load();
+	if (!connector)
 		return events;
 
 	// Get settings
@@ -2969,7 +2991,7 @@ std::vector<TTDCallEvent> EsrevenAdapter::GetTTDCallsForSymbols(const std::strin
 		}
 
 		// Send with custom timeout
-		auto reply = m_rspConnector->TransmitAndReceive(
+		auto reply = connector->TransmitAndReceive(
 			RspData(packet),
 			"ack_then_reply",
 			nullptr,

@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 #pragma once
+#include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -201,5 +203,28 @@ namespace BinaryNinjaDebugger
 		std::string GetXml(const std::string& name);
 
 		std::vector<std::string> GetServerCapabilities() const { return m_serverCapabilities; }
+	};
+
+	// Holds a std::shared_ptr<RspConnector> with thread-safe load/store semantics.
+	// Adapter callers like BreakInto run on a thread that races with the adapter's own
+	// ResponseHandler, which can destroy the connector on target exit. Reads take a
+	// strong reference under the lock, so the connector cannot be freed while in use.
+	class AtomicRspConnector
+	{
+		mutable std::mutex m_mutex;
+		std::shared_ptr<RspConnector> m_ptr;
+
+	public:
+		std::shared_ptr<RspConnector> load() const
+		{
+			std::lock_guard<std::mutex> lock(m_mutex);
+			return m_ptr;
+		}
+
+		void store(std::shared_ptr<RspConnector> ptr)
+		{
+			std::lock_guard<std::mutex> lock(m_mutex);
+			m_ptr = std::move(ptr);
+		}
 	};
 };
