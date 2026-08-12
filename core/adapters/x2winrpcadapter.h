@@ -126,6 +126,8 @@ namespace BinaryNinjaDebugger {
 		bool SuspendThread(std::uint32_t tid) override;
 		bool ResumeThread(std::uint32_t tid) override;
 
+		std::vector<DebugFrame> GetFramesOfThread(std::uint32_t tid) override;
+
 		// --- Breakpoints ---
 		// Software breakpoints: the stub owns the VirtualProtectEx/write/restore dance, not us.
 		DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type = 0) override;
@@ -159,6 +161,7 @@ namespace BinaryNinjaDebugger {
 		bool Go() override;
 		bool StepInto() override;
 		bool StepOver() override;
+		bool StepReturn() override;
 
 		// --- Misc ---
 		std::string InvokeBackendCommand(const std::string& command) override;

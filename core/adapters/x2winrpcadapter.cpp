@@ -485,6 +485,25 @@ bool X2WinRpcAdapter::ResumeThread(std::uint32_t tid){
     return success;
 }
 
+
+std::vector<DebugFrame> X2WinRpcAdapter::GetFramesOfThread(std::uint32_t tid){
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_GetFramesOfThreadRequest, [tid](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateGetFramesOfThreadRequest(b, tid).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::GetFramesOfThreadResponse>();
+    std::vector<DebugFrame> result;
+    if(resp && resp->frames()){
+        for(const auto* f: *resp->frames()){
+            std::string functionName = f->function_name() ? f->function_name()->str() : std::string();
+            std::string module = f->module_() ? f->module_()->str() : std::string("<unknown>");
+            result.emplace_back((size_t)f->index(), f->pc(), f->sp(), f->fp(), functionName, f->function_start(), module);
+        }
+    }
+    LogDebug("X2WinRpcAdapter::GetFramesOfThread: got %zu frame(s) for tid %u", result.size(), (unsigned)tid);
+    return result;
+}
+
 DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type){
     X2WinEnvelopeBuffer response = CallSync(x2win::Body_SetBreakpointRequest, [address](flatbuffers::FlatBufferBuilder& b){
         return x2win::CreateSetBreakpointRequest(b, address, x2win::BreakpointType_SOFTWARE).Union();
@@ -865,6 +884,23 @@ bool X2WinRpcAdapter::StepOver(){
     return success;
 }
 
+bool X2WinRpcAdapter::StepReturn(){
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_StepReturnRequest, [](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateStepReturnRequest(b).Union();
+    });
+
+    const auto* resp = response.BodyAs<x2win::StepReturnResponse>();
+    bool success = resp && resp->success();
+    if(!success){
+        LogWarn("X2WinRpcAdapter::StepReturn: stub reported failure");
+    }else{
+        DebuggerEvent event;
+        event.type = StepReturnEventType;
+        PostDebuggerEvent(event);
+    }
+    return success;
+}
+
 std::string X2WinRpcAdapter::InvokeBackendCommand(const std::string& command){ return ""; }
 uint64_t X2WinRpcAdapter::GetInstructionOffset(){ return m_lastStopAddress.load(); }
 bool X2WinRpcAdapter::SupportFeature(DebugAdapterCapacity feature){
@@ -879,8 +915,9 @@ bool X2WinRpcAdapter::SupportFeature(DebugAdapterCapacity feature){
             return true;
         case DebugAdapterSupportThreads:
             return true;
-        // Not yet implemented on the stub side.
         case DebugAdapterSupportStepReturn:
+            return true;
+        // Not yet implemented on the stub side.
         case DebugAdapterSupportStepOverReverse:
         case DebugAdapterSupportTTD:
         default:
