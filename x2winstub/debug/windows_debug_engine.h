@@ -2,10 +2,7 @@
 Ported from core/adapters/windowsnativeadapter.cpp/.h (BinaryNinjaDebugger::WindowsNativeAdapter).
 This is the same Windows debug engine (Win32 debug-loop, software/hardware breakpoints, stepping,
 registers, memory map, WOW64 handling) with the Binary Ninja dependencies removed: no BinaryView,
-no Settings, no BN logging, no DebugAdapter base class. See x2winstub design notes for why -- in
-short, WindowsNativeAdapter's constructor requires a real analyzed BinaryView, which would mean
-shipping a licensed Binary Ninja core onto every remote debug target; this engine drops that
-dependency entirely and is driven directly by X2WinStubSession's proto command dispatch instead.
+no Settings, no BN logging, no DebugAdapter base class.
 */
 #pragma once
 #include "debug_types.h"
@@ -37,12 +34,13 @@ namespace x2win {
 	{
 		uint64_t address;
 		uint8_t originalByte;
+		bool hasOriginalByte;  // true once originalByte holds a real saved value (0x00 is a valid byte, so we can't use originalByte itself as the sentinel)
 		bool isActive;
 		unsigned long id;
 
-		InternalBreakpoint() : address(0), originalByte(0), isActive(false), id(0) {}
+		InternalBreakpoint() : address(0), originalByte(0), hasOriginalByte(false), isActive(false), id(0) {}
 		InternalBreakpoint(uint64_t addr, uint8_t orig, bool active, unsigned long bpId)
-			: address(addr), originalByte(orig), isActive(active), id(bpId) {}
+			: address(addr), originalByte(orig), hasOriginalByte(true), isActive(active), id(bpId) {}
 	};
 
 	// Internal hardware breakpoint tracking
@@ -125,7 +123,9 @@ namespace x2win {
 		// Settings (plain local flags, replacing BN's Settings::Instance() lookups -- defaults
 		// match the BN debugger.* settings' registered defaults, see core/debugger.cpp)
 		bool m_verboseLogging = false;          // was "common.verboseLogging" (default false)
-		bool m_stopAtSystemEntryPoint = false;  // was "debugger.stopAtSystemEntryPoint" (default false)
+		bool m_stopAtSystemEntryPoint = true;   // was "debugger.stopAtSystemEntryPoint" (default false)
+												// In here we set default as true, because we removed binaryview
+												// so that there is no more break point at program entry.
 
 		// Initial breakpoint tracking
 		bool m_initialBreakpointSeen = false;
@@ -251,6 +251,12 @@ namespace x2win {
 		uint64_t GetInstructionOffset();
 		uint64_t GetStackPointer();
 		std::uint32_t GetActivePID();
+
+		// True once Attach()/Execute() has actually started a debug session, false again after
+		// Detach()/Quit() (or the debuggee exits on its own) -- unlike GetActivePID(), which keeps
+		// returning the last-known pid even after the session has ended, this is the right signal for
+		// "is there still something to supervise right now".
+		bool IsActivelyDebugging() const { return m_activelyDebugging; }
 
 		bool SupportFeature(DebugAdapterCapacity feature);
 

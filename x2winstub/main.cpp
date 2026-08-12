@@ -3,7 +3,6 @@
 #include "net/connection.h"
 #include "x2win_session.h"
 
-#define WIN32_LEAN_AND_MEAN
 #include <WinSock2.h>
 #include <WS2tcpip.h>
 
@@ -74,14 +73,22 @@ namespace {
 		for(int i = nextArg; i < argc; ++i){
 			std::string_view arg = argv[i];
 			if(arg == "--ip" && i + 1 < argc){
+				// --ip's value is an address string, just store it as-is -- no need to validate the
+				// format here, CreateListenSocket()'s inet_pton() already reports "invalid --ip address"
+				// and bails out if it can't parse it, so re-validating here would be redundant.
+				options.listenIp = argv[++i];
+			}else if(arg == "--port" && i + 1 < argc){
+				// --port's value is numeric, hand it to ParsePort for range checking (0-65535) and conversion.
 				auto port = ParsePort(argv[++i]);
 				if(!port){
 					fprintf(stderr, "invalid port: %s\n", argv[i]);
 					PrintUsage(argv[0]);
 					return std::nullopt;
 				}
-				options.listenPort = * port;
+				options.listenPort = *port;
 			}else{
+				// Neither known flag matched (unknown flag name, or --ip/--port missing its value so
+				// i + 1 < argc was false) -- treat it as an unrecognized argument and bail out.
 				fprintf(stderr, "unrecognized argument: %s\n", argv[i]);
 				PrintUsage(argv[0]);
 				return std::nullopt;
@@ -111,10 +118,16 @@ namespace {
 			}
 		}
 
-		// If the debuggee is still alive when the client disconnects, don't leave it running
-		// orphaned -- terminate it, matching the old debug_loop.cpp's HandleDisconnect().
-		if(session.Engine().GetActivePID() != 0)
+		// Server mode: the debuggee this connection Launched/Attached is this client's own
+		// creation -- nobody else knows about it once this client is gone, so clean it up rather
+		// than leak an orphaned debugged process (matching the old debug_loop.cpp's
+		// HandleDisconnect()). Target mode: the debuggee belongs to the process itself (launched
+		// at startup, independent of any one client) -- a disconnect just means nobody's watching
+		// right now, not that the session is over. main()'s target-mode loop decides whether to
+		// wait for a reconnect or give up, based on whether the debuggee is still alive.
+		if(session.Mode() == x2win::SessionMode::Server && session.Engine().GetActivePID() != 0){
 			session.Engine().Quit();
+		}
 	}
 
 	void HandleClient(std::shared_ptr<Connection> conn, Options::Mode mode){
@@ -183,25 +196,41 @@ int main(int argc, char** argv){
 			if(!listener){
 				result = 1;
 			}else{
-				SocketHandle clientSocket(accept(listener->get(), nullptr, nullptr));
-				if(clientSocket.get() == INVALID_SOCKET){
-					fprintf(stderr, "accept() falied: %d\n", WSAGetLastError());
-					result = 1;
-				}else{
+				for(;;){
+					SocketHandle clientSocket(accept(listener->get(), nullptr, nullptr));
+					if(clientSocket.get() == INVALID_SOCKET){
+						fprintf(stderr, "accept() failed: %d\n", WSAGetLastError());
+						continue;
+					}
+
 					fprintf(stderr, "client connected\n");
 					auto conn = std::make_shared<Connection>(std::move(clientSocket));
 					session.SetConnection(conn.get());
 
-					flatbuffers::FlatBufferBuilder stoppedBuilder;
-					auto stoppedEventBody = x2win::CreateTargetStoppedEvent(stoppedBuilder,
-						x2win::StopReason_INITIAL_BREAKPOINT, session.Engine().GetInstructionOffset());
-					auto stoppedEnvelope = x2win::CreateEnvelope(stoppedBuilder, /*request_id=*/0,
-						x2win::Body_TargetStoppedEvent, stoppedEventBody.Union());
-					stoppedBuilder.Finish(stoppedEnvelope);
-					conn->WriteEnvelope(stoppedBuilder);
+					// Tell the (re)connecting client what's currently going on. Covers the very
+					// first connection too (WaitForFirstStop() above guarantees OnEngineEvent()
+					// already ran and set m_isStopped/m_lastStopReason before we ever get here),
+					// so the old hardcoded "always send INITIAL_BREAKPOINT" push before the loop
+					// is gone -- this does the same thing generically, with whatever the actual
+					// current stop reason is.
+					if(session.IsStopped()){
+						flatbuffers::FlatBufferBuilder stoppedBuilder;
+						auto stoppedEventBody = x2win::CreateTargetStoppedEvent(stoppedBuilder,
+							session.LastStopReason(), session.Engine().GetInstructionOffset(), /*exit_code=*/0);
+						auto stoppedEnvelope = x2win::CreateEnvelope(stoppedBuilder, /*request_id=*/0,
+							x2win::Body_TargetStoppedEvent, stoppedEventBody.Union());
+						stoppedBuilder.Finish(stoppedEnvelope);
+						conn->WriteEnvelope(stoppedBuilder);
+					}
 
 					RunRequestLoop(conn.get(), session);
 					fprintf(stderr, "client disconnected\n");
+
+					if(!session.Engine().IsActivelyDebugging()){
+						fprintf(stderr, "no active debug session, exiting\n");
+						break;
+					}
+					fprintf(stderr, "debuggee still running, waiting for a new connection...\n");
 				}
 			}
 		}catch(const std::exception& e){

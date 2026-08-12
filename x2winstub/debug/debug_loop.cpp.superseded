@@ -1,0 +1,449 @@
+#include "debug_loop.h"
+#include "net/connection.h"
+
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#include <cstdint>
+#include <cstdio>
+#include <future>
+#include <mutex>
+#include <condition_variable>
+#include <unordered_map>
+#include <atomic>
+#include <deque>
+#include <optional>
+#include <map>
+#include <vector>
+
+namespace{
+    struct BreakpointInfo{
+        uint64_t address;
+        uint8_t originalByte;
+    };
+
+    bool g_initialBreakpointSeen = false;
+
+    std::mutex g_resumeMutex;
+    std::condition_variable g_resumeCv;
+    bool g_resumeRequested = false;
+
+    std::atomic<uint64_t> g_lastStopAddress{0};
+    HANDLE g_debugeeProcess = nullptr;
+    std::promise<void> g_initialStopSignal;
+    std::mutex g_initStopMutex;
+    bool g_initialStopFired = false;
+
+    std::mutex g_commandMutex;
+    std::deque<std::function<void()>> g_commandQueue;
+
+    struct ThreadInfo{uint32_t tid; HANDLE handle;};
+    struct ModuleInfo{uint64_t base; std::string path; }; 
+    std::mutex g_targetStateMutex;
+    std::unordered_map<uint32_t, ThreadInfo> g_threads;
+    std::map<uint64_t, ModuleInfo> g_modules;
+
+    void SignalResume(){
+        std::lock_guard<std::mutex> lock(g_resumeMutex);
+        g_resumeRequested = true;
+        g_resumeCv.notify_one();
+    }
+
+    void WaitForResume(){
+        std::unique_lock<std::mutex> lock(g_resumeMutex);
+        g_resumeCv.wait(lock, []{ return g_resumeRequested; });
+        g_resumeRequested = false;
+    }
+
+    void fireInitialStop(){
+        std::lock_guard<std::mutex> lock(g_initStopMutex);
+        if(!g_initialStopFired){
+            g_initialStopFired = true;
+            g_initialStopSignal.set_value();
+        }
+    }
+
+    void DrainCommandQueue(){
+        std::deque<std::function<void()>> pending;
+        {
+            std::lock_guard<std::mutex> lock(g_commandMutex);
+            pending.swap(g_commandQueue);
+        }
+        for(auto& cmd : pending) cmd();
+    }
+
+    bool WriteInt3(HANDLE hProcess, uint64_t address, uint8_t& outOriginalByte){
+        SIZE_T bytesRead = 0;
+        if(!ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(address), &outOriginalByte, 1,  &bytesRead) || bytesRead!=1){
+            fprintf(stderr, "WriteInt3: ReadProcessMemory failed at 0x%llx: %lu\n", address, GetLastError());
+            return false;
+        }
+
+        DWORD oldProtect = 0;
+        if(!VirtualProtectEx(hProcess, reinterpret_cast<LPVOID>(address), 1, PAGE_EXECUTE_READWRITE, &oldProtect)){
+            fprintf(stderr, "WriteInt3: VirtualProtectEx failed: %lu\n", GetLastError());
+            return false;
+        }
+
+        uint8_t int3 = 0xCC;
+        SIZE_T bytesWritten = 0;
+        bool ok = WriteProcessMemory(hProcess, reinterpret_cast<LPVOID>(address), &int3, 1, &bytesWritten) && bytesWritten == 1;
+
+        DWORD ignored;
+        VirtualProtectEx(hProcess, reinterpret_cast<LPVOID>(address), 1, oldProtect, &ignored);
+
+        if(!ok){
+            fprintf(stderr, "WriteInt3: WriteProcessMemory failed: %lu\n", GetLastError());
+            return false;
+        }
+        return true;
+    }
+
+    bool RestoreOriginalByte(HANDLE hProcess, uint64_t address, uint8_t originalByte){
+        DWORD oldProtect = 0;
+        VirtualProtectEx(hProcess, reinterpret_cast<LPVOID>(address), 1, PAGE_EXECUTE_READWRITE, &oldProtect);
+
+        SIZE_T bytesWritten = 0;
+        bool ok = WriteProcessMemory(hProcess, reinterpret_cast<LPVOID>(address), &originalByte, 1, &bytesWritten) && bytesWritten == 1;
+        
+        DWORD ignored;
+        VirtualProtectEx(hProcess, reinterpret_cast<LPVOID>(address), 1, oldProtect, &ignored);
+
+        return ok;
+    }
+
+    bool SendLaunchResponse(Connection* conn, uint64_t requestId, bool success){
+        x2win::Envelope response;
+        response.set_request_id(requestId);
+        response.mutable_launch_response()->set_success(success);
+        return conn->WriteEnvelope(response);
+    }
+
+    class BreakpointTable{
+        std::mutex m_mutex;
+        std::unordered_map<uint64_t, BreakpointInfo> m_breakpoints;
+        uint64_t m_nextId = 1;
+
+        public:
+        std::optional<uint64_t> Add(HANDLE process, uint64_t address){
+            std::lock_guard<std::mutex> lock(m_mutex);
+            for(auto& [id, bp] : m_breakpoints){
+                if(bp.address == address) return id;
+            }
+
+            uint8_t originalByte = 0;
+            if(!WriteInt3(process, address, originalByte)) return std::nullopt;
+
+            uint64_t id = m_nextId++;
+            m_breakpoints[id] = BreakpointInfo{address, originalByte};
+            return id;
+        }
+
+        std::optional<BreakpointInfo> OnHit(HANDLE process, uint64_t address){
+            std::lock_guard<std::mutex> lock(m_mutex);
+            for(auto& [id, bp] : m_breakpoints){
+                if(bp.address == address){
+                    RestoreOriginalByte(process, address, bp.originalByte);
+                    return bp;
+                }
+            }
+            return std::nullopt;
+        }
+
+        void RestoreBytesInBuffer(uint8_t* buffer, uint64_t address, uint64_t size){
+            std::lock_guard<std::mutex> lock(m_mutex);
+            for(auto& [id, bp] : m_breakpoints){
+                if(address <= bp.address && bp.address < address + size){
+                    buffer[bp.address - address] = bp.originalByte;
+                }
+            }
+        }
+
+        void RestoreAll(HANDLE process){
+            std::lock_guard<std::mutex> lock(m_mutex);
+            for(auto& [id, bp] : m_breakpoints){
+                RestoreOriginalByte(process, bp.address, bp.originalByte);
+            }
+            m_breakpoints.clear();
+        }
+
+        void Clear(){
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_breakpoints.clear();
+            m_nextId = 1;
+        }
+    };
+
+    BreakpointTable g_breakpoints;
+}
+
+namespace x2win{
+    void PrepareNewSession(){
+        g_initialBreakpointSeen = false;
+        g_debugeeProcess = nullptr;
+        g_breakpoints.Clear();
+        {
+            std::lock_guard<std::mutex> lock(g_targetStateMutex);
+            g_threads.clear();
+            g_modules.clear();
+        }
+        {
+            std::lock_guard<std::mutex> lock(g_resumeMutex);
+            g_resumeRequested = false;
+        }
+        {
+            std::lock_guard<std::mutex> lock(g_initStopMutex);
+            g_initialStopSignal = std::promise<void>();
+            g_initialStopFired = false;
+        }
+    }
+
+    bool AddBreakpoint(uint64_t address, uint64_t &breakpointId){
+        if(!g_debugeeProcess) return false;
+
+        auto id = g_breakpoints.Add(g_debugeeProcess, address);
+        if(!id) return false;
+
+        breakpointId = *id;
+
+        fprintf(stderr, "[breakpoint] armed id=%llu at 0x%llx\n", *id, address);
+        return true;
+    }
+
+    bool ReadTargetMemory(uint64_t address, uint64_t size, std::vector<uint8_t> &outBuffer){
+        if(!g_debugeeProcess) return false;
+
+        outBuffer.resize(size);
+        SIZE_T bytesRead = 0;
+        bool ok = ReadProcessMemory(g_debugeeProcess, reinterpret_cast<LPCVOID>(address), outBuffer.data(), size, &bytesRead) && bytesRead == size;
+        
+        if(!ok){
+            outBuffer.clear();
+            return false;
+        }
+
+        g_breakpoints.RestoreBytesInBuffer(outBuffer.data(), address, size);
+        return true;
+    }
+
+    std::vector<ModuleRecord> GetModuleList(){
+        std::vector<ModuleRecord> result;
+        std::lock_guard<std::mutex> lock(g_targetStateMutex);
+        for(const auto& [base, info] : g_modules){
+            result.push_back(ModuleRecord{base, info.path});
+        }
+        return result;
+    }
+
+    bool RunOnDebugLoop(std::function<bool()> fn){
+        if(!g_debugeeProcess) return false;
+
+        auto promise = std::make_shared<std::promise<bool>>();
+        std::future<bool> future = promise->get_future();
+        {
+            std::lock_guard<std::mutex> lock(g_commandMutex);
+            g_commandQueue.push_back([fn = std::move(fn), promise]() mutable{
+                promise->set_value(fn());
+            });
+        }
+        SignalResume();
+        DebugBreakProcess(g_debugeeProcess);
+        return future.get();
+    }
+
+    int RunDebugLoop(const std::string &targetPath, Connection* conn, uint64_t requestId){
+        STARTUPINFOA si{};
+        si.cb = sizeof(si);
+        PROCESS_INFORMATION pi{};
+
+        std::string cmdLine = targetPath;
+        if(!CreateProcessA(
+            nullptr, cmdLine.data(), 
+            nullptr, nullptr, FALSE, 
+            DEBUG_PROCESS | DEBUG_ONLY_THIS_PROCESS, 
+            nullptr, nullptr, 
+            &si, &pi)){
+                fprintf(stderr, "CreateProcess failed: %lu\n", GetLastError());
+                if(conn) SendLaunchResponse(conn, requestId, false);
+                return 1;
+        }
+
+        if(conn) SendLaunchResponse(conn, requestId, true);
+        g_debugeeProcess = pi.hProcess;
+        DebugSetProcessKillOnExit(FALSE);
+
+        fprintf(stderr, "launched ###pid = %lu### tid = %lu\n", pi.dwProcessId, pi.dwThreadId);
+
+        bool running = true;
+        while(running){
+            DEBUG_EVENT event{};
+            if(!WaitForDebugEvent(&event, INFINITE)){
+                fprintf(stderr, "WaitForDebugEvent failed: %lu\n", GetLastError());
+                break;
+            }
+
+            DrainCommandQueue();
+            if(!g_debugeeProcess){
+                running = false;
+                continue;
+            }
+
+            DWORD continueStatus = DBG_CONTINUE;
+            switch (event.dwDebugEventCode) {
+                case CREATE_PROCESS_DEBUG_EVENT:{
+                    fprintf(stderr, "[event] CREATE_PROCESS pid=%lu\n", event.dwProcessId);
+                    uint64_t base = reinterpret_cast<uint64_t>(event.u.CreateProcessInfo.lpBaseOfImage);
+                    fprintf(stderr, "[event] main module base = 0x%llx\n", base);
+                    {
+                        std::lock_guard<std::mutex> lock(g_targetStateMutex);
+                        auto slash = targetPath.find_last_of("\\/");
+                        std::string baseName = (slash == std::string::npos) ? targetPath : targetPath.substr(slash + 1);
+                        g_modules[base] = ModuleInfo{base, baseName};
+                    }
+                    CloseHandle(event.u.CreateProcessInfo.hFile);
+                    break;
+                }
+                case EXIT_PROCESS_DEBUG_EVENT:
+                    fprintf(stderr, "[event] EXIT_PROCESS pid=%lu\n", event.dwProcessId);
+                    running = false;
+                    break;
+                case CREATE_THREAD_DEBUG_EVENT:
+                    fprintf(stderr, "[event] CREATE_THREAD tid=%lu\n", event.dwThreadId);
+                    {
+                        std::lock_guard<std::mutex> lock(g_targetStateMutex);
+                        g_threads[event.dwThreadId] = ThreadInfo{event.dwThreadId, event.u.CreateThread.hThread};
+                    }
+                    break;
+                case EXIT_THREAD_DEBUG_EVENT:
+                    fprintf(stderr, "[event] EXIT_THREAD tid=%lu\n", event.dwThreadId);
+                    {
+                        std::lock_guard<std::mutex> lock(g_targetStateMutex);
+                        g_threads.erase(event.dwThreadId);
+                    }
+                    break;
+                case LOAD_DLL_DEBUG_EVENT:
+                    fprintf(stderr, "[event] LOAD_DLL base=%p\n", event.u.LoadDll.lpBaseOfDll);
+                    {
+                        std::lock_guard<std::mutex> lock(g_targetStateMutex);
+                        uint64_t base = reinterpret_cast<uint64_t>(event.u.LoadDll.lpBaseOfDll);
+                        g_modules[base] = ModuleInfo{base, ""};
+                    }
+                    CloseHandle(event.u.LoadDll.hFile);
+                    break;
+                case UNLOAD_DLL_DEBUG_EVENT:
+                    fprintf(stderr, "[event] UNLOAD_DLL base=%p\n", event.u.UnloadDll.lpBaseOfDll);
+                    {
+                        std::lock_guard<std::mutex> lock(g_targetStateMutex);
+                        g_modules.erase(reinterpret_cast<uint64_t>(event.u.UnloadDll.lpBaseOfDll));
+                    }
+                    break;
+                case EXCEPTION_DEBUG_EVENT:{
+                    auto code = event.u.Exception.ExceptionRecord.ExceptionCode;
+                    auto address = reinterpret_cast<uint64_t>(event.u.Exception.ExceptionRecord.ExceptionAddress);
+                    fprintf(stderr, "[event] EXCEPTION code=0x%lx firstChance=%lu address=0x%llx\n",
+                    code, event.u.Exception.dwFirstChance, address);
+                    
+                    if(code == EXCEPTION_BREAKPOINT && !g_initialBreakpointSeen){
+                        g_initialBreakpointSeen = true;
+                        fprintf(stderr, "[breakpoint] INITIAL system breakpoint at 0x%llx\n", address);
+                        g_lastStopAddress = address;
+                        fireInitialStop();
+
+                        // We have 2 different behaviour in here
+                        // 1 conn not establised which is target mode, need upper hanlder to send the
+                        // the stopped event back to host
+                        // 2 conn established whichi is server mode, can send stopped event immdiatilaly
+                        if(conn){
+                            Envelope stoppedEvent;
+                            stoppedEvent.mutable_target_stopped_event()->set_reason(STOP_REASON_INITIAL_BREAKPOINT);
+                            conn->WriteEnvelope(stoppedEvent);
+                        }
+                        fprintf(stderr, "[debug loop] reported initial breakpoint, waiting for GoRequest...\n");
+                        
+                        WaitForResume();
+                        fprintf(stderr, "[debug loop] resumed\n");
+                    }else if(code == EXCEPTION_BREAKPOINT){
+                        auto hit = g_breakpoints.OnHit(pi.hProcess, address);
+                        if(hit){
+                            fprintf(stderr, "[breakpoint] hit at 0x%llx\n", address);
+                            HANDLE hThread = OpenThread(THREAD_GET_CONTEXT | THREAD_SET_CONTEXT, FALSE, event.dwThreadId);
+                            if(hThread){
+                                CONTEXT ctx{};
+                                ctx.ContextFlags = CONTEXT_CONTROL;
+                                if(GetThreadContext(hThread, &ctx)){
+                                    ctx.Rip = address;
+                                    if(!SetThreadContext(hThread, &ctx)){
+                                        fprintf(stderr, "[breakpoint] SetThreadContext failed: %lu\n", GetLastError());
+                                    }
+                                }else{
+                                    fprintf(stderr, "[breakpoint] GetThreadContext failed: %lu\n", GetLastError());
+                                }
+                                CloseHandle(hThread);
+                            }else{
+                                fprintf(stderr, "[breakpoint] OpenThread failed: %lu\n", GetLastError());
+                            }
+                            
+                            g_lastStopAddress = address;
+                            if(conn){
+                                Envelope stoppedEvent;
+                                stoppedEvent.mutable_target_stopped_event()->set_reason(STOP_REASON_BREAKPOINT);
+                                stoppedEvent.mutable_target_stopped_event()->set_address(address);
+                                conn->WriteEnvelope(stoppedEvent);
+                            }
+                            fprintf(stderr, "[debug loop] reported breakpoint, waiting for GoRequest...\n");
+                            
+                            WaitForResume();
+                            fprintf(stderr, "[debug loop] resumed\n");
+                        }
+                    }else if(code != EXCEPTION_BREAKPOINT && code != EXCEPTION_SINGLE_STEP && !event.u.Exception.dwFirstChance){
+                        continueStatus = DBG_EXCEPTION_NOT_HANDLED;
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+            if(!ContinueDebugEvent(event.dwProcessId, event.dwThreadId, continueStatus)){
+                fprintf(stderr, "ContinueDebugEvent failed: %lu\n", GetLastError());
+                break;
+            }
+        }
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        g_debugeeProcess = nullptr;
+        return 0;
+    }
+
+    uint64_t GetLastStopAddress(){ return g_lastStopAddress.load();}
+
+    void SignalGo(){
+        SignalResume();
+    }
+
+    void WaitForInitialStop(){
+        g_initialStopSignal.get_future().wait();
+    }
+
+    void TerminateTarget(int exitCode){
+        if(g_debugeeProcess){
+            TerminateProcess(g_debugeeProcess, exitCode);
+            SignalResume();
+        }
+    }
+
+    void HandleDisconnect(){
+        if(g_debugeeProcess){
+            fprintf(stderr, "[debug loop] client disconnected, terminating orphaned debuggee\n");
+            TerminateTarget(1);
+        }
+    }
+
+    bool RequestDetach(){
+        return RunOnDebugLoop([]() -> bool{
+            g_breakpoints.RestoreAll(g_debugeeProcess);
+            DebugSetProcessKillOnExit(FALSE);
+            bool ok = DebugActiveProcessStop(GetProcessId(g_debugeeProcess));
+            g_debugeeProcess = nullptr;
+            return ok;
+        });
+    }
+}

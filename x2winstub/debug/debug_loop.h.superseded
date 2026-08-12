@@ -1,0 +1,23 @@
+#pragma once
+#include <cstdint>
+#include <string>
+#include <functional>
+#include <vector>
+
+class Connection;
+
+namespace x2win{
+    void PrepareNewSession();
+    int RunDebugLoop(const std::string& targetPath, Connection* conn = nullptr, uint64_t requestId = 0);
+    void WaitForInitialStop();
+    void SignalGo();
+    void HandleDisconnect();
+    bool AddBreakpoint(uint64_t address, uint64_t& breakpointId);
+    bool RunOnDebugLoop(std::function<bool()> fn);
+    void TerminateTarget(int exitCode=1);
+    uint64_t GetLastStopAddress();
+    bool RequestDetach();
+    bool ReadTargetMemory(uint64_t address, uint64_t size, std::vector<uint8_t>& outBuffer);
+    struct ModuleRecord{uint64_t base; std::string name;};
+    std::vector<ModuleRecord> GetModuleList();
+}

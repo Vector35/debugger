@@ -317,7 +317,8 @@ namespace x2win {
 			for (auto& bp : m_breakpoints)
 			{
 				bp.isActive = false;
-				bp.originalByte = 0;  // Clear stale original byte from previous session
+				bp.originalByte = 0;          // Clear stale original byte from previous session
+				bp.hasOriginalByte = false;   // ...and mark it as no longer known, not just zeroed
 			}
 		}
 
@@ -522,6 +523,13 @@ namespace x2win {
 						LogWarn("DebugActiveProcessStop failed (error %d) -- killing target", GetLastError());
 						TerminateProcess(m_processHandle, 1);
 					}
+
+					// Mark detach as already handled so the post-loop cleanup below (which exists for
+					// the "still running, never stopped" case) doesn't see m_activelyDebugging still
+					// true and redundantly call DebugActiveProcessStop a second time -- that second
+					// call would fail (already detached) and trip its own TerminateProcess fallback,
+					// killing the target even on a plain Detach().
+					m_activelyDebugging = false;
 
 					break;
 				}
@@ -1443,7 +1451,7 @@ namespace x2win {
 		if (currentByte == INT3_OPCODE)
 		{
 			// If we already have a saved original byte, we're good - just ensure isActive is set
-			if (targetBp->originalByte != 0)
+			if (targetBp->hasOriginalByte)
 			{
 				targetBp->isActive = true;
 				return true;
@@ -1456,6 +1464,7 @@ namespace x2win {
 
 		// Save the original byte read from memory (the actual byte, not from binary view)
 		targetBp->originalByte = currentByte;
+		targetBp->hasOriginalByte = true;
 
 		// Write INT3
 		DWORD oldProtect;
