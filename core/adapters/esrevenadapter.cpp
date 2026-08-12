@@ -1064,8 +1064,11 @@ bool EsrevenAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
     const auto reply = this->m_rspConnector->TransmitAndReceive(RspData("P{:02X}={}",
                                        this->m_registerInfo[reg].m_regNum, newRegString));
 
-    if (reply.m_data[0])
+    if (reply.AsString() == "OK")
+    {
+        InvalidateCache();
         return true;
+    }
 
     char query{'g'};
     const auto generic_query = this->m_rspConnector->TransmitAndReceive(RspData(&query, sizeof(query)));
