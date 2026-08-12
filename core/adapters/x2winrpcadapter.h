@@ -93,6 +93,7 @@ namespace BinaryNinjaDebugger {
 		bool ConnectSocket(const std::string& ip, uint16_t port);
 		bool ConnectFromSettings();
 		void TeardownConnection();
+		void ResetSessionState();
 
 		// Populates common.inputFile (used by DetectLoadedModule()/GetRemoteBase() to match this
 		// adapter's GetModuleList() entries against the currently-open BinaryView, which is what
@@ -112,6 +113,7 @@ namespace BinaryNinjaDebugger {
 		bool Attach(std::uint32_t pid) override;
 		bool Connect(const std::string& server, std::uint32_t port) override;
 		bool ConnectToDebugServer(const std::string& server, std::uint32_t port) override;
+		bool DisconnectDebugServer() override;
 		bool Detach() override;
 		bool Quit() override;
 
