@@ -118,8 +118,11 @@ std::unordered_map<std::string, std::uint64_t> RspConnector::PacketToUnorderedMa
 				value = value.substr(0, 16);
 
 			if (key == "thread") {
-				if (value[0] == 'p' && value.find('.') != std::string::npos) {
-					auto core_id_and_thread_id = RspConnector::Split(value.substr(1), ".");
+				if (!value.empty() && value[0] == 'p' && value.find('.') != std::string::npos) {
+					// Split takes a regex, so the separator has to be escaped -- an unescaped
+					// "." matches every character and yields only empty tokens, which meant
+					// multiprocess thread ids ("pPID.TID") never parsed.
+					auto core_id_and_thread_id = RspConnector::Split(value.substr(1), "\\.");
 					if (core_id_and_thread_id.size() >= 2)
 						packet_map["thread"] = ParseInt(core_id_and_thread_id[1]);
 				} else {
