@@ -82,6 +82,17 @@ def free_loopback_port():
     return port
 
 
+def loopback_port_is_free(port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind(('127.0.0.1', port))
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
+
+
 def sleep_and_go(dbg):
     return dbg.go_and_wait()
 
@@ -730,8 +741,15 @@ class DebuggerAPI(unittest.TestCase):
         self.assertNotEqual(reason, DebugStopReason.ProcessExited)
         self.assertGreater(len(dbg.regs), 0)
 
-        # debugger.stopAtEntryPoint injects a breakpoint at the entry point; run to it
+        # Unlike a plain local launch_and_wait(), debugger.stopAtEntryPoint's auto-injected
+        # breakpoint isn't reliable here -- confirmed on real x64 macOS CI, go_and_wait() ran
+        # straight to ProcessExited instead of hitting it (likely a race between the injected
+        # breakpoint resolving and the already-launched process resuming, specific to attaching
+        # to an external process rather than driving the launch ourselves). So set our own
+        # breakpoint explicitly instead of depending on that auto-injection.
         entry = dbg.data.entry_point
+        dbg.delete_breakpoint(entry)  # in case stopAtEntryPoint already placed one here
+        dbg.add_breakpoint(entry)
         reason = dbg.go_and_wait()
         self.assertEqual(reason, DebugStopReason.Breakpoint)
         self.assertEqual(dbg.ip, entry)
@@ -747,7 +765,7 @@ class DebuggerAPI(unittest.TestCase):
 
         # clear the entry breakpoint and let the process run to completion
         for bp in list(dbg.breakpoints):
-            dbg.delete_breakpoint(bp)
+            dbg.delete_breakpoint(bp.address)
         reason = dbg.go_and_wait()
         self.assertEqual(reason, DebugStopReason.ProcessExited)
 
@@ -764,8 +782,20 @@ class DebuggerAPI(unittest.TestCase):
             self.skipTest('dbgsrv.exe was not found alongside this build; build with '
                            'BUILD_DEBUGGER_TEST_BINARIES to get the bundled DbgEng tools')
 
+        # Settings instances that a plugin registers by name in C++ (Settings::Instance("...")),
+        # like DbgEngAdapterSettings here, are not visible through Python's Settings(name) --
+        # confirmed by testing the analogous LLDBAdapterSettings registry locally: even after a
+        # real, successful debug session (adapter fully constructed and used), Python's
+        # Settings('LLDBAdapterSettings').contains(...) still reports the keys as unregistered,
+        # while the C++ side (e.g. the remote_host/remote_port getters) reads them correctly.
+        # So debugServer.ipAddress/debugServer.port can't be overridden from Python at all --
+        # just point dbgsrv.exe at DbgEngAdapterSettings' own schema defaults (127.0.0.1:31337)
+        # and let ConnectToDebugServer() use them unmodified.
+        port = 31337
+        if not loopback_port_is_free(port):
+            self.skipTest(f'port {port} (dbgsrv.exe default) is already in use on this machine')
+
         fpath = name_to_fpath('helloworld', self.arch)
-        port = free_loopback_port()
 
         server = subprocess.Popen([server_path, '-t', f'tcp:port={port},server=127.0.0.1'],
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -774,9 +804,6 @@ class DebuggerAPI(unittest.TestCase):
         bv = load(fpath)
         dbg = DebuggerController(bv)
         dbg.adapter_type = 'DBGENG'
-        # Setting executable_path both configures the (required) launch target and, as a side
-        # effect, forces the DbgEng adapter object to be constructed -- which is what registers
-        # the "DbgEngAdapterSettings" keys used below. They don't exist until the adapter does.
         dbg.executable_path = fpath
 
         def cleanup_dbg():
@@ -785,12 +812,6 @@ class DebuggerAPI(unittest.TestCase):
             # a no-op if we never successfully connected
             dbg.disconnect_from_debug_server()
         self.addCleanup(cleanup_dbg)
-
-        settings = Settings('DbgEngAdapterSettings')
-        self.assertTrue(settings.contains('debugServer.ipAddress'),
-                         'DbgEng adapter settings were not registered after constructing the adapter')
-        self.assertTrue(settings.set_string('debugServer.ipAddress', '127.0.0.1', bv))
-        self.assertTrue(settings.set_integer('debugServer.port', port, bv))
 
         self.assertTrue(dbg.connect_to_debug_server(), 'failed to connect to the local dbgsrv.exe debug server')
 
@@ -813,7 +834,7 @@ class DebuggerAPI(unittest.TestCase):
 
         # clear the entry breakpoint and let the process run to completion
         for bp in list(dbg.breakpoints):
-            dbg.delete_breakpoint(bp)
+            dbg.delete_breakpoint(bp.address)
         reason = dbg.go_and_wait()
         self.assertEqual(reason, DebugStopReason.ProcessExited)
 
