@@ -1,5 +1,6 @@
 #include "gdbmiadapter.h"
 #include <sstream>
+#include <charconv>
 #include <cinttypes>
 #include "../debuggercontroller.h"
 #include "../../cli/log.h"
@@ -953,7 +954,16 @@ DataBuffer GdbMiAdapter::ReadMemory(std::uintptr_t address, size_t size) {
     std::string hex_contents = value["memory"][0]["contents"].GetString();
     DataBuffer buffer(hex_contents.length() / 2);
     for(size_t i = 0; i < buffer.GetLength(); i++) {
-        buffer[i] = std::stoul(hex_contents.substr(i*2, 2), nullptr, 16);
+        // Parse with the non-throwing std::from_chars, since std::stoul throws on
+        // malformed data coming from the gdb process
+        unsigned int byte = 0;
+        const char* first = hex_contents.data() + i * 2;
+        if (std::from_chars(first, first + 2, byte, 16).ec != std::errc())
+        {
+            LogDebug("Malformed hex contents in memory read reply");
+            return zero;
+        }
+        buffer[i] = byte;
     }
     return buffer;
 }

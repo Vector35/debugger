@@ -374,7 +374,7 @@ std::vector<DebugThread> GdbAdapter::GetThreadList()
                 reply.AsString().substr(1);
         const auto tids = RspConnector::Split(shortened_string, ",");
         for ( const auto& tid : tids )
-            threads.emplace_back(std::stoi(tid, nullptr, 16));
+            threads.emplace_back(RspConnector::ParseInt<int>(tid));
 
         reply = connector->TransmitAndReceive(RspData("qsThreadInfo"));
     }
@@ -1013,8 +1013,8 @@ DebugStopReason GdbAdapter::ResponseHandler(bool notifyStopped)
 			if (replyString.length() >= 3)
 			{
 				std::string signalString = replyString.substr(1, 2);
-				uint64_t signal = std::stoull(signalString, nullptr, 16);
-				
+				uint64_t signal = RspConnector::ParseInt(signalString);
+
 				m_isTargetRunning = false;
 				CheckApplyPendingBreakpoints();
 				
@@ -1470,7 +1470,7 @@ static std::string HexToAscii(const std::string& hex)
 	{
 		// Convert the two hex characters to a byte (using a stringstream)
 		std::string byte_string = hex.substr(i, 2);
-		unsigned char byte = static_cast<unsigned char>(std::stoi(byte_string, nullptr, 16));  // Convert to byte
+		unsigned char byte = static_cast<unsigned char>(RspConnector::ParseInt<int>(byte_string));  // Convert to byte
 
 		// Append the byte (ASCII char) to the resulting string
 		ascii.push_back(byte);

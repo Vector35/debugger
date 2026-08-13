@@ -21,6 +21,7 @@ limitations under the License.
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+#include <charconv>
 #include <regex>
 #include <array>
 #include "binaryninjaapi.h"
@@ -154,6 +155,18 @@ namespace BinaryNinjaDebugger
 		static RspData DecodeRLE(const RspData& data);
 		static std::unordered_map<std::string, std::uint64_t> PacketToUnorderedMap(const RspData& data);
 		static std::vector<std::string> Split(const std::string& string, const std::string& regex);
+
+		// Parse an integer from remote protocol data without throwing. std::stoi and friends
+		// raise std::invalid_argument/std::out_of_range on malformed input, which crashes the
+		// process when the string comes from an untrusted remote stub.
+		template <typename Ty = uint64_t>
+		static Ty ParseInt(const std::string& str, int base = 16, Ty fallback = 0)
+		{
+			Ty value = fallback;
+			if (std::from_chars(str.data(), str.data() + str.size(), value, base).ec != std::errc())
+				return fallback;
+			return value;
+		}
 
 		static uint64_t SwapEndianness(uint64_t value, size_t len)
 		{
