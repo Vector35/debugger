@@ -18,13 +18,15 @@ limitations under the License.
 #include "uicontext.h"
 #include "qfiledialog.h"
 #include "settingsview.h"
+#include <QMessageBox>
+#include <filesystem>
 
 using namespace BinaryNinjaDebuggerAPI;
 using namespace BinaryNinja;
 using namespace std;
 
 AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller, const std::string& highlightGroup) :
-	QDialog(), m_controller(controller)
+	QDialog(), m_controller(controller), m_highlightGroup(highlightGroup)
 {
 	setWindowTitle("Debug Adapter Settings");
 	setAttribute(Qt::WA_DeleteOnClose);
@@ -158,8 +160,55 @@ QWidget* AdapterSettingsDialog::getWidgetForAdapter(const QString& adapter)
 }
 
 
+// The settings view writes each value as it is edited, so the current values can be read straight back from the
+// adapter settings here. Only the settings whose absence is guaranteed to fail the operation are checked, so that
+// the dialog does not get in the way of anything the adapter itself is willing to accept.
+bool AdapterSettingsDialog::validateSettings()
+{
+	if ((m_highlightGroup != "launch") || (m_adapterEntry->currentText() != "DBGENG_TTD"))
+		return true;
+
+	auto adapterSettings = m_controller->GetAdapterSettings();
+	if (!adapterSettings)
+		return true;
+
+	BNSettingsScope scope = SettingsResourceScope;
+	auto tracePath = adapterSettings->Get<std::string>("launch.trace_path", m_controller->GetData(), &scope);
+	if (tracePath.empty())
+	{
+		QMessageBox::warning(this, "No Trace Specified",
+			"The TTD adapter replays a previously recorded trace, so a trace path is required.\n\n"
+			"Set \"Trace Path\" in the launch settings, or record a new trace first.");
+		return false;
+	}
+
+	std::error_code ec;
+	if (!std::filesystem::is_regular_file(tracePath, ec))
+	{
+		if (!std::filesystem::exists(tracePath, ec))
+		{
+			QMessageBox::warning(this, "Trace Not Found",
+				QString("The trace file\n\n%1\n\ndoes not exist. Set \"Trace Path\" in the launch settings to an "
+					"existing trace.").arg(QString::fromStdString(tracePath)));
+		}
+		else
+		{
+			QMessageBox::warning(this, "Invalid Trace",
+				QString("The trace path\n\n%1\n\nis not a file. Set \"Trace Path\" in the launch settings to a "
+					"recorded trace file.").arg(QString::fromStdString(tracePath)));
+		}
+		return false;
+	}
+
+	return true;
+}
+
+
 void AdapterSettingsDialog::apply()
 {
+	if (!validateSettings())
+		return;
+
 	if (m_useSameSettingsCheckbox)
 		m_controller->SetShowAdapterSettingsNextTime(!m_useSameSettingsCheckbox->isChecked());
 	accept();

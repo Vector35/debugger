@@ -27,6 +27,36 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
 	scope = SettingsResourceScope;
 	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
 
+	// A trace is not optional for replay, but a missing one only surfaces later as an opaque OpenDumpFile
+	// HRESULT, so check it up front. The UI blocks this in the adapter settings dialog; this covers the
+	// headless and scripted paths, plus the launches where that dialog is skipped.
+	std::error_code ec;
+	if (tracePath.empty() || !std::filesystem::is_regular_file(tracePath, ec))
+	{
+		DebuggerEvent event;
+		event.type = LaunchFailureEventType;
+		if (tracePath.empty())
+		{
+			event.data.errorData.error = "No TTD trace specified. Set the trace path in the debug adapter "
+				"settings, or record a new trace first.";
+			event.data.errorData.shortError = "No TTD trace specified";
+		}
+		else if (!std::filesystem::exists(tracePath, ec))
+		{
+			event.data.errorData.error = fmt::format("The TTD trace \"{}\" does not exist. Set the trace path in "
+				"the debug adapter settings.", tracePath);
+			event.data.errorData.shortError = "TTD trace not found";
+		}
+		else
+		{
+			event.data.errorData.error = fmt::format("The TTD trace path \"{}\" is not a file. Set the trace path in "
+				"the debug adapter settings to a recorded trace file.", tracePath);
+			event.data.errorData.shortError = "TTD trace is not a file";
+		}
+		PostDebuggerEvent(event);
+		return false;
+	}
+
     if (this->m_dbgengInitialized) {
         this->Reset();
     }
