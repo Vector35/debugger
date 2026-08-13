@@ -183,11 +183,20 @@ bool AdapterSettingsDialog::validateSettings()
 	}
 
 	std::error_code ec;
-	if (!std::filesystem::exists(tracePath, ec))
+	if (!std::filesystem::is_regular_file(tracePath, ec))
 	{
-		QMessageBox::warning(this, "Trace Not Found",
-			QString("The trace file\n\n%1\n\ndoes not exist. Set \"Trace Path\" in the launch settings to an "
-				"existing trace.").arg(QString::fromStdString(tracePath)));
+		if (!std::filesystem::exists(tracePath, ec))
+		{
+			QMessageBox::warning(this, "Trace Not Found",
+				QString("The trace file\n\n%1\n\ndoes not exist. Set \"Trace Path\" in the launch settings to an "
+					"existing trace.").arg(QString::fromStdString(tracePath)));
+		}
+		else
+		{
+			QMessageBox::warning(this, "Invalid Trace",
+				QString("The trace path\n\n%1\n\nis not a file. Set \"Trace Path\" in the launch settings to a "
+					"recorded trace file.").arg(QString::fromStdString(tracePath)));
+		}
 		return false;
 	}
 
