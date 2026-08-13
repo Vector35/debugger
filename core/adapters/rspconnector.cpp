@@ -31,6 +31,28 @@ RspConnector::RspConnector(Socket* socket) : m_socket(socket) { }
 
 RspConnector::~RspConnector() {}
 
+// Expand one RLE run into result. A run is "<char>*<count>", so it repeats the character
+// already emitted and the count says how many more copies to append. The count is encoded
+// as count + 29 to keep the byte printable: the smallest count byte is ' ' (0x20), which
+// decodes to 3, so "0* " expands to "0000", and the largest is '~' (0x7e). Returns false
+// if there is nothing to repeat or the count is out of range, both of which mean the
+// packet is malformed rather than merely unusual.
+static bool ExpandRleRun(uint8_t countByte, std::string& result)
+{
+	if (result.empty())
+	{
+		LogError("Malformed RLE in remote protocol data: run marker with no preceding character");
+		return false;
+	}
+	if ((countByte < 0x20) || (countByte > 0x7e))
+	{
+		LogError("Malformed RLE in remote protocol data: repeat count out of range");
+		return false;
+	}
+	result.append(countByte - 29, result.back());
+	return true;
+}
+
 RspData RspConnector::BinaryDecode(const RspData& data)
 {
     std::string result{};
@@ -41,13 +63,25 @@ RspData RspConnector::BinaryDecode(const RspData& data)
         if (skip)
             skip = false;
         else if (c == 0x7d) {
+            // '}' escapes the byte after it, which therefore has to exist. Return an empty
+            // RspData on malformed input, the same way the receive paths report a bad packet;
+            // a non-empty payload always decodes to at least one character, so empty is
+            // unambiguous here.
+            if (index + 1 >= data.m_data.GetLength())
+            {
+                LogError("Malformed escape in remote protocol data: escape marker with no escaped byte");
+                return {};
+            }
             result.push_back(data.m_data[index + 1] ^ 0x20);
             skip = true;
         } else if (c == 0x2a) {
-            auto repeat = data.m_data[index + 1] - 29;
-            auto last_char = result[result.size() - 1];
-            for ( auto idx = 0; idx < repeat; idx++ )
-                result.push_back(last_char);
+            if (index + 1 >= data.m_data.GetLength())
+            {
+                LogError("Malformed RLE in remote protocol data: run marker with no repeat count");
+                return {};
+            }
+            if (!ExpandRleRun(data.m_data[index + 1], result))
+                return {};
             skip = true;
         } else {
             result.push_back(c);
@@ -72,25 +106,17 @@ RspData RspConnector::DecodeRLE(const RspData& data)
             }
             else if (data.m_data[index] == '*')
             {
-                // An RLE run is "<char>*<count>": it repeats the character just emitted, so
-                // both the count byte and that preceding character have to exist. Neither was
-                // checked. A stub sending '*' as the final byte read one past the buffer, and
-                // one sending '*' before any literal character evaluated
-                // result[result.size() - 1] with an empty result, indexing SIZE_MAX.
+                // The count byte of a run has to exist. Return an empty RspData on malformed
+                // input, the same way the receive paths report a bad packet; a successful
+                // decode always has at least the repeated character, so empty is unambiguous
+                // here.
                 if (index + 1 >= data.m_data.GetLength())
                 {
                     LogError("Malformed RLE in remote protocol data: run marker with no repeat count");
-                    break;
+                    return {};
                 }
-                if (result.empty())
-                {
-                    LogError("Malformed RLE in remote protocol data: run marker with no preceding character");
-                    break;
-                }
-                auto repeat = data.m_data[index + 1] - 29;
-                auto last_char = result[result.size() - 1];
-                for ( auto idx = 0; idx < repeat; idx++ )
-                    result.push_back(last_char);
+                if (!ExpandRleRun(data.m_data[index + 1], result))
+                    return {};
                 should_skip = true;
             }
             else
