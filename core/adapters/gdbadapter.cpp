@@ -662,8 +662,11 @@ bool GdbAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
                                             : uint512ToLittleEndianHex(value, this->m_registerInfo[reg].m_bitSize / 8);
     const auto reply = connector->TransmitAndReceive(RspData("P{:02X}={}",
                                        this->m_registerInfo[reg].m_regNum, newRegString));
-    if (reply.m_data[0])
+    if (reply.AsString() == "OK")
+    {
+        InvalidateCache();
         return true;
+    }
 
     char query{'g'};
     const auto generic_query = connector->TransmitAndReceive(RspData(&query, sizeof(query)));
