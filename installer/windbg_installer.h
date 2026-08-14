@@ -39,6 +39,7 @@ enum LogLevel {
 /* Installation configuration */
 struct InstallConfig {
     std::string installPath;     /* Override default install path (empty = use default) */
+    std::string version;         /* WinDbg version to install (empty = kDefaultVersion) */
     bool updateSettings;         /* Whether to update Binary Ninja settings (default: true) */
     ProgressCallback onProgress; /* Progress callback */
     LogCallback onLog;           /* Logging callback */
@@ -94,10 +95,6 @@ struct VersionInfo {
 
 /*
  * Get version of installed WinDbg
- *
- * There is deliberately no "latest version" query: we install the pinned version from
- * windbg_version.h, so the only question worth asking is whether what is on disk matches
- * that constant.
  *
  * @param installPath Path to WinDbg installation (empty = use default)
  * @return Version info, or empty VersionInfo if not installed

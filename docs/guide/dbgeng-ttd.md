@@ -32,8 +32,9 @@ The WinDbg installation only needs to be done once.
 
 The automatic installer handles all the complexity of downloading and extracting the WinDbg MSIX bundle.
 
-Note that the installer deliberately installs a pinned WinDbg version that has been validated against the debugger, rather than the newest release.
-New WinDbg releases occasionally ship regressions that break the DbgEng/TTD adapter, so the pinned version is bumped only after it has been tested.
+By default, the installer installs a WinDbg version that has been validated against the debugger, rather than the newest release.
+New WinDbg releases occasionally ship regressions that break the DbgEng/TTD adapter, so the default version is bumped only after the new release has been tested.
+To install a different released version, set `debugger.windbgVersion` in the settings before running the installer.
 
 ### Reinstall WinDbg/TTD
 
@@ -42,10 +43,10 @@ If you already have WinDbg/TTD installed:
 - Click `Debugger` -> `Install WinDbg/TTD` from the menu
 - A dialog will appear showing:
     - The currently installed version
-    - The version this debugger supports
+    - The version that will be installed, i.e., the value of `debugger.windbgVersion`
 - If the two match, you can click "Reinstall" to install it again, e.g. if the installation was damaged
-- If they differ, click "Install" to replace the installed version with the supported one.
-  Note this can be a downgrade: if you installed a newer WinDbg yourself, this replaces it with the validated version
+- If they differ, click "Install" to replace the installed version with the configured one.
+  Note this can be a downgrade: if you installed a newer WinDbg yourself, this replaces it with the configured version
 - Restart Binary Ninja afterwards
 
 <img src="../../img/debugger/ttd_update_windbg.png" width="600px">

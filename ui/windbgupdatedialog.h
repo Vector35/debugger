@@ -27,9 +27,9 @@ limitations under the License.
 
 /* Dialog shown when WinDbg/TTD is already installed.
  *
- * The debugger installs a pinned WinDbg version rather than the latest release, so there is
- * nothing to check online: we compare what is on disk against that constant and offer to
- * (re)install it. */
+ * The version to install comes from the "debugger.windbgVersion" setting rather than from
+ * whatever Microsoft released last, so there is nothing to check online: we compare what is
+ * on disk against that setting and offer to (re)install it. */
 class WinDbgUpdateDialog : public QDialog
 {
 	Q_OBJECT

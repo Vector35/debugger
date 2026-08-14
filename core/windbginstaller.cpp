@@ -88,6 +88,11 @@ InstallResult InstallWinDbg(const std::string& installPath, bool isUpdate) {
     if (!installPath.empty()) {
         cmdLine += " --path \"" + installPath + "\"";
     }
+    /* Install the version the user has configured, rather than the installer's built-in default */
+    std::string version = Settings::Instance()->Get<std::string>("debugger.windbgVersion");
+    if (!version.empty()) {
+        cmdLine += " --windbg-version \"" + version + "\"";
+    }
 
     LogInfo("Running: %s", cmdLine.c_str());
 

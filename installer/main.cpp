@@ -5,7 +5,7 @@
  * Can be invoked directly by users or spawned by Binary Ninja API.
  *
  * Usage:
- *   windbg-installer install [--path <dir>] [--quiet] [--json]
+ *   windbg-installer install [--path <dir>] [--windbg-version <ver>] [--quiet] [--json]
  *   windbg-installer version [--path <dir>] [--json]
  *   windbg-installer --help
  *
@@ -230,11 +230,13 @@ void PrintUsage(const char* programName) {
               << "\n"
               << "Commands:\n"
               << "  install       Install or reinstall WinDbg/TTD\n"
-              << "  version       Show the installed and supported versions\n"
+              << "  version       Show the installed and the default version\n"
               << "\n"
               << "Options:\n"
               << "  --path <dir>  Specify installation directory\n"
               << "                (default: %APPDATA%\\Binary Ninja\\windbg)\n"
+              << "  --windbg-version <ver>\n"
+              << "                WinDbg version to install (default: " << kDefaultVersion << ")\n"
               << "  --update      Update mode: wait for Binary Ninja to exit first\n"
               << "                (use this when WinDbg DLLs may be loaded)\n"
               << "  --quiet       Suppress progress output (exit code only)\n"
@@ -246,6 +248,7 @@ void PrintUsage(const char* programName) {
               << "  " << programName << " install\n"
               << "  " << programName << " install --update\n"
               << "  " << programName << " install --path C:\\Tools\\WinDbg\n"
+              << "  " << programName << " install --windbg-version 1.2603.20001.0\n"
               << "\n"
               << "Exit codes:\n"
               << "  0  Success\n"
@@ -264,7 +267,7 @@ void PrintBanner() {
 }
 
 /* Command: install */
-int CmdInstall(const std::string& installPath, OutputMode mode, bool isUpdate) {
+int CmdInstall(const std::string& installPath, const std::string& version, OutputMode mode, bool isUpdate) {
     /* Determine and print install path */
     std::string targetPath = installPath.empty() ? GetDefaultInstallPath() : installPath;
 
@@ -290,6 +293,7 @@ int CmdInstall(const std::string& installPath, OutputMode mode, bool isUpdate) {
 
     InstallConfig config;
     config.installPath = targetPath;
+    config.version = version;
     config.updateSettings = true;
 
     std::string lastStep;
@@ -399,7 +403,7 @@ int CmdVersion(const std::string& installPath, OutputMode mode) {
     if (mode == OutputMode::Json) {
         std::cout << "{\"type\":\"version\",\"isInstalled\":" << (installed.isInstalled ? "true" : "false")
                   << ",\"installed\":\"" << installed.version
-                  << "\",\"supported\":\"" << kPinnedVersion
+                  << "\",\"default\":\"" << kDefaultVersion
                   << "\",\"installPath\":\"" << path << "\"}" << std::endl;
     } else if (mode == OutputMode::Human) {
         std::cout << "\n";
@@ -416,10 +420,10 @@ int CmdVersion(const std::string& installPath, OutputMode mode) {
         }
         ResetConsoleColor();
         std::cout << "\n";
-        std::cout << "  Supported:    " << kPinnedVersion << "\n";
-        if (installed.isInstalled && installed.version != kPinnedVersion) {
+        std::cout << "  Default:      " << kDefaultVersion << "\n";
+        if (installed.isInstalled && installed.version != kDefaultVersion) {
             SetConsoleColor(COLOR_YELLOW);
-            std::cout << "\n  The installed version is not the supported one; run 'install' to replace it.\n";
+            std::cout << "\n  The installed version is not the default one; run 'install' to replace it.\n";
             ResetConsoleColor();
         }
         std::cout << "\n";
@@ -434,6 +438,7 @@ int main(int argc, char* argv[]) {
     /* Parse command line arguments */
     std::string command;
     std::string installPath;
+    std::string version;
     OutputMode mode = OutputMode::Human;
     bool isUpdate = false;
 
@@ -446,6 +451,13 @@ int main(int argc, char* argv[]) {
                 installPath = argv[++i];
             } else {
                 std::cerr << "Error: --path requires a directory argument\n";
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--windbg-version") == 0) {
+            if (i + 1 < argc) {
+                version = argv[++i];
+            } else {
+                std::cerr << "Error: --windbg-version requires a version argument\n";
                 return 1;
             }
         } else if (strcmp(argv[i], "--quiet") == 0 || strcmp(argv[i], "-q") == 0) {
@@ -481,7 +493,7 @@ int main(int argc, char* argv[]) {
 
     /* Execute command */
     if (command == "install") {
-        return CmdInstall(installPath, mode, isUpdate);
+        return CmdInstall(installPath, version, mode, isUpdate);
     } else if (command == "version") {
         return CmdVersion(installPath, mode);
     } else {

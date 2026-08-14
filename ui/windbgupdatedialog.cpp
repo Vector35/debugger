@@ -17,7 +17,6 @@ limitations under the License.
 #ifdef WIN32
 
 #include "windbgupdatedialog.h"
-#include "../installer/windbg_version.h"
 #include "debuggerapi.h"
 #include "progresstask.h"
 #include <QApplication>
@@ -33,8 +32,10 @@ WinDbgUpdateDialog::WinDbgUpdateDialog(QWidget* parent, const std::string& insta
 	setWindowTitle("WinDbg/TTD Version");
 	setMinimumWidth(450);
 
-	const std::string supportedVersion = WinDbgInstaller::kPinnedVersion;
-	const bool versionMatches = !m_installedVersion.empty() && (m_installedVersion == supportedVersion);
+	/* The version to install comes from a setting, so that a different released version can
+	 * be installed without a new Binary Ninja build */
+	const std::string targetVersion = BinaryNinja::Settings::Instance()->Get<std::string>("debugger.windbgVersion");
+	const bool versionMatches = !m_installedVersion.empty() && (m_installedVersion == targetVersion);
 
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
@@ -57,13 +58,13 @@ WinDbgUpdateDialog::WinDbgUpdateDialog(QWidget* parent, const std::string& insta
 	installedLayout->addStretch();
 	versionLayout->addLayout(installedLayout);
 
-	QHBoxLayout* supportedLayout = new QHBoxLayout();
-	supportedLayout->addWidget(new QLabel("Supported version:", this));
-	QLabel* supportedVersionLabel = new QLabel(QString::fromStdString(supportedVersion), this);
-	supportedVersionLabel->setStyleSheet("font-weight: bold;");
-	supportedLayout->addWidget(supportedVersionLabel);
-	supportedLayout->addStretch();
-	versionLayout->addLayout(supportedLayout);
+	QHBoxLayout* targetLayout = new QHBoxLayout();
+	targetLayout->addWidget(new QLabel("Version to install:", this));
+	QLabel* targetVersionLabel = new QLabel(QString::fromStdString(targetVersion), this);
+	targetVersionLabel->setStyleSheet("font-weight: bold;");
+	targetLayout->addWidget(targetVersionLabel);
+	targetLayout->addStretch();
+	versionLayout->addLayout(targetLayout);
 
 	mainLayout->addWidget(versionGroup);
 
@@ -72,22 +73,18 @@ WinDbgUpdateDialog::WinDbgUpdateDialog(QWidget* parent, const std::string& insta
 	statusLabel->setWordWrap(true);
 	if (versionMatches) {
 		statusLabel->setText(
-			"You have the supported version of WinDbg/TTD installed.\n\n"
+			"You already have this version of WinDbg/TTD installed.\n\n"
 			"To reinstall it anyway, click 'Reinstall'. Binary Ninja will be closed and the "
 			"installer will run."
 		);
-	} else if (m_installedVersion.empty()) {
-		statusLabel->setText(
-			"Unable to determine which version of WinDbg/TTD is installed.\n\n"
-			"Click 'Install' to install the supported version. Binary Ninja will be closed and "
-			"the installer will run."
-		);
 	} else {
-		statusLabel->setText(
-			"The installed version is not the version this debugger supports.\n\n"
+		statusLabel->setText(QString(m_installedVersion.empty()
+				? "Unable to determine which version of WinDbg/TTD is installed."
+				: "The installed version differs from the version to install.") +
+			"\n\n"
 			"Clicking 'Install' will:\n"
 			"1. Close Binary Ninja\n"
-			"2. Launch the installer to download and install the supported version\n"
+			"2. Launch the installer to download and install the version listed above\n"
 			"3. You can restart Binary Ninja after the installation completes"
 		);
 	}
@@ -95,9 +92,10 @@ WinDbgUpdateDialog::WinDbgUpdateDialog(QWidget* parent, const std::string& insta
 
 	/* Explain why we do not simply track the latest WinDbg release */
 	QLabel* noteLabel = new QLabel(
-		"Binary Ninja installs a specific WinDbg version that has been validated against the "
+		"By default Binary Ninja installs a WinDbg version that has been validated against the "
 		"debugger, rather than the newest release, because new WinDbg releases occasionally "
-		"break the DbgEng/TTD adapter.", this);
+		"break the DbgEng/TTD adapter. Use the \"debugger.windbgVersion\" setting to install a "
+		"different version.", this);
 	noteLabel->setWordWrap(true);
 	noteLabel->setStyleSheet("color: gray;");
 	mainLayout->addWidget(noteLabel);
@@ -112,7 +110,7 @@ WinDbgUpdateDialog::WinDbgUpdateDialog(QWidget* parent, const std::string& insta
 	connect(m_cancelButton, &QPushButton::clicked, this, &WinDbgUpdateDialog::onCancelClicked);
 	buttonLayout->addWidget(m_cancelButton);
 
-	/* Not "Update": when the installed version is newer than the supported one, this
+	/* Not "Update": when the installed version is newer than the configured one, this
 	 * deliberately replaces it with an older build. */
 	m_updateButton = new QPushButton(versionMatches ? "Reinstall" : "Install", this);
 	m_updateButton->setDefault(true);
