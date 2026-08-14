@@ -303,6 +303,17 @@ bool DbgEngTTDAdapter::SupportFeature(DebugAdapterCapacity feature)
 }
 
 
+bool DbgEngTTDAdapter::TerminateTargetOnEngineThread()
+{
+	if (!this->m_debugClient)
+		return false;
+
+	// I am not sure why TerminateProcesses() would not work. It just let the target run freely till the end of the
+	// trace and not terminating the process at all.
+	return this->m_debugClient->TerminateCurrentProcess() == S_OK;
+}
+
+
 bool DbgEngTTDAdapter::Quit()
 {
 	m_aboutToBeKilled = true;
@@ -310,10 +321,17 @@ bool DbgEngTTDAdapter::Quit()
 	if (!this->m_debugClient)
 		return false;
 
-	// I am not sure why TerminateProcesses() would not work. It just let the target run freely till the end of the
-	// trace and not terminating the process at all.
-	if (this->m_debugClient->TerminateCurrentProcess() != S_OK)
-		return false;
+	// Terminating from this thread crashes inside WinDbg's data model JS provider on 1.2606 (#1129):
+	// the engine thread owns the debug client and is parked in DispatchCallbacks(), and DbgEng clients
+	// are thread-affine. Ask that thread to do it and wake it up; ExitDispatch() is the one call that is
+	// documented as safe to make from here.
+	m_terminateRequested = true;
+
+	// If the trace is being replayed rather than sitting at a break, the engine thread is inside
+	// WaitForEvent() where ExitDispatch() will not reach it. SetInterrupt() is safe from any thread and
+	// brings it back to a break, where the request above is picked up.
+	if (m_debugControl && (ExecStatus() != DEBUG_STATUS_BREAK))
+		m_debugControl->SetInterrupt(DEBUG_INTERRUPT_ACTIVE);
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
 	return true;

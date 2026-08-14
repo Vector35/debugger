@@ -36,6 +36,7 @@ namespace BinaryNinjaDebugger {
 
 		bool Start() override;
 		void Reset() override;
+		bool TerminateTargetOnEngineThread() override;
 
         bool GoReverse() override;
         bool StepIntoReverse() override;

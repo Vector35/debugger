@@ -708,6 +708,14 @@ void DbgEngAdapter::EngineLoop()
 				// WaitForEvent(). The real purpose of this call is to wait until the UI/API initiates another control
 				// operation, which then calls ExitDispatch(), which causes the DispatchCallbacks() to return.
 				m_debugClient->DispatchCallbacks(INFINITE);
+
+				// A DbgEng client belongs to the thread that created it, and ExitDispatch() is the only call
+				// documented as safe to make from another thread. So Quit() only raises this flag and wakes us
+				// up; the terminate itself has to happen here. Doing it from the requesting thread while this
+				// one sits in DispatchCallbacks() faults inside WinDbg's data model JS provider on 1.2606
+				// (#1129).
+				if (m_terminateRequested.exchange(false))
+					TerminateTargetOnEngineThread();
 			}
 			// TODO: add step branch and step backs
 			else if ((execution_status == DEBUG_STATUS_GO) || (execution_status == DEBUG_STATUS_STEP_INTO)
@@ -907,6 +915,15 @@ bool DbgEngAdapter::Detach()
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
 	return true;
 }
+
+bool DbgEngAdapter::TerminateTargetOnEngineThread()
+{
+	if (!this->m_debugClient)
+		return false;
+
+	return this->m_debugClient->TerminateProcesses() == S_OK;
+}
+
 
 bool DbgEngAdapter::Quit()
 {

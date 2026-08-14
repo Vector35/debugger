@@ -21,6 +21,7 @@ limitations under the License.
 #define NOMINMAX
 #include <windows.h>
 #include <dbgeng.h>
+#include <atomic>
 #include <chrono>
 
 namespace BinaryNinjaDebugger {
@@ -138,6 +139,10 @@ namespace BinaryNinjaDebugger {
 		virtual bool Start();
 		virtual void Reset();
 
+		// Kills the target. Called by EngineLoop() on the thread that created the debug client, never
+		// directly from Quit(), because DbgEng clients are thread-affine.
+		virtual bool TerminateTargetOnEngineThread();
+
 		std::vector<DebugBreakpoint> m_debug_breakpoints {};
 		bool m_lastOperationIsStepInto = false;
 
@@ -155,6 +160,10 @@ namespace BinaryNinjaDebugger {
 		bool m_dbgSrvLaunchedByAdapter = false;
 
 		bool m_aboutToBeKilled = false;
+
+		// Raised by Quit() so that EngineLoop() performs the terminate on the thread that owns the
+		// debug client. See TerminateTargetOnEngineThread().
+		std::atomic<bool> m_terminateRequested {false};
 
         std::string m_pdbFileName {};
         bool m_usePDBFileName = true;
