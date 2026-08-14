@@ -127,6 +127,10 @@ bool WindowsDumpFileAdapter::Start()
 
 void WindowsDumpFileAdapter::Reset()
 {
+	// Same reason as the base class: keep Reset() from tearing the interfaces down underneath
+	// EngineLoop(). The mutex is recursive, so the EngineLoop() -> Reset() path does not deadlock.
+	std::unique_lock lock(m_engineLoopMutex);
+
 	m_aboutToBeKilled = false;
 
 	if (!this->m_dbgengInitialized)
@@ -145,17 +149,6 @@ void WindowsDumpFileAdapter::Reset()
 		this->m_debugClient->EndSession(DEBUG_END_PASSIVE);
 		m_server = 0;
 	}
-
-	// There seems to be an internal ref-counting issue in the DbgEng TTD engine, that the reference for the debug
-	// client is not properly freed after the target has exited. To properly free the debug client instance, here we
-	// are calling Release() a few more times to ensure the ref count goes down to 0. Luckily this would not cause
-	// a UAF or crash.
-	// This might be related to the weird behavior of not terminating the target when we call TerminateProcesses(),
-	// (see comment in `DbgEngTTDAdapter::Quit()`).
-	// The same issue is not observed when we do forward debugging using the regular DbgEng. Also, I cannot reproduce
-	// the issue using my script https://github.com/xusheng6/dbgeng_test.
-	for (size_t i = 0; i < 100; i++)
-		m_debugClient->Release();
 
 	SAFE_RELEASE(this->m_debugClient);
 
