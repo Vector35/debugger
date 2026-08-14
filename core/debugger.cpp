@@ -28,6 +28,7 @@ limitations under the License.
 	#include "adapters/localwindowskerneladapter.h"
 	#include "adapters/windowsdumpfile.h"
 	#include "adapters/windowsnativeadapter.h"
+	#include "../installer/windbg_version.h"
 #endif
 
 using namespace BinaryNinja;
@@ -114,6 +115,14 @@ static void RegisterSettings()
 			"type" : "boolean",
 			"default" : false,
 			"description" : "Attempt to unload the already loaded DLL if they are from a wrong path. You may turn this on if the DbgEng DLLs, e.g., dbghelp.dll, is loaded from a wrong path, but it happens early than the debugger initialization",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
+	settings->RegisterSetting("debugger.windbgVersion",
+		R"({
+			"title" : "WinDbg/TTD Version",
+			"type" : "string",
+			"default" : ")" + std::string(WinDbgInstaller::kDefaultVersion) + R"(",
+			"description" : "The WinDbg version that 'Install WinDbg/TTD' downloads, e.g., 1.2603.20001.0. The default is a version validated against the debugger, since new WinDbg releases occasionally break the DbgEng/TTD adapter. Change it to install a different released version.",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 	settings->RegisterSetting("debugger.defaultWindowsAdapter",

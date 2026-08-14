@@ -52,6 +52,7 @@ set(INSTALLER_LIB_HEADERS
     http_downloader.h
     zip_extractor.h
     windbg_installer.h
+    windbg_version.h
     signature_verifier.h
 )
 

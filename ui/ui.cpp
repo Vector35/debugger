@@ -1613,13 +1613,10 @@ void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 	std::error_code ec;
 	if (std::filesystem::exists(installTarget, ec) && IsWinDbgInstalled(installPath))
 	{
-		// Get installed version
+		// Get installed version (empty if the marker file is missing; the dialog reports that)
 		std::string installedVersion = GetWinDbgInstalledVersion(installPath);
-		if (installedVersion.empty()) {
-			installedVersion = "(unknown)";
-		}
 
-		// Show update dialog
+		// Show the version/reinstall dialog
 		WinDbgUpdateDialog dialog(ctxt.context->mainWindow(), installPath, installedVersion);
 		dialog.exec();
 		return;

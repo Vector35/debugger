@@ -877,7 +877,6 @@ extern "C"
 	DEBUGGER_FFI_API bool BNDebuggerIsWinDbgInstalled(const char* installPath);
 	DEBUGGER_FFI_API char* BNDebuggerGetWinDbgInstallerPath(void);
 	DEBUGGER_FFI_API char* BNDebuggerGetWinDbgInstalledVersion(const char* installPath);
-	DEBUGGER_FFI_API char* BNDebuggerGetWinDbgLatestVersion(void);
 
 #ifdef __cplusplus
 }

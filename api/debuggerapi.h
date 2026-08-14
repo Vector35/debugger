@@ -981,6 +981,5 @@ namespace BinaryNinjaDebuggerAPI {
 	bool IsWinDbgInstalled(const std::string& installPath = "");
 	std::string GetWinDbgInstallerPath();
 	std::string GetWinDbgInstalledVersion(const std::string& installPath = "");
-	std::string GetWinDbgLatestVersion();
 
 };  // namespace BinaryNinjaDebuggerAPI

@@ -2231,13 +2231,6 @@ char* BNDebuggerGetWinDbgInstalledVersion(const char* installPath)
 	return BNAllocString(version.c_str());
 }
 
-
-char* BNDebuggerGetWinDbgLatestVersion(void)
-{
-	std::string version = GetLatestVersion();
-	return BNAllocString(version.c_str());
-}
-
 #else // !WIN32
 
 // Stub implementations for non-Windows platforms
@@ -2277,12 +2270,6 @@ char* BNDebuggerGetWinDbgInstallerPath(void)
 char* BNDebuggerGetWinDbgInstalledVersion(const char* installPath)
 {
 	(void)installPath;
-	return BNAllocString("");
-}
-
-
-char* BNDebuggerGetWinDbgLatestVersion(void)
-{
 	return BNAllocString("");
 }
 
