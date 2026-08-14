@@ -683,9 +683,6 @@ bool DebuggerBreakpoints::AddOffset(const ModuleNameAndOffset& address)
 
 bool DebuggerBreakpoints::RemoveAbsolute(uint64_t remoteAddress)
 {
-	if (!m_state->GetAdapter())
-		return false;
-
 	ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
 	auto it = FindBreakpoint(info);
 	if (it == m_breakpoints.end())
@@ -693,7 +690,10 @@ bool DebuggerBreakpoints::RemoveAbsolute(uint64_t remoteAddress)
 
 	m_breakpoints.erase(it);
 	SerializeMetadata();
-	m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
+
+	if (m_state->GetAdapter() && m_state->IsConnected())
+		m_state->GetAdapter()->RemoveBreakpoint(remoteAddress);
+
 	return true;
 }
 
