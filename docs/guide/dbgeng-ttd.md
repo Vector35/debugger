@@ -34,7 +34,18 @@ The automatic installer handles all the complexity of downloading and extracting
 
 By default, the installer installs a WinDbg version that has been validated against the debugger, rather than the newest release.
 New WinDbg releases occasionally ship regressions that break the DbgEng/TTD adapter, so the default version is bumped only after the new release has been tested.
-To install a different released version, set `debugger.windbgVersion` in the settings before running the installer.
+
+#### Select the WinDbg Version to Install
+
+The version that the installer downloads is controlled by the `debugger.windbgVersion` setting:
+
+- In Binary Ninja, open the Settings view via the menu `Edit` -> `Settings`, or use the shortcut (Ctrl+,)
+- Search for `debugger.windbgVersion`
+- Set it to the version you wish to install, e.g., `1.2603.20001.0`
+    - Any released WinDbg version can be used, as long as Microsoft still hosts its MSIX bundle at
+      `https://windbg.download.prss.microsoft.com/dbazure/prod/<version-with-dashes>/windbg.msixbundle`
+    - Leave it at its default value unless you have a reason to use a different version
+- Click `Debugger` -> `Install WinDbg/TTD` to install the version you have set
 
 ### Reinstall WinDbg/TTD
 
