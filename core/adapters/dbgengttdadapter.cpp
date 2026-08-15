@@ -203,8 +203,14 @@ bool DbgEngTTDAdapter::Start()
 
 void DbgEngTTDAdapter::Reset()
 {
+	// The base class takes this lock so that Reset() cannot tear the interfaces down while EngineLoop()
+	// is still using them. This override has to do the same, otherwise a Reset() coming from a relaunch
+	// races the Reset() that EngineLoop() itself performs when the target exits. The mutex is recursive,
+	// so the EngineLoop() -> Reset() path does not deadlock.
+	std::unique_lock lock(m_engineLoopMutex);
+
 	m_aboutToBeKilled = false;
-	
+
 	// Clear TTD events cache when resetting
 	ClearTTDEventsCache();
 
@@ -217,6 +223,7 @@ void DbgEngTTDAdapter::Reset()
 	SAFE_RELEASE(this->m_debugDataSpaces);
 	SAFE_RELEASE(this->m_debugRegisters);
 	SAFE_RELEASE(this->m_debugSymbols);
+	SAFE_RELEASE(this->m_debugSystemObjects);
 	SAFE_RELEASE(this->m_dataModelManager);
 	SAFE_RELEASE(this->m_modelMgr);
 	SAFE_RELEASE(this->m_debugHost);
@@ -227,17 +234,6 @@ void DbgEngTTDAdapter::Reset()
 		this->m_debugClient->EndSession(DEBUG_END_PASSIVE);
 		m_server = 0;
 	}
-
-	// There seems to be an internal ref-counting issue in the DbgEng TTD engine, that the reference for the debug
-	// client is not properly freed after the target has exited. To properly free the debug client instance, here we
-	// are calling Release() a few more times to ensure the ref count goes down to 0. Luckily this would not cause
-	// a UAF or crash.
-	// This might be related to the weird behavior of not terminating the target when we call TerminateProcesses(),
-	// (see comment in `DbgEngTTDAdapter::Quit()`).
-	// The same issue is not observed when we do forward debugging using the regular DbgEng. Also, I cannot reproduce
-	// the issue using my script https://github.com/xusheng6/dbgeng_test.
-	for (size_t i = 0; i < 100; i++)
-		m_debugClient->Release();
 
 	SAFE_RELEASE(this->m_debugClient);
 

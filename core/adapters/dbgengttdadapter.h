@@ -104,10 +104,10 @@ namespace BinaryNinjaDebugger {
 		std::optional<TTDRegisterWriteEvent> ParseSingleTTDRegisterWriteObject(const std::string& expression, const std::string& reg);
 
 		// Data model interfaces for TTD
-		IHostDataModelAccess* m_dataModelManager;
-    	IDataModelManager* m_modelMgr;
-		IDebugHost* m_debugHost;
-		IDebugHostEvaluator* m_hostEvaluator;
+		IHostDataModelAccess* m_dataModelManager {nullptr};
+    	IDataModelManager* m_modelMgr {nullptr};
+		IDebugHost* m_debugHost {nullptr};
+		IDebugHostEvaluator* m_hostEvaluator {nullptr};
     };
 
     class DbgEngTTDAdapterType : public DebugAdapterType
