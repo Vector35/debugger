@@ -367,6 +367,23 @@ class DebuggerAPI(unittest.TestCase):
         self.assertEqual(dbg.ip, entry)
         dbg.quit_and_wait()
 
+    def test_remove_breakpoint_after_exit(self):
+        """Removing a logical breakpoint after DbgEng teardown must not call the backend."""
+        if self.adapter_type != 'DBGENG':
+            self.skipTest('Regression is specific to DbgEng teardown')
+
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        self.assertEqual(sleep_and_go(dbg), DebugStopReason.ProcessExited)
+
+        entry = dbg.data.entry_point
+        dbg.add_breakpoint(entry)
+        self.assertTrue(any(bp.address == entry for bp in dbg.breakpoints))
+        dbg.delete_breakpoint(entry)
+        self.assertFalse(any(bp.address == entry for bp in dbg.breakpoints))
+
     def test_breakpoint_condition(self):
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
