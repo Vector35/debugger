@@ -399,6 +399,28 @@ Writing to it will also cause the target's memory to change.
 
 The binary view can be accessed by the ``data`` property of the controller.
 
+Starting from 5.4.10157-dev (aba9ec4), when the debug adapter reports a memory map, these regions mirror it: one bounded
+region per mapped range, each with the target's page permissions, instead of a single region spanning the entire address
+space. They are listed as `debugger:<N>` in the Memory Map sidebar:
+
+![](../../img/debugger/memory_map_segments.png)
+
+This is what makes `Find` work while debugging: search only scans the ranges the binary view has backed, so bounded
+regions let it skip the unmapped gaps. A single region covering the whole 64-bit address space cannot bound a search, so
+search is disabled there.
+
+The regions are refreshed when the target stops, but only rebuilt if the map changed, and they are removed when the
+target exits or you detach. LLDB, DbgEng, Windows Native, GDB, and GDB MI report a memory map; adapters that do not keep
+using the single whole-address-space region.
+
+The `debugger.useMemoryMapSegments` setting (`Apply the target memory map as segments`, enabled by default) selects
+between the two models. Disable it to always use the single region, which is worth doing for a target with so many
+mappings that rebuilding them slows down each stop. It is read when the session starts, so a change applies to the next
+launch/attach.
+
+The map is also available from the API, see [Reading the Target Memory Map](#reading-the-target-memory-map).
+
+
 ## API
 
 The debugger exposes its functionality in both the Python and C++ APIs. The Python documentation can be accessed online, for [stable](https://api.binary.ninja/binaryninja.debugger.debuggercontroller-module.html)
@@ -797,6 +819,26 @@ controller.remove_all_loaded_symbols()
 ```
 
 The symbols are added as auto symbols and are tracked internally, so they can be removed cleanly and are cleared automatically when the target exits or you detach.
+
+### Reading the Target Memory Map
+
+The target's memory map -- every mapped range with its permissions -- is available from the controller. This is the map
+the debugger mirrors into the binary view, see [The Debugger Memory Region](#the-debugger-memory-region).
+
+```python
+from binaryninja.debugger import DebuggerController
+
+controller = DebuggerController(bv)
+# ... launch or attach, and stop the target ...
+
+# Refreshed when the target stops. Empty for adapters that do not report a memory map.
+for region in controller.memory_map:
+    perm = f"{'r' if region.read else '-'}{'w' if region.write else '-'}{'x' if region.execute else '-'}"
+    print(f"{region.start:#x}-{region.start + region.size:#x} {perm} {region.name}")
+```
+
+A region's `name` is its backing: a file path, a name such as `[stack]` or `[heap]` where the backend provides one, or
+empty for anonymous mappings.
 
 ### Listing Symbol At/Near an Address
 
