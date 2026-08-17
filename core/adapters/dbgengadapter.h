@@ -162,7 +162,9 @@ namespace BinaryNinjaDebugger {
 		bool m_aboutToBeKilled = false;
 
 		// Raised by Quit() so that EngineLoop() performs the terminate on the thread that owns the
-		// debug client. See TerminateTargetOnEngineThread().
+		// debug client. See TerminateTargetOnEngineThread(). EngineLoop() clears it when a session
+		// starts, since the adapter object outlives a session and an unserviced request would
+		// otherwise be latched into the next one.
 		std::atomic<bool> m_terminateRequested {false};
 
         std::string m_pdbFileName {};
