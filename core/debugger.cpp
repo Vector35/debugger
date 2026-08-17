@@ -159,8 +159,8 @@ static void RegisterSettings()
 		R"({
 			"title" : "Apply the target memory map as segments",
 			"type" : "boolean",
-			"default" : true,
-			"description" : "When enabled and the debug adapter reports a memory map, the debugger mirrors it into the binary view as one bounded segment per mapped region, which lets Find work during debugging (it only scans mapped memory). When disabled, the debugger falls back to a single overlay spanning the whole address space (the previous behavior). Adapters that do not report a memory map always use the overlay.",
+			"default" : false,
+			"description" : "When enabled and the debug adapter reports a memory map, the debugger mirrors it into the binary view as one bounded segment per mapped region, which lets Find work during debugging (it only scans mapped memory). This is off by default because querying the memory map on every stop is slow with adapters that report one region per request, e.g., LLDB. When disabled, the debugger uses a single overlay spanning the whole address space. Adapters that do not report a memory map always use the overlay.",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
 

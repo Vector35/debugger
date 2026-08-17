@@ -399,9 +399,10 @@ Writing to it will also cause the target's memory to change.
 
 The binary view can be accessed by the ``data`` property of the controller.
 
-Starting from 5.4.10157-dev (aba9ec4), when the debug adapter reports a memory map, these regions mirror it: one bounded
-region per mapped range, each with the target's page permissions, instead of a single region spanning the entire address
-space. They are listed as `debugger:<N>` in the Memory Map sidebar:
+Starting from 5.4.10157-dev (aba9ec4), the debugger can instead mirror the memory map reported by the debug adapter: one
+bounded region per mapped range, each with the target's page permissions, instead of a single region spanning the entire
+address space. This is opt-in via the `debugger.useMemoryMapSegments` setting described below. When it is on, the regions
+are listed as `debugger:<N>` in the Memory Map sidebar:
 
 ![](../../img/debugger/memory_map_segments.png)
 
@@ -413,10 +414,11 @@ The regions are refreshed when the target stops, but only rebuilt if the map cha
 target exits or you detach. LLDB, DbgEng, Windows Native, GDB, and GDB MI report a memory map; adapters that do not keep
 using the single whole-address-space region.
 
-The `debugger.useMemoryMapSegments` setting (`Apply the target memory map as segments`, enabled by default) selects
-between the two models. Disable it to always use the single region, which is worth doing for a target with so many
-mappings that rebuilding them slows down each stop. It is read when the session starts, so a change applies to the next
-launch/attach.
+The `debugger.useMemoryMapSegments` setting (`Apply the target memory map as segments`, disabled by default) selects
+between the two models. It is off by default because some adapters, notably LLDB, answer a memory map query with one
+round trip per region, which makes pulling the map on every stop noticeably slow. Enable it if you need `Find` while
+debugging and your target's map is small enough that rebuilding it does not slow down each stop. It is read when the
+session starts, so a change applies to the next launch/attach.
 
 The map is also available from the API, see [Reading the Target Memory Map](#reading-the-target-memory-map).
 
