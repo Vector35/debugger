@@ -118,7 +118,7 @@ namespace BinaryNinjaDebugger {
 		// Cached "debugger.useMemoryMapSegments" setting, sampled once when the debugger view is created
 		// (SyncMemoryRegions runs on every stop, so we do not want to hit Settings each time). When false,
 		// the debugger keeps the old blanket overlay instead of mirroring the backend memory map.
-		bool m_useMemoryMapSegments = true;
+		bool m_useMemoryMapSegments = false;
 		// This is the start address of the first file segments in the m_data. Unlike the return value of GetStart(),
 		// this does not change even if we add the debugger memory region. In the future, this should be provided by
 		// the binary view -- we will no longer need to track it ourselves
