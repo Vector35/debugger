@@ -135,6 +135,28 @@ static void RegisterSettings()
 			"enumDescriptions" : ["Windows Native - lightweight native Windows debug API adapter", "DbgEng - Windows Debugger Engine (WinDbg) based adapter"],
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
+
+	// Registered here rather than in the UI because extraction is driven from the Python
+	// API too, and a headless script has to be able to configure it.
+	settings->RegisterSetting("debugger.ttdBehaviorExtractorPath",
+		R"({
+			"title" : "TTD Behavior Extractor Path",
+			"type" : "string",
+			"default" : "",
+			"description" : "Path of the executable that extracts Windows API calls from a TTD trace. Leave empty to use the one shipped with the debugger; set it to run a build of your own.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
+
+	settings->RegisterSetting("debugger.ttdBehaviorMaxBuffer",
+		R"({
+			"title" : "TTD Behavior Buffer Capture Limit",
+			"type" : "number",
+			"default" : 65536,
+			"minValue" : 0,
+			"maxValue" : 16777216,
+			"description" : "Bytes to keep from any one buffer parameter when extracting API calls from a TTD trace. Buffers longer than this are captured as a prefix and marked as truncated. Buffer parameters are a small fraction of the calls in a typical trace, so this has far less effect on report size than it appears.",
+			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
+			})");
 #endif
 
 	settings->RegisterSetting("debugger.stackVariableAnnotations",

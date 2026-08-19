@@ -219,6 +219,17 @@ if (WIN32)
 			"${PROJECT_SOURCE_DIR}/adapters/dbgeng/"
 			${LIBRARY_OUTPUT_DIRECTORY_PATH}/dbgeng
 		)
+
+	# The TTD Behavior sidebar shells out to this rather than linking it in. Built by
+	# CI from Vector35/ttd-capa; see ttd-extract/README.md, whose footer records the exact
+	# commit. The executable reads win32-index.bin from beside itself, so the folder is
+	# copied whole.
+	add_custom_command(TARGET debuggercore PRE_LINK
+		COMMAND ${CMAKE_COMMAND} -E echo "Copying TTD behavior extractor"
+		COMMAND ${CMAKE_COMMAND} -E copy_directory
+			"${PROJECT_SOURCE_DIR}/ttd-extract/"
+			${LIBRARY_OUTPUT_DIRECTORY_PATH}/ttd-extract
+		)
 endif()
 
 if(APPLE)

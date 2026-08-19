@@ -645,6 +645,11 @@ See [Time Travel Debugging Guide (Windows)](dbgeng-ttd.md)
 
 See [Time Travel Debugging Guide (Linux)](gdbrsp-ttd.md)
 
+### TTD Behavior
+
+See [TTD Behavior Guide](ttd-behavior.md) for extracting and querying the Windows API calls
+a TTD trace made.
+
 ### Windows Kernel Debugging
 
 See [Windows Kernel Debugging Guide](windows-kd.md)
