@@ -39,6 +39,7 @@ using namespace std;
 enum ColumnHeaders
 {
 	ExprColumn,
+	StorageColumn,  // Moved to second position
 	ValueColumn,
 	HintColumn,
 };
@@ -52,9 +53,12 @@ struct DebuggerInfoEntry
 	size_t instrIndex;
 	size_t operandIndex;
 	uint64_t address;
+	uint64_t storageAddress;  // For stack entries, this will be the actual stack address
+	bool isStackEntry;        // Flag to identify stack entries
 
 	DebuggerInfoEntry(const std::vector<InstructionTextToken>& t, intx::uint512 v, const std::string& h, size_t i, size_t o,
-					  uint64_t a): tokens(t), value(v), hints(h), instrIndex(i), operandIndex(o), address(a)
+					  uint64_t a, uint64_t sa = 0, bool stack = false): 
+		tokens(t), value(v), hints(h), instrIndex(i), operandIndex(o), address(a), storageAddress(sa), isStackEntry(stack)
 	{}
 };
 
@@ -112,6 +116,8 @@ Q_OBJECT;
 
 	BinaryViewRef m_data;
 	DebuggerControllerRef m_debugger;
+	int m_stackEntryCount;  // Number of stack entries to display
+	ViewLocation m_currentLocation;  // Store current location for context menu updates
 
 	std::vector<DebuggerInfoEntry> getILInfoEntries(const ViewLocation& location);
 	std::vector<DebuggerInfoEntry> getInfoForLLIL(LowLevelILFunctionRef llil, const LowLevelILInstruction& instr);
@@ -126,10 +132,17 @@ Q_OBJECT;
 	std::vector<DebuggerInfoEntry> getInfoForHLILCalls(HighLevelILFunctionRef hlil, const HighLevelILInstruction& instr);
 	std::vector<DebuggerInfoEntry> getInfoForHLILConditions(HighLevelILFunctionRef hlil, const HighLevelILInstruction& instr);
 
+	std::vector<DebuggerInfoEntry> getStackInfo(const ViewLocation& location);
+
 	void updateColumnWidths();
 
+protected:
+	virtual void contextMenuEvent(QContextMenuEvent* event) override;
+
 private slots:
-	void onDoubleClicked();
+	void onDoubleClicked(const QModelIndex& index);
+	void increaseStackEntries();
+	void decreaseStackEntries();
 
 public:
 	DebuggerInfoTable(BinaryViewRef data);
