@@ -5,11 +5,13 @@
 import os
 import sys
 import time
+import socket
 import platform
 import threading
 import subprocess
 import unittest
 
+import binaryninja
 from binaryninja import load, Settings
 try:
     from debugger import DebuggerController, DebugStopReason, DebugBreakpointType
@@ -52,6 +54,43 @@ def is_wow64(fpath):
         return False
     a, b = platform.architecture()
     return a == '64bit' and b.startswith('Windows')
+
+
+def find_local_lldb_debug_server():
+    """Locate the copy of debugserver (macOS) or lldb-server (Linux) that ships alongside this
+    debugger build, so remote debugging tests can spin up a real gdb-remote-protocol stub
+    without depending on anything installed on the host or reaching out to a real network."""
+    lldb_bin_dir = os.path.join(binaryninja.bundled_plugin_path(), 'lldb', 'bin')
+    name = 'debugserver' if platform.system() == 'Darwin' else 'lldb-server'
+    path = os.path.join(lldb_bin_dir, name)
+    return path if os.path.isfile(path) else None
+
+
+def find_local_dbgsrv(arch):
+    """Locate the copy of dbgsrv.exe that ships alongside this debugger build (Windows only),
+    for the given target architecture ('x86' or 'x86_64')."""
+    dbgeng_arch = 'x86' if arch == 'x86' else 'amd64'
+    path = os.path.join(binaryninja.bundled_plugin_path(), 'dbgeng', dbgeng_arch, 'dbgsrv.exe')
+    return path if os.path.isfile(path) else None
+
+
+def free_loopback_port():
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('127.0.0.1', 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def loopback_port_is_free(port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind(('127.0.0.1', port))
+        return True
+    except OSError:
+        return False
+    finally:
+        s.close()
 
 
 def sleep_and_go(dbg):
@@ -651,6 +690,170 @@ class DebuggerAPI(unittest.TestCase):
         self.assertGreater(len(dbg.regs), 0)
 
         dbg.quit_and_wait()
+
+    def test_remote_debugging(self):
+        # Start a real debug server locally and connect to it exactly as we would for a real
+        # remote target -- just with the "remote" host being 127.0.0.1 -- so no external box
+        # or external networking is required. The mechanism is adapter-specific.
+        if self.adapter_type == 'LLDB':
+            self._remote_debugging_lldb()
+        elif self.adapter_type == 'DBGENG':
+            self._remote_debugging_dbgeng()
+        else:
+            self.skipTest(f'Remote debugging test not implemented for the {self.adapter_type} adapter')
+
+    @staticmethod
+    def _cleanup_server_process(server):
+        if server.poll() is None:
+            server.terminate()
+            try:
+                server.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                server.kill()
+                server.wait(timeout=5)
+
+    def _remote_debugging_lldb(self):
+        # Spin up a real gdb-remote-protocol debug stub (debugserver on macOS, lldb-server on
+        # Linux) listening on loopback only, then connect to it with the LLDB adapter's
+        # remote_host/remote_port + connect_and_wait(), exercising the actual "remote process"
+        # debugging code path.
+        server_path = find_local_lldb_debug_server()
+        if server_path is None:
+            self.skipTest('debugserver/lldb-server was not found alongside this build; build '
+                           'with BUILD_DEBUGGER_TEST_BINARIES to get the bundled LLDB tools')
+
+        fpath = name_to_fpath('helloworld', self.arch)
+        port = free_loopback_port()
+
+        if platform.system() == 'Darwin':
+            server_cmd = [server_path, f'127.0.0.1:{port}', fpath]
+        else:
+            server_cmd = [server_path, 'gdbserver', f'127.0.0.1:{port}', '--', fpath]
+
+        server = subprocess.Popen(server_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        self.addCleanup(self._cleanup_server_process, server)
+
+        bv = load(fpath)
+        dbg = DebuggerController(bv)
+        dbg.adapter_type = 'LLDB'
+        dbg.remote_host = '127.0.0.1'
+        dbg.remote_port = port
+        self.addCleanup(lambda: dbg.quit_and_wait() if dbg.connected else None)
+
+        # The debug stub only accepts a single incoming connection, so we can't probe
+        # readiness with a throwaway socket first -- that would itself consume the one accept
+        # slot and make the real connection attempt below fail. Instead just retry the real
+        # connect_and_wait() call until the stub is ready to accept it.
+        reason = DebugStopReason.InternalError
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            poll_result = server.poll()
+            if poll_result is not None:
+                self.fail(f'debug server exited early with code {poll_result}: {server.stdout.read()}')
+            reason = dbg.connect_and_wait()
+            if reason != DebugStopReason.InternalError:
+                break
+            time.sleep(0.1)
+        self.assertNotEqual(reason, DebugStopReason.InternalError, 'failed to connect to the local debug server')
+        self.assertNotEqual(reason, DebugStopReason.ProcessExited)
+        self.assertGreater(len(dbg.regs), 0)
+
+        # Unlike a plain local launch_and_wait(), debugger.stopAtEntryPoint's auto-injected
+        # breakpoint isn't reliable here -- confirmed on real x64 macOS CI, go_and_wait() ran
+        # straight to ProcessExited instead of hitting it (likely a race between the injected
+        # breakpoint resolving and the already-launched process resuming, specific to attaching
+        # to an external process rather than driving the launch ourselves). So set our own
+        # breakpoint explicitly instead of depending on that auto-injection.
+        entry = dbg.data.entry_point
+        dbg.delete_breakpoint(entry)  # in case stopAtEntryPoint already placed one here
+        dbg.add_breakpoint(entry)
+        reason = dbg.go_and_wait()
+        self.assertEqual(reason, DebugStopReason.Breakpoint)
+        self.assertEqual(dbg.ip, entry)
+
+        # exercise memory read/write over the remote connection
+        addr = dbg.ip + 10
+        data = dbg.read_memory(addr, 256)
+        data2 = b'\xAA' * 256
+        dbg.write_memory(addr, data2)
+        self.assertEqual(dbg.read_memory(addr, 256), data2)
+        dbg.write_memory(addr, data)
+        self.assertEqual(dbg.read_memory(addr, 256), data)
+
+        # clear the entry breakpoint and let the process run to completion
+        for bp in list(dbg.breakpoints):
+            dbg.delete_breakpoint(bp.address)
+        reason = dbg.go_and_wait()
+        self.assertEqual(reason, DebugStopReason.ProcessExited)
+
+    def _remote_debugging_dbgeng(self):
+        # Spin up dbgsrv.exe locally, listening on loopback only, then connect to it with the
+        # DbgEng adapter's "debug server" flow (DbgEng has no remote-process mode -- Connect()
+        # is unimplemented -- ConnectToDebugServer() + launch is the only remote path it
+        # supports), exercising the actual remote debugging code path.
+        if platform.system() != 'Windows':
+            self.skipTest('DbgEng remote debugging test only runs on Windows')
+
+        server_path = find_local_dbgsrv(self.arch)
+        if server_path is None:
+            self.skipTest('dbgsrv.exe was not found alongside this build; build with '
+                           'BUILD_DEBUGGER_TEST_BINARIES to get the bundled DbgEng tools')
+
+        # Settings instances that a plugin registers by name in C++ (Settings::Instance("...")),
+        # like DbgEngAdapterSettings here, are not visible through Python's Settings(name) --
+        # confirmed by testing the analogous LLDBAdapterSettings registry locally: even after a
+        # real, successful debug session (adapter fully constructed and used), Python's
+        # Settings('LLDBAdapterSettings').contains(...) still reports the keys as unregistered,
+        # while the C++ side (e.g. the remote_host/remote_port getters) reads them correctly.
+        # So debugServer.ipAddress/debugServer.port can't be overridden from Python at all --
+        # just point dbgsrv.exe at DbgEngAdapterSettings' own schema defaults (127.0.0.1:31337)
+        # and let ConnectToDebugServer() use them unmodified.
+        port = 31337
+        if not loopback_port_is_free(port):
+            self.skipTest(f'port {port} (dbgsrv.exe default) is already in use on this machine')
+
+        fpath = name_to_fpath('helloworld', self.arch)
+
+        server = subprocess.Popen([server_path, '-t', f'tcp:port={port},server=127.0.0.1'],
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        self.addCleanup(self._cleanup_server_process, server)
+
+        bv = load(fpath)
+        dbg = DebuggerController(bv)
+        dbg.adapter_type = 'DBGENG'
+        dbg.executable_path = fpath
+
+        def cleanup_dbg():
+            if dbg.connected:
+                dbg.quit_and_wait()
+            # a no-op if we never successfully connected
+            dbg.disconnect_from_debug_server()
+        self.addCleanup(cleanup_dbg)
+
+        self.assertTrue(dbg.connect_to_debug_server(), 'failed to connect to the local dbgsrv.exe debug server')
+
+        reason = dbg.launch_and_wait()
+        self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        self.assertGreater(len(dbg.regs), 0)
+
+        # debugger.stopAtEntryPoint means launch_and_wait() should already be stopped at entry
+        entry = dbg.data.entry_point
+        self.assertEqual(dbg.ip, entry)
+
+        # exercise memory read/write over the remote connection
+        addr = dbg.ip + 10
+        data = dbg.read_memory(addr, 256)
+        data2 = b'\xAA' * 256
+        dbg.write_memory(addr, data2)
+        self.assertEqual(dbg.read_memory(addr, 256), data2)
+        dbg.write_memory(addr, data)
+        self.assertEqual(dbg.read_memory(addr, 256), data)
+
+        # clear the entry breakpoint and let the process run to completion
+        for bp in list(dbg.breakpoints):
+            dbg.delete_breakpoint(bp.address)
+        reason = dbg.go_and_wait()
+        self.assertEqual(reason, DebugStopReason.ProcessExited)
 
 
 @unittest.skipIf(platform.machine() not in ['arm64', 'aarch64'], "Only run arm64 tests on arm Mac or Linux")
