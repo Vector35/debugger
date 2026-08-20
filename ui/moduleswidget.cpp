@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "../../../ui/shared/internalaction.h"
 #include <QPainter>
 #include <QHeaderView>
 #include <QGuiApplication>
@@ -295,6 +296,9 @@ QSize DebugModulesItemDelegate::sizeHint(const QStyleOptionViewItem& option, con
 
 DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : QTableView(view), m_view(view)
 {
+	setProperty("bn.uiTestId", "debugger.modules.table");
+	setProperty("bn.uiTestScope", "debugger.modules.table");
+	setAccessibleName("Debugger modules");
 	m_controller = DebuggerController::GetController(data);
 	if (!m_controller)
 		return;
@@ -326,12 +330,12 @@ DebugModulesWidget::DebugModulesWidget(ViewFrame* view, BinaryViewRef data) : QT
 	m_contextMenuManager = new ContextMenuManager(this);
 
 	QString actionName = QString::fromStdString("Jump To Start");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpToStart(); }));
 
 	actionName = QString::fromStdString("Jump To End");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpToEnd(); }));
 
@@ -742,8 +746,13 @@ void DebugModulesWidget::activateSelection() {}
 
 DebugModulesWithFilter::DebugModulesWithFilter(ViewFrame* view, BinaryViewRef data) : m_view(view)
 {
+	setProperty("bn.uiTestId", "debugger.modules");
+	setProperty("bn.uiTestScope", "debugger.modules");
+	setAccessibleName("Debugger Modules");
 	m_modules = new DebugModulesWidget(view, data);
 	m_separateEdit = new FilterEdit(m_modules);
+	m_separateEdit->setProperty("bn.uiTestId", "debugger.modules.filter");
+	m_separateEdit->setAccessibleName("Search debugger modules");
 	m_separateEdit->showRegexToggle(true);
 	m_filter = new FilteredView(this, m_modules, m_modules, m_separateEdit);
 	m_filter->setFilterPlaceholderText("Search modules");
@@ -758,6 +767,8 @@ DebugModulesWithFilter::DebugModulesWithFilter(ViewFrame* view, BinaryViewRef da
 	headerLayout->setAlignment(Qt::AlignBaseline);
 
 	auto* icon = new ClickableIcon(QImage(":/debugger/menu"), QSize(16, 16));
+	icon->setProperty("bn.uiTestId", "debugger.modules.menu");
+	icon->setAccessibleName("Debugger modules menu");
 	connect(icon, &ClickableIcon::clicked, m_modules, &DebugModulesWidget::showContextMenu);
 	headerLayout->addWidget(icon);
 
@@ -776,6 +787,9 @@ void DebugModulesWithFilter::updateFonts()
 
 DebugModulesContainer::DebugModulesContainer(ViewFrame* frame, BinaryViewRef data) : SidebarWidget("Debugger Modules")
 {
+	setProperty("bn.uiTestId", "sidebar.debuggerModules");
+	setProperty("bn.uiTestScope", "sidebar.debuggerModules");
+	setAccessibleName("Debugger Modules");
 	m_widget = new DebugModulesWithFilter(frame, data);
 
 	auto* layout = new QVBoxLayout(this);

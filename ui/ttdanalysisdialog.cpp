@@ -96,6 +96,9 @@ void TTDAnalysisWorker::run()
 TTDAnalysisDialog::TTDAnalysisDialog(UIContext* context, BinaryViewRef data, QWidget* parent)
 	: QDialog(parent), m_context(context), m_data(data), m_currentWorker(nullptr)
 {
+	setProperty("bn.uiTestId", "ttd.analysisDialog");
+	setProperty("bn.uiTestScope", "ttd.analysisDialog");
+	setAccessibleName("TTD analysis");
 	m_controller = DebuggerController::GetController(data);
 
 	setWindowTitle("TTD Analysis");
@@ -134,6 +137,8 @@ void TTDAnalysisDialog::setupUI()
 	QVBoxLayout* selectionLayout = new QVBoxLayout(selectionGroup);
 
 	m_analysisTypeCombo = new QComboBox();
+	m_analysisTypeCombo->setProperty("bn.uiTestId", "ttd.analysisDialog.analysisType");
+	m_analysisTypeCombo->setAccessibleName("TTD analysis type");
 	m_analysisTypeCombo->addItem("Code Coverage", static_cast<int>(TTDAnalysisType::CodeCoverage));
 	// Future analysis types can be added here
 	selectionLayout->addWidget(m_analysisTypeCombo);
@@ -151,6 +156,8 @@ void TTDAnalysisDialog::setupUI()
 	QVBoxLayout* listLayout = new QVBoxLayout(listGroup);
 
 	m_analysisListWidget = new QListWidget();
+	m_analysisListWidget->setProperty("bn.uiTestId", "ttd.analysisDialog.analyses");
+	m_analysisListWidget->setAccessibleName("Available TTD analyses");
 	listLayout->addWidget(m_analysisListWidget);
 
 	contentSplitter->addWidget(listGroup);
@@ -160,6 +167,8 @@ void TTDAnalysisDialog::setupUI()
 	QVBoxLayout* detailsLayout = new QVBoxLayout(detailsGroup);
 
 	m_analysisDetailsText = new QTextEdit();
+	m_analysisDetailsText->setProperty("bn.uiTestId", "ttd.analysisDialog.details");
+	m_analysisDetailsText->setAccessibleName("TTD analysis details");
 	m_analysisDetailsText->setReadOnly(true);
 	detailsLayout->addWidget(m_analysisDetailsText);
 
@@ -173,9 +182,12 @@ void TTDAnalysisDialog::setupUI()
 	QVBoxLayout* statusLayout = new QVBoxLayout(statusGroup);
 
 	m_statusLabel = new QLabel("Ready");
+	m_statusLabel->setProperty("bn.uiTestId", "ttd.analysisDialog.status");
 	statusLayout->addWidget(m_statusLabel);
 
 	m_progressBar = new QProgressBar();
+	m_progressBar->setProperty("bn.uiTestId", "ttd.analysisDialog.progress");
+	m_progressBar->setAccessibleName("TTD analysis progress");
 	m_progressBar->setVisible(false);
 	statusLayout->addWidget(m_progressBar);
 
@@ -186,18 +198,23 @@ void TTDAnalysisDialog::setupUI()
 	QVBoxLayout* rangeLayout = new QVBoxLayout(rangeGroup);
 
 	m_useRangeCheckBox = new QCheckBox("Specify address range for analysis");
+	m_useRangeCheckBox->setProperty("bn.uiTestId", "ttd.analysisDialog.useRange");
 	m_useRangeCheckBox->setChecked(true);
 	rangeLayout->addWidget(m_useRangeCheckBox);
 
 	QHBoxLayout* rangeControlsLayout = new QHBoxLayout();
 	rangeControlsLayout->addWidget(new QLabel("Start Address:"));
 	m_startAddressEdit = new QLineEdit();
+	m_startAddressEdit->setProperty("bn.uiTestId", "ttd.analysisDialog.startAddress");
+	m_startAddressEdit->setAccessibleName("TTD analysis start address");
 	m_startAddressEdit->setText(QString("0x") + QString::number(m_data->GetImageBase(), 16));
 	m_startAddressEdit->setEnabled(true);
 	rangeControlsLayout->addWidget(m_startAddressEdit);
 
 	rangeControlsLayout->addWidget(new QLabel("End Address:"));
 	m_endAddressEdit = new QLineEdit();
+	m_endAddressEdit->setProperty("bn.uiTestId", "ttd.analysisDialog.endAddress");
+	m_endAddressEdit->setAccessibleName("TTD analysis end address");
 	// TODO: hack for demo, should read the modules info from the debugger
 	m_endAddressEdit->setText(QString("0x") + QString::number(m_data->GetImageBase() + 0x7000, 16));
 	m_endAddressEdit->setEnabled(true);
@@ -211,12 +228,16 @@ void TTDAnalysisDialog::setupUI()
 	QHBoxLayout* timeControlsLayout = new QHBoxLayout();
 	timeControlsLayout->addWidget(new QLabel("Start Time:"));
 	m_startTimeEdit = new QLineEdit();
+	m_startTimeEdit->setProperty("bn.uiTestId", "ttd.analysisDialog.startTime");
+	m_startTimeEdit->setAccessibleName("TTD analysis start time");
 	//set text to starting position
 	m_startTimeEdit->setEnabled(true);
 	timeControlsLayout->addWidget(m_startTimeEdit);
 
 	timeControlsLayout->addWidget(new QLabel("End Time:"));
 	m_endTimeEdit = new QLineEdit();
+	m_endTimeEdit->setProperty("bn.uiTestId", "ttd.analysisDialog.endTime");
+	m_endTimeEdit->setAccessibleName("TTD analysis end time");
 	//set text to ending position
 	m_endTimeEdit->setEnabled(true);
 	timeControlsLayout->addWidget(m_endTimeEdit);
@@ -236,16 +257,20 @@ void TTDAnalysisDialog::setupUI()
 	QVBoxLayout* cacheLayout = new QVBoxLayout(cacheGroup);
 
 	m_autoCacheCheckBox = new QCheckBox("Automatically cache results");
+	m_autoCacheCheckBox->setProperty("bn.uiTestId", "ttd.analysisDialog.automaticCache");
 	m_autoCacheCheckBox->setChecked(true);
 	cacheLayout->addWidget(m_autoCacheCheckBox);
 
 	QHBoxLayout* cachePathLayout = new QHBoxLayout();
 	cachePathLayout->addWidget(new QLabel("Cache Directory:"));
 	m_cachePathEdit = new QLineEdit();
+	m_cachePathEdit->setProperty("bn.uiTestId", "ttd.analysisDialog.cachePath");
+	m_cachePathEdit->setAccessibleName("TTD analysis cache directory");
 	m_cachePathEdit->setText(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/ttd_analysis");
 	cachePathLayout->addWidget(m_cachePathEdit);
 
 	m_browseCacheButton = new QPushButton("Browse...");
+	m_browseCacheButton->setProperty("bn.uiTestId", "ttd.analysisDialog.browseCache");
 	connect(m_browseCacheButton, &QPushButton::clicked, [this]() {
 		QString dir = QFileDialog::getExistingDirectory(this, "Select Cache Directory", m_cachePathEdit->text());
 		if (!dir.isEmpty())
@@ -261,22 +286,27 @@ void TTDAnalysisDialog::setupUI()
 	buttonLayout->addStretch();
 
 	m_runButton = new QPushButton("Run Analysis");
+	m_runButton->setProperty("bn.uiTestId", "ttd.analysisDialog.run");
 	connect(m_runButton, &QPushButton::clicked, this, &TTDAnalysisDialog::onRunAnalysis);
 	buttonLayout->addWidget(m_runButton);
 
 	m_saveButton = new QPushButton("Save Results");
+	m_saveButton->setProperty("bn.uiTestId", "ttd.analysisDialog.save");
 	connect(m_saveButton, &QPushButton::clicked, this, &TTDAnalysisDialog::onSaveResults);
 	buttonLayout->addWidget(m_saveButton);
 
 	m_loadButton = new QPushButton("Load Results");
+	m_loadButton->setProperty("bn.uiTestId", "ttd.analysisDialog.load");
 	connect(m_loadButton, &QPushButton::clicked, this, &TTDAnalysisDialog::onLoadResults);
 	buttonLayout->addWidget(m_loadButton);
 
 	m_clearCacheButton = new QPushButton("Clear Cache");
+	m_clearCacheButton->setProperty("bn.uiTestId", "ttd.analysisDialog.clearCache");
 	connect(m_clearCacheButton, &QPushButton::clicked, this, &TTDAnalysisDialog::onClearCache);
 	buttonLayout->addWidget(m_clearCacheButton);
 
 	QPushButton* closeButton = new QPushButton("Close");
+	closeButton->setProperty("bn.uiTestId", "ttd.analysisDialog.close");
 	connect(closeButton, &QPushButton::clicked, this, &QDialog::accept);
 	buttonLayout->addWidget(closeButton);
 

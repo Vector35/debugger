@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "../../../ui/shared/internalaction.h"
 #include <QPainter>
 #include <QHeaderView>
 #include <QLineEdit>
@@ -421,6 +422,9 @@ void DebugRegistersWidget::updateColumnWidths()
 DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, Menu* menu) :
 	QTableView(view), m_view(view)
 {
+	setProperty("bn.uiTestId", "debugger.registers.table");
+	setProperty("bn.uiTestScope", "debugger.registers.table");
+	setAccessibleName("Debugger registers");
 	m_controller = DebuggerController::GetController(data);
 	if (!m_controller)
 		return;
@@ -455,46 +459,46 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	m_menu = menu;
 
 	QString actionName = QString::fromStdString("Set to Zero");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { setToZero(); }, [this]() { return selectionNotEmpty(); }));
 
 	actionName = QString::fromStdString("Edit Value");
-	UIAction::registerAction(actionName, QKeySequence(Qt::Key_E));
+	UIIdentity::registerBuiltInAction(actionName, QKeySequence(Qt::Key_E));
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { editValue(); }, [this]() {
 		return selectionModel()->selectedRows().size() == 1;
 	}));
 
 	actionName = QString::fromStdString("Go to Previous Write");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu->addAction(actionName, "TTD", MENU_ORDER_FIRST);
 	m_menu->setGroupOrdering("TTD", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName,
 		UIAction([this]() { goToPrevRegisterWrite(); }, [this]() { return ttdSingleRegisterSelected(); }));
 
 	actionName = QString::fromStdString("Go to Next Write");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu->addAction(actionName, "TTD", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName,
 		UIAction([this]() { goToNextRegisterWrite(); }, [this]() { return ttdSingleRegisterSelected(); }));
 
 	actionName = QString::fromStdString("Jump to Address");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { jump(); }, [this]() {
 		return selectionModel()->selectedRows().size() == 1;
 	}));
 
 	actionName = QString::fromStdString("Jump to Address in New Pane");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpInNewPane(); }, [this]() {
 		return selectionModel()->selectedRows().size() == 1;
 	}));
 
 	actionName = QString::fromStdString("Open Each in New Pane");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu->addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpEachInNewPane(); }, [this]() {
 		return selectionModel()->selectedRows().size() > 1;
@@ -526,7 +530,8 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	});
 
 	actionName = QString::fromStdString("Copy Row");
-	UIAction::registerAction(actionName, QKeySequence(Qt::ControlModifier | Qt::ShiftModifier | Qt::Key_C));
+	UIIdentity::registerBuiltInAction(
+		actionName, QKeySequence(Qt::ControlModifier | Qt::ShiftModifier | Qt::Key_C));
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { copyRows(); }, [this]() { return selectionNotEmpty(); }));
 	m_actionHandler.setActionDisplayName(actionName, [this]() {
@@ -538,12 +543,12 @@ DebugRegistersWidget::DebugRegistersWidget(ViewFrame* view, BinaryViewRef data, 
 	m_actionHandler.bindAction("Paste", UIAction([this]() { paste(); }, [this]() { return canPaste(); }));
 
 	actionName = QString::fromStdString("Select All");
-	UIAction::registerAction(actionName, QKeySequence(Qt::ControlModifier | Qt::Key_A));
+	UIIdentity::registerBuiltInAction(actionName, QKeySequence(Qt::ControlModifier | Qt::Key_A));
 	m_menu->addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { selectAll(); }));
 
 	actionName = QString::fromStdString("Hide Unused Registers");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 
 	m_menu->addAction(actionName, "Display", MENU_ORDER_NORMAL);
 	m_menu->setGroupOrdering("Display", MENU_ORDER_LAST);
@@ -1033,8 +1038,13 @@ void DebugRegistersWidget::activateSelection() {}
 
 DebugRegistersContainer::DebugRegistersContainer(ViewFrame* view, BinaryViewRef data, Menu* menu) : m_view(view)
 {
+	setProperty("bn.uiTestId", "debugger.registers");
+	setProperty("bn.uiTestScope", "debugger.registers");
+	setAccessibleName("Debugger Registers");
 	m_register = new DebugRegistersWidget(view, data, menu);
 	m_separateEdit = new FilterEdit(m_register);
+	m_separateEdit->setProperty("bn.uiTestId", "debugger.registers.filter");
+	m_separateEdit->setAccessibleName("Search debugger registers");
 	m_separateEdit->showRegexToggle(true);
 	m_filter = new FilteredView(this, m_register, m_register, m_separateEdit);
 	m_filter->setFilterPlaceholderText("Search registers");
@@ -1049,6 +1059,8 @@ DebugRegistersContainer::DebugRegistersContainer(ViewFrame* view, BinaryViewRef 
 	headerLayout->setAlignment(Qt::AlignBaseline);
 
 	ClickableIcon* icon = new ClickableIcon(QImage(":/debugger/menu"), QSize(16, 16));
+	icon->setProperty("bn.uiTestId", "debugger.registers.menu");
+	icon->setAccessibleName("Debugger registers menu");
 	connect(icon, &ClickableIcon::clicked, m_register, &DebugRegistersWidget::showContextMenu);
 	headerLayout->addWidget(icon);
 

@@ -33,6 +33,9 @@ TTDBookmarkEditDialog::TTDBookmarkEditDialog(QWidget* parent, const QString& pos
 	const QString& viewAddress)
 	: QDialog(parent)
 {
+	setProperty("bn.uiTestId", "ttd.bookmarkEditDialog");
+	setProperty("bn.uiTestScope", "ttd.bookmarkEditDialog");
+	setAccessibleName(position.isEmpty() ? "Add TTD Bookmark" : "Edit TTD Bookmark");
 	setWindowTitle(position.isEmpty() ? "Add TTD Bookmark" : "Edit TTD Bookmark");
 	setModal(true);
 	setMinimumWidth(500);
@@ -42,19 +45,28 @@ TTDBookmarkEditDialog::TTDBookmarkEditDialog(QWidget* parent, const QString& pos
 	layout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
 	m_positionEdit = new QLineEdit(position);
+	m_positionEdit->setProperty("bn.uiTestId", "ttd.bookmarkEditDialog.position");
+	m_positionEdit->setAccessibleName("TTD bookmark position");
 	m_positionEdit->setPlaceholderText("sequence:step (hex), e.g. 1a0:12f");
 	layout->addRow("Position:", m_positionEdit);
 
 	m_viewAddressEdit = new QLineEdit(viewAddress);
+	m_viewAddressEdit->setProperty("bn.uiTestId", "ttd.bookmarkEditDialog.viewAddress");
+	m_viewAddressEdit->setAccessibleName("TTD bookmark view address");
 	m_viewAddressEdit->setPlaceholderText("View address (hex, optional)");
 	layout->addRow("View Address:", m_viewAddressEdit);
 
 	m_noteEdit = new QLineEdit(note);
+	m_noteEdit->setProperty("bn.uiTestId", "ttd.bookmarkEditDialog.note");
+	m_noteEdit->setAccessibleName("TTD bookmark note");
 	m_noteEdit->setPlaceholderText("Optional note for this bookmark");
 	m_noteEdit->setMinimumWidth(400);
 	layout->addRow("Note:", m_noteEdit);
 
 	auto buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+	buttons->setProperty("bn.uiTestId", "ttd.bookmarkEditDialog.buttons");
+	buttons->button(QDialogButtonBox::Ok)->setProperty("bn.uiTestId", "ttd.bookmarkEditDialog.save");
+	buttons->button(QDialogButtonBox::Cancel)->setProperty("bn.uiTestId", "ttd.bookmarkEditDialog.cancel");
 	connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
 	connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 	layout->addRow(buttons);
@@ -75,6 +87,9 @@ TTDBookmarkWidget::TTDBookmarkWidget(QWidget* parent, BinaryViewRef data)
 	: QWidget(parent), m_data(data), m_resultsTable(nullptr), m_statusLabel(nullptr),
 	  m_addButton(nullptr), m_contextMenuManager(nullptr)
 {
+	setProperty("bn.uiTestId", "ttd.bookmarks");
+	setProperty("bn.uiTestScope", "ttd.bookmarks");
+	setAccessibleName("TTD Bookmarks");
 	m_controller = DebuggerController::GetController(data);
 
 	setupUI();
@@ -99,10 +114,12 @@ void TTDBookmarkWidget::setupUI()
 	// Button bar
 	auto buttonLayout = new QHBoxLayout();
 	m_addButton = new QPushButton("Add TTD Bookmark");
+	m_addButton->setProperty("bn.uiTestId", "ttd.bookmarks.add");
 	connect(m_addButton, &QPushButton::clicked, this, &TTDBookmarkWidget::addBookmarkFromDialog);
 	buttonLayout->addWidget(m_addButton);
 
 	auto addCurrentButton = new QPushButton("Bookmark Current Position");
+	addCurrentButton->setProperty("bn.uiTestId", "ttd.bookmarks.addCurrent");
 	connect(addCurrentButton, &QPushButton::clicked, this, &TTDBookmarkWidget::addBookmarkFromCurrentPosition);
 	buttonLayout->addWidget(addCurrentButton);
 
@@ -111,10 +128,13 @@ void TTDBookmarkWidget::setupUI()
 
 	// Results table
 	m_resultsTable = new QTableWidget();
+	m_resultsTable->setProperty("bn.uiTestId", "ttd.bookmarks.table");
+	m_resultsTable->setAccessibleName("TTD bookmarks");
 	mainLayout->addWidget(m_resultsTable, 1);
 
 	// Status label
 	m_statusLabel = new QLabel("No bookmarks.");
+	m_statusLabel->setProperty("bn.uiTestId", "ttd.bookmarks.status");
 	m_statusLabel->setContentsMargins(5, 5, 5, 5);
 	mainLayout->addWidget(m_statusLabel);
 
@@ -543,6 +563,9 @@ void TTDBookmarkWidget::copyEntireTable()
 TTDBookmarkSidebarWidget::TTDBookmarkSidebarWidget(BinaryViewRef data)
 	: SidebarWidget("TTD Bookmarks"), m_data(data)
 {
+	setProperty("bn.uiTestId", "sidebar.ttdBookmarks");
+	setProperty("bn.uiTestScope", "sidebar.ttdBookmarks");
+	setAccessibleName("TTD Bookmarks");
 	m_controller = DebuggerController::GetController(data);
 
 	auto layout = new QVBoxLayout(this);

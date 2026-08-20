@@ -29,6 +29,9 @@ using namespace BinaryNinjaDebuggerAPI;
 WinDbgUpdateDialog::WinDbgUpdateDialog(QWidget* parent, const std::string& installPath, const std::string& installedVersion)
 	: QDialog(parent), m_installPath(installPath), m_installedVersion(installedVersion)
 {
+	setProperty("bn.uiTestId", "debugger.winDbgUpdateDialog");
+	setProperty("bn.uiTestScope", "debugger.winDbgUpdateDialog");
+	setAccessibleName("WinDbg/TTD Version");
 	setWindowTitle("WinDbg/TTD Version");
 	setMinimumWidth(450);
 
@@ -107,12 +110,14 @@ WinDbgUpdateDialog::WinDbgUpdateDialog(QWidget* parent, const std::string& insta
 	buttonLayout->addStretch();
 
 	m_cancelButton = new QPushButton("Cancel", this);
+	m_cancelButton->setProperty("bn.uiTestId", "debugger.winDbgUpdateDialog.cancel");
 	connect(m_cancelButton, &QPushButton::clicked, this, &WinDbgUpdateDialog::onCancelClicked);
 	buttonLayout->addWidget(m_cancelButton);
 
 	/* Not "Update": when the installed version is newer than the configured one, this
 	 * deliberately replaces it with an older build. */
 	m_updateButton = new QPushButton(versionMatches ? "Reinstall" : "Install", this);
+	m_updateButton->setProperty("bn.uiTestId", "debugger.winDbgUpdateDialog.install");
 	m_updateButton->setDefault(true);
 	connect(m_updateButton, &QPushButton::clicked, this, &WinDbgUpdateDialog::onUpdateClicked);
 	buttonLayout->addWidget(m_updateButton);

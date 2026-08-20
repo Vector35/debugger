@@ -36,6 +36,9 @@ limitations under the License.
 ColumnVisibilityDialog::ColumnVisibilityDialog(QWidget* parent, const QStringList& columnNames, const QList<bool>& visibility)
 	: QDialog(parent)
 {
+	setProperty("bn.uiTestId", "ttd.memory.columnVisibilityDialog");
+	setProperty("bn.uiTestScope", "ttd.memory.columnVisibilityDialog");
+	setAccessibleName("TTD memory column visibility");
 	setWindowTitle("Column Visibility");
 	setModal(true);
 	resize(300, 400);
@@ -46,6 +49,8 @@ ColumnVisibilityDialog::ColumnVisibilityDialog(QWidget* parent, const QStringLis
 	layout->addWidget(label);
 	
 	m_columnList = new QListWidget();
+	m_columnList->setProperty("bn.uiTestId", "ttd.memory.columnVisibilityDialog.columns");
+	m_columnList->setAccessibleName("TTD memory columns");
 	
 	for (int i = 0; i < columnNames.size(); ++i)
 	{
@@ -58,6 +63,11 @@ ColumnVisibilityDialog::ColumnVisibilityDialog(QWidget* parent, const QStringLis
 	layout->addWidget(m_columnList);
 	
 	QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::RestoreDefaults);
+	buttons->setProperty("bn.uiTestId", "ttd.memory.columnVisibilityDialog.buttons");
+	buttons->button(QDialogButtonBox::Ok)->setProperty("bn.uiTestId", "ttd.memory.columnVisibilityDialog.apply");
+	buttons->button(QDialogButtonBox::Cancel)->setProperty("bn.uiTestId", "ttd.memory.columnVisibilityDialog.cancel");
+	buttons->button(QDialogButtonBox::RestoreDefaults)->setProperty(
+		"bn.uiTestId", "ttd.memory.columnVisibilityDialog.restoreDefaults");
 	connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
 	connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 	
@@ -100,6 +110,8 @@ QList<bool> ColumnVisibilityDialog::getColumnVisibility() const
 TTDMemoryQueryWidget::TTDMemoryQueryWidget(QWidget* parent, BinaryViewRef data)
 	: QWidget(parent), m_data(data)
 {
+	setProperty("bn.uiTestId", "ttd.memory.query");
+	setAccessibleName("TTD memory query");
 	m_controller = DebuggerController::GetController(m_data);
 	
 	// Initialize column names and visibility
@@ -139,9 +151,13 @@ void TTDMemoryQueryWidget::setupUI()
 	
 	// Address range inputs
 	m_startAddressEdit = new QLineEdit();
+	m_startAddressEdit->setProperty("bn.uiTestId", "ttd.memory.query.startAddress");
+	m_startAddressEdit->setAccessibleName("TTD memory range start address");
 	m_startAddressEdit->setToolTip("Start address in hexadecimal format");
 	
 	m_endAddressEdit = new QLineEdit();
+	m_endAddressEdit->setProperty("bn.uiTestId", "ttd.memory.query.endAddress");
+	m_endAddressEdit->setAccessibleName("TTD memory range end address");
 	m_endAddressEdit->setToolTip("End address in hexadecimal format");
 	
 	// Set default values based on binary view address range
@@ -168,10 +184,14 @@ void TTDMemoryQueryWidget::setupUI()
 	inputLayout->addRow("Address Range:", addressLayout);
 
 	m_startTimeEdit = new QLineEdit();
+	m_startTimeEdit->setProperty("bn.uiTestId", "ttd.memory.query.startTime");
+	m_startTimeEdit->setAccessibleName("TTD memory range start time");
 	m_startTimeEdit->setToolTip("Start time in format 'sequence:step' (hexadecimal), leave blank for start of recording");
 	m_startTimeEdit->setPlaceholderText("e.g. 0:0");
 
 	m_endTimeEdit = new QLineEdit();
+	m_endTimeEdit->setProperty("bn.uiTestId", "ttd.memory.query.endTime");
+	m_endTimeEdit->setAccessibleName("TTD memory range end time");
 	m_endTimeEdit->setToolTip("End time in format 'sequence:step' (hexadecimal), leave blank for end of recording");
 	m_endTimeEdit->setPlaceholderText("e.g. 23f:a7");
 
@@ -186,14 +206,17 @@ void TTDMemoryQueryWidget::setupUI()
 	// Memory access type checkboxes
 	QHBoxLayout* accessLayout = new QHBoxLayout();
 	m_readAccessCheck = new QCheckBox("Read");
+	m_readAccessCheck->setProperty("bn.uiTestId", "ttd.memory.query.read");
 	m_readAccessCheck->setChecked(true);
 	m_readAccessCheck->setToolTip("Include memory read operations");
 	
 	m_writeAccessCheck = new QCheckBox("Write");
+	m_writeAccessCheck->setProperty("bn.uiTestId", "ttd.memory.query.write");
 	m_writeAccessCheck->setChecked(true);
 	m_writeAccessCheck->setToolTip("Include memory write operations");
 	
 	m_executeAccessCheck = new QCheckBox("Execute");
+	m_executeAccessCheck->setProperty("bn.uiTestId", "ttd.memory.query.execute");
 	m_executeAccessCheck->setChecked(false);
 	m_executeAccessCheck->setToolTip("Include memory execute operations");
 	
@@ -207,19 +230,23 @@ void TTDMemoryQueryWidget::setupUI()
 	// Control buttons
 	QHBoxLayout* buttonLayout = new QHBoxLayout();
 	m_queryButton = new QPushButton("Query Memory Events");
+	m_queryButton->setProperty("bn.uiTestId", "ttd.memory.query.run");
 	m_queryButton->setToolTip("Execute TTD memory analysis query");
 	connect(m_queryButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::performQuery);
 
 	m_clearButton = new QPushButton("Clear Results");
+	m_clearButton->setProperty("bn.uiTestId", "ttd.memory.query.clear");
 	m_clearButton->setToolTip("Clear the results table");
 	connect(m_clearButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::clearResults);
 
 	m_prevAccessButton = new QPushButton("Prev");
+	m_prevAccessButton->setProperty("bn.uiTestId", "ttd.memory.query.previousAccess");
 	m_prevAccessButton->setToolTip("Find the previous memory access to the start address from the current TTD position and time travel to it");
 	m_prevAccessButton->setEnabled(false);
 	connect(m_prevAccessButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::findPrevMemoryAccess);
 
 	m_nextAccessButton = new QPushButton("Next");
+	m_nextAccessButton->setProperty("bn.uiTestId", "ttd.memory.query.nextAccess");
 	m_nextAccessButton->setToolTip("Find the next memory access to the start address from the current TTD position and time travel to it");
 	m_nextAccessButton->setEnabled(false);
 	connect(m_nextAccessButton, &QPushButton::clicked, this, &TTDMemoryQueryWidget::findNextMemoryAccess);
@@ -247,6 +274,7 @@ void TTDMemoryQueryWidget::setupUI()
 	
 	// Status label
 	m_statusLabel = new QLabel("Ready");
+	m_statusLabel->setProperty("bn.uiTestId", "ttd.memory.query.status");
 	m_statusLabel->setContentsMargins(5, 5, 5, 5);
 	mainLayout->addWidget(m_statusLabel);
 	
@@ -261,6 +289,8 @@ void TTDMemoryQueryWidget::setupUI()
 void TTDMemoryQueryWidget::setupTable()
 {
 	m_resultsTable = new QTableWidget();
+	m_resultsTable->setProperty("bn.uiTestId", "ttd.memory.query.results");
+	m_resultsTable->setAccessibleName("TTD memory query results");
 	m_resultsTable->setColumnCount(m_columnNames.size());
 	m_resultsTable->setHorizontalHeaderLabels(m_columnNames);
 	
@@ -977,6 +1007,9 @@ bool TTDMemoryQueryWidget::isUnused() const
 TTDMemoryWidget::TTDMemoryWidget(QWidget* parent, BinaryViewRef data)
 	: QWidget(parent), m_data(data)
 {
+	setProperty("bn.uiTestId", "ttd.memory");
+	setProperty("bn.uiTestScope", "ttd.memory");
+	setAccessibleName("TTD memory analysis");
 	m_controller = DebuggerController::GetController(m_data);
 	setupUI();
 }
@@ -996,11 +1029,16 @@ void TTDMemoryWidget::setupUI()
 	
 	// Tab widget setup
 	m_tabWidget = new QTabWidget(this);
+	m_tabWidget->setProperty("bn.uiTestId", "ttd.memory.tabs");
+	m_tabWidget->setProperty("bn.uiTestScope", "ttd.memory.tabs");
+	m_tabWidget->setAccessibleName("TTD memory query tabs");
 	m_tabWidget->setTabsClosable(true);
 	connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &TTDMemoryWidget::closeTab);
 	
 	// Create "+" button as corner widget
 	m_newTabButton = new QToolButton(m_tabWidget);
+	m_newTabButton->setProperty("bn.uiTestId", "ttd.memory.newQuery");
+	m_newTabButton->setAccessibleName("New TTD memory query");
 	m_newTabButton->setText("+");
 	m_newTabButton->setAutoRaise(true);
 	m_newTabButton->setToolTip("New tab");
@@ -1031,6 +1069,9 @@ void TTDMemoryWidget::createNewTab()
 	
 	// Create new tab
 	TTDMemoryQueryWidget* queryWidget = new TTDMemoryQueryWidget(this, m_data);
+	const qulonglong queryKey = m_tabWidget->property("bn.nextUiTestQueryKey").toULongLong() + 1;
+	m_tabWidget->setProperty("bn.nextUiTestQueryKey", queryKey);
+	queryWidget->setProperty("bn.uiTestKey", QStringLiteral("queryInstance.%1").arg(queryKey));
 	int tabIndex = m_tabWidget->addTab(queryWidget, QString("Query %1").arg(m_tabWidget->count() + 1));
 	m_tabWidget->setCurrentIndex(tabIndex);
 	
@@ -1099,6 +1140,9 @@ void TTDMemoryWidget::setParametersAndQueryInNewTab(uint64_t startAddr, uint64_t
 TTDMemorySidebarWidget::TTDMemorySidebarWidget(BinaryViewRef data) 
 	: SidebarWidget("TTD Memory"), m_data(data)
 {
+	setProperty("bn.uiTestId", "sidebar.ttdMemory");
+	setProperty("bn.uiTestScope", "sidebar.ttdMemory");
+	setAccessibleName("TTD memory sidebar");
 	m_controller = DebuggerController::GetController(data);
 	
 	auto* layout = new QVBoxLayout();
@@ -1141,6 +1185,9 @@ constexpr auto TTDMemoryAccessTypesKey = "ui/debugger/ttd/memoryAccessTypes";
 TTDMemoryAccessNextPrevDialog::TTDMemoryAccessNextPrevDialog(QWidget* parent, BinaryViewRef data, uint64_t startAddr, uint64_t endAddr)
 	: QDialog(parent), m_data(data)
 {
+	setProperty("bn.uiTestId", "ttd.memory.accessNavigationDialog");
+	setProperty("bn.uiTestScope", "ttd.memory.accessNavigationDialog");
+	setAccessibleName("TTD memory access navigation");
 	m_controller = DebuggerController::GetController(m_data);
 
 	setWindowTitle("TTD Memory Access (Next/Prev)");
@@ -1153,9 +1200,13 @@ TTDMemoryAccessNextPrevDialog::TTDMemoryAccessNextPrevDialog(QWidget* parent, Bi
 
 	QHBoxLayout* addressLayout = new QHBoxLayout();
 	m_startAddressEdit = new QLineEdit();
+	m_startAddressEdit->setProperty("bn.uiTestId", "ttd.memory.accessNavigationDialog.startAddress");
+	m_startAddressEdit->setAccessibleName("TTD memory access range start address");
 	m_startAddressEdit->setText(QString("0x%1").arg(startAddr, 0, 16));
 	m_startAddressEdit->setToolTip("Start address in hexadecimal format");
 	m_endAddressEdit = new QLineEdit();
+	m_endAddressEdit->setProperty("bn.uiTestId", "ttd.memory.accessNavigationDialog.endAddress");
+	m_endAddressEdit->setAccessibleName("TTD memory access range end address");
 	m_endAddressEdit->setText(QString("0x%1").arg(endAddr, 0, 16));
 	m_endAddressEdit->setToolTip("End address in hexadecimal format");
 	addressLayout->addWidget(new QLabel("Start:"));
@@ -1178,10 +1229,13 @@ TTDMemoryAccessNextPrevDialog::TTDMemoryAccessNextPrevDialog(QWidget* parent, Bi
 
 	QHBoxLayout* accessLayout = new QHBoxLayout();
 	m_readAccessCheck = new QCheckBox("Read");
+	m_readAccessCheck->setProperty("bn.uiTestId", "ttd.memory.accessNavigationDialog.read");
 	m_readAccessCheck->setChecked(defaultAccessType & TTDMemoryRead);
 	m_writeAccessCheck = new QCheckBox("Write");
+	m_writeAccessCheck->setProperty("bn.uiTestId", "ttd.memory.accessNavigationDialog.write");
 	m_writeAccessCheck->setChecked(defaultAccessType & TTDMemoryWrite);
 	m_executeAccessCheck = new QCheckBox("Execute");
+	m_executeAccessCheck->setProperty("bn.uiTestId", "ttd.memory.accessNavigationDialog.execute");
 	m_executeAccessCheck->setChecked(defaultAccessType & TTDMemoryExecute);
 
 	// Remember the selection as soon as it changes, so it survives closing the dialog
@@ -1204,14 +1258,17 @@ TTDMemoryAccessNextPrevDialog::TTDMemoryAccessNextPrevDialog(QWidget* parent, Bi
 	// Buttons: Prev, Next, Close
 	QHBoxLayout* buttonLayout = new QHBoxLayout();
 	QPushButton* prevButton = new QPushButton("\xe2\x97\x80 Prev");
+	prevButton->setProperty("bn.uiTestId", "ttd.memory.accessNavigationDialog.previous");
 	prevButton->setToolTip("Find the previous memory access and time travel to it");
 	connect(prevButton, &QPushButton::clicked, this, &TTDMemoryAccessNextPrevDialog::findPrev);
 
 	QPushButton* nextButton = new QPushButton("Next \xe2\x96\xb6");
+	nextButton->setProperty("bn.uiTestId", "ttd.memory.accessNavigationDialog.next");
 	nextButton->setToolTip("Find the next memory access and time travel to it");
 	connect(nextButton, &QPushButton::clicked, this, &TTDMemoryAccessNextPrevDialog::findNext);
 
 	QPushButton* closeButton = new QPushButton("Close");
+	closeButton->setProperty("bn.uiTestId", "ttd.memory.accessNavigationDialog.close");
 	connect(closeButton, &QPushButton::clicked, this, &QDialog::close);
 
 	buttonLayout->addStretch();

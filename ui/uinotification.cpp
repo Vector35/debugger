@@ -108,12 +108,17 @@ bool NotificationListener::OnBeforeCloseFile(UIContext* context, FileContext* fi
 	if (controller->IsConnected())
 	{
 		QMessageBox* msgBox = new QMessageBox(mainWindow);
+		msgBox->setProperty("bn.uiTestId", "debugger.activeFileCloseDialog");
+		msgBox->setProperty("bn.uiTestScope", "debugger.activeFileCloseDialog");
+		msgBox->setAccessibleName("Debugger active while closing file");
 		msgBox->setAttribute(Qt::WA_DeleteOnClose);
 		msgBox->setIcon(QMessageBox::Question);
 		msgBox->setText(QObject::tr("The debugger file ") + file->getShortFileName(mainWindow)
 			+ QObject::tr(" is active. Do you want to stop it before closing?"));
 		msgBox->setWindowTitle(QObject::tr("Debugger Active"));
 		msgBox->setStandardButtons(QMessageBox::Yes | QMessageBox::Cancel);
+		msgBox->button(QMessageBox::Yes)->setProperty("bn.uiTestId", "debugger.activeFileCloseDialog.stop");
+		msgBox->button(QMessageBox::Cancel)->setProperty("bn.uiTestId", "debugger.activeFileCloseDialog.cancel");
 		msgBox->setDefaultButton(QMessageBox::Yes);
 		msgBox->show();
 		msgBox->move(mainWindow->frameGeometry().center() - msgBox->rect().center());

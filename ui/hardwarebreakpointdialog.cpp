@@ -21,6 +21,9 @@ limitations under the License.
 HardwareBreakpointDialog::HardwareBreakpointDialog(QWidget* parent, DbgRef<DebuggerController> controller, uint64_t suggestedAddress) :
 	QDialog(parent), m_controller(controller), m_suggestedAddress(suggestedAddress)
 {
+	setProperty("bn.uiTestId", "debugger.hardwareBreakpointDialog");
+	setProperty("bn.uiTestScope", "debugger.hardwareBreakpointDialog");
+	setAccessibleName("Add Hardware Breakpoint");
 	setWindowTitle("Add Hardware Breakpoint");
 	setModal(true);
 	resize(350, 150);
@@ -30,12 +33,16 @@ HardwareBreakpointDialog::HardwareBreakpointDialog(QWidget* parent, DbgRef<Debug
 
 	// Address input
 	m_addressEdit = new QLineEdit();
+	m_addressEdit->setProperty("bn.uiTestId", "debugger.hardwareBreakpointDialog.address");
+	m_addressEdit->setAccessibleName("Hardware breakpoint address");
 	if (suggestedAddress != 0)
 		m_addressEdit->setText(QString("0x%1").arg(suggestedAddress, 0, 16));
 	formLayout->addRow("Address:", m_addressEdit);
 
 	// Type selection
 	m_typeCombo = new QComboBox();
+	m_typeCombo->setProperty("bn.uiTestId", "debugger.hardwareBreakpointDialog.type");
+	m_typeCombo->setAccessibleName("Hardware breakpoint type");
 	m_typeCombo->addItem("Hardware Execute", static_cast<int>(HardwareExecuteBreakpoint));
 	m_typeCombo->addItem("Hardware Read", static_cast<int>(HardwareReadBreakpoint));
 	m_typeCombo->addItem("Hardware Write", static_cast<int>(HardwareWriteBreakpoint));
@@ -61,6 +68,8 @@ HardwareBreakpointDialog::HardwareBreakpointDialog(QWidget* parent, DbgRef<Debug
 
 	// Size selection (for watchpoints)
 	m_sizeCombo = new QComboBox();
+	m_sizeCombo->setProperty("bn.uiTestId", "debugger.hardwareBreakpointDialog.size");
+	m_sizeCombo->setAccessibleName("Hardware breakpoint size");
 	m_sizeCombo->setEditable(true);
 	m_sizeCombo->addItem("1", 1);
 	m_sizeCombo->addItem("2", 2);
@@ -71,6 +80,9 @@ HardwareBreakpointDialog::HardwareBreakpointDialog(QWidget* parent, DbgRef<Debug
 
 	// Button box
 	m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+	m_buttonBox->setProperty("bn.uiTestId", "debugger.hardwareBreakpointDialog.buttons");
+	m_buttonBox->button(QDialogButtonBox::Ok)->setProperty("bn.uiTestId", "debugger.hardwareBreakpointDialog.add");
+	m_buttonBox->button(QDialogButtonBox::Cancel)->setProperty("bn.uiTestId", "debugger.hardwareBreakpointDialog.cancel");
 	
 	// Main layout
 	QVBoxLayout* mainLayout = new QVBoxLayout();

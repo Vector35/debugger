@@ -1,3 +1,4 @@
+#include "../../../ui/shared/internalaction.h"
 /*
 Copyright 2020-2026 Vector 35 Inc.
 
@@ -383,13 +384,13 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 	m_menu = menu;
 
 	QString removeBreakpointActionName = QString::fromStdString("Remove Breakpoint");
-	UIAction::registerAction(removeBreakpointActionName, QKeySequence::Delete);
+	UIIdentity::registerBuiltInAction(removeBreakpointActionName, QKeySequence::Delete);
 	m_menu->addAction(removeBreakpointActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		removeBreakpointActionName, UIAction([&]() { remove(); }, [&]() { return selectionNotEmpty(); }));
 
 	QString jumpToBreakpointActionName = QString::fromStdString("Jump To Breakpoint");
-	UIAction::registerAction(jumpToBreakpointActionName);
+	UIIdentity::registerBuiltInAction(jumpToBreakpointActionName);
 	m_menu->addAction(jumpToBreakpointActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		jumpToBreakpointActionName, UIAction([&]() { jump(); }, [&]() { return selectionNotEmpty(); }));
@@ -399,24 +400,25 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 		"Copy", UIAction([&]() { copySelection(); }, [&]() { return selectionNotEmpty(); }), HighActionPriority);
 
 	QString addBreakpointActionName = QString::fromStdString("Add Breakpoint...");
-	UIAction::registerAction(addBreakpointActionName);
+	UIIdentity::registerBuiltInAction(addBreakpointActionName);
 	m_menu->addAction(addBreakpointActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		addBreakpointActionName, UIAction([&]() { addSoftwareBreakpoint(); }));
 
 	QString addHardwareBreakpointActionName = QString::fromStdString("Add Hardware Breakpoint...");
+	UIIdentity::registerBuiltInAction(addHardwareBreakpointActionName);
 	m_menu->addAction(addHardwareBreakpointActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		addHardwareBreakpointActionName, UIAction([&]() { addHardwareBreakpoint(); }));
 
 	QString toggleEnabledActionName = QString::fromStdString("Toggle Enabled");
-	UIAction::registerAction(toggleEnabledActionName, QKeySequence("Ctrl+Shift+B"));
+	UIIdentity::registerBuiltInAction(toggleEnabledActionName, QKeySequence("Ctrl+Shift+B"));
 	m_menu->addAction(toggleEnabledActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		toggleEnabledActionName, UIAction([&]() { toggleSelected(); }, [&]() { return selectionNotEmpty(); }));
 
 	QString editConditionActionName = QString::fromStdString("Edit Condition...");
-	UIAction::registerAction(editConditionActionName);
+	UIIdentity::registerBuiltInAction(editConditionActionName);
 	m_menu->addAction(editConditionActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		editConditionActionName, UIAction([&]() { editCondition(); }, [&]() {
@@ -425,19 +427,19 @@ DebugBreakpointsWidget::DebugBreakpointsWidget(ViewFrame* view, BinaryViewRef da
 		}));
 
 	QString enableAllActionName = QString::fromStdString("Enable All Breakpoints");
-	UIAction::registerAction(enableAllActionName);
+	UIIdentity::registerBuiltInAction(enableAllActionName);
 	m_menu->addAction(enableAllActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		enableAllActionName, UIAction([&]() { enableAll(); }));
 
 	QString disableAllActionName = QString::fromStdString("Disable All Breakpoints");
-	UIAction::registerAction(disableAllActionName);
+	UIIdentity::registerBuiltInAction(disableAllActionName);
 	m_menu->addAction(disableAllActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		disableAllActionName, UIAction([&]() { disableAll(); }));
 
 	QString soloBreakpointActionName = QString::fromStdString("Solo Breakpoint");
-	UIAction::registerAction(soloBreakpointActionName);
+	UIIdentity::registerBuiltInAction(soloBreakpointActionName);
 	m_menu->addAction(soloBreakpointActionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		soloBreakpointActionName, UIAction([&]() { soloSelected(); }, [&]() { return selectionNotEmpty(); }));
@@ -596,8 +598,13 @@ void DebugBreakpointsWidget::add()
 
 	// Show options for software or hardware breakpoint
 	QMenu menu(this);
+	menu.setProperty("bn.uiTestId", "debugger.breakpoints.addMenu");
+	menu.setProperty("bn.uiTestScope", "debugger.breakpoints.addMenu");
+	menu.setAccessibleName("Add debugger breakpoint");
 	QAction* softwareAction = menu.addAction("Software Breakpoint");
+	softwareAction->setProperty("bn.uiTestId", "debugger.breakpoints.addSoftware");
 	QAction* hardwareAction = menu.addAction("Hardware Breakpoint...");
+	hardwareAction->setProperty("bn.uiTestId", "debugger.breakpoints.addHardware");
 
 	QAction* chosen = menu.exec(QCursor::pos());
 	if (!chosen)

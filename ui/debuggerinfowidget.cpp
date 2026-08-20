@@ -32,6 +32,9 @@ using namespace std;
 
 DebugInfoSidebarWidget::DebugInfoSidebarWidget(BinaryViewRef data): SidebarWidget("Debugger Info"), m_data(data)
 {
+	setProperty("bn.uiTestId", "sidebar.debuggerInfo");
+	setProperty("bn.uiTestScope", "sidebar.debuggerInfo");
+	setAccessibleName("Debugger Info");
 	m_debugger = DebuggerController::GetController(data);
 	auto* layout = new QVBoxLayout();
 	layout->setContentsMargins(0, 0, 0, 0);
@@ -891,6 +894,8 @@ DebuggerInfoEntry DebuggerInfoEntryItemModel::getRow(int row) const
 
 DebuggerInfoTable::DebuggerInfoTable(BinaryViewRef data): m_data(data)
 {
+	setProperty("bn.uiTestId", "sidebar.debuggerInfo.entries");
+	setAccessibleName("Debugger information");
 	m_debugger = DebuggerController::GetController(data);
 
 	m_model = new DebuggerInfoEntryItemModel(this, data);

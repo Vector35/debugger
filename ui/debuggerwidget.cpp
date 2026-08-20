@@ -31,6 +31,9 @@ using namespace std;
 DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewRef data) :
 	SidebarWidget(name), m_view(view)
 {
+	setProperty("bn.uiTestId", "sidebar.debugger");
+	setProperty("bn.uiTestScope", "sidebar.debugger");
+	setAccessibleName("Debugger");
 	m_controller = DebuggerController::GetController(data);
 
 	QVBoxLayout* layout = new QVBoxLayout(this);
@@ -39,6 +42,8 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 	layout->setAlignment(Qt::AlignTop);
 
 	m_adapterSelector = new QComboBox();
+	m_adapterSelector->setProperty("bn.uiTestId", "debugger.sidebar.adapter");
+	m_adapterSelector->setAccessibleName("Debug adapter");
 	// Populate adapter selector
 	for (const std::string& adapter : DebugAdapterType::GetAvailableAdapters(m_controller->GetData()))
 	{
@@ -68,14 +73,19 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 	layout->addWidget(m_adapterSelector);
 
 	m_splitter = new QSplitter(Qt::Vertical, this);
+	m_splitter->setProperty("bn.uiTestId", "debugger.sidebar.splitter");
 	m_splitter->setChildrenCollapsible(true);
 
 	m_controlsWidget = new DebugControlsWidget(this, "Controls", data);
 
 	m_tabs = new QTabWidget(this);
+	m_tabs->setProperty("bn.uiTestId", "debugger.sidebar.tabs");
+	m_tabs->setAccessibleName("Debugger sidebar tabs");
 
 	m_registersWidget = new DebugRegistersContainer(m_view, data, m_menu);
 	m_breakpointsWidget = new DebugBreakpointsWidget(m_view, data, m_menu);
+	m_breakpointsWidget->setProperty("bn.uiTestId", "debugger.sidebar.breakpoints");
+	m_breakpointsWidget->setAccessibleName(tr("Debugger Breakpoints"));
 
 	m_tabs->addTab(m_registersWidget, "Registers");
 	m_tabs->addTab(m_breakpointsWidget, "Breakpoints");

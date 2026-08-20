@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "../../../ui/shared/internalaction.h"
 #include "attachprocess.h"
 
 
@@ -288,6 +289,9 @@ void ProcessListWidget::contextMenuEvent(QContextMenuEvent* event)
 ProcessListWidget::ProcessListWidget(QWidget* parent, DbgRef<DebuggerController> controller) :
 	QTableView(parent), m_controller(controller)
 {
+	setProperty("bn.uiTestId", "debugger.processList");
+	setProperty("bn.uiTestScope", "debugger.processList");
+	setAccessibleName("Debug processes");
 	m_model = new ProcessListModel(this);
 	m_delegate = new ProcessItemDelegate(this);
 	m_filter = new ProcessListFilterProxyModel(this);
@@ -321,7 +325,7 @@ ProcessListWidget::ProcessListWidget(QWidget* parent, DbgRef<DebuggerController>
 	m_contextMenuManager = new ContextMenuManager(this);
 
 	QString actionName = QString::fromStdString("Refresh");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { updateContent(); }));
 
@@ -392,13 +396,21 @@ void ProcessListWidget::activateSelection() {}
 
 AttachProcessDialog::AttachProcessDialog(QWidget* parent, DbgRef<DebuggerController> controller) : QDialog(parent)
 {
+	setProperty("bn.uiTestId", "debugger.attachProcessDialog");
+	setProperty("bn.uiTestScope", "debugger.attachProcessDialog");
+	setAccessibleName("Attach to process");
 	setWindowTitle("Attach to process");
 	setMinimumSize(UIContext::getScaledWindowSize(800, 600));
 	setSizeGripEnabled(true);
 	setModal(true);
 
 	m_processListWidget = new ProcessListWidget(this, controller);
+	m_processListWidget->setProperty("bn.uiTestId", "debugger.attachProcessDialog.processes");
+	m_processListWidget->setProperty("bn.uiTestScope", "debugger.attachProcessDialog.processes");
+	m_processListWidget->setAccessibleName("Processes available to attach");
 	m_separateEdit = new FilterEdit(m_processListWidget);
+	m_separateEdit->setProperty("bn.uiTestId", "debugger.attachProcessDialog.filter");
+	m_separateEdit->setAccessibleName("Search processes");
 	m_separateEdit->showRegexToggle(true);
 	m_filter = new FilteredView(this, m_processListWidget, m_processListWidget, m_separateEdit);
 	m_filter->setFilterPlaceholderText("Search process");
@@ -418,9 +430,11 @@ AttachProcessDialog::AttachProcessDialog(QWidget* parent, DbgRef<DebuggerControl
 	buttonLayout->setContentsMargins(0, 0, 0, 0);
 
 	QPushButton* cancelButton = new QPushButton("Cancel");
+	cancelButton->setProperty("bn.uiTestId", "debugger.attachProcessDialog.cancel");
 	connect(cancelButton, &QPushButton::clicked, [&]() { reject(); });
 
 	QPushButton* acceptButton = new QPushButton("Attach");
+	acceptButton->setProperty("bn.uiTestId", "debugger.attachProcessDialog.attach");
 	connect(acceptButton, &QPushButton::clicked, [&]() { apply(); });
 	acceptButton->setDefault(true);
 

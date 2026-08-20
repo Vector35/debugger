@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "../../../ui/shared/internalaction.h"
 #include "threadframes.h"
 #include <algorithm>
 
@@ -654,6 +655,8 @@ void ThreadFramesWidget::copyAllFrames()
 ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, BinaryViewRef data) :
 	QTreeView(parent), m_view(frame)
 {
+	setProperty("bn.uiTestId", "sidebar.stackTrace.frames");
+	setAccessibleName("Stack trace frames");
 	m_debugger = DebuggerController::GetController(data);
 	if (!m_debugger)
 		return;
@@ -677,19 +680,19 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	m_contextMenuManager = new ContextMenuManager(this);
 
 	QString actionName = QString::fromStdString("Suspend Thread");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(
 		actionName, UIAction([this]() { suspendThread(); }, [this]() { return canSuspendOrResume(); }));
 
 	actionName = QString::fromStdString("Resume Thread");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(
 		actionName, UIAction([this]() { resumeThread(); }, [this]() { return canSuspendOrResume(); }));
 
 	actionName = QString::fromStdString("Make It Solo Thread");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(
 		actionName, UIAction([this]() { makeItSoloThread(); }, [this]() { return canSuspendOrResume(); }));
@@ -725,13 +728,13 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	});
 
 	actionName = QString::fromStdString("Copy Current Stack Trace");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu.addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		actionName, UIAction([this]() { copyCurrentFrame(); }, [this]() { return selectionNotEmpty(); }));
 
 	actionName = QString::fromStdString("Copy All Stack Traces");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu.addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { copyAllFrames(); }));
 
@@ -878,6 +881,9 @@ void ThreadFramesWidget::onDoubleClicked()
 
 ThreadFramesContainer::ThreadFramesContainer(ViewFrame* frame, BinaryViewRef data) : SidebarWidget("Stack Trace")
 {
+	setProperty("bn.uiTestId", "sidebar.stackTrace");
+	setProperty("bn.uiTestScope", "sidebar.stackTrace");
+	setAccessibleName("Stack Trace");
 	m_widget = new ThreadFramesWidget(this, frame, data);
 
 	auto* layout = new QVBoxLayout(this);

@@ -28,6 +28,9 @@ using namespace std;
 AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerController> controller, const std::string& highlightGroup) :
 	QDialog(), m_controller(controller), m_highlightGroup(highlightGroup)
 {
+	setProperty("bn.uiTestId", "debugger.adapterSettingsDialog");
+	setProperty("bn.uiTestScope", "debugger.adapterSettingsDialog");
+	setAccessibleName("Debug Adapter Settings");
 	setWindowTitle("Debug Adapter Settings");
 	setAttribute(Qt::WA_DeleteOnClose);
 
@@ -37,6 +40,8 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 	layout->setSpacing(0);
 
 	m_adapterEntry = new QComboBox(this);
+	m_adapterEntry->setProperty("bn.uiTestId", "debugger.adapterSettingsDialog.adapter");
+	m_adapterEntry->setAccessibleName("Debug adapter");
 	for (const std::string& adapter : DebugAdapterType::GetAvailableAdapters(m_controller->GetData()))
 	{
 		m_adapterEntry->addItem(QString::fromStdString(adapter));
@@ -63,6 +68,8 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 	m_noSettingsLabel = new QLabel("No settings available for the current adapter");
 	m_noSettingsLabel->setAlignment(Qt::AlignCenter);
 	m_stack = new QStackedWidget(this);
+	m_stack->setProperty("bn.uiTestId", "debugger.adapterSettingsDialog.settings");
+	m_stack->setAccessibleName("Debug adapter settings");
 	m_stack->addWidget(m_noSettingsLabel);
 
 	auto widget = getWidgetForAdapter(m_adapterEntry->currentText());
@@ -71,6 +78,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 
 	// Reflect the stored preference: checked means "do not show the dialog next time"
 	m_useSameSettingsCheckbox = new QCheckBox("Use same settings next time");
+	m_useSameSettingsCheckbox->setProperty("bn.uiTestId", "debugger.adapterSettingsDialog.reuseSettings");
 	m_useSameSettingsCheckbox->setChecked(!m_controller->ShowAdapterSettingsNextTime());
 
 	if (!highlightGroup.empty())
@@ -85,8 +93,10 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 		buttonLayout->setContentsMargins(0, 0, 0, 0);
 
 		QPushButton* cancelButton = new QPushButton("Cancel");
+		cancelButton->setProperty("bn.uiTestId", "debugger.adapterSettingsDialog.cancel");
 		connect(cancelButton, &QPushButton::clicked, [&]() { reject(); });
 		QPushButton* acceptButton = new QPushButton("Accept");
+		acceptButton->setProperty("bn.uiTestId", "debugger.adapterSettingsDialog.accept");
 		connect(acceptButton, &QPushButton::clicked, [&]() { apply(); });
 		acceptButton->setDefault(true);
 

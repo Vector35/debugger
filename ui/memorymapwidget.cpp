@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "../../../ui/shared/internalaction.h"
 #include <QPainter>
 #include <QHeaderView>
 #include <QGuiApplication>
@@ -274,6 +275,9 @@ QSize DebugMemoryMapItemDelegate::sizeHint(const QStyleOptionViewItem& option, c
 
 DebugMemoryMapWidget::DebugMemoryMapWidget(ViewFrame* view, BinaryViewRef data) : QTableView(view), m_view(view)
 {
+	setProperty("bn.uiTestId", "debugger.memoryMap.table");
+	setProperty("bn.uiTestScope", "debugger.memoryMap.table");
+	setAccessibleName("Debugger memory regions");
 	m_controller = DebuggerController::GetController(data);
 	if (!m_controller)
 		return;
@@ -305,12 +309,12 @@ DebugMemoryMapWidget::DebugMemoryMapWidget(ViewFrame* view, BinaryViewRef data) 
 	m_contextMenuManager = new ContextMenuManager(this);
 
 	QString actionName = QString::fromStdString("Jump To Start");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpToStart(); }));
 
 	actionName = QString::fromStdString("Jump To End");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { jumpToEnd(); }));
 
@@ -343,13 +347,13 @@ DebugMemoryMapWidget::DebugMemoryMapWidget(ViewFrame* view, BinaryViewRef data) 
 	m_actionHandler.bindAction("Copy All", UIAction([&]() { copyAll(); }, [&]() { return canCopyAll(); }));
 
 	actionName = QString::fromStdString("Select In Binary View");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu.addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(
 		actionName, UIAction([this]() { selectInView(); }, [this]() { return canSelectRegion(); }));
 
 	actionName = QString::fromStdString("Save Region To Disk...");
-	UIAction::registerAction(actionName);
+	UIIdentity::registerBuiltInAction(actionName);
 	m_menu.addAction(actionName, "Options", MENU_ORDER_LAST);
 	m_actionHandler.bindAction(
 		actionName, UIAction([this]() { saveToDisk(); }, [this]() { return canSaveRegion(); }));
@@ -750,8 +754,13 @@ void DebugMemoryMapWidget::activateSelection() {}
 
 DebugMemoryMapWithFilter::DebugMemoryMapWithFilter(ViewFrame* view, BinaryViewRef data) : m_view(view)
 {
+	setProperty("bn.uiTestId", "debugger.memoryMap");
+	setProperty("bn.uiTestScope", "debugger.memoryMap");
+	setAccessibleName("Debugger Memory Map");
 	m_memoryMap = new DebugMemoryMapWidget(view, data);
 	m_separateEdit = new FilterEdit(m_memoryMap);
+	m_separateEdit->setProperty("bn.uiTestId", "debugger.memoryMap.filter");
+	m_separateEdit->setAccessibleName("Search debugger memory regions");
 	m_separateEdit->showRegexToggle(true);
 	m_filter = new FilteredView(this, m_memoryMap, m_memoryMap, m_separateEdit);
 	m_filter->setFilterPlaceholderText("Search memory regions");
@@ -766,6 +775,8 @@ DebugMemoryMapWithFilter::DebugMemoryMapWithFilter(ViewFrame* view, BinaryViewRe
 	headerLayout->setAlignment(Qt::AlignBaseline);
 
 	auto* icon = new ClickableIcon(QImage(":/debugger/menu"), QSize(16, 16));
+	icon->setProperty("bn.uiTestId", "debugger.memoryMap.menu");
+	icon->setAccessibleName("Debugger memory map menu");
 	connect(icon, &ClickableIcon::clicked, m_memoryMap, &DebugMemoryMapWidget::showContextMenu);
 	headerLayout->addWidget(icon);
 
@@ -785,6 +796,9 @@ void DebugMemoryMapWithFilter::updateFonts()
 DebugMemoryMapContainer::DebugMemoryMapContainer(ViewFrame* frame, BinaryViewRef data) :
 	SidebarWidget("Debugger Memory Map")
 {
+	setProperty("bn.uiTestId", "sidebar.debuggerMemoryMap");
+	setProperty("bn.uiTestScope", "sidebar.debuggerMemoryMap");
+	setAccessibleName("Debugger Memory Map");
 	m_widget = new DebugMemoryMapWithFilter(frame, data);
 
 	auto* layout = new QVBoxLayout(this);

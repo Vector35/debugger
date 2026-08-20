@@ -39,6 +39,9 @@ using namespace BinaryNinja;
 DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name, BinaryViewRef data) :
 	QToolBar(parent), m_name(name)
 {
+	setProperty("bn.uiTestId", "debugger.controls");
+	setProperty("bn.uiTestScope", "debugger.controls");
+	setAccessibleName("Debugger controls");
 	m_controller = DebuggerController::GetController(data);
 	if (!m_controller)
 		return;
@@ -51,16 +54,19 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	m_actionRun = addAction(getColoredIcon(":/debugger/start", red), "Launch", [this]() {
 		performLaunch();
 	});
+	m_actionRun->setProperty("bn.uiTestId", "debugger.controls.launch");
 	m_actionRun->setToolTip(getToolTip("Launch"));
 
 	m_actionPause = addAction(getColoredIcon(":/debugger/pause", white), "Pause", [this]() {
 		performPause();
 	});
+	m_actionPause->setProperty("bn.uiTestId", "debugger.controls.pause");
 	m_actionPause->setToolTip(getToolTip("Pause"));
 
 	m_actionResume = addAction(getColoredIcon(":/debugger/resume", green), "Resume", [this]() {
 		performResume();
 	});
+	m_actionResume->setProperty("bn.uiTestId", "debugger.controls.resume");
 	m_actionResume->setToolTip(getToolTip("Resume"));
 
 	// m_actionRun->setVisible(true);
@@ -70,50 +76,59 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	m_actionAttachPid = addAction(getColoredIcon(":/debugger/connect", white), "Attach To Process...", [this]() {
 		performAttachPID(); 
 	});
+	m_actionAttachPid->setProperty("bn.uiTestId", "debugger.controls.attachProcess");
 	m_actionAttachPid->setToolTip(getToolTip("Attach To Process..."));
 
 	m_actionDetach = addAction(getColoredIcon(":/debugger/disconnect", red), "Detach", [this]() {
 		performDetach();
 	});
+	m_actionDetach->setProperty("bn.uiTestId", "debugger.controls.detach");
 	m_actionDetach->setVisible(false);
 	m_actionDetach->setToolTip(getToolTip("Detach"));
 
 	m_actionRestart = addAction(getColoredIcon(":/debugger/restart", red), "Restart", [this]() {
 		performRestart();
 	});
+	m_actionRestart->setProperty("bn.uiTestId", "debugger.controls.restart");
 	m_actionRestart->setToolTip(getToolTip("Restart"));
 
 	m_actionQuit = addAction(getColoredIcon(":/debugger/cancel", red), "Kill", [this]() {
 		performQuit();
 	});
+	m_actionQuit->setProperty("bn.uiTestId", "debugger.controls.kill");
 	m_actionQuit->setToolTip(getToolTip("Kill"));
 	addSeparator();
 
 	m_actionStepInto = addAction(getColoredIcon(":/debugger/step-into", cyan), "Step Into", [this]() {
 		performStepInto();
 	});
+	m_actionStepInto->setProperty("bn.uiTestId", "debugger.controls.stepInto");
 	m_actionStepInto->setToolTip(getToolTip("Step Into"));
 
 	m_actionStepOver = addAction(getColoredIcon(":/debugger/step-over", cyan), "Step Over", [this]() {
 		performStepOver();
 	});
+	m_actionStepOver->setProperty("bn.uiTestId", "debugger.controls.stepOver");
 	m_actionStepOver->setToolTip(getToolTip("Step Over"));
 
 	m_actionStepReturn = addAction(getColoredIcon(":/debugger/step-out", cyan), "Step Return", [this]() {
 		performStepReturn();
 	});
+	m_actionStepReturn->setProperty("bn.uiTestId", "debugger.controls.stepReturn");
 	m_actionStepReturn->setToolTip(getToolTip("Step Return"));
 	addSeparator();
 
 	m_actionSettings = addAction(getColoredIcon(":/debugger/settings", cyan), "Settings", [this]() {
 		performSettings();
 	});
+	m_actionSettings->setProperty("bn.uiTestId", "debugger.controls.settings");
 	m_actionSettings->setToolTip(getToolTip("Debug Adapter Settings"));
 	addSeparator();
 
 	m_actionToggleBreakpoint = addAction(getColoredIcon(":/debugger/breakpoint", red), "Breakpoint", [this]() {
 		toggleBreakpoint();
 	});
+	m_actionToggleBreakpoint->setProperty("bn.uiTestId", "debugger.controls.toggleBreakpoint");
 	m_actionToggleBreakpoint->setToolTip(getToolTip("Toggle Breakpoint"));
 
 	if(m_controller->IsTTD())
@@ -122,36 +137,43 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	m_actionGoBack = addAction(getColoredIcon(":/debugger/resume-reverse", red), "Go Backwards", [this]() {
 		performGoReverse();
 	});
+	m_actionGoBack->setProperty("bn.uiTestId", "debugger.controls.goBackward");
 	m_actionGoBack->setToolTip(getToolTip("Go Backwards"));
 	
 	m_actionStepIntoBack = addAction(getColoredIcon(":/debugger/step-into-reverse", red), "Step Into Backwards", [this]() {
 		performStepIntoReverse();
 	});
+	m_actionStepIntoBack->setProperty("bn.uiTestId", "debugger.controls.stepIntoBackward");
 	m_actionStepIntoBack->setToolTip(getToolTip("Step Into Backwards"));
 
 	m_actionStepOverBack = addAction(getColoredIcon(":/debugger/step-back", red), "Step Over Backwards", [this]() {
 		performStepOverReverse();
 	});
+	m_actionStepOverBack->setProperty("bn.uiTestId", "debugger.controls.stepOverBackward");
 	m_actionStepOverBack->setToolTip(getToolTip("Step Over Backwards"));
 
 	m_actionStepReturnBack = addAction(getColoredIcon(":/debugger/step-out-reverse", red), "Step Return Backwards", [this]() {
 		performStepReturnReverse();
 	});
+	m_actionStepReturnBack->setProperty("bn.uiTestId", "debugger.controls.stepReturnBackward");
 	m_actionStepReturnBack->setToolTip(getToolTip("Step Return Backwards"));
 
 	m_actionTimestampNavigation = addAction(getColoredIcon(":/debugger/ttd-timestamp", cyan), "Navigate to Timestamp", [this]() {
 		performTimestampNavigation();
 	});
+	m_actionTimestampNavigation->setProperty("bn.uiTestId", "debugger.controls.navigateTimestamp");
 	m_actionTimestampNavigation->setToolTip(getToolTip("Navigate to TTD Timestamp..."));
 
 	m_actionTTDNavigateBack = addAction(getColoredIcon(":/debugger/ttd-back", cyan), "TTD Navigate Back", [this]() {
 		performTTDNavigateBack();
 	});
+	m_actionTTDNavigateBack->setProperty("bn.uiTestId", "debugger.controls.ttdBack");
 	m_actionTTDNavigateBack->setToolTip(getToolTip("TTD Navigate Back"));
 
 	m_actionTTDNavigateForward = addAction(getColoredIcon(":/debugger/ttd-forward", cyan), "TTD Navigate Forward", [this]() {
 		performTTDNavigateForward();
 	});
+	m_actionTTDNavigateForward->setProperty("bn.uiTestId", "debugger.controls.ttdForward");
 	m_actionTTDNavigateForward->setToolTip(getToolTip("TTD Navigate Forward"));
 
 	updateButtons();

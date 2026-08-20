@@ -40,6 +40,9 @@ static uint64_t PositionSortValue(const TTDPosition& position)
 TTDEventsColumnVisibilityDialog::TTDEventsColumnVisibilityDialog(QWidget* parent, const QStringList& columnNames, const QList<bool>& visibility)
 	: QDialog(parent)
 {
+	setProperty("bn.uiTestId", "ttd.events.columnVisibilityDialog");
+	setProperty("bn.uiTestScope", "ttd.events.columnVisibilityDialog");
+	setAccessibleName("TTD event column visibility");
 	setWindowTitle("Column Visibility");
 	setModal(true);
 	resize(300, 400);
@@ -50,6 +53,8 @@ TTDEventsColumnVisibilityDialog::TTDEventsColumnVisibilityDialog(QWidget* parent
 	layout->addWidget(label);
 	
 	m_columnList = new QListWidget();
+	m_columnList->setProperty("bn.uiTestId", "ttd.events.columnVisibilityDialog.columns");
+	m_columnList->setAccessibleName("TTD event columns");
 	
 	for (int i = 0; i < columnNames.size(); ++i)
 	{
@@ -62,6 +67,11 @@ TTDEventsColumnVisibilityDialog::TTDEventsColumnVisibilityDialog(QWidget* parent
 	layout->addWidget(m_columnList);
 	
 	QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::RestoreDefaults);
+	buttons->setProperty("bn.uiTestId", "ttd.events.columnVisibilityDialog.buttons");
+	buttons->button(QDialogButtonBox::Ok)->setProperty("bn.uiTestId", "ttd.events.columnVisibilityDialog.apply");
+	buttons->button(QDialogButtonBox::Cancel)->setProperty("bn.uiTestId", "ttd.events.columnVisibilityDialog.cancel");
+	buttons->button(QDialogButtonBox::RestoreDefaults)->setProperty(
+		"bn.uiTestId", "ttd.events.columnVisibilityDialog.restoreDefaults");
 	connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
 	connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 	
@@ -110,6 +120,9 @@ TTDEventsQueryWidget::TTDEventsQueryWidget(QWidget* parent, BinaryViewRef data, 
 	  m_exceptionCheck(nullptr), m_queryButton(nullptr), m_clearButton(nullptr),
 	  m_resultsTable(nullptr), m_statusLabel(nullptr), m_contextMenuManager(nullptr)
 {
+	setProperty("bn.uiTestId", "ttd.events.query");
+	setProperty("bn.uiTestKey", QStringLiteral("eventType.%1").arg(static_cast<int>(type)));
+	setAccessibleName("TTD events query");
 	m_controller = DebuggerController::GetController(data);
 	if (!m_controller)
 	{
@@ -149,26 +162,31 @@ void TTDEventsQueryWidget::setupUI()
 
 		// Event type checkboxes
 		m_threadCreatedCheck = new QCheckBox("Thread Created");
+		m_threadCreatedCheck->setProperty("bn.uiTestId", "ttd.events.query.threadCreated");
 		m_threadCreatedCheck->setChecked(true);
 		connect(m_threadCreatedCheck, &QCheckBox::toggled, this, &TTDEventsQueryWidget::onFilterChanged);
 		inputLayout->addWidget(m_threadCreatedCheck);
 		
 		m_threadTerminatedCheck = new QCheckBox("Thread Terminated");
+		m_threadTerminatedCheck->setProperty("bn.uiTestId", "ttd.events.query.threadTerminated");
 		m_threadTerminatedCheck->setChecked(true);
 		connect(m_threadTerminatedCheck, &QCheckBox::toggled, this, &TTDEventsQueryWidget::onFilterChanged);
 		inputLayout->addWidget(m_threadTerminatedCheck);
 		
 		m_moduleLoadedCheck = new QCheckBox("Module Loaded");
+		m_moduleLoadedCheck->setProperty("bn.uiTestId", "ttd.events.query.moduleLoaded");
 		m_moduleLoadedCheck->setChecked(true);
 		connect(m_moduleLoadedCheck, &QCheckBox::toggled, this, &TTDEventsQueryWidget::onFilterChanged);
 		inputLayout->addWidget(m_moduleLoadedCheck);
 		
 		m_moduleUnloadedCheck = new QCheckBox("Module Unloaded");
+		m_moduleUnloadedCheck->setProperty("bn.uiTestId", "ttd.events.query.moduleUnloaded");
 		m_moduleUnloadedCheck->setChecked(true);
 		connect(m_moduleUnloadedCheck, &QCheckBox::toggled, this, &TTDEventsQueryWidget::onFilterChanged);
 		inputLayout->addWidget(m_moduleUnloadedCheck);
 		
 		m_exceptionCheck = new QCheckBox("Exception");
+		m_exceptionCheck->setProperty("bn.uiTestId", "ttd.events.query.exception");
 		m_exceptionCheck->setChecked(true);
 		connect(m_exceptionCheck, &QCheckBox::toggled, this, &TTDEventsQueryWidget::onFilterChanged);
 		inputLayout->addWidget(m_exceptionCheck);
@@ -177,11 +195,13 @@ void TTDEventsQueryWidget::setupUI()
 		QHBoxLayout* buttonLayout = new QHBoxLayout();
 		
 		m_queryButton = new QPushButton("Query All TTD Events");
+		m_queryButton->setProperty("bn.uiTestId", "ttd.events.query.run");
 		m_queryButton->setDefault(true);
 		connect(m_queryButton, &QPushButton::clicked, this, &TTDEventsQueryWidget::performQuery);
 		buttonLayout->addWidget(m_queryButton);
 		
 		m_clearButton = new QPushButton("Clear Results");
+		m_clearButton->setProperty("bn.uiTestId", "ttd.events.query.clear");
 		connect(m_clearButton, &QPushButton::clicked, this, &TTDEventsQueryWidget::clearResults);
 		buttonLayout->addWidget(m_clearButton);
 		
@@ -204,10 +224,13 @@ void TTDEventsQueryWidget::setupUI()
 
 	// Results table
 	m_resultsTable = new QTableWidget();
+	m_resultsTable->setProperty("bn.uiTestId", "ttd.events.query.results");
+	m_resultsTable->setAccessibleName("TTD event results");
 	mainLayout->addWidget(m_resultsTable, 1);  // Give table most of the space
 
 	// Status label
 	m_statusLabel = new QLabel("Ready to query TTD events.");
+	m_statusLabel->setProperty("bn.uiTestId", "ttd.events.query.status");
 	m_statusLabel->setContentsMargins(5, 5, 5, 5);  // Add padding around status text
 	mainLayout->addWidget(m_statusLabel);
 
@@ -1005,6 +1028,9 @@ bool TTDEventsQueryWidget::isUnused() const
 TTDEventsWidget::TTDEventsWidget(QWidget* parent, BinaryViewRef data)
 	: QWidget(parent), m_data(data), m_isPopulated(false)
 {
+	setProperty("bn.uiTestId", "ttd.events");
+	setProperty("bn.uiTestScope", "ttd.events");
+	setAccessibleName("TTD Events");
 	m_controller = DebuggerController::GetController(data);
 	setupUI();
 	
@@ -1027,12 +1053,17 @@ void TTDEventsWidget::setupUI()
 
 	// Create tab widget
 	m_tabWidget = new QTabWidget();
+	m_tabWidget->setProperty("bn.uiTestId", "ttd.events.tabs");
+	m_tabWidget->setProperty("bn.uiTestScope", "ttd.events.tabs");
+	m_tabWidget->setAccessibleName("TTD event tabs");
 	m_tabWidget->setTabsClosable(true);
 	connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &TTDEventsWidget::closeTab);
 	layout->addWidget(m_tabWidget);
 
 	// Create "+" button as corner widget
 	m_newTabButton = new QToolButton(m_tabWidget);
+	m_newTabButton->setProperty("bn.uiTestId", "ttd.events.newTab");
+	m_newTabButton->setAccessibleName("New TTD events query tab");
 	m_newTabButton->setText("+");
 	m_newTabButton->setAutoRaise(true);
 	m_newTabButton->setToolTip("New tab");
@@ -1108,6 +1139,9 @@ void TTDEventsWidget::createNewTab()
 {
 	// Create new tab with AllEvents type (has filtering controls)
 	TTDEventsQueryWidget* queryWidget = new TTDEventsQueryWidget(this, m_data, TTDEventsQueryWidget::AllEvents);
+	const qulonglong queryKey = m_tabWidget->property("bn.nextUiTestQueryKey").toULongLong() + 1;
+	m_tabWidget->setProperty("bn.nextUiTestQueryKey", queryKey);
+	queryWidget->setProperty("bn.uiTestKey", QStringLiteral("queryInstance.%1").arg(queryKey));
 	int tabIndex = m_tabWidget->addTab(queryWidget, QString("Query %1").arg(m_tabWidget->count() - 2)); // -2 because we have 3 fixed tabs
 	m_tabWidget->setCurrentIndex(tabIndex);
 	
@@ -1133,6 +1167,9 @@ void TTDEventsWidget::closeTab(int index)
 TTDEventsSidebarWidget::TTDEventsSidebarWidget(BinaryViewRef data)
 	: SidebarWidget("TTD Events"), m_data(data)
 {
+	setProperty("bn.uiTestId", "sidebar.ttdEvents");
+	setProperty("bn.uiTestScope", "sidebar.ttdEvents");
+	setAccessibleName("TTD Events");
 	m_controller = DebuggerController::GetController(data);
 	
 	QVBoxLayout* layout = new QVBoxLayout();

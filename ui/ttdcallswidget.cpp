@@ -36,6 +36,8 @@ limitations under the License.
 
 TTDCallsQueryWidget::TTDCallsQueryWidget(QWidget* parent, BinaryViewRef data) : QWidget(parent), m_data(data)
 {
+	setProperty("bn.uiTestId", "ttd.calls.query");
+	setAccessibleName("TTD calls query");
 	m_controller = DebuggerController::GetController(data);
 
 	// Initialize column names and default visibility
@@ -80,6 +82,8 @@ void TTDCallsQueryWidget::setupUI()
 
 	// Symbols input (single line for comma-separated symbols)
 	m_symbolsEdit = new QLineEdit();
+	m_symbolsEdit->setProperty("bn.uiTestId", "ttd.calls.query.symbols");
+	m_symbolsEdit->setAccessibleName("TTD call symbols");
 	m_symbolsEdit->setPlaceholderText(
 		"Enter symbols separated by commas, e.g.: kernel32!*, ntdll!NtCreateFile, module!symbol");
 	inputLayout->addRow("Symbols:", m_symbolsEdit);
@@ -87,9 +91,13 @@ void TTDCallsQueryWidget::setupUI()
 	// Address range filter (optional) - temporarily disabled due to crashes
 	auto addressLayout = new QHBoxLayout();
 	m_startAddressEdit = new QLineEdit();
+	m_startAddressEdit->setProperty("bn.uiTestId", "ttd.calls.query.startAddress");
+	m_startAddressEdit->setAccessibleName("TTD call return address range start");
 	m_startAddressEdit->setPlaceholderText("Start address (hex, optional)");
 	m_startAddressEdit->setEnabled(true);
 	m_endAddressEdit = new QLineEdit();
+	m_endAddressEdit->setProperty("bn.uiTestId", "ttd.calls.query.endAddress");
+	m_endAddressEdit->setAccessibleName("TTD call return address range end");
 	m_endAddressEdit->setPlaceholderText("End address (hex, optional)");
 	m_endAddressEdit->setEnabled(true);
 	addressLayout->addWidget(new QLabel("Return Address Range:"));
@@ -102,8 +110,10 @@ void TTDCallsQueryWidget::setupUI()
 	// Button layout
 	auto buttonLayout = new QHBoxLayout();
 	m_queryButton = new QPushButton("Query TTD Calls");
+	m_queryButton->setProperty("bn.uiTestId", "ttd.calls.query.run");
 	m_queryButton->setToolTip("Execute TTD calls query with the specified symbols and address range");
 	m_clearButton = new QPushButton("Clear Results");
+	m_clearButton->setProperty("bn.uiTestId", "ttd.calls.query.clear");
 	buttonLayout->addWidget(m_queryButton);
 	buttonLayout->addWidget(m_clearButton);
 	buttonLayout->addStretch();
@@ -115,6 +125,8 @@ void TTDCallsQueryWidget::setupUI()
 
 	// Results table
 	m_resultsTable = new QTableWidget(0, static_cast<int>(m_columnNames.size()));
+	m_resultsTable->setProperty("bn.uiTestId", "ttd.calls.query.results");
+	m_resultsTable->setAccessibleName("TTD call results");
 	m_resultsTable->setHorizontalHeaderLabels(m_columnNames);
 	m_resultsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
 	m_resultsTable->setAlternatingRowColors(true);
@@ -126,6 +138,7 @@ void TTDCallsQueryWidget::setupUI()
 
 	// Status label
 	m_statusLabel = new QLabel("Ready");
+	m_statusLabel->setProperty("bn.uiTestId", "ttd.calls.query.status");
 	m_statusLabel->setContentsMargins(5, 5, 5, 5);
 	layout->addWidget(m_statusLabel);
 
@@ -677,6 +690,9 @@ bool TTDCallsQueryWidget::isUnused() const
 
 TTDCallsWidget::TTDCallsWidget(QWidget* parent, BinaryViewRef data) : QWidget(parent), m_data(data)
 {
+	setProperty("bn.uiTestId", "ttd.calls");
+	setProperty("bn.uiTestScope", "ttd.calls");
+	setAccessibleName("TTD Calls");
 	m_controller = DebuggerController::GetController(data);
 	setupUI();
 }
@@ -690,10 +706,15 @@ void TTDCallsWidget::setupUI()
 
 	// Tab widget setup
 	m_tabWidget = new QTabWidget();
+	m_tabWidget->setProperty("bn.uiTestId", "ttd.calls.tabs");
+	m_tabWidget->setProperty("bn.uiTestScope", "ttd.calls.tabs");
+	m_tabWidget->setAccessibleName("TTD calls query tabs");
 	m_tabWidget->setTabsClosable(true);
 
 	// Create "+" button as corner widget (matches TTD Memory widget)
 	m_newTabButton = new QToolButton();
+	m_newTabButton->setProperty("bn.uiTestId", "ttd.calls.newTab");
+	m_newTabButton->setAccessibleName("New TTD calls query tab");
 	m_newTabButton->setText("+");
 	m_newTabButton->setAutoRaise(true);
 	m_newTabButton->setToolTip("New TTD Calls Query Tab");
@@ -726,6 +747,9 @@ void TTDCallsWidget::createNewTab()
 
 	// Create new tab
 	auto queryWidget = new TTDCallsQueryWidget(this, m_data);
+	const qulonglong queryKey = m_tabWidget->property("bn.nextUiTestQueryKey").toULongLong() + 1;
+	m_tabWidget->setProperty("bn.nextUiTestQueryKey", queryKey);
+	queryWidget->setProperty("bn.uiTestKey", QStringLiteral("queryInstance.%1").arg(queryKey));
 	int index = m_tabWidget->addTab(queryWidget, QString("Query %1").arg(m_tabWidget->count() + 1));
 	m_tabWidget->setCurrentIndex(index);
 
@@ -790,6 +814,9 @@ void TTDCallsWidget::setParametersAndQueryInNewTab(const std::string& symbols, u
 
 TTDCallsSidebarWidget::TTDCallsSidebarWidget(BinaryViewRef data) : SidebarWidget("TTD Calls"), m_data(data)
 {
+	setProperty("bn.uiTestId", "sidebar.ttdCalls");
+	setProperty("bn.uiTestScope", "sidebar.ttdCalls");
+	setAccessibleName("TTD Calls");
 	m_controller = DebuggerController::GetController(data);
 
 	auto layout = new QVBoxLayout(this);

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "../../../ui/shared/internalaction.h"
 #include "ui.h"
 #include "binaryninjaapi.h"
 #include "breakpointswidget.h"
@@ -1157,7 +1158,7 @@ void GlobalDebuggerUI::SetupMenu(UIContext* context)
 	debuggerMenu->addAction("Connect to Remote Process", "Launch");
 
 	QString showAreaWidgets = "Show Debugger Sidebar Widgets";
-	UIAction::registerAction(showAreaWidgets);
+	UIIdentity::registerBuiltInAction(showAreaWidgets);
 
 	context->globalActions()->bindAction(showAreaWidgets, UIAction([](const UIActionContext& ctxt) {
 		auto uiContext = ctxt.context;
@@ -1674,6 +1675,9 @@ void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 
 			// Offer to restart Binary Ninja
 			QMessageBox msgBox(mainWindow);
+			msgBox.setProperty("bn.uiTestId", "debugger.winDbgInstallResultDialog");
+			msgBox.setProperty("bn.uiTestScope", "debugger.winDbgInstallResultDialog");
+			msgBox.setAccessibleName("WinDbg/TTD installation successful");
 			msgBox.setWindowTitle("Installation Successful");
 			msgBox.setText("WinDbg/TTD has been installed successfully!");
 			msgBox.setInformativeText("The debugger settings have been configured automatically.\n\n"
@@ -1681,7 +1685,9 @@ void GlobalDebuggerUI::installTTD(const UIActionContext& ctxt)
 			msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
 			msgBox.setDefaultButton(QMessageBox::No);
 			msgBox.button(QMessageBox::Yes)->setText("Restart Now");
+			msgBox.button(QMessageBox::Yes)->setProperty("bn.uiTestId", "debugger.winDbgInstallResultDialog.restart");
 			msgBox.button(QMessageBox::No)->setText("Restart Later");
+			msgBox.button(QMessageBox::No)->setProperty("bn.uiTestId", "debugger.winDbgInstallResultDialog.later");
 
 			if (msgBox.exec() == QMessageBox::Yes) {
 				// Restart Binary Ninja by spawning a new instance before quitting

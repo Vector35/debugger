@@ -151,6 +151,9 @@ static std::vector<ProcessItem> EnumerateProcessesWithCommandLine()
 TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	QDialog()
 {
+	setProperty("bn.uiTestId", "ttd.recordDialog");
+	setProperty("bn.uiTestScope", "ttd.recordDialog");
+	setAccessibleName("TTD record");
 	if (data)
 		m_controller = DebuggerController::GetController(data);
 
@@ -162,14 +165,28 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	layout->setSpacing(0);
 
 	m_pathEntry = new QLineEdit(this);
+	m_pathEntry->setProperty("bn.uiTestId", "ttd.recordDialog.executablePath");
+	m_pathEntry->setAccessibleName("Executable path");
 	m_pathEntry->setMinimumWidth(800);
 	m_argumentsEntry = new QLineEdit(this);
+	m_argumentsEntry->setProperty("bn.uiTestId", "ttd.recordDialog.arguments");
+	m_argumentsEntry->setAccessibleName("Command line arguments");
 	m_workingDirectoryEntry = new QLineEdit(this);
+	m_workingDirectoryEntry->setProperty("bn.uiTestId", "ttd.recordDialog.workingDirectory");
+	m_workingDirectoryEntry->setAccessibleName("Working directory");
 	m_outputDirectory = new QLineEdit(this);
+	m_outputDirectory->setProperty("bn.uiTestId", "ttd.recordDialog.outputDirectory");
+	m_outputDirectory->setAccessibleName("Trace output directory");
 	m_launchWithoutTracing = new QCheckBox(this);
+	m_launchWithoutTracing->setProperty("bn.uiTestId", "ttd.recordDialog.launchWithoutTracing");
+	m_launchWithoutTracing->setAccessibleName("Start application with recording off");
 	m_traceChildProcesses = new QCheckBox(this);
+	m_traceChildProcesses->setProperty("bn.uiTestId", "ttd.recordDialog.traceChildProcesses");
+	m_traceChildProcesses->setAccessibleName("Trace child processes");
 
 	auto* pathSelector = new QPushButton("...", this);
+	pathSelector->setProperty("bn.uiTestId", "ttd.recordDialog.selectExecutable");
+	pathSelector->setAccessibleName("Select executable");
 	pathSelector->setMaximumWidth(30);
 	connect(pathSelector, &QPushButton::clicked, [&]() {
 		auto fileName = QFileDialog::getOpenFileName(this, "Select Executable Path", m_pathEntry->text());
@@ -178,6 +195,8 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	});
 
 	auto* workingDirSelector = new QPushButton("...", this);
+	workingDirSelector->setProperty("bn.uiTestId", "ttd.recordDialog.selectWorkingDirectory");
+	workingDirSelector->setAccessibleName("Select working directory");
 	workingDirSelector->setMaximumWidth(30);
 	connect(workingDirSelector, &QPushButton::clicked, [&]() {
 		auto pathName = QFileDialog::getExistingDirectory(this, "Specify Working Directory",
@@ -187,6 +206,8 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	});
 
 	auto* outputDirSelector = new QPushButton("...", this);
+	outputDirSelector->setProperty("bn.uiTestId", "ttd.recordDialog.selectOutputDirectory");
+	outputDirSelector->setAccessibleName("Select trace output directory");
 	outputDirSelector->setMaximumWidth(30);
 	connect(outputDirSelector, &QPushButton::clicked, [&]() {
 		auto pathName = QFileDialog::getExistingDirectory(this, "Specify Trace Output Directory",
@@ -234,8 +255,10 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	buttonLayout->setContentsMargins(0, 0, 0, 0);
 
 	QPushButton* cancelButton = new QPushButton("Cancel");
+	cancelButton->setProperty("bn.uiTestId", "ttd.recordDialog.cancel");
 	connect(cancelButton, &QPushButton::clicked, [&]() { reject(); });
 	QPushButton* acceptButton = new QPushButton("Record");
+	acceptButton->setProperty("bn.uiTestId", "ttd.recordDialog.record");
 	connect(acceptButton, &QPushButton::clicked, [&]() { apply(); });
 	acceptButton->setDefault(true);
 
@@ -366,6 +389,9 @@ void TTDRecordDialog::DoTTDTrace()
 TTDAttachDialog::TTDAttachDialog(QWidget* parent, BinaryView* data) :
 	QDialog()
 {
+	setProperty("bn.uiTestId", "ttd.attachDialog");
+	setProperty("bn.uiTestScope", "ttd.attachDialog");
+	setAccessibleName("TTD attach to process");
 	if (data)
 		m_controller = DebuggerController::GetController(data);
 
@@ -381,8 +407,14 @@ TTDAttachDialog::TTDAttachDialog(QWidget* parent, BinaryView* data) :
 	// Process list section - pass nullptr to avoid using controller's GetProcessList
 	// We always want to use our own EnumerateProcessesWithCommandLine() for TTD
 	m_processListWidget = new ProcessListWidget(this, nullptr);
+	m_processListWidget->setProperty("bn.uiTestId", "ttd.attachDialog.processes");
+	m_processListWidget->setProperty("bn.uiTestScope", "ttd.attachDialog.processes");
+	m_processListWidget->setAccessibleName("Processes available for TTD recording");
 	m_separateEdit = new FilterEdit(m_processListWidget);
+	m_separateEdit->setProperty("bn.uiTestId", "ttd.attachDialog.processFilter");
+	m_separateEdit->setAccessibleName("Filter processes");
 	m_filter = new FilteredView(this, m_processListWidget, m_processListWidget, m_separateEdit);
+	m_filter->setProperty("bn.uiTestId", "ttd.attachDialog.filteredProcesses");
 	m_filter->setFilterPlaceholderText("Search process");
 
 	auto headerLayout = new QHBoxLayout();
@@ -395,9 +427,15 @@ TTDAttachDialog::TTDAttachDialog(QWidget* parent, BinaryView* data) :
 
 	// TTD options section
 	m_outputDirectory = new QLineEdit(this);
+	m_outputDirectory->setProperty("bn.uiTestId", "ttd.attachDialog.outputDirectory");
+	m_outputDirectory->setAccessibleName("Trace output directory");
 	m_traceChildProcesses = new QCheckBox(this);
+	m_traceChildProcesses->setProperty("bn.uiTestId", "ttd.attachDialog.traceChildProcesses");
+	m_traceChildProcesses->setAccessibleName("Trace child processes");
 
 	auto* outputDirSelector = new QPushButton("...", this);
+	outputDirSelector->setProperty("bn.uiTestId", "ttd.attachDialog.selectOutputDirectory");
+	outputDirSelector->setAccessibleName("Select trace output directory");
 	outputDirSelector->setMaximumWidth(30);
 	connect(outputDirSelector, &QPushButton::clicked, [&]() {
 		auto pathName = QFileDialog::getExistingDirectory(this, "Specify Trace Output Directory",
@@ -426,8 +464,10 @@ TTDAttachDialog::TTDAttachDialog(QWidget* parent, BinaryView* data) :
 	buttonLayout->setContentsMargins(0, 0, 0, 0);
 
 	QPushButton* cancelButton = new QPushButton("Cancel");
+	cancelButton->setProperty("bn.uiTestId", "ttd.attachDialog.cancel");
 	connect(cancelButton, &QPushButton::clicked, [&]() { reject(); });
 	QPushButton* acceptButton = new QPushButton("Attach and Record");
+	acceptButton->setProperty("bn.uiTestId", "ttd.attachDialog.record");
 	connect(acceptButton, &QPushButton::clicked, [&]() { apply(); });
 	acceptButton->setDefault(true);
 

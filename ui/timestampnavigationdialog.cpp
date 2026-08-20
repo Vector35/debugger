@@ -23,6 +23,9 @@ limitations under the License.
 TimestampNavigationDialog::TimestampNavigationDialog(QWidget* parent, DbgRef<DebuggerController> controller)
 	: QDialog(parent), m_controller(controller)
 {
+	setProperty("bn.uiTestId", "ttd.timestampNavigationDialog");
+	setProperty("bn.uiTestScope", "ttd.timestampNavigationDialog");
+	setAccessibleName("Navigate to TTD Timestamp");
 	setWindowTitle("Navigate to TTD Timestamp");
 	setModal(true);
 
@@ -34,6 +37,8 @@ TimestampNavigationDialog::TimestampNavigationDialog(QWidget* parent, DbgRef<Deb
 	QFormLayout* navLayout = new QFormLayout(navGroup);
 
 	m_timestampEdit = new QLineEdit(this);
+	m_timestampEdit->setProperty("bn.uiTestId", "ttd.timestampNavigationDialog.timestamp");
+	m_timestampEdit->setAccessibleName("TTD timestamp");
 	m_timestampEdit->setPlaceholderText("e.g., 1A0:12F");
 	m_timestampEdit->setFont(QFont("monospace"));
 	
@@ -52,6 +57,9 @@ TimestampNavigationDialog::TimestampNavigationDialog(QWidget* parent, DbgRef<Deb
 
 	// Button box
 	m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+	m_buttonBox->setProperty("bn.uiTestId", "ttd.timestampNavigationDialog.buttons");
+	m_buttonBox->button(QDialogButtonBox::Ok)->setProperty("bn.uiTestId", "ttd.timestampNavigationDialog.navigate");
+	m_buttonBox->button(QDialogButtonBox::Cancel)->setProperty("bn.uiTestId", "ttd.timestampNavigationDialog.cancel");
 	m_buttonBox->button(QDialogButtonBox::Ok)->setText("Navigate");
 	m_buttonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
 	
