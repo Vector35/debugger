@@ -25,6 +25,7 @@ limitations under the License.
 #include "util.h"
 #include "clickablelabel.h"
 #include "registerswidget.h"
+#include "debuggeruicommon.h"
 #include "base/assertions.h"
 
 using namespace BinaryNinja;
@@ -804,9 +805,23 @@ bool DebugRegistersWidget::canPaste()
 }
 
 
-void DebugRegistersWidget::onDoubleClicked()
+void DebugRegistersWidget::onDoubleClicked(const QModelIndex& index)
 {
-	jump();
+	// Navigate to the address the register holds, opening it in the other pane when it is
+	// a different kind of thing (code vs data) than what the current pane shows, so the
+	// view the user is looking at stays put (see NavigateToAddress and issue #1134).
+	if (!index.isValid())
+		return;
+
+	auto sourceIndex = m_filter->mapToSource(index);
+	if (!sourceIndex.isValid())
+		return;
+
+	auto reg = m_model->getRow(sourceIndex.row());
+	uint64_t value = (uint64_t)reg.value();
+
+	if (m_controller->GetData())
+		NavigateToAddress(this, m_controller->GetData(), value);
 }
 
 

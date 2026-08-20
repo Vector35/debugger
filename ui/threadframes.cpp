@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "threadframes.h"
+#include "debuggeruicommon.h"
 #include <algorithm>
 
 FrameItem::~FrameItem()
@@ -735,6 +736,16 @@ ThreadFramesWidget::ThreadFramesWidget(QWidget* parent, ViewFrame* frame, Binary
 	m_menu.addAction(actionName, "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction(actionName, UIAction([this]() { copyAllFrames(); }));
 
+	// Force navigation into the currently focused pane (double-click instead picks the
+	// pane by content type; see NavigateToAddress).
+	actionName = QString::fromStdString("Navigate in Current Pane");
+	UIAction::registerAction(actionName);
+	m_menu.addAction(actionName, "Options", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction(actionName, UIAction([this]() { navigateInCurrentPane(); }, [this]() {
+		uint64_t addr = 0;
+		return navigationAddressForSelection(addr);
+	}));
+
 	// TODO: set as active thread action?
 
 	connect(this, &QTreeView::doubleClicked, this, &ThreadFramesWidget::onDoubleClicked);
@@ -849,30 +860,50 @@ void ThreadFramesWidget::onDoubleClicked()
 	}
 
 	uint64_t addrToJump = 0;
-	switch (column)
+	if (!navigationAddressForSelection(addrToJump))
+		return;
+
+	// Navigate to the target, opening it in the other pane when it is a different kind
+	// of thing (code vs data) than the current pane shows (see NavigateToAddress, #1134).
+	if (m_debugger->GetData())
+		NavigateToAddress(this, m_debugger->GetData(), addrToJump);
+}
+
+
+bool ThreadFramesWidget::navigationAddressForSelection(uint64_t& addr)
+{
+	QModelIndexList sel = selectionModel()->selectedIndexes();
+	if (sel.empty())
+		return false;
+
+	const QModelIndex& index = sel[0];
+	FrameItem* frameItem = static_cast<FrameItem*>(index.internalPointer());
+	if (!frameItem || !frameItem->isFrame())
+		return false;
+
+	switch (index.column())
 	{
 	case ThreadFrameModel::FunctionColumn:
 	case ThreadFrameModel::PcColumn:
-		addrToJump = frameItem->framePc();
-		break;
+		addr = frameItem->framePc();
+		return true;
 	case ThreadFrameModel::SpColumn:
-		addrToJump = frameItem->sp();
-		break;
+		addr = frameItem->sp();
+		return true;
 	case ThreadFrameModel::FpColumn:
-		addrToJump = frameItem->fp();
-		break;
+		addr = frameItem->fp();
+		return true;
+	default:
+		return false;
 	}
+}
 
-	UIContext* context = UIContext::contextForWidget(this);
-	if (!context)
-		return;
 
-	ViewFrame* frame = context->getCurrentViewFrame();
-	if (!frame)
-		return;
-
-	if (m_debugger->GetData())
-		frame->navigate(m_debugger->GetData(), addrToJump, true, true);
+void ThreadFramesWidget::navigateInCurrentPane()
+{
+	uint64_t addr = 0;
+	if (navigationAddressForSelection(addr) && m_debugger->GetData())
+		NavigateToAddressInCurrentPane(this, m_debugger->GetData(), addr);
 }
 
 

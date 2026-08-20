@@ -17,6 +17,7 @@ limitations under the License.
 #include "ttdcallswidget.h"
 #include "ttdbookmarkwidget.h"
 #include "ui.h"
+#include "debuggeruicommon.h"
 #include <QGroupBox>
 #include <QScrollArea>
 #include <QSplitter>
@@ -187,6 +188,14 @@ void TTDCallsQueryWidget::setupUIActions()
 
 	m_menu.addAction("Reset Columns to Default", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Reset Columns to Default", UIAction([&]() { resetColumnsToDefault(); }));
+
+	// Force navigation into the currently focused pane (double-click instead picks the
+	// pane by content type; see NavigateToAddress).
+	m_menu.addAction("Navigate in Current Pane", "Navigate", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction("Navigate in Current Pane", UIAction([&]() { navigateInCurrentPane(); }, [&]() {
+		uint64_t addr = 0;
+		return addressForCell(m_resultsTable->currentRow(), m_resultsTable->currentColumn(), addr);
+	}));
 
 	m_menu.addAction("Add TTD Bookmark...", "Bookmark", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Add TTD Bookmark...", UIAction([&]() {
@@ -484,28 +493,45 @@ void TTDCallsQueryWidget::onCellDoubleClicked(int row, int column)
 	}
 	else if (column == FunctionAddressColumn || column == ReturnAddressColumn)
 	{
-		// Navigate to address in Binary Ninja
-		QTableWidgetItem* item = m_resultsTable->item(row, column);
-		if (item)
+		uint64_t address = 0;
+		if (addressForCell(row, column, address))
 		{
-			QString addressText = item->text();
-			if (addressText.startsWith("0x", Qt::CaseInsensitive))
-			{
-				bool ok;
-				uint64_t address = addressText.mid(2).toULongLong(&ok, 16);
-
-				if (ok && address != 0)
-				{
-					// Navigate to address in Binary Ninja
-					ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
-					if (frame)
-					{
-						frame->navigate(m_data, address);
-					}
-				}
-			}
+			// Navigate to the address, opening it in the other pane when it is a different
+			// kind of thing (code vs data) than the current pane shows (see NavigateToAddress,
+			// issue #1134). The time-travel columns above intentionally keep the current pane.
+			NavigateToAddress(this, m_data, address);
 		}
 	}
+}
+
+
+bool TTDCallsQueryWidget::addressForCell(int row, int column, uint64_t& addr)
+{
+	if (row < 0 || row >= m_resultsTable->rowCount())
+		return false;
+
+	// The return-address column navigates to the return address; any other cell navigates
+	// to the row's function address.
+	int addrColumn = (column == ReturnAddressColumn) ? ReturnAddressColumn : FunctionAddressColumn;
+	QTableWidgetItem* item = m_resultsTable->item(row, addrColumn);
+	if (!item)
+		return false;
+
+	QString text = item->text();
+	if (!text.startsWith("0x", Qt::CaseInsensitive))
+		return false;
+
+	bool ok = false;
+	addr = text.mid(2).toULongLong(&ok, 16);
+	return ok && addr != 0;
+}
+
+
+void TTDCallsQueryWidget::navigateInCurrentPane()
+{
+	uint64_t addr = 0;
+	if (addressForCell(m_resultsTable->currentRow(), m_resultsTable->currentColumn(), addr))
+		NavigateToAddressInCurrentPane(this, m_data, addr);
 }
 
 void TTDCallsQueryWidget::updateColumnVisibility()
