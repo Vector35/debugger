@@ -130,6 +130,7 @@ namespace BinaryNinjaDebugger {
 		IDebugControl7* m_debugControl {nullptr};
 		IDebugDataSpaces* m_debugDataSpaces {nullptr};
 		IDebugDataSpaces2* m_debugDataSpaces2 {nullptr};
+		IDebugDataSpaces4* m_debugDataSpaces4 {nullptr};
 		IDebugRegisters* m_debugRegisters {nullptr};
 		IDebugSymbols3* m_debugSymbols {nullptr};
 		IDebugSystemObjects* m_debugSystemObjects {nullptr};
