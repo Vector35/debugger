@@ -16,6 +16,7 @@ limitations under the License.
 
 #include <algorithm>
 #include <chrono>
+#include <inttypes.h>
 #include <thread>
 #include <utility>
 #include <filesystem>
@@ -1219,15 +1220,25 @@ void DebuggerBreakpoints::Apply()
 		else
 		{
 			// Hardware breakpoints can use either module+offset or absolute address
+			bool success;
 			if (bp.isRelative)
 			{
 				// Use module+offset - adapter will handle resolution
-				m_state->GetAdapter()->AddHardwareBreakpoint(bp.location, bp.type, bp.size);
+				success = m_state->GetAdapter()->AddHardwareBreakpoint(bp.location, bp.type, bp.size);
 			}
 			else
 			{
 				// Use absolute address
-				m_state->GetAdapter()->AddHardwareBreakpoint(bp.address, bp.type, bp.size);
+				success = m_state->GetAdapter()->AddHardwareBreakpoint(bp.address, bp.type, bp.size);
+			}
+
+			if (!success)
+			{
+				uint64_t addr = bp.isRelative ?
+					m_state->GetModules()->RelativeAddressToAbsolute(bp.location) : bp.address;
+				LogError("Failed to add hardware breakpoint at 0x%" PRIx64
+					". The target may not support this type of hardware breakpoint"
+					" or all hardware breakpoint slots may be in use.", addr);
 			}
 		}
 	}
