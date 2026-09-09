@@ -890,6 +890,11 @@ bool X2WinRpcAdapter::Go(){
     bool success = resp && resp->success();
     if(!success)
         LogWarn("X2WinRpcAdapter::Go: stub reported failure");
+    else{
+        DebuggerEvent event;
+        event.type = ResumeEventType;
+        PostDebuggerEvent(event);
+    }
     return success;
 }
 bool X2WinRpcAdapter::StepInto(){
