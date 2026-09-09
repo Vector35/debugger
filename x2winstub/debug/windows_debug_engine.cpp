@@ -311,25 +311,25 @@ namespace x2win {
 			m_modules.clear();
 		}
 
-		// Clear breakpoints (but keep them for re-apply on restart)
+		// Fully clear breakpoint state instead of only marking it inactive. Keeping the old address
+		// around let ApplyPendingBreakpoints() silently re-apply it (by the stored raw address) to
+		// whatever process gets attached/launched next -- correct when restarting the *same* binary,
+		// wrong once this engine instance is reused for an unrelated target on a reused stub
+		// connection. Safe to drop entirely: X2WinRpcAdapter (BN-core side) already re-sends every
+		// breakpoint it cares about via AddBreakpoint()/AddHardwareBreakpoint() on every successful
+		// Attach/Launch/ConnectToDebugServer (see its ApplyBreakPoints()), so nothing is lost.
 		{
 			std::lock_guard<std::mutex> lock(m_breakpointsMutex);
-			for (auto& bp : m_breakpoints)
-			{
-				bp.isActive = false;
-				bp.originalByte = 0;          // Clear stale original byte from previous session
-				bp.hasOriginalByte = false;   // ...and mark it as no longer known, not just zeroed
-			}
+			m_breakpoints.clear();
+			m_pendingBreakpoints.clear();
 		}
 
-		// Clear hardware breakpoints state
+		// Same reasoning for hardware breakpoints -- their addresses (and any not-yet-resolved pending
+		// ones, e.g. queued because no free debug register was available) are just as process-specific.
 		{
 			std::lock_guard<std::mutex> lock(m_hwBreakpointsMutex);
-			for (auto& hwbp : m_hardwareBreakpoints)
-			{
-				hwbp.isActive = false;
-				hwbp.drIndex = -1;
-			}
+			m_hardwareBreakpoints.clear();
+			m_pendingHardwareBreakpoints.clear();
 		}
 
 		// Reset step tracking
@@ -517,6 +517,23 @@ namespace x2win {
 					RemoveAllBreakpoints();
 					ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, DBG_CONTINUE);
 
+					// If more than one thread hit this breakpoint at the same time, the ContinueDebugEvent()
+					// above only accounts for the one debug event WaitForDebugEvent() actually retrieved --
+					// any other thread's debug event is still sitting in the kernel's queue for this process,
+					// never continued. DebugActiveProcessStop() below requires every outstanding debug event
+					// to be continued before it will detach cleanly; leaving one pending makes it fail, and the
+					// fallback below then kills the target -- which is exactly the multi-threaded-detach bug
+					// this is fixing. A zero-millisecond WaitForDebugEvent() returns immediately once the
+					// queue is empty, so this doesn't add any real delay in the common (single pending event)
+					// case.
+					DEBUG_EVENT pendingEvent;
+					while (WaitForDebugEvent(&pendingEvent, 0))
+					{
+						LogVerbose("Detach: draining pending debug event code=%d, pid=%d, tid=%d",
+							pendingEvent.dwDebugEventCode, pendingEvent.dwProcessId, pendingEvent.dwThreadId);
+						ContinueDebugEvent(pendingEvent.dwProcessId, pendingEvent.dwThreadId, DBG_CONTINUE);
+					}
+
 					// DebugActiveProcessStop must be called from the same thread that started debugging
 					if (!DebugActiveProcessStop(m_processId))
 					{
@@ -560,6 +577,16 @@ namespace x2win {
 		if (m_shouldStop && m_activelyDebugging)
 		{
 			RemoveAllBreakpoints();
+
+			// Same rationale as the drain in the shouldBreak branch above -- make sure nothing is left
+			// pending before detaching here too.
+			DEBUG_EVENT pendingEvent;
+			while (WaitForDebugEvent(&pendingEvent, 0))
+			{
+				LogVerbose("Detach: draining pending debug event code=%d, pid=%d, tid=%d",
+					pendingEvent.dwDebugEventCode, pendingEvent.dwProcessId, pendingEvent.dwThreadId);
+				ContinueDebugEvent(pendingEvent.dwProcessId, pendingEvent.dwThreadId, DBG_CONTINUE);
+			}
 
 			if (!DebugActiveProcessStop(m_processId))
 			{
@@ -1482,6 +1509,18 @@ namespace x2win {
 		{
 			LogWarn("ApplyBreakpoint: Failed to write INT3 at 0x%llX, error=%d", address, GetLastError());
 		}
+		else
+		{
+			// WriteProcessMemory() only guarantees the byte lands in the target's memory, not that a
+			// thread already executing (or about to fetch) this address sees it -- unlike same-thread
+			// self-modifying code, x86/x64 doesn't automatically keep a cross-process data write
+			// coherent with the instruction stream. FlushInstructionCache() is what MSDN's
+			// WriteProcessMemory docs say is required after writing to code; without it, a breakpoint
+			// set on a target that's already running (as opposed to one set before Launch/Attach, before
+			// this address was ever fetched) can silently never trigger even though the write itself
+			// succeeded.
+			FlushInstructionCache(m_processHandle, (LPCVOID)address, 1);
+		}
 
 		VirtualProtectEx(m_processHandle, (LPVOID)address, 1, oldProtect, &oldProtect);
 
@@ -1605,6 +1644,11 @@ namespace x2win {
 
 		SIZE_T bytesWritten;
 		bool success = WriteProcessMemory(m_processHandle, (LPVOID)address, &originalByte, 1, &bytesWritten) && bytesWritten == 1;
+
+		// Same reasoning as ApplyBreakpoint() -- flush so a thread already running near this address
+		// picks up the restored original byte instead of a stale cached INT3.
+		if (success)
+			FlushInstructionCache(m_processHandle, (LPCVOID)address, 1);
 
 		VirtualProtectEx(m_processHandle, (LPVOID)address, 1, oldProtect, &oldProtect);
 
@@ -1770,6 +1814,12 @@ namespace x2win {
 		uint8_t int3 = INT3_OPCODE;
 		bool success = WriteProcessMemory(m_processHandle, (LPVOID)address, &int3, 1, &bytesWritten) && bytesWritten == 1;
 
+		// Same reasoning as ApplyBreakpoint() -- this temp breakpoint is written while the target is
+		// actively running (that's the whole point of a run-to/step-over temp breakpoint), so it needs
+		// the flush at least as much as a regular breakpoint set before launch would.
+		if (success)
+			FlushInstructionCache(m_processHandle, (LPCVOID)address, 1);
+
 		VirtualProtectEx(m_processHandle, (LPVOID)address, 1, oldProtect, &oldProtect);
 
 		if (success)
@@ -1795,6 +1845,11 @@ namespace x2win {
 		SIZE_T bytesWritten;
 		bool success = WriteProcessMemory(m_processHandle, (LPVOID)m_tempBreakpointAddress,
 			&m_tempBreakpointOriginalByte, 1, &bytesWritten) && bytesWritten == 1;
+
+		// Same reasoning as ApplyBreakpoint() -- the target resumes executing right after this restore,
+		// at the address whose byte just changed back.
+		if (success)
+			FlushInstructionCache(m_processHandle, (LPCVOID)m_tempBreakpointAddress, 1);
 
 		VirtualProtectEx(m_processHandle, (LPVOID)m_tempBreakpointAddress, 1, oldProtect, &oldProtect);
 
@@ -2542,6 +2597,11 @@ namespace x2win {
 
 		bool success = WriteProcessMemory(m_processHandle, (LPVOID)address, buffer.data(),
 			buffer.size(), &bytesWritten) && bytesWritten == buffer.size();
+
+		// This RPC can be used to patch code, not just data -- same reasoning as ApplyBreakpoint()
+		// applies. Flushing a range that turns out to be pure data is harmless (just a wasted syscall).
+		if (success)
+			FlushInstructionCache(m_processHandle, (LPCVOID)address, buffer.size());
 
 		// Restore protection
 		VirtualProtectEx(m_processHandle, (LPVOID)address, buffer.size(), oldProtect, &oldProtect);
