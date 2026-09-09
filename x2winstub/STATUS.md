@@ -1,7 +1,7 @@
 # Status
 
-What this codebase currently supports, and the known issues in it that aren't fixed yet. Each issue
-entry lists where the problem lives, how to reproduce it, and its root cause.
+What this codebase currently supports, and the known issues found in it -- fixed or not. Each issue
+entry lists where the problem lives, how to reproduce it, its root cause, and its current status.
 
 ## Build status
 
@@ -53,8 +53,8 @@ The same code (including the pending-event gap) exists in `core/adapters/windows
 (BinaryView-hosted native Windows adapter this engine was ported from), which this issue does not
 cover.
 
-**Status:** Fix identified (drain and continue any pending debug events before calling
-`DebugActiveProcessStop()`), not yet implemented.
+**Status:** Fixed (drain and continue any pending debug events before calling
+`DebugActiveProcessStop()`), in `Vector35/X2WinStub@2e995e5`.
 
 ### 2. Breakpoints can carry over to an unrelated process after Detach + re-Attach
 
@@ -73,9 +73,9 @@ restarting the *same* binary (addresses stay meaningful), but unsafe once the sa
 be reused for an unrelated target, since nothing here checks whether the new process has anything to
 do with the old one.
 
-**Status:** Fix identified (clear breakpoint state fully in `Reset()` rather than only marking it
+**Status:** Fixed (clear breakpoint state fully in `Reset()` rather than only marking it
 inactive; the BN-core client already re-sends every breakpoint it cares about on every successful
-connect, so nothing is lost), not yet implemented.
+connect, so nothing is lost), in `Vector35/X2WinStub@2e995e5`.
 
 ### 3. Binary Ninja's UI doesn't show the target as running while it's running freely
 
@@ -103,5 +103,26 @@ does, before it actually resumes the target -- `X2WinRpcAdapter::Go()` is missin
 Note `X2WinRpcAdapter::BreakInto()` already posts `ResumeEventType` on success (existing code, unrelated
 to this fix), which is a separate, already-correct case.
 
-**Status:** Fix identified (post a `ResumeEventType` `DebuggerEvent` at the start of
-`X2WinRpcAdapter::Go()`, mirroring `GdbAdapter::Go()`), not yet implemented.
+**Status:** Fixed locally in `core/adapters/x2winrpcadapter.cpp`, not yet committed. Implemented
+slightly differently than first proposed: the `ResumeEventType` event is posted after `CallSync()`
+returns and only on `resp->success()`, not before the request is sent as in `GdbAdapter::Go()` --
+deliberate, to avoid showing "Running" if the stub actually rejected the resume, at the cost of the
+UI update lagging by one round trip instead of leading it.
+
+### 4. Breakpoint written to a running target could silently never trigger
+
+**Where:** `debug/windows_debug_engine.cpp` -- `ApplyBreakpoint()`, `RemoveBreakpoint()`, the temp
+breakpoint set/restore helpers, and `WriteMemory()`.
+
+**Symptom:** Not observed as a standalone report, found while fixing #1/#2 above. A software
+breakpoint (or a temp breakpoint used by step-over/run-to) set while the target thread was already
+executing near that address could fail to trigger, even though the `INT3` write itself succeeded.
+
+**Root cause:** `WriteProcessMemory()` only guarantees the byte lands in the target process's
+memory; on x86/x64 it does not keep a thread's already-fetched instruction stream coherent with a
+cross-process code write the way same-thread self-modifying code is. `FlushInstructionCache()` is
+what MSDN's `WriteProcessMemory` docs call out as required after writing to code, and it was missing
+from every `INT3` write and restore path.
+
+**Status:** Fixed (`FlushInstructionCache()` added after every `INT3` write/restore, and after
+`WriteMemory()` since it can be used to patch code), in `Vector35/X2WinStub@2e995e5`.
