@@ -18,6 +18,14 @@ enum StopReason : byte {
     // session, the first time any breakpoint exception is seen, regardless of address.
     INITIAL_BREAKPOINT = 3,
     EXITED = 4,
+    // WindowsDebugEngine::HandleException() classifies SEH exceptions into these three buckets
+    // (x2winstub/debug/windows_debug_engine.cpp) -- without wire representations for them, every
+    // exception-driven stop (segfault, divide-by-zero, illegal instruction) collapsed to UNKNOWN
+    // on the BN-core side (X2WinRpcAdapter::ReaderLoop()'s reason mapping has no case for it
+    // either) instead of the correct BNDebugStopReason.
+    ACCESS_VIOLATION = 5,
+    CALCULATION = 6,
+    ILLEGAL_INSTRUCTION = 7,
 }
 
 table LaunchRequest { path: string; args: string; working_dir: string; }
