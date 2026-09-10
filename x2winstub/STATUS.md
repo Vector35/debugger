@@ -18,9 +18,9 @@ RPC protocol):
 - Launching a target exe on the remote Windows box (path/args/working directory), attaching to an
   existing pid, listing processes, detaching, quitting.
 - Execution control: Go/continue, step into, step over, step return, break-into (interrupt).
-- Breakpoints: software (set/remove) and hardware (set/remove). Stop reason reporting includes
-  exception-driven stops (access violation, divide-by-zero, illegal instruction), not just
-  breakpoints/steps.
+- Breakpoints: software (set/remove) and hardware (set/remove), including setting a breakpoint on a
+  target that is already running. Stop reason reporting includes exception-driven stops (access
+  violation, divide-by-zero, illegal instruction), not just breakpoints/steps.
 - Memory: read, write, memory map query.
 - Registers: read all, read one, write one.
 - Threads: list, get/set active thread, suspend, resume.
@@ -35,49 +35,37 @@ RPC protocol):
 
 ## Known issues
 
-### 1. Breakpoint on a running target: automated test fails, manual GUI use doesn't
+### 1. Conditional breakpoints are slow to evaluate
 
-**Where:** stub-side `ApplyBreakpoint()` (`debug/windows_debug_engine.cpp`).
+**Where:** BN-core, `DebuggerController::ShouldSilentResumeAfterStop()` and the register-hint
+computation it triggers (`DebuggerRegisters::GetAllRegisters()` / `DebuggerController::
+GetAddressInformation()`, both in `core/debuggerstate.cpp` / `core/debuggercontroller.cpp`). Not
+X2Win-specific -- affects every adapter.
 
-**Symptom:** Run via the automated test (`test_breakpoint_set_on_running_target_triggers`), setting
-a software breakpoint at an address inside the target's own running code is rejected every time:
-`ReadProcessMemory()` fails with `ERROR_PARTIAL_COPY` (299) reading the original byte before writing
-`INT3`. Reproduces regardless of address "hotness", delay before arming (0.1s-8s), launch vs.
-attach, or target binary.
+**Symptom:** Any breakpoint stop, condition or not, takes 10+ seconds to resolve through
+`go_and_wait()`, even when a condition is true on the very first hit. Root cause: on every stop,
+`ShouldSilentResumeAfterStop()` populates register display hints via `GetAddressInformation()` for
+every distinct register value -- each of which does live `ReadMemory()` calls plus analysis-database
+lookups -- even though the only caller on this path (`AddRegisterValuesToExpressionParser()`) reads
+just the raw register values and never uses the hint. This is core code shared by all adapters, not
+part of x2winstub.
 
-Manually reproducing the identical case through Binary Ninja's GUI (same adapter, same build, same
-exact address, breakpoint set a few seconds after Continue) does not reproduce it -- the breakpoint
-is accepted and triggers normally every time. Confirmed this isn't an address or code-path
-difference: GUI's breakpoint toggle (`DebugControlsWidget::toggleBreakpoint()`, `ui/controlswidget.cpp`)
-calls the exact same `AddBreakpoint(uint64_t)` path as the automated test when connected. Cause of
-the discrepancy between the two is not known.
+### 2. `StepReturn()` on a target with no real function prologues can pick an unrelated address
 
-### 2. Cleanup after a rejected running-target breakpoint is slow
+**Where:** stub-side `WindowsDebugEngine::StepReturn()` / `GetReturnAddress()`
+(`debug/windows_debug_engine.cpp`).
 
-**Symptom:** Following issue #1, `Quit()`'s cleanup (pausing the still-running target) routinely
-takes about a minute. Root cause not identified. A batch test runner that kills this on a tight
-timeout can leave the next test in the batch spuriously stalling too (a leftover process not fully
-torn down) -- give it a generous timeout, or run it last/in isolation.
+**Symptom:** `StepReturn()` needs the address the current function will return to. When
+`StackWalk64` can't unwind a second frame (no `.pdata`/unwind info -- e.g. hand-written test code
+with no real prologue), it falls back to scanning the stack for a plausible return address (a value
+that lands inside a known module and is immediately preceded by a `call` instruction). If the thread
+is genuinely not inside any nested call at that moment (sitting at a call instruction that hasn't
+executed yet, rather than inside a callee), there is no correct answer for "the current function's
+return address" to find, and the scan can return an unrelated, older return address further up the
+stack instead. Calling `StepReturn()` only while actually inside a called function's body gives the
+correct result.
 
-### 3. Conditional breakpoints are slow to evaluate
-
-**Where:** BN-core, `DebuggerController::ShouldSilentResumeAfterStop()` (generic, not X2Win-specific).
-
-**Symptom:** Any breakpoint with a condition set takes 10+ seconds to resolve through
-`go_and_wait()`, even when the condition is true on the very first hit. The RPC traffic itself
-completes quickly; the delay is elsewhere in BN-core's result plumbing. Likely affects every
-adapter, not just X2Win.
-
-### 4. `StepReturn()` fails on the second call in a session
-
-**Where:** stub-side `StepReturn()` (`debug/windows_debug_engine.cpp`), via `StackWalk64`.
-
-**Symptom:** The first `step_return_and_wait()` in a session lands correctly; a second one (same
-process, different return address) returns `InternalError`. Plausibly `StackWalk64` frame unwinding
-depends on `.pdata`/`RUNTIME_FUNCTION` info that the current test binary (a hand-built
-`asmtest.exe` with no real function prologues) doesn't have. Unconfirmed.
-
-### 5. A breakpoint re-armed after `Restart()` can race the caller
+### 3. A breakpoint re-armed after `Restart()` can race the caller
 
 **Where:** `X2WinRpcAdapter::AddBreakpoint(ModuleNameAndOffset&)`'s pending-breakpoint retry.
 
@@ -87,7 +75,7 @@ resumes immediately after `restart_and_wait()` returns can race past it before i
 workaround is to re-add the breakpoint explicitly after restart instead of relying on the automatic
 carry-over.
 
-### 6. Resume after an exception can leave the GUI stuck, doesn't reproduce via script
+### 4. Resume after an exception can leave the GUI stuck, doesn't reproduce via script
 
 **Where:** unknown.
 
