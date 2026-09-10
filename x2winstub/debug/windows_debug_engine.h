@@ -189,6 +189,11 @@ namespace x2win {
 		// Instruction helpers
 		bool IsCallInstruction(uint64_t address, size_t& instrLength);
 		uint64_t GetReturnAddress();
+		// True if `candidate` is both inside a known module and immediately preceded by a call
+		// instruction whose length lands exactly on it -- i.e. it looks like a genuine return
+		// address a `call` actually pushed, not an arbitrary stack value or a StackWalk64 frame
+		// guessed from an unreliable frame-pointer chain. See StepReturn()/GetReturnAddress().
+		bool IsPlausibleReturnAddress(uint64_t candidate);
 
 	public:
 		WindowsDebugEngine();

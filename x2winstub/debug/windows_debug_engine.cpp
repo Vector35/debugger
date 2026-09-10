@@ -35,6 +35,13 @@ namespace x2win {
 		vfprintf(stderr, fmt, args);
 		fprintf(stderr, "\n");
 		va_end(args);
+		// MSVC's CRT fully-buffers stderr (unlike glibc, which leaves it unbuffered) once it's
+		// redirected to a file/pipe rather than a console -- e.g. exactly how the test harness's
+		// subprocess.Popen(..., stderr=subprocess.STDOUT) runs this binary. Without an explicit
+		// flush, a warning/error can sit in that buffer indefinitely and never reach whoever is
+		// tailing the log, especially if the process is later force-killed rather than exiting
+		// cleanly (which would never flush it at all).
+		fflush(stderr);
 	}
 
 	void LogError(const char* fmt, ...)
@@ -45,6 +52,7 @@ namespace x2win {
 		vfprintf(stderr, fmt, args);
 		fprintf(stderr, "\n");
 		va_end(args);
+		fflush(stderr);
 	}
 
 	// INT3 instruction opcode
@@ -1948,6 +1956,45 @@ namespace x2win {
 	}
 
 
+	bool WindowsDebugEngine::IsPlausibleReturnAddress(uint64_t candidate)
+	{
+		if (candidate == 0)
+			return false;
+
+		// Must land inside a module we know about -- rules out stack garbage (uninitialized
+		// locals, leftover values from an earlier call) that doesn't happen to be a code address
+		// at all.
+		{
+			std::lock_guard<std::mutex> lock(m_modulesMutex);
+			bool inModule = false;
+			for (const auto& mod : m_modules)
+			{
+				if (mod.m_size != 0 && candidate >= mod.m_address && candidate < mod.m_address + mod.m_size)
+				{
+					inModule = true;
+					break;
+				}
+			}
+			if (!inModule)
+				return false;
+		}
+
+		// And must be immediately preceded by a call instruction whose decoded length lands
+		// exactly on `candidate` -- confirms this value was actually pushed by a `call`, rather
+		// than a code address that merely happens to sit in the stack slot we're looking at.
+		for (size_t callLen : {5, 2, 3, 6, 7})
+		{
+			if (candidate < callLen)
+				continue;
+			size_t decodedLen = 0;
+			if (IsCallInstruction(candidate - callLen, decodedLen) && decodedLen == callLen)
+				return true;
+		}
+
+		return false;
+	}
+
+
 	uint64_t WindowsDebugEngine::GetReturnAddress()
 	{
 		auto it = m_threads.find(m_activeThreadId);
@@ -1955,41 +2002,59 @@ namespace x2win {
 			return 0;
 
 		uint64_t sp;
-		SIZE_T bytesRead;
-		uint64_t returnAddr = 0;
 
 		if (m_isTargetWow64)
 		{
-			// 32-bit process
 			WOW64_CONTEXT ctx {};
 			ctx.ContextFlags = WOW64_CONTEXT_CONTROL;
 			if (!Wow64GetThreadContext(it->second, &ctx))
 				return 0;
-
 			sp = ctx.Esp;
-
-			// Read 32-bit return address from stack
-			uint32_t addr32;
-			if (!ReadProcessMemory(m_processHandle, (LPCVOID)sp, &addr32, 4, &bytesRead) || bytesRead != 4)
-				return 0;
-			returnAddr = addr32;
 		}
 		else
 		{
-			// 64-bit process
 			CONTEXT ctx {};
 			ctx.ContextFlags = CONTEXT_CONTROL;
 			if (!GetThreadContext(it->second, &ctx))
 				return 0;
-
 			sp = ctx.Rsp;
-
-			// Read 64-bit return address from stack
-			if (!ReadProcessMemory(m_processHandle, (LPCVOID)sp, &returnAddr, 8, &bytesRead) || bytesRead != 8)
-				return 0;
 		}
 
-		return returnAddr;
+		// Scan upward from the current stack pointer for a genuine return address instead of
+		// trusting *SP directly. *SP is only actually the return address at the exact instant a
+		// function is entered, before its prologue runs (push rbp / sub rsp / etc. all move SP
+		// past it) -- this fallback runs whenever StackWalk64 couldn't unwind a second frame
+		// (e.g. code with no real function prologue / unwind info, such as a hand-built test
+		// binary), so by the time StepReturn() gets here the callee has often already executed
+		// part of its body, and *SP no longer holds the return address at all. See STATUS.md #4:
+		// this is what made the first step_return in a session land correctly (stopped right at
+		// function entry) and a later one fail (stopped somewhere else in the callee).
+		const size_t ptrSize = m_isTargetWow64 ? 4 : 8;
+		constexpr int kMaxSlots = 1024;  // 4KB/8KB of stack -- generous for a single frame
+		for (int slot = 0; slot < kMaxSlots; slot++)
+		{
+			uint64_t slotAddr = sp + static_cast<uint64_t>(slot) * ptrSize;
+			uint64_t candidate = 0;
+			SIZE_T bytesRead;
+
+			if (ptrSize == 4)
+			{
+				uint32_t v;
+				if (!ReadProcessMemory(m_processHandle, (LPCVOID)slotAddr, &v, 4, &bytesRead) || bytesRead != 4)
+					break;  // hit unmapped/unreadable memory -- nothing further up is reachable either
+				candidate = v;
+			}
+			else
+			{
+				if (!ReadProcessMemory(m_processHandle, (LPCVOID)slotAddr, &candidate, 8, &bytesRead) || bytesRead != 8)
+					break;
+			}
+
+			if (IsPlausibleReturnAddress(candidate))
+				return candidate;
+		}
+
+		return 0;
 	}
 
 
@@ -2961,24 +3026,24 @@ namespace x2win {
 		if (!m_activelyDebugging)
 			return false;
 
-		// Use stack unwinding to get the return address reliably
-		// Frame 0 is the current frame, frame 1 is the caller
+		// Use stack unwinding to get the return address reliably.
+		// Frame 0 is the current frame, frame 1 is the caller.
+		uint64_t returnAddr = 0;
+
 		auto frames = GetFramesOfThread(m_activeThreadId);
-		if (frames.size() < 2)
-		{
-			// Fallback to simple stack read if unwinding fails
-			uint64_t returnAddr = GetReturnAddress();
-			if (returnAddr == 0)
-				return false;
+		// Without proper unwind info (.pdata/RUNTIME_FUNCTION -- absent for e.g. a hand-built
+		// test binary with no real function prologues), StackWalk64 on x64 can fall back to
+		// guessing frame 1 from whatever the current frame-pointer register happens to hold,
+		// rather than failing outright. That guess isn't reliably wrong OR reliably right --
+		// which is exactly what made this landed correctly for a first step_return in a session
+		// and produced a bogus frames[1].m_pc for a later one (see STATUS.md #4). So don't trust
+		// it blindly: require it to actually look like a return address (inside a known module,
+		// immediately preceded by a call) before using it.
+		if (frames.size() >= 2 && IsPlausibleReturnAddress(frames[1].m_pc))
+			returnAddr = frames[1].m_pc;
+		else
+			returnAddr = GetReturnAddress();  // scans the stack for a plausible return address
 
-			if (!SetTempBreakpoint(returnAddr))
-				return false;
-
-			return Go();
-		}
-
-		// The return address is the PC of the caller's frame
-		uint64_t returnAddr = frames[1].m_pc;
 		if (returnAddr == 0)
 			return false;
 
