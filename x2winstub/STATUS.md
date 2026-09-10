@@ -18,7 +18,9 @@ RPC protocol):
 - Launching a target exe on the remote Windows box (path/args/working directory), attaching to an
   existing pid, listing processes, detaching, quitting.
 - Execution control: Go/continue, step into, step over, step return, break-into (interrupt).
-- Breakpoints: software (set/remove) and hardware (set/remove).
+- Breakpoints: software (set/remove) and hardware (set/remove). Stop reason reporting includes
+  exception-driven stops (access violation, divide-by-zero, illegal instruction), not just
+  breakpoints/steps.
 - Memory: read, write, memory map query.
 - Registers: read all, read one, write one.
 - Threads: list, get/set active thread, suspend, resume.
@@ -103,11 +105,11 @@ does, before it actually resumes the target -- `X2WinRpcAdapter::Go()` is missin
 Note `X2WinRpcAdapter::BreakInto()` already posts `ResumeEventType` on success (existing code, unrelated
 to this fix), which is a separate, already-correct case.
 
-**Status:** Fixed locally in `core/adapters/x2winrpcadapter.cpp`, not yet committed. Implemented
-slightly differently than first proposed: the `ResumeEventType` event is posted after `CallSync()`
-returns and only on `resp->success()`, not before the request is sent as in `GdbAdapter::Go()` --
-deliberate, to avoid showing "Running" if the stub actually rejected the resume, at the cost of the
-UI update lagging by one round trip instead of leading it.
+**Status:** Fixed, in `core/adapters/x2winrpcadapter.cpp`. Implemented slightly differently than
+first proposed: the `ResumeEventType` event is posted after `CallSync()` returns and only on
+`resp->success()`, not before the request is sent as in `GdbAdapter::Go()` -- deliberate, to avoid
+showing "Running" if the stub actually rejected the resume, at the cost of the UI update lagging by
+one round trip instead of leading it.
 
 ### 4. Breakpoint written to a running target could silently never trigger
 
