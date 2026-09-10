@@ -86,3 +86,18 @@ process's first stop event arrives, but that retry runs on a background thread -
 resumes immediately after `restart_and_wait()` returns can race past it before it's armed. Minor;
 workaround is to re-add the breakpoint explicitly after restart instead of relying on the automatic
 carry-over.
+
+### 6. Resume after an exception can leave the GUI stuck, doesn't reproduce via script
+
+**Where:** unknown.
+
+**Symptom:** In Binary Ninja's GUI: open `asmtest.exe`, launch, let it stop at entry, click Resume
+with no breakpoints set. The target runs (produces its output) and hits an access violation, but
+Resume/Step buttons stop doing anything afterward -- Detach and Kill still work. Confirmed manually,
+reproducibly, in the GUI.
+
+Scripting the identical sequence (`launch_and_wait()`, then `go_and_wait()` with no breakpoints set)
+does not reproduce it: the controller correctly reports `AccessViolation`, `dbg.running` correctly
+flips back to `false`, and cleanup is instant. So the adapter/controller-level handling of this stop
+is confirmed correct; whatever's wrong is specific to the interactive GUI path and not yet
+identified.
