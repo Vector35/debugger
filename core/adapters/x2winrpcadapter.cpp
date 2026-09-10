@@ -70,6 +70,7 @@ bool X2WinRpcAdapter::ConnectFromSettings(){
 bool X2WinRpcAdapter::Attach(std::uint32_t pid){
     if(!ConnectFromSettings()){
         LogWarn("X2WinRpcAdapter::Attach: failed to connect to stub");
+        PostLaunchFailure("Connection failed", "X2WinRpcAdapter::Attach: failed to connect to stub");
         return false;
     }
 
@@ -78,9 +79,17 @@ bool X2WinRpcAdapter::Attach(std::uint32_t pid){
     });
     const auto* resp = response.BodyAs<x2win::AttachResponse>();
     bool success = resp && resp->success();
-    if(!success)
+    if(!success){
         LogWarn("X2WinRpcAdapter::Attach: stub rejected attach to pid %u", (unsigned)pid);
-    else
+        // DebuggerController::AttachAndWaitInternal() already posted an optimistic
+        // LaunchEventType (-> DebugAdapterRunningStatus) before calling us -- if we just return
+        // false here without correcting that, the controller is left believing a nonexistent
+        // target is running forever (dbg.running stays true, nothing ever calls NotifyStopped()
+        // since AttachAndWaitOnWorker() skips it for InternalError). Match the convention other
+        // adapters use (e.g. GdbAdapter::Connect()) and post LaunchFailureEventType so
+        // ApplyOwnStateForEvent() resets connection/execution status back to Invalid.
+        PostLaunchFailure("Attach failed", fmt::format("stub rejected attach to pid {}", (unsigned)pid));
+    }else
         m_lastConnectionWasTargetMode = false;
 
     ApplyBreakPoints();
@@ -89,6 +98,7 @@ bool X2WinRpcAdapter::Attach(std::uint32_t pid){
 
 bool X2WinRpcAdapter::Connect(const std::string& server, std::uint32_t port){
     if(!ConnectSocket(server, (uint16_t) port)){
+        PostLaunchFailure("Connection failed", fmt::format("X2WinRpcAdapter::Connect: failed to connect to {}:{}", server, port));
         return false;
     }
     m_lastConnectionWasTargetMode = true;
@@ -135,10 +145,14 @@ bool X2WinRpcAdapter::ExecuteWithArgs(const std::string& path, const std::string
     if(m_lastConnectionWasTargetMode){
         LogWarn("X2WinRpcAdapter::ExecuteWithArgs: refusing to launch -- last connection was "
             "target mode, which only ever supports its original debuggee.");
+        PostLaunchFailure("Launch failed",
+            "X2WinRpcAdapter::ExecuteWithArgs: last connection was target mode, which only ever "
+            "supports its original debuggee");
         return false;
     }
     if(!ConnectFromSettings()){
         LogWarn("X2WinRpcAdapter::ExecuteWithArgs: failed to connect to stub");
+        PostLaunchFailure("Connection failed", "X2WinRpcAdapter::ExecuteWithArgs: failed to connect to stub");
         return false;
     }
 
@@ -151,11 +165,23 @@ bool X2WinRpcAdapter::ExecuteWithArgs(const std::string& path, const std::string
         });
     const auto* resp = response.BodyAs<x2win::LaunchResponse>();
     bool success = resp && resp->success();
-    if(!success)
+    if(!success){
         LogWarn("X2WinRpcAdapter::ExecuteWithArgs: stub failed to launch \"%s\"", path.c_str());
-    
+        PostLaunchFailure("Launch failed", fmt::format("stub failed to launch \"{}\"", path));
+    }
+
     ApplyBreakPoints();
     return success;
+}
+
+// See the declaration in x2winrpcadapter.h for why every Attach()/ExecuteWithArgs()/Connect()
+// failure path needs to call this.
+void X2WinRpcAdapter::PostLaunchFailure(const std::string& shortError, const std::string& error){
+    DebuggerEvent event;
+    event.type = LaunchFailureEventType;
+    event.data.errorData.shortError = shortError;
+    event.data.errorData.error = error;
+    PostDebuggerEvent(event);
 }
 
 // TCP is a byte stream, not a message stream: a single Recv() call may return fewer bytes than
@@ -300,6 +326,9 @@ void X2WinRpcAdapter::ReaderLoop(){
             BNDebugStopReason reason = (evt->reason() == x2win::StopReason_BREAKPOINT) ? DebugStopReason::Breakpoint
                                         : (evt->reason() == x2win::StopReason_SINGLE_STEP) ? DebugStopReason::SingleStep
                                         : (evt->reason() == x2win::StopReason_INITIAL_BREAKPOINT) ? DebugStopReason::InitialBreakpoint
+                                        : (evt->reason() == x2win::StopReason_ACCESS_VIOLATION) ? DebugStopReason::AccessViolation
+                                        : (evt->reason() == x2win::StopReason_CALCULATION) ? DebugStopReason::Calculation
+                                        : (evt->reason() == x2win::StopReason_ILLEGAL_INSTRUCTION) ? DebugStopReason::IllegalInstruction
                                         : DebugStopReason::UnknownReason;
 
             LogInfo("X2WinRpcAdapter::ReaderLoop: received TargetStoppedEvent reason=%d address=0x%llx",
@@ -612,7 +641,26 @@ DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const ModuleNameAndOffset& addres
         return DebugBreakpoint();
     }
 
-    return AddBreakpoint(resolved, breakpoint_type);
+    DebugBreakpoint bp = AddBreakpoint(resolved, breakpoint_type);
+    if(!bp.m_is_active){
+        // ResolveModuleAddress() succeeded (GetModuleList() answered with a real module entry) but
+        // the stub still rejected the actual SetBreakpointRequest -- reproduced via Restart(): the
+        // reused adapter's CreateDebugAdapter() replays every known breakpoint (DebuggerBreakpoints::
+        // Apply()) before the restart's own Launch() RPC has even run, while the stub is between
+        // debuggees (old one just Quit(), new one not launched yet). GetModuleList() on the stub
+        // still answers with the just-terminated process's module info at that moment, so resolution
+        // "succeeds" against a stale/dead target and the write is rejected -- with no re-staging,
+        // this breakpoint would then be silently dropped for good, with no second chance once the
+        // new process is actually up (unlike the ResolveModuleAddress()-failed case just above,
+        // which already re-stages). Re-stage here too so the same second-chance flush (ReaderLoop()'s
+        // TargetStoppedEvent handling) picks it up once the restarted target's own initial stop
+        // event arrives and GetModuleList() reflects the real, current process.
+        std::lock_guard<std::mutex> lock(m_pendingBreakpointsMutex);
+        if(std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end()){
+            m_pendingBreakpoints.push_back(address);
+        }
+    }
+    return bp;
 }
 
 void X2WinRpcAdapter::ApplyBreakPoints(){

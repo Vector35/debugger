@@ -103,6 +103,15 @@ namespace BinaryNinjaDebugger {
 		void TeardownConnection();
 		void ResetSessionState();
 
+		// Attach()/ExecuteWithArgs()/Connect() are each preceded by an optimistic LaunchEventType
+		// (-> DebugAdapterRunningStatus) posted by DebuggerController before it calls into us (see
+		// AttachAndWaitInternal()/LaunchAndWaitInternal()/ConnectAndWaitInternal() in
+		// debuggercontroller.cpp) -- on failure, nothing else corrects that, so the controller is
+		// left believing a target that never actually started is running forever. Call this on
+		// every failure path so ApplyOwnStateForEvent() resets connection/execution status back to
+		// Invalid, same convention other adapters use (e.g. GdbAdapter::Connect()).
+		void PostLaunchFailure(const std::string& shortError, const std::string& error);
+
 		// Populates common.inputFile (used by DetectLoadedModule()/GetRemoteBase() to match this
 		// adapter's GetModuleList() entries against the currently-open BinaryView, which is what
 		// drives auto-rebase on connect) from the BinaryView's own file path, same convention as

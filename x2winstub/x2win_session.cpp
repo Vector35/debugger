@@ -47,6 +47,9 @@ namespace x2win {
 		case InitialBreakpoint: reason = StopReason_INITIAL_BREAKPOINT; break;
 		case Breakpoint: reason = StopReason_BREAKPOINT; break;
 		case SingleStep: reason = StopReason_SINGLE_STEP; break;
+		case AccessViolation: reason = StopReason_ACCESS_VIOLATION; break;
+		case Calculation: reason = StopReason_CALCULATION; break;
+		case IllegalInstruction: reason = StopReason_ILLEGAL_INSTRUCTION; break;
 		default: break;
 		}
 
