@@ -233,7 +233,11 @@ class X2WinRpcTest(unittest.TestCase):
         (see e.g. upstream issue #1195/#977, filed against the BN-hosted native Windows adapter
         this engine was ported from). asmtest.exe is a hand-built binary whose first bytes are a
         known nop/call/call sequence (see debugger_test.py's test_assembly_code for the same
-        layout), so the expected landing address after each call is exact, not inferred."""
+        layout), so the expected landing address after each call is exact, not inferred.
+
+        Currently fails on the *second* step_return_and_wait() in a session (InternalError) --
+        hypothesis is StackWalk64 frame unwinding being unreliable on asmtest.exe, which has no real
+        function prologues for it to key off of. Not confirmed; see TEST_RESULTS.md."""
         fpath = name_to_fpath('asmtest', self.arch)
         bv, dbg = self._connect(fpath)
         entry = self._launch_and_stop_at_entry(dbg, fpath)
@@ -416,23 +420,35 @@ class X2WinRpcTest(unittest.TestCase):
         chance of re-triggering -- this used to (wrongly) assume helloworld_loop.exe's *entry
         point* was such an address ("true for a trivial 'loop forever' test binary, but not
         verified by disassembly here" -- it wasn't true: disassembly shows entry is just the
-        one-shot CRT startup thunk, a `jmp` away with no path back, so a breakpoint there can
-        never fire again once the target has moved past it). Sample a real in-loop address
-        instead by breaking into the already-running target once; then resume and arm the
-        breakpoint on that address while the target is live and running -- preserving the actual
-        regression scenario (writing an INT3 into a *running* process's code, per STATUS.md #4)."""
+        one-shot CRT startup thunk, a `jmp` away with no path back).
+
+        A second attempt sampled a "live" address by pausing the already-running target and
+        reading dbg.ip -- also wrong, just less obviously so: dbg.threads showed *every* thread of
+        the process sitting inside ntdll (helloworld_loop.exe's own code is a vanishing fraction of
+        its runtime; the rest is spent blocked in system wait/console calls), so the sampled
+        address was never actually in helloworld_loop.exe's module. Writing an INT3 into that
+        shared ntdll code -- hit repeatedly by multiple threads doing their own unrelated waits --
+        turned Quit()'s cleanup into a multi-*minute*, wildly variable stall (79s/109s/229s across
+        three runs) instead of a hang, but that's still not something this test should be doing.
+
+        main()'s actual disassembly (`main+0x24`, `imul ebx, ebx, 0x31` inside a ~50M-iteration
+        busy-spin -- see `sub rax, 1` / `jne` right after it) is a genuinely reliable choice
+        instead: verified in-module, single-threaded, and hot enough to retrigger almost
+        immediately once armed.
+
+        Still fails even with a correct address, though: the stub rejects the SetBreakpointRequest
+        outright (ApplyBreakpoint()'s ReadProcessMemory fails with ERROR_PARTIAL_COPY) whenever this
+        test adds it. See TEST_RESULTS.md for the full writeup, what's been ruled out, and the
+        unresolved discrepancy with a manual repro that reportedly doesn't hit this."""
         fpath = name_to_fpath('helloworld_loop', self.arch)
         bv, dbg = self._connect(fpath)
         self._launch_and_stop_at_entry(dbg, fpath)
 
-        dbg.go()
-        time.sleep(0.3)  # let it actually run past entry into the loop before sampling
-        reason = dbg.pause_and_wait()
-        self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
-        loop_addr = dbg.ip  # an address confirmed to be live inside the loop right now
+        main_func = bv.get_functions_by_name('main')[0]
+        loop_addr = main_func.start + 0x24  # the imul inside main()'s busy-spin -- see docstring
 
-        dbg.go()  # back to actively running (not stopped) before arming the breakpoint
-        time.sleep(0.1)
+        dbg.go()
+        time.sleep(0.3)  # let it actually run past entry into the spin loop before arming
         dbg.add_breakpoint(loop_addr)
         reason = dbg.go_and_wait(5000)
         self.assertEqual(reason, DebugStopReason.Breakpoint,
