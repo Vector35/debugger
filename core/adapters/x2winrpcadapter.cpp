@@ -39,7 +39,7 @@ bool X2WinRpcAdapter::ConnectSocket(const std::string& ip, uint16_t port){
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
-    inet_pton(AF_INET, ip.c_str(), &addr.sin_addr);
+    addr.sin_addr.s_addr = inet_addr(ip.c_str());
 
     m_socket = Socket(AF_INET, SOCK_STREAM, 0);
     if(!m_socket.Connect(addr)){
@@ -311,7 +311,26 @@ void X2WinRpcAdapter::ReaderLoop(){
             // Second chance for any breakpoint that couldn't resolve right after Attach/Launch/Connect
             // (module list not populated yet at that point) -- by the time any stop event arrives, the
             // module list is guaranteed complete.
-            ApplyBreakPoints();
+            //
+            // This MUST NOT call ApplyBreakPoints() directly on this thread: flushing a pending
+            // breakpoint can call CallSync() (AddBreakpoint()/AddHardwareBreakpoint() -> CallSync()),
+            // which blocks until *this* ReaderLoop() reads the matching response frame. Called inline
+            // from here, that response can never be read -- this thread is the only one that reads
+            // frames, and it would be sitting inside CallSync() instead of back at the top of this
+            // loop. That's a real, reproducible self-deadlock whenever a stop event arrives with a
+            // non-empty pending list (e.g. a breakpoint re-staged because the module list wasn't
+            // populated yet the first time around -- see AddBreakpoint(ModuleNameAndOffset) above).
+            // Run the flush on its own thread instead, so this loop can get straight back to
+            // RecvExact() and actually deliver the response that flush is waiting on. Guarded by
+            // m_applyingBreakpoints so two stop events arriving close together don't spawn two
+            // flushes racing on the same pending lists at once.
+            bool expected = false;
+            if(m_applyingBreakpoints.compare_exchange_strong(expected, true)){
+                std::thread([this](){
+                    ApplyBreakPoints();
+                    m_applyingBreakpoints = false;
+                }).detach();
+            }
 
             DebuggerEvent event;
             event.type = AdapterStoppedEventType;
@@ -334,6 +353,22 @@ void X2WinRpcAdapter::ReaderLoop(){
                 (unsigned long long)envelope->request_id(), (int)envelope->body_type());
         }
     }
+
+    // This thread is the only reader -- once it's exited (socket died/was killed), any request
+    // still in m_pendingRequests can never get its response, and whatever thread is blocked in
+    // CallSync()'s future.get() for it would hang forever without this. Most callers run on
+    // whatever thread called into the adapter and naturally unwind once TeardownConnection() joins
+    // this thread, but the breakpoint-flush thread ApplyBreakPoints() gets dispatched to (see the
+    // TargetStoppedEvent handling above) is detached and isn't joined by anything -- it depends on
+    // this to ever come back from CallSync() at all when the connection drops out from under it.
+    // Same empty-envelope shape CallSync() already returns for a same-thread send failure, so every
+    // existing caller's `if(!resp)`/`!resp->success()` check already treats this as a normal
+    // rejected/failed call.
+    std::lock_guard<std::mutex> lock(m_pendingMutex);
+    for(auto& [requestId, promise] : m_pendingRequests){
+        promise.set_value(X2WinEnvelopeBuffer());
+    }
+    m_pendingRequests.clear();
 }
 
 // Simplest example of the repeating "send request, decode response" shape most methods follow:
@@ -553,20 +588,24 @@ DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const ModuleNameAndOffset& addres
     // overload above -- module+offset is the only form that can still be resolved after a later
     // reconnect, once ResolveModuleAddress()/GetModuleList() actually works again.
     if(!m_connected){
+        std::lock_guard<std::mutex> lock(m_pendingBreakpointsMutex);
         if(std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end()){
             m_pendingBreakpoints.push_back(address);
         }
         return DebugBreakpoint();
     }
-    
+
     uint64_t resolved = 0;
     if(!ResolveModuleAddress(address, resolved)){
         // Connected, but the module isn't loaded/resolvable yet (e.g. ApplyBreakpoints() ran right
         // after Launch succeeded, before the stub's module list reflects the new process). Re-stage
         // rather than dropping it -- the next ApplyBreakpoints() call (see ReaderLoop()'s handling of
         // the initial-breakpoint stop event) gets another chance once modules are guaranteed populated.
-        if(std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end()){
-            m_pendingBreakpoints.push_back(address);
+        {
+            std::lock_guard<std::mutex> lock(m_pendingBreakpointsMutex);
+            if(std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end()){
+                m_pendingBreakpoints.push_back(address);
+            }
         }
         LogWarn("X2WinRpcAdapter::AddBreakpoint: failed to resolve module \"%s\"+0x%llx",
             address.module.c_str(), (unsigned long long)address.offset);
@@ -577,15 +616,23 @@ DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const ModuleNameAndOffset& addres
 }
 
 void X2WinRpcAdapter::ApplyBreakPoints(){
+    // NOTE: if a caller reaches this from ReaderLoop()'s own thread (see its TargetStoppedEvent
+    // handling), it must NOT still be running inline there -- AddBreakpoint()/AddHardwareBreakpoint()
+    // below can call CallSync(), which blocks until ReaderLoop() reads the matching response. Called
+    // from ReaderLoop() itself, that response can never arrive (this thread is the one that would
+    // have to read it), so it deadlocks forever. ReaderLoop() defers to a separate thread instead of
+    // calling this directly -- see there.
     std::vector<ModuleNameAndOffset> pending;
-    pending.swap(m_pendingBreakpoints);
+    std::vector<PendingHardwareBreakpoint> pendingHw;
+    {
+        std::lock_guard<std::mutex> lock(m_pendingBreakpointsMutex);
+        pending.swap(m_pendingBreakpoints);
+        pendingHw.swap(m_pendingHardwareBreakpoints);
+    }
 
     for(const auto& bp : pending){
         AddBreakpoint(bp);
     }
-
-    std::vector<PendingHardwareBreakpoint> pendingHw;
-    pendingHw.swap(m_pendingHardwareBreakpoints);
 
     for(const auto& hwbp : pendingHw){
         if(hwbp.isRelative){
@@ -597,14 +644,17 @@ void X2WinRpcAdapter::ApplyBreakPoints(){
 }
 
 bool X2WinRpcAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint){
-    for(auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end(); ++it){
-        uint64_t resolved = 0;
-        if(ResolveModuleAddress(*it, resolved) && resolved == breakpoint.m_address){
-            m_pendingBreakpoints.erase(it);
-            return true;
+    {
+        std::lock_guard<std::mutex> lock(m_pendingBreakpointsMutex);
+        for(auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end(); ++it){
+            uint64_t resolved = 0;
+            if(ResolveModuleAddress(*it, resolved) && resolved == breakpoint.m_address){
+                m_pendingBreakpoints.erase(it);
+                return true;
+            }
         }
     }
-    
+
     X2WinEnvelopeBuffer response = CallSync(x2win::Body_RemoveBreakpointRequest, [&breakpoint](flatbuffers::FlatBufferBuilder& b){
         return x2win::CreateRemoveBreakpointRequest(b, breakpoint.m_address).Union();
     });
@@ -630,6 +680,7 @@ bool X2WinRpcAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointTyp
     if(!m_connected){
         // Not connected yet (Apply() firing before Attach()/ExecuteWithArgs()/Connect()) -- stage
         // it, same reason AddBreakpoint(ModuleNameAndOffset) stages below.
+        std::lock_guard<std::mutex> lock(m_pendingBreakpointsMutex);
         PendingHardwareBreakpoint pending(address, type, size);
         if(std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
             == m_pendingHardwareBreakpoints.end()){
@@ -653,11 +704,14 @@ bool X2WinRpcAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointTyp
 bool X2WinRpcAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size){
     // Still-staged (never actually sent) -- just drop it locally, same shape as the pending-list
     // check RemoveBreakpoint() does for software breakpoints.
-    PendingHardwareBreakpoint pending(address, type, size);
-    auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
-    if(it != m_pendingHardwareBreakpoints.end()){
-        m_pendingHardwareBreakpoints.erase(it);
-        return true;
+    {
+        std::lock_guard<std::mutex> lock(m_pendingBreakpointsMutex);
+        PendingHardwareBreakpoint pending(address, type, size);
+        auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+        if(it != m_pendingHardwareBreakpoints.end()){
+            m_pendingHardwareBreakpoints.erase(it);
+            return true;
+        }
     }
 
     if(!m_connected){
@@ -679,6 +733,7 @@ bool X2WinRpcAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpoint
 }
 bool X2WinRpcAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size){
     if(!m_connected){
+        std::lock_guard<std::mutex> lock(m_pendingBreakpointsMutex);
         PendingHardwareBreakpoint pending(location, type, size);
         if(std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
             == m_pendingHardwareBreakpoints.end()){
@@ -691,10 +746,13 @@ bool X2WinRpcAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location,
     if(!ResolveModuleAddress(location, resolved)){
         // Connected, but not resolvable yet (module not loaded) -- re-stage, same as
         // AddBreakpoint(ModuleNameAndOffset)'s equivalent branch.
-        PendingHardwareBreakpoint pending(location, type, size);
-        if(std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
-            == m_pendingHardwareBreakpoints.end()){
-            m_pendingHardwareBreakpoints.push_back(pending);
+        {
+            std::lock_guard<std::mutex> lock(m_pendingBreakpointsMutex);
+            PendingHardwareBreakpoint pending(location, type, size);
+            if(std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+                == m_pendingHardwareBreakpoints.end()){
+                m_pendingHardwareBreakpoints.push_back(pending);
+            }
         }
         LogWarn("X2WinRpcAdapter::AddHardwareBreakpoint: failed to resolve module \"%s\"+0x%llx",
             location.module.c_str(), (unsigned long long)location.offset);
@@ -704,11 +762,14 @@ bool X2WinRpcAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location,
     return AddHardwareBreakpoint(resolved, type, size);
 }
 bool X2WinRpcAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size){
-    PendingHardwareBreakpoint pending(location, type, size);
-    auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
-    if(it != m_pendingHardwareBreakpoints.end()){
-        m_pendingHardwareBreakpoints.erase(it);
-        return true;
+    {
+        std::lock_guard<std::mutex> lock(m_pendingBreakpointsMutex);
+        PendingHardwareBreakpoint pending(location, type, size);
+        auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+        if(it != m_pendingHardwareBreakpoints.end()){
+            m_pendingHardwareBreakpoints.erase(it);
+            return true;
+        }
     }
 
     uint64_t resolved = 0;
@@ -1103,8 +1164,11 @@ void X2WinRpcAdapter::ResetSessionState(){
     // regardless, so clearing these caches here just avoids stale/duplicate entries, never loses
     // anything BN core still cares about.
     m_breakpoints.clear();
-    m_pendingBreakpoints.clear();
-    m_pendingHardwareBreakpoints.clear();
+    {
+        std::lock_guard<std::mutex> lock(m_pendingBreakpointsMutex);
+        m_pendingBreakpoints.clear();
+        m_pendingHardwareBreakpoints.clear();
+    }
 
     m_lastStopReason = DebugStopReason::UnknownReason;
     m_lastStopAddress = 0;

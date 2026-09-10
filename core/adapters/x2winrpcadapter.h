@@ -74,8 +74,16 @@ namespace BinaryNinjaDebugger {
 		std::mutex m_sendMutex;
 		std::unordered_map<uint64_t, std::promise<X2WinEnvelopeBuffer>> m_pendingRequests;
 		std::vector<DebugBreakpoint> m_breakpoints;
+		// Guards m_pendingBreakpoints/m_pendingHardwareBreakpoints: read/written both from whatever
+		// thread calls AddBreakpoint()/RemoveBreakpoint() normally *and* from ReaderLoop()'s deferred
+		// ApplyBreakPoints() flush below -- see ApplyBreakPoints()'s comment for why that flush can't
+		// run on ReaderLoop()'s own thread.
+		std::mutex m_pendingBreakpointsMutex;
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints;
 		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints;
+		// Sequences ApplyBreakPoints() flushes so two TargetStoppedEvents arriving close together
+		// don't spawn two flushes racing on the same pending lists at once.
+		std::atomic<bool> m_applyingBreakpoints {false};
 		std::atomic<uint64_t> m_nextRequestId {1};
 
 		Ref<Settings> GetAdapterSettings() override;
