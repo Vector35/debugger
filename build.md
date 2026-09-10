@@ -22,9 +22,14 @@ git checkout dev
 
 - Build the debugger
 
+  FlatBuffers (needed for `X2WinRpcAdapter`'s wire protocol) is vendored as a git submodule
+  under `vendor/` and built as part of this project's own CMake configure/build -- no separate
+  install step needed, just make sure submodules are cloned (`--recurse-submodules` below, or
+  `git submodule update --init --recursive` after the fact).
+
 ```bash
 # Get the source
-git clone https://github.com/Vector35/debugger.git
+git clone --recurse-submodules https://github.com/Vector35/debugger.git
 
 # Do an out-of-source build
 mkdir -p build

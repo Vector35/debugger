@@ -38,6 +38,8 @@ file(GLOB ADAPTER_SOURCES CONFIGURE_DEPENDS
 		adapters/esrevenadapter.h
 		adapters/lldbcoredumpadapter.cpp
 		adapters/lldbcoredumpadapter.h
+		adapters/x2winrpcadapter.cpp
+		adapters/x2winrpcadapter.h
 	)
 
 if(WIN32)
@@ -211,6 +213,26 @@ else()
 			COMMAND ${CMAKE_COMMAND} -E copy ${LLDB_PATH}/bin/liblldb.dll ${LIBRARY_OUTPUT_DIRECTORY_PATH}
 			)
 endif()
+
+# FlatBuffers for the x2win RPC protocol (protocol/x2win.fbs), generated once at the top-level
+# CMakeLists.txt and shared with x2winstub/CMakeLists.txt.
+#
+# Deliberately not target_link_libraries(debuggercore x2win_fbs): every other
+# target_link_libraries() call on debuggercore in this file uses the plain (no PUBLIC/PRIVATE)
+# signature, and CMake forbids mixing plain and keyword signatures for the same target anywhere
+# in the project -- so a PRIVATE-only x2win_fbs link isn't an option here. Plain/public would
+# instead propagate x2win_fbs's generated-header "source" to every downstream consumer of
+# debuggercore (ui, cli), which fails to configure because that generated file, from their
+# directory scope, isn't recognized as a build product (GENERATED doesn't propagate cross-directory
+# pre-CMake 3.20 semantics). Depending on the include dir + generation step directly sidesteps
+# target_link_libraries entirely, so it stays private to debuggercore without touching the
+# project's existing plain-signature convention.
+add_dependencies(debuggercore GENERATE_x2win_fbs)
+target_include_directories(debuggercore PRIVATE
+    ${CMAKE_BINARY_DIR}/x2win_fbs
+    ${CMAKE_SOURCE_DIR}/vendor/flatbuffers/include
+)
+
 
 if (WIN32)
 	add_custom_command(TARGET debuggercore PRE_LINK

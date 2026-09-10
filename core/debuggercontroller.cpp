@@ -2126,6 +2126,13 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 		m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 		break;
 	}
+	case StepOverEventType:
+	{
+		// Add support for StepOverEventType with same logic as StepIntoEventType
+		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
+		m_state->SetExecutionStatus(DebugAdapterRunningStatus);
+		break;
+	}
 	case TargetExitedEventType:
 		m_exitCode = (uint32_t)event.data.exitData.exitCode;
 		[[fallthrough]];

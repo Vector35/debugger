@@ -30,6 +30,32 @@ if (NOT BN_INTERNAL_BUILD)
 	message("CMAKE_PREFIX_PATH is: ${CMAKE_PREFIX_PATH}")
 endif()
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# FlatBuffers is used for the x2win RPC protocol. Its C++ runtime is header-only (see
+# FlatBuffers_Library_SRCS in vendor/flatbuffers/CMakeLists.txt -- every entry is a .h, no .cpp),
+# so unlike Protobuf/Abseil (formerly vendored here for the same protocol, since removed) there's
+# no compiled static lib whose CRT/ABI settings need to match whatever links against it -- only
+# flatc (the schema compiler) is an actual build-time binary. That's what let x2winstub drop its
+# MSVC-ABI-pinned toolchain requirement for MinGW-w64 once the protocol finished migrating over.
+# flatbuffers_generate_headers() (used by core/CMakeLists.txt and x2winstub/CMakeLists.txt) comes
+# from vendor/flatbuffers/CMake/BuildFlatBuffers.cmake, which flatbuffers' own CMakeLists.txt
+# already include()s, so no separate include() is needed here the way protobuf-generate.cmake was.
+set(FLATBUFFERS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(FLATBUFFERS_INSTALL OFF CACHE BOOL "" FORCE)
+set(FLATBUFFERS_BUILD_FLATC ON CACHE BOOL "" FORCE)
+add_subdirectory(vendor/flatbuffers)
+
+# Generated once here and shared via target_link_libraries(... x2win_fbs) from both
+# core/CMakeLists.txt and x2winstub/CMakeLists.txt, rather than calling
+# flatbuffers_generate_headers() separately from each (which would define two CMake targets
+# both named "x2win_fbs" and fail to configure -- target names must be unique project-wide).
+flatbuffers_generate_headers(
+    TARGET x2win_fbs
+    SCHEMAS ${CMAKE_SOURCE_DIR}/protocol/x2win.fbs
+)
+
 add_subdirectory(core)
 add_subdirectory(api)
 
@@ -58,6 +84,7 @@ endif()
 # WinDbg installer CLI (standalone, spawned by debuggercore API)
 if(WIN32)
 	add_subdirectory(installer)
+	add_subdirectory(x2winstub)
 endif()
 
 # Documentation validation target

@@ -1,0 +1,243 @@
+namespace x2win;
+
+enum BreakpointType : byte {
+    SOFTWARE = 0,
+    HARDWARE_EXECUTE = 1,
+    HARDWARE_READ = 2,
+    HARDWARE_WRITE = 3,
+    HARDWARE_ACCESS = 4,
+}
+
+enum StopReason : byte {
+    UNKNOWN = 0,
+    BREAKPOINT = 1,
+    SINGLE_STEP = 2,
+    // The very first breakpoint hit after Launch/Attach (the OS-injected loader breakpoint,
+    // not a user-set one). Binary Ninja's DebugStopReason distinguishes this from an ordinary
+    // BREAKPOINT (see DebugStopReason::InitialBreakpoint) -- report it exactly once per
+    // session, the first time any breakpoint exception is seen, regardless of address.
+    INITIAL_BREAKPOINT = 3,
+    EXITED = 4,
+    // WindowsDebugEngine::HandleException() classifies SEH exceptions into these three buckets
+    // (x2winstub/debug/windows_debug_engine.cpp) -- without wire representations for them, every
+    // exception-driven stop (segfault, divide-by-zero, illegal instruction) collapsed to UNKNOWN
+    // on the BN-core side (X2WinRpcAdapter::ReaderLoop()'s reason mapping has no case for it
+    // either) instead of the correct BNDebugStopReason.
+    ACCESS_VIOLATION = 5,
+    CALCULATION = 6,
+    ILLEGAL_INSTRUCTION = 7,
+}
+
+table LaunchRequest { path: string; args: string; working_dir: string; }
+table LaunchResponse { success: bool; }
+
+table AttachRequest { pid: uint32; }
+table AttachResponse { success: bool; }
+
+table GetTargetArchRequest {}
+table GetTargetArchResponse { architecture: string; }
+
+table DetachRequest {}
+table DetachResponse { success: bool; }
+
+table QuitRequest {}
+table QuitResponse { success: bool; }
+
+table ProcessInfo { pid: uint32; name: string; }
+table GetProcessListRequest {}
+table GetProcessListResponse { processes: [ProcessInfo]; }
+
+// One thread's tid + its current instruction pointer + whether it's suspended/frozen --
+// mirrors BN's DebugThread (core/debugadapter.h). rip is uint64 for the same reason
+// RegisterEntry.value is: X2Win only ever targets x86/x64 Windows.
+table ThreadEntry { tid: uint32; rip: uint64; is_frozen: bool; }
+
+table GetThreadListRequest {}
+table GetThreadListResponse { threads: [ThreadEntry]; }
+
+// Just the tid -- the adapter derives the active thread's rip from the last reported stop
+// address instead of asking the stub for it separately (BN only ever stops the whole process,
+// never a single thread, so GetInstructionOffset() is already the active thread's rip).
+table GetActiveThreadIdRequest {}
+table GetActiveThreadIdResponse { tid: uint32; }
+
+table SetActiveThreadIdRequest { tid: uint32; }
+table SetActiveThreadIdResponse { success: bool; }
+
+table SuspendThreadRequest { tid: uint32; }
+table SuspendThreadResponse { success: bool; }
+
+table ResumeThreadRequest { tid: uint32; }
+table ResumeThreadResponse { success: bool; }
+
+table ConnectServerRequest {}
+table ConnectServerResponse { success: bool; }
+
+// Resumes a stopped target (equivalent of DebugAdapter::Go()). Like Launch/Attach, this only
+// confirms the stub accepted the request -- the next stop is reported separately and
+// asynchronously as a TargetStoppedEvent, never inline in this response.
+table GoRequest {}
+table GoResponse { success: bool; }
+
+table StepIntoRequest {}
+table StepIntoResponse { success: bool; }
+
+table StepOverRequest {}
+table StepOverResponse { success: bool; }
+
+table StepReturnRequest {}
+table StepReturnResponse { success: bool; }
+
+table SetBreakpointRequest { address: uint64; type: BreakpointType; }
+table SetBreakpointResponse { success: bool; breakpoint_id: uint64; }
+
+table RemoveBreakpointRequest { address: uint64; }
+table RemoveBreakpointResponse { success: bool; }    
+
+table BreakIntoRequest {}
+table BreakIntoResponse { success: bool; }
+
+// Hardware breakpoint/watchpoint, keyed by (address, type, size) as a triple rather than an
+// id like SetBreakpointRequest -- mirrors WindowsDebugEngine/WindowsNativeAdapter's own
+// identity rule for these (a debug register slot, not an allocated id).
+table SetHardwareBreakpointRequest { address: uint64; type: BreakpointType; size: ubyte; }
+table SetHardwareBreakpointResponse { success: bool; }
+
+table RemoveHardwareBreakpointRequest { address: uint64; type: BreakpointType; size: ubyte; }
+table RemoveHardwareBreakpointResponse { success: bool; }
+
+table TargetStoppedEvent { reason: StopReason; address: uint64; exit_code: uint64; }
+
+// Reads raw bytes from the target's address space (equivalent of ReadProcessMemory). Unlike
+// Go/Launch/Attach, this is a plain synchronous request/response -- there is no separate async
+// event involved. A partial or failed read (e.g. address not mapped) is reported as
+// success=false with an empty `data`, not a short `data` buffer -- callers should not try to
+// use a truncated result.
+table ReadMemoryRequest { address: uint64; size: uint64; }
+table ReadMemoryResponse { success: bool; data: [ubyte]; }
+
+table WriteMemoryRequest { address: uint64; data: [ubyte]; }
+table WriteMemoryResponse { success: bool; }
+
+// One register's value + BN's DebugRegister layout metadata (width in bytes, index for display
+// ordering). Value is uint64 -- X2Win only ever targets x86/x64 Windows, nothing there is wider.
+table RegisterEntry { name: string; value: uint64; width: uint32; register_index: uint32; }
+
+table ReadAllRegistersRequest {}
+table ReadAllRegistersResponse { registers: [RegisterEntry]; }
+
+table ReadRegisterRequest { name: string; }
+// A register name the stub doesn't recognize is reported as success:false, not a zeroed/garbage
+// value -- same "don't fabricate a plausible-looking failure" contract as ReadMemoryResponse.
+table ReadRegisterResponse { success: bool; value: uint64; width: uint32; register_index: uint32; }
+
+table WriteRegisterRequest { name: string; value: uint64; }
+table WriteRegisterResponse { success: bool; }
+
+table ModuleEntry { name: string; base: uint64; size: uint64; }
+table GetModuleListRequest {}
+table GetModuleListResponse { modules: [ModuleEntry]; }
+
+table FrameEntry {
+    index: uint32;
+    pc: uint64;
+    sp: uint64;
+    fp: uint64;
+    function_name: string;
+    function_start: uint64;
+    module: string;
+}
+
+table GetFramesOfThreadRequest { tid: uint32; }
+table GetFramesOfThreadResponse { frames: [FrameEntry]; }
+
+// One mapped region of the target's virtual address space -- mirrors BN's DebugMemoryRegion
+// (core/debugadapter.h). name is a file path for file-backed mappings, a well-known name like
+// "[stack]"/"[heap]" where the backend provides one, or empty for anonymous mappings.
+table MemoryRegionEntry {
+    start: uint64;
+    size: uint64;
+    name: string;
+    read: bool;
+    write: bool;
+    execute: bool;
+    shared: bool;
+}
+
+table GetMemoryMapRequest {}
+table GetMemoryMapResponse { regions: [MemoryRegionEntry]; }
+
+union Body {
+    // request BN core -> stub
+    LaunchRequest,
+    AttachRequest,
+    GetTargetArchRequest,
+    DetachRequest,
+    QuitRequest,
+    GetProcessListRequest,
+    GetThreadListRequest,
+    GetActiveThreadIdRequest,
+    SetActiveThreadIdRequest,
+    SuspendThreadRequest,
+    ResumeThreadRequest,
+    ConnectServerRequest,
+    GoRequest,
+    StepIntoRequest,
+    StepOverRequest,
+    StepReturnRequest,
+    BreakIntoRequest,
+    SetBreakpointRequest,
+    RemoveBreakpointRequest,
+    SetHardwareBreakpointRequest,
+    RemoveHardwareBreakpointRequest,
+    ReadMemoryRequest,
+    WriteMemoryRequest,
+    ReadAllRegistersRequest,
+    ReadRegisterRequest,
+    WriteRegisterRequest,
+    GetModuleListRequest,
+    GetFramesOfThreadRequest,
+    GetMemoryMapRequest,
+
+    // response stub -> BN core
+    LaunchResponse,
+    AttachResponse,
+    GetTargetArchResponse,
+    DetachResponse,
+    QuitResponse,
+    GetProcessListResponse,
+    GetThreadListResponse,
+    GetActiveThreadIdResponse,
+    SetActiveThreadIdResponse,
+    SuspendThreadResponse,
+    ResumeThreadResponse,
+    ConnectServerResponse,
+    GoResponse,
+    StepIntoResponse,
+    StepOverResponse,
+    StepReturnResponse,
+    BreakIntoResponse,
+    SetBreakpointResponse,
+    RemoveBreakpointResponse,
+    SetHardwareBreakpointResponse,
+    RemoveHardwareBreakpointResponse,
+    ReadMemoryResponse,
+    WriteMemoryResponse,
+    ReadAllRegistersResponse,
+    ReadRegisterResponse,
+    WriteRegisterResponse,
+    GetModuleListResponse,
+    GetFramesOfThreadResponse,
+    GetMemoryMapResponse,
+
+    // event stub -> BN core, no response required
+    TargetStoppedEvent,
+
+}
+
+table Envelope {
+    request_id: uint64;
+    body: Body;
+}
+
+root_type Envelope;
