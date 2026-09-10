@@ -35,19 +35,22 @@ RPC protocol):
 
 ## Known issues
 
-### 1. Breakpoint on a running target can be rejected outright
+### 1. Breakpoint on a running target: automated test fails, manual GUI use doesn't
 
 **Where:** stub-side `ApplyBreakpoint()` (`debug/windows_debug_engine.cpp`).
 
-**Symptom:** Setting a software breakpoint at an address inside the target's own code while it's
-actively running (not stopped) is rejected: `ReadProcessMemory()` fails with `ERROR_PARTIAL_COPY`
-(299) reading the original byte before writing `INT3`. Reproduces every time regardless of address
-"hotness", timing before arming, launch vs. attach, or target binary.
+**Symptom:** Run via the automated test (`test_breakpoint_set_on_running_target_triggers`), setting
+a software breakpoint at an address inside the target's own running code is rejected every time:
+`ReadProcessMemory()` fails with `ERROR_PARTIAL_COPY` (299) reading the original byte before writing
+`INT3`. Reproduces regardless of address "hotness", delay before arming (0.1s-8s), launch vs.
+attach, or target binary.
 
-A reported manual repro (BN's GUI, X2WIN_RPC adapter, attach while running, add breakpoint) works
-every time, contradicting the above -- not yet reconciled. Most likely explanation: the manual
-session was pointed at different `x2winstub.exe`/`debuggercore.dll` binaries than the ones under
-test (confirm `BN_STANDALONE_DEBUGGER`/`BN_USER_DIRECTORY` before assuming otherwise).
+Manually reproducing the identical case through Binary Ninja's GUI (same adapter, same build, same
+exact address, breakpoint set a few seconds after Continue) does not reproduce it -- the breakpoint
+is accepted and triggers normally every time. Confirmed this isn't an address or code-path
+difference: GUI's breakpoint toggle (`DebugControlsWidget::toggleBreakpoint()`, `ui/controlswidget.cpp`)
+calls the exact same `AddBreakpoint(uint64_t)` path as the automated test when connected. Cause of
+the discrepancy between the two is not known.
 
 ### 2. Cleanup after a rejected running-target breakpoint is slow
 
