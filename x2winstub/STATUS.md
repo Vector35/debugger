@@ -1,7 +1,7 @@
 # Status
 
-What this codebase currently supports, and the known issues found in it -- fixed or not. Each issue
-entry lists where the problem lives, how to reproduce it, its root cause, and its current status.
+What this codebase currently supports, and the currently open issues in it. Each issue entry lists
+where the problem lives, its symptom, and what's known about the root cause.
 
 ## Build status
 
@@ -30,101 +30,56 @@ RPC protocol):
 
 - Reverse step-over and Time Travel Debugging (TTD) -- `X2WinRpcAdapter::SupportFeature()`
   (`core/adapters/x2winrpcadapter.cpp`) reports both `false`; no stub-side support exists for either.
-- Everything else in this file, until each entry's `Status` says otherwise.
+- `InvokeBackendCommand` -- always returns an empty string.
+- `SupportFeature` is not exposed to the Python API.
 
 ## Known issues
 
-### 1. Detach can terminate a multi-threaded target instead of leaving it running
+### 1. Breakpoint on a running target can be rejected outright
 
-**Where:** `debug/windows_debug_engine.cpp`, `WindowsDebugEngine::DebugLoop()`.
+**Where:** stub-side `ApplyBreakpoint()` (`debug/windows_debug_engine.cpp`).
 
-**Symptom:** If more than one thread of the debuggee is executing the same code path (e.g. several
-threads sharing a loop body) and a software breakpoint is set on that shared path, detaching while
-stopped there terminates the whole target process instead of detaching cleanly. Single-threaded
-targets, and breakpoints not on a path executed by multiple threads concurrently, detach as expected.
-Reproducible with `testBinaries/helloworld_thread.exe`.
+**Symptom:** Setting a software breakpoint at an address inside the target's own code while it's
+actively running (not stopped) is rejected: `ReadProcessMemory()` fails with `ERROR_PARTIAL_COPY`
+(299) reading the original byte before writing `INT3`. Reproduces every time regardless of address
+"hotness", timing before arming, launch vs. attach, or target binary.
 
-**Root cause:** `DebugLoop()`'s `Detach()`-triggered cleanup only calls `ContinueDebugEvent()` for the
-single debug event most recently retrieved via `WaitForDebugEvent()`, then calls
-`DebugActiveProcessStop()`. If a second thread concurrently raised the same breakpoint exception, its
-debug event is still queued in the kernel, never retrieved, and therefore never continued.
-`DebugActiveProcessStop()` requires every outstanding debug event to be continued before it can detach
-cleanly; the thread left with a pending event causes the detach to instead tear the process down.
+A reported manual repro (BN's GUI, X2WIN_RPC adapter, attach while running, add breakpoint) works
+every time, contradicting the above -- not yet reconciled. Most likely explanation: the manual
+session was pointed at different `x2winstub.exe`/`debuggercore.dll` binaries than the ones under
+test (confirm `BN_STANDALONE_DEBUGGER`/`BN_USER_DIRECTORY` before assuming otherwise).
 
-The same code (including the pending-event gap) exists in `core/adapters/windowsnativeadapter.cpp`
-(BinaryView-hosted native Windows adapter this engine was ported from), which this issue does not
-cover.
+### 2. Cleanup after a rejected running-target breakpoint is slow
 
-**Status:** Fixed (drain and continue any pending debug events before calling
-`DebugActiveProcessStop()`), in `Vector35/X2WinStub@2e995e5`.
+**Symptom:** Following issue #1, `Quit()`'s cleanup (pausing the still-running target) routinely
+takes about a minute. Root cause not identified. A batch test runner that kills this on a tight
+timeout can leave the next test in the batch spuriously stalling too (a leftover process not fully
+torn down) -- give it a generous timeout, or run it last/in isolation.
 
-### 2. Breakpoints can carry over to an unrelated process after Detach + re-Attach
+### 3. Conditional breakpoints are slow to evaluate
 
-**Where:** `debug/windows_debug_engine.cpp`, `WindowsDebugEngine::Reset()` /
-`ApplyPendingBreakpoints()`.
+**Where:** BN-core, `DebuggerController::ShouldSilentResumeAfterStop()` (generic, not X2Win-specific).
 
-**Symptom:** Not yet observed in practice, but reachable once a stub session's TCP connection is
-reused across multiple Attach/Launch cycles (server mode) instead of reconnecting each time: a
-breakpoint set while debugging one process can get silently re-applied, by raw address, to a
-different, unrelated process attached afterward on the same connection.
+**Symptom:** Any breakpoint with a condition set takes 10+ seconds to resolve through
+`go_and_wait()`, even when the condition is true on the very first hit. The RPC traffic itself
+completes quickly; the delay is elsewhere in BN-core's result plumbing. Likely affects every
+adapter, not just X2Win.
 
-**Root cause:** `Reset()` (run at the start of every `Execute()`/`Attach()`) does not clear
-`m_breakpoints`/`m_pendingBreakpoints` -- it only marks entries inactive, so a later
-`ApplyPendingBreakpoints()` re-applies them by their stored absolute address. This is correct for
-restarting the *same* binary (addresses stay meaningful), but unsafe once the same engine instance can
-be reused for an unrelated target, since nothing here checks whether the new process has anything to
-do with the old one.
+### 4. `StepReturn()` fails on the second call in a session
 
-**Status:** Fixed (clear breakpoint state fully in `Reset()` rather than only marking it
-inactive; the BN-core client already re-sends every breakpoint it cares about on every successful
-connect, so nothing is lost), in `Vector35/X2WinStub@2e995e5`.
+**Where:** stub-side `StepReturn()` (`debug/windows_debug_engine.cpp`), via `StackWalk64`.
 
-### 3. Binary Ninja's UI doesn't show the target as running while it's running freely
+**Symptom:** The first `step_return_and_wait()` in a session lands correctly; a second one (same
+process, different return address) returns `InternalError`. Plausibly `StackWalk64` frame unwinding
+depends on `.pdata`/`RUNTIME_FUNCTION` info that the current test binary (a hand-built
+`asmtest.exe` with no real function prologues) doesn't have. Unconfirmed.
 
-**Where:** `core/adapters/x2winrpcadapter.cpp`, `X2WinRpcAdapter::Go()` (BN-core side, not the stub).
+### 5. A breakpoint re-armed after `Restart()` can race the caller
 
-**Symptom:** After clicking Go/Continue (or the target otherwise resumes and doesn't immediately hit
-a breakpoint), the Binary Ninja UI keeps showing whatever it displayed while stopped -- status bar
-doesn't say "Running", register/stack/disassembly views don't refresh or grey out -- with no visual
-indication anything is happening on the remote target, until either a breakpoint is eventually hit
-(the next `TargetStoppedEvent` arrives and everything jumps to the new state at once) or the target
-exits. If the target runs for a long time without hitting a breakpoint, the UI looks identical to being
-idle/stopped the entire time.
+**Where:** `X2WinRpcAdapter::AddBreakpoint(ModuleNameAndOffset&)`'s pending-breakpoint retry.
 
-**Root cause:** `X2WinRpcAdapter::Go()` sends `GoRequest` and returns whether the stub *accepted* the
-resume request, but never calls `PostDebuggerEvent()` with a `ResumeEventType` event on success.
-`DebuggerController::ApplyOwnStateForEvent()` (`core/debuggercontroller.cpp`) is what flips
-`m_state`'s execution status to `DebugAdapterRunningStatus` on `ResumeEventType` (also on
-`StepIntoEventType`/`StepOverEventType`, which is why stepping doesn't have this problem), and both
-`DebuggerStatusBarWidget::updateStatusText()` (`ui/statusbar.cpp`, sets "Running") and
-`DebuggerWidget`'s `ResumeEventType` handler (`ui/ui.cpp`, `refreshCurrentViewContents()`) key off the
-same event. With no event posted, none of that fires until the next event this adapter *does* post
-(`TargetStoppedEvent`/`TargetExitedEventType`), so the whole "running" interval is invisible to the UI.
-`GdbAdapter::Go()` (`core/adapters/gdbadapter.cpp`) posts `ResumeEventType` as the very first thing it
-does, before it actually resumes the target -- `X2WinRpcAdapter::Go()` is missing the equivalent call.
-Note `X2WinRpcAdapter::BreakInto()` already posts `ResumeEventType` on success (existing code, unrelated
-to this fix), which is a separate, already-correct case.
-
-**Status:** Fixed, in `core/adapters/x2winrpcadapter.cpp`. Implemented slightly differently than
-first proposed: the `ResumeEventType` event is posted after `CallSync()` returns and only on
-`resp->success()`, not before the request is sent as in `GdbAdapter::Go()` -- deliberate, to avoid
-showing "Running" if the stub actually rejected the resume, at the cost of the UI update lagging by
-one round trip instead of leading it.
-
-### 4. Breakpoint written to a running target could silently never trigger
-
-**Where:** `debug/windows_debug_engine.cpp` -- `ApplyBreakpoint()`, `RemoveBreakpoint()`, the temp
-breakpoint set/restore helpers, and `WriteMemory()`.
-
-**Symptom:** Not observed as a standalone report, found while fixing #1/#2 above. A software
-breakpoint (or a temp breakpoint used by step-over/run-to) set while the target thread was already
-executing near that address could fail to trigger, even though the `INT3` write itself succeeded.
-
-**Root cause:** `WriteProcessMemory()` only guarantees the byte lands in the target process's
-memory; on x86/x64 it does not keep a thread's already-fetched instruction stream coherent with a
-cross-process code write the way same-thread self-modifying code is. `FlushInstructionCache()` is
-what MSDN's `WriteProcessMemory` docs call out as required after writing to code, and it was missing
-from every `INT3` write and restore path.
-
-**Status:** Fixed (`FlushInstructionCache()` added after every `INT3` write/restore, and after
-`WriteMemory()` since it can be used to patch code), in `Vector35/X2WinStub@2e995e5`.
+**Symptom:** A breakpoint added before `Restart()` gets automatically retried once the restarted
+process's first stop event arrives, but that retry runs on a background thread -- a caller that
+resumes immediately after `restart_and_wait()` returns can race past it before it's armed. Minor;
+workaround is to re-add the breakpoint explicitly after restart instead of relying on the automatic
+carry-over.
