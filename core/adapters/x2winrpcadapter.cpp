@@ -36,6 +36,15 @@ bool X2WinRpcAdapter::ConnectSocket(const std::string& ip, uint16_t port){
         return true;
     }
 
+    // A failed connection can leave completed, joinable threads behind. Finish
+    // them before reusing the socket, preserving newly staged breakpoints.
+    if(m_readerThread.joinable()){
+        m_readerThread.join();
+        if(m_breakpointThread.joinable())
+            m_breakpointThread.join();
+        m_socket.Close();
+    }
+
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
@@ -44,11 +53,13 @@ bool X2WinRpcAdapter::ConnectSocket(const std::string& ip, uint16_t port){
     m_socket = Socket(AF_INET, SOCK_STREAM, 0);
     if(!m_socket.Connect(addr)){
         LogWarn("X2WinRpcAdapter: failed to connect to %s:%u", ip.c_str(), (unsigned)port);
+        m_socket.Close();
         return false;
     }
 
-    m_readerThread = std::thread([this]() {ReaderLoop();});
+    m_tearingDown = false;
     m_connected = true;
+    m_readerThread = std::thread([this]() {ReaderLoop();});
 
     LogInfo("X2WinRpcAdapter: connected to %s:%u", ip.c_str(), (unsigned)port);
     return true;
@@ -236,6 +247,8 @@ X2WinEnvelopeBuffer X2WinRpcAdapter::CallSync(x2win::Body bodyType,
 
     {
         std::lock_guard<std::mutex> lock(m_pendingMutex);
+        if(!m_connected)
+            return X2WinEnvelopeBuffer();
         m_pendingRequests[requestId] = std::move(promise);
     }
 
@@ -393,11 +406,22 @@ void X2WinRpcAdapter::ReaderLoop(){
     // Same empty-envelope shape CallSync() already returns for a same-thread send failure, so every
     // existing caller's `if(!resp)`/`!resp->success()` check already treats this as a normal
     // rejected/failed call.
-    std::lock_guard<std::mutex> lock(m_pendingMutex);
-    for(auto& [requestId, promise] : m_pendingRequests){
-        promise.set_value(X2WinEnvelopeBuffer());
+    {
+        std::lock_guard<std::mutex> lock(m_pendingMutex);
+        m_connected = false;
+        for(auto& [requestId, promise] : m_pendingRequests){
+            promise.set_value(X2WinEnvelopeBuffer());
+        }
+        m_pendingRequests.clear();
     }
-    m_pendingRequests.clear();
+    if(!m_tearingDown){
+        // A run request may already have been acknowledged, leaving the worker
+        // waiting for a stop rather than an RPC response. Detach wakes that wait
+        // and clears the controller's live-target state without claiming an exit.
+        DebuggerEvent event;
+        event.type = DetachedEventType;
+        PostDebuggerEvent(event);
+    }
 }
 
 // Simplest example of the repeating "send request, decode response" shape most methods follow:
@@ -1193,11 +1217,16 @@ void BinaryNinjaDebugger::InitX2WinRpcAdapterType(){
 
 void X2WinRpcAdapter::TeardownConnection(){
     LogInfo("X2WinRpcAdapter::TeardownConnection: closing connection to stub");
-    m_socket.Kill();
+    m_tearingDown = true;
+    {
+        std::lock_guard<std::mutex> lock(m_pendingMutex);
+        m_connected = false;
+    }
+    if(m_readerThread.joinable())
+        m_socket.Kill();
     if(m_readerThread.joinable()){
         m_readerThread.join();
     }
-    m_connected = false;
     if(m_breakpointThread.joinable())
         m_breakpointThread.join();
     ResetSessionState();
