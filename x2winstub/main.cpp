@@ -118,6 +118,8 @@ namespace {
 			}
 		}
 
+		session.SetConnection(nullptr);
+
 		// Server mode: the debuggee this connection Launched/Attached is this client's own
 		// creation -- nobody else knows about it once this client is gone, so clean it up rather
 		// than leak an orphaned debugged process (matching the old debug_loop.cpp's

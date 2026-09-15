@@ -3,6 +3,7 @@
 #include <x2win_generated.h>
 #include <future>
 #include <atomic>
+#include <mutex>
 
 class Connection;
 
@@ -24,8 +25,8 @@ namespace x2win {
 	class X2WinStubSession
 	{
 	private:
-		WindowsDebugEngine m_engine;
 		Connection* m_connection;
+		std::mutex m_connectionMutex;
 		SessionMode m_mode;
 
 		// Fulfilled the first time the engine reports TargetStopped, independent of whether a
@@ -42,16 +43,19 @@ namespace x2win {
 		std::atomic<bool> m_isStopped {false};
 		std::atomic<StopReason> m_lastStopReason {StopReason_UNKNOWN};
 
+		// Destroy the engine first, joining its event thread before the callback
+		// state and connection mutex above are destroyed.
+		WindowsDebugEngine m_engine;
+
 		void OnEngineEvent(const EngineEvent& event);
 
 	public:
 		X2WinStubSession(Connection* connection, SessionMode mode);
+		~X2WinStubSession();
 
 		// Dispatches one already-parsed request. `builder` ends up holding a finished Envelope that
-		// should be written by the caller -- unless this returns false, meaning the request either
-		// has no reply (an unhandled request kind) or already sent its own reply asynchronously
-		// (LaunchRequest, whose LaunchResponse is sent from a background thread once CreateProcess
-		// returns). `builder` is caller-owned (rather than built internally and returned) for the
+		// should be written by the caller -- unless this returns false for an unhandled request.
+		// `builder` is caller-owned (rather than built internally and returned) for the
 		// same reason CallSync's callers own theirs on the BN-core side of this protocol: a
 		// FlatBuffers table can only be built bottom-up with one builder, and the response body
 		// table built by each case below has to share the builder that goes on to wrap it in the
@@ -62,7 +66,11 @@ namespace x2win {
 
 		// Attaches (or reattaches) the connection used for outgoing events. Target mode constructs
 		// the session before any client has connected -- see main.cpp.
-		void SetConnection(Connection* connection) { m_connection = connection; }
+		void SetConnection(Connection* connection)
+		{
+			std::lock_guard<std::mutex> lock(m_connectionMutex);
+			m_connection = connection;
+		}
 
 		SessionMode Mode() const { return m_mode; }
 		bool IsStopped() const { return m_isStopped; }

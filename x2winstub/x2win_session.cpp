@@ -1,6 +1,5 @@
 #include "x2win_session.h"
 #include "net/connection.h"
-#include <thread>
 
 namespace x2win {
 
@@ -10,9 +9,18 @@ namespace x2win {
 		m_engine.SetEventCallback([this](const EngineEvent& event) { OnEngineEvent(event); });
 	}
 
+	X2WinStubSession::~X2WinStubSession()
+	{
+		SetConnection(nullptr);
+		// Stop callbacks while every member they access is still alive.
+		m_engine.Quit();
+	}
 
 	void X2WinStubSession::OnEngineEvent(const EngineEvent& event)
 	{
+		// SetConnection(nullptr) waits for any in-flight write before the caller
+		// destroys the Connection. Subsequent events see the null pointer.
+		std::lock_guard<std::mutex> lock(m_connectionMutex);
 		if(event.type == EngineEventType::TargetExited){
 			m_isStopped = true;
 			m_lastStopReason = StopReason_EXITED;
@@ -130,27 +138,18 @@ namespace x2win {
 				return true;
 			}
 
-			// Copied into owned strings (rather than kept as FlatBuffers string views into
-			// `request`) because `request` is only valid for the duration of this call -- the
-			// caller's underlying byte buffer gets reused for the next request as soon as
-			// HandleRequest() returns, but the detached thread below runs well after that.
 			const auto* req = request.body_as<LaunchRequest>();
 			std::string path = (req && req->path()) ? req->path()->str() : std::string();
 			std::string args = (req && req->args()) ? req->args()->str() : std::string();
 			std::string workingDir = (req && req->working_dir()) ? req->working_dir()->str() : std::string();
-			uint64_t requestId = request.request_id();
-
-			std::thread([this, path, args, workingDir, requestId]() {
-				bool ok = m_engine.ExecuteWithArgs(path, args, workingDir);
-
-				flatbuffers::FlatBufferBuilder launchBuilder;
-				auto respBody = CreateLaunchResponse(launchBuilder, ok);
-				auto envelope = CreateEnvelope(launchBuilder, requestId, Body_LaunchResponse, respBody.Union());
-				launchBuilder.Finish(envelope);
-				m_connection->WriteEnvelope(launchBuilder);
-			}).detach();
-
-			return false;  // response already sent asynchronously above
+			// Like Attach, this waits only for process creation; debug events run on
+			// the engine thread. Keeping the request synchronous also keeps launch
+			// completion within the session and connection lifetimes.
+			bool ok = m_engine.ExecuteWithArgs(path, args, workingDir);
+			auto respBody = CreateLaunchResponse(builder, ok);
+			auto envelope = CreateEnvelope(builder, request.request_id(), Body_LaunchResponse, respBody.Union());
+			builder.Finish(envelope);
+			return true;
 		}
 
 		case Body_GoRequest:{
