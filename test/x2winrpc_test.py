@@ -175,6 +175,22 @@ class X2WinRpcTest(unittest.TestCase):
         reason = dbg.go_and_wait()
         self.assertEqual(reason, DebugStopReason.ProcessExited)
 
+    def test_instruction_pointer_after_register_write(self):
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv, dbg = self._connect(fpath)
+        self._launch_and_stop_at_entry(dbg, fpath)
+
+        original = dbg.get_reg_value('rip')
+        try:
+            self.assertTrue(dbg.set_reg_value('rip', original + 1))
+            self.assertEqual(dbg.ip, original + 1)
+            self.assertEqual(dbg.active_thread.rip, original + 1)
+        finally:
+            dbg.set_reg_value('rip', original)
+
+        reason = dbg.go_and_wait()
+        self.assertEqual(reason, DebugStopReason.ProcessExited)
+
     def test_target_mode_connect(self):
         """Target-mode one-phase connect: the stub launches the target itself at startup and
         stops at its initial breakpoint before any adapter is connected; Connect() (not
@@ -325,6 +341,13 @@ class X2WinRpcTest(unittest.TestCase):
 
         other = next((t for t in threads if t.tid != dbg.active_thread.tid), None)
         self.assertIsNotNone(other, 'need at least one non-active thread to suspend/resume')
+        original_thread = dbg.active_thread
+        try:
+            dbg.active_thread = other
+            self.assertEqual(dbg.active_thread.tid, other.tid)
+            self.assertEqual(dbg.ip, dbg.get_reg_value('rip'))
+        finally:
+            dbg.active_thread = original_thread
         self.assertTrue(dbg.suspend_thread(other.tid))
         self.assertTrue(dbg.resume_thread(other.tid))
 

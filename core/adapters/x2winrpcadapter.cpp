@@ -537,8 +537,7 @@ DebugThread X2WinRpcAdapter::GetActiveThread() const {
     const auto* resp = response.BodyAs<x2win::GetActiveThreadIdResponse>();
     std::uint32_t tid = resp ? resp->tid() : 0;
 
-    // See the comment on GetActiveThreadIdResponse in x2win.fbs -- rip comes from the last
-    // reported stop, not a separate RPC round trip.
+    // Read the selected thread's current IP, including register edits since the last stop.
     return DebugThread(tid, (std::uintptr_t)self->GetInstructionOffset());
 }
 
@@ -1081,7 +1080,10 @@ bool X2WinRpcAdapter::StepReturn(){
 }
 
 std::string X2WinRpcAdapter::InvokeBackendCommand(const std::string& command){ return ""; }
-uint64_t X2WinRpcAdapter::GetInstructionOffset(){ return m_lastStopAddress.load(); }
+uint64_t X2WinRpcAdapter::GetInstructionOffset(){
+    const auto reg = GetTargetArchitecture() == "x86" ? "eip" : "rip";
+    return (uint64_t)ReadRegister(reg).m_value;
+}
 uint64_t X2WinRpcAdapter::GetStackPointer(){
     std::string spRegistername = (GetTargetArchitecture() == "x86") ? "esp" : "rsp";
     return (uint64_t)ReadRegister(spRegistername).m_value;
