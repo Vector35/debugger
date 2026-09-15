@@ -74,13 +74,10 @@ if(NOT TARGET x2win_fbs)
     target_include_directories(x2win_fbs INTERFACE ${X2WIN_FBS_GENERATED_DIR})
 endif()
 
-# vendor/flatbuffers/include (CMAKE_SOURCE_DIR here resolves to whichever of the two vendor/
-# copies above actually got used -- this repo's own when standalone, the monorepo's when nested,
-# since CMAKE_SOURCE_DIR always means "root of the current build") is needed on top of the
-# x2win_fbs link below because flatbuffers_generate_headers() only exposes the *generated*
-# x2win_generated.h's directory via its INTERFACE target -- it doesn't add the FlatBuffers runtime
-# headers (flatbuffers/flatbuffers.h etc.) that generated file itself #includes.
-target_include_directories(x2winstub PRIVATE ${CMAKE_SOURCE_DIR}/vendor/flatbuffers/include)
+# Use the vendored target's include directory in standalone and nested builds.
+# The wire runtime is header-only; do not link the schema-parser static library.
+target_include_directories(x2winstub PRIVATE
+    $<TARGET_PROPERTY:flatbuffers,INTERFACE_INCLUDE_DIRECTORIES>)
 
 # dbghelp is needed for WindowsDebugEngine::GetFramesOfThread's stack walking
 # (SymInitialize/StackWalk64/etc.) -- the old debug_loop.cpp never did stack unwinding so never

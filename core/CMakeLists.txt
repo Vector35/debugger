@@ -229,8 +229,8 @@ endif()
 # project's existing plain-signature convention.
 add_dependencies(debuggercore GENERATE_x2win_fbs)
 target_include_directories(debuggercore PRIVATE
-    ${CMAKE_BINARY_DIR}/x2win_fbs
-    ${CMAKE_SOURCE_DIR}/vendor/flatbuffers/include
+    $<TARGET_PROPERTY:x2win_fbs,INTERFACE_INCLUDE_DIRECTORIES>
+    ${CMAKE_CURRENT_SOURCE_DIR}/../vendor/flatbuffers/include
 )
 
 

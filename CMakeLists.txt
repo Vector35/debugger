@@ -53,7 +53,7 @@ add_subdirectory(vendor/flatbuffers)
 # both named "x2win_fbs" and fail to configure -- target names must be unique project-wide).
 flatbuffers_generate_headers(
     TARGET x2win_fbs
-    SCHEMAS ${CMAKE_SOURCE_DIR}/protocol/x2win.fbs
+    SCHEMAS ${CMAKE_CURRENT_SOURCE_DIR}/protocol/x2win.fbs
 )
 
 add_subdirectory(core)
