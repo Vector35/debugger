@@ -355,10 +355,12 @@ void X2WinRpcAdapter::ReaderLoop(){
             // flushes racing on the same pending lists at once.
             bool expected = false;
             if(m_applyingBreakpoints.compare_exchange_strong(expected, true)){
-                std::thread([this](){
+                if(m_breakpointThread.joinable())
+                    m_breakpointThread.join();
+                m_breakpointThread = std::thread([this](){
                     ApplyBreakPoints();
                     m_applyingBreakpoints = false;
-                }).detach();
+                });
             }
 
             DebuggerEvent event;
@@ -386,10 +388,8 @@ void X2WinRpcAdapter::ReaderLoop(){
     // This thread is the only reader -- once it's exited (socket died/was killed), any request
     // still in m_pendingRequests can never get its response, and whatever thread is blocked in
     // CallSync()'s future.get() for it would hang forever without this. Most callers run on
-    // whatever thread called into the adapter and naturally unwind once TeardownConnection() joins
-    // this thread, but the breakpoint-flush thread ApplyBreakPoints() gets dispatched to (see the
-    // TargetStoppedEvent handling above) is detached and isn't joined by anything -- it depends on
-    // this to ever come back from CallSync() at all when the connection drops out from under it.
+    // whatever thread called into the adapter. The breakpoint worker also needs its
+    // pending RPC released here before TeardownConnection() can join it.
     // Same empty-envelope shape CallSync() already returns for a same-thread send failure, so every
     // existing caller's `if(!resp)`/`!resp->success()` check already treats this as a normal
     // rejected/failed call.
@@ -1198,6 +1198,8 @@ void X2WinRpcAdapter::TeardownConnection(){
         m_readerThread.join();
     }
     m_connected = false;
+    if(m_breakpointThread.joinable())
+        m_breakpointThread.join();
     ResetSessionState();
 }
 

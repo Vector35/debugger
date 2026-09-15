@@ -56,6 +56,7 @@ namespace BinaryNinjaDebugger {
 		Socket m_socket;
 		bool m_connected = false;
 		std::thread m_readerThread;
+		std::thread m_breakpointThread;
 		std::atomic<DebugStopReason> m_lastStopReason {DebugStopReason::UnknownReason};
 		std::atomic<uint64_t> m_lastStopAddress {0};
 		std::atomic<uint64_t> m_exitCode{0};
