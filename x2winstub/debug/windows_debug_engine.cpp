@@ -571,8 +571,10 @@ namespace x2win {
 				{
 					continueStatus = DBG_CONTINUE;
 				}
-				else if (!debugEvent.u.Exception.dwFirstChance)
+				else
 				{
+					// Let the target's handlers process application exceptions, including
+					// first-chance exceptions we did not stop on.
 					continueStatus = DBG_EXCEPTION_NOT_HANDLED;
 				}
 			}
