@@ -1015,11 +1015,12 @@ bool X2WinRpcAdapter::BreakInto(){
     bool success = resp && resp->success();
     if(!success){
         LogWarn("X2WinRpcAdapter::BreakInto: stub reported failure");
-    }else{
-        DebuggerEvent event;
-        event.type = ResumeEventType;
-        PostDebuggerEvent(event);
     }
+    // An interrupt request does not resume the debuggee. In particular, Quit's
+    // out-of-band interrupt can reach an already stopped target. Posting Resume
+    // here would make Quit wait for another stop before issuing the actual Quit,
+    // while the server is still parked on the original stop. Let ReaderLoop
+    // report a stop when a running target actually handles the interrupt.
     return success;
 }
 bool X2WinRpcAdapter::Go(){

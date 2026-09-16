@@ -18,7 +18,24 @@ was then resolved, and missing fixtures now fail instead of skip. The cleanup
 timeout recurred in a subsequent full run: **29 passed, one failed in 63.65
 seconds**, this time in cleanup of `test_process_list_and_attach`. It is not
 specific to StepReturn. The assertion is retained, with no automatic retries
-or skip to hide it. This is not yet a reliably green test gate.
+or skip to hide it. This was the pre-fix baseline; see the follow-up below.
+
+### Quit-timeout fix
+
+The root cause was a false Resume event on interrupt acknowledgment, not the
+StepReturn implementation. Removing that event fixes the incorrect transition
+from Stopped to Running that caused Quit to wait for another stop indefinitely.
+The new `test_interrupt_stopped_target_does_not_resume` failed on the old Windows
+client with both a false Running state and a cleanup timeout, then passed on
+the rebuilt fixed client. The suite now contains 31 tests. No wait limits were
+relaxed and no retries or skips were added.
+
+Three consecutive full Windows-local runs of the fixed client passed **31/31**
+each (45.89s, 46.33s, 45.71s), with no skips or cleanup timeouts. The native
+Windows and macOS client builds also passed. The Windows client DLL SHA-256 was
+`ad54a8f6762875e5c675399852bf42b819e8572b98498e668aa7de86c88a0f88`;
+the server was unchanged. These runs cover this regression, not all possible
+controller races or the separate x86 StepReturn limitation.
 
 The tested server used the previously authorized, exact-executable Defender
 exclusion on the QA VM. This is not validation of default Defender behavior for

@@ -475,6 +475,26 @@ class X2WinRpcTest(unittest.TestCase):
         self.assertTrue(dbg.running, 'dbg.running never flipped True after go() -- ResumeEventType not posted?')
         dbg.pause_and_wait(10000)
 
+    def test_interrupt_stopped_target_does_not_resume(self):
+        """An interrupt acknowledgment must not turn a stopped target into Running.
+
+        Quit requests an out-of-band interrupt even when already stopped. A false
+        Resume event makes its worker try to pause again and wait indefinitely.
+        Observe the forbidden transition explicitly, rather than relying on which
+        thread wins the Quit race.
+        """
+        fpath = name_to_fpath('helloworld_loop', self.arch)
+        bv, dbg = self._connect(fpath)
+        self._launch_and_stop_at_entry(dbg, fpath)
+        self.assertFalse(dbg.running)
+        dbg.pause()
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline:
+            self.assertFalse(dbg.running, 'interrupt acknowledgment falsely resumed a stopped target')
+            time.sleep(0.01)
+        dbg.quit_and_wait(10000)
+        self.assertFalse(dbg.connected, 'Quit timed out after interrupting a stopped target')
+
     def test_breakpoint_set_on_running_target_triggers(self):
         """Insert a breakpoint while Go is pending, then wait for that same Go operation.
 

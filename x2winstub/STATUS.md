@@ -96,16 +96,22 @@ flips back to `false`, and cleanup is instant. So the adapter/controller-level h
 is confirmed correct; whatever's wrong is specific to the interactive GUI path and not yet
 identified.
 
-### 5. Intermittent Quit timeout during integration-test cleanup
+## Fixed during review
 
-One Windows-local run completed the x64 StepReturn assertions but remained
-connected after `quit_and_wait(10000)` in cleanup. A focused rerun and the next
-full run passed, but a subsequent full run hit the same cleanup timeout after
-the attach test. Root cause is not established; the cleanup assertion remains
-enabled so CI reports a recurrence. See `TEST_RESULTS.md` for validation scope.
+### Intermittent Quit timeout during integration-test cleanup
 
-The failing attach-run client log shows two `BreakIntoRequest`s without an
-intervening stop notification. Only the cleanup fallback's direct server Quit
-produces an exit event, after which the queued adapter Quit runs. This points
-to pause/interrupt sequencing rather than establishing a StepReturn defect;
-the exact race still needs isolation.
+**Where:** `X2WinRpcAdapter::BreakInto()` in `core/adapters/x2winrpcadapter.cpp`.
+
+**Root cause:** Quit requests an out-of-band interrupt even when stopped. The
+RPC adapter incorrectly posted `ResumeEventType` when the server acknowledged
+the interrupt. If this won the race against the Quit worker's state check,
+the worker saw Running and called `PauseAndWaitInternal()`. The server was
+still parked on the original stop, so it could not deliver the new stop event
+the worker awaited. The actual Quit request was never reached until cleanup's
+direct disconnect/quit fallback terminated the process.
+
+**Fix:** An interrupt acknowledgment no longer emits Resume. The reader still
+reports the actual stop when interrupting a running target. This matches the
+native Windows adapter's BreakInto behavior. The new stopped-target interrupt
+regression reproduced both the false Running state and the Quit timeout before
+the fix, and passed afterward. See `TEST_RESULTS.md` for validation scope.
