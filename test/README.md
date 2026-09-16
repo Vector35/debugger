@@ -35,8 +35,10 @@ has a 15-minute outer timeout in addition to bounded debugger waits.
 The UI label is **Windows Remote**. API identifiers (`X2WIN_RPC`), source names,
 settings keys, and the executable name (`x2winstub.exe`) remain unchanged.
 
-See [current coverage and limitations](../x2winstub/TEST_RESULTS.md). The main RPC
-suite uses x64 targets; it does not claim coverage of every x86/WOW64 operation.
+The RPC suite uses x64 targets; it does not cover the known x86/WOW64 StepReturn
+unwind limitation. Conditional breakpoints are tested for get/set only, and the
+restart test explicitly re-adds its breakpoint rather than testing automatic
+carry-over. GUI-specific behavior is not covered.
 
 ## Building test binaries alongside the debugger
 

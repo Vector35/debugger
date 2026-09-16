@@ -2028,7 +2028,7 @@ namespace x2win {
 		// past it) -- this fallback runs whenever StackWalk64 couldn't unwind a second frame
 		// (e.g. code with no real function prologue / unwind info, such as a hand-built test
 		// binary), so by the time StepReturn() gets here the callee has often already executed
-		// part of its body, and *SP no longer holds the return address at all. See STATUS.md #4:
+		// part of its body, and *SP no longer holds the return address at all:
 		// this is what made the first step_return in a session land correctly (stopped right at
 		// function entry) and a later one fail (stopped somewhere else in the callee).
 		const size_t ptrSize = m_isTargetWow64 ? 4 : 8;
@@ -3038,7 +3038,7 @@ namespace x2win {
 		// guessing frame 1 from whatever the current frame-pointer register happens to hold,
 		// rather than failing outright. That guess isn't reliably wrong OR reliably right --
 		// which is exactly what made this landed correctly for a first step_return in a session
-		// and produced a bogus frames[1].m_pc for a later one (see STATUS.md #4). So don't trust
+		// and produced a bogus frames[1].m_pc for a later one. So don't trust
 		// it blindly: require it to actually look like a return address (inside a known module,
 		// immediately preceded by a call) before using it.
 		if (frames.size() >= 2 && IsPlausibleReturnAddress(frames[1].m_pc))

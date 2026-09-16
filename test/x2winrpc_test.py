@@ -259,7 +259,7 @@ class X2WinRpcTest(unittest.TestCase):
         before resuming (core/adapters/windows_debug_engine.cpp's WindowsDebugEngine::Go(), same
         semantics as any real debugger: otherwise `continue` from your own breakpoint could never
         make progress), and `entry` executes exactly once, so that breakpoint could never trigger
-        again -- the assertion was wrong, not the engine. See STATUS.md discussion for detail."""
+        again -- the assertion was wrong, not the engine."""
         fpath = name_to_fpath('helloworld', self.arch)
         bv, dbg = self._connect(fpath)
         self._launch_and_stop_at_entry(dbg, fpath)  # deletes its own entry breakpoint before returning
@@ -288,7 +288,7 @@ class X2WinRpcTest(unittest.TestCase):
 
         Enter both callees explicitly; stepping only once from entry+6 executes
         the NOP, not the second CALL. The separate x86 unwind limitation is
-        documented in TEST_RESULTS.md and is not covered by this x64 test."""
+        not covered by this x64 test."""
         fpath = name_to_fpath('asmtest', self.arch)
         bv, dbg = self._connect(fpath)
         entry = self._launch_and_stop_at_entry(dbg, fpath)
@@ -413,8 +413,8 @@ class X2WinRpcTest(unittest.TestCase):
         self.assertGreater(len(dbg.regs), 0)
 
     def test_detach_leaves_target_running(self):
-        """Best-effort regression for STATUS.md #1 (detach could terminate a multi-threaded
-        target). This drives the same DebugLoop() cleanup path the fix touches -- detaching while
+        """Best-effort regression for detach terminating a multi-threaded target.
+        This drives the same DebugLoop() cleanup path the fix touches -- detaching while
         the target is actively running rather than stopped at a breakpoint -- but does not
         reproduce the exact original race (two threads hitting one shared breakpoint at the same
         instant, needing WaitForDebugEvent to have two events genuinely queued at once); that
@@ -439,7 +439,7 @@ class X2WinRpcTest(unittest.TestCase):
         dbg.quit_and_wait(10000)
 
     def test_breakpoint_does_not_carry_over_reused_connection(self):
-        """Regression for STATUS.md #2. Uses one adapter/connection across two Launch cycles (the
+        """Regression for stale server breakpoints. Uses one adapter/connection across two Launch cycles (the
         precondition from the issue -- Detach() in server mode keeps the stub TCP connection alive,
         see X2WinRpcAdapter::Detach()/ResetSessionState() vs TeardownConnection()) and deletes the
         breakpoint from BN-core's own list before the second launch, so BN-core's own
@@ -632,7 +632,7 @@ class X2WinRpcTest(unittest.TestCase):
         breakpoint explicitly here instead (a direct, synchronous AddBreakpoint RPC -- the same
         thing _launch_and_stop_at_entry() already relies on for the ordinary launch case, which is
         why that path has never hit this race) rather than depending on the automatic carry-over
-        actually finishing in time. See TEST_RESULTS.md for the race itself."""
+        actually finishing in time."""
         fpath = name_to_fpath('helloworld', self.arch)
         bv, dbg = self._connect(fpath)
         entry = self._launch_and_stop_at_entry(dbg, fpath)
@@ -673,7 +673,7 @@ class X2WinRpcTest(unittest.TestCase):
         test/debugger_test.py's own test_breakpoint_condition (get/set string round-trip only, no
         go_and_wait() involved), this is apparently the first attempt anywhere in this suite to
         exercise a conditional breakpoint through a real run/stop cycle end to end. Root cause not
-        pinned down; see TEST_RESULTS.md. Restricted to the condition string round-trip (fast, and
+        pinned down. Restricted to the condition string round-trip (fast, and
         already proven correct) so this test doesn't itself take a minute-plus to run."""
         fpath = name_to_fpath('helloworld_loop', self.arch)
         bv, dbg = self._connect(fpath)
