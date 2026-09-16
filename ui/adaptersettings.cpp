@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include "adaptersettings.h"
+#include "adapterdisplayname.h"
 #include "uicontext.h"
 #include "qfiledialog.h"
 #include "settingsview.h"
@@ -39,11 +40,11 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 	m_adapterEntry = new QComboBox(this);
 	for (const std::string& adapter : DebugAdapterType::GetAvailableAdapters(m_controller->GetData()))
 	{
-		m_adapterEntry->addItem(QString::fromStdString(adapter));
+		m_adapterEntry->addItem(DebugAdapterDisplayName(adapter), QString::fromStdString(adapter));
 	}
 	if (!m_controller->GetAdapterType().empty())
 	{
-		m_adapterEntry->setCurrentText(QString::fromStdString(m_controller->GetAdapterType()));
+		m_adapterEntry->setCurrentIndex(m_adapterEntry->findData(QString::fromStdString(m_controller->GetAdapterType())));
 	}
 	else
 	{
@@ -65,7 +66,7 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 	m_stack = new QStackedWidget(this);
 	m_stack->addWidget(m_noSettingsLabel);
 
-	auto widget = getWidgetForAdapter(m_adapterEntry->currentText());
+	auto widget = getWidgetForAdapter(m_adapterEntry->currentData().toString());
 	m_stack->setCurrentWidget(widget);
 	layout->addWidget(m_stack);
 
@@ -120,8 +121,9 @@ AdapterSettingsDialog::AdapterSettingsDialog(QWidget* parent, DbgRef<DebuggerCon
 }
 
 
-void AdapterSettingsDialog::selectAdapter(const QString& adapter)
+void AdapterSettingsDialog::selectAdapter(const QString&)
 {
+	auto adapter = m_adapterEntry->currentData().toString();
 	auto adapterType = DebugAdapterType::GetByName(adapter.toStdString());
 	if (!adapterType)
 		return;

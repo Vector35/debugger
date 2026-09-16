@@ -18,7 +18,7 @@ static constexpr uint16_t kListenPort = 31338;
 namespace {
 	void PrintUsage(const char* argv0){
 		fprintf(stderr,
-		"usage: \n"
+		"Windows Remote debug server\nusage: \n"
 		" %s target <path-to-exe> [--ip <address>] [--port <port>]\n"
 		" %s server [--ip <address>] [--port <port>]\n",
 		argv0, argv0);
@@ -166,7 +166,7 @@ std::optional<SocketHandle> CreateListenSocket(const Options& options){
 		return std::nullopt;
 	}
 
-	fprintf(stderr, "x2winstub listening on %s:%d\n", options.listenIp.c_str(), options.listenPort);
+	fprintf(stderr, "Windows Remote debug server listening on %s:%d\n", options.listenIp.c_str(), options.listenPort);
 	return listener;
 
 }

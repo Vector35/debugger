@@ -21,6 +21,7 @@ limitations under the License.
 #include <QLabel>
 #include <QHBoxLayout>
 #include "debuggerwidget.h"
+#include "adapterdisplayname.h"
 #include "ui.h"
 
 using namespace BinaryNinjaDebuggerAPI;
@@ -42,18 +43,18 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 	// Populate adapter selector
 	for (const std::string& adapter : DebugAdapterType::GetAvailableAdapters(m_controller->GetData()))
 	{
-		m_adapterSelector->addItem(QString::fromStdString(adapter));
+		m_adapterSelector->addItem(DebugAdapterDisplayName(adapter), QString::fromStdString(adapter));
 	}
 	
 	// Set current adapter
 	if (!m_controller->GetAdapterType().empty())
 	{
-		m_adapterSelector->setCurrentText(QString::fromStdString(m_controller->GetAdapterType()));
+		m_adapterSelector->setCurrentIndex(m_adapterSelector->findData(QString::fromStdString(m_controller->GetAdapterType())));
 	}
 	else if (m_adapterSelector->count() > 0)
 	{
 		// Set first available adapter if none is set
-		m_controller->SetAdapterType(m_adapterSelector->itemText(0).toStdString());
+		m_controller->SetAdapterType(m_adapterSelector->itemData(0).toString().toStdString());
 		m_adapterSelector->setCurrentIndex(0);
 	}
 	else
@@ -136,8 +137,9 @@ void DebuggerWidget::uiEventHandler(const DebuggerEvent& event)
 }
 
 
-void DebuggerWidget::selectAdapter(const QString& adapter)
+void DebuggerWidget::selectAdapter(const QString&)
 {
+	auto adapter = m_adapterSelector->currentData().toString();
 	if (adapter.isEmpty())
 		return;
 

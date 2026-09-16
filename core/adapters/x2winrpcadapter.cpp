@@ -1127,7 +1127,7 @@ Ref<Settings> X2WinRpcAdapterType::RegisterAdapterSettings(){
     "title" : "IP Address",
     "type" : "string",
     "default" : "127.0.0.1",
-    "description" : "IP address of the x2win stub to connect to",
+    "description" : "IP address of the Windows Remote debug server",
     "readOnly" : false
     })");
 
@@ -1147,7 +1147,7 @@ Ref<Settings> X2WinRpcAdapterType::RegisterAdapterSettings(){
     "default" : 31338,
     "minValue" : 0,
     "maxValue" : 65535,
-    "description" : "Port of the x2win stub to connect to",
+    "description" : "Port of the Windows Remote debug server",
     "readOnly" : false
     })");
 
