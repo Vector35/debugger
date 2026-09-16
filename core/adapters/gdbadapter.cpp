@@ -238,6 +238,8 @@ bool GdbAdapter::Connect(const std::string& server, std::uint32_t port)
         }
 
     	m_socket->Close();
+		delete m_socket;
+		m_socket = nullptr;
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
