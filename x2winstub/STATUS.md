@@ -1,12 +1,13 @@
-# Status
+# Windows Remote debugging status
 
 What this codebase currently supports, and the currently open issues in it. Each issue entry lists
 where the problem lives, its symptom, and what's known about the root cause.
 
 ## Build status
 
-Builds and runs against the remote Windows box this stub is developed/tested on. Whether it passes
-this repo's Jenkins CI build is not yet confirmed.
+The Windows build runs the local client/server integration suite through `scripts/build.py`.
+See `TEST_RESULTS.md` for validated results and the distinction between a local Windows run
+and an actual Jenkins execution.
 
 ## Current feature coverage
 
@@ -63,7 +64,12 @@ is genuinely not inside any nested call at that moment (sitting at a call instru
 executed yet, rather than inside a callee), there is no correct answer for "the current function's
 return address" to find, and the scan can return an unrelated, older return address further up the
 stack instead. Calling `StepReturn()` only while actually inside a called function's body gives the
-correct result.
+correct result in the x64 integration case. Separate x86/WOW64 testing also
+reproduced an incorrect return target while genuinely inside a callee: an
+unreliable older frame from `StackWalk64` was accepted before consulting the
+correct immediate return address. The same behavior was reproduced with the
+native Windows adapter. Thus entering the callee fixes the test sequence, but
+does not resolve all engine-side unwind failures.
 
 ### 3. A breakpoint re-armed after `Restart()` can race the caller
 
@@ -89,3 +95,17 @@ does not reproduce it: the controller correctly reports `AccessViolation`, `dbg.
 flips back to `false`, and cleanup is instant. So the adapter/controller-level handling of this stop
 is confirmed correct; whatever's wrong is specific to the interactive GUI path and not yet
 identified.
+
+### 5. Intermittent Quit timeout during integration-test cleanup
+
+One Windows-local run completed the x64 StepReturn assertions but remained
+connected after `quit_and_wait(10000)` in cleanup. A focused rerun and the next
+full run passed, but a subsequent full run hit the same cleanup timeout after
+the attach test. Root cause is not established; the cleanup assertion remains
+enabled so CI reports a recurrence. See `TEST_RESULTS.md` for validation scope.
+
+The failing attach-run client log shows two `BreakIntoRequest`s without an
+intervening stop notification. Only the cleanup fallback's direct server Quit
+produces an exit event, after which the queued adapter Quit runs. This points
+to pause/interrupt sequencing rather than establishing a StepReturn defect;
+the exact race still needs isolation.

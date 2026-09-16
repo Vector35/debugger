@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# unit tests for X2WinRpcAdapter <-> x2winstub (see x2winstub/STATUS.md)
+# Windows Remote integration tests (X2WinRpcAdapter <-> x2winstub).
 #
 # Modeled on the "connect to a real, locally-spawned debug server over loopback" pattern used for
 # remote debugging elsewhere in this test suite (debugger_test.py's DebuggerAPI.test_remote_debugging,
@@ -9,10 +9,8 @@
 # adapter to it, and drive the session through the same DebuggerController API any local test uses.
 # No mocking of the adapter or the wire protocol -- this is an integration test.
 #
-# Kept in its own file rather than folded into debugger_test.py because X2WinRpcTest doesn't share
-# DebuggerAPI's per-OS/arch launch-a-local-target model (it spawns and owns its own x2winstub.exe
-# subprocess instead), and because X2WinRpcAdapter is still unmerged, draft-PR-only work (#1174) that
-# depends on a local x2winstub.exe build -- it doesn't run as part of the main suite or CI yet.
+# Run on Windows only. scripts/build.py includes this suite on Windows CI workers,
+# with X2WINSTUB_PATH pointing to the server built alongside the client under test.
 #
 # Run: cd test && python3 x2winrpc_test.py
 # Pass a keyword to run a subset, e.g. python3 x2winrpc_test.py breakpoint
@@ -24,6 +22,9 @@ import socket
 import platform
 import subprocess
 import unittest
+import tempfile
+import threading
+from concurrent.futures import Future
 
 import binaryninja
 from binaryninja import load
@@ -32,9 +33,9 @@ try:
 except ImportError:
     from binaryninja.debugger import DebuggerController, DebugStopReason, DebugBreakpointType, ModuleNameAndOffset
 
-# Reuse debugger_test.py's path-resolution and step helpers rather than duplicating them.
+# Reuse debugger_test.py's fixture path resolution.
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from debugger_test import name_to_fpath, sleep_and_step_into
+from debugger_test import name_to_fpath
 
 
 def find_local_x2winstub():
@@ -44,8 +45,8 @@ def find_local_x2winstub():
     bundled debug-server tools (BN_CORE_PLUGIN_DIR in an internal build), the same place
     debugger_test.py's find_local_dbgsrv()/find_local_lldb_debug_server() (PR #1168) look for theirs."""
     override = os.environ.get('X2WINSTUB_PATH')
-    if override and os.path.isfile(override):
-        return override
+    if override:
+        return override if os.path.isfile(override) else None
     path = os.path.join(binaryninja.bundled_plugin_path(), 'x2winstub.exe')
     return path if os.path.isfile(path) else None
 
@@ -102,20 +103,24 @@ class X2WinRpcTest(unittest.TestCase):
     def setUpClass(cls):
         cls.stub_path = find_local_x2winstub()
         if cls.stub_path is None:
-            raise unittest.SkipTest(
+            raise RuntimeError(
                 'x2winstub.exe not found next to this build (checked $X2WINSTUB_PATH and '
                 'binaryninja.bundled_plugin_path()); build the debugger with x2winstub enabled '
                 '(Windows-only, see top-level CMakeLists.txt) to get it')
 
         cls.host = '127.0.0.1'
         cls.port = free_loopback_port()
+        # Never leave an unread PIPE: verbose output can fill it and hang the server.
+        cls.stub_log = tempfile.TemporaryFile(mode='w+')
+        cls.addClassCleanup(cls.stub_log.close)
         cls.stub_proc = subprocess.Popen(
             [cls.stub_path, 'server', '--ip', cls.host, '--port', str(cls.port)],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            stdout=cls.stub_log, stderr=subprocess.STDOUT, text=True)
+        cls.addClassCleanup(terminate_process, cls.stub_proc)
         if not wait_for_port_ready(cls.host, cls.port):
-            output = cls.stub_proc.stdout.read() if cls.stub_proc.poll() is not None else '(still running)'
             terminate_process(cls.stub_proc)
-            raise unittest.SkipTest(f'x2winstub server never started listening: {output}')
+            cls.stub_log.seek(0)
+            raise RuntimeError(f'x2winstub server never started listening: {cls.stub_log.read()}')
 
     @classmethod
     def tearDownClass(cls):
@@ -134,9 +139,13 @@ class X2WinRpcTest(unittest.TestCase):
         dbg.remote_port = self.port
 
         def cleanup():
-            if dbg.connected:
-                dbg.quit_and_wait()
-            dbg.disconnect_from_debug_server()  # no-op if we never connected
+            try:
+                if dbg.connected:
+                    dbg.quit_and_wait(10000)
+                self.assertFalse(dbg.connected, 'Quit did not complete within 10 seconds')
+            finally:
+                dbg.disconnect_from_debug_server()
+                bv.file.close()
         self.addCleanup(cleanup)
 
         self.assertTrue(dbg.connect_to_debug_server(), 'failed to connect to the local x2winstub')
@@ -153,13 +162,15 @@ class X2WinRpcTest(unittest.TestCase):
         gdbserver."""
         dbg.executable_path = fpath
         dbg.cmd_line = cmd_line
-        reason = dbg.launch_and_wait()
+        reason = dbg.launch_and_wait(10000)
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
         entry = dbg.data.entry_point
         dbg.delete_breakpoint(entry)  # in case something already left one here
         dbg.add_breakpoint(entry)
-        reason = dbg.go_and_wait()
+        reason = dbg.go_and_wait(10000)
+        if dbg.remote_arch.name == 'x86' and reason == DebugStopReason.InitialBreakpoint:
+            reason = dbg.go_and_wait(10000)  # second WOW64 loader breakpoint
         self.assertEqual(reason, DebugStopReason.Breakpoint)
         self.assertEqual(dbg.ip, entry)
         dbg.delete_breakpoint(entry)
@@ -192,7 +203,7 @@ class X2WinRpcTest(unittest.TestCase):
         self._launch_and_stop_at_entry(dbg, fpath)
         self.assertGreater(len(dbg.regs), 0)
 
-        reason = dbg.go_and_wait()
+        reason = dbg.go_and_wait(10000)
         self.assertEqual(reason, DebugStopReason.ProcessExited)
 
     def test_instruction_pointer_after_register_write(self):
@@ -208,7 +219,7 @@ class X2WinRpcTest(unittest.TestCase):
         finally:
             dbg.set_reg_value('rip', original)
 
-        reason = dbg.go_and_wait()
+        reason = dbg.go_and_wait(10000)
         self.assertEqual(reason, DebugStopReason.ProcessExited)
 
     def test_target_mode_connect(self):
@@ -218,9 +229,11 @@ class X2WinRpcTest(unittest.TestCase):
         fpath = name_to_fpath('helloworld', self.arch)
         host = '127.0.0.1'
         port = free_loopback_port()
+        log = tempfile.TemporaryFile(mode='w+')
+        self.addCleanup(log.close)
         proc = subprocess.Popen(
             [self.stub_path, 'target', fpath, '--ip', host, '--port', str(port)],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            stdout=log, stderr=subprocess.STDOUT, text=True)
         self.addCleanup(lambda: terminate_process(proc))
         if not wait_for_port_ready(host, port, deadline_seconds=15):
             self.fail('x2winstub target mode never started listening (target failed to launch?)')
@@ -230,9 +243,9 @@ class X2WinRpcTest(unittest.TestCase):
         dbg.adapter_type = 'X2WIN_RPC'
         dbg.remote_host = host
         dbg.remote_port = port
-        self.addCleanup(lambda: dbg.quit_and_wait() if dbg.connected else None)
+        self.addCleanup(lambda: dbg.quit_and_wait(10000) if dbg.connected else None)
 
-        reason = dbg.connect_and_wait()
+        reason = dbg.connect_and_wait(10000)
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         self.assertGreater(len(dbg.regs), 0)
         self.assertGreater(dbg.active_pid, 0)
@@ -251,7 +264,7 @@ class X2WinRpcTest(unittest.TestCase):
         bv, dbg = self._connect(fpath)
         self._launch_and_stop_at_entry(dbg, fpath)  # deletes its own entry breakpoint before returning
 
-        reason = dbg.go_and_wait()
+        reason = dbg.go_and_wait(10000)
         self.assertEqual(reason, DebugStopReason.ProcessExited,
                           'continuing after delete_breakpoint() re-trapped -- delete did not take effect')
 
@@ -273,24 +286,26 @@ class X2WinRpcTest(unittest.TestCase):
         known nop/call/call sequence (see debugger_test.py's test_assembly_code for the same
         layout), so the expected landing address after each call is exact, not inferred.
 
-        Currently fails on the *second* step_return_and_wait() in a session (InternalError) --
-        hypothesis is StackWalk64 frame unwinding being unreliable on asmtest.exe, which has no real
-        function prologues for it to key off of. Not confirmed; see TEST_RESULTS.md."""
+        Enter both callees explicitly; stepping only once from entry+6 executes
+        the NOP, not the second CALL. The separate x86 unwind limitation is
+        documented in TEST_RESULTS.md and is not covered by this x64 test."""
         fpath = name_to_fpath('asmtest', self.arch)
         bv, dbg = self._connect(fpath)
         entry = self._launch_and_stop_at_entry(dbg, fpath)
         dbg.set_reg_value('rsp', dbg.get_reg_value('rsp') & 0xfffffffffffffff0)
 
-        sleep_and_step_into(dbg)  # over the nop -> entry+1, the first call
+        dbg.step_into_and_wait(timeout=10000)  # over the nop -> entry+1, the first call
         self.assertEqual(dbg.ip, entry + 1)
 
-        sleep_and_step_into(dbg)  # into the first call's body
-        reason = dbg.step_return_and_wait()
+        dbg.step_into_and_wait(timeout=10000)  # into the first call's body
+        reason = dbg.step_return_and_wait(10000)
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         self.assertEqual(dbg.ip, entry + 6, 'step_return landed somewhere other than right after the call')
 
-        sleep_and_step_into(dbg)  # into the second call's body
-        reason = dbg.step_return_and_wait()
+        dbg.step_into_and_wait(timeout=10000)  # over the second nop
+        self.assertEqual(dbg.ip, entry + 7)
+        dbg.step_into_and_wait(timeout=10000)  # into the second call's body
+        reason = dbg.step_return_and_wait(10000)
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         self.assertEqual(dbg.ip, entry + 12, 'step_return landed somewhere other than right after the call')
 
@@ -357,7 +372,7 @@ class X2WinRpcTest(unittest.TestCase):
 
         dbg.go()
         time.sleep(1)
-        dbg.pause_and_wait()
+        dbg.pause_and_wait(10000)
         threads = dbg.threads
         self.assertGreater(len(threads), 1)
 
@@ -380,18 +395,20 @@ class X2WinRpcTest(unittest.TestCase):
 
         dbg.go()
         time.sleep(0.5)
-        reason = dbg.pause_and_wait()
+        reason = dbg.pause_and_wait(10000)
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
     def test_process_list_and_attach(self):
         fpath = name_to_fpath('helloworld_loop', self.arch)
         CREATE_NEW_CONSOLE = 0x00000010
-        pid = subprocess.Popen([fpath], creationflags=CREATE_NEW_CONSOLE).pid
+        target = subprocess.Popen([fpath], creationflags=CREATE_NEW_CONSOLE)
+        self.addCleanup(terminate_process, target)
+        pid = target.pid
 
         bv, dbg = self._connect(fpath)
         self.assertGreater(len(dbg.processes), 0)
         dbg.pid_attach = pid
-        reason = dbg.attach_and_wait()
+        reason = dbg.attach_and_wait(10000)
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         self.assertGreater(len(dbg.regs), 0)
 
@@ -406,20 +423,20 @@ class X2WinRpcTest(unittest.TestCase):
         bv, dbg = self._connect(fpath)
         self._launch_and_stop_at_entry(dbg, fpath)
 
+        pid = dbg.active_pid
         dbg.go()
         time.sleep(0.5)  # let multiple worker threads actually start running
-        dbg.detach_and_wait()
+        dbg.detach_and_wait(10000)
 
         # Detach tore the process down if it's no longer in the stub's process list.
         procs = dbg.processes
-        self.assertTrue(any('helloworld_thread' in p.name.lower() for p in procs),
+        self.assertTrue(any(p.pid == pid for p in procs),
                          'target process is gone after detach -- detach likely killed it')
 
         # Clean up the now-detached, still-running process so it doesn't leak on the test box.
-        leaked = next(p for p in procs if 'helloworld_thread' in p.name.lower())
-        dbg.pid_attach = leaked.pid
-        dbg.attach_and_wait()
-        dbg.quit_and_wait()
+        dbg.pid_attach = pid
+        dbg.attach_and_wait(10000)
+        dbg.quit_and_wait(10000)
 
     def test_breakpoint_does_not_carry_over_reused_connection(self):
         """Regression for STATUS.md #2. Uses one adapter/connection across two Launch cycles (the
@@ -435,17 +452,16 @@ class X2WinRpcTest(unittest.TestCase):
         addr = entry + 0x10
         dbg.add_breakpoint(addr)
         dbg.delete_breakpoint(addr)  # BN-core no longer intends to send this anywhere
-        dbg.detach_and_wait()        # server mode: connection stays up (ResetSessionState(), not TeardownConnection())
+        dbg.detach_and_wait(10000)        # server mode: connection stays up (ResetSessionState(), not TeardownConnection())
 
         self._launch_and_stop_at_entry(dbg, fpath)  # second Launch cycle, same connection
-        reason = dbg.go_and_wait()
+        reason = dbg.go_and_wait(10000)
         self.assertEqual(reason, DebugStopReason.ProcessExited,
                           'process stopped (likely at the stale, BN-core-deleted breakpoint) instead of exiting -- '
                           'the stub re-armed a breakpoint on its own that BN-core never asked it to')
 
     def test_go_posts_resume_event(self):
-        """Regression for the Go()-doesn't-post-ResumeEventType fix (core/adapters/x2winrpcadapter.cpp,
-        not yet committed as of this writing): `running` should flip promptly after go(), not stay
+        """Regression for the Go()-doesn't-post-ResumeEventType fix: `running` should flip promptly after go(), not stay
         stuck at the last-stopped state until the next stop event."""
         fpath = name_to_fpath('helloworld_loop', self.arch)
         bv, dbg = self._connect(fpath)
@@ -457,66 +473,43 @@ class X2WinRpcTest(unittest.TestCase):
         while time.time() < deadline and not dbg.running:
             time.sleep(0.05)
         self.assertTrue(dbg.running, 'dbg.running never flipped True after go() -- ResumeEventType not posted?')
-        dbg.pause_and_wait()
+        dbg.pause_and_wait(10000)
 
     def test_breakpoint_set_on_running_target_triggers(self):
-        """Best-effort regression for STATUS.md #4 (missing FlushInstructionCache after INT3
-        writes). Needs an address genuinely inside the target's repeating loop body to have any
-        chance of re-triggering -- this used to (wrongly) assume helloworld_loop.exe's *entry
-        point* was such an address ("true for a trivial 'loop forever' test binary, but not
-        verified by disassembly here" -- it wasn't true: disassembly shows entry is just the
-        one-shot CRT startup thunk, a `jmp` away with no path back).
+        """Insert a breakpoint while Go is pending, then wait for that same Go operation.
 
-        A second attempt sampled a "live" address by pausing the already-running target and
-        reading dbg.ip -- also wrong, just less obviously so: dbg.threads showed *every* thread of
-        the process sitting inside ntdll (helloworld_loop.exe's own code is a vanishing fraction of
-        its runtime; the rest is spent blocked in system wait/console calls), so the sampled
-        address was never actually in helloworld_loop.exe's module. Writing an INT3 into that
-        shared ntdll code -- hit repeatedly by multiple threads doing their own unrelated waits --
-        turned Quit()'s cleanup into a multi-*minute*, wildly variable stall (79s/109s/229s across
-        three runs) instead of a hang, but that's still not something this test should be doing.
-
-        main()'s actual disassembly (`main+0x24`, `imul ebx, ebx, 0x31` inside a ~50M-iteration
-        busy-spin -- see `sub rax, 1` / `jne` right after it) is a genuinely reliable choice
-        instead: verified in-module, single-threaded, and hot enough to retrigger almost
-        immediately once armed.
-
-        Still fails even with a correct address, though: the stub rejects the SetBreakpointRequest
-        outright (ApplyBreakpoint()'s ReadProcessMemory fails with ERROR_PARTIAL_COPY) whenever this
-        test adds it. See TEST_RESULTS.md for the full writeup, what's been ruled out, and the
-        unresolved discrepancy with a manual repro that reportedly doesn't hit this.
-
-        Also newly observed (not previously measured): even though go_and_wait(5000) itself fails
-        fast, this test's *cleanup* -- quit_and_wait() pausing the still-running target -- routinely
-        takes on the order of a minute on top of that, reminiscent of (but not confirmed to be the
-        same cause as) the multi-minute Quit() stall the second paragraph above describes for a
-        different, wrong address. Ruled out one plausible cause: X2WinRpcAdapter::
-        AddBreakpoint(ModuleNameAndOffset&) re-stages a breakpoint the stub rejects outright (a fix
-        for a real bug -- see test_restart) so a later stop event gets a second attempt at arming
-        it, but that re-staging only lives in the ModuleNameAndOffset overload, which this path
-        never reaches -- dbg.add_breakpoint(loop_addr) here is an absolute address, which
-        DebuggerBreakpoints::AddAbsolute() (core/debuggerstate.cpp) sends straight to
-        X2WinRpcAdapter::AddBreakpoint(uintptr_t), a completely separate overload with no pending-
-        retry logic at all (confirmed via binaryninja.log_to_file: no second SetBreakpointRequest
-        appears in the RPC log before the slow stretch). So the restart fix is not the cause here;
-        root cause not pinned down, see TEST_RESULTS.md. Deleting the breakpoint from BN-core's own
-        list before quitting (self.addCleanup, so it runs even though the assertion below is
-        expected to fail) is kept as harmless hygiene but does not measurably shorten the delay."""
+        Use the rebased view for the address. Calling go_and_wait() a second time
+        while the target is running is not a wait-for-the-first-Go operation.
+        """
         fpath = name_to_fpath('helloworld_loop', self.arch)
         bv, dbg = self._connect(fpath)
         self._launch_and_stop_at_entry(dbg, fpath)
+        main_func = dbg.data.get_functions_by_name('main')[0]
+        loop_addr = main_func.start + 0x24
+        result = Future()
 
-        main_func = bv.get_functions_by_name('main')[0]
-        loop_addr = main_func.start + 0x24  # the imul inside main()'s busy-spin -- see docstring
+        def resume():
+            try:
+                result.set_result(dbg.go_and_wait(15000))
+            except BaseException as error:
+                result.set_exception(error)
 
-        dbg.go()
-        time.sleep(0.3)  # let it actually run past entry into the spin loop before arming
-        dbg.add_breakpoint(loop_addr)
-        self.addCleanup(lambda: dbg.delete_breakpoint(loop_addr))  # see docstring
-        reason = dbg.go_and_wait(5000)
-        self.assertEqual(reason, DebugStopReason.Breakpoint,
-                          'breakpoint set on the already-running target never triggered within 5s')
-        self.assertEqual(dbg.ip, loop_addr)
+        worker = threading.Thread(target=resume, daemon=True)
+        worker.start()
+        try:
+            deadline = time.monotonic() + 5
+            while not dbg.running and time.monotonic() < deadline and not result.done():
+                time.sleep(0.01)
+            self.assertTrue(dbg.running, 'Go never entered running state')
+            dbg.add_breakpoint(loop_addr)
+            self.assertEqual(result.result(timeout=20), DebugStopReason.Breakpoint)
+            self.assertEqual(dbg.ip, loop_addr)
+        finally:
+            dbg.delete_breakpoint(loop_addr)
+            if not result.done():
+                dbg.pause_and_wait(10000)
+            worker.join(timeout=20)
+            self.assertFalse(worker.is_alive(), 'Go waiter did not finish')
 
     def test_exit_code(self):
         """Coverage gap: process exit code capture (see debugger_test.py's test_return_code for
@@ -530,9 +523,9 @@ class X2WinRpcTest(unittest.TestCase):
         for arg, expected in testvals:
             dbg.executable_path = fpath
             dbg.cmd_line = arg
-            reason = dbg.launch_and_wait()
+            reason = dbg.launch_and_wait(10000)
             self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
-            reason = dbg.go_and_wait()
+            reason = dbg.go_and_wait(10000)
             self.assertEqual(reason, DebugStopReason.ProcessExited)
             self.assertIn(dbg.exit_code, expected, f'unexpected exit code for argv[1]={arg}')
 
@@ -544,9 +537,9 @@ class X2WinRpcTest(unittest.TestCase):
         bv, dbg = self._connect(fpath)
         dbg.executable_path = fpath
         dbg.cmd_line = 'segfault'
-        reason = dbg.launch_and_wait()
+        reason = dbg.launch_and_wait(10000)
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
-        reason = dbg.go_and_wait()
+        reason = dbg.go_and_wait(10000)
         self.assertEqual(reason, DebugStopReason.AccessViolation)
 
     def test_exception_divide_by_zero(self):
@@ -557,9 +550,9 @@ class X2WinRpcTest(unittest.TestCase):
         bv, dbg = self._connect(fpath)
         dbg.executable_path = fpath
         dbg.cmd_line = 'divzero'
-        reason = dbg.launch_and_wait()
+        reason = dbg.launch_and_wait(10000)
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
-        reason = dbg.go_and_wait()
+        reason = dbg.go_and_wait(10000)
         self.assertEqual(reason, DebugStopReason.Calculation)
 
     def test_step_over(self):
@@ -575,11 +568,11 @@ class X2WinRpcTest(unittest.TestCase):
         entry = self._launch_and_stop_at_entry(dbg, fpath)
         dbg.set_reg_value('rsp', dbg.get_reg_value('rsp') & 0xfffffffffffffff0)
 
-        reason = dbg.step_over_and_wait()
+        reason = dbg.step_over_and_wait(timeout=10000)
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         self.assertEqual(dbg.ip, entry + 1, 'step_over over the nop landed somewhere unexpected')
 
-        reason = dbg.step_over_and_wait()
+        reason = dbg.step_over_and_wait(timeout=10000)
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         self.assertEqual(dbg.ip, entry + 6,
                           'step_over did not skip over the call body -- landed inside the callee '
@@ -625,22 +618,23 @@ class X2WinRpcTest(unittest.TestCase):
         entry = self._launch_and_stop_at_entry(dbg, fpath)
 
         dbg.add_breakpoint(entry)
-        reason = dbg.restart_and_wait()
+        reason = dbg.restart_and_wait(10000)
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError],
                           'restart did not bring the target back up')
         self.assertGreater(len(dbg.regs), 0)
 
+        entry = dbg.data.entry_point  # the restarted image may have a new ASLR base
         dbg.add_breakpoint(entry)  # synchronous re-add -- see docstring for why this isn't redundant
-        reason = dbg.go_and_wait()
+        reason = dbg.go_and_wait(10000)
         self.assertEqual(reason, DebugStopReason.Breakpoint,
                           'restarted process never reached its own entry point again')
         self.assertEqual(dbg.ip, entry)
         dbg.delete_breakpoint(entry)
 
-        reason = dbg.go_and_wait()
+        reason = dbg.go_and_wait(10000)
         self.assertEqual(reason, DebugStopReason.ProcessExited)
 
-    def test_conditional_breakpoint(self):
+    def test_conditional_breakpoint_setting_roundtrip(self):
         """Coverage gap: conditional breakpoints.
 
         This test used to also drive a real go_and_wait() through a conditional breakpoint (both an
@@ -686,7 +680,7 @@ class X2WinRpcTest(unittest.TestCase):
 
         dbg.go()
         time.sleep(1)
-        dbg.pause_and_wait()
+        dbg.pause_and_wait(10000)
         threads = dbg.threads
         self.assertGreater(len(threads), 1)
         original = dbg.active_thread
@@ -729,8 +723,8 @@ class X2WinRpcTest(unittest.TestCase):
         # debugger_test.py's own test_debug_shared_library on every Windows adapter today).
         exec_path = name_to_fpath('load_shared_lib', self.arch)
         lib_path = os.path.join(os.path.dirname(exec_path), 'shared_lib.dll')
-        if not (os.path.exists(lib_path) and os.path.exists(exec_path)):
-            self.skipTest('shared library test binaries not built')
+        self.assertTrue(os.path.exists(lib_path) and os.path.exists(exec_path),
+                        'shared-library fixtures missing; build the debugger_test_binaries target')
 
         bv = load(lib_path)
         dbg = DebuggerController(bv)
@@ -740,18 +734,18 @@ class X2WinRpcTest(unittest.TestCase):
 
         def cleanup():
             if dbg.connected:
-                dbg.quit_and_wait()
+                dbg.quit_and_wait(10000)
             dbg.disconnect_from_debug_server()
         self.addCleanup(cleanup)
         self.assertTrue(dbg.connect_to_debug_server())
 
         dbg.executable_path = exec_path
-        reason = dbg.launch_and_wait()
+        reason = dbg.launch_and_wait(10000)
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
 
         # Run to completion -- the loader only returns 0 if it actually loaded and called into the
         # library -- then confirm the library shows up in the module list it picked up along the way.
-        reason = dbg.go_and_wait()
+        reason = dbg.go_and_wait(10000)
         self.assertEqual(reason, DebugStopReason.ProcessExited)
         self.assertEqual(dbg.exit_code, 0)
 
@@ -766,7 +760,7 @@ class X2WinRpcTest(unittest.TestCase):
         dbg.connect_to_debug_server()  # second call; return value intentionally not asserted either way
 
         self._launch_and_stop_at_entry(dbg, fpath)
-        reason = dbg.go_and_wait()
+        reason = dbg.go_and_wait(10000)
         self.assertEqual(reason, DebugStopReason.ProcessExited)
 
     def test_attach_invalid_pid_fails_cleanly(self):
@@ -785,7 +779,7 @@ class X2WinRpcTest(unittest.TestCase):
 
         # Connection must still be usable for a real launch afterwards.
         self._launch_and_stop_at_entry(dbg, fpath)
-        reason = dbg.go_and_wait()
+        reason = dbg.go_and_wait(10000)
         self.assertEqual(reason, DebugStopReason.ProcessExited)
 
 
@@ -809,8 +803,9 @@ def main():
     if test_keyword:
         test_suite = filter_test_suite(test_suite, test_keyword)
 
-    runner.run(test_suite)
+    result = runner.run(test_suite)
+    return 0 if result.wasSuccessful() else 1
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

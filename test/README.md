@@ -11,6 +11,33 @@ python3 debugger_test.py
 ```
 Pass a keyword to run a subset, e.g. `python3 debugger_test.py shared_library`.
 
+## Windows Remote integration tests
+
+On a Windows x64 host with a licensed Binary Ninja Python environment and the built
+debugger plugin loaded:
+
+```powershell
+$env:X2WINSTUB_PATH = 'C:\path\to\build\out\plugins\x2winstub.exe'
+python -m pytest -v --junitxml=results-windows-remote.xml x2winrpc_test.py
+```
+
+The suite starts its own local debug server on an ephemeral loopback port, connects
+the real client, and exercises Windows debuggees. No second host, firewall rule,
+or manually started server is needed. Missing server binaries or failed server
+startup are errors on supported Windows hosts, not successful skips. Build the
+`debugger_test_binaries` target too; missing shared-library fixtures fail the suite.
+
+`scripts/build.py`, used by both Jenkins pipelines, includes this suite only on
+Windows and sets `X2WINSTUB_PATH` to the freshly built artifact. Results are included
+in `test/results.xml`; pytest failures fail the build. The Windows test process tree
+has a 15-minute outer timeout in addition to bounded debugger waits.
+
+The UI label is **Windows Remote**. API identifiers (`X2WIN_RPC`), source names,
+settings keys, and the executable name (`x2winstub.exe`) remain unchanged.
+
+See [current coverage and limitations](../x2winstub/TEST_RESULTS.md). The main RPC
+suite uses x64 targets; it does not claim coverage of every x86/WOW64 operation.
+
 ## Building test binaries alongside the debugger
 
 Some test binaries are built alongside the debugger, so that adding a new test does not require a

@@ -321,11 +321,20 @@ if os.path.exists(results):
 pytest_sources = [
     str(base_dir / "test" / "debugger_test.py")
 ]
+if platform.system() == "Windows":
+    # Exercise the just-built Windows Remote server locally on the Windows worker.
+    # An explicit path prevents accidentally testing an installed/stale server.
+    env["X2WINSTUB_PATH"] = str(build_output_path / "plugins" / "x2winstub.exe")
+    pytest_sources.append(str(base_dir / "test" / "x2winrpc_test.py"))
 
 
 p = subprocess.Popen(["pytest", "-s", "--junitxml", str(results)] + pytest_sources, env=env)
 # wait for process to complete
-p_stdout, p_stderr = p.communicate()
-assert 0 <= p.returncode < 128, f"test run failed: {p_stdout} {p_stderr}"
-
-sys.exit(0)
+try:
+    p.communicate(timeout=900 if platform.system() == "Windows" else None)
+except subprocess.TimeoutExpired:
+    print("Windows debugger tests exceeded 15 minutes; terminating the test process tree", flush=True)
+    subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], check=False)
+    p.wait()
+    sys.exit(1)
+sys.exit(p.returncode if p.returncode >= 0 else 1)

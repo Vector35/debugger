@@ -1,34 +1,59 @@
-# X2Win integration test results
+# Windows Remote integration test results
 
-Current status of `test/x2winrpc_test.py` (X2WinRpcAdapter <-> x2winstub, over the FlatBuffers RPC
-protocol). See `STATUS.md` for root-cause detail on each issue referenced below. Both
-`debuggercore.dll` and `x2winstub.exe` must be rebuilt together, since they share the wire protocol
-(`protocol/x2win.fbs`).
+`test/x2winrpc_test.py` exercises the real `X2WinRpcAdapter` and a locally spawned
+`x2winstub.exe` over loopback. Internal identifiers and the wire protocol retain
+their existing names.
 
-**26/27 automated tests pass.** One test is excluded from automation (see below).
+## Validation on 2026-09-16
 
-## Excluded from automation
+A full Windows-local run passed **30 tests, with no skips, in 57.18 seconds**.
+Both client and server were built from this checkout using MSVC 19.44, x64
+RelWithDebInfo, on Windows 11, with Binary Ninja 6.1.10638-dev Ultimate and
+Python 3.11.9 / pytest 8.1.1. Shared-library fixtures were also built locally.
 
-- `test_breakpoint_set_on_running_target_triggers` -- the bug is in the test script itself, not in
-  x2winstub. Setting a breakpoint on an already-running target works correctly when driven manually
-  through Binary Ninja's GUI (same adapter, same build). Not run as part of the automated suite.
+An earlier full run had 28 passes, one missing-fixture skip, and one failure:
+`test_step_return` completed its stepping assertions, but Quit during cleanup
+did not disconnect within 10 seconds. A focused rerun passed. The fixture gap
+was then resolved, and missing fixtures now fail instead of skip. The cleanup
+timeout recurred in a subsequent full run: **29 passed, one failed in 63.65
+seconds**, this time in cleanup of `test_process_list_and_attach`. It is not
+specific to StepReturn. The assertion is retained, with no automatic retries
+or skip to hide it. This is not yet a reliably green test gate.
 
-## Failing tests
+The tested server used the previously authorized, exact-executable Defender
+exclusion on the QA VM. This is not validation of default Defender behavior for
+a release artifact.
 
-- `test_step_return` -- fails on the second `step_return_and_wait()` call in the test, landing with
-  `ProcessExited` instead of at the expected address. The test script itself is missing a
-  `step_into` call before the second `step_return_and_wait()`: the thread is left sitting at the
-  second call instruction rather than inside its body, which isn't the scenario the test's own
-  comment describes. See STATUS.md #2 for the corresponding engine-side behavior (correct for the
-  scenario the test intends to cover; not reliable when called outside a called function's body).
+## CI integration
 
-## Passing but limited coverage
+Both Jenkins pipelines invoke `scripts/build.py`. On Windows it now includes
+this suite alongside `debugger_test.py`, selects the freshly built server,
+and propagates pytest failures. The suite owns server startup and cleanup;
+no remote VM credentials or manually running server are needed. Results go
+to the existing `test/results.xml` report. A 15-minute Windows process-tree
+watchdog bounds otherwise stuck native calls.
 
-`test_conditional_breakpoint` only checks the condition get/set round-trip, not a real run through
-`go_and_wait()` -- see STATUS.md #1 for why.
+This wiring has not yet been exercised by an actual Jenkins job. The results
+above are a Windows-local run of the RPC suite, not the entire CI test suite.
 
-## Coverage gaps
+## Restored coverage
 
-32-bit (x86) target variant, `ExecuteWithArgs` with real args/working directory beyond `cmd_line`,
-the pending-breakpoint-on-unloaded-module path, `InvokeBackendCommand` and `SupportFeature` (see
-STATUS.md's "Not supported" list).
+- The running-target breakpoint test is enabled. It uses the ASLR-rebased view
+  and waits for the original Go operation instead of issuing a second Go.
+- The x64 StepReturn test enters both callees, including stepping over the NOP
+  preceding the second call.
+- Server startup failures and missing required binaries fail the suite.
+  A deliberate missing-server run was verified to return exit code 1 with a
+  setup error, not a skip.
+
+## Coverage limitations
+
+- Targets in this suite are x64. Separate manual x86/WOW64 testing found a
+  StepReturn unwind problem shared with the native Windows adapter; it is not
+  fixed or covered by this suite.
+- `test_conditional_breakpoint_setting_roundtrip` checks get/set only, not
+  runtime condition evaluation.
+- Restart explicitly re-adds its breakpoint; it does not prove that automatic
+  breakpoint carry-over is race-free.
+- GUI-specific behavior, pending breakpoints on unloaded modules, working
+  directories, and unsupported backend commands are not covered here.
