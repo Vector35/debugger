@@ -505,7 +505,15 @@ std::vector<DebugProcess> X2WinRpcAdapter::GetProcessList(){
     return result;
 }
 
-std::uint32_t X2WinRpcAdapter::GetActivePID(){ return 0; }
+std::uint32_t X2WinRpcAdapter::GetActivePID(){
+    // Reuse the target-metadata RPC so querying an older stub still returns zero
+    // instead of waiting indefinitely for an unsupported request type.
+    X2WinEnvelopeBuffer response = CallSync(x2win::Body_GetTargetArchRequest, [](flatbuffers::FlatBufferBuilder& b){
+        return x2win::CreateGetTargetArchRequest(b).Union();
+    });
+    const auto* resp = response.BodyAs<x2win::GetTargetArchResponse>();
+    return resp ? resp->active_pid() : 0;
+}
 std::vector<DebugThread> X2WinRpcAdapter::GetThreadList(){
     X2WinEnvelopeBuffer response = CallSync(x2win::Body_GetThreadListRequest, [](flatbuffers::FlatBufferBuilder& b){
         return x2win::CreateGetThreadListRequest(b).Union();

@@ -165,6 +165,26 @@ class X2WinRpcTest(unittest.TestCase):
         dbg.delete_breakpoint(entry)
         return entry
 
+    def test_active_pid(self):
+        """Target metadata reports the live PID and clears it when debugging ends."""
+        fpath = name_to_fpath('helloworld_loop', self.arch)
+        bv, dbg = self._connect(fpath)
+        self.assertEqual(dbg.active_pid, 0)
+        self._launch_and_stop_at_entry(dbg, fpath)
+        pid = dbg.active_pid
+        self.assertGreater(pid, 0)
+        self.assertIn(pid, [process.pid for process in dbg.processes])
+        dbg.go()
+        deadline = time.monotonic() + 5
+        while not dbg.running and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertTrue(dbg.running)
+        self.assertEqual(dbg.active_pid, pid)
+        dbg.pause_and_wait(10000)
+        self.assertEqual(dbg.active_pid, pid)
+        dbg.quit_and_wait(10000)
+        self.assertEqual(dbg.active_pid, 0)
+
     def test_server_mode_launch(self):
         """Server-mode two-phase connect (ConnectToDebugServer then Launch), basic execution."""
         fpath = name_to_fpath('helloworld', self.arch)
@@ -215,6 +235,8 @@ class X2WinRpcTest(unittest.TestCase):
         reason = dbg.connect_and_wait()
         self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         self.assertGreater(len(dbg.regs), 0)
+        self.assertGreater(dbg.active_pid, 0)
+        self.assertIn(dbg.active_pid, [process.pid for process in dbg.processes])
 
     def test_software_breakpoint(self):
         """_launch_and_stop_at_entry() already covers add-then-hit (it sets a breakpoint at entry

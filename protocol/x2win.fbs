@@ -35,7 +35,9 @@ table AttachRequest { pid: uint32; }
 table AttachResponse { success: bool; }
 
 table GetTargetArchRequest {}
-table GetTargetArchResponse { architecture: string; }
+// Target metadata. Keep new fields appended so older peers remain compatible:
+// an older stub reports the default PID (unavailable) rather than requiring a new RPC.
+table GetTargetArchResponse { architecture: string; active_pid: uint32; }
 
 table DetachRequest {}
 table DetachResponse { success: bool; }

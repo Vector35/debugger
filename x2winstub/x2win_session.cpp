@@ -84,7 +84,8 @@ namespace x2win {
 		{
 		case Body_GetTargetArchRequest:{
 			auto archOff = builder.CreateString(m_engine.GetTargetArchitecture());
-			auto respBody = CreateGetTargetArchResponse(builder, archOff);
+			auto pid = m_engine.IsActivelyDebugging() ? m_engine.GetActivePID() : 0;
+			auto respBody = CreateGetTargetArchResponse(builder, archOff, pid);
 			auto envelope = CreateEnvelope(builder, request.request_id(), Body_GetTargetArchResponse, respBody.Union());
 			builder.Finish(envelope);
 			return true;
