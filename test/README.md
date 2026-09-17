@@ -11,6 +11,14 @@ python3 debugger_test.py
 ```
 Pass a keyword to run a subset, e.g. `python3 debugger_test.py shared_library`.
 
+The attach test has a 60-second wall-clock deadline, including debugger initialization,
+attach, register reads, quit, and worker shutdown. It runs in a supervised subprocess so a
+blocked native call cannot hang the test runner. A timeout fails the test and kills/reaps
+the test's target and worker; failures include stage logs and a Python traceback. On macOS,
+the supervisor also attempts a bounded native stack sample shortly before the deadline.
+Run `python3 -m unittest discover -s test -p attach_timeout_test.py -v` from the repository
+root to test the watchdog without Binary Ninja. These watchdog checks also run in CI.
+
 ## Windows Remote integration tests
 
 On a Windows x64 host with a licensed Binary Ninja Python environment and the built

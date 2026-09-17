@@ -628,29 +628,11 @@ class DebuggerAPI(unittest.TestCase):
 
     @unittest.skipIf(platform.system() == 'Linux', 'Cannot attach to pid unless running as root')
     def test_attach(self):
-        pid = None
-        if platform.system() == 'Windows':
-            fpath = name_to_fpath('helloworld_loop', self.arch)
-            DETACHED_PROCESS = 0x00000008
-            CREATE_NEW_CONSOLE = 0x00000010
-            cmds = [fpath]
-            pid = subprocess.Popen(cmds, creationflags=CREATE_NEW_CONSOLE).pid
-        elif platform.system() in ['Darwin', 'Linux']:
-            fpath = name_to_fpath('helloworld_loop', self.arch)
-            cmds = [fpath]
-            pid = subprocess.Popen(cmds).pid
-        else:
-            print('attaching test not yet implemented on %s' % platform.system())
-
-        self.assertIsNotNone(pid)
-        bv = load(fpath)
-        dbg = self.create_debugger(bv)
-        dbg.pid_attach = pid
-        self.assertGreater(len(dbg.processes), 0)
-        self.assertTrue(dbg.attach_and_wait())
-        self.assertGreater(len(dbg.regs), 0)
-
-        dbg.quit_and_wait()
+        from attach_test_runner import run_attach_test
+        fpath = name_to_fpath('helloworld_loop', self.arch)
+        worker = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'attach_test_runner.py')
+        run_attach_test([fpath], lambda pid: [sys.executable, worker, fpath, str(pid),
+                                            self.adapter_type or ''], timeout=60)
 
 
 @unittest.skipIf(platform.machine() not in ['arm64', 'aarch64'], "Only run arm64 tests on arm Mac or Linux")
@@ -725,7 +707,7 @@ def main():
     if test_keyword:
         test_suite = filter_test_suite(test_suite, test_keyword)
 
-    runner.run(test_suite)
+    sys.exit(0 if runner.run(test_suite).wasSuccessful() else 1)
 
 
 if __name__ == "__main__":
