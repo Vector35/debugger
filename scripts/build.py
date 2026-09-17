@@ -293,8 +293,6 @@ with zipfile.ZipFile(artifact_path / f'debugger-{normalized_platform()}.zip', 'w
 
 
 print("\nRunning unit tests")
-print('Debugger revision:', subprocess.check_output(
-    ['git', 'rev-parse', 'HEAD'], cwd=base_dir, text=True).strip(), flush=True)
 print('Test interpreter:', sys.executable, sys.version, flush=True)
 env = os.environ.copy()
 env['PYTHONUNBUFFERED'] = '1'
@@ -341,8 +339,6 @@ if platform.system() == "Windows":
     pytest_sources.append(str(base_dir / "test" / "x2winrpc_test.py"))
 
 
-# Stop on the first failure, including an attach watchdog failure. The faulthandler
-# timer diagnoses hangs in pytest itself; the separate supervisor remains effective
-# even if the test interpreter cannot acquire its GIL or hangs during shutdown.
-sys.exit(run_tests([sys.executable, '-m', 'pytest', '-x', '-vv', '-s',
-                    '-o', 'faulthandler_timeout=90', '--junitxml', str(results)] + pytest_sources, env))
+# Supervise outside pytest so blocked native calls and interpreter shutdown are bounded.
+sys.exit(run_tests([sys.executable, '-m', 'pytest', '-s',
+                    '--junitxml', str(results)] + pytest_sources, env))

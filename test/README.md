@@ -34,17 +34,14 @@ Pass a keyword to run a subset, e.g. `python3 debugger_test.py shared_library`.
 The attach test has a 60-second wall-clock deadline, including debugger initialization,
 attach, register reads, quit, and worker shutdown. It runs in a supervised subprocess so a
 blocked native call cannot hang the test runner. A timeout fails the test and kills/reaps
-the test's target and worker; failures include stage logs and a Python traceback. On macOS,
-the supervisor also attempts a bounded native stack sample shortly before the deadline.
+the test's target and worker. Worker output and exception tracebacks are preserved;
+a timeout reports the worker and target PIDs.
 Run `python3 -m unittest discover -s test -p attach_timeout_test.py -v` from the repository
 root to test the watchdog without Binary Ninja. These watchdog checks also run in CI.
 
-CI invokes pytest through the build script's Python interpreter, with verbose test names
-and stop-on-first-failure enabled. A Python stack dump is requested after 90 seconds in
-one test. On macOS, an independent supervisor samples the pytest process if it is still
-running after two minutes (diagnostic only). On all platforms it fails and terminates
-pytest after a 15-minute total test deadline, including interpreter shutdown. Attach
-workers also log explicit plugin-initialization stages and native debug messages.
+CI invokes pytest through the build script's Python interpreter and runs the full suite
+even after individual test failures. An independent supervisor fails and terminates
+pytest after a 15-minute total test deadline, including interpreter shutdown.
 
 ## Windows Remote integration tests
 

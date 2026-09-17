@@ -69,7 +69,7 @@ class CISupervisorTest(unittest.TestCase):
 
         with patch('test_process.subprocess.Popen', side_effect=record_process):
             result = run_tests([sys.executable, '-c', source], os.environ.copy(),
-                               timeout=timeout, diagnostic_after=120)
+                               timeout=timeout)
         self.assertEqual(len(processes), 1)
         self.assertIsNotNone(processes[0].poll())
         return result
