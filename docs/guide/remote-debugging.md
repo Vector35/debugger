@@ -47,38 +47,26 @@ This adapter does not provide Windows kernel debugging, TTD, or reverse executio
 ### Starting the Server and Securing the Connection
 
 The connection has no built-in authentication or encryption and gives the client control over debugged processes.
-Do not expose it to the Internet or an untrusted network. Prefer a loopback listener with an SSH tunnel.
+Only use the direct connection below on a trusted network. Do not expose the server to the Internet or an untrusted
+network, and restrict inbound access to your debugging machine. As an alternative, you can bind to `127.0.0.1` and
+forward the port over SSH for an authenticated, encrypted connection.
 
 On Windows, in PowerShell:
 
 ```powershell
-.\windows-debug-server.exe server --ip 127.0.0.1 --port 31338
+.\windows-debug-server.exe server --ip 0.0.0.0 --port 31338
 ```
 
-The port defaults to 31338, but omitting `--ip` binds all interfaces (`0.0.0.0`), so specify loopback explicitly.
-Leave this console running. If the Windows host already has an SSH server
-configured, forward the port from your local machine:
-
-```sh
-ssh -N -L 31338:127.0.0.1:31338 <user>@<windows-host>
-```
-
-Binary Ninja then connects to `127.0.0.1:31338` on your local machine. Keep the SSH session running too.
-
-Alternatively, on a trusted network, bind the server to the Windows host's IPv4 address:
-
-```powershell
-.\windows-debug-server.exe server --ip <windows-ipv4-address> --port 31338
-```
-
-Allow inbound TCP on that port through the Windows firewall **only from your debugging machine**, and connect to that
-IPv4 address in Binary Ninja. The adapter currently expects an IPv4 address, not a hostname. Run the server elevated
-only when the target's privileges require it.
+`0.0.0.0` listens on all IPv4 interfaces; it is not the address to enter in Binary Ninja. These are also the default
+bind address and port. Leave this console running and find the Windows host's IPv4 address (for example, using
+`ipconfig`). Allow inbound TCP port 31338 through the Windows firewall **only from your debugging machine**.
+Run the server elevated only when the target's privileges require it.
 
 ### Connecting and Launching
 
 1. Open **Debugger → Debug Adapter Settings…** and select **Windows Remote**.
-2. In the **connect** settings group, set **IP Address** and **Port** to the endpoint above. These settings are used
+2. In the **connect** settings group, set **IP Address** to the Windows host's IPv4 address (not `0.0.0.0`) and **Port**
+   to `31338`. The adapter currently expects an IPv4 address, not a hostname. These settings are used
    for Windows Remote's debug server connection, not the `debugServer` settings used by DbgEng/LLDB.
 3. In the **launch** group, set **Executable Path** and **Working Directory** to paths on the **Windows host**, such as
    `C:\targets\hello.exe` and `C:\targets`. Set **Command Line Arguments** if needed. Keep the input file pointing to
@@ -101,17 +89,18 @@ does not cause a subsequent launch to fall back to local debugging.
 For a single target session, start the server in `target` mode instead:
 
 ```powershell
-.\windows-debug-server.exe target C:\targets\hello.exe --ip 127.0.0.1 --port 31338
+.\windows-debug-server.exe target C:\targets\hello.exe --ip 0.0.0.0 --port 31338
 ```
 
-Use the same tunnel or trusted-network setup described above. In Binary Ninja select **Windows Remote**, set the
-**connect** address and port, then choose **Debugger → Connect to Remote Process**, not **Connect to Debug Server**.
+Use the same trusted-network setup described above. In Binary Ninja select **Windows Remote**, set the
+**connect** address to the Windows host's IPv4 address and port to `31338`, then choose
+**Debugger → Connect to Remote Process**, not **Connect to Debug Server**.
 Restart the server command for each new target-mode session. Use `server` mode when you need launch arguments or
 repeated launches from Binary Ninja.
 
 ### Troubleshooting
 
-- **Connection fails:** check the server console, IPv4 address, port, tunnel, and firewall. Use matching client/server
+- **Connection fails:** check the server console, IPv4 address, port, and firewall. Use matching client/server
   builds; this protocol is not compatible with `dbgsrv.exe`, `gdbserver`, or `lldb-server`.
 - **Launch fails:** verify that the executable, dependencies, and working directory exist on Windows, not just locally.
 - **Breakpoints or rebasing fail:** verify that the local and remote files are the same build and have the same basename.
