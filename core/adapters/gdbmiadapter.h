@@ -25,6 +25,9 @@ private:
     std::mutex m_eventMutex;
     std::mutex m_gdbCommandMutex;
     std::condition_variable m_eventCV;
+	bool m_localLaunchBootstrap = false;
+	bool m_localLaunchStopped = false;
+	bool m_localLaunchExited = false;
 
     // Console output buffering for console commands
     std::mutex m_consoleBufferMutex;
@@ -50,6 +53,7 @@ private:
 	static intx::uint512 ParseGdbValue(const std::string& valueStr);
 
 	bool RunMonitorCommand(const std::string& command) const;
+	bool DetectTargetArchitecture(bool remoteSession);
 	void ApplyBreakpoints();
 	void ApplyPendingHardwareBreakpoints();
 	bool GetModuleBase(const std::string& moduleName, uint64_t& base);
@@ -136,7 +140,7 @@ class GdbMiAdapterType : public BinaryNinjaDebugger::DebugAdapterType
 		BinaryNinjaDebugger::DebugAdapter* Create(BinaryView* data) override;
         bool IsValidForData(BinaryView* data) override { return true; }
         bool CanConnect(BinaryView* data) override { return true; }
-        bool CanExecute(BinaryView* data) override { return false; }
+        bool CanExecute(BinaryView* data) override;
         static Ref<Settings> GetAdapterSettings();
 
     private:
