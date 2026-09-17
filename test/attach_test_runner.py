@@ -73,6 +73,7 @@ def run_attach_test(target_command, worker_command, timeout=60):
                             print(f'attach test: native stack sample unavailable: {error}', flush=True)
                 result = worker.wait(timeout=max(0, deadline - time.monotonic()))
             except subprocess.TimeoutExpired:
+                print(f'attach test: TIMEOUT after {timeout}s; starting process cleanup', flush=True)
                 raise AssertionError(f'attach test exceeded {timeout} seconds (target pid={target.pid}, '
                                      f'worker pid={worker.pid}); killing worker and target') from None
             if result != 0:
@@ -84,8 +85,12 @@ def run_attach_test(target_command, worker_command, timeout=60):
                 try:
                     kill_process(target)
                 finally:
+                    print(f'attach test: cleanup attempted; worker exit={worker.poll() if worker else None}, '
+                          f'target exit={target.poll() if target else None}; worker diagnostics follow', flush=True)
                     output.seek(0)
-                    print(output.read().decode('utf-8', errors='replace'), end='', flush=True)
+                    print(output.read().decode('utf-8', errors='replace').split('Binary Images:')[0],
+                          end='', flush=True)
+                    print('\nattach test: diagnostics complete; returning result to pytest', flush=True)
 
 
 def attach_worker(fpath, pid, adapter):
@@ -96,12 +101,22 @@ def attach_worker(fpath, pid, adapter):
         print(f'attach test: {message}', flush=True)
 
     stage('import Binary Ninja/debugger')
+    import binaryninja as bn
     from binaryninja import load
+    stage(f'Python={sys.version}; executable={sys.executable}; Binary Ninja={bn.core_version()}')
+    # Use the native logger directly: unlike Python log listeners it does not
+    # need a callback to acquire the GIL during plugin initialization.
+    bn.log_to_stdout(bn.LogLevel.DebugLog)
     try:
         from debugger import DebuggerController, DebugStopReason
     except ImportError:
         from binaryninja.debugger import DebuggerController, DebugStopReason
 
+    stage('initialize Binary Ninja plugins')
+    bn._init_plugins()
+    stage('plugin initialization returned')
+    # Keep plugin diagnostics, but don't flood CI with per-instruction analysis logs.
+    bn.log_to_stdout(bn.LogLevel.InfoLog)
     stage(f'load {fpath}')
     bv = load(fpath)
     stage(f'create debugger (adapter={adapter}, pid={pid})')

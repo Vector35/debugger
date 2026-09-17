@@ -12,6 +12,7 @@ import platform
 from pathlib import Path
 
 from target_llvm_version import llvm_version, msvc_build, vs_version
+from test_process import run_tests
 
 qt_version = "6.11.1"
 
@@ -286,7 +287,11 @@ with zipfile.ZipFile(artifact_path / f'debugger-{normalized_platform()}.zip', 'w
 
 
 print("\nRunning unit tests")
+print('Debugger revision:', subprocess.check_output(
+    ['git', 'rev-parse', 'HEAD'], cwd=base_dir, text=True).strip(), flush=True)
+print('Test interpreter:', sys.executable, sys.version, flush=True)
 env = os.environ.copy()
+env['PYTHONUNBUFFERED'] = '1'
 env["BN_DISABLE_USER_SETTINGS"] = "true"
 env["BN_USER_DIRECTORY"] = str(build_output_path)
 env["BN_STANDALONE_DEBUGGER"] = "true"
@@ -329,13 +334,8 @@ if platform.system() == "Windows":
     pytest_sources.append(str(base_dir / "test" / "x2winrpc_test.py"))
 
 
-p = subprocess.Popen(["pytest", "-s", "--junitxml", str(results)] + pytest_sources, env=env)
-# wait for process to complete
-try:
-    p.communicate(timeout=900 if platform.system() == "Windows" else None)
-except subprocess.TimeoutExpired:
-    print("Windows debugger tests exceeded 15 minutes; terminating the test process tree", flush=True)
-    subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], check=False)
-    p.wait()
-    sys.exit(1)
-sys.exit(p.returncode if p.returncode >= 0 else 1)
+# Stop on the first failure, including an attach watchdog failure. The faulthandler
+# timer diagnoses hangs in pytest itself; the separate supervisor remains effective
+# even if the test interpreter cannot acquire its GIL or hangs during shutdown.
+sys.exit(run_tests([sys.executable, '-m', 'pytest', '-x', '-vv', '-s',
+                    '-o', 'faulthandler_timeout=90', '--junitxml', str(results)] + pytest_sources, env))
