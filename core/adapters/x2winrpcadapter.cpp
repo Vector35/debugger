@@ -21,7 +21,7 @@ void X2WinRpcAdapter::GenerateDefaultAdapterSettings(BinaryView* data){
 }
 
 X2WinRpcAdapter::~X2WinRpcAdapter(){
-    LogInfo("X2WinRpcAdapter::~X2WinRpcAdapter: adapter object being destroyed (connected=%d)", (int)m_connected);
+    LogInfo("Windows Remote: destructor: adapter object being destroyed (connected=%d)", (int)m_connected);
     // Force the blocking Recv() inside ReaderLoop() to fail and return, so the loop can exit
     // and join() below won't hang forever waiting for a thread that never stops on its own.
     TeardownConnection();
@@ -52,7 +52,7 @@ bool X2WinRpcAdapter::ConnectSocket(const std::string& ip, uint16_t port){
 
     m_socket = Socket(AF_INET, SOCK_STREAM, 0);
     if(!m_socket.Connect(addr)){
-        LogWarn("X2WinRpcAdapter: failed to connect to %s:%u", ip.c_str(), (unsigned)port);
+        LogWarn("Windows Remote: failed to connect to %s:%u", ip.c_str(), (unsigned)port);
         m_socket.Close();
         return false;
     }
@@ -61,7 +61,7 @@ bool X2WinRpcAdapter::ConnectSocket(const std::string& ip, uint16_t port){
     m_connected = true;
     m_readerThread = std::thread([this]() {ReaderLoop();});
 
-    LogInfo("X2WinRpcAdapter: connected to %s:%u", ip.c_str(), (unsigned)port);
+    LogInfo("Windows Remote: connected to %s:%u", ip.c_str(), (unsigned)port);
     return true;
 }
 
@@ -80,8 +80,8 @@ bool X2WinRpcAdapter::ConnectFromSettings(){
 // Connects to the stub and asks it to attach to an already-running Windows process by pid.
 bool X2WinRpcAdapter::Attach(std::uint32_t pid){
     if(!ConnectFromSettings()){
-        LogWarn("X2WinRpcAdapter::Attach: failed to connect to stub");
-        PostLaunchFailure("Connection failed", "X2WinRpcAdapter::Attach: failed to connect to stub");
+        LogWarn("Windows Remote: Attach: failed to connect to stub");
+        PostLaunchFailure("Connection failed", "Windows Remote: Attach: failed to connect to stub");
         return false;
     }
 
@@ -91,7 +91,7 @@ bool X2WinRpcAdapter::Attach(std::uint32_t pid){
     const auto* resp = response.BodyAs<x2win::AttachResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::Attach: stub rejected attach to pid %u", (unsigned)pid);
+        LogWarn("Windows Remote: Attach: stub rejected attach to pid %u", (unsigned)pid);
         // DebuggerController::AttachAndWaitInternal() already posted an optimistic
         // LaunchEventType (-> DebugAdapterRunningStatus) before calling us -- if we just return
         // false here without correcting that, the controller is left believing a nonexistent
@@ -109,7 +109,7 @@ bool X2WinRpcAdapter::Attach(std::uint32_t pid){
 
 bool X2WinRpcAdapter::Connect(const std::string& server, std::uint32_t port){
     if(!ConnectSocket(server, (uint16_t) port)){
-        PostLaunchFailure("Connection failed", fmt::format("X2WinRpcAdapter::Connect: failed to connect to {}:{}", server, port));
+        PostLaunchFailure("Connection failed", fmt::format("Windows Remote: Connect: failed to connect to {}:{}", server, port));
         return false;
     }
     m_lastConnectionWasTargetMode = true;
@@ -130,7 +130,7 @@ bool X2WinRpcAdapter::ConnectToDebugServer(const std::string &server, std::uint3
     const auto* resp = response.BodyAs<x2win::ConnectServerResponse>();
     bool success = resp && resp->success();
     if(!success)
-        LogWarn("X2WinRpcAdapter::ConnectToDebugServer: stub rejected connect_server_request (stub not in server mode?)");
+        LogWarn("Windows Remote: ConnectToDebugServer: stub rejected connect_server_request (stub not in server mode?)");
     else
         m_lastConnectionWasTargetMode = false;
     
@@ -146,7 +146,7 @@ bool X2WinRpcAdapter::DisconnectDebugServer(){
         return x2win::CreateQuitRequest(b).Union();
     });
 
-    LogInfo("X2WinRpcAdapter::DisconnectDebugServer: closing connection to stub");
+    LogInfo("Windows Remote: DisconnectDebugServer: closing connection to stub");
     TeardownConnection();
     return true;
 }
@@ -154,16 +154,16 @@ bool X2WinRpcAdapter::DisconnectDebugServer(){
 bool X2WinRpcAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
   const std::string& workingDir, const LaunchConfigurations& configs){
     if(m_lastConnectionWasTargetMode){
-        LogWarn("X2WinRpcAdapter::ExecuteWithArgs: refusing to launch -- last connection was "
+        LogWarn("Windows Remote: ExecuteWithArgs: refusing to launch -- last connection was "
             "target mode, which only ever supports its original debuggee.");
         PostLaunchFailure("Launch failed",
-            "X2WinRpcAdapter::ExecuteWithArgs: last connection was target mode, which only ever "
+            "Windows Remote: ExecuteWithArgs: last connection was target mode, which only ever "
             "supports its original debuggee");
         return false;
     }
     if(!ConnectFromSettings()){
-        LogWarn("X2WinRpcAdapter::ExecuteWithArgs: failed to connect to stub");
-        PostLaunchFailure("Connection failed", "X2WinRpcAdapter::ExecuteWithArgs: failed to connect to stub");
+        LogWarn("Windows Remote: ExecuteWithArgs: failed to connect to stub");
+        PostLaunchFailure("Connection failed", "Windows Remote: ExecuteWithArgs: failed to connect to stub");
         return false;
     }
 
@@ -177,7 +177,7 @@ bool X2WinRpcAdapter::ExecuteWithArgs(const std::string& path, const std::string
     const auto* resp = response.BodyAs<x2win::LaunchResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::ExecuteWithArgs: stub failed to launch \"%s\"", path.c_str());
+        LogWarn("Windows Remote: ExecuteWithArgs: stub failed to launch \"%s\"", path.c_str());
         PostLaunchFailure("Launch failed", fmt::format("stub failed to launch \"{}\"", path));
     }
 
@@ -203,7 +203,7 @@ bool X2WinRpcAdapter::RecvExact(void* buffer, size_t size){
     while(received < size){
         intptr_t n = m_socket.Recv((char*)p+received, (int32_t)(size-received));
         if(n <= 0){
-            LogWarn("X2WinRpcAdapter: RecvExact failed after %zu/%zu bytes (n=%lld, %s)",
+            LogWarn("Windows Remote: RecvExact failed after %zu/%zu bytes (n=%lld, %s)",
                 received, size, (long long)n, n == 0 ? "connection closed" : "socket error");
             return false; // 0 connection cloased, <0 error
         }
@@ -218,7 +218,7 @@ bool X2WinRpcAdapter::SendExact(const void *buffer, size_t size){
     while (sent < size) {
         intptr_t n = m_socket.Send((char*)p + sent, (int32_t)(size - sent));
         if(n <= 0){
-            LogWarn("X2WinRpcAdapter: SendExact failed after %zu/%zu bytes (n=%lld)",
+            LogWarn("Windows Remote: SendExact failed after %zu/%zu bytes (n=%lld)",
                 sent, size, (long long)n);
             return false;
         }
@@ -266,13 +266,13 @@ X2WinEnvelopeBuffer X2WinRpcAdapter::CallSync(x2win::Body bodyType,
     // from "nothing happened yet" in the log. LogInfo, not LogDebug -- the Log panel filters
     // Debug-level messages out by default, which would make this call invisible right when we
     // need it most.
-    LogInfo("X2WinRpcAdapter::CallSync: sending request_id=%llu body_type=%d",
+    LogInfo("Windows Remote: CallSync: sending request_id=%llu body_type=%d",
         (unsigned long long)requestId, (int)bodyType);
 
     {
         std::lock_guard<std::mutex> lock(m_sendMutex);
         if(!SendExact(frame.data(), frame.size())){
-            LogWarn("X2WinRpcAdapter::CallSync: failed to send request_id=%llu body_type=%d, treating as failed call",
+            LogWarn("Windows Remote: CallSync: failed to send request_id=%llu body_type=%d, treating as failed call",
                 (unsigned long long)requestId, (int)bodyType);
             std::lock_guard<std::mutex> pendingLock(m_pendingMutex);
             m_pendingRequests.erase(requestId);
@@ -281,7 +281,7 @@ X2WinEnvelopeBuffer X2WinRpcAdapter::CallSync(x2win::Body bodyType,
     }
 
     X2WinEnvelopeBuffer response = future.get();
-    LogInfo("X2WinRpcAdapter::CallSync: received response for request_id=%llu",
+    LogInfo("Windows Remote: CallSync: received response for request_id=%llu",
         (unsigned long long)requestId);
     return response;
 }
@@ -293,7 +293,7 @@ void X2WinRpcAdapter::ReaderLoop(){
     while (true) {
         uint8_t lenBuf[4];
         if(!RecvExact(lenBuf, 4)){
-            LogInfo("X2WinRpcAdapter::ReaderLoop: failed to read frame length prefix, exiting reader loop");
+            LogInfo("Windows Remote: ReaderLoop: failed to read frame length prefix, exiting reader loop");
             break;
         }
         uint32_t bodyLen = (uint32_t)lenBuf[0] | ((uint32_t)lenBuf[1] << 8) | ((uint32_t)lenBuf[2] << 16) | ((uint32_t)lenBuf[3] << 24);
@@ -301,7 +301,7 @@ void X2WinRpcAdapter::ReaderLoop(){
         X2WinEnvelopeBuffer envelopeBuf;
         envelopeBuf.bytes.resize(bodyLen);
         if(!RecvExact(envelopeBuf.bytes.data(), bodyLen)){
-            LogWarn("X2WinRpcAdapter::ReaderLoop: failed to read %u-byte frame body, exiting reader loop", bodyLen);
+            LogWarn("Windows Remote: ReaderLoop: failed to read %u-byte frame body, exiting reader loop", bodyLen);
             break;
         }
 
@@ -315,7 +315,7 @@ void X2WinRpcAdapter::ReaderLoop(){
             // A verify failure here almost always means the length-prefixed framing has desynced
             // (e.g. an unsynchronized/partial Send() on the other end split a frame) -- everything
             // received after this point on this connection is suspect until reconnecting.
-            LogWarn("X2WinRpcAdapter::ReaderLoop: failed to verify %u-byte envelope -- protocol framing "
+            LogWarn("Windows Remote: ReaderLoop: failed to verify %u-byte envelope -- protocol framing "
                 "may be desynced, treating connection as unreliable", bodyLen);
             continue;
         }
@@ -325,7 +325,7 @@ void X2WinRpcAdapter::ReaderLoop(){
         if(envelope->body_type() == x2win::Body_TargetStoppedEvent){
             const auto* evt = envelope->body_as<x2win::TargetStoppedEvent>();
             if(evt->reason() == x2win::StopReason_EXITED){
-                LogInfo("X2WinRpcAdapter::ReaderLoop: received TargetStoppedEvent reason=EXITED exit_code=%llu",
+                LogInfo("Windows Remote: ReaderLoop: received TargetStoppedEvent reason=EXITED exit_code=%llu",
                     (unsigned long long)evt->exit_code());
                 m_lastStopReason = DebugStopReason::ProcessExited;
                 m_exitCode = evt->exit_code();
@@ -344,7 +344,7 @@ void X2WinRpcAdapter::ReaderLoop(){
                                         : (evt->reason() == x2win::StopReason_ILLEGAL_INSTRUCTION) ? DebugStopReason::IllegalInstruction
                                         : DebugStopReason::UnknownReason;
 
-            LogInfo("X2WinRpcAdapter::ReaderLoop: received TargetStoppedEvent reason=%d address=0x%llx",
+            LogInfo("Windows Remote: ReaderLoop: received TargetStoppedEvent reason=%d address=0x%llx",
                 (int)evt->reason(), (unsigned long long)evt->address());
 
             m_lastStopReason = reason;
@@ -393,7 +393,7 @@ void X2WinRpcAdapter::ReaderLoop(){
             // No CallSync() is waiting on this request_id -- either a duplicate/late response, or
             // (more likely if this shows up unexpectedly) evidence of the framing desync described
             // above: bytes from a corrupted frame happened to parse into a plausible-looking envelope.
-            LogWarn("X2WinRpcAdapter::ReaderLoop: received response for unknown request_id=%llu body_type=%d, dropping",
+            LogWarn("Windows Remote: ReaderLoop: received response for unknown request_id=%llu body_type=%d, dropping",
                 (unsigned long long)envelope->request_id(), (int)envelope->body_type());
         }
     }
@@ -436,14 +436,14 @@ std::string X2WinRpcAdapter::GetTargetArchitecture(){
 
 // --- Lifecycle ---
 bool X2WinRpcAdapter::Detach(){
-    LogInfo("X2WinRpcAdapter::Detach: called");
+    LogInfo("Windows Remote: Detach: called");
     X2WinEnvelopeBuffer response = CallSync(x2win::Body_DetachRequest, [](flatbuffers::FlatBufferBuilder& b){
         return x2win::CreateDetachRequest(b).Union();
     });
     const auto* resp = response.BodyAs<x2win::DetachResponse>();
     bool success = resp && resp->success();
     if(!success)
-        LogWarn("X2WinRpcAdapter::Detach: stub reported failure");
+        LogWarn("Windows Remote: Detach: stub reported failure");
 
     if(m_lastConnectionWasTargetMode){
         TeardownConnection();
@@ -459,14 +459,14 @@ bool X2WinRpcAdapter::Detach(){
 }
 
 bool X2WinRpcAdapter::Quit(){
-    LogInfo("X2WinRpcAdapter::Quit: called");
+    LogInfo("Windows Remote: Quit: called");
     X2WinEnvelopeBuffer response = CallSync(x2win::Body_QuitRequest, [](flatbuffers::FlatBufferBuilder& b){
         return x2win::CreateQuitRequest(b).Union();
     });
     const auto* resp = response.BodyAs<x2win::QuitResponse>();
     bool success = resp && resp->success();
     if(!success)
-        LogWarn("X2WinRpcAdapter::Quit: stub reported failure");
+        LogWarn("Windows Remote: Quit: stub reported failure");
 
     if(m_lastConnectionWasTargetMode){
         TeardownConnection();
@@ -484,7 +484,7 @@ bool X2WinRpcAdapter::Quit(){
 
 std::vector<DebugProcess> X2WinRpcAdapter::GetProcessList(){
     if(!m_connected){
-        LogWarn("X2WinRpcAdapter::GetProcessList: not connected -- connect to the debug server first");
+        LogWarn("Windows Remote: GetProcessList: not connected -- connect to the debug server first");
         return {};
     }
 
@@ -501,7 +501,7 @@ std::vector<DebugProcess> X2WinRpcAdapter::GetProcessList(){
         }
     }
 
-    LogDebug("X2WinRpcAdapter::GetProcessList: got %zu process(es)", result.size());
+    LogDebug("Windows Remote: GetProcessList: got %zu process(es)", result.size());
     return result;
 }
 
@@ -530,7 +530,7 @@ std::vector<DebugThread> X2WinRpcAdapter::GetThreadList(){
             result.push_back(thread);
         }
     }
-    LogDebug("X2WinRpcAdapter::GetThreadList: got %zu thread(s)", result.size());
+    LogDebug("Windows Remote: GetThreadList: got %zu thread(s)", result.size());
     return result;
 }
 
@@ -571,7 +571,7 @@ bool X2WinRpcAdapter::SetActiveThreadId(std::uint32_t tid){
     const auto* resp = response.BodyAs<x2win::SetActiveThreadIdResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::SetActiveThreadId: stub rejected switch to tid %u", (unsigned)tid);
+        LogWarn("Windows Remote: SetActiveThreadId: stub rejected switch to tid %u", (unsigned)tid);
     }
     return success;
 }
@@ -584,7 +584,7 @@ bool X2WinRpcAdapter::SuspendThread(std::uint32_t tid){
     const auto* resp = response.BodyAs<x2win::SuspendThreadResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::SuspendThread: stub rejected suspending tid %u", (unsigned)tid);
+        LogWarn("Windows Remote: SuspendThread: stub rejected suspending tid %u", (unsigned)tid);
     }
     return success;
 }
@@ -597,7 +597,7 @@ bool X2WinRpcAdapter::ResumeThread(std::uint32_t tid){
     const auto* resp = response.BodyAs<x2win::ResumeThreadResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::ResumeThread: stub rejected resuming tid %u", (unsigned)tid);
+        LogWarn("Windows Remote: ResumeThread: stub rejected resuming tid %u", (unsigned)tid);
     }
     return success;
 }
@@ -617,7 +617,7 @@ std::vector<DebugFrame> X2WinRpcAdapter::GetFramesOfThread(std::uint32_t tid){
             result.emplace_back((size_t)f->index(), f->pc(), f->sp(), f->fp(), functionName, f->function_start(), module);
         }
     }
-    LogDebug("X2WinRpcAdapter::GetFramesOfThread: got %zu frame(s) for tid %u", result.size(), (unsigned)tid);
+    LogDebug("Windows Remote: GetFramesOfThread: got %zu frame(s) for tid %u", result.size(), (unsigned)tid);
     return result;
 }
 
@@ -628,7 +628,7 @@ DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const std::uintptr_t address, uns
 
     const auto* resp = response.BodyAs<x2win::SetBreakpointResponse>();
     if(!resp || !resp->success()){
-        LogWarn("X2WinRpcAdapter::AddBreakpoint: stub rejected breakpoint at 0x%llx", (unsigned long long)address);
+        LogWarn("Windows Remote: AddBreakpoint: stub rejected breakpoint at 0x%llx", (unsigned long long)address);
         return DebugBreakpoint();
     }
 
@@ -667,7 +667,7 @@ DebugBreakpoint X2WinRpcAdapter::AddBreakpoint(const ModuleNameAndOffset& addres
                 m_pendingBreakpoints.push_back(address);
             }
         }
-        LogWarn("X2WinRpcAdapter::AddBreakpoint: failed to resolve module \"%s\"+0x%llx",
+        LogWarn("Windows Remote: AddBreakpoint: failed to resolve module \"%s\"+0x%llx",
             address.module.c_str(), (unsigned long long)address.offset);
         return DebugBreakpoint();
     }
@@ -741,7 +741,7 @@ bool X2WinRpcAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint){
     const auto* resp = response.BodyAs<x2win::RemoveBreakpointResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::RemoveBreakpoint: stub rejected removal at 0x%llx",
+        LogWarn("Windows Remote: RemoveBreakpoint: stub rejected removal at 0x%llx",
             (unsigned long long)breakpoint.m_address);
         return false;
     }
@@ -775,7 +775,7 @@ bool X2WinRpcAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointTyp
     const auto* resp = response.BodyAs<x2win::SetHardwareBreakpointResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::AddHardwareBreakpoint: stub rejected hw breakpoint at 0x%llx",
+        LogWarn("Windows Remote: AddHardwareBreakpoint: stub rejected hw breakpoint at 0x%llx",
             (unsigned long long)address);
     }
     return success;
@@ -805,7 +805,7 @@ bool X2WinRpcAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpoint
     const auto* resp = response.BodyAs<x2win::RemoveHardwareBreakpointResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::RemoveHardwareBreakpoint: stub rejected removal at 0x%llx",
+        LogWarn("Windows Remote: RemoveHardwareBreakpoint: stub rejected removal at 0x%llx",
             (unsigned long long)address);
     }
     return success;
@@ -833,7 +833,7 @@ bool X2WinRpcAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location,
                 m_pendingHardwareBreakpoints.push_back(pending);
             }
         }
-        LogWarn("X2WinRpcAdapter::AddHardwareBreakpoint: failed to resolve module \"%s\"+0x%llx",
+        LogWarn("Windows Remote: AddHardwareBreakpoint: failed to resolve module \"%s\"+0x%llx",
             location.module.c_str(), (unsigned long long)location.offset);
         return false;
     }
@@ -874,7 +874,7 @@ std::unordered_map<std::string, DebugRegister> X2WinRpcAdapter::ReadAllRegisters
             result.emplace(name, DebugRegister(name, r->value(), r->width(), r->register_index()));
         }
     }
-    LogDebug("X2WinRpcAdapter::ReadAllRegisters: got %zu register(s)", result.size());
+    LogDebug("Windows Remote: ReadAllRegisters: got %zu register(s)", result.size());
     return result;
 }
 
@@ -885,7 +885,7 @@ DebugRegister X2WinRpcAdapter::ReadRegister(const std::string& reg){
     });
     const auto* resp = response.BodyAs<x2win::ReadRegisterResponse>();
     if(!resp || !resp->success()){
-        LogDebug("X2WinRpcAdapter::ReadRegister: stub doesn't reognize regiser \"%s\"", reg.c_str());
+        LogDebug("Windows Remote: ReadRegister: stub doesn't reognize regiser \"%s\"", reg.c_str());
         return DebugRegister();
     }
 
@@ -904,7 +904,7 @@ bool X2WinRpcAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
     const auto* resp = response.BodyAs<x2win::WriteRegisterResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::WriteRegister: sutb rejected write to \"%s\"", reg.c_str());
+        LogWarn("Windows Remote: WriteRegister: sutb rejected write to \"%s\"", reg.c_str());
     }
     return success;
 }
@@ -918,7 +918,7 @@ DataBuffer X2WinRpcAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
         // LogDebug, not LogWarn -- the analysis engine routinely probes unmapped addresses
         // (e.g. speculative reads past the end of a section), so this is expected to fire often
         // and would flood the Log pane at a higher severity.
-        LogDebug("X2WinRpcAdapter::ReadMemory: failed to read 0x%zx bytes at 0x%llx",
+        LogDebug("Windows Remote: ReadMemory: failed to read 0x%zx bytes at 0x%llx",
             size, (unsigned long long)address);
         return DataBuffer();
     }
@@ -934,7 +934,7 @@ bool X2WinRpcAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buff
     const auto* resp = response.BodyAs<x2win::WriteMemoryResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::WriteMemory: stub rejected write of %zu byte(s) at 0x%llx",
+        LogWarn("Windows Remote: WriteMemory: stub rejected write of %zu byte(s) at 0x%llx",
             buffer.GetLength(), (unsigned long long)address);
     }
     return success;
@@ -965,12 +965,12 @@ std::vector<DebugModule> X2WinRpcAdapter::GetModuleList(){
             std::string name = m->name() ? m->name()->str() : std::string();
             std::string shortName = ExtractFileName(name);
             result.emplace_back(name, shortName, (std::uintptr_t)m->base(), (std::size_t)m->size(), true);
-            LogDebug("X2WinRpcAdapter::GetModuleList: module \"%s\" base=0x%llx size=0x%llx",
+            LogDebug("Windows Remote: GetModuleList: module \"%s\" base=0x%llx size=0x%llx",
                 name.c_str(), (unsigned long long)m->base(), (unsigned long long)m->size());
         }
     }
     if(result.empty())
-        LogWarn("X2WinRpcAdapter::GetModuleList: stub returned no modules -- rebase to the remote base will not happen");
+        LogWarn("Windows Remote: GetModuleList: stub returned no modules -- rebase to the remote base will not happen");
     return result;
 }
 
@@ -989,7 +989,7 @@ std::vector<DebugMemoryRegion>X2WinRpcAdapter::GetMemoryMap(){
         }
     }
     
-    LogDebug("X2WinRpcAdapter::GetMemoryMap: got %zu region(s)", result.size());
+    LogDebug("Windows Remote: GetMemoryMap: got %zu region(s)", result.size());
     return result;
 }
 
@@ -1014,7 +1014,7 @@ bool X2WinRpcAdapter::BreakInto(){
     const auto* resp = response.BodyAs<x2win::BreakIntoResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::BreakInto: stub reported failure");
+        LogWarn("Windows Remote: BreakInto: stub reported failure");
     }
     // An interrupt request does not resume the debuggee. In particular, Quit's
     // out-of-band interrupt can reach an already stopped target. Posting Resume
@@ -1030,7 +1030,7 @@ bool X2WinRpcAdapter::Go(){
     const auto* resp = response.BodyAs<x2win::GoResponse>();
     bool success = resp && resp->success();
     if(!success)
-        LogWarn("X2WinRpcAdapter::Go: stub reported failure");
+        LogWarn("Windows Remote: Go: stub reported failure");
     else{
         DebuggerEvent event;
         event.type = ResumeEventType;
@@ -1046,7 +1046,7 @@ bool X2WinRpcAdapter::StepInto(){
     const auto* resp = response.BodyAs<x2win::StepIntoResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::StepInto: stub reported failure");
+        LogWarn("Windows Remote: StepInto: stub reported failure");
     }else{
         DebuggerEvent event;
         event.type = StepIntoEventType;
@@ -1062,7 +1062,7 @@ bool X2WinRpcAdapter::StepOver(){
     const auto* resp = response.BodyAs<x2win::StepOverResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::StepOver: stub reported failure");
+        LogWarn("Windows Remote: StepOver: stub reported failure");
     }else{
         DebuggerEvent event;
         event.type = StepOverEventType;
@@ -1079,7 +1079,7 @@ bool X2WinRpcAdapter::StepReturn(){
     const auto* resp = response.BodyAs<x2win::StepReturnResponse>();
     bool success = resp && resp->success();
     if(!success){
-        LogWarn("X2WinRpcAdapter::StepReturn: stub reported failure");
+        LogWarn("Windows Remote: StepReturn: stub reported failure");
     }else{
         DebuggerEvent event;
         event.type = StepReturnEventType;
@@ -1227,7 +1227,7 @@ void BinaryNinjaDebugger::InitX2WinRpcAdapterType(){
 // --- Helper Functions ---
 
 void X2WinRpcAdapter::TeardownConnection(){
-    LogInfo("X2WinRpcAdapter::TeardownConnection: closing connection to stub");
+    LogInfo("Windows Remote: TeardownConnection: closing connection to stub");
     m_tearingDown = true;
     {
         std::lock_guard<std::mutex> lock(m_pendingMutex);

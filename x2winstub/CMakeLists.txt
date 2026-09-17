@@ -23,6 +23,9 @@ add_executable(x2winstub
     x2win_session.cpp
 )
 
+# Keep the internal target stable while giving the shipped tool a user-facing name.
+set_target_properties(x2winstub PROPERTIES OUTPUT_NAME "windows-debug-server")
+
 # NOMINMAX: without it, <Windows.h> #defines max/min as function-like macros, which then mangle
 # any std::numeric_limits<T>::max()/min() call textually (e.g. inside flatbuffers'
 # flatbuffer_builder.h) into a syntax error -- this hit main.cpp/net/connection.cpp/x2win_session.cpp

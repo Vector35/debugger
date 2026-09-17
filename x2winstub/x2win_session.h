@@ -11,8 +11,8 @@ namespace x2win {
 
 	enum class SessionMode
 	{
-		Target,  // this process launched/owns the debuggee (x2winstub target <path>)
-		Server   // this process is a standalone RPC server (x2winstub server), no owned debuggee
+		Target,  // this process launched/owns the debuggee (windows-debug-server target <path>)
+		Server   // this process is a standalone RPC server (windows-debug-server server), no owned debuggee
 	};
 
 	// Owns one WindowsDebugEngine and parses/dispatches x2win::Envelope proto commands to it --

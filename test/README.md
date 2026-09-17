@@ -17,7 +17,7 @@ On a Windows x64 host with a licensed Binary Ninja Python environment and the bu
 debugger plugin loaded:
 
 ```powershell
-$env:X2WINSTUB_PATH = 'C:\path\to\build\out\plugins\x2winstub.exe'
+$env:WINDOWS_REMOTE_SERVER_PATH = 'C:\path\to\build\out\plugins\windows-debug-server.exe'
 python -m pytest -v --junitxml=results-windows-remote.xml x2winrpc_test.py
 ```
 
@@ -28,12 +28,14 @@ startup are errors on supported Windows hosts, not successful skips. Build the
 `debugger_test_binaries` target too; missing shared-library fixtures fail the suite.
 
 `scripts/build.py`, used by both Jenkins pipelines, includes this suite only on
-Windows and sets `X2WINSTUB_PATH` to the freshly built artifact. Results are included
+Windows and sets `WINDOWS_REMOTE_SERVER_PATH` to the freshly built artifact. Results are included
 in `test/results.xml`; pytest failures fail the build. The Windows test process tree
 has a 15-minute outer timeout in addition to bounded debugger waits.
 
-The UI label is **Windows Remote**. API identifiers (`X2WIN_RPC`), source names,
-settings keys, and the executable name (`x2winstub.exe`) remain unchanged.
+The UI label is **Windows Remote**, and the server executable is `windows-debug-server.exe`.
+API identifiers (`X2WIN_RPC`), source names, and settings keys remain unchanged.
+The test locator still accepts the legacy `X2WINSTUB_PATH` environment variable;
+`WINDOWS_REMOTE_SERVER_PATH` takes precedence when both are set.
 
 The RPC suite uses x64 targets; it does not cover the known x86/WOW64 StepReturn
 unwind limitation. Conditional breakpoints are tested for get/set only, and the

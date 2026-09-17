@@ -324,7 +324,7 @@ pytest_sources = [
 if platform.system() == "Windows":
     # Exercise the just-built Windows Remote server locally on the Windows worker.
     # An explicit path prevents accidentally testing an installed/stale server.
-    env["X2WINSTUB_PATH"] = str(build_output_path / "plugins" / "x2winstub.exe")
+    env["WINDOWS_REMOTE_SERVER_PATH"] = str(build_output_path / "plugins" / "windows-debug-server.exe")
     pytest_sources.append(str(base_dir / "test" / "x2winrpc_test.py"))
 
 

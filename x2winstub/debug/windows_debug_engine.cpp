@@ -31,7 +31,7 @@ namespace x2win {
 	{
 		va_list args;
 		va_start(args, fmt);
-		fprintf(stderr, "[x2winstub][WARN] ");
+		fprintf(stderr, "[Windows Remote][WARN] ");
 		vfprintf(stderr, fmt, args);
 		fprintf(stderr, "\n");
 		va_end(args);
@@ -48,7 +48,7 @@ namespace x2win {
 	{
 		va_list args;
 		va_start(args, fmt);
-		fprintf(stderr, "[x2winstub][ERROR] ");
+		fprintf(stderr, "[Windows Remote][ERROR] ");
 		vfprintf(stderr, fmt, args);
 		fprintf(stderr, "\n");
 		va_end(args);

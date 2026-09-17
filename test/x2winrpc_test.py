@@ -10,7 +10,7 @@
 # No mocking of the adapter or the wire protocol -- this is an integration test.
 #
 # Run on Windows only. scripts/build.py includes this suite on Windows CI workers,
-# with X2WINSTUB_PATH pointing to the server built alongside the client under test.
+# with WINDOWS_REMOTE_SERVER_PATH pointing to the server built alongside the client under test.
 #
 # Run: cd test && python3 x2winrpc_test.py
 # Pass a keyword to run a subset, e.g. python3 x2winrpc_test.py breakpoint
@@ -39,15 +39,15 @@ from debugger_test import name_to_fpath
 
 
 def find_local_x2winstub():
-    """Locate the x2winstub.exe built alongside this debugger build. $X2WINSTUB_PATH overrides
+    """Locate the windows-debug-server.exe built alongside this debugger build. $WINDOWS_REMOTE_SERVER_PATH overrides
     (useful when it landed in a standalone build's out/plugins instead of BN's own plugin dir --
     see x2winstub/CMakeLists.txt's BN_INTERNAL_BUILD split); otherwise look next to the other
     bundled debug-server tools (BN_CORE_PLUGIN_DIR in an internal build), the same place
     debugger_test.py's find_local_dbgsrv()/find_local_lldb_debug_server() (PR #1168) look for theirs."""
-    override = os.environ.get('X2WINSTUB_PATH')
+    override = os.environ.get('WINDOWS_REMOTE_SERVER_PATH') or os.environ.get('X2WINSTUB_PATH')
     if override:
         return override if os.path.isfile(override) else None
-    path = os.path.join(binaryninja.bundled_plugin_path(), 'x2winstub.exe')
+    path = os.path.join(binaryninja.bundled_plugin_path(), 'windows-debug-server.exe')
     return path if os.path.isfile(path) else None
 
 
@@ -85,14 +85,14 @@ def terminate_process(proc):
             proc.wait(timeout=5)
 
 
-@unittest.skipUnless(platform.system() == 'Windows', 'x2winstub only builds and runs on Windows')
-@unittest.skipIf(platform.machine() in ['arm64', 'aarch64'], 'x2winstub test binaries are x86/x64 only')
+@unittest.skipUnless(platform.system() == 'Windows', 'Windows Remote server only builds and runs on Windows')
+@unittest.skipIf(platform.machine() in ['arm64', 'aarch64'], 'Windows Remote test binaries are x86/x64 only')
 class X2WinRpcTest(unittest.TestCase):
     """Exercises X2WinRpcAdapter <-> x2winstub end to end over the real FlatBuffers RPC wire
-    protocol. Server-mode tests share one x2winstub.exe (see setUpClass) since its "server" mode
+    protocol. Server-mode tests share one windows-debug-server.exe (see setUpClass) since its "server" mode
     loops accept()ing new connections for the life of the process -- each test gets its own
     DebuggerController/connection, and `disconnect_from_debug_server()` in cleanup returns the stub
-    to a fresh state for the next test. Target-mode tests spawn their own x2winstub.exe per test
+    to a fresh state for the next test. Target-mode tests spawn their own windows-debug-server.exe per test
     instead, since target mode launches one specific target at startup and serves only that one
     debuggee's lifetime.
     """
@@ -104,7 +104,7 @@ class X2WinRpcTest(unittest.TestCase):
         cls.stub_path = find_local_x2winstub()
         if cls.stub_path is None:
             raise RuntimeError(
-                'x2winstub.exe not found next to this build (checked $X2WINSTUB_PATH and '
+                'windows-debug-server.exe not found next to this build (checked $WINDOWS_REMOTE_SERVER_PATH and '
                 'binaryninja.bundled_plugin_path()); build the debugger with x2winstub enabled '
                 '(Windows-only, see top-level CMakeLists.txt) to get it')
 
@@ -120,7 +120,7 @@ class X2WinRpcTest(unittest.TestCase):
         if not wait_for_port_ready(cls.host, cls.port):
             terminate_process(cls.stub_proc)
             cls.stub_log.seek(0)
-            raise RuntimeError(f'x2winstub server never started listening: {cls.stub_log.read()}')
+            raise RuntimeError(f'Windows Remote server never started listening: {cls.stub_log.read()}')
 
     @classmethod
     def tearDownClass(cls):
@@ -148,7 +148,7 @@ class X2WinRpcTest(unittest.TestCase):
                 bv.file.close()
         self.addCleanup(cleanup)
 
-        self.assertTrue(dbg.connect_to_debug_server(), 'failed to connect to the local x2winstub')
+        self.assertTrue(dbg.connect_to_debug_server(), 'failed to connect to the local Windows Remote server')
         return bv, dbg
 
     def _launch_and_stop_at_entry(self, dbg, fpath, cmd_line=''):
@@ -236,7 +236,7 @@ class X2WinRpcTest(unittest.TestCase):
             stdout=log, stderr=subprocess.STDOUT, text=True)
         self.addCleanup(lambda: terminate_process(proc))
         if not wait_for_port_ready(host, port, deadline_seconds=15):
-            self.fail('x2winstub target mode never started listening (target failed to launch?)')
+            self.fail('Windows Remote target mode never started listening (target failed to launch?)')
 
         bv = load(fpath)
         dbg = DebuggerController(bv)
