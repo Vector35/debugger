@@ -2,8 +2,9 @@
 
 ## Support Status
 
-We currently support Windows remote debugging from Windows and Linux/macOS remote debugging from all platforms.
-Remote debugging of Windows executables from Linux/macOS is a planned feature.
+Windows user-mode remote debugging is supported from Linux, macOS, and Windows using the **Windows Remote** adapter.
+Linux/macOS remote debugging is also supported from all three platforms. The older **DbgEng** remote adapter requires
+a Windows client; it is a separate option, not a requirement for Windows Remote.
 
 We also support gdbserver/lldb-server/debugserver remote debugging from all platforms. Targets that expose a GDB stub
 that speaks the GDB RSP protocal, e.g., QEMU, VMWare, Qiling, Corellium, are also support from all platforms.
@@ -21,14 +22,105 @@ Moreover, a debug server often offers more functionalities than launching a remo
 
 We recommend using a debug server whenever possible and only use the remote process as a backup.
 
-For now, `DbgEng` adapter supports debug server, and `LLDB` adapter supports both debug server and remote process.
+The `DbgEng` adapter supports debug server mode. `LLDB` and `Windows Remote` support both debug server and remote process modes.
 
 ## Windows Remote Debugging
 
-This section explains how to remotely debug a process running on Windows. Right now this is only possible to do from
-another Windows machine. We know this is a highly useful feature to be able to do so from Linux or macOS, and please
-feel free to track our progress:
-[issue 1](https://github.com/Vector35/debugger/issues/70), [issue 2](https://github.com/Vector35/debugger/issues/613).
+Use **Windows Remote** to debug a Windows user-mode process from Binary Ninja on Linux, macOS, or Windows.
+The Windows host runs `windows-debug-server.exe`; Binary Ninja runs on your local machine.
+
+### Preparing the Windows Host and Local Binary
+
+1. Use matching debugger builds that include Windows Remote on both machines. Copy `windows-debug-server.exe` from
+   the Windows debugger build/package's `plugins` directory to the Windows host. Binary Ninja does not need to be
+   installed on the server just to run this executable. For building it yourself, see the repository's
+   [build instructions](https://github.com/Vector35/debugger/blob/dev/build.md#windows-remote-debug-server).
+2. Put the target executable and its dependencies on the Windows host. Windows Remote does **not** upload them for you.
+3. Open a copy of the same executable in local Binary Ninja. Keep the same filename on both machines (for example,
+   `hello.exe` on both); the directories may differ. Module matching uses filenames, so renaming only the local copy
+   can prevent rebasing and module-relative breakpoints from working.
+
+The server runs on x64 Windows and supports x64 and x86/WOW64 user-mode targets. The initial release has a known
+x86/WOW64 **Step Return** unwinding limitation; the Windows Remote integration suite uses x64 targets.
+This adapter does not provide Windows kernel debugging, TTD, or reverse execution.
+
+### Starting the Server and Securing the Connection
+
+The connection has no built-in authentication or encryption and gives the client control over debugged processes.
+Do not expose it to the Internet or an untrusted network. Prefer a loopback listener with an SSH tunnel.
+
+On Windows, in PowerShell:
+
+```powershell
+.\windows-debug-server.exe server --ip 127.0.0.1 --port 31338
+```
+
+The port defaults to 31338, but omitting `--ip` binds all interfaces (`0.0.0.0`), so specify loopback explicitly.
+Leave this console running. If the Windows host already has an SSH server
+configured, forward the port from your local machine:
+
+```sh
+ssh -N -L 31338:127.0.0.1:31338 <user>@<windows-host>
+```
+
+Binary Ninja then connects to `127.0.0.1:31338` on your local machine. Keep the SSH session running too.
+
+Alternatively, on a trusted network, bind the server to the Windows host's IPv4 address:
+
+```powershell
+.\windows-debug-server.exe server --ip <windows-ipv4-address> --port 31338
+```
+
+Allow inbound TCP on that port through the Windows firewall **only from your debugging machine**, and connect to that
+IPv4 address in Binary Ninja. The adapter currently expects an IPv4 address, not a hostname. Run the server elevated
+only when the target's privileges require it.
+
+### Connecting and Launching
+
+1. Open **Debugger → Debug Adapter Settings…** and select **Windows Remote**.
+2. In the **connect** settings group, set **IP Address** and **Port** to the endpoint above. These settings are used
+   for Windows Remote's debug server connection, not the `debugServer` settings used by DbgEng/LLDB.
+3. In the **launch** group, set **Executable Path** and **Working Directory** to paths on the **Windows host**, such as
+   `C:\targets\hello.exe` and `C:\targets`. Set **Command Line Arguments** if needed. Keep the input file pointing to
+   the local binary you opened; do not replace it with a remote path.
+4. Accept the settings, then choose **Debugger → Connect to Debug Server**. If the settings dialog appears again,
+   confirm the adapter and the **connect** values.
+5. Launch the target using the debugger's **Launch** action. You can now use breakpoints, stepping, registers, memory,
+   threads, and stack views.
+
+The server stays available after a target exits, so you can launch another session without restarting the server.
+To attach instead, connect to the debug server first, then choose **Debugger → Attach To Process…** and select a
+process on the Windows host. If access is denied, check the server's privileges.
+
+Use **Debugger → Disconnect from Debug Server** to close the connection. This also quits an active target; detach
+first if you want to leave it running. Stop the server console with Ctrl+C when finished. Selecting Windows Remote
+does not cause a subsequent launch to fall back to local debugging.
+
+### Connecting to a Prelaunched Target (Optional)
+
+For a single target session, start the server in `target` mode instead:
+
+```powershell
+.\windows-debug-server.exe target C:\targets\hello.exe --ip 127.0.0.1 --port 31338
+```
+
+Use the same tunnel or trusted-network setup described above. In Binary Ninja select **Windows Remote**, set the
+**connect** address and port, then choose **Debugger → Connect to Remote Process**, not **Connect to Debug Server**.
+Restart the server command for each new target-mode session. Use `server` mode when you need launch arguments or
+repeated launches from Binary Ninja.
+
+### Troubleshooting
+
+- **Connection fails:** check the server console, IPv4 address, port, tunnel, and firewall. Use matching client/server
+  builds; this protocol is not compatible with `dbgsrv.exe`, `gdbserver`, or `lldb-server`.
+- **Launch fails:** verify that the executable, dependencies, and working directory exist on Windows, not just locally.
+- **Breakpoints or rebasing fail:** verify that the local and remote files are the same build and have the same basename.
+- **Attach fails:** check process permissions and whether another debugger is already attached.
+
+## Windows Remote Debugging with DbgEng (Windows Clients Only)
+
+The following is an alternative for a Windows Binary Ninja client using **DbgEng** and `dbgsrv.exe`.
+For a Linux or macOS client, use **Windows Remote** as described above.
 
 ### Preparing the Remote Host
 

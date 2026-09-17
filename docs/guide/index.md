@@ -13,7 +13,7 @@ This is the current comparability matrix of the debugger. The columns stand for 
 |--------------------------------------|---------------------------------------------------------|---------------------------------------------------------|---------------------------------------------------------|------|
 | macOS user                           | Yes (Local/Remote)                                      | Yes (Remote)                                            | Yes (Remote)                                            |      |
 | Linux user                           | Yes (Remote)                                            | Yes (Local/Remote)                                      | Yes (Remote)                                            |      |
-| Windows user                         | [#70](https://github.com/Vector35/debugger/issues/70)   | [#70](https://github.com/Vector35/debugger/issues/70)   | Yes (Local/Remote)                                      |      |
+| Windows user                         | Yes (Remote)                                            | Yes (Remote)                                            | Yes (Local/Remote)                                      | [Windows Remote setup](remote-debugging.md#windows-remote-debugging) |
 | Windows PE (via wine)                | No                                                      | Yes (Local)                                             | No                                                      | [1]  |
 | GDB Server                           | Yes                                                     | Yes                                                     | Yes                                                     |      |
 | GDB RSP (QEMU/VMWare/Qiling/Android) | Yes                                                     | Yes                                                     | Yes                                                     |      |
@@ -365,7 +365,8 @@ The debugger then **drives** the various adapters, creating a unified debugging 
 
 The currently available debug adapters are: 
 
-- DbgEng adapter: for local and remote Windows user program debugging. Windows only
+- Windows Remote adapter: for Windows user-mode debugging from Linux, macOS, or Windows. See [Windows Remote setup](remote-debugging.md#windows-remote-debugging).
+- DbgEng adapter: for local and remote Windows user program debugging. Requires a Windows client
 - DbgEnd TTD adapter: for time-travel debugging (TTD). Windows only
 - Windows kernel debugging adapter: for remote Windows kernel debugging. Windows only
 - Windows local kernel debugging adapter: for local Windows kernel debugging. Windows only
