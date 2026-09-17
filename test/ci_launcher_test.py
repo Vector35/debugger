@@ -9,7 +9,7 @@ import unittest
 
 @unittest.skipUnless(os.name == 'posix', 'macOS launcher uses bash')
 class MacOSLauncherTest(unittest.TestCase):
-    def launch(self, interpreter, fail_env=False):
+    def launch(self, interpreter, fail_env=False, fail_ensurepip=False):
         launcher = Path(__file__).resolve().parents[1] / 'scripts' / 'build_macosx'
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / 'poetry.log'
@@ -19,8 +19,9 @@ class MacOSLauncherTest(unittest.TestCase):
 if [ "$1" = -I ] && [ "$2" = -c ]; then echo "$0"; exit 0; fi
 if [ "$1" = --version ]; then echo 'Python 3.12 (test double)'; exit 0; fi
 if [ "$1" = -I ] && [ "$2" = -m ] && [ "$3" = venv ]; then
-    mkdir -p "$4/bin"
-    cp "$CI_TEST_TOOL" "$4/bin/python"
+    [ "$4" = --without-pip ] || exit 15
+    mkdir -p "$5/bin"
+    cp "$CI_TEST_TOOL" "$5/bin/python"
     exit 0
 fi
 exit 99
@@ -31,6 +32,10 @@ exit 99
 [ "$1" = -I ] && [ "$2" = -m ] || exit 14
 shift 2
 printf '%s\\n' "$*" >> "$CI_TEST_LOG"
+if [ "$1" = ensurepip ] && [ "$CI_TEST_FAIL_ENSUREPIP" = 1 ]; then
+    echo 'ensurepip underlying failure (test double)' >&2
+    exit 8
+fi
 if [ "$1" = poetry ] && [ "$2" = env ] && [ "$CI_TEST_FAIL_ENV" = 1 ]; then exit 7; fi
 exit 0
 ''')
@@ -39,6 +44,7 @@ exit 0
             env = os.environ.copy()
             env.update(DEBUGGER_CI_PYTHON=str(selected) if interpreter else '/nonexistent/ci-python',
                        CI_TEST_TOOL=str(tool), CI_TEST_LOG=str(log),
+                       CI_TEST_FAIL_ENSUREPIP='1' if fail_ensurepip else '0',
                        CI_TEST_FAIL_ENV='1' if fail_env else '0', VIRTUAL_ENV='/old/python39',
                        CONDA_PREFIX='/old/conda', POETRY_ACTIVE='1')
             # The legacy/global Poetry must never be invoked, even for env use.
@@ -56,7 +62,8 @@ exec bash "$1" "two words"
     def test_selects_interpreter_before_install_and_run(self):
         result, calls = self.launch(True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls, ['pip install --disable-pip-version-check poetry==2.4.1',
+        self.assertEqual(calls, ['ensurepip --upgrade --default-pip',
+                                'pip install --disable-pip-version-check poetry==2.4.1',
                                 'poetry --version', 'poetry env use <selected-python>',
                                 'poetry install --sync --no-root',
                                 'poetry run python scripts/build.py two words'])
@@ -64,7 +71,13 @@ exec bash "$1" "two words"
     def test_env_selection_failure_stops_install(self):
         result, calls = self.launch(True, fail_env=True)
         self.assertEqual(result.returncode, 7, result.stderr)
-        self.assertEqual(len(calls), 3)
+        self.assertEqual(len(calls), 4)
+
+    def test_ensurepip_failure_is_visible_and_stops_poetry(self):
+        result, calls = self.launch(True, fail_ensurepip=True)
+        self.assertEqual(result.returncode, 8, result.stderr)
+        self.assertIn('ensurepip underlying failure', result.stderr)
+        self.assertEqual(calls, ['ensurepip --upgrade --default-pip'])
 
     def test_invalid_override_stops_before_poetry(self):
         result, calls = self.launch(False)
