@@ -11,6 +11,12 @@ import glob
 import platform
 from pathlib import Path
 
+# Fail before downloading/building or entering Binary Ninja's plugin loader. Its
+# unsupported-interpreter path can retain the GIL and deadlock the calling process.
+if not ((3, 10) <= sys.version_info[:2] < (3, 15)):
+    sys.exit('Debugger CI requires Python 3.10–3.14. Select a supported interpreter with '
+             '`poetry env use /path/to/python3.12`, then rerun the build.')
+
 from target_llvm_version import llvm_version, msvc_build, vs_version
 from test_process import run_tests
 

@@ -5,6 +5,14 @@ The full, multi-platform set of test binaries is built and signed by the
 `binaries/<OS>-<arch>`. Running the unit tests does not require building any binaries.
 
 ## Run unit tests
+
+Use Python 3.10–3.14 with the current Binary Ninja development builds; Python 3.9
+is unsupported. CI dependencies and tests must use the same Poetry environment.
+If an existing CI environment uses Python 3.9, install a supported interpreter and
+select it with `poetry env use /path/to/python3.12`, then run `poetry install --sync --no-root`.
+On Windows use `poetry run python`, not `poetry run py -3`: the Windows launcher can
+select a different interpreter without the installed test dependencies.
+
 ```zsh
 cd test
 python3 debugger_test.py

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 export PATH=~/.local/bin:$PATH
 export PYTHONUNBUFFERED=1
 poetry install --sync --no-root
