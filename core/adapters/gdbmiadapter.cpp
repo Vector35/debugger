@@ -101,6 +101,50 @@ namespace
 			arguments.push_back(argument);
 		return arguments;
 	}
+
+	DebugStopReason StopReasonFromSignalName(const std::string& signalName)
+	{
+		static const std::unordered_map<std::string, DebugStopReason> signalReasons = {
+			{"SIGHUP", SignalHup},
+			{"SIGINT", SignalInt},
+			{"SIGQUIT", SignalQuit},
+			{"SIGILL", IllegalInstruction},
+			{"SIGTRAP", SingleStep},
+			{"SIGABRT", SignalAbrt},
+			{"SIGIOT", SignalAbrt},
+			{"SIGEMT", SignalEmt},
+			{"SIGFPE", SignalFpe},
+			{"SIGKILL", SignalKill},
+			{"SIGBUS", SignalBus},
+			{"SIGSEGV", SignalSegv},
+			{"SIGSYS", SignalSys},
+			{"SIGPIPE", SignalPipe},
+			{"SIGALRM", SignalAlrm},
+			{"SIGTERM", SignalTerm},
+			{"SIGURG", SignalUrg},
+			{"SIGSTOP", SignalStop},
+			{"SIGTSTP", SignalTstp},
+			{"SIGCONT", SignalCont},
+			{"SIGCHLD", SignalChld},
+			{"SIGCLD", SignalChld},
+			{"SIGTTIN", SignalTtin},
+			{"SIGTTOU", SignalTtou},
+			{"SIGIO", SignalIo},
+			{"SIGXCPU", SignalXcpu},
+			{"SIGXFSZ", SignalXfsz},
+			{"SIGVTALRM", SignalVtalrm},
+			{"SIGPROF", SignalProf},
+			{"SIGWINCH", SignalWinch},
+			{"SIGINFO", SignalInfo},
+			{"SIGUSR1", SignalUsr1},
+			{"SIGUSR2", SignalUsr2},
+			{"SIGSTKFLT", SignalStkflt},
+			{"SIGPOLL", SignalPoll},
+		};
+
+		auto reason = signalReasons.find(signalName);
+		return reason == signalReasons.end() ? UnknownReason : reason->second;
+	}
 }
 
 GdbMiAdapter::GdbMiAdapter(BinaryView* data) : DebugAdapter(data) {
@@ -521,7 +565,11 @@ DebugStopReason GdbMiAdapter::GetStopReason(const MiRecord& record)
 		if (reason == "exited-normally" || reason == "exited")
 			return ProcessExited;
 		if (reason == "signal-received")
-			return SignalInt;
+		{
+			if (value.Exists("signal-name"))
+				return StopReasonFromSignalName(value["signal-name"].GetString());
+			return UnknownReason;
+		}
 	}
 	return UnknownReason;
 }
@@ -1324,14 +1372,23 @@ bool GdbMiAdapter::WriteRegister(const std::string& reg, intx::uint512 value) {
 
     std::string cmd = "-gdb-set $" + reg + "=" + to_string(value);
     auto result = m_mi->SendCommand(cmd);
-    return result.command == "done";
+	if (result.command != "done")
+		return false;
+
+	// Register values are prefetched by the MI adapter. Refresh the entire cache
+	// because writing one register can also change correlated registers.
+	{
+		std::unique_lock cacheLock(m_cacheMutex);
+		m_cachedRegisters.clear();
+	}
+	UpdateAllRegisters();
+	return true;
 }
 
 DataBuffer GdbMiAdapter::ReadMemory(std::uintptr_t address, size_t size) {
     if (!m_mi) return {};
 	LogDebug("GdbMiAdapter::ReadMemory 0x%" PRIX64 "-0x%" PRIX64, (uint64_t)address, (uint64_t)(address+size));
 	// TODO: we can use 'info mem' to get list of memory regions available for reading.
-	DataBuffer zero(size);
 
     // Acquire GDB command mutex to serialize access to GDB
     std::unique_lock cmdLock(m_gdbCommandMutex);
@@ -1339,14 +1396,24 @@ DataBuffer GdbMiAdapter::ReadMemory(std::uintptr_t address, size_t size) {
     std::string cmd = fmt::format("-data-read-memory-bytes 0x{:x} {}", address, size);
     auto result = m_mi->SendCommand(cmd);
     if (result.command != "done")
-    {
+	{
     	LogDebug("Failed to read memory at 0x%" PRIX64, (uint64_t)address);
-
-	    return zero;
-    }
+	    return {};
+	}
 
     auto value = MiValue::Parse(result.payload);
+	if (!value.Exists("memory") || !value["memory"].IsList() || value["memory"].size() == 0
+		|| !value["memory"][0].Exists("contents"))
+	{
+		LogDebug("Malformed memory read reply");
+		return {};
+	}
     std::string hex_contents = value["memory"][0]["contents"].GetString();
+	if ((hex_contents.length() % 2) != 0)
+	{
+		LogDebug("Odd-length hex contents in memory read reply");
+		return {};
+	}
     DataBuffer buffer(hex_contents.length() / 2);
     for(size_t i = 0; i < buffer.GetLength(); i++) {
         // Parse with the non-throwing std::from_chars, since std::stoul throws on
@@ -1356,7 +1423,7 @@ DataBuffer GdbMiAdapter::ReadMemory(std::uintptr_t address, size_t size) {
         if (std::from_chars(first, first + 2, byte, 16).ec != std::errc())
         {
             LogDebug("Malformed hex contents in memory read reply");
-            return zero;
+			return {};
         }
         buffer[i] = byte;
     }
