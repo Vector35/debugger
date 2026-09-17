@@ -19,7 +19,9 @@ versioned executables on PATH and standard Homebrew/python.org installation path
 Set `DEBUGGER_CI_PYTHON=/absolute/path/to/python3.12` to select a worker-specific
 interpreter; an invalid or unsupported override fails before Poetry or the build runs.
 Poetry itself is bootstrapped at a pinned version in `.ci-poetry` using that selected
-Python. This avoids the worker's global Poetry executable, which may still run under
+Python. The worker's `virtualenv` creates this environment and seeds pip from its
+own wheels, matching Binary Ninja CI and avoiding Homebrew `ensurepip` permissions.
+This avoids the worker's global Poetry executable, which may still run under
 Python 3.9 and reject the project before `poetry env use` can execute. The project
 dependencies remain in `.venv`; neither environment changes the worker's global packages.
 

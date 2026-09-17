@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-export PATH=/usr/local/bin:$PATH
+export PATH=/usr/local/bin:$HOME/Library/Python/3.9/bin:$PATH
 export PYTHONUNBUFFERED=1
 export POETRY_VIRTUALENVS_IN_PROJECT=1
 # An inherited environment must not override the project-local interpreter.
@@ -12,12 +12,14 @@ echo "Selected CI Python: $ci_python"
 # project before `env use` executes. Bootstrap the tool under the selected Python
 # in a separate workspace-local environment, without changing the worker's tools.
 ci_poetry_dir="$PWD/.ci-poetry"
-"$ci_python" -I -m venv --without-pip "$ci_poetry_dir"
-# venv captures ensurepip's output and reports only its exit status on failure.
-# Run it directly so Jenkins receives the actual traceback, with isolation also
-# applied to this child interpreter (the parent's -I is not inherited).
-echo "Bootstrapping pip in $ci_poetry_dir"
-"$ci_poetry_dir/bin/python" -I -m ensurepip --upgrade --default-pip
+# Match Binary Ninja CI: virtualenv seeds pip from its own bundled wheels,
+# rather than Homebrew's ensurepip wheels (unreadable on some workers).
+# virtualenv may itself run under 3.9; --python controls the created environment.
+if ! command -v virtualenv >/dev/null 2>&1; then
+    echo "CI requires virtualenv (provided with the worker's Poetry installation)" >&2
+    exit 1
+fi
+virtualenv --python "$ci_python" --no-download "$ci_poetry_dir"
 "$ci_poetry_dir/bin/python" -I -m pip install --disable-pip-version-check 'poetry==2.4.1'
 "$ci_poetry_dir/bin/python" -I -m poetry --version
 "$ci_poetry_dir/bin/python" -I -m poetry env use "$ci_python"
