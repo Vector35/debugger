@@ -2,11 +2,106 @@
 #include <sstream>
 #include <charconv>
 #include <cinttypes>
+#include <cctype>
 #include "../debuggercontroller.h"
 #include "../../cli/log.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebugger;
+
+namespace
+{
+	// GDB/MI string arguments use C-string escaping. Always quoting paths keeps spaces and
+	// characters that are meaningful to the MI parser from changing the command.
+	std::string QuoteMiString(const std::string& value)
+	{
+		std::string result = "\"";
+		for (char ch : value)
+		{
+			switch (ch)
+			{
+				case '\\': result += "\\\\"; break;
+				case '"': result += "\\\""; break;
+				case '\n': result += "\\n"; break;
+				case '\r': result += "\\r"; break;
+				case '\t': result += "\\t"; break;
+				default: result += ch; break;
+			}
+		}
+		return result + "\"";
+	}
+
+	std::string QuoteConsoleArgument(const std::string& value)
+	{
+		std::string result = "\"";
+		for (char ch : value)
+		{
+			if (ch == '\\' || ch == '"')
+				result += '\\';
+			result += ch;
+		}
+		return result + "\"";
+	}
+
+	std::optional<std::vector<std::string>> ParseCommandLineArguments(const std::string& commandLine)
+	{
+		enum class Quote { None, Single, Double };
+		Quote quote = Quote::None;
+		bool escaped = false;
+		bool argumentStarted = false;
+		std::string argument;
+		std::vector<std::string> arguments;
+
+		for (char ch : commandLine)
+		{
+			if (escaped)
+			{
+				argument += ch;
+				argumentStarted = true;
+				escaped = false;
+				continue;
+			}
+
+			if (ch == '\\' && quote != Quote::Single)
+			{
+				escaped = true;
+				argumentStarted = true;
+				continue;
+			}
+			if (ch == '\'' && quote != Quote::Double)
+			{
+				quote = quote == Quote::Single ? Quote::None : Quote::Single;
+				argumentStarted = true;
+				continue;
+			}
+			if (ch == '"' && quote != Quote::Single)
+			{
+				quote = quote == Quote::Double ? Quote::None : Quote::Double;
+				argumentStarted = true;
+				continue;
+			}
+			if (std::isspace(static_cast<unsigned char>(ch)) && quote == Quote::None)
+			{
+				if (argumentStarted)
+				{
+					arguments.push_back(argument);
+					argument.clear();
+					argumentStarted = false;
+				}
+				continue;
+			}
+
+			argument += ch;
+			argumentStarted = true;
+		}
+
+		if (escaped || quote != Quote::None)
+			return std::nullopt;
+		if (argumentStarted)
+			arguments.push_back(argument);
+		return arguments;
+	}
+}
 
 GdbMiAdapter::GdbMiAdapter(BinaryView* data) : DebugAdapter(data) {
     m_lastStopReason = UnknownReason;
@@ -291,10 +386,33 @@ void GdbMiAdapter::AsyncRecordHandler(const MiRecord& record)
             dbgevt.data.exitData.exitCode = m_exitCode;
             PostDebuggerEvent(dbgevt);
 
+			{
+				std::unique_lock lock(m_eventMutex);
+				if (m_localLaunchBootstrap)
+					m_localLaunchExited = true;
+			}
             m_eventCV.notify_all();
         }
         else
         {
+			bool bootstrapStop = false;
+			{
+				std::unique_lock lock(m_eventMutex);
+				if (m_localLaunchBootstrap)
+				{
+					m_localLaunchStopped = true;
+					bootstrapStop = true;
+				}
+			}
+
+			// Local launch uses an internal starti stop to discover the executable's
+			// relocated entry point. Do not expose that loader stop to the controller.
+			if (bootstrapStop)
+			{
+				m_eventCV.notify_all();
+				return;
+			}
+
             // Normal stop - kick a background refresh so we don't block the reader
             ScheduleStateRefresh();
             m_eventCV.notify_all();
@@ -419,58 +537,8 @@ bool GdbMiAdapter::RunMonitorCommand(const std::string& command) const
     return (result.command == "done");
 }
 
-bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
-    auto settings = GetAdapterSettings();
-    BNSettingsScope scope = SettingsResourceScope;
-    auto data = GetData();
-    auto gdbPath = settings->Get<std::string>("gdb.path", data, &scope);
-    scope = SettingsResourceScope;
-    auto symbolFile = settings->Get<std::string>("gdb.symbolFile", data, &scope);
-    scope = SettingsResourceScope;
-    auto inputFile = settings->Get<std::string>("common.inputFile", data, &scope);
-	scope = SettingsResourceScope;
-	auto ipAddress = settings->Get<std::string>("connect.ipAddress", data, &scope);
-	scope = SettingsResourceScope;
-	auto serverPort = static_cast<uint32_t>(settings->Get<uint64_t>("connect.port", data, &scope));
-	if (ipAddress.empty() || serverPort == 0)
-	{
-		LogError("Missing connection settings for restart.");
-		return false;
-	}
-
-    m_connected = false;
-
-    if (gdbPath.empty()) return false;
-
-    if (inputFile.empty()) inputFile = symbolFile;
-
-    m_mi = std::make_unique<GdbMiConnector>(gdbPath, inputFile);
-    
-    // Set up async callback BEFORE starting GDB to avoid race conditions
-    m_mi->SetAsyncCallback([this](const MiRecord& record){ this->AsyncRecordHandler(record); });
-
-    if (!m_mi->Start()) return false;
-
-    m_mi->SendCommand("-gdb-set mi-async on");
-    m_mi->SendCommand("-gdb-set pagination off");
-    m_mi->SendCommand("-gdb-set confirm off");
-    m_mi->SendCommand("-enable-frame-filters");
-    m_mi->SendCommand("-interpreter-exec console \"add-symbol-file "+symbolFile+"\"");
-
-    m_mi->SendCommand("-file-exec-file " + inputFile);
-	// TODO: we should offer an option on whether or not to connect in extended mode
-    std::string connectCmd = "-target-select remote " + ipAddress + ":" + std::to_string(serverPort);
-	
-    auto result = m_mi->SendCommand(connectCmd, 1000);
-    m_connected = (result.command == "connected");
-	if (!m_connected)
-	{
-        LogError("Failed to connect to target");
-		m_mi->Stop();
-		m_mi.reset();
-		return false;
-	}
-    
+bool GdbMiAdapter::DetectTargetArchitecture(bool remoteSession)
+{
 	// Get architecture and register setup
 	LogInfo("Detecting target architecture...");
 
@@ -551,6 +619,7 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
 	// (reverse-step) packet support, which was negotiated during -target-select.
 	m_canReverseContinue = false;
 	m_canReverseStep = false;
+	if (remoteSession)
 	{
 		std::string bcStatus = InvokeBackendCommand("show remote reverse-continue-packet");
 		std::string bsStatus = InvokeBackendCommand("show remote reverse-step-packet");
@@ -612,7 +681,7 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
 
 	// Set the final architecture
 	m_remoteArch = detectedArch;
-	LogInfo("Final detected remote architecture: %s", m_remoteArch.c_str());
+	LogInfo("Final detected target architecture: %s", m_remoteArch.c_str());
 
 	// Get register names (regListResult already fetched above)
 	if (regListResult.command == "done")
@@ -644,6 +713,66 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
 		}
 	}
 
+	return true;
+}
+
+bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
+    auto settings = GetAdapterSettings();
+    BNSettingsScope scope = SettingsResourceScope;
+    auto data = GetData();
+    auto gdbPath = settings->Get<std::string>("gdb.path", data, &scope);
+    scope = SettingsResourceScope;
+    auto symbolFile = settings->Get<std::string>("gdb.symbolFile", data, &scope);
+    scope = SettingsResourceScope;
+    auto inputFile = settings->Get<std::string>("common.inputFile", data, &scope);
+	scope = SettingsResourceScope;
+	auto ipAddress = settings->Get<std::string>("connect.ipAddress", data, &scope);
+	scope = SettingsResourceScope;
+	auto serverPort = static_cast<uint32_t>(settings->Get<uint64_t>("connect.port", data, &scope));
+	if (ipAddress.empty() || serverPort == 0)
+	{
+		LogError("Missing connection settings for restart.");
+		return false;
+	}
+
+    m_connected = false;
+
+    if (gdbPath.empty()) return false;
+
+    if (inputFile.empty()) inputFile = symbolFile;
+
+    m_mi = std::make_unique<GdbMiConnector>(gdbPath, inputFile);
+
+    // Set up async callback BEFORE starting GDB to avoid race conditions
+    m_mi->SetAsyncCallback([this](const MiRecord& record){ this->AsyncRecordHandler(record); });
+
+    if (!m_mi->Start()) return false;
+
+    m_mi->SendCommand("-gdb-set mi-async on");
+    m_mi->SendCommand("-gdb-set pagination off");
+    m_mi->SendCommand("-gdb-set confirm off");
+    m_mi->SendCommand("-enable-frame-filters");
+    if (!symbolFile.empty())
+        m_mi->SendCommand("-interpreter-exec console "
+            + QuoteMiString("add-symbol-file " + QuoteConsoleArgument(symbolFile)));
+
+    m_mi->SendCommand("-file-exec-file " + QuoteMiString(inputFile));
+	// TODO: we should offer an option on whether or not to connect in extended mode
+    std::string connectCmd = "-target-select remote " + ipAddress + ":" + std::to_string(serverPort);
+
+    auto result = m_mi->SendCommand(connectCmd, 1000);
+    m_connected = (result.command == "connected");
+	if (!m_connected)
+	{
+        LogError("Failed to connect to target");
+		m_mi->Stop();
+		m_mi.reset();
+		return false;
+	}
+
+	if (!DetectTargetArchitecture(true))
+		return false;
+
 	// AFTER we are connected and stopped, populate the cache for the first time.
 	LogInfo("Populating initial state cache...");
 	ScheduleStateRefresh();
@@ -655,24 +784,290 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
     return true;
 }
 
-// --- Empty implementations for unsupported actions ---
-bool GdbMiAdapter::Execute(const std::string&, const LaunchConfigurations&) { LogWarn("GdbMiAdapter::Execute not implemented"); return false; }
-bool GdbMiAdapter::ExecuteWithArgs(const std::string&, const std::string&, const std::string&, const LaunchConfigurations&)
+bool GdbMiAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
 {
+	return ExecuteWithArgs(path, "", "", configs);
+}
+
+bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
+	const std::string& workingDir, const LaunchConfigurations& configs)
+{
+	(void)configs;
 	InvalidateCache();
+
 	auto settings = GetAdapterSettings();
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
-	auto server = settings->Get<std::string>("connect.ipAddress", data, &scope);
+	auto gdbPath = settings->Get<std::string>("gdb.path", data, &scope);
 	scope = SettingsResourceScope;
-	auto port = static_cast<uint32_t>(settings->Get<uint64_t>("connect.port", data, &scope));
-	if (server.empty() || port == 0)
+	auto symbolFile = settings->Get<std::string>("gdb.symbolFile", data, &scope);
+	scope = SettingsResourceScope;
+	auto executablePath = settings->Get<std::string>("launch.executablePath", data, &scope);
+	scope = SettingsResourceScope;
+	auto workingDirectory = settings->Get<std::string>("launch.workingDirectory", data, &scope);
+	scope = SettingsResourceScope;
+	auto commandLineArgs = settings->Get<std::string>("launch.commandLineArguments", data, &scope);
+
+	// Use settings values, fall back to function parameters
+	if (executablePath.empty())
+		executablePath = path;
+	if (workingDirectory.empty())
+		workingDirectory = workingDir;
+	if (commandLineArgs.empty())
+		commandLineArgs = args;
+
+	if (gdbPath.empty())
 	{
-		LogError("Missing connection settings for restart.");
+		LogError("GDB path is not configured");
 		return false;
 	}
-	return Connect(server, port);
+	if (executablePath.empty())
+	{
+		LogError("No executable path specified for local debugging");
+		return false;
+	}
+
+	m_connected = false;
+	m_mi = std::make_unique<GdbMiConnector>(gdbPath, "");
+
+	// Set up async callback BEFORE starting GDB to avoid race conditions
+	m_mi->SetAsyncCallback([this](const MiRecord& record){ this->AsyncRecordHandler(record); });
+
+	if (!m_mi->Start())
+	{
+		LogError("Failed to start GDB process");
+		return false;
+	}
+
+	m_mi->SendCommand("-gdb-set mi-async on");
+	m_mi->SendCommand("-gdb-set pagination off");
+	m_mi->SendCommand("-gdb-set confirm off");
+	m_mi->SendCommand("-enable-frame-filters");
+
+	// Load the executable explicitly so launch failures can be reported before the adapter
+	// enters its asynchronous run/wait state.
+	auto fileResult = m_mi->SendCommand("-file-exec-and-symbols " + QuoteMiString(executablePath));
+	if (fileResult.command != "done")
+	{
+		LogError("Failed to load executable: %s", fileResult.fullLine.c_str());
+		m_mi->Stop();
+		m_mi.reset();
+		return false;
+	}
+
+	if (!symbolFile.empty() && symbolFile != executablePath)
+	{
+		auto symbolResult = m_mi->SendCommand("-interpreter-exec console "
+			+ QuoteMiString("add-symbol-file " + QuoteConsoleArgument(symbolFile)));
+		if (symbolResult.command != "done")
+		{
+			LogError("Failed to load symbol file: %s", symbolResult.fullLine.c_str());
+			m_mi->Stop();
+			m_mi.reset();
+			return false;
+		}
+	}
+
+	if (!workingDirectory.empty())
+	{
+		auto cwdResult = m_mi->SendCommand("-environment-cd " + QuoteMiString(workingDirectory));
+		if (cwdResult.command != "done")
+		{
+			LogError("Failed to set working directory: %s", cwdResult.fullLine.c_str());
+			m_mi->Stop();
+			m_mi.reset();
+			return false;
+		}
+	}
+
+	if (!commandLineArgs.empty())
+	{
+		auto parsedArguments = ParseCommandLineArguments(commandLineArgs);
+		if (!parsedArguments)
+		{
+			LogError("Invalid command line arguments: unmatched quote or trailing escape");
+			m_mi->Stop();
+			m_mi.reset();
+			return false;
+		}
+
+		std::string argumentCommand = "-exec-arguments";
+		for (const auto& argument : *parsedArguments)
+			argumentCommand += " " + QuoteMiString(argument);
+		auto argumentResult = m_mi->SendCommand(argumentCommand);
+		if (argumentResult.command != "done")
+		{
+			LogError("Failed to set command line arguments: %s", argumentResult.fullLine.c_str());
+			m_mi->Stop();
+			m_mi.reset();
+			return false;
+		}
+	}
+
+	// Mark the transport ready before architecture detection, since backend console
+	// commands and pending breakpoints require an active adapter session.
+	m_connected = true;
+
+	if (!DetectTargetArchitecture(false))
+	{
+		m_connected = false;
+		m_mi->Stop();
+		m_mi.reset();
+		return false;
+	}
+
+	// Software breakpoints with an immediately resolvable address can be installed
+	// before execution. Module-relative and hardware breakpoints remain pending and
+	// are applied by the first stopped-event state refresh.
+	ApplyBreakpoints();
+
+	// GDB's MI --start option is equivalent to the CLI `start` command and therefore
+	// depends on a discoverable `main` symbol. Stripped executables do not have one,
+	// so they would run directly to completion. Start at the first machine instruction
+	// instead, then resolve the relocated ELF entry point while the process is stopped.
+	{
+		std::unique_lock lock(m_eventMutex);
+		m_localLaunchBootstrap = true;
+		m_localLaunchStopped = false;
+		m_localLaunchExited = false;
+	}
+
+	auto clearLaunchBootstrap = [this]() {
+		std::unique_lock lock(m_eventMutex);
+		m_localLaunchBootstrap = false;
+		m_localLaunchStopped = false;
+		m_localLaunchExited = false;
+	};
+
+	auto waitForLaunchStop = [this](std::chrono::milliseconds timeout) {
+		std::unique_lock lock(m_eventMutex);
+		return m_eventCV.wait_for(lock, timeout,
+			[this]() { return m_localLaunchStopped || m_localLaunchExited; });
+	};
+
+	auto runResult = m_mi->SendCommand("-interpreter-exec console " + QuoteMiString("starti"), 5000);
+	if (runResult.command != "running" && runResult.command != "done")
+	{
+		LogError("Failed to launch target: %s", runResult.fullLine.c_str());
+		clearLaunchBootstrap();
+		m_connected = false;
+		m_mi->Stop();
+		m_mi.reset();
+		return false;
+	}
+
+	if (!waitForLaunchStop(std::chrono::seconds(15)))
+	{
+		LogError("Timed out waiting for the initial GDB stop");
+		clearLaunchBootstrap();
+		m_connected = false;
+		m_mi->Stop();
+		m_mi.reset();
+		return false;
+	}
+
+	{
+		std::unique_lock lock(m_eventMutex);
+		if (m_localLaunchExited)
+		{
+			m_localLaunchBootstrap = false;
+			return true;
+		}
+	}
+
+	const bool stopAtSystemEntry = Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint");
+	const bool stopAtProgramEntry = Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint");
+	bool continueToProgramEntry = !stopAtSystemEntry && stopAtProgramEntry && m_hasEntryFunction
+		&& (m_entryPoint >= m_start);
+
+	uint64_t entryAddress = 0;
+	uint64_t currentPc = 0;
+	if (continueToProgramEntry)
+	{
+		uint64_t moduleBase = 0;
+		if (!GetModuleBase(executablePath, moduleBase))
+		{
+			LogWarn("Could not resolve the executable load address; stopping at the system entry point");
+			continueToProgramEntry = false;
+		}
+		else
+		{
+			entryAddress = moduleBase + (m_entryPoint - m_start);
+			auto pcResult = m_mi->SendCommand("-data-evaluate-expression $pc");
+			if (pcResult.command == "done")
+			{
+				auto value = MiValue::Parse(pcResult.payload);
+				if (value.Exists("value"))
+				{
+					try
+					{
+						currentPc = std::stoull(value["value"].GetString(), nullptr, 0);
+					}
+					catch (...)
+					{
+						LogWarn("Failed to parse the program counter at the initial GDB stop");
+					}
+				}
+			}
+		}
+	}
+
+	// The process now exists, so module-relative user breakpoints that could not be
+	// resolved before starti can be installed before any program code executes.
+	ApplyBreakpoints();
+	ApplyPendingHardwareBreakpoints();
+
+	if (continueToProgramEntry && currentPc != entryAddress)
+	{
+		auto breakpointResult =
+			m_mi->SendCommand(fmt::format("-break-insert -t *0x{:x}", entryAddress));
+		if (breakpointResult.command != "done")
+		{
+			LogWarn("Failed to set temporary entry-point breakpoint: %s", breakpointResult.fullLine.c_str());
+		}
+		else
+		{
+			{
+				std::unique_lock lock(m_eventMutex);
+				m_localLaunchStopped = false;
+				m_localLaunchExited = false;
+			}
+
+			auto continueResult = m_mi->SendCommand("-exec-continue", 5000);
+			if (continueResult.command != "running" && continueResult.command != "done")
+			{
+				LogWarn("Failed to continue to the program entry point: %s", continueResult.fullLine.c_str());
+			}
+			else if (!waitForLaunchStop(std::chrono::seconds(15)))
+			{
+				LogError("Timed out waiting for the program entry-point stop");
+				clearLaunchBootstrap();
+				m_connected = false;
+				m_mi->Stop();
+				m_mi.reset();
+				return false;
+			}
+		}
+	}
+
+	{
+		std::unique_lock lock(m_eventMutex);
+		if (m_localLaunchExited)
+		{
+			m_localLaunchBootstrap = false;
+			return true;
+		}
+		m_localLaunchBootstrap = false;
+		m_localLaunchStopped = false;
+	}
+
+	// Publish only the final stop (normally the relocated ELF entry point) to the
+	// controller. The internal starti stop remains invisible to the UI.
+	ScheduleStateRefresh();
+
+	return true;
 }
+
 bool GdbMiAdapter::Attach(uint32_t) {
 	InvalidateCache();
 	auto settings = GetAdapterSettings();
@@ -1544,6 +1939,20 @@ void GdbMiAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 	if (scope != SettingsResourceScope)
 		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
 
+	scope = SettingsResourceScope;
+	adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
+	if (scope != SettingsResourceScope)
+		adapterSettings->Set("launch.executablePath", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
+}
+
+bool GdbMiAdapterType::CanExecute(BinaryView* data)
+{
+#ifdef __linux__
+	return data && data->GetTypeName() == "ELF";
+#else
+	(void)data;
+	return false;
+#endif
 }
 
 Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
@@ -1552,7 +1961,7 @@ Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
     settings->SetResourceId("gdb_mi_adapter_settings");
     settings->RegisterSetting("gdb.path", R"({
         "title": "Full GDB Executable Path",
-        "type": "string", "default": "/usr/bin/gdb-multiarch",
+        "type": "string", "default": "/usr/bin/gdb",
         "description": "Path to the GDB executable e.g., gdb-multiarch, arm-none-eabi-gdb.",
         "uiSelectionAction": "file"
     })");
@@ -1564,6 +1973,33 @@ Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
 			"description" : "Input file to use to find the base address of the binary view",
 			"readOnly" : false,
 			"uiSelectionAction" : "file"
+			})");
+
+	settings->RegisterSetting("launch.executablePath",
+		R"({
+			"title" : "Executable Path",
+			"type" : "string",
+			"default" : "",
+			"description" : "Path of the executable to launch for local debugging.",
+			"readOnly" : false,
+			"uiSelectionAction" : "file"
+			})");
+	settings->RegisterSetting("launch.workingDirectory",
+			R"({
+			"title" : "Working Directory",
+			"type" : "string",
+			"default" : "",
+			"description" : "Working directory to launch the target in.",
+			"readOnly" : false,
+			"uiSelectionAction" : "directory"
+			})");
+	settings->RegisterSetting("launch.commandLineArguments",
+			R"({
+			"title" : "Command Line Arguments",
+			"type" : "string",
+			"default" : "",
+			"description" : "Command line arguments to pass to the target.",
+			"readOnly" : false
 			})");
 
 	settings->RegisterSetting("connect.ipAddress",
