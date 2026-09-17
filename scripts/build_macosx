@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-export PATH=/usr/local/bin:~/Library/Python/3.9/bin:$PATH
+export PATH=/usr/local/bin:$PATH
 export PYTHONUNBUFFERED=1
 export POETRY_VIRTUALENVS_IN_PROJECT=1
 # An inherited environment must not override the project-local interpreter.
@@ -8,6 +8,13 @@ unset VIRTUAL_ENV CONDA_PREFIX POETRY_ACTIVE
 ci_python=$(bash "$(dirname "$0")/select_ci_python.sh")
 echo "Selected CI Python: $ci_python"
 "$ci_python" --version
-poetry env use "$ci_python"
-poetry install --sync --no-root
-poetry run python scripts/build.py "$@"
+# The worker's `poetry` executable can itself use Python 3.9 and reject this
+# project before `env use` executes. Bootstrap the tool under the selected Python
+# in a separate workspace-local environment, without changing the worker's tools.
+ci_poetry_dir="$PWD/.ci-poetry"
+"$ci_python" -I -m venv "$ci_poetry_dir"
+"$ci_poetry_dir/bin/python" -I -m pip install --disable-pip-version-check 'poetry==2.4.1'
+"$ci_poetry_dir/bin/python" -I -m poetry --version
+"$ci_poetry_dir/bin/python" -I -m poetry env use "$ci_python"
+"$ci_poetry_dir/bin/python" -I -m poetry install --sync --no-root
+"$ci_poetry_dir/bin/python" -I -m poetry run python scripts/build.py "$@"

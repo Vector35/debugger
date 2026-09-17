@@ -1,5 +1,6 @@
 # Prerequisites
 .venv/
+.ci-poetry/
 *.d
 
 # Compiled Object files
