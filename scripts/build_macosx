@@ -2,5 +2,12 @@
 set -e
 export PATH=/usr/local/bin:~/Library/Python/3.9/bin:$PATH
 export PYTHONUNBUFFERED=1
+export POETRY_VIRTUALENVS_IN_PROJECT=1
+# An inherited environment must not override the project-local interpreter.
+unset VIRTUAL_ENV CONDA_PREFIX POETRY_ACTIVE
+ci_python=$(bash "$(dirname "$0")/select_ci_python.sh")
+echo "Selected CI Python: $ci_python"
+"$ci_python" --version
+poetry env use "$ci_python"
 poetry install --sync --no-root
-poetry run python3 scripts/build.py "$@"
+poetry run python scripts/build.py "$@"

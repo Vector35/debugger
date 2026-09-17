@@ -13,6 +13,12 @@ select it with `poetry env use /path/to/python3.12`, then run `poetry install --
 On Windows use `poetry run python`, not `poetry run py -3`: the Windows launcher can
 select a different interpreter without the installed test dependencies.
 
+The macOS launcher explicitly selects Python before `poetry install` and uses a
+project-local `.venv`, matching Binary Ninja's CI environment layout. It probes
+versioned executables on PATH and standard Homebrew/python.org installation paths.
+Set `DEBUGGER_CI_PYTHON=/absolute/path/to/python3.12` to select a worker-specific
+interpreter; an invalid or unsupported override fails before Poetry or the build runs.
+
 ```zsh
 cd test
 python3 debugger_test.py
