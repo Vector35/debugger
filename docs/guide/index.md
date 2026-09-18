@@ -950,6 +950,7 @@ If you encounter a bug, please file [an issue](https://github.com/Vector35/debug
 
 Vector 35 is grateful for the following open-source or redistributable packages that are used in Binary Ninja debugger:
 
+- [FlatBuffers](https://github.com/google/flatbuffers) ([Apache 2.0 License](https://github.com/google/flatbuffers/blob/master/LICENSE))
 - [fmt](https://github.com/fmtlib/fmt) ([fmt license](https://github.com/fmtlib/fmt/blob/master/LICENSE) - MIT)
 - [GDB](https://www.gnu.org/software/gdb) ([GPLv3](https://www.gnu.org/licenses/gpl-3.0.html))
 - [LLDB](https://lldb.llvm.org/) ([Apache 2.0 License with LLVM exceptions](https://llvm.org/docs/DeveloperPolicy.html#new-llvm-project-license-framework))
