@@ -129,6 +129,24 @@ if(NOT LLDB_PATH)
 endif()
 message(STATUS "lldb: using install at ${LLDB_PATH}")
 
+if(DEFINED ENV{GDB_PATH})
+	set(GDB_PATH $ENV{GDB_PATH})
+endif()
+
+if(GDB_PATH)
+	if(NOT EXISTS "${GDB_PATH}/bin/gdb" AND NOT EXISTS "${GDB_PATH}/bin/gdb.exe")
+		message(FATAL_ERROR "GDB_PATH does not contain bin/gdb or bin/gdb.exe: ${GDB_PATH}")
+	endif()
+	message(STATUS "gdb: bundling install from ${GDB_PATH}")
+	file(
+		COPY "${GDB_PATH}/"
+		DESTINATION "${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb"
+		USE_SOURCE_PERMISSIONS
+	)
+else()
+	message(STATUS "gdb: no bundled install configured")
+endif()
+
 if (APPLE)
 	find_library(lib_lldb NAMES lldb.${LLVM_VERSION} lldb PATHS ${LLDB_PATH}/lib REQUIRED NO_DEFAULT_PATH)
 	target_link_libraries(debuggercore ${lib_lldb})

@@ -187,6 +187,24 @@ try:
 except StopIteration:
     pass
 
+try:
+    # Vector35/gdb-build publishes a consistent gdb/ tree for every host platform.
+    # Extract it beside the other external dependencies and let CMake copy it into the
+    # debugger plugin output.
+    gdb_artifact_candidates = list(external_artifacts_path.glob(
+        f'gdb_{normalized_platform()}_*.zip'))
+    gdb_artifact_path = next(iter(sorted(gdb_artifact_candidates, reverse=True)))
+    gdb_root = external_artifacts_path / 'gdb'
+    if gdb_root.exists():
+        remove_dir(gdb_root)
+    extract_zip(gdb_artifact_path, external_artifacts_path)
+    if not (gdb_root / 'bin' / ('gdb.exe' if sys.platform.startswith('win') else 'gdb')).exists():
+        print(f'GDB artifact has an unexpected layout: {gdb_artifact_path}')
+        sys.exit(1)
+    os.environ['GDB_PATH'] = str(gdb_root)
+except StopIteration:
+    print('No bundled GDB artifact found; building without a bundled GDB executable.')
+
 if not extract_zip(files[0], bn_dev_path):
     print('Failed to unzip binaryninja dev artifact')
     sys.exit(-1)
