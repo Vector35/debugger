@@ -22,9 +22,14 @@ git checkout dev
 
 - Build the debugger
 
+  FlatBuffers (needed for `X2WinRpcAdapter`'s wire protocol) is vendored as a git submodule
+  under `vendor/` and built as part of this project's own CMake configure/build -- no separate
+  install step needed, just make sure submodules are cloned (`--recurse-submodules` below, or
+  `git submodule update --init --recursive` after the fact).
+
 ```bash
 # Get the source
-git clone https://github.com/Vector35/debugger.git
+git clone --recurse-submodules https://github.com/Vector35/debugger.git
 
 # Do an out-of-source build
 mkdir -p build
@@ -47,6 +52,25 @@ The build artifacts will be in the folder `out`. You should find two files `libd
   - Set the environment variable `BN_STANDALONE_DEBUGGER=1`
   - Launch BinaryNinja
 
+
+## Windows Remote Debug Server
+
+Windows builds include `windows-debug-server.exe` for Windows user-mode remote debugging from Linux, macOS, or Windows.
+It is built and packaged with the debugger; it is not built on Linux or macOS. To build just the server from an already
+configured Windows build directory, run:
+
+```powershell
+cmake --build build --config RelWithDebInfo --target x2winstub
+```
+
+The internal CMake target remains `x2winstub`, but the executable is named `windows-debug-server.exe`.
+In a standalone Ninja build it is under `build/out/plugins`; multi-configuration generators such as Visual Studio
+place it under `build/out/plugins/RelWithDebInfo`. Internal Binary Ninja builds place it in `BN_CORE_PLUGIN_DIR`.
+The Windows package includes the executable in its `plugins` directory. Copy it to the Windows host to run it;
+running the server does not require installing Binary Ninja there.
+
+See the [Windows Remote guide](docs/guide/remote-debugging.md#windows-remote-debugging) for connection and launch steps,
+and [integration test instructions](test/README.md#windows-remote-integration-tests) for testing it locally on Windows.
 
 ## Notes:
 

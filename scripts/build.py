@@ -11,7 +11,14 @@ import glob
 import platform
 from pathlib import Path
 
+# Fail before downloading/building or entering Binary Ninja's plugin loader. Its
+# unsupported-interpreter path can retain the GIL and deadlock the calling process.
+if not ((3, 10) <= sys.version_info[:2] < (3, 15)):
+    sys.exit('Debugger CI requires Python 3.10–3.14. Select a supported interpreter with '
+             '`poetry env use /path/to/python3.12`, then rerun the build.')
+
 from target_llvm_version import llvm_version, msvc_build, vs_version
+from test_process import run_tests
 
 qt_version = "6.11.1"
 
@@ -286,7 +293,9 @@ with zipfile.ZipFile(artifact_path / f'debugger-{normalized_platform()}.zip', 'w
 
 
 print("\nRunning unit tests")
+print('Test interpreter:', sys.executable, sys.version, flush=True)
 env = os.environ.copy()
+env['PYTHONUNBUFFERED'] = '1'
 env["BN_DISABLE_USER_SETTINGS"] = "true"
 env["BN_USER_DIRECTORY"] = str(build_output_path)
 env["BN_STANDALONE_DEBUGGER"] = "true"
@@ -319,13 +328,17 @@ if os.path.exists(results):
     os.unlink(results)
 
 pytest_sources = [
-    str(base_dir / "test" / "debugger_test.py")
+    str(base_dir / "test" / "debugger_test.py"),
+    str(base_dir / "test" / "attach_timeout_test.py"),
+    str(base_dir / "test" / "ci_launcher_test.py"),
 ]
+if platform.system() == "Windows":
+    # Exercise the just-built Windows Remote server locally on the Windows worker.
+    # An explicit path prevents accidentally testing an installed/stale server.
+    env["WINDOWS_REMOTE_SERVER_PATH"] = str(build_output_path / "plugins" / "windows-debug-server.exe")
+    pytest_sources.append(str(base_dir / "test" / "x2winrpc_test.py"))
 
 
-p = subprocess.Popen(["pytest", "-s", "--junitxml", str(results)] + pytest_sources, env=env)
-# wait for process to complete
-p_stdout, p_stderr = p.communicate()
-assert 0 <= p.returncode < 128, f"test run failed: {p_stdout} {p_stderr}"
-
-sys.exit(0)
+# Supervise outside pytest so blocked native calls and interpreter shutdown are bounded.
+sys.exit(run_tests([sys.executable, '-m', 'pytest', '-s',
+                    '--junitxml', str(results)] + pytest_sources, env))
