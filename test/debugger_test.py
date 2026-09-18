@@ -6,8 +6,10 @@ import os
 import sys
 import time
 import platform
+import shutil
 import threading
 import subprocess
+import tempfile
 import unittest
 
 from binaryninja import load, Settings
@@ -633,6 +635,64 @@ class DebuggerAPI(unittest.TestCase):
         worker = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'attach_test_runner.py')
         run_attach_test([fpath], lambda pid: [sys.executable, worker, fpath, str(pid),
                                             self.adapter_type or ''], timeout=60)
+
+
+@unittest.skipUnless(platform.system() == 'Linux', 'GDB MI local launch is only supported on Linux')
+class GdbMiLinuxTest(DebuggerAPI):
+    def setUp(self) -> None:
+        self.arch = 'arm64' if platform.machine() in ['arm64', 'aarch64'] else platform.machine()
+        self.adapter_type = 'GDB MI'
+
+    def create_debugger(self, bv):
+        dbg = super().create_debugger(bv)
+
+        # Debugger settings are registered lazily when the first controller is
+        # constructed, so configure them here rather than in setUp.
+        if not hasattr(self, '_entry_settings_configured'):
+            settings = Settings()
+            previous_system_entry = settings.get_bool('debugger.stopAtSystemEntryPoint')
+            previous_program_entry = settings.get_bool('debugger.stopAtEntryPoint')
+            self.assertTrue(settings.set_bool('debugger.stopAtSystemEntryPoint', False))
+            self.assertTrue(settings.set_bool('debugger.stopAtEntryPoint', True))
+            self.addCleanup(settings.set_bool, 'debugger.stopAtEntryPoint', previous_program_entry)
+            self.addCleanup(settings.set_bool, 'debugger.stopAtSystemEntryPoint', previous_system_entry)
+            self._entry_settings_configured = True
+
+        return dbg
+
+    def test_local_launch_stops_at_stripped_pie_entry_point(self):
+        gdb_path = shutil.which('gdb')
+        strip_path = shutil.which('strip')
+        if gdb_path is None:
+            self.skipTest('gdb is not installed')
+        if strip_path is None:
+            self.skipTest('strip is not installed')
+
+        source_path = name_to_fpath('helloworld_pie', self.arch)
+        if not os.path.exists(source_path):
+            self.skipTest('PIE test binary not built (configure with -DBUILD_DEBUGGER_TEST_BINARIES=ON)')
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stripped_path = os.path.join(temp_dir, 'helloworld_pie_stripped')
+            shutil.copy2(source_path, stripped_path)
+            subprocess.run([strip_path, '--strip-all', stripped_path], check=True)
+
+            bv = load(stripped_path)
+            dbg = self.create_debugger(bv)
+            dbg.executable_path = stripped_path
+            dbg.set_adapter_property('gdb.path', gdb_path)
+
+            try:
+                reason = dbg.launch_and_wait(20000)
+                self.assertEqual(reason, DebugStopReason.Breakpoint)
+
+                remote_base = dbg.get_remote_base()
+                self.assertIsNotNone(remote_base)
+                expected_entry = remote_base + (bv.entry_point - bv.start)
+                self.assertEqual(dbg.ip, expected_entry)
+            finally:
+                if dbg.connected:
+                    dbg.quit_and_wait()
 
 
 @unittest.skipIf(platform.machine() not in ['arm64', 'aarch64'], "Only run arm64 tests on arm Mac or Linux")
