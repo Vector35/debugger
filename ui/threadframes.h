@@ -175,6 +175,9 @@ class ThreadFramesWidget : public QTreeView
 
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 	bool selectionNotEmpty();
+	// The address the current column of the selected frame navigates to (PC/SP/FP), or
+	// false if the selection is not a navigable frame cell.
+	bool navigationAddressForSelection(uint64_t& addr);
 	bool canSuspendOrResume();
 	void expandCurrentThread();
 	void updateContent();
@@ -193,6 +196,7 @@ public:
 
 private slots:
 	void onDoubleClicked();
+	void navigateInCurrentPane();
 	void suspendThread();
 	void resumeThread();
 	void makeItSoloThread();
