@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
+# Enable CMP0091 before project() so targets can select their MSVC runtime.
+# The Windows remote server uses the static runtime; other targets keep the default.
+cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 project(debugger)
 

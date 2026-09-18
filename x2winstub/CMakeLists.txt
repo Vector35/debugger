@@ -9,19 +9,19 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Only meaningful for MSVC-ABI-compatible compilers (cl/clang-cl); silently ignored otherwise, so
-# guarding it isn't strictly required, but MinGW-w64 doesn't use /MT-style runtime selection at
-# all and this being unconditional read as "x2winstub still needs MSVC" even after it no longer does.
-if(MSVC)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-endif()
-
 add_executable(x2winstub
     main.cpp
     net/connection.cpp
     debug/windows_debug_engine.cpp
     x2win_session.cpp
 )
+
+# Ship a standalone server without requiring the Visual C++ Redistributable.
+# Scope this to the server, not flatc or the debugger plugin targets.
+if(MSVC)
+    set_property(TARGET x2winstub PROPERTY
+        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 # Keep the internal target stable while giving the shipped tool a user-facing name.
 set_target_properties(x2winstub PROPERTIES OUTPUT_NAME "windows-debug-server")
