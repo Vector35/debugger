@@ -2,10 +2,11 @@
 //
 // This replaces the freestyle "debugger-dev" multi-configuration job.
 //
-// Three prebuilt deps are dropped into ./artifacts-extern where scripts/build.py finds them:
+// Four prebuilt deps are dropped into ./artifacts-extern where scripts/build.py finds them:
 //   * Qt              (qt_<os>_*.zip,   from Qt/qt-main-pipeline)     -- commit-matched
 //   * LLDB            (lldb_<os>_*.zip, from LLVM/llvm-main-pipeline) -- commit-matched
 //   * binaryninja dev (binaryninja_<os>_*.zip)                       -- lastSuccessful (latest dev)
+//   * GDB             (gdb_<os>_*.zip, from debugger/gdb-build)     -- last successful with artifact
 //
 // Qt and LLDB are commit-matched by reusing the copyExternalArtifactsEx shared library, the
 // same one the binaryninja pipeline uses. binja feeds it commits from its llvm-build /
@@ -122,6 +123,19 @@ void copyExternalArtifacts(String os) {
         projectName: 'binaryninja-dev-pipeline',
         selector: lastSuccessfulWithArtifacts('binaryninja-dev-pipeline', binjaFilter),
         filter: binjaFilter,
+        flatten: true,
+        fingerprintArtifacts: true,
+        target: 'artifacts-extern'
+    )
+
+    // GDB is built independently from the pinned public recipe in Vector35/gdb-build. Select
+    // the newest successful build that contains this platform, since filtered gdb-build runs
+    // intentionally publish only one platform archive.
+    def gdbFilter = "gdb_${os}_*.zip"
+    copyArtifacts(
+        projectName: 'debugger/gdb-build',
+        selector: lastSuccessfulWithArtifacts('debugger/gdb-build', gdbFilter),
+        filter: gdbFilter,
         flatten: true,
         fingerprintArtifacts: true,
         target: 'artifacts-extern'

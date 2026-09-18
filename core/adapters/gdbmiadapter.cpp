@@ -3,6 +3,7 @@
 #include <charconv>
 #include <cinttypes>
 #include <cctype>
+#include <filesystem>
 #include "../debuggercontroller.h"
 #include "../../cli/log.h"
 
@@ -2106,6 +2107,25 @@ void GdbMiAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 	adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
 	if (scope != SettingsResourceScope)
 		adapterSettings->Set("launch.executablePath", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
+
+	scope = SettingsResourceScope;
+	adapterSettings->Get<std::string>("gdb.path", data, &scope);
+	if (scope != SettingsResourceScope)
+	{
+		std::filesystem::path pluginRoot;
+		if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
+			pluginRoot = GetUserPluginDirectory();
+		else
+			pluginRoot = GetBundledPluginDirectory();
+#ifdef WIN32
+		const auto executable = "gdb.exe";
+#else
+		const auto executable = "gdb";
+#endif
+		adapterSettings->Set("gdb.path", (pluginRoot / "gdb" / "bin" / executable).string(), data,
+			SettingsResourceScope);
+	}
+
 }
 
 bool GdbMiAdapterType::CanExecute(BinaryView* data)
@@ -2124,8 +2144,8 @@ Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
     settings->SetResourceId("gdb_mi_adapter_settings");
     settings->RegisterSetting("gdb.path", R"({
         "title": "Full GDB Executable Path",
-        "type": "string", "default": "/usr/bin/gdb",
-        "description": "Path to the GDB executable e.g., gdb-multiarch, arm-none-eabi-gdb.",
+		"type": "string", "default": "",
+		"description": "Path to the GDB executable. Defaults to the GDB bundled with the debugger; set this to use a different GDB build.",
         "uiSelectionAction": "file"
     })");
 	settings->RegisterSetting("common.inputFile",
