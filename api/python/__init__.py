@@ -25,8 +25,10 @@ if os.environ.get('BN_STANDALONE_DEBUGGER'):
         from .debuggercontroller import *
         from .debugadaptertype import *
         from .debugger_enums import *
+        from .ttdbehavior import *
 else:
     if Settings().get_bool('corePlugins.debugger') and (os.environ.get('BN_DISABLE_CORE_DEBUGGER') is None):
         from .debuggercontroller import *
         from .debugadaptertype import *
         from .debugger_enums import *
+        from .ttdbehavior import *
