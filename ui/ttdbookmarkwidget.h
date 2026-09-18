@@ -49,16 +49,23 @@ class TTDBookmarkEditDialog : public QDialog
 	Q_OBJECT
 
 public:
+	// If a controller is provided, an empty note is auto-filled with a description of the view address
 	TTDBookmarkEditDialog(QWidget* parent, const QString& position = "", const QString& note = "",
-		const QString& viewAddress = "");
+		const QString& viewAddress = "", DbgRef<DebuggerController> controller = nullptr);
 	QString getPosition() const;
 	QString getNote() const;
 	QString getViewAddress() const;
 
 private:
+	DbgRef<DebuggerController> m_controller;
 	QLineEdit* m_positionEdit;
 	QLineEdit* m_noteEdit;
 	QLineEdit* m_viewAddressEdit;
+	// Once the user types into the note field, we stop overwriting it
+	bool m_noteEdited;
+
+	QString getDefaultNote();
+	void updateAutoNote();
 };
 
 

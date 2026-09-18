@@ -27,11 +27,117 @@ static uint64_t PositionSortValue(const TTDPosition& position)
 }
 
 
+// Parses a hex address, with or without the 0x prefix. Returns 0 if the text cannot be parsed
+static uint64_t ParseHexAddress(const QString& text)
+{
+	QString clean = text.trimmed();
+	if (clean.isEmpty())
+		return 0;
+
+	if (clean.startsWith("0x") || clean.startsWith("0X"))
+		clean = clean.mid(2);
+
+	bool ok;
+	uint64_t address = clean.toULongLong(&ok, 16);
+	return ok ? address : 0;
+}
+
+
+static QString FormatTTDPosition(const TTDPosition& position)
+{
+	return QString("%1:%2").arg(position.sequence, 0, 16).arg(position.step, 0, 16);
+}
+
+
+// Parses a "sequence:step" position, both in hex. Returns false if the text cannot be parsed
+static bool ParseTTDPositionText(const QString& text, TTDPosition& result)
+{
+	QStringList parts = text.trimmed().split(':');
+	if (parts.size() != 2)
+		return false;
+
+	bool ok1, ok2;
+	uint64_t sequence = parts[0].toULongLong(&ok1, 16);
+	uint64_t step = parts[1].toULongLong(&ok2, 16);
+	if (!ok1 || !ok2)
+		return false;
+
+	result = TTDPosition(sequence, step);
+	return true;
+}
+
+
+static QString FlattenTokens(const std::vector<InstructionTextToken>& tokens)
+{
+	QString result;
+	for (const auto& token : tokens)
+		result += QString::fromStdString(token.text);
+
+	// The tokens are padded so that the operands line up in the disassembly view, which we do not want here
+	return result.simplified();
+}
+
+
+// Returns the text of the instruction at the given address, rendered the same way the disassembly view renders it,
+// e.g., "call sub_140001000". Returns an empty string if the address cannot be read or disassembled
+static QString GetInstructionTextAtAddress(BinaryViewRef data, uint64_t address)
+{
+	if (!data || (address == 0))
+		return "";
+
+	auto functions = data->GetAnalysisFunctionsContainingAddress(address);
+	if (functions.empty() || !functions[0])
+		return "";
+
+	// Passing no settings makes the renderer use the default disassembly settings
+	Ref<DisassemblyTextRenderer> renderer = new DisassemblyTextRenderer(functions[0]);
+
+	size_t length = 0;
+	std::vector<DisassemblyTextLine> lines;
+	if (!renderer->GetDisassemblyText(address, length, lines) || lines.empty())
+		return "";
+
+	return FlattenTokens(lines[0].tokens);
+}
+
+
+// Returns a description of the given address that does not depend on the memory contents at any particular TTD
+// position, e.g., "sub_140001000+0x12". Returns an empty string if nothing is known about the address
+static QString GetSymbolTextAtAddress(BinaryViewRef data, uint64_t address)
+{
+	if (!data || (address == 0))
+		return "";
+
+	SymbolRef symbol;
+	uint64_t start = address;
+
+	auto functions = data->GetAnalysisFunctionsContainingAddress(address);
+	if (!functions.empty() && functions[0])
+	{
+		symbol = functions[0]->GetSymbol();
+		start = functions[0]->GetStart();
+	}
+	else if ((symbol = data->GetSymbolByAddress(address)))
+	{
+		start = symbol->GetAddress();
+	}
+
+	if (!symbol)
+		return "";
+
+	QString result = QString::fromStdString(symbol->GetShortName());
+	if (address > start)
+		result += QString("+0x%1").arg(address - start, 0, 16);
+
+	return result;
+}
+
+
 // TTDBookmarkEditDialog implementation
 
 TTDBookmarkEditDialog::TTDBookmarkEditDialog(QWidget* parent, const QString& position, const QString& note,
-	const QString& viewAddress)
-	: QDialog(parent)
+	const QString& viewAddress, DbgRef<DebuggerController> controller)
+	: QDialog(parent), m_controller(controller), m_noteEdited(!note.isEmpty())
 {
 	setWindowTitle(position.isEmpty() ? "Add TTD Bookmark" : "Edit TTD Bookmark");
 	setModal(true);
@@ -54,6 +160,14 @@ TTDBookmarkEditDialog::TTDBookmarkEditDialog(QWidget* parent, const QString& pos
 	m_noteEdit->setMinimumWidth(400);
 	layout->addRow("Note:", m_noteEdit);
 
+	// Pre-fill the note with the instruction at the view address, so the bookmark is meaningful without the user
+	// having to type anything. Keep it in sync while the user edits the position or the view address, until they
+	// edit the note themselves, at which point the tooltip no longer describes what is in the field
+	connect(m_noteEdit, &QLineEdit::textEdited, this, [&]() { m_noteEdited = true; m_noteEdit->setToolTip(""); });
+	connect(m_positionEdit, &QLineEdit::textEdited, this, [&]() { updateAutoNote(); });
+	connect(m_viewAddressEdit, &QLineEdit::textEdited, this, [&]() { updateAutoNote(); });
+	updateAutoNote();
+
 	auto buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 	connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
 	connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
@@ -62,6 +176,48 @@ TTDBookmarkEditDialog::TTDBookmarkEditDialog(QWidget* parent, const QString& pos
 	// Focus the note field by default
 	m_noteEdit->setFocus();
 	m_noteEdit->selectAll();
+}
+
+QString TTDBookmarkEditDialog::getDefaultNote()
+{
+	m_noteEdit->setToolTip("");
+
+	if (!m_controller)
+		return "";
+
+	BinaryViewRef data = m_controller->GetData();
+	uint64_t address = ParseHexAddress(m_viewAddressEdit->text());
+	if (!data || (address == 0))
+		return "";
+
+	QString note = GetInstructionTextAtAddress(data, address);
+	if (note.isEmpty())
+		return GetSymbolTextAtAddress(data, address);
+
+	if (!m_controller->IsConnected() || !m_controller->IsTTD())
+		return note;
+
+	// The instruction is disassembled from the memory the target has right now, i.e., at the current position. If the
+	// bookmark is for a different position, the code at this address may have been different back then, so say which
+	// position the disassembly is from and explain it in the tooltip
+	TTDPosition current = m_controller->GetCurrentTTDPosition();
+	TTDPosition position;
+	if (ParseTTDPositionText(m_positionEdit->text(), position) && (position == current))
+		return note;
+
+	m_noteEdit->setToolTip(QString("The instruction is disassembled from the memory of the target at the current "
+		"position %1, which is not the position being bookmarked. If the code at this address changed in between, "
+		"this is not the instruction that executed at the bookmarked position.").arg(FormatTTDPosition(current)));
+
+	return note + QString(" (disassembled at %1)").arg(FormatTTDPosition(current));
+}
+
+void TTDBookmarkEditDialog::updateAutoNote()
+{
+	if (m_noteEdited)
+		return;
+
+	m_noteEdit->setText(getDefaultNote());
 }
 
 QString TTDBookmarkEditDialog::getPosition() const { return m_positionEdit->text().trimmed(); }
@@ -212,7 +368,7 @@ void TTDBookmarkWidget::refreshTable()
 
 		m_resultsTable->setItem(i, IndexColumn, new NumericalTableWidgetItem(QString::number(i + 1), i + 1));
 
-		QString posStr = QString("%1:%2").arg(bookmark.position.sequence, 0, 16).arg(bookmark.position.step, 0, 16);
+		QString posStr = FormatTTDPosition(bookmark.position);
 		m_resultsTable->setItem(i, PositionColumn, new NumericalTableWidgetItem(posStr, PositionSortValue(bookmark.position)));
 
 		if (bookmark.viewAddress != 0)
@@ -334,7 +490,7 @@ void TTDBookmarkWidget::showContextMenu(const QPoint& position)
 
 void TTDBookmarkWidget::addBookmarkFromDialog()
 {
-	TTDBookmarkEditDialog dialog(this);
+	TTDBookmarkEditDialog dialog(this, "", "", "", m_controller);
 	if (dialog.exec() != QDialog::Accepted)
 		return;
 
@@ -356,20 +512,8 @@ void TTDBookmarkWidget::addBookmarkFromDialog()
 		return;
 	}
 
-	uint64_t viewAddress = 0;
-	QString viewAddrStr = dialog.getViewAddress();
-	if (!viewAddrStr.isEmpty())
-	{
-		QString cleanText = viewAddrStr.trimmed();
-		if (cleanText.startsWith("0x") || cleanText.startsWith("0X"))
-			cleanText = cleanText.mid(2);
-		bool ok;
-		viewAddress = cleanText.toULongLong(&ok, 16);
-		if (!ok)
-			viewAddress = 0;
-	}
-
-	addBookmark(TTDPosition(sequence, step), dialog.getNote().toStdString(), viewAddress);
+	addBookmark(TTDPosition(sequence, step), dialog.getNote().toStdString(),
+		ParseHexAddress(dialog.getViewAddress()));
 }
 
 void TTDBookmarkWidget::addBookmarkFromCurrentPosition()
@@ -395,10 +539,10 @@ void TTDBookmarkWidget::addBookmarkFromCurrentPosition()
 		viewAddress = frame->getCurrentOffset();
 
 	// Show dialog pre-filled with current position
-	QString posStr = QString("%1:%2").arg(currentPos.sequence, 0, 16).arg(currentPos.step, 0, 16);
+	QString posStr = FormatTTDPosition(currentPos);
 	QString viewAddrStr = viewAddress != 0 ? QString("0x%1").arg(viewAddress, 0, 16) : "";
 
-	TTDBookmarkEditDialog dialog(this, posStr, "", viewAddrStr);
+	TTDBookmarkEditDialog dialog(this, posStr, "", viewAddrStr, m_controller);
 	if (dialog.exec() == QDialog::Accepted)
 	{
 		// Re-parse in case user edited the position
@@ -410,21 +554,8 @@ void TTDBookmarkWidget::addBookmarkFromCurrentPosition()
 			uint64_t seq = parts[0].toULongLong(&ok1, 16);
 			uint64_t stp = parts[1].toULongLong(&ok2, 16);
 			if (ok1 && ok2)
-			{
-				uint64_t addr = 0;
-				QString addrStr = dialog.getViewAddress();
-				if (!addrStr.isEmpty())
-				{
-					QString clean = addrStr.trimmed();
-					if (clean.startsWith("0x") || clean.startsWith("0X"))
-						clean = clean.mid(2);
-					bool ok;
-					addr = clean.toULongLong(&ok, 16);
-					if (!ok)
-						addr = 0;
-				}
-				addBookmark(TTDPosition(seq, stp), dialog.getNote().toStdString(), addr);
-			}
+				addBookmark(TTDPosition(seq, stp), dialog.getNote().toStdString(),
+					ParseHexAddress(dialog.getViewAddress()));
 		}
 	}
 }
@@ -445,10 +576,10 @@ void TTDBookmarkWidget::editSelectedBookmark()
 		return;
 
 	const auto& bookmark = m_bookmarks[bookmarkIndex];
-	QString posStr = QString("%1:%2").arg(bookmark.position.sequence, 0, 16).arg(bookmark.position.step, 0, 16);
+	QString posStr = FormatTTDPosition(bookmark.position);
 	QString viewAddrStr = bookmark.viewAddress != 0 ? QString("0x%1").arg(bookmark.viewAddress, 0, 16) : "";
 
-	TTDBookmarkEditDialog dialog(this, posStr, QString::fromStdString(bookmark.note), viewAddrStr);
+	TTDBookmarkEditDialog dialog(this, posStr, QString::fromStdString(bookmark.note), viewAddrStr, m_controller);
 	if (dialog.exec() != QDialog::Accepted)
 		return;
 
@@ -463,20 +594,8 @@ void TTDBookmarkWidget::editSelectedBookmark()
 	if (!ok1 || !ok2)
 		return;
 
-	uint64_t addr = 0;
-	QString addrStr = dialog.getViewAddress();
-	if (!addrStr.isEmpty())
-	{
-		QString clean = addrStr.trimmed();
-		if (clean.startsWith("0x") || clean.startsWith("0X"))
-			clean = clean.mid(2);
-		bool ok;
-		addr = clean.toULongLong(&ok, 16);
-		if (!ok)
-			addr = 0;
-	}
-
-	updateBookmark(bookmarkIndex, TTDPosition(seq, stp), dialog.getNote().toStdString(), addr);
+	updateBookmark(bookmarkIndex, TTDPosition(seq, stp), dialog.getNote().toStdString(),
+		ParseHexAddress(dialog.getViewAddress()));
 }
 
 void TTDBookmarkWidget::removeSelectedBookmark()
