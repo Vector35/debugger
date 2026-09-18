@@ -72,6 +72,19 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 	m_splitter->setChildrenCollapsible(true);
 
 	m_controlsWidget = new DebugControlsWidget(this, "Controls", data);
+	m_ttdNavigationWidget = new TTDNavigationWidget(this, data);
+
+	// The controls and the TTD navigation widget form a single pane of the splitter so that the
+	// navigation widget always sits directly underneath the control buttons. The pane hugs its
+	// contents the way the bare toolbar used to, rather than growing into the space the tabs
+	// below should be getting.
+	QWidget* controlsContainer = new QWidget(this);
+	controlsContainer->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+	QVBoxLayout* controlsLayout = new QVBoxLayout(controlsContainer);
+	controlsLayout->setContentsMargins(0, 0, 0, 0);
+	controlsLayout->setSpacing(0);
+	controlsLayout->addWidget(m_controlsWidget);
+	controlsLayout->addWidget(m_ttdNavigationWidget);
 
 	m_tabs = new QTabWidget(this);
 
@@ -81,8 +94,10 @@ DebuggerWidget::DebuggerWidget(const QString& name, ViewFrame* view, BinaryViewR
 	m_tabs->addTab(m_registersWidget, "Registers");
 	m_tabs->addTab(m_breakpointsWidget, "Breakpoints");
 
-	m_splitter->addWidget(m_controlsWidget);
+	m_splitter->addWidget(controlsContainer);
 	m_splitter->addWidget(m_tabs);
+	m_splitter->setStretchFactor(0, 0);
+	m_splitter->setStretchFactor(1, 1);
 
 	layout->addWidget(m_splitter);
 	setLayout(layout);
@@ -102,6 +117,12 @@ void DebuggerWidget::notifyFontChanged()
 }
 
 
+void DebuggerWidget::notifyViewLocationChanged(View* view, const ViewLocation& viewLocation)
+{
+	m_ttdNavigationWidget->updateTargetFromView(view);
+}
+
+
 void DebuggerWidget::updateContent()
 {
 	m_registersWidget->updateContent();
@@ -111,7 +132,8 @@ void DebuggerWidget::updateContent()
 void DebuggerWidget::uiEventHandler(const DebuggerEvent& event)
 {
 	m_controlsWidget->updateButtons();
-	
+	m_ttdNavigationWidget->updateState();
+
 	// Enable adapter selector only when not connected
 	DebugAdapterConnectionStatus connection = m_controller->GetConnectionStatus();
 	if (m_adapterSelector->count() > 0 && m_adapterSelector->currentText() != "(No available debug adapter)")
