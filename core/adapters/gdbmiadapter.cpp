@@ -419,58 +419,8 @@ bool GdbMiAdapter::RunMonitorCommand(const std::string& command) const
     return (result.command == "done");
 }
 
-bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
-    auto settings = GetAdapterSettings();
-    BNSettingsScope scope = SettingsResourceScope;
-    auto data = GetData();
-    auto gdbPath = settings->Get<std::string>("gdb.path", data, &scope);
-    scope = SettingsResourceScope;
-    auto symbolFile = settings->Get<std::string>("gdb.symbolFile", data, &scope);
-    scope = SettingsResourceScope;
-    auto inputFile = settings->Get<std::string>("common.inputFile", data, &scope);
-	scope = SettingsResourceScope;
-	auto ipAddress = settings->Get<std::string>("connect.ipAddress", data, &scope);
-	scope = SettingsResourceScope;
-	auto serverPort = static_cast<uint32_t>(settings->Get<uint64_t>("connect.port", data, &scope));
-	if (ipAddress.empty() || serverPort == 0)
-	{
-		LogError("Missing connection settings for restart.");
-		return false;
-	}
-
-    m_connected = false;
-
-    if (gdbPath.empty()) return false;
-
-    if (inputFile.empty()) inputFile = symbolFile;
-
-    m_mi = std::make_unique<GdbMiConnector>(gdbPath, inputFile);
-    
-    // Set up async callback BEFORE starting GDB to avoid race conditions
-    m_mi->SetAsyncCallback([this](const MiRecord& record){ this->AsyncRecordHandler(record); });
-
-    if (!m_mi->Start()) return false;
-
-    m_mi->SendCommand("-gdb-set mi-async on");
-    m_mi->SendCommand("-gdb-set pagination off");
-    m_mi->SendCommand("-gdb-set confirm off");
-    m_mi->SendCommand("-enable-frame-filters");
-    m_mi->SendCommand("-interpreter-exec console \"add-symbol-file "+symbolFile+"\"");
-
-    m_mi->SendCommand("-file-exec-file " + inputFile);
-	// TODO: we should offer an option on whether or not to connect in extended mode
-    std::string connectCmd = "-target-select remote " + ipAddress + ":" + std::to_string(serverPort);
-	
-    auto result = m_mi->SendCommand(connectCmd, 1000);
-    m_connected = (result.command == "connected");
-	if (!m_connected)
-	{
-        LogError("Failed to connect to target");
-		m_mi->Stop();
-		m_mi.reset();
-		return false;
-	}
-    
+bool GdbMiAdapter::StartGdbAndDetectArch(const std::string& gdbPath, const std::string& inputFile, const std::string& symbolFile)
+{
 	// Get architecture and register setup
 	LogInfo("Detecting target architecture...");
 
@@ -644,6 +594,65 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
 		}
 	}
 
+	return true;
+}
+
+bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
+    auto settings = GetAdapterSettings();
+    BNSettingsScope scope = SettingsResourceScope;
+    auto data = GetData();
+    auto gdbPath = settings->Get<std::string>("gdb.path", data, &scope);
+    scope = SettingsResourceScope;
+    auto symbolFile = settings->Get<std::string>("gdb.symbolFile", data, &scope);
+    scope = SettingsResourceScope;
+    auto inputFile = settings->Get<std::string>("common.inputFile", data, &scope);
+	scope = SettingsResourceScope;
+	auto ipAddress = settings->Get<std::string>("connect.ipAddress", data, &scope);
+	scope = SettingsResourceScope;
+	auto serverPort = static_cast<uint32_t>(settings->Get<uint64_t>("connect.port", data, &scope));
+	if (ipAddress.empty() || serverPort == 0)
+	{
+		LogError("Missing connection settings for restart.");
+		return false;
+	}
+
+    m_connected = false;
+    m_isLocalSession = false;
+
+    if (gdbPath.empty()) return false;
+
+    if (inputFile.empty()) inputFile = symbolFile;
+
+    m_mi = std::make_unique<GdbMiConnector>(gdbPath, inputFile);
+
+    // Set up async callback BEFORE starting GDB to avoid race conditions
+    m_mi->SetAsyncCallback([this](const MiRecord& record){ this->AsyncRecordHandler(record); });
+
+    if (!m_mi->Start()) return false;
+
+    m_mi->SendCommand("-gdb-set mi-async on");
+    m_mi->SendCommand("-gdb-set pagination off");
+    m_mi->SendCommand("-gdb-set confirm off");
+    m_mi->SendCommand("-enable-frame-filters");
+    m_mi->SendCommand("-interpreter-exec console \"add-symbol-file "+symbolFile+"\"");
+
+    m_mi->SendCommand("-file-exec-file " + inputFile);
+	// TODO: we should offer an option on whether or not to connect in extended mode
+    std::string connectCmd = "-target-select remote " + ipAddress + ":" + std::to_string(serverPort);
+
+    auto result = m_mi->SendCommand(connectCmd, 1000);
+    m_connected = (result.command == "connected");
+	if (!m_connected)
+	{
+        LogError("Failed to connect to target");
+		m_mi->Stop();
+		m_mi.reset();
+		return false;
+	}
+
+	if (!StartGdbAndDetectArch(gdbPath, inputFile, symbolFile))
+		return false;
+
 	// AFTER we are connected and stopped, populate the cache for the first time.
 	LogInfo("Populating initial state cache...");
 	ScheduleStateRefresh();
@@ -655,39 +664,180 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
     return true;
 }
 
-// --- Empty implementations for unsupported actions ---
-bool GdbMiAdapter::Execute(const std::string&, const LaunchConfigurations&) { LogWarn("GdbMiAdapter::Execute not implemented"); return false; }
-bool GdbMiAdapter::ExecuteWithArgs(const std::string&, const std::string&, const std::string&, const LaunchConfigurations&)
+bool GdbMiAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
+{
+	return ExecuteWithArgs(path, "", "", configs);
+}
+
+bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
+	const std::string& workingDir, const LaunchConfigurations& configs)
 {
 	InvalidateCache();
+
 	auto settings = GetAdapterSettings();
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
-	auto server = settings->Get<std::string>("connect.ipAddress", data, &scope);
+	auto gdbPath = settings->Get<std::string>("gdb.path", data, &scope);
 	scope = SettingsResourceScope;
-	auto port = static_cast<uint32_t>(settings->Get<uint64_t>("connect.port", data, &scope));
-	if (server.empty() || port == 0)
+	auto symbolFile = settings->Get<std::string>("gdb.symbolFile", data, &scope);
+	scope = SettingsResourceScope;
+	auto inputFile = settings->Get<std::string>("common.inputFile", data, &scope);
+	scope = SettingsResourceScope;
+	auto executablePath = settings->Get<std::string>("launch.executablePath", data, &scope);
+	scope = SettingsResourceScope;
+	auto workingDirectory = settings->Get<std::string>("launch.workingDirectory", data, &scope);
+	scope = SettingsResourceScope;
+	auto commandLineArgs = settings->Get<std::string>("launch.commandLineArguments", data, &scope);
+
+	// Use settings values, fall back to function parameters
+	if (executablePath.empty())
+		executablePath = path;
+	if (workingDirectory.empty())
+		workingDirectory = workingDir;
+	if (commandLineArgs.empty())
+		commandLineArgs = args;
+
+	if (gdbPath.empty())
 	{
-		LogError("Missing connection settings for restart.");
+		LogError("GDB path is not configured");
 		return false;
 	}
-	return Connect(server, port);
-}
-bool GdbMiAdapter::Attach(uint32_t) {
-	InvalidateCache();
-	auto settings = GetAdapterSettings();
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto server = settings->Get<std::string>("connect.ipAddress", data, &scope);
-	scope = SettingsResourceScope;
-	auto port = static_cast<uint32_t>(settings->Get<uint64_t>("connect.port", data, &scope));
-	if (server.empty() || port == 0)
+	if (executablePath.empty())
 	{
-		LogError("Missing connection settings for restart.");
+		LogError("No executable path specified for local debugging");
 		return false;
 	}
 
-	return Connect(server, port);
+	m_connected = false;
+	m_isLocalSession = true;
+
+	if (inputFile.empty()) inputFile = executablePath;
+
+	// Check if the executable path is a UDB recording file (.undo)
+	// For recordings, don't pass the file as GDB's target executable argument
+	bool isUndoRecording = (executablePath.size() >= 5 &&
+		executablePath.substr(executablePath.size() - 5) == ".undo");
+
+	std::string gdbTargetArg = isUndoRecording ? "" : inputFile;
+	m_mi = std::make_unique<GdbMiConnector>(gdbPath, gdbTargetArg);
+
+	// Set up async callback BEFORE starting GDB to avoid race conditions
+	m_mi->SetAsyncCallback([this](const MiRecord& record){ this->AsyncRecordHandler(record); });
+
+	if (!m_mi->Start())
+	{
+		LogError("Failed to start GDB process");
+		return false;
+	}
+
+	m_mi->SendCommand("-gdb-set mi-async on");
+	m_mi->SendCommand("-gdb-set pagination off");
+	m_mi->SendCommand("-gdb-set confirm off");
+	m_mi->SendCommand("-enable-frame-filters");
+
+	if (isUndoRecording)
+	{
+		// UDB recording: use "uload" to load the trace file.
+		// After uload, the target is already stopped at the beginning of the recording.
+		auto uloadResult = m_mi->SendCommand(
+			"-interpreter-exec console \"uload " + executablePath + "\"", 30000);
+		if (uloadResult.command != "done")
+		{
+			LogError("Failed to load UDB recording: %s", uloadResult.fullLine.c_str());
+			m_mi->Stop();
+			m_mi.reset();
+			return false;
+		}
+
+		// Load separate symbol file if specified
+		if (!symbolFile.empty())
+			m_mi->SendCommand("-interpreter-exec console \"add-symbol-file " + symbolFile + "\"");
+
+		m_connected = true;
+
+		if (!StartGdbAndDetectArch(gdbPath, inputFile, symbolFile))
+		{
+			m_connected = false;
+			m_mi->Stop();
+			m_mi.reset();
+			return false;
+		}
+
+		// UDB recording is already stopped after uload, just populate state
+		LogInfo("UDB recording loaded, populating initial state...");
+		ScheduleStateRefresh();
+
+		ApplyBreakpoints();
+		ApplyPendingHardwareBreakpoints();
+	}
+	else
+	{
+		// Normal local executable: load and run it
+		auto fileResult = m_mi->SendCommand("-file-exec-and-symbols " + executablePath);
+		if (fileResult.command != "done")
+		{
+			LogError("Failed to load executable: %s", fileResult.fullLine.c_str());
+			m_mi->Stop();
+			m_mi.reset();
+			return false;
+		}
+
+		// Load separate symbol file if specified
+		if (!symbolFile.empty() && symbolFile != executablePath)
+			m_mi->SendCommand("-interpreter-exec console \"add-symbol-file " + symbolFile + "\"");
+
+		// Set working directory if specified
+		if (!workingDirectory.empty())
+			m_mi->SendCommand("-environment-cd " + workingDirectory);
+
+		// Set command line arguments if specified
+		if (!commandLineArgs.empty())
+			m_mi->SendCommand("-exec-arguments " + commandLineArgs);
+
+		// Apply breakpoints before running so entry breakpoints work
+		LogInfo("Applying breakpoints before launch...");
+		m_connected = true;
+
+		if (!StartGdbAndDetectArch(gdbPath, inputFile, symbolFile))
+		{
+			m_connected = false;
+			m_mi->Stop();
+			m_mi.reset();
+			return false;
+		}
+
+		ApplyBreakpoints();
+		ApplyPendingHardwareBreakpoints();
+
+		// Launch the target with -exec-run, which starts the inferior and stops at the first
+		// breakpoint (or runs to completion if none are set). The --start flag stops at main.
+		auto runResult = m_mi->SendCommand("-exec-run --start", 5000);
+		if (runResult.command != "running" && runResult.command != "done")
+		{
+			LogError("Failed to launch target: %s", runResult.fullLine.c_str());
+			m_connected = false;
+			m_mi->Stop();
+			m_mi.reset();
+			return false;
+		}
+	}
+
+	return true;
+}
+bool GdbMiAdapter::Attach(uint32_t pid) {
+	InvalidateCache();
+	auto settings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto server = settings->Get<std::string>("connect.ipAddress", data, &scope);
+	scope = SettingsResourceScope;
+	auto port = static_cast<uint32_t>(settings->Get<uint64_t>("connect.port", data, &scope));
+
+	if (!server.empty() && port != 0)
+		return Connect(server, port);
+
+	LogError("Missing connection settings for attach.");
+	return false;
 }
 std::vector<DebugProcess> GdbMiAdapter::GetProcessList() { LogWarn("GdbMiAdapter::GetProcessList not implemented"); return {}; }
 bool GdbMiAdapter::SuspendThread(uint32_t) { LogWarn("GdbMiAdapter::SuspendThread not implemented"); return false; }
@@ -1544,6 +1694,20 @@ void GdbMiAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
 	if (scope != SettingsResourceScope)
 		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
 
+	scope = SettingsResourceScope;
+	adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
+	if (scope != SettingsResourceScope)
+		adapterSettings->Set("launch.executablePath", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
+}
+
+bool GdbMiAdapterType::CanExecute(BinaryView* data)
+{
+	// GDB MI local debugging is supported on Linux and macOS for ELF and Mach-O binaries
+	// For PE files, users should use DbgEng or Windows Native adapters
+	if (data->GetTypeName() == "PE")
+		return false;
+
+	return true;
 }
 
 Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
@@ -1564,6 +1728,33 @@ Ref<Settings> GdbMiAdapterType::RegisterAdapterSettings()
 			"description" : "Input file to use to find the base address of the binary view",
 			"readOnly" : false,
 			"uiSelectionAction" : "file"
+			})");
+
+	settings->RegisterSetting("launch.executablePath",
+		R"({
+			"title" : "Executable Path",
+			"type" : "string",
+			"default" : "",
+			"description" : "Path of the executable to launch for local debugging.",
+			"readOnly" : false,
+			"uiSelectionAction" : "file"
+			})");
+	settings->RegisterSetting("launch.workingDirectory",
+			R"({
+			"title" : "Working Directory",
+			"type" : "string",
+			"default" : "",
+			"description" : "Working directory to launch the target in.",
+			"readOnly" : false,
+			"uiSelectionAction" : "directory"
+			})");
+	settings->RegisterSetting("launch.commandLineArguments",
+			R"({
+			"title" : "Command Line Arguments",
+			"type" : "string",
+			"default" : "",
+			"description" : "Command line arguments to pass to the target.",
+			"readOnly" : false
 			})");
 
 	settings->RegisterSetting("connect.ipAddress",
