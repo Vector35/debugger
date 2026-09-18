@@ -19,12 +19,16 @@ limitations under the License.
 #include <QGuiApplication>
 #include <QMimeData>
 #include <QClipboard>
+#include <QMenu>
+#include <QAction>
+#include <QContextMenuEvent>
 #include "ui.h"
 #include "debuggerinfowidget.h"
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
 #include "binaryninjaapi.h"
+#include "fmt/format.h"
 
 using namespace BinaryNinja;
 using namespace std;
@@ -584,6 +588,103 @@ std::vector<DebuggerInfoEntry> DebuggerInfoTable::getInfoForHLILConditions(HighL
 }
 
 
+std::vector<DebuggerInfoEntry> DebuggerInfoTable::getStackInfo(const ViewLocation& location)
+{
+	std::vector<DebuggerInfoEntry> result;
+	
+	if (!m_debugger->IsConnected())
+		return result;
+	
+	auto func = location.getFunction();
+	if (!func)
+		return result;
+		
+	auto arch = func->GetArchitecture();
+	if (!arch)
+		return result;
+	
+	uint64_t stackPointer = m_debugger->StackPointer();
+	size_t addressSize = arch->GetAddressSize();
+	
+	// Get stack register name for display
+	auto stackReg = arch->GetStackPointerRegister();
+	auto stackRegName = arch->GetRegisterName(stackReg);
+	
+	// Read stack contents - show configurable number of entries
+	BinaryReader reader(m_data);
+	for (int i = 0; i < m_stackEntryCount; i++)
+	{
+		ptrdiff_t offset = i * addressSize;
+		uint64_t stackAddress = stackPointer + offset;
+		
+		try 
+		{
+			reader.Seek(stackAddress);
+			uint64_t value = 0;
+			
+			switch (addressSize)
+			{
+			case 1:
+				value = reader.Read8();
+				break;
+			case 2:
+				value = reader.Read16();
+				break;
+			case 4:
+				value = reader.Read32();
+				break;
+			case 8:
+				value = reader.Read64();
+				break;
+			default:
+				continue;
+			}
+			
+			// Create tokens for stack entry display
+			std::vector<InstructionTextToken> tokens;
+			tokens.emplace_back(RegisterToken, stackRegName);
+			if (offset != 0)
+			{
+				tokens.emplace_back(TextToken, " + ");
+				tokens.emplace_back(IntegerToken, fmt::format("0x{:x}", offset), offset);
+			}
+			
+			// Get hint information using the existing API
+			std::string hint = m_debugger->GetAddressInformation(value);
+			
+			// Check if this looks like a return address by checking if it's in a function
+			// and the previous instruction is a call
+			if (hint.empty() && value != 0)
+			{
+				auto targetFunc = m_data->GetAnalysisFunction(m_data->GetDefaultPlatform(), value);
+				if (targetFunc)
+				{
+					// Check if the previous address contains a call instruction
+					auto prevAddr = value - 1;  // Rough approximation
+					auto callingFunc = m_data->GetAnalysisFunction(m_data->GetDefaultPlatform(), prevAddr);
+					if (callingFunc)
+					{
+						hint = fmt::format("Return address to {}", targetFunc->GetSymbol() ? 
+							targetFunc->GetSymbol()->GetShortName() : 
+							fmt::format("func_{:x}", targetFunc->GetStart()));
+					}
+				}
+			}
+			
+			// Create stack entry with storage address and stack flag
+			result.emplace_back(tokens, value, hint, BN_INVALID_EXPR, BN_INVALID_EXPR, stackAddress, stackAddress, true);
+		}
+		catch (const std::exception&)
+		{
+			// Skip this entry if we can't read it
+			continue;
+		}
+	}
+	
+	return result;
+}
+
+
 vector<DebuggerInfoEntry> DebuggerInfoTable::getILInfoEntries(const ViewLocation &location)
 {
 	vector<DebuggerInfoEntry> result;
@@ -660,6 +761,10 @@ vector<DebuggerInfoEntry> DebuggerInfoTable::getILInfoEntries(const ViewLocation
 		break;
 	}
 
+	// Add stack information
+	auto stackEntries = getStackInfo(location);
+	result.insert(result.end(), stackEntries.begin(), stackEntries.end());
+
 	return result;
 }
 
@@ -722,6 +827,14 @@ void DebuggerInfoEntryItemDelegate::paint(QPainter *painter, const QStyleOptionV
 		m_render.drawDisassemblyLine(*painter, textRect.left(), textRect.top(), entry->tokens, highlight);
 		break;
 	}
+	case StorageColumn:
+		if (entry->isStackEntry)
+		{
+			painter->setPen(getThemeColor(AddressColor));
+			painter->drawText(textRect, QString::asprintf("0x%llx", entry->storageAddress));
+		}
+		// Draw nothing for non-stack entries (empty column)
+		break;
 	case ValueColumn:
 		painter->setPen(getThemeColor(AddressColor));
 		painter->drawText(textRect, QString::fromStdString("0x") + QString::fromStdString(intx::hex(entry->value)));
@@ -793,7 +906,7 @@ int DebuggerInfoEntryItemModel::rowCount(const QModelIndex &parent) const
 
 int DebuggerInfoEntryItemModel::columnCount(const QModelIndex &parent) const
 {
-	return 3;
+	return 4;  // Added StorageColumn
 }
 
 
@@ -814,6 +927,7 @@ QVariant DebuggerInfoEntryItemModel::data(const QModelIndex &index, int role) co
 		case ExprColumn:
 		case ValueColumn:
 		case HintColumn:
+		case StorageColumn:
 			result.setValue(item);
 			break;
 		default:
@@ -831,6 +945,19 @@ QVariant DebuggerInfoEntryItemModel::data(const QModelIndex &index, int role) co
 				expr += token.text;
 
 			result.setValue(expr.size());
+			break;
+		}
+		case StorageColumn:
+		{
+			if (item->isStackEntry)
+			{
+				auto str = QString::asprintf("0x%llx", item->storageAddress);
+				result.setValue(str.size());
+			}
+			else
+			{
+				result.setValue(0);  // Empty for non-stack entries
+			}
 			break;
 		}
 		case ValueColumn:
@@ -871,6 +998,8 @@ QVariant DebuggerInfoEntryItemModel::headerData(int column, Qt::Orientation orie
 	{
 	case ExprColumn:
 		return "Expr";
+	case StorageColumn:
+		return "Storage";
 	case ValueColumn:
 		return "Value";
 	case HintColumn:
@@ -889,7 +1018,7 @@ DebuggerInfoEntry DebuggerInfoEntryItemModel::getRow(int row) const
 }
 
 
-DebuggerInfoTable::DebuggerInfoTable(BinaryViewRef data): m_data(data)
+DebuggerInfoTable::DebuggerInfoTable(BinaryViewRef data): m_data(data), m_stackEntryCount(16)
 {
 	m_debugger = DebuggerController::GetController(data);
 
@@ -915,6 +1044,7 @@ void DebuggerInfoTable::updateContents(const ViewLocation &location)
 	if (!location.isValid() || !location.getFunction())
 		return;
 
+	m_currentLocation = location;  // Store for context menu updates
 	auto info = getILInfoEntries(location);
 	m_model->updateRows(info);
 	updateColumnWidths();
@@ -924,6 +1054,7 @@ void DebuggerInfoTable::updateContents(const ViewLocation &location)
 void DebuggerInfoTable::updateColumnWidths()
 {
 	resizeColumnToContents(ExprColumn);
+	resizeColumnToContents(StorageColumn);
 	resizeColumnToContents(ValueColumn);
 	resizeColumnToContents(HintColumn);
 }
@@ -935,14 +1066,34 @@ void DebuggerInfoTable::updateFonts()
 }
 
 
-void DebuggerInfoTable::onDoubleClicked()
+void DebuggerInfoTable::onDoubleClicked(const QModelIndex& index)
 {
-	QModelIndexList sel = selectionModel()->selectedIndexes();
-	if (sel.empty())
+	if (!index.isValid())
 		return;
 
-	auto info = m_model->getRow(sel[0].row());
-	uint64_t value = (uint64_t)info.value;
+	auto info = m_model->getRow(index.row());
+	uint64_t targetAddress = 0;
+	
+	// Check which column was clicked and determine the target address
+	switch (index.column())
+	{
+	case ValueColumn:
+		targetAddress = (uint64_t)info.value;
+		break;
+	case StorageColumn:
+		if (info.isStackEntry)
+			targetAddress = info.storageAddress;
+		else
+			return;  // No navigation for empty storage column
+		break;
+	default:
+		// For other columns, navigate to the value address (original behavior)
+		targetAddress = (uint64_t)info.value;
+		break;
+	}
+
+	if (targetAddress == 0)
+		return;
 
 	UIContext* context = UIContext::contextForWidget(this);
 	if (!context)
@@ -953,7 +1104,54 @@ void DebuggerInfoTable::onDoubleClicked()
 		return;
 
 	if (m_debugger->GetData())
-		frame->navigate(m_debugger->GetData(), value, true, true);
+		frame->navigate(m_debugger->GetData(), targetAddress, true, true);
+}
+
+
+void DebuggerInfoTable::contextMenuEvent(QContextMenuEvent* event)
+{
+	QMenu menu(this);
+	
+	QAction* increaseAction = menu.addAction("Show More Stack Entries");
+	QAction* decreaseAction = menu.addAction("Show Fewer Stack Entries");
+	
+	// Add current count info
+	menu.addSeparator();
+	QAction* infoAction = menu.addAction(QString("Currently showing %1 entries").arg(m_stackEntryCount));
+	infoAction->setEnabled(false);
+	
+	// Disable actions if at limits
+	if (m_stackEntryCount >= 64)  // Set reasonable upper limit
+		increaseAction->setEnabled(false);
+	if (m_stackEntryCount <= 4)   // Set reasonable lower limit  
+		decreaseAction->setEnabled(false);
+	
+	connect(increaseAction, &QAction::triggered, this, &DebuggerInfoTable::increaseStackEntries);
+	connect(decreaseAction, &QAction::triggered, this, &DebuggerInfoTable::decreaseStackEntries);
+	
+	menu.exec(event->globalPos());
+}
+
+
+void DebuggerInfoTable::increaseStackEntries()
+{
+	if (m_stackEntryCount < 64)
+	{
+		m_stackEntryCount += 4;  // Increase by 4 entries at a time
+		if (m_currentLocation.isValid())
+			updateContents(m_currentLocation);
+	}
+}
+
+
+void DebuggerInfoTable::decreaseStackEntries() 
+{
+	if (m_stackEntryCount > 4)
+	{
+		m_stackEntryCount -= 4;  // Decrease by 4 entries at a time
+		if (m_currentLocation.isValid())
+			updateContents(m_currentLocation);
+	}
 }
 
 
