@@ -9,6 +9,7 @@ import sys
 import tempfile
 import urllib.request
 import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -51,6 +52,19 @@ def extract_member(archive, member, destination):
             shutil.copyfileobj(source, output)
 
 
+def package_version(extracted):
+    manifest = extracted / "AppxManifest.xml"
+    if not manifest.is_file():
+        raise RuntimeError(f"WinDbg package is missing {manifest.name}")
+    root = ET.parse(manifest).getroot()
+    identity = next((element for element in root.iter()
+                     if element.tag.rsplit("}", 1)[-1] == "Identity"), None)
+    version = identity.get("Version") if identity is not None else None
+    if not version:
+        raise RuntimeError(f"Could not read package version from {manifest}")
+    return version
+
+
 def build_artifact(output_dir):
     version = pinned_version()
     url = ("https://windbg.download.prss.microsoft.com/dbazure/prod/"
@@ -70,6 +84,9 @@ def build_artifact(output_dir):
         with zipfile.ZipFile(inner) as package:
             package.extractall(extracted)
 
+        actual_version = package_version(extracted)
+        if actual_version != version:
+            raise RuntimeError(f"Downloaded WinDbg version {actual_version}, expected pinned version {version}")
         missing = [name for name in REQUIRED if not (extracted / Path(name)).is_file()]
         if missing:
             raise RuntimeError("WinDbg package is missing required files: " + ", ".join(missing))
