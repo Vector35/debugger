@@ -171,31 +171,44 @@ InstallResult Install(const InstallConfig& config) {
         std::string version = config.version.empty() ? kDefaultVersion : config.version;
         Log(logCallback, LOG_INFO, "Installing WinDbg/TTD version " + version);
 
-        /* Step 2: Download MSIX bundle (this is the main download that shows progress) */
-        std::string msixUrl = BuildMsixBundleUrl(version);
-        ReportProgress(progressCallback, "Downloading WinDbg/TTD package from:", 0);
-        ReportProgress(progressCallback, msixUrl, 0);
-
-        /* Note: the extension must be a recognized MSIX/APPX extension (not .zip) so that
-         * WinVerifyTrust engages the AppX signature provider during Step 2.5 verification. */
-        std::string msixPath = GetTempFilePath(".msixbundle");
-        tempFiles.push_back(msixPath);
-
-        auto msixDownloadProgressCb = [&](const DownloadProgress& dp) {
-            /* Report download percentage (0-100%) directly - this is the only step that needs progress display */
-            int percent = 0;
-            if (dp.totalBytes > 0) {
-                percent = (int)(100 * dp.bytesDownloaded / dp.totalBytes);
+        std::string msixPath;
+        if (!config.localBundlePath.empty()) {
+            if (!fs::exists(config.localBundlePath)) {
+                std::string error = "Local bundle not found: " + config.localBundlePath;
+                Log(logCallback, LOG_ERROR, error);
+                CleanupTempFiles(tempFiles, logCallback);
+                return InstallResult(false, error);
             }
-            ReportProgress(progressCallback, "Downloading...", percent,
-                          dp.bytesDownloaded, dp.totalBytes, dp.bytesPerSecond);
-        };
+            msixPath = config.localBundlePath;
+            ReportProgress(progressCallback, "Using local MSIX bundle (skipping download)...", 0);
+            Log(logCallback, LOG_INFO, "Using local MSIX bundle, skipping download: " + msixPath);
+        } else {
+            /* Step 2: Download MSIX bundle (this is the main download that shows progress) */
+            std::string msixUrl = BuildMsixBundleUrl(version);
+            ReportProgress(progressCallback, "Downloading WinDbg/TTD package from:", 0);
+            ReportProgress(progressCallback, msixUrl, 0);
 
-        if (!DownloadFileWithProgress(msixUrl, msixPath, msixDownloadProgressCb, logCallback)) {
-            std::string error = "Failed to download MSIX bundle";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
+            /* Note: the extension must be a recognized MSIX/APPX extension (not .zip) so that
+             * WinVerifyTrust engages the AppX signature provider during Step 2.5 verification. */
+            msixPath = GetTempFilePath(".msixbundle");
+            tempFiles.push_back(msixPath);
+
+            auto msixDownloadProgressCb = [&](const DownloadProgress& dp) {
+                /* Report download percentage (0-100%) directly - this is the only step that needs progress display */
+                int percent = 0;
+                if (dp.totalBytes > 0) {
+                    percent = (int)(100 * dp.bytesDownloaded / dp.totalBytes);
+                }
+                ReportProgress(progressCallback, "Downloading...", percent,
+                              dp.bytesDownloaded, dp.totalBytes, dp.bytesPerSecond);
+            };
+
+            if (!DownloadFileWithProgress(msixUrl, msixPath, msixDownloadProgressCb, logCallback)) {
+                std::string error = "Failed to download MSIX bundle";
+                Log(logCallback, LOG_ERROR, error);
+                CleanupTempFiles(tempFiles, logCallback);
+                return InstallResult(false, error);
+            }
         }
 
         /* Step 2.5: Verify the downloaded bundle is genuinely signed by Microsoft.
