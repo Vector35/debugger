@@ -73,6 +73,20 @@ static bool IsValidDbgEngPaths(const std::string& path)
 
 std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 {
+	// Hermetic callers must select DbgEng before Binary Ninja or an adapter loads any of its DLLs.
+	// Accept either the package root (containing architecture subdirectories) or the DLL directory.
+	// The override intentionally takes precedence over settings and an invalid value must not fall back.
+	if (const char* overridePath = getenv("BN_DEBUGENGINE_DLLS"))
+	{
+		auto root = filesystem::path(overridePath);
+		auto architecturePath = root / arch;
+		if (IsValidDbgEngPaths(architecturePath.string()))
+			return architecturePath.string();
+		if (IsValidDbgEngPaths(root.string()))
+			return root.string();
+		return "";
+	}
+
 	std::string path;
 	if (arch == "amd64")
 		path = Settings::Instance()->Get<string>("debugger.x64dbgEngPath");

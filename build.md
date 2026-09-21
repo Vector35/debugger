@@ -50,6 +50,9 @@ The build artifacts will be in the folder `out`. You should find two files `libd
   - Close Binary Ninja
   - Copy everything in the `out` folder to the user plugin folder - `cp -r out/plugins/* ~/.binaryninja/plugins/`
   - Set the environment variable `BN_STANDALONE_DEBUGGER=1`
+  - On Windows, `BN_DEBUGENGINE_DLLS` may point to either the root of an extracted WinDbg package
+    (containing `amd64`/`x86` directories) or directly to a directory containing the DbgEng DLLs.
+    It takes precedence over the `debugger.x64dbgEngPath` and `debugger.x86dbgEngPath` settings.
   - Launch BinaryNinja
 
 
