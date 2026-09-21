@@ -41,6 +41,7 @@ struct InstallConfig {
     std::string installPath;     /* Override default install path (empty = use default) */
     std::string version;         /* WinDbg version to install (empty = kDefaultVersion) */
     bool updateSettings;         /* Whether to update Binary Ninja settings (default: true) */
+    std::string localBundlePath; /* Already-downloaded .msixbundle to install without deleting */
     ProgressCallback onProgress; /* Progress callback */
     LogCallback onLog;           /* Logging callback */
 

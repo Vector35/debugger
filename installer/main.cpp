@@ -5,7 +5,7 @@
  * Can be invoked directly by users or spawned by Binary Ninja API.
  *
  * Usage:
- *   windbg-installer install [--path <dir>] [--windbg-version <ver>] [--quiet] [--json]
+ *   windbg-installer install [--path <dir>] [--windbg-version <ver>] [--bundle <file>] [--quiet] [--json]
  *   windbg-installer version [--path <dir>] [--json]
  *   windbg-installer --help
  *
@@ -237,6 +237,8 @@ void PrintUsage(const char* programName) {
               << "                (default: %APPDATA%\\Binary Ninja\\windbg)\n"
               << "  --windbg-version <ver>\n"
               << "                WinDbg version to install (default: " << kDefaultVersion << ")\n"
+              << "  --bundle <file>\n"
+              << "                Install an already-downloaded .msixbundle (for testing)\n"
               << "  --update      Update mode: wait for Binary Ninja to exit first\n"
               << "                (use this when WinDbg DLLs may be loaded)\n"
               << "  --quiet       Suppress progress output (exit code only)\n"
@@ -267,7 +269,8 @@ void PrintBanner() {
 }
 
 /* Command: install */
-int CmdInstall(const std::string& installPath, const std::string& version, OutputMode mode, bool isUpdate) {
+int CmdInstall(const std::string& installPath, const std::string& version, OutputMode mode, bool isUpdate,
+               const std::string& bundlePath) {
     /* Determine and print install path */
     std::string targetPath = installPath.empty() ? GetDefaultInstallPath() : installPath;
 
@@ -295,6 +298,15 @@ int CmdInstall(const std::string& installPath, const std::string& version, Outpu
     config.installPath = targetPath;
     config.version = version;
     config.updateSettings = true;
+    config.localBundlePath = bundlePath;
+
+    if (!bundlePath.empty()) {
+        if (mode == OutputMode::Human) {
+            std::cout << "  Using local bundle (skipping download): " << bundlePath << "\n\n";
+        } else if (mode == OutputMode::Json) {
+            std::cout << "{\"type\":\"info\",\"localBundle\":\"" << bundlePath << "\"}" << std::endl;
+        }
+    }
 
     std::string lastStep;
 
@@ -439,6 +451,7 @@ int main(int argc, char* argv[]) {
     std::string command;
     std::string installPath;
     std::string version;
+    std::string bundlePath;
     OutputMode mode = OutputMode::Human;
     bool isUpdate = false;
 
@@ -458,6 +471,13 @@ int main(int argc, char* argv[]) {
                 version = argv[++i];
             } else {
                 std::cerr << "Error: --windbg-version requires a version argument\n";
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--bundle") == 0) {
+            if (i + 1 < argc) {
+                bundlePath = argv[++i];
+            } else {
+                std::cerr << "Error: --bundle requires a file path argument\n";
                 return 1;
             }
         } else if (strcmp(argv[i], "--quiet") == 0 || strcmp(argv[i], "-q") == 0) {
@@ -493,7 +513,11 @@ int main(int argc, char* argv[]) {
 
     /* Execute command */
     if (command == "install") {
-        return CmdInstall(installPath, version, mode, isUpdate);
+        if (!bundlePath.empty() && version.empty()) {
+            std::cerr << "Error: --bundle requires --windbg-version so the installed version is recorded correctly\n";
+            return 1;
+        }
+        return CmdInstall(installPath, version, mode, isUpdate, bundlePath);
     } else if (command == "version") {
         return CmdVersion(installPath, mode);
     } else {
