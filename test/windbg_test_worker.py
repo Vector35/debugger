@@ -12,7 +12,7 @@ except ImportError:
 
 
 def main(target, trace):
-    assert os.environ.get("BN_DEBUGENGINE_DLLS"), "BN_DEBUGENGINE_DLLS is not set"
+    assert os.environ.get("BN_DBGENG_DLLS"), "BN_DBGENG_DLLS is not set"
 
     # Prove that the environment override wins over the user-facing setting.
     settings = Settings()

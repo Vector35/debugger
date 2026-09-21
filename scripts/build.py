@@ -310,7 +310,7 @@ if platform.system() == "Windows":
     if not extract_zip(windbg_artifacts[0], windbg_path):
         print('Failed to extract pinned WinDbg artifact')
         sys.exit(1)
-    env["BN_DEBUGENGINE_DLLS"] = str(windbg_path)
+    env["BN_DBGENG_DLLS"] = str(windbg_path)
 
 license_path = 'license.dat'
 if platform.system() == "Linux":

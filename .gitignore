@@ -77,6 +77,7 @@ api/python/__pycache__
 
 # TTD files
 *.run
+!test/binaries/Windows-x86_64/helloworld.run
 *.idx
 *.bndb
 
