@@ -6,10 +6,11 @@
 //   * throttles/serializes builds and keeps fewer artifacts for a shorter time
 //   * cleans the workspace after each matrix cell to spare the shared test workers
 //
-// Three prebuilt deps are dropped into ./artifacts-extern where scripts/build.py finds them:
+// Prebuilt deps are dropped into ./artifacts-extern where scripts/build.py finds them:
 //   * Qt              (qt_<os>_*.zip,   from Qt/qt-main-pipeline)     -- commit-matched
 //   * LLDB            (lldb_<os>_*.zip, from LLVM/llvm-main-pipeline) -- commit-matched
 //   * binaryninja dev (binaryninja_<os>_*.zip)                       -- lastSuccessful (latest dev)
+//   * WinDbg/TTD       (windbg_<version>.zip, Windows only)           -- pinned debugger version
 //
 // Qt and LLDB are commit-matched by reusing the copyExternalArtifactsEx shared library, the
 // same one the binaryninja pipeline uses. binja feeds it commits from its llvm-build /
@@ -117,6 +118,17 @@ void copyExternalArtifacts(String os) {
         fingerprintArtifacts: true,
         target: 'artifacts-extern'
     )
+
+    if (os == 'win64') {
+        copyArtifacts(
+            projectName: 'debugger-download-windbg',
+            selector: lastSuccessfulWithArtifacts('debugger-download-windbg', 'artifacts/windbg_*.zip'),
+            filter: 'artifacts/windbg_*.zip',
+            flatten: true,
+            fingerprintArtifacts: true,
+            target: 'artifacts-extern'
+        )
+    }
 }
 
 

@@ -1,0 +1,24 @@
+// Build the pinned WinDbg/TTD dependency consumed by debugger Windows CI.
+pipeline {
+    agent { label 'win64' }
+    options {
+        disableConcurrentBuilds()
+        buildDiscarder logRotator(artifactDaysToKeepStr: '120', artifactNumToKeepStr: '10')
+        timeout(time: 30, unit: 'MINUTES')
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                cleanWs()
+                checkout scm
+            }
+        }
+        stage('Download pinned WinDbg') {
+            steps { bat 'py -3 scripts\\download_windbg.py --output artifacts' }
+        }
+        stage('Archive') {
+            steps { archiveArtifacts artifacts: 'artifacts/windbg_*.zip', fingerprint: true }
+        }
+    }
+    post { cleanup { cleanWs notFailBuild: true } }
+}

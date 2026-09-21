@@ -301,6 +301,17 @@ env["BN_USER_DIRECTORY"] = str(build_output_path)
 env["BN_STANDALONE_DEBUGGER"] = "true"
 env["BN_DISABLE_CORE_DEBUGGER"] = "true"
 
+if platform.system() == "Windows":
+    windbg_artifacts = sorted(external_artifacts_path.glob('windbg_*.zip'))
+    if len(windbg_artifacts) != 1:
+        print(f'Expected exactly one pinned WinDbg artifact, found {len(windbg_artifacts)}')
+        sys.exit(1)
+    windbg_path = build_path / 'windbg'
+    if not extract_zip(windbg_artifacts[0], windbg_path):
+        print('Failed to extract pinned WinDbg artifact')
+        sys.exit(1)
+    env["BN_DEBUGENGINE_DLLS"] = str(windbg_path)
+
 license_path = 'license.dat'
 if platform.system() == "Linux":
     license_path = os.path.join(os.environ['HOME'], '.binaryninja', 'license.dat')
@@ -337,6 +348,7 @@ if platform.system() == "Windows":
     # An explicit path prevents accidentally testing an installed/stale server.
     env["WINDOWS_REMOTE_SERVER_PATH"] = str(build_output_path / "plugins" / "windows-debug-server.exe")
     pytest_sources.append(str(base_dir / "test" / "x2winrpc_test.py"))
+    pytest_sources.append(str(base_dir / "test" / "windbg_test.py"))
 
 
 # Supervise outside pytest so blocked native calls and interpreter shutdown are bounded.
