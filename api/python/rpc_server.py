@@ -2,21 +2,27 @@
 """
 Loopback JSON endpoint that exposes DebuggerController to out-of-process clients (prototype).
 
+Binary Ninja's MCP server starts this by itself the first time a debugger tool needs it (when the
+ui.mcp.debugger.enabled setting is on), so nothing has to run it by hand. To start it yourself, in Binary Ninja's
+Python console:
+
+    import binaryninja.debugger.rpc_server as rpc; rpc.start()
+
 Wire format: one request per TCP connection, newline-terminated JSON in each direction.
 
     -> {"id": 1, "token": "<secret>", "method": "status", "params": {"session": 3, "filename": "/bin/ls"}}
     <- {"id": 1, "result": {...}}            or            {"id": 1, "error": {"code": "...", "message": "..."}}
 
-The endpoint binds 127.0.0.1 only, requires the token on every request, and advertises itself by
-writing <user directory>/debugger-rpc.json (mode 0600) containing {host, port, token, pid}.
-Override the discovery file with BN_DEBUGGER_RPC.
+The endpoint binds 127.0.0.1 only, requires the token on every request, and advertises itself by writing
+<user directory>/debugger-rpc-<pid>.json (mode 0600) containing {host, port, token, pid}. There is one file per
+process, so two Binary Ninja instances never overwrite each other's; files left behind by a process that died are
+removed the next time an endpoint starts. Override the file with BN_DEBUGGER_RPC.
 
 Sessions are identified by FileMetadata.session_id (a 64-bit value, so it travels as a decimal string), with the
 original filename as a fallback. The endpoint has to run in the same process as the views it drives for
 the debugger state to be shared with the UI; a separate process only ever sees the files it opened itself.
 
-Run inside Binary Ninja (Python console):    import debugger_rpc_server; debugger_rpc_server.start(bv)
-Run headless:                                python3 debugger_rpc_server.py /path/to/binary
+Headless:    python3 -m binaryninja.debugger.rpc_server /path/to/binary
 """
 
 import ctypes
@@ -103,11 +109,45 @@ class RpcError(Exception):
         self.message = message
 
 
+DISCOVERY_PREFIX = "debugger-rpc-"
+DISCOVERY_SUFFIX = ".json"
+
+
 def discovery_path():
     override = os.environ.get("BN_DEBUGGER_RPC")
     if override:
         return override
-    return os.path.join(binaryninja.user_directory(), "debugger-rpc.json")
+    return os.path.join(binaryninja.user_directory(), f"{DISCOVERY_PREFIX}{os.getpid()}{DISCOVERY_SUFFIX}")
+
+
+def _process_exists(pid):
+    if sys.platform == "win32":
+        return True  # os.kill(pid, 0) would terminate the process there, so never guess that it is gone
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:  # PermissionError and the like: it exists, it just is not ours
+        return True
+    return True
+
+
+def remove_stale_discovery_files(directory):
+    """Deletes the discovery files of processes that no longer exist; a crashed Binary Ninja never got to stop()."""
+    try:
+        names = os.listdir(directory or ".")
+    except OSError:
+        return
+    for name in names:
+        if not (name.startswith(DISCOVERY_PREFIX) and name.endswith(DISCOVERY_SUFFIX)):
+            continue
+        pid_text = name[len(DISCOVERY_PREFIX):-len(DISCOVERY_SUFFIX)]
+        if not pid_text.isdigit() or int(pid_text) == os.getpid() or _process_exists(int(pid_text)):
+            continue
+        try:
+            os.remove(os.path.join(directory or ".", name))
+        except OSError:
+            pass
 
 
 def controller_exists(bv):
@@ -310,6 +350,13 @@ class Handlers:
             return None, bv
         return DebuggerController(bv), bv
 
+    def existing_controller(self, params):
+        """The session's controller, which must already exist (only launching, attaching and connecting create one)."""
+        dbg, bv = self.controller(params)
+        if dbg is None:
+            raise RpcError(Err.NO_CONTROLLER, "No debugger controller exists for this session")
+        return dbg, bv
+
     @staticmethod
     def state(dbg):
         if not dbg.connected:
@@ -411,16 +458,6 @@ class Handlers:
     def ping(self, params):
         return {"pid": os.getpid(), "version": 1, "errorCodes": sorted(ERROR_CODES)}
 
-    def sessions_list(self, params):
-        result = []
-        for sid, bv in self.sessions.snapshot().items():
-            exists = controller_exists(bv)
-            entry = {"session": str(sid), "filename": bv.file.original_filename, "hasController": exists}
-            if exists:
-                entry.update(self.summarize(DebuggerController(bv), bv))
-            result.append(entry)
-        return {"sessions": result}
-
     def status(self, params):
         dbg, bv = self.controller(params)
         if dbg is None:
@@ -510,9 +547,7 @@ class Handlers:
         return out
 
     def registers(self, params):
-        dbg, bv = self.controller(params)
-        if dbg is None:
-            raise RpcError(Err.NO_CONTROLLER, "No debugger controller exists for this session")
+        dbg, bv = self.existing_controller(params)
         self.require_paused(dbg)
         names = params.get("names")
         regs = dbg.regs
@@ -526,9 +561,7 @@ class Handlers:
         return {"registers": out}
 
     def memory_read(self, params):
-        dbg, bv = self.controller(params)
-        if dbg is None:
-            raise RpcError(Err.NO_CONTROLLER, "No debugger controller exists for this session")
+        dbg, bv = self.existing_controller(params)
         self.require_paused(dbg)
         address = _int(params, "address")
         length = _int(params, "length")
@@ -551,9 +584,7 @@ class Handlers:
         return raw.hex() if len(raw) == length else None
 
     def memory_write(self, params):
-        dbg, bv = self.controller(params)
-        if dbg is None:
-            raise RpcError(Err.NO_CONTROLLER, "No debugger controller exists for this session")
+        dbg, bv = self.existing_controller(params)
         self.require_paused(dbg)
         address = _int(params, "address")
         hex_data = params.get("hex")
@@ -581,9 +612,7 @@ class Handlers:
         return {"address": _hex(address), "length": len(data), "changed": changed, "mutation": mutation}
 
     def registers_write(self, params):
-        dbg, bv = self.controller(params)
-        if dbg is None:
-            raise RpcError(Err.NO_CONTROLLER, "No debugger controller exists for this session")
+        dbg, bv = self.existing_controller(params)
         self.require_paused(dbg)
         values = params.get("values")
         if not isinstance(values, dict) or not values:
@@ -776,9 +805,7 @@ class Handlers:
         action = params.get("action", "select")
         if action not in ("select", "suspend", "resume"):
             raise RpcError(Err.INVALID_PARAMS, f"Unknown thread action '{action}'")
-        dbg, bv = self.controller(params)
-        if dbg is None:
-            raise RpcError(Err.NO_CONTROLLER, "No debugger controller exists for this session")
+        dbg, bv = self.existing_controller(params)
         self.require_paused(dbg)
 
         tid = _int(params, "threadId")
@@ -786,6 +813,7 @@ class Handlers:
         if tid not in threads:
             raise RpcError(Err.UNKNOWN_THREAD, f"No thread with id {tid}; known threads: {sorted(threads)}")
         was_suspended = {t: sus for t, _, sus in self.raw_threads(dbg)}.get(tid, False)
+        previously_active = dbg.active_thread.tid
 
         if action == "select":
             dbg.active_thread = threads[tid]
@@ -800,15 +828,13 @@ class Handlers:
 
         out = self.summarize(dbg, bv)
         out.update({"action": action, "threadId": tid, "activeThread": dbg.active_thread.tid,
-                    "changed": (action == "suspend" and not was_suspended) or (action == "resume" and was_suspended)
-                               or action == "select",
+                    "changed": (action == "select" and previously_active != tid)
+                               or (action == "suspend" and not was_suspended) or (action == "resume" and was_suspended),
                     "threads": self.thread_list(dbg)})
         return out
 
     def backtrace(self, params):
-        dbg, bv = self.controller(params)
-        if dbg is None:
-            raise RpcError(Err.NO_CONTROLLER, "No debugger controller exists for this session")
+        dbg, bv = self.existing_controller(params)
         self.require_paused(dbg)
         active = dbg.active_thread
         tid = _int(params, "threadId", required=False, default=active.tid)
@@ -821,9 +847,7 @@ class Handlers:
 
 
     def paused_controller(self, params):
-        dbg, bv = self.controller(params)
-        if dbg is None:
-            raise RpcError(Err.NO_CONTROLLER, "No debugger controller exists for this session")
+        dbg, bv = self.existing_controller(params)
         self.require_paused(dbg)
         return dbg, bv
 
@@ -888,9 +912,7 @@ class Handlers:
                 or "\0" in text):
             raise RpcError(Err.INVALID_PARAMS, f"{name} must be a{'' if name == 'stdin' else ' non-empty'} string of at "
                                              f"most {MAX_TEXT_CHARS} characters with no NUL")
-        dbg, bv = self.controller(params)
-        if dbg is None:
-            raise RpcError(Err.NO_CONTROLLER, "No debugger controller exists for this session")
+        dbg, bv = self.existing_controller(params)
         if not dbg.connected:
             raise RpcError(Err.TARGET_NOT_CONNECTED, "There is no live target; use action 'launch', 'attach' or "
                                                    "'connect' first.")
@@ -912,9 +934,7 @@ class Handlers:
                                              "name to a string, number or boolean")
         if not names and not values:
             raise RpcError(Err.INVALID_PARAMS, "Give get, set or both")
-        dbg, bv = self.controller(params)
-        if dbg is None:
-            raise RpcError(Err.NO_CONTROLLER, "No debugger controller exists for this session")
+        dbg, bv = self.existing_controller(params)
 
         def read(name):
             try:
@@ -931,7 +951,7 @@ class Handlers:
 
 
 METHODS = {
-    "ping": "ping", "sessions": "sessions_list", "status": "status", "control": "control",
+    "ping": "ping", "status": "status", "control": "control",
     "registers": "registers", "memory.read": "memory_read", "breakpoints": "breakpoints",
     "backtrace": "backtrace", "thread": "thread", "trace": "trace",
     "memory.write": "memory_write", "registers.write": "registers_write",
@@ -1002,6 +1022,7 @@ class DebuggerRpcServer:
         return self._server.server_address[1]
 
     def start(self):
+        remove_stale_discovery_files(os.path.dirname(self._path))
         self._thread.start()
         info = {"host": "127.0.0.1", "port": self.port, "token": self.token, "pid": os.getpid()}
         fd = os.open(self._path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -1040,7 +1061,7 @@ def stop():
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        sys.exit(f"usage: {sys.argv[0]} <binary> [<binary>...]")
+        sys.exit("usage: python3 -m binaryninja.debugger.rpc_server <binary> [<binary>...]")
     opened = [binaryninja.load(path, update_analysis=False) for path in sys.argv[1:]]
     server = start(*opened)
     print(f"debugger-rpc listening on 127.0.0.1:{server.port}; discovery file {discovery_path()}", flush=True)
