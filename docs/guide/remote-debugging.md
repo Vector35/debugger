@@ -31,9 +31,14 @@ The Windows host runs `windows-debug-server.exe`; Binary Ninja runs on your loca
 
 ### Preparing the Windows Host and Local Binary
 
-1. Use matching debugger builds that include Windows Remote on both machines. Copy `windows-debug-server.exe` from
-   the Windows debugger build/package's `plugins` directory to the Windows host. Binary Ninja does not need to be
-   installed on the server just to run this executable. For building it yourself, see the repository's
+1. Update local Binary Ninja to the latest development build, then download
+   [windows-debug-server.zip](https://github.com/Vector35/debugger/releases/latest/download/windows-debug-server.zip)
+   and extract it on your Windows VM or remote Windows machine. The standalone server is signed by Vector 35
+   and does not require the Microsoft Visual C++ Redistributable. Binary Ninja does not need to be installed on
+   the Windows host. Alternatively, copy the signed
+   `windows-debug-server.exe` from a matching Binary Ninja Windows package's `plugins` directory.
+   These downloads are for the remote server only; update Binary Ninja itself to update your local debugger.
+   For building the server yourself, see the repository's
    [build instructions](https://github.com/Vector35/debugger/blob/dev/build.md#windows-remote-debug-server).
 2. Put the target executable and its dependencies on the Windows host. Windows Remote does **not** upload them for you.
 3. Open a copy of the same executable in local Binary Ninja. Keep the same filename on both machines (for example,
