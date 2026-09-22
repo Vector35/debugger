@@ -39,18 +39,35 @@ namespace BinaryNinjaDebugger
 		std::int32_t;
 	#endif
 
-		socket_type m_socket{};
+		static constexpr socket_type InvalidSocket =
+	#ifdef WIN32
+			INVALID_SOCKET;
+	#else
+			-1;
+	#endif
+		socket_type m_socket{InvalidSocket};
 		[[maybe_unused]] std::int32_t m_addressFamily{}, m_type{}, m_protocol{};
 		std::uint32_t m_port{};
 
 	public:
 		Socket() = default;
+		~Socket() { Close(); }
+		Socket(const Socket&) = delete;
+		Socket& operator=(const Socket&) = delete;
 
-		/* if port is zero it will be bruteforced */
-		Socket(std::int32_t address_family, std::int32_t type, std::int32_t protocol)
-		: m_addressFamily(address_family), m_type(type), m_protocol(protocol) {
+		[[nodiscard]] bool IsValid() const { return m_socket != InvalidSocket; }
+
+		bool Open(std::int32_t address_family, std::int32_t type, std::int32_t protocol)
+		{
+			Close();
+			m_addressFamily = address_family;
+			m_type = type;
+			m_protocol = protocol;
 			this->m_socket = ::socket(address_family, type, protocol);
+			if (!IsValid())
+				return false;
 			SetSocketReusable();
+			return true;
 		}
 
 		void SetSocketReusable()
@@ -91,24 +108,29 @@ namespace BinaryNinjaDebugger
 			return ::send(this->m_socket, data, size, flags);
 		}
 
-		bool Close() const {
+		bool Close() {
+			if (!IsValid())
+				return true;
+			auto socket = m_socket;
+			m_socket = InvalidSocket;
 			return
 				#ifdef WIN32
-				::closesocket(this->m_socket)
+				::closesocket(socket)
 				#else
-				::close(this->m_socket)
+				::close(socket)
 				#endif
 				>= 0;
 		}
 
-		bool Kill() const {
-			return
-				#ifdef WIN32
-				::shutdown(this->m_socket, 2) >= 0
-				#else
-				::shutdown(this->m_socket, SHUT_RDWR) >= 0
-				#endif
-				&& this->Close();
+		bool Kill() {
+			if (!IsValid())
+				return true;
+			#ifdef WIN32
+			bool shutdownOk = ::shutdown(m_socket, 2) >= 0;
+			#else
+			bool shutdownOk = ::shutdown(m_socket, SHUT_RDWR) >= 0;
+			#endif
+			return Close() && shutdownOk;
 		}
 	};
 };
