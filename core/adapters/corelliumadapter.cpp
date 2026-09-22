@@ -290,7 +290,8 @@ bool CorelliumAdapter::Detach()
     auto connector = m_rspConnector.load();
     if (connector)
         connector->SendPayload(RspData("D"));
-    this->m_socket->Kill();
+    if (m_socket)
+        m_socket->Kill();
     m_isTargetRunning = false;
 	InvalidateCache();
 
@@ -312,7 +313,8 @@ bool CorelliumAdapter::Quit()
     auto connector = m_rspConnector.load();
     if (connector)
         connector->SendPayload(RspData("k"));
-    this->m_socket->Kill();
+    if (m_socket)
+        m_socket->Kill();
     m_isTargetRunning = false;
 	InvalidateCache();
 
@@ -900,7 +902,8 @@ DebugStopReason CorelliumAdapter::ResponseHandler()
 			dbgevt.data.exitData.exitCode = m_exitCode;
 			PostDebuggerEvent(dbgevt);
 
-			this->m_socket->Kill();
+			if (m_socket)
+				m_socket->Kill();
 			m_isTargetRunning = false;
 
 			m_rspConnector.store(nullptr);

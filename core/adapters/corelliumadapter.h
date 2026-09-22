@@ -46,7 +46,7 @@ namespace BinaryNinjaDebugger
 
 		using register_pair = std::pair<std::string, RegisterInfo>;
 
-		Socket* m_socket;
+		Socket* m_socket = nullptr;
 		AtomicRspConnector m_rspConnector;
 
 		std::map<std::string, RegisterInfo> m_registerInfo{};
