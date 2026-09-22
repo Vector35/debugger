@@ -50,7 +50,10 @@ bool X2WinRpcAdapter::ConnectSocket(const std::string& ip, uint16_t port){
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = inet_addr(ip.c_str());
 
-    m_socket = Socket(AF_INET, SOCK_STREAM, 0);
+    if(!m_socket.Open(AF_INET, SOCK_STREAM, 0)){
+        LogWarn("Windows Remote: failed to create socket for %s:%u", ip.c_str(), (unsigned)port);
+        return false;
+    }
     if(!m_socket.Connect(addr)){
         LogWarn("Windows Remote: failed to connect to %s:%u", ip.c_str(), (unsigned)port);
         m_socket.Close();
