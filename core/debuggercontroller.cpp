@@ -54,6 +54,11 @@ DebuggerController::DebuggerController(BinaryViewRef data): BinaryDataNotificati
 
 DebuggerController::~DebuggerController()
 {
+	// Reject teardown-time adapter creation, including requests from dispatcher callbacks.
+	{
+		std::lock_guard<std::recursive_mutex> lock(m_adapterLifecycleMutex);
+		m_closing.store(true, std::memory_order_release);
+	}
 	// The worker can be blocked on either condition variable -- m_workQueueCv (idle in
 	// the outer loop) or m_adapterStopCv (inside WaitForAdapterStop during an op). Each
 	// CV's wait predicate reads m_workerShouldExit, so the flag must be modified while
@@ -81,19 +86,20 @@ DebuggerController::~DebuggerController()
 	if (m_interruptThread.joinable())
 		m_interruptThread.join();
 
-	// Adapter event callbacks are synchronous and can still be in flight here. Destroy the adapter while the event
-	// dispatcher is alive so an adapter-owned listener can finish posting its final event before its destructor joins
-	// it. The worker and interrupt threads have already stopped, so no new controller operation can enter the adapter.
-	if (m_state)
-	{
-		m_adapter = nullptr;
-		m_state->DestroyAdapter();
-	}
+	// Event producers may be waiting for dispatcher callbacks. Join them while the
+	// dispatcher and every adapter are still alive; never hold AdapterAccessMutex here.
+	RetireAdapterEventThreads();
 
+	// The dispatcher drains queued (including reentrant) callbacks before exiting.
 	m_shouldExit = true;
 	m_cv.notify_all();
 	if (m_debuggerEventThread.joinable())
 		m_debuggerEventThread.join();
+
+	// No callback can use an adapter after the dispatcher join. State owns the current adapter.
+	for (auto* adapter : m_retiredAdapters)
+		delete adapter;
+	m_retiredAdapters.clear();
 
 	m_data->UnregisterNotification(this);
 	m_file = nullptr;
@@ -386,6 +392,7 @@ DebugStopReason DebuggerController::LaunchAndWaitInternal()
 
 	if (!CreateDebugAdapter())
 		return InternalError;
+	RetireAdapterEventThreads();
 
 	m_inputFileLoaded = false;
 	m_initialBreakpointSeen	 = false;
@@ -439,6 +446,7 @@ DebugStopReason DebuggerController::AttachAndWaitInternal()
 
 	if (!CreateDebugAdapter())
 		return InternalError;
+	RetireAdapterEventThreads();
 
 	m_inputFileLoaded = false;
 	m_initialBreakpointSeen	 = false;
@@ -492,6 +500,7 @@ DebugStopReason DebuggerController::ConnectAndWaitInternal()
 
 	if (!CreateDebugAdapter())
 		return InternalError;
+	RetireAdapterEventThreads();
 
 	m_inputFileLoaded = false;
 	m_initialBreakpointSeen	 = false;
@@ -541,6 +550,10 @@ bool DebuggerController::Execute()
 
 bool DebuggerController::CreateDebugAdapter()
 {
+	std::lock_guard<std::recursive_mutex> lifecycleLock(m_adapterLifecycleMutex);
+	if (m_closing.load(std::memory_order_acquire))
+		return false;
+
 	// The current adapter type is the same as the last one, and the last adapter is still valid
 	if (m_state->GetAdapterType() == m_lastAdapterName && m_adapter != nullptr)
 	{
@@ -554,18 +567,24 @@ bool DebuggerController::CreateDebugAdapter()
 		LogWarn("Failed to get an debug adapter of type %s", m_state->GetAdapterType().c_str());
 		return false;
 	}
-	m_adapter = type->Create(GetData());
-	if (!m_adapter)
+	DebugAdapter* adapter = type->Create(GetData());
+	if (!adapter)
 	{
 		LogWarn("Failed to create an adapter of type %s", m_state->GetAdapterType().c_str());
 		return false;
 	}
 
-	if (!m_adapter->Init())
+	if (!adapter->Init())
 	{
 		LogWarn("Failed to init an adapter of type %s", m_state->GetAdapterType().c_str());
+		delete adapter;
 		return false;
 	}
+
+	// Changing adapter type must not orphan a listener that still posts to this controller.
+	if (m_adapter)
+		m_retiredAdapters.push_back(m_adapter);
+	m_adapter = adapter;
 
 	m_lastAdapterName = m_state->GetAdapterType();
 	m_state->SetAdapter(m_adapter);
@@ -578,6 +597,24 @@ bool DebuggerController::CreateDebugAdapter()
 	// Forward the DebuggerEvent from the adapters to the controller
 	m_adapter->SetEventCallback([this](const DebuggerEvent& event) { PostDebuggerEvent(event); });
 	return true;
+}
+
+
+void DebuggerController::RetireAdapterEventThreads()
+{
+	// Take a snapshot without holding the list mutex across joins: callbacks may
+	// query adapter settings while their event is being dispatched.
+	std::vector<DebugAdapter*> retired;
+	DebugAdapter* current;
+	{
+		std::lock_guard<std::recursive_mutex> lock(m_adapterLifecycleMutex);
+		retired = m_retiredAdapters;
+		current = m_adapter;
+	}
+	for (auto* adapter : retired)
+		adapter->StopEventThreads();
+	if (current)
+		current->StopEventThreads();
 }
 
 

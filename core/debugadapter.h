@@ -319,6 +319,10 @@ namespace BinaryNinjaDebugger {
 
 		virtual bool Init() { return true; }
 
+		// Stop event-producing threads before the controller stops its dispatcher or deletes this adapter.
+		// Call without AdapterAccessMutex: an event callback may need that lock before the thread can exit.
+		virtual void StopEventThreads() {}
+
 		virtual void SetEventCallback(std::function<void(const DebuggerEvent& event)> function)
 		{
 			m_eventCallback = function;

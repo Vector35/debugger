@@ -98,6 +98,12 @@ namespace BinaryNinjaDebugger {
 		// out from under them. See the "Refcount the DebugAdapter" follow-up issue
 		// for the structural fix that would make this guarantee enforced by the type.
 		DebugAdapter* m_adapter;
+		// Replaced adapters remain alive until all dispatcher callbacks have drained.
+		std::vector<DebugAdapter*> m_retiredAdapters;
+		// Serializes adapter creation/publication with the transition to closing.
+		// Never hold it while joining an event thread or draining the dispatcher.
+		std::recursive_mutex m_adapterLifecycleMutex;
+		std::atomic_bool m_closing = false;
 		DebuggerState* m_state;
 		FileMetadataRef m_file;
 		BinaryViewRef m_data;
@@ -357,7 +363,7 @@ namespace BinaryNinjaDebugger {
 
 			{
 				std::lock_guard<std::mutex> lock(m_workQueueMutex);
-				if (m_workerShouldExit)
+				if (m_workerShouldExit || m_closing.load(std::memory_order_acquire))
 					return future;  // future is left unset; caller's get() will throw broken_promise
 				m_workQueue.push([task]() { (*task)(); });
 			}
@@ -739,6 +745,7 @@ namespace BinaryNinjaDebugger {
 
 		Ref<Settings> GetAdapterSettings();
 		bool CreateDebugAdapter();
+		void RetireAdapterEventThreads();
 
 		void SetDebuggerUICallbacks(BNDebuggerUICallbacks* cb, void* ctxt);
 

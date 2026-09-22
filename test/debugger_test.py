@@ -12,9 +12,9 @@ import unittest
 
 from binaryninja import load, Settings
 try:
-    from debugger import DebuggerController, DebugStopReason, DebugBreakpointType
+    from debugger import DebuggerController, DebugStopReason, DebugBreakpointType, DebuggerEventType
 except:
-    from binaryninja.debugger import DebuggerController, DebugStopReason, DebugBreakpointType
+    from binaryninja.debugger import DebuggerController, DebugStopReason, DebugBreakpointType, DebuggerEventType
 
 # 'helloworld' -> '{BN_SOURCE_ROOT}\public\debugger\test\binaries\Windows-x64\helloworld.exe' (windows)
 # 'helloworld' -> '{BN_SOURCE_ROOT}/public/debugger/test/binaries/Darwin/arm64/helloworld' (linux, macOS)
@@ -594,6 +594,40 @@ class DebuggerAPI(unittest.TestCase):
         ret = dbg.restart_and_wait()
         self.assertNotIn(ret, [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
         dbg.quit_and_wait()
+
+    def test_lldb_listener_lifecycle(self):
+        if self.adapter_type != 'LLDB':
+            self.skipTest('LLDB listener lifecycle test')
+
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        exit_callbacks = []
+
+        def on_event(event):
+            if event.type == DebuggerEventType.TargetStoppedEventType:
+                # A callback-side register refresh takes AdapterAccessMutex.
+                dbg.get_reg_value('pc' if self.arch == 'arm64' else 'rip')
+            elif event.type == DebuggerEventType.TargetExitedEventType:
+                # Exercise a callback that still uses the adapter while restart retires its listener.
+                _ = dbg.executable_path
+                exit_callbacks.append(True)
+
+        callback = dbg.register_event_callback(on_event, 'lldb_listener_lifecycle')
+        try:
+            dbg.executable_path = '/nonexistent-debugger-lldb-lifecycle-target'
+            self.assertEqual(dbg.launch_and_wait(10000), DebugStopReason.InternalError)
+            dbg.executable_path = fpath
+            self.assertNotIn(dbg.launch_and_wait(10000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+            for _ in range(2):
+                self.assertNotIn(dbg.restart_and_wait(10000),
+                                 [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+            dbg.quit_and_wait(10000)
+            self.assertGreaterEqual(len(exit_callbacks), 2)
+        finally:
+            dbg.remove_event_callback(callback)
+            if dbg.connected:
+                dbg.quit_and_wait(10000)
 
     def test_assembly_code(self):
         if self.arch == 'x86_64':

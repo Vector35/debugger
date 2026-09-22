@@ -73,13 +73,19 @@ LldbAdapter::~LldbAdapter()
 }
 
 
-void LldbAdapter::StartEventListener()
+bool LldbAdapter::StartEventListener()
 {
 	std::lock_guard<std::mutex> lock(m_eventListenerMutex);
-	m_stopEventListener.store(true, std::memory_order_release);
-	JoinEventListener();
+	// Launch/attach/connect run under AdapterAccessMutex. Joining here could wait for a
+	// dispatcher callback that needs that mutex; the controller must retire the old listener first.
+	if (m_eventListenerThread.joinable())
+	{
+		LogError("LLDB event listener was not retired before starting another session");
+		return false;
+	}
 	m_stopEventListener.store(false, std::memory_order_release);
 	m_eventListenerThread = std::thread([this]() { EventListener(); });
+	return true;
 }
 
 
@@ -88,6 +94,12 @@ void LldbAdapter::StopEventListener()
 	std::lock_guard<std::mutex> lock(m_eventListenerMutex);
 	m_stopEventListener.store(true, std::memory_order_release);
 	JoinEventListener();
+}
+
+
+void LldbAdapter::StopEventThreads()
+{
+	StopEventListener();
 }
 
 
@@ -444,7 +456,8 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 
 	// We must start the event listener before calling CreateTarget, since CreateTarget will send out the initial
 	// batch of module load events.
-	StartEventListener();
+	if (!StartEventListener())
+		return false;
 
 	SBError err;
 
@@ -485,7 +498,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 
 	if (!m_target.IsValid())
 	{
-		StopEventListener();
+		m_stopEventListener.store(true, std::memory_order_release);
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = "LLDB failed to create target.";
@@ -575,7 +588,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	m_process = m_target.GetProcess();
 	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || (result.rfind("error: ", 0) == 0))
 	{
-		StopEventListener();
+		m_stopEventListener.store(true, std::memory_order_release);
 		auto it = result.find_last_not_of('\n');
 		result.erase(it + 1);
 		DebuggerEvent event;
@@ -593,7 +606,8 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 {
 	m_debugger.SetAsync(true);
 
-	StartEventListener();
+	if (!StartEventListener())
+		return false;
 
 	SBError err;
 
@@ -612,7 +626,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 
 	if (!m_target.IsValid())
 	{
-		StopEventListener();
+		m_stopEventListener.store(true, std::memory_order_release);
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
@@ -642,7 +656,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	m_process = m_target.Attach(info, err);
 	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || err.Fail())
 	{
-		StopEventListener();
+		m_stopEventListener.store(true, std::memory_order_release);
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
@@ -700,7 +714,8 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 {
 	m_debugger.SetAsync(true);
 
-	StartEventListener();
+	if (!StartEventListener())
+		return false;
 
 	SBError err;
 
@@ -723,7 +738,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 
 	if (!m_target.IsValid())
 	{
-		StopEventListener();
+		m_stopEventListener.store(true, std::memory_order_release);
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to connect to target.");
@@ -760,7 +775,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	m_process = m_target.ConnectRemote(listener, url.c_str(), plugin, err);
 	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || err.Fail())
 	{
-		StopEventListener();
+		m_stopEventListener.store(true, std::memory_order_release);
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to connect to target.");

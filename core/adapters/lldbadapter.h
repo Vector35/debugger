@@ -59,7 +59,7 @@ namespace BinaryNinjaDebugger {
 		std::thread m_eventListenerThread;
 		std::atomic<bool> m_stopEventListener {false};
 
-		void StartEventListener();
+		bool StartEventListener();
 		void StopEventListener();
 		void JoinEventListener();
 
@@ -71,6 +71,7 @@ namespace BinaryNinjaDebugger {
 	public:
 		LldbAdapter(BinaryView* data);
 		virtual ~LldbAdapter();
+		void StopEventThreads() override;
 
 		bool Execute(const std::string& path, const LaunchConfigurations& configs) override;
 
