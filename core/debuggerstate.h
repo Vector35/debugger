@@ -372,6 +372,7 @@ namespace BinaryNinjaDebugger {
 		std::vector<std::string> GetAvailableAdapters() { return m_availableAdapters; }
 
 		void SetAdapter(DebugAdapter* adapter) { m_adapter = adapter; }
+		void DestroyAdapter();
 
 		// Check a debug adapter exists, or create one if necessary. Return true if an adapter exists or get created,
 		// return false if the adapter is still nullptr despite trying to create it

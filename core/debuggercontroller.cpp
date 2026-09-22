@@ -81,6 +81,15 @@ DebuggerController::~DebuggerController()
 	if (m_interruptThread.joinable())
 		m_interruptThread.join();
 
+	// Adapter event callbacks are synchronous and can still be in flight here. Destroy the adapter while the event
+	// dispatcher is alive so an adapter-owned listener can finish posting its final event before its destructor joins
+	// it. The worker and interrupt threads have already stopped, so no new controller operation can enter the adapter.
+	if (m_state)
+	{
+		m_adapter = nullptr;
+		m_state->DestroyAdapter();
+	}
+
 	m_shouldExit = true;
 	m_cv.notify_all();
 	if (m_debuggerEventThread.joinable())

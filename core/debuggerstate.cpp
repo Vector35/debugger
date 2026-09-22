@@ -1484,13 +1484,21 @@ DebuggerState::DebuggerState(BinaryViewRef data, DebuggerController* controller)
 
 DebuggerState::~DebuggerState()
 {
-	delete m_adapter;
+	DestroyAdapter();
 	delete m_modules;
 	delete m_memoryMap;
 	delete m_registers;
 	delete m_threads;
 	delete m_breakpoints;
 	delete m_memory;
+}
+
+
+void DebuggerState::DestroyAdapter()
+{
+	auto* adapter = m_adapter;
+	m_adapter = nullptr;
+	delete adapter;
 }
 
 
