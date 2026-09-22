@@ -67,8 +67,31 @@ LldbAdapter::LldbAdapter(BinaryView* data) : DebugAdapter(data)
 
 LldbAdapter::~LldbAdapter()
 {
-	m_process.Destroy();
-	SBDebugger::Destroy(m_debugger);
+	try
+	{
+		m_process.Destroy();
+	}
+	catch (const std::exception& exception)
+	{
+		LogError("Exception while destroying LLDB process: %s", exception.what());
+	}
+	catch (...)
+	{
+		LogError("Unknown exception while destroying LLDB process");
+	}
+
+	try
+	{
+		SBDebugger::Destroy(m_debugger);
+	}
+	catch (const std::exception& exception)
+	{
+		LogError("Exception while destroying LLDB debugger: %s", exception.what());
+	}
+	catch (...)
+	{
+		LogError("Unknown exception while destroying LLDB debugger");
+	}
 }
 
 
