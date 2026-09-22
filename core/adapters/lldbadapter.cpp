@@ -67,8 +67,59 @@ LldbAdapter::LldbAdapter(BinaryView* data) : DebugAdapter(data)
 
 LldbAdapter::~LldbAdapter()
 {
+	StopEventListener();
 	m_process.Destroy();
 	SBDebugger::Destroy(m_debugger);
+}
+
+
+bool LldbAdapter::StartEventListener()
+{
+	std::lock_guard<std::mutex> lock(m_eventListenerMutex);
+	// Launch/attach/connect run under AdapterAccessMutex. Joining here could wait for a
+	// dispatcher callback that needs that mutex; the controller must retire the old listener first.
+	if (m_eventListenerThread.joinable())
+	{
+		LogError("LLDB event listener was not retired before starting another session");
+		return false;
+	}
+	m_stopEventListener.store(false, std::memory_order_release);
+	m_eventListenerThread = std::thread([this]() { EventListener(); });
+	return true;
+}
+
+
+void LldbAdapter::StopEventListener()
+{
+	std::lock_guard<std::mutex> lock(m_eventListenerMutex);
+	m_stopEventListener.store(true, std::memory_order_release);
+	JoinEventListener();
+}
+
+
+void LldbAdapter::StopEventThreads()
+{
+	StopEventListener();
+}
+
+
+void LldbAdapter::JoinEventListener()
+{
+	// The caller holds m_eventListenerMutex so a repeated launch cannot race shutdown and replace this thread before
+	// it has been joined.
+	if (!m_eventListenerThread.joinable())
+		return;
+
+	if (m_eventListenerThread.get_id() == std::this_thread::get_id())
+	{
+		// The controller destroys the adapter only after its worker threads have stopped, and while its event dispatcher
+		// remains alive, so adapter destruction cannot normally run here. Fail fast rather than detach a thread that
+		// still captures this adapter and turn an invariant violation into a use-after-free.
+		LogError("Cannot join LLDB event listener from itself");
+		std::terminate();
+	}
+
+	m_eventListenerThread.join();
 }
 
 
@@ -405,8 +456,8 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 
 	// We must start the event listener before calling CreateTarget, since CreateTarget will send out the initial
 	// batch of module load events.
-	std::thread thread([&]() { EventListener(); });
-	thread.detach();
+	if (!StartEventListener())
+		return false;
 
 	SBError err;
 
@@ -447,6 +498,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 
 	if (!m_target.IsValid())
 	{
+		m_stopEventListener.store(true, std::memory_order_release);
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = "LLDB failed to create target.";
@@ -536,6 +588,7 @@ bool LldbAdapter::ExecuteWithArgs(const std::string& path, const std::string& ar
 	m_process = m_target.GetProcess();
 	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || (result.rfind("error: ", 0) == 0))
 	{
+		m_stopEventListener.store(true, std::memory_order_release);
 		auto it = result.find_last_not_of('\n');
 		result.erase(it + 1);
 		DebuggerEvent event;
@@ -553,8 +606,8 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 {
 	m_debugger.SetAsync(true);
 
-	std::thread thread([&]() { EventListener(); });
-	thread.detach();
+	if (!StartEventListener())
+		return false;
 
 	SBError err;
 
@@ -573,6 +626,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 
 	if (!m_target.IsValid())
 	{
+		m_stopEventListener.store(true, std::memory_order_release);
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
@@ -602,6 +656,7 @@ bool LldbAdapter::Attach(std::uint32_t pid)
 	m_process = m_target.Attach(info, err);
 	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || err.Fail())
 	{
+		m_stopEventListener.store(true, std::memory_order_release);
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to attach to target.");
@@ -659,8 +714,8 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 {
 	m_debugger.SetAsync(true);
 
-	std::thread thread([&]() { EventListener(); });
-	thread.detach();
+	if (!StartEventListener())
+		return false;
 
 	SBError err;
 
@@ -683,6 +738,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 
 	if (!m_target.IsValid())
 	{
+		m_stopEventListener.store(true, std::memory_order_release);
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to connect to target.");
@@ -719,6 +775,7 @@ bool LldbAdapter::Connect(const std::string& server, std::uint32_t port)
 	m_process = m_target.ConnectRemote(listener, url.c_str(), plugin, err);
 	if (!m_process.IsValid() || (m_process.GetState() == StateType::eStateInvalid) || err.Fail())
 	{
+		m_stopEventListener.store(true, std::memory_order_release);
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = fmt::format("LLDB failed to connect to target.");
@@ -741,7 +798,7 @@ bool LldbAdapter::Detach()
 	// There is a situation where the reqeust to Quit or Detach can fail, and the target will continue to execute but
 	// the DebuggerController is freed. To avoid UAF, when that happens, make sure at least we break from the
 	// EventListener() loop
-	m_userRequestedQuit = true;
+	m_stopEventListener.store(true, std::memory_order_release);
 	return false;
 }
 
@@ -756,7 +813,7 @@ bool LldbAdapter::Quit()
 	// There is a situation where the reqeust to Quit or Detach can fail, and the target will continue to execute but
 	// the DebuggerController is freed. To avoid UAF, when that happens, make sure at least we break from the
 	// EventListener() loop
-	m_userRequestedQuit = true;
+	m_stopEventListener.store(true, std::memory_order_release);
 	return false;
 }
 
@@ -2276,17 +2333,14 @@ void LldbAdapter::EventListener()
 	auto listener = m_debugger.GetListener();
 
 	bool done = false;
-	while (!done)
+	while (!done && !m_stopEventListener.load(std::memory_order_acquire))
 	{
 		SBEvent event;
 		if (!listener.WaitForEvent(1, event))
 			continue;
 
-		if (m_userRequestedQuit)
-		{
-			m_userRequestedQuit = false;
+		if (m_stopEventListener.load(std::memory_order_acquire))
 			break;
-		}
 
 		uint32_t event_type = event.GetType();
 		if (lldb::SBProcess::EventIsProcessEvent(event))
