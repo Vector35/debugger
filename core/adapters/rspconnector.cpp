@@ -29,6 +29,8 @@ using namespace BinaryNinja;
 
 RspConnector::RspConnector(Socket* socket) : m_socket(socket) { }
 
+RspConnector::RspConnector(std::shared_ptr<Socket> socket) : m_ownedSocket(std::move(socket)), m_socket(m_ownedSocket.get()) { }
+
 RspConnector::~RspConnector() {}
 
 // Expand one RLE run into result. A run is "<char>*<count>", so it repeats the character
