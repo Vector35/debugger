@@ -18,6 +18,7 @@ limitations under the License.
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
 #include "rspconnector.h"
+#include <condition_variable>
 #include <map>
 #include <queue>
 #include "../semaphore.h"
@@ -46,7 +47,10 @@ namespace BinaryNinjaDebugger
 
 		using register_pair = std::pair<std::string, RegisterInfo>;
 
-		Socket* m_socket;
+		std::mutex m_connectionLock;
+		std::condition_variable m_connectionCondition;
+		std::shared_ptr<Socket> m_socket;
+		bool m_connectionShutdown = false;
 		AtomicRspConnector m_rspConnector;
 
 		std::map<std::string, RegisterInfo> m_registerInfo{};
@@ -81,6 +85,7 @@ namespace BinaryNinjaDebugger
 		bool m_isBigEndian = false;
 
 		void InvalidateCache();
+		void ShutdownConnection();
 
 		virtual DebugStopReason SignalToStopReason(std::unordered_map<std::string, std::uint64_t>& map);
 
