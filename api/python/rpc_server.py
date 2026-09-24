@@ -29,6 +29,7 @@ import ctypes
 import json
 import os
 import secrets
+import socket
 import socketserver
 import sys
 import threading
@@ -976,11 +977,31 @@ class _Connection(socketserver.StreamRequestHandler):
             line = self.rfile.readline(MAX_LINE_BYTES + 1)
         except OSError:
             return
-        if not line or len(line) > MAX_LINE_BYTES:
+        if not line:
             return
-        response = self._respond(line)
+        if len(line) > MAX_LINE_BYTES:
+            response = {"id": None, "error": {"code": Err.INVALID_PARAMS,
+                                              "message": f"Request is larger than {MAX_LINE_BYTES} bytes"}}
+        else:
+            response = self._respond(line)
         try:
             self.wfile.write((json.dumps(response) + "\n").encode())
+        except OSError:
+            pass
+        if len(line) > MAX_LINE_BYTES:
+            self._discard_rest_of_request()
+
+    def _discard_rest_of_request(self):
+        # Closing with unread input makes TCP reset the connection, which can throw away the reply above.
+        try:
+            self.request.shutdown(socket.SHUT_WR)
+            self.request.settimeout(1)
+            remaining = MAX_LINE_BYTES
+            while remaining > 0:
+                data = self.request.recv(65536)
+                if not data:
+                    break
+                remaining -= len(data)
         except OSError:
             pass
 
@@ -1010,8 +1031,8 @@ class _Connection(socketserver.StreamRequestHandler):
 
 
 class DebuggerRpcServer:
-    def __init__(self):
-        self.sessions = SessionTable()
+    def __init__(self, sessions=None):
+        self.sessions = sessions if sessions is not None else SessionTable()
         self.token = secrets.token_hex(16)
         self._server = _Server(("127.0.0.1", 0), Handlers(self.sessions), self.token)
         self._thread = threading.Thread(target=self._server.serve_forever, name="debugger-rpc", daemon=True)
@@ -1021,19 +1042,32 @@ class DebuggerRpcServer:
     def port(self):
         return self._server.server_address[1]
 
+    def alive(self):
+        return self._thread.is_alive()
+
     def start(self):
         remove_stale_discovery_files(os.path.dirname(self._path))
         self._thread.start()
-        info = {"host": "127.0.0.1", "port": self.port, "token": self.token, "pid": os.getpid()}
-        fd = os.open(self._path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as f:
-            json.dump(info, f)
-        os.chmod(self._path, 0o600)
+        try:
+            info = {"host": "127.0.0.1", "port": self.port, "token": self.token, "pid": os.getpid()}
+            fd = os.open(self._path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
+                json.dump(info, f)
+            os.chmod(self._path, 0o600)
+        except BaseException:
+            # A start that failed must not leave a listener running that nothing knows about.
+            self._close_listener()
+            raise
         return self
 
-    def stop(self):
-        self._server.shutdown()
+    def _close_listener(self):
+        # shutdown() waits for the serve loop to say it is done, so it is only called while there is a loop to answer.
+        if self._thread.is_alive():
+            self._server.shutdown()
         self._server.server_close()
+
+    def stop(self):
+        self._close_listener()
         try:
             os.remove(self._path)
         except OSError:
@@ -1045,6 +1079,12 @@ _server = None
 
 def start(*views):
     global _server
+    if _server is not None and not _server.alive():
+        # Its listener is gone but its discovery file still advertises a port nobody answers on; keep the registered
+        # views and replace it, instead of reporting a dead endpoint as started.
+        sessions = _server.sessions
+        _server.stop()
+        _server = DebuggerRpcServer(sessions).start()
     if _server is None:
         _server = DebuggerRpcServer().start()
     for bv in views:
