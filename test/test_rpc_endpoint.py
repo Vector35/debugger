@@ -860,6 +860,99 @@ class DiscoveryFileTests(unittest.TestCase):
         rpc.remove_stale_discovery_files(os.path.join(self.dir, "nope"))
 
 
+class EndpointLifecycleTests(unittest.TestCase):
+    """The module-level start()/stop() the MCP layer drives, including the ways a start can go wrong."""
+
+    def setUp(self):
+        import tempfile
+        self.dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.dir, "endpoint.json")
+        self.saved = os.environ.get("BN_DEBUGGER_RPC")
+        os.environ["BN_DEBUGGER_RPC"] = self.path
+        rpc.stop()
+
+    def tearDown(self):
+        import shutil
+        rpc.stop()
+        shutil.rmtree(self.dir, ignore_errors=True)
+        if self.saved is None:
+            os.environ.pop("BN_DEBUGGER_RPC", None)
+        else:
+            os.environ["BN_DEBUGGER_RPC"] = self.saved
+
+    def listeners(self):
+        return [t for t in threading.enumerate() if t.name == "debugger-rpc"]
+
+    def wait_until(self, condition):
+        deadline = time.time() + 5
+        while time.time() < deadline and not condition():
+            time.sleep(0.01)
+        return condition()
+
+    def ping(self):
+        import socket
+        with open(self.path) as handle:
+            info = json.loads(handle.read())
+        with socket.create_connection(("127.0.0.1", info["port"]), timeout=5) as sock:
+            sock.sendall((json.dumps({"id": 1, "token": info["token"], "method": "ping"}) + "\n").encode())
+            reply = b""
+            while not reply.endswith(b"\n"):
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                reply += chunk
+        return json.loads(reply)
+
+    def test_start_is_idempotent_while_the_listener_is_alive(self):
+        first = rpc.start()
+        self.assertIs(rpc.start(), first)
+        self.assertEqual(len(self.listeners()), 1)
+
+    def test_start_replaces_a_server_whose_listener_has_died(self):
+        first = rpc.start()
+        first._server.shutdown()  # what a dead serve loop looks like from outside: the object is still there
+        self.assertTrue(self.wait_until(lambda: not first.alive()))
+        second = rpc.start()
+        self.assertIsNot(second, first)
+        self.assertTrue(second.alive())
+        self.assertIn("result", self.ping())
+        with open(self.path) as handle:
+            self.assertEqual(json.loads(handle.read())["port"], second.port)
+
+    def test_a_replacement_keeps_the_views_that_were_registered(self):
+        bv = FakeBV(5, "/bin/kept")
+        first = rpc.start(bv)
+        first._server.shutdown()
+        self.assertTrue(self.wait_until(lambda: not first.alive()))
+        second = rpc.start()
+        self.assertIs(second.sessions, first.sessions)
+
+    def test_a_start_that_cannot_write_its_file_leaves_nothing_listening(self):
+        os.environ["BN_DEBUGGER_RPC"] = os.path.join(self.dir, "no", "such", "dir", "endpoint.json")
+        for _ in range(2):
+            with self.assertRaises(OSError):
+                rpc.start()
+        self.assertIsNone(rpc._server)
+        self.assertTrue(self.wait_until(lambda: not self.listeners()))
+
+    def test_starting_works_after_a_failed_start(self):
+        os.environ["BN_DEBUGGER_RPC"] = os.path.join(self.dir, "no", "such", "dir", "endpoint.json")
+        with self.assertRaises(OSError):
+            rpc.start()
+        os.environ["BN_DEBUGGER_RPC"] = self.path
+        rpc.start()
+        self.assertIn("result", self.ping())
+        self.assertEqual(len(self.listeners()), 1)
+
+    def test_stop_is_safe_when_nothing_was_started_or_it_died(self):
+        rpc.stop()
+        server = rpc.start()
+        server._server.shutdown()
+        self.assertTrue(self.wait_until(lambda: not server.alive()))
+        rpc.stop()
+        self.assertFalse(os.path.exists(self.path))
+
+
 class WireProtocolTests(unittest.TestCase):
     """The endpoint over a real loopback socket, as the MCP layer talks to it."""
 
@@ -923,6 +1016,12 @@ class WireProtocolTests(unittest.TestCase):
             rpc.Handlers.ping = original
         self.assertEqual(reply["error"]["code"], "internal_error")
         self.assertIn("ZeroDivisionError", reply["error"]["message"])
+        self.assertIn("result", self.call({"id": 2, "token": self.info["token"], "method": "ping"}))
+
+    def test_an_oversized_request_is_answered_and_the_endpoint_keeps_serving(self):
+        reply = self.call(None, raw=b"x" * (rpc.MAX_LINE_BYTES + 10) + b"\n")
+        self.assertEqual(reply["error"]["code"], "invalid_params")
+        self.assertIn(str(rpc.MAX_LINE_BYTES), reply["error"]["message"])
         self.assertIn("result", self.call({"id": 2, "token": self.info["token"], "method": "ping"}))
 
     def test_stopping_removes_the_file_and_starting_again_works(self):
