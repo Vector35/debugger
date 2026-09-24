@@ -134,6 +134,21 @@ void HardwareBreakpointDialog::addBreakpoint()
 
 	if (m_controller)
 	{
+		// Warn upfront if the user is trying to add a hardware execution breakpoint
+		// with LLDB before debugging -- it will be recorded but will fail silently later
+		if (type == HardwareExecuteBreakpoint
+			&& m_controller->GetAdapterType() == "LLDB"
+			&& !m_controller->IsConnected())
+		{
+			QMessageBox::warning(this, "Hardware Execution Breakpoint Not Supported",
+				"Hardware execution breakpoints are not supported with the LLDB adapter "
+				"on x86/x64 Linux. The breakpoint will be saved but will fail when "
+				"debugging starts.\n\n"
+				"Consider using a software breakpoint instead.\n\n"
+				"See https://github.com/Vector35/debugger/issues/957 for details.");
+			return;
+		}
+
 		bool success = false;
 
 		// Determine if we should use absolute or relative addressing
@@ -159,8 +174,25 @@ void HardwareBreakpointDialog::addBreakpoint()
 		}
 		else
 		{
-			QMessageBox::warning(this, "Failed to Add Breakpoint",
-				"Failed to add hardware breakpoint. The target may not support hardware breakpoints or all hardware breakpoint slots may be in use.");
+			QString message;
+			if (type == HardwareExecuteBreakpoint
+				&& m_controller->GetAdapterType() == "LLDB")
+			{
+				message = "Failed to add hardware execution breakpoint.\n\n"
+					"This is a known issue: LLDB does not support hardware execution "
+					"breakpoints on x86/x64 Linux. Consider using a software breakpoint "
+					"instead.\n\n"
+					"See https://github.com/Vector35/debugger/issues/957 for details.";
+			}
+			else
+			{
+				message = "Failed to add hardware breakpoint.\n\n"
+					"Possible causes:\n"
+					"  - The target does not support this type of hardware breakpoint\n"
+					"  - All hardware breakpoint slots are in use\n"
+					"  - The address is not valid for a hardware breakpoint";
+			}
+			QMessageBox::warning(this, "Failed to Add Breakpoint", message);
 		}
 	}
 }
