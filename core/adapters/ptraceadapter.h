@@ -14,42 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#pragma once
+#include <atomic>
+#include <memory>
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
-#ifdef WIN32
-	#pragma warning(push)
-	#pragma warning(disable : 4251)
-
-	#pragma warning(pop)
-#else
-	#include <sys/ptrace.h>
-#endif
+#include "ptraceengine.h"
 
 namespace BinaryNinjaDebugger {
 	class PtraceAdapter : public DebugAdapter
 	{
 	private:
-		void* m_debugger; // TODO: REAL TYPE
-		void* m_target;   // TODO: REAL TYPE
-		void* m_process;  // TODO: REAL TYPE
+		std::unique_ptr<PtraceEngine> m_engine;
+		std::atomic<bool> m_targetActive;
+		std::atomic<uint32_t> m_activeThreadId {0};
+		std::atomic<DebugStopReason> m_lastStopReason {UnknownReason};
+		std::atomic<uint64_t> m_exitCode {0};
+		bool m_firstStop = false;
+		bool m_stopAtSystemEntry = false;
 
-		bool m_targetActive;
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints {};
 		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
 
-		// Since when SBProcess::Kill() and SBProcess::ReadMemory() are called at the same time, LLDB will hang,
-		// we must use this mutex to prevent the quit operation and read memory operation to happen at the same time.
-        // TODO: Does ptrace need this as well? 
-		std::mutex m_quitingMutex;
-
-		// To launch an ELF without dynamic loader, we must set `debugger.stopAtSystemEntryPoint`.
-		// Otherwise, the process will run freely on its own and not stop.
-		bool m_isElFWithoutDynamicLoader = false;
-		bool IsELFWithoutDynamicLoader(BinaryView* data);
-
-		bool CreateTarget(const std::string& file);
-
-		bool m_userRequestedQuit = false;
+		void HandleEngineEvent(const PtraceEngine::Event& event);
 
 		// Helper to resolve module+offset to absolute address
 		// Returns true if the module was found in the loaded module list and address was resolved
@@ -159,16 +146,26 @@ namespace BinaryNinjaDebugger {
 
 		bool SetProperty(const std::string& name, const Ref<Metadata>& value) override;
 
-		bool ConnectToDebugServer(const std::string& server, std::uint32_t port) override;
-
-		bool DisconnectDebugServer() override;
-
-		std::string m_processPlugin;
-
 		void ApplyBreakpoints();
 
 		void GenerateDefaultAdapterSettings(BinaryView* data);
 		Ref<Settings> GetAdapterSettings() override;
 	};
+
+	class PtraceAdapterType : public DebugAdapterType
+	{
+		static Ref<Settings> RegisterAdapterSettings();
+
+	public:
+		PtraceAdapterType();
+		virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
+		virtual bool IsValidForData(BinaryNinja::BinaryView* data);
+		virtual bool CanExecute(BinaryNinja::BinaryView* data);
+		virtual bool CanConnect(BinaryNinja::BinaryView* data);
+		static Ref<Settings> GetAdapterSettings();
+	};
+
+
+	void InitPtraceAdapterType();
 
 }  // namespace BinaryNinjaDebugger

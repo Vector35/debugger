@@ -22,6 +22,9 @@ limitations under the License.
 #include "adapters/lldbcoredumpadapter.h"
 #include "adapters/esrevenadapter.h"
 #include "adapters/x2winrpcadapter.h"
+#ifdef __linux__
+	#include "adapters/ptraceadapter.h"
+#endif
 #ifdef WIN32
 	#include "adapters/dbgengadapter.h"
 	#include "adapters/dbgengttdadapter.h"
@@ -59,6 +62,9 @@ void InitDebugAdapterTypes()
 	InitEsrevenAdapterType();
 	InitLldbCoreDumpAdapterType();
 	InitX2WinRpcAdapterType();
+#ifdef __linux__
+	InitPtraceAdapterType();
+#endif
 }
 
 

@@ -59,6 +59,14 @@ if(WIN32)
 			)
 else()
 	set(SOURCES ${COMMON_SOURCES} ${ADAPTER_SOURCES})
+	if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+		list(APPEND SOURCES
+			adapters/ptraceadapter.cpp
+			adapters/ptraceadapter.h
+			adapters/ptraceengine.cpp
+			adapters/ptraceengine.h
+			)
+	endif()
 endif()
 
 if(DEMO)
