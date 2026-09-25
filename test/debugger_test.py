@@ -13,6 +13,7 @@ import tempfile
 import unittest
 
 from binaryninja import load, Settings
+from binaryninja.enums import SettingsScope
 try:
     from debugger import DebuggerController, DebugStopReason, DebugBreakpointType
 except:
@@ -54,6 +55,19 @@ def is_wow64(fpath):
         return False
     a, b = platform.architecture()
     return a == '64bit' and b.startswith('Windows')
+
+
+def can_attach_to_unrelated_process():
+    """Attaching to a process that is not a descendant needs root, or a Yama scope of 0 (or no Yama)"""
+    if os.name != 'posix':
+        return False
+    if os.geteuid() == 0:
+        return True
+    try:
+        with open('/proc/sys/kernel/yama/ptrace_scope') as f:
+            return f.read().strip() == '0'
+    except OSError:
+        return True
 
 
 def sleep_and_go(dbg):
@@ -463,9 +477,10 @@ class DebuggerAPI(unittest.TestCase):
 
         dbg.quit_and_wait()
 
-    @unittest.skipIf(platform.system() == 'Linux', 'Hardware breakpoints not yet supported on Linux')
     def test_hardware_breakpoint(self):
         """Test hardware breakpoint add and delete"""
+        if platform.system() == 'Linux' and self.adapter_type != 'PTRACE':
+            self.skipTest('Hardware breakpoints not yet supported on Linux')
         fpath = name_to_fpath('helloworld', self.arch)
         bv = load(fpath)
         dbg = self.create_debugger(bv)
@@ -628,8 +643,9 @@ class DebuggerAPI(unittest.TestCase):
             reason = sleep_and_go(dbg)
             self.assertEqual(reason, DebugStopReason.ProcessExited)
 
-    @unittest.skipIf(platform.system() == 'Linux', 'Cannot attach to pid unless running as root')
     def test_attach(self):
+        if platform.system() == 'Linux' and not (self.adapter_type == 'PTRACE' and can_attach_to_unrelated_process()):
+            self.skipTest('Cannot attach to pid unless running as root')
         from attach_test_runner import run_attach_test
         fpath = name_to_fpath('helloworld_loop', self.arch)
         worker = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'attach_test_runner.py')
@@ -693,6 +709,142 @@ class GdbMiLinuxTest(DebuggerAPI):
             finally:
                 if dbg.connected:
                     dbg.quit_and_wait()
+
+
+class PtraceAdapterTests:
+    """The tests for what only the PTRACE adapter does. They come on top of the ones of DebuggerAPI."""
+
+    def create_debugger(self, bv):
+        dbg = super().create_debugger(bv)
+
+        # Debugger settings are registered lazily when the first controller is constructed
+        if not hasattr(self, '_entry_settings_configured'):
+            settings = Settings()
+            previous_system_entry = settings.get_bool('debugger.stopAtSystemEntryPoint')
+            previous_program_entry = settings.get_bool('debugger.stopAtEntryPoint')
+            self.assertTrue(settings.set_bool('debugger.stopAtSystemEntryPoint', False))
+            self.assertTrue(settings.set_bool('debugger.stopAtEntryPoint', True))
+            self.addCleanup(settings.set_bool, 'debugger.stopAtEntryPoint', previous_program_entry)
+            self.addCleanup(settings.set_bool, 'debugger.stopAtSystemEntryPoint', previous_system_entry)
+            self._entry_settings_configured = True
+
+        return dbg
+
+    def set_redirects(self, bv, redirects):
+        # The settings of the adapter exist once the controller has created the adapter, which setting the path does
+        settings = Settings('PtraceAdapterSettings')
+        self.assertTrue(settings.contains('launch.redirectFileDescriptors'))
+        self.assertTrue(settings.set_string_list('launch.redirectFileDescriptors', redirects, bv,
+                                                 SettingsScope.SettingsResourceScope))
+
+    def test_redirect_stdout(self):
+        fpath = name_to_fpath('helloworld', self.arch)
+        expected = subprocess.run([fpath], capture_output=True, timeout=30).stdout
+        self.assertTrue(expected)
+
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        dbg.executable_path = fpath
+        with tempfile.TemporaryDirectory() as temp_dir:
+            out_path = os.path.join(temp_dir, 'out.txt')
+            self.set_redirects(bv, ['1>' + out_path])
+            self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+            self.assertEqual(sleep_and_go(dbg), DebugStopReason.ProcessExited)
+            with open(out_path, 'rb') as f:
+                self.assertEqual(f.read(), expected)
+
+    def test_redirect_stdin(self):
+        fpath = name_to_fpath('cat', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        dbg.executable_path = fpath
+        with tempfile.TemporaryDirectory() as temp_dir:
+            in_path = os.path.join(temp_dir, 'in.txt')
+            out_path = os.path.join(temp_dir, 'out.txt')
+            with open(in_path, 'w') as f:
+                f.write('read from a file\n')
+            self.set_redirects(bv, ['0<' + in_path, '1>' + out_path])
+            self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+            self.assertEqual(sleep_and_go(dbg), DebugStopReason.ProcessExited)
+            with open(out_path) as f:
+                self.assertEqual(f.read(), 'read from a file\n')
+
+    def test_redirect_bad_file(self):
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        dbg.executable_path = fpath
+        self.set_redirects(bv, ['0</nonexistent/directory/file'])
+        self.assertIn(dbg.launch_and_wait(), [DebugStopReason.InternalError])
+
+    def test_detach_lets_the_target_run(self):
+        fpath = name_to_fpath('helloworld_loop', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        pid = dbg.active_pid
+        self.assertGreater(pid, 0)
+        try:
+            dbg.go()
+            time.sleep(1)
+            dbg.pause_and_wait()
+            dbg.detach_and_wait()
+            time.sleep(0.5)
+
+            with open(f'/proc/{pid}/status') as f:
+                state = [line for line in f if line.startswith('State:')][0].split()[1]
+            # Not stopped by the tracing, and not a zombie either
+            self.assertNotIn(state, ['t', 'T', 'Z'])
+        finally:
+            try:
+                os.kill(pid, 9)
+            except ProcessLookupError:
+                pass
+
+    def test_stripped_pie_entry_point(self):
+        strip_path = shutil.which('strip')
+        if strip_path is None:
+            self.skipTest('strip is not installed')
+
+        source_path = name_to_fpath('helloworld_pie', self.arch)
+        if not os.path.exists(source_path):
+            self.skipTest('PIE test binary not built')
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stripped_path = os.path.join(temp_dir, 'helloworld_pie_stripped')
+            shutil.copy2(source_path, stripped_path)
+            subprocess.run([strip_path, '--strip-all', stripped_path], check=True)
+
+            bv = load(stripped_path)
+            dbg = self.create_debugger(bv)
+            dbg.executable_path = stripped_path
+
+            try:
+                reason = dbg.launch_and_wait(20000)
+                self.assertEqual(reason, DebugStopReason.Breakpoint)
+
+                remote_base = dbg.get_remote_base()
+                self.assertIsNotNone(remote_base)
+                self.assertEqual(dbg.ip, remote_base + (bv.entry_point - bv.start))
+            finally:
+                if dbg.connected:
+                    dbg.quit_and_wait()
+
+
+@unittest.skipUnless(platform.system() == 'Linux', 'The PTRACE adapter only works on Linux')
+@unittest.skipIf(platform.machine() in ['arm64', 'aarch64'], 'The PTRACE adapter only supports x86 and x86_64')
+class PtraceLinuxx64Test(PtraceAdapterTests, DebuggerAPI):
+    def setUp(self) -> None:
+        self.arch = 'x86_64'
+        self.adapter_type = 'PTRACE'
+
+
+@unittest.skipUnless(platform.system() == 'Linux', 'The PTRACE adapter only works on Linux')
+@unittest.skipIf(platform.machine() in ['arm64', 'aarch64'], 'The PTRACE adapter only supports x86 and x86_64')
+class PtraceLinuxx86Test(PtraceAdapterTests, DebuggerAPI):
+    def setUp(self) -> None:
+        self.arch = 'x86'
+        self.adapter_type = 'PTRACE'
 
 
 @unittest.skipIf(platform.machine() not in ['arm64', 'aarch64'], "Only run arm64 tests on arm Mac or Linux")
