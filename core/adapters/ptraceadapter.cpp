@@ -332,7 +332,7 @@ namespace BinaryNinjaDebugger {
 				message.type = BackendMessageEventType;
 				message.data.messageData.message = fmt::format(
 					"PTRACE: signal {} ({}) was delivered to thread {}, which is stopped at the start of its handler, "
-				    "0x{:x}\n",
+					"0x{:x}\n",
 					event.signalHandler, strsignal(event.signalHandler), event.tid,
 					arch ? ReadArchRegister(arch->pc) : 0);
 				PostDebuggerEvent(message);
@@ -1100,9 +1100,37 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	// The view analyzes one module, the input file. Its functions are only where that module is, so what the analysis
+	// knows says nothing about an address outside of it, such as in another program after an exec.
+	bool PtraceAdapter::IsInAnalyzedModule(uint64_t address)
+	{
+		for (const auto& module : GetModules())
+		{
+			if (DebugModule::IsSameBaseModule(module.path, m_inputFile) && address >= module.base
+				&& address < module.base + module.size)
+				return true;
+		}
+		return false;
+	}
+
+
+	bool PtraceAdapter::AnalyzedModuleLoaded()
+	{
+		for (const auto& module : GetModules())
+		{
+			if (DebugModule::IsSameBaseModule(module.path, m_inputFile))
+				return true;
+		}
+		return false;
+	}
+
+
 	std::vector<uint64_t> PtraceAdapter::GetReturnSites(uint64_t pc)
 	{
 		std::vector<uint64_t> sites;
+		if (!IsInAnalyzedModule(pc))
+			return sites;
+
 		auto data = GetData();
 		auto functions = data ? data->GetAnalysisFunctionsContainingAddress(pc) : std::vector<Ref<Function>>();
 		if (functions.empty() || !functions[0])
@@ -1289,6 +1317,7 @@ namespace BinaryNinjaDebugger {
 		SetUpLoaderBreakpoint();
 		ApplyBreakpoints();
 		m_lastStopReason = UnknownReason;
+		ReportAfterExec();
 
 		BNSettingsScope scope = SettingsResourceScope;
 		bool stopOnExec = GetAdapterSettings()->Get<bool>("common.stopOnExec", GetData(), &scope);
@@ -1303,6 +1332,47 @@ namespace BinaryNinjaDebugger {
 		stopped.data.targetStoppedData.reason = UnknownReason;
 		stopped.data.targetStoppedData.lastActiveThread = event.tid;
 		PostDebuggerEvent(stopped);
+	}
+
+
+	// Says what the exec has left as it was, since the view still analyzes the program that the target started with
+	void PtraceAdapter::ReportAfterExec()
+	{
+		std::string text;
+		if (!AnalyzedModuleLoaded())
+			text += fmt::format(
+				"PTRACE: this view analyzes {}, which the target is no longer running. Its analysis does not "
+				"apply to the new program, and stepping out of a function follows the frame pointers "
+				"instead.\n",
+				DebugModule::GetPathBaseName(m_inputFile));
+
+		{
+			std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+			if (!m_pendingBreakpoints.empty())
+			{
+				text += fmt::format("PTRACE: {} breakpoint(s) are inactive, because their module is not loaded:",
+					m_pendingBreakpoints.size());
+				size_t shown = 0;
+				for (const auto& location : m_pendingBreakpoints)
+				{
+					if (shown++ == 5)
+					{
+						text += fmt::format(" and {} more", m_pendingBreakpoints.size() - 5);
+						break;
+					}
+					text += fmt::format(" {}+0x{:x}", DebugModule::GetPathBaseName(location.module), location.offset);
+				}
+				text += "\n";
+			}
+		}
+
+		if (text.empty())
+			return;
+
+		DebuggerEvent message;
+		message.type = BackendMessageEventType;
+		message.data.messageData.message = text;
+		PostDebuggerEvent(message);
 	}
 
 

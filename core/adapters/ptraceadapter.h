@@ -70,6 +70,7 @@ namespace BinaryNinjaDebugger {
 		void ForgetKnownBreakpoints();
 		void SyncEngineSettings();
 		void HandleExec(const PtraceEngine::Event& event);
+		void ReportAfterExec();
 		bool ToModuleOffset(uint64_t address, ModuleNameAndOffset& location);
 		uint64_t ReadArchRegister(const std::string& name);
 		bool ReadRegisterOf(uint32_t tid, const std::string& name, uint64_t& value);
@@ -84,6 +85,8 @@ namespace BinaryNinjaDebugger {
 		void FailStep(const std::string& message);
 		size_t GetCallLength(uint64_t pc);
 		std::vector<uint64_t> GetReturnSites(uint64_t pc);
+		bool IsInAnalyzedModule(uint64_t address);
+		bool AnalyzedModuleLoaded();
 		void ResetTargetState();
 
 		// Helper to resolve module+offset to absolute address
