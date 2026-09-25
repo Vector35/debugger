@@ -17,6 +17,7 @@ limitations under the License.
 #include "ttdeventswidget.h"
 #include "ttdbookmarkwidget.h"
 #include "ui.h"
+#include "debuggeruicommon.h"
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QMessageBox>
@@ -348,6 +349,14 @@ void TTDEventsQueryWidget::setupUIActions()
 	// Refresh action to clear and re-query from backend
 	m_menu.addAction("Refresh", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Refresh", UIAction([&]() { refreshEvents(); }));
+
+	// Force navigation into the currently focused pane (double-click instead picks the
+	// pane by content type; see NavigateToAddress).
+	m_menu.addAction("Navigate in Current Pane", "Navigate", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction("Navigate in Current Pane", UIAction([&]() { navigateInCurrentPane(); }, [&]() {
+		uint64_t addr = 0;
+		return addressForCell(m_resultsTable->currentRow(), m_resultsTable->currentColumn(), addr);
+	}));
 
 	m_menu.addAction("Add TTD Bookmark...", "Bookmark", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Add TTD Bookmark...", UIAction([&]() {
@@ -817,32 +826,53 @@ void TTDEventsQueryWidget::onCellDoubleClicked(int row, int column)
 		}
 	}
 	// Check if this is an address column - jump to address
-	else if (columnName.contains("Address", Qt::CaseInsensitive) || 
-	         columnName.contains("PC", Qt::CaseInsensitive) ||
-	         column == ModuleAddressColumn || 
-	         column == ExceptionPCColumn)
+	else
 	{
-		if (cellText.startsWith("0x"))
+		uint64_t address = 0;
+		if (addressForCell(row, column, address))
 		{
-			bool ok;
-			uint64_t address = cellText.mid(2).toULongLong(&ok, 16);
-			if (ok)
-			{
-				// Jump to address in disassembly view
-				// Navigate to the address in the disassembly view
-				ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
-				if (frame)
-				{
-					frame->navigate(m_data, address);
-					updateStatus(QString("Navigated to address %1").arg(cellText));
-				}
-				else
-				{
-					updateStatus(QString("Address: %1 (no view frame available)").arg(cellText));
-				}
-			}
+			// Navigate to the address, opening it in the other pane when it is a different
+			// kind of thing (code vs data) than the current pane shows (see NavigateToAddress,
+			// issue #1134). The Position (time-travel) column above keeps the current pane.
+			NavigateToAddress(this, m_data, address);
+			updateStatus(QString("Navigated to address %1").arg(cellText));
 		}
 	}
+}
+
+
+bool TTDEventsQueryWidget::addressForCell(int row, int column, uint64_t& addr)
+{
+	if (row < 0 || row >= m_resultsTable->rowCount())
+		return false;
+
+	QString columnName = m_resultsTable->horizontalHeaderItem(column)
+		? m_resultsTable->horizontalHeaderItem(column)->text() : "";
+	bool isAddressColumn = columnName.contains("Address", Qt::CaseInsensitive)
+		|| columnName.contains("PC", Qt::CaseInsensitive)
+		|| column == ModuleAddressColumn || column == ExceptionPCColumn;
+	if (!isAddressColumn)
+		return false;
+
+	QTableWidgetItem* item = m_resultsTable->item(row, column);
+	if (!item)
+		return false;
+
+	QString text = item->text();
+	if (!text.startsWith("0x", Qt::CaseInsensitive))
+		return false;
+
+	bool ok = false;
+	addr = text.mid(2).toULongLong(&ok, 16);
+	return ok;
+}
+
+
+void TTDEventsQueryWidget::navigateInCurrentPane()
+{
+	uint64_t addr = 0;
+	if (addressForCell(m_resultsTable->currentRow(), m_resultsTable->currentColumn(), addr))
+		NavigateToAddressInCurrentPane(this, m_data, addr);
 }
 
 void TTDEventsQueryWidget::contextMenuEvent(QContextMenuEvent* event)

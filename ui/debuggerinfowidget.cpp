@@ -17,10 +17,13 @@ limitations under the License.
 #include <QPainter>
 #include <QHeaderView>
 #include <QGuiApplication>
+#include <QMenu>
+#include <QContextMenuEvent>
 #include <QMimeData>
 #include <QClipboard>
 #include "ui.h"
 #include "debuggerinfowidget.h"
+#include "debuggeruicommon.h"
 #include "lowlevelilinstruction.h"
 #include "mediumlevelilinstruction.h"
 #include "highlevelilinstruction.h"
@@ -935,25 +938,56 @@ void DebuggerInfoTable::updateFonts()
 }
 
 
-void DebuggerInfoTable::onDoubleClicked()
+bool DebuggerInfoTable::selectedValue(uint64_t& value)
 {
 	QModelIndexList sel = selectionModel()->selectedIndexes();
 	if (sel.empty())
+		return false;
+
+	value = (uint64_t)m_model->getRow(sel[0].row()).value;
+	return true;
+}
+
+
+void DebuggerInfoTable::onDoubleClicked()
+{
+	uint64_t value = 0;
+	if (!selectedValue(value))
 		return;
 
-	auto info = m_model->getRow(sel[0].row());
-	uint64_t value = (uint64_t)info.value;
-
-	UIContext* context = UIContext::contextForWidget(this);
-	if (!context)
-		return;
-
-	ViewFrame* frame = context->getCurrentViewFrame();
-	if (!frame)
-		return;
-
+	// Navigate to the target, opening it in the other pane when it is a different kind
+	// of thing (code vs data) than the current pane shows (see NavigateToAddress, #1134).
 	if (m_debugger->GetData())
-		frame->navigate(m_debugger->GetData(), value, true, true);
+		NavigateToAddress(this, m_debugger->GetData(), value);
+}
+
+
+void DebuggerInfoTable::navigateInCurrentPane()
+{
+	uint64_t value = 0;
+	if (selectedValue(value) && m_debugger->GetData())
+		NavigateToAddressInCurrentPane(this, m_debugger->GetData(), value);
+}
+
+
+void DebuggerInfoTable::contextMenuEvent(QContextMenuEvent* event)
+{
+	// Select the row under the cursor so the action targets the right entry even when the
+	// right-click did not already move the selection.
+	QModelIndex index = indexAt(event->pos());
+	if (index.isValid())
+		selectRow(index.row());
+
+	// Force navigation into the currently focused pane (double-click instead picks the
+	// pane by content type; see NavigateToAddress).
+	uint64_t value = 0;
+	if (!selectedValue(value))
+		return;
+
+	QMenu menu(this);
+	QAction* navigate = menu.addAction("Navigate in Current Pane");
+	connect(navigate, &QAction::triggered, this, &DebuggerInfoTable::navigateInCurrentPane);
+	menu.exec(event->globalPos());
 }
 
 
