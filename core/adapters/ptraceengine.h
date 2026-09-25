@@ -61,6 +61,8 @@ namespace BinaryNinjaDebugger {
 			// The target has started another program. The engine has started over with it: the breakpoints, the memory
 			// and the threads are all new.
 			bool exec = false;
+			// The signal that was delivered to the thread, whose handler the thread is now stopped at the start of
+			int signalHandler = 0;
 			std::string data;
 			std::function<void()> task;
 		};
@@ -99,6 +101,8 @@ namespace BinaryNinjaDebugger {
 			// SIGSTOPs we sent that have not been consumed yet
 			int expectedStops = 0;
 			int pendingSignal = 0;
+			// The signal that the thread was resumed with in order to stop at its handler
+			int handlerSignal = 0;
 			// Set for the thread whose stop was reported, so that resuming it steps over a breakpoint at its PC
 			bool atReportedStop = false;
 			uint64_t reportedPc = 0;
@@ -141,6 +145,7 @@ namespace BinaryNinjaDebugger {
 			bool hardware = false;
 			bool stepTrap = false;
 			bool exec = false;
+			int signalHandler = 0;
 			// The thread that the stop is for, if it is not the one that it was found on
 			pid_t tid = 0;
 		};
@@ -186,6 +191,7 @@ namespace BinaryNinjaDebugger {
 		// signals that are on their way are counted, and whether a pause is still wanted is kept apart from that.
 		std::atomic<bool> m_interruptWanted {false};
 		std::atomic<int> m_interruptInFlight {0};
+		std::atomic<bool> m_debugSignalHandlers {false};
 
 		pid_t m_pid = -1;
 		int m_masterFd = -1;
@@ -207,6 +213,7 @@ namespace BinaryNinjaDebugger {
 		void HandleStatus(pid_t tid, int status);
 		Classified Classify(pid_t tid, int status);
 		bool ResumeThread(pid_t tid);
+		bool HasSignalHandler(int signal);
 		bool ClassifyTrap(pid_t tid, ThreadInfo& info, Classified& result);
 		bool RawGetRegisterSet(pid_t tid, int regset, std::vector<uint8_t>& data);
 		bool RawSetRegisterSet(pid_t tid, int regset, const std::vector<uint8_t>& data);
@@ -253,6 +260,10 @@ namespace BinaryNinjaDebugger {
 		// Runs a function on the thread that delivers the events, after everything that was posted before it. That
 		// thread is not tied up by the caller, so it is the place for work that must not run under the caller's locks.
 		void PostTask(std::function<void()> task);
+
+		// A signal that the target has a handler for is normally delivered and the handler runs on its own. With this
+		// set, the thread stops at the first instruction of the handler instead.
+		void SetDebugSignalHandlers(bool enable) { m_debugSignalHandlers = enable; }
 
 		// Raw register sets, as PTRACE_GETREGSET and PTRACE_SETREGSET see them. The thread must be stopped.
 		bool GetRegisterSet(uint32_t tid, int regset, std::vector<uint8_t>& data);

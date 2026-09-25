@@ -68,6 +68,7 @@ namespace BinaryNinjaDebugger {
 		void HandleEngineEvent(const PtraceEngine::Event& event);
 		void ClearBreakpoints();
 		void ForgetKnownBreakpoints();
+		void SyncEngineSettings();
 		void HandleExec(const PtraceEngine::Event& event);
 		bool ToModuleOffset(uint64_t address, ModuleNameAndOffset& location);
 		uint64_t ReadArchRegister(const std::string& name);

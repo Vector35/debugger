@@ -806,6 +806,8 @@ namespace BinaryNinjaDebugger {
 		info.stopped = true;
 		int signal = WSTOPSIG(status);
 		int event = status >> 16;
+		int handlerSignal = info.handlerSignal;
+		info.handlerSignal = 0;
 
 		if (event == PTRACE_EVENT_CLONE)
 		{
@@ -834,6 +836,16 @@ namespace BinaryNinjaDebugger {
 		}
 		if (event != 0)
 			return result;
+
+		// The thread has been resumed into the handler of a signal, and this is where it has got to
+		if (handlerSignal && signal == SIGTRAP)
+		{
+			endGuard(true);
+			result.kind = StopKind::Report;
+			result.signal = SIGTRAP;
+			result.signalHandler = handlerSignal;
+			return result;
+		}
 
 		if (signal == SIGSTOP)
 		{
@@ -891,8 +903,36 @@ namespace BinaryNinjaDebugger {
 		int signal = info.pendingSignal;
 		info.pendingSignal = 0;
 		info.stopped = false;
-		auto request = info.stepping ? PTRACE_SINGLESTEP : PTRACE_CONT;
+		bool step = info.stepping;
+
+		// Resuming with a single step and a signal delivers the signal and stops at the first instruction of its
+		// handler
+		info.handlerSignal = 0;
+		if (signal && !step && m_debugSignalHandlers && HasSignalHandler(signal))
+		{
+			step = true;
+			info.handlerSignal = signal;
+		}
+
+		auto request = step ? PTRACE_SINGLESTEP : PTRACE_CONT;
 		return ptrace(request, tid, nullptr, (void*)(intptr_t)signal) == 0 || errno == ESRCH;
+	}
+
+
+	// The signals that the target has a handler for are the ones that /proc lists as caught
+	bool PtraceEngine::HasSignalHandler(int signal)
+	{
+		std::ifstream file("/proc/" + std::to_string(m_pid) + "/status");
+		std::string line;
+		while (std::getline(file, line))
+		{
+			if (line.rfind("SigCgt:", 0) != 0)
+				continue;
+
+			uint64_t caught = strtoull(line.c_str() + strlen("SigCgt:"), nullptr, 16);
+			return signal >= 1 && signal <= 64 && (caught >> (signal - 1)) & 1;
+		}
+		return false;
 	}
 
 
@@ -1234,6 +1274,7 @@ namespace BinaryNinjaDebugger {
 		event.breakpoint = stop.breakpoint;
 		event.hardware = stop.hardware;
 		event.exec = stop.exec;
+		event.signalHandler = stop.signalHandler;
 		event.singleStep = m_threads[tid].stepping;
 
 		for (auto& [id, info] : m_threads)

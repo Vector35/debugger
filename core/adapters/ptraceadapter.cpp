@@ -131,6 +131,9 @@ namespace BinaryNinjaDebugger {
 	{
 		if (event.interrupted)
 			return UnknownReason;
+		// Stopped at the handler of a signal, so it is the signal that is the reason
+		if (event.signalHandler)
+			return SignalToDebugStopReason(event.signalHandler);
 		if (event.breakpoint || event.hardware)
 			return Breakpoint;
 		if (event.signal == SIGTRAP)
@@ -254,6 +257,7 @@ namespace BinaryNinjaDebugger {
 		m_engine = std::make_unique<PtraceEngine>([this](const PtraceEngine::Event& event) {
 			HandleEngineEvent(event);
 		});
+		SyncEngineSettings();
 		m_stepper = std::make_unique<PtraceStepper>(
 			*m_engine, [this](uint64_t address) { return AcquireBreakpoint(address); },
 			[this](uint64_t address) { return ReleaseBreakpoint(address); });
@@ -321,6 +325,18 @@ namespace BinaryNinjaDebugger {
 			}
 
 			ApplyBreakpoints();
+			if (event.signalHandler)
+			{
+				auto arch = m_arch.load();
+				DebuggerEvent message;
+				message.type = BackendMessageEventType;
+				message.data.messageData.message = fmt::format(
+					"PTRACE: signal {} ({}) was delivered to thread {}, which is stopped at the start of its handler, "
+				    "0x{:x}\n",
+					event.signalHandler, strsignal(event.signalHandler), event.tid,
+					arch ? ReadArchRegister(arch->pc) : 0);
+				PostDebuggerEvent(message);
+			}
 			dbgevt.type = AdapterStoppedEventType;
 			dbgevt.data.targetStoppedData.reason = m_lastStopReason;
 			dbgevt.data.targetStoppedData.lastActiveThread = event.tid;
@@ -972,6 +988,7 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceAdapter::Go()
 	{
+		SyncEngineSettings();
 		if (m_stepper)
 			m_stepper->Cancel();
 		m_stopGeneration++;
@@ -987,6 +1004,7 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceAdapter::StepInto()
 	{
+		SyncEngineSettings();
 		if (m_stepper)
 			m_stepper->Cancel();
 		m_stopGeneration++;
@@ -1008,6 +1026,7 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !m_stepper || m_engine->IsRunning())
 			return false;
 
+		SyncEngineSettings();
 		m_stepper->Cancel();
 		m_stopGeneration++;
 		uint32_t tid = m_activeThreadId;
@@ -1025,6 +1044,7 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !m_stepper || m_engine->IsRunning())
 			return false;
 
+		SyncEngineSettings();
 		m_stepper->Cancel();
 		m_stopGeneration++;
 		uint32_t tid = m_activeThreadId;
@@ -1302,6 +1322,18 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	// The setting can be changed while the target is stopped, so the engine is told again before every resume
+	void PtraceAdapter::SyncEngineSettings()
+	{
+		if (!m_engine)
+			return;
+
+		BNSettingsScope scope = SettingsResourceScope;
+		m_engine->SetDebugSignalHandlers(
+			GetAdapterSettings()->Get<bool>("common.debugSignalHandlers", GetData(), &scope));
+	}
+
+
 	void PtraceAdapter::ForgetKnownBreakpoints()
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
@@ -1446,6 +1478,14 @@ namespace BinaryNinjaDebugger {
 			"type" : "string",
 			"default" : "",
 			"description" : "Command line arguments to pass to the target.",
+			"readOnly" : false
+			})");
+		settings->RegisterSetting("common.debugSignalHandlers",
+			R"({
+			"title" : "Debug Signal Handlers",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "When the target is sent a signal that it has a handler for, stop at the first instruction of the handler. This includes the signals that would not stop the target otherwise, such as SIGCHLD, SIGALRM and SIGWINCH. Signals without a handler are not affected, and neither is stepping. A change takes effect the next time the target is resumed.",
 			"readOnly" : false
 			})");
 		settings->RegisterSetting("common.stopOnExec",
