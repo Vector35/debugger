@@ -216,7 +216,7 @@ void TTDCallsQueryWidget::setupUIActions()
 			defaultNote = funcItem->text();
 
 		TTDBookmarkEditDialog dialog(this,
-			posStr, defaultNote, viewAddress != 0 ? QString("0x%1").arg(viewAddress, 0, 16) : "");
+			posStr, defaultNote, viewAddress != 0 ? QString("0x%1").arg(viewAddress, 0, 16) : "", m_controller);
 		if (dialog.exec() == QDialog::Accepted)
 		{
 			QString editedPosStr = dialog.getPosition();
