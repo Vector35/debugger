@@ -197,4 +197,26 @@ namespace BinaryNinjaDebugger {
 		return fallback;
 	}
 
+	const ElfSymbol* FindElfFunctionByName(const ElfInfo& info, const std::string& name, bool* ambiguous)
+	{
+		if (ambiguous)
+			*ambiguous = false;
+
+		const ElfSymbol* found = nullptr;
+		for (const auto& symbol : info.symbols)
+		{
+			if (!symbol.isFunction || symbol.name != name)
+				continue;
+
+			if (found && found->address != symbol.address)
+			{
+				if (ambiguous)
+					*ambiguous = true;
+				return nullptr;
+			}
+			found = &symbol;
+		}
+		return found;
+	}
+
 }  // namespace BinaryNinjaDebugger

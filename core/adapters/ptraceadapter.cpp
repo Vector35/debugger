@@ -577,10 +577,7 @@ namespace BinaryNinjaDebugger {
 
 		m_breakpoints.emplace_back(address, m_nextBreakpointId++, true);
 
-		ModuleNameAndOffset location;
-		if (ToModuleOffset(address, location)
-			&& std::find(m_knownBreakpoints.begin(), m_knownBreakpoints.end(), location) == m_knownBreakpoints.end())
-			m_knownBreakpoints.push_back(location);
+		RememberBreakpoint(address);
 		return m_breakpoints.back();
 	}
 
@@ -595,8 +592,9 @@ namespace BinaryNinjaDebugger {
 		// The module is not loaded yet, so this waits for it
 		if (std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end())
 			m_pendingBreakpoints.push_back(address);
-		if (std::find(m_knownBreakpoints.begin(), m_knownBreakpoints.end(), address) == m_knownBreakpoints.end())
-			m_knownBreakpoints.push_back(address);
+		if (std::none_of(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+				[&address](const KnownBreakpoint& known) { return known.location == address; }))
+			m_knownBreakpoints.push_back({address, ""});
 		return DebugBreakpoint();
 	}
 
@@ -617,8 +615,7 @@ namespace BinaryNinjaDebugger {
 
 		m_breakpoints.erase(it);
 		if (known)
-			m_knownBreakpoints.erase(
-				std::remove(m_knownBreakpoints.begin(), m_knownBreakpoints.end(), location), m_knownBreakpoints.end());
+			std::erase_if(m_knownBreakpoints, [&location](const KnownBreakpoint& k) { return k.location == location; });
 		return true;
 	}
 
@@ -626,8 +623,7 @@ namespace BinaryNinjaDebugger {
 	bool PtraceAdapter::RemoveBreakpoint(const ModuleNameAndOffset& address)
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
-		m_knownBreakpoints.erase(
-			std::remove(m_knownBreakpoints.begin(), m_knownBreakpoints.end(), address), m_knownBreakpoints.end());
+		std::erase_if(m_knownBreakpoints, [&address](const KnownBreakpoint& k) { return k.location == address; });
 		auto pending = std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address);
 		if (pending != m_pendingBreakpoints.end())
 		{
@@ -1303,7 +1299,9 @@ namespace BinaryNinjaDebugger {
 
 		{
 			std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
-			m_pendingBreakpoints = m_knownBreakpoints;
+			m_pendingBreakpoints.clear();
+			for (const auto& known : m_knownBreakpoints)
+				m_pendingBreakpoints.push_back(known.location);
 			m_pendingHardwareBreakpoints = m_knownHardwareBreakpoints;
 		}
 
@@ -1316,8 +1314,9 @@ namespace BinaryNinjaDebugger {
 
 		SetUpLoaderBreakpoint();
 		ApplyBreakpoints();
+		std::string resolved = ResolveBreakpointsByName(program.string());
 		m_lastStopReason = UnknownReason;
-		ReportAfterExec();
+		ReportAfterExec(resolved);
 
 		BNSettingsScope scope = SettingsResourceScope;
 		bool stopOnExec = GetAdapterSettings()->Get<bool>("common.stopOnExec", GetData(), &scope);
@@ -1336,9 +1335,9 @@ namespace BinaryNinjaDebugger {
 
 
 	// Says what the exec has left as it was, since the view still analyzes the program that the target started with
-	void PtraceAdapter::ReportAfterExec()
+	void PtraceAdapter::ReportAfterExec(const std::string& resolved)
 	{
-		std::string text;
+		std::string text = resolved;
 		if (!AnalyzedModuleLoaded())
 			text += fmt::format(
 				"PTRACE: this view analyzes {}, which the target is no longer running. Its analysis does not "
@@ -1363,6 +1362,20 @@ namespace BinaryNinjaDebugger {
 					text += fmt::format(" {}+0x{:x}", DebugModule::GetPathBaseName(location.module), location.offset);
 				}
 				text += "\n";
+
+				// Say how the ones at the start of a function can be found in the new program
+				bool namedOnes = std::any_of(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(),
+					[this](const ModuleNameAndOffset& location) {
+						return std::any_of(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+							[&location](const KnownBreakpoint& k) {
+								return k.location == location && !k.function.empty();
+							});
+					});
+				if (namedOnes && !ResolveByNameEnabled())
+					text +=
+						"PTRACE: the ones at the start of a function can be found by its name in the new program, with "
+					    "the "
+						"common.resolveBreakpointsByNameOnExec setting.\n";
 			}
 		}
 
@@ -1378,17 +1391,122 @@ namespace BinaryNinjaDebugger {
 
 	// A breakpoint is known by the module that it is in, and its offset there, which stays true when the address does
 	// not
-	bool PtraceAdapter::ToModuleOffset(uint64_t address, ModuleNameAndOffset& location)
+	bool PtraceAdapter::FindModule(uint64_t address, PtraceModuleInfo& module)
 	{
-		for (const auto& module : GetModules())
+		for (const auto& candidate : GetModules())
 		{
-			if (address >= module.base && address < module.base + module.size)
+			if (address >= candidate.base && address < candidate.base + candidate.size)
 			{
-				location = ModuleNameAndOffset(module.path, address - module.base);
+				module = candidate;
 				return true;
 			}
 		}
 		return false;
+	}
+
+
+	bool PtraceAdapter::ToModuleOffset(uint64_t address, ModuleNameAndOffset& location)
+	{
+		PtraceModuleInfo module;
+		if (!FindModule(address, module))
+			return false;
+
+		location = ModuleNameAndOffset(module.path, address - module.base);
+		return true;
+	}
+
+
+	// Keeps a breakpoint by its module and offset, and by the function that it is at the start of
+	void PtraceAdapter::RememberBreakpoint(uint64_t address)
+	{
+		PtraceModuleInfo module;
+		if (!FindModule(address, module))
+			return;
+
+		std::string function;
+		if (auto elf = GetElf(module.path))
+		{
+			uint64_t bias = module.base - elf->linkBase;
+			auto symbol = FindElfSymbol(*elf, address - bias);
+			if (symbol && symbol->isFunction && symbol->address + bias == address)
+				function = symbol->name;
+		}
+
+		ModuleNameAndOffset location(module.path, address - module.base);
+		auto it = std::find_if(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+			[&location](const KnownBreakpoint& known) { return known.location == location; });
+		if (it == m_knownBreakpoints.end())
+			m_knownBreakpoints.push_back({location, function});
+		else if (it->function.empty())
+			it->function = function;
+	}
+
+
+	bool PtraceAdapter::ResolveByNameEnabled()
+	{
+		BNSettingsScope scope = SettingsResourceScope;
+		return GetAdapterSettings()->Get<bool>("common.resolveBreakpointsByNameOnExec", GetData(), &scope);
+	}
+
+
+	// GDB looks a breakpoint up again by its name when the target starts another program. A breakpoint here is a module
+	// and an offset, which mean nothing in another program, so the ones at the start of a function are looked up by
+	// that function's name in the main executable of the new program, when that is asked for.
+	std::string PtraceAdapter::ResolveBreakpointsByName(const std::string& program)
+	{
+		if (!ResolveByNameEnabled())
+			return "";
+
+		PtraceModuleInfo main;
+		bool found = false;
+		for (const auto& module : GetModules())
+		{
+			if (module.path == program)
+			{
+				main = module;
+				found = true;
+				break;
+			}
+		}
+		auto elf = found ? GetElf(program) : nullptr;
+		if (!elf)
+			return "";
+
+		uint64_t bias = main.base - elf->linkBase;
+		std::string text;
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		// Adding a breakpoint changes these lists, so it is done from a copy
+		for (const auto& location : std::vector<ModuleNameAndOffset>(m_pendingBreakpoints))
+		{
+			auto known = std::find_if(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+				[&location](const KnownBreakpoint& k) { return k.location == location; });
+			if (known == m_knownBreakpoints.end() || known->function.empty())
+				continue;
+
+			std::string function = known->function;
+			bool ambiguous;
+			auto symbol = FindElfFunctionByName(*elf, function, &ambiguous);
+			if (!symbol)
+			{
+				if (ambiguous)
+					text += fmt::format("PTRACE: {} is more than one function in {}, so its breakpoint is not moved\n",
+						function, DebugModule::GetPathBaseName(program));
+				continue;
+			}
+
+			uint64_t address = symbol->address + bias;
+			if (!AddBreakpoint(address, 0).m_address)
+				continue;
+
+			// It belongs to the new program now, and the old place is forgotten
+			text += fmt::format("PTRACE: the breakpoint at {}+0x{:x} ({}) is now at {}+0x{:x}\n",
+				DebugModule::GetPathBaseName(location.module), location.offset, function,
+				DebugModule::GetPathBaseName(program), address - main.base);
+			std::erase_if(m_knownBreakpoints, [&location](const KnownBreakpoint& k) { return k.location == location; });
+			m_pendingBreakpoints.erase(std::remove(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), location),
+				m_pendingBreakpoints.end());
+		}
+		return text;
 	}
 
 
@@ -1556,6 +1674,14 @@ namespace BinaryNinjaDebugger {
 			"type" : "boolean",
 			"default" : false,
 			"description" : "When the target is sent a signal that it has a handler for, stop at the first instruction of the handler. This includes the signals that would not stop the target otherwise, such as SIGCHLD, SIGALRM and SIGWINCH. Signals without a handler are not affected, and neither is stepping. A change takes effect the next time the target is resumed.",
+			"readOnly" : false
+			})");
+		settings->RegisterSetting("common.resolveBreakpointsByNameOnExec",
+			R"({
+			"title" : "Find Breakpoints By Function Name After Exec",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "When the target starts another program, look up the breakpoints that are at the start of a function by the name of that function in the main executable of the new program, the way GDB does. Otherwise a breakpoint belongs to its module, and stays inactive while that module is not loaded. Only a name that is exactly one function in the new program is used, and only breakpoints at the very start of a function.",
 			"readOnly" : false
 			})");
 		settings->RegisterSetting("common.stopOnExec",

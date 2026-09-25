@@ -62,7 +62,14 @@ namespace BinaryNinjaDebugger {
 		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
 		// The breakpoints of the user by module and offset, applied or not. An exec throws the addresses away, and
 		// these are what the breakpoints are put back from.
-		std::vector<ModuleNameAndOffset> m_knownBreakpoints;
+		struct KnownBreakpoint
+		{
+			ModuleNameAndOffset location;
+			// The function that the breakpoint is at the very start of, if it is. That is what it can be found by in
+			// another program.
+			std::string function;
+		};
+		std::vector<KnownBreakpoint> m_knownBreakpoints;
 		std::vector<PendingHardwareBreakpoint> m_knownHardwareBreakpoints;
 
 		void HandleEngineEvent(const PtraceEngine::Event& event);
@@ -70,8 +77,12 @@ namespace BinaryNinjaDebugger {
 		void ForgetKnownBreakpoints();
 		void SyncEngineSettings();
 		void HandleExec(const PtraceEngine::Event& event);
-		void ReportAfterExec();
+		void ReportAfterExec(const std::string& resolved);
 		bool ToModuleOffset(uint64_t address, ModuleNameAndOffset& location);
+		bool FindModule(uint64_t address, PtraceModuleInfo& module);
+		void RememberBreakpoint(uint64_t address);
+		bool ResolveByNameEnabled();
+		std::string ResolveBreakpointsByName(const std::string& program);
 		uint64_t ReadArchRegister(const std::string& name);
 		bool ReadRegisterOf(uint32_t tid, const std::string& name, uint64_t& value);
 		std::vector<PtraceModuleInfo> GetModules();
