@@ -30,8 +30,9 @@ namespace BinaryNinjaDebugger {
 		const std::vector<PtraceEngine::MapEntry>& maps, const std::function<bool(uint64_t)>& isElf)
 	{
 		auto sorted = maps;
-		std::sort(sorted.begin(), sorted.end(),
-			[](const PtraceEngine::MapEntry& a, const PtraceEngine::MapEntry& b) { return a.start < b.start; });
+		std::sort(sorted.begin(), sorted.end(), [](const PtraceEngine::MapEntry& a, const PtraceEngine::MapEntry& b) {
+			return a.start < b.start;
+		});
 
 		std::vector<PtraceModuleInfo> modules;
 		// The module of each path that is still being extended
@@ -93,8 +94,8 @@ namespace BinaryNinjaDebugger {
 
 
 	std::vector<PtraceFrameRecord> UnwindFramePointers(uint64_t pc, uint64_t sp, uint64_t fp, size_t wordSize,
-		const std::function<bool(uint64_t, uint64_t&)>& readWord,
-		const std::function<bool(uint64_t)>& isExecutable, size_t maxFrames)
+		const std::function<bool(uint64_t, uint64_t&)>& readWord, const std::function<bool(uint64_t)>& isExecutable,
+		size_t maxFrames)
 	{
 		std::vector<PtraceFrameRecord> frames;
 		frames.push_back({pc, sp, fp});
@@ -158,8 +159,9 @@ namespace BinaryNinjaDebugger {
 			processes.push_back(std::move(process));
 		}
 
-		std::sort(processes.begin(), processes.end(),
-			[](const PtraceProcessInfo& a, const PtraceProcessInfo& b) { return a.pid < b.pid; });
+		std::sort(processes.begin(), processes.end(), [](const PtraceProcessInfo& a, const PtraceProcessInfo& b) {
+			return a.pid < b.pid;
+		});
 		return processes;
 	}
 

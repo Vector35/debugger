@@ -307,7 +307,8 @@ namespace BinaryNinjaDebugger {
 			unsigned long long start, end, offset;
 			char permissions[8] = {};
 			int consumed = 0;
-			if (sscanf(line.c_str(), "%llx-%llx %7s %llx %*s %*s %n", &start, &end, permissions, &offset, &consumed) < 4)
+			if (sscanf(line.c_str(), "%llx-%llx %7s %llx %*s %*s %n", &start, &end, permissions, &offset, &consumed)
+				< 4)
 				continue;
 
 			MapEntry entry;
@@ -413,6 +414,15 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	void PtraceEngine::PostTask(std::function<void()> task)
+	{
+		Event event;
+		event.type = TaskEvent;
+		event.task = std::move(task);
+		PushEvent(event);
+	}
+
+
 	void PtraceEngine::Publish()
 	{
 		std::lock_guard<std::mutex> lock(m_infoMutex);
@@ -447,7 +457,10 @@ namespace BinaryNinjaDebugger {
 				event = std::move(m_events.front());
 				m_events.pop_front();
 			}
-			m_handler(event);
+			if (event.type == TaskEvent)
+				event.task();
+			else
+				m_handler(event);
 		}
 	}
 
@@ -874,7 +887,8 @@ namespace BinaryNinjaDebugger {
 			}
 		}
 
-		// A watchpoint that reports before the access has to be lifted altogether, since we do not know which one it was
+		// A watchpoint that reports before the access has to be lifted altogether, since we do not know which one it
+		// was
 		for (size_t i = 0; i < m_hardwareSlots.size(); i++)
 		{
 			const auto& slot = m_hardwareSlots[i];
@@ -898,8 +912,8 @@ namespace BinaryNinjaDebugger {
 			auto it = m_breakpoints.find(info.guardAddress);
 			if (it != m_breakpoints.end() && !it->second.inserted)
 			{
-				RawWriteMemory(info.guardAddress, m_arch->breakpointInstruction.data(),
-					m_arch->breakpointInstruction.size());
+				RawWriteMemory(
+					info.guardAddress, m_arch->breakpointInstruction.data(), m_arch->breakpointInstruction.size());
 				it->second.inserted = true;
 			}
 		}
@@ -1063,7 +1077,8 @@ namespace BinaryNinjaDebugger {
 
 		auto& info = m_threads[tid];
 		info.atReportedStop = ReadPc(tid, info.reportedPc);
-		info.hardwareBeforeAccess = stop.hardware && m_arch && m_arch->hwDebug && m_arch->hwDebug->DataTrapsBeforeAccess();
+		info.hardwareBeforeAccess =
+			stop.hardware && m_arch && m_arch->hwDebug && m_arch->hwDebug->DataTrapsBeforeAccess();
 
 		m_running = false;
 		Publish();

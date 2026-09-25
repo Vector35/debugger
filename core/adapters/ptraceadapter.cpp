@@ -22,12 +22,18 @@ limitations under the License.
 #include <cstring>
 #include <optional>
 #include "ptraceadapter.h"
+#include "lowlevelilinstruction.h"
 
 namespace BinaryNinjaDebugger {
 
 	static std::optional<std::vector<std::string>> ParseCommandLineArguments(const std::string& commandLine)
 	{
-		enum class Quote { None, Single, Double };
+		enum class Quote
+		{
+			None,
+			Single,
+			Double
+		};
 		Quote quote = Quote::None;
 		bool escaped = false;
 		bool argumentStarted = false;
@@ -181,6 +187,7 @@ namespace BinaryNinjaDebugger {
 
 	PtraceAdapter::~PtraceAdapter()
 	{
+		m_stepper.reset();
 		m_engine.reset();
 	}
 
@@ -191,8 +198,8 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	bool PtraceAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
-		const std::string& workingDir, const LaunchConfigurations& configs)
+	bool PtraceAdapter::ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
+		const LaunchConfigurations& configs)
 	{
 		auto adapterSettings = GetAdapterSettings();
 		auto data = GetData();
@@ -238,12 +245,18 @@ namespace BinaryNinjaDebugger {
 		options.workingDir = workingDirectory;
 		options.disableAslr = disableAslr;
 
+		m_stepper.reset();
 		m_engine.reset();
 		ResetTargetState();
 		m_stopAtSystemEntry = Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint");
 		m_firstStop = true;
 		m_targetActive = true;
-		m_engine = std::make_unique<PtraceEngine>([this](const PtraceEngine::Event& event) { HandleEngineEvent(event); });
+		m_engine = std::make_unique<PtraceEngine>([this](const PtraceEngine::Event& event) {
+			HandleEngineEvent(event);
+		});
+		m_stepper = std::make_unique<PtraceStepper>(
+			*m_engine, [this](uint64_t address) { return AcquireBreakpoint(address); },
+			[this](uint64_t address) { return ReleaseBreakpoint(address); });
 
 		std::string error;
 		if (!m_engine->Launch(options, error))
@@ -282,11 +295,24 @@ namespace BinaryNinjaDebugger {
 				}
 			}
 			// A library was loaded or unloaded, which may be where a pending breakpoint goes
-			if (event.breakpoint && m_loaderBreakpoint && m_arch.load() && ReadArchRegister(m_arch.load()->pc) == m_loaderBreakpoint)
+			if (event.breakpoint && m_loaderBreakpoint && m_arch.load()
+				&& ReadArchRegister(m_arch.load()->pc) == m_loaderBreakpoint)
 			{
 				ApplyBreakpoints();
 				m_engine->Resume(false, 0);
 				break;
+			}
+
+			if (m_stepper && m_stepper->IsActive())
+			{
+				auto arch = m_arch.load();
+				uint64_t pc = arch ? ReadArchRegister(arch->pc) : 0;
+				uint64_t sp = arch ? ReadArchRegister(arch->sp) : 0;
+				auto result = m_stepper->OnStop(event, pc, sp, IsUserBreakpoint(pc));
+				if (result == PtraceStepper::Result::Consumed)
+					break;
+				if (result == PtraceStepper::Result::Finished)
+					m_lastStopReason = SingleStep;
 			}
 
 			ApplyBreakpoints();
@@ -298,6 +324,8 @@ namespace BinaryNinjaDebugger {
 		case PtraceEngine::ExitedEvent:
 			m_stopGeneration++;
 			m_targetActive = false;
+			if (m_stepper)
+				m_stepper->Cancel();
 			ClearBreakpoints();
 			m_lastStopReason = ProcessExited;
 			m_exitCode = event.signal ? 128 + event.signal : event.exitCode;
@@ -307,9 +335,14 @@ namespace BinaryNinjaDebugger {
 			break;
 		case PtraceEngine::DetachedEvent:
 			m_targetActive = false;
+			if (m_stepper)
+				m_stepper->Cancel();
 			ClearBreakpoints();
 			dbgevt.type = DetachedEventType;
 			PostDebuggerEvent(dbgevt);
+			break;
+		case PtraceEngine::TaskEvent:
+			// The engine runs these itself
 			break;
 		case PtraceEngine::OutputEvent:
 			dbgevt.type = StdoutMessageEventType;
@@ -494,7 +527,8 @@ namespace BinaryNinjaDebugger {
 				break;
 			}
 
-			frames.push_back(DebugFrame(index++, record.pc, record.sp, record.fp, functionName, functionStart, moduleName));
+			frames.push_back(
+				DebugFrame(index++, record.pc, record.sp, record.fp, functionName, functionStart, moduleName));
 		}
 		return frames;
 	}
@@ -506,12 +540,13 @@ namespace BinaryNinjaDebugger {
 			return DebugBreakpoint();
 
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
-		auto it = std::find_if(m_breakpoints.begin(), m_breakpoints.end(),
-			[address](const DebugBreakpoint& bp) { return bp.m_address == address; });
+		auto it = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [address](const DebugBreakpoint& bp) {
+			return bp.m_address == address;
+		});
 		if (it != m_breakpoints.end())
 			return *it;
 
-		if (!m_engine->AddBreakpoint(address))
+		if (!AcquireBreakpoint(address))
 		{
 			LogWarn("PtraceAdapter: failed to set a breakpoint at 0x%" PRIx64, (uint64_t)address);
 			return DebugBreakpoint();
@@ -539,9 +574,10 @@ namespace BinaryNinjaDebugger {
 	bool PtraceAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
-		auto it = std::find_if(m_breakpoints.begin(), m_breakpoints.end(),
-			[&breakpoint](const DebugBreakpoint& bp) { return bp.m_address == breakpoint.m_address; });
-		if (!m_engine || it == m_breakpoints.end() || !m_engine->RemoveBreakpoint(breakpoint.m_address))
+		auto it = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [&breakpoint](const DebugBreakpoint& bp) {
+			return bp.m_address == breakpoint.m_address;
+		});
+		if (!m_engine || it == m_breakpoints.end() || !ReleaseBreakpoint(breakpoint.m_address))
 			return false;
 
 		m_breakpoints.erase(it);
@@ -721,7 +757,12 @@ namespace BinaryNinjaDebugger {
 		{
 			m_modules = BuildModules(m_engine->GetMaps(), [this](uint64_t address) {
 				uint8_t magic[4];
-				return m_engine->ReadMemory(address, magic, sizeof(magic)) && memcmp(magic, "\x7f" "ELF", 4) == 0;
+				return m_engine->ReadMemory(address, magic, sizeof(magic))
+					&& memcmp(magic,
+						   "\x7f"
+						   "ELF",
+						   4)
+					== 0;
 			});
 			m_moduleGeneration = generation;
 		}
@@ -783,7 +824,7 @@ namespace BinaryNinjaDebugger {
 					continue;
 
 				uint64_t address = symbol.address + module.base - loader->linkBase;
-				if (m_engine->AddBreakpoint(address))
+				if (AcquireBreakpoint(address))
 					m_loaderBreakpoint = address;
 				return;
 			}
@@ -876,6 +917,8 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceAdapter::Go()
 	{
+		if (m_stepper)
+			m_stepper->Cancel();
 		m_stopGeneration++;
 		if (!m_engine || !m_engine->Resume(false, 0))
 			return false;
@@ -889,6 +932,8 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceAdapter::StepInto()
 	{
+		if (m_stepper)
+			m_stepper->Cancel();
 		m_stopGeneration++;
 		if (!m_engine || !m_engine->Resume(true, m_activeThreadId))
 			return false;
@@ -900,15 +945,151 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	// The controller calls these with the adapter lock held, and working out what to do needs the analysis of
+	// Binary Ninja, which must not be called under that lock. So the work is done on the thread of the events, and the
+	// controller waits for the stop as it does for any other step.
 	bool PtraceAdapter::StepOver()
 	{
-		return false;
+		if (!m_engine || !m_stepper || m_engine->IsRunning())
+			return false;
+
+		m_stepper->Cancel();
+		m_stopGeneration++;
+		uint32_t tid = m_activeThreadId;
+		m_engine->PostTask([this, tid] { DoStepOver(tid); });
+
+		DebuggerEvent event;
+		event.type = StepOverEventType;
+		PostDebuggerEvent(event);
+		return true;
 	}
 
 
 	bool PtraceAdapter::StepReturn()
 	{
-		return false;
+		if (!m_engine || !m_stepper || m_engine->IsRunning())
+			return false;
+
+		m_stepper->Cancel();
+		m_stopGeneration++;
+		uint32_t tid = m_activeThreadId;
+		m_engine->PostTask([this, tid] { DoStepReturn(tid); });
+
+		DebuggerEvent event;
+		event.type = StepOverEventType;
+		PostDebuggerEvent(event);
+		return true;
+	}
+
+
+	// The controller is waiting for a stop, so a step that cannot be done still has to end in one
+	void PtraceAdapter::FailStep(const std::string& message)
+	{
+		DebuggerEvent event;
+		event.type = ErrorEventType;
+		event.data.errorData.shortError = "Step failed";
+		event.data.errorData.error = fmt::format("PTRACE: {}", message);
+		PostDebuggerEvent(event);
+
+		m_lastStopReason = UnknownReason;
+		DebuggerEvent stopped;
+		stopped.type = AdapterStoppedEventType;
+		stopped.data.targetStoppedData.reason = UnknownReason;
+		stopped.data.targetStoppedData.lastActiveThread = m_activeThreadId;
+		PostDebuggerEvent(stopped);
+	}
+
+
+	size_t PtraceAdapter::GetCallLength(uint64_t pc)
+	{
+		auto data = GetData();
+		auto arch = data ? data->GetDefaultArchitecture() : nullptr;
+		if (!arch)
+			return 0;
+
+		DataBuffer buffer = ReadMemory(pc, arch->GetMaxInstructionLength());
+		size_t bytesRead = buffer.GetLength();
+		if (bytesRead == 0)
+			return 0;
+
+		Ref<LowLevelILFunction> il = new LowLevelILFunction(arch, nullptr);
+		il->SetCurrentAddress(arch, pc);
+		arch->GetInstructionLowLevelIL((const uint8_t*)buffer.GetData(), pc, bytesRead, *il);
+		if (il->GetInstructionCount() == 0 || (*il)[0].operation != LLIL_CALL)
+			return 0;
+
+		InstructionInfo info;
+		if (!arch->GetInstructionInfo((const uint8_t*)buffer.GetData(), pc, bytesRead, info))
+			return 0;
+		return info.length;
+	}
+
+
+	std::vector<uint64_t> PtraceAdapter::GetReturnSites(uint64_t pc)
+	{
+		std::vector<uint64_t> sites;
+		auto data = GetData();
+		auto functions = data ? data->GetAnalysisFunctionsContainingAddress(pc) : std::vector<Ref<Function>>();
+		if (functions.empty() || !functions[0])
+			return sites;
+
+		auto il = functions[0]->GetLowLevelIL();
+		if (!il)
+			return sites;
+
+		for (size_t i = 0; i < il->GetInstructionCount(); i++)
+		{
+			auto instruction = il->GetInstruction(i);
+			if (instruction.operation == LLIL_RET || instruction.operation == LLIL_TAILCALL)
+				sites.push_back(instruction.address);
+		}
+		return sites;
+	}
+
+
+	void PtraceAdapter::DoStepOver(uint32_t tid)
+	{
+		auto arch = m_arch.load();
+		auto pcInfo = arch ? arch->Find(arch->pc) : nullptr;
+		uint64_t pc, sp;
+		if (!pcInfo || !ReadRegisterOf(tid, arch->pc, pc) || !ReadRegisterOf(tid, arch->sp, sp))
+		{
+			FailStep("could not read the registers of the thread");
+			return;
+		}
+
+		if (!m_stepper->StepOver(tid, pc, sp, GetCallLength(pc), pcInfo->size))
+			FailStep("could not step over the instruction");
+	}
+
+
+	void PtraceAdapter::DoStepReturn(uint32_t tid)
+	{
+		auto arch = m_arch.load();
+		uint64_t pc, sp;
+		if (!arch || !ReadRegisterOf(tid, arch->pc, pc) || !ReadRegisterOf(tid, arch->sp, sp))
+		{
+			FailStep("could not read the registers of the thread");
+			return;
+		}
+
+		// Without an analysis of the function, its caller is found from the frame pointers
+		auto sites = GetReturnSites(pc);
+		uint64_t returnAddress = 0, returnSp = 0;
+		if (sites.empty())
+		{
+			auto frames = GetFramesOfThread(tid);
+			if (frames.size() >= 2)
+			{
+				returnAddress = frames[1].m_pc;
+				returnSp = frames[1].m_sp;
+			}
+		}
+
+		// A return instruction has the stack pointer of the function or above it, on every ABI that keeps the return
+		// address on the stack, as well as on those that do not once the epilogue has run
+		if (!m_stepper->StepReturn(tid, pc, sp, sites, returnAddress, returnSp))
+			FailStep("could not find where the function returns");
 	}
 
 
@@ -936,6 +1117,8 @@ namespace BinaryNinjaDebugger {
 	{
 		switch (feature)
 		{
+		case DebugAdapterSupportStepOver:
+		case DebugAdapterSupportStepReturn:
 		case DebugAdapterSupportThreads:
 		case DebugAdapterSupportModules:
 		case DebugAdapterSupportSymbols:
@@ -1003,6 +1186,48 @@ namespace BinaryNinjaDebugger {
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
 		m_breakpoints.clear();
+		m_engineBreakpointRefs.clear();
+	}
+
+
+	bool PtraceAdapter::AcquireBreakpoint(uint64_t address)
+	{
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		if (!m_engine)
+			return false;
+
+		int& count = m_engineBreakpointRefs[address];
+		if (count == 0 && !m_engine->AddBreakpoint(address))
+		{
+			m_engineBreakpointRefs.erase(address);
+			return false;
+		}
+		count++;
+		return true;
+	}
+
+
+	bool PtraceAdapter::ReleaseBreakpoint(uint64_t address)
+	{
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		auto it = m_engineBreakpointRefs.find(address);
+		if (!m_engine || it == m_engineBreakpointRefs.end())
+			return false;
+
+		if (--it->second > 0)
+			return true;
+
+		m_engineBreakpointRefs.erase(it);
+		return m_engine->RemoveBreakpoint(address);
+	}
+
+
+	bool PtraceAdapter::IsUserBreakpoint(uint64_t address)
+	{
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		return std::any_of(m_breakpoints.begin(), m_breakpoints.end(), [address](const DebugBreakpoint& bp) {
+			return bp.m_address == address;
+		});
 	}
 
 
@@ -1012,7 +1237,8 @@ namespace BinaryNinjaDebugger {
 		BNSettingsScope scope = SettingsResourceScope;
 		adapterSettings->Get<std::string>("common.inputFile", data, &scope);
 		if (scope != SettingsResourceScope)
-			adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
+			adapterSettings->Set(
+				"common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
 
 		scope = SettingsResourceScope;
 		adapterSettings->Get<std::string>("launch.executablePath", data, &scope);

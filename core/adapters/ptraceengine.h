@@ -42,7 +42,9 @@ namespace BinaryNinjaDebugger {
 			StoppedEvent,
 			ExitedEvent,
 			DetachedEvent,
-			OutputEvent
+			OutputEvent,
+			// Not from the target. See PostTask.
+			TaskEvent
 		};
 
 		struct Event
@@ -57,6 +59,7 @@ namespace BinaryNinjaDebugger {
 			bool breakpoint = false;
 			bool hardware = false;
 			std::string data;
+			std::function<void()> task;
 		};
 
 		struct MapEntry
@@ -231,6 +234,10 @@ namespace BinaryNinjaDebugger {
 		bool Kill();
 		bool Detach();
 		bool WriteInput(const std::string& data);
+
+		// Runs a function on the thread that delivers the events, after everything that was posted before it. That
+		// thread is not tied up by the caller, so it is the place for work that must not run under the caller's locks.
+		void PostTask(std::function<void()> task);
 
 		// Raw register sets, as PTRACE_GETREGSET and PTRACE_SETREGSET see them. The thread must be stopped.
 		bool GetRegisterSet(uint32_t tid, int regset, std::vector<uint8_t>& data);

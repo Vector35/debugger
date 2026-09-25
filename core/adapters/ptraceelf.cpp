@@ -51,8 +51,8 @@ namespace BinaryNinjaDebugger {
 	static void ReadSymbols(std::ifstream& file, uint64_t fileSize, const typename T::Shdr& table,
 		const typename T::Shdr& strings, std::vector<ElfSymbol>& symbols)
 	{
-		if (table.sh_offset > fileSize || table.sh_size > fileSize - table.sh_offset
-			|| strings.sh_offset > fileSize || strings.sh_size > fileSize - strings.sh_offset)
+		if (table.sh_offset > fileSize || table.sh_size > fileSize - table.sh_offset || strings.sh_offset > fileSize
+			|| strings.sh_size > fileSize - strings.sh_offset)
 			return;
 
 		std::vector<uint8_t> tableData(table.sh_size);
@@ -141,13 +141,13 @@ namespace BinaryNinjaDebugger {
 				ReadSymbols<T>(file, fileSize, section, sections[section.sh_link], info.symbols);
 		}
 
-		std::stable_sort(info.symbols.begin(), info.symbols.end(),
-			[](const ElfSymbol& a, const ElfSymbol& b) { return a.address < b.address; });
+		std::stable_sort(info.symbols.begin(), info.symbols.end(), [](const ElfSymbol& a, const ElfSymbol& b) {
+			return a.address < b.address;
+		});
 		// The dynamic symbols repeat in the full table
-		info.symbols.erase(std::unique(info.symbols.begin(), info.symbols.end(),
-							   [](const ElfSymbol& a, const ElfSymbol& b) {
-								   return a.address == b.address && a.name == b.name;
-							   }),
+		info.symbols.erase(
+			std::unique(info.symbols.begin(), info.symbols.end(),
+				[](const ElfSymbol& a, const ElfSymbol& b) { return a.address == b.address && a.name == b.name; }),
 			info.symbols.end());
 		return true;
 	}

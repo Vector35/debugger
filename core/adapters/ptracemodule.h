@@ -47,8 +47,8 @@ namespace BinaryNinjaDebugger {
 	// return address next to each other, where its own frame pointer points. It stops at the first frame that does not
 	// look right, so code that does not keep frame pointers ends the trace early.
 	std::vector<PtraceFrameRecord> UnwindFramePointers(uint64_t pc, uint64_t sp, uint64_t fp, size_t wordSize,
-		const std::function<bool(uint64_t, uint64_t&)>& readWord,
-		const std::function<bool(uint64_t)>& isExecutable, size_t maxFrames = 256);
+		const std::function<bool(uint64_t, uint64_t&)>& readWord, const std::function<bool(uint64_t)>& isExecutable,
+		size_t maxFrames = 256);
 
 	struct PtraceProcessInfo
 	{
