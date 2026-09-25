@@ -79,6 +79,25 @@ namespace BinaryNinjaDebugger {
 			std::string path;
 		};
 
+		// What the target's file descriptor `fd` is set to before the target starts
+		struct FdRedirect
+		{
+			enum Kind
+			{
+				OpenFile,
+				Duplicate,
+				Close
+			};
+
+			Kind kind = OpenFile;
+			int fd = 0;
+			// OpenFile
+			std::string path;
+			int flags = 0;
+			// Duplicate: the descriptor of the target that `fd` becomes a copy of
+			int source = 0;
+		};
+
 		struct LaunchOptions
 		{
 			std::string path;
@@ -86,6 +105,9 @@ namespace BinaryNinjaDebugger {
 			std::string workingDir;
 			bool disableAslr = true;
 			bool usePty = true;
+			// Applied in order, after the terminal is set up, so 1 and 2 can be sent elsewhere and later ones can refer
+			// to earlier ones. A relative path is relative to the working directory.
+			std::vector<FdRedirect> redirects;
 			// Overrides the architecture that is detected from the target
 			const PtraceArch* arch = nullptr;
 		};
@@ -296,4 +318,9 @@ namespace BinaryNinjaDebugger {
 		std::vector<uint32_t> GetThreads() const;
 		bool IsRunning() const { return m_publishedRunning; }
 	};
+
+	// Reads a redirect the way a shell writes one: `N<path` (read), `N>path` (write, truncating), `N>>path` (append),
+	// `N<>path` (read and write), `N>&M` (a copy of the descriptor M of the target) and `N>&-` (close). Without N it is
+	// 0 for `<` and 1 for the others.
+	bool ParseFdRedirect(const std::string& text, PtraceEngine::FdRedirect& redirect, std::string& error);
 }  // namespace BinaryNinjaDebugger

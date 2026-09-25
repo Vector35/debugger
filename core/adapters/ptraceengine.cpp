@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "ptraceengine.h"
 #include <algorithm>
+#include <cctype>
 #include <cerrno>
 #include <chrono>
 #include <csignal>
@@ -549,9 +550,66 @@ namespace BinaryNinjaDebugger {
 				return std::string("failed to open a pseudo terminal: ") + strerror(errno);
 		}
 
+		// The descriptors that we keep for ourselves are kept above every one that the redirects name, so that setting
+		// those up cannot get in their way
+		int firstFreeFd = 10;
+		for (const auto& redirect : m_options.redirects)
+		{
+			firstFreeFd = std::max(firstFreeFd, redirect.fd + 1);
+			if (redirect.kind == FdRedirect::Duplicate)
+				firstFreeFd = std::max(firstFreeFd, redirect.source + 1);
+		}
+
+		std::vector<int> redirectFds(m_options.redirects.size(), -1);
+		auto closeRedirectFds = [&redirectFds]() {
+			for (int fd : redirectFds)
+			{
+				if (fd >= 0)
+					close(fd);
+			}
+		};
+
+		for (size_t i = 0; i < m_options.redirects.size(); i++)
+		{
+			const auto& redirect = m_options.redirects[i];
+			if (redirect.kind != FdRedirect::OpenFile)
+				continue;
+
+			std::string redirectPath = redirect.path;
+			if (workingDir && !redirectPath.empty() && redirectPath[0] != '/')
+				redirectPath = std::string(workingDir) + "/" + redirectPath;
+
+			int fd = open(redirectPath.c_str(), redirect.flags | O_CLOEXEC, 0666);
+			int moved = fd >= 0 ? fcntl(fd, F_DUPFD_CLOEXEC, firstFreeFd) : -1;
+			int error = errno;
+			if (fd >= 0)
+				close(fd);
+			if (moved < 0)
+			{
+				closeRedirectFds();
+				return "failed to open " + redirectPath + " for file descriptor " + std::to_string(redirect.fd) + ": "
+					+ strerror(error);
+			}
+			redirectFds[i] = moved;
+		}
+
 		int errorPipe[2];
 		if (pipe2(errorPipe, O_CLOEXEC) != 0)
+		{
+			closeRedirectFds();
 			return std::string("failed to create a pipe: ") + strerror(errno);
+		}
+		int movedPipe = fcntl(errorPipe[1], F_DUPFD_CLOEXEC, firstFreeFd);
+		if (movedPipe < 0)
+		{
+			int error = errno;
+			close(errorPipe[0]);
+			close(errorPipe[1]);
+			closeRedirectFds();
+			return std::string("failed to create a pipe: ") + strerror(error);
+		}
+		close(errorPipe[1]);
+		errorPipe[1] = movedPipe;
 
 		pid_t pid = fork();
 		if (pid < 0)
@@ -559,6 +617,7 @@ namespace BinaryNinjaDebugger {
 			int error = errno;
 			close(errorPipe[0]);
 			close(errorPipe[1]);
+			closeRedirectFds();
 			return std::string("failed to fork: ") + strerror(error);
 		}
 
@@ -582,6 +641,25 @@ namespace BinaryNinjaDebugger {
 					close(slave);
 			}
 
+			for (size_t i = 0; i < m_options.redirects.size(); i++)
+			{
+				const auto& redirect = m_options.redirects[i];
+				switch (redirect.kind)
+				{
+				case FdRedirect::OpenFile:
+					if (dup2(redirectFds[i], redirect.fd) < 0)
+						ChildFail(errorPipe[1]);
+					break;
+				case FdRedirect::Duplicate:
+					if (dup2(redirect.source, redirect.fd) < 0)
+						ChildFail(errorPipe[1]);
+					break;
+				case FdRedirect::Close:
+					close(redirect.fd);
+					break;
+				}
+			}
+
 			if (workingDir && chdir(workingDir) != 0)
 				ChildFail(errorPipe[1]);
 			if (m_options.disableAslr)
@@ -594,6 +672,7 @@ namespace BinaryNinjaDebugger {
 		}
 
 		close(errorPipe[1]);
+		closeRedirectFds();
 		int childError = 0;
 		ssize_t count;
 		do
@@ -1763,5 +1842,109 @@ namespace BinaryNinjaDebugger {
 		return true;
 	}
 
+
+	bool ParseFdRedirect(const std::string& text, PtraceEngine::FdRedirect& redirect, std::string& error)
+	{
+		using Redirect = PtraceEngine::FdRedirect;
+		redirect = Redirect();
+
+		size_t i = 0;
+		auto skipSpace = [&]() {
+			while (i < text.size() && isspace((unsigned char)text[i]))
+				i++;
+		};
+		auto readNumber = [&](int& value) {
+			size_t start = i;
+			long result = 0;
+			while (i < text.size() && isdigit((unsigned char)text[i]))
+			{
+				result = result * 10 + (text[i] - '0');
+				if (result > 1000000)
+					return false;
+				i++;
+			}
+			value = (int)result;
+			return i > start;
+		};
+
+		skipSpace();
+		int fd = -1;
+		if (i < text.size() && isdigit((unsigned char)text[i]) && !readNumber(fd))
+		{
+			error = "the file descriptor is too large: " + text;
+			return false;
+		}
+		if (i >= text.size() || (text[i] != '<' && text[i] != '>'))
+		{
+			error = "expected < or > after the file descriptor: " + text;
+			return false;
+		}
+
+		bool input = text[i++] == '<';
+		if (fd < 0)
+			fd = input ? 0 : 1;
+		redirect.fd = fd;
+
+		if (i < text.size() && text[i] == '&')
+		{
+			i++;
+			skipSpace();
+			if (i < text.size() && text[i] == '-')
+			{
+				i++;
+				redirect.kind = Redirect::Close;
+			}
+			else
+			{
+				redirect.kind = Redirect::Duplicate;
+				if (!readNumber(redirect.source))
+				{
+					error = "expected a file descriptor or - after &: " + text;
+					return false;
+				}
+			}
+			skipSpace();
+			if (i != text.size())
+			{
+				error = "unexpected text after the file descriptor: " + text;
+				return false;
+			}
+			return true;
+		}
+
+		if (input)
+		{
+			if (i < text.size() && text[i] == '>')
+			{
+				i++;
+				redirect.flags = O_RDWR | O_CREAT;
+			}
+			else
+			{
+				redirect.flags = O_RDONLY;
+			}
+		}
+		else if (i < text.size() && text[i] == '>')
+		{
+			i++;
+			redirect.flags = O_WRONLY | O_CREAT | O_APPEND;
+		}
+		else
+		{
+			redirect.flags = O_WRONLY | O_CREAT | O_TRUNC;
+		}
+
+		skipSpace();
+		redirect.kind = Redirect::OpenFile;
+		redirect.path = text.substr(i);
+		while (!redirect.path.empty() && isspace((unsigned char)redirect.path.back()))
+			redirect.path.pop_back();
+		if (redirect.path.empty())
+		{
+			error = "expected a path: " + text;
+			return false;
+		}
+		return true;
+	}
 
 }  // namespace BinaryNinjaDebugger

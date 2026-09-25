@@ -250,6 +250,19 @@ namespace BinaryNinjaDebugger {
 		options.workingDir = workingDirectory;
 		options.disableAslr = disableAslr;
 
+		scope = SettingsResourceScope;
+		for (const auto& text : adapterSettings->Get<std::vector<std::string>>("launch.redirectFileDescriptors", data, &scope))
+		{
+			if (text.empty())
+				continue;
+
+			PtraceEngine::FdRedirect redirect;
+			std::string parseError;
+			if (!ParseFdRedirect(text, redirect, parseError))
+				return launchFailure(parseError);
+			options.redirects.push_back(std::move(redirect));
+		}
+
 		CreateEngine(false);
 		std::string error;
 		if (!m_engine->Launch(options, error))
@@ -1797,6 +1810,15 @@ namespace BinaryNinjaDebugger {
 			"type" : "boolean",
 			"default" : false,
 			"description" : "Stop the target when it starts another program with exec. Otherwise the target carries on with the new program, and the debugger says so in its messages.",
+			"readOnly" : false
+			})");
+		settings->RegisterSetting("launch.redirectFileDescriptors",
+			R"({
+			"title" : "Redirect File Descriptors",
+			"type" : "array",
+			"sorted" : false,
+			"default" : [],
+			"description" : "Sets file descriptors of the target before it starts, written the way a shell writes them, and applied in order. The forms are: [\"0<input.txt\"] to read descriptor 0 from a file, [\"1>out.txt\"] to write it to a file, [\"1>>out.txt\"] to append to it, [\"3<>data.bin\"] to open it for reading and writing, [\"2>&1\"] to make descriptor 2 a copy of descriptor 1, and [\"4>&-\"] to close it. Without a number it is 0 for < and 1 for the others. Files are created when they do not exist, and a relative path is relative to the working directory. Without a redirect, descriptors 0, 1 and 2 are the terminal of the debugger. A descriptor that is redirected to a file no longer reaches the terminal, and input written to the target no longer reaches it if descriptor 0 is redirected. This has no effect when attaching to a process.",
 			"readOnly" : false
 			})");
 		settings->RegisterSetting("launch.disableAslr",
