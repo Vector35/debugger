@@ -22,6 +22,7 @@ limitations under the License.
 #include <cstring>
 #include <optional>
 #include "ptraceadapter.h"
+#include "ptracesignal.h"
 #include "lowlevelilinstruction.h"
 #include "../debuggercontroller.h"
 
@@ -134,12 +135,12 @@ namespace BinaryNinjaDebugger {
 			return UnknownReason;
 		// Stopped at the handler of a signal, so it is the signal that is the reason
 		if (event.signalHandler)
-			return SignalToDebugStopReason(event.signalHandler);
+			return StopReasonFromLinuxSignal(event.signalHandler);
 		if (event.breakpoint || event.hardware)
 			return Breakpoint;
 		if (event.signal == SIGTRAP)
 			return event.singleStep ? SingleStep : Breakpoint;
-		return SignalToDebugStopReason(event.signal);
+		return StopReasonFromLinuxSignal(event.signal);
 	}
 
 
