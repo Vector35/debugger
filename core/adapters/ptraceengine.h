@@ -182,7 +182,10 @@ namespace BinaryNinjaDebugger {
 		mutable std::mutex m_infoMutex;
 		std::vector<uint32_t> m_publishedThreads;
 		std::atomic<bool> m_publishedRunning {false};
-		std::atomic<bool> m_interruptRequested {false};
+		// An interrupt is a SIGSTOP that we send. It can be asked for again before the first one has been seen, so the
+		// signals that are on their way are counted, and whether a pause is still wanted is kept apart from that.
+		std::atomic<bool> m_interruptWanted {false};
+		std::atomic<int> m_interruptInFlight {0};
 
 		pid_t m_pid = -1;
 		int m_masterFd = -1;

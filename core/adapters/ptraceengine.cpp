@@ -161,8 +161,20 @@ namespace BinaryNinjaDebugger {
 		if (!m_publishedRunning)
 			return false;
 
-		m_interruptRequested = true;
-		return kill(m_pid, SIGSTOP) == 0;
+		m_interruptWanted = true;
+
+		// One signal on its way is enough, because the stop that it causes is the one that is wanted
+		if (m_interruptInFlight++ > 0)
+		{
+			m_interruptInFlight--;
+			return true;
+		}
+		if (kill(m_pid, SIGSTOP) != 0)
+		{
+			m_interruptInFlight--;
+			return false;
+		}
+		return true;
 	}
 
 
@@ -836,11 +848,16 @@ namespace BinaryNinjaDebugger {
 				info.expectedStops--;
 				return result;
 			}
-			if (m_interruptRequested.exchange(false))
+			if (m_interruptInFlight > 0)
 			{
-				endGuard(true);
-				result.kind = StopKind::Report;
-				result.interrupted = true;
+				m_interruptInFlight--;
+				// The pause may have been given by another stop since, and then this signal is only left over
+				if (m_interruptWanted.exchange(false))
+				{
+					endGuard(true);
+					result.kind = StopKind::Report;
+					result.interrupted = true;
+				}
 				return result;
 			}
 		}
@@ -1224,6 +1241,8 @@ namespace BinaryNinjaDebugger {
 
 		// Once everything is stopped, no thread can still trap on a breakpoint that was removed
 		m_recentlyRemoved.clear();
+		// Any stop is a pause, so a request for one that has not been seen yet is answered
+		m_interruptWanted = false;
 
 		auto& info = m_threads[tid];
 		info.atReportedStop = ReadPc(tid, info.reportedPc);
