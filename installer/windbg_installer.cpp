@@ -169,10 +169,10 @@ InstallResult Install(const InstallConfig& config) {
         /* Step 1: Determine which version to install and where to download it from.
          * We install a specific version rather than whatever is newest, see windbg_version.h */
         std::string version = config.version.empty() ? kDefaultVersion : config.version;
-        std::string msixUrl = BuildMsixBundleUrl(version);
         Log(logCallback, LOG_INFO, "Installing WinDbg/TTD version " + version);
 
         /* Step 2: Download MSIX bundle (this is the main download that shows progress) */
+        std::string msixUrl = BuildMsixBundleUrl(version);
         ReportProgress(progressCallback, "Downloading WinDbg/TTD package from:", 0);
         ReportProgress(progressCallback, msixUrl, 0);
 
@@ -213,25 +213,13 @@ InstallResult Install(const InstallConfig& config) {
             return InstallResult(false, error);
         }
 
-        /* Step 3: Extract inner MSIX file from bundle */
-        ReportProgress(progressCallback, "Extracting package contents...", 0);
-
-        std::string tempExtractDir = GetTempFilePath("_extract");
-        tempFiles.push_back(tempExtractDir);
-
-        std::string innerMsixPath = ExtractFileFromZipArchive(msixPath, kInnerMsixName, tempExtractDir, logCallback);
-        if (innerMsixPath.empty()) {
-            std::string error = "Failed to extract inner MSIX file";
-            Log(logCallback, LOG_ERROR, error);
-            CleanupTempFiles(tempFiles, logCallback);
-            return InstallResult(false, error);
-        }
-
-        /* Step 4: Extract WinDbg contents to installation directory */
+        /* Extract the inner package's contents straight to the install dir.
+         * The App Packaging API exposes it as a stream, so no large temporary
+         * inner MSIX is written. */
         ReportProgress(progressCallback, "Installing WinDbg/TTD files...", 0);
 
-        if (!ExtractZipArchive(innerMsixPath, installTarget, nullptr, logCallback)) {
-            std::string error = "Failed to extract WinDbg contents";
+        if (!ExtractInnerPackageToDir(msixPath, kInnerMsixName, installTarget, nullptr, logCallback)) {
+            std::string error = "Failed to extract WinDbg contents from package";
             Log(logCallback, LOG_ERROR, error);
             CleanupTempFiles(tempFiles, logCallback);
             return InstallResult(false, error);
@@ -269,6 +257,7 @@ InstallResult Install(const InstallConfig& config) {
         }
 
         /* Cleanup */
+        ReportProgress(progressCallback, "Cleaning up temporary files...", 0);
         CleanupTempFiles(tempFiles, logCallback);
 
         ReportProgress(progressCallback, "Installation completed successfully!", 0);
