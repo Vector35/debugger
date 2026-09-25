@@ -118,6 +118,7 @@ namespace BinaryNinjaDebugger {
 		arch.name = "x86_64";
 		arch.pc = "rip";
 		arch.sp = "rsp";
+		arch.fp = "rbp";
 		arch.regsets = {NT_PRSTATUS, NT_PRFPREG};
 		arch.breakpointInstruction = {0xcc};
 		arch.breakpointPcAdjust = 1;
@@ -150,6 +151,7 @@ namespace BinaryNinjaDebugger {
 		arch.name = "x86";
 		arch.pc = "eip";
 		arch.sp = "esp";
+		arch.fp = "ebp";
 		arch.regsets = {NT_PRSTATUS};
 		arch.breakpointInstruction = {0xcc};
 		arch.breakpointPcAdjust = 1;

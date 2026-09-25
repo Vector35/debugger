@@ -65,8 +65,12 @@ else()
 			adapters/ptraceadapter.h
 			adapters/ptracearch.cpp
 			adapters/ptracearch.h
+			adapters/ptraceelf.cpp
+			adapters/ptraceelf.h
 			adapters/ptraceengine.cpp
 			adapters/ptraceengine.h
+			adapters/ptracemodule.cpp
+			adapters/ptracemodule.h
 			)
 	endif()
 endif()

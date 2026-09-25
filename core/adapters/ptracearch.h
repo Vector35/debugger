@@ -63,6 +63,8 @@ namespace BinaryNinjaDebugger {
 		std::string name;
 		std::string pc;
 		std::string sp;
+		// The register that points at the frame of the running function
+		std::string fp;
 		std::vector<PtraceRegister> registers;
 		std::vector<int> regsets;
 

@@ -17,6 +17,7 @@ limitations under the License.
 #include <algorithm>
 #include <cctype>
 #include <cinttypes>
+#include <filesystem>
 #include <csignal>
 #include <cstring>
 #include <optional>
@@ -238,6 +239,7 @@ namespace BinaryNinjaDebugger {
 		options.disableAslr = disableAslr;
 
 		m_engine.reset();
+		ResetTargetState();
 		m_stopAtSystemEntry = Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint");
 		m_firstStop = true;
 		m_targetActive = true;
@@ -259,6 +261,7 @@ namespace BinaryNinjaDebugger {
 		switch (event.type)
 		{
 		case PtraceEngine::StoppedEvent:
+			m_stopGeneration++;
 			m_activeThreadId = event.tid;
 			m_lastStopReason = StopReasonFromEvent(event);
 			if (m_firstStop)
@@ -270,6 +273,7 @@ namespace BinaryNinjaDebugger {
 
 				if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 					AddBreakpoint(ModuleNameAndOffset(m_inputFile, m_entryPoint - m_start), 0);
+				SetUpLoaderBreakpoint();
 				if (!m_stopAtSystemEntry)
 				{
 					ApplyBreakpoints();
@@ -277,6 +281,14 @@ namespace BinaryNinjaDebugger {
 					break;
 				}
 			}
+			// A library was loaded or unloaded, which may be where a pending breakpoint goes
+			if (event.breakpoint && m_loaderBreakpoint && m_arch.load() && ReadArchRegister(m_arch.load()->pc) == m_loaderBreakpoint)
+			{
+				ApplyBreakpoints();
+				m_engine->Resume(false, 0);
+				break;
+			}
+
 			ApplyBreakpoints();
 			dbgevt.type = AdapterStoppedEventType;
 			dbgevt.data.targetStoppedData.reason = m_lastStopReason;
@@ -284,6 +296,7 @@ namespace BinaryNinjaDebugger {
 			PostDebuggerEvent(dbgevt);
 			break;
 		case PtraceEngine::ExitedEvent:
+			m_stopGeneration++;
 			m_targetActive = false;
 			ClearBreakpoints();
 			m_lastStopReason = ProcessExited;
@@ -334,7 +347,10 @@ namespace BinaryNinjaDebugger {
 
 	std::vector<DebugProcess> PtraceAdapter::GetProcessList()
 	{
-		return {};
+		std::vector<DebugProcess> processes;
+		for (const auto& process : ListProcesses())
+			processes.push_back(DebugProcess(process.pid, process.name, process.commandLine));
+		return processes;
 	}
 
 
@@ -411,9 +427,76 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	bool PtraceAdapter::ReadRegisterOf(uint32_t tid, const std::string& name, uint64_t& value)
+	{
+		auto arch = m_arch.load();
+		auto info = arch ? arch->Find(name) : nullptr;
+		std::vector<uint8_t> data;
+		if (!m_engine || !info || !m_engine->GetRegisterSet(tid, info->regset, data) || !RegisterInBounds(*info, data))
+			return false;
+
+		value = (uint64_t)RegisterFromBytes(*info, data, 0).m_value;
+		return true;
+	}
+
+
 	std::vector<DebugFrame> PtraceAdapter::GetFramesOfThread(uint32_t tid)
 	{
-		return {};
+		std::vector<DebugFrame> frames;
+		auto arch = m_arch.load();
+		auto pcInfo = arch ? arch->Find(arch->pc) : nullptr;
+		uint64_t pc, sp, fp = 0;
+		if (!m_engine || !pcInfo || m_engine->IsRunning() || !ReadRegisterOf(tid, arch->pc, pc)
+			|| !ReadRegisterOf(tid, arch->sp, sp))
+			return frames;
+		// Without a frame pointer register there is only the one frame
+		if (!arch->fp.empty())
+			ReadRegisterOf(tid, arch->fp, fp);
+
+		std::vector<std::pair<uint64_t, uint64_t>> executable;
+		for (const auto& map : m_engine->GetMaps())
+		{
+			if (map.execute)
+				executable.emplace_back(map.start, map.end);
+		}
+		std::sort(executable.begin(), executable.end());
+
+		size_t wordSize = pcInfo->size;
+		auto isExecutable = [&executable](uint64_t address) {
+			auto it = std::upper_bound(executable.begin(), executable.end(), std::make_pair(address, UINT64_MAX));
+			return it != executable.begin() && address < std::prev(it)->second;
+		};
+		auto readWord = [this, wordSize](uint64_t address, uint64_t& value) {
+			value = 0;
+			return m_engine->ReadMemory(address, &value, wordSize);
+		};
+
+		auto modules = GetModules();
+		size_t index = 0;
+		for (const auto& record : UnwindFramePointers(pc, sp, fp, wordSize, readWord, isExecutable))
+		{
+			std::string functionName;
+			uint64_t functionStart = 0;
+			std::string moduleName = "<unknown>";
+			for (const auto& module : modules)
+			{
+				if (record.pc < module.base || record.pc >= module.base + module.size)
+					continue;
+
+				moduleName = module.shortName;
+				auto elf = GetElf(module.path);
+				uint64_t bias = module.base - (elf ? elf->linkBase : 0);
+				if (auto symbol = elf ? FindElfSymbol(*elf, record.pc - bias) : nullptr)
+				{
+					functionName = symbol->name;
+					functionStart = symbol->address + bias;
+				}
+				break;
+			}
+
+			frames.push_back(DebugFrame(index++, record.pc, record.sp, record.fp, functionName, functionStart, moduleName));
+		}
+		return frames;
 	}
 
 
@@ -627,21 +710,142 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	std::vector<PtraceModuleInfo> PtraceAdapter::GetModules()
+	{
+		if (!m_engine)
+			return {};
+
+		std::lock_guard<std::mutex> lock(m_moduleMutex);
+		uint64_t generation = m_stopGeneration;
+		if (m_moduleGeneration != generation)
+		{
+			m_modules = BuildModules(m_engine->GetMaps(), [this](uint64_t address) {
+				uint8_t magic[4];
+				return m_engine->ReadMemory(address, magic, sizeof(magic)) && memcmp(magic, "\x7f" "ELF", 4) == 0;
+			});
+			m_moduleGeneration = generation;
+		}
+		return m_modules;
+	}
+
+
+	std::shared_ptr<ElfInfo> PtraceAdapter::GetElf(const std::string& path)
+	{
+		std::lock_guard<std::mutex> lock(m_moduleMutex);
+		auto it = m_elfCache.find(path);
+		if (it != m_elfCache.end())
+			return it->second;
+
+		// A file that cannot be read is remembered as well, so that it is not tried for every frame
+		auto elf = std::make_shared<ElfInfo>();
+		if (!ReadElfFile(path, *elf))
+			elf = nullptr;
+		m_elfCache[path] = elf;
+		return elf;
+	}
+
+
+	void PtraceAdapter::ResetTargetState()
+	{
+		std::lock_guard<std::mutex> lock(m_moduleMutex);
+		m_elfCache.clear();
+		m_modules.clear();
+		m_moduleGeneration = UINT64_MAX;
+		m_loaderBreakpoint = 0;
+	}
+
+
+	// The dynamic loader calls _dl_debug_state every time it changes the list of libraries. Stopping there is how
+	// a breakpoint in a library gets placed before the library runs, and how libraries that are loaded later are found.
+	void PtraceAdapter::SetUpLoaderBreakpoint()
+	{
+		if (!m_engine)
+			return;
+
+		std::error_code error;
+		auto exe = std::filesystem::read_symlink("/proc/" + std::to_string(m_engine->GetPid()) + "/exe", error);
+		auto elf = error ? nullptr : GetElf(exe.string());
+		if (!elf || elf->interpreter.empty())
+			return;
+
+		for (const auto& module : GetModules())
+		{
+			if (!DebugModule::IsSameBaseModule(module.path, elf->interpreter))
+				continue;
+
+			auto loader = GetElf(module.path);
+			if (!loader)
+				return;
+
+			for (const auto& symbol : loader->symbols)
+			{
+				if (symbol.name != "_dl_debug_state")
+					continue;
+
+				uint64_t address = symbol.address + module.base - loader->linkBase;
+				if (m_engine->AddBreakpoint(address))
+					m_loaderBreakpoint = address;
+				return;
+			}
+			return;
+		}
+	}
+
+
 	std::vector<DebugModule> PtraceAdapter::GetModuleList()
 	{
-		return {};
+		std::vector<DebugModule> modules;
+		for (const auto& module : GetModules())
+			modules.push_back(DebugModule(module.path, module.shortName, module.base, module.size, true));
+		return modules;
 	}
 
 
 	std::vector<DebugMemoryRegion> PtraceAdapter::GetMemoryMap()
 	{
-		return {};
+		std::vector<DebugMemoryRegion> regions;
+		if (!m_engine)
+			return regions;
+
+		for (const auto& map : m_engine->GetMaps())
+		{
+			if (map.end > map.start)
+				regions.push_back(DebugMemoryRegion(
+					map.start, map.end - map.start, map.path, map.read, map.write, map.execute, map.shared));
+		}
+		return regions;
 	}
 
 
 	std::vector<DebugSymbol> PtraceAdapter::GetSymbolsForModule(const DebugModule& module)
 	{
-		return {};
+		std::vector<DebugSymbol> symbols;
+		const PtraceModuleInfo* match = nullptr;
+		auto modules = GetModules();
+		for (const auto& candidate : modules)
+		{
+			// Prefer the module at the same address, since two modules can have the same name
+			if (candidate.base == module.m_address)
+			{
+				match = &candidate;
+				break;
+			}
+			if (!match && module.IsSameBaseModule(candidate.path))
+				match = &candidate;
+		}
+
+		auto elf = match ? GetElf(match->path) : nullptr;
+		if (!elf)
+			return symbols;
+
+		uint64_t bias = match->base - elf->linkBase;
+		symbols.reserve(elf->symbols.size());
+		for (const auto& symbol : elf->symbols)
+		{
+			symbols.push_back(DebugSymbol(symbol.name, match->shortName + "!" + symbol.name, symbol.name,
+				symbol.address + bias, symbol.size, symbol.isFunction));
+		}
+		return symbols;
 	}
 
 
@@ -672,6 +876,7 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceAdapter::Go()
 	{
+		m_stopGeneration++;
 		if (!m_engine || !m_engine->Resume(false, 0))
 			return false;
 
@@ -684,6 +889,7 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceAdapter::StepInto()
 	{
+		m_stopGeneration++;
 		if (!m_engine || !m_engine->Resume(true, m_activeThreadId))
 			return false;
 
@@ -731,6 +937,8 @@ namespace BinaryNinjaDebugger {
 		switch (feature)
 		{
 		case DebugAdapterSupportThreads:
+		case DebugAdapterSupportModules:
+		case DebugAdapterSupportSymbols:
 			return true;
 		default:
 			return false;

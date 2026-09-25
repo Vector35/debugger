@@ -16,11 +16,14 @@ limitations under the License.
 
 #pragma once
 #include <atomic>
+#include <map>
 #include <memory>
 #include <mutex>
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
 #include "ptracearch.h"
+#include "ptraceelf.h"
+#include "ptracemodule.h"
 #include "ptraceengine.h"
 
 namespace BinaryNinjaDebugger {
@@ -38,6 +41,15 @@ namespace BinaryNinjaDebugger {
 
 		std::string m_inputFile;
 
+		// Bumped whenever the target may have changed, which is when the cached modules go stale
+		std::atomic<uint64_t> m_stopGeneration {0};
+		std::mutex m_moduleMutex;
+		uint64_t m_moduleGeneration = UINT64_MAX;
+		std::vector<PtraceModuleInfo> m_modules;
+		std::map<std::string, std::shared_ptr<ElfInfo>> m_elfCache;
+		// The dynamic loader calls this every time the libraries of the target change
+		uint64_t m_loaderBreakpoint = 0;
+
 		// Guards the breakpoint lists. It is recursive because adding one by module and offset adds it by address.
 		mutable std::recursive_mutex m_breakpointMutex;
 		std::vector<DebugBreakpoint> m_breakpoints;
@@ -48,6 +60,11 @@ namespace BinaryNinjaDebugger {
 		void HandleEngineEvent(const PtraceEngine::Event& event);
 		void ClearBreakpoints();
 		uint64_t ReadArchRegister(const std::string& name);
+		bool ReadRegisterOf(uint32_t tid, const std::string& name, uint64_t& value);
+		std::vector<PtraceModuleInfo> GetModules();
+		std::shared_ptr<ElfInfo> GetElf(const std::string& path);
+		void SetUpLoaderBreakpoint();
+		void ResetTargetState();
 
 		// Helper to resolve module+offset to absolute address
 		// Returns true if the module was found in the loaded module list and address was resolved
