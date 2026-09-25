@@ -24,6 +24,7 @@ limitations under the License.
 #include <fcntl.h>
 #include <poll.h>
 #include <sched.h>
+#include <sys/uio.h>
 #include <sys/ioctl.h>
 #include <sys/personality.h>
 #include <sys/ptrace.h>
@@ -93,6 +94,8 @@ namespace BinaryNinjaDebugger {
 
 		if (m_masterFd >= 0)
 			close(m_masterFd);
+		if (m_memFd >= 0)
+			close(m_memFd);
 	}
 
 
@@ -176,6 +179,77 @@ namespace BinaryNinjaDebugger {
 				return false;
 			}
 			written += count;
+		}
+		return true;
+	}
+
+
+	bool PtraceEngine::GetRegisterSet(uint32_t tid, int regset, std::vector<uint8_t>& data)
+	{
+		return RunOnTracer([this, tid, regset, &data] {
+			auto it = m_threads.find(tid);
+			if (m_done || m_running || it == m_threads.end() || !it->second.stopped)
+				return false;
+
+			// The largest register set, the extended state, can be a few kilobytes
+			std::vector<uint8_t> buffer(16384);
+			iovec vec {buffer.data(), buffer.size()};
+			if (ptrace(PTRACE_GETREGSET, tid, (void*)(uintptr_t)regset, &vec) != 0)
+				return false;
+
+			buffer.resize(vec.iov_len);
+			data = std::move(buffer);
+			return true;
+		});
+	}
+
+
+	bool PtraceEngine::SetRegisterSet(uint32_t tid, int regset, const std::vector<uint8_t>& data)
+	{
+		return RunOnTracer([this, tid, regset, &data] {
+			auto it = m_threads.find(tid);
+			if (m_done || m_running || it == m_threads.end() || !it->second.stopped)
+				return false;
+
+			iovec vec {const_cast<uint8_t*>(data.data()), data.size()};
+			return ptrace(PTRACE_SETREGSET, tid, (void*)(uintptr_t)regset, &vec) == 0;
+		});
+	}
+
+
+	bool PtraceEngine::ReadMemory(uint64_t address, void* buffer, size_t size)
+	{
+		if (m_memFd < 0 || m_finished || address > INT64_MAX || size > INT64_MAX - address)
+			return false;
+
+		size_t done = 0;
+		while (done < size)
+		{
+			auto count = pread(m_memFd, (char*)buffer + done, size - done, address + done);
+			if (count < 0 && errno == EINTR)
+				continue;
+			if (count <= 0)
+				return false;
+			done += count;
+		}
+		return true;
+	}
+
+
+	bool PtraceEngine::WriteMemory(uint64_t address, const void* buffer, size_t size)
+	{
+		if (m_memFd < 0 || m_finished || address > INT64_MAX || size > INT64_MAX - address)
+			return false;
+
+		size_t done = 0;
+		while (done < size)
+		{
+			auto count = pwrite(m_memFd, (const char*)buffer + done, size - done, address + done);
+			if (count < 0 && errno == EINTR)
+				continue;
+			if (count <= 0)
+				return false;
+			done += count;
 		}
 		return true;
 	}
@@ -361,6 +435,7 @@ namespace BinaryNinjaDebugger {
 		ptrace(PTRACE_SETOPTIONS, pid, nullptr, (void*)(uintptr_t)(PTRACE_O_EXITKILL | PTRACE_O_TRACECLONE));
 
 		m_pid = pid;
+		m_memFd = open(("/proc/" + std::to_string(pid) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
 		ThreadInfo info;
 		info.stopped = true;
 		m_threads[pid] = info;
@@ -617,6 +692,7 @@ namespace BinaryNinjaDebugger {
 	void PtraceEngine::FinishExit(int status)
 	{
 		m_done = true;
+		m_finished = true;
 		m_running = false;
 		Publish();
 		StopIo();
@@ -737,6 +813,7 @@ namespace BinaryNinjaDebugger {
 
 		m_threads.clear();
 		m_done = true;
+		m_finished = true;
 		m_running = false;
 		Publish();
 		StopIo();

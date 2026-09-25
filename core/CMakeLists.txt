@@ -63,6 +63,8 @@ else()
 		list(APPEND SOURCES
 			adapters/ptraceadapter.cpp
 			adapters/ptraceadapter.h
+			adapters/ptracearch.cpp
+			adapters/ptracearch.h
 			adapters/ptraceengine.cpp
 			adapters/ptraceengine.h
 			)

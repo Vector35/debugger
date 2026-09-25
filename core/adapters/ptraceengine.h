@@ -123,6 +123,8 @@ namespace BinaryNinjaDebugger {
 
 		pid_t m_pid = -1;
 		int m_masterFd = -1;
+		int m_memFd = -1;
+		std::atomic<bool> m_finished {false};
 		std::atomic<bool> m_ioStop {false};
 
 		void TracerMain();
@@ -159,6 +161,14 @@ namespace BinaryNinjaDebugger {
 		bool Kill();
 		bool Detach();
 		bool WriteInput(const std::string& data);
+
+		// Raw register sets, as PTRACE_GETREGSET and PTRACE_SETREGSET see them. The thread must be stopped.
+		bool GetRegisterSet(uint32_t tid, int regset, std::vector<uint8_t>& data);
+		bool SetRegisterSet(uint32_t tid, int regset, const std::vector<uint8_t>& data);
+
+		// All or nothing
+		bool ReadMemory(uint64_t address, void* buffer, size_t size);
+		bool WriteMemory(uint64_t address, const void* buffer, size_t size);
 
 		uint32_t GetPid() const { return m_pid > 0 ? m_pid : 0; }
 		std::vector<uint32_t> GetThreads() const;

@@ -19,6 +19,7 @@ limitations under the License.
 #include <memory>
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
+#include "ptracearch.h"
 #include "ptraceengine.h"
 
 namespace BinaryNinjaDebugger {
@@ -30,6 +31,7 @@ namespace BinaryNinjaDebugger {
 		std::atomic<uint32_t> m_activeThreadId {0};
 		std::atomic<DebugStopReason> m_lastStopReason {UnknownReason};
 		std::atomic<uint64_t> m_exitCode {0};
+		std::atomic<const PtraceArch*> m_arch {nullptr};
 		bool m_firstStop = false;
 		bool m_stopAtSystemEntry = false;
 
@@ -37,6 +39,7 @@ namespace BinaryNinjaDebugger {
 		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
 
 		void HandleEngineEvent(const PtraceEngine::Event& event);
+		uint64_t ReadArchRegister(const std::string& name);
 
 		// Helper to resolve module+offset to absolute address
 		// Returns true if the module was found in the loaded module list and address was resolved

@@ -17,6 +17,7 @@ limitations under the License.
 #include <algorithm>
 #include <cctype>
 #include <csignal>
+#include <cstring>
 #include <optional>
 #include "ptraceadapter.h"
 
@@ -79,6 +80,20 @@ namespace BinaryNinjaDebugger {
 		if (argumentStarted)
 			arguments.push_back(argument);
 		return arguments;
+	}
+
+
+	static DebugRegister RegisterFromBytes(const PtraceRegister& reg, const std::vector<uint8_t>& data, size_t index)
+	{
+		uint8_t buffer[64] = {};
+		memcpy(buffer, data.data() + reg.offset, std::min(reg.size, sizeof(buffer)));
+		return DebugRegister(reg.name, intx::le::load<intx::uint512>(buffer), reg.size * 8, index);
+	}
+
+
+	static bool RegisterInBounds(const PtraceRegister& reg, const std::vector<uint8_t>& data)
+	{
+		return reg.offset + reg.size <= data.size();
 	}
 
 
@@ -201,6 +216,9 @@ namespace BinaryNinjaDebugger {
 			if (m_firstStop)
 			{
 				m_firstStop = false;
+				m_arch = DetectPtraceArch(m_engine->GetPid());
+				if (!m_arch)
+					LogWarn("PtraceAdapter: unsupported target architecture");
 				if (!m_stopAtSystemEntry)
 				{
 					m_engine->Resume(false, 0);
@@ -277,8 +295,19 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine)
 			return threads;
 
+		auto arch = m_arch.load();
 		for (uint32_t tid : m_engine->GetThreads())
-			threads.push_back(DebugThread(tid));
+		{
+			DebugThread thread(tid);
+			if (arch && !m_engine->IsRunning())
+			{
+				auto pc = arch->Find(arch->pc);
+				std::vector<uint8_t> data;
+				if (pc && m_engine->GetRegisterSet(tid, pc->regset, data) && RegisterInBounds(*pc, data))
+					thread.m_rip = (uintptr_t)RegisterFromBytes(*pc, data, 0).m_value;
+			}
+			threads.push_back(thread);
+		}
 		return threads;
 	}
 
@@ -392,31 +421,85 @@ namespace BinaryNinjaDebugger {
 
 	std::unordered_map<std::string, DebugRegister> PtraceAdapter::ReadAllRegisters()
 	{
-		return {};
+		std::unordered_map<std::string, DebugRegister> result;
+		auto arch = m_arch.load();
+		if (!m_engine || !arch)
+			return result;
+
+		std::unordered_map<int, std::vector<uint8_t>> regsets;
+		for (int regset : arch->regsets)
+		{
+			std::vector<uint8_t> data;
+			if (m_engine->GetRegisterSet(m_activeThreadId, regset, data))
+				regsets[regset] = std::move(data);
+		}
+
+		for (size_t i = 0; i < arch->registers.size(); i++)
+		{
+			const auto& reg = arch->registers[i];
+			auto it = regsets.find(reg.regset);
+			if (it != regsets.end() && RegisterInBounds(reg, it->second))
+				result[reg.name] = RegisterFromBytes(reg, it->second, i);
+		}
+		return result;
 	}
 
 
 	DebugRegister PtraceAdapter::ReadRegister(const std::string& reg)
 	{
-		return DebugRegister();
+		auto arch = m_arch.load();
+		if (!m_engine || !arch)
+			return DebugRegister();
+
+		auto info = arch->Find(reg);
+		std::vector<uint8_t> data;
+		if (!info || !m_engine->GetRegisterSet(m_activeThreadId, info->regset, data) || !RegisterInBounds(*info, data))
+			return DebugRegister();
+
+		return RegisterFromBytes(*info, data, info - arch->registers.data());
 	}
 
 
 	bool PtraceAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
 	{
-		return false;
+		auto arch = m_arch.load();
+		if (!m_engine || !arch)
+			return false;
+
+		auto info = arch->Find(reg);
+		std::vector<uint8_t> data;
+		if (!info || !m_engine->GetRegisterSet(m_activeThreadId, info->regset, data) || !RegisterInBounds(*info, data))
+			return false;
+
+		uint8_t buffer[64];
+		intx::le::store(buffer, value);
+		memcpy(data.data() + info->offset, buffer, std::min(info->size, sizeof(buffer)));
+		return m_engine->SetRegisterSet(m_activeThreadId, info->regset, data);
+	}
+
+
+	uint64_t PtraceAdapter::ReadArchRegister(const std::string& name)
+	{
+		return (uint64_t)ReadRegister(name).m_value;
 	}
 
 
 	DataBuffer PtraceAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 	{
-		return DataBuffer();
+		DataBuffer result;
+		if (!m_engine || size == 0)
+			return result;
+
+		std::vector<uint8_t> buffer(size);
+		if (m_engine->ReadMemory(address, buffer.data(), size))
+			result.Append(buffer.data(), size);
+		return result;
 	}
 
 
 	bool PtraceAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
 	{
-		return false;
+		return m_engine && m_engine->WriteMemory(address, buffer.GetData(), buffer.GetLength());
 	}
 
 
@@ -440,7 +523,8 @@ namespace BinaryNinjaDebugger {
 
 	std::string PtraceAdapter::GetTargetArchitecture()
 	{
-		return "";
+		auto arch = m_arch.load();
+		return arch ? arch->name : "";
 	}
 
 
@@ -506,13 +590,15 @@ namespace BinaryNinjaDebugger {
 
 	uint64_t PtraceAdapter::GetInstructionOffset()
 	{
-		return 0;
+		auto arch = m_arch.load();
+		return arch ? ReadArchRegister(arch->pc) : 0;
 	}
 
 
 	uint64_t PtraceAdapter::GetStackPointer()
 	{
-		return 0;
+		auto arch = m_arch.load();
+		return arch ? ReadArchRegister(arch->sp) : 0;
 	}
 
 
