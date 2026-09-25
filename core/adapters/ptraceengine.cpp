@@ -588,7 +588,7 @@ namespace BinaryNinjaDebugger {
 
 		ptrace(PTRACE_SETOPTIONS, pid, nullptr,
 			(void*)(uintptr_t)(PTRACE_O_EXITKILL | PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
-				| PTRACE_O_TRACEVFORKDONE));
+				| PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACEEXEC));
 
 		m_pid = pid;
 		m_memFd = open(("/proc/" + std::to_string(pid) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
@@ -812,6 +812,8 @@ namespace BinaryNinjaDebugger {
 			HandleFork((pid_t)child, event == PTRACE_EVENT_VFORK);
 			return result;
 		}
+		if (event == PTRACE_EVENT_EXEC)
+			return HandleExec(tid);
 		if (event == PTRACE_EVENT_VFORK_DONE)
 		{
 			if (m_vforkPending > 0 && --m_vforkPending == 0)
@@ -1039,6 +1041,65 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	// The target has started another program. Nothing of the old one is left: not its threads, its memory, its
+	// breakpoints or its debug registers. So this starts over, and the stop is reported so that the owner can set the
+	// new program up before it runs.
+	PtraceEngine::Classified PtraceEngine::HandleExec(pid_t tid)
+	{
+		// Every thread but one is gone, and that one is the leader from now on, whichever thread it was before
+		std::vector<pid_t> gone;
+		bool stepping = false;
+		int expectedStops = 0;
+		for (const auto& [id, info] : m_threads)
+		{
+			if (id != m_pid)
+				gone.push_back(id);
+			if (id == tid)
+				stepping = info.stepping;
+			if (id == m_pid)
+				expectedStops = info.expectedStops;
+		}
+
+		ThreadInfo leader;
+		leader.stopped = true;
+		leader.stepping = stepping;
+		leader.expectedStops = expectedStops;
+		m_threads.clear();
+		m_threads[m_pid] = leader;
+
+		// Whatever is left of the threads that were killed
+		for (pid_t id : gone)
+		{
+			int status;
+			waitpid(id, &status, __WALL | WNOHANG);
+		}
+
+		{
+			std::lock_guard<std::mutex> lock(m_breakpointMutex);
+			int fd = open(("/proc/" + std::to_string(m_pid) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
+			if (m_memFd >= 0)
+				close(m_memFd);
+			m_memFd = fd;
+			m_breakpoints.clear();
+			m_arch = m_options.arch ? m_options.arch : DetectPtraceArch(m_pid);
+		}
+
+		m_recentlyRemoved.clear();
+		m_stepOverQueue.clear();
+		m_stepOverTid = -1;
+		m_vforkPending = 0;
+		m_hardwareSlots.assign(m_arch && m_arch->hwDebug ? m_arch->hwDebug->SlotCount() : 0, HardwareSlot());
+		Publish();
+
+		Classified result;
+		result.kind = StopKind::Report;
+		result.signal = SIGTRAP;
+		result.exec = true;
+		result.tid = m_pid;
+		return result;
+	}
+
+
 	void PtraceEngine::ResumeBreakpointsAfterVfork()
 	{
 		std::lock_guard<std::mutex> lock(m_breakpointMutex);
@@ -1104,7 +1165,7 @@ namespace BinaryNinjaDebugger {
 			}
 			StopAll();
 			if (!m_done)
-				FinishStop(tid, stop);
+				FinishStop(stop.tid ? stop.tid : tid, stop);
 			break;
 		}
 	}
@@ -1155,6 +1216,7 @@ namespace BinaryNinjaDebugger {
 		event.interrupted = stop.interrupted;
 		event.breakpoint = stop.breakpoint;
 		event.hardware = stop.hardware;
+		event.exec = stop.exec;
 		event.singleStep = m_threads[tid].stepping;
 
 		for (auto& [id, info] : m_threads)
@@ -1167,6 +1229,9 @@ namespace BinaryNinjaDebugger {
 		info.atReportedStop = ReadPc(tid, info.reportedPc);
 		info.hardwareBeforeAccess =
 			stop.hardware && m_arch && m_arch->hwDebug && m_arch->hwDebug->DataTrapsBeforeAccess();
+		// The first instruction of a program is where a breakpoint of the new program may be, and it has not run yet
+		if (stop.exec)
+			info.atReportedStop = false;
 
 		m_running = false;
 		Publish();

@@ -277,6 +277,11 @@ namespace BinaryNinjaDebugger {
 			m_stopGeneration++;
 			m_activeThreadId = event.tid;
 			m_lastStopReason = StopReasonFromEvent(event);
+			if (event.exec)
+			{
+				HandleExec(event);
+				break;
+			}
 			if (m_firstStop)
 			{
 				m_firstStop = false;
@@ -324,6 +329,7 @@ namespace BinaryNinjaDebugger {
 		case PtraceEngine::ExitedEvent:
 			m_stopGeneration++;
 			m_targetActive = false;
+			ForgetKnownBreakpoints();
 			if (m_stepper)
 				m_stepper->Cancel();
 			ClearBreakpoints();
@@ -335,6 +341,7 @@ namespace BinaryNinjaDebugger {
 			break;
 		case PtraceEngine::DetachedEvent:
 			m_targetActive = false;
+			ForgetKnownBreakpoints();
 			if (m_stepper)
 				m_stepper->Cancel();
 			ClearBreakpoints();
@@ -553,6 +560,11 @@ namespace BinaryNinjaDebugger {
 		}
 
 		m_breakpoints.emplace_back(address, m_nextBreakpointId++, true);
+
+		ModuleNameAndOffset location;
+		if (ToModuleOffset(address, location)
+			&& std::find(m_knownBreakpoints.begin(), m_knownBreakpoints.end(), location) == m_knownBreakpoints.end())
+			m_knownBreakpoints.push_back(location);
 		return m_breakpoints.back();
 	}
 
@@ -567,6 +579,8 @@ namespace BinaryNinjaDebugger {
 		// The module is not loaded yet, so this waits for it
 		if (std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end())
 			m_pendingBreakpoints.push_back(address);
+		if (std::find(m_knownBreakpoints.begin(), m_knownBreakpoints.end(), address) == m_knownBreakpoints.end())
+			m_knownBreakpoints.push_back(address);
 		return DebugBreakpoint();
 	}
 
@@ -577,10 +591,18 @@ namespace BinaryNinjaDebugger {
 		auto it = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [&breakpoint](const DebugBreakpoint& bp) {
 			return bp.m_address == breakpoint.m_address;
 		});
-		if (!m_engine || it == m_breakpoints.end() || !ReleaseBreakpoint(breakpoint.m_address))
+		if (!m_engine || it == m_breakpoints.end())
+			return false;
+
+		ModuleNameAndOffset location;
+		bool known = ToModuleOffset(breakpoint.m_address, location);
+		if (!ReleaseBreakpoint(breakpoint.m_address))
 			return false;
 
 		m_breakpoints.erase(it);
+		if (known)
+			m_knownBreakpoints.erase(
+				std::remove(m_knownBreakpoints.begin(), m_knownBreakpoints.end(), location), m_knownBreakpoints.end());
 		return true;
 	}
 
@@ -588,6 +610,8 @@ namespace BinaryNinjaDebugger {
 	bool PtraceAdapter::RemoveBreakpoint(const ModuleNameAndOffset& address)
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		m_knownBreakpoints.erase(
+			std::remove(m_knownBreakpoints.begin(), m_knownBreakpoints.end(), address), m_knownBreakpoints.end());
 		auto pending = std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address);
 		if (pending != m_pendingBreakpoints.end())
 		{
@@ -614,7 +638,19 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !m_targetActive || !HwTypeFromBreakpointType(type, hwType))
 			return false;
 
-		return m_engine->AddHardwareBreakpoint(address, hwType, size);
+		if (!m_engine->AddHardwareBreakpoint(address, hwType, size))
+			return false;
+
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		ModuleNameAndOffset location;
+		if (ToModuleOffset(address, location))
+		{
+			PendingHardwareBreakpoint known(location, type, size);
+			if (std::find(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), known)
+				== m_knownHardwareBreakpoints.end())
+				m_knownHardwareBreakpoints.push_back(known);
+		}
+		return true;
 	}
 
 
@@ -624,7 +660,20 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !m_targetActive || !HwTypeFromBreakpointType(type, hwType))
 			return false;
 
-		return m_engine->RemoveHardwareBreakpoint(address, hwType, size);
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		ModuleNameAndOffset location;
+		bool known = ToModuleOffset(address, location);
+		if (!m_engine->RemoveHardwareBreakpoint(address, hwType, size))
+			return false;
+
+		if (known)
+		{
+			PendingHardwareBreakpoint entry(location, type, size);
+			m_knownHardwareBreakpoints.erase(
+				std::remove(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), entry),
+				m_knownHardwareBreakpoints.end());
+		}
+		return true;
 	}
 
 
@@ -640,6 +689,9 @@ namespace BinaryNinjaDebugger {
 		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
 			== m_pendingHardwareBreakpoints.end())
 			m_pendingHardwareBreakpoints.push_back(pending);
+		if (std::find(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), pending)
+			== m_knownHardwareBreakpoints.end())
+			m_knownHardwareBreakpoints.push_back(pending);
 		return true;
 	}
 
@@ -649,6 +701,9 @@ namespace BinaryNinjaDebugger {
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
 		PendingHardwareBreakpoint pending(location, type, size);
+		m_knownHardwareBreakpoints.erase(
+			std::remove(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), pending),
+			m_knownHardwareBreakpoints.end());
 		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
 		if (it != m_pendingHardwareBreakpoints.end())
 		{
@@ -1182,6 +1237,79 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	// The target has started another program. The engine has already thrown away everything that belonged to the old
+	// one, so this does the same for what the adapter keeps, and sets the new program up the way the first stop set up
+	// the first.
+	void PtraceAdapter::HandleExec(const PtraceEngine::Event& event)
+	{
+		// A step that the exec cut short is over, and the stop is the end of it
+		bool wasStepping = event.singleStep || (m_stepper && m_stepper->IsActive());
+		if (m_stepper)
+			m_stepper->Cancel();
+		ClearBreakpoints();
+		ResetTargetState();
+
+		m_arch = m_engine->GetArch();
+		if (!m_arch)
+			LogWarn("PtraceAdapter: unsupported target architecture");
+
+		{
+			std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+			m_pendingBreakpoints = m_knownBreakpoints;
+			m_pendingHardwareBreakpoints = m_knownHardwareBreakpoints;
+		}
+
+		std::error_code error;
+		auto program = std::filesystem::read_symlink("/proc/" + std::to_string(m_engine->GetPid()) + "/exe", error);
+		DebuggerEvent message;
+		message.type = BackendMessageEventType;
+		message.data.messageData.message = fmt::format("PTRACE: the process started {}\n", program.string());
+		PostDebuggerEvent(message);
+
+		SetUpLoaderBreakpoint();
+		ApplyBreakpoints();
+		m_lastStopReason = UnknownReason;
+
+		BNSettingsScope scope = SettingsResourceScope;
+		bool stopOnExec = GetAdapterSettings()->Get<bool>("common.stopOnExec", GetData(), &scope);
+		if (!stopOnExec && !wasStepping)
+		{
+			m_engine->Resume(false, 0);
+			return;
+		}
+
+		DebuggerEvent stopped;
+		stopped.type = AdapterStoppedEventType;
+		stopped.data.targetStoppedData.reason = UnknownReason;
+		stopped.data.targetStoppedData.lastActiveThread = event.tid;
+		PostDebuggerEvent(stopped);
+	}
+
+
+	// A breakpoint is known by the module that it is in, and its offset there, which stays true when the address does
+	// not
+	bool PtraceAdapter::ToModuleOffset(uint64_t address, ModuleNameAndOffset& location)
+	{
+		for (const auto& module : GetModules())
+		{
+			if (address >= module.base && address < module.base + module.size)
+			{
+				location = ModuleNameAndOffset(module.path, address - module.base);
+				return true;
+			}
+		}
+		return false;
+	}
+
+
+	void PtraceAdapter::ForgetKnownBreakpoints()
+	{
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		m_knownBreakpoints.clear();
+		m_knownHardwareBreakpoints.clear();
+	}
+
+
 	void PtraceAdapter::ClearBreakpoints()
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
@@ -1318,6 +1446,14 @@ namespace BinaryNinjaDebugger {
 			"type" : "string",
 			"default" : "",
 			"description" : "Command line arguments to pass to the target.",
+			"readOnly" : false
+			})");
+		settings->RegisterSetting("common.stopOnExec",
+			R"({
+			"title" : "Stop On Exec",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "Stop the target when it starts another program with exec. Otherwise the target carries on with the new program, and the debugger says so in its messages.",
 			"readOnly" : false
 			})");
 		settings->RegisterSetting("launch.disableAslr",

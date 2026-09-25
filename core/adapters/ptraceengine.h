@@ -58,6 +58,9 @@ namespace BinaryNinjaDebugger {
 			bool interrupted = false;
 			bool breakpoint = false;
 			bool hardware = false;
+			// The target has started another program. The engine has started over with it: the breakpoints, the memory
+			// and the threads are all new.
+			bool exec = false;
 			std::string data;
 			std::function<void()> task;
 		};
@@ -137,6 +140,9 @@ namespace BinaryNinjaDebugger {
 			bool breakpoint = false;
 			bool hardware = false;
 			bool stepTrap = false;
+			bool exec = false;
+			// The thread that the stop is for, if it is not the one that it was found on
+			pid_t tid = 0;
 		};
 
 		EventHandler m_handler;
@@ -213,6 +219,7 @@ namespace BinaryNinjaDebugger {
 		bool ResumeAll();
 		void ApplyHardwareToThread(pid_t tid);
 		void HandleFork(pid_t child, bool sharedMemory);
+		Classified HandleExec(pid_t tid);
 		void ResumeBreakpointsAfterVfork();
 		void RemoveAllBreakpoints();
 		void StopAll();
