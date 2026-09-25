@@ -495,7 +495,7 @@ only thing that would run the adapter through the controller.
 | Feature | State |
 | --- | --- |
 | Debugging **without opening a file** (a mapped view) | **Not offered.** `CanExecute` only accepts an ELF view, so a mapped or raw view cannot use this adapter. (GDB MI has the same limit, LLDB does not) |
-| **Attach to a process** (the button) | Implemented. The pid comes from the controller, so the adapter has no `attach.pid` setting |
+| **Attach to a process** (the button) | Implemented. The controller passes the pid through the `attach.pid` adapter setting, which the adapter registers |
 | **Backend commands** (the console, `execute_backend_command`) | Returns nothing. So no `image list`, `breakpoint list`, `process save-core` (dump files) and so on |
 | **Terminal emulator** (`request_terminal_emulator`) | Not supported. The target always runs on a pty whose output goes to the console |
 | **stdin, stdout and stderr redirection** (`launch.redirect*`) | Implemented as `launch.redirectFileDescriptors`, which takes any descriptor |
@@ -521,6 +521,10 @@ only thing that would run the adapter through the controller.
 - The engine does not set `PTRACE_O_EXITKILL` for an attached target, and its destructor detaches instead of killing.
   So closing the debugger lets go of the target. **Quit still kills it**, as in the LLDB adapter.
 - The target keeps its own terminal: no output reaches the console, and `WriteStdin` fails.
+- **The pid reaches the adapter through the `attach.pid` setting.** `DebuggerState::SetPIDAttach` does nothing when the
+  adapter has no such setting, and `GetPIDAttach` then returns 0. The first version of the attach commit did not register
+  it, so every attach would have been for pid 0. Found while writing the Python test; the adapter now registers it
+  and refuses pid 0. **Never found by the engine tests, because they do not go through the controller.**
 - The errors say "no such process", "already being traced by process N", and, for a refusal, the value of
   `kernel.yama.ptrace_scope` when it is not 0.
 - **Not handled:** a target that is stopped by job control (`SIGSTOP`, `Ctrl-Z`) when it is attached to. The kernel lets the

@@ -402,6 +402,16 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceAdapter::Attach(std::uint32_t pid)
 	{
+		if (pid == 0)
+		{
+			DebuggerEvent event;
+			event.type = LaunchFailureEventType;
+			event.data.errorData.shortError = "Failed to attach to target";
+			event.data.errorData.error = "PTRACE: no process id to attach to";
+			PostDebuggerEvent(event);
+			return false;
+		}
+
 		auto adapterSettings = GetAdapterSettings();
 		auto data = GetData();
 		BNSettingsScope scope = SettingsResourceScope;
@@ -1778,6 +1788,16 @@ namespace BinaryNinjaDebugger {
 			"type" : "string",
 			"default" : "",
 			"description" : "Command line arguments to pass to the target.",
+			"readOnly" : false
+			})");
+		settings->RegisterSetting("attach.pid",
+			R"({
+			"title" : "PID to attach to",
+			"type" : "number",
+			"default" : 0,
+			"minValue" : 0,
+			"maxValue" : 4294967295,
+			"description" : "PID of the process to attach to",
 			"readOnly" : false
 			})");
 		settings->RegisterSetting("common.debugSignalHandlers",
