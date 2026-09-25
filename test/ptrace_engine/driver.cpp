@@ -48,6 +48,32 @@ static int failures = 0;
 
 static std::string prog = "/work/progs";
 
+#if defined(__x86_64__)
+// The layout of user_regs_struct, which is what NT_PRSTATUS holds
+constexpr size_t kFpOff = 4 * 8, kArg0Off = 14 * 8, kPcOff = 16 * 8, kSpOff = 19 * 8, kPrstatusSize = 27 * 8;
+constexpr size_t kCallLength = 5;
+// A ret in a deeper call has a lower sp than the one of this frame, so no adjustment is needed
+constexpr size_t kMinSpExtra = 0;
+constexpr bool kDataTrapsBeforeAccess = false;
+constexpr bool kHostSupported = true;
+static const char* kScratchRegister = "rbx";
+static const char* kLoaderName = "ld-linux-x86-64.so.2";
+static const std::vector<uint8_t> kBreakInsn = {0xCC};
+// Detected from the target, like the adapter does
+static const PtraceArch* TestArch() { return nullptr; }
+static const PtraceArch& RegisterTable() { return PtraceArchX86_64(); }
+// Where a thread that stepped off the first instruction of a function is. That instruction is 4 bytes long on arm64, and
+// on x86 it is a `push %rbp` or an `endbr64`.
+static bool SteppedOffFirstInstruction(uint64_t pc, uint64_t start) { return pc > start && pc <= start + 15; }
+#elif defined(__aarch64__)
+constexpr size_t kFpOff = 29 * 8, kArg0Off = 0, kPcOff = 32 * 8, kSpOff = 31 * 8, kPrstatusSize = 272;
+constexpr size_t kCallLength = 4;
+constexpr size_t kMinSpExtra = 1;
+constexpr bool kDataTrapsBeforeAccess = true;
+constexpr bool kHostSupported = false;
+static const char* kScratchRegister = "x28";
+static const char* kLoaderName = "ld-linux-aarch64.so.1";
+static const std::vector<uint8_t> kBreakInsn = {0x00, 0x00, 0x20, 0xd4};
 #ifndef NT_ARM_HW_BREAK
 #define NT_ARM_HW_BREAK 0x402
 #define NT_ARM_HW_WATCH 0x403
@@ -87,10 +113,17 @@ static PtraceArch TestArm64()
 }
 
 static PtraceArch g_arm = TestArm64();
+static const PtraceArch* TestArch() { return &g_arm; }
+static const PtraceArch& RegisterTable() { return g_arm; }
+static bool SteppedOffFirstInstruction(uint64_t pc, uint64_t start) { return pc == start + 4; }
+#else
+#error "the harness knows x86_64 and aarch64"
+#endif
+
 static std::unique_ptr<PtraceEngine> start(Log& log, const std::string& mode, std::vector<std::string> extra = {}, const std::string& cwd = "", bool pty = true)
 {
 	auto e = std::make_unique<PtraceEngine>([&log](const PtraceEngine::Event& ev) { log.push(ev); });
-	PtraceEngine::LaunchOptions o; o.path = prog; o.args = {mode}; o.args.insert(o.args.end(), extra.begin(), extra.end()); o.workingDir = cwd; o.usePty = pty; o.arch = &g_arm;
+	PtraceEngine::LaunchOptions o; o.path = prog; o.args = {mode}; o.args.insert(o.args.end(), extra.begin(), extra.end()); o.workingDir = cwd; o.usePty = pty; o.arch = TestArch();
 	std::string err;
 	if (!e->Launch(o, err)) { printf("  launch failed: %s\n", err.c_str()); failures++; return nullptr; }
 	return e;
@@ -302,28 +335,42 @@ static bool waitOutput(Log& log, const std::string& s, int ms = 3000)
 
 static void t_regs_step()
 {
-	PtraceArch arch = TestArm64(); auto pcReg = arch.Find("pc"); CHECK(pcReg && arch.Find("nope") == nullptr);
-	CHECK(DetectPtraceArch(getpid()) == nullptr);   // this host is not a supported architecture
+	const PtraceArch& arch = RegisterTable(); auto pcReg = arch.Find(arch.pc); CHECK(pcReg && arch.Find("nope") == nullptr);
+	CHECK((DetectPtraceArch(getpid()) != nullptr) == kHostSupported);   // the arm64 host is not a supported architecture
 	Log log; auto e = start(log, "hello"); if (!e) return;
 	PtraceEngine::Event ev; CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); uint32_t tid = ev.tid;
-	CHECK(DetectPtraceArch(e->GetPid()) == nullptr);
-	std::vector<uint8_t> regs; CHECK(e->GetRegisterSet(tid, pcReg->regset, regs)); CHECK(regs.size() == 272);
-	uint64_t pc1 = le64(regs, pcReg->offset), sp = le64(regs, arch.Find("sp")->offset);
-	CHECK(pc1 != 0 && sp != 0); CHECK(pc1 % 4 == 0);
+	CHECK((DetectPtraceArch(e->GetPid()) != nullptr) == kHostSupported);
+	std::vector<uint8_t> regs; CHECK(e->GetRegisterSet(tid, pcReg->regset, regs)); CHECK(regs.size() == kPrstatusSize);
+	uint64_t pc1 = le64(regs, pcReg->offset), sp = le64(regs, arch.Find(arch.sp)->offset);
+	CHECK(pc1 != 0 && sp != 0);
+#if defined(__aarch64__)
+	CHECK(pc1 % 4 == 0);
+#endif
 	std::vector<uint8_t> fp; CHECK(e->GetRegisterSet(tid, NT_PRFPREG, fp)); CHECK(fp.size() >= 512);
 	CHECK(e->Resume(true, tid)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
 	std::vector<uint8_t> regs2; CHECK(e->GetRegisterSet(tid, NT_PRSTATUS, regs2));
 	printf("  pc %llx -> %llx\n", (unsigned long long)pc1, (unsigned long long)le64(regs2, pcReg->offset));
+#if defined(__aarch64__)
 	CHECK(le64(regs2, pcReg->offset) == pc1 + 4);
+#else
+	CHECK(le64(regs2, pcReg->offset) != pc1);
+#endif
 	// write a register, read it back, restore it
-	const auto x28 = arch.Find("x28")->offset; uint64_t orig = le64(regs2, x28);
+	const auto x28 = arch.Find(kScratchRegister)->offset; uint64_t orig = le64(regs2, x28);
 	auto mod = regs2; uint64_t magic = 0x1122334455667788ull; memcpy(mod.data() + x28, &magic, 8);
 	CHECK(e->SetRegisterSet(tid, NT_PRSTATUS, mod)); std::vector<uint8_t> back; CHECK(e->GetRegisterSet(tid, NT_PRSTATUS, back)); CHECK(le64(back, x28) == magic);
 	memcpy(mod.data() + x28, &orig, 8); CHECK(e->SetRegisterSet(tid, NT_PRSTATUS, mod));
 	// writing the pc redirects the step
+#if defined(__aarch64__)
 	auto jump = regs2; uint64_t target = pc1 + 8; memcpy(jump.data() + pcReg->offset, &target, 8);
 	CHECK(e->SetRegisterSet(tid, NT_PRSTATUS, jump)); CHECK(e->Resume(true, tid)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
 	CHECK(e->GetRegisterSet(tid, NT_PRSTATUS, back)); CHECK(le64(back, pcReg->offset) == target + 4);
+#else
+	// going back to the first pc, the step has the same result again
+	uint64_t pc2 = le64(regs2, pcReg->offset);
+	CHECK(e->SetRegisterSet(tid, NT_PRSTATUS, regs)); CHECK(e->Resume(true, tid)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(e->GetRegisterSet(tid, NT_PRSTATUS, back)); CHECK(le64(back, pcReg->offset) == pc2);
+#endif
 	// invalid requests
 	CHECK(!e->GetRegisterSet(tid + 1000, NT_PRSTATUS, back)); CHECK(!e->GetRegisterSet(tid, 0x7777, back));
 	CHECK(e->Kill());
@@ -337,7 +384,7 @@ static void t_regs_running()
 	CHECK(e->Resume(false, 0)); std::vector<uint8_t> regs;
 	CHECK(!e->GetRegisterSet(tid, NT_PRSTATUS, regs)); CHECK(!e->SetRegisterSet(tid, NT_PRSTATUS, regs));
 	CHECK(e->Interrupt()); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
-	CHECK(e->GetRegisterSet(ev.tid, NT_PRSTATUS, regs)); CHECK(regs.size() == 272);
+	CHECK(e->GetRegisterSet(ev.tid, NT_PRSTATUS, regs)); CHECK(regs.size() == kPrstatusSize);
 	CHECK(e->Kill());
 }
 
@@ -381,7 +428,7 @@ static std::vector<uint8_t> rawRead(uint32_t pid, uint64_t addr, size_t n)
 
 static uint64_t pcOf(PtraceEngine& e, uint32_t tid)
 {
-	std::vector<uint8_t> r; if (!e.GetRegisterSet(tid, NT_PRSTATUS, r)) return 0; return le64(r, 32 * 8);
+	std::vector<uint8_t> r; if (!e.GetRegisterSet(tid, NT_PRSTATUS, r)) return 0; return le64(r, kPcOff);
 }
 
 // Starts the target, runs it to the SIGUSR1 stop that every breakpoint target raises once it has printed an address
@@ -400,7 +447,7 @@ static void t_bp_basic()
 	uint32_t pid = e->GetPid();
 	auto before = rawRead(pid, marker, 8); CHECK(before.size() == 8);
 	CHECK(e->AddBreakpoint(marker)); CHECK(e->AddBreakpoint(marker));
-	auto raw = rawRead(pid, marker, 4); CHECK((raw == std::vector<uint8_t>{0x00, 0x00, 0x20, 0xd4}));
+	auto raw = rawRead(pid, marker, kBreakInsn.size()); CHECK((raw == kBreakInsn));
 	std::vector<uint8_t> seen(8); CHECK(e->ReadMemory(marker, seen.data(), 8)); CHECK(seen == before);   // the breakpoint is hidden
 	std::vector<uint8_t> mid(2); CHECK(e->ReadMemory(marker + 1, mid.data(), 2)); CHECK(mid[0] == before[1] && mid[1] == before[2]);
 	for (int i = 1; i <= 5; i++)
@@ -420,8 +467,8 @@ static void t_bp_step_remove()
 	CHECK(e->AddBreakpoint(marker)); CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(ev.breakpoint);
 	// stepping off a breakpoint moves one instruction, and the breakpoint is still there afterwards
 	CHECK(e->Resume(true, ev.tid)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(ev.singleStep && !ev.breakpoint);
-	CHECK(pcOf(*e, ev.tid) == marker + 4);
-	CHECK((rawRead(pid, marker, 4) == std::vector<uint8_t>{0x00, 0x00, 0x20, 0xd4}));
+	CHECK(SteppedOffFirstInstruction(pcOf(*e, ev.tid), marker));
+	CHECK((rawRead(pid, marker, kBreakInsn.size()) == kBreakInsn));
 	CHECK(e->RemoveBreakpoint(marker)); CHECK(!e->RemoveBreakpoint(marker));
 	CHECK(rawRead(pid, marker, 4) == before);
 	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 5);
@@ -436,7 +483,7 @@ static void t_bp_write()
 	std::vector<uint8_t> patch = {1, 2, 3, 4, 5, 6, 7, 8};
 	CHECK(e->WriteMemory(marker, patch.data(), 8));
 	std::vector<uint8_t> seen(8); CHECK(e->ReadMemory(marker, seen.data(), 8)); CHECK(seen == patch);
-	auto raw = rawRead(pid, marker, 8); CHECK((raw == std::vector<uint8_t>{0x00, 0x00, 0x20, 0xd4, 5, 6, 7, 8}));
+	auto raw = rawRead(pid, marker, 8); auto wantRaw = patch; for (size_t i = 0; i < kBreakInsn.size(); i++) wantRaw[i] = kBreakInsn[i]; CHECK((raw == wantRaw));
 	CHECK(e->RemoveBreakpoint(marker)); CHECK(rawRead(pid, marker, 8) == patch);
 	CHECK(e->WriteMemory(marker, before.data(), 8));
 	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 5);
@@ -524,7 +571,7 @@ static void t_hw_watch()
 	{
 		CHECK(e->Resume(false, 0)); if (!log.wait(PtraceEngine::StoppedEvent, ev)) { printf("  no hit %d\n", i); failures++; return; }
 		CHECK(ev.hardware && !ev.breakpoint); CHECK(ev.signal == SIGTRAP);
-		uint32_t value = 0; if (i > 1) { CHECK(e->ReadMemory(wvar, &value, 4)); CHECK(value == (uint32_t)(i - 1)); }   // the write is not done yet
+		uint32_t value = 0; CHECK(e->ReadMemory(wvar, &value, 4)); CHECK(value == (uint32_t)(kDataTrapsBeforeAccess ? i - 1 : i));   // arm64 traps before the write is done, x86 after
 	}
 	CHECK(e->RemoveHardwareBreakpoint(wvar, PtraceHwType::Write, 4)); CHECK(!e->RemoveHardwareBreakpoint(wvar, PtraceHwType::Write, 4));
 	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 3);
@@ -590,7 +637,7 @@ static void t_modules()
 	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "bp", tid, ev); if (!e) return;
 	auto mods = modulesOf(*e); auto maps = e->GetMaps();
 	for (auto& m : mods) printf("  %-40s %llx +%llx  (%s)\n", m.path.c_str(), (unsigned long long)m.base, (unsigned long long)m.size, m.shortName.c_str());
-	auto exe = findModule(mods, "/progs"); auto libc = findModule(mods, "libc.so.6"); auto ld = findModule(mods, "ld-linux-aarch64.so.1");
+	auto exe = findModule(mods, "/progs"); auto libc = findModule(mods, "libc.so.6"); auto ld = findModule(mods, kLoaderName);
 	CHECK(exe && libc && ld); if (!exe || !libc || !ld) return;
 	CHECK(exe->shortName == "progs"); CHECK(exe->base == 0x400000);
 	// no module overlaps another, and every mapping of a module's file is inside it
@@ -634,7 +681,7 @@ static void t_frames()
 	uint64_t label = addrOf(log, "label="); CHECK(label != 0);
 	CHECK(e->AddBreakpoint(label)); CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(ev.breakpoint);
 	std::vector<uint8_t> regs; CHECK(e->GetRegisterSet(ev.tid, NT_PRSTATUS, regs));
-	uint64_t pc = le64(regs, 32 * 8), sp = le64(regs, 31 * 8), fp = le64(regs, 29 * 8); CHECK(pc == label);
+	uint64_t pc = le64(regs, kPcOff), sp = le64(regs, kSpOff), fp = le64(regs, kFpOff); CHECK(pc == label);
 	auto maps = e->GetMaps();
 	auto isExec = [&](uint64_t a) { for (auto& m : maps) if (m.execute && a >= m.start && a < m.end) return true; return false; };
 	auto readWord = [&](uint64_t a, uint64_t& v) { v = 0; return e->ReadMemory(a, &v, 8); };
@@ -660,9 +707,9 @@ static void t_loader()
 	Log log; PtraceEngine::Event ev; auto e = start(log, "dl"); if (!e) return;
 	CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
 	// what the adapter does: find _dl_debug_state in the dynamic loader
-	auto mods = modulesOf(*e); auto exe = findModule(mods, "/progs"); auto ld = findModule(mods, "ld-linux-aarch64.so.1"); CHECK(exe && ld); if (!exe || !ld) return;
+	auto mods = modulesOf(*e); auto exe = findModule(mods, "/progs"); auto ld = findModule(mods, kLoaderName); CHECK(exe && ld); if (!exe || !ld) return;
 	ElfInfo exeElf, ldElf; CHECK(ReadElfFile(exe->path, exeElf)); CHECK(ReadElfFile(ld->path, ldElf));
-	CHECK(!exeElf.interpreter.empty() && exeElf.interpreter.find("ld-linux-aarch64") != std::string::npos);
+	CHECK(!exeElf.interpreter.empty() && exeElf.interpreter.find(kLoaderName) != std::string::npos);
 	uint64_t state = 0; for (auto& s : ldElf.symbols) if (s.name == "_dl_debug_state") state = s.address + ld->base - ldElf.linkBase;
 	CHECK(state != 0); if (!state) return;
 	CHECK(e->AddBreakpoint(state));
@@ -674,7 +721,7 @@ static void t_loader()
 		bool haveLib = findModule(modulesOf(*e), "libtest.so") != nullptr;
 		if (ev.breakpoint)
 		{
-			std::vector<uint8_t> r; e->GetRegisterSet(ev.tid, NT_PRSTATUS, r); uint64_t at = le64(r, 32 * 8);
+			std::vector<uint8_t> r; e->GetRegisterSet(ev.tid, NT_PRSTATUS, r); uint64_t at = le64(r, kPcOff);
 			if (libfuncAddr && at == libfuncAddr) { printf("  hit the breakpoint in the library\n"); break; }
 			hits++; CHECK(at == state); if (haveLib) sawLib = true; if (haveLib && !atSignal) libBeforeDlopen = true;
 		}
@@ -691,7 +738,7 @@ static void t_loader()
 				CHECK(e->RemoveBreakpoint(state));
 			}
 		}
-		else if (ev.breakpoint == false && ev.signal == SIGTRAP) { std::vector<uint8_t> r; e->GetRegisterSet(ev.tid, NT_PRSTATUS, r); if (libfuncAddr && le64(r, 32 * 8) == libfuncAddr) break; }
+		else if (ev.breakpoint == false && ev.signal == SIGTRAP) { std::vector<uint8_t> r; e->GetRegisterSet(ev.tid, NT_PRSTATUS, r); if (libfuncAddr && le64(r, kPcOff) == libfuncAddr) break; }
 		CHECK(e->Resume(false, 0));
 	}
 	printf("  loader hits: %d, library seen after load: %d\n", hits, sawLib);
@@ -724,9 +771,9 @@ struct StepEnv
 		stepper = std::make_unique<PtraceStepper>(*e, [this](uint64_t a) { return acquire(a); }, [this](uint64_t a) { return release(a); });
 		return true;
 	}
-	uint64_t reg(int index) { std::vector<uint8_t> r; if (!e->GetRegisterSet(tid, NT_PRSTATUS, r)) return 0; return le64(r, index * 8); }
-	uint64_t pc() { return reg(32); }
-	uint64_t sp() { return reg(31); }
+	uint64_t reg(size_t offset) { std::vector<uint8_t> r; if (!e->GetRegisterSet(tid, NT_PRSTATUS, r)) return 0; return le64(r, offset); }
+	uint64_t pc() { return reg(kPcOff); }
+	uint64_t sp() { return reg(kSpOff); }
 	// Runs to a label that the target printed, by a temporary breakpoint of the engine
 	bool runTo(uint64_t address)
 	{
@@ -735,7 +782,11 @@ struct StepEnv
 		tid = ev.tid; CHECK(pc() == address); CHECK(e->RemoveBreakpoint(address)); return pc() == address;
 	}
 	uint32_t insnAt(uint64_t a) { uint32_t v = 0; e->ReadMemory(a, &v, 4); return v; }
+#if defined(__x86_64__)
+	static bool isCall(uint32_t i) { return (i & 0xFF) == 0xE8; }   // call rel32, which is what a direct call compiles to
+#else
 	static bool isCall(uint32_t i) { return (i & 0xFC000000) == 0x94000000 || (i & 0xFFFFFC1F) == 0xD63F0000; }
+#endif
 	// single-steps until the instruction at the pc is a call
 	bool stepToCall()
 	{
@@ -752,7 +803,7 @@ struct StepEnv
 		while (true)
 		{
 			if (!log.wait(PtraceEngine::StoppedEvent, ev, timeout)) { printf("  follow: no stop\n"); failures++; return PtraceStepper::Result::Ignored; }
-			uint64_t p = 0, s = 0; { std::vector<uint8_t> r; if (e->GetRegisterSet(ev.tid, NT_PRSTATUS, r)) { p = le64(r, 32 * 8); s = le64(r, 31 * 8); } }
+			uint64_t p = 0, s = 0; { std::vector<uint8_t> r; if (e->GetRegisterSet(ev.tid, NT_PRSTATUS, r)) { p = le64(r, kPcOff); s = le64(r, kSpOff); } }
 			auto res = stepper->OnStop(ev, p, s, user.count(p) > 0);
 			if (res != PtraceStepper::Result::Consumed) { tid = ev.tid; return res; }
 		}
@@ -762,7 +813,17 @@ struct StepEnv
 
 static std::vector<uint64_t> retSitesOf(const ElfInfo& elf, const std::string& name)
 {
-	std::vector<uint64_t> sites; for (auto& s : elf.symbols) if (s.name == name) for (uint64_t a = s.address; a < s.address + s.size; a += 4) { uint32_t insn; std::ifstream f("/work/progs", std::ios::binary); f.seekg(a - 0x400000); f.read((char*)&insn, 4); if (insn == 0xd65f03c0) sites.push_back(a); }
+	std::vector<uint64_t> sites;
+#if defined(__x86_64__)
+	// the program has frame pointers, so the epilogue is `leave; ret` or `pop %rbp; ret`
+	for (auto& s : elf.symbols) if (s.name == name)
+	{
+		std::vector<uint8_t> code(s.size); std::ifstream f("/work/progs", std::ios::binary); f.seekg(s.address - 0x400000); f.read((char*)code.data(), code.size());
+		for (size_t i = 1; i < code.size(); i++) if (code[i] == 0xC3 && (code[i - 1] == 0xC9 || code[i - 1] == 0x5D)) sites.push_back(s.address + i);
+	}
+#else
+	for (auto& s : elf.symbols) if (s.name == name) for (uint64_t a = s.address; a < s.address + s.size; a += 4) { uint32_t insn; std::ifstream f("/work/progs", std::ios::binary); f.seekg(a - 0x400000); f.read((char*)&insn, 4); if (insn == 0xd65f03c0) sites.push_back(a); }
+#endif
 	return sites;
 }
 
@@ -778,11 +839,11 @@ static void t_stepover_basic()
 	// the call runs to its end
 	StepEnv u; if (!u.begin("stepover")) return;
 	uint64_t here2 = addrOf(u.log, "here="); CHECK(u.runTo(here2)); CHECK(u.stepToCall()); callPc = u.pc(); spBefore = u.sp();
-	CHECK(u.stepper->StepOver(u.tid, callPc, spBefore, 4, 8));
+	CHECK(u.stepper->StepOver(u.tid, callPc, spBefore, kCallLength, 8));
 	CHECK(u.follow() == PtraceStepper::Result::Finished);
-	CHECK(u.pc() == callPc + 4); CHECK(u.sp() == spBefore); CHECK(!u.stepper->IsActive());
+	CHECK(u.pc() == callPc + kCallLength); CHECK(u.sp() == spBefore); CHECK(!u.stepper->IsActive());
 	CHECK(u.refs.empty());   // the temporary breakpoint is gone
-	{ auto raw = rawRead(u.e->GetPid(), callPc + 4, 4); uint32_t seen = 0; u.e->ReadMemory(callPc + 4, &seen, 4); CHECK(raw.size() == 4 && !memcmp(raw.data(), &seen, 4)); }   // no breakpoint bytes left behind
+	{ auto raw = rawRead(u.e->GetPid(), callPc + kCallLength, 4); uint32_t seen = 0; u.e->ReadMemory(callPc + kCallLength, &seen, 4); CHECK(raw.size() == 4 && !memcmp(raw.data(), &seen, 4)); }   // no breakpoint bytes left behind
 	CHECK(u.exitsWith(11));
 }
 
@@ -794,7 +855,7 @@ static void t_stepover_user_breakpoint()
 	ElfInfo elf; auto mods = modulesOf(*t.e); auto exe = findModule(mods, "/progs"); CHECK(exe != nullptr); CHECK(ReadElfFile(exe->path, elf));
 	uint64_t marker = symbolAddr(elf, "marker"); CHECK(marker != 0);
 	CHECK(t.acquire(marker)); t.user.insert(marker);
-	CHECK(t.stepper->StepOver(t.tid, callPc, spBefore, 4, 8));
+	CHECK(t.stepper->StepOver(t.tid, callPc, spBefore, kCallLength, 8));
 	auto res = t.follow(); CHECK(res == PtraceStepper::Result::Ignored); CHECK(t.ev.breakpoint); CHECK(t.pc() == marker);
 	CHECK(!t.stepper->IsActive()); CHECK(t.refs.size() == 1 && t.refs.count(marker));   // only the user's breakpoint is left
 	CHECK(t.exitsWith(11));
@@ -805,12 +866,12 @@ static void t_stepover_interrupt()
 	StepEnv t; if (!t.begin("stepslow")) return;
 	uint64_t here = addrOf(t.log, "here="); CHECK(t.runTo(here)); CHECK(t.stepToCall());
 	uint64_t callPc = t.pc(), spBefore = t.sp();
-	CHECK(t.stepper->StepOver(t.tid, callPc, spBefore, 4, 8)); CHECK(t.stepper->IsActive());
+	CHECK(t.stepper->StepOver(t.tid, callPc, spBefore, kCallLength, 8)); CHECK(t.stepper->IsActive());
 	std::this_thread::sleep_for(100ms); CHECK(t.e->Interrupt());
 	auto res = t.follow(); CHECK(res == PtraceStepper::Result::Ignored); CHECK(t.ev.interrupted);
 	CHECK(!t.stepper->IsActive()); CHECK(t.refs.empty());
 	// stepping over again works from wherever it stopped, and cancelling releases the breakpoint
-	CHECK(t.stepper->StepReturn(t.tid, t.pc(), t.sp(), {}, callPc + 4, spBefore)); CHECK(t.stepper->IsActive() && !t.refs.empty());
+	CHECK(t.stepper->StepReturn(t.tid, t.pc(), t.sp(), {}, callPc + kCallLength, spBefore)); CHECK(t.stepper->IsActive() && !t.refs.empty());
 	t.stepper->Cancel(); CHECK(t.refs.empty()); CHECK(!t.stepper->IsActive());
 	CHECK(t.e->Kill());
 }
@@ -822,10 +883,10 @@ static void t_stepover_recursion()
 	uint64_t callPc = t.pc(), spBefore = t.sp();
 	ElfInfo elf; auto mods = modulesOf(*t.e); auto exe = findModule(mods, "/progs"); CHECK(ReadElfFile(exe->path, elf));
 	uint64_t counterAddr = symbolAddr(elf, "counter"); CHECK(counterAddr != 0);
-	CHECK(t.stepper->StepOver(t.tid, callPc, spBefore, 4, 8));
+	CHECK(t.stepper->StepOver(t.tid, callPc, spBefore, kCallLength, 8));
 	CHECK(t.follow() == PtraceStepper::Result::Finished);
 	// it stopped in the frame that made the call, after all the calls beneath it had returned
-	CHECK(t.pc() == callPc + 4); CHECK(t.sp() == spBefore);
+	CHECK(t.pc() == callPc + kCallLength); CHECK(t.sp() == spBefore);
 	int counter = 0; CHECK(t.e->ReadMemory(counterAddr, &counter, 4)); CHECK(counter == 2);
 	CHECK(t.exitsWith(3));
 }
@@ -839,8 +900,8 @@ static void t_stepreturn_sites()
 	// where the function returns to, from the frame pointers
 	auto maps = t.e->GetMaps(); auto isExec = [&](uint64_t a) { for (auto& m : maps) if (m.execute && a >= m.start && a < m.end) return true; return false; };
 	auto readWord = [&](uint64_t a, uint64_t& v) { v = 0; return t.e->ReadMemory(a, &v, 8); };
-	auto frames = UnwindFramePointers(t.pc(), t.sp(), t.reg(29), 8, readWord, isExec); CHECK(frames.size() >= 2);
-	CHECK(t.stepper->StepReturn(t.tid, t.pc(), t.sp() + 1, sites, 0, 0));
+	auto frames = UnwindFramePointers(t.pc(), t.sp(), t.reg(kFpOff), 8, readWord, isExec); CHECK(frames.size() >= 2);
+	CHECK(t.stepper->StepReturn(t.tid, t.pc(), t.sp() + kMinSpExtra, sites, 0, 0));
 	CHECK(t.follow() == PtraceStepper::Result::Finished);
 	CHECK(t.pc() == frames[1].pc); CHECK(t.sp() >= frames[1].sp); CHECK(t.refs.empty());   // on arm64 the frame size is not known, so the unwound sp is a lower bound
 	CHECK(t.exitsWith(102 - 1));   // inner adds 1 and outer adds 100
@@ -852,7 +913,7 @@ static void t_stepreturn_address()
 	uint64_t there = addrOf(t.log, "there="); CHECK(t.runTo(there));
 	auto maps = t.e->GetMaps(); auto isExec = [&](uint64_t a) { for (auto& m : maps) if (m.execute && a >= m.start && a < m.end) return true; return false; };
 	auto readWord = [&](uint64_t a, uint64_t& v) { v = 0; return t.e->ReadMemory(a, &v, 8); };
-	auto frames = UnwindFramePointers(t.pc(), t.sp(), t.reg(29), 8, readWord, isExec); CHECK(frames.size() >= 2);
+	auto frames = UnwindFramePointers(t.pc(), t.sp(), t.reg(kFpOff), 8, readWord, isExec); CHECK(frames.size() >= 2);
 	CHECK(!t.stepper->StepReturn(t.tid, t.pc(), t.sp(), {}, 0, 0));   // nothing to run to
 	CHECK(t.stepper->StepReturn(t.tid, t.pc(), t.sp(), {}, frames[1].pc, frames[1].sp));
 	CHECK(t.follow() == PtraceStepper::Result::Finished);
@@ -868,9 +929,9 @@ static void t_stepreturn_recursion()
 	auto sites = retSitesOf(elf, "recurse"); CHECK(sites.size() >= 1);
 	auto maps = t.e->GetMaps(); auto isExec = [&](uint64_t a) { for (auto& m : maps) if (m.execute && a >= m.start && a < m.end) return true; return false; };
 	auto readWord = [&](uint64_t a, uint64_t& v) { v = 0; return t.e->ReadMemory(a, &v, 8); };
-	auto frames = UnwindFramePointers(t.pc(), t.sp(), t.reg(29), 8, readWord, isExec); CHECK(frames.size() >= 2);
+	auto frames = UnwindFramePointers(t.pc(), t.sp(), t.reg(kFpOff), 8, readWord, isExec); CHECK(frames.size() >= 2);
 	// the deeper calls return through the same instructions first, and none of them is the end of this one
-	CHECK(t.stepper->StepReturn(t.tid, t.pc(), t.sp() + 1, sites, 0, 0));
+	CHECK(t.stepper->StepReturn(t.tid, t.pc(), t.sp() + kMinSpExtra, sites, 0, 0));
 	CHECK(t.follow() == PtraceStepper::Result::Finished);
 	CHECK(t.pc() == frames[1].pc); CHECK(t.sp() >= frames[1].sp);
 	int counter = 0; CHECK(t.e->ReadMemory(symbolAddr(elf, "counter"), &counter, 4)); CHECK(counter == 3);   // the frame has finished, including its own increment
@@ -882,10 +943,10 @@ static void t_stepover_threads()
 	StepEnv t; if (!t.begin("stepthreads")) return;
 	uint64_t sync = addrOf(t.log, "sync="); CHECK(t.runTo(sync));
 	CHECK(t.stepToCall()); uint64_t callPc = t.pc(), spBefore = t.sp(); uint32_t stepper = t.tid;
-	CHECK(t.stepper->StepOver(t.tid, callPc, spBefore, 4, 8));
+	CHECK(t.stepper->StepOver(t.tid, callPc, spBefore, kCallLength, 8));
 	// the other threads run through the same call and return address all the while
 	CHECK(t.follow() == PtraceStepper::Result::Finished);
-	CHECK(t.ev.tid == stepper); CHECK(t.pc() == callPc + 4); CHECK(t.sp() == spBefore); CHECK(t.refs.empty());
+	CHECK(t.ev.tid == stepper); CHECK(t.pc() == callPc + kCallLength); CHECK(t.sp() == spBefore); CHECK(t.refs.empty());
 	CHECK(t.e->Kill());
 }
 
@@ -900,7 +961,7 @@ static void forkTest(const char* mode, int expectedHits, int expectedExit)
 		{ std::unique_lock<std::mutex> l(log.m); bool got = log.cv.wait_for(l, 10s, [&] { for (auto& q : log.q) if (q.type == PtraceEngine::StoppedEvent || q.type == PtraceEngine::ExitedEvent) return true; return false; }); if (!got) { printf("  timeout after %d hits\n", hits); failures++; return; } }
 		if (log.wait(PtraceEngine::ExitedEvent, ev, 1ms)) break;
 		CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); if (!(ev.breakpoint && pcOf(*e, ev.tid) == marker)) { printf("  stray stop sig=%d\n", ev.signal); failures++; return; }
-		CHECK((rawRead(e->GetPid(), marker, 4) == std::vector<uint8_t>{0x00, 0x00, 0x20, 0xd4}));   // our own breakpoint is back
+		CHECK((rawRead(e->GetPid(), marker, kBreakInsn.size()) == kBreakInsn));   // our own breakpoint is back
 		hits++; if (!e->Resume(false, 0)) { printf("  resume failed\n"); failures++; return; }
 	}
 	printf("  hits=%d exit=%d signal=%d\n", hits, ev.exitCode, ev.signal); CHECK(hits == expectedHits); CHECK(ev.exitCode == expectedExit);
@@ -919,7 +980,7 @@ static void t_exec_basic()
 	CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(ev.exec); CHECK(ev.tid == pid); CHECK(!ev.breakpoint); CHECK(e->GetThreads().size() == 1);
 	// the memory is the new program's, and the breakpoint of the old one is gone from it and from what we know
 	uint32_t seen = 0; CHECK(e->ReadMemory(marker, &seen, 4)); auto raw = rawRead(pid, marker, 4); CHECK(raw.size() == 4 && !memcmp(raw.data(), &seen, 4));
-	CHECK((raw != std::vector<uint8_t>{0x00, 0x00, 0x20, 0xd4}));
+	CHECK(!std::equal(kBreakInsn.begin(), kBreakInsn.end(), raw.begin()));
 	CHECK(pcOf(*e, pid) != 0);
 	CHECK(!e->RemoveBreakpoint(marker));   // nothing is left of it
 	// the new program runs its five calls without a stop, because there is no breakpoint any more
@@ -966,7 +1027,7 @@ static void t_winsize()
 	CHECK(log.output.find("tty=1 ioctl=0 rows=24 cols=80") != std::string::npos);
 
 	Log log2; auto e2 = std::make_unique<PtraceEngine>([&log2](const PtraceEngine::Event& x) { log2.push(x); });
-	PtraceEngine::LaunchOptions o; o.path = prog; o.args = {"winsize"}; o.arch = &g_arm; o.rows = 50; o.columns = 132; std::string err;
+	PtraceEngine::LaunchOptions o; o.path = prog; o.args = {"winsize"}; o.arch = TestArch(); o.rows = 50; o.columns = 132; std::string err;
 	CHECK(e2->Launch(o, err)); CHECK(log2.wait(PtraceEngine::StoppedEvent, ev)); CHECK(e2->Resume(false, 0)); CHECK(log2.wait(PtraceEngine::ExitedEvent, ev));
 	CHECK(log2.output.find("tty=1 ioctl=0 rows=50 cols=132") != std::string::npos);
 }
@@ -1043,7 +1104,7 @@ static bool twoAddrs(Log& log, uint64_t& a, uint64_t& b)
 	unsigned long long x = 0, y = 0; sscanf(log.output.c_str(), "info=%llx handler=%llx", &x, &y); a = x; b = y; return x && y;
 }
 
-static uint64_t x0Of(PtraceEngine& e, uint32_t tid) { std::vector<uint8_t> r; return e.GetRegisterSet(tid, NT_PRSTATUS, r) ? le64(r, 0) : ~0ull; }
+static uint64_t x0Of(PtraceEngine& e, uint32_t tid) { std::vector<uint8_t> r; return e.GetRegisterSet(tid, NT_PRSTATUS, r) ? le64(r, kArg0Off) : ~0ull; }
 
 static void t_handlers_off()
 {
@@ -1165,7 +1226,7 @@ static const std::string bins = "/bins/";
 static std::unique_ptr<PtraceEngine> startBin(Log& log, const std::string& name, std::vector<std::string> args = {})
 {
 	auto e = std::make_unique<PtraceEngine>([&log](const PtraceEngine::Event& ev) { log.push(ev); });
-	PtraceEngine::LaunchOptions o; o.path = bins + name; o.args = args; o.arch = &g_arm; std::string err;
+	PtraceEngine::LaunchOptions o; o.path = bins + name; o.args = args; o.arch = TestArch(); std::string err;
 	if (!e->Launch(o, err)) { printf("  launch of %s failed: %s\n", name.c_str(), err.c_str()); failures++; return nullptr; }
 	return e;
 }
@@ -1298,7 +1359,7 @@ static std::unique_ptr<PtraceEngine> attachTo(Log& log, pid_t pid, std::string* 
 {
 	auto e = std::make_unique<PtraceEngine>([&log](const PtraceEngine::Event& ev) { log.push(ev); });
 	std::string err;
-	bool ok = e->Attach(pid, err, &g_arm);
+	bool ok = e->Attach(pid, err, TestArch());
 	if (error) *error = err;
 	if (!ok) { if (!error) { printf("  attach failed: %s\n", err.c_str()); failures++; } return nullptr; }
 	return e;
@@ -1449,7 +1510,7 @@ static void spit(const std::string& path, const std::string& text) { std::ofstre
 static std::unique_ptr<PtraceEngine> startRedirected(Log& log, const std::string& mode, std::vector<std::string> extra, std::vector<std::string> redirects, const std::string& cwd = "", std::string* error = nullptr)
 {
 	auto e = std::make_unique<PtraceEngine>([&log](const PtraceEngine::Event& ev) { log.push(ev); });
-	PtraceEngine::LaunchOptions o; o.path = prog; o.args = {mode}; o.args.insert(o.args.end(), extra.begin(), extra.end()); o.workingDir = cwd; o.arch = &g_arm;
+	PtraceEngine::LaunchOptions o; o.path = prog; o.args = {mode}; o.args.insert(o.args.end(), extra.begin(), extra.end()); o.workingDir = cwd; o.arch = TestArch();
 	for (auto& text : redirects)
 	{
 		PtraceEngine::FdRedirect r; std::string perr;
@@ -1597,7 +1658,7 @@ static void t_redirect_errors()
 	// A failure after the redirects were set up is still reported: the pipe that tells about it is out of their way
 	auto out = tmpPath("high");
 	auto bad = std::make_unique<PtraceEngine>([&log](const PtraceEngine::Event& ev) { log.push(ev); });
-	PtraceEngine::LaunchOptions o; o.path = "/nonexistent/program"; o.arch = &g_arm;
+	PtraceEngine::LaunchOptions o; o.path = "/nonexistent/program"; o.arch = TestArch();
 	for (int fd : {3, 4, 10, 11, 12, 13, 20}) { PtraceEngine::FdRedirect r; ParseFdRedirect(std::to_string(fd) + ">" + out, r, err); o.redirects.push_back(r); }
 	CHECK(!bad->Launch(o, err)); printf("  %s\n", err.c_str()); CHECK(err.find("failed to execute") != std::string::npos);
 

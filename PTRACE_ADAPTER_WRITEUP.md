@@ -490,6 +490,35 @@ table uses BSD numbers, so it is right for these two signals only by luck).
 `PtraceLinuxTest` beside `GdbMiLinuxTest`, with `adapter_type = 'PTRACE'`, for x86_64 and 32-bit x86. This is the biggest gap, because it is the
 only thing that would run the adapter through the controller.
 
+**What was done about the biggest gap:** `test/debugger_test.py` now has `PtraceLinuxx64Test` and `PtraceLinuxx86Test`, which run all of the
+tests of `DebuggerAPI` with `adapter_type = 'PTRACE'`. Two of the tests that were skipped on Linux are now on for this adapter:
+`test_hardware_breakpoint`, and `test_attach` when the test can attach to an unrelated process (root, Yama scope 0, or no
+Yama). They add five tests of their own: `test_redirect_stdout`, `test_redirect_stdin`, `test_redirect_bad_file`,
+`test_detach_lets_the_target_run` and `test_stripped_pie_entry_point`. They collect and skip correctly on macOS (checked with a
+stub of Binary Ninja), and that is all that was checked. **None of it has run.** Things in them that may not be right:
+
+- The redirect tests set the setting through `Settings('PtraceAdapterSettings')` with `SettingsResourceScope` on the view, after
+  `executable_path` is set (which creates the adapter, and registers its settings). The Python API has no accessor for the
+  adapter settings, so this is a guess at how the settings instance is named and scoped.
+- `test_stripped_pie_entry_point` may well fail: it needs the adapter to know the entry point of a stripped view.
+- `test_hardware_breakpoint` adds an execute breakpoint at the entry point and a 4-byte watchpoint, on the real x86 registers.
+- The 32-bit class needs a kernel that runs 32-bit programs, and the compat register sets, which were never tried.
+
+**Found by writing them:** the controller passes the pid of an attach through the `attach.pid` adapter setting, and the first
+version of the attach commit did not register it (see the notes on attach below). Nothing at engine level could have found it.
+
+**The x86 harness:** `test/ptrace_engine/driver.cpp` now builds for x86_64 as well. It compiled in an amd64 container, and the
+tests that do not need ptrace were run there, on the real x86_64 headers and the real x86 and 32-bit test binaries. That
+found one bug and confirmed the rest:
+
+- `layout.cpp` (the register tables against `<sys/user.h>`) ran on x86_64 for the first time: 55 registers, 216-byte
+  `user_regs_struct`, debug registers at 848. It passes.
+- The ELF reader matches `readelf` on every one of 12 x86_64 and 32-bit binaries that were checked (the 32-bit reader path had
+  never run on a real file). **Except one:** in `md5`, `.symtab` has the name `stdin@@GLIBC_2.2.5`, because the linker writes the
+  version into some names. The reader returned it next to the plain `stdin` of `.dynsym`. Fixed: the version is cut off.
+- The tests that need ptrace could not run: under Docker's emulation `PTRACE_GETREGS` fails with EIO. **The x86 breakpoint
+  (`0xCC`), the PC rewind, the debug registers, and the stepper with real x86 code have still never run.**
+
 **Features of the documentation that this adapter does not have:**
 
 | Feature | State |
@@ -649,14 +678,15 @@ The engine has no x86 in it and was tested on arm64. Enabling arm64 means:
 - [ ] **Run the adapter inside Binary Ninja on x86_64 Linux.** Launch, stop at the entry point, step into, over and
   return, add and remove breakpoints, view registers, modules, memory map, symbols and threads, pause, quit, restart,
   detach. Nothing above `ptraceadapter.cpp` has been seen working.
-- [ ] **Run the engine harness on real x86_64.** The harness needs an x86 version of its test architecture and its
-  hand-decoded instructions (`bl`, `ret`, `x29`), then run it against the built-in x86 tables. This is the only way to
+- [ ] **Run the engine harness on real x86_64.** The harness was ported (`driver.cpp` builds for x86_64, and the build was
+  checked in an amd64 container), but the ptrace tests could not run here: ptrace does not work under the emulation of
+  Docker Desktop on Apple silicon. Run it against the built-in x86 tables. This is the only way to
   test `0xCC`, the PC rewind, the debug registers, and the x86 single-step quirk on system calls.
 - [ ] **Do a real build.** Full CMake build and link, both in the Binary Ninja internal build and the standalone build
   (`BN_API_PATH`), on Linux. Only syntax checks have been done.
 - [x] **C1** (fork and `vfork`): fixed in `96efddf`.
 - [x] **C2** (`execve`): fixed in `f605a6c`. Still to do: watch it work in Binary Ninja, and document that the view and the process disagree after an exec.
-- [ ] **Add a `PtraceLinuxTest`** to `test/debugger_test.py`, like `GdbMiLinuxTest`, using `test/binaries/Linux-x86_64`.
+- [x] **`PtraceLinuxx64Test` and `PtraceLinuxx86Test`** are in `test/debugger_test.py`. **Never run**, see the notes after the tests table. They still need a run on Linux x86_64 with Binary Ninja.
 - [ ] **Check the lock ordering** of `StepOver`/`StepReturn` and the event thread against the real controller.
 - [ ] **Decide what to do about S1** (library breakpoints after unload).
 
@@ -690,8 +720,7 @@ The engine has no x86 in it and was tested on arm64. Enabling arm64 means:
 - [ ] Decide whether the controller-side fixes (rebinding, cleanup of symbols, inactive breakpoints in the UI) are wanted after all.
   They were left out on purpose.
 - [ ] Decide whether the LLDB and GDB MI adapters should get the same exec handling.
-- [ ] Add a `PtraceLinuxTest` class to `test/debugger_test.py` for x86_64 and x86 (the only thing that runs the adapter through the
-  controller), and run it on Linux with Binary Ninja.
+- [ ] Run `PtraceLinuxx64Test` and `PtraceLinuxx86Test` on Linux with Binary Ninja (see above).
 - [ ] Let the adapter be offered for a mapped view (debugging without opening a file). `CanExecute` only accepts an ELF view today.
 - [ ] Decide which of the other documented features are wanted: backend commands, redirection and environment, a follow-fork setting,
   the terminal emulator.
