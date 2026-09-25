@@ -83,6 +83,7 @@ namespace BinaryNinjaDebugger {
 		void RememberBreakpoint(uint64_t address);
 		bool ResolveByNameEnabled();
 		std::string ResolveBreakpointsByName(const std::string& program);
+		std::string RefreshSymbolsAfterExec(const std::string& program);
 		uint64_t ReadArchRegister(const std::string& name);
 		bool ReadRegisterOf(uint32_t tid, const std::string& name, uint64_t& value);
 		std::vector<PtraceModuleInfo> GetModules();

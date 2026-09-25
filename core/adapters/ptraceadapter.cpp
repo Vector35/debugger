@@ -23,6 +23,7 @@ limitations under the License.
 #include <optional>
 #include "ptraceadapter.h"
 #include "lowlevelilinstruction.h"
+#include "../debuggercontroller.h"
 
 namespace BinaryNinjaDebugger {
 
@@ -1315,6 +1316,7 @@ namespace BinaryNinjaDebugger {
 		SetUpLoaderBreakpoint();
 		ApplyBreakpoints();
 		std::string resolved = ResolveBreakpointsByName(program.string());
+		resolved += RefreshSymbolsAfterExec(program.string());
 		m_lastStopReason = UnknownReason;
 		ReportAfterExec(resolved);
 
@@ -1374,7 +1376,7 @@ namespace BinaryNinjaDebugger {
 				if (namedOnes && !ResolveByNameEnabled())
 					text +=
 						"PTRACE: the ones at the start of a function can be found by its name in the new program, with "
-					    "the "
+						"the "
 						"common.resolveBreakpointsByNameOnExec setting.\n";
 			}
 		}
@@ -1446,6 +1448,70 @@ namespace BinaryNinjaDebugger {
 	{
 		BNSettingsScope scope = SettingsResourceScope;
 		return GetAdapterSettings()->Get<bool>("common.resolveBreakpointsByNameOnExec", GetData(), &scope);
+	}
+
+
+	// The symbols that were loaded into the view are at the addresses of the old program. A module that is still there
+	// is loaded again, since it may have moved, and one that is gone is taken out. The controller is used through what
+	// it offers for this, with modules made from what the adapter sees now, because its own list of modules is only
+	// brought up to date at the next stop. This runs with none of the adapter's locks held, since it reaches into
+	// Binary Ninja.
+	std::string PtraceAdapter::RefreshSymbolsAfterExec(const std::string& program)
+	{
+		auto controller = GetController();
+		if (!controller)
+			return "";
+
+		auto modules = GetModules();
+		auto toDebugModule = [](const PtraceModuleInfo& module) {
+			return DebugModule(module.path, module.shortName, module.base, module.size, true);
+		};
+
+		size_t reloaded = 0, removed = 0;
+		bool programDone = false;
+		for (const auto& name : controller->GetModulesWithLoadedSymbols())
+		{
+			auto it = std::find_if(modules.begin(), modules.end(), [&name](const PtraceModuleInfo& module) {
+				return DebugModule::IsSameBaseModule(module.path, name);
+			});
+			if (it == modules.end())
+			{
+				controller->RemoveSymbolsForModule(name);
+				removed++;
+				continue;
+			}
+
+			controller->LoadSymbolsForModule(toDebugModule(*it));
+			reloaded++;
+			programDone = programDone || it->path == program;
+		}
+
+		bool loadedProgram = false;
+		BNSettingsScope scope = SettingsResourceScope;
+		if (!programDone && GetAdapterSettings()->Get<bool>("common.loadSymbolsAfterExec", GetData(), &scope))
+		{
+			for (const auto& module : modules)
+			{
+				if (module.path == program)
+				{
+					loadedProgram = controller->LoadSymbolsForModule(toDebugModule(module)) > 0;
+					break;
+				}
+			}
+		}
+
+		if (!reloaded && !removed && !loadedProgram)
+			return "";
+
+		std::string text = "PTRACE: symbols in the view:";
+		if (removed)
+			text += fmt::format(" {} module(s) that are gone were taken out;", removed);
+		if (reloaded)
+			text += fmt::format(" {} that are still there were loaded again;", reloaded);
+		if (loadedProgram)
+			text += fmt::format(" the symbols of {} were loaded;", DebugModule::GetPathBaseName(program));
+		text.back() = '\n';
+		return text;
 	}
 
 
@@ -1674,6 +1740,14 @@ namespace BinaryNinjaDebugger {
 			"type" : "boolean",
 			"default" : false,
 			"description" : "When the target is sent a signal that it has a handler for, stop at the first instruction of the handler. This includes the signals that would not stop the target otherwise, such as SIGCHLD, SIGALRM and SIGWINCH. Signals without a handler are not affected, and neither is stepping. A change takes effect the next time the target is resumed.",
+			"readOnly" : false
+			})");
+		settings->RegisterSetting("common.loadSymbolsAfterExec",
+			R"({
+			"title" : "Load Symbols After Exec",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "When the target starts another program, load the symbols of that program into the view. The symbols that were already loaded into the view are always brought up to date after an exec: the ones for modules that are gone are removed, and the others are loaded again.",
 			"readOnly" : false
 			})");
 		settings->RegisterSetting("common.resolveBreakpointsByNameOnExec",
