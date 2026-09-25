@@ -22,9 +22,12 @@ limitations under the License.
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <fstream>
 #include <poll.h>
 #include <sched.h>
 #include <sys/uio.h>
+#include <cstdio>
+#include <sstream>
 #include <sys/ioctl.h>
 #include <sys/personality.h>
 #include <sys/ptrace.h>
@@ -191,15 +194,7 @@ namespace BinaryNinjaDebugger {
 			if (m_done || m_running || it == m_threads.end() || !it->second.stopped)
 				return false;
 
-			// The largest register set, the extended state, can be a few kilobytes
-			std::vector<uint8_t> buffer(16384);
-			iovec vec {buffer.data(), buffer.size()};
-			if (ptrace(PTRACE_GETREGSET, tid, (void*)(uintptr_t)regset, &vec) != 0)
-				return false;
-
-			buffer.resize(vec.iov_len);
-			data = std::move(buffer);
-			return true;
+			return RawGetRegisterSet(tid, regset, data);
 		});
 	}
 
@@ -211,13 +206,12 @@ namespace BinaryNinjaDebugger {
 			if (m_done || m_running || it == m_threads.end() || !it->second.stopped)
 				return false;
 
-			iovec vec {const_cast<uint8_t*>(data.data()), data.size()};
-			return ptrace(PTRACE_SETREGSET, tid, (void*)(uintptr_t)regset, &vec) == 0;
+			return RawSetRegisterSet(tid, regset, data);
 		});
 	}
 
 
-	bool PtraceEngine::ReadMemory(uint64_t address, void* buffer, size_t size)
+	bool PtraceEngine::RawReadMemory(uint64_t address, void* buffer, size_t size)
 	{
 		if (m_memFd < 0 || m_finished || address > INT64_MAX || size > INT64_MAX - address)
 			return false;
@@ -236,7 +230,7 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	bool PtraceEngine::WriteMemory(uint64_t address, const void* buffer, size_t size)
+	bool PtraceEngine::RawWriteMemory(uint64_t address, const void* buffer, size_t size)
 	{
 		if (m_memFd < 0 || m_finished || address > INT64_MAX || size > INT64_MAX - address)
 			return false;
@@ -252,6 +246,153 @@ namespace BinaryNinjaDebugger {
 			done += count;
 		}
 		return true;
+	}
+
+
+	bool PtraceEngine::ReadMemory(uint64_t address, void* buffer, size_t size)
+	{
+		std::lock_guard<std::mutex> lock(m_breakpointMutex);
+		if (!RawReadMemory(address, buffer, size))
+			return false;
+
+		for (const auto& [breakpointAddress, breakpoint] : m_breakpoints)
+		{
+			if (!breakpoint.inserted)
+				continue;
+
+			// Show the original bytes wherever the read overlaps a breakpoint
+			for (size_t i = 0; i < breakpoint.original.size(); i++)
+			{
+				uint64_t byteAddress = breakpointAddress + i;
+				if (byteAddress >= address && byteAddress - address < size)
+					((uint8_t*)buffer)[byteAddress - address] = breakpoint.original[i];
+			}
+		}
+		return true;
+	}
+
+
+	bool PtraceEngine::WriteMemory(uint64_t address, const void* buffer, size_t size)
+	{
+		std::lock_guard<std::mutex> lock(m_breakpointMutex);
+		std::vector<uint8_t> data((const uint8_t*)buffer, (const uint8_t*)buffer + size);
+
+		// The breakpoint bytes stay in place, and what was written becomes the bytes underneath them
+		for (auto& [breakpointAddress, breakpoint] : m_breakpoints)
+		{
+			if (!breakpoint.inserted)
+				continue;
+
+			for (size_t i = 0; i < breakpoint.original.size(); i++)
+			{
+				uint64_t byteAddress = breakpointAddress + i;
+				if (byteAddress >= address && byteAddress - address < size)
+				{
+					breakpoint.original[i] = data[byteAddress - address];
+					data[byteAddress - address] = m_arch->breakpointInstruction[i];
+				}
+			}
+		}
+		return RawWriteMemory(address, data.data(), size);
+	}
+
+
+	std::vector<PtraceEngine::MapEntry> PtraceEngine::GetMaps() const
+	{
+		std::vector<MapEntry> maps;
+		std::ifstream file("/proc/" + std::to_string(m_pid) + "/maps");
+		std::string line;
+		while (std::getline(file, line))
+		{
+			unsigned long long start, end, offset;
+			char permissions[8] = {};
+			int consumed = 0;
+			if (sscanf(line.c_str(), "%llx-%llx %7s %llx %*s %*s %n", &start, &end, permissions, &offset, &consumed) < 4)
+				continue;
+
+			MapEntry entry;
+			entry.start = start;
+			entry.end = end;
+			entry.offset = offset;
+			entry.read = permissions[0] == 'r';
+			entry.write = permissions[1] == 'w';
+			entry.execute = permissions[2] == 'x';
+			entry.shared = permissions[3] == 's';
+			if (consumed > 0 && (size_t)consumed < line.size())
+				entry.path = line.substr(consumed);
+			maps.push_back(entry);
+		}
+		return maps;
+	}
+
+
+	bool PtraceEngine::RawGetRegisterSet(pid_t tid, int regset, std::vector<uint8_t>& data)
+	{
+		// The largest register set, the extended state, can be a few kilobytes
+		std::vector<uint8_t> buffer(16384);
+		iovec vec {buffer.data(), buffer.size()};
+		if (ptrace(PTRACE_GETREGSET, tid, (void*)(uintptr_t)regset, &vec) != 0)
+			return false;
+
+		buffer.resize(vec.iov_len);
+		data = std::move(buffer);
+		return true;
+	}
+
+
+	bool PtraceEngine::RawSetRegisterSet(pid_t tid, int regset, const std::vector<uint8_t>& data)
+	{
+		iovec vec {const_cast<uint8_t*>(data.data()), data.size()};
+		return ptrace(PTRACE_SETREGSET, tid, (void*)(uintptr_t)regset, &vec) == 0;
+	}
+
+
+	bool PtraceEngine::ReadPc(pid_t tid, uint64_t& pc)
+	{
+		auto reg = m_arch ? m_arch->Find(m_arch->pc) : nullptr;
+		std::vector<uint8_t> data;
+		if (!reg || !RawGetRegisterSet(tid, reg->regset, data) || reg->offset + reg->size > data.size())
+			return false;
+
+		pc = 0;
+		memcpy(&pc, data.data() + reg->offset, std::min(reg->size, sizeof(pc)));
+		return true;
+	}
+
+
+	bool PtraceEngine::WritePc(pid_t tid, uint64_t pc)
+	{
+		auto reg = m_arch ? m_arch->Find(m_arch->pc) : nullptr;
+		std::vector<uint8_t> data;
+		if (!reg || !RawGetRegisterSet(tid, reg->regset, data) || reg->offset + reg->size > data.size())
+			return false;
+
+		memcpy(data.data() + reg->offset, &pc, std::min(reg->size, sizeof(pc)));
+		return RawSetRegisterSet(tid, reg->regset, data);
+	}
+
+
+	bool PtraceEngine::AddBreakpoint(uint64_t address)
+	{
+		return RunOnTracer([this, address] { return DoAddBreakpoint(address); });
+	}
+
+
+	bool PtraceEngine::RemoveBreakpoint(uint64_t address)
+	{
+		return RunOnTracer([this, address] { return DoRemoveBreakpoint(address); });
+	}
+
+
+	bool PtraceEngine::AddHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size)
+	{
+		return RunOnTracer([this, address, type, size] { return DoAddHardwareBreakpoint(address, type, size); });
+	}
+
+
+	bool PtraceEngine::RemoveHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size)
+	{
+		return RunOnTracer([this, address, type, size] { return DoRemoveHardwareBreakpoint(address, type, size); });
 	}
 
 
@@ -436,6 +577,9 @@ namespace BinaryNinjaDebugger {
 
 		m_pid = pid;
 		m_memFd = open(("/proc/" + std::to_string(pid) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
+		m_arch = m_options.arch ? m_options.arch : DetectPtraceArch(pid);
+		if (m_arch && m_arch->hwDebug)
+			m_hardwareSlots.resize(m_arch->hwDebug->SlotCount());
 		ThreadInfo info;
 		info.stopped = true;
 		m_threads[pid] = info;
@@ -537,11 +681,92 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	bool PtraceEngine::HasBreakpointAt(uint64_t address)
+	{
+		{
+			std::lock_guard<std::mutex> lock(m_breakpointMutex);
+			auto it = m_breakpoints.find(address);
+			if (it != m_breakpoints.end() && it->second.inserted)
+				return true;
+		}
+
+		for (const auto& slot : m_hardwareSlots)
+		{
+			if (slot.used && slot.type == PtraceHwType::Execute && slot.address == address)
+				return true;
+		}
+		return false;
+	}
+
+
+	// Works out why a thread stopped with SIGTRAP. Returns false if the stop is not worth reporting.
+	bool PtraceEngine::ClassifyTrap(pid_t tid, ThreadInfo& info, Classified& result)
+	{
+		siginfo_t signalInfo {};
+		bool haveInfo = ptrace(PTRACE_GETSIGINFO, tid, nullptr, &signalInfo) == 0;
+		int code = haveInfo ? signalInfo.si_code : 0;
+
+		if (code == TRAP_HWBKPT)
+		{
+			if (m_arch && m_arch->hwDebug)
+				m_arch->hwDebug->OnTrap(tid);
+			result.hardware = true;
+			return true;
+		}
+
+		if (code == TRAP_TRACE)
+		{
+			result.stepTrap = true;
+			return true;
+		}
+
+		uint64_t pc = 0;
+		if (m_arch && !m_arch->breakpointInstruction.empty() && ReadPc(tid, pc))
+		{
+			uint64_t address = pc - m_arch->breakpointPcAdjust;
+			bool ours;
+			{
+				std::lock_guard<std::mutex> lock(m_breakpointMutex);
+				auto it = m_breakpoints.find(address);
+				ours = it != m_breakpoints.end() && it->second.inserted;
+			}
+			bool removed = !ours && m_recentlyRemoved.count(address);
+
+			if (ours || removed)
+			{
+				if (m_arch->breakpointPcAdjust)
+					WritePc(tid, address);
+				// A thread that trapped on a breakpoint that has just been removed only needs to run again
+				if (removed)
+					return false;
+
+				result.breakpoint = true;
+				return true;
+			}
+		}
+
+		// Stepping over a system call traps like a breakpoint on x86, so this is a step if we asked for one
+		if (info.stepping)
+			result.stepTrap = true;
+		return true;
+	}
+
+
 	PtraceEngine::Classified PtraceEngine::Classify(pid_t tid, int status)
 	{
 		Classified result;
+
+		// The breakpoint that a thread is stepping over goes back once the thread reports a stop, but not while it is
+		// only passing through an internal one
+		auto endGuard = [this, tid](bool threadAlive) {
+			auto it = m_threads.find(tid);
+			if (it != m_threads.end() && (it->second.guardSoftware || !it->second.guardSlots.empty()))
+				EndGuard(tid, threadAlive);
+		};
+
 		if (!WIFSTOPPED(status))
 		{
+			endGuard(false);
 			m_threads.erase(tid);
 			Publish();
 			result.kind = StopKind::Gone;
@@ -573,6 +798,7 @@ namespace BinaryNinjaDebugger {
 			if (info.awaitingInitialStop)
 			{
 				info.awaitingInitialStop = false;
+				ApplyHardwareToThread(tid);
 				return result;
 			}
 			if (info.expectedStops > 0)
@@ -582,6 +808,7 @@ namespace BinaryNinjaDebugger {
 			}
 			if (m_interruptRequested.exchange(false))
 			{
+				endGuard(true);
 				result.kind = StopKind::Report;
 				result.interrupted = true;
 				return result;
@@ -594,8 +821,17 @@ namespace BinaryNinjaDebugger {
 			return result;
 		}
 
-		if (signal != SIGTRAP)
+		if (signal == SIGTRAP)
+		{
+			if (!ClassifyTrap(tid, info, result))
+				return result;
+		}
+		else
+		{
 			info.pendingSignal = signal;
+		}
+
+		endGuard(true);
 		result.kind = StopKind::Report;
 		result.signal = signal;
 		return result;
@@ -613,21 +849,157 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	bool PtraceEngine::NeedsStepOver(pid_t tid, const ThreadInfo& info)
+	{
+		uint64_t pc;
+		return info.atReportedStop && ReadPc(tid, pc) && pc == info.reportedPc
+			&& (info.hardwareBeforeAccess || HasBreakpointAt(pc));
+	}
+
+
+	// Lifts the breakpoints at an address, so that a thread can execute the instruction there
+	void PtraceEngine::BeginGuard(pid_t tid, uint64_t address)
+	{
+		auto& info = m_threads[tid];
+		info.guardAddress = address;
+
+		{
+			std::lock_guard<std::mutex> lock(m_breakpointMutex);
+			auto it = m_breakpoints.find(address);
+			if (it != m_breakpoints.end() && it->second.inserted)
+			{
+				RawWriteMemory(address, it->second.original.data(), it->second.original.size());
+				it->second.inserted = false;
+				info.guardSoftware = true;
+			}
+		}
+
+		// A watchpoint that reports before the access has to be lifted altogether, since we do not know which one it was
+		for (size_t i = 0; i < m_hardwareSlots.size(); i++)
+		{
+			const auto& slot = m_hardwareSlots[i];
+			if (slot.used
+				&& (info.hardwareBeforeAccess || (slot.type == PtraceHwType::Execute && slot.address == address)))
+			{
+				m_arch->hwDebug->Clear(tid, i);
+				info.guardSlots.push_back(i);
+			}
+		}
+	}
+
+
+	void PtraceEngine::EndGuard(pid_t tid, bool threadAlive)
+	{
+		auto& info = m_threads[tid];
+		if (info.guardSoftware)
+		{
+			info.guardSoftware = false;
+			std::lock_guard<std::mutex> lock(m_breakpointMutex);
+			auto it = m_breakpoints.find(info.guardAddress);
+			if (it != m_breakpoints.end() && !it->second.inserted)
+			{
+				RawWriteMemory(info.guardAddress, m_arch->breakpointInstruction.data(),
+					m_arch->breakpointInstruction.size());
+				it->second.inserted = true;
+			}
+		}
+
+		info.hardwareBeforeAccess = false;
+		auto slots = std::move(info.guardSlots);
+		info.guardSlots.clear();
+		for (size_t index : slots)
+		{
+			const auto& slot = m_hardwareSlots[index];
+			if (threadAlive && slot.used)
+				m_arch->hwDebug->Set(tid, index, slot.address, slot.type, slot.size);
+		}
+	}
+
+
+	bool PtraceEngine::ResumeAll()
+	{
+		bool resumed = false;
+		for (auto& [id, info] : m_threads)
+		{
+			if (!info.stopped)
+				continue;
+
+			info.stepping = false;
+			resumed |= ResumeThread(id);
+		}
+		return resumed;
+	}
+
+
+	// Runs one thread past a breakpoint while all the others stay stopped, and then lets everything run
+	bool PtraceEngine::StartNextStepOver()
+	{
+		while (!m_stepOverQueue.empty())
+		{
+			pid_t tid = m_stepOverQueue.front();
+			m_stepOverQueue.erase(m_stepOverQueue.begin());
+
+			auto it = m_threads.find(tid);
+			uint64_t pc;
+			if (it == m_threads.end() || !it->second.stopped || !ReadPc(tid, pc))
+				continue;
+
+			BeginGuard(tid, pc);
+			it->second.stepping = true;
+			m_stepOverTid = tid;
+			return ResumeThread(tid);
+		}
+
+		m_stepOverTid = -1;
+		return ResumeAll();
+	}
+
+
+	void PtraceEngine::ApplyHardwareToThread(pid_t tid)
+	{
+		for (size_t i = 0; i < m_hardwareSlots.size(); i++)
+		{
+			const auto& slot = m_hardwareSlots[i];
+			if (slot.used)
+				m_arch->hwDebug->Set(tid, i, slot.address, slot.type, slot.size);
+		}
+	}
+
+
 	void PtraceEngine::HandleStatus(pid_t tid, int status)
 	{
 		auto stop = Classify(tid, status);
+		bool steppingOver = tid == m_stepOverTid;
 		switch (stop.kind)
 		{
 		case StopKind::Gone:
+			if (steppingOver && !m_done)
+			{
+				m_stepOverTid = -1;
+				StartNextStepOver();
+			}
 			break;
 		case StopKind::Internal:
 		{
 			auto it = m_threads.find(tid);
-			if (it != m_threads.end() && it->second.stopped && (m_continueMode || it->second.stepping))
+			if (it != m_threads.end() && it->second.stopped
+				&& ((m_continueMode && m_stepOverTid < 0) || it->second.stepping))
 				ResumeThread(tid);
 			break;
 		}
 		case StopKind::Report:
+			if (steppingOver && stop.stepTrap)
+			{
+				m_threads[tid].stepping = false;
+				m_stepOverTid = -1;
+				StartNextStepOver();
+				break;
+			}
+			if (steppingOver)
+			{
+				m_stepOverTid = -1;
+				m_stepOverQueue.clear();
+			}
 			StopAll();
 			if (!m_done)
 				FinishStop(tid, stop);
@@ -679,10 +1051,20 @@ namespace BinaryNinjaDebugger {
 		event.tid = tid;
 		event.signal = stop.signal;
 		event.interrupted = stop.interrupted;
+		event.breakpoint = stop.breakpoint;
+		event.hardware = stop.hardware;
 		event.singleStep = m_threads[tid].stepping;
 
 		for (auto& [id, info] : m_threads)
 			info.stepping = false;
+
+		// Once everything is stopped, no thread can still trap on a breakpoint that was removed
+		m_recentlyRemoved.clear();
+
+		auto& info = m_threads[tid];
+		info.atReportedStop = ReadPc(tid, info.reportedPc);
+		info.hardwareBeforeAccess = stop.hardware && m_arch && m_arch->hwDebug && m_arch->hwDebug->DataTrapsBeforeAccess();
+
 		m_running = false;
 		Publish();
 		PushEvent(event);
@@ -712,23 +1094,179 @@ namespace BinaryNinjaDebugger {
 	{
 		if (m_done || m_running)
 			return false;
-		if (step && m_threads.find(tid) == m_threads.end())
+
+		auto stepping = m_threads.find(tid);
+		if (step && (stepping == m_threads.end() || !stepping->second.stopped))
 			return false;
 
 		m_continueMode = !step;
-		bool resumed = false;
+		std::vector<pid_t> stepOver;
 		for (auto& [id, info] : m_threads)
 		{
 			if (!info.stopped || (step && id != tid))
 				continue;
 
-			info.stepping = step;
-			resumed |= ResumeThread(id);
+			if (NeedsStepOver(id, info))
+				stepOver.push_back(id);
+			info.atReportedStop = false;
+		}
+
+		bool resumed;
+		if (step)
+		{
+			uint64_t pc;
+			if (!stepOver.empty() && ReadPc(tid, pc))
+				BeginGuard(tid, pc);
+
+			stepping->second.stepping = true;
+			resumed = ResumeThread(tid);
+		}
+		else if (!stepOver.empty())
+		{
+			m_stepOverQueue = stepOver;
+			resumed = StartNextStepOver();
+		}
+		else
+		{
+			resumed = ResumeAll();
 		}
 
 		m_running = resumed;
 		Publish();
 		return resumed;
+	}
+
+
+	bool PtraceEngine::DoAddBreakpoint(uint64_t address)
+	{
+		if (m_done || !m_arch || m_arch->breakpointInstruction.empty())
+			return false;
+
+		std::lock_guard<std::mutex> lock(m_breakpointMutex);
+		if (m_breakpoints.count(address))
+			return true;
+
+		const auto& instruction = m_arch->breakpointInstruction;
+		Breakpoint breakpoint;
+		breakpoint.original.resize(instruction.size());
+		if (!RawReadMemory(address, breakpoint.original.data(), instruction.size())
+			|| !RawWriteMemory(address, instruction.data(), instruction.size()))
+			return false;
+
+		breakpoint.inserted = true;
+		m_breakpoints[address] = std::move(breakpoint);
+		return true;
+	}
+
+
+	bool PtraceEngine::DoRemoveBreakpoint(uint64_t address)
+	{
+		std::lock_guard<std::mutex> lock(m_breakpointMutex);
+		auto it = m_breakpoints.find(address);
+		if (it == m_breakpoints.end())
+			return false;
+
+		if (it->second.inserted && !m_done)
+			RawWriteMemory(address, it->second.original.data(), it->second.original.size());
+		m_breakpoints.erase(it);
+
+		// A thread that is running may just have trapped on it
+		if (m_running)
+			m_recentlyRemoved.insert(address);
+		return true;
+	}
+
+
+	bool PtraceEngine::DoAddHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size)
+	{
+		if (m_done || m_running || !m_arch || !m_arch->hwDebug)
+			return false;
+
+		for (const auto& slot : m_hardwareSlots)
+		{
+			if (slot.used && slot.address == address && slot.type == type && slot.size == size)
+				return true;
+		}
+
+		size_t index = 0;
+		while (index < m_hardwareSlots.size()
+			&& (m_hardwareSlots[index].used || !m_arch->hwDebug->SlotSupports(index, type)))
+			index++;
+		if (index == m_hardwareSlots.size())
+			return false;
+
+		std::vector<pid_t> programmed;
+		for (const auto& [tid, info] : m_threads)
+		{
+			if (!info.stopped)
+				continue;
+			if (!m_arch->hwDebug->Set(tid, index, address, type, size))
+			{
+				for (pid_t done : programmed)
+					m_arch->hwDebug->Clear(done, index);
+				return false;
+			}
+			programmed.push_back(tid);
+		}
+
+		m_hardwareSlots[index] = {true, address, type, size};
+		return true;
+	}
+
+
+	bool PtraceEngine::DoRemoveHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size)
+	{
+		if (m_done || m_running || !m_arch || !m_arch->hwDebug)
+			return false;
+
+		for (size_t index = 0; index < m_hardwareSlots.size(); index++)
+		{
+			auto& slot = m_hardwareSlots[index];
+			if (!slot.used || slot.address != address || slot.type != type || slot.size != size)
+				continue;
+
+			for (const auto& [tid, info] : m_threads)
+			{
+				if (info.stopped)
+					m_arch->hwDebug->Clear(tid, index);
+			}
+			slot.used = false;
+			return true;
+		}
+		return false;
+	}
+
+
+	// Puts the target back the way it was before we let go of it
+	void PtraceEngine::RemoveAllBreakpoints()
+	{
+		for (auto& [tid, info] : m_threads)
+		{
+			if (info.guardSoftware || !info.guardSlots.empty())
+				EndGuard(tid, true);
+		}
+
+		{
+			std::lock_guard<std::mutex> lock(m_breakpointMutex);
+			for (auto& [address, breakpoint] : m_breakpoints)
+			{
+				if (breakpoint.inserted)
+					RawWriteMemory(address, breakpoint.original.data(), breakpoint.original.size());
+			}
+			m_breakpoints.clear();
+		}
+
+		for (size_t index = 0; index < m_hardwareSlots.size(); index++)
+		{
+			if (!m_hardwareSlots[index].used)
+				continue;
+
+			for (const auto& [tid, info] : m_threads)
+				m_arch->hwDebug->Clear(tid, index);
+			m_hardwareSlots[index].used = false;
+		}
+		m_stepOverQueue.clear();
+		m_stepOverTid = -1;
 	}
 
 
@@ -808,6 +1346,7 @@ namespace BinaryNinjaDebugger {
 				return false;
 		}
 
+		RemoveAllBreakpoints();
 		for (const auto& [tid, info] : m_threads)
 			ptrace(PTRACE_DETACH, tid, nullptr, (void*)(intptr_t)info.pendingSignal);
 

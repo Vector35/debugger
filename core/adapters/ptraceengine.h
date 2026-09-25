@@ -24,9 +24,11 @@ limitations under the License.
 #include <future>
 #include <map>
 #include <mutex>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
+#include "ptracearch.h"
 
 namespace BinaryNinjaDebugger {
 	// Owns a single ptrace session. Linux only requires that every ptrace request and wait comes from the thread that
@@ -52,7 +54,21 @@ namespace BinaryNinjaDebugger {
 			int exitCode = 0;
 			bool singleStep = false;
 			bool interrupted = false;
+			bool breakpoint = false;
+			bool hardware = false;
 			std::string data;
+		};
+
+		struct MapEntry
+		{
+			uint64_t start = 0;
+			uint64_t end = 0;
+			bool read = false;
+			bool write = false;
+			bool execute = false;
+			bool shared = false;
+			uint64_t offset = 0;
+			std::string path;
 		};
 
 		struct LaunchOptions
@@ -62,6 +78,8 @@ namespace BinaryNinjaDebugger {
 			std::string workingDir;
 			bool disableAslr = true;
 			bool usePty = true;
+			// Overrides the architecture that is detected from the target
+			const PtraceArch* arch = nullptr;
 		};
 
 		using EventHandler = std::function<void(const Event&)>;
@@ -75,6 +93,28 @@ namespace BinaryNinjaDebugger {
 			// SIGSTOPs we sent that have not been consumed yet
 			int expectedStops = 0;
 			int pendingSignal = 0;
+			// Set for the thread whose stop was reported, so that resuming it steps over a breakpoint at its PC
+			bool atReportedStop = false;
+			uint64_t reportedPc = 0;
+			// The breakpoint that is lifted while the thread steps over it
+			bool guardSoftware = false;
+			std::vector<size_t> guardSlots;
+			uint64_t guardAddress = 0;
+			bool hardwareBeforeAccess = false;
+		};
+
+		struct Breakpoint
+		{
+			std::vector<uint8_t> original;
+			bool inserted = false;
+		};
+
+		struct HardwareSlot
+		{
+			bool used = false;
+			uint64_t address = 0;
+			PtraceHwType type = PtraceHwType::Execute;
+			size_t size = 0;
 		};
 
 		enum class StopKind
@@ -89,6 +129,9 @@ namespace BinaryNinjaDebugger {
 			StopKind kind = StopKind::Internal;
 			int signal = 0;
 			bool interrupted = false;
+			bool breakpoint = false;
+			bool hardware = false;
+			bool stepTrap = false;
 		};
 
 		EventHandler m_handler;
@@ -115,6 +158,14 @@ namespace BinaryNinjaDebugger {
 		bool m_running = false;
 		bool m_continueMode = false;
 		bool m_done = false;
+		std::vector<HardwareSlot> m_hardwareSlots;
+		std::set<uint64_t> m_recentlyRemoved;
+		std::vector<pid_t> m_stepOverQueue;
+		pid_t m_stepOverTid = -1;
+
+		const PtraceArch* m_arch = nullptr;
+		std::mutex m_breakpointMutex;
+		std::map<uint64_t, Breakpoint> m_breakpoints;
 
 		mutable std::mutex m_infoMutex;
 		std::vector<uint32_t> m_publishedThreads;
@@ -141,6 +192,21 @@ namespace BinaryNinjaDebugger {
 		void HandleStatus(pid_t tid, int status);
 		Classified Classify(pid_t tid, int status);
 		bool ResumeThread(pid_t tid);
+		bool ClassifyTrap(pid_t tid, ThreadInfo& info, Classified& result);
+		bool RawGetRegisterSet(pid_t tid, int regset, std::vector<uint8_t>& data);
+		bool RawSetRegisterSet(pid_t tid, int regset, const std::vector<uint8_t>& data);
+		bool ReadPc(pid_t tid, uint64_t& pc);
+		bool WritePc(pid_t tid, uint64_t pc);
+		bool RawReadMemory(uint64_t address, void* buffer, size_t size);
+		bool RawWriteMemory(uint64_t address, const void* buffer, size_t size);
+		bool HasBreakpointAt(uint64_t address);
+		bool NeedsStepOver(pid_t tid, const ThreadInfo& info);
+		void BeginGuard(pid_t tid, uint64_t address);
+		void EndGuard(pid_t tid, bool threadAlive);
+		bool StartNextStepOver();
+		bool ResumeAll();
+		void ApplyHardwareToThread(pid_t tid);
+		void RemoveAllBreakpoints();
 		void StopAll();
 		void FinishStop(pid_t tid, const Classified& stop);
 		void FinishExit(int status);
@@ -148,6 +214,10 @@ namespace BinaryNinjaDebugger {
 		bool DoResume(bool step, pid_t tid);
 		bool DoKill();
 		bool DoDetach();
+		bool DoAddBreakpoint(uint64_t address);
+		bool DoRemoveBreakpoint(uint64_t address);
+		bool DoAddHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size);
+		bool DoRemoveHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size);
 
 	public:
 		explicit PtraceEngine(EventHandler handler);
@@ -165,6 +235,16 @@ namespace BinaryNinjaDebugger {
 		// Raw register sets, as PTRACE_GETREGSET and PTRACE_SETREGSET see them. The thread must be stopped.
 		bool GetRegisterSet(uint32_t tid, int regset, std::vector<uint8_t>& data);
 		bool SetRegisterSet(uint32_t tid, int regset, const std::vector<uint8_t>& data);
+
+		// Software breakpoints are inserted straight into the target. ReadMemory and WriteMemory hide them.
+		bool AddBreakpoint(uint64_t address);
+		bool RemoveBreakpoint(uint64_t address);
+		// The target must be stopped
+		bool AddHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size);
+		bool RemoveHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size);
+
+		const PtraceArch* GetArch() const { return m_arch; }
+		std::vector<MapEntry> GetMaps() const;
 
 		// All or nothing
 		bool ReadMemory(uint64_t address, void* buffer, size_t size);

@@ -16,6 +16,7 @@ limitations under the License.
 
 #include <algorithm>
 #include <cctype>
+#include <cinttypes>
 #include <csignal>
 #include <cstring>
 #include <optional>
@@ -97,10 +98,34 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	static bool HwTypeFromBreakpointType(DebugBreakpointType type, PtraceHwType& result)
+	{
+		switch (type)
+		{
+		case HardwareExecuteBreakpoint:
+			result = PtraceHwType::Execute;
+			return true;
+		case HardwareReadBreakpoint:
+			result = PtraceHwType::Read;
+			return true;
+		case HardwareWriteBreakpoint:
+			result = PtraceHwType::Write;
+			return true;
+		case HardwareAccessBreakpoint:
+			result = PtraceHwType::Access;
+			return true;
+		default:
+			return false;
+		}
+	}
+
+
 	static DebugStopReason StopReasonFromEvent(const PtraceEngine::Event& event)
 	{
 		if (event.interrupted)
 			return UnknownReason;
+		if (event.breakpoint || event.hardware)
+			return Breakpoint;
 		if (event.signal == SIGTRAP)
 			return event.singleStep ? SingleStep : Breakpoint;
 		return SignalToDebugStopReason(event.signal);
@@ -123,7 +148,26 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceAdapter::ResolveModuleAddress(const ModuleNameAndOffset& location, uint64_t& address)
 	{
-		return false;
+		if (location.module.empty())
+		{
+			address = location.offset;
+			return true;
+		}
+		if (!m_engine)
+			return false;
+
+		// The base of a module is where its first mapping starts
+		uint64_t base = UINT64_MAX;
+		for (const auto& map : m_engine->GetMaps())
+		{
+			if (!map.path.empty() && DebugModule::IsSameBaseModule(map.path, location.module))
+				base = std::min(base, map.start);
+		}
+		if (base == UINT64_MAX)
+			return false;
+
+		address = base + location.offset;
+		return true;
 	}
 
 
@@ -154,6 +198,8 @@ namespace BinaryNinjaDebugger {
 		BNSettingsScope scope = SettingsResourceScope;
 		auto executablePath = adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
 		scope = SettingsResourceScope;
+		m_inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+		scope = SettingsResourceScope;
 		auto workingDirectory = adapterSettings->Get<std::string>("launch.workingDirectory", data, &scope);
 		scope = SettingsResourceScope;
 		auto commandLineArgs = adapterSettings->Get<std::string>("launch.commandLineArguments", data, &scope);
@@ -166,6 +212,8 @@ namespace BinaryNinjaDebugger {
 			workingDirectory = workingDir;
 		if (commandLineArgs.empty())
 			commandLineArgs = args;
+		if (m_inputFile.empty())
+			m_inputFile = executablePath;
 
 		auto launchFailure = [this](const std::string& error) {
 			DebuggerEvent event;
@@ -216,15 +264,20 @@ namespace BinaryNinjaDebugger {
 			if (m_firstStop)
 			{
 				m_firstStop = false;
-				m_arch = DetectPtraceArch(m_engine->GetPid());
+				m_arch = m_engine->GetArch();
 				if (!m_arch)
 					LogWarn("PtraceAdapter: unsupported target architecture");
+
+				if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
+					AddBreakpoint(ModuleNameAndOffset(m_inputFile, m_entryPoint - m_start), 0);
 				if (!m_stopAtSystemEntry)
 				{
+					ApplyBreakpoints();
 					m_engine->Resume(false, 0);
 					break;
 				}
 			}
+			ApplyBreakpoints();
 			dbgevt.type = AdapterStoppedEventType;
 			dbgevt.data.targetStoppedData.reason = m_lastStopReason;
 			dbgevt.data.targetStoppedData.lastActiveThread = event.tid;
@@ -232,6 +285,7 @@ namespace BinaryNinjaDebugger {
 			break;
 		case PtraceEngine::ExitedEvent:
 			m_targetActive = false;
+			ClearBreakpoints();
 			m_lastStopReason = ProcessExited;
 			m_exitCode = event.signal ? 128 + event.signal : event.exitCode;
 			dbgevt.type = TargetExitedEventType;
@@ -240,6 +294,7 @@ namespace BinaryNinjaDebugger {
 			break;
 		case PtraceEngine::DetachedEvent:
 			m_targetActive = false;
+			ClearBreakpoints();
 			dbgevt.type = DetachedEventType;
 			PostDebuggerEvent(dbgevt);
 			break;
@@ -364,58 +419,127 @@ namespace BinaryNinjaDebugger {
 
 	DebugBreakpoint PtraceAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_type)
 	{
-		return DebugBreakpoint();
+		if (!m_engine || !m_targetActive)
+			return DebugBreakpoint();
+
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		auto it = std::find_if(m_breakpoints.begin(), m_breakpoints.end(),
+			[address](const DebugBreakpoint& bp) { return bp.m_address == address; });
+		if (it != m_breakpoints.end())
+			return *it;
+
+		if (!m_engine->AddBreakpoint(address))
+		{
+			LogWarn("PtraceAdapter: failed to set a breakpoint at 0x%" PRIx64, (uint64_t)address);
+			return DebugBreakpoint();
+		}
+
+		m_breakpoints.emplace_back(address, m_nextBreakpointId++, true);
+		return m_breakpoints.back();
 	}
 
 
 	DebugBreakpoint PtraceAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
 	{
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		uint64_t resolved;
+		if (m_targetActive && ResolveModuleAddress(address, resolved))
+			return AddBreakpoint(resolved, breakpoint_type);
+
+		// The module is not loaded yet, so this waits for it
+		if (std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end())
+			m_pendingBreakpoints.push_back(address);
 		return DebugBreakpoint();
 	}
 
 
 	bool PtraceAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 	{
-		return false;
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		auto it = std::find_if(m_breakpoints.begin(), m_breakpoints.end(),
+			[&breakpoint](const DebugBreakpoint& bp) { return bp.m_address == breakpoint.m_address; });
+		if (!m_engine || it == m_breakpoints.end() || !m_engine->RemoveBreakpoint(breakpoint.m_address))
+			return false;
+
+		m_breakpoints.erase(it);
+		return true;
 	}
 
 
 	bool PtraceAdapter::RemoveBreakpoint(const ModuleNameAndOffset& address)
 	{
-		return false;
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		auto pending = std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address);
+		if (pending != m_pendingBreakpoints.end())
+		{
+			m_pendingBreakpoints.erase(pending);
+			return true;
+		}
+
+		uint64_t resolved;
+		return m_targetActive && ResolveModuleAddress(address, resolved) && RemoveBreakpoint(DebugBreakpoint(resolved));
 	}
 
 
 	std::vector<DebugBreakpoint> PtraceAdapter::GetBreakpointList() const
 	{
-		return {};
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		return m_breakpoints;
 	}
 
 
 	// Hardware breakpoint and watchpoint support
 	bool PtraceAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 	{
-		return false;
+		PtraceHwType hwType;
+		if (!m_engine || !m_targetActive || !HwTypeFromBreakpointType(type, hwType))
+			return false;
+
+		return m_engine->AddHardwareBreakpoint(address, hwType, size);
 	}
 
 
 	bool PtraceAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 	{
-		return false;
+		PtraceHwType hwType;
+		if (!m_engine || !m_targetActive || !HwTypeFromBreakpointType(type, hwType))
+			return false;
+
+		return m_engine->RemoveHardwareBreakpoint(address, hwType, size);
 	}
 
 
 	bool PtraceAdapter::AddHardwareBreakpoint(
 		const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 	{
-		return false;
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		uint64_t resolved;
+		if (m_targetActive && ResolveModuleAddress(location, resolved))
+			return AddHardwareBreakpoint(resolved, type, size);
+
+		PendingHardwareBreakpoint pending(location, type, size);
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+			m_pendingHardwareBreakpoints.push_back(pending);
+		return true;
 	}
 
 
 	bool PtraceAdapter::RemoveHardwareBreakpoint(
 		const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 	{
-		return false;
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		PendingHardwareBreakpoint pending(location, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+
+		uint64_t resolved;
+		return m_targetActive && ResolveModuleAddress(location, resolved)
+			&& RemoveHardwareBreakpoint(resolved, type, size);
 	}
 
 
@@ -639,7 +763,39 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	void PtraceAdapter::ApplyBreakpoints() {}
+	void PtraceAdapter::ApplyBreakpoints()
+	{
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		if (!m_engine || !m_targetActive)
+			return;
+
+		// Only what has been applied leaves the list, so the rest waits for a module that is not loaded yet
+		for (auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end();)
+		{
+			uint64_t address;
+			if (ResolveModuleAddress(*it, address) && AddBreakpoint(address, 0).m_address != 0)
+				it = m_pendingBreakpoints.erase(it);
+			else
+				it++;
+		}
+
+		for (auto it = m_pendingHardwareBreakpoints.begin(); it != m_pendingHardwareBreakpoints.end();)
+		{
+			uint64_t address = it->address;
+			bool resolved = !it->isRelative || ResolveModuleAddress(it->location, address);
+			if (resolved && AddHardwareBreakpoint(address, it->type, it->size))
+				it = m_pendingHardwareBreakpoints.erase(it);
+			else
+				it++;
+		}
+	}
+
+
+	void PtraceAdapter::ClearBreakpoints()
+	{
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		m_breakpoints.clear();
+	}
 
 
 	void PtraceAdapter::GenerateDefaultAdapterSettings(BinaryView* data)

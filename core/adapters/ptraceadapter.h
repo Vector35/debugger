@@ -17,6 +17,7 @@ limitations under the License.
 #pragma once
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
 #include "ptracearch.h"
@@ -35,10 +36,17 @@ namespace BinaryNinjaDebugger {
 		bool m_firstStop = false;
 		bool m_stopAtSystemEntry = false;
 
+		std::string m_inputFile;
+
+		// Guards the breakpoint lists. It is recursive because adding one by module and offset adds it by address.
+		mutable std::recursive_mutex m_breakpointMutex;
+		std::vector<DebugBreakpoint> m_breakpoints;
+		unsigned long m_nextBreakpointId = 1;
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints {};
 		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
 
 		void HandleEngineEvent(const PtraceEngine::Event& event);
+		void ClearBreakpoints();
 		uint64_t ReadArchRegister(const std::string& name);
 
 		// Helper to resolve module+offset to absolute address

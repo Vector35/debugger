@@ -17,6 +17,7 @@ limitations under the License.
 #pragma once
 #include <sys/types.h>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,31 @@ namespace BinaryNinjaDebugger {
 		size_t size;
 	};
 
+	enum class PtraceHwType
+	{
+		Execute,
+		Write,
+		Read,
+		Access
+	};
+
+	// The debug registers of one architecture. The thread must be stopped for all of these.
+	class PtraceHwDebug
+	{
+	public:
+		virtual ~PtraceHwDebug() = default;
+
+		virtual size_t SlotCount() const = 0;
+		virtual bool SlotSupports(size_t slot, PtraceHwType type) const = 0;
+		virtual bool Set(pid_t tid, size_t slot, uint64_t address, PtraceHwType type, size_t size) = 0;
+		virtual bool Clear(pid_t tid, size_t slot) = 0;
+		// Called after a thread trapped on one of the slots
+		virtual void OnTrap(pid_t tid) {}
+		// Whether a watchpoint reports before its access has happened, so that the access has to be stepped over.
+		// Execute breakpoints always report first.
+		virtual bool DataTrapsBeforeAccess() const { return false; }
+	};
+
 	// Describes the registers of one target architecture. Nothing outside of this table and DetectPtraceArch needs to
 	// know how a particular architecture lays its registers out.
 	struct PtraceArch
@@ -39,6 +65,11 @@ namespace BinaryNinjaDebugger {
 		std::string sp;
 		std::vector<PtraceRegister> registers;
 		std::vector<int> regsets;
+
+		// The bytes of a software breakpoint. After it traps, the PC is this many bytes past its address.
+		std::vector<uint8_t> breakpointInstruction;
+		size_t breakpointPcAdjust = 0;
+		PtraceHwDebug* hwDebug = nullptr;
 
 		const PtraceRegister* Find(const std::string& registerName) const;
 	};
