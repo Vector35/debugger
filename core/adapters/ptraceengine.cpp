@@ -424,6 +424,24 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	bool PtraceEngine::WaitForDetachedExit(int& status, std::chrono::milliseconds timeout)
+	{
+		std::shared_ptr<DetachedExit> exit;
+		{
+			std::lock_guard<std::mutex> lock(m_infoMutex);
+			exit = m_detachedExit;
+		}
+		if (!exit)
+			return false;
+
+		std::unique_lock<std::mutex> lock(exit->mutex);
+		if (!exit->cv.wait_for(lock, timeout, [&exit] { return exit->done; }))
+			return false;
+		status = exit->status;
+		return true;
+	}
+
+
 	std::vector<uint32_t> PtraceEngine::GetThreads() const
 	{
 		std::lock_guard<std::mutex> lock(m_infoMutex);
@@ -548,6 +566,11 @@ namespace BinaryNinjaDebugger {
 			if (m_masterFd < 0 || grantpt(m_masterFd) != 0 || unlockpt(m_masterFd) != 0
 				|| ptsname_r(m_masterFd, slaveName, sizeof(slaveName)) != 0)
 				return std::string("failed to open a pseudo terminal: ") + strerror(errno);
+
+			winsize size = {};
+			size.ws_row = m_options.rows;
+			size.ws_col = m_options.columns;
+			ioctl(m_masterFd, TIOCSWINSZ, &size);
 		}
 
 		// The descriptors that we keep for ourselves are kept above every one that the redirects name, so that setting
@@ -1835,6 +1858,28 @@ namespace BinaryNinjaDebugger {
 		m_running = false;
 		Publish();
 		StopIo();
+
+		if (!m_attached)
+		{
+			auto exit = std::make_shared<DetachedExit>();
+			{
+				std::lock_guard<std::mutex> lock(m_infoMutex);
+				m_detachedExit = exit;
+			}
+			std::thread([exit, pid = m_pid]() {
+				int status = 0;
+				pid_t result;
+				do
+				{
+					result = waitpid(pid, &status, __WALL);
+				} while (result < 0 && errno == EINTR);
+
+				std::lock_guard<std::mutex> lock(exit->mutex);
+				exit->status = result < 0 ? 0 : status;
+				exit->done = true;
+				exit->cv.notify_all();
+			}).detach();
+		}
 
 		Event event;
 		event.type = DetachedEvent;

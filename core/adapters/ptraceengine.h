@@ -17,12 +17,14 @@ limitations under the License.
 #pragma once
 #include <sys/types.h>
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <functional>
 #include <future>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <set>
 #include <string>
@@ -105,6 +107,9 @@ namespace BinaryNinjaDebugger {
 			std::string workingDir;
 			bool disableAslr = true;
 			bool usePty = true;
+			// The size of the terminal
+			unsigned short rows = 24;
+			unsigned short columns = 80;
 			// Applied in order, after the terminal is set up, so 1 and 2 can be sent elsewhere and later ones can refer
 			// to earlier ones. A relative path is relative to the working directory.
 			std::vector<FdRedirect> redirects;
@@ -113,6 +118,15 @@ namespace BinaryNinjaDebugger {
 		};
 
 		using EventHandler = std::function<void(const Event&)>;
+
+		// Where the exit of a target that was let go of is picked up, since it is still our child
+		struct DetachedExit
+		{
+			std::mutex mutex;
+			std::condition_variable cv;
+			bool done = false;
+			int status = 0;
+		};
 
 	private:
 		struct ThreadInfo
@@ -207,6 +221,7 @@ namespace BinaryNinjaDebugger {
 		std::map<uint64_t, Breakpoint> m_breakpoints;
 
 		mutable std::mutex m_infoMutex;
+		std::shared_ptr<DetachedExit> m_detachedExit;
 		std::vector<uint32_t> m_publishedThreads;
 		std::atomic<bool> m_publishedRunning {false};
 		// An interrupt is a SIGSTOP that we send. It can be asked for again before the first one has been seen, so the
@@ -317,6 +332,10 @@ namespace BinaryNinjaDebugger {
 		uint32_t GetPid() const { return m_pid > 0 ? m_pid : 0; }
 		std::vector<uint32_t> GetThreads() const;
 		bool IsRunning() const { return m_publishedRunning; }
+
+		// After Detach, waits for the target to exit and gives its wait status. A launched target is our child, so a
+		// thread reaps it when it exits, and this is the only way to see its status.
+		bool WaitForDetachedExit(int& status, std::chrono::milliseconds timeout);
 	};
 
 	// Reads a redirect the way a shell writes one: `N<path` (read), `N>path` (write, truncating), `N>>path` (append),

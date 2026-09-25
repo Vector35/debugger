@@ -216,8 +216,8 @@ static void t_detach()
 	std::this_thread::sleep_for(300ms);
 	std::string st = procState(pid); printf("  after detach: %s\n", st.c_str());
 	CHECK(st.find("(sleeping)") != std::string::npos || st.find("(running)") != std::string::npos);
-	// it must finish on its own (we are its parent)
-	int status = 0; for (int i = 0; i < 40; i++) { if (waitpid(pid, &status, WNOHANG) == pid) break; std::this_thread::sleep_for(100ms); }
+	// it must finish on its own, and be reaped
+	int status = 0; CHECK(e->WaitForDetachedExit(status, 4s)); std::this_thread::sleep_for(50ms); CHECK(procState(pid) == "gone");
 	CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 3);
 }
 
@@ -509,7 +509,7 @@ static void t_bp_detach()
 	uint64_t marker = addrOf(log, "marker="); uint32_t pid = e->GetPid();
 	CHECK(e->AddBreakpoint(marker)); CHECK(e->Resume(false, 0)); std::this_thread::sleep_for(200ms);
 	CHECK(e->Detach()); CHECK(log.wait(PtraceEngine::DetachedEvent, ev));
-	int status = 0; for (int i = 0; i < 40; i++) { if (waitpid(pid, &status, WNOHANG) == pid) break; std::this_thread::sleep_for(100ms); }
+	int status = 0; CHECK(e->WaitForDetachedExit(status, 4s)); std::this_thread::sleep_for(50ms); CHECK(procState(pid) == "gone");
 	printf("  status=%x\n", status);
 	CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 1);   // it would have died of SIGTRAP if the breakpoint had stayed
 }
@@ -570,7 +570,7 @@ static void t_hw_detach()
 	uint64_t wvar = addrOf(log, "wvar="); uint32_t pid = e->GetPid();
 	if (!e->AddHardwareBreakpoint(wvar, PtraceHwType::Write, 4)) { printf("  SKIP\n"); e->Kill(); return; }
 	CHECK(e->Detach()); CHECK(log.wait(PtraceEngine::DetachedEvent, ev));
-	int status = 0; for (int i = 0; i < 40; i++) { if (waitpid(pid, &status, WNOHANG) == pid) break; std::this_thread::sleep_for(100ms); }
+	int status = 0; CHECK(e->WaitForDetachedExit(status, 4s)); std::this_thread::sleep_for(50ms); CHECK(procState(pid) == "gone");
 	CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 3);   // it would have been killed by SIGTRAP if the watchpoint had stayed
 }
 
@@ -960,10 +960,15 @@ static void t_exec_continue()
 	CHECK(e->Kill()); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.signal == SIGKILL);
 }
 
-static void t_repro_winsize()
+static void t_winsize()
 {
 	Log log; auto e = start(log, "winsize"); if (!e) return; PtraceEngine::Event ev; CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev));
-	printf("  REPRO terminal: %s", log.output.c_str());
+	CHECK(log.output.find("tty=1 ioctl=0 rows=24 cols=80") != std::string::npos);
+
+	Log log2; auto e2 = std::make_unique<PtraceEngine>([&log2](const PtraceEngine::Event& x) { log2.push(x); });
+	PtraceEngine::LaunchOptions o; o.path = prog; o.args = {"winsize"}; o.arch = &g_arm; o.rows = 50; o.columns = 132; std::string err;
+	CHECK(e2->Launch(o, err)); CHECK(log2.wait(PtraceEngine::StoppedEvent, ev)); CHECK(e2->Resume(false, 0)); CHECK(log2.wait(PtraceEngine::ExitedEvent, ev));
+	CHECK(log2.output.find("tty=1 ioctl=0 rows=50 cols=132") != std::string::npos);
 }
 
 static void t_repro_echo()
@@ -1018,12 +1023,18 @@ static void t_perf()
 	}
 }
 
-static void t_repro_zombie()
+static void t_detach_reaped()
 {
 	Log log; auto e = start(log, "sleeper"); if (!e) return; PtraceEngine::Event ev; CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); uint32_t pid = e->GetPid();
+	int status = 0; CHECK(!e->WaitForDetachedExit(status, 10ms));
 	CHECK(e->Resume(false, 0)); std::this_thread::sleep_for(100ms); CHECK(e->Detach()); CHECK(log.wait(PtraceEngine::DetachedEvent, ev));
-	std::this_thread::sleep_for(3s);   // the target exits by itself after 2 seconds
-	printf("  REPRO after detach and a normal exit of the target: %s\n", procState(pid).c_str());
+	CHECK(!e->WaitForDetachedExit(status, 200ms));
+	CHECK(e->WaitForDetachedExit(status, 4s)); CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 3);
+	std::this_thread::sleep_for(50ms); CHECK(procState(pid) == "gone");
+	// and the engine can go away while the target is still running
+	Log log2; auto e2 = start(log2, "sleeper"); if (!e2) return; CHECK(log2.wait(PtraceEngine::StoppedEvent, ev)); uint32_t pid2 = e2->GetPid();
+	CHECK(e2->Resume(false, 0)); std::this_thread::sleep_for(50ms); CHECK(e2->Detach()); CHECK(log2.wait(PtraceEngine::DetachedEvent, ev)); e2.reset();
+	std::this_thread::sleep_for(2500ms); CHECK(procState(pid2) == "gone");
 }
 
 static bool twoAddrs(Log& log, uint64_t& a, uint64_t& b)
@@ -1623,7 +1634,7 @@ int main(int argc, char** argv)
 		{"hello", t_hello}, {"step", t_step}, {"interrupt", t_interrupt}, {"threads", t_threads}, {"churn", t_churn},
 		{"signal", t_signal}, {"silent", t_silent}, {"detach", t_detach}, {"kill_running", t_kill_running},
 		{"dtor_kills", t_dtor_kills}, {"launch_errors", t_launch_errors}, {"args_cwd", t_args_cwd}, {"stdin", t_stdin},
-		{"nopty", t_nopty}, {"relaunch", t_relaunch}, {"regs_step", t_regs_step}, {"regs_running", t_regs_running}, {"memory", t_memory}, {"bp_basic", t_bp_basic}, {"bp_step_remove", t_bp_step_remove}, {"bp_write", t_bp_write}, {"bp_threads", t_bp_threads}, {"bp_interrupts", t_bp_interrupts}, {"bp_remove_running", t_bp_remove_running}, {"bp_detach", t_bp_detach}, {"hw_watch", t_hw_watch}, {"hw_thread", t_hw_thread}, {"hw_exec", t_hw_exec}, {"hw_detach", t_hw_detach}, {"modules", t_modules}, {"symbols", t_symbols}, {"frames", t_frames}, {"loader", t_loader}, {"processes", t_processes}, {"stepover_basic", t_stepover_basic}, {"stepover_user_breakpoint", t_stepover_user_breakpoint}, {"stepover_interrupt", t_stepover_interrupt}, {"stepover_recursion", t_stepover_recursion}, {"stepreturn_sites", t_stepreturn_sites}, {"stepreturn_address", t_stepreturn_address}, {"stepreturn_recursion", t_stepreturn_recursion}, {"stepover_threads", t_stepover_threads}, {"perf", t_perf}, {"repro_zombie", t_repro_zombie}, {"fork_child", t_fork_child}, {"vfork", t_vfork}, {"spawn", t_spawn}, {"fork_threads", t_fork_threads}, {"interrupt_burst", t_interrupt_burst}, {"handlers_off", t_handlers_off}, {"handlers_on", t_handlers_on}, {"handlers_toggle", t_handlers_toggle}, {"handlers_thread", t_handlers_thread}, {"signal_reasons", t_signal_reasons}, {"conf_exitcode", t_conf_exitcode}, {"conf_exceptions", t_conf_exceptions}, {"conf_entry_step_exit", t_conf_entry_step_exit}, {"conf_memory_registers", t_conf_memory_registers}, {"conf_threads_restart", t_conf_threads_restart}, {"conf_symbols_modules", t_conf_symbols_modules}, {"elf_names", t_elf_names}, {"exec_by_name", t_exec_by_name}, {"exec_basic", t_exec_basic}, {"exec_rebreak", t_exec_rebreak}, {"exec_thread", t_exec_thread}, {"exec_continue", t_exec_continue}, {"repro_winsize", t_repro_winsize}, {"repro_echo", t_repro_echo}, {"repro_sigchld_ignored", t_repro_sigchld_ignored}, {"attach_threads", t_attach_threads}, {"attach_breakpoint", t_attach_breakpoint}, {"attach_step_at_breakpoint", t_attach_step_at_breakpoint}, {"attach_exit", t_attach_exit}, {"attach_kill", t_attach_kill}, {"attach_dtor_detaches", t_attach_dtor_detaches}, {"attach_errors", t_attach_errors}, {"attach_churn", t_attach_churn}, {"attach_syscall", t_attach_syscall}, {"redirect_parse", t_redirect_parse}, {"redirect_stdout", t_redirect_stdout}, {"redirect_stdin", t_redirect_stdin}, {"redirect_stderr_merge", t_redirect_stderr_merge}, {"redirect_other_fds", t_redirect_other_fds}, {"redirect_append_readwrite", t_redirect_append_readwrite}, {"redirect_relative", t_redirect_relative}, {"redirect_errors", t_redirect_errors}, {"redirect_leaks", t_redirect_leaks}};
+		{"nopty", t_nopty}, {"relaunch", t_relaunch}, {"regs_step", t_regs_step}, {"regs_running", t_regs_running}, {"memory", t_memory}, {"bp_basic", t_bp_basic}, {"bp_step_remove", t_bp_step_remove}, {"bp_write", t_bp_write}, {"bp_threads", t_bp_threads}, {"bp_interrupts", t_bp_interrupts}, {"bp_remove_running", t_bp_remove_running}, {"bp_detach", t_bp_detach}, {"hw_watch", t_hw_watch}, {"hw_thread", t_hw_thread}, {"hw_exec", t_hw_exec}, {"hw_detach", t_hw_detach}, {"modules", t_modules}, {"symbols", t_symbols}, {"frames", t_frames}, {"loader", t_loader}, {"processes", t_processes}, {"stepover_basic", t_stepover_basic}, {"stepover_user_breakpoint", t_stepover_user_breakpoint}, {"stepover_interrupt", t_stepover_interrupt}, {"stepover_recursion", t_stepover_recursion}, {"stepreturn_sites", t_stepreturn_sites}, {"stepreturn_address", t_stepreturn_address}, {"stepreturn_recursion", t_stepreturn_recursion}, {"stepover_threads", t_stepover_threads}, {"perf", t_perf}, {"detach_reaped", t_detach_reaped}, {"fork_child", t_fork_child}, {"vfork", t_vfork}, {"spawn", t_spawn}, {"fork_threads", t_fork_threads}, {"interrupt_burst", t_interrupt_burst}, {"handlers_off", t_handlers_off}, {"handlers_on", t_handlers_on}, {"handlers_toggle", t_handlers_toggle}, {"handlers_thread", t_handlers_thread}, {"signal_reasons", t_signal_reasons}, {"conf_exitcode", t_conf_exitcode}, {"conf_exceptions", t_conf_exceptions}, {"conf_entry_step_exit", t_conf_entry_step_exit}, {"conf_memory_registers", t_conf_memory_registers}, {"conf_threads_restart", t_conf_threads_restart}, {"conf_symbols_modules", t_conf_symbols_modules}, {"elf_names", t_elf_names}, {"exec_by_name", t_exec_by_name}, {"exec_basic", t_exec_basic}, {"exec_rebreak", t_exec_rebreak}, {"exec_thread", t_exec_thread}, {"exec_continue", t_exec_continue}, {"winsize", t_winsize}, {"repro_echo", t_repro_echo}, {"repro_sigchld_ignored", t_repro_sigchld_ignored}, {"attach_threads", t_attach_threads}, {"attach_breakpoint", t_attach_breakpoint}, {"attach_step_at_breakpoint", t_attach_step_at_breakpoint}, {"attach_exit", t_attach_exit}, {"attach_kill", t_attach_kill}, {"attach_dtor_detaches", t_attach_dtor_detaches}, {"attach_errors", t_attach_errors}, {"attach_churn", t_attach_churn}, {"attach_syscall", t_attach_syscall}, {"redirect_parse", t_redirect_parse}, {"redirect_stdout", t_redirect_stdout}, {"redirect_stdin", t_redirect_stdin}, {"redirect_stderr_merge", t_redirect_stderr_merge}, {"redirect_other_fds", t_redirect_other_fds}, {"redirect_append_readwrite", t_redirect_append_readwrite}, {"redirect_relative", t_redirect_relative}, {"redirect_errors", t_redirect_errors}, {"redirect_leaks", t_redirect_leaks}};
 	for (auto& t : tests)
 	{
 		if (argc > 1 && strcmp(argv[1], t.n)) continue;

@@ -167,22 +167,29 @@ tests are now ordinary tests.
   - A change of architecture across an exec (32-bit to 64-bit, say) is re-detected, but never tried.
   - Not run on x86.
 
-### C3. A detached target becomes a zombie. *Low to Medium*
+### C3. A detached target becomes a zombie. *Low to Medium* — **fixed**
 
 - **Evidence:** after `Detach`, when the target exits by itself its state is `Z (zombie)`.
 - **Why:** the target is still a child of the debugger process, and nothing calls `waitpid` on it after detaching.
 - **Impact:** a zombie process stays until Binary Ninja exits, once per detach.
-- **Fix:** double-fork at launch so the target is not our child (but then we lose `waitpid` for the exit code of a target
-  that we killed), or reap detached children from a small thread.
+- **Fix (done):** after a detach, a small thread waits for the target and reaps it. Its status is kept, and
+  `PtraceEngine::WaitForDetachedExit` gives it, which is how the detach tests see that a breakpoint did not stay behind. A
+  double fork was not an option: `PTRACE_TRACEME` makes the parent the tracer. Attached targets are not our children, so
+  they need nothing. Test: `detach_reaped`.
 
-### C4. The pty has no window size, and it echoes input. *Medium*
+### C4. The pty has no window size, and it echoes input. *Medium* — **window size fixed, echo kept**
 
 - **Evidence:** a target reads its terminal size and gets `rows=0 cols=0`. Writing `ping\n` to stdin comes back as
   `ping\r\ngot: ping\r\n`, so the typed line shows up twice, with `\r\n` line endings.
 - **Impact:** programs that format output by terminal width misbehave. The console in the UI would show the echo unless
   it filters it.
-- **Fix:** call `TIOCSWINSZ` with a sane default (or a setting), and decide the echo policy with whoever owns the console
-  widget.
+- **Fix (done for the size):** the terminal is 24 rows by 80 columns (`LaunchOptions::rows` and `columns`; no setting yet).
+  Test: `winsize`.
+- **Echo, decided to keep:** the target's terminal echoes as any terminal does, which is also what LLDB does, because it
+  passes the input to the terminal of the target as it is (`PutSTDIN`). Note that the Binary Ninja console shows the line
+  that the user types by itself (`TargetScriptingInstance` only forwards it), so the typed line probably shows up twice.
+  Whether the console adds the newline to what it sends is **not known**, since it was never run. Check in the UI, and if
+  the echo is unwanted, turn it off with `termios` on the terminal, which changes what programs that ask for a password see.
 
 ### C5. Two arm64-only facts that matter if ARM is ever enabled. *Only relevant for ARM*
 
@@ -653,9 +660,9 @@ The engine has no x86 in it and was tested on arm64. Enabling arm64 means:
 
 - [x] Implement **Attach** (`3784118`). Still to do: run it in the Binary Ninja UI, and try it as a user who is not root,
   under `ptrace_scope` 1.
-- [ ] Set a terminal window size, and decide the echo policy (C4).
+- [x] Terminal window size (C4). The echo is kept; check in the UI whether it shows twice in the console.
 - [ ] Fix `WriteRegister` for the instruction pointer during a restarted syscall (S2).
-- [ ] Reap detached targets (C3).
+- [x] Reap detached targets (C3).
 - [ ] Cap `ReadMemory` sizes (S6).
 - [ ] Reset signal dispositions and close stray descriptors in the child (S8).
 - [ ] Put a timeout or an escape hatch on the blocking waits (S10).
