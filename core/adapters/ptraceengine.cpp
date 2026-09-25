@@ -22,6 +22,7 @@ limitations under the License.
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <filesystem>
 #include <fstream>
 #include <poll.h>
 #include <sched.h>
@@ -70,7 +71,7 @@ namespace BinaryNinjaDebugger {
 	{
 		if (m_tracerThread.joinable())
 		{
-			RunOnTracer([this] { return DoKill(); });
+			RunOnTracer([this] { return m_attached ? DoDetach() : DoKill(); });
 			{
 				std::lock_guard<std::mutex> lock(m_taskMutex);
 				m_shutdown = true;
@@ -105,6 +106,19 @@ namespace BinaryNinjaDebugger {
 	bool PtraceEngine::Launch(const LaunchOptions& options, std::string& error)
 	{
 		m_options = options;
+		auto result = m_launchResult.get_future();
+		m_eventThread = std::thread(&PtraceEngine::EventMain, this);
+		m_tracerThread = std::thread(&PtraceEngine::TracerMain, this);
+		error = result.get();
+		return error.empty();
+	}
+
+
+	bool PtraceEngine::Attach(uint32_t pid, std::string& error, const PtraceArch* arch)
+	{
+		m_options.arch = arch;
+		m_attachPid = pid;
+		m_attached = true;
 		auto result = m_launchResult.get_future();
 		m_eventThread = std::thread(&PtraceEngine::EventMain, this);
 		m_tracerThread = std::thread(&PtraceEngine::TracerMain, this);
@@ -603,10 +617,7 @@ namespace BinaryNinjaDebugger {
 				| PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACEEXEC));
 
 		m_pid = pid;
-		m_memFd = open(("/proc/" + std::to_string(pid) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
-		m_arch = m_options.arch ? m_options.arch : DetectPtraceArch(pid);
-		if (m_arch && m_arch->hwDebug)
-			m_hardwareSlots.resize(m_arch->hwDebug->SlotCount());
+		AdoptTarget();
 		ThreadInfo info;
 		info.stopped = true;
 		m_threads[pid] = info;
@@ -627,9 +638,161 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	void PtraceEngine::AdoptTarget()
+	{
+		m_memFd = open(("/proc/" + std::to_string(m_pid) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
+		m_arch = m_options.arch ? m_options.arch : DetectPtraceArch(m_pid);
+		if (m_arch && m_arch->hwDebug)
+			m_hardwareSlots.resize(m_arch->hwDebug->SlotCount());
+	}
+
+
+	static std::string AttachErrorMessage(pid_t pid, int error)
+	{
+		std::string message = "failed to attach to process " + std::to_string(pid) + ": " + strerror(error);
+		if (error == ESRCH)
+			return message;
+
+		std::string line;
+		std::ifstream status("/proc/" + std::to_string(pid) + "/status");
+		while (std::getline(status, line))
+		{
+			if (line.rfind("TracerPid:", 0) == 0 && atoi(line.c_str() + 10) > 0)
+				return message + " (it is already being traced by process " + std::to_string(atoi(line.c_str() + 10)) + ")";
+		}
+
+		if (error == EPERM || error == EACCES)
+		{
+			std::ifstream yama("/proc/sys/kernel/yama/ptrace_scope");
+			int scope = 0;
+			if (yama >> scope && scope > 0)
+				message += " (kernel.yama.ptrace_scope is " + std::to_string(scope)
+					+ ", so only descendants of the debugger can be traced without extra privileges)";
+		}
+		return message;
+	}
+
+
+	std::string PtraceEngine::AttachToProcess()
+	{
+		pid_t pid = m_attachPid;
+		auto listThreads = [pid]() {
+			std::vector<pid_t> tids;
+			std::error_code error;
+			for (const auto& entry : std::filesystem::directory_iterator("/proc/" + std::to_string(pid) + "/task", error))
+			{
+				pid_t tid = atoi(entry.path().filename().c_str());
+				if (tid > 0)
+					tids.push_back(tid);
+			}
+			return tids;
+		};
+
+		if (listThreads().empty())
+			return "failed to attach to process " + std::to_string(pid) + ": there is no such process";
+
+		std::vector<pid_t> attached;
+		auto detachAll = [&attached]() {
+			for (pid_t tid : attached)
+				ptrace(PTRACE_DETACH, tid, nullptr, nullptr);
+		};
+
+		// A thread can be created while the others are being stopped, so go over the list until nothing is new
+		bool foundNew = true;
+		for (int round = 0; foundNew && round < 32; round++)
+		{
+			foundNew = false;
+			for (pid_t tid : listThreads())
+			{
+				if (std::find(attached.begin(), attached.end(), tid) != attached.end())
+					continue;
+				foundNew = true;
+
+				if (ptrace(PTRACE_ATTACH, tid, nullptr, nullptr) != 0)
+				{
+					int error = errno;
+					if (tid != pid && error == ESRCH)
+						continue;
+					detachAll();
+					return AttachErrorMessage(pid, error);
+				}
+
+				// A signal can reach the thread before the SIGSTOP that attaching sends. It is passed on, and the
+				// SIGSTOP comes after it.
+				bool stopped = false;
+				bool gone = false;
+				for (int attempt = 0; attempt < 16 && !stopped && !gone; attempt++)
+				{
+					int status = 0;
+					if (waitpid(tid, &status, __WALL) < 0)
+					{
+						if (errno == EINTR)
+							continue;
+						gone = true;
+					}
+					else if (WIFEXITED(status) || WIFSIGNALED(status))
+					{
+						gone = true;
+					}
+					else if (WIFSTOPPED(status))
+					{
+						int signal = WSTOPSIG(status);
+						if (signal == SIGSTOP)
+							stopped = true;
+						else
+							ptrace(PTRACE_CONT, tid, nullptr, (void*)(intptr_t)(signal == SIGTRAP ? 0 : signal));
+					}
+				}
+
+				if (!stopped)
+				{
+					if (!gone)
+					{
+						attached.push_back(tid);
+						detachAll();
+						return "failed to attach to process " + std::to_string(pid) + ": thread " + std::to_string(tid)
+							+ " did not stop";
+					}
+					if (tid == pid)
+					{
+						detachAll();
+						return "failed to attach to process " + std::to_string(pid) + ": it exited";
+					}
+					continue;
+				}
+				attached.push_back(tid);
+			}
+		}
+
+		for (pid_t tid : attached)
+			ptrace(PTRACE_SETOPTIONS, tid, nullptr,
+				(void*)(uintptr_t)(PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
+					| PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACEEXEC));
+
+		m_pid = pid;
+		AdoptTarget();
+		for (pid_t tid : attached)
+		{
+			ThreadInfo info;
+			info.stopped = true;
+			m_threads[tid] = info;
+		}
+		auto& leader = m_threads[pid];
+		leader.atReportedStop = ReadPc(pid, leader.reportedPc);
+		Publish();
+
+		Event event;
+		event.type = StoppedEvent;
+		event.tid = pid;
+		event.signal = SIGSTOP;
+		PushEvent(event);
+		return "";
+	}
+
+
 	void PtraceEngine::TracerMain()
 	{
-		std::string error = Spawn();
+		std::string error = m_attached ? AttachToProcess() : Spawn();
 		m_launchResult.set_value(error);
 
 		int idle = 0;
@@ -1599,5 +1762,6 @@ namespace BinaryNinjaDebugger {
 		PushEvent(event);
 		return true;
 	}
+
 
 }  // namespace BinaryNinjaDebugger

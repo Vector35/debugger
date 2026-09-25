@@ -194,6 +194,9 @@ namespace BinaryNinjaDebugger {
 		std::atomic<bool> m_debugSignalHandlers {false};
 
 		pid_t m_pid = -1;
+		pid_t m_attachPid = -1;
+		// The target was running before we came to it, so we let go of it rather than kill it when we are done
+		bool m_attached = false;
 		int m_masterFd = -1;
 		int m_memFd = -1;
 		std::atomic<bool> m_finished {false};
@@ -204,6 +207,8 @@ namespace BinaryNinjaDebugger {
 		void IoMain();
 
 		std::string Spawn();
+		std::string AttachToProcess();
+		void AdoptTarget();
 		bool RunOnTracer(std::function<bool()> function);
 		void PushEvent(const Event& event);
 		void Publish();
@@ -249,6 +254,10 @@ namespace BinaryNinjaDebugger {
 		~PtraceEngine();
 
 		bool Launch(const LaunchOptions& options, std::string& error);
+		// Starts tracing a process that is already running, and stops all of its threads. The target keeps its own
+		// terminal, so there is no output and no input.
+		// `arch` overrides the architecture that is detected from the target.
+		bool Attach(uint32_t pid, std::string& error, const PtraceArch* arch = nullptr);
 
 		// With step set, only `tid` runs, for one instruction. Otherwise every thread runs.
 		bool Resume(bool step, uint32_t tid);

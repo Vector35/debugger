@@ -250,9 +250,23 @@ namespace BinaryNinjaDebugger {
 		options.workingDir = workingDirectory;
 		options.disableAslr = disableAslr;
 
+		CreateEngine(false);
+		std::string error;
+		if (!m_engine->Launch(options, error))
+		{
+			m_targetActive = false;
+			return launchFailure(error);
+		}
+		return true;
+	}
+
+
+	void PtraceAdapter::CreateEngine(bool attached)
+	{
 		m_stepper.reset();
 		m_engine.reset();
 		ResetTargetState();
+		m_attached = attached;
 		m_stopAtSystemEntry = Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint");
 		m_firstStop = true;
 		m_targetActive = true;
@@ -263,14 +277,6 @@ namespace BinaryNinjaDebugger {
 		m_stepper = std::make_unique<PtraceStepper>(
 			*m_engine, [this](uint64_t address) { return AcquireBreakpoint(address); },
 			[this](uint64_t address) { return ReleaseBreakpoint(address); });
-
-		std::string error;
-		if (!m_engine->Launch(options, error))
-		{
-			m_targetActive = false;
-			return launchFailure(error);
-		}
-		return true;
 	}
 
 
@@ -295,10 +301,13 @@ namespace BinaryNinjaDebugger {
 				if (!m_arch)
 					LogWarn("PtraceAdapter: unsupported target architecture");
 
-				if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
+				// An attached target is long past its entry point, and it stops where it is
+				if (!m_attached && Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 					AddBreakpoint(ModuleNameAndOffset(m_inputFile, m_entryPoint - m_start), 0);
 				SetUpLoaderBreakpoint();
-				if (!m_stopAtSystemEntry)
+				if (m_attached)
+					m_lastStopReason = InitialBreakpoint;
+				else if (!m_stopAtSystemEntry)
 				{
 					ApplyBreakpoints();
 					m_engine->Resume(false, 0);
@@ -380,8 +389,31 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceAdapter::Attach(std::uint32_t pid)
 	{
-		LogWarn("PtraceAdapter::Attach not implemented");
-		return false;
+		auto adapterSettings = GetAdapterSettings();
+		auto data = GetData();
+		BNSettingsScope scope = SettingsResourceScope;
+		m_inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+		if (m_inputFile.empty())
+		{
+			std::error_code error;
+			auto exe = std::filesystem::read_symlink("/proc/" + std::to_string(pid) + "/exe", error);
+			if (!error)
+				m_inputFile = exe.string();
+		}
+
+		CreateEngine(true);
+		std::string error;
+		if (!m_engine->Attach(pid, error))
+		{
+			m_targetActive = false;
+			DebuggerEvent event;
+			event.type = LaunchFailureEventType;
+			event.data.errorData.shortError = "Failed to attach to target";
+			event.data.errorData.error = fmt::format("PTRACE: {}", error);
+			PostDebuggerEvent(event);
+			return false;
+		}
+		return true;
 	}
 
 

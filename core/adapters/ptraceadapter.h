@@ -39,6 +39,7 @@ namespace BinaryNinjaDebugger {
 		std::atomic<uint64_t> m_exitCode {0};
 		std::atomic<const PtraceArch*> m_arch {nullptr};
 		bool m_firstStop = false;
+		bool m_attached = false;
 		bool m_stopAtSystemEntry = false;
 
 		std::string m_inputFile;
@@ -88,6 +89,7 @@ namespace BinaryNinjaDebugger {
 		bool ReadRegisterOf(uint32_t tid, const std::string& name, uint64_t& value);
 		std::vector<PtraceModuleInfo> GetModules();
 		std::shared_ptr<ElfInfo> GetElf(const std::string& path);
+		void CreateEngine(bool attached);
 		void SetUpLoaderBreakpoint();
 		bool AcquireBreakpoint(uint64_t address);
 		bool ReleaseBreakpoint(uint64_t address);
