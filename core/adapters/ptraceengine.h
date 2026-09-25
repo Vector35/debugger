@@ -110,6 +110,8 @@ namespace BinaryNinjaDebugger {
 		{
 			std::vector<uint8_t> original;
 			bool inserted = false;
+			// Taken out while a child that shares the memory of the target runs, and put back after it
+			bool suspended = false;
 		};
 
 		struct HardwareSlot
@@ -165,6 +167,7 @@ namespace BinaryNinjaDebugger {
 		std::set<uint64_t> m_recentlyRemoved;
 		std::vector<pid_t> m_stepOverQueue;
 		pid_t m_stepOverTid = -1;
+		int m_vforkPending = 0;
 
 		const PtraceArch* m_arch = nullptr;
 		std::mutex m_breakpointMutex;
@@ -209,6 +212,8 @@ namespace BinaryNinjaDebugger {
 		bool StartNextStepOver();
 		bool ResumeAll();
 		void ApplyHardwareToThread(pid_t tid);
+		void HandleFork(pid_t child, bool sharedMemory);
+		void ResumeBreakpointsAfterVfork();
 		void RemoveAllBreakpoints();
 		void StopAll();
 		void FinishStop(pid_t tid, const Classified& stop);

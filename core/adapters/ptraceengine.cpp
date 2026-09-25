@@ -586,7 +586,9 @@ namespace BinaryNinjaDebugger {
 		if (waitpid(pid, &status, __WALL) < 0 || !WIFSTOPPED(status))
 			return "the target exited before it could be traced";
 
-		ptrace(PTRACE_SETOPTIONS, pid, nullptr, (void*)(uintptr_t)(PTRACE_O_EXITKILL | PTRACE_O_TRACECLONE));
+		ptrace(PTRACE_SETOPTIONS, pid, nullptr,
+			(void*)(uintptr_t)(PTRACE_O_EXITKILL | PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
+				| PTRACE_O_TRACEVFORKDONE));
 
 		m_pid = pid;
 		m_memFd = open(("/proc/" + std::to_string(pid) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
@@ -803,6 +805,19 @@ namespace BinaryNinjaDebugger {
 			Publish();
 			return result;
 		}
+		if (event == PTRACE_EVENT_FORK || event == PTRACE_EVENT_VFORK)
+		{
+			unsigned long child = 0;
+			ptrace(PTRACE_GETEVENTMSG, tid, nullptr, &child);
+			HandleFork((pid_t)child, event == PTRACE_EVENT_VFORK);
+			return result;
+		}
+		if (event == PTRACE_EVENT_VFORK_DONE)
+		{
+			if (m_vforkPending > 0 && --m_vforkPending == 0)
+				ResumeBreakpointsAfterVfork();
+			return result;
+		}
 		if (event != 0)
 			return result;
 
@@ -910,7 +925,7 @@ namespace BinaryNinjaDebugger {
 			info.guardSoftware = false;
 			std::lock_guard<std::mutex> lock(m_breakpointMutex);
 			auto it = m_breakpoints.find(info.guardAddress);
-			if (it != m_breakpoints.end() && !it->second.inserted)
+			if (it != m_breakpoints.end() && !it->second.inserted && !it->second.suspended)
 			{
 				RawWriteMemory(
 					info.guardAddress, m_arch->breakpointInstruction.data(), m_arch->breakpointInstruction.size());
@@ -966,6 +981,79 @@ namespace BinaryNinjaDebugger {
 
 		m_stepOverTid = -1;
 		return ResumeAll();
+	}
+
+
+	// A child of the target starts out as a copy of it, breakpoints included, and it is not ours to debug. So the
+	// breakpoints come out of it, and it is let go.
+	void PtraceEngine::HandleFork(pid_t child, bool sharedMemory)
+	{
+		// It is stopped from the start, and has to be seen to before it can be let go
+		int status = 0;
+		pid_t result;
+		do
+		{
+			result = waitpid(child, &status, __WALL);
+		} while (result < 0 && errno == EINTR);
+		if (result < 0 || !WIFSTOPPED(status))
+			return;
+
+		{
+			std::lock_guard<std::mutex> lock(m_breakpointMutex);
+			if (sharedMemory)
+			{
+				// There is only one memory, so the breakpoints are out of the target for as long as the child uses it
+				for (auto& [address, breakpoint] : m_breakpoints)
+				{
+					if (!breakpoint.inserted)
+						continue;
+
+					RawWriteMemory(address, breakpoint.original.data(), breakpoint.original.size());
+					breakpoint.inserted = false;
+					breakpoint.suspended = true;
+				}
+				m_vforkPending++;
+			}
+			else
+			{
+				int fd = open(("/proc/" + std::to_string(child) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
+				if (fd >= 0)
+				{
+					for (const auto& [address, breakpoint] : m_breakpoints)
+					{
+						{
+							if (!breakpoint.inserted)
+								continue;
+
+							// Best effort: a child that cannot be written to is simply let go
+							[[maybe_unused]] auto written =
+								pwrite(fd, breakpoint.original.data(), breakpoint.original.size(), address);
+						}
+					}
+					close(fd);
+				}
+			}
+		}
+
+		ptrace(PTRACE_DETACH, child, nullptr, nullptr);
+	}
+
+
+	void PtraceEngine::ResumeBreakpointsAfterVfork()
+	{
+		std::lock_guard<std::mutex> lock(m_breakpointMutex);
+		const auto& instruction = m_arch->breakpointInstruction;
+		for (auto& [address, breakpoint] : m_breakpoints)
+		{
+			if (!breakpoint.suspended)
+				continue;
+
+			// The child may have changed what is there
+			breakpoint.suspended = false;
+			if (RawReadMemory(address, breakpoint.original.data(), instruction.size())
+				&& RawWriteMemory(address, instruction.data(), instruction.size()))
+				breakpoint.inserted = true;
+		}
 	}
 
 
@@ -1164,11 +1252,20 @@ namespace BinaryNinjaDebugger {
 		const auto& instruction = m_arch->breakpointInstruction;
 		Breakpoint breakpoint;
 		breakpoint.original.resize(instruction.size());
-		if (!RawReadMemory(address, breakpoint.original.data(), instruction.size())
-			|| !RawWriteMemory(address, instruction.data(), instruction.size()))
+		if (!RawReadMemory(address, breakpoint.original.data(), instruction.size()))
 			return false;
 
-		breakpoint.inserted = true;
+		// While a child shares the memory it must not run into a new breakpoint either
+		if (m_vforkPending > 0)
+		{
+			breakpoint.suspended = true;
+		}
+		else
+		{
+			if (!RawWriteMemory(address, instruction.data(), instruction.size()))
+				return false;
+			breakpoint.inserted = true;
+		}
 		m_breakpoints[address] = std::move(breakpoint);
 		return true;
 	}
