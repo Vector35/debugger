@@ -251,7 +251,7 @@ if sys.platform == 'darwin':
     if sysroot is not None:
         cmake_params.append(('CMAKE_OSX_SYSROOT', sysroot))
 
-    cmake_params.append(("CMAKE_OSX_DEPLOYMENT_TARGET", "10.15"))
+    cmake_params.append(("CMAKE_OSX_DEPLOYMENT_TARGET", "13.0"))
     cmake_params.append(("CMAKE_OSX_ARCHITECTURES", "arm64;x86_64"))
 
 cmake_params_array = []
