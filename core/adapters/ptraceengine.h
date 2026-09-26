@@ -39,6 +39,17 @@ namespace BinaryNinjaDebugger {
 	class PtraceEngine
 	{
 	public:
+		enum class TrapOrigin
+		{
+			None,
+			SoftwareBreakpoint,
+			HardwareBreakpoint,
+			SingleStep,
+			SignalHandler,
+			Target,
+			Internal
+		};
+
 		enum EventType
 		{
 			StoppedEvent,
@@ -60,6 +71,8 @@ namespace BinaryNinjaDebugger {
 			bool interrupted = false;
 			bool breakpoint = false;
 			bool hardware = false;
+			// SIGTRAP is shared by ptrace, debugger breakpoints and the target. This records which of those produced it.
+			TrapOrigin trapOrigin = TrapOrigin::None;
 			// The target has started another program. The engine has started over with it: the breakpoints, the memory
 			// and the threads are all new.
 			bool exec = false;
@@ -139,6 +152,10 @@ namespace BinaryNinjaDebugger {
 			int pendingSignal = 0;
 			// The signal that the thread was resumed with in order to stop at its handler
 			int handlerSignal = 0;
+			// SIGTRAP delivered into a SIGTRAP handler can retain its original si_code. A changed PC distinguishes that
+			// handler-entry stop from the original signal-delivery stop.
+			uint64_t handlerResumePc = 0;
+			bool handlerResumePcValid = false;
 			// Set for the thread whose stop was reported, so that resuming it steps over a breakpoint at its PC
 			bool atReportedStop = false;
 			uint64_t reportedPc = 0;
@@ -182,6 +199,7 @@ namespace BinaryNinjaDebugger {
 			bool stepTrap = false;
 			bool exec = false;
 			int signalHandler = 0;
+			TrapOrigin trapOrigin = TrapOrigin::None;
 			// The thread that the stop is for, if it is not the one that it was found on
 			pid_t tid = 0;
 		};
@@ -238,6 +256,10 @@ namespace BinaryNinjaDebugger {
 		int m_memFd = -1;
 		std::atomic<bool> m_finished {false};
 		std::atomic<bool> m_ioStop {false};
+		std::mutex m_inputMutex;
+		std::deque<std::string> m_inputQueue;
+		size_t m_inputOffset = 0;
+		size_t m_pendingInputBytes = 0;
 
 		void TracerMain();
 		void EventMain();
@@ -245,7 +267,7 @@ namespace BinaryNinjaDebugger {
 
 		std::string Spawn();
 		std::string AttachToProcess();
-		void AdoptTarget();
+		std::string AdoptTarget();
 		bool RunOnTracer(std::function<bool()> function);
 		void PushEvent(const Event& event);
 		void Publish();
@@ -265,15 +287,15 @@ namespace BinaryNinjaDebugger {
 		bool RawWriteMemory(uint64_t address, const void* buffer, size_t size);
 		bool HasBreakpointAt(uint64_t address);
 		bool NeedsStepOver(pid_t tid, const ThreadInfo& info);
-		void BeginGuard(pid_t tid, uint64_t address);
-		void EndGuard(pid_t tid, bool threadAlive);
+		bool BeginGuard(pid_t tid, uint64_t address);
+		bool EndGuard(pid_t tid, bool threadAlive);
 		bool StartNextStepOver();
 		bool ResumeAll();
 		void ApplyHardwareToThread(pid_t tid);
 		void HandleFork(pid_t child, bool sharedMemory);
 		Classified HandleExec(pid_t tid);
 		void ResumeBreakpointsAfterVfork();
-		void RemoveAllBreakpoints();
+		bool RemoveAllBreakpoints();
 		void StopAll();
 		void FinishStop(pid_t tid, const Classified& stop);
 		void FinishExit(int status);
@@ -283,6 +305,7 @@ namespace BinaryNinjaDebugger {
 		bool DoDetach();
 		bool DoAddBreakpoint(uint64_t address);
 		bool DoRemoveBreakpoint(uint64_t address);
+		bool DoDiscardBreakpoint(uint64_t address);
 		bool DoAddHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size);
 		bool DoRemoveHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size);
 
@@ -318,6 +341,9 @@ namespace BinaryNinjaDebugger {
 		// Software breakpoints are inserted straight into the target. ReadMemory and WriteMemory hide them.
 		bool AddBreakpoint(uint64_t address);
 		bool RemoveBreakpoint(uint64_t address);
+		// For a mapping that has been removed or replaced. Drops bookkeeping without writing the saved bytes into a
+		// different mapping that now occupies the address.
+		bool DiscardBreakpoint(uint64_t address);
 		// The target must be stopped
 		bool AddHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size);
 		bool RemoveHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size);

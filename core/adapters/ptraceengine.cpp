@@ -195,20 +195,20 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceEngine::WriteInput(const std::string& data)
 	{
-		if (m_masterFd < 0)
+		if (m_masterFd < 0 || m_ioStop)
 			return false;
 
-		size_t written = 0;
-		while (written < data.size())
+		// Input is drained by the I/O thread. Writing synchronously to the nonblocking PTY would either spin on EAGAIN
+		// or block a debugger thread while the target is stopped. Keep the queue bounded so an unresponsive target
+		// cannot make the debugger consume memory without limit.
+		constexpr size_t maxPendingInput = 8 << 20;
+		std::lock_guard<std::mutex> lock(m_inputMutex);
+		if (data.size() > maxPendingInput - m_pendingInputBytes)
+			return false;
+		if (!data.empty())
 		{
-			auto count = write(m_masterFd, data.data() + written, data.size() - written);
-			if (count < 0)
-			{
-				if (errno == EINTR || errno == EAGAIN)
-					continue;
-				return false;
-			}
-			written += count;
+			m_pendingInputBytes += data.size();
+			m_inputQueue.push_back(data);
 		}
 		return true;
 	}
@@ -412,6 +412,12 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	bool PtraceEngine::DiscardBreakpoint(uint64_t address)
+	{
+		return RunOnTracer([this, address] { return DoDiscardBreakpoint(address); });
+	}
+
+
 	bool PtraceEngine::AddHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size)
 	{
 		return RunOnTracer([this, address, type, size] { return DoAddHardwareBreakpoint(address, type, size); });
@@ -515,7 +521,16 @@ namespace BinaryNinjaDebugger {
 		char buffer[4096];
 		while (true)
 		{
-			pollfd fd {m_masterFd, POLLIN, 0};
+			if (m_ioStop)
+				return;
+
+			short events = POLLIN;
+			{
+				std::lock_guard<std::mutex> lock(m_inputMutex);
+				if (!m_inputQueue.empty())
+					events |= POLLOUT;
+			}
+			pollfd fd {m_masterFd, events, 0};
 			int ready = poll(&fd, 1, 50);
 			if (ready == 0)
 			{
@@ -530,18 +545,48 @@ namespace BinaryNinjaDebugger {
 				return;
 			}
 
-			auto count = read(m_masterFd, buffer, sizeof(buffer));
-			if (count > 0)
+			if (fd.revents & POLLOUT)
 			{
-				Event event;
-				event.type = OutputEvent;
-				event.data.assign(buffer, count);
-				PushEvent(event);
+				bool writeFailed = false;
+				std::lock_guard<std::mutex> lock(m_inputMutex);
+				if (!m_inputQueue.empty())
+				{
+					const auto& input = m_inputQueue.front();
+					auto count = write(m_masterFd, input.data() + m_inputOffset, input.size() - m_inputOffset);
+					if (count > 0)
+					{
+						m_inputOffset += count;
+						m_pendingInputBytes -= count;
+						if (m_inputOffset == input.size())
+						{
+							m_inputQueue.pop_front();
+							m_inputOffset = 0;
+						}
+					}
+					else if (count < 0 && errno != EINTR && errno != EAGAIN)
+						writeFailed = true;
+				}
+				if (writeFailed)
+					return;
 			}
-			else if (count == 0 || (errno != EINTR && errno != EAGAIN))
+
+			if (fd.revents & POLLIN)
 			{
+				auto count = read(m_masterFd, buffer, sizeof(buffer));
+				if (count > 0)
+				{
+					Event event;
+					event.type = OutputEvent;
+					event.data.assign(buffer, count);
+					PushEvent(event);
+				}
+				else if (count == 0 || (errno != EINTR && errno != EAGAIN))
+				{
+					return;
+				}
+			}
+			else if (fd.revents & (POLLERR | POLLHUP | POLLNVAL))
 				return;
-			}
 		}
 	}
 
@@ -714,12 +759,27 @@ namespace BinaryNinjaDebugger {
 		if (waitpid(pid, &status, __WALL) < 0 || !WIFSTOPPED(status))
 			return "the target exited before it could be traced";
 
-		ptrace(PTRACE_SETOPTIONS, pid, nullptr,
-			(void*)(uintptr_t)(PTRACE_O_EXITKILL | PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
-				| PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACEEXEC));
+		if (ptrace(PTRACE_SETOPTIONS, pid, nullptr,
+				(void*)(uintptr_t)(PTRACE_O_EXITKILL | PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
+					| PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACEEXEC)) != 0)
+		{
+			int error = errno;
+			kill(pid, SIGKILL);
+			while (waitpid(pid, nullptr, __WALL) < 0 && errno == EINTR)
+			{}
+			return std::string("failed to configure ptrace options: ") + strerror(error);
+		}
 
 		m_pid = pid;
-		AdoptTarget();
+		auto adoptError = AdoptTarget();
+		if (!adoptError.empty())
+		{
+			kill(pid, SIGKILL);
+			while (waitpid(pid, nullptr, __WALL) < 0 && errno == EINTR)
+			{}
+			m_pid = -1;
+			return adoptError;
+		}
 		ThreadInfo info;
 		info.stopped = true;
 		m_threads[pid] = info;
@@ -740,12 +800,22 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	void PtraceEngine::AdoptTarget()
+	std::string PtraceEngine::AdoptTarget()
 	{
 		m_memFd = open(("/proc/" + std::to_string(m_pid) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
+		if (m_memFd < 0)
+			return "failed to open target memory: " + std::string(strerror(errno));
+
 		m_arch = m_options.arch ? m_options.arch : DetectPtraceArch(m_pid);
+		if (!m_arch)
+		{
+			close(m_memFd);
+			m_memFd = -1;
+			return "unsupported target architecture";
+		}
 		if (m_arch && m_arch->hwDebug)
 			m_hardwareSlots.resize(m_arch->hwDebug->SlotCount());
+		return "";
 	}
 
 
@@ -842,7 +912,7 @@ namespace BinaryNinjaDebugger {
 						if (signal == SIGSTOP)
 							stopped = true;
 						else
-							ptrace(PTRACE_CONT, tid, nullptr, (void*)(intptr_t)(signal == SIGTRAP ? 0 : signal));
+							ptrace(PTRACE_CONT, tid, nullptr, (void*)(intptr_t)signal);
 					}
 				}
 
@@ -867,12 +937,26 @@ namespace BinaryNinjaDebugger {
 		}
 
 		for (pid_t tid : attached)
-			ptrace(PTRACE_SETOPTIONS, tid, nullptr,
-				(void*)(uintptr_t)(PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
-					| PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACEEXEC));
+		{
+			if (ptrace(PTRACE_SETOPTIONS, tid, nullptr,
+					(void*)(uintptr_t)(PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
+						| PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACEEXEC)) != 0)
+			{
+				int error = errno;
+				detachAll();
+				return "failed to configure ptrace options for thread " + std::to_string(tid) + ": "
+					+ strerror(error);
+			}
+		}
 
 		m_pid = pid;
-		AdoptTarget();
+		auto adoptError = AdoptTarget();
+		if (!adoptError.empty())
+		{
+			detachAll();
+			m_pid = -1;
+			return adoptError;
+		}
 		for (pid_t tid : attached)
 		{
 			ThreadInfo info;
@@ -991,29 +1075,82 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	// Works out why a thread stopped with SIGTRAP. Returns false if the stop is not worth reporting.
+	// Works out who owns a SIGTRAP. Returns false if an internal trap is not worth reporting.
 	bool PtraceEngine::ClassifyTrap(pid_t tid, ThreadInfo& info, Classified& result)
 	{
 		siginfo_t signalInfo {};
 		bool haveInfo = ptrace(PTRACE_GETSIGINFO, tid, nullptr, &signalInfo) == 0;
 		int code = haveInfo ? signalInfo.si_code : 0;
 
+		// Delivering a caught signal with PTRACE_SINGLESTEP stops after the kernel has entered its handler. Ordinarily
+		// that is TRAP_TRACE. When the delivered signal is SIGTRAP, Linux can retain its original non-positive si_code;
+		// in that case the changed PC proves that signal delivery entered the handler.
+		bool handlerEntry = info.handlerSignal && haveInfo && code == TRAP_TRACE;
+		if (info.handlerSignal && info.handlerResumePcValid)
+		{
+			uint64_t pc = 0;
+			handlerEntry |= ReadPc(tid, pc) && pc != info.handlerResumePc;
+		}
+		if (handlerEntry)
+		{
+			result.signalHandler = info.handlerSignal;
+			info.handlerSignal = 0;
+			info.handlerResumePcValid = false;
+			result.trapOrigin = TrapOrigin::SignalHandler;
+			return true;
+		}
+
+		// Signals explicitly sent by the target are never debugger breakpoints, even if the interrupted PC happens to be
+		// next to one. AArch64 also produces code-zero, pid-zero traps for some requested single steps, so SI_USER only
+		// identifies a sender when the kernel supplied one.
+		bool sentSignal = haveInfo && (code < 0 || (code == SI_USER && signalInfo.si_pid != 0));
+		if (sentSignal)
+		{
+			info.pendingSignal = SIGTRAP;
+			result.trapOrigin = TrapOrigin::Target;
+			return true;
+		}
+
 		if (code == TRAP_HWBKPT)
 		{
-			if (m_arch && m_arch->hwDebug)
+			bool ours = std::any_of(m_hardwareSlots.begin(), m_hardwareSlots.end(),
+				[](const HardwareSlot& slot) { return slot.used; });
+			if (ours && m_arch && m_arch->hwDebug)
+			{
 				m_arch->hwDebug->OnTrap(tid);
-			result.hardware = true;
+				result.hardware = true;
+				result.trapOrigin = TrapOrigin::HardwareBreakpoint;
+			}
+			else
+			{
+				info.pendingSignal = SIGTRAP;
+				result.trapOrigin = TrapOrigin::Target;
+			}
 			return true;
 		}
 
 		if (code == TRAP_TRACE)
 		{
-			result.stepTrap = true;
+			if (info.stepping)
+			{
+				result.stepTrap = true;
+				result.trapOrigin = TrapOrigin::SingleStep;
+			}
+			else
+			{
+				info.pendingSignal = SIGTRAP;
+				result.trapOrigin = TrapOrigin::Target;
+			}
 			return true;
 		}
 
+		// Architectures report a CPU breakpoint as TRAP_BRKPT or, notably for x86 int3, SI_KERNEL. Only those codes may
+		// be matched by PC: a user-generated SIGTRAP can stop at the same PC by coincidence.
+		bool breakpointCode = !haveInfo || code == TRAP_BRKPT || code == SI_KERNEL;
+		bool unownedTrapInstruction = haveInfo && code == TRAP_BRKPT;
 		uint64_t pc = 0;
-		if (m_arch && !m_arch->breakpointInstruction.empty() && ReadPc(tid, pc))
+		if (breakpointCode && m_arch && !m_arch->breakpointInstruction.empty() && ReadPc(tid, pc)
+			&& pc >= m_arch->breakpointPcAdjust)
 		{
 			uint64_t address = pc - m_arch->breakpointPcAdjust;
 			bool ours;
@@ -1030,16 +1167,35 @@ namespace BinaryNinjaDebugger {
 					WritePc(tid, address);
 				// A thread that trapped on a breakpoint that has just been removed only needs to run again
 				if (removed)
+				{
+					result.trapOrigin = TrapOrigin::Internal;
 					return false;
+				}
 
 				result.breakpoint = true;
+				result.trapOrigin = TrapOrigin::SoftwareBreakpoint;
 				return true;
 			}
+
+			// SI_KERNEL is also used for some debugger-requested traps. It is target-owned when the instruction at the
+			// adjusted PC is the architecture's trap opcode. TRAP_BRKPT itself is already definitive.
+			std::vector<uint8_t> instruction(m_arch->breakpointInstruction.size());
+			unownedTrapInstruction |= code == SI_KERNEL && RawReadMemory(address, instruction.data(), instruction.size())
+				&& instruction == m_arch->breakpointInstruction;
 		}
 
-		// Stepping over a system call traps like a breakpoint on x86, so this is a step if we asked for one
-		if (info.stepping)
+		// Some kernels report a requested step around a syscall with a generic kernel trap rather than TRAP_TRACE. Preserve
+		// that compatibility fallback, but never let it consume a trap instruction or an explicitly sent signal.
+		if (info.stepping && !unownedTrapInstruction)
+		{
 			result.stepTrap = true;
+			result.trapOrigin = TrapOrigin::SingleStep;
+		}
+		else
+		{
+			info.pendingSignal = SIGTRAP;
+			result.trapOrigin = TrapOrigin::Target;
+		}
 		return true;
 	}
 
@@ -1071,8 +1227,6 @@ namespace BinaryNinjaDebugger {
 		info.stopped = true;
 		int signal = WSTOPSIG(status);
 		int event = status >> 16;
-		int handlerSignal = info.handlerSignal;
-		info.handlerSignal = 0;
 
 		if (event == PTRACE_EVENT_CLONE)
 		{
@@ -1101,16 +1255,6 @@ namespace BinaryNinjaDebugger {
 		}
 		if (event != 0)
 			return result;
-
-		// The thread has been resumed into the handler of a signal, and this is where it has got to
-		if (handlerSignal && signal == SIGTRAP)
-		{
-			endGuard(true);
-			result.kind = StopKind::Report;
-			result.signal = SIGTRAP;
-			result.signalHandler = handlerSignal;
-			return result;
-		}
 
 		if (signal == SIGSTOP)
 		{
@@ -1152,6 +1296,9 @@ namespace BinaryNinjaDebugger {
 		}
 		else
 		{
+			// A different signal interrupted any outstanding single-step-to-handler operation.
+			info.handlerSignal = 0;
+			info.handlerResumePcValid = false;
 			info.pendingSignal = signal;
 		}
 
@@ -1166,21 +1313,33 @@ namespace BinaryNinjaDebugger {
 	{
 		auto& info = m_threads[tid];
 		int signal = info.pendingSignal;
-		info.pendingSignal = 0;
-		info.stopped = false;
 		bool step = info.stepping;
 
 		// Resuming with a single step and a signal delivers the signal and stops at the first instruction of its
 		// handler
-		info.handlerSignal = 0;
+		int handlerSignal = 0;
+		uint64_t handlerResumePc = 0;
+		bool handlerResumePcValid = false;
 		if (signal && !step && m_debugSignalHandlers && HasSignalHandler(signal))
 		{
 			step = true;
-			info.handlerSignal = signal;
+			handlerSignal = signal;
+			handlerResumePcValid = ReadPc(tid, handlerResumePc);
 		}
 
 		auto request = step ? PTRACE_SINGLESTEP : PTRACE_CONT;
-		return ptrace(request, tid, nullptr, (void*)(intptr_t)signal) == 0 || errno == ESRCH;
+		if (ptrace(request, tid, nullptr, (void*)(intptr_t)signal) != 0 && errno != ESRCH)
+			return false;
+
+		// Only commit the transition after the kernel accepted it. Otherwise a stopped thread would disappear from
+		// future resume attempts, and a pending signal could be lost.
+		info.pendingSignal = 0;
+		info.stopped = false;
+		info.handlerSignal = handlerSignal;
+		info.handlerResumePc = handlerResumePc;
+		info.handlerResumePcValid = handlerResumePcValid;
+		info.atReportedStop = false;
+		return true;
 	}
 
 
@@ -1210,19 +1369,26 @@ namespace BinaryNinjaDebugger {
 
 
 	// Lifts the breakpoints at an address, so that a thread can execute the instruction there
-	void PtraceEngine::BeginGuard(pid_t tid, uint64_t address)
+	bool PtraceEngine::BeginGuard(pid_t tid, uint64_t address)
 	{
 		auto& info = m_threads[tid];
 		info.guardAddress = address;
+		bool success = true;
 
 		{
 			std::lock_guard<std::mutex> lock(m_breakpointMutex);
 			auto it = m_breakpoints.find(address);
 			if (it != m_breakpoints.end() && it->second.inserted)
 			{
-				RawWriteMemory(address, it->second.original.data(), it->second.original.size());
-				it->second.inserted = false;
-				info.guardSoftware = true;
+				if (RawWriteMemory(address, it->second.original.data(), it->second.original.size()))
+				{
+					it->second.inserted = false;
+					info.guardSoftware = true;
+				}
+				else
+				{
+					success = false;
+				}
 			}
 		}
 
@@ -1234,26 +1400,40 @@ namespace BinaryNinjaDebugger {
 			if (slot.used
 				&& (info.hardwareBeforeAccess || (slot.type == PtraceHwType::Execute && slot.address == address)))
 			{
-				m_arch->hwDebug->Clear(tid, i);
-				info.guardSlots.push_back(i);
+				if (m_arch->hwDebug->Clear(tid, i))
+					info.guardSlots.push_back(i);
+				else
+					success = false;
 			}
 		}
+		return success;
 	}
 
 
-	void PtraceEngine::EndGuard(pid_t tid, bool threadAlive)
+	bool PtraceEngine::EndGuard(pid_t tid, bool threadAlive)
 	{
 		auto& info = m_threads[tid];
+		bool success = true;
 		if (info.guardSoftware)
 		{
-			info.guardSoftware = false;
 			std::lock_guard<std::mutex> lock(m_breakpointMutex);
 			auto it = m_breakpoints.find(info.guardAddress);
 			if (it != m_breakpoints.end() && !it->second.inserted && !it->second.suspended)
 			{
-				RawWriteMemory(
-					info.guardAddress, m_arch->breakpointInstruction.data(), m_arch->breakpointInstruction.size());
-				it->second.inserted = true;
+				if (threadAlive && !RawWriteMemory(
+						info.guardAddress, m_arch->breakpointInstruction.data(), m_arch->breakpointInstruction.size()))
+				{
+					success = false;
+				}
+				else
+				{
+					it->second.inserted = threadAlive;
+					info.guardSoftware = false;
+				}
+			}
+			else
+			{
+				info.guardSoftware = false;
 			}
 		}
 
@@ -1263,9 +1443,13 @@ namespace BinaryNinjaDebugger {
 		for (size_t index : slots)
 		{
 			const auto& slot = m_hardwareSlots[index];
-			if (threadAlive && slot.used)
-				m_arch->hwDebug->Set(tid, index, slot.address, slot.type, slot.size);
+			if (threadAlive && slot.used && !m_arch->hwDebug->Set(tid, index, slot.address, slot.type, slot.size))
+			{
+				info.guardSlots.push_back(index);
+				success = false;
+			}
 		}
+		return success;
 	}
 
 
@@ -1297,10 +1481,18 @@ namespace BinaryNinjaDebugger {
 			if (it == m_threads.end() || !it->second.stopped || !ReadPc(tid, pc))
 				continue;
 
-			BeginGuard(tid, pc);
+			if (!BeginGuard(tid, pc))
+			{
+				EndGuard(tid, true);
+				return false;
+			}
 			it->second.stepping = true;
 			m_stepOverTid = tid;
-			return ResumeThread(tid);
+			if (ResumeThread(tid))
+				return true;
+			it->second.stepping = false;
+			EndGuard(tid, true);
+			return false;
 		}
 
 		m_stepOverTid = -1;
@@ -1538,9 +1730,10 @@ namespace BinaryNinjaDebugger {
 		event.interrupted = stop.interrupted;
 		event.breakpoint = stop.breakpoint;
 		event.hardware = stop.hardware;
+		event.trapOrigin = stop.trapOrigin;
 		event.exec = stop.exec;
 		event.signalHandler = stop.signalHandler;
-		event.singleStep = m_threads[tid].stepping;
+		event.singleStep = stop.stepTrap;
 
 		for (auto& [id, info] : m_threads)
 			info.stepping = false;
@@ -1601,18 +1794,26 @@ namespace BinaryNinjaDebugger {
 
 			if (NeedsStepOver(id, info))
 				stepOver.push_back(id);
-			info.atReportedStop = false;
 		}
 
 		bool resumed;
 		if (step)
 		{
 			uint64_t pc;
-			if (!stepOver.empty() && ReadPc(tid, pc))
-				BeginGuard(tid, pc);
+			if (!stepOver.empty() && ReadPc(tid, pc) && !BeginGuard(tid, pc))
+			{
+				EndGuard(tid, true);
+				return false;
+			}
 
 			stepping->second.stepping = true;
 			resumed = ResumeThread(tid);
+			if (!resumed)
+			{
+				stepping->second.stepping = false;
+				if (stepping->second.guardSoftware || !stepping->second.guardSlots.empty())
+					EndGuard(tid, true);
+			}
 		}
 		else if (!stepOver.empty())
 		{
@@ -1636,8 +1837,26 @@ namespace BinaryNinjaDebugger {
 			return false;
 
 		std::lock_guard<std::mutex> lock(m_breakpointMutex);
-		if (m_breakpoints.count(address))
+		auto existing = m_breakpoints.find(address);
+		if (existing != m_breakpoints.end())
+		{
+			// A mapping can disappear and later be replaced at the same address. The saved record then says that the
+			// breakpoint is inserted even though the new mapping contains its original instruction. Revalidate an
+			// idempotent add so a loader rendezvous can repair that state.
+			if (!existing->second.inserted || existing->second.suspended)
+				return true;
+
+			std::vector<uint8_t> current(m_arch->breakpointInstruction.size());
+			if (!RawReadMemory(address, current.data(), current.size()))
+				return false;
+			if (current == m_arch->breakpointInstruction)
+				return true;
+
+			if (!RawWriteMemory(address, m_arch->breakpointInstruction.data(), m_arch->breakpointInstruction.size()))
+				return false;
+			existing->second.original = std::move(current);
 			return true;
+		}
 
 		const auto& instruction = m_arch->breakpointInstruction;
 		Breakpoint breakpoint;
@@ -1668,14 +1887,25 @@ namespace BinaryNinjaDebugger {
 		if (it == m_breakpoints.end())
 			return false;
 
-		if (it->second.inserted && !m_done)
-			RawWriteMemory(address, it->second.original.data(), it->second.original.size());
+		if (it->second.inserted && !m_done
+			&& !RawWriteMemory(address, it->second.original.data(), it->second.original.size()))
+			return false;
 		m_breakpoints.erase(it);
 
 		// A thread that is running may just have trapped on it
 		if (m_running)
 			m_recentlyRemoved.insert(address);
 		return true;
+	}
+
+
+	bool PtraceEngine::DoDiscardBreakpoint(uint64_t address)
+	{
+		if (m_running)
+			return false;
+
+		std::lock_guard<std::mutex> lock(m_breakpointMutex);
+		return m_breakpoints.erase(address) != 0;
 	}
 
 
@@ -1727,11 +1957,14 @@ namespace BinaryNinjaDebugger {
 			if (!slot.used || slot.address != address || slot.type != type || slot.size != size)
 				continue;
 
+			bool cleared = true;
 			for (const auto& [tid, info] : m_threads)
 			{
-				if (info.stopped)
-					m_arch->hwDebug->Clear(tid, index);
+				if (info.stopped && !m_arch->hwDebug->Clear(tid, index))
+					cleared = false;
 			}
+			if (!cleared)
+				return false;
 			slot.used = false;
 			return true;
 		}
@@ -1740,22 +1973,31 @@ namespace BinaryNinjaDebugger {
 
 
 	// Puts the target back the way it was before we let go of it
-	void PtraceEngine::RemoveAllBreakpoints()
+	bool PtraceEngine::RemoveAllBreakpoints()
 	{
+		bool success = true;
 		for (auto& [tid, info] : m_threads)
 		{
 			if (info.guardSoftware || !info.guardSlots.empty())
-				EndGuard(tid, true);
+				success &= EndGuard(tid, true);
 		}
 
 		{
 			std::lock_guard<std::mutex> lock(m_breakpointMutex);
-			for (auto& [address, breakpoint] : m_breakpoints)
+			for (auto it = m_breakpoints.begin(); it != m_breakpoints.end();)
 			{
-				if (breakpoint.inserted)
-					RawWriteMemory(address, breakpoint.original.data(), breakpoint.original.size());
+				auto& [address, breakpoint] = *it;
+				if (breakpoint.inserted
+					&& !RawWriteMemory(address, breakpoint.original.data(), breakpoint.original.size()))
+				{
+					success = false;
+					it++;
+				}
+				else
+				{
+					it = m_breakpoints.erase(it);
+				}
 			}
-			m_breakpoints.clear();
 		}
 
 		for (size_t index = 0; index < m_hardwareSlots.size(); index++)
@@ -1763,12 +2005,20 @@ namespace BinaryNinjaDebugger {
 			if (!m_hardwareSlots[index].used)
 				continue;
 
+			bool cleared = true;
 			for (const auto& [tid, info] : m_threads)
-				m_arch->hwDebug->Clear(tid, index);
-			m_hardwareSlots[index].used = false;
+				cleared &= m_arch->hwDebug->Clear(tid, index);
+			if (cleared)
+				m_hardwareSlots[index].used = false;
+			else
+				success = false;
 		}
-		m_stepOverQueue.clear();
-		m_stepOverTid = -1;
+		if (success)
+		{
+			m_stepOverQueue.clear();
+			m_stepOverTid = -1;
+		}
+		return success;
 	}
 
 
@@ -1848,11 +2098,29 @@ namespace BinaryNinjaDebugger {
 				return false;
 		}
 
-		RemoveAllBreakpoints();
-		for (const auto& [tid, info] : m_threads)
-			ptrace(PTRACE_DETACH, tid, nullptr, (void*)(intptr_t)info.pendingSignal);
+		if (!RemoveAllBreakpoints())
+			return false;
 
-		m_threads.clear();
+		bool detached = true;
+		std::vector<pid_t> tids;
+		for (const auto& [tid, info] : m_threads)
+			tids.push_back(tid);
+		for (pid_t tid : tids)
+		{
+			auto it = m_threads.find(tid);
+			if (it == m_threads.end())
+				continue;
+			if (ptrace(PTRACE_DETACH, tid, nullptr, (void*)(intptr_t)it->second.pendingSignal) == 0 || errno == ESRCH)
+				m_threads.erase(it);
+			else
+				detached = false;
+		}
+		if (!detached)
+		{
+			Publish();
+			return false;
+		}
+
 		m_done = true;
 		m_finished = true;
 		m_running = false;

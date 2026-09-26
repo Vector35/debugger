@@ -19,6 +19,9 @@ limitations under the License.
 #include <cerrno>
 #include <fstream>
 #include <sys/ptrace.h>
+#if defined(__i386__) || defined(__x86_64__)
+#include <sys/user.h>
+#endif
 
 namespace BinaryNinjaDebugger {
 
@@ -33,26 +36,27 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	// The debug registers are read and written through PTRACE_PEEKUSER and PTRACE_POKEUSER, at the offset of u_debugreg
-	// in struct user. The offset differs between 32-bit and 64-bit targets.
+	// PTRACE_PEEKUSER and PTRACE_POKEUSER use the ptracer's syscall ABI. A 64-bit debugger therefore uses its native
+	// struct user layout even when the tracee is a 32-bit process.
 	class X86HwDebug : public PtraceHwDebug
 	{
 		size_t m_offset;
+		size_t m_stride;
 
 		bool ReadDr(pid_t tid, size_t index, unsigned long& value)
 		{
 			errno = 0;
-			value = ptrace(PTRACE_PEEKUSER, tid, (void*)(m_offset + index * sizeof(long)), nullptr);
+			value = ptrace(PTRACE_PEEKUSER, tid, (void*)(m_offset + index * m_stride), nullptr);
 			return errno == 0;
 		}
 
 		bool WriteDr(pid_t tid, size_t index, unsigned long value)
 		{
-			return ptrace(PTRACE_POKEUSER, tid, (void*)(m_offset + index * sizeof(long)), (void*)value) == 0;
+			return ptrace(PTRACE_POKEUSER, tid, (void*)(m_offset + index * m_stride), (void*)value) == 0;
 		}
 
 	public:
-		X86HwDebug(size_t offset) : m_offset(offset) {}
+		X86HwDebug(size_t offset, size_t stride) : m_offset(offset), m_stride(stride) {}
 
 		size_t SlotCount() const override { return 4; }
 
@@ -104,6 +108,18 @@ namespace BinaryNinjaDebugger {
 	};
 
 
+	static PtraceHwDebug* NativeX86HwDebug()
+	{
+#if defined(__i386__) || defined(__x86_64__)
+		static X86HwDebug hwDebug(
+			offsetof(struct user, u_debugreg), sizeof(((struct user*)nullptr)->u_debugreg[0]));
+		return &hwDebug;
+#else
+		return nullptr;
+#endif
+	}
+
+
 	static void AddRegisters(PtraceArch& arch, int regset, size_t size, const std::vector<const char*>& names,
 		const std::vector<size_t>& indices)
 	{
@@ -122,8 +138,7 @@ namespace BinaryNinjaDebugger {
 		arch.regsets = {NT_PRSTATUS, NT_PRFPREG};
 		arch.breakpointInstruction = {0xcc};
 		arch.breakpointPcAdjust = 1;
-		static X86HwDebug hwDebug(848);
-		arch.hwDebug = &hwDebug;
+		arch.hwDebug = NativeX86HwDebug();
 
 		// The order of user_regs_struct: r15 r14 r13 r12 rbp rbx r11 r10 r9 r8 rax rcx rdx rsi rdi orig_rax rip cs
 		// eflags rsp ss fs_base gs_base ds es fs gs. The registers are listed in the order GDB uses.
@@ -155,8 +170,7 @@ namespace BinaryNinjaDebugger {
 		arch.regsets = {NT_PRSTATUS};
 		arch.breakpointInstruction = {0xcc};
 		arch.breakpointPcAdjust = 1;
-		static X86HwDebug hwDebug(252);
-		arch.hwDebug = &hwDebug;
+		arch.hwDebug = NativeX86HwDebug();
 
 		// The order of the 32-bit user_regs_struct: ebx ecx edx esi edi ebp eax xds xes xfs xgs orig_eax eip xcs
 		// eflags esp xss

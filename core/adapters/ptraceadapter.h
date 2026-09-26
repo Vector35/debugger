@@ -69,6 +69,8 @@ namespace BinaryNinjaDebugger {
 			// The function that the breakpoint is at the very start of, if it is. That is what it can be found by in
 			// another program.
 			std::string function;
+			// The physical installation for this logical breakpoint. Loader rendezvous stops reconcile it with location.
+			uint64_t appliedAddress = 0;
 		};
 		std::vector<KnownBreakpoint> m_knownBreakpoints;
 		std::vector<PendingHardwareBreakpoint> m_knownHardwareBreakpoints;
@@ -92,7 +94,7 @@ namespace BinaryNinjaDebugger {
 		void CreateEngine(bool attached);
 		void SetUpLoaderBreakpoint();
 		bool AcquireBreakpoint(uint64_t address);
-		bool ReleaseBreakpoint(uint64_t address);
+		bool ReleaseBreakpoint(uint64_t address, bool restore = true);
 		bool IsUserBreakpoint(uint64_t address);
 		void DoStepOver(uint32_t tid);
 		void DoStepReturn(uint32_t tid);

@@ -1,8 +1,9 @@
 # ptrace engine test harness
 
-This is the harness that the ptrace adapter was tested with. It is **not wired into CMake or CI**, and it is not part of
-any commit. It tests the parts of the adapter that do not need Binary Ninja: the engine, the arch tables, the ELF reader,
-the module grouping, the frame walker, and the stepper. It does **not** test `ptraceadapter.cpp`.
+This is the harness that the ptrace adapter was tested with. It is **not wired into CMake or CI**. It tests the parts of
+the adapter that do not need Binary Ninja: the engine, the arch tables, the ELF reader, the module grouping, the frame
+walker, and the stepper. It does **not** run `ptraceadapter.cpp`, though the loader tests exercise the engine operations
+that the adapter uses to reconcile breakpoints.
 
 It runs real processes under real ptrace, so it needs Linux, and in a container it needs `--cap-add=SYS_PTRACE` and
 `--security-opt seccomp=unconfined` (the default seccomp profile blocks `personality()`, which is used to disable ASLR).
@@ -11,7 +12,7 @@ Files:
 
 | File | What it is |
 | --- | --- |
-| `driver.cpp` | The tests (87 of them). The `conf_*` tests run scenarios of `test/debugger_test.py` on the repository's own Linux test binaries, so they need `test/binaries/Linux-arm64` mounted at `/bins`, `api/` at `/api` and the Binary Ninja API at `/bnapi`. `./driver` runs all, `./driver <name>` runs one. |
+| `driver.cpp` | The tests. The `conf_*` tests run scenarios of `test/debugger_test.py` on the repository's own Linux test binaries, so they need `test/binaries/Linux-arm64` mounted at `/bins`, `api/` at `/api` and the Binary Ninja API at `/bnapi`. `./driver` runs all, `./driver <name>` runs one. |
 | `progs.c` | The target programs the tests launch (`./progs <mode>`). |
 | `libtest.c` | A small shared library, for the `dlopen` test. |
 | `Dockerfile` | An Ubuntu 24.04 image with g++ and clang++. The sanitizer and `readelf` checks also need `binutils`, which comes with g++. |
@@ -20,6 +21,10 @@ Files:
 | `run_fork_exec.sh` | The fork and exec tests: stress rounds, single-CPU rounds, and both sanitizers. |
 | `run_attach_redirect.sh` | The attach and redirect tests: the full suite, stress rounds, single-CPU rounds, and both sanitizers. Needs the `/bnapi` and `/bins` mounts as well. |
 | `layout.cpp` | Checks the x86 and x86_64 register tables and debug-register offsets against the real `<sys/user.h>`. |
+| `fault_driver.cpp`, `faultwrap.cpp`, `run_faults.sh` | Inject failures into ptrace, memory writes, and target-memory setup to check that operations fail transactionally. |
+| `hwabi.cpp`, `run_hwabi.sh` | Checks that x86 hardware debug-register offsets use the ptracer ABI, including a 64-bit ptracer with an x86 inferior. |
+| `event_exception_demo.cpp`, `run_event_exception_demo.sh` | Demonstrates that an exception escaping an event task or handler currently invokes `std::terminate` and aborts the debugger process. |
+| `SIGTRAP_OWNERSHIP.md` | Design and regression plan for separating debugger-owned traps from target-generated SIGTRAP delivery. |
 | `elfcmp.cpp`, `elfref.sh`, `cmp2.sh` | Compares the ELF symbol reader with `readelf`. |
 
 The scripts expect `../../core/adapters` mounted at `/src` and this directory mounted at `/work`:
@@ -27,7 +32,9 @@ The scripts expect `../../core/adapters` mounted at `/src` and this directory mo
 ```bash
 docker build -t ptrace-test test/ptrace_engine
 docker run --rm --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
-    -v "$PWD/core/adapters:/src:ro" -v "$PWD/test/ptrace_engine:/work" ptrace-test bash /work/run_all.sh
+    -v "$PWD/core/adapters:/src:ro" -v "$PWD/api:/api:ro" \
+    -v "$PWD/test/ptrace_engine:/work" -v "$PWD/test/binaries/Linux-arm64:/bins:ro" \
+    -v /path/to/binaryninja-api:/bnapi:ro ptrace-test bash /work/run_all.sh
 ```
 
 Things to know:

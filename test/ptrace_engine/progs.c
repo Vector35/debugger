@@ -7,7 +7,10 @@
 #include <string.h>
 #include <time.h>
 #include <dlfcn.h>
+#include <stdint.h>
+#include <sys/mman.h>
 #include <sys/wait.h>
+#include <ucontext.h>
 #include <spawn.h>
 extern char** environ;
 #include <sys/ioctl.h>
@@ -32,6 +35,29 @@ static void* stepWorker(void* a) { for (int i = 0; i < 300; i++) { if (a == (voi
 static volatile int handled;
 __attribute__((noinline)) void sigHandler(int s) { handled++; }
 __attribute__((noinline)) void infoHandler(int s, siginfo_t* i, void* c) { handled += 10; }
+__attribute__((noinline)) void trapHandler(int s, siginfo_t* i, void* context)
+{
+	handled++;
+#if defined(__aarch64__)
+	// AArch64 reports BRK at the trapping instruction, so returning without advancing would execute it forever. Signals
+	// sent with raise/tgkill have a non-positive si_code and already have the correct return PC.
+	if (i && i->si_code > 0)
+		((ucontext_t*)context)->uc_mcontext.pc += 4;
+#endif
+}
+__attribute__((noinline)) void raiseTrap(void) { raise(SIGTRAP); }
+extern char before_trap_instruction[];
+extern char target_trap_instruction[];
+__attribute__((noinline)) void instructionTrap(void)
+{
+#if defined(__x86_64__)
+	asm volatile(".global before_trap_instruction\n before_trap_instruction:\n nop\n"
+		".global target_trap_instruction\n target_trap_instruction:\n int3");
+#elif defined(__aarch64__)
+	asm volatile(".global before_trap_instruction\n before_trap_instruction:\n nop\n"
+		".global target_trap_instruction\n target_trap_instruction:\n brk #0");
+#endif
+}
 static void* handlerWaiter(void* a) { while (!handled) usleep(1000); return 0; }
 static int bad;
 static void* execWorker(void* a) { usleep(100000); execl("/work/progs", "progs", "hello", (char*)0); return 0; }
@@ -40,6 +66,7 @@ static void* markerThread(void* a) { for (int i = 0; i < 3; i++) { marker(); usl
 static void* writer(void* a) { usleep(20000); wvar = 7; return 0; }
 static void* spin(void* a) { volatile unsigned long x = 0; while (1) x++; return 0; }
 static void* shortlived(void* a) { usleep(1000); return 0; }
+static int libraryRange(uintptr_t* first, uintptr_t* last) { FILE* f = fopen("/proc/self/maps", "r"); char line[512]; *first = UINTPTR_MAX; *last = 0; if (!f) return 0; while (fgets(line, sizeof(line), f)) { unsigned long a, b; if (strstr(line, "/work/libtest.so") && sscanf(line, "%lx-%lx", &a, &b) == 2) { if (a < *first) *first = a; if (b > *last) *last = b; } } fclose(f); return *last > *first; }
 int main(int argc, char** argv)
 {
 	const char* mode = argc > 1 ? argv[1] : "hello";
@@ -64,6 +91,8 @@ int main(int argc, char** argv)
 	if (!strcmp(mode, "frames")) { signal(SIGUSR1, SIG_IGN); level1(); return counter; }
 	if (!strcmp(mode, "syms")) { signal(SIGUSR1, SIG_IGN); printf("marker=%p puts=%p\n", (void*)marker, dlsym(RTLD_DEFAULT, "puts")); raise(SIGUSR1); return 0; }
 	if (!strcmp(mode, "dl")) { signal(SIGUSR1, SIG_IGN); printf("ready\n"); raise(SIGUSR1); void* h = dlopen("/work/libtest.so", RTLD_NOW); printf("loaded=%p\n", h); void (*f)(void) = (void (*)(void))dlsym(h, "libfunc"); printf("libfunc=%p\n", (void*)f); raise(SIGUSR1); f(); return 0; }
+	if (!strcmp(mode, "dlcycle")) { signal(SIGUSR1, SIG_IGN); for (int i = 1; i <= 2; i++) { void* h = dlopen("/work/libtest.so", RTLD_NOW); void (*f)(void) = (void (*)(void))dlsym(h, "libfunc"); printf("cycle%d=%p\n", i, (void*)f); raise(SIGUSR1); f(); dlclose(h); } return 0; }
+	if (!strcmp(mode, "dlrebase")) { signal(SIGUSR1, SIG_IGN); void* h = dlopen("/work/libtest.so", RTLD_NOW); void (*f)(void) = (void (*)(void))dlsym(h, "libfunc"); uintptr_t lo, hi; int range = libraryRange(&lo, &hi); printf("cycle1=%p\n", (void*)f); raise(SIGUSR1); f(); dlclose(h); void* held = range ? mmap((void*)lo, hi - lo, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0) : MAP_FAILED; h = dlopen("/work/libtest.so", RTLD_NOW); f = (void (*)(void))dlsym(h, "libfunc"); printf("reserved=%p cycle2=%p\n", held, (void*)f); raise(SIGUSR1); f(); dlclose(h); return held == MAP_FAILED; }
 	if (!strcmp(mode, "stepover")) { signal(SIGUSR1, SIG_IGN); caller(0); return counter; }
 	if (!strcmp(mode, "stepslow")) { signal(SIGUSR1, SIG_IGN); caller(1); return counter; }
 	if (!strcmp(mode, "recurse")) { signal(SIGUSR1, SIG_IGN); recurse(3); return counter; }
@@ -81,6 +110,10 @@ int main(int argc, char** argv)
 	if (!strcmp(mode, "execthread")) { signal(SIGUSR1, SIG_IGN); pthread_t t; pthread_create(&t, 0, execWorker, 0); raise(SIGUSR1); pthread_join(t, 0); return 99; }
 	if (!strcmp(mode, "sighandler")) { signal(SIGUSR1, SIG_IGN); struct sigaction sa; memset(&sa, 0, sizeof sa); sa.sa_sigaction = infoHandler; sa.sa_flags = SA_SIGINFO | SA_RESTART; sigaction(SIGUSR2, &sa, 0); signal(SIGWINCH, sigHandler); printf("info=%p handler=%p\n", (void*)infoHandler, (void*)sigHandler); raise(SIGUSR1); raise(SIGUSR2); raise(SIGWINCH); raise(SIGCHLD); return handled; }
 	if (!strcmp(mode, "sigthread")) { signal(SIGUSR1, SIG_IGN); signal(SIGWINCH, sigHandler); printf("handler=%p\n", (void*)sigHandler); pthread_t t; pthread_create(&t, 0, handlerWaiter, 0); raise(SIGUSR1); usleep(50000); pthread_kill(t, SIGWINCH); pthread_join(t, 0); return handled; }
+	if (!strcmp(mode, "sigtrap_raise")) { signal(SIGUSR1, SIG_IGN); struct sigaction sa; memset(&sa, 0, sizeof sa); sa.sa_sigaction = trapHandler; sa.sa_flags = SA_SIGINFO; sigaction(SIGTRAP, &sa, 0); printf("raiser=%p handler=%p\n", (void*)raiseTrap, (void*)trapHandler); raise(SIGUSR1); raiseTrap(); return handled; }
+	if (!strcmp(mode, "sigtrap_kill")) { signal(SIGUSR1, SIG_IGN); struct sigaction sa; memset(&sa, 0, sizeof sa); sa.sa_sigaction = trapHandler; sa.sa_flags = SA_SIGINFO; sigaction(SIGTRAP, &sa, 0); raise(SIGUSR1); kill(getpid(), SIGTRAP); return handled; }
+	if (!strcmp(mode, "sigtrap_instruction")) { signal(SIGUSR1, SIG_IGN); struct sigaction sa; memset(&sa, 0, sizeof sa); sa.sa_sigaction = trapHandler; sa.sa_flags = SA_SIGINFO; sigaction(SIGTRAP, &sa, 0); printf("before=%p trap=%p handler=%p\n", (void*)before_trap_instruction, (void*)target_trap_instruction, (void*)trapHandler); raise(SIGUSR1); instructionTrap(); return handled; }
+	if (!strcmp(mode, "sigtrap_unhandled")) { signal(SIGUSR1, SIG_IGN); raise(SIGUSR1); raise(SIGTRAP); return 99; }
 	if (!strcmp(mode, "execpad")) { signal(SIGUSR1, SIG_IGN); printf("marker=%p\n", (void*)marker); raise(SIGUSR1); execl("/work/progs_pad", "progs_pad", "bp", (char*)0); return 99; }
 	if (!strcmp(mode, "abort")) { abort(); }
 	if (!strcmp(mode, "fdwrite")) { for (int i = 2; i < argc; i++) { int fd = atoi(argv[i]); char b[32]; int n = snprintf(b, 32, "fd%d\n", fd); if (write(fd, b, n) != n) printf("write to %d failed\n", fd); } return 0; }

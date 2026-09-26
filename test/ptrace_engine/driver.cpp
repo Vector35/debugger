@@ -746,6 +746,69 @@ static void t_loader()
 	e->Kill();
 }
 
+static void t_library_reload_breakpoint()
+{
+	Log log; auto e = start(log, "dlcycle"); if (!e) return; PtraceEngine::Event ev;
+	CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(e->Resume(false, 0));
+	CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(ev.signal == SIGUSR1);
+	uint64_t first = addrOf(log, "cycle1="); CHECK(first != 0); CHECK(e->AddBreakpoint(first));
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.breakpoint && pcOf(*e, ev.tid) == first);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(ev.signal == SIGUSR1);
+	uint64_t second = addrOf(log, "cycle2="); CHECK(second != 0);
+	if (second != first)
+	{
+		printf("  SKIP: loader chose a different address (%llx -> %llx)\n", (unsigned long long)first, (unsigned long long)second);
+		e->Kill(); return;
+	}
+	// The old record survived dlclose. Even asking to add the same breakpoint again reports success without
+	// reinstalling it into the replacement mapping.
+	CHECK(e->AddBreakpoint(second));
+	auto raw = rawRead(e->GetPid(), second, kBreakInsn.size());
+	printf("  reloaded at the same address; physical breakpoint present=%d\n", raw == kBreakInsn);
+	CHECK(raw == kBreakInsn);
+	CHECK(e->RemoveBreakpoint(second)); CHECK(e->Resume(false, 0));
+	CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 0);
+}
+
+static void t_library_rebase_breakpoint()
+{
+	Log log; auto e = start(log, "dlrebase"); if (!e) return; PtraceEngine::Event ev;
+	CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(e->Resume(false, 0));
+	CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	uint64_t first = addrOf(log, "cycle1="); CHECK(first != 0); CHECK(e->AddBreakpoint(first));
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(ev.breakpoint);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	uint64_t second = addrOf(log, "cycle2="); CHECK(second != 0); CHECK(second != first);
+	// The adapter must discard the physical record without restoring stale bytes into the replacement mapping, then
+	// resolve the logical module-relative breakpoint at its new address.
+	CHECK(e->DiscardBreakpoint(first)); CHECK(e->AddBreakpoint(second));
+	auto raw = rawRead(e->GetPid(), second, kBreakInsn.size());
+	printf("  rebased %llx -> %llx; physical breakpoint at replacement=%d\n", (unsigned long long)first,
+		(unsigned long long)second, raw == kBreakInsn);
+	CHECK(raw == kBreakInsn);
+	CHECK(e->RemoveBreakpoint(second)); CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev));
+}
+
+static void t_library_rebase_hardware()
+{
+	Log log; auto e = start(log, "dlrebase"); if (!e) return; PtraceEngine::Event ev;
+	CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(e->Resume(false, 0));
+	CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	uint64_t first = addrOf(log, "cycle1="); CHECK(first != 0);
+	if (!e->AddHardwareBreakpoint(first, PtraceHwType::Execute, 4)) { printf("  SKIP: no hardware breakpoints\n"); e->Kill(); return; }
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(ev.hardware);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	uint64_t second = addrOf(log, "cycle2="); CHECK(second != 0); CHECK(second != first);
+	// A module-relative hardware breakpoint must move with the mapping rather than remaining armed at the old address.
+	CHECK(e->RemoveHardwareBreakpoint(first, PtraceHwType::Execute, 4));
+	CHECK(e->AddHardwareBreakpoint(second, PtraceHwType::Execute, 4));
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.hardware && pcOf(*e, ev.tid) == second);
+	CHECK(e->RemoveHardwareBreakpoint(second, PtraceHwType::Execute, 4));
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 0);
+}
+
 static void t_processes()
 {
 	Log log; auto e = start(log, "sleeper"); if (!e) return;
@@ -1040,6 +1103,26 @@ static void t_repro_echo()
 	printf("  REPRO stdin echo: output was [%s]\n", shown.c_str());
 }
 
+static double cpuSeconds();
+
+static void t_stdin_backpressure()
+{
+	Log log; auto e = start(log, "cat"); if (!e) return; PtraceEngine::Event ev;
+	CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	std::string input(8 << 20, 'x');
+	double c0 = cpuSeconds();
+	auto writer = std::async(std::launch::async, [&] { return e->WriteInput(input); });
+	std::this_thread::sleep_for(300ms);
+	double cpu = cpuSeconds() - c0;
+	printf("  debugger used %.0f ms of CPU during 300 ms of stopped-target backpressure\n", cpu * 1000);
+	CHECK(writer.wait_for(0s) == std::future_status::ready);
+	// Release the writer even on the buggy path. The target reads one line and exits, closing the PTY.
+	CHECK(e->Resume(false, 0));
+	CHECK(writer.wait_for(5s) == std::future_status::ready);
+	if (writer.wait_for(0s) == std::future_status::ready)
+		writer.get();
+}
+
 static void t_repro_sigchld_ignored()
 {
 	signal(SIGCHLD, SIG_IGN);
@@ -1158,6 +1241,90 @@ static void t_handlers_thread()
 	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev, 5s));
 	// the handler runs in the thread that the signal was sent to
 	CHECK(ev.signalHandler == SIGWINCH); CHECK(ev.tid != pid); CHECK(pcOf(*e, ev.tid) == handler); CHECK(e->GetThreads().size() == 2);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 1);
+}
+
+static void t_sigtrap_raise()
+{
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "sigtrap_raise", tid, ev); if (!e) return;
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.signal == SIGTRAP && ev.trapOrigin == PtraceEngine::TrapOrigin::Target);
+	CHECK(!ev.breakpoint && !ev.hardware && !ev.singleStep && ev.signalHandler == 0);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 1);
+}
+
+static void t_sigtrap_kill()
+{
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "sigtrap_kill", tid, ev); if (!e) return;
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.signal == SIGTRAP && ev.trapOrigin == PtraceEngine::TrapOrigin::Target);
+	CHECK(!ev.breakpoint && !ev.singleStep);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 1);
+}
+
+static void t_sigtrap_handler_debug()
+{
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "sigtrap_raise", tid, ev); if (!e) return;
+	e->SetDebugSignalHandlers(true);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.signal == SIGTRAP && ev.trapOrigin == PtraceEngine::TrapOrigin::Target);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.signalHandler == SIGTRAP && ev.trapOrigin == PtraceEngine::TrapOrigin::SignalHandler);
+	CHECK(!ev.breakpoint && !ev.hardware && !ev.singleStep);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 1);
+}
+
+static void t_sigtrap_instruction()
+{
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "sigtrap_instruction", tid, ev); if (!e) return;
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.signal == SIGTRAP && ev.trapOrigin == PtraceEngine::TrapOrigin::Target);
+	CHECK(!ev.breakpoint && !ev.singleStep);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 1);
+}
+
+static void t_sigtrap_instruction_handler_debug()
+{
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "sigtrap_instruction", tid, ev); if (!e) return;
+	e->SetDebugSignalHandlers(true);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.signal == SIGTRAP && ev.trapOrigin == PtraceEngine::TrapOrigin::Target);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.signalHandler == SIGTRAP && ev.trapOrigin == PtraceEngine::TrapOrigin::SignalHandler);
+	CHECK(!ev.breakpoint && !ev.singleStep);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 1);
+}
+
+static void t_sigtrap_unhandled()
+{
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "sigtrap_unhandled", tid, ev); if (!e) return;
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.signal == SIGTRAP && ev.trapOrigin == PtraceEngine::TrapOrigin::Target);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.signal == SIGTRAP);
+}
+
+static void t_sigtrap_after_breakpoint()
+{
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "sigtrap_raise", tid, ev); if (!e) return;
+	uint64_t raiser = addrOf(log, "raiser="); CHECK(raiser != 0); CHECK(e->AddBreakpoint(raiser));
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.breakpoint && ev.trapOrigin == PtraceEngine::TrapOrigin::SoftwareBreakpoint);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.signal == SIGTRAP && ev.trapOrigin == PtraceEngine::TrapOrigin::Target && !ev.breakpoint);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 1);
+}
+
+static void t_sigtrap_while_stepping()
+{
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "sigtrap_instruction", tid, ev); if (!e) return;
+	uint64_t before = addrOf(log, "before="); uint64_t trap = addrOf(log, "trap=");
+	CHECK(before != 0 && trap != 0); CHECK(e->AddBreakpoint(before));
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(ev.breakpoint);
+	CHECK(e->Resume(true, ev.tid)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.singleStep && ev.trapOrigin == PtraceEngine::TrapOrigin::SingleStep); CHECK(pcOf(*e, ev.tid) == trap);
+	CHECK(e->Resume(true, ev.tid)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(ev.signal == SIGTRAP && ev.trapOrigin == PtraceEngine::TrapOrigin::Target);
+	CHECK(!ev.singleStep && !ev.breakpoint);
 	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 1);
 }
 
@@ -1694,8 +1861,8 @@ int main(int argc, char** argv)
 	struct { const char* n; void (*f)(); } tests[] = {
 		{"hello", t_hello}, {"step", t_step}, {"interrupt", t_interrupt}, {"threads", t_threads}, {"churn", t_churn},
 		{"signal", t_signal}, {"silent", t_silent}, {"detach", t_detach}, {"kill_running", t_kill_running},
-		{"dtor_kills", t_dtor_kills}, {"launch_errors", t_launch_errors}, {"args_cwd", t_args_cwd}, {"stdin", t_stdin},
-		{"nopty", t_nopty}, {"relaunch", t_relaunch}, {"regs_step", t_regs_step}, {"regs_running", t_regs_running}, {"memory", t_memory}, {"bp_basic", t_bp_basic}, {"bp_step_remove", t_bp_step_remove}, {"bp_write", t_bp_write}, {"bp_threads", t_bp_threads}, {"bp_interrupts", t_bp_interrupts}, {"bp_remove_running", t_bp_remove_running}, {"bp_detach", t_bp_detach}, {"hw_watch", t_hw_watch}, {"hw_thread", t_hw_thread}, {"hw_exec", t_hw_exec}, {"hw_detach", t_hw_detach}, {"modules", t_modules}, {"symbols", t_symbols}, {"frames", t_frames}, {"loader", t_loader}, {"processes", t_processes}, {"stepover_basic", t_stepover_basic}, {"stepover_user_breakpoint", t_stepover_user_breakpoint}, {"stepover_interrupt", t_stepover_interrupt}, {"stepover_recursion", t_stepover_recursion}, {"stepreturn_sites", t_stepreturn_sites}, {"stepreturn_address", t_stepreturn_address}, {"stepreturn_recursion", t_stepreturn_recursion}, {"stepover_threads", t_stepover_threads}, {"perf", t_perf}, {"detach_reaped", t_detach_reaped}, {"fork_child", t_fork_child}, {"vfork", t_vfork}, {"spawn", t_spawn}, {"fork_threads", t_fork_threads}, {"interrupt_burst", t_interrupt_burst}, {"handlers_off", t_handlers_off}, {"handlers_on", t_handlers_on}, {"handlers_toggle", t_handlers_toggle}, {"handlers_thread", t_handlers_thread}, {"signal_reasons", t_signal_reasons}, {"conf_exitcode", t_conf_exitcode}, {"conf_exceptions", t_conf_exceptions}, {"conf_entry_step_exit", t_conf_entry_step_exit}, {"conf_memory_registers", t_conf_memory_registers}, {"conf_threads_restart", t_conf_threads_restart}, {"conf_symbols_modules", t_conf_symbols_modules}, {"elf_names", t_elf_names}, {"exec_by_name", t_exec_by_name}, {"exec_basic", t_exec_basic}, {"exec_rebreak", t_exec_rebreak}, {"exec_thread", t_exec_thread}, {"exec_continue", t_exec_continue}, {"winsize", t_winsize}, {"repro_echo", t_repro_echo}, {"repro_sigchld_ignored", t_repro_sigchld_ignored}, {"attach_threads", t_attach_threads}, {"attach_breakpoint", t_attach_breakpoint}, {"attach_step_at_breakpoint", t_attach_step_at_breakpoint}, {"attach_exit", t_attach_exit}, {"attach_kill", t_attach_kill}, {"attach_dtor_detaches", t_attach_dtor_detaches}, {"attach_errors", t_attach_errors}, {"attach_churn", t_attach_churn}, {"attach_syscall", t_attach_syscall}, {"redirect_parse", t_redirect_parse}, {"redirect_stdout", t_redirect_stdout}, {"redirect_stdin", t_redirect_stdin}, {"redirect_stderr_merge", t_redirect_stderr_merge}, {"redirect_other_fds", t_redirect_other_fds}, {"redirect_append_readwrite", t_redirect_append_readwrite}, {"redirect_relative", t_redirect_relative}, {"redirect_errors", t_redirect_errors}, {"redirect_leaks", t_redirect_leaks}};
+		{"dtor_kills", t_dtor_kills}, {"launch_errors", t_launch_errors}, {"args_cwd", t_args_cwd}, {"stdin", t_stdin}, {"stdin_backpressure", t_stdin_backpressure},
+		{"nopty", t_nopty}, {"relaunch", t_relaunch}, {"regs_step", t_regs_step}, {"regs_running", t_regs_running}, {"memory", t_memory}, {"bp_basic", t_bp_basic}, {"bp_step_remove", t_bp_step_remove}, {"bp_write", t_bp_write}, {"bp_threads", t_bp_threads}, {"bp_interrupts", t_bp_interrupts}, {"bp_remove_running", t_bp_remove_running}, {"bp_detach", t_bp_detach}, {"hw_watch", t_hw_watch}, {"hw_thread", t_hw_thread}, {"hw_exec", t_hw_exec}, {"hw_detach", t_hw_detach}, {"modules", t_modules}, {"symbols", t_symbols}, {"frames", t_frames}, {"loader", t_loader}, {"library_reload_breakpoint", t_library_reload_breakpoint}, {"library_rebase_breakpoint", t_library_rebase_breakpoint}, {"library_rebase_hardware", t_library_rebase_hardware}, {"processes", t_processes}, {"stepover_basic", t_stepover_basic}, {"stepover_user_breakpoint", t_stepover_user_breakpoint}, {"stepover_interrupt", t_stepover_interrupt}, {"stepover_recursion", t_stepover_recursion}, {"stepreturn_sites", t_stepreturn_sites}, {"stepreturn_address", t_stepreturn_address}, {"stepreturn_recursion", t_stepreturn_recursion}, {"stepover_threads", t_stepover_threads}, {"perf", t_perf}, {"detach_reaped", t_detach_reaped}, {"fork_child", t_fork_child}, {"vfork", t_vfork}, {"spawn", t_spawn}, {"fork_threads", t_fork_threads}, {"interrupt_burst", t_interrupt_burst}, {"handlers_off", t_handlers_off}, {"handlers_on", t_handlers_on}, {"handlers_toggle", t_handlers_toggle}, {"handlers_thread", t_handlers_thread}, {"sigtrap_raise", t_sigtrap_raise}, {"sigtrap_kill", t_sigtrap_kill}, {"sigtrap_handler_debug", t_sigtrap_handler_debug}, {"sigtrap_instruction", t_sigtrap_instruction}, {"sigtrap_instruction_handler_debug", t_sigtrap_instruction_handler_debug}, {"sigtrap_unhandled", t_sigtrap_unhandled}, {"sigtrap_after_breakpoint", t_sigtrap_after_breakpoint}, {"sigtrap_while_stepping", t_sigtrap_while_stepping}, {"signal_reasons", t_signal_reasons}, {"conf_exitcode", t_conf_exitcode}, {"conf_exceptions", t_conf_exceptions}, {"conf_entry_step_exit", t_conf_entry_step_exit}, {"conf_memory_registers", t_conf_memory_registers}, {"conf_threads_restart", t_conf_threads_restart}, {"conf_symbols_modules", t_conf_symbols_modules}, {"elf_names", t_elf_names}, {"exec_by_name", t_exec_by_name}, {"exec_basic", t_exec_basic}, {"exec_rebreak", t_exec_rebreak}, {"exec_thread", t_exec_thread}, {"exec_continue", t_exec_continue}, {"winsize", t_winsize}, {"repro_echo", t_repro_echo}, {"repro_sigchld_ignored", t_repro_sigchld_ignored}, {"attach_threads", t_attach_threads}, {"attach_breakpoint", t_attach_breakpoint}, {"attach_step_at_breakpoint", t_attach_step_at_breakpoint}, {"attach_exit", t_attach_exit}, {"attach_kill", t_attach_kill}, {"attach_dtor_detaches", t_attach_dtor_detaches}, {"attach_errors", t_attach_errors}, {"attach_churn", t_attach_churn}, {"attach_syscall", t_attach_syscall}, {"redirect_parse", t_redirect_parse}, {"redirect_stdout", t_redirect_stdout}, {"redirect_stdin", t_redirect_stdin}, {"redirect_stderr_merge", t_redirect_stderr_merge}, {"redirect_other_fds", t_redirect_other_fds}, {"redirect_append_readwrite", t_redirect_append_readwrite}, {"redirect_relative", t_redirect_relative}, {"redirect_errors", t_redirect_errors}, {"redirect_leaks", t_redirect_leaks}};
 	for (auto& t : tests)
 	{
 		if (argc > 1 && strcmp(argv[1], t.n)) continue;

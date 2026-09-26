@@ -136,6 +136,8 @@ namespace BinaryNinjaDebugger {
 		// Stopped at the handler of a signal, so it is the signal that is the reason
 		if (event.signalHandler)
 			return StopReasonFromLinuxSignal(event.signalHandler);
+		if (event.trapOrigin == PtraceEngine::TrapOrigin::Target)
+			return StopReasonFromLinuxSignal(event.signal);
 		if (event.breakpoint || event.hardware)
 			return Breakpoint;
 		if (event.signal == SIGTRAP)
@@ -651,7 +653,7 @@ namespace BinaryNinjaDebugger {
 			m_pendingBreakpoints.push_back(address);
 		if (std::none_of(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
 				[&address](const KnownBreakpoint& known) { return known.location == address; }))
-			m_knownBreakpoints.push_back({address, ""});
+			m_knownBreakpoints.push_back({address, "", 0});
 		return DebugBreakpoint();
 	}
 
@@ -671,8 +673,9 @@ namespace BinaryNinjaDebugger {
 			return false;
 
 		m_breakpoints.erase(it);
-		if (known)
-			std::erase_if(m_knownBreakpoints, [&location](const KnownBreakpoint& k) { return k.location == location; });
+		std::erase_if(m_knownBreakpoints, [&](const KnownBreakpoint& k) {
+			return k.appliedAddress == breakpoint.m_address || (known && k.location == location);
+		});
 		return true;
 	}
 
@@ -680,16 +683,27 @@ namespace BinaryNinjaDebugger {
 	bool PtraceAdapter::RemoveBreakpoint(const ModuleNameAndOffset& address)
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
-		std::erase_if(m_knownBreakpoints, [&address](const KnownBreakpoint& k) { return k.location == address; });
-		auto pending = std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address);
-		if (pending != m_pendingBreakpoints.end())
+		auto known = std::find_if(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+			[&address](const KnownBreakpoint& k) { return k.location == address; });
+		if (known != m_knownBreakpoints.end() && known->appliedAddress)
 		{
-			m_pendingBreakpoints.erase(pending);
-			return true;
+			uint64_t appliedAddress = known->appliedAddress;
+			auto breakpoint = std::find_if(m_breakpoints.begin(), m_breakpoints.end(),
+				[appliedAddress](const DebugBreakpoint& bp) { return bp.m_address == appliedAddress; });
+			if (breakpoint != m_breakpoints.end())
+			{
+				if (!ReleaseBreakpoint(appliedAddress))
+					return false;
+				m_breakpoints.erase(breakpoint);
+			}
 		}
 
-		uint64_t resolved;
-		return m_targetActive && ResolveModuleAddress(address, resolved) && RemoveBreakpoint(DebugBreakpoint(resolved));
+		if (known == m_knownBreakpoints.end())
+			return false;
+		m_knownBreakpoints.erase(known);
+		m_pendingBreakpoints.erase(std::remove(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address),
+			m_pendingBreakpoints.end());
+		return true;
 	}
 
 
@@ -715,9 +729,12 @@ namespace BinaryNinjaDebugger {
 		if (ToModuleOffset(address, location))
 		{
 			PendingHardwareBreakpoint known(location, type, size);
-			if (std::find(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), known)
-				== m_knownHardwareBreakpoints.end())
+			known.address = address;
+			auto existing = std::find(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), known);
+			if (existing == m_knownHardwareBreakpoints.end())
 				m_knownHardwareBreakpoints.push_back(known);
+			else
+				existing->address = address;
 		}
 		return true;
 	}
@@ -735,13 +752,10 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine->RemoveHardwareBreakpoint(address, hwType, size))
 			return false;
 
-		if (known)
-		{
-			PendingHardwareBreakpoint entry(location, type, size);
-			m_knownHardwareBreakpoints.erase(
-				std::remove(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), entry),
-				m_knownHardwareBreakpoints.end());
-		}
+		std::erase_if(m_knownHardwareBreakpoints, [&](const PendingHardwareBreakpoint& entry) {
+			return entry.address == address
+				|| (known && entry.isRelative && entry.location == location && entry.type == type && entry.size == size);
+		});
 		return true;
 	}
 
@@ -770,19 +784,18 @@ namespace BinaryNinjaDebugger {
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
 		PendingHardwareBreakpoint pending(location, type, size);
+		auto known = std::find(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), pending);
+		if (known == m_knownHardwareBreakpoints.end())
+			return false;
+		if (known->address && !RemoveHardwareBreakpoint(known->address, type, size))
+			return false;
 		m_knownHardwareBreakpoints.erase(
 			std::remove(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), pending),
 			m_knownHardwareBreakpoints.end());
-		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
-		if (it != m_pendingHardwareBreakpoints.end())
-		{
-			m_pendingHardwareBreakpoints.erase(it);
-			return true;
-		}
-
-		uint64_t resolved;
-		return m_targetActive && ResolveModuleAddress(location, resolved)
-			&& RemoveHardwareBreakpoint(resolved, type, size);
+		m_pendingHardwareBreakpoints.erase(
+			std::remove(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending),
+			m_pendingHardwareBreakpoints.end());
+		return true;
 	}
 
 
@@ -1316,24 +1329,86 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !m_targetActive)
 			return;
 
-		// Only what has been applied leaves the list, so the rest waits for a module that is not loaded yet
-		for (auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end();)
+		// The logical module-relative breakpoint remains authoritative after it has been applied. A loader rendezvous
+		// may mean that its mapping disappeared, was replaced at the same address, or moved to another base.
+		for (size_t index = 0; index < m_knownBreakpoints.size(); index++)
 		{
-			uint64_t address;
-			if (ResolveModuleAddress(*it, address) && AddBreakpoint(address, 0).m_address != 0)
-				it = m_pendingBreakpoints.erase(it);
-			else
-				it++;
+			auto location = m_knownBreakpoints[index].location;
+			uint64_t oldAddress = m_knownBreakpoints[index].appliedAddress;
+			uint64_t address = 0;
+			bool resolved = ResolveModuleAddress(location, address);
+
+			if (oldAddress && (!resolved || oldAddress != address))
+			{
+				auto applied = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [oldAddress](const DebugBreakpoint& bp) {
+					return bp.m_address == oldAddress;
+				});
+				if (applied != m_breakpoints.end())
+				{
+					if (!ReleaseBreakpoint(oldAddress, false))
+						continue;
+					m_breakpoints.erase(applied);
+				}
+				m_knownBreakpoints[index].appliedAddress = 0;
+			}
+
+			if (!resolved)
+				continue;
+
+			auto applied = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [address](const DebugBreakpoint& bp) {
+				return bp.m_address == address;
+			});
+			if (applied != m_breakpoints.end())
+			{
+				if (m_engine->AddBreakpoint(address))
+					m_knownBreakpoints[index].appliedAddress = address;
+			}
+			else if (AddBreakpoint(address, 0).m_address != 0)
+			{
+				// RememberBreakpoint, called by AddBreakpoint, records this address on the same logical entry.
+				m_knownBreakpoints[index].appliedAddress = address;
+			}
 		}
 
-		for (auto it = m_pendingHardwareBreakpoints.begin(); it != m_pendingHardwareBreakpoints.end();)
+		m_pendingBreakpoints.clear();
+		for (const auto& known : m_knownBreakpoints)
 		{
-			uint64_t address = it->address;
-			bool resolved = !it->isRelative || ResolveModuleAddress(it->location, address);
-			if (resolved && AddHardwareBreakpoint(address, it->type, it->size))
-				it = m_pendingHardwareBreakpoints.erase(it);
-			else
-				it++;
+			if (!known.appliedAddress)
+				m_pendingBreakpoints.push_back(known.location);
+		}
+
+		// Breakpoints outside a module have no logical location to reconcile, but an idempotent add still repairs a
+		// replacement mapping at the same absolute address.
+		for (const auto& breakpoint : m_breakpoints)
+		{
+			bool logical = std::any_of(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+				[&breakpoint](const KnownBreakpoint& known) { return known.appliedAddress == breakpoint.m_address; });
+			if (!logical)
+				m_engine->AddBreakpoint(breakpoint.m_address);
+		}
+
+		for (auto& known : m_knownHardwareBreakpoints)
+		{
+			uint64_t address = 0;
+			bool resolved = ResolveModuleAddress(known.location, address);
+			PtraceHwType hwType;
+			if (!HwTypeFromBreakpointType(known.type, hwType))
+				continue;
+
+			if (known.address && (!resolved || known.address != address))
+			{
+				if (!m_engine->RemoveHardwareBreakpoint(known.address, hwType, known.size))
+					continue;
+				known.address = 0;
+			}
+			if (resolved && !known.address && m_engine->AddHardwareBreakpoint(address, hwType, known.size))
+				known.address = address;
+		}
+		m_pendingHardwareBreakpoints.clear();
+		for (const auto& known : m_knownHardwareBreakpoints)
+		{
+			if (!known.address)
+				m_pendingHardwareBreakpoints.push_back(known);
 		}
 	}
 
@@ -1357,8 +1432,13 @@ namespace BinaryNinjaDebugger {
 		{
 			std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
 			m_pendingBreakpoints.clear();
-			for (const auto& known : m_knownBreakpoints)
+			for (auto& known : m_knownBreakpoints)
+			{
+				known.appliedAddress = 0;
 				m_pendingBreakpoints.push_back(known.location);
+			}
+			for (auto& known : m_knownHardwareBreakpoints)
+				known.address = 0;
 			m_pendingHardwareBreakpoints = m_knownHardwareBreakpoints;
 		}
 
@@ -1494,9 +1574,13 @@ namespace BinaryNinjaDebugger {
 		auto it = std::find_if(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
 			[&location](const KnownBreakpoint& known) { return known.location == location; });
 		if (it == m_knownBreakpoints.end())
-			m_knownBreakpoints.push_back({location, function});
+			m_knownBreakpoints.push_back({location, function, address});
 		else if (it->function.empty())
 			it->function = function;
+		it = std::find_if(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+			[&location](const KnownBreakpoint& known) { return known.location == location; });
+		if (it != m_knownBreakpoints.end())
+			it->appliedAddress = address;
 	}
 
 
@@ -1677,18 +1761,23 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	bool PtraceAdapter::ReleaseBreakpoint(uint64_t address)
+	bool PtraceAdapter::ReleaseBreakpoint(uint64_t address, bool restore)
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
 		auto it = m_engineBreakpointRefs.find(address);
 		if (!m_engine || it == m_engineBreakpointRefs.end())
 			return false;
 
-		if (--it->second > 0)
+		if (it->second > 1)
+		{
+			it->second--;
 			return true;
+		}
 
-		m_engineBreakpointRefs.erase(it);
-		return m_engine->RemoveBreakpoint(address);
+		bool removed = restore ? m_engine->RemoveBreakpoint(address) : m_engine->DiscardBreakpoint(address);
+		if (removed)
+			m_engineBreakpointRefs.erase(it);
+		return removed;
 	}
 
 
