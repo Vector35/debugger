@@ -1,3 +1,6 @@
+#define _GNU_SOURCE
+#include <sched.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -65,6 +68,7 @@ static void* execWorker(void* a) { usleep(100000); execl("/work/progs", "progs",
 static void* forker(void* a) { for (int i = 0; i < 20; i++) { pid_t c = fork(); if (c == 0) { marker(); _exit(0); } int st = 0; waitpid(c, &st, 0); if (WIFSIGNALED(st)) __sync_fetch_and_add(&bad, 1); marker(); } return 0; }
 static void* markerThread(void* a) { for (int i = 0; i < 3; i++) { marker(); usleep(2000); } return 0; }
 static void* writer(void* a) { usleep(20000); wvar = 7; return 0; }
+static int cloneChild(void* a) { return 0; }
 static void* spin(void* a) { volatile unsigned long x = 0; while (1) x++; return 0; }
 static void* shortlived(void* a) { usleep(1000); return 0; }
 static int libraryRange(uintptr_t* first, uintptr_t* last) { FILE* f = fopen("/proc/self/maps", "r"); char line[512]; *first = UINTPTR_MAX; *last = 0; if (!f) return 0; while (fgets(line, sizeof(line), f)) { unsigned long a, b; if (strstr(line, "/work/libtest.so") && sscanf(line, "%lx-%lx", &a, &b) == 2) { if (a < *first) *first = a; if (b > *last) *last = b; } } fclose(f); return *last > *first; }
@@ -117,6 +121,12 @@ int main(int argc, char** argv)
 	if (!strcmp(mode, "sigtrap_unhandled")) { signal(SIGUSR1, SIG_IGN); raise(SIGUSR1); raise(SIGTRAP); return 99; }
 	if (!strcmp(mode, "execpad")) { signal(SIGUSR1, SIG_IGN); printf("marker=%p\n", (void*)marker); raise(SIGUSR1); execl("/work/progs_pad", "progs_pad", "bp", (char*)0); return 99; }
 	if (!strcmp(mode, "abort")) { abort(); }
+	// A clone that is not a thread. Its exit signal is not SIGCHLD, so the kernel reports it as a clone and not as a fork. SIGURG
+	// is one that the engine does not stop for.
+	if (!strcmp(mode, "cloneproc")) { signal(SIGUSR1, SIG_IGN); printf("marker=%p\n", (void*)marker); raise(SIGUSR1); pid_t c = syscall(SYS_clone, SIGURG, 0, 0, 0, 0); if (c == 0) { marker(); _exit(0); } int st = 0; waitpid(c, &st, __WALL); marker(); return WIFSIGNALED(st) ? 100 + WTERMSIG(st) : WEXITSTATUS(st); }
+	if (!strcmp(mode, "cloneshared")) { signal(SIGUSR1, SIG_IGN); printf("marker=%p\n", (void*)marker); raise(SIGUSR1); char* stack = malloc(65536); pid_t c = clone(cloneChild, stack + 65536, SIGURG | CLONE_VM, 0); int st = 0; waitpid(c, &st, __WALL); marker(); return WIFSIGNALED(st) ? 100 + WTERMSIG(st) : WEXITSTATUS(st); }
+	if (!strcmp(mode, "flood")) { char b[4096]; memset(b, 'x', sizeof b); while (1) if (write(1, b, sizeof b) < 0) break; return 0; }
+	if (!strcmp(mode, "lastwords")) { char b[8192]; memset(b, 'y', sizeof b); write(1, b, sizeof b); write(1, "THE END\n", 8); return 4; }
 	// Raw system calls only, so that the first ones after the SIGUSR1 stop are the two that the tests look for
 	if (!strcmp(mode, "syscalls")) { signal(SIGUSR1, SIG_IGN); long p = getpid(), t = syscall(SYS_gettid); syscall(SYS_tgkill, p, t, SIGUSR1); long r = syscall(SYS_getppid); syscall(SYS_close, 9999); return (int)(r & 0xff); }
 	if (!strcmp(mode, "fdwrite")) { for (int i = 2; i < argc; i++) { int fd = atoi(argv[i]); char b[32]; int n = snprintf(b, 32, "fd%d\n", fd); if (write(fd, b, n) != n) printf("write to %d failed\n", fd); } return 0; }

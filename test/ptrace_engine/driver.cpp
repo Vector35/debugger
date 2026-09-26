@@ -82,6 +82,8 @@ static const std::vector<uint8_t> kBreakInsn = {0x00, 0x00, 0x20, 0xd4};
 #define NT_ARM_HW_BREAK 0x402
 #define NT_ARM_HW_WATCH 0x403
 #endif
+// What a test wants TriggeredSlots to answer, when it is not the address of the access: -1 is no override, 0 is no slot
+static std::atomic<long> g_hwTrigger {-1};
 struct ArmHw : PtraceHwDebug
 {
 	struct State { uint32_t info; uint32_t pad; struct { uint64_t addr; uint32_t ctrl; uint32_t pad; } regs[16]; };
@@ -104,6 +106,26 @@ struct ArmHw : PtraceHwDebug
 	}
 	bool Clear(pid_t tid, size_t slot) override { return Program(tid, slot, 0, 0); }
 	bool DataTrapsBeforeAccess() const override { return true; }
+	// The slots whose address is the one that the trap is for. arm64 says that in si_addr, and has no register like DR6.
+	uint64_t TriggeredSlots(pid_t tid, bool& known) override
+	{
+		known = true;
+		if (g_hwTrigger >= 0) return (uint64_t)g_hwTrigger;
+		siginfo_t si {};
+		if (ptrace(PTRACE_GETSIGINFO, tid, nullptr, &si) != 0) { known = false; return 0; }
+		uint64_t mask = 0;
+		for (int note : {NT_ARM_HW_BREAK, NT_ARM_HW_WATCH})
+		{
+			State st; memset(&st, 0, sizeof st); iovec iov = {&st, sizeof st};
+			if (ptrace(PTRACE_GETREGSET, tid, (void*)(uintptr_t)note, &iov) != 0) { known = false; return 0; }
+			for (size_t index = 0; index < 4; index++)
+			{
+				uint64_t at = (uint64_t)si.si_addr, address = st.regs[index].addr;
+				if ((st.regs[index].ctrl & 1) && at >= address && at < address + 8) mask |= 1ull << ((note == NT_ARM_HW_BREAK ? 0 : 4) + index);
+			}
+		}
+		return mask;
+	}
 };
 static ArmHw g_armHw;
 
@@ -2057,13 +2079,177 @@ static void t_register_aliases()
 	CHECK(e->Kill());
 }
 
+// ---- output that the handler is slow to take up
+
+struct SlowLog
+{
+	Log log;
+	std::atomic<size_t> delivered {0};
+	std::atomic<size_t> events {0};
+	std::chrono::milliseconds delay {20ms};
+	std::string tail;
+	std::mutex tailMutex;
+	void push(const PtraceEngine::Event& e)
+	{
+		if (e.type == PtraceEngine::OutputEvent)
+		{
+			delivered += e.data.size(); events++;
+			{ std::lock_guard<std::mutex> l(tailMutex); tail += e.data; if (tail.size() > 64) tail.erase(0, tail.size() - 64); }
+			std::this_thread::sleep_for(delay);
+		}
+		else log.push(e);
+	}
+};
+
+static std::unique_ptr<PtraceEngine> startSlow(SlowLog& s, const std::string& mode)
+{
+	auto e = std::make_unique<PtraceEngine>([&s](const PtraceEngine::Event& ev) { s.push(ev); });
+	PtraceEngine::LaunchOptions o; o.path = prog; o.args = {mode}; o.arch = TestArch(); std::string err;
+	if (!e->Launch(o, err)) { printf("  launch failed: %s\n", err.c_str()); failures++; return nullptr; }
+	return e;
+}
+
+static void t_output_backpressure()
+{
+	// a target that writes as fast as it can, and a handler that takes 20 ms for each piece
+	SlowLog s; auto e = startSlow(s, "flood"); if (!e) return;
+	PtraceEngine::Event ev; CHECK(s.log.wait(PtraceEngine::StoppedEvent, ev));
+	const size_t limit = 256 * 1024; e->SetOutputLimit(limit);
+	CHECK(e->Resume(false, 0));
+	size_t most = 0;
+	for (int i = 0; i < 60; i++) { most = std::max(most, e->PendingOutputBytes()); std::this_thread::sleep_for(50ms); }
+	printf("  the most that was queued: %zu bytes (limit %zu), delivered %zu bytes in %zu events\n", most, limit, s.delivered.load(), s.events.load());
+	CHECK(most <= limit + 64 * 1024 + 4096);   // what is over the limit is what was read before the limit was seen, and one more piece
+	CHECK(s.delivered > 0);
+	// the pieces are joined, so the handler gets fewer and larger ones than the terminal gives
+	CHECK(s.delivered / std::max<size_t>(s.events, 1) > 8192);
+	// a stop is still answered, behind the output that was queued
+	CHECK(e->Interrupt()); CHECK(s.log.wait(PtraceEngine::StoppedEvent, ev, 10s)); CHECK(ev.interrupted);
+	CHECK(e->Kill()); CHECK(s.log.wait(PtraceEngine::ExitedEvent, ev, 10s));
+}
+
+static void t_output_flood_detach()
+{
+	// letting go of a target that is writing all the time must not wait for it to stop writing
+	SlowLog s; s.delay = 0ms; auto e = startSlow(s, "flood"); if (!e) return;
+	PtraceEngine::Event ev; CHECK(s.log.wait(PtraceEngine::StoppedEvent, ev)); uint32_t pid = e->GetPid();
+	CHECK(e->Resume(false, 0)); std::this_thread::sleep_for(300ms);
+	auto start = std::chrono::steady_clock::now();
+	CHECK(e->Detach());
+	double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+	printf("  the detach took %.2f s\n", took); CHECK(took < 3.0);
+	CHECK(s.log.wait(PtraceEngine::DetachedEvent, ev, 5s));
+	kill(pid, SIGKILL); int status = 0; CHECK(e->WaitForDetachedExit(status, 5s));
+}
+
+static void t_output_last_words()
+{
+	// what the target wrote just before it ended is not lost, however slowly the handler goes, and however much of it there is
+	for (int round = 0; round < 10; round++)
+	{
+		SlowLog s; s.delay = 1ms; auto e = startSlow(s, "lastwords"); if (!e) return;
+		PtraceEngine::Event ev; CHECK(s.log.wait(PtraceEngine::StoppedEvent, ev)); CHECK(e->Resume(false, 0));
+		CHECK(s.log.wait(PtraceEngine::ExitedEvent, ev, 5s)); CHECK(ev.exitCode == 4);
+		for (int i = 0; i < 100 && s.delivered < 8192 + 9; i++) std::this_thread::sleep_for(10ms);
+		std::string tail; { std::lock_guard<std::mutex> l(s.tailMutex); tail = s.tail; }
+		// the terminal makes the newline \r\n, which is the 9th byte
+		if (s.delivered != 8192 + 9 || tail.find("THE END\r\n") == std::string::npos) { printf("  round %d: delivered %zu, tail [%s]\n", round, s.delivered.load(), tail.c_str()); failures++; }
+	}
+}
+
+// ---- destroying the engine from, or while waiting for, its handler
+
+static PtraceEngine::LaunchOptions helloOptions() { PtraceEngine::LaunchOptions o; o.path = prog; o.args = {"hello"}; o.arch = TestArch(); return o; }
+
+static void t_clone_process()
+{
+	// a clone that is not a thread is a process of its own: the breakpoints come out of its memory like a fork child's, and it is let go
+	forkTest("cloneproc", 1, 0);
+}
+
+static void t_clone_shared()
+{
+	// one that shares the memory of the target cannot have its own breakpoints taken out, and the target keeps its own
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "cloneshared", tid, ev); if (!e) return;
+	uint64_t marker = addrOf(log, "marker="); CHECK(e->AddBreakpoint(marker)); CHECK(e->Resume(false, 0));
+	CHECK(log.wait(PtraceEngine::StoppedEvent, ev, 10s)); CHECK(ev.breakpoint && pcOf(*e, ev.tid) == marker);
+	CHECK((rawRead(e->GetPid(), marker, kBreakInsn.size()) == kBreakInsn));
+	bool told = false; for (auto& n : ev.notes) told |= n.find("shares the memory") != std::string::npos; CHECK(told);
+	CHECK(e->GetThreads().size() == 1);
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev, 10s)); CHECK(ev.exitCode == 0);
+}
+
+static void t_dtor_from_handler()
+{
+	// the engine is destroyed by its own handler, on its own event thread, which cannot wait for itself
+	for (int round = 0; round < 20; round++)
+	{
+		struct Shared { std::unique_ptr<PtraceEngine> engine; std::atomic<bool> ready {false}, destroyed {false}; };
+		auto sh = std::make_shared<Shared>();
+		sh->engine = std::make_unique<PtraceEngine>([sh](const PtraceEngine::Event& ev) {
+			if (ev.type == PtraceEngine::ExitedEvent && sh->ready) { sh->destroyed = true; sh->engine.reset(); }
+		});
+		std::string err; CHECK(sh->engine->Launch(helloOptions(), err)); if (!err.empty()) return;
+		sh->ready = true;
+		CHECK(sh->engine->Resume(false, 0));   // and the engine is not touched again from here
+		for (int i = 0; i < 500 && !sh->destroyed; i++) std::this_thread::sleep_for(10ms);
+		CHECK(sh->destroyed);
+		std::this_thread::sleep_for(50ms);   // the thread that was left goes on to its end without the engine
+	}
+}
+
+static void t_dtor_blocked_handler()
+{
+	// the handler waits for whoever destroys the engine, as a post to the controller does when the controller is destroying it
+	struct Blocker { std::atomic<bool> entered {false}, release {false}, left {false}; };
+	auto sh = std::make_shared<Blocker>();
+	auto engine = std::make_unique<PtraceEngine>([sh](const PtraceEngine::Event& ev) {
+		if (ev.type != PtraceEngine::ExitedEvent) return;
+		sh->entered = true;
+		while (!sh->release) std::this_thread::sleep_for(10ms);
+		sh->left = true;
+	});
+	engine->SetTeardownWait(300ms);
+	std::string err; CHECK(engine->Launch(helloOptions(), err)); if (!err.empty()) return;
+	CHECK(engine->Resume(false, 0));
+	for (int i = 0; i < 500 && !sh->entered; i++) std::this_thread::sleep_for(10ms);
+	CHECK(sh->entered);
+	auto start = std::chrono::steady_clock::now();
+	engine.reset();
+	double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+	printf("  the destruction took %.2f s with the handler still waiting\n", took);
+	CHECK(took < 2.0); CHECK(!sh->left);
+	sh->release = true;
+	for (int i = 0; i < 100 && !sh->left; i++) std::this_thread::sleep_for(10ms);
+	CHECK(sh->left);   // it finished on its own
+	std::this_thread::sleep_for(50ms);
+}
+
+static void t_hw_not_ours()
+{
+#if defined(__aarch64__)
+	// a trap of the debug registers that is not for a slot that is in use is the target's: when the architecture can say which
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "watch", tid, ev); if (!e) return;
+	uint64_t wvar = addrOf(log, "wvar="); CHECK(wvar != 0);
+	if (!e->AddHardwareBreakpoint(wvar, PtraceHwType::Write, 4)) { printf("  SKIP: no hardware watchpoints\n"); e->Kill(); return; }
+	g_hwTrigger = 0;
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev, 5s));
+	g_hwTrigger = -1;
+	CHECK(!ev.hardware); CHECK(ev.trapOrigin == PtraceEngine::TrapOrigin::Target); CHECK(ev.signal == SIGTRAP);
+	// and it is delivered, which the target does not survive
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev, 5s)); CHECK(ev.signal == SIGTRAP);
+#else
+	printf("  SKIP: the answer of the debug registers cannot be made up on x86, where DR6 has it\n");
+#endif
+}
+
 int main(int argc, char** argv)
 {
 	struct { const char* n; void (*f)(); } tests[] = {
 		{"hello", t_hello}, {"step", t_step}, {"interrupt", t_interrupt}, {"threads", t_threads}, {"churn", t_churn},
 		{"signal", t_signal}, {"silent", t_silent}, {"detach", t_detach}, {"kill_running", t_kill_running},
 		{"dtor_kills", t_dtor_kills}, {"launch_errors", t_launch_errors}, {"args_cwd", t_args_cwd}, {"stdin", t_stdin}, {"stdin_backpressure", t_stdin_backpressure},
-		{"nopty", t_nopty}, {"relaunch", t_relaunch}, {"regs_step", t_regs_step}, {"regs_running", t_regs_running}, {"memory", t_memory}, {"bp_basic", t_bp_basic}, {"bp_step_remove", t_bp_step_remove}, {"bp_write", t_bp_write}, {"bp_threads", t_bp_threads}, {"bp_interrupts", t_bp_interrupts}, {"bp_remove_running", t_bp_remove_running}, {"bp_detach", t_bp_detach}, {"hw_watch", t_hw_watch}, {"hw_thread", t_hw_thread}, {"hw_exec", t_hw_exec}, {"hw_detach", t_hw_detach}, {"modules", t_modules}, {"symbols", t_symbols}, {"frames", t_frames}, {"loader", t_loader}, {"library_reload_breakpoint", t_library_reload_breakpoint}, {"library_rebase_breakpoint", t_library_rebase_breakpoint}, {"library_rebase_hardware", t_library_rebase_hardware}, {"processes", t_processes}, {"stepover_basic", t_stepover_basic}, {"stepover_user_breakpoint", t_stepover_user_breakpoint}, {"stepover_interrupt", t_stepover_interrupt}, {"stepover_recursion", t_stepover_recursion}, {"stepreturn_sites", t_stepreturn_sites}, {"stepreturn_address", t_stepreturn_address}, {"stepreturn_recursion", t_stepreturn_recursion}, {"stepover_threads", t_stepover_threads}, {"perf", t_perf}, {"detach_reaped", t_detach_reaped}, {"fork_child", t_fork_child}, {"vfork", t_vfork}, {"spawn", t_spawn}, {"fork_threads", t_fork_threads}, {"interrupt_burst", t_interrupt_burst}, {"handlers_off", t_handlers_off}, {"handlers_on", t_handlers_on}, {"handlers_toggle", t_handlers_toggle}, {"handlers_thread", t_handlers_thread}, {"sigtrap_raise", t_sigtrap_raise}, {"sigtrap_kill", t_sigtrap_kill}, {"sigtrap_handler_debug", t_sigtrap_handler_debug}, {"sigtrap_instruction", t_sigtrap_instruction}, {"sigtrap_instruction_handler_debug", t_sigtrap_instruction_handler_debug}, {"sigtrap_unhandled", t_sigtrap_unhandled}, {"sigtrap_after_breakpoint", t_sigtrap_after_breakpoint}, {"sigtrap_while_stepping", t_sigtrap_while_stepping}, {"signal_reasons", t_signal_reasons}, {"conf_exitcode", t_conf_exitcode}, {"conf_exceptions", t_conf_exceptions}, {"conf_entry_step_exit", t_conf_entry_step_exit}, {"conf_memory_registers", t_conf_memory_registers}, {"conf_threads_restart", t_conf_threads_restart}, {"conf_symbols_modules", t_conf_symbols_modules}, {"elf_names", t_elf_names}, {"exec_by_name", t_exec_by_name}, {"exec_basic", t_exec_basic}, {"exec_rebreak", t_exec_rebreak}, {"exec_thread", t_exec_thread}, {"exec_continue", t_exec_continue}, {"winsize", t_winsize}, {"repro_echo", t_repro_echo}, {"repro_sigchld_ignored", t_repro_sigchld_ignored}, {"attach_threads", t_attach_threads}, {"attach_breakpoint", t_attach_breakpoint}, {"attach_step_at_breakpoint", t_attach_step_at_breakpoint}, {"attach_exit", t_attach_exit}, {"attach_kill", t_attach_kill}, {"attach_dtor_detaches", t_attach_dtor_detaches}, {"attach_errors", t_attach_errors}, {"attach_churn", t_attach_churn}, {"attach_syscall", t_attach_syscall}, {"redirect_parse", t_redirect_parse}, {"redirect_stdout", t_redirect_stdout}, {"redirect_stdin", t_redirect_stdin}, {"redirect_stderr_merge", t_redirect_stderr_merge}, {"redirect_other_fds", t_redirect_other_fds}, {"redirect_append_readwrite", t_redirect_append_readwrite}, {"redirect_relative", t_redirect_relative}, {"redirect_errors", t_redirect_errors}, {"redirect_leaks", t_redirect_leaks}, {"syscall_trace", t_syscall_trace}, {"syscall_breakpoint", t_syscall_breakpoint}, {"syscall_emulate", t_syscall_emulate}, {"syscall_set_info", t_syscall_set_info}, {"syscall_threads", t_syscall_threads}, {"syscall_unsupported", t_syscall_unsupported}, {"syscall_names", t_syscall_names}, {"register_aliases", t_register_aliases}};
+		{"nopty", t_nopty}, {"relaunch", t_relaunch}, {"regs_step", t_regs_step}, {"regs_running", t_regs_running}, {"memory", t_memory}, {"bp_basic", t_bp_basic}, {"bp_step_remove", t_bp_step_remove}, {"bp_write", t_bp_write}, {"bp_threads", t_bp_threads}, {"bp_interrupts", t_bp_interrupts}, {"bp_remove_running", t_bp_remove_running}, {"bp_detach", t_bp_detach}, {"hw_watch", t_hw_watch}, {"hw_thread", t_hw_thread}, {"hw_exec", t_hw_exec}, {"hw_detach", t_hw_detach}, {"modules", t_modules}, {"symbols", t_symbols}, {"frames", t_frames}, {"loader", t_loader}, {"library_reload_breakpoint", t_library_reload_breakpoint}, {"library_rebase_breakpoint", t_library_rebase_breakpoint}, {"library_rebase_hardware", t_library_rebase_hardware}, {"processes", t_processes}, {"stepover_basic", t_stepover_basic}, {"stepover_user_breakpoint", t_stepover_user_breakpoint}, {"stepover_interrupt", t_stepover_interrupt}, {"stepover_recursion", t_stepover_recursion}, {"stepreturn_sites", t_stepreturn_sites}, {"stepreturn_address", t_stepreturn_address}, {"stepreturn_recursion", t_stepreturn_recursion}, {"stepover_threads", t_stepover_threads}, {"perf", t_perf}, {"detach_reaped", t_detach_reaped}, {"fork_child", t_fork_child}, {"vfork", t_vfork}, {"spawn", t_spawn}, {"fork_threads", t_fork_threads}, {"interrupt_burst", t_interrupt_burst}, {"handlers_off", t_handlers_off}, {"handlers_on", t_handlers_on}, {"handlers_toggle", t_handlers_toggle}, {"handlers_thread", t_handlers_thread}, {"sigtrap_raise", t_sigtrap_raise}, {"sigtrap_kill", t_sigtrap_kill}, {"sigtrap_handler_debug", t_sigtrap_handler_debug}, {"sigtrap_instruction", t_sigtrap_instruction}, {"sigtrap_instruction_handler_debug", t_sigtrap_instruction_handler_debug}, {"sigtrap_unhandled", t_sigtrap_unhandled}, {"sigtrap_after_breakpoint", t_sigtrap_after_breakpoint}, {"sigtrap_while_stepping", t_sigtrap_while_stepping}, {"signal_reasons", t_signal_reasons}, {"conf_exitcode", t_conf_exitcode}, {"conf_exceptions", t_conf_exceptions}, {"conf_entry_step_exit", t_conf_entry_step_exit}, {"conf_memory_registers", t_conf_memory_registers}, {"conf_threads_restart", t_conf_threads_restart}, {"conf_symbols_modules", t_conf_symbols_modules}, {"elf_names", t_elf_names}, {"exec_by_name", t_exec_by_name}, {"exec_basic", t_exec_basic}, {"exec_rebreak", t_exec_rebreak}, {"exec_thread", t_exec_thread}, {"exec_continue", t_exec_continue}, {"winsize", t_winsize}, {"repro_echo", t_repro_echo}, {"repro_sigchld_ignored", t_repro_sigchld_ignored}, {"attach_threads", t_attach_threads}, {"attach_breakpoint", t_attach_breakpoint}, {"attach_step_at_breakpoint", t_attach_step_at_breakpoint}, {"attach_exit", t_attach_exit}, {"attach_kill", t_attach_kill}, {"attach_dtor_detaches", t_attach_dtor_detaches}, {"attach_errors", t_attach_errors}, {"attach_churn", t_attach_churn}, {"attach_syscall", t_attach_syscall}, {"redirect_parse", t_redirect_parse}, {"redirect_stdout", t_redirect_stdout}, {"redirect_stdin", t_redirect_stdin}, {"redirect_stderr_merge", t_redirect_stderr_merge}, {"redirect_other_fds", t_redirect_other_fds}, {"redirect_append_readwrite", t_redirect_append_readwrite}, {"redirect_relative", t_redirect_relative}, {"redirect_errors", t_redirect_errors}, {"redirect_leaks", t_redirect_leaks}, {"syscall_trace", t_syscall_trace}, {"syscall_breakpoint", t_syscall_breakpoint}, {"syscall_emulate", t_syscall_emulate}, {"syscall_set_info", t_syscall_set_info}, {"syscall_threads", t_syscall_threads}, {"syscall_unsupported", t_syscall_unsupported}, {"syscall_names", t_syscall_names}, {"register_aliases", t_register_aliases}, {"output_backpressure", t_output_backpressure}, {"output_flood_detach", t_output_flood_detach}, {"output_last_words", t_output_last_words}, {"hw_not_ours", t_hw_not_ours}, {"clone_process", t_clone_process}, {"clone_shared", t_clone_shared}, {"dtor_from_handler", t_dtor_from_handler}, {"dtor_blocked_handler", t_dtor_blocked_handler}};
 	for (auto& t : tests)
 	{
 		if (argc > 1 && strcmp(argv[1], t.n)) continue;
