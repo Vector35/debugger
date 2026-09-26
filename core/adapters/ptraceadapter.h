@@ -39,6 +39,9 @@ namespace BinaryNinjaDebugger {
 		std::atomic<DebugStopReason> m_lastStopReason {UnknownReason};
 		std::atomic<uint64_t> m_exitCode {0};
 		std::atomic<const PtraceArch*> m_arch {nullptr};
+		// The registers of the table, and the ones that the architecture of the view adds to them. It is replaced whole.
+		std::mutex m_registerMutex;
+		std::shared_ptr<const std::vector<PtraceRegister>> m_registers;
 		bool m_firstStop = false;
 		bool m_attached = false;
 		bool m_stopAtSystemEntry = false;
@@ -96,6 +99,8 @@ namespace BinaryNinjaDebugger {
 		bool ResolveByNameEnabled();
 		std::string ResolveBreakpointsByName(const std::string& program);
 		std::string RefreshSymbolsAfterExec(const std::string& program);
+		void BuildRegisterList();
+		std::shared_ptr<const std::vector<PtraceRegister>> GetRegisterList();
 		uint64_t ReadArchRegister(const std::string& name);
 		bool ReadRegisterOf(uint32_t tid, const std::string& name, uint64_t& value);
 		std::vector<PtraceModuleInfo> GetModules();

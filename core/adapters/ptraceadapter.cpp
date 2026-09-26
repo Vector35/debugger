@@ -317,6 +317,7 @@ namespace BinaryNinjaDebugger {
 			{
 				m_firstStop = false;
 				m_arch = m_engine->GetArch();
+				BuildRegisterList();
 				if (!m_arch)
 					LogWarn("PtraceAdapter: unsupported target architecture");
 
@@ -832,9 +833,10 @@ namespace BinaryNinjaDebugger {
 				regsets[regset] = std::move(data);
 		}
 
-		for (size_t i = 0; i < arch->registers.size(); i++)
+		auto registers = GetRegisterList();
+		for (size_t i = 0; i < registers->size(); i++)
 		{
-			const auto& reg = arch->registers[i];
+			const auto& reg = (*registers)[i];
 			auto it = regsets.find(reg.regset);
 			if (it != regsets.end() && RegisterInBounds(reg, it->second))
 				result[reg.name] = RegisterFromBytes(reg, it->second, i);
@@ -849,12 +851,17 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !arch)
 			return DebugRegister();
 
-		auto info = arch->Find(reg);
-		std::vector<uint8_t> data;
-		if (!info || !m_engine->GetRegisterSet(m_activeThreadId, info->regset, data) || !RegisterInBounds(*info, data))
+		auto registers = GetRegisterList();
+		auto found = std::find_if(registers->begin(), registers->end(),
+			[&reg](const PtraceRegister& candidate) { return candidate.name == reg; });
+		if (found == registers->end())
 			return DebugRegister();
 
-		return RegisterFromBytes(*info, data, info - arch->registers.data());
+		std::vector<uint8_t> data;
+		if (!m_engine->GetRegisterSet(m_activeThreadId, found->regset, data) || !RegisterInBounds(*found, data))
+			return DebugRegister();
+
+		return RegisterFromBytes(*found, data, found - registers->begin());
 	}
 
 
@@ -864,15 +871,66 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !arch)
 			return false;
 
-		auto info = arch->Find(reg);
+		auto registers = GetRegisterList();
+		auto info = std::find_if(registers->begin(), registers->end(),
+			[&reg](const PtraceRegister& candidate) { return candidate.name == reg; });
 		std::vector<uint8_t> data;
-		if (!info || !m_engine->GetRegisterSet(m_activeThreadId, info->regset, data) || !RegisterInBounds(*info, data))
+		if (info == registers->end() || !m_engine->GetRegisterSet(m_activeThreadId, info->regset, data)
+			|| !RegisterInBounds(*info, data))
 			return false;
 
 		uint8_t buffer[64];
 		intx::le::store(buffer, value);
 		memcpy(data.data() + info->offset, buffer, std::min(info->size, sizeof(buffer)));
 		return m_engine->SetRegisterSet(m_activeThreadId, info->regset, data);
+	}
+
+
+	// The table has the registers that are in the target. The architecture of the view knows the names of the others, which
+	// are parts of them, and those are what the controller asks for when the IL reads `edi` and not `rdi`. The controller
+	// finds a register by its exact name, and an unknown name reads as 0.
+	void PtraceAdapter::BuildRegisterList()
+	{
+		auto list = std::make_shared<std::vector<PtraceRegister>>();
+		auto arch = m_arch.load();
+		if (arch)
+		{
+			*list = arch->registers;
+
+			// The view describes the program that was analyzed, which is not always the one that is running
+			auto viewArch = GetData() ? GetData()->GetDefaultArchitecture() : nullptr;
+			if (viewArch && viewArch->GetName() == arch->name)
+			{
+				std::vector<PtraceRegisterDescription> described;
+				for (uint32_t reg : viewArch->GetAllRegisters())
+				{
+					auto info = viewArch->GetRegisterInfo(reg);
+					PtraceRegisterDescription description;
+					description.name = viewArch->GetRegisterName(reg);
+					description.parent = viewArch->GetRegisterName(info.fullWidthRegister);
+					description.offset = info.offset;
+					description.size = info.size;
+					described.push_back(std::move(description));
+				}
+
+				for (const auto& message : CheckRegisterSizes(*arch, described))
+					LogDebug("PtraceAdapter: %s", message.c_str());
+				auto derived = DeriveSubRegisters(*arch, described);
+				list->insert(list->end(), derived.begin(), derived.end());
+			}
+		}
+
+		std::lock_guard<std::mutex> lock(m_registerMutex);
+		m_registers = list;
+	}
+
+
+	std::shared_ptr<const std::vector<PtraceRegister>> PtraceAdapter::GetRegisterList()
+	{
+		std::lock_guard<std::mutex> lock(m_registerMutex);
+		if (!m_registers)
+			m_registers = std::make_shared<std::vector<PtraceRegister>>();
+		return m_registers;
 	}
 
 
@@ -1622,6 +1680,7 @@ namespace BinaryNinjaDebugger {
 		ResetTargetState();
 
 		m_arch = m_engine->GetArch();
+		BuildRegisterList();
 		if (!m_arch)
 			LogWarn("PtraceAdapter: unsupported target architecture");
 

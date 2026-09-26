@@ -18,6 +18,7 @@ limitations under the License.
 #include <elf.h>
 #include <cerrno>
 #include <fstream>
+#include <set>
 #include <sys/ptrace.h>
 #if defined(__i386__) || defined(__x86_64__)
 #include <sys/user.h>
@@ -106,6 +107,49 @@ namespace BinaryNinjaDebugger {
 
 		void OnTrap(pid_t tid) override { WriteDr(tid, 6, 0); }
 	};
+
+
+	std::vector<PtraceRegister> DeriveSubRegisters(
+		const PtraceArch& arch, const std::vector<PtraceRegisterDescription>& described)
+	{
+		std::vector<PtraceRegister> result;
+		// What is at the low end of a register is at its first byte only on a little-endian one
+		if (!arch.littleEndian)
+			return result;
+
+		std::set<std::string> seen;
+		for (const auto& description : described)
+		{
+			if (description.name.empty() || description.parent.empty() || description.parent == description.name
+				|| description.size == 0 || arch.Find(description.name) || !seen.insert(description.name).second)
+				continue;
+
+			auto parent = arch.Find(description.parent);
+			if (!parent || description.offset + description.size > parent->size)
+				continue;
+
+			result.push_back({description.name, parent->regset, parent->offset + description.offset, description.size});
+		}
+		return result;
+	}
+
+
+	std::vector<std::string> CheckRegisterSizes(
+		const PtraceArch& arch, const std::vector<PtraceRegisterDescription>& described)
+	{
+		std::vector<std::string> result;
+		for (const auto& description : described)
+		{
+			if (description.name.empty() || description.parent != description.name)
+				continue;
+
+			auto reg = arch.Find(description.name);
+			if (reg && reg->size != description.size)
+				result.push_back(description.name + " is " + std::to_string(reg->size) + " bytes in the table, and "
+					+ std::to_string(description.size) + " for the architecture");
+		}
+		return result;
+	}
 
 
 	static PtraceHwDebug* NativeX86HwDebug()

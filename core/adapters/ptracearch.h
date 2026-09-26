@@ -74,9 +74,35 @@ namespace BinaryNinjaDebugger {
 		PtraceHwDebug* hwDebug = nullptr;
 		// Whether PTRACE_SYSEMU works. It began on x86.
 		bool sysemu = false;
+		// Whether a register that is part of another one is at the low or the high end of it, which is what the sub-registers
+		// that are derived rely on
+		bool littleEndian = true;
 
 		const PtraceRegister* Find(const std::string& registerName) const;
 	};
+
+	// What an architecture says about one of its registers. Only the registers of the table have a place in the target, so
+	// this is where the rest of them come from: a register that is part of another one is found in the same bytes.
+	struct PtraceRegisterDescription
+	{
+		std::string name;
+		// The register that this one is part of. It is the register itself for one that is not part of another.
+		std::string parent;
+		// Where in the parent, in bytes from its low end
+		size_t offset = 0;
+		size_t size = 0;
+	};
+
+	// The registers that the description has and the table does not, and that are inside a register of the table: `eax`,
+	// `al` and `ah` for `rax`. They are located as the parent is. Anything else is left out, which is the registers
+	// that are not in the table, and the ones that would reach outside of their parent.
+	std::vector<PtraceRegister> DeriveSubRegisters(
+		const PtraceArch& arch, const std::vector<PtraceRegisterDescription>& described);
+
+	// Where the description and the table disagree about a register that both have, one message for each. It is only
+	// for the log: a register of the table is always read as the table says.
+	std::vector<std::string> CheckRegisterSizes(
+		const PtraceArch& arch, const std::vector<PtraceRegisterDescription>& described);
 
 	const PtraceArch& PtraceArchX86_64();
 	const PtraceArch& PtraceArchX86();

@@ -2009,13 +2009,59 @@ static void t_syscall_names()
 }
 
 
+// ---- registers that are part of others
+
+static void t_register_aliases()
+{
+	// what the architecture of the view says about x86_64, as far as the derivation is concerned
+	using D = PtraceRegisterDescription;
+	std::vector<D> described = {
+		{"rax", "rax", 0, 8}, {"eax", "rax", 0, 4}, {"ax", "rax", 0, 2}, {"al", "rax", 0, 1}, {"ah", "rax", 1, 1},
+		{"rsi", "rsi", 0, 8}, {"esi", "rsi", 0, 4}, {"si", "rsi", 0, 2}, {"sil", "rsi", 0, 1},
+		{"r8", "r8", 0, 8}, {"r8d", "r8", 0, 4}, {"r8w", "r8", 0, 2}, {"r8b", "r8", 0, 1},
+		{"xmm0", "ymm0", 0, 16},   // in the table already
+		{"ymm0", "ymm0", 0, 32},   // not in the table, and not part of one that is
+		{"ymm0_hi", "ymm0", 16, 16}, {"orphan", "nosuchregister", 0, 4}, {"toolarge", "rax", 6, 4}, {"empty", "rax", 0, 0},
+		{"eax", "rax", 0, 4},   // said twice
+		{"", "rax", 0, 1}, {"rip", "rip", 0, 8}, {"eflags", "eflags", 0, 4}};
+	auto derived = DeriveSubRegisters(PtraceArchX86_64(), described);
+	std::map<std::string, PtraceRegister> byName; for (auto& r : derived) byName[r.name] = r;
+	CHECK(derived.size() == byName.size());   // once each
+	auto& x64 = PtraceArchX86_64(); auto rax = x64.Find("rax"); auto rsi = x64.Find("rsi"); auto r8 = x64.Find("r8"); CHECK(rax && rsi && r8);
+	CHECK(byName.count("eax") && byName["eax"].regset == rax->regset && byName["eax"].offset == rax->offset && byName["eax"].size == 4);
+	CHECK(byName["ax"].offset == rax->offset && byName["ax"].size == 2); CHECK(byName["al"].offset == rax->offset && byName["al"].size == 1);
+	CHECK(byName["ah"].offset == rax->offset + 1 && byName["ah"].size == 1);
+	CHECK(byName["esi"].offset == rsi->offset && byName["sil"].size == 1); CHECK(byName["r8d"].offset == r8->offset && byName["r8w"].size == 2 && byName["r8b"].size == 1);
+	for (const char* left_out : {"rax", "xmm0", "ymm0", "ymm0_hi", "orphan", "toolarge", "empty", "", "rip", "eflags"}) CHECK(!byName.count(left_out));
+	CHECK(derived.size() == 10);   // 4 of rax, 3 of rsi, 3 of r8
+	// a big-endian register has its low part somewhere else
+	PtraceArch big = x64; big.littleEndian = false; CHECK(DeriveSubRegisters(big, described).empty());
+	CHECK(DeriveSubRegisters(x64, {}).empty());
+
+	// the disagreements that are worth a line in the log
+	auto messages = CheckRegisterSizes(x64, described);
+	CHECK(messages.size() == 1); if (!messages.empty()) { printf("  %s\n", messages[0].c_str()); CHECK(messages[0].find("eflags") == 0); }
+
+	// the locations are right in the registers of a real process: for the register that holds the pc, its low half, and the byte above that
+	const PtraceArch& arch = RegisterTable(); auto pcReg = arch.Find(arch.pc); CHECK(pcReg);
+	auto pieces = DeriveSubRegisters(arch, {{"pc_low", arch.pc, 0, 4}, {"pc_byte1", arch.pc, 1, 1}, {"pc_high", arch.pc, 4, 4}});
+	CHECK(pieces.size() == 3); if (pieces.size() != 3) return;
+	Log log; auto e = start(log, "hello"); if (!e) return;
+	PtraceEngine::Event ev; CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	std::vector<uint8_t> regs; CHECK(e->GetRegisterSet(ev.tid, pcReg->regset, regs)); if (regs.size() < pcReg->offset + 8) { failures++; return; }
+	uint64_t pc = le64(regs, pcReg->offset); CHECK(pc != 0);
+	uint32_t low = 0, high = 0; memcpy(&low, regs.data() + pieces[0].offset, 4); memcpy(&high, regs.data() + pieces[2].offset, 4);
+	CHECK(low == (uint32_t)pc); CHECK(high == (uint32_t)(pc >> 32)); CHECK(regs[pieces[1].offset] == (uint8_t)(pc >> 8));
+	CHECK(e->Kill());
+}
+
 int main(int argc, char** argv)
 {
 	struct { const char* n; void (*f)(); } tests[] = {
 		{"hello", t_hello}, {"step", t_step}, {"interrupt", t_interrupt}, {"threads", t_threads}, {"churn", t_churn},
 		{"signal", t_signal}, {"silent", t_silent}, {"detach", t_detach}, {"kill_running", t_kill_running},
 		{"dtor_kills", t_dtor_kills}, {"launch_errors", t_launch_errors}, {"args_cwd", t_args_cwd}, {"stdin", t_stdin}, {"stdin_backpressure", t_stdin_backpressure},
-		{"nopty", t_nopty}, {"relaunch", t_relaunch}, {"regs_step", t_regs_step}, {"regs_running", t_regs_running}, {"memory", t_memory}, {"bp_basic", t_bp_basic}, {"bp_step_remove", t_bp_step_remove}, {"bp_write", t_bp_write}, {"bp_threads", t_bp_threads}, {"bp_interrupts", t_bp_interrupts}, {"bp_remove_running", t_bp_remove_running}, {"bp_detach", t_bp_detach}, {"hw_watch", t_hw_watch}, {"hw_thread", t_hw_thread}, {"hw_exec", t_hw_exec}, {"hw_detach", t_hw_detach}, {"modules", t_modules}, {"symbols", t_symbols}, {"frames", t_frames}, {"loader", t_loader}, {"library_reload_breakpoint", t_library_reload_breakpoint}, {"library_rebase_breakpoint", t_library_rebase_breakpoint}, {"library_rebase_hardware", t_library_rebase_hardware}, {"processes", t_processes}, {"stepover_basic", t_stepover_basic}, {"stepover_user_breakpoint", t_stepover_user_breakpoint}, {"stepover_interrupt", t_stepover_interrupt}, {"stepover_recursion", t_stepover_recursion}, {"stepreturn_sites", t_stepreturn_sites}, {"stepreturn_address", t_stepreturn_address}, {"stepreturn_recursion", t_stepreturn_recursion}, {"stepover_threads", t_stepover_threads}, {"perf", t_perf}, {"detach_reaped", t_detach_reaped}, {"fork_child", t_fork_child}, {"vfork", t_vfork}, {"spawn", t_spawn}, {"fork_threads", t_fork_threads}, {"interrupt_burst", t_interrupt_burst}, {"handlers_off", t_handlers_off}, {"handlers_on", t_handlers_on}, {"handlers_toggle", t_handlers_toggle}, {"handlers_thread", t_handlers_thread}, {"sigtrap_raise", t_sigtrap_raise}, {"sigtrap_kill", t_sigtrap_kill}, {"sigtrap_handler_debug", t_sigtrap_handler_debug}, {"sigtrap_instruction", t_sigtrap_instruction}, {"sigtrap_instruction_handler_debug", t_sigtrap_instruction_handler_debug}, {"sigtrap_unhandled", t_sigtrap_unhandled}, {"sigtrap_after_breakpoint", t_sigtrap_after_breakpoint}, {"sigtrap_while_stepping", t_sigtrap_while_stepping}, {"signal_reasons", t_signal_reasons}, {"conf_exitcode", t_conf_exitcode}, {"conf_exceptions", t_conf_exceptions}, {"conf_entry_step_exit", t_conf_entry_step_exit}, {"conf_memory_registers", t_conf_memory_registers}, {"conf_threads_restart", t_conf_threads_restart}, {"conf_symbols_modules", t_conf_symbols_modules}, {"elf_names", t_elf_names}, {"exec_by_name", t_exec_by_name}, {"exec_basic", t_exec_basic}, {"exec_rebreak", t_exec_rebreak}, {"exec_thread", t_exec_thread}, {"exec_continue", t_exec_continue}, {"winsize", t_winsize}, {"repro_echo", t_repro_echo}, {"repro_sigchld_ignored", t_repro_sigchld_ignored}, {"attach_threads", t_attach_threads}, {"attach_breakpoint", t_attach_breakpoint}, {"attach_step_at_breakpoint", t_attach_step_at_breakpoint}, {"attach_exit", t_attach_exit}, {"attach_kill", t_attach_kill}, {"attach_dtor_detaches", t_attach_dtor_detaches}, {"attach_errors", t_attach_errors}, {"attach_churn", t_attach_churn}, {"attach_syscall", t_attach_syscall}, {"redirect_parse", t_redirect_parse}, {"redirect_stdout", t_redirect_stdout}, {"redirect_stdin", t_redirect_stdin}, {"redirect_stderr_merge", t_redirect_stderr_merge}, {"redirect_other_fds", t_redirect_other_fds}, {"redirect_append_readwrite", t_redirect_append_readwrite}, {"redirect_relative", t_redirect_relative}, {"redirect_errors", t_redirect_errors}, {"redirect_leaks", t_redirect_leaks}, {"syscall_trace", t_syscall_trace}, {"syscall_breakpoint", t_syscall_breakpoint}, {"syscall_emulate", t_syscall_emulate}, {"syscall_set_info", t_syscall_set_info}, {"syscall_threads", t_syscall_threads}, {"syscall_unsupported", t_syscall_unsupported}, {"syscall_names", t_syscall_names}};
+		{"nopty", t_nopty}, {"relaunch", t_relaunch}, {"regs_step", t_regs_step}, {"regs_running", t_regs_running}, {"memory", t_memory}, {"bp_basic", t_bp_basic}, {"bp_step_remove", t_bp_step_remove}, {"bp_write", t_bp_write}, {"bp_threads", t_bp_threads}, {"bp_interrupts", t_bp_interrupts}, {"bp_remove_running", t_bp_remove_running}, {"bp_detach", t_bp_detach}, {"hw_watch", t_hw_watch}, {"hw_thread", t_hw_thread}, {"hw_exec", t_hw_exec}, {"hw_detach", t_hw_detach}, {"modules", t_modules}, {"symbols", t_symbols}, {"frames", t_frames}, {"loader", t_loader}, {"library_reload_breakpoint", t_library_reload_breakpoint}, {"library_rebase_breakpoint", t_library_rebase_breakpoint}, {"library_rebase_hardware", t_library_rebase_hardware}, {"processes", t_processes}, {"stepover_basic", t_stepover_basic}, {"stepover_user_breakpoint", t_stepover_user_breakpoint}, {"stepover_interrupt", t_stepover_interrupt}, {"stepover_recursion", t_stepover_recursion}, {"stepreturn_sites", t_stepreturn_sites}, {"stepreturn_address", t_stepreturn_address}, {"stepreturn_recursion", t_stepreturn_recursion}, {"stepover_threads", t_stepover_threads}, {"perf", t_perf}, {"detach_reaped", t_detach_reaped}, {"fork_child", t_fork_child}, {"vfork", t_vfork}, {"spawn", t_spawn}, {"fork_threads", t_fork_threads}, {"interrupt_burst", t_interrupt_burst}, {"handlers_off", t_handlers_off}, {"handlers_on", t_handlers_on}, {"handlers_toggle", t_handlers_toggle}, {"handlers_thread", t_handlers_thread}, {"sigtrap_raise", t_sigtrap_raise}, {"sigtrap_kill", t_sigtrap_kill}, {"sigtrap_handler_debug", t_sigtrap_handler_debug}, {"sigtrap_instruction", t_sigtrap_instruction}, {"sigtrap_instruction_handler_debug", t_sigtrap_instruction_handler_debug}, {"sigtrap_unhandled", t_sigtrap_unhandled}, {"sigtrap_after_breakpoint", t_sigtrap_after_breakpoint}, {"sigtrap_while_stepping", t_sigtrap_while_stepping}, {"signal_reasons", t_signal_reasons}, {"conf_exitcode", t_conf_exitcode}, {"conf_exceptions", t_conf_exceptions}, {"conf_entry_step_exit", t_conf_entry_step_exit}, {"conf_memory_registers", t_conf_memory_registers}, {"conf_threads_restart", t_conf_threads_restart}, {"conf_symbols_modules", t_conf_symbols_modules}, {"elf_names", t_elf_names}, {"exec_by_name", t_exec_by_name}, {"exec_basic", t_exec_basic}, {"exec_rebreak", t_exec_rebreak}, {"exec_thread", t_exec_thread}, {"exec_continue", t_exec_continue}, {"winsize", t_winsize}, {"repro_echo", t_repro_echo}, {"repro_sigchld_ignored", t_repro_sigchld_ignored}, {"attach_threads", t_attach_threads}, {"attach_breakpoint", t_attach_breakpoint}, {"attach_step_at_breakpoint", t_attach_step_at_breakpoint}, {"attach_exit", t_attach_exit}, {"attach_kill", t_attach_kill}, {"attach_dtor_detaches", t_attach_dtor_detaches}, {"attach_errors", t_attach_errors}, {"attach_churn", t_attach_churn}, {"attach_syscall", t_attach_syscall}, {"redirect_parse", t_redirect_parse}, {"redirect_stdout", t_redirect_stdout}, {"redirect_stdin", t_redirect_stdin}, {"redirect_stderr_merge", t_redirect_stderr_merge}, {"redirect_other_fds", t_redirect_other_fds}, {"redirect_append_readwrite", t_redirect_append_readwrite}, {"redirect_relative", t_redirect_relative}, {"redirect_errors", t_redirect_errors}, {"redirect_leaks", t_redirect_leaks}, {"syscall_trace", t_syscall_trace}, {"syscall_breakpoint", t_syscall_breakpoint}, {"syscall_emulate", t_syscall_emulate}, {"syscall_set_info", t_syscall_set_info}, {"syscall_threads", t_syscall_threads}, {"syscall_unsupported", t_syscall_unsupported}, {"syscall_names", t_syscall_names}, {"register_aliases", t_register_aliases}};
 	for (auto& t : tests)
 	{
 		if (argc > 1 && strcmp(argv[1], t.n)) continue;

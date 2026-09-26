@@ -365,7 +365,7 @@ the user selects another thread.
 | Launch settings that LLDB has | Missing: terminal emulator, environment variables, follow-fork mode, initial commands. Redirection exists, and it is more general: `launch.redirectFileDescriptors` sets any descriptor, not only 0, 1 and 2. |
 | Follow fork, catch fork/exec/clone/syscalls | None. A forked child is let go (C1). An exec is reported as a message, and `common.stopOnExec` stops on it (C2). |
 | Signal handling policy | A fixed list of signals is passed on silently (`SIGCHLD`, `SIGALRM`, `SIGURG`, `SIGVTALRM`, `SIGPROF`, `SIGWINCH`, `SIGIO`). Everything else stops the target, and is delivered on resume. No settings. |
-| Registers | General registers, x87 control and status words, `st0` to `st7`, `xmm0` to `xmm15`, `mxcsr`. **Missing:** `ymm`/`zmm`/mask registers, the x87 tag word, debug registers as registers, sub-registers such as `eax`, `ax`, `al`. I did not check whether the UI or the expression parser needs sub-registers. |
+| Registers | General registers, x87 control and status words, `st0` to `st7`, `xmm0` to `xmm15`, `mxcsr`. **Missing:** `ymm`/`zmm`/mask registers, the x87 tag word (`ftag`), `fip`, `fdp`, `mxcsr_mask`, debug registers as registers. Sub-registers such as `eax`, `ax`, `al` are derived from the architecture of the view, see "Registers that are part of other registers". |
 | Symbols | ELF `.symtab` and `.dynsym` only. **Missing:** DWARF, `.gnu_debugdata`, separate debug files, PLT stub symbols, TLS symbols. C++ names are **not demangled** (Binary Ninja's demangle call is deprecated, so I did not use it). |
 | Unwinding | Frame pointers only. No `.eh_frame` (CFI). No signal frames. |
 | Modules | ELF objects only. `[vdso]` is not a module, so frames inside it have no module or name. |
@@ -538,6 +538,41 @@ found one bug and confirmed the rest:
 | **Initial commands** (`common.initialLLDBCommand`) | Not supported |
 | Suspending and resuming one thread from the UI | Returns false |
 | Remote and server targets, time travel, core dumps, kernel and Wine targets | Other adapters. Not applicable |
+
+### Registers that are part of other registers
+
+**The problem.** The controller finds a register by its exact name, and an unknown name reads as 0 (`DebuggerRegisters::GetRegisterValue`).
+The IL evaluator (`ComputeExprValue`, `GetVariableValue`, so the Debugger Info tab too) asks for the register that the IL names, with the name
+from the architecture of the view, so `edi` where the IL reads `edi`. The table only had the full registers of the kernel, so any read of `edi`,
+`eax`, `al` or `r8d` was 0. (Parameters of a callee are stored in the full register, so those were not hit; operands and conditions were.)
+
+**Why not a bigger table.** ptrace has no names: `PTRACE_GETREGSET` returns bytes, and where each register is in them is only in
+the kernel's structs. So the table with `{name, regset, offset, size}` stays, for the registers that are in the target. It is small and it is
+the part that only the kernel knows. What Binary Ninja knows is the rest: the name, width and parent of every register.
+
+**What is done** (`DeriveSubRegisters` and `CheckRegisterSizes` in `ptracearch`, `PtraceAdapter::BuildRegisterList`):
+
+- After the architecture of the target is known, at the first stop and again after an exec, the adapter asks the architecture of the view for
+  `GetAllRegisters()` and `GetRegisterInfo()` of each: the name, the full-width register that it is part of, the offset in it, and the size.
+- Every register that is in the parent of one of the table, and not in the table, gets an entry at the parent's place plus its offset:
+  `eax`, `ax`, `al`, `ah` for `rax`, and `r8d`, `r8w`, `r8b` for `r8`. They are added after the registers of the table, so the
+  controller lists them and can look them up. On arm64 it would be `w0` for `x0`, with no code for that.
+- Reading is right. **Writing a sub-register only changes its own bytes**, as GDB does; the CPU's rule that writing `eax` clears the top half of `rax`
+  is not applied.
+- The derivation is only used when the name of the view's architecture is the one of the table (`x86_64`, `x86`), because the view describes
+  the program that was analyzed, which is not always the one that is running (an exec into another architecture). Otherwise only the table is used.
+- A register that both have and that disagrees in size is written to the debug log, and the table is what is used. `eflags` does this: it is 8
+  bytes in the kernel struct.
+- A big-endian architecture derives nothing (`PtraceArch::littleEndian`), because where the low part is would not be known.
+- The Registers widget filters to the registers that the function uses when "hide unused" is on, so the extra ones show up as the IL uses them.
+  With it off they are all listed: about 50 more on x86_64.
+
+**Tested:** `register_aliases`: the edge cases (a register in the table, an unknown parent, one that reaches outside of its parent, a name said twice,
+an empty name, a size of 0, a big-endian architecture, the log line for `eflags`), and the offsets checked against the real register bytes of a live process
+(the low half, the high half, and the second byte of the register that holds the pc). It passes on arm64, and its pure part on x86_64.
+**Not run:** the adapter's part, which reads the names from Binary Ninja. Whether `GetAllRegisters()` of the x86_64 architecture has the names and
+parents that were assumed (`eax` with `rax` as its full-width register, and so on) was **not checked**, so on a first run look at the Registers
+widget and the Debugger Info tab, and at the debug log for the size messages.
 
 ### System call stops
 
@@ -800,7 +835,8 @@ The engine has no x86 in it and was tested on arm64. Enabling arm64 means:
 - [ ] `.eh_frame` (CFI) unwinding, which removes most of the frame-pointer limits.
 - [ ] Event-driven waiting (`pidfd`) instead of polling.
 - [ ] C++ demangling, DWARF and separate-debug-file symbols, `.gnu_debugdata`.
-- [ ] `ymm`, `zmm` and mask registers, and sub-registers.
+- [ ] `ymm`, `zmm` and mask registers.
+- [x] Sub-registers (derived, see "Registers that are part of other registers"). **Not run in Binary Ninja.**
 - [ ] Find the loader through `r_debug` instead of the `_dl_debug_state` symbol, so musl works.
 - [ ] Catch fork, exec, clone and syscall events as user-visible stops.
 - [ ] Per-signal handling settings.
