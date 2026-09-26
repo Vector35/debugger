@@ -198,6 +198,7 @@ namespace BinaryNinjaDebugger {
 
 	PtraceAdapter::~PtraceAdapter()
 	{
+		m_destroying = true;
 		m_stepper.reset();
 		m_engine.reset();
 	}
@@ -301,6 +302,46 @@ namespace BinaryNinjaDebugger {
 
 	void PtraceAdapter::HandleEngineEvent(const PtraceEngine::Event& event)
 	{
+		if (m_destroying)
+			return;
+
+		if (!event.errors.empty())
+		{
+			std::string text;
+			for (const auto& error : event.errors)
+				text += (text.empty() ? "" : "\n") + error;
+
+			DebuggerEvent failure;
+			failure.type = ErrorEventType;
+			failure.data.errorData.shortError = "PTRACE engine error";
+			failure.data.errorData.error = "PTRACE: " + text
+				+ "\nThe debugger's picture of the target may be wrong from here on.";
+			PostDebuggerEvent(failure);
+		}
+
+		for (const auto& note : event.notes)
+		{
+			DebuggerEvent message;
+			message.type = BackendMessageEventType;
+			message.data.messageData.message = "PTRACE: " + note + "\n";
+			PostDebuggerEvent(message);
+		}
+
+		if (!event.unresponsive.empty())
+		{
+			std::string threads;
+			for (uint32_t tid : event.unresponsive)
+				threads += (threads.empty() ? "" : ", ") + std::to_string(tid);
+
+			DebuggerEvent message;
+			message.type = BackendMessageEventType;
+			message.data.messageData.message = fmt::format(
+				"PTRACE: thread(s) {} did not answer in time, and the debugger went on without {}. A thread in "
+				"uninterruptible sleep, on NFS or FUSE for example, neither stops nor dies until its I/O is done.\n",
+				threads, event.unresponsive.size() == 1 ? "it" : "them");
+			PostDebuggerEvent(message);
+		}
+
 		DebuggerEvent dbgevt;
 		switch (event.type)
 		{

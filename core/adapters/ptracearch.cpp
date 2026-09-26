@@ -106,6 +106,14 @@ namespace BinaryNinjaDebugger {
 		}
 
 		void OnTrap(pid_t tid) override { WriteDr(tid, 6, 0); }
+
+		// DR6 has a bit for each of the four breakpoints that were met. Linux keeps a virtual DR6 for the tracer.
+		uint64_t TriggeredSlots(pid_t tid, bool& known) override
+		{
+			unsigned long dr6 = 0;
+			known = ReadDr(tid, 6, dr6);
+			return known ? (dr6 & 0xf) : 0;
+		}
 	};
 
 
@@ -184,6 +192,7 @@ namespace BinaryNinjaDebugger {
 		arch.breakpointPcAdjust = 1;
 		arch.hwDebug = NativeX86HwDebug();
 		arch.sysemu = true;
+		arch.trapInstructions = {{0xcd, 0x03}};
 
 		// The order of user_regs_struct: r15 r14 r13 r12 rbp rbx r11 r10 r9 r8 rax rcx rdx rsi rdi orig_rax rip cs
 		// eflags rsp ss fs_base gs_base ds es fs gs. The registers are listed in the order GDB uses.
@@ -217,6 +226,7 @@ namespace BinaryNinjaDebugger {
 		arch.breakpointPcAdjust = 1;
 		arch.hwDebug = NativeX86HwDebug();
 		arch.sysemu = true;
+		arch.trapInstructions = {{0xcd, 0x03}};
 
 		// The order of the 32-bit user_regs_struct: ebx ecx edx esi edi ebp eax xds xes xfs xgs orig_eax eip xcs
 		// eflags esp xss

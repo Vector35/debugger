@@ -43,6 +43,8 @@ namespace BinaryNinjaDebugger {
 		std::mutex m_registerMutex;
 		std::shared_ptr<const std::vector<PtraceRegister>> m_registers;
 		bool m_firstStop = false;
+		// Set when the adapter is being destroyed. A handler that has not started does nothing then.
+		std::atomic<bool> m_destroying {false};
 		bool m_attached = false;
 		bool m_stopAtSystemEntry = false;
 

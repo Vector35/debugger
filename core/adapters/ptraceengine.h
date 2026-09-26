@@ -81,6 +81,15 @@ namespace BinaryNinjaDebugger {
 			int signalHandler = 0;
 			// The thread is stopped at a system call, because it was resumed to one. See ResumeToSyscall.
 			bool syscall = false;
+			// Threads that did not answer within the wait timeout, and that the engine went on without: they did not stop
+			// when they were asked to, or they did not die when they were killed. See SetWaitTimeout.
+			std::vector<uint32_t> unresponsive;
+			// Things that the engine handled that the owner should know of, one line each. They come with the next stop, exit
+			// or detach.
+			std::vector<std::string> notes;
+			// Things that went wrong that the engine cannot put right, and that leave what it says about the target in doubt:
+			// a breakpoint that could not be put back, a PC that could not be moved. The engine goes on, and says so.
+			std::vector<std::string> errors;
 			std::string data;
 			std::function<void()> task;
 		};
@@ -185,6 +194,9 @@ namespace BinaryNinjaDebugger {
 		struct ThreadInfo
 		{
 			bool stopped = false;
+			// It did not stop within the wait timeout. It is not waited for again, and is looked at when it may have
+			// stopped, until it does.
+			bool unresponsive = false;
 			bool stepping = false;
 			bool awaitingInitialStop = false;
 			// SIGSTOPs we sent that have not been consumed yet
@@ -245,7 +257,26 @@ namespace BinaryNinjaDebugger {
 			pid_t tid = 0;
 		};
 
-		EventHandler m_handler;
+		// What the event thread works on. The thread owns a share of it, and touches nothing else of the engine, so that it
+		// can outlive the engine: a handler that is still running when the engine is destroyed (because it destroyed the
+		// engine itself, or because it waits for whoever destroys it) is left to finish on its own.
+		struct EventCore
+		{
+			std::mutex mutex;
+			std::condition_variable cv;
+			std::deque<Event> events;
+			bool stop = false;
+			bool done = false;
+			std::condition_variable doneCv;
+			std::shared_ptr<const EventHandler> handler;
+			// The bytes of output that are queued for the handler. The pty is not read while there are too many, so a target
+			// that writes faster than the handler takes it up is slowed down by its terminal filling, and memory stays bounded.
+			std::atomic<size_t> pendingOutput {0};
+			std::mutex outputMutex;
+			std::condition_variable outputCv;
+		};
+
+		std::shared_ptr<EventCore> m_core;
 		LaunchOptions m_options;
 		std::promise<std::string> m_launchResult;
 
@@ -259,10 +290,9 @@ namespace BinaryNinjaDebugger {
 		bool m_tracerStop = false;
 		bool m_shutdown = false;
 
-		std::mutex m_eventMutex;
-		std::condition_variable m_eventCv;
-		std::deque<Event> m_events;
-		bool m_eventStop = false;
+		std::atomic<size_t> m_outputLimit {1024 * 1024};
+		// How long the destructor waits for a handler that is still running
+		std::atomic<int> m_teardownWaitMs {2000};
 
 		// Only touched by the tracer thread
 		std::map<pid_t, ThreadInfo> m_threads;
@@ -289,6 +319,13 @@ namespace BinaryNinjaDebugger {
 		std::atomic<bool> m_interruptWanted {false};
 		std::atomic<int> m_interruptInFlight {0};
 		std::atomic<bool> m_debugSignalHandlers {false};
+		// How long a wait for a thread lasts before it is given up on, in milliseconds
+		std::atomic<int> m_waitTimeoutMs {5000};
+		// Tasks that were given up on and are not in m_threads: a child of a fork that did not stop, and the threads that
+		// did not die when the target was killed
+		std::vector<uint32_t> m_lingering;
+		std::vector<std::string> m_notes;
+		std::vector<std::string> m_errors;
 
 		pid_t m_pid = -1;
 		pid_t m_attachPid = -1;
@@ -304,7 +341,7 @@ namespace BinaryNinjaDebugger {
 		size_t m_pendingInputBytes = 0;
 
 		void TracerMain();
-		void EventMain();
+		static void EventLoop(std::shared_ptr<EventCore> core);
 		void IoMain();
 
 		std::string Spawn();
@@ -314,6 +351,7 @@ namespace BinaryNinjaDebugger {
 		void PushEvent(const Event& event);
 		void Publish();
 		void StopIo();
+		void DrainOutput(char* buffer, size_t size);
 
 		bool PollThreads();
 		void HandleStatus(pid_t tid, int status);
@@ -333,12 +371,41 @@ namespace BinaryNinjaDebugger {
 		bool EndGuard(pid_t tid, bool threadAlive);
 		bool StartNextStepOver();
 		bool ResumeAll();
-		void ApplyHardwareToThread(pid_t tid);
+		bool ApplyHardwareToThread(pid_t tid);
 		void HandleFork(pid_t child, bool sharedMemory);
 		Classified HandleExec(pid_t tid);
 		void ResumeBreakpointsAfterVfork();
 		bool RemoveAllBreakpoints();
 		void StopAll();
+		enum class WaitResult
+		{
+			Status,
+			Timeout,
+			Gone
+		};
+
+		// Waits for a status of `tid` for at most `timeout`. A wait that has no deadline hangs the tracer thread, and
+		// with it everything that calls into the engine, for as long as a thread is stuck in uninterruptible sleep.
+		WaitResult WaitForThread(pid_t tid, int& status, std::chrono::milliseconds timeout);
+		std::chrono::milliseconds WaitTimeout() const { return std::chrono::milliseconds(m_waitTimeoutMs.load()); }
+		void KillAndReap(pid_t pid);
+		std::vector<uint32_t> TakeUnresponsive();
+		void Note(const std::string& note) { m_notes.push_back(note); }
+		void Error(const std::string& error) { m_errors.push_back(error); }
+		std::vector<std::string> TakeErrors()
+		{
+			std::vector<std::string> result;
+			result.swap(m_errors);
+			return result;
+		}
+		void FinishGuard(pid_t tid, bool threadAlive);
+		std::vector<std::string> TakeNotes()
+		{
+			std::vector<std::string> result;
+			result.swap(m_notes);
+			return result;
+		}
+		pid_t ThreadGroupOf(pid_t tid);
 		void FinishStop(pid_t tid, const Classified& stop);
 		void FinishExit(int status);
 
@@ -379,6 +446,23 @@ namespace BinaryNinjaDebugger {
 		// Runs a function on the thread that delivers the events, after everything that was posted before it. That
 		// thread is not tied up by the caller, so it is the place for work that must not run under the caller's locks.
 		void PostTask(std::function<void()> task);
+
+		// How long the engine waits for a thread to stop after it was asked to, to die after it was killed, and so on,
+		// before it goes on without it. A thread in uninterruptible sleep, on NFS or FUSE for example, does neither until
+		// its I/O is done. The events that follow tell which threads were given up on.
+		void SetWaitTimeout(std::chrono::milliseconds timeout) { m_waitTimeoutMs = (int)timeout.count(); }
+
+		// How much output can be queued for the handler before the target's terminal is left to fill up. The output that is
+		// queued is joined into events of up to 64 KB, so a handler that is slow sees fewer and larger ones.
+		void SetOutputLimit(size_t bytes) { m_outputLimit = bytes; }
+		size_t PendingOutputBytes() const { return m_core->pendingOutput; }
+
+		// The engine can be destroyed from its own handler: nothing waits for the handler that is running. It can be
+		// destroyed while a handler waits for the caller (an event that is posted to the controller is waited for, and the
+		// controller may be what destroys the engine): the destructor waits this long for the handler, and then goes on. In
+		// both cases the handler is not called again, and it finishes without the engine. What it does to whatever else it
+		// captured is its own matter.
+		void SetTeardownWait(std::chrono::milliseconds wait) { m_teardownWaitMs = (int)wait.count(); }
 
 		// A signal that the target has a handler for is normally delivered and the handler runs on its own. With this
 		// set, the thread stops at the first instruction of the handler instead.
