@@ -817,7 +817,9 @@ static void t_processes()
 {
 	Log log; auto e = start(log, "sleeper"); if (!e) return;
 	auto list = ListProcesses(); bool self = false, target = false;
-	for (auto& p : list) { if (p.pid == (uint32_t)getpid()) { self = true; CHECK(p.name == "driver"); CHECK(p.commandLine.find("driver") != std::string::npos); } if (p.pid == e->GetPid()) { target = true; CHECK(p.name == "progs"); CHECK(p.commandLine.find("sleeper") != std::string::npos); } }
+	// the sanitizer builds are called something else than driver
+	std::string me; { std::ifstream comm("/proc/self/comm"); std::getline(comm, me); }
+	for (auto& p : list) { if (p.pid == (uint32_t)getpid()) { self = true; CHECK(p.name == me); CHECK(p.commandLine.find(me) != std::string::npos); } if (p.pid == e->GetPid()) { target = true; CHECK(p.name == "progs"); CHECK(p.commandLine.find("sleeper") != std::string::npos); } }
 	CHECK(self && target); for (size_t i = 1; i < list.size(); i++) CHECK(list[i - 1].pid < list[i].pid);
 	e->Kill();
 }
