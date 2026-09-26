@@ -15,7 +15,7 @@ How to read the labels:
 
 ## 1. Where things stand
 
-Branch `claude/ptrace-adapter-integration-de3ad7`, 24 commits on top of `dev` (`61c7638`). None of them has a co-author
+Branch `claude/ptrace-adapter-integration-de3ad7`, 27 commits on top of `dev` (`61c7638`). None of them has a co-author
 or attribution trailer.
 
 | Commit | What |
@@ -42,11 +42,14 @@ or attribution trailer.
 | `1007f26` | Cut the version off the names of symbols in `.symtab` |
 | `d69bc61` | `PtraceLinuxx64Test` and `PtraceLinuxx86Test` in `test/debugger_test.py` |
 | `1e91282` | The harness builds for x86_64 as well as aarch64 |
-| `2481329` | System call stops in the engine: `PTRACE_SYSCALL`, `PTRACE_SYSEMU`, `PTRACE_GET_SYSCALL_INFO` and `PTRACE_SET_SYSCALL_INFO`, and the names of the calls |
-| (the commit of this file) | System call stops in the console, the backend commands `syscall`, `sysemu`, `syscall-info` and `syscall-set`, and the `syscall` property |
+| `a698a6a` | Fix ptrace state handling and SIGTRAP delivery: the trap classifier that reads `siginfo`, transactional resume, fault injection tests, bounded input. Not from this session; **not pushed** when the rebase below was done |
+| `18d79c8` | System call stops in the engine: `PTRACE_SYSCALL`, `PTRACE_SYSEMU`, `PTRACE_GET_SYSCALL_INFO` and `PTRACE_SET_SYSCALL_INFO`, and the names of the calls |
+| `03355cc` | System call stops in the console, the backend commands `syscall`, `sysemu`, `syscall-info` and `syscall-set`, and the `syscall` property |
+| `292bf41` | Derive the sub-registers from the architecture of the view |
+| `340a182` | Do not assume the name of the test driver in the process list test |
 
 - **Pushed:** up to `1e91282`, to `origin/claude/ptrace-adapter-integration-de3ad7` and to `origin/native-linux-adapter`,
-  which are the same commit. The two system call commits (the last two rows) are newer than that, and **not pushed**.
+  which are the same commit. Everything after `1e91282` in the table is **not pushed**, and it was rebased onto `a698a6a` (which is also not pushed), so the hashes of the last four rows are not the ones in older notes.
 - **Size:** 16 source files (8 pairs) in `core/adapters/`, about 6,400 lines, 320 of them the syscall tables, plus `CMakeLists.txt` and
   `debugger.cpp`. The scaffold was 2 files.
 
