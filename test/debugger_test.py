@@ -801,6 +801,43 @@ class PtraceAdapterTests:
             except ProcessLookupError:
                 pass
 
+    def wait_until_stopped(self, dbg, timeout=10):
+        deadline = time.monotonic() + timeout
+        while dbg.running and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertFalse(dbg.running)
+
+    def test_backend_syscall_commands(self):
+        fpath = name_to_fpath('helloworld', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+        self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        try:
+            self.assertIn('syscall-info', dbg.execute_backend_command('help'))
+            # Stopped at the entry point, and not at a system call
+            self.assertIn('not stopped at a system call', dbg.execute_backend_command('syscall-info'))
+
+            # Run to a system call and back out of it: an entry, and then the exit of the same call
+            dbg.execute_backend_command('syscall')
+            self.wait_until_stopped(dbg)
+            self.assertIn('system call entry', dbg.execute_backend_command('syscall-info'))
+            call = dbg.get_adapter_property('syscall')
+            self.assertEqual(call['op'], 'entry')
+            self.assertEqual(len(call['args']), 6)
+            dbg.execute_backend_command('syscall')
+            self.wait_until_stopped(dbg)
+            self.assertIn('system call exit', dbg.execute_backend_command('syscall-info'))
+            self.assertEqual(dbg.get_adapter_property('syscall')['op'], 'exit')
+
+            # sysemu stops at an entry and never at an exit, because the call is not made
+            dbg.execute_backend_command('sysemu')
+            self.wait_until_stopped(dbg)
+            self.assertEqual(dbg.get_adapter_property('syscall')['op'], 'entry')
+
+            self.assertIn('unknown command', dbg.execute_backend_command('no-such-command'))
+        finally:
+            dbg.quit_and_wait()
+
     def test_stripped_pie_entry_point(self):
         strip_path = shutil.which('strip')
         if strip_path is None:

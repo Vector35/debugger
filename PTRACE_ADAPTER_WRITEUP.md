@@ -15,7 +15,7 @@ How to read the labels:
 
 ## 1. Where things stand
 
-Branch `claude/ptrace-adapter-integration-de3ad7`, 16 commits on top of `dev` (`61c7638`). None of them has a co-author
+Branch `claude/ptrace-adapter-integration-de3ad7`, 24 commits on top of `dev` (`61c7638`). None of them has a co-author
 or attribution trailer.
 
 | Commit | What |
@@ -36,14 +36,19 @@ or attribution trailer.
 | `ace74b2` | Use the stop reasons of Linux for signals (found by reading the repo's tests) |
 | `3784118` | Attach to a running process |
 | `cf74e31` | The `launch.redirectFileDescriptors` setting: redirect any file descriptor of the target |
+| `2231e2d` | This file, and the engine test harness |
+| `4a7fa86` | A terminal size for the target, and reaping a target that was let go of (fixes C3 and C4) |
+| `877aa1b` | Register the `attach.pid` setting (the first attach commit could only have attached to pid 0) |
+| `1007f26` | Cut the version off the names of symbols in `.symtab` |
+| `d69bc61` | `PtraceLinuxx64Test` and `PtraceLinuxx86Test` in `test/debugger_test.py` |
+| `1e91282` | The harness builds for x86_64 as well as aarch64 |
+| `2481329` | System call stops in the engine: `PTRACE_SYSCALL`, `PTRACE_SYSEMU`, `PTRACE_GET_SYSCALL_INFO` and `PTRACE_SET_SYSCALL_INFO`, and the names of the calls |
+| (the commit of this file) | System call stops in the console, the backend commands `syscall`, `sysemu`, `syscall-info` and `syscall-set`, and the `syscall` property |
 
-- **Pushed:** up to `ad42176`, to `origin/claude/ptrace-adapter-integration-de3ad7`. The eleven commits after it
-  (`cfad919` to `cf74e31`, the last eleven in the table) are **not pushed**.
-- **`native-linux-adapter`:** local copy is at `3541b8a`, `origin` still has `d7005f8`. Neither has Phases 2 to 5.
-- **Not committed:** this file, and `test/ptrace_engine/` (the test harness, copied out of a temp directory so it is not
-  lost).
-- **Size:** 12 source files in `core/adapters/`, about 4,200 lines, plus `CMakeLists.txt` and `debugger.cpp`. The scaffold
-  was 2 files.
+- **Pushed:** up to `1e91282`, to `origin/claude/ptrace-adapter-integration-de3ad7` and to `origin/native-linux-adapter`,
+  which are the same commit. The two system call commits (the last two rows) are newer than that, and **not pushed**.
+- **Size:** 16 source files (8 pairs) in `core/adapters/`, about 6,400 lines, 320 of them the syscall tables, plus `CMakeLists.txt` and
+  `debugger.cpp`. The scaffold was 2 files.
 
 What exists, by file:
 
@@ -354,7 +359,7 @@ the user selects another thread.
 | Connect to a remote or debug server | Not supported by design. `CanConnect` is false. |
 | Suspend or resume a single thread | Returns false. The engine is all-stop. |
 | Debugging signal handlers | **Available, off by default:** the `common.debugSignalHandlers` setting. See the notes below the table. |
-| Console commands (`InvokeBackendCommand`) | Returns an empty string. |
+| Console commands (`InvokeBackendCommand`) | Only the four for system calls, see "System call stops". |
 | Adapter properties (`GetProperty`, `SetProperty`) | Stubs. |
 | Reverse execution, TTD | Not applicable. |
 | Launch settings that LLDB has | Missing: terminal emulator, environment variables, follow-fork mode, initial commands. Redirection exists, and it is more general: `launch.redirectFileDescriptors` sets any descriptor, not only 0, 1 and 2. |
@@ -525,7 +530,7 @@ found one bug and confirmed the rest:
 | --- | --- |
 | Debugging **without opening a file** (a mapped view) | **Not offered.** `CanExecute` only accepts an ELF view, so a mapped or raw view cannot use this adapter. (GDB MI has the same limit, LLDB does not) |
 | **Attach to a process** (the button) | Implemented. The controller passes the pid through the `attach.pid` adapter setting, which the adapter registers |
-| **Backend commands** (the console, `execute_backend_command`) | Returns nothing. So no `image list`, `breakpoint list`, `process save-core` (dump files) and so on |
+| **Backend commands** (the console, `execute_backend_command`) | Four commands for system calls (`syscall`, `sysemu`, `syscall-info`, `syscall-set`), and nothing else. So no `image list`, `breakpoint list`, `process save-core` (dump files) and so on |
 | **Terminal emulator** (`request_terminal_emulator`) | Not supported. The target always runs on a pty whose output goes to the console |
 | **stdin, stdout and stderr redirection** (`launch.redirect*`) | Implemented as `launch.redirectFileDescriptors`, which takes any descriptor |
 | **Environment variables** (`launch.environmentVariables`) | Not supported |
@@ -533,6 +538,68 @@ found one bug and confirmed the rest:
 | **Initial commands** (`common.initialLLDBCommand`) | Not supported |
 | Suspending and resuming one thread from the UI | Returns false |
 | Remote and server targets, time travel, core dumps, kernel and Wine targets | Other adapters. Not applicable |
+
+### System call stops
+
+**What there is:** `PtraceEngine::ResumeToSyscall(mode)` resumes every thread until one is at a system call.
+`SyscallMode::Trace` is `PTRACE_SYSCALL`: it stops at the entry and at the exit, and the call is made. `SyscallMode::Emulate` is
+`PTRACE_SYSEMU`: it stops at the entry only, and the call is **not** made, so the debugger stands in for the kernel. The engine
+sets `PTRACE_O_TRACESYSGOOD`, so a syscall stop is told from a real `SIGTRAP` (it is `SIGTRAP | 0x80`), and refuses `Emulate`
+unless the architecture table says `sysemu` (true for x86 and x86_64). `GetSyscallInfo` and `SetSyscallInfo` are
+`PTRACE_GET_SYSCALL_INFO` (Linux 5.3) and `PTRACE_SET_SYSCALL_INFO` (Linux 6.16): they give the number, the six arguments, the
+return value and the `AUDIT_ARCH_*` value, and change them.
+
+**How it gets to the Binary Ninja UI, without a change to the controller or the UI.** Neither has any idea of a system call: the
+only mention is the stop reason `ExcSyscall`, which is the Mach one. So there are four ways, all from the adapter:
+
+1. **Every syscall stop writes a line in the debugger console** (a `BackendMessageEventType`, the way the exec and signal-handler
+   messages do): `thread 5 is entering write(0x1, 0x7ffc1000, 0x5, 0x0, 0x0, 0x0)`, and at the exit `thread 5 left write(...) = 5` or
+   `= -2 (No such file or directory)`. The exit line has the call because the adapter keeps the last entry of each thread. All six
+   arguments are printed, because the table has names but not the number of arguments. The name comes from a table of x86_64 and
+   i386 (`ptracesyscall.cpp`, generated from the headers of Linux 6.8, 373 and 451 entries) that is picked by the `AUDIT_ARCH_*` value
+   of the stop, so a 32-bit program on a 64-bit kernel gets the i386 names. Other architectures print `syscall_<number>`.
+2. **The stop reason is `ExcSyscall`**, so the status of the debugger says so.
+3. **Backend commands** (the console of the debug adapter, or `execute_backend_command` in Python):
+   `syscall` and `sysemu` resume to the next system call, `syscall-info` describes the stop of the active thread (the registers, and
+   the entry that an exit belongs to), and `syscall-set nr|arg0..arg5|ret VALUE` changes it. The resume commands post a
+   `ResumeEventType` first, so that the controller knows that the target runs, and the stop that follows is picked up by the
+   controller as a spontaneous stop (`HandleSpontaneousAdapterStop`, the same thing that happens when a user types `si` in the LLDB
+   console). If the resume fails, the adapter posts a stop for the state that it was in.
+4. **`get_adapter_property('syscall')`** gives a dictionary for scripts: `op`, `arch`, `pc`, `sp`, and `number`, `name` and `args`
+   (entry), or `return` and `is_error` (exit).
+
+**Is the "debugger info" tab filled in by a system call? No.** `DebuggerInfoWidget` only puts hints on the values of the
+registers (`GetAddressInformation`), so at a syscall stop it shows the registers as it does at any other stop, with no name for the
+call. Showing the call there, or in its own widget, would need a change of the controller and the UI, which was ruled out.
+
+**What to know about `sysemu`:**
+
+- The kernel decides whether a thread's call is skipped when the thread is resumed to a SYSEMU stop, not when it is resumed
+  afterwards. So after a `sysemu` stop, an ordinary resume does **not** make the call either. The thread goes on with the registers
+  as they are. **Put the result in the return register first** (`rax` on x86_64; it holds `-ENOSYS` at the stop), or the program
+  gets `-ENOSYS`. The engine test does exactly this (`syscall_emulate`: a program that exits with the result of `getppid` exits with
+  77 when the debugger puts 77 in the register).
+- All threads are resumed with it, so **any thread that stops at a system call at the same moment has its call skipped** when it is
+  resumed. With `sysemu` on a program with several threads, expect the others to see `-ENOSYS` too. There is no per-thread mode.
+- It needs `PtraceArch::sysemu`. The man page says x86 only; the arm64 kernel that the tests ran on (Linux 7.0) did it too, but
+  the adapter has no arm64 table, so it is only on for x86.
+- A breakpoint at the instruction after the `syscall` still triggers: a syscall stop does not count as "the reported stop" that
+  a resume steps over.
+
+**Tested, all at engine level on arm64 (Linux 7.0.12 in Docker):** `syscall_trace` (entry and exit of `getppid`, an error exit of
+`close(9999)` with `-EBADF`, the text), `syscall_emulate` (the value that the debugger left is what the program gets, also with
+threads), `syscall_set_info` (a `getppid` changed into `getpid`, and a wrong kind of stop refused; **needs Linux 6.16, and the test
+says SKIP on a kernel without it**), `syscall_threads` (all threads stopped at each stop, five times, then an ordinary run and an
+interrupt), `syscall_unsupported` (`Emulate` refused for an architecture without it, and the engine is still usable), and
+`syscall_breakpoint` (a breakpoint at the instruction after the call is hit, not stepped over), and `syscall_names` (both tables, the formatting, unknown numbers, unknown architectures). 25 rounds of the run tests, and ASan and
+TSan, are clean. **`syscall_names` also passes on x86_64, and the names were checked against the header of an x86_64 machine.**
+**Never run:** any of it on a live x86 process, the `int 0x80` and `sysenter` paths of 32-bit programs, seccomp stops
+(`PTRACE_EVENT_SECCOMP` is not enabled, so the seccomp kind of `SyscallInfo` never comes up), the adapter's commands and messages
+in Binary Ninja, and `test_backend_syscall_commands` in `debugger_test.py`.
+
+**Not done:** `PTRACE_SYSEMU_SINGLESTEP`, `PTRACE_O_TRACESECCOMP`, a syscall catch list ("stop only at `openat`"), the number of
+arguments of each call, decoding the arguments (paths, flags), and old kernels without `PTRACE_GET_SYSCALL_INFO` (the stop still
+happens, but the message says that the details could not be read).
 
 ### Attach and redirection: what they do, and where they stop
 
@@ -725,6 +792,7 @@ The engine has no x86 in it and was tested on arm64. Enabling arm64 means:
 - [ ] Decide which of the other documented features are wanted: backend commands, redirection and environment, a follow-fork setting,
   the terminal emulator.
 - [ ] Add a CI job that runs the harness (with `SYS_PTRACE`), and one that runs it under ASan and TSan.
+- [ ] Watch the system call messages and commands in the Binary Ninja UI (see "System call stops"), and decide whether they should also be a widget.
 - [ ] Review the hardware breakpoint story: allow it while running (stop, change, resume), and identify which slot hit.
 
 ### C. Nice to have

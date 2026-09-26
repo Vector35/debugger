@@ -25,6 +25,7 @@ limitations under the License.
 #include "ptraceelf.h"
 #include "ptracemodule.h"
 #include "ptracestep.h"
+#include "ptracesyscall.h"
 #include "ptraceengine.h"
 
 namespace BinaryNinjaDebugger {
@@ -75,7 +76,15 @@ namespace BinaryNinjaDebugger {
 		std::vector<KnownBreakpoint> m_knownBreakpoints;
 		std::vector<PendingHardwareBreakpoint> m_knownHardwareBreakpoints;
 
+		// The last entry of a system call of each thread, which is what the exit that follows is the exit of
+		std::mutex m_syscallMutex;
+		std::map<uint32_t, PtraceEngine::SyscallInfo> m_syscallEntries;
+
 		void HandleEngineEvent(const PtraceEngine::Event& event);
+		std::string DescribeSyscallStop(uint32_t tid, const PtraceEngine::SyscallInfo& info);
+		std::string ContinueToSyscall(PtraceEngine::SyscallMode mode);
+		std::string DescribeCurrentSyscall();
+		std::string SetSyscallField(const std::string& field, const std::string& value);
 		void ClearBreakpoints();
 		void ForgetKnownBreakpoints();
 		void SyncEngineSettings();

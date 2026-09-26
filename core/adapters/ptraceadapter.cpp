@@ -21,6 +21,7 @@ limitations under the License.
 #include <csignal>
 #include <cstring>
 #include <optional>
+#include <sstream>
 #include "ptraceadapter.h"
 #include "ptracesignal.h"
 #include "lowlevelilinstruction.h"
@@ -133,6 +134,9 @@ namespace BinaryNinjaDebugger {
 	{
 		if (event.interrupted)
 			return UnknownReason;
+		// ExcSyscall is the closest reason there is. It is the one of the Mach exception for a system call.
+		if (event.syscall)
+			return ExcSyscall;
 		// Stopped at the handler of a signal, so it is the signal that is the reason
 		if (event.signalHandler)
 			return StopReasonFromLinuxSignal(event.signalHandler);
@@ -361,6 +365,20 @@ namespace BinaryNinjaDebugger {
 					"0x{:x}\n",
 					event.signalHandler, strsignal(event.signalHandler), event.tid,
 					arch ? ReadArchRegister(arch->pc) : 0);
+				PostDebuggerEvent(message);
+			}
+			if (event.syscall)
+			{
+				PtraceEngine::SyscallInfo info;
+				DebuggerEvent message;
+				message.type = BackendMessageEventType;
+				if (m_engine->GetSyscallInfo(event.tid, info))
+					message.data.messageData.message = "PTRACE: " + DescribeSyscallStop(event.tid, info) + "\n";
+				else
+					message.data.messageData.message = fmt::format(
+						"PTRACE: thread {} is stopped at a system call, but its details could not be read, which needs "
+						"Linux 5.3\n",
+						event.tid);
 				PostDebuggerEvent(message);
 			}
 			dbgevt.type = AdapterStoppedEventType;
@@ -930,6 +948,9 @@ namespace BinaryNinjaDebugger {
 		m_modules.clear();
 		m_moduleGeneration = UINT64_MAX;
 		m_loaderBreakpoint = 0;
+
+		std::lock_guard<std::mutex> syscallLock(m_syscallMutex);
+		m_syscallEntries.clear();
 	}
 
 
@@ -1262,9 +1283,158 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	static const char* BackendCommandHelp =
+		"PTRACE backend commands:\n"
+		"  syscall           continue until a thread is at the entry or the exit of a system call. The call is made.\n"
+		"  sysemu            continue until a thread is at the entry of a system call, which is not made. Put the result\n"
+		"                    in the return register of the target, and resume it with the usual buttons.\n"
+		"  syscall-info      describe the system call that the active thread is stopped at\n"
+		"  syscall-set F V   change the stop, on Linux 6.16 or newer: F is nr or arg0 to arg5 at an entry, or ret at an\n"
+		"                    exit, and V is a number\n";
+
+
 	std::string PtraceAdapter::InvokeBackendCommand(const std::string& command)
 	{
-		return "";
+		std::istringstream stream(command);
+		std::vector<std::string> words;
+		for (std::string word; stream >> word;)
+			words.push_back(word);
+
+		if (words.empty() || words[0] == "help" || words[0] == "?")
+			return BackendCommandHelp;
+		if (words[0] == "syscall" && words.size() == 1)
+			return ContinueToSyscall(PtraceEngine::SyscallMode::Trace);
+		if (words[0] == "sysemu" && words.size() == 1)
+			return ContinueToSyscall(PtraceEngine::SyscallMode::Emulate);
+		if (words[0] == "syscall-info" && words.size() == 1)
+			return DescribeCurrentSyscall();
+		if (words[0] == "syscall-set" && words.size() == 3)
+			return SetSyscallField(words[1], words[2]);
+
+		return fmt::format("PTRACE: unknown command \"{}\"\n{}", command, BackendCommandHelp);
+	}
+
+
+	std::string PtraceAdapter::DescribeSyscallStop(uint32_t tid, const PtraceEngine::SyscallInfo& info)
+	{
+		std::lock_guard<std::mutex> lock(m_syscallMutex);
+		switch (info.op)
+		{
+		case PtraceEngine::SyscallInfo::Entry:
+		case PtraceEngine::SyscallInfo::Seccomp:
+			m_syscallEntries[tid] = info;
+			return fmt::format("thread {} is entering {}", tid, DescribeSyscall(info));
+		case PtraceEngine::SyscallInfo::Exit:
+		{
+			// The exit only has the result, so the call comes from the entry
+			auto entry = m_syscallEntries.find(tid);
+			std::string call = entry != m_syscallEntries.end() ? DescribeSyscall(entry->second) + " " : "";
+			m_syscallEntries.erase(tid);
+			return fmt::format("thread {} left {}{}", tid, call, DescribeSyscall(info));
+		}
+		default:
+			return fmt::format("thread {}: {}", tid, DescribeSyscall(info));
+		}
+	}
+
+
+	std::string PtraceAdapter::ContinueToSyscall(PtraceEngine::SyscallMode mode)
+	{
+		if (!m_engine || !m_targetActive)
+			return "PTRACE: there is no target\n";
+		if (m_engine->IsRunning())
+			return "PTRACE: the target is running\n";
+		auto arch = m_arch.load();
+		if (mode == PtraceEngine::SyscallMode::Emulate && (!arch || !arch->sysemu))
+			return "PTRACE: this architecture has no PTRACE_SYSEMU\n";
+
+		SyncEngineSettings();
+		if (m_stepper)
+			m_stepper->Cancel();
+		m_stopGeneration++;
+
+		// The controller did not ask for this, so it has to be told that the target runs. That comes before the resume,
+		// because a stop that comes quickly must not be the first of the two that the controller hears of.
+		DebuggerEvent resumed;
+		resumed.type = ResumeEventType;
+		PostDebuggerEvent(resumed);
+
+		if (m_engine->ResumeToSyscall(mode))
+			return mode == PtraceEngine::SyscallMode::Trace
+				? "PTRACE: running to the entry or the exit of the next system call\n"
+				: "PTRACE: running to the entry of the next system call, which will not be made\n";
+
+		DebuggerEvent stopped;
+		stopped.type = AdapterStoppedEventType;
+		stopped.data.targetStoppedData.reason = m_lastStopReason;
+		stopped.data.targetStoppedData.lastActiveThread = m_activeThreadId;
+		PostDebuggerEvent(stopped);
+		return "PTRACE: the target could not be resumed\n";
+	}
+
+
+	std::string PtraceAdapter::DescribeCurrentSyscall()
+	{
+		if (!m_engine || !m_targetActive)
+			return "PTRACE: there is no target\n";
+
+		PtraceEngine::SyscallInfo info;
+		if (m_engine->IsRunning() || !m_engine->GetSyscallInfo(m_activeThreadId, info))
+			return "PTRACE: the system call information could not be read. The target has to be stopped, on Linux 5.3 or "
+				   "newer.\n";
+
+		std::string text = DescribeSyscall(info, true);
+		if (info.op == PtraceEngine::SyscallInfo::Exit)
+		{
+			std::lock_guard<std::mutex> lock(m_syscallMutex);
+			auto entry = m_syscallEntries.find(m_activeThreadId);
+			if (entry != m_syscallEntries.end())
+				text += "\nentered as " + DescribeSyscall(entry->second);
+		}
+		return "PTRACE: " + text + "\n";
+	}
+
+
+	std::string PtraceAdapter::SetSyscallField(const std::string& field, const std::string& value)
+	{
+		if (!m_engine || !m_targetActive || m_engine->IsRunning())
+			return "PTRACE: the target has to be stopped\n";
+
+		PtraceEngine::SyscallInfo info;
+		if (!m_engine->GetSyscallInfo(m_activeThreadId, info)
+			|| (info.op == PtraceEngine::SyscallInfo::None))
+			return "PTRACE: the active thread is not stopped at a system call\n";
+
+		char* end = nullptr;
+		bool isEntry = info.op != PtraceEngine::SyscallInfo::Exit;
+		if (field == "ret")
+		{
+			if (isEntry)
+				return "PTRACE: ret can only be set at an exit\n";
+			info.returnValue = strtoll(value.c_str(), &end, 0);
+			// The kernel puts a value from -4095 to -1 in the register for an error
+			info.isError = info.returnValue < 0 && info.returnValue >= -4095;
+		}
+		else if (field == "nr" || (field.size() == 4 && field.rfind("arg", 0) == 0 && field[3] >= '0' && field[3] <= '5'))
+		{
+			if (!isEntry)
+				return fmt::format("PTRACE: {} can only be set at an entry\n", field);
+			uint64_t number = strtoull(value.c_str(), &end, 0);
+			if (field == "nr")
+				info.number = number;
+			else
+				info.args[field[3] - '0'] = number;
+		}
+		else
+		{
+			return fmt::format("PTRACE: unknown field \"{}\", the fields are nr, arg0 to arg5 and ret\n", field);
+		}
+
+		if (value.empty() || !end || *end != '\0')
+			return fmt::format("PTRACE: \"{}\" is not a number\n", value);
+		if (!m_engine->SetSyscallInfo(m_activeThreadId, info))
+			return "PTRACE: the kernel did not take the change. It needs Linux 6.16.\n";
+		return "PTRACE: changed. " + DescribeCurrentSyscall();
 	}
 
 
@@ -1313,7 +1483,33 @@ namespace BinaryNinjaDebugger {
 
 	Ref<Metadata> PtraceAdapter::GetProperty(const std::string& name)
 	{
-		return nullptr;
+		// The system call that the active thread is stopped at, for scripts
+		if (name != "syscall" || !m_engine || !m_targetActive || m_engine->IsRunning())
+			return nullptr;
+
+		PtraceEngine::SyscallInfo info;
+		if (!m_engine->GetSyscallInfo(m_activeThreadId, info))
+			return nullptr;
+
+		static const char* const ops[] = {"none", "entry", "exit", "seccomp"};
+		std::map<std::string, Ref<Metadata>> values;
+		values["op"] = new Metadata(std::string(ops[info.op]));
+		values["arch"] = new Metadata((uint64_t)info.arch);
+		values["pc"] = new Metadata(info.instructionPointer);
+		values["sp"] = new Metadata(info.stackPointer);
+		if (info.op == PtraceEngine::SyscallInfo::Entry || info.op == PtraceEngine::SyscallInfo::Seccomp)
+		{
+			const char* syscallName = SyscallName(info.arch, info.number);
+			values["number"] = new Metadata(info.number);
+			values["name"] = new Metadata(std::string(syscallName ? syscallName : ""));
+			values["args"] = new Metadata(std::vector<uint64_t>(info.args, info.args + 6));
+		}
+		if (info.op == PtraceEngine::SyscallInfo::Exit)
+		{
+			values["return"] = new Metadata(info.returnValue);
+			values["is_error"] = new Metadata(info.isError);
+		}
+		return new Metadata(values);
 	}
 
 
