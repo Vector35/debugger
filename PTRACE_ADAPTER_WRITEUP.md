@@ -246,23 +246,34 @@ for good.**
 
 `ResumeThread` clears `stopped` before it calls `ptrace` (`ptraceengine.cpp:854`), and only treats `ESRCH` as harmless.
 Any other error leaves a stopped thread that the engine believes is running, which would later make a stop-all wait
-forever.
+forever. (`a698a6a` made `ResumeThread` commit its state only after the kernel accepted the resume, so the case described
+here is fixed for `ResumeThread`.)
 
 ### S5. A `clone` that is not a thread. *Medium to Low*
 
 A `clone` without `CLONE_THREAD` (and that is not a fork or a vfork) creates a new *process*, but the engine adds it
-to the thread map. Stop-all would then `tgkill` a thread of another process, which fails, and wait forever for a stop
-that never comes. This is rare. (An `execve` from a non-main thread used to be listed here, and is now handled.)
+to the thread map without looking at its thread group (there is no `Tgid` check anywhere). The kernel reports
+`PTRACE_EVENT_CLONE` for every clone whose exit signal is not `SIGCHLD` and that is not a vfork, so `clone(CLONE_VM | ...)`
+without `CLONE_THREAD` and with another exit signal is reported as one. Stop-all would then `tgkill` a thread of another
+process, which fails, and wait forever for a stop that never comes. It could also apply hardware breakpoints to the
+wrong process and treat the exit of the main task wrongly. This is rare. (An `execve` from a non-main thread used to be
+listed here, and is now handled.) **Fix:** read `Tgid` from `/proc/<tid>/status` when the event arrives, and treat a
+task of another group like a fork child. Not done.
 
 ### S6. A huge read request crashes Binary Ninja. *Medium*
 
 `ReadMemory` allocates a buffer of the requested size (`ptraceadapter.cpp:736`). A bogus size throws `std::bad_alloc`.
 The LLDB adapter has the same pattern, but it is still a crash. **Fix:** cap the size, or read in chunks.
 
-### S7. The target never sees its own `SIGTRAP`. *Low, by design*
+### S7. The target's own `SIGTRAP`. *Fixed in `a698a6a`; one presentation problem is left*
 
-`SIGTRAP` is never passed on to the target, because the engine cannot tell its own breakpoint traps from the target's.
-A program that installs a `SIGTRAP` handler (some anti-debug code) will not see its handler run.
+This used to say that `SIGTRAP` was never passed on. `a698a6a` classifies each trap with `siginfo` and the debugger's own
+state (`test/ptrace_engine/SIGTRAP_OWNERSHIP.md`), and a trap that belongs to the target is delivered on the next
+resume. What is left is how it is shown: the stop reason for such a stop comes from `StopReasonFromLinuxSignal(SIGTRAP)`,
+which has no case, so the debugger shows `UnknownReason`, and the public `BNDebugStopReason` has no value for a trap
+signal. **A new value needs a change outside the adapter**, see "Changes that need code outside the adapter". Inside the
+adapter, a console message that says that the target raised `SIGTRAP` is possible, and is not done. For the traps that
+are still misjudged, see S20.
 
 ### S8. Signal dispositions and the environment leak into the target. *Medium to Low*
 
@@ -276,21 +287,29 @@ necessarily the ignored signals. Open file descriptors without `CLOEXEC` also le
 `SIGTSTP`, `SIGTTIN` and `SIGTTOU` cause group stops. The engine uses `PTRACE_TRACEME` and not `PTRACE_SEIZE`, so
 group-stops are not reported cleanly, and I did not test what happens.
 
-### S10. Nothing has a timeout. *Medium*
+### S10. Nothing has a timeout. *High* (was Medium)
 
 Adapter calls block until the tracer thread answers (`RunOnTracer`). If the tracer thread is stuck in a `waitpid` on a
 thread that never stops (a process in uninterruptible sleep, for example), every call that reaches the engine hangs,
-including `Quit`. The same goes for `DoKill`.
+including `Quit`. The same goes for `DoKill`. The blocking waits are in the launch and attach setup, `HandleFork`,
+`StopAll`, `DoKill` and `DoDetach`. The realistic cause is a thread in uninterruptible sleep (`D`), for instance on NFS or
+FUSE: it ignores `SIGSTOP` and `SIGKILL` until its I/O finishes, so pause, continue, detach, kill, restart and the
+destructor all wait behind it. **Fix:** a deadline on every wait, made of a `WNOHANG` poll, and a state for "the tracee
+is not answering" that the adapter reports as an error.
 
 ### S11. An exception on the tracer thread ends the process. *Low*
 
 The tracer, event and pty threads have no exception guard. An allocation failure or a `std::system_error` from
 thread creation calls `std::terminate`, which takes Binary Ninja with it.
 
-### S12. Output can grow without limit. *Low*
+### S12. Output can grow without limit. *High* (was Low)
 
-Output from the target goes into an unbounded queue. A target that prints a lot while the event thread is blocked in the
-UI callback grows memory.
+Output from the target goes into an unbounded queue (`PushEvent` is a `push_back` on a `std::deque`). The pty thread reads
+4 KB at a time and pushes one event for each, and the event thread posts each one to the controller and waits until it has
+been handled. A target that prints faster than the console shows it (`yes`) grows memory until the process is
+gone. The input direction is bounded since `a698a6a` (`m_inputQueue`, `m_pendingInputBytes`), the output direction is not.
+**Fix:** join neighbouring chunks into one event, and stop reading the pty while a byte limit of queued output is
+exceeded, so the target blocks on its write like it would on a real terminal.
 
 ### S13. The main executable's full symbol table is read on the event thread at the first stop. *Low*
 
@@ -318,6 +337,11 @@ every symbol. For a very large binary this delays the first stop. **Fix:** read 
 - x86 has 4 slots, and sizes must be 1, 2, 4 or 8 with matching alignment.
 - x86 has no read-only watchpoint, so *read* is turned into *access*.
 - A hit does not say **which** breakpoint or watchpoint fired. All are reported as a generic breakpoint stop.
+- A `TRAP_HWBKPT` trap is taken as the debugger's when **any** slot is in use (`ClassifyTrap`), without checking that it was
+  a configured slot that fired. A hardware trap from another source would be swallowed or misreported while the user has
+  a watchpoint. It is not likely (another `TRAP_HWBKPT` source needs one more user of the debug registers), and the fix on x86
+  is cheap: read `DR6` and compare its bits with the slots that are in use. On arm64 it needs the address and the access
+  from `siginfo`.
 - The x86 implementation writes DR0 to DR7 through `PTRACE_POKEUSER`. Some virtual machines do not provide debug
   registers, and then this fails. It was never run.
 - On x86 a data watchpoint traps after the access, on arm64 before it. The `DataTrapsBeforeAccess` flag handles that,
@@ -338,7 +362,69 @@ The arch detection reads the ELF class, and the 32-bit tables were checked again
 It only changes the stored thread id. I did not check whether the controller refreshes registers and frames itself when
 the user selects another thread.
 
+### S19. The engine cannot be destroyed from one of its own callbacks. *High* (confirmed by reading, not reproduced)
+
+`~PtraceEngine` joins the tracer, pty and event threads without looking at which thread it runs on. The adapter passes
+`[this]` to the engine as the event handler. Two failures follow:
+
+- **Self-join:** if the adapter is destroyed on the event thread, the destructor joins the thread that runs it
+  (`std::system_error`, or `std::terminate` from a destructor). That needs a code path that destroys the adapter from
+  `HandleEngineEvent`, and there is none today.
+- **Deadlock (the likelier one):** `HandleEngineEvent` posts events to the controller and waits until the dispatcher has run the
+  callbacks. If a callback ends up destroying the adapter (`~DebuggerState` does `delete m_adapter`) on the dispatcher thread,
+  the destructor joins an event thread that waits for that same dispatcher. I did not look for a callback that does this.
+
+`test/ptrace_engine/event_exception_demo.cpp` shows the related problem that an exception out of an event handler ends
+the process (S11). **Fix:** a contract that says that the engine is not destroyed from its handler, a check in the
+destructor that never joins the current thread, and for the deadlock, the destructor must not wait for an event thread
+that can be blocked by whoever is destroying the engine (the engine's shared state would have to outlive it, so that a
+blocked event thread can finish on its own).
+
+### S20. Traps of the target that the classifier can mistake for a single step. *Low to Medium*
+
+`ClassifyTrap` (since `a698a6a`) already handles a `CC` (`SI_KERNEL` plus the opcode at the PC), `F1` (which x86 reports as
+`TRAP_BRKPT`), `raise`, `kill` and `tgkill` (a negative code, or `SI_USER` with a sender), and hardware traps. What remains
+is the two-byte `int $3` (`CD 03`) while the debugger's single step is outstanding: x86 reports it as `SI_KERNEL` with the PC
+after both bytes, the classifier looks at the byte before the PC, sees `03` and not `CC`, does not recognise a trap
+instruction, and takes the trap as the end of the step. The target's `SIGTRAP` is then swallowed. The same happens if
+`siginfo` cannot be read. **Fix:** also look for `CD 03` at `pc - 2`. None of this has run on x86.
+
+### S21. Stops are found by polling each thread. *Low*
+
+`PollThreads` calls `waitpid(tid, WNOHANG)` for every running thread, which costs a system call for each thread on each pass
+and adds latency to a stop with hundreds of threads. A drain with `waitpid(-1, ...)` is the obvious answer, and has a
+trap: from the tracer thread, `-1` also collects the exit status of **any other child of the host process** (Binary Ninja
+starts subprocesses), and a status that was collected cannot be given back, so "check afterwards that the task is ours" is
+too late. It must use `__WNOTHREAD`, which only looks at the children and tracees of the calling thread. All the tracees
+belong to the tracer thread, and so does the target's fork.
+
+### S22. Ptrace results that keep an invariant are ignored. *Medium to Low*
+
+These calls are not checked, and a failure continues as if it had worked: the PC rewind after a software breakpoint
+(`WritePc`, so a failure reports a breakpoint hit with the PC in the wrong place), `PTRACE_GETEVENTMSG` for clone and
+fork events (the new task id stays 0), `ApplyHardwareToThread` (a new thread without the watchpoints), and in the child
+before `exec`: `setsid`, `TIOCSCTTY`, `dup2` and `personality` (an ignored `personality` is deliberate, because the default
+Docker profile blocks it, but nothing warns about it). `EndGuard` returns a bool since `a698a6a`, and only one of its six
+callers uses it: the others drop a failed re-insertion of a breakpoint. **Fix:** a failure goes to an explicit error state
+that the adapter reports as a stop with an error, not to a log line.
+
 ---
+
+## Changes that need code outside the adapter (documented, not done)
+
+The rule for this work was that the controller (`core/` except `core/adapters/`), the UI and the public API are not changed. These
+things would need one of them. Each says what the change is and what the adapter does in the meantime.
+
+| What | Where the change goes | What the adapter does instead |
+| --- | --- | --- |
+| **A register that does not exist reads as 0.** `GetRegisterValue` finds a name in the adapter's list and returns 0 for one that is not there, and `ComputeExprValue` and `GetVariableValue` then report success with that 0. A wrapper with an "unknown" state (or `std::optional`) would tell the two apart. An additive design: `DebuggerRegisters::TryGetRegisterValue`, with `GetRegisterValue` kept as a wrapper, and the two evaluators returning false for an unknown register. | `core/debuggerstate.cpp:67`, the `LLIL_REG` case of `ComputeExprValue` and `GetVariableValue` in `core/debuggercontroller.cpp`. The public `GetRegisterValue` (`api/debuggerapi.h`, `api/ffi.h`, `core/ffi.cpp`, the Python `get_reg_value`) would only get an addition. About 12 files use it. The GDB MI adapter has the same problem: it turns `<unavailable>` into 0 (`ParseGdbValue`). | Lists every register that Binary Ninja can ask for and the target has: the kernel table, the sub-registers derived from the architecture of the view (done), and still to do: `ymm`, `zmm`, mask registers, the `mm` aliases and the x87 tag word. A register that the target does not have still reads as 0. |
+| **The stop reason of a target `SIGTRAP`.** There is no value for it in `BNDebugStopReason`. | `api/ffi.h`, the name table in `core/debuggercontroller.cpp` (near `"ExcSyscall"`), the Python enum, and whatever shows reasons in the UI. | Reports `UnknownReason`, and could add a console message. |
+| **The stop reason of a system call.** `ExcSyscall` is the reason of the Mach exception, and is used as the closest one. | Same places as above. | Uses `ExcSyscall`. |
+| **The default adapter and the name in the UI.** `GetBestAdapterForCurrentSystem` returns `"LLDB"` on Linux, and the UI shows `PTRACE`. | `core/debugadaptertype.cpp:77`, `ui/adapterdisplayname.h`. | Nothing: the adapter is only used when the user picks it. |
+| **System calls in the UI.** The controller has no idea of a system call. The Debugger Info tab (`ui/debuggerinfowidget.cpp`) only puts hints on register values, and would need a view of the system call at a stop. | `ui/`, and a way for the controller to ask the adapter for it. | Console messages, four backend commands and the `syscall` adapter property. |
+| **The `m_hint` of a register.** The controller overwrites the hint that an adapter gives (`core/debuggerstate.cpp:131,138`), so an adapter cannot say "not available" there. | `core/debuggerstate.cpp`. | Nothing. |
+| **The view after an `exec`.** The controller looks for the input file once per launch, and does not rebind the view when the target starts another program. | The controller (see "The view mismatch after an exec"). | Messages, and the settings `common.resolveBreakpointsByNameOnExec` and `common.loadSymbolsAfterExec`. |
+| **Resuming by a backend command.** The controller only knows a resume that it asked for. The adapter posts a `ResumeEventType` itself and relies on the controller picking up an unasked stop (`HandleSpontaneousAdapterStop`). A real "continue to system call" would be an operation of the controller. | `core/debuggercontroller.cpp`, `api/`, the UI. | The backend commands `syscall` and `sysemu`. |
 
 ## 6. Suspected and cleared
 
@@ -804,7 +890,13 @@ The engine has no x86 in it and was tested on arm64. Enabling arm64 means:
 - [x] Reap detached targets (C3).
 - [ ] Cap `ReadMemory` sizes (S6).
 - [ ] Reset signal dispositions and close stray descriptors in the child (S8).
-- [ ] Put a timeout or an escape hatch on the blocking waits (S10).
+- [ ] Put a timeout or an escape hatch on the blocking waits (S10). **High.**
+- [ ] Bound the output queue and give the pty backpressure (S12). **High.**
+- [ ] A lifetime contract for the engine's callbacks, and a destructor that cannot join itself or wait on a blocked dispatcher (S19). **High.**
+- [ ] Check the results of the ptrace calls that keep an invariant, and give them an error state (S22).
+- [ ] Look for `CD 03` at `pc - 2`, and check the slot of a hardware trap with `DR6` (S20, S15).
+- [ ] Drain stops with `waitpid(-1, __WALL | __WNOTHREAD | WNOHANG)` (S21).
+- [ ] Changes outside the adapter, all listed in "Changes that need code outside the adapter". **Not done on purpose.**
 - [ ] Guard the worker threads against exceptions (S11).
 - [ ] Handle non-thread clones (S5), and mark a failed resume (S4).
 - [ ] Read only the ELF headers for the loader lookup (S13).
