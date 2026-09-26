@@ -15,7 +15,7 @@ How to read the labels:
 
 ## 1. Where things stand
 
-Branch `claude/ptrace-adapter-integration-de3ad7`, 27 commits on top of `dev` (`61c7638`). None of them has a co-author
+Branch `claude/ptrace-adapter-integration-de3ad7`, 31 commits on top of `dev` (`61c7638`). None of them has a co-author
 or attribution trailer.
 
 | Commit | What |
@@ -47,6 +47,10 @@ or attribution trailer.
 | `03355cc` | System call stops in the console, the backend commands `syscall`, `sysemu`, `syscall-info` and `syscall-set`, and the `syscall` property |
 | `292bf41` | Derive the sub-registers from the architecture of the view |
 | `340a182` | Do not assume the name of the test driver in the process list test |
+| `4983434` | The commit table of this file, brought up to date after the rebase |
+| `faef402` | The review findings (S19 to S22), re-rated entries, and the table of changes that need code outside the adapter |
+| `f570fb0` | Deadlines on every wait (S10), output backpressure (S12), teardown from a handler (S19), non-thread clones (S5), checked ptrace results (S22), hardware trap ownership and `CD 03` (S15, S20), and the `EPERM` of an exiting thread when attaching |
+| `61d7f87` | The tests for those, and the notes in this file |
 
 - **Pushed:** up to `1e91282`, to `origin/claude/ptrace-adapter-integration-de3ad7` and to `origin/native-linux-adapter`,
   which are the same commit. Everything after `1e91282` in the table is **not pushed**, and it was rebased onto `a698a6a` (which is also not pushed), so the hashes of the last four rows are not the ones in older notes.
