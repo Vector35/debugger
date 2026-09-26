@@ -2,7 +2,7 @@ cd /work
 gcc -O0 -no-pie -fno-omit-frame-pointer -o progs progs.c -pthread -ldl || exit 1
 gcc -O0 -no-pie -fno-omit-frame-pointer -DPAD -o progs_pad progs.c -pthread -ldl
 gcc -shared -fPIC -o libtest.so libtest.c
-SRC="driver.cpp /src/ptraceengine.cpp /src/ptracearch.cpp /src/ptraceelf.cpp /src/ptracemodule.cpp /src/ptracestep.cpp /src/ptracesignal.cpp"
+SRC="driver.cpp /src/ptraceengine.cpp /src/ptracearch.cpp /src/ptraceelf.cpp /src/ptracemodule.cpp /src/ptracestep.cpp /src/ptracesignal.cpp /src/ptracesyscall.cpp"
 g++ -std=c++20 -O2 -g -I/src -I/bnapi -o driver $SRC -pthread || exit 1
 NEW="redirect_parse redirect_stdout redirect_stdin redirect_stderr_merge redirect_other_fds redirect_append_readwrite redirect_relative redirect_errors redirect_leaks attach_threads attach_breakpoint attach_step_at_breakpoint attach_exit attach_kill attach_dtor_detaches attach_errors attach_churn attach_syscall"
 echo "== full"; timeout 900 ./driver | grep -v "REPRO\|PERF" | grep -E "FAIL|^[0-9]+ failure"

@@ -1,5 +1,5 @@
 cd /work
-SRC="driver.cpp /src/ptraceengine.cpp /src/ptracearch.cpp /src/ptraceelf.cpp /src/ptracemodule.cpp /src/ptracestep.cpp /src/ptracesignal.cpp"
+SRC="driver.cpp /src/ptraceengine.cpp /src/ptracearch.cpp /src/ptraceelf.cpp /src/ptracemodule.cpp /src/ptracestep.cpp /src/ptracesignal.cpp /src/ptracesyscall.cpp"
 g++ -std=c++20 -O1 -g -fsanitize=thread -I/src -I/bnapi -o driver_tsan $SRC -pthread || exit 1
 export TSAN_OPTIONS="halt_on_error=0 report_signal_unsafe=0 second_deadlock_stack=1"
 for t in hello step interrupt threads signal detach kill_running relaunch regs_step memory bp_basic bp_threads bp_interrupts bp_remove_running bp_detach hw_watch hw_thread modules frames loader library_reload_breakpoint library_rebase_breakpoint library_rebase_hardware stdin_backpressure stepover_basic stepover_recursion stepover_threads stepreturn_sites; do

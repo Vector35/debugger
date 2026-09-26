@@ -2,7 +2,7 @@ cd /work
 gcc -O0 -no-pie -fno-omit-frame-pointer -o progs progs.c -pthread -ldl || exit 1
 gcc -O0 -no-pie -fno-omit-frame-pointer -DPAD -o progs_pad progs.c -pthread -ldl
 gcc -shared -fPIC -o libtest.so libtest.c
-SRC="driver.cpp /src/ptraceengine.cpp /src/ptracearch.cpp /src/ptraceelf.cpp /src/ptracemodule.cpp /src/ptracestep.cpp /src/ptracesignal.cpp"
+SRC="driver.cpp /src/ptraceengine.cpp /src/ptracearch.cpp /src/ptraceelf.cpp /src/ptracemodule.cpp /src/ptracestep.cpp /src/ptracesignal.cpp /src/ptracesyscall.cpp"
 g++ -std=c++20 -O2 -g -I/src -I/bnapi -o driver $SRC -pthread || exit 1
 NEW="signal_reasons conf_exitcode conf_exceptions conf_entry_step_exit conf_memory_registers conf_threads_restart conf_symbols_modules elf_names exec_by_name interrupt_burst bp_interrupts handlers_off handlers_on handlers_toggle handlers_thread interrupt threads churn signal silent bp_threads stepover_threads fork_threads exec_basic"
 echo "== full"; timeout 900 ./driver | grep -v "REPRO\|PERF" | tail -1

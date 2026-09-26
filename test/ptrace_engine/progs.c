@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/syscall.h>
 #include <signal.h>
 #include <pthread.h>
 #include <string.h>
@@ -116,6 +117,8 @@ int main(int argc, char** argv)
 	if (!strcmp(mode, "sigtrap_unhandled")) { signal(SIGUSR1, SIG_IGN); raise(SIGUSR1); raise(SIGTRAP); return 99; }
 	if (!strcmp(mode, "execpad")) { signal(SIGUSR1, SIG_IGN); printf("marker=%p\n", (void*)marker); raise(SIGUSR1); execl("/work/progs_pad", "progs_pad", "bp", (char*)0); return 99; }
 	if (!strcmp(mode, "abort")) { abort(); }
+	// Raw system calls only, so that the first ones after the SIGUSR1 stop are the two that the tests look for
+	if (!strcmp(mode, "syscalls")) { signal(SIGUSR1, SIG_IGN); long p = getpid(), t = syscall(SYS_gettid); syscall(SYS_tgkill, p, t, SIGUSR1); long r = syscall(SYS_getppid); syscall(SYS_close, 9999); return (int)(r & 0xff); }
 	if (!strcmp(mode, "fdwrite")) { for (int i = 2; i < argc; i++) { int fd = atoi(argv[i]); char b[32]; int n = snprintf(b, 32, "fd%d\n", fd); if (write(fd, b, n) != n) printf("write to %d failed\n", fd); } return 0; }
 	if (!strcmp(mode, "fdread")) { char b[64]; ssize_t n = read(atoi(argv[2]), b, 63); if (n < 0) n = 0; b[n] = 0; printf("read: %s", b); return 0; }
 	if (!strcmp(mode, "fdopen")) { for (int i = 2; i < argc; i++) { int fd = atoi(argv[i]); printf("fd%d=%s ", fd, fcntl(fd, F_GETFD) >= 0 ? "open" : "closed"); } printf("\n"); return 0; }

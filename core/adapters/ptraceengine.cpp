@@ -28,6 +28,7 @@ limitations under the License.
 #include <poll.h>
 #include <sched.h>
 #include <sys/uio.h>
+#include <cstddef>
 #include <cstdio>
 #include <sstream>
 #include <sys/ioctl.h>
@@ -37,7 +38,61 @@ limitations under the License.
 #include <sys/wait.h>
 #include <unistd.h>
 
+// Older headers do not have these
+#ifndef PTRACE_SYSEMU
+#define PTRACE_SYSEMU 31
+#endif
+#ifndef PTRACE_GET_SYSCALL_INFO
+#define PTRACE_GET_SYSCALL_INFO 0x420e
+#endif
+#ifndef PTRACE_SET_SYSCALL_INFO
+#define PTRACE_SET_SYSCALL_INFO 0x4212
+#endif
+#ifndef PTRACE_O_TRACESYSGOOD
+#define PTRACE_O_TRACESYSGOOD 1
+#endif
+
 namespace BinaryNinjaDebugger {
+
+	// struct ptrace_syscall_info of the kernel
+	struct KernelSyscallInfo
+	{
+		uint8_t op;
+		uint8_t reserved;
+		uint16_t flags;
+		uint32_t arch;
+		uint64_t instructionPointer;
+		uint64_t stackPointer;
+		union
+		{
+			struct
+			{
+				uint64_t number;
+				uint64_t args[6];
+			} entry;
+			struct
+			{
+				int64_t returnValue;
+				uint8_t isError;
+			} exit;
+			struct
+			{
+				uint64_t number;
+				uint64_t args[6];
+				uint32_t data;
+			} seccomp;
+		};
+	};
+
+	static_assert(sizeof(KernelSyscallInfo) == 88, "struct ptrace_syscall_info");
+
+	enum : uint8_t
+	{
+		KernelSyscallInfoNone = 0,
+		KernelSyscallInfoEntry = 1,
+		KernelSyscallInfoExit = 2,
+		KernelSyscallInfoSeccomp = 3
+	};
 
 	static bool IsSilentSignal(int signal)
 	{
@@ -156,6 +211,26 @@ namespace BinaryNinjaDebugger {
 	bool PtraceEngine::Resume(bool step, uint32_t tid)
 	{
 		return RunOnTracer([this, step, tid] { return DoResume(step, tid); });
+	}
+
+
+	bool PtraceEngine::ResumeToSyscall(SyscallMode mode)
+	{
+		if (mode == SyscallMode::None)
+			return false;
+		return RunOnTracer([this, mode] { return DoResume(false, 0, mode); });
+	}
+
+
+	bool PtraceEngine::GetSyscallInfo(uint32_t tid, SyscallInfo& info)
+	{
+		return RunOnTracer([this, tid, &info] { return DoGetSyscallInfo(tid, info); });
+	}
+
+
+	bool PtraceEngine::SetSyscallInfo(uint32_t tid, const SyscallInfo& info)
+	{
+		return RunOnTracer([this, tid, &info] { return DoSetSyscallInfo(tid, info); });
 	}
 
 
@@ -761,7 +836,7 @@ namespace BinaryNinjaDebugger {
 
 		if (ptrace(PTRACE_SETOPTIONS, pid, nullptr,
 				(void*)(uintptr_t)(PTRACE_O_EXITKILL | PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
-					| PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACEEXEC)) != 0)
+					| PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACEEXEC | PTRACE_O_TRACESYSGOOD)) != 0)
 		{
 			int error = errno;
 			kill(pid, SIGKILL);
@@ -940,7 +1015,7 @@ namespace BinaryNinjaDebugger {
 		{
 			if (ptrace(PTRACE_SETOPTIONS, tid, nullptr,
 					(void*)(uintptr_t)(PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
-						| PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACEEXEC)) != 0)
+						| PTRACE_O_TRACEVFORKDONE | PTRACE_O_TRACEEXEC | PTRACE_O_TRACESYSGOOD)) != 0)
 			{
 				int error = errno;
 				detachAll();
@@ -1256,6 +1331,17 @@ namespace BinaryNinjaDebugger {
 		if (event != 0)
 			return result;
 
+		// A stop at a system call, which only happens to a thread that was resumed to one
+		if (signal == (SIGTRAP | 0x80))
+		{
+			endGuard(true);
+			result.kind = StopKind::Report;
+			result.signal = SIGTRAP;
+			result.syscall = true;
+			result.trapOrigin = TrapOrigin::Syscall;
+			return result;
+		}
+
 		if (signal == SIGSTOP)
 		{
 			if (info.awaitingInitialStop)
@@ -1327,8 +1413,14 @@ namespace BinaryNinjaDebugger {
 			handlerResumePcValid = ReadPc(tid, handlerResumePc);
 		}
 
-		auto request = step ? PTRACE_SINGLESTEP : PTRACE_CONT;
-		if (ptrace(request, tid, nullptr, (void*)(intptr_t)signal) != 0 && errno != ESRCH)
+		int request = PTRACE_CONT;
+		if (step)
+			request = PTRACE_SINGLESTEP;
+		else if (m_syscallMode == SyscallMode::Trace)
+			request = PTRACE_SYSCALL;
+		else if (m_syscallMode == SyscallMode::Emulate)
+			request = PTRACE_SYSEMU;
+		if (ptrace((__ptrace_request)request, tid, nullptr, (void*)(intptr_t)signal) != 0 && errno != ESRCH)
 			return false;
 
 		// Only commit the transition after the kernel accepted it. Otherwise a stopped thread would disappear from
@@ -1733,6 +1825,7 @@ namespace BinaryNinjaDebugger {
 		event.trapOrigin = stop.trapOrigin;
 		event.exec = stop.exec;
 		event.signalHandler = stop.signalHandler;
+		event.syscall = stop.syscall;
 		event.singleStep = stop.stepTrap;
 
 		for (auto& [id, info] : m_threads)
@@ -1747,8 +1840,9 @@ namespace BinaryNinjaDebugger {
 		info.atReportedStop = ReadPc(tid, info.reportedPc);
 		info.hardwareBeforeAccess =
 			stop.hardware && m_arch && m_arch->hwDebug && m_arch->hwDebug->DataTrapsBeforeAccess();
-		// The first instruction of a program is where a breakpoint of the new program may be, and it has not run yet
-		if (stop.exec)
+		// The first instruction of a program is where a breakpoint of the new program may be, and it has not run yet. At
+		// the entry of a system call the instruction after it has not run either.
+		if (stop.exec || stop.syscall)
 			info.atReportedStop = false;
 
 		m_running = false;
@@ -1776,7 +1870,7 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	bool PtraceEngine::DoResume(bool step, pid_t tid)
+	bool PtraceEngine::DoResume(bool step, pid_t tid, SyscallMode mode)
 	{
 		if (m_done || m_running)
 			return false;
@@ -1784,7 +1878,10 @@ namespace BinaryNinjaDebugger {
 		auto stepping = m_threads.find(tid);
 		if (step && (stepping == m_threads.end() || !stepping->second.stopped))
 			return false;
+		if (mode == SyscallMode::Emulate && (!m_arch || !m_arch->sysemu))
+			return false;
 
+		m_syscallMode = step ? SyscallMode::None : mode;
 		m_continueMode = !step;
 		std::vector<pid_t> stepOver;
 		for (auto& [id, info] : m_threads)
@@ -1828,6 +1925,83 @@ namespace BinaryNinjaDebugger {
 		m_running = resumed;
 		Publish();
 		return resumed;
+	}
+
+
+	bool PtraceEngine::DoGetSyscallInfo(pid_t tid, SyscallInfo& info)
+	{
+		auto it = m_threads.find(tid);
+		if (m_done || m_running || it == m_threads.end() || !it->second.stopped)
+			return false;
+
+		KernelSyscallInfo raw = {};
+		long size = ptrace((__ptrace_request)PTRACE_GET_SYSCALL_INFO, tid, (void*)sizeof(raw), &raw);
+		// The header comes before the union, so that is the least that there can be
+		if (size < (long)offsetof(KernelSyscallInfo, entry))
+			return false;
+
+		info = SyscallInfo();
+		info.arch = raw.arch;
+		info.instructionPointer = raw.instructionPointer;
+		info.stackPointer = raw.stackPointer;
+		switch (raw.op)
+		{
+		case KernelSyscallInfoEntry:
+			info.op = SyscallInfo::Entry;
+			info.number = raw.entry.number;
+			memcpy(info.args, raw.entry.args, sizeof(info.args));
+			break;
+		case KernelSyscallInfoExit:
+			info.op = SyscallInfo::Exit;
+			info.returnValue = raw.exit.returnValue;
+			info.isError = raw.exit.isError != 0;
+			break;
+		case KernelSyscallInfoSeccomp:
+			info.op = SyscallInfo::Seccomp;
+			info.number = raw.seccomp.number;
+			memcpy(info.args, raw.seccomp.args, sizeof(info.args));
+			info.seccompData = raw.seccomp.data;
+			break;
+		default:
+			break;
+		}
+		return true;
+	}
+
+
+	bool PtraceEngine::DoSetSyscallInfo(pid_t tid, const SyscallInfo& info)
+	{
+		// Only what the stop has is changed, so the rest is taken from the stop
+		SyscallInfo current;
+		if (!DoGetSyscallInfo(tid, current) || current.op != info.op)
+			return false;
+
+		KernelSyscallInfo raw = {};
+		raw.arch = current.arch;
+		raw.instructionPointer = current.instructionPointer;
+		raw.stackPointer = current.stackPointer;
+		switch (info.op)
+		{
+		case SyscallInfo::Entry:
+			raw.op = KernelSyscallInfoEntry;
+			raw.entry.number = info.number;
+			memcpy(raw.entry.args, info.args, sizeof(raw.entry.args));
+			break;
+		case SyscallInfo::Exit:
+			raw.op = KernelSyscallInfoExit;
+			raw.exit.returnValue = info.returnValue;
+			raw.exit.isError = info.isError;
+			break;
+		case SyscallInfo::Seccomp:
+			raw.op = KernelSyscallInfoSeccomp;
+			raw.seccomp.number = info.number;
+			memcpy(raw.seccomp.args, info.args, sizeof(raw.seccomp.args));
+			raw.seccomp.data = current.seccompData;
+			break;
+		default:
+			return false;
+		}
+		return ptrace((__ptrace_request)PTRACE_SET_SYSCALL_INFO, tid, (void*)sizeof(raw), &raw) == 0;
 	}
 
 

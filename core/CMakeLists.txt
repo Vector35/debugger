@@ -75,6 +75,8 @@ else()
 			adapters/ptracesignal.h
 			adapters/ptracestep.cpp
 			adapters/ptracestep.h
+			adapters/ptracesyscall.cpp
+			adapters/ptracesyscall.h
 			)
 	endif()
 endif()

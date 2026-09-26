@@ -139,6 +139,7 @@ namespace BinaryNinjaDebugger {
 		arch.breakpointInstruction = {0xcc};
 		arch.breakpointPcAdjust = 1;
 		arch.hwDebug = NativeX86HwDebug();
+		arch.sysemu = true;
 
 		// The order of user_regs_struct: r15 r14 r13 r12 rbp rbx r11 r10 r9 r8 rax rcx rdx rsi rdi orig_rax rip cs
 		// eflags rsp ss fs_base gs_base ds es fs gs. The registers are listed in the order GDB uses.
@@ -171,6 +172,7 @@ namespace BinaryNinjaDebugger {
 		arch.breakpointInstruction = {0xcc};
 		arch.breakpointPcAdjust = 1;
 		arch.hwDebug = NativeX86HwDebug();
+		arch.sysemu = true;
 
 		// The order of the 32-bit user_regs_struct: ebx ecx edx esi edi ebp eax xds xes xfs xgs orig_eax eip xcs
 		// eflags esp xss

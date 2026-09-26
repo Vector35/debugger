@@ -72,6 +72,8 @@ namespace BinaryNinjaDebugger {
 		std::vector<uint8_t> breakpointInstruction;
 		size_t breakpointPcAdjust = 0;
 		PtraceHwDebug* hwDebug = nullptr;
+		// Whether PTRACE_SYSEMU works. It began on x86.
+		bool sysemu = false;
 
 		const PtraceRegister* Find(const std::string& registerName) const;
 	};

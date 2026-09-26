@@ -5,6 +5,7 @@
 #include "ptraceelf.h"
 #include "ptracemodule.h"
 #include "ptracestep.h"
+#include "ptracesyscall.h"
 #include <elf.h>
 #include <cstdint>
 #include <chrono>
@@ -50,7 +51,9 @@ static std::string prog = "/work/progs";
 
 #if defined(__x86_64__)
 // The layout of user_regs_struct, which is what NT_PRSTATUS holds
-constexpr size_t kFpOff = 4 * 8, kArg0Off = 14 * 8, kPcOff = 16 * 8, kSpOff = 19 * 8, kPrstatusSize = 27 * 8;
+constexpr size_t kFpOff = 4 * 8, kArg0Off = 14 * 8, kPcOff = 16 * 8, kSpOff = 19 * 8, kPrstatusSize = 27 * 8, kRetOff = 10 * 8;
+// x86 has PTRACE_SYSEMU, so it not working there is a failure
+constexpr bool kSysemuMayBeMissing = false;
 constexpr size_t kCallLength = 5;
 // A ret in a deeper call has a lower sp than the one of this frame, so no adjustment is needed
 constexpr size_t kMinSpExtra = 0;
@@ -66,7 +69,8 @@ static const PtraceArch& RegisterTable() { return PtraceArchX86_64(); }
 // on x86 it is a `push %rbp` or an `endbr64`.
 static bool SteppedOffFirstInstruction(uint64_t pc, uint64_t start) { return pc > start && pc <= start + 15; }
 #elif defined(__aarch64__)
-constexpr size_t kFpOff = 29 * 8, kArg0Off = 0, kPcOff = 32 * 8, kSpOff = 31 * 8, kPrstatusSize = 272;
+constexpr size_t kFpOff = 29 * 8, kArg0Off = 0, kPcOff = 32 * 8, kSpOff = 31 * 8, kPrstatusSize = 272, kRetOff = 0;
+constexpr bool kSysemuMayBeMissing = true;
 constexpr size_t kCallLength = 4;
 constexpr size_t kMinSpExtra = 1;
 constexpr bool kDataTrapsBeforeAccess = true;
@@ -106,7 +110,7 @@ static ArmHw g_armHw;
 static PtraceArch TestArm64()
 {
 	PtraceArch a; a.name = "aarch64"; a.pc = "pc"; a.sp = "sp"; a.regsets = {NT_PRSTATUS};
-	a.breakpointInstruction = {0x00, 0x00, 0x20, 0xd4}; a.breakpointPcAdjust = 0; a.hwDebug = &g_armHw;
+	a.breakpointInstruction = {0x00, 0x00, 0x20, 0xd4}; a.breakpointPcAdjust = 0; a.hwDebug = &g_armHw; a.sysemu = true;
 	for (size_t i = 0; i < 31; i++) a.registers.push_back({"x" + std::to_string(i), NT_PRSTATUS, i * 8, 8});
 	a.registers.push_back({"sp", NT_PRSTATUS, 31 * 8, 8}); a.registers.push_back({"pc", NT_PRSTATUS, 32 * 8, 8});
 	return a;
@@ -1856,13 +1860,162 @@ static void t_redirect_leaks()
 	unlink(out.c_str());
 }
 
+// ---- system calls
+
+using SysInfo = PtraceEngine::SyscallInfo;
+using SysMode = PtraceEngine::SyscallMode;
+
+static bool syscallStop(PtraceEngine& e, Log& log, PtraceEngine::Event& ev, SysInfo& info, SysMode mode, SysInfo::Op op)
+{
+	if (!e.ResumeToSyscall(mode)) { printf("  ResumeToSyscall failed\n"); failures++; return false; }
+	if (!log.wait(PtraceEngine::StoppedEvent, ev, 5s)) { printf("  no syscall stop\n"); failures++; return false; }
+	CHECK(ev.syscall); CHECK(ev.signal == SIGTRAP); CHECK(!ev.breakpoint && !ev.singleStep && !ev.interrupted);
+	if (!e.GetSyscallInfo(ev.tid, info)) { printf("  no syscall info\n"); failures++; return false; }
+	CHECK(info.op == op); return info.op == op;
+}
+
+// Runs the target until it has made its threads, and stops it
+static bool settleThreads(PtraceEngine& e, Log& log, PtraceEngine::Event& ev)
+{
+	CHECK(e.Resume(false, 0)); std::this_thread::sleep_for(200ms); CHECK(e.Interrupt());
+	if (!log.wait(PtraceEngine::StoppedEvent, ev, 5s)) { printf("  no stop\n"); failures++; return false; }
+	CHECK(e.GetThreads().size() == 4); return e.GetThreads().size() == 4;
+}
+
+static void t_syscall_trace()
+{
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "syscalls", tid, ev); if (!e) return;
+	SysInfo info; uint32_t self = getpid();
+	// the entry of getppid, which has not been executed
+	if (!syscallStop(*e, log, ev, info, SysMode::Trace, SysInfo::Entry)) return;
+	CHECK(info.number == (uint64_t)SYS_getppid); CHECK(info.arch != 0); CHECK(ev.tid == e->GetPid());
+	CHECK(info.instructionPointer == pcOf(*e, ev.tid)); CHECK(e->GetThreads().size() == 1);
+	printf("  %s\n", DescribeSyscall(info, true).c_str());
+	// and its exit, with the result
+	if (!syscallStop(*e, log, ev, info, SysMode::Trace, SysInfo::Exit)) return;
+	CHECK(info.returnValue == (int64_t)self); CHECK(!info.isError);
+	CHECK(DescribeSyscall(info) == "= " + std::to_string(self));
+	// a call that fails
+	if (!syscallStop(*e, log, ev, info, SysMode::Trace, SysInfo::Entry)) return;
+	CHECK(info.number == (uint64_t)SYS_close); CHECK(info.args[0] == 9999);
+	CHECK(DescribeSyscall(info).find("(0x270f, ") != std::string::npos);
+	if (!syscallStop(*e, log, ev, info, SysMode::Trace, SysInfo::Exit)) return;
+	CHECK(info.isError); CHECK(info.returnValue == -EBADF); CHECK(DescribeSyscall(info) == "= -9 (Bad file descriptor)");
+	// an ordinary resume runs to the end, and the stops that it makes are not system calls
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev, 5s)); CHECK(ev.exitCode == (int)(self & 0xff));
+}
+
+static void t_syscall_breakpoint()
+{
+	// The instruction after the system call has not run at its entry, so a breakpoint there is hit and not stepped over
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "syscalls", tid, ev); if (!e) return;
+	SysInfo info; if (!syscallStop(*e, log, ev, info, SysMode::Trace, SysInfo::Entry)) return;
+	uint64_t pc = pcOf(*e, ev.tid); CHECK(e->AddBreakpoint(pc));
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev, 5s));
+	CHECK(ev.breakpoint && !ev.syscall); CHECK(pcOf(*e, ev.tid) == pc);
+	CHECK(e->Kill());
+}
+
+static void t_syscall_emulate()
+{
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "syscalls", tid, ev); if (!e) return;
+	SysInfo info;
+	if (!e->ResumeToSyscall(SysMode::Emulate))
+	{
+		if (!kSysemuMayBeMissing) { printf("  PTRACE_SYSEMU failed\n"); failures++; }
+		else printf("  SKIP: this kernel has no PTRACE_SYSEMU here\n");
+		e->Kill(); return;
+	}
+	CHECK(log.wait(PtraceEngine::StoppedEvent, ev, 5s)); CHECK(ev.syscall);
+	CHECK(e->GetSyscallInfo(ev.tid, info)); CHECK(info.op == SysInfo::Entry); CHECK(info.number == (uint64_t)SYS_getppid);
+	// the call is not made, and the return value is what the debugger puts in the register
+	std::vector<uint8_t> regs; CHECK(e->GetRegisterSet(ev.tid, NT_PRSTATUS, regs));
+	uint64_t answer = 77; memcpy(regs.data() + kRetOff, &answer, 8); CHECK(e->SetRegisterSet(ev.tid, NT_PRSTATUS, regs));
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev, 5s)); CHECK(ev.exitCode == 77);   // getppid would have given the pid of this program
+
+	// it works on a target that has other threads too
+	Log log2; auto e2 = start(log2, "threads"); if (!e2) return;
+	CHECK(log2.wait(PtraceEngine::StoppedEvent, ev)); if (!settleThreads(*e2, log2, ev)) return; CHECK(e2->ResumeToSyscall(SysMode::Emulate)); CHECK(log2.wait(PtraceEngine::StoppedEvent, ev, 5s)); CHECK(ev.syscall);
+	CHECK(e2->GetThreads().size() == 4); CHECK(e2->Kill());
+}
+
+static void t_syscall_set_info()
+{
+	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "syscalls", tid, ev); if (!e) return;
+	SysInfo info; if (!syscallStop(*e, log, ev, info, SysMode::Trace, SysInfo::Entry)) return;
+	// the call is changed into getpid, which needs Linux 6.16
+	SysInfo changed = info; changed.number = (uint64_t)SYS_getpid;
+	if (!e->SetSyscallInfo(ev.tid, changed)) { printf("  SKIP: PTRACE_SET_SYSCALL_INFO needs Linux 6.16\n"); e->Kill(); return; }
+	SysInfo now; CHECK(e->GetSyscallInfo(ev.tid, now)); CHECK(now.number == (uint64_t)SYS_getpid);
+	// the kind of the stop has to match
+	SysInfo wrong = info; wrong.op = SysInfo::Exit; CHECK(!e->SetSyscallInfo(ev.tid, wrong));
+	if (!syscallStop(*e, log, ev, info, SysMode::Trace, SysInfo::Exit)) return;
+	CHECK(info.returnValue == (int64_t)e->GetPid());
+	CHECK(e->Kill());
+}
+
+static void t_syscall_threads()
+{
+	Log log; PtraceEngine::Event ev; auto e = start(log, "threads"); if (!e) return;
+	CHECK(log.wait(PtraceEngine::StoppedEvent, ev)); if (!settleThreads(*e, log, ev)) return;
+	for (int i = 0; i < 5; i++)
+	{
+		CHECK(e->ResumeToSyscall(SysMode::Trace)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev, 5s)); CHECK(ev.syscall);
+		SysInfo info; CHECK(e->GetSyscallInfo(ev.tid, info)); CHECK(info.op != SysInfo::None);
+		auto threads = e->GetThreads(); CHECK(threads.size() == 4);
+		for (uint32_t t : threads) if (procState(t).find("tracing stop") == std::string::npos) { printf("  thread %u not stopped: %s\n", t, procState(t).c_str()); failures++; }
+	}
+	// back to ordinary running, which stops for an interrupt and for nothing else
+	CHECK(e->Resume(false, 0)); std::this_thread::sleep_for(100ms); CHECK(e->Interrupt()); CHECK(log.wait(PtraceEngine::StoppedEvent, ev, 5s)); CHECK(ev.interrupted && !ev.syscall);
+	CHECK(e->Kill());
+}
+
+static void t_syscall_unsupported()
+{
+	// an architecture without PTRACE_SYSEMU: it is refused, and the target can still be run
+	PtraceArch noSysemu = RegisterTable(); noSysemu.sysemu = false;
+	Log log; auto e = std::make_unique<PtraceEngine>([&log](const PtraceEngine::Event& x) { log.push(x); });
+	PtraceEngine::LaunchOptions o; o.path = prog; o.args = {"hello"}; o.arch = &noSysemu; std::string err; PtraceEngine::Event ev;
+	CHECK(e->Launch(o, err)); CHECK(log.wait(PtraceEngine::StoppedEvent, ev));
+	CHECK(!e->ResumeToSyscall(SysMode::Emulate)); CHECK(!e->ResumeToSyscall(SysMode::None)); CHECK(!e->IsRunning());
+	CHECK(e->Resume(false, 0)); CHECK(log.wait(PtraceEngine::ExitedEvent, ev)); CHECK(ev.exitCode == 7);
+	// there is no syscall info when the thread is not stopped at anything, or is running
+	Log log2; auto e2 = start(log2, "loop"); if (!e2) return; SysInfo info;
+	CHECK(log2.wait(PtraceEngine::StoppedEvent, ev)); CHECK(e2->GetSyscallInfo(ev.tid, info)); CHECK(info.op == SysInfo::None);
+	CHECK(e2->Resume(false, 0)); CHECK(!e2->GetSyscallInfo(ev.tid, info)); CHECK(!e2->GetSyscallInfo(99999, info)); CHECK(e2->Kill());
+}
+
+static void t_syscall_names()
+{
+	CHECK(std::string(SyscallName(AuditArchX86_64, 0)) == "read"); CHECK(std::string(SyscallName(AuditArchX86_64, 1)) == "write");
+	CHECK(std::string(SyscallName(AuditArchX86_64, 39)) == "getpid"); CHECK(std::string(SyscallName(AuditArchX86_64, 59)) == "execve");
+	CHECK(std::string(SyscallName(AuditArchX86_64, 231)) == "exit_group"); CHECK(std::string(SyscallName(AuditArchX86_64, 257)) == "openat");
+	CHECK(std::string(SyscallName(AuditArchI386, 1)) == "exit"); CHECK(std::string(SyscallName(AuditArchI386, 4)) == "write");
+	CHECK(std::string(SyscallName(AuditArchI386, 11)) == "execve"); CHECK(std::string(SyscallName(AuditArchI386, 20)) == "getpid");
+	// 32-bit programs and 64-bit programs number the same call differently
+	CHECK(std::string(SyscallName(AuditArchI386, 1)) != SyscallName(AuditArchX86_64, 1));
+	CHECK(SyscallName(AuditArchX86_64, 100000) == nullptr); CHECK(SyscallName(AuditArchX86_64, ~0ull) == nullptr); CHECK(SyscallName(0xC00000B7, 64) == nullptr); CHECK(SyscallName(0, 0) == nullptr);
+	for (uint64_t n = 0; n < 470; n++) { auto a = SyscallName(AuditArchX86_64, n); auto b = SyscallName(AuditArchI386, n); if (a) CHECK(*a); if (b) CHECK(*b); }
+
+	SysInfo info; info.op = SysInfo::Entry; info.arch = AuditArchX86_64; info.number = 1; info.args[0] = 1; info.args[1] = 0x7ffc1000; info.args[2] = 5;
+	CHECK(DescribeSyscall(info) == "write(0x1, 0x7ffc1000, 0x5, 0x0, 0x0, 0x0)");
+	info.number = 9999; CHECK(DescribeSyscall(info).rfind("syscall_9999(", 0) == 0);
+	info.op = SysInfo::Exit; info.returnValue = 5; CHECK(DescribeSyscall(info) == "= 5");
+	info.isError = true; info.returnValue = -2; CHECK(DescribeSyscall(info) == "= -2 (No such file or directory)");
+	info.op = SysInfo::None; CHECK(DescribeSyscall(info) == "not stopped at a system call");
+	info.op = SysInfo::Entry; info.number = 1; info.instructionPointer = 0x401000; info.stackPointer = 0x7ffe0000;
+	CHECK(DescribeSyscall(info, true) == "system call entry: write(0x1, 0x7ffc1000, 0x5, 0x0, 0x0, 0x0)\npc 0x401000, sp 0x7ffe0000");
+	info.op = SysInfo::Seccomp; info.seccompData = 0x1234; CHECK(DescribeSyscall(info).find("(seccomp data 0x1234)") != std::string::npos);
+}
+
+
 int main(int argc, char** argv)
 {
 	struct { const char* n; void (*f)(); } tests[] = {
 		{"hello", t_hello}, {"step", t_step}, {"interrupt", t_interrupt}, {"threads", t_threads}, {"churn", t_churn},
 		{"signal", t_signal}, {"silent", t_silent}, {"detach", t_detach}, {"kill_running", t_kill_running},
 		{"dtor_kills", t_dtor_kills}, {"launch_errors", t_launch_errors}, {"args_cwd", t_args_cwd}, {"stdin", t_stdin}, {"stdin_backpressure", t_stdin_backpressure},
-		{"nopty", t_nopty}, {"relaunch", t_relaunch}, {"regs_step", t_regs_step}, {"regs_running", t_regs_running}, {"memory", t_memory}, {"bp_basic", t_bp_basic}, {"bp_step_remove", t_bp_step_remove}, {"bp_write", t_bp_write}, {"bp_threads", t_bp_threads}, {"bp_interrupts", t_bp_interrupts}, {"bp_remove_running", t_bp_remove_running}, {"bp_detach", t_bp_detach}, {"hw_watch", t_hw_watch}, {"hw_thread", t_hw_thread}, {"hw_exec", t_hw_exec}, {"hw_detach", t_hw_detach}, {"modules", t_modules}, {"symbols", t_symbols}, {"frames", t_frames}, {"loader", t_loader}, {"library_reload_breakpoint", t_library_reload_breakpoint}, {"library_rebase_breakpoint", t_library_rebase_breakpoint}, {"library_rebase_hardware", t_library_rebase_hardware}, {"processes", t_processes}, {"stepover_basic", t_stepover_basic}, {"stepover_user_breakpoint", t_stepover_user_breakpoint}, {"stepover_interrupt", t_stepover_interrupt}, {"stepover_recursion", t_stepover_recursion}, {"stepreturn_sites", t_stepreturn_sites}, {"stepreturn_address", t_stepreturn_address}, {"stepreturn_recursion", t_stepreturn_recursion}, {"stepover_threads", t_stepover_threads}, {"perf", t_perf}, {"detach_reaped", t_detach_reaped}, {"fork_child", t_fork_child}, {"vfork", t_vfork}, {"spawn", t_spawn}, {"fork_threads", t_fork_threads}, {"interrupt_burst", t_interrupt_burst}, {"handlers_off", t_handlers_off}, {"handlers_on", t_handlers_on}, {"handlers_toggle", t_handlers_toggle}, {"handlers_thread", t_handlers_thread}, {"sigtrap_raise", t_sigtrap_raise}, {"sigtrap_kill", t_sigtrap_kill}, {"sigtrap_handler_debug", t_sigtrap_handler_debug}, {"sigtrap_instruction", t_sigtrap_instruction}, {"sigtrap_instruction_handler_debug", t_sigtrap_instruction_handler_debug}, {"sigtrap_unhandled", t_sigtrap_unhandled}, {"sigtrap_after_breakpoint", t_sigtrap_after_breakpoint}, {"sigtrap_while_stepping", t_sigtrap_while_stepping}, {"signal_reasons", t_signal_reasons}, {"conf_exitcode", t_conf_exitcode}, {"conf_exceptions", t_conf_exceptions}, {"conf_entry_step_exit", t_conf_entry_step_exit}, {"conf_memory_registers", t_conf_memory_registers}, {"conf_threads_restart", t_conf_threads_restart}, {"conf_symbols_modules", t_conf_symbols_modules}, {"elf_names", t_elf_names}, {"exec_by_name", t_exec_by_name}, {"exec_basic", t_exec_basic}, {"exec_rebreak", t_exec_rebreak}, {"exec_thread", t_exec_thread}, {"exec_continue", t_exec_continue}, {"winsize", t_winsize}, {"repro_echo", t_repro_echo}, {"repro_sigchld_ignored", t_repro_sigchld_ignored}, {"attach_threads", t_attach_threads}, {"attach_breakpoint", t_attach_breakpoint}, {"attach_step_at_breakpoint", t_attach_step_at_breakpoint}, {"attach_exit", t_attach_exit}, {"attach_kill", t_attach_kill}, {"attach_dtor_detaches", t_attach_dtor_detaches}, {"attach_errors", t_attach_errors}, {"attach_churn", t_attach_churn}, {"attach_syscall", t_attach_syscall}, {"redirect_parse", t_redirect_parse}, {"redirect_stdout", t_redirect_stdout}, {"redirect_stdin", t_redirect_stdin}, {"redirect_stderr_merge", t_redirect_stderr_merge}, {"redirect_other_fds", t_redirect_other_fds}, {"redirect_append_readwrite", t_redirect_append_readwrite}, {"redirect_relative", t_redirect_relative}, {"redirect_errors", t_redirect_errors}, {"redirect_leaks", t_redirect_leaks}};
+		{"nopty", t_nopty}, {"relaunch", t_relaunch}, {"regs_step", t_regs_step}, {"regs_running", t_regs_running}, {"memory", t_memory}, {"bp_basic", t_bp_basic}, {"bp_step_remove", t_bp_step_remove}, {"bp_write", t_bp_write}, {"bp_threads", t_bp_threads}, {"bp_interrupts", t_bp_interrupts}, {"bp_remove_running", t_bp_remove_running}, {"bp_detach", t_bp_detach}, {"hw_watch", t_hw_watch}, {"hw_thread", t_hw_thread}, {"hw_exec", t_hw_exec}, {"hw_detach", t_hw_detach}, {"modules", t_modules}, {"symbols", t_symbols}, {"frames", t_frames}, {"loader", t_loader}, {"library_reload_breakpoint", t_library_reload_breakpoint}, {"library_rebase_breakpoint", t_library_rebase_breakpoint}, {"library_rebase_hardware", t_library_rebase_hardware}, {"processes", t_processes}, {"stepover_basic", t_stepover_basic}, {"stepover_user_breakpoint", t_stepover_user_breakpoint}, {"stepover_interrupt", t_stepover_interrupt}, {"stepover_recursion", t_stepover_recursion}, {"stepreturn_sites", t_stepreturn_sites}, {"stepreturn_address", t_stepreturn_address}, {"stepreturn_recursion", t_stepreturn_recursion}, {"stepover_threads", t_stepover_threads}, {"perf", t_perf}, {"detach_reaped", t_detach_reaped}, {"fork_child", t_fork_child}, {"vfork", t_vfork}, {"spawn", t_spawn}, {"fork_threads", t_fork_threads}, {"interrupt_burst", t_interrupt_burst}, {"handlers_off", t_handlers_off}, {"handlers_on", t_handlers_on}, {"handlers_toggle", t_handlers_toggle}, {"handlers_thread", t_handlers_thread}, {"sigtrap_raise", t_sigtrap_raise}, {"sigtrap_kill", t_sigtrap_kill}, {"sigtrap_handler_debug", t_sigtrap_handler_debug}, {"sigtrap_instruction", t_sigtrap_instruction}, {"sigtrap_instruction_handler_debug", t_sigtrap_instruction_handler_debug}, {"sigtrap_unhandled", t_sigtrap_unhandled}, {"sigtrap_after_breakpoint", t_sigtrap_after_breakpoint}, {"sigtrap_while_stepping", t_sigtrap_while_stepping}, {"signal_reasons", t_signal_reasons}, {"conf_exitcode", t_conf_exitcode}, {"conf_exceptions", t_conf_exceptions}, {"conf_entry_step_exit", t_conf_entry_step_exit}, {"conf_memory_registers", t_conf_memory_registers}, {"conf_threads_restart", t_conf_threads_restart}, {"conf_symbols_modules", t_conf_symbols_modules}, {"elf_names", t_elf_names}, {"exec_by_name", t_exec_by_name}, {"exec_basic", t_exec_basic}, {"exec_rebreak", t_exec_rebreak}, {"exec_thread", t_exec_thread}, {"exec_continue", t_exec_continue}, {"winsize", t_winsize}, {"repro_echo", t_repro_echo}, {"repro_sigchld_ignored", t_repro_sigchld_ignored}, {"attach_threads", t_attach_threads}, {"attach_breakpoint", t_attach_breakpoint}, {"attach_step_at_breakpoint", t_attach_step_at_breakpoint}, {"attach_exit", t_attach_exit}, {"attach_kill", t_attach_kill}, {"attach_dtor_detaches", t_attach_dtor_detaches}, {"attach_errors", t_attach_errors}, {"attach_churn", t_attach_churn}, {"attach_syscall", t_attach_syscall}, {"redirect_parse", t_redirect_parse}, {"redirect_stdout", t_redirect_stdout}, {"redirect_stdin", t_redirect_stdin}, {"redirect_stderr_merge", t_redirect_stderr_merge}, {"redirect_other_fds", t_redirect_other_fds}, {"redirect_append_readwrite", t_redirect_append_readwrite}, {"redirect_relative", t_redirect_relative}, {"redirect_errors", t_redirect_errors}, {"redirect_leaks", t_redirect_leaks}, {"syscall_trace", t_syscall_trace}, {"syscall_breakpoint", t_syscall_breakpoint}, {"syscall_emulate", t_syscall_emulate}, {"syscall_set_info", t_syscall_set_info}, {"syscall_threads", t_syscall_threads}, {"syscall_unsupported", t_syscall_unsupported}, {"syscall_names", t_syscall_names}};
 	for (auto& t : tests)
 	{
 		if (argc > 1 && strcmp(argv[1], t.n)) continue;

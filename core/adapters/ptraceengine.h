@@ -47,7 +47,8 @@ namespace BinaryNinjaDebugger {
 			SingleStep,
 			SignalHandler,
 			Target,
-			Internal
+			Internal,
+			Syscall
 		};
 
 		enum EventType
@@ -78,6 +79,8 @@ namespace BinaryNinjaDebugger {
 			bool exec = false;
 			// The signal that was delivered to the thread, whose handler the thread is now stopped at the start of
 			int signalHandler = 0;
+			// The thread is stopped at a system call, because it was resumed to one. See ResumeToSyscall.
+			bool syscall = false;
 			std::string data;
 			std::function<void()> task;
 		};
@@ -92,6 +95,43 @@ namespace BinaryNinjaDebugger {
 			bool shared = false;
 			uint64_t offset = 0;
 			std::string path;
+		};
+
+		// A stop at a system call, as PTRACE_GET_SYSCALL_INFO tells it
+		struct SyscallInfo
+		{
+			enum Op
+			{
+				None,
+				Entry,
+				Exit,
+				Seccomp
+			};
+
+			Op op = None;
+			// The AUDIT_ARCH_* value, which tells the table that the number belongs to
+			uint32_t arch = 0;
+			uint64_t instructionPointer = 0;
+			uint64_t stackPointer = 0;
+			// Entry and Seccomp
+			uint64_t number = 0;
+			uint64_t args[6] = {};
+			// Exit
+			int64_t returnValue = 0;
+			// The return value is -errno
+			bool isError = false;
+			// Seccomp: the SECCOMP_RET_DATA of the filter
+			uint32_t seccompData = 0;
+		};
+
+		// Which stops at system calls a resume asks for
+		enum class SyscallMode
+		{
+			None,
+			// Stop at the entry and at the exit of the next system call, which is executed
+			Trace,
+			// Stop at the entry of the next system call, which is not executed: the debugger stands in for the kernel
+			Emulate
 		};
 
 		// What the target's file descriptor `fd` is set to before the target starts
@@ -200,6 +240,7 @@ namespace BinaryNinjaDebugger {
 			bool exec = false;
 			int signalHandler = 0;
 			TrapOrigin trapOrigin = TrapOrigin::None;
+			bool syscall = false;
 			// The thread that the stop is for, if it is not the one that it was found on
 			pid_t tid = 0;
 		};
@@ -233,6 +274,7 @@ namespace BinaryNinjaDebugger {
 		std::vector<pid_t> m_stepOverQueue;
 		pid_t m_stepOverTid = -1;
 		int m_vforkPending = 0;
+		SyscallMode m_syscallMode = SyscallMode::None;
 
 		const PtraceArch* m_arch = nullptr;
 		std::mutex m_breakpointMutex;
@@ -300,7 +342,9 @@ namespace BinaryNinjaDebugger {
 		void FinishStop(pid_t tid, const Classified& stop);
 		void FinishExit(int status);
 
-		bool DoResume(bool step, pid_t tid);
+		bool DoResume(bool step, pid_t tid, SyscallMode mode = SyscallMode::None);
+		bool DoGetSyscallInfo(pid_t tid, SyscallInfo& info);
+		bool DoSetSyscallInfo(pid_t tid, const SyscallInfo& info);
 		bool DoKill();
 		bool DoDetach();
 		bool DoAddBreakpoint(uint64_t address);
@@ -321,6 +365,12 @@ namespace BinaryNinjaDebugger {
 
 		// With step set, only `tid` runs, for one instruction. Otherwise every thread runs.
 		bool Resume(bool step, uint32_t tid);
+		// Resumes every thread, and stops when one of them is at a system call. The other threads are stopped where they
+		// are, so they may be at one too. Emulate needs an architecture with PTRACE_SYSEMU (see PtraceArch::sysemu).
+		// A thread that is resumed after an Emulate stop does not execute the system call that it stopped at, whatever
+		// it is resumed with, so it goes on with the registers as they are: the return value is what the debugger left
+		// in the register for it.
+		bool ResumeToSyscall(SyscallMode mode);
 		bool Interrupt();
 		bool Kill();
 		bool Detach();
@@ -347,6 +397,11 @@ namespace BinaryNinjaDebugger {
 		// The target must be stopped
 		bool AddHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size);
 		bool RemoveHardwareBreakpoint(uint64_t address, PtraceHwType type, size_t size);
+
+		// PTRACE_GET_SYSCALL_INFO and PTRACE_SET_SYSCALL_INFO for a thread that is stopped. They need Linux 5.3 and 6.16.
+		// Setting takes the number and the arguments at an entry, and the return value at an exit.
+		bool GetSyscallInfo(uint32_t tid, SyscallInfo& info);
+		bool SetSyscallInfo(uint32_t tid, const SyscallInfo& info);
 
 		const PtraceArch* GetArch() const { return m_arch; }
 		std::vector<MapEntry> GetMaps() const;

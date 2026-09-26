@@ -2,7 +2,7 @@ cd /work
 gcc -O0 -no-pie -fno-omit-frame-pointer -o progs progs.c -pthread -ldl || exit 1
 gcc -O0 -no-pie -fno-omit-frame-pointer -DPAD -o progs_pad progs.c -pthread -ldl || exit 1
 gcc -shared -fPIC -o libtest.so libtest.c
-SRC="driver.cpp /src/ptraceengine.cpp /src/ptracearch.cpp /src/ptraceelf.cpp /src/ptracemodule.cpp /src/ptracestep.cpp /src/ptracesignal.cpp"
+SRC="driver.cpp /src/ptraceengine.cpp /src/ptracearch.cpp /src/ptraceelf.cpp /src/ptracemodule.cpp /src/ptracestep.cpp /src/ptracesignal.cpp /src/ptracesyscall.cpp"
 g++ -std=c++20 -O2 -g -I/src -I/bnapi -o driver $SRC -pthread || exit 1
 STEP="stepover_basic stepover_user_breakpoint stepover_interrupt stepover_recursion stepreturn_sites stepreturn_address stepreturn_recursion stepover_threads"
 OTHER="hello step interrupt threads signal detach kill_running relaunch regs_step memory bp_basic bp_step_remove bp_write bp_threads bp_interrupts bp_remove_running bp_detach hw_watch hw_thread hw_exec hw_detach modules symbols frames loader processes"
