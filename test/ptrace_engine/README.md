@@ -25,6 +25,7 @@ Files:
 | `hwabi.cpp`, `run_hwabi.sh` | Checks that x86 hardware debug-register offsets use the ptracer ABI, including a 64-bit ptracer with an x86 inferior. |
 | `event_exception_demo.cpp`, `run_event_exception_demo.sh` | Demonstrates that an exception escaping an event task or handler currently invokes `std::terminate` and aborts the debugger process. |
 | `SIGTRAP_OWNERSHIP.md` | Design and regression plan for separating debugger-owned traps from target-generated SIGTRAP delivery. |
+| `review_driver.cpp`, `run_review.sh` | The repros of the findings in `PTRACE_REVIEW_FINDINGS.md`: the teardown of the adapter, `WriteMemory` keeping the bytes of a write that failed, an interrupt that is swallowed by one the engine sent itself, a `SIGSTOP` from outside, and the signals the target inherits. Each one fails while its finding stands. `./review_driver <name>` runs one. These do not need the `/work` mount: `PTRACE_TEST_DIR` and `PTRACE_SRC_DIR` default to the directory the script is in and to `core/adapters`, so they run from a checkout as well. |
 | `elfcmp.cpp`, `elfref.sh`, `cmp2.sh` | Compares the ELF symbol reader with `readelf`. |
 
 The scripts expect `../../core/adapters` mounted at `/src` and this directory mounted at `/work`:
@@ -53,5 +54,7 @@ Things to know:
   `pop %rbp; ret`.
 - `progs.c` is built with `-no-pie -fno-omit-frame-pointer`. Some tests depend on that (the frame test, the address of
   `marker`).
+- The harness has been run on x86_64 as well as arm64 since this was written: the whole of `driver.cpp` passes
+  natively on x86_64 apart from the `conf_*` tests, which need the `/bins` mount.
 - The tests named `repro_*` and `perf` print findings instead of asserting. They document known problems and
   measurements. See `PTRACE_ADAPTER_WRITEUP.md`.

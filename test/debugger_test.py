@@ -730,9 +730,9 @@ class PtraceAdapterTests:
 
         return dbg
 
-    def set_redirects(self, bv, redirects):
-        # The settings of the adapter exist once the controller has created the adapter, which setting the path does
-        settings = Settings('PtraceAdapterSettings')
+    def set_redirects(self, dbg, bv, redirects):
+        settings = dbg.adapter_settings
+        self.assertIsNotNone(settings)
         self.assertTrue(settings.contains('launch.redirectFileDescriptors'))
         self.assertTrue(settings.set_string_list('launch.redirectFileDescriptors', redirects, bv,
                                                  SettingsScope.SettingsResourceScope))
@@ -747,7 +747,7 @@ class PtraceAdapterTests:
         dbg.executable_path = fpath
         with tempfile.TemporaryDirectory() as temp_dir:
             out_path = os.path.join(temp_dir, 'out.txt')
-            self.set_redirects(bv, ['1>' + out_path])
+            self.set_redirects(dbg, bv, ['1>' + out_path])
             self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
             self.assertEqual(sleep_and_go(dbg), DebugStopReason.ProcessExited)
             with open(out_path, 'rb') as f:
@@ -763,7 +763,7 @@ class PtraceAdapterTests:
             out_path = os.path.join(temp_dir, 'out.txt')
             with open(in_path, 'w') as f:
                 f.write('read from a file\n')
-            self.set_redirects(bv, ['0<' + in_path, '1>' + out_path])
+            self.set_redirects(dbg, bv, ['0<' + in_path, '1>' + out_path])
             self.assertNotIn(dbg.launch_and_wait(), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
             self.assertEqual(sleep_and_go(dbg), DebugStopReason.ProcessExited)
             with open(out_path) as f:
@@ -774,7 +774,7 @@ class PtraceAdapterTests:
         bv = load(fpath)
         dbg = self.create_debugger(bv)
         dbg.executable_path = fpath
-        self.set_redirects(bv, ['0</nonexistent/directory/file'])
+        self.set_redirects(dbg, bv, ['0</nonexistent/directory/file'])
         self.assertIn(dbg.launch_and_wait(), [DebugStopReason.InternalError])
 
     def test_detach_lets_the_target_run(self):

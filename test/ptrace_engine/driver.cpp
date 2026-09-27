@@ -15,6 +15,7 @@
 #include <fstream>
 #include <set>
 #include <sys/resource.h>
+#include <sys/syscall.h>
 #include <map>
 #include <atomic>
 #include <fcntl.h>
