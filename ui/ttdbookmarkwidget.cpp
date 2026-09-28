@@ -136,8 +136,8 @@ static QString GetSymbolTextAtAddress(BinaryViewRef data, uint64_t address)
 // TTDBookmarkEditDialog implementation
 
 TTDBookmarkEditDialog::TTDBookmarkEditDialog(QWidget* parent, const QString& position, const QString& note,
-	const QString& viewAddress, DbgRef<DebuggerController> controller)
-	: QDialog(parent), m_controller(controller), m_noteEdited(!note.isEmpty())
+	const QString& viewAddress, DbgRef<DebuggerController> controller, bool autoFillNote)
+	: QDialog(parent), m_controller(controller), m_noteEdited(!autoFillNote || !note.isEmpty())
 {
 	setWindowTitle(position.isEmpty() ? "Add TTD Bookmark" : "Edit TTD Bookmark");
 	setModal(true);
@@ -579,7 +579,7 @@ void TTDBookmarkWidget::editSelectedBookmark()
 	QString posStr = FormatTTDPosition(bookmark.position);
 	QString viewAddrStr = bookmark.viewAddress != 0 ? QString("0x%1").arg(bookmark.viewAddress, 0, 16) : "";
 
-	TTDBookmarkEditDialog dialog(this, posStr, QString::fromStdString(bookmark.note), viewAddrStr, m_controller);
+	TTDBookmarkEditDialog dialog(this, posStr, QString::fromStdString(bookmark.note), viewAddrStr, m_controller, false);
 	if (dialog.exec() != QDialog::Accepted)
 		return;
 

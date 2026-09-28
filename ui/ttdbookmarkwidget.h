@@ -49,9 +49,9 @@ class TTDBookmarkEditDialog : public QDialog
 	Q_OBJECT
 
 public:
-	// If a controller is provided, an empty note is auto-filled with a description of the view address
+	// Disable auto-fill when editing a saved bookmark so an empty note stays empty.
 	TTDBookmarkEditDialog(QWidget* parent, const QString& position = "", const QString& note = "",
-		const QString& viewAddress = "", DbgRef<DebuggerController> controller = nullptr);
+		const QString& viewAddress = "", DbgRef<DebuggerController> controller = nullptr, bool autoFillNote = true);
 	QString getPosition() const;
 	QString getNote() const;
 	QString getViewAddress() const;

@@ -372,7 +372,22 @@ void TTDEventsQueryWidget::setupUIActions()
 			return;
 		QString posStr = posItem->text();
 
-		TTDBookmarkEditDialog dialog(this, posStr, "", "", m_controller);
+		// Exception rows carry a program counter in both the combined and exception-only tables.
+		// Preserve it as the bookmark view address so the note can describe that instruction.
+		QString viewAddress;
+		for (int c = 0; c < m_resultsTable->columnCount(); ++c)
+		{
+			auto* header = m_resultsTable->horizontalHeaderItem(c);
+			if (header && (header->text() == "Program Counter" || header->text() == "Exception PC"))
+			{
+				auto* pcItem = m_resultsTable->item(row, c);
+				if (pcItem && !pcItem->text().isEmpty())
+					viewAddress = pcItem->text();
+				break;
+			}
+		}
+
+		TTDBookmarkEditDialog dialog(this, posStr, "", viewAddress, m_controller);
 		if (dialog.exec() == QDialog::Accepted)
 		{
 			QString editedPosStr = dialog.getPosition();
