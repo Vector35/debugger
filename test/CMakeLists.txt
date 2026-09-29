@@ -96,3 +96,31 @@ endfunction()
 foreach (arch ${TEST_BINARY_ARCHES})
 	add_test_binaries(${arch})
 endforeach()
+
+if(APPLE AND "arm64" IN_LIST TEST_BINARY_ARCHES)
+	enable_language(ASM)
+	add_executable(macos_native_arm64 src/macos_native_arm64.S)
+	set_target_properties(macos_native_arm64 PROPERTIES OSX_ARCHITECTURES arm64
+		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/arm64)
+	add_custom_command(TARGET macos_native_arm64 POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:macos_native_arm64>
+			${TEST_BINARY_ROOT}/Darwin-arm64/macos_native_arm64 VERBATIM)
+	add_dependencies(debugger_test_binaries macos_native_arm64)
+	add_executable(macos_native_io src/macos_native_io.c)
+	set_target_properties(macos_native_io PROPERTIES OSX_ARCHITECTURES arm64
+		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/arm64)
+	add_custom_command(TARGET macos_native_io POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:macos_native_io>
+			${TEST_BINARY_ROOT}/Darwin-arm64/macos_native_io VERBATIM)
+	add_dependencies(debugger_test_binaries macos_native_io)
+	# Fixture edits do not necessarily relink debuggercore, so do not rely solely on
+	# its POST_BUILD signing step for these newly built samples.
+	foreach(native_fixture macos_native_arm64 macos_native_io)
+		add_custom_command(TARGET ${native_fixture} POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E make_directory ${TEST_BINARY_ROOT}/Darwin-arm64-signed
+			COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${native_fixture}>
+				${TEST_BINARY_ROOT}/Darwin-arm64-signed/${native_fixture}
+			COMMAND codesign --force --options runtime --entitlements ${CMAKE_CURRENT_SOURCE_DIR}/entitlements.plist
+				--sign - ${TEST_BINARY_ROOT}/Darwin-arm64-signed/${native_fixture} VERBATIM)
+	endforeach()
+endif()

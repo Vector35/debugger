@@ -695,6 +695,161 @@ class GdbMiLinuxTest(DebuggerAPI):
                     dbg.quit_and_wait()
 
 
+@unittest.skipUnless(platform.system() == 'Darwin' and platform.machine() == 'arm64',
+                     'macOS native PoC requires an arm64 Mac')
+class MacOSNativeArm64Test(DebuggerAPI):
+    def setUp(self) -> None:
+        self.arch = 'arm64'
+        self.adapter_type = 'MACOS_NATIVE'
+
+    def native_fixture(self):
+        bv = load(name_to_fpath('macos_native_arm64', self.arch))
+        dbg = self.create_debugger(bv)
+        self.addCleanup(bv.file.close)
+        self.addCleanup(lambda: dbg.quit_and_wait() if dbg.connected else None)
+        self.assertNotIn(dbg.launch_and_wait(10000),
+                         [DebugStopReason.ProcessExited, DebugStopReason.InternalError, DebugStopReason.TimedOut])
+        return dbg
+
+    def native_address(self, dbg, name):
+        symbol = dbg.data.get_symbol_by_raw_name('_native_' + name)
+        self.assertIsNotNone(symbol)
+        return symbol.address
+
+    def test_native_step_over_call(self):
+        dbg = self.native_fixture()
+        call = self.native_address(dbg, 'call')
+        after = self.native_address(dbg, 'after_call')
+        self.assertEqual(dbg.run_to_and_wait(call, 10000), DebugStopReason.Breakpoint)
+        self.assertEqual(dbg.ip, call)
+        self.assertEqual(dbg.step_over_and_wait(timeout=10000), DebugStopReason.SingleStep)
+        self.assertEqual(dbg.ip, after)
+        self.assertEqual(dbg.get_reg_value('x0'), 42)
+        self.assertEqual(dbg.go_and_wait(10000), DebugStopReason.ProcessExited)
+
+    def test_native_step_return_and_frames(self):
+        dbg = self.native_fixture()
+        body = self.native_address(dbg, 'body')
+        after = self.native_address(dbg, 'after_call')
+        self.assertEqual(dbg.run_to_and_wait(body, 10000), DebugStopReason.Breakpoint)
+        frames = dbg.frames_of_thread(dbg.active_thread.tid)
+        self.assertGreaterEqual(len(frames), 2)
+        self.assertEqual(frames[0].pc, body)
+        self.assertEqual(frames[1].pc, after)
+        self.assertEqual(dbg.step_return_and_wait(10000), DebugStopReason.SingleStep)
+        self.assertEqual(dbg.ip, after)
+        self.assertEqual(dbg.go_and_wait(10000), DebugStopReason.ProcessExited)
+
+    def test_native_hardware_breakpoint_hits(self):
+        dbg = self.native_fixture()
+        body = self.native_address(dbg, 'body')
+        value = self.native_address(dbg, 'value')
+        self.assertTrue(dbg.add_hardware_breakpoint(body, DebugBreakpointType.BNHardwareExecuteBreakpoint))
+        self.assertEqual(dbg.go_and_wait(10000), DebugStopReason.Breakpoint)
+        self.assertEqual(dbg.ip, body)
+        self.assertTrue(dbg.add_hardware_breakpoint(value, DebugBreakpointType.BNHardwareWriteBreakpoint, size=8))
+        self.assertEqual(dbg.go_and_wait(10000), DebugStopReason.Breakpoint)
+        # Continuing must step past each hit and rearm the hardware state.
+        self.assertEqual(dbg.go_and_wait(10000), DebugStopReason.ProcessExited)
+        self.assertEqual(dbg.exit_code, 0)
+
+    def test_native_detach_restores_breakpoints(self):
+        fpath = name_to_fpath('helloworld_loop', self.arch)
+        target = subprocess.Popen([fpath], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(lambda: target.wait(timeout=5))
+        self.addCleanup(lambda: target.kill() if target.poll() is None else None)
+        bv = load(fpath)
+        self.addCleanup(bv.file.close)
+        dbg = self.create_debugger(bv)
+        self.addCleanup(lambda: dbg.quit_and_wait() if dbg.connected else None)
+        dbg.pid_attach = target.pid
+        self.assertNotIn(dbg.attach_and_wait(10000),
+                         [DebugStopReason.InternalError, DebugStopReason.ProcessExited, DebugStopReason.TimedOut])
+        address = dbg.data.entry_point
+        before = bytes(dbg.read_memory(address, 4))
+        self.assertEqual(len(before), 4)
+        dbg.add_breakpoint(address)
+        dbg.detach_and_wait(10000)
+        self.assertFalse(dbg.connected)
+        self.assertIsNone(target.poll())
+        # Reattach through the controller to inspect the physical bytes, with no logical
+        # breakpoint left to reapply. The detached process must remain alive.
+        dbg.delete_breakpoint(address)
+        self.assertNotIn(dbg.attach_and_wait(10000),
+                         [DebugStopReason.InternalError, DebugStopReason.ProcessExited, DebugStopReason.TimedOut])
+        self.assertEqual(bytes(dbg.read_memory(address, 4)), before)
+        dbg.go()
+        deadline = time.monotonic() + 5
+        while not dbg.running and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertTrue(dbg.running)
+        dbg.detach_and_wait(10000)
+        self.assertFalse(dbg.connected)
+        self.assertIsNone(target.poll())
+
+    def test_native_thread_select_suspend_resume(self):
+        dbg = self.native_fixture()
+        thread = dbg.threads[0]
+        dbg.active_thread = thread
+        self.assertEqual(dbg.active_thread.tid, thread.tid)
+        self.assertTrue(dbg.suspend_thread(thread.tid))
+        self.assertTrue(dbg.resume_thread(thread.tid))
+        # The controller treats resuming an already unfrozen thread as success.
+        self.assertTrue(dbg.resume_thread(thread.tid))
+
+    def test_native_memory_map_protections(self):
+        dbg = self.native_fixture()
+        address = self.native_address(dbg, 'call')
+        def permissions():
+            region = next(r for r in dbg.memory_map if r.start <= address < r.start + r.size)
+            return (region.read, region.write, region.execute)
+        before = permissions()
+        self.assertEqual(before, (True, False, True))
+        dbg.add_breakpoint(address)
+        self.assertEqual(permissions(), before)
+        dbg.delete_breakpoint(address)
+        self.assertEqual(permissions(), before)
+
+    def test_native_arguments_environment_cwd_stdio(self):
+        from debugger import DebuggerEventType
+        bv = load(name_to_fpath('macos_native_io', self.arch))
+        dbg = self.create_debugger(bv)
+        self.addCleanup(bv.file.close)
+        self.addCleanup(lambda: dbg.quit_and_wait() if dbg.connected else None)
+        output = []
+        ready = threading.Event()
+        def capture(event):
+            if event.type == DebuggerEventType.StdoutMessageEventType:
+                output.append(event.data.message_data.message)
+                if 'environment=fixture\n' in ''.join(output):
+                    ready.set()
+        callback = dbg.register_event_callback(capture, 'native stdio test')
+        self.addCleanup(lambda: dbg.remove_event_callback(callback))
+        dbg.cmd_line = '"two words"'
+        with tempfile.TemporaryDirectory() as cwd:
+            dbg.working_directory = cwd
+            # Configure only this BinaryView's adapter resources.
+            self.assertTrue(dbg.set_adapter_property('launch.environmentVariables',
+                                                    ['NATIVE_DEBUGGER_TEST=fixture']))
+            self.assertNotIn(dbg.launch_and_wait(10000),
+                             [DebugStopReason.InternalError, DebugStopReason.ProcessExited, DebugStopReason.TimedOut])
+            reason = []
+            waiter = threading.Thread(target=lambda: reason.append(dbg.go_and_wait(10000)))
+            waiter.start()
+            self.assertTrue(ready.wait(5), ''.join(output))
+            dbg.write_stdin('hello native\n')
+            waiter.join(15)
+            self.assertFalse(waiter.is_alive())
+            self.assertEqual(reason, [DebugStopReason.ProcessExited])
+            self.assertEqual(dbg.exit_code, 0)
+            text = ''.join(output)
+            self.assertIn('argument=two words\n', text)
+            self.assertIn('cwd=' + os.path.realpath(cwd) + '\n', text)
+            self.assertIn('environment=fixture\n', text)
+            self.assertIn('input=hello native\n', text)
+            self.assertIn('stderr=fixture\n', text)
+
+
 @unittest.skipIf(platform.machine() not in ['arm64', 'aarch64'], "Only run arm64 tests on arm Mac or Linux")
 class DebuggerArm64Test(DebuggerAPI):
     def setUp(self) -> None:

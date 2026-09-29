@@ -70,6 +70,9 @@ api/python/__pycache__
 */__pycache__
 
 /build
+/build-native/
+/test/binaries/*/macos_native_arm64
+/test/binaries/*/macos_native_io
 /artifacts
 /test/Pipfile
 

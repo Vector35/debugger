@@ -22,6 +22,9 @@ limitations under the License.
 #include "adapters/lldbcoredumpadapter.h"
 #include "adapters/esrevenadapter.h"
 #include "adapters/x2winrpcadapter.h"
+#ifdef BN_MACOS_NATIVE
+#include "adapters/macosnativeadapter.h"
+#endif
 #ifdef WIN32
 	#include "adapters/dbgengadapter.h"
 	#include "adapters/dbgengttdadapter.h"
@@ -56,6 +59,9 @@ void InitDebugAdapterTypes()
 	InitGdbAdapterType();
 	InitGdbMiAdapterType();
 	InitLldbAdapterType();
+#ifdef BN_MACOS_NATIVE
+	InitMacOSNativeAdapterType();
+#endif
 	InitEsrevenAdapterType();
 	InitLldbCoreDumpAdapterType();
 	InitX2WinRpcAdapterType();

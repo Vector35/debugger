@@ -69,6 +69,25 @@ endif()
 
 target_link_libraries(debuggercore binaryninjaapi)
 
+if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64" AND
+	(NOT CMAKE_OSX_ARCHITECTURES OR CMAKE_OSX_ARCHITECTURES STREQUAL "arm64"))
+	find_program(MIG_EXECUTABLE mig REQUIRED)
+	execute_process(COMMAND xcrun --show-sdk-path OUTPUT_VARIABLE MACOS_NATIVE_SDK OUTPUT_STRIP_TRAILING_WHITESPACE)
+	set(MACOS_NATIVE_MIG_DIR ${CMAKE_CURRENT_BINARY_DIR}/macos-native-mig)
+	file(MAKE_DIRECTORY ${MACOS_NATIVE_MIG_DIR})
+	set(MACOS_NATIVE_MIG_SOURCE ${MACOS_NATIVE_MIG_DIR}/mach_excServer.c)
+	add_custom_command(OUTPUT ${MACOS_NATIVE_MIG_SOURCE}
+		COMMAND ${MIG_EXECUTABLE} -arch arm64 -isysroot ${MACOS_NATIVE_SDK}
+			-server ${MACOS_NATIVE_MIG_SOURCE} -sheader ${MACOS_NATIVE_MIG_DIR}/mach_excServer.h
+			-user /dev/null -header ${MACOS_NATIVE_MIG_DIR}/mach_exc.h
+			${MACOS_NATIVE_SDK}/usr/include/mach/mach_exc.defs
+		VERBATIM)
+	set_source_files_properties(${MACOS_NATIVE_MIG_SOURCE} PROPERTIES LANGUAGE C)
+	target_sources(debuggercore PRIVATE adapters/macosnativeadapter.cpp
+		adapters/macosnativearch_arm64.cpp ${MACOS_NATIVE_MIG_SOURCE})
+	target_compile_definitions(debuggercore PRIVATE BN_MACOS_NATIVE)
+endif()
+
 if(WIN32)
     target_link_libraries(debuggercore Msi.lib delayimp.lib wsock32 ws2_32 dbghelp.lib)
 	target_link_options(debuggercore PRIVATE /DELAYLOAD:liblldb.dll /DELAYLOAD:dbghelp.dll)
