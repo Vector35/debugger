@@ -530,26 +530,58 @@ void GdbMiAdapter::AsyncRecordHandler(const MiRecord& record)
 
 void GdbMiAdapter::ScheduleStateRefresh()
 {
-    // dispatch off-thread to avoid reader blocking
-    if (!m_connected || m_targetRunningAtomic) return;
-    std::thread([this]{
-        // Serialize MI traffic with m_gdbCommandMutex (not the reader/event mutex)?
-        {
-            std::unique_lock lock(m_gdbCommandMutex);
-            UpdateThreadList();
-            UpdateAllRegisters();
-            UpdateStackFrames(m_currentTid);
-            // Apply any pending breakpoints that were added while target was running
-            // or couldn't be resolved earlier (modules not loaded yet)
-            ApplyBreakpoints();
-            ApplyPendingHardwareBreakpoints();
-        }
+	// Dispatch off-thread to avoid blocking the MI reader, but retain ownership
+	// so restart/destruction can stop the connector and join every user of it.
+	std::lock_guard threadsLock(m_refreshThreadsMutex);
+	if (m_shuttingDown.load(std::memory_order_acquire)
+		|| !m_connected.load(std::memory_order_acquire)
+		|| m_targetRunningAtomic.load(std::memory_order_acquire))
+		return;
 
-        DebuggerEvent ev;
-        ev.type = AdapterStoppedEventType;
-        ev.data.targetStoppedData.reason = m_lastStopReason;
-        PostDebuggerEvent(ev);
-    }).detach();
+	m_refreshThreads.emplace_back([this] {
+		// Serialize MI traffic with m_gdbCommandMutex (not the reader/event mutex).
+		{
+			std::unique_lock lock(m_gdbCommandMutex);
+			if (m_shuttingDown.load(std::memory_order_acquire))
+				return;
+			UpdateThreadList();
+			UpdateAllRegisters();
+			UpdateStackFrames(m_currentTid);
+			// Apply any pending breakpoints that were added while target was running
+			// or couldn't be resolved earlier (modules not loaded yet).
+			ApplyBreakpoints();
+			ApplyPendingHardwareBreakpoints();
+		}
+
+		if (!m_shuttingDown.load(std::memory_order_acquire))
+		{
+			DebuggerEvent ev;
+			ev.type = AdapterStoppedEventType;
+			ev.data.targetStoppedData.reason = m_lastStopReason;
+			PostDebuggerEvent(ev);
+		}
+	});
+}
+
+void GdbMiAdapter::JoinStateRefreshThreads()
+{
+	std::vector<std::thread> threads;
+	{
+		std::lock_guard lock(m_refreshThreadsMutex);
+		threads.swap(m_refreshThreads);
+	}
+
+	for (auto& thread : threads)
+	{
+		if (!thread.joinable())
+			continue;
+		if (thread.get_id() == std::this_thread::get_id())
+		{
+			LogError("Cannot join GDB MI state refresh thread from itself");
+			std::terminate();
+		}
+		thread.join();
+	}
 }
 
 DebugStopReason GdbMiAdapter::GetStopReason(const MiRecord& record)
@@ -764,7 +796,8 @@ bool GdbMiAdapter::DetectTargetArchitecture(bool remoteSession)
 	return true;
 }
 
-bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
+bool GdbMiAdapter::Connect(const std::string& server, uint32_t port)
+{
     auto settings = GetAdapterSettings();
     BNSettingsScope scope = SettingsResourceScope;
     auto data = GetData();
@@ -783,18 +816,22 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
 		return false;
 	}
 
-    m_connected = false;
+	if (gdbPath.empty()) return false;
 
-    if (gdbPath.empty()) return false;
+	if (inputFile.empty()) inputFile = symbolFile;
 
-    if (inputFile.empty()) inputFile = symbolFile;
-
-    m_mi = std::make_unique<GdbMiConnector>(gdbPath, inputFile);
+	Stop();
+	m_shuttingDown.store(false, std::memory_order_release);
+	m_mi = std::make_unique<GdbMiConnector>(gdbPath, inputFile);
 
     // Set up async callback BEFORE starting GDB to avoid race conditions
     m_mi->SetAsyncCallback([this](const MiRecord& record){ this->AsyncRecordHandler(record); });
 
-    if (!m_mi->Start()) return false;
+	if (!m_mi->Start())
+	{
+		Stop();
+		return false;
+	}
 
     m_mi->SendCommand("-gdb-set mi-async on");
     m_mi->SendCommand("-gdb-set pagination off");
@@ -809,17 +846,19 @@ bool GdbMiAdapter::Connect(const std::string& server, uint32_t port) {
     std::string connectCmd = "-target-select remote " + ipAddress + ":" + std::to_string(serverPort);
 
     auto result = m_mi->SendCommand(connectCmd, 1000);
-    m_connected = (result.command == "connected");
+	m_connected = (result.command == "connected");
 	if (!m_connected)
 	{
-        LogError("Failed to connect to target");
-		m_mi->Stop();
-		m_mi.reset();
+		LogError("Failed to connect to target");
+		Stop();
 		return false;
 	}
 
 	if (!DetectTargetArchitecture(true))
+	{
+		Stop();
 		return false;
+	}
 
 	// AFTER we are connected and stopped, populate the cache for the first time.
 	LogInfo("Populating initial state cache...");
@@ -875,7 +914,8 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 		return false;
 	}
 
-	m_connected = false;
+	Stop();
+	m_shuttingDown.store(false, std::memory_order_release);
 	m_mi = std::make_unique<GdbMiConnector>(gdbPath, "");
 
 	// Set up async callback BEFORE starting GDB to avoid race conditions
@@ -884,6 +924,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 	if (!m_mi->Start())
 	{
 		LogError("Failed to start GDB process");
+		Stop();
 		return false;
 	}
 
@@ -898,8 +939,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 	if (fileResult.command != "done")
 	{
 		LogError("Failed to load executable: %s", fileResult.fullLine.c_str());
-		m_mi->Stop();
-		m_mi.reset();
+		Stop();
 		return false;
 	}
 
@@ -910,8 +950,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 		if (symbolResult.command != "done")
 		{
 			LogError("Failed to load symbol file: %s", symbolResult.fullLine.c_str());
-			m_mi->Stop();
-			m_mi.reset();
+			Stop();
 			return false;
 		}
 	}
@@ -922,8 +961,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 		if (cwdResult.command != "done")
 		{
 			LogError("Failed to set working directory: %s", cwdResult.fullLine.c_str());
-			m_mi->Stop();
-			m_mi.reset();
+			Stop();
 			return false;
 		}
 	}
@@ -934,8 +972,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 		if (!parsedArguments)
 		{
 			LogError("Invalid command line arguments: unmatched quote or trailing escape");
-			m_mi->Stop();
-			m_mi.reset();
+			Stop();
 			return false;
 		}
 
@@ -946,8 +983,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 		if (argumentResult.command != "done")
 		{
 			LogError("Failed to set command line arguments: %s", argumentResult.fullLine.c_str());
-			m_mi->Stop();
-			m_mi.reset();
+			Stop();
 			return false;
 		}
 	}
@@ -958,9 +994,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 
 	if (!DetectTargetArchitecture(false))
 	{
-		m_connected = false;
-		m_mi->Stop();
-		m_mi.reset();
+		Stop();
 		return false;
 	}
 
@@ -998,9 +1032,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 	{
 		LogError("Failed to launch target: %s", runResult.fullLine.c_str());
 		clearLaunchBootstrap();
-		m_connected = false;
-		m_mi->Stop();
-		m_mi.reset();
+		Stop();
 		return false;
 	}
 
@@ -1008,9 +1040,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 	{
 		LogError("Timed out waiting for the initial GDB stop");
 		clearLaunchBootstrap();
-		m_connected = false;
-		m_mi->Stop();
-		m_mi.reset();
+		Stop();
 		return false;
 	}
 
@@ -1090,9 +1120,7 @@ bool GdbMiAdapter::ExecuteWithArgs(const std::string& path, const std::string& a
 			{
 				LogError("Timed out waiting for the program entry-point stop");
 				clearLaunchBootstrap();
-				m_connected = false;
-				m_mi->Stop();
-				m_mi.reset();
+				Stop();
 				return false;
 			}
 		}
@@ -1138,15 +1166,19 @@ bool GdbMiAdapter::ResumeThread(uint32_t) { LogWarn("GdbMiAdapter::ResumeThread 
 
 void GdbMiAdapter::Stop()
 {
+	m_shuttingDown.store(true, std::memory_order_release);
+	m_connected.store(false, std::memory_order_release);
+	m_targetRunningAtomic.store(false, std::memory_order_release);
+
 	try
 	{
-		if (m_mi && m_mi->IsRunning())
+		if (m_mi)
 		{
 			LogDebug("GDB MI connector stopping...");
+			// Prevent new callbacks, then join the connector reader. A callback
+			// already in flight may finish, but the adapter remains alive here.
 			m_mi->SetAsyncCallback(nullptr);
 			m_mi->Stop();
-			m_mi.reset();
-			LogDebug("GDB MI connector stopped.");
 		}
 	}
 	catch (const std::exception& e)
@@ -1158,12 +1190,14 @@ void GdbMiAdapter::Stop()
 		LogError("Unknown exception during GDB MI adapter stop");
 	}
 
+	// State refresh workers can issue MI commands and access adapter fields. The
+	// connector remains allocated until every such worker has returned.
+	JoinStateRefreshThreads();
+	m_mi.reset();
+	LogDebug("GDB MI connector stopped.");
+
 	// Clear all cached data
 	InvalidateCache();
-
-	// Reset target state
-    m_targetRunningAtomic.store(false, std::memory_order_release);
-    m_connected = false;
 }
 
 bool GdbMiAdapter::Quit()
