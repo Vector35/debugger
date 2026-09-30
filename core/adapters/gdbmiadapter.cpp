@@ -533,34 +533,86 @@ void GdbMiAdapter::ScheduleStateRefresh()
 	// Dispatch off-thread to avoid blocking the MI reader, but retain ownership
 	// so restart/destruction can stop the connector and join every user of it.
 	std::lock_guard threadsLock(m_refreshThreadsMutex);
+	if (!m_refreshInProgress.load(std::memory_order_acquire))
+	{
+		// Single-flight refreshes make every retained worker complete before the
+		// next one starts. Reap it here so long stepping sessions do not accumulate
+		// joinable thread handles until the adapter is stopped.
+		for (auto& thread : m_refreshThreads)
+		{
+			if (thread.joinable())
+				thread.join();
+		}
+		m_refreshThreads.clear();
+	}
+
 	if (m_shuttingDown.load(std::memory_order_acquire)
 		|| !m_connected.load(std::memory_order_acquire)
 		|| m_targetRunningAtomic.load(std::memory_order_acquire))
 		return;
 
-	m_refreshThreads.emplace_back([this] {
-		// Serialize MI traffic with m_gdbCommandMutex (not the reader/event mutex).
-		{
-			std::unique_lock lock(m_gdbCommandMutex);
-			if (m_shuttingDown.load(std::memory_order_acquire))
-				return;
-			UpdateThreadList();
-			UpdateAllRegisters();
-			UpdateStackFrames(m_currentTid);
-			// Apply any pending breakpoints that were added while target was running
-			// or couldn't be resolved earlier (modules not loaded yet).
-			ApplyBreakpoints();
-			ApplyPendingHardwareBreakpoints();
-		}
+	// A refresh posts AdapterStoppedEventType when it completes. Scheduling another
+	// refresh while that event is updating the controller caches can otherwise fan
+	// out recursively (one request for every thread without cached frames), producing
+	// stale stop events after the target has already resumed.
+	bool expected = false;
+	if (!m_refreshInProgress.compare_exchange_strong(
+		expected, true, std::memory_order_acq_rel, std::memory_order_acquire))
+		return;
 
-		if (!m_shuttingDown.load(std::memory_order_acquire))
-		{
-			DebuggerEvent ev;
-			ev.type = AdapterStoppedEventType;
-			ev.data.targetStoppedData.reason = m_lastStopReason;
-			PostDebuggerEvent(ev);
-		}
-	});
+	try
+	{
+		m_refreshThreads.emplace_back([this] {
+			bool publishStop = false;
+			try
+			{
+				// Serialize MI traffic with m_gdbCommandMutex (not the reader/event mutex).
+				{
+					std::unique_lock lock(m_gdbCommandMutex);
+					if (!m_shuttingDown.load(std::memory_order_acquire)
+						&& m_connected.load(std::memory_order_acquire)
+						&& !m_targetRunningAtomic.load(std::memory_order_acquire))
+					{
+						UpdateThreadList();
+						UpdateAllRegisters();
+						UpdateStackFrames(m_currentTid);
+						// Apply any pending breakpoints that were added while target was running
+						// or couldn't be resolved earlier (modules not loaded yet).
+						ApplyBreakpoints();
+						ApplyPendingHardwareBreakpoints();
+						publishStop = true;
+					}
+				}
+
+				// Recheck after releasing the command lock. A resume or shutdown makes
+				// this refresh stale and it must not wake the controller as a new stop.
+				if (publishStop
+					&& !m_shuttingDown.load(std::memory_order_acquire)
+					&& m_connected.load(std::memory_order_acquire)
+					&& !m_targetRunningAtomic.load(std::memory_order_acquire))
+				{
+					DebuggerEvent ev;
+					ev.type = AdapterStoppedEventType;
+					ev.data.targetStoppedData.reason = m_lastStopReason;
+					PostDebuggerEvent(ev);
+				}
+			}
+			catch (const std::exception& e)
+			{
+				LogError("Exception while refreshing GDB MI state: %s", e.what());
+			}
+			catch (...)
+			{
+				LogError("Unknown exception while refreshing GDB MI state");
+			}
+			m_refreshInProgress.store(false, std::memory_order_release);
+		});
+	}
+	catch (...)
+	{
+		m_refreshInProgress.store(false, std::memory_order_release);
+		throw;
+	}
 }
 
 void GdbMiAdapter::JoinStateRefreshThreads()
@@ -1193,6 +1245,7 @@ void GdbMiAdapter::Stop()
 	// State refresh workers can issue MI commands and access adapter fields. The
 	// connector remains allocated until every such worker has returned.
 	JoinStateRefreshThreads();
+	m_refreshInProgress.store(false, std::memory_order_release);
 	m_mi.reset();
 	LogDebug("GDB MI connector stopped.");
 
@@ -1252,13 +1305,10 @@ std::vector<DebugFrame> GdbMiAdapter::GetFramesOfThread(uint32_t tid) {
         return m_cachedFrames[tid];
     }
 
-    // If not cached, return an empty list for now and trigger a background refresh.
-    // The UI will be updated once the data is available via an event.
-    if (!m_targetRunningAtomic)
-    {
-        ScheduleStateRefresh();
-    }
-    
+	// The stop refresh eagerly caches the active thread's frames. Do not launch a
+	// full refresh for every inactive thread queried by DebuggerThreads::Update:
+	// each refresh publishes another stop event, which recursively queries frames
+	// again and can leave stale workers running across the next resume.
     return {};
 }
 

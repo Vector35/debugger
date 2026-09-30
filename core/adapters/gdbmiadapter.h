@@ -16,6 +16,7 @@ private:
 	uint64_t m_currentTid = 1;
 	std::atomic<bool> m_connected {false};
 	std::atomic<bool> m_shuttingDown {false};
+	std::atomic<bool> m_refreshInProgress {false};
 	std::mutex m_refreshThreadsMutex;
 	std::vector<std::thread> m_refreshThreads;
 	std::string m_remoteArch;
