@@ -84,7 +84,7 @@ if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64" AND
 		VERBATIM)
 	set_source_files_properties(${MACOS_NATIVE_MIG_SOURCE} PROPERTIES LANGUAGE C)
 	target_sources(debuggercore PRIVATE adapters/macosnativeadapter.cpp
-		adapters/macosnativearch_arm64.cpp ${MACOS_NATIVE_MIG_SOURCE})
+		adapters/macosnativearch_arm64.cpp adapters/macosrosettaadapter.cpp ${MACOS_NATIVE_MIG_SOURCE})
 	target_compile_definitions(debuggercore PRIVATE BN_MACOS_NATIVE)
 endif()
 

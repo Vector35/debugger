@@ -45,6 +45,7 @@ namespace BinaryNinjaDebugger
 
 	public:
 		Socket() = default;
+		explicit Socket(socket_type descriptor) : m_socket(descriptor) {}
 
 		/* if port is zero it will be bruteforced */
 		Socket(std::int32_t address_family, std::int32_t type, std::int32_t protocol)

@@ -16,6 +16,7 @@ limitations under the License.
 
 #include "macosnativeadapter.h"
 #include "macosnativearch.h"
+#include "macosrosettaadapter.h"
 #include <mach/mach_vm.h>
 #include <mach/arm/exception.h>
 #include <mach-o/dyld_images.h>
@@ -125,7 +126,27 @@ extern "C" kern_return_t catch_mach_exception_raise_state_identity(mach_port_t, 
 bool MacOSNativeAdapterType::IsValidForData(BinaryView* data)
 {
 	return data->GetTypeName() == "Mach-O" && data->GetDefaultArchitecture()
-		&& data->GetDefaultArchitecture()->GetName() == "aarch64";
+		&& (data->GetDefaultArchitecture()->GetName() == "aarch64"
+			|| data->GetDefaultArchitecture()->GetName() == "x86_64");
+}
+
+DebugAdapter* MacOSNativeAdapterType::Create(BinaryView* data)
+{
+	if (data->GetDefaultArchitecture()->GetName() == "x86_64")
+		return new MacOSRosettaAdapter(data);
+	return new MacOSNativeAdapter(data);
+}
+
+bool MacOSNativeAdapter::InspectTask(pid_t pid)
+{
+	std::lock_guard lock(m_mutex);
+	Cleanup();
+	m_inspectionOnly = true;
+	m_pid = pid;
+	if (task_for_pid(mach_task_self(), pid, &m_task) != KERN_SUCCESS)
+		return false;
+	RefreshThreads();
+	return true;
 }
 
 Ref<Settings> MacOSNativeAdapterType::GetAdapterSettings()
@@ -201,7 +222,7 @@ MacOSNativeAdapter::~MacOSNativeAdapter()
 {
 	pid_t ownedChild = m_child ? m_pid : 0;
 	// Attached processes belong to the caller; do not kill them on adapter disposal.
-	if (m_task)
+	if (m_task && !m_inspectionOnly)
 	{
 		if (m_child)
 			Quit();
@@ -1641,7 +1662,7 @@ std::string MacOSNativeAdapter::InvokeBackendCommand(const std::string& command)
 		return StepOver() ? "" : "step failed";
 	if (command == "finish")
 		return StepReturn() ? "" : "step return failed";
-	return "MACOS_NATIVE does not implement LLDB commands";
+	return "macOS Native does not implement LLDB commands";
 }
 void MacOSNativeAdapter::WriteStdin(const std::string& message)
 {

@@ -700,10 +700,10 @@ class GdbMiLinuxTest(DebuggerAPI):
 class MacOSNativeArm64Test(DebuggerAPI):
     def setUp(self) -> None:
         self.arch = 'arm64'
-        self.adapter_type = 'MACOS_NATIVE'
+        self.adapter_type = 'macOS Native'
 
     def native_fixture(self):
-        bv = load(name_to_fpath('macos_native_arm64', self.arch))
+        bv = load(name_to_fpath('macos_native_' + self.arch, self.arch))
         dbg = self.create_debugger(bv)
         self.addCleanup(bv.file.close)
         self.addCleanup(lambda: dbg.quit_and_wait() if dbg.connected else None)
@@ -724,7 +724,7 @@ class MacOSNativeArm64Test(DebuggerAPI):
         self.assertEqual(dbg.ip, call)
         self.assertEqual(dbg.step_over_and_wait(timeout=10000), DebugStopReason.SingleStep)
         self.assertEqual(dbg.ip, after)
-        self.assertEqual(dbg.get_reg_value('x0'), 42)
+        self.assertEqual(dbg.get_reg_value('x0' if self.arch == 'arm64' else 'rax'), 42)
         self.assertEqual(dbg.go_and_wait(10000), DebugStopReason.ProcessExited)
 
     def test_native_step_return_and_frames(self):
@@ -848,6 +848,14 @@ class MacOSNativeArm64Test(DebuggerAPI):
             self.assertIn('environment=fixture\n', text)
             self.assertIn('input=hello native\n', text)
             self.assertIn('stderr=fixture\n', text)
+
+
+@unittest.skipUnless(platform.system() == 'Darwin' and platform.machine() == 'arm64',
+                     'Rosetta tests require Apple Silicon')
+class MacOSNativeRosettaTest(MacOSNativeArm64Test):
+    def setUp(self):
+        self.arch = 'x86_64'
+        self.adapter_type = 'macOS Native'
 
 
 @unittest.skipIf(platform.machine() not in ['arm64', 'aarch64'], "Only run arm64 tests on arm Mac or Linux")

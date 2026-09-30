@@ -84,3 +84,6 @@ api/python/__pycache__
 *.bndb
 
 /.claude/
+
+/test/binaries/Darwin-x86_64-signed/macos_native*
+/test/binaries/Darwin-x86_64/macos_native*

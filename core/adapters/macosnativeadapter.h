@@ -57,6 +57,7 @@ namespace BinaryNinjaDebugger {
 		mach_port_t m_exceptionPort = MACH_PORT_NULL;
 		bool m_traced = false;
 		bool m_child = false;
+		bool m_inspectionOnly = false;
 		bool m_running = false;
 		bool m_suspended = false;
 		bool m_initial = false;
@@ -120,6 +121,7 @@ namespace BinaryNinjaDebugger {
 	public:
 		MacOSNativeAdapter(BinaryView* data);
 		~MacOSNativeAdapter() override;
+		bool InspectTask(pid_t pid);
 		bool Execute(const std::string& path, const LaunchConfigurations& configs) override;
 		bool ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
 			const LaunchConfigurations& configs) override;
@@ -179,8 +181,8 @@ namespace BinaryNinjaDebugger {
 	class MacOSNativeAdapterType : public DebugAdapterType
 	{
 	public:
-		MacOSNativeAdapterType() : DebugAdapterType("MACOS_NATIVE") {}
-		DebugAdapter* Create(BinaryView* data) override { return new MacOSNativeAdapter(data); }
+		MacOSNativeAdapterType() : DebugAdapterType("macOS Native") {}
+		DebugAdapter* Create(BinaryView* data) override;
 		bool IsValidForData(BinaryView* data) override;
 		bool CanExecute(BinaryView* data) override { return IsValidForData(data); }
 		bool CanConnect(BinaryView*) override { return false; }

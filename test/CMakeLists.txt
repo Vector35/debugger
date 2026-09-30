@@ -26,6 +26,7 @@ if (NOT ARCH)
 	message(STATUS "ARCH not specified, defaulting to host architecture: ${ARCH}")
 endif()
 
+
 # Which architectures to build. On macOS, honor a universal parent build (CMAKE_OSX_ARCHITECTURES,
 # e.g. "arm64;x86_64" in CI) by producing a separate thin binary per architecture instead of one
 # universal binary; otherwise build the single ARCH.
@@ -97,6 +98,10 @@ foreach (arch ${TEST_BINARY_ARCHES})
 	add_test_binaries(${arch})
 endforeach()
 
+if(APPLE AND NOT "x86_64" IN_LIST TEST_BINARY_ARCHES)
+	add_test_binaries(x86_64)
+endif()
+
 if(APPLE AND "arm64" IN_LIST TEST_BINARY_ARCHES)
 	enable_language(ASM)
 	add_executable(macos_native_arm64 src/macos_native_arm64.S)
@@ -122,5 +127,27 @@ if(APPLE AND "arm64" IN_LIST TEST_BINARY_ARCHES)
 				${TEST_BINARY_ROOT}/Darwin-arm64-signed/${native_fixture}
 			COMMAND codesign --force --options runtime --entitlements ${CMAKE_CURRENT_SOURCE_DIR}/entitlements.plist
 				--sign - ${TEST_BINARY_ROOT}/Darwin-arm64-signed/${native_fixture} VERBATIM)
+	endforeach()
+endif()
+
+
+if(APPLE)
+	enable_language(ASM)
+	add_executable(macos_native_x86_64 src/macos_native_x86_64.S)
+	add_executable(macos_native_io_x86_64 src/macos_native_io.c)
+	set_target_properties(macos_native_io_x86_64 PROPERTIES OUTPUT_NAME macos_native_io)
+	foreach(fixture macos_native_x86_64 macos_native_io_x86_64)
+		set_target_properties(${fixture} PROPERTIES OSX_ARCHITECTURES x86_64
+			RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/x86_64)
+		add_custom_command(TARGET ${fixture} POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E make_directory ${TEST_BINARY_ROOT}/Darwin-x86_64
+			COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${fixture}>
+				${TEST_BINARY_ROOT}/Darwin-x86_64/$<TARGET_FILE_NAME:${fixture}>
+			COMMAND ${CMAKE_COMMAND} -E make_directory ${TEST_BINARY_ROOT}/Darwin-x86_64-signed
+			COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${fixture}>
+				${TEST_BINARY_ROOT}/Darwin-x86_64-signed/$<TARGET_FILE_NAME:${fixture}>
+			COMMAND codesign --force --options runtime --entitlements ${CMAKE_CURRENT_SOURCE_DIR}/entitlements.plist
+				--sign - ${TEST_BINARY_ROOT}/Darwin-x86_64-signed/$<TARGET_FILE_NAME:${fixture}> VERBATIM)
+		add_dependencies(debugger_test_binaries ${fixture})
 	endforeach()
 endif()

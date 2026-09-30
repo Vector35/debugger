@@ -23,7 +23,8 @@ def main():
                         help='Watchdog seconds for the entire pytest process group')
     parser.add_argument('--license-file', type=Path,
                         help='Optional existing license; read into the child environment only')
-    parser.add_argument('tests', nargs='*', default=['test/debugger_test.py::MacOSNativeArm64Test'])
+    parser.add_argument('tests', nargs='*', default=['test/debugger_test.py::MacOSNativeArm64Test',
+                                                  'test/debugger_test.py::MacOSNativeRosettaTest'])
     args = parser.parse_args()
     if platform.system() != 'Darwin' or platform.machine() != 'arm64':
         parser.error('This PoC requires an arm64 Mac')
