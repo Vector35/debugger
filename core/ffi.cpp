@@ -62,7 +62,7 @@ BNDebuggerController* BNGetDebuggerController(BNBinaryView* data)
 		return nullptr;
 
 	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
-	DebuggerController* controller = DebuggerController::GetController(view);
+	auto controller = DebuggerController::GetController(view);
 	if (!controller)
 		return nullptr;
 
@@ -92,7 +92,7 @@ BNDebuggerController* BNGetDebuggerControllerFromFile(BNFileMetadata* file)
 		return nullptr;
 
 	Ref<FileMetadata> fileObject = new FileMetadata(BNNewFileReference(file));
-	DebuggerController* controller = DebuggerController::GetController(fileObject);
+	auto controller = DebuggerController::GetController(fileObject);
 	if (!controller)
 		return nullptr;
 
