@@ -1985,112 +1985,95 @@ void DebuggerController::LaunchOrConnect()
 }
 
 
-// Use a function-local static to avoid two problems:
-// 1. Static initialization order fiasco -- if any other translation unit's static initializer
-//    calls GetController before this TU is initialized, a global would not yet be constructed.
-// 2. Static destruction order -- during process exit, a namespace-scope std::mutex can be
-//    destroyed before cleanup code (e.g., Python GC calling Destroy() via FFI) tries to lock it,
-//    causing "mutex lock failed: Invalid argument". Bundling the mutex and vector in the same
-//    function-local static ensures they share the same lifetime.
-DebuggerController::ControllerState& DebuggerController::GetControllerState()
+namespace
 {
-	// Intentionally heap-allocated and never freed. A function-local static would still be
-	// destroyed during static cleanup, but Python's GC can call Destroy() -> DeleteController()
-	// even later than that, hitting a destroyed mutex. Leaking the allocation ensures the mutex
-	// and vector remain valid for the entire process lifetime. The OS reclaims the memory at exit.
-	static ControllerState* state = new ControllerState();
-	return *state;
-}
+	constexpr const char* debuggerAttachmentName = "vector35.debugger.controller";
 
+	std::mutex& ControllerCreationMutex()
+	{
+		// No controller ownership here; process lifetime avoids late Python GC issues.
+		static auto* mutex = new std::mutex;
+		return *mutex;
+	}
+
+	void CloseDebuggerAttachment(void* context)
+	{
+		DbgRef<DebuggerController> controller(static_cast<DebuggerController*>(context));
+		// File close can run on the UI thread. Keep the controller (and its views)
+		// alive while the target stops, without blocking UI event dispatch.
+		std::thread([controller] { controller->QuitAndWait(); }).detach();
+	}
+
+	void ReleaseDebuggerAttachment(void* context)
+	{
+		// Final destruction joins the dispatcher and may need the main thread.
+		// Never perform it inline in FileMetadata::Close or a UI lookup.
+		std::thread([context] { static_cast<DebuggerController*>(context)->Release(); }).detach();
+	}
+}
 
 DbgRef<DebuggerController> DebuggerController::GetController(BinaryViewRef data)
 {
-	auto& state = GetControllerState();
-	std::lock_guard<std::mutex> lock(state.mutex);
-	for (auto& c : state.controllers)
-	{
-		if (c && c->m_file == data->GetFile())
-			return c;
-	}
+	if (!data)
+		return nullptr;
+	std::lock_guard lock(ControllerCreationMutex());
+	auto file = data->GetFile();
+	if (auto existing = GetController(file))
+		return existing;
 
-	auto controller = new DebuggerController(data);
-	state.controllers.emplace_back(controller);
+	DbgRef<DebuggerController> controller(new DebuggerController(data));
+	controller->AddRef(); // Ownership transferred only if attachment succeeds.
+	if (!file->AttachObject(debuggerAttachmentName, controller.GetPtr(),
+		CloseDebuggerAttachment, ReleaseDebuggerAttachment))
+	{
+		auto rawController = controller.GetPtr();
+		controller = nullptr;
+		ReleaseDebuggerAttachment(rawController);
+		return nullptr;
+	}
 	return controller;
 }
 
-
-void DebuggerController::DeleteController(BinaryViewRef data)
+DbgRef<DebuggerController> DebuggerController::GetController(FileMetadataRef file)
 {
-	auto& state = GetControllerState();
-	std::lock_guard<std::mutex> lock(state.mutex);
-	state.controllers.erase(
-		std::remove_if(state.controllers.begin(), state.controllers.end(),
-			[&](const DbgRef<DebuggerController>& c) { return c && c->GetFile() == data->GetFile(); }),
-		state.controllers.end());
+	if (!file)
+		return nullptr;
+	auto attachment = file->GetAttachment(debuggerAttachmentName);
+	if (!attachment)
+		return nullptr;
+	DbgRef<DebuggerController> controller(
+		static_cast<DebuggerController*>(BNGetFileAttachmentContext(attachment)));
+	BNFreeFileAttachment(attachment);
+	return controller;
 }
-
 
 bool DebuggerController::ControllerExists(BinaryViewRef data)
 {
-	auto& state = GetControllerState();
-	std::lock_guard<std::mutex> lock(state.mutex);
-	for (auto& c : state.controllers)
-	{
-		if (c && c->GetFile() == data->GetFile())
-			return true;
-	}
-
-	return false;
+	return data && ControllerExists(data->GetFile());
 }
-
-
-DbgRef<DebuggerController> DebuggerController::GetController(FileMetadataRef file)
-{
-	auto& state = GetControllerState();
-	std::lock_guard<std::mutex> lock(state.mutex);
-	for (auto& c : state.controllers)
-	{
-		if (c && c->GetFile() == file)
-			return c;
-	}
-
-	// You cannot create a controller from a file -- you must use a binary view for it
-	return nullptr;
-}
-
 
 bool DebuggerController::ControllerExists(FileMetadataRef file)
 {
-	auto& state = GetControllerState();
-	std::lock_guard<std::mutex> lock(state.mutex);
-	for (auto& c : state.controllers)
-	{
-		if (c && c->GetFile() == file)
-			return true;
-	}
-
-	return false;
+	return GetController(file).GetPtr() != nullptr;
 }
 
+void DebuggerController::DeleteController(BinaryViewRef data)
+{
+	if (data)
+		DeleteController(data->GetFile());
+}
 
 void DebuggerController::DeleteController(FileMetadataRef file)
 {
-	auto& state = GetControllerState();
-	std::lock_guard<std::mutex> lock(state.mutex);
-	state.controllers.erase(
-		std::remove_if(state.controllers.begin(), state.controllers.end(),
-			[&](const DbgRef<DebuggerController>& c) { return c && c->GetFile() == file; }),
-		state.controllers.end());
+	if (file)
+		file->DetachObject(debuggerAttachmentName);
 }
-
 
 void DebuggerController::Destroy()
 {
-	// Contrary to the name, DebuggerController::Destroy() actually only removes the object from the global debugger
-	// controller array (g_debuggerControllers). This enabling its ref count to go down to zero and eventually get freed.
-	// The actual cleanup happens in DebuggerController::~DebuggerController().
-	// TODO: I should change the function name later
-	DebuggerController::DeleteController(m_file);
+	// Explicit detach remains available to headless callers. UI file close uses
+	// FileMetadata ownership and does not need to manually remove a registry entry.
+	DeleteController(m_file);
 }
 
 

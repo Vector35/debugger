@@ -124,12 +124,6 @@ namespace BinaryNinjaDebugger {
 		// the binary view -- we will no longer need to track it ourselves
 		uint64_t m_viewStart;
 
-		struct ControllerState
-		{
-			std::mutex mutex;
-			std::vector<DbgRef<DebuggerController>> controllers;
-		};
-		static ControllerState& GetControllerState();
 
 		std::atomic<size_t> m_callbackIndex = 0;
 		std::list<DebuggerEventCallback> m_eventCallbacks;

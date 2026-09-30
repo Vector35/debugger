@@ -26,7 +26,6 @@ limitations under the License.
 #include <QPushButton>
 #include <QObject>
 #include "ui.h"
-#include <thread>
 
 using namespace BinaryNinja;
 
@@ -123,18 +122,10 @@ bool NotificationListener::OnBeforeCloseFile(UIContext* context, FileContext* fi
 			return false;
 		else if (result == QMessageBox::Yes)
 		{
-			std::thread([=]() {
-				// Since we cannot wait for the target to stop on the main thread, we must create a new thread and
-				// wait from there.
-				controller->QuitAndWait();
-				controller->Destroy();
-			}).detach();
+			// Consent only: FileMetadata::Close owns debugger shutdown after the UI
+			// commits the close. A later close veto leaves the controller attached.
 			return true;
 		}
-	}
-	else
-	{
-		controller->Destroy();
 	}
 	return true;
 }
