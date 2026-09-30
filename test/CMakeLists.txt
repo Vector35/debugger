@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
 
 # Builds debugger unit-test binaries alongside the debugger so that adding a new test does not
 # require a separate build. Enabled by default from the top-level build (BUILD_DEBUGGER_TEST_BINARIES)

@@ -1,8 +1,10 @@
 # Enable CMP0091 before project() so targets can select their MSVC runtime.
 # The Windows remote server uses the static runtime; other targets keep the default.
-cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.28 FATAL_ERROR)
 
 project(debugger)
+# C++20 is used without modules, so don't require a module dependency scanner.
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 if((NOT BN_API_PATH) AND (NOT BN_INTERNAL_BUILD))
 	set(BN_API_PATH $ENV{BN_API_PATH})
