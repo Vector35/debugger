@@ -16,6 +16,8 @@ limitations under the License.
 
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
+#include <atomic>
+#include <thread>
 #ifdef WIN32
 	#pragma warning(push)
 	#pragma warning(disable : 4251)
@@ -53,7 +55,13 @@ namespace BinaryNinjaDebugger {
 
 		bool CreateTarget(const std::string& file);
 
-		bool m_userRequestedQuit = false;
+		std::mutex m_eventListenerMutex;
+		std::thread m_eventListenerThread;
+		std::atomic<bool> m_stopEventListener {false};
+
+		bool StartEventListener();
+		void StopEventListener();
+		void JoinEventListener();
 
 		// Helper to resolve module+offset to absolute address
 		// Returns true if the module was found in the loaded module list and address was resolved
@@ -63,6 +71,7 @@ namespace BinaryNinjaDebugger {
 	public:
 		LldbAdapter(BinaryView* data);
 		virtual ~LldbAdapter();
+		void StopEventThreads() override;
 
 		bool Execute(const std::string& path, const LaunchConfigurations& configs) override;
 
