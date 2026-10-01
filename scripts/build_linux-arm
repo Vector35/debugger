@@ -1,5 +1,6 @@
 #!/bin/bash
+set -e
 export PATH=~/.local/bin:$PATH
 export PYTHONUNBUFFERED=1
-poetry install --sync --no-root
-poetry run python3 scripts/build.py "$@"
+uv sync --locked
+uv run --locked python scripts/build.py "$@"

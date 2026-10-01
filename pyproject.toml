@@ -1,16 +1,14 @@
-[tool.poetry]
+[project]
 name = "debugger"
 version = "1.0.0"
 description = "The official Binary Ninja debugger plugin."
-authors = ["Xusheng <xusheng@vector35.com>"]
+authors = [{ name = "Xusheng", email = "xusheng@vector35.com" }]
 readme = "README.md"
+requires-python = ">=3.10,<3.15"
+dependencies = [
+    "pathlib>=1.0.1,<2.0.0",
+    "pytest>=8.1.1,<9.0.0",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.10,<3.15"
-pathlib = "^1.0.1"
-pytest = "^8.1.1"
-
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+package = false

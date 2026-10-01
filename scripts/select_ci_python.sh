@@ -1,6 +1,6 @@
 #!/bin/bash
-# Print a supported interpreter for `poetry env use`; do not trust python3 or a
-# cached Poetry environment to have migrated when pyproject.toml changed.
+# Print a supported interpreter for `uv sync --python`; do not trust python3 or a
+# cached environment to have migrated when pyproject.toml changed.
 set -e
 
 probe_python() {

@@ -15,7 +15,7 @@ from pathlib import Path
 # unsupported-interpreter path can retain the GIL and deadlock the calling process.
 if not ((3, 10) <= sys.version_info[:2] < (3, 15)):
     sys.exit('Debugger CI requires Python 3.10–3.14. Select a supported interpreter with '
-             '`poetry env use /path/to/python3.12`, then rerun the build.')
+             '`uv sync --locked --python /path/to/python3.12`, then rerun the build.')
 
 from target_llvm_version import llvm_version, msvc_build, vs_version
 from test_process import run_tests

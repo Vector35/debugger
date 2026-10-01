@@ -7,23 +7,20 @@ The full, multi-platform set of test binaries is built and signed by the
 ## Run unit tests
 
 Use Python 3.10–3.14 with the current Binary Ninja development builds; Python 3.9
-is unsupported. CI dependencies and tests must use the same Poetry environment.
+is unsupported. CI dependencies and tests must use the same uv environment.
 If an existing CI environment uses Python 3.9, install a supported interpreter and
-select it with `poetry env use /path/to/python3.12`, then run `poetry install --sync --no-root`.
-On Windows use `poetry run python`, not `poetry run py -3`: the Windows launcher can
+select it with `uv sync --locked --python /path/to/python3.12`.
+On Windows use `uv run --locked python`, not `uv run py -3`: the Windows launcher can
 select a different interpreter without the installed test dependencies.
 
-The macOS launcher explicitly selects Python before `poetry install` and uses a
+The macOS launcher explicitly selects Python before `uv sync --locked` and uses a
 project-local `.venv`, matching Binary Ninja's CI environment layout. It probes
 versioned executables on PATH and standard Homebrew/python.org installation paths.
 Set `DEBUGGER_CI_PYTHON=/absolute/path/to/python3.12` to select a worker-specific
-interpreter; an invalid or unsupported override fails before Poetry or the build runs.
-Poetry itself is bootstrapped at a pinned version in `.ci-poetry` using that selected
-Python. The worker's `virtualenv` creates this environment and seeds pip from its
-own wheels, matching Binary Ninja CI and avoiding Homebrew `ensurepip` permissions.
-This avoids the worker's global Poetry executable, which may still run under
-Python 3.9 and reject the project before `poetry env use` can execute. The project
-dependencies remain in `.venv`; neither environment changes the worker's global packages.
+interpreter; an invalid or unsupported override fails before uv or the build runs.
+Install uv on the worker and make it available on `PATH`. uv runs independently of
+the worker's Python version and creates `.venv` without pip or `ensurepip`.
+The project dependencies remain in `.venv` without changing the worker's global packages.
 
 ```zsh
 cd test
