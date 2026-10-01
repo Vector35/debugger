@@ -132,12 +132,25 @@ void sendChangelog() {
 }
 
 
+void installMiseTools() {
+    lock(resource: "mise-install-${env.NODE_NAME}") {
+        if (isUnix()) {
+            sh script: 'mise trust mise.toml'
+            sh script: 'mise install --locked'
+        } else {
+            bat script: 'mise trust mise.toml'
+            bat script: 'mise install --locked'
+        }
+    }
+}
+
+
 void buildDebugger(String os) {
     echo "Build debugger for ${os}"
     if (isUnix()) {
-        sh script: "scripts/build_${os}"
+        sh script: 'mise run build'
     } else {
-        bat script: "scripts\\build_${os}"
+        bat script: 'mise run build'
     }
 }
 
@@ -214,6 +227,7 @@ pipeline {
                                 steps {
                                     cleanWs()
                                     doCheckout()
+                                    installMiseTools()
                                 }
                             }
                             stage("Copy External Artifacts") {

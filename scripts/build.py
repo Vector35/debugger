@@ -11,11 +11,13 @@ import glob
 import platform
 from pathlib import Path
 
+# Match Binary Ninja's Python plugin support range. CI's mise.toml pins Python
+# 3.12.13; developer builds can use other versions within the supported range.
 # Fail before downloading/building or entering Binary Ninja's plugin loader. Its
 # unsupported-interpreter path can retain the GIL and deadlock the calling process.
 if not ((3, 10) <= sys.version_info[:2] < (3, 15)):
-    sys.exit('Debugger CI requires Python 3.10–3.14. Select a supported interpreter with '
-             '`uv sync --locked --python /path/to/python3.12`, then rerun the build.')
+    sys.exit('Debugger CI requires Python 3.10–3.14. Run the build with '
+             '`uv run --locked --python 3.12 python scripts/build.py`.')
 
 from target_llvm_version import llvm_version, msvc_build, vs_version
 from test_process import run_tests
@@ -330,7 +332,6 @@ if os.path.exists(results):
 pytest_sources = [
     str(base_dir / "test" / "debugger_test.py"),
     str(base_dir / "test" / "attach_timeout_test.py"),
-    str(base_dir / "test" / "ci_launcher_test.py"),
 ]
 if platform.system() == "Windows":
     # Exercise the just-built Windows Remote server locally on the Windows worker.

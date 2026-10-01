@@ -1,0 +1,31 @@
+min_version = "2026.7.4"
+
+[tools]
+# After changing versions here, run `mise lock` to regenerate mise.lock.
+cmake = "3.28.3"
+ninja = "1.13.2"
+python = "3.12.13"
+uv = "0.11.29"
+
+[tasks.setup]
+description = "Install debugger build/test dependencies"
+dir = "{{config_root}}"
+run = "uv sync --locked --python 3.12.13"
+
+[tasks.build]
+description = "Build, package, and test the standalone debugger"
+dir = "{{config_root}}"
+depends = ["setup"]
+run = "uv run --locked --python 3.12.13 python scripts/build.py"
+
+[env]
+PYTHONUNBUFFERED = "1"
+VIRTUAL_ENV = false
+CONDA_PREFIX = false
+UV_PROJECT_ENVIRONMENT = "{{config_root}}/.venv"
+
+[settings]
+lockfile = true
+locked = true
+lockfile_platforms = ["linux-x64", "linux-arm64", "macos-arm64", "windows-x64"]
+minimum_release_age = "7d"

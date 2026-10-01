@@ -1,6 +1,0 @@
-#!/bin/bash
-set -e
-export PATH=~/.local/bin:$PATH
-export PYTHONUNBUFFERED=1
-uv sync --locked
-uv run --locked python scripts/build.py "$@"

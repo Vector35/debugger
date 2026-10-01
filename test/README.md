@@ -1,39 +1,50 @@
 # Build and test instructions
 
-The full, multi-platform set of test binaries is built and signed by the
-[debugger-test-binaries CI](https://github.com/Vector35/debugger/actions) and committed under
-`binaries/<OS>-<arch>`. Running the unit tests does not require building any binaries.
+The prebuilt, multi-platform test binaries are committed under `test/binaries/<OS>-<arch>`.
+Additional fixtures are built alongside the debugger by default; see
+[Building test binaries alongside the debugger](#building-test-binaries-alongside-the-debugger).
 
 ## Run unit tests
 
-Use Python 3.10–3.14 with the current Binary Ninja development builds; Python 3.9
-is unsupported. CI dependencies and tests must use the same uv environment.
-If an existing CI environment uses Python 3.9, install a supported interpreter and
-select it with `uv sync --locked --python /path/to/python3.12`.
-On Windows use `uv run --locked python`, not `uv run py -3`: the Windows launcher can
-select a different interpreter without the installed test dependencies.
+The standalone debugger build/test environment supports Python 3.10–3.14, matching
+Binary Ninja's Python plugin support range. This is separate from the top-level
+Binary Ninja build environment, which requires Python 3.12 or newer.
 
-The macOS launcher explicitly selects Python before `uv sync --locked` and uses a
-project-local `.venv`, matching Binary Ninja's CI environment layout. It probes
-versioned executables on PATH and standard Homebrew/python.org installation paths.
-Set `DEBUGGER_CI_PYTHON=/absolute/path/to/python3.12` to select a worker-specific
-interpreter; an invalid or unsupported override fails before uv or the build runs.
-Install uv on the worker and make it available on `PATH`. uv runs independently of
-the worker's Python version and creates `.venv` without pip or `ensurepip`.
-The project dependencies remain in `.venv` without changing the worker's global packages.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and make it
+available on `PATH`. From the debugger repository root, run:
 
-```zsh
-cd test
-python3 debugger_test.py
+```sh
+uv sync --locked
+uv run --locked python test/debugger_test.py
 ```
-Pass a keyword to run a subset, e.g. `python3 debugger_test.py shared_library`.
+
+The tests require a valid Binary Ninja license and its Python bindings to be
+importable in the uv environment. Set `PYTHONPATH` to the installation's Python
+bindings directory or install the corresponding `.pth` file into `.venv`.
+Pass a keyword to run a subset, e.g.
+`uv run --locked python test/debugger_test.py shared_library`.
+
+uv selects a supported interpreter and installs the locked dependencies into
+`.venv`. To select a particular supported interpreter, use
+`--python` with both
+`uv sync` and `uv run`, or set `UV_PYTHON`. uv rejects invalid or unsupported
+requests before running the command.
+
+Standalone CI uses `mise run build` with the debugger's pinned Python 3.12.13,
+uv, CMake, and Ninja toolchain. It installs the same locked Python dependencies
+into `.venv` and runs the existing build/test script; see
+[Standalone CI builds](../build.md#standalone-ci-builds).
+
+On Windows, `uv run --locked python` uses the project interpreter directly.
+`uv run py -3` runs the external Windows Python launcher, whose explicit `-3`
+selector [chooses a global interpreter](https://docs.python.org/3.12/using/windows.html#virtual-environments).
 
 The attach test has a 60-second wall-clock deadline, including debugger initialization,
 attach, register reads, quit, and worker shutdown. It runs in a supervised subprocess so a
 blocked native call cannot hang the test runner. A timeout fails the test and kills/reaps
 the test's target and worker. Worker output and exception tracebacks are preserved;
 a timeout reports the worker and target PIDs.
-Run `python3 -m unittest discover -s test -p attach_timeout_test.py -v` from the repository
+Run `uv run --locked python -m unittest discover -s test -p attach_timeout_test.py -v` from the repository
 root to test the watchdog without Binary Ninja. These watchdog checks also run in CI.
 
 CI invokes pytest through the build script's Python interpreter and runs the full suite
@@ -43,11 +54,11 @@ pytest after a 15-minute total test deadline, including interpreter shutdown.
 ## Windows Remote integration tests
 
 On a Windows x64 host with a licensed Binary Ninja Python environment and the built
-debugger plugin loaded:
+debugger plugin loaded, run from the debugger repository root:
 
 ```powershell
 $env:WINDOWS_REMOTE_SERVER_PATH = 'C:\path\to\build\out\plugins\windows-debug-server.exe'
-python -m pytest -v --junitxml=results-windows-remote.xml x2winrpc_test.py
+uv run --locked python -m pytest -v --junitxml=test/results-windows-remote.xml test/x2winrpc_test.py
 ```
 
 The suite starts its own local debug server on an ephemeral loopback port, connects
@@ -77,9 +88,9 @@ Some test binaries are built alongside the debugger, so that adding a new test d
 separate build. This is on by default (`BUILD_DEBUGGER_TEST_BINARIES`), so both local and CI debugger
 builds produce them; pass `-DBUILD_DEBUGGER_TEST_BINARIES=OFF` to skip.
 
-The build stages the binaries defined in `CMakeLists.txt` into `binaries/<OS>-<arch>`, alongside the
+The build stages the binaries defined in `CMakeLists.txt` into `test/binaries/<OS>-<arch>`, alongside the
 committed test binaries. On macOS the debugger build then ad-hoc codesigns that directory into
-`binaries/<OS>-<arch>-signed`, which is where the tests load them from. On a universal macOS build the
+`test/binaries/<OS>-<arch>-signed`, which is where the tests load them from. On a universal macOS build the
 binaries are still emitted thin, one per architecture. These staged binaries are not committed. Tests
 whose binaries were not built are skipped. Binaries that require additional toolchains (e.g. the nasm
 assembly samples) remain pre-built by the CI.

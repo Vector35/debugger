@@ -53,6 +53,27 @@ The build artifacts will be in the folder `out`. You should find two files `libd
   - Launch BinaryNinja
 
 
+## Standalone CI builds
+
+The debugger's `Jenkinsfile-dev` and `Jenkinsfile-test` use [mise](https://mise.jdx.dev/)
+to install the Python, uv, CMake, and Ninja versions pinned in `mise.toml` and
+`mise.lock`. Each worker trusts the checked-out configuration and installs the
+locked tools under the shared `mise-install-<node>` lock before building.
+
+After CI stages the Binary Ninja, Qt, and LLDB archives in `artifacts-extern`, it runs:
+
+```sh
+mise run build
+```
+
+The `build` task installs the locked Python dependencies into the debugger's
+`.venv`, then runs `scripts/build.py` with Python 3.12.13 to build, package, and test
+the standalone debugger. Visual Studio and the platform SDKs are still supplied
+by the worker.
+
+Developer builds can use the CMake workflow above or `mise run build` with the
+same staged artifacts as CI.
+
 ## Windows Remote Debug Server
 
 Windows builds include `windows-debug-server.exe` for Windows user-mode remote debugging from Linux, macOS, or Windows.
