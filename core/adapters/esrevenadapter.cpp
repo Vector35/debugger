@@ -62,6 +62,7 @@ EsrevenAdapter::EsrevenAdapter(BinaryView* data, bool redirectGDBServer): DebugA
 
 EsrevenAdapter::~EsrevenAdapter()
 {
+	ShutdownConnection();
 }
 
 bool EsrevenAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
@@ -261,6 +262,10 @@ bool EsrevenAdapter::LoadRegisterInfo()
 
 bool EsrevenAdapter::Connect(const std::string& server, std::uint32_t port)
 {
+	{
+		std::lock_guard<std::mutex> lock(m_connectionLock);
+		m_connectionShutdown = false;
+	}
 	m_canReverseContinue = false;
 	m_canReverseStep = false;
 
@@ -275,25 +280,48 @@ bool EsrevenAdapter::Connect(const std::string& server, std::uint32_t port)
 	scope = SettingsResourceScope;
 
     bool connected = false;
+    std::shared_ptr<Socket> socket;
+    std::shared_ptr<RspConnector> connector;
     for ( std::uint8_t index{}; index < 30; index++ ) {
-        this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
+		{
+			std::lock_guard<std::mutex> lock(m_connectionLock);
+			if (m_connectionShutdown)
+				break;
+		}
+		socket = std::make_shared<Socket>(AF_INET, SOCK_STREAM, 0);
 
         sockaddr_in address{};
         address.sin_family = (u_short)AF_INET;
         address.sin_addr.s_addr = inet_addr(ipAddress.c_str());
         address.sin_port = htons((u_short)serverPort);
 
-        if (this->m_socket->Connect(address)) {
-            connected = true;
+        if (socket->Connect(address)) {
+			connector = std::make_shared<RspConnector>(socket);
+			std::lock_guard<std::mutex> lock(m_connectionLock);
+			if (!m_connectionShutdown)
+			{
+				m_socket = socket;
+				m_rspConnector.store(connector);
+				connected = true;
+			}
             break;
         }
 
-    	m_socket->Close();
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+		socket->Close();
+		std::unique_lock<std::mutex> lock(m_connectionLock);
+		if (m_connectionCondition.wait_for(lock, std::chrono::milliseconds(500), [this]() {
+			return m_connectionShutdown;
+		}))
+			break;
     }
 
     if ( !connected )
     {
+		{
+			std::lock_guard<std::mutex> lock(m_connectionLock);
+			if (m_connectionShutdown)
+				return false;
+		}
     	DebuggerEvent event;
     	event.type = LaunchFailureEventType;
     	event.data.errorData.shortError = "Connection failed";
@@ -303,8 +331,6 @@ bool EsrevenAdapter::Connect(const std::string& server, std::uint32_t port)
     	return false;
     }
 
-    auto connector = std::make_shared<RspConnector>(this->m_socket);
-    m_rspConnector.store(connector);
     connector->TransmitAndReceive(RspData("Hg0"));
     connector->NegotiateCapabilities(
             { "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
@@ -324,6 +350,7 @@ bool EsrevenAdapter::Connect(const std::string& server, std::uint32_t port)
     	event.data.errorData.error =
 			fmt::format("Failed to read register info from the server");
     	PostDebuggerEvent(event);
+		ShutdownConnection();
 	    return false;
     }
 
@@ -349,6 +376,10 @@ bool EsrevenAdapter::Connect(const std::string& server, std::uint32_t port)
 
 bool EsrevenAdapter::ConnectToDebugServer(const std::string &server, std::uint32_t port)
 {
+	{
+		std::lock_guard<std::mutex> lock(m_connectionLock);
+		m_connectionShutdown = false;
+	}
 	m_canReverseContinue = false;
 	m_canReverseStep = false;
 
@@ -361,27 +392,50 @@ bool EsrevenAdapter::ConnectToDebugServer(const std::string &server, std::uint32
 	auto serverPort = adapterSettings->Get<uint64_t>("debugServer.port", data, &scope);
 
 	bool connected = false;
+	std::shared_ptr<Socket> socket;
+	std::shared_ptr<RspConnector> connector;
 	for (std::uint8_t index{}; index < 30; index++)
 	{
-		this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
+		{
+			std::lock_guard<std::mutex> lock(m_connectionLock);
+			if (m_connectionShutdown)
+				break;
+		}
+		socket = std::make_shared<Socket>(AF_INET, SOCK_STREAM, 0);
 
 		sockaddr_in address{};
 		address.sin_family = (u_short)AF_INET;
 		address.sin_addr.s_addr = inet_addr(ipAddress.c_str());
 		address.sin_port = htons((u_short)serverPort);
 
-		if (this->m_socket->Connect(address))
+		if (socket->Connect(address))
 		{
-			connected = true;
+			connector = std::make_shared<RspConnector>(socket);
+			std::lock_guard<std::mutex> lock(m_connectionLock);
+			if (!m_connectionShutdown)
+			{
+				m_socket = socket;
+				m_rspConnector.store(connector);
+				connected = true;
+			}
 			break;
 		}
 
-		m_socket->Close();
-		std::this_thread::sleep_for(std::chrono::milliseconds(500));
+		socket->Close();
+		std::unique_lock<std::mutex> lock(m_connectionLock);
+		if (m_connectionCondition.wait_for(lock, std::chrono::milliseconds(500), [this]() {
+			return m_connectionShutdown;
+	}))
+			break;
 	}
 
 	if (!connected)
 	{
+		{
+			std::lock_guard<std::mutex> lock(m_connectionLock);
+			if (m_connectionShutdown)
+				return false;
+		}
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
 		event.data.errorData.shortError = "Connection failed";
@@ -391,8 +445,6 @@ bool EsrevenAdapter::ConnectToDebugServer(const std::string &server, std::uint32
 		return false;
 	}
 
-	auto connector = std::make_shared<RspConnector>(this->m_socket);
-	m_rspConnector.store(connector);
 	connector->TransmitAndReceive(RspData("Hg0"));
 	connector->NegotiateCapabilities(
 		{ "swbreak+", "hwbreak+", "qRelocInsn+", "fork-events+", "vfork-events+", "exec-events+",
@@ -411,6 +463,7 @@ bool EsrevenAdapter::ConnectToDebugServer(const std::string &server, std::uint32
 		event.data.errorData.shortError = "Invalid Register Info";
 		event.data.errorData.error = fmt::format("Failed to read register info from the server");
 		PostDebuggerEvent(event);
+		ShutdownConnection();
 		return false;
 	}
 
@@ -423,15 +476,16 @@ bool EsrevenAdapter::DisconnectDebugServer()
 {
 	auto connector = m_rspConnector.load();
 	if (!connector)
+	{
+		ShutdownConnection();
 		return true;
+	}
 
 	connector->SendPayload(RspData("D"));
-	this->m_socket->Kill();
+	ShutdownConnection();
 	m_isTargetRunning = false;
 	InvalidateCache();
 	ClearCachedBreakpoints();
-
-	m_rspConnector.store(nullptr);
 
 	return true;
 }
@@ -440,15 +494,16 @@ bool EsrevenAdapter::Detach()
 {
 	auto connector = m_rspConnector.load();
 	if (!connector)
+	{
+		ShutdownConnection();
 		return false;
+	}
 
     connector->SendPayload(RspData("D"));
-    this->m_socket->Kill();
+	ShutdownConnection();
     m_isTargetRunning = false;
 	InvalidateCache();
 	ClearCachedBreakpoints();
-
-	m_rspConnector.store(nullptr);
 
 	DebuggerEvent dbgevt;
 	dbgevt.type = TargetExitedEventType;
@@ -462,18 +517,19 @@ bool EsrevenAdapter::Quit()
 {
 	auto connector = m_rspConnector.load();
 	if (!connector)
+	{
+		ShutdownConnection();
 		return false;
+	}
 
 	// Modern gdbserver uses vkill to kill the taget:
 	// $vKill;7c3d#6e
 	// $OK#9a
     connector->SendPayload(RspData("k"));
-    this->m_socket->Kill();
+	ShutdownConnection();
     m_isTargetRunning = false;
 	InvalidateCache();
 	ClearCachedBreakpoints();
-
-	m_rspConnector.store(nullptr);
 
 	// TODO: we should only treat the target as exited when either 1) the remote side closes the socket, or, 2) the
 	// remote side returns OK to the vkill request.
@@ -1849,10 +1905,8 @@ DebugStopReason EsrevenAdapter::ResponseHandler(bool notifyStopped)
 				PostDebuggerEvent(dbgevt);
 			}
 
-			this->m_socket->Kill();
+			ShutdownConnection();
 			m_isTargetRunning = false;
-
-			m_rspConnector.store(nullptr);
 
             return DebugStopReason::ProcessExited;
 			break;
@@ -2442,6 +2496,21 @@ void EsrevenAdapter::InvalidateCache()
 	m_regCache.reset();
 	m_moduleCache.reset();
 	m_threadCache.reset();
+}
+
+
+void EsrevenAdapter::ShutdownConnection()
+{
+	std::shared_ptr<Socket> socket;
+	{
+		std::lock_guard<std::mutex> lock(m_connectionLock);
+		m_connectionShutdown = true;
+		m_rspConnector.store(nullptr);
+		socket = std::move(m_socket);
+	}
+	m_connectionCondition.notify_all();
+	if (socket)
+		socket->Shutdown();
 }
 
 

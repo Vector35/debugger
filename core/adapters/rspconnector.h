@@ -141,6 +141,7 @@ namespace BinaryNinjaDebugger
 	{
 		std::recursive_mutex m_socketLock;
 
+		std::shared_ptr<Socket> m_ownedSocket;
 		Socket* m_socket{};
 		bool m_acksEnabled{true};
 		std::vector<std::string> m_serverCapabilities{};
@@ -149,6 +150,7 @@ namespace BinaryNinjaDebugger
 	public:
 		RspConnector() = default;
 		RspConnector(Socket* socket);
+		RspConnector(std::shared_ptr<Socket> socket);
 		~RspConnector();
 
 		static RspData BinaryDecode(const RspData& data);

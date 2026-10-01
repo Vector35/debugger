@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 #pragma once
+#include <atomic>
+#include <mutex>
 #ifdef WIN32
 #include <windows.h>
 #include <winsock.h>
@@ -39,28 +41,70 @@ namespace BinaryNinjaDebugger
 		std::int32_t;
 	#endif
 
-		socket_type m_socket{};
+		static constexpr socket_type InvalidSocket =
+	#ifdef WIN32
+			INVALID_SOCKET;
+	#else
+			-1;
+	#endif
+
+		std::atomic<socket_type> m_socket{InvalidSocket};
+		mutable std::mutex m_closeLock;
+		bool m_shutdown = false;
 		[[maybe_unused]] std::int32_t m_addressFamily{}, m_type{}, m_protocol{};
 		std::uint32_t m_port{};
 
 	public:
 		Socket() = default;
+		Socket(const Socket&) = delete;
+		Socket& operator=(const Socket&) = delete;
+		Socket(Socket&& other) noexcept
+		{
+			std::lock_guard<std::mutex> lock(other.m_closeLock);
+			m_socket.store(other.m_socket.exchange(InvalidSocket));
+			m_shutdown = other.m_shutdown;
+			other.m_shutdown = true;
+			m_addressFamily = other.m_addressFamily;
+			m_type = other.m_type;
+			m_protocol = other.m_protocol;
+			m_port = other.m_port;
+		}
+		Socket& operator=(Socket&& other) noexcept
+		{
+			if (this == &other)
+				return *this;
+			std::scoped_lock lock(m_closeLock, other.m_closeLock);
+			CloseLocked();
+			m_socket.store(other.m_socket.exchange(InvalidSocket));
+			m_shutdown = other.m_shutdown;
+			other.m_shutdown = true;
+			m_addressFamily = other.m_addressFamily;
+			m_type = other.m_type;
+			m_protocol = other.m_protocol;
+			m_port = other.m_port;
+			return *this;
+		}
+		~Socket() { Close(); }
 
 		/* if port is zero it will be bruteforced */
 		Socket(std::int32_t address_family, std::int32_t type, std::int32_t protocol)
 		: m_addressFamily(address_family), m_type(type), m_protocol(protocol) {
-			this->m_socket = ::socket(address_family, type, protocol);
-			SetSocketReusable();
+			m_socket.store(::socket(address_family, type, protocol));
+			if (m_socket.load() != InvalidSocket)
+				SetSocketReusable();
 		}
 
 		void SetSocketReusable()
 		{
 		#ifndef WIN32
 			int reuse = 1;
-			if (setsockopt(m_socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
+			const auto socket = m_socket.load();
+			if (socket == InvalidSocket)
+				return;
+			if (setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
 				printf("unable to set SO_REUSEADDR");
 
-			if (setsockopt(m_socket, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof(reuse)) < 0)
+			if (setsockopt(socket, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuse, sizeof(reuse)) < 0)
 				printf("unable to set SO_REUSEPORT");
 		#else
 		// TODO: Windows
@@ -72,43 +116,70 @@ namespace BinaryNinjaDebugger
 		}
 
 		[[nodiscard]] socket_type GetSocket() const {
-			return this->m_socket;
+			return m_socket.load();
 		}
 
 		bool Bind(sockaddr_in& address) const {
-			return ::bind(this->m_socket, (const sockaddr*)&address, sizeof(address)) >= 0;
+			const auto socket = m_socket.load();
+			return (socket != InvalidSocket) && (::bind(socket, (const sockaddr*)&address, sizeof(address)) >= 0);
 		}
 
 		bool Connect(sockaddr_in& address) const {
-			return ::connect(this->m_socket, (const sockaddr*)&address, sizeof(address)) >= 0;
+			const auto socket = m_socket.load();
+			return (socket != InvalidSocket) && (::connect(socket, (const sockaddr*)&address, sizeof(address)) >= 0);
 		}
 
 		intptr_t Recv(char* data, std::int32_t size, std::int32_t flags = 0) const {
-			return ::recv(this->m_socket, data, size, flags);
+			const auto socket = m_socket.load();
+			return socket == InvalidSocket ? -1 : ::recv(socket, data, size, flags);
 		}
 
 		intptr_t Send(char* data, std::int32_t size, std::int32_t flags = 0) const {
-			return ::send(this->m_socket, data, size, flags);
+			const auto socket = m_socket.load();
+			return socket == InvalidSocket ? -1 : ::send(socket, data, size, flags);
 		}
 
-		bool Close() const {
+		bool Close() {
+			std::lock_guard<std::mutex> lock(m_closeLock);
+			return CloseLocked();
+		}
+
+		bool Shutdown() {
+			std::lock_guard<std::mutex> lock(m_closeLock);
+			const auto socket = m_socket.load();
+			if (socket == InvalidSocket)
+				return true;
+			if (m_shutdown)
+				return true;
+			m_shutdown = true;
 			return
 				#ifdef WIN32
-				::closesocket(this->m_socket)
+				::shutdown(socket, 2)
 				#else
-				::close(this->m_socket)
+				::shutdown(socket, SHUT_RDWR)
 				#endif
 				>= 0;
 		}
 
-		bool Kill() const {
+		bool Kill() {
+			const bool shutdownSucceeded = Shutdown();
+			const bool closeSucceeded = Close();
+			return shutdownSucceeded && closeSucceeded;
+		}
+
+	private:
+		bool CloseLocked() {
+			const auto socket = m_socket.exchange(InvalidSocket);
+			if (socket == InvalidSocket)
+				return true;
 			return
 				#ifdef WIN32
-				::shutdown(this->m_socket, 2) >= 0
+				::closesocket(socket)
 				#else
-				::shutdown(this->m_socket, SHUT_RDWR) >= 0
+				::close(socket)
 				#endif
-				&& this->Close();
+				>= 0;
 		}
+
 	};
 };
