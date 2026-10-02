@@ -191,16 +191,25 @@ GdbMiConnector::~GdbMiConnector()
 
 void GdbMiConnector::Stop()
 {
-	if (!m_running)
+	std::lock_guard stopLock(m_stopMutex);
+	if (!m_running.load(std::memory_order_acquire) && !m_readerThread.joinable())
 		return;
 
-	LogInfo("GDB MI connector: Starting graceful shutdown...");
-	SendCommand("-gdb-exit", 200);
-	// Set running flag to false first to signal reader thread to exit
-	m_running = false;
+	LogInfo("GDB MI connector: Starting shutdown...");
+	if (m_running.load(std::memory_order_acquire))
+		SendCommand("-gdb-exit", 200);
 
-	// Close file handles to wake up reader thread blocked on I/O
-	CloseFileHandles();
+	// Prevent new commands and wake every command already waiting for a response.
+	// Taking m_sendMutex after clearing the flag also waits for an in-flight writer
+	// before its file descriptor is closed.
+	m_running.store(false, std::memory_order_release);
+	m_cv.notify_all();
+
+	{
+		std::lock_guard sendLock(m_sendMutex);
+		// Close file handles to wake up the reader thread blocked on I/O.
+		CloseFileHandles();
+	}
 
 	// Wait for the reader thread to finish with a timeout
 	if (m_readerThread.joinable())
@@ -214,10 +223,16 @@ void GdbMiConnector::Stop()
 	LogInfo("GDB MI connector: Shutdown completed");
 }
 
+void GdbMiConnector::SetAsyncCallback(std::function<void(const MiRecord&)> callback)
+{
+	std::lock_guard lock(m_callbackMutex);
+	m_asyncCallback = std::move(callback);
+}
+
 bool GdbMiConnector::Start()
 {
-    if (m_running)
-        return true;
+	if (m_running.load(std::memory_order_acquire))
+		return true;
 
 #ifdef WIN32
     SECURITY_ATTRIBUTES saAttr;
@@ -300,14 +315,18 @@ bool GdbMiConnector::Start()
     m_gdb_stdout_read = gdb_stdout_pipe[0];
 #endif
 
-    m_running = true;
-    m_readerThread = std::thread(&GdbMiConnector::ReaderThread, this);
+	m_running.store(true, std::memory_order_release);
+	m_readerThread = std::thread(&GdbMiConnector::ReaderThread, this);
     return true;
 }
 
 MiRecord GdbMiConnector::SendCommand(const std::string& command, int timeout_ms)
 {
-    if (!m_running) return {};
+	// GDB accepts multiple tokens, but writes, token allocation, and shutdown of
+	// the underlying pipe must still be serialized. This also guarantees that
+	// Stop cannot close the descriptors underneath a writer.
+	std::unique_lock sendLock(m_sendMutex);
+	if (!m_running.load(std::memory_order_acquire)) return {};
 
     if (std::this_thread::get_id() == m_readerThread.get_id()) {
         LogError("SendCommand called from reader thread; would deadlock");
@@ -323,8 +342,9 @@ MiRecord GdbMiConnector::SendCommand(const std::string& command, int timeout_ms)
         if (!WriteFile(m_gdb_stdin_write, fullCommand.c_str(), static_cast<DWORD>(fullCommand.length()), &bytesWritten, NULL)) {
             DWORD error = GetLastError();
             LogError("Failed to write to GDB stdin, error: %lu", error);
-            m_running = false;
-            return {};
+			m_running.store(false, std::memory_order_release);
+			m_cv.notify_all();
+			return {};
         }
 #else
         ssize_t bytesWritten = write(m_gdb_stdin_write, fullCommand.c_str(), fullCommand.length());
@@ -335,34 +355,42 @@ MiRecord GdbMiConnector::SendCommand(const std::string& command, int timeout_ms)
             // Handle specific pipe errors
             if (error == EPIPE || error == ECONNRESET) {
                 LogError("GDB process pipe broken - process likely terminated");
-                m_running = false;
-            } else if (error == EBADF) {
-                LogError("Invalid file descriptor for GDB stdin");
-                m_running = false;
-            }
-            return {};
+				m_running.store(false, std::memory_order_release);
+			} else if (error == EBADF) {
+				LogError("Invalid file descriptor for GDB stdin");
+				m_running.store(false, std::memory_order_release);
+			}
+			m_cv.notify_all();
+			return {};
         } else if (static_cast<size_t>(bytesWritten) != fullCommand.length()) {
             LogWarn("Partial write to GDB stdin: %zd of %zu bytes", bytesWritten, fullCommand.length());
         }
 #endif
     } catch (const std::exception& e) {
         LogError("Exception while writing to GDB: %s", e.what());
-        m_running = false;
-        return {};
+		m_running.store(false, std::memory_order_release);
+		m_cv.notify_all();
+		return {};
     } catch (...) {
         LogError("Unknown exception while writing to GDB");
-        m_running = false;
-        return {};
+		m_running.store(false, std::memory_order_release);
+		m_cv.notify_all();
+		return {};
     }
     
     std::unique_lock lock(m_mutex);
 
     // Wait for response with timeout
-    if (m_cv.wait_for(lock, std::chrono::milliseconds(timeout_ms), [&] { return m_responses.count(token) || !m_running; }))
-    {
-        MiRecord record = m_responses[token];
-        m_responses.erase(token);
-        return record;
+	if (m_cv.wait_for(lock, std::chrono::milliseconds(timeout_ms), [&] {
+			return m_responses.count(token) || !m_running.load(std::memory_order_acquire);
+		}))
+	{
+		auto response = m_responses.find(token);
+		if (response == m_responses.end())
+			return {};
+		MiRecord record = response->second;
+		m_responses.erase(response);
+		return record;
     } else {
         LogWarn("Timeout waiting for GDB response to command: %s", command.c_str());
         return {};
@@ -380,7 +408,7 @@ void GdbMiConnector::ReaderThread()
         int flags = fcntl(m_gdb_stdout_read, F_GETFL, 0);
         fcntl(m_gdb_stdout_read, F_SETFL, flags | O_NONBLOCK);
 
-        while (m_running)
+		while (m_running.load(std::memory_order_acquire))
         {
             fd_set rfds;
             FD_ZERO(&rfds);
@@ -396,8 +424,8 @@ void GdbMiConnector::ReaderThread()
                 int selectError = errno;
                 if (selectError != EINTR) { // Ignore interrupted system calls
                     LogError("Select error from GDB: %d (%s)", selectError, strerror(selectError));
-                    m_running = false;
-                    break;
+					m_running.store(false, std::memory_order_release);
+					break;
                 }
                 continue;
             }
@@ -406,7 +434,7 @@ void GdbMiConnector::ReaderThread()
                 continue; // Timeout, check if we should continue
             }
 
-            while (m_running)
+			while (m_running.load(std::memory_order_acquire))
             {
                 ssize_t n = read(m_gdb_stdout_read, buffer, sizeof(buffer)-1);
                 if (n > 0)
@@ -443,11 +471,17 @@ void GdbMiConnector::ReaderThread()
                                         m_responses[*record.token] = record;
                                         m_cv.notify_all();
                                     }
-                                    else if (m_asyncCallback && record.type != '^')
-                                    {
-                                        // Do not block the reader; just forward
-                                        m_asyncCallback(record);
-                                    }
+									else if (record.type != '^')
+									{
+										std::function<void(const MiRecord&)> callback;
+										{
+											std::lock_guard lock(m_callbackMutex);
+											callback = m_asyncCallback;
+										}
+										// Invoke outside the callback mutex so callback code can initiate shutdown.
+										if (callback)
+											callback(record);
+									}
                                 }
                             }
                             currentLine.clear();
@@ -468,8 +502,8 @@ void GdbMiConnector::ReaderThread()
                 {
                     // EOF - GDB process has terminated
                     LogInfo("GDB process EOF - connection closed");
-                    m_running = false;
-                    break;
+					m_running.store(false, std::memory_order_release);
+					break;
                 }
 
                 // n == -1 and not EAGAIN
@@ -483,13 +517,13 @@ void GdbMiConnector::ReaderThread()
                     LogError("Invalid file descriptor for GDB stdout");
                 }
                 
-                m_running = false;
-                break;
+				m_running.store(false, std::memory_order_release);
+				break;
             }
         }
 #else
         DWORD bytesRead;
-        while (m_running)
+		while (m_running.load(std::memory_order_acquire))
         {
             if (!ReadFile(m_gdb_stdout_read, buffer, sizeof(buffer), &bytesRead, NULL))
             {
@@ -502,16 +536,16 @@ void GdbMiConnector::ReaderThread()
                 {
                     LogError("ReadFile error from GDB: %lu", error);
                 }
-                m_running = false;
-                break;
+				m_running.store(false, std::memory_order_release);
+				break;
             }
 
             if (bytesRead == 0)
             {
                 // EOF
                 LogInfo("GDB process EOF - connection closed");
-                m_running = false;
-                break;
+				m_running.store(false, std::memory_order_release);
+				break;
             }
 
             // Similar CR/LF framing on Windows
@@ -543,10 +577,16 @@ void GdbMiConnector::ReaderThread()
                                 m_responses[*record.token] = record;
                                 m_cv.notify_all();
                             }
-                            else if (m_asyncCallback)
-                            {
-                                m_asyncCallback(record);
-                            }
+							else
+							{
+								std::function<void(const MiRecord&)> callback;
+								{
+									std::lock_guard lock(m_callbackMutex);
+									callback = m_asyncCallback;
+								}
+								if (callback)
+									callback(record);
+							}
                         }
                     }
                     currentLine.clear();
@@ -561,13 +601,14 @@ void GdbMiConnector::ReaderThread()
 #endif
     } catch (const std::exception& e) {
         LogError("Exception in GDB reader thread: %s", e.what());
-        m_running = false;
-    } catch (...) {
-        LogError("Unknown exception in GDB reader thread");
-        m_running = false;
-    }
+		m_running.store(false, std::memory_order_release);
+	} catch (...) {
+		LogError("Unknown exception in GDB reader thread");
+		m_running.store(false, std::memory_order_release);
+	}
 
-    LogInfo("GDB reader thread exiting");
+	m_cv.notify_all();
+	LogInfo("GDB reader thread exiting");
 }
 
 MiRecord GdbMiConnector::ParseLine(const std::string &line) {

@@ -1,13 +1,14 @@
 #pragma once
-#include <string>
-#include <vector>
-#include <functional>
-#include <thread>
-#include <mutex>
+#include <atomic>
 #include <condition_variable>
-#include <queue>
-#include <optional>
+#include <functional>
 #include <map>
+#include <mutex>
+#include <optional>
+#include <queue>
+#include <string>
+#include <thread>
+#include <vector>
 #ifdef WIN32
 #include <windows.h>
 #else
@@ -53,15 +54,18 @@ public:
 class GdbMiConnector
 {
 	std::string m_gdbPath;
-    std::string m_targetExecutable;
-    std::thread m_readerThread;
-    std::mutex m_mutex;
-    std::condition_variable m_cv;
-    std::map<long, MiRecord> m_responses;
-    std::queue<MiRecord> m_asyncRecords;
-    long m_nextToken = 1;
-    bool m_running = false;
-    bool m_gdbReady = false;
+	std::string m_targetExecutable;
+	std::thread m_readerThread;
+	std::mutex m_stopMutex;
+	std::mutex m_sendMutex;
+	std::mutex m_mutex;
+	std::mutex m_callbackMutex;
+	std::condition_variable m_cv;
+	std::map<long, MiRecord> m_responses;
+	std::queue<MiRecord> m_asyncRecords;
+	long m_nextToken = 1;
+	std::atomic<bool> m_running {false};
+	bool m_gdbReady = false;
 
 #ifdef WIN32
     PROCESS_INFORMATION m_pi;
@@ -85,11 +89,11 @@ public:
     GdbMiConnector(const std::string& gdbPath, const std::string& targetExecutable);
     ~GdbMiConnector();
     
-    void SetAsyncCallback(std::function<void(const MiRecord&)> cb) { m_asyncCallback = cb; }
+	void SetAsyncCallback(std::function<void(const MiRecord&)> callback);
 
     bool Start();
     void Stop();
-    bool IsRunning() const { return m_running; }
+	bool IsRunning() const { return m_running.load(std::memory_order_acquire); }
 
     // Synchronously send a command and wait for its result record (^done, ^error, etc.)
     MiRecord SendCommand(const std::string& command, int timeout_ms = 1000);

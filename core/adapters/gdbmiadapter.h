@@ -1,5 +1,8 @@
 #pragma once
+#include <atomic>
 #include <optional>
+#include <thread>
+#include <vector>
 #include "gdbmiconnector.h"
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
@@ -8,12 +11,16 @@
 class GdbMiAdapter : public BinaryNinjaDebugger::DebugAdapter
 {
 private:
-    std::unique_ptr<GdbMiConnector> m_mi;
-    uint64_t m_lastStopTid = 1;
-    uint64_t m_currentTid = 1;
-    bool m_connected = false;
-    std::string m_remoteArch;
-    std::vector<std::string> m_registerNames; // In GDB's order
+	std::unique_ptr<GdbMiConnector> m_mi;
+	uint64_t m_lastStopTid = 1;
+	uint64_t m_currentTid = 1;
+	std::atomic<bool> m_connected {false};
+	std::atomic<bool> m_shuttingDown {false};
+	std::atomic<bool> m_refreshInProgress {false};
+	std::mutex m_refreshThreadsMutex;
+	std::vector<std::thread> m_refreshThreads;
+	std::string m_remoteArch;
+	std::vector<std::string> m_registerNames; // In GDB's order
 
     // TTD / reverse debugging capability flags (set during Connect)
     bool m_canReverseContinue = false;
@@ -47,8 +54,9 @@ private:
 
     void InvalidateCache(); // Helper to clear the cache when the target runs
 
-    void AsyncRecordHandler(const MiRecord& record);
-    void ScheduleStateRefresh();
+	void AsyncRecordHandler(const MiRecord& record);
+	void ScheduleStateRefresh();
+	void JoinStateRefreshThreads();
     BinaryNinjaDebugger::DebugStopReason GetStopReason(const MiRecord& record);
 	static intx::uint512 ParseGdbValue(const std::string& valueStr);
 
