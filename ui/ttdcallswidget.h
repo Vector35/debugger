@@ -107,6 +107,9 @@ private:
 	void setupUIActions();
 	void updateColumnVisibility();
 	bool canCopy();
+	// The raw address a given cell navigates to (the function address, or the return
+	// address for the return-address column), or false if the cell has no address.
+	bool addressForCell(int row, int column, uint64_t& addr);
 
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
@@ -133,6 +136,7 @@ private Q_SLOTS:
 	void performQuery();
 	void clearResults();
 	void onCellDoubleClicked(int row, int column);
+	void navigateInCurrentPane();
 	void showColumnVisibilityDialog();
 	void resetColumnsToDefault();
 	void showContextMenu(const QPoint& position);

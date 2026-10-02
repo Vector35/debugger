@@ -123,7 +123,10 @@ private:
 	void updateColumnVisibility();
 	void selectRowByPosition(const TTDPosition& position);
 	bool canCopy();
-	
+	// The raw address a given cell navigates to (the IP for the IP column, otherwise the
+	// memory address), or false if the cell has no address.
+	bool addressForCell(int row, int column, uint64_t& addr);
+
 	virtual void contextMenuEvent(QContextMenuEvent* event) override;
 	
 public:
@@ -149,6 +152,7 @@ private Q_SLOTS:
 	void performQuery();
 	void clearResults();
 	void onCellDoubleClicked(int row, int column);
+	void navigateInCurrentPane();
 	void showColumnVisibilityDialog();
 	void resetColumnsToDefault();
 	void showContextMenu(const QPoint& position);

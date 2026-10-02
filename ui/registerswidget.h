@@ -210,7 +210,7 @@ private slots:
 	void editValue();
 	void goToPrevRegisterWrite();
 	void goToNextRegisterWrite();
-	void onDoubleClicked();
+	void onDoubleClicked(const QModelIndex& index);
 	void hoverTimerEvent();
 
 public slots:
