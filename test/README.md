@@ -51,6 +51,110 @@ CI invokes pytest through the build script's Python interpreter and runs the ful
 even after individual test failures. An independent supervisor fails and terminates
 pytest after a 15-minute total test deadline, including interpreter shutdown.
 
+## Performance benchmark
+
+`perf_benchmark.py` times debugger actions against a live target, N tries each, for any debug adapter. It
+only uses the public `DebuggerController` Python API, so it needs no per-adapter code: the adapter is a name
+string, and a newly registered adapter (see `--list-adapters`) works as soon as it is built in.
+
+```zsh
+cd test
+python3 perf_benchmark.py -n 100                                  # 100 tries of every action, default adapter
+python3 perf_benchmark.py -n 100 --adapter LLDB --adapter "GDB MI"  # compare adapters
+python3 perf_benchmark.py -n 100 --out history.json --label "after register cache change"
+python3 perf_benchmark.py -n 50 --actions step_into,reg_write --set lifecycle=10
+python3 perf_benchmark.py --list-adapters
+python3 perf_benchmark.py --list-actions
+```
+
+`-n` is the number of timed tries per action; each action also runs `--warmup` untimed tries first (default 3).
+`--set GROUP=N` overrides the count for one action group, e.g. for `lifecycle` (a full launch and quit per try)
+or `symbols_all`. Passing `--adapter` more than once runs each adapter in turn and prints a median comparison.
+The report gives min, mean, median, p95, max and calls per second for each timing. At `-n 100` a full run takes
+about two minutes on LLDB. `--csv` writes one row per timed call.
+
+### Tracking performance over time (`--out`)
+
+`--out PATH` adds the run to a JSON history file, creating it if needed, so one file accumulates a timeline:
+
+```json
+{"schema": 1, "runs": [
+  {"timestamp": "...", "label": "...",
+   "git": {"commit": "...", "branch": "...", "commit_date": "...", "subject": "...", "dirty": false},
+   "binaryninja": "...", "host": {"hostname": "...", "platform": "...", "machine": "...", "cpus": 11, "python": "..."},
+   "target": {"binary": "perf_target", "arch": "arm64"},
+   "config": {"iterations": 100, "warmup": 3, "groups": [...], "group_iterations": {...}, ...},
+   "complete": true,
+   "adapters": [{"name": "LLDB", "results": [
+     {"name": "step_into", "stats": {"n": 100, "min_ns": ..., "median_ns": ..., "p95_ns": ..., "mean_ns": ...},
+      "failures": 0, "details": [], "skipped": null, "aborted": null}]}]}]}
+```
+
+* Each run records the debugger repository's commit and whether tracked files were modified (`dirty`), so a
+  run can be placed on a timeline of commits. `--label` adds free text, e.g. what you changed.
+* Result names are stable, and a result that is skipped or aborted appears with a reason rather than being
+  left out, so a series always lines up. Only compare runs with the same `host`, `target` and `config`.
+* Raw per-call timings are left out to keep the file small; `--samples` stores them too.
+* An existing file that is not a schema 1 history file is never overwritten. The file is replaced
+  atomically, so an interrupted run cannot corrupt the history so far.
+* `--json` is accepted as an alias for `--out`.
+
+The layout version is `HISTORY_SCHEMA` in `perf_benchmark.py`; it changes only if a field is renamed or
+changes meaning, never when one is added.
+
+### What is measured
+
+`--list-actions` prints every group and the timings it produces. The groups cover:
+
+* **Execution:** step into/over/return, stepping at LLIL/MLIL/HLIL, run to, breakpoint hit, pause, reverse
+  execution.
+* **State:** register read/write and reading all registers, instruction pointer, memory read/write (directly and
+  through the BinaryView), address info, the controller's state properties, processes, threads, modules, memory
+  map, stack frames, active-thread get/set and thread suspend/resume.
+* **Breakpoints:** add/remove, enable/disable, conditions, module+offset breakpoints, listing, and hardware
+  execute breakpoints and read/write/access watchpoints.
+* **Other:** loading and removing backend symbols, remote base and rebasing, event callbacks, stdin, backend
+  commands, adapter properties, and time-travel debugging (positions, bookmarks, memory/register history,
+  events, calls, code coverage).
+* **Session:** restart, attach/detach, and launch/quit. These end the session, so they run last.
+
+How to read the numbers:
+
+* Every number is the wall-clock time of one controller call, so it includes the controller's own work (state
+  updates, cache invalidation, events) on top of the adapter's. Compare adapters or builds on the same machine
+  and binary, not against numbers from elsewhere.
+* The controller caches registers, memory, threads and modules. `reg_read`, `mem_read`, `regs_all`, `ip_read`
+  and `data_read` invalidate the cache with an untimed write first (`_cold`), and `_warm` is a cache hit.
+  `threads`, `modules`, `memory_map` and `frames` are the first read after a stop, with an untimed step before
+  each try. `reg_write` includes the register refresh the controller does before a write when a previous write
+  invalidated its cache.
+* Each try is checked (a step must stop with `SingleStep`, a write must read back, a removed breakpoint must be
+  gone, and so on). Failed tries are counted in `fail` and left out of the statistics, and the exit code is 1 if
+  any try failed or a group aborted. An adapter that cannot do something makes the group `skipped` with a
+  reason, not failed.
+* Scratch registers, the instruction pointer and stack memory are restored before the target resumes.
+  Breakpoint tests use `perf_unused`, code the target never runs, so a breakpoint an adapter fails to remove
+  cannot change where later actions stop.
+
+### Setup
+
+The debuggee is `perf_target` (`src/perf_target.c`), an endless loop of small non-inlined functions, built with
+the other test binaries. `--binary` accepts another test-binary name or a path; without the `perf_target`
+symbols the `step_return`, `breakpoint_hit`, `run_to` and `reverse` actions are skipped and the rest run against
+whatever function the target is stopped in.
+
+Adapter setup that is not just a name goes through `--adapter-property KEY=VALUE` (e.g. `gdb.path=/usr/bin/gdb`),
+`--executable-path`, and `--connect HOST:PORT` for adapters that attach to a debug server (this switches
+`lifecycle` to timing connect and quit, and skips `attach_detach`). `--backend-command`, `--ttd-symbol` and
+`--scratch-register` adjust individual actions.
+
+To add an action, write a function in `perf_actions.py`, register it with `@action(group, [result names])`, and
+give it a docstring; the first line is what `--list-actions` shows. Result names end up in the history file, so
+keep them stable once they have been published.
+
+Only LLDB on macOS arm64 has been run. The `reverse` and `ttd` groups need a time-travel adapter and have not
+been run at all, and `--connect` and the GDB MI setup are untested.
+
 ## Windows Remote integration tests
 
 On a Windows x64 host with a licensed Binary Ninja Python environment and the built

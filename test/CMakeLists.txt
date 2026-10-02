@@ -82,8 +82,19 @@ function(add_test_binaries arch)
 				)
 	endif()
 
-	# Stage both into the (unsigned) binaries/<OS>-<arch> directory the tests / signing step read from.
-	foreach (tgt shared_lib_${arch} load_shared_lib_${arch})
+	# The debuggee for perf_benchmark.py: runs forever, with small non-inlined functions to break on and step through.
+	add_executable(perf_target_${arch} src/perf_target.c)
+	set_target_properties(perf_target_${arch} PROPERTIES
+			OUTPUT_NAME perf_target
+			POSITION_INDEPENDENT_CODE ON
+			RUNTIME_OUTPUT_DIRECTORY ${archdir}
+			)
+	if (APPLE)
+		set_target_properties(perf_target_${arch} PROPERTIES OSX_ARCHITECTURES ${arch})
+	endif()
+
+	# Stage them into the (unsigned) binaries/<OS>-<arch> directory the tests / signing step read from.
+	foreach (tgt shared_lib_${arch} load_shared_lib_${arch} perf_target_${arch})
 		add_custom_command(TARGET ${tgt} POST_BUILD
 				COMMAND ${CMAKE_COMMAND} -E make_directory ${dest}
 				COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${tgt}> ${dest}/
