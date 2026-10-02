@@ -26,6 +26,8 @@ file(GLOB ADAPTER_SOURCES CONFIGURE_DEPENDS
 		adapters/lldbadapter.h
 		adapters/gdbadapter.cpp
 		adapters/gdbadapter.h
+		adapters/openocdadapter.cpp
+		adapters/openocdadapter.h
 		adapters/gdbmiconnector.cpp
 		adapters/gdbmiconnector.h
 		adapters/gdbmiadapter.cpp
