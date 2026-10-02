@@ -64,6 +64,8 @@ core/adapters/LLDB.framework
 # shared_lib.{so,dylib} are already ignored above; these cover the remaining staged artifacts.
 /test/binaries/*/load_shared_lib
 /test/binaries/*/load_shared_lib.exe
+/test/binaries/*/perf_target
+/test/binaries/*/perf_target.exe
 /test/binaries/*/shared_lib.dll
 test/__pycache__
 api/python/__pycache__
