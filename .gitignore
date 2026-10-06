@@ -82,3 +82,7 @@ api/python/__pycache__
 *.bndb
 
 /.claude/
+
+# Local agent instructions and standalone test report.
+/AGENTS.md
+/test/results-local.xml
