@@ -27,10 +27,7 @@ else()
 endif()
 
 if(BN_INTERNAL_BUILD)
-    ui_plugin_rpath(debuggerui)
-    set_target_properties(debuggerui PROPERTIES
-            LIBRARY_OUTPUT_DIRECTORY ${BN_CORE_PLUGIN_DIR}
-            RUNTIME_OUTPUT_DIRECTORY ${BN_CORE_PLUGIN_DIR})
+    bn_plugin(debuggerui)
 else()
     set_target_properties(debuggerui PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/out/plugins

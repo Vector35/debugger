@@ -83,6 +83,7 @@ set_target_properties(debuggercore PROPERTIES
 )
 
 if(BN_INTERNAL_BUILD)
+	bn_plugin(debuggercore EXPORTS BN*Debugger* BN*DebugAdapter*)
 	set(LIBRARY_OUTPUT_DIRECTORY_PATH "${BN_CORE_PLUGIN_DIR}")
 else()
 	set(LIBRARY_OUTPUT_DIRECTORY_PATH "${CMAKE_BINARY_DIR}/out/plugins")
