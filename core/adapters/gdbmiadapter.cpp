@@ -353,10 +353,9 @@ void GdbMiAdapter::UpdateAllRegisters() {
 }
 
 void GdbMiAdapter::UpdateStackFrames(uint32_t tid) {
-    if (GetActiveThreadId() != tid) {
-        SetActiveThreadId(tid);
-    }
-    auto result = m_mi->SendCommand("-stack-list-frames");
+    // Query the requested thread without changing GDB's selected thread (or the
+    // thread selected by the user in the debugger UI).
+    auto result = m_mi->SendCommand("-stack-list-frames --thread " + std::to_string(tid));
     if (result.command != "done") {
         LogError("Failed to get stack frames: %s", result.fullLine.c_str());
         return;
@@ -575,7 +574,21 @@ void GdbMiAdapter::ScheduleStateRefresh()
 					{
 						UpdateThreadList();
 						UpdateAllRegisters();
-						UpdateStackFrames(m_currentTid);
+						const auto activeTid = static_cast<uint32_t>(m_currentTid);
+						UpdateStackFrames(activeTid);
+						std::vector<DebugThread> threads;
+						{
+							std::lock_guard cacheLock(m_cacheMutex);
+							threads = m_cachedThreads;
+						}
+						for (const auto& thread : threads)
+						{
+							if (m_shuttingDown.load(std::memory_order_acquire)
+								|| m_targetRunningAtomic.load(std::memory_order_acquire))
+								break;
+							if (thread.m_tid != activeTid)
+								UpdateStackFrames(thread.m_tid);
+						}
 						// Apply any pending breakpoints that were added while target was running
 						// or couldn't be resolved earlier (modules not loaded yet).
 						ApplyBreakpoints();
@@ -1305,10 +1318,9 @@ std::vector<DebugFrame> GdbMiAdapter::GetFramesOfThread(uint32_t tid) {
         return m_cachedFrames[tid];
     }
 
-	// The stop refresh eagerly caches the active thread's frames. Do not launch a
-	// full refresh for every inactive thread queried by DebuggerThreads::Update:
-	// each refresh publishes another stop event, which recursively queries frames
-	// again and can leave stale workers running across the next resume.
+	// The stop refresh fills frames for all stopped threads before publishing its
+	// event. A cache miss must not schedule another stop refresh from the event
+	// handler, since that would recursively publish more stop events.
     return {};
 }
 
