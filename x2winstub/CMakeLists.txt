@@ -13,6 +13,7 @@ add_executable(x2winstub
     main.cpp
     net/connection.cpp
     debug/windows_debug_engine.cpp
+    ../windows/windows_debug_engine.cpp
     x2win_session.cpp
 )
 
@@ -82,11 +83,8 @@ endif()
 target_include_directories(x2winstub PRIVATE
     $<TARGET_PROPERTY:flatbuffers,INTERFACE_INCLUDE_DIRECTORIES>)
 
-# dbghelp is needed for WindowsDebugEngine::GetFramesOfThread's stack walking
-# (SymInitialize/StackWalk64/etc.) -- the old debug_loop.cpp never did stack unwinding so never
-# needed it. Linked normally here; WindowsNativeAdapter's original delay-load hook for dbghelp.dll
-# (to avoid a version clash with the DbgEng adapter in the same *BN* process) doesn't apply to this
-# standalone process, so that hook was dropped rather than ported -- see windows_debug_engine.cpp.
+# The shared engine uses DbgHelp for stack walking and symbols. The server links
+# it normally; the plugin retains its existing DbgHelp delay-load hook.
 target_link_libraries(x2winstub PRIVATE x2win_fbs ws2_32 dbghelp)
 
 if(BN_INTERNAL_BUILD)

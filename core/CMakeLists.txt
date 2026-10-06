@@ -54,6 +54,7 @@ if(WIN32)
 			adapters/localwindowskerneladapter.h
 			adapters/windowsdumpfile.cpp
 			adapters/windowsdumpfile.h
+			../windows/windows_debug_engine.cpp
 			adapters/windowsnativeadapter.cpp
 			adapters/windowsnativeadapter.h
 			)
