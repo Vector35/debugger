@@ -660,6 +660,28 @@ class GdbMiLinuxTest(DebuggerAPI):
 
         return dbg
 
+    def test_restart_stress(self):
+        fpath = name_to_fpath('helloworld_thread', self.arch)
+        bv = load(fpath)
+        dbg = self.create_debugger(bv)
+
+        try:
+            reason = dbg.launch_and_wait(20000)
+            self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError,
+                                      DebugStopReason.TimedOut])
+
+            # Restart while the inferior is running, which exercises connector
+            # shutdown concurrently with GDB/MI asynchronous records.
+            for _ in range(5):
+                dbg.go()
+                time.sleep(0.05)
+                reason = dbg.restart_and_wait(20000)
+                self.assertNotIn(reason, [DebugStopReason.ProcessExited, DebugStopReason.InternalError,
+                                          DebugStopReason.TimedOut])
+        finally:
+            if dbg.connected:
+                dbg.quit_and_wait()
+
     def test_local_launch_stops_at_stripped_pie_entry_point(self):
         gdb_path = shutil.which('gdb')
         strip_path = shutil.which('strip')
