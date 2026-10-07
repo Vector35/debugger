@@ -193,12 +193,9 @@ if not extract_zip(files[0], bn_dev_path):
     print('Failed to unzip binaryninja dev artifact')
     sys.exit(-1)
 
-if subprocess.call(["git", "clone", "https://github.com/Vector35/binaryninja-api", api_path]) != 0:
+if subprocess.call(["git", "clone", "--depth", "1", "--no-tags", "--no-checkout",
+                    "https://github.com/Vector35/binaryninja-api", api_path]) != 0:
     print("Failed to clone BN API git repository")
-    sys.exit(1)
-
-if subprocess.call(["git", "submodule", "update", "--init", "--recursive"], cwd=api_path) != 0:
-    print("Failed to init submodules for BN API")
     sys.exit(1)
 
 # Checkout the API to the correct commit specified in api_REVISION.txt
@@ -222,6 +219,18 @@ if api_revision_path.exists():
                 # Git short hashes are typically 7+ chars, full SHA-1 is 40 chars, SHA-256 is 64 chars
                 if re.match(r'^[0-9a-fA-F]{7,64}$', api_commit):
                     print(f"Checking out API commit: {api_commit}")
+                    # The artifact's revision may be older than the shallow clone's tip.
+                    if subprocess.call(["git", "cat-file", "-e", f"{api_commit}^{{commit}}"],
+                                       cwd=api_path, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+                        if len(api_commit) in (40, 64):
+                            fetch_args = ["--depth", "1", "origin", api_commit]
+                        else:
+                            # Git cannot fetch an abbreviated SHA. Preserve support for
+                            # older revision files by fetching history only in this case.
+                            fetch_args = ["--unshallow", "origin"]
+                        if subprocess.call(["git", "fetch", "--no-tags"] + fetch_args, cwd=api_path) != 0:
+                            print(f"Failed to fetch API commit {api_commit}")
+                            sys.exit(1)
                     if subprocess.call(["git", "checkout", api_commit], cwd=api_path) != 0:
                         print(f"Warning: Failed to checkout API commit {api_commit}")
                         sys.exit(1)
@@ -236,6 +245,13 @@ if api_revision_path.exists():
         sys.exit(1)
 else:
     print(f"Warning: api_REVISION.txt not found at {api_revision_path}, using default branch")
+    sys.exit(1)
+
+# The standalone API library only needs fmt, not the architecture/plugin submodules.
+# Initialize it after checkout so it matches the artifact's revision.
+if subprocess.call(["git", "submodule", "update", "--init", "--recursive", "--depth", "1",
+                    "--", "vendor/fmt"], cwd=api_path) != 0:
+    print("Failed to init fmt submodule for BN API")
     sys.exit(1)
 
 
