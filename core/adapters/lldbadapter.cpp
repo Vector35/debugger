@@ -16,6 +16,7 @@ limitations under the License.
 
 #include <inttypes.h>
 #include <algorithm>
+#include <exception>
 #include <limits>
 #include <filesystem>
 #include "lldbadapter.h"
@@ -67,8 +68,33 @@ LldbAdapter::LldbAdapter(BinaryView* data) : DebugAdapter(data)
 
 LldbAdapter::~LldbAdapter()
 {
-	m_process.Destroy();
-	SBDebugger::Destroy(m_debugger);
+	// Catch the exception in the ~LldbAdapter() so we mitigate the crash in #1198 for Krypton R2. This is not a
+	// complete fix for the	issue. See #1209 for more information on the issue
+	try
+	{
+		m_process.Destroy();
+	}
+	catch (const std::exception& e)
+	{
+		LogError("LLDB process teardown failed: %s", e.what());
+	}
+	catch (...)
+	{
+		LogError("LLDB process teardown failed with an unknown exception");
+	}
+
+	try
+	{
+		SBDebugger::Destroy(m_debugger);
+	}
+	catch (const std::exception& e)
+	{
+		LogError("LLDB debugger teardown failed: %s", e.what());
+	}
+	catch (...)
+	{
+		LogError("LLDB debugger teardown failed with an unknown exception");
+	}
 }
 
 
