@@ -2,6 +2,7 @@
 """Download the debugger's pinned WinDbg package and create a CI artifact."""
 
 import argparse
+import os
 import re
 import shutil
 import subprocess
@@ -33,12 +34,16 @@ def verify_signature(package):
     if sys.platform != "win32":
         return
     command = (
-        "$s=Get-AuthenticodeSignature -LiteralPath $args[0]; "
+        "$ErrorActionPreference='Stop'; "
+        "$s=Get-AuthenticodeSignature -LiteralPath $env:BN_WINDBG_BUNDLE; "
         "if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch 'Microsoft') "
         "{ Write-Error ('Invalid WinDbg signature: ' + $s.Status); exit 1 }"
     )
-    subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command,
-                    str(package)], check=True)
+    environment = os.environ.copy()
+    environment["BN_WINDBG_BUNDLE"] = str(package.resolve())
+    subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
+                   env=environment, check=True)
+    print("Verified Microsoft Authenticode signature", flush=True)
 
 
 def extract_member(archive, member, destination):
