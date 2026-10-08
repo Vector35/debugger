@@ -823,7 +823,7 @@ bool DebugMemoryMapFilterProxyModel::filterAcceptsRow(int sourceRow, const QMode
 
 
 DebugMemoryMapSidebarWidgetType::DebugMemoryMapSidebarWidgetType() :
-	SidebarWidgetType(QImage(":/icons/images/squares-bug.png"), "Debugger Memory Map")
+	SidebarWidgetType(QImage(":/icons/squares-bug"), "Debugger Memory Map")
 {}
 
 

@@ -17,7 +17,6 @@ limitations under the License.
 #include "controlswidget.h"
 #include "adaptersettings.h"
 #include "timestampnavigationdialog.h"
-#include <QPixmap>
 #include <QInputDialog>
 #include <QMessageBox>
 #include "binaryninjaapi.h"
@@ -48,17 +47,17 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	auto red = getThemeColor(RedStandardHighlightColor);
 	auto white = getThemeColor(WhiteStandardHighlightColor);
 
-	m_actionRun = addAction(getColoredIcon(":/debugger/start", red), "Launch", [this]() {
+	m_actionRun = addAction(themedIcon(":/debugger/start", red), "Launch", [this]() {
 		performLaunch();
 	});
 	m_actionRun->setToolTip(getToolTip("Launch"));
 
-	m_actionPause = addAction(getColoredIcon(":/debugger/pause", white), "Pause", [this]() {
+	m_actionPause = addAction(themedIcon(":/debugger/pause", white), "Pause", [this]() {
 		performPause();
 	});
 	m_actionPause->setToolTip(getToolTip("Pause"));
 
-	m_actionResume = addAction(getColoredIcon(":/debugger/resume", green), "Resume", [this]() {
+	m_actionResume = addAction(themedIcon(":/debugger/resume", green), "Resume", [this]() {
 		performResume();
 	});
 	m_actionResume->setToolTip(getToolTip("Resume"));
@@ -67,51 +66,51 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	m_actionPause->setVisible(false);
 	m_actionResume->setVisible(false);
 
-	m_actionAttachPid = addAction(getColoredIcon(":/debugger/connect", white), "Attach To Process...", [this]() {
+	m_actionAttachPid = addAction(themedIcon(":/debugger/connect", white), "Attach To Process...", [this]() {
 		performAttachPID(); 
 	});
 	m_actionAttachPid->setToolTip(getToolTip("Attach To Process..."));
 
-	m_actionDetach = addAction(getColoredIcon(":/debugger/disconnect", red), "Detach", [this]() {
+	m_actionDetach = addAction(themedIcon(":/debugger/disconnect", red), "Detach", [this]() {
 		performDetach();
 	});
 	m_actionDetach->setVisible(false);
 	m_actionDetach->setToolTip(getToolTip("Detach"));
 
-	m_actionRestart = addAction(getColoredIcon(":/debugger/restart", red), "Restart", [this]() {
+	m_actionRestart = addAction(themedIcon(":/debugger/restart", red), "Restart", [this]() {
 		performRestart();
 	});
 	m_actionRestart->setToolTip(getToolTip("Restart"));
 
-	m_actionQuit = addAction(getColoredIcon(":/debugger/cancel", red), "Kill", [this]() {
+	m_actionQuit = addAction(themedIcon(":/debugger/cancel", red), "Kill", [this]() {
 		performQuit();
 	});
 	m_actionQuit->setToolTip(getToolTip("Kill"));
 	addSeparator();
 
-	m_actionStepInto = addAction(getColoredIcon(":/debugger/step-into", cyan), "Step Into", [this]() {
+	m_actionStepInto = addAction(themedIcon(":/debugger/step-into", cyan), "Step Into", [this]() {
 		performStepInto();
 	});
 	m_actionStepInto->setToolTip(getToolTip("Step Into"));
 
-	m_actionStepOver = addAction(getColoredIcon(":/debugger/step-over", cyan), "Step Over", [this]() {
+	m_actionStepOver = addAction(themedIcon(":/debugger/step-over", cyan), "Step Over", [this]() {
 		performStepOver();
 	});
 	m_actionStepOver->setToolTip(getToolTip("Step Over"));
 
-	m_actionStepReturn = addAction(getColoredIcon(":/debugger/step-out", cyan), "Step Return", [this]() {
+	m_actionStepReturn = addAction(themedIcon(":/debugger/step-out", cyan), "Step Return", [this]() {
 		performStepReturn();
 	});
 	m_actionStepReturn->setToolTip(getToolTip("Step Return"));
 	addSeparator();
 
-	m_actionSettings = addAction(getColoredIcon(":/debugger/settings", cyan), "Settings", [this]() {
+	m_actionSettings = addAction(themedIcon(":/debugger/settings", cyan), "Settings", [this]() {
 		performSettings();
 	});
 	m_actionSettings->setToolTip(getToolTip("Debug Adapter Settings"));
 	addSeparator();
 
-	m_actionToggleBreakpoint = addAction(getColoredIcon(":/debugger/breakpoint", red), "Breakpoint", [this]() {
+	m_actionToggleBreakpoint = addAction(themedIcon(":/debugger/breakpoint", red), "Breakpoint", [this]() {
 		toggleBreakpoint();
 	});
 	m_actionToggleBreakpoint->setToolTip(getToolTip("Toggle Breakpoint"));
@@ -119,37 +118,37 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 	if(m_controller->IsTTD())
 		addSeparator(); //TODO: IsTTD only updates when the adapter is connected. This leaves the separator in place when the adapter is disconnected.
 	
-	m_actionGoBack = addAction(getColoredIcon(":/debugger/resume-reverse", red), "Go Backwards", [this]() {
+	m_actionGoBack = addAction(themedIcon(":/debugger/resume-reverse", red), "Go Backwards", [this]() {
 		performGoReverse();
 	});
 	m_actionGoBack->setToolTip(getToolTip("Go Backwards"));
 	
-	m_actionStepIntoBack = addAction(getColoredIcon(":/debugger/step-into-reverse", red), "Step Into Backwards", [this]() {
+	m_actionStepIntoBack = addAction(themedIcon(":/debugger/step-into-reverse", red), "Step Into Backwards", [this]() {
 		performStepIntoReverse();
 	});
 	m_actionStepIntoBack->setToolTip(getToolTip("Step Into Backwards"));
 
-	m_actionStepOverBack = addAction(getColoredIcon(":/debugger/step-back", red), "Step Over Backwards", [this]() {
+	m_actionStepOverBack = addAction(themedIcon(":/debugger/step-back", red), "Step Over Backwards", [this]() {
 		performStepOverReverse();
 	});
 	m_actionStepOverBack->setToolTip(getToolTip("Step Over Backwards"));
 
-	m_actionStepReturnBack = addAction(getColoredIcon(":/debugger/step-out-reverse", red), "Step Return Backwards", [this]() {
+	m_actionStepReturnBack = addAction(themedIcon(":/debugger/step-out-reverse", red), "Step Return Backwards", [this]() {
 		performStepReturnReverse();
 	});
 	m_actionStepReturnBack->setToolTip(getToolTip("Step Return Backwards"));
 
-	m_actionTimestampNavigation = addAction(getColoredIcon(":/debugger/ttd-timestamp", cyan), "Navigate to Timestamp", [this]() {
+	m_actionTimestampNavigation = addAction(themedIcon(":/debugger/ttd-timestamp", cyan), "Navigate to Timestamp", [this]() {
 		performTimestampNavigation();
 	});
 	m_actionTimestampNavigation->setToolTip(getToolTip("Navigate to TTD Timestamp..."));
 
-	m_actionTTDNavigateBack = addAction(getColoredIcon(":/debugger/ttd-back", cyan), "TTD Navigate Back", [this]() {
+	m_actionTTDNavigateBack = addAction(themedIcon(":/debugger/ttd-back", cyan), "TTD Navigate Back", [this]() {
 		performTTDNavigateBack();
 	});
 	m_actionTTDNavigateBack->setToolTip(getToolTip("TTD Navigate Back"));
 
-	m_actionTTDNavigateForward = addAction(getColoredIcon(":/debugger/ttd-forward", cyan), "TTD Navigate Forward", [this]() {
+	m_actionTTDNavigateForward = addAction(themedIcon(":/debugger/ttd-forward", cyan), "TTD Navigate Forward", [this]() {
 		performTTDNavigateForward();
 	});
 	m_actionTTDNavigateForward->setToolTip(getToolTip("TTD Navigate Forward"));
@@ -159,16 +158,6 @@ DebugControlsWidget::DebugControlsWidget(QWidget* parent, const std::string name
 
 
 DebugControlsWidget::~DebugControlsWidget() {}
-
-
-QIcon DebugControlsWidget::getColoredIcon(const QString& iconPath, const QColor& color)
-{
-	auto pixmap = QPixmap(iconPath);
-	auto mask = pixmap.createMaskFromColor(QColor(0, 0, 0), Qt::MaskInColor);
-	pixmap.fill(color);
-	pixmap.setMask(mask);
-	return QIcon(pixmap);
-}
 
 
 QString DebugControlsWidget::getToolTip(const QString& name)

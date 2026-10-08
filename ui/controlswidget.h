@@ -61,7 +61,6 @@ private:
 	bool canConnect();
 	bool handleContainerFile();
 
-	QIcon getColoredIcon(const QString& iconPath, const QColor& color);
 	QString getToolTip(const QString& name);
 
 public:
