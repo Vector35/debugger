@@ -71,6 +71,11 @@ The `build` task installs the locked Python dependencies into the debugger's
 the standalone debugger. Visual Studio and the platform SDKs are still supplied
 by the worker.
 
+The API checkout uses a history depth of one and fetches the exact revision recorded
+in the Binary Ninja artifact when needed. Only the API's `vendor/fmt` submodule is
+initialized, also at depth one, after checking out that revision. Abbreviated
+revision hashes require fetching the API history. Current artifacts use full hashes.
+
 Developer builds can use the CMake workflow above or `mise run build` with the
 same staged artifacts as CI.
 
