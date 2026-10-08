@@ -3,6 +3,22 @@ from pathlib import Path
 import pytest
 
 from scripts.download_windbg import package_version, pinned_version
+from scripts import download_windbg
+
+
+def test_signature_path_is_passed_as_environment_data(monkeypatch, tmp_path):
+    package = tmp_path / "bundle with 'quotes' and $variables.msixbundle"
+    calls = []
+    monkeypatch.setattr(download_windbg.sys, "platform", "win32")
+    monkeypatch.setattr(download_windbg.subprocess, "run",
+                        lambda args, **kwargs: calls.append((args, kwargs)))
+    download_windbg.verify_signature(package)
+    args, kwargs = calls[0]
+    assert args[-2] == "-Command"
+    assert "$env:BN_WINDBG_BUNDLE" in args[-1]
+    assert str(package) not in args[-1]
+    assert kwargs["env"]["BN_WINDBG_BUNDLE"] == str(package.resolve())
+    assert kwargs["check"] is True
 
 
 def test_downloader_uses_source_pin():
