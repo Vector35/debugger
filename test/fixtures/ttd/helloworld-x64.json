@@ -1,0 +1,271 @@
+{
+  "arch": "x64",
+  "data_address": 140699882041520,
+  "execute_address": 140699882033168,
+  "call_address": 140699882033280,
+  "memory": {
+    "r": [
+      {
+        "thread_id": 10268,
+        "unique_thread_id": 2,
+        "time_start": [
+          22,
+          9437
+        ],
+        "time_end": [
+          22,
+          9437
+        ],
+        "address": "0x7ff73e7d30b0",
+        "instruction_address": "0x7ff73e7d1685",
+        "size": 8,
+        "value": "0x0",
+        "access_type": "Read"
+      },
+      {
+        "thread_id": 10268,
+        "unique_thread_id": 2,
+        "time_start": [
+          28,
+          1284
+        ],
+        "time_end": [
+          28,
+          1284
+        ],
+        "address": "0x7ff73e7d30b0",
+        "instruction_address": "0x7ff73e7d10c4",
+        "size": 8,
+        "value": "0x24",
+        "access_type": "Read"
+      },
+      {
+        "thread_id": 10268,
+        "unique_thread_id": 2,
+        "time_start": [
+          32,
+          222
+        ],
+        "time_end": [
+          32,
+          222
+        ],
+        "address": "0x7ff73e7d30b0",
+        "instruction_address": "0x7ff73e7d10c4",
+        "size": 8,
+        "value": "0x24",
+        "access_type": "Read"
+      },
+      {
+        "thread_id": 10268,
+        "unique_thread_id": 2,
+        "time_start": [
+          34,
+          226
+        ],
+        "time_end": [
+          34,
+          226
+        ],
+        "address": "0x7ff73e7d30b0",
+        "instruction_address": "0x7ff73e7d10c4",
+        "size": 8,
+        "value": "0x24",
+        "access_type": "Read"
+      }
+    ],
+    "w": [
+      {
+        "thread_id": 10268,
+        "unique_thread_id": 2,
+        "time_start": [
+          22,
+          9437
+        ],
+        "time_end": [
+          22,
+          9437
+        ],
+        "address": "0x7ff73e7d30b0",
+        "instruction_address": "0x7ff73e7d1685",
+        "size": 8,
+        "value": "0x24",
+        "access_type": "Write"
+      }
+    ],
+    "e": [
+      {
+        "thread_id": 10268,
+        "unique_thread_id": 2,
+        "time_start": [
+          28,
+          1251
+        ],
+        "time_end": [
+          28,
+          1251
+        ],
+        "address": "0x7ff73e7d1010",
+        "instruction_address": "0x7ff73e7d1010",
+        "size": 5,
+        "value": "0x8245c8948",
+        "access_type": "Execute"
+      }
+    ],
+    "rw": [
+      {
+        "thread_id": 10268,
+        "unique_thread_id": 2,
+        "time_start": [
+          22,
+          9437
+        ],
+        "time_end": [
+          22,
+          9437
+        ],
+        "address": "0x7ff73e7d30b0",
+        "instruction_address": "0x7ff73e7d1685",
+        "size": 8,
+        "value": "0x24",
+        "access_type": "Write"
+      },
+      {
+        "thread_id": 10268,
+        "unique_thread_id": 2,
+        "time_start": [
+          22,
+          9437
+        ],
+        "time_end": [
+          22,
+          9437
+        ],
+        "address": "0x7ff73e7d30b0",
+        "instruction_address": "0x7ff73e7d1685",
+        "size": 8,
+        "value": "0x0",
+        "access_type": "Read"
+      },
+      {
+        "thread_id": 10268,
+        "unique_thread_id": 2,
+        "time_start": [
+          28,
+          1284
+        ],
+        "time_end": [
+          28,
+          1284
+        ],
+        "address": "0x7ff73e7d30b0",
+        "instruction_address": "0x7ff73e7d10c4",
+        "size": 8,
+        "value": "0x24",
+        "access_type": "Read"
+      },
+      {
+        "thread_id": 10268,
+        "unique_thread_id": 2,
+        "time_start": [
+          32,
+          222
+        ],
+        "time_end": [
+          32,
+          222
+        ],
+        "address": "0x7ff73e7d30b0",
+        "instruction_address": "0x7ff73e7d10c4",
+        "size": 8,
+        "value": "0x24",
+        "access_type": "Read"
+      },
+      {
+        "thread_id": 10268,
+        "unique_thread_id": 2,
+        "time_start": [
+          34,
+          226
+        ],
+        "time_end": [
+          34,
+          226
+        ],
+        "address": "0x7ff73e7d30b0",
+        "instruction_address": "0x7ff73e7d10c4",
+        "size": 8,
+        "value": "0x24",
+        "access_type": "Read"
+      }
+    ]
+  },
+  "calls": [
+    {
+      "thread_id": 10268,
+      "unique_thread_id": 2,
+      "time_start": [
+        28,
+        1259
+      ],
+      "time_end": [
+        32,
+        194
+      ],
+      "function_address": "0x7ff73e7d1080",
+      "return_address": "0x7ff73e7d1030",
+      "return_value": "0xe",
+      "parameters": [
+        "0x7ff73e7d2210",
+        "0x1ada7b55760",
+        "0x1ada7b4d9b0",
+        "0x415cdffc68"
+      ]
+    },
+    {
+      "thread_id": 10268,
+      "unique_thread_id": 2,
+      "time_start": [
+        32,
+        197
+      ],
+      "time_end": [
+        34,
+        194
+      ],
+      "function_address": "0x7ff73e7d1080",
+      "return_address": "0x7ff73e7d103e",
+      "return_value": "0x8",
+      "parameters": [
+        "0x7ff73e7d2220",
+        "0x1",
+        "0x7ffe90f10990",
+        "0x0"
+      ]
+    },
+    {
+      "thread_id": 10268,
+      "unique_thread_id": 2,
+      "time_start": [
+        34,
+        201
+      ],
+      "time_end": [
+        36,
+        194
+      ],
+      "function_address": "0x7ff73e7d1080",
+      "return_address": "0x7ff73e7d1055",
+      "return_value": "0x49",
+      "parameters": [
+        "0x7ff73e7d2230",
+        "0x0",
+        "0x1ada7b55770",
+        "0x0"
+      ]
+    }
+  ],
+  "trace_sha256": "8ae6060e69d28eba31d83516f9e4354fdd78a45046cbdc12675a01fbafbc22a7",
+  "archive_sha256": "36e022bed4ce5745e8a94317ba48ab9b1311256583d7e3603113988899738217",
+  "target_sha256": "4ea4d20b6357794a8c01cf371e6a7b3eec16384e235fc4f9ea02f57d3d368663"
+}

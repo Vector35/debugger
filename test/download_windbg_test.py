@@ -6,6 +6,24 @@ from scripts.download_windbg import package_version, pinned_version
 from scripts import download_windbg
 
 
+def test_validates_extracted_installation_against_pin(tmp_path):
+    version = pinned_version()
+    (tmp_path / "AppxManifest.xml").write_text(f'<Package><Identity Version="{version}" /></Package>')
+    (tmp_path / "installed_version.txt").write_text(version)
+    for name in download_windbg.REQUIRED:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    download_windbg.validate_installation(tmp_path)
+    (tmp_path / "installed_version.txt").write_text("0.0.0.0")
+    with pytest.raises(RuntimeError, match="source pin"):
+        download_windbg.validate_installation(tmp_path)
+    (tmp_path / "installed_version.txt").write_text(version)
+    (tmp_path / download_windbg.REQUIRED[0]).unlink()
+    with pytest.raises(RuntimeError, match="missing"):
+        download_windbg.validate_installation(tmp_path)
+
+
 def test_signature_path_is_passed_as_environment_data(monkeypatch, tmp_path):
     package = tmp_path / "bundle with 'quotes' and $variables.msixbundle"
     calls = []

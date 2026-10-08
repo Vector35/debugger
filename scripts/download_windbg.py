@@ -70,6 +70,17 @@ def package_version(extracted):
     return version
 
 
+def validate_installation(extracted):
+    version = pinned_version()
+    if package_version(extracted) != version:
+        raise RuntimeError("WinDbg manifest does not match the source pin")
+    if (extracted / "installed_version.txt").read_text(encoding="utf-8").strip() != version:
+        raise RuntimeError("WinDbg installed version does not match the source pin")
+    missing = [name for name in REQUIRED if not (extracted / name).is_file()]
+    if missing:
+        raise RuntimeError(f"WinDbg installation is missing: {missing}")
+
+
 def build_artifact(output_dir):
     version = pinned_version()
     url = ("https://windbg.download.prss.microsoft.com/dbazure/prod/"

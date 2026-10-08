@@ -302,7 +302,8 @@ env["BN_STANDALONE_DEBUGGER"] = "true"
 env["BN_DISABLE_CORE_DEBUGGER"] = "true"
 
 if platform.system() == "Windows":
-    windbg_artifacts = sorted(external_artifacts_path.glob('windbg_*.zip'))
+    from download_windbg import pinned_version, validate_installation
+    windbg_artifacts = sorted(external_artifacts_path.glob(f'windbg_{pinned_version()}.zip'))
     if len(windbg_artifacts) != 1:
         print(f'Expected exactly one pinned WinDbg artifact, found {len(windbg_artifacts)}')
         sys.exit(1)
@@ -311,6 +312,7 @@ if platform.system() == "Windows":
         print('Failed to extract pinned WinDbg artifact')
         sys.exit(1)
     env["BN_DBGENG_DLLS"] = str(windbg_path)
+    validate_installation(windbg_path)
 
 license_path = 'license.dat'
 if platform.system() == "Linux":
@@ -343,6 +345,7 @@ pytest_sources = [
     str(base_dir / "test" / "attach_timeout_test.py"),
     str(base_dir / "test" / "ci_launcher_test.py"),
     str(base_dir / "test" / "download_windbg_test.py"),
+    str(base_dir / "test" / "ttd_fixture_test.py"),
 ]
 if platform.system() == "Windows":
     # Exercise the just-built Windows Remote server locally on the Windows worker.

@@ -1,0 +1,271 @@
+{
+  "arch": "x86",
+  "data_address": 8270728,
+  "execute_address": 8261648,
+  "call_address": 8261728,
+  "memory": {
+    "r": [
+      {
+        "thread_id": 7120,
+        "unique_thread_id": 2,
+        "time_start": [
+          25,
+          3316
+        ],
+        "time_end": [
+          25,
+          3316
+        ],
+        "address": "0x7e3388",
+        "instruction_address": "0x7e1616",
+        "size": 4,
+        "value": "0x0",
+        "access_type": "Read"
+      },
+      {
+        "thread_id": 7120,
+        "unique_thread_id": 2,
+        "time_start": [
+          33,
+          1598
+        ],
+        "time_end": [
+          33,
+          1598
+        ],
+        "address": "0x7e3388",
+        "instruction_address": "0x7e1081",
+        "size": 4,
+        "value": "0x24",
+        "access_type": "Read"
+      },
+      {
+        "thread_id": 7120,
+        "unique_thread_id": 2,
+        "time_start": [
+          37,
+          265
+        ],
+        "time_end": [
+          37,
+          265
+        ],
+        "address": "0x7e3388",
+        "instruction_address": "0x7e1081",
+        "size": 4,
+        "value": "0x24",
+        "access_type": "Read"
+      },
+      {
+        "thread_id": 7120,
+        "unique_thread_id": 2,
+        "time_start": [
+          39,
+          272
+        ],
+        "time_end": [
+          39,
+          272
+        ],
+        "address": "0x7e3388",
+        "instruction_address": "0x7e1081",
+        "size": 4,
+        "value": "0x24",
+        "access_type": "Read"
+      }
+    ],
+    "w": [
+      {
+        "thread_id": 7120,
+        "unique_thread_id": 2,
+        "time_start": [
+          25,
+          3316
+        ],
+        "time_end": [
+          25,
+          3316
+        ],
+        "address": "0x7e3388",
+        "instruction_address": "0x7e1616",
+        "size": 4,
+        "value": "0x24",
+        "access_type": "Write"
+      }
+    ],
+    "e": [
+      {
+        "thread_id": 7120,
+        "unique_thread_id": 2,
+        "time_start": [
+          33,
+          1573
+        ],
+        "time_end": [
+          33,
+          1573
+        ],
+        "address": "0x7e1010",
+        "instruction_address": "0x7e1010",
+        "size": 1,
+        "value": "0x56",
+        "access_type": "Execute"
+      }
+    ],
+    "rw": [
+      {
+        "thread_id": 7120,
+        "unique_thread_id": 2,
+        "time_start": [
+          25,
+          3316
+        ],
+        "time_end": [
+          25,
+          3316
+        ],
+        "address": "0x7e3388",
+        "instruction_address": "0x7e1616",
+        "size": 4,
+        "value": "0x0",
+        "access_type": "Read"
+      },
+      {
+        "thread_id": 7120,
+        "unique_thread_id": 2,
+        "time_start": [
+          25,
+          3316
+        ],
+        "time_end": [
+          25,
+          3316
+        ],
+        "address": "0x7e3388",
+        "instruction_address": "0x7e1616",
+        "size": 4,
+        "value": "0x24",
+        "access_type": "Write"
+      },
+      {
+        "thread_id": 7120,
+        "unique_thread_id": 2,
+        "time_start": [
+          33,
+          1598
+        ],
+        "time_end": [
+          33,
+          1598
+        ],
+        "address": "0x7e3388",
+        "instruction_address": "0x7e1081",
+        "size": 4,
+        "value": "0x24",
+        "access_type": "Read"
+      },
+      {
+        "thread_id": 7120,
+        "unique_thread_id": 2,
+        "time_start": [
+          37,
+          265
+        ],
+        "time_end": [
+          37,
+          265
+        ],
+        "address": "0x7e3388",
+        "instruction_address": "0x7e1081",
+        "size": 4,
+        "value": "0x24",
+        "access_type": "Read"
+      },
+      {
+        "thread_id": 7120,
+        "unique_thread_id": 2,
+        "time_start": [
+          39,
+          272
+        ],
+        "time_end": [
+          39,
+          272
+        ],
+        "address": "0x7e3388",
+        "instruction_address": "0x7e1081",
+        "size": 4,
+        "value": "0x24",
+        "access_type": "Read"
+      }
+    ]
+  },
+  "calls": [
+    {
+      "thread_id": 7120,
+      "unique_thread_id": 2,
+      "time_start": [
+        33,
+        1577
+      ],
+      "time_end": [
+        37,
+        240
+      ],
+      "function_address": "0x7e1060",
+      "return_address": "0x7e101c",
+      "return_value": "0xe",
+      "parameters": [
+        "0x7e20f8",
+        "0x15c1a98",
+        "0x15c07f0",
+        "0x7e124d"
+      ]
+    },
+    {
+      "thread_id": 7120,
+      "unique_thread_id": 2,
+      "time_start": [
+        37,
+        244
+      ],
+      "time_end": [
+        39,
+        240
+      ],
+      "function_address": "0x7e1060",
+      "return_address": "0x7e102b",
+      "return_value": "0x8",
+      "parameters": [
+        "0x7e2108",
+        "0x1",
+        "0x7e20f8",
+        "0x15c1a98"
+      ]
+    },
+    {
+      "thread_id": 7120,
+      "unique_thread_id": 2,
+      "time_start": [
+        39,
+        251
+      ],
+      "time_end": [
+        41,
+        240
+      ],
+      "function_address": "0x7e1060",
+      "return_address": "0x7e104e",
+      "return_value": "0x46",
+      "parameters": [
+        "0x7e2114",
+        "0x0",
+        "0x15c07f8",
+        "0xe32000"
+      ]
+    }
+  ],
+  "trace_sha256": "97ed2f42aea5beac5ec708b881913e2f43708790707173622b6eea8cf07ceb1a",
+  "archive_sha256": "e2438263461a1f8d4cc9a1106038590a0c843483d7fd22f67a9afe6b122eeb54",
+  "target_sha256": "d450e86c7ddeb7b8a3ca32a042229f4399f63e942a8aaaefa188b3c4861929a4"
+}
