@@ -243,6 +243,7 @@ if not build_path.exists():
 
 cmake_params = []
 cmake_params.append(('CMAKE_BUILD_TYPE', 'Release'))
+cmake_params.append(('Python3_EXECUTABLE', sys.executable))
 cmake_params.append(('BN_API_PATH', api_path))
 cmake_params.append(('BN_INSTALL_DIR', bn_core_path))
 cmake_params.append(('CMAKE_PREFIX_PATH', qt_cmake_path))

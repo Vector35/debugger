@@ -140,7 +140,7 @@ void copyExternalArtifacts(String os) {
         def version = (readFile('installer/windbg_version.h') =~ /kDefaultVersion\s*=\s*"([0-9.]+)"/)[0][1]
         def windbgFilter = "artifacts/windbg_${version}.zip"
         copyArtifacts(
-            projectName: 'debugger-download-windbg',
+            projectName: '/debugger/debugger-download-windbg',
             selector: lastSuccessfulWithArtifacts('debugger/debugger-download-windbg', windbgFilter),
             filter: windbgFilter,
             flatten: true,
