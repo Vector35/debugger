@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from binaryninja import Settings, load
+from binaryninja import Settings, SettingsScope, load
 try:
     from debugger import DebuggerController, DebugStopReason
 except ImportError:
@@ -65,8 +65,13 @@ def main(target, trace, expected_path):
 
     dbg = DebuggerController(bv)
     dbg.adapter_type = "DBGENG_TTD"
-    assert dbg.set_adapter_property("launch.trace_path", trace)
-    assert dbg.set_adapter_property("common.inputFile", target)
+    # These are resource-scoped adapter Settings, not DebugAdapter properties.
+    # DbgEngTTDAdapter::ExecuteWithArgsInternal reads this named Settings instance.
+    adapter_settings = Settings("DbgEngTTDAdapterSettings")
+    for key, value in (("launch.trace_path", trace), ("common.inputFile", target)):
+        assert adapter_settings.contains(key), key
+        assert adapter_settings.set_string(key, value, bv, SettingsScope.SettingsResourceScope), key
+        assert adapter_settings.get_string(key, bv) == value, key
     try:
         reason = dbg.launch_and_wait()
         assert reason not in (DebugStopReason.ProcessExited, DebugStopReason.InternalError), reason
