@@ -53,11 +53,16 @@ def check_queries(dbg, expected):
 def main(target, trace, expected_path):
     assert os.environ.get("BN_DBGENG_DLLS"), "BN_DBGENG_DLLS is not set"
 
+    # Loading a view initializes native plugins and registers debugger settings.
+    # Importing the Python bindings alone does not initialize the native plugin.
+    # BN_DBGENG_DLLS is already inherited before either operation.
+    bv = load(target)
+    assert bv is not None, target
     # Prove that the environment override wins over the user-facing setting.
     settings = Settings()
+    assert settings.contains("debugger.x64dbgEngPath"), "Debugger settings were not registered"
     assert settings.set_string("debugger.x64dbgEngPath", str(Path(target).parent / "not-windbg"))
 
-    bv = load(target)
     dbg = DebuggerController(bv)
     dbg.adapter_type = "DBGENG_TTD"
     assert dbg.set_adapter_property("launch.trace_path", trace)
