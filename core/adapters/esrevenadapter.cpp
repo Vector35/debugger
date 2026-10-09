@@ -276,19 +276,20 @@ bool EsrevenAdapter::Connect(const std::string& server, std::uint32_t port)
 
     bool connected = false;
     for ( std::uint8_t index{}; index < 30; index++ ) {
-        this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
+        if (!m_socket.Open(AF_INET, SOCK_STREAM, 0))
+            break;
 
         sockaddr_in address{};
         address.sin_family = (u_short)AF_INET;
         address.sin_addr.s_addr = inet_addr(ipAddress.c_str());
         address.sin_port = htons((u_short)serverPort);
 
-        if (this->m_socket->Connect(address)) {
+        if (m_socket.Connect(address)) {
             connected = true;
             break;
         }
 
-    	m_socket->Close();
+        m_socket.Close();
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
@@ -303,7 +304,7 @@ bool EsrevenAdapter::Connect(const std::string& server, std::uint32_t port)
     	return false;
     }
 
-    auto connector = std::make_shared<RspConnector>(this->m_socket);
+    auto connector = std::make_shared<RspConnector>(&m_socket);
     m_rspConnector.store(connector);
     connector->TransmitAndReceive(RspData("Hg0"));
     connector->NegotiateCapabilities(
@@ -363,20 +364,21 @@ bool EsrevenAdapter::ConnectToDebugServer(const std::string &server, std::uint32
 	bool connected = false;
 	for (std::uint8_t index{}; index < 30; index++)
 	{
-		this->m_socket = new Socket(AF_INET, SOCK_STREAM, 0);
+		if (!m_socket.Open(AF_INET, SOCK_STREAM, 0))
+			break;
 
 		sockaddr_in address{};
 		address.sin_family = (u_short)AF_INET;
 		address.sin_addr.s_addr = inet_addr(ipAddress.c_str());
 		address.sin_port = htons((u_short)serverPort);
 
-		if (this->m_socket->Connect(address))
+		if (m_socket.Connect(address))
 		{
 			connected = true;
 			break;
 		}
 
-		m_socket->Close();
+		m_socket.Close();
 		std::this_thread::sleep_for(std::chrono::milliseconds(500));
 	}
 
@@ -391,7 +393,7 @@ bool EsrevenAdapter::ConnectToDebugServer(const std::string &server, std::uint32
 		return false;
 	}
 
-	auto connector = std::make_shared<RspConnector>(this->m_socket);
+	auto connector = std::make_shared<RspConnector>(&m_socket);
 	m_rspConnector.store(connector);
 	connector->TransmitAndReceive(RspData("Hg0"));
 	connector->NegotiateCapabilities(
@@ -426,7 +428,7 @@ bool EsrevenAdapter::DisconnectDebugServer()
 		return true;
 
 	connector->SendPayload(RspData("D"));
-	this->m_socket->Kill();
+	m_socket.Kill();
 	m_isTargetRunning = false;
 	InvalidateCache();
 	ClearCachedBreakpoints();
@@ -443,7 +445,7 @@ bool EsrevenAdapter::Detach()
 		return false;
 
     connector->SendPayload(RspData("D"));
-    this->m_socket->Kill();
+    m_socket.Kill();
     m_isTargetRunning = false;
 	InvalidateCache();
 	ClearCachedBreakpoints();
@@ -468,7 +470,7 @@ bool EsrevenAdapter::Quit()
 	// $vKill;7c3d#6e
 	// $OK#9a
     connector->SendPayload(RspData("k"));
-    this->m_socket->Kill();
+    m_socket.Kill();
     m_isTargetRunning = false;
 	InvalidateCache();
 	ClearCachedBreakpoints();
@@ -1849,7 +1851,7 @@ DebugStopReason EsrevenAdapter::ResponseHandler(bool notifyStopped)
 				PostDebuggerEvent(dbgevt);
 			}
 
-			this->m_socket->Kill();
+			m_socket.Kill();
 			m_isTargetRunning = false;
 
 			m_rspConnector.store(nullptr);
