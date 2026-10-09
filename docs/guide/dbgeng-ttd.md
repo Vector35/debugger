@@ -101,6 +101,13 @@ Once we have installed and configured WinDbg, we can start recording a TTD trace
     - Trace Output Directory: the directory to write the trace. By default, it is equal to the working directory, but can be changed if necessary
     - Start Application With Recording Off: if checked, starts the application with tracing disabled initially (useful for manual tracing control)
     - Trace Child Processes: if checked, includes child processes spawned by the main process in the trace recording
+    - Modules to Record: a comma-separated list of modules, e.g., `foo.exe, bar.dll`. Only code in these modules, and the code they call, is recorded. The rest of the process runs at full speed. Leave it empty to record the whole process
+    - Max Trace File Size (MB): the maximum size of the trace file. Leave it at "Default" to use TTD's default, which is 1024 GB, or 2048 MB when Ring Buffer is checked
+    - Ring Buffer: if checked, only the most recent part of the execution is kept, up to the max trace file size. In this mode, the max trace file size cannot be larger than 32768 MB
+    - Add Timestamp to Trace File Name: if checked, the trace file is named with a timestamp, e.g., `ping_2023-06-17_103116.run`, instead of a number like `ping01.run`
+    - Replay CPU Support: what the trace requires from the CPU that replays it. `Default` works on most machines. Use `MostConservative` if the trace will be replayed on a different CPU architecture, e.g., an Intel trace on an ARM64 machine. The other values can make the trace smaller and the recording faster, but the trace can then only be replayed on a CPU that is similar to the one it was recorded on (`MostAggressive`) or that supports AVX (`IntelAvxRequired`) or AVX2 (`IntelAvx2Required`)
+    - Virtual CPUs: the number of virtual CPUs TTD reserves in the target. Lowering it reduces the memory TTD uses in the target, but makes recording slower. Leave it at "Default" unless recording fails, e.g., because the target runs out of memory
+    - Additional TTD Arguments: other [TTD.exe options](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-ttd-exe-command-line-util) to pass to TTD, e.g., `-noUI`. They are passed as-is
 - Click "Record". A UAC dialog will pop up because the TTD recording requires Administrator privilege
 - Accept the elevation. The program will be launched and recorded. Once it exits, find the trace file in the trace output directory
 
@@ -125,6 +132,13 @@ To attach and record:
     - Select the process you want to attach to
     - Trace Output Directory: the directory to write the trace (defaults to your Documents folder)
     - Trace Child Processes: if checked, includes child processes spawned by the target in the recording
+    - Modules to Record: a comma-separated list of modules, e.g., `foo.exe, bar.dll`. Only code in these modules, and the code they call, is recorded. The rest of the process runs at full speed. Leave it empty to record the whole process
+    - Max Trace File Size (MB): the maximum size of the trace file. Leave it at "Default" to use TTD's default, which is 1024 GB, or 2048 MB when Ring Buffer is checked
+    - Ring Buffer: if checked, only the most recent part of the execution is kept, up to the max trace file size. In this mode, the max trace file size cannot be larger than 32768 MB
+    - Add Timestamp to Trace File Name: if checked, the trace file is named with a timestamp, e.g., `ping_2023-06-17_103116.run`, instead of a number like `ping01.run`
+    - Replay CPU Support: what the trace requires from the CPU that replays it. `Default` works on most machines. Use `MostConservative` if the trace will be replayed on a different CPU architecture, e.g., an Intel trace on an ARM64 machine. The other values can make the trace smaller and the recording faster, but the trace can then only be replayed on a CPU that is similar to the one it was recorded on (`MostAggressive`) or that supports AVX (`IntelAvxRequired`) or AVX2 (`IntelAvx2Required`)
+    - Virtual CPUs: the number of virtual CPUs TTD reserves in the target. Lowering it reduces the memory TTD uses in the target, but makes recording slower. Leave it at "Default" unless recording fails, e.g., because the target runs out of memory
+    - Additional TTD Arguments: other [TTD.exe options](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-ttd-exe-command-line-util) to pass to TTD, e.g., `-noUI`. They are passed as-is
 - Click "Attach". A UAC dialog will pop up because TTD recording requires Administrator privilege
 - Accept the elevation. TTD will attach to the process and begin recording
 - Interact with the application as needed to capture the behavior you want to analyze
