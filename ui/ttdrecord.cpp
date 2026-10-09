@@ -148,6 +148,75 @@ static std::vector<ProcessItem> EnumerateProcessesWithCommandLine()
 	return result;
 }
 
+
+TTDRecordOptionsWidget::TTDRecordOptionsWidget(QWidget* parent) : QWidget(parent)
+{
+	m_modules = new QLineEdit(this);
+	m_modules->setPlaceholderText("Comma-separated (e.g. foo.exe, bar.dll). Leave this empty to record everything");
+
+	m_maxFileSize = new QSpinBox(this);
+	m_maxFileSize->setRange(0, std::numeric_limits<int>::max());
+	m_maxFileSize->setSpecialValueText("Default");
+	m_maxFileSize->setSuffix(" MB");
+
+	m_ringBuffer = new QCheckBox("Ring Buffer (keep only the last part of the trace)", this);
+
+	// https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-ttd-exe-command-line-util#trace-behavior-settings
+	connect(m_ringBuffer, &QCheckBox::toggled, [this](bool checked) {
+		m_maxFileSize->setMaximum(checked ? 32 * 1024 : std::numeric_limits<int>::max());
+	});
+
+	m_timestampFileName = new QCheckBox("Add Timestamp to Trace File Name", this);
+
+	m_replayCpuSupport = new QComboBox(this);
+	m_replayCpuSupport->addItems(
+		{"Default", "MostConservative", "MostAggressive", "IntelAvxRequired", "IntelAvx2Required"});
+
+	m_numVCpu = new QSpinBox(this);
+	m_numVCpu->setRange(0, std::numeric_limits<int>::max());
+	m_numVCpu->setSpecialValueText("Default");
+
+	m_extraArguments = new QLineEdit(this);
+	m_extraArguments->setPlaceholderText("Passed to TTD.exe as-is, e.g. -noUI");
+
+	auto layout = new QFormLayout(this);
+	layout->setContentsMargins(0, 0, 0, 0);
+	layout->addRow("Modules to Record:", m_modules);
+	layout->addRow("Max Trace File Size (MB):", m_maxFileSize);
+	layout->addRow(m_ringBuffer);
+	layout->addRow(m_timestampFileName);
+	layout->addRow("Replay CPU Support:", m_replayCpuSupport);
+	layout->addRow("Virtual CPUs:", m_numVCpu);
+	layout->addRow("Additional TTD Arguments:", m_extraArguments);
+}
+
+
+std::string TTDRecordOptionsWidget::GetArguments() const
+{
+	std::string result;
+	for (const auto& module : m_modules->text().split(',', Qt::SkipEmptyParts))
+	{
+		auto name = module.trimmed();
+		if (!name.isEmpty())
+			result += fmt::format(" -module \"{}\"", name.toStdString());
+	}
+	if (m_ringBuffer->isChecked())
+		result += " -ring";
+	if (m_maxFileSize->value() > 0)
+		result += fmt::format(" -maxFile {}", m_maxFileSize->value());
+	if (m_timestampFileName->isChecked())
+		result += " -timestampFilename";
+	if (m_replayCpuSupport->currentIndex() > 0)
+		result += fmt::format(" -replayCpuSupport {}", m_replayCpuSupport->currentText().toStdString());
+	if (m_numVCpu->value() > 0)
+		result += fmt::format(" -numVCpu {}", m_numVCpu->value());
+	auto extraArguments = m_extraArguments->text().trimmed();
+	if (!extraArguments.isEmpty())
+		result += " " + extraArguments.toStdString();
+	return result;
+}
+
+
 TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	QDialog()
 {
@@ -168,6 +237,7 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	m_outputDirectory = new QLineEdit(this);
 	m_launchWithoutTracing = new QCheckBox(this);
 	m_traceChildProcesses = new QCheckBox(this);
+	m_options = new TTDRecordOptionsWidget(this);
 
 	auto* pathSelector = new QPushButton("...", this);
 	pathSelector->setMaximumWidth(30);
@@ -229,6 +299,7 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	contentLayout->addLayout(outputLayout);
 	contentLayout->addLayout(launchWithoutTracingLayout);
 	contentLayout->addLayout(traceChildProcessesLayout);
+	contentLayout->addWidget(m_options);
 
 	QHBoxLayout* buttonLayout = new QHBoxLayout;
 	buttonLayout->setContentsMargins(0, 0, 0, 0);
@@ -334,10 +405,11 @@ void TTDRecordDialog::DoTTDTrace()
 	LogDebug("TTD Recorder in path %s", ttdPath.c_str());
 
 	auto ttdRecorder = fmt::format("\"{}\\TTD.exe\"", ttdPath);
-	auto ttdCommandLine = fmt::format("-accepteula -out \"{}\" {} {} -launch \"{}\" {}",
+	auto ttdCommandLine = fmt::format("-accepteula -out \"{}\" {} {}{} -launch \"{}\" {}",
 		m_outputDirectory->text().toStdString(),
 		m_launchWithoutTracing->isChecked() ? "-tracingOff -recordMode Manual" : "",
 		m_traceChildProcesses->isChecked() ? "-children" : "",
+		m_options->GetArguments(),
 		m_pathEntry->text().toStdString(),
 		m_argumentsEntry->text().toStdString());
 	LogWarn("TTD tracer cmd: %s %s", ttdRecorder.c_str(), ttdCommandLine.c_str());
@@ -396,6 +468,7 @@ TTDAttachDialog::TTDAttachDialog(QWidget* parent, BinaryView* data) :
 	// TTD options section
 	m_outputDirectory = new QLineEdit(this);
 	m_traceChildProcesses = new QCheckBox(this);
+	m_options = new TTDRecordOptionsWidget(this);
 
 	auto* outputDirSelector = new QPushButton("...", this);
 	outputDirSelector->setMaximumWidth(30);
@@ -420,6 +493,7 @@ TTDAttachDialog::TTDAttachDialog(QWidget* parent, BinaryView* data) :
 	optionsLayout->addWidget(new QLabel("Trace Output Directory"));
 	optionsLayout->addLayout(outputLayout);
 	optionsLayout->addLayout(traceChildProcessesLayout);
+	optionsLayout->addWidget(m_options);
 
 	// Button layout
 	QHBoxLayout* buttonLayout = new QHBoxLayout;
@@ -481,9 +555,10 @@ void TTDAttachDialog::DoTTDAttach(uint32_t pid)
 	LogDebug("TTD Recorder in path %s", ttdPath.c_str());
 
 	auto ttdRecorder = fmt::format("\"{}\\TTD.exe\"", ttdPath);
-	auto ttdCommandLine = fmt::format("-accepteula -out \"{}\" {} -attach {}",
+	auto ttdCommandLine = fmt::format("-accepteula -out \"{}\" {}{} -attach {}",
 		m_outputDirectory->text().toStdString(),
 		m_traceChildProcesses->isChecked() ? "-children" : "",
+		m_options->GetArguments(),
 		pid);
 	LogWarn("TTD tracer cmd: %s %s", ttdRecorder.c_str(), ttdCommandLine.c_str());
 
