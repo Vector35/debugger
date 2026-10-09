@@ -348,6 +348,7 @@ if os.path.exists(results):
 pytest_sources = [
     str(base_dir / "test" / "debugger_test.py"),
     str(base_dir / "test" / "attach_timeout_test.py"),
+    str(base_dir / "test" / "test_debugger_mcp_tools.py"),
 ]
 if platform.system() == "Windows":
     # Exercise the just-built Windows Remote server locally on the Windows worker.
