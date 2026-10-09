@@ -9,35 +9,6 @@ if(NOT WIN32)
 endif()
 
 # ============================================================================
-# minizip-ng library (minimal ZIP support)
-# ============================================================================
-
-set(MINIZIP_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/../vendor/minizip-ng/mz_inflate.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../vendor/minizip-ng/mz_zip.cpp
-)
-
-set(MINIZIP_HEADERS
-    ${CMAKE_CURRENT_SOURCE_DIR}/../vendor/minizip-ng/mz.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../vendor/minizip-ng/mz_inflate.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../vendor/minizip-ng/mz_zip.h
-)
-
-add_library(minizip-ng STATIC ${MINIZIP_SOURCES} ${MINIZIP_HEADERS})
-
-target_include_directories(minizip-ng PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/../vendor/minizip-ng
-)
-
-# Prevent Windows min/max macros from conflicting with std::min/std::max
-target_compile_definitions(minizip-ng PRIVATE NOMINMAX)
-
-set_target_properties(minizip-ng PROPERTIES
-    CXX_STANDARD 20
-    CXX_STANDARD_REQUIRED ON
-)
-
-# ============================================================================
 # WinDbg installer library (used by standalone installer CLI)
 # ============================================================================
 
@@ -66,14 +37,13 @@ add_library(windbg-installer-lib STATIC ${INSTALLER_LIB_SOURCES} ${INSTALLER_LIB
 target_include_directories(windbg-installer-lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../vendor/pugixml
-    ${CMAKE_CURRENT_SOURCE_DIR}/../vendor/minizip-ng
 )
 
 target_link_libraries(windbg-installer-lib
-    PRIVATE minizip-ng
     PRIVATE winhttp.lib
     PRIVATE ole32.lib
     PRIVATE shell32.lib
+    PRIVATE shlwapi.lib
     PRIVATE wintrust.lib
     PRIVATE crypt32.lib
 )
