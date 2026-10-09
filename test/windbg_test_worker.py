@@ -66,8 +66,9 @@ def main(target, trace, expected_path):
     dbg = DebuggerController(bv)
     dbg.adapter_type = "DBGENG_TTD"
     # These are resource-scoped adapter Settings, not DebugAdapter properties.
-    # DbgEngTTDAdapter::ExecuteWithArgsInternal reads this named Settings instance.
-    adapter_settings = Settings("DbgEngTTDAdapterSettings")
+    # The native getter creates the adapter and registers its settings lazily.
+    adapter_settings = dbg.adapter_settings
+    assert adapter_settings is not None, "Could not create the TTD adapter"
     for key, value in (("launch.trace_path", trace), ("common.inputFile", target)):
         assert adapter_settings.contains(key), key
         assert adapter_settings.set_string(key, value, bv, SettingsScope.SettingsResourceScope), key

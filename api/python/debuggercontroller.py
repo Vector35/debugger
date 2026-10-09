@@ -2767,6 +2767,17 @@ class DebuggerController:
         """
         return dbgcore.BNDebuggerInvokeBackendCommand(self.handle, command)
 
+    @property
+    def adapter_settings(self) -> Optional[binaryninja.Settings]:
+        """Create the selected adapter if needed and return its resource-scoped settings."""
+        handle = dbgcore.BNDebuggerGetAdapterSettings(self.handle)
+        if not handle:
+            return None
+        # The debugger FFI and Binary Ninja bindings define separate ctypes types.
+        # The native getter returns a new reference, owned by the Settings wrapper.
+        native_handle = ctypes.cast(handle, ctypes.POINTER(binaryninja.core.BNSettings))
+        return binaryninja.Settings(handle=native_handle)
+
     def get_adapter_property(self, name: Union[str, bytes]) -> 'binaryninja.metadata.MetadataValueType':
         md_handle = dbgcore.BNDebuggerGetAdapterProperty(self.handle, name)
         if md_handle is None:
