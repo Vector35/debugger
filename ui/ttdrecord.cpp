@@ -179,15 +179,18 @@ TTDRecordOptionsWidget::TTDRecordOptionsWidget(QWidget* parent) : QWidget(parent
 	m_extraArguments = new QLineEdit(this);
 	m_extraArguments->setPlaceholderText("Passed to TTD.exe as-is, e.g. -noUI");
 
-	auto layout = new QFormLayout(this);
+	auto optionsLayout = new QFormLayout;
+	optionsLayout->addRow("Modules to Record:", m_modules);
+	optionsLayout->addRow("Max Trace File Size (MB):", m_maxFileSize);
+	optionsLayout->addRow(m_ringBuffer);
+	optionsLayout->addRow(m_timestampFileName);
+	optionsLayout->addRow("Replay CPU Support:", m_replayCpuSupport);
+	optionsLayout->addRow("Virtual CPUs:", m_numVCpu);
+	optionsLayout->addRow("Additional TTD Arguments:", m_extraArguments);
+
+	auto layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
-	layout->addRow("Modules to Record:", m_modules);
-	layout->addRow("Max Trace File Size (MB):", m_maxFileSize);
-	layout->addRow(m_ringBuffer);
-	layout->addRow(m_timestampFileName);
-	layout->addRow("Replay CPU Support:", m_replayCpuSupport);
-	layout->addRow("Virtual CPUs:", m_numVCpu);
-	layout->addRow("Additional TTD Arguments:", m_extraArguments);
+	layout->addWidget(new ExpandableGroup(optionsLayout, "Advanced Options", this));
 }
 
 
@@ -330,7 +333,8 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	m_launchWithoutTracing->setChecked(false);
 	m_traceChildProcesses->setChecked(false);
 
-	setFixedSize(QDialog::sizeHint());
+	// the dialog grows and shrinks with the advanced options group
+	layout->setSizeConstraint(QLayout::SetFixedSize);
 
 	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 }

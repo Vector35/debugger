@@ -27,6 +27,7 @@ limitations under the License.
 #include "binaryninjaapi.h"
 #include "viewframe.h"
 #include "fontsettings.h"
+#include "expandablegroup.h"
 #include "debuggerapi.h"
 #include "attachprocess.h"
 
