@@ -11,6 +11,7 @@ if ! ci_python=$(bash "$(dirname "$0")/select_ci_python.sh"); then
     virtualenv --no-download "$PWD/.ci-python-bootstrap"
     "$PWD/.ci-python-bootstrap/bin/python" -I -m pip install --disable-pip-version-check 'uv==0.8.22'
     export UV_PYTHON_INSTALL_DIR="$PWD/.ci-python"
+    export UV_PYTHON_BIN_DIR="$PWD/.ci-python-bin"
     "$PWD/.ci-python-bootstrap/bin/uv" python install 3.12
     ci_python=$("$PWD/.ci-python-bootstrap/bin/uv" python find --managed-python 3.12)
 fi
