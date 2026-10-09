@@ -62,6 +62,10 @@ def main(target, trace, expected_path):
     settings = Settings()
     assert settings.contains("debugger.x64dbgEngPath"), "Debugger settings were not registered"
     assert settings.set_string("debugger.x64dbgEngPath", str(Path(target).parent / "not-windbg"))
+    # Replay starts at the recorded initial break, not an automatically installed
+    # executable-entry breakpoint. Match the independently verified CDB D:0 pilot.
+    assert settings.set_bool("debugger.stopAtSystemEntryPoint", True)
+    assert settings.set_bool("debugger.stopAtEntryPoint", False)
 
     dbg = DebuggerController(bv)
     dbg.adapter_type = "DBGENG_TTD"
@@ -78,12 +82,17 @@ def main(target, trace, expected_path):
         assert reason not in (DebugStopReason.ProcessExited, DebugStopReason.InternalError), reason
         initial = dbg.current_ttd_position
         assert initial is not None
-        assert dbg.step_into_and_wait() == DebugStopReason.SingleStep
+        assert position(initial) == [0xD, 0], initial
+        step_reason = dbg.step_into_and_wait()
+        assert step_reason == DebugStopReason.SingleStep, (step_reason, initial, dbg.current_ttd_position)
         stepped = dbg.current_ttd_position
         assert stepped is not None and stepped != initial
-        assert dbg.step_into_reverse_and_wait() == DebugStopReason.SingleStep
+        assert position(stepped) == [0xD, 1], stepped
+        reverse_reason = dbg.step_into_reverse_and_wait()
+        assert reverse_reason == DebugStopReason.SingleStep, (reverse_reason, stepped, dbg.current_ttd_position)
         reversed_position = dbg.current_ttd_position
         assert reversed_position is not None
+        assert reversed_position == initial, (initial, reversed_position)
         check_queries(dbg, json.loads(Path(expected_path).read_text()))
         print(f"WINDBG_TTD_OK {initial} {stepped} {reversed_position}")
     finally:
