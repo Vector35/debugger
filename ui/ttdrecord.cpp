@@ -409,8 +409,9 @@ void TTDRecordDialog::DoTTDTrace()
 	LogDebug("TTD Recorder in path %s", ttdPath.c_str());
 
 	auto ttdRecorder = fmt::format("\"{}\\TTD.exe\"", ttdPath);
-	auto ttdCommandLine = fmt::format("-accepteula -out \"{}\" {} {}{} -launch \"{}\" {}",
-		m_outputDirectory->text().toStdString(),
+	auto outputDirectory = m_outputDirectory->text().toStdString();
+	auto ttdCommandLine = fmt::format("-accepteula {} {} {}{} -launch \"{}\" {}",
+		outputDirectory.empty() ? "" : fmt::format("-out \"{}\"", outputDirectory),
 		m_launchWithoutTracing->isChecked() ? "-tracingOff -recordMode Manual" : "",
 		m_traceChildProcesses->isChecked() ? "-children" : "",
 		m_options->GetArguments(),
@@ -435,6 +436,16 @@ void TTDRecordDialog::DoTTDTrace()
 
 	LogDebug("info.hProcess: %d", info.hProcess);
 	WaitForSingleObject(info.hProcess, INFINITE);
+	DWORD exitCode = 0;
+	bool gotExitCode = GetExitCodeProcess(info.hProcess, &exitCode);
+	CloseHandle(info.hProcess);
+	if (!gotExitCode || exitCode != 0)
+	{
+		QMessageBox::critical(this, "Recording Failed",
+			QString::asprintf("TTD.exe exited with code 0x%lx. Check the log for the command line used.", exitCode));
+		return;
+	}
+
 	QMessageBox::information(this, "Recording Completed", "The TTD recording has completed and you can now debug the trace");
 }
 
@@ -559,8 +570,9 @@ void TTDAttachDialog::DoTTDAttach(uint32_t pid)
 	LogDebug("TTD Recorder in path %s", ttdPath.c_str());
 
 	auto ttdRecorder = fmt::format("\"{}\\TTD.exe\"", ttdPath);
-	auto ttdCommandLine = fmt::format("-accepteula -out \"{}\" {}{} -attach {}",
-		m_outputDirectory->text().toStdString(),
+	auto outputDirectory = m_outputDirectory->text().toStdString();
+	auto ttdCommandLine = fmt::format("-accepteula {} {}{} -attach {}",
+		outputDirectory.empty() ? "" : fmt::format("-out \"{}\"", outputDirectory),
 		m_traceChildProcesses->isChecked() ? "-children" : "",
 		m_options->GetArguments(),
 		pid);
@@ -582,5 +594,15 @@ void TTDAttachDialog::DoTTDAttach(uint32_t pid)
 
 	LogDebug("info.hProcess: %d", info.hProcess);
 	WaitForSingleObject(info.hProcess, INFINITE);
+	DWORD exitCode = 0;
+	bool gotExitCode = GetExitCodeProcess(info.hProcess, &exitCode);
+	CloseHandle(info.hProcess);
+	if (!gotExitCode || exitCode != 0)
+	{
+		QMessageBox::critical(this, "Recording Failed",
+			QString::asprintf("TTD.exe exited with code 0x%lx. Check the log for the command line used.", exitCode));
+		return;
+	}
+
 	QMessageBox::information(this, "Recording Completed", "The TTD recording has completed and you can now debug the trace");
 }
