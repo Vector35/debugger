@@ -84,7 +84,7 @@ Once we have installed and configured WinDbg, we can start recording a TTD trace
 
 1. **Launch and record**: Start a new process and record it from within Binary Ninja
 2. **Attach and record**: Attach to a running process and record it from within Binary Ninja
-3. **Record in WinDbg**: Use WinDbg directly for more advanced recording options
+3. **Record in WinDbg**: Use WinDbg directly for recording options that Binary Ninja does not expose
 
 ### Record a TTD Trace in Binary Ninja
 
@@ -101,6 +101,7 @@ Once we have installed and configured WinDbg, we can start recording a TTD trace
     - Trace Output Directory: the directory to write the trace. By default, it is equal to the working directory, but can be changed if necessary
     - Start Application With Recording Off: if checked, starts the application with tracing disabled initially (useful for manual tracing control)
     - Trace Child Processes: if checked, includes child processes spawned by the main process in the trace recording
+    - Advanced Options: collapsed by default, and not needed for a basic recording. Expand it to choose which modules are recorded, limit the trace file size, and more. See [Advanced Recording Options](#advanced-recording-options)
 - Click "Record". A UAC dialog will pop up because the TTD recording requires Administrator privilege
 - Accept the elevation. The program will be launched and recorded. Once it exits, find the trace file in the trace output directory
 
@@ -123,13 +124,29 @@ To attach and record:
     - A list of running processes is displayed with their PID, name, and command line
     - Use the filter box to search for a specific process by name or PID
     - Select the process you want to attach to
-    - Trace Output Directory: the directory to write the trace (defaults to your Documents folder)
+    - Trace Output Directory: the directory to write the trace. By default, it is equal to the working directory in the debugger's launch settings, if one is set
     - Trace Child Processes: if checked, includes child processes spawned by the target in the recording
-- Click "Attach". A UAC dialog will pop up because TTD recording requires Administrator privilege
+    - Advanced Options: collapsed by default, and not needed for a basic recording. See [Advanced Recording Options](#advanced-recording-options)
+- Click "Attach and Record". A UAC dialog will pop up because TTD recording requires Administrator privilege
 - Accept the elevation. TTD will attach to the process and begin recording
 - Interact with the application as needed to capture the behavior you want to analyze
 - When done, terminate the process or use the TTD controls to stop recording
 - Find the trace file in the trace output directory
+
+### Advanced Recording Options
+
+Both the "TTD Record" and "TTD Attach to Process" dialogs have an "Advanced Options" group with the same options.
+It is collapsed by default, since none of these options are needed for a basic recording. Click "Advanced Options" to expand it:
+
+<img src="../../img/debugger/ttd_record_advanced_options.png" width="600px">
+
+- Modules to Record: a comma-separated list of modules, e.g., `foo.exe, bar.dll`. Only code in these modules, and the code they call, is recorded. The rest of the process runs at full speed. Leave it empty to record the whole process
+- Max Trace File Size (MB): the maximum size of the trace file. Leave it at "Default" to use TTD's default, which is 1024 GB, or 2048 MB when Ring Buffer is checked
+- Ring Buffer: if checked, only the most recent part of the execution is kept, up to the max trace file size. In this mode, the max trace file size cannot be larger than 32768 MB
+- Add Timestamp to Trace File Name: if checked, the trace file is named with a timestamp, e.g., `ping_2023-06-17_103116.run`, instead of a number like `ping01.run`
+- Replay CPU Support: what the trace requires from the CPU that replays it. `Default` works on most machines. Use `MostConservative` if the trace will be replayed on a different CPU architecture, e.g., an Intel trace on an ARM64 machine. The other values can make the trace smaller and the recording faster, but the trace can then only be replayed on a CPU that is similar to the one it was recorded on (`MostAggressive`) or that supports AVX (`IntelAvxRequired`) or AVX2 (`IntelAvx2Required`)
+- Virtual CPUs: the number of virtual CPUs TTD reserves in the target. Lowering it reduces the memory TTD uses in the target, but makes recording slower. Leave it at "Default" unless recording fails, e.g., because the target runs out of memory
+- Additional TTD Arguments: other [TTD.exe options](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/time-travel-debugging-ttd-exe-command-line-util) to pass to TTD, e.g., `-noUI`. They are passed as-is
 
 ### Record a TTD Trace in WinDbg
 

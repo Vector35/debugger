@@ -22,14 +22,32 @@ limitations under the License.
 #include <QComboBox>
 #include <QFormLayout>
 #include <QCheckBox>
+#include <QSpinBox>
 #include "inttypes.h"
 #include "binaryninjaapi.h"
 #include "viewframe.h"
 #include "fontsettings.h"
+#include "expandablegroup.h"
 #include "debuggerapi.h"
 #include "attachprocess.h"
 
 using namespace BinaryNinjaDebuggerAPI;
+
+class TTDRecordOptionsWidget : public QWidget
+{
+	QLineEdit* m_modules;
+	QSpinBox* m_maxFileSize;
+	QCheckBox* m_ringBuffer;
+	QCheckBox* m_timestampFileName;
+	QComboBox* m_replayCpuSupport;
+	QSpinBox* m_numVCpu;
+	QLineEdit* m_extraArguments;
+
+public:
+	TTDRecordOptionsWidget(QWidget* parent);
+	std::string GetArguments() const;
+};
+
 
 class TTDRecordDialog : public QDialog
 {
@@ -43,6 +61,7 @@ private:
 	QLineEdit* m_outputDirectory;
 	QCheckBox* m_launchWithoutTracing;
 	QCheckBox* m_traceChildProcesses;
+	TTDRecordOptionsWidget* m_options;
 
 public:
 	TTDRecordDialog(QWidget* parent, BinaryView* data);
@@ -65,6 +84,7 @@ private:
 	FilterEdit* m_separateEdit;
 	QLineEdit* m_outputDirectory;
 	QCheckBox* m_traceChildProcesses;
+	TTDRecordOptionsWidget* m_options;
 
 public:
 	TTDAttachDialog(QWidget* parent, BinaryView* data);
