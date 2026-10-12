@@ -982,4 +982,70 @@ namespace BinaryNinjaDebuggerAPI {
 	std::string GetWinDbgInstallerPath();
 	std::string GetWinDbgInstalledVersion(const std::string& installPath = "");
 
+	// A memory-mapped report of the Windows API calls extracted from a TTD trace.
+	//
+	// Thin wrapper over the core reader: opening is a header validation, and rows are
+	// decoded out of the mapping only when asked for. RunQuery filters the whole report
+	// on the core side and hands back matching row indices in one crossing, which is
+	// what keeps filtering millions of calls affordable through the FFI.
+	struct TTDApiCallParam
+	{
+		std::string name;
+		std::string type;
+		std::string kind;
+		uint64_t value = 0;
+		std::string str;
+		std::vector<std::string> flags;
+		std::vector<uint8_t> bytes;
+		uint64_t bytesTotal = 0;   // the buffer's real length when `bytes` was capped
+		uint64_t deref = 0;
+		bool hasDeref = false;
+		bool out = false;
+		bool atReturn = false;
+	};
+
+	struct TTDApiCall
+	{
+		uint64_t seq = 0;
+		uint64_t tid = 0;
+		uint64_t positionSequence = 0;
+		uint64_t positionSteps = 0;
+		std::string module;
+		std::string api;
+		uint64_t ret = 0;
+		uint64_t returnAddress = 0;
+		std::string paramSummary;
+		bool decoded = false;
+		std::vector<TTDApiCallParam> params;
+	};
+
+	class TTDBehaviorReport
+	{
+		BNTTDBehaviorReport* m_object = nullptr;
+
+	public:
+		TTDBehaviorReport() = default;
+		~TTDBehaviorReport();
+		TTDBehaviorReport(const TTDBehaviorReport&) = delete;
+		TTDBehaviorReport& operator=(const TTDBehaviorReport&) = delete;
+
+		bool Open(const std::string& path, std::string& error);
+		void Close();
+		bool IsOpen() const { return m_object != nullptr; }
+
+		uint64_t GetCallCount() const;
+		uint64_t GetDecodedCount() const;
+		uint64_t GetProcessId() const;
+		uint64_t GetMaxSequence() const;
+		uint32_t GetMaxPositionChars() const;
+		std::string GetTracePath() const;
+		std::string GetArchitecture() const;
+
+		// Row indices of every call matching `query`.
+		std::vector<uint64_t> RunQuery(const std::string& query) const;
+
+		// `withParams` is the expensive half, so a table can skip it.
+		bool GetCall(uint64_t index, TTDApiCall& out, bool withParams) const;
+	};
+
 };  // namespace BinaryNinjaDebuggerAPI
