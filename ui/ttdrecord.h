@@ -69,6 +69,7 @@ public:
 	static std::string GetTTDRecorderPath();
 
 private Q_SLOTS:
+	void fillEmptyDirectoriesFromExecutable();
 	void apply();
 };
 
