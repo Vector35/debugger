@@ -291,7 +291,8 @@ bool CorelliumAdapter::Detach()
     auto connector = m_rspConnector.load();
     if (connector)
         connector->SendPayload(RspData("D"));
-	m_socket.Kill();
+
+    m_socket.Kill();
     m_isTargetRunning = false;
 	InvalidateCache();
 
@@ -313,7 +314,8 @@ bool CorelliumAdapter::Quit()
     auto connector = m_rspConnector.load();
     if (connector)
         connector->SendPayload(RspData("k"));
-	m_socket.Kill();
+
+    m_socket.Kill();
     m_isTargetRunning = false;
 	InvalidateCache();
 
