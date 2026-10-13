@@ -18,6 +18,7 @@ limitations under the License.
 #include "uicontext.h"
 #include "qfiledialog.h"
 #include "fmt/format.h"
+#include <QFileInfo>
 #include <QMessageBox>
 #include <TlHelp32.h>
 #include <winternl.h>
@@ -247,8 +248,12 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	connect(pathSelector, &QPushButton::clicked, [&]() {
 		auto fileName = QFileDialog::getOpenFileName(this, "Select Executable Path", m_pathEntry->text());
 		if (!fileName.isEmpty())
+		{
 			m_pathEntry->setText(fileName);
+			fillEmptyDirectoriesFromExecutable();
+		}
 	});
+	connect(m_pathEntry, &QLineEdit::editingFinished, this, &TTDRecordDialog::fillEmptyDirectoriesFromExecutable);
 
 	auto* workingDirSelector = new QPushButton("...", this);
 	workingDirSelector->setMaximumWidth(30);
@@ -330,6 +335,7 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 		m_workingDirectoryEntry->setText(QString::fromStdString(m_controller->GetWorkingDirectory()));
 		m_outputDirectory->setText(QString::fromStdString(m_controller->GetWorkingDirectory()));
 	}
+	fillEmptyDirectoriesFromExecutable();
 	m_launchWithoutTracing->setChecked(false);
 	m_traceChildProcesses->setChecked(false);
 
@@ -337,6 +343,20 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 	layout->setSizeConstraint(QLayout::SetFixedSize);
 
 	CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+}
+
+
+void TTDRecordDialog::fillEmptyDirectoriesFromExecutable()
+{
+	QFileInfo executable(m_pathEntry->text());
+	if (!executable.isFile())
+		return;
+
+	auto directory = executable.absolutePath();
+	if (m_workingDirectoryEntry->text().isEmpty())
+		m_workingDirectoryEntry->setText(directory);
+	if (m_outputDirectory->text().isEmpty())
+		m_outputDirectory->setText(directory);
 }
 
 
