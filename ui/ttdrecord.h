@@ -65,7 +65,7 @@ private:
 
 public:
 	TTDRecordDialog(QWidget* parent, BinaryView* data);
-	void DoTTDTrace();
+	bool DoTTDTrace();
 	static std::string GetTTDRecorderPath();
 
 private Q_SLOTS:
@@ -88,7 +88,7 @@ private:
 
 public:
 	TTDAttachDialog(QWidget* parent, BinaryView* data);
-	void DoTTDAttach(uint32_t pid);
+	bool DoTTDAttach(uint32_t pid);
 
 private Q_SLOTS:
 	void apply();

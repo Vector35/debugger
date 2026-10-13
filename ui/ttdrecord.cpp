@@ -342,9 +342,8 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 
 void TTDRecordDialog::apply()
 {
-	DoTTDTrace();
-
-	accept();
+	if (DoTTDTrace())
+		accept();
 }
 
 
@@ -397,14 +396,14 @@ std::string TTDRecordDialog::GetTTDRecorderPath()
 }
 
 
-void TTDRecordDialog::DoTTDTrace()
+bool TTDRecordDialog::DoTTDTrace()
 {
 	auto ttdPath = GetTTDRecorderPath();
 	if (ttdPath.empty())
 	{
 		QMessageBox::critical(this, "Recording Failed", "The debugger cannot find the path for the TTD recorder. "
 			"If you have set debugger.x64dbgEngPath, check if it valid");
-		return;
+		return false;
 	}
 	LogDebug("TTD Recorder in path %s", ttdPath.c_str());
 
@@ -431,7 +430,7 @@ void TTDRecordDialog::DoTTDTrace()
 	if (ret == FALSE)
 	{
 		QMessageBox::critical(this, "Recording Failed", QString::asprintf("TTD recording failed: %lu", GetLastError()));
-		return;
+		return false;
 	}
 
 	LogDebug("info.hProcess: %d", info.hProcess);
@@ -443,10 +442,11 @@ void TTDRecordDialog::DoTTDTrace()
 	{
 		QMessageBox::critical(this, "Recording Failed",
 			QString::asprintf("TTD.exe exited with code 0x%lx. Check the log for the command line used.", exitCode));
-		return;
+		return false;
 	}
 
 	QMessageBox::information(this, "Recording Completed", "The TTD recording has completed and you can now debug the trace");
+	return true;
 }
 
 
@@ -553,19 +553,19 @@ void TTDAttachDialog::apply()
 		return;
 	}
 
-	DoTTDAttach(pid);
-	accept();
+	if (DoTTDAttach(pid))
+		accept();
 }
 
 
-void TTDAttachDialog::DoTTDAttach(uint32_t pid)
+bool TTDAttachDialog::DoTTDAttach(uint32_t pid)
 {
 	auto ttdPath = TTDRecordDialog::GetTTDRecorderPath();
 	if (ttdPath.empty())
 	{
 		QMessageBox::critical(this, "Recording Failed", "The debugger cannot find the path for the TTD recorder. "
 			"If you have set debugger.x64dbgEngPath, check if it is valid");
-		return;
+		return false;
 	}
 	LogDebug("TTD Recorder in path %s", ttdPath.c_str());
 
@@ -589,7 +589,7 @@ void TTDAttachDialog::DoTTDAttach(uint32_t pid)
 	if (ret == FALSE)
 	{
 		QMessageBox::critical(this, "Recording Failed", QString::asprintf("TTD attach failed: %lu", GetLastError()));
-		return;
+		return false;
 	}
 
 	LogDebug("info.hProcess: %d", info.hProcess);
@@ -601,8 +601,9 @@ void TTDAttachDialog::DoTTDAttach(uint32_t pid)
 	{
 		QMessageBox::critical(this, "Recording Failed",
 			QString::asprintf("TTD.exe exited with code 0x%lx. Check the log for the command line used.", exitCode));
-		return;
+		return false;
 	}
 
 	QMessageBox::information(this, "Recording Completed", "The TTD recording has completed and you can now debug the trace");
+	return true;
 }
