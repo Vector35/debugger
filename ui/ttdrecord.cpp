@@ -362,9 +362,8 @@ void TTDRecordDialog::fillEmptyDirectoriesFromExecutable()
 
 void TTDRecordDialog::apply()
 {
-	DoTTDTrace();
-
-	accept();
+	if (DoTTDTrace())
+		accept();
 }
 
 
@@ -417,20 +416,21 @@ std::string TTDRecordDialog::GetTTDRecorderPath()
 }
 
 
-void TTDRecordDialog::DoTTDTrace()
+bool TTDRecordDialog::DoTTDTrace()
 {
 	auto ttdPath = GetTTDRecorderPath();
 	if (ttdPath.empty())
 	{
 		QMessageBox::critical(this, "Recording Failed", "The debugger cannot find the path for the TTD recorder. "
 			"If you have set debugger.x64dbgEngPath, check if it valid");
-		return;
+		return false;
 	}
 	LogDebug("TTD Recorder in path %s", ttdPath.c_str());
 
 	auto ttdRecorder = fmt::format("\"{}\\TTD.exe\"", ttdPath);
-	auto ttdCommandLine = fmt::format("-accepteula -out \"{}\" {} {}{} -launch \"{}\" {}",
-		m_outputDirectory->text().toStdString(),
+	auto outputDirectory = m_outputDirectory->text().toStdString();
+	auto ttdCommandLine = fmt::format("-accepteula {} {} {}{} -launch \"{}\" {}",
+		outputDirectory.empty() ? "" : fmt::format("-out \"{}\"", outputDirectory),
 		m_launchWithoutTracing->isChecked() ? "-tracingOff -recordMode Manual" : "",
 		m_traceChildProcesses->isChecked() ? "-children" : "",
 		m_options->GetArguments(),
@@ -450,12 +450,23 @@ void TTDRecordDialog::DoTTDTrace()
 	if (ret == FALSE)
 	{
 		QMessageBox::critical(this, "Recording Failed", QString::asprintf("TTD recording failed: %lu", GetLastError()));
-		return;
+		return false;
 	}
 
 	LogDebug("info.hProcess: %d", info.hProcess);
 	WaitForSingleObject(info.hProcess, INFINITE);
+	DWORD exitCode = 0;
+	bool gotExitCode = GetExitCodeProcess(info.hProcess, &exitCode);
+	CloseHandle(info.hProcess);
+	if (!gotExitCode || exitCode != 0)
+	{
+		QMessageBox::critical(this, "Recording Failed",
+			QString::asprintf("TTD.exe exited with code 0x%lx. Check the log for the command line used.", exitCode));
+		return false;
+	}
+
 	QMessageBox::information(this, "Recording Completed", "The TTD recording has completed and you can now debug the trace");
+	return true;
 }
 
 
@@ -562,25 +573,26 @@ void TTDAttachDialog::apply()
 		return;
 	}
 
-	DoTTDAttach(pid);
-	accept();
+	if (DoTTDAttach(pid))
+		accept();
 }
 
 
-void TTDAttachDialog::DoTTDAttach(uint32_t pid)
+bool TTDAttachDialog::DoTTDAttach(uint32_t pid)
 {
 	auto ttdPath = TTDRecordDialog::GetTTDRecorderPath();
 	if (ttdPath.empty())
 	{
 		QMessageBox::critical(this, "Recording Failed", "The debugger cannot find the path for the TTD recorder. "
 			"If you have set debugger.x64dbgEngPath, check if it is valid");
-		return;
+		return false;
 	}
 	LogDebug("TTD Recorder in path %s", ttdPath.c_str());
 
 	auto ttdRecorder = fmt::format("\"{}\\TTD.exe\"", ttdPath);
-	auto ttdCommandLine = fmt::format("-accepteula -out \"{}\" {}{} -attach {}",
-		m_outputDirectory->text().toStdString(),
+	auto outputDirectory = m_outputDirectory->text().toStdString();
+	auto ttdCommandLine = fmt::format("-accepteula {} {}{} -attach {}",
+		outputDirectory.empty() ? "" : fmt::format("-out \"{}\"", outputDirectory),
 		m_traceChildProcesses->isChecked() ? "-children" : "",
 		m_options->GetArguments(),
 		pid);
@@ -597,10 +609,21 @@ void TTDAttachDialog::DoTTDAttach(uint32_t pid)
 	if (ret == FALSE)
 	{
 		QMessageBox::critical(this, "Recording Failed", QString::asprintf("TTD attach failed: %lu", GetLastError()));
-		return;
+		return false;
 	}
 
 	LogDebug("info.hProcess: %d", info.hProcess);
 	WaitForSingleObject(info.hProcess, INFINITE);
+	DWORD exitCode = 0;
+	bool gotExitCode = GetExitCodeProcess(info.hProcess, &exitCode);
+	CloseHandle(info.hProcess);
+	if (!gotExitCode || exitCode != 0)
+	{
+		QMessageBox::critical(this, "Recording Failed",
+			QString::asprintf("TTD.exe exited with code 0x%lx. Check the log for the command line used.", exitCode));
+		return false;
+	}
+
 	QMessageBox::information(this, "Recording Completed", "The TTD recording has completed and you can now debug the trace");
+	return true;
 }
