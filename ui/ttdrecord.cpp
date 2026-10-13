@@ -348,11 +348,11 @@ TTDRecordDialog::TTDRecordDialog(QWidget* parent, BinaryView* data) :
 
 void TTDRecordDialog::fillEmptyDirectoriesFromExecutable()
 {
-	auto path = m_pathEntry->text();
-	if (path.isEmpty())
+	QFileInfo executable(m_pathEntry->text());
+	if (!executable.isFile())
 		return;
 
-	auto directory = QFileInfo(path).absolutePath();
+	auto directory = executable.absolutePath();
 	if (m_workingDirectoryEntry->text().isEmpty())
 		m_workingDirectoryEntry->setText(directory);
 	if (m_outputDirectory->text().isEmpty())
