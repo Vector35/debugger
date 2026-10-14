@@ -234,6 +234,13 @@ target_include_directories(debuggercore PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../vendor/flatbuffers/include
 )
 
+if(WIN32)
+	# The DbgEng engine is compiled into debuggercore through its properties rather than target_link_libraries,
+	# for the same reason as x2win_fbs above.
+	target_sources(debuggercore PRIVATE $<TARGET_PROPERTY:dbgengengine,INTERFACE_SOURCES>)
+	target_include_directories(debuggercore PRIVATE $<TARGET_PROPERTY:dbgengengine,INTERFACE_INCLUDE_DIRECTORIES>)
+endif()
+
 
 if (WIN32)
 	add_custom_command(TARGET debuggercore PRE_LINK

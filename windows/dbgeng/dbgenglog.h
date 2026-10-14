@@ -1,0 +1,37 @@
+/*
+Copyright 2020-2026 Vector 35 Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#pragma once
+// Only the engine's sources include this; elsewhere these would hide Binary Ninja's LogWarn() and friends.
+#include <format>
+#include <string>
+#include <utility>
+#include "dbgengtypes.h"
+
+namespace BinaryNinjaDebugger {
+	void LogMessage(DbgEngLogLevel level, const std::string& message);
+
+	void LogDebug(const char* fmt, ...);
+	void LogInfo(const char* fmt, ...);
+	void LogWarn(const char* fmt, ...);
+	void LogError(const char* fmt, ...);
+
+	template <typename... Args>
+	void LogWarnF(std::format_string<Args...> fmt, Args&&... args)
+	{
+		LogMessage(DbgEngLogLevel::Warn, std::format(fmt, std::forward<Args>(args)...));
+	}
+}  // namespace BinaryNinjaDebugger
