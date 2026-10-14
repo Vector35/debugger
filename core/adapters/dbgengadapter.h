@@ -17,6 +17,7 @@ limitations under the License.
 #pragma once
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
+#include "dbgengtypes.h"
 
 #define NOMINMAX
 #include <windows.h>
@@ -44,11 +45,12 @@ namespace BinaryNinjaDebugger {
 		unsigned long m_exitCode {};
 	};
 
+	class DbgEngAdapter;
 #define CALLBACK_METHOD(return_type) return_type __declspec(nothrow) __stdcall
 	class DbgEngOutputCallbacks : public IDebugOutputCallbacks
 	{
 	private:
-		DebugAdapter* m_adapter;
+		DbgEngAdapter* m_adapter;
 		std::string m_output;
 
 	public:
@@ -56,7 +58,7 @@ namespace BinaryNinjaDebugger {
 		CALLBACK_METHOD(unsigned long) Release() override;
 		CALLBACK_METHOD(HRESULT) QueryInterface(const IID& interface_id, void** _interface) override;
 		CALLBACK_METHOD(HRESULT) Output(unsigned long mask, const char* text);
-		void SetAdapter(DebugAdapter* adapter);
+		void SetAdapter(DbgEngAdapter* adapter);
 		void StartOutput();
 		std::string EndOutput();
 	};
@@ -75,7 +77,6 @@ namespace BinaryNinjaDebugger {
         void SetDbgControl(IDebugControl7* control);
     };
 
-	class DbgEngAdapter;
 	class DbgEngEventCallbacks : public DebugBaseEventCallbacks
 	{
 	private:
@@ -259,6 +260,8 @@ namespace BinaryNinjaDebugger {
 		std::string GetTargetArchitecture() override;
 
 		DebugStopReason StopReason() override;
+		DbgEngStopReason GetStopReason();
+		void PostEngineEvent(const DbgEngEvent& source);
 		unsigned long ExecStatus();
 		uint64_t ExitCode() override;
 

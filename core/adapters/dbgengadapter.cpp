@@ -45,6 +45,29 @@ limitations under the License.
 using namespace BinaryNinjaDebugger;
 using namespace std;
 
+namespace {
+	DebugStopReason FromEngine(DbgEngStopReason value)
+	{
+		switch (value)
+		{
+		case DbgEngStopReason::UnknownReason:
+			return UnknownReason;
+		case DbgEngStopReason::ProcessExited:
+			return ProcessExited;
+		case DbgEngStopReason::AccessViolation:
+			return AccessViolation;
+		case DbgEngStopReason::SingleStep:
+			return SingleStep;
+		case DbgEngStopReason::Calculation:
+			return Calculation;
+		case DbgEngStopReason::Breakpoint:
+			return Breakpoint;
+		default:
+			return UnknownReason;
+		}
+	}
+}
+
 static bool IsValidDbgEngPaths(const std::string& path)
 {
 	if (path.empty())
@@ -71,6 +94,38 @@ static bool IsValidDbgEngPaths(const std::string& path)
 		return false;
 
 	return true;
+}
+
+void DbgEngAdapter::PostEngineEvent(const DbgEngEvent& source)
+{
+	DebuggerEvent event;
+	switch (source.type)
+	{
+	case DbgEngEventType::LaunchFailure:
+		event.type = LaunchFailureEventType;
+		event.data.errorData.error = source.error;
+		event.data.errorData.shortError = source.shortError;
+		break;
+	case DbgEngEventType::TargetExited:
+		event.type = TargetExitedEventType;
+		event.data.exitData.exitCode = source.exitCode;
+		break;
+	case DbgEngEventType::TargetStopped:
+		event.type = AdapterStoppedEventType;
+		event.data.targetStoppedData.reason = FromEngine(source.stopReason);
+		break;
+	case DbgEngEventType::Resumed:
+		event.type = ResumeEventType;
+		break;
+	case DbgEngEventType::StepIntoComplete:
+		event.type = StepIntoEventType;
+		break;
+	case DbgEngEventType::BackendMessage:
+		event.type = BackendMessageEventType;
+		event.data.messageData.message = source.message;
+		break;
+	}
+	PostDebuggerEvent(event);
 }
 
 std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
@@ -559,11 +614,11 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	// If we're actively debugging, fail instead of resetting to prevent crashes
 	if (this->m_activelyDebugging)
 	{
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.error = "Cannot launch while actively debugging another target";
-		event.data.errorData.shortError = "Already debugging";
-		PostDebuggerEvent(event);
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "Cannot launch while actively debugging another target";
+		event.shortError = "Already debugging";
+		PostEngineEvent(event);
 		return false;
 	}
 
@@ -581,22 +636,22 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	if (!Start())
 	{
 		this->Reset();
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.error = "Failed to initialize DbgEng";
-		event.data.errorData.shortError = "Failed to initialize DbgEng";
-		PostDebuggerEvent(event);
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "Failed to initialize DbgEng";
+		event.shortError = "Failed to initialize DbgEng";
+		PostEngineEvent(event);
 		return false;
 	}
 
 	if (const auto result = this->m_debugControl->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK); result != S_OK)
 	{
 		this->Reset();
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.error = "Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK";
-		event.data.errorData.shortError = "Failed to engine option";
-		PostDebuggerEvent(event);
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK";
+		event.shortError = "Failed to engine option";
+		PostEngineEvent(event);
 		return false;
 	}
 
@@ -639,24 +694,24 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 		result != S_OK)
 	{
 		this->Reset();
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
 		char buf[64];
 		snprintf(buf, sizeof(buf), "CreateProcess2 failed: 0x%08x", (uint32_t)result);
-		event.data.errorData.error = buf;
-		event.data.errorData.shortError = buf;
-		PostDebuggerEvent(event);
+		event.error = buf;
+		event.shortError = buf;
+		PostEngineEvent(event);
 		return false;
 	}
 
 	// The WaitForEvent() must be called once before the engine fully attaches to the target.
 	if (!Wait())
 	{
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.error = "WaitForEvent failed";
-		event.data.errorData.shortError = "WaitForEvent failed";
-		PostDebuggerEvent(event);
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "WaitForEvent failed";
+		event.shortError = "WaitForEvent failed";
+		PostEngineEvent(event);
 	}
 
 	// Apply the breakpoints added before the m_debugClient is created
@@ -672,11 +727,11 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 		if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK)
 		{
 			this->Reset();
-			DebuggerEvent event;
-			event.type = LaunchFailureEventType;
-			event.data.errorData.error = "Failed to resume the target after the system entry point";
-			event.data.errorData.shortError = "Failed to resume target";
-			PostDebuggerEvent(event);
+			DbgEngEvent event;
+			event.type = DbgEngEventType::LaunchFailure;
+			event.error = "Failed to resume the target after the system entry point";
+			event.shortError = "Failed to resume target";
+			PostEngineEvent(event);
 			return false;
 		}
 	}
@@ -749,10 +804,10 @@ void DbgEngAdapter::EngineLoop()
 						// m_debugRegisters->OutputRegisters(DEBUG_OUTCTL_THIS_CLIENT, DEBUG_REGISTERS_DEFAULT);
 						m_debugControl->OutputCurrentState(DEBUG_OUTCTL_THIS_CLIENT, DEBUG_CURRENT_DEFAULT);
 					}
-					DebuggerEvent event;
-					event.type = AdapterStoppedEventType;
-					event.data.targetStoppedData.reason = StopReason();
-					PostDebuggerEvent(event);
+					DbgEngEvent event;
+					event.type = DbgEngEventType::TargetStopped;
+					event.stopReason = GetStopReason();
+					PostEngineEvent(event);
 				}
 
 				// This is NOT actually dispatching callback, since the callbacks are already dispatched in
@@ -779,13 +834,13 @@ void DbgEngAdapter::EngineLoop()
 				|| (execution_status == DEBUG_STATUS_REVERSE_STEP_INTO)
 				|| (execution_status == DEBUG_STATUS_REVERSE_STEP_BRANCH))
 			{
-				DebuggerEvent dbgevt;
+				DbgEngEvent dbgevt;
 				if ((execution_status == DEBUG_STATUS_GO) || (execution_status == DEBUG_STATUS_REVERSE_GO)
 					|| ((execution_status == DEBUG_STATUS_GO_HANDLED))
 					|| (execution_status == DEBUG_STATUS_GO_NOT_HANDLED))
 				{
-					dbgevt.type = ResumeEventType;
-					PostDebuggerEvent(dbgevt);
+					dbgevt.type = DbgEngEventType::Resumed;
+					PostEngineEvent(dbgevt);
 				}
 				else if ((execution_status == DEBUG_STATUS_STEP_INTO) || (execution_status == DEBUG_STATUS_STEP_OVER)
 					|| (execution_status == DEBUG_STATUS_STEP_BRANCH)
@@ -793,18 +848,18 @@ void DbgEngAdapter::EngineLoop()
 					|| (execution_status == DEBUG_STATUS_REVERSE_STEP_INTO)
 					|| (execution_status == DEBUG_STATUS_REVERSE_STEP_BRANCH))
 				{
-					dbgevt.type = StepIntoEventType;
-					PostDebuggerEvent(dbgevt);
+					dbgevt.type = DbgEngEventType::StepIntoComplete;
+					PostEngineEvent(dbgevt);
 				}
 				break;
 			}
 			else if (execution_status == DEBUG_STATUS_NO_DEBUGGEE)
 			{
 				finished = true;
-				DebuggerEvent event;
-				event.type = TargetExitedEventType;
-				event.data.exitData.exitCode = ExitCode();
-				PostDebuggerEvent(event);
+				DbgEngEvent event;
+				event.type = DbgEngEventType::TargetExited;
+				event.exitCode = ExitCode();
+				PostEngineEvent(event);
 				Reset();
 				break;
 			}
@@ -828,11 +883,11 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 	// If we're actively debugging, fail instead of resetting to prevent crashes
 	if (this->m_activelyDebugging)
 	{
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.error = "Cannot attach while actively debugging another target";
-		event.data.errorData.shortError = "Already debugging";
-		PostDebuggerEvent(event);
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "Cannot attach while actively debugging another target";
+		event.shortError = "Already debugging";
+		PostEngineEvent(event);
 		return false;
 	}
 
@@ -850,45 +905,45 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 	if (!this->Start())
 	{
 		this->Reset();
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.error = "Failed to initialize DbgEng";
-		event.data.errorData.shortError = "Failed to initialize DbgEng";
-		PostDebuggerEvent(event);
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "Failed to initialize DbgEng";
+		event.shortError = "Failed to initialize DbgEng";
+		PostEngineEvent(event);
 		return false;
 	}
 
 	if (const auto result = this->m_debugControl->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK); result != S_OK)
 	{
 		this->Reset();
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.error = "Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK";
-		event.data.errorData.shortError = "Failed to engine option";
-		PostDebuggerEvent(event);
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK";
+		event.shortError = "Failed to engine option";
+		PostEngineEvent(event);
 		return false;
 	}
 
 	if (const auto result = this->m_debugClient->AttachProcess(m_server, (ULONG)pid, 0); result != S_OK)
 	{
 		this->Reset();
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
 		char buf[64];
 		snprintf(buf, sizeof(buf), "AttachProcess failed: 0x%lx", (unsigned long)result);
-		event.data.errorData.error = buf;
-		event.data.errorData.shortError = buf;
-		PostDebuggerEvent(event);
+		event.error = buf;
+		event.shortError = buf;
+		PostEngineEvent(event);
 		return false;
 	}
 
 	if (!Wait())
 	{
-		DebuggerEvent event;
-		event.type = LaunchFailureEventType;
-		event.data.errorData.error = "WaitForEvent failed";
-		event.data.errorData.shortError = "WaitForEvent failed";
-		PostDebuggerEvent(event);
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "WaitForEvent failed";
+		event.shortError = "WaitForEvent failed";
+		PostEngineEvent(event);
 	}
 
 	ApplyBreakpoints();
@@ -925,11 +980,11 @@ bool DbgEngAdapter::Attach(std::uint32_t pid)
 
 bool DbgEngAdapter::Connect(const std::string& server, std::uint32_t port)
 {
-	DebuggerEvent event;
-	event.type = LaunchFailureEventType;
-	event.data.errorData.error = "Connect() is not implemented in DbgEng";
-	event.data.errorData.shortError = "Connect() is not implemented in DbgEng";
-	PostDebuggerEvent(event);
+	DbgEngEvent event;
+	event.type = DbgEngEventType::LaunchFailure;
+	event.error = "Connect() is not implemented in DbgEng";
+	event.shortError = "Connect() is not implemented in DbgEng";
+	PostEngineEvent(event);
 	return false;
 }
 
@@ -2060,7 +2115,7 @@ std::string DbgEngAdapter::GetTargetArchitecture()
 	}
 }
 
-DebugStopReason DbgEngAdapter::StopReason()
+DbgEngStopReason DbgEngAdapter::GetStopReason()
 {
 	const auto exec_status = this->ExecStatus();
 	if (exec_status == DEBUG_STATUS_BREAK)
@@ -2068,7 +2123,7 @@ DebugStopReason DbgEngAdapter::StopReason()
 		const auto instruction_ptr = this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
 
 		if (instruction_ptr == DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint.m_address)
-			return DebugStopReason::Breakpoint;
+			return DbgEngStopReason::Breakpoint;
 
 		const auto& last_exception = DbgEngAdapter::ProcessCallbackInfo.m_lastException;
 		if (instruction_ptr == last_exception.ExceptionAddress)
@@ -2077,29 +2132,34 @@ DebugStopReason DbgEngAdapter::StopReason()
 			{
 			case STATUS_BREAKPOINT:
 			case STATUS_WX86_BREAKPOINT:
-				return DebugStopReason::Breakpoint;
+				return DbgEngStopReason::Breakpoint;
 			case STATUS_SINGLE_STEP:
 			case STATUS_WX86_SINGLE_STEP:
-				return DebugStopReason::SingleStep;
+				return DbgEngStopReason::SingleStep;
 			case STATUS_ACCESS_VIOLATION:
-				return DebugStopReason::AccessViolation;
+				return DbgEngStopReason::AccessViolation;
 			case STATUS_INTEGER_DIVIDE_BY_ZERO:
 			case STATUS_FLOAT_DIVIDE_BY_ZERO:
-				return DebugStopReason::Calculation;
+				return DbgEngStopReason::Calculation;
 			default:
-				return DebugStopReason::UnknownReason;
+				return DbgEngStopReason::UnknownReason;
 			}
 		}
 
 		if (m_lastOperationIsStepInto)
-			return DebugStopReason::SingleStep;
+			return DbgEngStopReason::SingleStep;
 	}
 	else if (exec_status == DEBUG_STATUS_NO_DEBUGGEE)
 	{
-		return DebugStopReason::ProcessExited;
+		return DbgEngStopReason::ProcessExited;
 	}
 
-	return DebugStopReason::UnknownReason;
+	return DbgEngStopReason::UnknownReason;
+}
+
+DebugStopReason DbgEngAdapter::StopReason()
+{
+	return FromEngine(GetStopReason());
 }
 
 unsigned long DbgEngAdapter::ExecStatus()
@@ -2286,10 +2346,10 @@ HRESULT DbgEngEventCallbacks::ChangeSymbolState(unsigned long flags, uint64_t ar
 
 HRESULT DbgEngOutputCallbacks::Output(unsigned long mask, const char* text)
 {
-	DebuggerEvent event;
-	event.type = BackendMessageEventType;
-	event.data.messageData.message = text;
-	m_adapter->PostDebuggerEvent(event);
+	DbgEngEvent event;
+	event.type = DbgEngEventType::BackendMessage;
+	event.message = text;
+	m_adapter->PostEngineEvent(event);
 	m_output += text;
 	return S_OK;
 }
@@ -2319,7 +2379,7 @@ HRESULT DbgEngOutputCallbacks::QueryInterface(const IID& interface_id, void** _i
 	return S_OK;
 }
 
-void DbgEngOutputCallbacks::SetAdapter(DebugAdapter* adapter)
+void DbgEngOutputCallbacks::SetAdapter(DbgEngAdapter* adapter)
 {
 	m_adapter = adapter;
 }

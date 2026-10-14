@@ -32,34 +32,34 @@ bool LocalWindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path,
 
     if (!Start()) {
         this->Reset();
-        DebuggerEvent event;
-        event.type = LaunchFailureEventType;
-        event.data.errorData.error = "Failed to initialize DbgEng";
-        event.data.errorData.shortError = "Failed to initialize DbgEng";
-        PostDebuggerEvent(event);
+        DbgEngEvent event;
+        event.type = DbgEngEventType::LaunchFailure;
+        event.error = "Failed to initialize DbgEng";
+        event.shortError = "Failed to initialize DbgEng";
+        PostEngineEvent(event);
         return false;
     }
 
     if (const auto result = this->m_debugClient->AttachKernel(DEBUG_ATTACH_LOCAL_KERNEL, nullptr);
             result != S_OK) {
         this->Reset();
-        DebuggerEvent event;
-        event.type = LaunchFailureEventType;
+        DbgEngEvent event;
+        event.type = DbgEngEventType::LaunchFailure;
         char buf[64];
         snprintf(buf, sizeof(buf), "AttachKernel failed: 0x%lx", (unsigned long)result);
-        event.data.errorData.error = buf;
-        event.data.errorData.shortError = buf;
-        PostDebuggerEvent(event);
+        event.error = buf;
+        event.shortError = buf;
+        PostEngineEvent(event);
         return false;
     }
 
     // The WaitForEvent() must be called once before the engine fully attaches to the target.
     if (!Wait()) {
-        DebuggerEvent event;
-        event.type = LaunchFailureEventType;
-        event.data.errorData.error = "WaitForEvent failed";
-        event.data.errorData.shortError = "WaitForEvent failed";
-        PostDebuggerEvent(event);
+        DbgEngEvent event;
+        event.type = DbgEngEventType::LaunchFailure;
+        event.error = "WaitForEvent failed";
+        event.shortError = "WaitForEvent failed";
+        PostEngineEvent(event);
     }
 
     return true;
