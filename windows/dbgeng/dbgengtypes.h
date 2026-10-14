@@ -18,7 +18,6 @@ limitations under the License.
 #include <cstdint>
 #include <functional>
 #include <string>
-#include <vector>
 
 namespace BinaryNinjaDebugger {
 	enum class DbgEngLogLevel
@@ -62,32 +61,5 @@ namespace BinaryNinjaDebugger {
 		std::string error;
 		std::string shortError;
 		std::string message;
-	};
-
-	struct DbgEngOptions
-	{
-		std::string dbgSrvEnginePath;
-		bool stopAtEntryPoint = false;
-		bool stopAtSystemEntryPoint = false;
-		bool outputStateOnStop = false;
-		bool runAsAdministrator = false;
-
-		std::string pdbFileName;
-		uint64_t entryPoint = 0;
-		bool hasEntryFunction = false;
-		uint64_t start = 0;
-		uint64_t originalImageBase = 0;
-	};
-
-	struct DbgEngLaunchRequest
-	{
-		std::string executablePath;
-		std::string workingDirectory;
-		std::string commandLineArguments;
-		std::vector<std::string> environmentVariables;
-		std::string inputFile;
-		std::string tracePath;
-		std::string dumpFile;
-		std::string connectionString;
 	};
 }  // namespace BinaryNinjaDebugger

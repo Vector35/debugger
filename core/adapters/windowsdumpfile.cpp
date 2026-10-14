@@ -14,16 +14,24 @@ WindowsDumpFileAdapter::WindowsDumpFileAdapter(BinaryView* data) : DbgEngAdapter
 }
 
 
-bool WindowsDumpFileAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
-                                            const std::string& workingDir, const LaunchConfigurations& configs) {
-    m_aboutToBeKilled = false;
-
+bool WindowsDumpFileAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
+	const std::string& workingDir, const LaunchConfigurations& configs)
+{
+	ConfigureEngine();
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
 	auto adapterSettings = GetAdapterSettings();
 	auto dumpFile = adapterSettings->Get<std::string>("launch.dump_file", data, &scope);
 	scope = SettingsResourceScope;
 	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	SetInputFile(inputFile);
+	return ExecuteOnEngineThread(dumpFile, "", "");
+}
+
+
+bool WindowsDumpFileAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
+                                            const std::string& workingDir) {
+    m_aboutToBeKilled = false;
 
     if (this->m_dbgengInitialized) {
         this->Reset();
@@ -49,7 +57,7 @@ bool WindowsDumpFileAdapter::ExecuteWithArgsInternal(const std::string& path, co
         return false;
     }
 
-    if (const auto result = this->m_debugClient->OpenDumpFile(const_cast<char *>(dumpFile.c_str()));
+    if (const auto result = this->m_debugClient->OpenDumpFile(const_cast<char *>(path.c_str()));
             result != S_OK) {
         this->Reset();
         DebuggerEvent event;

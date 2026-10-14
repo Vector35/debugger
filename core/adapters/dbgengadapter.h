@@ -170,6 +170,14 @@ namespace BinaryNinjaDebugger {
         std::string m_pdbFileName {};
         bool m_usePDBFileName = true;
 
+		std::string m_dbgSrvEnginePath;
+		bool m_stopAtSystemEntryPoint = false;
+		std::optional<uint64_t> m_entryPointOffset;
+		bool m_outputStateOnStop = false;
+		bool m_runAsAdministrator = false;
+		std::string m_inputFile;
+		std::vector<std::string> m_environmentVariables;
+
 		std::recursive_mutex m_engineLoopMutex;
 
 	public:
@@ -179,13 +187,23 @@ namespace BinaryNinjaDebugger {
 		DbgEngAdapter(BinaryView* data);
 		~DbgEngAdapter();
 
+		void SetDbgSrvEnginePath(const std::string& path) { m_dbgSrvEnginePath = path; }
+		void SetStopAtSystemEntryPoint(bool enabled) { m_stopAtSystemEntryPoint = enabled; }
+		void SetEntryPointOffset(std::optional<uint64_t> offset) { m_entryPointOffset = offset; }
+		void SetOutputStateOnStop(bool enabled) { m_outputStateOnStop = enabled; }
+		void SetRunAsAdministrator(bool enabled) { m_runAsAdministrator = enabled; }
+		void SetInputFile(const std::string& inputFile) { m_inputFile = inputFile; }
+		void SetEnvironmentVariables(const std::vector<std::string>& variables) { m_environmentVariables = variables; }
+
 		bool Init() override;
 
 		[[nodiscard]] bool Execute(const std::string& path, const LaunchConfigurations& configs = {}) override;
 		[[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string& args,
 			const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
+		[[nodiscard]] bool ExecuteOnEngineThread(const std::string& path, const std::string& args,
+			const std::string& workingDir);
 		[[nodiscard]] virtual bool ExecuteWithArgsInternal(const std::string& path, const std::string& args,
-			const std::string& workingDir, const LaunchConfigurations& configs = {});
+			const std::string& workingDir);
 		[[nodiscard]] bool Attach(std::uint32_t pid) override;
 		[[nodiscard]] bool AttachInternal(std::uint32_t pid);
 		[[nodiscard]] bool Connect(const std::string& server, std::uint32_t port) override;
@@ -266,6 +284,8 @@ namespace BinaryNinjaDebugger {
 
 		static std::string GetDbgEngPath(const std::string& arch);
 
+		static bool LoadLibraries(const std::string& enginePath, bool strictCheckPath, bool forceUnload);
+
 		static bool LoadDngEngLibraries();
 
 		std::string GenerateRandomPipeName();
@@ -276,6 +296,7 @@ namespace BinaryNinjaDebugger {
 
 		void GenerateDefaultAdapterSettings(BinaryView* data);
 		Ref<Settings> GetAdapterSettings() override;
+		void ConfigureEngine();
 	};
 
 	class LocalDbgEngAdapterType : public DebugAdapterType

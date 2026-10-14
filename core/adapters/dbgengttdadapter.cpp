@@ -18,40 +18,48 @@ DbgEngTTDAdapter::DbgEngTTDAdapter(BinaryView* data) : DbgEngAdapter(data)
 }
 
 
-bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
-                                            const std::string& workingDir, const LaunchConfigurations& configs) {
-    m_aboutToBeKilled = false;
-
+bool DbgEngTTDAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
+	const std::string& workingDir, const LaunchConfigurations& configs)
+{
+	ConfigureEngine();
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
 	auto adapterSettings = GetAdapterSettings();
 	auto tracePath = adapterSettings->Get<std::string>("launch.trace_path", data, &scope);
 	scope = SettingsResourceScope;
 	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	SetInputFile(inputFile);
+	return ExecuteOnEngineThread(tracePath, "", "");
+}
+
+
+bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
+                                            const std::string& workingDir) {
+    m_aboutToBeKilled = false;
 
 	// A trace is not optional for replay, but a missing one only surfaces later as an opaque OpenDumpFile
 	// HRESULT, so check it up front. The UI blocks this in the adapter settings dialog; this covers the
 	// headless and scripted paths, plus the launches where that dialog is skipped.
 	std::error_code ec;
-	if (tracePath.empty() || !std::filesystem::is_regular_file(tracePath, ec))
+	if (path.empty() || !std::filesystem::is_regular_file(path, ec))
 	{
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		if (tracePath.empty())
+		if (path.empty())
 		{
 			event.data.errorData.error = "No TTD trace specified. Set the trace path in the debug adapter "
 				"settings, or record a new trace first.";
 			event.data.errorData.shortError = "No TTD trace specified";
 		}
-		else if (!std::filesystem::exists(tracePath, ec))
+		else if (!std::filesystem::exists(path, ec))
 		{
-			event.data.errorData.error = "The TTD trace \"" + tracePath + "\" does not exist. Set the trace path in "
+			event.data.errorData.error = "The TTD trace \"" + path + "\" does not exist. Set the trace path in "
 				"the debug adapter settings.";
 			event.data.errorData.shortError = "TTD trace not found";
 		}
 		else
 		{
-			event.data.errorData.error = "The TTD trace path \"" + tracePath + "\" is not a file. Set the trace path in "
+			event.data.errorData.error = "The TTD trace path \"" + path + "\" is not a file. Set the trace path in "
 				"the debug adapter settings to a recorded trace file.";
 			event.data.errorData.shortError = "TTD trace is not a file";
 		}
@@ -83,7 +91,7 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
         return false;
     }
 
-    if (const auto result = this->m_debugClient->OpenDumpFile(const_cast<char *>(tracePath.c_str()));
+    if (const auto result = this->m_debugClient->OpenDumpFile(const_cast<char *>(path.c_str()));
             result != S_OK) {
         this->Reset();
         DebuggerEvent event;
@@ -110,12 +118,11 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
 
     DbgEngAdapter::InvokeBackendCommand("!index");
 
-    auto settings = Settings::Instance();
-    if (settings->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction) {
-        AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
+    if (m_entryPointOffset) {
+        AddBreakpoint(ModuleNameAndOffset(m_inputFile, *m_entryPointOffset));
     }
 
-    if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint")) {
+    if (!m_stopAtSystemEntryPoint) {
         if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK) {
             this->Reset();
             DebuggerEvent event;
@@ -441,9 +448,13 @@ Ref<Settings> DbgEngTTDAdapterType::RegisterAdapterSettings()
 
 std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
 {
+	auto adapterSettings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxMemoryQueryResults", GetData(), &scope);
+
 	std::vector<TTDMemoryEvent> events;
 	
-	if (!QueryMemoryAccessByAddress(startAddress, endAddress, accessType, events))
+	if (!QueryMemoryAccessByAddress(startAddress, endAddress, accessType, maxResults, events))
 	{
 		LogError("Failed to query TTD memory access events for address range 0x%llx-0x%llx", startAddress, endAddress);
 	}
@@ -453,9 +464,13 @@ std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetTTDMemoryAccessForAddress(uint6
 
 std::vector<TTDPositionRangeIndexedMemoryEvent> DbgEngTTDAdapter::GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime)
 {
+	auto adapterSettings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxMemoryQueryResults", GetData(), &scope);
+
 	std::vector<TTDPositionRangeIndexedMemoryEvent> events;
 	
-	if (!QueryMemoryAccessByAddressAndPositionRange(startAddress, endAddress, accessType, startTime, endTime, events))
+	if (!QueryMemoryAccessByAddressAndPositionRange(startAddress, endAddress, accessType, startTime, endTime, maxResults, events))
 	{
 		LogError("Failed to query TTD memory access events for address range 0x%llx-0x%llx", startAddress, endAddress);
 	}
@@ -712,7 +727,7 @@ std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDPrevRegisterWrite(c
 }
 
 
-bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
+bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, uint64_t maxResults, std::vector<TTDMemoryEvent>& events)
 {
 	if (!m_debugControl)
 	{
@@ -742,7 +757,7 @@ bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_
 		LogInfo("Executing TTD memory query: %s", expression.c_str());
 		
 		// Execute the query and parse results
-		if (!ParseTTDMemoryObjects(expression, accessType, events))
+		if (!ParseTTDMemoryObjects(expression, accessType, maxResults, events))
 		{
 			LogError("Failed to parse TTD memory objects from query");
 			return false;
@@ -758,7 +773,7 @@ bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_
 	}
 }
 
-bool DbgEngTTDAdapter::QueryMemoryAccessByAddressAndPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime, std::vector<TTDPositionRangeIndexedMemoryEvent>& events)
+bool DbgEngTTDAdapter::QueryMemoryAccessByAddressAndPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime, uint64_t maxResults, std::vector<TTDPositionRangeIndexedMemoryEvent>& events)
 {
 	if (!m_debugControl)
 	{
@@ -790,7 +805,7 @@ bool DbgEngTTDAdapter::QueryMemoryAccessByAddressAndPositionRange(uint64_t start
 		LogInfo("Executing TTD memory query: %s", expression.c_str());
 		
 		// Execute the query and parse results
-		if (!ParseTTDPositionRangeIndexedMemoryObjects(expression, accessType, events))
+		if (!ParseTTDPositionRangeIndexedMemoryObjects(expression, accessType, maxResults, events))
 		{
 			LogError("Failed to parse TTD memory objects from query");
 			return false;
@@ -897,7 +912,7 @@ std::string DbgEngTTDAdapter::EvaluateDataModelExpression(const std::string& exp
 }
 
 // Implementation of TTD memory objects parsing
-bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events)
+bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, uint64_t maxResults, std::vector<TTDMemoryEvent>& events)
 {
 	if (!m_hostEvaluator)
 	{
@@ -954,11 +969,6 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 		// Iterate through memory objects
 		ComPtr<IModelObject> memoryObject;
 		ComPtr<IKeyStore> metadataKeyStore;
-		
-		// Get the max results setting
-		auto adapterSettings = GetAdapterSettings();
-		BNSettingsScope scope = SettingsResourceScope;
-		auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxMemoryQueryResults", GetData(), &scope);
 		
 		uint64_t resultCounter = 0;
 		bool wasLimited = false;
@@ -1209,7 +1219,7 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 }
 
 // `MemoryForPositionRange` does not truncate the value field to match the actual size of the memory access, but contains all the parts to piece it together.
-bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDPositionRangeIndexedMemoryEvent>& events)
+bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, uint64_t maxResults, std::vector<TTDPositionRangeIndexedMemoryEvent>& events)
 {
 	if (!m_hostEvaluator)
 	{
@@ -1266,11 +1276,6 @@ bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::stri
 		// Iterate through memory objects
 		ComPtr<IModelObject> memoryObject;
 		ComPtr<IKeyStore> metadataKeyStore;
-		
-		// Get the max results setting
-		auto adapterSettings = GetAdapterSettings();
-		BNSettingsScope scope = SettingsResourceScope;
-		auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxMemoryQueryResults", GetData(), &scope);
 		
 		uint64_t resultCounter = 0;
 		bool wasLimited = false;
@@ -1726,6 +1731,10 @@ std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::ParseSingleTTDRegisterWri
 
 std::vector<TTDCallEvent> DbgEngTTDAdapter::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
 {
+	auto adapterSettings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
+
 	std::vector<TTDCallEvent> events;
 
 	if (symbols.empty())
@@ -1755,7 +1764,7 @@ std::vector<TTDCallEvent> DbgEngTTDAdapter::GetTTDCallsForSymbols(const std::str
 		return events;
 	}
 	
-	if (!QueryCallsForSymbols(symbolList, startReturnAddress, endReturnAddress, events))
+	if (!QueryCallsForSymbols(symbolList, startReturnAddress, endReturnAddress, maxResults, events))
 	{
 		LogError("Failed to query TTD calls for symbols");
 		return events;
@@ -1766,7 +1775,7 @@ std::vector<TTDCallEvent> DbgEngTTDAdapter::GetTTDCallsForSymbols(const std::str
 }
 
 
-bool DbgEngTTDAdapter::QueryCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, std::vector<TTDCallEvent>& events)
+bool DbgEngTTDAdapter::QueryCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, uint64_t maxResults, std::vector<TTDCallEvent>& events)
 {
 	if (!m_debugHost || !m_hostEvaluator)
 	{
@@ -1813,7 +1822,7 @@ bool DbgEngTTDAdapter::QueryCallsForSymbols(const std::vector<std::string>& symb
 		
 		LogInfo("Executing TTD calls query: %s", expression.c_str());
 		
-		return ParseTTDCallObjects(expression, events);
+		return ParseTTDCallObjects(expression, maxResults, events);
 	}
 	catch (const std::exception& e)
 	{
@@ -1823,7 +1832,7 @@ bool DbgEngTTDAdapter::QueryCallsForSymbols(const std::vector<std::string>& symb
 }
 
 
-bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, std::vector<TTDCallEvent>& events)
+bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, uint64_t maxResults, std::vector<TTDCallEvent>& events)
 {
 	try
 	{
@@ -1885,11 +1894,6 @@ bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, std::v
 		// Iterate through call objects
 		ComPtr<IModelObject> callObject;
 		ComPtr<IKeyStore> callMetadataKeyStore;
-		
-		// Get the max results setting
-		auto adapterSettings = GetAdapterSettings();
-		BNSettingsScope scope = SettingsResourceScope;
-		auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
 		
 		uint64_t resultCounter = 0;
 		bool wasLimited = false;
@@ -2128,12 +2132,16 @@ bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, std::v
 
 std::vector<TTDEvent> DbgEngTTDAdapter::GetTTDEvents(TTDEventType eventType)
 {
+	auto adapterSettings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
+
 	std::vector<TTDEvent> events;
 	
 	// Cache all events if not already cached
 	if (!m_eventsCached)
 	{
-		if (!QueryAllTTDEvents())
+		if (!QueryAllTTDEvents(maxResults))
 		{
 			LogError("Failed to query all TTD events");
 			return events;
@@ -2156,10 +2164,14 @@ std::vector<TTDEvent> DbgEngTTDAdapter::GetTTDEvents(TTDEventType eventType)
 
 std::vector<TTDEvent> DbgEngTTDAdapter::GetAllTTDEvents()
 {
+	auto adapterSettings = GetAdapterSettings();
+	BNSettingsScope scope = SettingsResourceScope;
+	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
+
 	// Cache all events if not already cached
 	if (!m_eventsCached)
 	{
-		if (!QueryAllTTDEvents())
+		if (!QueryAllTTDEvents(maxResults))
 		{
 			LogError("Failed to query all TTD events");
 			return {};
@@ -2171,7 +2183,7 @@ std::vector<TTDEvent> DbgEngTTDAdapter::GetAllTTDEvents()
 }
 
 
-bool DbgEngTTDAdapter::QueryAllTTDEvents()
+bool DbgEngTTDAdapter::QueryAllTTDEvents(uint64_t maxResults)
 {
 	if (!m_debugHost || !m_hostEvaluator)
 	{
@@ -2187,7 +2199,7 @@ bool DbgEngTTDAdapter::QueryAllTTDEvents()
 		LogInfo("Executing TTD events query: %s", expression.c_str());
 		
 		m_cachedEvents.clear();
-		if (ParseTTDEventObjects(expression, m_cachedEvents))
+		if (ParseTTDEventObjects(expression, maxResults, m_cachedEvents))
 		{
 			m_eventsCached = true;
 			return true;
@@ -2202,7 +2214,7 @@ bool DbgEngTTDAdapter::QueryAllTTDEvents()
 }
 
 
-bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::vector<TTDEvent>& events)
+bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, uint64_t maxResults, std::vector<TTDEvent>& events)
 {
 	try
 	{
@@ -2261,10 +2273,6 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::
 			return false;
 		}
 		
-		// Get maximum results setting
-		auto adapterSettings = GetAdapterSettings();
-		BNSettingsScope scope = SettingsResourceScope;
-		auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
 		size_t resultCounter = 0;
 		bool wasLimited = false;
 		

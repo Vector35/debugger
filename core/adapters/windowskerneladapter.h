@@ -23,8 +23,10 @@ namespace BinaryNinjaDebugger {
     public:
 		WindowsKernelAdapter(BinaryView* data);
 
+		[[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string& args,
+			const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
         [[nodiscard]] bool ExecuteWithArgsInternal(const std::string& path, const std::string& args,
-           const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
+           const std::string& workingDir) override;
 
 		bool Start() override;
 		void Reset() override;

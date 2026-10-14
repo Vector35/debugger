@@ -169,6 +169,26 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 }
 
 
+bool DbgEngAdapter::LoadLibraries(const std::string& enginePath, bool strictCheckPath, bool forceUnload)
+{
+	LogDebug("DbgEng libraries in path %s", enginePath.c_str());
+
+	if (!LoadOneDLL(enginePath, "dbghelp.dll", strictCheckPath, forceUnload))
+		return false;
+
+	if (!LoadOneDLL(enginePath, "dbgcore.dll", strictCheckPath, forceUnload))
+		return false;
+
+	if (!LoadOneDLL(enginePath, "dbgmodel.dll", strictCheckPath, forceUnload))
+		return false;
+
+	if (!LoadOneDLL(enginePath, "dbgeng.dll", strictCheckPath, forceUnload))
+		return false;
+
+	return true;
+}
+
+
 bool DbgEngAdapter::LoadDngEngLibraries()
 {
 	SetDbgEngLogCallback([](DbgEngLogLevel level, const std::string& message) {
@@ -196,25 +216,12 @@ bool DbgEngAdapter::LoadDngEngLibraries()
 			"If you have set debugger.x64dbgEngPath, check if it valid");
 		return false;
 	}
-	LogDebug("DbgEng libraries in path %s", enginePath.c_str());
 
 	auto settings = Settings::Instance();
 	auto strictCheckPath = settings->Get<bool>("debugger.checkDbgEngDLLPath");
 	auto forceUnload = settings->Get<bool>("debugger.tryUnloadWrongDbgEngDLL");
 
-	if (!LoadOneDLL(enginePath, "dbghelp.dll", strictCheckPath, forceUnload))
-		return false;
-
-	if (!LoadOneDLL(enginePath, "dbgcore.dll", strictCheckPath, forceUnload))
-		return false;
-
-	if (!LoadOneDLL(enginePath, "dbgmodel.dll", strictCheckPath, forceUnload))
-		return false;
-
-	if (!LoadOneDLL(enginePath, "dbgeng.dll", strictCheckPath, forceUnload))
-		return false;
-
-	return true;
+	return LoadLibraries(enginePath, strictCheckPath, forceUnload);
 }
 
 std::string DbgEngAdapter::GenerateRandomPipeName()
@@ -234,12 +241,7 @@ std::string DbgEngAdapter::GenerateRandomPipeName()
 bool DbgEngAdapter::LaunchDbgSrv(const std::string& commandLine)
 {
 	// Check if we should run as administrator
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	bool runAsAdmin = adapterSettings->Get<bool>("common.runAsAdministrator", data, &scope);
-
-	if (runAsAdmin)
+	if (m_runAsAdministrator)
 	{
 		// Parse command line to extract executable path and arguments
 		// Command line format: "path\to\dbgsrv.exe" -t arguments
@@ -385,8 +387,7 @@ bool DbgEngAdapter::Start()
 	{
 		auto pipeName = GenerateRandomPipeName();
 		auto connectString = "npipe:pipe=" + pipeName + ",Server=localhost";
-		auto arch = m_defaultArchitecture == "x86" ? "x86" : "amd64";
-		auto enginePath = GetDbgEngPath(arch);
+		auto enginePath = m_dbgSrvEnginePath;
 		if (enginePath.empty())
 			return false;
 
@@ -492,15 +493,53 @@ bool DbgEngAdapter::Execute(const std::string& path, const LaunchConfigurations&
 }
 
 
+void DbgEngAdapter::ConfigureEngine()
+{
+	SetDbgSrvEnginePath(GetDbgEngPath(m_defaultArchitecture == "x86" ? "x86" : "amd64"));
+	auto settings = Settings::Instance();
+	SetStopAtSystemEntryPoint(settings->Get<bool>("debugger.stopAtSystemEntryPoint"));
+	SetEntryPointOffset(settings->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction
+		? std::optional<uint64_t>(m_entryPoint - m_start) : std::nullopt);
+	SetOutputStateOnStop(settings->Get<bool>("debugger.dbgEngOutputStateOnStop"));
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	SetRunAsAdministrator(adapterSettings->Contains("common.runAsAdministrator")
+		&& adapterSettings->Get<bool>("common.runAsAdministrator", data, &scope));
+}
+
+
 bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
 	const LaunchConfigurations& configs)
+{
+	ConfigureEngine();
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	auto executablePath = adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
+	scope = SettingsResourceScope;
+	auto workingDirectory = adapterSettings->Get<std::string>("launch.workingDirectory", data, &scope);
+	scope = SettingsResourceScope;
+	auto commandLineArgs = adapterSettings->Get<std::string>("launch.commandLineArguments", data, &scope);
+	scope = SettingsResourceScope;
+	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	scope = SettingsResourceScope;
+	auto envVariables = adapterSettings->Get<vector<string>>("launch.environmentVariables", data, &scope);
+	SetInputFile(inputFile);
+	SetEnvironmentVariables(envVariables);
+	return ExecuteOnEngineThread(executablePath, commandLineArgs, workingDirectory);
+}
+
+
+bool DbgEngAdapter::ExecuteOnEngineThread(const std::string& path, const std::string& args,
+	const std::string& workingDir)
 {
 	std::atomic_bool ret = false;
 	std::atomic_bool finished = false;
 	// Doing the operation on a different thread ensures the same thread starts the session and runs EngineLoop().
 	// This is required by DngEng. Although things sometimes work even if it is violated, it can fail randomly.
 	std::thread([=, &ret, &finished]() {
-		ret = ExecuteWithArgsInternal(path, args, workingDir, configs);
+		ret = ExecuteWithArgsInternal(path, args, workingDir);
 		finished = true;
 		if (ret)
 			EngineLoop();
@@ -513,7 +552,7 @@ bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string& 
 
 
 bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
-	const std::string& workingDir, const LaunchConfigurations& configs)
+	const std::string& workingDir)
 {
 	std::unique_lock lock(m_engineLoopMutex);
 
@@ -539,19 +578,6 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 		Reset();
 	}
 
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto executablePath = adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
-	scope = SettingsResourceScope;
-	auto workingDirectory = adapterSettings->Get<std::string>("launch.workingDirectory", data, &scope);
-	scope = SettingsResourceScope;
-	auto commandLineArgs = adapterSettings->Get<std::string>("launch.commandLineArguments", data, &scope);
-	scope = SettingsResourceScope;
-	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	scope = SettingsResourceScope;
-	auto envVariables = adapterSettings->Get<vector<string>>("launch.environmentVariables", data, &scope);
-
 	if (!Start())
 	{
 		this->Reset();
@@ -575,11 +601,11 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	}
 
 	/* TODO: parse args better */
-	std::string path_with_args {executablePath};
-	if (!commandLineArgs.empty())
+	std::string path_with_args {path};
+	if (!args.empty())
 	{
 		path_with_args.append(" ");
-		path_with_args.append(commandLineArgs);
+		path_with_args.append(args);
 	}
 
 	DEBUG_CREATE_PROCESS_OPTIONS options;
@@ -590,15 +616,15 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 
 	// CreateProcess2() is picky about the InitialDirectory parameter. It is OK to send in a NULL, but if a non-NULL
 	// string which is empty gets passed in, the call fails.
-	char* directory = _strdup(workingDirectory.c_str());
-	if (workingDirectory.empty())
+	char* directory = _strdup(workingDir.c_str());
+	if (workingDir.empty())
 		directory = nullptr;
 
 	char* env = nullptr;
 	std::string envWithNull{};
-	if (!envVariables.empty())
+	if (!m_environmentVariables.empty())
 	{
-		for (const auto& var : envVariables)
+		for (const auto& var : m_environmentVariables)
 		{
 			envWithNull += var;
 			envWithNull += '\0';
@@ -636,13 +662,12 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	// Apply the breakpoints added before the m_debugClient is created
 	ApplyBreakpoints();
 
-	auto settings = Settings::Instance();
-	if (settings->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
+	if (m_entryPointOffset)
 	{
-		AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
+		AddBreakpoint(ModuleNameAndOffset(m_inputFile, *m_entryPointOffset));
 	}
 
-	if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint"))
+	if (!m_stopAtSystemEntryPoint)
 	{
 		if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK)
 		{
@@ -673,8 +698,7 @@ void DbgEngAdapter::EngineLoop()
 	// This lock prevents Reset() from proceeding until the EngineLoop() actually exits
 	std::unique_lock lock(m_engineLoopMutex);
 
-	auto settings = Settings::Instance();
-	bool outputStateOnStop = settings->Get<bool>("debugger.dbgEngOutputStateOnStop");
+	bool outputStateOnStop = m_outputStateOnStop;
 
 	m_lastExecutionStatus = DEBUG_STATUS_NO_DEBUGGEE;
 	// The controller reuses one adapter object across launches, so a terminate request that the previous
@@ -823,11 +847,6 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 		Reset();
 	}
 
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
-
 	if (!this->Start())
 	{
 		this->Reset();
@@ -850,7 +869,7 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 		return false;
 	}
 
-	if (const auto result = this->m_debugClient->AttachProcess(m_server, (ULONG)attachPID, 0); result != S_OK)
+	if (const auto result = this->m_debugClient->AttachProcess(m_server, (ULONG)pid, 0); result != S_OK)
 	{
 		this->Reset();
 		DebuggerEvent event;
@@ -882,12 +901,18 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 
 bool DbgEngAdapter::Attach(std::uint32_t pid)
 {
+	ConfigureEngine();
+	BNSettingsScope scope = SettingsResourceScope;
+	auto data = GetData();
+	auto adapterSettings = GetAdapterSettings();
+	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
+
 	std::atomic_bool ret = false;
 	std::atomic_bool finished = false;
 	// Doing the operation on a different thread ensures the same thread starts the session and runs EngineLoop().
 	// This is required by DngEng. Although things sometimes work even if it is violated, it can fail randomly.
 	std::thread([=, &ret, &finished]() {
-		ret = AttachInternal(pid);
+		ret = AttachInternal((std::uint32_t)attachPID);
 		finished = true;
 		if (ret)
 			EngineLoop();

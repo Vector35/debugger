@@ -14,14 +14,17 @@ LocalWindowsKernelAdapter::LocalWindowsKernelAdapter(BinaryView* data) : DbgEngA
 }
 
 
-bool LocalWindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
-                                            const std::string& workingDir, const LaunchConfigurations& configs) {
-    m_aboutToBeKilled = false;
+bool LocalWindowsKernelAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
+	const std::string& workingDir, const LaunchConfigurations& configs)
+{
+	ConfigureEngine();
+	return ExecuteOnEngineThread("", "", "");
+}
 
-	// local Windows kernel debugging has no options, this is just some boilerplate code I copied
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
+
+bool LocalWindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
+                                            const std::string& workingDir) {
+    m_aboutToBeKilled = false;
 
     if (this->m_dbgengInitialized) {
         this->Reset();

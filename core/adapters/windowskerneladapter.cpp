@@ -14,16 +14,24 @@ WindowsKernelAdapter::WindowsKernelAdapter(BinaryView* data) : DbgEngAdapter(dat
 }
 
 
-bool WindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
-                                            const std::string& workingDir, const LaunchConfigurations& configs) {
-    m_aboutToBeKilled = false;
-
+bool WindowsKernelAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
+	const std::string& workingDir, const LaunchConfigurations& configs)
+{
+	ConfigureEngine();
 	BNSettingsScope scope = SettingsResourceScope;
 	auto data = GetData();
 	auto adapterSettings = GetAdapterSettings();
 	auto connectionString = adapterSettings->Get<std::string>("launch.connection_string", data, &scope);
 	scope = SettingsResourceScope;
 	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	SetInputFile(inputFile);
+	return ExecuteOnEngineThread(connectionString, "", "");
+}
+
+
+bool WindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
+                                            const std::string& workingDir) {
+    m_aboutToBeKilled = false;
 
     if (this->m_dbgengInitialized) {
         this->Reset();
@@ -50,7 +58,7 @@ bool WindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, cons
     }
 
     if (const auto result = this->m_debugClient->AttachKernel(DEBUG_ATTACH_KERNEL_CONNECTION,
-			const_cast<char *>(connectionString.c_str()));
+			const_cast<char *>(path.c_str()));
             result != S_OK) {
         this->Reset();
         DebuggerEvent event;
@@ -75,12 +83,11 @@ bool WindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, cons
     // Apply the breakpoints added before the m_debugClient is created
     ApplyBreakpoints();
 
-    auto settings = Settings::Instance();
-    if (settings->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction) {
-        AddBreakpoint(ModuleNameAndOffset(inputFile, m_entryPoint - m_start));
+    if (m_entryPointOffset) {
+        AddBreakpoint(ModuleNameAndOffset(m_inputFile, *m_entryPointOffset));
     }
 
-    if (!settings->Get<bool>("debugger.stopAtSystemEntryPoint")) {
+    if (!m_stopAtSystemEntryPoint) {
         if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK) {
             this->Reset();
             DebuggerEvent event;

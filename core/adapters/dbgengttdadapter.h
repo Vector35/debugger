@@ -29,8 +29,10 @@ namespace BinaryNinjaDebugger {
     public:
         DbgEngTTDAdapter(BinaryView* data);
 
+		[[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string& args,
+			const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
         [[nodiscard]] bool ExecuteWithArgsInternal(const std::string& path, const std::string& args,
-           const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
+           const std::string& workingDir) override;
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) override;
 		bool WriteRegister(const std::string& reg, intx::uint512 value) override;
 
@@ -75,16 +77,16 @@ namespace BinaryNinjaDebugger {
 
 	private:
 		// Helper methods for TTD memory analysis
-		bool QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
-		bool QueryMemoryAccessByAddressAndPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime, std::vector<TTDPositionRangeIndexedMemoryEvent>& events);
+		bool QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, uint64_t maxResults, std::vector<TTDMemoryEvent>& events);
+		bool QueryMemoryAccessByAddressAndPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime, uint64_t maxResults, std::vector<TTDPositionRangeIndexedMemoryEvent>& events);
 		
 		// Helper methods for TTD calls analysis
-		bool QueryCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, std::vector<TTDCallEvent>& events);
-		bool ParseTTDCallObjects(const std::string& expression, std::vector<TTDCallEvent>& events);
+		bool QueryCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, uint64_t maxResults, std::vector<TTDCallEvent>& events);
+		bool ParseTTDCallObjects(const std::string& expression, uint64_t maxResults, std::vector<TTDCallEvent>& events);
 
 		// Helper methods for TTD events analysis
-		bool QueryAllTTDEvents();
-		bool ParseTTDEventObjects(const std::string& expression, std::vector<TTDEvent>& events);
+		bool QueryAllTTDEvents(uint64_t maxResults);
+		bool ParseTTDEventObjects(const std::string& expression, uint64_t maxResults, std::vector<TTDEvent>& events);
 		void ParseThreadDetails(IModelObject* eventObject, TTDEvent& event);
 		void ParseModuleDetails(IModelObject* eventObject, TTDEvent& event);
 		void ParseExceptionDetails(IModelObject* eventObject, TTDEvent& event);
@@ -99,8 +101,8 @@ namespace BinaryNinjaDebugger {
 
 		// Data model helper methods
 		std::string EvaluateDataModelExpression(const std::string& expression);
-		bool ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
-		bool ParseTTDPositionRangeIndexedMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDPositionRangeIndexedMemoryEvent>& events);
+		bool ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, uint64_t maxResults, std::vector<TTDMemoryEvent>& events);
+		bool ParseTTDPositionRangeIndexedMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, uint64_t maxResults, std::vector<TTDPositionRangeIndexedMemoryEvent>& events);
 		std::pair<bool, TTDMemoryEvent> ParseSingleTTDMemoryObject(const std::string& expression, TTDMemoryAccessType accessType);
 		std::optional<TTDRegisterWriteEvent> ParseSingleTTDRegisterWriteObject(const std::string& expression, const std::string& reg);
 
