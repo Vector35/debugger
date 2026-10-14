@@ -1,4 +1,4 @@
-#include "dbgengttdadapter.h"
+#include "dbgengttdengine.h"
 #include "dbgenglog.h"
 #include <filesystem>
 #include <algorithm>
@@ -10,30 +10,14 @@ using namespace BinaryNinjaDebugger;
 using namespace std;
 
 
-DbgEngTTDAdapter::DbgEngTTDAdapter(BinaryView* data) : DbgEngAdapter(data)
+DbgEngTTDEngine::DbgEngTTDEngine()
 {
     m_usePDBFileName = false;
 	m_eventsCached = false;
-	GenerateDefaultAdapterSettings(data);
 }
 
 
-bool DbgEngTTDAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
-	const std::string& workingDir, const LaunchConfigurations& configs)
-{
-	ConfigureEngine();
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto tracePath = adapterSettings->Get<std::string>("launch.trace_path", data, &scope);
-	scope = SettingsResourceScope;
-	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	SetInputFile(inputFile);
-	return ExecuteOnEngineThread(tracePath, "", "");
-}
-
-
-bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
+bool DbgEngTTDEngine::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
                                             const std::string& workingDir) {
     m_aboutToBeKilled = false;
 
@@ -116,10 +100,10 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
     // Apply the breakpoints added before the m_debugClient is created
     ApplyBreakpoints();
 
-    DbgEngAdapter::InvokeBackendCommand("!index");
+    DbgEngEngine::InvokeBackendCommand("!index");
 
     if (m_entryPointOffset) {
-        AddBreakpoint(ModuleNameAndOffset(m_inputFile, *m_entryPointOffset));
+        AddBreakpoint(ModuleNameAndOffset(GetInputFile(), *m_entryPointOffset));
     }
 
     if (!m_stopAtSystemEntryPoint) {
@@ -138,19 +122,19 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
 }
 
 
-bool DbgEngTTDAdapter::WriteMemory(std::uintptr_t address, const BinaryNinja::DataBuffer& buffer)
+bool DbgEngTTDEngine::WriteMemory(std::uintptr_t address, const std::vector<uint8_t>& buffer)
 {
 	return false;
 }
 
 
-bool DbgEngTTDAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
+bool DbgEngTTDEngine::WriteRegister(const std::string& reg, intx::uint512 value)
 {
 	return false;
 }
 
 
-bool DbgEngTTDAdapter::Start()
+bool DbgEngTTDEngine::Start()
 {
 	if (this->m_dbgengInitialized)
 		this->Reset();
@@ -186,14 +170,14 @@ bool DbgEngTTDAdapter::Start()
 		LogWarn("Failed to get IDebugHostEvaluator interface");
 	}
 
-	m_debugEventCallbacks.SetAdapter(this);
+	m_debugEventCallbacks.SetEngine(this);
 	if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks); result != S_OK)
 	{
 		LogWarn("Failed to set event callbacks");
 		return false;
 	}
 
-	m_outputCallbacks.SetAdapter(this);
+	m_outputCallbacks.SetEngine(this);
 	if (const auto result = this->m_debugClient->SetOutputCallbacks(&this->m_outputCallbacks); result != S_OK)
 	{
 		LogWarn("Failed to set output callbacks");
@@ -212,7 +196,7 @@ bool DbgEngTTDAdapter::Start()
 }
 
 
-void DbgEngTTDAdapter::Reset()
+void DbgEngTTDEngine::Reset()
 {
 	// The base class takes this lock so that Reset() cannot tear the interfaces down while EngineLoop()
 	// is still using them. This override has to do the same, otherwise a Reset() coming from a relaunch
@@ -252,7 +236,7 @@ void DbgEngTTDAdapter::Reset()
 }
 
 
-bool DbgEngTTDAdapter::GoReverse()
+bool DbgEngTTDEngine::GoReverse()
 {
 	if (ExecStatus() != DEBUG_STATUS_BREAK)
 		return false;
@@ -266,7 +250,7 @@ bool DbgEngTTDAdapter::GoReverse()
 }
 
 
-bool DbgEngTTDAdapter::StepIntoReverse()
+bool DbgEngTTDEngine::StepIntoReverse()
 {
 	if (ExecStatus() != DEBUG_STATUS_BREAK)
 		return false;
@@ -280,7 +264,7 @@ bool DbgEngTTDAdapter::StepIntoReverse()
 }
 
 
-bool DbgEngTTDAdapter::StepOverReverse()
+bool DbgEngTTDEngine::StepOverReverse()
 {
 	if (ExecStatus() != DEBUG_STATUS_BREAK)
 		return false;
@@ -293,7 +277,7 @@ bool DbgEngTTDAdapter::StepOverReverse()
 	return true;
 }
 
-bool DbgEngTTDAdapter::StepReturnReverse()
+bool DbgEngTTDEngine::StepReturnReverse()
 {
 	if (ExecStatus() != DEBUG_STATUS_BREAK)
 		return false;
@@ -303,14 +287,14 @@ bool DbgEngTTDAdapter::StepReturnReverse()
 }
 
 
-bool DbgEngTTDAdapter::SupportFeature(DebugAdapterCapacity feature)
+bool DbgEngTTDEngine::SupportFeature(DebugAdapterCapacity feature)
 {
-	return DbgEngAdapter::SupportFeature(feature) || feature == DebugAdapterSupportTTD ||
+	return DbgEngEngine::SupportFeature(feature) || feature == DebugAdapterSupportTTD ||
 		feature == DebugAdapterSupportStepOverReverse;
 }
 
 
-bool DbgEngTTDAdapter::TerminateTargetOnEngineThread()
+bool DbgEngTTDEngine::TerminateTargetOnEngineThread()
 {
 	if (!this->m_debugClient)
 		return false;
@@ -321,7 +305,7 @@ bool DbgEngTTDAdapter::TerminateTargetOnEngineThread()
 }
 
 
-bool DbgEngTTDAdapter::Quit()
+bool DbgEngTTDEngine::Quit()
 {
 	m_aboutToBeKilled = true;
 	m_lastOperationIsStepInto = false;
@@ -345,113 +329,8 @@ bool DbgEngTTDAdapter::Quit()
 }
 
 
-DbgEngTTDAdapterType::DbgEngTTDAdapterType() : DebugAdapterType("DBGENG_TTD") {}
-
-
-DebugAdapter* DbgEngTTDAdapterType::Create(BinaryNinja::BinaryView* data)
+std::vector<TTDMemoryEvent> DbgEngTTDEngine::GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, uint64_t maxResults)
 {
-    // TODO: someone should free this.
-    return new DbgEngTTDAdapter(data);
-}
-
-
-bool DbgEngTTDAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
-{
-	return data->GetTypeName() == "PE" || data->GetTypeName() == "Raw" || data->GetTypeName() == "Mapped";
-}
-
-
-bool DbgEngTTDAdapterType::CanConnect(BinaryNinja::BinaryView* data)
-{
-    return true;
-}
-
-
-bool DbgEngTTDAdapterType::CanExecute(BinaryNinja::BinaryView* data)
-{
-#ifdef WIN32
-    return true;
-#endif
-    return false;
-}
-
-
-Ref<Settings> DbgEngTTDAdapter::GetAdapterSettings()
-{
-	return DbgEngTTDAdapterType::GetAdapterSettings();
-}
-
-
-Ref<Settings> DbgEngTTDAdapterType::GetAdapterSettings()
-{
-	static Ref<Settings> settings = RegisterAdapterSettings();
-	return settings;
-}
-
-
-Ref<Settings> DbgEngTTDAdapterType::RegisterAdapterSettings()
-{
-	Ref<Settings> settings = Settings::Instance("DbgEngTTDAdapterSettings");
-	settings->SetResourceId("dbgeng_ttd_adapter_settings");
-	settings->RegisterSetting("common.inputFile",
-		R"({
-			"title" : "Input File",
-			"type" : "string",
-			"default" : "",
-			"description" : "Input file to use to find the base address of the binary view",
-			"readOnly" : false,
-			"uiSelectionAction" : "file"
-			})");
-	settings->RegisterSetting("launch.trace_path",
-		R"({
-			"title" : "Trace Path",
-			"type" : "string",
-			"default" : "",
-			"description" : "Path of the trace file to replay.",
-			"readOnly" : false,
-			"uiSelectionAction" : "file"
-			})");
-	settings->RegisterSetting("ttd.maxMemoryQueryResults",
-		R"({
-			"title" : "Max Memory Query Results",
-			"type" : "number",
-			"default" : 100000,
-			"minValue" : 0,
-			"maxValue" : 18446744073709551615,
-			"description" : "Maximum number of results to return from TTD Memory queries. Set to 0 for no limit.",
-			"readOnly" : false
-			})");
-	settings->RegisterSetting("ttd.maxCallsQueryResults",
-		R"({
-			"title" : "Max Calls Query Results",
-			"type" : "number",
-			"default" : 100000,
-			"minValue" : 0,
-			"maxValue" : 18446744073709551615,
-			"description" : "Maximum number of results to return from TTD Calls queries. Set to 0 for no limit.",
-			"readOnly" : false
-			})");
-	settings->RegisterSetting("ttd.maxEventsQueryResults",
-	R"({
-			"title" : "Max Events Query Results",
-			"type" : "number",
-			"default" : 100000,
-			"minValue" : 0,
-			"maxValue" : 18446744073709551615,
-			"description" : "Maximum number of results to return from TTD Events queries. Set to 0 for no limit.",
-			"readOnly" : false
-			})");
-
-	return settings;
-}
-
-
-std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType)
-{
-	auto adapterSettings = GetAdapterSettings();
-	BNSettingsScope scope = SettingsResourceScope;
-	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxMemoryQueryResults", GetData(), &scope);
-
 	std::vector<TTDMemoryEvent> events;
 	
 	if (!QueryMemoryAccessByAddress(startAddress, endAddress, accessType, maxResults, events))
@@ -462,12 +341,8 @@ std::vector<TTDMemoryEvent> DbgEngTTDAdapter::GetTTDMemoryAccessForAddress(uint6
 	return events;
 }
 
-std::vector<TTDPositionRangeIndexedMemoryEvent> DbgEngTTDAdapter::GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime)
+std::vector<TTDPositionRangeIndexedMemoryEvent> DbgEngTTDEngine::GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, const TTDPosition startTime, const TTDPosition endTime, uint64_t maxResults)
 {
-	auto adapterSettings = GetAdapterSettings();
-	BNSettingsScope scope = SettingsResourceScope;
-	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxMemoryQueryResults", GetData(), &scope);
-
 	std::vector<TTDPositionRangeIndexedMemoryEvent> events;
 	
 	if (!QueryMemoryAccessByAddressAndPositionRange(startAddress, endAddress, accessType, startTime, endTime, maxResults, events))
@@ -478,7 +353,7 @@ std::vector<TTDPositionRangeIndexedMemoryEvent> DbgEngTTDAdapter::GetTTDMemoryAc
 	return events;
 }
 
-TTDPosition DbgEngTTDAdapter::GetCurrentTTDPosition()
+TTDPosition DbgEngTTDEngine::GetCurrentTTDPosition()
 {
 	TTDPosition position;
 	
@@ -569,7 +444,7 @@ TTDPosition DbgEngTTDAdapter::GetCurrentTTDPosition()
 	return position;
 }
 
-bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
+bool DbgEngTTDEngine::SetTTDPosition(const TTDPosition& position)
 {
 	if (!m_debugControl)
 	{
@@ -597,7 +472,7 @@ bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
 }
 
 
-std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+std::pair<bool, TTDMemoryEvent> DbgEngTTDEngine::GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
 {
 	if (!m_debugControl)
 	{
@@ -633,7 +508,7 @@ std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDNextMemoryAccess(uint64_
 }
 
 
-std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+std::pair<bool, TTDMemoryEvent> DbgEngTTDEngine::GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
 {
 	if (!m_debugControl)
 	{
@@ -669,7 +544,7 @@ std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDPrevMemoryAccess(uint64_
 }
 
 
-std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDNextRegisterWrite(const std::string& reg)
+std::optional<TTDRegisterWriteEvent> DbgEngTTDEngine::GetTTDNextRegisterWrite(const std::string& reg)
 {
 	if (!m_debugControl)
 	{
@@ -698,7 +573,7 @@ std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDNextRegisterWrite(c
 }
 
 
-std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDPrevRegisterWrite(const std::string& reg)
+std::optional<TTDRegisterWriteEvent> DbgEngTTDEngine::GetTTDPrevRegisterWrite(const std::string& reg)
 {
 	if (!m_debugControl)
 	{
@@ -727,7 +602,7 @@ std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDPrevRegisterWrite(c
 }
 
 
-bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, uint64_t maxResults, std::vector<TTDMemoryEvent>& events)
+bool DbgEngTTDEngine::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, uint64_t maxResults, std::vector<TTDMemoryEvent>& events)
 {
 	if (!m_debugControl)
 	{
@@ -773,7 +648,7 @@ bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_
 	}
 }
 
-bool DbgEngTTDAdapter::QueryMemoryAccessByAddressAndPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime, uint64_t maxResults, std::vector<TTDPositionRangeIndexedMemoryEvent>& events)
+bool DbgEngTTDEngine::QueryMemoryAccessByAddressAndPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime, uint64_t maxResults, std::vector<TTDPositionRangeIndexedMemoryEvent>& events)
 {
 	if (!m_debugControl)
 	{
@@ -822,18 +697,8 @@ bool DbgEngTTDAdapter::QueryMemoryAccessByAddressAndPositionRange(uint64_t start
 }
 
 
-void DbgEngTTDAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
-{
-	auto adapterSettings = GetAdapterSettings();
-	BNSettingsScope scope = SettingsResourceScope;
-	adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	if (scope != SettingsResourceScope)
-		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
-}
-
-
 // Data model helper method implementation
-std::string DbgEngTTDAdapter::EvaluateDataModelExpression(const std::string& expression)
+std::string DbgEngTTDEngine::EvaluateDataModelExpression(const std::string& expression)
 {
 	if (!m_hostEvaluator)
 	{
@@ -912,7 +777,7 @@ std::string DbgEngTTDAdapter::EvaluateDataModelExpression(const std::string& exp
 }
 
 // Implementation of TTD memory objects parsing
-bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, uint64_t maxResults, std::vector<TTDMemoryEvent>& events)
+bool DbgEngTTDEngine::ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, uint64_t maxResults, std::vector<TTDMemoryEvent>& events)
 {
 	if (!m_hostEvaluator)
 	{
@@ -1219,7 +1084,7 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 }
 
 // `MemoryForPositionRange` does not truncate the value field to match the actual size of the memory access, but contains all the parts to piece it together.
-bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, uint64_t maxResults, std::vector<TTDPositionRangeIndexedMemoryEvent>& events)
+bool DbgEngTTDEngine::ParseTTDPositionRangeIndexedMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, uint64_t maxResults, std::vector<TTDPositionRangeIndexedMemoryEvent>& events)
 {
 	if (!m_hostEvaluator)
 	{
@@ -1464,7 +1329,7 @@ bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::stri
 }
 
 
-std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::ParseSingleTTDMemoryObject(const std::string& expression, TTDMemoryAccessType accessType)
+std::pair<bool, TTDMemoryEvent> DbgEngTTDEngine::ParseSingleTTDMemoryObject(const std::string& expression, TTDMemoryAccessType accessType)
 {
 	TTDMemoryEvent event;
 
@@ -1604,7 +1469,7 @@ std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::ParseSingleTTDMemoryObject(con
 }
 
 
-std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::ParseSingleTTDRegisterWriteObject(const std::string& expression, const std::string& reg)
+std::optional<TTDRegisterWriteEvent> DbgEngTTDEngine::ParseSingleTTDRegisterWriteObject(const std::string& expression, const std::string& reg)
 {
 	TTDRegisterWriteEvent event;
 	event.reg = reg;
@@ -1729,12 +1594,8 @@ std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::ParseSingleTTDRegisterWri
 }
 
 
-std::vector<TTDCallEvent> DbgEngTTDAdapter::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress)
+std::vector<TTDCallEvent> DbgEngTTDEngine::GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, uint64_t maxResults)
 {
-	auto adapterSettings = GetAdapterSettings();
-	BNSettingsScope scope = SettingsResourceScope;
-	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
-
 	std::vector<TTDCallEvent> events;
 
 	if (symbols.empty())
@@ -1775,7 +1636,7 @@ std::vector<TTDCallEvent> DbgEngTTDAdapter::GetTTDCallsForSymbols(const std::str
 }
 
 
-bool DbgEngTTDAdapter::QueryCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, uint64_t maxResults, std::vector<TTDCallEvent>& events)
+bool DbgEngTTDEngine::QueryCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, uint64_t maxResults, std::vector<TTDCallEvent>& events)
 {
 	if (!m_debugHost || !m_hostEvaluator)
 	{
@@ -1832,7 +1693,7 @@ bool DbgEngTTDAdapter::QueryCallsForSymbols(const std::vector<std::string>& symb
 }
 
 
-bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, uint64_t maxResults, std::vector<TTDCallEvent>& events)
+bool DbgEngTTDEngine::ParseTTDCallObjects(const std::string& expression, uint64_t maxResults, std::vector<TTDCallEvent>& events)
 {
 	try
 	{
@@ -2130,12 +1991,8 @@ bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, uint64
 }
 
 
-std::vector<TTDEvent> DbgEngTTDAdapter::GetTTDEvents(TTDEventType eventType)
+std::vector<TTDEvent> DbgEngTTDEngine::GetTTDEvents(TTDEventType eventType, uint64_t maxResults)
 {
-	auto adapterSettings = GetAdapterSettings();
-	BNSettingsScope scope = SettingsResourceScope;
-	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
-
 	std::vector<TTDEvent> events;
 	
 	// Cache all events if not already cached
@@ -2162,12 +2019,8 @@ std::vector<TTDEvent> DbgEngTTDAdapter::GetTTDEvents(TTDEventType eventType)
 }
 
 
-std::vector<TTDEvent> DbgEngTTDAdapter::GetAllTTDEvents()
+std::vector<TTDEvent> DbgEngTTDEngine::GetAllTTDEvents(uint64_t maxResults)
 {
-	auto adapterSettings = GetAdapterSettings();
-	BNSettingsScope scope = SettingsResourceScope;
-	auto maxResults = adapterSettings->Get<uint64_t>("ttd.maxCallsQueryResults", GetData(), &scope);
-
 	// Cache all events if not already cached
 	if (!m_eventsCached)
 	{
@@ -2183,7 +2036,7 @@ std::vector<TTDEvent> DbgEngTTDAdapter::GetAllTTDEvents()
 }
 
 
-bool DbgEngTTDAdapter::QueryAllTTDEvents(uint64_t maxResults)
+bool DbgEngTTDEngine::QueryAllTTDEvents(uint64_t maxResults)
 {
 	if (!m_debugHost || !m_hostEvaluator)
 	{
@@ -2214,7 +2067,7 @@ bool DbgEngTTDAdapter::QueryAllTTDEvents(uint64_t maxResults)
 }
 
 
-bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, uint64_t maxResults, std::vector<TTDEvent>& events)
+bool DbgEngTTDEngine::ParseTTDEventObjects(const std::string& expression, uint64_t maxResults, std::vector<TTDEvent>& events)
 {
 	try
 	{
@@ -2390,7 +2243,7 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, uint6
 }
 
 
-void DbgEngTTDAdapter::ParseThreadDetails(IModelObject* eventObject, TTDEvent& event)
+void DbgEngTTDEngine::ParseThreadDetails(IModelObject* eventObject, TTDEvent& event)
 {
 	ComPtr<IModelObject> threadObj;
 	if (SUCCEEDED(eventObject->GetKeyValue(L"Thread", &threadObj, nullptr)))
@@ -2466,7 +2319,7 @@ void DbgEngTTDAdapter::ParseThreadDetails(IModelObject* eventObject, TTDEvent& e
 }
 
 
-void DbgEngTTDAdapter::ParseModuleDetails(IModelObject* eventObject, TTDEvent& event)
+void DbgEngTTDEngine::ParseModuleDetails(IModelObject* eventObject, TTDEvent& event)
 {
 	ComPtr<IModelObject> moduleObj;
 	if (SUCCEEDED(eventObject->GetKeyValue(L"Module", &moduleObj, nullptr)))
@@ -2544,7 +2397,7 @@ void DbgEngTTDAdapter::ParseModuleDetails(IModelObject* eventObject, TTDEvent& e
 }
 
 
-void DbgEngTTDAdapter::ParseExceptionDetails(IModelObject* eventObject, TTDEvent& event)
+void DbgEngTTDEngine::ParseExceptionDetails(IModelObject* eventObject, TTDEvent& event)
 {
 	ComPtr<IModelObject> exceptionObj;
 	if (SUCCEEDED(eventObject->GetKeyValue(L"Exception", &exceptionObj, nullptr)))
@@ -2630,7 +2483,7 @@ void DbgEngTTDAdapter::ParseExceptionDetails(IModelObject* eventObject, TTDEvent
 }
 
 
-void DbgEngTTDAdapter::ParseTTDPosition(IModelObject* positionObj, TTDPosition& position)
+void DbgEngTTDEngine::ParseTTDPosition(IModelObject* positionObj, TTDPosition& position)
 {
 	if (!positionObj)
 		return;
@@ -2663,15 +2516,8 @@ void DbgEngTTDAdapter::ParseTTDPosition(IModelObject* positionObj, TTDPosition& 
 }
 
 
-void DbgEngTTDAdapter::ClearTTDEventsCache()
+void DbgEngTTDEngine::ClearTTDEventsCache()
 {
 	m_cachedEvents.clear();
 	m_eventsCached = false;
-}
-
-
-void BinaryNinjaDebugger::InitDbgEngTTDAdapterType()
-{
-    static DbgEngTTDAdapterType localType;
-    DebugAdapterType::Register(&localType);
 }

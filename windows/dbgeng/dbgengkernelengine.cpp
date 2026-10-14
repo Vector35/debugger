@@ -1,4 +1,4 @@
-#include "windowskerneladapter.h"
+#include "dbgengkernelengine.h"
 #include "dbgenglog.h"
 #include <filesystem>
 #include <cstdio>
@@ -7,29 +7,13 @@ using namespace BinaryNinjaDebugger;
 using namespace std;
 
 
-WindowsKernelAdapter::WindowsKernelAdapter(BinaryView* data) : DbgEngAdapter(data)
+DbgEngKernelEngine::DbgEngKernelEngine()
 {
     m_usePDBFileName = false;
-	GenerateDefaultAdapterSettings(data);
 }
 
 
-bool WindowsKernelAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
-	const std::string& workingDir, const LaunchConfigurations& configs)
-{
-	ConfigureEngine();
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto connectionString = adapterSettings->Get<std::string>("launch.connection_string", data, &scope);
-	scope = SettingsResourceScope;
-	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	SetInputFile(inputFile);
-	return ExecuteOnEngineThread(connectionString, "", "");
-}
-
-
-bool WindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
+bool DbgEngKernelEngine::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
                                             const std::string& workingDir) {
     m_aboutToBeKilled = false;
 
@@ -84,7 +68,7 @@ bool WindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, cons
     ApplyBreakpoints();
 
     if (m_entryPointOffset) {
-        AddBreakpoint(ModuleNameAndOffset(m_inputFile, *m_entryPointOffset));
+        AddBreakpoint(ModuleNameAndOffset(GetInputFile(), *m_entryPointOffset));
     }
 
     if (!m_stopAtSystemEntryPoint) {
@@ -103,7 +87,7 @@ bool WindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, cons
 }
 
 
-bool WindowsKernelAdapter::Start()
+bool DbgEngKernelEngine::Start()
 {
 	if (this->m_dbgengInitialized)
 		this->Reset();
@@ -131,14 +115,14 @@ bool WindowsKernelAdapter::Start()
 	QUERY_DEBUG_INTERFACE(IDebugSymbols3, &this->m_debugSymbols);
 	QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
 
-	m_debugEventCallbacks.SetAdapter(this);
+	m_debugEventCallbacks.SetEngine(this);
 	if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks); result != S_OK)
 	{
 		LogWarn("Failed to set event callbacks");
 		return false;
 	}
 
-	m_outputCallbacks.SetAdapter(this);
+	m_outputCallbacks.SetEngine(this);
 	if (const auto result = this->m_debugClient->SetOutputCallbacks(&this->m_outputCallbacks); result != S_OK)
 	{
 		LogWarn("Failed to set output callbacks");
@@ -157,7 +141,7 @@ bool WindowsKernelAdapter::Start()
 }
 
 
-void WindowsKernelAdapter::Reset()
+void DbgEngKernelEngine::Reset()
 {
 	// Same reason as the base class: keep Reset() from tearing the interfaces down underneath
 	// EngineLoop(). The mutex is recursive, so the EngineLoop() -> Reset() path does not deadlock.
@@ -188,7 +172,7 @@ void WindowsKernelAdapter::Reset()
 }
 
 
-bool WindowsKernelAdapter::Detach()
+bool DbgEngKernelEngine::Detach()
 {
 	m_aboutToBeKilled = true;
 	m_lastOperationIsStepInto = false;
@@ -203,7 +187,7 @@ bool WindowsKernelAdapter::Detach()
 }
 
 
-bool WindowsKernelAdapter::Quit()
+bool DbgEngKernelEngine::Quit()
 {
 	m_aboutToBeKilled = true;
 	m_lastOperationIsStepInto = false;
@@ -215,91 +199,4 @@ bool WindowsKernelAdapter::Quit()
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
 	return true;
-}
-
-
-WindowsKernelAdapterType::WindowsKernelAdapterType() : DebugAdapterType("WINDOWS_KERNEL") {}
-
-
-DebugAdapter* WindowsKernelAdapterType::Create(BinaryNinja::BinaryView* data)
-{
-    // TODO: someone should free this.
-    return new WindowsKernelAdapter(data);
-}
-
-
-bool WindowsKernelAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
-{
-	return data->GetTypeName() == "PE" || data->GetTypeName() == "Raw" || data->GetTypeName() == "Mapped";
-}
-
-
-bool WindowsKernelAdapterType::CanConnect(BinaryNinja::BinaryView* data)
-{
-    return true;
-}
-
-
-bool WindowsKernelAdapterType::CanExecute(BinaryNinja::BinaryView* data)
-{
-#ifdef WIN32
-    return true;
-#endif
-    return false;
-}
-
-
-Ref<Settings> WindowsKernelAdapter::GetAdapterSettings()
-{
-	return WindowsKernelAdapterType::GetAdapterSettings();
-}
-
-
-Ref<Settings> WindowsKernelAdapterType::GetAdapterSettings()
-{
-	static Ref<Settings> settings = RegisterAdapterSettings();
-	return settings;
-}
-
-
-Ref<Settings> WindowsKernelAdapterType::RegisterAdapterSettings()
-{
-	Ref<Settings> settings = Settings::Instance("WindowsKernelAdapterSettings");
-	settings->SetResourceId("windows_kernel_adapter_settings");
-	settings->RegisterSetting("common.inputFile",
-		R"({
-			"title" : "Input File",
-			"type" : "string",
-			"default" : "",
-			"description" : "Input file to use to find the base address of the binary view",
-			"readOnly" : false,
-			"uiSelectionAction" : "file"
-			})");
-	settings->RegisterSetting("launch.connection_string",
-		R"({
-			"title" : "Connection String",
-			"type" : "string",
-			"default" : "",
-			"description" : "Kernel connection string to use.",
-			"readOnly" : false
-			})");
-
-	return settings;
-}
-
-
-void WindowsKernelAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
-{
-	auto adapterSettings = GetAdapterSettings();
-	BNSettingsScope scope = SettingsResourceScope;
-	adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	if (scope != SettingsResourceScope)
-		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
-}
-
-
-void BinaryNinjaDebugger::InitWindowsKernelAdapterType()
-{
-    static WindowsKernelAdapterType localType;
-    DebugAdapterType::Register(&localType);
 }

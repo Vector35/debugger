@@ -1,4 +1,4 @@
-#include "windowsdumpfile.h"
+#include "dbgengdumpengine.h"
 #include "dbgenglog.h"
 #include <filesystem>
 #include <cstdio>
@@ -7,29 +7,13 @@ using namespace BinaryNinjaDebugger;
 using namespace std;
 
 
-WindowsDumpFileAdapter::WindowsDumpFileAdapter(BinaryView* data) : DbgEngAdapter(data)
+DbgEngDumpEngine::DbgEngDumpEngine()
 {
     m_usePDBFileName = false;
-	GenerateDefaultAdapterSettings(data);
 }
 
 
-bool WindowsDumpFileAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
-	const std::string& workingDir, const LaunchConfigurations& configs)
-{
-	ConfigureEngine();
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto dumpFile = adapterSettings->Get<std::string>("launch.dump_file", data, &scope);
-	scope = SettingsResourceScope;
-	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	SetInputFile(inputFile);
-	return ExecuteOnEngineThread(dumpFile, "", "");
-}
-
-
-bool WindowsDumpFileAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
+bool DbgEngDumpEngine::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
                                             const std::string& workingDir) {
     m_aboutToBeKilled = false;
 
@@ -83,7 +67,7 @@ bool WindowsDumpFileAdapter::ExecuteWithArgsInternal(const std::string& path, co
 }
 
 
-bool WindowsDumpFileAdapter::Start()
+bool DbgEngDumpEngine::Start()
 {
 	if (this->m_dbgengInitialized)
 		this->Reset();
@@ -111,14 +95,14 @@ bool WindowsDumpFileAdapter::Start()
 	QUERY_DEBUG_INTERFACE(IDebugSymbols3, &this->m_debugSymbols);
 	QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
 
-	m_debugEventCallbacks.SetAdapter(this);
+	m_debugEventCallbacks.SetEngine(this);
 	if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks); result != S_OK)
 	{
 		LogWarn("Failed to set event callbacks");
 		return false;
 	}
 
-	m_outputCallbacks.SetAdapter(this);
+	m_outputCallbacks.SetEngine(this);
 	if (const auto result = this->m_debugClient->SetOutputCallbacks(&this->m_outputCallbacks); result != S_OK)
 	{
 		LogWarn("Failed to set output callbacks");
@@ -137,7 +121,7 @@ bool WindowsDumpFileAdapter::Start()
 }
 
 
-void WindowsDumpFileAdapter::Reset()
+void DbgEngDumpEngine::Reset()
 {
 	// Same reason as the base class: keep Reset() from tearing the interfaces down underneath
 	// EngineLoop(). The mutex is recursive, so the EngineLoop() -> Reset() path does not deadlock.
@@ -168,7 +152,7 @@ void WindowsDumpFileAdapter::Reset()
 }
 
 
-bool WindowsDumpFileAdapter::Detach()
+bool DbgEngDumpEngine::Detach()
 {
 	m_aboutToBeKilled = true;
 	m_lastOperationIsStepInto = false;
@@ -183,7 +167,7 @@ bool WindowsDumpFileAdapter::Detach()
 }
 
 
-bool WindowsDumpFileAdapter::Quit()
+bool DbgEngDumpEngine::Quit()
 {
 	m_aboutToBeKilled = true;
 	m_lastOperationIsStepInto = false;
@@ -195,94 +179,4 @@ bool WindowsDumpFileAdapter::Quit()
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
 	return true;
-}
-
-
-WindowsDumpFileAdapterType::WindowsDumpFileAdapterType() : DebugAdapterType("WINDOWS_DUMP_FILE") {}
-
-
-DebugAdapter* WindowsDumpFileAdapterType::Create(BinaryNinja::BinaryView* data)
-{
-    // TODO: someone should free this.
-    return new WindowsDumpFileAdapter(data);
-}
-
-
-bool WindowsDumpFileAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
-{
-	return data->GetTypeName() == "PE" || data->GetTypeName() == "Raw" || data->GetTypeName() == "Mapped";
-}
-
-
-bool WindowsDumpFileAdapterType::CanConnect(BinaryNinja::BinaryView* data)
-{
-    return true;
-}
-
-
-bool WindowsDumpFileAdapterType::CanExecute(BinaryNinja::BinaryView* data)
-{
-#ifdef WIN32
-    return true;
-#endif
-    return false;
-}
-
-
-
-
-Ref<Settings> WindowsDumpFileAdapter::GetAdapterSettings()
-{
-	return WindowsDumpFileAdapterType::GetAdapterSettings();
-}
-
-
-Ref<Settings> WindowsDumpFileAdapterType::GetAdapterSettings()
-{
-	static Ref<Settings> settings = RegisterAdapterSettings();
-	return settings;
-}
-
-
-Ref<Settings> WindowsDumpFileAdapterType::RegisterAdapterSettings()
-{
-	Ref<Settings> settings = Settings::Instance("WindowsDumpFIleAdapterSettings");
-	settings->SetResourceId("windows_dump_file_adapter_settings");
-	settings->RegisterSetting("common.inputFile",
-		R"({
-			"title" : "Input File",
-			"type" : "string",
-			"default" : "",
-			"description" : "Input file to use to find the base address of the binary view",
-			"readOnly" : false,
-			"uiSelectionAction" : "file"
-			})");
-	settings->RegisterSetting("launch.dump_file",
-		R"({
-			"title" : "Dump File Path",
-			"type" : "string",
-			"default" : "",
-			"description" : "Path of the dump file to open",
-			"readOnly" : false,
-			"uiSelectionAction" : "file"
-			})");
-
-	return settings;
-}
-
-
-void WindowsDumpFileAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
-{
-	auto adapterSettings = GetAdapterSettings();
-	BNSettingsScope scope = SettingsResourceScope;
-	adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	if (scope != SettingsResourceScope)
-		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
-}
-
-
-void BinaryNinjaDebugger::InitWindowsDumpFileAdapterType()
-{
-    static WindowsDumpFileAdapterType localType;
-    DebugAdapterType::Register(&localType);
 }

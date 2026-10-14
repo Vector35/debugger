@@ -15,16 +15,14 @@ limitations under the License.
 */
 
 #pragma once
-#include "dbgengadapter.h"
+#include "dbgengengine.h"
 
 namespace BinaryNinjaDebugger {
-    class WindowsDumpFileAdapter: public DbgEngAdapter
+    class DbgEngDumpEngine: public DbgEngEngine
     {
     public:
-		WindowsDumpFileAdapter(BinaryView* data);
+		DbgEngDumpEngine();
 
-		[[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string& args,
-			const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
         [[nodiscard]] bool ExecuteWithArgsInternal(const std::string& path, const std::string& args,
            const std::string& workingDir) override;
 
@@ -33,23 +31,5 @@ namespace BinaryNinjaDebugger {
 
 		bool Detach() override;
 		bool Quit() override;
-
-    	void GenerateDefaultAdapterSettings(BinaryView* data);
-    	Ref<Settings> GetAdapterSettings() override;
     };
-
-    class WindowsDumpFileAdapterType : public DebugAdapterType
-    {
-    	static Ref<Settings> RegisterAdapterSettings();
-
-    public:
-		WindowsDumpFileAdapterType();
-        virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
-        virtual bool IsValidForData(BinaryNinja::BinaryView* data);
-        virtual bool CanExecute(BinaryNinja::BinaryView* data);
-        virtual bool CanConnect(BinaryNinja::BinaryView* data);
-    	static Ref<Settings> GetAdapterSettings();
-    };
-
-    void InitWindowsDumpFileAdapterType();
 };

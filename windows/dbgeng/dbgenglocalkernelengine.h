@@ -15,16 +15,14 @@ limitations under the License.
 */
 
 #pragma once
-#include "dbgengadapter.h"
+#include "dbgengengine.h"
 
 namespace BinaryNinjaDebugger {
-    class LocalWindowsKernelAdapter: public DbgEngAdapter
+    class DbgEngLocalKernelEngine: public DbgEngEngine
     {
     public:
-		LocalWindowsKernelAdapter(BinaryView* data);
+		DbgEngLocalKernelEngine();
 
-		[[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string& args,
-			const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
         [[nodiscard]] bool ExecuteWithArgsInternal(const std::string& path, const std::string& args,
            const std::string& workingDir) override;
 
@@ -33,29 +31,5 @@ namespace BinaryNinjaDebugger {
 
 		bool Detach() override;
 		bool Quit() override;
-
-		bool Attach(std::uint32_t pid) override { return false; }
-		bool Connect(const std::string& server, std::uint32_t port) override { return false; }
-		std::vector<DebugProcess> GetProcessList() override {return {}; }
-		bool ConnectToDebugServer(const std::string& server, std::uint32_t port) override { return false; }
-		bool DisconnectDebugServer() override { return false; }
-
-    	void GenerateDefaultAdapterSettings(BinaryView* data);
-    	Ref<Settings> GetAdapterSettings() override;
     };
-
-    class LocalWindowsKernelAdapterType : public DebugAdapterType
-    {
-    	static Ref<Settings> RegisterAdapterSettings();
-
-    public:
-		LocalWindowsKernelAdapterType();
-        virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
-        virtual bool IsValidForData(BinaryNinja::BinaryView* data);
-        virtual bool CanExecute(BinaryNinja::BinaryView* data);
-        virtual bool CanConnect(BinaryNinja::BinaryView* data);
-    	static Ref<Settings> GetAdapterSettings();
-    };
-
-    void InitLocalWindowsKernelAdapterType();
 };

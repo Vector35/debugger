@@ -1,4 +1,4 @@
-#include "localwindowskerneladapter.h"
+#include "dbgenglocalkernelengine.h"
 #include "dbgenglog.h"
 #include <filesystem>
 #include <cstdio>
@@ -7,22 +7,13 @@ using namespace BinaryNinjaDebugger;
 using namespace std;
 
 
-LocalWindowsKernelAdapter::LocalWindowsKernelAdapter(BinaryView* data) : DbgEngAdapter(data)
+DbgEngLocalKernelEngine::DbgEngLocalKernelEngine()
 {
     m_usePDBFileName = false;
-	GenerateDefaultAdapterSettings(data);
 }
 
 
-bool LocalWindowsKernelAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
-	const std::string& workingDir, const LaunchConfigurations& configs)
-{
-	ConfigureEngine();
-	return ExecuteOnEngineThread("", "", "");
-}
-
-
-bool LocalWindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
+bool DbgEngLocalKernelEngine::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
                                             const std::string& workingDir) {
     m_aboutToBeKilled = false;
 
@@ -66,7 +57,7 @@ bool LocalWindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path,
 }
 
 
-bool LocalWindowsKernelAdapter::Start()
+bool DbgEngLocalKernelEngine::Start()
 {
 	if (this->m_dbgengInitialized)
 		this->Reset();
@@ -94,14 +85,14 @@ bool LocalWindowsKernelAdapter::Start()
 	QUERY_DEBUG_INTERFACE(IDebugSymbols3, &this->m_debugSymbols);
 	QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
 
-	m_debugEventCallbacks.SetAdapter(this);
+	m_debugEventCallbacks.SetEngine(this);
 	if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks); result != S_OK)
 	{
 		LogWarn("Failed to set event callbacks");
 		return false;
 	}
 
-	m_outputCallbacks.SetAdapter(this);
+	m_outputCallbacks.SetEngine(this);
 	if (const auto result = this->m_debugClient->SetOutputCallbacks(&this->m_outputCallbacks); result != S_OK)
 	{
 		LogWarn("Failed to set output callbacks");
@@ -120,7 +111,7 @@ bool LocalWindowsKernelAdapter::Start()
 }
 
 
-void LocalWindowsKernelAdapter::Reset()
+void DbgEngLocalKernelEngine::Reset()
 {
 	// Same reason as the base class: keep Reset() from tearing the interfaces down underneath
 	// EngineLoop(). The mutex is recursive, so the EngineLoop() -> Reset() path does not deadlock.
@@ -151,7 +142,7 @@ void LocalWindowsKernelAdapter::Reset()
 }
 
 
-bool LocalWindowsKernelAdapter::Detach()
+bool DbgEngLocalKernelEngine::Detach()
 {
 	m_aboutToBeKilled = true;
 	m_lastOperationIsStepInto = false;
@@ -166,7 +157,7 @@ bool LocalWindowsKernelAdapter::Detach()
 }
 
 
-bool LocalWindowsKernelAdapter::Quit()
+bool DbgEngLocalKernelEngine::Quit()
 {
 	m_aboutToBeKilled = true;
 	m_lastOperationIsStepInto = false;
@@ -178,70 +169,4 @@ bool LocalWindowsKernelAdapter::Quit()
 
 	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
 	return true;
-}
-
-
-LocalWindowsKernelAdapterType::LocalWindowsKernelAdapterType() : DebugAdapterType("LOCAL_WINDOWS_KERNEL") {}
-
-
-DebugAdapter* LocalWindowsKernelAdapterType::Create(BinaryNinja::BinaryView* data)
-{
-    // TODO: someone should free this.
-    return new LocalWindowsKernelAdapter(data);
-}
-
-
-bool LocalWindowsKernelAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
-{
-	return data->GetTypeName() == "PE" || data->GetTypeName() == "Raw" || data->GetTypeName() == "Mapped";
-}
-
-
-bool LocalWindowsKernelAdapterType::CanConnect(BinaryNinja::BinaryView* data)
-{
-    return true;
-}
-
-
-bool LocalWindowsKernelAdapterType::CanExecute(BinaryNinja::BinaryView* data)
-{
-#ifdef WIN32
-    return true;
-#endif
-    return false;
-}
-
-
-Ref<Settings> LocalWindowsKernelAdapter::GetAdapterSettings()
-{
-	return LocalWindowsKernelAdapterType::GetAdapterSettings();
-}
-
-
-Ref<Settings> LocalWindowsKernelAdapterType::GetAdapterSettings()
-{
-	static Ref<Settings> settings = RegisterAdapterSettings();
-	return settings;
-}
-
-
-Ref<Settings> LocalWindowsKernelAdapterType::RegisterAdapterSettings()
-{
-	Ref<Settings> settings = Settings::Instance("LocalWindowsKernelAdapterSettings");
-	settings->SetResourceId("local_windows_kernel_adapter_settings");
-
-	return settings;
-}
-
-
-void LocalWindowsKernelAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
-{
-
-}
-
-
-void BinaryNinjaDebugger::InitLocalWindowsKernelAdapterType()
-{
-    static LocalWindowsKernelAdapterType localType;
-    DebugAdapterType::Register(&localType);
 }

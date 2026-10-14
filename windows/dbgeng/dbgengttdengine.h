@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 #pragma once
-#include "dbgengadapter.h"
+#include "dbgengengine.h"
 
 // Additional includes for TTD memory analysis
 #include <dbgmodel.h>
@@ -24,56 +24,51 @@ limitations under the License.
 using namespace Microsoft::WRL;
 
 namespace BinaryNinjaDebugger {
-    class DbgEngTTDAdapter: public DbgEngAdapter
+    class DbgEngTTDEngine: public DbgEngEngine
     {
     public:
-        DbgEngTTDAdapter(BinaryView* data);
+        DbgEngTTDEngine();
 
-		[[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string& args,
-			const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
         [[nodiscard]] bool ExecuteWithArgsInternal(const std::string& path, const std::string& args,
            const std::string& workingDir) override;
-		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) override;
+		bool WriteMemory(std::uintptr_t address, const std::vector<uint8_t>& buffer) override;
 		bool WriteRegister(const std::string& reg, intx::uint512 value) override;
 
 		bool Start() override;
 		void Reset() override;
 		bool TerminateTargetOnEngineThread() override;
 
-        bool GoReverse() override;
-        bool StepIntoReverse() override;
-    	bool StepOverReverse() override;
-    	bool StepReturnReverse() override;
+        bool GoReverse();
+        bool StepIntoReverse();
+    	bool StepOverReverse();
+    	bool StepReturnReverse();
     	
     	bool SupportFeature(DebugAdapterCapacity feature) override;
     	
 		bool Quit() override;
 
 		// TTD Memory Analysis Methods
-		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead) override;
-		std::vector<TTDPositionRangeIndexedMemoryEvent> GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime) override;
+		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, uint64_t maxResults);
+		std::vector<TTDPositionRangeIndexedMemoryEvent> GetTTDMemoryAccessForPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime, uint64_t maxResults);
 
 		// TTD Position Methods
-		TTDPosition GetCurrentTTDPosition() override;
-		bool SetTTDPosition(const TTDPosition& position) override;
+		TTDPosition GetCurrentTTDPosition();
+		bool SetTTDPosition(const TTDPosition& position);
 
 		// TTD Next/Prev Memory Access Methods
-		std::pair<bool, TTDMemoryEvent> GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType) override;
-		std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType) override;
+		std::pair<bool, TTDMemoryEvent> GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
+		std::pair<bool, TTDMemoryEvent> GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType);
 
 		// TTD Next/Prev Register Write Methods
-		std::optional<TTDRegisterWriteEvent> GetTTDNextRegisterWrite(const std::string& reg) override;
-		std::optional<TTDRegisterWriteEvent> GetTTDPrevRegisterWrite(const std::string& reg) override;
+		std::optional<TTDRegisterWriteEvent> GetTTDNextRegisterWrite(const std::string& reg);
+		std::optional<TTDRegisterWriteEvent> GetTTDPrevRegisterWrite(const std::string& reg);
 
     	// TTD Calls Analysis Methods
-    	std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress = 0, uint64_t endReturnAddress = 0) override;
+    	std::vector<TTDCallEvent> GetTTDCallsForSymbols(const std::string& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, uint64_t maxResults);
 
     	// TTD Events Analysis Methods
-    	std::vector<TTDEvent> GetTTDEvents(TTDEventType eventType) override;
-    	std::vector<TTDEvent> GetAllTTDEvents() override;
-
-    	void GenerateDefaultAdapterSettings(BinaryView* data);
-    	Ref<Settings> GetAdapterSettings() override;
+    	std::vector<TTDEvent> GetTTDEvents(TTDEventType eventType, uint64_t maxResults);
+    	std::vector<TTDEvent> GetAllTTDEvents(uint64_t maxResults);
 
 	private:
 		// Helper methods for TTD memory analysis
@@ -112,19 +107,4 @@ namespace BinaryNinjaDebugger {
 		IDebugHost* m_debugHost {nullptr};
 		IDebugHostEvaluator* m_hostEvaluator {nullptr};
     };
-
-    class DbgEngTTDAdapterType : public DebugAdapterType
-    {
-    	static Ref<Settings> RegisterAdapterSettings();
-
-    public:
-        DbgEngTTDAdapterType();
-        virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
-        virtual bool IsValidForData(BinaryNinja::BinaryView* data);
-        virtual bool CanExecute(BinaryNinja::BinaryView* data);
-        virtual bool CanConnect(BinaryNinja::BinaryView* data);
-    	static Ref<Settings> GetAdapterSettings();
-    };
-
-    void InitDbgEngTTDAdapterType();
 };

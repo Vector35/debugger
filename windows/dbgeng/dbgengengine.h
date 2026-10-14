@@ -15,8 +15,7 @@ limitations under the License.
 */
 
 #pragma once
-#include "../debugadapter.h"
-#include "../debugadaptertype.h"
+#include "debugadaptertypes.h"
 #include "dbgengtypes.h"
 
 #define NOMINMAX
@@ -24,6 +23,8 @@ limitations under the License.
 #include <dbgeng.h>
 #include <atomic>
 #include <chrono>
+#include <mutex>
+#include <unordered_map>
 
 namespace BinaryNinjaDebugger {
 	#define SAFE_RELEASE(ptr) \
@@ -45,12 +46,12 @@ namespace BinaryNinjaDebugger {
 		unsigned long m_exitCode {};
 	};
 
-	class DbgEngAdapter;
+	class DbgEngEngine;
 #define CALLBACK_METHOD(return_type) return_type __declspec(nothrow) __stdcall
 	class DbgEngOutputCallbacks : public IDebugOutputCallbacks
 	{
 	private:
-		DbgEngAdapter* m_adapter;
+		DbgEngEngine* m_engine;
 		std::string m_output;
 
 	public:
@@ -58,7 +59,7 @@ namespace BinaryNinjaDebugger {
 		CALLBACK_METHOD(unsigned long) Release() override;
 		CALLBACK_METHOD(HRESULT) QueryInterface(const IID& interface_id, void** _interface) override;
 		CALLBACK_METHOD(HRESULT) Output(unsigned long mask, const char* text);
-		void SetAdapter(DbgEngAdapter* adapter);
+		void SetEngine(DbgEngEngine* engine);
 		void StartOutput();
 		std::string EndOutput();
 	};
@@ -80,10 +81,10 @@ namespace BinaryNinjaDebugger {
 	class DbgEngEventCallbacks : public DebugBaseEventCallbacks
 	{
 	private:
-		DbgEngAdapter* m_adapter;
+		DbgEngEngine* m_engine;
 
 	public:
-		void SetAdapter(DbgEngAdapter* adapter) { m_adapter = adapter; }
+		void SetEngine(DbgEngEngine* engine) { m_engine = engine; }
 		CALLBACK_METHOD(unsigned long) AddRef() override;
 		CALLBACK_METHOD(unsigned long) Release() override;
 		CALLBACK_METHOD(HRESULT) GetInterestMask(unsigned long* mask) override;
@@ -121,7 +122,7 @@ namespace BinaryNinjaDebugger {
 	};
 #undef CALLBACK_METHOD
 
-	class DbgEngAdapter : public DebugAdapter
+	class DbgEngEngine
 	{
     public:
 		DbgEngEventCallbacks m_debugEventCallbacks {};
@@ -176,8 +177,10 @@ namespace BinaryNinjaDebugger {
 		std::optional<uint64_t> m_entryPointOffset;
 		bool m_outputStateOnStop = false;
 		bool m_runAsAdministrator = false;
-		std::string m_inputFile;
 		std::vector<std::string> m_environmentVariables;
+		uint64_t m_originalImageBase = 0;
+		std::function<void(const DbgEngEvent&)> m_eventCallback;
+		std::function<std::string()> m_inputFileCallback;
 
 		std::recursive_mutex m_engineLoopMutex;
 
@@ -185,111 +188,104 @@ namespace BinaryNinjaDebugger {
 		inline static ProcessCallbackInformation ProcessCallbackInfo {};
 		static constexpr unsigned long StepoutBreakpointID = 0x5be9c948;
 
-		DbgEngAdapter(BinaryView* data);
-		~DbgEngAdapter();
+		DbgEngEngine();
+		virtual ~DbgEngEngine();
 
 		void SetDbgSrvEnginePath(const std::string& path) { m_dbgSrvEnginePath = path; }
 		void SetStopAtSystemEntryPoint(bool enabled) { m_stopAtSystemEntryPoint = enabled; }
 		void SetEntryPointOffset(std::optional<uint64_t> offset) { m_entryPointOffset = offset; }
 		void SetOutputStateOnStop(bool enabled) { m_outputStateOnStop = enabled; }
 		void SetRunAsAdministrator(bool enabled) { m_runAsAdministrator = enabled; }
-		void SetInputFile(const std::string& inputFile) { m_inputFile = inputFile; }
 		void SetEnvironmentVariables(const std::vector<std::string>& variables) { m_environmentVariables = variables; }
+		void SetPdbFileName(const std::string& pdbFileName) { m_pdbFileName = pdbFileName; }
+		void SetOriginalImageBase(uint64_t imageBase) { m_originalImageBase = imageBase; }
+		void SetEventCallback(std::function<void(const DbgEngEvent&)> callback) { m_eventCallback = std::move(callback); }
+		void SetInputFileCallback(std::function<std::string()> callback) { m_inputFileCallback = std::move(callback); }
 
-		bool Init() override;
-
-		[[nodiscard]] bool Execute(const std::string& path, const LaunchConfigurations& configs = {}) override;
 		[[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string& args,
-			const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
-		[[nodiscard]] bool ExecuteOnEngineThread(const std::string& path, const std::string& args,
 			const std::string& workingDir);
 		[[nodiscard]] virtual bool ExecuteWithArgsInternal(const std::string& path, const std::string& args,
 			const std::string& workingDir);
-		[[nodiscard]] bool Attach(std::uint32_t pid) override;
+		[[nodiscard]] bool Attach(std::uint32_t pid);
 		[[nodiscard]] bool AttachInternal(std::uint32_t pid);
-		[[nodiscard]] bool Connect(const std::string& server, std::uint32_t port) override;
-		bool ConnectToDebugServer(const std::string& server, std::uint32_t port) override;
-		bool DisconnectDebugServer() override;
+		[[nodiscard]] bool Connect(const std::string& server, std::uint32_t port);
+		bool ConnectToDebugServer(const std::string& ipAddress, std::uint32_t port);
+		bool DisconnectDebugServer();
 
-		bool Detach() override;
-		bool Quit() override;
+		virtual bool Detach();
+		virtual bool Quit();
 
 		bool Wait(std::chrono::milliseconds timeout = std::chrono::milliseconds::max());
 
 		void EngineLoop();
 
-		std::vector<DebugProcess> GetProcessList() override;
+		std::vector<DebugProcess> GetProcessList();
 
-		std::vector<DebugThread> GetThreadList() override;
-		DebugThread GetActiveThread() const override;
-		std::uint32_t GetActiveThreadId() const override;
-		bool SetActiveThread(const DebugThread& thread) override;
-		bool SetActiveThreadId(std::uint32_t tid) override;
+		std::vector<DebugThread> GetThreadList();
+		DebugThread GetActiveThread() const;
+		std::uint32_t GetActiveThreadId() const;
+		bool SetActiveThread(const DebugThread& thread);
+		bool SetActiveThreadId(std::uint32_t tid);
 
-		DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags = 0) override;
-		DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0) override;
+		DebugBreakpoint AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags = 0);
+		DebugBreakpoint AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type = 0);
 
-		bool RemoveBreakpoint(const DebugBreakpoint& breakpoint) override;
-		bool RemoveBreakpoint(const ModuleNameAndOffset& breakpoint) override;
+		bool RemoveBreakpoint(const DebugBreakpoint& breakpoint);
+		bool RemoveBreakpoint(const ModuleNameAndOffset& breakpoint);
 
-		std::vector<DebugBreakpoint> GetBreakpointList() const override;
+		std::vector<DebugBreakpoint> GetBreakpointList() const;
 
 		// Hardware breakpoint and watchpoint support
-		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
-		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
-		bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) override;
-		bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) override;
+		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1);
+		bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1);
+		bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1);
 
 		std::string GetRegisterNameByIndex(std::uint32_t index) const;
-		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
-		DebugRegister ReadRegister(const std::string& reg) override;
-		bool WriteRegister(const std::string& reg, intx::uint512 value) override;
+		std::unordered_map<std::string, DebugRegister> ReadAllRegisters();
+		DebugRegister ReadRegister(const std::string& reg);
+		virtual bool WriteRegister(const std::string& reg, intx::uint512 value);
 		std::vector<std::string> GetRegisterList() const;
 
-		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size) override;
-		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) override;
+		std::vector<uint8_t> ReadMemory(std::uintptr_t address, std::size_t size);
+		virtual bool WriteMemory(std::uintptr_t address, const std::vector<uint8_t>& buffer);
 
 		// bool ReadMemory(std::uintptr_t address, void* out, std::size_t size) override;
 		// bool WriteMemory(std::uintptr_t address, const void* out, std::size_t size) override;
-		std::vector<DebugModule> GetModuleList() override;
+		std::vector<DebugModule> GetModuleList();
 
-		std::vector<DebugMemoryRegion> GetMemoryMap() override;
+		std::vector<DebugMemoryRegion> GetMemoryMap();
 
-		std::vector<DebugSymbol> GetSymbolsForModule(const DebugModule& module) override;
+		std::vector<DebugSymbol> GetSymbolsForModule(const DebugModule& module);
 
-		std::string GetTargetArchitecture() override;
+		std::string GetTargetArchitecture();
 
-		DebugStopReason StopReason() override;
 		DbgEngStopReason GetStopReason();
-		void PostEngineEvent(const DbgEngEvent& source);
+		void PostEngineEvent(const DbgEngEvent& event);
 		unsigned long ExecStatus();
-		uint64_t ExitCode() override;
+		uint64_t ExitCode();
 
-		bool BreakInto() override;
-		bool Go() override;
-		bool StepInto() override;
-		bool StepOver() override;
-		bool StepReturn() override;
+		bool BreakInto();
+		bool Go();
+		bool StepInto();
+		bool StepOver();
+		bool StepReturn();
 
-		std::string InvokeBackendCommand(const std::string& command) override;
-		uint64_t GetInstructionOffset() override;
-		uint64_t GetStackPointer() override;
-		std::uint32_t GetActivePID() override;
+		std::string InvokeBackendCommand(const std::string& command);
+		uint64_t GetInstructionOffset();
+		uint64_t GetStackPointer();
+		std::uint32_t GetActivePID();
 
-		bool SupportFeature(DebugAdapterCapacity feature) override;
+		virtual bool SupportFeature(DebugAdapterCapacity feature);
 
-		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid) override;
+		std::vector<DebugFrame> GetFramesOfThread(uint32_t tid);
 
-		bool SuspendThread(std::uint32_t tid) override;
-		bool ResumeThread(std::uint32_t tid) override;
+		bool SuspendThread(std::uint32_t tid);
+		bool ResumeThread(std::uint32_t tid);
 
 		void ApplyBreakpoints();
 
-		static std::string GetDbgEngPath(const std::string& arch);
-
 		static bool LoadLibraries(const std::string& enginePath, bool strictCheckPath, bool forceUnload);
-
-		static bool LoadDngEngLibraries();
 
 		std::string GenerateRandomPipeName();
 
@@ -297,24 +293,7 @@ namespace BinaryNinjaDebugger {
 
 		bool ConnectToDebugServerInternal(const std::string& connectionString);
 
-		void GenerateDefaultAdapterSettings(BinaryView* data);
-		Ref<Settings> GetAdapterSettings() override;
-		void ConfigureEngine();
+	protected:
+		std::string GetInputFile() { return m_inputFileCallback ? m_inputFileCallback() : std::string(); }
 	};
-
-	class LocalDbgEngAdapterType : public DebugAdapterType
-	{
-		static Ref<Settings> RegisterAdapterSettings();
-
-	public:
-		LocalDbgEngAdapterType();
-		virtual DebugAdapter* Create(BinaryNinja::BinaryView* data);
-		virtual bool IsValidForData(BinaryNinja::BinaryView* data);
-		virtual bool CanExecute(BinaryNinja::BinaryView* data);
-		virtual bool CanConnect(BinaryNinja::BinaryView* data);
-		static Ref<Settings> GetAdapterSettings();
-	};
-
-
-	void InitDbgEngAdapterType();
 };  // namespace BinaryNinjaDebugger

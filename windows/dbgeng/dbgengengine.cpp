@@ -19,11 +19,7 @@ limitations under the License.
 #include <algorithm>
 #include <string>
 #include <cstdio>
-#include <binaryninjacore.h>
-#include <binaryninjaapi.h>
-#include <lowlevelilinstruction.h>
-#include <mediumlevelilinstruction.h>
-#include <highlevelilinstruction.h>
+#include "dbgengengine.h"
 #include <memory>
 #include <filesystem>
 #ifdef _WIN32
@@ -31,9 +27,6 @@ limitations under the License.
 #include <TlHelp32.h>
 #include <winternl.h>
 #endif
-#include "dbgengadapter.h"
-#include "../../cli/log.h"
-#include "../debuggerevent.h"
 #include "dbgenglog.h"
 #include "shlobj_core.h"
 #pragma warning(push)
@@ -45,119 +38,10 @@ limitations under the License.
 using namespace BinaryNinjaDebugger;
 using namespace std;
 
-namespace {
-	DebugStopReason FromEngine(DbgEngStopReason value)
-	{
-		switch (value)
-		{
-		case DbgEngStopReason::UnknownReason:
-			return UnknownReason;
-		case DbgEngStopReason::ProcessExited:
-			return ProcessExited;
-		case DbgEngStopReason::AccessViolation:
-			return AccessViolation;
-		case DbgEngStopReason::SingleStep:
-			return SingleStep;
-		case DbgEngStopReason::Calculation:
-			return Calculation;
-		case DbgEngStopReason::Breakpoint:
-			return Breakpoint;
-		default:
-			return UnknownReason;
-		}
-	}
-}
-
-static bool IsValidDbgEngPaths(const std::string& path)
+void DbgEngEngine::PostEngineEvent(const DbgEngEvent& event)
 {
-	if (path.empty())
-		return false;
-
-	std::error_code ec;
-	auto enginePath = filesystem::path(path);
-	if (!filesystem::exists(enginePath, ec))
-		return false;
-
-	if (!filesystem::exists(enginePath / "dbgeng.dll", ec))
-		return false;
-
-	if (!filesystem::exists(enginePath / "dbghelp.dll", ec))
-		return false;
-
-	if (!filesystem::exists(enginePath / "dbgmodel.dll", ec))
-		return false;
-
-	if (!filesystem::exists(enginePath / "dbgcore.dll", ec))
-		return false;
-
-	if (!filesystem::exists(enginePath / "dbgsrv.exe", ec))
-		return false;
-
-	return true;
-}
-
-void DbgEngAdapter::PostEngineEvent(const DbgEngEvent& source)
-{
-	DebuggerEvent event;
-	switch (source.type)
-	{
-	case DbgEngEventType::LaunchFailure:
-		event.type = LaunchFailureEventType;
-		event.data.errorData.error = source.error;
-		event.data.errorData.shortError = source.shortError;
-		break;
-	case DbgEngEventType::TargetExited:
-		event.type = TargetExitedEventType;
-		event.data.exitData.exitCode = source.exitCode;
-		break;
-	case DbgEngEventType::TargetStopped:
-		event.type = AdapterStoppedEventType;
-		event.data.targetStoppedData.reason = FromEngine(source.stopReason);
-		break;
-	case DbgEngEventType::Resumed:
-		event.type = ResumeEventType;
-		break;
-	case DbgEngEventType::StepIntoComplete:
-		event.type = StepIntoEventType;
-		break;
-	case DbgEngEventType::BackendMessage:
-		event.type = BackendMessageEventType;
-		event.data.messageData.message = source.message;
-		break;
-	}
-	PostDebuggerEvent(event);
-}
-
-std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
-{
-	std::string path;
-	if (arch == "amd64")
-		path = Settings::Instance()->Get<string>("debugger.x64dbgEngPath");
-	else
-		path = Settings::Instance()->Get<string>("debugger.x86dbgEngPath");
-
-	if (!path.empty())
-	{
-		// If the user has specified the path in the setting, then check it for validity. If it is valid, then use it;
-		// if it is invalid, fail the operation -- do not fallback to the default one
-		if (IsValidDbgEngPaths(path))
-			return path;
-		else
-			return "";
-	}
-
-	std::string pluginRoot;
-	if (getenv("BN_STANDALONE_DEBUGGER") != nullptr)
-		pluginRoot = GetUserPluginDirectory();
-	else
-		pluginRoot = GetBundledPluginDirectory();
-
-	// If the user does not specify a path (the default case), find the one from the plugins/dbgeng/arch
-    auto debuggerRoot = filesystem::path(pluginRoot)  / "dbgeng" / arch;
-    if (IsValidDbgEngPaths(debuggerRoot.string()))
-        return debuggerRoot.string();
-
-	return "";
+	if (m_eventCallback)
+		m_eventCallback(event);
 }
 
 
@@ -224,7 +108,7 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 }
 
 
-bool DbgEngAdapter::LoadLibraries(const std::string& enginePath, bool strictCheckPath, bool forceUnload)
+bool DbgEngEngine::LoadLibraries(const std::string& enginePath, bool strictCheckPath, bool forceUnload)
 {
 	LogDebug("DbgEng libraries in path %s", enginePath.c_str());
 
@@ -244,42 +128,7 @@ bool DbgEngAdapter::LoadLibraries(const std::string& enginePath, bool strictChec
 }
 
 
-bool DbgEngAdapter::LoadDngEngLibraries()
-{
-	SetDbgEngLogCallback([](DbgEngLogLevel level, const std::string& message) {
-		switch (level)
-		{
-		case DbgEngLogLevel::Debug:
-			BinaryNinja::LogDebug("%s", message.c_str());
-			break;
-		case DbgEngLogLevel::Info:
-			BinaryNinja::LogInfo("%s", message.c_str());
-			break;
-		case DbgEngLogLevel::Warn:
-			BinaryNinja::LogWarn("%s", message.c_str());
-			break;
-		case DbgEngLogLevel::Error:
-			BinaryNinja::LogError("%s", message.c_str());
-			break;
-		}
-	});
-
-	auto enginePath = GetDbgEngPath("amd64");
-	if (enginePath.empty())
-	{
-		LogWarn("The debugger cannot find the path for the DbgEng DLLs. "
-			"If you have set debugger.x64dbgEngPath, check if it valid");
-		return false;
-	}
-
-	auto settings = Settings::Instance();
-	auto strictCheckPath = settings->Get<bool>("debugger.checkDbgEngDLLPath");
-	auto forceUnload = settings->Get<bool>("debugger.tryUnloadWrongDbgEngDLL");
-
-	return LoadLibraries(enginePath, strictCheckPath, forceUnload);
-}
-
-std::string DbgEngAdapter::GenerateRandomPipeName()
+std::string DbgEngEngine::GenerateRandomPipeName()
 {
 	const std::string chars = "abcdefghijklmnopqrstuvwxyz1234567890";
 	constexpr size_t length = 16;
@@ -293,7 +142,7 @@ std::string DbgEngAdapter::GenerateRandomPipeName()
 	return result;
 }
 
-bool DbgEngAdapter::LaunchDbgSrv(const std::string& commandLine)
+bool DbgEngEngine::LaunchDbgSrv(const std::string& commandLine)
 {
 	// Check if we should run as administrator
 	if (m_runAsAdministrator)
@@ -378,7 +227,7 @@ bool DbgEngAdapter::LaunchDbgSrv(const std::string& commandLine)
 	}
 }
 
-bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionString)
+bool DbgEngEngine::ConnectToDebugServerInternal(const std::string& connectionString)
 {
 	auto handle = GetModuleHandleA("dbgeng.dll");
 	if (handle == nullptr)
@@ -430,7 +279,7 @@ bool DbgEngAdapter::ConnectToDebugServerInternal(const std::string& connectionSt
 	return false;
 }
 
-bool DbgEngAdapter::Start()
+bool DbgEngEngine::Start()
 {
 	if (this->m_dbgengInitialized)
 	{
@@ -460,14 +309,14 @@ bool DbgEngAdapter::Start()
 		}
 	}
 
-	m_debugEventCallbacks.SetAdapter(this);
+	m_debugEventCallbacks.SetEngine(this);
 	if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks); result != S_OK)
 	{
 		LogWarn("Failed to set event callbacks");
 		return false;
 	}
 
-	m_outputCallbacks.SetAdapter(this);
+	m_outputCallbacks.SetEngine(this);
 	if (const auto result = this->m_debugClient->SetOutputCallbacks(&this->m_outputCallbacks); result != S_OK)
 	{
 		LogWarn("Failed to set output callbacks");
@@ -486,7 +335,7 @@ bool DbgEngAdapter::Start()
 }
 
 
-void DbgEngAdapter::Reset()
+void DbgEngEngine::Reset()
 {
 	std::unique_lock lock(m_engineLoopMutex);
 	m_aboutToBeKilled = false;
@@ -522,71 +371,16 @@ void DbgEngAdapter::Reset()
 }
 
 
-DbgEngAdapter::DbgEngAdapter(BinaryView* data) : DebugAdapter(data)
+DbgEngEngine::DbgEngEngine()
 {
-    auto metadata = data->QueryMetadata("PDB_FILENAME");
-    if (metadata && metadata->IsString())
-        m_pdbFileName = metadata->GetString();
-
-	GenerateDefaultAdapterSettings(data);
 }
 
-DbgEngAdapter::~DbgEngAdapter()
+DbgEngEngine::~DbgEngEngine()
 {
 }
 
 
-bool DbgEngAdapter::Init()
-{
-	return true;
-}
-
-
-bool DbgEngAdapter::Execute(const std::string& path, const LaunchConfigurations& configs)
-{
-	return this->ExecuteWithArgs(path, "", "", {});
-}
-
-
-void DbgEngAdapter::ConfigureEngine()
-{
-	SetDbgSrvEnginePath(GetDbgEngPath(m_defaultArchitecture == "x86" ? "x86" : "amd64"));
-	auto settings = Settings::Instance();
-	SetStopAtSystemEntryPoint(settings->Get<bool>("debugger.stopAtSystemEntryPoint"));
-	SetEntryPointOffset(settings->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction
-		? std::optional<uint64_t>(m_entryPoint - m_start) : std::nullopt);
-	SetOutputStateOnStop(settings->Get<bool>("debugger.dbgEngOutputStateOnStop"));
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	SetRunAsAdministrator(adapterSettings->Contains("common.runAsAdministrator")
-		&& adapterSettings->Get<bool>("common.runAsAdministrator", data, &scope));
-}
-
-
-bool DbgEngAdapter::ExecuteWithArgs(const std::string& path, const std::string& args, const std::string& workingDir,
-	const LaunchConfigurations& configs)
-{
-	ConfigureEngine();
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto executablePath = adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
-	scope = SettingsResourceScope;
-	auto workingDirectory = adapterSettings->Get<std::string>("launch.workingDirectory", data, &scope);
-	scope = SettingsResourceScope;
-	auto commandLineArgs = adapterSettings->Get<std::string>("launch.commandLineArguments", data, &scope);
-	scope = SettingsResourceScope;
-	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	scope = SettingsResourceScope;
-	auto envVariables = adapterSettings->Get<vector<string>>("launch.environmentVariables", data, &scope);
-	SetInputFile(inputFile);
-	SetEnvironmentVariables(envVariables);
-	return ExecuteOnEngineThread(executablePath, commandLineArgs, workingDirectory);
-}
-
-
-bool DbgEngAdapter::ExecuteOnEngineThread(const std::string& path, const std::string& args,
+bool DbgEngEngine::ExecuteWithArgs(const std::string& path, const std::string& args,
 	const std::string& workingDir)
 {
 	std::atomic_bool ret = false;
@@ -606,7 +400,7 @@ bool DbgEngAdapter::ExecuteOnEngineThread(const std::string& path, const std::st
 }
 
 
-bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
+bool DbgEngEngine::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
 	const std::string& workingDir)
 {
 	std::unique_lock lock(m_engineLoopMutex);
@@ -719,7 +513,7 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 
 	if (m_entryPointOffset)
 	{
-		AddBreakpoint(ModuleNameAndOffset(m_inputFile, *m_entryPointOffset));
+		AddBreakpoint(ModuleNameAndOffset(GetInputFile(), *m_entryPointOffset));
 	}
 
 	if (!m_stopAtSystemEntryPoint)
@@ -743,7 +537,7 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 }
 
 
-void DbgEngAdapter::EngineLoop()
+void DbgEngEngine::EngineLoop()
 {
 	// When the user rapidly restarts the target, there is a race condition that could lead to a crash:
 	// 1) The target is killed, and the EngineLoop is about to exit, but not yet
@@ -876,7 +670,7 @@ void DbgEngAdapter::EngineLoop()
 	m_lastExecutionStatus = DEBUG_STATUS_NO_DEBUGGEE;
 }
 
-bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
+bool DbgEngEngine::AttachInternal(std::uint32_t pid)
 {
 	std::unique_lock lock(m_engineLoopMutex);
 
@@ -954,20 +748,14 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 	return true;
 }
 
-bool DbgEngAdapter::Attach(std::uint32_t pid)
+bool DbgEngEngine::Attach(std::uint32_t pid)
 {
-	ConfigureEngine();
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto attachPID = adapterSettings->Get<uint64_t>("attach.pid", data, &scope);
-
 	std::atomic_bool ret = false;
 	std::atomic_bool finished = false;
 	// Doing the operation on a different thread ensures the same thread starts the session and runs EngineLoop().
 	// This is required by DngEng. Although things sometimes work even if it is violated, it can fail randomly.
 	std::thread([=, &ret, &finished]() {
-		ret = AttachInternal((std::uint32_t)attachPID);
+		ret = AttachInternal(pid);
 		finished = true;
 		if (ret)
 			EngineLoop();
@@ -978,7 +766,7 @@ bool DbgEngAdapter::Attach(std::uint32_t pid)
 	return ret;
 }
 
-bool DbgEngAdapter::Connect(const std::string& server, std::uint32_t port)
+bool DbgEngEngine::Connect(const std::string& server, std::uint32_t port)
 {
 	DbgEngEvent event;
 	event.type = DbgEngEventType::LaunchFailure;
@@ -988,20 +776,13 @@ bool DbgEngAdapter::Connect(const std::string& server, std::uint32_t port)
 	return false;
 }
 
-bool DbgEngAdapter::ConnectToDebugServer(const std::string& server, std::uint32_t port)
+bool DbgEngEngine::ConnectToDebugServer(const std::string& ipAddress, std::uint32_t port)
 {
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto ipAddress = adapterSettings->Get<std::string>("debugServer.ipAddress", data, &scope);
-	scope = SettingsResourceScope;
-	auto serverPort = adapterSettings->Get<uint64_t>("debugServer.port", data, &scope);
-
-	std::string connectionString = "tcp:port=" + std::to_string(serverPort) + ", Server=" + ipAddress;
+	std::string connectionString = "tcp:port=" + std::to_string(port) + ", Server=" + ipAddress;
 	return ConnectToDebugServerInternal(connectionString);
 }
 
-bool DbgEngAdapter::DisconnectDebugServer()
+bool DbgEngEngine::DisconnectDebugServer()
 {
 	if (!m_connectedToDebugServer)
 		return true;
@@ -1013,7 +794,7 @@ bool DbgEngAdapter::DisconnectDebugServer()
 	return ret == S_OK;
 }
 
-bool DbgEngAdapter::Detach()
+bool DbgEngEngine::Detach()
 {
 	m_aboutToBeKilled = true;
 	m_lastOperationIsStepInto = false;
@@ -1027,7 +808,7 @@ bool DbgEngAdapter::Detach()
 	return true;
 }
 
-bool DbgEngAdapter::TerminateTargetOnEngineThread()
+bool DbgEngEngine::TerminateTargetOnEngineThread()
 {
 	if (!this->m_debugClient)
 		return false;
@@ -1036,7 +817,7 @@ bool DbgEngAdapter::TerminateTargetOnEngineThread()
 }
 
 
-bool DbgEngAdapter::Quit()
+bool DbgEngEngine::Quit()
 {
 	m_aboutToBeKilled = true;
 	m_lastOperationIsStepInto = false;
@@ -1137,7 +918,7 @@ static std::string GetProcessCommandLine(DWORD pid)
 }
 
 
-std::vector<DebugProcess> DbgEngAdapter::GetProcessList()
+std::vector<DebugProcess> DbgEngEngine::GetProcessList()
 {
 	// For local debugging (not connected to remote debug server), use Windows APIs directly to get command lines
 	if (!m_connectedToDebugServer)
@@ -1235,7 +1016,7 @@ std::vector<DebugProcess> DbgEngAdapter::GetProcessList()
 	return debug_processes;
 }
 
-std::vector<DebugThread> DbgEngAdapter::GetThreadList()
+std::vector<DebugThread> DbgEngEngine::GetThreadList()
 {
 	if (!m_debugSystemObjects)
 		return {};
@@ -1264,15 +1045,15 @@ std::vector<DebugThread> DbgEngAdapter::GetThreadList()
 
 // Note, on Windows, we use engine thread ID, but on Linux/macOS, we use system thread ID.
 // System thread ID is also available on Windows, We should later add a new field to the DebugThread struct
-DebugThread DbgEngAdapter::GetActiveThread() const
+DebugThread DbgEngEngine::GetActiveThread() const
 {
 	// Temporary hacky to get the code compile without changing everything
 	if (!m_debugRegisters)
 		return DebugThread {};
-	return DebugThread(this->GetActiveThreadId(), ((DbgEngAdapter*)this)->GetInstructionOffset());
+	return DebugThread(this->GetActiveThreadId(), ((DbgEngEngine*)this)->GetInstructionOffset());
 }
 
-std::uint32_t DbgEngAdapter::GetActiveThreadId() const
+std::uint32_t DbgEngEngine::GetActiveThreadId() const
 {
 	unsigned long current_tid {};
 	if (this->m_debugSystemObjects->GetCurrentThreadId(&current_tid) != S_OK)
@@ -1281,12 +1062,12 @@ std::uint32_t DbgEngAdapter::GetActiveThreadId() const
 	return current_tid;
 }
 
-bool DbgEngAdapter::SetActiveThread(const DebugThread& thread)
+bool DbgEngEngine::SetActiveThread(const DebugThread& thread)
 {
 	return this->SetActiveThreadId(thread.m_tid);
 }
 
-bool DbgEngAdapter::SetActiveThreadId(std::uint32_t tid)
+bool DbgEngEngine::SetActiveThreadId(std::uint32_t tid)
 {
 	if (this->m_debugSystemObjects->SetCurrentThreadId(tid) != S_OK)
 		return false;
@@ -1295,14 +1076,14 @@ bool DbgEngAdapter::SetActiveThreadId(std::uint32_t tid)
 }
 
 
-bool DbgEngAdapter::SuspendThread(std::uint32_t tid)
+bool DbgEngEngine::SuspendThread(std::uint32_t tid)
 {
 	std::string suspendCmd = "~" + std::to_string(tid) + "f";
 	InvokeBackendCommand(suspendCmd);
 	return true;
 }
 
-bool DbgEngAdapter::ResumeThread(std::uint32_t tid)
+bool DbgEngEngine::ResumeThread(std::uint32_t tid)
 {
 	std::string resumeCmd = "~" + std::to_string(tid) + "u";
 	InvokeBackendCommand(resumeCmd);
@@ -1310,7 +1091,7 @@ bool DbgEngAdapter::ResumeThread(std::uint32_t tid)
 }
 
 
-DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags)
+DebugBreakpoint DbgEngEngine::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags)
 {
 	IDebugBreakpoint2* debug_breakpoint {};
 
@@ -1318,7 +1099,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const std::uintptr_t address, unsig
 	/* DbgEng won't tell us if its valid until continue/go so this is a hacky fix */
     /* Note we cannot write to it if we are replaying TTD trace */
 	auto val = this->ReadMemory(address, 1);
-	if (val.GetLength() != 1)
+	if (val.size() != 1)
 		return {};
 
 	if (const auto result =
@@ -1366,16 +1147,13 @@ static std::string EscapeModuleName(const std::wstring& name)
 	return result;
 }
 
-DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
+DebugBreakpoint DbgEngEngine::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
 {
 	// If the backend has been created, we add the breakpoints directly. Otherwise, keep track of the breakpoints,
 	// and add them when we launch/attach the target.
 	if (m_dbgengInitialized)
 	{
-		BNSettingsScope scope = SettingsResourceScope;
-		auto data = GetData();
-		auto adapterSettings = GetAdapterSettings();
-		auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+		auto inputFile = GetInputFile();
 
         auto moduleToUse = address.module;
         if (DebugModule::IsSameBaseModule(moduleToUse, inputFile))
@@ -1402,7 +1180,7 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address,
 	return DebugBreakpoint {};
 }
 
-bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
+bool DbgEngEngine::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 {
 	bool done = false;
 	ULONG numBreakpoints {};
@@ -1439,7 +1217,7 @@ bool DbgEngAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 	return done;
 }
 
-bool DbgEngAdapter::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
+bool DbgEngEngine::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
 {
 	// If the backend has been created, we remove the breakpoints directly. Otherwise, remove it from the list of
 	// pending breakpoints.
@@ -1456,7 +1234,7 @@ bool DbgEngAdapter::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
 	return true;
 }
 
-std::vector<DebugBreakpoint> DbgEngAdapter::GetBreakpointList() const
+std::vector<DebugBreakpoint> DbgEngEngine::GetBreakpointList() const
 {
 	// TODO: this list is maintained properly and can become outdated. Also, it is not used by the controller
 	//    return this->m_debug_breakpoints;
@@ -1464,7 +1242,7 @@ std::vector<DebugBreakpoint> DbgEngAdapter::GetBreakpointList() const
 }
 
 
-bool DbgEngAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+bool DbgEngEngine::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	if (!m_dbgengInitialized)
 	{
@@ -1514,7 +1292,7 @@ bool DbgEngAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType 
 }
 
 
-bool DbgEngAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+bool DbgEngEngine::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
 	if (!m_dbgengInitialized)
 	{
@@ -1576,15 +1354,12 @@ bool DbgEngAdapter::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointTy
 }
 
 
-bool DbgEngAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+bool DbgEngEngine::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
 	if (m_dbgengInitialized)
 	{
 		// DbgEng is initialized - use module+offset syntax directly
-		BNSettingsScope scope = SettingsResourceScope;
-		auto data = GetData();
-		auto adapterSettings = GetAdapterSettings();
-		auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+		auto inputFile = GetInputFile();
 
 		auto moduleToUse = location.module;
 		if (DebugModule::IsSameBaseModule(moduleToUse, inputFile))
@@ -1642,7 +1417,7 @@ bool DbgEngAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, D
 }
 
 
-bool DbgEngAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+bool DbgEngEngine::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
 	// For removal, we need to resolve to absolute address to find the breakpoint ID
 	// DbgEng doesn't provide a direct way to remove by module+offset
@@ -1694,7 +1469,7 @@ bool DbgEngAdapter::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location
 	}
 }
 
-void DbgEngAdapter::ApplyBreakpoints()
+void DbgEngEngine::ApplyBreakpoints()
 {
 	// Apply pending software breakpoints
 	for (const auto bp : m_pendingBreakpoints)
@@ -1722,7 +1497,7 @@ void DbgEngAdapter::ApplyBreakpoints()
 	}
 }
 
-DebugRegister DbgEngAdapter::ReadRegister(const std::string& reg)
+DebugRegister DbgEngEngine::ReadRegister(const std::string& reg)
 {
 	if (!m_debugRegisters)
 		return DebugRegister {};
@@ -1785,7 +1560,7 @@ DebugRegister DbgEngAdapter::ReadRegister(const std::string& reg)
 	return DebugRegister {reg, value, width, reg_index};
 }
 
-bool DbgEngAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
+bool DbgEngEngine::WriteRegister(const std::string& reg, intx::uint512 value)
 {
 	unsigned long reg_index {};
 
@@ -1806,7 +1581,7 @@ bool DbgEngAdapter::WriteRegister(const std::string& reg, intx::uint512 value)
 }
 
 
-std::string DbgEngAdapter::GetRegisterNameByIndex(std::uint32_t index) const
+std::string DbgEngEngine::GetRegisterNameByIndex(std::uint32_t index) const
 {
 	if (!m_debugRegisters)
 		return {};
@@ -1822,7 +1597,7 @@ std::string DbgEngAdapter::GetRegisterNameByIndex(std::uint32_t index) const
 }
 
 
-std::vector<std::string> DbgEngAdapter::GetRegisterList() const
+std::vector<std::string> DbgEngEngine::GetRegisterList() const
 {
 	if (!this->m_debugRegisters)
 		return {};
@@ -1839,7 +1614,7 @@ std::vector<std::string> DbgEngAdapter::GetRegisterList() const
 }
 
 
-std::vector<DebugModule> DbgEngAdapter::GetModuleList()
+std::vector<DebugModule> DbgEngEngine::GetModuleList()
 {
 	if (!this->m_debugSymbols)
 		return {};
@@ -1855,10 +1630,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 	std::vector<DebugModule> modules {};
 
 	// TODO: the inputFile should probalby be cached in some more, but for now I am just retrieving it every time
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-	auto inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+	auto inputFile = GetInputFile();
 
 	const auto total_modules = loaded_module_count;
 	auto module_parameters = std::make_unique<DEBUG_MODULE_PARAMETERS[]>(total_modules);
@@ -1891,7 +1663,7 @@ std::vector<DebugModule> DbgEngAdapter::GetModuleList()
 }
 
 
-std::vector<DebugMemoryRegion> DbgEngAdapter::GetMemoryMap()
+std::vector<DebugMemoryRegion> DbgEngEngine::GetMemoryMap()
 {
 	if (!this->m_debugDataSpaces2)
 		return {};
@@ -1958,7 +1730,7 @@ std::vector<DebugMemoryRegion> DbgEngAdapter::GetMemoryMap()
 }
 
 
-std::vector<DebugSymbol> DbgEngAdapter::GetSymbolsForModule(const DebugModule& module)
+std::vector<DebugSymbol> DbgEngEngine::GetSymbolsForModule(const DebugModule& module)
 {
 	std::vector<DebugSymbol> result;
 	if (!m_debugSymbols)
@@ -2005,7 +1777,7 @@ std::vector<DebugSymbol> DbgEngAdapter::GetSymbolsForModule(const DebugModule& m
 }
 
 
-bool DbgEngAdapter::BreakInto()
+bool DbgEngEngine::BreakInto()
 {
 	if (ExecStatus() == DEBUG_STATUS_BREAK || ExecStatus() == DEBUG_STATUS_NO_DEBUGGEE)
 		return false;
@@ -2018,7 +1790,7 @@ bool DbgEngAdapter::BreakInto()
 	return true;
 }
 
-bool DbgEngAdapter::Go()
+bool DbgEngEngine::Go()
 {
 	// TODO: we should have the debugger core to detect the failure and notify the user about it.
 	// Currently, LLDB directly notifies such errors, which needs to be changed in the future.
@@ -2033,7 +1805,7 @@ bool DbgEngAdapter::Go()
 	return true;
 }
 
-bool DbgEngAdapter::StepInto()
+bool DbgEngEngine::StepInto()
 {
 	if (ExecStatus() != DEBUG_STATUS_BREAK)
 		return false;
@@ -2046,7 +1818,7 @@ bool DbgEngAdapter::StepInto()
 	return true;
 }
 
-bool DbgEngAdapter::StepOver()
+bool DbgEngEngine::StepOver()
 {
 	if (ExecStatus() != DEBUG_STATUS_BREAK)
 		return false;
@@ -2059,7 +1831,7 @@ bool DbgEngAdapter::StepOver()
 	return true;
 }
 
-bool DbgEngAdapter::StepReturn()
+bool DbgEngEngine::StepReturn()
 {
 	if (ExecStatus() != DEBUG_STATUS_BREAK)
 		return false;
@@ -2068,16 +1840,16 @@ bool DbgEngAdapter::StepReturn()
 	return true;
 }
 
-bool DbgEngAdapter::Wait(std::chrono::milliseconds timeout)
+bool DbgEngEngine::Wait(std::chrono::milliseconds timeout)
 {
-	std::memset(&DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint, 0, sizeof(DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint));
-	std::memset(&DbgEngAdapter::ProcessCallbackInfo.m_lastException, 0, sizeof(DbgEngAdapter::ProcessCallbackInfo.m_lastException));
+	std::memset(&DbgEngEngine::ProcessCallbackInfo.m_lastBreakpoint, 0, sizeof(DbgEngEngine::ProcessCallbackInfo.m_lastBreakpoint));
+	std::memset(&DbgEngEngine::ProcessCallbackInfo.m_lastException, 0, sizeof(DbgEngEngine::ProcessCallbackInfo.m_lastException));
 
 	const auto wait_result = this->m_debugControl->WaitForEvent(0, INFINITE);
 	return wait_result == S_OK;
 }
 
-std::unordered_map<std::string, DebugRegister> DbgEngAdapter::ReadAllRegisters()
+std::unordered_map<std::string, DebugRegister> DbgEngEngine::ReadAllRegisters()
 {
 	std::unordered_map<std::string, DebugRegister> all_regs {};
 
@@ -2094,7 +1866,7 @@ std::unordered_map<std::string, DebugRegister> DbgEngAdapter::ReadAllRegisters()
 	return all_regs;
 }
 
-std::string DbgEngAdapter::GetTargetArchitecture()
+std::string DbgEngEngine::GetTargetArchitecture()
 {
 	if (!m_debugControl)
 		return "";
@@ -2115,17 +1887,17 @@ std::string DbgEngAdapter::GetTargetArchitecture()
 	}
 }
 
-DbgEngStopReason DbgEngAdapter::GetStopReason()
+DbgEngStopReason DbgEngEngine::GetStopReason()
 {
 	const auto exec_status = this->ExecStatus();
 	if (exec_status == DEBUG_STATUS_BREAK)
 	{
 		const auto instruction_ptr = this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
 
-		if (instruction_ptr == DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint.m_address)
+		if (instruction_ptr == DbgEngEngine::ProcessCallbackInfo.m_lastBreakpoint.m_address)
 			return DbgEngStopReason::Breakpoint;
 
-		const auto& last_exception = DbgEngAdapter::ProcessCallbackInfo.m_lastException;
+		const auto& last_exception = DbgEngEngine::ProcessCallbackInfo.m_lastException;
 		if (instruction_ptr == last_exception.ExceptionAddress)
 		{
 			switch (last_exception.ExceptionCode)
@@ -2157,12 +1929,7 @@ DbgEngStopReason DbgEngAdapter::GetStopReason()
 	return DbgEngStopReason::UnknownReason;
 }
 
-DebugStopReason DbgEngAdapter::StopReason()
-{
-	return FromEngine(GetStopReason());
-}
-
-unsigned long DbgEngAdapter::ExecStatus()
+unsigned long DbgEngEngine::ExecStatus()
 {
 	if (!m_debugControl)
 		return DEBUG_STATUS_NO_DEBUGGEE;
@@ -2174,12 +1941,12 @@ unsigned long DbgEngAdapter::ExecStatus()
 	return execution_status;
 }
 
-uint64_t DbgEngAdapter::ExitCode()
+uint64_t DbgEngEngine::ExitCode()
 {
-	return DbgEngAdapter::ProcessCallbackInfo.m_exitCode;
+	return DbgEngEngine::ProcessCallbackInfo.m_exitCode;
 }
 
-std::string DbgEngAdapter::InvokeBackendCommand(const std::string& command)
+std::string DbgEngEngine::InvokeBackendCommand(const std::string& command)
 {
 	if (m_debugControl)
 	{
@@ -2194,7 +1961,7 @@ std::string DbgEngAdapter::InvokeBackendCommand(const std::string& command)
 	return "";
 }
 
-uint64_t DbgEngAdapter::GetInstructionOffset()
+uint64_t DbgEngEngine::GetInstructionOffset()
 {
 	if (!m_debugRegisters)
 		return -1;
@@ -2204,7 +1971,7 @@ uint64_t DbgEngAdapter::GetInstructionOffset()
 	return register_offset;
 }
 
-uint64_t DbgEngAdapter::GetStackPointer()
+uint64_t DbgEngEngine::GetStackPointer()
 {
 	if (!m_debugRegisters)
 		return 0;
@@ -2215,7 +1982,7 @@ uint64_t DbgEngAdapter::GetStackPointer()
 }
 
 
-std::uint32_t DbgEngAdapter::GetActivePID()
+std::uint32_t DbgEngEngine::GetActivePID()
 {
 	if (!m_debugSystemObjects)
 		return 0;
@@ -2262,14 +2029,14 @@ HRESULT DbgEngEventCallbacks::Breakpoint(IDebugBreakpoint* breakpoint)
 {
 	std::uintptr_t address {};
 	if (breakpoint->GetOffset(&address) == S_OK)
-		DbgEngAdapter::ProcessCallbackInfo.m_lastBreakpoint = DebugBreakpoint(address);
+		DbgEngEngine::ProcessCallbackInfo.m_lastBreakpoint = DebugBreakpoint(address);
 
 	return DEBUG_STATUS_NO_CHANGE;
 }
 
 HRESULT DbgEngEventCallbacks::Exception(EXCEPTION_RECORD64* exception, unsigned long first_chance)
 {
-	DbgEngAdapter::ProcessCallbackInfo.m_lastException = *exception;
+	DbgEngEngine::ProcessCallbackInfo.m_lastException = *exception;
 
 	// If we are debugging a 32-bit program, we get STATUS_WX86_BREAKPOINT followed by STATUS_WX86_BREAKPOINT
 	// However, returning DEBUG_STATUS_GO here does not work. This might be a dbgeng bug.
@@ -2298,7 +2065,7 @@ HRESULT DbgEngEventCallbacks::CreateProcess(uint64_t image_file_handle, uint64_t
 
 HRESULT DbgEngEventCallbacks::ExitProcess(unsigned long exit_code)
 {
-	DbgEngAdapter::ProcessCallbackInfo.m_exitCode = exit_code;
+	DbgEngEngine::ProcessCallbackInfo.m_exitCode = exit_code;
 	return DEBUG_STATUS_NO_CHANGE;
 }
 
@@ -2349,7 +2116,7 @@ HRESULT DbgEngOutputCallbacks::Output(unsigned long mask, const char* text)
 	DbgEngEvent event;
 	event.type = DbgEngEventType::BackendMessage;
 	event.message = text;
-	m_adapter->PostEngineEvent(event);
+	m_engine->PostEngineEvent(event);
 	m_output += text;
 	return S_OK;
 }
@@ -2379,9 +2146,9 @@ HRESULT DbgEngOutputCallbacks::QueryInterface(const IID& interface_id, void** _i
 	return S_OK;
 }
 
-void DbgEngOutputCallbacks::SetAdapter(DbgEngAdapter* adapter)
+void DbgEngOutputCallbacks::SetEngine(DbgEngEngine* engine)
 {
-	m_adapter = adapter;
+	m_engine = engine;
 }
 
 HRESULT DbgEngInputCallbacks::StartInput(ULONG BufferSize)
@@ -2419,7 +2186,7 @@ void DbgEngInputCallbacks::SetDbgControl(IDebugControl7* control)
     m_control = control;
 }
 
-bool DbgEngAdapter::SupportFeature(DebugAdapterCapacity feature)
+bool DbgEngEngine::SupportFeature(DebugAdapterCapacity feature)
 {
 	switch (feature)
 	{
@@ -2437,7 +2204,7 @@ bool DbgEngAdapter::SupportFeature(DebugAdapterCapacity feature)
 }
 
 
-DataBuffer DbgEngAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
+std::vector<uint8_t> DbgEngEngine::ReadMemory(std::uintptr_t address, std::size_t size)
 {
 	if (!m_debugDataSpaces)
 		return {};
@@ -2452,21 +2219,21 @@ DataBuffer DbgEngAdapter::ReadMemory(std::uintptr_t address, std::size_t size)
 	if (result != S_OK || bytesRead == 0)
 		return {};
 
-	return {source.get(), bytesRead};
+	return {source.get(), source.get() + bytesRead};
 }
 
-bool DbgEngAdapter::WriteMemory(std::uintptr_t address, const DataBuffer& buffer)
+bool DbgEngEngine::WriteMemory(std::uintptr_t address, const std::vector<uint8_t>& buffer)
 {
 	if (!m_debugDataSpaces)
 		return false;
 
 	unsigned long bytes_written {};
-	return this->m_debugDataSpaces->WriteVirtual(address, const_cast<void*>(buffer.GetData()), (ULONG)buffer.GetLength(), &bytes_written) == S_OK
-		&& bytes_written == buffer.GetLength();
+	return this->m_debugDataSpaces->WriteVirtual(address, const_cast<uint8_t*>(buffer.data()), (ULONG)buffer.size(), &bytes_written) == S_OK
+		&& bytes_written == buffer.size();
 }
 
 
-std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
+std::vector<DebugFrame> DbgEngEngine::GetFramesOfThread(uint32_t tid)
 {
 	std::vector<DebugFrame> result;
 	// Due to https://github.com/Vector35/debugger/issues/304 and that we pause the target before killing it, we would
@@ -2536,188 +2303,4 @@ std::vector<DebugFrame> DbgEngAdapter::GetFramesOfThread(uint32_t tid)
 
 	delete []frames;
 	return result;
-}
-
-
-LocalDbgEngAdapterType::LocalDbgEngAdapterType() : DebugAdapterType("DBGENG") {}
-
-
-DebugAdapter* LocalDbgEngAdapterType::Create(BinaryNinja::BinaryView* data)
-{
-	// TODO: someone should free this.
-	return new DbgEngAdapter(data);
-}
-
-
-bool LocalDbgEngAdapterType::IsValidForData(BinaryNinja::BinaryView* data)
-{
-	return data->GetTypeName() == "PE" || data->GetTypeName() == "Raw" || data->GetTypeName() == "Mapped";
-}
-
-
-bool LocalDbgEngAdapterType::CanConnect(BinaryNinja::BinaryView* data)
-{
-	return true;
-}
-
-
-bool LocalDbgEngAdapterType::CanExecute(BinaryNinja::BinaryView* data)
-{
-#ifdef WIN32
-	return true;
-#endif
-	return false;
-}
-
-
-Ref<Settings> DbgEngAdapter::GetAdapterSettings()
-{
-	return LocalDbgEngAdapterType::GetAdapterSettings();
-}
-
-
-Ref<Settings> LocalDbgEngAdapterType::GetAdapterSettings()
-{
-	static Ref<Settings> settings = LocalDbgEngAdapterType::RegisterAdapterSettings();
-	return settings;
-}
-
-
-Ref<Settings> LocalDbgEngAdapterType::RegisterAdapterSettings()
-{
-	Ref<Settings> settings = Settings::Instance("DbgEngAdapterSettings");
-	settings->SetResourceId("dbgeng_adapter_settings");
-	settings->RegisterSetting("common.inputFile",
-		R"({
-			"title" : "Input File",
-			"type" : "string",
-			"default" : "",
-			"description" : "Input file to use to find the base address of the binary view",
-			"readOnly" : false,
-			"uiSelectionAction" : "file"
-			})");
-
-	settings->RegisterSetting("launch.executablePath",
-		R"({
-			"title" : "Executable Path",
-			"type" : "string",
-			"default" : "",
-			"description" : "Path of the executable to launch.",
-			"readOnly" : false,
-			"uiSelectionAction" : "file"
-			})");
-	settings->RegisterSetting("launch.workingDirectory",
-			R"({
-			"title" : "Working Directory",
-			"type" : "string",
-			"default" : "",
-			"description" : "Working directory to launch the target in.",
-			"readOnly" : false,
-			"uiSelectionAction" : "directory"
-			})");
-	settings->RegisterSetting("launch.commandLineArguments",
-			R"({
-			"title" : "Command Line Arguments",
-			"type" : "string",
-			"default" : "",
-			"description" : "Command line arguments to pass to the target",
-			"readOnly" : false
-			})");
-	settings->RegisterSetting("launch.environmentVariables",
-		R"({
-			"title" : "Environment Variables",
-			"type" : "array",
-			"sorted" : false,
-			"default" : [],
-			"description" : "Environment Variables for the target. Provide the list of in the form of [\"var1=val1\", \"var2=val2\"]",
-			"readOnly" : false
-			})");
-
-	settings->RegisterSetting("debugServer.ipAddress",
-			R"({
-			"title" : "IP Address",
-			"type" : "string",
-			"default" : "127.0.0.1",
-			"description" : "IP address of the debug server to connect to",
-			"readOnly" : false
-			})");
-	settings->RegisterSetting("debugServer.port",
-			R"({
-			"title" : "Port",
-			"type" : "number",
-			"default" : 31337,
-			"minValue" : 0,
-			"maxValue" : 65535,
-			"description" : "Port of the debug server to connect to",
-			"readOnly" : false
-			})");
-
-	settings->RegisterSetting("attach.pid",
-		R"({
-			"title" : "PID to attach to",
-			"type" : "number",
-			"default" : 0,
-			"minValue" : 0,
-			"maxValue" : 4294967295,
-			"description" : "PID of the process to attach to",
-			"readOnly" : false
-			})");
-
-	settings->RegisterSetting("common.runAsAdministrator",
-		R"({
-			"title" : "Run as Administrator",
-			"type" : "boolean",
-			"default" : false,
-			"description" : "Launch the debug server (dbgsrv.exe) with administrator privileges. Required when debugging processes that run with elevated privileges.",
-			"readOnly" : false
-			})");
-
-	return settings;
-}
-
-
-void DbgEngAdapter::GenerateDefaultAdapterSettings(BinaryView* data)
-{
-	auto adapterSettings = GetAdapterSettings();
-	BNSettingsScope scope = SettingsResourceScope;
-	auto executablePath = adapterSettings->Get<std::string>("launch.executablePath", data, &scope);
-	// If the value is not loaded from the database, we need to populate it with a default value
-	if (scope != SettingsResourceScope)
-	{
-		executablePath = data->GetFile()->GetOriginalFilename();
-		adapterSettings->Set("launch.executablePath", executablePath, data, SettingsResourceScope);
-	}
-
-	scope = SettingsResourceScope;
-	adapterSettings->Get<std::string>("common.inputFile", data, &scope);
-	if (scope != SettingsResourceScope)
-		adapterSettings->Set("common.inputFile", data->GetFile()->GetOriginalFilename(), data, SettingsResourceScope);
-
-	scope = SettingsResourceScope;
-	auto workingDirectory = adapterSettings->Get<std::string>("launch.workingDirectory", data, &scope);
-	if (scope != SettingsResourceScope)
-	{
-		// This mitigates https://github.com/Vector35/debugger/issues/469. However, it is NOT a proper fix since the
-		// debugger still will not be able to launch the target properly. We will need to deal with the charset issue
-		// to get this really fixed.
-		try
-		{
-			workingDirectory = filesystem::path(executablePath).parent_path().string();
-		}
-		catch (const exception&)
-		{
-			LogWarn("Cannot get the default working directory for the input file. "
-					"There might be special characters in the file path. "
-					"The debugger may not be able to launch the target correctly. "
-					"You can try changing the file path to ASCII allow.");
-		}
-		adapterSettings->Set("launch.workingDirectory", workingDirectory, data, SettingsResourceScope);
-	}
-}
-
-
-void BinaryNinjaDebugger::InitDbgEngAdapterType()
-{
-	static LocalDbgEngAdapterType localType;
-	DebugAdapterType::Register(&localType);
 }
