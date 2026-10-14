@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cctype>
 #include <sstream>
+#include <cstdio>
 
 using namespace BinaryNinjaDebugger;
 using namespace std;
@@ -44,14 +45,14 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
 		}
 		else if (!std::filesystem::exists(tracePath, ec))
 		{
-			event.data.errorData.error = fmt::format("The TTD trace \"{}\" does not exist. Set the trace path in "
-				"the debug adapter settings.", tracePath);
+			event.data.errorData.error = "The TTD trace \"" + tracePath + "\" does not exist. Set the trace path in "
+				"the debug adapter settings.";
 			event.data.errorData.shortError = "TTD trace not found";
 		}
 		else
 		{
-			event.data.errorData.error = fmt::format("The TTD trace path \"{}\" is not a file. Set the trace path in "
-				"the debug adapter settings to a recorded trace file.", tracePath);
+			event.data.errorData.error = "The TTD trace path \"" + tracePath + "\" is not a file. Set the trace path in "
+				"the debug adapter settings to a recorded trace file.";
 			event.data.errorData.shortError = "TTD trace is not a file";
 		}
 		PostDebuggerEvent(event);
@@ -66,8 +67,8 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
         this->Reset();
         DebuggerEvent event;
         event.type = LaunchFailureEventType;
-        event.data.errorData.error = fmt::format("Failed to initialize DbgEng");
-        event.data.errorData.shortError = fmt::format("Failed to initialize DbgEng");
+        event.data.errorData.error = "Failed to initialize DbgEng";
+        event.data.errorData.shortError = "Failed to initialize DbgEng";
         PostDebuggerEvent(event);
         return false;
     }
@@ -76,8 +77,8 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
         this->Reset();
         DebuggerEvent event;
         event.type = LaunchFailureEventType;
-        event.data.errorData.error = fmt::format("Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK");
-        event.data.errorData.shortError = fmt::format("Failed to engine option");
+        event.data.errorData.error = "Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK";
+        event.data.errorData.shortError = "Failed to engine option";
         PostDebuggerEvent(event);
         return false;
     }
@@ -87,8 +88,10 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
         this->Reset();
         DebuggerEvent event;
         event.type = LaunchFailureEventType;
-        event.data.errorData.error = fmt::format("OpenDumpFile failed: 0x{:x}", result);
-        event.data.errorData.shortError = fmt::format("OpenDumpFile failed: 0x{:x}", result);
+        char buf[64];
+        snprintf(buf, sizeof(buf), "OpenDumpFile failed: 0x%lx", (unsigned long)result);
+        event.data.errorData.error = buf;
+        event.data.errorData.shortError = buf;
         PostDebuggerEvent(event);
         return false;
     }
@@ -97,8 +100,8 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
     if (!Wait()) {
         DebuggerEvent event;
         event.type = LaunchFailureEventType;
-        event.data.errorData.error = fmt::format("WaitForEvent failed");
-        event.data.errorData.shortError = fmt::format("WaitForEvent failed");
+        event.data.errorData.error = "WaitForEvent failed";
+        event.data.errorData.shortError = "WaitForEvent failed";
         PostDebuggerEvent(event);
     }
 
@@ -117,8 +120,8 @@ bool DbgEngTTDAdapter::ExecuteWithArgsInternal(const std::string& path, const st
             this->Reset();
             DebuggerEvent event;
             event.type = LaunchFailureEventType;
-            event.data.errorData.error = fmt::format("Failed to resume the target after the system entry point");
-            event.data.errorData.shortError = fmt::format("Failed to resume target");
+            event.data.errorData.error = "Failed to resume the target after the system entry point";
+            event.data.errorData.shortError = "Failed to resume target";
             PostDebuggerEvent(event);
             return false;
         }
@@ -560,18 +563,20 @@ bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
 	}
 	
 	// Use InvokeBackendCommand with !tt command to navigate to position
-	std::string command = fmt::format("!tt {:X}:{:X}", position.sequence, position.step);
+	char buf[64];
+	snprintf(buf, sizeof(buf), "!tt %llX:%llX", position.sequence, position.step);
+	std::string command = buf;
 	std::string output = InvokeBackendCommand(command);
 	
 	// Check if the command succeeded (basic check)
 	bool success = output.find("error") == std::string::npos && output.find("failed") == std::string::npos;
 	if (success)
 	{
-		LogInfo("%s", fmt::format("Successfully navigated to TTD position {:X}:{:X}", position.sequence, position.step).c_str());
+		LogInfo("Successfully navigated to TTD position %llX:%llX", position.sequence, position.step);
 	}
 	else
 	{
-		LogError("%s", fmt::format("Failed to navigate to TTD position {:X}:{:X}", position.sequence, position.step).c_str());
+		LogError("Failed to navigate to TTD position %llX:%llX", position.sequence, position.step);
 	}
 	return success;
 }
@@ -598,7 +603,9 @@ std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDNextMemoryAccess(uint64_
 			return {false, TTDMemoryEvent()};
 		}
 
-		std::string expression = fmt::format("@$curprocess.TTD.NextMemoryAccess(\"{}\",0x{:x},0x{:x})", accessTypeStr, address, size);
+		char range[64];
+		snprintf(range, sizeof(range), "0x%llx,0x%llx", address, size);
+		std::string expression = "@$curprocess.TTD.NextMemoryAccess(\"" + accessTypeStr + "\"," + range + ")";
 		LogInfo("Executing TTD NextMemoryAccess query: %s", expression.c_str());
 
 		return ParseSingleTTDMemoryObject(expression, accessType);
@@ -632,7 +639,9 @@ std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDPrevMemoryAccess(uint64_
 			return {false, TTDMemoryEvent()};
 		}
 
-		std::string expression = fmt::format("@$curprocess.TTD.PrevMemoryAccess(\"{}\",0x{:x},0x{:x})", accessTypeStr, address, size);
+		char range[64];
+		snprintf(range, sizeof(range), "0x%llx,0x%llx", address, size);
+		std::string expression = "@$curprocess.TTD.PrevMemoryAccess(\"" + accessTypeStr + "\"," + range + ")";
 		LogInfo("Executing TTD PrevMemoryAccess query: %s", expression.c_str());
 
 		return ParseSingleTTDMemoryObject(expression, accessType);
@@ -661,7 +670,7 @@ std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDNextRegisterWrite(c
 
 	try
 	{
-		std::string expression = fmt::format("@$curthread.TTD.NextRegisterWrite(\"{}\")", reg);
+		std::string expression = "@$curthread.TTD.NextRegisterWrite(\"" + reg + "\")";
 		LogInfo("Executing TTD NextRegisterWrite query: %s", expression.c_str());
 
 		return ParseSingleTTDRegisterWriteObject(expression, reg);
@@ -690,7 +699,7 @@ std::optional<TTDRegisterWriteEvent> DbgEngTTDAdapter::GetTTDPrevRegisterWrite(c
 
 	try
 	{
-		std::string expression = fmt::format("@$curthread.TTD.PrevRegisterWrite(\"{}\")", reg);
+		std::string expression = "@$curthread.TTD.PrevRegisterWrite(\"" + reg + "\")";
 		LogInfo("Executing TTD PrevRegisterWrite query: %s", expression.c_str());
 
 		return ParseSingleTTDRegisterWriteObject(expression, reg);
@@ -726,7 +735,9 @@ bool DbgEngTTDAdapter::QueryMemoryAccessByAddress(uint64_t startAddress, uint64_
 		}
 		
 		// Create the actual TTD memory query expression
-		std::string expression = fmt::format("@$cursession.TTD.Memory(0x{:x},0x{:x},\"{}\")", startAddress, endAddress, accessTypeStr);
+		char range[64];
+		snprintf(range, sizeof(range), "0x%llx,0x%llx", startAddress, endAddress);
+		std::string expression = "@$cursession.TTD.Memory(" + std::string(range) + ",\"" + accessTypeStr + "\")";
 		
 		LogInfo("Executing TTD memory query: %s", expression.c_str());
 		
@@ -770,7 +781,11 @@ bool DbgEngTTDAdapter::QueryMemoryAccessByAddressAndPositionRange(uint64_t start
 		}
 		
 		// Create the actual TTD memory query expression
-		std::string expression = fmt::format("@$cursession.TTD.MemoryForPositionRange(0x{:x},0x{:x},\"{}\",\"{:x}:{:x}\",\"{:x}:{:x}\")", startAddress, endAddress, accessTypeStr, startTime.sequence,startTime.step, endTime.sequence, endTime.step);
+		char range[64];
+		snprintf(range, sizeof(range), "0x%llx,0x%llx", startAddress, endAddress);
+		char positions[128];
+		snprintf(positions, sizeof(positions), "\"%llx:%llx\",\"%llx:%llx\"", startTime.sequence, startTime.step, endTime.sequence, endTime.step);
+		std::string expression = "@$cursession.TTD.MemoryForPositionRange(" + std::string(range) + ",\"" + accessTypeStr + "\"," + positions + ")";
 		
 		LogInfo("Executing TTD memory query: %s", expression.c_str());
 		
@@ -1178,7 +1193,7 @@ bool DbgEngTTDAdapter::ParseTTDMemoryObjects(const std::string& expression, TTDM
 		
 		if (wasLimited)
 		{
-			LogWarnF("Successfully parsed {} TTD memory events from data model (limited by max results setting of {})", events.size(), maxResults);
+			LogWarn("Successfully parsed %zu TTD memory events from data model (limited by max results setting of %llu)", events.size(), maxResults);
 		}
 		else
 		{
@@ -1428,7 +1443,7 @@ bool DbgEngTTDAdapter::ParseTTDPositionRangeIndexedMemoryObjects(const std::stri
 		
 		if (wasLimited)
 		{
-			LogWarnF("Successfully parsed {} TTD memory events from data model (limited by max results setting of {})", events.size(), maxResults);
+			LogWarn("Successfully parsed %zu TTD memory events from data model (limited by max results setting of %llu)", events.size(), maxResults);
 		}
 		else
 		{
@@ -1773,23 +1788,27 @@ bool DbgEngTTDAdapter::QueryCallsForSymbols(const std::vector<std::string>& symb
 		// Build the TTD.Calls query expression
 		std::string expression = "@$cursession.TTD.Calls(" + symbolList + ")";
 		
+		char startHex[32];
+		snprintf(startHex, sizeof(startHex), "%llx", startReturnAddress);
+		char endHex[32];
+		snprintf(endHex, sizeof(endHex), "%llx", endReturnAddress);
 		// Add address range filtering if specified
 		if (startReturnAddress != 0 && endReturnAddress != 0)
 		{
 			expression += ".Where(c => c.ReturnAddress >= 0x" + 
-				fmt::format("{:x}", startReturnAddress) + 
+				std::string(startHex) + 
 				" && c.ReturnAddress < 0x" + 
-				fmt::format("{:x}", endReturnAddress) + ")";
+				endHex + ")";
 		}
 		else if (startReturnAddress != 0)
 		{
 			expression += ".Where(c => c.ReturnAddress >= 0x" + 
-				fmt::format("{:x}", startReturnAddress) + ")";
+				std::string(startHex) + ")";
 		}
 		else if (endReturnAddress != 0)
 		{
 			expression += ".Where(c => c.ReturnAddress < 0x" + 
-				fmt::format("{:x}", endReturnAddress) + ")";
+				std::string(endHex) + ")";
 		}
 		
 		LogInfo("Executing TTD calls query: %s", expression.c_str());
@@ -2091,7 +2110,7 @@ bool DbgEngTTDAdapter::ParseTTDCallObjects(const std::string& expression, std::v
 		
 		if (wasLimited)
 		{
-			LogWarnF("Successfully parsed {} TTD call events from data model (limited by max results setting of {})", events.size(), maxResults);
+			LogWarn("Successfully parsed %zu TTD call events from data model (limited by max results setting of %llu)", events.size(), maxResults);
 		}
 		else
 		{
@@ -2347,7 +2366,7 @@ bool DbgEngTTDAdapter::ParseTTDEventObjects(const std::string& expression, std::
 		
 		if (wasLimited)
 		{
-			LogWarnF("Successfully parsed {} TTD events from data model (limited by max results setting of {})", events.size(), maxResults);
+			LogWarn("Successfully parsed %zu TTD events from data model (limited by max results setting of %llu)", events.size(), maxResults);
 		}
 		else
 		{

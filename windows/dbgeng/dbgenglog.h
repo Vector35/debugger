@@ -15,9 +15,7 @@ limitations under the License.
 */
 
 #pragma once
-#include <format>
 #include <string>
-#include <utility>
 #include "dbgengtypes.h"
 
 namespace BinaryNinjaDebugger {
@@ -27,10 +25,4 @@ namespace BinaryNinjaDebugger {
 	void LogInfo(const char* fmt, ...);
 	void LogWarn(const char* fmt, ...);
 	void LogError(const char* fmt, ...);
-
-	template <typename... Args>
-	void LogWarnF(std::format_string<Args...> fmt, Args&&... args)
-	{
-		LogMessage(DbgEngLogLevel::Warn, std::format(fmt, std::forward<Args>(args)...));
-	}
 }  // namespace BinaryNinjaDebugger

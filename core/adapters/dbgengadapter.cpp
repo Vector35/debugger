@@ -18,6 +18,7 @@ limitations under the License.
 #include <chrono>
 #include <algorithm>
 #include <string>
+#include <cstdio>
 #include <binaryninjacore.h>
 #include <binaryninjaapi.h>
 #include <lowlevelilinstruction.h>
@@ -383,13 +384,13 @@ bool DbgEngAdapter::Start()
 	if (!m_connectedToDebugServer)
 	{
 		auto pipeName = GenerateRandomPipeName();
-		auto connectString = fmt::format("npipe:pipe={},Server=localhost", pipeName);
+		auto connectString = "npipe:pipe=" + pipeName + ",Server=localhost";
 		auto arch = m_defaultArchitecture == "x86" ? "x86" : "amd64";
 		auto enginePath = GetDbgEngPath(arch);
 		if (enginePath.empty())
 			return false;
 
-		auto dbgsrvCommandLine = fmt::format("\"{}\\dbgsrv.exe\" -t {}", enginePath, connectString);
+		auto dbgsrvCommandLine = "\"" + enginePath + "\\dbgsrv.exe\" -t " + connectString;
 		if (!LaunchDbgSrv(dbgsrvCommandLine))
 		{
 			LogWarn("Command %s failed", dbgsrvCommandLine.c_str());
@@ -521,8 +522,8 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	{
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("Cannot launch while actively debugging another target");
-		event.data.errorData.shortError = fmt::format("Already debugging");
+		event.data.errorData.error = "Cannot launch while actively debugging another target";
+		event.data.errorData.shortError = "Already debugging";
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -556,8 +557,8 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 		this->Reset();
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("Failed to initialize DbgEng");
-		event.data.errorData.shortError = fmt::format("Failed to initialize DbgEng");
+		event.data.errorData.error = "Failed to initialize DbgEng";
+		event.data.errorData.shortError = "Failed to initialize DbgEng";
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -567,8 +568,8 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 		this->Reset();
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK");
-		event.data.errorData.shortError = fmt::format("Failed to engine option");
+		event.data.errorData.error = "Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK";
+		event.data.errorData.shortError = "Failed to engine option";
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -614,8 +615,10 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 		this->Reset();
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("CreateProcess2 failed: 0x{:08x}", (uint32_t)result);
-		event.data.errorData.shortError = fmt::format("CreateProcess2 failed: 0x{:08x}", (uint32_t)result);
+		char buf[64];
+		snprintf(buf, sizeof(buf), "CreateProcess2 failed: 0x%08x", (uint32_t)result);
+		event.data.errorData.error = buf;
+		event.data.errorData.shortError = buf;
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -625,8 +628,8 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 	{
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("WaitForEvent failed");
-		event.data.errorData.shortError = fmt::format("WaitForEvent failed");
+		event.data.errorData.error = "WaitForEvent failed";
+		event.data.errorData.shortError = "WaitForEvent failed";
 		PostDebuggerEvent(event);
 	}
 
@@ -646,8 +649,8 @@ bool DbgEngAdapter::ExecuteWithArgsInternal(const std::string& path, const std::
 			this->Reset();
 			DebuggerEvent event;
 			event.type = LaunchFailureEventType;
-			event.data.errorData.error = fmt::format("Failed to resume the target after the system entry point");
-			event.data.errorData.shortError = fmt::format("Failed to resume target");
+			event.data.errorData.error = "Failed to resume the target after the system entry point";
+			event.data.errorData.shortError = "Failed to resume target";
 			PostDebuggerEvent(event);
 			return false;
 		}
@@ -803,8 +806,8 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 	{
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("Cannot attach while actively debugging another target");
-		event.data.errorData.shortError = fmt::format("Already debugging");
+		event.data.errorData.error = "Cannot attach while actively debugging another target";
+		event.data.errorData.shortError = "Already debugging";
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -830,8 +833,8 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 		this->Reset();
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("Failed to initialize DbgEng");
-		event.data.errorData.shortError = fmt::format("Failed to initialize DbgEng");
+		event.data.errorData.error = "Failed to initialize DbgEng";
+		event.data.errorData.shortError = "Failed to initialize DbgEng";
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -841,8 +844,8 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 		this->Reset();
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK");
-		event.data.errorData.shortError = fmt::format("Failed to engine option");
+		event.data.errorData.error = "Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK";
+		event.data.errorData.shortError = "Failed to engine option";
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -852,8 +855,10 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 		this->Reset();
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("AttachProcess failed: 0x{:x}", result);
-		event.data.errorData.shortError = fmt::format("AttachProcess failed: 0x{:x}", result);
+		char buf[64];
+		snprintf(buf, sizeof(buf), "AttachProcess failed: 0x%lx", (unsigned long)result);
+		event.data.errorData.error = buf;
+		event.data.errorData.shortError = buf;
 		PostDebuggerEvent(event);
 		return false;
 	}
@@ -862,8 +867,8 @@ bool DbgEngAdapter::AttachInternal(std::uint32_t pid)
 	{
 		DebuggerEvent event;
 		event.type = LaunchFailureEventType;
-		event.data.errorData.error = fmt::format("WaitForEvent failed");
-		event.data.errorData.shortError = fmt::format("WaitForEvent failed");
+		event.data.errorData.error = "WaitForEvent failed";
+		event.data.errorData.shortError = "WaitForEvent failed";
 		PostDebuggerEvent(event);
 	}
 
@@ -897,8 +902,8 @@ bool DbgEngAdapter::Connect(const std::string& server, std::uint32_t port)
 {
 	DebuggerEvent event;
 	event.type = LaunchFailureEventType;
-	event.data.errorData.error = fmt::format("Connect() is not implemented in DbgEng");
-	event.data.errorData.shortError = fmt::format("Connect() is not implemented in DbgEng");
+	event.data.errorData.error = "Connect() is not implemented in DbgEng";
+	event.data.errorData.shortError = "Connect() is not implemented in DbgEng";
 	PostDebuggerEvent(event);
 	return false;
 }
@@ -912,7 +917,7 @@ bool DbgEngAdapter::ConnectToDebugServer(const std::string& server, std::uint32_
 	scope = SettingsResourceScope;
 	auto serverPort = adapterSettings->Get<uint64_t>("debugServer.port", data, &scope);
 
-	std::string connectionString = fmt::format("tcp:port={}, Server={}", serverPort, ipAddress);
+	std::string connectionString = "tcp:port=" + std::to_string(serverPort) + ", Server=" + ipAddress;
 	return ConnectToDebugServerInternal(connectionString);
 }
 
@@ -1212,14 +1217,14 @@ bool DbgEngAdapter::SetActiveThreadId(std::uint32_t tid)
 
 bool DbgEngAdapter::SuspendThread(std::uint32_t tid)
 {
-	std::string suspendCmd = fmt::format("~{}f", tid);
+	std::string suspendCmd = "~" + std::to_string(tid) + "f";
 	InvokeBackendCommand(suspendCmd);
 	return true;
 }
 
 bool DbgEngAdapter::ResumeThread(std::uint32_t tid)
 {
-	std::string resumeCmd = fmt::format("~{}u", tid);
+	std::string resumeCmd = "~" + std::to_string(tid) + "u";
 	InvokeBackendCommand(resumeCmd);
 	return true;
 }
@@ -1301,8 +1306,10 @@ DebugBreakpoint DbgEngAdapter::AddBreakpoint(const ModuleNameAndOffset& address,
 
 		// DbgEng does not take a full path. It can take "hello.exe", or simply "hello". E.g., "bp helloworld+0x1338"
 		auto fileName = std::filesystem::path(moduleToUse).stem();
+		char offset[32];
+		snprintf(offset, sizeof(offset), "0x%llx", address.offset);
 		std::string breakpointCommand =
-			fmt::format("bp @!\"{}\"+0x{:x}", EscapeModuleName(fileName.wstring()), address.offset);
+			"bp @!\"" + EscapeModuleName(fileName.wstring()) + "\"+" + offset;
         LogDebug("Breakpoint command: %s", breakpointCommand.c_str());
 		auto ret = InvokeBackendCommand(breakpointCommand);
 	}
@@ -1391,24 +1398,29 @@ bool DbgEngAdapter::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType 
 		return true;
 	}
 
+	char buf[64];
 	std::string command;
 	switch (type)
 	{
 		case HardwareExecuteBreakpoint:
 			// ba e<size> <address>: hardware execution breakpoint
-			command = fmt::format("ba e{} 0x{:x}", size, address);
+			snprintf(buf, sizeof(buf), "ba e%zu 0x%llx", size, address);
+			command = buf;
 			break;
 		case HardwareReadBreakpoint:
 			// ba r<size> <address>: hardware read breakpoint  
-			command = fmt::format("ba r{} 0x{:x}", size, address);
+			snprintf(buf, sizeof(buf), "ba r%zu 0x%llx", size, address);
+			command = buf;
 			break;
 		case HardwareWriteBreakpoint:
 			// ba w<size> <address>: hardware write breakpoint
-			command = fmt::format("ba w{} 0x{:x}", size, address);
+			snprintf(buf, sizeof(buf), "ba w%zu 0x%llx", size, address);
+			command = buf;
 			break;
 		case HardwareAccessBreakpoint:
 			// ba a<size> <address>: hardware access (read/write) breakpoint
-			command = fmt::format("ba a{} 0x{:x}", size, address);
+			snprintf(buf, sizeof(buf), "ba a%zu 0x%llx", size, address);
+			command = buf;
 			break;
 		default:
 			return false;
@@ -1504,24 +1516,27 @@ bool DbgEngAdapter::AddHardwareBreakpoint(const ModuleNameAndOffset& location, D
 		// DbgEng does not take a full path. It can take "hello.exe", or simply "hello"
 		auto fileName = std::filesystem::path(moduleToUse).stem();
 
+		char offset[32];
+		snprintf(offset, sizeof(offset), "0x%llx", location.offset);
+
 		std::string command;
 		switch (type)
 		{
 			case HardwareExecuteBreakpoint:
 				// ba e<size> @!"module"+offset: hardware execution breakpoint with module+offset
-				command = fmt::format("ba e{} @!\"{}\"+0x{:x}", size, EscapeModuleName(fileName.wstring()), location.offset);
+				command = "ba e" + std::to_string(size) + " @!\"" + EscapeModuleName(fileName.wstring()) + "\"+" + offset;
 				break;
 			case HardwareReadBreakpoint:
 				// ba r<size> @!"module"+offset: hardware read breakpoint with module+offset
-				command = fmt::format("ba r{} @!\"{}\"+0x{:x}", size, EscapeModuleName(fileName.wstring()), location.offset);
+				command = "ba r" + std::to_string(size) + " @!\"" + EscapeModuleName(fileName.wstring()) + "\"+" + offset;
 				break;
 			case HardwareWriteBreakpoint:
 				// ba w<size> @!"module"+offset: hardware write breakpoint with module+offset
-				command = fmt::format("ba w{} @!\"{}\"+0x{:x}", size, EscapeModuleName(fileName.wstring()), location.offset);
+				command = "ba w" + std::to_string(size) + " @!\"" + EscapeModuleName(fileName.wstring()) + "\"+" + offset;
 				break;
 			case HardwareAccessBreakpoint:
 				// ba a<size> @!"module"+offset: hardware access breakpoint with module+offset
-				command = fmt::format("ba a{} @!\"{}\"+0x{:x}", size, EscapeModuleName(fileName.wstring()), location.offset);
+				command = "ba a" + std::to_string(size) + " @!\"" + EscapeModuleName(fileName.wstring()) + "\"+" + offset;
 				break;
 			default:
 				return false;

@@ -1,6 +1,7 @@
 #include "windowsdumpfile.h"
 #include "dbgenglog.h"
 #include <filesystem>
+#include <cstdio>
 
 using namespace BinaryNinjaDebugger;
 using namespace std;
@@ -32,8 +33,8 @@ bool WindowsDumpFileAdapter::ExecuteWithArgsInternal(const std::string& path, co
         this->Reset();
         DebuggerEvent event;
         event.type = LaunchFailureEventType;
-        event.data.errorData.error = fmt::format("Failed to initialize DbgEng");
-        event.data.errorData.shortError = fmt::format("Failed to initialize DbgEng");
+        event.data.errorData.error = "Failed to initialize DbgEng";
+        event.data.errorData.shortError = "Failed to initialize DbgEng";
         PostDebuggerEvent(event);
         return false;
     }
@@ -42,8 +43,8 @@ bool WindowsDumpFileAdapter::ExecuteWithArgsInternal(const std::string& path, co
         this->Reset();
         DebuggerEvent event;
         event.type = LaunchFailureEventType;
-        event.data.errorData.error = fmt::format("Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK");
-        event.data.errorData.shortError = fmt::format("Failed to engine option");
+        event.data.errorData.error = "Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK";
+        event.data.errorData.shortError = "Failed to engine option";
         PostDebuggerEvent(event);
         return false;
     }
@@ -53,8 +54,10 @@ bool WindowsDumpFileAdapter::ExecuteWithArgsInternal(const std::string& path, co
         this->Reset();
         DebuggerEvent event;
         event.type = LaunchFailureEventType;
-        event.data.errorData.error = fmt::format("OpenDumpFile failed: 0x{:x}", result);
-        event.data.errorData.shortError = fmt::format("OpenDumpFile failed: 0x{:x}", result);
+        char buf[64];
+        snprintf(buf, sizeof(buf), "OpenDumpFile failed: 0x%lx", (unsigned long)result);
+        event.data.errorData.error = buf;
+        event.data.errorData.shortError = buf;
         PostDebuggerEvent(event);
         return false;
     }
@@ -63,8 +66,8 @@ bool WindowsDumpFileAdapter::ExecuteWithArgsInternal(const std::string& path, co
     if (!Wait()) {
         DebuggerEvent event;
         event.type = LaunchFailureEventType;
-        event.data.errorData.error = fmt::format("WaitForEvent failed");
-        event.data.errorData.shortError = fmt::format("WaitForEvent failed");
+        event.data.errorData.error = "WaitForEvent failed";
+        event.data.errorData.shortError = "WaitForEvent failed";
         PostDebuggerEvent(event);
     }
 
