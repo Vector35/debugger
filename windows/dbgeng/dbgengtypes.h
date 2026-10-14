@@ -32,15 +32,15 @@ namespace BinaryNinjaDebugger {
 
 	void SetDbgEngLogCallback(DbgEngLogCallback callback);
 
-	// Same values as BNDebugStopReason, which can't be used here because api/ffi.h needs binaryninjacore.h.
-	enum class DbgEngStopReason : uint32_t
+	// Subset of BNDebugStopReason, which can't be used here because api/ffi.h needs binaryninjacore.h.
+	enum class DbgEngStopReason
 	{
-		UnknownReason = 0,
-		ProcessExited = 2,
-		AccessViolation = 3,
-		SingleStep = 4,
-		Calculation = 5,
-		Breakpoint = 6
+		UnknownReason,
+		ProcessExited,
+		AccessViolation,
+		SingleStep,
+		Calculation,
+		Breakpoint
 	};
 
 	enum class DbgEngEventType

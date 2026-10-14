@@ -17,18 +17,20 @@ limitations under the License.
 #pragma once
 #include "../debugadapter.h"
 #include "../debugadaptertype.h"
-#include "dbgengengine.h"
+#include "../../windows/dbgeng/dbgengengine.h"
 #include <memory>
 
 namespace BinaryNinjaDebugger {
 	class DbgEngAdapter : public DebugAdapter
 	{
+	private:
+		std::string ReadInputFile();
+
 	protected:
 		std::unique_ptr<DbgEngEngine> m_engine;
 
 		DbgEngAdapter(BinaryView* data, std::unique_ptr<DbgEngEngine> engine);
 		void ConfigureEngine();
-		std::string ReadInputFile();
 
 	public:
 		DbgEngAdapter(BinaryView* data);

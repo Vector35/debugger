@@ -16,7 +16,7 @@ limitations under the License.
 
 #pragma once
 #include "dbgengadapter.h"
-#include "dbgenglocalkernelengine.h"
+#include "../../windows/dbgeng/dbgenglocalkernelengine.h"
 
 namespace BinaryNinjaDebugger {
     class LocalWindowsKernelAdapter: public DbgEngAdapter

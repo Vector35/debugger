@@ -15,10 +15,12 @@ limitations under the License.
 */
 
 #pragma once
-#include "debugadaptertypes.h"
+#include "../../core/debugadaptertypes.h"
 #include "dbgengtypes.h"
 
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #include <dbgeng.h>
 #include <atomic>
@@ -172,16 +174,6 @@ namespace BinaryNinjaDebugger {
         std::string m_pdbFileName {};
         bool m_usePDBFileName = true;
 
-		std::string m_dbgSrvEnginePath;
-		bool m_stopAtSystemEntryPoint = false;
-		std::optional<uint64_t> m_entryPointOffset;
-		bool m_outputStateOnStop = false;
-		bool m_runAsAdministrator = false;
-		std::vector<std::string> m_environmentVariables;
-		uint64_t m_originalImageBase = 0;
-		std::function<void(const DbgEngEvent&)> m_eventCallback;
-		std::function<std::string()> m_inputFileCallback;
-
 		std::recursive_mutex m_engineLoopMutex;
 
 	public:
@@ -250,8 +242,6 @@ namespace BinaryNinjaDebugger {
 		std::vector<uint8_t> ReadMemory(std::uintptr_t address, std::size_t size);
 		virtual bool WriteMemory(std::uintptr_t address, const std::vector<uint8_t>& buffer);
 
-		// bool ReadMemory(std::uintptr_t address, void* out, std::size_t size) override;
-		// bool WriteMemory(std::uintptr_t address, const void* out, std::size_t size) override;
 		std::vector<DebugModule> GetModuleList();
 
 		std::vector<DebugMemoryRegion> GetMemoryMap();
@@ -260,7 +250,7 @@ namespace BinaryNinjaDebugger {
 
 		std::string GetTargetArchitecture();
 
-		DbgEngStopReason GetStopReason();
+		DbgEngStopReason StopReason();
 		void PostEngineEvent(const DbgEngEvent& event);
 		unsigned long ExecStatus();
 		uint64_t ExitCode();
@@ -294,6 +284,16 @@ namespace BinaryNinjaDebugger {
 		bool ConnectToDebugServerInternal(const std::string& connectionString);
 
 	protected:
+		std::string m_dbgSrvEnginePath;
+		bool m_stopAtSystemEntryPoint = false;
+		std::optional<uint64_t> m_entryPointOffset;
+		bool m_outputStateOnStop = false;
+		bool m_runAsAdministrator = false;
+		std::vector<std::string> m_environmentVariables;
+		uint64_t m_originalImageBase = 0;
+		std::function<void(const DbgEngEvent&)> m_eventCallback;
+		std::function<std::string()> m_inputFileCallback;
+
 		std::string GetInputFile() { return m_inputFileCallback ? m_inputFileCallback() : std::string(); }
 	};
 };  // namespace BinaryNinjaDebugger

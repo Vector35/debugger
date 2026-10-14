@@ -15,12 +15,9 @@ limitations under the License.
 */
 
 #pragma once
-#include <string>
 #include "dbgengtypes.h"
 
 namespace BinaryNinjaDebugger {
-	void LogMessage(DbgEngLogLevel level, const std::string& message);
-
 	void LogDebug(const char* fmt, ...);
 	void LogInfo(const char* fmt, ...);
 	void LogWarn(const char* fmt, ...);

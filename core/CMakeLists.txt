@@ -236,7 +236,6 @@ target_include_directories(debuggercore PRIVATE
 
 if(WIN32)
 	target_sources(debuggercore PRIVATE $<TARGET_PROPERTY:dbgengengine,INTERFACE_SOURCES>)
-	target_include_directories(debuggercore PRIVATE $<TARGET_PROPERTY:dbgengengine,INTERFACE_INCLUDE_DIRECTORIES>)
 endif()
 
 

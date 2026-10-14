@@ -16,7 +16,7 @@ limitations under the License.
 
 #pragma once
 #include "dbgengadapter.h"
-#include "dbgengttdengine.h"
+#include "../../windows/dbgeng/dbgengttdengine.h"
 
 namespace BinaryNinjaDebugger {
     class DbgEngTTDAdapter: public DbgEngAdapter

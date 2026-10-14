@@ -1,6 +1,5 @@
 #include "windowsdumpfile.h"
 
-using namespace BinaryNinja;
 using namespace BinaryNinjaDebugger;
 
 

@@ -1,6 +1,5 @@
 #include "dbgengttdadapter.h"
 
-using namespace BinaryNinja;
 using namespace BinaryNinjaDebugger;
 
 
@@ -180,15 +179,13 @@ bool DbgEngTTDAdapter::SetTTDPosition(const TTDPosition& position)
 }
 
 
-std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDNextMemoryAccess(
-	uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDNextMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
 {
 	return TTD().GetTTDNextMemoryAccess(address, size, accessType);
 }
 
 
-std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDPrevMemoryAccess(
-	uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
+std::pair<bool, TTDMemoryEvent> DbgEngTTDAdapter::GetTTDPrevMemoryAccess(uint64_t address, uint64_t size, TTDMemoryAccessType accessType)
 {
 	return TTD().GetTTDPrevMemoryAccess(address, size, accessType);
 }

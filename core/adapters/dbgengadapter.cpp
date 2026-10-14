@@ -17,7 +17,6 @@ limitations under the License.
 #include <filesystem>
 #include "dbgengadapter.h"
 
-using namespace BinaryNinja;
 using namespace BinaryNinjaDebugger;
 using namespace std;
 
@@ -71,7 +70,6 @@ static bool IsValidDbgEngPaths(const std::string& path)
 
 	return true;
 }
-
 
 std::string DbgEngAdapter::GetDbgEngPath(const std::string& arch)
 {
@@ -441,7 +439,7 @@ std::string DbgEngAdapter::GetTargetArchitecture()
 
 DebugStopReason DbgEngAdapter::StopReason()
 {
-	return FromEngine(m_engine->GetStopReason());
+	return FromEngine(m_engine->StopReason());
 }
 
 

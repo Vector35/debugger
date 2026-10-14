@@ -42,7 +42,7 @@ void BinaryNinjaDebugger::SetDbgEngLogCallback(DbgEngLogCallback callback)
 	g_logCallback = std::move(callback);
 }
 
-void BinaryNinjaDebugger::LogMessage(DbgEngLogLevel level, const std::string& message)
+static void LogMessage(DbgEngLogLevel level, const std::string& message)
 {
 	if (g_logCallback)
 		g_logCallback(level, message);

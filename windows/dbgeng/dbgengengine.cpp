@@ -50,7 +50,7 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 	auto handle = GetModuleHandleA(name.c_str());
 	if (handle)
 	{
-		BinaryNinjaDebugger::LogDebug("Module %s is already loaded before the debugger tries to load it, this is suspicious", name.c_str());
+		LogDebug("Module %s is already loaded before the debugger tries to load it, this is suspicious", name.c_str());
 		if (!strictCheckPath)
 			// The module is already loaded and we do not wish to validate its path, treat it as a success
 			return true;
@@ -58,7 +58,7 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 		char actualPath[MAX_PATH];
 		if (!GetModuleFileNameA(handle, actualPath, MAX_PATH))
 		{
-			BinaryNinjaDebugger::LogWarn("Failed to get the path of the loaded %s, error: %lu", name.c_str(), GetLastError());
+			LogWarn("Failed to get the path of the loaded %s, error: %lu", name.c_str(), GetLastError());
 			return false;
 		}
 		string path1 = actualPath;
@@ -69,7 +69,7 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 			// two paths match, ok
 			return true;
 
-		BinaryNinjaDebugger::LogWarn("%s is loaded from %s, but we expect it from %s", name.c_str(), actualPath, path.c_str());
+		LogWarn("%s is loaded from %s, but we expect it from %s", name.c_str(), actualPath, path.c_str());
 		if (!forceUnload)
 			return false;
 
@@ -87,12 +87,12 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 		}
 		if (!unloaded)
 		{
-			BinaryNinjaDebugger::LogDebug("Failed to unload module %s", name.c_str());
+			LogDebug("Failed to unload module %s", name.c_str());
 			return false;
 		}
 		else
 		{
-			BinaryNinjaDebugger::LogDebug("Module %s has been unloaded", name.c_str());
+			LogDebug("Module %s has been unloaded", name.c_str());
 		}
 	}
 
@@ -100,7 +100,7 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 	handle = LoadLibraryA(dllFullPath.c_str());
 	if (handle == nullptr)
 	{
-		BinaryNinjaDebugger::LogWarn("Failed to load %s, error: %lu", dllFullPath.c_str(), GetLastError());
+		LogWarn("Failed to load %s, error: %lu", dllFullPath.c_str(), GetLastError());
 		return false;
 	}
 
@@ -126,7 +126,6 @@ bool DbgEngEngine::LoadLibraries(const std::string& enginePath, bool strictCheck
 
 	return true;
 }
-
 
 std::string DbgEngEngine::GenerateRandomPipeName()
 {
@@ -600,7 +599,7 @@ void DbgEngEngine::EngineLoop()
 					}
 					DbgEngEvent event;
 					event.type = DbgEngEventType::TargetStopped;
-					event.stopReason = GetStopReason();
+					event.stopReason = StopReason();
 					PostEngineEvent(event);
 				}
 
@@ -1887,7 +1886,7 @@ std::string DbgEngEngine::GetTargetArchitecture()
 	}
 }
 
-DbgEngStopReason DbgEngEngine::GetStopReason()
+DbgEngStopReason DbgEngEngine::StopReason()
 {
 	const auto exec_status = this->ExecStatus();
 	if (exec_status == DEBUG_STATUS_BREAK)

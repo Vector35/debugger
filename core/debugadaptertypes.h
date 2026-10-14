@@ -18,7 +18,6 @@ limitations under the License.
 #include <cstdint>
 #include <string>
 #include <utility>
-#include <vector>
 #include "debuggercommon.h"
 #include "../vendor/intx/intx.hpp"
 
@@ -267,4 +266,4 @@ namespace BinaryNinjaDebugger {
 			m_pc(pc), m_sp(sp), m_fp(fp), m_functionName(functionName), m_functionStart(functionStart), m_module(module)
 		{}
 	};
-}
+}  // namespace BinaryNinjaDebugger
