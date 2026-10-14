@@ -235,8 +235,6 @@ target_include_directories(debuggercore PRIVATE
 )
 
 if(WIN32)
-	# The DbgEng engine is compiled into debuggercore through its properties rather than target_link_libraries,
-	# for the same reason as x2win_fbs above.
 	target_sources(debuggercore PRIVATE $<TARGET_PROPERTY:dbgengengine,INTERFACE_SOURCES>)
 	target_include_directories(debuggercore PRIVATE $<TARGET_PROPERTY:dbgengengine,INTERFACE_INCLUDE_DIRECTORIES>)
 endif()

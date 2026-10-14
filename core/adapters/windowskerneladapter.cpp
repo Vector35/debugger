@@ -1,4 +1,5 @@
 #include "windowskerneladapter.h"
+#include "dbgenglog.h"
 #include <filesystem>
 
 using namespace BinaryNinjaDebugger;

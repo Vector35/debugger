@@ -33,6 +33,7 @@ limitations under the License.
 #include "dbgengadapter.h"
 #include "../../cli/log.h"
 #include "../debuggerevent.h"
+#include "dbgenglog.h"
 #include "shlobj_core.h"
 #pragma warning(push)
 // warning C40005, macro redefinition
@@ -109,7 +110,7 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 	auto handle = GetModuleHandleA(name.c_str());
 	if (handle)
 	{
-		LogDebug("Module %s is already loaded before the debugger tries to load it, this is suspicious", name.c_str());
+		BinaryNinjaDebugger::LogDebug("Module %s is already loaded before the debugger tries to load it, this is suspicious", name.c_str());
 		if (!strictCheckPath)
 			// The module is already loaded and we do not wish to validate its path, treat it as a success
 			return true;
@@ -117,7 +118,7 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 		char actualPath[MAX_PATH];
 		if (!GetModuleFileNameA(handle, actualPath, MAX_PATH))
 		{
-			LogWarn("Failed to get the path of the loaded %s, error: %lu", name.c_str(), GetLastError());
+			BinaryNinjaDebugger::LogWarn("Failed to get the path of the loaded %s, error: %lu", name.c_str(), GetLastError());
 			return false;
 		}
 		string path1 = actualPath;
@@ -128,7 +129,7 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 			// two paths match, ok
 			return true;
 
-		LogWarn("%s is loaded from %s, but we expect it from %s", name.c_str(), actualPath, path.c_str());
+		BinaryNinjaDebugger::LogWarn("%s is loaded from %s, but we expect it from %s", name.c_str(), actualPath, path.c_str());
 		if (!forceUnload)
 			return false;
 
@@ -146,12 +147,12 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 		}
 		if (!unloaded)
 		{
-			LogDebug("Failed to unload module %s", name.c_str());
+			BinaryNinjaDebugger::LogDebug("Failed to unload module %s", name.c_str());
 			return false;
 		}
 		else
 		{
-			LogDebug("Module %s has been unloaded", name.c_str());
+			BinaryNinjaDebugger::LogDebug("Module %s has been unloaded", name.c_str());
 		}
 	}
 
@@ -159,7 +160,7 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 	handle = LoadLibraryA(dllFullPath.c_str());
 	if (handle == nullptr)
 	{
-		LogWarn("Failed to load %s, error: %lu", dllFullPath.c_str(), GetLastError());
+		BinaryNinjaDebugger::LogWarn("Failed to load %s, error: %lu", dllFullPath.c_str(), GetLastError());
 		return false;
 	}
 
@@ -169,6 +170,24 @@ static bool LoadOneDLL(const string& path, const string& name, bool strictCheckP
 
 bool DbgEngAdapter::LoadDngEngLibraries()
 {
+	SetDbgEngLogCallback([](DbgEngLogLevel level, const std::string& message) {
+		switch (level)
+		{
+		case DbgEngLogLevel::Debug:
+			BinaryNinja::LogDebug("%s", message.c_str());
+			break;
+		case DbgEngLogLevel::Info:
+			BinaryNinja::LogInfo("%s", message.c_str());
+			break;
+		case DbgEngLogLevel::Warn:
+			BinaryNinja::LogWarn("%s", message.c_str());
+			break;
+		case DbgEngLogLevel::Error:
+			BinaryNinja::LogError("%s", message.c_str());
+			break;
+		}
+	});
+
 	auto enginePath = GetDbgEngPath("amd64");
 	if (enginePath.empty())
 	{

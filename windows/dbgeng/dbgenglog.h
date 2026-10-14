@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 #pragma once
-// Only the engine's sources include this; elsewhere these would hide Binary Ninja's LogWarn() and friends.
 #include <format>
 #include <string>
 #include <utility>

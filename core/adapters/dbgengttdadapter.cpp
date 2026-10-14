@@ -1,4 +1,5 @@
 #include "dbgengttdadapter.h"
+#include "dbgenglog.h"
 #include <filesystem>
 #include <algorithm>
 #include <cctype>
