@@ -20,26 +20,24 @@ limitations under the License.
 using namespace BinaryNinjaDebugger;
 using namespace std;
 
-namespace {
-	DebugStopReason FromEngine(DbgEngStopReason value)
+static DebugStopReason FromEngine(DbgEngStopReason value)
+{
+	switch (value)
 	{
-		switch (value)
-		{
-		case DbgEngStopReason::UnknownReason:
-			return UnknownReason;
-		case DbgEngStopReason::ProcessExited:
-			return ProcessExited;
-		case DbgEngStopReason::AccessViolation:
-			return AccessViolation;
-		case DbgEngStopReason::SingleStep:
-			return SingleStep;
-		case DbgEngStopReason::Calculation:
-			return Calculation;
-		case DbgEngStopReason::Breakpoint:
-			return Breakpoint;
-		default:
-			return UnknownReason;
-		}
+	case DbgEngStopReason::UnknownReason:
+		return UnknownReason;
+	case DbgEngStopReason::ProcessExited:
+		return ProcessExited;
+	case DbgEngStopReason::AccessViolation:
+		return AccessViolation;
+	case DbgEngStopReason::SingleStep:
+		return SingleStep;
+	case DbgEngStopReason::Calculation:
+		return Calculation;
+	case DbgEngStopReason::Breakpoint:
+		return Breakpoint;
+	default:
+		return UnknownReason;
 	}
 }
 
@@ -209,7 +207,7 @@ bool DbgEngAdapter::Execute(const std::string& path, const LaunchConfigurations&
 
 void DbgEngAdapter::ConfigureEngine()
 {
-	m_engine->SetDbgSrvEnginePath(GetDbgEngPath(m_defaultArchitecture == "x86" ? "x86" : "amd64"));
+	m_engine->SetDbgEngPath(GetDbgEngPath(m_defaultArchitecture == "x86" ? "x86" : "amd64"));
 	auto settings = Settings::Instance();
 	m_engine->SetStopAtSystemEntryPoint(settings->Get<bool>("debugger.stopAtSystemEntryPoint"));
 	m_engine->SetEntryPointOffset(settings->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction

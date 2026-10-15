@@ -18,9 +18,7 @@ limitations under the License.
 #include "../../core/debugadaptertypes.h"
 #include "dbgengtypes.h"
 
-#ifndef NOMINMAX
 #define NOMINMAX
-#endif
 #include <windows.h>
 #include <dbgeng.h>
 #include <atomic>
@@ -183,7 +181,7 @@ namespace BinaryNinjaDebugger {
 		DbgEngEngine();
 		virtual ~DbgEngEngine();
 
-		void SetDbgSrvEnginePath(const std::string& path) { m_dbgSrvEnginePath = path; }
+		void SetDbgEngPath(const std::string& path) { m_dbgEngPath = path; }
 		void SetStopAtSystemEntryPoint(bool enabled) { m_stopAtSystemEntryPoint = enabled; }
 		void SetEntryPointOffset(std::optional<uint64_t> offset) { m_entryPointOffset = offset; }
 		void SetOutputStateOnStop(bool enabled) { m_outputStateOnStop = enabled; }
@@ -284,7 +282,7 @@ namespace BinaryNinjaDebugger {
 		bool ConnectToDebugServerInternal(const std::string& connectionString);
 
 	protected:
-		std::string m_dbgSrvEnginePath;
+		std::string m_dbgEngPath;
 		bool m_stopAtSystemEntryPoint = false;
 		std::optional<uint64_t> m_entryPointOffset;
 		bool m_outputStateOnStop = false;

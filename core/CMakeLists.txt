@@ -56,6 +56,19 @@ if(WIN32)
 			adapters/windowsdumpfile.h
 			adapters/windowsnativeadapter.cpp
 			adapters/windowsnativeadapter.h
+			../windows/dbgeng/dbgengtypes.h
+			../windows/dbgeng/dbgenglog.cpp
+			../windows/dbgeng/dbgenglog.h
+			../windows/dbgeng/dbgengengine.cpp
+			../windows/dbgeng/dbgengengine.h
+			../windows/dbgeng/dbgengttdengine.cpp
+			../windows/dbgeng/dbgengttdengine.h
+			../windows/dbgeng/dbgengdumpengine.cpp
+			../windows/dbgeng/dbgengdumpengine.h
+			../windows/dbgeng/dbgengkernelengine.cpp
+			../windows/dbgeng/dbgengkernelengine.h
+			../windows/dbgeng/dbgenglocalkernelengine.cpp
+			../windows/dbgeng/dbgenglocalkernelengine.h
 			)
 else()
 	set(SOURCES ${COMMON_SOURCES} ${ADAPTER_SOURCES})
@@ -233,10 +246,6 @@ target_include_directories(debuggercore PRIVATE
     $<TARGET_PROPERTY:x2win_fbs,INTERFACE_INCLUDE_DIRECTORIES>
     ${CMAKE_CURRENT_SOURCE_DIR}/../vendor/flatbuffers/include
 )
-
-if(WIN32)
-	target_sources(debuggercore PRIVATE $<TARGET_PROPERTY:dbgengengine,INTERFACE_SOURCES>)
-endif()
 
 
 if (WIN32)

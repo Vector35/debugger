@@ -290,7 +290,7 @@ bool DbgEngEngine::Start()
 	{
 		auto pipeName = GenerateRandomPipeName();
 		auto connectString = "npipe:pipe=" + pipeName + ",Server=localhost";
-		auto enginePath = m_dbgSrvEnginePath;
+		auto enginePath = m_dbgEngPath;
 		if (enginePath.empty())
 			return false;
 
