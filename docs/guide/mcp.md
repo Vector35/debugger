@@ -6,9 +6,11 @@ These tools are registered in-process when the debugger plugin loads -- there is
 
 ## Sessions
 
-Every `debugger_*` tool operates on the MCP session's active BinaryView, the same way `bn_*` tools do. A view only has a debug session once a lifecycle tool (`debugger_launch`, `debugger_attach`, or `debugger_connect`) has been called for it; an inspection tool called before that returns the `no_controller` error rather than silently creating an un-launched session.
+Every `debugger_*` tool operates on the MCP session's active BinaryView, the same way `bn_*` tools do. A view only has a debug session once a lifecycle tool (`debugger_launch_and_wait`, `debugger_attach_and_wait`, or `debugger_connect_and_wait`) has been called for it; an inspection tool called before that returns the `no_controller` error rather than silently creating an un-launched session.
 
-Breakpoints additionally require the target to have been launched, attached to, or connected to at least once in the session's lifetime -- a breakpoint set before that silently fails to register at the `DebuggerController` level, so `debugger_breakpoint_set` verifies the breakpoint actually took and reports `action_failed` if not. Once a target has been launched at least once, breakpoints persist across `debugger_quit` and a later relaunch.
+Tool names ending in `_and_wait` call the matching synchronous `DebuggerController` method (e.g. `debugger_go_and_wait` calls `go_and_wait()`) and only return once the target has stopped again or an error occurs, rather than returning immediately and leaving the caller to poll.
+
+Breakpoints additionally require the target to have been launched, attached to, or connected to at least once in the session's lifetime -- a breakpoint set before that silently fails to register at the `DebuggerController` level, so `debugger_breakpoint_set` verifies the breakpoint actually took and reports `action_failed` if not. Once a target has been launched at least once, breakpoints persist across `debugger_quit_and_wait` and a later relaunch.
 
 Most tools additionally require the target to be connected (`target_not_connected`) or paused (`target_running`) before they act, matching the preconditions of the underlying `DebuggerController` methods.
 
@@ -20,29 +22,32 @@ Addresses are passed and returned as hex strings (`"0x401000"`), evaluated as Bi
 
 | Tool | Description |
 |------|-------------|
-| `debugger_launch` | Launch the target. Accepts optional `executable_path`, `arguments`, `working_directory`. |
-| `debugger_attach` | Attach to a running process. Accepts optional `pid`. |
-| `debugger_connect` | Connect to a remote target. Accepts optional `host`, `port`. |
-| `debugger_detach` | Detach, leaving the target running. |
-| `debugger_quit` | Terminate the target and end the session. |
-| `debugger_restart` | Restart the target. |
+| `debugger_launch_and_wait` | Launch the target. Accepts optional `executable_path`, `arguments`, `working_directory`, `settings`. |
+| `debugger_attach_and_wait` | Attach to a running process. Accepts optional `pid`, `settings`. |
+| `debugger_connect_and_wait` | Connect to a remote target. Accepts optional `host`, `port`, `settings`. |
+| `debugger_detach_and_wait` | Detach, leaving the target running. |
+| `debugger_quit_and_wait` | Terminate the target and end the session. |
+| `debugger_restart_and_wait` | Restart the target. |
+
+`settings` on `debugger_launch_and_wait`, `debugger_attach_and_wait`, and `debugger_connect_and_wait` is a JSON object of adapter-specific settings to apply first (e.g. `{"launch.environmentVariables": ["FOO=bar"]}`) -- see `debugger_adapter_settings_list` for the current adapter's available keys.
 
 ### Execution Control
 
 | Tool | Description |
 |------|-------------|
-| `debugger_go` | Resume until the next stop. |
-| `debugger_step_into` | Single-step, stepping into calls. |
-| `debugger_step_over` | Single-step, stepping over calls. |
-| `debugger_step_return` | Run until the current function returns. |
-| `debugger_run_to` | Resume until `address` is reached. |
-| `debugger_pause` | Pause a running target. |
+| `debugger_go_and_wait` | Resume until the next stop. |
+| `debugger_step_into_and_wait` | Single-step, stepping into calls. |
+| `debugger_step_over_and_wait` | Single-step, stepping over calls. |
+| `debugger_step_return_and_wait` | Run until the current function returns. |
+| `debugger_run_to_and_wait` | Resume until `address` is reached. |
+| `debugger_pause_and_wait` | Pause a running target. |
 
 ### Inspection
 
 | Tool | Description |
 |------|-------------|
 | `debugger_status` | Whether the view has a session, and its connected/running/stopped state. |
+| `debugger_adapter_settings_list` | List the current adapter's own settings (key, title, type, description), for use with the lifecycle tools' `settings` parameter. |
 | `debugger_registers_get` | Read one register by `name`, or by `group`: `most` (default; general-purpose/pointer-sized registers) or `all` (also includes wide vector/FPU registers). |
 | `debugger_register_set` | Write a register's value. |
 | `debugger_read_memory` | Read up to 64 KiB of target memory, as hex (default) or base64 (`encoding`). |

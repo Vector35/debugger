@@ -21,10 +21,6 @@ before a handler runs, so a handler only has to look up (or create) that view's 
 call the same methods a script would. Tools are registered once, when this module is imported
 (see ``__init__.py``), per ``binaryninja.mcp``'s requirement that tools register when a plugin
 loads.
-
-This replaces an earlier loopback-socket RPC server prototype (see the ``debugger_mcp`` branch's
-history before the revert at the root of this effort) that existed only because, at the time nothing
-let a plugin add tools to Binary Ninja's MCP server in-process.
 """
 
 import base64
@@ -35,14 +31,13 @@ from binaryninja import mcp
 
 from . import _debuggercore as dbgcore
 from .debuggercontroller import DebuggerController, DebugThread
-from .debugger_enums import DebugBreakpointType
+from .debugger_enums import DebugBreakpointType, DebugStopReason
 
 
 class Err:
     """
     Error codes used by the debugger's MCP tools. Kept as a named vocabulary (rather than inline
-    string literals) so tests can check every code is covered and clients get a stable contract,
-    continuing the vocabulary the old RPC-server prototype defined.
+    string literals) so tests can check every code is covered and clients get a stable contract.
     """
 
     NO_CONTROLLER = "no_controller"
@@ -65,6 +60,15 @@ _HARDWARE_KINDS = {
     "access": DebugBreakpointType.BNHardwareAccessBreakpoint,
 }
 
+# Reasons a lifecycle *_and_wait() call can return without a session ever having connected,
+# matching the set attach_test_runner.py already treats as failure.
+_FAILED_STOP_REASONS = (
+    DebugStopReason.InternalError,
+    DebugStopReason.ProcessExited,
+    DebugStopReason.InvalidStatusOrOperation,
+    DebugStopReason.TimedOut,
+)
+
 
 def _hex(value: int) -> str:
     return f"0x{value:x}"
@@ -78,29 +82,10 @@ def _controller_exists(bv) -> bool:
     return bool(dbgcore.BNDebuggerControllerExists(handle))
 
 
-# DebuggerController(bv) is a get-or-create lookup keyed by the native BinaryView, ref-counted
-# through its handle: DebuggerController.__del__ frees that reference. A tool handler's local
-# DebuggerController(bv) is otherwise the only reference, so it gets freed -- destroying the
-# session and anything on it, like breakpoints -- the moment the handler returns, before the next
-# MCP call can see it. Caching the Python wrapper here keeps a reference alive for the life of the
-# process, the same way the GUI's own persistent `dbg` variable does.
-_controllers: dict = {}
-
-
-def _get_controller(bv) -> DebuggerController:
-    session_id = bv.file.session_id
-    cached = _controllers.get(session_id)
-    if cached is not None and _controller_exists(bv):
-        return cached
-    dbg = DebuggerController(bv)
-    _controllers[session_id] = dbg
-    return dbg
-
-
 def _require_controller(bv) -> DebuggerController:
     if not _controller_exists(bv):
         raise mcp.ToolError(Err.NO_CONTROLLER, "The active binary view has no debug session")
-    return _get_controller(bv)
+    return DebuggerController(bv)
 
 
 def _require_connected(bv) -> DebuggerController:
@@ -165,26 +150,77 @@ def _breakpoint_kind_type(kind: str) -> Optional[DebugBreakpointType]:
     return _HARDWARE_KINDS.get(kind)
 
 
+_SettingsParam = Annotated[dict, mcp.Schema({"type": "object", "additionalProperties": True})]
+
+
+def _apply_adapter_settings(dbg: DebuggerController, bv, settings: dict) -> None:
+    adapter_settings = dbg.adapter_settings
+    if adapter_settings is None:
+        raise mcp.ToolError(Err.ACTION_FAILED, "The current adapter type has no settings")
+    for key, value in settings.items():
+        if not adapter_settings.contains(key):
+            raise mcp.ToolError("invalid_params", f"Unknown adapter setting '{key}'")
+        if isinstance(value, bool):
+            ok = adapter_settings.set_bool(key, value, resource=bv)
+        elif isinstance(value, int):
+            ok = adapter_settings.set_integer(key, value, resource=bv)
+        elif isinstance(value, float):
+            ok = adapter_settings.set_double(key, value, resource=bv)
+        elif isinstance(value, str):
+            ok = adapter_settings.set_string(key, value, resource=bv)
+        elif isinstance(value, list):
+            ok = adapter_settings.set_string_list(key, [str(item) for item in value], resource=bv)
+        else:
+            raise mcp.ToolError("invalid_params", f"Unsupported value type for adapter setting '{key}'")
+        if not ok:
+            raise mcp.ToolError(Err.ACTION_FAILED, f"Failed to set adapter setting '{key}'")
+
+
+def _require_started(reason: DebugStopReason, verb: str) -> None:
+    if reason in _FAILED_STOP_REASONS:
+        raise mcp.ToolError(Err.ACTION_FAILED, f"Failed to {verb} the target: {reason.name}")
+
+
+def _require_matching_breakpoint(dbg: DebuggerController, address: int, kind: str, size: int) -> None:
+    # has_breakpoint(address) alone can't tell a software breakpoint apart from a hardware
+    # watchpoint at the same address, so look the specific kind up in the breakpoint list itself
+    # before acting on it.
+    hardware_kind = _breakpoint_kind_type(kind)
+    for bp in dbg.breakpoints:
+        if bp.address != address:
+            continue
+        if hardware_kind is None:
+            if bp.type == DebugBreakpointType.BNSoftwareBreakpoint:
+                return
+        elif bp.type == hardware_kind and bp.size == size:
+            return
+    raise mcp.ToolError(Err.UNKNOWN_BREAKPOINT, f"No {kind} breakpoint at {_hex(address)}")
+
+
 # --------------------------------------------------------------------------------------------
 # Lifecycle
 # --------------------------------------------------------------------------------------------
 
 @mcp.tool(idempotent=True)
-def debugger_launch(
+def debugger_launch_and_wait(
     call: mcp.ToolCall,
     executable_path: Optional[str] = None,
     arguments: Optional[str] = None,
     working_directory: Optional[str] = None,
+    settings: Optional[_SettingsParam] = None,
 ) -> dict:
     """Launch the active binary view's target under the debugger.
 
     :param executable_path: Path of the executable to launch. Defaults to the binary view's input file.
     :param arguments: Command line arguments to pass to the target.
     :param working_directory: Working directory for the target.
+    :param settings: Adapter-specific settings to apply before launching, as a JSON object (e.g.
+        {"launch.environmentVariables": ["FOO=bar"]}). See debugger_adapter_settings_list for the
+        current adapter's available keys.
     :return: the session's status dict (see debugger_status)
     """
     bv = call.binary_view
-    dbg = _get_controller(bv)
+    dbg = DebuggerController(bv)
     if dbg.connected:
         raise mcp.ToolError(Err.TARGET_CONNECTED, "The target is already connected")
     if executable_path is not None:
@@ -193,49 +229,64 @@ def debugger_launch(
         dbg.cmd_line = arguments
     if working_directory is not None:
         dbg.working_directory = working_directory
-    dbg.launch_and_wait()
+    if settings is not None:
+        _apply_adapter_settings(dbg, bv, settings)
+    _require_started(dbg.launch_and_wait(), "launch")
     return _status_dict(dbg)
 
 
 @mcp.tool()
-def debugger_attach(call: mcp.ToolCall, pid: Optional[int] = None) -> dict:
+def debugger_attach_and_wait(
+    call: mcp.ToolCall, pid: Optional[int] = None, settings: Optional[_SettingsParam] = None
+) -> dict:
     """Attach the debugger to a running process.
 
     :param pid: Process ID to attach to. Defaults to the last attached pid.
+    :param settings: Adapter-specific settings to apply before attaching, as a JSON object. See
+        debugger_adapter_settings_list for the current adapter's available keys.
     :return: the session's status dict (see debugger_status)
     """
     bv = call.binary_view
-    dbg = _get_controller(bv)
+    dbg = DebuggerController(bv)
     if dbg.connected:
         raise mcp.ToolError(Err.TARGET_CONNECTED, "The target is already connected")
     if pid is not None:
         dbg.pid_attach = pid
-    dbg.attach_and_wait()
+    if settings is not None:
+        _apply_adapter_settings(dbg, bv, settings)
+    _require_started(dbg.attach_and_wait(), "attach to")
     return _status_dict(dbg)
 
 
 @mcp.tool()
-def debugger_connect(call: mcp.ToolCall, host: Optional[str] = None, port: Optional[int] = None) -> dict:
+def debugger_connect_and_wait(
+    call: mcp.ToolCall, host: Optional[str] = None, port: Optional[int] = None,
+    settings: Optional[_SettingsParam] = None,
+) -> dict:
     """Connect the debugger to a remote target (e.g. a GDB/LLDB server).
 
     :param host: Remote host to connect to. Defaults to the last configured host.
     :param port: Remote port to connect to. Defaults to the last configured port.
+    :param settings: Adapter-specific settings to apply before connecting, as a JSON object. See
+        debugger_adapter_settings_list for the current adapter's available keys.
     :return: the session's status dict (see debugger_status)
     """
     bv = call.binary_view
-    dbg = _get_controller(bv)
+    dbg = DebuggerController(bv)
     if dbg.connected:
         raise mcp.ToolError(Err.TARGET_CONNECTED, "The target is already connected")
     if host is not None:
         dbg.remote_host = host
     if port is not None:
         dbg.remote_port = port
-    dbg.connect_and_wait()
+    if settings is not None:
+        _apply_adapter_settings(dbg, bv, settings)
+    _require_started(dbg.connect_and_wait(), "connect to")
     return _status_dict(dbg)
 
 
 @mcp.tool(destructive=True)
-def debugger_detach(call: mcp.ToolCall) -> dict:
+def debugger_detach_and_wait(call: mcp.ToolCall) -> dict:
     """Detach the debugger from the target, leaving it running.
 
     :return: the session's status dict (see debugger_status)
@@ -246,7 +297,7 @@ def debugger_detach(call: mcp.ToolCall) -> dict:
 
 
 @mcp.tool(destructive=True)
-def debugger_quit(call: mcp.ToolCall) -> dict:
+def debugger_quit_and_wait(call: mcp.ToolCall) -> dict:
     """Terminate the target and end the debug session.
 
     :return: the session's status dict (see debugger_status)
@@ -257,7 +308,7 @@ def debugger_quit(call: mcp.ToolCall) -> dict:
 
 
 @mcp.tool(destructive=True)
-def debugger_restart(call: mcp.ToolCall) -> dict:
+def debugger_restart_and_wait(call: mcp.ToolCall) -> dict:
     """Restart the target under the debugger.
 
     :return: the session's status dict (see debugger_status)
@@ -272,7 +323,7 @@ def debugger_restart(call: mcp.ToolCall) -> dict:
 # --------------------------------------------------------------------------------------------
 
 @mcp.tool()
-def debugger_go(call: mcp.ToolCall) -> dict:
+def debugger_go_and_wait(call: mcp.ToolCall) -> dict:
     """Resume the target until it stops again (a breakpoint, a signal, or exit).
 
     :return: the session's status dict (see debugger_status)
@@ -283,7 +334,7 @@ def debugger_go(call: mcp.ToolCall) -> dict:
 
 
 @mcp.tool()
-def debugger_step_into(call: mcp.ToolCall) -> dict:
+def debugger_step_into_and_wait(call: mcp.ToolCall) -> dict:
     """Single-step the target, stepping into any call.
 
     :return: the session's status dict (see debugger_status)
@@ -294,7 +345,7 @@ def debugger_step_into(call: mcp.ToolCall) -> dict:
 
 
 @mcp.tool()
-def debugger_step_over(call: mcp.ToolCall) -> dict:
+def debugger_step_over_and_wait(call: mcp.ToolCall) -> dict:
     """Single-step the target, stepping over any call.
 
     :return: the session's status dict (see debugger_status)
@@ -305,7 +356,7 @@ def debugger_step_over(call: mcp.ToolCall) -> dict:
 
 
 @mcp.tool()
-def debugger_step_return(call: mcp.ToolCall) -> dict:
+def debugger_step_return_and_wait(call: mcp.ToolCall) -> dict:
     """Run the target until the current function returns.
 
     :return: the session's status dict (see debugger_status)
@@ -316,7 +367,7 @@ def debugger_step_return(call: mcp.ToolCall) -> dict:
 
 
 @mcp.tool()
-def debugger_run_to(call: mcp.ToolCall, address: mcp.Address) -> dict:
+def debugger_run_to_and_wait(call: mcp.ToolCall, address: mcp.Address) -> dict:
     """Resume the target until it reaches the given address.
 
     :param address: Address to run to.
@@ -328,7 +379,7 @@ def debugger_run_to(call: mcp.ToolCall, address: mcp.Address) -> dict:
 
 
 @mcp.tool(idempotent=True)
-def debugger_pause(call: mcp.ToolCall) -> dict:
+def debugger_pause_and_wait(call: mcp.ToolCall) -> dict:
     """Pause the running target.
 
     :return: the session's status dict (see debugger_status)
@@ -354,7 +405,32 @@ def debugger_status(call: mcp.ToolCall) -> dict:
     bv = call.binary_view
     if not _controller_exists(bv):
         return {"connected": False, "running": False}
-    return _status_dict(_get_controller(bv))
+    return _status_dict(DebuggerController(bv))
+
+
+@mcp.tool(read_only=True)
+def debugger_adapter_settings_list(call: mcp.ToolCall) -> dict:
+    """List the current debug adapter's own settings (e.g. launch/attach/connect fields, or
+    backend-specific options like a TTD trace path), available to pass to the settings parameter
+    of debugger_launch_and_wait, debugger_attach_and_wait, or debugger_connect_and_wait.
+
+    :return: a dict with `settings`, a list of `{key, title, type, description}`
+    """
+    dbg = DebuggerController(call.binary_view)
+    adapter_settings = dbg.adapter_settings
+    if adapter_settings is None:
+        return {"settings": []}
+    return {
+        "settings": [
+            {
+                "key": key,
+                "title": adapter_settings.query_property_string(key, "title"),
+                "type": adapter_settings.query_property_string(key, "type"),
+                "description": adapter_settings.query_property_string(key, "description"),
+            }
+            for key in adapter_settings.keys()
+        ]
+    }
 
 
 def _register_dict(reg) -> dict:
@@ -544,7 +620,7 @@ def debugger_processes_list(call: mcp.ToolCall, query: Optional[str] = None) -> 
     :param query: Case-insensitive substring filter over process names.
     :return: a dict with `processes`, a list of `{pid, name, commandLine}`
     """
-    dbg = _get_controller(call.binary_view)
+    dbg = DebuggerController(call.binary_view)
     processes = dbg.processes
     if query is not None:
         needle = query.lower()
@@ -566,7 +642,7 @@ def debugger_breakpoints_list(call: mcp.ToolCall) -> dict:
     """
     if not _controller_exists(call.binary_view):
         return {"breakpoints": []}
-    dbg = _get_controller(call.binary_view)
+    dbg = DebuggerController(call.binary_view)
     return {"breakpoints": [_breakpoint_dict(bp) for bp in dbg.breakpoints]}
 
 
@@ -594,7 +670,7 @@ def debugger_breakpoint_set(
     The target must have been launched, attached to, or connected to at least once; a breakpoint
     set before that silently fails to register.
     """
-    dbg = _get_controller(call.binary_view)
+    dbg = DebuggerController(call.binary_view)
     hardware_kind = _breakpoint_kind_type(kind)
     # Neither add_breakpoint() (returns None always) nor add_hardware_breakpoint() (returns True
     # even on failure) reliably reports whether a breakpoint actually registered -- e.g. on a
@@ -637,38 +713,52 @@ def debugger_breakpoint_delete(
 
 
 @mcp.tool(idempotent=True)
-def debugger_breakpoint_set_enabled(call: mcp.ToolCall, address: mcp.Address, enabled: bool = True) -> dict:
+def debugger_breakpoint_set_enabled(
+    call: mcp.ToolCall,
+    address: mcp.Address,
+    kind: _BreakpointKind = "software",
+    size: Annotated[int, mcp.Minimum(1), mcp.Maximum(8)] = 1,
+    enabled: bool = True,
+) -> dict:
     """Enable or disable a breakpoint without deleting it.
 
     :param address: Address of the breakpoint.
+    :param kind: "software" for a normal breakpoint, or a hardware watchpoint kind.
+    :param size: Size in bytes for a hardware watchpoint (1, 2, 4, or 8). Ignored for "software".
     :param enabled: True to enable the breakpoint, False to disable it.
-    :return: a dict with the breakpoint's `address` and new `enabled` state
+    :return: a dict with the breakpoint's `address`, `kind`, and new `enabled` state
     """
     dbg = _require_controller(call.binary_view)
-    if not dbg.has_breakpoint(address):
-        raise mcp.ToolError(Err.UNKNOWN_BREAKPOINT, f"No breakpoint at {_hex(address)}")
+    _require_matching_breakpoint(dbg, address, kind, size)
     if enabled:
         dbg.enable_breakpoint(address)
     else:
         dbg.disable_breakpoint(address)
-    return {"address": _hex(address), "enabled": enabled}
+    return {"address": _hex(address), "kind": kind, "enabled": enabled}
 
 
 @mcp.tool(idempotent=True)
-def debugger_breakpoint_condition_set(call: mcp.ToolCall, address: mcp.Address, condition: str = "") -> dict:
+def debugger_breakpoint_condition_set(
+    call: mcp.ToolCall,
+    address: mcp.Address,
+    kind: _BreakpointKind = "software",
+    size: Annotated[int, mcp.Minimum(1), mcp.Maximum(8)] = 1,
+    condition: str = "",
+) -> dict:
     """Set or clear a breakpoint's condition expression.
 
     :param address: Address of the breakpoint.
+    :param kind: "software" for a normal breakpoint, or a hardware watchpoint kind.
+    :param size: Size in bytes for a hardware watchpoint (1, 2, 4, or 8). Ignored for "software".
     :param condition: Expression evaluated when the breakpoint is hit; the debugger only stops if
         it is non-zero. Pass an empty string to clear the condition.
-    :return: a dict with the breakpoint's `address` and new `condition`
+    :return: a dict with the breakpoint's `address`, `kind`, and new `condition`
     """
     dbg = _require_controller(call.binary_view)
-    if not dbg.has_breakpoint(address):
-        raise mcp.ToolError(Err.UNKNOWN_BREAKPOINT, f"No breakpoint at {_hex(address)}")
+    _require_matching_breakpoint(dbg, address, kind, size)
     if not dbg.set_breakpoint_condition(address, condition):
         raise mcp.ToolError(Err.ACTION_FAILED, f"Failed to set the condition at {_hex(address)}")
-    return {"address": _hex(address), "condition": condition}
+    return {"address": _hex(address), "kind": kind, "condition": condition}
 
 
 # --------------------------------------------------------------------------------------------

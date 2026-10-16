@@ -5,8 +5,7 @@
 # These exercise the registered tools the way an MCP client would -- through
 # ``mcp.Tool.by_name(name).invoke(arguments, view)`` -- against a real DebuggerController session,
 # rather than mocking the controller. The tools are thin wrappers over DebuggerController, so a real
-# session is both simpler to set up and more meaningful than the old RPC-server prototype's
-# FakeBV/FakeDbg mocks.
+# session is simpler to set up and more meaningful than mocking one.
 
 import base64
 import platform
@@ -32,15 +31,16 @@ def invoke(name, arguments=None, view=None):
 class McpToolRegistrationTests(unittest.TestCase):
     def test_every_debugger_tool_is_registered(self):
         expected = {
-            "debugger_launch", "debugger_attach", "debugger_connect", "debugger_detach",
-            "debugger_quit", "debugger_restart", "debugger_go", "debugger_step_into",
-            "debugger_step_over", "debugger_step_return", "debugger_run_to", "debugger_pause",
-            "debugger_status", "debugger_registers_get", "debugger_register_set",
-            "debugger_read_memory", "debugger_write_memory", "debugger_threads_list",
-            "debugger_thread_select", "debugger_backtrace", "debugger_modules_list",
-            "debugger_memory_map", "debugger_processes_list", "debugger_breakpoints_list",
-            "debugger_breakpoint_set", "debugger_breakpoint_delete", "debugger_breakpoint_set_enabled",
-            "debugger_breakpoint_condition_set",
+            "debugger_launch_and_wait", "debugger_attach_and_wait", "debugger_connect_and_wait",
+            "debugger_detach_and_wait", "debugger_quit_and_wait", "debugger_restart_and_wait",
+            "debugger_go_and_wait", "debugger_step_into_and_wait", "debugger_step_over_and_wait",
+            "debugger_step_return_and_wait", "debugger_run_to_and_wait", "debugger_pause_and_wait",
+            "debugger_status", "debugger_adapter_settings_list", "debugger_registers_get",
+            "debugger_register_set", "debugger_read_memory", "debugger_write_memory",
+            "debugger_threads_list", "debugger_thread_select", "debugger_backtrace",
+            "debugger_modules_list", "debugger_memory_map", "debugger_processes_list",
+            "debugger_breakpoints_list", "debugger_breakpoint_set", "debugger_breakpoint_delete",
+            "debugger_breakpoint_set_enabled", "debugger_breakpoint_condition_set",
             "debugger_write_stdin", "debugger_execute_backend_command", "debugger_property_get",
             "debugger_property_set",
         }
@@ -84,11 +84,11 @@ class BreakpointManagementTests(unittest.TestCase):
     def setUp(self):
         self.bv = load(name_to_fpath('helloworld'))
         self.address = self.bv.entry_point
-        result = invoke("debugger_launch", view=self.bv)
+        result = invoke("debugger_launch_and_wait", view=self.bv)
         assert not result["isError"], result
 
     def tearDown(self):
-        invoke("debugger_quit", view=self.bv)
+        invoke("debugger_quit_and_wait", view=self.bv)
         self.bv.file.close()
 
     def test_set_list_and_delete_a_software_breakpoint(self):
@@ -141,11 +141,41 @@ class BreakpointManagementTests(unittest.TestCase):
         self.assertEqual(entry["type"], "BNHardwareWriteBreakpoint")
         self.assertEqual(entry["size"], 4)
 
+    def test_enable_and_disable_a_hardware_breakpoint(self):
+        invoke("debugger_breakpoint_set", {"address": hex(self.address), "kind": "write", "size": 4}, view=self.bv)
+        result = invoke(
+            "debugger_breakpoint_set_enabled",
+            {"address": hex(self.address), "kind": "write", "size": 4, "enabled": False}, view=self.bv)
+        self.assertFalse(result["isError"], result)
+        self.assertFalse(result["structuredContent"]["enabled"])
+
+        listed = invoke("debugger_breakpoints_list", view=self.bv)
+        [entry] = [bp for bp in listed["structuredContent"]["breakpoints"] if bp["address"] == hex(self.address)]
+        self.assertFalse(entry["enabled"])
+
+    def test_set_enabled_rejects_a_kind_mismatch_at_the_same_address(self):
+        invoke("debugger_breakpoint_set", {"address": hex(self.address)}, view=self.bv)
+        result = invoke(
+            "debugger_breakpoint_set_enabled",
+            {"address": hex(self.address), "kind": "write", "size": 4, "enabled": False}, view=self.bv)
+        self.assertTrue(result["isError"])
+        self.assertEqual(result["structuredContent"]["errorCode"], "unknown_breakpoint")
+
     def test_set_and_clear_a_condition(self):
         invoke("debugger_breakpoint_set", {"address": hex(self.address)}, view=self.bv)
         result = invoke(
             "debugger_breakpoint_condition_set", {"address": hex(self.address), "condition": "rax == 0"},
             view=self.bv)
+        self.assertFalse(result["isError"], result)
+        listed = invoke("debugger_breakpoints_list", view=self.bv)
+        [entry] = [bp for bp in listed["structuredContent"]["breakpoints"] if bp["address"] == hex(self.address)]
+        self.assertEqual(entry["condition"], "rax == 0")
+
+    def test_set_a_condition_on_a_hardware_breakpoint(self):
+        invoke("debugger_breakpoint_set", {"address": hex(self.address), "kind": "write", "size": 4}, view=self.bv)
+        result = invoke(
+            "debugger_breakpoint_condition_set",
+            {"address": hex(self.address), "kind": "write", "size": 4, "condition": "rax == 0"}, view=self.bv)
         self.assertFalse(result["isError"], result)
         listed = invoke("debugger_breakpoints_list", view=self.bv)
         [entry] = [bp for bp in listed["structuredContent"]["breakpoints"] if bp["address"] == hex(self.address)]
@@ -165,7 +195,7 @@ class LiveSessionTests(unittest.TestCase):
         self.bv.file.close()
 
     def test_launch_step_and_quit_round_trip(self):
-        result = invoke("debugger_launch", view=self.bv)
+        result = invoke("debugger_launch_and_wait", view=self.bv)
         self.assertFalse(result["isError"], result)
         self.assertTrue(result["structuredContent"]["connected"])
 
@@ -173,33 +203,57 @@ class LiveSessionTests(unittest.TestCase):
         self.assertTrue(result["structuredContent"]["connected"])
         self.assertFalse(result["structuredContent"]["running"])
 
-        result = invoke("debugger_step_into", view=self.bv)
+        result = invoke("debugger_step_into_and_wait", view=self.bv)
         self.assertFalse(result["isError"], result)
         self.assertEqual(result["structuredContent"]["stopReason"], DebugStopReason.SingleStep.name)
 
-        result = invoke("debugger_go", view=self.bv)
+        result = invoke("debugger_go_and_wait", view=self.bv)
         self.assertFalse(result["isError"], result)
         self.assertEqual(result["structuredContent"]["stopReason"], DebugStopReason.ProcessExited.name)
         # The process exiting disconnects the target, so there's nothing left to quit.
         self.assertFalse(result["structuredContent"]["connected"])
 
-        result = invoke("debugger_quit", view=self.bv)
+        result = invoke("debugger_quit_and_wait", view=self.bv)
         self.assertTrue(result["isError"])
         self.assertEqual(result["structuredContent"]["errorCode"], "target_not_connected")
 
     def test_launch_twice_reports_target_connected(self):
-        invoke("debugger_launch", view=self.bv)
-        result = invoke("debugger_launch", view=self.bv)
+        invoke("debugger_launch_and_wait", view=self.bv)
+        result = invoke("debugger_launch_and_wait", view=self.bv)
         self.assertTrue(result["isError"])
         self.assertEqual(result["structuredContent"]["errorCode"], "target_connected")
 
+    def test_launch_with_a_bad_executable_path_reports_action_failed(self):
+        result = invoke(
+            "debugger_launch_and_wait", {"executable_path": "/nonexistent/path/to/binary"}, view=self.bv)
+        self.assertTrue(result["isError"])
+        self.assertEqual(result["structuredContent"]["errorCode"], "action_failed")
+
     def test_go_before_launch_reports_target_not_connected(self):
-        result = invoke("debugger_go", view=self.bv)
+        result = invoke("debugger_go_and_wait", view=self.bv)
         self.assertTrue(result["isError"])
         self.assertEqual(result["structuredContent"]["errorCode"], "target_not_connected")
 
+    def test_adapter_settings_list_includes_known_keys(self):
+        result = invoke("debugger_adapter_settings_list", view=self.bv)
+        self.assertFalse(result["isError"], result)
+        keys = {entry["key"] for entry in result["structuredContent"]["settings"]}
+        self.assertIn("launch.disableAslr", keys)
+
+    def test_launch_applies_adapter_settings(self):
+        result = invoke(
+            "debugger_launch_and_wait", {"settings": {"launch.disableAslr": True}}, view=self.bv)
+        self.assertFalse(result["isError"], result)
+        self.assertTrue(self.dbg.adapter_settings.get_bool("launch.disableAslr", resource=self.bv))
+
+    def test_launch_with_unknown_adapter_setting_reports_invalid_params(self):
+        result = invoke(
+            "debugger_launch_and_wait", {"settings": {"not.a.real.setting": True}}, view=self.bv)
+        self.assertTrue(result["isError"])
+        self.assertEqual(result["structuredContent"]["errorCode"], "invalid_params")
+
     def test_registers_get_and_set_round_trip(self):
-        invoke("debugger_launch", view=self.bv)
+        invoke("debugger_launch_and_wait", view=self.bv)
         reg_name = 'x0' if platform.machine() in ('arm64', 'aarch64') else 'rax'
 
         result = invoke("debugger_registers_get", {"name": reg_name}, view=self.bv)
@@ -212,13 +266,13 @@ class LiveSessionTests(unittest.TestCase):
         self.assertEqual(int(result["structuredContent"]["value"], 16), 0x1234)
 
     def test_unknown_register_is_reported(self):
-        invoke("debugger_launch", view=self.bv)
+        invoke("debugger_launch_and_wait", view=self.bv)
         result = invoke("debugger_registers_get", {"name": "not_a_register"}, view=self.bv)
         self.assertTrue(result["isError"])
         self.assertEqual(result["structuredContent"]["errorCode"], "unknown_register")
 
     def test_default_group_excludes_wide_vector_registers(self):
-        invoke("debugger_launch", view=self.bv)
+        invoke("debugger_launch_and_wait", view=self.bv)
         pointer_bits = self.dbg.remote_arch.address_size * 8
 
         most = invoke("debugger_registers_get", view=self.bv)
@@ -231,7 +285,7 @@ class LiveSessionTests(unittest.TestCase):
         self.assertGreaterEqual(len(everything["structuredContent"]["registers"]), len(most_regs))
 
     def test_read_and_write_memory_round_trip(self):
-        invoke("debugger_launch", view=self.bv)
+        invoke("debugger_launch_and_wait", view=self.bv)
         address = self.dbg.ip
 
         result = invoke("debugger_read_memory", {"address": hex(address), "size": 4}, view=self.bv)
@@ -247,7 +301,7 @@ class LiveSessionTests(unittest.TestCase):
         self.assertEqual(result["structuredContent"]["data"], "90909090")
 
     def test_read_memory_base64_encoding(self):
-        invoke("debugger_launch", view=self.bv)
+        invoke("debugger_launch_and_wait", view=self.bv)
         address = self.dbg.ip
 
         result = invoke(
