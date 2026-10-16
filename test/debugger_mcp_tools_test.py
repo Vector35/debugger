@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Unit tests for the debugger's MCP tools (api/python/mcp_tools.py).
+# Unit tests for the debugger's MCP tools (core/debuggermcp.cpp).
 #
 # These exercise the registered tools the way an MCP client would -- through
 # ``mcp.Tool.by_name(name).invoke(arguments, view)`` -- against a real DebuggerController session,
