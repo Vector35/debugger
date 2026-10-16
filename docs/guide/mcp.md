@@ -2,7 +2,13 @@
 
 The debugger registers its own tools with Binary Ninja's MCP server, alongside the built-in `bn_*` tools. An MCP client can launch, attach to, or connect to a target; step and resume it; and inspect or mutate its registers, memory, threads, and breakpoints, the same way a script would through [`DebuggerController`](index.md#api).
 
-These tools are registered in-process when the debugger plugin loads -- there is no separate server, port, or authentication token to manage. They are offered by both the GUI's MCP server and the headless `binaryninja_mcp` server.
+There is no separate server, port, or authentication token to manage; they are offered by both the GUI's MCP server and the headless `binaryninja_mcp` server, through the same connection as the built-in `bn_*` tools.
+
+## Enabling
+
+To avoid bloating every session's tool list with tools most sessions never use, only `debugger_mcp_enable` is registered when the debugger plugin loads. Call it once to register the rest of the `debugger_*` tools, then call your client's tool-list operation again -- this server does not send a tools list-changed notification, so an already-connected client does not see new tools appear on its own.
+
+Enabling is process-wide and permanent for the life of the Binary Ninja process: it is not scoped to one MCP session, there is no corresponding disable, and once any client calls it, every client sees the `debugger_*` tools from then on.
 
 ## Sessions
 
@@ -17,6 +23,12 @@ Most tools additionally require the target to be connected (`target_not_connecte
 ## Tool Reference
 
 Addresses are passed and returned as hex strings (`"0x401000"`), evaluated as Binary Ninja expressions against the active BinaryView, the same convention `bn_*` tools use.
+
+### Enabling
+
+| Tool | Description |
+|------|-------------|
+| `debugger_mcp_enable` | Register the rest of the `debugger_*` tools. See [Enabling](#enabling). |
 
 ### Lifecycle
 

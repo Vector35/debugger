@@ -11,13 +11,19 @@ Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
-limitations under the License.3
+limitations under the License.
 */
 
 // Registers the debugger's tools with Binary Ninja's MCP server, as a core (C++) plugin rather
 // than a Python one: Binary Ninja Free has no Python/API access at all, so a Python-registered
 // tool never loads there. This file is part of the core plugin binary and is registered from
 // CorePluginInit/DebuggerPluginInit (see debugger.cpp) under every license tier.
+//
+// Only debugger_mcp_enable is registered up front. The other debugger_* tools stay out of
+// tools/list (and off every client's context) until a client calls it, at which point they
+// register for the rest of the process's life. This is a process-wide switch, not a per-session
+// one -- the MCP tool registry has no concept of a session, and there is no API to unregister a
+// tool -- so once any client enables them, every client sees them, and there is no way back.
 
 #include "debuggermcp.h"
 #include "debuggercontroller.h"
@@ -25,6 +31,7 @@ limitations under the License.3
 
 #include <algorithm>
 #include <cctype>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -1125,15 +1132,46 @@ void RegisterMiscTools()
 		});
 }
 
+// --------------------------------------------------------------------------------------------
+// Enable gate
+// --------------------------------------------------------------------------------------------
+
+std::once_flag g_debuggerToolsRegistered;
+
+void EnableDebuggerMcpTools()
+{
+	std::call_once(g_debuggerToolsRegistered, []() {
+		RegisterLifecycleTools();
+		RegisterExecutionControlTools();
+		RegisterInspectionTools();
+		RegisterBreakpointTools();
+		RegisterMiscTools();
+	});
+}
+
+void RegisterEnableGateTool()
+{
+	MakeTool({"debugger_mcp_enable", "Enable Debugger Tools",
+		"Enable the debugger's MCP tools (launch/attach/connect, stepping, breakpoints, registers, memory, and "
+		"more). They stay out of tools/list until this is called, so sessions that never debug anything are not "
+		"charged their context. Call this once, then call tools/list again to see them -- this server does not "
+		"send a tools list-changed notification. This enables the tools for every client connected to this Binary "
+		"Ninja process, for the rest of its life; there is no way to disable them again.",
+		Scope::Global, IdempotentHint})
+		.Register([](ToolCall& call) {
+			EnableDebuggerMcpTools();
+			rapidjson::Document doc;
+			doc.SetObject();
+			doc.AddMember("enabled", true, doc.GetAllocator());
+			return ToolResult::Structured(doc);
+		});
+}
+
 }  // namespace
 
 namespace BinaryNinjaDebugger {
 void RegisterDebuggerMcpTools()
 {
-	RegisterLifecycleTools();
-	RegisterExecutionControlTools();
-	RegisterInspectionTools();
-	RegisterBreakpointTools();
-	RegisterMiscTools();
+	RegisterEnableGateTool();
 }
 };  // namespace BinaryNinjaDebugger

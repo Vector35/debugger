@@ -28,9 +28,27 @@ def invoke(name, arguments=None, view=None):
     return tool.invoke(arguments or {}, view)
 
 
+# The debugger's tools stay out of the MCP registry until debugger_mcp_enable is called (see
+# core/debuggermcp.cpp); every other test in this file depends on them being registered, so
+# enable them once up front rather than relying on test execution order.
+def setUpModule():
+    result = invoke("debugger_mcp_enable")
+    assert not result["isError"], result
+    assert result["structuredContent"]["enabled"] is True
+
+
+class McpEnableGateTests(unittest.TestCase):
+    def test_enable_gate_is_idempotent(self):
+        for _ in range(2):
+            result = invoke("debugger_mcp_enable")
+            self.assertFalse(result["isError"])
+            self.assertEqual(result["structuredContent"]["enabled"], True)
+
+
 class McpToolRegistrationTests(unittest.TestCase):
     def test_every_debugger_tool_is_registered(self):
         expected = {
+            "debugger_mcp_enable",
             "debugger_launch_and_wait", "debugger_attach_and_wait", "debugger_connect_and_wait",
             "debugger_detach_and_wait", "debugger_quit_and_wait", "debugger_restart_and_wait",
             "debugger_go_and_wait", "debugger_step_into_and_wait", "debugger_step_over_and_wait",
