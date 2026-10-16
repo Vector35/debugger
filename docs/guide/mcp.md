@@ -6,9 +6,7 @@ There is no separate server, port, or authentication token to manage; they are o
 
 ## Enabling
 
-To avoid bloating every session's tool list with tools most sessions never use, only `debugger_mcp_enable` is registered when the debugger plugin loads. Call it once to register the rest of the `debugger_*` tools, then call your client's tool-list operation again -- this server does not send a tools list-changed notification, so an already-connected client does not see new tools appear on its own.
-
-Enabling is process-wide and permanent for the life of the Binary Ninja process: it is not scoped to one MCP session, there is no corresponding disable, and once any client calls it, every client sees the `debugger_*` tools from then on.
+The `debugger_*` tools belong to the **Debugger** MCP tool group, which is enabled by default. Control it in Binary Ninja's user settings with `mcp.groups.debugger`. While disabled, its tools are filtered out of `tools/list` and calls return the `group_disabled` error. The setting applies to both GUI and headless servers and is read on every request. After changing it, refresh your client's tool list or start a new MCP session so the client sees the change.
 
 ## Sessions
 
@@ -23,12 +21,6 @@ Most tools additionally require the target to be connected (`target_not_connecte
 ## Tool Reference
 
 Addresses are passed and returned as hex strings (`"0x401000"`), evaluated as Binary Ninja expressions against the active BinaryView, the same convention `bn_*` tools use.
-
-### Enabling
-
-| Tool | Description |
-|------|-------------|
-| `debugger_mcp_enable` | Register the rest of the `debugger_*` tools. See [Enabling](#enabling). |
 
 ### Lifecycle
 
@@ -98,6 +90,7 @@ Tools raise a machine-readable `errorCode` alongside a human-readable message, m
 
 | Code | Meaning |
 |------|---------|
+| `group_disabled` | The Debugger MCP tool group is disabled in user settings. |
 | `no_controller` | The view has no debug session yet. |
 | `target_not_connected` | The action needs a connected target. |
 | `target_connected` | A lifecycle tool was called on an already-connected target. |

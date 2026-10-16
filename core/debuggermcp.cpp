@@ -18,12 +18,6 @@ limitations under the License.
 // than a Python one: Binary Ninja Free has no Python/API access at all, so a Python-registered
 // tool never loads there. This file is part of the core plugin binary and is registered from
 // CorePluginInit/DebuggerPluginInit (see debugger.cpp) under every license tier.
-//
-// Only debugger_mcp_enable is registered up front. The other debugger_* tools stay out of
-// tools/list (and off every client's context) until a client calls it, at which point they
-// register for the rest of the process's life. This is a process-wide switch, not a per-session
-// one -- the MCP tool registry has no concept of a session, and there is no API to unregister a
-// tool -- so once any client enables them, every client sees them, and there is no way back.
 
 #include "debuggermcp.h"
 #include "debuggercontroller.h"
@@ -31,7 +25,6 @@ limitations under the License.
 
 #include <algorithm>
 #include <cctype>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -433,13 +426,20 @@ JsonValue SettingsParam()
 	return JsonValue("settings", SettingsSchema).Optional();
 }
 
+ToolBuilder<> MakeDebuggerTool(ToolDefinition definition)
+{
+	static const Ref<ToolGroup> group = ToolGroup::Register({"debugger", "Debugger",
+		"Launch, attach to and control targets; inspect and edit registers, memory, threads and breakpoints."});
+	return MakeTool(std::move(definition)).InGroup(group);
+}
+
 // --------------------------------------------------------------------------------------------
 // Lifecycle
 // --------------------------------------------------------------------------------------------
 
 void RegisterLifecycleTools()
 {
-	MakeTool({"debugger_launch_and_wait", "Launch Target", "Launch the active binary view's target under the debugger.",
+	MakeDebuggerTool({"debugger_launch_and_wait", "Launch Target", "Launch the active binary view's target under the debugger.",
 		Scope::BinaryView, IdempotentHint})
 		.Param(String("executable_path", "Path of the executable to launch. Defaults to the binary view's input file.").Optional())
 		.Param(String("arguments", "Command line arguments to pass to the target.").Optional())
@@ -467,7 +467,7 @@ void RegisterLifecycleTools()
 			return StatusResult(*dbg);
 		});
 
-	MakeTool({"debugger_attach_and_wait", "Attach to Process", "Attach the debugger to a running process."})
+	MakeDebuggerTool({"debugger_attach_and_wait", "Attach to Process", "Attach the debugger to a running process."})
 		.Param(UInt("pid", "Process ID to attach to. Defaults to the last attached pid.").Optional())
 		.Param(SettingsParam())
 		.Register([](ToolCall& call, std::optional<uint64_t> pid, const rapidjson::Value* settings) {
@@ -487,7 +487,7 @@ void RegisterLifecycleTools()
 			return StatusResult(*dbg);
 		});
 
-	MakeTool({"debugger_connect_and_wait", "Connect to Remote Target", "Connect the debugger to a remote target (e.g. a GDB/LLDB server)."})
+	MakeDebuggerTool({"debugger_connect_and_wait", "Connect to Remote Target", "Connect the debugger to a remote target (e.g. a GDB/LLDB server)."})
 		.Param(String("host", "Remote host to connect to. Defaults to the last configured host.").Optional())
 		.Param(UInt("port", "Remote port to connect to. Defaults to the last configured port.").Optional())
 		.Param(SettingsParam())
@@ -510,7 +510,7 @@ void RegisterLifecycleTools()
 			return StatusResult(*dbg);
 		});
 
-	MakeTool({"debugger_detach_and_wait", "Detach", "Detach the debugger from the target, leaving it running.",
+	MakeDebuggerTool({"debugger_detach_and_wait", "Detach", "Detach the debugger from the target, leaving it running.",
 		Scope::BinaryView, DestructiveHint})
 		.Register([](ToolCall& call) {
 			ControllerResult dbg = RequirePaused(call.GetBinaryView());
@@ -520,7 +520,7 @@ void RegisterLifecycleTools()
 			return StatusResult(**dbg);
 		});
 
-	MakeTool({"debugger_quit_and_wait", "Quit Target", "Terminate the target and end the debug session.",
+	MakeDebuggerTool({"debugger_quit_and_wait", "Quit Target", "Terminate the target and end the debug session.",
 		Scope::BinaryView, DestructiveHint})
 		.Register([](ToolCall& call) {
 			ControllerResult dbg = RequireConnected(call.GetBinaryView());
@@ -530,7 +530,7 @@ void RegisterLifecycleTools()
 			return StatusResult(**dbg);
 		});
 
-	MakeTool({"debugger_restart_and_wait", "Restart Target", "Restart the target under the debugger.",
+	MakeDebuggerTool({"debugger_restart_and_wait", "Restart Target", "Restart the target under the debugger.",
 		Scope::BinaryView, DestructiveHint})
 		.Register([](ToolCall& call) {
 			ControllerResult dbg = RequireConnected(call.GetBinaryView());
@@ -547,7 +547,7 @@ void RegisterLifecycleTools()
 
 void RegisterExecutionControlTools()
 {
-	MakeTool({"debugger_go_and_wait", "Resume Target", "Resume the target until it stops again (a breakpoint, a signal, or exit)."})
+	MakeDebuggerTool({"debugger_go_and_wait", "Resume Target", "Resume the target until it stops again (a breakpoint, a signal, or exit)."})
 		.Register([](ToolCall& call) {
 			ControllerResult dbg = RequirePaused(call.GetBinaryView());
 			if (!dbg)
@@ -556,7 +556,7 @@ void RegisterExecutionControlTools()
 			return StatusResult(**dbg);
 		});
 
-	MakeTool({"debugger_step_into_and_wait", "Step Into", "Single-step the target, stepping into any call."})
+	MakeDebuggerTool({"debugger_step_into_and_wait", "Step Into", "Single-step the target, stepping into any call."})
 		.Register([](ToolCall& call) {
 			ControllerResult dbg = RequirePaused(call.GetBinaryView());
 			if (!dbg)
@@ -565,7 +565,7 @@ void RegisterExecutionControlTools()
 			return StatusResult(**dbg);
 		});
 
-	MakeTool({"debugger_step_over_and_wait", "Step Over", "Single-step the target, stepping over any call."})
+	MakeDebuggerTool({"debugger_step_over_and_wait", "Step Over", "Single-step the target, stepping over any call."})
 		.Register([](ToolCall& call) {
 			ControllerResult dbg = RequirePaused(call.GetBinaryView());
 			if (!dbg)
@@ -574,7 +574,7 @@ void RegisterExecutionControlTools()
 			return StatusResult(**dbg);
 		});
 
-	MakeTool({"debugger_step_return_and_wait", "Step Return", "Run the target until the current function returns."})
+	MakeDebuggerTool({"debugger_step_return_and_wait", "Step Return", "Run the target until the current function returns."})
 		.Register([](ToolCall& call) {
 			ControllerResult dbg = RequirePaused(call.GetBinaryView());
 			if (!dbg)
@@ -583,7 +583,7 @@ void RegisterExecutionControlTools()
 			return StatusResult(**dbg);
 		});
 
-	MakeTool({"debugger_run_to_and_wait", "Run To Address", "Resume the target until it reaches the given address."})
+	MakeDebuggerTool({"debugger_run_to_and_wait", "Run To Address", "Resume the target until it reaches the given address."})
 		.Param(Address("address", "Address to run to."))
 		.Register([](ToolCall& call, uint64_t address) {
 			ControllerResult dbg = RequirePaused(call.GetBinaryView());
@@ -593,7 +593,7 @@ void RegisterExecutionControlTools()
 			return StatusResult(**dbg);
 		});
 
-	MakeTool({"debugger_pause_and_wait", "Pause Target", "Pause the running target.", Scope::BinaryView, IdempotentHint})
+	MakeDebuggerTool({"debugger_pause_and_wait", "Pause Target", "Pause the running target.", Scope::BinaryView, IdempotentHint})
 		.Register([](ToolCall& call) {
 			ControllerResult dbg = RequireConnected(call.GetBinaryView());
 			if (!dbg)
@@ -611,7 +611,7 @@ void RegisterExecutionControlTools()
 
 void RegisterInspectionTools()
 {
-	MakeTool({"debugger_status", "Debugger Status", "Report whether the active binary view has a debug session and its current state.",
+	MakeDebuggerTool({"debugger_status", "Debugger Status", "Report whether the active binary view has a debug session and its current state.",
 		Scope::BinaryView, ReadOnlyHint})
 		.Register([](ToolCall& call) {
 			BinaryViewRef bv = call.GetBinaryView();
@@ -627,7 +627,7 @@ void RegisterInspectionTools()
 			return StatusResult(*dbg);
 		});
 
-	MakeTool({"debugger_adapter_settings_list", "List Adapter Settings",
+	MakeDebuggerTool({"debugger_adapter_settings_list", "List Adapter Settings",
 		"List the current debug adapter's own settings (e.g. launch/attach/connect fields, or backend-specific "
 		"options like a TTD trace path), available to pass to the settings parameter of debugger_launch_and_wait, "
 		"debugger_attach_and_wait, or debugger_connect_and_wait.",
@@ -655,7 +655,7 @@ void RegisterInspectionTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_registers_get", "Get Registers", "Read one or all registers of the target.", Scope::BinaryView, ReadOnlyHint})
+	MakeDebuggerTool({"debugger_registers_get", "Get Registers", "Read one or all registers of the target.", Scope::BinaryView, ReadOnlyHint})
 		.Param(String("name", "Name of a single register to read. Takes priority over group.").Optional())
 		.Param(Choice("group",
 			"With no name, \"most\" (the default) returns general-purpose/pointer-sized registers (e.g. rax-r15, "
@@ -697,7 +697,7 @@ void RegisterInspectionTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_register_set", "Set Register", "Write a register of the target.", Scope::BinaryView, IdempotentHint})
+	MakeDebuggerTool({"debugger_register_set", "Set Register", "Write a register of the target.", Scope::BinaryView, IdempotentHint})
 		.Param(String("name", "Name of the register to write."))
 		.Param(IntegerExpression("value", "New value for the register."))
 		.Register([](ToolCall& call, std::string name, uint64_t value) {
@@ -717,7 +717,7 @@ void RegisterInspectionTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_read_memory", "Read Memory", "Read memory from the target.", Scope::BinaryView, ReadOnlyHint})
+	MakeDebuggerTool({"debugger_read_memory", "Read Memory", "Read memory from the target.", Scope::BinaryView, ReadOnlyHint})
 		.Param(Address("address", "Address to read from."))
 		.Param(Int("size", "Number of bytes to read (up to 64 KiB).").Minimum(1).Maximum(0x10000).Default(0x10))
 		.Param(Choice("encoding",
@@ -746,7 +746,7 @@ void RegisterInspectionTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_write_memory", "Write Memory", "Write memory of the target.", Scope::BinaryView, DestructiveHint})
+	MakeDebuggerTool({"debugger_write_memory", "Write Memory", "Write memory of the target.", Scope::BinaryView, DestructiveHint})
 		.Param(Address("address", "Address to write to."))
 		.Param(String("data", "Bytes to write, as a hex string (e.g. \"deadbeef\").").NonEmpty())
 		.Register([](ToolCall& call, uint64_t address, std::string data) {
@@ -767,7 +767,7 @@ void RegisterInspectionTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_threads_list", "List Threads", "List the threads of the target.", Scope::BinaryView, ReadOnlyHint})
+	MakeDebuggerTool({"debugger_threads_list", "List Threads", "List the threads of the target.", Scope::BinaryView, ReadOnlyHint})
 		.Register([](ToolCall& call) {
 			ControllerResult dbg = RequireConnected(call.GetBinaryView());
 			if (!dbg)
@@ -788,7 +788,7 @@ void RegisterInspectionTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_thread_select", "Select Thread", "Select the active thread of the target.", Scope::BinaryView, IdempotentHint})
+	MakeDebuggerTool({"debugger_thread_select", "Select Thread", "Select the active thread of the target.", Scope::BinaryView, IdempotentHint})
 		.Param(UInt("tid", "Thread ID to make active."))
 		.Register([](ToolCall& call, uint64_t tid) {
 			ControllerResult dbg = RequirePaused(call.GetBinaryView());
@@ -805,7 +805,7 @@ void RegisterInspectionTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_backtrace", "Get Backtrace", "Get the stack trace of a thread.", Scope::BinaryView, ReadOnlyHint})
+	MakeDebuggerTool({"debugger_backtrace", "Get Backtrace", "Get the stack trace of a thread.", Scope::BinaryView, ReadOnlyHint})
 		.Param(UInt("tid", "Thread ID to trace. Defaults to the active thread.").Optional())
 		.Register([](ToolCall& call, std::optional<uint64_t> tid) {
 			ControllerResult dbg = RequirePaused(call.GetBinaryView());
@@ -843,7 +843,7 @@ void RegisterInspectionTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_modules_list", "List Modules", "List the modules loaded in the target.", Scope::BinaryView, ReadOnlyHint})
+	MakeDebuggerTool({"debugger_modules_list", "List Modules", "List the modules loaded in the target.", Scope::BinaryView, ReadOnlyHint})
 		.Register([](ToolCall& call) {
 			ControllerResult dbg = RequireConnected(call.GetBinaryView());
 			if (!dbg)
@@ -865,7 +865,7 @@ void RegisterInspectionTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_memory_map", "Get Memory Map", "List the mapped memory regions of the target.", Scope::BinaryView, ReadOnlyHint})
+	MakeDebuggerTool({"debugger_memory_map", "Get Memory Map", "List the mapped memory regions of the target.", Scope::BinaryView, ReadOnlyHint})
 		.Register([](ToolCall& call) {
 			ControllerResult dbg = RequireConnected(call.GetBinaryView());
 			if (!dbg)
@@ -888,7 +888,7 @@ void RegisterInspectionTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_processes_list", "List Processes", "List processes available to attach to.", Scope::BinaryView, ReadOnlyHint})
+	MakeDebuggerTool({"debugger_processes_list", "List Processes", "List processes available to attach to.", Scope::BinaryView, ReadOnlyHint})
 		.Param(String("query", "Case-insensitive substring filter over process names.").Optional())
 		.Register([](ToolCall& call, std::optional<std::string> query) {
 			DbgRef<DebuggerController> dbg = DebuggerController::GetController(call.GetBinaryView());
@@ -921,7 +921,7 @@ void RegisterInspectionTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_breakpoints_list", "List Breakpoints", "List the configured breakpoints.", Scope::BinaryView, ReadOnlyHint})
+	MakeDebuggerTool({"debugger_breakpoints_list", "List Breakpoints", "List the configured breakpoints.", Scope::BinaryView, ReadOnlyHint})
 		.Register([](ToolCall& call) {
 			BinaryViewRef bv = call.GetBinaryView();
 			rapidjson::Document doc;
@@ -944,7 +944,7 @@ void RegisterInspectionTools()
 
 void RegisterBreakpointTools()
 {
-	MakeTool({"debugger_breakpoint_set", "Set Breakpoint",
+	MakeDebuggerTool({"debugger_breakpoint_set", "Set Breakpoint",
 		"Set a breakpoint at an address.\n\nThe target must have been launched, attached to, or connected to at "
 		"least once; a breakpoint set before that silently fails to register."})
 		.Param(Address("address", "Address to set the breakpoint at."))
@@ -971,7 +971,7 @@ void RegisterBreakpointTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_breakpoint_delete", "Delete Breakpoint", "Delete a breakpoint at an address.",
+	MakeDebuggerTool({"debugger_breakpoint_delete", "Delete Breakpoint", "Delete a breakpoint at an address.",
 		Scope::BinaryView, IdempotentHint})
 		.Param(Address("address", "Address of the breakpoint to delete."))
 		.Param(BreakpointKindParam().Default("software"))
@@ -997,7 +997,7 @@ void RegisterBreakpointTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_breakpoint_set_enabled", "Enable/Disable Breakpoint",
+	MakeDebuggerTool({"debugger_breakpoint_set_enabled", "Enable/Disable Breakpoint",
 		"Enable or disable a breakpoint without deleting it.", Scope::BinaryView, IdempotentHint})
 		.Param(Address("address", "Address of the breakpoint."))
 		.Param(BreakpointKindParam().Default("software"))
@@ -1031,7 +1031,7 @@ void RegisterBreakpointTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_breakpoint_condition_set", "Set Breakpoint Condition",
+	MakeDebuggerTool({"debugger_breakpoint_condition_set", "Set Breakpoint Condition",
 		"Set or clear a breakpoint's condition expression.", Scope::BinaryView, IdempotentHint})
 		.Param(Address("address", "Address of the breakpoint."))
 		.Param(BreakpointKindParam().Default("software"))
@@ -1064,7 +1064,7 @@ void RegisterBreakpointTools()
 
 void RegisterMiscTools()
 {
-	MakeTool({"debugger_write_stdin", "Write to Stdin", "Write to the target's standard input."})
+	MakeDebuggerTool({"debugger_write_stdin", "Write to Stdin", "Write to the target's standard input."})
 		.Param(String("data", "Text to write."))
 		.Register([](ToolCall& call, std::string data) {
 			ControllerResult dbg = RequireConnected(call.GetBinaryView());
@@ -1078,7 +1078,7 @@ void RegisterMiscTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_execute_backend_command", "Execute Backend Command",
+	MakeDebuggerTool({"debugger_execute_backend_command", "Execute Backend Command",
 		"Execute a backend-specific debugger command (e.g. a GDB/LLDB command) and return its output."})
 		.Param(String("command", "Command text to execute.").NonEmpty())
 		.Register([](ToolCall& call, std::string command) {
@@ -1092,7 +1092,7 @@ void RegisterMiscTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_property_get", "Get Adapter Property", "Read an adapter-specific property of the target.",
+	MakeDebuggerTool({"debugger_property_get", "Get Adapter Property", "Read an adapter-specific property of the target.",
 		Scope::BinaryView, ReadOnlyHint})
 		.Param(String("name", "Name of the property to read.").NonEmpty())
 		.Register([](ToolCall& call, std::string name) {
@@ -1108,7 +1108,7 @@ void RegisterMiscTools()
 			return ToolResult::Structured(doc);
 		});
 
-	MakeTool({"debugger_property_set", "Set Adapter Property", "Set an adapter-specific property of the target."})
+	MakeDebuggerTool({"debugger_property_set", "Set Adapter Property", "Set an adapter-specific property of the target."})
 		.Param(String("name", "Name of the property to set.").NonEmpty())
 		.Param(JsonValue("value", "{}"))
 		.Register([](ToolCall& call, std::string name, const rapidjson::Value* value) {
@@ -1132,46 +1132,15 @@ void RegisterMiscTools()
 		});
 }
 
-// --------------------------------------------------------------------------------------------
-// Enable gate
-// --------------------------------------------------------------------------------------------
-
-std::once_flag g_debuggerToolsRegistered;
-
-void EnableDebuggerMcpTools()
-{
-	std::call_once(g_debuggerToolsRegistered, []() {
-		RegisterLifecycleTools();
-		RegisterExecutionControlTools();
-		RegisterInspectionTools();
-		RegisterBreakpointTools();
-		RegisterMiscTools();
-	});
-}
-
-void RegisterEnableGateTool()
-{
-	MakeTool({"debugger_mcp_enable", "Enable Debugger Tools",
-		"Enable the debugger's MCP tools (launch/attach/connect, stepping, breakpoints, registers, memory, and "
-		"more). They stay out of tools/list until this is called, so sessions that never debug anything are not "
-		"charged their context. Call this once, then call tools/list again to see them -- this server does not "
-		"send a tools list-changed notification. This enables the tools for every client connected to this Binary "
-		"Ninja process, for the rest of its life; there is no way to disable them again.",
-		Scope::Global, IdempotentHint})
-		.Register([](ToolCall& call) {
-			EnableDebuggerMcpTools();
-			rapidjson::Document doc;
-			doc.SetObject();
-			doc.AddMember("enabled", true, doc.GetAllocator());
-			return ToolResult::Structured(doc);
-		});
-}
-
 }  // namespace
 
 namespace BinaryNinjaDebugger {
 void RegisterDebuggerMcpTools()
 {
-	RegisterEnableGateTool();
+	RegisterLifecycleTools();
+	RegisterExecutionControlTools();
+	RegisterInspectionTools();
+	RegisterBreakpointTools();
+	RegisterMiscTools();
 }
 };  // namespace BinaryNinjaDebugger

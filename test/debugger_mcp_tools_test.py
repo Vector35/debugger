@@ -11,7 +11,7 @@ import base64
 import platform
 import unittest
 
-from binaryninja import load, mcp
+from binaryninja import Settings, load, mcp
 
 from debugger_test import name_to_fpath
 
@@ -19,6 +19,8 @@ try:
     from debugger import DebuggerController, DebugStopReason
 except ImportError:
     from binaryninja.debugger import DebuggerController, DebugStopReason
+
+GROUP_SETTING = "mcp.groups.debugger"
 
 
 def invoke(name, arguments=None, view=None):
@@ -28,27 +30,58 @@ def invoke(name, arguments=None, view=None):
     return tool.invoke(arguments or {}, view)
 
 
-# The debugger's tools stay out of the MCP registry until debugger_mcp_enable is called (see
-# core/debuggermcp.cpp); every other test in this file depends on them being registered, so
-# enable them once up front rather than relying on test execution order.
+# Enable the group before exercising the debugger tools, then restore
+# its original value when the module finishes. Group lookup initializes the plugins first.
 def setUpModule():
-    result = invoke("debugger_mcp_enable")
-    assert not result["isError"], result
-    assert result["structuredContent"]["enabled"] is True
+    global _previous_group_enabled
+    group = mcp.ToolGroup.by_name("debugger")
+    assert group is not None, "Debugger MCP tool group is not registered"
+    _previous_group_enabled = group.enabled
+    assert Settings().set_bool(GROUP_SETTING, True)
 
 
-class McpEnableGateTests(unittest.TestCase):
-    def test_enable_gate_is_idempotent(self):
-        for _ in range(2):
-            result = invoke("debugger_mcp_enable")
+def tearDownModule():
+    Settings().set_bool(GROUP_SETTING, _previous_group_enabled)
+
+
+class McpToolGroupTests(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(Settings().set_bool, GROUP_SETTING, True)
+
+    def test_group_is_enabled_by_default(self):
+        group = mcp.ToolGroup.by_name("debugger")
+        self.assertEqual(group.title, "Debugger")
+        self.assertTrue(group.enabled_by_default)
+
+    def test_tools_are_rejected_when_the_group_is_disabled(self):
+        bv = load(name_to_fpath('helloworld'))
+        self.addCleanup(bv.file.close)
+        self.assertTrue(Settings().set_bool(GROUP_SETTING, False))
+        self.assertFalse(mcp.ToolGroup.by_name("debugger").enabled)
+        # Tool.list() enumerates the registry, including disabled groups. The MCP
+        # server filters tools/list; direct API invocation must enforce the gate too.
+        for tool in mcp.Tool.list():
+            if tool.name.startswith("debugger_"):
+                with self.subTest(tool=tool.name):
+                    result = tool.invoke({}, bv)
+                    self.assertTrue(result["isError"])
+                    self.assertEqual(result["structuredContent"]["errorCode"], "group_disabled")
+
+    def test_tools_are_callable_after_toggling_the_group(self):
+        self.assertTrue(Settings().set_bool(GROUP_SETTING, False))
+        self.assertTrue(Settings().set_bool(GROUP_SETTING, True))
+        self.assertTrue(mcp.ToolGroup.by_name("debugger").enabled)
+        bv = load(name_to_fpath('helloworld'))
+        try:
+            result = invoke("debugger_status", view=bv)
             self.assertFalse(result["isError"])
-            self.assertEqual(result["structuredContent"]["enabled"], True)
+        finally:
+            bv.file.close()
 
 
 class McpToolRegistrationTests(unittest.TestCase):
     def test_every_debugger_tool_is_registered(self):
         expected = {
-            "debugger_mcp_enable",
             "debugger_launch_and_wait", "debugger_attach_and_wait", "debugger_connect_and_wait",
             "debugger_detach_and_wait", "debugger_quit_and_wait", "debugger_restart_and_wait",
             "debugger_go_and_wait", "debugger_step_into_and_wait", "debugger_step_over_and_wait",
@@ -65,6 +98,10 @@ class McpToolRegistrationTests(unittest.TestCase):
         names = {tool.name for tool in mcp.Tool.list()}
         missing = expected - names
         self.assertEqual(missing, set(), f"tools missing from the registry: {missing}")
+        group = mcp.ToolGroup.by_name("debugger")
+        for name in expected:
+            with self.subTest(tool=name):
+                self.assertEqual(mcp.Tool.by_name(name).group, group)
 
 
 class NoControllerTests(unittest.TestCase):
