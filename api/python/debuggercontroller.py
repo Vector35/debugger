@@ -2781,6 +2781,20 @@ class DebuggerController:
         handle = ctypes.cast(_value.handle, ctypes.POINTER(dbgcore.BNMetadata))
         return dbgcore.BNDebuggerSetAdapterProperty(self.handle, name, handle)
 
+    @property
+    def adapter_settings(self) -> Optional[binaryninja.settings.Settings]:
+        """
+        The active debug adapter's own ``Settings`` object (e.g. its launch/attach/connect fields,
+        or backend-specific options like a TTD trace path). Use its ``get_string``/``set_string``
+        etc. methods, passing ``resource=dbg.data`` to scope a value to this binary view. Returns
+        ``None`` if the current adapter type has no settings or none is selected.
+        """
+        handle = dbgcore.BNDebuggerGetAdapterSettings(self.handle)
+        if handle is None:
+            return None
+        handle = ctypes.cast(handle, ctypes.POINTER(binaryninja.core.BNSettings))
+        return binaryninja.settings.Settings(handle=handle)
+
     def get_addr_info(self, addr: int):
         buffer = addr.to_bytes(64, byteorder='little', signed=False)
         c_buffer = (ctypes.c_ubyte * 64)(*buffer)

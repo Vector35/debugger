@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 #include <inttypes.h>
+#include "debuggermcp.h"
 #include "adapters/gdbadapter.h"
 #include "adapters/gdbmiadapter.h"
 #include "adapters/lldbadapter.h"
@@ -240,6 +241,7 @@ extern "C"
 		LogDebug("Native debugger loaded!");
 		RegisterSettings();
 		InitDebugAdapterTypes();
+		RegisterDebuggerMcpTools();
 		return true;
 	}
 }
