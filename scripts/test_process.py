@@ -6,7 +6,9 @@ import subprocess
 
 
 def run_tests(command, env, timeout=900):
-    proc = subprocess.Popen(command, env=env, start_new_session=os.name == 'posix')
+    process_options = {'start_new_session': True} if os.name == 'posix' else {
+        'creationflags': subprocess.CREATE_NO_WINDOW}
+    proc = subprocess.Popen(command, env=env, **process_options)
     print(f'CI watchdog: pytest pid={proc.pid}, outer deadline={timeout}s', flush=True)
     try:
         returncode = proc.wait(timeout=timeout)
