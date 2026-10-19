@@ -163,6 +163,11 @@ bool DbgEngTTDAdapter::Start()
 
 	QUERY_DEBUG_INTERFACE(IDebugControl7, &this->m_debugControl);
 	QUERY_DEBUG_INTERFACE(IDebugDataSpaces, &this->m_debugDataSpaces);
+	// The TTD adapter opens a trace directly instead of going through
+	// DbgEngAdapter::ConnectToDebugServerInternal(), so these have to be queried here too, otherwise
+	// they stay null and everything built on them (e.g. GetMemoryMap()) silently does nothing.
+	QUERY_DEBUG_INTERFACE(IDebugDataSpaces2, &this->m_debugDataSpaces2);
+	QUERY_DEBUG_INTERFACE(IDebugDataSpaces4, &this->m_debugDataSpaces4);
 	QUERY_DEBUG_INTERFACE(IDebugRegisters, &this->m_debugRegisters);
 	QUERY_DEBUG_INTERFACE(IDebugSymbols3, &this->m_debugSymbols);
 	QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
@@ -221,6 +226,8 @@ void DbgEngTTDAdapter::Reset()
 	// we should keep everything active.
 	SAFE_RELEASE(this->m_debugControl);
 	SAFE_RELEASE(this->m_debugDataSpaces);
+	SAFE_RELEASE(this->m_debugDataSpaces2);
+	SAFE_RELEASE(this->m_debugDataSpaces4);
 	SAFE_RELEASE(this->m_debugRegisters);
 	SAFE_RELEASE(this->m_debugSymbols);
 	SAFE_RELEASE(this->m_debugSystemObjects);
