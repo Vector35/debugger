@@ -20,6 +20,7 @@ limitations under the License.
 #include "highlevelilinstruction.h"
 #include "debuggercontroller.h"
 #include "debuggercommon.h"
+#include "customdebugadapter.h"
 #include "../api/ffi.h"
 #include <chrono>
 #include <map>
@@ -2175,6 +2176,50 @@ BNSettings* BNDebuggerGetAdapterSettings(BNDebuggerController* controller)
 bool BNDebuggerFunctionExistsInOldView(BNDebuggerController* controller, uint64_t address)
 {
 	return controller->object->FunctionExistsInOldView(address);
+}
+
+
+BNDebugAdapterType* BNRegisterCustomDebugAdapterType(
+	const char* name, BNCustomDebugAdapterTypeCallbacks* callbacks)
+{
+	if (!name || !*name || !callbacks || !callbacks->create || DebugAdapterType::GetByName(name))
+		return nullptr;
+	auto adapterType = new CustomDebugAdapterType(name, *callbacks);
+	DebugAdapterType::Register(adapterType);
+	return adapterType->GetAPIObject();
+}
+
+
+BNDebugAdapter* BNCreateCustomDebugAdapter(
+	BNBinaryView* data, BNCustomDebugAdapterCallbacks* callbacks)
+{
+	if (!data || !callbacks)
+		return nullptr;
+	Ref<BinaryView> view = new BinaryView(BNNewViewReference(data));
+	auto adapter = new CustomDebugAdapter(view, *callbacks);
+	return adapter->GetAPIObject();
+}
+
+
+void BNCustomDebugAdapterPostEvent(BNDebugAdapter* adapter, BNDebuggerEvent* event)
+{
+	if (!adapter || !adapter->object || !event)
+		return;
+	DebuggerEvent result;
+	result.type = event->type;
+	result.data.targetStoppedData.reason = event->data.targetStoppedData.reason;
+	result.data.targetStoppedData.exitCode = event->data.targetStoppedData.exitCode;
+	result.data.targetStoppedData.lastActiveThread = event->data.targetStoppedData.lastActiveThread;
+	result.data.targetStoppedData.data = event->data.targetStoppedData.data;
+	result.data.errorData.error = event->data.errorData.error ? event->data.errorData.error : "";
+	result.data.errorData.shortError = event->data.errorData.shortError ? event->data.errorData.shortError : "";
+	result.data.errorData.data = event->data.errorData.data;
+	result.data.exitData.exitCode = event->data.exitData.exitCode;
+	result.data.relativeAddress.module = event->data.relativeAddress.module ? event->data.relativeAddress.module : "";
+	result.data.relativeAddress.offset = event->data.relativeAddress.offset;
+	result.data.absoluteAddress = event->data.absoluteAddress;
+	result.data.messageData.message = event->data.messageData.message ? event->data.messageData.message : "";
+	adapter->object->PostDebuggerEvent(result);
 }
 
 
