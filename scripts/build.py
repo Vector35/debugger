@@ -264,6 +264,7 @@ cmake_params.append(('CMAKE_BUILD_TYPE', 'Release'))
 cmake_params.append(('BN_API_PATH', api_path))
 cmake_params.append(('BN_INSTALL_DIR', bn_core_path))
 cmake_params.append(('CMAKE_PREFIX_PATH', qt_cmake_path))
+cmake_params.append(('BUILD_CUSTOM_ADAPTER_TESTS', 'ON'))
 
 if sys.platform == 'darwin':
     if sysroot is not None:
@@ -348,7 +349,10 @@ if os.path.exists(results):
 pytest_sources = [
     str(base_dir / "test" / "debugger_test.py"),
     str(base_dir / "test" / "attach_timeout_test.py"),
+    str(base_dir / "test" / "custom_adapter_test.py"),
 ]
+fixture_name = "custom_adapter_fixture.dll" if platform.system() == "Windows" else "libcustom_adapter_fixture.so"
+env["CPP_ADAPTER_FIXTURE"] = str(build_path / "test" / fixture_name)
 if platform.system() == "Windows":
     # Exercise the just-built Windows Remote server locally on the Windows worker.
     # An explicit path prevents accidentally testing an installed/stale server.

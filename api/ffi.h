@@ -865,6 +865,86 @@ extern "C"
 
 	DEBUGGER_FFI_API bool BNDebuggerFunctionExistsInOldView(BNDebuggerController* controller, uint64_t address);
 
+	// Custom debug adapters. Lists and register outputs are copied, then released
+	// through their corresponding free callbacks. String results use BNDebuggerAllocString.
+	// Settings, metadata, and data-buffer results transfer one owned reference to the bridge.
+	typedef struct BNCustomDebugAdapterCallbacks
+	{
+		void* context;
+		bool (*init)(void* ctxt);
+		bool (*execute)(void* ctxt, const char* path);
+		bool (*executeWithArgs)(void* ctxt, const char* path, const char* args, const char* workingDir);
+		bool (*attach)(void* ctxt, uint32_t pid);
+		bool (*connect)(void* ctxt, const char* server, uint32_t port);
+		bool (*connectToDebugServer)(void* ctxt, const char* server, uint32_t port);
+		bool (*detach)(void* ctxt);
+		bool (*quit)(void* ctxt);
+		BNDebugProcess* (*getProcessList)(void* ctxt, size_t* count);
+		uint32_t (*getActivePID)(void* ctxt);
+		BNDebugThread* (*getThreadList)(void* ctxt, size_t* count);
+		bool (*getActiveThread)(void* ctxt, BNDebugThread* result);
+		uint32_t (*getActiveThreadId)(void* ctxt);
+		bool (*setActiveThread)(void* ctxt, BNDebugThread thread);
+		bool (*setActiveThreadId)(void* ctxt, uint32_t tid);
+		bool (*suspendThread)(void* ctxt, uint32_t tid);
+		bool (*resumeThread)(void* ctxt, uint32_t tid);
+		bool (*addBreakpoint)(void* ctxt, uint64_t address, BNDebugBreakpoint* result);
+		bool (*addBreakpointRelative)(void* ctxt, const char* module, uint64_t offset, BNDebugBreakpoint* result);
+		bool (*removeBreakpoint)(void* ctxt, uint64_t address);
+		bool (*removeBreakpointRelative)(void* ctxt, const char* module, uint64_t offset);
+		BNDebugBreakpoint* (*getBreakpointList)(void* ctxt, size_t* count);
+		BNDebugRegister* (*readAllRegisters)(void* ctxt, size_t* count);
+		bool (*readRegister)(void* ctxt, const char* reg, BNDebugRegister* result);
+		bool (*writeRegister)(void* ctxt, const char* reg, const uint8_t* value);
+		BNDataBuffer* (*readMemory)(void* ctxt, uint64_t address, size_t size);
+		bool (*writeMemory)(void* ctxt, uint64_t address, BNDataBuffer* buffer);
+		BNDebugModule* (*getModuleList)(void* ctxt, size_t* count);
+		char* (*getTargetArchitecture)(void* ctxt);
+		BNDebugStopReason (*stopReason)(void* ctxt);
+		uint64_t (*exitCode)(void* ctxt);
+		bool (*breakInto)(void* ctxt);
+		bool (*go)(void* ctxt);
+		bool (*goReverse)(void* ctxt);
+		bool (*stepInto)(void* ctxt);
+		bool (*stepIntoReverse)(void* ctxt);
+		bool (*stepOver)(void* ctxt);
+		bool (*stepOverReverse)(void* ctxt);
+		bool (*stepReturn)(void* ctxt);
+		bool (*stepReturnReverse)(void* ctxt);
+		char* (*invokeBackendCommand)(void* ctxt, const char* command);
+		uint64_t (*getInstructionOffset)(void* ctxt);
+		uint64_t (*getStackPointer)(void* ctxt);
+		bool (*supportFeature)(void* ctxt, uint32_t feature);
+		void (*writeStdin)(void* ctxt, const char* msg);
+		BNMetadata* (*getProperty)(void* ctxt, const char* name);
+		bool (*setProperty)(void* ctxt, const char* name, BNMetadata* value);
+		BNSettings* (*getAdapterSettings)(void* ctxt);
+		void (*freeProcessList)(void* ctxt, BNDebugProcess* values, size_t count);
+		void (*freeThreadList)(void* ctxt, BNDebugThread* values, size_t count);
+		void (*freeBreakpointList)(void* ctxt, BNDebugBreakpoint* values, size_t count);
+		void (*freeBreakpoint)(void* ctxt, BNDebugBreakpoint* value);
+		void (*freeRegisterList)(void* ctxt, BNDebugRegister* values, size_t count);
+		void (*freeRegister)(void* ctxt, BNDebugRegister* value);
+		void (*freeModuleList)(void* ctxt, BNDebugModule* values, size_t count);
+		void (*freeCallback)(void* ctxt);
+	} BNCustomDebugAdapterCallbacks;
+
+	typedef struct BNCustomDebugAdapterTypeCallbacks
+	{
+		void* context;
+		BNDebugAdapter* (*create)(void* ctxt, BNBinaryView* data);
+		bool (*isValidForData)(void* ctxt, BNBinaryView* data);
+		bool (*canExecute)(void* ctxt, BNBinaryView* data);
+		bool (*canConnect)(void* ctxt, BNBinaryView* data);
+		void (*freeCallback)(void* ctxt);
+	} BNCustomDebugAdapterTypeCallbacks;
+
+	DEBUGGER_FFI_API BNDebugAdapterType* BNRegisterCustomDebugAdapterType(
+		const char* name, BNCustomDebugAdapterTypeCallbacks* callbacks);
+	DEBUGGER_FFI_API BNDebugAdapter* BNCreateCustomDebugAdapter(
+		BNBinaryView* data, BNCustomDebugAdapterCallbacks* callbacks);
+	DEBUGGER_FFI_API void BNCustomDebugAdapterPostEvent(BNDebugAdapter* adapter, BNDebuggerEvent* event);
+
 	// WinDbg Installer (Windows only)
 	typedef struct BNDebuggerInstallResult
 	{
