@@ -62,6 +62,10 @@ flatbuffers_generate_headers(
     SCHEMAS ${CMAKE_CURRENT_SOURCE_DIR}/protocol/x2win.fbs
 )
 
+if(WIN32)
+	add_subdirectory(windows/dbgeng)
+endif()
+
 add_subdirectory(core)
 add_subdirectory(api)
 

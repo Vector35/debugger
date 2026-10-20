@@ -15,7 +15,10 @@ limitations under the License.
 */
 
 #pragma once
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <utility>
 #include "debuggercommon.h"
@@ -171,19 +174,75 @@ namespace BinaryNinjaDebugger {
 		bool m_loaded {};
 		bool m_caseInsensitive {};
 
-		DebugModule();
+		inline static std::function<bool()> m_caseInsensitiveCallback;
 
-		DebugModule(std::string name, std::string short_name, std::uintptr_t address, std::size_t size, bool loaded);
+		DebugModule() : m_name(""), m_short_name(""), m_address(0), m_size(0), m_loaded(false)
+		{
+			m_caseInsensitive = IsCaseInsensitive();
+		}
+
+		DebugModule(std::string name, std::string short_name, std::uintptr_t address, std::size_t size, bool loaded) :
+			m_name(std::move(name)), m_short_name(std::move(short_name)), m_address(address), m_size(size),
+			m_loaded(loaded)
+		{
+			m_caseInsensitive = IsCaseInsensitive();
+		}
 
 		// These are useful for remote debugging. Paths can be different on the host and guest systems, e.g.,
 		// /usr/bin/ls, and C:\Users\user\Desktop\ls. So we must compare the base file name, rather than the full path.
-		bool IsSameBaseModule(const DebugModule& other) const;
+		bool IsSameBaseModule(const DebugModule& other) const
+		{
+			return (StringsEqual(m_name, other.m_name, m_caseInsensitive)
+				|| StringsEqual(m_short_name, other.m_short_name, m_caseInsensitive)
+				|| StringsEqual(GetPathBaseName(m_name), GetPathBaseName(other.m_name), m_caseInsensitive)
+				|| StringsEqual(GetPathBaseName(m_short_name), GetPathBaseName(other.m_short_name), m_caseInsensitive));
+		}
 
-		bool IsSameBaseModule(const std::string& name) const;
+		bool IsSameBaseModule(const std::string& name) const
+		{
+			return (StringsEqual(m_name, name, m_caseInsensitive)
+				|| StringsEqual(m_short_name, name, m_caseInsensitive)
+				|| StringsEqual(GetPathBaseName(m_name), GetPathBaseName(name), m_caseInsensitive)
+				|| StringsEqual(GetPathBaseName(m_short_name), GetPathBaseName(name), m_caseInsensitive));
+		}
 
-		static bool IsSameBaseModule(const std::string& module, const std::string& module2);
+		static bool IsSameBaseModule(const std::string& module1, const std::string& module2)
+		{
+			// Cache the setting value on first call. Note: This will not update if the setting changes during
+			// runtime, but settings rarely change during a debugging session, and this avoids expensive
+			// Settings::Instance() calls.
+			static bool caseInsensitive = IsCaseInsensitive();
+			return (StringsEqual(module1, module2, caseInsensitive)
+				|| StringsEqual(GetPathBaseName(module1), GetPathBaseName(module2), caseInsensitive));
+		}
 
-		static std::string GetPathBaseName(const std::string& path);
+		static std::string GetPathBaseName(const std::string& path)
+		{
+#ifdef WIN32
+			// TODO: someone please write it on Windows!
+			char baseName[_MAX_PATH];
+			char ext[_MAX_PATH];
+			_splitpath_s(path.c_str(), NULL, 0, NULL, 0, baseName, _MAX_PATH, ext, _MAX_PATH);
+			return std::string(baseName) + std::string(ext);
+#else
+			std::filesystem::path fs_path(path);
+			return fs_path.filename().string();
+#endif
+		}
+
+		static bool IsCaseInsensitive() { return m_caseInsensitiveCallback ? m_caseInsensitiveCallback() : true; }
+
+		static bool StringsEqual(const std::string& str1, const std::string& str2, bool caseInsensitive)
+		{
+			if (!caseInsensitive)
+				return str1 == str2;
+
+			if (str1.size() != str2.size())
+				return false;
+
+			return std::equal(str1.begin(), str1.end(), str2.begin(),
+				[](char c1, char c2) { return std::tolower(c1) == std::tolower(c2); });
+		}
 	};
 
 	// A single mapped region of the target's virtual address space (a memory-map entry), e.g. the

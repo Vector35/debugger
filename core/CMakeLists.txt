@@ -56,19 +56,6 @@ if(WIN32)
 			adapters/windowsdumpfile.h
 			adapters/windowsnativeadapter.cpp
 			adapters/windowsnativeadapter.h
-			../windows/dbgeng/dbgengtypes.h
-			../windows/dbgeng/dbgenglog.cpp
-			../windows/dbgeng/dbgenglog.h
-			../windows/dbgeng/dbgengengine.cpp
-			../windows/dbgeng/dbgengengine.h
-			../windows/dbgeng/dbgengttdengine.cpp
-			../windows/dbgeng/dbgengttdengine.h
-			../windows/dbgeng/dbgengdumpengine.cpp
-			../windows/dbgeng/dbgengdumpengine.h
-			../windows/dbgeng/dbgengkernelengine.cpp
-			../windows/dbgeng/dbgengkernelengine.h
-			../windows/dbgeng/dbgenglocalkernelengine.cpp
-			../windows/dbgeng/dbgenglocalkernelengine.h
 			)
 else()
 	set(SOURCES ${COMMON_SOURCES} ${ADAPTER_SOURCES})
@@ -84,6 +71,7 @@ target_link_libraries(debuggercore binaryninjaapi)
 
 if(WIN32)
     target_link_libraries(debuggercore Msi.lib delayimp.lib wsock32 ws2_32 dbghelp.lib)
+    target_link_libraries(debuggercore dbgengengine)
 	target_link_options(debuggercore PRIVATE /DELAYLOAD:liblldb.dll /DELAYLOAD:dbghelp.dll)
 endif()
 
