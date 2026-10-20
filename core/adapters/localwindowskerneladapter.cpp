@@ -1,176 +1,20 @@
 #include "localwindowskerneladapter.h"
-#include <filesystem>
 
 using namespace BinaryNinjaDebugger;
-using namespace std;
 
 
-LocalWindowsKernelAdapter::LocalWindowsKernelAdapter(BinaryView* data) : DbgEngAdapter(data)
+LocalWindowsKernelAdapter::LocalWindowsKernelAdapter(BinaryView* data) :
+	DbgEngAdapter(data, std::make_unique<DbgEngLocalKernelEngine>())
 {
-    m_usePDBFileName = false;
 	GenerateDefaultAdapterSettings(data);
 }
 
 
-bool LocalWindowsKernelAdapter::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
-                                            const std::string& workingDir, const LaunchConfigurations& configs) {
-    m_aboutToBeKilled = false;
-
-	// local Windows kernel debugging has no options, this is just some boilerplate code I copied
-	BNSettingsScope scope = SettingsResourceScope;
-	auto data = GetData();
-	auto adapterSettings = GetAdapterSettings();
-
-    if (this->m_dbgengInitialized) {
-        this->Reset();
-    }
-
-    if (!Start()) {
-        this->Reset();
-        DebuggerEvent event;
-        event.type = LaunchFailureEventType;
-        event.data.errorData.error = fmt::format("Failed to initialize DbgEng");
-        event.data.errorData.shortError = fmt::format("Failed to initialize DbgEng");
-        PostDebuggerEvent(event);
-        return false;
-    }
-
-    if (const auto result = this->m_debugClient->AttachKernel(DEBUG_ATTACH_LOCAL_KERNEL, nullptr);
-            result != S_OK) {
-        this->Reset();
-        DebuggerEvent event;
-        event.type = LaunchFailureEventType;
-        event.data.errorData.error = fmt::format("AttachKernel failed: 0x{:x}", result);
-        event.data.errorData.shortError = fmt::format("AttachKernel failed: 0x{:x}", result);
-        PostDebuggerEvent(event);
-        return false;
-    }
-
-    // The WaitForEvent() must be called once before the engine fully attaches to the target.
-    if (!Wait()) {
-        DebuggerEvent event;
-        event.type = LaunchFailureEventType;
-        event.data.errorData.error = fmt::format("WaitForEvent failed");
-        event.data.errorData.shortError = fmt::format("WaitForEvent failed");
-        PostDebuggerEvent(event);
-    }
-
-    return true;
-}
-
-
-bool LocalWindowsKernelAdapter::Start()
+bool LocalWindowsKernelAdapter::ExecuteWithArgs(const std::string& path, const std::string& args,
+	const std::string& workingDir, const LaunchConfigurations& configs)
 {
-	if (this->m_dbgengInitialized)
-		this->Reset();
-
-	auto handle = GetModuleHandleA("dbgeng.dll");
-	if (handle == nullptr)
-		false;
-
-	//    HRESULT DebugCreate(
-	//    [in]  REFIID InterfaceId,
-	//    [out] PVOID  *Interface
-	//    );
-	typedef HRESULT(__stdcall * pfunDebugCreate)(REFIID, PVOID*);
-	auto DebugCreate = (pfunDebugCreate)GetProcAddress(handle, "DebugCreate");
-	if (DebugCreate == nullptr)
-		return false;
-
-	if (const auto result = DebugCreate(__uuidof(IDebugClient7), reinterpret_cast<void**>(&this->m_debugClient));
-		result != S_OK)
-		throw std::runtime_error("Failed to create IDebugClient7");
-
-	QUERY_DEBUG_INTERFACE(IDebugControl7, &this->m_debugControl);
-	QUERY_DEBUG_INTERFACE(IDebugDataSpaces, &this->m_debugDataSpaces);
-	QUERY_DEBUG_INTERFACE(IDebugRegisters, &this->m_debugRegisters);
-	QUERY_DEBUG_INTERFACE(IDebugSymbols3, &this->m_debugSymbols);
-	QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
-
-	m_debugEventCallbacks.SetAdapter(this);
-	if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks); result != S_OK)
-	{
-		LogWarn("Failed to set event callbacks");
-		return false;
-	}
-
-	m_outputCallbacks.SetAdapter(this);
-	if (const auto result = this->m_debugClient->SetOutputCallbacks(&this->m_outputCallbacks); result != S_OK)
-	{
-		LogWarn("Failed to set output callbacks");
-		return false;
-	}
-
-	m_inputCallbacks.SetDbgControl(m_debugControl);
-	if (const auto result = this->m_debugClient->SetInputCallbacks(&this->m_inputCallbacks); result != S_OK)
-	{
-		LogWarn("Failed to set input callbacks");
-		return false;
-	}
-
-	this->m_dbgengInitialized = true;
-	return true;
-}
-
-
-void LocalWindowsKernelAdapter::Reset()
-{
-	// Same reason as the base class: keep Reset() from tearing the interfaces down underneath
-	// EngineLoop(). The mutex is recursive, so the EngineLoop() -> Reset() path does not deadlock.
-	std::unique_lock lock(m_engineLoopMutex);
-
-	m_aboutToBeKilled = false;
-
-	if (!this->m_dbgengInitialized)
-		return;
-
-	// Free up the resources if the dbgsrv is launched by the adapter. Otherwise, the dbgsrv is launched outside BN,
-	// we should keep everything active.
-	SAFE_RELEASE(this->m_debugControl);
-	SAFE_RELEASE(this->m_debugDataSpaces);
-	SAFE_RELEASE(this->m_debugRegisters);
-	SAFE_RELEASE(this->m_debugSymbols);
-	SAFE_RELEASE(this->m_debugSystemObjects);
-
-	if (this->m_debugClient)
-	{
-		this->m_debugClient->EndSession(DEBUG_END_PASSIVE);
-		m_server = 0;
-	}
-
-	SAFE_RELEASE(this->m_debugClient);
-
-	this->m_dbgengInitialized = false;
-}
-
-
-bool LocalWindowsKernelAdapter::Detach()
-{
-	m_aboutToBeKilled = true;
-	m_lastOperationIsStepInto = false;
-	if (!this->m_debugClient)
-		return false;
-
-	if (this->m_debugClient->EndSession(DEBUG_END_PASSIVE) != S_OK)
-		return false;
-
-	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
-	return true;
-}
-
-
-bool LocalWindowsKernelAdapter::Quit()
-{
-	m_aboutToBeKilled = true;
-	m_lastOperationIsStepInto = false;
-	if (!this->m_debugClient)
-		return false;
-
-	if (this->m_debugClient->EndSession(DEBUG_END_PASSIVE) != S_OK)
-		return false;
-
-	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
-	return true;
+	ConfigureEngine();
+	return m_engine->ExecuteWithArgs("", "", "");
 }
 
 

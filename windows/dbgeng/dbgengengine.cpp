@@ -1,0 +1,2305 @@
+/*
+Copyright 2020-2026 Vector 35 Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include <thread>
+#include <chrono>
+#include <algorithm>
+#include <string>
+#include <cstdio>
+#include "dbgengengine.h"
+#include <memory>
+#include <filesystem>
+#ifdef _WIN32
+#include <shellapi.h>
+#include <TlHelp32.h>
+#include <winternl.h>
+#endif
+#include "dbgenglog.h"
+#include "shlobj_core.h"
+#pragma warning(push)
+// warning C40005, macro redefinition
+#pragma warning(disable : 5)
+#include "ntstatus.h"
+#pragma warning(pop)
+
+using namespace BinaryNinjaDebugger;
+using namespace std;
+
+void DbgEngEngine::PostEngineEvent(const DbgEngEvent& event)
+{
+	if (m_eventCallback)
+		m_eventCallback(event);
+}
+
+
+static bool LoadOneDLL(const string& path, const string& name, bool strictCheckPath = true, bool forceUnload = true)
+{
+	auto handle = GetModuleHandleA(name.c_str());
+	if (handle)
+	{
+		LogDebug("Module %s is already loaded before the debugger tries to load it, this is suspicious", name.c_str());
+		if (!strictCheckPath)
+			// The module is already loaded and we do not wish to validate its path, treat it as a success
+			return true;
+
+		char actualPath[MAX_PATH];
+		if (!GetModuleFileNameA(handle, actualPath, MAX_PATH))
+		{
+			LogWarn("Failed to get the path of the loaded %s, error: %lu", name.c_str(), GetLastError());
+			return false;
+		}
+		string path1 = actualPath;
+		std::transform(path1.begin(), path1.end(), path1.begin(), ::toupper);
+		string path2 = path + '\\' + name;
+		std::transform(path2.begin(), path2.end(), path2.begin(), ::toupper);
+		if (path1 == path2)
+			// two paths match, ok
+			return true;
+
+		LogWarn("%s is loaded from %s, but we expect it from %s", name.c_str(), actualPath, path.c_str());
+		if (!forceUnload)
+			return false;
+
+		size_t unloadMaxTries = 100;
+		bool unloaded = false;
+		for (size_t i = 0; i < unloadMaxTries; i++)
+		{
+			FreeLibrary(handle);
+			handle = GetModuleHandleA(name.c_str());
+			if (handle == NULL)
+			{
+				unloaded = true;
+				break;
+			}
+		}
+		if (!unloaded)
+		{
+			LogDebug("Failed to unload module %s", name.c_str());
+			return false;
+		}
+		else
+		{
+			LogDebug("Module %s has been unloaded", name.c_str());
+		}
+	}
+
+	auto dllFullPath = path + '\\' + name;
+	handle = LoadLibraryA(dllFullPath.c_str());
+	if (handle == nullptr)
+	{
+		LogWarn("Failed to load %s, error: %lu", dllFullPath.c_str(), GetLastError());
+		return false;
+	}
+
+	return true;
+}
+
+
+bool DbgEngEngine::LoadLibraries(const std::string& enginePath, bool strictCheckPath, bool forceUnload)
+{
+	LogDebug("DbgEng libraries in path %s", enginePath.c_str());
+
+	if (!LoadOneDLL(enginePath, "dbghelp.dll", strictCheckPath, forceUnload))
+		return false;
+
+	if (!LoadOneDLL(enginePath, "dbgcore.dll", strictCheckPath, forceUnload))
+		return false;
+
+	if (!LoadOneDLL(enginePath, "dbgmodel.dll", strictCheckPath, forceUnload))
+		return false;
+
+	if (!LoadOneDLL(enginePath, "dbgeng.dll", strictCheckPath, forceUnload))
+		return false;
+
+	return true;
+}
+
+std::string DbgEngEngine::GenerateRandomPipeName()
+{
+	const std::string chars = "abcdefghijklmnopqrstuvwxyz1234567890";
+	constexpr size_t length = 16;
+	srand((unsigned int)time(NULL));
+
+	std::string result;
+	result.resize(length);
+	for (size_t i = 0; i < length; i++)
+		result[i] = chars[rand() % chars.length()];
+
+	return result;
+}
+
+bool DbgEngEngine::LaunchDbgSrv(const std::string& commandLine)
+{
+	// Check if we should run as administrator
+	if (m_runAsAdministrator)
+	{
+		// Parse command line to extract executable path and arguments
+		// Command line format: "path\to\dbgsrv.exe" -t arguments
+		std::string exePath;
+		std::string args;
+		
+		if (commandLine.size() > 0 && commandLine[0] == '"')
+		{
+			// Find the closing quote
+			size_t endQuote = commandLine.find('"', 1);
+			if (endQuote != std::string::npos)
+			{
+				exePath = commandLine.substr(1, endQuote - 1);
+				if (endQuote + 1 < commandLine.size())
+				{
+					// Skip the closing quote and any leading space
+					size_t argsStart = endQuote + 1;
+					if (argsStart < commandLine.size() && commandLine[argsStart] == ' ')
+						argsStart++;
+					if (argsStart < commandLine.size())
+						args = commandLine.substr(argsStart);
+				}
+			}
+		}
+		else
+		{
+			// No quotes, split on first space
+			size_t spacePos = commandLine.find(' ');
+			if (spacePos != std::string::npos)
+			{
+				exePath = commandLine.substr(0, spacePos);
+				args = commandLine.substr(spacePos + 1);
+			}
+			else
+			{
+				exePath = commandLine;
+			}
+		}
+
+		if (exePath.empty())
+		{
+			LogWarn("Failed to parse executable path from command line: %s", commandLine.c_str());
+			return false;
+		}
+
+		// Use ShellExecuteEx with "runas" verb to launch with elevated privileges
+		SHELLEXECUTEINFOA sei = { 0 };
+		sei.cbSize = sizeof(sei);
+		sei.fMask = 0;  // No special flags needed
+		sei.lpVerb = "runas";
+		sei.lpFile = exePath.c_str();
+		sei.lpParameters = args.empty() ? NULL : args.c_str();
+		sei.nShow = SW_HIDE;
+
+		if (!ShellExecuteExA(&sei))
+		{
+			DWORD error = GetLastError();
+			LogWarn("Failed to launch dbgsrv.exe with administrator privileges. Error: %lu", error);
+			return false;
+		}
+
+		m_dbgSrvLaunchedByAdapter = true;
+		return true;
+	}
+	else
+	{
+		// Use original CreateProcess method
+		STARTUPINFOA si;
+		PROCESS_INFORMATION pi;
+		memset(&si, 0, sizeof(si));
+		si.cb = sizeof(si);
+		memset(&pi, 0, sizeof(pi));
+		if (!CreateProcessA(NULL, (LPSTR)commandLine.c_str(), NULL, NULL, FALSE, DETACHED_PROCESS, NULL, NULL, &si, &pi))
+		{
+			return false;
+		}
+		m_dbgSrvLaunchedByAdapter = true;
+		return true;
+	}
+}
+
+bool DbgEngEngine::ConnectToDebugServerInternal(const std::string& connectionString)
+{
+	auto handle = GetModuleHandleA("dbgeng.dll");
+	if (handle == nullptr)
+	{
+		LogWarn("Failed to get module handle for dbgeng.dll");
+		return false;
+	}
+
+	//    HRESULT DebugCreate(
+	//    [in]  REFIID InterfaceId,
+	//    [out] PVOID  *Interface
+	//    );
+	typedef HRESULT(__stdcall * pfunDebugCreate)(REFIID, PVOID*);
+	auto DebugCreate = (pfunDebugCreate)GetProcAddress(handle, "DebugCreate");
+	if (DebugCreate == nullptr)
+	{
+		LogWarn("Failed to get the address of DebugCreate function");
+		return false;
+	}
+
+	if (const auto result = DebugCreate(__uuidof(IDebugClient7), reinterpret_cast<void**>(&this->m_debugClient));
+		result != S_OK)
+	{
+		LogWarn("Failed to create IDebugClient7");
+		return false;
+	}
+
+	QUERY_DEBUG_INTERFACE(IDebugControl7, &this->m_debugControl);
+	QUERY_DEBUG_INTERFACE(IDebugDataSpaces, &this->m_debugDataSpaces);
+	QUERY_DEBUG_INTERFACE(IDebugDataSpaces2, &this->m_debugDataSpaces2);
+	QUERY_DEBUG_INTERFACE(IDebugRegisters, &this->m_debugRegisters);
+	QUERY_DEBUG_INTERFACE(IDebugSymbols3, &this->m_debugSymbols);
+	QUERY_DEBUG_INTERFACE(IDebugSystemObjects, &this->m_debugSystemObjects);
+
+	constexpr size_t CONNECTION_MAX_TRY = 300;
+	for (size_t i = 0; i < CONNECTION_MAX_TRY; i++)
+	{
+		auto result = m_debugClient->ConnectProcessServer(connectionString.c_str(), &m_server);
+		if (result == S_OK)
+		{
+			m_connectedToDebugServer = true;
+			return true;
+		}
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	}
+
+	LogWarn("ConnectToDebugServerInternal timeout");
+	return false;
+}
+
+bool DbgEngEngine::Start()
+{
+	if (this->m_dbgengInitialized)
+	{
+		// Debugger is already started, return success
+		return true;
+	}
+
+	if (!m_connectedToDebugServer)
+	{
+		auto pipeName = GenerateRandomPipeName();
+		auto connectString = "npipe:pipe=" + pipeName + ",Server=localhost";
+		auto enginePath = m_dbgEngPath;
+		if (enginePath.empty())
+			return false;
+
+		auto dbgsrvCommandLine = "\"" + enginePath + "\\dbgsrv.exe\" -t " + connectString;
+		if (!LaunchDbgSrv(dbgsrvCommandLine))
+		{
+			LogWarn("Command %s failed", dbgsrvCommandLine.c_str());
+			return false;
+		}
+
+		if (!ConnectToDebugServerInternal(connectString))
+		{
+			LogWarn("Failed to connect process server");
+			return false;
+		}
+	}
+
+	m_debugEventCallbacks.SetEngine(this);
+	if (const auto result = this->m_debugClient->SetEventCallbacks(&this->m_debugEventCallbacks); result != S_OK)
+	{
+		LogWarn("Failed to set event callbacks");
+		return false;
+	}
+
+	m_outputCallbacks.SetEngine(this);
+	if (const auto result = this->m_debugClient->SetOutputCallbacks(&this->m_outputCallbacks); result != S_OK)
+	{
+		LogWarn("Failed to set output callbacks");
+		return false;
+	}
+
+    m_inputCallbacks.SetDbgControl(m_debugControl);
+    if (const auto result = this->m_debugClient->SetInputCallbacks(&this->m_inputCallbacks); result != S_OK)
+	{
+		LogWarn("Failed to set input callbacks");
+		return false;
+	}
+
+	this->m_dbgengInitialized = true;
+	return true;
+}
+
+
+void DbgEngEngine::Reset()
+{
+	std::unique_lock lock(m_engineLoopMutex);
+	m_aboutToBeKilled = false;
+
+	if (!this->m_dbgengInitialized)
+		return;
+
+	// Free up the resources if the dbgsrv is launched by the adapter. Otherwise, the dbgsrv is launched outside BN,
+	// we should keep everything active.
+	if (m_dbgSrvLaunchedByAdapter)
+	{
+		SAFE_RELEASE(this->m_debugControl);
+		SAFE_RELEASE(this->m_debugDataSpaces);
+		SAFE_RELEASE(this->m_debugDataSpaces2);
+		SAFE_RELEASE(this->m_debugRegisters);
+		SAFE_RELEASE(this->m_debugSymbols);
+		SAFE_RELEASE(this->m_debugSystemObjects);
+
+		if (this->m_debugClient)
+		{
+			this->m_debugClient->EndSession(DEBUG_END_PASSIVE);
+			this->m_debugClient->EndProcessServer(m_server);
+			m_dbgSrvLaunchedByAdapter = false;
+			m_connectedToDebugServer = false;
+			m_server = 0;
+		}
+
+		SAFE_RELEASE(this->m_debugClient);
+	}
+
+	this->m_dbgengInitialized = false;
+	this->m_activelyDebugging = false;
+}
+
+
+DbgEngEngine::DbgEngEngine()
+{
+}
+
+DbgEngEngine::~DbgEngEngine()
+{
+}
+
+
+bool DbgEngEngine::ExecuteWithArgs(const std::string& path, const std::string& args,
+	const std::string& workingDir)
+{
+	std::atomic_bool ret = false;
+	std::atomic_bool finished = false;
+	// Doing the operation on a different thread ensures the same thread starts the session and runs EngineLoop().
+	// This is required by DngEng. Although things sometimes work even if it is violated, it can fail randomly.
+	std::thread([=, &ret, &finished]() {
+		ret = ExecuteWithArgsInternal(path, args, workingDir);
+		finished = true;
+		if (ret)
+			EngineLoop();
+	}).detach();
+
+	while (!finished)
+	{}
+	return ret;
+}
+
+
+bool DbgEngEngine::ExecuteWithArgsInternal(const std::string& path, const std::string& args,
+	const std::string& workingDir)
+{
+	std::unique_lock lock(m_engineLoopMutex);
+
+	// If we're actively debugging, fail instead of resetting to prevent crashes
+	if (this->m_activelyDebugging)
+	{
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "Cannot launch while actively debugging another target";
+		event.shortError = "Already debugging";
+		PostEngineEvent(event);
+		return false;
+	}
+
+	m_aboutToBeKilled = false;
+
+	// If DbgEng was initialized (e.g., by GetProcessList()) but we're not actively debugging,
+	// we need to reset it so it can be re-initialized on THIS thread with proper callbacks.
+	// DbgEng's event callbacks are thread-specific, and WaitForEvent() will hang if called
+	// from a different thread than the one that set up the callbacks.
+	if (m_dbgengInitialized)
+	{
+		Reset();
+	}
+
+	if (!Start())
+	{
+		this->Reset();
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "Failed to initialize DbgEng";
+		event.shortError = "Failed to initialize DbgEng";
+		PostEngineEvent(event);
+		return false;
+	}
+
+	if (const auto result = this->m_debugControl->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK); result != S_OK)
+	{
+		this->Reset();
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK";
+		event.shortError = "Failed to engine option";
+		PostEngineEvent(event);
+		return false;
+	}
+
+	/* TODO: parse args better */
+	std::string path_with_args {path};
+	if (!args.empty())
+	{
+		path_with_args.append(" ");
+		path_with_args.append(args);
+	}
+
+	DEBUG_CREATE_PROCESS_OPTIONS options;
+	options.CreateFlags = DEBUG_ONLY_THIS_PROCESS;
+	options.EngCreateFlags = 0;
+	options.VerifierFlags = 0;
+	options.Reserved = 0;
+
+	// CreateProcess2() is picky about the InitialDirectory parameter. It is OK to send in a NULL, but if a non-NULL
+	// string which is empty gets passed in, the call fails.
+	char* directory = _strdup(workingDir.c_str());
+	if (workingDir.empty())
+		directory = nullptr;
+
+	char* env = nullptr;
+	std::string envWithNull{};
+	if (!m_environmentVariables.empty())
+	{
+		for (const auto& var : m_environmentVariables)
+		{
+			envWithNull += var;
+			envWithNull += '\0';
+		}
+		envWithNull += '\0';
+		env = (char*)malloc(envWithNull.length());
+		memcpy(env, envWithNull.c_str(), envWithNull.length());
+	}
+
+	if (const auto result = this->m_debugClient->CreateProcess2(m_server, const_cast<char*>(path_with_args.c_str()),
+			&options, sizeof(DEBUG_CREATE_PROCESS_OPTIONS), directory, env);
+		result != S_OK)
+	{
+		this->Reset();
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		char buf[64];
+		snprintf(buf, sizeof(buf), "CreateProcess2 failed: 0x%08x", (uint32_t)result);
+		event.error = buf;
+		event.shortError = buf;
+		PostEngineEvent(event);
+		return false;
+	}
+
+	// The WaitForEvent() must be called once before the engine fully attaches to the target.
+	if (!Wait())
+	{
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "WaitForEvent failed";
+		event.shortError = "WaitForEvent failed";
+		PostEngineEvent(event);
+	}
+
+	// Apply the breakpoints added before the m_debugClient is created
+	ApplyBreakpoints();
+
+	if (m_entryPointOffset)
+	{
+		AddBreakpoint(ModuleNameAndOffset(GetInputFile(), *m_entryPointOffset));
+	}
+
+	if (!m_stopAtSystemEntryPoint)
+	{
+		if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK)
+		{
+			this->Reset();
+			DbgEngEvent event;
+			event.type = DbgEngEventType::LaunchFailure;
+			event.error = "Failed to resume the target after the system entry point";
+			event.shortError = "Failed to resume target";
+			PostEngineEvent(event);
+			return false;
+		}
+	}
+
+	// Mark that we're now actively debugging a target
+	this->m_activelyDebugging = true;
+
+	return true;
+}
+
+
+void DbgEngEngine::EngineLoop()
+{
+	// When the user rapidly restarts the target, there is a race condition that could lead to a crash:
+	// 1) The target is killed, and the EngineLoop is about to exit, but not yet
+	// 2) The restart code tries to restart the target, which calls ExecuteWithArgsInternal() -> Reset() -> set
+	//    m_debugControl to nullptr
+	// 3) Crash in EngineLoop
+	// This lock prevents Reset() from proceeding until the EngineLoop() actually exits
+	std::unique_lock lock(m_engineLoopMutex);
+
+	bool outputStateOnStop = m_outputStateOnStop;
+
+	m_lastExecutionStatus = DEBUG_STATUS_NO_DEBUGGEE;
+	// The controller reuses one adapter object across launches, so a terminate request that the previous
+	// session left unserviced (it exited on its own before we picked the request up) would otherwise be
+	// latched here and kill this target. The worker queue cannot deliver a Quit() until the launch
+	// operation completes, which needs the stop event posted below, so no live request can be lost here.
+	m_terminateRequested = false;
+	bool finished = false;
+	while (true)
+	{
+		if (finished)
+			break;
+
+		//Wait();
+		unsigned long execution_status {};
+		while (true)
+		{
+			if (this->m_debugControl->GetExecutionStatus(&execution_status) != S_OK)
+			{}
+
+			if (execution_status == DEBUG_STATUS_BREAK)
+			{
+				if (m_lastExecutionStatus != DEBUG_STATUS_BREAK)
+				{
+					// Apply deferred hardware breakpoints on first stop
+					// See ApplyBreakpoints() for detailed explanation of why this is necessary
+					if (m_needsHardwareBreakpointReapplication)
+					{
+						for (const auto& hwbp : m_deferredHardwareBreakpoints)
+						{
+							// Apply the hardware breakpoint now that process is running and stopped
+							// Check addressing mode and call appropriate variant
+							if (hwbp.isRelative)
+							{
+								AddHardwareBreakpoint(hwbp.location, hwbp.type, hwbp.size);
+							}
+							else
+							{
+								AddHardwareBreakpoint(hwbp.address, hwbp.type, hwbp.size);
+							}
+						}
+						m_deferredHardwareBreakpoints.clear();
+						m_needsHardwareBreakpointReapplication = false;
+					}
+
+					if (outputStateOnStop)
+					{
+						// m_debugRegisters->OutputRegisters(DEBUG_OUTCTL_THIS_CLIENT, DEBUG_REGISTERS_DEFAULT);
+						m_debugControl->OutputCurrentState(DEBUG_OUTCTL_THIS_CLIENT, DEBUG_CURRENT_DEFAULT);
+					}
+					DbgEngEvent event;
+					event.type = DbgEngEventType::TargetStopped;
+					event.stopReason = StopReason();
+					PostEngineEvent(event);
+				}
+
+				// This is NOT actually dispatching callback, since the callbacks are already dispatched in
+				// WaitForEvent(). The real purpose of this call is to wait until the UI/API initiates another control
+				// operation, which then calls ExitDispatch(), which causes the DispatchCallbacks() to return.
+				m_debugClient->DispatchCallbacks(INFINITE);
+
+				// A DbgEng client belongs to the thread that created it, and ExitDispatch() is the only call
+				// documented as safe to make from another thread. So Quit() only raises this flag and wakes us
+				// up; the terminate itself has to happen here. Doing it from the requesting thread while this
+				// one sits in DispatchCallbacks() faults inside WinDbg's data model JS provider on 1.2606
+				// (#1129).
+				if (m_terminateRequested.exchange(false) && !TerminateTargetOnEngineThread())
+					// Quit() has already reported success to its caller, so this is the only place the
+					// failure can be surfaced.
+					LogWarn("Failed to terminate the target");
+			}
+			// TODO: add step branch and step backs
+			else if ((execution_status == DEBUG_STATUS_GO) || (execution_status == DEBUG_STATUS_STEP_INTO)
+				|| (execution_status == DEBUG_STATUS_STEP_OVER) || (execution_status == DEBUG_STATUS_GO_HANDLED)
+				|| (execution_status == DEBUG_STATUS_STEP_BRANCH)
+				|| (execution_status == DEBUG_STATUS_GO_NOT_HANDLED) || (execution_status == DEBUG_STATUS_REVERSE_GO)
+				|| (execution_status == DEBUG_STATUS_REVERSE_STEP_OVER)
+				|| (execution_status == DEBUG_STATUS_REVERSE_STEP_INTO)
+				|| (execution_status == DEBUG_STATUS_REVERSE_STEP_BRANCH))
+			{
+				DbgEngEvent dbgevt;
+				if ((execution_status == DEBUG_STATUS_GO) || (execution_status == DEBUG_STATUS_REVERSE_GO)
+					|| ((execution_status == DEBUG_STATUS_GO_HANDLED))
+					|| (execution_status == DEBUG_STATUS_GO_NOT_HANDLED))
+				{
+					dbgevt.type = DbgEngEventType::Resumed;
+					PostEngineEvent(dbgevt);
+				}
+				else if ((execution_status == DEBUG_STATUS_STEP_INTO) || (execution_status == DEBUG_STATUS_STEP_OVER)
+					|| (execution_status == DEBUG_STATUS_STEP_BRANCH)
+					|| (execution_status == DEBUG_STATUS_REVERSE_STEP_OVER)
+					|| (execution_status == DEBUG_STATUS_REVERSE_STEP_INTO)
+					|| (execution_status == DEBUG_STATUS_REVERSE_STEP_BRANCH))
+				{
+					dbgevt.type = DbgEngEventType::StepIntoComplete;
+					PostEngineEvent(dbgevt);
+				}
+				break;
+			}
+			else if (execution_status == DEBUG_STATUS_NO_DEBUGGEE)
+			{
+				finished = true;
+				DbgEngEvent event;
+				event.type = DbgEngEventType::TargetExited;
+				event.exitCode = ExitCode();
+				PostEngineEvent(event);
+				Reset();
+				break;
+			}
+			m_lastExecutionStatus = execution_status;
+		}
+		m_lastExecutionStatus = execution_status;
+
+		if (finished)
+			break;
+
+		Wait();
+	}
+
+	m_lastExecutionStatus = DEBUG_STATUS_NO_DEBUGGEE;
+}
+
+bool DbgEngEngine::AttachInternal(std::uint32_t pid)
+{
+	std::unique_lock lock(m_engineLoopMutex);
+
+	// If we're actively debugging, fail instead of resetting to prevent crashes
+	if (this->m_activelyDebugging)
+	{
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "Cannot attach while actively debugging another target";
+		event.shortError = "Already debugging";
+		PostEngineEvent(event);
+		return false;
+	}
+
+	m_aboutToBeKilled = false;
+
+	// If DbgEng was initialized (e.g., by GetProcessList()) but we're not actively debugging,
+	// we need to reset it so it can be re-initialized on THIS thread with proper callbacks.
+	// DbgEng's event callbacks are thread-specific, and WaitForEvent() will hang if called
+	// from a different thread than the one that set up the callbacks.
+	if (m_dbgengInitialized)
+	{
+		Reset();
+	}
+
+	if (!this->Start())
+	{
+		this->Reset();
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "Failed to initialize DbgEng";
+		event.shortError = "Failed to initialize DbgEng";
+		PostEngineEvent(event);
+		return false;
+	}
+
+	if (const auto result = this->m_debugControl->SetEngineOptions(DEBUG_ENGOPT_INITIAL_BREAK); result != S_OK)
+	{
+		this->Reset();
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "Failed to engine option DEBUG_ENGOPT_INITIAL_BREAK";
+		event.shortError = "Failed to engine option";
+		PostEngineEvent(event);
+		return false;
+	}
+
+	if (const auto result = this->m_debugClient->AttachProcess(m_server, (ULONG)pid, 0); result != S_OK)
+	{
+		this->Reset();
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		char buf[64];
+		snprintf(buf, sizeof(buf), "AttachProcess failed: 0x%lx", (unsigned long)result);
+		event.error = buf;
+		event.shortError = buf;
+		PostEngineEvent(event);
+		return false;
+	}
+
+	if (!Wait())
+	{
+		DbgEngEvent event;
+		event.type = DbgEngEventType::LaunchFailure;
+		event.error = "WaitForEvent failed";
+		event.shortError = "WaitForEvent failed";
+		PostEngineEvent(event);
+	}
+
+	ApplyBreakpoints();
+
+	// Mark that we're now actively debugging a target
+	this->m_activelyDebugging = true;
+
+	return true;
+}
+
+bool DbgEngEngine::Attach(std::uint32_t pid)
+{
+	std::atomic_bool ret = false;
+	std::atomic_bool finished = false;
+	// Doing the operation on a different thread ensures the same thread starts the session and runs EngineLoop().
+	// This is required by DngEng. Although things sometimes work even if it is violated, it can fail randomly.
+	std::thread([=, &ret, &finished]() {
+		ret = AttachInternal(pid);
+		finished = true;
+		if (ret)
+			EngineLoop();
+	}).detach();
+
+	while (!finished)
+	{}
+	return ret;
+}
+
+bool DbgEngEngine::Connect(const std::string& server, std::uint32_t port)
+{
+	DbgEngEvent event;
+	event.type = DbgEngEventType::LaunchFailure;
+	event.error = "Connect() is not implemented in DbgEng";
+	event.shortError = "Connect() is not implemented in DbgEng";
+	PostEngineEvent(event);
+	return false;
+}
+
+bool DbgEngEngine::ConnectToDebugServer(const std::string& ipAddress, std::uint32_t port)
+{
+	std::string connectionString = "tcp:port=" + std::to_string(port) + ", Server=" + ipAddress;
+	return ConnectToDebugServerInternal(connectionString);
+}
+
+bool DbgEngEngine::DisconnectDebugServer()
+{
+	if (!m_connectedToDebugServer)
+		return true;
+
+	auto ret = m_debugClient->DisconnectProcessServer(m_server);
+	m_connectedToDebugServer = false;
+	m_server = 0;
+
+	return ret == S_OK;
+}
+
+bool DbgEngEngine::Detach()
+{
+	m_aboutToBeKilled = true;
+	m_lastOperationIsStepInto = false;
+	if (!this->m_debugClient)
+		return false;
+
+	if (this->m_debugClient->DetachProcesses() != S_OK)
+		return false;
+
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return true;
+}
+
+bool DbgEngEngine::TerminateTargetOnEngineThread()
+{
+	if (!this->m_debugClient)
+		return false;
+
+	return this->m_debugClient->TerminateProcesses() == S_OK;
+}
+
+
+bool DbgEngEngine::Quit()
+{
+	m_aboutToBeKilled = true;
+	m_lastOperationIsStepInto = false;
+	if (!this->m_debugClient)
+		return false;
+
+	if (this->m_debugClient->TerminateProcesses() != S_OK)
+		return false;
+
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return true;
+}
+
+// Function pointer type for NtQueryInformationProcess
+typedef NTSTATUS (NTAPI *NtQueryInformationProcessFn)(
+	HANDLE ProcessHandle,
+	PROCESSINFOCLASS ProcessInformationClass,
+	PVOID ProcessInformation,
+	ULONG ProcessInformationLength,
+	PULONG ReturnLength
+);
+
+
+static std::string GetProcessCommandLine(DWORD pid)
+{
+	std::string result;
+
+	// Can't get command line for system processes
+	if (pid == 0 || pid == 4)
+		return result;
+
+	HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+	if (!hProcess)
+		return result;
+
+	// Get NtQueryInformationProcess from ntdll
+	static NtQueryInformationProcessFn NtQueryInformationProcess = nullptr;
+	if (!NtQueryInformationProcess)
+	{
+		HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+		if (ntdll)
+			NtQueryInformationProcess = (NtQueryInformationProcessFn)GetProcAddress(ntdll, "NtQueryInformationProcess");
+	}
+
+	if (!NtQueryInformationProcess)
+	{
+		CloseHandle(hProcess);
+		return result;
+	}
+
+	// Get the PEB address
+	PROCESS_BASIC_INFORMATION pbi;
+	ULONG returnLength;
+	NTSTATUS status = NtQueryInformationProcess(hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), &returnLength);
+	if (status != 0)
+	{
+		CloseHandle(hProcess);
+		return result;
+	}
+
+	// Read the PEB to get the process parameters address
+	// Use the standard PEB structure from winternl.h
+	PEB peb;
+	SIZE_T bytesRead;
+	if (!ReadProcessMemory(hProcess, pbi.PebBaseAddress, &peb, sizeof(peb), &bytesRead))
+	{
+		CloseHandle(hProcess);
+		return result;
+	}
+
+	// Read the RTL_USER_PROCESS_PARAMETERS
+	// Use the standard RTL_USER_PROCESS_PARAMETERS structure from winternl.h
+	RTL_USER_PROCESS_PARAMETERS params;
+	if (!ReadProcessMemory(hProcess, peb.ProcessParameters, &params, sizeof(params), &bytesRead))
+	{
+		CloseHandle(hProcess);
+		return result;
+	}
+
+	// Read the command line string
+	if (params.CommandLine.Length > 0 && params.CommandLine.Buffer)
+	{
+		std::wstring cmdLine(params.CommandLine.Length / sizeof(WCHAR), L'\0');
+		if (ReadProcessMemory(hProcess, params.CommandLine.Buffer, &cmdLine[0], params.CommandLine.Length, &bytesRead))
+		{
+			// Convert wide string to UTF-8
+			int size = WideCharToMultiByte(CP_UTF8, 0, cmdLine.c_str(), -1, nullptr, 0, nullptr, nullptr);
+			if (size > 0)
+			{
+				result.resize(size - 1);
+				WideCharToMultiByte(CP_UTF8, 0, cmdLine.c_str(), -1, &result[0], size, nullptr, nullptr);
+			}
+		}
+	}
+
+	CloseHandle(hProcess);
+	return result;
+}
+
+
+std::vector<DebugProcess> DbgEngEngine::GetProcessList()
+{
+	// For local debugging (not connected to remote debug server), use Windows APIs directly to get command lines
+	if (!m_connectedToDebugServer)
+	{
+		std::vector<DebugProcess> result;
+		HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+		if (snapshot == INVALID_HANDLE_VALUE)
+			return result;
+
+		PROCESSENTRY32W entry;
+		entry.dwSize = sizeof(entry);
+
+		if (Process32FirstW(snapshot, &entry))
+		{
+			do
+			{
+				DWORD pid = entry.th32ProcessID;
+				std::string processName;
+
+				// Convert wide string to narrow string for process name
+				int size = WideCharToMultiByte(CP_UTF8, 0, entry.szExeFile, -1, nullptr, 0, nullptr, nullptr);
+				if (size > 0)
+				{
+					processName.resize(size - 1);
+					WideCharToMultiByte(CP_UTF8, 0, entry.szExeFile, -1, &processName[0], size, nullptr, nullptr);
+				}
+
+				// Get command line for the process
+				std::string commandLine;
+				try
+				{
+					commandLine = GetProcessCommandLine(pid);
+				}
+				catch (...)
+				{
+					// Ignore errors getting command line
+				}
+
+				result.emplace_back(pid, processName, commandLine);
+			} while (Process32NextW(snapshot, &entry));
+		}
+
+		CloseHandle(snapshot);
+		return result;
+	}
+
+	// For remote debugging, use DbgEng APIs (no command line available)
+	// we need to start dbgserver in order to get process list
+	if (!m_dbgengInitialized)
+	{
+		if (!Start())
+		{
+			LogWarn("Failed to initialize DbgEn");
+			return {};
+		}
+	}
+
+	ULONG Count = 0;
+	if (m_debugClient->GetRunningProcessSystemIds(m_server, 0, 0, &Count) != S_OK)
+	{
+		LogError("Failed to get system process count.");
+		return {};
+	}
+
+	auto procIds = std::make_unique<unsigned long[]>(Count);
+	if (m_debugClient->GetRunningProcessSystemIds(m_server, procIds.get(), Count, &Count) != S_OK)
+	{
+		LogError("Failed to get system process ids.");
+		return {};
+	}
+
+	std::vector<DebugProcess> debug_processes {};
+	for (uint32_t i = 0; i < Count; i++)
+	{
+		char processName[MAX_PATH];
+		ZeroMemory(processName, MAX_PATH);
+
+		if (m_debugClient->GetRunningProcessDescription(
+			m_server,
+			procIds[i],
+			DEBUG_PROC_DESC_DEFAULT,
+			processName,
+			sizeof(processName),
+			NULL,
+			NULL,
+			0,
+			NULL) != S_OK)
+		{
+			strcpy_s(processName, MAX_PATH, "<could not get process name>");
+		}
+
+		debug_processes.emplace_back(procIds[i], processName);
+	}
+
+	return debug_processes;
+}
+
+std::vector<DebugThread> DbgEngEngine::GetThreadList()
+{
+	if (!m_debugSystemObjects)
+		return {};
+
+	unsigned long number_threads {};
+	if (this->m_debugSystemObjects->GetNumberThreads(&number_threads) != S_OK)
+		return {};
+
+	auto tids = std::make_unique<unsigned long[]>(number_threads);
+	auto sysids = std::make_unique<unsigned long[]>(number_threads);
+	if (this->m_debugSystemObjects->GetThreadIdsByIndex(0, number_threads, tids.get(), sysids.get()) != S_OK)
+		return {};
+
+	std::vector<DebugThread> debug_threads {};
+	DebugThread activeThead = GetActiveThread();
+	for (std::size_t index {}; index < number_threads; index++)
+	{
+		SetActiveThreadId(tids[index]);
+		uint64_t pc = GetInstructionOffset();
+		debug_threads.emplace_back(tids[index], pc);
+	}
+	SetActiveThread(activeThead);
+
+	return debug_threads;
+}
+
+// Note, on Windows, we use engine thread ID, but on Linux/macOS, we use system thread ID.
+// System thread ID is also available on Windows, We should later add a new field to the DebugThread struct
+DebugThread DbgEngEngine::GetActiveThread() const
+{
+	// Temporary hacky to get the code compile without changing everything
+	if (!m_debugRegisters)
+		return DebugThread {};
+	return DebugThread(this->GetActiveThreadId(), ((DbgEngEngine*)this)->GetInstructionOffset());
+}
+
+std::uint32_t DbgEngEngine::GetActiveThreadId() const
+{
+	unsigned long current_tid {};
+	if (this->m_debugSystemObjects->GetCurrentThreadId(&current_tid) != S_OK)
+		return {};
+
+	return current_tid;
+}
+
+bool DbgEngEngine::SetActiveThread(const DebugThread& thread)
+{
+	return this->SetActiveThreadId(thread.m_tid);
+}
+
+bool DbgEngEngine::SetActiveThreadId(std::uint32_t tid)
+{
+	if (this->m_debugSystemObjects->SetCurrentThreadId(tid) != S_OK)
+		return false;
+
+	return true;
+}
+
+
+bool DbgEngEngine::SuspendThread(std::uint32_t tid)
+{
+	std::string suspendCmd = "~" + std::to_string(tid) + "f";
+	InvokeBackendCommand(suspendCmd);
+	return true;
+}
+
+bool DbgEngEngine::ResumeThread(std::uint32_t tid)
+{
+	std::string resumeCmd = "~" + std::to_string(tid) + "u";
+	InvokeBackendCommand(resumeCmd);
+	return true;
+}
+
+
+DebugBreakpoint DbgEngEngine::AddBreakpoint(const std::uintptr_t address, unsigned long breakpoint_flags)
+{
+	IDebugBreakpoint2* debug_breakpoint {};
+
+	/* attempt to read at breakpoint location to confirm its valid */
+	/* DbgEng won't tell us if its valid until continue/go so this is a hacky fix */
+    /* Note we cannot write to it if we are replaying TTD trace */
+	auto val = this->ReadMemory(address, 1);
+	if (val.size() != 1)
+		return {};
+
+	if (const auto result =
+			this->m_debugControl->AddBreakpoint2(DEBUG_BREAKPOINT_CODE, DEBUG_ANY_ID, &debug_breakpoint);
+		result != S_OK)
+		return {};
+
+	/* these will all work even on invalid addresses hence the previous checks */
+	unsigned long id {};
+	if (debug_breakpoint->GetId(&id) != S_OK)
+		return {};
+
+	if (debug_breakpoint->SetOffset(address) != S_OK)
+		return {};
+
+	if (debug_breakpoint->SetFlags(DEBUG_BREAKPOINT_ENABLED) != S_OK)
+		return {};
+
+	const auto new_breakpoint = DebugBreakpoint(address, id, true, SoftwareBreakpoint);
+	this->m_debug_breakpoints.push_back(new_breakpoint);
+
+	return new_breakpoint;
+}
+
+static std::string EscapeModuleName(const std::wstring& name)
+{
+	std::string result;
+	result.reserve(name.length());
+
+	for (wchar_t wc : name)
+	{
+		// Safe ASCII character?
+		if ((wc >= L'a' && wc <= L'z') || (wc >= L'A' && wc <= L'Z') ||
+		    (wc >= L'0' && wc <= L'9') || (wc == L'_'))
+		{
+			result += static_cast<char>(wc);
+		}
+		else
+		{
+			// Everything else (including non-ASCII) becomes underscore
+			result += '_';
+		}
+	}
+
+	return result;
+}
+
+DebugBreakpoint DbgEngEngine::AddBreakpoint(const ModuleNameAndOffset& address, unsigned long breakpoint_type)
+{
+	// If the backend has been created, we add the breakpoints directly. Otherwise, keep track of the breakpoints,
+	// and add them when we launch/attach the target.
+	if (m_dbgengInitialized)
+	{
+		auto inputFile = GetInputFile();
+
+        auto moduleToUse = address.module;
+        if (DebugModule::IsSameBaseModule(moduleToUse, inputFile))
+        {
+            if (m_usePDBFileName && (!m_pdbFileName.empty()))
+                moduleToUse = m_pdbFileName;
+        }
+
+		// DbgEng does not take a full path. It can take "hello.exe", or simply "hello". E.g., "bp helloworld+0x1338"
+		auto fileName = std::filesystem::path(moduleToUse).stem();
+		char offset[32];
+		snprintf(offset, sizeof(offset), "0x%llx", address.offset);
+		std::string breakpointCommand =
+			"bp @!\"" + EscapeModuleName(fileName.wstring()) + "\"+" + offset;
+        LogDebug("Breakpoint command: %s", breakpointCommand.c_str());
+		auto ret = InvokeBackendCommand(breakpointCommand);
+	}
+	else
+	{
+		if (std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end())
+			m_pendingBreakpoints.push_back(address);
+	}
+
+	return DebugBreakpoint {};
+}
+
+bool DbgEngEngine::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
+{
+	bool done = false;
+	ULONG numBreakpoints {};
+	if (m_debugControl->GetNumberBreakpoints(&numBreakpoints) != S_OK)
+		return false;
+
+	for (ULONG i = 0; i < numBreakpoints; i++)
+	{
+		IDebugBreakpoint2* bp {};
+		if (m_debugControl->GetBreakpointByIndex2(i, &bp) != S_OK)
+			continue;
+
+		ULONG64 address {};
+		if (bp->GetOffset(&address) != S_OK)
+			continue;
+
+		// Right now, only the address info of the breakpoint is valid.
+		// Once the ID info is also valid, we can call GetBreakpointById2() to get the breakpoint by ID.
+		if (address == breakpoint.m_address)
+		{
+			// Verify this is a software breakpoint (DEBUG_BREAKPOINT_CODE) before removing
+			ULONG breakType {}, procType {};
+			if (bp->GetType(&breakType, &procType) != S_OK)
+				continue;
+
+			if (breakType != DEBUG_BREAKPOINT_CODE)
+				continue;
+
+			m_debugControl->RemoveBreakpoint2(bp);
+			done = true;
+			break;
+		}
+	}
+	return done;
+}
+
+bool DbgEngEngine::RemoveBreakpoint(const ModuleNameAndOffset& breakpoint)
+{
+	// If the backend has been created, we remove the breakpoints directly. Otherwise, remove it from the list of
+	// pending breakpoints.
+	if (m_dbgengInitialized)
+	{
+		// TODO. This is not used by the controller right now.
+	}
+	else
+	{
+		auto it = std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), breakpoint);
+		if (it != m_pendingBreakpoints.end())
+			m_pendingBreakpoints.erase(it);
+	}
+	return true;
+}
+
+std::vector<DebugBreakpoint> DbgEngEngine::GetBreakpointList() const
+{
+	// TODO: this list is maintained properly and can become outdated. Also, it is not used by the controller
+	//    return this->m_debug_breakpoints;
+	return {};
+}
+
+
+bool DbgEngEngine::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!m_dbgengInitialized)
+	{
+		// Cache the hardware breakpoint to be applied when debugger becomes initialized
+		PendingHardwareBreakpoint pending(address, type, size);
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
+
+	char buf[64];
+	std::string command;
+	switch (type)
+	{
+		case HardwareExecuteBreakpoint:
+			// ba e<size> <address>: hardware execution breakpoint
+			snprintf(buf, sizeof(buf), "ba e%zu 0x%llx", size, address);
+			command = buf;
+			break;
+		case HardwareReadBreakpoint:
+			// ba r<size> <address>: hardware read breakpoint  
+			snprintf(buf, sizeof(buf), "ba r%zu 0x%llx", size, address);
+			command = buf;
+			break;
+		case HardwareWriteBreakpoint:
+			// ba w<size> <address>: hardware write breakpoint
+			snprintf(buf, sizeof(buf), "ba w%zu 0x%llx", size, address);
+			command = buf;
+			break;
+		case HardwareAccessBreakpoint:
+			// ba a<size> <address>: hardware access (read/write) breakpoint
+			snprintf(buf, sizeof(buf), "ba a%zu 0x%llx", size, address);
+			command = buf;
+			break;
+		default:
+			return false;
+	}
+
+	// Execute the command and check if it succeeded
+	auto result = InvokeBackendCommand(command);
+	// DbgEng typically returns an empty string or specific success message for successful ba commands
+	// If the command fails, it usually contains an error message
+	return result.find("error") == std::string::npos && result.find("Error") == std::string::npos;
+}
+
+
+bool DbgEngEngine::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
+{
+	if (!m_dbgengInitialized)
+	{
+		// Remove from pending list if debugger is not initialized
+		PendingHardwareBreakpoint pending(address, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+		return false;
+	}
+
+	// Also check deferred list (hardware breakpoints waiting for first stop)
+	PendingHardwareBreakpoint pending(address, type, size);
+	auto deferredIt = std::find(m_deferredHardwareBreakpoints.begin(), m_deferredHardwareBreakpoints.end(), pending);
+	if (deferredIt != m_deferredHardwareBreakpoints.end())
+	{
+		m_deferredHardwareBreakpoints.erase(deferredIt);
+		if (m_deferredHardwareBreakpoints.empty())
+			m_needsHardwareBreakpointReapplication = false;
+		return true;
+	}
+
+	// Iterate through all breakpoints to find the hardware breakpoint at this address
+	bool done = false;
+	ULONG numBreakpoints {};
+	if (m_debugControl->GetNumberBreakpoints(&numBreakpoints) != S_OK)
+		return false;
+
+	for (ULONG i = 0; i < numBreakpoints; i++)
+	{
+		IDebugBreakpoint2* bp {};
+		if (m_debugControl->GetBreakpointByIndex2(i, &bp) != S_OK)
+			continue;
+
+		ULONG64 bpAddress {};
+		if (bp->GetOffset(&bpAddress) != S_OK)
+			continue;
+
+		if (bpAddress == address)
+		{
+			// Verify this is a hardware breakpoint (DEBUG_BREAKPOINT_DATA) before removing
+			ULONG breakType {}, procType {};
+			if (bp->GetType(&breakType, &procType) != S_OK)
+				continue;
+
+			if (breakType != DEBUG_BREAKPOINT_DATA)
+				continue;
+
+			m_debugControl->RemoveBreakpoint2(bp);
+			done = true;
+			break;
+		}
+	}
+
+	return done;
+}
+
+
+bool DbgEngEngine::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	if (m_dbgengInitialized)
+	{
+		// DbgEng is initialized - use module+offset syntax directly
+		auto inputFile = GetInputFile();
+
+		auto moduleToUse = location.module;
+		if (DebugModule::IsSameBaseModule(moduleToUse, inputFile))
+		{
+			if (m_usePDBFileName && (!m_pdbFileName.empty()))
+				moduleToUse = m_pdbFileName;
+		}
+
+		// DbgEng does not take a full path. It can take "hello.exe", or simply "hello"
+		auto fileName = std::filesystem::path(moduleToUse).stem();
+
+		char offset[32];
+		snprintf(offset, sizeof(offset), "0x%llx", location.offset);
+
+		std::string command;
+		switch (type)
+		{
+			case HardwareExecuteBreakpoint:
+				// ba e<size> @!"module"+offset: hardware execution breakpoint with module+offset
+				command = "ba e" + std::to_string(size) + " @!\"" + EscapeModuleName(fileName.wstring()) + "\"+" + offset;
+				break;
+			case HardwareReadBreakpoint:
+				// ba r<size> @!"module"+offset: hardware read breakpoint with module+offset
+				command = "ba r" + std::to_string(size) + " @!\"" + EscapeModuleName(fileName.wstring()) + "\"+" + offset;
+				break;
+			case HardwareWriteBreakpoint:
+				// ba w<size> @!"module"+offset: hardware write breakpoint with module+offset
+				command = "ba w" + std::to_string(size) + " @!\"" + EscapeModuleName(fileName.wstring()) + "\"+" + offset;
+				break;
+			case HardwareAccessBreakpoint:
+				// ba a<size> @!"module"+offset: hardware access breakpoint with module+offset
+				command = "ba a" + std::to_string(size) + " @!\"" + EscapeModuleName(fileName.wstring()) + "\"+" + offset;
+				break;
+			default:
+				return false;
+		}
+
+		LogDebug("Hardware breakpoint command: %s", command.c_str());
+		auto result = InvokeBackendCommand(command);
+		return result.find("error") == std::string::npos && result.find("Error") == std::string::npos;
+	}
+	else
+	{
+		// DbgEng not initialized - cache as pending with module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		// Also populate the address field for UI display purposes
+		pending.address = location.offset + m_originalImageBase;
+		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
+			== m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.push_back(pending);
+		}
+		return true;
+	}
+}
+
+
+bool DbgEngEngine::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
+{
+	// For removal, we need to resolve to absolute address to find the breakpoint ID
+	// DbgEng doesn't provide a direct way to remove by module+offset
+	if (m_dbgengInitialized)
+	{
+		// First check deferred list (hardware breakpoints waiting for first stop)
+		// This needs to be checked before resolving to address because deferred entries
+		// use isRelative=true and won't be found by address-based lookup
+		PendingHardwareBreakpoint pending(location, type, size);
+		auto deferredIt = std::find(m_deferredHardwareBreakpoints.begin(), m_deferredHardwareBreakpoints.end(), pending);
+		if (deferredIt != m_deferredHardwareBreakpoints.end())
+		{
+			m_deferredHardwareBreakpoints.erase(deferredIt);
+			if (m_deferredHardwareBreakpoints.empty())
+				m_needsHardwareBreakpointReapplication = false;
+			return true;
+		}
+
+		// Get module base and resolve to absolute address
+		auto modules = GetModuleList();
+		uint64_t base = 0;
+		for (const auto& module : modules)
+		{
+			if (DebugModule::IsSameBaseModule(module.m_name, location.module))
+			{
+				base = module.m_address;
+				break;
+			}
+		}
+
+		if (base != 0)
+		{
+			uint64_t address = base + location.offset;
+			return RemoveHardwareBreakpoint(address, type, size);
+		}
+		return false;
+	}
+	else
+	{
+		// Not initialized - remove from pending list using module+offset
+		PendingHardwareBreakpoint pending(location, type, size);
+		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
+		if (it != m_pendingHardwareBreakpoints.end())
+		{
+			m_pendingHardwareBreakpoints.erase(it);
+			return true;
+		}
+		return false;
+	}
+}
+
+void DbgEngEngine::ApplyBreakpoints()
+{
+	// Apply pending software breakpoints
+	for (const auto bp : m_pendingBreakpoints)
+	{
+		AddBreakpoint(bp);
+	}
+	m_pendingBreakpoints.clear();
+
+	// DEFER hardware breakpoints instead of applying now
+	//
+	// Hardware breakpoints use CPU debug registers (DR0-DR3) which are part of the thread context.
+	// At the system entry point (ntdll!LdrInitializeThunk), the process is in early initialization
+	// and the debug registers may not be properly accessible or may get overwritten during loader
+	// initialization. Hardware breakpoints work reliably once the process is fully initialized
+	// (at the program entry point or later).
+	//
+	// Move hardware breakpoints to deferred list instead of applying now
+	m_deferredHardwareBreakpoints = std::move(m_pendingHardwareBreakpoints);
+	m_pendingHardwareBreakpoints.clear();
+
+	// Set flag to apply deferred hardware breakpoints on first stop in EngineLoop
+	if (!m_deferredHardwareBreakpoints.empty())
+	{
+		m_needsHardwareBreakpointReapplication = true;
+	}
+}
+
+DebugRegister DbgEngEngine::ReadRegister(const std::string& reg)
+{
+	if (!m_debugRegisters)
+		return DebugRegister {};
+
+	unsigned long reg_index {};
+	DEBUG_VALUE debug_value {};
+	DEBUG_REGISTER_DESCRIPTION register_descriptor {};
+
+	if (this->m_debugRegisters->GetIndexByName(reg.c_str(), &reg_index) != S_OK)
+		return {};
+
+	if (this->m_debugRegisters->GetValue(reg_index, &debug_value) != S_OK)
+		return {};
+
+	char buf[256];
+	unsigned long reg_length {};
+	if (this->m_debugRegisters->GetDescription(reg_index, buf, 256, &reg_length, &register_descriptor) != S_OK)
+		return {};
+
+	std::size_t width {};
+	switch (register_descriptor.Type)
+	{
+	case DEBUG_VALUE_INT8:
+		width = 8;
+		break;
+	case DEBUG_VALUE_INT16:
+		width = 16;
+		break;
+	case DEBUG_VALUE_INT32:
+		width = 32;
+		break;
+	case DEBUG_VALUE_INT64:
+		width = 64;
+		break;
+	case DEBUG_VALUE_FLOAT32:
+		width = 32;
+		break;
+	case DEBUG_VALUE_FLOAT64:
+		width = 64;
+		break;
+	case DEBUG_VALUE_FLOAT80:
+		width = 80;
+		break;
+	case DEBUG_VALUE_FLOAT128:
+		width = 128;
+		break;
+	case DEBUG_VALUE_VECTOR64:
+		width = 64;
+		break;
+	case DEBUG_VALUE_VECTOR128:
+		width = 128;
+		break;
+	default:
+		break;
+	}
+
+	uint8_t buffer[64] = {0};
+	memcpy(buffer, debug_value.RawBytes, width / 8);
+	auto value = intx::le::load<intx::uint512>(buffer);
+	return DebugRegister {reg, value, width, reg_index};
+}
+
+bool DbgEngEngine::WriteRegister(const std::string& reg, intx::uint512 value)
+{
+	unsigned long reg_index {};
+
+	if (this->m_debugRegisters->GetIndexByName(reg.c_str(), &reg_index) != S_OK)
+		return false;
+
+	DEBUG_VALUE debug_value {};
+	uint8_t buffer[64] = {0};
+	intx::le::store(buffer, value);
+	// The DEBUG_VALUE can only store 24 bytes of the register value
+	memcpy(debug_value.RawBytes, buffer, 24);
+	debug_value.Type = DEBUG_VALUE_VECTOR128;
+
+	if (this->m_debugRegisters->SetValue(reg_index, &debug_value) != S_OK)
+		return false;
+
+	return true;
+}
+
+
+std::string DbgEngEngine::GetRegisterNameByIndex(std::uint32_t index) const
+{
+	if (!m_debugRegisters)
+		return {};
+
+	unsigned long reg_length {};
+	DEBUG_REGISTER_DESCRIPTION reg_description {};
+
+	std::array<char, 256> out {'\0'};
+	if (this->m_debugRegisters->GetDescription(index, out.data(), 256, &reg_length, &reg_description) != S_OK)
+		return {};
+
+	return std::string(out.data());
+}
+
+
+std::vector<std::string> DbgEngEngine::GetRegisterList() const
+{
+	if (!this->m_debugRegisters)
+		return {};
+
+	unsigned long register_count {};
+	if (this->m_debugRegisters->GetNumberRegisters(&register_count) != S_OK)
+		return {};
+
+	std::vector<std::string> register_list {};
+	for (uint32_t reg_index {}; reg_index < register_count; reg_index++)
+		register_list.push_back(this->GetRegisterNameByIndex(reg_index));
+
+	return register_list;
+}
+
+
+std::vector<DebugModule> DbgEngEngine::GetModuleList()
+{
+	if (!this->m_debugSymbols)
+		return {};
+
+	unsigned long loaded_module_count {}, unloaded_module_count {};
+
+	if (this->m_debugSymbols->GetNumberModules(&loaded_module_count, &unloaded_module_count) != S_OK)
+		return {};
+
+	if (!loaded_module_count)
+		return {};
+
+	std::vector<DebugModule> modules {};
+
+	// TODO: the inputFile should probalby be cached in some more, but for now I am just retrieving it every time
+	auto inputFile = GetInputFile();
+
+	const auto total_modules = loaded_module_count;
+	auto module_parameters = std::make_unique<DEBUG_MODULE_PARAMETERS[]>(total_modules);
+	if (this->m_debugSymbols->GetModuleParameters(total_modules, nullptr, 0, module_parameters.get()) != S_OK)
+		return {};
+
+	for (uint32_t module_index {}; module_index < total_modules; module_index++)
+	{
+		const auto& parameters = module_parameters[module_index];
+
+		char name[1024];
+		char short_name[1024];
+		char loaded_image_name[1024];
+		if (this->m_debugSymbols->GetModuleNames(
+				module_index, 0, name, 1024, nullptr, short_name, 1024, nullptr, loaded_image_name, 1024, nullptr)
+			!= S_OK)
+			continue;
+
+		if (m_usePDBFileName &&(!m_pdbFileName.empty()) &&
+			DebugModule::IsSameBaseModule(short_name, m_pdbFileName))
+		{
+			strcpy_s(name, 1024, inputFile.c_str());
+		}
+
+		modules.emplace_back(
+			name, short_name, parameters.Base, parameters.Size, !(parameters.Flags & DEBUG_MODULE_UNLOADED));
+	}
+
+	return modules;
+}
+
+
+std::vector<DebugMemoryRegion> DbgEngEngine::GetMemoryMap()
+{
+	if (!this->m_debugDataSpaces2)
+		return {};
+
+	std::vector<DebugMemoryRegion> result;
+
+	// Walk the whole virtual address space with QueryVirtual (the DbgEng wrapper over VirtualQueryEx),
+	// starting at 0 and advancing by each region's size. QueryVirtual fails once we walk past the end
+	// of the address space, which terminates the loop. Free/reserved regions are reported too (with a
+	// size that spans the gap), so skipping them still advances efficiently.
+	ULONG64 address = 0;
+	while (true)
+	{
+		MEMORY_BASIC_INFORMATION64 info = {};
+		if (this->m_debugDataSpaces2->QueryVirtual(address, &info) != S_OK)
+			break;
+
+		if (info.RegionSize == 0)
+			break;
+
+		// Only committed pages are actually mapped. Guard pages and no-access pages are committed but
+		// cannot be read, so we exclude them from the "readable" map.
+		const ULONG protect = info.Protect & 0xff;  // strip PAGE_GUARD / PAGE_NOCACHE / PAGE_WRITECOMBINE
+		if (info.State == MEM_COMMIT && !(info.Protect & PAGE_GUARD) && protect != PAGE_NOACCESS)
+		{
+			DebugMemoryRegion region;
+			region.m_start = info.BaseAddress;
+			region.m_size = info.RegionSize;
+			region.m_read = true;  // any committed, non-no-access, non-guard page is readable on x86/x64
+			region.m_write = (protect == PAGE_READWRITE) || (protect == PAGE_WRITECOPY)
+				|| (protect == PAGE_EXECUTE_READWRITE) || (protect == PAGE_EXECUTE_WRITECOPY);
+			region.m_execute = (protect == PAGE_EXECUTE) || (protect == PAGE_EXECUTE_READ)
+				|| (protect == PAGE_EXECUTE_READWRITE) || (protect == PAGE_EXECUTE_WRITECOPY);
+			// MEM_MAPPED sections (file/pagefile-backed) can be shared between processes; MEM_IMAGE is
+			// copy-on-write and MEM_PRIVATE is private.
+			region.m_shared = (info.Type == MEM_MAPPED);
+
+			// For image-backed regions, resolve the backing module's image path for the name column.
+			if (info.Type == MEM_IMAGE && this->m_debugSymbols)
+			{
+				ULONG moduleIndex = 0;
+				ULONG64 moduleBase = 0;
+				if (this->m_debugSymbols->GetModuleByOffset(info.BaseAddress, 0, &moduleIndex, &moduleBase) == S_OK)
+				{
+					char imageName[1024];
+					if (this->m_debugSymbols->GetModuleNames(moduleIndex, 0, imageName, 1024, nullptr, nullptr, 0,
+							nullptr, nullptr, 0, nullptr)
+						== S_OK)
+						region.m_name = imageName;
+				}
+			}
+
+			result.push_back(region);
+		}
+
+		// Advance past this region; stop if the address would wrap around at the top of the space.
+		ULONG64 next = info.BaseAddress + info.RegionSize;
+		if (next <= address)
+			break;
+		address = next;
+	}
+
+	return result;
+}
+
+
+std::vector<DebugSymbol> DbgEngEngine::GetSymbolsForModule(const DebugModule& module)
+{
+	std::vector<DebugSymbol> result;
+	if (!m_debugSymbols)
+		return result;
+
+	// Build the symbol-match pattern "<module>!*". dbgeng identifies modules in the bang syntax by their
+	// base name without extension.
+	std::string moduleName =
+		module.m_short_name.empty() ? DebugModule::GetPathBaseName(module.m_name) : module.m_short_name;
+	auto dot = moduleName.find_last_of('.');
+	if (dot != std::string::npos)
+		moduleName = moduleName.substr(0, dot);
+	if (moduleName.empty())
+		return result;
+
+	std::string pattern = moduleName + "!*";
+
+	uint64_t handle = 0;
+	if (m_debugSymbols->StartSymbolMatch(pattern.c_str(), &handle) != S_OK)
+		return result;
+
+	char nameBuffer[2048];
+	uint64_t offset = 0;
+	unsigned long matchSize = 0;
+	while (m_debugSymbols->GetNextSymbolMatch(handle, nameBuffer, sizeof(nameBuffer), &matchSize, &offset) == S_OK)
+	{
+		// GetNextSymbolMatch returns the fully-qualified "module!symbol" name.
+		std::string fullName = nameBuffer;
+		std::string shortName = fullName;
+		auto bang = fullName.find('!');
+		if (bang != std::string::npos)
+			shortName = fullName.substr(bang + 1);
+
+		if (shortName.empty() || (offset == 0))
+			continue;
+
+		// TODO: dbgeng's symbol match does not report whether a symbol is code or data; classify all as
+		// functions for now, which is correct for the common case of API exports.
+		result.emplace_back(shortName, fullName, fullName, offset, 0, true);
+	}
+
+	m_debugSymbols->EndSymbolMatch(handle);
+	return result;
+}
+
+
+bool DbgEngEngine::BreakInto()
+{
+	if (ExecStatus() == DEBUG_STATUS_BREAK || ExecStatus() == DEBUG_STATUS_NO_DEBUGGEE)
+		return false;
+
+	m_lastOperationIsStepInto = false;
+	//	After we call SetInterrupt(), the WaitForEvent() function will return due to a breakpoint exception
+	if (this->m_debugControl->SetInterrupt(DEBUG_INTERRUPT_ACTIVE) != S_OK)
+		return false;
+
+	return true;
+}
+
+bool DbgEngEngine::Go()
+{
+	// TODO: we should have the debugger core to detect the failure and notify the user about it.
+	// Currently, LLDB directly notifies such errors, which needs to be changed in the future.
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return false;
+
+	m_lastOperationIsStepInto = false;
+	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_GO) != S_OK)
+		return false;
+
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return true;
+}
+
+bool DbgEngEngine::StepInto()
+{
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return false;
+
+	m_lastOperationIsStepInto = true;
+	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_INTO) != S_OK)
+		return false;
+
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return true;
+}
+
+bool DbgEngEngine::StepOver()
+{
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return false;
+
+	m_lastOperationIsStepInto = false;
+	if (this->m_debugControl->SetExecutionStatus(DEBUG_STATUS_STEP_OVER) != S_OK)
+		return false;
+
+	m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+	return true;
+}
+
+bool DbgEngEngine::StepReturn()
+{
+	if (ExecStatus() != DEBUG_STATUS_BREAK)
+		return false;
+
+	InvokeBackendCommand("gu");
+	return true;
+}
+
+bool DbgEngEngine::Wait(std::chrono::milliseconds timeout)
+{
+	std::memset(&DbgEngEngine::ProcessCallbackInfo.m_lastBreakpoint, 0, sizeof(DbgEngEngine::ProcessCallbackInfo.m_lastBreakpoint));
+	std::memset(&DbgEngEngine::ProcessCallbackInfo.m_lastException, 0, sizeof(DbgEngEngine::ProcessCallbackInfo.m_lastException));
+
+	const auto wait_result = this->m_debugControl->WaitForEvent(0, INFINITE);
+	return wait_result == S_OK;
+}
+
+std::unordered_map<std::string, DebugRegister> DbgEngEngine::ReadAllRegisters()
+{
+	std::unordered_map<std::string, DebugRegister> all_regs {};
+
+	for (const auto& reg : this->GetRegisterList())
+	{
+		const auto regRead = this->ReadRegister(reg);
+		// During TTD replay, some registers are present in the list, but their values are unavailable, e.g., ymm0.
+		// A better way is to have ReadRegister() fail for them. However, here I am doing it in a simple and dirty way
+		// by checking whether the name of the returned register is empty.
+		if (!regRead.m_name.empty())
+			all_regs[reg] = regRead;
+	}
+
+	return all_regs;
+}
+
+std::string DbgEngEngine::GetTargetArchitecture()
+{
+	if (!m_debugControl)
+		return "";
+
+	unsigned long processor_type {};
+
+	if (this->m_debugControl->GetExecutingProcessorType(&processor_type) != S_OK)
+		return "";
+
+	switch (processor_type)
+	{
+	case IMAGE_FILE_MACHINE_I386:
+		return "x86";
+	case IMAGE_FILE_MACHINE_AMD64:
+		return "x86_64";
+	default:
+		return "";
+	}
+}
+
+DbgEngStopReason DbgEngEngine::StopReason()
+{
+	const auto exec_status = this->ExecStatus();
+	if (exec_status == DEBUG_STATUS_BREAK)
+	{
+		const auto instruction_ptr = this->ReadRegister(this->GetTargetArchitecture() == "x86" ? "eip" : "rip").m_value;
+
+		if (instruction_ptr == DbgEngEngine::ProcessCallbackInfo.m_lastBreakpoint.m_address)
+			return DbgEngStopReason::Breakpoint;
+
+		const auto& last_exception = DbgEngEngine::ProcessCallbackInfo.m_lastException;
+		if (instruction_ptr == last_exception.ExceptionAddress)
+		{
+			switch (last_exception.ExceptionCode)
+			{
+			case STATUS_BREAKPOINT:
+			case STATUS_WX86_BREAKPOINT:
+				return DbgEngStopReason::Breakpoint;
+			case STATUS_SINGLE_STEP:
+			case STATUS_WX86_SINGLE_STEP:
+				return DbgEngStopReason::SingleStep;
+			case STATUS_ACCESS_VIOLATION:
+				return DbgEngStopReason::AccessViolation;
+			case STATUS_INTEGER_DIVIDE_BY_ZERO:
+			case STATUS_FLOAT_DIVIDE_BY_ZERO:
+				return DbgEngStopReason::Calculation;
+			default:
+				return DbgEngStopReason::UnknownReason;
+			}
+		}
+
+		if (m_lastOperationIsStepInto)
+			return DbgEngStopReason::SingleStep;
+	}
+	else if (exec_status == DEBUG_STATUS_NO_DEBUGGEE)
+	{
+		return DbgEngStopReason::ProcessExited;
+	}
+
+	return DbgEngStopReason::UnknownReason;
+}
+
+unsigned long DbgEngEngine::ExecStatus()
+{
+	if (!m_debugControl)
+		return DEBUG_STATUS_NO_DEBUGGEE;
+
+	unsigned long execution_status {};
+	if (this->m_debugControl->GetExecutionStatus(&execution_status) != S_OK)
+		return 0;
+
+	return execution_status;
+}
+
+uint64_t DbgEngEngine::ExitCode()
+{
+	return DbgEngEngine::ProcessCallbackInfo.m_exitCode;
+}
+
+std::string DbgEngEngine::InvokeBackendCommand(const std::string& command)
+{
+	if (m_debugControl)
+	{
+		m_outputCallbacks.StartOutput();
+		this->m_debugControl->Execute(DEBUG_OUTCTL_ALL_CLIENTS, command.c_str(), DEBUG_EXECUTE_NO_REPEAT);
+		m_debugClient->ExitDispatch(reinterpret_cast<PDEBUG_CLIENT>(m_debugClient));
+		// The output is handled by DbgEngOutputCallbacks::Output(), and Execute() would not return until all output
+		// has been dumped, so we can get the full output here
+		auto ret = m_outputCallbacks.EndOutput();
+		return ret;
+	}
+	return "";
+}
+
+uint64_t DbgEngEngine::GetInstructionOffset()
+{
+	if (!m_debugRegisters)
+		return -1;
+	std::uintptr_t register_offset {};
+	this->m_debugRegisters->GetInstructionOffset(&register_offset);
+
+	return register_offset;
+}
+
+uint64_t DbgEngEngine::GetStackPointer()
+{
+	if (!m_debugRegisters)
+		return 0;
+
+	uint64_t stackPointer {};
+	m_debugRegisters->GetStackOffset(&stackPointer);
+	return stackPointer;
+}
+
+
+std::uint32_t DbgEngEngine::GetActivePID()
+{
+	if (!m_debugSystemObjects)
+		return 0;
+
+	ULONG pid {};
+	if (m_debugSystemObjects->GetCurrentProcessSystemId(&pid) != S_OK)
+		return 0;
+
+	return pid;
+}
+
+
+unsigned long DbgEngEventCallbacks::AddRef()
+{
+	return 1;
+}
+
+unsigned long DbgEngEventCallbacks::Release()
+{
+	return 0;
+}
+
+HRESULT DbgEngEventCallbacks::GetInterestMask(unsigned long* mask)
+{
+	*mask = 0;
+	*mask |= DEBUG_EVENT_BREAKPOINT;
+	*mask |= DEBUG_EVENT_EXCEPTION;
+	*mask |= DEBUG_EVENT_CREATE_THREAD;
+	*mask |= DEBUG_EVENT_EXIT_THREAD;
+	*mask |= DEBUG_EVENT_CREATE_PROCESS;
+	*mask |= DEBUG_EVENT_EXIT_PROCESS;
+	*mask |= DEBUG_EVENT_LOAD_MODULE;
+	*mask |= DEBUG_EVENT_UNLOAD_MODULE;
+	*mask |= DEBUG_EVENT_SYSTEM_ERROR;
+	*mask |= DEBUG_EVENT_SESSION_STATUS;
+	*mask |= DEBUG_EVENT_CHANGE_DEBUGGEE_STATE;
+	*mask |= DEBUG_EVENT_CHANGE_ENGINE_STATE;
+	*mask |= DEBUG_EVENT_CHANGE_SYMBOL_STATE;
+
+	return S_OK;
+}
+
+HRESULT DbgEngEventCallbacks::Breakpoint(IDebugBreakpoint* breakpoint)
+{
+	std::uintptr_t address {};
+	if (breakpoint->GetOffset(&address) == S_OK)
+		DbgEngEngine::ProcessCallbackInfo.m_lastBreakpoint = DebugBreakpoint(address);
+
+	return DEBUG_STATUS_NO_CHANGE;
+}
+
+HRESULT DbgEngEventCallbacks::Exception(EXCEPTION_RECORD64* exception, unsigned long first_chance)
+{
+	DbgEngEngine::ProcessCallbackInfo.m_lastException = *exception;
+
+	// If we are debugging a 32-bit program, we get STATUS_WX86_BREAKPOINT followed by STATUS_WX86_BREAKPOINT
+	// However, returning DEBUG_STATUS_GO here does not work. This might be a dbgeng bug.
+	//if (exception->ExceptionCode == STATUS_WX86_BREAKPOINT)
+	//	return DEBUG_STATUS_GO;
+
+	return DEBUG_STATUS_NO_CHANGE;
+}
+
+HRESULT DbgEngEventCallbacks::CreateThread(uint64_t handle, uint64_t data_offset, uint64_t start_offset)
+{
+	return DEBUG_STATUS_NO_CHANGE;
+}
+
+HRESULT DbgEngEventCallbacks::ExitThread(unsigned long exit_code)
+{
+	return DEBUG_STATUS_NO_CHANGE;
+}
+
+HRESULT DbgEngEventCallbacks::CreateProcess(uint64_t image_file_handle, uint64_t handle, uint64_t base_offset,
+	unsigned long module_size, const char* module_name, const char* image_name, unsigned long check_sum,
+	unsigned long time_date_stamp, uint64_t initial_thread_handle, uint64_t thread_data_offset, uint64_t start_offset)
+{
+	return DEBUG_STATUS_NO_CHANGE;
+}
+
+HRESULT DbgEngEventCallbacks::ExitProcess(unsigned long exit_code)
+{
+	DbgEngEngine::ProcessCallbackInfo.m_exitCode = exit_code;
+	return DEBUG_STATUS_NO_CHANGE;
+}
+
+HRESULT DbgEngEventCallbacks::LoadModule(uint64_t image_file_handle, uint64_t base_offset, unsigned long module_size,
+	const char* module_name, const char* image_name, unsigned long check_sum, unsigned long time_date_stamp)
+{
+	return DEBUG_STATUS_NO_CHANGE;
+}
+
+HRESULT DbgEngEventCallbacks::UnloadModule(const char* image_base_name, uint64_t base_offset)
+{
+	return DEBUG_STATUS_NO_CHANGE;
+}
+
+HRESULT DbgEngEventCallbacks::SystemError(unsigned long error, unsigned long level)
+{
+	return DEBUG_STATUS_NO_CHANGE;
+}
+
+HRESULT DbgEngEventCallbacks::SessionStatus(unsigned long session_status)
+{
+	return S_OK;
+}
+
+HRESULT DbgEngEventCallbacks::ChangeDebuggeeState(unsigned long flags, uint64_t argument)
+{
+	return DEBUG_STATUS_NO_CHANGE;
+}
+
+HRESULT DbgEngEventCallbacks::ChangeEngineState(unsigned long flags, uint64_t argument)
+{
+	//if (flags == DEBUG_CES_EXECUTION_STATUS)
+	//{
+	//	if (argument == DEBUG_STATUS_STEP_OVER)
+	//	{
+	//	}
+	//}
+	return S_OK;
+}
+
+HRESULT DbgEngEventCallbacks::ChangeSymbolState(unsigned long flags, uint64_t argument)
+{
+	return DEBUG_STATUS_NO_CHANGE;
+}
+
+HRESULT DbgEngOutputCallbacks::Output(unsigned long mask, const char* text)
+{
+	DbgEngEvent event;
+	event.type = DbgEngEventType::BackendMessage;
+	event.message = text;
+	m_engine->PostEngineEvent(event);
+	m_output += text;
+	return S_OK;
+}
+
+unsigned long DbgEngOutputCallbacks::AddRef()
+{
+	return 1;
+}
+
+unsigned long DbgEngOutputCallbacks::Release()
+{
+	return 0;
+}
+
+void DbgEngOutputCallbacks::StartOutput()
+{
+	m_output.clear();
+}
+
+std::string DbgEngOutputCallbacks::EndOutput()
+{
+	return m_output;
+}
+
+HRESULT DbgEngOutputCallbacks::QueryInterface(const IID& interface_id, void** _interface)
+{
+	return S_OK;
+}
+
+void DbgEngOutputCallbacks::SetEngine(DbgEngEngine* engine)
+{
+	m_engine = engine;
+}
+
+HRESULT DbgEngInputCallbacks::StartInput(ULONG BufferSize)
+{
+    // TODO: we should let the user type in some input when asked to. For now, we simply return an empty string,
+    // otherwise, the debugger will hang.
+    PCSTR input = "";
+    if (m_control)
+        m_control->ReturnInput(input);
+    return S_OK;
+}
+
+HRESULT DbgEngInputCallbacks::EndInput()
+{
+    return S_OK;
+}
+
+unsigned long DbgEngInputCallbacks::AddRef()
+{
+    return 1;
+}
+
+unsigned long DbgEngInputCallbacks::Release()
+{
+    return 0;
+}
+
+HRESULT DbgEngInputCallbacks::QueryInterface(const IID& interface_id, void** _interface)
+{
+    return S_OK;
+}
+
+void DbgEngInputCallbacks::SetDbgControl(IDebugControl7* control)
+{
+    m_control = control;
+}
+
+bool DbgEngEngine::SupportFeature(DebugAdapterCapacity feature)
+{
+	switch (feature)
+	{
+	case DebugAdapterSupportStepOver:
+		return true;
+	case DebugAdapterSupportModules:
+		return true;
+	case DebugAdapterSupportThreads:
+		return true;
+	case DebugAdapterSupportSymbols:
+		return true;
+	default:
+		return false;
+	}
+}
+
+
+std::vector<uint8_t> DbgEngEngine::ReadMemory(std::uintptr_t address, std::size_t size)
+{
+	if (!m_debugDataSpaces)
+		return {};
+
+	const auto source = std::make_unique<std::uint8_t[]>(size);
+
+	unsigned long bytesRead {};
+	const auto result = this->m_debugDataSpaces->ReadVirtual(address, source.get(), (ULONG)size, &bytesRead);
+	// The number of bytes actually read can be fewer than requested, e.g., when the requested region straddles the end
+	// of a readable range (common during TTD). As long as we read at least one byte, return what we got, and let the
+	// caller (the memory cache) treat the partial read as a success. See Vector35/debugger#725.
+	if (result != S_OK || bytesRead == 0)
+		return {};
+
+	return {source.get(), source.get() + bytesRead};
+}
+
+bool DbgEngEngine::WriteMemory(std::uintptr_t address, const std::vector<uint8_t>& buffer)
+{
+	if (!m_debugDataSpaces)
+		return false;
+
+	unsigned long bytes_written {};
+	return this->m_debugDataSpaces->WriteVirtual(address, const_cast<uint8_t*>(buffer.data()), (ULONG)buffer.size(), &bytes_written) == S_OK
+		&& bytes_written == buffer.size();
+}
+
+
+std::vector<DebugFrame> DbgEngEngine::GetFramesOfThread(uint32_t tid)
+{
+	std::vector<DebugFrame> result;
+	// Due to https://github.com/Vector35/debugger/issues/304 and that we pause the target before killing it, we would
+	// not be able to even kill or restart a GUI app on Windows. That is really bad. To mitigate the issue, I created
+	// this boolean, which help skip any update on thread information when the target is about to be killed, thus
+	// allowing the target to be killed or restarted normally. This needs to be reworked later.
+	if (m_aboutToBeKilled)
+		return result;
+
+	DebugThread activeThead = GetActiveThread();
+
+	SetActiveThreadId(tid);
+
+	const size_t numFrames = 100;
+	PDEBUG_STACK_FRAME_EX frames = new DEBUG_STACK_FRAME_EX[numFrames];
+	unsigned long framesFilled = 0;
+	if (m_debugControl->GetStackTraceEx(0, 0, 0, frames, numFrames, &framesFilled) != S_OK)
+	{
+		delete []frames;
+		return result;
+	}
+
+	for (size_t i = 0; i < framesFilled; i++)
+	{
+		DebugFrame frame;
+		auto engineFrame = frames[i];
+		frame.m_index = i;
+		frame.m_fp = engineFrame.FrameOffset;
+		frame.m_sp = engineFrame.StackOffset;
+		frame.m_pc = engineFrame.InstructionOffset;
+		// FuncTableEntry is always 0x0, so it cannot be used
+		//frame.m_functionStart = engineFrame.FuncTableEntry;
+
+		// Get module info
+		ULONG moduleIndex = 0;
+		uint64_t moduleBase = 0;
+		if (m_debugSymbols->GetModuleByOffset(engineFrame.InstructionOffset, 0, &moduleIndex, &moduleBase) == S_OK)
+		{
+			char name[1024];
+			char short_name[1024];
+			char loaded_image_name[1024];
+			if (this->m_debugSymbols->GetModuleNames(moduleIndex, 0,
+					name, 1024, nullptr,
+					short_name, 1024, nullptr,
+					loaded_image_name, 1024, nullptr) == S_OK)
+			{
+				frame.m_module = short_name;
+			}
+		}
+
+		// Get function info
+		char functionName[1024];
+		unsigned long functionNameLen = 0;
+		uint64_t displacement = 0;
+		if (S_OK == m_debugSymbols->GetNameByOffset(engineFrame.InstructionOffset,
+				functionName, sizeof(functionName),
+				&functionNameLen, &displacement))
+		{
+			frame.m_functionName = functionName;
+			frame.m_functionStart = engineFrame.InstructionOffset - displacement;
+		}
+
+		result.push_back(frame);
+	}
+
+	SetActiveThread(activeThead);
+
+	delete []frames;
+	return result;
+}
