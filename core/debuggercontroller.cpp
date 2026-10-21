@@ -1447,16 +1447,17 @@ bool DebuggerController::CreateDebuggerBinaryView()
 		data->SetAnalysisHold(true);
 	}
 
-	m_state->GetMemory()->PrefillValueCache();
-
 	// Sample the segment-application mode once for this debug session (SyncMemoryRegions consults it on
 	// every stop). Toggling the setting takes effect on the next launch/attach.
 	m_useMemoryMapSegments = Settings::Instance()->Get<bool>("debugger.useMemoryMapSegments");
 
-	// The primary accessor spans the whole address space and owns the stop-event view-refresh
-	// subscription. It backs the blanket "debugger" region in the fallback case, and stays alive for its
-	// refresh role even when we mirror a real memory map into bounded regions.
-	m_accessor = new DebuggerFileAccessor(data);
+	// Refresh the views on every stop, whichever regions back them.
+	m_aggressiveAnalysisUpdate = Settings::Instance()->Get<bool>("debugger.aggressiveAnalysisUpdate");
+	if (m_viewRefreshCallback == NoViewRefreshCallback)
+	{
+		m_viewRefreshCallback = RegisterEventCallback(
+			[this](const DebuggerEvent& event) { ViewRefreshEventHandler(event); }, "Process View");
+	}
 
 	// Start with the blanket overlay so reads/navigation work immediately, before the first stop. The
 	// first stop's SyncMemoryRegions() refines this into bounded regions when the backend reports a
@@ -1469,27 +1470,35 @@ bool DebuggerController::CreateDebuggerBinaryView()
 }
 
 
-void DebuggerController::AddDebuggerMemoryRegions()
+// Length of the view's whole address space, as covered by the blanket "debugger" region.
+static uint64_t AddressSpaceLength(BinaryView* data)
+{
+	size_t bits = data->GetAddressSize() * 8;
+	return (bits >= 64) ? UINT64_MAX : (1ULL << bits) - 1;
+}
+
+
+bool DebuggerController::UpdateDebuggerMemoryRegions(bool mirror)
 {
 	BinaryViewRef data = GetData();
-	data->SetFunctionAnalysisUpdateDisabled(true);
+	auto memoryMap = data->GetMemoryMap();
 
-	if (m_appliedMemoryRegions.empty())
+	// Every region allows fallthrough: where the debugger knows nothing about the target's memory (the
+	// target is running and the bytes were never read), the view shows the regions beneath ours, i.e. the
+	// bytes of the binary, instead of a hole. Bytes the target is known not to have stay unreadable.
+	std::vector<RemoteMemoryRegionAddition> additions;
+	if (mirror && m_appliedMemoryRegions.empty())
 	{
 		// No memory map available from the backend: fall back to one blanket region covering the entire
 		// address space so any address remains readable. It is named "debugger", which is the sentinel
 		// BinaryView::FindAll* checks to keep search disabled (search over a 2^64 blanket would hang).
-		data->GetMemoryMap()->AddRemoteMemoryRegion("debugger", 0, m_accessor);
-		m_debuggerRegionNames.push_back("debugger");
+		additions.push_back({"debugger", 0, std::make_unique<DebuggerFileAccessor>(data, AddressSpaceLength(data)), 0, true});
 	}
-	else
+	else if (mirror)
 	{
 		// Mirror the backend's memory map as one bounded remote region per entry. Because the ranges are
 		// bounded, GetBackedAddressRanges()/GetNextBackedAddress() (which drive Find) only cover mapped
 		// memory, so search scans real regions and skips the gaps instead of walking the whole space.
-		// TODO: adding N accessor-backed regions is O(N^2) (each AddRemoteMemoryRegion clones the whole
-		// memory map). A bulk remote-region API in the core would make this O(N); acceptable here because
-		// SyncMemoryRegions only rebuilds when the map actually changes.
 		for (size_t i = 0; i < m_appliedMemoryRegions.size(); i++)
 		{
 			const DebugMemoryRegion& region = m_appliedMemoryRegions[i];
@@ -1504,40 +1513,48 @@ void DebuggerController::AddDebuggerMemoryRegions()
 			if (region.m_execute)
 				flags |= SegmentExecutable;
 
-			std::string name = fmt::format("debugger:{}", i);
-			auto* accessor = new DebuggerFileAccessor(data, region.m_start, region.m_size);
-			if (data->GetMemoryMap()->AddRemoteMemoryRegion(name, region.m_start, accessor, flags))
-			{
-				m_regionAccessors.push_back(accessor);
-				m_debuggerRegionNames.push_back(name);
-			}
-			else
-			{
-				// The region was rejected (e.g. a duplicate/overlap the core would not accept); the
-				// accessor was not adopted, so free it here.
-				delete accessor;
-			}
+			additions.push_back({fmt::format("debugger:{}", i), region.m_start,
+				std::make_unique<DebuggerFileAccessor>(data, region.m_size), flags, true});
 		}
 	}
 
+	// Regions someone else already removed are no longer ours to remove.
+	std::vector<std::string> removeNames;
+	for (const std::string& name : m_debuggerRegionNames)
+	{
+		if (memoryMap->GetMemoryRegionInfo(name).has_value())
+			removeNames.push_back(name);
+	}
+
+	std::vector<std::string> addedNames;
+	for (const auto& addition : additions)
+		addedNames.push_back(addition.name);
+
+	// Swap the old regions for the new ones in a single change to the memory map, which also clones the map
+	// once instead of once per region. The memory map owns the accessors even if it rejects the change.
+	data->SetFunctionAnalysisUpdateDisabled(true);
+	bool updated = memoryMap->UpdateRemoteMemoryRegions(removeNames, std::move(additions));
 	data->SetFunctionAnalysisUpdateDisabled(false);
+	if (!updated)
+	{
+		LogWarn("Failed to update the debugger memory regions");
+		return false;
+	}
+
+	m_debuggerRegionNames = std::move(addedNames);
+	return true;
+}
+
+
+void DebuggerController::AddDebuggerMemoryRegions()
+{
+	UpdateDebuggerMemoryRegions(true);
 }
 
 
 void DebuggerController::RemoveDebuggerMemoryRegions()
 {
-	BinaryViewRef data = GetData();
-	data->SetFunctionAnalysisUpdateDisabled(true);
-	for (const std::string& name : m_debuggerRegionNames)
-		data->GetMemoryMap()->RemoveMemoryRegion(name);
-	data->SetFunctionAnalysisUpdateDisabled(false);
-	m_debuggerRegionNames.clear();
-
-	// The regions are gone from the live map, but an in-flight BinaryView::Read may still hold a copy of
-	// the previous MemoryMap snapshot (which references these accessors' callbacks). Retire rather than
-	// free; m_retiredAccessors is drained at teardown.
-	m_retiredAccessors.insert(m_retiredAccessors.end(), m_regionAccessors.begin(), m_regionAccessors.end());
-	m_regionAccessors.clear();
+	UpdateDebuggerMemoryRegions(false);
 }
 
 
@@ -1545,7 +1562,7 @@ void DebuggerController::SyncMemoryRegions()
 {
 	// The cached setting selects the new bounded-segment behavior or the old blanket overlay. Leaving
 	// `regions` empty makes the logic below fall back to the single "debugger" overlay
-	// (AddDebuggerMemoryRegions treats an empty map that way).
+	// (UpdateDebuggerMemoryRegions treats an empty map that way).
 	std::vector<DebugMemoryRegion> regions;
 	if (m_useMemoryMapSegments)
 	{
@@ -1559,9 +1576,12 @@ void DebuggerController::SyncMemoryRegions()
 	if (regions == m_appliedMemoryRegions)
 		return;
 
-	RemoveDebuggerMemoryRegions();
+	// Replace the regions in one step. If that fails, the old regions stay in place, so keep the old map
+	// and let the next stop try again.
+	std::vector<DebugMemoryRegion> previous = std::move(m_appliedMemoryRegions);
 	m_appliedMemoryRegions = std::move(regions);
-	AddDebuggerMemoryRegions();
+	if (!UpdateDebuggerMemoryRegions(true))
+		m_appliedMemoryRegions = std::move(previous);
 }
 
 
@@ -2150,19 +2170,13 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 		m_lastIP = m_currentIP;
 		m_currentIP = 0;
 
-		// The remaining cleanup (MarkDirty / RemoveDebuggerMemoryRegion / accessor disposal /
+		// The remaining cleanup (MarkDirty / RemoveDebuggerMemoryRegion / view refresh removal /
 		// analysis hold) calls into BN core, which takes the file lock. Running it here would mean
 		// holding the adapter lock across a BN-core call whenever this fires inside a locked op
 		// (Quit/Detach) -- the AB-BA deadlock with the analysis read path. For target-gone/detach
 		// it is instead run by ExecuteAdapterAndWait / the worker AFTER the adapter lock is
 		// released (see FinalizeTargetGoneCleanup). LaunchFailure does not flow through that path
 		// (and has no live memory region to remove), so finalize it inline.
-		//
-		// Note: the accessor MUST be disposed in FinalizeTargetGoneCleanup, AFTER
-		// RemoveDebuggerMemoryRegion -- the BinaryView's MemoryMap holds a raw pointer to it from
-		// AddRemoteMemoryRegion, and any in-flight or about-to-fire BinaryView::Read (e.g. a
-		// LinearView refresh triggered by the very same TargetExited event reaching the UI) would
-		// otherwise hit a freed accessor.
 		if (event.type == LaunchFailureEventType)
 			FinalizeTargetGoneCleanup();
 		break;
@@ -2227,35 +2241,16 @@ void DebuggerController::FinalizeTargetGoneCleanup()
 	// schedule an async analysis pass that could read from it mid-teardown.
 	RemoveAllLoadedSymbols(false);
 	m_state->MarkDirty();
-	// Remove the region from the BinaryView's MemoryMap BEFORE disposing of m_accessor: the
-	// MemoryMap holds a raw pointer to it (see AddRemoteMemoryRegion in DebuggerController::Start),
-	// so freeing the accessor first would leave the map with a dangling pointer that any concurrent
-	// BinaryView::Read (e.g. a linear-view refresh triggered by TargetExited) would dereference.
+	// The memory map frees the regions' accessors once no snapshot (including one held by an in-flight
+	// BinaryView::Read) references them; see ~DebuggerFileAccessor for how that avoids a self-join.
 	RemoveDebuggerMemoryRegion();
-	// After the regions are gone from the map, the per-entry accessors accumulated over the session (all
-	// now in m_retiredAccessors, since RemoveDebuggerMemoryRegions retires them) can be freed. Same
-	// detached-thread rationale as m_accessor below: they hold a DbgRef<DebuggerController>.
-	if (!m_retiredAccessors.empty())
-	{
-		auto retired = std::move(m_retiredAccessors);
-		m_retiredAccessors.clear();
-		std::thread([retired]() {
-			for (auto* accessor : retired)
-				delete accessor;
-		}).detach();
-	}
 	m_appliedMemoryRegions.clear();
-	if (m_accessor)
+	// Event callbacks are dispatched without the callback lock held, so this is safe even when we are
+	// finalizing inline from an event handler.
+	if (m_viewRefreshCallback != NoViewRefreshCallback)
 	{
-		// Defer deletion to a detached thread. The accessor holds a DbgRef<DebuggerController>;
-		// if it's the last reference, deleting it here would trigger ~DebuggerController which
-		// calls m_workerThread.join() and m_debuggerEventThread.join(). FinalizeTargetGoneCleanup
-		// itself runs on the worker (via ExecuteAdapterAndWait or the Submit fallback in
-		// PostDebuggerEvent), so a synchronous delete on the last ref would self-join and deadlock.
-		// A detached thread sidesteps that regardless of who called us.
-		auto* accessor = m_accessor;
-		m_accessor = nullptr;
-		std::thread([accessor]() { delete accessor; }).detach();
+		RemoveEventCallback(m_viewRefreshCallback);
+		m_viewRefreshCallback = NoViewRefreshCallback;
 	}
 	if (m_oldAnalysisState != HoldState)
 		m_data->SetAnalysisHold(false);
@@ -2615,6 +2610,51 @@ DataBuffer DebuggerController::ReadMemory(std::uintptr_t address, std::size_t si
 		return DataBuffer {};
 
 	return memory->ReadMemory(address, size);
+}
+
+
+size_t DebuggerController::ReadMemorySpan(void* dest, std::uintptr_t address, std::size_t size, BNMemoryReadStatus& status)
+{
+	DebuggerMemory* memory = m_state->GetMemory();
+	if (!memory)
+	{
+		status = MemoryReadTransparent;
+		return size;
+	}
+
+	return memory->ReadMemorySpan(dest, address, size, status);
+}
+
+
+void DebuggerController::ViewRefreshEventHandler(const DebuggerEvent& event)
+{
+	BinaryViewRef data = GetData();
+	if (!data)
+		return;
+
+	switch (event.type)
+	{
+	case TargetStoppedEventType:
+		// We should not refresh on a TargetExitedEvent, since the debugger binary view is about to be
+		// deleted. And it can cause a crash in certain cases.
+		//
+		// The target ran, so any of its memory may have changed, and where the debugger delegated bytes to
+		// the binary while it ran, it now reads them from the target again. Neither is a write through the
+		// view, so this does not invalidate analysis.
+		data->NotifyMemoryChanged({MemoryChangeEvent::Unknown(MemoryContentsChanged),
+			MemoryChangeEvent::Unknown(MemoryAvailabilityChanged)});
+		// Invalidating analysis is a separate policy, requested explicitly by the setting
+		if (m_aggressiveAnalysisUpdate)
+			data->NotifyDataWritten(0, AddressSpaceLength(data));
+		break;
+	case ForceMemoryCacheUpdateEvent:
+		// An explicit request to refresh everything, including analysis
+		data->NotifyMemoryChanged({MemoryChangeEvent::Unknown(MemoryContentsChanged)});
+		data->NotifyDataWritten(0, AddressSpaceLength(data));
+		break;
+	default:
+		break;
+	}
 }
 
 
@@ -4469,7 +4509,6 @@ void DebuggerController::OnRebased(BinaryView* oldView, BinaryView* newView)
 	// here. Also, there is no need to do so -- the oldView is about to be deleted
 	// oldView->UnregisterNotification(this);
 	newView->RegisterNotification(this);
-	m_state->GetMemory()->OnRebased();
 }
 
 

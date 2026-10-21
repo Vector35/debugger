@@ -16,45 +16,27 @@ limitations under the License.
 
 #include "debuggerfileaccessor.h"
 
-#include "base/assertions.h"
+#include <thread>
+
 #include "debuggercontroller.h"
 
 using namespace BinaryNinja;
 using namespace BinaryNinjaDebugger;
 
-DebuggerFileAccessor::DebuggerFileAccessor(BinaryView* parent)
+DebuggerFileAccessor::DebuggerFileAccessor(BinaryView* parent, uint64_t length) : m_length(length)
 {
-	auto addressSize = parent->GetAddressSize();
-	auto bits = addressSize * 8;
-	if (bits >= 64)
-		m_length = UINT64_MAX;
-	else
-		m_length = (1ULL << bits) - 1;
-
-	m_aggressiveAnalysisUpdate = Settings::Instance()->Get<bool>("debugger.aggressiveAnalysisUpdate");
-
 	m_controller = DebuggerController::GetController(parent);
-	m_eventCallback = m_controller->RegisterEventCallback([this](const DebuggerEvent& event){
-		eventHandler(event);
-	}, "Process View");
-}
-
-
-DebuggerFileAccessor::DebuggerFileAccessor(BinaryView* parent, uint64_t base, uint64_t length)
-{
-	(void)base;
-	m_length = length;
-	m_aggressiveAnalysisUpdate = Settings::Instance()->Get<bool>("debugger.aggressiveAnalysisUpdate");
-	m_controller = DebuggerController::GetController(parent);
-	// Per-region accessor: no view-refresh subscription (the primary accessor owns that).
-	m_eventCallback = DEBUGGER_NO_EVENT_CALLBACK;
 }
 
 
 DebuggerFileAccessor::~DebuggerFileAccessor()
 {
-	if (m_controller && m_eventCallback != DEBUGGER_NO_EVENT_CALLBACK)
-		m_controller->RemoveEventCallback(m_eventCallback);
+	// The memory map deletes us on whichever thread releases the last snapshot holding the region, which can be the
+	// debugger worker (e.g. removing the regions in FinalizeTargetGoneCleanup). If ours is the last reference to the
+	// controller, releasing it there would run ~DebuggerController, which joins the worker and so deadlocks. Release it
+	// on a detached thread instead.
+	if (m_controller)
+		std::thread([controller = std::move(m_controller)]() mutable { controller = nullptr; }).detach();
 }
 
 
@@ -64,17 +46,13 @@ uint64_t DebuggerFileAccessor::GetLength() const
 }
 
 
-size_t DebuggerFileAccessor::Read(void *dest, uint64_t offset, size_t len)
+size_t DebuggerFileAccessor::Read(void* dest, uint64_t offset, size_t len, BNMemoryReadStatus& status)
 {
-	DataBuffer buffer = m_controller->ReadMemory(offset, len);
-	BN_RELEASE_ASSERT(buffer.GetLength() <= len);
-	memcpy(dest, buffer.GetData(), buffer.GetLength());
-
-	return buffer.GetLength();
+	return m_controller->ReadMemorySpan(dest, offset, len, status);
 }
 
 
-size_t DebuggerFileAccessor::Write(uint64_t offset, const void *src, size_t len)
+size_t DebuggerFileAccessor::Write(uint64_t offset, const void* src, size_t len)
 {
 	if (m_controller->WriteMemory(offset, DataBuffer(src, len)))
 	{
@@ -83,45 +61,4 @@ size_t DebuggerFileAccessor::Write(uint64_t offset, const void *src, size_t len)
 	}
 
 	return 0;
-}
-
-
-
-void DebuggerFileAccessor::MarkDirty()
-{
-	// This hack will let the views (linear/graph) update its display
-	if (m_aggressiveAnalysisUpdate)
-	{
-		m_controller->GetData()->NotifyDataWritten(0, GetLength());
-	}
-	else
-	{
-		// This ensures or the BinaryDataListener, e.g, the linear view, refreshes its display. But it avoids any
-		// functions get marked as update required
-		m_controller->GetData()->NotifyDataWritten(0xdeadbeefdeadbeef, 0);
-	}
-}
-
-
-void DebuggerFileAccessor::ForceMemoryCacheUpdate()
-{
-	m_controller->GetData()->NotifyDataWritten(0, GetLength());
-}
-
-
-void DebuggerFileAccessor::eventHandler(const DebuggerEvent &event)
-{
-	switch (event.type)
-	{
-	case TargetStoppedEventType:
-	// We should not call MarkDirty() in case of a TargetExitedEvent, since the debugger binary view is about to be
-	// deleted. And it can cause a crash in certain cases.
-		MarkDirty();
-		break;
-	case ForceMemoryCacheUpdateEvent:
-		ForceMemoryCacheUpdate();
-		break;
-	default:
-		break;
-	}
 }

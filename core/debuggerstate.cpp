@@ -1239,52 +1239,6 @@ DebuggerMemory::DebuggerMemory(DebuggerState* state) : m_state(state)
 }
 
 
-void DebuggerMemory::PrefillValueCache()
-{
-	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
-	m_valueCachePrefilled.clear();
-
-	if (!m_state->GetController())
-		return;
-
-	auto data = m_state->GetController()->GetData();
-	if (!data)
-		return;
-
-	auto ranges = data->GetBackedAddressRanges();
-	for (const auto& range: ranges)
-	{
-		// If the range is larger than 1G, do not cache its content
-		if (range.end - range.start > 1024 * 1024 * 1024)
-			continue;
-
-		m_valueCachePrefilled[range.start] = {range.end, data->ReadBuffer(range.start, range.end - range.start)};
-	}
-}
-
-
-void DebuggerMemory::OnRebased()
-{
-	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
-	// If the debugger is not active, do nothing. The pre-filled cache is only generated when starting debugging
-	if (!m_state->IsConnected())
-		return;
-
-	PrefillValueCache();
-	for (auto it = m_valueCache.begin(); it != m_valueCache.end();)
-	{
-		if (it->second.source == BackingBinaryViewSource)
-		{
-			it = m_valueCache.erase(it);
-		}
-		else
-		{
-			++it;
-		}
-	}
-}
-
-
 void DebuggerMemory::MarkDirty()
 {
 	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
@@ -1292,7 +1246,6 @@ void DebuggerMemory::MarkDirty()
 	{
 		// After the target exits, discard all the memory cache
 		m_valueCache.clear();
-		m_valueCachePrefilled.clear();
 		return;
 	}
 
@@ -1313,8 +1266,11 @@ void DebuggerMemory::MarkDirty()
 }
 
 
-DataBuffer DebuggerMemory::ReadAndCacheBlock(uint64_t address)
+DataBuffer DebuggerMemory::ReadAndCacheBlock(uint64_t address, bool* unknown)
 {
+	if (unknown)
+		*unknown = false;
+
 	if (!m_state->IsConnected())
 		return {};
 
@@ -1381,28 +1337,10 @@ DataBuffer DebuggerMemory::ReadAndCacheBlock(uint64_t address)
 		return {};
 	}
 
-	// If the target is running, we try to read the bytes from the original binary view
-	auto iter = m_valueCachePrefilled.upper_bound(address);
-	if (iter != m_valueCachePrefilled.begin())
-	{
-		--iter;
-		if ((address >= iter->first) && (address < iter->second.first))
-		{
-			auto offset = address - iter->first;
-			auto avail = iter->second.first - address;
-			auto buffer = iter->second.second.GetSlice(offset, std::min<uint64_t>(CacheBlockSize, avail));
-			// When the bytes are readable, we return it, but also mark it as out-of-date so that they can be
-			// replaced as soon as the target stops
-			if (buffer.GetLength() > 0)
-			{
-				m_valueCache[address] = {buffer, buffer.GetLength(), OutOfDateStatus, BackingBinaryViewSource};
-				return buffer;
-			}
-		}
-	}
-
 	// Could not satisfy the read while the target is running; do not cache a failure, since the byte may become
 	// readable once the target stops.
+	if (unknown)
+		*unknown = true;
 	return {};
 }
 
@@ -1440,6 +1378,51 @@ DataBuffer DebuggerMemory::ReadMemory(uint64_t offset, size_t len)
 	}
 	BN_RELEASE_ASSERT(result.GetLength() <= len);
 	return result;
+}
+
+
+size_t DebuggerMemory::ReadMemorySpan(void* dest, uint64_t offset, size_t len, BNMemoryReadStatus& status)
+{
+	std::unique_lock<std::recursive_mutex> memoryLock(m_memoryMutex);
+
+	// Without a target there is nothing to say about any of these bytes
+	if (!m_state->IsConnected())
+	{
+		status = MemoryReadTransparent;
+		return len;
+	}
+
+	bool unknown;
+	DataBuffer run = ReadAndCacheBlock(offset, &unknown);
+	if (run.GetLength() > 0)
+	{
+		size_t count = std::min<size_t>(run.GetLength(), len);
+		memcpy(dest, run.GetData(), count);
+		status = MemoryReadAvailable;
+		return count;
+	}
+
+	if (!unknown)
+	{
+		// `offset` is known to be unreadable
+		status = MemoryReadInaccessible;
+		return 1;
+	}
+
+	// The target is running and nothing is cached at `offset`. The span ends where the cache next knows something,
+	// either a (possibly stale) readable run or a known-unreadable byte, so those are not hidden by whatever lies
+	// beneath.
+	size_t count = len;
+	for (auto it = m_valueCache.upper_bound(offset); (it != m_valueCache.end()) && (it->first - offset < len); ++it)
+	{
+		if ((it->second.value.GetLength() > 0) || (it->second.status == FailedToReadStatus))
+		{
+			count = (size_t)(it->first - offset);
+			break;
+		}
+	}
+	status = MemoryReadTransparent;
+	return count;
 }
 
 

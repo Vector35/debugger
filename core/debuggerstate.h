@@ -203,8 +203,7 @@ namespace BinaryNinjaDebugger {
 	enum MemoryByteCacheSource
 	{
 		NoSource,
-		PausedTargetSource,
-		BackingBinaryViewSource
+		PausedTargetSource
 	};
 
 	struct MemoryBytesCache
@@ -226,7 +225,6 @@ namespace BinaryNinjaDebugger {
 
 		DebuggerState* m_state;
 		std::map<uint64_t, MemoryBytesCache> m_valueCache;
-		std::map<uint64_t, std::pair<uint64_t, DataBuffer>> m_valueCachePrefilled;
 		std::recursive_mutex m_memoryMutex;
 
 
@@ -236,11 +234,16 @@ namespace BinaryNinjaDebugger {
 		void MarkDirty();
 		// Reads the readable run starting exactly at `address` (up to CacheBlockSize bytes) and caches it, or returns
 		// an empty buffer if `address` itself is unreadable. The address is NOT rounded down to a cache-block boundary.
-		DataBuffer ReadAndCacheBlock(uint64_t address);
+		// When the result is empty, `unknown` (if given) tells whether that is only because the target is running and
+		// nothing is cached for `address`, rather than because `address` is known to be unreadable.
+		DataBuffer ReadAndCacheBlock(uint64_t address, bool* unknown = nullptr);
 		DataBuffer ReadMemory(uint64_t offset, size_t len);
+		// Describes the single span starting at `offset` for the BinaryView's memory regions: the bytes of a readable
+		// run (written to `dest`), a span the debugger knows nothing about because the target is running or not
+		// connected (transparent, so the BinaryView can show what lies beneath), or an unreadable byte. Returns the
+		// length of the span, between 1 and `len`.
+		size_t ReadMemorySpan(void* dest, uint64_t offset, size_t len, BNMemoryReadStatus& status);
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
-		void PrefillValueCache();
-		void OnRebased();
 	};
 
 

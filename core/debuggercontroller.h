@@ -101,15 +101,11 @@ namespace BinaryNinjaDebugger {
 		DebuggerState* m_state;
 		FileMetadataRef m_file;
 		BinaryViewRef m_data;
-		DebuggerFileAccessor* m_accessor {};
-		// When the backend reports a memory map, we mirror it into the BinaryView as one bounded remote
-		// region per entry (instead of the single blanket overlay). These track the live mirror so we can
-		// tear it down and diff it against the next stop's map.
-		std::vector<DebuggerFileAccessor*> m_regionAccessors;
-		// Accessors from a previous memory-map generation. The MemoryMap may still hold copies of their
-		// callbacks in an in-flight snapshot, so we retire rather than free them on change and only delete
-		// them at teardown. Map changes are rare (module load, new mmap), so this stays small.
-		std::vector<DebuggerFileAccessor*> m_retiredAccessors;
+		// The stop-event subscription that refreshes the views of m_data while a target is connected.
+		static constexpr size_t NoViewRefreshCallback = (size_t)-1;
+		size_t m_viewRefreshCallback = NoViewRefreshCallback;
+		// Cached "debugger.aggressiveAnalysisUpdate" setting, sampled when the view refresh is registered.
+		bool m_aggressiveAnalysisUpdate = false;
 		// Names of the memory regions we currently have registered on m_data ("debugger" for the blanket
 		// fallback, or "debugger:<i>" for the per-entry mirror).
 		std::vector<std::string> m_debuggerRegionNames;
@@ -540,6 +536,9 @@ namespace BinaryNinjaDebugger {
 
 		// memory
 		DataBuffer ReadMemory(std::uintptr_t address, std::size_t size);
+		// Describes the span starting at `address` for the BinaryView's memory regions (see
+		// DebuggerMemory::ReadMemorySpan).
+		size_t ReadMemorySpan(void* dest, std::uintptr_t address, std::size_t size, BNMemoryReadStatus& status);
 		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer);
 
 		// debugger events
@@ -634,7 +633,6 @@ namespace BinaryNinjaDebugger {
 		BinaryViewRef GetData() { return m_data; }
 		FileMetadataRef GetFile() { return m_file; }
 		void SetData(BinaryViewRef view) {}
-		DebuggerFileAccessor* GetMemoryAccessor() const { return m_accessor; }
 
 		uint32_t GetExitCode();
 		uint32_t GetActivePID();
@@ -714,11 +712,18 @@ namespace BinaryNinjaDebugger {
 		// regions so search only scans mapped memory; otherwise falls back to the blanket overlay (search
 		// stays disabled -- see the "debugger" region gate in BinaryView::FindAll*).
 		void SyncMemoryRegions();
-		// Register memory regions on m_data from m_appliedMemoryRegions. Assumes any prior regions were
-		// already removed. Empty map -> single blanket "debugger" region backed by m_accessor.
+		// Replace the regions we registered on m_data, in a single change to its memory map, with the mirror
+		// of m_appliedMemoryRegions (mirror) or with nothing. An empty map is mirrored as a single blanket
+		// "debugger" region over the whole address space. Returns false, leaving the regions unchanged, if
+		// the memory map rejects the change.
+		bool UpdateDebuggerMemoryRegions(bool mirror);
+		// Register memory regions on m_data from m_appliedMemoryRegions.
 		void AddDebuggerMemoryRegions();
-		// Remove every region we registered (blanket or per-entry) and retire the per-entry accessors.
+		// Remove every region we registered (blanket or per-entry). The memory map frees their accessors.
 		void RemoveDebuggerMemoryRegions();
+		// Report the memory changes of a stop or a forced update to the observers of m_data (e.g. its views),
+		// and invalidate analysis where requested.
+		void ViewRefreshEventHandler(const DebuggerEvent& event);
 
 		uint64_t GetViewFileSegmentsStart() { return m_viewStart; }
 

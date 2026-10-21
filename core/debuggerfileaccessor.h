@@ -17,7 +17,6 @@ limitations under the License.
 #pragma once
 
 #include "binaryninjaapi.h"
-#include "debuggerevent.h"
 #include "refcountobject.h"
 
 using namespace BinaryNinja;
@@ -26,36 +25,18 @@ namespace BinaryNinjaDebugger
 {
 	class DebuggerController;
 
-	class DebuggerFileAccessor: public FileAccessor
+	// Backs one of the debugger's memory regions in the BinaryView with the target's memory. The memory map owns it
+	// (see MemoryMap::AddRemoteMemoryRegion) and deletes it once no memory map snapshot references the region.
+	class DebuggerFileAccessor: public MemoryRegionAccessor
 	{
 		uint64_t m_length;
-
 		DbgRef<DebuggerController> m_controller;
-		// The stop-event subscription that refreshes the views. Only the "primary" accessor (the one
-		// covering the whole address space) registers it; the per-region accessors leave it as
-		// DEBUGGER_NO_EVENT_CALLBACK so we do not fire N redundant view refreshes on every stop.
-		size_t m_eventCallback;
-
-		bool m_aggressiveAnalysisUpdate;
-
-		static constexpr size_t DEBUGGER_NO_EVENT_CALLBACK = (size_t)-1;
 
 	public:
-		// Primary accessor: spans the whole address space and owns the view-refresh subscription. Used
-		// as the blanket overlay when the backend does not report a memory map.
-		DebuggerFileAccessor(BinaryView* parent);
-		// Bounded accessor: backs a single memory-map region [base, base + length). Reads still resolve
-		// absolute addresses (the region is created in absolute-address mode), so this only differs from
-		// the primary accessor in its reported length and in not owning an event subscription.
-		DebuggerFileAccessor(BinaryView* parent, uint64_t base, uint64_t length);
-		~DebuggerFileAccessor();
-		bool IsValid() const override { return true; }
+		DebuggerFileAccessor(BinaryView* parent, uint64_t length);
+		~DebuggerFileAccessor() override;
 		uint64_t GetLength() const override;
-		size_t Read(void* dest, uint64_t offset, size_t len) override;
+		size_t Read(void* dest, uint64_t offset, size_t len, BNMemoryReadStatus& status) override;
 		size_t Write(uint64_t offset, const void* src, size_t len) override;
-
-		void MarkDirty();
-		void ForceMemoryCacheUpdate();
-		void eventHandler(const DebuggerEvent& event);
 	};
 }
