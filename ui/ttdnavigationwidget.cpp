@@ -142,6 +142,8 @@ void TTDNavigationWidget::OnNewSelectionForXref(
 {
 	if (context != UIContext::contextForWidget(this))
 		return;
+	if (view != context->getCurrentView())
+		return;
 
 	updateTargetFromView(view);
 }
@@ -299,6 +301,7 @@ bool TTDNavigationWidget::parseMemoryTarget(uint64_t& address, uint64_t& size)
 	// Neither separator can appear in a single address expression, where "-" is subtraction.
 	QString startText = text;
 	QString endText;
+	bool hasRange = false;
 	for (const QString& separator : {QString(".."), QString(" - ")})
 	{
 		int index = text.indexOf(separator);
@@ -307,7 +310,13 @@ bool TTDNavigationWidget::parseMemoryTarget(uint64_t& address, uint64_t& size)
 
 		startText = text.left(index).trimmed();
 		endText = text.mid(index + separator.size()).trimmed();
+		hasRange = true;
 		break;
+	}
+	if (startText.isEmpty() || (hasRange && endText.isEmpty()))
+	{
+		setStatus("Invalid target: range requires a start and end address.");
+		return false;
 	}
 
 	uint64_t start = 0;
@@ -318,15 +327,25 @@ bool TTDNavigationWidget::parseMemoryTarget(uint64_t& address, uint64_t& size)
 		return false;
 	}
 
-	uint64_t end = start + 1;
-	if (!endText.isEmpty() && !ParseAddress(endText, m_data, end, &error))
+	if (start == UINT64_MAX && !hasRange)
+	{
+		setStatus("Invalid target: address exceeds the supported range.");
+		return false;
+	}
+	uint64_t end = hasRange ? 0 : start + 1;
+	if (hasRange && !ParseAddress(endText, m_data, end, &error))
 	{
 		setStatus(QString("Invalid target: %1").arg(QString::fromStdString(error)));
 		return false;
 	}
+	if (end <= start)
+	{
+		setStatus("Invalid target: range end must be greater than its start.");
+		return false;
+	}
 
 	address = start;
-	size = (end > start) ? (end - start) : 1;
+	size = end - start;
 	return true;
 }
 
