@@ -21,6 +21,9 @@ limitations under the License.
 #include <optional>
 #include <string>
 #include <vector>
+#ifdef WIN32
+#include <stdlib.h>
+#endif
 
 namespace BinaryNinjaDebugger {
 	struct ModuleNameAndOffset
@@ -59,9 +62,9 @@ namespace BinaryNinjaDebugger {
 		{
 #ifdef WIN32
 			// TODO: someone please write it on Windows!
-			char baseName[MAX_PATH];
-			char ext[MAX_PATH];
-			_splitpath_s(path.c_str(), NULL, 0, NULL, 0, baseName, MAX_PATH, ext, MAX_PATH);
+			char baseName[_MAX_PATH];
+			char ext[_MAX_PATH];
+			_splitpath_s(path.c_str(), NULL, 0, NULL, 0, baseName, _MAX_PATH, ext, _MAX_PATH);
 			return std::string(baseName) + std::string(ext);
 #else
 			std::filesystem::path fs_path(path);

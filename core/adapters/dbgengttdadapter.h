@@ -16,36 +16,23 @@ limitations under the License.
 
 #pragma once
 #include "dbgengadapter.h"
-
-// Additional includes for TTD memory analysis
-#include <dbgmodel.h>
-#include <comdef.h>
-#include <wrl/client.h>
-using namespace Microsoft::WRL;
+#include "../../windows/dbgeng/dbgengttdengine.h"
 
 namespace BinaryNinjaDebugger {
     class DbgEngTTDAdapter: public DbgEngAdapter
     {
+		DbgEngTTDEngine& TTD() { return static_cast<DbgEngTTDEngine&>(*m_engine); }
+
     public:
         DbgEngTTDAdapter(BinaryView* data);
 
-        [[nodiscard]] bool ExecuteWithArgsInternal(const std::string& path, const std::string& args,
-           const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
-		bool WriteMemory(std::uintptr_t address, const DataBuffer& buffer) override;
-		bool WriteRegister(const std::string& reg, intx::uint512 value) override;
-
-		bool Start() override;
-		void Reset() override;
-		bool TerminateTargetOnEngineThread() override;
+		[[nodiscard]] bool ExecuteWithArgs(const std::string& path, const std::string& args,
+			const std::string& workingDir, const LaunchConfigurations& configs = {}) override;
 
         bool GoReverse() override;
         bool StepIntoReverse() override;
     	bool StepOverReverse() override;
     	bool StepReturnReverse() override;
-    	
-    	bool SupportFeature(DebugAdapterCapacity feature) override;
-    	
-		bool Quit() override;
 
 		// TTD Memory Analysis Methods
 		std::vector<TTDMemoryEvent> GetTTDMemoryAccessForAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType = TTDMemoryRead) override;
@@ -72,43 +59,6 @@ namespace BinaryNinjaDebugger {
 
     	void GenerateDefaultAdapterSettings(BinaryView* data);
     	Ref<Settings> GetAdapterSettings() override;
-
-	private:
-		// Helper methods for TTD memory analysis
-		bool QueryMemoryAccessByAddress(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
-		bool QueryMemoryAccessByAddressAndPositionRange(uint64_t startAddress, uint64_t endAddress, TTDMemoryAccessType accessType, TTDPosition startTime, TTDPosition endTime, std::vector<TTDPositionRangeIndexedMemoryEvent>& events);
-		
-		// Helper methods for TTD calls analysis
-		bool QueryCallsForSymbols(const std::vector<std::string>& symbols, uint64_t startReturnAddress, uint64_t endReturnAddress, std::vector<TTDCallEvent>& events);
-		bool ParseTTDCallObjects(const std::string& expression, std::vector<TTDCallEvent>& events);
-
-		// Helper methods for TTD events analysis
-		bool QueryAllTTDEvents();
-		bool ParseTTDEventObjects(const std::string& expression, std::vector<TTDEvent>& events);
-		void ParseThreadDetails(IModelObject* eventObject, TTDEvent& event);
-		void ParseModuleDetails(IModelObject* eventObject, TTDEvent& event);
-		void ParseExceptionDetails(IModelObject* eventObject, TTDEvent& event);
-		void ParseTTDPosition(IModelObject* positionObj, TTDPosition& position);
-		
-		// TTD Events cache
-		std::vector<TTDEvent> m_cachedEvents;
-		bool m_eventsCached;
-		
-		// Method to clear TTD events cache
-		void ClearTTDEventsCache();
-
-		// Data model helper methods
-		std::string EvaluateDataModelExpression(const std::string& expression);
-		bool ParseTTDMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDMemoryEvent>& events);
-		bool ParseTTDPositionRangeIndexedMemoryObjects(const std::string& expression, TTDMemoryAccessType accessType, std::vector<TTDPositionRangeIndexedMemoryEvent>& events);
-		std::pair<bool, TTDMemoryEvent> ParseSingleTTDMemoryObject(const std::string& expression, TTDMemoryAccessType accessType);
-		std::optional<TTDRegisterWriteEvent> ParseSingleTTDRegisterWriteObject(const std::string& expression, const std::string& reg);
-
-		// Data model interfaces for TTD
-		IHostDataModelAccess* m_dataModelManager {nullptr};
-    	IDataModelManager* m_modelMgr {nullptr};
-		IDebugHost* m_debugHost {nullptr};
-		IDebugHostEvaluator* m_hostEvaluator {nullptr};
     };
 
     class DbgEngTTDAdapterType : public DebugAdapterType

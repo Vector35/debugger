@@ -209,6 +209,9 @@ static void RegisterSettings()
 			"description" : "When enabled, module name comparisons are case-insensitive. This is useful when debug adapters report module names with different casing than the actual binary file names.",
 			"ignore" : ["SettingsProjectScope", "SettingsResourceScope"]
 			})");
+	DebugModule::m_caseInsensitiveCallback = []() {
+		return Settings::Instance()->Get<bool>("debugger.caseInsensitiveModuleName");
+	};
 
 	settings->RegisterSetting("debugger.autoRebase",
 		R"({
