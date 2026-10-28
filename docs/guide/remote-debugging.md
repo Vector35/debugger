@@ -230,10 +230,13 @@ popup
 - Navigate to the "launch" settings group (if it is not selected by default)
 - Set the `Working Directory` to the *remote* directory that you wish to launch the process in. Do not leave the path
   unchanged since it will then be a local path, and there will be an error during launch.
-- Do NOT change the `Executable Path` to a remote path. Set it to the local path where the executable is in. During
-  launch, LLDB will copy the executable to the remote host, put it in the working directory we supplied above, and
-  launch it. Setting a remote path here will cause errors. LLDB is smart enough to check the hash of the file so that it
-  will only copy the file once.
+- Set the `Executable Path` in the `Debug Adapter Settings` dialog to the local executable path. Then choose how to
+  put the executable on the remote host:
+  - Leave `Disable Auto Install` enabled (the default) in the `debugServer` settings, and copy the executable yourself
+    to the same absolute path on the remote host.
+  - Set `Disable Auto Install` to false before connecting, and LLDB will copy the executable to the remote host for you.
+    Do not use this option when `lldb-server` is on localhost: LLDB can incorrectly delete the executable because the
+    local and remote files are the same file.
 - Configure other parameters as needed
 - Launch the target
 
@@ -340,10 +343,13 @@ an interface that Binary Ninja debugger will later connect to.
 - Open the `Debug Adapter Settings` dialog
 - Set the `Working Directory` to the *remote* directory that you wish to launch the process in. Do not leave the path
   unchanged since it will then be a local path, and there will be an error during launch.
-- Do NOT change the `Executable Path` to a remote path. Set it to the local path where the executable is in. During
-  launch, LLDB will copy the executable to the remote host, put it in the working directory we supplied above, and
-  launch it. Setting a remote path here will cause errors. LLDB is smart enough to check the hash of the file so that it
-  will only copy the file once.
+- Set the `Executable Path` in the `Debug Adapter Settings` dialog to the local executable path. Then choose how to
+  put the executable on the remote host:
+  - Leave `Disable Auto Install` enabled (the default) in the `debugServer` settings, and copy the executable yourself
+    to the same absolute path on the remote host.
+  - Set `Disable Auto Install` to false before connecting, and LLDB will copy the executable to the remote host for you.
+    Do not use this option when `lldb-server` is on localhost: LLDB can incorrectly delete the executable because the
+    local and remote files are the same file.
 - Launch the target
 
 ### Attaching to a Process on the Remote Host
