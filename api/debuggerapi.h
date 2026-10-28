@@ -871,6 +871,7 @@ namespace BinaryNinjaDebuggerAPI {
 		void RemoveEventCallback(size_t index);
 
 		void SetDebuggerUICallbacks(DebuggerUICallbacks* cb);
+		void RemoveDebuggerUICallbacks(DebuggerUICallbacks* cb);
 
 		void WriteStdin(const std::string& msg);
 
