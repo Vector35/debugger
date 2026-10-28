@@ -33,6 +33,7 @@ limitations under the License.
 #include "registerswidget.h"
 #include "moduleswidget.h"
 #include "controlswidget.h"
+#include "ttdnavigationwidget.h"
 #include "ui.h"
 #include "debuggerapi.h"
 
@@ -50,6 +51,7 @@ class DebuggerWidget : public SidebarWidget
 	QTabWidget* m_tabs;
 
 	DebugControlsWidget* m_controlsWidget;
+	TTDNavigationWidget* m_ttdNavigationWidget;
 	DebugRegistersContainer* m_registersWidget;
 	DebugBreakpointsWidget* m_breakpointsWidget;
 
@@ -58,6 +60,7 @@ class DebuggerWidget : public SidebarWidget
 	//void shouldBeVisible()
 
 	virtual void notifyFontChanged() override;
+	virtual void notifyViewLocationChanged(View* view, const ViewLocation& viewLocation) override;
 
 private slots:
 	void uiEventHandler(const DebuggerEvent& event);
