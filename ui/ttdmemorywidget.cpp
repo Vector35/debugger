@@ -326,6 +326,14 @@ void TTDMemoryQueryWidget::setupUIActions()
 	m_menu.addAction("Reset Columns to Default", "Options", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Reset Columns to Default", UIAction([&]() { resetColumnsToDefault(); }));
 
+	// Force navigation into the currently focused pane (double-click instead picks the
+	// pane by content type; see NavigateToAddress).
+	m_menu.addAction("Navigate in Current Pane", "Navigate", MENU_ORDER_FIRST);
+	m_actionHandler.bindAction("Navigate in Current Pane", UIAction([&]() { navigateInCurrentPane(); }, [&]() {
+		uint64_t addr = 0;
+		return m_data && addressForCell(m_resultsTable->currentRow(), m_resultsTable->currentColumn(), addr);
+	}));
+
 	m_menu.addAction("Add TTD Bookmark...", "Bookmark", MENU_ORDER_NORMAL);
 	m_actionHandler.bindAction("Add TTD Bookmark...", UIAction([&]() {
 		int row = m_resultsTable->currentRow();
@@ -611,32 +619,46 @@ void TTDMemoryQueryWidget::onCellDoubleClicked(int row, int column)
 	}
 	else if (column == AddressColumn || column == IPColumn)
 	{
-		// Navigate to address in disassembly view
-		QTableWidgetItem* addrItem = m_resultsTable->item(row, column);
-		if (addrItem && m_data)
+		uint64_t address = 0;
+		if (m_data && addressForCell(row, column, address))
 		{
-			QString addrStr = addrItem->text();
-			if (addrStr.startsWith("0x", Qt::CaseInsensitive))
-			{
-				bool ok;
-				uint64_t address = addrStr.mid(2).toULongLong(&ok, 16);
-				if (ok)
-				{
-					// Navigate to the address in the disassembly view
-					ViewFrame* frame = ViewFrame::viewFrameForWidget(this);
-					if (frame)
-					{
-						frame->navigate(m_data, address);
-						updateStatus(QString("Navigated to address %1").arg(addrStr));
-					}
-					else
-					{
-						updateStatus(QString("Address: %1 (no view frame available)").arg(addrStr));
-					}
-				}
-			}
+			// Navigate to the address, opening it in the other pane when it is a different
+			// kind of thing (code vs data) than the current pane shows (see NavigateToAddress,
+			// issue #1134). The Position (time-travel) column above keeps the current pane.
+			NavigateToAddress(this, m_data, address);
+			updateStatus(QString("Navigated to address 0x%1").arg(address, 0, 16));
 		}
 	}
+}
+
+
+bool TTDMemoryQueryWidget::addressForCell(int row, int column, uint64_t& addr)
+{
+	if (row < 0 || row >= m_resultsTable->rowCount())
+		return false;
+
+	// The IP column navigates to the instruction pointer; any other cell navigates to the
+	// row's memory address.
+	int addrColumn = (column == IPColumn) ? IPColumn : AddressColumn;
+	QTableWidgetItem* item = m_resultsTable->item(row, addrColumn);
+	if (!item)
+		return false;
+
+	QString text = item->text();
+	if (!text.startsWith("0x", Qt::CaseInsensitive))
+		return false;
+
+	bool ok = false;
+	addr = text.mid(2).toULongLong(&ok, 16);
+	return ok;
+}
+
+
+void TTDMemoryQueryWidget::navigateInCurrentPane()
+{
+	uint64_t addr = 0;
+	if (m_data && addressForCell(m_resultsTable->currentRow(), m_resultsTable->currentColumn(), addr))
+		NavigateToAddressInCurrentPane(this, m_data, addr);
 }
 
 void TTDMemoryQueryWidget::showColumnVisibilityDialog()
