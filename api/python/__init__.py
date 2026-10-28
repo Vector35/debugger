@@ -19,6 +19,7 @@ from binaryninja._binaryninjacore import BNGetUserPluginDirectory
 user_plugin_dir = os.path.realpath(BNGetUserPluginDirectory())
 current_path = os.path.realpath(__file__)
 
+
 # If BN_STANDALONE_DEBUGGER is set, only initialize the python module when it is loaded from the user plugin dir
 if os.environ.get('BN_STANDALONE_DEBUGGER'):
     if current_path.startswith(user_plugin_dir):
