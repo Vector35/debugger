@@ -2308,6 +2308,15 @@ class DebuggerController:
         dbgcore.BNDebuggerSetAdapterType(self.handle, adapter)
 
     @property
+    def adapter_settings(self) -> Optional[binaryninja.Settings]:
+        """Get the settings for the current debug adapter (read-only)."""
+        result = dbgcore.BNDebuggerGetAdapterSettings(self.handle)
+        if result is None:
+            return None
+        result = ctypes.cast(result, ctypes.POINTER(binaryninja.core.BNSettings))
+        return binaryninja.Settings(handle=result)
+
+    @property
     def connection_status(self) -> DebugAdapterConnectionStatus:
         """
         Get the connection status of the debugger
