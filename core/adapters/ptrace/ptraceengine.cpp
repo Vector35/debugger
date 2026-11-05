@@ -31,7 +31,9 @@ limitations under the License.
 #include <sys/uio.h>
 #include <cstddef>
 #include <sstream>
+#include <stdexcept>
 #include <sys/ioctl.h>
+#include <sys/eventfd.h>
 #include <sys/personality.h>
 #include <sys/ptrace.h>
 #include <sys/syscall.h>
@@ -94,6 +96,41 @@ namespace BinaryNinjaDebugger {
 		KernelSyscallInfoSeccomp = 3
 	};
 
+	static constexpr int spinPolls = 20;
+	static constexpr int maxBackoffShift = 6;
+	static constexpr auto strandedRetryInterval = std::chrono::milliseconds(20);
+	static constexpr auto strandedGiveUpAfter = std::chrono::seconds(2);
+	static constexpr auto unwatchedExitPollInterval = std::chrono::milliseconds(100);
+	static constexpr auto waitForever = std::chrono::nanoseconds::max();
+
+	// PIDFD_THREAD, Linux 6.9
+	static constexpr int pidfdThreadFlag = O_EXCL;
+
+	struct ProcStatus
+	{
+		char state = 0;
+		pid_t parent = 0;
+		pid_t tracer = 0;
+	};
+
+	static ProcStatus ReadProcStatus(const std::string& path)
+	{
+		ProcStatus status;
+		std::ifstream file(path);
+		std::string line;
+		while (std::getline(file, line))
+		{
+			if (line.rfind("State:", 0) == 0 && line.size() > 7)
+				status.state = line[line.find_first_not_of(" \t", 6)];
+			else if (line.rfind("PPid:", 0) == 0)
+				status.parent = atoi(line.c_str() + 5);
+			else if (line.rfind("TracerPid:", 0) == 0)
+				status.tracer = atoi(line.c_str() + 10);
+		}
+		return status;
+	}
+
+
 	static bool ShouldAutoContinueSignal(int signal)
 	{
 		switch (signal)
@@ -135,7 +172,7 @@ namespace BinaryNinjaDebugger {
 				std::lock_guard<std::mutex> lock(m_taskMutex);
 				m_shutdown = true;
 			}
-			m_taskCv.notify_all();
+			WakeTracer();
 			m_tracerThread.join();
 		}
 
@@ -178,6 +215,8 @@ namespace BinaryNinjaDebugger {
 			close(m_masterFd);
 		if (m_memFd >= 0)
 			close(m_memFd);
+		if (m_wakeFd >= 0)
+			close(m_wakeFd);
 	}
 
 
@@ -255,11 +294,7 @@ namespace BinaryNinjaDebugger {
 	bool PtraceEngine::Launch(const LaunchOptions& options, std::string& error)
 	{
 		m_options = options;
-		auto result = m_launchResult.get_future();
-		m_eventThread = std::thread(&PtraceEngine::EventLoop, m_core);
-		m_tracerThread = std::thread(&PtraceEngine::TracerMain, this);
-		error = result.get();
-		return error.empty();
+		return StartTracer(error);
 	}
 
 
@@ -268,6 +303,19 @@ namespace BinaryNinjaDebugger {
 		m_options.arch = arch;
 		m_attachPid = pid;
 		m_attached = true;
+		return StartTracer(error);
+	}
+
+
+	bool PtraceEngine::StartTracer(std::string& error)
+	{
+		m_wakeFd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+		if (m_wakeFd < 0)
+		{
+			error = std::string("failed to create the tracer wake-up descriptor: ") + strerror(errno);
+			return false;
+		}
+
 		auto result = m_launchResult.get_future();
 		m_eventThread = std::thread(&PtraceEngine::EventLoop, m_core);
 		m_tracerThread = std::thread(&PtraceEngine::TracerMain, this);
@@ -286,7 +334,7 @@ namespace BinaryNinjaDebugger {
 				return false;
 			m_tasks.push_back([task] { (*task)(); });
 		}
-		m_taskCv.notify_all();
+		WakeTracer();
 
 		// Only the queue may keep the task alive, so that discarding it breaks the promise
 		task.reset();
@@ -339,22 +387,34 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	bool PtraceEngine::SendStop(pid_t tid)
+	{
+		// Tag our requests instead of trying to count SIGSTOP acknowledgments: standard
+		// signals coalesce, and another component in this process can also send SIGSTOP.
+		siginfo_t signal {};
+		signal.si_signo = SIGSTOP;
+		signal.si_code = SI_QUEUE;
+		signal.si_pid = getpid();
+		signal.si_uid = getuid();
+		signal.si_value.sival_ptr = this;
+		if (tid)
+			return syscall(SYS_rt_tgsigqueueinfo, m_pid, tid, SIGSTOP, &signal) == 0;
+		return syscall(SYS_rt_sigqueueinfo, m_pid, SIGSTOP, &signal) == 0;
+	}
+
+
 	bool PtraceEngine::Interrupt()
 	{
+		std::lock_guard<std::mutex> lock(m_infoMutex);
 		if (!m_publishedRunning)
 			return false;
 
 		m_interruptWanted = true;
 
-		// One signal on its way is enough, because the stop that it causes is the one that is wanted
-		if (m_interruptInFlight++ > 0)
+		// SIGSTOP coalesces, so requests cannot be counted as separate acknowledgments.
+		if (!SendStop())
 		{
-			m_interruptInFlight--;
-			return true;
-		}
-		if (kill(m_pid, SIGSTOP) != 0)
-		{
-			m_interruptInFlight--;
+			m_interruptWanted = false;
 			return false;
 		}
 		return true;
@@ -425,8 +485,10 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	bool PtraceEngine::RawWriteMemory(uint64_t address, const void* buffer, size_t size)
+	bool PtraceEngine::RawWriteMemory(uint64_t address, const void* buffer, size_t size, size_t* written)
 	{
+		if (written)
+			*written = 0;
 		if (m_memFd < 0 || m_finished || address > INT64_MAX || size > INT64_MAX - address)
 			return false;
 
@@ -439,6 +501,8 @@ namespace BinaryNinjaDebugger {
 			if (count <= 0)
 				return false;
 			done += count;
+			if (written)
+				*written = done;
 		}
 		return true;
 	}
@@ -472,7 +536,7 @@ namespace BinaryNinjaDebugger {
 		std::lock_guard<std::mutex> lock(m_breakpointMutex);
 		std::vector<uint8_t> data((const uint8_t*)buffer, (const uint8_t*)buffer + size);
 
-		// The breakpoint bytes stay in place, and what was written becomes the bytes underneath them
+		// Keep the trap instructions installed. Saved originals are updated only for the prefix actually written.
 		for (auto& [breakpointAddress, breakpoint] : m_breakpoints)
 		{
 			if (!breakpoint.inserted)
@@ -483,12 +547,24 @@ namespace BinaryNinjaDebugger {
 				uint64_t byteAddress = breakpointAddress + i;
 				if (byteAddress >= address && byteAddress - address < size)
 				{
-					breakpoint.original[i] = data[byteAddress - address];
 					data[byteAddress - address] = m_arch->breakpointInstruction[i];
 				}
 			}
 		}
-		return RawWriteMemory(address, data.data(), size);
+		size_t written = 0;
+		bool success = RawWriteMemory(address, data.data(), size, &written);
+		for (auto& [breakpointAddress, breakpoint] : m_breakpoints)
+		{
+			if (!breakpoint.inserted)
+				continue;
+			for (size_t i = 0; i < breakpoint.original.size(); i++)
+			{
+				uint64_t byteAddress = breakpointAddress + i;
+				if (byteAddress >= address && byteAddress - address < written)
+					breakpoint.original[i] = ((const uint8_t*)buffer)[byteAddress - address];
+			}
+		}
+		return success;
 	}
 
 
@@ -499,17 +575,20 @@ namespace BinaryNinjaDebugger {
 		std::string line;
 		while (std::getline(file, line))
 		{
-			unsigned long long start, end, offset;
+			unsigned long long start, end, offset, inode;
+			char device[32] = {};
 			char permissions[8] = {};
 			int consumed = 0;
-			if (sscanf(line.c_str(), "%llx-%llx %7s %llx %*s %*s %n", &start, &end, permissions, &offset, &consumed)
-				< 4)
+			if (sscanf(line.c_str(), "%llx-%llx %7s %llx %31s %llu %n", &start, &end, permissions, &offset, device, &inode, &consumed)
+				< 6)
 				continue;
 
 			MapEntry entry;
 			entry.start = start;
 			entry.end = end;
 			entry.offset = offset;
+			entry.device = device;
+			entry.inode = inode;
 			entry.read = permissions[0] == 'r';
 			entry.write = permissions[1] == 'w';
 			entry.execute = permissions[2] == 'x';
@@ -627,6 +706,8 @@ namespace BinaryNinjaDebugger {
 	{
 		{
 			std::lock_guard<std::mutex> lock(m_core->mutex);
+			if (m_core->stop)
+				return;
 			if (event.type == OutputEvent)
 			{
 				m_core->pendingOutput += event.data.size();
@@ -646,6 +727,22 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	void PtraceEngine::StopEventDelivery()
+	{
+		if (m_eventThread.joinable() && m_eventThread.get_id() == std::this_thread::get_id())
+			throw std::logic_error("cannot join event delivery from its own callback");
+		{
+			std::lock_guard<std::mutex> lock(m_core->mutex);
+			m_core->stop = true;
+			m_core->handler.reset();
+			m_core->events.clear();
+		}
+		m_core->cv.notify_all();
+		if (m_eventThread.joinable())
+			m_eventThread.join();
+	}
+
+
 	void PtraceEngine::PostTask(std::function<void()> task)
 	{
 		Event event;
@@ -662,6 +759,8 @@ namespace BinaryNinjaDebugger {
 		for (const auto& [tid, info] : m_threads)
 			m_publishedThreads.push_back(tid);
 		m_publishedRunning = m_running;
+		if (!m_running)
+			m_interruptWanted = false;
 	}
 
 
@@ -934,6 +1033,15 @@ namespace BinaryNinjaDebugger {
 
 		if (pid == 0)
 		{
+			// exec preserves ignored dispositions. Launch the inferior independently of the host's signal policy.
+			struct sigaction action {};
+			action.sa_handler = SIG_DFL;
+			sigemptyset(&action.sa_mask);
+			for (int signal = 1; signal < NSIG; signal++)
+			{
+				if (signal != SIGKILL && signal != SIGSTOP)
+					sigaction(signal, &action, nullptr);
+			}
 			sigset_t noSignals;
 			sigemptyset(&noSignals);
 			sigprocmask(SIG_SETMASK, &noSignals, nullptr);
@@ -1281,16 +1389,7 @@ namespace BinaryNinjaDebugger {
 		{
 			std::deque<std::function<void()>> tasks;
 			{
-				std::unique_lock<std::mutex> lock(m_taskMutex);
-				if (!m_running)
-				{
-					m_taskCv.wait(lock, [this] { return m_shutdown || !m_tasks.empty(); });
-				}
-				else if (m_tasks.empty() && idle >= 20)
-				{
-					auto delay = std::chrono::microseconds(50 << std::min(idle - 20, 6));
-					m_taskCv.wait_for(lock, delay, [this] { return m_shutdown || !m_tasks.empty(); });
-				}
+				std::lock_guard<std::mutex> lock(m_taskMutex);
 				if (m_shutdown)
 					break;
 				tasks.swap(m_tasks);
@@ -1301,18 +1400,111 @@ namespace BinaryNinjaDebugger {
 			if (m_done)
 				break;
 
-			if (m_running)
-			{
-				if (PollThreads())
-					idle = 0;
-				else if (++idle < 20)
-					sched_yield();
-			}
+			bool progressed = PollThreads();
+			idle = progressed || !m_running ? 0 : idle + 1;
+			if (!m_done && !m_strandedChildren.empty())
+				RetryStrandedChildren();
+
+			if (!m_running || idle >= spinPolls)
+				WaitForWork(idle);
+			else if (!progressed)
+				sched_yield();
 		}
 
+		CloseExitWatches();
 		std::lock_guard<std::mutex> lock(m_taskMutex);
 		m_tracerStop = true;
 		m_tasks.clear();
+	}
+
+
+	void PtraceEngine::WakeTracer()
+	{
+		uint64_t one = 1;
+		[[maybe_unused]] auto ignored = write(m_wakeFd, &one, sizeof(one));
+	}
+
+
+	void PtraceEngine::WaitForWork(int idle)
+	{
+		bool everyExitWatched = UpdateExitWatches();
+
+		auto timeout = waitForever;
+		if (m_running)
+			timeout = std::chrono::microseconds(50 << std::min(idle - spinPolls, maxBackoffShift));
+		if (!m_strandedChildren.empty())
+			timeout = std::min<std::chrono::nanoseconds>(timeout, strandedRetryInterval);
+		if (!everyExitWatched)
+			timeout = std::min<std::chrono::nanoseconds>(timeout, unwatchedExitPollInterval);
+
+		std::vector<pollfd> fds {{m_wakeFd, POLLIN, 0}};
+		for (const auto& [tid, fd] : m_exitWatches)
+			fds.push_back({fd, POLLIN, 0});
+
+		timespec limit {};
+		if (timeout != waitForever)
+		{
+			limit.tv_sec = std::chrono::duration_cast<std::chrono::seconds>(timeout).count();
+			limit.tv_nsec = (timeout % std::chrono::seconds(1)).count();
+		}
+		ppoll(fds.data(), fds.size(), timeout == waitForever ? nullptr : &limit, nullptr);
+
+		if (fds[0].revents & POLLIN)
+		{
+			uint64_t count = 0;
+			[[maybe_unused]] auto ignored = read(m_wakeFd, &count, sizeof(count));
+		}
+	}
+
+
+	static int OpenExitWatch(pid_t tid, bool leader)
+	{
+		// The leader's descriptor fires only once the other threads are collected
+		return (int)syscall(SYS_pidfd_open, tid, leader ? 0 : pidfdThreadFlag);
+	}
+
+
+	bool PtraceEngine::UpdateExitWatches()
+	{
+		for (auto it = m_exitWatches.begin(); it != m_exitWatches.end();)
+		{
+			if (m_threads.count(it->first))
+			{
+				++it;
+				continue;
+			}
+			if (it->second >= 0)
+				close(it->second);
+			it = m_exitWatches.erase(it);
+		}
+
+		bool everyThreadWatched = true;
+		for (const auto& [tid, info] : m_threads)
+		{
+			auto watch = m_exitWatches.find(tid);
+			if (watch == m_exitWatches.end())
+				watch = m_exitWatches.emplace(tid, OpenExitWatch(tid, tid == m_pid)).first;
+			everyThreadWatched &= watch->second >= 0;
+		}
+		return everyThreadWatched;
+	}
+
+
+	void PtraceEngine::CloseExitWatches()
+	{
+		for (const auto& [tid, fd] : m_exitWatches)
+		{
+			if (fd >= 0)
+				close(fd);
+		}
+		m_exitWatches.clear();
+	}
+
+
+	static bool AnyTaskTerminated()
+	{
+		siginfo_t any {};
+		return waitid(P_ALL, 0, &any, WEXITED | WNOHANG | WNOWAIT | __WALL) != 0 || any.si_pid != 0;
 	}
 
 
@@ -1320,32 +1512,39 @@ namespace BinaryNinjaDebugger {
 	{
 		std::vector<pid_t> tids;
 		for (const auto& [tid, info] : m_threads)
-		{
-			if (!info.stopped)
-				tids.push_back(tid);
-		}
+			tids.push_back(tid);
+		if (std::erase(tids, m_pid) > 0)
+			tids.push_back(m_pid);
 
+		bool anyTaskTerminated = AnyTaskTerminated();
 		bool progressed = false;
 		for (pid_t tid : tids)
 		{
-			if (!m_running || m_done)
+			if (m_done)
 				break;
-			if (m_threads.find(tid) == m_threads.end())
+			auto it = m_threads.find(tid);
+			if (it == m_threads.end())
 				continue;
+
+			bool waitedFor = m_running && !it->second.stopped;
+			if (!waitedFor)
+			{
+				siginfo_t death {};
+				if (!anyTaskTerminated
+					|| waitid(P_PID, tid, &death, WEXITED | WNOHANG | WNOWAIT | __WALL) != 0 || death.si_pid == 0)
+					continue;
+			}
 
 			int status = 0;
 			pid_t result = waitpid(tid, &status, __WALL | WNOHANG);
 			if (result == 0)
 				continue;
+			if (result < 0 && errno == EINTR)
+				continue;
 
 			progressed = true;
 			if (result < 0)
-			{
-				if (errno == EINTR)
-					continue;
-				// The thread is gone without a status we can read
 				status = 0;
-			}
 			HandleStatus(tid, status);
 		}
 		return progressed;
@@ -1447,7 +1646,7 @@ namespace BinaryNinjaDebugger {
 		// Architectures report a CPU breakpoint as TRAP_BRKPT or, notably for x86 int3, SI_KERNEL. Only those codes may
 		// be matched by PC: a user-generated SIGTRAP can stop at the same PC by coincidence.
 		bool breakpointCode = !haveInfo || code == TRAP_BRKPT || code == SI_KERNEL;
-		bool unownedTrapInstruction = haveInfo && code == TRAP_BRKPT;
+		bool ownsTrap = !(haveInfo && code == TRAP_BRKPT);
 		uint64_t pc = 0;
 		if (breakpointCode && m_arch && !m_arch->breakpointInstruction.empty() && ReadPc(tid, pc)
 			&& pc >= m_arch->breakpointPcAdjust)
@@ -1481,11 +1680,12 @@ namespace BinaryNinjaDebugger {
 			// SI_KERNEL is also used for some debugger-requested traps. It is target-owned when the instruction at the
 			// adjusted PC is the architecture's trap opcode. TRAP_BRKPT itself is already definitive.
 			std::vector<uint8_t> instruction(m_arch->breakpointInstruction.size());
-			unownedTrapInstruction |= code == SI_KERNEL && RawReadMemory(address, instruction.data(), instruction.size())
-				&& instruction == m_arch->breakpointInstruction;
+			if (code == SI_KERNEL && RawReadMemory(address, instruction.data(), instruction.size())
+				&& instruction == m_arch->breakpointInstruction)
+				ownsTrap = false;
 
 			// The same trap can come from another encoding, which ends at the PC and not one byte before it
-			if (code == SI_KERNEL && !unownedTrapInstruction)
+			if (code == SI_KERNEL && ownsTrap)
 			{
 				for (const auto& encoding : m_arch->trapInstructions)
 				{
@@ -1493,16 +1693,26 @@ namespace BinaryNinjaDebugger {
 					if (pc >= encoding.size() && RawReadMemory(pc - encoding.size(), found.data(), found.size())
 						&& found == encoding)
 					{
-						unownedTrapInstruction = true;
+						ownsTrap = false;
 						break;
 					}
 				}
 			}
 		}
 
+		// x86 reports the step that ends after a system call as TRAP_BRKPT, not TRAP_TRACE
+		if (haveInfo && code == TRAP_BRKPT && info.stepping && !ownsTrap && m_arch
+			&& !m_arch->breakpointInstruction.empty() && pc >= m_arch->breakpointPcAdjust)
+		{
+			std::vector<uint8_t> before(m_arch->breakpointInstruction.size());
+			if (RawReadMemory(pc - m_arch->breakpointPcAdjust, before.data(), before.size())
+				&& before != m_arch->breakpointInstruction)
+				ownsTrap = true;
+		}
+
 		// Some kernels report a requested step around a syscall with a generic kernel trap rather than TRAP_TRACE. Preserve
 		// that compatibility fallback, but never let it consume a trap instruction or an explicitly sent signal.
-		if (info.stepping && !unownedTrapInstruction)
+		if (info.stepping && ownsTrap)
 		{
 			result.stepTrap = true;
 			result.trapOrigin = TrapOrigin::SingleStep;
@@ -1541,7 +1751,7 @@ namespace BinaryNinjaDebugger {
 		if (event == PTRACE_EVENT_CLONE)
 		{
 			unsigned long newTid = 0;
-			if (ptrace(PTRACE_GETEVENTMSG, tid, nullptr, &newTid) != 0 || newTid == 0)
+			if (!ReadNewTaskId(tid, newTid))
 			{
 				QueueError("thread " + std::to_string(tid) + " made a new task, and its id could not be read, so the new task is "
 					  "not managed and stays stopped");
@@ -1566,7 +1776,7 @@ namespace BinaryNinjaDebugger {
 		if (event == PTRACE_EVENT_FORK || event == PTRACE_EVENT_VFORK)
 		{
 			unsigned long child = 0;
-			if (ptrace(PTRACE_GETEVENTMSG, tid, nullptr, &child) != 0 || child == 0)
+			if (!ReadNewTaskId(tid, child))
 			{
 				QueueError("thread " + std::to_string(tid) + " made a child process, and its id could not be read, so the child is "
 					  "not let go of and stays stopped");
@@ -1607,15 +1817,13 @@ namespace BinaryNinjaDebugger {
 						+ ", which will not stop at them");
 				return result;
 			}
+			siginfo_t sender {};
+			bool ours = ptrace(PTRACE_GETSIGINFO, tid, nullptr, &sender) == 0
+				&& sender.si_pid == getpid() && sender.si_code == SI_QUEUE && sender.si_value.sival_ptr == this;
 			if (info.expectedStops > 0)
+				info.expectedStops = 0;
+			if (ours)
 			{
-				info.expectedStops--;
-				return result;
-			}
-			if (m_interruptInFlight > 0)
-			{
-				m_interruptInFlight--;
-				// The pause may have been given by another stop since, and then this signal is only left over
 				if (m_interruptWanted.exchange(false))
 				{
 					RestoreBreakpoints(tid, true);
@@ -1624,6 +1832,12 @@ namespace BinaryNinjaDebugger {
 				}
 				return result;
 			}
+			// Continue from an externally requested stop resumes execution. Do not reinject
+			// SIGSTOP and enter an unmodelled job-control group stop.
+			RestoreBreakpoints(tid, true);
+			result.kind = StopKind::Report;
+			result.signal = SIGSTOP;
+			return result;
 		}
 
 		if (ShouldAutoContinueSignal(signal))
@@ -1652,6 +1866,12 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	char PtraceEngine::TaskState(pid_t tid) const
+	{
+		return ReadProcStatus("/proc/" + std::to_string(m_pid) + "/task/" + std::to_string(tid) + "/status").state;
+	}
+
+
 	bool PtraceEngine::ResumeThread(pid_t tid)
 	{
 		auto& info = m_threads[tid];
@@ -1677,8 +1897,15 @@ namespace BinaryNinjaDebugger {
 			request = PTRACE_SYSCALL;
 		else if (m_syscallMode == SyscallMode::Emulate)
 			request = PTRACE_SYSEMU;
-		if (ptrace((__ptrace_request)request, tid, nullptr, (void*)(intptr_t)signal) != 0 && errno != ESRCH)
-			return false;
+		if (ptrace((__ptrace_request)request, tid, nullptr, (void*)(intptr_t)signal) != 0)
+		{
+			if (errno != ESRCH)
+				return false;
+			// ESRCH is also the answer for a thread that is still stopped, which was not resumed
+			char state = TaskState(tid);
+			if (state == 't' || state == 'T')
+				return false;
+		}
 
 		// Only commit the transition after the kernel accepted it. Otherwise a stopped thread would disappear from
 		// future resume attempts, and a pending signal could be lost.
@@ -1862,6 +2089,49 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	bool PtraceEngine::ReadNewTaskId(pid_t tid, unsigned long& id)
+	{
+		for (int attempt = 0; attempt < 3; attempt++)
+		{
+			id = 0;
+			if (ptrace(PTRACE_GETEVENTMSG, tid, nullptr, &id) == 0 && id != 0)
+				return true;
+		}
+
+		pid_t me = (pid_t)syscall(SYS_gettid);
+		auto isTheNewTask = [&](pid_t task, const std::string& path) {
+			if (m_threads.count(task))
+				return false;
+			ProcStatus status = ReadProcStatus(path);
+			return status.tracer == me && (status.state == 't' || status.state == 'T');
+		};
+
+		std::vector<pid_t> found;
+		std::error_code error;
+		for (const auto& entry : std::filesystem::directory_iterator("/proc/" + std::to_string(m_pid) + "/task", error))
+		{
+			pid_t task = atoi(entry.path().filename().c_str());
+			if (task > 0 && isTheNewTask(task, entry.path().string() + "/status"))
+				found.push_back(task);
+		}
+		for (const auto& entry : std::filesystem::directory_iterator("/proc", error))
+		{
+			pid_t process = atoi(entry.path().filename().c_str());
+			if (process <= 0 || process == m_pid || std::find(found.begin(), found.end(), process) != found.end())
+				continue;
+			if (ReadProcStatus(entry.path().string() + "/status").parent == m_pid && isTheNewTask(process, entry.path().string() + "/status"))
+				found.push_back(process);
+		}
+		if (found.size() != 1)
+			return false;
+		id = (unsigned long)found[0];
+		QueueNote(fmt::format("the kernel would not say which task thread {} made, so it was taken to be {}, the only "
+							  "stopped task of the target that was not known",
+			tid, found[0]));
+		return true;
+	}
+
+
 	// A child of the target starts out as a copy of it, breakpoints included, and it is not ours to debug. So the
 	// breakpoints come out of it, and it is let go.
 	void PtraceEngine::HandleFork(pid_t child, bool sharedMemory)
@@ -1878,67 +2148,118 @@ namespace BinaryNinjaDebugger {
 		if (waited == WaitResult::Gone || !WIFSTOPPED(status))
 			return;
 
+		if (sharedMemory)
 		{
 			std::lock_guard<std::mutex> lock(m_breakpointMutex);
-			if (sharedMemory)
+			for (auto& [address, breakpoint] : m_breakpoints)
 			{
-				// There is only one memory, so the breakpoints are out of the target for as long as the child uses it
-				for (auto& [address, breakpoint] : m_breakpoints)
+				if (!breakpoint.inserted)
+					continue;
+
+				if (!RawWriteMemory(address, breakpoint.original.data(), breakpoint.original.size()))
 				{
-					if (!breakpoint.inserted)
-						continue;
-
-					RawWriteMemory(address, breakpoint.original.data(), breakpoint.original.size());
-					breakpoint.inserted = false;
-					breakpoint.suspended = true;
+					QueueError(fmt::format("the breakpoint at 0x{:x} could not be taken out of the memory that the child "
+										   "of vfork shares, so the child can run into it",
+						address));
+					continue;
 				}
-				m_vforkPending++;
+				breakpoint.inserted = false;
+				breakpoint.suspended = true;
 			}
-			else
-			{
-				int fd = open(("/proc/" + std::to_string(child) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
-				if (fd >= 0)
-				{
-					for (const auto& [address, breakpoint] : m_breakpoints)
-					{
-						{
-							if (!breakpoint.inserted)
-								continue;
-
-							// Best effort: a child that cannot be written to is simply let go
-							[[maybe_unused]] auto written =
-								pwrite(fd, breakpoint.original.data(), breakpoint.original.size(), address);
-						}
-					}
-					close(fd);
-
-					// A clone with CLONE_VM that is not a thread shares the memory of the target, and is not told by a
-					// vfork event when it is done with it. What was written to the child is then what is in the target now,
-					// and the breakpoints are put back.
-					for (const auto& [address, breakpoint] : m_breakpoints)
-					{
-						if (!breakpoint.inserted)
-							continue;
-
-						std::vector<uint8_t> now(breakpoint.original.size());
-						if (RawReadMemory(address, now.data(), now.size()) && now == breakpoint.original)
-						{
-							for (auto& [otherAddress, other] : m_breakpoints)
-							{
-								if (other.inserted)
-									RawWriteMemory(otherAddress, m_arch->breakpointInstruction.data(),
-										m_arch->breakpointInstruction.size());
-							}
-							QueueNote("a process made with clone shares the memory of the target, so it can run into the "
-								 "breakpoints, which stay where they are");
-						}
-						break;
-					}
-				}
-			}
+			m_vforkPending++;
 		}
 
-		ptrace(PTRACE_DETACH, child, nullptr, nullptr);
+		ChildMemory memory = sharedMemory ? ChildMemory::Shared : ChildMemory::Copied;
+		if (ReleaseChild(child, memory))
+			return;
+
+		m_strandedChildren.push_back({child, memory, std::chrono::steady_clock::now() + strandedGiveUpAfter});
+	}
+
+
+	bool PtraceEngine::CleanForkChild(pid_t child)
+	{
+		std::lock_guard<std::mutex> lock(m_breakpointMutex);
+		int fd = open(("/proc/" + std::to_string(child) + "/mem").c_str(), O_RDWR | O_CLOEXEC);
+		if (fd < 0)
+			return errno == ENOENT;  // gone, so there is nothing to clean
+
+		bool clean = true;
+		for (const auto& [address, breakpoint] : m_breakpoints)
+		{
+			if (!breakpoint.inserted)
+				continue;
+			auto written = pwrite(fd, breakpoint.original.data(), breakpoint.original.size(), address);
+			clean &= written == (ssize_t)breakpoint.original.size();
+		}
+		close(fd);
+		if (!clean)
+			return false;
+
+		for (const auto& [address, breakpoint] : m_breakpoints)
+		{
+			if (!breakpoint.inserted)
+				continue;
+
+			std::vector<uint8_t> now(breakpoint.original.size());
+			if (RawReadMemory(address, now.data(), now.size()) && now == breakpoint.original)
+			{
+				for (auto& [otherAddress, other] : m_breakpoints)
+				{
+					if (other.inserted)
+						RawWriteMemory(otherAddress, m_arch->breakpointInstruction.data(),
+							m_arch->breakpointInstruction.size());
+				}
+				QueueNote("a process made with clone shares the memory of the target, so it can run into the "
+						  "breakpoints, which stay where they are");
+			}
+			break;
+		}
+		return true;
+	}
+
+
+	bool PtraceEngine::ReleaseChild(pid_t child, ChildMemory memory)
+	{
+		if (memory == ChildMemory::Copied && !CleanForkChild(child))
+			return false;
+		if (ptrace(PTRACE_DETACH, child, nullptr, nullptr) == 0)
+			return true;
+		// ESRCH from a child that is gone is a release, from one that is still stopped it is not
+		if (errno != ESRCH)
+			return false;
+		char state = ReadProcStatus("/proc/" + std::to_string(child) + "/status").state;
+		return state != 't' && state != 'T';
+	}
+
+
+	void PtraceEngine::RetryStrandedChildren()
+	{
+		auto now = std::chrono::steady_clock::now();
+		if (now < m_strandedNextTry)
+			return;
+		m_strandedNextTry = now + strandedRetryInterval;
+		for (auto it = m_strandedChildren.begin(); it != m_strandedChildren.end();)
+		{
+			if (ReleaseChild(it->pid, it->memory))
+			{
+				it = m_strandedChildren.erase(it);
+				continue;
+			}
+			if (now < it->giveUpAt)
+			{
+				++it;
+				continue;
+			}
+
+			QueueError(fmt::format("process {}, a child of the target, could not be let go of{}, and was ended so that its "
+								   "parent does not wait for it for ever",
+				it->pid, it->memory == ChildMemory::Copied ? " (or cleaned of the breakpoints of the debugger)" : ""));
+			kill(it->pid, SIGKILL);
+			int status = 0;
+			WaitForThread(it->pid, status, std::chrono::milliseconds(200));
+			it = m_strandedChildren.erase(it);
+		}
 	}
 
 
@@ -2042,7 +2363,8 @@ namespace BinaryNinjaDebugger {
 			if (steppingOver && !m_done)
 			{
 				m_stepOverTid = -1;
-				StartNextStepOver();
+				if (!StartNextStepOver())
+					ReportResumeFailure(tid, ResumeFailure::AfterSteppedOverThreadWentAway);
 			}
 			break;
 		case StopKind::Internal:
@@ -2050,7 +2372,10 @@ namespace BinaryNinjaDebugger {
 			auto it = m_threads.find(tid);
 			if (it != m_threads.end() && it->second.stopped
 				&& ((m_continueMode && m_stepOverTid < 0) || it->second.stepping))
-				ResumeThread(tid);
+			{
+				if (!ResumeThread(tid))
+					ReportResumeFailure(tid, ResumeFailure::AfterInternalStop);
+			}
 			break;
 		}
 		case StopKind::Report:
@@ -2058,7 +2383,8 @@ namespace BinaryNinjaDebugger {
 			{
 				m_threads[tid].stepping = false;
 				m_stepOverTid = -1;
-				StartNextStepOver();
+				if (!StartNextStepOver())
+					ReportResumeFailure(tid, ResumeFailure::AfterBreakpointStepOver);
 				break;
 			}
 			if (steppingOver)
@@ -2111,8 +2437,8 @@ namespace BinaryNinjaDebugger {
 			auto& info = m_threads[next];
 			if (!info.awaitingInitialStop && info.expectedStops == 0)
 			{
-				syscall(SYS_tgkill, m_pid, next, SIGSTOP);
-				info.expectedStops++;
+				if (SendStop(next))
+					info.expectedStops = 1;
 			}
 
 			int status = 0;
@@ -2126,6 +2452,44 @@ namespace BinaryNinjaDebugger {
 				status = 0;
 			ProcessThreadStatus(next, status);
 		}
+	}
+
+
+	const char* PtraceEngine::DescribeResumeFailure(ResumeFailure failure)
+	{
+		switch (failure)
+		{
+		case ResumeFailure::AfterSteppedOverThreadWentAway:
+			return "after the thread that was stepped over went away";
+		case ResumeFailure::AfterInternalStop:
+			return "after an internal stop";
+		case ResumeFailure::AfterBreakpointStepOver:
+			return "after a thread stepped over a breakpoint";
+		}
+		return "";
+	}
+
+
+	void PtraceEngine::ReportResumeFailure(pid_t tid, ResumeFailure failure)
+	{
+		if (m_done)
+			return;
+		bool stoppedThread = false;
+		for (const auto& [id, info] : m_threads)
+			stoppedThread |= info.stopped;
+		if (!stoppedThread)
+			return;
+
+		QueueError(fmt::format("thread {} could not be resumed {}, so the target is left stopped", tid, DescribeResumeFailure(failure)));
+		m_stepOverTid = -1;
+		m_stepOverQueue.clear();
+		StopAll();
+		if (m_done)
+			return;
+		ThreadStatusResult stop;
+		stop.kind = StopKind::Report;
+		stop.tid = tid;
+		ReportStopped(tid, stop);
 	}
 
 
@@ -2157,8 +2521,7 @@ namespace BinaryNinjaDebugger {
 			allStopped &= info.stopped;
 		if (allStopped)
 			m_recentlyRemoved.clear();
-		// Any stop is a pause, so a request for one that has not been seen yet is answered
-		m_interruptWanted = false;
+		// Publishing the stopped state also satisfies pending pauses under the same lock used by Interrupt.
 
 		auto& info = m_threads[tid];
 		info.atReportedStop = ReadPc(tid, info.reportedPc);

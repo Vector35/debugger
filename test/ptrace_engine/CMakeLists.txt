@@ -69,6 +69,7 @@ target_link_libraries(ptrace_test_arch PUBLIC ptrace_test_options ptrace_test_in
 add_library(ptrace_test_engine STATIC
 	"${PTRACE_ENGINE_SRC}/ptraceengine.cpp"
 	"${PTRACE_ENGINE_SRC}/ptracestep.cpp"
+	"${PTRACE_ENGINE_SRC}/ptracecmdline.cpp"
 	"${PTRACE_ENGINE_SRC}/ptraceelf.cpp"
 	"${PTRACE_ENGINE_SRC}/ptracemodule.cpp"
 	"${PTRACE_ENGINE_SRC}/ptracesignal.cpp"
@@ -88,7 +89,7 @@ add_library(ptrace_libtest SHARED libtest.c)
 set_target_properties(ptrace_libtest PROPERTIES OUTPUT_NAME test
 	LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 
-set(PTRACE_TEST_PROGRAMS driver elfcmp)
+set(PTRACE_TEST_PROGRAMS driver elfcmp cmdline)
 foreach(program IN LISTS PTRACE_TEST_PROGRAMS)
 	add_executable(ptrace_${program} ${program}.cpp)
 	set_target_properties(ptrace_${program} PROPERTIES OUTPUT_NAME ${program}
@@ -98,6 +99,6 @@ foreach(program IN LISTS PTRACE_TEST_PROGRAMS)
 endforeach()
 
 add_custom_target(ptrace_tests DEPENDS
-	ptrace_driver ptrace_elfcmp)
+	ptrace_driver ptrace_elfcmp ptrace_cmdline)
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/ptrace_test_config.json" CONTENT
 	"{\"corpus\":\"${PTRACE_TEST_CORPUS_DIR}\",\"sanitizer\":\"${PTRACE_TEST_SANITIZER}\"}\n")
