@@ -21,8 +21,11 @@ limitations under the License.
 #include <csignal>
 #include <cstring>
 #include <optional>
+#include <sstream>
 #include "ptraceadapter.h"
+#include "ptracesignal.h"
 #include "lowlevelilinstruction.h"
+#include "../../debuggercontroller.h"
 
 namespace BinaryNinjaDebugger {
 
@@ -131,11 +134,19 @@ namespace BinaryNinjaDebugger {
 	{
 		if (event.interrupted)
 			return UnknownReason;
+		// ExcSyscall is the closest reason there is. It is the one of the Mach exception for a system call.
+		if (event.syscall)
+			return ExcSyscall;
+		// Stopped at the handler of a signal, so it is the signal that is the reason
+		if (event.signalHandler)
+			return StopReasonFromLinuxSignal(event.signalHandler);
+		if (event.trapOrigin == PtraceEngine::TrapOrigin::Target)
+			return StopReasonFromLinuxSignal(event.signal);
 		if (event.breakpoint || event.hardware)
 			return Breakpoint;
 		if (event.signal == SIGTRAP)
 			return event.singleStep ? SingleStep : Breakpoint;
-		return SignalToDebugStopReason(event.signal);
+		return StopReasonFromLinuxSignal(event.signal);
 	}
 
 
@@ -245,19 +256,20 @@ namespace BinaryNinjaDebugger {
 		options.workingDir = workingDirectory;
 		options.disableAslr = disableAslr;
 
-		m_stepper.reset();
-		m_engine.reset();
-		ResetTargetState();
-		m_stopAtSystemEntry = Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint");
-		m_firstStop = true;
-		m_targetActive = true;
-		m_engine = std::make_unique<PtraceEngine>([this](const PtraceEngine::Event& event) {
-			HandleEngineEvent(event);
-		});
-		m_stepper = std::make_unique<PtraceStepper>(
-			*m_engine, [this](uint64_t address) { return AcquireBreakpoint(address); },
-			[this](uint64_t address) { return ReleaseBreakpoint(address); });
+		scope = SettingsResourceScope;
+		for (const auto& text : adapterSettings->Get<std::vector<std::string>>("launch.redirectFileDescriptors", data, &scope))
+		{
+			if (text.empty())
+				continue;
 
+			PtraceEngine::FdRedirect redirect;
+			std::string parseError;
+			if (!ParseFdRedirect(text, redirect, parseError))
+				return launchFailure(parseError);
+			options.redirects.push_back(std::move(redirect));
+		}
+
+		CreateEngine(false);
 		std::string error;
 		if (!m_engine->Launch(options, error))
 		{
@@ -265,6 +277,25 @@ namespace BinaryNinjaDebugger {
 			return launchFailure(error);
 		}
 		return true;
+	}
+
+
+	void PtraceAdapter::CreateEngine(bool attached)
+	{
+		m_stepper.reset();
+		m_engine.reset();
+		ResetTargetState();
+		m_attached = attached;
+		m_stopAtSystemEntry = Settings::Instance()->Get<bool>("debugger.stopAtSystemEntryPoint");
+		m_firstStop = true;
+		m_targetActive = true;
+		m_engine = std::make_unique<PtraceEngine>([this](const PtraceEngine::Event& event) {
+			HandleEngineEvent(event);
+		});
+		SyncEngineSettings();
+		m_stepper = std::make_unique<PtraceStepper>(
+			*m_engine, [this](uint64_t address) { return AcquireBreakpoint(address); },
+			[this](uint64_t address) { return ReleaseBreakpoint(address); });
 	}
 
 
@@ -277,17 +308,26 @@ namespace BinaryNinjaDebugger {
 			m_stopGeneration++;
 			m_activeThreadId = event.tid;
 			m_lastStopReason = StopReasonFromEvent(event);
+			if (event.exec)
+			{
+				HandleExec(event);
+				break;
+			}
 			if (m_firstStop)
 			{
 				m_firstStop = false;
 				m_arch = m_engine->GetArch();
+				BuildRegisterList();
 				if (!m_arch)
 					LogWarn("PtraceAdapter: unsupported target architecture");
 
-				if (Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
+				// An attached target is long past its entry point, and it stops where it is
+				if (!m_attached && Settings::Instance()->Get<bool>("debugger.stopAtEntryPoint") && m_hasEntryFunction)
 					AddBreakpoint(ModuleNameAndOffset(m_inputFile, m_entryPoint - m_start), 0);
 				SetUpLoaderBreakpoint();
-				if (!m_stopAtSystemEntry)
+				if (m_attached)
+					m_lastStopReason = InitialBreakpoint;
+				else if (!m_stopAtSystemEntry)
 				{
 					ApplyBreakpoints();
 					m_engine->Resume(false, 0);
@@ -316,6 +356,32 @@ namespace BinaryNinjaDebugger {
 			}
 
 			ApplyBreakpoints();
+			if (event.signalHandler)
+			{
+				auto arch = m_arch.load();
+				DebuggerEvent message;
+				message.type = BackendMessageEventType;
+				message.data.messageData.message = fmt::format(
+					"PTRACE: signal {} ({}) was delivered to thread {}, which is stopped at the start of its handler, "
+					"0x{:x}\n",
+					event.signalHandler, strsignal(event.signalHandler), event.tid,
+					arch ? ReadArchRegister(arch->pc) : 0);
+				PostDebuggerEvent(message);
+			}
+			if (event.syscall)
+			{
+				PtraceEngine::SyscallInfo info;
+				DebuggerEvent message;
+				message.type = BackendMessageEventType;
+				if (m_engine->GetSyscallInfo(event.tid, info))
+					message.data.messageData.message = "PTRACE: " + DescribeSyscallStop(event.tid, info) + "\n";
+				else
+					message.data.messageData.message = fmt::format(
+						"PTRACE: thread {} is stopped at a system call, but its details could not be read, which needs "
+						"Linux 5.3\n",
+						event.tid);
+				PostDebuggerEvent(message);
+			}
 			dbgevt.type = AdapterStoppedEventType;
 			dbgevt.data.targetStoppedData.reason = m_lastStopReason;
 			dbgevt.data.targetStoppedData.lastActiveThread = event.tid;
@@ -324,6 +390,7 @@ namespace BinaryNinjaDebugger {
 		case PtraceEngine::ExitedEvent:
 			m_stopGeneration++;
 			m_targetActive = false;
+			ForgetKnownBreakpoints();
 			if (m_stepper)
 				m_stepper->Cancel();
 			ClearBreakpoints();
@@ -335,6 +402,7 @@ namespace BinaryNinjaDebugger {
 			break;
 		case PtraceEngine::DetachedEvent:
 			m_targetActive = false;
+			ForgetKnownBreakpoints();
 			if (m_stepper)
 				m_stepper->Cancel();
 			ClearBreakpoints();
@@ -355,8 +423,41 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceAdapter::Attach(std::uint32_t pid)
 	{
-		LogWarn("PtraceAdapter::Attach not implemented");
-		return false;
+		if (pid == 0)
+		{
+			DebuggerEvent event;
+			event.type = LaunchFailureEventType;
+			event.data.errorData.shortError = "Failed to attach to target";
+			event.data.errorData.error = "PTRACE: no process id to attach to";
+			PostDebuggerEvent(event);
+			return false;
+		}
+
+		auto adapterSettings = GetAdapterSettings();
+		auto data = GetData();
+		BNSettingsScope scope = SettingsResourceScope;
+		m_inputFile = adapterSettings->Get<std::string>("common.inputFile", data, &scope);
+		if (m_inputFile.empty())
+		{
+			std::error_code error;
+			auto exe = std::filesystem::read_symlink("/proc/" + std::to_string(pid) + "/exe", error);
+			if (!error)
+				m_inputFile = exe.string();
+		}
+
+		CreateEngine(true);
+		std::string error;
+		if (!m_engine->Attach(pid, error))
+		{
+			m_targetActive = false;
+			DebuggerEvent event;
+			event.type = LaunchFailureEventType;
+			event.data.errorData.shortError = "Failed to attach to target";
+			event.data.errorData.error = fmt::format("PTRACE: {}", error);
+			PostDebuggerEvent(event);
+			return false;
+		}
+		return true;
 	}
 
 
@@ -553,6 +654,8 @@ namespace BinaryNinjaDebugger {
 		}
 
 		m_breakpoints.emplace_back(address, m_nextBreakpointId++, true);
+
+		RememberBreakpoint(address);
 		return m_breakpoints.back();
 	}
 
@@ -567,6 +670,9 @@ namespace BinaryNinjaDebugger {
 		// The module is not loaded yet, so this waits for it
 		if (std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address) == m_pendingBreakpoints.end())
 			m_pendingBreakpoints.push_back(address);
+		if (std::none_of(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+				[&address](const KnownBreakpoint& known) { return known.location == address; }))
+			m_knownBreakpoints.push_back({address, "", 0});
 		return DebugBreakpoint();
 	}
 
@@ -577,10 +683,18 @@ namespace BinaryNinjaDebugger {
 		auto it = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [&breakpoint](const DebugBreakpoint& bp) {
 			return bp.m_address == breakpoint.m_address;
 		});
-		if (!m_engine || it == m_breakpoints.end() || !ReleaseBreakpoint(breakpoint.m_address))
+		if (!m_engine || it == m_breakpoints.end())
+			return false;
+
+		ModuleNameAndOffset location;
+		bool known = ToModuleOffset(breakpoint.m_address, location);
+		if (!ReleaseBreakpoint(breakpoint.m_address))
 			return false;
 
 		m_breakpoints.erase(it);
+		std::erase_if(m_knownBreakpoints, [&](const KnownBreakpoint& k) {
+			return k.appliedAddress == breakpoint.m_address || (known && k.location == location);
+		});
 		return true;
 	}
 
@@ -588,15 +702,27 @@ namespace BinaryNinjaDebugger {
 	bool PtraceAdapter::RemoveBreakpoint(const ModuleNameAndOffset& address)
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
-		auto pending = std::find(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address);
-		if (pending != m_pendingBreakpoints.end())
+		auto known = std::find_if(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+			[&address](const KnownBreakpoint& k) { return k.location == address; });
+		if (known != m_knownBreakpoints.end() && known->appliedAddress)
 		{
-			m_pendingBreakpoints.erase(pending);
-			return true;
+			uint64_t appliedAddress = known->appliedAddress;
+			auto breakpoint = std::find_if(m_breakpoints.begin(), m_breakpoints.end(),
+				[appliedAddress](const DebugBreakpoint& bp) { return bp.m_address == appliedAddress; });
+			if (breakpoint != m_breakpoints.end())
+			{
+				if (!ReleaseBreakpoint(appliedAddress))
+					return false;
+				m_breakpoints.erase(breakpoint);
+			}
 		}
 
-		uint64_t resolved;
-		return m_targetActive && ResolveModuleAddress(address, resolved) && RemoveBreakpoint(DebugBreakpoint(resolved));
+		if (known == m_knownBreakpoints.end())
+			return false;
+		m_knownBreakpoints.erase(known);
+		m_pendingBreakpoints.erase(std::remove(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address),
+			m_pendingBreakpoints.end());
+		return true;
 	}
 
 
@@ -614,7 +740,22 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !m_targetActive || !HwTypeFromBreakpointType(type, hwType))
 			return false;
 
-		return m_engine->AddHardwareBreakpoint(address, hwType, size);
+		if (!m_engine->AddHardwareBreakpoint(address, hwType, size))
+			return false;
+
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		ModuleNameAndOffset location;
+		if (ToModuleOffset(address, location))
+		{
+			PendingHardwareBreakpoint known(location, type, size);
+			known.address = address;
+			auto existing = std::find(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), known);
+			if (existing == m_knownHardwareBreakpoints.end())
+				m_knownHardwareBreakpoints.push_back(known);
+			else
+				existing->address = address;
+		}
+		return true;
 	}
 
 
@@ -624,7 +765,17 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !m_targetActive || !HwTypeFromBreakpointType(type, hwType))
 			return false;
 
-		return m_engine->RemoveHardwareBreakpoint(address, hwType, size);
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		ModuleNameAndOffset location;
+		bool known = ToModuleOffset(address, location);
+		if (!m_engine->RemoveHardwareBreakpoint(address, hwType, size))
+			return false;
+
+		std::erase_if(m_knownHardwareBreakpoints, [&](const PendingHardwareBreakpoint& entry) {
+			return entry.address == address
+				|| (known && entry.isRelative && entry.location == location && entry.type == type && entry.size == size);
+		});
+		return true;
 	}
 
 
@@ -640,6 +791,9 @@ namespace BinaryNinjaDebugger {
 		if (std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending)
 			== m_pendingHardwareBreakpoints.end())
 			m_pendingHardwareBreakpoints.push_back(pending);
+		if (std::find(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), pending)
+			== m_knownHardwareBreakpoints.end())
+			m_knownHardwareBreakpoints.push_back(pending);
 		return true;
 	}
 
@@ -649,16 +803,18 @@ namespace BinaryNinjaDebugger {
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
 		PendingHardwareBreakpoint pending(location, type, size);
-		auto it = std::find(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending);
-		if (it != m_pendingHardwareBreakpoints.end())
-		{
-			m_pendingHardwareBreakpoints.erase(it);
-			return true;
-		}
-
-		uint64_t resolved;
-		return m_targetActive && ResolveModuleAddress(location, resolved)
-			&& RemoveHardwareBreakpoint(resolved, type, size);
+		auto known = std::find(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), pending);
+		if (known == m_knownHardwareBreakpoints.end())
+			return false;
+		if (known->address && !RemoveHardwareBreakpoint(known->address, type, size))
+			return false;
+		m_knownHardwareBreakpoints.erase(
+			std::remove(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), pending),
+			m_knownHardwareBreakpoints.end());
+		m_pendingHardwareBreakpoints.erase(
+			std::remove(m_pendingHardwareBreakpoints.begin(), m_pendingHardwareBreakpoints.end(), pending),
+			m_pendingHardwareBreakpoints.end());
+		return true;
 	}
 
 
@@ -677,9 +833,10 @@ namespace BinaryNinjaDebugger {
 				regsets[regset] = std::move(data);
 		}
 
-		for (size_t i = 0; i < arch->registers.size(); i++)
+		auto registers = GetRegisterList();
+		for (size_t i = 0; i < registers->size(); i++)
 		{
-			const auto& reg = arch->registers[i];
+			const auto& reg = (*registers)[i];
 			auto it = regsets.find(reg.regset);
 			if (it != regsets.end() && RegisterInBounds(reg, it->second))
 				result[reg.name] = RegisterFromBytes(reg, it->second, i);
@@ -694,12 +851,17 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !arch)
 			return DebugRegister();
 
-		auto info = arch->Find(reg);
-		std::vector<uint8_t> data;
-		if (!info || !m_engine->GetRegisterSet(m_activeThreadId, info->regset, data) || !RegisterInBounds(*info, data))
+		auto registers = GetRegisterList();
+		auto found = std::find_if(registers->begin(), registers->end(),
+			[&reg](const PtraceRegister& candidate) { return candidate.name == reg; });
+		if (found == registers->end())
 			return DebugRegister();
 
-		return RegisterFromBytes(*info, data, info - arch->registers.data());
+		std::vector<uint8_t> data;
+		if (!m_engine->GetRegisterSet(m_activeThreadId, found->regset, data) || !RegisterInBounds(*found, data))
+			return DebugRegister();
+
+		return RegisterFromBytes(*found, data, found - registers->begin());
 	}
 
 
@@ -709,15 +871,66 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !arch)
 			return false;
 
-		auto info = arch->Find(reg);
+		auto registers = GetRegisterList();
+		auto info = std::find_if(registers->begin(), registers->end(),
+			[&reg](const PtraceRegister& candidate) { return candidate.name == reg; });
 		std::vector<uint8_t> data;
-		if (!info || !m_engine->GetRegisterSet(m_activeThreadId, info->regset, data) || !RegisterInBounds(*info, data))
+		if (info == registers->end() || !m_engine->GetRegisterSet(m_activeThreadId, info->regset, data)
+			|| !RegisterInBounds(*info, data))
 			return false;
 
 		uint8_t buffer[64];
 		intx::le::store(buffer, value);
 		memcpy(data.data() + info->offset, buffer, std::min(info->size, sizeof(buffer)));
 		return m_engine->SetRegisterSet(m_activeThreadId, info->regset, data);
+	}
+
+
+	// The table has the registers that are in the target. The architecture of the view knows the names of the others, which
+	// are parts of them, and those are what the controller asks for when the IL reads `edi` and not `rdi`. The controller
+	// finds a register by its exact name, and an unknown name reads as 0.
+	void PtraceAdapter::BuildRegisterList()
+	{
+		auto list = std::make_shared<std::vector<PtraceRegister>>();
+		auto arch = m_arch.load();
+		if (arch)
+		{
+			*list = arch->registers;
+
+			// The view describes the program that was analyzed, which is not always the one that is running
+			auto viewArch = GetData() ? GetData()->GetDefaultArchitecture() : nullptr;
+			if (viewArch && viewArch->GetName() == arch->name)
+			{
+				std::vector<PtraceRegisterDescription> described;
+				for (uint32_t reg : viewArch->GetAllRegisters())
+				{
+					auto info = viewArch->GetRegisterInfo(reg);
+					PtraceRegisterDescription description;
+					description.name = viewArch->GetRegisterName(reg);
+					description.parent = viewArch->GetRegisterName(info.fullWidthRegister);
+					description.offset = info.offset;
+					description.size = info.size;
+					described.push_back(std::move(description));
+				}
+
+				for (const auto& message : CheckRegisterSizes(*arch, described))
+					LogDebug("PtraceAdapter: %s", message.c_str());
+				auto derived = DeriveSubRegisters(*arch, described);
+				list->insert(list->end(), derived.begin(), derived.end());
+			}
+		}
+
+		std::lock_guard<std::mutex> lock(m_registerMutex);
+		m_registers = list;
+	}
+
+
+	std::shared_ptr<const std::vector<PtraceRegister>> PtraceAdapter::GetRegisterList()
+	{
+		std::lock_guard<std::mutex> lock(m_registerMutex);
+		if (!m_registers)
+			m_registers = std::make_shared<std::vector<PtraceRegister>>();
+		return m_registers;
 	}
 
 
@@ -793,6 +1006,9 @@ namespace BinaryNinjaDebugger {
 		m_modules.clear();
 		m_moduleGeneration = UINT64_MAX;
 		m_loaderBreakpoint = 0;
+
+		std::lock_guard<std::mutex> syscallLock(m_syscallMutex);
+		m_syscallEntries.clear();
 	}
 
 
@@ -917,6 +1133,7 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceAdapter::Go()
 	{
+		SyncEngineSettings();
 		if (m_stepper)
 			m_stepper->Cancel();
 		m_stopGeneration++;
@@ -932,6 +1149,7 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceAdapter::StepInto()
 	{
+		SyncEngineSettings();
 		if (m_stepper)
 			m_stepper->Cancel();
 		m_stopGeneration++;
@@ -953,6 +1171,7 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !m_stepper || m_engine->IsRunning())
 			return false;
 
+		SyncEngineSettings();
 		m_stepper->Cancel();
 		m_stopGeneration++;
 		uint32_t tid = m_activeThreadId;
@@ -970,6 +1189,7 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !m_stepper || m_engine->IsRunning())
 			return false;
 
+		SyncEngineSettings();
 		m_stepper->Cancel();
 		m_stopGeneration++;
 		uint32_t tid = m_activeThreadId;
@@ -1025,9 +1245,37 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	// The view analyzes one module, the input file. Its functions are only where that module is, so what the analysis
+	// knows says nothing about an address outside of it, such as in another program after an exec.
+	bool PtraceAdapter::IsInAnalyzedModule(uint64_t address)
+	{
+		for (const auto& module : GetModules())
+		{
+			if (DebugModule::IsSameBaseModule(module.path, m_inputFile) && address >= module.base
+				&& address < module.base + module.size)
+				return true;
+		}
+		return false;
+	}
+
+
+	bool PtraceAdapter::AnalyzedModuleLoaded()
+	{
+		for (const auto& module : GetModules())
+		{
+			if (DebugModule::IsSameBaseModule(module.path, m_inputFile))
+				return true;
+		}
+		return false;
+	}
+
+
 	std::vector<uint64_t> PtraceAdapter::GetReturnSites(uint64_t pc)
 	{
 		std::vector<uint64_t> sites;
+		if (!IsInAnalyzedModule(pc))
+			return sites;
+
 		auto data = GetData();
 		auto functions = data ? data->GetAnalysisFunctionsContainingAddress(pc) : std::vector<Ref<Function>>();
 		if (functions.empty() || !functions[0])
@@ -1093,9 +1341,158 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	static const char* BackendCommandHelp =
+		"PTRACE backend commands:\n"
+		"  syscall           continue until a thread is at the entry or the exit of a system call. The call is made.\n"
+		"  sysemu            continue until a thread is at the entry of a system call, which is not made. Put the result\n"
+		"                    in the return register of the target, and resume it with the usual buttons.\n"
+		"  syscall-info      describe the system call that the active thread is stopped at\n"
+		"  syscall-set F V   change the stop, on Linux 6.16 or newer: F is nr or arg0 to arg5 at an entry, or ret at an\n"
+		"                    exit, and V is a number\n";
+
+
 	std::string PtraceAdapter::InvokeBackendCommand(const std::string& command)
 	{
-		return "";
+		std::istringstream stream(command);
+		std::vector<std::string> words;
+		for (std::string word; stream >> word;)
+			words.push_back(word);
+
+		if (words.empty() || words[0] == "help" || words[0] == "?")
+			return BackendCommandHelp;
+		if (words[0] == "syscall" && words.size() == 1)
+			return ContinueToSyscall(PtraceEngine::SyscallMode::Trace);
+		if (words[0] == "sysemu" && words.size() == 1)
+			return ContinueToSyscall(PtraceEngine::SyscallMode::Emulate);
+		if (words[0] == "syscall-info" && words.size() == 1)
+			return DescribeCurrentSyscall();
+		if (words[0] == "syscall-set" && words.size() == 3)
+			return SetSyscallField(words[1], words[2]);
+
+		return fmt::format("PTRACE: unknown command \"{}\"\n{}", command, BackendCommandHelp);
+	}
+
+
+	std::string PtraceAdapter::DescribeSyscallStop(uint32_t tid, const PtraceEngine::SyscallInfo& info)
+	{
+		std::lock_guard<std::mutex> lock(m_syscallMutex);
+		switch (info.op)
+		{
+		case PtraceEngine::SyscallInfo::Entry:
+		case PtraceEngine::SyscallInfo::Seccomp:
+			m_syscallEntries[tid] = info;
+			return fmt::format("thread {} is entering {}", tid, DescribeSyscall(info));
+		case PtraceEngine::SyscallInfo::Exit:
+		{
+			// The exit only has the result, so the call comes from the entry
+			auto entry = m_syscallEntries.find(tid);
+			std::string call = entry != m_syscallEntries.end() ? DescribeSyscall(entry->second) + " " : "";
+			m_syscallEntries.erase(tid);
+			return fmt::format("thread {} left {}{}", tid, call, DescribeSyscall(info));
+		}
+		default:
+			return fmt::format("thread {}: {}", tid, DescribeSyscall(info));
+		}
+	}
+
+
+	std::string PtraceAdapter::ContinueToSyscall(PtraceEngine::SyscallMode mode)
+	{
+		if (!m_engine || !m_targetActive)
+			return "PTRACE: there is no target\n";
+		if (m_engine->IsRunning())
+			return "PTRACE: the target is running\n";
+		auto arch = m_arch.load();
+		if (mode == PtraceEngine::SyscallMode::Emulate && (!arch || !arch->sysemu))
+			return "PTRACE: this architecture has no PTRACE_SYSEMU\n";
+
+		SyncEngineSettings();
+		if (m_stepper)
+			m_stepper->Cancel();
+		m_stopGeneration++;
+
+		// The controller did not ask for this, so it has to be told that the target runs. That comes before the resume,
+		// because a stop that comes quickly must not be the first of the two that the controller hears of.
+		DebuggerEvent resumed;
+		resumed.type = ResumeEventType;
+		PostDebuggerEvent(resumed);
+
+		if (m_engine->ResumeToSyscall(mode))
+			return mode == PtraceEngine::SyscallMode::Trace
+				? "PTRACE: running to the entry or the exit of the next system call\n"
+				: "PTRACE: running to the entry of the next system call, which will not be made\n";
+
+		DebuggerEvent stopped;
+		stopped.type = AdapterStoppedEventType;
+		stopped.data.targetStoppedData.reason = m_lastStopReason;
+		stopped.data.targetStoppedData.lastActiveThread = m_activeThreadId;
+		PostDebuggerEvent(stopped);
+		return "PTRACE: the target could not be resumed\n";
+	}
+
+
+	std::string PtraceAdapter::DescribeCurrentSyscall()
+	{
+		if (!m_engine || !m_targetActive)
+			return "PTRACE: there is no target\n";
+
+		PtraceEngine::SyscallInfo info;
+		if (m_engine->IsRunning() || !m_engine->GetSyscallInfo(m_activeThreadId, info))
+			return "PTRACE: the system call information could not be read. The target has to be stopped, on Linux 5.3 or "
+				   "newer.\n";
+
+		std::string text = DescribeSyscall(info, true);
+		if (info.op == PtraceEngine::SyscallInfo::Exit)
+		{
+			std::lock_guard<std::mutex> lock(m_syscallMutex);
+			auto entry = m_syscallEntries.find(m_activeThreadId);
+			if (entry != m_syscallEntries.end())
+				text += "\nentered as " + DescribeSyscall(entry->second);
+		}
+		return "PTRACE: " + text + "\n";
+	}
+
+
+	std::string PtraceAdapter::SetSyscallField(const std::string& field, const std::string& value)
+	{
+		if (!m_engine || !m_targetActive || m_engine->IsRunning())
+			return "PTRACE: the target has to be stopped\n";
+
+		PtraceEngine::SyscallInfo info;
+		if (!m_engine->GetSyscallInfo(m_activeThreadId, info)
+			|| (info.op == PtraceEngine::SyscallInfo::None))
+			return "PTRACE: the active thread is not stopped at a system call\n";
+
+		char* end = nullptr;
+		bool isEntry = info.op != PtraceEngine::SyscallInfo::Exit;
+		if (field == "ret")
+		{
+			if (isEntry)
+				return "PTRACE: ret can only be set at an exit\n";
+			info.returnValue = strtoll(value.c_str(), &end, 0);
+			// The kernel puts a value from -4095 to -1 in the register for an error
+			info.isError = info.returnValue < 0 && info.returnValue >= -4095;
+		}
+		else if (field == "nr" || (field.size() == 4 && field.rfind("arg", 0) == 0 && field[3] >= '0' && field[3] <= '5'))
+		{
+			if (!isEntry)
+				return fmt::format("PTRACE: {} can only be set at an entry\n", field);
+			uint64_t number = strtoull(value.c_str(), &end, 0);
+			if (field == "nr")
+				info.number = number;
+			else
+				info.args[field[3] - '0'] = number;
+		}
+		else
+		{
+			return fmt::format("PTRACE: unknown field \"{}\", the fields are nr, arg0 to arg5 and ret\n", field);
+		}
+
+		if (value.empty() || !end || *end != '\0')
+			return fmt::format("PTRACE: \"{}\" is not a number\n", value);
+		if (!m_engine->SetSyscallInfo(m_activeThreadId, info))
+			return "PTRACE: the kernel did not take the change. It needs Linux 6.16.\n";
+		return "PTRACE: changed. " + DescribeCurrentSyscall();
 	}
 
 
@@ -1144,7 +1541,33 @@ namespace BinaryNinjaDebugger {
 
 	Ref<Metadata> PtraceAdapter::GetProperty(const std::string& name)
 	{
-		return nullptr;
+		// The system call that the active thread is stopped at, for scripts
+		if (name != "syscall" || !m_engine || !m_targetActive || m_engine->IsRunning())
+			return nullptr;
+
+		PtraceEngine::SyscallInfo info;
+		if (!m_engine->GetSyscallInfo(m_activeThreadId, info))
+			return nullptr;
+
+		static const char* const ops[] = {"none", "entry", "exit", "seccomp"};
+		std::map<std::string, Ref<Metadata>> values;
+		values["op"] = new Metadata(std::string(ops[info.op]));
+		values["arch"] = new Metadata((uint64_t)info.arch);
+		values["pc"] = new Metadata(info.instructionPointer);
+		values["sp"] = new Metadata(info.stackPointer);
+		if (info.op == PtraceEngine::SyscallInfo::Entry || info.op == PtraceEngine::SyscallInfo::Seccomp)
+		{
+			const char* syscallName = SyscallName(info.arch, info.number);
+			values["number"] = new Metadata(info.number);
+			values["name"] = new Metadata(std::string(syscallName ? syscallName : ""));
+			values["args"] = new Metadata(std::vector<uint64_t>(info.args, info.args + 6));
+		}
+		if (info.op == PtraceEngine::SyscallInfo::Exit)
+		{
+			values["return"] = new Metadata(info.returnValue);
+			values["is_error"] = new Metadata(info.isError);
+		}
+		return new Metadata(values);
 	}
 
 
@@ -1160,25 +1583,411 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine || !m_targetActive)
 			return;
 
-		// Only what has been applied leaves the list, so the rest waits for a module that is not loaded yet
-		for (auto it = m_pendingBreakpoints.begin(); it != m_pendingBreakpoints.end();)
+		// The logical module-relative breakpoint remains authoritative after it has been applied. A loader rendezvous
+		// may mean that its mapping disappeared, was replaced at the same address, or moved to another base.
+		for (size_t index = 0; index < m_knownBreakpoints.size(); index++)
 		{
-			uint64_t address;
-			if (ResolveModuleAddress(*it, address) && AddBreakpoint(address, 0).m_address != 0)
-				it = m_pendingBreakpoints.erase(it);
-			else
-				it++;
+			auto location = m_knownBreakpoints[index].location;
+			uint64_t oldAddress = m_knownBreakpoints[index].appliedAddress;
+			uint64_t address = 0;
+			bool resolved = ResolveModuleAddress(location, address);
+
+			if (oldAddress && (!resolved || oldAddress != address))
+			{
+				auto applied = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [oldAddress](const DebugBreakpoint& bp) {
+					return bp.m_address == oldAddress;
+				});
+				if (applied != m_breakpoints.end())
+				{
+					if (!ReleaseBreakpoint(oldAddress, false))
+						continue;
+					m_breakpoints.erase(applied);
+				}
+				m_knownBreakpoints[index].appliedAddress = 0;
+			}
+
+			if (!resolved)
+				continue;
+
+			auto applied = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [address](const DebugBreakpoint& bp) {
+				return bp.m_address == address;
+			});
+			if (applied != m_breakpoints.end())
+			{
+				if (m_engine->AddBreakpoint(address))
+					m_knownBreakpoints[index].appliedAddress = address;
+			}
+			else if (AddBreakpoint(address, 0).m_address != 0)
+			{
+				// RememberBreakpoint, called by AddBreakpoint, records this address on the same logical entry.
+				m_knownBreakpoints[index].appliedAddress = address;
+			}
 		}
 
-		for (auto it = m_pendingHardwareBreakpoints.begin(); it != m_pendingHardwareBreakpoints.end();)
+		m_pendingBreakpoints.clear();
+		for (const auto& known : m_knownBreakpoints)
 		{
-			uint64_t address = it->address;
-			bool resolved = !it->isRelative || ResolveModuleAddress(it->location, address);
-			if (resolved && AddHardwareBreakpoint(address, it->type, it->size))
-				it = m_pendingHardwareBreakpoints.erase(it);
-			else
-				it++;
+			if (!known.appliedAddress)
+				m_pendingBreakpoints.push_back(known.location);
 		}
+
+		// Breakpoints outside a module have no logical location to reconcile, but an idempotent add still repairs a
+		// replacement mapping at the same absolute address.
+		for (const auto& breakpoint : m_breakpoints)
+		{
+			bool logical = std::any_of(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+				[&breakpoint](const KnownBreakpoint& known) { return known.appliedAddress == breakpoint.m_address; });
+			if (!logical)
+				m_engine->AddBreakpoint(breakpoint.m_address);
+		}
+
+		for (auto& known : m_knownHardwareBreakpoints)
+		{
+			uint64_t address = 0;
+			bool resolved = ResolveModuleAddress(known.location, address);
+			PtraceHwType hwType;
+			if (!HwTypeFromBreakpointType(known.type, hwType))
+				continue;
+
+			if (known.address && (!resolved || known.address != address))
+			{
+				if (!m_engine->RemoveHardwareBreakpoint(known.address, hwType, known.size))
+					continue;
+				known.address = 0;
+			}
+			if (resolved && !known.address && m_engine->AddHardwareBreakpoint(address, hwType, known.size))
+				known.address = address;
+		}
+		m_pendingHardwareBreakpoints.clear();
+		for (const auto& known : m_knownHardwareBreakpoints)
+		{
+			if (!known.address)
+				m_pendingHardwareBreakpoints.push_back(known);
+		}
+	}
+
+
+	// The target has started another program. The engine has already thrown away everything that belonged to the old
+	// one, so this does the same for what the adapter keeps, and sets the new program up the way the first stop set up
+	// the first.
+	void PtraceAdapter::HandleExec(const PtraceEngine::Event& event)
+	{
+		// A step that the exec cut short is over, and the stop is the end of it
+		bool wasStepping = event.singleStep || (m_stepper && m_stepper->IsActive());
+		if (m_stepper)
+			m_stepper->Cancel();
+		ClearBreakpoints();
+		ResetTargetState();
+
+		m_arch = m_engine->GetArch();
+		BuildRegisterList();
+		if (!m_arch)
+			LogWarn("PtraceAdapter: unsupported target architecture");
+
+		{
+			std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+			m_pendingBreakpoints.clear();
+			for (auto& known : m_knownBreakpoints)
+			{
+				known.appliedAddress = 0;
+				m_pendingBreakpoints.push_back(known.location);
+			}
+			for (auto& known : m_knownHardwareBreakpoints)
+				known.address = 0;
+			m_pendingHardwareBreakpoints = m_knownHardwareBreakpoints;
+		}
+
+		std::error_code error;
+		auto program = std::filesystem::read_symlink("/proc/" + std::to_string(m_engine->GetPid()) + "/exe", error);
+		DebuggerEvent message;
+		message.type = BackendMessageEventType;
+		message.data.messageData.message = fmt::format("PTRACE: the process started {}\n", program.string());
+		PostDebuggerEvent(message);
+
+		SetUpLoaderBreakpoint();
+		ApplyBreakpoints();
+		std::string resolved = ResolveBreakpointsByName(program.string());
+		resolved += RefreshSymbolsAfterExec(program.string());
+		m_lastStopReason = UnknownReason;
+		ReportAfterExec(resolved);
+
+		BNSettingsScope scope = SettingsResourceScope;
+		bool stopOnExec = GetAdapterSettings()->Get<bool>("common.stopOnExec", GetData(), &scope);
+		if (!stopOnExec && !wasStepping)
+		{
+			m_engine->Resume(false, 0);
+			return;
+		}
+
+		DebuggerEvent stopped;
+		stopped.type = AdapterStoppedEventType;
+		stopped.data.targetStoppedData.reason = UnknownReason;
+		stopped.data.targetStoppedData.lastActiveThread = event.tid;
+		PostDebuggerEvent(stopped);
+	}
+
+
+	// Says what the exec has left as it was, since the view still analyzes the program that the target started with
+	void PtraceAdapter::ReportAfterExec(const std::string& resolved)
+	{
+		std::string text = resolved;
+		if (!AnalyzedModuleLoaded())
+			text += fmt::format(
+				"PTRACE: this view analyzes {}, which the target is no longer running. Its analysis does not "
+				"apply to the new program, and stepping out of a function follows the frame pointers "
+				"instead.\n",
+				DebugModule::GetPathBaseName(m_inputFile));
+
+		{
+			std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+			if (!m_pendingBreakpoints.empty())
+			{
+				text += fmt::format("PTRACE: {} breakpoint(s) are inactive, because their module is not loaded:",
+					m_pendingBreakpoints.size());
+				size_t shown = 0;
+				for (const auto& location : m_pendingBreakpoints)
+				{
+					if (shown++ == 5)
+					{
+						text += fmt::format(" and {} more", m_pendingBreakpoints.size() - 5);
+						break;
+					}
+					text += fmt::format(" {}+0x{:x}", DebugModule::GetPathBaseName(location.module), location.offset);
+				}
+				text += "\n";
+
+				// Say how the ones at the start of a function can be found in the new program
+				bool namedOnes = std::any_of(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(),
+					[this](const ModuleNameAndOffset& location) {
+						return std::any_of(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+							[&location](const KnownBreakpoint& k) {
+								return k.location == location && !k.function.empty();
+							});
+					});
+				if (namedOnes && !ResolveByNameEnabled())
+					text +=
+						"PTRACE: the ones at the start of a function can be found by its name in the new program, with "
+						"the "
+						"common.resolveBreakpointsByNameOnExec setting.\n";
+			}
+		}
+
+		if (text.empty())
+			return;
+
+		DebuggerEvent message;
+		message.type = BackendMessageEventType;
+		message.data.messageData.message = text;
+		PostDebuggerEvent(message);
+	}
+
+
+	// A breakpoint is known by the module that it is in, and its offset there, which stays true when the address does
+	// not
+	bool PtraceAdapter::FindModule(uint64_t address, PtraceModuleInfo& module)
+	{
+		for (const auto& candidate : GetModules())
+		{
+			if (address >= candidate.base && address < candidate.base + candidate.size)
+			{
+				module = candidate;
+				return true;
+			}
+		}
+		return false;
+	}
+
+
+	bool PtraceAdapter::ToModuleOffset(uint64_t address, ModuleNameAndOffset& location)
+	{
+		PtraceModuleInfo module;
+		if (!FindModule(address, module))
+			return false;
+
+		location = ModuleNameAndOffset(module.path, address - module.base);
+		return true;
+	}
+
+
+	// Keeps a breakpoint by its module and offset, and by the function that it is at the start of
+	void PtraceAdapter::RememberBreakpoint(uint64_t address)
+	{
+		PtraceModuleInfo module;
+		if (!FindModule(address, module))
+			return;
+
+		std::string function;
+		if (auto elf = GetElf(module.path))
+		{
+			uint64_t bias = module.base - elf->linkBase;
+			auto symbol = FindElfSymbol(*elf, address - bias);
+			if (symbol && symbol->isFunction && symbol->address + bias == address)
+				function = symbol->name;
+		}
+
+		ModuleNameAndOffset location(module.path, address - module.base);
+		auto it = std::find_if(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+			[&location](const KnownBreakpoint& known) { return known.location == location; });
+		if (it == m_knownBreakpoints.end())
+			m_knownBreakpoints.push_back({location, function, address});
+		else if (it->function.empty())
+			it->function = function;
+		it = std::find_if(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+			[&location](const KnownBreakpoint& known) { return known.location == location; });
+		if (it != m_knownBreakpoints.end())
+			it->appliedAddress = address;
+	}
+
+
+	bool PtraceAdapter::ResolveByNameEnabled()
+	{
+		BNSettingsScope scope = SettingsResourceScope;
+		return GetAdapterSettings()->Get<bool>("common.resolveBreakpointsByNameOnExec", GetData(), &scope);
+	}
+
+
+	// The symbols that were loaded into the view are at the addresses of the old program. A module that is still there
+	// is loaded again, since it may have moved, and one that is gone is taken out. The controller is used through what
+	// it offers for this, with modules made from what the adapter sees now, because its own list of modules is only
+	// brought up to date at the next stop. This runs with none of the adapter's locks held, since it reaches into
+	// Binary Ninja.
+	std::string PtraceAdapter::RefreshSymbolsAfterExec(const std::string& program)
+	{
+		auto controller = GetController();
+		if (!controller)
+			return "";
+
+		auto modules = GetModules();
+		auto toDebugModule = [](const PtraceModuleInfo& module) {
+			return DebugModule(module.path, module.shortName, module.base, module.size, true);
+		};
+
+		size_t reloaded = 0, removed = 0;
+		bool programDone = false;
+		for (const auto& name : controller->GetModulesWithLoadedSymbols())
+		{
+			auto it = std::find_if(modules.begin(), modules.end(), [&name](const PtraceModuleInfo& module) {
+				return DebugModule::IsSameBaseModule(module.path, name);
+			});
+			if (it == modules.end())
+			{
+				controller->RemoveSymbolsForModule(name);
+				removed++;
+				continue;
+			}
+
+			controller->LoadSymbolsForModule(toDebugModule(*it));
+			reloaded++;
+			programDone = programDone || it->path == program;
+		}
+
+		bool loadedProgram = false;
+		BNSettingsScope scope = SettingsResourceScope;
+		if (!programDone && GetAdapterSettings()->Get<bool>("common.loadSymbolsAfterExec", GetData(), &scope))
+		{
+			for (const auto& module : modules)
+			{
+				if (module.path == program)
+				{
+					loadedProgram = controller->LoadSymbolsForModule(toDebugModule(module)) > 0;
+					break;
+				}
+			}
+		}
+
+		if (!reloaded && !removed && !loadedProgram)
+			return "";
+
+		std::string text = "PTRACE: symbols in the view:";
+		if (removed)
+			text += fmt::format(" {} module(s) that are gone were taken out;", removed);
+		if (reloaded)
+			text += fmt::format(" {} that are still there were loaded again;", reloaded);
+		if (loadedProgram)
+			text += fmt::format(" the symbols of {} were loaded;", DebugModule::GetPathBaseName(program));
+		text.back() = '\n';
+		return text;
+	}
+
+
+	// GDB looks a breakpoint up again by its name when the target starts another program. A breakpoint here is a module
+	// and an offset, which mean nothing in another program, so the ones at the start of a function are looked up by
+	// that function's name in the main executable of the new program, when that is asked for.
+	std::string PtraceAdapter::ResolveBreakpointsByName(const std::string& program)
+	{
+		if (!ResolveByNameEnabled())
+			return "";
+
+		PtraceModuleInfo main;
+		bool found = false;
+		for (const auto& module : GetModules())
+		{
+			if (module.path == program)
+			{
+				main = module;
+				found = true;
+				break;
+			}
+		}
+		auto elf = found ? GetElf(program) : nullptr;
+		if (!elf)
+			return "";
+
+		uint64_t bias = main.base - elf->linkBase;
+		std::string text;
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		// Adding a breakpoint changes these lists, so it is done from a copy
+		for (const auto& location : std::vector<ModuleNameAndOffset>(m_pendingBreakpoints))
+		{
+			auto known = std::find_if(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
+				[&location](const KnownBreakpoint& k) { return k.location == location; });
+			if (known == m_knownBreakpoints.end() || known->function.empty())
+				continue;
+
+			std::string function = known->function;
+			bool ambiguous;
+			auto symbol = FindElfFunctionByName(*elf, function, &ambiguous);
+			if (!symbol)
+			{
+				if (ambiguous)
+					text += fmt::format("PTRACE: {} is more than one function in {}, so its breakpoint is not moved\n",
+						function, DebugModule::GetPathBaseName(program));
+				continue;
+			}
+
+			uint64_t address = symbol->address + bias;
+			if (!AddBreakpoint(address, 0).m_address)
+				continue;
+
+			// It belongs to the new program now, and the old place is forgotten
+			text += fmt::format("PTRACE: the breakpoint at {}+0x{:x} ({}) is now at {}+0x{:x}\n",
+				DebugModule::GetPathBaseName(location.module), location.offset, function,
+				DebugModule::GetPathBaseName(program), address - main.base);
+			std::erase_if(m_knownBreakpoints, [&location](const KnownBreakpoint& k) { return k.location == location; });
+			m_pendingBreakpoints.erase(std::remove(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), location),
+				m_pendingBreakpoints.end());
+		}
+		return text;
+	}
+
+
+	// The setting can be changed while the target is stopped, so the engine is told again before every resume
+	void PtraceAdapter::SyncEngineSettings()
+	{
+		if (!m_engine)
+			return;
+
+		BNSettingsScope scope = SettingsResourceScope;
+		m_engine->SetDebugSignalHandlers(
+			GetAdapterSettings()->Get<bool>("common.debugSignalHandlers", GetData(), &scope));
+	}
+
+
+	void PtraceAdapter::ForgetKnownBreakpoints()
+	{
+		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
+		m_knownBreakpoints.clear();
+		m_knownHardwareBreakpoints.clear();
 	}
 
 
@@ -1207,18 +2016,23 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	bool PtraceAdapter::ReleaseBreakpoint(uint64_t address)
+	bool PtraceAdapter::ReleaseBreakpoint(uint64_t address, bool restore)
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
 		auto it = m_engineBreakpointRefs.find(address);
 		if (!m_engine || it == m_engineBreakpointRefs.end())
 			return false;
 
-		if (--it->second > 0)
+		if (it->second > 1)
+		{
+			it->second--;
 			return true;
+		}
 
-		m_engineBreakpointRefs.erase(it);
-		return m_engine->RemoveBreakpoint(address);
+		bool removed = restore ? m_engine->RemoveBreakpoint(address) : m_engine->DiscardBreakpoint(address);
+		if (removed)
+			m_engineBreakpointRefs.erase(it);
+		return removed;
 	}
 
 
@@ -1318,6 +2132,57 @@ namespace BinaryNinjaDebugger {
 			"type" : "string",
 			"default" : "",
 			"description" : "Command line arguments to pass to the target.",
+			"readOnly" : false
+			})");
+		settings->RegisterSetting("attach.pid",
+			R"({
+			"title" : "PID to attach to",
+			"type" : "number",
+			"default" : 0,
+			"minValue" : 0,
+			"maxValue" : 4294967295,
+			"description" : "PID of the process to attach to",
+			"readOnly" : false
+			})");
+		settings->RegisterSetting("common.debugSignalHandlers",
+			R"({
+			"title" : "Debug Signal Handlers",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "When the target is sent a signal that it has a handler for, stop at the first instruction of the handler. This includes the signals that would not stop the target otherwise, such as SIGCHLD, SIGALRM and SIGWINCH. Signals without a handler are not affected, and neither is stepping. A change takes effect the next time the target is resumed.",
+			"readOnly" : false
+			})");
+		settings->RegisterSetting("common.loadSymbolsAfterExec",
+			R"({
+			"title" : "Load Symbols After Exec",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "When the target starts another program, load the symbols of that program into the view. The symbols that were already loaded into the view are always brought up to date after an exec: the ones for modules that are gone are removed, and the others are loaded again.",
+			"readOnly" : false
+			})");
+		settings->RegisterSetting("common.resolveBreakpointsByNameOnExec",
+			R"({
+			"title" : "Find Breakpoints By Function Name After Exec",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "When the target starts another program, look up the breakpoints that are at the start of a function by the name of that function in the main executable of the new program, the way GDB does. Otherwise a breakpoint belongs to its module, and stays inactive while that module is not loaded. Only a name that is exactly one function in the new program is used, and only breakpoints at the very start of a function.",
+			"readOnly" : false
+			})");
+		settings->RegisterSetting("common.stopOnExec",
+			R"({
+			"title" : "Stop On Exec",
+			"type" : "boolean",
+			"default" : false,
+			"description" : "Stop the target when it starts another program with exec. Otherwise the target carries on with the new program, and the debugger says so in its messages.",
+			"readOnly" : false
+			})");
+		settings->RegisterSetting("launch.redirectFileDescriptors",
+			R"({
+			"title" : "Redirect File Descriptors",
+			"type" : "array",
+			"sorted" : false,
+			"default" : [],
+			"description" : "Sets file descriptors of the target before it starts, written the way a shell writes them, and applied in order. The forms are: [\"0<input.txt\"] to read descriptor 0 from a file, [\"1>out.txt\"] to write it to a file, [\"1>>out.txt\"] to append to it, [\"3<>data.bin\"] to open it for reading and writing, [\"2>&1\"] to make descriptor 2 a copy of descriptor 1, and [\"4>&-\"] to close it. Without a number it is 0 for < and 1 for the others. Files are created when they do not exist, and a relative path is relative to the working directory. Without a redirect, descriptors 0, 1 and 2 are the terminal of the debugger. A descriptor that is redirected to a file no longer reaches the terminal, and input written to the target no longer reaches it if descriptor 0 is redirected. This has no effect when attaching to a process.",
 			"readOnly" : false
 			})");
 		settings->RegisterSetting("launch.disableAslr",

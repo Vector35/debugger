@@ -47,4 +47,8 @@ namespace BinaryNinjaDebugger {
 
 	// The symbol that contains an address of the file, or nullptr
 	const ElfSymbol* FindElfSymbol(const ElfInfo& info, uint64_t address);
+
+	// The function with this name, if there is exactly one. `ambiguous` says that there are several, at different
+	// addresses.
+	const ElfSymbol* FindElfFunctionByName(const ElfInfo& info, const std::string& name, bool* ambiguous = nullptr);
 }  // namespace BinaryNinjaDebugger

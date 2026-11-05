@@ -25,6 +25,7 @@ limitations under the License.
 #include "ptraceelf.h"
 #include "ptracemodule.h"
 #include "ptracestep.h"
+#include "ptracesyscall.h"
 #include "ptraceengine.h"
 
 namespace BinaryNinjaDebugger {
@@ -38,7 +39,11 @@ namespace BinaryNinjaDebugger {
 		std::atomic<DebugStopReason> m_lastStopReason {UnknownReason};
 		std::atomic<uint64_t> m_exitCode {0};
 		std::atomic<const PtraceArch*> m_arch {nullptr};
+		// The registers of the table, and the ones that the architecture of the view adds to them. It is replaced whole.
+		std::mutex m_registerMutex;
+		std::shared_ptr<const std::vector<PtraceRegister>> m_registers;
 		bool m_firstStop = false;
+		bool m_attached = false;
 		bool m_stopAtSystemEntry = false;
 
 		std::string m_inputFile;
@@ -60,22 +65,58 @@ namespace BinaryNinjaDebugger {
 		unsigned long m_nextBreakpointId = 1;
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints {};
 		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
+		// The breakpoints of the user by module and offset, applied or not. An exec throws the addresses away, and
+		// these are what the breakpoints are put back from.
+		struct KnownBreakpoint
+		{
+			ModuleNameAndOffset location;
+			// The function that the breakpoint is at the very start of, if it is. That is what it can be found by in
+			// another program.
+			std::string function;
+			// The physical installation for this logical breakpoint. Loader rendezvous stops reconcile it with location.
+			uint64_t appliedAddress = 0;
+		};
+		std::vector<KnownBreakpoint> m_knownBreakpoints;
+		std::vector<PendingHardwareBreakpoint> m_knownHardwareBreakpoints;
+
+		// The last entry of a system call of each thread, which is what the exit that follows is the exit of
+		std::mutex m_syscallMutex;
+		std::map<uint32_t, PtraceEngine::SyscallInfo> m_syscallEntries;
 
 		void HandleEngineEvent(const PtraceEngine::Event& event);
+		std::string DescribeSyscallStop(uint32_t tid, const PtraceEngine::SyscallInfo& info);
+		std::string ContinueToSyscall(PtraceEngine::SyscallMode mode);
+		std::string DescribeCurrentSyscall();
+		std::string SetSyscallField(const std::string& field, const std::string& value);
 		void ClearBreakpoints();
+		void ForgetKnownBreakpoints();
+		void SyncEngineSettings();
+		void HandleExec(const PtraceEngine::Event& event);
+		void ReportAfterExec(const std::string& resolved);
+		bool ToModuleOffset(uint64_t address, ModuleNameAndOffset& location);
+		bool FindModule(uint64_t address, PtraceModuleInfo& module);
+		void RememberBreakpoint(uint64_t address);
+		bool ResolveByNameEnabled();
+		std::string ResolveBreakpointsByName(const std::string& program);
+		std::string RefreshSymbolsAfterExec(const std::string& program);
+		void BuildRegisterList();
+		std::shared_ptr<const std::vector<PtraceRegister>> GetRegisterList();
 		uint64_t ReadArchRegister(const std::string& name);
 		bool ReadRegisterOf(uint32_t tid, const std::string& name, uint64_t& value);
 		std::vector<PtraceModuleInfo> GetModules();
 		std::shared_ptr<ElfInfo> GetElf(const std::string& path);
+		void CreateEngine(bool attached);
 		void SetUpLoaderBreakpoint();
 		bool AcquireBreakpoint(uint64_t address);
-		bool ReleaseBreakpoint(uint64_t address);
+		bool ReleaseBreakpoint(uint64_t address, bool restore = true);
 		bool IsUserBreakpoint(uint64_t address);
 		void DoStepOver(uint32_t tid);
 		void DoStepReturn(uint32_t tid);
 		void FailStep(const std::string& message);
 		size_t GetCallLength(uint64_t pc);
 		std::vector<uint64_t> GetReturnSites(uint64_t pc);
+		bool IsInAnalyzedModule(uint64_t address);
+		bool AnalyzedModuleLoaded();
 		void ResetTargetState();
 
 		// Helper to resolve module+offset to absolute address

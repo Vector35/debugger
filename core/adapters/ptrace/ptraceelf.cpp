@@ -83,6 +83,10 @@ namespace BinaryNinjaDebugger {
 			size_t length = strnlen(stringData.data() + symbol.st_name, stringData.size() - symbol.st_name);
 			ElfSymbol result;
 			result.name.assign(stringData.data() + symbol.st_name, length);
+			// The linker writes the version into the name of some symbols of .symtab, `stdin@@GLIBC_2.2.5`
+			auto version = result.name.find('@');
+			if (version != std::string::npos && version > 0)
+				result.name.resize(version);
 			result.address = symbol.st_value;
 			result.size = symbol.st_size;
 			result.isFunction = isFunction;
@@ -195,6 +199,28 @@ namespace BinaryNinjaDebugger {
 				fallback = &*end;
 		}
 		return fallback;
+	}
+
+	const ElfSymbol* FindElfFunctionByName(const ElfInfo& info, const std::string& name, bool* ambiguous)
+	{
+		if (ambiguous)
+			*ambiguous = false;
+
+		const ElfSymbol* found = nullptr;
+		for (const auto& symbol : info.symbols)
+		{
+			if (!symbol.isFunction || symbol.name != name)
+				continue;
+
+			if (found && found->address != symbol.address)
+			{
+				if (ambiguous)
+					*ambiguous = true;
+				return nullptr;
+			}
+			found = &symbol;
+		}
+		return found;
 	}
 
 }  // namespace BinaryNinjaDebugger
