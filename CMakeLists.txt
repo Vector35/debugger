@@ -91,6 +91,16 @@ if (BUILD_DEBUGGER_TEST_BINARIES)
 	endif()
 endif()
 
+option(BUILD_CUSTOM_ADAPTER_TESTS "Build the public C++ adapter API integration fixture" OFF)
+if(BUILD_CUSTOM_ADAPTER_TESTS)
+	add_library(custom_adapter_fixture MODULE test/custom_adapter_fixture.cpp)
+	target_include_directories(custom_adapter_fixture PRIVATE api)
+	target_link_libraries(custom_adapter_fixture PRIVATE debuggerapi)
+	set_target_properties(custom_adapter_fixture PROPERTIES
+		LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test"
+		RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test")
+endif()
+
 # WinDbg installer CLI (standalone, spawned by debuggercore API)
 if(WIN32)
 	add_subdirectory(installer)

@@ -20,7 +20,7 @@ import binaryninja
 # import debugger
 from . import _debuggercore as dbgcore
 from .debugger_enums import *
-from typing import List
+from typing import List, Optional
 
 
 class DebugAdapterType:
@@ -35,14 +35,15 @@ class DebugAdapterType:
         self.handle = handle
 
     @classmethod
-    def get_by_name(cls, name: str) -> None:
+    def get_by_name(cls, name: str) -> Optional['DebugAdapterType']:
         """
         Get a DebugAdapterType by its name.
 
         :param name: the name of the DebugAdapterType
         :return:
         """
-        cls.handle = dbgcore.BNGetDebugAdapterTypeByName(name)
+        handle = dbgcore.BNGetDebugAdapterTypeByName(name)
+        return DebugAdapterType(handle) if handle else None
 
     def can_execute(self, bv: binaryninja.BinaryView) -> bool:
         """
