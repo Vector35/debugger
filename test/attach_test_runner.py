@@ -44,8 +44,11 @@ def run_attach_test(target_command, worker_command, timeout=60):
     target = worker = None
     with tempfile.TemporaryFile(mode='w+b') as output:
         try:
+            # Jenkins runs in an interactive Windows session on some workers.
+            # CREATE_NEW_CONSOLE opens a visible Windows Terminal window for
+            # every attach target, and failed launches leave those windows up.
             target_options = {'start_new_session': True} if os.name == 'posix' else {
-                'creationflags': subprocess.CREATE_NEW_CONSOLE}
+                'creationflags': subprocess.CREATE_NO_WINDOW}
             # The loop fixture can print continuously; don't fill CI logs or disk
             # while waiting for attach. Retain worker output for failures.
             target = subprocess.Popen(target_command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
@@ -53,8 +56,10 @@ def run_attach_test(target_command, worker_command, timeout=60):
             # Preserve the Python environment of pytest as well as direct unittest runs.
             env = os.environ.copy()
             env['PYTHONPATH'] = os.pathsep.join(sys.path)
+            worker_options = {'start_new_session': True} if os.name == 'posix' else {
+                'creationflags': subprocess.CREATE_NO_WINDOW}
             worker = subprocess.Popen(worker_command(target.pid), env=env, stdout=output,
-                                      stderr=subprocess.STDOUT, start_new_session=os.name == 'posix')
+                                      stderr=subprocess.STDOUT, **worker_options)
             try:
                 result = worker.wait(timeout=max(0, deadline - time.monotonic()))
             except subprocess.TimeoutExpired:
