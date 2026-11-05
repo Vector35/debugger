@@ -4,21 +4,32 @@ usage: session.py <progs path> <mode> <seed> <nops> [--no-pause]
 Exit 0 = ok. Prints "FINDING: ..." lines for invariant violations / hangs and
 exits 3 on a finding. A native crash shows up as a signal exit in the parent.
 """
-import os, random, sys, threading, time, faulthandler, traceback
+import os, random, sys, threading, time, faulthandler, traceback, signal, subprocess, ctypes
 
 import binaryninja
 from binaryninja import load
 from debugger import DebuggerController, DebugStopReason, ModuleNameAndOffset
 
-TIMEOUT_MS = 8000
+SCALE = float(os.environ.get('FUZZ_TIME_SCALE', '1'))
+TIMEOUT_MS = int(8000 * SCALE)
 progs, mode, seed, nops = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
 use_pauser = '--no-pause' not in sys.argv
+use_signals = '--signals' in sys.argv      # external signals / kills to the target
+use_attach = '--attach' in sys.argv        # attach/detach to external processes
+use_hammer = '--hammer' in sys.argv        # other threads hammering the API concurrently
 rng = random.Random(seed)
 log = []
 findings = []
 
 
+FAULTS = bool(os.environ.get('FUZZ_FAULTS'))
+# Under injected failures the data is allowed to be wrong; hangs, crashes, leaks and a stuck controller are not.
+FAULT_TOLERATED = ('API memory read', 'memory round trip', 'register ', 'InternalError', 'exception in')
+
+
 def finding(msg):
+    if FAULTS and msg.startswith(FAULT_TOLERATED):
+        return
     findings.append(msg)
     print('FINDING:', msg, flush=True)
 
@@ -55,13 +66,23 @@ bps = set()          # absolute addresses we added
 sym_bps = set()      # subset placed on function symbols (first byte is never 0xCC padding)
 alive = False
 last_reason = [None]
+dumped = [False]
 stop_flag = False
 hang_deadline = [None]
+
+
+hammer_progress = {}
 
 
 def watchdog():
     while True:
         time.sleep(0.5)
+        for name, t in list(hammer_progress.items()):
+            if time.time() - t > 60 * SCALE:
+                print(f'FINDING: HANG in hammer thread {name}', flush=True)
+                print('OPS:', log, flush=True)
+                faulthandler.dump_traceback(all_threads=True)
+                os._exit(4)
         d = hang_deadline[0]
         if d and time.time() > d:
             print('FINDING: HANG in op: %s' % (log[-1] if log else '?'), flush=True)
@@ -75,7 +96,7 @@ threading.Thread(target=watchdog, daemon=True).start()
 
 def timed(label, fn, *a):
     log.append(label)
-    hang_deadline[0] = time.time() + 40
+    hang_deadline[0] = time.time() + 40 * SCALE
     try:
         return fn(*a)
     finally:
@@ -123,8 +144,30 @@ def check_stopped_invariants(reason):
     if reason in (DebugStopReason.TimedOut, DebugStopReason.InvalidStatusOrOperation):
         return
     pid = dbg.active_pid
-    if not pid or not os.path.exists(f'/proc/{pid}'):
-        finding(f'stopped ({reason}) but pid {pid} gone after {log[-1]}')
+    def process_gone(p):
+        # A leader that exited while other threads still run is a zombie of a living process
+        try:
+            return all(open(f'/proc/{p}/task/{t}/stat').read().rsplit(')', 1)[1].split()[0] in 'ZX'
+                       for t in os.listdir(f'/proc/{p}/task'))
+        except OSError:
+            return True
+    if not pid or process_gone(pid):
+        # The target died around the stop. The exit is reported asynchronously, so give it time to arrive; what
+        # matters is that the controller ends up knowing.
+        end = time.time() + 5 * SCALE
+        while dbg.connected and time.time() < end:
+            time.sleep(0.05)
+        if dbg.connected:
+            try:
+                per = []
+                for t in sorted(os.listdir(f'/proc/{pid}/task')):
+                    tst = open(f'/proc/{pid}/task/{t}/stat').read().rsplit(')', 1)[1].split()[0]
+                    tr = [l.split()[1] for l in open(f'/proc/{pid}/task/{t}/status') if l.startswith('TracerPid')][0]
+                    per.append((int(t), tst, tr))
+            except Exception as e:
+                per = repr(e)
+            finding(f'target pid {pid} is gone but the controller still reports it connected 5s after {log[-1]} (reason {reason}); tasks {per}; recent ops {log[-6:]}')
+        alive = False
         return
     try:
         ip = dbg.ip
@@ -224,6 +267,8 @@ def op_memrw():
 
 
 def op_regs():
+    if not alive or (last_reason[0] and last_reason[0][1] in (DebugStopReason.TimedOut, DebugStopReason.ProcessExited, DebugStopReason.InvalidStatusOrOperation)):
+        return  # registers cannot be written while the target runs or is gone
     reg = rng.choice(['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'r8', 'r15', 'eflags', 'rip', 'rsp', 'xmm0', 'ymm0', 'st0', 'fs_base', 'bogus'])
     try:
         v = dbg.get_reg_value(reg)
@@ -256,14 +301,165 @@ def op_restart():
     return dbg.restart_and_wait(TIMEOUT_MS)
 
 
+
+libc = ctypes.CDLL(None, use_errno=True)
+externals = []       # external processes we spawned (attach targets / detached children)
+detached_pids = set()
+
+
+def tgkill(pid, tid, sig):
+    return libc.syscall(234, pid, tid, sig)
+
+
+def op_signal():
+    pid = dbg.active_pid
+    if not pid:
+        return
+    sig = rng.choice([signal.SIGUSR1, signal.SIGUSR2, signal.SIGCHLD, signal.SIGWINCH, signal.SIGALRM, signal.SIGURG,
+                      signal.SIGSTOP, signal.SIGCONT, signal.SIGTERM, signal.SIGHUP, signal.SIGSEGV, signal.SIGTRAP,
+                      signal.SIGINT, signal.SIGPIPE])
+    try:
+        tids = [int(t) for t in os.listdir(f'/proc/{pid}/task')]
+    except OSError:
+        return
+    if rng.random() < 0.5:
+        try:
+            os.kill(pid, sig)
+        except OSError:
+            pass
+    else:
+        tgkill(pid, rng.choice(tids), sig)
+    time.sleep(rng.uniform(0, 0.05))
+    if sig == signal.SIGSTOP:
+        # an external stop must not wedge the debugger; resume it so the session can go on
+        try:
+            os.kill(pid, signal.SIGCONT)
+        except OSError:
+            pass
+
+
+def op_extkill():
+    pid = dbg.active_pid
+    if not pid or rng.random() < 0.6:
+        return
+    try:
+        if rng.random() < 0.5:
+            os.kill(pid, signal.SIGKILL)
+        else:
+            tids = [int(t) for t in os.listdir(f'/proc/{pid}/task')]
+            tgkill(pid, rng.choice(tids), signal.SIGKILL)
+    except OSError:
+        pass
+    time.sleep(rng.uniform(0, 0.05))
+
+
+def spawn_external():
+    p = subprocess.Popen([progs, rng.choice(['loop', 'sleeper', 'threads', 'bploop'])], stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, start_new_session=True)
+    externals.append(p)
+    time.sleep(0.2)
+    return p
+
+
+def op_detach():
+    global alive
+    if not alive:
+        return
+    pid = dbg.active_pid
+    dbg.detach_and_wait(timeout=TIMEOUT_MS)
+    if pid:
+        detached_pids.add(pid)
+    time.sleep(0.1)
+    alive = False
+
+
+def op_attach():
+    global alive
+    if alive:
+        return
+    live = [p for p in externals if p.poll() is None]
+    if live and rng.random() < 0.7:
+        p = rng.choice(live)
+    else:
+        p = spawn_external()
+    dbg.pid_attach = p.pid
+    r = timed('attach', dbg.attach_and_wait, TIMEOUT_MS)
+    if r in (DebugStopReason.ProcessExited, DebugStopReason.InternalError):
+        if r == DebugStopReason.InternalError:
+            finding('InternalError on attach')
+        alive = False
+    else:
+        alive = True
+
+
+def hammer(idx):
+    hr = random.Random(seed * 31 + idx)
+    name = f'hammer{idx}'
+    while not stop_flag:
+        hammer_progress[name] = time.time()
+        time.sleep(hr.uniform(0, 0.02))
+        if not alive:
+            continue
+        try:
+            c = hr.randrange(9)
+            if c == 0:
+                dbg.read_memory(dbg.stack_pointer, hr.randrange(1, 256))
+            elif c == 1:
+                list(dbg.modules)
+            elif c == 2:
+                list(dbg.threads)
+            elif c == 3:
+                dbg.get_reg_value(hr.choice(['rax', 'rbx', 'rip', 'rsp', 'eflags']))
+            elif c == 4:
+                list(dbg.memory_map)
+            elif c == 5:
+                dbg.ip
+            elif c == 6:
+                mods = list(dbg.modules)
+                if mods:
+                    m = hr.choice(mods)
+                    a = m.address + hr.randrange(0, 0x400)
+                    dbg.add_breakpoint(a)
+                    bps.add(a)
+            elif c == 7:
+                if bps:
+                    a = hr.choice(sorted(bps))
+                    dbg.delete_breakpoint(a)
+                    bps.discard(a)
+            elif c == 8:
+                dbg.frames_of_thread(hr.choice([t.tid for t in dbg.threads]))
+        except Exception:
+            pass
+
+
+
+def op_backend():
+    cmd = rng.choice(['help', '?', 'syscall-info', 'syscall-set nr 0x27', 'syscall-set ret -5', 'syscall-set arg3 0xffffffffffffffff',
+                      'syscall-set arg9 1', 'syscall-set ret', 'syscall-set nr zz', 'syscall', 'sysemu', '', '   ',
+                      'x' * 5000, 'syscall-set ' + 'a ' * 50, '\x00\xff\xfe', 'syscall-set ret 99999999999999999999999'])
+    if cmd in ('syscall', 'sysemu') and (os.environ.get('FUZZ_NO_SYSCALL_RESUME') or rng.random() < 0.7):
+        cmd = 'syscall-info'
+    return dbg.execute_backend_command(cmd)
+
+
 OPS = [(op_go, 6), (op_into, 5), (op_over, 3), (op_ret, 2), (op_pause, 2), (op_addbp, 3), (op_addbp_sym, 2),
-       (op_delbp, 2), (op_memrw, 2), (op_regs, 2), (op_threads, 2), (op_restart, 1)]
+       (op_delbp, 2), (op_memrw, 2), (op_regs, 2), (op_threads, 2), (op_restart, 1), (op_backend, 2)]
+if use_signals:
+    OPS += [(op_signal, 6), (op_extkill, 1)]
+if use_attach:
+    OPS += [(op_detach, 2), (op_attach, 4)]
 POP = [f for f, w in OPS for _ in range(w)]
 
 
 def launch():
     global alive
     r = timed('launch', dbg.launch_and_wait, TIMEOUT_MS)
+    if r in (DebugStopReason.InvalidStatusOrOperation, DebugStopReason.TimedOut):
+        # Nothing was launched. The old target is gone, so the controller should have been disconnected already.
+        finding(f'launch refused with {r.name} (controller connected: {dbg.connected}, previous pid {dbg.active_pid}); recent ops {log[-6:]}')
+        alive = False
+        time.sleep(1)
+        return
     if r in (DebugStopReason.ProcessExited, DebugStopReason.InternalError):
         alive = False
         if r == DebugStopReason.InternalError:
@@ -271,6 +467,10 @@ def launch():
         return
     alive = True
 
+
+if use_hammer:
+    for hi in range(3):
+        threading.Thread(target=hammer, args=(hi,), daemon=True).start()
 
 try:
     launch()
@@ -282,16 +482,42 @@ try:
         op = rng.choice(POP)
         try:
             r = timed(op.__name__, op)
+            if os.environ.get('FUZZ_TRACE'):
+                print(f'TRACE {i} {op.__name__} -> {r!r:.200}', flush=True)
         except Exception as e:
             if alive:
                 finding(f'exception in {op.__name__}: {e!r}\n{traceback.format_exc()}')
             continue
         if isinstance(r, DebugStopReason):
             last_reason[0] = (op.__name__, r)
+            if (os.environ.get('FUZZ_GDB') and r == DebugStopReason.TimedOut and op in (op_pause, op_into, op_over, op_ret)
+                    and not dumped[0]):
+                # A step or a pause that times out means the controller's worker is stuck behind something
+                dumped[0] = True
+                subprocess.run(['gdb', '-p', str(os.getpid()), '-batch', '-ex', 'thread apply all bt 30'],
+                               stdout=open(f'/tmp/wedge-{os.getpid()}.txt', 'w'), stderr=subprocess.DEVNULL, timeout=120)
+                finding(f'worker wedged: {op.__name__} timed out; native stacks in /tmp/wedge-{os.getpid()}.txt; recent ops {log[-8:]}')
             if op is op_pause or op is op_restart or True:
                 check_stopped_invariants(r)
     stop_flag = True
     timed('quit', dbg.quit_and_wait, TIMEOUT_MS)
+    for p in externals:
+        try:
+            p.kill()
+            p.wait(5)
+        except Exception:
+            pass
+    for dp in detached_pids:
+        try:
+            os.kill(dp, signal.SIGKILL)
+        except OSError:
+            pass
+    time.sleep(0.3)
+    for ch in list(children()):
+        try:
+            os.waitpid(ch[0], os.WNOHANG)
+        except OSError:
+            pass
     time.sleep(1)
     left = children()
     live = [c for c in left if c[1] != 'Z']
@@ -305,6 +531,10 @@ try:
                 det.append((pid, st, tracer, cmd, len(os.listdir(f'/proc/{pid}/task'))))
             except Exception as e:
                 det.append((pid, st, repr(e)))
+        if os.environ.get('FUZZ_GDB'):
+            subprocess.run(['gdb', '-p', str(os.getpid()), '-batch', '-ex', 'thread apply all bt 30'],
+                           stdout=open(f'/tmp/leak-{os.getpid()}.txt', 'w'), stderr=subprocess.DEVNULL, timeout=120)
+            det.append(f'stacks in /tmp/leak-{os.getpid()}.txt')
         finding(f'leaked live child processes after quit: {det}')
     # zombies of ours are reported but only as notes
 except SystemExit:

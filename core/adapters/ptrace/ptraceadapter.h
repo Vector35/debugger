@@ -32,7 +32,11 @@ namespace BinaryNinjaDebugger {
 	class PtraceAdapter : public DebugAdapter
 	{
 	private:
-		std::unique_ptr<PtraceEngine> m_engine;
+		// CreateEngine replaces the engine on the controller's worker while other threads (API calls, the event
+		// thread) are reading it. A reader takes a reference with Engine(), which keeps the engine alive for as long
+		// as it is used: `Engine()->Call()` holds it until the end of the statement.
+		std::atomic<std::shared_ptr<PtraceEngine>> m_engine;
+		std::shared_ptr<PtraceEngine> Engine() const { return m_engine.load(); }
 		std::unique_ptr<PtraceStepper> m_stepper;
 		std::atomic<bool> m_targetActive;
 		std::atomic<uint32_t> m_activeThreadId {0};

@@ -1345,10 +1345,10 @@ namespace BinaryNinjaDebugger {
 				std::unique_lock<std::mutex> lock(m_taskMutex);
 				if (!m_running)
 				{
-					if (GroupMayBeDying())
-						m_taskCv.wait_for(lock, std::chrono::milliseconds(20), [this] { return m_shutdown || !m_tasks.empty(); });
-					else
-						m_taskCv.wait(lock, [this] { return m_shutdown || !m_tasks.empty(); });
+					// A stopped target can still be killed from outside, and nothing reports that unless it is looked
+					// for, so an idle tracer wakes up now and then to do it.
+					auto delay = GroupMayBeDying() ? std::chrono::milliseconds(20) : std::chrono::milliseconds(100);
+					m_taskCv.wait_for(lock, delay, [this] { return m_shutdown || !m_tasks.empty(); });
 				}
 				else if (m_tasks.empty() && idle >= 20)
 				{
@@ -1372,7 +1372,7 @@ namespace BinaryNinjaDebugger {
 				else if (++idle < 20)
 					sched_yield();
 			}
-			if (!m_done && GroupMayBeDying())
+			if (!m_done && (GroupMayBeDying() || !m_running))
 				PollThreadsForDeath();
 		}
 
@@ -1390,6 +1390,11 @@ namespace BinaryNinjaDebugger {
 
 	bool PtraceEngine::PollThreadsForDeath()
 	{
+		// One call tells whether any task has terminated, which is nearly always not the case
+		siginfo_t any {};
+		if (waitid(P_ALL, 0, &any, WEXITED | WNOHANG | WNOWAIT | __WALL) == 0 && any.si_pid == 0)
+			return false;
+
 		std::vector<pid_t> tids;
 		for (const auto& [tid, info] : m_threads)
 			tids.push_back(tid);

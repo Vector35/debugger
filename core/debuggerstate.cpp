@@ -652,6 +652,7 @@ std::vector<BreakpointEntry>::const_iterator DebuggerBreakpoints::FindBreakpoint
 
 bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (!m_state->GetAdapter())
 		return false;
 
@@ -675,6 +676,7 @@ bool DebuggerBreakpoints::AddAbsolute(uint64_t remoteAddress)
 
 bool DebuggerBreakpoints::AddOffset(const ModuleNameAndOffset& address)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (!ContainsOffset(address))
 	{
 		m_breakpoints.push_back({address, true, ""});
@@ -691,6 +693,7 @@ bool DebuggerBreakpoints::AddOffset(const ModuleNameAndOffset& address)
 
 bool DebuggerBreakpoints::RemoveAbsolute(uint64_t remoteAddress)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
 	auto it = FindBreakpoint(info);
 	if (it == m_breakpoints.end())
@@ -708,6 +711,7 @@ bool DebuggerBreakpoints::RemoveAbsolute(uint64_t remoteAddress)
 
 bool DebuggerBreakpoints::RemoveOffset(const ModuleNameAndOffset& address)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	auto it = FindBreakpoint(address);
 	if (it == m_breakpoints.end())
 		return false;
@@ -727,6 +731,7 @@ bool DebuggerBreakpoints::RemoveOffset(const ModuleNameAndOffset& address)
 
 bool DebuggerBreakpoints::EnableAbsolute(uint64_t remoteAddress)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
 	return EnableOffset(info);
 }
@@ -734,6 +739,7 @@ bool DebuggerBreakpoints::EnableAbsolute(uint64_t remoteAddress)
 
 bool DebuggerBreakpoints::EnableOffset(const ModuleNameAndOffset& address)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	auto it = FindBreakpoint(address);
 	if (it == m_breakpoints.end())
 		return false;
@@ -752,6 +758,7 @@ bool DebuggerBreakpoints::EnableOffset(const ModuleNameAndOffset& address)
 
 bool DebuggerBreakpoints::DisableAbsolute(uint64_t remoteAddress)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
 	return DisableOffset(info);
 }
@@ -759,6 +766,7 @@ bool DebuggerBreakpoints::DisableAbsolute(uint64_t remoteAddress)
 
 bool DebuggerBreakpoints::DisableOffset(const ModuleNameAndOffset& address)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	auto it = FindBreakpoint(address);
 	if (it == m_breakpoints.end())
 		return false;
@@ -777,6 +785,7 @@ bool DebuggerBreakpoints::DisableOffset(const ModuleNameAndOffset& address)
 
 bool DebuggerBreakpoints::IsEnabledAbsolute(uint64_t address)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(address);
 	return IsEnabledOffset(info);
 }
@@ -784,6 +793,7 @@ bool DebuggerBreakpoints::IsEnabledAbsolute(uint64_t address)
 
 bool DebuggerBreakpoints::IsEnabledOffset(const ModuleNameAndOffset& address)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	auto it = FindBreakpoint(address);
 	if (it == m_breakpoints.end())
 		return true;  // Default to enabled if breakpoint not found
@@ -794,12 +804,14 @@ bool DebuggerBreakpoints::IsEnabledOffset(const ModuleNameAndOffset& address)
 
 bool DebuggerBreakpoints::ContainsOffset(const ModuleNameAndOffset& address)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	return FindBreakpoint(address) != m_breakpoints.end();
 }
 
 
 bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (!m_state->GetAdapter())
 		return false;
 
@@ -814,6 +826,7 @@ bool DebuggerBreakpoints::ContainsAbsolute(uint64_t address)
 
 bool DebuggerBreakpoints::SetConditionAbsolute(const uint64_t remoteAddress, const std::string& condition)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	const ModuleNameAndOffset info = m_state->GetModules()->AbsoluteAddressToRelative(remoteAddress);
 	return SetConditionOffset(info, condition);
 }
@@ -821,6 +834,7 @@ bool DebuggerBreakpoints::SetConditionAbsolute(const uint64_t remoteAddress, con
 
 bool DebuggerBreakpoints::SetConditionOffset(const ModuleNameAndOffset& address, const std::string& condition)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	auto it = FindBreakpoint(address);
 	if (it == m_breakpoints.end())
 		return false;
@@ -833,6 +847,7 @@ bool DebuggerBreakpoints::SetConditionOffset(const ModuleNameAndOffset& address,
 
 std::string DebuggerBreakpoints::GetConditionAbsolute(const uint64_t address)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	for (const auto& bp : m_breakpoints)
 	{
 		if (m_state->GetModules()->RelativeAddressToAbsolute(bp.location) == address)
@@ -844,6 +859,7 @@ std::string DebuggerBreakpoints::GetConditionAbsolute(const uint64_t address)
 
 std::string DebuggerBreakpoints::GetConditionOffset(const ModuleNameAndOffset& address)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	auto it = FindBreakpoint(address);
 	return it != m_breakpoints.end() ? it->condition : "";
 }
@@ -851,6 +867,7 @@ std::string DebuggerBreakpoints::GetConditionOffset(const ModuleNameAndOffset& a
 
 bool DebuggerBreakpoints::HasConditionAbsolute(const uint64_t address)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	for (const auto& bp : m_breakpoints)
 	{
 		if (m_state->GetModules()->RelativeAddressToAbsolute(bp.location) == address)
@@ -862,6 +879,7 @@ bool DebuggerBreakpoints::HasConditionAbsolute(const uint64_t address)
 
 bool DebuggerBreakpoints::HasConditionOffset(const ModuleNameAndOffset& address)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	auto it = FindBreakpoint(address);
 	return it != m_breakpoints.end() && !it->condition.empty();
 }
@@ -869,6 +887,7 @@ bool DebuggerBreakpoints::HasConditionOffset(const ModuleNameAndOffset& address)
 
 bool DebuggerBreakpoints::AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	// TODO: ARCHITECTURAL ISSUE - This dual-path breakpoint system is problematic:
 	// - Software breakpoints have AddBreakpoint(ModuleNameAndOffset) that works before adapter creation
 	// - Hardware breakpoints only have AddHardwareBreakpoint(uint64_t) which requires absolute address
@@ -909,6 +928,7 @@ bool DebuggerBreakpoints::AddHardwareBreakpoint(uint64_t address, DebugBreakpoin
 
 bool DebuggerBreakpoints::RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	// Find and remove from our list - need to handle both relative and absolute breakpoints
 	for (auto iter = m_breakpoints.begin(); iter != m_breakpoints.end(); ++iter)
 	{
@@ -947,6 +967,7 @@ bool DebuggerBreakpoints::RemoveHardwareBreakpoint(uint64_t address, DebugBreakp
 
 bool DebuggerBreakpoints::ContainsHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	// Similar to ContainsAbsolute, we need to handle both relative and absolute hardware breakpoints
 	// For relative hardware breakpoints, convert to absolute and compare
 	for (const BreakpointEntry& breakpoint : m_breakpoints)
@@ -972,6 +993,7 @@ bool DebuggerBreakpoints::ContainsHardwareBreakpoint(uint64_t address, DebugBrea
 
 bool DebuggerBreakpoints::EnableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (!ContainsHardwareBreakpoint(address, type, size))
 		return false;
 
@@ -1011,6 +1033,7 @@ bool DebuggerBreakpoints::EnableHardwareBreakpoint(uint64_t address, DebugBreakp
 
 bool DebuggerBreakpoints::DisableHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (!ContainsHardwareBreakpoint(address, type, size))
 		return false;
 
@@ -1052,6 +1075,7 @@ bool DebuggerBreakpoints::DisableHardwareBreakpoint(uint64_t address, DebugBreak
 
 bool DebuggerBreakpoints::AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (ContainsHardwareBreakpoint(location, type, size))
 		return true;  // Already exists
 
@@ -1079,6 +1103,7 @@ bool DebuggerBreakpoints::AddHardwareBreakpoint(const ModuleNameAndOffset& locat
 
 bool DebuggerBreakpoints::RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	// Remove from our list
 	auto iter = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [&](const BreakpointEntry& bp) {
 		return bp.IsHardware() && bp.location == location && bp.type == type && bp.size == size;
@@ -1102,6 +1127,7 @@ bool DebuggerBreakpoints::RemoveHardwareBreakpoint(const ModuleNameAndOffset& lo
 
 bool DebuggerBreakpoints::ContainsHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	return std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [&](const BreakpointEntry& bp) {
 		return bp.IsHardware() && bp.location == location && bp.type == type && bp.size == size;
 	}) != m_breakpoints.end();
@@ -1110,6 +1136,7 @@ bool DebuggerBreakpoints::ContainsHardwareBreakpoint(const ModuleNameAndOffset& 
 
 bool DebuggerBreakpoints::EnableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (!ContainsHardwareBreakpoint(location, type, size))
 		return false;
 
@@ -1135,6 +1162,7 @@ bool DebuggerBreakpoints::EnableHardwareBreakpoint(const ModuleNameAndOffset& lo
 
 bool DebuggerBreakpoints::DisableHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size)
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (!ContainsHardwareBreakpoint(location, type, size))
 		return false;
 
@@ -1160,6 +1188,7 @@ bool DebuggerBreakpoints::DisableHardwareBreakpoint(const ModuleNameAndOffset& l
 
 void DebuggerBreakpoints::SerializeMetadata()
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	std::vector<Ref<Metadata>> breakpoints;
 	for (const auto& bp : m_breakpoints)
 	{
@@ -1179,6 +1208,7 @@ void DebuggerBreakpoints::SerializeMetadata()
 
 void DebuggerBreakpoints::UnserializedMetadata()
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	Ref<Metadata> metadata = m_state->GetController()->GetData()->QueryMetadata("debugger.breakpoints");
 	if (!metadata || !metadata->IsArray())
 		return;
@@ -1210,6 +1240,7 @@ void DebuggerBreakpoints::UnserializedMetadata()
 
 void DebuggerBreakpoints::Apply()
 {
+	std::lock_guard<std::recursive_mutex> lock(m_mutex);
 	if (!m_state->GetAdapter())
 		return;
 

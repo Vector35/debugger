@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 #pragma once
+#include <mutex>
+#include <atomic>
 
 #include <unordered_map>
 #include "binaryninjaapi.h"
@@ -119,6 +121,9 @@ namespace BinaryNinjaDebugger {
 	{
 	private:
 		DebuggerState* m_state;
+		// The list is changed by API threads and read by the worker and the event thread. Methods are not reentrant
+		// across threads without it, and a vector that grows while another thread iterates it is freed under that thread.
+		mutable std::recursive_mutex m_mutex;
 		std::vector<BreakpointEntry> m_breakpoints;
 
 	public:
@@ -138,7 +143,11 @@ namespace BinaryNinjaDebugger {
 		void Apply();
 		void SerializeMetadata();
 		void UnserializedMetadata();
-		std::vector<BreakpointEntry> GetBreakpointList() const { return m_breakpoints; }
+		std::vector<BreakpointEntry> GetBreakpointList() const
+		{
+			std::lock_guard<std::recursive_mutex> lock(m_mutex);
+			return m_breakpoints;
+		}
 
 		bool SetConditionAbsolute(uint64_t remoteAddress, const std::string& condition);
 		bool SetConditionOffset(const ModuleNameAndOffset& address, const std::string& condition);
@@ -255,7 +264,8 @@ namespace BinaryNinjaDebugger {
 
 	private:
 		DebuggerController* m_controller;
-		DebugAdapterConnectionStatus m_connectionStatus;
+		// Read by API threads while the event thread changes it
+		std::atomic<DebugAdapterConnectionStatus> m_connectionStatus;
 		DebugAdapterTargetStatus m_targetStatus;
 
 		DebugAdapter* m_adapter;
