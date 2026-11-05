@@ -43,6 +43,8 @@ namespace BinaryNinjaDebugger {
 		std::mutex m_registerMutex;
 		std::shared_ptr<const std::vector<PtraceRegister>> m_registers;
 		bool m_firstStop = false;
+		// Set when the adapter is being destroyed. A handler that has not started does nothing then.
+		std::atomic<bool> m_destroying {false};
 		bool m_attached = false;
 		bool m_stopAtSystemEntry = false;
 
@@ -88,7 +90,7 @@ namespace BinaryNinjaDebugger {
 		std::string ContinueToSyscall(PtraceEngine::SyscallMode mode);
 		std::string DescribeCurrentSyscall();
 		std::string SetSyscallField(const std::string& field, const std::string& value);
-		void ClearBreakpoints();
+		void ClearAppliedBreakpointState();
 		void ForgetKnownBreakpoints();
 		void SyncEngineSettings();
 		void HandleExec(const PtraceEngine::Event& event);
@@ -101,7 +103,7 @@ namespace BinaryNinjaDebugger {
 		std::string RefreshSymbolsAfterExec(const std::string& program);
 		void BuildRegisterList();
 		std::shared_ptr<const std::vector<PtraceRegister>> GetRegisterList();
-		uint64_t ReadArchRegister(const std::string& name);
+		uint64_t ReadRegister64(const std::string& name);
 		bool ReadRegisterOf(uint32_t tid, const std::string& name, uint64_t& value);
 		std::vector<PtraceModuleInfo> GetModules();
 		std::shared_ptr<ElfInfo> GetElf(const std::string& path);

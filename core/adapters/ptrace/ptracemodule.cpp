@@ -122,7 +122,7 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	static std::string ReadSmallFile(const std::filesystem::path& path)
+	static std::string ReadFileContents(const std::filesystem::path& path)
 	{
 		std::ifstream file(path, std::ios::binary);
 		std::string contents((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -142,12 +142,12 @@ namespace BinaryNinjaDebugger {
 
 			PtraceProcessInfo process;
 			process.pid = std::stoul(name);
-			process.name = ReadSmallFile(entry.path() / "comm");
+			process.name = ReadFileContents(entry.path() / "comm");
 			while (!process.name.empty() && process.name.back() == '\n')
 				process.name.pop_back();
 
 			// The arguments are separated by null characters
-			std::string commandLine = ReadSmallFile(entry.path() / "cmdline");
+			std::string commandLine = ReadFileContents(entry.path() / "cmdline");
 			std::replace(commandLine.begin(), commandLine.end(), '\0', ' ');
 			while (!commandLine.empty() && commandLine.back() == ' ')
 				commandLine.pop_back();

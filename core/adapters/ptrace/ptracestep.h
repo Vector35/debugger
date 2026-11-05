@@ -51,7 +51,7 @@ namespace BinaryNinjaDebugger {
 		uint64_t m_minSp = 0;
 		std::set<uint64_t> m_addresses;
 
-		void ReleaseAll();
+		void EndStep();
 
 	public:
 		enum class Result

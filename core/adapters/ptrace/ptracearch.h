@@ -51,6 +51,14 @@ namespace BinaryNinjaDebugger {
 		virtual bool Clear(pid_t tid, size_t slot) = 0;
 		// Called after a thread trapped on one of the slots
 		virtual void OnTrap(pid_t tid) {}
+		// Which slots the trap of a thread that is stopped is for, as bits from slot 0 up. `known` says whether the
+		// architecture can tell. If it cannot, any trap of the debug registers counts as one of a slot that is in use. Called
+		// before OnTrap.
+		virtual uint64_t TriggeredSlots(pid_t tid, bool& known)
+		{
+			known = false;
+			return 0;
+		}
 		// Whether a watchpoint reports before its access has happened, so that the access has to be stepped over.
 		// Execute breakpoints always report first.
 		virtual bool DataTrapsBeforeAccess() const { return false; }
@@ -74,6 +82,10 @@ namespace BinaryNinjaDebugger {
 		PtraceHwDebug* hwDebug = nullptr;
 		// Whether PTRACE_SYSEMU works. It began on x86.
 		bool sysemu = false;
+		// Other encodings of an instruction that traps like the breakpoint but is not one of the debugger's, each ending where
+		// the PC is after the trap: on x86 the two-byte `int $3`. They are how a trap of the target is told from the end of
+		// a single step.
+		std::vector<std::vector<uint8_t>> trapInstructions;
 		// Whether a register that is part of another one is at the low or the high end of it, which is what the sub-registers
 		// that are derived rely on
 		bool littleEndian = true;

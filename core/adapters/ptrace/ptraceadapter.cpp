@@ -198,6 +198,7 @@ namespace BinaryNinjaDebugger {
 
 	PtraceAdapter::~PtraceAdapter()
 	{
+		m_destroying = true;
 		m_stepper.reset();
 		m_engine.reset();
 	}
@@ -301,6 +302,46 @@ namespace BinaryNinjaDebugger {
 
 	void PtraceAdapter::HandleEngineEvent(const PtraceEngine::Event& event)
 	{
+		if (m_destroying)
+			return;
+
+		if (!event.errors.empty())
+		{
+			std::string text;
+			for (const auto& error : event.errors)
+				text += (text.empty() ? "" : "\n") + error;
+
+			DebuggerEvent failure;
+			failure.type = ErrorEventType;
+			failure.data.errorData.shortError = "PTRACE engine error";
+			failure.data.errorData.error = "PTRACE: " + text
+				+ "\nThe debugger's picture of the target may be wrong from here on.";
+			PostDebuggerEvent(failure);
+		}
+
+		for (const auto& note : event.notes)
+		{
+			DebuggerEvent message;
+			message.type = BackendMessageEventType;
+			message.data.messageData.message = "PTRACE: " + note + "\n";
+			PostDebuggerEvent(message);
+		}
+
+		if (!event.unresponsive.empty())
+		{
+			std::string threads;
+			for (uint32_t tid : event.unresponsive)
+				threads += (threads.empty() ? "" : ", ") + std::to_string(tid);
+
+			DebuggerEvent message;
+			message.type = BackendMessageEventType;
+			message.data.messageData.message = fmt::format(
+				"PTRACE: thread(s) {} did not answer in time, and the debugger went on without {}. A thread in "
+				"uninterruptible sleep, on NFS or FUSE for example, neither stops nor dies until its I/O is done.\n",
+				threads, event.unresponsive.size() == 1 ? "it" : "them");
+			PostDebuggerEvent(message);
+		}
+
 		DebuggerEvent dbgevt;
 		switch (event.type)
 		{
@@ -336,7 +377,7 @@ namespace BinaryNinjaDebugger {
 			}
 			// A library was loaded or unloaded, which may be where a pending breakpoint goes
 			if (event.breakpoint && m_loaderBreakpoint && m_arch.load()
-				&& ReadArchRegister(m_arch.load()->pc) == m_loaderBreakpoint)
+				&& ReadRegister64(m_arch.load()->pc) == m_loaderBreakpoint)
 			{
 				ApplyBreakpoints();
 				m_engine->Resume(false, 0);
@@ -346,8 +387,8 @@ namespace BinaryNinjaDebugger {
 			if (m_stepper && m_stepper->IsActive())
 			{
 				auto arch = m_arch.load();
-				uint64_t pc = arch ? ReadArchRegister(arch->pc) : 0;
-				uint64_t sp = arch ? ReadArchRegister(arch->sp) : 0;
+				uint64_t pc = arch ? ReadRegister64(arch->pc) : 0;
+				uint64_t sp = arch ? ReadRegister64(arch->sp) : 0;
 				auto result = m_stepper->OnStop(event, pc, sp, IsUserBreakpoint(pc));
 				if (result == PtraceStepper::Result::Consumed)
 					break;
@@ -365,7 +406,7 @@ namespace BinaryNinjaDebugger {
 					"PTRACE: signal {} ({}) was delivered to thread {}, which is stopped at the start of its handler, "
 					"0x{:x}\n",
 					event.signalHandler, strsignal(event.signalHandler), event.tid,
-					arch ? ReadArchRegister(arch->pc) : 0);
+					arch ? ReadRegister64(arch->pc) : 0);
 				PostDebuggerEvent(message);
 			}
 			if (event.syscall)
@@ -393,7 +434,7 @@ namespace BinaryNinjaDebugger {
 			ForgetKnownBreakpoints();
 			if (m_stepper)
 				m_stepper->Cancel();
-			ClearBreakpoints();
+			ClearAppliedBreakpointState();
 			m_lastStopReason = ProcessExited;
 			m_exitCode = event.signal ? 128 + event.signal : event.exitCode;
 			dbgevt.type = TargetExitedEventType;
@@ -405,7 +446,7 @@ namespace BinaryNinjaDebugger {
 			ForgetKnownBreakpoints();
 			if (m_stepper)
 				m_stepper->Cancel();
-			ClearBreakpoints();
+			ClearAppliedBreakpointState();
 			dbgevt.type = DetachedEventType;
 			PostDebuggerEvent(dbgevt);
 			break;
@@ -934,7 +975,7 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	uint64_t PtraceAdapter::ReadArchRegister(const std::string& name)
+	uint64_t PtraceAdapter::ReadRegister64(const std::string& name)
 	{
 		return (uint64_t)ReadRegister(name).m_value;
 	}
@@ -1499,14 +1540,14 @@ namespace BinaryNinjaDebugger {
 	uint64_t PtraceAdapter::GetInstructionOffset()
 	{
 		auto arch = m_arch.load();
-		return arch ? ReadArchRegister(arch->pc) : 0;
+		return arch ? ReadRegister64(arch->pc) : 0;
 	}
 
 
 	uint64_t PtraceAdapter::GetStackPointer()
 	{
 		auto arch = m_arch.load();
-		return arch ? ReadArchRegister(arch->sp) : 0;
+		return arch ? ReadRegister64(arch->sp) : 0;
 	}
 
 
@@ -1676,7 +1717,7 @@ namespace BinaryNinjaDebugger {
 		bool wasStepping = event.singleStep || (m_stepper && m_stepper->IsActive());
 		if (m_stepper)
 			m_stepper->Cancel();
-		ClearBreakpoints();
+		ClearAppliedBreakpointState();
 		ResetTargetState();
 
 		m_arch = m_engine->GetArch();
@@ -1991,7 +2032,7 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	void PtraceAdapter::ClearBreakpoints()
+	void PtraceAdapter::ClearAppliedBreakpointState()
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
 		m_breakpoints.clear();
