@@ -319,6 +319,11 @@ namespace BinaryNinjaDebugger {
 
 		virtual bool Init() { return true; }
 
+		// Called outside AdapterAccessMutex before replacing a session or shutting down the controller.
+		virtual void StopEventDelivery() {}
+		// Controller state updates remain synchronous; adapters may opt out of waiting for external event callbacks.
+		virtual bool WaitForEventCallbacks() const { return true; }
+
 		virtual void SetEventCallback(std::function<void(const DebuggerEvent& event)> function)
 		{
 			m_eventCallback = function;

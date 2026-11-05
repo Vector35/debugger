@@ -36,7 +36,8 @@ namespace BinaryNinjaDebugger {
 			ReturnAddress,
 			// Run to the instructions that return from the function, and then step once more to do the return
 			ReturnSites,
-			FinalStep
+			FinalStep,
+			CleanupPending
 		};
 
 		using BreakpointFunction = std::function<bool(uint64_t)>;
@@ -51,7 +52,7 @@ namespace BinaryNinjaDebugger {
 		uint64_t m_minSp = 0;
 		std::set<uint64_t> m_addresses;
 
-		void EndStep();
+		bool EndStep();
 
 	public:
 		enum class Result
@@ -61,7 +62,8 @@ namespace BinaryNinjaDebugger {
 			// The stop was part of the step, which goes on
 			Consumed,
 			// The step is done, and this stop is where it ended
-			Finished
+			Finished,
+			Failed
 		};
 
 		// `acquire` and `release` place and remove the breakpoints of a step. They may be shared with other users of
@@ -84,6 +86,8 @@ namespace BinaryNinjaDebugger {
 		Result OnStop(const PtraceEngine::Event& event, uint64_t pc, uint64_t sp, bool userBreakpoint);
 
 		bool IsActive();
-		void Cancel();
+		bool Cancel();
+		// The engine has already discarded the old target's breakpoint state after exec, exit or detach.
+		void Discard();
 	};
 }  // namespace BinaryNinjaDebugger

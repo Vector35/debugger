@@ -148,7 +148,7 @@ def native():
             pytest.fail(message)
         pytest.skip(message)
     config = json.loads(config_file.read_text())
-    for name in ('driver', 'fault_driver', 'review_driver', 'event_exception_demo', 'elfcmp', 'layout', 'hwabi',
+    for name in ('driver', 'fault_driver', 'review_driver', 'event_exception_demo', 'elfcmp', 'layout', 'hwabi', 'cmdline',
                  'progs', 'progs_pad', 'libtest.so'):
         assert (directory / name).is_file(), f'Missing built ptrace fixture: {directory / name}'
     env = os.environ.copy()
@@ -188,8 +188,6 @@ def _assert_success(result):
 @pytest.mark.parametrize('driver,name', CASES, ids=[f'{driver}-{name}' for driver, name in CASES])
 def test_native_scenario(native, driver, name):
     extras = _extras()
-    if driver == 'review_driver' and name != 'maps_cost' and 'review' not in extras:
-        pytest.skip('Known review repro; enable with PTRACE_TEST_EXTRAS=review')
     if name.startswith('repro_') and 'diagnostics' not in extras:
         pytest.skip('Diagnostic repro; enable with PTRACE_TEST_EXTRAS=diagnostics')
     if name in ('perf', 'maps_cost') and 'benchmark' not in extras:
@@ -210,6 +208,40 @@ def test_driver_selection(native, driver):
     result = run(driver, 'not-a-real-test')
     assert result['returncode'] == 2, result['output']
     assert 'Unknown test:' in result['output']
+
+
+def _sh_arguments(text):
+    """What a POSIX shell makes of the words in `text` before it expands anything (None if it cannot parse them)"""
+    script = 'set -- ' + text + '\nfor a in "$@"; do printf "%s\\0" "$a"; done'
+    result = subprocess.run(['sh', '-c', script], capture_output=True)
+    return None if result.returncode else result.stdout
+
+
+COMMAND_LINES = [
+    '', '   ', 'a', 'a b  c', "a 'b c' d", 'a "b c" d', "''", '""', "a'' b", 'a\\ b', 'a\\\\b', "'a\\b'", '"a\\b"',
+    '"a\\"b"', '"\\d+"', '"C:\\path"', '"a\\$b"', '"a\\`b"', '"a\\\\b"', 'a\\\nb', '"a\\\nb"', "a'b\"c'd",
+    'x\ty', 'one\ttwo', "a'b", 'a"b', 'a\\', '"', "'", '"a\nb"', "'a\nb'", '"\\n"', "\\'", '"\'"',
+]
+
+
+def test_command_line_arguments_match_sh(native):
+    """The adapter splits `cmd_line` like a shell: this compares it with sh on fixed and random command lines.
+
+    A newline between words is left out: for sh it ends the command, for the adapter it separates words like a blank.
+    """
+    directory, _, _, run = native
+    import random
+    rng = random.Random(20260105)
+    tokens = ['a', 'b', '1', ' ', ' ', '\t', "'", '"', '\\', '\\"', '\\\\', '-', '=', ':', '.', '/', 'ab', '\\a']
+    lines = list(COMMAND_LINES) + [''.join(rng.choice(tokens) for _ in range(rng.randrange(0, 14))) for _ in range(1500)]
+    for text in lines:
+        expected = _sh_arguments(text)
+        result = subprocess.run([directory / 'cmdline', text], capture_output=True)
+        if expected is None:
+            assert result.returncode == 3, f'{text!r}: sh cannot parse it, the adapter returned {result.stdout!r}'
+        else:
+            assert result.returncode == 0 and result.stdout == expected, \
+                f'{text!r}: sh gives {expected!r}, the adapter {result.stdout!r} (rc {result.returncode})'
 
 
 @pytest.mark.parametrize('program', ['layout', 'hwabi'])

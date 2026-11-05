@@ -81,6 +81,9 @@ DebuggerController::~DebuggerController()
 	if (m_interruptThread.joinable())
 		m_interruptThread.join();
 
+	// Adapter callbacks may still access controller state. Drain them before stopping the dispatcher or deleting state.
+	if (m_adapter)
+		m_adapter->StopEventDelivery();
 	m_shouldExit = true;
 	m_cv.notify_all();
 	if (m_debuggerEventThread.joinable())
@@ -545,6 +548,8 @@ bool DebuggerController::CreateDebugAdapter()
 		LogWarn("Failed to get an debug adapter of type %s", m_state->GetAdapterType().c_str());
 		return false;
 	}
+	if (m_adapter)
+		m_adapter->StopEventDelivery();
 	m_adapter = type->Create(GetData());
 	if (!m_adapter)
 	{
@@ -567,7 +572,11 @@ bool DebuggerController::CreateDebugAdapter()
 	ApplyBreakpoints();
 
 	// Forward the DebuggerEvent from the adapters to the controller
-	m_adapter->SetEventCallback([this](const DebuggerEvent& event) { PostDebuggerEvent(event); });
+	bool waitForCallbacks = m_adapter->WaitForEventCallbacks();
+	m_waitForEventCallbacks = waitForCallbacks;
+	m_adapter->SetEventCallback([this, waitForCallbacks](const DebuggerEvent& event) {
+		PostDebuggerEvent(event, waitForCallbacks);
+	});
 	return true;
 }
 
@@ -585,8 +594,18 @@ bool DebuggerController::CanStartDebgging()
 }
 
 
+void DebuggerController::BeginTeardown()
+{
+	m_teardownGeneration++;
+}
+
+
 bool DebuggerController::CanResumeTarget()
 {
+	// A resume queued before a Quit/Restart/Detach was requested must not run: it would resume the target
+	// right before the teardown task, which would then wait forever for a target that keeps running.
+	if (t_controllerOnWorker == this && m_currentTaskGeneration != m_teardownGeneration.load())
+		return false;
 	return m_state->IsConnected() && (!m_state->IsRunning());
 }
 
@@ -1651,6 +1670,7 @@ bool DebuggerController::Restart()
 	// Interrupt any in-flight resume op so the queued Restart can actually run.
 	// Without this, if the target is running the worker is blocked in WaitForAdapterStop
 	// and Restart would sit in the queue indefinitely.
+	BeginTeardown();
 	RequestInterrupt();
 	Submit([this] { RestartAndWaitOnWorker(); });
 	return true;
@@ -1680,6 +1700,7 @@ DebugStopReason DebuggerController::RestartAndWait(std::chrono::milliseconds tim
 		return InternalError;
 	}
 
+	BeginTeardown();
 	RequestInterrupt();
 	return SubmitAndWait([this] { return RestartAndWaitOnWorker(); }, timeout);
 }
@@ -1732,6 +1753,7 @@ void DebuggerController::Detach()
 		return;
 
 	// Interrupt any in-flight resume op (see Restart for rationale).
+	BeginTeardown();
 	RequestInterrupt();
 	Submit([this] { DetachAndWaitOnWorker(); });
 }
@@ -1761,6 +1783,7 @@ void DebuggerController::DetachAndWait(std::chrono::milliseconds timeout)
 		return;
 	}
 
+	BeginTeardown();
 	RequestInterrupt();
 	SubmitAndWait([this] { DetachAndWaitOnWorker(); }, timeout);
 }
@@ -1772,6 +1795,7 @@ void DebuggerController::Quit()
 		return;
 
 	// Interrupt any in-flight resume op (see Restart for rationale).
+	BeginTeardown();
 	RequestInterrupt();
 	Submit([this] { QuitAndWaitOnWorker(); });
 }
@@ -1812,6 +1836,7 @@ void DebuggerController::QuitAndWait(std::chrono::milliseconds timeout)
 		return;
 	}
 
+	BeginTeardown();
 	RequestInterrupt();
 	SubmitAndWait([this] { QuitAndWaitOnWorker(); }, timeout);
 }
@@ -1864,6 +1889,9 @@ DebugStopReason DebuggerController::PauseAndWait(std::chrono::milliseconds timeo
 		// BreakInto has already been signaled; there's nothing else to do.
 		return TimedOut;
 	}
+
+	if (!m_state->IsConnected())
+		return ProcessExited;
 
 	return DebugStopReason::UserRequestedBreak;
 }
@@ -2094,6 +2122,43 @@ void DebuggerController::Destroy()
 }
 
 
+bool DebuggerController::IsLateEventOfEndedSession(const DebuggerEvent& event) const
+{
+	switch (event.type)
+	{
+	case ResumeEventType:
+	case StepIntoEventType:
+	case StepOverEventType:
+	case TargetStoppedEventType:
+		return !m_state->IsConnected();
+	default:
+		return false;
+	}
+}
+
+
+void DebuggerController::AdvanceInstructionPointer(uint64_t ip)
+{
+	std::lock_guard<std::mutex> lock(m_instructionPointersMutex);
+	m_instructionPointers.last = m_instructionPointers.current;
+	m_instructionPointers.current = ip;
+}
+
+
+uint64_t DebuggerController::GetLastIP() const
+{
+	std::lock_guard<std::mutex> lock(m_instructionPointersMutex);
+	return m_instructionPointers.last;
+}
+
+
+uint64_t DebuggerController::GetCurrentIP() const
+{
+	std::lock_guard<std::mutex> lock(m_instructionPointersMutex);
+	return m_instructionPointers.current;
+}
+
+
 // The controller's own state mutations for each event type. Called inline from
 // PostDebuggerEvent (on whichever thread posted the event) BEFORE the event is
 // enqueued for the dispatcher. Previously this body lived in EventHandler running
@@ -2102,33 +2167,21 @@ void DebuggerController::Destroy()
 // gotten around to running EventHandler. Now the controller's state is updated
 // happen-before the broadcast, and the dispatcher only fans out to external
 // (UI, plugin, scripting) consumers.
-//
-// Thread-safety: this body touches m_state's connection/execution status, plus
-// m_lastIP / m_currentIP / m_exitCode on the controller -- all plain (non-atomic,
-// unlocked) fields read from other threads (UI render layer, file accessor) without
-// synchronization. Those are pre-existing data races reported in #1091; this PR
-// does not address them, and adding synchronization there is tracked separately.
-// Moving the mutations off the dispatcher and onto the event-posting thread (this
-// function vs the old EventHandler) does not change the race set -- it just changes
-// which thread is the writer -- but it does fix the unrelated *control-flow* race
-// where the worker resumed before the dispatcher had updated state, which is what
-// this commit is for.
 void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 {
 	switch (event.type)
 	{
 	case LaunchEventType:
-	case ResumeEventType:
-	case StepIntoEventType:
 	{
-		// Todo: this is just a temporary workaround. Otherwise, the connection status would not be set properly
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 		break;
 	}
+	case ResumeEventType:
+	case StepIntoEventType:
 	case StepOverEventType:
 	{
-		// Add support for StepOverEventType with same logic as StepIntoEventType
+		// Todo: this is just a temporary workaround. Otherwise, the connection status would not be set properly
 		m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
 		m_state->SetExecutionStatus(DebugAdapterRunningStatus);
 		break;
@@ -2147,8 +2200,7 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 		m_initialBreakpointSeen = false;
 		ClearTTDPositionHistory();
 
-		m_lastIP = m_currentIP;
-		m_currentIP = 0;
+		AdvanceInstructionPointer(0);
 
 		// The remaining cleanup (MarkDirty / RemoveDebuggerMemoryRegion / accessor disposal /
 		// analysis hold) calls into BN core, which takes the file lock. Running it here would mean
@@ -2173,8 +2225,7 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 		m_state->SetExecutionStatus(DebugAdapterPausedStatus);
 		m_state->MarkDirty();
 		m_state->UpdateCaches();
-		m_lastIP = m_currentIP;
-		m_currentIP = m_state->IP();
+		AdvanceInstructionPointer(m_state->IP());
 		m_ranges.clear();
 
 		DetectLoadedModule();
@@ -2190,15 +2241,13 @@ void DebuggerController::ApplyOwnStateForEvent(const DebuggerEvent& event)
 	case ActiveThreadChangedEvent:
 	{
 		m_state->UpdateCaches();
-		m_lastIP = m_currentIP;
-		m_currentIP = m_state->IP();
+		AdvanceInstructionPointer(m_state->IP());
 		AddRegisterValuesToExpressionParser();
 		break;
 	}
 	case RegisterChangedEvent:
 	{
-		m_lastIP = m_currentIP;
-		m_currentIP = m_state->IP();
+		AdvanceInstructionPointer(m_state->IP());
 		AddRegisterValuesToExpressionParser();
 		break;
 	}
@@ -2321,7 +2370,7 @@ bool DebuggerController::RemoveEventCallbackInternal(size_t index)
 // in DebuggerController::DetectLoadedModule(), the code cannot post a ModuleLoadedEvent and block on it. Instead, a
 // direct callback must be used to inform the UI to perform the rebase, and then the core can continue its processing
 
-void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
+void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event, bool waitForCallbacks)
 {
 	// Adapter stops are an internal signal to the worker, not a user-facing event.
 	// Route them to the adapter-stop channel and skip the public dispatcher queue.
@@ -2343,11 +2392,14 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 		{
 			// No controller op is in flight — the adapter stopped on its own (e.g.
 			// the user typed `si` directly into the LLDB REPL). Queue a handler on
-			// the worker to update caches and synthesize a TargetStoppedEvent.
-			Submit([this, reason] { HandleSpontaneousAdapterStop(reason); });
+			// the worker to synthesize a TargetStoppedEvent.
+			Submit([this, reason] { NotifyStopped(reason); });
 		}
 		return;
 	}
+
+	if (IsLateEventOfEndedSession(event))
+		return;
 
 	// Apply the controller's own state mutations synchronously, before this event
 	// reaches anyone else. Previously this happened in EventHandler running on the
@@ -2398,8 +2450,9 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 	}
 	else
 	{
-		// Block until the event is handled (unless this is the dispatcher thread)
-		future.get();
+		// State and stop-channel updates above are synchronous even when public callbacks are queued without waiting.
+		if (waitForCallbacks && m_waitForEventCallbacks.load())
+			future.get();
 	}
 }
 
@@ -2445,21 +2498,6 @@ bool DebuggerController::ShouldSilentResumeAfterStop()
 		return false;
 
 	return true;
-}
-
-
-void DebuggerController::HandleSpontaneousAdapterStop(DebugStopReason reason)
-{
-	// The adapter reported a stop with no controller op in flight. This is the
-	// case the dispatcher previously synthesized a TargetStoppedEvent for at
-	// `debuggercontroller.cpp:2279` in the pre-refactor code.
-	m_state->SetConnectionStatus(DebugAdapterConnectedStatus);
-	m_state->SetExecutionStatus(DebugAdapterPausedStatus);
-	m_state->MarkDirty();
-	m_state->UpdateCaches();
-	AddRegisterValuesToExpressionParser();
-	AddModuleValuesToExpressionParser();
-	NotifyStopped(reason);
 }
 
 
@@ -2538,7 +2576,7 @@ void DebuggerController::DebuggerMainThread()
 		// AdapterStoppedEventType no longer reaches the dispatcher: PostDebuggerEvent
 		// intercepts it and routes the reason to the worker's adapter-stop channel.
 		// Conditional-breakpoint silent-resume and spontaneous-stop synthesis now live
-		// in ExecuteAdapterAndWait / HandleSpontaneousAdapterStop on the worker.
+		// in ExecuteAdapterAndWait on the worker.
 
 		DebuggerEvent eventToSend = event;
 		if ((eventToSend.type == TargetStoppedEventType) && !m_initialBreakpointSeen)
@@ -3380,6 +3418,11 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 	// is no longer needed. The new Pause path bypasses this method entirely and calls
 	// m_adapter->BreakInto() out-of-band; everything else funnels through here on the worker.
 	BN_RELEASE_ASSERT(t_controllerOnWorker == this);
+
+	// An old callback may need AdapterAccessMutex (for example exec symbol refresh).
+	// Drain it before taking that mutex or publishing the new operation's stop channel.
+	if (operation == DebugAdapterLaunch || operation == DebugAdapterAttach || operation == DebugAdapterConnect)
+		m_adapter->StopEventDelivery();
 
 	// Claim the adapter-stop channel for the duration of this call. Any AdapterStoppedEvent
 	// posted by the adapter from now until we clear m_inAdapterWait is delivered to

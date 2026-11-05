@@ -24,12 +24,17 @@ namespace BinaryNinjaDebugger {
 	{}
 
 
-	void PtraceStepper::EndStep()
+	bool PtraceStepper::EndStep()
 	{
-		for (uint64_t address : m_addresses)
-			m_release(address);
-		m_addresses.clear();
-		m_mode = Mode::None;
+		for (auto it = m_addresses.begin(); it != m_addresses.end();)
+		{
+			if (m_release(*it))
+				it = m_addresses.erase(it);
+			else
+				++it;
+		}
+		m_mode = m_addresses.empty() ? Mode::None : Mode::CleanupPending;
+		return m_addresses.empty();
 	}
 
 
@@ -40,17 +45,26 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	void PtraceStepper::Cancel()
+	bool PtraceStepper::Cancel()
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
-		EndStep();
+		return EndStep();
+	}
+
+
+	void PtraceStepper::Discard()
+	{
+		std::lock_guard<std::mutex> lock(m_mutex);
+		m_addresses.clear();
+		m_mode = Mode::None;
 	}
 
 
 	bool PtraceStepper::StepOver(uint32_t tid, uint64_t pc, uint64_t sp, size_t callLength, size_t wordSize)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
-		EndStep();
+		if (!EndStep())
+			return false;
 		if (callLength == 0)
 			return m_engine.Resume(true, tid);
 
@@ -75,7 +89,8 @@ namespace BinaryNinjaDebugger {
 		uint64_t returnAddress, uint64_t returnSp)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
-		EndStep();
+		if (!EndStep())
+			return false;
 
 		// Already at the instruction that returns, so the return is the next step
 		if (std::find(returnSites.begin(), returnSites.end(), pc) != returnSites.end())
@@ -127,6 +142,9 @@ namespace BinaryNinjaDebugger {
 		if (m_mode == Mode::None)
 			return Result::Ignored;
 
+		if (m_mode == Mode::CleanupPending)
+			return EndStep() ? Result::Ignored : Result::Failed;
+
 		if (m_mode == Mode::FinalStep)
 		{
 			bool stepped = event.tid == m_tid && event.singleStep && !event.breakpoint;
@@ -139,8 +157,7 @@ namespace BinaryNinjaDebugger {
 		bool atOurs = event.breakpoint && m_addresses.count(pc);
 		if (!atOurs || userBreakpoint)
 		{
-			EndStep();
-			return Result::Ignored;
+			return EndStep() ? Result::Ignored : Result::Failed;
 		}
 
 		if (event.tid != m_tid || sp < m_minSp)
@@ -149,18 +166,17 @@ namespace BinaryNinjaDebugger {
 			if (m_engine.Resume(false, 0))
 				return Result::Consumed;
 
-			EndStep();
-			return Result::Ignored;
+			return EndStep() ? Result::Ignored : Result::Failed;
 		}
 
 		if (m_mode == Mode::ReturnAddress)
 		{
-			EndStep();
-			return Result::Finished;
+			return EndStep() ? Result::Finished : Result::Failed;
 		}
 
 		// At an instruction that returns: it takes one step to be out
-		EndStep();
+		if (!EndStep())
+			return Result::Failed;
 		m_mode = Mode::FinalStep;
 		if (m_engine.Resume(true, m_tid))
 			return Result::Consumed;
