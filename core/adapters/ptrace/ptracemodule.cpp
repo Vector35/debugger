@@ -19,6 +19,7 @@ limitations under the License.
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <tuple>
 
 namespace BinaryNinjaDebugger {
 
@@ -36,7 +37,7 @@ namespace BinaryNinjaDebugger {
 
 		std::vector<PtraceModuleInfo> modules;
 		// The module of each path that is still being extended
-		std::map<std::string, size_t> open;
+		std::map<std::tuple<std::string, std::string, uint64_t>, size_t> open;
 
 		for (size_t i = 0; i < sorted.size(); i++)
 		{
@@ -44,8 +45,12 @@ namespace BinaryNinjaDebugger {
 			if (map.path.empty() || map.path[0] != '/')
 				continue;
 
-			auto it = open.find(map.path);
-			if (it != open.end())
+			// An offset-zero ELF mapping starts another load instance, even when its path matches
+			// a nearby instance. Never absorb its header mapping into the preceding module.
+			bool startsInstance = map.offset == 0 && isElf(map.start);
+			auto identity = std::make_tuple(map.path, map.device, map.inode);
+			auto it = open.find(identity);
+			if (!startsInstance && it != open.end())
 			{
 				auto& module = modules[it->second];
 				uint64_t moduleEnd = module.base + module.size;
@@ -57,14 +62,14 @@ namespace BinaryNinjaDebugger {
 			}
 
 			// A module begins where its file is mapped from the start
-			if (map.offset != 0 || !isElf(map.start))
+			if (!startsInstance)
 				continue;
 
 			PtraceModuleInfo module;
 			module.path = map.path;
 			module.base = map.start;
 			module.size = map.end - map.start;
-			open[map.path] = modules.size();
+			open[identity] = modules.size();
 			modules.push_back(module);
 		}
 

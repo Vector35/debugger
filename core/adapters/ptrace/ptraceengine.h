@@ -104,6 +104,8 @@ namespace BinaryNinjaDebugger {
 			bool shared = false;
 			uint64_t offset = 0;
 			std::string path;
+			std::string device;
+			uint64_t inode = 0;
 		};
 
 		// A stop at a system call, as PTRACE_GET_SYSCALL_INFO tells it
@@ -285,7 +287,7 @@ namespace BinaryNinjaDebugger {
 		std::thread m_ioThread;
 
 		std::mutex m_taskMutex;
-		std::condition_variable m_taskCv;
+		int m_wakeFd = -1;
 		std::deque<std::function<void()>> m_tasks;
 		bool m_tracerStop = false;
 		bool m_shutdown = false;
@@ -314,10 +316,8 @@ namespace BinaryNinjaDebugger {
 		std::shared_ptr<DetachedExit> m_detachedExit;
 		std::vector<uint32_t> m_publishedThreads;
 		std::atomic<bool> m_publishedRunning {false};
-		// An interrupt is a SIGSTOP that we send. It can be asked for again before the first one has been seen, so the
-		// signals that are on their way are counted, and whether a pause is still wanted is kept apart from that.
+		// A pause is satisfied by any reported stop. SIGSTOP requests may coalesce.
 		std::atomic<bool> m_interruptWanted {false};
-		std::atomic<int> m_interruptInFlight {0};
 		std::atomic<bool> m_debugSignalHandlers {false};
 		// How long a wait for a thread lasts before it is given up on, in milliseconds
 		std::atomic<int> m_waitTimeoutMs {5000};
@@ -353,11 +353,19 @@ namespace BinaryNinjaDebugger {
 		void StopIo();
 		void DrainOutput(char* buffer, size_t size);
 
+		bool StartTracer(std::string& error);
+		void WakeTracer();
+		void WaitForWork(int idle);
 		bool PollThreads();
+		std::map<pid_t, int> m_exitWatches;
+		bool UpdateExitWatches();
+		void CloseExitWatches();
 		void HandleStatus(pid_t tid, int status);
 		// Consumes a waitpid status, updates thread and breakpoint state, and decides whether to report a stop.
 		ThreadStatusResult ProcessThreadStatus(pid_t tid, int status);
 		bool ResumeThread(pid_t tid);
+		char TaskState(pid_t tid) const;
+		bool SendStop(pid_t tid = 0);
 		bool HasSignalHandler(int signal);
 		bool ProcessTrap(pid_t tid, ThreadInfo& info, ThreadStatusResult& result);
 		bool RawGetRegisterSet(pid_t tid, int regset, std::vector<uint8_t>& data);
@@ -365,7 +373,7 @@ namespace BinaryNinjaDebugger {
 		bool ReadPc(pid_t tid, uint64_t& pc);
 		bool WritePc(pid_t tid, uint64_t pc);
 		bool RawReadMemory(uint64_t address, void* buffer, size_t size);
-		bool RawWriteMemory(uint64_t address, const void* buffer, size_t size);
+		bool RawWriteMemory(uint64_t address, const void* buffer, size_t size, size_t* written = nullptr);
 		bool HasBreakpointAt(uint64_t address);
 		bool NeedsStepOver(pid_t tid, const ThreadInfo& info);
 		bool SuspendBreakpoints(pid_t tid, uint64_t address);
@@ -374,6 +382,24 @@ namespace BinaryNinjaDebugger {
 		bool ResumeAll();
 		bool ApplyHardwareToThread(pid_t tid);
 		void HandleFork(pid_t child, bool sharedMemory);
+		enum class ChildMemory
+		{
+			Shared,
+			Copied
+		};
+
+		bool ReleaseChild(pid_t child, ChildMemory memory);
+		bool ReadNewTaskId(pid_t tid, unsigned long& id);
+		bool CleanForkChild(pid_t child);
+		struct StrandedChild
+		{
+			pid_t pid;
+			ChildMemory memory;
+			std::chrono::steady_clock::time_point giveUpAt;
+		};
+		std::vector<StrandedChild> m_strandedChildren;
+		std::chrono::steady_clock::time_point m_strandedNextTry {};
+		void RetryStrandedChildren();
 		ThreadStatusResult HandleExec(pid_t tid);
 		void ResumeBreakpointsAfterVfork();
 		bool RemoveAllBreakpoints();
@@ -408,6 +434,15 @@ namespace BinaryNinjaDebugger {
 		pid_t ThreadGroupOf(pid_t tid);
 		// Finalizes the debugger state and emits the stopped event after StopAll has collected the other threads.
 		void ReportStopped(pid_t tid, const ThreadStatusResult& stop);
+		enum class ResumeFailure
+		{
+			AfterSteppedOverThreadWentAway,
+			AfterInternalStop,
+			AfterBreakpointStepOver
+		};
+
+		static const char* DescribeResumeFailure(ResumeFailure failure);
+		void ReportResumeFailure(pid_t tid, ResumeFailure failure);
 		void ReportExited(int status);
 
 		bool DoResume(bool step, pid_t tid, SyscallMode mode = SyscallMode::None);
@@ -447,6 +482,9 @@ namespace BinaryNinjaDebugger {
 		// Runs a function on the thread that delivers the events, after everything that was posted before it. That
 		// thread is not tied up by the caller, so it is the place for work that must not run under the caller's locks.
 		void PostTask(std::function<void()> task);
+		// Stops callback/task admission and joins delivery while the tracer remains usable.
+		// Must be called outside the event thread and outside locks that a callback may acquire.
+		void StopEventDelivery();
 
 		// How long the engine waits for a thread to stop after it was asked to, to die after it was killed, and so on,
 		// before it goes on without it. A thread in uninterruptible sleep, on NFS or FUSE for example, does neither until
