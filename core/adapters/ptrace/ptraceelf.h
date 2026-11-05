@@ -42,7 +42,8 @@ namespace BinaryNinjaDebugger {
 		std::vector<ElfSymbol> symbols;
 	};
 
-	// Reads the headers and the symbol tables (.symtab and .dynsym) of a little-endian ELF file
+	// Reads little-endian ELF headers and symbol tables (.symtab and .dynsym) through ELFIO.
+	// Returns false if the required metadata cannot be read; info is only replaced on success.
 	bool ReadElfFile(const std::string& path, ElfInfo& info);
 
 	// The symbol that contains an address of the file, or nullptr
