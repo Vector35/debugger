@@ -740,6 +740,25 @@ class PtraceAdapterTests:
         self.assertTrue(os.path.isfile(fixture), fixture)
         return fixture
 
+    def test_single_step_through_system_calls(self):
+        # x86 reports the step that ends after a syscall instruction with TRAP_BRKPT. That is still the step, and not a
+        # SIGTRAP of the target: delivering one on the next resume would kill the target.
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = 'syscalls'
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        reasons = set()
+        for _ in range(60000):
+            reason = dbg.step_into_and_wait(timeout=20000)
+            if reason == DebugStopReason.ProcessExited:
+                break
+            reasons.add(reason)
+        else:
+            self.fail('the target did not exit while being stepped')
+        self.assertTrue(reasons <= {DebugStopReason.SingleStep, DebugStopReason.Breakpoint, DebugStopReason.SignalUsr1},
+                        f'unexpected stop reasons while stepping: {reasons}')
+        self.assertNotEqual(dbg.exit_code, 128 + 5, 'the target was killed by a SIGTRAP that the debugger delivered')
+
     def test_quit_after_queued_resume_operations(self):
         # Resume operations queued behind a running Go must not run after Quit is requested.
         # Otherwise the second Go resumes the target and Quit never gets to run.

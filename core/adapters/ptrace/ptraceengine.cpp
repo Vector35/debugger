@@ -1372,7 +1372,9 @@ namespace BinaryNinjaDebugger {
 				else if (++idle < 20)
 					sched_yield();
 			}
-			if (!m_done && (GroupMayBeDying() || !m_running))
+			// While the target runs, the threads that were not resumed are not polled. When the whole group dies (a fatal
+			// signal, a core dump) the leader cannot be reaped before them, and only this finds that out.
+			if (!m_done && (GroupMayBeDying() || !m_running || idle >= 20))
 				PollThreadsForDeath();
 		}
 
@@ -1612,6 +1614,18 @@ namespace BinaryNinjaDebugger {
 					}
 				}
 			}
+		}
+
+		// x86 reports the step that ends at the instruction after a system call with TRAP_BRKPT, not TRAP_TRACE. It is
+		// ours when a step was requested and the byte before the PC is not the trap instruction itself. Taking it for a
+		// signal of the target left a SIGTRAP pending that was delivered on the next resume, which killed the target.
+		if (haveInfo && code == TRAP_BRKPT && info.stepping && unownedTrapInstruction && m_arch
+			&& !m_arch->breakpointInstruction.empty() && pc >= m_arch->breakpointPcAdjust)
+		{
+			std::vector<uint8_t> before(m_arch->breakpointInstruction.size());
+			if (RawReadMemory(pc - m_arch->breakpointPcAdjust, before.data(), before.size())
+				&& before != m_arch->breakpointInstruction)
+				unownedTrapInstruction = false;
 		}
 
 		// Some kernels report a requested step around a syscall with a generic kernel trap rather than TRAP_TRACE. Preserve

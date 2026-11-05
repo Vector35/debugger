@@ -456,6 +456,12 @@ def launch():
     r = timed('launch', dbg.launch_and_wait, TIMEOUT_MS)
     if r in (DebugStopReason.InvalidStatusOrOperation, DebugStopReason.TimedOut):
         # Nothing was launched. The old target is gone, so the controller should have been disconnected already.
+        try:
+            ppid = dbg.active_pid
+            states = [(int(t), open(f'/proc/{ppid}/task/{t}/stat').read().rsplit(')', 1)[1].split()[0]) for t in sorted(os.listdir(f'/proc/{ppid}/task'))]
+        except Exception as e:
+            states = repr(e)
+        print(f'WEDGE-STATE pid {dbg.active_pid} tasks {states}', flush=True)
         finding(f'launch refused with {r.name} (controller connected: {dbg.connected}, previous pid {dbg.active_pid}); recent ops {log[-6:]}')
         alive = False
         time.sleep(1)
