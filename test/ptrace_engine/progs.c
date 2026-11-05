@@ -68,6 +68,8 @@ static void* execWorker(void* a) { usleep(100000); execl(PTRACE_TEST_DIRECTORY "
 static void* forker(void* a) { for (int i = 0; i < 20; i++) { pid_t c = fork(); if (c == 0) { marker(); _exit(0); } int st = 0; waitpid(c, &st, 0); if (WIFSIGNALED(st)) __sync_fetch_and_add(&bad, 1); marker(); } return 0; }
 static void* markerThread(void* a) { for (int i = 0; i < 3; i++) { marker(); usleep(2000); } return 0; }
 // Threads that never stop running into a breakpoint, so that the debugger has to stop them all over and over
+static void* idleThread(void* a) { while (1) usleep(1000); return 0; }
+static void* exitGroupThread(void* a) { usleep(50000); marker(); syscall(SYS_exit_group, 9); return 0; }
 static void* markerSpinner(void* a) { while (1) { marker(); usleep(200); } return 0; }
 // The thread group leader leaves while this one is still running, so the group lives on without it
 static void* outliveLeader(void* a) { for (int i = 0; i < 40; i++) { marker(); usleep(25000); } printf("worker done\n"); _exit(7); return 0; }
@@ -83,6 +85,9 @@ int main(int argc, char** argv)
 	if (!strcmp(mode, "hello")) { printf("hello from target\n"); return 7; }
 	if (!strcmp(mode, "loop")) { volatile unsigned long x = 0; while (1) x++; }
 	if (!strcmp(mode, "threads")) { pthread_t t[3]; for (int i = 0; i < 3; i++) pthread_create(&t[i], 0, spin, 0); while (1) usleep(1000); }
+	// The leader ends the whole process with a sibling thread alive, and the other way round
+	if (!strcmp(mode, "exitleader")) { signal(SIGUSR1, SIG_IGN); pthread_t t; pthread_create(&t, 0, idleThread, 0); usleep(50000); marker(); syscall(SYS_exit_group, 9); return 0; }
+	if (!strcmp(mode, "exitthread")) { signal(SIGUSR1, SIG_IGN); pthread_t t; pthread_create(&t, 0, exitGroupThread, 0); pthread_join(t, 0); return 0; }
 	if (!strcmp(mode, "markerthreads")) { signal(SIGUSR1, SIG_IGN); printf("marker=%p\n", (void*)marker); raise(SIGUSR1); pthread_t t[4]; for (int i = 0; i < 4; i++) pthread_create(&t[i], 0, markerSpinner, 0); for (int i = 0; i < 4; i++) pthread_join(t[i], 0); return 0; }
 	if (!strcmp(mode, "leaderexit")) { signal(SIGUSR1, SIG_IGN); printf("marker=%p\n", (void*)marker); pthread_t t; pthread_create(&t, 0, outliveLeader, 0); raise(SIGUSR1); pthread_exit(0); }
 	if (!strcmp(mode, "churn")) { for (int i = 0; i < 50; i++) { pthread_t t; pthread_create(&t, 0, shortlived, 0); pthread_join(t, 0); } printf("churn done\n"); return 0; }
@@ -102,6 +107,20 @@ int main(int argc, char** argv)
 	if (!strcmp(mode, "frames")) { signal(SIGUSR1, SIG_IGN); level1(); return counter; }
 	if (!strcmp(mode, "syms")) { signal(SIGUSR1, SIG_IGN); printf("marker=%p puts=%p\n", (void*)marker, dlsym(RTLD_DEFAULT, "puts")); raise(SIGUSR1); return 0; }
 	if (!strcmp(mode, "dl")) { signal(SIGUSR1, SIG_IGN); printf("ready\n"); raise(SIGUSR1); void* h = dlopen(PTRACE_TEST_DIRECTORY "/libtest.so", RTLD_NOW); printf("loaded=%p\n", h); void (*f)(void) = (void (*)(void))dlsym(h, "libfunc"); printf("libfunc=%p\n", (void*)f); raise(SIGUSR1); f(); return 0; }
+	if (!strcmp(mode, "multiload")) {
+		signal(SIGUSR1, SIG_IGN);
+		void* first = dlmopen(LM_ID_NEWLM, PTRACE_TEST_DIRECTORY "/libtest.so", RTLD_NOW | RTLD_LOCAL);
+		if (!first) return 98;
+		printf("first=%p\n", dlsym(first, "libfunc"));
+		raise(SIGUSR1);
+		void* second = dlmopen(LM_ID_NEWLM, PTRACE_TEST_DIRECTORY "/libtest.so", RTLD_NOW | RTLD_LOCAL);
+		if (!second) return 98;
+		printf("second=%p\n", dlsym(second, "libfunc"));
+		raise(SIGUSR1);
+		((void (*)(void))dlsym(first, "libfunc"))();
+		((void (*)(void))dlsym(second, "libfunc"))();
+		return 0;
+	}
 	if (!strcmp(mode, "dlcycle")) { signal(SIGUSR1, SIG_IGN); for (int i = 1; i <= 2; i++) { void* h = dlopen(PTRACE_TEST_DIRECTORY "/libtest.so", RTLD_NOW); void (*f)(void) = (void (*)(void))dlsym(h, "libfunc"); printf("cycle%d=%p\n", i, (void*)f); raise(SIGUSR1); f(); dlclose(h); } return 0; }
 	if (!strcmp(mode, "dlrebase")) { signal(SIGUSR1, SIG_IGN); void* h = dlopen(PTRACE_TEST_DIRECTORY "/libtest.so", RTLD_NOW); void (*f)(void) = (void (*)(void))dlsym(h, "libfunc"); uintptr_t lo, hi; int range = libraryRange(&lo, &hi); printf("cycle1=%p\n", (void*)f); raise(SIGUSR1); f(); dlclose(h); void* held = range ? mmap((void*)lo, hi - lo, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0) : MAP_FAILED; h = dlopen(PTRACE_TEST_DIRECTORY "/libtest.so", RTLD_NOW); f = (void (*)(void))dlsym(h, "libfunc"); printf("reserved=%p cycle2=%p\n", held, (void*)f); raise(SIGUSR1); f(); dlclose(h); return held == MAP_FAILED; }
 	if (!strcmp(mode, "stepover")) { signal(SIGUSR1, SIG_IGN); caller(0); return counter; }
