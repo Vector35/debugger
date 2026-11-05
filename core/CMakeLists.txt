@@ -89,6 +89,13 @@ endif()
 
 target_link_libraries(debuggercore binaryninjaapi)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	if(NOT TARGET elfio::elfio)
+		add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../vendor/elfio ${CMAKE_CURRENT_BINARY_DIR}/elfio EXCLUDE_FROM_ALL)
+	endif()
+	target_link_libraries(debuggercore elfio::elfio)
+endif()
+
 if(WIN32)
     target_link_libraries(debuggercore Msi.lib delayimp.lib wsock32 ws2_32 dbghelp.lib)
 	target_link_options(debuggercore PRIVATE /DELAYLOAD:liblldb.dll /DELAYLOAD:dbghelp.dll)
@@ -106,6 +113,11 @@ if(BN_INTERNAL_BUILD)
 	set(LIBRARY_OUTPUT_DIRECTORY_PATH "${BN_CORE_PLUGIN_DIR}")
 else()
 	set(LIBRARY_OUTPUT_DIRECTORY_PATH "${CMAKE_BINARY_DIR}/out/plugins")
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../vendor/elfio/LICENSE.txt
+		${LIBRARY_OUTPUT_DIRECTORY_PATH}/licenses/ELFIO.txt COPYONLY)
 endif()
 
 set_target_properties(debuggercore PROPERTIES
@@ -279,4 +291,10 @@ endif()
 option(BUILD_CORE_TESTS "Build core unit tests" OFF)
 if(BUILD_CORE_TESTS)
     add_subdirectory(tests)
+endif()
+
+# The ptrace engine can be tested without linking or loading Binary Ninja.
+option(BUILD_PTRACE_TESTS "Build the standalone ptrace engine regression tests" OFF)
+if(BUILD_PTRACE_TESTS AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	add_subdirectory(../test/ptrace_engine ${CMAKE_BINARY_DIR}/test/ptrace_engine)
 endif()

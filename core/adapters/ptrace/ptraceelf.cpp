@@ -15,171 +15,123 @@ limitations under the License.
 */
 
 #include "ptraceelf.h"
-#include <elf.h>
 #include <algorithm>
 #include <cstring>
+#include <elfio/elfio.hpp>
 #include <fstream>
 
 namespace BinaryNinjaDebugger {
 
-	struct Elf32Types
+	static bool ReadSymbols(const ELFIO::elfio& file, const ELFIO::section* section, std::vector<ElfSymbol>& symbols)
 	{
-		using Ehdr = Elf32_Ehdr;
-		using Phdr = Elf32_Phdr;
-		using Shdr = Elf32_Shdr;
-		using Sym = Elf32_Sym;
-	};
+		if (section->get_size() == 0)
+			return true;
 
-	struct Elf64Types
-	{
-		using Ehdr = Elf64_Ehdr;
-		using Phdr = Elf64_Phdr;
-		using Shdr = Elf64_Shdr;
-		using Sym = Elf64_Sym;
-	};
+		size_t entrySize = file.get_class() == ELFIO::ELFCLASS64 ? sizeof(ELFIO::Elf64_Sym) : sizeof(ELFIO::Elf32_Sym);
+		if (section->get_entry_size() != entrySize || section->get_size() % entrySize != 0
+			|| section->get_link() >= file.sections.size())
+			return false;
+		auto strings = file.sections[section->get_link()];
+		const char* data = section->get_data();
+		if (!data || !strings || strings->get_type() != ELFIO::SHT_STRTAB || !strings->get_data())
+			return false;
 
-
-	static bool ReadAt(std::ifstream& file, uint64_t offset, void* buffer, size_t size)
-	{
-		file.clear();
-		file.seekg(offset);
-		return file.read(reinterpret_cast<char*>(buffer), size).gcount() == (std::streamsize)size;
-	}
-
-
-	template <typename T>
-	static void ReadSymbols(std::ifstream& file, uint64_t fileSize, const typename T::Shdr& table,
-		const typename T::Shdr& strings, std::vector<ElfSymbol>& symbols)
-	{
-		if (table.sh_offset > fileSize || table.sh_size > fileSize - table.sh_offset || strings.sh_offset > fileSize
-			|| strings.sh_size > fileSize - strings.sh_offset)
-			return;
-
-		std::vector<uint8_t> tableData(table.sh_size);
-		std::vector<char> stringData(strings.sh_size);
-		if (!ReadAt(file, table.sh_offset, tableData.data(), tableData.size())
-			|| !ReadAt(file, strings.sh_offset, stringData.data(), stringData.size()))
-			return;
-
-		size_t entrySize = table.sh_entsize ? table.sh_entsize : sizeof(typename T::Sym);
-		if (entrySize < sizeof(typename T::Sym))
-			return;
-
-		for (size_t offset = 0; offset + sizeof(typename T::Sym) <= tableData.size(); offset += entrySize)
+		ELFIO::const_symbol_section_accessor table(file, section);
+		ELFIO::const_string_section_accessor names(strings);
+		if (table.get_symbols_num() != section->get_size() / entrySize)
+			return false;
+		for (ELFIO::Elf_Xword index = 0; index < table.get_symbols_num(); index++)
 		{
-			typename T::Sym symbol;
-			memcpy(&symbol, tableData.data() + offset, sizeof(symbol));
-
-			unsigned type = ELF32_ST_TYPE(symbol.st_info);
-			bool isFunction = type == STT_FUNC || type == STT_GNU_IFUNC;
-			if (!isFunction && type != STT_OBJECT)
-				continue;
-			if (symbol.st_shndx == SHN_UNDEF || symbol.st_shndx >= SHN_LORESERVE || symbol.st_value == 0)
-				continue;
-			if (symbol.st_name == 0 || symbol.st_name >= stringData.size())
-				continue;
-
-			// The string table is terminated, but the file may not be
-			size_t length = strnlen(stringData.data() + symbol.st_name, stringData.size() - symbol.st_name);
 			ElfSymbol result;
-			result.name.assign(stringData.data() + symbol.st_name, length);
-			// The linker writes the version into the name of some symbols of .symtab, `stdin@@GLIBC_2.2.5`
+			ELFIO::Elf64_Addr value;
+			ELFIO::Elf_Xword size;
+			unsigned char binding, type, other;
+			ELFIO::Elf_Half sectionIndex;
+			if (!table.get_symbol(index, result.name, value, size, binding, type, sectionIndex, other))
+				return false;
+			// GNU IFUNC uses the first OS-specific symbol type; ELFIO does not name this extension.
+			constexpr unsigned char SttGnuIfunc = ELFIO::STT_LOOS;
+			bool isFunction = type == ELFIO::STT_FUNC || type == SttGnuIfunc;
+			if ((!isFunction && type != ELFIO::STT_OBJECT) || sectionIndex == ELFIO::SHN_UNDEF
+				|| sectionIndex >= ELFIO::SHN_LORESERVE || value == 0)
+				continue;
+
+			// ELFIO can report success without a valid name. st_name is the first Elf_Word in both ELF classes.
+			ELFIO::Elf_Word nameOffset;
+			memcpy(&nameOffset, data + index * entrySize, sizeof(nameOffset));
+			nameOffset = (*file.get_convertor())(nameOffset);
+			if (nameOffset == 0)
+				continue;
+			if (!names.get_string(nameOffset))
+				return false;
+
+			// The linker writes the version into some .symtab names, e.g. stdin@@GLIBC_2.2.5.
 			auto version = result.name.find('@');
 			if (version != std::string::npos && version > 0)
 				result.name.resize(version);
-			result.address = symbol.st_value;
-			result.size = symbol.st_size;
+			result.address = value;
+			result.size = size;
 			result.isFunction = isFunction;
 			symbols.push_back(std::move(result));
 		}
-	}
-
-
-	template <typename T>
-	static bool ParseElf(std::ifstream& file, uint64_t fileSize, ElfInfo& info)
-	{
-		typename T::Ehdr header;
-		if (!ReadAt(file, 0, &header, sizeof(header)))
-			return false;
-
-		info.type = header.e_type;
-		info.entry = header.e_entry;
-
-		bool haveLoad = false;
-		uint64_t lowest = 0;
-		for (unsigned i = 0; i < header.e_phnum && header.e_phentsize >= sizeof(typename T::Phdr); i++)
-		{
-			typename T::Phdr segment;
-			if (!ReadAt(file, header.e_phoff + (uint64_t)i * header.e_phentsize, &segment, sizeof(segment)))
-				break;
-
-			if (segment.p_type == PT_LOAD && (!haveLoad || segment.p_vaddr < lowest))
-			{
-				lowest = segment.p_vaddr;
-				haveLoad = true;
-			}
-			else if (segment.p_type == PT_INTERP && segment.p_filesz > 0 && segment.p_filesz < 4096)
-			{
-				std::string path(segment.p_filesz, '\0');
-				if (ReadAt(file, segment.p_offset, path.data(), path.size()))
-					info.interpreter = path.c_str();
-			}
-		}
-		info.linkBase = lowest & ~0xfffull;
-
-		if (header.e_shoff == 0 || header.e_shnum == 0 || header.e_shentsize < sizeof(typename T::Shdr))
-			return true;
-
-		std::vector<typename T::Shdr> sections;
-		for (unsigned i = 0; i < header.e_shnum; i++)
-		{
-			typename T::Shdr section;
-			if (!ReadAt(file, header.e_shoff + (uint64_t)i * header.e_shentsize, &section, sizeof(section)))
-				break;
-			sections.push_back(section);
-		}
-
-		for (const auto& section : sections)
-		{
-			if ((section.sh_type == SHT_SYMTAB || section.sh_type == SHT_DYNSYM) && section.sh_link < sections.size())
-				ReadSymbols<T>(file, fileSize, section, sections[section.sh_link], info.symbols);
-		}
-
-		std::stable_sort(info.symbols.begin(), info.symbols.end(), [](const ElfSymbol& a, const ElfSymbol& b) {
-			return a.address < b.address;
-		});
-		// The dynamic symbols repeat in the full table
-		info.symbols.erase(
-			std::unique(info.symbols.begin(), info.symbols.end(),
-				[](const ElfSymbol& a, const ElfSymbol& b) { return a.address == b.address && a.name == b.name; }),
-			info.symbols.end());
 		return true;
 	}
 
 
 	bool ReadElfFile(const std::string& path, ElfInfo& info)
 	{
-		std::ifstream file(path, std::ios::binary);
-		unsigned char ident[EI_NIDENT] = {};
-		if (!file || !file.read(reinterpret_cast<char*>(ident), sizeof(ident)))
-			return false;
-		if (memcmp(ident, ELFMAG, SELFMAG) != 0 || ident[EI_DATA] != ELFDATA2LSB)
+		std::ifstream stream(path, std::ios::binary);
+		ELFIO::elfio file;
+		// Keep the stream alive while reading lazy section/segment data; avoid loading entire PT_LOAD segments.
+		if (!file.load(stream, true) || !stream || file.get_encoding() != ELFIO::ELFDATA2LSB)
 			return false;
 
-		file.seekg(0, std::ios::end);
-		uint64_t fileSize = file.tellg();
+		ElfInfo result;
+		result.type = file.get_type();
+		result.is64 = file.get_class() == ELFIO::ELFCLASS64;
+		result.entry = file.get_entry();
 
-		info = ElfInfo();
-		if (ident[EI_CLASS] == ELFCLASS64)
+		bool haveLoad = false;
+		uint64_t lowest = 0;
+		for (const auto& segment : file.segments)
 		{
-			info.is64 = true;
-			return ParseElf<Elf64Types>(file, fileSize, info);
+			if (segment->get_type() == ELFIO::PT_LOAD && (!haveLoad || segment->get_virtual_address() < lowest))
+			{
+				lowest = segment->get_virtual_address();
+				haveLoad = true;
+			}
+			else if (segment->get_type() == ELFIO::PT_INTERP && segment->get_file_size() > 0
+				&& segment->get_file_size() < 4096)
+			{
+				const char* interpreter = segment->get_data();
+				if (!interpreter)
+					return false;
+				const char* end = static_cast<const char*>(memchr(interpreter, 0, segment->get_file_size()));
+				if (!end)
+					return false;
+				result.interpreter.assign(interpreter, end);
+			}
 		}
-		if (ident[EI_CLASS] == ELFCLASS32)
-			return ParseElf<Elf32Types>(file, fileSize, info);
-		return false;
-	}
+		result.linkBase = lowest & ~0xfffull;
 
+		for (const auto& section : file.sections)
+		{
+			if ((section->get_type() == ELFIO::SHT_SYMTAB || section->get_type() == ELFIO::SHT_DYNSYM)
+				&& !ReadSymbols(file, section.get(), result.symbols))
+				return false;
+		}
+
+		std::stable_sort(result.symbols.begin(), result.symbols.end(), [](const ElfSymbol& a, const ElfSymbol& b) {
+			return a.address < b.address;
+		});
+		// The dynamic symbols repeat in the full table.
+		result.symbols.erase(
+			std::unique(result.symbols.begin(), result.symbols.end(),
+				[](const ElfSymbol& a, const ElfSymbol& b) { return a.address == b.address && a.name == b.name; }),
+			result.symbols.end());
+		info = std::move(result);
+		return true;
+	}
 
 	const ElfSymbol* FindElfSymbol(const ElfInfo& info, uint64_t address)
 	{

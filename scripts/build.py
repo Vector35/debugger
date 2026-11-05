@@ -246,6 +246,8 @@ cmake_params.append(('CMAKE_BUILD_TYPE', 'Release'))
 cmake_params.append(('BN_API_PATH', api_path))
 cmake_params.append(('BN_INSTALL_DIR', bn_core_path))
 cmake_params.append(('CMAKE_PREFIX_PATH', qt_cmake_path))
+if platform.system() == 'Linux':
+    cmake_params.append(('BUILD_PTRACE_TESTS', 'ON'))
 
 if sys.platform == 'darwin':
     if sysroot is not None:
@@ -332,6 +334,9 @@ pytest_sources = [
     str(base_dir / "test" / "attach_timeout_test.py"),
     str(base_dir / "test" / "ci_launcher_test.py"),
 ]
+if platform.system() == 'Linux':
+    env['PTRACE_TEST_BUILD_DIR'] = str(build_path / 'test' / 'ptrace_engine')
+    pytest_sources.append(str(base_dir / 'test' / 'ptrace_engine_test.py'))
 if platform.system() == "Windows":
     # Exercise the just-built Windows Remote server locally on the Windows worker.
     # An explicit path prevents accidentally testing an installed/stale server.
