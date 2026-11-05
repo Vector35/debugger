@@ -10,6 +10,7 @@
 #include "ptracearch.h"
 #include "ptraceengine.h"
 #include "ptracestep.h"
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -38,6 +39,7 @@ using namespace std::chrono_literals;
 
 extern "C" void PtraceTestFailNextResume();
 extern "C" void PtraceTestFailNextPwrite();
+extern "C" void PtraceTestPartialPwrite(size_t bytes);
 
 static int failures = 0;
 #define CHECK(condition) do { if (!(condition)) { printf("  FAIL line %d: %s\n", __LINE__, #condition); failures++; } } while (0)
@@ -261,6 +263,19 @@ static void WriteMemoryRollback()
 	printf("  was %s, the failed write wanted %s, the target now has %s\n", Hex(original).c_str(),
 		Hex(replacement).c_str(), Hex(now).c_str());
 	CHECK(now == original);
+	// A partial write must commit only its successful prefix to saved breakpoint bytes.
+	CHECK(engine->AddBreakpoint(marker));
+	CHECK(engine->AddBreakpoint(marker + size));
+	auto originalPair = RawRead(engine->GetPid(), marker, size * 2);
+	// Read logical originals through the engine, rather than installed trap bytes.
+	CHECK(engine->ReadMemory(marker, originalPair.data(), originalPair.size()));
+	std::vector<uint8_t> partial(size * 2, 0x90);
+	PtraceTestPartialPwrite(size);
+	CHECK(!engine->WriteMemory(marker, partial.data(), partial.size()));
+	CHECK(engine->RemoveBreakpoint(marker));
+	CHECK(engine->RemoveBreakpoint(marker + size));
+	std::copy(partial.begin(), partial.begin() + size, originalPair.begin());
+	CHECK(RawRead(engine->GetPid(), marker, size * 2) == originalPair);
 	CHECK(engine->Kill());
 }
 
@@ -505,6 +520,7 @@ struct MiniAdapter
 
 	~MiniAdapter()
 	{
+		engine->StopEventDelivery();
 		if (engineFirst)
 		{
 			engine.reset();
@@ -695,11 +711,10 @@ static void TeardownArm(const char* name, bool engineFirst, std::chrono::millise
 static void TeardownOrder()
 {
 	printf("[teardown_order]\n");
-	// What the adapter does today, and then the two changes that look like they would put it right. None of them is
-	// clean, which is what this test is really saying: the handler has to be stopped, not raced with.
-	TeardownArm("the order the adapter has, the stepper first:", false, 300ms, false);
-	TeardownArm("the engine first, which is the obvious fix:", true, 300ms, false);
-	TeardownArm("the engine first, and waiting for the handler:", true, 5s, true);
+	// Callback admission is stopped and the active callback is joined while both engine and stepper
+	// are alive. Even a callback longer than the old teardown timeout must finish before destruction.
+	TeardownArm("quiesce delivery before releasing callback state:", false, 300ms, true);
+	TeardownArm("quiesce delivery before releasing the engine:", true, 300ms, true);
 }
 
 

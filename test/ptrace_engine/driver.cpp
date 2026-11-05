@@ -680,6 +680,65 @@ static void t_modules()
 	e->Kill();
 }
 
+static void t_module_instances()
+{
+	std::vector<PtraceEngine::MapEntry> maps;
+	for (uint64_t base : {0x100000ull, 0x200000ull})
+	{
+		for (uint64_t offset : {0ull, 0x1000ull})
+		{
+			PtraceEngine::MapEntry entry;
+			entry.start = base + offset;
+			entry.end = entry.start + 0x1000;
+			entry.offset = offset;
+			entry.path = "/same/library.so";
+			maps.push_back(entry);
+		}
+	}
+	auto modules = BuildModules(maps, [](uint64_t address) { return address == 0x100000 || address == 0x200000; });
+	CHECK(modules.size() == 2);
+	if (modules.size() != 2) return;
+	CHECK(modules[0].base == 0x100000 && modules[0].size == 0x2000);
+	CHECK(modules[1].base == 0x200000 && modules[1].size == 0x2000);
+	CHECK(modules[0].shortName != modules[1].shortName);
+}
+
+static void t_module_loader_instances()
+{
+	Log log;
+	PtraceEngine::Event event;
+	uint32_t tid;
+	auto engine = startAtSignal(log, "multiload", tid, event);
+	if (!engine) return;
+	uint64_t first = addrOf(log, "first=");
+	CHECK(first != 0);
+	CHECK(engine->AddBreakpoint(first));
+	CHECK(engine->Resume(false, 0));
+	CHECK(log.wait(PtraceEngine::StoppedEvent, event));
+	CHECK(event.signal == SIGUSR1);
+	uint64_t second = addrOf(log, "second=");
+	CHECK(second != 0 && second != first);
+	auto modules = modulesOf(*engine);
+	std::vector<PtraceModuleInfo> copies;
+	for (const auto& module : modules)
+		if (module.path.ends_with("/libtest.so")) copies.push_back(module);
+	CHECK(copies.size() == 2);
+	for (uint64_t address : {first, second})
+	{
+		size_t containing = 0;
+		for (const auto& module : copies)
+			containing += address >= module.base && address < module.base + module.size;
+		CHECK(containing == 1);
+	}
+	CHECK(engine->Resume(false, 0));
+	CHECK(log.wait(PtraceEngine::StoppedEvent, event));
+	CHECK(event.breakpoint && pcOf(*engine, event.tid) == first);
+	CHECK(engine->RemoveBreakpoint(first));
+	CHECK(engine->Resume(false, 0));
+	CHECK(log.wait(PtraceEngine::ExitedEvent, event));
+	CHECK(event.exitCode == 0 && event.signal == 0);
+}
+
 static void t_symbols()
 {
 	Log log; PtraceEngine::Event ev; uint32_t tid; auto e = startAtSignal(log, "syms", tid, ev); if (!e) return;
@@ -853,10 +912,11 @@ struct StepEnv
 	Log log;   // first, so that it outlives the engine that posts to it
 	PtraceEngine::Event ev; uint32_t tid = 0;
 	std::map<uint64_t, int> refs; std::set<uint64_t> user;
+	int failReleases = 0;
 	std::unique_ptr<PtraceEngine> e;
 	std::unique_ptr<PtraceStepper> stepper;
 	bool acquire(uint64_t a) { if (refs[a] == 0 && !e->AddBreakpoint(a)) { refs.erase(a); return false; } refs[a]++; return true; }
-	bool release(uint64_t a) { auto it = refs.find(a); if (it == refs.end()) return false; if (--it->second > 0) return true; refs.erase(it); return e->RemoveBreakpoint(a); }
+	bool release(uint64_t a) { auto it = refs.find(a); if (it == refs.end()) return false; if (it->second > 1) { it->second--; return true; } if (failReleases > 0) { failReleases--; return false; } if (!e->RemoveBreakpoint(a)) return false; refs.erase(it); return true; }
 	bool begin(const std::string& mode)
 	{
 		e = startAtSignal(log, mode, tid, ev); if (!e) return false;
@@ -937,6 +997,27 @@ static void t_stepover_basic()
 	CHECK(u.refs.empty());   // the temporary breakpoint is gone
 	{ auto raw = rawRead(u.e->GetPid(), callPc + kCallLength, 4); uint32_t seen = 0; u.e->ReadMemory(callPc + kCallLength, &seen, 4); CHECK(raw.size() == 4 && !memcmp(raw.data(), &seen, 4)); }   // no breakpoint bytes left behind
 	CHECK(u.exitsWith(11));
+}
+
+static void t_step_cleanup_failure()
+{
+	StepEnv t;
+	if (!t.begin("stepover")) return;
+	CHECK(t.runTo(addrOf(t.log, "here=")));
+	CHECK(t.stepToCall());
+	uint64_t callPc = t.pc(), sp = t.sp();
+	CHECK(t.stepper->StepOver(t.tid, callPc, sp, kCallLength, 8));
+	t.failReleases = 3;
+	CHECK(t.follow() == PtraceStepper::Result::Failed);
+	CHECK(t.stepper->IsActive());
+	CHECK(t.refs.count(callPc + kCallLength) == 1);
+	CHECK(!t.stepper->Cancel());
+	CHECK(!t.stepper->StepOver(t.tid, t.pc(), t.sp(), 0, 8));
+	CHECK(!t.e->IsRunning());
+	CHECK(t.stepper->Cancel());
+	CHECK(!t.stepper->IsActive());
+	CHECK(t.refs.empty());
+	CHECK(t.exitsWith(11));
 }
 
 static void t_stepover_user_breakpoint()
@@ -2250,7 +2331,7 @@ int main(int argc, char** argv)
 		{"hello", t_hello}, {"step", t_step}, {"interrupt", t_interrupt}, {"threads", t_threads}, {"churn", t_churn},
 		{"signal", t_signal}, {"silent", t_silent}, {"detach", t_detach}, {"kill_running", t_kill_running},
 		{"dtor_kills", t_dtor_kills}, {"launch_errors", t_launch_errors}, {"args_cwd", t_args_cwd}, {"stdin", t_stdin}, {"stdin_backpressure", t_stdin_backpressure},
-		{"nopty", t_nopty}, {"relaunch", t_relaunch}, {"regs_step", t_regs_step}, {"regs_running", t_regs_running}, {"memory", t_memory}, {"bp_basic", t_bp_basic}, {"bp_step_remove", t_bp_step_remove}, {"bp_write", t_bp_write}, {"bp_threads", t_bp_threads}, {"bp_interrupts", t_bp_interrupts}, {"bp_remove_running", t_bp_remove_running}, {"bp_detach", t_bp_detach}, {"hw_watch", t_hw_watch}, {"hw_thread", t_hw_thread}, {"hw_exec", t_hw_exec}, {"hw_detach", t_hw_detach}, {"modules", t_modules}, {"symbols", t_symbols}, {"frames", t_frames}, {"loader", t_loader}, {"library_reload_breakpoint", t_library_reload_breakpoint}, {"library_rebase_breakpoint", t_library_rebase_breakpoint}, {"library_rebase_hardware", t_library_rebase_hardware}, {"processes", t_processes}, {"stepover_basic", t_stepover_basic}, {"stepover_user_breakpoint", t_stepover_user_breakpoint}, {"stepover_interrupt", t_stepover_interrupt}, {"stepover_recursion", t_stepover_recursion}, {"stepreturn_sites", t_stepreturn_sites}, {"stepreturn_address", t_stepreturn_address}, {"stepreturn_recursion", t_stepreturn_recursion}, {"stepover_threads", t_stepover_threads}, {"perf", t_perf}, {"detach_reaped", t_detach_reaped}, {"fork_child", t_fork_child}, {"vfork", t_vfork}, {"spawn", t_spawn}, {"fork_threads", t_fork_threads}, {"interrupt_burst", t_interrupt_burst}, {"handlers_off", t_handlers_off}, {"handlers_on", t_handlers_on}, {"handlers_toggle", t_handlers_toggle}, {"handlers_thread", t_handlers_thread}, {"sigtrap_raise", t_sigtrap_raise}, {"sigtrap_kill", t_sigtrap_kill}, {"sigtrap_handler_debug", t_sigtrap_handler_debug}, {"sigtrap_instruction", t_sigtrap_instruction}, {"sigtrap_instruction_handler_debug", t_sigtrap_instruction_handler_debug}, {"sigtrap_unhandled", t_sigtrap_unhandled}, {"sigtrap_after_breakpoint", t_sigtrap_after_breakpoint}, {"sigtrap_while_stepping", t_sigtrap_while_stepping}, {"signal_reasons", t_signal_reasons}, {"conf_exitcode", t_conf_exitcode}, {"conf_exceptions", t_conf_exceptions}, {"conf_entry_step_exit", t_conf_entry_step_exit}, {"conf_memory_registers", t_conf_memory_registers}, {"conf_threads_restart", t_conf_threads_restart}, {"conf_symbols_modules", t_conf_symbols_modules}, {"elf_names", t_elf_names}, {"exec_by_name", t_exec_by_name}, {"exec_basic", t_exec_basic}, {"exec_rebreak", t_exec_rebreak}, {"exec_thread", t_exec_thread}, {"exec_continue", t_exec_continue}, {"winsize", t_winsize}, {"repro_echo", t_repro_echo}, {"repro_sigchld_ignored", t_repro_sigchld_ignored}, {"attach_threads", t_attach_threads}, {"attach_breakpoint", t_attach_breakpoint}, {"attach_step_at_breakpoint", t_attach_step_at_breakpoint}, {"attach_exit", t_attach_exit}, {"attach_kill", t_attach_kill}, {"attach_dtor_detaches", t_attach_dtor_detaches}, {"attach_errors", t_attach_errors}, {"attach_churn", t_attach_churn}, {"attach_syscall", t_attach_syscall}, {"redirect_parse", t_redirect_parse}, {"redirect_stdout", t_redirect_stdout}, {"redirect_stdin", t_redirect_stdin}, {"redirect_stderr_merge", t_redirect_stderr_merge}, {"redirect_other_fds", t_redirect_other_fds}, {"redirect_append_readwrite", t_redirect_append_readwrite}, {"redirect_relative", t_redirect_relative}, {"redirect_errors", t_redirect_errors}, {"redirect_leaks", t_redirect_leaks}, {"syscall_trace", t_syscall_trace}, {"syscall_breakpoint", t_syscall_breakpoint}, {"syscall_emulate", t_syscall_emulate}, {"syscall_set_info", t_syscall_set_info}, {"syscall_threads", t_syscall_threads}, {"syscall_unsupported", t_syscall_unsupported}, {"syscall_names", t_syscall_names}, {"register_aliases", t_register_aliases}, {"output_backpressure", t_output_backpressure}, {"output_flood_detach", t_output_flood_detach}, {"output_last_words", t_output_last_words}, {"hw_not_ours", t_hw_not_ours}, {"clone_process", t_clone_process}, {"clone_shared", t_clone_shared}, {"dtor_from_handler", t_dtor_from_handler}, {"dtor_blocked_handler", t_dtor_blocked_handler}};
+		{"nopty", t_nopty}, {"relaunch", t_relaunch}, {"regs_step", t_regs_step}, {"regs_running", t_regs_running}, {"memory", t_memory}, {"bp_basic", t_bp_basic}, {"bp_step_remove", t_bp_step_remove}, {"bp_write", t_bp_write}, {"bp_threads", t_bp_threads}, {"bp_interrupts", t_bp_interrupts}, {"bp_remove_running", t_bp_remove_running}, {"bp_detach", t_bp_detach}, {"hw_watch", t_hw_watch}, {"hw_thread", t_hw_thread}, {"hw_exec", t_hw_exec}, {"hw_detach", t_hw_detach}, {"modules", t_modules}, {"module_instances", t_module_instances}, {"module_loader_instances", t_module_loader_instances}, {"symbols", t_symbols}, {"frames", t_frames}, {"loader", t_loader}, {"library_reload_breakpoint", t_library_reload_breakpoint}, {"library_rebase_breakpoint", t_library_rebase_breakpoint}, {"library_rebase_hardware", t_library_rebase_hardware}, {"processes", t_processes}, {"stepover_basic", t_stepover_basic}, {"step_cleanup_failure", t_step_cleanup_failure}, {"stepover_user_breakpoint", t_stepover_user_breakpoint}, {"stepover_interrupt", t_stepover_interrupt}, {"stepover_recursion", t_stepover_recursion}, {"stepreturn_sites", t_stepreturn_sites}, {"stepreturn_address", t_stepreturn_address}, {"stepreturn_recursion", t_stepreturn_recursion}, {"stepover_threads", t_stepover_threads}, {"perf", t_perf}, {"detach_reaped", t_detach_reaped}, {"fork_child", t_fork_child}, {"vfork", t_vfork}, {"spawn", t_spawn}, {"fork_threads", t_fork_threads}, {"interrupt_burst", t_interrupt_burst}, {"handlers_off", t_handlers_off}, {"handlers_on", t_handlers_on}, {"handlers_toggle", t_handlers_toggle}, {"handlers_thread", t_handlers_thread}, {"sigtrap_raise", t_sigtrap_raise}, {"sigtrap_kill", t_sigtrap_kill}, {"sigtrap_handler_debug", t_sigtrap_handler_debug}, {"sigtrap_instruction", t_sigtrap_instruction}, {"sigtrap_instruction_handler_debug", t_sigtrap_instruction_handler_debug}, {"sigtrap_unhandled", t_sigtrap_unhandled}, {"sigtrap_after_breakpoint", t_sigtrap_after_breakpoint}, {"sigtrap_while_stepping", t_sigtrap_while_stepping}, {"signal_reasons", t_signal_reasons}, {"conf_exitcode", t_conf_exitcode}, {"conf_exceptions", t_conf_exceptions}, {"conf_entry_step_exit", t_conf_entry_step_exit}, {"conf_memory_registers", t_conf_memory_registers}, {"conf_threads_restart", t_conf_threads_restart}, {"conf_symbols_modules", t_conf_symbols_modules}, {"elf_names", t_elf_names}, {"exec_by_name", t_exec_by_name}, {"exec_basic", t_exec_basic}, {"exec_rebreak", t_exec_rebreak}, {"exec_thread", t_exec_thread}, {"exec_continue", t_exec_continue}, {"winsize", t_winsize}, {"repro_echo", t_repro_echo}, {"repro_sigchld_ignored", t_repro_sigchld_ignored}, {"attach_threads", t_attach_threads}, {"attach_breakpoint", t_attach_breakpoint}, {"attach_step_at_breakpoint", t_attach_step_at_breakpoint}, {"attach_exit", t_attach_exit}, {"attach_kill", t_attach_kill}, {"attach_dtor_detaches", t_attach_dtor_detaches}, {"attach_errors", t_attach_errors}, {"attach_churn", t_attach_churn}, {"attach_syscall", t_attach_syscall}, {"redirect_parse", t_redirect_parse}, {"redirect_stdout", t_redirect_stdout}, {"redirect_stdin", t_redirect_stdin}, {"redirect_stderr_merge", t_redirect_stderr_merge}, {"redirect_other_fds", t_redirect_other_fds}, {"redirect_append_readwrite", t_redirect_append_readwrite}, {"redirect_relative", t_redirect_relative}, {"redirect_errors", t_redirect_errors}, {"redirect_leaks", t_redirect_leaks}, {"syscall_trace", t_syscall_trace}, {"syscall_breakpoint", t_syscall_breakpoint}, {"syscall_emulate", t_syscall_emulate}, {"syscall_set_info", t_syscall_set_info}, {"syscall_threads", t_syscall_threads}, {"syscall_unsupported", t_syscall_unsupported}, {"syscall_names", t_syscall_names}, {"register_aliases", t_register_aliases}, {"output_backpressure", t_output_backpressure}, {"output_flood_detach", t_output_flood_detach}, {"output_last_words", t_output_last_words}, {"hw_not_ours", t_hw_not_ours}, {"clone_process", t_clone_process}, {"clone_shared", t_clone_shared}, {"dtor_from_handler", t_dtor_from_handler}, {"dtor_blocked_handler", t_dtor_blocked_handler}};
 	if (argc > 2)
 	{
 		fprintf(stderr, "usage: %s [--list|test-name]\n", argv[0]);

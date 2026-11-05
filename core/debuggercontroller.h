@@ -98,6 +98,7 @@ namespace BinaryNinjaDebugger {
 		// out from under them. See the "Refcount the DebugAdapter" follow-up issue
 		// for the structural fix that would make this guarantee enforced by the type.
 		DebugAdapter* m_adapter;
+		std::atomic<bool> m_waitForEventCallbacks {true};
 		DebuggerState* m_state;
 		FileMetadataRef m_file;
 		BinaryViewRef m_data;
@@ -550,7 +551,7 @@ namespace BinaryNinjaDebugger {
 		void NotifyStopped(DebugStopReason reason, void* data = nullptr);
 		void NotifyError(const std::string& error, const std::string& shortError, void* data = nullptr);
 		void NotifyEvent(DebuggerEventType event);
-		void PostDebuggerEvent(const DebuggerEvent& event);
+		void PostDebuggerEvent(const DebuggerEvent& event, bool waitForCallbacks = true);
 		void CleanUpDisabledEvent();
 
 		// shortcut for instruction pointer

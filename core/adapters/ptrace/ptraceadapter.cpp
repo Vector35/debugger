@@ -174,17 +174,31 @@ namespace BinaryNinjaDebugger {
 		if (!m_engine)
 			return false;
 
-		// The base of a module is where its first mapping starts
-		uint64_t base = UINT64_MAX;
-		for (const auto& map : m_engine->GetMaps())
+		// Unique short names select an individual load instance. A shared path selects
+		// the lowest-address instance, matching the existing module-relative API policy.
+		auto modules = GetModules();
+		const PtraceModuleInfo* match = nullptr;
+		for (const auto& module : modules)
 		{
-			if (!map.path.empty() && DebugModule::IsSameBaseModule(map.path, location.module))
-				base = std::min(base, map.start);
+			if (module.shortName == location.module)
+			{
+				match = &module;
+				break;
+			}
 		}
-		if (base == UINT64_MAX)
+		if (!match)
+		{
+			for (const auto& module : modules)
+			{
+				if (!DebugModule::IsSameBaseModule(module.path, location.module))
+					continue;
+				if (!match || module.base < match->base)
+					match = &module;
+			}
+		}
+		if (!match || location.offset > UINT64_MAX - match->base)
 			return false;
-
-		address = base + location.offset;
+		address = match->base + location.offset;
 		return true;
 	}
 
@@ -199,8 +213,16 @@ namespace BinaryNinjaDebugger {
 	PtraceAdapter::~PtraceAdapter()
 	{
 		m_destroying = true;
+		StopEventDelivery();
 		m_stepper.reset();
 		m_engine.reset();
+	}
+
+
+	void PtraceAdapter::StopEventDelivery()
+	{
+		if (m_engine)
+			m_engine->StopEventDelivery();
 	}
 
 
@@ -283,6 +305,9 @@ namespace BinaryNinjaDebugger {
 
 	void PtraceAdapter::CreateEngine(bool attached)
 	{
+		// The controller drains callbacks before taking AdapterAccessMutex. This is
+		// idempotent there, and also protects direct adapter users that replace a session.
+		StopEventDelivery();
 		m_stepper.reset();
 		m_engine.reset();
 		ResetTargetState();
@@ -371,7 +396,8 @@ namespace BinaryNinjaDebugger {
 				else if (!m_stopAtSystemEntry)
 				{
 					ApplyBreakpoints();
-					m_engine->Resume(false, 0);
+					if (!m_engine->Resume(false, 0))
+						ReportOperationFailure("could not resume after the initial stop");
 					break;
 				}
 			}
@@ -380,7 +406,8 @@ namespace BinaryNinjaDebugger {
 				&& ReadRegister64(m_arch.load()->pc) == m_loaderBreakpoint)
 			{
 				ApplyBreakpoints();
-				m_engine->Resume(false, 0);
+				if (!m_engine->Resume(false, 0))
+					ReportOperationFailure("could not resume after the loader stop");
 				break;
 			}
 
@@ -390,6 +417,11 @@ namespace BinaryNinjaDebugger {
 				uint64_t pc = arch ? ReadRegister64(arch->pc) : 0;
 				uint64_t sp = arch ? ReadRegister64(arch->sp) : 0;
 				auto result = m_stepper->OnStop(event, pc, sp, IsUserBreakpoint(pc));
+				if (result == PtraceStepper::Result::Failed)
+				{
+					ReportOperationFailure("could not remove temporary step breakpoints; retry cleanup before resuming");
+					break;
+				}
 				if (result == PtraceStepper::Result::Consumed)
 					break;
 				if (result == PtraceStepper::Result::Finished)
@@ -433,7 +465,7 @@ namespace BinaryNinjaDebugger {
 			m_targetActive = false;
 			ForgetKnownBreakpoints();
 			if (m_stepper)
-				m_stepper->Cancel();
+				m_stepper->Discard();
 			ClearAppliedBreakpointState();
 			m_lastStopReason = ProcessExited;
 			m_exitCode = event.signal ? 128 + event.signal : event.exitCode;
@@ -445,7 +477,7 @@ namespace BinaryNinjaDebugger {
 			m_targetActive = false;
 			ForgetKnownBreakpoints();
 			if (m_stepper)
-				m_stepper->Cancel();
+				m_stepper->Discard();
 			ClearAppliedBreakpointState();
 			dbgevt.type = DetachedEventType;
 			PostDebuggerEvent(dbgevt);
@@ -721,20 +753,22 @@ namespace BinaryNinjaDebugger {
 	bool PtraceAdapter::RemoveBreakpoint(const DebugBreakpoint& breakpoint)
 	{
 		std::lock_guard<std::recursive_mutex> lock(m_breakpointMutex);
-		auto it = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [&breakpoint](const DebugBreakpoint& bp) {
-			return bp.m_address == breakpoint.m_address;
+		// Callers may pass an element of m_breakpoints. Save its address before erasing that element.
+		uint64_t address = breakpoint.m_address;
+		auto it = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [address](const DebugBreakpoint& bp) {
+			return bp.m_address == address;
 		});
 		if (!m_engine || it == m_breakpoints.end())
 			return false;
 
 		ModuleNameAndOffset location;
-		bool known = ToModuleOffset(breakpoint.m_address, location);
-		if (!ReleaseBreakpoint(breakpoint.m_address))
+		bool known = ToModuleOffset(address, location);
+		if (!ReleaseBreakpoint(address))
 			return false;
 
 		m_breakpoints.erase(it);
 		std::erase_if(m_knownBreakpoints, [&](const KnownBreakpoint& k) {
-			return k.appliedAddress == breakpoint.m_address || (known && k.location == location);
+			return k.appliedAddress == address || (known && k.location == location);
 		});
 		return true;
 	}
@@ -759,7 +793,15 @@ namespace BinaryNinjaDebugger {
 		}
 
 		if (known == m_knownBreakpoints.end())
-			return false;
+		{
+			uint64_t resolved;
+			if (!ResolveModuleAddress(address, resolved))
+				return false;
+			auto applied = std::find_if(m_breakpoints.begin(), m_breakpoints.end(), [resolved](const DebugBreakpoint& bp) {
+				return bp.m_address == resolved;
+			});
+			return applied != m_breakpoints.end() && RemoveBreakpoint(*applied);
+		}
 		m_knownBreakpoints.erase(known);
 		m_pendingBreakpoints.erase(std::remove(m_pendingBreakpoints.begin(), m_pendingBreakpoints.end(), address),
 			m_pendingBreakpoints.end());
@@ -813,8 +855,8 @@ namespace BinaryNinjaDebugger {
 			return false;
 
 		std::erase_if(m_knownHardwareBreakpoints, [&](const PendingHardwareBreakpoint& entry) {
-			return entry.address == address
-				|| (known && entry.isRelative && entry.location == location && entry.type == type && entry.size == size);
+			return entry.type == type && entry.size == size
+				&& (entry.address == address || (known && entry.isRelative && entry.location == location));
 		});
 		return true;
 	}
@@ -846,7 +888,10 @@ namespace BinaryNinjaDebugger {
 		PendingHardwareBreakpoint pending(location, type, size);
 		auto known = std::find(m_knownHardwareBreakpoints.begin(), m_knownHardwareBreakpoints.end(), pending);
 		if (known == m_knownHardwareBreakpoints.end())
-			return false;
+		{
+			uint64_t resolved;
+			return ResolveModuleAddress(location, resolved) && RemoveHardwareBreakpoint(resolved, type, size);
+		}
 		if (known->address && !RemoveHardwareBreakpoint(known->address, type, size))
 			return false;
 		m_knownHardwareBreakpoints.erase(
@@ -1009,7 +1054,7 @@ namespace BinaryNinjaDebugger {
 		uint64_t generation = m_stopGeneration;
 		if (m_moduleGeneration != generation)
 		{
-			m_modules = BuildModules(m_engine->GetMaps(), [this](uint64_t address) {
+			auto modules = BuildModules(m_engine->GetMaps(), [this](uint64_t address) {
 				uint8_t magic[4];
 				return m_engine->ReadMemory(address, magic, sizeof(magic))
 					&& memcmp(magic,
@@ -1018,6 +1063,32 @@ namespace BinaryNinjaDebugger {
 						   4)
 					== 0;
 			});
+			// Keep the name of each surviving load instance stable when another instance unloads.
+			std::set<std::string> usedNames;
+			for (auto& module : modules)
+			{
+				auto previous = std::find_if(m_modules.begin(), m_modules.end(), [&module](const PtraceModuleInfo& old) {
+					return old.path == module.path && old.base == module.base;
+				});
+				if (previous != m_modules.end())
+				{
+					module.shortName = previous->shortName;
+					usedNames.insert(module.shortName);
+				}
+				else
+					module.shortName.clear();
+			}
+			for (auto& module : modules)
+			{
+				if (!module.shortName.empty())
+					continue;
+				std::string base = std::filesystem::path(module.path).filename().string();
+				module.shortName = base;
+				for (size_t suffix = 1; usedNames.count(module.shortName); suffix++)
+					module.shortName = base + "-" + std::to_string(suffix);
+				usedNames.insert(module.shortName);
+			}
+			m_modules = std::move(modules);
 			m_moduleGeneration = generation;
 		}
 		return m_modules;
@@ -1175,8 +1246,11 @@ namespace BinaryNinjaDebugger {
 	bool PtraceAdapter::Go()
 	{
 		SyncEngineSettings();
-		if (m_stepper)
-			m_stepper->Cancel();
+		if (m_stepper && !m_stepper->Cancel())
+		{
+			ReportOperationFailure("could not remove temporary step breakpoints; retry cleanup before resuming");
+			return false;
+		}
 		m_stopGeneration++;
 		if (!m_engine || !m_engine->Resume(false, 0))
 			return false;
@@ -1191,8 +1265,11 @@ namespace BinaryNinjaDebugger {
 	bool PtraceAdapter::StepInto()
 	{
 		SyncEngineSettings();
-		if (m_stepper)
-			m_stepper->Cancel();
+		if (m_stepper && !m_stepper->Cancel())
+		{
+			ReportOperationFailure("could not remove temporary step breakpoints; retry cleanup before resuming");
+			return false;
+		}
 		m_stopGeneration++;
 		if (!m_engine || !m_engine->Resume(true, m_activeThreadId))
 			return false;
@@ -1213,7 +1290,11 @@ namespace BinaryNinjaDebugger {
 			return false;
 
 		SyncEngineSettings();
-		m_stepper->Cancel();
+		if (!m_stepper->Cancel())
+		{
+			ReportOperationFailure("could not remove temporary step breakpoints; retry cleanup before resuming");
+			return false;
+		}
 		m_stopGeneration++;
 		uint32_t tid = m_activeThreadId;
 		m_engine->PostTask([this, tid] { DoStepOver(tid); });
@@ -1231,7 +1312,11 @@ namespace BinaryNinjaDebugger {
 			return false;
 
 		SyncEngineSettings();
-		m_stepper->Cancel();
+		if (!m_stepper->Cancel())
+		{
+			ReportOperationFailure("could not remove temporary step breakpoints; retry cleanup before resuming");
+			return false;
+		}
 		m_stopGeneration++;
 		uint32_t tid = m_activeThreadId;
 		m_engine->PostTask([this, tid] { DoStepReturn(tid); });
@@ -1244,11 +1329,11 @@ namespace BinaryNinjaDebugger {
 
 
 	// The controller is waiting for a stop, so a step that cannot be done still has to end in one
-	void PtraceAdapter::FailStep(const std::string& message)
+	void PtraceAdapter::ReportOperationFailure(const std::string& message)
 	{
 		DebuggerEvent event;
 		event.type = ErrorEventType;
-		event.data.errorData.shortError = "Step failed";
+		event.data.errorData.shortError = "Debugger operation failed";
 		event.data.errorData.error = fmt::format("PTRACE: {}", message);
 		PostDebuggerEvent(event);
 
@@ -1343,12 +1428,12 @@ namespace BinaryNinjaDebugger {
 		uint64_t pc, sp;
 		if (!pcInfo || !ReadRegisterOf(tid, arch->pc, pc) || !ReadRegisterOf(tid, arch->sp, sp))
 		{
-			FailStep("could not read the registers of the thread");
+			ReportOperationFailure("could not read the registers of the thread");
 			return;
 		}
 
 		if (!m_stepper->StepOver(tid, pc, sp, GetCallLength(pc), pcInfo->size))
-			FailStep("could not step over the instruction");
+			ReportOperationFailure("could not step over the instruction");
 	}
 
 
@@ -1358,7 +1443,7 @@ namespace BinaryNinjaDebugger {
 		uint64_t pc, sp;
 		if (!arch || !ReadRegisterOf(tid, arch->pc, pc) || !ReadRegisterOf(tid, arch->sp, sp))
 		{
-			FailStep("could not read the registers of the thread");
+			ReportOperationFailure("could not read the registers of the thread");
 			return;
 		}
 
@@ -1378,7 +1463,7 @@ namespace BinaryNinjaDebugger {
 		// A return instruction has the stack pointer of the function or above it, on every ABI that keeps the return
 		// address on the stack, as well as on those that do not once the epilogue has run
 		if (!m_stepper->StepReturn(tid, pc, sp, sites, returnAddress, returnSp))
-			FailStep("could not find where the function returns");
+			ReportOperationFailure("could not find where the function returns");
 	}
 
 
@@ -1448,8 +1533,11 @@ namespace BinaryNinjaDebugger {
 			return "PTRACE: this architecture has no PTRACE_SYSEMU\n";
 
 		SyncEngineSettings();
-		if (m_stepper)
-			m_stepper->Cancel();
+		if (m_stepper && !m_stepper->Cancel())
+		{
+			ReportOperationFailure("could not remove temporary step breakpoints; retry cleanup before resuming");
+			return "PTRACE: could not remove temporary step breakpoints; target remains stopped\n";
+		}
 		m_stopGeneration++;
 
 		// The controller did not ask for this, so it has to be told that the target runs. That comes before the resume,
@@ -1640,7 +1728,10 @@ namespace BinaryNinjaDebugger {
 				});
 				if (applied != m_breakpoints.end())
 				{
-					if (!ReleaseBreakpoint(oldAddress, false))
+					PtraceModuleInfo oldModule;
+					bool restore = FindModule(oldAddress, oldModule)
+						&& (oldModule.shortName == location.module || DebugModule::IsSameBaseModule(oldModule.path, location.module));
+					if (!ReleaseBreakpoint(oldAddress, restore))
 						continue;
 					m_breakpoints.erase(applied);
 				}
@@ -1716,7 +1807,7 @@ namespace BinaryNinjaDebugger {
 		// A step that the exec cut short is over, and the stop is the end of it
 		bool wasStepping = event.singleStep || (m_stepper && m_stepper->IsActive());
 		if (m_stepper)
-			m_stepper->Cancel();
+			m_stepper->Discard();
 		ClearAppliedBreakpointState();
 		ResetTargetState();
 
@@ -1756,7 +1847,8 @@ namespace BinaryNinjaDebugger {
 		bool stopOnExec = GetAdapterSettings()->Get<bool>("common.stopOnExec", GetData(), &scope);
 		if (!stopOnExec && !wasStepping)
 		{
-			m_engine->Resume(false, 0);
+			if (!m_engine->Resume(false, 0))
+				ReportOperationFailure("could not resume after exec");
 			return;
 		}
 
@@ -1845,7 +1937,7 @@ namespace BinaryNinjaDebugger {
 		if (!FindModule(address, module))
 			return false;
 
-		location = ModuleNameAndOffset(module.path, address - module.base);
+		location = ModuleNameAndOffset(module.shortName, address - module.base);
 		return true;
 	}
 
@@ -1866,17 +1958,21 @@ namespace BinaryNinjaDebugger {
 				function = symbol->name;
 		}
 
-		ModuleNameAndOffset location(module.path, address - module.base);
+		ModuleNameAndOffset location(module.shortName, address - module.base);
 		auto it = std::find_if(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
-			[&location](const KnownBreakpoint& known) { return known.location == location; });
+			[&](const KnownBreakpoint& known) {
+				return known.appliedAddress == address || known.location == location
+					|| (!known.appliedAddress && known.location.offset == location.offset
+						&& (known.location.module == module.path || known.location.module == module.shortName));
+			});
 		if (it == m_knownBreakpoints.end())
 			m_knownBreakpoints.push_back({location, function, address});
-		else if (it->function.empty())
-			it->function = function;
-		it = std::find_if(m_knownBreakpoints.begin(), m_knownBreakpoints.end(),
-			[&location](const KnownBreakpoint& known) { return known.location == location; });
-		if (it != m_knownBreakpoints.end())
+		else
+		{
+			if (it->function.empty())
+				it->function = function;
 			it->appliedAddress = address;
+		}
 	}
 
 

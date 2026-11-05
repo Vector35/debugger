@@ -188,8 +188,6 @@ def _assert_success(result):
 @pytest.mark.parametrize('driver,name', CASES, ids=[f'{driver}-{name}' for driver, name in CASES])
 def test_native_scenario(native, driver, name):
     extras = _extras()
-    if driver == 'review_driver' and name != 'maps_cost' and 'review' not in extras:
-        pytest.skip('Known review repro; enable with PTRACE_TEST_EXTRAS=review')
     if name.startswith('repro_') and 'diagnostics' not in extras:
         pytest.skip('Diagnostic repro; enable with PTRACE_TEST_EXTRAS=diagnostics')
     if name in ('perf', 'maps_cost') and 'benchmark' not in extras:

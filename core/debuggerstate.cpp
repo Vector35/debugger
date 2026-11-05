@@ -512,7 +512,15 @@ uint64_t DebuggerModules::RelativeAddressToAbsolute(const ModuleNameAndOffset& r
 {
 	if (!relativeAddress.module.empty())
 	{
-		for (const DebugModule& module : GetAllModules())
+		const std::vector<DebugModule> modules = GetAllModules();
+		// A unique short name selects one load instance of a library that is mapped more than once
+		// (for example through dlmopen). Only then fall back to the first module sharing the base name.
+		for (const DebugModule& module : modules)
+		{
+			if (!module.m_short_name.empty() && module.m_short_name == relativeAddress.module)
+				return module.m_address + relativeAddress.offset;
+		}
+		for (const DebugModule& module : modules)
 		{
 			if (module.IsSameBaseModule(relativeAddress.module))
 			{

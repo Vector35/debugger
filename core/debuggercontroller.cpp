@@ -81,6 +81,9 @@ DebuggerController::~DebuggerController()
 	if (m_interruptThread.joinable())
 		m_interruptThread.join();
 
+	// Adapter callbacks may still access controller state. Drain them before stopping the dispatcher or deleting state.
+	if (m_adapter)
+		m_adapter->StopEventDelivery();
 	m_shouldExit = true;
 	m_cv.notify_all();
 	if (m_debuggerEventThread.joinable())
@@ -545,6 +548,8 @@ bool DebuggerController::CreateDebugAdapter()
 		LogWarn("Failed to get an debug adapter of type %s", m_state->GetAdapterType().c_str());
 		return false;
 	}
+	if (m_adapter)
+		m_adapter->StopEventDelivery();
 	m_adapter = type->Create(GetData());
 	if (!m_adapter)
 	{
@@ -567,7 +572,11 @@ bool DebuggerController::CreateDebugAdapter()
 	ApplyBreakpoints();
 
 	// Forward the DebuggerEvent from the adapters to the controller
-	m_adapter->SetEventCallback([this](const DebuggerEvent& event) { PostDebuggerEvent(event); });
+	bool waitForCallbacks = m_adapter->WaitForEventCallbacks();
+	m_waitForEventCallbacks = waitForCallbacks;
+	m_adapter->SetEventCallback([this, waitForCallbacks](const DebuggerEvent& event) {
+		PostDebuggerEvent(event, waitForCallbacks);
+	});
 	return true;
 }
 
@@ -2321,7 +2330,7 @@ bool DebuggerController::RemoveEventCallbackInternal(size_t index)
 // in DebuggerController::DetectLoadedModule(), the code cannot post a ModuleLoadedEvent and block on it. Instead, a
 // direct callback must be used to inform the UI to perform the rebase, and then the core can continue its processing
 
-void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
+void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event, bool waitForCallbacks)
 {
 	// Adapter stops are an internal signal to the worker, not a user-facing event.
 	// Route them to the adapter-stop channel and skip the public dispatcher queue.
@@ -2398,8 +2407,9 @@ void DebuggerController::PostDebuggerEvent(const DebuggerEvent& event)
 	}
 	else
 	{
-		// Block until the event is handled (unless this is the dispatcher thread)
-		future.get();
+		// State and stop-channel updates above are synchronous even when public callbacks are queued without waiting.
+		if (waitForCallbacks && m_waitForEventCallbacks.load())
+			future.get();
 	}
 }
 
@@ -3380,6 +3390,11 @@ DebugStopReason DebuggerController::ExecuteAdapterAndWait(const DebugAdapterOper
 	// is no longer needed. The new Pause path bypasses this method entirely and calls
 	// m_adapter->BreakInto() out-of-band; everything else funnels through here on the worker.
 	BN_RELEASE_ASSERT(t_controllerOnWorker == this);
+
+	// An old callback may need AdapterAccessMutex (for example exec symbol refresh).
+	// Drain it before taking that mutex or publishing the new operation's stop channel.
+	if (operation == DebugAdapterLaunch || operation == DebugAdapterAttach || operation == DebugAdapterConnect)
+		m_adapter->StopEventDelivery();
 
 	// Claim the adapter-stop channel for the duration of this call. Any AdapterStoppedEvent
 	// posted by the adapter from now until we clear m_inAdapterWait is delivered to

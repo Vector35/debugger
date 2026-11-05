@@ -114,7 +114,7 @@ namespace BinaryNinjaDebugger {
 		bool IsUserBreakpoint(uint64_t address);
 		void DoStepOver(uint32_t tid);
 		void DoStepReturn(uint32_t tid);
-		void FailStep(const std::string& message);
+		void ReportOperationFailure(const std::string& message);
 		size_t GetCallLength(uint64_t pc);
 		std::vector<uint64_t> GetReturnSites(uint64_t pc);
 		bool IsInAnalyzedModule(uint64_t address);
@@ -129,6 +129,8 @@ namespace BinaryNinjaDebugger {
 	public:
 		PtraceAdapter(BinaryView* data);
 		virtual ~PtraceAdapter();
+		void StopEventDelivery() override;
+		bool WaitForEventCallbacks() const override { return false; }
 
 		bool Execute(const std::string& path, const LaunchConfigurations& configs) override;
 

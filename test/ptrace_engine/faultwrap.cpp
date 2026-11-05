@@ -42,6 +42,8 @@ extern "C" void PtraceTestFailNextResume()
 }
 
 static std::atomic<int> g_pwriteSkip {0};
+static std::atomic<size_t> g_partialPwrite {0};
+extern "C" void PtraceTestPartialPwrite(size_t bytes) { g_partialPwrite = bytes; }
 // -1 is none, because PTRACE_TRACEME is 0
 static std::atomic<int> g_failRequest {-1};
 
@@ -104,6 +106,16 @@ extern "C" long __wrap_ptrace(enum __ptrace_request request, ...)
 extern "C" ssize_t __real_pwrite(int fd, const void* buffer, size_t size, off_t offset);
 extern "C" ssize_t __wrap_pwrite(int fd, const void* buffer, size_t size, off_t offset)
 {
+	if (size_t prefix = g_partialPwrite.exchange(0))
+	{
+		auto count = __real_pwrite(fd, buffer, size < prefix ? size : prefix, offset);
+		if (count > 0)
+		{
+			g_pwriteSkip = 0;
+			g_failPwrite = true;
+		}
+		return count;
+	}
 	if (g_failPwrite.load())
 	{
 		if (g_pwriteSkip.load() > 0)

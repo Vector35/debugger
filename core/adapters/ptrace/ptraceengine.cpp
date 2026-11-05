@@ -31,6 +31,7 @@ limitations under the License.
 #include <sys/uio.h>
 #include <cstddef>
 #include <sstream>
+#include <stdexcept>
 #include <sys/ioctl.h>
 #include <sys/personality.h>
 #include <sys/ptrace.h>
@@ -339,22 +340,34 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	bool PtraceEngine::SendStop(pid_t tid)
+	{
+		// Tag our requests instead of trying to count SIGSTOP acknowledgments: standard
+		// signals coalesce, and another component in this process can also send SIGSTOP.
+		siginfo_t signal {};
+		signal.si_signo = SIGSTOP;
+		signal.si_code = SI_QUEUE;
+		signal.si_pid = getpid();
+		signal.si_uid = getuid();
+		signal.si_value.sival_ptr = this;
+		if (tid)
+			return syscall(SYS_rt_tgsigqueueinfo, m_pid, tid, SIGSTOP, &signal) == 0;
+		return syscall(SYS_rt_sigqueueinfo, m_pid, SIGSTOP, &signal) == 0;
+	}
+
+
 	bool PtraceEngine::Interrupt()
 	{
+		std::lock_guard<std::mutex> lock(m_infoMutex);
 		if (!m_publishedRunning)
 			return false;
 
 		m_interruptWanted = true;
 
-		// One signal on its way is enough, because the stop that it causes is the one that is wanted
-		if (m_interruptInFlight++ > 0)
+		// SIGSTOP coalesces, so requests cannot be counted as separate acknowledgments.
+		if (!SendStop())
 		{
-			m_interruptInFlight--;
-			return true;
-		}
-		if (kill(m_pid, SIGSTOP) != 0)
-		{
-			m_interruptInFlight--;
+			m_interruptWanted = false;
 			return false;
 		}
 		return true;
@@ -425,8 +438,10 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	bool PtraceEngine::RawWriteMemory(uint64_t address, const void* buffer, size_t size)
+	bool PtraceEngine::RawWriteMemory(uint64_t address, const void* buffer, size_t size, size_t* written)
 	{
+		if (written)
+			*written = 0;
 		if (m_memFd < 0 || m_finished || address > INT64_MAX || size > INT64_MAX - address)
 			return false;
 
@@ -439,6 +454,8 @@ namespace BinaryNinjaDebugger {
 			if (count <= 0)
 				return false;
 			done += count;
+			if (written)
+				*written = done;
 		}
 		return true;
 	}
@@ -472,7 +489,7 @@ namespace BinaryNinjaDebugger {
 		std::lock_guard<std::mutex> lock(m_breakpointMutex);
 		std::vector<uint8_t> data((const uint8_t*)buffer, (const uint8_t*)buffer + size);
 
-		// The breakpoint bytes stay in place, and what was written becomes the bytes underneath them
+		// Keep the trap instructions installed. Saved originals are updated only for the prefix actually written.
 		for (auto& [breakpointAddress, breakpoint] : m_breakpoints)
 		{
 			if (!breakpoint.inserted)
@@ -483,12 +500,24 @@ namespace BinaryNinjaDebugger {
 				uint64_t byteAddress = breakpointAddress + i;
 				if (byteAddress >= address && byteAddress - address < size)
 				{
-					breakpoint.original[i] = data[byteAddress - address];
 					data[byteAddress - address] = m_arch->breakpointInstruction[i];
 				}
 			}
 		}
-		return RawWriteMemory(address, data.data(), size);
+		size_t written = 0;
+		bool success = RawWriteMemory(address, data.data(), size, &written);
+		for (auto& [breakpointAddress, breakpoint] : m_breakpoints)
+		{
+			if (!breakpoint.inserted)
+				continue;
+			for (size_t i = 0; i < breakpoint.original.size(); i++)
+			{
+				uint64_t byteAddress = breakpointAddress + i;
+				if (byteAddress >= address && byteAddress - address < written)
+					breakpoint.original[i] = ((const uint8_t*)buffer)[byteAddress - address];
+			}
+		}
+		return success;
 	}
 
 
@@ -499,17 +528,20 @@ namespace BinaryNinjaDebugger {
 		std::string line;
 		while (std::getline(file, line))
 		{
-			unsigned long long start, end, offset;
+			unsigned long long start, end, offset, inode;
+			char device[32] = {};
 			char permissions[8] = {};
 			int consumed = 0;
-			if (sscanf(line.c_str(), "%llx-%llx %7s %llx %*s %*s %n", &start, &end, permissions, &offset, &consumed)
-				< 4)
+			if (sscanf(line.c_str(), "%llx-%llx %7s %llx %31s %llu %n", &start, &end, permissions, &offset, device, &inode, &consumed)
+				< 6)
 				continue;
 
 			MapEntry entry;
 			entry.start = start;
 			entry.end = end;
 			entry.offset = offset;
+			entry.device = device;
+			entry.inode = inode;
 			entry.read = permissions[0] == 'r';
 			entry.write = permissions[1] == 'w';
 			entry.execute = permissions[2] == 'x';
@@ -627,6 +659,8 @@ namespace BinaryNinjaDebugger {
 	{
 		{
 			std::lock_guard<std::mutex> lock(m_core->mutex);
+			if (m_core->stop)
+				return;
 			if (event.type == OutputEvent)
 			{
 				m_core->pendingOutput += event.data.size();
@@ -646,6 +680,22 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	void PtraceEngine::StopEventDelivery()
+	{
+		if (m_eventThread.joinable() && m_eventThread.get_id() == std::this_thread::get_id())
+			throw std::logic_error("cannot join event delivery from its own callback");
+		{
+			std::lock_guard<std::mutex> lock(m_core->mutex);
+			m_core->stop = true;
+			m_core->handler.reset();
+			m_core->events.clear();
+		}
+		m_core->cv.notify_all();
+		if (m_eventThread.joinable())
+			m_eventThread.join();
+	}
+
+
 	void PtraceEngine::PostTask(std::function<void()> task)
 	{
 		Event event;
@@ -662,6 +712,8 @@ namespace BinaryNinjaDebugger {
 		for (const auto& [tid, info] : m_threads)
 			m_publishedThreads.push_back(tid);
 		m_publishedRunning = m_running;
+		if (!m_running)
+			m_interruptWanted = false;
 	}
 
 
@@ -934,6 +986,15 @@ namespace BinaryNinjaDebugger {
 
 		if (pid == 0)
 		{
+			// exec preserves ignored dispositions. Launch the inferior independently of the host's signal policy.
+			struct sigaction action {};
+			action.sa_handler = SIG_DFL;
+			sigemptyset(&action.sa_mask);
+			for (int signal = 1; signal < NSIG; signal++)
+			{
+				if (signal != SIGKILL && signal != SIGSTOP)
+					sigaction(signal, &action, nullptr);
+			}
 			sigset_t noSignals;
 			sigemptyset(&noSignals);
 			sigprocmask(SIG_SETMASK, &noSignals, nullptr);
@@ -1607,15 +1668,13 @@ namespace BinaryNinjaDebugger {
 						+ ", which will not stop at them");
 				return result;
 			}
+			siginfo_t sender {};
+			bool ours = ptrace(PTRACE_GETSIGINFO, tid, nullptr, &sender) == 0
+				&& sender.si_pid == getpid() && sender.si_code == SI_QUEUE && sender.si_value.sival_ptr == this;
 			if (info.expectedStops > 0)
+				info.expectedStops = 0;
+			if (ours)
 			{
-				info.expectedStops--;
-				return result;
-			}
-			if (m_interruptInFlight > 0)
-			{
-				m_interruptInFlight--;
-				// The pause may have been given by another stop since, and then this signal is only left over
 				if (m_interruptWanted.exchange(false))
 				{
 					RestoreBreakpoints(tid, true);
@@ -1624,6 +1683,12 @@ namespace BinaryNinjaDebugger {
 				}
 				return result;
 			}
+			// Continue from an externally requested stop resumes execution. Do not reinject
+			// SIGSTOP and enter an unmodelled job-control group stop.
+			RestoreBreakpoints(tid, true);
+			result.kind = StopKind::Report;
+			result.signal = SIGSTOP;
+			return result;
 		}
 
 		if (ShouldAutoContinueSignal(signal))
@@ -2111,8 +2176,8 @@ namespace BinaryNinjaDebugger {
 			auto& info = m_threads[next];
 			if (!info.awaitingInitialStop && info.expectedStops == 0)
 			{
-				syscall(SYS_tgkill, m_pid, next, SIGSTOP);
-				info.expectedStops++;
+				if (SendStop(next))
+					info.expectedStops = 1;
 			}
 
 			int status = 0;
@@ -2157,8 +2222,7 @@ namespace BinaryNinjaDebugger {
 			allStopped &= info.stopped;
 		if (allStopped)
 			m_recentlyRemoved.clear();
-		// Any stop is a pause, so a request for one that has not been seen yet is answered
-		m_interruptWanted = false;
+		// Publishing the stopped state also satisfies pending pauses under the same lock used by Interrupt.
 
 		auto& info = m_threads[tid];
 		info.atReportedStop = ReadPc(tid, info.reportedPc);

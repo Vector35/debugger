@@ -15,9 +15,9 @@ import unittest
 from binaryninja import load, Settings
 from binaryninja.enums import SettingsScope
 try:
-    from debugger import DebuggerController, DebugStopReason, DebugBreakpointType
+    from debugger import DebuggerController, DebugStopReason, DebugBreakpointType, DebuggerEventType, ModuleNameAndOffset
 except:
-    from binaryninja.debugger import DebuggerController, DebugStopReason, DebugBreakpointType
+    from binaryninja.debugger import DebuggerController, DebugStopReason, DebugBreakpointType, DebuggerEventType, ModuleNameAndOffset
 
 # 'helloworld' -> '{BN_SOURCE_ROOT}\public\debugger\test\binaries\Windows-x64\helloworld.exe' (windows)
 # 'helloworld' -> '{BN_SOURCE_ROOT}/public/debugger/test/binaries/Darwin/arm64/helloworld' (linux, macOS)
@@ -729,6 +729,117 @@ class PtraceAdapterTests:
             self._entry_settings_configured = True
 
         return dbg
+
+    def ptrace_fixture(self):
+        if self.arch != 'x86_64':
+            self.skipTest('These lifecycle fixtures require a native x86-64 Linux build')
+        directory = os.environ.get('PTRACE_TEST_BUILD_DIR')
+        if not directory:
+            self.skipTest('Set PTRACE_TEST_BUILD_DIR to the standalone ptrace test build')
+        fixture = os.path.join(directory, 'progs')
+        self.assertTrue(os.path.isfile(fixture), fixture)
+        return fixture
+
+    def test_restart_from_blocked_output_callback(self):
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = 'bploop'
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        old_pid = dbg.active_pid
+        finished = threading.Event()
+        outcomes = []
+        entered = threading.Event()
+
+        def callback(event):
+            if event.type != DebuggerEventType.StdoutMessageEventType or entered.is_set():
+                return
+            entered.set()
+            try:
+                # The dispatcher stays inside this callback while restart must stop the
+                # old target. Its engine must continue delivering internal stop/exit events.
+                dbg.restart()
+                deadline = time.monotonic() + 5
+                while dbg.connected and dbg.active_pid == old_pid and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                outcomes.append(not dbg.connected or dbg.active_pid != old_pid)
+            finally:
+                finished.set()
+
+        handle = dbg.register_event_callback(callback, 'ptrace blocked callback restart')
+        try:
+            dbg.go()
+            self.assertTrue(finished.wait(10), 'Restart could not progress while the public callback was blocked')
+            self.assertEqual(outcomes, [True])
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline:
+                if dbg.connected and dbg.active_pid != old_pid and not dbg.running:
+                    break
+                time.sleep(0.02)
+            self.assertTrue(dbg.connected)
+            self.assertNotEqual(dbg.active_pid, old_pid)
+            self.assertFalse(dbg.running)
+        finally:
+            dbg.remove_event_callback(handle)
+            dbg.quit_and_wait(10000)
+
+    def test_simultaneous_module_breakpoints(self):
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = 'multiload'
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        try:
+            dbg.go_and_wait(20000)
+            first = [module for module in dbg.modules if module.name.endswith('/libtest.so')]
+            self.assertEqual(len(first), 1)
+            self.assertGreater(dbg.load_symbols_for_module(first[0].short_name), 0)
+            symbol = bv.get_symbols_by_name('libfunc')[0]
+            address = symbol.address
+            offset = address - first[0].address
+            dbg.add_breakpoint(ModuleNameAndOffset(first[0].short_name, offset))
+            dbg.go_and_wait(20000)
+            copies = [module for module in dbg.modules if module.name.endswith('/libtest.so')]
+            self.assertEqual(len(copies), 2)
+            self.assertEqual(len({module.short_name for module in copies}), 2)
+            other = next(module for module in copies if module.address != first[0].address)
+            dbg.add_breakpoint(ModuleNameAndOffset(other.short_name, offset))
+            hits = set()
+            for _ in range(2):
+                self.assertEqual(dbg.go_and_wait(20000), DebugStopReason.Breakpoint)
+                hits.add(dbg.ip)
+            self.assertEqual(hits, {address, other.address + offset})
+        finally:
+            dbg.quit_and_wait(10000)
+
+    def test_module_breakpoint_name_roundtrip(self):
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        try:
+            module = next(module for module in dbg.modules if os.path.realpath(module.name) == os.path.realpath(dbg.executable_path))
+            address = dbg.ip + 8
+            offset = address - module.address
+            with open(f'/proc/{dbg.active_pid}/mem', 'rb', buffering=0) as memory:
+                def raw_byte(at=address):
+                    memory.seek(at)
+                    return memory.read(1)
+                original = raw_byte()
+                for name in (module.name, module.short_name):
+                    location = ModuleNameAndOffset(name, offset)
+                    survivor = address + 8
+                    survivor_original = raw_byte(survivor)
+                    dbg.add_breakpoint(location)
+                    dbg.add_breakpoint(survivor)
+                    self.assertEqual(raw_byte(), b'\xcc')
+                    dbg.delete_breakpoint(location)
+                    self.assertEqual(raw_byte(), original)
+                    self.assertEqual(raw_byte(survivor), b'\xcc')
+                    self.assertTrue(dbg.has_breakpoint(survivor))
+                    dbg.delete_breakpoint(survivor)
+                    self.assertEqual(raw_byte(survivor), survivor_original)
+                    self.assertTrue(dbg.add_hardware_breakpoint(location, DebugBreakpointType.BNHardwareExecuteBreakpoint, 1))
+                    self.assertTrue(dbg.delete_hardware_breakpoint(location, DebugBreakpointType.BNHardwareExecuteBreakpoint, 1))
+        finally:
+            dbg.quit_and_wait(10000)
 
     def set_redirects(self, dbg, bv, redirects):
         settings = dbg.adapter_settings

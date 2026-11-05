@@ -102,6 +102,20 @@ int main(int argc, char** argv)
 	if (!strcmp(mode, "frames")) { signal(SIGUSR1, SIG_IGN); level1(); return counter; }
 	if (!strcmp(mode, "syms")) { signal(SIGUSR1, SIG_IGN); printf("marker=%p puts=%p\n", (void*)marker, dlsym(RTLD_DEFAULT, "puts")); raise(SIGUSR1); return 0; }
 	if (!strcmp(mode, "dl")) { signal(SIGUSR1, SIG_IGN); printf("ready\n"); raise(SIGUSR1); void* h = dlopen(PTRACE_TEST_DIRECTORY "/libtest.so", RTLD_NOW); printf("loaded=%p\n", h); void (*f)(void) = (void (*)(void))dlsym(h, "libfunc"); printf("libfunc=%p\n", (void*)f); raise(SIGUSR1); f(); return 0; }
+	if (!strcmp(mode, "multiload")) {
+		signal(SIGUSR1, SIG_IGN);
+		void* first = dlmopen(LM_ID_NEWLM, PTRACE_TEST_DIRECTORY "/libtest.so", RTLD_NOW | RTLD_LOCAL);
+		if (!first) return 98;
+		printf("first=%p\n", dlsym(first, "libfunc"));
+		raise(SIGUSR1);
+		void* second = dlmopen(LM_ID_NEWLM, PTRACE_TEST_DIRECTORY "/libtest.so", RTLD_NOW | RTLD_LOCAL);
+		if (!second) return 98;
+		printf("second=%p\n", dlsym(second, "libfunc"));
+		raise(SIGUSR1);
+		((void (*)(void))dlsym(first, "libfunc"))();
+		((void (*)(void))dlsym(second, "libfunc"))();
+		return 0;
+	}
 	if (!strcmp(mode, "dlcycle")) { signal(SIGUSR1, SIG_IGN); for (int i = 1; i <= 2; i++) { void* h = dlopen(PTRACE_TEST_DIRECTORY "/libtest.so", RTLD_NOW); void (*f)(void) = (void (*)(void))dlsym(h, "libfunc"); printf("cycle%d=%p\n", i, (void*)f); raise(SIGUSR1); f(); dlclose(h); } return 0; }
 	if (!strcmp(mode, "dlrebase")) { signal(SIGUSR1, SIG_IGN); void* h = dlopen(PTRACE_TEST_DIRECTORY "/libtest.so", RTLD_NOW); void (*f)(void) = (void (*)(void))dlsym(h, "libfunc"); uintptr_t lo, hi; int range = libraryRange(&lo, &hi); printf("cycle1=%p\n", (void*)f); raise(SIGUSR1); f(); dlclose(h); void* held = range ? mmap((void*)lo, hi - lo, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0) : MAP_FAILED; h = dlopen(PTRACE_TEST_DIRECTORY "/libtest.so", RTLD_NOW); f = (void (*)(void))dlsym(h, "libfunc"); printf("reserved=%p cycle2=%p\n", held, (void*)f); raise(SIGUSR1); f(); dlclose(h); return held == MAP_FAILED; }
 	if (!strcmp(mode, "stepover")) { signal(SIGUSR1, SIG_IGN); caller(0); return counter; }
