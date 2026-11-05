@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 #pragma once
+#include <mutex>
+#include <atomic>
 
 #include <unordered_map>
 #include "binaryninjaapi.h"
@@ -38,7 +40,7 @@ namespace BinaryNinjaDebugger {
 	private:
 		DebuggerState* m_state;
 		std::unordered_map<std::string, DebugRegister> m_registerCache;
-		bool m_dirty;
+		std::atomic<bool> m_dirty;
 		std::recursive_mutex m_registersMutex;
 		std::unordered_map<std::string, DebugRegister> GetCachedRegisters();
 
@@ -59,7 +61,7 @@ namespace BinaryNinjaDebugger {
 	private:
 		DebuggerState* m_state;
 		std::vector<DebugModule> m_modules;
-		bool m_dirty;
+		std::atomic<bool> m_dirty;
 		std::recursive_mutex m_modulesMutex;
 
 	public:
@@ -83,7 +85,7 @@ namespace BinaryNinjaDebugger {
 	private:
 		DebuggerState* m_state;
 		std::vector<DebugMemoryRegion> m_regions;
-		bool m_dirty;
+		std::atomic<bool> m_dirty;
 		std::recursive_mutex m_regionsMutex;
 
 	public:
@@ -119,7 +121,9 @@ namespace BinaryNinjaDebugger {
 	{
 	private:
 		DebuggerState* m_state;
+		mutable std::recursive_mutex m_mutex;
 		std::vector<BreakpointEntry> m_breakpoints;
+		std::mutex m_metadataMutex;
 
 	public:
 		DebuggerBreakpoints(DebuggerState* state, std::vector<ModuleNameAndOffset> initial = {});
@@ -138,7 +142,11 @@ namespace BinaryNinjaDebugger {
 		void Apply();
 		void SerializeMetadata();
 		void UnserializedMetadata();
-		std::vector<BreakpointEntry> GetBreakpointList() const { return m_breakpoints; }
+		std::vector<BreakpointEntry> GetBreakpointList() const
+		{
+			std::lock_guard<std::recursive_mutex> lock(m_mutex);
+			return m_breakpoints;
+		}
 
 		bool SetConditionAbsolute(uint64_t remoteAddress, const std::string& condition);
 		bool SetConditionOffset(const ModuleNameAndOffset& address, const std::string& condition);
@@ -174,7 +182,7 @@ namespace BinaryNinjaDebugger {
 		DebuggerState* m_state;
 		std::vector<DebugThread> m_threads;
 		std::map<uint32_t, std::vector<DebugFrame>> m_frames;
-		bool m_dirty;
+		std::atomic<bool> m_dirty;
 		std::recursive_mutex m_threadsMutex;
 
 	public:
@@ -255,8 +263,8 @@ namespace BinaryNinjaDebugger {
 
 	private:
 		DebuggerController* m_controller;
-		DebugAdapterConnectionStatus m_connectionStatus;
-		DebugAdapterTargetStatus m_targetStatus;
+		std::atomic<DebugAdapterConnectionStatus> m_connectionStatus;
+		std::atomic<DebugAdapterTargetStatus> m_targetStatus;
 
 		DebugAdapter* m_adapter;
 		DebuggerModules* m_modules;

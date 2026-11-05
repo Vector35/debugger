@@ -2,7 +2,7 @@
 # The Windows remote server uses the static runtime; other targets keep the default.
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
-project(debugger)
+project(more_container_transforms)
 
 if((NOT BN_API_PATH) AND (NOT BN_INTERNAL_BUILD))
 	set(BN_API_PATH $ENV{BN_API_PATH})

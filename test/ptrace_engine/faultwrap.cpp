@@ -36,12 +36,22 @@ extern "C" pid_t __wrap_waitpid(pid_t pid, int* status, int options)
 	return __real_waitpid(pid, status, options);
 }
 
+static std::atomic<int> g_resumeErrno {EIO};
 extern "C" void PtraceTestFailNextResume()
 {
+	g_resumeErrno = EIO;
+	g_failResume = true;
+}
+
+extern "C" void PtraceTestFailNextResumeWith(int error)
+{
+	g_resumeErrno = error;
 	g_failResume = true;
 }
 
 static std::atomic<int> g_pwriteSkip {0};
+static std::atomic<size_t> g_partialPwrite {0};
+extern "C" void PtraceTestPartialPwrite(size_t bytes) { g_partialPwrite = bytes; }
 // -1 is none, because PTRACE_TRACEME is 0
 static std::atomic<int> g_failRequest {-1};
 
@@ -59,8 +69,18 @@ extern "C" void PtraceTestFailPwriteAfter(int writes)
 }
 
 // The next ptrace call of this request fails
+static std::atomic<int> g_failRequestLeft {0};
+
 extern "C" void PtraceTestFailNextRequest(int request)
 {
+	g_failRequestLeft = 1;
+	g_failRequest = request;
+}
+
+// The next `times` calls of this request fail
+extern "C" void PtraceTestFailRequestTimes(int request, int times)
+{
+	g_failRequestLeft = times;
 	g_failRequest = request;
 }
 
@@ -85,13 +105,17 @@ extern "C" long __wrap_ptrace(enum __ptrace_request request, ...)
 	va_end(args);
 	if ((request == PTRACE_CONT || request == PTRACE_SINGLESTEP) && g_failResume.exchange(false))
 	{
-		errno = EIO;
+		errno = g_resumeErrno;
 		return -1;
 	}
-	if (g_failRequest.load() == (int)request && g_failRequest.exchange(-1) == (int)request)
+	if (g_failRequest.load() == (int)request)
 	{
-		errno = EIO;
-		return -1;
+		if (g_failRequestLeft.fetch_sub(1) > 0)
+		{
+			errno = EIO;
+			return -1;
+		}
+		g_failRequest = -1;
 	}
 	if (request == PTRACE_SETOPTIONS && g_failSetOptions.exchange(false))
 	{
@@ -104,6 +128,16 @@ extern "C" long __wrap_ptrace(enum __ptrace_request request, ...)
 extern "C" ssize_t __real_pwrite(int fd, const void* buffer, size_t size, off_t offset);
 extern "C" ssize_t __wrap_pwrite(int fd, const void* buffer, size_t size, off_t offset)
 {
+	if (size_t prefix = g_partialPwrite.exchange(0))
+	{
+		auto count = __real_pwrite(fd, buffer, size < prefix ? size : prefix, offset);
+		if (count > 0)
+		{
+			g_pwriteSkip = 0;
+			g_failPwrite = true;
+		}
+		return count;
+	}
 	if (g_failPwrite.load())
 	{
 		if (g_pwriteSkip.load() > 0)

@@ -65,6 +65,8 @@ else()
 			adapters/ptrace/ptraceadapter.h
 			adapters/ptrace/ptracearch.cpp
 			adapters/ptrace/ptracearch.h
+			adapters/ptrace/ptracecmdline.cpp
+			adapters/ptrace/ptracecmdline.h
 			adapters/ptrace/ptraceelf.cpp
 			adapters/ptrace/ptraceelf.h
 			adapters/ptrace/ptraceengine.cpp
