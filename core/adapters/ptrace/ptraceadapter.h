@@ -16,10 +16,15 @@ limitations under the License.
 
 #pragma once
 #include <atomic>
+#include <map>
 #include <memory>
+#include <mutex>
 #include "../../debugadapter.h"
 #include "../../debugadaptertype.h"
 #include "ptracearch.h"
+#include "ptraceelf.h"
+#include "ptracemodule.h"
+#include "ptracestep.h"
 #include "ptraceengine.h"
 
 namespace BinaryNinjaDebugger {
@@ -27,6 +32,7 @@ namespace BinaryNinjaDebugger {
 	{
 	private:
 		std::unique_ptr<PtraceEngine> m_engine;
+		std::unique_ptr<PtraceStepper> m_stepper;
 		std::atomic<bool> m_targetActive;
 		std::atomic<uint32_t> m_activeThreadId {0};
 		std::atomic<DebugStopReason> m_lastStopReason {UnknownReason};
@@ -35,11 +41,42 @@ namespace BinaryNinjaDebugger {
 		bool m_firstStop = false;
 		bool m_stopAtSystemEntry = false;
 
+		std::string m_inputFile;
+
+		// Bumped whenever the target may have changed, which is when the cached modules go stale
+		std::atomic<uint64_t> m_stopGeneration {0};
+		std::mutex m_moduleMutex;
+		uint64_t m_moduleGeneration = UINT64_MAX;
+		std::vector<PtraceModuleInfo> m_modules;
+		std::map<std::string, std::shared_ptr<ElfInfo>> m_elfCache;
+		// The dynamic loader calls this every time the libraries of the target change
+		uint64_t m_loaderBreakpoint = 0;
+
+		// Guards the breakpoint lists. It is recursive because adding one by module and offset adds it by address.
+		mutable std::recursive_mutex m_breakpointMutex;
+		std::vector<DebugBreakpoint> m_breakpoints;
+		// How many users the breakpoint of the engine at an address has: the user, a step, the dynamic loader
+		std::map<uint64_t, int> m_engineBreakpointRefs;
+		unsigned long m_nextBreakpointId = 1;
 		std::vector<ModuleNameAndOffset> m_pendingBreakpoints {};
 		std::vector<PendingHardwareBreakpoint> m_pendingHardwareBreakpoints {};
 
 		void HandleEngineEvent(const PtraceEngine::Event& event);
+		void ClearBreakpoints();
 		uint64_t ReadArchRegister(const std::string& name);
+		bool ReadRegisterOf(uint32_t tid, const std::string& name, uint64_t& value);
+		std::vector<PtraceModuleInfo> GetModules();
+		std::shared_ptr<ElfInfo> GetElf(const std::string& path);
+		void SetUpLoaderBreakpoint();
+		bool AcquireBreakpoint(uint64_t address);
+		bool ReleaseBreakpoint(uint64_t address);
+		bool IsUserBreakpoint(uint64_t address);
+		void DoStepOver(uint32_t tid);
+		void DoStepReturn(uint32_t tid);
+		void FailStep(const std::string& message);
+		size_t GetCallLength(uint64_t pc);
+		std::vector<uint64_t> GetReturnSites(uint64_t pc);
+		void ResetTargetState();
 
 		// Helper to resolve module+offset to absolute address
 		// Returns true if the module was found in the loaded module list and address was resolved
@@ -96,8 +133,10 @@ namespace BinaryNinjaDebugger {
 		// Hardware breakpoint and watchpoint support
 		bool AddHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
 		bool RemoveHardwareBreakpoint(uint64_t address, DebugBreakpointType type, size_t size = 1) override;
-		bool AddHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) override;
-		bool RemoveHardwareBreakpoint(const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) override;
+		bool AddHardwareBreakpoint(
+			const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) override;
+		bool RemoveHardwareBreakpoint(
+			const ModuleNameAndOffset& location, DebugBreakpointType type, size_t size = 1) override;
 
 		std::unordered_map<std::string, DebugRegister> ReadAllRegisters() override;
 
