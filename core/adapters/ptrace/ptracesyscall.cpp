@@ -266,7 +266,7 @@ namespace BinaryNinjaDebugger {
 	}
 
 
-	static std::string Call(const PtraceEngine::SyscallInfo& info)
+	static std::string FormatSyscallCall(const PtraceEngine::SyscallInfo& info)
 	{
 		const char* name = SyscallName(info.arch, info.number);
 		std::string text = name ? name : "syscall_" + std::to_string(info.number);
@@ -287,13 +287,13 @@ namespace BinaryNinjaDebugger {
 		switch (info.op)
 		{
 		case PtraceEngine::SyscallInfo::Entry:
-			text = (verbose ? "system call entry: " : "") + Call(info);
+			text = (verbose ? "system call entry: " : "") + FormatSyscallCall(info);
 			break;
 		case PtraceEngine::SyscallInfo::Seccomp:
 		{
 			char buffer[48];
 			snprintf(buffer, sizeof(buffer), " (seccomp data 0x%x)", info.seccompData);
-			text = (verbose ? "seccomp stop: " : "") + Call(info) + buffer;
+			text = (verbose ? "seccomp stop: " : "") + FormatSyscallCall(info) + buffer;
 			break;
 		}
 		case PtraceEngine::SyscallInfo::Exit:

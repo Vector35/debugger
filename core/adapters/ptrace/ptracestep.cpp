@@ -24,7 +24,7 @@ namespace BinaryNinjaDebugger {
 	{}
 
 
-	void PtraceStepper::ReleaseAll()
+	void PtraceStepper::EndStep()
 	{
 		for (uint64_t address : m_addresses)
 			m_release(address);
@@ -43,14 +43,14 @@ namespace BinaryNinjaDebugger {
 	void PtraceStepper::Cancel()
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
-		ReleaseAll();
+		EndStep();
 	}
 
 
 	bool PtraceStepper::StepOver(uint32_t tid, uint64_t pc, uint64_t sp, size_t callLength, size_t wordSize)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
-		ReleaseAll();
+		EndStep();
 		if (callLength == 0)
 			return m_engine.Resume(true, tid);
 
@@ -66,7 +66,7 @@ namespace BinaryNinjaDebugger {
 		if (m_engine.Resume(false, 0))
 			return true;
 
-		ReleaseAll();
+		EndStep();
 		return false;
 	}
 
@@ -75,7 +75,7 @@ namespace BinaryNinjaDebugger {
 		uint64_t returnAddress, uint64_t returnSp)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
-		ReleaseAll();
+		EndStep();
 
 		// Already at the instruction that returns, so the return is the next step
 		if (std::find(returnSites.begin(), returnSites.end(), pc) != returnSites.end())
@@ -115,7 +115,7 @@ namespace BinaryNinjaDebugger {
 		if (m_engine.Resume(false, 0))
 			return true;
 
-		ReleaseAll();
+		EndStep();
 		return false;
 	}
 
@@ -139,7 +139,7 @@ namespace BinaryNinjaDebugger {
 		bool atOurs = event.breakpoint && m_addresses.count(pc);
 		if (!atOurs || userBreakpoint)
 		{
-			ReleaseAll();
+			EndStep();
 			return Result::Ignored;
 		}
 
@@ -149,18 +149,18 @@ namespace BinaryNinjaDebugger {
 			if (m_engine.Resume(false, 0))
 				return Result::Consumed;
 
-			ReleaseAll();
+			EndStep();
 			return Result::Ignored;
 		}
 
 		if (m_mode == Mode::ReturnAddress)
 		{
-			ReleaseAll();
+			EndStep();
 			return Result::Finished;
 		}
 
 		// At an instruction that returns: it takes one step to be out
-		ReleaseAll();
+		EndStep();
 		m_mode = Mode::FinalStep;
 		if (m_engine.Resume(true, m_tid))
 			return Result::Consumed;
