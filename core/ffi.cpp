@@ -1328,6 +1328,12 @@ void BNDebuggerSetDebuggerUICallbacks(BNDebuggerController* controller, BNDebugg
 }
 
 
+void BNDebuggerRemoveDebuggerUICallbacks(BNDebuggerController* controller, void* ctxt)
+{
+	controller->object->RemoveDebuggerUICallbacks(ctxt);
+}
+
+
 void BNDebuggerWriteStdin(BNDebuggerController* controller, const char* data, size_t len)
 {
 	controller->object->WriteStdIn(std::string(data, len));

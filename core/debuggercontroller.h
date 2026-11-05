@@ -741,6 +741,7 @@ namespace BinaryNinjaDebugger {
 		bool CreateDebugAdapter();
 
 		void SetDebuggerUICallbacks(BNDebuggerUICallbacks* cb, void* ctxt);
+		void RemoveDebuggerUICallbacks(void* ctxt);
 
 		bool FunctionExistsInOldView(uint64_t address);
 	};

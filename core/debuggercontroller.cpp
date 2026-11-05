@@ -5572,6 +5572,13 @@ void DebuggerController::SetDebuggerUICallbacks(BNDebuggerUICallbacks* cb, void*
 }
 
 
+void DebuggerController::RemoveDebuggerUICallbacks(void* ctxt)
+{
+	if (m_uiCallbacks && m_uiCallbacks->m_context == ctxt)
+		m_uiCallbacks.reset();
+}
+
+
 void DebuggerUICallbacks::NotifyRebaseBinaryView(uint64_t remoteBase)
 {
 	if (m_callbacks && m_callbacks->rebaseBinaryView)

@@ -846,6 +846,7 @@ extern "C"
 
 	DEBUGGER_FFI_API void BNDebuggerSetDebuggerUICallbacks(BNDebuggerController* controller,
 		BNDebuggerUICallbacks* cb, void* ctx);
+	DEBUGGER_FFI_API void BNDebuggerRemoveDebuggerUICallbacks(BNDebuggerController* controller, void* ctx);
 
 	DEBUGGER_FFI_API BNMetadata* BNDebuggerGetAdapterProperty(BNDebuggerController* controller, const char* name);
 	DEBUGGER_FFI_API bool BNDebuggerSetAdapterProperty(
