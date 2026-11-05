@@ -740,6 +740,32 @@ class PtraceAdapterTests:
         self.assertTrue(os.path.isfile(fixture), fixture)
         return fixture
 
+    def test_quit_after_queued_resume_operations(self):
+        # Resume operations queued behind a running Go must not run after Quit is requested.
+        # Otherwise the second Go resumes the target and Quit never gets to run.
+        bv = load(self.ptrace_fixture())
+        dbg = self.create_debugger(bv)
+        dbg.cmd_line = 'loop'
+        self.assertNotIn(dbg.launch_and_wait(20000), [DebugStopReason.ProcessExited, DebugStopReason.InternalError])
+        pid = dbg.active_pid
+        self.assertEqual(dbg.go_and_wait(timeout=1000), DebugStopReason.TimedOut)
+        self.assertEqual(dbg.step_return_and_wait(timeout=500), DebugStopReason.TimedOut)
+        self.assertEqual(dbg.go_and_wait(timeout=500), DebugStopReason.TimedOut)
+        started = time.time()
+        dbg.quit_and_wait(10000)
+        self.assertLess(time.time() - started, 5)
+        deadline = time.time() + 5
+        while os.path.exists(f'/proc/{pid}') and time.time() < deadline:
+            try:
+                with open(f'/proc/{pid}/stat') as f:
+                    if f.read().rsplit(')', 1)[1].split()[0] == 'Z':
+                        break
+            except OSError:
+                break
+            time.sleep(0.05)
+        self.assertFalse(os.path.exists(f'/proc/{pid}') and open(f'/proc/{pid}/stat').read().rsplit(')', 1)[1].split()[0] != 'Z',
+                         'target survived quit')
+
     def test_restart_from_blocked_output_callback(self):
         bv = load(self.ptrace_fixture())
         dbg = self.create_debugger(bv)

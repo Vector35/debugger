@@ -594,8 +594,18 @@ bool DebuggerController::CanStartDebgging()
 }
 
 
+void DebuggerController::BeginTeardown()
+{
+	m_teardownGeneration++;
+}
+
+
 bool DebuggerController::CanResumeTarget()
 {
+	// A resume queued before a Quit/Restart/Detach was requested must not run: it would resume the target
+	// right before the teardown task, which would then wait forever for a target that keeps running.
+	if (t_controllerOnWorker == this && m_currentTaskGeneration != m_teardownGeneration.load())
+		return false;
 	return m_state->IsConnected() && (!m_state->IsRunning());
 }
 
@@ -1660,6 +1670,7 @@ bool DebuggerController::Restart()
 	// Interrupt any in-flight resume op so the queued Restart can actually run.
 	// Without this, if the target is running the worker is blocked in WaitForAdapterStop
 	// and Restart would sit in the queue indefinitely.
+	BeginTeardown();
 	RequestInterrupt();
 	Submit([this] { RestartAndWaitOnWorker(); });
 	return true;
@@ -1689,6 +1700,7 @@ DebugStopReason DebuggerController::RestartAndWait(std::chrono::milliseconds tim
 		return InternalError;
 	}
 
+	BeginTeardown();
 	RequestInterrupt();
 	return SubmitAndWait([this] { return RestartAndWaitOnWorker(); }, timeout);
 }
@@ -1741,6 +1753,7 @@ void DebuggerController::Detach()
 		return;
 
 	// Interrupt any in-flight resume op (see Restart for rationale).
+	BeginTeardown();
 	RequestInterrupt();
 	Submit([this] { DetachAndWaitOnWorker(); });
 }
@@ -1770,6 +1783,7 @@ void DebuggerController::DetachAndWait(std::chrono::milliseconds timeout)
 		return;
 	}
 
+	BeginTeardown();
 	RequestInterrupt();
 	SubmitAndWait([this] { DetachAndWaitOnWorker(); }, timeout);
 }
@@ -1781,6 +1795,7 @@ void DebuggerController::Quit()
 		return;
 
 	// Interrupt any in-flight resume op (see Restart for rationale).
+	BeginTeardown();
 	RequestInterrupt();
 	Submit([this] { QuitAndWaitOnWorker(); });
 }
@@ -1821,6 +1836,7 @@ void DebuggerController::QuitAndWait(std::chrono::milliseconds timeout)
 		return;
 	}
 
+	BeginTeardown();
 	RequestInterrupt();
 	SubmitAndWait([this] { QuitAndWaitOnWorker(); }, timeout);
 }

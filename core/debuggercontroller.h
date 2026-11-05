@@ -335,6 +335,14 @@ namespace BinaryNinjaDebugger {
 		// caller's thread either (the UI thread must not block on an adapter call). This
 		// thread is the third option: owned and joined like m_workerThread, so it can never
 		// outlive the controller or touch a destroyed adapter.
+		// Quit, Restart and Detach interrupt only the operation that is running now. Resume operations
+		// queued before them would run first and resume the target again, leaving the teardown stuck
+		// behind a target that never stops. Every teardown request starts a new generation, and a resume
+		// operation queued in an older generation is dropped when the worker reaches it.
+		std::atomic<uint64_t> m_teardownGeneration {0};
+		uint64_t m_currentTaskGeneration = 0;  // Worker thread only: generation of the task being run
+		void BeginTeardown();
+
 		std::thread m_interruptThread;
 		std::mutex m_interruptMutex;
 		std::condition_variable m_interruptCv;
@@ -360,7 +368,12 @@ namespace BinaryNinjaDebugger {
 				std::lock_guard<std::mutex> lock(m_workQueueMutex);
 				if (m_workerShouldExit)
 					return future;  // future is left unset; caller's get() will throw broken_promise
-				m_workQueue.push([task]() { (*task)(); });
+				// Remember which teardown generation this task was queued in (see BeginTeardown).
+				const uint64_t generation = m_teardownGeneration.load();
+				m_workQueue.push([this, task, generation]() {
+					m_currentTaskGeneration = generation;
+					(*task)();
+				});
 			}
 			m_workQueueCv.notify_one();
 			return future;
