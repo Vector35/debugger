@@ -1345,7 +1345,10 @@ namespace BinaryNinjaDebugger {
 				std::unique_lock<std::mutex> lock(m_taskMutex);
 				if (!m_running)
 				{
-					m_taskCv.wait(lock, [this] { return m_shutdown || !m_tasks.empty(); });
+					if (GroupMayBeDying())
+						m_taskCv.wait_for(lock, std::chrono::milliseconds(20), [this] { return m_shutdown || !m_tasks.empty(); });
+					else
+						m_taskCv.wait(lock, [this] { return m_shutdown || !m_tasks.empty(); });
 				}
 				else if (m_tasks.empty() && idle >= 20)
 				{
@@ -1369,11 +1372,56 @@ namespace BinaryNinjaDebugger {
 				else if (++idle < 20)
 					sched_yield();
 			}
+			if (!m_done && GroupMayBeDying())
+				PollThreadsForDeath();
 		}
 
 		std::lock_guard<std::mutex> lock(m_taskMutex);
 		m_tracerStop = true;
 		m_tasks.clear();
+	}
+
+
+	bool PtraceEngine::GroupMayBeDying() const
+	{
+		return std::chrono::steady_clock::now() < m_groupDyingUntil;
+	}
+
+
+	bool PtraceEngine::PollThreadsForDeath()
+	{
+		std::vector<pid_t> tids;
+		for (const auto& [tid, info] : m_threads)
+			tids.push_back(tid);
+
+		bool progressed = false;
+		// The leader can only be reaped after every other thread, so it goes last
+		if (std::erase(tids, m_pid) > 0)
+			tids.push_back(m_pid);
+		for (pid_t tid : tids)
+		{
+			if (m_done)
+				break;
+			if (m_threads.find(tid) == m_threads.end())
+				continue;
+
+			// Only a thread that has terminated is of interest. Looking does not consume a pending stop.
+			siginfo_t info {};
+			if (waitid(P_PID, tid, &info, WEXITED | WNOHANG | WNOWAIT | __WALL) != 0 || info.si_pid == 0)
+				continue;
+
+			int status = 0;
+			pid_t result = waitpid(tid, &status, __WALL | WNOHANG);
+			if (result == 0)
+				continue;
+			if (result < 0 && errno == EINTR)
+				continue;
+			if (result < 0)
+				status = 0;
+			progressed = true;
+			HandleStatus(tid, status);
+		}
+		return progressed;
 	}
 
 
@@ -1587,6 +1635,8 @@ namespace BinaryNinjaDebugger {
 			RestoreBreakpoints(tid, false);
 			m_threads.erase(tid);
 			PublishThreadSnapshot();
+			if (tid != m_pid && !m_threads.empty())
+				m_groupDyingUntil = std::chrono::steady_clock::now() + std::chrono::seconds(3);
 			result.kind = StopKind::Gone;
 			if (tid == m_pid)
 				ReportExited(status);

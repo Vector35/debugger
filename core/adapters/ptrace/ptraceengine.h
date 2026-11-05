@@ -354,6 +354,12 @@ namespace BinaryNinjaDebugger {
 		void DrainOutput(char* buffer, size_t size);
 
 		bool PollThreads();
+		// After a thread vanishes, the rest of the group may be dying with it (exit_group, SIGKILL). Threads that are
+		// stopped from our point of view, or all of them while nothing runs, are not polled otherwise, so a killed one would never be reaped, and the
+		// leader, which can only be reaped last, would never report the exit.
+		bool PollThreadsForDeath();
+		bool GroupMayBeDying() const;
+		std::chrono::steady_clock::time_point m_groupDyingUntil {};
 		void HandleStatus(pid_t tid, int status);
 		// Consumes a waitpid status, updates thread and breakpoint state, and decides whether to report a stop.
 		ThreadStatusResult ProcessThreadStatus(pid_t tid, int status);

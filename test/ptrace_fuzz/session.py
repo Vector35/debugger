@@ -106,7 +106,16 @@ def check_stopped_invariants(reason):
             try:
                 st = open(f'/proc/{pid}/stat').read().rsplit(')', 1)[1].split()[0]
                 tasks = len(os.listdir(f'/proc/{pid}/task'))
-                info = f'pid {pid} state {st} threads {tasks}'
+                per = []
+                for t in sorted(os.listdir(f'/proc/{pid}/task')):
+                    tst = open(f'/proc/{pid}/task/{t}/stat').read().rsplit(')', 1)[1].split()[0]
+                    tr = [l.split()[1] for l in open(f'/proc/{pid}/task/{t}/status') if l.startswith('TracerPid')][0]
+                    try:
+                        wc = open(f'/proc/{pid}/task/{t}/wchan').read()
+                    except Exception:
+                        wc = '?'
+                    per.append((int(t), tst, 'tracer=' + tr, wc))
+                info = f'pid {pid} state {st} threads {tasks} {per} python_pid {os.getpid()}'
             except Exception as e:
                 info = f'pid {pid} gone ({e.__class__.__name__})'
             finding(f'InternalError after {log[-1]}: target {info}')
