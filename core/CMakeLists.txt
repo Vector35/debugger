@@ -131,19 +131,30 @@ endif()
 message(STATUS "lldb: using install at ${LLDB_PATH}")
 
 if(DEFINED ENV{GDB_PATH})
-	set(GDB_PATH $ENV{GDB_PATH})
+	set(GDB_PATH "$ENV{GDB_PATH}" CACHE PATH "GDB install tree to bundle" FORCE)
 endif()
+if(WIN32)
+	set(GDB_DEFAULT_PATH "$ENV{USERPROFILE}/gdb")
+else()
+	set(GDB_DEFAULT_PATH "$ENV{HOME}/gdb")
+endif()
+if(NOT GDB_PATH AND (EXISTS "${GDB_DEFAULT_PATH}/bin/gdb" OR EXISTS "${GDB_DEFAULT_PATH}/bin/gdb.exe"))
+	set(GDB_PATH "${GDB_DEFAULT_PATH}" CACHE PATH "GDB install tree to bundle" FORCE)
+endif()
+set(GDB_PATH "${GDB_PATH}" CACHE PATH "GDB install tree to bundle (defaults to ~/gdb when installed)")
 
 if(GDB_PATH)
 	if(NOT EXISTS "${GDB_PATH}/bin/gdb" AND NOT EXISTS "${GDB_PATH}/bin/gdb.exe")
 		message(FATAL_ERROR "GDB_PATH does not contain bin/gdb or bin/gdb.exe: ${GDB_PATH}")
 	endif()
 	message(STATUS "gdb: bundling install from ${GDB_PATH}")
-	file(
-		COPY "${GDB_PATH}/"
-		DESTINATION "${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb"
-		USE_SOURCE_PERMISSIONS
+	add_custom_target(bundle_gdb
+		COMMAND ${CMAKE_COMMAND} -E copy_directory
+			"${GDB_PATH}" "${LIBRARY_OUTPUT_DIRECTORY_PATH}/gdb"
+		COMMENT "Copying bundled GDB into the plugin output directory"
+		VERBATIM
 	)
+	add_dependencies(debuggercore bundle_gdb)
 else()
 	message(STATUS "gdb: no bundled install configured")
 endif()
