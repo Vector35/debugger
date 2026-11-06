@@ -21,7 +21,15 @@
 #include <time.h>
 #include <unistd.h>
 
+//   FAULT_ERRNO      with FAULT_NTH, the errno to inject instead of a random one (for example 3 for ESRCH, 5 for EIO)
+//   FAULT_NTH        if set, fail exactly the Nth intercepted call (ptrace, or I/O on /proc/<pid>/mem), once, and nothing
+//                    else; the failure is described on stderr as "FAULT#N ..."
 static uint64_t g_seed = 1;
+static long g_nth = 0;
+static int g_waitKind = 0;  // FAULT_KIND=waitpid: FAULT_NTH counts and fails waitpid/wait4 (EINTR) instead
+static atomic_long g_count = 0;
+#include <stdio.h>
+#include <execinfo.h>
 static int g_permille = 3;
 static uint64_t g_startNs = 0;
 static uint64_t g_afterNs = 0;
@@ -41,6 +49,10 @@ __attribute__((constructor)) static void init(void)
 	if (s) g_seed = strtoull(s, 0, 10);
 	s = getenv("FAULT_PERMILLE");
 	if (s) g_permille = atoi(s);
+	s = getenv("FAULT_NTH");
+	if (s) g_nth = atol(s);
+	s = getenv("FAULT_KIND");
+	if (s && !strcmp(s, "waitpid")) g_waitKind = 1;
 	s = getenv("FAULT_AFTER_MS");
 	if (s) g_afterNs = strtoull(s, 0, 10) * 1000000ull;
 	g_startNs = nowNs();
@@ -56,8 +68,21 @@ static uint64_t rnd(void)
 	return t_state = x;
 }
 
+// For the deterministic mode: true for exactly the Nth call
+static int nthCall(void)
+{
+	return g_nth > 0 && !g_waitKind && atomic_fetch_add(&g_count, 1) + 1 == g_nth;
+}
+
+static int nthWait(void)
+{
+	return g_nth > 0 && g_waitKind && atomic_fetch_add(&g_count, 1) + 1 == g_nth;
+}
+
 static int fail(void)
 {
+	if (g_nth > 0)
+		return 0;
 	if (g_permille <= 0 || nowNs() - g_startNs < g_afterNs)
 		return 0;
 	return (int)(rnd() % 1000) < g_permille;
@@ -110,7 +135,7 @@ static int isMemFd(int fd) { return fd >= 0 && fd < MAXFD && atomic_load(&g_memF
 	{                                                                                                         \
 		static ret_t (*real)(int, constq void*, size_t, off_t);                                               \
 		if (!real) real = dlsym(RTLD_NEXT, #name);                                                            \
-		if (isMemFd(fd) && fail())                                                                            \
+		if (isMemFd(fd) && (nthCall() ? (fprintf(stderr, "FAULT#%ld %s size=%zu\n", g_nth, #name, size), 1) : fail())) \
 		{                                                                                                     \
 			if (size > 1 && (rnd() & 1))                                                                      \
 				return real(fd, buf, size / 2, off); /* cut short */                                          \
@@ -134,10 +159,20 @@ long ptrace(enum __ptrace_request request, ...)
 	void* address = va_arg(args, void*);
 	void* data = va_arg(args, void*);
 	va_end(args);
-	if ((int)request != PTRACE_TRACEME && fail())
+	int injectNth = g_nth > 0 && (int)request != PTRACE_TRACEME && nthCall();
+	if (injectNth)
+	{
+		fprintf(stderr, "FAULT#%ld ptrace request=%d tid=%d\n", g_nth, (int)request, (int)pid);
+		void* frames[24];
+		int depth = backtrace(frames, 24);
+		backtrace_symbols_fd(frames, depth, 2);
+	}
+	if (injectNth || ((int)request != PTRACE_TRACEME && fail()))
 	{
 		static const int errs[] = {EIO, ESRCH, EPERM, EBUSY, EFAULT, EINVAL};
 		errno = errs[rnd() % 6];
+		if (getenv("FAULT_ERRNO"))
+			errno = atoi(getenv("FAULT_ERRNO"));
 		return -1;
 	}
 	return real(request, pid, address, data);
@@ -147,6 +182,15 @@ pid_t waitpid(pid_t pid, int* status, int options)
 {
 	static pid_t (*real)(pid_t, int*, int);
 	if (!real) real = dlsym(RTLD_NEXT, "waitpid");
+	if (nthWait())
+	{
+		fprintf(stderr, "FAULT#%ld waitpid pid=%d\n", g_nth, (int)pid);
+		void* frames[24];
+		int depth = backtrace(frames, 24);
+		backtrace_symbols_fd(frames, depth, 2);
+		errno = EINTR;
+		return -1;
+	}
 	if (fail()) { errno = EINTR; return -1; }
 	return real(pid, status, options);
 }
@@ -155,6 +199,12 @@ pid_t wait4(pid_t pid, int* status, int options, struct rusage* ru)
 {
 	static pid_t (*real)(pid_t, int*, int, struct rusage*);
 	if (!real) real = dlsym(RTLD_NEXT, "wait4");
+	if (nthWait())
+	{
+		fprintf(stderr, "FAULT#%ld wait4 pid=%d\n", g_nth, (int)pid);
+		errno = EINTR;
+		return -1;
+	}
 	if (fail()) { errno = EINTR; return -1; }
 	return real(pid, status, options, ru);
 }

@@ -36,8 +36,18 @@ extern "C" pid_t __wrap_waitpid(pid_t pid, int* status, int options)
 	return __real_waitpid(pid, status, options);
 }
 
+static std::atomic<int> g_resumeErrno {EIO};
 extern "C" void PtraceTestFailNextResume()
 {
+	g_resumeErrno = EIO;
+	g_failResume = true;
+}
+
+// The same, with the error that the kernel gives. ESRCH is the one that a resume of a thread that is gone gets, and it has
+// to be told from a thread that is simply still stopped.
+extern "C" void PtraceTestFailNextResumeWith(int error)
+{
+	g_resumeErrno = error;
 	g_failResume = true;
 }
 
@@ -87,7 +97,7 @@ extern "C" long __wrap_ptrace(enum __ptrace_request request, ...)
 	va_end(args);
 	if ((request == PTRACE_CONT || request == PTRACE_SINGLESTEP) && g_failResume.exchange(false))
 	{
-		errno = EIO;
+		errno = g_resumeErrno;
 		return -1;
 	}
 	if (g_failRequest.load() == (int)request && g_failRequest.exchange(-1) == (int)request)

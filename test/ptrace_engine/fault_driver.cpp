@@ -12,6 +12,7 @@ using namespace BinaryNinjaDebugger;
 using namespace std::chrono_literals;
 
 extern "C" void PtraceTestFailNextResume();
+extern "C" void PtraceTestFailNextResumeWith(int error);
 extern "C" void PtraceTestFailNextPwrite();
 extern "C" void PtraceTestFailNextSetOptions();
 extern "C" void PtraceTestFailNextMemOpen();
@@ -163,6 +164,25 @@ static void ResumeFailureKeepsThreadStopped()
 	CHECK(engine->Resume(true, event.tid));
 	CHECK(log.Wait(PtraceEngine::StoppedEvent, event));
 	CHECK(engine->Kill());
+}
+
+// ESRCH is the answer for a thread that has gone away, and the engine then waits for its status as usual. A thread that is
+// still there and still stopped gets it too when the resume is refused, and that is not a resume: counting it as one left
+// a target that runs nothing and never reports a stop.
+static void ResumeRefusedWithEsrchOfStoppedThread()
+{
+	printf("[resume_esrch_of_stopped_thread]\n");
+	Log log;
+	auto engine = Start(log, "hello");
+	if (!engine)
+		return;
+	PtraceEngine::Event event;
+	CHECK(log.Wait(PtraceEngine::StoppedEvent, event));
+	PtraceTestFailNextResumeWith(ESRCH);
+	CHECK(!engine->Resume(false, 0));
+	CHECK(!engine->IsRunning());
+	CHECK(engine->Resume(false, 0));
+	CHECK(log.Wait(PtraceEngine::ExitedEvent, event));
 }
 
 static void FailedRestorePreventsDetach()
@@ -621,7 +641,7 @@ static void PcRewindFailureIsSaid()
 int main(int argc, char** argv)
 {
 	struct { const char* name; void (*run)(); } tests[] = {
-		{"resume_failure_state", ResumeFailureKeepsThreadStopped}, {"breakpoint_cleanup_failure", FailedRestorePreventsDetach},
+		{"resume_failure_state", ResumeFailureKeepsThreadStopped}, {"resume_esrch_of_stopped_thread", ResumeRefusedWithEsrchOfStoppedThread}, {"breakpoint_cleanup_failure", FailedRestorePreventsDetach},
 		{"setoptions_failure", SetOptionsFailureRejectsLaunch}, {"memory_open_failure", MemoryOpenFailureRejectsLaunch},
 		{"stopall_timeout", StopAllGivesUp}, {"kill_timeout", KillGivesUp}, {"detach_timeout", DetachGivesUp},
 		{"launch_timeout", LaunchGivesUp}, {"attach_timeout", AttachGivesUp},

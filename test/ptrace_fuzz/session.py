@@ -120,6 +120,10 @@ if use_pauser:
 
 def check_stopped_invariants(reason):
     global alive
+    if reason == DebugStopReason.InternalError and dbg.active_pid and not process_gone(dbg.active_pid):
+        # A resume that failed (an injected failure, for one) leaves the target where it was: alive, stopped, attached.
+        # It is not gone, and the session goes on with it.
+        return
     if reason in (DebugStopReason.ProcessExited, DebugStopReason.InternalError):
         alive = False
         if reason == DebugStopReason.InternalError:
@@ -144,13 +148,6 @@ def check_stopped_invariants(reason):
     if reason in (DebugStopReason.TimedOut, DebugStopReason.InvalidStatusOrOperation):
         return
     pid = dbg.active_pid
-    def process_gone(p):
-        # A leader that exited while other threads still run is a zombie of a living process
-        try:
-            return all(open(f'/proc/{p}/task/{t}/stat').read().rsplit(')', 1)[1].split()[0] in 'ZX'
-                       for t in os.listdir(f'/proc/{p}/task'))
-        except OSError:
-            return True
     if not pid or process_gone(pid):
         # The target died around the stop. The exit is reported asynchronously, so give it time to arrive; what
         # matters is that the controller ends up knowing.
@@ -378,9 +375,11 @@ def op_detach():
         return
     pid = dbg.active_pid
     dbg.detach_and_wait(timeout=TIMEOUT_MS)
+    time.sleep(0.1)
+    if dbg.connected and not process_gone(pid):
+        return  # the detach failed (an injected failure, for one), and the target is still attached
     if pid:
         detached_pids.add(pid)
-    time.sleep(0.1)
     alive = False
 
 
@@ -511,8 +510,8 @@ try:
                     and not dumped[0]):
                 # A step or a pause that times out means the controller's worker is stuck behind something
                 dumped[0] = True
-                subprocess.run(['gdb', '-p', str(os.getpid()), '-batch', '-ex', 'thread apply all bt 30'],
-                               stdout=open(f'/tmp/wedge-{os.getpid()}.txt', 'w'), stderr=subprocess.DEVNULL, timeout=120)
+                subprocess.run(['gdb', '-p', str(os.getpid()), '-batch', '-x', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gdb_controller.py'), '-ex', 'thread apply all bt 30'],
+                               stdout=open(f'/tmp/wedge-{os.getpid()}.txt', 'w'), stderr=subprocess.DEVNULL, timeout=120, env={k: v for k, v in os.environ.items() if k != 'LD_PRELOAD'})
                 finding(f'worker wedged: {op.__name__} timed out; native stacks in /tmp/wedge-{os.getpid()}.txt; recent ops {log[-8:]}')
             if op is op_pause or op is op_restart or True:
                 check_stopped_invariants(r)
@@ -549,8 +548,8 @@ try:
             except Exception as e:
                 det.append((pid, st, repr(e)))
         if os.environ.get('FUZZ_GDB'):
-            subprocess.run(['gdb', '-p', str(os.getpid()), '-batch', '-ex', 'thread apply all bt 30'],
-                           stdout=open(f'/tmp/leak-{os.getpid()}.txt', 'w'), stderr=subprocess.DEVNULL, timeout=120)
+            subprocess.run(['gdb', '-p', str(os.getpid()), '-batch', '-x', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gdb_controller.py'), '-ex', 'thread apply all bt 30'],
+                           stdout=open(f'/tmp/leak-{os.getpid()}.txt', 'w'), stderr=subprocess.DEVNULL, timeout=120, env={k: v for k, v in os.environ.items() if k != 'LD_PRELOAD'})
             det.append(f'stacks in /tmp/leak-{os.getpid()}.txt')
         finding(f'leaked live child processes after quit: {det}')
     # zombies of ours are reported but only as notes

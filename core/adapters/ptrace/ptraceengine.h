@@ -364,6 +364,8 @@ namespace BinaryNinjaDebugger {
 		// Consumes a waitpid status, updates thread and breakpoint state, and decides whether to report a stop.
 		ThreadStatusResult ProcessThreadStatus(pid_t tid, int status);
 		bool ResumeThread(pid_t tid);
+		// The state letter of a task in /proc, or 0 if there is no such task
+		char TaskState(pid_t tid) const;
 		bool SendStop(pid_t tid = 0);
 		bool HasSignalHandler(int signal);
 		bool ProcessTrap(pid_t tid, ThreadInfo& info, ThreadStatusResult& result);
@@ -415,6 +417,9 @@ namespace BinaryNinjaDebugger {
 		pid_t ThreadGroupOf(pid_t tid);
 		// Finalizes the debugger state and emits the stopped event after StopAll has collected the other threads.
 		void ReportStopped(pid_t tid, const ThreadStatusResult& stop);
+		// The engine resumed on its own, after an internal stop or at the end of a step over, and the kernel refused.
+		// Nothing is running then, and nothing would ever say so, so the target is reported as stopped, with an error.
+		void ReportResumeFailure(pid_t tid, const char* what);
 		void ReportExited(int status);
 
 		bool DoResume(bool step, pid_t tid, SyscallMode mode = SyscallMode::None);

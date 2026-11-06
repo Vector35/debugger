@@ -1786,6 +1786,20 @@ namespace BinaryNinjaDebugger {
 	}
 
 
+	char PtraceEngine::TaskState(pid_t tid) const
+	{
+		std::ifstream stat("/proc/" + std::to_string(m_pid) + "/task/" + std::to_string(tid) + "/stat");
+		std::string line;
+		if (!std::getline(stat, line))
+			return 0;
+		// The state follows the command name, which is in parentheses and may contain anything
+		auto close = line.rfind(')');
+		if (close == std::string::npos || close + 2 >= line.size())
+			return 0;
+		return line[close + 2];
+	}
+
+
 	bool PtraceEngine::ResumeThread(pid_t tid)
 	{
 		auto& info = m_threads[tid];
@@ -1811,8 +1825,17 @@ namespace BinaryNinjaDebugger {
 			request = PTRACE_SYSCALL;
 		else if (m_syscallMode == SyscallMode::Emulate)
 			request = PTRACE_SYSEMU;
-		if (ptrace((__ptrace_request)request, tid, nullptr, (void*)(intptr_t)signal) != 0 && errno != ESRCH)
-			return false;
+		if (ptrace((__ptrace_request)request, tid, nullptr, (void*)(intptr_t)signal) != 0)
+		{
+			if (errno != ESRCH)
+				return false;
+			// ESRCH is what a thread that has just gone away answers, and its status is then waited for as usual. But it
+			// is also the answer for a thread that is not in a ptrace stop, and a task that is there and still stopped was
+			// not resumed. Counting that as resumed leaves a target that runs nothing and never says so.
+			char state = TaskState(tid);
+			if (state == 't' || state == 'T')
+				return false;
+		}
 
 		// Only commit the transition after the kernel accepted it. Otherwise a stopped thread would disappear from
 		// future resume attempts, and a pending signal could be lost.
@@ -2176,7 +2199,8 @@ namespace BinaryNinjaDebugger {
 			if (steppingOver && !m_done)
 			{
 				m_stepOverTid = -1;
-				StartNextStepOver();
+				if (!StartNextStepOver())
+					ReportResumeFailure(tid, "after the thread that was stepped over went away");
 			}
 			break;
 		case StopKind::Internal:
@@ -2184,7 +2208,10 @@ namespace BinaryNinjaDebugger {
 			auto it = m_threads.find(tid);
 			if (it != m_threads.end() && it->second.stopped
 				&& ((m_continueMode && m_stepOverTid < 0) || it->second.stepping))
-				ResumeThread(tid);
+			{
+				if (!ResumeThread(tid))
+					ReportResumeFailure(tid, "after an internal stop");
+			}
 			break;
 		}
 		case StopKind::Report:
@@ -2192,7 +2219,8 @@ namespace BinaryNinjaDebugger {
 			{
 				m_threads[tid].stepping = false;
 				m_stepOverTid = -1;
-				StartNextStepOver();
+				if (!StartNextStepOver())
+					ReportResumeFailure(tid, "after a thread stepped over a breakpoint");
 				break;
 			}
 			if (steppingOver)
@@ -2260,6 +2288,31 @@ namespace BinaryNinjaDebugger {
 				status = 0;
 			ProcessThreadStatus(next, status);
 		}
+	}
+
+
+	void PtraceEngine::ReportResumeFailure(pid_t tid, const char* what)
+	{
+		if (m_done)
+			return;
+		// A thread that is not running and can be resumed means that nothing was left to run (every other thread is gone,
+		// and the exit is on its way), which is not a failure
+		bool stoppedThread = false;
+		for (const auto& [id, info] : m_threads)
+			stoppedThread |= info.stopped;
+		if (!stoppedThread)
+			return;
+
+		QueueError(fmt::format("thread {} could not be resumed {}, so the target is left stopped", tid, what));
+		m_stepOverTid = -1;
+		m_stepOverQueue.clear();
+		StopAll();
+		if (m_done)
+			return;
+		ThreadStatusResult stop;
+		stop.kind = StopKind::Report;
+		stop.tid = tid;
+		ReportStopped(tid, stop);
 	}
 
 
