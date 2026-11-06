@@ -1,0 +1,175 @@
+#include <atomic>
+#include <cerrno>
+#include <cstdarg>
+#include <cstring>
+#include <fcntl.h>
+#include <sys/ptrace.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+static std::atomic<bool> g_failResume {false};
+static std::atomic<bool> g_failPwrite {false};
+static std::atomic<bool> g_failSetOptions {false};
+static std::atomic<bool> g_failMemOpen {false};
+// The statuses of this task are not given to waitpid: 0 lets them all through, and -1 hides every task's
+static std::atomic<pid_t> g_hiddenTid {0};
+
+extern "C" void PtraceTestHideWaitpid(pid_t tid)
+{
+	g_hiddenTid = tid;
+}
+
+extern "C" pid_t __real_waitpid(pid_t pid, int* status, int options);
+extern "C" pid_t __wrap_waitpid(pid_t pid, int* status, int options)
+{
+	pid_t hidden = g_hiddenTid;
+	if (hidden != 0 && (hidden == -1 || hidden == pid))
+	{
+		// It looks like a thread that has nothing to report. A wait that does not have a deadline hangs like one that never
+		// stops, until the task is let through again.
+		if (options & WNOHANG)
+			return 0;
+		while (g_hiddenTid == hidden)
+			usleep(10000);
+	}
+	return __real_waitpid(pid, status, options);
+}
+
+static std::atomic<int> g_resumeErrno {EIO};
+extern "C" void PtraceTestFailNextResume()
+{
+	g_resumeErrno = EIO;
+	g_failResume = true;
+}
+
+// The same, with the error that the kernel gives. ESRCH is the one that a resume of a thread that is gone gets, and it has
+// to be told from a thread that is simply still stopped.
+extern "C" void PtraceTestFailNextResumeWith(int error)
+{
+	g_resumeErrno = error;
+	g_failResume = true;
+}
+
+static std::atomic<int> g_pwriteSkip {0};
+static std::atomic<size_t> g_partialPwrite {0};
+extern "C" void PtraceTestPartialPwrite(size_t bytes) { g_partialPwrite = bytes; }
+// -1 is none, because PTRACE_TRACEME is 0
+static std::atomic<int> g_failRequest {-1};
+
+extern "C" void PtraceTestFailNextPwrite()
+{
+	g_pwriteSkip = 0;
+	g_failPwrite = true;
+}
+
+// The write after this many have gone through fails
+extern "C" void PtraceTestFailPwriteAfter(int writes)
+{
+	g_pwriteSkip = writes;
+	g_failPwrite = true;
+}
+
+// The next ptrace call of this request fails
+static std::atomic<int> g_failRequestLeft {0};
+
+extern "C" void PtraceTestFailNextRequest(int request)
+{
+	g_failRequestLeft = 1;
+	g_failRequest = request;
+}
+
+// The next `times` calls of this request fail
+extern "C" void PtraceTestFailRequestTimes(int request, int times)
+{
+	g_failRequestLeft = times;
+	g_failRequest = request;
+}
+
+extern "C" void PtraceTestFailNextSetOptions()
+{
+	g_failSetOptions = true;
+}
+
+extern "C" void PtraceTestFailNextMemOpen()
+{
+	g_failMemOpen = true;
+}
+
+extern "C" long __real_ptrace(enum __ptrace_request request, ...);
+extern "C" long __wrap_ptrace(enum __ptrace_request request, ...)
+{
+	va_list args;
+	va_start(args, request);
+	pid_t pid = va_arg(args, pid_t);
+	void* address = va_arg(args, void*);
+	void* data = va_arg(args, void*);
+	va_end(args);
+	if ((request == PTRACE_CONT || request == PTRACE_SINGLESTEP) && g_failResume.exchange(false))
+	{
+		errno = g_resumeErrno;
+		return -1;
+	}
+	if (g_failRequest.load() == (int)request)
+	{
+		if (g_failRequestLeft.fetch_sub(1) > 0)
+		{
+			errno = EIO;
+			return -1;
+		}
+		g_failRequest = -1;
+	}
+	if (request == PTRACE_SETOPTIONS && g_failSetOptions.exchange(false))
+	{
+		errno = EIO;
+		return -1;
+	}
+	return __real_ptrace(request, pid, address, data);
+}
+
+extern "C" ssize_t __real_pwrite(int fd, const void* buffer, size_t size, off_t offset);
+extern "C" ssize_t __wrap_pwrite(int fd, const void* buffer, size_t size, off_t offset)
+{
+	if (size_t prefix = g_partialPwrite.exchange(0))
+	{
+		auto count = __real_pwrite(fd, buffer, size < prefix ? size : prefix, offset);
+		if (count > 0)
+		{
+			g_pwriteSkip = 0;
+			g_failPwrite = true;
+		}
+		return count;
+	}
+	if (g_failPwrite.load())
+	{
+		if (g_pwriteSkip.load() > 0)
+			g_pwriteSkip--;
+		else if (g_failPwrite.exchange(false))
+		{
+			errno = EIO;
+			return -1;
+		}
+	}
+	return __real_pwrite(fd, buffer, size, offset);
+}
+
+extern "C" int __real_open(const char* path, int flags, ...);
+extern "C" int __wrap_open(const char* path, int flags, ...)
+{
+	mode_t mode = 0;
+	if (flags & O_CREAT)
+	{
+		va_list args;
+		va_start(args, flags);
+		mode = va_arg(args, mode_t);
+		va_end(args);
+	}
+	if (g_failMemOpen && path && !strncmp(path, "/proc/", 6)
+		&& strlen(path) >= 4 && !strcmp(path + strlen(path) - 4, "/mem"))
+	{
+		g_failMemOpen = false;
+		errno = EACCES;
+		return -1;
+	}
+	return __real_open(path, flags, mode);
+}

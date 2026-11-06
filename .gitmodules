@@ -1,3 +1,6 @@
 [submodule "vendor/flatbuffers"]
 	path = vendor/flatbuffers
 	url = https://github.com/google/flatbuffers.git
+[submodule "vendor/elfio"]
+	path = vendor/elfio
+	url = https://github.com/serge1/ELFIO.git

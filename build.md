@@ -22,9 +22,10 @@ git checkout dev
 
 - Build the debugger
 
-  FlatBuffers (needed for `X2WinRpcAdapter`'s wire protocol) is vendored as a git submodule
-  under `vendor/` and built as part of this project's own CMake configure/build -- no separate
-  install step needed, just make sure submodules are cloned (`--recurse-submodules` below, or
+  FlatBuffers (needed for `X2WinRpcAdapter`'s wire protocol) and ELFIO (used by the Linux
+  ptrace adapter) are Git submodules under `vendor/`. FlatBuffers is built as part of
+  this project's CMake build; ELFIO is header-only and adds no separate runtime library.
+  Make sure submodules are cloned (`--recurse-submodules` below, or
   `git submodule update --init --recursive` after the fact).
 
 ```bash

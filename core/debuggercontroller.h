@@ -98,6 +98,7 @@ namespace BinaryNinjaDebugger {
 		// out from under them. See the "Refcount the DebugAdapter" follow-up issue
 		// for the structural fix that would make this guarantee enforced by the type.
 		DebugAdapter* m_adapter;
+		std::atomic<bool> m_waitForEventCallbacks {true};
 		DebuggerState* m_state;
 		FileMetadataRef m_file;
 		BinaryViewRef m_data;
@@ -136,12 +137,12 @@ namespace BinaryNinjaDebugger {
 		std::mutex m_callbackMutex;
 		std::set<size_t> m_disabledCallbacks;
 
-		uint64_t m_lastIP = 0;
-		uint64_t m_currentIP = 0;
+		std::atomic<uint64_t> m_lastIP {0};
+		std::atomic<uint64_t> m_currentIP {0};
 
 		// This is only meaningful after the target exits. In the future, we should enforce a check for the target
 		// status before returning the value
-		uint32_t m_exitCode = 0;
+		std::atomic<uint32_t> m_exitCode {0};
 
 		DebugAdapterOperation m_lastOperation = DebugAdapterGo;
 
@@ -167,8 +168,12 @@ namespace BinaryNinjaDebugger {
 		// (if any) gets interrupted and the queued task can proceed.
 		void RequestInterrupt();
 
-		bool m_inputFileLoaded = false;
-		bool m_initialBreakpointSeen = false;
+		std::atomic<bool> m_inputFileLoaded {false};
+		std::atomic<bool> m_initialBreakpointSeen {false};
+		// Set when the target is gone (exit, detach, failed launch) and cleared when the next session starts. An adapter
+		// announces a resume after it has asked its backend to resume, so a target that exits at once can have its exit
+		// processed first. That late announcement must not make the controller believe it is connected and running.
+		std::atomic<bool> m_targetGone {false};
 
 		bool m_firstLaunch = true;
 		bool m_firstConnect = true;
@@ -307,7 +312,8 @@ namespace BinaryNinjaDebugger {
 		std::mutex m_eventsMutex;
 		std::condition_variable m_cv;
 		std::queue<std::shared_ptr<PendingEvent>> m_eventQueue;
-		std::thread::id m_dispatcherThreadId;
+		// Written once by the dispatcher thread when it starts, and read by every API thread
+		std::atomic<std::thread::id> m_dispatcherThreadId;
 		std::atomic_bool m_shouldExit;
 		std::thread m_debuggerEventThread;
 		void DebuggerMainThread();
@@ -334,6 +340,14 @@ namespace BinaryNinjaDebugger {
 		// caller's thread either (the UI thread must not block on an adapter call). This
 		// thread is the third option: owned and joined like m_workerThread, so it can never
 		// outlive the controller or touch a destroyed adapter.
+		// Quit, Restart and Detach interrupt only the operation that is running now. Resume operations
+		// queued before them would run first and resume the target again, leaving the teardown stuck
+		// behind a target that never stops. Every teardown request starts a new generation, and a resume
+		// operation queued in an older generation is dropped when the worker reaches it.
+		std::atomic<uint64_t> m_teardownGeneration {0};
+		uint64_t m_currentTaskGeneration = 0;  // Worker thread only: generation of the task being run
+		void BeginTeardown();
+
 		std::thread m_interruptThread;
 		std::mutex m_interruptMutex;
 		std::condition_variable m_interruptCv;
@@ -359,7 +373,12 @@ namespace BinaryNinjaDebugger {
 				std::lock_guard<std::mutex> lock(m_workQueueMutex);
 				if (m_workerShouldExit)
 					return future;  // future is left unset; caller's get() will throw broken_promise
-				m_workQueue.push([task]() { (*task)(); });
+				// Remember which teardown generation this task was queued in (see BeginTeardown).
+				const uint64_t generation = m_teardownGeneration.load();
+				m_workQueue.push([this, task, generation]() {
+					m_currentTaskGeneration = generation;
+					(*task)();
+				});
 			}
 			m_workQueueCv.notify_one();
 			return future;
@@ -550,7 +569,7 @@ namespace BinaryNinjaDebugger {
 		void NotifyStopped(DebugStopReason reason, void* data = nullptr);
 		void NotifyError(const std::string& error, const std::string& shortError, void* data = nullptr);
 		void NotifyEvent(DebuggerEventType event);
-		void PostDebuggerEvent(const DebuggerEvent& event);
+		void PostDebuggerEvent(const DebuggerEvent& event, bool waitForCallbacks = true);
 		void CleanUpDisabledEvent();
 
 		// shortcut for instruction pointer
